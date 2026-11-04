@@ -117,6 +117,9 @@ typedef struct SSyncSnapshotReceiver {
 } SSyncSnapshotReceiver;
 
 int32_t snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId, SSyncSnapshotReceiver **ppReceiver);
+
+// validates the outer TLV header of a TDMT_SYNC_PREP_SNAPSHOT payload against its actual size
+int32_t syncSnapCheckPrepData(const void *data, uint32_t dataLen);
 void    snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver);
 void    snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver, SyncSnapshotSend *pBeginMsg);
 void    snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);

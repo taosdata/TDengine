@@ -294,6 +294,30 @@ IF(NOT TD_WINDOWS)
     )
 ENDIF()
 
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(tsdbSecurityHardeningTest tsdbSecurityHardeningTest.cpp)
+    DEP_ext_gtest(tsdbSecurityHardeningTest)
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # the test pulls in tsdb-internal C headers, same as the sibling tsdb*Test targets above
+        target_compile_options(tsdbSecurityHardeningTest PRIVATE -fpermissive -Wno-error)
+    endif()
+    TARGET_LINK_LIBRARIES(
+             tsdbSecurityHardeningTest
+             PUBLIC os util common vnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             tsdbSecurityHardeningTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME tsdb_security_hardening_test
+            COMMAND tsdbSecurityHardeningTest
+    )
+ENDIF()
+
 # ADD_EXECUTABLE(tsdbRepairTest tsdbRepairTest.cpp)
 # DEP_ext_gtest(tsdbRepairTest)
 # TARGET_LINK_LIBRARIES(
@@ -308,3 +332,24 @@ ENDIF()
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/tsdb"
 #          PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 # )
+
+# vnodeSecurityTest: input validation of wire-supplied data (alter-replica counts,
+# sync config node arrays, blob submit descriptors). Drives the real code, no --wrap.
+IF(NOT TD_WINDOWS)
+    ADD_EXECUTABLE(vnodeSecurityTest vnodeSecurityTest.cpp)
+    DEP_ext_gtest(vnodeSecurityTest)
+    TARGET_LINK_LIBRARIES(
+             vnodeSecurityTest
+             PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+    )
+    TARGET_INCLUDE_DIRECTORIES(
+             vnodeSecurityTest
+             PUBLIC "${TD_SOURCE_DIR}/include/common"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+             PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+    )
+    add_test(
+            NAME vnodeSecurityTest
+            COMMAND vnodeSecurityTest
+    )
+ENDIF()

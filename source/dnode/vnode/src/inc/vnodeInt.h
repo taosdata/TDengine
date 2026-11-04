@@ -149,6 +149,8 @@ void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
 void  vnodeBufPoolRef(SVBufPool* pPool);
 void  vnodeBufPoolUnRef(SVBufPool* pPool, bool proactive);
 int   vnodeDecodeInfo(uint8_t* pData, SVnodeInfo* pInfo);
+int32_t vnodeCheckBlobSeqSlot(int64_t dataLen, uint64_t dataOffset);
+int32_t vnodeRefillMsgBody(SRpcMsg* pMsg, const void* pBody, int32_t bodyLen);
 
 void vnodeBufPoolRegisterQuery(SVBufPool* pPool, SQueryNode* pQNode);
 void vnodeBufPoolDeregisterQuery(SVBufPool* pPool, SQueryNode* pQNode, bool proactive);

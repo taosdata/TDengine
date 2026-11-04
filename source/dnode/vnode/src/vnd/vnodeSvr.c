@@ -112,6 +112,12 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  // uid and btime are patched in place right after the name; make sure both fit
+  if (pCoder->pos > pCoder->size || pCoder->size - pCoder->pos < 2 * sizeof(int64_t)) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   // uid
   int64_t uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
   if (uid == 0) {
@@ -302,6 +308,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (submitTbData.flags & SUBMIT_REQ_AUTO_CREATE_TABLE) {
+    if (pCoder->pos > pCoder->size || pCoder->size - pCoder->pos < sizeof(int64_t)) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), uid);
     pCoder->pos += sizeof(int64_t);
   } else {
@@ -371,7 +381,16 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
     }
 
     for (uint32_t iRow = 0; iRow < nRow; ++iRow) {
+      // the SRow header and the whole row must lie inside the remaining payload
+      if (pCoder->pos > pCoder->size || pCoder->size - pCoder->pos < sizeof(SRow)) {
+        code = TSDB_CODE_INVALID_MSG;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
       SRow *pRow = (SRow *)(pCoder->data + pCoder->pos);
+      if (pRow->len < sizeof(SRow) || pRow->len > pCoder->size - pCoder->pos) {
+        code = TSDB_CODE_INVALID_MSG;
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
       pCoder->pos += pRow->len;
 #ifndef NO_UNALIGNED_ACCESS
       if (pRow->ts < minKey || pRow->ts > maxKey) {
@@ -394,6 +413,10 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
   }
 
   if (!tDecodeIsEnd(pCoder)) {
+    if (pCoder->pos > pCoder->size || pCoder->size - pCoder->pos < sizeof(int64_t)) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     taosSetInt64Aligned((int64_t *)(pCoder->data + pCoder->pos), ctimeMs);
     pCoder->pos += sizeof(int64_t);
   }
@@ -416,6 +439,11 @@ static int32_t vnodePreProcessSubmitMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   SDecoder *pCoder = &(SDecoder){0};
+
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SSubmitReq2Msg)) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (taosHton64(((SSubmitReq2Msg *)pMsg->pCont)->version) != 1) {
     code = TSDB_CODE_INVALID_MSG;
@@ -646,6 +674,33 @@ static int32_t vnodePreProcessArbCheckSyncMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+// Replace the body that follows the SMsgHead of pMsg with pBody. The rebuilt body may be larger than the received
+// one (e.g. optional trailing fields are always re-encoded while older senders omit them), so a bigger buffer is
+// swapped in when needed instead of writing past the RPC buffer. pBody must not point into pMsg->pCont, and any
+// pointer into the old pMsg->pCont is invalid once this returns.
+int32_t vnodeRefillMsgBody(SRpcMsg *pMsg, const void *pBody, int32_t bodyLen) {
+  if (pMsg == NULL || pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SMsgHead) || bodyLen < 0 ||
+      (pBody == NULL && bodyLen > 0) || bodyLen > INT32_MAX - (int32_t)sizeof(SMsgHead)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t newContLen = (int32_t)sizeof(SMsgHead) + bodyLen;
+  if (newContLen > pMsg->contLen) {
+    void *pNewCont = rpcMallocCont(newContLen);
+    if (pNewCont == NULL) {
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (void)memcpy(pNewCont, pMsg->pCont, sizeof(SMsgHead));
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = pNewCont;
+  }
+  pMsg->contLen = newContLen;
+  if (bodyLen > 0) {
+    (void)memcpy(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pBody, bodyLen);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
@@ -654,9 +709,15 @@ int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   SEncoder         ec = {0};
   SVDropTbBatchReq receivedBatchReqs = {0};
   SVDropTbBatchReq sentBatchReqs = {0};
+  uint8_t         *pBuf = NULL;
 
   if (pVnode->config.isAudit) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+
+  if (pMsg->pCont == NULL || pMsg->contLen < (int32_t)sizeof(SMsgHead)) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   tDecoderInit(&dc, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead));
@@ -689,7 +750,13 @@ int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   sentBatchReqs.nReqs = sentBatchReqs.pArray->size;
 
   tEncodeSize(tEncodeSVDropTbBatchReq, &sentBatchReqs, size, code);
-  tEncoderInit(&ec, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), size);
+  // Encode into a scratch buffer first: decoded names alias the original buffer.
+  pBuf = taosMemoryMalloc(size > 0 ? size : 1);
+  if (pBuf == NULL) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  tEncoderInit(&ec, pBuf, size);
   code = tEncodeSVDropTbBatchReq(&ec, &sentBatchReqs);
   tEncoderClear(&ec);
   if (code != TSDB_CODE_SUCCESS) {
@@ -697,7 +764,11 @@ int32_t vnodePreProcessDropTbMsg(SVnode *pVnode, SRpcMsg *pMsg) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = vnodeRefillMsgBody(pMsg, pBuf, size);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
 _exit:
+  taosMemoryFree(pBuf);
   tDecoderClear(&dc);
   if (sentBatchReqs.pArray) {
     taosArrayDestroy(sentBatchReqs.pArray);
@@ -866,6 +937,16 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   return code;
 }
 
+// Validates that the 8-byte blob sequence slot written back at dataOffset lies
+// inside the row's value area (rowDataLen bytes starting at row->data).
+int32_t vnodeCheckBlobSeqSlot(int64_t dataLen, uint64_t dataOffset) {
+  if (dataLen < (int64_t)BSE_SEQUECE_SIZE || dataOffset > (uint64_t)dataLen - BSE_SEQUECE_SIZE) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// The offset/len of every blob value were checked against the payload when the blob set was decoded (tDecodeBlobSet).
 static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *pSubmitTbData) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -875,6 +956,7 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t   sz = taosArrayGetSize(pBlobSet->pSeqTable);
 
   SBseBatch *pBatch = NULL;
+  bool       batchHandedOff = false;
 
   code = bseBatchInit(pVnode->pBse, &pBatch, sz);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -889,15 +971,18 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
       continue;
     }
 
-    code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
-    TSDB_CHECK_CODE(code, lino, _exit);
-
     SRow *row = taosArrayGetP(pSubmitTbData->aRowP, i);
     if (row == NULL) {
       int32_t tlen = taosArrayGetSize(pBlobSet->pSeqTable);
-      uTrace("blob invalid row index:%d, sz:%d, pBlobSet size:%d", rowIdx, sz, tlen);
-      break;
+      vError("vgId:%d, blob invalid row index:%d, sz:%d, pBlobSet size:%d", TD_VID(pVnode), rowIdx, sz, tlen);
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
+    code = vnodeCheckBlobSeqSlot((int64_t)row->len - (int64_t)sizeof(SRow), p->dataOffset);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     if (tPutU64(row->data + p->dataOffset, seq) < 0) {
       code = TSDB_CODE_INVALID_MSG;
@@ -905,6 +990,7 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
     }
   }
 
+  batchHandedOff = true;  // set before the call on purpose: bseCommitBatch owns pBatch from here and may recycle it
   code = bseCommitBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -915,6 +1001,10 @@ static int32_t inline vnodeSubmitSubRowBlobData(SVnode *pVnode, SSubmitTbData *p
   }
 _exit:
   if (code != 0) {
+    // an uncommitted batch stays queued and would block every later blob batch of this vnode
+    if (pBatch != NULL && !batchHandedOff) {
+      (void)bseRecycleBatch(pVnode->pBse, pBatch);
+    }
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
@@ -931,6 +1021,7 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
   int32_t   sz = taosArrayGetSize(pBlobSet->pSeqTable);
 
   SBseBatch *pBatch = NULL;
+  bool       batchHandedOff = false;
 
   code = bseBatchInit(pVnode->pBse, &pBatch, sz);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -957,6 +1048,9 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
       // skip empty or null blob
       continue;
     }
+    code = vnodeCheckBlobSeqSlot(pBlobCol->nData, (uint64_t)offset);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
     code = bseBatchPut(pBatch, &seq, pBlobSet->data + p->offset, p->len);
     TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -964,6 +1058,7 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
     offset += BSE_SEQUECE_SIZE;
   }
 
+  batchHandedOff = true;  // set before the call on purpose: bseCommitBatch owns pBatch from here and may recycle it
   code = bseCommitBatch(pVnode->pBse, pBatch);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -974,6 +1069,10 @@ static int32_t inline vnodeSubmitSubColBlobData(SVnode *pVnode, SSubmitTbData *p
   }
 _exit:
   if (code != 0) {
+    // an uncommitted batch stays queued and would block every later blob batch of this vnode
+    if (pBatch != NULL && !batchHandedOff) {
+      (void)bseRecycleBatch(pVnode->pBse, pBatch);
+    }
     vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   }
   return code;
@@ -3594,7 +3693,8 @@ static int32_t vnodeScanColumnData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY
   return code;
 }
 
-static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TSKEY minKey, TSKEY maxKey) {
+static int32_t vnodeScanSubmitRowDataImpl(SVnode *pVnode, SSubmitTbData *pTbData, STSchema *pTSchema, TSKEY minKey,
+                                          TSKEY maxKey) {
   int32_t code = 0;
 
   int32_t numRows = taosArrayGetSize(pTbData->aRowP);
@@ -3611,19 +3711,19 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
   SRowKey  lastKey = {0};
   for (int32_t i = 0; i < numRows; ++i) {
     SRow *pRow = aRow[i];
+    if (pTSchema != NULL && pTSchema->version == pRow->sver) {
+      code = tRowValidate(pRow, pTSchema, pTbData->pBlobSet != NULL);
+      if (code) {
+        vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] is malformed", TD_VID(pVnode),
+               __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i);
+        return code;
+      }
+    }
     if (pRow->sver != pTbData->sver) {
       code = TSDB_CODE_INVALID_MSG;
       vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] sver:%d pTbData->sver:%d",
              TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i, pRow->sver,
              pTbData->sver);
-      return code;
-    }
-
-    if (!tRowPrimaryKeyValid(pRow)) {
-      code = TSDB_CODE_INVALID_MSG;
-      vError("vgId:%d, %s failed at %s:%d since %s, version:%d uid:%" PRId64 " row[%d] invalid primary key, numOfPKs:%d",
-             TD_VID(pVnode), __func__, __FILE__, __LINE__, tstrerror(code), pTbData->sver, pTbData->uid, i,
-             pRow->numOfPKs);
       return code;
     }
 
@@ -3655,6 +3755,92 @@ static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, TS
   return code;
 }
 
+// Current schema of a table (of the super table for child tables), used to validate the rows of a submit request.
+// Most tables of one request share the same super table, so the last resolved schema (or the failure to resolve it)
+// is reused instead of hitting meta per table.
+typedef struct {
+  bool      valid;
+  tb_uid_t  key;     // suid for child tables, uid otherwise
+  bool      exists;  // key has a meta entry
+  int32_t   skmVer;  // its current schema version
+  STSchema *pTSchema;  // schema of skmVer, fetched on first use
+} SSubmitSchemaCache;
+
+static void vnodeSubmitSchemaCacheClear(SSubmitSchemaCache *pCache) {
+  taosMemoryFreeClear(pCache->pTSchema);
+  pCache->valid = false;
+}
+
+// Rows are validated only against the schema version the write path accepts: the current one of an existing table, or
+// the one in the create request of a normal table that does not exist yet. A table that exists ignores its create
+// request (a stream writing into a pre-created table sends one with its own column list and version 1). Otherwise
+// *ppTSchema is left NULL and the rows are not validated here, on purpose: vnodeHandleDataWrite rejects every such
+// request before tsdbInsertTableData reads a row field, with the codes the clients act on - TSDB_CODE_TDB_TABLE_NOT_EXIST
+// (drop the cached table meta and retry) and TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER (refresh it and retry) - or
+// TSDB_CODE_INVALID_MSG when suid or the row sver contradict the request. Rows of a stale sver may well not fit the
+// schema of that old version either (they can carry columns added later), so validating them, or failing here with
+// TSDB_CODE_INVALID_MSG, would turn those two retryable cases into hard errors.
+static int32_t vnodeGetSubmitSchema(SVnode *pVnode, SSubmitTbData *pTbData, SSubmitSchemaCache *pCache,
+                                    STSchema **ppTSchema) {
+  *ppTSchema = NULL;
+  if (taosArrayGetSize(pTbData->aRowP) <= 0) return 0;
+
+  tb_uid_t key = pTbData->suid != 0 ? pTbData->suid : pTbData->uid;
+  if (!pCache->valid || pCache->key != key) {
+    vnodeSubmitSchemaCacheClear(pCache);
+    SMetaInfo info = {0};
+    pCache->exists = (metaGetInfo(pVnode->pMeta, key, &info, NULL) == 0);
+    pCache->skmVer = info.skmVer;
+    pCache->valid = true;
+    pCache->key = key;
+  }
+  if (pCache->exists) {
+    if (pCache->skmVer != pTbData->sver) return 0;  // stale rows, rejected as such by vnodeHandleDataWrite
+    if (pCache->pTSchema == NULL &&
+        metaGetTbTSchemaEx(pVnode->pMeta, pTbData->suid, pTbData->uid, pCache->skmVer, &pCache->pTSchema) != 0) {
+      pCache->pTSchema = NULL;
+    }
+    *ppTSchema = pCache->pTSchema;
+    return 0;
+  }
+
+  // a normal table created by this very request has no meta entry yet, its schema travels in the create request
+  SVCreateTbReq *pCreate = pTbData->pCreateTbReq;
+  if (pTbData->suid == 0 && pCreate != NULL && pCreate->type == TSDB_NORMAL_TABLE &&
+      pCreate->ntb.schemaRow.pSchema != NULL && pCreate->ntb.schemaRow.nCols > 0 &&
+      pCreate->ntb.schemaRow.version == pTbData->sver) {
+    // the schema comes from the wire: tBuildTSchema indexes TYPE_BYTES[] with every column type
+    for (int32_t i = 0; i < pCreate->ntb.schemaRow.nCols; i++) {
+      int8_t type = pCreate->ntb.schemaRow.pSchema[i].type;
+      if (IS_INVALID_TYPE(type) || type == TSDB_DATA_TYPE_NULL) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+    }
+    // not cached: owned by the caller
+    *ppTSchema = tBuildTSchema(pCreate->ntb.schemaRow.pSchema, pCreate->ntb.schemaRow.nCols,
+                               pCreate->ntb.schemaRow.version);
+  }
+  return 0;
+}
+
+static int32_t vnodeScanSubmitRowData(SVnode *pVnode, SSubmitTbData *pTbData, SSubmitSchemaCache *pCache, TSKEY minKey,
+                                      TSKEY maxKey) {
+  // Structural validation of every row against its schema (tRowValidate)
+  STSchema *pTSchema = NULL;
+  int32_t   code = vnodeGetSubmitSchema(pVnode, pTbData, pCache, &pTSchema);
+  if (code) {
+    vError("vgId:%d, %s failed since the create request has an invalid schema, uid:%" PRId64, TD_VID(pVnode),
+           __func__, pTbData->uid);
+    return code;
+  }
+
+  code = vnodeScanSubmitRowDataImpl(pVnode, pTbData, pTSchema, minKey, maxKey);
+  if (pTSchema != pCache->pTSchema) {
+    taosMemoryFree(pTSchema);  // built from the create request, not owned by the cache
+  }
+  return code;
+}
+
 static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *pRequest, SSubmitRsp2 *pResponse) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t numTbData = taosArrayGetSize(pRequest->aSubmitTbData);
@@ -3662,6 +3848,7 @@ static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *
   TSKEY now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
   TSKEY minKey = now - tsTickPerMin[pVnode->config.tsdbCfg.precision] * pVnode->config.tsdbCfg.keep2;
   TSKEY maxKey = tsMaxKeyByPrecision[pVnode->config.tsdbCfg.precision];
+  SSubmitSchemaCache schemaCache = {0};
   for (int32_t i = 0; i < numTbData; i++) {
     SSubmitTbData *pTbData = taosArrayGet(pRequest->aSubmitTbData, i);
 
@@ -3669,7 +3856,7 @@ static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *
       code = TSDB_CODE_INVALID_MSG;
       vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64, TD_VID(pVnode), __func__, __FILE__, __LINE__,
              tstrerror(code), version);
-      return code;
+      goto _exit;
     }
 
     if (pTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
@@ -3677,18 +3864,20 @@ static int32_t vnodeScanSubmitReq(SVnode *pVnode, int64_t version, SSubmitReq2 *
       if (code) {
         vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
                __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
-        return code;
+        goto _exit;
       }
     } else {
-      code = vnodeScanSubmitRowData(pVnode, pTbData, minKey, maxKey);
+      code = vnodeScanSubmitRowData(pVnode, pTbData, &schemaCache, minKey, maxKey);
       if (code) {
         vError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " uid:%" PRId64, TD_VID(pVnode), __func__,
                __FILE__, __LINE__, tstrerror(code), version, pTbData->uid);
-        return code;
+        goto _exit;
       }
     }
   }
 
+_exit:
+  vnodeSubmitSchemaCacheClear(&schemaCache);
   return code;
 }
 
@@ -4235,7 +4424,20 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t ver, void *pReq, in
   void           *pAllocMsg = NULL;
   SSubmitReq2Msg *pMsg = (SSubmitReq2Msg *)pReq;
   SDecoder        dc = {0};
-  if (0 == taosHton64(pMsg->version)) {
+  int64_t         msgVersion = 1;
+  // the body may come from the raft log without preprocessing: validate the header before use
+  if (pReq == NULL || len < (int32_t)sizeof(SSubmitReq2Msg)) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  msgVersion = taosHton64(pMsg->version);
+  if (0 == msgVersion) {
+    // legacy layout: the embedded total length must be consistent with the received length
+    int32_t legacyLen = (int32_t)ntohl(((SSubmitReq *)pMsg)->length);
+    if (len < (int32_t)sizeof(SSubmitReq) || legacyLen < (int32_t)sizeof(SSubmitReq) || legacyLen > len) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
     code = vnodeSubmitReqConvertToSubmitReq2(pVnode, (SSubmitReq *)pMsg, pSubmitReq);
     if (TSDB_CODE_SUCCESS == code) {
       code = vnodeRebuildSubmitReqMsg(pSubmitReq, &pReq);
@@ -4302,7 +4504,8 @@ _exit:
   // update metrics
   METRICS_UPDATE(pVnode->writeMetrics.total_requests, METRIC_LEVEL_LOW, 1);
   METRICS_UPDATE(pVnode->writeMetrics.total_rows, METRIC_LEVEL_HIGH, pSubmitRsp->affectedRows);
-  METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW, pMsg->header.contLen);
+  METRICS_UPDATE(pVnode->writeMetrics.total_bytes, METRIC_LEVEL_LOW,
+                 (pMsg != NULL && len >= (int32_t)sizeof(SMsgHead)) ? pMsg->header.contLen : 0);
 
   if (tsEnableMonitor && tsMonitorFqdn[0] != 0 && tsMonitorPort != 0 && pSubmitRsp->affectedRows > 0 &&
       strlen(RPC_MSG_USER(pOriginalMsg)) > 0 && tsInsertCounter != NULL) {
@@ -4322,7 +4525,7 @@ _exit:
   }
 
   // clear
-  tDestroySubmitReq(pSubmitReq, 0 == taosHton64(pMsg->version) ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
+  tDestroySubmitReq(pSubmitReq, 0 == msgVersion ? TSDB_MSG_FLG_CMPT : TSDB_MSG_FLG_DECODE);
   tDestroySSubmitRsp2(pSubmitRsp, TSDB_MSG_FLG_ENCODE);
 
   if (code) {

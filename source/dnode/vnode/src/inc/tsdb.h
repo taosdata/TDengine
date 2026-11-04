@@ -211,6 +211,12 @@ int32_t   tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type,
 // SDiskDataHdr
 int32_t tPutDiskDataHdr(SBuffer *buffer, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(SBufferReader *br, SDiskDataHdr *pHdr);
+// tsdb file type / RAW snapshot header validation
+int32_t tsdbSnapRAWCheckBlock(const uint8_t *data, int64_t size);
+int32_t tsdbSnapTlvNext(const SSyncTLV *pHead, int64_t *pOffset, const SSyncTLV **ppField);
+// Validation helpers for on-disk descriptors (brin/statis/tomb blocks)
+int32_t tsdbCheckBlkDescSizes(const int32_t *size, int32_t nSize, int32_t numRec, uint32_t avail);
+int32_t tsdbCheckValueColInfo(const SValueColumnCompressInfo *info, int32_t numRec);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);

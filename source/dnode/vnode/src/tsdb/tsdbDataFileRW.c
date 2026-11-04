@@ -310,8 +310,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (brinBlk->numOfPKs > TD_MAX_PK_COLS) {
-    tsdbError("vgId:%d %s failed at %s:%d since brin block numOfPKs %d exceeds max %d (file corrupted)",
+  if (brinBlk->numOfPKs < 0 || brinBlk->numOfPKs > TD_MAX_PK_COLS) {
+    tsdbError("vgId:%d %s failed at %s:%d since brin block numOfPKs %d is out of range [0, %d] (file corrupted)",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, (int)brinBlk->numOfPKs,
               (int)TD_MAX_PK_COLS);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -330,6 +330,8 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
 
   // decode brin block
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer);
+  code = tsdbCheckBlkDescSizes(brinBlk->size, ARRAY_SIZE(brinBlk->size), brinBlk->numRec, buffer->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tBrinBlockClear(brinBlock);
   brinBlock->numOfPKs = brinBlk->numOfPKs;
   brinBlock->numOfRecords = brinBlk->numRec;
@@ -366,6 +368,19 @@ int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinB
     }
     for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
       TAOS_CHECK_GOTO(tValueColumnCompressInfoDecode(&br, lastInfos + i), &lino, _exit);
+    }
+    {
+      // all value columns together must fit the remaining payload
+      int64_t totalPk = 0;
+      for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
+        TAOS_CHECK_GOTO(tsdbCheckValueColInfo(firstInfos + i, brinBlk->numRec), &lino, _exit);
+        TAOS_CHECK_GOTO(tsdbCheckValueColInfo(lastInfos + i, brinBlk->numRec), &lino, _exit);
+        totalPk += (int64_t)firstInfos[i].dataCompressedSize + firstInfos[i].offsetCompressedSize +
+                   lastInfos[i].dataCompressedSize + lastInfos[i].offsetCompressedSize;
+      }
+      if (totalPk > (int64_t)(br.buffer->size - br.offset)) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
     }
 
     for (int32_t i = 0; i < brinBlk->numOfPKs; i++) {
@@ -718,6 +733,8 @@ int32_t tsdbDataFileReadTombBlock(SDataFileReader *reader, const STombBlk *tombB
 
   int32_t       size = 0;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  code = tsdbCheckBlkDescSizes(tombBlk->size, ARRAY_SIZE(tombBlk->size), tombBlk->numRec, buffer0->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tTombBlockClear(tData);
   tData->numOfRecords = tombBlk->numRec;
   for (int32_t i = 0; i < ARRAY_SIZE(tData->buffers); ++i) {

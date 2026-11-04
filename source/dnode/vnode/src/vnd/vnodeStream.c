@@ -3720,6 +3720,8 @@ static int32_t buildScheamFromMeta(void* pTask, SVnode* pVnode, int64_t uid, SAr
     sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
   } else {
     ST_TASK_ELOG("invalid table type:%d for uid:%" PRId64, metaReader.me.type, uid);
+    code = TSDB_CODE_INVALID_PARA;
+    goto end;
   }
 
   for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {
@@ -4057,6 +4059,7 @@ static int32_t processCalaTimeRange(SStreamTriggerReaderCalcInfo* sStreamReaderC
   } else {
     if (!node->needCalc) {
       SSTriggerCalcParam* pCurr = taosArrayGet(req->pStRtFuncInfo->pStreamPesudoFuncVals, req->pStRtFuncInfo->curIdx);
+      STREAM_CHECK_NULL_GOTO(pCurr, TSDB_CODE_INVALID_PARA);
       pWin->skey = pCurr->wstart;
       pWin->ekey = pCurr->wend;
       *pValid = true;
@@ -4972,6 +4975,7 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
   size_t  size = 0;
   int32_t* slotIdList = NULL;
   SArray* sortedCid = NULL;
+  bool*   used = NULL;
   SArray* schemas = NULL;
   SSDataBlock*   pBlockRes = NULL;
   
@@ -4984,27 +4988,37 @@ static int32_t vnodeProcessStreamTsdbVirtalDataReq(SVnode* pVnode, SRpcMsg* pMsg
 
   if (req->base.type == STRIGGER_PULL_TSDB_DATA) {
     // sort cid and build slotIdList
-    slotIdList = taosMemoryMalloc(taosArrayGetSize(req->tsdbDataReq.cids) * sizeof(int32_t));
+    int32_t nCids = taosArrayGetSize(req->tsdbDataReq.cids);
+    slotIdList = taosMemoryCalloc(nCids > 0 ? nCids : 1, sizeof(int32_t));
     STREAM_CHECK_NULL_GOTO(slotIdList, terrno);
+    used = taosMemoryCalloc(nCids > 0 ? nCids : 1, sizeof(bool));
+    STREAM_CHECK_NULL_GOTO(used, terrno);
     sortedCid = taosArrayDup(req->tsdbDataReq.cids, NULL);
     STREAM_CHECK_NULL_GOTO(sortedCid, terrno);
     taosArraySort(sortedCid, sortCid);
-    for (int32_t i = 0; i < taosArrayGetSize(req->tsdbDataReq.cids); i++) {
+    for (int32_t i = 0; i < nCids; i++) {
       int16_t* cid = taosArrayGet(req->tsdbDataReq.cids, i);
       STREAM_CHECK_NULL_GOTO(cid, terrno);
-      for (int32_t j = 0; j < taosArrayGetSize(sortedCid); j++) {
+      bool found = false;
+      // virtual columns that reference the same origin column send the same cid more than once:
+      // give every occurrence its own sorted slot so no slot is left unset
+      for (int32_t j = 0; j < nCids && !found; j++) {
         int16_t* cidSorted = taosArrayGet(sortedCid, j);
         STREAM_CHECK_NULL_GOTO(cidSorted, terrno);
-        if (*cid == *cidSorted) {
+        if (!used[j] && *cid == *cidSorted) {
           slotIdList[j] = i;
-          break;
+          used[j] = true;
+          found = true;
         }
       }
+      STREAM_CHECK_CONDITION_GOTO(!found, TSDB_CODE_INTERNAL_ERROR);
     }
 
     STREAM_CHECK_RET_GOTO(buildScheamFromMeta(pTask, pVnode, req->tsdbDataReq.uid, &schemas,
                                               &sStreamReaderInfo->storageApi));
     STREAM_CHECK_RET_GOTO(shrinkScheams(req->tsdbDataReq.cids, schemas));
+    // every requested cid must resolve to exactly one schema, otherwise slot ids would exceed the result block
+    STREAM_CHECK_CONDITION_GOTO(taosArrayGetSize(schemas) != nCids, TSDB_CODE_INVALID_PARA);
     STREAM_CHECK_RET_GOTO(createDataBlockForStream(schemas, &pBlockRes));
 
     taosArraySort(schemas, sortSSchema);
@@ -5049,6 +5063,7 @@ end:
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   sendTriggerPullRsp(pMsg, sStreamReaderInfo, buf, size, code, pRspStats);
   taosMemFree(slotIdList);
+  taosMemFree(used);
   taosArrayDestroy(sortedCid);
   taosArrayDestroy(schemas);
   blockDataDestroy(pBlockRes);
@@ -5689,8 +5704,8 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
     STREAM_CHECK_NULL_GOTO(vTableInfo, terrno);
     code = sStreamReaderInfo->storageApi.metaReaderFn.getTableEntryByVersionName(&metaReader, req->origTableInfoReq.ver, oInfo->refTableName);
     if (code != 0) {
-      code = 0;
       ST_TASK_ELOG("vgId:%d %s get table entry by name:%s failed, msg:%s", TD_VID(pVnode), __func__, oInfo->refTableName, tstrerror(code));
+      code = 0;
       continue;
     }
     vTableInfo->uid = metaReader.me.uid;
@@ -5707,7 +5722,12 @@ static int32_t vnodeProcessStreamOTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
       vTableInfo->suid = 0;
       sSchemaWrapper = &metaReader.me.ntbEntry.schemaRow;
     } else {
-      ST_TASK_ELOG("invalid table type:%d", metaReader.me.type);
+      // super/virtual tables carry no usable schema here, report the column as not found
+      ST_TASK_ELOG("vgId:%d %s invalid table type:%d for table:%s", TD_VID(pVnode), __func__, metaReader.me.type,
+                   oInfo->refTableName);
+      vTableInfo->uid = 0;
+      tDecoderClear(&metaReader.coder);
+      continue;
     }
 
     for (size_t j = 0; j < sSchemaWrapper->nCols; j++) {

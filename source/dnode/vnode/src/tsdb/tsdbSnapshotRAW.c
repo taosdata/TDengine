@@ -576,9 +576,47 @@ _exit:
   return code;
 }
 
+// Validate a peer-supplied RAW block (SSnapDataHdr::data / size) before any of its fields are used as
+// an array index, file identifier or copy length.
+int32_t tsdbSnapRAWCheckBlock(const uint8_t* data, int64_t size) {
+  if (data == NULL || size < (int64_t)sizeof(STsdbDataRAWBlockHeader)) {
+    tsdbError("%s invalid RAW block size:%" PRId64 ", min:%d", __func__, size,
+              (int32_t)sizeof(STsdbDataRAWBlockHeader));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  const STsdbDataRAWBlockHeader* bHdr = (const void*)data;
+  if (!tsdbFTypeIsValid(bHdr->file.type)) {
+    tsdbError("%s invalid RAW block file type:%d", __func__, bHdr->file.type);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (bHdr->dataLength != size - (int64_t)sizeof(STsdbDataRAWBlockHeader)) {
+    tsdbError("%s invalid RAW block dataLength:%" PRId64 ", payload size:%" PRId64, __func__, bHdr->dataLength,
+              size - (int64_t)sizeof(STsdbDataRAWBlockHeader));
+    return TSDB_CODE_INVALID_MSG;
+  }
+  // fid is an int64 on the wire and is narrowed to the int32 STFile.fid below
+  if (bHdr->file.fid < INT32_MIN || bHdr->file.fid > INT32_MAX || bHdr->file.cid < 0 || bHdr->file.size < 0 ||
+      bHdr->offset < 0) {
+    tsdbError("%s invalid RAW block fid:%" PRId64 " cid:%" PRId64 " size:%" PRId64 " offset:%" PRId64, __func__,
+              bHdr->file.fid, bHdr->file.cid, bHdr->file.size, bHdr->offset);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  // the level only exists in the stt member of the file union; stt levels are kept in a sorted list, so only a
+  // negative value is invalid
+  if (bHdr->file.type == TSDB_FTYPE_STT && bHdr->file.stt->level < 0) {
+    tsdbError("%s invalid RAW block stt level:%d", __func__, bHdr->file.stt->level);
+    return TSDB_CODE_INVALID_MSG;
+  }
+  return 0;
+}
+
 static int32_t tsdbSnapRAWWriteData(STsdbSnapRAWWriter* writer, SSnapDataHdr* hdr) {
   int32_t code = 0;
   int32_t lino = 0;
+
+  code = tsdbSnapRAWCheckBlock(hdr->data, hdr->size);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   STsdbDataRAWBlockHeader* bHdr = (void*)hdr->data;
   int32_t                  fid = bHdr->file.fid;

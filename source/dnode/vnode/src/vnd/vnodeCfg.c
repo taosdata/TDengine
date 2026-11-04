@@ -403,6 +403,14 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   SJson *nodeInfo = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(nodeInfo);
+  // nodeInfo[] is a fixed array; the JSON may come from a peer snapshot CFG block.
+  if (arraySize < 0 || arraySize > TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA ||
+      pCfg->syncCfg.replicaNum < 0 || pCfg->syncCfg.replicaNum > TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA ||
+      pCfg->syncCfg.myIndex < -1 || pCfg->syncCfg.myIndex >= TSDB_MAX_REPLICA + TSDB_MAX_LEARNER_REPLICA) {
+    vError("vgId:%d, invalid sync config, nodeInfo size:%d replicaNum:%d myIndex:%d", pCfg->vgId, arraySize,
+           pCfg->syncCfg.replicaNum, pCfg->syncCfg.myIndex);
+    return TSDB_CODE_INVALID_MSG;
+  }
   pCfg->syncCfg.totalReplicaNum = arraySize;
 
   vDebug("vgId:%d, decode config, replicas:%d totalReplicas:%d selfIndex:%d", pCfg->vgId, pCfg->syncCfg.replicaNum,

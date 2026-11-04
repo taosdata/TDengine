@@ -126,7 +126,7 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle);
 int32_t tqMetaDecodeOffsetInfo(STqOffset *info, void *pVal, uint32_t vLen);
 int32_t tqMetaSaveOffset(STQ* pTq, STqOffset* pOffset);
 int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle);
-int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset);
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset* pOffset);  // copy-out, free with tDeleteSTqOffset
 
 // tqOffset - offset file restore
 int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);

@@ -241,6 +241,7 @@ typedef struct SSttBlockReader {
   SMergeTree    mergeTree;
   SRowKey       currentKey;
   int32_t       numOfPks;
+  int32_t       pkBytes;  // schema bytes of the pk column, capacity of the pk buffers in currentKey
 } SSttBlockReader;
 
 typedef struct SFilesetIter {
@@ -442,6 +443,16 @@ bool    isCleanSttBlock(SArray* pTimewindowList, const STimeWindow* pQueryWindow
 bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SBrinRecord* pRecord, int32_t order);
 int32_t pkCompEx(SRowKey* p1, SRowKey* p2);
 int32_t initRowKey(SRowKey* pKey, int64_t ts, int32_t numOfPks, int32_t type, int32_t len, bool asc);
+
+// validators / helpers exposed for security hardening and unit tests
+int32_t tsdbCheckPkDataLen(int32_t nData, int32_t pkBytes);
+int32_t tsdbCacheCalcCopyBytes(int8_t type, int32_t dstBytes, int32_t nData, int32_t* pCopyBytes);
+int32_t tsdbGetBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket);
+int32_t tsdbCopyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
+                            int32_t dumpedRows, bool asc);
+int32_t tsdbRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey, int32_t pkBytes);
+int32_t tsdbBlockDataGetPrimaryKeyDeepCopy(SBlockData* pBlock, int32_t irow, int32_t slotId, SRowKey* pKey,
+                                           int32_t pkBytes);
 void    clearRowKey(SRowKey* pKey);
 
 bool    shouldFreePkBuf(SBlockLoadSuppInfo* pSupp);

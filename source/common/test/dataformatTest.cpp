@@ -2052,3 +2052,334 @@ TEST(testCase, secColDataStillAcceptsValidPayload) {
               TSDB_CODE_SUCCESS);
   }
 }
+
+// ---- Devon scan findings: untrusted length validation ----
+
+// KV row index width flags, private to tdataformat.c; keep in sync with the definitions there
+#ifndef KV_FLG_LIT
+#define KV_FLG_LIT ((uint8_t)0x10)
+#define KV_FLG_MID ((uint8_t)0x20)
+#define KV_FLG_BIG ((uint8_t)0x40)
+#endif
+
+TEST(testCase, secDecompressRejectsRawSizeMismatch) {
+  // L1_DISABLED && L2_DISABLED: compressedSize must equal originalSize before the memcpy
+  uint8_t       in[16] = {0};
+  uint8_t       out[16] = {0};
+  SCompressInfo info = {0};
+  info.dataType = TSDB_DATA_TYPE_INT;
+  info.originalSize = 4;
+  info.compressedSize = 16;
+  info.cmprAlg = ((uint32_t)L1_DISABLED << 24) | ((uint32_t)L2_DISABLED << 8);
+  EXPECT_EQ(tDecompressData(in, &info, out, sizeof(out), NULL), TSDB_CODE_INVALID_PARA);
+
+  info.cmprAlg = NO_COMPRESSION;
+  EXPECT_EQ(tDecompressData(in, &info, out, sizeof(out), NULL), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(testCase, secValueColumnDecompressRejectsInvalidType) {
+  SValueColumn valCol = {0};
+  ASSERT_EQ(tValueColumnInit(&valCol), 0);
+  uint8_t                  in[16] = {0};
+  SValueColumnCompressInfo info = {0};
+  info.type = TSDB_DATA_TYPE_MAX + 3;
+  EXPECT_EQ(tValueColumnDecompress(in, &info, &valCol, NULL), TSDB_CODE_INVALID_PARA);
+  info.type = -1;
+  EXPECT_EQ(tValueColumnDecompress(in, &info, &valCol, NULL), TSDB_CODE_INVALID_PARA);
+  tValueColumnDestroy(&valCol);
+}
+
+static SRow *secBuildRow(STSchema *pTSchema, bool sparse) {
+  SArray *aColVal = taosArrayInit(8, sizeof(SColVal));
+  EXPECT_NE(aColVal, nullptr);
+  char     str[] = "abc";
+  SValue   v = {0};
+  SColVal  cv;
+  int16_t  nCols = pTSchema->numOfCols;
+  for (int16_t i = 0; i < nCols; i++) {
+    int16_t cid = pTSchema->columns[i].colId;
+    int8_t  type = pTSchema->columns[i].type;
+    if (i == 0) {
+      memset(&v, 0, sizeof(v));
+      v.type = type;
+      v.val = 1000;
+      cv = {}; cv.cid = cid; cv.flag = CV_FLAG_VALUE; cv.value = v;
+    } else if (sparse && i < nCols - 1) {
+      cv = {}; cv.cid = cid; cv.flag = (i & 1) ? CV_FLAG_NONE : CV_FLAG_NULL; cv.value.type = type;
+    } else if (IS_VAR_DATA_TYPE(type)) {
+      memset(&v, 0, sizeof(v));
+      v.type = type;
+      v.nData = 3;
+      v.pData = (uint8_t *)str;
+      cv = {}; cv.cid = cid; cv.flag = CV_FLAG_VALUE; cv.value = v;
+    } else {
+      memset(&v, 0, sizeof(v));
+      v.type = type;
+      v.val = 7;
+      cv = {}; cv.cid = cid; cv.flag = CV_FLAG_VALUE; cv.value = v;
+    }
+    EXPECT_NE(taosArrayPush(aColVal, &cv), nullptr);
+  }
+  SRow             *pRow = NULL;
+  SRowBuildScanInfo sinfo = {0};
+  EXPECT_EQ(tRowBuild(aColVal, pTSchema, &pRow, &sinfo), 0);
+  taosArrayDestroy(aColVal);
+  return pRow;
+}
+
+TEST(testCase, secRowValidateTupleAndKv) {
+  STSchema *pTSchema = genSTSchema(6);  // ts, int, bigint, float, double, binary(10)
+  ASSERT_NE(pTSchema, nullptr);
+
+  for (int32_t sparse = 0; sparse < 2; sparse++) {
+    SRow *pRow = secBuildRow(pTSchema, sparse != 0);
+    ASSERT_NE(pRow, nullptr);
+    EXPECT_EQ(tRowValidate(pRow, pTSchema, false), 0) << "sparse=" << sparse;
+
+    // every truncation must be rejected
+    uint32_t fullLen = pRow->len;
+    for (uint32_t len = sizeof(SRow); len < fullLen; len++) {
+      pRow->len = len;
+      EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG) << "sparse=" << sparse << " len=" << len;
+    }
+    pRow->len = 3;
+    EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+    pRow->len = fullLen;
+    EXPECT_EQ(tRowValidate(pRow, pTSchema, false), 0);
+
+    if (sparse == 0) {
+      // tuple row: corrupt the var-length offset of the binary column
+      ASSERT_EQ(pRow->flag, HAS_VALUE);
+      int32_t bad = 0x40000000;
+      memcpy(pRow->data + pTSchema->columns[5].offset, &bad, sizeof(bad));
+      EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+      bad = -0x40000000;
+      memcpy(pRow->data + pTSchema->columns[5].offset, &bad, sizeof(bad));
+      EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+    } else if (pRow->flag & KV_FLG_LIT) {
+      // KV row: nCol larger than the schema allows / than the row holds
+      int16_t nCol = 0x7000;
+      memcpy(pRow->data, &nCol, sizeof(nCol));
+      EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+      nCol = -1;
+      memcpy(pRow->data, &nCol, sizeof(nCol));
+      EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+    }
+    tRowDestroy(pRow);
+  }
+  EXPECT_EQ(tRowValidate(NULL, pTSchema, false), TSDB_CODE_INVALID_MSG);
+  taosMemoryFree(pTSchema);
+}
+
+// every combination of NONE/NULL/VALUE columns must validate, including rows without any value (no fixed-length area)
+TEST(testCase, secRowValidateAllFlagCombos) {
+  STSchema *pTSchema = genSTSchema(6);
+  ASSERT_NE(pTSchema, nullptr);
+  for (int32_t mask = 0; mask < 27; mask++) {  // 3 states for each of the 5 non-ts columns is 243, sample 27
+    SArray *aColVal = taosArrayInit(8, sizeof(SColVal));
+    ASSERT_NE(aColVal, nullptr);
+    char   str[] = "abc";
+    int32_t m = mask;
+    for (int16_t i = 0; i < pTSchema->numOfCols; i++) {
+      SColVal cv = {};
+      cv.cid = pTSchema->columns[i].colId;
+      int8_t type = pTSchema->columns[i].type;
+      int32_t st = i == 0 ? 2 : (m % 3);
+      if (i > 0) m /= 3;
+      if (st == 0) {
+        cv.flag = CV_FLAG_NONE;
+        cv.value.type = type;
+      } else if (st == 1) {
+        cv.flag = CV_FLAG_NULL;
+        cv.value.type = type;
+      } else {
+        SValue v = {};
+        v.type = type;
+        if (IS_VAR_DATA_TYPE(type)) {
+          v.nData = 3;
+          v.pData = (uint8_t *)str;
+        } else {
+          v.val = 7;
+        }
+        cv.flag = CV_FLAG_VALUE;
+        cv.value = v;
+      }
+      ASSERT_NE(taosArrayPush(aColVal, &cv), nullptr);
+    }
+    SRow             *pRow = NULL;
+    SRowBuildScanInfo sinfo = {0};
+    int32_t           code = tRowBuild(aColVal, pTSchema, &pRow, &sinfo);
+    taosArrayDestroy(aColVal);
+    if (code != 0) continue;  // e.g. a combination the builder itself refuses
+    EXPECT_EQ(tRowValidate(pRow, pTSchema, false), 0) << "mask=" << mask << " flag=" << (int)pRow->flag;
+    tRowDestroy(pRow);
+  }
+  taosMemoryFree(pTSchema);
+}
+
+TEST(testCase, secRowValidateKvBigOffset) {
+  STSchema *pTSchema = genSTSchema(6);
+  ASSERT_NE(pTSchema, nullptr);
+  // hand-built KV_FLG_BIG row: one column, idx[0] = 0x40000000
+  uint8_t buf[sizeof(SRow) + 2 + 4 + 8] = {0};
+  SRow   *pRow = (SRow *)buf;
+  pRow->flag = KV_FLG_BIG | HAS_VALUE;
+  pRow->len = sizeof(buf);
+  pRow->ts = 1;
+  int16_t nCol = 1;
+  memcpy(pRow->data, &nCol, 2);
+  uint32_t off = 0x40000000;
+  memcpy(pRow->data + 2, &off, 4);
+  EXPECT_EQ(tRowValidate(pRow, pTSchema, false), TSDB_CODE_INVALID_MSG);
+  taosMemoryFree(pTSchema);
+}
+
+static int32_t secEncodeBlobSet(uint8_t *buf, int32_t cap, int64_t dataLen, uint64_t offset, uint32_t len) {
+  SBlobSet set = {0};
+  set.type = 1;
+  set.len = dataLen;
+  set.pSeqToffset = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  set.pSeqTable = taosArrayInit(4, sizeof(SBlobValue));
+  std::vector<uint8_t> data(dataLen > 0 ? dataLen : 1, 0x5a);
+  set.data = data.data();
+  uint64_t   seq = 1;
+  int32_t    idx = 0;
+  SBlobValue val = {0};
+  val.offset = offset;
+  val.len = len;
+  (void)taosHashPut(set.pSeqToffset, &seq, sizeof(seq), &idx, sizeof(idx));
+  (void)taosArrayPush(set.pSeqTable, &val);
+
+  SEncoder enc = {0};
+  tEncoderInit(&enc, buf, cap);
+  EXPECT_EQ(tEncodeBlobSet(&enc, &set), 0);
+  int32_t n = enc.pos;
+  tEncoderClear(&enc);
+  taosHashCleanup(set.pSeqToffset);
+  taosArrayDestroy(set.pSeqTable);
+  return n;
+}
+
+// the entry count and the blob length come from the frame: neither may exceed what the frame still holds
+TEST(testCase, secDecodeBlobSetRejectsOversizedCountAndLen) {
+  uint8_t buf[256];
+  int32_t n = secEncodeBlobSet(buf, sizeof(buf), 16, 0, 16);
+  ASSERT_GT(n, 0);
+
+  // layout: type(1) len(8) nSeq(4) ...; claim far more entries than the frame has bytes for
+  for (int32_t bad : {1 << 30, INT32_MAX, -1}) {
+    std::vector<uint8_t> v(buf, buf + n);
+    memcpy(v.data() + 1 + 8, &bad, sizeof(bad));
+    SDecoder dec = {0};
+    tDecoderInit(&dec, v.data(), n);
+    SBlobSet *pSet = NULL;
+    EXPECT_EQ(tDecodeBlobSet(&dec, &pSet), TSDB_CODE_INVALID_MSG) << "nSeq=" << bad;
+    tDecoderClear(&dec);
+  }
+
+  // a blob length larger than the rest of the frame
+  std::vector<uint8_t> v(buf, buf + n);
+  int64_t              hugeLen = 1 << 20;
+  memcpy(v.data() + 1, &hugeLen, sizeof(hugeLen));
+  SDecoder dec = {0};
+  tDecoderInit(&dec, v.data(), n);
+  SBlobSet *pSet = NULL;
+  EXPECT_EQ(tDecodeBlobSet(&dec, &pSet), TSDB_CODE_INVALID_MSG);
+  tDecoderClear(&dec);
+}
+
+TEST(testCase, secDecodeBlobSetRejectsOutOfRangeItem) {
+  uint8_t buf[256];
+  struct {
+    uint64_t offset;
+    uint32_t len;
+    bool     ok;
+  } cases[] = {
+      {0, 16, true}, {8, 8, true}, {16, 0, true}, {8, 9, false}, {17, 0, false}, {0, 17, false},
+      {UINT64_MAX, 2, false}, {UINT64_MAX - 1, 16, false},
+  };
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    int32_t n = secEncodeBlobSet(buf, sizeof(buf), 16, cases[i].offset, cases[i].len);
+    SDecoder dec = {0};
+    tDecoderInit(&dec, buf, n);
+    SBlobSet *pSet = NULL;
+    int32_t   code = tDecodeBlobSet(&dec, &pSet);
+    if (cases[i].ok) {
+      EXPECT_EQ(code, 0) << "case " << i;
+      if (code == 0) tBlobSetDestroy(pSet);
+    } else {
+      EXPECT_EQ(code, TSDB_CODE_INVALID_MSG) << "case " << i;
+    }
+    tDecoderClear(&dec);
+  }
+}
+
+// hand-built KV_FLG_LIT row with a single column; payload is the raw bytes following the one-entry index
+static void secKvRowValidate(const STSchema *pTSchema, const uint8_t *payload, int32_t payloadLen, int32_t expect,
+                             const char *what, bool blobSeq = false) {
+  std::vector<uint8_t> buf(sizeof(SRow) + 2 + 1 + payloadLen, 0);
+  SRow                *pRow = (SRow *)buf.data();
+  pRow->flag = KV_FLG_LIT | HAS_VALUE;
+  pRow->len = (uint32_t)buf.size();
+  pRow->ts = 1;
+  int16_t nCol = 1;
+  memcpy(pRow->data, &nCol, 2);
+  pRow->data[2] = 0;  // idx[0]: payload starts right after the index
+  memcpy(pRow->data + 3, payload, payloadLen);
+  EXPECT_EQ(tRowValidate(pRow, (STSchema *)pTSchema, blobSeq), expect) << what;
+}
+
+TEST(testCase, secRowValidateKvColumnLookupAndBlob) {
+  SSchema s[3] = {};
+  s[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  s[0].bytes = 8;
+  s[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  s[1].type = TSDB_DATA_TYPE_INT;
+  s[1].bytes = 4;
+  s[1].colId = PRIMARYKEY_TIMESTAMP_COL_ID + 1;
+  s[2].type = TSDB_DATA_TYPE_BLOB;
+  s[2].bytes = 1024;
+  s[2].colId = PRIMARYKEY_TIMESTAMP_COL_ID + 2;
+  STSchema *pTSchema = tBuildTSchema(s, 3, 0);
+  ASSERT_NE(pTSchema, nullptr);
+
+  // colId is stored zigzag-varint encoded: cid 3 -> 0x06, cid 2 -> 0x04, cid 1 -> 0x02, cid 9 -> 0x12
+  {
+    // empty blob: only the zero length follows the colId, no 8 byte seq is stored
+    uint8_t p[] = {0x06, 0x00};
+    secKvRowValidate(pTSchema, p, sizeof(p), 0, "empty blob");
+  }
+  {
+    // built with a blob set: a non-empty blob carries its 8 byte seq, whatever nData says
+    uint8_t shortSeq[] = {0x06, 0x05, 1, 2, 3};
+    secKvRowValidate(pTSchema, shortSeq, sizeof(shortSeq), TSDB_CODE_INVALID_MSG, "seq cut short", true);
+    uint8_t hugeLen[] = {0x06, 0xff, 0xff, 0xff, 0xff, 0x07, 1, 0, 0, 0, 0, 0, 0, 0};
+    secKvRowValidate(pTSchema, hugeLen, sizeof(hugeLen), 0, "huge blob length, seq present", true);
+    uint8_t fullSeq[] = {0x06, 0x01, 1, 0, 0, 0, 0, 0, 0, 0};
+    secKvRowValidate(pTSchema, fullSeq, sizeof(fullSeq), 0, "blob with seq", true);
+    uint8_t emptyBlob[] = {0x06, 0x00};
+    secKvRowValidate(pTSchema, emptyBlob, sizeof(emptyBlob), 0, "empty blob with blob set", true);
+  }
+  {
+    // built without a blob set: the blob is inline, nData must fit even when 8 bytes remain
+    uint8_t inlineShort[] = {0x06, 0x03, 1, 2, 3};
+    secKvRowValidate(pTSchema, inlineShort, sizeof(inlineShort), 0, "short inline blob");
+    uint8_t truncated[] = {0x06, 0x05, 1, 2, 3};
+    secKvRowValidate(pTSchema, truncated, sizeof(truncated), TSDB_CODE_INVALID_MSG, "inline blob truncated");
+    uint8_t hugeLen[] = {0x06, 0xff, 0xff, 0xff, 0xff, 0x07, 1, 0, 0, 0, 0, 0, 0, 0};
+    secKvRowValidate(pTSchema, hugeLen, sizeof(hugeLen), TSDB_CODE_INVALID_MSG, "huge inline blob length");
+  }
+  {
+    uint8_t intCol[] = {0x04, 1, 0, 0, 0};
+    secKvRowValidate(pTSchema, intCol, sizeof(intCol), 0, "fixed column found by colId");
+    uint8_t intShort[] = {0x04, 1, 0};
+    secKvRowValidate(pTSchema, intShort, sizeof(intShort), TSDB_CODE_INVALID_MSG, "fixed column truncated");
+  }
+  {
+    uint8_t unknown[] = {0x12, 1, 0, 0, 0};
+    secKvRowValidate(pTSchema, unknown, sizeof(unknown), TSDB_CODE_INVALID_MSG, "colId not in schema");
+    uint8_t tsCol[] = {0x02, 1, 0, 0, 0, 0, 0, 0, 0};
+    secKvRowValidate(pTSchema, tsCol, sizeof(tsCol), TSDB_CODE_INVALID_MSG, "primary timestamp is never a KV cell");
+  }
+  taosMemoryFree(pTSchema);
+}

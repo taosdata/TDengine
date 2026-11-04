@@ -26,6 +26,22 @@ target_include_directories(
 )
 # link the whole dnode library: mgmt_vnode alone leaves dmNotifyHdl (referenced from vnode) and the
 # dnode-module symbols mgmt_dnode pulls in unresolved
-target_link_libraries(vmReplicaCfgTest PRIVATE os util common dnode)
+if(TD_DARWIN)
+  # the macOS linker resolves static libraries in any order and has no --start-group
+  target_link_libraries(vmReplicaCfgTest PRIVATE os util common dnode)
+else()
+  # the dnode/vnode/mnode static libraries reference each other (libvnode needs dmNotifyHdl from libmgmt_dnode,
+  # libmnode needs mmReadFile from libmgmt_mnode, libmgmt_dnode needs dmStop from libdnode, ...), so a single
+  # left-to-right GNU ld pass finds them or not depending on the library order, which differs between sanitizer and
+  # plain builds. List the cycle explicitly and let the linker rescan it as a group.
+  target_link_libraries(
+      vmReplicaCfgTest
+      PRIVATE
+          os util common
+          -Wl,--start-group
+          dnode mgmt_dnode mgmt_mnode mgmt_vnode mgmt_qnode mgmt_snode mgmt_bnode mgmt_xnode node_util mnode vnode
+          -Wl,--end-group
+  )
+endif()
 
 add_test(NAME vmReplicaCfgTest COMMAND vmReplicaCfgTest)

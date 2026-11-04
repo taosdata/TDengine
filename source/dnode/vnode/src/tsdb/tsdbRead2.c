@@ -32,14 +32,14 @@
 
 #define ASCENDING_TRAVERSE(o)       (o == TSDB_ORDER_ASC)
 #define getCurrentKeyInSttBlock(_r) (&((_r)->currentKey))
-#define tColRowGetKeyDeepCopy(_pBlock, _irow, _slotId, _pKey)             \
-  do {                                                                    \
-    (_pKey)->ts = (_pBlock)->aTSKEY[(_irow)];                             \
-    (_pKey)->numOfPKs = 0;                                                \
-    if ((_slotId) != -1) {                                                \
-      code = tColRowGetPriamyKeyDeepCopy(_pBlock, _irow, _slotId, _pKey); \
-      TSDB_CHECK_CODE(code, lino, _end);                                  \
-    }                                                                     \
+#define tColRowGetKeyDeepCopy(_pBlock, _irow, _slotId, _pKey, _pkBytes)                         \
+  do {                                                                                          \
+    (_pKey)->ts = (_pBlock)->aTSKEY[(_irow)];                                                   \
+    (_pKey)->numOfPKs = 0;                                                                      \
+    if ((_slotId) != -1) {                                                                      \
+      code = tsdbBlockDataGetPrimaryKeyDeepCopy(_pBlock, _irow, _slotId, _pKey, (_pkBytes));    \
+      TSDB_CHECK_CODE(code, lino, _end);                                                        \
+    }                                                                                           \
   } while (0)
 
 #define outOfTimeWindow(_ts, _window) (((_ts) > (_window)->ekey) || ((_ts) < (_window)->skey))
@@ -122,7 +122,16 @@ FORCE_INLINE int32_t pkCompEx(SRowKey* p1, SRowKey* p2) {
   }
 }
 
-static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int32_t slotId, SRowKey* pKey) {
+// the pk value length comes from the file/row, it must fit the schema-sized key buffer (without var header)
+int32_t tsdbCheckPkDataLen(int32_t nData, int32_t pkBytes) {
+  if (nData < 0 || pkBytes < (int32_t)VARSTR_HEADER_SIZE || nData > pkBytes - (int32_t)VARSTR_HEADER_SIZE) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsdbBlockDataGetPrimaryKeyDeepCopy(SBlockData* pBlock, int32_t irow, int32_t slotId, SRowKey* pKey,
+                                           int32_t pkBytes) {
   int32_t   code = TSDB_CODE_SUCCESS;
   int32_t   lino = 0;
   SColData* pColData = NULL;
@@ -131,6 +140,7 @@ static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int
   TSDB_CHECK_CONDITION((pBlock != NULL) && (pBlock->aColData != NULL), code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_NULL(pKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  TSDB_CHECK_CONDITION(slotId >= 0 && slotId < pBlock->nColData, code, lino, _end, TSDB_CODE_INVALID_PARA);
   pColData = &pBlock->aColData[slotId];
 
   code = tColDataGetValue(pColData, irow, &cv);
@@ -142,8 +152,14 @@ static int32_t tColRowGetPriamyKeyDeepCopy(SBlockData* pBlock, int32_t irow, int
   if (IS_SCALAR_PRIMARY_KEY_TYPE(cv.value.type)) {
     valueCloneDatum(pKey->pks, &cv.value, cv.value.type);
   } else {
+    code = tsdbCheckPkDataLen(cv.value.nData, pkBytes);
+    TSDB_CHECK_CODE(code, lino, _end);
+    TSDB_CHECK_NULL(pKey->pks[0].pData, code, lino, _end, TSDB_CODE_INVALID_PARA);
     pKey->pks[0].nData = cv.value.nData;
-    TAOS_MEMCPY(pKey->pks[0].pData, cv.value.pData, cv.value.nData);
+    if (cv.value.nData > 0) {
+      TSDB_CHECK_NULL(cv.value.pData, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      TAOS_MEMCPY(pKey->pks[0].pData, cv.value.pData, cv.value.nData);
+    }
   }
 
 _end:
@@ -161,7 +177,7 @@ static int32_t tGetPrimaryKeyIndex(uint8_t* p, SPrimaryKeyIndex* index) {
   return n;
 }
 
-static int32_t tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
+int32_t tsdbRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey, int32_t pkBytes) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
   SPrimaryKeyIndex indices[TD_MAX_PK_COLS];
@@ -173,6 +189,8 @@ static int32_t tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
     TSDB_CHECK_NULL(pRow->data, code, lino, _end, TSDB_CODE_INVALID_PARA);
     TSDB_CHECK_NULL(pKey, code, lino, _end, TSDB_CODE_INVALID_PARA);
   }
+
+  TSDB_CHECK_CONDITION(pRow->numOfPKs <= TD_MAX_PK_COLS, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   data = pRow->data;
   for (int32_t i = 0; i < pRow->numOfPKs; i++) {
@@ -189,8 +207,13 @@ static int32_t tRowGetPrimaryKeyDeepCopy(SRow* pRow, SRowKey* pKey) {
     }
 
     if (IS_VAR_DATA_TYPE(indices[i].type)) {
-      tdata += tGetU32v(tdata, &pKey->pks[i].nData);
-      TAOS_MEMCPY(pKey->pks[i].pData, tdata, pKey->pks[i].nData);
+      uint32_t nData = 0;
+      tdata += tGetU32v(tdata, &nData);
+      code = tsdbCheckPkDataLen((int32_t)nData, pkBytes);
+      TSDB_CHECK_CODE(code, lino, _end);
+      TSDB_CHECK_NULL(pKey->pks[i].pData, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      pKey->pks[i].nData = nData;
+      TAOS_MEMCPY(pKey->pks[i].pData, tdata, nData);
     } else {
       valueSetDatum(pKey->pks + i, indices[i].type, data + indices[i].offset, tDataTypes[pKey->pks[i].type].bytes);
     }
@@ -227,6 +250,8 @@ static int32_t setColumnIdSlotList(SBlockLoadSuppInfo* pSupInfo, SColumnInfo* pC
   pSupInfo->slotId = (int16_t*)((char*)pSupInfo->colId + (sizeof(int16_t) * numOfCols));
   pSupInfo->buildBuf = (char**)((char*)pSupInfo->slotId + (sizeof(int16_t) * numOfCols));
   for (int32_t i = 0; i < numOfCols; ++i) {
+    TSDB_CHECK_CONDITION(pSlotIdList[i] >= 0 && pSlotIdList[i] <= INT16_MAX, code, lino, _end,
+                         TSDB_CODE_INVALID_PARA);
     pSupInfo->colId[i] = pCols[i].colId;
     pSupInfo->slotId[i] = pSlotIdList[i];
 
@@ -367,6 +392,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, TFileSetArray* pFileSetA
   pSttReader->window = pReader->info.window;
   pSttReader->verRange = pReader->info.verRange;
   pSttReader->numOfPks = pReader->suppInfo.numOfPks;
+  pSttReader->pkBytes = pReader->suppInfo.pk.bytes;
   pSttReader->uid = 0;
 
   tMergeTreeClose(&pSttReader->mergeTree);
@@ -833,6 +859,20 @@ void tsdbReleaseDataBlock2(void* p) {
   }
 }
 
+// The row append loops index the result block by the slot ids without checking them, so every slot id must address a
+// column of the block that is bound to the reader.
+static int32_t checkSlotIdsInResBlock(const SBlockLoadSuppInfo* pSup, const SSDataBlock* pBlock) {
+  if (pBlock == NULL || pSup->slotId == NULL) return TSDB_CODE_SUCCESS;
+  size_t num = taosArrayGetSize(pBlock->pDataBlock);
+  for (int32_t i = 0; i < pSup->numOfCols; ++i) {
+    if (pSup->slotId[i] < 0 || (size_t)pSup->slotId[i] >= num) {
+      tsdbError("slot id %d of column %d exceeds the %d columns of the result block", pSup->slotId[i], i, (int32_t)num);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t initResBlockInfo(SResultBlockInfo* pResBlockInfo, int64_t capacity, SSDataBlock* pResBlock,
                                 SQueryTableDataCond* pCond, SBlockLoadSuppInfo* pSup) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -933,6 +973,9 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, void
   TSDB_CHECK_CODE(code, lino, _end);
 
   code = initResBlockInfo(&pReader->resBlockInfo, capacity, pResBlock, pCond, pSup);
+  TSDB_CHECK_CODE(code, lino, _end);
+
+  code = checkSlotIdsInResBlock(pSup, pReader->resBlockInfo.pResBlock);
   TSDB_CHECK_CODE(code, lino, _end);
 
   code = tBlockDataCreate(&pReader->status.fileBlockData);
@@ -1194,6 +1237,19 @@ static int32_t loadFileBlockBrinInfo(STsdbReader* pReader, SArray* pIndexList, S
     if (pScanInfo->pBlockIdxList == NULL) {
       pScanInfo->pBlockIdxList = taosArrayInit(4, sizeof(STableDataBlockIdx));
       TSDB_CHECK_NULL(pScanInfo->pBlockIdxList, code, lino, _end, terrno);
+    }
+
+    // when the query reads the pk column, the pk layout recorded in the file must match the query schema,
+    // otherwise the pk union is mis-typed. A reader that does not read the pk never touches the pks.
+    if (pReader->suppInfo.numOfPks > 0 &&
+        (pRecord->firstKey.key.numOfPKs != pReader->suppInfo.numOfPks ||
+         pRecord->lastKey.key.numOfPKs != pReader->suppInfo.numOfPks ||
+         pRecord->firstKey.key.pks[0].type != pReader->suppInfo.pk.type ||
+         pRecord->lastKey.key.pks[0].type != pReader->suppInfo.pk.type)) {
+      tsdbError("%s brin record pk layout mismatches schema, numOfPKs:%d/%d expect:%d", pReader->idStr,
+                pRecord->firstKey.key.numOfPKs, pRecord->lastKey.key.numOfPKs, pReader->suppInfo.numOfPks);
+      code = TSDB_CODE_FILE_CORRUPTED;
+      TSDB_CHECK_CODE(code, lino, _end);
     }
 
     SFileDataBlockInfo blockInfo = {.tbBlockIdx = TARRAY_SIZE(pScanInfo->pBlockList)};
@@ -1623,8 +1679,8 @@ _end:
 }
 
 // a faster version of copy procedure.
-static int32_t copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
-                               int32_t dumpedRows, bool asc) {
+int32_t tsdbCopyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpInfo, SColumnInfoData* pColData,
+                            int32_t dumpedRows, bool asc) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   uint8_t* p = NULL;
@@ -1635,7 +1691,12 @@ static int32_t copyNumericCols(const SColData* pData, SFileBlockDumpInfo* pDumpI
   TSDB_CHECK_NULL(pColData, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_CONDITION(dumpedRows >= 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  TSDB_CHECK_CONDITION(pData->type < TSDB_DATA_TYPE_MAX, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  // the file block type must match the result column type (sized from the query plan) exactly
+  TSDB_CHECK_CONDITION(pData->type == pColData->info.type, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_CONDITION(tDataTypes[pData->type].bytes == pColData->info.bytes, code, lino, _end,
+                       TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pColData->pData, code, lino, _end, TSDB_CODE_INVALID_PARA);
+  TSDB_CHECK_NULL(pData->pData, code, lino, _end, TSDB_CODE_INVALID_PARA);
   if (asc) {
     p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
   } else {
@@ -2000,7 +2061,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
         colDataSetNNULL(pColData, 0, dumpedRows);
       } else {
         if (IS_MATHABLE_TYPE(pColData->info.type)) {
-          code = copyNumericCols(pData, pDumpInfo, pColData, dumpedRows, asc);
+          code = tsdbCopyNumericCols(pData, pDumpInfo, pColData, dumpedRows, asc);
           TSDB_CHECK_CODE(code, lino, _end);
         } else {  // varchar/nchar type
           for (int32_t j = pDumpInfo->rowIndex; rowIndex < dumpedRows; j += step) {
@@ -2043,7 +2104,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, SRowKey* pLastPro
   pResBlock->info.rows = dumpedRows;
   pDumpInfo->rowIndex += step * processedRows;
 
-  tColRowGetKeyDeepCopy(pBlockData, pDumpInfo->rowIndex - step, pSupInfo->pkSrcSlot, pLastProcKey);
+  tColRowGetKeyDeepCopy(pBlockData, pDumpInfo->rowIndex - step, pSupInfo->pkSrcSlot, pLastProcKey, pSupInfo->pk.bytes);
 
   // check if current block are all handled
   if (pDumpInfo->rowIndex >= 0 && pDumpInfo->rowIndex < pRecord->numRow) {
@@ -2632,10 +2693,11 @@ static int32_t nextRowFromSttBlocks(SSttBlockReader* pSttBlockReader, STableBloc
     if (pSttBlockReader->numOfPks == 0) {
       pSttBlockReader->currentKey.ts = key;
     } else {
-      tColRowGetKeyDeepCopy(pRow->pBlockData, pRow->iRow, pkSrcSlot, &pSttBlockReader->currentKey);
+      tColRowGetKeyDeepCopy(pRow->pBlockData, pRow->iRow, pkSrcSlot, &pSttBlockReader->currentKey,
+                             pSttBlockReader->pkBytes);
     }
 
-    tColRowGetKeyDeepCopy(pRow->pBlockData, pRow->iRow, pkSrcSlot, pNextProc);
+    tColRowGetKeyDeepCopy(pRow->pBlockData, pRow->iRow, pkSrcSlot, pNextProc, pSttBlockReader->pkBytes);
 
     if (pScanInfo->delSkyline != NULL && TARRAY_SIZE(pScanInfo->delSkyline) > 0) {
       bool dropped = false;
@@ -5907,8 +5969,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   }
 
   while (i < numOfOutputCols) {
-    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, pSupInfo->slotId[i]);
-    TSDB_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_PARA);
+    SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, pSupInfo->slotId[i]);
 
     colDataSetNULL(pCol, outputRowIndex);
     i += 1;
@@ -5957,7 +6018,7 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
       pBlockScanInfo->lastProcKey.ts = row.pTSRow->ts;
       pBlockScanInfo->lastProcKey.numOfPKs = row.pTSRow->numOfPKs;
       if (row.pTSRow->numOfPKs > 0) {
-        code = tRowGetPrimaryKeyDeepCopy(row.pTSRow, &pBlockScanInfo->lastProcKey);
+        code = tsdbRowGetPrimaryKeyDeepCopy(row.pTSRow, &pBlockScanInfo->lastProcKey, pReader->suppInfo.pk.bytes);
         if (code != TSDB_CODE_SUCCESS) {
           if (freeTSRow) {
             taosMemoryFreeClear(row.pTSRow);
@@ -5973,7 +6034,8 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
       code = doAppendRowFromFileBlock(pBlock, pReader, row.pBlockData, row.iRow);
       TSDB_CHECK_CODE(code, lino, _end);
 
-      tColRowGetKeyDeepCopy(row.pBlockData, row.iRow, pReader->suppInfo.pkSrcSlot, &pBlockScanInfo->lastProcKey);
+      tColRowGetKeyDeepCopy(row.pBlockData, row.iRow, pReader->suppInfo.pkSrcSlot, &pBlockScanInfo->lastProcKey,
+                             pReader->suppInfo.pk.bytes);
     }
 
     // no data in buffer, return immediately
@@ -7374,6 +7436,11 @@ int32_t tsdbRetrieveDatablockSMA2(STsdbReader* pReader, SSDataBlock* pDataBlock,
     pResBlock->pBlockAgg[i].colId = -1;
   }
 
+  for (size_t k = 0; k < numOfCols; ++k) {
+    TSDB_CHECK_CONDITION(pSup->slotId[k] >= 0 && (size_t)pSup->slotId[k] < num, code, lino, _end,
+                         TSDB_CODE_INVALID_PARA);
+  }
+
   if (synthesizeAllNullSma) {
     code = doFillNullColSMA(pSup, pBlockInfo->numRow, numOfCols, pTsAgg);
   } else {
@@ -7667,26 +7734,31 @@ _end:
   return code;
 }
 
-static int32_t getBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
-  if (numOfRows < startRow) {
+int32_t tsdbGetBucketIndex(int32_t startRow, int32_t bucketRange, int32_t numOfRows, int32_t numOfBucket) {
+  if (numOfBucket <= 0 || bucketRange <= 0 || numOfRows < startRow) {
     return 0;
   }
-  int32_t bucketIndex = ((numOfRows - startRow) / bucketRange);
-  if (bucketIndex == numOfBucket) {
-    bucketIndex -= 1;
-  }
-  return bucketIndex;
+  // numOfRows - startRow can exceed INT32_MAX, so compute it in 64 bits and clamp to the last bucket
+  int64_t bucketIndex = ((int64_t)numOfRows - startRow) / bucketRange;
+  return bucketIndex > numOfBucket - 1 ? numOfBucket - 1 : (int32_t)bucketIndex;
 }
 
 void tsdbGetDataBlock(STsdbReader* pReader, SSDataBlock** pBlock) {
   *pBlock = pReader->resBlockInfo.pResBlock;
 }
 
-void tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock) {
+int32_t tsdbSetDataBlock(STsdbReader* pReader, SSDataBlock* pBlock) {
+  int32_t code = checkSlotIdsInResBlock(&pReader->suppInfo, pBlock);
+  if (code != TSDB_CODE_SUCCESS) {
+    // keep the block that was validated at open time, and tell the caller that pBlock was not taken over
+    tsdbError("%s failed to bind the result block since %s, %s", __func__, tstrerror(code), pReader->idStr);
+    return code;
+  }
   pReader->resBlockInfo.pResBlock = pBlock;
   if (pBlock) {
     pReader->status.pPrimaryTsCol = taosArrayGet(pBlock->pDataBlock,  pReader->suppInfo.slotId[0]);
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pTableBlockInfo) {
@@ -7766,7 +7838,7 @@ int32_t tsdbGetFileBlocksDistInfo2(STsdbReader* pReader, STableBlockDistInfo* pT
 
       pTableBlockInfo->totalSize += pBlockInfo->blockSize;
 
-      int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
+      int32_t bucketIndex = tsdbGetBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows, numOfBuckets);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
       // fixed-size row-count histogram

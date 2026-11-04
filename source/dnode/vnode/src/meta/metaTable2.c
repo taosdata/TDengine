@@ -39,6 +39,28 @@ extern int32_t updataTableColCmpr(SColCmprWrapper *pWp, SSchema *pSchema, int8_t
 extern int32_t addTableExtSchema(SMetaEntry *pEntry, const SSchema *pColumn, int32_t newColNum, SExtSchema *pExtSchema);
 extern int32_t dropTableExtSchema(SMetaEntry *pEntry, int32_t dropColId, int32_t newColNum);
 
+// Validates a schema received from the wire before it is persisted: the column
+// count, the column array and every column type (SSchema.type is a raw int8 that is
+// later used to index tDataTypes[]).
+static int32_t metaCheckSchemaWrapper(const SSchemaWrapper *pSchema, bool allowEmpty) {
+  if (pSchema == NULL || pSchema->nCols < 0 || pSchema->nCols > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->nCols == 0) {
+    return allowEmpty ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+  }
+  if (pSchema->pSchema == NULL) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < pSchema->nCols; i++) {
+    const SSchema *pCol = pSchema->pSchema + i;
+    if (IS_INVALID_TYPE(pCol->type) || pCol->type == TSDB_DATA_TYPE_NULL || pCol->bytes < 0) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t metaValidateVirtualChildColRefReq(SMeta *pMeta, int64_t version, const SVCreateTbReq *pReq,
                                                  const SMetaEntry *pStbEntry) {
   int32_t expectedCols = pStbEntry->stbEntry.schemaRow.nCols;
@@ -73,6 +95,15 @@ static int32_t metaCheckCreateSuperTableReq(SMeta *pMeta, int64_t version, SVCre
     metaError("vgId:%d, %s failed at %s:%d since invalid name:%s, version:%" PRId64, vgId, __func__, __FILE__, __LINE__,
               pReq->name, version);
     return TSDB_CODE_INVALID_MSG;
+  }
+
+  // check schemas
+  int32_t code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, vgId, __func__,
+              __FILE__, __LINE__, pReq->name, version);
+    return code;
   }
 
   // Hold metaRLock for pNameIdx B+tree read: async vacuum may concurrently
@@ -693,6 +724,20 @@ static int32_t metaCheckCreateNormalTableReq(SMeta *pMeta, int64_t version, SVCr
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // check schemas; the column compression entries are written per schema column
+  // when the response is built, so they must not outnumber the columns
+  code = metaCheckSchemaWrapper(&pReq->ntb.schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->ntb.schemaTag, true);
+  if (code == TSDB_CODE_SUCCESS && (pReq->colCmpr.nCols < 0 || pReq->colCmpr.nCols > pReq->ntb.schemaRow.nCols ||
+                                    (pReq->colCmpr.nCols > 0 && pReq->colCmpr.pColCmpr == NULL))) {
+    code = TSDB_CODE_INVALID_MSG;
+  }
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    return code;
+  }
+
   // check name
   if (tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &value, &valueSize) == 0) {
     // for auto create table, we return the uid of the existing table
@@ -943,7 +988,7 @@ static int32_t metaFillNtbTableMetaRsp(SMetaEntry *pEntry, const char *tbName, S
   // plain normal tables carry column compress options in colCmpr (mirrors the metaUpdateMetaRsp
   // response paths, e.g. metaAddTableColumn); metaFillRspSchemaExt only fills colId/typeMod.
   if (pEntry->type == TSDB_NORMAL_TABLE) {
-    for (int32_t i = 0; i < pEntry->colCmpr.nCols; i++) {
+    for (int32_t i = 0; i < pEntry->colCmpr.nCols && i < pEntry->ntbEntry.schemaRow.nCols; i++) {
       SColCmpr *p = &pEntry->colCmpr.pColCmpr[i];
       pRsp->pSchemaExt[i].colId = p->id;
       pRsp->pSchemaExt[i].compress = p->alg;
@@ -978,6 +1023,15 @@ static int32_t metaCreateVirtualNormalTable(SMeta *pMeta, int64_t version, SVCre
                 __FILE__, __LINE__, tstrerror(code), version, pReq->name);
     }
     TAOS_RETURN(code);
+  }
+
+  // every column of a virtual normal table needs exactly one column reference slot
+  if (pReq->colRef.nCols != pReq->ntb.schemaRow.nCols || (pReq->colRef.nCols > 0 && pReq->colRef.pColRef == NULL)) {
+    metaError("vgId:%d, %s failed at %s:%d since col ref count %d does not match schema count %d, version:%" PRId64
+              " name:%s",
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colRef.nCols, pReq->ntb.schemaRow.nCols,
+              version, pReq->name);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
   int32_t nextCid = 0;
@@ -4520,7 +4574,8 @@ static int32_t metaUpdateNtbTagValueImpl(SMeta *pMeta, SMetaEntry *pTable, SSche
         value.pData = pNewVal->pTagVal;
         value.nData = pNewVal->nTagVal;
       } else {
-        if (pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
+        if (IS_INVALID_TYPE(pCol->type) || pNewVal->pTagVal == NULL ||
+            (int32_t)pNewVal->nTagVal != tDataTypes[pCol->type].bytes) {
           metaError("vgId:%d, %s failed at %s:%d since invalid tag val len %d for tag %s, version:%" PRId64,
                     TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pNewVal->nTagVal, pCol->name, pTable->version);
           taosArrayDestroy(pTagArray);
@@ -5399,6 +5454,15 @@ static int32_t metaCheckUpdateTableOptionsReq(SMeta *pMeta, int64_t version, SVA
     TAOS_RETURN(TSDB_CODE_INVALID_MSG);
   }
 
+  // newComment is copied with newCommentLen + 1 bytes: it must really be that long
+  if (pReq->newCommentLen > 0 &&
+      (pReq->newCommentLen >= TSDB_TB_COMMENT_LEN || pReq->newComment == NULL ||
+       strnlen(pReq->newComment, (size_t)pReq->newCommentLen + 1) != (size_t)pReq->newCommentLen)) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid comment length:%d, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->newCommentLen, version);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
   return code;
 }
 
@@ -5659,7 +5723,8 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
   SColRef *pColRef = NULL;
   int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
       iColumn = i;
@@ -5839,7 +5904,8 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
   SColRef *pColRef = NULL;
   int32_t  iColumn = 0;
-  for (int32_t i = 0; i < pSchema->nCols; i++) {
+  // colRef is parallel to the schema but its length comes from the persisted entry
+  for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
       iColumn = i;
@@ -6654,6 +6720,24 @@ int32_t metaAlterSuperTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq)
               __func__, __FILE__, __LINE__, pReq->name, pEntry->type, version);
     metaFetchEntryFree(&pEntry);
     TAOS_RETURN(TSDB_CODE_VND_INVALID_TABLE_ACTION);
+  }
+
+  // the request is applied under its own suid: it must be the one of the named table
+  if (pReq->suid != pEntry->uid) {
+    metaError("vgId:%d, %s failed at %s:%d since request suid:%" PRId64 " does not match table %s uid:%" PRId64
+              ", version:%" PRId64,
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->suid, pReq->name, pEntry->uid, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+
+  code = metaCheckSchemaWrapper(&pReq->schemaRow, false);
+  if (code == TSDB_CODE_SUCCESS) code = metaCheckSchemaWrapper(&pReq->schemaTag, true);
+  if (code) {
+    metaError("vgId:%d, %s failed at %s:%d since invalid schema of table %s, version:%" PRId64, TD_VID(pMeta->pVnode),
+              __func__, __FILE__, __LINE__, pReq->name, version);
+    metaFetchEntryFree(&pEntry);
+    TAOS_RETURN(code);
   }
 
   SMetaEntry entry = {

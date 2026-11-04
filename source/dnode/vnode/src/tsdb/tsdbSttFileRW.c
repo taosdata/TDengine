@@ -412,6 +412,8 @@ int32_t tsdbSttFileReadTombBlock(SSttFileReader *reader, const STombBlk *tombBlk
   // decode
   int32_t       size = 0;
   SBufferReader br = BUFFER_READER_INITIALIZER(0, buffer0);
+  code = tsdbCheckBlkDescSizes(tombBlk->size, ARRAY_SIZE(tombBlk->size), tombBlk->numRec, buffer0->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tTombBlockClear(tombBlock);
   tombBlock->numOfRecords = tombBlk->numRec;
   for (int32_t i = 0; i < ARRAY_SIZE(tombBlock->buffers); ++i) {
@@ -443,8 +445,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   int32_t code = 0;
   int32_t lino = 0;
 
-  if (statisBlk->numOfPKs > TD_MAX_PK_COLS) {
-    tsdbError("vgId:%d %s failed at %s:%d since statis block numOfPKs %d exceeds max %d (file corrupted)",
+  if (statisBlk->numOfPKs < 0 || statisBlk->numOfPKs > TD_MAX_PK_COLS) {
+    tsdbError("vgId:%d %s failed at %s:%d since statis block numOfPKs %d is out of range [0, %d] (file corrupted)",
               TD_VID(reader->config->tsdb->pVnode), __func__, __FILE__, __LINE__, (int)statisBlk->numOfPKs,
               (int)TD_MAX_PK_COLS);
     TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
@@ -461,6 +463,8 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
   TAOS_CHECK_GOTO(code, &lino, _exit);
 
   // decode data
+  code = tsdbCheckBlkDescSizes(statisBlk->size, ARRAY_SIZE(statisBlk->size), statisBlk->numRec, buffer0->size);
+  TAOS_CHECK_GOTO(code, &lino, _exit);
   tStatisBlockClear(statisBlock);
   statisBlock->numOfPKs = statisBlk->numOfPKs;
   statisBlock->numOfRecords = statisBlk->numRec;
@@ -491,6 +495,20 @@ int32_t tsdbSttFileReadStatisBlock(SSttFileReader *reader, const SStatisBlk *sta
     for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
       code = tValueColumnCompressInfoDecode(&br, &lastKeyInfos[i]);
       TAOS_CHECK_GOTO(code, &lino, _exit);
+    }
+    {
+      int64_t totalPk = 0;
+      for (int32_t i = 0; i < statisBlk->numOfPKs; i++) {
+        code = tsdbCheckValueColInfo(&firstKeyInfos[i], statisBlk->numRec);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+        code = tsdbCheckValueColInfo(&lastKeyInfos[i], statisBlk->numRec);
+        TAOS_CHECK_GOTO(code, &lino, _exit);
+        totalPk += (int64_t)firstKeyInfos[i].dataCompressedSize + firstKeyInfos[i].offsetCompressedSize +
+                   lastKeyInfos[i].dataCompressedSize + lastKeyInfos[i].offsetCompressedSize;
+      }
+      if (totalPk > (int64_t)(buffer0->size - br.offset)) {
+        TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+      }
     }
 
     // decode value columns
