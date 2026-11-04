@@ -23,7 +23,7 @@ This guide describes three ways to write data collected by Neuron to TDengine:
 | One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard |
 | Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Southbound Driver Details](#southbound-driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -589,7 +589,7 @@ These results support capacity planning and do not represent TDengine's write li
 - [Neuron Open Source Documentation](https://docs.emqx.com/en/neuron/latest/)
 - [NeuronEX Configuration](https://docs.emqx.com/en/neuronex/latest/configuration/introduction.html)
 
-## Southbound Driver Details
+## Driver Details
 
 The names below are taken from the EMQX Neuron [southbound driver list](https://docs.emqx.com/en/emqx-neuron/latest/introduction/driver-list/driver-list.html) and the [datasheet](https://assets.emqx.com/resources/datasheet/EMQX%20Neuron%20DataSheet%202026-EN.pdf). Connection parameters, address formats, and examples follow the driver documentation.
 

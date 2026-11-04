@@ -23,7 +23,7 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 | 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 |
 | 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 |
 
-三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，可核对的名称见[南向驱动明细](#南向驱动明细)。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
+三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，可核对的名称见[驱动明细](#驱动明细)。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -589,7 +589,7 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 - [Neuron 开源版文档](https://docs.emqx.com/zh/neuron/latest/)
 - [NeuronEX 配置说明](https://docs.emqx.com/zh/neuronex/latest/configuration/introduction.html)
 
-## 南向驱动明细
+## 驱动明细
 
 以下名称摘自 EMQX Neuron [南向驱动](https://docs.emqx.com/zh/emqx-neuron/latest/introduction/driver-list/driver-list.html) 和 [数据表](https://assets.emqx.com/resources/datasheet/EMQX%20Neuron%20DataSheet%202026-EN.pdf)。参数、地址格式和连接示例以对应驱动文档为准。
 
