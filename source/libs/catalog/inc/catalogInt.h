@@ -472,6 +472,7 @@ typedef struct SCatalog {
   SHashObj*       pExtSourceHash; // key:sourceName, value:SExtSourceCacheEntry* (HASH_ENTRY_LOCK)
   SRWLatch        extHashLatch;   // protects pExtSourceHash pointer during bulk-replace swaps
   int64_t         extSrcGlobalVer;// client's known mnode global ext-source version (0 = unknown)
+  int64_t         extSrcDdlGen;   // client-local ext-source invalidation generation (monotonic)
   SCtgCacheStat   cacheStat;
 } SCatalog;
 

@@ -2594,6 +2594,10 @@ int32_t catalogRemoveExtSource(SCatalog* pCtg, const char* sourceName) {
   if (NULL == pCtg || NULL == sourceName) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+  // Bump the local invalidation generation before dropping the entry.  A heartbeat
+  // response that was requested before this point must not repopulate the cache
+  // with a snapshot that may predate the caller's DDL.
+  atomic_add_fetch_64(&pCtg->extSrcDdlGen, 1);
   CTG_API_LEAVE(ctgDropExtSourceEnqueue(pCtg, sourceName, true));
 }
 
@@ -2758,6 +2762,14 @@ int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
   *pGlobalVer = atomic_load_64(&pCtg->extSrcGlobalVer);
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen) {
+  CTG_API_ENTER();
+  if (NULL == pCtg || NULL == pDdlGen) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+  *pDdlGen = atomic_load_64(&pCtg->extSrcDdlGen);
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
 }
 
