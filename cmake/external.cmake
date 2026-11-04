@@ -3033,7 +3033,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             "SHA256 of the 19c Instant Client bundle")
         set(_oracle19c_url "${EXT_ORACLE_19C_ARTIFACT}")
         set(_oracle19c_sha "${EXT_ORACLE_19C_ARTIFACT_SHA256}")
-        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL "")
+        if("z${_oracle19c_url}" STREQUAL "z" AND NOT ("z${LOCAL_URL}" STREQUAL "z"))
             set(_oracle19c_url "${LOCAL_URL}/${_oracle19c_artifact}")
             set(_oracle19c_sha "${_oracle19c_artifact_hash}")
         endif()
