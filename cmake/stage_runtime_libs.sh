@@ -227,7 +227,14 @@ copy_ldd() {
   # Vendor bundles (notably Oracle) keep sibling dependencies without RPATH.
   # Inspect their closure using the source and staged directories, scoped to
   # this ldd invocation so different Oracle versions do not affect each other.
+  # libsqora also NEEDs libodbcinst.so.2. That driver manager is built and
+  # staged separately (it is not inside the Instant Client directory, and
+  # tdengine-ci:0.4 has no system unixODBC). STAGE_RUNTIME_EXTRA_LIB_DIR
+  # points ldd at that directory so the closure check can see it.
   ldd_search_path="$(cd "$(dirname "${src_lib}")" && pwd):$(cd "${dst_dir}" && pwd)"
+  if [ -n "${STAGE_RUNTIME_EXTRA_LIB_DIR:-}" ] && [ -d "${STAGE_RUNTIME_EXTRA_LIB_DIR}" ]; then
+    ldd_search_path="${ldd_search_path}:$(cd "${STAGE_RUNTIME_EXTRA_LIB_DIR}" && pwd)"
+  fi
   ldd_search_path="${ldd_search_path}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   while [ ${#queue[@]} -gt 0 ]; do
     cur="${queue[0]}"

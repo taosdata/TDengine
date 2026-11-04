@@ -147,6 +147,16 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
     # it is only resolved when the POST_BUILD command runs, so no configure-time
     # IS_DIRECTORY check here.
     set(_oracle_dst "${CMAKE_BINARY_DIR}/build/driver/oracle/${version}")
+    # libsqora NEEDs libodbcinst.so.2. The Instant Client directory does not
+    # ship it; the driver manager staged above does. Point the closure check
+    # at that directory. A system unixODBC (no ext_odbc target) is already on
+    # the default loader path.
+    set(_oracle_dm_lib "")
+    if(TARGET ext_odbc)
+      set(_oracle_dm_lib "${ext_odbc_install}/lib")
+    elseif(DEFINED _odbc_runtime_dir AND NOT "${_odbc_runtime_dir}" STREQUAL "")
+      set(_oracle_dm_lib "${_odbc_runtime_dir}")
+    endif()
     add_custom_command(TARGET extconnector POST_BUILD
       COMMAND "${CMAKE_COMMAND}" -E make_directory "${_oracle_dst}"
       COMMAND /bin/bash "${_stage_runtime_libs_script}"
@@ -157,7 +167,9 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
         "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
         "legacy.so*" "fips*.so*" "libaio*.so*"
         "libsqora*.dylib*" "libclntsh*.dylib*"
-      COMMAND /bin/bash "${_stage_runtime_libs_script}"
+      COMMAND "${CMAKE_COMMAND}" -E env
+        "STAGE_RUNTIME_EXTRA_LIB_DIR=${_oracle_dm_lib}"
+        /bin/bash "${_stage_runtime_libs_script}"
         copy-ldd-glob
         "${src_dir}"
         "${_oracle_dst}"
