@@ -13,243 +13,68 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import faulthandler
 import time
+from contextlib import contextmanager
+
+import pytest
 
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
 
-class TestNestedWindowRecalcMatrix:
+class _NestedWindowRecalcBase:
+    # A Python signal cannot reliably interrupt a blocked native client call.
+    # pytest-timeout's thread watchdog dumps stacks and terminates this group;
+    # the CI worker retains evidence and cleans its isolated container.
+    pytestmark = pytest.mark.timeout(600, method="thread")
     RETRY_SECONDS = 60
     STABLE_SECONDS = 3
+    DIAGNOSTIC_SECONDS = 60
 
     @classmethod
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         tdStream.createSnode()
 
-    def test_fixed_root_user_recalc_respects_range(self):
-        """Nested recalc: a fixed root updates only the requested scope.
-
-        Validate fixed root user recalc respects range behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 fixed-root recalc coverage
-        """
-        self._run_isolated("nw_recalc_fixed", self._check_fixed_root_user_recalc)
-
-    def test_data_root_user_recalc_respects_range(self):
-        """Nested recalc: a data-driven root updates only requested output.
-
-        Validate data root user recalc respects range behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 data-root recalc coverage
-        """
-        self._run_isolated("nw_recalc_data", self._check_data_root_user_recalc)
-
-    def test_delete_recalc_with_sliding_root(self):
-        """Nested DELETE_RECALC: pure SLIDING works at the root layer.
-
-        Validate delete recalc with sliding root behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 SLIDING-root delete coverage
-        """
-        self._run_isolated("nw_recalc_slide_root", self._check_sliding_root_delete)
-
-    def test_delete_recalc_with_sliding_leaf(self):
-        """Nested DELETE_RECALC: pure SLIDING works at the leaf layer.
-
-        Validate delete recalc with sliding leaf behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 SLIDING-leaf delete coverage
-        """
-        self._run_isolated("nw_recalc_slide_leaf", self._check_sliding_leaf_delete)
-
-    def test_count_incomplete_window_recalc_finishes(self):
-        """Nested recalc: an incomplete COUNT(N,1) request terminates empty.
-
-        Validate count incomplete window recalc finishes behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 incomplete COUNT recalc coverage
-        """
-        self._run_isolated("nw_recalc_count_open", self._check_count_incomplete)
-
-    def test_count_delete_recalculates_affected_windows(self):
-        """Nested DELETE_RECALC: COUNT(N,1) rewrites every affected window.
-
-        Validate count delete recalculates affected windows behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 COUNT delete coverage
-        """
-        self._run_isolated("nw_recalc_count_delete", self._check_count_delete)
-
-    def test_count_disorder_recalculates_affected_windows(self):
-        """Nested recalc: late COUNT(N,1) input rewrites affected windows.
-
-        Validate count disorder recalculates affected windows behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 COUNT disorder coverage
-        """
-        self._run_isolated("nw_recalc_count_late", self._check_count_disorder)
-
-    def test_count_close_boundary_is_recalculable(self):
-        """Nested recalc: a COUNT(N,1) close timestamp selects its window.
-
-        Validate count close boundary is recalculable behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 COUNT close-boundary coverage
-        """
-        self._run_isolated("nw_recalc_count_close", self._check_count_close)
-
-    def test_overlapping_leaf_recalculates_only_affected_windows(self):
-        """Nested recalc: an overlapping leaf leaves disjoint output intact.
-
-        Validate overlapping leaf recalculates only affected windows behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 overlapping-leaf recalc coverage
-        """
-        self._run_isolated("nw_recalc_overlap", self._check_overlapping_leaf)
-
-    def test_two_groups_replace_lineage_independently(self):
-        """Nested recalc: a lineage change in one gid does not alter another.
-
-        Validate two groups replace lineage independently behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 multi-gid lineage coverage
-        """
-        self._run_isolated("nw_recalc_gids", self._check_two_gids)
-
-    def test_aligned_a_b_a_recalc_preserves_old_lineage(self):
-        """Nested recalc: aligned A-B-A keeps old and new lineage rows.
-
-        Validate aligned a b a recalc preserves old lineage behavior.
-
-        Catalog:
-            - Streams:08-Recalc:NestedWindowMatrix
-
-        Since: v3.4.2.0
-
-        Labels: common,ci,integration,functional
-
-        Feishu: None
-
-        History:
-            - 2026-08-16 GPT-5 Added P0 A-B-A lineage recalc coverage
-        """
-        self._run_isolated("nw_recalc_aba", self._check_aligned_a_b_a)
-
     def _run_isolated(self, db_name, scenario):
-        tdStream.dropAllStreamsAndDbs()
+        started = time.monotonic()
+        tdLog.info(f"nested recalc scenario start: {scenario.__name__}, db={db_name}")
+        with self._trace_operation(f"initial cleanup {db_name}"):
+            tdStream.dropAllStreamsAndDbs()
         try:
             scenario(db_name)
         finally:
-            tdStream.dropAllStreamsAndDbs()
+            with self._trace_operation(f"final cleanup {db_name}"):
+                tdStream.dropAllStreamsAndDbs()
+            tdLog.info(
+                f"nested recalc scenario end: {scenario.__name__}, "
+                f"elapsed={time.monotonic() - started:.3f}s"
+            )
 
-    @staticmethod
-    def _query_rows(sql):
-        tdSql.query(sql, queryTimes=1)
-        return [
-            tuple(tdSql.getData(row, col) for col in range(tdSql.getCols()))
-            for row in range(tdSql.getRows())
-        ]
+    @classmethod
+    @contextmanager
+    def _trace_operation(cls, operation):
+        started = time.monotonic()
+        tdLog.info(f"nested recalc operation start: {operation}")
+        # A diagnostic only: the existing polling deadlines remain unchanged.
+        faulthandler.dump_traceback_later(cls.DIAGNOSTIC_SECONDS)
+        try:
+            yield
+        finally:
+            faulthandler.cancel_dump_traceback_later()
+            tdLog.info(
+                f"nested recalc operation end: {operation}, "
+                f"elapsed={time.monotonic() - started:.3f}s"
+            )
+
+    @classmethod
+    def _query_rows(cls, sql):
+        with cls._trace_operation(f"query {sql}"):
+            tdSql.query(sql, queryTimes=1)
+            return [
+                tuple(tdSql.getData(row, col) for col in range(tdSql.getCols()))
+                for row in range(tdSql.getRows())
+            ]
 
     @staticmethod
     def _rows_equal(actual, expected):
@@ -1136,3 +961,216 @@ class TestNestedWindowRecalcMatrix:
                 ),
             ],
         )
+
+
+class TestNestedWindowRecalcMatrix(_NestedWindowRecalcBase):
+    def test_fixed_root_user_recalc_respects_range(self):
+        """Nested recalc: a fixed root updates only the requested scope.
+
+        Validate fixed root user recalc respects range behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 fixed-root recalc coverage
+        """
+        self._run_isolated("nw_recalc_fixed", self._check_fixed_root_user_recalc)
+
+    def test_data_root_user_recalc_respects_range(self):
+        """Nested recalc: a data-driven root updates only requested output.
+
+        Validate data root user recalc respects range behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 data-root recalc coverage
+        """
+        self._run_isolated("nw_recalc_data", self._check_data_root_user_recalc)
+
+    def test_delete_recalc_with_sliding_root(self):
+        """Nested DELETE_RECALC: pure SLIDING works at the root layer.
+
+        Validate delete recalc with sliding root behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 SLIDING-root delete coverage
+        """
+        self._run_isolated("nw_recalc_slide_root", self._check_sliding_root_delete)
+
+    def test_delete_recalc_with_sliding_leaf(self):
+        """Nested DELETE_RECALC: pure SLIDING works at the leaf layer.
+
+        Validate delete recalc with sliding leaf behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 SLIDING-leaf delete coverage
+        """
+        self._run_isolated("nw_recalc_slide_leaf", self._check_sliding_leaf_delete)
+
+    def test_count_incomplete_window_recalc_finishes(self):
+        """Nested recalc: an incomplete COUNT(N,1) request terminates empty.
+
+        Validate count incomplete window recalc finishes behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 incomplete COUNT recalc coverage
+        """
+        self._run_isolated("nw_recalc_count_open", self._check_count_incomplete)
+
+    def test_count_delete_recalculates_affected_windows(self):
+        """Nested DELETE_RECALC: COUNT(N,1) rewrites every affected window.
+
+        Validate count delete recalculates affected windows behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 COUNT delete coverage
+        """
+        self._run_isolated("nw_recalc_count_delete", self._check_count_delete)
+
+
+class TestNestedWindowRecalcMatrixLineage(_NestedWindowRecalcBase):
+    def test_count_disorder_recalculates_affected_windows(self):
+        """Nested recalc: late COUNT(N,1) input rewrites affected windows.
+
+        Validate count disorder recalculates affected windows behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 COUNT disorder coverage
+        """
+        self._run_isolated("nw_recalc_count_late", self._check_count_disorder)
+
+    def test_count_close_boundary_is_recalculable(self):
+        """Nested recalc: a COUNT(N,1) close timestamp selects its window.
+
+        Validate count close boundary is recalculable behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 COUNT close-boundary coverage
+        """
+        self._run_isolated("nw_recalc_count_close", self._check_count_close)
+
+    def test_overlapping_leaf_recalculates_only_affected_windows(self):
+        """Nested recalc: an overlapping leaf leaves disjoint output intact.
+
+        Validate overlapping leaf recalculates only affected windows behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 overlapping-leaf recalc coverage
+        """
+        self._run_isolated("nw_recalc_overlap", self._check_overlapping_leaf)
+
+    def test_two_groups_replace_lineage_independently(self):
+        """Nested recalc: a lineage change in one gid does not alter another.
+
+        Validate two groups replace lineage independently behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 multi-gid lineage coverage
+        """
+        self._run_isolated("nw_recalc_gids", self._check_two_gids)
+
+    def test_aligned_a_b_a_recalc_preserves_old_lineage(self):
+        """Nested recalc: aligned A-B-A keeps old and new lineage rows.
+
+        Validate aligned a b a recalc preserves old lineage behavior.
+
+        Catalog:
+            - Streams:08-Recalc:NestedWindowMatrix
+
+        Since: v3.4.2.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-08-16 GPT-5 Added P0 A-B-A lineage recalc coverage
+        """
+        self._run_isolated("nw_recalc_aba", self._check_aligned_a_b_a)
