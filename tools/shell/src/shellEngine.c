@@ -73,6 +73,7 @@ static void  shellCleanup(void *arg);
 static void *shellCancelHandler(void *arg);
 static void *shellThreadLoop(void *arg);
 static bool  shellHasBinaryNonPrintable(const char *val, int32_t length);
+static bool  shellBlobHasNonPrintable(const char *val, int32_t length);
 static void  shellHexEncode(char *dst, const char *val, int32_t length);
 static char *shellAllocHexString(const char *val, int32_t length);
 static void  shellPrintHex(const char *val, int32_t length, int32_t width);
@@ -376,7 +377,7 @@ char *shellFormatTimestamp(char *buf, int32_t bufSize, int64_t val, int32_t prec
 
 char *shellDumpHexValue(char *buf, const char *val, int32_t length) {
   for (int32_t i = 0; i < length; i++) {
-    (void)sprintf(buf + (i * 2), "%02X", val[i]);
+    (void)sprintf(buf + (i * 2), "%02X", (unsigned char)val[i]);
   }
   buf[length * 2] = 0;
 
@@ -492,7 +493,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field,
       char *tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
       if (tmp == NULL) break;
       shellDumpHexValue(tmp, val, length);
-      taosFprintfFile(pFile, "%s", buf);
+      taosFprintfFile(pFile, "%s", tmp);
       taosMemoryFree(tmp);
       break;
     }
@@ -506,14 +507,36 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field,
       break;
     case TSDB_DATA_TYPE_BLOB:
     case TSDB_DATA_TYPE_MEDIUMBLOB: {
-      void    *tmp = NULL;
-      uint32_t size = 0;
-      if (taosAscii2Hex(val, length, &tmp, &size) < 0) {
+      int32_t bufIndex = 0;
+      char   *tmp = NULL;
+
+      if (shell.args.is_binary_as_hex || shellBlobHasNonPrintable(val, length)) {
+        void    *data = NULL;
+        uint32_t size = 0;
+        if (taosAscii2Hex(val, length, &data, &size) < 0) {
+          break;
+        }
+        taosFprintfFile(pFile, "%s%s%s", quotationStr, data, quotationStr);
+        taosMemoryFree(data);
         break;
       }
+
+      // Printable BLOB (e.g. SHOW XNODE TASKS parser / SHOW XNODE JOBS config) is
+      // emitted as text with the same CSV quoting as NCHAR/JSON below.
+      tmp = (char *)taosMemoryCalloc(length * 2 + 1, 1);
+      if (tmp == NULL) break;
+      for (int32_t i = 0; i < length; i++) {
+        tmp[bufIndex] = val[i];
+        bufIndex++;
+        if (val[i] == '\"') {
+          tmp[bufIndex] = val[i];
+          bufIndex++;
+        }
+      }
+      tmp[bufIndex] = 0;
+
       taosFprintfFile(pFile, "%s%s%s", quotationStr, tmp, quotationStr);
       taosMemoryFree(tmp);
-
       break;
     }
     default:

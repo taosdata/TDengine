@@ -20,6 +20,8 @@
 #include <cstring> 
 #include <cctype>
 #include <string>
+#include <cstdio>
+#include <unistd.h>
 #include "shellAuto.h"
 #include "shellInt.h"
 
@@ -283,6 +285,72 @@ TEST(shellUtil, statementHoldsCredential) {
   const char *head = "create user u comment '";
   std::string longStatement = std::string(head) + std::string(4096, 'a') + std::string("' pass 'S3cret'");
   EXPECT_TRUE(shellStatementHoldsCredential(longStatement.c_str()));
+}
+
+// helper: dump one field value through shellDumpFieldToFile into a temp file and
+// return the file contents as a std::string.
+static std::string dumpFieldToTempFile(int8_t type, const char *val, int32_t length, bool binaryAsHex) {
+  bool oldBinaryAsHex = shell.args.is_binary_as_hex;
+  shell.args.is_binary_as_hex = binaryAsHex;
+
+  static int32_t s_seq = 0;
+  char           path[256] = {0};
+  snprintf(path, sizeof(path), "/tmp/taos_shell_ut_%d_%d.txt", (int)getpid(), s_seq++);
+
+  TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (pFile == NULL) {
+    shell.args.is_binary_as_hex = oldBinaryAsHex;
+    return std::string();
+  }
+
+  TAOS_FIELD field = {0};
+  field.type = type;
+
+  shellDumpFieldToFile(pFile, val, &field, length, TSDB_TIME_PRECISION_MILLI, 0);
+  taosCloseFile(&pFile);
+
+  shell.args.is_binary_as_hex = oldBinaryAsHex;
+
+  std::string out;
+  pFile = taosOpenFile(path, TD_FILE_READ);
+  if (pFile != NULL) {
+    char    buf[8192] = {0};
+    int64_t n = taosReadFile(pFile, buf, sizeof(buf) - 1);
+    if (n > 0) {
+      out.assign(buf, (size_t)n);
+    }
+    taosCloseFile(&pFile);
+  }
+  (void)taosRemoveFile(path);
+  return out;
+}
+
+TEST(shellDumpFieldToFile, blobAsText) {
+  // printable BLOB -> CSV-quoted text as-is
+  EXPECT_EQ(dumpFieldToTempFile(TSDB_DATA_TYPE_BLOB, "hello world", 11, false), "\"hello world\"");
+
+  // JSON with embedded newline and quotes: newline kept, quotes doubled
+  const char *json = "{\"a\":1,\n\"b\":\"x\"}";
+  EXPECT_EQ(dumpFieldToTempFile(TSDB_DATA_TYPE_BLOB, json, (int32_t)strlen(json), false),
+            "\"{\"\"a\"\":1,\n\"\"b\"\":\"\"x\"\"}\"");
+}
+
+TEST(shellDumpFieldToFile, blobAsHex) {
+  // bytes containing a NUL are non-printable -> \\x-prefixed hex
+  const char bin[3] = {(char)0xDE, (char)0xAD, (char)0x00};
+  EXPECT_EQ(dumpFieldToTempFile(TSDB_DATA_TYPE_BLOB, bin, 3, false), "\"\\xDEAD00\"");
+}
+
+TEST(shellDumpFieldToFile, blobAsHexForced) {
+  // -H (binaryAsHex) forces hex even for printable text
+  EXPECT_EQ(dumpFieldToTempFile(TSDB_DATA_TYPE_BLOB, "hi", 2, true), "\"\\x6869\"");
+}
+
+TEST(shellDumpFieldToFile, geometryAsHex) {
+  // regression: geometry used to dump the uninitialized 'buf' instead of the
+  // encoded 'tmp' buffer
+  const char bin[2] = {(char)0xDE, (char)0xAD};
+  EXPECT_EQ(dumpFieldToTempFile(TSDB_DATA_TYPE_GEOMETRY, bin, 2, false), "DEAD");
 }
 
 int main(int argc, char **argv) {
