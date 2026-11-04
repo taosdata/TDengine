@@ -104,14 +104,34 @@ void setOperatorRowStateCleanupFn(SOperatorInfo* pOperator, __optr_close_fn_t cl
   pOperator->fpSet.rowStateCleanupFn = cleanupFn;
 }
 
+// A stream Runner task runs on a snode, which has no vnode attached: stRunnerBuildTask()
+// builds the task from a zeroed SReadHandle, so the task's storage API carries no meta reader.
+// TagRefSource must then resolve the referenced tags over RPC instead of scanning local meta.
+// createOperator() uses this predicate to choose the execution path; buildTagRefSourceScanNode()
+// keeps its own full three-pointer check as defence in depth on the local path only.
+static bool tagRefSourceNeedsRemoteResolve(SExecTaskInfo* pTaskInfo) {
+  return pTaskInfo != NULL && pTaskInfo->storageAPI.metaReaderFn.initReader == NULL;
+}
+
 static int32_t buildTagRefSourceScanNode(SReadHandle* pHandle, STagRefSourcePhysiNode* pTagRefSourceNode,
                                          SExecTaskInfo* pTaskInfo, SScanPhysiNode* pScanNode) {
   if (pHandle == NULL || pTagRefSourceNode == NULL || pTaskInfo == NULL || pScanNode == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
-  SMetaReader mr = {0};
+  SMetaReader  mr = {0};
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
+
+  // Defence in depth: this builder reaches every meta reader entry point below, so verify the
+  // whole set instead of only the one used to make the remote/local decision. getTableEntryByUid
+  // and metaFn.extractTagVal are checked as well because tagRefSourceScanOneTable() needs them
+  // once the table list has been built.
+  if (pAPI->metaReaderFn.initReader == NULL || pAPI->metaReaderFn.clearReader == NULL ||
+      pAPI->metaReaderFn.getTableEntryByName == NULL || pAPI->metaReaderFn.getTableEntryByUid == NULL ||
+      pAPI->metaFn.extractTagVal == NULL) {
+    qError("%s: storage API not initialized, a TagRefSource plan cannot be executed here", __func__);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
   pAPI->metaReaderFn.initReader(&mr, pHandle->vnode, META_READER_LOCK, &pAPI->metaFn, pHandle->txnId);
   int32_t code = pAPI->metaReaderFn.getTableEntryByName(&mr, pTagRefSourceNode->sourceTableName.tname);
@@ -546,43 +566,54 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE == type) {
       STagRefSourcePhysiNode* pTagRefSourceNode = (STagRefSourcePhysiNode*)pPhyNode;
-      STableListInfo*         pTableListInfo = tableListCreate();
       SScanPhysiNode          sourceScan = {0};
-      if (!pTableListInfo) {
+
+      // A stream Runner task executes on a snode, which has no vnode attached: the read
+      // handle carries a zeroed storage API, so the local meta scans below are unavailable.
+      // The operator then resolves the referenced tags over RPC from the source table's
+      // config (tagRefSourceResolveRemote), which needs neither a table list nor vg mapping.
+      bool            remoteTagRef = tagRefSourceNeedsRemoteResolve(pTaskInfo);
+      STableListInfo* pTableListInfo = remoteTagRef ? NULL : tableListCreate();
+      if (!remoteTagRef && !pTableListInfo) {
         pTaskInfo->code = terrno;
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
         return terrno;
       }
 
-      code = buildTagRefSourceScanNode(pHandle, pTagRefSourceNode, pTaskInfo, &sourceScan);
-      if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
-      }
-
-      code = initQueriedTableSchemaInfo(pHandle, &sourceScan, dbname, pTaskInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
-        return code;
-      }
-
-      if (pHandle) {
-        code = createScanTableListInfo(&sourceScan, NULL, false, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
-                                       pTaskInfo, NULL);
+      if (!remoteTagRef) {
+        code = buildTagRefSourceScanNode(pHandle, pTagRefSourceNode, pTaskInfo, &sourceScan);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = code;
-          qError("failed to getTableList for TagRefSource, code:%s", tstrerror(code));
           tableListDestroy(pTableListInfo);
           return code;
         }
+
+        code = initQueriedTableSchemaInfo(pHandle, &sourceScan, dbname, pTaskInfo);
+        if (code != TSDB_CODE_SUCCESS) {
+          pTaskInfo->code = code;
+          tableListDestroy(pTableListInfo);
+          return code;
+        }
+
+        if (pHandle) {
+          code = createScanTableListInfo(&sourceScan, NULL, false, pHandle, pTableListInfo, pTagCond, pTagIndexCond,
+                                         pTaskInfo, NULL);
+          if (code != TSDB_CODE_SUCCESS) {
+            pTaskInfo->code = code;
+            qError("failed to getTableList for TagRefSource, code:%s", tstrerror(code));
+            tableListDestroy(pTableListInfo);
+            return code;
+          }
+        }
       }
 
-      code = createTagRefSourceOperatorInfo(pTagRefSourceNode, pHandle, pTableListInfo, pTaskInfo, &pOperator);
+      code = createTagRefSourceOperatorInfo(pTagRefSourceNode, pHandle, pTableListInfo, remoteTagRef,
+                                            pTaskInfo, &pOperator);
       if (code) {
         pTaskInfo->code = code;
-        tableListDestroy(pTableListInfo);
+        if (pTableListInfo != NULL) {
+          tableListDestroy(pTableListInfo);
+        }
         return code;
       }
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
