@@ -116,6 +116,14 @@ if [ $ent -ne 0 ]; then
     BUILD_FQ_RUNTIME_OPT="-DINSTALL_FQ_RUNTIME_LIBS=ON"
 fi
 
+# 11g federated cases need the 19c Instant Client. Do not point LOCAL_URL at
+# this directory: that mirror switch redirects every other external download.
+ORACLE_19C_CMAKE=""
+ORACLE_19C_HOST="${REP_REAL_PATH}/.externals/mirror/oracle-instantclient-19.28.0.0.0-amd64.tar.gz"
+if [ -s "$ORACLE_19C_HOST" ]; then
+    ORACLE_19C_CMAKE="-DEXT_ORACLE_19C_ARTIFACT=${REP_DIR}/.externals/mirror/oracle-instantclient-19.28.0.0.0-amd64.tar.gz -DEXT_ORACLE_19C_ARTIFACT_SHA256=18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a"
+fi
+
 date 
 
 if [[ -d ${WORKDIR}/debugNoSan  ]] ;then
@@ -138,7 +146,7 @@ if [ "$build_no_asan" = "true" ]; then
         -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
         -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
         -v ${WORKDIR}/security:/security:ro \
-        --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.4} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT -DBUILD_COVERAGE=ON -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Release -DBUILD_CONTRIB=false -DBUILD_PYUDF=OFF && make build_externals -j\$(nproc) && make -j && bash ${LIBTAOSWS_SCRIPT} ${REP_DIR} ${REP_DIR}/debug || exit 1"
+        --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.4} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake .. $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT $ORACLE_19C_CMAKE -DBUILD_COVERAGE=ON -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Release -DBUILD_CONTRIB=false -DBUILD_PYUDF=OFF && make build_externals -j\$(nproc) && make -j && bash ${LIBTAOSWS_SCRIPT} ${REP_DIR} ${REP_DIR}/debug || exit 1"
     # -v ${REP_REAL_PATH}/community/contrib/jemalloc/:${REP_DIR}/community/contrib/jemalloc \
 
 
@@ -160,7 +168,7 @@ docker run \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs:${REP_DIR}/community/tools/taosws-rs \
     -v ${REP_REAL_PATH}/community/tools/taosws-rs/target:${REP_DIR}/community/tools/taosws-rs/target \
     -v ${WORKDIR}/security:/security:ro \
-    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.4} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT -DBUILD_COVERAGE=ON -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false -DBUILD_PYUDF=OFF && make build_externals -j\$(nproc) && make -j && bash ${LIBTAOSWS_SCRIPT} ${REP_DIR} ${REP_DIR}/debug || exit 1 "
+    --rm --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.4} sh -c ". /security/salt_env.sh || exit 1;cd $REP_DIR;apt update -y && apt install groff patchelf libltdl7 -y || exit 1;rm -rf debug;mkdir -p debug;cd debug;cmake ..  $BUILD_HTTP_OPT $BUILD_FQ_RUNTIME_OPT $ORACLE_19C_CMAKE -DBUILD_COVERAGE=ON -DBUILD_TOOLS=true -DBUILD_TEST=true -DWEBSOCKET=true   -DBUILD_SANITIZER=1  -DTOOLS_SANITIZE=true -DCMAKE_BUILD_TYPE=Debug -DTOOLS_BUILD_TYPE=Debug -DBUILD_TAOSX=false -DJEMALLOC_ENABLED=0 -DBUILD_CONTRIB=false -DBUILD_PYUDF=OFF && make build_externals -j\$(nproc) && make -j && bash ${LIBTAOSWS_SCRIPT} ${REP_DIR} ${REP_DIR}/debug || exit 1 "
 
 mv  ${REP_REAL_PATH}/debug  ${WORKDIR}/debugSan
 date
