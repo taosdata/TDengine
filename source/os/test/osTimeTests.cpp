@@ -15,6 +15,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef WINDOWS
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602  // GetSystemTimePreciseAsFileTime requires Windows 8.
+#endif
+#endif
+
 #include <gtest/gtest.h>
 #include <iostream>
 #include <thread>
@@ -85,12 +91,7 @@ TEST(osTimeTests, realtimeReturnsUnixTime) {
   EXPECT_LT(ts.tv_nsec, NANOSECOND_PER_SEC);
   EXPECT_GE(tv.tv_usec, 0);
   EXPECT_LT(tv.tv_usec, MICROSECOND_PER_SECOND);
-#ifdef WINDOWS
-  // GetSystemTimeAsFileTime can lag the reference by a 10-16 ms tick.
-  const int64_t realtimeMargin = 20 * NANOSECOND_PER_MSEC;
-#else
   const int64_t realtimeMargin = NANOSECOND_PER_MSEC;
-#endif
   for (size_t i = 0; i < sizeof(actual) / sizeof(actual[0]); ++i) {
     SCOPED_TRACE(actual[i].name);
     // time()-based second entries may lag by a coarse tick across a second
@@ -104,6 +105,47 @@ TEST(osTimeTests, realtimeReturnsUnixTime) {
 }
 
 #ifdef WINDOWS
+TEST(osTimeTests, realtimeUsesPreciseSystemClock) {
+  auto filetimeNs = [](const FILETIME &fileTime) -> int64_t {
+    ULARGE_INTEGER ticks = {0};
+    ticks.LowPart = fileTime.dwLowDateTime;
+    ticks.HighPart = fileTime.dwHighDateTime;
+    return static_cast<int64_t>((ticks.QuadPart - 116444736000000000ULL) * 100);
+  };
+
+  // Wait for a point inside one coarse clock tick. At that point the old
+  // GetSystemTimeAsFileTime implementation must fall before the precise clock.
+  const uint64_t deadline = GetTickCount64() + 5000;
+  int64_t maximumOffsetNs = 0;
+  int32_t checked = 0;
+  do {
+    FILETIME coarseBefore = {0}, coarseAfter = {0};
+    FILETIME preciseBefore = {0}, preciseAfter = {0};
+    struct timespec actual = {0};
+    GetSystemTimeAsFileTime(&coarseBefore);
+    GetSystemTimePreciseAsFileTime(&preciseBefore);
+    ASSERT_EQ(taosClockGetTime(CLOCK_REALTIME, &actual), 0);
+    GetSystemTimePreciseAsFileTime(&preciseAfter);
+    GetSystemTimeAsFileTime(&coarseAfter);
+
+    int64_t offsetNs = filetimeNs(preciseBefore) - filetimeNs(coarseBefore);
+    if (offsetNs > maximumOffsetNs) maximumOffsetNs = offsetNs;
+    if (filetimeNs(coarseBefore) != filetimeNs(coarseAfter) ||
+        filetimeNs(preciseBefore) > filetimeNs(coarseAfter) ||
+        offsetNs < 100 * NANOSECOND_PER_USEC) {
+      continue;
+    }
+    int64_t actualNs = static_cast<int64_t>(actual.tv_sec) * NANOSECOND_PER_SEC + actual.tv_nsec;
+    EXPECT_GE(actualNs, filetimeNs(preciseBefore));
+    EXPECT_LE(actualNs, filetimeNs(preciseAfter));
+    ++checked;
+  } while (checked < 3 && GetTickCount64() < deadline);
+  if (checked == 0) {
+    GTEST_SKIP() << "No stable coarse clock tick with 100us offset; maximum observed offset: "
+                 << maximumOffsetNs << " ns";
+  }
+}
+
 TEST(osTimeTests, monotonicUsesPerformanceCounter) {
   LARGE_INTEGER frequency, before, after;
   ASSERT_TRUE(QueryPerformanceFrequency(&frequency));
