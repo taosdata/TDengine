@@ -153,6 +153,43 @@ int32_t tsdbSsFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int32_t ssKeepLocal,
 }
 
 
+// a remote manifest is only usable if it carries data, head and sma files and the expected fid
+int32_t tsdbValidateRemoteFset(const STFileSet* pFset, int32_t fid) {
+  if (pFset == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pFset->fid != fid) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  if (pFset->farr[TSDB_FTYPE_DATA] == NULL || pFset->farr[TSDB_FTYPE_HEAD] == NULL ||
+      pFset->farr[TSDB_FTYPE_SMA] == NULL) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// return the base name of a listing key, or NULL if the key contains no separator or ends with one
+const char* tsdbSsKeyBasename(const char* key) {
+  if (key == NULL) {
+    return NULL;
+  }
+  const char* sep = strrchr(key, '/');
+#ifdef WINDOWS
+  // The fs backend returns paths relative to baseDir. On Windows the directory prefix uses '/' while the backend
+  // appends the local '\\' separator, so a returned path can be "vnode2/f1736/\v2f1736...". Take the last of either
+  // separator, otherwise the leading '\\' stays in the name and every file (manifests.json included) fails to match
+  // and is deleted as garbage.
+  const char* altSep = strrchr(key, '\\');
+  if (altSep != NULL && (sep == NULL || altSep > sep)) {
+    sep = altSep;
+  }
+#endif
+  if (sep == NULL || sep[1] == '\0') {
+    return NULL;
+  }
+  return sep + 1;
+}
+
 static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileSet) {
   int32_t code = 0, vid = TD_VID(pVnode);
 
@@ -166,6 +203,9 @@ static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileS
   }
 
   char* buf = taosMemoryMalloc(size + 1);
+  if (buf == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
   code = tssReadFileFromDefault(path, 0, buf, &size);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("vgId:%d, fid:%d, failed to read manifest from shared storage since %s", vid, fid, tstrerror(code));
@@ -189,13 +229,10 @@ static int32_t downloadManifest(SVnode* pVnode, int32_t fid, STFileSet** ppFileS
   }
 
   STFileSet* fset = *ppFileSet;
-  if (fset->fid != fid) {
-    tsdbError("vgId:%d, fid:%d, mismatch fid, manifest fid is %d", vid, fid, fset->fid);
-    tsdbTFileSetClear(ppFileSet);
-    return TSDB_CODE_FILE_CORRUPTED;
-  }
-  if (fset->farr[TSDB_FTYPE_DATA] == NULL) {
-    tsdbError("vgId:%d, fid:%d, data file not found in manifest", vid, fid);
+  code = tsdbValidateRemoteFset(fset, fid);
+  if (code != TSDB_CODE_SUCCESS) {
+    tsdbError("vgId:%d, fid:%d, invalid manifest (fid mismatch or data/head/sma file missing), manifest fid:%d", vid,
+              fid, fset ? fset->fid : -1);
     tsdbTFileSetClear(ppFileSet);
     return TSDB_CODE_FILE_CORRUPTED;
   }
@@ -311,7 +348,12 @@ static int32_t downloadFile(SRTNer* rtner, STFileObj* fobj) {
     return TSDB_CODE_SUCCESS;
   }
 
-  const char* fname = strrchr(fobj->fname, TD_DIRSEP_CHAR) + 1;
+  const char* sep = strrchr(fobj->fname, TD_DIRSEP_CHAR);
+  if (sep == NULL) {
+    tsdbError("invalid file name %s, no directory separator", fobj->fname);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  const char* fname = sep + 1;
   int32_t vid = TD_VID(rtner->tsdb->pVnode);
   STFile* f = fobj->f;
   
@@ -342,20 +384,7 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
   for(int i = 0; i < taosArrayGetSize(paths); i++) {
       char* p = *(char**)taosArrayGet(paths, i);
       const char* ext = strrchr(p, '.');
-      // The fs backend returns paths relative to baseDir.  On Windows the
-      // directory prefix uses '/' while the backend appends the local '\\'
-      // separator, so a returned path can be "vnode2/f1736/\v2f1736...".
-      // Locate the last of either separator, otherwise the leading '\\' is
-      // kept in rname and every file (including manifests.json) fails to
-      // match and is deleted as garbage.
-      const char* rname = strrchr(p, '/');
-#ifdef WINDOWS
-      const char* altSep = strrchr(p, '\\');
-      if (altSep != NULL && (rname == NULL || altSep > rname)) {
-        rname = altSep;
-      }
-#endif
-      rname = (rname == NULL) ? p : rname + 1;
+      const char* rname = tsdbSsKeyBasename(p);
       bool remove = true;
       int32_t vgId = 0, fid = 0, mid = 0, cn = 0;
       int64_t cid = 0;
@@ -363,7 +392,14 @@ static void tsdbRemoveSsGarbageFiles(int32_t vid, STFileSet* fset) {
       // NOTE: when compare file name, don't use strcmp(fobj->fname, rname) because 'fobj->fname' may not
       // contain the migration id. that's why we use sscanf to parse the file name.
 
-      if (ext == NULL) {
+      if (rname == NULL) {
+        // the key has no base name, skip it rather than guess
+        tsdbWarn("vgId:%d, fid:%d, skip listing key without base name: %s", vid, fset->fid, p);
+        taosMemoryFree(p);
+        continue;
+      }
+
+      if (ext == NULL || ext < rname) {
         // no extension, remove
       } else if (taosStrcasecmp(ext, ".head") == 0) {
         STFileObj* fobj = fset->farr[TSDB_FTYPE_HEAD];
@@ -765,8 +801,17 @@ static int32_t tsdbFollowerDoSsMigrate(SRTNer *rtner) {
   tsdbInfo("vgId:%d, fid:%d, follower migration started, begin downloading manifest...", vid, fset->fid);
   STFileSet *pRemoteFset = NULL;
   code = downloadManifest(rtner->tsdb->pVnode, fset->fid, &pRemoteFset);
-  if (code == TSDB_CODE_NOT_FOUND) {
+  if (code != TSDB_CODE_SUCCESS) {
     tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, follower migration failed to download manifest since %s", vid, fset->fid,
+              tstrerror(code));
+    return code == TSDB_CODE_NOT_FOUND ? TSDB_CODE_FILE_CORRUPTED : code;
+  }
+
+  if (fset->farr[TSDB_FTYPE_HEAD] == NULL || fset->farr[TSDB_FTYPE_SMA] == NULL ||
+      fset->farr[TSDB_FTYPE_DATA] == NULL) {
+    tsdbTFileSetClear(&pRemoteFset);
+    tsdbError("vgId:%d, fid:%d, follower migration failed, local head/sma/data file missing", vid, fset->fid);
     return TSDB_CODE_FILE_CORRUPTED;
   }
 

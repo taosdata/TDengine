@@ -108,16 +108,16 @@ static int32_t tfile_from_json(const cJSON *json, STFile *file) {
 
   /* did.level */
   item = cJSON_GetObjectItem(json, "did.level");
-  if (cJSON_IsNumber(item)) {
-    file->did.level = item->valuedouble;
+  if (cJSON_IsNumber(item) && item->valuedouble >= 0 && item->valuedouble < TFS_MAX_TIERS) {
+    file->did.level = (int32_t)item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
 
   /* did.id */
   item = cJSON_GetObjectItem(json, "did.id");
-  if (cJSON_IsNumber(item)) {
-    file->did.id = item->valuedouble;
+  if (cJSON_IsNumber(item) && item->valuedouble >= 0 && item->valuedouble < TFS_MAX_DISKS_PER_TIER) {
+    file->did.id = (int32_t)item->valuedouble;
   } else {
     return TSDB_CODE_FILE_CORRUPTED;
   }
@@ -214,6 +214,7 @@ static int32_t stt_from_json(const cJSON *json, STFile *file) {
 }
 
 int32_t tsdbTFileToJson(const STFile *file, cJSON *json) {
+  if (!tsdbFTypeIsValid(file->type)) return TSDB_CODE_FILE_CORRUPTED;
   if (file->type == TSDB_FTYPE_STT) {
     return g_tfile_info[file->type].to_json(file, json);
   } else {
@@ -359,6 +360,11 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
 }
 
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
+  if (!tsdbFTypeIsValid(f->type)) {
+    tsdbError("invalid file type:%d, refuse to build file name", f->type);
+    fname[0] = '\0';
+    return;
+  }
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
@@ -435,6 +441,11 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
 }
 
 void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
+  if (!tsdbFTypeIsValid(f->type)) {
+    tsdbError("invalid file type:%d, refuse to build file name", f->type);
+    fname[0] = '\0';
+    return;
+  }
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
@@ -525,4 +536,13 @@ int32_t tsdbTFileObjCmpr(const STFileObj **fobj1, const STFileObj **fobj2) {
   }
 }
 
-const char *tsdbFTypeLabel(tsdb_ftype_t ftype) { return g_tfile_info[ftype].suffix; }
+// The ftype enum has a hole (value 4); only HEAD/DATA/SMA/TOMB/STT are defined.
+bool tsdbFTypeIsValid(int32_t ftype) {
+  return ftype == TSDB_FTYPE_HEAD || ftype == TSDB_FTYPE_DATA || ftype == TSDB_FTYPE_SMA || ftype == TSDB_FTYPE_TOMB ||
+         ftype == TSDB_FTYPE_STT;
+}
+
+const char *tsdbFTypeLabel(tsdb_ftype_t ftype) {
+  if (!tsdbFTypeIsValid(ftype)) return "unknown";
+  return g_tfile_info[ftype].suffix;
+}

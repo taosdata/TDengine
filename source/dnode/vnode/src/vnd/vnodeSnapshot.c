@@ -116,12 +116,17 @@ static int32_t vnodeSnapReaderDealWithSnapInfo(SVSnapReader *pReader, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        goto _out;
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {
@@ -800,12 +805,17 @@ static int32_t vnodeSnapWriterDealWithSnapInfo(SVSnapWriter *pWriter, SSnapshotP
 
     STsdbRepOpts         tsdbOpts = {0};
     TFileSetRangeArray **ppRanges = NULL;
-    int32_t              offset = 0;
+    int64_t              offset = 0;
 
-    while (offset + sizeof(SSyncTLV) < datHead->len) {
-      SSyncTLV *subField = (void *)(datHead->val + offset);
-      offset += sizeof(SSyncTLV) + subField->len;
-      void   *buf = subField->val;
+    for (;;) {
+      const SSyncTLV *subField = NULL;
+      code = tsdbSnapTlvNext(datHead, &offset, &subField);
+      if (code) {
+        vError("vgId:%d, invalid snapshot param TLV since %s", TD_VID(pVnode), tstrerror(code));
+        TSDB_CHECK_CODE(code, lino, _exit);
+      }
+      if (subField == NULL) break;
+      void   *buf = (void *)subField->val;
       int32_t bufLen = subField->len;
 
       switch (subField->typ) {

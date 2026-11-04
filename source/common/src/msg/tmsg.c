@@ -16603,8 +16603,9 @@ int32_t tDeserializeSBatchReq(void *buf, int32_t bufLen, SBatchReq *pReq) {
     // msgLen is an independent wire integer while msg is sized by the embedded binary.
     // Consumers decode msg bounded by msgLen (see smGetSingleStreamProgress and
     // smDispatchStreamTriggerRsp), so a larger msgLen would read past the allocation.
-    // tSerializeSBatchReq always writes the binary with exactly msgLen bytes.
-    if (msg.msgLen < 0 || (uint64_t)msg.msgLen != msgLen) {
+    // tSerializeSBatchReq always writes the binary with exactly msgLen bytes, and every
+    // batched request carries a body, so an empty blob (msg == NULL) is rejected as well.
+    if (msg.msg == NULL || msg.msgLen <= 0 || (uint64_t)msg.msgLen != msgLen) {
       taosMemoryFreeClear(msg.msg);
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }

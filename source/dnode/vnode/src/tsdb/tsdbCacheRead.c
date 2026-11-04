@@ -440,12 +440,37 @@ static int32_t tsdbCacheQueryReseek(void* pQHandle) {
   }
 }
 
+// compute how many bytes may be copied from a cached value into a schema-sized destination buffer
+int32_t tsdbCacheCalcCopyBytes(int8_t type, int32_t dstBytes, int32_t nData, int32_t* pCopyBytes) {
+  if (pCopyBytes == NULL || IS_INVALID_TYPE(type) || dstBytes < 0 || nData < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t capacity = dstBytes;
+  int32_t copyBytes = nData;
+  if (IS_STR_DATA_BLOB(type)) {
+    // the destination holds the 8-byte seq; the cached source buffer is only nData bytes long
+    capacity = BSE_SEQUECE_SIZE;
+    copyBytes = nData < (int32_t)BSE_SEQUECE_SIZE ? nData : (int32_t)BSE_SEQUECE_SIZE;
+  } else if (IS_VAR_DATA_TYPE(type)) {
+    capacity = dstBytes - (int32_t)VARSTR_HEADER_SIZE;
+  }
+
+  if (capacity < 0 || copyBytes > capacity) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  *pCopyBytes = copyBytes;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, const int32_t* dstSlotIds,
                               SArray* pTableUidList, bool* pGotAll) {
   int32_t           code = TSDB_CODE_SUCCESS;
   int32_t           lino = 0;
   bool              hasRes = false;
   SArray*           pRow = NULL;
+  SArray*           pLastCols = NULL;
   SCacheRowsReader* pr = NULL;
   int32_t           pkBufLen = 0;
 
@@ -468,7 +493,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve combined last/last_row data of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
-    SArray* pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
+    pLastCols = taosArrayInit(pr->numOfCols, sizeof(SLastCol));
     TSDB_CHECK_NULL(pLastCols, code, lino, _end, terrno);
 
     for (int32_t i = 0; i < pr->numOfCols; ++i) {
@@ -525,13 +550,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
         for (int32_t k = 0; k < pr->numOfCols; ++k) {
           if (slotIds[k] == -1) continue;
           SLastCol* p = taosArrayGet(pLastCols, k);
-          if (p == NULL) {
-            return TSDB_CODE_INVALID_PARA;
-          }
-
           SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, k);
-          if (pColVal == NULL) {
-            return TSDB_CODE_INVALID_PARA;
+          if (p == NULL || pColVal == NULL) {
+            // go through _end: the reader mutex and the read snapshot are held here
+            taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+            code = TSDB_CODE_INVALID_PARA;
+            goto _end;
           }
 
           if (tRowKeyCompare(&pColVal->rowKey, &p->rowKey) > 0) {
@@ -547,9 +571,26 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
             hasRes = true;
             p->rowKey.ts = pColVal->rowKey.ts;
+            if (p->rowKey.numOfPKs > TD_MAX_PK_COLS || pColVal->rowKey.numOfPKs < p->rowKey.numOfPKs) {
+              taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+              code = TSDB_CODE_INVALID_PARA;
+              goto _end;
+            }
             for (int32_t j = 0; j < p->rowKey.numOfPKs; j++) {
               if (IS_VAR_DATA_TYPE(p->rowKey.pks[j].type)) {
-                memcpy(p->rowKey.pks[j].pData, pColVal->rowKey.pks[j].pData, pColVal->rowKey.pks[j].nData);
+                // an empty var-length pk is deserialized with pData == NULL, which is legitimate
+                if ((pColVal->rowKey.pks[j].nData > 0 && pColVal->rowKey.pks[j].pData == NULL) ||
+                    p->rowKey.pks[j].pData == NULL ||
+                    tsdbCheckPkDataLen(pColVal->rowKey.pks[j].nData, pr->pkColumn.bytes) != TSDB_CODE_SUCCESS) {
+                  tsdbError("last cache pk length invalid, uid:%" PRIu64 ", nData:%u, pk-bytes:%d", uid,
+                            pColVal->rowKey.pks[j].nData, pr->pkColumn.bytes);
+                  taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+                  code = TSDB_CODE_INVALID_PARA;
+                  goto _end;
+                }
+                if (pColVal->rowKey.pks[j].nData > 0) {
+                  memcpy(p->rowKey.pks[j].pData, pColVal->rowKey.pks[j].pData, pColVal->rowKey.pks[j].nData);
+                }
                 p->rowKey.pks[j].nData = pColVal->rowKey.pks[j].nData;
               } else {
                 valueCloneDatum(p->rowKey.pks + j, pColVal->rowKey.pks + j, p->rowKey.pks[j].type);
@@ -585,8 +626,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               if (COL_VAL_IS_VALUE(&pColVal->colVal) &&
                   pColVal->colVal.value.nData > 0 &&
                   pColVal->colVal.value.pData != NULL) {
-                int32_t copyBytes = IS_STR_DATA_BLOB(pColVal->colVal.value.type) ?
-                                    BSE_SEQUECE_SIZE : pColVal->colVal.value.nData;
+                int32_t copyBytes = 0;
+                int32_t dstBytes = pr->pSchema->columns[slotIds[k]].bytes;
+                code = tsdbCacheCalcCopyBytes(pColVal->colVal.value.type, dstBytes,
+                                              (int32_t)pColVal->colVal.value.nData, &copyBytes);
+                if (code != TSDB_CODE_SUCCESS) {
+                  tsdbError("last cache value overflows destination, uid:%" PRIu64 ", slotId:%d, nData:%u, bytes:%d",
+                            uid, slotIds[k], pColVal->colVal.value.nData, dstBytes);
+                  taosArrayClearEx(pRow, tsdbCacheFreeSLastColItem);
+                  code = TSDB_CODE_INVALID_PARA;
+                  goto _end;
+                }
                 TAOS_UNUSED(memcpy(p->colVal.value.pData, pColVal->colVal.value.pData, copyBytes));
               }
 
@@ -614,6 +664,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
     taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
+    pLastCols = NULL;
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     // The regular path returns as soon as one table has produced a row. A
     // batch request keeps the read snapshot and reader mutex while it appends
@@ -670,6 +721,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
 _end:
+  // the error exits of the SINGLE branch above leave the intermediate rows behind
+  taosArrayDestroyEx(pLastCols, tsdbCacheFreeSLastColItem);
   tsdbUntakeReadSnap2((STsdbReader*)pr, pr->pReadSnap, true);
   pr->pReadSnap = NULL;
 

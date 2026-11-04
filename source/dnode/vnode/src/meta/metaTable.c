@@ -1035,6 +1035,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
           for (int i = 0; i < pTagSchema->nCols; i++) {
             pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[i];
             if (!IS_IDX_ON(pTagColumn)) continue;
+            if (IS_INVALID_TYPE(pTagColumn->type)) continue;  // never indexed, see metaCreateTagIdxKey
             STagIdxKey *pTagIdxKey = NULL;
             int32_t     nTagIdxKey;
 
@@ -1287,6 +1288,9 @@ int metaUpdateChangeTimeWithLock(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeM
 
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                         STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
+  if (IS_INVALID_TYPE(type) || nTagData < 0) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (IS_VAR_DATA_TYPE(type)) {
     *nTagIdxKey = sizeof(STagIdxKey) + nTagData + VARSTR_HEADER_SIZE + sizeof(tb_uid_t);
   } else {

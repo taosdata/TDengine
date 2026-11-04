@@ -2560,14 +2560,15 @@ static int32_t tqExtractResetOffsetVal(STqOffsetVal* pOffsetVal, STQ* pTq, STqHa
     return TSDB_CODE_INVALID_PARA;
   }
   uint64_t   consumerId = pRequest->consumerId;
-  STqOffset* pOffset = NULL;
-  int32_t    code = tqMetaGetOffset(pTq, pRequest->subKey, &pOffset);
+  STqOffset  offset = {0};
+  int32_t    code = tqMetaGetOffset(pTq, pRequest->subKey, &offset);
   int32_t    vgId = TD_VID(pTq->pVnode);
 
   *pBlockReturned = false;
   // In this vnode, data has been polled by consumer for this topic, so let's continue from the last offset value.
   if (code == 0) {
-    tOffsetCopy(pOffsetVal, &pOffset->val);
+    tOffsetCopy(pOffsetVal, &offset.val);
+    tDeleteSTqOffset(&offset);
 
     char formatBuf[TSDB_OFFSET_LEN] = {0};
     tFormatOffset(formatBuf, TSDB_OFFSET_LEN, pOffsetVal);

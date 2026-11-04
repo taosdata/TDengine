@@ -106,7 +106,10 @@ _error:
   return code;
 }
 
-int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem) {
+// On success the cache owns pElem; if ppRef is not NULL the caller additionally gets one reference on the new item
+// (taken under the cache mutex) and must release it with bseCacheUnrefItem. On failure pElem is still owned by the
+// caller.
+int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pElem, SCacheItem **ppRef) {
   int32_t code = 0;
   int32_t lino = 0;
   SCacheItem *pItem = NULL;
@@ -148,7 +151,11 @@ int32_t cacheLRUPut(SLruCache *pCache, SSeqRange *key, int32_t keyLen, void *pEl
   if (code != 0) {
     TSDB_CHECK_CODE(code, lino, _error);
   }
-  bseCacheRefItem(pItem);
+  bseCacheRefItem(pItem);  // reference owned by the cache
+  if (ppRef != NULL) {
+    bseCacheRefItem(pItem);  // reference owned by the caller, keeps the block alive against eviction
+    *ppRef = pItem;
+  }
 
 _error:
   if (code != 0) {
@@ -316,7 +323,7 @@ int32_t tableCachePut(STableCache *pCache, SSeqRange *key, STableReader *pReader
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = cacheLRUPut(pCache->pCache, key, sizeof(*key), pReader);
+  code = cacheLRUPut(pCache->pCache, key, sizeof(*key), pReader, NULL);
   TSDB_CHECK_CODE(code, lino, _error);
 
 _error:
@@ -382,10 +389,16 @@ _error:
 }
 
 int32_t blockCachePut(SBlockCache *pCache, SSeqRange *key, void *pBlock) {
+  return blockCachePutRef(pCache, key, pBlock, NULL);
+}
+
+// Same as blockCachePut, but also returns the new cache item holding one extra reference in *ppItem when ppItem is
+// not NULL. The caller must release it with bseCacheUnrefItem. On failure the block is still owned by the caller.
+int32_t blockCachePutRef(SBlockCache *pCache, SSeqRange *key, void *pBlock, SCacheItem **ppItem) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock);
+  code = cacheLRUPut(pCache->pCache, key, sizeof(SSeqRange), pBlock, ppItem);
   TSDB_CHECK_CODE(code, lino, _error);
 _error:
   if (code != 0) {

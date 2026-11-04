@@ -479,7 +479,12 @@ typedef struct {
   } colVal;
 } SLastColV0;
 
-static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
+// Returns the number of bytes consumed, or -1 when the value is malformed (too short for the
+// fixed header or the declared variable-length payload).
+static int64_t tsdbCacheDeserializeV0(char const *value, size_t size, SLastCol *pLastCol) {
+  if (size < sizeof(SLastColV0)) {
+    return -1;
+  }
   SLastColV0 *pLastColV0 = (SLastColV0 *)value;
 
   pLastCol->rowKey.ts = pLastColV0->ts;
@@ -497,11 +502,13 @@ static int32_t tsdbCacheDeserializeV0(char const *value, SLastCol *pLastCol) {
     if (pLastCol->colVal.value.nData > 0) {
       pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
     }
-    return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
+    if ((uint64_t)pLastColV0->colVal.value.nData > size - sizeof(SLastColV0)) return -1;
+    return (int64_t)sizeof(SLastColV0) + (int64_t)pLastColV0->colVal.value.nData;
   } else if (pLastCol->colVal.value.type == TSDB_DATA_TYPE_DECIMAL) {
     pLastCol->colVal.value.nData = pLastColV0->colVal.value.nData;
+    if ((uint64_t)pLastColV0->colVal.value.nData > size - sizeof(SLastColV0)) return -1;
     pLastCol->colVal.value.pData = (uint8_t *)(&pLastColV0[1]);
-    return sizeof(SLastColV0) + pLastColV0->colVal.value.nData;
+    return (int64_t)sizeof(SLastColV0) + (int64_t)pLastColV0->colVal.value.nData;
   } else {
     pLastCol->colVal.value.val = pLastColV0->colVal.value.val;
     return sizeof(SLastColV0);
@@ -518,13 +525,17 @@ int32_t tsdbCacheDeserialize(char const *value, size_t size, SLastCol **ppLastCo
     return terrno;
   }
 
-  int32_t offset = tsdbCacheDeserializeV0(value, pLastCol);
-  if (offset == size) {
+  int64_t offset = tsdbCacheDeserializeV0(value, size, pLastCol);
+  if (offset < 0) {
+    taosMemoryFreeClear(pLastCol);
+    TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);
+  }
+  if ((uint64_t)offset == size) {
     // version 0
     *ppLastCol = pLastCol;
 
     TAOS_RETURN(TSDB_CODE_SUCCESS);
-  } else if (offset > size) {
+  } else if ((uint64_t)offset > size) {
     taosMemoryFreeClear(pLastCol);
 
     TAOS_RETURN(TSDB_CODE_INVALID_DATA_FMT);

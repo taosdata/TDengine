@@ -94,6 +94,7 @@ struct STFileObj {
 };
 
 const char *tsdbFTypeLabel(tsdb_ftype_t ftype);
+bool        tsdbFTypeIsValid(int32_t ftype);
 
 #ifdef __cplusplus
 }

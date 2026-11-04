@@ -80,12 +80,18 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
     goto end;
   }
 
-  STqOffset* pSavedOffset = NULL;
-  code = tqMetaGetOffset(pTq, pOffset->subKey, &pSavedOffset);
-  if (code == 0 && tqOffsetEqual(pOffset, pSavedOffset)) {
-    tqInfo("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
-           vgId, pOffset->subKey, pOffset->val.version, pSavedOffset->val.version);
-    goto end;  // no need to update the offset value
+  STqOffset savedOffset = {0};
+  code = tqMetaGetOffset(pTq, pOffset->subKey, &savedOffset);
+  if (code == 0) {
+    bool same = tqOffsetEqual(pOffset, &savedOffset);
+    if (same) {
+      tqInfo("not update the offset, vgId:%d sub:%s since committed:%" PRId64 " less than/equal to existed:%" PRId64,
+             vgId, pOffset->subKey, pOffset->val.version, savedOffset.val.version);
+    }
+    tDeleteSTqOffset(&savedOffset);
+    if (same) {
+      goto end;  // no need to update the offset value
+    }
   }
 
   // if (pOffset->val.type == TMQ_OFFSET__LOG && vgOffset.markWal) {
@@ -94,7 +100,10 @@ int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t sversion, char* msg, int32_t 
   //           pOffset->subKey, ret);
   // }
   // save the new offset value
+  // readers copy entries out under the read lock, so the replace (which frees the old entry) takes the write lock
+  taosWLockLatch(&pTq->lock);
   code = taosHashPut(pTq->pOffset, pOffset->subKey, strlen(pOffset->subKey), pOffset, sizeof(STqOffset));
+  taosWUnLockLatch(&pTq->lock);
   if (code != 0) {
     goto end;
   }
@@ -214,26 +223,31 @@ int32_t tqProcessVgCommittedInfoReq(STQ* pTq, SRpcMsg* pMsg) {
 
   tDecoderClear(&decoder);
 
-  STqOffset* pSavedOffset = NULL;
-  int32_t    code = tqMetaGetOffset(pTq, vgOffset.offset.subKey, &pSavedOffset);
+  STqOffset savedOffset = {0};
+  int32_t   code = tqMetaGetOffset(pTq, vgOffset.offset.subKey, &savedOffset);
   if (code != 0) {
+    tDeleteSTqOffset(&vgOffset.offset);
     return TSDB_CODE_TMQ_NO_COMMITTED;
   }
-  vgOffset.offset = *pSavedOffset;
+  tDeleteSTqOffset(&vgOffset.offset);  // release the decoded request offset, reply with the saved one
+  vgOffset.offset = savedOffset;
 
   tEncodeSize(tEncodeMqVgOffset, &vgOffset, len, code);
   if (code < 0) {
+    tDeleteSTqOffset(&savedOffset);
     return TAOS_GET_TERRNO(TSDB_CODE_INVALID_PARA);
   }
 
   void* buf = rpcMallocCont(len);
   if (buf == NULL) {
+    tDeleteSTqOffset(&savedOffset);
     return terrno;
   }
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   code = tEncodeMqVgOffset(&encoder, &vgOffset);
   tEncoderClear(&encoder);
+  tDeleteSTqOffset(&savedOffset);
   if (code < 0) {
     rpcFreeCont(buf);
     return TAOS_GET_TERRNO(TSDB_CODE_INVALID_PARA);
@@ -301,16 +315,18 @@ int32_t tqProcessVgWalInfoReq(STQ* pTq, SRpcMsg* pMsg) {
   if (reqOffset.type == TMQ_OFFSET__LOG) {
     dataRsp.rspOffset.version = reqOffset.version;
   } else if (reqOffset.type < 0) {
-    STqOffset* pOffset = NULL;
-    code = tqMetaGetOffset(pTq, req.subKey, &pOffset);
+    STqOffset offset = {0};
+    code = tqMetaGetOffset(pTq, req.subKey, &offset);
     if (code == 0) {
-      if (pOffset->val.type != TMQ_OFFSET__LOG) {
+      if (offset.val.type != TMQ_OFFSET__LOG) {
         tqError("consumer:0x%" PRIx64 " vgId:%d subkey:%s, no valid wal info", consumerId, vgId, req.subKey);
+        tDeleteSTqOffset(&offset);
         code = TSDB_CODE_INVALID_PARA;
         goto END;
       }
 
-      dataRsp.rspOffset.version = pOffset->val.version;
+      dataRsp.rspOffset.version = offset.val.version;
+      tDeleteSTqOffset(&offset);
       tqInfo("consumer:0x%" PRIx64 " vgId:%d subkey:%s get assignment from store:%" PRId64, consumerId, vgId,
              req.subKey, dataRsp.rspOffset.version);
     } else {
@@ -342,7 +358,16 @@ int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   }
   if (!vnodeRestoreFinished(pTq->pVnode)) return terrno;
 
+  if (msgLen < (int32_t)sizeof(SMqVDeleteReq)) {
+    tqError("tq process delete sub req, invalid msgLen:%d", msgLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+  if (memchr(pReq->subKey, 0, TSDB_SUBSCRIBE_KEY_LEN) == NULL) {
+    tqError("tq process delete sub req, subKey is not NUL terminated");
+    return TSDB_CODE_INVALID_MSG;
+  }
   int32_t        vgId = TD_VID(pTq->pVnode);
 
   tqInfo("vgId:%d, tq process delete sub req %s", vgId, pReq->subKey);
@@ -403,6 +428,18 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
     goto end;
   }
 
+  if (req.subType != TOPIC_SUB_TYPE__COLUMN && req.subType != TOPIC_SUB_TYPE__DB &&
+      req.subType != TOPIC_SUB_TYPE__TABLE) {
+    tqError("vgId:%d, tmq subscribe req:%s, invalid subType:%d", pTq->pVnode->config.vgId, req.subKey, req.subType);
+    ret = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+  if (req.subType == TOPIC_SUB_TYPE__COLUMN && req.qmsg == NULL) {
+    tqError("vgId:%d, tmq subscribe req:%s, column subscription without qmsg", pTq->pVnode->config.vgId, req.subKey);
+    ret = TSDB_CODE_INVALID_MSG;
+    goto end;
+  }
+
   tqInfo("vgId:%d, tmq subscribe req:%s, Id:0x%" PRIx64 " -> Id:0x%" PRIx64, pTq->pVnode->config.vgId, req.subKey,
          req.oldConsumerId, req.newConsumerId);
 
@@ -444,9 +481,19 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
         taosMsleep(10);
         continue;
       }
-      if (req.subType == TOPIC_SUB_TYPE__COLUMN && strcmp(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0) {
-        tqInfo("vgId:%d, topic:%s, subscribe qmsg changed from %s to %s, need recreate handle", pTq->pVnode->config.vgId,
-               pHandle->subKey, pHandle->execHandle.execCol.qmsg, req.qmsg);
+      bool subTypeChanged = pHandle->execHandle.subType != req.subType;
+      if (subTypeChanged || (req.subType == TOPIC_SUB_TYPE__COLUMN &&
+                             (pHandle->execHandle.execCol.qmsg == NULL ||
+                              strcmp(req.qmsg, pHandle->execHandle.execCol.qmsg) != 0))) {
+        // the topic was dropped and recreated under the same name (different subType or query), the stale handle
+        // cannot be reused and must be rebuilt, otherwise the consumer would be stuck on every rebalance
+        if (subTypeChanged) {
+          tqInfo("vgId:%d, topic:%s, subscribe subType changed from %d to %d, need recreate handle",
+                 pTq->pVnode->config.vgId, pHandle->subKey, pHandle->execHandle.subType, req.subType);
+        } else {
+          tqInfo("vgId:%d, topic:%s, subscribe qmsg changed from %s to %s, need recreate handle",
+                 pTq->pVnode->config.vgId, pHandle->subKey, pHandle->execHandle.execCol.qmsg, req.qmsg);
+        }
         // tqUnregisterPushHandle(pTq, pHandle);
         STqHandle handle = {0};
         ret = tqMetaCreateHandle(pTq, &req, &handle);

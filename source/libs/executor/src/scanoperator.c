@@ -1591,7 +1591,11 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
       QUERY_CHECK_CODE(code, lino, _end);
     }
     if (pTableScanInfo->base.dataReader != NULL) {
-      pAPI->tsdReader.tsdReaderSetDatablock(pTableScanInfo->base.dataReader, pNextBlock);
+      code = pAPI->tsdReader.tsdReaderSetDatablock(pTableScanInfo->base.dataReader, pNextBlock);
+      if (code != TSDB_CODE_SUCCESS) {
+        blockDataDestroy(pNextBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
     }
     // Mark only raw direct-block outputs for the lock-free recycle path. SMA
     // results keep their original ownership and cleanup behavior.
@@ -2352,7 +2356,9 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
     code = blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
     QUERY_CHECK_CODE(code, lino, _return);
 
-    pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+    code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+
+    QUERY_CHECK_CODE(code, lino, _return);
     pInfo->newReader = false;
     pInfo->scanTimes = 0;
   }
@@ -2718,7 +2724,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
       code = blockDataEnsureCapacity(pInfo->pResBlock, pOperator->resultInfo.capacity);
       QUERY_CHECK_CODE(code, lino, _return);
 
-      pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+      code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+
+      QUERY_CHECK_CODE(code, lino, _return);
       pInfo->newReader = false;
       pInfo->scanTimes = 0;
     }
@@ -3471,7 +3479,8 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
   // returned to the parent.  A new dynamic parameter may reopen or reuse that
   // reader, so always bind the freshly-created result block at the ownership
   // boundary immediately before scanning.
-  pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+  code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (pInfo->base.limitInfo.limit.limit >= 0 &&
       pInfo->base.limitInfo.numOfOutputRows >= pInfo->base.limitInfo.limit.limit) {
@@ -3529,7 +3538,8 @@ static int32_t doVstbSingleDynamicTableScanNext(SOperatorInfo* pOperator, SSData
     void** reader = taosHashGet(pInfo->readerCache, &keyInfo->uid, sizeof(uint64_t));
     if (reader) {
       if (*reader == pInfo->base.dataReader) {
-        pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
+        code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
+        QUERY_CHECK_CODE(code, lino, _end);
         code = closeTableScanReader(&pInfo->base);
         QUERY_CHECK_CODE(code, lino, _end);
       } else if (pAPI->tsdReader.tsdReaderClose) {
@@ -3669,7 +3679,8 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
 
     // See doVstbSingleDynamicTableScanNext(): every returned block is detached
     // from the reader, including between tables in a runtime batch.
-    pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+    code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, pInfo->pResBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     if (pInfo->newReader) {
       code = startNextGroupScan(pOperator, &result);
@@ -3691,7 +3702,8 @@ static int32_t doVstbBatchDynamicTableScanNext(SOperatorInfo* pOperator, SSDataB
 
   if (result) {
     SSDataBlock* res = NULL;
-    pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
+    code = pAPI->tsdReader.tsdReaderSetDatablock(pInfo->base.dataReader, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
     pInfo->lastTimeWindow.skey = result->info.window.skey;
     pInfo->lastTimeWindow.ekey = result->info.window.ekey;
 
