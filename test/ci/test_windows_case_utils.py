@@ -1474,5 +1474,69 @@ class TestWindowsForceStop(unittest.TestCase):
                     self.assertEqual(node.running, 0)
 
 
+
+class TestWindowsFinalization(unittest.TestCase):
+    def test_taskkill_timeout_is_bounded_and_reported(self):
+        import run_windows_ci as ci
+        import subprocess
+        from unittest.mock import patch
+
+        with patch.object(ci.subprocess, "run", side_effect=subprocess.TimeoutExpired("taskkill", 15)) as run:
+            with self.assertRaisesRegex(RuntimeError, "timed out.*taosd"):
+                ci.stop_process_images(("taosd",))
+            self.assertEqual(run.call_args.kwargs["timeout"], 15)
+
+    def test_cleanup_failure_still_collects_artifacts_and_fails_job(self):
+        import run_windows_ci as ci
+        import sys
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {}, clear=True), \
+             patch.object(sys, "argv", ["run_windows_ci.py", "--skip-build", "--skip-ctest", "--skip-pytest"]), \
+             patch.object(ci, "print_host_identity"), \
+             patch.object(ci, "stop_processes", side_effect=RuntimeError("cleanup timeout")), \
+             patch.object(ci, "stop_build_processes") as stop_build, \
+             patch.object(ci, "collect_artifacts") as collect:
+            self.assertEqual(ci.main(), 1)
+            stop_build.assert_called_once()
+            collect.assert_called_once()
+
+    def test_influx_cleanup_preserves_existing_instances_and_reused_pids(self):
+        import run_windows_ci as ci
+        import sys
+        from unittest.mock import patch
+
+        binary = Path("influxdb/3.0/bin/influxdb3.exe")
+        process = Mock()
+        process.create_time.return_value = 20.0
+        psutil = SimpleNamespace(Process=Mock(return_value=process), NoSuchProcess=ProcessLookupError)
+        with patch.dict(sys.modules, {"psutil": psutil}), \
+             patch.object(ci, "running_fq_influx", return_value={(10, 20.0): binary}):
+            ci.stop_owned_fq_influx({(10, 20.0): binary})
+            ci.stop_owned_fq_influx({(9, 10.0): binary})
+            process.kill.assert_not_called()
+            ci.stop_owned_fq_influx({})
+            process.kill.assert_called_once()
+            process.wait.assert_called_once_with(timeout=30)
+            process.reset_mock()
+            process.create_time.return_value = 30.0
+            ci.stop_owned_fq_influx({})
+            process.kill.assert_not_called()
+
+    def test_influx_cleanup_runs_even_if_mysql_cleanup_fails(self):
+        import run_windows_ci as ci
+        from unittest.mock import patch
+
+        existing = {(10, 20.0): Path("influxdb/3.0/bin/influxdb3.exe")}
+        with patch.object(ci, "running_fq_postgres", return_value={}), \
+             patch.object(ci, "running_fq_mysql", return_value={}), \
+             patch.object(ci, "running_fq_influx", return_value=existing), \
+             patch.object(ci, "stop_owned_fq_mysql", side_effect=RuntimeError("mysql timeout")), \
+             patch.object(ci, "stop_owned_fq_influx") as stop_influx:
+            with self.assertRaisesRegex(RuntimeError, "mysql timeout"):
+                with ci.managed_fq_services(Path("source")):
+                    pass
+            stop_influx.assert_called_once_with(existing)
+
 if __name__ == "__main__":
     unittest.main()
