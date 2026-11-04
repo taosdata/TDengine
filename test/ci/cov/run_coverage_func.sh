@@ -163,12 +163,29 @@ function prepare_cases() {
     done
 }
 
-# 判断是否本地host
+# 判断是否本地host。hostname -I 的第一个地址会随 docker 网桥变化，
+# 只比较第一个会把本机 IP 判成远程，然后 ssh 回自己。
 function is_local_host() {
     local check_host="$1"
-    local local_hostnames=("127.0.0.1" "localhost" "::1" "$(hostname)" "$(hostname -I | awk '{print $1}')")
-    for lh in "${local_hostnames[@]}"; do
-        if [[ "$check_host" == "$lh" ]]; then
+    local candidate
+    if [[ -z "$check_host" || "$check_host" == "127.0.0.1" || "$check_host" == "localhost" || "$check_host" == "::1" ]]; then
+        return 0
+    fi
+    if [[ "$check_host" == "$(hostname 2>/dev/null)" || "$check_host" == "$(hostname -s 2>/dev/null)" ]]; then
+        return 0
+    fi
+    local -a local_addrs=()
+    local addr_line addr
+    addr_line="$(hostname -I 2>/dev/null)"
+    # shellcheck disable=SC2206
+    local_addrs+=($addr_line)
+    if command -v ip >/dev/null 2>&1; then
+        while read -r addr; do
+            [[ -n "$addr" ]] && local_addrs+=("$addr")
+        done < <(ip -o addr show 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+    fi
+    for candidate in "${local_addrs[@]}"; do
+        if [[ "$check_host" == "$candidate" ]]; then
             return 0
         fi
     done
