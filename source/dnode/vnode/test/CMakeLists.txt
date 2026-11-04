@@ -160,6 +160,32 @@ add_test(NAME metaTagFilterCacheTest COMMAND metaTagFilterCacheTest)
 # )
 ENDIF()
 
+# ---------------------------------------------------------------------------
+# metaColRefIdempotentTest: pure-helper tests for the virtual-table column-ref
+# ALTER idempotence guard (metaTable2.c metaColRefMatchesAlterReq /
+# metaResolveColRefTagCond). No meta/vnode instance and no --wrap linker flags
+# → kept outside the TD_LINUX block above so it also builds on macOS.
+# ---------------------------------------------------------------------------
+IF(NOT TD_WINDOWS)
+ADD_EXECUTABLE(metaColRefIdempotentTest metaColRefIdempotentTest.cpp)
+DEP_ext_gtest(metaColRefIdempotentTest)
+TARGET_LINK_LIBRARIES(
+         metaColRefIdempotentTest
+         PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode
+)
+TARGET_INCLUDE_DIRECTORIES(
+         metaColRefIdempotentTest
+         PUBLIC "${TD_SOURCE_DIR}/include/common"
+         PUBLIC "${TD_SOURCE_DIR}/include/libs/executor"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+         PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+add_test(
+         NAME metaColRefIdempotentTest
+         COMMAND metaColRefIdempotentTest
+)
+ENDIF()
+
 TARGET_INCLUDE_DIRECTORIES(
          bseTest
          PUBLIC "${TD_SOURCE_DIR}/include/common"
