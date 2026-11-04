@@ -6770,6 +6770,7 @@ typedef struct {
   char              sVer[TSDB_VERSION_LEN];
   char              cInfo[CONNECTOR_INFO_LEN];
   int32_t           passVer;  // password version the client authenticated with (-1: not reported)
+  int64_t           extSrcDdlGenAtSend;  // client-only: ext-source DDL generation when this request was built
 } SClientHbReq;
 
 typedef struct {

@@ -1020,14 +1020,19 @@ static void setRequestExtSourceNameFromDdl(SRequestObj* pRequest, const SQuery* 
 }
 
 static void invalidateExtSourceCacheAfterDdl(SRequestObj* pRequest, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS || pRequest == NULL || !isExtSourceDdlReq(pRequest->type) ||
-      pRequest->extSourceName[0] == '\0') {
+  (void)code;
+  if (pRequest == NULL || !isExtSourceDdlReq(pRequest->type) || pRequest->extSourceName[0] == '\0') {
     return;
   }
 
   SCatalog*     pCtg  = NULL;
   SAppInstInfo* pInst = pRequest->pTscObj->pAppInfo;
   if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCtg)) {
+    // Invalidate on completion even when the DDL failed: the server may have
+    // committed while the client saw an error or lost the response.  Keeping the
+    // entry out of the cache forces the next reader to fetch the authoritative
+    // state, and the generation bump drops heartbeat pushes built before this
+    // point.
     int32_t rmCode = catalogRemoveExtSource(pCtg, pRequest->extSourceName);
     if (rmCode != TSDB_CODE_SUCCESS) {
       tscWarn("req:0x%" PRIx64 ", catalogRemoveExtSource for %s after %s failed: %s, QID:0x%" PRIx64,
