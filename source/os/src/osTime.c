@@ -26,6 +26,12 @@
 
 #define _DEFAULT_SOURCE
 
+#ifdef WINDOWS
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602  // GetSystemTimePreciseAsFileTime requires Windows 8.
+#endif
+#endif
+
 #include "os.h"
 #include "osInt.h"
 #include "taoserror.h"
@@ -756,7 +762,10 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
     LARGE_INTEGER t;
     FILETIME      f;
 
-    GetSystemTimeAsFileTime(&f);
+    // Stream output can use wall-clock nanoseconds as a composite key. The
+    // coarse system clock may return the same value for separate windows in
+    // one calculation batch, causing the later row to replace the earlier one.
+    GetSystemTimePreciseAsFileTime(&f);
     t.QuadPart = f.dwHighDateTime;
     t.QuadPart <<= 32;
     t.QuadPart |= f.dwLowDateTime;
