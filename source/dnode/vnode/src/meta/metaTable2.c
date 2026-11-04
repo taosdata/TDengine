@@ -2952,25 +2952,22 @@ int32_t metaAddTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, ST
         }
         tmpRef.filterCondLen = pReq->filterCondLen;
       }
-      if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
-        for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
-          SSeriesEntry *s = &pEntry->series.pSeries[i];
-          bool matched = false;
-          if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
-            matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
-          } else {
-            matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
-                       strcasecmp(s->dbName, pReq->refDbName) == 0 &&
-                       strcasecmp(s->measurementName, pReq->refTbName) == 0);
-          }
-          if (matched) {
-            if (s->tagCondLen > 0 && s->tagCondJson) {
-              tmpRef.tagCondJson = taosStrdup(s->tagCondJson);
-              tmpRef.tagCondLen = s->tagCondLen;
-            }
-            break;
-          }
+      // Same series lookup the ALTER COLUMN REF path uses. It has to stay the same rule in both
+      // places: metaColRefMatchesAlterReq compares the stored tag condition against what the
+      // ALTER would resolve, so a divergence here would make the first rebind of a column created
+      // by this path look like a real change.
+      const char *pSeriesTagCondJson = NULL;
+      int32_t     seriesTagCondLen = 0;
+      metaResolveColRefTagCond(pEntry, pReq, &pSeriesTagCondJson, &seriesTagCondLen);
+      if (NULL != pSeriesTagCondJson) {
+        tmpRef.tagCondJson = taosStrdup(pSeriesTagCondJson);
+        if (NULL == tmpRef.tagCondJson) {
+          code = terrno;
+          taosMemoryFree(tmpRef.filterCondJson);
+          metaFetchEntryFree(&pEntry);
+          TAOS_RETURN(code);
         }
+        tmpRef.tagCondLen = seriesTagCondLen;
       }
     }
     code = updataTableColRef(&pEntry->colRef, pColumn, 1, &tmpRef);
@@ -5658,6 +5655,75 @@ int32_t metaUpdateTableColCompress2(SMeta *pMeta, int64_t version, SVAlterTbReq 
   TAOS_RETURN(code);
 }
 
+void metaResolveColRefTagCond(const SMetaEntry *pEntry, const SVAlterTbReq *pReq, const char **ppTagCondJson,
+                              int32_t *pTagCondLen) {
+  *ppTagCondJson = NULL;
+  *pTagCondLen = 0;
+
+  // Only external refs carry a series tag condition.
+  if (NULL == pEntry || NULL == pReq || pReq->refType != 1 || pEntry->series.nSeries <= 0) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
+    const SSeriesEntry *s = &pEntry->series.pSeries[i];
+    bool                matched = false;
+    if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
+      matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
+    } else {
+      matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
+                 strcasecmp(s->dbName, pReq->refDbName ? pReq->refDbName : "") == 0 &&
+                 strcasecmp(s->measurementName, pReq->refTbName ? pReq->refTbName : "") == 0);
+    }
+    if (matched) {
+      if (s->tagCondLen > 0 && s->tagCondJson) {
+        *ppTagCondJson = s->tagCondJson;
+        *pTagCondLen = s->tagCondLen;
+      }
+      break;
+    }
+  }
+}
+
+// Treats two NULL pointers as equal, which is how an absent JSON condition is stored.
+static bool metaColRefStrEqual(const char *a, const char *b) {
+  if (a == b) return true;
+  if (NULL == a || NULL == b) return false;
+  return strcmp(a, b) == 0;
+}
+
+bool metaColRefMatchesAlterReq(const SColRef *pColRef, const SVAlterTbReq *pReq, col_id_t colId,
+                               const char *pNewTagCondJson, int32_t newTagCondLen) {
+  if (NULL == pColRef || NULL == pReq) return false;
+
+  // metaAlterTableColumnRef rejects these before reaching here; a missing name can never compare
+  // equal to a stored one, so refuse to call it idempotent instead of dereferencing NULL.
+  if (NULL == pReq->refDbName || NULL == pReq->refTbName || NULL == pReq->refColName) return false;
+
+  if (!pColRef->hasRef || pColRef->id != colId || pColRef->refType != pReq->refType) return false;
+
+  // The write path normalises an absent source/schema name to the empty string, so compare against
+  // the same normalised form rather than against the raw request.
+  const char *refSourceName = pReq->refSourceName ? pReq->refSourceName : "";
+  const char *refSchemaName = (pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) ? pReq->refSchemaName : "";
+  if (strncmp(pColRef->refSourceName, refSourceName, TSDB_EXT_SOURCE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refSchemaName, refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN) != 0) return false;
+  if (strncmp(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN) != 0) return false;
+  if (strncmp(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN) != 0) return false;
+
+  // Mirror the write path exactly: it stores pReq->filterCondLen verbatim but only duplicates the
+  // JSON when both the length and the pointer are set.
+  const char *pNewFilterCondJson = (pReq->filterCondLen > 0 && pReq->filterCondJson) ? pReq->filterCondJson : NULL;
+  if (pColRef->filterCondLen != pReq->filterCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->filterCondJson, pNewFilterCondJson)) return false;
+
+  if (pColRef->tagCondLen != newTagCondLen) return false;
+  if (!metaColRefStrEqual(pColRef->tagCondJson, pNewTagCondJson)) return false;
+
+  return true;
+}
+
 int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5740,72 +5806,89 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
   }
 
-  // do update column ref
-  char *pFilterCondJson = NULL;
-  if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
-    pFilterCondJson = taosStrdup(pReq->filterCondJson);
-    if (NULL == pFilterCondJson) {
+  // Resolve the tag condition this request would install before touching anything: it is derived
+  // from the entry's own series list, so it is part of "would this ALTER change anything".
+  const char *pNewTagCondJson = NULL;
+  int32_t     newTagCondLen = 0;
+  metaResolveColRefTagCond(pEntry, pReq, &pNewTagCondJson, &newTagCondLen);
+
+  // IDMP re-binds every `ans*` virtual table every 6 hours without diffing first, so the vast
+  // majority of these ALTERs would write back exactly what is already stored. Applying them anyway
+  // bumps the row-schema and colRef versions, which makes the mnode broadcast a new super table
+  // version and every client drop its cached meta for a vstb that can have tens of thousands of
+  // children. Skipping the no-op keeps that churn - and the entry write - out of the system.
+  if (metaColRefMatchesAlterReq(pColRef, pReq, pSchema->pSchema[iColumn].colId, pNewTagCondJson, newTagCondLen)) {
+    metaInfo(KEYOP("vtable-alter", "SKIP") "vgId:%d, table %s column %s ref unchanged, version:%" PRId64,
+             TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
+  } else {
+    // do update column ref. Both JSON payloads are duplicated up front, before any field of
+    // pColRef is touched, so a failed allocation leaves the stored ref exactly as it was instead
+    // of half-applied.
+    char *pFilterCondJson = NULL;
+    if (pReq->filterCondLen > 0 && pReq->filterCondJson) {
+      pFilterCondJson = taosStrdup(pReq->filterCondJson);
+      if (NULL == pFilterCondJson) {
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(terrno);
+      }
+    }
+    char *pTagCondJson = NULL;
+    if (NULL != pNewTagCondJson) {
+      pTagCondJson = taosStrdup(pNewTagCondJson);
+      if (NULL == pTagCondJson) {
+        // Persisting the ref without the series tag condition and still reporting success would
+        // silently widen what this column resolves to, so fail the ALTER rather than drop it.
+        code = terrno;
+        taosMemoryFree(pFilterCondJson);
+        metaFetchEntryFree(&pEntry);
+        metaFetchEntryFree(&pSuper);
+        TAOS_RETURN(code);
+      }
+    }
+    pEntry->version = version;
+    pColRef->hasRef = true;
+    pColRef->id = pSchema->pSchema[iColumn].colId;
+    pColRef->refType = pReq->refType;
+    tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
+    if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
+      tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    } else {
+      pColRef->refSchemaName[0] = '\0';
+    }
+    tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
+    tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
+    taosMemoryFreeClear(pColRef->filterCondJson);
+    pColRef->filterCondJson = pFilterCondJson;
+    pColRef->filterCondLen = pReq->filterCondLen;
+
+    // If external ref, store the tag condition of the matching series resolved above.
+    taosMemoryFreeClear(pColRef->tagCondJson);
+    pColRef->tagCondJson = pTagCondJson;
+    pColRef->tagCondLen = (NULL != pTagCondJson) ? newTagCondLen : 0;
+    pSchema->version++;
+    pEntry->colRef.version++;
+
+    // do handle entry
+    code = metaHandleEntry2(pMeta, pEntry);
+    if (code) {
+      metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
+                __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
       metaFetchEntryFree(&pEntry);
       metaFetchEntryFree(&pSuper);
-      TAOS_RETURN(terrno);
+      TAOS_RETURN(code);
+    } else {
+      metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
+               TD_VID(pMeta->pVnode), pReq->tbName,
+               pEntry->uid, version);
     }
   }
-  pEntry->version = version;
-  pColRef->hasRef = true;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
-  pColRef->refType = pReq->refType;
-  tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
-  if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
-    tstrncpy(pColRef->refSchemaName, pReq->refSchemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
-  } else {
-    pColRef->refSchemaName[0] = '\0';
-  }
-  tstrncpy(pColRef->refDbName, pReq->refDbName, TSDB_DB_NAME_LEN);
-  tstrncpy(pColRef->refTableName, pReq->refTbName, TSDB_TABLE_NAME_LEN);
-  tstrncpy(pColRef->refColName, pReq->refColName, TSDB_COL_NAME_LEN);
-  taosMemoryFreeClear(pColRef->filterCondJson);
-  pColRef->filterCondJson = pFilterCondJson;
-  pColRef->filterCondLen = pReq->filterCondLen;
 
-  // If external ref, look up matching series for tag condition
-  taosMemoryFreeClear(pColRef->tagCondJson);
-  pColRef->tagCondLen = 0;
-  if (pReq->refType == 1 && pEntry->series.nSeries > 0) {
-    for (int32_t i = 0; i < pEntry->series.nSeries; i++) {
-      SSeriesEntry *s = &pEntry->series.pSeries[i];
-      bool matched = false;
-      if (pReq->seriesAlias && pReq->seriesAlias[0] != '\0') {
-        matched = (strcasecmp(s->alias, pReq->seriesAlias) == 0);
-      } else {
-        matched = (strcasecmp(s->sourceName, pReq->refSourceName ? pReq->refSourceName : "") == 0 &&
-                   strcasecmp(s->dbName, pReq->refDbName) == 0 &&
-                   strcasecmp(s->measurementName, pReq->refTbName) == 0);
-      }
-      if (matched) {
-        if (s->tagCondLen > 0 && s->tagCondJson) {
-          pColRef->tagCondJson = taosStrdup(s->tagCondJson);
-          pColRef->tagCondLen = s->tagCondLen;
-        }
-        break;
-      }
-    }
-  }
-  pSchema->version++;
-  pEntry->colRef.version++;
-
-  // do handle entry
-  code = metaHandleEntry2(pMeta, pEntry);
-  if (code) {
-    metaError("vgId:%d, %s failed at %s:%d since %s, uid:%" PRId64 " name:%s version:%" PRId64, TD_VID(pMeta->pVnode),
-              __func__, __FILE__, __LINE__, tstrerror(code), pEntry->uid, pReq->tbName, version);
-    metaFetchEntryFree(&pEntry);
-    metaFetchEntryFree(&pSuper);
-    TAOS_RETURN(code);
-  } else {
-    metaInfo(KEYOP("vtable-alter", "END") "vgId:%d, table %s uid %" PRId64 " is updated, version:%" PRId64,
-             TD_VID(pMeta->pVnode), pReq->tbName,
-             pEntry->uid, version);
-  }
+  // The meta response is built on both paths: the skip path leaves the schema versions untouched, so
+  // the catalog simply ignores an identical response (ctgWriteTbMetaToCache), while a client whose
+  // cache happens to be older still gets refreshed. Only the version bump above invalidates other
+  // clients' caches, and that is exactly what the skip path avoids.
 
   // build response
   code = metaUpdateVtbMetaRsp(

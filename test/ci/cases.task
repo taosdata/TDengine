@@ -267,6 +267,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_select.py
 100,,y,.,CASE_TIMEOUT=1300 env FQ_REQUIRED_SERVICES=mysql,pg,influx,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_alter_ref_idempotent.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_create_batch.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/01-Basic/test_vtable_drop.py
