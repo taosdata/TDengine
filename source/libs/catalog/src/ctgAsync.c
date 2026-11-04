@@ -6442,7 +6442,7 @@ int32_t ctgLaunchGetExtSourceTask(SCtgTask* pTask) {
       CTG_ERR_RET(cloneCode);
     }
     CTG_UNLOCK(CTG_READ, &pEntry->entryLock);
-    cloneCode = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+    cloneCode = extLoadSourceDialectDefaults(pInfo->type, pInfo->options, &pInfo->capability);
     if (TSDB_CODE_SUCCESS != cloneCode) {
       extCapDestroy(&pInfo->capability);
       ctgReleaseExtSource(pCtg, pHash, pHandle);
@@ -6510,7 +6510,7 @@ int32_t ctgHandleGetExtSourceRsp(SCtgTaskReq* tReq, int32_t reqType, const SData
   tstrncpy(pInfo->options, pRsp->options, sizeof(pInfo->options));
   pInfo->meta_version = pRsp->meta_version;
   pInfo->create_time  = pRsp->create_time;
-  code = extLoadDialectDefaults(pInfo->type, &pInfo->capability);
+  code = extLoadSourceDialectDefaults(pInfo->type, pInfo->options, &pInfo->capability);
   if (TSDB_CODE_SUCCESS != code) {
     taosMemoryFree(pInfo);
     goto _return;

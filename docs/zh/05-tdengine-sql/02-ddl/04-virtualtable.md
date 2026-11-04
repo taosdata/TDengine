@@ -52,6 +52,8 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 
 引用 TDengine 表或已有虚拟表时，`column_reference` 使用 `[db_name.]table_name.col_name`，因此列定义仍为 `type_name [FROM [db_name.]table_name.col_name]`。`ext_source_name` 表示已创建的外部数据源，`series_alias` 表示 InfluxDB 的 `SERIES` 声明别名；外部引用的可选 `WHERE filter_condition` 见 [外部列引用条件过滤](#外部列引用条件过滤)。SQL Server 外部列引用支持三种形式：三段式 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE` 和 `SCHEMA`）、四段式 `ext_source_name.schema.table_name.col_name`（需源配置默认 `DATABASE`）和五段式 `ext_source_name.database.schema.table_name.col_name`；相对形式在创建时会展开为五段式完整命名空间存储。
 
+InfluxDB 1.8 和 3.x 的列引用均使用 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE`）或 `ext_source_name.db_name.table_name.col_name`。1.8 的 RP 由外部源的 `retention_policy` 选择，不写入列路径；`SERIES` 目标仍为三段式。配置和示例见 [联邦查询的 InfluxDB SERIES 列引用](../04-data-query/06-federated-query.md#influxdb-series-列引用)。
+
 上述 `column_reference` 定义也适用于虚拟子表的列引用列表，以及 `ALTER VTABLE` 的 `ADD COLUMN ... FROM` 和 `ALTER COLUMN ... SET`。
 
 创建虚拟普通表时可以通过 `TAGS` 子句声明标签，详见下方“虚拟普通表标签”章节。

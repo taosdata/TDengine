@@ -1296,6 +1296,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,       "InfluxDB tag columns
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,        "External object identifier is too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY,  "Too many external columns required by query")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,     "Too many external tags required by query")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SCHEMA_CONFLICT,            "External column type or Field/Tag role conflict")
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")

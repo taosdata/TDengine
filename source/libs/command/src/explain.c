@@ -1090,6 +1090,21 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           extTblName = oracleQualified;
         }
       }
+      bool influx18 = pExtTable != NULL && pExtTable->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8;
+      const char *influxRp = pExtTable != NULL ? pExtTable->influxRp : "";
+      if (influx18) {
+        srcType = "influxdb-1.8";
+        if (pResNode->pExecInfo != NULL && taosArrayGetSize(pResNode->pExecInfo) > 0) {
+          const SExplainExecInfo *execInfo = taosArrayGet(pResNode->pExecInfo, 0);
+          if (execInfo != NULL && execInfo->verboseInfo != NULL &&
+              execInfo->verboseLen >= sizeof(SFederatedScanExplainInfo)) {
+            const SFederatedScanExplainInfo *scan = execInfo->verboseInfo;
+            if (memchr(scan->influxRp, '\0', sizeof(scan->influxRp)) != NULL && scan->influxRp[0] != '\0') {
+              influxRp = scan->influxRp;
+            }
+          }
+        }
+      }
       EXPLAIN_ROW_NEW(level, EXPLAIN_FEDERATED_SCAN_FORMAT, extSrcName, extTblName, srcType);
       EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
       if (pResNode->pExecInfo) {
@@ -1104,6 +1119,12 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+
+      if (influx18) {
+        EXPLAIN_ROW_NEW(level + 1, "InfluxDB version=1.8 RP=%s", influxRp[0] != '\0' ? influxRp : "(runtime)");
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+      }
 
       if (verbose) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
@@ -1134,7 +1155,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
                    extSrcName, extTblName, (int32_t)taosArrayGetSize(pResNode->pExecInfo), execInfo->vgId);
             const SFederatedScanExplainInfo *pFedInfo =
                 (const SFederatedScanExplainInfo *)execInfo->verboseInfo;
-            if (execInfo->verboseLen >= sizeof(SFederatedScanExplainInfo) && pFedInfo->batchMode) {
+            if (execInfo->verboseLen >= offsetof(SFederatedScanExplainInfo, sourceName) + sizeof(pFedInfo->sourceName) &&
+                pFedInfo->batchMode) {
               EXPLAIN_ROW_NEW(level + 1, "Batch: sourceName=%s, batchTables=%d, batchMode=true",
                               pFedInfo->sourceName, pFedInfo->batchTables);
               EXPLAIN_ROW_END();
@@ -1160,7 +1182,8 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           }
         }
 
-        if (!emittedRuntimeRemoteSql && pFedScanNode->pRemotePlan != NULL) {
+        if (!emittedRuntimeRemoteSql && pFedScanNode->pRemotePlan != NULL &&
+            !influx18) {
           char*   remoteSql = NULL;
           SNodesRemoteSQLCtx sqlCtx = {
               .pTimestampTypeHints = pFedScanNode->pTimestampTypeHints,

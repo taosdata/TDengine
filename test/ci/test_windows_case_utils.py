@@ -797,14 +797,14 @@ class TestWindowsCaseUtils(unittest.TestCase):
                       if line.strip() and not line.lstrip().startswith("#")]
         smoke = windows_task_manifest(ci_dir)
         rows = [line for line in smoke.splitlines() if line.strip() and not line.startswith("#")]
-        self.assertEqual(len(rows), 25)
+        self.assertEqual(len(rows), 50)
         for line in rows:
             command, timeout = parse_case_line(line)
             self.assertTrue((ci_dir.parent / shlex.split(command)[1]).is_file(), command)
             if any(case in command for case in FQ_SMOKE_CASES):
                 self.assertFalse(is_excluded_command(command, exclusions, "smoke"))
                 self.assertTrue(is_excluded_command(command, exclusions, "full"))
-                self.assertIn(timeout, (3600, 7200))
+                self.assertIn(timeout, (1800, 3600, 7200))
         self.assertTrue(all(case in smoke for case in FQ_SMOKE_CASES))
         full = windows_task_manifest(ci_dir, "full")
         self.assertGreater(len(full.splitlines()), 1000)
@@ -819,6 +819,8 @@ class TestWindowsCaseUtils(unittest.TestCase):
         tree = ast.parse(source.read_text(encoding="utf-8"))
         function = next(node for node in tree.body
                         if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
+        influx_versions = next(node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name == "federated_query_influx_versions")
         for suite, case_filter, requires_fq in (("smoke", "", True),
                                                 ("smoke", "local.py", False),
                                                 ("full", "", False)):
@@ -828,17 +830,22 @@ class TestWindowsCaseUtils(unittest.TestCase):
                 ci.mkdir(parents=True)
                 local = ",,y,.,pytest cases/local.py\n"
                 (ci / "cases.task").write_text(local)
-                (ci / "win_cases.task").write_text(local + ",,n,.,pytest " + FQ_SMOKE_CASES[0] + ",7200\n")
+                (ci / "win_cases.task").write_text(
+                    local + ",,n,.,pytest " + FQ_SMOKE_CASES[0] + ",7200\n"
+                    + ",,n,.,env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest "
+                    + FQ_SMOKE_CASES[0] + ",7200\n")
                 provision, dependencies = Mock(), Mock()
                 execute = Mock(return_value=SimpleNamespace(returncode=0))
-                namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json,
+                namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json, "re": re,
                              "windows_task_manifest": windows_task_manifest, "FQ_SMOKE_CASES": FQ_SMOKE_CASES,
                              "ensure_fq_pytest_dependencies": dependencies,
                              "provision_federated_query_env": provision,
                              "run": execute, "sys": SimpleNamespace(executable="python.exe")}
-                exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+                exec(compile(ast.Module(body=[influx_versions, function], type_ignores=[]), str(source), "exec"), namespace)
                 self.assertEqual(namespace["run_pytest_cases"](root, {}, root, False, case_filter, suite), 0)
                 self.assertEqual(provision.called, requires_fq)
+                if requires_fq:
+                    self.assertEqual(provision.call_args.args[1]["FQ_INFLUX_VERSIONS"], "3.0,1.8")
                 self.assertEqual(dependencies.called, requires_fq)
                 self.assertTrue((root / "windows-cases.task").is_file())
                 if case_filter:
@@ -850,6 +857,14 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertEqual(parse_case_line(",,n,.,./ci/pytest.sh pytest cases/a.py,7200"), ("pytest cases/a.py", 7200))
         self.assertEqual(parse_case_line(",,n,.,pytest cases/a.py -k 'first,second'"),
                          ("pytest cases/a.py -k 'first,second'", 1800))
+
+    def test_influx_versions_keep_distinct_case_logs(self):
+        command = "pytest cases/example.py"
+        native = {"FQ_INFLUX_VERSIONS": "1.8", "FQ_REQUIRED_SERVICES": "influx"}
+        current = {**native, "FQ_INFLUX_VERSIONS": "3.0"}
+        self.assertNotEqual(pytest_log_name(command, native), pytest_log_name(command, current))
+        self.assertEqual(pytest_log_name(command, native),
+                         pytest_log_name(command, dict(reversed(list(native.items())))))
 
     def test_all_skipped_commands_are_not_successful_coverage(self):
         self.assertTrue(is_pytest_only_skip(0, "=== 2 skipped in 0.04s ===\n"))

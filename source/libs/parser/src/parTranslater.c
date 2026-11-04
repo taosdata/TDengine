@@ -10921,6 +10921,8 @@ static int32_t createVStbExtTableNodes(STranslateContext* pCxt, SVirtualTableNod
     tstrncpy(pExtNode->schemaName, pExtInfo->schema_name, sizeof(pExtNode->schemaName));
     tstrncpy(pExtNode->srcSchema, pExtInfo->schema_name, sizeof(pExtNode->srcSchema));
     tstrncpy(pExtNode->srcOptions, pExtInfo->options, sizeof(pExtNode->srcOptions));
+    pExtNode->metaVersion = pExtInfo->meta_version;
+    PAR_ERR_JRET(extLoadSourceDialectDefaults(pExtNode->sourceType, pExtNode->srcOptions, &pExtNode->capability));
 
     PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pExtNode));
     pExtNode = NULL;
@@ -11401,7 +11403,11 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   // every SQL Server predicate under the MySQL dialect and pushes constructs
   // T-SQL cannot reproduce exactly.  Load the dialect defaults here, mirroring
   // translateExternalTableImpl() for direct external references.
-  PAR_ERR_JRET(extLoadDialectDefaults(pExtNode->sourceType, &pExtNode->capability));
+  PAR_ERR_JRET(extLoadSourceDialectDefaults(pExtNode->sourceType, pExtNode->srcOptions, &pExtNode->capability));
+
+  if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    PAR_ERR_JRET(nodesCaptureInfluxSchema(pExtNode));
+  }
 
   // Compute tsPrimaryColIdx from pExtMeta: must be isPrimaryKey=true AND maps to TIMESTAMP.
   pExtNode->tsPrimaryColIdx = -1;
@@ -33225,7 +33231,7 @@ static const char* const s_extCommonOpts[] = {
 static const char* const s_extTypeSpecOpts[6][8] = {
     /* MySQL      */ {"charset", "ssl_mode", NULL},
   /* PostgreSQL */ {"sslmode", NULL},
-    /* InfluxDB   */ {"api_token", "protocol", NULL},
+    /* InfluxDB   */ {"api_token", "protocol", "version", "retention_policy", NULL},
     /* TDengine (reserved) */ {NULL},
     /* SQL Server */ {"trust_server_certificate", NULL},
     /* Oracle     */ {NULL},
@@ -33310,6 +33316,12 @@ static int32_t validateExtSourceOptionSemantic(int8_t srcType, const char* key, 
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "protocol must be one of flight_sql/http");
     }
+  }
+
+  if (srcType == EXT_SOURCE_INFLUXDB && strcasecmp(key, "version") == 0 &&
+      value != NULL && value[0] != '\0' && strcmp(value, "1.8") != 0 && strcmp(value, "3") != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "InfluxDB version must be 1.8 or 3");
   }
 
   if (srcType == EXT_SOURCE_SQLSERVER && strcasecmp(key, "trust_server_certificate") == 0) {
@@ -33686,6 +33698,12 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   tstrncpy(req.database, pStmt->database, TSDB_EXT_SOURCE_DATABASE_LEN);
   tstrncpy(req.schema_name, pStmt->schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   serializeOptionsToJson(pStmt->sourceType, pStmt->pOptions, req.options, sizeof(req.options));
+  if (pStmt->sourceType == EXT_SOURCE_INFLUXDB) {
+    code = extConnectorValidateInfluxOptions(req.options, pStmt->schemaName, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid InfluxDB version, protocol, RP or authentication options");
+    }
+  }
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_EXT_SOURCE, (FSerializeFunc)tSerializeSCreateExtSourceReq, &req);
 }

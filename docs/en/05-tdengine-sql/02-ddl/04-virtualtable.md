@@ -124,6 +124,8 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source, and `series_alias` names an InfluxDB `SERIES` declaration. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters). SQL Server external column references support three forms: the three-part `ext_source_name.table_name.col_name` (requires default `DATABASE` and `SCHEMA` on the source), the four-part `ext_source_name.schema.table_name.col_name` (requires a default `DATABASE`), and the five-part `ext_source_name.database.schema.table_name.col_name`; relative forms are expanded to the full five-part namespace when stored.
 
+InfluxDB 1.8 and 3.x column references use `ext_source_name.table_name.col_name` (requires a default `DATABASE` on the source) or `ext_source_name.db_name.table_name.col_name`. For 1.8, `retention_policy` on the source selects the RP; it is not part of the column path, and the `SERIES` target remains three-part. See [InfluxDB SERIES Column References](../04-data-query/06-federated-query.md#influxdb-series-column-references) for configuration and examples.
+
 The same `column_reference` definition applies to virtual-subtable column reference lists and to `ALTER VTABLE` with `ADD COLUMN ... FROM` or `ALTER COLUMN ... SET`.
 
 When creating a virtual basic table, you can declare tags with the `TAGS` clause; see the "Virtual Basic Table Tags" section below.

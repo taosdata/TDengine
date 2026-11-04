@@ -4049,32 +4049,77 @@ static int32_t extTableNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, "NsFromPathOnly", pNode->nsFromPathOnly);
   }
   // pExtMeta is not serialized (runtime only)
+  if (TSDB_CODE_SUCCESS == code && pNode->pSeriesCondition != NULL) {
+    code = tjsonAddObject(pJson, "SeriesCondition", nodeToJson, pNode->pSeriesCondition);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->pInfluxSchema != NULL) {
+    code = nodeListToJson(pJson, "InfluxSchema", pNode->pInfluxSchema);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->influxRp[0] != '\0') {
+    code = tjsonAddStringToObject(pJson, "InfluxRp", pNode->influxRp);
+  }
   return code;
 }
 
 static int32_t jsonToExtTableNode(const SJson* pJson, void* pObj) {
   SExtTableNode* pNode = (SExtTableNode*)pObj;
-
-  tjsonGetStringValue(pJson, "DbName", pNode->table.dbName);
-  tjsonGetStringValue(pJson, "TableName", pNode->table.tableName);
-  tjsonGetStringValue(pJson, "SourceName", pNode->sourceName);
-  tjsonGetStringValue(pJson, "SchemaName", pNode->schemaName);
-
-  int32_t srcType = 0;
-  tjsonGetIntValue(pJson, "SourceType", &srcType);
-  pNode->sourceType = (int8_t)srcType;
-  tjsonGetStringValue(pJson, "SrcHost", pNode->srcHost);
-  tjsonGetIntValue(pJson, "SrcPort", &pNode->srcPort);
-  tjsonGetStringValue(pJson, "SrcUser", pNode->srcUser);
-  // SrcPassword: not restored from JSON for security
-  tjsonGetStringValue(pJson, "SrcDatabase", pNode->srcDatabase);
-  tjsonGetStringValue(pJson, "SrcSchema", pNode->srcSchema);
-  tjsonGetStringValue(pJson, "SrcOptions", pNode->srcOptions);
-  tjsonGetStringValue(pJson, "RemoteTableName", pNode->remoteTableName);
-  tjsonGetBoolValue(pJson, "SrcNameFromPath", &pNode->srcNameFromPath);
-  tjsonGetBoolValue(pJson, "NsFromPathOnly", &pNode->nsFromPathOnly);
   pNode->pExtMeta = NULL;
-  return TSDB_CODE_SUCCESS;
+
+  int32_t code = tjsonGetStringValue1(pJson, "DbName", pNode->table.dbName, sizeof(pNode->table.dbName));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "TableName", pNode->table.tableName, sizeof(pNode->table.tableName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SourceName", pNode->sourceName, sizeof(pNode->sourceName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SchemaName", pNode->schemaName, sizeof(pNode->schemaName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t srcType = 0;
+    code = tjsonGetIntValue(pJson, "SourceType", &srcType);
+    if (TSDB_CODE_SUCCESS == code) {
+      pNode->sourceType = (int8_t)srcType;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SrcHost", pNode->srcHost, sizeof(pNode->srcHost));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, "SrcPort", &pNode->srcPort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SrcUser", pNode->srcUser, sizeof(pNode->srcUser));
+  }
+  // SrcPassword: not restored from JSON for security
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SrcDatabase", pNode->srcDatabase, sizeof(pNode->srcDatabase));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SrcSchema", pNode->srcSchema, sizeof(pNode->srcSchema));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "SrcOptions", pNode->srcOptions, sizeof(pNode->srcOptions));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "RemoteTableName", pNode->remoteTableName, sizeof(pNode->remoteTableName));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, "SrcNameFromPath", &pNode->srcNameFromPath);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, "NsFromPathOnly", &pNode->nsFromPathOnly);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "SeriesCondition", &pNode->pSeriesCondition);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, "InfluxSchema", &pNode->pInfluxSchema);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue1(pJson, "InfluxRp", pNode->influxRp, sizeof(pNode->influxRp));
+  }
+  return code;
 }
 
 // ---------------------------------------------------------------------------

@@ -972,6 +972,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     Since: v3.4.0.0
     """
 
+
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     def setup_class(self):
@@ -1060,7 +1061,17 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """Patch generic import-time Influx source SQL to runtime protocol."""
         if src_type != _influxdb:
             return sql
-        return self._rewrite_influx_source_runtime_sql(sql)
+        rewritten = self._rewrite_influx_source_runtime_sql(sql)
+        if self._influx_cfg().version == "1.8" and "'secret_token'" in sql:
+            # Native 1.8 uses Basic credentials. Keep a real secret in the
+            # masking cases rather than clearing the unsupported API token.
+            if re.search(r"\bpassword\s*=", rewritten, re.I):
+                rewritten = re.sub(r"\bpassword\s*=\s*'[^']*'", "password='secret_token'",
+                                   rewritten, count=1, flags=re.I)
+            else:
+                rewritten = re.sub(r"(\buser\s*=\s*'(?:''|[^'])*')",
+                                   r"\1 password='secret_token'", rewritten, count=1, flags=re.I)
+        return rewritten
 
     @staticmethod
     def _fw_quote_src_name(src_name: str) -> str:
@@ -1587,7 +1598,7 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
     # ── Baseline file management ───────────────────────────────────────────
 
     def _fw_baseline_file(self) -> str:
-        label = self._version_label().replace(".", "_").replace("/", "_")
+        label = self._framework_baseline_label()
         return os.path.join(
             os.path.dirname(__file__),
             "ans",
@@ -1681,7 +1692,8 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         """
         _only     = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
-        blocks: List[str]  = []
+        configs = self._influx_configs()
+        version_blocks = {cfg.version: [] for cfg in configs}
         timings: List[str] = []
 
         for case in _CASES:
@@ -1689,19 +1701,27 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                label = f"CASE-{case_id}[{src_type[:3].upper()}]"
-                tdLog.info(f"Running {label}: {desc}")
-                self._fw_append_case_boundary(blocks, label, desc, is_start=True)
-                _t0 = time.monotonic()
-                for step_no, step in enumerate(steps, start=1):
-                    step_tag = f"STEP-{step_no:03d}"
-                    self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
-                elapsed = time.monotonic() - _t0
-                self._fw_append_case_boundary(blocks, label, desc, is_start=False)
-                timing_line = f"{label}: {elapsed:.2f}s"
-                print(f"[TIMING] {timing_line}", flush=True)
-                timings.append(timing_line)
-
+                for cfg in (configs if src_type == _influxdb else [None]):
+                    with self._using_influx(cfg):
+                        blocks = []
+                        desc, steps = case[3], case[4]
+                        if src_type == _influxdb and self._influx_cfg().version == "1.8":
+                            desc = desc.replace("api_token masked", "Basic password masked")
+                        label = f"CASE-{case_id}[{src_type[:3].upper()}]"
+                        tdLog.info(f"Running {label}: {desc}")
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=True)
+                        _t0 = time.monotonic()
+                        for step_no, step in enumerate(steps, start=1):
+                            step_tag = f"STEP-{step_no:03d}"
+                            self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
+                        elapsed = time.monotonic() - _t0
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=False)
+                        timing_line = f"{label}: {elapsed:.2f}s"
+                        print(f"[TIMING] {timing_line}", flush=True)
+                        timings.append(timing_line)
+                        targets = version_blocks.values() if cfg is None else [version_blocks[cfg.version]]
+                        for target in targets:
+                            target.extend(blocks)
         print("[TIMING SUMMARY]", flush=True)
         for t in timings:
             print(f"  {t}", flush=True)
@@ -1709,4 +1729,6 @@ class TestFq08SystemObservability(FederatedQueryVersionedMixin):
         if _only_set:
             tdLog.info(f"FQ_CASES={_only} — skipping baseline comparison")
         else:
-            self._fw_compare_baseline(blocks)
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    self._fw_compare_baseline(version_blocks[cfg.version])

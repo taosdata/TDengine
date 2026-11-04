@@ -36,6 +36,7 @@ extern "C" {
 typedef struct SExtTableNode         SExtTableNode;         // querynodes.h
 typedef struct SFederatedScanPhysiNode SFederatedScanPhysiNode;  // plannodes.h
 typedef struct SExtColTypeMapping    SExtColTypeMapping;    // plannodes.h
+typedef struct SNode                 SNode;
 
 // ---------------------------------------------------------------------------
 // Opaque handle types
@@ -99,6 +100,32 @@ typedef struct SExtSourceCfg {
   int32_t        conn_timeout_ms;
   int32_t        query_timeout_ms;
 } SExtSourceCfg;
+
+// Validate a complete configuration after applying ALTER option deletions.
+// This performs no network access and is also available in community builds.
+// pDialect is optional and receives the selected dialect only on success.
+int32_t extConnectorValidateInfluxOptions(const char *options, const char *schema, EExtSQLDialect *pDialect);
+
+// Borrowed inputs to a single raw 1.8 scan. Only virtual references may carry
+// SERIES positioning, scan bounds, or the order required by time merging.
+typedef struct SExtInfluxScanSpec {
+  const SExtTableNode      *pTable;
+  const SExtTableMeta      *pCurrentMeta; // optional schema fetched during this execution attempt
+  const SExtColTypeMapping *pColMappings;
+  int32_t                  numColMappings;
+  const SNode             *pSeriesCondition;
+  bool                     virtualScan;
+  bool                     hasSeriesBinding;
+  bool                     timeAscending;
+  STimeWindow              scanRange;
+  int8_t                   rangePrecision;
+  bool                     hasRuntimeRange;
+  STimeWindow              runtimeRange;  // half-open; scanRange is inclusive
+  int32_t                (*fpGetCancelCode)(void *context);
+  void                    *pCancelContext; // borrowed until the prepared scan/result is closed
+} SExtInfluxScanSpec;
+
+int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL);
 
 // ---------------------------------------------------------------------------
 // SExtConnectorModuleCfg  [DS section 6.2.6.1]

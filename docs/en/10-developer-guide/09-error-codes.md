@@ -828,6 +828,7 @@ Below are the business error codes for each module.
 | 0x8000641E | Too many external columns required by query | The current SQL statement references more external columns than TDengine permits | Reduce the columns referenced by this query; an oversized external table alone does not cause this error |
 | 0x8000641F | Too many external tags required by query | The current SQL statement references more external tags than TDengine permits | Reduce the tags referenced by this query; an oversized external measurement alone does not cause this error |
 | 0x80006420 | Oracle client and server versions are not compatible | The Oracle client and server version combination is not supported | Use an Oracle Instant Client that matches the server version |
+| 0x8000642D | External column type or Field/Tag role conflict | InfluxDB metadata contains conflicting types for the same field across shards or RPs, a field/tag name collision, or column names that differ only by case | Unify field types or split the measurement, resolve name or field/tag conflicts, then refresh the external source |
 
 #### stream
 

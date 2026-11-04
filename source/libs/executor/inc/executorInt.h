@@ -331,6 +331,8 @@ typedef struct SFedScanTableCtx {
   SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
   int32_t               numDynColMappings;
   SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+  bool                  influxV1;
+  char                  influxRp[TSDB_EXT_INFLUX_RP_LEN];
 } SFedScanTableCtx;
 typedef struct SFederatedScanOperatorInfo {
   SFederatedScanPhysiNode*  pFedScanNode;      // physi node ref (not owned)
@@ -341,11 +343,13 @@ typedef struct SFederatedScanOperatorInfo {
   bool                      twoPassMode;        // true: execute query twice (PRE_SCAN then MAIN_SCAN)
   bool                      twoPassPhase1Done;  // true: PRE_SCAN pass done, now doing MAIN_SCAN pass
   bool                      vstbLimitDemoted;   // true: remote top-N unsupported, retry without it
+  bool                      influxV1;           // dialect of the active connection
   int64_t                   fetchedRows;        // cumulative rows fetched
   int64_t                   fetchBlockCount;    // cumulative block count
   int64_t                   elapsedTimeUs;      // cumulative elapsed time (micros)
   SSDataBlock*              pFetchedBlock;      // owned block returned by extConnectorFetchBlock
   char                      remoteSql[TSDB_SHOW_SQL_LEN];  // actual SQL sent to the remote source
+  char                      influxRp[TSDB_EXT_INFLUX_RP_LEN]; // active scan namespace; never changes the plan
   char                      extErrMsg[512];     // formatted remote error message
   // Per-table context cache for VStb multi-table dispatch
   SHashObj*                 pTableCtxMap;       // key: source/db/table/filter hashes, value: SFedScanTableCtx

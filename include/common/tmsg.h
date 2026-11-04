@@ -435,6 +435,8 @@ typedef struct SExtPushdownDiagnostic {
 #define TSDB_EXT_SOURCE_OPTIONS_LEN      8192
 // A single option value budget (value length boundary remains 4095 chars).
 #define TSDB_EXT_SOURCE_OPTION_VALUE_LEN 4096
+// InfluxDB 1.8 limits database and retention-policy names to 255 bytes.
+#define TSDB_EXT_INFLUX_RP_LEN            256
 
 // SExtSourceCapability  -  push-down ability flags for an external source.
 // Defined here (tmsg.h) so that SExtSourceInfo below and extConnector.h both
@@ -496,6 +498,7 @@ typedef enum EExtSQLDialect {
   EXT_SQL_DIALECT_INFLUXQL  = 2,
   EXT_SQL_DIALECT_SQLSERVER = 3,  // appended, never reorder/reuse
   EXT_SQL_DIALECT_ORACLE    = 4,  // appended, never reorder/reuse
+  EXT_SQL_DIALECT_INFLUXDB_1_8 = 5,
 } EExtSQLDialect;
 
 // Declared width (in characters) used for InfluxDB tag columns, both when the
@@ -684,6 +687,7 @@ typedef struct SExtTableMeta {
   int8_t         charsetUtf8;
   int64_t        fetched_at;                        // monotonic time of cache fill
   char           remoteTableName[TSDB_TABLE_NAME_LEN]; // actual table name on remote (preserves case)
+  char           retentionPolicy[TSDB_EXT_INFLUX_RP_LEN]; // resolved InfluxDB 1.8 RP
 } SExtTableMeta;
 
 typedef enum {

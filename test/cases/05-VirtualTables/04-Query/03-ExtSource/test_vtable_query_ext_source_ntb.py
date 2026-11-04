@@ -304,7 +304,7 @@ class TestVTableQueryExtSourceAllNtb(_ExtSourceNtbQueryBase):
         """Projection with a timestamp-range filter over the all-sources table.
 
         Runs the shared projection/range case where every column is backed by a
-        different source (the multi-source cycle includes SQL Server and Oracle),
+        different source (the cycle includes both InfluxDB 3.x and 1.8, SQL Server and Oracle),
         so the query exercises cross-source column binding end to end.
 
         Since: v3.4.4.0

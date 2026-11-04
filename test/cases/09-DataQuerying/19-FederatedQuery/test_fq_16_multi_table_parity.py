@@ -73,6 +73,7 @@ from federated_query_common import (
     parity_serialize_cell,
     TSDB_CODE_PAR_INVALID_COLUMN,
     TSDB_CODE_PAR_INVALID_EXPR_SUBQ,
+    influx_versions,
 )
 
 
@@ -1083,6 +1084,7 @@ class TestFq16MultiTableParity(ParityTestBase):
       - test_fq_06: same/cross-source JOIN, FULL OUTER JOIN, semi/anti JOIN
     """
 
+
     _SRC_MYSQL  = "fq_mt_parity_src_m"
     _SRC_PG     = "fq_mt_parity_src_p"
     _SRC_INFLUX = "fq_mt_parity_src_i"
@@ -1101,13 +1103,14 @@ class TestFq16MultiTableParity(ParityTestBase):
         return _LOCAL_DB
 
     def _ext_sources(self):
-        return [
+        sources = [
             ("MySQL",     self._SRC_MYSQL),
             ("PG",        self._SRC_PG),
             ("InfluxDB",  self._SRC_INFLUX),
             ("SQLServer", self._SRC_SQLSERVER),
             ("Oracle",    self._SRC_ORACLE),
         ]
+        return self._expand_influx_source_list(sources)
 
     def _ensure_session_timezone(self):
         # fq16 inserts MySQL/PG/SQL Server/Oracle naive timestamps as CST local
@@ -1116,8 +1119,9 @@ class TestFq16MultiTableParity(ParityTestBase):
         # this client timezone on read.
         tdSql.execute(f'ALTER LOCAL "timezone" "{_SESSION_TZ}"')
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq16MultiTableParity._class_setup_done:
+            self._mk_influx_sources(self._SRC_INFLUX, database=_INFLUX_BUCKET)
             return
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -1142,11 +1146,10 @@ class TestFq16MultiTableParity(ParityTestBase):
         self._mk_pg_real(self._SRC_PG, database=_PG_DB, schema="public")
 
         # --- InfluxDB ---
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), _INFLUX_BUCKET)
-        ExtSrcEnv.influx_write_cfg(
-            self._influx_cfg(), _INFLUX_BUCKET, _build_influx_lines())
-        self._cleanup_src(self._SRC_INFLUX)
-        self._mk_influx_real(self._SRC_INFLUX, database=_INFLUX_BUCKET)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, _INFLUX_BUCKET)
+            ExtSrcEnv.influx_write_cfg(influx_cfg, _INFLUX_BUCKET, _build_influx_lines())
+        self._mk_influx_sources(self._SRC_INFLUX, database=_INFLUX_BUCKET)
 
         # --- SQL Server ---
         ExtSrcEnv.sqlserver_create_db(_SQLSERVER_DB)
@@ -1168,15 +1171,19 @@ class TestFq16MultiTableParity(ParityTestBase):
         TestFq16MultiTableParity._class_setup_done = True
 
     def teardown_class(self):
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_BUCKET)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         tmp = TestFq16MultiTableParity()
+        tmp._drop_influx_sources(tmp._SRC_INFLUX)
         tmp._cleanup_src(tmp._SRC_MYSQL, tmp._SRC_PG, tmp._SRC_INFLUX,
                          tmp._SRC_SQLSERVER, tmp._SRC_ORACLE)
         tdSql.execute(f"DROP DATABASE IF EXISTS {_LOCAL_DB}")
         for drop in [
             lambda: ExtSrcEnv.mysql_drop_db_cfg(tmp._mysql_cfg(), _MYSQL_DB),
             lambda: ExtSrcEnv.pg_drop_db_cfg(tmp._pg_cfg(), _PG_DB),
-            lambda: ExtSrcEnv.influx_drop_db_cfg(
-                tmp._influx_cfg(), _INFLUX_BUCKET),
             lambda: ExtSrcEnv.sqlserver_drop_db(_SQLSERVER_DB),
             lambda: ExtSrcEnv.oracle_drop_table_cfg(
                 tmp._oracle_cfg(), _ORACLE_TABLE_TA),
@@ -1210,84 +1217,90 @@ class TestFq16MultiTableParity(ParityTestBase):
 
         failed: List[Tuple[str, str, str]] = []
         serialized_blocks: List[str] = []
+        n_run = 0
 
         for case_id, sql_tmpl, opts in cross_cases:
             sql = sql_tmpl.format(M=M, P=P, I=I, S=S, O=O, L=L)
-            expected_error = opts.get("error")
-            positive = expected_error is None
-            ordered = opts.get("ordered", True)
-            float_cols = opts.get("float_cols") or set()
-            kind_tag = "POS" if positive else "NEG"
-            sql_short = sql if len(sql) <= 90 else sql[:87] + "..."
-            prefix = f"[{case_id:<14s} {kind_tag}]"
-            t0 = _time.monotonic()
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    n_run += 1
+                    expected_error = opts.get("error")
+                    positive = expected_error is None
+                    ordered = opts.get("ordered", True)
+                    float_cols = opts.get("float_cols") or set()
+                    kind_tag = "POS" if positive else "NEG"
+                    sql_short = sql if len(sql) <= 90 else sql[:87] + "..."
+                    prefix = f"[{case_id:<14s} {kind_tag}]"
+                    t0 = _time.monotonic()
 
-            qerr = None
-            rows = None
-            try:
-                if positive:
-                    tdSql.query(sql, queryTimes=10)
-                else:
-                    tdSql.cursor.execute(sql)
-                    tdSql.queryResult = tdSql.cursor.fetchall()
-                    tdSql.queryRows = len(tdSql.queryResult)
-                    tdSql.queryCols = len(tdSql.cursor.description)
-                rows = list(tdSql.queryResult)
-                if not ordered and rows:
-                    rows = sorted(rows, key=lambda r: [str(x) for x in r])
-            except Exception as e:
-                _eargs = getattr(e, 'args', ())
-                errno = None
-                if len(_eargs) >= 2 and isinstance(_eargs[-1], int):
-                    errno = _eargs[-1]
-                if errno is None:
-                    errno = getattr(e, 'errno', None)
-                err_info = str(_eargs[0]) if _eargs else None
-                qerr = QueryError(errno, err_info, sql, e)
+                    qerr = None
+                    rows = None
+                    try:
+                        if positive:
+                            tdSql.query(sql, queryTimes=10)
+                        else:
+                            tdSql.cursor.execute(sql)
+                            tdSql.queryResult = tdSql.cursor.fetchall()
+                            tdSql.queryRows = len(tdSql.queryResult)
+                            tdSql.queryCols = len(tdSql.cursor.description)
+                        rows = list(tdSql.queryResult)
+                        if not ordered and rows:
+                            rows = sorted(rows, key=lambda r: [str(x) for x in r])
+                    except Exception as e:
+                        _eargs = getattr(e, 'args', ())
+                        errno = None
+                        if len(_eargs) >= 2 and isinstance(_eargs[-1], int):
+                            errno = _eargs[-1]
+                        if errno is None:
+                            errno = getattr(e, 'errno', None)
+                        err_info = str(_eargs[0]) if _eargs else None
+                        qerr = QueryError(errno, err_info, sql, e)
 
-            # Serialize
-            serialized = _cross_serialize_case(
-                case_id, sql_tmpl, positive, rows, qerr, float_cols, ordered)
-            serialized_blocks.append(serialized)
+                    # Serialize
+                    serialized = _cross_serialize_case(
+                        case_id, sql_tmpl, positive, rows, qerr, float_cols, ordered)
+                    serialized_blocks.append(serialized)
 
-            elapsed = _time.monotonic() - t0
+                    elapsed = _time.monotonic() - t0
 
-            if expected_error is not None:
-                # Negative case: expect error
-                if qerr is None:
-                    tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-                    tdLog.info(f"  Expected error {expected_error:#010x} but query succeeded")
-                    failed.append((case_id, sql_tmpl, "expected error but succeeded"))
-                elif (qerr.qerrno & 0xFFFFFFFF) != (expected_error & 0xFFFFFFFF):
-                    tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-                    tdLog.info(
-                        f"  Expected errno {expected_error:#010x} "
-                        f"got {qerr.qerrno:#010x}: {qerr.err_info}")
-                    failed.append((case_id, sql_tmpl,
-                                   f"errno mismatch: expected {expected_error:#010x} "
-                                   f"got {qerr.qerrno:#010x}"))
-                else:
-                    tdLog.info(f"{prefix} PASS  {sql_short}  "
-                               f"errno={qerr.qerrno:#010x}  [{elapsed:.2f}s]")
-            else:
-                # Positive case
-                if qerr is not None:
-                    tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-                    tdLog.info(f"  Unexpected error: {qerr.err_info}")
-                    failed.append((case_id, sql_tmpl, f"unexpected error: {qerr.err_info}"))
-                else:
-                    # Check row count
-                    expected_rows = opts.get("rows")
-                    if expected_rows is not None and len(rows) != expected_rows:
-                        tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
-                        tdLog.info(
-                            f"  Row count mismatch: expected {expected_rows} got {len(rows)}")
-                        failed.append((case_id, sql_tmpl,
-                                       f"row count: expected {expected_rows} got {len(rows)}"))
+                    if expected_error is not None:
+                        # Negative case: expect error
+                        if qerr is None:
+                            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+                            tdLog.info(f"  Expected error {expected_error:#010x} but query succeeded")
+                            failed.append((case_id, sql_tmpl, "expected error but succeeded"))
+                        elif (qerr.qerrno & 0xFFFFFFFF) != (expected_error & 0xFFFFFFFF):
+                            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+                            tdLog.info(
+                                f"  Expected errno {expected_error:#010x} "
+                                f"got {qerr.qerrno:#010x}: {qerr.err_info}")
+                            failed.append((case_id, sql_tmpl,
+                                           f"errno mismatch: expected {expected_error:#010x} "
+                                           f"got {qerr.qerrno:#010x}"))
+                        else:
+                            tdLog.info(f"{prefix} PASS  {sql_short}  "
+                                       f"errno={qerr.qerrno:#010x}  [{elapsed:.2f}s]")
                     else:
-                        tdLog.info(f"{prefix} PASS  {sql_short}  [{elapsed:.2f}s]")
+                        # Positive case
+                        if qerr is not None:
+                            tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+                            tdLog.info(f"  Unexpected error: {qerr.err_info}")
+                            failed.append((case_id, sql_tmpl, f"unexpected error: {qerr.err_info}"))
+                        else:
+                            # Check row count
+                            expected_rows = opts.get("rows")
+                            if expected_rows is not None and len(rows) != expected_rows:
+                                tdLog.info(f"{prefix} FAIL  {sql_short}  [{elapsed:.2f}s]")
+                                tdLog.info(
+                                    f"  Row count mismatch: expected {expected_rows} got {len(rows)}")
+                                failed.append((case_id, sql_tmpl,
+                                               f"row count: expected {expected_rows} got {len(rows)}"))
+                            else:
+                                tdLog.info(f"{prefix} PASS  {sql_short}  [{elapsed:.2f}s]")
 
-        return len(cross_cases) - len(failed), len(failed), serialized_blocks, failed
+        return n_run - len(failed), len(failed), serialized_blocks, failed
 
     def _compare_cross_baseline(self, serialized_blocks, failed):
         """Compare serialized cross-case results against baseline file."""
@@ -1304,6 +1317,7 @@ class TestFq16MultiTableParity(ParityTestBase):
         if os.path.isfile(baseline_file):
             with open(baseline_file, "r") as f:
                 baseline_content = f.read()
+            baseline_content = self._expand_influx_baseline(baseline_content)
             if tmp_content != baseline_content:
                 tmp_lines = tmp_content.splitlines()
                 base_lines = baseline_content.splitlines()
@@ -1340,13 +1354,7 @@ class TestFq16MultiTableParity(ParityTestBase):
                 self._mysql_cfg(), _MYSQL_DB, _build_mysql_disorder())
             ExtSrcEnv.pg_exec_cfg(
                 self._pg_cfg(), _PG_DB, _build_pg_disorder())
-            ExtSrcEnv.influx_drop_db_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET)
-            ExtSrcEnv.influx_create_db_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET,
-                _build_influx_disorder_lines())
+            self.do_rewrite_influx_data(disorder=True)
             ExtSrcEnv.sqlserver_exec(
                 _SQLSERVER_DB, _build_sqlserver_disorder())
             ExtSrcEnv.oracle_exec_cfg(
@@ -1360,12 +1368,7 @@ class TestFq16MultiTableParity(ParityTestBase):
             restore_p = ["DELETE FROM ta", "DELETE FROM tb"]
             restore_p += _build_pg_setup()[-2:]
             ExtSrcEnv.pg_exec_cfg(self._pg_cfg(), _PG_DB, restore_p)
-            ExtSrcEnv.influx_drop_db_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET)
-            ExtSrcEnv.influx_create_db_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET)
-            ExtSrcEnv.influx_write_cfg(
-                self._influx_cfg(), _INFLUX_BUCKET, _build_influx_lines())
+            self.do_rewrite_influx_data(disorder=False)
             restore_s = ["DELETE FROM dbo.ta", "DELETE FROM dbo.tb"]
             restore_s += _build_sqlserver_setup()[-2:]
             ExtSrcEnv.sqlserver_exec(_SQLSERVER_DB, restore_s)
@@ -1383,6 +1386,17 @@ class TestFq16MultiTableParity(ParityTestBase):
             tdSql.execute(f"DELETE FROM {_LOCAL_DB}.tb WHERE time >= 0")
             tdSql.execute(f"INSERT INTO {_LOCAL_DB}.ta VALUES {ta_vals}")
             tdSql.execute(f"INSERT INTO {_LOCAL_DB}.tb VALUES {tb_vals}")
+
+    @influx_versions()
+    def do_rewrite_influx_data(self, disorder):
+        cfg = self._influx_cfg()
+        ExtSrcEnv.influx_drop_db_cfg(cfg, _INFLUX_BUCKET)
+        ExtSrcEnv.influx_create_db_cfg(cfg, _INFLUX_BUCKET)
+        lines = _build_influx_disorder_lines() if disorder else _build_influx_lines()
+        ExtSrcEnv.influx_write_cfg(cfg, _INFLUX_BUCKET, lines)
+        source = self._influx_source_name(self._SRC_INFLUX)
+        self._cleanup_src(source)
+        self._mk_influx_real(source, database=_INFLUX_BUCKET)
 
     # ==========================================================================
     # Test 1: All parity + cross-source + negative cases
@@ -1422,14 +1436,16 @@ class TestFq16MultiTableParity(ParityTestBase):
         self.run_parity_cases(_PARITY_CASES, parity_groups=_PARITY_GROUPS)
 
         # Part 2 + 3: cross-source and negative (baseline file comparison)
-        n_cross = len(_CROSS_CASES)
-        n_pos = sum(1 for _, _, o in _CROSS_CASES if "error" not in o)
+        cross_cases = list(_CROSS_CASES)
+        n_cross = len(cross_cases)
+        n_pos = sum(1 for _, _, o in cross_cases if "error" not in o)
         n_neg = n_cross - n_pos
         tdLog.info(f"\nCross-source run: {n_cross} case(s)  (pos={n_pos} neg={n_neg})")
 
         n_pass, n_fail, serialized_blocks, failed = self._run_cross_cases(
-            _CROSS_CASES)
+            cross_cases)
         failed = self._compare_cross_baseline(serialized_blocks, failed)
+        n_cross = n_pass + n_fail
 
         sep = "─" * 72
         tdLog.info(f"\n{sep}")
@@ -1478,7 +1494,7 @@ class TestFq16MultiTableParity(ParityTestBase):
                       if kw.get("positive", True)]
         # Filter positive cross-source cases
         pos_cross = [(cid, sql, opts) for cid, sql, opts in _CROSS_CASES
-                     if "error" not in opts]
+                     if ("error" not in opts)]
 
         assert pos_parity or pos_cross, "no positive parity cases are configured"
 
@@ -1498,7 +1514,7 @@ class TestFq16MultiTableParity(ParityTestBase):
                 n_pass, n_fail, _, failed = self._run_cross_cases(pos_cross)
                 sep = "─" * 72
                 tdLog.info(f"\n{sep}")
-                tdLog.info(f"  Cross-source disorder: {n_pass}/{len(pos_cross)} passed  |  "
+                tdLog.info(f"  Cross-source disorder: {n_pass}/{n_pass + n_fail} passed  |  "
                            f"{n_fail} failed")
                 if failed:
                     tdLog.info("  Failed cases:")

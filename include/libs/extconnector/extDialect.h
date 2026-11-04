@@ -26,6 +26,7 @@ extern "C" {
 
 int32_t extResolveDialectBySource(int8_t sourceType, int32_t* pDialect);
 int32_t extLoadDialectDefaults(int8_t sourceType, SExtSourceCapability* pCap);
+int32_t extLoadSourceDialectDefaults(int8_t sourceType, const char* options, SExtSourceCapability* pCap);
 bool    extDialectClauseMappable(int32_t dialect, EExtClauseKind clause);
 
 #ifdef __cplusplus

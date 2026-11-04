@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import shlex
 import subprocess
 import time
 import shutil
@@ -38,6 +39,20 @@ logger = logging.getLogger(__name__)
 failed_cases = 0  # 全局变量，记录失败用例数量
 exit_flag = False  # 全局退出标志
 current_process = None  # 当前运行的子进程
+
+
+def pytest_case_environment(command):
+    """Retain task-local env assignments stripped with the POSIX wrapper."""
+    environment = {}
+    for argument in shlex.split(command):
+        if argument in ('pytest', './ci/pytest.sh', 'ci/pytest.sh'):
+            break
+        if argument == 'env':
+            continue
+        name, separator, value = argument.partition('=')
+        if separator and name.isidentifier():
+            environment[name] = value
+    return environment
 
 
 def signal_handler(signum, frame):
@@ -448,13 +463,15 @@ def process_pytest_file(
                 continue
 
             pytest_cmd, case_timeout = parse_case_line(line)
-            if pytest_cmd in seen_commands:
+            case_variables = pytest_case_environment(command)
+            command_key = (pytest_cmd, tuple(sorted(case_variables.items())))
+            if command_key in seen_commands:
                 logger.info(f"Duplicate task, skip: {pytest_cmd}")
                 continue
-            seen_commands.add(pytest_cmd)
+            seen_commands.add(command_key)
 
             total_cases += 1
-            log_file = os.path.join(log_dir, pytest_log_name(pytest_cmd))
+            log_file = os.path.join(log_dir, pytest_log_name(pytest_cmd, case_variables))
 
             logger.info(f"Running case {pytest_cmd}")
             case_start = time.time()
@@ -486,6 +503,7 @@ def process_pytest_file(
                 with open(log_file, "w", buffering=1) as log:
                     case_environment = os.environ.copy()
                     case_environment["PYTHONIOENCODING"] = "utf-8"
+                    case_environment.update(case_variables)
                     backup_evidence = None
                     if "/06-TaosBackup/" in pytest_cmd:
                         backup_evidence = os.path.abspath(os.path.join(log_dir, f"{os.path.splitext(os.path.basename(log_file))[0]}-evidence"))

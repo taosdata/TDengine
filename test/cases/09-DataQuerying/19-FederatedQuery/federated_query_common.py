@@ -25,6 +25,8 @@ import shutil
 import time as _time
 import pytest
 from collections import namedtuple
+from contextlib import contextmanager
+from functools import wraps
 from itertools import zip_longest
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -276,6 +278,7 @@ TSDB_CODE_EXT_OPTIONS_TLS_CONFLICT             = _code('TSDB_CODE_EXT_OPTIONS_TL
 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG          = _code('TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG')
 
 # --- Path resolution / type mapping / pushdown ---
+TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT          = _code('TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT')
 TSDB_CODE_EXT_SOURCE_NOT_FOUND                 = _code('TSDB_CODE_EXT_SOURCE_NOT_FOUND')
 TSDB_CODE_EXT_DB_NOT_EXIST                     = _code('TSDB_CODE_EXT_DB_NOT_EXIST')
 TSDB_CODE_EXT_DEFAULT_NS_MISSING               = _code('TSDB_CODE_EXT_DEFAULT_NS_MISSING')
@@ -294,6 +297,9 @@ TSDB_CODE_EXT_RESOURCE_EXHAUSTED               = _code('TSDB_CODE_EXT_RESOURCE_E
 TSDB_CODE_EXT_FETCH_FAILED                     = _code('TSDB_CODE_EXT_FETCH_FAILED')
 TSDB_CODE_EXT_SOURCE_CHANGED                   = _code('TSDB_CODE_EXT_SOURCE_CHANGED')
 TSDB_CODE_EXT_SCHEMA_CHANGED                   = _code('TSDB_CODE_EXT_SCHEMA_CHANGED')
+TSDB_CODE_EXT_SCHEMA_CONFLICT                  = _code('TSDB_CODE_EXT_SCHEMA_CONFLICT')
+TSDB_CODE_EXT_TYPE_CONVERT_FAILED              = _code('TSDB_CODE_EXT_TYPE_CONVERT_FAILED')
+TSDB_CODE_TSC_QUERY_KILLED                      = _code('TSDB_CODE_TSC_QUERY_KILLED')
 TSDB_CODE_EXT_CAPABILITY_CHANGED               = _code('TSDB_CODE_EXT_CAPABILITY_CHANGED')
 TSDB_CODE_EXT_WRITE_DENIED                     = _code('TSDB_CODE_EXT_WRITE_DENIED')
 TSDB_CODE_EXT_STREAM_NOT_SUPPORTED             = _code('TSDB_CODE_EXT_STREAM_NOT_SUPPORTED')
@@ -509,6 +515,87 @@ def _read_influx_token_file(ver: str) -> Optional[str]:
         return None
 
 
+INFLUX18_QUOTED_IDENTIFIER = r'"(?:[^"\\]|\\.)*"'
+
+
+def influx18_basic_gate(cfg, username="basic18", password="basic18_test_password",
+                        reported_version="1.8.10", response_override=None, tls_context=None):
+    """Require Basic authentication before forwarding to the real 1.8 fixture.
+
+    This also verifies credential consumption when the fixture disables auth.
+    Only request paths are recorded; credentials never enter diagnostic output.
+    """
+    import base64
+    from contextlib import contextmanager
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import threading
+    import requests
+
+    @contextmanager
+    def serve():
+        upstream = f"http://{cfg.host}:{cfg.port}"
+        backend_auth = ExtSrcEnv.influx_request_auth(cfg)
+        credentials = f"{username}:{password}".encode()
+        accepted = "Basic " + base64.b64encode(credentials).decode()
+        requests_seen = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                requests_seen.append(self.path)
+                if self.headers.get("Authorization") != accepted:
+                    status, body = 401, b'{"error":"unauthorized"}'
+                else:
+                    response = response_override(self.path) if response_override is not None else None
+                    if response is not None:
+                        status, body = response
+                    else:
+                        try:
+                            response = requests.get(upstream + self.path, auth=backend_auth, timeout=15)
+                            status, body = response.status_code, response.content
+                        except requests.RequestException:
+                            status, body = 502, b'{"error":"upstream unavailable"}'
+                self.send_response(status)
+                if reported_version is not None:
+                    self.send_header("X-Influxdb-Version", reported_version)
+                self.send_header("Content-Type", "application/json")
+                if isinstance(body, bytes):
+                    self.send_header("Content-Length", str(len(body)))
+                else:
+                    self.send_header("Connection", "close")
+                self.end_headers()
+                try:
+                    if isinstance(body, bytes):
+                        self.wfile.write(body)
+                    else:
+                        for chunk in body:
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    if hasattr(body, "close"):
+                        body.close()
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        if tls_context is not None:
+            server.socket = tls_context.wrap_socket(server.socket, server_side=True)
+        server.daemon_threads = True
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            yield server.server_port, requests_seen
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+            assert not thread.is_alive(), "Basic authentication fixture did not stop"
+
+    return serve()
+
+
 class ExtSrcEnv:
     """Direct connections to external databases for test data setup/teardown.
 
@@ -614,7 +701,10 @@ class ExtSrcEnv:
     PG_USER    = os.getenv("FQ_PG_USER", "postgres")
     PG_PASS    = os.getenv("FQ_PG_PASS", "taosdata")
 
-    INFLUX_HOST  = os.getenv("FQ_INFLUX_HOST",  "127.0.0.1")
+    INFLUX_HOST  = os.getenv("FQ_INFLUX_HOST_" + INFLUX_VERSIONS[0].replace(".", ""),
+                             os.getenv("FQ_INFLUX_HOST", "127.0.0.1"))
+    INFLUX_USER = os.getenv("FQ_INFLUX_USER", "")
+    INFLUX_PASS = os.getenv("FQ_INFLUX_PASS", "")
     INFLUX_PORT  = _INFLUX_VERSION_PORTS.get(
         INFLUX_VERSIONS[0], int(os.getenv("FQ_INFLUX_PORT", "18086")))
     # Priority: FQ_INFLUX_TOKEN env var → token file written by ensure_ext_env.sh
@@ -708,11 +798,16 @@ class ExtSrcEnv:
         external = cls._env_mode() == "external"
         sources = (("mysql", cls.MYSQL_HOST, cls.MYSQL_PORT, cls.MYSQL_PASS, 13306, "taosdata"),
                    ("postgresql", cls.PG_HOST, cls.PG_PORT, cls.PG_PASS, 15434, "taosdata"),
-                   ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None, 18086, None),
+                   ("influxdb", cls.INFLUX_HOST, cls.INFLUX_PORT, None,
+                    18085 if cls.INFLUX_VERSIONS[0] == "1.8" else 18086, None),
                    ("sqlserver", cls.SQLSERVER_HOST, cls.SQLSERVER_PORT, cls.SQLSERVER_PASS,
                     1433, "TaosFq!2026"),
                    ("oracle", cls.ORACLE_HOST, cls.ORACLE_PORT, cls.ORACLE_PASS,
                     18322, "taosdata"))
+        sources += tuple(("influxdb", cfg.host, cfg.port, None,
+                          18085 if cfg.version == "1.8" else 18086, None)
+                         for cfg in cls.influx_version_configs()
+                         if cfg.version != cls.INFLUX_VERSIONS[0])
         # Local PostgreSQL runs use one dedicated port per version (18.6 ->
         # 15437) while the checked-in plan/result baselines keep the historical
         # 16-era 15434 endpoint.  Canonicalise only the version's default port
@@ -737,6 +832,13 @@ class ExtSrcEnv:
             if line.startswith("ERROR:") or (line.startswith("SQL:") and (
                     "external source" in line.lower() or
                     "information_schema.ins_ext_sources" in line.lower())):
+                if "1.8" in cls.INFLUX_VERSIONS and (
+                        line.startswith("ERROR:") or "type='influxdb'" in line.lower()):
+                    user, password = cls.influx_source_credentials("1.8")
+                    user = user.replace("'", "''")
+                    password = password.replace("'", "''")
+                    line = line.replace(f"user='{user}'", "user='admin'")
+                    line = line.replace(f"password='{password}'", "password='taosdata'")
                 for provider, host, port, password, canonical_port, canonical_password in sources:
                     if not external and provider not in local_providers:
                         continue
@@ -763,6 +865,10 @@ class ExtSrcEnv:
             elif metadata:
                 columns = line.rstrip("\n").split("|")
                 if len(columns) == len(metadata):
+                    if ("1.8" in cls.INFLUX_VERSIONS and "user" in metadata
+                            and "type" in metadata and columns[metadata["type"]] == "influxdb"
+                            and columns[metadata["user"]] == cls.influx_source_credentials("1.8")[0]):
+                        columns[metadata["user"]] = "admin"
                     for provider, host, port, password, canonical_port, canonical_password in sources:
                         if not external and provider not in local_providers:
                             continue
@@ -1373,12 +1479,19 @@ class ExtSrcEnv:
                             cls.PG_USER, cls.PG_PASS)
 
     @classmethod
+    def influx_config(cls, ver=None):
+        ver = ver or cls.INFLUX_VERSIONS[0]
+        host = os.getenv("FQ_INFLUX_HOST_" + ver.replace(".", ""),
+                         os.getenv("FQ_INFLUX_HOST", "127.0.0.1"))
+        return _InfluxVerCfg(ver, host,
+                            cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT),
+                            cls._get_influx_token(ver), cls.INFLUX_ORG)
+
+    @classmethod
     def influx_version_configs(cls):
         """Yield one _InfluxVerCfg per configured InfluxDB version."""
         for ver in cls.INFLUX_VERSIONS:
-            port = cls._INFLUX_VERSION_PORTS.get(ver, cls.INFLUX_PORT)
-            yield _InfluxVerCfg(ver, cls.INFLUX_HOST, port,
-                                cls._get_influx_token(ver), cls.INFLUX_ORG)
+            yield cls.influx_config(ver)
 
     @classmethod
     def _sqlserver_arch_runnable(cls):
@@ -1597,6 +1710,8 @@ class ExtSrcEnv:
         hard reset (data wipe + restart).  Falls back to FQ_INFLUX_TOKEN env
         var or the 'test-token' default (used when InfluxDB runs without auth).
         """
+        if ver == "1.8":
+            return ""
         token_file = os.path.join(_fq_base_dir(), "influxdb", ver, "admin_token.txt")
         try:
             with open(token_file) as _tf:
@@ -2282,7 +2397,7 @@ class ExtSrcEnv:
             os.path.isfile(os.path.join(influx_bin_dir, "influxdb3"))
             or os.path.isfile(os.path.join(influx_bin_dir, "influxd"))
         )
-        cfg = next(c for c in cls.influx_version_configs() if c.version == ver)
+        cfg = cls.influx_config(ver)
         script_error = None
         proc = None
         log_path = None
@@ -2321,10 +2436,22 @@ class ExtSrcEnv:
                 # Auth stays enabled: the catalog token in admin_token.txt
                 # keeps working across restarts, and the credential scenarios
                 # rely on tokens being enforced.
+                command = [influx_exe, "serve", "--node-id", "fq-test-node",
+                           "--http-bind", f"{cfg.host}:{cfg.port}",
+                           "--object-store", "file", "--data-dir", data_dir]
+                if ver == "1.8":
+                    config_file = os.path.join(influx_base, "influxdb.conf")
+                    native_data = data_dir.replace("\\", "/")
+                    with open(config_file, "w", encoding="utf-8") as config:
+                        config.write(
+                            f'reporting-disabled = true\nbind-address = "127.0.0.1:{cfg.port + 100}"\n'
+                            f'[meta]\n  dir = "{native_data}/meta"\n'
+                            f'[data]\n  dir = "{native_data}/data"\n  wal-dir = "{native_data}/wal"\n'
+                            f'[http]\n  bind-address = "{cfg.host}:{cfg.port}"\n  auth-enabled = false\n'
+                            '[monitor]\n  store-enabled = false\n')
+                    command = [influx_exe, "-config", config_file]
                 proc = subprocess.Popen(
-                    [influx_exe, "serve", "--node-id", "fq-test-node",
-                     "--http-bind", f"{cfg.host}:{cfg.port}",
-                     "--object-store", "file", "--data-dir", data_dir],
+                    command,
                     cwd=influx_bin_dir, stdin=subprocess.DEVNULL,
                     stdout=log_fh, stderr=subprocess.STDOUT,
                     creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
@@ -2757,8 +2884,47 @@ class ExtSrcEnv:
             next(cls.influx_version_configs()), bucket, sql, fmt)
 
     @classmethod
+    def influx_source_credentials(cls, ver=None):
+        if (ver or cls.INFLUX_VERSIONS[0]) == "1.8":
+            return ((cls.INFLUX_USER, cls.INFLUX_PASS) if cls.INFLUX_USER or cls.INFLUX_PASS
+                    else ("admin", "taosdata"))
+        return "u", ""
+
+    @classmethod
+    def influx_request_auth(cls, cfg):
+        if cfg.version == "1.8" and (cls.INFLUX_USER or cls.INFLUX_PASS):
+            return cls.INFLUX_USER, cls.INFLUX_PASS
+        return None
+
+    @classmethod
+    def influx_source_options(cls, ver=None, extra_options=None):
+        """Return version-specific OPTIONS for a real test source."""
+        ver = ver or cls.INFLUX_VERSIONS[0]
+        options = ("'version'='1.8','protocol'='http'" if ver == "1.8" else
+                   f"'api_token'='{cls._get_influx_token(ver)}','protocol'='flight_sql'")
+        return options + ("," + extra_options if extra_options else "")
+
+    @classmethod
+    def _influx18_query(cls, cfg, bucket, query):
+        response = cls._influx_request(
+            "POST", f"http://{cfg.host}:{cfg.port}/query", ver=cfg.version,
+            data={"db": bucket, "q": query, "epoch": "ns"}, auth=cls.influx_request_auth(cfg), timeout=30)
+        response.raise_for_status()
+        payload = response.json()
+        statements = payload.get("results", [])
+        errors = [item["error"] for item in [payload] + statements if "error" in item]
+        if errors:
+            raise RuntimeError("InfluxDB 1.8: " + "; ".join(errors))
+        return [dict(zip(series["columns"], row), **series.get("tags", {}))
+                for item in statements for series in item.get("series", [])
+                for row in series.get("values", [])]
+
+    @classmethod
     def influx_create_db_cfg(cls, cfg, bucket):
         """Create InfluxDB v3 database on a specific version instance (idempotent)."""
+        if cfg.version == "1.8":
+            cls._influx18_query(cfg, bucket, 'CREATE DATABASE "' + bucket.replace('"', '\\"') + '"')
+            return
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
         r = cls._influx_request("GET", url, ver=cfg.version, headers=headers,
@@ -2813,6 +2979,9 @@ class ExtSrcEnv:
         subsequent tests do not fail with ConnectionResetError.
         """
         import requests, time
+        if cfg.version == "1.8":
+            cls._influx18_query(cfg, bucket, 'DROP DATABASE "' + bucket.replace('"', '\\"') + '"')
+            return
         url = f"http://{cfg.host}:{cfg.port}/api/v3/configure/database"
         headers = {"Authorization": f"Bearer {cfg.token}"} if cfg.token else {}
         try:
@@ -2835,18 +3004,24 @@ class ExtSrcEnv:
             pass  # helper restarted it
 
     @classmethod
-    def influx_write_cfg(cls, cfg, bucket, lines, precision='ns'):
-        """Write line-protocol data to a specific InfluxDB v3 instance.
+    def influx_write_cfg(cls, cfg, bucket, lines, precision='ns', retention_policy=None):
+        """Write line-protocol data to the selected InfluxDB version.
 
         lines: list of line-protocol strings, or a single pre-joined string.
         precision: timestamp precision in line protocol ('ns', 'us', 'ms', 's').
                    Defaults to 'ns' to match standard InfluxDB line protocol.
+        retention_policy: optional destination RP for InfluxDB 1.8.
         """
+        if retention_policy is not None and cfg.version != "1.8":
+            raise ValueError("Retention policies require InfluxDB 1.8")
         data = lines if isinstance(lines, str) else "\n".join(lines)
         if not data.strip():
             return  # nothing to write
-        url = f"http://{cfg.host}:{cfg.port}/api/v2/write"
-        params = {"bucket": bucket, "precision": precision}
+        native = cfg.version == "1.8"
+        url = f"http://{cfg.host}:{cfg.port}" + ("/write" if native else "/api/v2/write")
+        params = {"db" if native else "bucket": bucket, "precision": precision}
+        if retention_policy is not None:
+            params["rp"] = retention_policy
         headers = {"Content-Type": "text/plain; charset=utf-8"}
         if cfg.token:
             headers["Authorization"] = f"Bearer {cfg.token}"
@@ -2855,12 +3030,20 @@ class ExtSrcEnv:
         # whole case), so always bound it and recover from a dead server.
         r = cls._influx_request("POST", url, ver=cfg.version, params=params,
                                 headers=headers, data=data.encode('utf-8'),
-                                timeout=30)
+                                auth=cls.influx_request_auth(cfg), timeout=30)
         r.raise_for_status()
 
     @classmethod
     def influx_query_sql_cfg(cls, cfg, bucket, sql, fmt="json"):
-        """Run a SQL query against a specific InfluxDB v3 instance, return parsed JSON."""
+        """Run a native query for the selected InfluxDB version, returning parsed JSON."""
+        if cfg.version == "1.8":
+            # Dataset health checks count raw rows; COUNT(*) in InfluxQL counts
+            # each Field independently and is not SQL's row count.
+            count = re.fullmatch(r'\s*select\s+count\(\*\)(?:\s+as\s+(\w+))?\s+from\s+(.+?)\s*;?\s*', sql, re.I)
+            if count:
+                rows = cls._influx18_query(cfg, bucket, "SELECT * FROM " + count.group(2))
+                return [{count.group(1) or "count(*)": len(rows)}]
+            return cls._influx18_query(cfg, bucket, sql)
         url = f"http://{cfg.host}:{cfg.port}/api/v3/query_sql"
         headers = {"Content-Type": "application/json",
                    "Accept": "application/json"}
@@ -3512,7 +3695,7 @@ class FederatedQueryTestMixin:
             sql += f" options({extra_options})"
         tdSql.execute(sql)
 
-    def _resolve_influx_protocol(self, protocol=None):
+    def _resolve_influx_protocol(self, protocol=None, version=None):
         """Resolve the InfluxDB protocol for generic query tests.
 
         Resolution order:
@@ -3523,6 +3706,8 @@ class FederatedQueryTestMixin:
         """
         if protocol:
             return protocol
+        if (version or self._influx_cfg().version) == "1.8":
+            return "http"
         attr_protocol = getattr(self, "influx_protocol", None)
         if attr_protocol:
             return attr_protocol
@@ -3531,25 +3716,54 @@ class FederatedQueryTestMixin:
             return env_protocol
         return "flight_sql"
 
-    def _fmt_influx_options(self, api_token, protocol=None, extra_options=None):
+    def _fmt_influx_options(self, api_token, protocol=None, extra_options=None, version=None):
         """Build the OPTIONS(...) clause payload for an InfluxDB external source."""
-        parts = [f"'api_token'='{api_token}'",
-                 f"'protocol'='{self._resolve_influx_protocol(protocol)}'"]
+        version = version or self._influx_cfg().version
+        parts = (["'version'='1.8'"] if version == "1.8" else [f"'api_token'='{api_token}'"])
+        if version == "1.8" and api_token:
+            parts.append(f"'api_token'='{api_token}'")
+        resolved = self._resolve_influx_protocol(protocol, version)
+        parts.append(f"'protocol'='{resolved}'")
         if extra_options:
             parts.append(extra_options)
         return ",".join(parts)
 
     def _mk_influx_source_sql(self, name, host, port, api_token, database="telegraf",
-                              protocol=None, extra_options=None, user="u", password=""):
+                              protocol=None, extra_options=None, user=None, password=None, version=None):
         """Generate InfluxDB CREATE EXTERNAL SOURCE SQL via one shared code path."""
+        version = version or self._influx_cfg().version
+        default_user, default_password = ExtSrcEnv.influx_source_credentials(version)
+        user = default_user if user is None else user
+        password = default_password if password is None else password
         sql = (f"create external source {name} "
                f"type='influxdb' host='{host}' "
                f"port={port} "
                f"user='{user}' password='{password}'")
         if database:
             sql += f" database={database}"
-        sql += f" options({self._fmt_influx_options(api_token, protocol, extra_options)})"
+        sql += f" options({self._fmt_influx_options(api_token, protocol, extra_options, version)})"
         return sql
+
+    def _rewrite_influx_source_credentials(self, sql):
+        if (not re.match(r"create\s+external\s+source\b", sql, re.I)
+                or not re.search(r"\btype\s*=\s*'influxdb'", sql, re.I)
+                or (re.search(r"\bpassword\s*=", sql, re.I)
+                    and not re.search(r"\bpassword\s*=\s*''(?!')", sql, re.I))):
+            return sql
+        user, password = ExtSrcEnv.influx_source_credentials("1.8")
+        user = user.replace("'", "''")
+        password = password.replace("'", "''")
+        credentials = f"user='{user}' password='{password}'"
+        return re.sub(r"\buser\s*=\s*'admin'(?:\s+password\s*=\s*''(?!'))?",
+                      lambda match: credentials, sql, count=1, flags=re.I)
+
+    def _rewrite_influx_source_endpoint(self, sql):
+        """Bind import-time endpoints while preserving deliberately invalid ones."""
+        cfg = self._influx_cfg()
+        sql = re.sub(r"(\bhost\s*=\s*')" + re.escape(ExtSrcEnv.INFLUX_HOST) + r"(')",
+                     lambda m: m[1] + cfg.host.replace("'", "''") + m[2], sql, flags=re.I)
+        return re.sub(r"(\bport\s*=\s*)" + str(ExtSrcEnv.INFLUX_PORT) + r"(?!\d)",
+                      lambda m: m[1] + str(cfg.port), sql, flags=re.I)
 
     def _rewrite_influx_source_runtime_sql(self, sql, import_token=None):
         """Rewrite generic InfluxDB CREATE SOURCE SQL to current runtime settings.
@@ -3559,6 +3773,7 @@ class FederatedQueryTestMixin:
         protocol/token resolution logic without forcing each file to
         reimplement Influx option handling.
         """
+        sql = self._rewrite_influx_source_endpoint(sql)
         if "type='influxdb'" not in sql.lower():
             return sql
 
@@ -3571,6 +3786,11 @@ class FederatedQueryTestMixin:
             )
             rewritten = pattern.sub(r"\1" + runtime_token + r"\2", rewritten)
 
+        if self._influx_cfg().version == "1.8":
+            rewritten = self._rewrite_influx_source_credentials(rewritten)
+            rewritten = re.sub(r"('api_token'\s*=\s*')([^']*)(')", r"\1\3", rewritten, flags=re.I)
+            if not re.search(r"'version'\s*=", rewritten, re.I):
+                rewritten = re.sub(r"options\s*\(", "options('version'='1.8',", rewritten, count=1, flags=re.I)
         resolved_protocol = self._resolve_influx_protocol()
         rewritten = re.sub(
             r"('protocol'\s*=\s*')([^']*)(')",
@@ -3579,6 +3799,26 @@ class FederatedQueryTestMixin:
             flags=re.IGNORECASE,
         )
         return rewritten
+
+    @contextmanager
+    def _influx_fixture(self, database, lines):
+        cfg = self._influx_cfg()
+        source = database + "_src"
+        ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+        ExtSrcEnv.influx_create_db_cfg(cfg, database)
+        try:
+            if lines:
+                ExtSrcEnv.influx_write_cfg(cfg, database, lines)
+            self._mk_influx_real(source, database=database)
+            yield cfg, source
+        finally:
+            self._cleanup_src(source)
+            ExtSrcEnv.influx_drop_db_cfg(cfg, database)
+
+    @staticmethod
+    def _check_query_rows(sql, expected):
+        tdSql.query(sql)
+        assert tdSql.queryResult == expected, (sql, tdSql.queryResult, expected)
 
     def _mk_influx_real(self, name, database="telegraf", protocol=None,
                         api_token=None, extra_options=None):
@@ -3647,6 +3887,98 @@ class FederatedQueryTestMixin:
             if cfg.version == ver:
                 return cfg
         return next(ExtSrcEnv.influx_version_configs())
+
+    @contextmanager
+    def _using_influx(self, cfg):
+        previous = getattr(self, '_active_influx_ver', None)
+        if cfg is not None:
+            self._active_influx_ver = cfg.version
+        try:
+            yield
+        finally:
+            self._active_influx_ver = previous
+
+    def _influx_configs(self):
+        # Keep the existing source/answer names on 3.x when both are requested.
+        return sorted(ExtSrcEnv.influx_version_configs(), key=lambda cfg: cfg.version == '1.8')
+
+    def _influx_source_specs(self, name):
+        for index, cfg in enumerate(self._influx_configs()):
+            alias = name if index == 0 else name + '_v' + cfg.version.replace('.', '_')
+            yield cfg, alias
+
+    def _mk_influx_sources(self, name, database):
+        aliases = getattr(type(self), '_influx_aliases', None)
+        if aliases is None:
+            aliases = {}
+            type(self)._influx_aliases = aliases
+        for cfg, alias in self._influx_source_specs(name):
+            with self._using_influx(cfg):
+                self._cleanup_src(alias)
+                self._mk_influx_real(alias, database=database)
+            aliases.setdefault(cfg.version, {})[name] = alias
+
+    def _influx_source_name(self, name):
+        version = self._influx_cfg().version
+        return next(alias for cfg, alias in self._influx_source_specs(name) if cfg.version == version)
+
+    def _drop_influx_sources(self, *names):
+        for name in names:
+            for _, alias in self._influx_source_specs(name):
+                self._cleanup_src(alias)
+
+    @staticmethod
+    def _replace_influx_sources(text, aliases):
+        for source, alias in aliases.items():
+            if source != alias:
+                text = re.sub(r'(?<![a-zA-Z0-9_])' + re.escape(source) + r'(?![a-zA-Z0-9_])',
+                              lambda match: alias, text)
+        return text
+
+    def _influx_query_variants(self, sql):
+        yield None, sql, ''
+        aliases = getattr(type(self), '_influx_aliases', {})
+        for cfg in self._influx_configs()[1:]:
+            mapped = self._replace_influx_sources(sql, aliases.get(cfg.version, {}))
+            if mapped != sql:
+                yield cfg, mapped, '@inf' + cfg.version
+
+    def _expand_influx_source_list(self, sources, label_versions=True):
+        expanded = []
+        for label, table in sources:
+            for cfg, variant, _ in self._influx_query_variants(table):
+                expanded.append((label if cfg is None or not label_versions else label + '@' + cfg.version, variant))
+        return expanded
+
+    def _influx_case_id(self, case_id, sql):
+        aliases = getattr(type(self), '_influx_aliases', {})
+        for cfg in self._influx_configs()[1:]:
+            if any(re.search(r'(?<![a-zA-Z0-9_])' + re.escape(alias) + r'(?![a-zA-Z0-9_])', sql)
+                   for source, alias in aliases.get(cfg.version, {}).items() if source != alias):
+                return case_id + '@inf' + cfg.version
+        return case_id
+
+    def _expand_influx_baseline(self, text):
+        aliases = getattr(type(self), '_influx_aliases', {})
+        expanded = []
+        for block in re.split(r'(?m)(?=^### )', text):
+            expanded.append(block)
+            if not block.startswith('### '):
+                continue
+            header, separator, body = block.partition('\n')
+            parts = header.split(maxsplit=2)
+            if len(parts) < 3:
+                continue
+            for cfg in self._influx_configs()[1:]:
+                mapped = self._replace_influx_sources(body, aliases.get(cfg.version, {}))
+                if mapped == body and not re.search(r'\{I(?:_TAG|_CPU)?\}', body):
+                    continue
+                if parts[2].split()[0] in ('POS', 'NEG', 'ERR'):
+                    variant_header = f'### {parts[1]}@inf{cfg.version} {parts[2]}'
+                else:
+                    variant_header = f'### {parts[1]} {parts[2]}@{cfg.version}'
+                expanded.append(variant_header + separator + mapped)
+        return ''.join(expanded)
 
     def _oracle_cfg(self):
         """Return the Oracle config for the active (or primary) version."""
@@ -3759,23 +4091,25 @@ class FederatedQueryTestMixin:
 
         # ----- InfluxDB -----
         if not skip_influx and "influx" in enabled:
-            self._cleanup_src(i_src)
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            try:
-                lines = [
-                    f'{table} val={val}i,score={score},name="{name}",flag={flag}i '
-                    f'{ts * 1_000_000}'
-                    for ts, val, score, name, flag in _STD_ROWS
-                ]
-                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, lines)
-                self._mk_influx_real(i_src, database=i_db)
-                body_fn(i_src)
-            finally:
-                self._cleanup_src(i_src)
-                try:
-                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-                except Exception:
-                    pass
+            for cfg in ExtSrcEnv.influx_version_configs():
+                with self._using_influx(cfg):
+                    self._cleanup_src(i_src)
+                    ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+                    try:
+                        lines = [
+                            f'{table} val={val}i,score={score},name="{name}",flag={flag}i '
+                            f'{ts * 1_000_000}'
+                            for ts, val, score, name, flag in _STD_ROWS
+                        ]
+                        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, lines)
+                        self._mk_influx_real(i_src, database=i_db)
+                        body_fn(i_src)
+                    finally:
+                        self._cleanup_src(i_src)
+                        try:
+                            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                        except Exception:
+                            pass
 
         # ----- SQL Server -----
         if not skip_sqlserver and "sqlserver" in enabled:
@@ -3899,18 +4233,20 @@ class FederatedQueryTestMixin:
 
         # ----- InfluxDB -----
         if not skip_influx and "influx" in enabled and influx_lines:
-            self._cleanup_src(i_src)
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            try:
-                ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, influx_lines)
-                self._mk_influx_real(i_src, database=i_db)
-                body_fn(i_src, 'influx')
-            finally:
-                self._cleanup_src(i_src)
-                try:
-                    ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-                except Exception:
-                    pass
+            for cfg in self._influx_configs():
+                with self._using_influx(cfg):
+                    self._cleanup_src(i_src)
+                    ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+                    try:
+                        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, influx_lines)
+                        self._mk_influx_real(i_src, database=i_db)
+                        body_fn(i_src, 'influx')
+                    finally:
+                        self._cleanup_src(i_src)
+                        try:
+                            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+                        except Exception:
+                            pass
 
         # ----- SQL Server -----
         if not skip_sqlserver and "sqlserver" in enabled and sqlserver_setup:
@@ -3995,6 +4331,7 @@ class FederatedQueryTestMixin:
                 database=database,
                 protocol=protocol,
                 extra_options=extra_options,
+                version=ver_cfg.version,
             )
         )
 
@@ -4157,49 +4494,78 @@ class FederatedQueryTestMixin:
 
 
 # =====================================================================
-# Versioned test mixin — per-version parametrization for fq_01 ~ fq_05
+# Provider version iteration and MySQL/PG fixture parametrization
 # =====================================================================
 
+def influx_versions(*versions):
+    """Run one Influx-only scenario for each configured provider version."""
+    def decorate(method):
+        @wraps(method)
+        def run(self, *args, **kwargs):
+            configs = [cfg for cfg in self._influx_configs()
+                       if not versions or cfg.version in versions]
+            if not configs:
+                pytest.skip("The requested InfluxDB version is not configured")
+            result = None
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    result = method(self, *args, **kwargs)
+            return result
+        return run
+    return decorate
+
+
 class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
-    """Extends FederatedQueryTestMixin with automatic per-version parametrization.
+    """Select MySQL/PG version combinations before preparing shared test data.
 
-    Each test method in a subclass runs **once per version combo** determined by
-    FQ_MYSQL_VERSIONS / FQ_PG_VERSIONS / FQ_INFLUX_VERSIONS (zip_longest).
-    Pytest serialises the fixture parameters so versions are always tested one
-    at a time, back-to-back.
+    InfluxDB versions run inside each provider scenario. They do not add pytest
+    parameters or repeat other providers' scenarios. The primary Influx version
+    keeps the existing source names; additional versions use separate aliases.
+    ``_using_influx`` selects credentials and dialect options while a provider
+    scenario runs and restores the primary version for cleanup.
 
-    At the start of every test the ``_version_combo`` autouse fixture sets
-    ``self._active_mysql_ver`` etc., so that ``self._mysql_cfg()`` /
-    ``self._pg_cfg()`` / ``self._influx_cfg()`` return the correct connection
-    details automatically — no changes to test bodies needed.
-
-    ``self._version_label()`` returns a human-readable string such as
-    ``'my8.0-pg18.6-inf3.0'`` that test result helpers can append to scenario
-    names so the final summary shows per-scenario × per-version rows.
-
-    When only default single versions are configured each test runs exactly
-    once, identical to the pre-versioning behavior.
-
-    Usage::
-
-        class TestFqXX(FederatedQueryVersionedMixin):
-            ...
-
-    Do NOT use for fq_12 (which iterates versions explicitly inside test bodies).
+    Do not use for fq_12, which iterates all versions explicitly.
     """
 
-    @pytest.fixture(autouse=True,
-                    params=ExtSrcEnv._version_combos(),
-                    ids=ExtSrcEnv._version_combo_ids())
+    @pytest.fixture(
+        autouse=True,
+        params=list(dict.fromkeys(
+            (mysql, pg, min(ExtSrcEnv.INFLUX_VERSIONS, key=lambda version: version == "1.8"))
+            for mysql, pg, _ in ExtSrcEnv._version_combos()
+        )),
+        ids=lambda combo: f"my{combo[0]}-pg{combo[1]}",
+    )
     def _version_combo(self, request):
-        mysql_ver, pg_ver, influx_ver = request.param
-        self._active_mysql_ver = mysql_ver
-        self._active_pg_ver = pg_ver
-        self._active_influx_ver = influx_ver
-        yield
-        self._active_mysql_ver = None
-        self._active_pg_ver = None
-        self._active_influx_ver = None
+        self._active_mysql_ver, self._active_pg_ver, self._active_influx_ver = request.param
+        try:
+            yield
+        finally:
+            self._active_mysql_ver = None
+            self._active_pg_ver = None
+            self._active_influx_ver = None
+
+    @pytest.fixture(autouse=True)
+    def _version_data(self, _version_combo, request):
+        # xunit setup_method runs before function-scoped fixtures. Depend on
+        # _version_combo explicitly so preparation and cleanup see this version.
+        method = getattr(self, request.function.__name__)
+        prepare = getattr(self, "_setup_version_data", None)
+        cleanup = getattr(self, "_teardown_version_data", None)
+        if prepare is not None:
+            prepare(method)
+        try:
+            yield
+        finally:
+            if cleanup is not None:
+                cleanup(method)
+
+    def _framework_baseline_label(self):
+        # PG 16 and 18.6 have identical reviewed framework results. Reuse the
+        # native Influx answers without adding another complete copy of them.
+        label = self._version_label()
+        if label == "my8.0-pg18.6-inf1.8":
+            label = "my8.0-pg16-inf1.8"
+        return label.replace(".", "_").replace("/", "_")
 
     def _version_label(self):
         """Return the current version-combo label, e.g. ``'my8.0-pg18.6-inf3.0'``.
@@ -4210,7 +4576,7 @@ class FederatedQueryVersionedMixin(FederatedQueryTestMixin):
         """
         mysql_ver = getattr(self, '_active_mysql_ver', None) or ExtSrcEnv.MYSQL_VERSIONS[0]
         pg_ver = getattr(self, '_active_pg_ver', None) or ExtSrcEnv.PG_VERSIONS[0]
-        influx_ver = getattr(self, '_active_influx_ver', None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        influx_ver = getattr(self, '_active_influx_ver', None) or self._influx_configs()[0].version
         return f"my{mysql_ver}-pg{pg_ver}-inf{influx_ver}"
 
 
@@ -4560,7 +4926,7 @@ def parity_precision_eq(lv, ev, label, tz=None):
         return False
     if str(lv) == str(ev):
         return True
-    factor = _EXT_PRECISION_FACTOR.get(label, 1)
+    factor = _EXT_PRECISION_FACTOR.get(label.split("@", 1)[0], 1)
 
     # ── Integer/float scaling: ext_val == local_val * factor ──
     try:
@@ -4658,7 +5024,7 @@ def parity_make_insert_sqls(rows_dt, *, table="parity_t", schema=""):
     ]
 
 
-class ParityTestBase(FederatedQueryTestMixin):
+class ParityTestBase(FederatedQueryVersionedMixin):
     """Base class for parity tests that compare local TDengine results
     against one or more external sources.
 
@@ -5485,6 +5851,7 @@ class ParityTestBase(FederatedQueryTestMixin):
         else:
             with open(baseline_file, "r") as f:
                 baseline_content = f.read()
+            baseline_content = self._expand_influx_baseline(baseline_content)
             if _normalize_baseline(tmp_content) != _normalize_baseline(baseline_content):
                 # Find first diff
                 tmp_lines = tmp_content.splitlines()

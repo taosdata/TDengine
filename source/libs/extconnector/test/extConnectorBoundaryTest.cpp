@@ -17,6 +17,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <cmath>
@@ -29,6 +30,10 @@
 
 extern "C" {
 #include "extConnectorInt.h"
+#include "extDialect.h"
+#ifdef TD_ENTERPRISE
+#include "extInfluxV1.h"
+#endif
 #include "decimal.h"
 #include "osSleep.h"
 #include "osTime.h"
@@ -141,6 +146,24 @@ TEST_F(ExternalDatabasePoolTest, InfluxDatabasesReuseIndependentConnections) {
   }
   EXPECT_EQ(poolConnectCalls, 2);
   EXPECT_EQ(poolDisconnectCalls, 0);
+}
+
+TEST_F(ExternalDatabasePoolTest, ConfigRefreshResolvesTimeoutOptions) {
+  auto source = config(EXT_SOURCE_INFLUXDB, "db_a");
+  for (int32_t version = 1; version <= 2; ++version) {
+    source.meta_version = version;
+    tstrncpy(source.options, version == 1
+                                ? "{\"connect_timeout_ms\":\"2000\",\"read_timeout_ms\":\"4000\"}"
+                                : "{\"connect_timeout_ms\":\"500\",\"read_timeout_ms\":\"1000\"}",
+             sizeof(source.options));
+    SExtConnectorHandle* handle = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, extConnectorOpen(&source, &handle));
+    EXPECT_EQ(version == 1 ? 2000 : 500, handle->pPool->cfg.conn_timeout_ms);
+    EXPECT_EQ(version == 1 ? 4000 : 1000, handle->pPool->cfg.query_timeout_ms);
+    extConnectorClose(handle);
+  }
+  EXPECT_EQ(2, poolConnectCalls);
+  EXPECT_EQ(1, poolDisconnectCalls);
 }
 
 TEST_F(ExternalDatabasePoolTest, RemoveSourceRemovesEveryDatabaseAndPreservesBorrowedHandles) {
@@ -848,3 +871,195 @@ TEST(ExtConnectorValueConvertTest, TimeIntervalAndDecimalOverflowNeverRoundForEa
     EXPECT_EQ("0", getDecimal128(column.get(), 6));
   }
 }
+
+TEST(InfluxOptions, LegacyVersionAndProtocolDefaults) {
+  EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, extConnectorValidateInfluxOptions("{}", "", &dialect));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, dialect);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extConnectorValidateInfluxOptions(R"({"version":"3","protocol":"HTTP"})", "", &dialect));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, dialect);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, extConnectorValidateInfluxOptions("{}", "", nullptr));
+}
+
+TEST(InfluxOptions, Version18DefaultsToHttpAndAcceptsRp) {
+  EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extConnectorValidateInfluxOptions(R"({"version":"1.8","retention_policy":"KeepThirtyDays"})", "", &dialect));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXDB_1_8, dialect);
+  EXPECT_EQ(0, fqDialectBit(dialect));
+  EXPECT_EQ(FQ_CAP_INFLUX, fqDialectBit(EXT_SQL_DIALECT_INFLUXQL));
+}
+
+TEST(InfluxOptions, RetentionPolicyUsesTheInfluxIdentifierByteLimit) {
+  std::string prefix = "{\"version\":\"1.8\",\"retention_policy\":\"";
+  std::string maximum = prefix + std::string(255, 'r') + "\"}";
+  std::string oversized = prefix + std::string(256, 'r') + "\"}";
+  EXPECT_EQ(TSDB_CODE_SUCCESS, extConnectorValidateInfluxOptions(maximum.c_str(), "", nullptr));
+  EXPECT_EQ(TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+            extConnectorValidateInfluxOptions(oversized.c_str(), "", nullptr));
+}
+
+TEST(InfluxOptions, RejectsInvalidVersionAndRetentionPolicy) {
+  const char *invalid[] = {
+      R"({"version":""})", R"({"version":"1"})", R"({"version":"2"})", R"({"version":"3.0"})",
+      R"({"version":1.8})", R"({"version":"1.8","retention_policy":""})",
+      R"({"version":"1.8","retention_policy":null})", "[]", "not-json"};
+  for (const char *json : invalid) {
+    SCOPED_TRACE(json);
+    EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+    EXPECT_EQ(TSDB_CODE_PAR_SYNTAX_ERROR, extConnectorValidateInfluxOptions(json, "", &dialect));
+  }
+}
+
+TEST(InfluxOptions, RejectsIncompatibleCompleteConfigurations) {
+  const char *invalid[] = {
+      R"({"retention_policy":"autogen"})", R"({"version":"3","retention_policy":"autogen"})",
+      R"({"version":"1.8","protocol":"flight_sql"})", R"({"version":"1.8","api_token":"secret"})",
+      R"({"version":"1.8","tls_client_cert":"cert","tls_client_key":"key"})"};
+  for (const char *json : invalid) {
+    SCOPED_TRACE(json);
+    EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+    EXPECT_EQ(TSDB_CODE_EXT_SYNTAX_UNSUPPORTED, extConnectorValidateInfluxOptions(json, "", &dialect));
+  }
+  EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+  EXPECT_EQ(TSDB_CODE_EXT_SYNTAX_UNSUPPORTED,
+            extConnectorValidateInfluxOptions(R"({"version":"1.8"})", "public", &dialect));
+}
+
+TEST(InfluxOptions, AllowsEmptyCredentialsAndDeletedOptions) {
+  EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extConnectorValidateInfluxOptions(R"({"version":"1.8","api_token":"","tls_client_cert":"","tls_client_key":""})",
+                                               "", &dialect));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, extConnectorValidateInfluxOptions(R"({"version":"1.8"})", "", &dialect));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, extConnectorValidateInfluxOptions("{}", "", &dialect));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, dialect);
+}
+
+TEST(InfluxOptions, SourceCapabilityTracksVersionChanges) {
+  SExtSourceCapability capability = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extLoadSourceDialectDefaults(EXT_SOURCE_INFLUXDB, "{}", &capability));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, capability.dialect);
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extLoadSourceDialectDefaults(EXT_SOURCE_INFLUXDB, R"({"version":"1.8"})", &capability));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXDB_1_8, capability.dialect);
+  EXPECT_EQ(0, fqDialectBit(capability.dialect));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            extLoadSourceDialectDefaults(EXT_SOURCE_INFLUXDB, "{}", &capability));
+  EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, capability.dialect);
+  extCapDestroy(&capability);
+}
+
+#ifdef TD_ENTERPRISE
+TEST(InfluxV1Json, PreservesWideIntegersAndOriginalStringTypes) {
+  const char *json = R"({"n":9007199254740993,"i":-9223372036854775808,"u":18446744073709551615,"s":"N9007199254740993","empty":""})";
+  cJSON *root = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonParse(json, strlen(json), &root));
+  int64_t signedValue = 0;
+  uint64_t unsignedValue = 0;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, influxV1JsonInt64(cJSON_GetObjectItem(root, "n"), &signedValue));
+  EXPECT_EQ(INT64_C(9007199254740993), signedValue);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, influxV1JsonInt64(cJSON_GetObjectItem(root, "i"), &signedValue));
+  EXPECT_EQ((std::numeric_limits<int64_t>::min)(), signedValue);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, influxV1JsonUInt64(cJSON_GetObjectItem(root, "u"), &unsignedValue));
+  EXPECT_EQ((std::numeric_limits<uint64_t>::max)(), unsignedValue);
+  EXPECT_STREQ("N9007199254740993", influxV1JsonString(cJSON_GetObjectItem(root, "s")));
+  EXPECT_STREQ("", influxV1JsonString(cJSON_GetObjectItem(root, "empty")));
+  EXPECT_EQ(nullptr, influxV1JsonNumber(cJSON_GetObjectItem(root, "s")));
+  cJSON_Delete(root);
+}
+
+TEST(InfluxV1Json, RejectsInvalidIntegerConversions) {
+  const char *json = R"({"overflow":9223372036854775808,"uoverflow":18446744073709551616,"negative":-1,"fraction":1.5,"exponent":1e2,"string":"42","object":{"N":"42"}})";
+  cJSON *root = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonParse(json, strlen(json), &root));
+  int64_t signedValue = 0;
+  uint64_t unsignedValue = 0;
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_CONVERT_FAILED, influxV1JsonInt64(cJSON_GetObjectItem(root, "overflow"), &signedValue));
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_CONVERT_FAILED, influxV1JsonUInt64(cJSON_GetObjectItem(root, "uoverflow"), &unsignedValue));
+  EXPECT_EQ(TSDB_CODE_EXT_TYPE_CONVERT_FAILED, influxV1JsonUInt64(cJSON_GetObjectItem(root, "negative"), &unsignedValue));
+  for (const char *name : {"fraction", "exponent", "string", "object"}) {
+    EXPECT_EQ(TSDB_CODE_EXT_TYPE_CONVERT_FAILED, influxV1JsonInt64(cJSON_GetObjectItem(root, name), &signedValue));
+  }
+  cJSON_Delete(root);
+}
+
+TEST(InfluxV1Json, DenseNumbersAndFullSizeWhitespaceKeepExactTokens) {
+  std::string dense = "{\"numbers\":[";
+  for (int i = 0; i < 4096; ++i) dense += i == 0 ? "0" : ",0";
+  dense += "],\"escaped\\\"key\":\"quote\\\"and\\\\slash\"}";
+  cJSON* root = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonParse(dense.data(), dense.size(), &root));
+  EXPECT_EQ(4096, cJSON_GetArraySize(cJSON_GetObjectItem(root, "numbers")));
+  EXPECT_STREQ("0", influxV1JsonNumber(cJSON_GetArrayItem(cJSON_GetObjectItem(root, "numbers"), 4095)));
+  EXPECT_STREQ("quote\"and\\slash", influxV1JsonString(cJSON_GetObjectItem(root, "escaped\"key")));
+  cJSON_Delete(root);
+  std::string padded = "{" + std::string(INFLUX_V1_JSON_LIMIT - 2, ' ') + "}";
+  ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonParse(padded.data(), padded.size(), &root));
+  cJSON_Delete(root);
+}
+
+TEST(InfluxV1Json, DoesNotRepairMalformedJson) {
+  const char *invalid[] = {R"({"n":01})", R"({"n":1.})", R"({"n":1e})", R"({1:2})", R"({"n":NaN})", "{}trailing", R"({"s":"a\u0000b"})"};
+  for (const char *json : invalid) {
+    SCOPED_TRACE(json);
+    cJSON *root = nullptr;
+    EXPECT_EQ(TSDB_CODE_EXT_FETCH_FAILED, influxV1JsonParse(json, strlen(json), &root));
+    EXPECT_EQ(nullptr, root);
+    cJSON_Delete(root);
+  }
+  const char embeddedNull[] = {'{', '}', '\0', 'x'};
+  cJSON *root = nullptr;
+  EXPECT_EQ(TSDB_CODE_EXT_FETCH_FAILED, influxV1JsonParse(embeddedNull, sizeof(embeddedNull), &root));
+}
+
+namespace {
+int32_t collectInfluxJson(void *context, const char *data, size_t length) {
+  static_cast<std::vector<std::string> *>(context)->emplace_back(data, length);
+  return TSDB_CODE_SUCCESS;
+}
+}  // namespace
+
+TEST(InfluxV1Json, FramesEveryRootAcrossArbitraryNetworkBoundaries) {
+  const std::string input = R"({"text":"braces }[ and quote \"","n":9007199254740993})" "\n\t" R"({"text":"\u4e2d\n","n":-1})";
+  for (size_t chunk : {size_t(1), size_t(3), input.size()}) {
+    SCOPED_TRACE(chunk);
+    std::vector<std::string> roots;
+    SInfluxV1JsonFramer framer = {};
+    framer.context = &roots;
+    framer.emit = collectInfluxJson;
+    for (size_t at = 0; at < input.size(); at += chunk) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonFeed(&framer, input.data() + at, (std::min)(chunk, input.size() - at)));
+    }
+    EXPECT_EQ(TSDB_CODE_SUCCESS, influxV1JsonFinish(&framer));
+    ASSERT_EQ(size_t(2), roots.size());
+    for (const auto &json : roots) {
+      cJSON *root = nullptr;
+      EXPECT_EQ(TSDB_CODE_SUCCESS, influxV1JsonParse(json.data(), json.size(), &root));
+      cJSON_Delete(root);
+    }
+    influxV1JsonDestroy(&framer);
+  }
+}
+
+TEST(InfluxV1Json, RejectsTruncationAndResourceLimit) {
+  std::vector<std::string> roots;
+  SInfluxV1JsonFramer framer = {};
+  framer.context = &roots;
+  framer.emit = collectInfluxJson;
+  const char *partial = "{\"values\":[[1,2]";
+  ASSERT_EQ(TSDB_CODE_SUCCESS, influxV1JsonFeed(&framer, partial, strlen(partial)));
+  EXPECT_EQ(TSDB_CODE_EXT_FETCH_FAILED, influxV1JsonFinish(&framer));
+  EXPECT_TRUE(roots.empty());
+  influxV1JsonDestroy(&framer);
+  framer = {};
+  framer.context = &roots;
+  framer.emit = collectInfluxJson;
+  framer.length = INFLUX_V1_JSON_LIMIT;
+  EXPECT_EQ(TSDB_CODE_EXT_RESOURCE_EXHAUSTED, influxV1JsonFeed(&framer, "x", 1));
+  cJSON *root = nullptr;
+  EXPECT_EQ(TSDB_CODE_EXT_RESOURCE_EXHAUSTED, influxV1JsonParse("{}", INFLUX_V1_JSON_LIMIT + 1, &root));
+}
+#endif  // TD_ENTERPRISE

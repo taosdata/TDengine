@@ -357,6 +357,7 @@ _ORACLE_STREAM_TOPIC_CASES = [
 class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
     """FQ-LOCAL-022~027/032/034/s01/s03, FQ-SQL-TBNAME: unsupported ops."""
 
+
     # Dedicated external source and database names
     _SRC_M         = "fq17_src_m"
     _SRC_P         = "fq17_src_p"
@@ -473,6 +474,13 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ExtSrcEnv.ensure_env()
 
     def teardown_class(self):
+        tmp = TestFq17UnsupportedOps()
+        tmp._drop_influx_sources(tmp._SRC_I)
+        for cfg in ExtSrcEnv.influx_version_configs():
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(cfg, self._INFLUX_BUCKET)
+            except Exception as exc:
+                tdLog.info(f"InfluxDB {cfg.version} cleanup warning: {exc}")
         self._cleanup_src(self._SRC_M, self._SRC_P, self._SRC_I, self._SRC_S,
                           self._SRC_O)
         try:
@@ -481,10 +489,6 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
             pass
         try:
             ExtSrcEnv.pg_drop_db_cfg(self._pg_cfg(), self._PG_DB)
-        except Exception:
-            pass
-        try:
-            ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), self._INFLUX_BUCKET)
         except Exception:
             pass
         try:
@@ -516,9 +520,10 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         ExtSrcEnv.teardown_env()
         self._restore_sql_retries_for_this_file()
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         """Create external sources once (shared across all test methods)."""
         if TestFq17UnsupportedOps._class_setup_done:
+            self._mk_influx_sources(self._SRC_I, database=self._INFLUX_BUCKET)
             return
 
         m_src = self._SRC_M
@@ -559,15 +564,16 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
 
         # -- InfluxDB --------------------------------------------------------
         self._cleanup_src(i_src)
-        ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_bkt)
-        _T0 = 1704067200_000_000_000   # 2024-01-01 00:00:00 UTC in ns
-        _M  = 60_000_000_000           # 1 minute in ns
-        ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_bkt, [
-            f"orders id=1i,amount=100.0 {_T0 + 0 * _M}",
-            f"orders id=2i,amount=200.0 {_T0 + 1 * _M}",
-            f"orders id=3i,amount=300.0 {_T0 + 2 * _M}",
-        ])
-        self._mk_influx_real(i_src, database=i_bkt)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            ExtSrcEnv.influx_create_db_cfg(influx_cfg, i_bkt)
+            _T0 = 1704067200_000_000_000   # 2024-01-01 00:00:00 UTC in ns
+            _M  = 60_000_000_000           # 1 minute in ns
+            ExtSrcEnv.influx_write_cfg(influx_cfg, i_bkt, [
+                f"orders id=1i,amount=100.0 {_T0 + 0 * _M}",
+                f"orders id=2i,amount=200.0 {_T0 + 1 * _M}",
+                f"orders id=3i,amount=300.0 {_T0 + 2 * _M}",
+            ])
+        self._mk_influx_sources(i_src, database=i_bkt)
 
         # -- SQL Server ------------------------------------------------------
         s_src = self._SRC_S
@@ -642,8 +648,12 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         """
         for case_id, sql_tpl, errno in _QUERY_CASES:
             sql = self._expand(sql_tpl)
-            tdLog.debug(f"[{case_id}] {sql}")
-            tdSql.error(sql, expectedErrno=errno)
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    tdLog.debug(f"[{case_id}] {sql}")
+                    tdSql.error(sql, expectedErrno=errno)
 
     def test_fq_ordinary_column_joins(self):
         """Ordinary-column equi-joins succeed for same-source and cross-source FQ.
@@ -660,9 +670,13 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         """
         for case_id, sql_tpl, expected_rows in _JOIN_CASES:
             sql = self._expand(sql_tpl)
-            tdLog.debug(f"[{case_id}] {sql}")
-            tdSql.query(sql)
-            tdSql.checkRows(expected_rows)
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    tdLog.debug(f"[{case_id}] {sql}")
+                    tdSql.query(sql)
+                    tdSql.checkRows(expected_rows)
 
     # -------------------------------------------------------------------
     # Test 1b: rejected writes leave the remote object untouched
@@ -727,8 +741,14 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         """
         for case_id, sql_tpl, errno in _STMT_CASES:
             sql = self._expand(sql_tpl)
-            tdLog.debug(f"[{case_id}] {sql}")
-            tdSql.error(sql, expectedErrno=errno)
+            original_case_id = case_id
+            for cfg, sql, suffix in self._influx_query_variants(sql):
+                with self._using_influx(cfg):
+                    case_id = original_case_id + suffix
+                    if self._influx_cfg().version == "1.8" and original_case_id.startswith("us-05-"):
+                        continue  # Stream processing is outside the InfluxDB 1.8 test scope.
+                    tdLog.debug(f"[{case_id}] {sql}")
+                    tdSql.error(sql, expectedErrno=errno)
 
     # -------------------------------------------------------------------
     # Test 3: Oracle PL/SQL and transaction control (FQOR-UNSUP-003)

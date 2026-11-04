@@ -491,12 +491,12 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
                 f"database={ExtSrcEnv.ORACLE_SERVICE} schema={external_db}"
             )
         else:
+            influx_user, influx_password = ExtSrcEnv.influx_source_credentials(adapter.version)
             tdSql.execute(
                 f"create external source {source_name} type='influxdb' "
                 f"host='{adapter.host}' port={adapter.port} "
-                f"user='u' password='' database={external_db} "
-                f"options('api_token'='{adapter.token}',"
-                f"'protocol'='flight_sql')"
+                f"user='{influx_user}' password='{influx_password}' database={external_db} "
+                f"options({ExtSrcEnv.influx_source_options(adapter.version)})"
             )
 
     @staticmethod
@@ -797,9 +797,8 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(
+        VtableQueryUtil.compare_ext_source_plan_testcase_result(
             input_file, answer_file, test_case,
-            result_transform=ExtSrcEnv.baseline_environment,
         )
 
     @staticmethod
@@ -811,9 +810,15 @@ class TestVTablePlanPushdownExtSourceTsPrecision:
         answer_file = os.path.join(
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
-        tdCom.compare_testcase_result(
+        def check_native_result(query):
+            tdSql.query(f"select cast(ts as bigint), v from ({query}) verified")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, _BASE_TIME_NS)
+            tdSql.checkData(0, 1, 0)
+
+        VtableQueryUtil.compare_ext_source_plan_testcase_result(
             input_file, answer_file, test_case,
-            result_transform=ExtSrcEnv.baseline_environment,
+            result_check=check_native_result,
         )
 
     def test_timestamp_precision_matrix(self):
