@@ -3,7 +3,7 @@ title: "PI Data Ingestion Prerequisites"
 sidebar_label: "Prerequisites"
 ---
 
-This page lists all prerequisites that need to be verified before ingesting data from a PI system into TDengine, including software dependencies, network connectivity, ports and protocols, and authentication and permissions. We recommend that PI administrators and network administrators complete this checklist together before creating PI data ingestion tasks.
+This page lists all prerequisites that need to be verified before ingesting data from a PI system into TDengine, including software dependencies, network connectivity, ports and protocols, and authentication and permissions. We recommend that PI administrators and network administrators complete this checklist together before creating PI data ingestion tasks. For general network topology and taosX-Agent network requirements, see [Data Ingestion Prerequisites](../00-prerequisites.md).
 
 ## Software Dependencies
 
@@ -52,7 +52,7 @@ The host running taosX (or taosX-Agent) must be able to access the following por
 | ------ | ----------- | ---- | -------- | ----------- |
 | PI connector (taosX/taosX-Agent host) | PI Data Archive Server | 5450/TCP | PI AF SDK proprietary protocol | Required, reads PI Point data |
 | PI connector (taosX/taosX-Agent host) | PI AF Server | 5457/TCP | PI AF SDK proprietary protocol | Required when using AF mode |
-| taosX-Agent | taosX | taosX configured port | gRPC | Required when using taosX-Agent proxy mode |
+| taosX-Agent | taosX | taosX gRPC port, default **6055** | gRPC | Required when using taosX-Agent proxy mode |
 
 If your network environment has firewalls or network isolation, ensure the above ports are allowed.
 
@@ -65,11 +65,13 @@ On the taosX / taosX-Agent host, you can use the following commands for quick ve
 # Windows PowerShell
 Test-NetConnection -ComputerName <PI_SERVER_HOST> -Port 5450
 Test-NetConnection -ComputerName <AF_SERVER_HOST> -Port 5457
+# When using a taosX-Agent proxy, verify Agent → taosX connectivity on the Agent host
+Test-NetConnection -ComputerName <taosX_host> -Port 6055
 ```
 
 ```bash
 # Linux (only for verifying taosX ↔ taosX-Agent connectivity)
-nc -zv <HOST> <PORT>
+nc -zv <taosX_host> 6055
 ```
 
 :::
@@ -138,7 +140,7 @@ Before creating a PI data ingestion task, please confirm each of the following i
 - [ ] PI Data Archive is accessible from taosX/taosX-Agent host (port 5450)
 - [ ] PI AF Server is accessible from taosX/taosX-Agent host (port 5457, if using AF mode)
 - [ ] On the taosX-Agent host, **manually verified** PI connectivity using PI System Management Tools (SMT) or PI System Explorer (PSE) — isolate environment issues before testing taosX
-- [ ] If using taosX-Agent proxy mode, taosX-Agent service is running, taosX ↔ taosX-Agent network is connected, and taosX-Agent status shows online in taosExplorer
+- [ ] If using taosX-Agent proxy mode, taosX-Agent service is running, taosX ↔ taosX-Agent network is connected (gRPC default port 6055 allowed), and taosX-Agent status shows online in taosExplorer
 
 ### Authentication and Permissions
 

@@ -21,7 +21,7 @@ On the **Data In** page, click **Add Data Source**.
 
 Enter a task name, such as `test_spb`, and select **SparkplugB** as the type.
 
-Optionally select an agent, or click **Create New Agent**. Select the target database, or click **Create Database**.
+Optionally select an agent, or click **Create New Agent**. Select the target database, or click **Create Database**. For network requirements between the agent and taosX (port allowance and verification), see [Data Ingestion Prerequisites](./00-prerequisites.md).
 
 ### Configure the Connection and Authentication
 
