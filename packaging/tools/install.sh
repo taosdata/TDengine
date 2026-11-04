@@ -75,6 +75,11 @@ taos_dir_set=0
 initd_mod=0
 service_mod=2
 silent_mode=0
+# Oracle dependency-package selection (extension role only): the server
+# version family (11g/12c/18c/19c/21c/23ai/26ai) and, optionally, an explicit
+# client (19c/23ai) for 19c-and-later servers.
+oracleServerVersion=""
+oracleClient=""
 
 # User mode variables (will be initialized in setup_env)
 user_mode=0
@@ -178,6 +183,7 @@ function log() {
 
 # set parameters by default value
 imageBuild=0       # Preserve packaged address defaults when building an image
+cleanInstall=0     # Preserve optional extension payloads by default
 interactiveFqdn=yes # [yes | no]
 verType=server      # [server | client]
 initType=systemd    # [systemd | service | ...]
@@ -194,6 +200,7 @@ Options:
   -e [yes | no]             Interactive FQDN setting
   -d [install dir]          Custom installation directory
   -s                        Silent mode installation
+  --clean-install           FULL/CORE only: remove previous package files (preserves cfg/data/log)
   --image-build             Image installation without host address rewrites or service/process operations
 EOF
 }
@@ -201,11 +208,32 @@ EOF
 while getopts "hv:e:d:sq:m:-:" arg; do
   case $arg in
   -)
-    if [ "$OPTARG" != "image-build" ]; then
-      echo "Unknown option: --$OPTARG"
-      exit 1
-    fi
-    imageBuild=1
+    case "$OPTARG" in
+      clean-install)
+        cleanInstall=1
+        ;;
+      image-build)
+        imageBuild=1
+        ;;
+      oracle-server-version=*)
+        oracleServerVersion="${OPTARG#*=}"
+        if [ -z "$oracleServerVersion" ]; then
+          echo "Oracle server version family must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      oracle-client=*)
+        oracleClient="${OPTARG#*=}"
+        if [ -z "$oracleClient" ]; then
+          echo "Oracle client must not be empty" >&2
+          exit 1
+        fi
+        ;;
+      *)
+        echo "Unknown option: --$OPTARG"
+        exit 1
+        ;;
+    esac
     ;;
   e)
     interactiveFqdn=$(echo $OPTARG)
@@ -261,6 +289,12 @@ if [ "$packageRoleExplicit" -eq 0 ]; then
 fi
 if [[ "$packageRole" != "full" && "$packageRole" != "core" && "$packageRole" != "extension" ]]; then
   echo "Invalid package role marker: $packageRole"
+  exit 1
+fi
+
+# Reject unsupported option combinations before environment setup or file writes.
+if [ "$packageRole" = "extension" ] && [ "$cleanInstall" -eq 1 ]; then
+  echo "--clean-install is supported only for full/core packages, not extension packages" >&2
   exit 1
 fi
 
@@ -486,6 +520,154 @@ function setup_env() {
   fi
 }
 
+# Oracle dependency-package selection (FS 7.1).  The installer accepts only
+# the fixed server-version families; it never parses arbitrary version
+# strings.  Below 19 uses the 19c client, 19 and above defaults to 23ai.
+function oracle_client_for_version() {
+  local ver client
+  ver=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+  client=$(echo "$2" | tr '[:upper:]' '[:lower:]')
+  case "$ver" in
+    11g|12c|18c)
+      if [ -n "$client" ] && [ "$client" != "19c" ]; then
+        echo "Oracle client $client does not support server family $ver" >&2
+        return 1
+      fi
+      echo 19c
+      ;;
+    19c|21c|23ai|26ai)
+      if [ -z "$client" ]; then client=23ai; fi
+      case "$client" in
+        19c|23ai) echo "$client" ;;
+        *) echo "Invalid Oracle client: $client (expected 19c or 23ai)" >&2; return 1 ;;
+      esac
+      ;;
+    *)
+      echo "Unsupported Oracle server version family: $1" >&2
+      return 1
+      ;;
+  esac
+}
+
+function oracle_prompt_server_version() {
+  local answer
+  cat >&2 <<'EOF'
+请选择目标 Oracle 服务端版本族：
+  11g   11g Release 2（11.2.0.3 / 11.2.0.4）
+  12c   12c（12.1 / 12.2）
+  18c   18c
+  19c   19c
+  21c   21c
+  23ai  23ai
+  26ai  26ai
+  none  不使用 Oracle（回车或输入 none，自动选择最新客户端）
+EOF
+  read -r answer || return 1
+  echo "$answer"
+}
+
+oracleResolvedClient=""
+oracleSkipRequested=0
+
+# The newest Instant Client generation the package carries.  "Not using
+# Oracle" selects it, so the tree is left in the same state a default install
+# produces; the choice only matters once an Oracle source is created.
+function oracle_latest_client() {
+  local pkg_dir="$1"
+  if [ -d "$pkg_dir/23ai" ]; then
+    echo 23ai
+  elif [ -d "$pkg_dir/19c" ]; then
+    echo 19c
+  fi
+}
+
+# Resolve and validate the selection against the *package* tree before any
+# file is copied, so an invalid input leaves the installation untouched.
+function oracle_resolve_selection() {
+  local pkg_dir="${script_dir}/driver/oracle"
+  local attempt answer client latest
+  [ -d "$pkg_dir" ] || return 0
+  [ -d "$pkg_dir/19c" ] || [ -d "$pkg_dir/23ai" ] || return 0
+  latest=$(oracle_latest_client "$pkg_dir")
+  # An explicit "not using Oracle" may arrive non-interactively as well;
+  # normalise it before the family validation below.
+  case "$(echo "$oracleServerVersion" | tr '[:upper:]' '[:lower:]')" in
+    none|skip)
+      oracleServerVersion=""
+      oracleSkipRequested=1
+      ;;
+  esac
+  if [ -z "$oracleServerVersion" ] && [ -z "$oracleClient" ]; then
+    # Interactive: keep asking until a valid family (or 5 attempts) so a typo
+    # does not abort a terminal session.  A silent run without any selection
+    # keeps the package default; an explicit "none" selects the newest client.
+    if [ "$silent_mode" -ne 0 ] || [ ! -t 0 ]; then
+      [ "$oracleSkipRequested" -eq 1 ] && oracleResolvedClient="$latest"
+      return 0
+    fi
+    for attempt in 1 2 3 4 5; do
+      answer=$(oracle_prompt_server_version) || return 1
+      case "$(echo "$answer" | tr '[:upper:]' '[:lower:]')" in
+        "")
+          oracleResolvedClient="$latest"
+          echo "未使用 Oracle：已选择最新客户端 $oracleResolvedClient" >&2
+          break
+          ;;
+        none|skip)
+          oracleResolvedClient="$latest"
+          echo "未使用 Oracle：已选择最新客户端 $oracleResolvedClient" >&2
+          break
+          ;;
+      esac
+      if client=$(oracle_client_for_version "$answer" "" 2>/dev/null); then
+        oracleServerVersion="$answer"
+        oracleResolvedClient="$client"
+        break
+      fi
+      echo "无效的版本族：${answer}（请输入 11g/12c/18c/19c/21c/23ai/26ai，或回车跳过）" >&2
+    done
+    [ -n "$oracleResolvedClient" ] || return 1
+  elif [ -z "$oracleServerVersion" ]; then
+    # Only a client was requested (or a "none" family with a client): use it.
+    oracleResolvedClient=$(oracle_client_for_version "${oracleClient}" "$oracleClient") || return 1
+  else
+    oracleResolvedClient=$(oracle_client_for_version "${oracleServerVersion:-26ai}" "$oracleClient") || return 1
+  fi
+  [ -d "$pkg_dir/$oracleResolvedClient" ] || {
+    echo "Oracle client directory is missing from the package: $oracleResolvedClient" >&2
+    return 1
+  }
+  return 0
+}
+
+function oracle_write_active_client() {
+  local oracle_dir="${installDir}/driver/oracle"
+  [ -d "$oracle_dir" ] || return 0
+  [ -d "$oracle_dir/19c" ] || [ -d "$oracle_dir/23ai" ] || return 0
+  [ -n "$oracleResolvedClient" ] || return 0
+  printf '%s\n' "$oracleResolvedClient" > "${oracle_dir}/active"
+  echo "Oracle: active Instant Client: $oracleResolvedClient"
+}
+
+# Replace only incoming payload files, leaving package-external files intact.
+# Unlink Linux destinations before copying so running executables and mapped
+# libraries keep their old inode rather than being overwritten in place.
+# GNU --remove-destination is not available in the macOS system cp.
+function copy_package_files() {
+  local copy_status=0
+  if [ "${ostype:-$(uname -s)}" = "Linux" ]; then
+    cp --remove-destination "$@" || copy_status=$?
+  else
+    cp "$@" || copy_status=$?
+  fi
+  if [ "$copy_status" -ne 0 ]; then
+    printf 'Failed to copy package files (exit %s):' "$copy_status" >&2
+    printf ' %q' "$@" >&2
+    printf '\n' >&2
+  fi
+  return "$copy_status"
+}
+
 function install_extension_package() {
   local manifest="${script_dir}/.extension-files"
   local extension_info="${script_dir}/.package-info"
@@ -562,12 +744,17 @@ function install_extension_package() {
       exit 1
     fi
   done < "$manifest"
+  oracle_resolve_selection || exit 1
   while IFS= read -r path || [ -n "$path" ]; do
     [ -z "$path" ] && continue
     [[ "$path" == \#* ]] && continue
     mkdir -p "${installDir}/$(dirname "$path")"
-    cp -a "${script_dir}/${path}" "${installDir}/${path}"
+    case "$path" in
+      cfg/*) cp -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+      *) copy_package_files -a "${script_dir}/${path}" "${installDir}/${path}" ;;
+    esac
   done < "$manifest"
+  oracle_write_active_client || exit 1
   if [ "$osType" != "Darwin" ]; then
     install_fq_runtime_links "${installDir}/driver"
   fi
@@ -691,7 +878,7 @@ function install_fq_runtime_links() {
   # Keep Microsoft driver resources relative to the private driver directory.
   if [ -d "${script_dir}/share/resources" ]; then
     mkdir -p "${installDir}/share/resources"
-    cp -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
+    copy_package_files -a "${script_dir}/share/resources/." "${installDir}/share/resources/"
   fi
   local runtime_dir="${1:-${installDir}/driver}"
   local link_name target_name
@@ -710,10 +897,52 @@ libmariadb.so libmariadb.so.3
 libpq.so.5 libpq.so.5.16
 libpq.so libpq.so.5
 libodbc.so libodbc.so.2
+# Oracle Instant Client: make_package ships the real library only, so the
+# aliases the driver and the preloader look up by bare soname are recreated
+# here.  libclntshcore is a different library from libclntsh whose name shares
+# a prefix; both are needed and neither alias may point at the other.
+libclntsh.so libclntsh.so.23.1
+libclntshcore.so libclntshcore.so.23.1
 libssl.so libssl.so.3
 libcrypto.so libcrypto.so.3
 libz.so libz.so.1
 LINKS
+
+  # Versioned Instant Client directories: recreate the bare-soname aliases
+  # from the real file in each directory.  The version is discovered, never
+  # hardcoded, so the 19c and 23ai trees keep their own libclntsh/libclntshcore.
+  local ver_dir stem target
+  for ver_dir in "${runtime_dir}/oracle/19c" "${runtime_dir}/oracle/23ai"; do
+    [ -d "${ver_dir}" ] || continue
+    for stem in libclntsh libclntshcore; do
+      target=$(find "${ver_dir}" -maxdepth 1 -type f -name "${stem}.so.*" 2>/dev/null | sort -V | tail -1)
+      [ -n "${target}" ] || continue
+      ln -sfn "$(basename "${target}")" "${ver_dir}/${stem}.so"
+    done
+  done
+
+  # The installed taosd resolves the Instant Client's own libraries through
+  # its RPATH ($ORIGIN/../lib).  The 19c libnnz19.so carries no SONAME, so the
+  # provider's preload cannot satisfy libclntsh's DT_NEEDED from the versioned
+  # directory alone; keep the active client flattened in <install>/lib and
+  # replace the other generation's copies.  The same step runs again on a
+  # switch, so the flat set always matches driver/oracle/active.
+  if [ -n "${oracleResolvedClient:-}" ] && \
+     [ -d "${runtime_dir}/oracle/${oracleResolvedClient}" ]; then
+    local oracle_src="${runtime_dir}/oracle/${oracleResolvedClient}"
+    local oracle_lib="${installDir}/lib"
+    local pattern src
+    mkdir -p "${oracle_lib}"
+    for pattern in 'libsqora*.so*' 'libclntsh*.so*' 'libnnz*.so*' 'libociei*.so*' \
+                   'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'legacy.so*' \
+                   'fips*.so*' 'libaio*.so*'; do
+      find "${oracle_lib}" -maxdepth 1 -name "${pattern}" -delete 2>/dev/null || true
+      for src in "${oracle_src}"/${pattern}; do
+        [ -e "${src}" ] || continue
+        copy_package_files -Lf "${src}" "${oracle_lib}/"
+      done
+    done
+  fi
 }
 
 function get_config_file() {
@@ -750,12 +979,10 @@ function kill_process() {
     fi
 }
 
-function install_main_path() {
-  #create install main dir and all sub dir
-  # Note: do NOT rm data/log/cfg link dirs here.
-  # - Real directories from old versions must be preserved (data loss risk)
-  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
-  # - data_link_dir is not recreated during upgrade (install_data not called)
+# Remove the previous package payload only for an explicitly clean install.
+# Keep this separate from directory setup so overlay installs preserve optional
+# resources while explicit cleanup continues to use the existing safety checks.
+function remove_previous_package_files() {
   if [ -f "${install_main_dir}/.extension-files" ]; then
     local extension_path
     local extension_paths=()
@@ -794,7 +1021,19 @@ function install_main_path() {
         "${install_main_dir}/.package-info" \
         "${install_main_dir}/.package-role" \
         "${install_main_dir}/.package-role.extension" || :
+}
 
+function install_main_path() {
+  #create install main dir and all sub dir
+  # Note: do NOT rm data/log/cfg link dirs here.
+  # - Real directories from old versions must be preserved (data loss risk)
+  # - Symlinks are safely overwritten by ln -sf in install_log/install_config
+  # - data_link_dir is not recreated during upgrade (install_data not called)
+  # Preserve installed optional resources by default. Keep the previous cleanup
+  # policy available for an explicitly requested clean installation.
+  if [ "${cleanInstall:-0}" -eq 1 ]; then
+    remove_previous_package_files
+  fi
 
   #  mkdir -p ${install_main_dir}/connector
   mkdir -p ${install_main_dir}
@@ -809,7 +1048,7 @@ function install_main_path() {
   fi
   if [ -d "${script_dir}/share" ]; then
     mkdir -p "${install_main_dir}/share"
-    cp -a "${script_dir}/share/." "${install_main_dir}/share/"
+    copy_package_files -a "${script_dir}/share/." "${install_main_dir}/share/"
   fi
   if [ -f "${script_dir}/.package-info" ]; then
     cp -f "${script_dir}/.package-info" "${install_main_dir}/.package-info"
@@ -830,37 +1069,37 @@ function install_bin() {
   done
 
   if [ "${verType}" == "client" ]; then
-    cp -r ${script_dir}/bin/${clientName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${benchmarkName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${dumpName} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${inspect_name} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${taosgen_name} ${install_main_dir}/bin
-    cp -r ${script_dir}/bin/${remove_name} ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/${clientName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${benchmarkName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${dumpName}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${inspect_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${taosgen_name}" "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/${remove_name}" "${install_main_dir}/bin"
   else
-    cp -r "${script_dir}/bin/"* "${install_main_dir}/bin"
+    copy_package_files -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
-      cp "${script_dir}/start-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/start-all.sh" "${install_main_dir}/bin"
       sed -i.bak \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
         "${install_main_dir}/bin/start-all.sh"
       rm -f "${install_main_dir}/bin/start-all.sh.bak"
-      cp "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/stop-all.sh" "${install_main_dir}/bin"
     fi
   fi
   if [[ "${verMode}" == "cluster" && "${verType}" != "client" ]]; then
     if [ -d "${script_dir}/${xname}/bin" ]; then
-      cp -r ${script_dir}/${xname}/bin/* ${install_main_dir}/bin
+      copy_package_files -r "${script_dir}/${xname}/bin/"* "${install_main_dir}/bin"
     fi
   fi
 
   if [ -f ${script_dir}/bin/quick_deploy.sh ]; then
-    cp -r ${script_dir}/bin/quick_deploy.sh ${install_main_dir}/bin
+    copy_package_files -r "${script_dir}/bin/quick_deploy.sh" "${install_main_dir}/bin"
   fi
 
   # set taos_malloc.sh as bin script
   if [ "${pkgMode}" != "lite" ]; then
     if [[ -f ${script_dir}/bin/${set_malloc_bin} && "${verType}" != "client" ]]; then
-      cp -r ${script_dir}/bin/${set_malloc_bin} ${install_main_dir}/bin
+      copy_package_files -r "${script_dir}/bin/${set_malloc_bin}" "${install_main_dir}/bin"
     else
       echo -e "${RED}Warning: ${set_malloc_bin} not found in bin directory.${NC}"
     fi
@@ -931,7 +1170,38 @@ function install_lib() {
     rm -f ${lib64_link_dir}/libtaospyudf.* || :
   fi
   #rm -rf ${v15_java_app_dir}              || :
-  cp -rf ${script_dir}/driver/* ${driver_dir}/ && chmod 755 ${driver_dir}/*
+  copy_package_files -rf "${script_dir}/driver/"* "${driver_dir}/"
+  chmod 755 "${driver_dir}/"*
+
+  # Core libraries are replaced across versions; optional extension libraries
+  # sharing driver/ are retained. Only clean a family supplied by this package,
+  # after the payload copy succeeds. Never use a broad libtaos* removal here.
+  local core_stem core_pattern incoming old_library library_name
+  local has_incoming
+  for core_stem in libtaos libtaosnative libtaosws libtaospyudf; do
+    if [ "$osType" = "Darwin" ]; then
+      core_pattern="${core_stem}.*.dylib"
+    else
+      core_pattern="${core_stem}.so.*"
+    fi
+    has_incoming=0
+    for incoming in "${script_dir}/driver"/${core_pattern}; do
+      if [ -f "$incoming" ] && [[ "$incoming" != *.debug ]]; then
+        has_incoming=1
+        break
+      fi
+    done
+    [ "$has_incoming" -eq 1 ] || continue
+    for old_library in "${driver_dir}"/${core_pattern} "${driver_dir}"/${core_pattern}.debug; do
+      [ -f "$old_library" ] || [ -L "$old_library" ] || continue
+      library_name=${old_library##*/}
+      # Keep current-version extension debug symbols even when CORE omits them.
+      if [ ! -e "${script_dir}/driver/${library_name%.debug}" ] &&
+         [ ! -L "${script_dir}/driver/${library_name%.debug}" ]; then
+        rm -f -- "$old_library"
+      fi
+    done
+  done
 
   # A package may contain more than one matching driver artifact during an
   # upgrade (for example, an existing unversioned alias and a versioned ELF).
@@ -942,8 +1212,10 @@ function install_lib() {
     local link_name="$2"
     local link_dir="${3:-${lib_link_dir}}"
     local source
-    for source in "${driver_dir}"/${pattern}; do
+    # Select the incoming core payload, independently of retained extensions.
+    for source in "${script_dir}/driver"/${pattern}; do
       [ -f "$source" ] || continue
+      source="${driver_dir}/$(basename "$source")"
       ln -sf "$source" "${link_dir}/${link_name}"
       return 0
     done
@@ -957,6 +1229,7 @@ function install_lib() {
 
   # Link libraries based on OS type
   if [ "$osType" != "Darwin" ]; then
+    oracle_write_active_client || exit 1
     install_fq_runtime_links "${driver_dir}"
     # Linux specific linking
     link_driver_library 'libtaos.so.*' 'libtaos.so.3'
@@ -986,23 +1259,14 @@ function install_lib() {
       ldconfig 2>/dev/null || log warn "Failed to update library cache (ldconfig)"
     fi
   else
-    # macOS specific linking
-    ln -sf ${driver_dir}/libtaos.* ${lib_link_dir}/libtaos.3.dylib
-    ln -sf ${lib_link_dir}/libtaos.3.dylib ${lib_link_dir}/libtaos.dylib
-    # Match only versioned payloads, including when reinstalling local aliases.
-    for native_lib in "${driver_dir}"/libtaosnative.[0-9]*.dylib; do
-      [ -f "$native_lib" ] || continue
-      ln -sf "$(basename "$native_lib")" "${driver_dir}/libtaosnative.dylib"
-    done
-    ln -sf ${driver_dir}/libtaosnative.[0-9]*.dylib ${lib_link_dir}/libtaosnative.3.dylib
-    ln -sf ${lib_link_dir}/libtaosnative.3.dylib ${lib_link_dir}/libtaosnative.dylib
-
-    for f in ${driver_dir}/libtaosws.dylib.*; do
-      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaosws.dylib"
-    done
-    for f in ${driver_dir}/libtaospyudf.dylib.*; do
-      [ -f "$f" ] && ln -sf "$f" "${lib_link_dir}/libtaospyudf.dylib"
-    done
+    # Build aliases from this package's core library versions.
+    link_driver_library 'libtaos.[0-9]*.dylib' 'libtaos.3.dylib'
+    ln -sf "${lib_link_dir}/libtaos.3.dylib" "${lib_link_dir}/libtaos.dylib"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.dylib' "${driver_dir}"
+    link_driver_library 'libtaosnative.[0-9]*.dylib' 'libtaosnative.3.dylib'
+    ln -sf "${lib_link_dir}/libtaosnative.3.dylib" "${lib_link_dir}/libtaosnative.dylib"
+    link_driver_library 'libtaosws.dylib.*' 'libtaosws.dylib'
+    link_driver_library 'libtaospyudf.dylib.*' 'libtaospyudf.dylib'
     # Update dyld shared cache
     if [[ $user_mode -eq 0 ]]; then
       update_dyld_shared_cache 2>/dev/null || log warn "Failed to update dyld shared cache"
@@ -1104,7 +1368,8 @@ function install_header() {
     rm -f "${inc_link_dir}/taosws.h"
   fi
 
-  cp -f ${script_dir}/inc/* ${install_main_dir}/include && chmod 644 ${install_main_dir}/include/*
+  copy_package_files -f "${script_dir}/inc/"* "${install_main_dir}/include"
+  chmod 644 ${install_main_dir}/include/*
   ln -sf ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ln -sf ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ln -sf ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
@@ -1496,19 +1761,19 @@ function install_data() {
 
 function install_connector() {
   if [ -d "${script_dir}/connector/" ]; then
-    cp -rf ${script_dir}/connector/ ${install_main_dir}/ || echo "failed to copy connector"
+    copy_package_files -rf "${script_dir}/connector" "${install_main_dir}/"
   fi
 }
 
 function install_examples() {
-  if [ -d ${script_dir}/examples ]; then
-    cp -rf ${script_dir}/examples ${install_main_dir}/ || echo "failed to copy examples"
+  if [ -d "${script_dir}/examples" ]; then
+    copy_package_files -rf "${script_dir}/examples" "${install_main_dir}/"
   fi
 }
 
 function install_plugins() {
-  if [ -d ${script_dir}/${xname}/plugins ]; then
-    cp -rf ${script_dir}/${xname}/plugins/ ${install_main_dir}/ || echo "failed to copy ${PREFIX}x plugins"
+  if [ -d "${script_dir}/${xname}/plugins" ]; then
+    copy_package_files -rf "${script_dir}/${xname}/plugins" "${install_main_dir}/"
   fi
 }
 
@@ -2022,6 +2287,11 @@ if [ "$packageRole" == "extension" ]; then
   install_fq_runtime_links
   exit 0
 fi
+
+# Validate the Oracle client selection against the package before replacing
+# any installed file; the active marker is written after install_lib copies
+# the driver tree.
+oracle_resolve_selection || exit 1
 
 # Determine installation type: server or client
 if [ "$verType" == "client" ] && [ -e "${bin_dir}/${serverName}" ]; then

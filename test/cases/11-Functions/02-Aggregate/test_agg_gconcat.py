@@ -99,6 +99,58 @@ class TestFuncGconcat:
         self._length_limit()
         tdStream.dropAllStreamsAndDbs()
 
+    def test_nchar_result_width(self):
+        """GROUP_CONCAT preserves a result at the NCHAR width boundary.
+
+        Check the public character count and the returned value for an
+        unaligned result schema width.
+
+        Catalog:
+            - Function:Aggregate
+
+        Since: v3.4.4.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-10-20 Codex Add NCHAR result width boundary coverage
+
+        """
+        self._nchar_result_width()
+
+    def _nchar_result_width(self):
+        db = "db_gc_width"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        tdSql.execute(f"use {db}")
+        tdSql.execute("create table t (ts timestamp, v nchar(8190))")
+
+        left = "😀" * 8190
+        right = "😁" * 8187
+        tdSql.execute(f"insert into t values(1700400000000, '{left}')")
+        tdSql.execute(f"insert into t values(1700400001000, '{right}')")
+
+        tdSql.query("select group_concat(v, ':') from t")
+        tdSql.checkRows(1)
+        assert tdSql.cursor._fields[0].bytes == 16378
+        value = tdSql.getData(0, 0)
+        assert len(value) == 16378
+        assert len(value.encode("utf-8")) == 65509
+        assert value.count("😀") == 8190
+        assert value.count("😁") == 8187
+        assert value.count(":") == 1
+
+        tdSql.cursor.execute("select group_concat(v, ':') from t where ts >= ?", [[[1700400000000]]])
+        stmt_value = tdSql.cursor.fetchone()[0]
+        assert len(stmt_value) == 16378
+        assert len(stmt_value.encode("utf-8")) == 65509
+        assert stmt_value.count("😀") == 8190
+        assert stmt_value.count("😁") == 8187
+        tdLog.info("test_nchar_result_width passed")
+        tdSql.execute(f"drop database {db}")
+
     def _separator_merge_aligned(self):
         db = "db_gc_merge"
         tdSql.execute(f"drop database if exists {db}")

@@ -83,17 +83,21 @@ class TDSimClient:
         self.cfgPath = os.path.join(self.path,"psim","cfg","taos.cfg")
 
         if os.path.exists(self.logDir):
-            # Windows: the client library loaded in this pytest process keeps
-            # its client log file open, so the delete can fail with WinError 32
-            # (Linux unlinks open files, so this never fails there).  Removing
-            # the directory is housekeeping only — continue when a file is held.
-            try:
-                shutil.rmtree(self.logDir)
-            except PermissionError:
-                pass
-
-        os.makedirs(self.logDir, exist_ok=True)
-
+            # Truncate in place instead of removing the directory.  The client
+            # library opens its taoslog file on first use and keeps the file
+            # descriptor for the life of the pytest process, so a redeploy
+            # between two test classes (one class = one deploy) would leave it
+            # writing into an unlinked inode: the directory looks empty even
+            # though the client just logged the diagnostics a case asserts on.
+            for name in os.listdir(self.logDir):
+                path = os.path.join(self.logDir, name)
+                try:
+                    if os.path.isfile(path) and not os.path.islink(path):
+                        open(path, "w").close()
+                except OSError:
+                    pass
+        else:
+            os.makedirs(self.logDir)
         if os.path.exists(self.cfgDir):
             try:
                 shutil.rmtree(self.cfgDir)

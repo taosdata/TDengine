@@ -814,7 +814,7 @@ class TableInserter:
         self.columns = columns
 
     def insert(self, rows: int, start_ts: int, step: int, flush_database: bool = False):
-        step = random.randint(step / 2, step * 1.5)
+        step = random.randint(step // 2, step * 3 // 2)
         pre_insert = f"insert into {self.dbName}.{self.tbName} values"
         sql = pre_insert
         for i in range(rows):
@@ -1433,6 +1433,7 @@ class TestFill2:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

@@ -23,6 +23,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -1365,6 +1366,302 @@ TEST_F(VnodeStreamSetTableTest, GroupColumnsDoNotRequireSetTable) {
   EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, pull(STRIGGER_PULL_GROUP_COL_VALUE));
 }
 
+// Exercise serialized Reader requests against real WAL segments, including
+// retention between the index and data passes.
+class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
+ protected:
+  static void SetUpTestCase() { ASSERT_EQ(0, walInit(nullptr)); }
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void SetUp() override {
+    VnodeStreamSetTableTest::SetUp();
+    active_ = this;
+    reader_.vTableReady = true;
+    path_ = std::string(TD_TMP_DIR_PATH) + "stream-wal-recovery-" + std::to_string(taosGetTimestampUs());
+    SWalCfg cfg = {};
+    cfg.vgId = 7;
+    cfg.committed = -1;
+    cfg.rollPeriod = -1;
+    cfg.segSize = 1;
+    cfg.retentionPeriod = 0;
+    cfg.retentionSize = 0;
+    cfg.level = TAOS_WAL_FSYNC;
+    vnode_.pWal = walOpen(path_.c_str(), &cfg);
+    ASSERT_NE(nullptr, vnode_.pWal);
+    // walOpen converts KB to bytes; force one record per segment without sleeps.
+    vnode_.pWal->cfg.segSize = 1;
+
+    reader_.uidHashTrigger = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    reader_.uidHashCalc = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    columns_ = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+    int16_t slot = 1;
+    int16_t colId = 2;
+    ASSERT_EQ(0, tSimpleHashPut(columns_, &slot, sizeof(slot), &colId, sizeof(colId)));
+    reader_.triggerTableSchemaMapVTable =
+        taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    SSchema schema[2] = {};
+    schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    schema[0].bytes = sizeof(int64_t);
+    schema[1].colId = 2;
+    schema[1].type = TSDB_DATA_TYPE_BIGINT;
+    schema[1].bytes = sizeof(int64_t);
+    schema_ = tBuildTSchema(schema, 2, 1);
+    ASSERT_NE(nullptr, schema_);
+    for (int64_t uid : {101LL, 102LL}) {
+      int64_t key[2] = {0, uid};
+      ASSERT_EQ(0, tSimpleHashPut(reader_.uidHashTrigger, key, sizeof(key), &columns_, sizeof(columns_)));
+      ASSERT_EQ(0, tSimpleHashPut(reader_.uidHashCalc, key, sizeof(key), &columns_, sizeof(columns_)));
+      ASSERT_EQ(0, taosHashPut(reader_.triggerTableSchemaMapVTable, &uid, sizeof(uid), &schema_, sizeof(schema_)));
+    }
+    ASSERT_EQ(0, createDataBlock(&reader_.triggerBlock));
+    for (int i = 0; i < 3; ++i) {
+      SColumnInfoData column = {};
+      column.info.colId = i == 2 ? -1 : schema[i].colId;
+      column.info.type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT;
+      column.info.bytes = sizeof(int64_t);
+      ASSERT_EQ(0, blockDataAppendColInfo(reader_.triggerBlock, &column));
+    }
+    reader_.calcBlock = reader_.triggerBlock;
+    stub_.set(tmsgSendRsp, captureResponse);
+  }
+
+  void TearDown() override {
+    stub_.reset(walFetchHead);
+    blockDataDestroy(reader_.triggerBlock);
+    taosHashCleanup(reader_.triggerTableSchemaMapVTable);
+    taosMemoryFree(schema_);
+    tSimpleHashCleanup(columns_);
+    walClose(vnode_.pWal);
+    taosRemoveDir(path_.c_str());
+    active_ = nullptr;
+    VnodeStreamSetTableTest::TearDown();
+  }
+
+  void append(int64_t ver, int64_t uid = 101) {
+    SSubmitReq2 submit = {};
+    submit.aSubmitTbData = taosArrayInit(1, sizeof(SSubmitTbData));
+    SSubmitTbData table = {};
+    table.uid = uid;
+    table.sver = 1;
+    table.flags = SUBMIT_REQ_COLUMN_DATA_FORMAT;
+    table.aCol = taosArrayInit(2, sizeof(SColData));
+    for (int16_t cid = 1; cid <= 2; ++cid) {
+      SColData column = {};
+      tColDataInit(&column, cid, cid == 1 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT, 0);
+      SColVal value = {};
+      value.cid = cid;
+      value.flag = CV_FLAG_VALUE;
+      value.value.type = column.type;
+      value.value.val = (cid == 1 ? 1000 : 2000) + ver;
+      ASSERT_EQ(0, tColDataAppendValue(&column, &value));
+      ASSERT_NE(nullptr, taosArrayPush(table.aCol, &column));
+    }
+    ASSERT_NE(nullptr, taosArrayPush(submit.aSubmitTbData, &table));
+    int32_t length = 0;
+    int32_t code = 0;
+    tEncodeSize(tEncodeSubmitReq, &submit, length, code);
+    ASSERT_EQ(0, code);
+    std::vector<char> body(sizeof(SSubmitReq2Msg) + length);
+    SEncoder          encoder = {};
+    tEncoderInit(&encoder, reinterpret_cast<uint8_t *>(body.data()) + sizeof(SSubmitReq2Msg), length);
+    ASSERT_EQ(0, tEncodeSubmitReq(&encoder, &submit));
+    tEncoderClear(&encoder);
+    tDestroySubmitReq(&submit, TSDB_MSG_FLG_ENCODE);
+    SWalSyncInfo sync = {};
+    ASSERT_EQ(0, walAppendLog(vnode_.pWal, ver, TDMT_VND_SUBMIT, sync, body.data(), body.size(), 0, nullptr));
+    ASSERT_EQ(0, walCommit(vnode_.pWal, ver));
+    walApplyVer(vnode_.pWal, ver);
+  }
+
+  void recycleBefore(int64_t ver) {
+    ASSERT_EQ(0, walBeginSnapshot(vnode_.pWal, ver - 1, 0));
+    ASSERT_EQ(0, walEndSnapshot(vnode_.pWal, false));
+    ASSERT_EQ(ver, walGetFirstVer(vnode_.pWal));
+  }
+
+  void request(int32_t type, std::initializer_list<int64_t> versions, int32_t expectedCode,
+               std::initializer_list<int64_t> expectedVersions) {
+    SSTriggerPullRequestUnion req = {};
+    req.base.type = static_cast<decltype(req.base.type)>(type);
+    req.base.streamId = task_.task.streamId;
+    req.base.readerTaskId = task_.task.taskId;
+    req.walDataNewReq.versions = taosArrayInit(versions.size(), sizeof(int64_t));
+    for (int64_t ver : versions) ASSERT_NE(nullptr, taosArrayPush(req.walDataNewReq.versions, &ver));
+    req.walDataNewReq.ranges = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    const int64_t range[] = {INT64_MIN, INT64_MAX};
+    for (int64_t uid : {101LL, 102LL}) {
+      ASSERT_EQ(0, tSimpleHashPut(req.walDataNewReq.ranges, &uid, sizeof(uid), range, sizeof(range)));
+    }
+    int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &req.base);
+    ASSERT_GT(length, 0);
+    std::vector<char> content(sizeof(SMsgHead) + length);
+    ASSERT_EQ(length, tSerializeSTriggerPullRequest(content.data() + sizeof(SMsgHead), length, &req.base));
+    taosArrayDestroy(req.walDataNewReq.versions);
+    tSimpleHashCleanup(req.walDataNewReq.ranges);
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_TRIGGER_PULL;
+    msg.pCont = content.data();
+    msg.contLen = content.size();
+    response_.clear();
+    gPullResponseCount = 0;
+    const int32_t code = vnodeProcessStreamReaderMsg(&vnode_, &msg, nullptr);
+    ASSERT_EQ(expectedCode == TSDB_CODE_STREAM_NO_DATA ? 0 : expectedCode, code);
+    ASSERT_EQ(1, gPullResponseCount);
+    ASSERT_EQ(expectedCode, gPullResponseCode);
+    if (expectedCode == TSDB_CODE_STREAM_NO_DATA) {
+      ASSERT_EQ(sizeof(int64_t), response_.size());
+      int64_t lastVer = 0;
+      memcpy(&lastVer, response_.data(), sizeof(lastVer));
+      EXPECT_EQ(*(versions.end() - 1), lastVer);
+    } else if (expectedCode == 0) {
+      SSTriggerWalNewRsp rsp = {};
+      SSDataBlock       *block = nullptr;
+      ASSERT_EQ(0, createOneDataBlock(reader_.triggerBlock, false, &block));
+      rsp.dataBlock = block;
+      SArray *slices = taosArrayInit(2, 3 * sizeof(int64_t));
+      EXPECT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &rsp, slices));
+      EXPECT_EQ(expectedVersions.size(), block->info.rows);
+      int32_t totalSliceRows = 0;
+      for (size_t i = 0; i < taosArrayGetSize(slices); ++i) {
+        auto   *slice = static_cast<int64_t *>(taosArrayGet(slices, i));
+        int32_t start = slice[2] >> 32;
+        int32_t end = static_cast<int32_t>(slice[2]);
+        EXPECT_EQ(totalSliceRows, start);
+        totalSliceRows += end - start;
+      }
+      EXPECT_EQ(block->info.rows, totalSliceRows);
+      std::vector<int64_t> actual;
+      auto                *col = static_cast<SColumnInfoData *>(taosArrayGetLast(block->pDataBlock));
+      auto                *ts = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+      auto                *value = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+      for (int32_t i = 0; i < block->info.rows; ++i) {
+        const int64_t ver = *reinterpret_cast<int64_t *>(colDataGetData(col, i));
+        actual.push_back(ver);
+        EXPECT_EQ(1000 + ver, *reinterpret_cast<int64_t *>(colDataGetData(ts, i)));
+        EXPECT_EQ(2000 + ver, *reinterpret_cast<int64_t *>(colDataGetData(value, i)));
+      }
+      std::sort(actual.begin(), actual.end());
+      EXPECT_EQ(std::vector<int64_t>(expectedVersions), actual);
+      blockDataDestroy(block);
+      taosArrayDestroy(slices);
+    }
+  }
+
+  static void captureResponse(SRpcMsg *response) {
+    gPullResponseCode = response->code;
+    ++gPullResponseCount;
+    if (response->contLen > 0) {
+      auto *data = static_cast<char *>(response->pCont);
+      active_->response_.assign(data, data + response->contLen);
+    }
+    rpcFreeCont(response->pCont);
+  }
+
+  static int32_t fetchWithRetention(SWalReader *reader, int64_t ver) {
+    auto *self = active_;
+    self->stub_.reset(walFetchHead);
+    const bool recycle = ++self->headCalls_ == self->recycleAt_;
+    if (recycle) self->recycleBefore(2);
+    int32_t code = recycle && self->headError_ != 0 ? self->headError_ : walFetchHead(reader, ver);
+    self->stub_.set(walFetchHead, fetchWithRetention);
+    return code;
+  }
+
+  static int32_t failedHead(SWalReader *, int64_t) { return active_->headError_; }
+
+  static VnodeStreamWalRecoveryTest *active_;
+  std::string                        path_;
+  std::vector<char>                  response_;
+  SSHashObj                         *columns_ = nullptr;
+  STSchema                          *schema_ = nullptr;
+  int32_t                            headCalls_ = 0;
+  int32_t                            recycleAt_ = 0;
+  int32_t                            headError_ = 0;
+};
+
+VnodeStreamWalRecoveryTest *VnodeStreamWalRecoveryTest::active_ = nullptr;
+
+TEST_F(VnodeStreamWalRecoveryTest, RetainedVersionsRemainReadable) {
+  append(0);
+  append(1, 102);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 1}, 0, {0, 1});
+  request(STRIGGER_PULL_WAL_CALC_DATA_NEW, {1, 0}, 0, {0, 1});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, ExpiredVersionsDoNotFailTriggerOrCalcReader) {
+  append(0);
+  append(1, 102);
+  append(2);
+  recycleBefore(2);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 1, 2}, 0, {2});
+  request(STRIGGER_PULL_WAL_CALC_DATA_NEW, {2, 0, 1}, 0, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, EmptyRecoveryCanReadSubsequentWrites) {
+  append(0);
+  append(1);
+  recycleBefore(2);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 1}, TSDB_CODE_STREAM_NO_DATA, {});
+  request(STRIGGER_PULL_WAL_CALC_DATA_NEW, {0, 1}, TSDB_CODE_STREAM_NO_DATA, {});
+  append(2);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {2}, 0, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, RetentionDuringIndexPassRebuildsResult) {
+  append(0, 102);
+  append(1);
+  append(2);
+  recycleAt_ = 2;
+  stub_.set(walFetchHead, fetchWithRetention);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 1, 2}, 0, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, RetentionDuringDataPassDiscardsPartialRowsAndSlices) {
+  append(0, 102);
+  append(1);
+  append(2);
+  recycleAt_ = 5;
+  stub_.set(walFetchHead, fetchWithRetention);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 1, 2}, 0, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, FileRemovalDuringOpenRebuildsResult) {
+  append(0, 102);
+  append(1);
+  append(2);
+  recycleAt_ = 5;
+  headError_ = TAOS_SYSTEM_ERROR(ENOENT);
+  stub_.set(walFetchHead, fetchWithRetention);
+  request(STRIGGER_PULL_WAL_CALC_DATA_NEW, {0, 1, 2}, 0, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, ErrorsInsideRetainedRangeAreStillReported) {
+  append(0);
+  stub_.set(walFetchHead, failedHead);
+  const int32_t errors[] = {TSDB_CODE_WAL_FILE_CORRUPTED, TSDB_CODE_WAL_INVALID_VER, TSDB_CODE_WAL_LOG_NOT_EXIST,
+                            static_cast<int32_t>(TAOS_SYSTEM_ERROR(ENOENT))};
+  for (int32_t error : errors) {
+    SCOPED_TRACE(error);
+    headError_ = error;
+    request(STRIGGER_PULL_WAL_DATA_NEW, {0}, error, {});
+  }
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, FutureVersionIsNotTreatedAsRetention) {
+  append(0);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {1}, TSDB_CODE_FAILED, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, RetentionDoesNotHideFailureOfRetainedVersion) {
+  append(0);
+  append(1);
+  append(2);
+  recycleAt_ = 2;
+  headError_ = TAOS_SYSTEM_ERROR(ENOENT);
+  stub_.set(walFetchHead, fetchWithRetention);
+  request(STRIGGER_PULL_WAL_DATA_NEW, {0, 2}, static_cast<int32_t>(TAOS_SYSTEM_ERROR(ENOENT)), {});
+}
 }
 
 int main(int argc, char **argv) {
@@ -1583,6 +1880,66 @@ TEST(VnodeStreamVTableHelpers, streamVTableInfoCacheInit_LeavesRefCacheToResolve
   streamVTableInfoCacheDestroy(&cache);
 }
 
+// Regression: the partial (non-fullScan) commit must accept a uid the reader
+// cache does not hold yet. tSimpleHashRemove() reports a missing key as
+// TSDB_CODE_INVALID_PARA, which used to be propagated as a hard failure on the
+// very first VTABLE_INFO request (empty cache), so the reader never received its
+// vtable info and the stream never started.
+TEST(VnodeStreamVTableHelpers, streamCacheCommitResolved_FirstPartialCommitAcceptsMissingUid) {
+  SStreamVTableInfoCache cache{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&cache));
+  ASSERT_EQ(0, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+
+  SSHashObj *resolved = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(nullptr, resolved);
+  tSimpleHashSetFreeFp(resolved, streamVTableResolveResultDestroy);
+
+  int64_t               uid  = 4580749941641793279LL;
+  SVTableResolveResult *pRes = static_cast<SVTableResolveResult *>(taosMemoryCalloc(1, sizeof(SVTableResolveResult)));
+  ASSERT_NE(nullptr, pRes);
+  ASSERT_EQ(0, tSimpleHashPut(resolved, &uid, sizeof(uid), &pRes, POINTER_BYTES));
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, streamCacheCommitResolved(&cache, /*fullScan=*/false, nullptr, nullptr, &resolved));
+  EXPECT_TRUE(cache.valid);
+
+  EXPECT_EQ(1, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+  auto **ppCached = static_cast<SVTableResolveResult **>(tSimpleHashGet(cache.uid2Result, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, ppCached);
+  EXPECT_EQ(pRes, *ppCached);  // ownership moved into the reader cache
+  EXPECT_EQ(0, (int32_t)tSimpleHashGetSize(resolved));
+
+  tSimpleHashCleanup(resolved);
+  streamVTableInfoCacheDestroy(&cache);
+}
+
+// A following partial commit for the same uid replaces the cached result and
+// releases the previous one; tSimpleHashPut() alone would leak it.
+TEST(VnodeStreamVTableHelpers, streamCacheCommitResolved_PartialRecommitReplacesCachedUid) {
+  SStreamVTableInfoCache cache{};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, streamVTableInfoCacheInit(&cache));
+
+  const int64_t uid = 7;
+  for (int32_t round = 0; round < 2; ++round) {
+    SSHashObj *resolved = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(nullptr, resolved);
+    tSimpleHashSetFreeFp(resolved, streamVTableResolveResultDestroy);
+
+    SVTableResolveResult *pRes = static_cast<SVTableResolveResult *>(taosMemoryCalloc(1, sizeof(SVTableResolveResult)));
+    ASSERT_NE(nullptr, pRes);
+    ASSERT_EQ(0, tSimpleHashPut(resolved, &uid, sizeof(uid), &pRes, POINTER_BYTES));
+
+    EXPECT_EQ(TSDB_CODE_SUCCESS, streamCacheCommitResolved(&cache, /*fullScan=*/false, nullptr, nullptr, &resolved));
+    auto **ppCached = static_cast<SVTableResolveResult **>(tSimpleHashGet(cache.uid2Result, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, ppCached);
+    EXPECT_EQ(pRes, *ppCached);
+
+    tSimpleHashCleanup(resolved);
+  }
+
+  EXPECT_EQ(1, (int32_t)tSimpleHashGetSize(cache.uid2Result));
+  streamVTableInfoCacheDestroy(&cache);
+}
+
 TEST(VnodeStreamVTableHelpers, streamTblRefCacheItemFree_ReleasesBothPayloads) {
   // The single free callback shared by the reader cache and the call-private
   // resolver cache must clear both heap payloads; a miss shows up as a leak.
@@ -1712,8 +2069,14 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   static int32_t readEntry(SMetaReader *reader, tb_uid_t uid) {
     auto *self = active_;
     memset(&reader->me, 0, sizeof(reader->me));
+    // Simulates a child that disappears (or whose ref source is dropped) before the
+    // resolve batch runs: the seed skips it, so uid2Result ends up without an entry.
+    if (uid == self->metaMissingUid_) {
+      return TSDB_CODE_TDB_TABLE_NOT_EXIST;
+    }
     if (uid == kStableUid) {
       reader->me.type = TSDB_SUPER_TABLE;
+      TABLE_SET_VIRTUAL(reader->me.flags);
       reader->me.stbEntry.schemaTag.nCols = 1;
       reader->me.stbEntry.schemaTag.pSchema = &self->schema_;
     } else {
@@ -1747,6 +2110,11 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
     } else {
       EXPECT_EQ(TDMT_VND_VTABLE_REF_RESOLVE, info->msgType);
       ++self->resolveRequests_;
+      if (self->rpcError_ != TSDB_CODE_SUCCESS) {
+        EXPECT_EQ(self->rpcError_, info->fp(info->param, &response, self->rpcError_));
+        destroySendMsgInfo(info);
+        return TSDB_CODE_SUCCESS;
+      }
       SVTableRefResolveReq request = {};
       EXPECT_EQ(0, tDeserializeSVTableRefResolveReq(
                        static_cast<char *>(info->msgInfo.pData) + sizeof(SMsgHead),
@@ -1758,12 +2126,13 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       SVTableRefResolveRsp reply = {};
       reply.items = taosArrayInit(1, sizeof(SVTableRefResolveRspItem));
       SVTableRefResolveRspItem item = {};
+      item.code = self->itemError_;
       int32_t value = 42;
       item.terminated = true;
       item.nextRef.kind = STREAM_VREF_KIND_TAG;
       item.tagType = TSDB_DATA_TYPE_INT;
-      item.tagLen = sizeof(value);
-      item.tagData = reinterpret_cast<char *>(&value);
+      item.tagLen = self->nullTag_ ? 0 : sizeof(value);
+      item.tagData = self->nullTag_ ? nullptr : reinterpret_cast<char *>(&value);
       taosArrayPush(reply.items, &item);
       response.len = tSerializeSVTableRefResolveRsp(nullptr, 0, &reply);
       response.pData = taosMemoryMalloc(response.len);
@@ -1818,6 +2187,13 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   }
 
   void TearDown() override {
+    if (uidTags_ != nullptr) {
+      for (size_t i = 0; i < taosArrayGetSize(uidTags_); ++i) {
+        auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, i));
+        taosMemoryFree(entry->pTagVal);
+      }
+      taosArrayDestroy(uidTags_);
+    }
     tSimpleHashCleanup(results_);
     streamVTableInfoCacheDestroy(&shared_);
     taosArrayDestroy(uids_);
@@ -1835,6 +2211,7 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   // remote column or fails the resolve), so cols always yield one work item per
   // uid and are covered by the multi-item path instead.
   bool isRemote(tb_uid_t uid) const {
+    if (uid == extraRemoteUid_) return true;
     constexpr tb_uid_t kFirstUid = 1;  // uid = kFirstUid + k * CHUNK
     return (uid - kFirstUid) / STREAM_VTB_RESOLVE_UID_CHUNK >= emptyChunks_ &&
            (uid - kFirstUid) % STREAM_VTB_RESOLVE_UID_CHUNK == 0;
@@ -1845,7 +2222,7 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       ASSERT_NE(nullptr, taosArrayPush(uids_, &uid));
     }
     ASSERT_EQ(TSDB_CODE_SUCCESS, streamResolveVTableRefChain(
-        &vnode_, shared ? &shared_ : nullptr, nullptr, -1, uids_, cols_, tags_, &results_));
+        &vnode_, shared ? &shared_ : nullptr, nullptr, -1, uids_, cols_, tags_, &results_, 0));
     ASSERT_NE(nullptr, results_);
     EXPECT_EQ(count, tSimpleHashGetSize(results_));
     EXPECT_EQ(1, routeRequests_);
@@ -1865,6 +2242,16 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
     }
   }
 
+  void prepareTagChain() {
+    uidTags_ = taosArrayInit(1, sizeof(STUidTagInfo));
+    ASSERT_NE(nullptr, uidTags_);
+    // Referenced TAGs have no local literal value. Keep that state distinct
+    // from a successfully resolved NULL, which still has a result-map entry.
+    STUidTagInfo entry = {};
+    entry.uid = 1;
+    ASSERT_NE(nullptr, taosArrayPush(uidTags_, &entry));
+  }
+
   Stub stub_;
   SVnode vnode_ = {};
   SSchema schema_ = {};
@@ -1878,6 +2265,12 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   int32_t emptyChunks_ = 0;
   int32_t routeRequests_ = 0;
   int32_t resolveRequests_ = 0;
+  SArray *uidTags_ = nullptr;
+  int32_t rpcError_ = TSDB_CODE_SUCCESS;
+  int32_t itemError_ = TSDB_CODE_SUCCESS;
+  bool nullTag_ = false;
+  tb_uid_t extraRemoteUid_ = 0;
+  tb_uid_t metaMissingUid_ = 0;
 };
 
 VnodeSparseRefResolveTest *VnodeSparseRefResolveTest::active_ = nullptr;
@@ -1898,5 +2291,95 @@ TEST_F(VnodeSparseRefResolveTest, EmptyChunkThenSparseChunksCreatePrivateCache) 
 
 TEST_F(VnodeSparseRefResolveTest, SingleReferenceStillResolves) {
   resolve(1, false);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainSkipsNormalTable) {
+  prepareTagChain();
+  EXPECT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, 0, uidTags_, tags_, 0));
+  EXPECT_EQ(0, resolveRequests_);
+  EXPECT_EQ(0, routeRequests_);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainPropagatesRpcFailure) {
+  prepareTagChain();
+  rpcError_ = TSDB_CODE_TIMEOUT_ERROR;
+  EXPECT_EQ(TSDB_CODE_TIMEOUT_ERROR,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, entry->pTagVal);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRejectsMissingResultAfterItemFailure) {
+  prepareTagChain();
+  itemError_ = TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, entry->pTagVal);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainAcceptsResolvedNull) {
+  prepareTagChain();
+  nullTag_ = true;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  STagVal value = {};
+  value.cid = kTagCid;
+  // A resolved NULL must not fabricate a value: the child keeps either no STag
+  // at all or one that still has no entry for this cid. tTagGet(nullptr) is
+  // false, so one assertion covers both shapes.
+  EXPECT_FALSE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsResolvedValue) {
+  prepareTagChain();
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  ASSERT_NE(nullptr, entry->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  EXPECT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  // STagVal has no i32 member and tTagGet only fills the low tagLen bytes of
+  // the i64 slot, so read the value back with the schema width like the
+  // production merge path does instead of touching value.i64 directly.
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainKeepsRebuildingAfterEarlierUidFails) {
+  // uid 1 has no resolve result (its ref source is gone), uid 2 resolves fine. The
+  // error must reach the caller, but uid 2 must still get its rebuilt STag: leaving
+  // it with the unresolved placeholder makes a grouping caller fold unrelated
+  // children into one NULL group.
+  prepareTagChain();  // uid = 1
+  STUidTagInfo second = {};
+  second.uid = 2;
+  ASSERT_NE(nullptr, taosArrayPush(uidTags_, &second));
+  extraRemoteUid_ = 2;
+  metaMissingUid_ = 1;
+
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG,
+            vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  EXPECT_EQ(1, resolveRequests_);
+
+  auto *failed = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  EXPECT_EQ(nullptr, failed->pTagVal);
+
+  auto *resolved = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 1));
+  ASSERT_NE(nullptr, resolved->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(resolved->pTagVal), &value));
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
 }
 }  // namespace

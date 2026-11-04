@@ -3538,16 +3538,17 @@ end:
   return code;
 }
 
-static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo* sStreamReaderInfo, 
-  SArray* versions, SSHashObj* ranges, SSTriggerWalNewRsp* rsp){
+static int32_t prepareIndexData(SWalReader* pWalReader, SStreamTriggerReaderInfo* sStreamReaderInfo, SArray* versions,
+                                SSHashObj* ranges, SSTriggerWalNewRsp* rsp, int64_t firstVer, int64_t* pReadVer) {
   int32_t      code = 0;
   int32_t      lino = 0;
   void* pTask = sStreamReaderInfo->pTask;
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
     int64_t *ver = taosArrayGet(versions, i);
-    if (ver == NULL) continue;
+    if (ver == NULL || *ver < firstVer) continue;
 
+    *pReadVer = *ver;
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       TAOS_CHECK_RETURN(walSkipFetchBody(pWalReader));
@@ -3630,6 +3631,8 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
                                     SArray* versions, SSHashObj* ranges, SSTriggerWalNewRsp* rsp) {
   int32_t      code = 0;
   int32_t      lino = 0;
+  int64_t      firstVer = walGetFirstVer(pVnode->pWal);
+  int64_t      readVer = firstVer;
 
   void* pTask = sStreamReaderInfo->pTask;
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
@@ -3638,8 +3641,10 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
   if (taosArrayGetSize(versions) > 0) {
     rsp->ver = *(int64_t*)taosArrayGetLast(versions);
   }
-  
-  STREAM_CHECK_RET_GOTO(prepareIndexData(pWalReader, sStreamReaderInfo, versions, ranges, rsp));
+
+retry:
+  // Use one retention boundary for both passes so the slice sizes match the rows.
+  STREAM_CHECK_RET_GOTO(prepareIndexData(pWalReader, sStreamReaderInfo, versions, ranges, rsp, firstVer, &readVer));
   STREAM_CHECK_CONDITION_GOTO(rsp->totalRows == 0, TDB_CODE_SUCCESS);
 
   ST_TASK_TLOG("%s index hash:%p %d", __func__, rsp->indexHash, tSimpleHashGetSize(rsp->indexHash));
@@ -3650,9 +3655,10 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
 
   for(int32_t i = 0; i < taosArrayGetSize(versions); i++) {
     int64_t *ver = taosArrayGet(versions, i);
-    if (ver == NULL) continue;
+    if (ver == NULL || *ver < firstVer) continue;
     ST_TASK_TLOG("vgId:%d %s scan wal process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, *ver, walGetAppliedVer(pWalReader->pWal));
 
+    readVer = *ver;
     STREAM_CHECK_RET_GOTO(walFetchHead(pWalReader, *ver));
     if(pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
       TAOS_CHECK_RETURN(walSkipFetchBody(pWalReader));
@@ -3670,8 +3676,26 @@ static int32_t processWalVerDataNew(SVnode* pVnode, SStreamTriggerReaderInfo* sS
   rsp->totalRows = ((SSDataBlock*)rsp->dataBlock)->info.rows;
 
 end:
-  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%"PRId64"/%"PRId64, TD_VID(pVnode), __func__, 
-            rsp->totalRows, rsp->ver, walGetAppliedVer(pWalReader->pWal));
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST || code == TSDB_CODE_WAL_INVALID_VER || code == TAOS_SYSTEM_ERROR(ENOENT)) {
+    int64_t retainedVer = walGetFirstVer(pVnode->pWal);
+    if (pWalReader != NULL && retainedVer > firstVer && readVer < retainedVer) {
+      // Retention can remove a segment during either pass. Discard the partial
+      // result and rebuild it from the remaining requested versions.
+      ST_TASK_DLOG("vgId:%d WAL retention advanced from:%" PRId64 " to:%" PRId64 ", restart data read at:%" PRId64,
+                   TD_VID(pVnode), firstVer, retainedVer, readVer);
+      firstVer = retainedVer;
+      walReadReset(pWalReader);
+      tSimpleHashClear(rsp->indexHash);
+      tSimpleHashClear(rsp->uidHash);
+      blockDataEmpty(rsp->dataBlock);
+      rsp->totalRows = 0;
+      rsp->totalDataRows = 0;
+      code = TSDB_CODE_SUCCESS;
+      goto retry;
+    }
+  }
+  ST_TASK_DLOG("vgId:%d %s end, get result totalRows:%d, process:%" PRId64 "/%" PRId64, TD_VID(pVnode), __func__,
+               rsp->totalRows, rsp->ver, walGetAppliedVer(pVnode->pWal));
   walCloseReader(pWalReader);
   return code;
 }
@@ -5592,7 +5616,7 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
 
   SArray *uidList = fullScan ? NULL : req->virTableInfoReq.uids;
   STREAM_CHECK_RET_GOTO(streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
-                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result));
+                                                    req->virTableInfoReq.ver, uidList, cids, tagCids, &uid2Result, 0));
 
   // Acquire meta reader lock only after the cross-vnode RPC round-trip is done.
   sStreamReaderInfo->storageApi.metaReaderFn.initReader(&metaReader, pVnode, META_READER_LOCK, &sStreamReaderInfo->storageApi.metaFn, 0);
@@ -5621,7 +5645,11 @@ static int32_t vnodeProcessStreamVTableInfoReq(SVnode* pVnode, SRpcMsg* pMsg, SS
   }
 
   int32_t rc = streamCacheCommitResolved(sStreamReaderInfo->vtbCache, fullScan, cids, tagCids, &uid2Result);
-  if (rc != 0) { code = rc; goto end; }
+  if (rc != 0) {
+    code = rc;
+    lino = __LINE__;
+    goto end;
+  }
 
 end:
   if (tagCids != NULL) taosArrayDestroy(tagCids);
@@ -5744,9 +5772,11 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
   STREAM_CHECK_RET_GOTO(createDataBlock(&pBlock));
 
   if (vtableType == TD_VIRTUAL_NORMAL_TABLE) {
-    // Normal vtable: caller only requests the table-name pseudo column.
+    // Normal vtable: caller only requests the table-name pseudo column. The binary column
+    // must reserve the string header in addition to the NUL-terminated name buffer size.
     STREAM_CHECK_CONDITION_GOTO (taosArrayGetSize(cols) < 1 || *(col_id_t*)taosArrayGet(cols, 0) != -1, TSDB_CODE_INVALID_PARA);
-    SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
+    SColumnInfoData idata =
+        createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, -1);
     STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pBlock, 1));
     pBlock->info.rows = 1;
@@ -5780,7 +5810,7 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     // TDMT_MND_GET_DB_INFO to mnode for the same db.
     code = streamResolveVTableRefChain(pVnode, sStreamReaderInfo->vtbCache, sStreamReaderInfo,
                                        req->virTablePseudoColReq.ver,
-                                       singleUid, emptyCols, tagOnly, &uid2Result);
+                                       singleUid, emptyCols, tagOnly, &uid2Result, 0);
     taosArrayDestroy(tagOnly); tagOnly = NULL;
     STREAM_CHECK_RET_GOTO(code);
 
@@ -5799,7 +5829,8 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
     for (size_t i = 0; i < taosArrayGetSize(cols); i++){
       col_id_t cid = *(col_id_t*)taosArrayGet(cols, i);
       if (cid == -1) {
-        SColumnInfoData idata = createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN, -1);
+        SColumnInfoData idata =
+            createColumnInfoData(TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE, -1);
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
         continue;
       }
@@ -5809,9 +5840,29 @@ static int32_t vnodeProcessStreamVTableTagInfoReq(SVnode* pVnode, SRpcMsg* pMsg,
         STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
         continue;
       }
-      STagValue       *v     = *ppv;
-      int32_t          bytes = (v->nLen > 0 ? v->nLen : 1);
-      SColumnInfoData  idata = createColumnInfoData(v->type, bytes, cid);
+      STagValue *v = *ppv;
+      // tDataTypes is indexed by type, so a type carried by a resolve response must be
+      // range-checked before it is used as a width source. Report it with its own context:
+      // the shared tail log only knows the line, not which cid broke the block.
+      if (IS_INVALID_TYPE(v->type)) {
+        stsError("vgId:%d pseudo col cid:%d has invalid type:%d nLen:%d", TD_VID(pVnode), (int32_t)cid,
+                 (int32_t)v->type, v->nLen);
+        code = TSDB_CODE_INVALID_MSG;
+        lino = __LINE__;
+        goto end;
+      }
+      // A variable-length column must be able to hold the string header plus the payload:
+      // deriving the width from the raw value length alone produced columns narrower than
+      // VARSTR_HEADER_SIZE (a 1-byte ref TAG became bytes=1), which the block decoder on the
+      // reader side rejects as TSDB_CODE_INVALID_MSG. Reserving exactly header + payload is
+      // enough because the decoder never compares the width of a variable-length column
+      // against its schema, it only requires bytes >= header.
+      int32_t          header = IS_STR_DATA_BLOB(v->type) ? BLOBSTR_HEADER_SIZE : VARSTR_HEADER_SIZE;
+      int32_t          bytes  = IS_VAR_DATA_TYPE(v->type) ? (v->nLen > 0 ? v->nLen : 0) + header
+                                                          : (v->nLen > 0 ? v->nLen : tDataTypes[v->type].bytes);
+      SColumnInfoData  idata  = createColumnInfoData(v->type, bytes, cid);
+      stsDebug("vgId:%d pseudo col cid:%d type:%d nLen:%d bytes:%d", TD_VID(pVnode), (int32_t)cid, (int32_t)v->type,
+               v->nLen, bytes);
       STREAM_CHECK_RET_GOTO(blockDataAppendColInfo(pBlock, &idata));
     }
 

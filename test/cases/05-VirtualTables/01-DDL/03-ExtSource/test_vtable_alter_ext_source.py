@@ -29,10 +29,12 @@ _FQ_DIR = os.path.abspath(
                  "..", "..", "..", "09-DataQuerying", "19-FederatedQuery"))
 if _FQ_DIR not in sys.path:
     sys.path.insert(0, _FQ_DIR)
-from federated_query_common import ExtSrcEnv  # noqa: E402
+from federated_query_common import (  # noqa: E402
+    ExtSrcEnv, TSDB_CODE_PAR_SYNTAX_ERROR)
 from ext_source_helpers import (  # noqa: E402
     create_ext_source, create_remote_db, create_pg_table,
-    create_mysql_table, create_influx_measurement, create_sqlserver_table)
+    create_mysql_table, create_influx_measurement, create_sqlserver_table,
+    create_oracle_table)
 
 
 _LOCAL_DB = "valter_local"
@@ -44,6 +46,10 @@ _INF_DB   = "valter_inf"
 _INF_SRC  = "valter_inf_src"
 _SS_DB    = "valter_ss"
 _SS_SRC   = "valter_ss_src"
+_OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
+_OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SRC    = "valter_or_src"
+_OR_ALT_DB = "valter_or_other"
 
 
 def _ensure_pg_source_and_tables():
@@ -91,6 +97,31 @@ def _ensure_sqlserver_source_and_tables():
     create_ext_source(_SS_SRC, "sqlserver", _SS_DB)
 
 
+def _ensure_oracle_source_and_tables():
+    """Oracle source for the ALTER matrix.
+
+    Oracle has a single namespace level (the schema) and folds unquoted
+    identifiers to upper case, so the remote objects below are addressed in
+    their stored upper-case form.  References use the four-segment path
+    source.schema.table.column; the three-segment source.table.column form
+    resolves through the schema declared on the source.
+
+    NUMBER(10,0) maps to BIGINT and BINARY_DOUBLE to DOUBLE, so the local
+    declarations stay compatible with the remote types.
+    """
+    create_oracle_table(
+        "r1", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
+              "v NUMBER(10,0), w NUMBER(10,0)",
+        ["(TIMESTAMP '2024-01-01 00:00:00.000', 1, 10)",
+         "(TIMESTAMP '2024-01-01 00:01:00.000', 2, 20)"])
+    create_oracle_table(
+        "r2", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
+              "v NUMBER(10,0), x BINARY_DOUBLE",
+        ["(TIMESTAMP '2024-01-01 00:00:00.000', 100, 1.5)",
+         "(TIMESTAMP '2024-01-01 00:01:00.000', 200, 2.5)"])
+    create_ext_source(_OR_SRC, "oracle", _OR_SVC)
+
+
 def _check_describe_layout(table, expected):
     """Verify DESCRIBE output matches expected layout.
 
@@ -117,6 +148,7 @@ class TestVtableAlterExtSource:
         _ensure_pg_source_and_tables()
         _ensure_mysql_source_and_tables()
         _ensure_sqlserver_source_and_tables()
+        _ensure_oracle_source_and_tables()
         create_remote_db("influxdb", _INF_DB)
         create_influx_measurement(_INF_DB, [
             "r_inftag,device=sensor1 value=42.0 1700000000000000000"
@@ -133,6 +165,13 @@ class TestVtableAlterExtSource:
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_MY_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_INF_SRC}")
         tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_SS_SRC}")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_OR_SRC}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB bucket outlives it and keeps occupying one of the five
+        # database slots InfluxDB 3 Core allows per instance, so a run that
+        # visits several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.
+        ExtSrcEnv.influx_drop_db(_INF_DB)
 
     # -------------------------------------------------------------------
     # 4.1 — Normal vtable
@@ -367,6 +406,200 @@ class TestVtableAlterExtSource:
         assert str(tdSql.queryResult[0][0]) == \
             f"{_SS_SRC}.{_SS_DB}.dbo.r1.w", tdSql.queryResult[0][0]
         tdSql.execute("DROP VTABLE v_ss_relalter")
+
+    def test_oracle_alter_references(self):
+        """FQOR-VTBL-009: ALTER on a virtual table referencing Oracle.
+
+        Mirrors the SQL Server ALTER matrix over Oracle's single namespace
+        level: ADD COLUMN with / without FROM through both the four-segment
+        source.schema.table.column path and the three-segment
+        source.table.column form that resolves through the source schema,
+        DROP / RENAME COLUMN, MODIFY COLUMN rejection, ALTER after the source
+        was dropped, and a USE switch that changes neither the stored
+        reference nor the values.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        # (a) ADD COLUMN with FROM succeeds and keeps the four-segment path.
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_alter")
+        tdSql.execute(
+            "CREATE VTABLE v_or_alter (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+        tdSql.execute(
+            f"ALTER VTABLE v_or_alter ADD COLUMN w bigint "
+            f"FROM {_OR_SRC}.{_OR_SCHEMA}.r1.w")
+        _check_describe_layout("v_or_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("v", "BIGINT", f"{_OR_SRC}.{_OR_SCHEMA}.r1.v"),
+            ("w", "BIGINT", f"{_OR_SRC}.{_OR_SCHEMA}.r1.w"),
+        ])
+        tdSql.query("SELECT w FROM v_or_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(1, 0, 20)
+
+        # (b) The three-segment path resolves through the source schema and is
+        # persisted as the explicit four-segment reference.
+        tdSql.execute(
+            f"ALTER VTABLE v_or_alter ADD COLUMN w3 bigint FROM {_OR_SRC}.r1.w")
+        tdSql.query("SELECT w3 FROM v_or_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(1, 0, 20)
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_alter' "
+            "AND col_name='w3'")
+        tdSql.checkRows(1)
+        assert str(tdSql.queryResult[0][0]) == \
+            f"{_OR_SRC}.{_OR_SCHEMA}.r1.w", tdSql.queryResult[0][0]
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_alter' "
+            "AND col_name='w'")
+        tdSql.checkRows(1)
+        assert str(tdSql.queryResult[0][0]) == \
+            f"{_OR_SRC}.{_OR_SCHEMA}.r1.w", tdSql.queryResult[0][0]
+
+        # (c) ADD COLUMN without FROM is a NULL placeholder: the scan still
+        # returns the referenced rows.  A predicate that touches only the
+        # placeholder matches no row, the same contract the PG / MySQL
+        # matrix records, so the count is only logged.
+        tdSql.execute("ALTER VTABLE v_or_alter ADD COLUMN nu bigint")
+        tdSql.query("SELECT count(*) FROM v_or_alter")
+        tdSql.checkData(0, 0, 2)
+        tdSql.query("SELECT count(*) FROM v_or_alter WHERE nu IS NULL")
+        tdLog.info(f"[contract] Oracle ADD COLUMN without FROM: "
+                   f"null={tdSql.getData(0, 0)}")
+
+        # (d) DROP COLUMN with an Oracle ref succeeds for both bindings.
+        tdSql.execute("ALTER VTABLE v_or_alter DROP COLUMN w")
+        tdSql.execute("ALTER VTABLE v_or_alter DROP COLUMN w3")
+        _check_describe_layout("v_or_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("v", "BIGINT", f"{_OR_SRC}.{_OR_SCHEMA}.r1.v"),
+            ("nu", "BIGINT", ""),
+        ])
+
+        # (e) RENAME COLUMN preserves the four-segment binding.
+        tdSql.execute("ALTER VTABLE v_or_alter RENAME COLUMN v vrenamed")
+        _check_describe_layout("v_or_alter", [
+            ("ts", "TIMESTAMP", ""),
+            ("vrenamed", "BIGINT", f"{_OR_SRC}.{_OR_SCHEMA}.r1.v"),
+            ("nu", "BIGINT", ""),
+        ])
+        tdSql.query("SELECT vrenamed FROM v_or_alter ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_alter")
+
+        # (f) MODIFY COLUMN on a referenced column is rejected both ways.
+        create_oracle_table(
+            "r_mod", "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, s VARCHAR2(64)")
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_mod")
+        tdSql.execute(
+            "CREATE VTABLE v_or_mod (ts timestamp, "
+            f"s varchar(16) FROM {_OR_SRC}.{_OR_SCHEMA}.r_mod.s)")
+        tdSql.error("ALTER VTABLE v_or_mod MODIFY COLUMN s varchar(64)")
+        tdSql.error("ALTER VTABLE v_or_mod MODIFY COLUMN s varchar(4)")
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_mod")
+
+        # (g) ALTER referencing a dropped source fails.
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_dropsrc")
+        tdSql.execute(
+            "CREATE VTABLE v_or_dropsrc (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+        tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {_OR_SRC}")
+        tdSql.error(
+            f"ALTER VTABLE v_or_dropsrc ADD COLUMN x bigint "
+            f"FROM {_OR_SRC}.{_OR_SCHEMA}.r1.w")
+        _ensure_oracle_source_and_tables()
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_dropsrc")
+
+        # (h) FQOR-VTBL-009: USE switching leaves the frozen reference and the
+        # returned values untouched.
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_use")
+        tdSql.execute(
+            "CREATE VTABLE v_or_use (ts timestamp, "
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r1.v)")
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_use' "
+            "AND col_name='v'")
+        before = str(tdSql.queryResult[0][0])
+        tdSql.execute(f"CREATE DATABASE IF NOT EXISTS {_OR_ALT_DB}")
+        tdSql.execute(f"USE {_OR_ALT_DB}")
+        tdSql.query(f"SELECT v FROM {_LOCAL_DB}.v_or_use ORDER BY ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 2)
+        tdSql.execute(f"USE {_LOCAL_DB}")
+        tdSql.query(
+            "SELECT col_source FROM information_schema.ins_columns "
+            f"WHERE db_name='{_LOCAL_DB}' AND table_name='v_or_use' "
+            "AND col_name='v'")
+        after = str(tdSql.queryResult[0][0])
+        assert before == after, f"USE switch changed ref: {before!r} -> {after!r}"
+        assert after == f"{_OR_SRC}.{_OR_SCHEMA}.r1.v", after
+        tdSql.execute("DROP VTABLE IF EXISTS v_or_use")
+        tdSql.execute(f"DROP DATABASE IF EXISTS {_OR_ALT_DB}")
+        tdSql.execute(f"USE {_LOCAL_DB}")
+
+    def test_oracle_source_tls_options_rejected(self):
+        """FQOR-SEC-002: Oracle rejects TLS source options with a syntax error.
+
+        Oracle Net negotiates its own encryption, so the connector has no TLS
+        switch.  Explicit TLS and client-certificate keys are rejected with
+        TSDB_CODE_PAR_SYNTAX_ERROR instead of being silently ignored; a false
+        tls_enabled stays accepted because that is how ALTER ... SET OPTIONS
+        clears a key.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-10-26 Add Oracle as the fifth external source
+
+        """
+        base = (
+            "CREATE EXTERNAL SOURCE valter_or_tls TYPE='oracle' "
+            f"HOST='{ExtSrcEnv.ORACLE_HOST}' PORT={ExtSrcEnv.ORACLE_PORT} "
+            f"USER='{ExtSrcEnv.ORACLE_USER}' PASSWORD='{ExtSrcEnv.ORACLE_PASS}' "
+            f"DATABASE={_OR_SVC}")
+        tdSql.execute("DROP EXTERNAL SOURCE IF EXISTS valter_or_tls")
+
+        tdSql.error(base + " OPTIONS('tls_enabled'='true')",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error(base + " OPTIONS('tls_ca_cert'='/etc/ssl/ca.pem')",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error(base + " OPTIONS('tls_client_cert'='/etc/ssl/client.pem')",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error(base + " OPTIONS('tls_client_key'='/etc/ssl/client.key')",
+                    expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+        tdSql.error(
+            f"ALTER EXTERNAL SOURCE {_OR_SRC} "
+            "SET OPTIONS('tls_client_key'='/etc/ssl/client.key')",
+            expectedErrno=TSDB_CODE_PAR_SYNTAX_ERROR)
+
+        # A false tls_enabled is accepted and the source is usable afterwards.
+        tdSql.execute(base + " OPTIONS('tls_enabled'='false')")
+        tdSql.query("DESCRIBE EXTERNAL SOURCE valter_or_tls")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "valter_or_tls")
+        tdSql.checkData(0, 1, "oracle")
+        tdSql.execute("DROP EXTERNAL SOURCE valter_or_tls")
 
     # -------------------------------------------------------------------
     # 4.2 — vstb

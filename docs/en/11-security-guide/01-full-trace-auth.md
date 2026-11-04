@@ -975,31 +975,7 @@ We recommend using TDengine TSDB inside a LAN. If it must be exposed externally,
 
 #### 7.3.1 Nginx Load Balancing + SSL
 
-```nginx
-http {
-    upstream tdengine_adapter {
-        server 192.168.11.61:6041;
-        server 192.168.11.62:6041;
-        server 192.168.11.63:6041;
-    }
-
-    server {
-        listen 443 ssl;
-        ssl_certificate     /path/to/certificate.crt;
-        ssl_certificate_key /path/to/private.key;
-
-        location / {
-            proxy_pass http://tdengine_adapter;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection $connection_upgrade;
-            proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto  $scheme;
-            proxy_set_header X-Real-IP          $remote_addr;
-        }
-    }
-}
-```
+Nginx/HAProxy load balancing, TLS/mTLS, health checks, and failover are maintained in [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md). For API gateway authentication, rate limiting, and IP allowlists, see the Traefik security gateway below.
 
 #### 7.3.2 Traefik Security Gateway
 

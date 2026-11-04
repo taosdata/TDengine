@@ -17,6 +17,7 @@
 import os
 import shlex
 import time
+import subprocess
 
 from new_test_framework.utils import tdLog, tdSql, etool, tdCom
 
@@ -61,7 +62,16 @@ class TestUserSecurity:
         deadline = time.time() + TOKEN_LOGIN_TIMEOUT
 
         while True:
-            rlist = etool.runRetList(command, checkRun=False, show=False)
+            if os.name == 'nt':
+                result = subprocess.run(
+                    [taosFile, '-c', self.token_client_cfg_dir, '-q',
+                     *shlex.split(options), '-s', 'show tokens;'],
+                    input=token + '\n', capture_output=True, text=True,
+                    errors='replace', timeout=TOKEN_LOGIN_TIMEOUT,
+                )
+                rlist = result.stdout.splitlines()
+            else:
+                rlist = etool.runRetList(command, checkRun=False, show=False)
             output = "\n".join(rlist)
             if expect_success:
                 if all(item in output for item in success):
@@ -424,6 +434,7 @@ class TestUserSecurity:
         Since: v3.4.0.0
 
         Labels: common,ci,user,integration,functional,security
+
         Jira: None
 
         History:

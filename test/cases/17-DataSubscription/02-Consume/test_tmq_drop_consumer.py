@@ -164,7 +164,7 @@ class TestCase:
         # use taosBenchmark to subscribe  
         binPath = etool.benchMarkFile()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqDropConsumer.json")
-        tmqCom.startProcess(binPath, f"-f {jsonfile}")      
+        tmqCom.startProcess(binPath, ['-f', jsonfile])
                 
         expectTopicNum = len(topicNameList)
         consumerThreadNum = 2
@@ -277,6 +277,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

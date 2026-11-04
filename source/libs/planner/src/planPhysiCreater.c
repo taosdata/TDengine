@@ -1108,6 +1108,18 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
             pIndex = taosHashGet(pSecondHash, ((SExprNode*)pCol)->aliasName, aliasLen);
           }
         }
+        // The user's own spelling is the last resort.  External tables keep the
+        // source's folded column names, so a column referenced as "id" over an
+        // Oracle table reports colName "ID" while the producing layer (window,
+        // partition) publishes the SQL-spelling alias "id".  The slot really is
+        // the same column; only the spelling differs.
+        if (NULL == pIndex && ((SExprNode*)pCol)->userAlias[0] != '\0') {
+          int32_t userAliasLen = (int32_t)strlen(((SExprNode*)pCol)->userAlias);
+          pIndex = taosHashGet(pFirstHash, ((SExprNode*)pCol)->userAlias, userAliasLen);
+          if (NULL == pIndex) {
+            pIndex = taosHashGet(pSecondHash, ((SExprNode*)pCol)->userAlias, userAliasLen);
+          }
+        }
       }
     }
     if (NULL == pIndex) {
@@ -2726,6 +2738,52 @@ static int32_t fqBuildTimestampTypeHints(SFederatedScanPhysiNode* pScan, const S
   return TSDB_CODE_SUCCESS;
 }
 
+// Mark the remote columns whose value only becomes readable through a
+// server-side rewrite.  Oracle maps XMLTYPE to NCHAR (DS 5.3.2.1), but the ODBC
+// driver cannot define a buffer for the object type, so the executor has to
+// select XMLSERIALIZE(CONTENT <col> AS CLOB) for it.  The renderer runs in
+// taosd without the table metadata, so the columns travel with the plan.
+static int32_t fqBuildColumnRenderHints(SFederatedScanPhysiNode* pScan, const SExtTableNode* pExtNode) {
+  if (pScan == NULL || pExtNode == NULL || pExtNode->sourceType != EXT_SOURCE_ORACLE ||
+      pExtNode->pExtMeta == NULL || pExtNode->pExtMeta->pCols == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t hintCount = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+    if (0 == strncasecmp(pCol->extTypeName, "XMLTYPE", 7)) {
+      ++hintCount;
+    }
+  }
+  if (hintCount == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pScan->pColumnRenderHints =
+      (SExtColumnRenderHint*)taosMemoryCalloc(hintCount, sizeof(SExtColumnRenderHint));
+  if (pScan->pColumnRenderHints == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t hintIdx = 0;
+  for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
+    const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
+    if (0 != strncasecmp(pCol->extTypeName, "XMLTYPE", 7)) {
+      continue;
+    }
+    tstrncpy(pScan->pColumnRenderHints[hintIdx].colName, pCol->colName,
+             sizeof(pScan->pColumnRenderHints[hintIdx].colName));
+    pScan->pColumnRenderHints[hintIdx].rewrite = EXT_RENDER_REWRITE_XMLTYPE;
+    planDebug("FQ-ColRenderHints[%d]: source=%s col=%s extType=%s rewrite=XMLTYPE",
+              hintIdx, pExtNode->sourceName, pCol->colName, pCol->extTypeName);
+    ++hintIdx;
+  }
+
+  pScan->numColumnRenderHints = hintIdx;
+  return TSDB_CODE_SUCCESS;
+}
+
 // PostgreSQL federated scans require an explicit schema at both the planner
 // node and connector-config levels. Keep them aligned before executor handoff.
 static int32_t fqEnsurePgExtSchemaNode(SExtTableNode* pExtNode) {
@@ -3021,6 +3079,17 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                   (int)((SExprNode*)pExpr)->resType.type, (int)((SExprNode*)pExpr)->resType.precision,
                   (int)((SExprNode*)pExpr)->resType.scale, (int)((SExprNode*)pExpr)->resType.bytes);
         pScan->pColTypeMappings[colIdx].tdType = ((SExprNode*)pExpr)->resType;
+        // Timestamp values are read at the SOURCE (transport) precision, the
+        // maximum over the remote table's time columns (DS 5.3.7), not at the
+        // column's declared precision.  The provider converts the epoch with
+        // this precision and declares the returned block with it; a table that
+        // holds a TIMESTAMP(7..9) column must hand NANO here, otherwise the
+        // microsecond epoch is later reinterpreted as nanoseconds (1000x off).
+        if (pScan->pColTypeMappings[colIdx].tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          int8_t tsPrec = (NULL != pExtNode->pExtMeta) ? pExtNode->pExtMeta->tsPrecision : 0;
+          pScan->pColTypeMappings[colIdx].tsPrecision =
+              (tsPrec == TSDB_TIME_PRECISION_NANO) ? TSDB_TIME_PRECISION_NANO : TSDB_TIME_PRECISION_MICRO;
+        }
         const char* pOutputName = fqResolveRemoteOutputName(pExprNode);
         if (NULL != pOutputName && '\0' != pOutputName[0]) {
           tstrncpy(pScan->pColTypeMappings[colIdx].colName, pOutputName,
@@ -3043,6 +3112,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   }
 
   PLAN_ERR_JRET(fqBuildTimestampTypeHints(pScan, pExtNode));
+  PLAN_ERR_JRET(fqBuildColumnRenderHints(pScan, pExtNode));
   // Propagate two-pass mode only when the repeat-scan aggregate still runs locally.
   // If the remote subtree already contains the repeat-scan AGG, FederatedScan must
   // return the final remote rows once, not PRE_SCAN + MAIN_SCAN duplicates.
@@ -3361,18 +3431,15 @@ static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, 
 }
 
 static int32_t getJoinDataBlockDescNode(SNodeList* pChildren, int32_t idx, SDataBlockDescNode** ppDesc) {
-  if (2 == pChildren->length) {
-    *ppDesc = ((SPhysiNode*)nodesListGetNode(pChildren, idx))->pOutputDataBlockDesc;
-  } else if (1 == pChildren->length &&
-             nodeType(nodesListGetNode(pChildren, 0)) == QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE) {
-    SGroupCachePhysiNode* pGrpCache = (SGroupCachePhysiNode*)nodesListGetNode(pChildren, 0);
-    *ppDesc = ((SPhysiNode*)nodesListGetNode(pGrpCache->node.pChildren, idx))->pOutputDataBlockDesc;
-  } else {
-    planError("Invalid join children num:%d or child type:%d", pChildren->length,
-              nodeType(nodesListGetNode(pChildren, 0)));
-    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  SNodeList* pInputs = NULL;
+  int32_t code = planGetJoinInputs(pChildren, QUERY_NODE_PHYSICAL_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid join children num:%d or child type:%d", LIST_LENGTH(pChildren),
+              LIST_LENGTH(pChildren) > 0 ? nodeType(nodesListGetNode(pChildren, 0)) : -1);
+    return code;
   }
 
+  *ppDesc = ((SPhysiNode*)nodesListGetNode(pInputs, idx))->pOutputDataBlockDesc;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3689,14 +3756,24 @@ static const char* getLogicNodeTargetAlias(const SLogicNode* pLogicNode) {
   return getLogicNodeTableAlias(pLogicNode);
 }
 
-static void getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const char** ppLeftAlias,
-                                     const char** ppRightAlias) {
+static int32_t getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, const char** ppLeftAlias,
+                                        const char** ppRightAlias) {
+  SNodeList* pInputs = NULL;
+  int32_t code = planGetJoinInputs(pJoinLogicNode->node.pChildren, QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid logical join children num:%d or child type:%d", LIST_LENGTH(pJoinLogicNode->node.pChildren),
+              LIST_LENGTH(pJoinLogicNode->node.pChildren) > 0
+                  ? nodeType(nodesListGetNode(pJoinLogicNode->node.pChildren, 0))
+                  : -1);
+    return code;
+  }
   const SLogicNode* pLeftLogic =
-      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 0);
+      (const SLogicNode*)nodesListGetNode(pInputs, 0);
   const SLogicNode* pRightLogic =
-      (const SLogicNode*)nodesListGetNode(pJoinLogicNode->node.pChildren, 1);
+      (const SLogicNode*)nodesListGetNode(pInputs, 1);
   *ppLeftAlias = getLogicNodeTableAlias(pLeftLogic);
   *ppRightAlias = getLogicNodeTableAlias(pRightLogic);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* pJoin, int64_t leftDataBlockId,
@@ -3707,7 +3784,10 @@ static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* 
   // resolve to the wrong descriptor and ends in "Planner slot key not found".
   const char* leftAlias = NULL;
   const char* rightAlias = NULL;
-  getJoinChildTableAliases(pJoin, &leftAlias, &rightAlias);
+  int32_t code = getJoinChildTableAliases(pJoin, &leftAlias, &rightAlias);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
   return setNodeSlotIdWithAliases(pCxt, leftDataBlockId, rightDataBlockId, leftAlias, rightAlias, pNode, pOutput);
 }
 
@@ -3946,8 +4026,17 @@ static int32_t fqAppendJoinConditionTargets(SPhysiPlanContext* pCxt,
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t appended = 0;
   SSHashObj* pTables[2] = {NULL, NULL};
+  SNodeList* pInputs = NULL;
+  code = planGetJoinInputs(pJoinLogicNode->node.pChildren, QUERY_NODE_LOGIC_PLAN_GROUP_CACHE, &pInputs);
+  if (TSDB_CODE_SUCCESS != code) {
+    planError("Invalid logical join children num:%d or child type:%d", LIST_LENGTH(pJoinLogicNode->node.pChildren),
+              LIST_LENGTH(pJoinLogicNode->node.pChildren) > 0
+                  ? nodeType(nodesListGetNode(pJoinLogicNode->node.pChildren, 0))
+                  : -1);
+    return code;
+  }
   for (int32_t i = 0; i < 2 && TSDB_CODE_SUCCESS == code; ++i) {
-    SNode* pChild = nodesListGetNode(pJoinLogicNode->node.pChildren, i);
+    SNode* pChild = nodesListGetNode(pInputs, i);
     code = collectTableAliasFromNodes(pChild, &pTables[i]);
     if (TSDB_CODE_SUCCESS == code) {
       code = collectSourceTableAliasFromNodes(pChild, &pTables[i]);

@@ -312,8 +312,16 @@ function transfer_debug_dirs() {
         i=$((i + 1))
     done
 
-    cd "$local_work_dir"
+    cd "$local_work_dir" || return 1
     rm -rf debug.tar.gz
+    # Oracle runtimes live outside build/lib; keep their relative layout.
+    local runtime_dirs=()
+    local runtime_dir
+    for runtime_dir in debugSan/build/driver debugNoSan/build/driver; do
+        if [ -d "$runtime_dir" ]; then
+            runtime_dirs+=("$runtime_dir")
+        fi
+    done
     tar -czf debug.tar.gz \
         debugSan/build/bin/taos* \
         debugSan/build/bin/tmq_* \
@@ -322,7 +330,7 @@ function transfer_debug_dirs() {
         debugSan/build/bin/replay_test \
         debugSan/build/bin/varbinary_test \
         debugSan/build/bin/write_raw_block_test \
-        debugSan/build/lib/*.so \
+        debugSan/build/lib/*.so* \
         debugSan/build/share \
         debugSan/build/include \
         debugNoSan/build/bin/taos* \
@@ -332,9 +340,10 @@ function transfer_debug_dirs() {
         debugNoSan/build/bin/replay_test \
         debugNoSan/build/bin/varbinary_test \
         debugNoSan/build/bin/write_raw_block_test \
-        debugNoSan/build/lib/*.so \
+        debugNoSan/build/lib/*.so* \
         debugNoSan/build/share \
-        debugNoSan/build/include
+        debugNoSan/build/include \
+        "${runtime_dirs[@]}"
 
     local index=0
     while [ $index -lt ${#hosts[*]} ]; do

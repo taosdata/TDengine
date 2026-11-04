@@ -84,7 +84,7 @@ int32_t streamCacheCommitResolved(SStreamVTableInfoCache *pCache, bool fullScan,
 int32_t streamResolveVTableRefChain(SVnode *pVnode, SStreamVTableInfoCache *pCache,
                                     SStreamTriggerReaderInfo *pReaderInfo, int64_t ver,
                                     SArray *vtbUids, SArray *virtColCids, SArray *virtTagCids,
-                                    SSHashObj **ppUid2Result);
+                                    SSHashObj **ppUid2Result, int64_t txnId);
 
 // Batch budget used by streamResolveVTableRefChain: true once the current batch
 // has consumed either budget (seeded uids or accumulated work items). The uid
@@ -163,7 +163,17 @@ void       streamDbRouteMemoDestroy(SStreamDbRouteMemo *pMemo);
 // a virtual super table this is a no-op. For each vchild uid that resolves, the
 // existing pTagVal is freed and replaced by a freshly built STag carrying the
 // chain-resolved literal tag values (in stable schemaTag order).
-int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagList);
+// pTagCids (SArray of col_id_t) limits the resolve scope to the given TAG columns;
+// NULL resolves every TAG of the stable, an empty array resolves nothing.
+// Resolution and rebuild failures are returned; filtering callers must not evaluate
+// partially resolved tags after an error. txnId is the caller's batch metadata
+// transaction; it is applied to every local meta read so children created in the same
+// transaction are resolved instead of being treated as missing.
+int32_t vnodeResolveVTableTagChain(void *pVnode, int64_t suid, SArray *pUidTagList, const SArray *pTagCids,
+                                   int64_t txnId);
+
+// true when suid is a virtual super table (whose children may carry TAG refs).
+bool vnodeIsVirtualSuperTable(void *pVnode, int64_t suid, int64_t txnId);
 
 // ---------------------------------------------------------------------------
 // Test-only declarations: small leaf helpers exposed for gtest unit testing.

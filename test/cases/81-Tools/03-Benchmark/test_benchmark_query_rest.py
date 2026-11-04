@@ -16,18 +16,39 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdLog, tdSql, etool
 import ast
+import glob
 import os
 import re
+import shutil
 import subprocess
 
 class TestBenchmarkQueryRest:
+    @staticmethod
+    def remove_results(*patterns):
+        for pattern in patterns:
+            for path in glob.glob(pattern):
+                if os.path.isdir(path) and not os.path.islink(path):
+                    shutil.rmtree(path)
+                else:
+                    os.remove(path)
+
+    @staticmethod
+    def combine_results(pattern, destination):
+        paths = sorted(glob.glob(pattern))
+        assert paths, f"No benchmark result files match {pattern}"
+        with open(destination, "wb") as output:
+            for path in paths:
+                with open(path, "rb") as source:
+                    shutil.copyfileobj(source, output)
+
     #
     # ------------------- test_query_json.py ----------------
     #    
     def do_benchmark_query_json(self):
         binPath = etool.benchMarkFile()
-        os.system(
-            "rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0"
+        self.remove_results(
+            "rest_query_specified-0", "rest_query_super-0",
+            "taosc_query_specified-0", "taosc_query_super-0",
         )
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
@@ -127,16 +148,14 @@ class TestBenchmarkQueryRest:
     # 获取taosc接口查询次数
     def queryTimesTaosc(self, filename):
         self.filename = filename
-        command = "cat %s |wc -l" % filename
-        times = int(subprocess.getstatusoutput(command)[1])
-        return times
+        with open(filename, "r") as result:
+            return sum(1 for line in result)
 
     # 获取restful接口查询次数
     def queryTimesRestful(self, filename):
         self.filename = filename
-        command = 'cat %s |grep "200 OK" |wc -l' % filename
-        times = int(subprocess.getstatusoutput(command)[1])
-        return times
+        with open(filename, "r") as result:
+            return sum("200 OK" in line for line in result)
 
     # 定义断言结果是否正确。不正确返回错误结果，正确即通过。
     def assertCheck(self, filename, queryResult, expectResult):
@@ -150,7 +169,7 @@ class TestBenchmarkQueryRest:
 
     def do_rest_mixed_query_reset_cache_result_file(self):
         binPath = etool.benchMarkFile()
-        os.system("rm -f query_rest_reset_result.txt-*")
+        self.remove_results("query_rest_reset_result.txt-*")
 
         tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
@@ -190,17 +209,17 @@ class TestBenchmarkQueryRest:
             tdLog.info("taosBenchmark use %s" % binPath)
 
         # delete useless files
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
 
         # taosc query: query specified  table  and query  super table
         os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryTaosc.json" % (binPath, os.path.dirname(__file__)))
         # forbid parallel spec query with super query
         os.system("%s -f %s/json/queryTaosc1.json" % (binPath, os.path.dirname(__file__)))
-        os.system("cat query_res0.txt* > all_query_res0_taosc.txt")
-        os.system("cat query_res1.txt* > all_query_res1_taosc.txt")
-        os.system("cat query_res2.txt* > all_query_res2_taosc.txt")
+        self.combine_results('query_res0.txt*', 'all_query_res0_taosc.txt')
+        self.combine_results('query_res1.txt*', 'all_query_res1_taosc.txt')
+        self.combine_results('query_res2.txt*', 'all_query_res2_taosc.txt')
 
         # correct Times testcases
         queryTimes0Taosc = self.queryTimesTaosc("all_query_res0_taosc.txt")
@@ -218,16 +237,16 @@ class TestBenchmarkQueryRest:
         self.assertfileDataTaosc("all_query_res2_taosc.txt", "1604160000199")
 
         # delete useless files
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
 
         # use restful api to query
         os.system("%s -f %s/json/queryInsertrestdata.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryRestful.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryRestful1.json" % (binPath, os.path.dirname(__file__)))
-        os.system("cat query_res0.txt*  > all_query_res0_rest.txt")
-        os.system("cat query_res1.txt*  > all_query_res1_rest.txt")
-        os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
+        self.combine_results('query_res0.txt*', 'all_query_res0_rest.txt')
+        self.combine_results('query_res1.txt*', 'all_query_res1_rest.txt')
+        self.combine_results('query_res2.txt*', 'all_query_res2_rest.txt')
 
         # correct Times testcases
         queryTimes0Restful = self.queryTimesRestful("all_query_res0_rest.txt")
@@ -281,12 +300,12 @@ class TestBenchmarkQueryRest:
         os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
 
         # delete useless files
-        os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf %s/*.py.sql" % os.path.dirname(__file__))
-        os.system("rm -rf ./querySystemInfo*")
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
-        os.system("rm -rf ./test_query_res0.txt")        
+        self.remove_results('./insert_res.txt')
+        self.remove_results(os.path.join(os.path.dirname(__file__), "*.py.sql"))
+        self.remove_results('./querySystemInfo*')
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
+        self.remove_results('./test_query_res0.txt')
 
         print("do query taosdemo ......................... [passed]")
 
@@ -302,14 +321,14 @@ class TestBenchmarkQueryRest:
             tdLog.info("taosBenchmark use %s" % binPath)
 
         # delete useless files
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
 
         # taosc query: query specified  table  and query  super table
         os.system("%s -f %s/json/queryInsertdata.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryTaosc-mixed-query.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryTaosc-mixed-query1.json" % (binPath, os.path.dirname(__file__)))
-        os.system("cat query_res2.txt* > all_query_res2_taosc.txt")
+        self.combine_results('query_res2.txt*', 'all_query_res2_taosc.txt')
 
         # correct Times testcases
 
@@ -320,14 +339,14 @@ class TestBenchmarkQueryRest:
         self.assertfileDataTaosc("all_query_res2_taosc.txt", "1604160000199")
 
         # delete useless files
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
 
         # use restful api to query
         os.system("%s -f %s/json/queryInsertrestdata.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryRestful.json" % (binPath, os.path.dirname(__file__)))
         os.system("%s -f %s/json/queryRestful1.json" % (binPath, os.path.dirname(__file__)))
-        os.system("cat query_res2.txt*  > all_query_res2_rest.txt")
+        self.combine_results('query_res2.txt*', 'all_query_res2_rest.txt')
 
         # correct Times testcases
 
@@ -392,11 +411,11 @@ class TestBenchmarkQueryRest:
         # assert exceptcode4 != 0
 
         # delete useless files
-        os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf 5-taos-tools/taosbenchmark/*.py.sql")
-        os.system("rm -rf ./querySystemInfo*")
-        os.system("rm -rf ./query_res*")
-        os.system("rm -rf ./all_query*")
+        self.remove_results('./insert_res.txt')
+        self.remove_results(os.path.join(os.path.dirname(__file__), "*.py.sql"))
+        self.remove_results('./querySystemInfo*')
+        self.remove_results('./query_res*')
+        self.remove_results('./all_query*')
 
         print("do query taosdemo mix ................. [passed]")
     
@@ -422,6 +441,7 @@ class TestBenchmarkQueryRest:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

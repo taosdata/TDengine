@@ -79,7 +79,7 @@ class TestJoin:
     # different locales. The ASOF JOIN pushdown plan embeds the session timezone
     # in conditions like timetruncate(..., 'Asia/Shanghai', ...); without a fixed
     # timezone the .ans comparison flaps depending on the test server's tz.
-    clientCfgDict = {"timezone": "Asia/Shanghai"}
+    clientCfgDict = {"timezone": "Asia/Shanghai", "firstDayOfWeek": 0}
     updatecfgDict = {
         "clientCfg": clientCfgDict,
     }
@@ -1470,7 +1470,10 @@ class TestJoin:
         tdLog.info(f"test case : {testCase}.")
         sqlFile = etool.curFile(__file__, "in/test_asof_join_pushdown.in")
         ansFile = etool.curFile(__file__, "ans/test_asof_join_pushdown.ans")
-        tdCom.compare_testcase_result(sqlFile, ansFile, testCase)
+        tdCom.compare_testcase_result(
+            sqlFile, ansFile, testCase,
+            result_transform=tdCom.normalize_windows_shanghai_explain,
+        )
 
         tdSql.execute("drop database db_asof_pushdown")
         # Restore DB context for subsequent tests that rely on the default 'db'.

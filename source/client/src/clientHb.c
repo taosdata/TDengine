@@ -423,6 +423,7 @@ _return:
 
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SArray *indexUpdates = NULL;
 
   SSTbHbRsp hbRsp = {0};
   if (tDeserializeSSTbHbRsp(value, valueLen, &hbRsp) != 0) {
@@ -443,19 +444,28 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
       TSC_ERR_JRET(catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid));
     } else {
       tscDebug("hb to update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
+      // counts and schema pointer come from the server, validate before dereferencing
+      if (rsp->numOfColumns <= 0 || rsp->numOfColumns > TSDB_MAX_COLUMNS || rsp->numOfTags < 0 ||
+          rsp->numOfTags > TSDB_MAX_TAGS || rsp->pSchemas == NULL) {
+        tscError("hb invalid stb meta rsp, db:%s, stb:%s, numOfColumns:%d, numOfTags:%d, pSchemas:%p", rsp->dbFName,
+                 rsp->stbName, rsp->numOfColumns, rsp->numOfTags, rsp->pSchemas);
+        TSC_ERR_JRET(TSDB_CODE_TSC_INVALID_VALUE);
+      }
       if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
         tscError("invalid colId[%" PRIi16 "] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
-        tFreeSSTbHbRsp(&hbRsp);
-        return TSDB_CODE_TSC_INVALID_VALUE;
+        TSC_ERR_JRET(TSDB_CODE_TSC_INVALID_VALUE);
       }
 
       TSC_ERR_JRET(catalogAsyncUpdateTableMeta(pCatalog, rsp));
     }
   }
 
-  int32_t numOfIndex = taosArrayGetSize(hbRsp.pIndexRsp);
+  // Keep pending indexes owned by hbRsp until metadata processing succeeds.
+  indexUpdates = hbRsp.pIndexRsp;
+  hbRsp.pIndexRsp = NULL;
+  int32_t numOfIndex = taosArrayGetSize(indexUpdates);
   for (int32_t i = 0; i < numOfIndex; ++i) {
-    STableIndexRsp *rsp = taosArrayGet(hbRsp.pIndexRsp, i);
+    STableIndexRsp *rsp = taosArrayGet(indexUpdates, i);
     if (NULL == rsp) {
       code = terrno;
       goto _return;
@@ -464,8 +474,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
   }
 
 _return:
-  taosArrayDestroy(hbRsp.pIndexRsp);
-  hbRsp.pIndexRsp = NULL;
+  taosArrayDestroy(indexUpdates);
 
   tFreeSSTbHbRsp(&hbRsp);
   return code;
@@ -896,6 +905,13 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   for (int32_t i = 0; i < rspNum; ++i) {
     SClientHbRsp *rsp = taosArrayGet(pRsp.rsps, i);
+    // connType comes from the server, validate it before indexing the handler table
+    if (rsp->connKey.connType <= 0 || rsp->connKey.connType >= CONN_TYPE__MAX ||
+        clientHbMgr.rspHandle[rsp->connKey.connType] == NULL) {
+      tscError("hb rsp discarded, invalid connType:%d, tscRid:%" PRIi64, rsp->connKey.connType,
+               rsp->connKey.tscRid);
+      continue;
+    }
     code = (*clientHbMgr.rspHandle[rsp->connKey.connType])(pAppHbMgr, rsp);
     if (code) {
       break;
@@ -1610,7 +1626,7 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
       default:
         break;
     }
-    if (clientHbMgr.reqHandle[connKey->connType]) {
+    if (connKey->connType > 0 && connKey->connType < CONN_TYPE__MAX && clientHbMgr.reqHandle[connKey->connType]) {
       int32_t code = (*clientHbMgr.reqHandle[connKey->connType])(connKey, &param, pOneReq);
       if (code) {
         tscWarn("hbGatherAllInfo failed since %s, tscRid:%" PRIi64 ", connType:%" PRIi8, tstrerror(code),

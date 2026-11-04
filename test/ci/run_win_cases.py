@@ -24,6 +24,11 @@ import zipfile
 import signal
 from datetime import datetime
 
+from windows_case_utils import (
+    is_excluded_command, parse_case_line, pytest_command_args, pytest_log_name,
+    is_pytest_only_skip,
+)
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
@@ -33,13 +38,6 @@ logger = logging.getLogger(__name__)
 failed_cases = 0  # 全局变量，记录失败用例数量
 exit_flag = False  # 全局退出标志
 current_process = None  # 当前运行的子进程
-
-
-def normalize_pytest_command(pytest_cmd: str) -> str:
-    """Force pytest to run under the current Python interpreter on Windows CI."""
-    if not pytest_cmd.startswith("pytest"):
-        return pytest_cmd
-    return f'"{sys.executable}" -m {pytest_cmd}'
 
 
 def signal_handler(signum, frame):
@@ -88,6 +86,8 @@ def load_exclusion_list(exclusion_file):
 
 
 def get_work_dir():
+    if os.environ.get("WORK_DIR"):
+        return os.path.abspath(os.environ["WORK_DIR"])
     self_path = os.path.dirname(os.path.realpath(__file__))
     norm_path = self_path.replace("\\", "/")
 
@@ -100,7 +100,7 @@ def get_work_dir():
     else:
         repo_root = os.path.dirname(self_path)
 
-    return os.path.join(os.path.normpath(repo_root), "debug", "sim")
+    return os.path.join(os.path.normpath(repo_root), "sim")
 
 
 def clean_taos_process(keywords=None):
@@ -274,12 +274,61 @@ def zip_dir(dir_path, zip_path):
                 zipf.write(abs_path, rel_path)
 
 
-def safe_rmtree(path, retries=10, delay=2):
+def preserve_case_server_logs(work_dir, destination):
+    """Keep failed-case diagnostics before the owned sim directory is removed."""
+    source_root = os.path.normcase(os.path.realpath(work_dir))
+    if not os.path.isdir(source_root):
+        return
+    for node in os.listdir(source_root):
+        if not (node.startswith("dnode") and node[5:].isdigit()):
+            continue
+        for section in ("cfg", "log"):
+            source = os.path.join(source_root, node, section)
+            if os.path.normcase(os.path.realpath(source)) != os.path.normcase(os.path.abspath(source)):
+                continue
+            for directory, dirs, files in os.walk(source, followlinks=False):
+                dirs[:] = [name for name in dirs if
+                           os.path.normcase(os.path.realpath(os.path.join(directory, name))) ==
+                           os.path.normcase(os.path.abspath(os.path.join(directory, name)))]
+                for name in files:
+                    path = os.path.join(directory, name)
+                    resolved = os.path.normcase(os.path.realpath(path))
+                    if resolved != os.path.normcase(os.path.abspath(path)):
+                        continue
+                    target = os.path.join(destination, os.path.relpath(path, source_root))
+                    try:
+                        os.makedirs(os.path.dirname(target), exist_ok=True)
+                        shutil.copy2(path, target)
+                    except OSError as error:
+                        logger.warning("Cannot preserve failed-case diagnostic %s: %s", path, error)
+
+
+def _terminate_work_dir_taos_processes(work_dir):
+    """Reap late TAOS children only when they hold files in this test directory."""
+    prefix = os.path.normcase(os.path.abspath(work_dir)).rstrip(os.sep) + os.sep
+    for proc in psutil.process_iter(["pid", "name"]):
+        try:
+            name = (proc.info.get("name") or "").lower()
+            if proc.pid == os.getpid() or not name.startswith("taos"):
+                continue
+            held = [
+                item.path for item in proc.open_files()
+                if os.path.normcase(os.path.abspath(item.path)).startswith(prefix)
+            ]
+            if held:
+                logger.info(f"Terminating late process {proc.pid} holding test files: {held}")
+                kill_process_tree(proc)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+
+def safe_rmtree(path, retries=10, delay=2, on_retry=None):
     """
     安全删除目录，支持重试机制。
     :param path: 要删除的目录路径。
     :param retries: 重试次数。
     :param delay: 每次重试之间的延迟时间（秒）。
+    :param on_retry: 删除失败后调用的清理函数。
     """
     import sys
 
@@ -295,6 +344,8 @@ def safe_rmtree(path, retries=10, delay=2):
             logger.warning(
                 f"Retry {i + 1}/{retries}: Failed to remove {path}. Error: {e}"
             )
+            if on_retry is not None:
+                on_retry()
             time.sleep(delay)
     raise Exception(f"Failed to remove {path} after {retries} retries.")
 
@@ -326,12 +377,18 @@ def process_pytest_file(
     os.makedirs(log_dir, exist_ok=True)
 
     # 定义清理函数（失败时抛出异常，终止测试）
-    def cleanup_environment(phase=""):
+    def cleanup_environment(phase="", evidence_dir=None):
         """清理进程和目录，失败则抛出异常终止测试"""
         logger.info(f"Cleaning up environment ({phase})...")
 
         # 1. 结束残留进程
         clean_taos_process()
+
+        if evidence_dir is not None:
+            try:
+                preserve_case_server_logs(work_dir, evidence_dir)
+            except OSError as error:
+                logger.warning("Cannot preserve failed-case server logs: %s", error)
 
         # 2. 等待句柄释放（Windows 需要更长时间）
         time.sleep(3)
@@ -339,7 +396,11 @@ def process_pytest_file(
         # 3. 删除 sim 目录，使用 safe_rmtree 带重试机制
         if os.path.exists(work_dir):
             try:
-                safe_rmtree(work_dir, retries=15, delay=2)
+                safe_rmtree(
+                    work_dir, retries=15, delay=2,
+                    on_retry=(lambda: _terminate_work_dir_taos_processes(work_dir))
+                    if sys.platform == "win32" else None,
+                )
                 logger.info(f"Removed {work_dir}")
             except Exception as e:
                 logger.error(f"CRITICAL: Failed to remove {work_dir}: {e}")
@@ -363,6 +424,7 @@ def process_pytest_file(
                         logger.error(f"Failed to diagnose handle holders: {diag_e}")
                 raise RuntimeError("Cleanup failed: cannot remove work_dir") from e
 
+    seen_commands = set()
     with open(input_file, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             line = line.strip()
@@ -371,62 +433,28 @@ def process_pytest_file(
 
             # 先用 win_ignore_cases 匹配，统一处理需要跳过的 case
             # 提取第五列 command，检查其路径部分是否在排除列表中
-            should_skip = False
-            if len(exclusion_list) > 0:
-                parts = line.split(",")
-                if len(parts) >= 5:
-                    command = parts[4].strip()
-                    # 提取 command 中的路径部分进行匹配
-                    # 如 "pytest cases/xx/test.py" -> "cases/xx/test.py"
-                    # 如 "bash 82-UnitTest/test.sh" -> "82-UnitTest/test.sh"
-                    if command:
-                        cmd_parts = command.split(" ")
-                        for i in range(1, len(cmd_parts)):
-                            if cmd_parts[i] in exclusion_list:
-                                should_skip = True
-                                break
+            parts = line.split(",", 4)
+            if len(parts) != 5:
+                raise ValueError(f"Invalid task row: {line}")
+            command = parts[4].strip()
+            should_skip = is_excluded_command(command, exclusion_list, os.environ.get("WIN_TEST_SUITE", "full"))
 
             if should_skip:
                 skipped_cases += 1
                 logger.info(f"Case in win_ignore_cases, skip: {line}")
-                result_str = f"Skip\t{line}\t\t\t\n"
+                result_str = f"Skip\t{line}\t\t\t\tlisted in win_ignore_cases\n"
                 with open(result_file, "a", encoding="utf-8") as rf:
                     rf.write(result_str)
                 continue
 
-            # 解析 pytest 命令 - 格式: priority,maxAttempts,sanitizer(y/n),path,command
-            # 检查格式: 第三列是 y/n，第五列决定使用 ./ci/pytest.sh 还是 pytest
-            parts = line.split(",")
-            if len(parts) < 5:
-                logger.error(f"格式错误: 列数不足(应有5列,实际{len(parts)}列): {line}")
+            pytest_cmd, case_timeout = parse_case_line(line)
+            if pytest_cmd in seen_commands:
+                logger.info(f"Duplicate task, skip: {pytest_cmd}")
                 continue
+            seen_commands.add(pytest_cmd)
 
-            sanitizer = parts[2].strip()  # 第三列: y 或 n
-            if sanitizer not in ("y", "n"):
-                logger.error(
-                    f"格式错误: 第三列必须是 y 或 n, 实际为 '{sanitizer}': {line}"
-                )
-                continue
-
-            # 根据原逻辑解析 pytest 命令
-            command_field = parts[4].strip()
-            if "ci/pytest.sh " in command_field:
-                pytest_cmd = command_field.split("ci/pytest.sh ")[1]
-            else:
-                pytest_cmd = command_field
-
-            # Optional 6th column: per-case timeout in seconds
-            per_case_timeout = 1200
-            if len(parts) >= 6 and parts[5].strip().isdigit():
-                per_case_timeout = int(parts[5].strip())
-
-            if not pytest_cmd.startswith("pytest"):
-                logger.warning(f"异常pytest命令: {pytest_cmd}")
-                continue
-
-            case_name = pytest_cmd.split("/")[-1].replace(" ", "_")  # 获取用例名称
             total_cases += 1
-            log_file = os.path.join(log_dir, f"{case_name}.log")
+            log_file = os.path.join(log_dir, pytest_log_name(pytest_cmd))
 
             logger.info(f"Running case {pytest_cmd}")
             case_start = time.time()
@@ -437,6 +465,8 @@ def process_pytest_file(
                 cleanup_environment("pre-case")
             except RuntimeError as e:
                 logger.error(f"Pre-case cleanup failed, stopping test suite: {e}")
+                failed_cases += 1
+                failed_case_list.append(pytest_cmd)
                 result_str = (
                     f"ERROR\t{pytest_cmd}\t\t\t0.00s\tPre-case cleanup failed: {e}\n"
                 )
@@ -451,26 +481,32 @@ def process_pytest_file(
                     break
 
                 global current_process
-                pytest_cmd_clean = f"{normalize_pytest_command(pytest_cmd)} --clean"
-                # pytest.ini caps every test at 1200s, which kills the first
-                # federated-query case while it is still provisioning the
-                # external engines.  Let the pytest-timeout plugin follow the
-                # per-case limit from win_cases.task instead.
-                if "--timeout" not in pytest_cmd_clean:
-                    pytest_cmd_clean = f"{pytest_cmd_clean} --timeout={per_case_timeout}"
+                pytest_cmd_clean = pytest_command_args(pytest_cmd, timeout=case_timeout)
 
                 with open(log_file, "w", buffering=1) as log:
+                    case_environment = os.environ.copy()
+                    case_environment["PYTHONIOENCODING"] = "utf-8"
+                    backup_evidence = None
+                    if "/06-TaosBackup/" in pytest_cmd:
+                        backup_evidence = os.path.abspath(os.path.join(log_dir, f"{os.path.splitext(os.path.basename(log_file))[0]}-evidence"))
+                        try:
+                            os.makedirs(backup_evidence, exist_ok=True)
+                            case_environment["TAOSBACKUP_DIAGNOSTICS_DIR"] = backup_evidence
+                        except OSError as error:
+                            logger.warning("Cannot create backup evidence directory: %s", error)
+                            backup_evidence = None
                     current_process = subprocess.Popen(
                         pytest_cmd_clean,
-                        shell=True,
+                        shell=False,
                         stdout=log,
                         stderr=subprocess.STDOUT,
                         text=True,
+                        env=case_environment,
                     )
 
                     # 轮询等待
                     waited = 0
-                    while waited < per_case_timeout:
+                    while waited < case_timeout:
                         ret = current_process.poll()
                         if ret is not None:
                             return_code = ret
@@ -489,6 +525,16 @@ def process_pytest_file(
                             f"Case {pytest_cmd} running timeout, killed process."
                         )
                     current_process = None
+
+                # Preserve the mirror before another case clears tmp/. Chinese
+                # restore uses subprocess directly; its output is in log_file.
+                if backup_evidence:
+                    for mirror in ("tmp/backup.log", "restore.log"):
+                        if os.path.isfile(mirror) and os.path.getmtime(mirror) >= case_start:
+                            try:
+                                shutil.copyfile(mirror, os.path.join(backup_evidence, os.path.basename(mirror)))
+                            except OSError as error:
+                                logger.warning("Cannot preserve %s: %s", mirror, error)
 
                 # 确保日志刷盘
                 if os.path.exists(log_file):
@@ -510,17 +556,19 @@ def process_pytest_file(
 
             # ========== 用例后清理（失败则终止） ==========
             try:
-                cleanup_environment("post-case")
+                evidence_dir = None
+                if return_code != 0:
+                    evidence_dir = os.path.join(
+                        log_dir, os.path.splitext(os.path.basename(log_file))[0] + "-evidence", "sim")
+                cleanup_environment("post-case", evidence_dir)
             except RuntimeError as e:
                 logger.error(f"Post-case cleanup failed, stopping test suite: {e}")
-                # 记录当前用例结果（如果执行过）
-                if return_code is not None:
-                    if return_code == 0:
-                        result_str = f"SUCCESS\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\n"
-                    else:
-                        result_str = f"FAILED\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\n"
-                else:
-                    result_str = f"ERROR\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s\tExecution error\n"
+                failed_cases += 1
+                failed_case_list.append(pytest_cmd)
+                result_str = (
+                    f"ERROR\t{pytest_cmd}\t\t\t{time.time() - case_start:.2f}s"
+                    f"\tPost-case cleanup failed: {e}; pytest return code: {return_code}\n"
+                )
                 with open(result_file, "a", encoding="utf-8") as rf:
                     rf.write(result_str)
                 break  # 清理失败，终止整个测试
@@ -528,8 +576,18 @@ def process_pytest_file(
             # ========== 记录用例结果 ==========
             case_end = time.time()
             execution_time = case_end - case_start
+            all_skipped = False
+            if return_code in {0, 5}:
+                with open(log_file, encoding='utf-8', errors='replace') as output:
+                    all_skipped = is_pytest_only_skip(return_code, output.read())
 
-            if return_code == 0:
+            if all_skipped:
+                skipped_cases += 1
+                logger.info(
+                    f"Case {pytest_cmd} Skipped (no tests ran). Time cost: {execution_time:.2f}s"
+                )
+                result_str = f"Skip\t{pytest_cmd}\t\t\t{execution_time:.2f}s\tall pytest tests skipped\n"
+            elif return_code == 0:
                 success_cases += 1
                 os.remove(log_file)
                 logger.info(

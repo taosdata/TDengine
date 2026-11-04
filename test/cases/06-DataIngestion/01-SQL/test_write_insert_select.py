@@ -44,6 +44,7 @@ class TestWriteInsertSelect:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -253,6 +254,7 @@ class TestWriteInsertSelect:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: TD-33977
 
         History:
@@ -310,9 +312,9 @@ class TestWriteInsertSelect:
                 conn = taos.connect()
                 conn.execute("use {db}")
                 conn.execute("select * from t1")   # caches sversion=1 (3-col schema)
-                open("{ready}", "w").close()
+                open({ready!r}, "w").close()
                 deadline = time.time() + 10
-                while not os.path.exists("{proceed}") and time.time() < deadline:
+                while not os.path.exists({proceed!r}) and time.time() < deadline:
                     time.sleep(0.05)
                 # Stale schema has 3 cols; INSERT 2 values triggers retry via parseOneRow ')'
                 conn.execute("insert into t1 values(now, 10)")
@@ -328,9 +330,16 @@ class TestWriteInsertSelect:
                                     env=sub_env)
             try:
                 deadline = time.time() + 10
-                while not os.path.exists(ready) and time.time() < deadline:
+                while not os.path.exists(ready) and time.time() < deadline and proc.poll() is None:
                     time.sleep(0.05)
-                assert os.path.exists(ready), "Subprocess did not signal ready in time"
+                if not os.path.exists(ready):
+                    if proc.poll() is None:
+                        proc.kill()
+                    stdout, stderr = proc.communicate(timeout=10)
+                    raise AssertionError(
+                        f"Subprocess did not signal ready in time (rc={proc.returncode}):\n"
+                        f"{stderr.decode(errors='replace')}"
+                    )
 
                 # Advance server schema while subprocess holds stale catalog.
                 tdSql.execute("alter table t1 drop column c2")
@@ -344,6 +353,7 @@ class TestWriteInsertSelect:
             finally:
                 if proc.poll() is None:
                     proc.kill()
+                    proc.communicate(timeout=10)
 
         tdSql.query("select * from t1 order by ts")
         tdSql.checkRows(2)
@@ -378,9 +388,9 @@ class TestWriteInsertSelect:
                 conn = taos.connect()
                 conn.execute("use {db}")
                 conn.execute("select * from t2")   # caches sversion=1 (2-col schema)
-                open("{ready}", "w").close()
+                open({ready!r}, "w").close()
                 deadline = time.time() + 10
-                while not os.path.exists("{proceed}") and time.time() < deadline:
+                while not os.path.exists({proceed!r}) and time.time() < deadline:
                     time.sleep(0.05)
                 # 3 values for stale 2-col schema → retry via PAR_INVALID_COLUMNS_NUM
                 conn.execute("insert into t2 values(now, 10, 20)")
@@ -394,9 +404,16 @@ class TestWriteInsertSelect:
                                     env=sub_env)
             try:
                 deadline = time.time() + 10
-                while not os.path.exists(ready) and time.time() < deadline:
+                while not os.path.exists(ready) and time.time() < deadline and proc.poll() is None:
                     time.sleep(0.05)
-                assert os.path.exists(ready), "Subprocess did not signal ready in time"
+                if not os.path.exists(ready):
+                    if proc.poll() is None:
+                        proc.kill()
+                    stdout, stderr = proc.communicate(timeout=10)
+                    raise AssertionError(
+                        f"Subprocess did not signal ready in time (rc={proc.returncode}):\n"
+                        f"{stderr.decode(errors='replace')}"
+                    )
 
                 tdSql.execute("alter table t2 add column c2 int")
                 open(proceed, "w").close()
@@ -409,6 +426,7 @@ class TestWriteInsertSelect:
             finally:
                 if proc.poll() is None:
                     proc.kill()
+                    proc.communicate(timeout=10)
 
         tdSql.query("select * from t2 order by ts")
         tdSql.checkRows(2)

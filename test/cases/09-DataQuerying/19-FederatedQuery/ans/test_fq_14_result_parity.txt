@@ -574,6 +574,15 @@ SQL: SELECT val, val | 8 FROM {tbl} WHERE val = 50 ORDER BY time
 RESULT
 50|58
 ---
+### arith-13 POS
+SQL: SELECT id, val + 1, val / NULLIF(0, 0), CAST(val AS BIGINT) FROM {tbl} ORDER BY time
+RESULT
+1|11.0|NULL|10
+2|21.0|NULL|20
+3|31.0|NULL|30
+4|41.0|NULL|40
+5|51.0|NULL|50
+---
 ### math-01 POS
 SQL: SELECT id, GREATEST(id, val) FROM {tbl} ORDER BY time
 RESULT
@@ -1964,6 +1973,31 @@ RESULT
 4|yes
 5|yes
 ---
+### sub-34 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val IN (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time
+RESULT
+---
+### sub-35 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val NOT IN (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time
+RESULT
+---
+### sub-36 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val = ANY (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time
+RESULT
+---
+### sub-37 POS
+SQL: SELECT id FROM {tbl} WHERE nullable_val > ALL (SELECT nullable_val FROM {tbl} WHERE label = 'south') ORDER BY time
+RESULT
+---
+### sub-38 POS
+SQL: SELECT id FROM {tbl} WHERE id IN (SELECT nullable_val FROM {tbl}) ORDER BY time
+RESULT
+---
+### sub-39 POS
+SQL: SELECT id, nullable_val FROM {tbl} WHERE nullable_val NOT IN (SELECT nullable_val FROM {tbl} WHERE label = 'north') ORDER BY time
+RESULT
+5|50
+---
 ### union-01 POS
 SQL: SELECT val FROM {tbl} WHERE id <= 2 UNION ALL SELECT val FROM {tbl} WHERE id <= 2 ORDER BY val
 RESULT
@@ -2298,6 +2332,33 @@ RESULT
 1|1
 2|2
 3|3
+---
+### join-39 POS
+SQL: SELECT a.id, b.val FROM (SELECT id FROM {tbl}) a INNER JOIN (SELECT id, val FROM {tbl}) b ON a.id = b.id ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-40 POS
+SQL: SELECT a.id, b.val FROM (SELECT * FROM {tbl}) a INNER JOIN (SELECT * FROM {tbl}) b ON a.id = b.id ORDER BY a.id
+RESULT
+1|10
+2|20
+3|30
+4|40
+5|50
+---
+### join-41 POS
+SQL: SELECT a.id, b.doubled FROM (SELECT id FROM {tbl}) a INNER JOIN (SELECT id, val * 2 AS doubled FROM {tbl}) b ON a.id = b.id ORDER BY a.id
+RESULT
+1|20.0
+2|40.0
+3|60.0
+4|80.0
+5|100.0
 ---
 ### asof-01 POS
 SQL: SELECT a.id, a.val, b.val AS b_val FROM {tbl} a LEFT ASOF JOIN {tbl} b ON a.time >= b.time ORDER BY a.time
@@ -3255,6 +3316,73 @@ RESULT
 40|50
 50|NULL
 ---
+### lag-03 POS
+SQL: SELECT id, ROW_NUMBER() OVER (PARTITION BY label ORDER BY time) AS rn FROM {tbl} ORDER BY id
+RESULT
+1|1
+2|1
+3|2
+4|2
+5|1
+---
+### lag-04 POS
+SQL: SELECT id, RANK() OVER (PARTITION BY label ORDER BY val) AS rk FROM {tbl} ORDER BY id
+RESULT
+1|1
+2|1
+3|2
+4|2
+5|1
+---
+### lag-05 POS
+SQL: SELECT id, DENSE_RANK() OVER (ORDER BY label) AS dr FROM {tbl} ORDER BY id
+RESULT
+1|2
+2|3
+3|2
+4|3
+5|1
+---
+### lag-06 POS
+SQL: SELECT id, SUM(val) OVER (PARTITION BY label ORDER BY time) AS running FROM {tbl} ORDER BY id
+RESULT
+1|10
+2|20
+3|40
+4|60
+5|50
+---
+### lag-07 POS
+SQL: SELECT id, COUNT(*) OVER (PARTITION BY label) AS cnt FROM {tbl} ORDER BY id
+RESULT
+1|2
+2|2
+3|2
+4|2
+5|1
+---
+### lag-08 POS
+SQL: SELECT id, RANK() OVER (PARTITION BY label ORDER BY nullable_val NULLS LAST) AS rk FROM {tbl} ORDER BY id
+RESULT
+1|1
+2|1
+3|2
+4|1
+5|1
+---
+### lag-09 POS
+SQL: SELECT id, LAG(nullable_val, 1) OVER (PARTITION BY label ORDER BY time) AS prev FROM {tbl} ORDER BY id
+ERROR -0x7fffda00: syntax error near "prev from fq_parity_local.parity_t order by id"
+---
+### lag-10 POS
+SQL: SELECT id, FIRST_VALUE(val) OVER (PARTITION BY label ORDER BY time) AS fv FROM {tbl} ORDER BY id
+RESULT
+1|10
+2|20
+3|10
+4|20
+5|50
+---
 ### pscol-01 NEG
 SQL: SELECT tags FROM {tbl}
 ERROR -0x7fffda00: syntax error near "from fq_parity_local.parity_t"
@@ -3382,7 +3510,7 @@ RESULT
 50
 ---
 ### null-11 POS
-SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST
+SQL: SELECT id, nullable_val FROM {tbl} ORDER BY nullable_val NULLS FIRST, id
 RESULT
 2|NULL
 4|NULL

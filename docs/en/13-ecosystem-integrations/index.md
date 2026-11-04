@@ -10,7 +10,7 @@ For zero-code ingestion from industrial protocols, message queues, or relational
 
 This chapter includes:
 
-- [Data Collection](./01-collection/index.md): Prometheus, Telegraf, collectd, StatsD, Icinga2, Kafka, Flink, EMQX / HiveMQ, and more.
+- [Data Collection](./01-collection/index.md): Prometheus, Telegraf, Neuron, Kepware, collectd, StatsD, Icinga2, Kafka, Flink, EMQX / HiveMQ, and more.
 - [Visualization](./02-visual/index.md): Grafana, Perspective, and more.
 - [Analytics](./03-bi/index.md): Power BI, Tableau, Superset, Spark, Pandas, and more.
 - [Database Management](./04-tool/index.md): DBeaver, qStudio, JetBrains, and more.

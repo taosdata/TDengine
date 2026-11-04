@@ -14,7 +14,9 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import argparse
+from contextlib import contextmanager
 import html
+import json
 import os
 import re
 import shutil
@@ -28,6 +30,8 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
+from windows_case_utils import FQ_SMOKE_CASES, windows_task_manifest, pytest_log_name, resume_task_manifest
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe", "taoskeeper.exe")
@@ -35,6 +39,15 @@ SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connect
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
 WINDOWS_CMAKE_BUILD_TYPE = "Debug"
+
+# The runner console uses a legacy code page (GBK on a Chinese-locale
+# host) while parts of the harness relay text decoded with
+# errors="replace" (the external-engine setup log is written by
+# PowerShell in that code page).  An unencodable character must not
+# abort the run, so push such characters through a backslash escape.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream is not None and hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(errors="backslashreplace")
 
 
 def print_host_identity():
@@ -111,6 +124,15 @@ def remove_build_directory(debug_dir):
     if not debug_dir.exists():
         return
     print(f"[windows-ci] removing previous build directory: {debug_dir}")
+    cleanup_path = os.path.abspath(debug_dir)
+    if os.name == "nt" and not cleanup_path.startswith("\\\\?\\"):
+        # Cargo registry sources can exceed MAX_PATH even in a normal checkout.
+        # Use extended paths for recursive deletion rather than retrying an
+        # existing deep file as though it were missing.
+        if cleanup_path.startswith("\\\\"):
+            cleanup_path = "\\\\?\\UNC\\" + cleanup_path[2:]
+        else:
+            cleanup_path = "\\\\?\\" + cleanup_path
     last_error = None
     for attempt in range(1, 6):
         # Repeat process cleanup in case a child was still starting on the last attempt.
@@ -118,7 +140,7 @@ def remove_build_directory(debug_dir):
         stop_build_processes()
         subprocess.run(["attrib", "-R", str(debug_dir / "*"), "/S", "/D"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
         try:
-            shutil.rmtree(debug_dir)
+            shutil.rmtree(cleanup_path)
             return
         except OSError as error:
             last_error = error
@@ -165,18 +187,18 @@ def remove_stale_git_index_lock(source_dir):
 
 
 def sync_source(source_dir):
-    run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir)
+    if run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir).returncode:
+        fail("git fetch origin failed")
     remove_stale_git_index_lock(source_dir)
     for command in (("git", "reset", "--hard"), ("git", "clean", "-ffd")):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
-    if os.environ.get("PARENT_PIPELINE_SOURCE") == "merge_request_event":
-        merge_ref = f"merge-requests/{os.environ['PARENT_MR_IID']}/merge"
-        if run(["git", "fetch", "origin", merge_ref], cwd=source_dir).returncode:
-            fail("git fetch MR merge ref failed")
-        checkout_ref = "FETCH_HEAD"
-    else:
-        checkout_ref = os.environ["CI_COMMIT_SHA"]
+    # Build the exact commit GitLab checked out, including MR head pipelines.
+    # Local runner checkouts do not expose GitLab's synthetic MR merge refs.
+    # Fetch by SHA also handles detached HEADs with no corresponding branch.
+    checkout_ref = os.environ["CI_COMMIT_SHA"]
+    if run(["git", "fetch", "origin", checkout_ref], cwd=source_dir).returncode:
+        fail("git fetch pipeline commit failed")
     for command in (("git", "checkout", "--detach", "-f", checkout_ref), ("git", "reset", "--hard", checkout_ref), ("git", "clean", "-ffd")):
         if run(command, cwd=source_dir).returncode:
             fail(f"{' '.join(command)} failed")
@@ -185,13 +207,20 @@ def sync_source(source_dir):
 
 
 def visual_studio_environment():
-    vcvars = Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat")
+    vcvars = Path(os.environ.get(
+        "WIN_VCVARS",
+        r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat",
+    ))
     if not vcvars.exists():
         fail(f"Visual Studio environment script not found: {vcvars}")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".cmd", delete=False, encoding="utf-8", newline="\r\n") as command_file:
         command_file.write(f'@call "{vcvars}" x64\r\n')
         command_file.write("@if errorlevel 1 exit /b %errorlevel%\r\n")
-        command_file.write("@set\r\n")
+        # cmd's `set` output cannot delimit multiline CI/MR variable values.
+        command_file.write(
+            f'@"{sys.executable}" -c "import json,os; '
+            "print('__TSDB_VS_ENV__'+json.dumps(dict(os.environ)))\"\r\n"
+        )
         command_path = command_file.name
     try:
         result = subprocess.run(
@@ -206,18 +235,15 @@ def visual_studio_environment():
     if result.returncode:
         print(result.stdout)
         fail("vcvarsall.bat failed")
-    environment = os.environ.copy()
-    for line in result.stdout.splitlines():
-        if "=" in line:
-            name, value = line.split("=", 1)
-            if name.upper() == "PATH":
-                environment["PATH"] = value
-                continue
-            existing_name = next((key for key in environment if key.upper() == name.upper()), None)
-            if existing_name is not None:
-                del environment[existing_name]
-            environment[name] = value
-    return environment
+    for line in reversed(result.stdout.splitlines()):
+        if line.startswith("__TSDB_VS_ENV__"):
+            environment = json.loads(line[len("__TSDB_VS_ENV__"):])
+            # Windows names are case-insensitive; callers consistently use PATH.
+            path_key = next((key for key in environment if key.upper() == "PATH"), None)
+            if path_key and path_key != "PATH":
+                environment["PATH"] = environment.pop(path_key)
+            return environment
+    fail("Visual Studio environment JSON was not returned")
 
 
 def require_command(name, environment):
@@ -282,8 +308,8 @@ def ensure_libpq_runtime(environment):
         print(f"[windows-ci] EXT_LIBPQ_ROOT={root}", flush=True)
         return
 
-    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "16").split(",") if item.strip()]
-    version = versions[0] if versions else "16"
+    versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "18.6").split(",") if item.strip()]
+    version = versions[0] if versions else "18.6"
     target = federated_query_base_dir() / "pg" / version
     if (target / "include" / "libpq-fe.h").exists():
         environment["EXT_LIBPQ_ROOT"] = str(target)
@@ -292,7 +318,8 @@ def ensure_libpq_runtime(environment):
 
     # Keep the package table in sync with ensure_ext_env.ps1: both stage the
     # identical EnterpriseDB ZIP so the build and the tests share one runtime.
-    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1"}
+    packages = {"14": "14.17-1", "15": "15.12-1", "16": "16.8-1", "17": "17.4-1",
+                "18.6": "18.6-1"}
     tag = version.replace(".", "")
     url = environment.get(f"FQ_PG_TARBALL_{tag}")
     if not url:
@@ -523,8 +550,37 @@ def ensure_fq_pytest_dependencies(environment):
               "the FQ cases will report the missing module", flush=True)
 
 
+FQ_ENGINE_VERSION_VARS = {
+    "mysql": "FQ_MYSQL_VERSIONS",
+    "pg": "FQ_PG_VERSIONS",
+    "influx": "FQ_INFLUX_VERSIONS",
+    "sqlserver": "FQ_SQLSERVER_VERSIONS",
+    "oracle": "FQ_ORACLE_VERSIONS",
+}
+
+
+def federated_query_services(environment):
+    """Return the engines FQ_REQUIRED_SERVICES asks this run to provision.
+
+    Mirrors ``ExtSrcEnv.required_services`` in federated_query_common.py: every
+    engine is required by default, ``none`` disables all of them, and anything
+    else narrows the set.  The setup script reads the per-engine version lists,
+    where an empty value means "do not provision this engine"; forwarding the
+    selection that way keeps the script's own defaults (Oracle 26ai included)
+    from installing engines this run never uses.
+    """
+    # Oracle provisioning under the Windows runner service is not supported
+    # yet. Keep the other four providers in the default smoke coverage.
+    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
+    services = set() if value == "none" else set(value.split(","))
+    unknown = services - set(FQ_ENGINE_VERSION_VARS)
+    if unknown:
+        raise ValueError(f"invalid FQ_REQUIRED_SERVICES: {sorted(unknown)}")
+    return services
+
+
 def provision_federated_query_env(source_dir, environment):
-    """Install/start MySQL, PostgreSQL, InfluxDB and SQL Server before pytest.
+    """Install/start the federated-query engines this run requires.
 
     Provisioning downloads several engine packages and must not run inside a
     pytest test (the plugin timeout would kill the first FQ case mid-download).
@@ -536,41 +592,68 @@ def provision_federated_query_env(source_dir, environment):
     if not script.exists():
         print("[windows-ci] federated-query setup script not found; skipping provisioning", flush=True)
         return
+    environment = dict(environment)
+    services = federated_query_services(environment)
+    environment["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
+    for engine, variable in FQ_ENGINE_VERSION_VARS.items():
+        if engine not in services:
+            environment[variable] = ""
     print(f"[windows-ci] provisioning federated-query external engines: {script.name}", flush=True)
+    print("[windows-ci] federated-query engines requested: "
+          f"{', '.join(sorted(services)) or 'none'}", flush=True)
     base = environment.get("FQ_BASE_DIR") or str(Path(environment.get("LOCALAPPDATA", "")) / "taostest" / "fq")
     setup_log = Path(base) / "setup.log"
-    offset = setup_log.stat().st_size if setup_log.exists() else 0
     command = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File", str(script)]
-    proc = subprocess.Popen(command, env=environment)
-    deadline = time.monotonic() + 7200
-    while proc.poll() is None:
-        if time.monotonic() > deadline:
-            proc.kill()
-            print("[windows-ci] federated-query provisioning timed out after 7200s", flush=True)
-            break
+    # Windows PowerShell 5.1 can terminate while the setup script starts MySQL
+    # or InfluxDB: the scriptblock output handlers run on a thread without a
+    # runspace context (WER: PSInvalidOperation in ScriptBlock.GetContextFromTLS).
+    # The engine itself keeps running, so a retry finds it up and continues
+    # with the next engine; four attempts cover both cold starts.
+    attempts = 4
+    for attempt in range(1, attempts + 1):
+        offset = setup_log.stat().st_size if setup_log.exists() else 0
+        proc = subprocess.Popen(command, env=environment)
+        deadline = time.monotonic() + 7200
+        timed_out = False
+        while proc.poll() is None:
+            if time.monotonic() > deadline:
+                proc.kill()
+                print("[windows-ci] federated-query provisioning timed out after 7200s", flush=True)
+                timed_out = True
+                break
+            try:
+                with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
+                    log_file.seek(offset)
+                    chunk = log_file.read()
+                    offset = log_file.tell()
+            except OSError:
+                chunk = ""
+            if chunk:
+                print(chunk.rstrip(), flush=True)
+            time.sleep(5)
+        returncode = proc.wait()
+        # Flush whatever the script wrote between the last poll and its exit; the
+        # interesting lines (a failing rule, a thrown error) are usually the last.
         try:
             with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
                 log_file.seek(offset)
                 chunk = log_file.read()
-                offset = log_file.tell()
         except OSError:
             chunk = ""
         if chunk:
             print(chunk.rstrip(), flush=True)
-        time.sleep(5)
-    returncode = proc.wait()
-    # Flush whatever the script wrote between the last poll and its exit; the
-    # interesting lines (a failing rule, a thrown error) are usually the last.
-    try:
-        with setup_log.open("r", encoding="utf-8", errors="replace") as log_file:
-            log_file.seek(offset)
-            chunk = log_file.read()
-    except OSError:
-        chunk = ""
-    if chunk:
-        print(chunk.rstrip(), flush=True)
-    if returncode != 0:
-        print(f"[windows-ci] warning: federated-query provisioning exited {returncode}; the FQ cases will report the failure", flush=True)
+        if returncode == 0:
+            return
+        if timed_out:
+            print("[windows-ci] warning: federated-query provisioning timed out; the FQ cases will report the failure", flush=True)
+            return
+        if attempt == attempts:
+            print(f"[windows-ci] warning: federated-query provisioning exited {returncode}; the FQ cases will report the failure", flush=True)
+            return
+        print(f"[windows-ci] federated-query provisioning exited {returncode}; "
+              f"retrying ({attempt + 1} of {attempts})", flush=True)
+        # Give the engine the failed attempt already started time to come up.
+        time.sleep(20)
 
 
 def _select_cases(test_dir, task_file, log_dir, predicate, name):
@@ -581,7 +664,113 @@ def _select_cases(test_dir, task_file, log_dir, predicate, name):
     return filtered, len(lines)
 
 
-def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter=""):
+def running_fq_postgres():
+    import psutil
+
+    instances = {}
+    for pid_file in federated_query_base_dir().glob("pg/*/data/postmaster.pid"):
+        try:
+            pid = int(pid_file.read_text(encoding="utf-8").splitlines()[0])
+            process = psutil.Process(pid)
+            if process.name().lower() == "postgres.exe":
+                instances[pid_file.parent] = (pid, process.create_time())
+        except (OSError, ValueError, IndexError, psutil.Error):
+            continue
+    return instances
+
+
+def running_fq_mysql():
+    import psutil
+
+    instances = {}
+    root = federated_query_base_dir() / "mysql"
+    for executable in root.glob("*/bin/mysqld.exe"):
+        for process in psutil.process_iter(["pid", "name", "exe", "create_time"]):
+            try:
+                if process.info["exe"] and Path(process.info["exe"]).resolve() == executable.resolve():
+                    instances[(process.pid, process.info["create_time"])] = executable.parent.parent
+            except (OSError, psutil.Error):
+                continue
+    return instances
+
+
+def stop_owned_fq_mysql(existing, source_dir):
+    """Gracefully stop only the FQ MySQL processes created during this run."""
+    import psutil
+
+    current = running_fq_mysql()
+    owned = {identity: base for identity, base in current.items() if identity not in existing}
+    if not owned:
+        return
+    setup = (source_dir / "source/taos-community/test/cases/09-DataQuerying/"
+             "19-FederatedQuery/ensure_ext_env.ps1").read_text(encoding="utf-8-sig")
+    # Use the provisioning script's own credential defaults without logging them.
+    match = re.search(r"(?m)^\$MysqlPass\s*=\s*Get-EnvOr\s+['\"]([^'\"]+)['\"]\s+['\"]([^'\"]*)['\"]", setup)
+    if not match:
+        raise RuntimeError("Cannot resolve FQ MySQL shutdown credentials")
+    for base in set(owned.values()):
+        identities = [identity for identity, directory in owned.items() if directory == base]
+        # A pre-existing instance in the same directory must be preserved.
+        if base in existing.values():
+            continue
+        ini = (base / "my.ini").read_text(encoding="utf-8-sig")
+        port = re.search(r"(?m)^port\s*=\s*([0-9]+)\s*$", ini)
+        if not port:
+            raise RuntimeError(f"Cannot resolve FQ MySQL port: {base}")
+        owners = {connection.pid for connection in psutil.net_connections(kind="tcp")
+                  if connection.status == psutil.CONN_LISTEN
+                  and connection.laddr.port == int(port.group(1))}
+        if not owners or not owners.issubset({pid for pid, _ in identities}):
+            raise RuntimeError(f"FQ MySQL listening port is not owned by this run: {base}")
+        environment = os.environ.copy()
+        environment["MYSQL_PWD"] = environment.get(match.group(1)) or match.group(2)
+        environment["PATH"] = str(base / "lib/private") + os.pathsep + environment.get("PATH", "")
+        result = subprocess.run(
+            [str(base / "bin/mysqladmin.exe"), "--host=127.0.0.1", f"--port={port.group(1)}",
+             "--user=root", "--protocol=tcp", "--connect-timeout=5", "shutdown"],
+            env=environment, capture_output=True, timeout=60, check=False,
+        )
+        print(f"[windows-ci] stop owned MySQL {base}: exit={result.returncode}", flush=True)
+        if result.returncode:
+            raise RuntimeError(f"Unable to stop owned FQ MySQL: {base}")
+        for pid, created in identities:
+            try:
+                process = psutil.Process(pid)
+                if process.create_time() == created:
+                    process.wait(timeout=30)
+            except psutil.NoSuchProcess:
+                pass
+
+
+@contextmanager
+def managed_fq_services(source_dir):
+    # Preserve instances that were already running before this validation.
+    # Long-lived database descendants can retain runner handles even after
+    # pytest exits; close only the instances started during our run.
+    existing = running_fq_postgres()
+    existing_mysql = running_fq_mysql()
+    try:
+        yield
+    finally:
+        try:
+            stop_owned_fq_mysql(existing_mysql, source_dir)
+        finally:
+            for data_dir in running_fq_postgres().keys() - existing.keys():
+                pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
+                try:
+                    result = subprocess.run(
+                        [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
+                        capture_output=True, text=True, errors="replace", timeout=60,
+                        check=False,
+                    )
+                    print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
+                          f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
+                          flush=True)
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+
+
+def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", suite="smoke"):
     bin_dir = debug_dir / "build" / "bin"
     system_dir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
     for name in ("taos.dll", "pthreadVC3.dll", "taosnative.dll"):
@@ -595,29 +784,43 @@ def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter=""):
     log_dir.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     environment["PATH"] = f"{bin_dir}{os.pathsep}{environment['PATH']}"
-    ensure_fq_pytest_dependencies(environment)
-    provision_federated_query_env(source_dir, environment)
+    environment["WIN_TEST_SUITE"] = suite
+    with managed_fq_services(source_dir):
+        return run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite)
+
+
+def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite="smoke"):
     test_dir = source_dir / "source" / "taos-community" / "test"
-    task_file = Path("ci/win_cases.task")
+    task_file = log_dir / "windows-cases.task"
+    contents = windows_task_manifest(test_dir / "ci", suite)
     if only_fq:
-        # Federated-query iteration mode: keep only the external-source
-        # suites (plain external tables plus external-source virtual tables)
-        # so a round reports the FQ result instead of waiting for the whole
-        # Windows case list.
-        task_file, count = _select_cases(
-            test_dir, task_file, log_dir,
-            lambda line: "cases/09-DataQuerying/19-FederatedQuery/" in line
-            or ("cases/05-VirtualTables/" in line and "/03-ExtSource/" in line),
-            "fq")
-        print(f"[windows-ci] federated-query only: {count} case(s)", flush=True)
+        if suite != "smoke":
+            raise ValueError("--only-fq selects the supported smoke subset; use --suite smoke")
+        contents = "\n".join(line for line in contents.splitlines()
+                             if any(case in line for case in FQ_SMOKE_CASES)) + "\n"
     if case_filter:
-        # Diagnostics: run only the case(s) whose task line contains the
-        # filter string (e.g. one failing suite).
-        task_file, count = _select_cases(
-            test_dir, task_file, log_dir,
-            lambda line: case_filter in line, "filter")
-        print(f"[windows-ci] case filter {case_filter!r}: {count} case(s)", flush=True)
-    return run([sys.executable, "ci/run_win_cases.py", str(task_file), str(log_dir)], cwd=test_dir, env=environment).returncode
+        contents = "\n".join(line for line in contents.splitlines() if case_filter in line) + "\n"
+    if not any(line.strip() and not line.lstrip().startswith("#") for line in contents.splitlines()):
+        raise ValueError("Windows test selection is empty")
+    if suite == "smoke" and any(case in contents for case in FQ_SMOKE_CASES):
+        ensure_fq_pytest_dependencies(environment)
+        provision_federated_query_env(source_dir, environment)
+    print(f"[windows-ci] selected test suite: {suite}", flush=True)
+    prior_failures = 0
+    resume_file = os.environ.get("WIN_PYTEST_RESUME_FILE")
+    if resume_file and not case_filter:
+        if suite != "full":
+            raise ValueError("WIN_PYTEST_RESUME_FILE requires --suite full")
+        checkpoint = json.loads(Path(resume_file).read_text(encoding="utf-8"))
+        contents, skipped = resume_task_manifest(contents, checkpoint)
+        (log_dir / "resume-checkpoint.json").write_text(json.dumps(checkpoint, indent=2), encoding="utf-8")
+        prior_failures = sum(record["status"] == "Failed" for record in checkpoint["completed"])
+        print(f"[windows-ci] resume job {checkpoint['source_job']}: skipping {skipped} completed commands; retaining {prior_failures} prior failures", flush=True)
+    task_file.write_text(contents, encoding="utf-8")
+    result = run([sys.executable, "ci/run_win_cases.py", str(task_file), str(log_dir)], cwd=test_dir, env=environment).returncode
+    if prior_failures:
+        print(f"[windows-ci] {prior_failures} prior failures remain unresolved; see resume-checkpoint.json", flush=True)
+    return result or (1 if prior_failures else 0)
 
 
 def parse_result_records(result_file):
@@ -637,19 +840,29 @@ def parse_results(result_file):
     return [(status, command, duration) for status, command, duration, _ in parse_result_records(result_file)]
 
 
+def latest_log_file(log_dir, pattern):
+    """Newest file in ``log_dir`` matching ``pattern``, or None.
+
+    The names embed the source revision ("result_<sha>_<timestamp>.txt"), so
+    sorting by name would order by revision before time and hand back a
+    previous run's file when the workspace is reused.
+    """
+    candidates = list(log_dir.glob(pattern))
+    return max(candidates, key=lambda path: (path.stat().st_mtime, path.name)) if candidates else None
+
+
 def print_pytest_failure_logs(log_dir):
-    result_files = sorted(log_dir.glob("result_*.txt"))
-    records = parse_result_records(result_files[-1] if result_files else None)
+    records = parse_result_records(latest_log_file(log_dir, "result_*.txt"))
     failures = [record for record in records if record[0] in {"FAILED", "ERROR"}]
-    archives = sorted(log_dir.glob("log_*.zip"))
+    archive_name = latest_log_file(log_dir, "log_*.zip")
     if not failures:
         return []
     reports = []
-    archive = zipfile.ZipFile(archives[-1]) if archives else None
+    archive = zipfile.ZipFile(archive_name) if archive_name else None
     try:
         members = {Path(member).name: member for member in archive.namelist()} if archive else {}
         for status, command, _, detail in failures:
-            log_name = command.split("/")[-1].replace(" ", "_") + ".log"
+            log_name = pytest_log_name(command)
             output = archive.read(members[log_name]).decode("utf-8", errors="replace") if archive and log_name in members else (detail or "pytest runner did not produce a case log")
             reports.append((status, command, log_name, output))
     finally:
@@ -670,6 +883,49 @@ def print_pytest_failure_reports(reports):
         print(f"\x1b[31m{output}\x1b[0m", end="" if output.endswith("\n") else "\n")
         print(f"\x1b[0Ksection_end:{int(time.time())}:{section_name}\r\x1b[0K")
     print("\x1b[31m" + "=" * 80 + "\x1b[0m")
+
+
+def copy_pytest_archive(source, destination, max_archive_bytes=64 * 1024 * 1024,
+                        max_evidence_file_bytes=16 * 1024 * 1024):
+    """Keep full runner evidence and publish a bounded diagnostic copy."""
+    if source.stat().st_size <= max_archive_bytes:
+        shutil.copy2(source, destination)
+        return
+    limit = max_evidence_file_bytes
+    while True:
+        clipped = []
+        with zipfile.ZipFile(source) as original, zipfile.ZipFile(
+                destination, "w", zipfile.ZIP_DEFLATED) as published:
+            for item in original.infolist():
+                if item.is_dir():
+                    continue
+                if "-evidence/" in item.filename and item.file_size > limit:
+                    head_size = limit // 2
+                    tail_size = limit - head_size
+                    with original.open(item) as stream:
+                        head = stream.read(head_size)
+                        stream.seek(item.file_size - tail_size)
+                        tail = stream.read(tail_size)
+                    published.writestr(item.filename, head +
+                        b"\n[log middle omitted; see evidence-manifest.json]\n" + tail)
+                    clipped.append({"file": item.filename, "original_bytes": item.file_size,
+                                    "retained_ranges": [[0, head_size],
+                                                        [item.file_size - tail_size, item.file_size]]})
+                else:
+                    with original.open(item) as reader, published.open(item.filename, "w") as writer:
+                        shutil.copyfileobj(reader, writer)
+            published.writestr("evidence-manifest.json", json.dumps({
+                "full_archive_on_runner": str(source),
+                "full_archive_bytes": source.stat().st_size,
+                "note": "Only large server evidence is clipped; pytest logs and results are complete.",
+                "clipped_files": clipped,
+            }, ensure_ascii=False, indent=2))
+        if destination.stat().st_size <= max_archive_bytes:
+            print(f"[windows-ci] bounded artifact: {destination}; full evidence retained at {source}", flush=True)
+            return
+        if limit <= 128 * 1024:
+            raise RuntimeError(f"Pytest artifact exceeds {max_archive_bytes} bytes even after evidence clipping: {destination}")
+        limit = max(128 * 1024, limit // 2)
 
 
 def collect_artifacts(debug_dir, log_dir, artifact_dir):
@@ -700,37 +956,70 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
     (ctest_artifacts / "index.html").write_text(ctest_report, encoding="utf-8")
     pytest_artifacts = artifact_dir / "pytest"
     pytest_artifacts.mkdir(exist_ok=True)
-    result_files = sorted(log_dir.glob("result_*.txt"))
-    result_file = result_files[-1] if result_files else None
+    task_file = log_dir / "windows-cases.task"
+    if task_file.exists():
+        shutil.copy2(task_file, pytest_artifacts / task_file.name)
+    checkpoint_file = log_dir / "resume-checkpoint.json"
+    if checkpoint_file.exists():
+        shutil.copy2(checkpoint_file, pytest_artifacts / checkpoint_file.name)
+    result_file = latest_log_file(log_dir, "result_*.txt")
     if result_file:
         shutil.copy2(result_file, pytest_artifacts / "result.txt")
     archives = sorted(log_dir.glob("log_*.zip"))
+    archive_links = []
     for archive in archives:
         copied = pytest_artifacts / archive.name
-        shutil.copy2(archive, copied)
+        copy_pytest_archive(archive, copied)
         with zipfile.ZipFile(copied) as zip_file:
-            zip_file.extractall(pytest_artifacts / archive.stem)
-    results = parse_results(result_file)
-    suite = ElementTree.Element("testsuite", name="windows-selected-pytest", tests=str(len(results)), failures=str(sum(status == "FAILED" for status, _, _ in results)), errors=str(sum(status == "ERROR" for status, _, _ in results)), skipped=str(sum(status == "Skip" for status, _, _ in results)))
+            note = ""
+            if "evidence-manifest.json" in zip_file.namelist():
+                note = (" (large server logs contain their beginning and end; "
+                        "evidence-manifest.json records omitted ranges and the full runner archive)")
+            archive_links.append(f'<li><a href="{html.escape(archive.name)}">'
+                                 f'{html.escape(archive.name)}</a>{note}</li>')
+            # Keep server evidence compressed; expanding multi-GB logs here
+            # makes GitLab's outer artifact exceed its upload limit again.
+            members = [item for item in zip_file.infolist()
+                       if "/" not in item.filename.strip("/")]
+            zip_file.extractall(pytest_artifacts / archive.stem, members=members)
+    records = parse_result_records(result_file)
+    results = [(status, command, duration) for status, command, duration, _ in records]
+    skip_details = {command: detail for status, command, _, detail in records if status == "Skip" and detail}
+    if checkpoint_file.exists():
+        checkpoint = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+        # Resume requires command/status; older audited successes may have no
+        # timing metadata. JUnit uses zero for an unknown historical duration.
+        results = [("FAILED" if record["status"] == "Failed" else "SUCCESS",
+                    record["command"], str(record.get("duration", 0)))
+                   for record in checkpoint["completed"]] + results
+    suite = ElementTree.Element("testsuite", name="windows-pytest", tests=str(len(results)), failures=str(sum(status == "FAILED" for status, _, _ in results)), errors=str(sum(status == "ERROR" for status, _, _ in results)), skipped=str(sum(status == "Skip" for status, _, _ in results)))
     for status, command, duration in results:
         case = ElementTree.SubElement(suite, "testcase", name=command, classname="windows.pytest", time=duration)
         if status in {"FAILED", "ERROR"}:
-            ElementTree.SubElement(case, status.lower(), message="pytest command failed; see pytest artifact logs").text = command
+            tag = "failure" if status == "FAILED" else "error"
+            ElementTree.SubElement(case, tag, message="pytest command failed; see pytest artifact logs").text = command
         elif status == "Skip":
-            ElementTree.SubElement(case, "skipped").text = "listed in win_ignore_cases"
+            ElementTree.SubElement(case, "skipped").text = skip_details.get(command, "pytest command skipped; see pytest artifact logs")
     ElementTree.ElementTree(suite).write(pytest_artifacts / "junit-pytest-windows.xml", encoding="utf-8", xml_declaration=True)
-    archive = archives[0] if len(archives) == 1 else None
+    archive = latest_log_file(log_dir, "log_*.zip")
     rows = []
     for status, command, duration in results:
         link = ""
-        if archive and status in {"FAILED", "ERROR"}:
-            link = f'<a href="{html.escape(archive.stem + "/" + command.rsplit("/", 1)[-1].replace(" ", "_") + ".log")}">open log</a>'
+        if archive and status in {"FAILED", "ERROR"} and (pytest_artifacts / archive.stem / pytest_log_name(command)).exists():
+            link = f'<a href="{html.escape(archive.stem + "/" + pytest_log_name(command))}">open log</a>'
         rows.append(f'<tr><td class="{html.escape(status)}">{html.escape(status)}</td><td><code>{html.escape(command)}</code></td><td>{html.escape(duration)} s</td><td>{link}</td></tr>')
-    report = f'<!doctype html><html><head><meta charset="utf-8"><title>Windows pytest report</title><style>body{{font-family:Segoe UI,Arial,sans-serif;margin:2rem;color:#1f2937}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #d1d5db;padding:.55rem;text-align:left}}th{{background:#f3f4f6}}.SUCCESS{{color:#15803d}}.FAILED,.ERROR{{color:#b91c1c;font-weight:600}}.Skip{{color:#6b7280}}</style></head><body><h1>Windows selected pytest report</h1><table><thead><tr><th>Status</th><th>Command</th><th>Duration</th><th>Failure log</th></tr></thead><tbody>{"".join(rows)}</tbody></table></body></html>'
+    report = f'<!doctype html><html><head><meta charset="utf-8"><title>Windows pytest report</title><style>body{{font-family:Segoe UI,Arial,sans-serif;margin:2rem;color:#1f2937}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #d1d5db;padding:.55rem;text-align:left}}th{{background:#f3f4f6}}.SUCCESS{{color:#15803d}}.FAILED,.ERROR{{color:#b91c1c;font-weight:600}}.Skip{{color:#6b7280}}</style></head><body><h1>Windows pytest report</h1><table><thead><tr><th>Status</th><th>Command</th><th>Duration</th><th>Failure log</th></tr></thead><tbody>{"".join(rows)}</tbody></table></body></html>'
+    report = report.replace("<h1>Windows pytest report</h1>",
+                            "<h1>Windows pytest report</h1><ul>" + "".join(archive_links) + "</ul>")
     (pytest_artifacts / "index.html").write_text(report, encoding="utf-8")
 
 
 def main():
+    # GitLab consumes UTF-8, while redirected Python stdout on Windows may
+    # default to GBK. Failure logs can contain Unicode outside that code page.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-dir", type=Path, default=Path(os.environ.get("WIN_TSDB_SRC", REPOSITORY_ROOT)))
     parser.add_argument("--debug-dir", type=Path, default=Path(os.environ.get("WIN_DEBUG_DIR", REPOSITORY_ROOT / "debug")))
@@ -738,8 +1027,10 @@ def main():
     parser.add_argument("--log-dir", type=Path, default=Path(os.environ.get("WIN_LOG_DIR", REPOSITORY_ROOT / "ci-log")) / f"PR-{os.environ.get('PARENT_MR_IID', 'local')}-{os.environ.get('CI_PIPELINE_ID', 'local')}")
     parser.add_argument("--artifact-dir", type=Path, default=Path(os.environ.get("CI_PROJECT_DIR", REPOSITORY_ROOT)) / "ci-artifacts" / "windows")
     parser.add_argument("--skip-build", action="store_true", default=os.environ.get("WIN_SKIP_BUILD", "").lower() in {"1", "true", "yes"})
-    parser.add_argument("--skip-pytest", action="store_true", default=os.environ.get("WIN_SKIP_PYTEST", "").lower() in {"1", "true", "yes"})
     parser.add_argument("--skip-ctest", action="store_true", default=os.environ.get("WIN_SKIP_CTEST", "").lower() in {"1", "true", "yes"})
+    parser.add_argument("--skip-pytest", action="store_true", default=os.environ.get("WIN_SKIP_PYTEST", "").lower() in {"1", "true", "yes"})
+    parser.add_argument("--suite", choices=("smoke", "full"), default=os.environ.get("WIN_TEST_SUITE", "smoke"),
+                        help="smoke: representative Windows gate; full: cases.task with Windows exclusions")
     parser.add_argument("--only-fq", action="store_true", default=os.environ.get("WIN_ONLY_FQ", "").lower() in {"1", "true", "yes"})
     parser.add_argument("--case-filter", default=os.environ.get("WIN_CASE_FILTER", ""),
                         help="run only task lines containing this substring (diagnostics)")
@@ -752,11 +1043,14 @@ def main():
     pytest_failures = []
     try:
         if arguments.skip_build:
+            if os.environ.get("CI_COMMIT_SHA") or os.environ.get("WIN_BOOTSTRAP_SOURCE") == "true":
+                # A continuation reuses binaries, but must run the requested tests.
+                sync_source(arguments.source_dir)
             print("[windows-ci] build is skipped; reusing existing Windows build output")
         else:
             build(arguments.source_dir, arguments.debug_dir)
         if arguments.skip_ctest:
-            print("[windows-ci] ctest is skipped for this validation run")
+            print("[windows-ci] ctest skipped for this explicit continuation run")
             ctest_result = 0
         else:
             ctest_result, ctest_failures = run_ctest(arguments.source_dir, arguments.debug_dir, arguments.ctest_dir)
@@ -766,7 +1060,7 @@ def main():
         else:
             pytest_result = run_pytest(arguments.source_dir, arguments.debug_dir, arguments.log_dir,
                                       only_fq=arguments.only_fq,
-                                      case_filter=arguments.case_filter)
+                                      case_filter=arguments.case_filter, suite=arguments.suite)
             pytest_failures = print_pytest_failure_logs(arguments.log_dir)
         result = 1 if ctest_result or pytest_result else 0
         print(f"[windows-ci] result: ctest={ctest_result}, pytest={pytest_result}")

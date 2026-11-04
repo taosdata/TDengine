@@ -100,4 +100,42 @@ fq_runtime_libs_setup() {
     _fq_runtime_prepend_path DYLD_LIBRARY_PATH "${runtime_dir}"
   fi
   echo "[fq-runtime] using provider runtime libraries: ${runtime_dir}"
+  fq_runtime_select_oracle_client "${build_dir}"
+}
+
+# A build tree that staged both Instant Client generations selects one
+# through build/driver/oracle/active, and the marker is written at configure
+# time with a fixed default (23ai whenever that client was staged).  The same
+# tree serves every run, so the server actually under test decides: a CI image
+# on the 11g service must run the 19c client, a 26ai run the 23ai one.  Cases
+# that stage through ensure_fq_runtime_libs.sh align the marker themselves;
+# every other case (the vtable suites, most FQ files) only passes through this
+# hook, so the alignment has to happen here as well -- otherwise the connector
+# loads the wrong generation and every Oracle connection fails at load time.
+fq_runtime_select_oracle_client() {
+  local build_dir="${1:-${BUILD_DIR:-}}"
+  [ -n "${build_dir}" ] || return 0
+  local layout="${build_dir%/}/build/driver/oracle"
+  [ -d "${layout}/19c" ] || [ -d "${layout}/23ai" ] || return 0
+
+  local want="${FQ_ORACLE_ACTIVE_CLIENT:-}"
+  if [ -z "${want}" ]; then
+    case "$(printf '%s' "${FQ_ORACLE_VERSIONS:-11g}" | cut -d, -f1)" in
+      11g|12c|18c) want=19c ;;
+      *) want=23ai ;;
+    esac
+  fi
+  [ -d "${layout}/${want}" ] || return 0
+
+  if [ ! -f "${layout}/active" ] || \
+     [ "$(cat "${layout}/active" 2>/dev/null)" != "${want}" ]; then
+    if printf '%s\n' "${want}" > "${layout}/active" 2>/dev/null; then
+      echo "[fq-runtime] Oracle client ${want} selected for ${FQ_ORACLE_VERSIONS:-11g}"
+    else
+      echo "[fq-runtime] WARN: cannot update ${layout}/active" >&2
+    fi
+  fi
+  # The client directory also answers by-soname lookups the preloader cannot
+  # satisfy on its own (19c's libnnz19.so carries no SONAME).
+  _fq_runtime_prepend_path LD_LIBRARY_PATH "${layout}/${want}"
 }

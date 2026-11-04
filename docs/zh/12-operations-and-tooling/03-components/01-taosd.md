@@ -2225,7 +2225,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 最小值：`0`
 - 最大值：`1`
 - 参数类型：全局配置参数
-- 动态修改：不支持
+- 动态修改：支持通过 SQL 修改，重启后生效
 - 支持版本：`v3.4.3.0` 引入
 
 #### xnodeDsnPublicKeyFile
@@ -2234,7 +2234,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 类型：字符串
 - 默认值：空
 - 参数类型：局部配置参数
-- 动态修改：不支持
+- 动态修改：支持通过 SQL 修改，重启后生效
 - 支持版本：`v3.4.3.0` 引入
 
 #### xnodedDsnPrivateKeyFile
@@ -2243,7 +2243,7 @@ SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 - 类型：字符串
 - 默认值：空
 - 参数类型：局部配置参数
-- 动态修改：不支持
+- 动态修改：支持通过 SQL 修改，重启后生效
 - 支持版本：`v3.4.3.0` 引入
 
 ### 流计算参数 {#流计算参数}

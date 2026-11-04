@@ -23,6 +23,10 @@ import threading
 import time
 import platform
 import os
+import shutil
+import glob
+import sys
+import shlex
 # import socketfrom
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, cluster, clusterComCheck
@@ -37,6 +41,8 @@ from new_test_framework.utils import tdLog, tdSql, tdCom, cluster, clusterComChe
 class TMQCom:
     def __init__(self):
         self.g_end_insert_flag = 0
+        self._windows_tmq_processes = []
+        self._windows_processes = []
 
     def init(self, conn, logSql, replicaVar=1):
         self.replicaVar = int(replicaVar)
@@ -94,8 +100,7 @@ class TMQCom:
                 )
 
     def getDataPath(self):
-        selfPath = tdCom.getBuildPath()
-        return selfPath + '/../sim/dnode%d/data/vnode/vnode%d/wal/*';
+        return os.path.join(tdCom.work_dir, 'dnode%d', 'data', 'vnode', 'vnode%d', 'wal', '*')
     
     def restartAndRemoveWal(self, deleteWal):
         tdSql.execute("flush database dbt")
@@ -115,7 +120,16 @@ class TMQCom:
                 dataPath = dataPath%(dnodeId,vnodeId)
                 tdLog.info("dataPath:%s"%dataPath)
                 if deleteWal:
-                    if os.system('rm -rf ' + dataPath) != 0:
+                    if platform.system().lower() == 'windows':
+                        matches = glob.glob(dataPath)
+                        if not matches:
+                            raise RuntimeError(f'No WAL files matched {dataPath}')
+                        for path in matches:
+                            if os.path.isdir(path):
+                                shutil.rmtree(path)
+                            else:
+                                os.remove(path)
+                    elif os.system('rm -rf ' + dataPath) != 0:
                         tdLog.exit("rm error")
 
                 tdDnodes[dnodeId - 1].starttaosd()
@@ -152,7 +166,7 @@ class TMQCom:
             time.sleep(2)
         tdLog.info("splitSql ok")
     
-    def redistributeVgroups(self):
+    def redistributeVgroups(self, queryTimes=10):
         dnodesList = []
         tdSql.query("show dnodes")
         for result in tdSql.queryResult:
@@ -175,7 +189,7 @@ class TMQCom:
         print(redistributeSql)
         
         tdLog.info(f"redistributeSql:{redistributeSql}")
-        tdSql.query(redistributeSql)
+        tdSql.query(redistributeSql, queryTimes=queryTimes)
         tdLog.info("redistributeSql ok")
 
     def get_leader(self, dbName):
@@ -319,22 +333,28 @@ class TMQCom:
         )
 
         if platform.system().lower() == "windows":
-            processorName = buildPath + "\\build\\bin\\tmq_sim.exe"
+            processorName = os.path.join(buildPath, "build", "bin", "tmq_sim.exe")
             if alias != 0:
-                processorNameNew = buildPath + "\\build\\bin\\tmq_sim_new.exe"
-                shellCmd = "cp %s %s" % (processorName, processorNameNew)
-                os.system(shellCmd)
+                processorNameNew = os.path.join(buildPath, "build", "bin", "tmq_sim_new.exe")
+                shutil.copy2(processorName, processorNameNew)
                 processorName = processorNameNew
-            shellCmd = "mintty -h never " + processorName + " -c " + cfgPath
-            shellCmd += " -y %d -d %s -g %d -r %d -w %s -e %d " % (
-                pollDelay,
-                dbName,
-                showMsg,
-                showRow,
-                cdbName,
-                snapshot,
+            arguments = [processorName, "-c", cfgPath, "-y", str(pollDelay),
+                         "-d", dbName, "-g", str(showMsg), "-r", str(showRow),
+                         "-w", cdbName, "-e", str(snapshot)]
+            startup = subprocess.STARTUPINFO()
+            startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            startup.wShowWindow = subprocess.SW_HIDE
+            process = subprocess.Popen(
+                arguments, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startup,
             )
-            shellCmd += "> nul 2>&1 &"
+            self._windows_tmq_processes.append((os.path.basename(processorName), process))
+            tdLog.info("start tmq_sim PID %s: %s" % (process.pid, arguments))
+            time.sleep(1)
+            if process.poll() not in (None, 0):
+                raise RuntimeError("tmq_sim exited with status %s: %s" %
+                                   (process.returncode, arguments))
+            return
         else:
             processorName = buildPath + "/build/bin/tmq_sim"
             if alias != 0:
@@ -363,6 +383,36 @@ class TMQCom:
         tdLog.info("cmd:%s start processID: %s" % (shellCmd, processID))
 
     def stopTmqSimProcess(self, processorName):
+        if platform.system().lower() == "windows":
+            # tmq_sim registers SIGINT, not SIGBREAK. Attach a short-lived helper
+            # to its private console so Ctrl+C cannot reach pytest or other runs.
+            name = os.path.basename(processorName).lower()
+            if not name.endswith(".exe"):
+                name += ".exe"
+            for executable, process in self._windows_tmq_processes:
+                if executable.lower() != name or process.poll() is not None:
+                    continue
+                interrupt = (
+                    "import ctypes,sys\n"
+                    "k=ctypes.WinDLL('kernel32',use_last_error=True)\n"
+                    "k.FreeConsole()\n"
+                    "if not k.AttachConsole(int(sys.argv[1])):\n"
+                    "    raise ctypes.WinError(ctypes.get_last_error())\n"
+                    "if not k.SetConsoleCtrlHandler(None,True):\n"
+                    "    raise ctypes.WinError(ctypes.get_last_error())\n"
+                    "if not k.GenerateConsoleCtrlEvent(0,0):\n"
+                    "    raise ctypes.WinError(ctypes.get_last_error())\n"
+                )
+                result = subprocess.run(
+                    [sys.executable, "-c", interrupt, str(process.pid)],
+                    capture_output=True, text=True, timeout=10,
+                )
+                if result.returncode and process.poll() is None:
+                    raise RuntimeError("Cannot interrupt tmq_sim PID %s: %s" %
+                                       (process.pid, result.stderr))
+                process.wait(timeout=120)
+                tdLog.info("tmq_sim PID %s stopped" % process.pid)
+            return
         psCmd = (
             "unset LD_PRELOAD; ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"
             % (processorName)
@@ -1040,14 +1090,21 @@ class TMQCom:
 
     def killProcesser(self, processerName):
         if platform.system().lower() == "windows":
-            killCmd = (
-                'wmic process where name="%s.exe" call terminate > NUL 2>&1'
-                % processerName
-            )
-            psCmd = 'wmic process where name="%s.exe" | findstr "%s.exe"' % (
-                processerName,
-                processerName,
-            )
+            name = os.path.basename(processerName).lower()
+            if not name.endswith('.exe'):
+                name += '.exe'
+            matches = [(executable, process) for executable, process in self._windows_processes
+                       if executable == name]
+            if not matches:
+                raise RuntimeError(f'No owned Windows test process found: {processerName}')
+            for _, process in matches:
+                if process.poll() is None:
+                    process.kill()
+                process.wait(timeout=30)
+            self._windows_processes = [(executable, process)
+                                       for executable, process in self._windows_processes
+                                       if executable != name]
+            return
         else:
             killCmd = (
                 "ps -efww|grep -w %s| grep -v grep | awk '{print $2}' | xargs kill -TERM > /dev/null 2>&1"
@@ -1076,8 +1133,19 @@ class TMQCom:
 
     def startProcess(self, processName, param):
         if platform.system().lower() == "windows":
-            cmd = f"mintty -h never %s %s > NUL 2>&1" % (processName, param)
+            arguments = (list(param) if not isinstance(param, str)
+                         else [part.strip('"') for part in shlex.split(param, posix=False)])
+            command = [processName, *arguments]
+            tdLog.info(f'Start Windows test process: {command}')
+            process = subprocess.Popen(command)
+            self._windows_processes.append((os.path.basename(processName).lower(), process))
+            time.sleep(1)
+            if process.poll() not in (None, 0):
+                raise RuntimeError(f'Windows test process failed: {command}, exit {process.returncode}')
+            return process
         else:
+            if not isinstance(param, str):
+                param = shlex.join(param)
             cmd = f"nohup %s %s > /dev/null 2>&1 &" % (processName, param)
         tdLog.info("%s" % (cmd))
         os.system(cmd)

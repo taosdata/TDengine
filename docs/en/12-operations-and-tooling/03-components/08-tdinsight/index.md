@@ -12,7 +12,7 @@ TDengine writes information such as server CPU, memory, disk space, bandwidth, r
 First, check the following services:
 
 - TDengine is installed and running normally. This dashboard requires TDengine 3.0.0.0 or above, and monitoring reporting configuration enabled. For specific configurations, please refer to: [TDengine Monitoring Configuration](../01-taosd.md).
-- taosAdapter is installed and running normally. For details, please refer to: [taosAdapter Reference Manual](../03-taosadapter.md)
+- taosAdapter is installed and running normally. For details, please refer to: [taosAdapter Reference Manual](../03-taosadapter/index.md)
 - taosKeeper is installed and running normally. For details, please refer to: [taosKeeper Reference Manual](../05-taoskeeper.md)
 - Grafana service is installed and running normally. We recommend using the latest version of Grafana, TDInsight supports Grafana 8.0 and above.
   :::info

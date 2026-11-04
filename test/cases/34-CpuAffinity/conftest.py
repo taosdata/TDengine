@@ -24,12 +24,25 @@ sets enableCpuAffinity=0 and the next sets enableCpuAffinity=1).
 This conftest cleans the persisted config between test classes so each
 class gets a fresh taosd that reads from the newly generated taos.cfg.
 """
+import copy
 import os
 import shutil
 
 import pytest
+from new_test_framework.utils import sc
 
 _last_class_seen = [None]
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_fixture_setup(fixturedef, request):
+    if fixturedef.argname == "before_test_class":
+        # update_cfg mutates the session YAML in place. Restore its original
+        # values before applying each class's independent CPU configuration.
+        session = request.session
+        if not hasattr(session, "_cpu_affinity_base_yaml"):
+            session._cpu_affinity_base_yaml = copy.deepcopy(session.yaml_data)
+        session.yaml_data = copy.deepcopy(session._cpu_affinity_base_yaml)
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)
@@ -38,6 +51,9 @@ def pytest_runtest_setup(item):
     current_class = item.cls
     if current_class is not _last_class_seen[0]:
         if _last_class_seen[0] is not None:
+            # Failed classes retain their daemon for debugging. Stop this
+            # test's node before deploying the next class's configuration.
+            sc.dnodeStop(1)
             # Not the first class — clean persisted config before fixtures deploy taosd
             work_dir = getattr(item.session, "work_dir", None)
             if work_dir and os.path.isdir(work_dir):

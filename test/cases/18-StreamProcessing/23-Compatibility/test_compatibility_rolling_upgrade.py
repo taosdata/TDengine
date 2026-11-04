@@ -107,13 +107,18 @@ class TestCompatibilityRollingUpgrade:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional,compatibility
+
         Jira: None
 
         History:
             - 2025-07-23 Beryl migrated from system-test/0-others/compatibility_rolling_upgrade.py
             - Note: Maintains original cb.* calls but adapted for pytest framework
+            - 2026-10-30 Reject missing baselines and report the unsupported Windows lifecycle as skipped
 
         """
+        if platform.system().lower() == 'windows':
+            pytest.skip("Historical stream upgrade lifecycle is not implemented on Windows")
+
         hostname = self.host
         tdLog.info(f"hostname: {hostname}")
 
@@ -123,7 +128,7 @@ class TestCompatibilityRollingUpgrade:
         
         baseVersionExist = tdCb.installTaosdForRollingUpgrade(self.getDnodePath(), lastBigVersion)
         if not baseVersionExist:
-            tdLog.info(f"Base version {lastBigVersion} does not exist")
+            pytest.fail(f"Base version {lastBigVersion} could not be prepared")
         
 
         if baseVersionExist:

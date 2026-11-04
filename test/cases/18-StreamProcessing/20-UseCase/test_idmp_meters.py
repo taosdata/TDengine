@@ -131,7 +131,7 @@ class Test_IDMP_Meters:
 
         self.start2 = 1752574200000
         self.notifyFailed = (
-            "[notify_worker].*ws://idmp:6042/recv/?key="
+            r"\[notify_worker\].*ws://idmp:6042/recv/[?]key="
         )
 
         # import data

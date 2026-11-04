@@ -4770,7 +4770,7 @@ _return:
 }
 
 /*
- * Resolve all root refs stored in one column-ref array through layered systable scans.
+ * Resolve required data roots and tag refs through layered systable scans.
  *
  * @param pOperator   dyn operator context
  * @param pTargetOp   operator used to read `ins_vc_cols`
@@ -4798,6 +4798,10 @@ static int32_t dynResolveColRefArrayBySysScan(SOperatorInfo* pOperator, SOperato
     SColRefInfo* pColRef = taosArrayGet(pColRefInfo, i);
     QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
 
+    if (pColRef->refType == 0 && !colNeedScan(pOperator, pColRef->colId)) {
+      continue;
+    }
+
     code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
     QUERY_CHECK_CODE(code, line, _return);
   }
@@ -4816,7 +4820,7 @@ _return:
 }
 
 /*
- * Resolve all root refs stored in virtual-super-table child arrays.
+ * Resolve required data roots and tag refs stored in virtual-super-table child arrays.
  *
  * @param pOperator dyn operator context
  * @param pTargetOp operator used to read `ins_vc_cols`
@@ -4852,6 +4856,10 @@ static int32_t dynResolveChildTableRefsBySysScan(SOperatorInfo* pOperator, SOper
     for (int32_t j = 0; j < taosArrayGetSize(pColRefArray); ++j) {
       SColRefInfo* pColRef = taosArrayGet(pColRefArray, j);
       QUERY_CHECK_NULL(pColRef, code, line, _return, terrno);
+
+      if (pColRef->refType == 0 && !colNeedScan(pOperator, pColRef->colId)) {
+        continue;
+      }
 
       code = dynAddPendingRootRef(pOperator, pCtx->pPendingMap, pCtx->pRootRefs, pColRef->colrefName);
       QUERY_CHECK_CODE(code, line, _return);
@@ -5664,6 +5672,8 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
   if (pVtbScan->curOrgTbVg != NULL) {
     // which means rversion has changed
     void*   pCurIter = NULL;
+    // Scratch list of the vgroups to deploy. Owned here until addVgIds claims it, so every early exit
+    // below has to release it.
     SArray* tmpArray = NULL;
     while ((pCurIter = taosHashIterate(pVtbScan->curOrgTbVg, pCurIter))) {
       int32_t* vgId = (int32_t*)taosHashGetKey(pCurIter, NULL);
@@ -5672,24 +5682,41 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
           tmpArray = taosArrayInit(1, sizeof(int32_t));
           QUERY_CHECK_NULL(tmpArray, code, line, _return, terrno)
         }
-        QUERY_CHECK_NULL(taosArrayPush(tmpArray, vgId), code, line, _return, terrno)
+        if (taosArrayPush(tmpArray, vgId) == NULL) {
+          code = terrno;
+          line = __LINE__;
+          taosArrayDestroy(tmpArray);
+          goto _return;
+        }
       }
     }
     if (tmpArray == NULL) {
       return TSDB_CODE_SUCCESS;
     }
-    if (tmpArray != NULL && pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds == NULL) {
+    if (pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds == NULL) {
       SArray* expiredInfo = atomic_load_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo);
       if (expiredInfo && expiredInfo == atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addedVgInfo, expiredInfo, NULL)) {
         for (int32_t i = 0; i < taosArrayGetSize(expiredInfo); i++) {
           SStreamTaskAddr* vgInfo = (SStreamTaskAddr*)taosArrayGet(expiredInfo, i);
-          QUERY_CHECK_NULL(taosArrayPush(tmpArray, &vgInfo->nodeId), code, line, _return, terrno)
+          if (taosArrayPush(tmpArray, &vgInfo->nodeId) == NULL) {
+            code = terrno;
+            line = __LINE__;
+            taosArrayDestroy(expiredInfo);
+            taosArrayDestroy(tmpArray);
+            goto _return;
+          }
         }
         taosArrayDestroy(expiredInfo);
       }
       if (atomic_val_compare_exchange_ptr(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.addVgIds, NULL, tmpArray)) {
         taosArrayDestroy(tmpArray);
       }
+    } else {
+      // A deploy request carrying an older vg list is still in flight (the runner claims addVgIds
+      // when it builds its mgmt request), so nobody would ever consume this scratch list. Release
+      // it here; the next rversion diff recomputes the same vg set against the stale
+      // existOrgTbVg baseline and reports it again once addVgIds is free.
+      taosArrayDestroy(tmpArray);
     }
     uint64_t deployUid = pVtbScan->uid;
     if (pVtbScan->isSuperTable) {
@@ -5951,6 +5978,12 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   } else if (EXT_SOURCE_SQLSERVER == cfg.source_type) {
     // SQL Server: the reference's schema wins over the source's default schema.
     tstrncpy(table.schemaName, ('\0' != schema[0]) ? schema : pScan->srcSchema, sizeof(table.schemaName));
+  } else if (EXT_SOURCE_ORACLE == cfg.source_type) {
+    // Oracle has a single namespace level (the schema), so the reference's
+    // middle segment wins over the source default for the same reason as SQL
+    // Server; dbName stays empty because the service name is not a namespace
+    // (Oracle DS 5.3.3 / 5.3.10).
+    tstrncpy(table.schemaName, ('\0' != schema[0]) ? schema : pScan->srcSchema, sizeof(table.schemaName));
   }
   code = extConnectorOpen(&cfg, &pHandle);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -5985,17 +6018,22 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
   const SFederatedScanPhysiNode* pScan = dynFindForeignScan((const SPhysiNode*)pOperator->pPhyNode, sourceName);
   QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_EXT_SOURCE_NOT_FOUND);
   EExtSourceType sourceType = (EExtSourceType)pScan->sourceType;
-  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType && EXT_SOURCE_SQLSERVER != sourceType) {
+  if (EXT_SOURCE_MYSQL != sourceType && EXT_SOURCE_POSTGRESQL != sourceType &&
+      EXT_SOURCE_SQLSERVER != sourceType && EXT_SOURCE_ORACLE != sourceType) {
     QUERY_CHECK_CONDITION(0 == pRef->filterCondLen, code, lino, _return, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED);
     return code;
   }
-  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
-  // the schema in the middle segment (DS 5.3.4); the database then falls back
-  // to the source's configured database.
+  // A 4-part runtime ref (source.<middle>.table.column) carries the schema in
+  // the middle segment for SQL Server and Oracle (DS 5.3.4); SQL Server then
+  // falls back to the source's configured database while Oracle has no
+  // database layer at all, so there useDb stays empty.
   const char* useDb = dbName;
   const char* useSchema = (NULL != schemaName) ? schemaName : "";
   if (EXT_SOURCE_SQLSERVER == sourceType && '\0' == useSchema[0] && '\0' != dbName[0]) {
     useSchema = dbName;
+    useDb = "";
+  } else if (EXT_SOURCE_ORACLE == sourceType) {
+    useSchema = ('\0' != useSchema[0]) ? useSchema : dbName;
     useDb = "";
   }
   code = dynGetForeignTableMeta(&pInfo->vtbScan, pScan, useDb, useSchema, tableName, &pMeta);
@@ -6059,9 +6097,10 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
   SForeignSourceInfo fsInfo = {0};
   SVtbScanDynCtrlInfo* pVtbScan = &((SDynQueryCtrlOperatorInfo*)pOperator->info)->vtbScan;
 
-  // SQL Server resolves a 4-part runtime ref (source.schema.table.column) with
-  // the schema in the middle segment (DS 5.3.4); the database then falls back
-  // to the source's configured database.
+  // A 4-part runtime ref (source.<middle>.table.column) carries the schema in
+  // the middle segment for SQL Server and Oracle (DS 5.3.4); SQL Server then
+  // falls back to the source's configured database while Oracle has no
+  // database layer at all, so there useDb stays empty.
   const char* useDb = refDbName;
   const char* useSchema = (NULL != refSchemaName) ? refSchemaName : "";
   {
@@ -6071,6 +6110,9 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
         '\0' == useSchema[0] && '\0' != refDbName[0]) {
       useSchema = refDbName;
       useDb = pScan->srcDatabase;
+    } else if (NULL != pScan && EXT_SOURCE_ORACLE == (EExtSourceType)pScan->sourceType) {
+      useSchema = ('\0' != useSchema[0]) ? useSchema : refDbName;
+      useDb = "";
     }
   }
 
@@ -6601,6 +6643,13 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
           code = getColRefInfo(&info, pChildInfo->pDataBlock, i);
           QUERY_CHECK_CODE(code, line, _return);
 
+          // Filter root visibility before resolving refs: an invisible owned
+          // source must neither add timestamps nor fail a supertable query.
+          if (pVtbScan->isSuperTable && info.refType == 0 && (col_id_t)info.colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+            destroyColRefInfo(&info);
+            continue;
+          }
+
           if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
             if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
               qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
@@ -6754,22 +6803,10 @@ int32_t buildVirtualNormalChildTableScanChildTableMap(SOperatorInfo* pOperator) 
   code = dynResolveColRefArrayBySysScan(pOperator, pSystableScanOp, pInfo->vtbScan.colRefInfo);
   QUERY_CHECK_CODE(code, line, _return);
 
-  // Rebuild curOrgTbVg from runtime chain resolution so that processOrgTbVg
-  // can diff it against the plan-time baseline existOrgTbVg and trigger
-  // redeploy when the chain terminal vg differs from what the planner
-  // recorded (e.g. a multi-hop cross-vgroup vtable chain whose terminal
-  // physical table lives on a different vgroup than the planner assumed).
-  //
-  // Use curOrgTbVg == NULL as the "not yet runtime-verified" sentinel:
-  // existOrgTbVg is always pre-populated from plan-time pOrgVgIds at
-  // operator init, so it can never serve as a first-run indicator.
-  // curOrgTbVg starts NULL and becomes non-NULL after the first call to
-  // dynCollectResolvedOrgTbVgFromArray, making it a reliable once-per-open
-  // trigger that avoids repeated full chain resolution on steady-state calls.
-  if (rversion != pVtbScan->rversion || pVtbScan->curOrgTbVg == NULL) {
-    code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
-    QUERY_CHECK_CODE(code, line, _return);
-  }
+  // A referenced table can be rebound without changing the root's version.
+  // Match deployment to the chain we just resolved before scanning its data.
+  code = dynCollectResolvedOrgTbVgFromArray(pOperator, pInfo->vtbScan.colRefInfo);
+  QUERY_CHECK_CODE(code, line, _return);
   code = processOrgTbVg(pVtbScan, pTaskInfo, rversion);
   QUERY_CHECK_CODE(code, line, _return);
 

@@ -105,10 +105,19 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
 
   size_t dstLength = srcLength;
   if (escapeLength == 0) {
+    if (srcLength > maxDstLength) {
+      return -1;
+    }
     (void)memcpy(dst, src, srcLength);
   } else {
     dstLength = 0;
-    for (size_t i = 0; i < srcLength && dstLength <= maxDstLength; i++) {
+    for (size_t i = 0; i < srcLength; i++) {
+      bool escaped = (src[i] == '\"' || src[i] == '\\' || src[i] == '\b' || src[i] == '\f' || src[i] == '\n' ||
+                      src[i] == '\r' || src[i] == '\t');
+      size_t step = escaped ? 2 : 1;
+      if (dstLength + step > maxDstLength) {
+        return -1;
+      }
       switch (src[i]) {
         case '\"':
           dst[dstLength++] = '\\';
@@ -4532,24 +4541,31 @@ TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, cons
   return NULL;
 }
 
+static int32_t getResultSchemaBytes(int8_t type, int32_t bytes, bool isStmt) {
+  // BLOB field bytes already represent the maximum encoded value size,
+  // including BLOBSTR_HEADER_SIZE.
+  if (isStmt || IS_STR_DATA_BLOB(type)) return bytes;
+  if (type == TSDB_DATA_TYPE_JSON) return tDataTypes[type].bytes;
+  return calcSchemaBytesFromTypeBytes(type, bytes, false);
+}
+
 void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     SResultColumn* pCol = &pResultInfo->pCol[i];
 
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes = calcSchemaBytesFromTypeBytes(type, pResultInfo->userFields[i].bytes, false);
+    int32_t schemaBytes = getResultSchemaBytes(type, pResultInfo->userFields[i].bytes, false);
 
     if (IS_VAR_DATA_TYPE(type)) {
       if (!IS_VAR_NULL_TYPE(type, schemaBytes) && pCol->offset[pResultInfo->current] != -1) {
         char* pStart = pResultInfo->pCol[i].offset[pResultInfo->current] + pResultInfo->pCol[i].pData;
 
-        if (IS_STR_DATA_BLOB(type)) {
-          pResultInfo->length[i] = blobDataLen(pStart);
-          pResultInfo->row[i] = blobDataVal(pStart);
-        } else {
-          pResultInfo->length[i] = varDataLen(pStart);
-          pResultInfo->row[i] = varDataVal(pStart);
-        }
+        // setResultDataPtr already validated the cell against the encoded
+        // column buffer. Virtual columns may contain complete source values
+        // wider than the declared result field; preserve their actual length.
+        int32_t cellLen = IS_STR_DATA_BLOB(type) ? blobDataLen(pStart) : varDataLen(pStart);
+        pResultInfo->length[i] = cellLen;
+        pResultInfo->row[i] = IS_STR_DATA_BLOB(type) ? blobDataVal(pStart) : varDataVal(pStart);
       } else {
         pResultInfo->row[i] = NULL;
         pResultInfo->length[i] = 0;
@@ -4684,16 +4700,13 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bool isStmt) {
+static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength) {
   int32_t idx = -1;
   iconv_t conv = taosAcquireConv(&idx, C2M, pResultInfo->charsetCxt);
   if (conv == (iconv_t)-1) return TSDB_CODE_TSC_INTERNAL_ERROR;
 
   for (int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
-    int32_t schemaBytes =
-        calcSchemaBytesFromTypeBytes(pResultInfo->fields[i].type, pResultInfo->fields[i].bytes, isStmt);
-
     if (type == TSDB_DATA_TYPE_NCHAR && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
@@ -4709,11 +4722,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t* colLength, bo
           char* pStart = pCol->offset[j] + pCol->pData;
 
           int32_t len = taosUcs4ToMbsEx((TdUcs4*)varDataVal(pStart), varDataLen(pStart), varDataVal(p), conv);
-          if (len < 0 || len > schemaBytes || (p + len) >= (pResultInfo->convertBuf[i] + colLength[i])) {
-            tscError(
-                "doConvertUCS4 error, invalid data. len:%d, bytes:%d, (p + len):%p, (pResultInfo->convertBuf[i] + "
-                "colLength[i]):%p",
-                len, schemaBytes, (p + len), (pResultInfo->convertBuf[i] + colLength[i]));
+          size_t remaining = (size_t)(pResultInfo->convertBuf[i] + colLength[i] - p);
+          if (len < 0 || (size_t)len + VARSTR_HEADER_SIZE > remaining) {
+            tscError("doConvertUCS4 error, invalid converted length:%d, remaining:%zu", len, remaining);
             taosReleaseConv(idx, conv, C2M, pResultInfo->charsetCxt);
             return TSDB_CODE_TSC_INTERNAL_ERROR;
           }
@@ -4769,78 +4780,172 @@ int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
          numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
-static int32_t estimateJsonLen(SReqResultInfo* pResultInfo) {
-  char*   p = (char*)pResultInfo->pData;
-  int32_t blockVersion = *(int32_t*)p;
-
-  int32_t numOfRows = pResultInfo->numOfRows;
-  int32_t numOfCols = pResultInfo->numOfCols;
-
-  // | version | total length | total rows | total columns | flag seg| block group id | column schema | each column
-  // length |
-  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
-  if (numOfCols != cols) {
-    tscError("estimateJsonLen error: numOfCols:%d != cols:%d", numOfCols, cols);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
+static int32_t validateResultBlockSchema(const SReqResultInfo* pResultInfo, bool isStmt) {
+  const char* pData = pResultInfo->pData;
+  int32_t     rows = 0;
+  int32_t     cols = 0;
+  memcpy(&rows, pData + sizeof(int32_t) * 2, sizeof(rows));
+  memcpy(&cols, pData + sizeof(int32_t) * 3, sizeof(cols));
+  if (rows != pResultInfo->numOfRows || cols != pResultInfo->numOfCols) {
+    tscError("invalid result block dimensions, rows:%d/%" PRIu64 ", cols:%d/%u", rows,
+             pResultInfo->numOfRows, cols, pResultInfo->numOfCols);
+    return TSDB_CODE_INVALID_MSG;
   }
 
-  int32_t  len = getVersion1BlockMetaSize(p, numOfCols);
+  size_t schemaOffset = sizeof(int32_t) * 5 + sizeof(uint64_t);
+  for (int32_t i = 0; i < cols; ++i) {
+    int8_t type = TSDB_DATA_TYPE_NULL;
+    int32_t bytes = 0;
+    memcpy(&type, pData + schemaOffset, sizeof(type));
+    schemaOffset += sizeof(type);
+    memcpy(&bytes, pData + schemaOffset, sizeof(bytes));
+    schemaOffset += sizeof(bytes);
+
+    const TAOS_FIELD_E* pField = &pResultInfo->fields[i];
+    int32_t             schemaBytes = bytes;
+    uint8_t             precision = 0;
+    uint8_t             scale = 0;
+    if (IS_DECIMAL_TYPE(type)) extractDecimalTypeInfoFromBytes(&schemaBytes, &precision, &scale);
+
+    // Decimal conversion changes field bytes to the string buffer width.
+    // Encoded blocks retain the physical decimal width across fetches.
+    int32_t expectedBytes = IS_DECIMAL_TYPE(pField->type)
+                                ? tDataTypes[pField->type].bytes
+                                : getResultSchemaBytes(pField->type, pField->bytes, isStmt);
+    // Variable-width block schemas describe storage chosen by the producer,
+    // while result fields describe the SQL type. Constant folding may narrow
+    // a block, and virtual columns may retain a wider source type. Validate
+    // their offsets and value lengths against the payload, not field width.
+    bool bytesMismatch = !IS_VAR_DATA_TYPE(type) && type != TSDB_DATA_TYPE_NULL && schemaBytes != expectedBytes;
+    // Virtual-table sort blocks can omit decimal metadata (0/0). Conversion
+    // uses the SQL result metadata in that case; reject explicit conflicts.
+    bool decimalMismatch = IS_DECIMAL_TYPE(type) && pField->precision != 0 && (precision != 0 || scale != 0) &&
+                           (precision != pField->precision || scale != pField->scale);
+    if (type != pField->type || bytesMismatch || decimalMismatch) {
+      tscError("result block schema mismatch at col:%d, type:%d/%d, bytes:%d/%d, precision:%u/%u, scale:%u/%u", i,
+               type, pField->type, schemaBytes, expectedBytes, precision, pField->precision, scale, pField->scale);
+      return TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addJsonBufferSize(size_t* pTotal, size_t bytes) {
+  if (bytes > INT32_MAX || *pTotal > (size_t)INT32_MAX - bytes) return TSDB_CODE_INVALID_MSG;
+  *pTotal += bytes;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct {
+  char*  value;
+  size_t length;
+} SJsonStringCacheEntry;
+
+static void destroyJsonStringCache(SArray* cache) {
+  if (cache == NULL) return;
+  for (int32_t i = 0; i < taosArrayGetSize(cache); ++i) {
+    SJsonStringCacheEntry* entry = taosArrayGet(cache, i);
+    if (entry != NULL) taosMemoryFree(entry->value);
+  }
+  taosArrayDestroy(cache);
+}
+
+static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t* pDataLen, SArray** jsonStringCache) {
+  char*   p = (char*)pResultInfo->pData;
+  int32_t blockVersion = *(int32_t*)p;
+  int32_t numOfRows = pResultInfo->numOfRows;
+  int32_t numOfCols = pResultInfo->numOfCols;
+  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
+  if (numOfCols != cols) return TSDB_CODE_INVALID_MSG;
+
+  size_t   len = (size_t)getVersion1BlockMetaSize(p, numOfCols);
   int32_t* colLength = (int32_t*)(p + len);
-  len += sizeof(int32_t) * numOfCols;
+  int32_t  code = addJsonBufferSize(&len, (size_t)numOfCols * sizeof(int32_t));
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   char* pStart = p + len;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t colLen = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength[i]) : colLength[i];
+    int32_t colLen = blockVersion == BLOCK_VERSION_1 ? htonl(colLength[i]) : colLength[i];
+    size_t  columnMetaLen = IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)
+                                ? (size_t)numOfRows * sizeof(int32_t)
+                                : (size_t)BitmapLen(numOfRows);
+    code = addJsonBufferSize(&len, columnMetaLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
 
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
-      int32_t  lenTmp = numOfRows * sizeof(int32_t);
-      len += lenTmp;
-      pStart += lenTmp;
-
-      int32_t estimateColLen = 0;
+      pStart += columnMetaLen;
+      size_t estimateColLen = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
-        if (offset[j] == -1) {
-          continue;
+        if (offset[j] == -1 || (colLen == 0 && offset[j] == 0)) continue;
+        if (offset[j] < 0 || offset[j] >= colLen) return TSDB_CODE_INVALID_MSG;
+
+        char*  data = offset[j] + pStart;
+        size_t jsonValueLen = 0;
+        if (!blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, data, (size_t)(colLen - offset[j]),
+                                            &jsonValueLen)) {
+          return TSDB_CODE_INVALID_MSG;
         }
-        char* data = offset[j] + pStart;
 
         int32_t jsonInnerType = *data;
         char*   jsonInnerData = data + CHAR_BYTES;
+        size_t  convertedLen = 0;
         if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-          estimateColLen += (VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L));
+          convertedLen = VARSTR_HEADER_SIZE + strlen(TSDB_DATA_NULL_STR_L);
         } else if (tTagIsJson(data)) {
-          estimateColLen += (VARSTR_HEADER_SIZE + ((const STag*)(data))->len);
-        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
-          estimateColLen += varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
+          char* jsonString = NULL;
+          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
+          if (jsonString == NULL) return terrno != 0 ? terrno : TSDB_CODE_TSC_INTERNAL_ERROR;
+          size_t jsonStrLen = strlen(jsonString);
+          if (jsonStrLen > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            taosMemoryFree(jsonString);
+            return TSDB_CODE_INVALID_MSG;
+          }
+          SJsonStringCacheEntry entry = {.value = jsonString, .length = jsonStrLen};
+          if (*jsonStringCache == NULL) {
+            *jsonStringCache = taosArrayInit(0, sizeof(SJsonStringCacheEntry));
+            if (*jsonStringCache == NULL) {
+              taosMemoryFree(jsonString);
+              return terrno;
+            }
+          }
+          if (taosArrayPush(*jsonStringCache, &entry) == NULL) {
+            taosMemoryFree(jsonString);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          convertedLen = VARSTR_HEADER_SIZE + jsonStrLen;
+        } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {
+          convertedLen = varDataTLen(jsonInnerData) + CHAR_BYTES * 2;
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-          estimateColLen += (VARSTR_HEADER_SIZE + 32);
+          double value = 0;
+          memcpy(&value, jsonInnerData, sizeof(value));
+          int32_t printedLen = snprintf(NULL, 0, "%.9lf", value);
+          if (printedLen < 0 || printedLen > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            return TSDB_CODE_INVALID_MSG;
+          }
+          convertedLen = VARSTR_HEADER_SIZE + (size_t)printedLen;
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-          estimateColLen += (VARSTR_HEADER_SIZE + 5);
-        } else if (IS_STR_DATA_BLOB(jsonInnerType)) {
-          estimateColLen += (BLOBSTR_HEADER_SIZE + 32);
+          convertedLen = VARSTR_HEADER_SIZE + 5;
         } else {
-          tscError("estimateJsonLen error: invalid type:%d", jsonInnerType);
-          return -1;
+          return TSDB_CODE_INVALID_MSG;
         }
+        code = addJsonBufferSize(&estimateColLen, convertedLen);
+        if (code != TSDB_CODE_SUCCESS) return code;
       }
-      len += TMAX(colLen, estimateColLen);
-    } else if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
-      int32_t lenTmp = numOfRows * sizeof(int32_t);
-      len += (lenTmp + colLen);
-      pStart += lenTmp;
+      code = addJsonBufferSize(&len, TMAX((size_t)colLen, estimateColLen));
     } else {
-      int32_t lenTmp = BitmapLen(pResultInfo->numOfRows);
-      len += (lenTmp + colLen);
-      pStart += lenTmp;
+      pStart += columnMetaLen;
+      code = addJsonBufferSize(&len, (size_t)colLen);
     }
+    if (code != TSDB_CODE_SUCCESS) return code;
     pStart += colLen;
   }
 
-  // Ensure the complete structure of the block, including the blankfill field,
-  // even though it is not used on the client side.
-  len += sizeof(bool);
-  return len;
+  code = addJsonBufferSize(&len, sizeof(bool));
+  if (code != TSDB_CODE_SUCCESS) return code;
+  *pDataLen = (int32_t)len;
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
@@ -4860,24 +4965,28 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 
   tscDebug("start to convert form json format string");
 
+  SArray* jsonStringCache = NULL;
+  int32_t jsonStringCacheIndex = 0;
   char*   p = (char*)pResultInfo->pData;
   int32_t blockVersion = *(int32_t*)p;
-  int32_t dataLen = estimateJsonLen(pResultInfo);
-  if (dataLen <= 0) {
-    tscError("doConvertJson error: estimateJsonLen failed");
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
-  }
+  int32_t dataLen = 0;
+  int32_t code = estimateJsonLen(pResultInfo, &dataLen, &jsonStringCache);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
 
   taosMemoryFreeClear(pResultInfo->convertJson);
   pResultInfo->convertJson = taosMemoryCalloc(1, dataLen);
-  if (pResultInfo->convertJson == NULL) return terrno;
+  if (pResultInfo->convertJson == NULL) {
+    code = terrno;
+    goto _return;
+  }
   char* p1 = pResultInfo->convertJson;
 
-  int32_t totalLen = 0;
+  size_t totalLen = 0;
   int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
   if (numOfCols != cols) {
     tscError("doConvertJson error: numOfCols:%d != cols:%d", numOfCols, cols);
-    return TSDB_CODE_TSC_INTERNAL_ERROR;
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
   }
 
   int32_t len = getVersion1BlockMetaSize(p, numOfCols);
@@ -4902,7 +5011,8 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
     int32_t colLen1 = (blockVersion == BLOCK_VERSION_1) ? htonl(colLength1[i]) : colLength1[i];
     if (colLen >= dataLen) {
       tscError("doConvertJson error: colLen:%d >= dataLen:%d", colLen, dataLen);
-      return TSDB_CODE_TSC_INTERNAL_ERROR;
+      code = TSDB_CODE_TSC_INTERNAL_ERROR;
+      goto _return;
     }
     if (pResultInfo->fields[i].type == TSDB_DATA_TYPE_JSON) {
       int32_t* offset = (int32_t*)pStart;
@@ -4915,10 +5025,21 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
 
       len = 0;
       for (int32_t j = 0; j < numOfRows; ++j) {
-        if (offset[j] == -1) {
+        if (offset[j] == -1 || (colLen == 0 && offset[j] == 0)) {
           continue;
         }
-        char* data = offset[j] + pStart;
+        if (offset[j] < 0 || offset[j] >= colLen) {
+          tscError("doConvertJson error: invalid offset:%d, colLen:%d", offset[j], colLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
+        char*  data = offset[j] + pStart;
+        size_t jsonValueLen = 0;
+        if (!blockDataValidateVariableValue(TSDB_DATA_TYPE_JSON, data, (size_t)(colLen - offset[j]), &jsonValueLen)) {
+          tscError("doConvertJson error: invalid json cell at offset:%d, colLen:%d", offset[j], colLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
 
         int32_t jsonInnerType = *data;
         char*   jsonInnerData = data + CHAR_BYTES;
@@ -4927,15 +5048,21 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%s", TSDB_DATA_NULL_STR_L);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (tTagIsJson(data)) {
-          char* jsonString = NULL;
-          parseTagDatatoJson(data, &jsonString, pResultInfo->charsetCxt);
-          if (jsonString == NULL) {
-            tscError("doConvertJson error: parseTagDatatoJson failed");
-            return terrno;
+          SJsonStringCacheEntry* entry = taosArrayGet(jsonStringCache, jsonStringCacheIndex++);
+          if (entry == NULL || entry->value == NULL || entry->length > TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) {
+            tscError("doConvertJson error: missing or invalid cached JSON string at index:%d",
+                     jsonStringCacheIndex - 1);
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
           }
-          STR_TO_VARSTR(dst, jsonString);
-          taosMemoryFree(jsonString);
+          varDataSetLen(dst, entry->length);
+          memcpy(varDataVal(dst), entry->value, entry->length);
         } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
+          if (varDataLen(jsonInnerData) > TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2) {
+            tscError("doConvertJson error: json nchar value too long:%u", varDataLen(jsonInnerData));
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
+          }
           *(char*)varDataVal(dst) = '\"';
           char    tmp[TSDB_MAX_JSON_TAG_LEN] = {0};
           int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(tmp),
@@ -4945,10 +5072,16 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           }
           int32_t escapeLength = escapeToPrinted(varDataVal(dst) + CHAR_BYTES, TSDB_MAX_JSON_TAG_LEN - CHAR_BYTES * 2,
                                                  varDataVal(tmp), length);
+          if (escapeLength < 0) {
+            tscError("doConvertJson error: escaped json value too long");
+            code = TSDB_CODE_TSC_INTERNAL_ERROR;
+            goto _return;
+          }
           varDataSetLen(dst, escapeLength + CHAR_BYTES * 2);
           *(char*)POINTER_SHIFT(varDataVal(dst), escapeLength + CHAR_BYTES) = '\"';
         } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-          double jsonVd = *(double*)(jsonInnerData);
+          double jsonVd = 0;
+          memcpy(&jsonVd, jsonInnerData, sizeof(jsonVd));
           (void)snprintf(varDataVal(dst), TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE, "%.9lf", jsonVd);
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
@@ -4957,12 +5090,19 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
           varDataSetLen(dst, strlen(varDataVal(dst)));
         } else {
           tscError("doConvertJson error: invalid type:%d", jsonInnerType);
-          return TSDB_CODE_TSC_INTERNAL_ERROR;
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
         }
 
+        size_t convertedLen = varDataTLen(dst);
+        if (totalLen + (size_t)len + convertedLen > (size_t)dataLen) {
+          tscError("doConvertJson error: converted json exceeds estimate:%d", dataLen);
+          code = TSDB_CODE_TSC_INTERNAL_ERROR;
+          goto _return;
+        }
         offset1[j] = len;
-        (void)memcpy(pStart1 + len, dst, varDataTLen(dst));
-        len += varDataTLen(dst);
+        (void)memcpy(pStart1 + len, dst, convertedLen);
+        len += (int32_t)convertedLen;
       }
       colLen1 = len;
       totalLen += colLen1;
@@ -4973,10 +5113,20 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
       pStart += len;
       pStart1 += len;
       totalLen += len;
+      if (totalLen + (size_t)colLen > (size_t)dataLen) {
+        tscError("doConvertJson error: column length:%d exceeds estimate:%d", colLen, dataLen);
+        code = TSDB_CODE_TSC_INTERNAL_ERROR;
+        goto _return;
+      }
       totalLen += colLen;
       (void)memcpy(pStart1, pStart, colLen);
     } else {
       len = BitmapLen(pResultInfo->numOfRows);
+      if (totalLen + (size_t)len + (size_t)colLen > (size_t)dataLen) {
+        tscError("doConvertJson error: fixed column length:%d exceeds estimate:%d", colLen, dataLen);
+        code = TSDB_CODE_TSC_INTERNAL_ERROR;
+        goto _return;
+      }
       (void)memcpy(pStart1, pStart, len);
       pStart += len;
       pStart1 += len;
@@ -4991,11 +5141,20 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo) {
   // Ensure the complete structure of the block, including the blankfill field,
   // even though it is not used on the client side.
   // (void)memcpy(pStart1, pStart, sizeof(bool));
+  if (totalLen + sizeof(bool) > (size_t)dataLen) {
+    tscError("doConvertJson error: total length:%zu exceeds estimate:%d", totalLen + sizeof(bool), dataLen);
+    code = TSDB_CODE_TSC_INTERNAL_ERROR;
+    goto _return;
+  }
   totalLen += sizeof(bool);
 
-  *(int32_t*)(pResultInfo->convertJson + 4) = totalLen;
+  *(int32_t*)(pResultInfo->convertJson + 4) = (int32_t)totalLen;
   pResultInfo->pData = pResultInfo->convertJson;
-  return TSDB_CODE_SUCCESS;
+  code = TSDB_CODE_SUCCESS;
+
+_return:
+  destroyJsonStringCache(jsonStringCache);
+  return code;
 }
 
 int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isStmt) {
@@ -5014,7 +5173,20 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     return TSDB_CODE_TSC_INTERNAL_ERROR;
   }
 
-  int32_t code = doPrepareResPtr(pResultInfo);
+  if (pResultInfo->payloadLen <= 0) {
+    tscError("setResultDataPtr error: invalid payloadLen:%d", pResultInfo->payloadLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  int32_t code = blockDataValidateEncoding(pResultInfo->pData, (size_t)pResultInfo->payloadLen);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("setResultDataPtr error: invalid encoded result block");
+    return code;
+  }
+  code = validateResultBlockSchema(pResultInfo, isStmt);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  code = doPrepareResPtr(pResultInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5085,6 +5257,13 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
     }
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
       pResultInfo->pCol[i].offset = (int32_t*)pStart;
+      if (colLength[i] == 0) {
+        // Older producers use zero offsets for an empty variable column.
+        // Match blockDecode's NULL normalization before exposing row pointers.
+        for (int32_t row = 0; row < pResultInfo->numOfRows; ++row) {
+          pResultInfo->pCol[i].offset[row] = -1;
+        }
+      }
       pStart += pResultInfo->numOfRows * sizeof(int32_t);
     } else {
       pResultInfo->pCol[i].nullbitmap = pStart;
@@ -5110,7 +5289,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, bool convertUcs4, bool isS
 
 #ifndef DISALLOW_NCHAR_WITHOUT_ICONV
   if (convertUcs4) {
-    code = doConvertUCS4(pResultInfo, colLength, isStmt);
+    code = doConvertUCS4(pResultInfo, colLength);
   }
 #endif
   if (TSDB_CODE_SUCCESS == code && convertForDecimal) {
@@ -5192,6 +5371,11 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   // decompress data if needed
   int32_t payloadLen = htonl(pRsp->payloadLen);
+  int32_t wirePayloadLen = htonl(pRsp->compLen);
+  if (payloadLen < 0 || wirePayloadLen < 0) {
+    tscError("setQueryResultFromRsp: invalid payloadLen:%d wirePayloadLen:%d", payloadLen, wirePayloadLen);
+    return TSDB_CODE_TSC_INTERNAL_ERROR;
+  }
 
   if (pRsp->compressed) {
     if (pResultInfo->decompBuf == NULL) {
@@ -5216,12 +5400,33 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
   }
 
   if (payloadLen > 0) {
+    if (payloadLen < PAYLOAD_PREFIX_LEN || wirePayloadLen < PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: invalid payloadLen:%d wirePayloadLen:%d", payloadLen, wirePayloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+
     int32_t compLen = *(int32_t*)pRsp->data;
     int32_t rawLen = *(int32_t*)(pRsp->data + sizeof(int32_t));
+    if (compLen < 0 || rawLen < 0 || compLen > rawLen) {
+      tscError("setQueryResultFromRsp: invalid compLen:%d rawLen:%d", compLen, rawLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+    if (compLen > wirePayloadLen - PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: compLen:%d exceeds wire payload:%d", compLen, wirePayloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
+    if (rawLen > payloadLen - PAYLOAD_PREFIX_LEN) {
+      tscError("setQueryResultFromRsp: rawLen:%d exceeds payload:%d", rawLen, payloadLen);
+      return TSDB_CODE_TSC_INTERNAL_ERROR;
+    }
 
     char* pStart = (char*)pRsp->data + sizeof(int32_t) * 2;
 
     if (pRsp->compressed && compLen < rawLen) {
+      if (rawLen > pResultInfo->decompBufSize) {
+        tscError("setQueryResultFromRsp: rawLen:%d exceeds decompBuf size:%d", rawLen, pResultInfo->decompBufSize);
+        return TSDB_CODE_TSC_INTERNAL_ERROR;
+      }
       int32_t len = tsDecompressString(pStart, compLen, 1, pResultInfo->decompBuf, rawLen, ONE_STAGE_COMP, NULL, 0);
       if (len < 0) {
         tscError("tsDecompressString failed");
@@ -5235,8 +5440,8 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
       pResultInfo->payloadLen = rawLen;
     } else {
       pResultInfo->pData = pStart;
-      pResultInfo->payloadLen = htonl(pRsp->compLen);
-      if (pRsp->compLen != pRsp->payloadLen) {
+      pResultInfo->payloadLen = rawLen;
+      if (wirePayloadLen != payloadLen) {
         tscError("pRsp->compLen:%d != pRsp->payloadLen:%d", pRsp->compLen, pRsp->payloadLen);
         return TSDB_CODE_TSC_INTERNAL_ERROR;
       }

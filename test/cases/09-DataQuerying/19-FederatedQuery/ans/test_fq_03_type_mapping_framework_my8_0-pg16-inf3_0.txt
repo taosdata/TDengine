@@ -1316,3 +1316,282 @@ OK
 CASE END: CASE-01s[SQL]
 DESC: SQL Server full type mapping
 ================================================================================================
+================================================================================================
+CASE START: CASE-01o[ORA]
+DESC: Oracle full type mapping
+================================================================================================
+### CASE-01o[ORA] STEP-001 EXEC
+SQL: drop external source if exists fq03_src_o
+RESULT:
+OK
+---
+### CASE-01o[ORA] STEP-002 EXEC
+SQL: create external source fq03_src_o type='oracle' host='127.0.0.1' port=18322 user='taosdata' password='taosdata' database='FREEPDB1' schema='TAOSDATA'
+RESULT:
+OK
+---
+### CASE-01o[ORA] STEP-002 AUTO-SHOW
+SQL: show external sources
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-01o[ORA] STEP-002 AUTO-DESCRIBE
+SQL: describe external source fq03_src_o
+RESULT:
+source_name|type|host|port|user|password|database|schema|options
+fq03_src_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
+---
+### CASE-01o[ORA] STEP-003 QUERY
+SQL: select ts, c_num_dec from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_num_dec
+2024-01-01 00:00:00.123456+00:00|12345.67
+2024-01-01 00:01:00+00:00|-99999999.99
+---
+### CASE-01o[ORA] STEP-004 QUERY
+SQL: select ts, c_num_bigint from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_num_bigint
+2024-01-01 00:00:00.123456+00:00|42
+2024-01-01 00:01:00+00:00|-999999999999999999
+---
+### CASE-01o[ORA] STEP-005 QUERY
+SQL: select ts, c_num_wide from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_num_wide
+2024-01-01 00:00:00.123456+00:00|1234567890123456789
+2024-01-01 00:01:00+00:00|-99999999999999999999
+---
+### CASE-01o[ORA] STEP-006 QUERY
+SQL: select ts, c_num_one from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_num_one
+2024-01-01 00:00:00.123456+00:00|1
+2024-01-01 00:01:00+00:00|0
+---
+### CASE-01o[ORA] STEP-007 QUERY
+SQL: select ts, c_integer from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_integer
+2024-01-01 00:00:00.123456+00:00|2147483647
+2024-01-01 00:01:00+00:00|-2147483648
+---
+### CASE-01o[ORA] STEP-008 QUERY
+SQL: select ts, c_bin_float, c_bin_double from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_bin_float|c_bin_double
+2024-01-01 00:00:00.123456+00:00|3.5|2.71828182846
+2024-01-01 00:01:00+00:00|-3.5|-2.71828182846
+---
+### CASE-01o[ORA] STEP-009 QUERY
+SQL: select ts, c_float24, c_float53 from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_float24|c_float53
+2024-01-01 00:00:00.123456+00:00|1.5|2.5
+2024-01-01 00:01:00+00:00|-1.5|-2.5
+---
+### CASE-01o[ORA] STEP-010 QUERY
+SQL: select ts, c_char, c_varchar2 from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_char|c_varchar2
+2024-01-01 00:00:00.123456+00:00|hello               |ascii-varchar
+2024-01-01 00:01:00+00:00|xyz                 |NULL
+---
+### CASE-01o[ORA] STEP-011 QUERY
+SQL: select ts, c_nchar, c_nvarchar2 from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_nchar|c_nvarchar2
+2024-01-01 00:00:00.123456+00:00|宽字符                 |宽字符测试UTF8
+2024-01-01 00:01:00+00:00|NULL|NULL
+---
+### CASE-01o[ORA] STEP-012 QUERY
+SQL: select ts, c_clob from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_clob
+2024-01-01 00:00:00.123456+00:00|clob text
+2024-01-01 00:01:00+00:00|NULL
+---
+### CASE-01o[ORA] STEP-013 QUERY
+SQL: select ts, c_nclob from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_nclob
+2024-01-01 00:00:00.123456+00:00|nclob text
+2024-01-01 00:01:00+00:00|NULL
+---
+### CASE-01o[ORA] STEP-014 QUERY
+SQL: select ts, c_long from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_long
+2024-01-01 00:00:00.123456+00:00|long text
+2024-01-01 00:01:00+00:00|NULL
+---
+### CASE-01o[ORA] STEP-015 QUERY
+SQL: select ts, c_raw from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_raw
+2024-01-01 00:00:00.123456+00:00|b'HELLO'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01o[ORA] STEP-016 QUERY
+SQL: select ts, c_long_raw from fq03_src_o.long_raw_ora order by ts
+RESULT:
+ts|c_long_raw
+2024-01-01 00:00:00.123456+00:00|b'\xde\xad\xbe\xef'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01o[ORA] STEP-017 QUERY
+SQL: select ts, c_blob from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_blob
+2024-01-01 00:00:00.123456+00:00|b'\xaa\xbb'
+2024-01-01 00:01:00+00:00|b'\x00'
+---
+### CASE-01o[ORA] STEP-018 QUERY
+SQL: select ts, c_xmltype from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_xmltype
+2024-01-01 00:00:00.123456+00:00|<r>
+  <a>1</a>
+</r>
+
+2024-01-01 00:01:00+00:00|<r/>
+
+---
+### CASE-01o[ORA] STEP-019 QUERY
+SQL: select ts, c_date from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_date
+2024-01-01 00:00:00.123456+00:00|2024-06-15 00:00:00+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:00+00:00
+---
+### CASE-01o[ORA] STEP-020 QUERY
+SQL: select ts, c_ts6, c_ts9 from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_ts6|c_ts9
+2024-01-01 00:00:00.123456+00:00|2024-01-01 12:00:00.123456+00:00|2024-01-01 12:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 00:00:01+00:00|2023-12-31 00:00:01+00:00
+---
+### CASE-01o[ORA] STEP-021 QUERY
+SQL: select cast(c_ts9 as bigint) from fq03_src_o.all_types_ora order by ts
+RESULT:
+cast(c_ts9 as bigint)
+1704110400123456789
+1703980801000000001
+---
+### CASE-01o[ORA] STEP-022 QUERY
+SQL: select ts, c_ts_tz, c_ts_ltz from fq03_src_o.all_types_ora order by ts
+RESULT:
+ts|c_ts_tz|c_ts_ltz
+2024-01-01 00:00:00.123456+00:00|2024-01-01 04:00:00.123456+00:00|2024-01-01 04:00:00.123456+00:00
+2024-01-01 00:01:00+00:00|2023-12-31 05:00:00+00:00|2023-12-30 16:00:00+00:00
+---
+### CASE-01o[ORA] STEP-023 QUERY
+SQL: describe fq03_src_o.all_types_ora
+RESULT:
+field|type|length|note
+TS|TIMESTAMP|8|
+C_NUM_DEC|DECIMAL(10, 2)|8|
+C_NUM_BIGINT|BIGINT|8|
+C_NUM_WIDE|DECIMAL(20, 0)|16|
+C_NUM_ONE|TINYINT|1|
+C_INTEGER|DECIMAL(38, 0)|16|
+C_BIN_FLOAT|FLOAT|4|
+C_BIN_DOUBLE|DOUBLE|8|
+C_FLOAT24|FLOAT|4|
+C_FLOAT53|DOUBLE|8|
+C_CHAR|VARCHAR|20|
+C_VARCHAR2|VARCHAR|100|
+C_NCHAR|NCHAR|20|
+C_NVARCHAR2|NCHAR|100|
+C_CLOB|NCHAR|16379|
+C_NCLOB|NCHAR|16379|
+C_LONG|NCHAR|16379|
+C_RAW|VARBINARY|16|
+C_BLOB|BLOB|16777220|
+C_ROWID|VARCHAR|40|
+C_XMLTYPE|NCHAR|16379|
+C_DATE|TIMESTAMP|8|
+C_TS6|TIMESTAMP|8|
+C_TS9|TIMESTAMP|8|
+C_TS_TZ|TIMESTAMP|8|
+C_TS_LTZ|TIMESTAMP|8|
+---
+### CASE-01o[ORA] STEP-024 QUERY
+SQL: select ts, c_char10, c_varchar10 from fq03_src_o.char_pad_ora order by ts
+RESULT:
+ts|c_char10|c_varchar10
+2024-01-01 00:00:00+00:00|ab        |ab
+---
+### CASE-01o[ORA] STEP-025 QUERY
+SQL: select c_char10 from fq03_src_o.char_pad_ora where c_char10 = 'ab'
+RESULT:
+c_char10
+---
+### CASE-01o[ORA] STEP-026 QUERY
+SQL: select ts, c_num_dec, c_varchar2 from fq03_src_o.all_types_v_ora order by ts
+RESULT:
+ts|c_num_dec|c_varchar2
+2024-01-01 00:00:00.123456+00:00|12345.67|ascii-varchar
+2024-01-01 00:01:00+00:00|-99999999.99|NULL
+---
+### CASE-01o[ORA] STEP-027 EXPECT-ERROR
+SQL: select * from fq03_src_o.all_types_syn_ora
+RESULT:
+ERROR_EXPECTED: 2147509264
+---
+### CASE-01o[ORA] STEP-028 EXPECT-ERROR
+SQL: select ts, c_num_plain from fq03_src_o.unmappable_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-029 EXPECT-ERROR
+SQL: select * from fq03_src_o.unmappable_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-030 EXPECT-ERROR
+SQL: select ts, c_interval from fq03_src_o.unmappable_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-031 EXPECT-ERROR
+SQL: select ts, c_float126 from fq03_src_o.unmappable_float_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-032 EXPECT-ERROR
+SQL: select ts, c_real from fq03_src_o.unmappable_float_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-033 EXPECT-ERROR
+SQL: select ts, c_double_prec from fq03_src_o.unmappable_float_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-034 EXPECT-ERROR
+SQL: select ts, c_sdo from fq03_src_o.unmappable_obj_ora
+RESULT:
+ERROR_EXPECTED: 2147509253
+---
+### CASE-01o[ORA] STEP-035 QUERY
+SQL: select ts, c_v from fq03_src_o.unmappable_obj_ora order by ts
+RESULT:
+ts|c_v
+2024-01-01 00:00:00+00:00|1
+---
+### CASE-01o[ORA] STEP-036 QUERY
+SQL: select ts, c_num_dec from fq03_src_o.FREEPDB1.all_types_ora order by ts
+RESULT:
+ERROR: query failed
+---
+### CASE-01o[ORA] STEP-037 CLEANUP
+SQL: drop external source if exists fq03_src_o
+RESULT:
+OK
+---
+================================================================================================
+CASE END: CASE-01o[ORA]
+DESC: Oracle full type mapping
+================================================================================================

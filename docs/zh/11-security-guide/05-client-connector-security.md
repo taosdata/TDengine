@@ -111,6 +111,8 @@ graph TB
   - 需要集中管理证书
   - 需要统一的入口管控
 
+选择 Nginx/HAProxy 转发时，多实例、`/-/ping` 健康检查、TLS/mTLS 和故障切换的完整配置见 [taosAdapter 高可用](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md)。
+
 #### 3. Token 动态轮换确保业务连续性
 
 Token 有 TTL（通常 24 小时），过期后连接将失败。动态 Token 轮换机制确保：

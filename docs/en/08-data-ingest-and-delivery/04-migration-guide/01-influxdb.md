@@ -149,7 +149,7 @@ When importing:
 4. Keep failed source files, fix their data, and retry only failed batches.
 5. Keep the incremental-data protection path running throughout historical backfill.
 
-For ingestion parameters and limits, see [taosAdapter](../../12-operations-and-tooling/03-components/03-taosadapter.md) and [Schemaless Ingestion](../../10-developer-guide/04-schemaless.md).
+For ingestion parameters and limits, see [taosAdapter](../../12-operations-and-tooling/03-components/03-taosadapter/01-data-ingestion.md#influxdb-v1-write-interface) and [Schemaless Ingestion](../../10-developer-guide/04-schemaless.md).
 
 ## Switch Real-time Writes
 

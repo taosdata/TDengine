@@ -273,7 +273,7 @@ class TDDnodes:
                 processID = (
                     subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
                 )
-        if self.killValgrind == 1:
+        if self.killValgrind == 1 and platform.system().lower() != "windows":
             psCmd = (
                 "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
             )

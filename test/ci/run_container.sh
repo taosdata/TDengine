@@ -295,12 +295,10 @@ ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
 MOUNT_DIR=""
-# packageName="TDengine-server-3.0.1.0-Linux-x64.tar.gz"
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
-_CI_SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-# shellcheck source=compat_packages_mount.sh
-source "${_CI_SCRIPT_DIR}/compat_packages_mount.sh"
-SOURCEDIR=$(prepare_compat_packages_sourcedir "$WORKDIR")
+source "$REPDIR/test/ci/compat_package_cache.sh" || exit 1
+# Bind the cache directly: never replace or mutate an existing job/src directory.
+SOURCEDIR=$(compat_package_cache_dir "${CI_BASE_DIR:-$(dirname "$WORKDIR")}") || exit 1
 
 source "$REPDIR/test/cases/09-DataQuerying/19-FederatedQuery/fq_runtime_libs.sh"
 
@@ -427,9 +425,14 @@ function _stage_fq_ext_env_cache() {
     fi
 
     local _apt_src
+    # Stage the PGDG deb caches for every supported PG major.  18.6 is the
+    # default test version; 16 remains selectable.
     for _apt_src in "${SOURCEDIR}"/fq-apt-pg16-*.tar.gz "${SOURCEDIR}"/fq-apt-postgis-pg16-*.tar.gz \
+                    "${SOURCEDIR}"/fq-apt-pg18-*.tar.gz "${SOURCEDIR}"/fq-apt-postgis-pg18-*.tar.gz \
                     /data0/compat-packages/fq-apt-pg16-*.tar.gz \
-                    /data0/compat-packages/fq-apt-postgis-pg16-*.tar.gz; do
+                    /data0/compat-packages/fq-apt-postgis-pg16-*.tar.gz \
+                    /data0/compat-packages/fq-apt-pg18-*.tar.gz \
+                    /data0/compat-packages/fq-apt-postgis-pg18-*.tar.gz; do
         [ -s "$_apt_src" ] || continue
         _stage_fq_tarball_from_compat "$shared_cache_dir" "$thread_cache_dir" \
             "$(basename "$_apt_src")" "$_apt_src" || true
@@ -661,7 +664,7 @@ echo "docker run \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v \"$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}\" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param"
 _ci_exit_marker="${TMP_DIR}/thread_volume/${thread_no}/.ci-container-exit"
 rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-command-exit"
 _ci_docker_start_ms=$(date +%s%3N)
@@ -684,7 +687,7 @@ echo "[ci-timing] stage=docker-run event=start"
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
-    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-tdengine-ci:0.3} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
+    ${_ci_remove_flag} --ulimit core=-1 ${DOCKER_IMAGE_NAME:-harbor.tdengine.net/tsdb-ci/tdengine-ci:0.4} $CONTAINER_TESTDIR/test/ci/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
 ret=$?
 _ci_docker_end_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run elapsed_ms=$(( _ci_docker_end_ms - _ci_docker_start_ms )) rc=${ret}"

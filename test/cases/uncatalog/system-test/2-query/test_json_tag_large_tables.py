@@ -15,7 +15,6 @@
 
 # -*- coding: utf-8 -*-
 
-import imp
 import sys
 import taos
 from new_test_framework.utils import tdLog, tdSql
@@ -46,6 +45,7 @@ class TestJsonTagLargeTables:
         Since: xxx
 
         Labels: common,ci,integration,functional
+
         Jira: xxx
 
         Catalog:

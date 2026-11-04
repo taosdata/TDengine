@@ -475,18 +475,68 @@ function install_lib() {
 
     is_true "${install_fq_runtime_libs}" && return
 
+    ${csudo}rm -rf "${install_main_dir}/driver/oracle" || :
+
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
       "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
       "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" \
       "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
-      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
       for src in "${install_main_dir}/driver"/${pattern}; do
         [ -e "${src}" ] || continue
         ${csudo}rm -f "${src}" || :
       done
     done
+  }
+
+  # Copy one federated-query runtime library into driver/.
+  #
+  # A link whose target is a sibling in the staged set is preserved as a link.
+  # Oracle's Instant Client ships libclntsh and libclntshcore once each under
+  # eight versioned aliases (libclntsh.so.10.1 ... .23.1), so dereferencing
+  # every alias would put nine full copies of a 99 MB library into the package.
+  # All the aliases carry the same SONAME and the preloader only needs the
+  # unversioned one, so the real file is shipped and install.sh's link list
+  # rebuilds the alias on the target machine.  A link pointing outside the
+  # staged set is dereferenced instead, so the package never carries a link
+  # that resolves to nothing.
+  #
+  # Links are handled in a second pass, after every real file is in place:
+  # a preserved link is dangling until its target lands, and chmod/readlink on
+  # a dangling link fails (which `set -e` would turn into an aborted install).
+  copy_fq_runtime_lib() {
+    local src=$1
+    local dst="${install_main_dir}/driver/$(basename "${src}")"
+    local target=""
+
+    if [ -L "${src}" ]; then
+      target="$(readlink "${src}" 2>/dev/null || true)"
+      case "${target}" in
+        /*|"")
+          ${csudo}cp -RfL "${src}" "${dst}"
+          ;;
+        *)
+          if [ -e "${binary_dir}/build/lib/${target}" ]; then
+            ${csudo}rm -f "${dst}"
+            ${csudo}cp -Rdf "${src}" "${dst}"
+          else
+            ${csudo}cp -RfL "${src}" "${dst}"
+          fi
+          ;;
+      esac
+    else
+      ${csudo}cp -RfL "${src}" "${dst}"
+    fi
+    # A preserved link may still be dangling at this point; its target is
+    # copied later in the real-file pass.
+    if [ -e "${dst}" ]; then
+      ${csudo}chmod 755 "${dst}"
+    fi
+    return 0
   }
 
   copy_fq_runtime_libs() {
@@ -496,19 +546,41 @@ function install_lib() {
     is_true "${install_fq_runtime_libs}" || return 0
     [ -d "${binary_dir}/build/lib" ] || return 0
 
+    # Two passes over the same glob set: real files first, so that every link
+    # preserved below already has its target in place.
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
       "libltdl.so*" "libgssapi_krb5.so*" "libkrb5.so*" "libk5crypto.so*" \
       "libcom_err.so*" "libkrb5support.so*" "libkeyutils.so*" "libz.so*" \
       "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
-      "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
-        ${csudo}cp -RfL "${src}" "${install_main_dir}/driver/" &&
-          ${csudo}chmod 755 "${install_main_dir}/driver/$(basename "${src}")"
+        [ -L "${src}" ] && continue
+        copy_fq_runtime_lib "${src}"
       done
     done
+
+    for pattern in \
+      "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
+      "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libtaos_ext_influx_arrow*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
+        [ -L "${src}" ] || continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+    if [ -d "${binary_dir}/build/driver/oracle" ]; then
+      ${csudo}mkdir -p "${install_main_dir}/driver/oracle"
+      ${csudo}cp -a "${binary_dir}/build/driver/oracle/." "${install_main_dir}/driver/oracle/"
+    fi
     if [ -d "${binary_dir}/build/share/resources" ]; then
       ${csudo}mkdir -p "${install_main_dir}/share/resources"
       ${csudo}cp -a "${binary_dir}/build/share/resources/." "${install_main_dir}/share/resources/"
@@ -526,8 +598,10 @@ function install_lib() {
     for pattern in \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
-      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" \
-      "libssl*.dylib*" "libcrypto*.dylib*" "libodbc*.dylib*" "libmsodbcsql*.dylib*"; do
+      "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
+      "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "legacy.so*" "fips*.so*" \
+      "libmariadb*.dylib*" "libmysqlclient*.dylib*" "libpq*.dylib*" "libarrow*.dylib*" "libparquet*.dylib*" "libssl*.dylib*" "libcrypto*.dylib*" \
+      "libodbc*.dylib*" "libmsodbcsql*.dylib*" "libsqora*.dylib*" "libclntsh*.dylib*"; do
       for link_path in "${dir}"/${pattern}; do
         [ -L "${link_path}" ] || continue
         resolved=$(readlink -f "${link_path}" 2>/dev/null || true)

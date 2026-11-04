@@ -160,7 +160,13 @@ ulimit -c unlimited
 # 使用容器本地 marker + requirements.txt 内容 hash 比较，智能安装依赖。
 # marker 不能放在 bind-mounted 源码目录里；CI 每个 case 是新容器，
 # 但源码目录可能跨容器共享，旧 marker 会让新容器跳过 pip install。
-# tdengine-ci:0.3 image bakes Nexus as default pip index; no -i needed
+# The runtime image supplies the pip index. Python 3.12 provisioning is a
+# prerequisite for this requirement upgrade (7145792566 / image MR !2643).
+# Fail before dependency installation if a worker still uses an older image.
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then
+    echo "[ci] FATAL: container interpreter is $(python3 -V 2>&1), but test/requirements.txt and test/pyproject.toml require >=3.12 (7145792566)" >&2
+    exit 1
+fi
 _REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
 _REQ_HASH=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()[:16])' "${_REQ_FILE}" 2>/dev/null || echo "unknown")
 _PY_TAG=$(python3 -c 'import sys; print(f"{sys.implementation.cache_tag}-{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "python")

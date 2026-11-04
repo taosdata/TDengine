@@ -13,7 +13,7 @@ By using the [TDengine Java Connector](../../10-developer-guide/08-connectors-re
 Prepare the following environments:
 
 - TDengine 3.3.6.0 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 - Spark 3.3.x ([Spark Download](https://spark.apache.org/downloads.html)). The dialect v1.0.0 is built and verified against Spark 3.3.2 / Scala 2.13.
 - JDBC driver 3.9.2 and above version. Download from [maven.org](https://central.sonatype.com/artifact/com.taosdata.jdbc/taos-jdbcdriver).
 - Spark dialect `tdengine-spark-dialect` v1.0.0 and above version, published on [maven.org](https://central.sonatype.com/artifact/com.taosdata.spark/tdengine-spark-dialect), source code is available on [GitHub](https://github.com/taosdata/tdengine-spark-dialect). Add the following dependencies to the `pom.xml` of your project (the JDBC driver is not a transitive dependency of the dialect and must be declared explicitly):

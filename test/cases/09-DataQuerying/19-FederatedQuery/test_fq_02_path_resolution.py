@@ -36,6 +36,16 @@ Environment requirements:
     - Python packages: pymysql, psycopg2, requests.
 """
 
+# Oracle coverage map (TS §5.7.1): the ``oracle`` source joins every path
+# dimension in _CASES, so FQOR-PATH-001 (2-segment), -002 (3-segment),
+# -003 (4-segment rejection), -004 (missing schema), -005 (no privilege),
+# -006 (same table name in two schemas), -007 (4-segment column path),
+# -008 (3-segment column path), -012 (synonym not resolved), -013 (USE
+# source), -014 (USE source.schema) and -015 (path/USE/default precedence)
+# are carried by the dimensions that already assert those shapes; the
+# identifier-folding cases -009/-010/-011/-016 live in
+# test_fq_18_source_specific.py, as the TS prescribes.
+
 import os
 import re
 import shutil
@@ -85,6 +95,18 @@ _I_TOKEN = ExtSrcEnv.INFLUX_TOKEN
 _I_DB    = "fq02_path_idb"
 _I_DB2   = "fq02_path_idb2"
 
+_O_HOST    = ExtSrcEnv.ORACLE_HOST
+_O_PORT    = ExtSrcEnv.ORACLE_PORT
+_O_USER    = ExtSrcEnv.ORACLE_USER
+_O_PASS    = ExtSrcEnv.ORACLE_PASS
+_O_SERVICE = ExtSrcEnv.ORACLE_SERVICE
+# Oracle's namespace is one level deep and a schema is a login user, so the
+# default namespace is the test account's own schema and the alternate one is
+# the second provisioned account (ensure_ext_env.sh ORACLE_ALT_USER) — the
+# counterpart of PostgreSQL's "analytics" schema.
+_O_SCHEMA  = ExtSrcEnv.ORACLE_USER.upper()
+_O_SCHEMA2 = ExtSrcEnv.ORACLE_ALT_USER.upper()
+
 _FW_TABLE = "path_t"
 _BASE_TS  = 1_704_067_200_000  # 2024-01-01T00:00:00Z in ms
 
@@ -111,6 +133,7 @@ _mysql    = "mysql"
 _pg       = "postgresql"
 _influxdb = "influxdb"
 _sqlserver = "sqlserver"
+_oracle    = "oracle"
 
 # ── Step sentinel classes ──────────────────────────────────────────────────
 
@@ -141,6 +164,55 @@ def _rows_to_sql_values(rows) -> str:
         f"('{ts}', {val}, {score}, '{name}')"
         for ts, val, score, name in rows
     )
+
+
+def _oracle_insert_rows(rows) -> list:
+    """One INSERT per row for Oracle.
+
+    The multi-row VALUES constructor (``VALUES (...), (...)``) is a 23ai
+    feature; 11g rejects it with ORA-00933.  A statement per row works on
+    every supported generation and keeps the timestamp format pinned, since a
+    bare string would be parsed with the session's NLS_TIMESTAMP_FORMAT and
+    that differs between the test client and the server.
+    """
+    table = _FW_TABLE.upper()
+    return [
+        f'INSERT INTO "{table}" ("TS", "VAL", "SCORE", "NAME") VALUES '
+        f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}')"
+        for ts, val, score, name in rows
+    ]
+
+
+def _oracle_fixture_ddl(rows) -> list:
+    """DDL/DML rebuilding the path fixture in one Oracle schema."""
+    table = _FW_TABLE.upper()
+    return [
+        (
+            f'CREATE TABLE "{table}" ("TS" TIMESTAMP(3), "VAL" NUMBER(10), '
+            f'"SCORE" BINARY_DOUBLE, "NAME" VARCHAR2(32))'
+        ),
+        *_oracle_insert_rows(rows),
+        f'CREATE VIEW "V_{table}" AS SELECT * FROM "{table}" WHERE "VAL" > 0',
+        f'CREATE VIEW "V_NO_TS" AS SELECT "VAL", "NAME" FROM "{table}"',
+        "COMMIT",
+    ]
+
+
+def _oracle_drop_fixture(cfg, rows_owner=None, password=None) -> None:
+    """Drop the fixture objects, ignoring the ones that are not there.
+
+    Oracle has no ``IF EXISTS`` for DROP, so a first run raises ORA-00942 for
+    every object.  The drops run as the owning account, which is the only one
+    that may drop them without extra privileges.
+    """
+    table = _FW_TABLE.upper()
+    for kind, name in (("VIEW", f"V_{table}"), ("VIEW", "V_NO_TS"), ("TABLE", table)):
+        try:
+            ExtSrcEnv._oracle_sql(cfg, f'DROP {kind} "{name}"', user=rows_owner,
+                                  password=password)
+        except RuntimeError as e:
+            if "ORA-00942" not in str(e):
+                raise
 
 
 def _influx_lines_for_rows(rows):
@@ -334,6 +406,10 @@ def _dim01_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -354,6 +430,10 @@ def _dim02_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -378,6 +458,10 @@ def _dim03_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -402,6 +486,10 @@ def _dim04_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -426,6 +514,10 @@ def _dim05_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -459,6 +551,10 @@ def _dim06_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -536,6 +632,30 @@ def _dim07_steps(src_type: str) -> list:
             f"use {src.upper()}.{ns.upper()}",
             f"select * from {table} limit 1",
         ]
+    elif src_type == _oracle:
+        # Oracle folds every unquoted path segment to upper case (DS 5.3.6 R1);
+        # the schema is a login user, so its stored spelling is already upper
+        # case.  Backticks are TDengine's own identifier quoting and are not an
+        # Oracle quoting form, so they do not change the folding - only double
+        # quotes written inside the path text would, and TDengine cannot carry
+        # them through to the remote object name.
+        ns, table = _O_SCHEMA, _FW_TABLE
+        steps = [
+            f"-- Oracle fold: unquoted segments are upper-cased before matching",
+            f"select * from {src}.{ns}.{table} limit 1",
+            f"select * from {src.upper()}.{ns}.{table.upper()} limit 1",
+            f"-- Oracle: TDengine backticks are not an Oracle quoting form, so the fold still applies",
+            f"select * from `{src}`.`{ns}`.`{table}` limit 1",
+            f"-- Oracle: a lower-case unquoted table folds to upper, so it resolves",
+            f"select * from {src}.{table.lower()} limit 1",
+            f"select * from {src}.`{table.lower()}` limit 1",
+            f"select * from {src}.{ns}.`{table.lower()}` limit 1",
+            f"-- Oracle USE with case variants",
+            f"use {src.upper()}",
+            f"select * from {table} limit 1",
+            f"use {src.upper()}.{ns}",
+            f"select * from {table} limit 1",
+        ]
     else:
         ns, table = _I_DB, _FW_TABLE
         steps = [
@@ -562,6 +682,10 @@ def _dim08_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -645,6 +769,12 @@ def _dim09_steps(src_type: str) -> list:
         ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
         alter_sql = f"alter external source {src} set schema='{ns2}'"
         restore_sql = f"alter external source {src} set schema='{ns}'"
+    elif src_type == _oracle:
+        # Only the default schema can move: Oracle's DATABASE is the service
+        # name and is not switchable inside a session (DS 5.3.2).
+        ns, ns2, table = _O_SCHEMA, _O_SCHEMA2, _FW_TABLE
+        alter_sql = f"alter external source {src} set schema='{ns2}'"
+        restore_sql = f"alter external source {src} set schema='{ns}'"
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
         alter_sql = f"alter external source {src} set database='{ns2}'"
@@ -682,6 +812,10 @@ def _dim10_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -762,6 +896,8 @@ def _dim11_steps(src_type: str) -> list:
         ns, ns2, table = _P_SCHEMA, _P_SCHEMA2, _FW_TABLE
     elif src_type == _sqlserver:
         ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
+    elif src_type == _oracle:
+        ns, ns2, table = _O_SCHEMA, _O_SCHEMA2, _FW_TABLE
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
 
@@ -781,6 +917,11 @@ def _dim11_steps(src_type: str) -> list:
             f"create external source if not exists {sec_src} type='sqlserver' "
             f"host='{_S_HOST}' port={_S_PORT} user='{_S_USER}' password='{_S_PASS}' "
             f"database='{_S_DB}' schema='{ns2}'")
+    elif src_type == _oracle:
+        sec_create = (
+            f"create external source if not exists {sec_src} type='oracle' "
+            f"host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' "
+            f"database='{_O_SERVICE}' schema='{ns2}'")
     else:
         sec_create = (
             f"create external source if not exists {sec_src} type='influxdb' "
@@ -849,6 +990,10 @@ def _dim12_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -892,6 +1037,10 @@ def _dim13_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -970,6 +1119,9 @@ def _dim14_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         ns, ns2 = _S_SCHEMA, _S_SCHEMA2
         table = _FW_TABLE
+    elif src_type == _oracle:
+        ns, ns2 = _O_SCHEMA, _O_SCHEMA2
+        table = _FW_TABLE
     else:
         ns, ns2 = _I_DB, _I_DB2
         table = _FW_TABLE
@@ -1033,6 +1185,8 @@ def _dim19_steps(src_type: str) -> list:
         ns, ns2 = _P_SCHEMA, _P_SCHEMA2
     elif src_type == _sqlserver:
         ns, ns2 = _S_SCHEMA, _S_SCHEMA2
+    elif src_type == _oracle:
+        ns, ns2 = _O_SCHEMA, _O_SCHEMA2
     else:
         ns, ns2 = _I_DB, _I_DB2
 
@@ -1130,6 +1284,8 @@ def _dim16_steps(src_type: str) -> list:
         ns = _M_DB
     elif src_type == _sqlserver:
         ns = _S_SCHEMA
+    elif src_type == _oracle:
+        ns = _O_SCHEMA
     else:
         ns = _P_SCHEMA
 
@@ -1169,6 +1325,10 @@ def _dim17_steps(src_type: str) -> list:
     elif src_type == _sqlserver:
         # SQL Server: the 3-segment path segment is the schema (DS 5.3.3)
         ns, table = _S_SCHEMA, _FW_TABLE
+    elif src_type == _oracle:
+        # Oracle: a schema is the login user and the only namespace level,
+        # so the 3-segment path carries it (DS 5.3.3).
+        ns, table = _O_SCHEMA, _FW_TABLE
     else:
         ns, table = _I_DB, _FW_TABLE
 
@@ -1202,6 +1362,11 @@ def _dim18_steps(src_type: str) -> list:
         alter_sql = f"alter external source {src} set schema='{ns2}'"
     elif src_type == _sqlserver:
         ns, ns2, table = _S_SCHEMA, _S_SCHEMA2, _FW_TABLE
+        alter_sql = f"alter external source {src} set schema='{ns2}'"
+    elif src_type == _oracle:
+        # Only the schema moves: Oracle's DATABASE is the service name and is
+        # fixed for the session (DS 5.3.2).
+        ns, ns2, table = _O_SCHEMA, _O_SCHEMA2, _FW_TABLE
         alter_sql = f"alter external source {src} set schema='{ns2}'"
     else:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
@@ -1247,6 +1412,16 @@ def _make_create_sql(src_name: str, src_type: str, database: Optional[str],
         if schema:
             sql += f" schema='{schema}'"
         return sql
+    elif src_type == _oracle:
+        # Oracle's DATABASE is the service name (Easy Connect), not a switchable
+        # namespace; the schema is the login user's schema (DS 5.3.2).
+        sql = (f"create external source if not exists {src_name} type='oracle' "
+               f"host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}'")
+        if database:
+            sql += f" database='{database}'"
+        if schema:
+            sql += f" schema='{schema}'"
+        return sql
     else:  # influxdb
         sql = (f"create external source if not exists {src_name} type='influxdb' "
                f"host='{_I_HOST}' port={_I_PORT} user='admin'")
@@ -1269,6 +1444,9 @@ def _ns_create_kwargs(src_type: str, with_default: bool = True) -> dict:
     if src_type == _sqlserver:
         return {"database": _S_DB if with_default else None,
                 "schema": _S_SCHEMA if with_default else None}
+    if src_type == _oracle:
+        return {"database": _O_SERVICE,
+                "schema": _O_SCHEMA if with_default else None}
     return {"database": _I_DB if with_default else None, "schema": None}
 
 
@@ -1281,7 +1459,7 @@ def _drop_src_sql(name: str) -> str:
 _CASES = [
 
     # ── DIM-01: With default namespace ─────────────────────────────────
-    ["DIM-01", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim01"],
+    ["DIM-01", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim01"],
      "With default namespace: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
@@ -1293,7 +1471,7 @@ _CASES = [
     ],
 
     # ── DIM-02: Without default namespace ──────────────────────────────
-    ["DIM-02", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim02"],
+    ["DIM-02", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim02"],
      "Without default namespace: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
@@ -1305,7 +1483,7 @@ _CASES = [
     ],
 
     # ── DIM-03: After USE source ───────────────────────────────────────
-    ["DIM-03", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim03"],
+    ["DIM-03", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim03"],
      "After USE source_name: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
@@ -1317,7 +1495,7 @@ _CASES = [
     ],
 
     # ── DIM-04: After USE source.ns ────────────────────────────────────
-    ["DIM-04", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim04"],
+    ["DIM-04", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim04"],
      "After USE source.ns: 0-5 segment paths × all statement types (incl. USE)",
      [
          _cleanup_sources(),
@@ -1329,7 +1507,7 @@ _CASES = [
     ],
 
     # ── DIM-05: After USE local_db ─────────────────────────────────────
-    ["DIM-05", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim05"],
+    ["DIM-05", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim05"],
      "After USE local_db: external paths via qualified paths + USE 0-5 seg",
      [
          _cleanup_sources(),
@@ -1342,7 +1520,7 @@ _CASES = [
     ],
 
     # ── DIM-06: Three-segment disambiguation ───────────────────────────
-    ["DIM-06", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim06"],
+    ["DIM-06", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim06"],
      "Three-segment disambiguation: source_name vs local_db conflict + USE 0-5 seg",
      [
          _cleanup_sources(),
@@ -1355,7 +1533,7 @@ _CASES = [
     ],
 
     # ── DIM-07: Case sensitivity ───────────────────────────────────────
-    ["DIM-07", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim07"],
+    ["DIM-07", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim07"],
      "Case sensitivity: MySQL insensitive, PG fold, InfluxDB sensitive (incl. USE)",
      [
          _cleanup_sources(),
@@ -1367,7 +1545,7 @@ _CASES = [
     ],
 
     # ── DIM-08: Special identifiers & backticks ────────────────────────
-    ["DIM-08", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim08"],
+    ["DIM-08", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim08"],
      "Special identifiers: backtick combinations in FROM and USE",
      [
          _cleanup_sources(),
@@ -1379,7 +1557,7 @@ _CASES = [
     ],
 
     # ── DIM-09: ALTER namespace impact ─────────────────────────────────
-    ["DIM-09", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim09"],
+    ["DIM-09", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim09"],
      "ALTER default namespace: path resolution + USE changes after ALTER",
      [
          _cleanup_sources(),
@@ -1391,7 +1569,7 @@ _CASES = [
     ],
 
     # ── DIM-10: Multi-source JOIN ──────────────────────────────────────
-    ["DIM-10", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim10", "fq02_dim10_sec"],
+    ["DIM-10", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim10", "fq02_dim10_sec"],
      "Multi-source JOIN: local+external, cross-source, subquery, UNION",
      [
          _cleanup_sources(),
@@ -1404,7 +1582,7 @@ _CASES = [
     ],
 
     # ── DIM-11: USE context switching ──────────────────────────────────
-    ["DIM-11", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim11", "fq02_dim11b"],
+    ["DIM-11", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim11", "fq02_dim11b"],
      "USE context switching: external ↔ local ↔ cross-ext alternation",
      [
          _cleanup_sources(),
@@ -1417,7 +1595,7 @@ _CASES = [
     ],
 
     # ── DIM-12: Name conflict ──────────────────────────────────────────
-    ["DIM-12", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim12"],
+    ["DIM-12", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim12"],
      "Name conflict: source_name = local db name rejection + USE behavior",
      [
          _cleanup_sources(),
@@ -1430,7 +1608,7 @@ _CASES = [
     ],
 
     # ── DIM-13: Non-SELECT statements on external paths ────────────────
-    ["DIM-13", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim13"],
+    ["DIM-13", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim13"],
      "Non-SELECT statements: INSERT/DELETE/DROP/ALTER/CREATE/CREATE INDEX/DESCRIBE/REFRESH on external paths",
      [
          _cleanup_sources(),
@@ -1442,7 +1620,7 @@ _CASES = [
     ],
 
     # ── DIM-14: USE 0-5 segments comprehensive ─────────────────────────
-    ["DIM-14", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim14"],
+    ["DIM-14", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim14"],
      "USE statement 0-5 segments: all forms, valid + invalid + edge cases",
      [
          _cleanup_sources(),
@@ -1455,7 +1633,7 @@ _CASES = [
     ],
 
     # ── DIM-19: No-default source + local/external switching ──────────
-    ["DIM-19", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim19"],
+    ["DIM-19", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim19"],
      "No default namespace: USE local_db/source/source.ns hard validation",
      [
          _cleanup_sources(),
@@ -1468,7 +1646,7 @@ _CASES = [
     ],
 
     # ── DIM-15: PG-specific schema handling ────────────────────────────
-    ["DIM-15", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim15", "fq02_dim15b"],
+    ["DIM-15", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim15", "fq02_dim15b"],
      "PG-specific: schema handling (default/explicit/ALTER/clear) + USE",
      [
          _cleanup_sources(),
@@ -1480,7 +1658,7 @@ _CASES = [
     ],
 
     # ── DIM-16: View path resolution (EXT-004) ────────────────────────
-    ["DIM-16", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim16"],
+    ["DIM-16", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim16"],
      "View path resolution: MySQL/PG views via FROM path (EXT-004)",
      [
          _cleanup_sources(),
@@ -1492,7 +1670,7 @@ _CASES = [
     ],
 
     # ── DIM-17: DROP during active USE (EXT-016) ──────────────────────
-    ["DIM-17", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim17"],
+    ["DIM-17", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim17"],
      "DROP source during active USE context (EXT-016)",
      [
          lambda t: _drop_src_sql("fq02_dim17"),
@@ -1504,7 +1682,7 @@ _CASES = [
     ],
 
     # ── DIM-18: ALTER during active USE (EXT-015) ─────────────────────
-    ["DIM-18", [_mysql, _pg, _influxdb, _sqlserver], ["fq02_dim18"],
+    ["DIM-18", [_mysql, _pg, _influxdb, _sqlserver, _oracle], ["fq02_dim18"],
      "ALTER source during active USE context (EXT-015)",
      [
          _cleanup_sources(),
@@ -1540,6 +1718,20 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
 
     def teardown_class(self):
         tdLog.debug(f"teardown {__file__}")
+        # DROP EXTERNAL SOURCE only removes the local definition.  The
+        # InfluxDB buckets outlive it and keep occupying the five database
+        # slots InfluxDB 3 Core allows per instance, so a full run that visits
+        # several ext-source suites eventually makes every later
+        # influx_create_db() fail with HTTP 422.  This case creates two, and
+        # _influx_cfg() reads per-test version state that teardown_class no
+        # longer has, so drop on every configured version: dropping an absent
+        # bucket is a no-op.
+        for _cfg in ExtSrcEnv.influx_version_configs():
+            for _db in (_I_DB, _I_DB2):
+                try:
+                    ExtSrcEnv.influx_drop_db_cfg(_cfg, _db)
+                except Exception as exc:  # noqa: BLE001 - teardown must not fail the test
+                    tdLog.info(f"influx bucket {_db} left in place on {_cfg.version}: {exc}")
         TestFq02PathResolution._fw_data_prepared = False
 
     # ──────────────────────────────────────────────────────────────────────
@@ -1644,6 +1836,27 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             ExtSrcEnv.influx_create_db_cfg(influx_cfg, db)
             influx_lines = _influx_lines_for_rows(rows)
             ExtSrcEnv.influx_write_cfg(influx_cfg, db, influx_lines)
+
+        # Oracle: the login schema is the default namespace, the second
+        # provisioned account the alternate one.  A schema is a user, so the
+        # alternate namespace is loaded as that account and then granted to the
+        # test account — the Oracle counterpart of PostgreSQL's two schemas in
+        # one database.
+        oracle_cfg = self._oracle_cfg()
+        _oracle_drop_fixture(oracle_cfg)
+        ExtSrcEnv.oracle_exec_cfg(oracle_cfg, _oracle_fixture_ddl(_FW_ROWS))
+
+        _oracle_drop_fixture(oracle_cfg, rows_owner=ExtSrcEnv.ORACLE_ALT_USER,
+                             password=ExtSrcEnv.ORACLE_ALT_PASS)
+        ExtSrcEnv._oracle_sql(oracle_cfg, _oracle_fixture_ddl(_FW_ROWS_ALT),
+                              user=ExtSrcEnv.ORACLE_ALT_USER,
+                              password=ExtSrcEnv.ORACLE_ALT_PASS)
+        table = _FW_TABLE.upper()
+        ExtSrcEnv.oracle_admin_exec_cfg(oracle_cfg, [
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."{table}" TO "{_O_SCHEMA}"',
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."V_{table}" TO "{_O_SCHEMA}"',
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."V_NO_TS" TO "{_O_SCHEMA}"',
+        ])
 
     # ──────────────────────────────────────────────────────────────────────
     # Framework helpers

@@ -179,7 +179,7 @@ static const char* expandIdentifier(const char* name, char* output) {
   return output;
 }
 
-static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
+static int32_t buildDescResultDataBlock(const STableMeta* pMeta, SSDataBlock** pOutput) {
   QRY_PARAM_CHECK(pOutput);
 
   SSDataBlock* pBlock = NULL;
@@ -202,20 +202,19 @@ static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 5);
+  bool showRef = hasColRef(pMeta->tableType);
+  bool showCompress = !showRef && tableMetaShowCompressOptions(pMeta);
+  if (TSDB_CODE_SUCCESS == code && (showRef || showCompress)) {
+    int32_t bytes = showRef ? DESCRIBE_RESULT_COL_REF_LEN : DESCRIBE_RESULT_COPRESS_OPTION_LEN;
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, bytes, 5);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && showCompress) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 6);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && showCompress) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COPRESS_OPTION_LEN, 7);
-    code = blockDataAppendColInfo(pBlock, &infoData);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_COL_REF_LEN, 8);
     code = blockDataAppendColInfo(pBlock, &infoData);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -395,7 +394,7 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   int32_t numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
   SSDataBlock* pBlock = NULL;
-  int32_t      code = buildDescResultDataBlock(&pBlock);
+  int32_t      code = buildDescResultDataBlock(pDesc->pMeta, &pBlock);
   if (TSDB_CODE_SUCCESS == code) {
     code = setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta, biMode);
   }
@@ -432,7 +431,7 @@ static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
     return code;
   }
 
-  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD1_LEN, 1);
   code = blockDataAppendColInfo(pBlock, &infoData);
   if (TSDB_CODE_SUCCESS == code) {
     infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
@@ -765,6 +764,11 @@ static int32_t buildColRefFilterSQL(STableCfg* pCfg, char*** ppFilterSQL, int32_
     QUERY_CHECK_CODE(code, lino, _return);
 
     // TDengine DDL uses the same backtick and string escaping as the MySQL renderer.
+    // This fragment is echoed back into SHOW CREATE TABLE as part of the virtual
+    // table definition, so it is TDengine syntax that the user can re-issue against
+    // TDengine - it never becomes remote SQL and must NOT follow the source dialect
+    // (an Oracle virtual table still needs backtick identifiers here).  The remote
+    // side renders the pushed filter through the plan renderer instead.
     int32_t sqlLen = 0;
     code = nodesExprToExtSQL(pCond, EXT_SQL_DIALECT_MYSQL, NULL, 0, &sqlLen);
     QUERY_CHECK_CODE(code, lino, _return);
@@ -2013,6 +2017,7 @@ static const char* extSrcTypeToStr(int8_t srcType) {
     case 1: return "postgresql";
     case 2: return "influxdb";
     case EXT_SOURCE_SQLSERVER: return "sqlserver";
+    case EXT_SOURCE_ORACLE: return "oracle";
     default: return "unknown";
   }
 }

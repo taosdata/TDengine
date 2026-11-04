@@ -225,51 +225,7 @@ Any taosAdapter instance can receive requests and forward them to taosd, so an L
 
 #### 2.1.2 Nginx / HAProxy Configuration
 
-```nginx
-upstream tdengine_adapter {
-    least_conn;
-    server dnode1:6041 max_fails=3 fail_timeout=10s;
-    server dnode2:6041 max_fails=3 fail_timeout=10s;
-    server dnode3:6041 max_fails=3 fail_timeout=10s;
-}
-
-server {
-    listen 6041;
-
-    location / {
-        proxy_pass http://tdengine_adapter;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 300s;
-        proxy_next_upstream error timeout http_502 http_503 http_504;
-    }
-
-    location /-/ping {
-        proxy_pass http://tdengine_adapter/-/ping;
-    }
-}
-```
-
-```haproxy
-defaults
-    mode http
-    timeout connect 5s
-    timeout client  300s
-    timeout server  300s
-
-frontend tdengine_fe
-    bind *:6041
-    default_backend tdengine_be
-
-backend tdengine_be
-    balance leastconn
-    option httpchk GET /-/ping
-    server ta1 dnode1:6041 check inter 3s fall 3 rise 2
-    server ta2 dnode2:6041 check inter 3s fall 3 rise 2
-    server ta3 dnode3:6041 check inter 3s fall 3 rise 2
-```
+The access-layer Nginx/HAProxy configuration (upstream, `/-/ping` health checks, WebSocket timeouts, TLS/mTLS, retries, and Keepalived) is maintained in [taosAdapter High Availability](../12-operations-and-tooling/03-components/03-taosadapter/04-high-availability.md). This section does not repeat the configuration; it focuses on the access-layer high availability behavior.
 
 #### 2.1.3 How High Availability Is Implemented
 

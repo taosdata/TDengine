@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="360" viewBox="0 0 1600 360">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6fb0"/>
+    </marker>
+    <style>
+      text { font-family: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <rect width="1600" height="360" fill="#ffffff"/>
+
+  <!-- Power meters -->
+  <rect x="30" y="128" width="160" height="165" rx="12" fill="#fffaf0" stroke="#d69e4b" stroke-width="2.5"/>
+  <text x="110" y="176" text-anchor="middle" font-size="21" font-weight="700" fill="#9a5b13">Power meters</text>
+  <text x="110" y="220" text-anchor="middle" font-size="17" fill="#8a5a22">Workshop 1 × 2</text>
+  <text x="110" y="255" text-anchor="middle" font-size="17" fill="#8a5a22">Workshop 2 × 2</text>
+
+  <!-- Modbus link -->
+  <line x1="190" y1="210" x2="330" y2="210" stroke="#2f6fb0" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="260" y="184" text-anchor="middle" font-size="14" fill="#4a6f9c">Industrial</text>
+  <text x="260" y="202" text-anchor="middle" font-size="14" fill="#4a6f9c">protocol</text>
+
+  <!-- NeuronEX panel -->
+  <rect x="330" y="30" width="620" height="300" rx="16" fill="#f7fbff" stroke="#b8d4ef" stroke-width="2"/>
+  <text x="640" y="80" text-anchor="middle" font-size="34" font-weight="700" fill="#1d4e89">NeuronEX</text>
+  <text x="640" y="112" text-anchor="middle" font-size="19" fill="#4a6f9c">Collection and stream processing</text>
+
+  <!-- Neuron card -->
+  <rect x="360" y="140" width="230" height="140" rx="12" fill="#ffffff" stroke="#3f7fbf" stroke-width="1.8"/>
+  <text x="475" y="184" text-anchor="middle" font-size="28" font-weight="700" fill="#1d4e89">Neuron</text>
+  <text x="475" y="230" text-anchor="middle" font-size="18" fill="#355f8a">Multi-protocol</text>
+  <text x="475" y="256" text-anchor="middle" font-size="18" fill="#355f8a">collection</text>
+
+  <!-- JSON link -->
+  <line x1="590" y1="210" x2="660" y2="210" stroke="#2f6fb0" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="625" y="190" text-anchor="middle" font-size="16" fill="#4a6f9c">JSON</text>
+
+  <!-- eKuiper card -->
+  <rect x="660" y="140" width="230" height="140" rx="12" fill="#ffffff" stroke="#3f7fbf" stroke-width="1.8"/>
+  <text x="775" y="184" text-anchor="middle" font-size="28" font-weight="700" fill="#1d4e89">eKuiper</text>
+  <text x="775" y="226" text-anchor="middle" font-size="18" fill="#355f8a">Rules · batching</text>
+  <text x="775" y="256" text-anchor="middle" font-size="18" fill="#355f8a">Cache · forwarding</text>
+
+  <!-- Write link -->
+  <line x1="950" y1="210" x2="1100" y2="210" stroke="#2f6fb0" stroke-width="2.2" marker-end="url(#arrow)"/>
+  <text x="1025" y="188" text-anchor="middle" font-size="17" fill="#4a6f9c">InfluxDB v1</text>
+
+  <!-- TDengine card -->
+  <rect x="1100" y="120" width="380" height="180" rx="14" fill="#f2f9ff" stroke="#6fa8d2" stroke-width="2"/>
+  <text x="1290" y="170" text-anchor="middle" font-size="30" font-weight="700" fill="#1d4e89">TDengine</text>
+  <text x="1290" y="214" text-anchor="middle" font-size="19" fill="#355f8a">meters supertable</text>
+  <text x="1290" y="250" text-anchor="middle" font-size="19" fill="#355f8a">Device subtables</text>
+</svg>

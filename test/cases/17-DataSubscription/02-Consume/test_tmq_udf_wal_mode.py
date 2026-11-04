@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from distutils.log import error
 import time
 import threading
 import subprocess
@@ -41,10 +40,10 @@ class TestCase:
         print(projPath)
 
         if platform.system().lower() == 'windows':
-            self.libudf1 = subprocess.Popen('(for /r %s %%i in ("udf1.d*") do @echo %%i)|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
-            if (not tdDnodes.dnodes[0].remoteIP == ""):
-                tdDnodes.dnodes[0].remote_conn.get(tdDnodes.dnodes[0].config["path"]+'/debug/build/lib/libudf1.so',projPath+"\\debug\\build\\lib\\")
-                self.libudf1 = self.libudf1.replace('udf1.dll','libudf1.so')
+            self.libudf1 = os.path.join(tdCom.getBuildPath(), "build", "bin", "udf1.dll")
+            if not os.path.isfile(self.libudf1):
+                raise FileNotFoundError(self.libudf1)
+            self.libudf1 = self.libudf1.replace("\\", "/")
         else:
             self.libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         self.libudf1 = self.libudf1.replace('\r','').replace('\n','')
@@ -331,6 +330,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

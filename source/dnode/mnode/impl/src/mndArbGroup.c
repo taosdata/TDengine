@@ -673,6 +673,7 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
   SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1, lino = 0;
   SArray    *pArray = NULL;
+  SArray    *pUpdateArray = NULL;
   void      *pIter = NULL;
   SSdb      *pSdb = pMnode->pSdb;
   SArbGroup *pArbGroup = NULL;
@@ -725,18 +726,60 @@ static int32_t mndProcessAssignLeaderMsg(SRpcMsg *pReq) {
     sdbRelease(pSdb, pArbGroup);
 
     int32_t dnodeId = 0;
+    int32_t onlineIdx = -1;
     for (int32_t i = 0; i < 2; i++) {
       SDnodeObj *pDnode = mndAcquireDnode(pMnode, arbGroupDup.members[i].info.dnodeId);
       bool       isonline = mndIsDnodeOnline(pDnode, taosGetTimestampMs());
       mndReleaseDnode(pMnode, pDnode);
       if (isonline) {
         dnodeId = arbGroupDup.members[i].info.dnodeId;
+        onlineIdx = i;
         break;
       }
     }
 
-    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term, "", true);
+    if (onlineIdx < 0) {
+      // [SECURITY FIX for finding "item49"] No online member for this vgroup; skip sending instead
+      // of forwarding to dnodeId 0. The previous code sent an empty memberToken with force=1, which
+      // (together with the forced-assignment bypass on the vnode) allowed any network peer to
+      // impersonate the arbitrator. The vnode now always requires the correct member shared-secret
+      // token, so only a request carrying the token learned via the heartbeat handshake is honored.
+      mInfo("arbgroup:%d, arb skip set assigned leader since no online member", arbGroupDup.vgId);
+      continue;
+    }
+
+    // [SECURITY FIX for finding "item49" follow-up] Initiate the assignment in SDB (assignedLeader +
+    // assignAcked=false) instead of relying solely on the one-shot SET_ASSIGNED_LEADER below. After a
+    // vnode restart or a step-down from ASSIGNED_LEADER regenerates its per-node arbToken, the mnode's
+    // cached token can be stale and the vnode would reject the one-shot with
+    // TSDB_CODE_MND_ARB_TOKEN_MISMATCH. The arbiter timer re-sends SET_ASSIGNED_LEADER carrying the
+    // LIVE member token (see mndArbProcessTimer) until the vnode acks, so the operator-assigned leader
+    // is reached reliably rather than failing silently in the disaster-recovery window.
+    SArbGroup newGroup = {0};
+    mndArbGroupDupObj(&arbGroupDup, &newGroup);
+    mndArbGroupSetAssignedLeader(&newGroup, onlineIdx);
+    if (pUpdateArray == NULL) {
+      pUpdateArray = taosArrayInit(16, sizeof(SArbGroup));
+    }
+    if (pUpdateArray != NULL) {
+      if (taosArrayPush(pUpdateArray, &newGroup) == NULL) {
+        mError("arbgroup:%d, arb failed to queue assign leader for dnodeId:%d", arbGroupDup.vgId, dnodeId);
+      }
+    }
+
+    // Best-effort immediate send: works when the cached token is already fresh, which is the common
+    // case (including the primary one-replica-down disaster-recovery path where the survivor is
+    // stable). The SDB-initiated retry above covers the stale-token window.
+    (void)mndSendArbSetAssignedLeaderReq(pMnode, dnodeId, arbGroupDup.vgId, arbToken, term,
+                                        arbGroupDup.members[onlineIdx].state.token, false);
     mInfo("arbgroup:%d, arb send set assigned leader to dnodeId:%d", arbGroupDup.vgId, dnodeId);
+  }
+
+  // [SECURITY FIX for finding "item49" follow-up] Persist the queued assignments so the arbiter timer
+  // reliably re-sends SET_ASSIGNED_LEADER (with the live member token) until each vnode acks, closing
+  // the silent-failure window described in the review.
+  if (pUpdateArray != NULL) {
+    (void)mndArbPutBatchUpdateIntoWQ(pMnode, pUpdateArray);
   }
 
   code = 0;
@@ -751,6 +794,9 @@ _exit:
     mError("arbgroup:0, failed to assign leader since %s", tstrerror(code));
   }
 
+  if (pUpdateArray != NULL) {
+    taosArrayDestroy(pUpdateArray);
+  }
   tFreeSAssignLeaderReq(&req);
   TAOS_RETURN(code);
 }
@@ -806,10 +852,20 @@ static int32_t mndArbProcessTimer(SRpcMsg *pReq) {
       case CHECK_SYNC_NONE:
         mTrace("arbgroup:%d, arb skip to send msg by check sync", vgId);
         break;
-      case CHECK_SYNC_SET_ASSIGNED_LEADER:
-        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term, pAssgndLeader->token, false);
+      case CHECK_SYNC_SET_ASSIGNED_LEADER: {
+        // [SECURITY FIX for finding "item49" follow-up] Use the LIVE member token (refreshed by the
+        // arbitrator heartbeat handshake) instead of the snapshot cached in pAssgndLeader->token. After
+        // a vnode restart or a step-down from ASSIGNED_LEADER regenerates its per-node arbToken, the
+        // snapshot can be stale; the timer re-sends SET_ASSIGNED_LEADER until the vnode acks and MUST
+        // carry the current token, otherwise the vnode rejects it forever and the assignment fails
+        // silently. When the snapshot already equals the live token (the normal case) behavior is
+        // unchanged.
+        int32_t assgndIdx = (arbGroupDup.members[0].info.dnodeId == assgndDnodeId) ? 0 : 1;
+        (void)mndSendArbSetAssignedLeaderReq(pMnode, assgndDnodeId, vgId, arbToken, term,
+                                            arbGroupDup.members[assgndIdx].state.token, false);
         mInfo("arbgroup:%d, arb send set assigned leader to dnodeId:%d", vgId, assgndDnodeId);
         break;
+      }
       case CHECK_SYNC_CHECK_SYNC:
         (void)mndSendArbCheckSyncReq(pMnode, vgId, arbToken, term, arbGroupDup.members[0].state.token,
                                      arbGroupDup.members[1].state.token);

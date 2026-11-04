@@ -23,18 +23,9 @@ import winrm
 
 import asyncio
 import asyncssh
-import functools
 from concurrent.futures import ThreadPoolExecutor
 from typing import Union, List
 import subprocess
-
-# Python 3.8 compatibility: asyncio.to_thread was added in 3.9
-if not hasattr(asyncio, 'to_thread'):
-    async def _to_thread(func, /, *args, **kwargs):
-        loop = asyncio.get_running_loop()
-        call = functools.partial(func, *args, **kwargs)
-        return await loop.run_in_executor(None, call)
-    asyncio.to_thread = _to_thread
 
 from fabric2 import Connection, Result
 
@@ -245,7 +236,9 @@ class Remote:
         if host == platform.node() or host == "localhost":
             if not os.path.exists(path):
                 self.mkdir(host, path)
-            os.system("cp -rf {0} {1}".format(file, path))
+            # One copy command per platform: cmd.exe has no cp, so running both
+            # unconditionally printed "'cp' is not recognized" on every Windows
+            # deploy before xcopy did the actual work.
             if platform.system().lower() == "windows":
                 os.system(f'xcopy /E /Y "{file}" "{path}\\"')
             else:

@@ -13,7 +13,7 @@ Simply fill in the domain name (or IP address) and corresponding port of the ser
 The following preparations are needed to write StatsD data into TDengine:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to the [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter is installed and running normally. For details, please refer to the [taosAdapter user manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - StatsD is installed. For installation of StatsD, please refer to the [official documentation](https://github.com/statsd/statsd)
 
 ## Configuration Steps

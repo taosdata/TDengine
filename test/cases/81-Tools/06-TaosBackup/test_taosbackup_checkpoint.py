@@ -18,6 +18,7 @@
 import glob
 import hashlib
 import os
+import shutil
 import re
 import signal
 import subprocess
@@ -52,11 +53,12 @@ RESTORE_MAX_RETRIES     = 4           # KILL_RESTORE, *2, *4, *8
 # helpers
 # ---------------------------------------------------------------------------
 
-def run_with_timeout(cmd: str, timeout_secs: float):
+def run_with_timeout(cmd: str, timeout_secs: float, checkpoint_path=None):
     """Start *cmd* in a new process group, redirecting stdout/stderr to temp
     files (same pattern as new_test_framework.utils.eos.run - avoids the
     subprocess.PIPE deadlock risk on long-running/large-output commands).
-    Kill it after *timeout_secs*.
+    Kill it after *timeout_secs*. If checkpoint_path is supplied, interrupt
+    as soon as persisted progress is visible instead of guessing a kill delay.
 
     Returns:
         (returncode, was_killed, rlist)
@@ -70,18 +72,43 @@ def run_with_timeout(cmd: str, timeout_secs: float):
     full_cmd = f"{cmd} 1>{out_path} 2>{err_path}"
 
     tdLog.info(f"  exec (timeout={timeout_secs}s): {cmd}")
-    proc = subprocess.Popen(full_cmd, shell=True, preexec_fn=os.setsid)
+    process_options = {"start_new_session": True} if os.name != "nt" else {}
+    proc = subprocess.Popen(full_cmd, shell=True, **process_options)
     killed = False
+    reason = f"exceeded {timeout_secs}s timeout"
     try:
-        proc.wait(timeout=timeout_secs)
+        if checkpoint_path is None:
+            proc.wait(timeout=timeout_secs)
+        else:
+            deadline = time.monotonic() + timeout_secs
+            while proc.poll() is None:
+                try:
+                    checkpoint_ready = os.path.getsize(checkpoint_path) > 0
+                except FileNotFoundError:
+                    # A successful restore removes its checkpoint before exit.
+                    checkpoint_ready = False
+                if checkpoint_ready:
+                    reason = "checkpoint entries are visible on disk"
+                    raise subprocess.TimeoutExpired(cmd, timeout_secs)
+                if time.monotonic() >= deadline:
+                    raise subprocess.TimeoutExpired(cmd, timeout_secs)
+                time.sleep(0.02)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            if os.name == "nt":
+                result = subprocess.run(
+                    ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                    check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+                if result.returncode and proc.poll() is None:
+                    raise RuntimeError(f"Cannot stop backup/restore process tree {proc.pid}")
+            else:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
         except ProcessLookupError:
             pass  # already exited
         proc.wait()
         killed = True
-        tdLog.info(f"  process killed (exceeded {timeout_secs}s timeout)")
+        tdLog.info(f"  process killed ({reason})")
 
     rlist = []
     for path in (out_path, err_path):
@@ -192,7 +219,8 @@ class TestTaosBackupCheckpoint:
         tmpdir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tmp_ckpt")
         if os.path.exists(tmpdir):
             tdLog.info(f"{tmpdir} exists - clearing.")
-            os.system(f"rm -rf {tmpdir}/*")
+            shutil.rmtree(tmpdir)
+            os.makedirs(tmpdir)
         else:
             os.makedirs(tmpdir)
 
@@ -211,7 +239,7 @@ class TestTaosBackupCheckpoint:
         """
         cmd = f"{benchmark} -d {DB_SRC} -t 100 -n 200000 -y"
         tdLog.info(f"insert data: {cmd}")
-        ret = os.system(cmd)
+        ret = etool.benchmark_write(cmd)
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed, return code {ret}")
 
@@ -292,7 +320,8 @@ class TestTaosBackupCheckpoint:
                 f"backup pass with kill-delay multiplier={mult} never "
                 f"demonstrably skipped a data file via -C - retrying with wider kill delays"
             )
-            os.system(f"rm -rf {outdir}/*")
+            shutil.rmtree(outdir)
+            os.makedirs(outdir)
 
         tdLog.exit(
             f"backup -C resume never demonstrably skipped a data file across "
@@ -598,7 +627,7 @@ class TestTaosBackupCheckpoint:
         taosbackup, benchmark, tmpdir = self.find_programs()
 
         tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-        ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+        ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
         if ret != 0:
             tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -689,7 +718,7 @@ class TestTaosBackupCheckpoint:
             taosbackup, benchmark, tmpdir = self.find_programs()
 
             tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-            ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+            ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -799,14 +828,14 @@ class TestTaosBackupCheckpoint:
                 os.path.dirname(os.path.abspath(__file__)), "tmp_ckpt_large"
             )
             if os.path.exists(tmpdir_l):
-                os.system(f"rm -rf {tmpdir_l}")
+                shutil.rmtree(tmpdir_l)
             os.makedirs(tmpdir_l)
 
             # -- step 1: insert 2 000 tables × 200 rows -------------------
             tdLog.info(f"=== step 1: insert {TABLES} × {ROWS} rows ===")
             cmd = f"{benchmark} -d {DB_LARGE} -t {TABLES} -n {ROWS} -y"
             tdLog.info(f"  exec: {cmd}")
-            ret = os.system(cmd)
+            ret = etool.benchmark_write(cmd)
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
@@ -908,7 +937,7 @@ class TestTaosBackupCheckpoint:
           1. Insert TABLES x ROWS rows via taosBenchmark.
           2. Full backup (no -C, no interrupt).
           3. Restore attempt 1 (no -C): invoked with a TRAILING SLASH on -i,
-             killed after KILL_RST s so a checkpoint file is left behind.
+             killed once checkpoint records are visible on disk.
           4. Assert the checkpoint file's recorded keys contain no "//" -
              direct proof the recorded paths were normalized.
           5. Restore attempt 2 (with -C): invoked WITHOUT the trailing slash.
@@ -939,9 +968,8 @@ class TestTaosBackupCheckpoint:
         # is what actually writes the first checkpoint entries.
         TABLES   = 1000
         ROWS     = 16000        # 1000 x 16000 = 16M rows
-        KILL_RST = 20           # seconds - first restore kill delay
-        KILL_STEP = 15          # grow the kill delay by this much per retry
-        MAX_RETRIES = 6         # delays 20,35,50,65,80,95 s
+        CHECKPOINT_TIMEOUT = 180  # bounded wait for persisted restore progress
+        MAX_DATASET_ATTEMPTS = 2  # at most 32M rows if the first restore wins the race
 
         try:
             taosbackup, benchmark, tmpdir = self.find_programs()
@@ -949,40 +977,26 @@ class TestTaosBackupCheckpoint:
                 os.path.dirname(os.path.abspath(__file__)), "tmp_ckpt_norm"
             )
 
-            # The restore reads ONLY from the backup dir (it never modifies the
-            # backup), so the expensive insert + full-backup steps run ONCE and
-            # every restore retry below reuses the SAME backup.  A retry only
-            # drops the destination DB and clears the checkpoint file, costing
-            # ~KILL_RST seconds instead of a full re-insert (minutes) + re-backup
-            # (minutes).  Without this, a slow/ASAN runner that keeps killing the
-            # restore during meta-creation (0 checkpoint entries) blew the case's
-            # 1200s budget by re-inserting 16M rows on every single attempt.
-            #
-            # Two ways this can still go wrong, needing two different fixes:
-            #  - restore finishes before the kill: the data-restore phase
-            #    (TABLES x ROWS-bound) was too short - grow ROWS and redo the
-            #    insert + backup once.
-            #  - restore gets killed but the checkpoint file is empty: the kill
-            #    landed during meta-creation (table-count-bound), before the
-            #    first mid-run STMT2 flush wrote any checkpoint - grow KILL_RST
-            #    (cheap: reuses the same backup).
+            # Wait for persisted progress so the interruption lands inside the
+            # restore window on both fast and slow runners. If restore completes
+            # first, allow one bounded dataset increase instead of growing forever.
             killed = False
             dedup_ckpt = 0
             ckpt_lines = []
             ckpt_file = os.path.join(tmpdir_n, DB_NORM, "restore_checkpoint.txt")
-            while True:
+            for dataset_attempt in range(MAX_DATASET_ATTEMPTS):
                 # -- step 1: insert TABLES x ROWS rows ----------------------
                 tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
                 cmd = f"{benchmark} -d {DB_NORM} -t {TABLES} -n {ROWS} -y"
                 tdLog.info(f"  exec: {cmd}")
-                ret = os.system(cmd)
+                ret = etool.benchmark_write(cmd)
                 if ret != 0:
                     tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
                 # -- step 2: full backup (no interrupt) ---------------------
                 tdLog.info("=== step 2: backup (no interrupt) ===")
                 if os.path.exists(tmpdir_n):
-                    os.system(f"rm -rf {tmpdir_n}")
+                    shutil.rmtree(tmpdir_n)
                 os.makedirs(tmpdir_n)
                 rlist = etool.taosdump(f"-T 2 -D {DB_NORM} -o {tmpdir_n}")
                 self.checkListString(rlist, "Result       : SUCCESS")
@@ -997,56 +1011,38 @@ class TestTaosBackupCheckpoint:
                 if src_count == 0:
                     tdLog.exit("source table empty - taosBenchmark may have failed")
 
-                # -- step 4: restore retries (no -C) with TRAILING SLASH -----
-                # Every try reuses the SAME backup, so a failed try only costs
-                # ~KILL_RST seconds.  The dataset is grown (and insert+backup
-                # redone) only when a try finishes before the kill - rare.
-                restored_early = False
-                landed = False
-                for try_no in range(1, MAX_RETRIES + 1):
-                    tdLog.info(f"=== step 4: restore attempt 1 (try {try_no}/{MAX_RETRIES}, "
-                               f"no -C, -i with trailing '/', kill after {KILL_RST}s) ===")
-                    tdSql.execute(f"drop database if exists {DB_DST_N}")
-                    if os.path.exists(ckpt_file):
-                        os.remove(ckpt_file)
-                    restore_cmd = f"{taosbackup} -T 1 -W \"{DB_NORM}={DB_DST_N}\" -i {tmpdir_n}/"
-                    ret, killed, _rlist = run_with_timeout(restore_cmd, KILL_RST)
-                    if not killed:
-                        if ret != 0:
-                            tdLog.exit(f"restore attempt 1 failed unexpectedly (ret={ret})")
-                        restored_early = True
-                        tdLog.info(
-                            f"  restore completed before kill on try {try_no} "
-                            f"(faster than {KILL_RST}s) - growing dataset (ROWS={ROWS})"
+                # -- step 4: interrupt once restore progress is durable --------
+                tdLog.info("=== step 4: restore with trailing '/', interrupt after checkpoint ===")
+                tdSql.execute(f"drop database if exists {DB_DST_N}")
+                if os.path.exists(ckpt_file):
+                    os.remove(ckpt_file)
+                restore_cmd = f'{taosbackup} -T 1 -W "{DB_NORM}={DB_DST_N}" -i {tmpdir_n}/'
+                ret, killed, restore_output = run_with_timeout(
+                    restore_cmd, CHECKPOINT_TIMEOUT, checkpoint_path=ckpt_file
+                )
+                if not killed:
+                    if ret != 0:
+                        tdLog.exit(f"restore attempt 1 failed unexpectedly (ret={ret}): "
+                                   + "\n".join(restore_output)[-4000:])
+                    if dataset_attempt + 1 == MAX_DATASET_ATTEMPTS:
+                        tdLog.exit(
+                            "restore completed without an observable checkpoint "
+                            f"even with {TABLES * ROWS} rows; refusing unbounded data growth"
                         )
-                        break
-
-                    ckpt_lines = []
-                    if os.path.exists(ckpt_file):
-                        with open(ckpt_file) as f:
-                            ckpt_lines = [ln.strip() for ln in f if ln.strip()]
-                    dedup_ckpt = len(set(ckpt_lines))
-                    tdLog.info(f"  checkpoint file has {len(ckpt_lines)} entries "
-                               f"({dedup_ckpt} unique) after kill@{KILL_RST}s")
-                    if dedup_ckpt > 0:
-                        landed = True
-                        break
-                    KILL_RST += KILL_STEP
-                    tdLog.info(
-                        f"  kill fired before any checkpoint entry was written "
-                        f"- retrying with a longer kill delay (KILL_RST={KILL_RST}s)"
-                    )
-
-                if not landed and not restored_early:
-                    tdLog.exit(
-                        f"could not land a kill inside the data-restore window even after "
-                        f"{MAX_RETRIES} tries (final TABLES={TABLES}, ROWS={ROWS}, "
-                        f"KILL_RST={KILL_RST}s, killed={killed}, dedup_ckpt={dedup_ckpt}) - "
-                        f"environment timing too unpredictable for these constants"
-                    )
-                if restored_early:
                     ROWS *= 2
                     continue
+
+                if os.path.exists(ckpt_file):
+                    with open(ckpt_file) as checkpoint:
+                        ckpt_lines = [line.strip() for line in checkpoint if line.strip()]
+                dedup_ckpt = len(set(ckpt_lines))
+                tdLog.info(f"  interrupted with {len(ckpt_lines)} checkpoint entries "
+                           f"({dedup_ckpt} unique)")
+                if dedup_ckpt == 0:
+                    tdLog.exit(
+                        f"No persisted checkpoint after {CHECKPOINT_TIMEOUT}s: "
+                        + "\n".join(restore_output)[-4000:]
+                    )
                 break
 
             # Even though attempt 1 used "-i <dir>/", no "//" may appear in the
@@ -1157,12 +1153,12 @@ class TestTaosBackupCheckpoint:
             tdSql.execute(f"drop database if exists {DB}")
             cmd = f"{benchmark} -d {DB} -t {TABLES} -n {ROWS} -y"
             tdLog.info(f"  exec: {cmd}")
-            ret = os.system(cmd)
+            ret = etool.benchmark_write(cmd)
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 
             if os.path.exists(tmpdir):
-                os.system(f"rm -rf {tmpdir}")
+                shutil.rmtree(tmpdir)
             os.makedirs(tmpdir)
             log_path = os.path.join(tmpdir, "backup.log")
 
@@ -1258,7 +1254,7 @@ class TestTaosBackupCheckpoint:
             tdSql.execute(f"drop database if exists {db}")
 
             tdLog.info(f"=== step 1: insert {TABLES} x {ROWS} rows ===")
-            ret = os.system(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
+            ret = etool.benchmark_write(f"{benchmark} -d {db} -t {TABLES} -n {ROWS} -y")
             if ret != 0:
                 tdLog.exit(f"taosBenchmark failed (ret={ret})")
 

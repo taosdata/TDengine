@@ -9,7 +9,7 @@ MQTT is a popular IoT data transmission protocol, and [EMQX](https://github.com/
 To enable EMQX to properly add a TDengine data source, the following preparations are needed:
 
 - TDengine cluster is deployed and running normally
-- taosAdapter is installed and running normally. For details, please refer to [taosAdapter User Manual](../../12-operations-and-tooling/03-components/03-taosadapter.md)
+- taosAdapter is installed and running normally. For details, please refer to [taosAdapter User Manual](../../12-operations-and-tooling/03-components/03-taosadapter/index.md)
 - If using the simulation writing program mentioned later, install the appropriate version of Node.js, version 12 recommended
 
 ## Install and Start EMQX

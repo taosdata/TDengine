@@ -33,6 +33,7 @@ from lib.base import (
     AbstractForecastService,
     AbstractImputationService,
     AbstractRegressionService,
+    AbstractSeriesDiagnosisService,
 )
 from lib.conf import Configure
 from lib.dynamic.wrapper import (
@@ -40,6 +41,7 @@ from lib.dynamic.wrapper import (
     DynamicClassificationService,
     DynamicForecastService,
     DynamicRegressionService,
+    DynamicSeriesDiagnosisService,
 )
 from lib.errors import NotFoundDynamicModelError
 from lib.log import AppLogger
@@ -69,6 +71,7 @@ class ServiceRegistry:
         "xgboost",
     ]
     _clustering_models = ["kmeans", "dbscan", "gmm"]
+    _series_diagnosis_models = ["iforest_diagnosis", "svm_diagnosis"]
 
     _base_class_name = [
         AbstractAnomalyDetectionService.__name__,
@@ -78,6 +81,7 @@ class ServiceRegistry:
         AbstractRegressionService.__name__,
         AbstractClassificationService.__name__,
         AbstractClusteringService.__name__,
+        AbstractSeriesDiagnosisService.__name__,
     ]
 
     def __init__(self):
@@ -104,6 +108,7 @@ class ServiceRegistry:
                         DynamicAnomalyService,
                         DynamicRegressionService,
                         DynamicClassificationService,
+                        DynamicSeriesDiagnosisService,
                     ),
                 )
             ]
@@ -246,6 +251,7 @@ class ServiceRegistry:
                 self.get_regression_algo_list(),
                 self.get_classification_algo_list(),
                 self.get_clustering_algo_list(),
+                self.get_series_diagnosis_algo_list(),
             ],
         }
 
@@ -280,6 +286,9 @@ class ServiceRegistry:
 
     def get_clustering_algo_list(self):
         return {"type": "clustering", "algo": self.get_typed_services("clustering")}
+
+    def get_series_diagnosis_algo_list(self):
+        return {"type": "series_diagnosis", "algo": self.get_typed_services("series_diagnosis")}
 
     def register_service_from_file(self, config_file: str):
         """Load and register algorithms from a single json file.
@@ -316,11 +325,7 @@ class ServiceRegistry:
                 # This handles model/custom_name.json → register as "model", matching orphan cleanup
                 model_name = parent_name
 
-            AppLogger.info(
-                "loading algorithm/model from file: %s (model: %s)",
-                config_file,
-                model_name,
-            )
+            AppLogger.info("loading algorithm/model from file: %s (model: %s)", config_file, model_name)
 
             with open(config_file, "r", encoding="utf-8") as f:
                 file_content = f.read()
@@ -369,6 +374,13 @@ class ServiceRegistry:
                         algo=algo_name,
                         path=config_file,
                     )
+                elif algo_name.lower() in ServiceRegistry._series_diagnosis_models:
+                    serv = DynamicSeriesDiagnosisService(
+                        name=model_name,
+                        desc=f"dynamic generated sequence diagnosis from {algo_name}",
+                        algo=algo_name,
+                        path=config_file,
+                    )
                 else:
                     msg = f"unsupported algorithm '{algo_name}' in dynamic model configuration file: {config_file}"
                     raise ValueError(msg)
@@ -406,6 +418,7 @@ class ServiceRegistry:
                         DynamicAnomalyService,
                         DynamicRegressionService,
                         DynamicClassificationService,
+                        DynamicSeriesDiagnosisService,
                     ),
                 ):
                     raise RuntimeError(

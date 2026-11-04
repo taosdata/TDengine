@@ -3595,10 +3595,9 @@ static int32_t parseOneStbRow(SInsertParseContext* pCxt, SVnodeModifyOpStmt* pSt
   if (code == TSDB_CODE_SUCCESS) {
     if (pCxt->pComCxt->stmtBindVersion == 2) {
       int32_t tbnameIdx = getTbnameSchemaIndex(pStbRowsCxt->pStbMeta);
+      // The helper takes ownership before reserving storage, including on failure.
+      ctbColsTransferred = true;
       code = initTableColSubmitDataWithBoundInfo(*ppTableDataCxt, ctbCols);
-      if (code == TSDB_CODE_SUCCESS) {
-        ctbColsTransferred = true;
-      }
     } else {
       code = initTableColSubmitData(*ppTableDataCxt);
     }

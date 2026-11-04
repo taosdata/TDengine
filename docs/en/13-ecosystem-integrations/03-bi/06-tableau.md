@@ -11,7 +11,7 @@ Tableau is a well-known business intelligence tool that supports multiple data s
 Prepare the following environment:
 
 - TDengine 3.3.5.8 and above version is installed and running normally (both Enterprise and Community versions are available).
-- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter.md).
+- taosAdapter is running normally, refer to [taosAdapter Reference](../../12-operations-and-tooling/03-components/03-taosadapter/index.md).
 - Install and run Tableau Desktop (if not installed, please download and install Windows operating system 64-bit [Download Tableau Desktop](https://www.tableau.com/products/desktop/download)). Install Tableau please refer to [Tableau Desktop](https://www.tableau.com).
 - Download the latest Windows operating system X64 client driver from the TDengine official website and install it, refer to [Install ODBC Driver](../../10-developer-guide/08-connectors-reference/09-odbc.mdx#installation).
 
