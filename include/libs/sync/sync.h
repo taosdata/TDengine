@@ -104,6 +104,16 @@ typedef struct SNodeInfo {
   ESyncRole nodeRole;
 } SNodeInfo;
 
+// Inspects one WAL record that sync wrote for a leader transfer, without
+// replaying it. `body` is the raw record body; the frame type behind it is
+// private to sync, hence the opaque pointer. `len` must be exactly one whole
+// frame. A rejected frame returns TSDB_CODE_INVALID_MSG and leaves `*safe`
+// false, so a caller can tell "damaged or illegal" (do not rewrite) apart from
+// "unknown but harmless". `*safe` becomes true only when the call returns 0,
+// i.e. the record belongs to `vgId` and every field in it is self-consistent.
+int32_t syncInspectLeaderTransfer(const void *body, int32_t len, int32_t vgId,
+                                  bool *safe);
+
 typedef struct SSyncTLV {
   int32_t typ;
   int32_t len;

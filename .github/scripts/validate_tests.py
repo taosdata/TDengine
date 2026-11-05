@@ -18,6 +18,26 @@ import os
 import ast
 import re
 
+def _indented_field(lines, field):
+    """Return line number when the field exists but is not at the line start."""
+    for i, line in enumerate(lines):
+        if re.match(rf'^\s+{field}\s*:', line, re.IGNORECASE):
+            return i + 1
+    return None
+
+def _missing_field_message(where, lines, field):
+    """Explain an absent field, naming the real cause when the field is present.
+
+    ast.get_docstring() dedents by the smallest indentation found anywhere in
+    the docstring, so one line indented less than the others shifts the whole
+    block right. The field then still looks correct in the editor but no longer
+    starts at the beginning of a line, so reporting it as missing is misleading.
+    """
+    if _indented_field(lines, field) is not None:
+        return (f"{where} has '{field}:' but the docstring indentation is "
+                f"inconsistent, so it is not recognised as a field.")
+    return (f"{where} does not contain a '{field}:' section.")
+
 def check_required_field(lines, field, method_node, class_node, file_path, other_fields):
     """
     检查必填字段（如 Since)，支持多行内容。
@@ -25,7 +45,8 @@ def check_required_field(lines, field, method_node, class_node, file_path, other
     index = next((i for i, line in enumerate(lines) if re.match(rf'^{field}\s*:\s*.*$', line, re.IGNORECASE)), None)
     has_errors = False
     if index is None:
-        print(f"The docstring in method {method_node.name} in class {class_node.name} in {file_path} does not contain a valid '{field}:' section.")
+        where = f"The docstring in method {method_node.name} in class {class_node.name} in {file_path}"
+        print(_missing_field_message(where, lines, field))
         has_errors = True
     else:
         if index > 0 and lines[index - 1].strip():
@@ -76,7 +97,8 @@ def check_required_field_shell(lines, field, file_path, other_fields):
     index = next((i for i, line in enumerate(lines) if re.match(rf'^{field}\s*:\s*.*$', line, re.IGNORECASE)), None)
     has_errors = False
     if index is None:
-        print(f"The docstring in shell script {file_path} does not contain a valid '{field}:' section.")
+        where = f"The docstring in shell script {file_path}"
+        print(_missing_field_message(where, lines, field))
         has_errors = True
     else:
         if index > 0 and lines[index - 1].strip():

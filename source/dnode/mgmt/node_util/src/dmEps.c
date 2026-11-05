@@ -21,18 +21,9 @@
 #include "tjson.h"
 #include "tmisce.h"
 
-typedef struct {
-  int32_t  id;
-  uint16_t oldPort;
-  uint16_t newPort;
-  char     oldFqdn[TSDB_FQDN_LEN];
-  char     newFqdn[TSDB_FQDN_LEN];
-} SDnodeEpPair;
-
 static void    dmPrintEps(SDnodeData *pData);
 static bool    dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
 static void    dmResetEps(SDnodeData *pData, SArray *dnodeEps);
-static int32_t dmReadDnodePairs(SDnodeData *pData);
 
 void dmGetDnodeEp(void *data, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
   SDnodeData *pData = data;
@@ -114,6 +105,18 @@ void dmSplitStr(char **arr, char *str, const char *del) {
     *arr++ = s;
     s = strsep(&str, del);
   }
+}
+
+// ep.json used to map old endpoints to new ones at startup. Endpoints are now
+// rewritten offline, so the file is ignored and only reported.
+static void dmWarnEpJson(void) {
+  char file[PATH_MAX] = {0};
+  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  if (!taosCheckExistFile(file)) return;
+  dWarn("file %s is ignored because ep.json no longer takes effect, delete it. To change the endpoint "
+        "of a dnode, stop every dnode and run 'taosd [-c <cfgDir>] --rewrite-endpoints-precheck <dir> "
+        "--map '<oldFQDN:oldPort=newFQDN:newPort>' on each dnode, collect the precheck files, then run "
+        "'taosd [-c <cfgDir>] --rewrite-endpoints-apply <dir>' on each dnode", file);
 }
 
 int32_t dmReadEps(SDnodeData *pData) {
@@ -252,15 +255,17 @@ _OVER:
     }
   }
 
-  if ((code = dmReadDnodePairs(pData)) != 0) {
-    return terrno = code;
-  }
+  dmWarnEpJson();
 
   dDebug("reset dnode list on startup");
   dmResetEps(pData, pData->dnodeEps);
 
-  if (pData->oldDnodeEps == NULL && dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
-    dError("localEp %s different with %s and need to be reconfigured", tsLocalEp, file);
+  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+    dError("localEp %s different with %s and need to be reconfigured, stop taosd and run "
+           "'taosd -c <cfgDir> --rewrite-endpoints-precheck <dir> --map "
+           "'<oldFQDN:oldPort=newFQDN:newPort>' on every dnode, then run "
+           "'taosd -c <cfgDir> --rewrite-endpoints-apply <dir>' on every dnode",
+           tsLocalEp, file);
     code = TSDB_CODE_INVALID_CFG;
     return terrno = code;
   }
@@ -503,19 +508,6 @@ bool dmUpdateDnodeInfo(void *data, int32_t *did, int64_t *clusterId, char *fqdn,
 
   (void)taosThreadRwlockRdlock(&pData->lock);
 
-  if (pData->oldDnodeEps != NULL) {
-    int32_t size = (int32_t)taosArrayGetSize(pData->oldDnodeEps);
-    for (int32_t i = 0; i < size; ++i) {
-      SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-      if (strcmp(pair->oldFqdn, fqdn) == 0 && pair->oldPort == *port) {
-        dInfo("dnode:%d, update ep:%s:%u to %s:%u", dnodeId, fqdn, *port, pair->newFqdn, pair->newPort);
-        tstrncpy(fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        *port = pair->newPort;
-        updated = true;
-      }
-    }
-  }
-
   if (did != NULL && dnodeId <= 0) {
     int32_t size = (int32_t)taosArrayGetSize(pData->dnodeEps);
     for (int32_t i = 0; i < size; ++i) {
@@ -602,143 +594,3 @@ _exit:
   return code;
 }
 
-static int32_t dmDecodeEpPairs(SJson *pJson, SDnodeData *pData) {
-  int32_t code = 0;
-
-  SJson *dnodes = tjsonGetObjectItem(pJson, "dnodes");
-  if (dnodes == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
-  int32_t numOfDnodes = tjsonGetArraySize(dnodes);
-
-  for (int32_t i = 0; i < numOfDnodes; ++i) {
-    SJson *dnode = tjsonGetArrayItem(dnodes, i);
-    if (dnode == NULL) return TSDB_CODE_INVALID_CFG_VALUE;
-
-    SDnodeEpPair pair = {0};
-    tjsonGetInt32ValueFromDouble(dnode, "id", pair.id, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue1(dnode, "fqdn", pair.oldFqdn, sizeof(pair.oldFqdn));
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    tjsonGetUInt16ValueFromDouble(dnode, "port", pair.oldPort, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    code = tjsonGetStringValue1(dnode, "new_fqdn", pair.newFqdn, sizeof(pair.newFqdn));
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-    tjsonGetUInt16ValueFromDouble(dnode, "new_port", pair.newPort, code);
-    if (code < 0) return TSDB_CODE_INVALID_CFG_VALUE;
-
-    if (taosArrayPush(pData->oldDnodeEps, &pair) == NULL) return terrno;
-  }
-
-  return code;
-}
-
-void dmRemoveDnodePairs(SDnodeData *pData) {
-  char file[PATH_MAX] = {0};
-  char bak[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  snprintf(bak, sizeof(bak), "%s%sdnode%sep.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-  dInfo("dnode file:%s is rename to bak file", file);
-  if (taosRenameFile(file, bak) != 0) {
-    dError("failed to rename dnode file:%s to bak file:%s since %s", file, bak, tstrerror(terrno));
-  }
-}
-
-static int32_t dmReadDnodePairs(SDnodeData *pData) {
-  int32_t   code = -1;
-  char     *content = NULL;
-  int32_t   contentLen = 0;
-  SJson    *pJson = NULL;
-  char      file[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode%sep.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-
-  if (taosStatFile(file, NULL, NULL, NULL) < 0) {
-    code = terrno;
-    dDebug("dnode file:%s does not exist, reason:%s", file, tstrerror(code));
-    code = 0;
-    goto _OVER;
-  }
-
-  // Use taosReadCfgFile for automatic decryption support (returns null-terminated string)
-  code = taosReadCfgFile(file, &content, &contentLen);
-  if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, terrstr());
-    goto _OVER;
-  }
-
-  pJson = tjsonParse(content);
-  if (pJson == NULL) {
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  pData->oldDnodeEps = taosArrayInit(1, sizeof(SDnodeEpPair));
-  if (pData->oldDnodeEps == NULL) {
-    code = terrno;
-    dError("failed to calloc dnodeEp array since %s", strerror(ERRNO));
-    goto _OVER;
-  }
-
-  if (dmDecodeEpPairs(pJson, pData) < 0) {
-    taosArrayDestroy(pData->oldDnodeEps);
-    pData->oldDnodeEps = NULL;
-
-    code = TSDB_CODE_INVALID_JSON_FORMAT;
-    goto _OVER;
-  }
-
-  code = 0;
-  dInfo("successfully read dnode file %s", file);
-
-_OVER:
-  if (content != NULL) taosMemoryFree(content);
-  if (pJson != NULL) cJSON_Delete(pJson);
-
-  if (code != 0) {
-    dError("failed to read dnode file:%s since %s", file, tstrerror(code));
-    return code;
-  }
-
-  // update old fqdn and port
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (pDnodeEp->id == pair->id) {
-        tstrncpy(pair->oldFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
-        pair->oldPort = pDnodeEp->ep.port;
-      }
-    }
-  }
-
-  // check new fqdn and port
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (pDnodeEp->id != pair->id &&
-          (strcmp(pDnodeEp->ep.fqdn, pair->newFqdn) == 0 && pDnodeEp->ep.port == pair->newPort)) {
-        dError("dnode:%d, cannot update ep:%s:%u to %s:%u since already exists as dnode:%d", pair->id, pair->oldFqdn,
-               pair->oldPort, pair->newFqdn, pair->newPort, pDnodeEp->id);
-        taosArrayDestroy(pData->oldDnodeEps);
-        pData->oldDnodeEps = NULL;
-        code = TSDB_CODE_INVALID_CFG;
-        return code;
-      }
-    }
-  }
-
-  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pData->oldDnodeEps); ++i) {
-    SDnodeEpPair *pair = taosArrayGet(pData->oldDnodeEps, i);
-    for (int32_t j = 0; j < (int32_t)taosArrayGetSize(pData->dnodeEps); ++j) {
-      SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, j);
-      if (strcmp(pDnodeEp->ep.fqdn, pair->oldFqdn) == 0 && pDnodeEp->ep.port == pair->oldPort) {
-        dInfo("dnode:%d, will update ep:%s:%u to %s:%u", pDnodeEp->id, pDnodeEp->ep.fqdn, pDnodeEp->ep.port,
-              pair->newFqdn, pair->newPort);
-        tstrncpy(pDnodeEp->ep.fqdn, pair->newFqdn, TSDB_FQDN_LEN);
-        pDnodeEp->ep.port = pair->newPort;
-      }
-    }
-  }
-
-  pData->dnodeVer = 0;
-  return 0;
-}
