@@ -2321,6 +2321,7 @@ struct RecalcPersistenceHarness {
   std::deque<int32_t>                   createCodes;
   std::deque<int32_t>                   appendCodes;
   std::deque<int32_t>                   prepareCodes;
+  std::function<void()>                 onPrepare;
   std::deque<CapturedRecalcTransaction> transactions;
   std::deque<SRpcMsg>                   queuedMessages;
   std::vector<int32_t>                  responseCodes;
@@ -2534,11 +2535,13 @@ int32_t captureRecalcPrepare(SMnode *, STrans *pTrans) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_ACTION_IN_PROGRESS) {
       taosArrayDestroy(iter->requests);
       gRecalcPersistenceHarness->transactions.erase(iter);
+      if (gRecalcPersistenceHarness->onPrepare) gRecalcPersistenceHarness->onPrepare();
       return code;
     }
     iter->callbackParam.resize(pTrans->paramLen);
     if (pTrans->paramLen > 0) std::memcpy(iter->callbackParam.data(), pTrans->param, pTrans->paramLen);
     iter->key = nullptr;
+    if (gRecalcPersistenceHarness->onPrepare) gRecalcPersistenceHarness->onPrepare();
     return code;
   }
   return TSDB_CODE_INTERNAL_ERROR;
@@ -2591,6 +2594,7 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
     savedActive_ = mStreamMgmt.active;
     savedState_ = mStreamMgmt.state;
     savedInactiveTimes_ = mStreamMgmt.stat.inactiveTimes;
+    savedActiveTimes_ = mStreamMgmt.stat.activeTimes;
     savedToDeployVgTaskNum_ = mStreamMgmt.toDeployVgTaskNum;
     savedToDeploySnodeTaskNum_ = mStreamMgmt.toDeploySnodeTaskNum;
     mStreamMgmt.streamMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -2679,6 +2683,7 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
     mStreamMgmt.threadNum = savedThreadNum_;
     mStreamMgmt.tCtx = savedThreadCtx_;
     mStreamMgmt.stat.inactiveTimes = savedInactiveTimes_;
+    mStreamMgmt.stat.activeTimes = savedActiveTimes_;
     atomic_store_8(&mStreamMgmt.recalcPullupPending, savedPullupPending_);
     atomic_store_8(&mStreamMgmt.active, savedActive_);
     atomic_store_8(&mStreamMgmt.state, savedState_);
@@ -3104,6 +3109,16 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
     streamIds_.erase(std::remove(streamIds_.begin(), streamIds_.end(), streamId), streamIds_.end());
   }
 
+  bool ClearRuntimeStreams() {
+    if (taosWTryLockLatch(&mStreamMgmt.runtimeLock) != 0) return false;
+    atomic_store_8(&mStreamMgmt.active, 0);
+    while (!streamIds_.empty()) DestroyStatus(streamIds_.back());
+    taosHashCleanup(mStreamMgmt.streamMap);
+    mStreamMgmt.streamMap = nullptr;
+    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+    return true;
+  }
+
   STrans *PersistAndAcquireFinishedRecalc(const CapturedRecalcTransaction &captured, const SRpcMsg &request) {
     STrans *pTrans = mndTransCreate(&mnode_, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, nullptr, "held-recalc");
     if (pTrans == nullptr) return nullptr;
@@ -3178,6 +3193,7 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
   int32_t              savedThreadNum_ = 0;
   SStmThreadCtx       *savedThreadCtx_ = nullptr;
   int64_t              savedInactiveTimes_ = 0;
+  int64_t              savedActiveTimes_ = 0;
   int8_t               savedPullupPending_ = 0;
   int8_t               savedActive_ = 0;
   int8_t               savedState_ = 0;
@@ -4167,6 +4183,73 @@ TEST_F(MndStreamRecalcPersistenceTest, PullupRuntimeReaderBlocksTeardownThroughC
   EXPECT_EQ(harness_.createCalls, 2);
 }
 
+TEST_F(MndStreamRecalcPersistenceTest, FinishCommitCompletesWithRuntimeWriterWaiting) {
+  STimeWindow range = {100, 200};
+  ASSERT_EQ(AcceptA(range), TSDB_CODE_SUCCESS);
+  const int64_t recalcId = FirstCapturedRecalcId();
+  CommitNext();
+  ASSERT_NE(InstallTriggerTask(), nullptr);
+  Record(kStreamA, recalcId)->dispatchConfirmed = true;
+
+  SStreamHbMsg heartbeat = {};
+  ASSERT_NE(BuildTerminalHeartbeat(recalcId, &heartbeat), nullptr);
+  ASSERT_EQ(HandleHeartbeat(&heartbeat), TSDB_CODE_SUCCESS);
+  tCleanupStreamHbMsg(&heartbeat, true);
+  ASSERT_TRUE(Record(kStreamA, recalcId)->terminalPersisting);
+
+  SStreamObj *pStream = nullptr;
+  ASSERT_EQ(mndAcquireStreamById(&mnode_, kStreamA, &pStream), TSDB_CODE_SUCCESS);
+  ASSERT_NE(pStream, nullptr);
+  GateSnapshotDup(pStream->pIncompleteRecalcs);
+  mndReleaseStream(&mnode_, pStream);
+
+  EXPECT_EXIT(
+      {
+        // Preserve the real completion callback and the cross-thread wait that
+        // the ordinary prepare stub omits. A pending writer must not deadlock it.
+        harness_.onPrepare = [&]() {
+          std::thread sync([&]() { CommitNext(true); });
+          sync.join();
+        };
+        std::atomic<bool> pullupFinished{false};
+        std::atomic<bool> writerFinished{false};
+        std::thread       pullup([&]() {
+          RunImmediateWake();
+          pullupFinished.store(true);
+        });
+        auto              deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!harness_.snapshotDupEntered.load() && std::chrono::steady_clock::now() < deadline) {
+          std::this_thread::yield();
+        }
+        if (!harness_.snapshotDupEntered.load()) std::_Exit(2);
+        std::thread writer([&]() {
+          taosWWaitLockLatch(&mStreamMgmt.runtimeLock);
+          taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+          writerFinished.store(true);
+        });
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!taosHasRWWFlag(&mStreamMgmt.runtimeLock) && !writerFinished.load() &&
+               std::chrono::steady_clock::now() < deadline) {
+          std::this_thread::yield();
+        }
+        if (!taosHasRWWFlag(&mStreamMgmt.runtimeLock)) std::_Exit(3);
+        harness_.releaseSnapshotDup.store(true);
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while ((!pullupFinished.load() || !writerFinished.load()) && std::chrono::steady_clock::now() < deadline) {
+          std::this_thread::yield();
+        }
+        if (!pullupFinished.load() || !writerFinished.load()) std::_Exit(5);
+        pullup.join();
+        writer.join();
+        EXPECT_FALSE(PersistedRequestExists(kStreamA, recalcId));
+        EXPECT_EQ(Record(kStreamA, recalcId)->snapshot.status, STREAM_RECALC_STATUS_FINISHED);
+        EXPECT_FALSE(Status()->recalcTransActive);
+        EXPECT_TRUE(isListEmpty(&Status()->recalcPersistOps));
+        std::_Exit(::testing::Test::HasFailure() ? 6 : 0);
+      },
+      ::testing::ExitedWithCode(0), "");
+}
+
 TEST_F(MndStreamRecalcPersistenceTest, AlreadyCommittedHeartbeatFinishDoesNotRecursivelyReadRuntimeLockDuringTeardown) {
   STimeWindow range = {100, 200};
   ASSERT_EQ(AcceptA(range, 83), TSDB_CODE_SUCCESS);
@@ -4889,6 +4972,86 @@ TEST_F(MndStreamRecalcPersistenceTest, QueuedPrepareFailureRepliesExactlyOnce) {
   ASSERT_EQ(harness_.responseCodes.size(), 1U);
   EXPECT_EQ(harness_.responseCodes.front(), TSDB_CODE_OUT_OF_MEMORY);
   EXPECT_EQ(harness_.responseHandles.front(), reinterpret_cast<void *>(32));
+  EXPECT_TRUE(isListEmpty(&Status()->recalcPersistOps));
+}
+
+TEST_F(MndStreamRecalcPersistenceTest, PullupPrepareFailureAfterRuntimeRemovalRepliesOnce) {
+  STimeWindow first = {100, 200};
+  STimeWindow second = {300, 400};
+  ASSERT_EQ(AcceptA(first, 21), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(AcceptA(second, 22), TSDB_CODE_SUCCESS);
+  CommitNext();
+
+  harness_.prepareCodes.push_back(TSDB_CODE_OUT_OF_MEMORY);
+  harness_.onPrepare = [&]() { EXPECT_TRUE(ClearRuntimeStreams()); };
+  RunImmediateWake();
+  EXPECT_EQ(mStreamMgmt.streamMap, nullptr);
+  ASSERT_EQ(harness_.responseCodes.size(), 1U);
+  EXPECT_EQ(harness_.responseCodes.front(), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(harness_.responseHandles.front(), reinterpret_cast<void *>(22));
+  RunPeriodicTimer();
+  EXPECT_EQ(harness_.responseCodes.size(), 1U);
+}
+
+TEST_F(MndStreamRecalcPersistenceTest, PullupPrepareFailurePreservesReplacementRuntime) {
+  STimeWindow first = {100, 200};
+  STimeWindow second = {300, 400};
+  STimeWindow replacement = {500, 600};
+  ASSERT_EQ(AcceptA(first, 31), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(AcceptA(second, 32), TSDB_CODE_SUCCESS);
+  CommitNext();
+
+  bool replaced = false;
+  harness_.prepareCodes.push_back(TSDB_CODE_OUT_OF_MEMORY);
+  harness_.onPrepare = [&]() {
+    if (replaced) return;
+    replaced = true;
+    ASSERT_TRUE(ClearRuntimeStreams());
+    taosWLockLatch(&mStreamMgmt.runtimeLock);
+    mStreamMgmt.streamMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
+    ++mStreamMgmt.stat.activeTimes;
+    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+    ASSERT_NE(mStreamMgmt.streamMap, nullptr);
+    AddStream(kStreamA, "1.test.recalc_a");
+    atomic_store_8(&mStreamMgmt.active, 1);
+    ASSERT_EQ(AcceptA(replacement, 33), TSDB_CODE_SUCCESS);
+  };
+  RunImmediateWake();
+  ASSERT_TRUE(replaced);
+  ASSERT_NE(Status(), nullptr);
+  EXPECT_TRUE(Status()->recalcTransActive);
+  EXPECT_EQ(listNEles(&Status()->recalcPersistOps), 1);
+  ASSERT_EQ(harness_.transactions.size(), 1U);
+  ASSERT_EQ(harness_.responseCodes.size(), 1U);
+  EXPECT_EQ(harness_.responseCodes.front(), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(harness_.responseHandles.front(), reinterpret_cast<void *>(32));
+  ASSERT_NE(OnlyRecord(), nullptr);
+  const int64_t replacementId = OnlyRecord()->snapshot.recalcId;
+  CommitNext();
+  EXPECT_TRUE(PersistedRequestExists(kStreamA, replacementId));
+  EXPECT_FALSE(Status()->recalcTransActive);
+  ASSERT_NE(Record(kStreamA, replacementId), nullptr);
+  EXPECT_TRUE(Record(kStreamA, replacementId)->visible);
+}
+
+TEST_F(MndStreamRecalcPersistenceTest, PullupSnapshotAllocationFailureRetriesQueuedAccept) {
+  STimeWindow first = {100, 200};
+  STimeWindow second = {300, 400};
+  ASSERT_EQ(AcceptA(first), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(AcceptA(second), TSDB_CODE_SUCCESS);
+  CommitNext();
+  {
+    RecalcCallocFailureGuard failure;
+    RunImmediateWake();
+  }
+  EXPECT_EQ(harness_.createCalls, 1);
+  EXPECT_FALSE(Status()->recalcTransActive);
+  EXPECT_EQ(listNEles(&Status()->recalcPersistOps), 1);
+  EXPECT_EQ(atomic_load_8(&mStreamMgmt.recalcPullupPending), 1);
+  RunPeriodicTimer();
+  ASSERT_EQ(harness_.transactions.size(), 1U);
+  EXPECT_TRUE(Status()->recalcTransActive);
+  CommitNext();
   EXPECT_TRUE(isListEmpty(&Status()->recalcPersistOps));
 }
 
