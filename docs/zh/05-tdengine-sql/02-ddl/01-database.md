@@ -514,18 +514,24 @@ REDISTRIBUTE VGROUP vgroup_no DNODE dnode_id1 [DNODE dnode_id2] [DNODE dnode_id3
 BALANCE VGROUP;
 ```
 
-自动调整集群中所有 `vgroup` 的 `vnode` 分布，相当于在 `vnode` 层面对整个集群执行数据负载均衡。
+按各 `dnode` 上的 `vnode` 数量调整集群中全部 `vgroup` 的 `vnode` 分布，不考虑数据量和读写负载。命令返回后迁移仍在后台进行，可用 `SHOW TRANSACTIONS` 查看进度。
+
+:::warning
+该命令会在 `dnode` 之间迁移数据，作用于整个集群，执行后立即开始，数据量大时耗时很长。生产环境建议改用 `REDISTRIBUTE VGROUP` 逐个迁移。
+:::
 
 ### 自动调整 VGROUP 中 LEADER 的分布
 
 ```sql
-BALANCE VGROUP LEADER;         -- 随机方式：触发重新选举，结果是随机的
-BALANCE VGROUP LEADER FORCE;   -- 强制方式：强制均衡分布
+BALANCE VGROUP LEADER;
+BALANCE VGROUP LEADER FORCE;
+BALANCE VGROUP LEADER ON vgroup_id;
+BALANCE VGROUP LEADER ON vgroup_id FORCE;
+BALANCE VGROUP LEADER DATABASE db_name;
+BALANCE VGROUP LEADER DATABASE db_name FORCE;
 ```
 
-触发集群所有 `vgroup` 中的 `leader` 重新选主，对集群各节点进行负载均衡操作（仅企业版支持）。
-
-支持两种方式：不带 `FORCE` 为随机方式，让出当前 leader 后各副本平等参与选举，结果是随机的，不会导致选不出 leader；带 `FORCE` 为强制方式，强制将 leader 均匀分布，但当目标副本数据落后过多时可能无法选出 leader，此时再次执行该命令即可。详见运维指南中的“vgroup leader 再平衡”章节。
+只重新选择 `vgroup` 的 `leader`，不迁移 `vnode`，也不拷贝数据。仅企业版支持。两种方式的差别、选举期间短暂不能读写，见 [虚拟组 Leader 再平衡](../../12-operations-and-tooling/02-operations/04-maintenance.md#虚拟组-leader-再平衡)。
 
 ### 查看数据库工作状态
 
