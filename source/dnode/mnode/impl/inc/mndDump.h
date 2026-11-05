@@ -39,6 +39,7 @@ void overlayCluster(SClusterObj *p, SJson *f);
 void overlayDb(SDbObj *p, SJson *f);
 void overlayConfig(SConfigObj *p, SJson *f);
 void overlayCompact(SCompactObj *p, SJson *f);
+void overlayArbGroup(SArbGroup *p, SJson *f);
 
 #ifdef __cplusplus
 }

@@ -1743,7 +1743,8 @@
 # 80-Components
 
 # 01-Taosd
-,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py
+,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py -k 'not test_arbgroup_sdb_export_import'
+,,n,.,pytest cases/80-Components/01-Taosd/test_com_cmdline.py::TestComCmdLine::test_arbgroup_sdb_export_import -N 2 -C 2
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_meta_force_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_metadata.py
 ,,y,.,./ci/pytest.sh pytest cases/80-Components/01-Taosd/test_tsdb_force_repair_core_e2e.py
