@@ -3572,32 +3572,33 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             ]
             ExtSrcEnv.influx_write_cfg(influx_cfg, _I_DB, influx_lines)
 
-        # Oracle on Windows is deferred; still prepare the other providers.
-        if os.name == "nt":
-            return
-
         # ── Oracle ──
-        # The login schema is the default namespace; there is no per-test
-        # database to create (DS 5.3.2).  The timestamp literal is written with
-        # an explicit format because a bare string would be parsed with the
-        # session's NLS_TIMESTAMP_FORMAT.
-        # One INSERT per row: the multi-row VALUES constructor is 23ai-only
-        # and 11g rejects it with ORA-00933.
-        oracle_inserts = [
-            f"INSERT INTO {_FW_TABLE.upper()} (ts, val, score, name, flag) VALUES "
-            f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
-            for ts, val, score, name, flag in _FW_ROWS_DT
-        ]
-        ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE.upper())
-        ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
-            (
-                f"CREATE TABLE {_FW_TABLE.upper()} ("
-                "ts TIMESTAMP(3), val NUMBER(10), score BINARY_DOUBLE, "
-                "name VARCHAR2(32), flag NUMBER(1))"
-            ),
-            *oracle_inserts,
-            "COMMIT",
-        ])
+        # Required-services aware: a run that does not list oracle in
+        # FQ_REQUIRED_SERVICES (the Windows CI runner has no Docker for the
+        # 11g container) leaves the Oracle fixture absent, the [ORA] cases are
+        # skipped below and the baseline comparison projects their blocks out.
+        if "oracle" in ExtSrcEnv.required_services():
+            # The login schema is the default namespace; there is no per-test
+            # database to create (DS 5.3.2).  The timestamp literal is written
+            # with an explicit format because a bare string would be parsed
+            # with the session's NLS_TIMESTAMP_FORMAT.
+            # One INSERT per row: the multi-row VALUES constructor is
+            # 23ai-only and 11g rejects it with ORA-00933.
+            oracle_inserts = [
+                f"INSERT INTO {_FW_TABLE.upper()} (ts, val, score, name, flag) VALUES "
+                f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
+                for ts, val, score, name, flag in _FW_ROWS_DT
+            ]
+            ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE.upper())
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
+                (
+                    f"CREATE TABLE {_FW_TABLE.upper()} ("
+                    "ts TIMESTAMP(3), val NUMBER(10), score BINARY_DOUBLE, "
+                    "name VARCHAR2(32), flag NUMBER(1))"
+                ),
+                *oracle_inserts,
+                "COMMIT",
+            ])
 
     # ──────────────────────────────────────────────────────────────────────
     # Framework helpers
@@ -4117,7 +4118,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
         with open(baseline, "r", encoding="utf-8") as f:
             expected = f.read()
-        if os.name == "nt":
+        if "oracle" not in ExtSrcEnv.required_services():
             expected = self._fw_without_oracle_baseline(expected)
         # Apply the same syntax-error normalisation to the baseline so that
         # differences caused by TDengine error-message truncation are absorbed.
@@ -4166,7 +4167,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     @staticmethod
     def _fw_without_oracle_baseline(text: str) -> str:
-        """Keep the committed non-Oracle case blocks for the Windows run."""
+        """Keep the committed non-Oracle case blocks for a run without Oracle."""
         sections = re.split(r"(?m)(?=^={96}\nCASE START:)", text)
         return "".join(section for section in sections
                        if not re.match(r"={96}\nCASE START: [^\n]+\[ORA\]\n", section))
@@ -4216,8 +4217,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                if os.name == "nt" and src_type == _oracle:
-                    tdLog.info(f"Skipping Oracle {case_id}: Windows FQ Oracle support is deferred")
+                if src_type == _oracle and "oracle" not in ExtSrcEnv.required_services():
                     continue
                 for cfg in (configs if src_type == _influxdb else [None]):
                     with self._using_influx(cfg):

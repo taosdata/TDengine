@@ -144,11 +144,32 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
             sleep(interval)
 
         _log.info(f"taosd process {pid} did not exit in {timeout}s, force killing...")
+        killed = None
         try:
-            psutil.Process(pid).kill()
+            killed = psutil.Process(pid)
+            killed.kill()
         except Exception:
             # fallback
             os.kill(pid, signal.SIGTERM)
+        # The caller restarts taosd right away.  A start that races with a
+        # still-terminating process fails to bind the server port and then
+        # times out in dnode.start() waiting for "from offline to online", so
+        # wait until the killed process is really gone before returning.
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            alive = killed.is_running() if killed is not None else psutil.pid_exists(pid)
+            if killed is not None:
+                try:
+                    if killed.status() == psutil.STATUS_ZOMBIE:
+                        alive = False
+                except psutil.NoSuchProcess:
+                    alive = False
+            if not alive:
+                _log.info(f"taosd process {pid} exited after force kill")
+                break
+            sleep(0.2)
+        else:
+            _log.warning(f"taosd process {pid} is still alive 20s after force kill")
         return False
     except Exception as e:
         _log.error(f"Error stopping taosd: {e}")

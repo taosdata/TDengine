@@ -77,6 +77,21 @@ _SYSTEM_DLLS = {
 }
 _SYSTEM_PREFIXES = ("api-ms-win-", "ext-ms-win-")
 
+# Instant Client members the package flattens next to taosd.  Their import
+# closure is deliberately not static-closed: oraociei.dll and orannz.dll
+# reference modules that only exist in a full database home (oracore, oranls,
+# orauts) and load the rest dynamically at run time, so treating those edges
+# as "missing" would report the official Oracle layout as broken.
+_ORACLE_CLIENT_PREFIXES = (
+    "sqora", "sqres", "oraociei", "orannz", "orasql", "orasqlplusic",
+    "oraocci", "oci", "fips", "oracore", "oranls", "orauts", "oranfsodm",
+    "oraons", "orazt",
+)
+
+
+def _is_oracle_client_dll(name):
+    return name.lower().startswith(_ORACLE_CLIENT_PREFIXES)
+
 
 def _is_system_dll(name):
     lowered = name.lower()
@@ -200,10 +215,15 @@ def _missing_imports(package_dir):
     # friends), so a static closure over them would report the official
     # Instant Client layout as broken.
     pending = [p for p in _iter_files(package_dir)
-               if p.suffix.lower() == ".dll" and p.parent == Path(package_dir)]
+               if p.suffix.lower() == ".dll" and p.parent == Path(package_dir)
+               and not _is_oracle_client_dll(p.name)]
     oracle_dir = Path(package_dir) / "driver" / "oracle"
     if oracle_dir.is_dir():
         pending.extend(oracle_dir.glob("sqora*.dll"))
+        # Versioned layout: the driver of each staged Instant Client.
+        for client_dir in (oracle_dir / "19c", oracle_dir / "23ai"):
+            if client_dir.is_dir():
+                pending.extend(client_dir.glob("sqora*.dll"))
     inspected = set()
     missing = []
     while pending:
@@ -216,7 +236,9 @@ def _missing_imports(package_dir):
             lowered = imported.lower()
             if lowered in files:
                 for dependency in files[lowered]:
-                    if dependency.suffix.lower() == ".dll" and dependency.name.lower() not in inspected:
+                    if (dependency.suffix.lower() == ".dll"
+                            and dependency.name.lower() not in inspected
+                            and not _is_oracle_client_dll(dependency.name)):
                         pending.append(dependency)
             elif not _is_system_dll(imported):
                 missing.append((path.name, imported))
@@ -279,6 +301,30 @@ class TestFqRuntimePackage:
             assert not missing_files, (
                 "the dependency package is incomplete, missing: " + ", ".join(missing_files))
 
+            # Versioned Instant Client layout (install.sh parity): the package
+            # carries driver\oracle\<19c|23ai>\ plus an `active` marker, and
+            # every staged generation is complete.  A legacy single-client
+            # package has no marker and is still accepted.
+            oracle_root = package_dir / "driver" / "oracle"
+            active_marker = oracle_root / "active"
+            if active_marker.is_file() and odbc_enabled:
+                active = active_marker.read_text(encoding="utf-8", errors="replace").strip()
+                assert active in ("19c", "23ai"), (
+                    f"invalid Oracle active client marker: {active!r}")
+                staged = [client for client in ("19c", "23ai")
+                          if (oracle_root / client).is_dir()]
+                assert staged, "driver/oracle has an active marker but no client directory"
+                for client in staged:
+                    vdir = oracle_root / client
+                    assert any(vdir.glob("sqora*.dll")), f"{client}: no sqora driver"
+                    assert any(vdir.glob("oraociei*.dll")), f"{client}: no oraociei"
+                    assert (vdir / "odbc_install.exe").is_file(), (
+                        f"{client}: no odbc_install.exe")
+                active_dir = oracle_root / active
+                assert active_dir.is_dir(), f"active client directory missing: {active_dir}"
+                assert any(active_dir.glob("sqora*.dll")), (
+                    f"active client {active} has no driver")
+
             missing_imports = _missing_imports(package_dir)
             assert not missing_imports, (
                 "the dependency package is missing transitive imports: "
@@ -310,9 +356,15 @@ class TestFqRuntimePackage:
                 "        ctypes.WinDLL(path, winmode=0)\n"
                 "        loaded.append(name)\n"
                 "oracle = os.path.join(package, 'driver', 'oracle')\n"
+                "marker = os.path.join(oracle, 'active')\n"
+                "if os.path.isfile(marker):\n"
+                "    active = open(marker).read().strip()\n"
+                "    oracle = os.path.join(oracle, active)\n"
                 "if os.path.isdir(oracle):\n"
                 "    os.add_dll_directory(oracle)\n"
-                "    path = os.path.join(oracle, 'sqora32.dll')\n"
+                "    import glob\n"
+                "    drivers = glob.glob(os.path.join(oracle, 'sqora*.dll'))\n"
+                "    path = drivers[0] if drivers else os.path.join(oracle, 'sqora32.dll')\n"
                 "    if os.path.exists(path):\n"
                 "        # winmode=8 is LOAD_WITH_ALTERED_SEARCH_PATH, the flag the\n"
                 "        # provider itself passes: it resolves OCI.dll from the\n"

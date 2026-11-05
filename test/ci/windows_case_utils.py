@@ -15,6 +15,7 @@
 
 import hashlib
 import json
+import os
 import re
 import shlex
 import sys
@@ -43,6 +44,59 @@ FQ_SMOKE_CASES = (
     "cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py",
     "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
 )
+
+# The federated-query inventory: the FQ suite plus the external-source
+# virtual-table, auth and plan suites.  WIN_ONLY_FQ selects exactly these.
+FQ_CASE_MARKERS = (
+    "cases/09-DataQuerying/19-FederatedQuery/",
+    "cases/05-VirtualTables/01-DDL/03-ExtSource/",
+    "cases/05-VirtualTables/04-Query/03-ExtSource/",
+    "cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_federated.py",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_window_federated_batch.py",
+    # The Windows Oracle installer check is part of the FQ inventory too.
+    "packaging/test_fq_oracle_install_windows.py",
+)
+
+# Cases that directly exercise the Oracle-on-Windows work (and the FQ/vtable
+# helpers it touches).  WIN_CASE_SUBSET=related selects exactly these for a
+# focused verification run.
+RELATED_CASE_MARKERS = (
+    "19-FederatedQuery/test_fq_01_external_source.py",
+    "19-FederatedQuery/test_fq_05_config_effectiveness.py",
+    "19-FederatedQuery/test_fq_09_stability.py",
+    "19-FederatedQuery/test_fq_19_runtime_libs.py",
+    "19-FederatedQuery/test_fq_22_runtime_package.py",
+    "04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
+    "04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py",
+    "packaging/test_fq_oracle_install_windows.py",
+    "81-Tools/04-Taosdump/",
+)
+
+
+def is_fq_command(command):
+    """True when the command runs a federated-query case."""
+    if command.lstrip().startswith("#"):
+        # A commented-out row is part of the file's prose, not the selection.
+        return False
+    normalized = command.replace("\\", "/")
+    return any(marker in normalized for marker in FQ_CASE_MARKERS)
+
+
+def is_related_command(command):
+    """True when the command runs a case related to the local branch changes."""
+    if command.lstrip().startswith("#"):
+        return False
+    normalized = command.replace("\\", "/")
+    return any(marker in normalized for marker in RELATED_CASE_MARKERS)
+
+
+def selection_contains_fq(contents):
+    """True when a manifest selection includes at least one FQ case."""
+    return any(is_fq_command(line) for line in contents.splitlines())
 
 
 def windows_task_manifest(ci_dir, suite="smoke"):
@@ -97,9 +151,14 @@ def parse_case_line(line):
     return pytest_cmd, timeout
 
 
+def case_log_prefix(command):
+    """Case-file part of a pytest log name (the part before the env hash)."""
+    return shlex.split(command)[1].rsplit("/", 1)[-1].split("::", 1)[0]
+
+
 def pytest_log_name(command, environment=None):
     """Use a bounded Windows-safe name that distinguishes pytest selectors."""
-    case_file = shlex.split(command)[1].rsplit("/", 1)[-1].split("::", 1)[0]
+    case_file = case_log_prefix(command)
     identity = command
     if environment:
         identity += "\0" + json.dumps(environment, sort_keys=True)
@@ -117,7 +176,14 @@ def pytest_command_args(command, timeout=None):
         for argument in arguments
     ):
         arguments.append(f"--timeout={timeout}")
-    return [sys.executable, "-m", *arguments, "--clean"]
+    result = [sys.executable, "-m", *arguments]
+    # --clean is registered by test/conftest.py.  A case outside the test tree
+    # (the packaging installer check lives in ../packaging) is collected with
+    # rootdir=source/taos-community, where that conftest is never loaded, so
+    # pytest rejects the option ("unrecognized arguments: --clean").
+    if len(arguments) < 2 or not (arguments[1].startswith("..") or os.path.isabs(arguments[1])):
+        result.append("--clean")
+    return result
 
 
 def resume_task_manifest(contents, checkpoint):

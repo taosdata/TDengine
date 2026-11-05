@@ -38,19 +38,29 @@
 # server.  The unpacked tree is left in <work_dir>/instantclient_23_26/ for
 # install_oracle_instantclient.cmake.
 #
+# The optional -Dsqlplus_url adds Oracle's SQL*Plus package to the same
+# directory.  The provider never uses it; the Windows FQ harness does, because
+# the 11g server runs in a Linux container and the admin/provisioning SQL is
+# executed locally against the remote listener (a Windows 11.2.0.4 server
+# installation does not exist).  A failed sqlplus download is a warning, not a
+# build failure: the provider itself keeps working without it.
+#
 # Usage:
 #   cmake -Dwork_dir=<dir>
 #         -Dmirror_url=<url-or-empty> -Dmirror_sha256=<sha256>
 #         -Dbasic_url=<url> -Dbasic_sha256=<sha256>
 #         -Dodbc_url=<url> -Dodbc_sha256=<sha256>
+#         [-Dsqlplus_url=<url> -Dsqlplus_sha256=<sha256>]
 #         -P download_oracle_instantclient_windows.cmake
 
 if(NOT DEFINED work_dir OR "${work_dir}" STREQUAL "")
     message(FATAL_ERROR "ext_oracle(windows): -Dwork_dir is required")
 endif()
-if(NOT DEFINED basic_url OR "${basic_url}" STREQUAL "" OR
-   NOT DEFINED odbc_url OR "${odbc_url}" STREQUAL "")
-    message(FATAL_ERROR "ext_oracle(windows): -Dbasic_url and -Dodbc_url are required")
+if((NOT DEFINED basic_url OR "${basic_url}" STREQUAL "" OR
+    NOT DEFINED odbc_url OR "${odbc_url}" STREQUAL "") AND
+   (NOT DEFINED mirror_url OR "${mirror_url}" STREQUAL ""))
+    message(FATAL_ERROR
+        "ext_oracle(windows): a -Dmirror_url or both -Dbasic_url and -Dodbc_url are required")
 endif()
 
 file(MAKE_DIRECTORY "${work_dir}")
@@ -66,6 +76,10 @@ file(MAKE_DIRECTORY "${work_dir}")
 function(_oracle_fetch url sha256 name)
     set(_dest "${work_dir}/${name}")
     if(EXISTS "${_dest}")
+        if("${sha256}" STREQUAL "")
+            set(_oracle_file "${_dest}" PARENT_SCOPE)
+            return()
+        endif()
         file(SHA256 "${_dest}" _have)
         if("${_have}" STREQUAL "${sha256}")
             set(_oracle_file "${_dest}" PARENT_SCOPE)
@@ -84,11 +98,13 @@ function(_oracle_fetch url sha256 name)
         file(REMOVE "${_dest}")
         message(FATAL_ERROR "[ext_oracle] download failed: ${url} (${_reason}); ${_log}")
     endif()
-    file(SHA256 "${_dest}" _have)
-    if(NOT "${_have}" STREQUAL "${sha256}")
-        file(REMOVE "${_dest}")
-        message(FATAL_ERROR
-            "[ext_oracle] ${url} has SHA256 ${_have}, expected ${sha256}")
+    if(NOT "${sha256}" STREQUAL "")
+        file(SHA256 "${_dest}" _have)
+        if(NOT "${_have}" STREQUAL "${sha256}")
+            file(REMOVE "${_dest}")
+            message(FATAL_ERROR
+                "[ext_oracle] ${url} has SHA256 ${_have}, expected ${sha256}")
+        endif()
     endif()
     set(_oracle_file "${_dest}" PARENT_SCOPE)
 endfunction()
@@ -109,11 +125,15 @@ function(_oracle_copy_local src sha256)
         set(_oracle_local_ok FALSE PARENT_SCOPE)
         return()
     endif()
-    file(SHA256 "${_path}" _have)
-    if(NOT "${_have}" STREQUAL "${sha256}")
-        message(STATUS "[ext_oracle] local mirror ${_path} has SHA256 ${_have}, expected ${sha256}")
-        set(_oracle_local_ok FALSE PARENT_SCOPE)
-        return()
+    # An empty hash means the artifact is not hash-pinned (the 19c Windows
+    # bundle is published without one); the file is used as published.
+    if(NOT "${sha256}" STREQUAL "")
+        file(SHA256 "${_path}" _have)
+        if(NOT "${_have}" STREQUAL "${sha256}")
+            message(STATUS "[ext_oracle] local mirror ${_path} has SHA256 ${_have}, expected ${sha256}")
+            set(_oracle_local_ok FALSE PARENT_SCOPE)
+            return()
+        endif()
     endif()
     set(_oracle_local_file "${_path}" PARENT_SCOPE)
     set(_oracle_local_ok TRUE PARENT_SCOPE)
@@ -132,19 +152,30 @@ endfunction()
 set(_oracle_bundle "")
 set(_oracle_remove_after FALSE)
 
+# Name of the merged artifact; the caller passes it so the 23ai and 19c
+# bundles can share this script.
+set(_oracle_artifact_name "oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
+if(DEFINED artifact_name AND NOT "${artifact_name}" STREQUAL "")
+    set(_oracle_artifact_name "${artifact_name}")
+endif()
+
 # A merged artifact copied into work_dir beforehand (the published bundle, a
 # network share, a developer's download) is used as-is when its hash matches,
 # so a host behind a slow or unavailable upstream never has to fetch it.
-set(_oracle_artifact_name "oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
 set(_oracle_seeded "${work_dir}/${_oracle_artifact_name}")
-if(EXISTS "${_oracle_seeded}" AND DEFINED mirror_sha256 AND NOT "${mirror_sha256}" STREQUAL "")
-    file(SHA256 "${_oracle_seeded}" _have)
-    if("${_have}" STREQUAL "${mirror_sha256}")
+if(EXISTS "${_oracle_seeded}")
+    if(NOT DEFINED mirror_sha256 OR "${mirror_sha256}" STREQUAL "")
         set(_oracle_bundle "${_oracle_seeded}")
-        message(STATUS "[ext_oracle] using pre-seeded artifact ${_oracle_bundle}")
+        message(STATUS "[ext_oracle] using pre-seeded artifact ${_oracle_bundle} (no pinned SHA256)")
     else()
-        message(STATUS "[ext_oracle] pre-seeded ${_oracle_seeded} has SHA256 ${_have}, expected ${mirror_sha256}; ignoring it")
-        file(REMOVE "${_oracle_seeded}")
+        file(SHA256 "${_oracle_seeded}" _have)
+        if("${_have}" STREQUAL "${mirror_sha256}")
+            set(_oracle_bundle "${_oracle_seeded}")
+            message(STATUS "[ext_oracle] using pre-seeded artifact ${_oracle_bundle}")
+        else()
+            message(STATUS "[ext_oracle] pre-seeded ${_oracle_seeded} has SHA256 ${_have}, expected ${mirror_sha256}; ignoring it")
+            file(REMOVE "${_oracle_seeded}")
+        endif()
     endif()
 endif()
 
@@ -157,15 +188,23 @@ if("z${_oracle_bundle}" STREQUAL "z" AND DEFINED mirror_url AND NOT "${mirror_ur
             message(STATUS "[ext_oracle] using local mirror artifact ${_oracle_bundle}")
         endif()
     else()
-        set(_dest "${work_dir}/oracle-instantclient-23.26.4.0.0-windows-amd64.zip")
+        set(_dest "${work_dir}/${_oracle_artifact_name}")
         file(DOWNLOAD "${mirror_url}" "${_dest}"
              TLS_VERIFY ON
              STATUS _status
              LOG _log)
         list(GET _status 0 _code)
         if(_code EQUAL 0)
-            file(SHA256 "${_dest}" _have)
-            if("${_have}" STREQUAL "${mirror_sha256}")
+            if(NOT DEFINED mirror_sha256 OR "${mirror_sha256}" STREQUAL "")
+                set(_oracle_bundle "${_dest}")
+                set(_oracle_remove_after TRUE)
+                message(STATUS "[ext_oracle] using mirror artifact ${mirror_url} (no pinned SHA256)")
+            else()
+                file(SHA256 "${_dest}" _have)
+            endif()
+            if(NOT "${_oracle_bundle}" STREQUAL "")
+                # Already accepted without a hash above.
+            elseif("${_have}" STREQUAL "${mirror_sha256}")
                 set(_oracle_bundle "${_dest}")
                 set(_oracle_remove_after TRUE)
                 message(STATUS "[ext_oracle] using mirror artifact ${mirror_url}")
@@ -187,6 +226,17 @@ endif()
 
 # Step 2: the official packages, merged into one directory.
 if("z${_oracle_bundle}" STREQUAL "z")
+    if(NOT DEFINED basic_url OR "${basic_url}" STREQUAL "" OR
+       NOT DEFINED odbc_url OR "${odbc_url}" STREQUAL "")
+        # Mirror-only artifact (the 19c bundle): leave the source tree empty so
+        # a build without the published artifact still completes; the install
+        # step reports the missing client without failing the build.
+        message(STATUS
+            "[ext_oracle] ${_oracle_artifact_name} is not available on the mirror "
+            "(${mirror_url}) and no official Basic + ODBC zips are configured; "
+            "skipping the Windows Instant Client")
+        return()
+    endif()
     _oracle_fetch("${basic_url}" "${basic_sha256}" "instantclient-basic.zip")
     set(_basic "${_oracle_file}")
     _oracle_fetch("${odbc_url}" "${odbc_sha256}" "instantclient-odbc.zip")
@@ -205,12 +255,68 @@ else()
     endif()
 endif()
 
+# SQL*Plus for the test harness (optional): fetched from Oracle's public
+# Instant Client page even when the client itself came from the mirror, and
+# unpacked over the same instantclient_<ver>/ directory.  The zip is small and
+# carries sqlplus.exe plus its Orasqlplusic<ver>.dll message library.
+if(DEFINED sqlplus_url AND NOT "${sqlplus_url}" STREQUAL "")
+    set(_sqlplus_zip "${work_dir}/instantclient-sqlplus.zip")
+    set(_sqlplus_ok FALSE)
+    if(EXISTS "${_sqlplus_zip}")
+        if("${sqlplus_sha256}" STREQUAL "")
+            set(_sqlplus_ok TRUE)
+        else()
+            file(SHA256 "${_sqlplus_zip}" _have)
+            if("${_have}" STREQUAL "${sqlplus_sha256}")
+                set(_sqlplus_ok TRUE)
+            else()
+                file(REMOVE "${_sqlplus_zip}")
+            endif()
+        endif()
+    endif()
+    if(NOT _sqlplus_ok)
+        message(STATUS "[ext_oracle] downloading SQL*Plus: ${sqlplus_url}")
+        file(DOWNLOAD "${sqlplus_url}" "${_sqlplus_zip}"
+             TLS_VERIFY ON
+             STATUS _sql_status
+             LOG _sql_log)
+        list(GET _sql_status 0 _sql_code)
+        if(_sql_code EQUAL 0)
+            if(NOT "${sqlplus_sha256}" STREQUAL "")
+                file(SHA256 "${_sqlplus_zip}" _have)
+                if(NOT "${_have}" STREQUAL "${sqlplus_sha256}")
+                    message(WARNING
+                        "[ext_oracle] SQL*Plus zip has SHA256 ${_have}, expected ${sqlplus_sha256}; ignored")
+                    file(REMOVE "${_sqlplus_zip}")
+                    set(_sqlplus_ok FALSE)
+                else()
+                    set(_sqlplus_ok TRUE)
+                endif()
+            else()
+                set(_sqlplus_ok TRUE)
+            endif()
+        else()
+            list(GET _sql_status 1 _sql_reason)
+            message(WARNING
+                "[ext_oracle] SQL*Plus download failed: ${sqlplus_url} (${_sql_reason}); "
+                "the Windows FQ harness cannot run Oracle admin SQL without it")
+        endif()
+    endif()
+    if(_sqlplus_ok)
+        _oracle_unpack("${_sqlplus_zip}")
+        file(REMOVE "${_sqlplus_zip}")
+        message(STATUS "[ext_oracle] SQL*Plus unpacked under ${work_dir}")
+    endif()
+endif()
+
 # Validate the layout here: install_oracle_instantclient.cmake would fail too,
 # but this message names the source so a bad mirror is obvious from the log.
-file(GLOB _oracle_driver "${work_dir}/instantclient_23_26/sqora*.dll")
+file(GLOB _oracle_driver
+    "${work_dir}/instantclient_*/sqora*.dll"
+    "${work_dir}/sqora*.dll")
 if(NOT _oracle_driver)
     message(FATAL_ERROR
         "[ext_oracle] the unpacked Windows Instant Client has no "
-        "instantclient_23_26/sqora*.dll under ${work_dir}")
+        "instantclient_*/sqora*.dll under ${work_dir}")
 endif()
-message(STATUS "[ext_oracle] Windows Instant Client unpacked under ${work_dir}/instantclient_23_26")
+message(STATUS "[ext_oracle] Windows Instant Client unpacked under ${work_dir}")

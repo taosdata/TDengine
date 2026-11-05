@@ -25,11 +25,21 @@
     the script while services are already up resets test databases instead of
     restarting them.
 
-    Oracle on Windows has no portable build, so the script installs the
-    vendor package silently (administrator required), creates the FREE
-    container database with the FREEPDB1 service, provisions the test
-    schemas, and registers the Instant Client ODBC driver that the provider
-    resolves through ODBCINST.INI.  Only the 26ai version key exists here.
+    Oracle on Windows mirrors the Linux version axis: 11g (11.2.0.4) is the
+    default and 26ai is optional.  26ai comes from the Oracle AI Database Free
+    zip and creates the FREE container database with the FREEPDB1 service,
+    exactly as before.  Oracle publishes no Windows 11.2.0.4 media, so 11g can
+    run either from a packaged Windows ORACLE_HOME on the dependency mirror
+    (FQ_ORACLE_PKG_URL_11G) or, the way CI uses it, from the Linux
+    fq-oracle:11.2.0.4 container **on the test machine itself**: set
+    FQ_ORACLE_DOCKER=1 (docker from PATH) or FQ_ORACLE_DOCKER_WSL=<distro>
+    (Docker engine inside WSL2) and the script creates/starts/stops/kills the
+    container like any other local engine.  The Windows side keeps only the
+    Instant Client; provisioning SQL runs locally with the client's sqlplus
+    against the published port.
+    Both paths provision the test schemas and register the Instant Client ODBC
+    driver that the provider resolves through ODBCINST.INI: 11g uses the 19c
+    client, 26ai the 23ai client (the same fixed mapping as install.sh).
 
     SQL Server on Windows: the engine is used where it already runs (local
     service or FQ_SQLSERVER_HOST); if the host is local and nothing is
@@ -71,14 +81,26 @@
       FQ_MYSQL_TARBALL_<VV>  full URL override (VV = 57/80/84)
       FQ_PG_TARBALL_<VV>     full URL override (VV = 14/15/16/17/186)
       FQ_INFLUX_TARBALL_<VV> full URL override (VV = 30/35)
-      FQ_ORACLE_VERSIONS     comma list          default "26ai"
+      FQ_ORACLE_VERSIONS     comma list          default "11g" (26ai optional)
       FQ_ORACLE_HOST         engine host         default 127.0.0.1
+      FQ_ORACLE_PORT_11G     listener port       default 18320
+      FQ_ORACLE_SERVICE_11G  service name        default ORCL
       FQ_ORACLE_PORT_26AI    listener port       default 18322
       FQ_ORACLE_SERVICE_26AI PDB service name    default FREEPDB1
+      FQ_ORACLE_PKG_URL_11G  11g home archive    default mirror 11.2.0.4 Windows bundle
+      FQ_ORACLE_PKG_SHA256_11G  archive SHA256    empty = mirror content not hash-pinned
+      FQ_ORACLE_MIRROR_URL   dependency mirror   default <FQ_MIRROR_URL>
       FQ_ORACLE_FREE_URL     package URL/path    default Oracle Free 26ai 23.26.3 zip
       FQ_ORACLE_FREE_SHA256  package SHA256      pinned to that zip
       FQ_ORACLE_PKG_DIR      package cache       default <FQ_BASE_DIR>\oracle\packages
-      FQ_ORACLE_DRIVER_DIR   Instant Client dir  default build\bin / <install>\driver\oracle
+      FQ_ORACLE_ACTIVE_CLIENT 19c|23ai           default mapped from the server version
+      FQ_ORACLE_DRIVER_DIR   Instant Client dir  default build\driver\oracle\<client> / <install>\driver\oracle\<client>
+      FQ_ORACLE_DOCKER       =1 runs the 11g server in a local Docker container
+                             using `docker` from PATH (unset = install locally)
+      FQ_ORACLE_DOCKER_WSL   WSL2 distro whose Docker engine runs the container
+                             (alternative to FQ_ORACLE_DOCKER, e.g. Ubuntu2204)
+      FQ_ORACLE_DOCKER_CONTAINER container name  default fq-oracle-11g
+      FQ_ORACLE_DOCKER_IMAGE image to create     default harbor.tdengine.net/tsdb-ci/fq-oracle:11.2.0.4
       FQ_ORACLE_USER/PASS    test schema         default taosdata / taosdata
       FQ_ORACLE_ADMIN_USER/PASS provisioning acct default system / Tdengine_123
       FQ_CERT_DIR            cert source dir     default <script_dir>\certs
@@ -181,6 +203,25 @@ function Test-PortOpen {
         return $true
     } catch {
         return $false
+    }
+}
+
+# Host-aware probe: the database may live on another machine (a Linux host or
+# container).  ConnectTimeout asynchronously so an unreachable host does not
+# stall the script on the default multi-second SYN retry.
+function Test-OraclePortOpen {
+    param([string]$HostName, [int]$Port)
+    if (-not $HostName -or (Test-LocalHost $HostName)) { return (Test-PortOpen $Port) }
+    $tcp = New-Object System.Net.Sockets.TcpClient
+    try {
+        $async = $tcp.BeginConnect($HostName, $Port, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne(5000)) { return $false }
+        $tcp.EndConnect($async)
+        return $true
+    } catch {
+        return $false
+    } finally {
+        $tcp.Close()
     }
 }
 
@@ -1000,16 +1041,21 @@ function Install-Postgis {
     $marker = Join-Path $Base 'share\extension\postgis.control'
     if (Test-Path $marker) { return }
     Info "PostgreSQL ${Ver}: installing PostGIS extension ..."
+    # osgeo publishes the Windows bundles per PostgreSQL MAJOR version
+    # (.../windows/pg18/postgis-bundle-pg18-3.6.2x64.zip); a directory with
+    # the full version ("pg18.6") is a 404 and leaves geometry tests without
+    # the extension.
+    $major = $Ver.Split('.')[0]
     try {
-        $index = Invoke-WebRequest -Uri "https://download.osgeo.org/postgis/windows/pg${Ver}/" `
+        $index = Invoke-WebRequest -Uri "https://download.osgeo.org/postgis/windows/pg${major}/" `
             -UseBasicParsing -TimeoutSec 60
         $href = ($index.Links | Where-Object { $_.href -match 'x64\.zip$' } |
                  Select-Object -First 1 -ExpandProperty href)
         if (-not $href) {
-            Warn "PostGIS: no bundle listed for pg${Ver}; geometry tests will fail."
+            Warn "PostGIS: no bundle listed for pg${major}; geometry tests will fail."
             return
         }
-        $url = "https://download.osgeo.org/postgis/windows/pg${Ver}/$href"
+        $url = "https://download.osgeo.org/postgis/windows/pg${major}/$href"
         $zip = Join-Path $env:TEMP "postgis-pg${Ver}.zip"
         Invoke-Download $url $zip
         $tmp = Join-Path $env:TEMP "postgis-pg${Ver}-extract"
@@ -1047,8 +1093,127 @@ function Install-Postgis {
             Warn "PostGIS: postgis.control still missing after extraction."
         }
     } catch {
-        Warn "PostGIS install failed: $_"
+        $detail = $_.Exception.Message
+        if (-not $detail) { $detail = $_.ToString() }
+        Warn "PostGIS install failed for pg${major}: $detail"
     }
+}
+
+# A listener that accepts TCP but never answers a real statement means the
+# instance is wedged (a killed CI job can leave the postmaster half-dead).
+# Test-PortOpen alone cannot see that: the kernel still accepts the connect,
+# so the old "already running" path only warned on the failed reset and every
+# federated-query case then failed the reachability check with
+# "connection ... timeout expired".  Verify with psql before trusting it.
+function Test-PgReady {
+    param([int]$Port, [string]$Base)
+    $psql = Join-Path $Base 'bin\psql.exe'
+    if (-not (Test-Path $psql)) { return $false }
+    $savedPassword = $env:PGPASSWORD
+    $savedTimeout  = $env:PGCONNECT_TIMEOUT
+    $env:PGPASSWORD = $PgPass
+    $env:PGCONNECT_TIMEOUT = '5'
+    try {
+        & $psql -h 127.0.0.1 -p $Port -U $PgUser -d postgres -t -A -c "SELECT 1;" 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $env:PGPASSWORD = $savedPassword
+        $env:PGCONNECT_TIMEOUT = $savedTimeout
+    }
+}
+
+# Poll until a real statement succeeds.  A freshly started instance may accept
+# TCP connections while it is still replaying WAL ("the database system is
+# starting up"), so a single probe is not enough to call it wedged.
+function Wait-PgReady {
+    param([int]$Port, [string]$Base, [int]$MaxSec)
+    $deadline = (Get-Date).AddSeconds($MaxSec)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-PgReady $Port $Base) { return $true }
+        Start-Sleep -Seconds 1
+    }
+    return (Test-PgReady $Port $Base)
+}
+
+function Stop-Pg {
+    param([string]$Ver, [int]$Port, [string]$Base)
+    $pgCtl   = Join-Path $Base 'bin\pg_ctl.exe'
+    $dataDir = Join-Path $Base 'data'
+    Info "PostgreSQL ${Ver}: stopping the unresponsive instance ..."
+    if (Test-Path $pgCtl) {
+        # pg_ctl reports "no PID file" on stderr when the instance is already
+        # gone; under $ErrorActionPreference='Stop' a redirected native stderr
+        # line becomes terminating, so relax the preference locally.
+        try {
+            $ErrorActionPreference = 'Continue'
+            $null = & $pgCtl -D $dataDir stop -m immediate -t 30 2>&1
+        } catch { }
+    }
+    $escaped = [Regex]::Escape($Base)
+    Get-CimInstance Win32_Process -Filter "Name='postgres.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.ExecutablePath -and $_.ExecutablePath -match "^$escaped\\" } |
+        ForEach-Object {
+            try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch { }
+        }
+    for ($i = 0; $i -lt 30; $i++) {
+        if (-not (Test-PortOpen $Port)) { break }
+        Start-Sleep -Seconds 1
+    }
+    if (Test-PortOpen $Port) {
+        # The listener may be a postmaster we cannot see by image path (an
+        # orphan from a cancelled job, sometimes without a resolvable process
+        # name).  It also keeps the data directory locked, so initdb fails
+        # with "directory not empty" on the next attempt.  Free the port by
+        # PID; leave a *known* non-postgres process alone and report it.
+        $owners = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($owner in @($owners)) {
+            if (-not $owner -or $owner -eq 0) { continue }
+            $proc = Get-Process -Id $owner -ErrorAction SilentlyContinue
+            if ($proc -and $proc.ProcessName -ne 'postgres') {
+                Warn "PostgreSQL ${Ver}: port $Port is held by $($proc.ProcessName) (PID $owner); not killing it."
+                continue
+            }
+            Info "PostgreSQL ${Ver}: terminating PID $owner holding port $Port."
+            try {
+                Stop-Process -Id $owner -Force -ErrorAction Stop
+            } catch {
+                $null = & taskkill /f /pid $owner 2>&1
+            }
+        }
+        for ($i = 0; $i -lt 30; $i++) {
+            if (-not (Test-PortOpen $Port)) { break }
+            Start-Sleep -Seconds 1
+        }
+    }
+    # The killed postmaster leaves its pid file behind; pg_ctl start refuses to
+    # run while a (now dead) record is present.
+    $pm = Join-Path $dataDir 'postmaster.pid'
+    if (Test-Path $pm) { Remove-Item $pm -Force -ErrorAction SilentlyContinue }
+}
+
+function Clear-PgDataDir {
+    param([string]$Ver, [string]$DataDir)
+    if (-not (Test-Path $DataDir)) { return $true }
+    # Files held by a surviving postmaster (or marked read-only) keep the
+    # directory from being removed; a leftover directory then makes initdb
+    # fail with "directory not empty" on every retry.
+    $null = & attrib -R "$DataDir\*" /S /D 2>&1
+    Remove-Item $DataDir -Recurse -Force -ErrorAction SilentlyContinue
+    for ($i = 0; $i -lt 10; $i++) {
+        if (-not (Test-Path $DataDir)) { return $true }
+        Start-Sleep -Seconds 1
+        Remove-Item $DataDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $DataDir) {
+        $left = @(Get-ChildItem $DataDir -Force -ErrorAction SilentlyContinue |
+                  Select-Object -First 5 -ExpandProperty Name)
+        Warn "PostgreSQL ${Ver}: data dir still present after removal: $($left -join ', ')"
+        return $false
+    }
+    return $true
 }
 
 function Ensure-Pg {
@@ -1060,15 +1225,29 @@ function Ensure-Pg {
     Install-Postgis $Ver $base
 
     if (Test-PortOpen $port) {
-        Info "PostgreSQL ${Ver}: port $port open — already running, resetting test env."
-        Reset-PgEnv $Ver $port $base
-        return
+        if (Wait-PgReady $port $base 15) {
+            Info "PostgreSQL ${Ver}: port $port open and accepting connections - resetting test env."
+            Reset-PgEnv $Ver $port $base
+            return
+        }
+        Warn "PostgreSQL ${Ver}: port $port is open but psql cannot connect; restarting the instance."
+        # Say who owns the listener: our own postmaster.exe gets killed below,
+        # a foreign process does not, and that distinction explains a failure.
+        try {
+            $owners = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction Stop |
+                ForEach-Object {
+                    $p = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
+                    if ($p) { "$($p.Id):$($p.ProcessName)" } else { [string]$_.OwningProcess }
+                }
+            Warn "PostgreSQL ${Ver}: port $port listener owned by: $(@($owners) -join ', ')"
+        } catch { }
+        Stop-Pg $Ver $port $base
     }
 
     if (Test-Path $pgCtl) {
         Info "PostgreSQL ${Ver}: installation found, attempting start ..."
         Start-Pg $Ver $port $base
-        if (Wait-Port $port 30) {
+        if ((Wait-Port $port 30) -and (Wait-PgReady $port $base 60)) {
             Info "PostgreSQL ${Ver}: started OK."
             Reset-PgEnv $Ver $port $base
             return
@@ -1082,7 +1261,11 @@ function Ensure-Pg {
             $stProc = Get-Process -Id $stPid -ErrorAction SilentlyContinue
             if ($stProc) { $stProc.Kill(); Start-Sleep 1 }
         }
-        Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Clear-PgDataDir $Ver $dataDir)) {
+            Err "PostgreSQL ${Ver}: cannot clear the data directory; the instance is not usable."
+            $script:OverallOk = $false
+            return
+        }
     } else {
         Install-Pg $Ver $base
     }
@@ -1092,6 +1275,11 @@ function Ensure-Pg {
 
     if (-not (Wait-Port $port 90)) {
         Err "PostgreSQL ${Ver}: timed out waiting for port $port."
+        $script:OverallOk = $false
+        return
+    }
+    if (-not (Wait-PgReady $port $base 60)) {
+        Err "PostgreSQL ${Ver}: port $port is open but psql cannot connect; the instance is not usable."
         $script:OverallOk = $false
         return
     }
@@ -1332,6 +1520,61 @@ function Reset-InfluxEnv {
     Info "InfluxDB ${Ver} @ ${Port}: reset complete (dropped: $($dropped -join ', '))."
 }
 
+# InfluxDB 3 Core caps an instance at 2000 tables across ALL databases, and
+# deleting a database does not always release its table slots (influxdata/
+# influxdb#27281), so a long federated-query matrix eventually fails every
+# write with "Update to schema would exceed number of tables limit of 2000
+# tables".  Dropping databases cannot recover from that state; the data
+# directory has to be recreated.  This is the --influx-reset action the test
+# helpers call when they see that specific error.
+function Reset-InfluxData {
+    param([string]$Ver)
+    $port = Get-InfluxPort $Ver
+    $base = Join-Path $FqBase "influxdb\$Ver"
+    Info "InfluxDB ${Ver}: hard reset requested (recreating the data directory)."
+    Stop-ByPidFile (Join-Path $base 'run\influxd.pid')
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+    while ((Test-PortOpen $port) -and ([DateTimeOffset]::UtcNow -lt $deadline)) {
+        Start-Sleep -Seconds 1
+    }
+    if (Test-PortOpen $port) {
+        $owner = (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+                  Select-Object -First 1).OwningProcess
+        if ($owner) {
+            Warn "InfluxDB ${Ver}: process $owner still holds port $port; killing it."
+            Stop-Process -Id $owner -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        }
+    }
+    Remove-Item (Join-Path $base 'data') -Recurse -Force -ErrorAction SilentlyContinue
+    # The old admin token dies with the catalog; Ensure-InfluxToken recreates
+    # it (and rewrites admin_token.txt) once the fresh server answers.
+    Remove-Item (Join-Path $base 'admin_token.txt') -Force -ErrorAction SilentlyContinue
+    Start-Influx $Ver $port $base
+    if (-not (Wait-Port $port 90)) {
+        Err "InfluxDB ${Ver}: did not come back after the hard reset."
+        $script:OverallOk = $false
+        return
+    }
+    Ensure-InfluxToken $Ver $port $base
+    Info "InfluxDB ${Ver}: hard reset complete (fresh data directory)."
+}
+
+# Parity with ensure_ext_env.sh's _influx_reset_env: the IOx catalog is
+# append-only, so "drop database" only soft-deletes entries and the global
+# table count never decreases.  The Linux script therefore hard-resets the
+# data directory on every ensure unless FQ_INFLUX_QUICK_RESTART=1; the Windows
+# port used to only drop databases, which let the catalog accumulate across
+# runs until the 2000-table limit rejected every write.
+function Reset-InfluxForEnsure {
+    param([string]$Ver, [int]$Port)
+    if ((Get-EnvOr 'FQ_INFLUX_QUICK_RESTART' '0') -eq '1') {
+        Reset-InfluxEnv $Ver $Port
+        return
+    }
+    Reset-InfluxData $Ver
+}
+
 function Ensure-Influx {
     param([string]$Ver)
     $port   = Get-InfluxPort $Ver
@@ -1346,7 +1589,7 @@ function Ensure-Influx {
         $responsive  = $authEnabled -and (Test-InfluxResponsive $Ver $port)
         if ($responsive) {
             Info "InfluxDB ${Ver}: port $port open — already running, resetting test env."
-            Reset-InfluxEnv $Ver $port
+            Reset-InfluxForEnsure $Ver $port
             Ensure-InfluxToken $Ver $port $base
             return
         }
@@ -1380,7 +1623,7 @@ function Ensure-Influx {
         Start-Influx $Ver $port $base
         if (Wait-Port $port 30) {
             Info "InfluxDB ${Ver}: started OK."
-            Reset-InfluxEnv $Ver $port
+            Reset-InfluxForEnsure $Ver $port
             Ensure-InfluxToken $Ver $port $base
             return
         }
@@ -1995,20 +2238,25 @@ function Ensure-SqlServer {
 }
 
 # ==============================================================================
-# 9b. Oracle AI Database Free 26ai
+# 9b. Oracle (11g 11.2.0.4 default, 26ai optional)
 # ==============================================================================
 #
-# Oracle publishes no portable Windows build: the vendor package is a zip that
-# runs setup.exe, which installs an Oracle Home, creates the container
-# database FREE with the FREEPDB1 pluggable database, and registers the
-# database and listener services.  This is the Windows counterpart of the
-# vendor container the Linux script starts: one instance on the version's
-# port, with the suite's schemas provisioned inside it.
+# 26ai: Oracle publishes no portable Windows build for it either, but the
+# vendor package is a zip that runs setup.exe, which installs an Oracle Home,
+# creates the container database FREE with the FREEPDB1 pluggable database,
+# and registers the database and listener services.  This is the Windows
+# counterpart of the vendor container the Linux script starts: one instance on
+# the version's port, with the suite's schemas provisioned inside it.
 #
-# Only the 26ai key exists on this platform - 19c has no Free Windows build -
-# but the version axis stays the same because the port and service keys the
-# Python side uses (FQ_ORACLE_PORT_26AI, FQ_ORACLE_SERVICE_26AI) apply either
-# way.
+# 11g: no redistributable build exists, so - exactly like the Linux 11.2.0.4
+# bundle - the dependency mirror carries a packaged Windows ORACLE_HOME that
+# this script extracts and creates the database in with dbca (see
+# Install-Oracle11g / New-Oracle11gDatabase below).
+#
+# Both versions share the same port/service keys the Python side uses
+# (FQ_ORACLE_PORT_11G / FQ_ORACLE_SERVICE_11G, FQ_ORACLE_PORT_26AI /
+# FQ_ORACLE_SERVICE_26AI), and the same fixed client mapping as install.sh:
+# 11g -> 19c, 26ai -> 23ai.
 #
 # setup.exe is asynchronous: it returns while msiexec keeps installing, so
 # completion is read from the /L*v log ("Installation success or error
@@ -2018,7 +2266,7 @@ function Ensure-SqlServer {
 # file:/// or a plain path).  The pinned SHA256 is always verified before
 # setup.exe runs, so a truncated or substituted download is never installed.
 
-$OracleVersions    = Get-EnvList 'FQ_ORACLE_VERSIONS' '26ai'
+$OracleVersions    = Get-EnvList 'FQ_ORACLE_VERSIONS' '11g'
 $OracleHost        = Get-EnvOr 'FQ_ORACLE_HOST' '127.0.0.1'
 $OracleAdminUser   = Get-EnvOr 'FQ_ORACLE_ADMIN_USER' 'system'
 $OracleAdminPass   = Get-EnvOr 'FQ_ORACLE_ADMIN_PASS' 'Tdengine_123'
@@ -2029,6 +2277,32 @@ $OraclePoolPass    = Get-EnvOr 'FQ_ORACLE_POOL_TEST_PASS' 'taosdata'
 $OracleAltUser     = Get-EnvOr 'FQ_ORACLE_ALT_USER' 'fq_alt_schema'
 $OracleAltPass     = Get-EnvOr 'FQ_ORACLE_ALT_PASS' 'taosdata'
 $OraclePoolMaxConn = [int](Get-EnvOr 'FQ_POOL_TEST_MAX_CONN' '2')
+# 11g (11.2.0.4) is the default, exactly as on Linux; 26ai stays optional.
+# The Windows 11g install mirrors the Linux "packaged ORACLE_HOME + dbca"
+# model: the dependency mirror carries the home archive (built once from the
+# vendor media), this script extracts it and creates the database with dbca.
+# Its SHA256 is optional because the mirror artifact is produced by the same
+# pipeline as the Linux 11g bundle, which is not hash-pinned either; set
+# FQ_ORACLE_PKG_SHA256_11G to enforce one.
+$OracleMirrorUrl   = (Get-EnvOr 'FQ_ORACLE_MIRROR_URL' `
+    (Get-EnvOr 'FQ_MIRROR_URL' 'https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest')).TrimEnd('/')
+$Oracle11gUrl      = Get-EnvOr 'FQ_ORACLE_PKG_URL_11G' `
+    "$OracleMirrorUrl/oracle-database-11.2.0.4-win-x64.tar.gz"
+$Oracle11gSha256   = (Get-EnvOr 'FQ_ORACLE_PKG_SHA256_11G' '').ToLowerInvariant()
+# Optional: the 11g server runs in a Docker container **on this machine** (the
+# Linux fq-oracle image the CI lease already uses; Oracle publishes no Windows
+# 11.2.0.4 media).  The Windows side keeps the local Instant Client and drives
+# the local Docker daemon: FQ_ORACLE_DOCKER=1 uses `docker` from PATH (Docker
+# Desktop / dockerd), FQ_ORACLE_DOCKER_WSL=<distro> runs it through
+# `wsl -d <distro> -u root docker` (docker engine inside WSL2).  The container
+# is created on first use with a data volume, so stop/start/kill keep the
+# database created at file start.  Without either variable a non-local
+# FQ_ORACLE_HOST is treated as an unmanaged server: only reachability is
+# checked and lifecycle actions are no-ops.
+$OracleDocker          = (Get-EnvOr 'FQ_ORACLE_DOCKER' '') -ne ''
+$OracleDockerWsl       = Get-EnvOr 'FQ_ORACLE_DOCKER_WSL' ''
+$OracleDockerContainer = Get-EnvOr 'FQ_ORACLE_DOCKER_CONTAINER' 'fq-oracle-11g'
+$OracleDockerImage     = Get-EnvOr 'FQ_ORACLE_DOCKER_IMAGE' 'harbor.tdengine.net/tsdb-ci/fq-oracle:11.2.0.4'
 # Oracle AI Database Free 26ai (23.26.3) for Windows x64.  Pinning both the
 # URL and the hash keeps the engine version stable: the download page is
 # evergreen and a newer build would silently change the engine the suite
@@ -2038,18 +2312,48 @@ $OracleFreeUrl     = Get-EnvOr 'FQ_ORACLE_FREE_URL' `
 $OracleFreeSha256  = (Get-EnvOr 'FQ_ORACLE_FREE_SHA256' `
     '178d6cfd5a8109ea9d26894a597116db4d95320cd8861d16ca10d4d8c384dab3').ToLowerInvariant()
 $OracleCache       = Get-EnvOr 'FQ_ORACLE_PKG_DIR' (Join-Path $FqBase 'oracle\packages')
-$OracleDriverName  = 'Oracle in instantclient_23_26'
-# Resolved lazily: probing the instance costs a sqlplus login, so the answer
-# is reused for the whole run (a stop/start does not invalidate it).
-$script:OracleAdminConnect = $null
+# Server family -> Instant Client (FS 7.1 / install.sh): 11g/12c/18c use
+# 19c, 19c and newer use 23ai.  The tests default to 11g, so the default
+# client on Windows is 19c; 26ai keeps the 23ai client it was validated with.
+$OracleClientByVersion = @{
+    '11g' = '19c'; '12c' = '19c'; '18c' = '19c'
+    '19c' = '23ai'; '21c' = '23ai'; '23ai' = '23ai'; '26ai' = '23ai'
+}
+$OracleActiveClient = (Get-EnvOr 'FQ_ORACLE_ACTIVE_CLIENT' '').ToLowerInvariant()
+$OracleDriverNames  = @{ '19c' = 'Oracle in instantclient_19c'; '23ai' = 'Oracle in instantclient_23_26' }
+# Resolved lazily per version: probing the instance costs a sqlplus login, so
+# the answer is reused for the whole run (a stop/start does not invalidate it).
+# A run may configure both 11g and 26ai, so the cache is keyed by version.
+$script:OracleAdminConnects = @{}
+
+# Fixed family -> client mapping (install.sh parity).  FQ_ORACLE_ACTIVE_CLIENT
+# may force the other generation for a 19c+ server (e.g. 26ai + 19c client),
+# but 11g is always 19c: the 23ai client does not support it.
+function Get-OracleClient {
+    param([string]$Ver)
+    if ($Ver -eq '11g') {
+        if ($OracleActiveClient -and $OracleActiveClient -ne '19c') {
+            throw "Oracle client $OracleActiveClient does not support server family 11g"
+        }
+        return '19c'
+    }
+    if ($OracleActiveClient) {
+        if ($OracleActiveClient -in @('19c', '23ai')) { return $OracleActiveClient }
+        throw "Invalid FQ_ORACLE_ACTIVE_CLIENT: $OracleActiveClient (expected 19c or 23ai)"
+    }
+    $mapped = $OracleClientByVersion[$Ver]
+    if (-not $mapped) { throw "Unsupported Oracle server version family: $Ver" }
+    return $mapped
+}
 
 function Get-OraclePort {
     param([string]$Ver)
     $tag = ($Ver -replace '\.', '').ToUpperInvariant()
     $value = Get-EnvOr "FQ_ORACLE_PORT_$tag" ''
     if ($value) { return [int]$value }
+    if ($Ver -eq '11g') { return 18320 }
     if ($Ver -eq '26ai') { return 18322 }
-    return [int](Get-EnvOr 'FQ_ORACLE_PORT' 18322)
+    return [int](Get-EnvOr 'FQ_ORACLE_PORT' 18320)
 }
 
 function Get-OracleService {
@@ -2057,8 +2361,27 @@ function Get-OracleService {
     $tag = ($Ver -replace '\.', '').ToUpperInvariant()
     $value = Get-EnvOr "FQ_ORACLE_SERVICE_$tag" ''
     if ($value) { return $value }
+    if ($Ver -eq '11g') { return 'ORCL' }
     if ($Ver -eq '26ai') { return 'FREEPDB1' }
-    return (Get-EnvOr 'FQ_ORACLE_SERVICE' 'FREEPDB1')
+    return (Get-EnvOr 'FQ_ORACLE_SERVICE' 'ORCL')
+}
+
+# Oracle SID: 11g is a non-container instance (ORCL); the Free database is
+# FREE.  Only used to set ORACLE_SID for sqlplus/oradim.
+function Get-OracleSid {
+    param([string]$Ver)
+    $tag = ($Ver -replace '\.', '').ToUpperInvariant()
+    $value = Get-EnvOr "FQ_ORACLE_SID_$tag" ''
+    if ($value) { return $value }
+    if ($Ver -eq '11g') { return 'ORCL' }
+    return 'FREE'
+}
+
+# SCM service name of the database instance for this version.
+function Get-OracleServiceName {
+    param([string]$Ver)
+    if ($Ver -eq '11g') { return 'OracleServiceORCL' }
+    return 'OracleServiceFREE'
 }
 
 function Get-OracleBaseDir {
@@ -2066,10 +2389,11 @@ function Get-OracleBaseDir {
     return (Join-Path $FqBase "oracle\$Ver")
 }
 
-# Oracle Home of the registered database service.  ImagePath is
+# Oracle Home of a registered database service.  ImagePath is
 # "<home>\bin\ORACLE.EXE <SID>"; a quoted path is accepted too.
 function Get-OracleServiceHome {
-    $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    param([string]$Ver)
+    $svc = Get-Service -Name (Get-OracleServiceName $Ver) -ErrorAction SilentlyContinue
     if ($null -eq $svc) { return $null }
     $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$($svc.Name)"
     $props = Get-ItemProperty -Path $key -ErrorAction SilentlyContinue
@@ -2092,14 +2416,33 @@ function Get-OracleServiceHome {
 function Get-OracleHome {
     param([string]$Ver)
     $baseDir = Get-OracleBaseDir $Ver
-    # The Free installer puts the home one level below INSTALLDIR; an existing
+    # The Free installer puts the home one level below INSTALLDIR; the 11g
+    # archive keeps a vendor home (dbhome_1) under <base>\server.  An existing
     # vendor installation may use a different layout, which the service
     # registry entry answers authoritatively.
-    foreach ($candidate in @((Join-Path $baseDir 'dbhomeFree'), $baseDir)) {
+    $candidates = @()
+    if ($Ver -eq '11g') {
+        $candidates += (Join-Path $baseDir 'dbhome_1')
+        $candidates += (Join-Path $baseDir 'server\dbhome_1')
+    } else {
+        $candidates += (Join-Path $baseDir 'dbhomeFree')
+    }
+    $candidates += $baseDir
+    foreach ($candidate in $candidates) {
         if (Test-Path (Join-Path $candidate 'bin\sqlplus.exe')) { return $candidate }
     }
-    $svcHome = Get-OracleServiceHome
+    $svcHome = Get-OracleServiceHome $Ver
     if ($svcHome -and (Test-Path (Join-Path $svcHome 'bin\sqlplus.exe'))) { return $svcHome }
+    # Packaged home archives do not have a fixed depth; find sqlplus.exe and
+    # take its bin/ parent as the home.
+    if (Test-Path (Join-Path $baseDir 'server')) {
+        $found = Get-ChildItem -LiteralPath (Join-Path $baseDir 'server') -Recurse -Depth 12 `
+            -Filter 'sqlplus.exe' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found -and (Split-Path -Path $found.DirectoryName -Leaf) -ieq 'bin') {
+            return (Split-Path -Path $found.DirectoryName -Parent)
+        }
+    }
+    if ($Ver -eq '11g') { return (Join-Path $baseDir 'dbhome_1') }
     return (Join-Path $baseDir 'dbhomeFree')
 }
 
@@ -2204,8 +2547,21 @@ function Invoke-OracleSqlplus {
     )
     $oracleHome = Get-OracleHome $Ver
     $sqlplus = Join-Path $oracleHome 'bin\sqlplus.exe'
+    $sqlplusHome = $oracleHome
     if (-not (Test-Path $sqlplus)) {
-        Err "Oracle ${Ver}: sqlplus.exe not found under $oracleHome"
+        # Container mode has no local ORACLE_HOME: SQL*Plus ships with the
+        # Instant Client bundle and uses the same OCI libraries as the driver.
+        $clientDir = Get-OracleDriverDir $Ver
+        if ($clientDir) {
+            $candidate = Join-Path $clientDir 'sqlplus.exe'
+            if (Test-Path $candidate) {
+                $sqlplus = $candidate
+                $sqlplusHome = $clientDir
+            }
+        }
+    }
+    if (-not (Test-Path $sqlplus)) {
+        Err "Oracle ${Ver}: sqlplus.exe not found under $oracleHome or the Instant Client"
         return $false
     }
     $scriptText = ConvertTo-OracleSqlScript $Sql
@@ -2225,6 +2581,8 @@ function Invoke-OracleSqlplus {
     $savedHome = $env:ORACLE_HOME
     $savedSid  = $env:ORACLE_SID
     $savedNls  = $env:NLS_LANG
+    $savedTns  = $env:TNS_ADMIN
+    $savedPath = $env:PATH
     # sqlplus must write to this process's own stdout: invoking it with "&"
     # would make its output part of the function's return value instead of
     # reaching the caller.  A child started with UseShellExecute=false
@@ -2234,13 +2592,15 @@ function Invoke-OracleSqlplus {
     $psi.FileName = $sqlplus
     $psi.Arguments = $argLine
     $psi.UseShellExecute = $false
-    $psi.WorkingDirectory = $oracleHome
+    $psi.WorkingDirectory = $sqlplusHome
     if ($Quiet) { $psi.RedirectStandardOutput = $true }
     $code = 1
     try {
-        $env:ORACLE_HOME = $oracleHome
-        $env:ORACLE_SID  = 'FREE'
+        $env:ORACLE_HOME = $sqlplusHome
+        $env:ORACLE_SID  = (Get-OracleSid $Ver)
         $env:NLS_LANG    = 'AMERICAN_AMERICA.AL32UTF8'
+        $env:TNS_ADMIN   = Join-Path (Get-OracleBaseDir $Ver) 'cfg'
+        $env:PATH        = "$sqlplusHome;$savedPath"
         $proc = [System.Diagnostics.Process]::Start($psi)
         if ($Quiet) {
             # Drain the pipe before waiting: a full buffer would block the
@@ -2253,6 +2613,8 @@ function Invoke-OracleSqlplus {
         $env:ORACLE_HOME = $savedHome
         $env:ORACLE_SID  = $savedSid
         $env:NLS_LANG    = $savedNls
+        $env:TNS_ADMIN   = $savedTns
+        $env:PATH        = $savedPath
         Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
     }
     return ($code -eq 0)
@@ -2270,24 +2632,28 @@ function Test-OracleConnect {
 # same credentials.
 function Resolve-OracleAdminConnect {
     param([string]$Ver)
-    if ($null -ne $script:OracleAdminConnect) { return $script:OracleAdminConnect }
+    if ($script:OracleAdminConnects.ContainsKey($Ver)) { return $script:OracleAdminConnects[$Ver] }
     $port = Get-OraclePort $Ver
     $service = Get-OracleService $Ver
-    $passwordConnect = "$OracleAdminUser/$OracleAdminPass@//127.0.0.1:$port/$service"
+    $passwordConnect = "$OracleAdminUser/$OracleAdminPass@//${OracleHost}:$port/$service"
     if (Test-OracleConnect $Ver $passwordConnect) {
-        $script:OracleAdminConnect = @{ Connect = $passwordConnect; Sysdba = $false }
-        return $script:OracleAdminConnect
+        $script:OracleAdminConnects[$Ver] = @{ Connect = $passwordConnect; Sysdba = $false }
+        return $script:OracleAdminConnects[$Ver]
     }
-    if (Test-OracleConnect $Ver '/ as sysdba') {
+    # OS authentication is a local bequeath to the instance's own home; it has
+    # no meaning when the database lives on another host.
+    if ((Test-LocalHost $OracleHost) -and (Test-OracleConnect $Ver '/ as sysdba')) {
         $escaped = $OracleAdminPass.Replace('"', '""')
-        $reset = "ALTER USER $OracleAdminUser IDENTIFIED BY `"$escaped`" CONTAINER = ALL;"
+        # CONTAINER = ALL is a 12c+ clause; 11g is a non-container instance.
+        $container = if ($Ver -eq '11g') { '' } else { ' CONTAINER = ALL' }
+        $reset = "ALTER USER $OracleAdminUser IDENTIFIED BY `"$escaped`"$container;"
         if ((Invoke-OracleSqlplus -Ver $Ver -Connect '/ as sysdba' -Sql $reset -Quiet) -and
                 (Test-OracleConnect $Ver $passwordConnect)) {
-            $script:OracleAdminConnect = @{ Connect = $passwordConnect; Sysdba = $false }
-            return $script:OracleAdminConnect
+            $script:OracleAdminConnects[$Ver] = @{ Connect = $passwordConnect; Sysdba = $false }
+            return $script:OracleAdminConnects[$Ver]
         }
-        $script:OracleAdminConnect = @{ Connect = '/ as sysdba'; Sysdba = $true }
-        return $script:OracleAdminConnect
+        $script:OracleAdminConnects[$Ver] = @{ Connect = '/ as sysdba'; Sysdba = $true }
+        return $script:OracleAdminConnects[$Ver]
     }
     return $null
 }
@@ -2345,12 +2711,20 @@ function Read-OracleLogTail {
 # more before giving up.
 function Get-OracleMedia {
     param([string]$Url, [string]$Sha256)
+    # An empty hash means the mirror artifact is not hash-pinned (the 11g
+    # bundle is produced by the same pipeline as the Linux one, which does not
+    # pin it either); 26ai always passes a pinned hash.
+    $verify = -not [string]::IsNullOrEmpty($Sha256)
     $name = [System.IO.Path]::GetFileName(($Url -split '\?')[0])
     if (-not $name) {
-        $name = 'oracle-ai-database-free-26ai.windows.x64.zip'
+        $name = 'oracle-media.zip'
     }
     $dest = Join-Path $OracleCache $name
     if (Test-Path $dest) {
+        if (-not $verify) {
+            Info "Oracle: using cached media $dest (no pinned SHA256)"
+            return $dest
+        }
         $have = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($have -eq $Sha256) {
             Info "Oracle: using cached media $dest"
@@ -2375,6 +2749,10 @@ function Get-OracleMedia {
     }
     if (-not (Test-Path $dest)) {
         throw "Oracle media not found after download: $dest"
+    }
+    if (-not $verify) {
+        Info ("Oracle: media {0} bytes (SHA256 not pinned)" -f (Get-Item $dest).Length)
+        return $dest
     }
     $have = (Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($have -ne $Sha256 -and $remote) {
@@ -2548,8 +2926,227 @@ function Install-OracleFree {
     Remove-Item -LiteralPath $media -Recurse -Force -ErrorAction SilentlyContinue
 }
 
+# ── Oracle 11g (11.2.0.4) ────────────────────────────────────────────────────
+# Oracle publishes no redistributable 11g build, so the dependency mirror
+# carries a packaged Windows ORACLE_HOME (built once from the vendor media,
+# exactly like the Linux 11.2.0.4 bundle).  Installing means unpacking it and
+# creating the non-container database with dbca; the instance is then managed
+# with oradim/lsnrctl, without a machine-wide Oracle installer.
+
+function Install-Oracle11g {
+    param([string]$Ver, [string]$BaseDir)
+    if (-not (Test-Admin)) {
+        Err "Oracle ${Ver}: unpacking the 11g home needs administrator rights for dbca/oradim."
+        Err "      Re-run elevated, or point FQ_ORACLE_HOST at an existing Oracle instance."
+        throw "Oracle 11g installation requires administrator rights"
+    }
+    # dbca and its response file do not survive spaces in the home path.
+    if ($BaseDir -match '\s') {
+        throw "Oracle's dbca does not accept spaces in the home path ($BaseDir); set FQ_BASE_DIR to a space-free path"
+    }
+    $archive = Get-OracleMedia $Oracle11gUrl $Oracle11gSha256
+    $server = Join-Path $BaseDir 'server'
+    Info "Oracle ${Ver}: unpacking $archive ..."
+    $null = Expand-OracleMedia $archive $server
+    $home = Get-OracleHome $Ver
+    if (-not (Test-Path (Join-Path $home 'bin\sqlplus.exe'))) {
+        throw "the 11g archive has no bin\sqlplus.exe under $server"
+    }
+    Info "Oracle ${Ver}: ORACLE_HOME=$home"
+}
+
+# Create the 11.2.0.4 database with dbca.  The listener is started from a
+# generated listener.ora under <base>\cfg (TNS_ADMIN), so the extracted home
+# is never modified.  A marker file records success: dbca takes tens of
+# minutes and must not run twice.
+function New-Oracle11gDatabase {
+    param([string]$Ver, [int]$Port, [string]$BaseDir)
+    $marker = Join-Path $BaseDir '.db_created'
+    if (Test-Path $marker) { return $true }
+
+    $home = Get-OracleHome $Ver
+    $sid = Get-OracleSid $Ver
+    $service = Get-OracleService $Ver
+    $tnsAdmin = Join-Path $BaseDir 'cfg'
+    $logDir = Join-Path $BaseDir 'log'
+    $null = New-Item -ItemType Directory -Force $tnsAdmin
+    $null = New-Item -ItemType Directory -Force $logDir
+    $null = New-Item -ItemType Directory -Force (Join-Path $BaseDir 'oradata')
+
+    $listenerOra = @"
+LISTENER =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 127.0.0.1)(PORT = $Port))
+    )
+  )
+"@
+    Set-Content -LiteralPath (Join-Path $tnsAdmin 'listener.ora') -Value $listenerOra -Encoding ASCII
+    $tnsnames = @"
+$service =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCP)(HOST = 127.0.0.1)(PORT = $Port))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = $service)
+    )
+  )
+"@
+    Set-Content -LiteralPath (Join-Path $tnsAdmin 'tnsnames.ora') -Value $tnsnames -Encoding ASCII
+
+    $savedHome = $env:ORACLE_HOME
+    $savedSid = $env:ORACLE_SID
+    $savedTns = $env:TNS_ADMIN
+    $savedPath = $env:PATH
+    $rsp = ''
+    try {
+        $env:ORACLE_HOME = $home
+        $env:ORACLE_SID = $sid
+        $env:TNS_ADMIN = $tnsAdmin
+        $env:PATH = "$(Join-Path $home 'bin');$savedPath"
+
+        $lsnrctl = Join-Path $home 'bin\lsnrctl.exe'
+        if (Test-Path $lsnrctl) {
+            Info "Oracle ${Ver}: starting listener on port $Port ..."
+            & $lsnrctl start LISTENER *>> (Join-Path $logDir 'listener.log')
+        }
+
+        $dbca = Join-Path $home 'bin\dbca.bat'
+        if (-not (Test-Path $dbca)) { $dbca = Join-Path $home 'bin\dbca.exe' }
+        if (-not (Test-Path $dbca)) { throw "dbca not found under $(Join-Path $home 'bin')" }
+        $rsp = Join-Path $BaseDir 'dbca.rsp'
+        $rspText = @"
+OPERATION_TYPE = "createDatabase"
+GDBNAME = "$service"
+SID = "$sid"
+TEMPLATENAME = "General_Purpose.dbc"
+SYSPASSWORD = "$OracleAdminPass"
+SYSTEMPASSWORD = "$OracleAdminPass"
+CHARACTERSET = "AL32UTF8"
+NATIONALCHARACTERSET = "AL16UTF16"
+DATAFILEDESTINATION = "$(Join-Path $BaseDir 'oradata')"
+EMCONFIGURATION = "NONE"
+DATABASETYPE = "MULTIPURPOSE"
+AUTOMATICMEMORYMANAGEMENT = "TRUE"
+"@
+        Set-Content -LiteralPath $rsp -Value $rspText -Encoding ASCII
+        $dbcaOut = Join-Path $logDir 'dbca.out.log'
+        $dbcaErr = Join-Path $logDir 'dbca.err.log'
+        Remove-Item -LiteralPath $dbcaOut, $dbcaErr -Force -ErrorAction SilentlyContinue
+        Info "Oracle ${Ver}: creating database $service with dbca (this takes 20-60 minutes) ..."
+        # dbca.bat must run through cmd.exe; Start-Process cannot execute a
+        # batch file directly when it redirects the child's streams.
+        $comspec = if ($env:ComSpec) { $env:ComSpec }
+                   else { Join-Path $env:SystemRoot 'System32\cmd.exe' }
+        $cmdLine = '/d /c ""' + $dbca + '" -silent -responseFile "' + $rsp + '""'
+        $proc = Start-Process -FilePath $comspec -ArgumentList $cmdLine `
+            -WorkingDirectory $home -NoNewWindow -PassThru `
+            -RedirectStandardOutput $dbcaOut -RedirectStandardError $dbcaErr
+        $deadline = (Get-Date).AddMinutes(120)
+        while (-not $proc.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 15
+        }
+        if (-not $proc.HasExited) {
+            throw "dbca did not finish within 120 minutes; see $dbcaOut"
+        }
+        if ($proc.ExitCode -ne 0) {
+            throw "dbca failed with exit code $($proc.ExitCode); see $dbcaOut / $dbcaErr"
+        }
+        Set-Content -LiteralPath $marker -Value (Get-Date -Format o) -Encoding ASCII
+        Info "Oracle ${Ver}: database $service created"
+        return $true
+    } finally {
+        $env:ORACLE_HOME = $savedHome
+        $env:ORACLE_SID = $savedSid
+        $env:TNS_ADMIN = $savedTns
+        $env:PATH = $savedPath
+        # The response file carries the admin password in clear text.
+        if (Test-Path -LiteralPath $rsp) {
+            Remove-Item -LiteralPath $rsp -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Start-Oracle11g {
+    param([string]$Ver)
+    $home = Get-OracleHome $Ver
+    $baseDir = Get-OracleBaseDir $Ver
+    $sid = Get-OracleSid $Ver
+    $tnsAdmin = Join-Path $baseDir 'cfg'
+    $savedHome = $env:ORACLE_HOME
+    $savedSid = $env:ORACLE_SID
+    $savedTns = $env:TNS_ADMIN
+    try {
+        $env:ORACLE_HOME = $home
+        $env:ORACLE_SID = $sid
+        $env:TNS_ADMIN = $tnsAdmin
+        $lsnrctl = Join-Path $home 'bin\lsnrctl.exe'
+        if ((Test-Path $lsnrctl) -and (Test-Path (Join-Path $tnsAdmin 'listener.ora'))) {
+            & $lsnrctl start LISTENER *>> (Join-Path $baseDir 'log\listener.log')
+        }
+        # dbca registers OracleService<sid>; prefer SCM, fall back to oradim
+        # for a packaged home whose service entry was not created.
+        $svc = Get-Service -Name (Get-OracleServiceName $Ver) -ErrorAction SilentlyContinue
+        if ($null -ne $svc) {
+            if ($svc.Status -ne 'Running') {
+                Info "Oracle ${Ver}: starting $($svc.Name) ..."
+                Start-Service -Name $svc.Name
+            }
+            return
+        }
+        $oradim = Join-Path $home 'bin\oradim.exe'
+        if (Test-Path $oradim) {
+            Info "Oracle ${Ver}: starting instance $sid with oradim ..."
+            & $oradim -startup -sid $sid *>> (Join-Path $baseDir 'log\oradim.log')
+        } else {
+            Warn "Oracle ${Ver}: neither OracleService$sid nor oradim.exe is present"
+        }
+    } finally {
+        $env:ORACLE_HOME = $savedHome
+        $env:ORACLE_SID = $savedSid
+        $env:TNS_ADMIN = $savedTns
+    }
+}
+
+function Stop-Oracle11g {
+    param([string]$Ver)
+    $home = Get-OracleHome $Ver
+    $baseDir = Get-OracleBaseDir $Ver
+    $sid = Get-OracleSid $Ver
+    $savedHome = $env:ORACLE_HOME
+    $savedSid = $env:ORACLE_SID
+    $savedTns = $env:TNS_ADMIN
+    try {
+        $env:ORACLE_HOME = $home
+        $env:ORACLE_SID = $sid
+        $env:TNS_ADMIN = Join-Path $baseDir 'cfg'
+        $svc = Get-Service -Name (Get-OracleServiceName $Ver) -ErrorAction SilentlyContinue
+        if ($null -ne $svc -and $svc.Status -ne 'Stopped') {
+            Info "Oracle ${Ver}: stopping $($svc.Name) ..."
+            Stop-Service -Name $svc.Name -Force -ErrorAction SilentlyContinue
+        } else {
+            $oradim = Join-Path $home 'bin\oradim.exe'
+            if (Test-Path $oradim) {
+                & $oradim -shutdown -sid $sid -shutmode immediate *>> (Join-Path $baseDir 'log\oradim.log')
+            }
+        }
+        $lsnrctl = Join-Path $home 'bin\lsnrctl.exe'
+        if (Test-Path $lsnrctl) {
+            & $lsnrctl stop LISTENER *>> (Join-Path $baseDir 'log\listener.log')
+        }
+    } finally {
+        $env:ORACLE_HOME = $savedHome
+        $env:ORACLE_SID = $savedSid
+        $env:TNS_ADMIN = $savedTns
+    }
+}
+
 function Start-OracleServices {
     param([string]$Ver)
+    if ($Ver -eq '11g') {
+        Start-Oracle11g $Ver
+        return
+    }
     $dbSvc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
     if ($null -eq $dbSvc) {
         throw "OracleServiceFREE is not registered"
@@ -2575,7 +3172,7 @@ function Wait-OracleReady {
     $port = Get-OraclePort $Ver
     $deadline = (Get-Date).AddSeconds($MaxSec)
     while ((Get-Date) -lt $deadline) {
-        if (Test-PortOpen $port) {
+        if (Test-OraclePortOpen $OracleHost $port) {
             if ($null -ne (Resolve-OracleAdminConnect $Ver)) { return $true }
         }
         Start-Sleep -Seconds 5
@@ -2583,78 +3180,149 @@ function Wait-OracleReady {
     return $false
 }
 
-# Directory holding sqora32.dll plus the Instant Client base libraries.  The
-# provider scores a registration that points into taosd's own directory
-# highest, so the build tree (or the package's driver\oracle) wins over a
-# database home's own driver.
+# Directory holding sqora*.dll plus the Instant Client base libraries for the
+# client generation the server version uses.  A versioned tree
+# (driver\oracle\19c / \23ai) always wins; a flat directory is accepted only
+# for 23ai, the legacy single-client layout the Windows build staged before
+# the version axis existed.  FQ_ORACLE_DRIVER_DIR is an explicit override and
+# is accepted as-is.
 function Get-OracleDriverDir {
-    $candidates = New-Object System.Collections.Generic.List[string]
+    param([string]$Ver)
+    $client = Get-OracleClient $Ver
+    $candidates = New-Object System.Collections.Generic.List[object]
     $explicit = Get-EnvOr 'FQ_ORACLE_DRIVER_DIR' ''
-    if ($explicit) { $candidates.Add($explicit) }
-    if ($env:TAOS_BIN_PATH) {
-        $candidates.Add($env:TAOS_BIN_PATH)
-        $parent = Split-Path -Path $env:TAOS_BIN_PATH -Parent
-        if ($parent) { $candidates.Add((Join-Path $parent 'driver\oracle')) }
+    if ($explicit) {
+        $candidates.Add(@{ Path = $explicit; Any = $true })
+        $candidates.Add(@{ Path = (Join-Path $explicit $client); Any = $true })
     }
-    # Source tree: <repo>\debug*\build\bin; package tree: any ancestor that
+    if ($env:TAOS_BIN_PATH) {
+        $parent = Split-Path -Path $env:TAOS_BIN_PATH -Parent
+        if ($parent) {
+            $candidates.Add(@{ Path = (Join-Path $parent "driver\oracle\$client"); Any = $false })
+            $candidates.Add(@{ Path = (Join-Path $parent 'driver\oracle'); Any = $false })
+        }
+        $candidates.Add(@{ Path = $env:TAOS_BIN_PATH; Any = $false })
+    }
+    # Source tree: <repo>\debug*\build; package tree: any ancestor that
     # carries driver\oracle.
     $dir = $ScriptDir
     while ($dir) {
-        $candidates.Add((Join-Path $dir 'driver\oracle'))
-        $candidates.Add((Join-Path $dir 'bin'))
+        $candidates.Add(@{ Path = (Join-Path $dir "driver\oracle\$client"); Any = $false })
+        $candidates.Add(@{ Path = (Join-Path $dir 'driver\oracle'); Any = $false })
+        $candidates.Add(@{ Path = (Join-Path $dir 'bin'); Any = $false })
         if (Test-Path (Join-Path $dir '.git')) {
             foreach ($buildDir in (Get-ChildItem -Path $dir -Directory -Filter 'debug*' -ErrorAction SilentlyContinue)) {
-                $candidates.Add((Join-Path $buildDir.FullName 'build\bin'))
+                $candidates.Add(@{ Path = (Join-Path $buildDir.FullName "build\driver\oracle\$client"); Any = $false })
+                $candidates.Add(@{ Path = (Join-Path $buildDir.FullName 'build\bin'); Any = $false })
             }
         }
         $parent = Split-Path -Path $dir -Parent
         if (-not $parent -or $parent -eq $dir) { break }
         $dir = $parent
     }
-    $candidates.Add('C:\TDengine')
-    $candidates.Add('C:\TDengine\driver\oracle')
-    foreach ($candidate in $candidates) {
+    $candidates.Add(@{ Path = "C:\TDengine\driver\oracle\$client"; Any = $false })
+    $candidates.Add(@{ Path = 'C:\TDengine\driver\oracle'; Any = $false })
+    $candidates.Add(@{ Path = 'C:\TDengine\driver'; Any = $false })
+    $candidates.Add(@{ Path = 'C:\TDengine'; Any = $false })
+
+    foreach ($entry in $candidates) {
+        $candidate = [string]$entry.Path
         if (-not $candidate) { continue }
-        if (-not (Test-Path (Join-Path $candidate 'sqora32.dll'))) { continue }
-        $base = Get-ChildItem -Path $candidate -Filter 'oraociei*.dll' -ErrorAction SilentlyContinue
+        if (-not (Test-Path $candidate -PathType Container)) { continue }
+        $driver = Get-ChildItem -Path $candidate -Filter 'sqora*.dll' -File -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -eq $driver) { continue }
+        $base = Get-ChildItem -Path $candidate -Filter 'oraociei*.dll' -File -ErrorAction SilentlyContinue
         if ($null -eq $base) { continue }
+        if (-not $entry.Any) {
+            $leaf = Split-Path -Path $candidate -Leaf
+            if ($leaf -ne $client) {
+                # A flat tree carries one generation; only the legacy 23ai
+                # layout may stand in for a directory without the version name.
+                if ($client -ne '23ai') { continue }
+                if ($leaf -in @('19c', '23ai')) { continue }
+            }
+        }
         return (Resolve-Path -Path $candidate).Path
     }
     return $null
 }
 
+# True when a registered Oracle driver lives in a tree this script manages
+# (the FQ base, the build tree or the installed TDengine).  Used to retire the
+# other generation's registration without touching a system Oracle install.
+function Test-OracleManagedDriverPath {
+    param([string]$Path)
+    if (-not $Path) { return $false }
+    $roots = New-Object System.Collections.Generic.List[string]
+    $roots.Add($FqBase)
+    if ($env:TAOS_BIN_PATH) {
+        $roots.Add($env:TAOS_BIN_PATH)
+        $parent = Split-Path -Path $env:TAOS_BIN_PATH -Parent
+        if ($parent) { $roots.Add($parent) }
+    }
+    $roots.Add('C:\TDengine')
+    foreach ($root in $roots) {
+        if (-not $root) { continue }
+        $prefix = $root.TrimEnd('\') + '\'
+        if ($Path.StartsWith($prefix, 'OrdinalIgnoreCase')) { return $true }
+    }
+    return $false
+}
+
 # Register the Instant Client ODBC driver in the 64-bit ODBCINST.INI view.
 # Windows has no per-application ODBC registration and the Driver keyword
 # cannot carry a DLL path, so the provider resolves the driver through this
-# entry (see extConnectorOracle.c).
+# entry (see extConnectorOracle.c).  The registration is per client
+# generation; the other generation's TDengine-managed entry is retired so the
+# provider's score-based lookup cannot select a client the server version does
+# not allow (install.sh's driver\oracle\active does the same on Linux).
 function Register-OracleOdbcDriver {
     param([string]$Ver)
-    $driverDir = Get-OracleDriverDir
+    $client = Get-OracleClient $Ver
+    $driverName = $OracleDriverNames[$client]
+    $driverDir = Get-OracleDriverDir $Ver
     if (-not $driverDir) {
-        Err "Oracle ${Ver}: no Instant Client (sqora32.dll + oraociei*.dll) found."
-        Err "      Build with BUILD_WITH_ODBC=ON so the driver is staged into build\bin,"
-        Err "      or set FQ_ORACLE_DRIVER_DIR to the directory that holds it."
+        Err "Oracle ${Ver}: no Instant Client $client (sqora*.dll + oraociei*.dll) found."
+        Err "      Build with INSTALL_FQ_RUNTIME_LIBS=ON so driver\oracle\$client is staged,"
+        Err "      or set FQ_ORACLE_DRIVER_DIR to that directory."
         return $false
     }
-    $driverDll = Join-Path $driverDir 'sqora32.dll'
-    $setupDll = Join-Path $driverDir 'sqoras32.dll'
+    # sqoras32.dll is the setup library, not the driver; the provider must be
+    # registered against sqora32/sqora19-style DLL.
+    $driverDll = (Get-ChildItem -Path $driverDir -Filter 'sqora*.dll' -File |
+        Where-Object { $_.Name -notlike 'sqoras*' } |
+        Select-Object -First 1).FullName
+    $setupDll = Get-ChildItem -Path $driverDir -Filter 'sqoras*.dll' -File -ErrorAction SilentlyContinue |
+        Select-Object -First 1
     try {
-        $key = "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$OracleDriverName"
+        foreach ($other in $OracleDriverNames.Values) {
+            if ($other -eq $driverName) { continue }
+            $otherKey = "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$other"
+            if (-not (Test-Path $otherKey)) { continue }
+            $otherDriver = (Get-ItemProperty -Path $otherKey -Name 'Driver' -ErrorAction SilentlyContinue).Driver
+            if (-not (Test-OracleManagedDriverPath $otherDriver)) { continue }
+            Remove-Item -Path $otherKey -Recurse -Force -ErrorAction SilentlyContinue
+            $otherDrivers = 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers'
+            Remove-ItemProperty -Path $otherDrivers -Name $other -ErrorAction SilentlyContinue
+            Info "Oracle ${Ver}: retired the $other registration ($otherDriver)"
+        }
+        $key = "HKLM:\SOFTWARE\ODBC\ODBCINST.INI\$driverName"
         if (-not (Test-Path $key)) { $null = New-Item -Path $key }
         $null = New-ItemProperty -Path $key -Name 'Driver' -Value $driverDll -PropertyType String -Force
-        if (Test-Path $setupDll) {
-            $null = New-ItemProperty -Path $key -Name 'Setup' -Value $setupDll -PropertyType String -Force
+        if ($null -ne $setupDll) {
+            $null = New-ItemProperty -Path $key -Name 'Setup' -Value $setupDll.FullName -PropertyType String -Force
         }
         $driversKey = 'HKLM:\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers'
         # New-Item -Force on an existing registry key drops all of its values,
         # which would unregister every other ODBC driver on the machine.
         if (-not (Test-Path $driversKey)) { $null = New-Item -Path $driversKey }
-        $null = New-ItemProperty -Path $driversKey -Name $OracleDriverName -Value 'Installed' -PropertyType String -Force
+        $null = New-ItemProperty -Path $driversKey -Name $driverName -Value 'Installed' -PropertyType String -Force
     } catch {
         Err "Oracle ${Ver}: registering the ODBC driver failed: $_"
         return $false
     }
-    Info "Oracle ${Ver}: registered ODBC driver '$OracleDriverName' -> $driverDll"
+    Info "Oracle ${Ver}: registered ODBC driver '$driverName' ($client) -> $driverDll"
     return $true
 }
 
@@ -2744,20 +3412,307 @@ END;
     }
 }
 
+# ── Oracle 11g in a local Linux container ────────────────────────────────────
+# The 11g server image is Linux-only (Oracle publishes no Windows 11.2.0.4
+# media), so Windows runs the same fq-oracle container the Linux lease uses
+# and keeps only the Instant Client locally.  The container is started by this
+# script exactly like the native engines: created on first use (image pulled
+# by docker), started when stopped, stopped/killed by the disruption suites.
+# Two local runtimes are supported: `docker` from PATH (Docker Desktop or a
+# local dockerd) and Docker inside WSL2 (`wsl -d <distro> -u root docker`).
+function Get-OracleDockerCommand {
+    if ($OracleDockerWsl) {
+        return @{ Exe = 'wsl'; Prefix = "-d $OracleDockerWsl -u root docker " }
+    }
+    if ($OracleDocker) {
+        # Resolve the CLI instead of handing "docker" to Start-Process: a
+        # service account (the CI runner runs as LocalSystem) does not see a
+        # per-user Docker Desktop PATH entry, and Start-Process then throws
+        # "cannot find the file specified" from deep inside the container
+        # state probe.  A missing CLI is a configuration problem and must say
+        # so once, here.
+        $resolved = Get-Command docker -CommandType Application -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($null -ne $resolved) {
+            return @{ Exe = $resolved.Source; Prefix = '' }
+        }
+        Err "Oracle: FQ_ORACLE_DOCKER is set but docker was not found on PATH for $env:USERNAME; install Docker for this account or set FQ_ORACLE_DOCKER_WSL=<distro>"
+        return $null
+    }
+    return $null
+}
+
+function Invoke-OracleDocker {
+    param([string[]]$DockerArgs)
+    $command = Get-OracleDockerCommand
+    if ($null -eq $command) { return $false }
+    $log = Join-Path $FqBase 'oracle-docker.log'
+    $errLog = Join-Path $FqBase 'oracle-docker.err.log'
+    $argLine = $command.Prefix + ($DockerArgs -join ' ')
+    # A fresh (hidden) console is required for the WSL backend: wsl.exe refuses
+    # to launch a distribution from a legacy console ("unsupported console
+    # settings. disable the legacy console"), and -NoNewWindow would inherit
+    # the pytest console.
+    try {
+        $proc = Start-Process -FilePath $command.Exe -ArgumentList $argLine -WindowStyle Hidden -PassThru -Wait `
+            -RedirectStandardOutput $log -RedirectStandardError $errLog
+    } catch {
+        Warn "Oracle: docker $($DockerArgs -join ' ') could not start: $($_.Exception.Message)"
+        return $false
+    }
+    if ($proc.ExitCode -ne 0) {
+        $detail = ''
+        if (Test-Path -LiteralPath $errLog) {
+            $detail = ((Get-Content -LiteralPath $errLog -Tail 5) -join '; ')
+        }
+        Warn "Oracle: docker $($DockerArgs -join ' ') failed (exit $($proc.ExitCode)): $detail"
+        return $false
+    }
+    return $true
+}
+
+# Start dockerd when Docker lives in WSL2 and the imported distribution has no
+# init to start it (no systemd on the inbox WSL of Windows 10 1904x).  The
+# helper is installed by the WSL provisioning step; without it the container
+# simply cannot be reached and the normal readiness timeout reports it.
+function Test-OracleDockerDaemon {
+    $command = Get-OracleDockerCommand
+    if ($null -eq $command) { return $false }
+    $log = Join-Path $FqBase 'oracle-docker-probe.log'
+    $errLog = Join-Path $FqBase 'oracle-docker-probe.err.log'
+    try {
+        $proc = Start-Process -FilePath $command.Exe -ArgumentList ($command.Prefix + 'info') `
+            -WindowStyle Hidden -PassThru -Wait `
+            -RedirectStandardOutput $log -RedirectStandardError $errLog
+        return ($proc.ExitCode -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Start-OracleDockerDaemon {
+    if (-not $OracleDockerWsl) { return }
+    if (Test-OracleDockerDaemon) { return }
+    $log = Join-Path $FqBase 'oracle-dockerd.log'
+    $errLog = Join-Path $FqBase 'oracle-dockerd.err.log'
+    # The inbox WSL of Windows 10 terminates a distribution (and dockerd with
+    # it) when the last wsl.exe session exits, so the helper starts dockerd and
+    # then stays alive (`exec sleep infinity`).  Do not wait for the helper:
+    # poll the daemon instead.
+    $proc = Start-Process -FilePath 'wsl' `
+        -ArgumentList "-d $OracleDockerWsl -u root /usr/local/sbin/fq-start-dockerd" `
+        -WindowStyle Hidden -PassThru `
+        -RedirectStandardOutput $log -RedirectStandardError $errLog
+    for ($i = 0; $i -lt 90; $i++) {
+        Start-Sleep -Seconds 1
+        if (Test-OracleDockerDaemon) { return }
+        if ($proc.HasExited) { break }
+    }
+    Warn "Oracle: could not ensure dockerd inside WSL distro $OracleDockerWsl (see $errLog)"
+}
+
+# docker run wants a path inside the WSL filesystem; <FqBase> sits on a Windows
+# drive, which WSL2 mounts under /mnt/<drive>.
+function ConvertTo-WslPath {
+    param([string]$Path)
+    if ($Path -match '^([A-Za-z]):(.*)$') {
+        $drive = $Matches[1].ToLowerInvariant()
+        $rest = $Matches[2].Replace('\', '/')
+        return "/mnt/$drive$rest"
+    }
+    return $Path.Replace('\', '/')
+}
+
+# running / stopped / absent (absent also covers a daemon that is not up).
+function Get-OracleContainerState {
+    if ($null -eq (Get-OracleDockerCommand)) { return 'absent' }
+    $log = Join-Path $FqBase 'oracle-docker.log'
+    $errLog = Join-Path $FqBase 'oracle-docker.err.log'
+    $command = Get-OracleDockerCommand
+    $argLine = $command.Prefix + "inspect -f {{.State.Running}} $OracleDockerContainer"
+    try {
+        $proc = Start-Process -FilePath $command.Exe -ArgumentList $argLine -NoNewWindow -PassThru -Wait `
+            -RedirectStandardOutput $log -RedirectStandardError $errLog
+    } catch {
+        Warn "Oracle: docker inspect could not run: $($_.Exception.Message)"
+        return 'absent'
+    }
+    if ($proc.ExitCode -ne 0) { return 'absent' }
+    $state = ''
+    if (Test-Path -LiteralPath $log) {
+        $state = (Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue) -replace '\s', ''
+    }
+    if ($state -eq 'true') { return 'running' }
+    return 'stopped'
+}
+
+# Create the container the same way the Linux lease does: fixed published port,
+# data volume, the shared admin password, single-instance 11g entrypoint.
+function New-OracleContainer {
+    param([string]$Ver)
+    $port = Get-OraclePort $Ver
+    $envFile = Join-Path $FqBase 'oracle-container.env'
+    $lines = @(
+        "ORACLE_PWD=$OracleAdminPass",
+        "ORACLE_SID=$(Get-OracleSid $Ver)",
+        'DB_ROLE=primary',
+        'SGA_SIZE=1024M',
+        'PGA_SIZE=1024M',
+        'TZ=Asia/Shanghai')
+    [System.IO.File]::WriteAllLines($envFile, $lines, (New-Object System.Text.UTF8Encoding($false)))
+    $envPath = $envFile
+    if ($OracleDockerWsl) { $envPath = ConvertTo-WslPath $envFile }
+    $volume = "$OracleDockerContainer-data"
+    Info "Oracle ${Ver}: creating container $OracleDockerContainer from $OracleDockerImage ..."
+    return (Invoke-OracleDocker @(
+        'run', '-d', '--name', $OracleDockerContainer,
+        '-p', "${port}:1521", '--memory', '5g',
+        '--env-file', $envPath,
+        '-v', "${volume}:/opt/oracle/oradata",
+        $OracleDockerImage))
+}
+
+function Start-OracleContainer {
+    param([string]$Ver)
+    if ($null -eq (Get-OracleDockerCommand)) { return $true }
+    $port = Get-OraclePort $Ver
+    if (Test-OraclePortOpen $OracleHost $port) { return $true }
+    Start-OracleDockerDaemon
+    $state = Get-OracleContainerState
+    if ($state -eq 'absent') {
+        if (-not (New-OracleContainer $Ver)) { return $false }
+    } elseif ($state -eq 'stopped') {
+        Info "Oracle ${Ver}: starting container $OracleDockerContainer ..."
+        if (-not (Invoke-OracleDocker @('start', $OracleDockerContainer))) { return $false }
+    }
+    $deadline = (Get-Date).AddSeconds(1800)
+    while ((Get-Date) -lt $deadline) {
+        if (Test-OraclePortOpen $OracleHost $port) { return $true }
+        Start-Sleep -Seconds 5
+    }
+    Err "Oracle ${Ver}: ${OracleHost}:${port} did not open after starting $OracleDockerContainer"
+    return $false
+}
+
+function Wait-OracleContainerDown {
+    param([string]$Ver, [int]$MaxSec = 180)
+    $port = Get-OraclePort $Ver
+    $deadline = (Get-Date).AddSeconds($MaxSec)
+    while ((Get-Date) -lt $deadline) {
+        if (-not (Test-OraclePortOpen $OracleHost $port)) { return $true }
+        Start-Sleep -Seconds 2
+    }
+    Warn "Oracle ${Ver}: port $port still accepts connections after the container action"
+    return $false
+}
+
+# taosd loads the registered sqora DLL by absolute path, but that DLL's own
+# dependencies (oci.dll, oraociei*.dll) are resolved from the directory of the
+# running executable first.  The packaged layout therefore ships the active
+# client next to taosd (stage_oracle_client.bat); a source-tree run needs the
+# same flattening, otherwise the leftover DLLs of the other client generation
+# win and the ODBC driver cannot start.
+function Sync-OracleClientToBin {
+    param([string]$Ver)
+    if (-not $env:TAOS_BIN_PATH) { return }
+    $clientDir = Get-OracleDriverDir $Ver
+    if (-not $clientDir -or -not (Test-Path -LiteralPath $clientDir)) { return }
+    $binFull = (Resolve-Path -LiteralPath $env:TAOS_BIN_PATH -ErrorAction SilentlyContinue)
+    $clientFull = (Resolve-Path -LiteralPath $clientDir -ErrorAction SilentlyContinue)
+    if (-not $binFull -or -not $clientFull) { return }
+    if ($binFull.Path -ieq $clientFull.Path) { return }
+    $copied = 0
+    foreach ($file in (Get-ChildItem -LiteralPath $clientFull.Path -Filter '*.dll' -File -ErrorAction SilentlyContinue)) {
+        $dest = Join-Path $binFull.Path $file.Name
+        $same = $false
+        if (Test-Path -LiteralPath $dest) {
+            $existing = Get-Item -LiteralPath $dest -ErrorAction SilentlyContinue
+            $same = ($null -ne $existing) -and ($existing.Length -eq $file.Length)
+        }
+        if (-not $same) {
+            Copy-Item -LiteralPath $file.FullName -Destination $dest -Force
+            $copied++
+        }
+    }
+    if ($copied -gt 0) {
+        Info "Oracle ${Ver}: staged $copied client DLL(s) next to taosd ($($binFull.Path))."
+    }
+}
+
 function Ensure-Oracle {
     param([string]$Ver)
-    if ($Ver -ne '26ai') {
-        Err "Oracle ${Ver}: only the 26ai Free instance exists on Windows"
+    if ($Ver -notin @('11g', '26ai')) {
+        Err "Oracle ${Ver}: only the 11g (11.2.0.4) and 26ai server families are supported on Windows"
+        $script:OverallOk = $false
+        return
+    }
+    try {
+        $client = Get-OracleClient $Ver
+    } catch {
+        Err "Oracle ${Ver}: $_"
         $script:OverallOk = $false
         return
     }
     $port = Get-OraclePort $Ver
     $service = Get-OracleService $Ver
     $baseDir = Get-OracleBaseDir $Ver
-    Info "Oracle ${Ver}: host=$OracleHost, port=$port, service=$service"
+    Info "Oracle ${Ver}: host=$OracleHost, port=$port, service=$service, client=$client"
 
+    $quick = (Get-EnvOr 'FQ_ORACLE_QUICK_RESTART' '0') -eq '1'
+    # Only the 11g generation runs from the Linux container; 26ai keeps the
+    # native Windows Free installation, exactly as before.  The container is
+    # local, so this check comes before the host split.
+    if ((Get-OracleDockerCommand) -and $Ver -eq '11g') {
+        if (-not (Register-OracleOdbcDriver $Ver)) {
+            $script:OverallOk = $false
+            return
+        }
+        Sync-OracleClientToBin $Ver
+        if (-not (Start-OracleContainer $Ver)) {
+            $script:OverallOk = $false
+            return
+        }
+        if (-not (Test-OraclePortOpen $OracleHost $port)) {
+            Err "Oracle ${Ver}: ${OracleHost}:${port} is not reachable after the container start."
+            $script:OverallOk = $false
+            return
+        }
+        # The userland docker proxy accepts the TCP handshake as soon as the
+        # container starts, before the database listens (the inbox WSL kernel
+        # cannot run dockerd's iptables rules, so the proxy publishes the
+        # port).  The first boot also initializes the database, which takes
+        # minutes, so wait for a real admin login before provisioning.
+        $adminConnect = "$OracleAdminUser/$OracleAdminPass@//${OracleHost}:$port/$service"
+        $deadline = (Get-Date).AddSeconds(1800)
+        $ready = $false
+        while ((Get-Date) -lt $deadline) {
+            if (Test-OracleConnect $Ver $adminConnect) { $ready = $true; break }
+            Start-Sleep -Seconds 15
+        }
+        if (-not $ready) {
+            Err "Oracle ${Ver}: the container did not accept an admin login on ${OracleHost}:${port} (see 'docker logs $OracleDockerContainer')."
+            $script:OverallOk = $false
+            return
+        }
+        if (-not $quick) {
+            if (-not (Invoke-OracleProvision $Ver)) {
+                $script:OverallOk = $false
+                return
+            }
+            Invoke-OracleDropUserObjects $Ver
+        }
+        Info "Oracle ${Ver}: container $OracleDockerContainer is ready at ${OracleHost}:${port}."
+        return
+    }
     if (-not (Test-LocalHost $OracleHost)) {
-        if (Test-PortOpen $port) {
+        # The local Instant Client registration belongs to this host even when
+        # the database itself runs elsewhere.
+        if (-not (Register-OracleOdbcDriver $Ver)) {
+            $script:OverallOk = $false
+            return
+        }
+        Sync-OracleClientToBin $Ver
+        if (Test-OraclePortOpen $OracleHost $port) {
             Info "Oracle ${Ver}: remote instance at ${OracleHost}:${port} is reachable (no install or reset on a shared host)."
             return
         }
@@ -2765,31 +3720,48 @@ function Ensure-Oracle {
         $script:OverallOk = $false
         return
     }
-
-    $quick = (Get-EnvOr 'FQ_ORACLE_QUICK_RESTART' '0') -eq '1'
-    $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
+    $svcName = Get-OracleServiceName $Ver
+    $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
     $oracleHome = Get-OracleHome $Ver
     $installed = ($null -ne $svc) -and (Test-Path (Join-Path $oracleHome 'bin\sqlplus.exe'))
+    if ($Ver -eq '11g') {
+        # A packaged 11g home exists before dbca creates the instance, so the
+        # sqlplus check alone decides "installed"; the service appears later.
+        $installed = Test-Path (Join-Path $oracleHome 'bin\sqlplus.exe')
+    }
     if (-not $installed) {
         if ($null -ne $svc) {
-            Err "Oracle ${Ver}: OracleServiceFREE is registered but $oracleHome\bin\sqlplus.exe is missing."
+            Err "Oracle ${Ver}: $svcName is registered but $oracleHome\bin\sqlplus.exe is missing."
             Err "      A partially removed installation cannot be reused; remove the service and reinstall."
             $script:OverallOk = $false
             return
         }
         if ($quick) {
-            Err "Oracle ${Ver}: quick restart requested but Oracle Free is not installed."
+            Err "Oracle ${Ver}: quick restart requested but Oracle ${Ver} is not installed."
             $script:OverallOk = $false
             return
         }
         try {
-            Install-OracleFree $Ver $port $baseDir
+            if ($Ver -eq '11g') {
+                Install-Oracle11g $Ver $baseDir
+            } else {
+                Install-OracleFree $Ver $port $baseDir
+            }
         } catch {
             Err "Oracle ${Ver}: installation failed: $_"
             $script:OverallOk = $false
             return
         }
         $oracleHome = Get-OracleHome $Ver
+    }
+    if ($Ver -eq '11g' -and -not (Test-Path (Join-Path $baseDir '.db_created'))) {
+        try {
+            $null = New-Oracle11gDatabase $Ver $port $baseDir
+        } catch {
+            Err "Oracle ${Ver}: database creation failed: $_"
+            $script:OverallOk = $false
+            return
+        }
     }
 
     try {
@@ -2808,6 +3780,7 @@ function Ensure-Oracle {
         $script:OverallOk = $false
         return
     }
+    Sync-OracleClientToBin $Ver
 
     if ($quick) {
         Info "Oracle ${Ver}: quick restart complete (data preserved)."
@@ -2823,6 +3796,16 @@ function Ensure-Oracle {
 
 function Stop-OracleInstance {
     param([string]$Ver)
+    if ((Get-OracleDockerCommand) -and $Ver -eq '11g') {
+        Info "Oracle ${Ver}: stopping container $OracleDockerContainer ..."
+        $null = Invoke-OracleDocker @('stop', '-t', '120', $OracleDockerContainer)
+        $null = Wait-OracleContainerDown $Ver 180
+        return
+    }
+    if ($Ver -eq '11g') {
+        Stop-Oracle11g $Ver
+        return
+    }
     $svc = Get-Service -Name 'OracleServiceFREE' -ErrorAction SilentlyContinue
     if ($svc -and $svc.Status -ne 'Stopped') {
         Info "Oracle ${Ver}: stopping $($svc.Name) ..."
@@ -2849,6 +3832,12 @@ function Stop-OracleInstance {
 # installation on the same host is never touched.
 function Kill-OracleInstance {
     param([string]$Ver)
+    if ((Get-OracleDockerCommand) -and $Ver -eq '11g') {
+        Info "Oracle ${Ver}: killing container $OracleDockerContainer ..."
+        $null = Invoke-OracleDocker @('kill', $OracleDockerContainer)
+        $null = Wait-OracleContainerDown $Ver 120
+        return
+    }
     $oracleHome = Get-OracleHome $Ver
     $oracleHomePrefix = $oracleHome.TrimEnd('\') + '\'
     foreach ($name in @('oracle', 'tnslsnr')) {
@@ -2945,6 +3934,11 @@ if ($CliArgs.Count -gt 0) {
             if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-stop <version>"; exit 2 }
             Stop-OracleInstance $actionVer
             exit 0
+        }
+        '--influx-reset' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --influx-reset <version>"; exit 2 }
+            Reset-InfluxData $actionVer
+            if ($script:OverallOk) { exit 0 } else { exit 1 }
         }
         '--oracle-kill' {
             if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-kill <version>"; exit 2 }

@@ -400,6 +400,69 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       VERBATIM
     )
   endif()
+
+  # Versioned Instant Client tree (19c + 23ai) under build/driver/oracle/,
+  # mirroring install.sh's package layout.  A deployment selects one client
+  # with the `active` marker; the flat build/bin copy above stays the 23ai
+  # generation and remains the legacy development layout.
+  if(BUILD_WITH_ODBC)
+    set(_oracle_windows_19c_dir "")
+    set(_oracle_windows_23ai_dir "")
+    if(TARGET ext_oracle_19c)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_oracle_19c)
+      endif()
+      set(_oracle_windows_19c_dir "${ext_oracle_19c_install}/lib")
+    elseif(DEFINED EXT_ORACLE_19C_SRCPATH AND NOT "${EXT_ORACLE_19C_SRCPATH}" STREQUAL "")
+      set(_oracle_windows_19c_dir "${EXT_ORACLE_19C_SRCPATH}")
+    endif()
+    if(TARGET ext_oracle)
+      set(_oracle_windows_23ai_dir "${ext_oracle_install}/lib")
+    elseif(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+      set(_oracle_windows_23ai_dir "${EXT_ORACLE_SO_SRCPATH}")
+    endif()
+    set(_oracle_versioned_root "${CMAKE_BINARY_DIR}/build/driver/oracle")
+    # Orasqlplusic<ver>.dll is SQL*Plus's message library; SQL*Plus itself
+    # travels via EXTRA_FILES for the Windows FQ harness (the 11g server runs
+    # in a Linux container, so its admin SQL executes on the Windows side).
+    # legacy/extks/pkcs11 are deliberately NOT staged: they are optional
+    # crypto/legacy helpers absent from the Basic + ODBC packages, and a
+    # placeholder with their names must never reach the runtime package
+    # (test_fq_22 rejects a non-PE DLL).
+    set(_oracle_windows_patterns
+      "^sqora" "^sqres" "^oraociei" "^orannz[.]dll$" "^orasql[.]dll$"
+      "^oraocci" "^oci[.]dll$" "^ociw32[.]dll$" "^fips"
+      "^[Oo]rasqlplusic")
+    string(JOIN ";" _oracle_windows_patterns_str ${_oracle_windows_patterns})
+    foreach(_oracle_pair "19c|${_oracle_windows_19c_dir}" "23ai|${_oracle_windows_23ai_dir}")
+      string(REPLACE "|" ";" _oracle_pair_list "${_oracle_pair}")
+      list(GET _oracle_pair_list 0 _oracle_ver)
+      list(GET _oracle_pair_list 1 _oracle_src)
+      if("z${_oracle_src}" STREQUAL "z")
+        continue()
+      endif()
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}"
+          "-DOUT_DIR=${_oracle_versioned_root}/${_oracle_ver}"
+          "-DSEARCH_DIRS=${_oracle_src}"
+          "-DNAME_PATTERNS=${_oracle_windows_patterns_str}"
+          "-DEXTRA_FILES=odbc_install.exe;sqlplus.exe"
+          -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
+        COMMENT "Staging Oracle Instant Client ${_oracle_ver} -> build/driver/oracle/${_oracle_ver}"
+        VERBATIM
+      )
+    endforeach()
+    if(NOT "z${_oracle_windows_23ai_dir}" STREQUAL "z" OR
+       NOT "z${_oracle_windows_19c_dir}" STREQUAL "z")
+      if(NOT "z${_oracle_windows_23ai_dir}" STREQUAL "z")
+        set(_oracle_windows_active "23ai")
+      else()
+        set(_oracle_windows_active "19c")
+      endif()
+      file(MAKE_DIRECTORY "${_oracle_versioned_root}")
+      file(WRITE "${_oracle_versioned_root}/active" "${_oracle_windows_active}\n")
+    endif()
+  endif()
 endif()
 
 if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS AND BUILD_WITH_ODBC)

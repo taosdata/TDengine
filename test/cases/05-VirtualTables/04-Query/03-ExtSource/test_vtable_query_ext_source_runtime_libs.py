@@ -144,6 +144,20 @@ def _path_is_under(path, root):
         return False
 
 
+def _oracle_windows_client_root():
+    """Versioned Instant Client tree that the ODBC registration points into.
+
+    Windows resolves the Oracle driver through ODBCINST.INI, whose Driver
+    value names an absolute path under ``build\\driver\\oracle\\<client>``.
+    That directory carries its own copies of the base DLLs, so hiding only
+    ``build\\bin`` leaves the provider fully loadable and the negative check
+    meaningless.
+    """
+    build_root = os.path.dirname(_runtime_lib_dir())
+    root = os.path.join(build_root, "driver", "oracle")
+    return root if os.path.isdir(root) else None
+
+
 def _hidden_runtime_roots():
     """Directories extConnectorLoadRuntimeLibrary() can resolve a provider from.
 
@@ -165,6 +179,10 @@ def _provider_runtime_files(provider):
     else:
         patterns = _PROVIDER_RUNTIME_PATTERNS[provider]
     roots = _hidden_runtime_roots()
+    if sys.platform == "win32" and provider == "oracle":
+        client_root = _oracle_windows_client_root()
+        if client_root:
+            roots.append(client_root)
     for root in roots:
         for pattern in patterns:
             files.extend(glob.glob(os.path.join(root, pattern)))

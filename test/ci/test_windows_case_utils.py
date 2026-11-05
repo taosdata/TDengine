@@ -19,6 +19,8 @@ import os
 import re
 import shlex
 import shutil
+import stat
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,19 +28,20 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from windows_case_utils import (
-    is_excluded_command, parse_case_line, pytest_command_args, pytest_log_name,
-    resume_task_manifest, FQ_SMOKE_CASES, windows_task_manifest,
+    is_excluded_command, is_fq_command, is_related_command, parse_case_line,
+    pytest_command_args, pytest_log_name, resume_task_manifest,
+    selection_contains_fq, FQ_SMOKE_CASES, windows_task_manifest,
     is_pytest_collection_skip,
     is_pytest_only_skip,
 )
 
 
-class TestWindowsOracleDeferral(unittest.TestCase):
+class TestWindowsOracleParity(unittest.TestCase):
     fq_dir = (Path(__file__).parents[1] /
               "cases/09-DataQuerying/19-FederatedQuery")
 
-    def test_provisioning_defaults_keep_four_supported_providers(self):
-        tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text())
+    def test_provisioning_defaults_include_oracle(self):
+        tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text(encoding="utf-8"))
         nodes = [node for node in tree.body if isinstance(node, (ast.Assign, ast.FunctionDef))
                  and ((isinstance(node, ast.FunctionDef) and node.name == "federated_query_services")
                       or (isinstance(node, ast.Assign) and any(
@@ -47,11 +50,11 @@ class TestWindowsOracleDeferral(unittest.TestCase):
         namespace = {}
         exec(compile(ast.Module(body=nodes, type_ignores=[]), "services", "exec"), namespace)
         services = namespace["federated_query_services"]
-        self.assertEqual(services({}), {"mysql", "pg", "influx", "sqlserver"})
+        self.assertEqual(services({}), {"mysql", "pg", "influx", "sqlserver", "oracle"})
         self.assertEqual(services({"FQ_REQUIRED_SERVICES": "none"}), set())
 
-    def test_shared_service_default_preserves_linux_oracle(self):
-        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text())
+    def test_shared_service_default_includes_oracle_on_every_platform(self):
+        tree = ast.parse((self.fq_dir / "federated_query_common.py").read_text(encoding="utf-8"))
         original = next(node for node in tree.body
                         if isinstance(node, ast.ClassDef) and node.name == "ExtSrcEnv")
         method = next(node for node in original.body
@@ -62,46 +65,59 @@ class TestWindowsOracleDeferral(unittest.TestCase):
             code = ast.fix_missing_locations(ast.Module(body=[cls], type_ignores=[]))
             exec(compile(code, "services", "exec"), namespace)
             actual = namespace["Env"].required_services()
-            self.assertEqual("oracle" in actual, platform != "nt")
+            self.assertIn("oracle", actual)
             self.assertTrue({"mysql", "pg", "influx", "sqlserver"} <= actual)
 
-    def test_baseline_projection_removes_only_complete_oracle_cases(self):
-        tree = ast.parse((self.fq_dir / "test_fq_01_external_source.py").read_text())
-        method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
-                      and node.name == "_fw_without_oracle_baseline")
-        method.decorator_list = []
-        namespace = {"re": re}
-        exec(compile(ast.Module(body=[method], type_ignores=[]), "baseline", "exec"), namespace)
-        project = namespace[method.name]
-        separator = "=" * 96
-        def block(label):
-            return f"{separator}\nCASE START: {label}\n{separator}\nSQL\n{separator}\nCASE END: {label}\n{separator}\n"
-        mysql, oracle, pg = block("CASE-001[MYS]"), block("CASE-OREXT001[ORA]"), block("CASE-002[POS]")
-        self.assertEqual(project(mysql + oracle + pg), mysql + pg)
-        self.assertEqual(project(mysql + pg), mysql + pg)
-        golden = next((self.fq_dir / "ans").glob("test_fq_01_external_source_framework_*.txt")).read_text()
-        projected = project(golden)
-        self.assertIn("CASE-OREXT001[ORA]", golden)
-        self.assertNotIn("[ORA]", projected)
-        for label in re.findall(r"^CASE START: ([^\n]+)$", golden, re.MULTILINE):
-            if not label.endswith("[ORA]"):
-                self.assertIn(f"CASE START: {label}\n", projected)
+    def test_no_windows_oracle_deferral_survives_in_the_fq_tests(self):
+        # Oracle gating is driven by FQ_REQUIRED_SERVICES, never by the host
+        # platform: a stray os.name == "nt" skip would silently drop Oracle
+        # coverage again.  A run that leaves oracle out of the service list
+        # also projects the [ORA] blocks out of the fq_01 baseline.
+        fq01 = (self.fq_dir / "test_fq_01_external_source.py").read_text(encoding="utf-8")
+        self.assertNotIn("Windows FQ Oracle support is deferred", fq01)
+        self.assertIn('if "oracle" in ExtSrcEnv.required_services():', fq01)
+        self.assertIn('if "oracle" not in ExtSrcEnv.required_services():', fq01)
+        self.assertIn("_fw_without_oracle_baseline", fq01)
+        filter_case = (Path(__file__).parents[1] /
+                       "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py")
+        self.assertNotIn("Windows federated-query Oracle support is deferred",
+                         filter_case.read_text(encoding="utf-8"))
 
-    def test_oracle_filter_skip_precedes_backend_start(self):
-        source = (Path(__file__).parents[1] /
-                  "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py")
-        tree = ast.parse(source.read_text())
-        method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
-                      and node.name == "prepare_backend")
-        method.decorator_list = []
-        adapters = Mock()
-        namespace = {"os": SimpleNamespace(name="nt"),
-                     "pytest": SimpleNamespace(skip=Mock(side_effect=unittest.SkipTest("deferred"))),
-                     "VtableQueryUtil": SimpleNamespace(_EXT_SOURCE_ADAPTERS=adapters)}
-        exec(compile(ast.Module(body=[method], type_ignores=[]), "fixture", "exec"), namespace)
-        with self.assertRaises(unittest.SkipTest):
-            next(namespace[method.name](None, "oracle"))
-        adapters.assert_not_called()
+
+class TestWorkspaceRecovery(unittest.TestCase):
+    def test_workspace_processes_are_killed_by_working_directory(self):
+        # A python test driver keeps the workspace test directory alive even
+        # though its image lives in the CI venv (WinError 32 on removal):
+        # stop_processes_under must match the working directory too.
+        try:
+            import psutil  # noqa: F401 - availability gate for the psutil path
+        except ImportError:
+            self.skipTest("psutil is not installed")
+        import subprocess
+        import time
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "stop_processes_under")
+        namespace = {"os": os, "subprocess": subprocess,
+                     "print": lambda *args, **kwargs: None}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "workspace"
+            workdir = root / "source" / "taos-community" / "test"
+            workdir.mkdir(parents=True)
+            child = subprocess.Popen(
+                [sys.executable, "-I", "-c", "import time; time.sleep(60)"],
+                cwd=str(workdir))
+            try:
+                time.sleep(0.5)
+                namespace["stop_processes_under"](str(root))
+                child.wait(timeout=10)
+                self.assertIsNotNone(child.poll())
+            finally:
+                if child.poll() is None:
+                    child.kill()
+                    child.wait()
 
 
 class TestVisualStudioEnvironment(unittest.TestCase):
@@ -791,24 +807,56 @@ class TestWindowsCaseUtils(unittest.TestCase):
                     namespace["stop_owned_fq_mysql"]({}, root)
                 execute.assert_not_called()
 
+    def test_related_subset_selects_only_the_changed_cases(self):
+        # WIN_CASE_SUBSET=related is the focused verification run for the
+        # Oracle-on-Windows work; it must not fall back to the whole matrix.
+        self.assertTrue(is_related_command(
+            "pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py"))
+        self.assertTrue(is_related_command(
+            "pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py"))
+        self.assertTrue(is_related_command("pytest ../packaging/test_fq_oracle_install_windows.py"))
+        self.assertTrue(is_related_command("pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B"))
+        self.assertFalse(is_related_command(
+            "pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py"))
+        self.assertFalse(is_related_command("pytest cases/02-Databases/04-Query/test_db_show_create_db.py"))
+        # A commented-out row is prose, not a selection.
+        self.assertFalse(is_related_command(
+            "#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py"))
+        self.assertFalse(is_fq_command(
+            "#,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py"))
+
+    def test_focused_fq_manifest_uses_existing_cases(self):
+        # fq_related.task is the Linux counterpart (CASES_TASK) of
+        # WIN_CASE_SUBSET=related; every entry must point at a real file.
+        ci_dir = Path(__file__).parent
+        rows = [line for line in (ci_dir / "fq_related.task").read_text(encoding="utf-8").splitlines()
+                if line.strip() and not line.startswith("#")]
+        self.assertTrue(rows)
+        for line in rows:
+            command, timeout = parse_case_line(line)
+            self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file(), command)
+            self.assertGreater(timeout, 0)
+
     def test_smoke_and_full_use_separate_real_inventories(self):
         ci_dir = Path(__file__).parent
         exclusions = [line.strip() for line in (ci_dir / "win_ignore_cases").read_text().splitlines()
                       if line.strip() and not line.lstrip().startswith("#")]
         smoke = windows_task_manifest(ci_dir)
         rows = [line for line in smoke.splitlines() if line.strip() and not line.startswith("#")]
-        self.assertEqual(len(rows), 50)
+        self.assertEqual(len(rows), 22)
         for line in rows:
             command, timeout = parse_case_line(line)
-            self.assertTrue((ci_dir.parent / shlex.split(command)[1]).is_file(), command)
-            if any(case in command for case in FQ_SMOKE_CASES):
-                self.assertFalse(is_excluded_command(command, exclusions, "smoke"))
-                self.assertTrue(is_excluded_command(command, exclusions, "full"))
-                self.assertIn(timeout, (1800, 3600, 7200))
-        self.assertTrue(all(case in smoke for case in FQ_SMOKE_CASES))
+            self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file(), command)
+        # The Windows smoke gate no longer runs federated-query cases: every
+        # FQ row is commented out and a commented row never counts as FQ.
+        self.assertFalse(any(is_fq_command(line) for line in smoke.splitlines()))
+        for case in FQ_SMOKE_CASES:
+            matches = [line for line in smoke.splitlines() if case in line]
+            self.assertTrue(matches, case)
+            self.assertTrue(all(line.lstrip().startswith("#") for line in matches), case)
         full = windows_task_manifest(ci_dir, "full")
         self.assertGreater(len(full.splitlines()), 1000)
-        self.assertTrue(is_excluded_command(
+        self.assertFalse(is_excluded_command(
             "pytest cases/09-DataQuerying/19-FederatedQuery/test_other.py", exclusions, "smoke"))
         with self.assertRaises(ValueError):
             windows_task_manifest(ci_dir, "invalid")
@@ -821,10 +869,12 @@ class TestWindowsCaseUtils(unittest.TestCase):
                         if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
         influx_versions = next(node for node in tree.body
                                if isinstance(node, ast.FunctionDef) and node.name == "federated_query_influx_versions")
-        for suite, case_filter, requires_fq in (("smoke", "", True),
-                                                ("smoke", "local.py", False),
-                                                ("full", "", False)):
-            with self.subTest(suite=suite, case_filter=case_filter), tempfile.TemporaryDirectory() as directory:
+        for suite, case_filter, only_fq, requires_fq in (("smoke", "", False, True),
+                                                         ("smoke", "local.py", False, False),
+                                                         ("full", "", False, True),
+                                                         ("smoke", "", True, True)):
+            with self.subTest(suite=suite, case_filter=case_filter, only_fq=only_fq), \
+                    tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 ci = root / "source/taos-community/test/ci"
                 ci.mkdir(parents=True)
@@ -837,12 +887,14 @@ class TestWindowsCaseUtils(unittest.TestCase):
                 provision, dependencies = Mock(), Mock()
                 execute = Mock(return_value=SimpleNamespace(returncode=0))
                 namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json, "re": re,
-                             "windows_task_manifest": windows_task_manifest, "FQ_SMOKE_CASES": FQ_SMOKE_CASES,
+                             "windows_task_manifest": windows_task_manifest,
+                             "is_fq_command": is_fq_command,
+                             "selection_contains_fq": selection_contains_fq,
                              "ensure_fq_pytest_dependencies": dependencies,
                              "provision_federated_query_env": provision,
                              "run": execute, "sys": SimpleNamespace(executable="python.exe")}
                 exec(compile(ast.Module(body=[influx_versions, function], type_ignores=[]), str(source), "exec"), namespace)
-                self.assertEqual(namespace["run_pytest_cases"](root, {}, root, False, case_filter, suite), 0)
+                self.assertEqual(namespace["run_pytest_cases"](root, {}, root, only_fq, case_filter, suite), 0)
                 self.assertEqual(provision.called, requires_fq)
                 if requires_fq:
                     self.assertEqual(provision.call_args.args[1]["FQ_INFLUX_VERSIONS"], "3.0,1.8")
@@ -850,6 +902,48 @@ class TestWindowsCaseUtils(unittest.TestCase):
                 self.assertTrue((root / "windows-cases.task").is_file())
                 if case_filter:
                     self.assertNotIn(FQ_SMOKE_CASES[0], (root / "windows-cases.task").read_text())
+                if only_fq:
+                    selected = (root / "windows-cases.task").read_text()
+                    self.assertIn(FQ_SMOKE_CASES[0], selected)
+                    self.assertNotIn("cases/local.py", selected)
+
+    def test_uncovered_subset_runs_the_rest_and_keeps_dual_influx(self):
+        # After the focused round, WIN_CASE_SUBSET=uncovered must run the FQ
+        # cases outside RELATED_CASE_MARKERS.  Provisioning still covers the
+        # whole inventory, so the excluded fq_01 row keeps InfluxDB 1.8 alive.
+        import json
+        source = Path(__file__).with_name("run_windows_ci.py")
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        function = next(node for node in tree.body
+                        if isinstance(node, ast.FunctionDef) and node.name == "run_pytest_cases")
+        influx_versions = next(node for node in tree.body
+                               if isinstance(node, ast.FunctionDef) and node.name == "federated_query_influx_versions")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ci = root / "source/taos-community/test/ci"
+            ci.mkdir(parents=True)
+            (ci / "cases.task").write_text(",,y,.,pytest cases/local.py\n")
+            (ci / "win_cases.task").write_text(
+                ",,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest "
+                + FQ_SMOKE_CASES[0] + ",7200\n"
+                + ",,n,.,./ci/pytest.sh pytest " + FQ_SMOKE_CASES[1] + ",3600\n")
+            provision, dependencies = Mock(), Mock()
+            execute = Mock(return_value=SimpleNamespace(returncode=0))
+            namespace = {"Path": Path, "os": SimpleNamespace(environ={"WIN_CASE_SUBSET": "uncovered"}),
+                         "json": json, "re": re,
+                         "windows_task_manifest": windows_task_manifest,
+                         "is_fq_command": is_fq_command,
+                         "is_related_command": is_related_command,
+                         "selection_contains_fq": selection_contains_fq,
+                         "ensure_fq_pytest_dependencies": dependencies,
+                         "provision_federated_query_env": provision,
+                         "run": execute, "sys": SimpleNamespace(executable="python.exe")}
+            exec(compile(ast.Module(body=[influx_versions, function], type_ignores=[]), str(source), "exec"), namespace)
+            self.assertEqual(namespace["run_pytest_cases"](root, {}, root, True, "", "smoke"), 0)
+            self.assertEqual(provision.call_args.args[1]["FQ_INFLUX_VERSIONS"], "3.0,1.8")
+            selected = (root / "windows-cases.task").read_text()
+            self.assertIn(FQ_SMOKE_CASES[1], selected)
+            self.assertNotIn(FQ_SMOKE_CASES[0], selected)
 
     def test_legacy_timeout_column_preserves_command_and_env_commas(self):
         line = ",,n,.,FQ_REQUIRED_SERVICES=postgres,mysql CASE_TIMEOUT=5400 ./ci/pytest.sh pytest cases/a.py,7200"
@@ -958,6 +1052,24 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertEqual(arguments[1:],
                          ["-m", "pytest", "cases/a.py", "-k", "not test_other", "--clean"])
 
+    def test_clean_option_is_skipped_outside_the_test_tree(self):
+        # --clean comes from test/conftest.py; the packaging installer check
+        # is collected with rootdir=source/taos-community, where pytest would
+        # reject it ("unrecognized arguments: --clean").
+        outside = pytest_command_args("pytest ../packaging/test_fq_oracle_install_windows.py", timeout=600)
+        self.assertNotIn("--clean", outside)
+        inside = pytest_command_args("pytest cases/a.py", timeout=3600)
+        self.assertIn("--clean", inside)
+
+    def test_case_log_lookup_tolerates_the_environment_hash(self):
+        from run_windows_ci import match_pytest_log_name
+        command = "pytest ../packaging/test_fq_oracle_install_windows.py"
+        hashed = "test_fq_oracle_install_windows.py-ab6679e5e1049a9e.log"
+        self.assertEqual(match_pytest_log_name({hashed}, command), hashed)
+        exact = pytest_log_name(command)
+        self.assertEqual(match_pytest_log_name({exact, hashed}, command), exact)
+        self.assertIsNone(match_pytest_log_name({"other.py-0123.log"}, command))
+
     def test_windows_deadline_overrides_pytest_ini_default(self):
         for timeout in (1800, 7200):
             with self.subTest(timeout=timeout):
@@ -999,10 +1111,11 @@ class TestWindowsCaseUtils(unittest.TestCase):
         self.assertGreater(len(selected), 1000)
         self.assertTrue(any("18-StreamProcessing/" in command for command in selected))
         self.assertTrue(any("test_stream_vtable_agg_optimize.py" in command for command in selected))
+        # Federated queries are part of the Windows inventory now.
+        self.assertTrue(any("19-FederatedQuery/" in command for command in selected))
+        self.assertTrue(any("/03-ExtSource/" in command for command in selected))
         for command in selected:
-            self.assertNotIn("19-FederatedQuery/", command)
             self.assertNotIn("/test_fs_", command)
-            self.assertNotIn("/03-ExtSource/", command)
 
 
 class TestWindowsFrameworkPortability(unittest.TestCase):

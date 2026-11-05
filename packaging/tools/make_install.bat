@@ -155,6 +155,24 @@ if /I "%install_fq_runtime_libs%"=="ON" (
         echo Missing federated-query staging script: %source_dir%\\packaging\\tools\\stage_fq_runtime.bat
         exit /b 1
     )
+    rem // Oracle Instant Client selection (install.sh parity): the fixed
+    rem // server-family -> client mapping is applied to the staged tree.
+    rem // TD_ORACLE_SERVER_VERSION is 11g/12c/18c/19c/21c/23ai/26ai/none;
+    rem // TD_ORACLE_CLIENT optionally forces 19c/23ai where allowed.  An
+    rem // empty selection keeps the package default (23ai when both trees
+    rem // are present, otherwise the only staged generation).
+    if exist "%target_dir%\\driver\\oracle\\active" (
+        if exist "%source_dir%\\packaging\\tools\\stage_oracle_client.bat" (
+            call "%source_dir%\\packaging\\tools\\stage_oracle_client.bat" "%target_dir%" "%TD_ORACLE_SERVER_VERSION%" "%TD_ORACLE_CLIENT%"
+            if errorlevel 1 (
+                echo Failed to select the Oracle Instant Client generation
+                exit /b 1
+            )
+        ) else (
+            echo Missing Oracle client selection script: %source_dir%\\packaging\\tools\\stage_oracle_client.bat
+            exit /b 1
+        )
+    )
 )
 rem // ── Archive PDB files for crash-dump symbolication ──────────────────────
 rem //   PDBs are NOT shipped to end-users.  They must be stored internally,
