@@ -1694,6 +1694,121 @@ TEST(StreamRecalcTrackerAttemptTest, OneJobWaitsForAllRequiredChains) {
   EXPECT_EQ(FindSnapshot(snapshots.get(), 2301)->status, STREAM_RECALC_STATUS_FINISHED);
 }
 
+TEST(StreamRecalcTrackerAttemptTest, OpenEndedJobUsesScanEndAndWaitsForReadersAndRunners) {
+  auto tracker = MakeTracker();
+  auto groups = MakeGroups({10});
+  ASSERT_NE(tracker, nullptr);
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 2302, {100, TSKEY_MAX}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{2302, 0, {100, TSKEY_MAX}}});
+  ASSERT_NE(contributors, nullptr);
+  SStreamRecalcAttemptRef attempt = {};
+  ActivateAttempt(tracker.get(), 10, {90, 200}, {100, TSKEY_MAX}, contributors.get(), &attempt);
+
+  uint64_t                    stepId = 0;
+  SStreamRecalcAttemptOutcome outcome = {};
+  ASSERT_EQ(stRecalcTrackerBeginAttemptStep(tracker.get(), attempt, 10, {90, 150}, contributors.get(), &stepId),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetAttemptTriggerDone(tracker.get(), attempt, stepId, 0, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->progressPct, 50);
+
+  ASSERT_EQ(stRecalcTrackerBeginAttemptStep(tracker.get(), attempt, 10, {150, 200}, contributors.get(), &stepId),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerAddAttemptReader(tracker.get(), attempt, stepId, 1), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetAttemptTriggerDone(tracker.get(), attempt, stepId, 1, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerAddAttemptRunner(tracker.get(), attempt, stepId, 2), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerCompleteAttemptReader(tracker.get(), attempt, stepId, 1, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->progressPct, 50);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->status, STREAM_RECALC_STATUS_RUNNING);
+  ASSERT_EQ(stRecalcTrackerCompleteAttemptRunner(tracker.get(), attempt, stepId, 2, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->status, STREAM_RECALC_STATUS_RUNNING);
+  ASSERT_EQ(stRecalcTrackerCompleteAttempt(tracker.get(), attempt, &outcome), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->progressPct, 100);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->start, 100);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2302)->end, TSKEY_MAX);
+  EXPECT_EQ(ActiveJobCount(tracker.get()), 0);
+  EXPECT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 2302, {100, TSKEY_MAX}, groups.get()), TSDB_CODE_SUCCESS);
+}
+
+TEST(StreamRecalcTrackerAttemptTest, OpenEndedGroupsKeepDistinctScanEndsAcrossRetry) {
+  auto tracker = MakeTracker();
+  auto groups = MakeGroups({10, 20});
+  ASSERT_NE(tracker, nullptr);
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 2303, {100, TSKEY_MAX}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{2303, 0, {100, TSKEY_MAX}}});
+  ASSERT_NE(contributors, nullptr);
+  SStreamRecalcAttemptRef first = {};
+  SStreamRecalcAttemptRef second = {};
+  ActivateAttempt(tracker.get(), 10, {90, 200}, {100, TSKEY_MAX}, contributors.get(), &first);
+  ActivateAttempt(tracker.get(), 20, {90, 400}, {100, TSKEY_MAX}, contributors.get(), &second);
+
+  uint64_t                    stepId = 0;
+  SStreamRecalcAttemptOutcome outcome = {};
+  ASSERT_EQ(stRecalcTrackerBeginAttemptStep(tracker.get(), first, 10, {90, 200}, contributors.get(), &stepId),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetAttemptTriggerDone(tracker.get(), first, stepId, 0, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerCompleteAttempt(tracker.get(), first, &outcome), TSDB_CODE_SUCCESS);
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->progressPct, 25);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->status, STREAM_RECALC_STATUS_RUNNING);
+  ASSERT_EQ(stRecalcTrackerRecordAttemptFailure(tracker.get(), second, TSDB_CODE_RPC_TIMEOUT, &outcome),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(outcome.decision, STREAM_RECALC_ATTEMPT_RETRY);
+  ASSERT_EQ(stRecalcTrackerStartRetry(tracker.get(), second.chainId, &second), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->progressPct, 25);
+
+  ASSERT_EQ(stRecalcTrackerBeginAttemptStep(tracker.get(), second, 20, {90, 400}, contributors.get(), &stepId),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerSetAttemptTriggerDone(tracker.get(), second, stepId, 0, TSDB_CODE_SUCCESS, &outcome),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerCompleteAttempt(tracker.get(), second, &outcome), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->progressPct, 100);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2303)->end, TSKEY_MAX);
+}
+
+TEST(StreamRecalcTrackerAttemptTest, OpenEndedEmptyIntersectionWaitsForAttemptCompletion) {
+  auto tracker = MakeTracker();
+  auto groups = MakeGroups({10});
+  ASSERT_NE(tracker, nullptr);
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 2304, {200, TSKEY_MAX}, groups.get()), TSDB_CODE_SUCCESS);
+  auto contributors = MakeContributors(tracker.get(), {{2304, 0, {200, TSKEY_MAX}}});
+  ASSERT_NE(contributors, nullptr);
+  SStreamRecalcAttemptRef attempt = {};
+  ActivateAttempt(tracker.get(), 10, {90, 150}, {200, TSKEY_MAX}, contributors.get(), &attempt);
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2304)->status, STREAM_RECALC_STATUS_RUNNING);
+  SStreamRecalcAttemptOutcome outcome = {};
+  ASSERT_EQ(stRecalcTrackerCompleteAttempt(tracker.get(), attempt, &outcome), TSDB_CODE_SUCCESS);
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2304)->progressPct, 100);
+  EXPECT_EQ(FindSnapshot(snapshots.get(), 2304)->status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(ActiveJobCount(tracker.get()), 0);
+}
+
 TEST(StreamRecalcTrackerAttemptTest, LatestActiveRetryChainSuppliesDetail) {
   auto tracker = MakeTracker();
   auto groups = MakeGroups({10, 20});

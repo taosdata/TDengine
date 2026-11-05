@@ -32,6 +32,7 @@ typedef struct SStreamWideUInt {
 typedef struct SStreamRecalcGroupProgress {
   int64_t gid;
   TSKEY   committedThrough;
+  TSKEY   progressEnd;
 } SStreamRecalcGroupProgress;
 
 typedef enum EStreamRecalcAttemptStatus {
@@ -325,19 +326,18 @@ static void stRefreshJobProgress(SStreamRecalcTracker *pTracker, SStreamRecalcJo
   SStreamWideUInt total = {0};
   SStreamWideUInt completed = {0};
   bool            finished = true;
-  const uint64_t  rangeLength = stRangeLength(pJob->requestedRange);
 
   for (size_t i = 0; i < taosArrayGetSize(pJob->pGroups); ++i) {
     const SStreamRecalcGroupProgress *pGroup = taosArrayGet(pJob->pGroups, i);
+    const uint64_t rangeLength = stRangeLength((SStreamProgressRange){pJob->requestedRange.start, pGroup->progressEnd});
     stWideAdd(&total, rangeLength);
     TSKEY completedThrough = pGroup->committedThrough;
     if (completedThrough < pJob->requestedRange.start) completedThrough = pJob->requestedRange.start;
-    if (completedThrough > pJob->requestedRange.end) completedThrough = pJob->requestedRange.end;
+    if (completedThrough > pGroup->progressEnd) completedThrough = pGroup->progressEnd;
     stWideAdd(&completed, stRangeLength((SStreamProgressRange){pJob->requestedRange.start, completedThrough}));
-    if (rangeLength != 0 && pGroup->committedThrough < pJob->requestedRange.end) finished = false;
+    if (rangeLength != 0 && pGroup->committedThrough < pGroup->progressEnd) finished = false;
   }
 
-  if (taosArrayGetSize(pJob->pGroups) == 0 || rangeLength == 0) finished = true;
   int32_t progressPct = stProgressPercent(completed, total, finished);
   if (progressPct > pJob->progressPct) pJob->progressPct = progressPct;
   if (finished && pJob->status == STREAM_RECALC_STATUS_RUNNING && stJobAllRequiredChainsSucceeded(pTracker, pJob) &&
@@ -592,7 +592,8 @@ int32_t stRecalcTrackerRegisterJob(SStreamRecalcTracker *pTracker, int64_t recal
   if (pGroupIds != NULL) {
     for (size_t i = 0; i < taosArrayGetSize(pGroupIds); ++i) {
       const int64_t             *pGid = taosArrayGet(pGroupIds, i);
-      SStreamRecalcGroupProgress group = {.gid = *pGid, .committedThrough = requestedRange.start};
+      SStreamRecalcGroupProgress group = {
+          .gid = *pGid, .committedThrough = requestedRange.start, .progressEnd = requestedRange.end};
       if (taosArrayPush(pJob->pGroups, &group) == NULL) {
         code = terrno;
         stDestroyJob(pJob);
@@ -863,6 +864,13 @@ int32_t stRecalcTrackerActivateAttempt(SStreamRecalcTracker *pTracker, SStreamRe
     SStreamRecalcJob               *pJob = stGetJob(pTracker, pContributor->recalcId);
     if (pJob != NULL && stRecalcStatusCanTransition(pJob->status, STREAM_RECALC_STATUS_RUNNING)) {
       pJob->status = STREAM_RECALC_STATUS_RUNNING;
+    }
+    if (pJob != NULL && pJob->requestedRange.end == TSKEY_MAX) {
+      // FROM without TO scans only through this group's captured stream progress. Keep the original range
+      // for contributor identity and snapshots; retries reuse the same attempt and progress end.
+      SStreamRecalcGroupProgress *pGroup = stGetGroupProgress(pJob, gid);
+      pGroup->progressEnd = TMAX(pJob->requestedRange.start, scanRange.end);
+      stRefreshJobProgress(pTracker, pJob);
     }
   }
   *pRef = (SStreamRecalcAttemptRef){.chainId = pAttempt->chainId, .executionOrdinal = 0};
