@@ -326,9 +326,9 @@ taosx run \
 
 1. If the list contains child tables, the backup automatically includes the table creation statements of their parent supertables, so that supertables are created before child tables during restoration. Other child tables under those supertables are not backed up.
 2. When `tables` is specified together with `stables` or `select`, the parameters take effect in the precedence order `stables` > `tables` > `select`. Lower-precedence parameters are ignored, and a warning is printed in the `taosx` logs.
-3. The list file must contain one table name per line: comment lines starting with `#` are not supported, blank lines are not skipped, leading/trailing whitespace is not trimmed, and every line is treated as a table name. The file must be encoded in UTF-8. Make sure the list file is clean.
+3. The list file must contain one table name per line. Blank (whitespace-only) lines are ignored, and duplicate names are deduplicated with only the first occurrence kept (see the `duplicate_or_trim_empty_table_names` count in the `taosx` logs). Leading/trailing whitespace of a non-empty line is not trimmed, so a line like ` t1 ` is treated as a table name and fails the lookup. Comment lines starting with `#` are not supported; a `#` line is treated as a table name and causes an error. The file must be encoded in UTF-8. Make sure the list file is clean.
 4. A relative `@<file_path>` is resolved against the working directory where the `taosx` command runs. Using an absolute path is recommended.
-5. The `tables` parameter can be combined with `start`, `end` (back up data within a time range only), `schema_only` (back up table schema only), and `workers` (task concurrency). For example, to back up data of the specified tables within September 2, 2025 only:
+5. The `tables` parameter can be combined with `start`, `end` (back up data within a time range only), `schema_only` (back up table schema only), and `workers` (task concurrency; the alias `concurrency` is also accepted). For example, to back up data of the specified tables within September 2, 2025 only:
 
    ```shell
    taosx run \
@@ -337,11 +337,13 @@ taosx run \
      -v
    ```
 
+6. In backup scenarios, use plain table names only: the `tables` parameter matches `information_schema.ins_tables.table_name` exactly and does not support the `{stable}.{table}` syntax used by synchronization tasks in the [taosX Reference](../03-components/06-taosx.md). Writing `meters.d0` is treated as a literal table name and fails with a table-not-exists error (`table 'meters.d0' not exists in database '<db>'`).
+
 After the backup completes, the backup directory contains a `schema.meta` metadata file and `.z` data files.
 
 ### Restore a Specified-Table Backup
 
-The procedure is the same as [Restore to Another Cluster With the taosx CLI](#restore-to-another-cluster-with-the-taosx-cli) described above: the backup files contain only the data and metadata of the tables in the list. Copy the backup directory to the target cluster and run the restoration directly:
+The restore command is the same as in [Restore to Another Cluster with the taosx CLI](#restore-to-another-cluster-with-the-taosx-cli) above, but a specified-table backup directory contains only the `schema.meta` metadata file and `.z` data files. No `.taosx-backup-layout` marker or `.mz` incremental files are involved, so you can skip the steps above that copy and verify those files. Copy the backup directory to the target cluster and run the restoration directly:
 
 ```shell
 taosx run \
