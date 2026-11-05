@@ -30,6 +30,24 @@ toc_max_heading_level: 3
 - 外部系统写入、外部对象的 DDL 操作，以及跨数据源强一致性事务。
 - 外部源具备但 TDengine 不具备的功能。
 
+### 运行平台
+
+Linux x64、Linux ARM64 和 Windows x64 上都可以查询 MySQL、PostgreSQL、InfluxDB、SQL Server 和 Oracle。Windows x64 的运行库如下：
+
+| 外部源 | Windows x64 |
+| --- | --- |
+| MySQL | 客户端库 `libmariadb.dll` 放在 `taosd` 同目录。 |
+| PostgreSQL | 客户端库 `libpq.dll` 放在 `taosd` 同目录。 |
+| InfluxDB | 使用 HTTP，不依赖 Arrow Flight SQL。 |
+| SQL Server | 使用 ODBC。 |
+| Oracle | 使用 ODBC。Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。11g、12c 和 18c 使用 19c 客户端，19c 及以上使用 23ai 客户端。 |
+
+SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令认证。
+
+### 流式计算
+
+流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 和 SQL Server 外部源，不能使用 Oracle 外部表。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
+
 ### 兼容性
 
 该功能为企业版功能。默认关闭时，现有本地查询行为不变；启用后仅增加外部数据源对象和联邦查询行为。无法支持的语义会明确报错，不会返回不确定结果。当前版本以 SQL 语句提供外部数据源管理和联邦查询能力，不新增独立编程接口。
@@ -45,7 +63,7 @@ toc_max_heading_level: 3
 
 ### 联邦查询依赖库
 
-使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 使用 Apache Arrow Flight SQL 运行库，SQL Server 使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，Oracle 使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见[版本和兼容性](#外部数据库版本)）。
+使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 在 Linux 上使用 Apache Arrow Flight SQL 运行库。SQL Server 在 Linux 上使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，在 Windows x64 上使用 ODBC。Oracle 在 Linux 上使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见 [版本和兼容性](#外部数据库版本)），在 Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。
 
 InfluxDB 1.8 支持随企业版 TDengine 提供，无需额外安装 InfluxDB 客户端库或 Arrow 运行库。
 
@@ -78,10 +96,10 @@ InfluxDB 1.8 支持随企业版 TDengine 提供，无需额外安装 InfluxDB �
 **说明**
 
 - `libmariadb.so`、`libpq.so`、Arrow/Parquet 相关库用于外部连接器运行时依赖。
-- SQL Server 所需的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server 随联邦查询依赖包分发，不需要在系统中单独安装或执行驱动注册；缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
-- Oracle 所需的 unixODBC 与 Oracle Instant Client（19c / 23ai）随联邦查询依赖包分发，不需要在系统中单独安装或执行驱动注册；缺失时 `TYPE = 'oracle'` 的外部源创建与查询均返回外部源类型不支持的错误。
+- SQL Server 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC。缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
+- Oracle 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Oracle Instant Client（19c / 23ai），不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。缺失时 `TYPE = 'oracle'` 的外部源创建与查询均返回外部源类型不支持的错误。
 - 安装后应确保动态链接库路径可被 `taosd` 与 `taosc` 进程加载。
-- Windows x64 上，MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 使用 HTTP，不依赖 Arrow Flight SQL。SQL Server 使用 ODBC。Windows 插件包的安装步骤尚未在本文给出。
+- Windows x64 上五种外部源都可以查询。MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 使用 HTTP，不依赖 Arrow Flight SQL。SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 也放在 `taosd` 同目录。Windows 插件包的安装步骤尚未在本文给出。
 - 附录：当前内部下载地址（内网）为 `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`。
 - 该地址为内网临时地址，`v3.4.3.0` 发布后以下载中心提供的正式链接为准。
 - 详细安装与启动步骤将在后续补充。
@@ -1105,13 +1123,13 @@ FederatedScan on mysql_prod.power.sensor_data
 | SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
 | Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |
 
-**SQL Server 支持范围**：仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
+**SQL Server 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
 
-**Oracle 支持范围**：不支持 Oracle 11g Release 1（11.1）及更早版本；仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式；只监听 TCPS 的实例不在支持范围内。需要同时访问 11g 与 26ai 时，应按客户端版本拆分为两个部署。
+**Oracle 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。不支持 Oracle 11g Release 1（11.1）及更早版本；仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式；只监听 TCPS 的实例不在支持范围内。需要同时访问 11g 与 26ai 时，应按客户端版本拆分为两个部署。流式计算不能使用 Oracle 外部表。
 
 ### 安装、升级和卸载
 
-**说明**：使用需要第三方运行库的外部源时，除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库（SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 也随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发），应安装在实际执行联邦查询服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
+**说明**：使用需要第三方运行库的外部源时，除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库。Linux 上，SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发。Windows x64 上，SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 放在 `taosd` 同目录。依赖包应安装在实际执行联邦查询的服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
 
 使用 InfluxDB 1.8 时，参与解析和执行的 `taosc` 与 `taosd` 均需使用包含该功能的企业版；无需额外安装 Arrow 或 InfluxDB 客户端库。
 

@@ -30,6 +30,24 @@ The following scenarios cannot reference external tables:
 - Writes to external systems, DDL operations on external objects, and cross-source strongly consistent transactions.
 - Features available in external systems but not in TDengine.
 
+### Supported Platforms
+
+MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle can be queried on Linux x64, Linux ARM64, and Windows x64. The Windows x64 runtime libraries are:
+
+| External source | Windows x64 |
+| --- | --- |
+| MySQL | The client library `libmariadb.dll` is placed in the same directory as `taosd`. |
+| PostgreSQL | The client library `libpq.dll` is placed in the same directory as `taosd`. |
+| InfluxDB | Uses HTTP and does not depend on Arrow Flight SQL. |
+| SQL Server | Uses ODBC. |
+| Oracle | Uses ODBC. The Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`. 11g, 12c, and 18c use the 19c client. 19c and later use the 23ai client. |
+
+Installation steps for the Windows plugin package are not yet described in this document. SQL Server still does not support Windows integrated authentication; only SQL Server account and password authentication is supported.
+
+### Stream Processing
+
+Stream processing can use MySQL, PostgreSQL, InfluxDB, and SQL Server external sources in triggers and calculations. It cannot use Oracle external tables. Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
+
 ### Compatibility
 
 This feature is available in the Enterprise Edition. When disabled by default, existing local query behavior is unchanged; when enabled, only external data source objects and federated query behavior are added. Unsupported semantics return explicit errors rather than indeterminate results. The current version provides external data source management and federated query capabilities through SQL statements and does not introduce separate programming interfaces.
@@ -45,7 +63,7 @@ Before use, enable `federatedQueryEnable` on both the client and server. Connect
 
 ### Federated Query Runtime Libraries
 
-Before using Federated Query, install the runtime library package required by your external source types on every server that executes federated queries. The package must match your TDengine version. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, Apache Arrow Flight SQL runtime libraries for InfluxDB 3.x, unixODBC plus Microsoft ODBC Driver 18 for SQL Server for SQL Server, and unixODBC plus Oracle Instant Client for Oracle (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)).
+Before using Federated Query, install the runtime library package required by your external source types on every server that executes federated queries. The package must match your TDengine version. This package provides the runtime libraries required by external connectors: MariaDB Connector/C for MySQL, `libpq` for PostgreSQL, and Apache Arrow Flight SQL runtime libraries for InfluxDB 3.x on Linux. SQL Server uses unixODBC and Microsoft ODBC Driver 18 for SQL Server on Linux, and ODBC on Windows x64. Oracle uses unixODBC and Oracle Instant Client on Linux (two client generations, 19c and 23ai; the installer selects the active one for the server version, see [Version and Compatibility](#external-database-versions)). On Windows x64, Oracle uses ODBC, and the Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`.
 
 InfluxDB 1.8 support is included in TDengine Enterprise Edition and does not require additional InfluxDB client libraries or Arrow runtime libraries.
 
@@ -78,10 +96,10 @@ The plugin package typically has the following structure after extraction:
 **Notes**
 
 - `libmariadb.so`, `libpq.so`, and Arrow/Parquet related libraries are runtime dependencies for external connectors.
-- SQL Server requires unixODBC and Microsoft ODBC Driver 18 for SQL Server, which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
-- Oracle requires unixODBC and Oracle Instant Client (19c / 23ai), which are shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. If they are missing, creating or querying an external source with `TYPE = 'oracle'` returns an external source type unsupported error.
+- On Linux, SQL Server uses unixODBC and Microsoft ODBC Driver 18 for SQL Server shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. On Windows x64, SQL Server uses ODBC. If they are missing, creating or querying an external source with `TYPE = 'sqlserver'` returns an external source type unsupported error.
+- On Linux, Oracle uses unixODBC and Oracle Instant Client (19c / 23ai) shipped with the federated query runtime package. They do not need to be installed separately or registered with the system. On Windows x64, Oracle uses ODBC, and the Instant Client and ODBC driver DLLs are placed in the same directory as `taosd`. If they are missing, creating or querying an external source with `TYPE = 'oracle'` returns an external source type unsupported error.
 - After installation, ensure the dynamic library path can be loaded by `taosd` and `taosc` processes.
-- On Windows x64, the MySQL and PostgreSQL client libraries `libmariadb.dll` and `libpq.dll` are placed in the same directory as `taosd`. InfluxDB uses HTTP and does not depend on Arrow Flight SQL. SQL Server uses ODBC. Installation steps for the Windows plugin package are not yet described in this document.
+- All five external sources can be queried on Windows x64. The MySQL and PostgreSQL client libraries `libmariadb.dll` and `libpq.dll` are placed in the same directory as `taosd`. InfluxDB uses HTTP and does not depend on Arrow Flight SQL. SQL Server and Oracle use ODBC, and the Oracle Instant Client DLLs are also placed in the same directory as `taosd`. Installation steps for the Windows plugin package are not yet described in this document.
 - Appendix: The current internal download URL (intranet) is `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`.
 - This URL is a temporary intranet address; after `v3.4.3.0` is released, use the official link provided by the download center.
 - Detailed installation and startup steps will be added later.
@@ -1105,13 +1123,13 @@ Supported and tested external database versions are as follows:
 | SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
 | Oracle     | 11.2.0.3 / 11.2.0.4, 12c, 18c, 19c, 21c, 23ai, 26ai | 11.2.0.4, 26ai | The runtime package ships both Instant Client 19c and 23ai; the installer selects the active client for the server version, and only one client is active per deployment at a time. |
 
-**SQL Server support scope**: Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
+**SQL Server support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
 
-**Oracle support scope**: Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients.
+**Oracle support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients. Stream processing cannot use Oracle external tables.
 
 ### Installation, Upgrade, and Uninstall
 
-**Note**: For external source types that require third-party runtime libraries, install a federated query runtime library package that matches your TDengine version (or the Federated Query plugin package from the download center), in addition to the main TDengine installation package. This package provides runtime libraries for external connectors (unixODBC and Microsoft ODBC Driver 18 for SQL Server are also shipped in the package and do not need separate registration; the Oracle Instant Client 19c / 23ai is shipped in the package as well) and should be installed on every machine that executes federated queries and hosts `taosc`; upgrade it in sync with TDengine.
+**Note**: For external source types that require third-party runtime libraries, install a federated query runtime library package that matches your TDengine version (or the Federated Query plugin package from the download center), in addition to the main TDengine installation package. This package provides runtime libraries for external connectors. On Linux, unixODBC and Microsoft ODBC Driver 18 for SQL Server are shipped in the package and do not need separate registration, and Oracle Instant Client 19c / 23ai is shipped in the package as well. On Windows x64, SQL Server and Oracle use ODBC, and the Oracle Instant Client DLLs are placed in the same directory as `taosd`. Install the package on every machine that executes federated queries and hosts `taosc`, and upgrade it in sync with TDengine.
 
 For InfluxDB 1.8, all `taosc` clients and `taosd` nodes involved in parsing and execution must use an Enterprise Edition version that includes 1.8 support. No additional Arrow or InfluxDB client libraries are required.
 
