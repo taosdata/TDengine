@@ -5366,7 +5366,15 @@ static bool instanceRegisterRpcRfp(int32_t code, tmsg_t msgType) {
     return true;
   } else if (code == TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY || code == TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE ||
              code == TSDB_CODE_SYN_WRITE_STALL || code == TSDB_CODE_SYN_PROPOSE_NOT_READY ||
-             code == TSDB_CODE_SYN_RESTORING) {
+             code == TSDB_CODE_SYN_RESTORING ||
+             // The MNode refuses COMMIT / ROLLBACK with TRANS_CONFLICT only from
+             // mndTxnCheckPendingStreamCreate, before it touches the txn (their STrans are
+             // TRN_CONFLICT_NOTHING, so no other source applies), while an internal stream marker
+             // trans of that txn is unfinished. That lasts until a new leader has pulled the marker
+             // trans up, so resend with backoff (bounded by maxRetryWaitTime). Keep in sync with
+             // conflictRetryHook in transportTests.cpp.
+             (code == TSDB_CODE_MND_TRANS_CONFLICT &&
+              (msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN))) {
     tscDebug("client msg type %s should retry since %s", TMSG_INFO(msgType), tstrerror(code));
     return true;
   } else {
