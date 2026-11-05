@@ -14,9 +14,15 @@ Before enabling edge–cloud synchronization, determine which method is appropri
 - If you require near-real-time synchronization, use data subscription.
 - If you require periodic or on-demand synchronization, use querying.
 
+The methods fall into two groups based on network connectivity between the two sides: **Network Interconnect** and **Network Isolation**.
+
 ## Procedure
 
-### Edge Push + Subscription
+### Network Interconnect
+
+When the edge and cloud nodes can reach each other over the network, choose one of the following four methods based on the synchronization direction and latency requirements.
+
+#### Edge Push + Subscription
 
 1. On the cloud node, create a database to which edge data will be replicated.
 1. Access taosExplorer on the edge node in a web browser.
@@ -28,7 +34,7 @@ Before enabling edge–cloud synchronization, determine which method is appropri
 
 The edge node pushes data from the specified database to the specified cloud node. You can repeat this procedure to synchronize additional databases or to synchronize data to multiple cloud nodes.
 
-### Edge Push + Data Query
+#### Edge Push + Data Query
 
 1. On the cloud node, create a database to which edge data will be replicated.
 1. On the edge node, open a terminal.
@@ -38,15 +44,15 @@ The edge node pushes data from the specified database to the specified cloud nod
    taosx run -f 'taos://<edge-user>:<edge-password>@<edge-ip>:<edge-port>/<edge-db>' -t 'taos://<cloud-user>:<cloud-password>@<cloud-ip>:<cloud-port>/<cloud-db>' -v
    ```
 
-   For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.0.2.1:6030 to database `edge_data` on a cloud node deployed at 198.51.100.1:6030, using the default username and password.
+   For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.168.1.100:6030 to database `edge_data` on a cloud node deployed at 192.168.1.101:6030, using the default username and password.
 
    ```sql
-   taosx run -f 'taos://root:taosdata@192.0.2.1:6030/sync_test' -t 'taos://root:taosdata@198.51.100.1:6030/edge_data' -v
+   taosx run -f 'taos://root:taosdata@192.168.1.100:6030/sync_test' -t 'taos://root:taosdata@192.168.1.101:6030/edge_data' -v
    ```
 
 For more information, see [Migrating Data from Older Versions](../../12-operations-and-tooling/03-components/06-taosx.md#migrating-data-from-older-versions).
 
-### Cloud Pull + Subscription
+#### Cloud Pull + Subscription
 
 1. Access taosExplorer on the edge node in a web browser.
 1. From the main menu on the left, select **Topics**.
@@ -69,7 +75,7 @@ The cloud node subscribes to the specified database on the edge node and synchro
 
 For more information about TDengine Data Subscription tasks, see [TDengine Data Subscription](../01-no-code-ingestion/03-tmq.md).
 
-### Cloud Pull + Query
+#### Cloud Pull + Query
 
 1. Access taosExplorer on the cloud node in a web browser.
 1. From the main menu on the left, select **Data In**.
@@ -92,3 +98,11 @@ For more information about TDengine Data Subscription tasks, see [TDengine Data 
 The cloud node queries the specified database on the edge node and synchronizes its data to the specified database on the cloud node. You can repeat this procedure to create additional tasks to synchronize data from more databases or more cloud nodes.
 
 For more information about TDengine Query tasks, see [TDengine Query](../01-no-code-ingestion/02-migrate.md).
+
+### Network Isolation
+
+When a hardware-enforced one-way data diode sits between the two networks, no TCP session can be established across it, and data must be synchronized by ferrying files.
+
+#### Data Diode Synchronization
+
+When the sending side and the receiving side are separated by a hardware-enforced one-way data diode with no return path of any kind, use the data diode synchronization solution based on taosX incremental backup and restore: a taosX task on the sending side produces incremental backup files from data changes in the source cluster; the diode vendor's file-transfer utility ferries the files one way to the receiving side, where another taosX task restores them in order. TDengine does not need to establish any network session across the diode. For the detailed deployment procedure, see [Data Diode Synchronization](01-data-diode-sync.md).

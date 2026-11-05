@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1740" height="340" viewBox="0 0 1740 340">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f6fb0"/>
+    </marker>
+    <style>
+      text { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+    </style>
+  </defs>
+  <rect width="1740" height="340" fill="#ffffff"/>
+
+  <rect x="24" y="88" width="636" height="232" rx="16" fill="none" stroke="#b0b8c8" stroke-width="1.6" stroke-dasharray="8 6"/>
+  <text x="48" y="122" font-size="19" font-weight="700" fill="#4a5878">Sending side (OT network)</text>
+
+  <rect x="1080" y="88" width="636" height="232" rx="16" fill="none" stroke="#b0b8c8" stroke-width="1.6" stroke-dasharray="8 6"/>
+  <text x="1104" y="122" font-size="19" font-weight="700" fill="#4a5878">Receiving side (IT network)</text>
+
+  <rect x="48" y="164" width="180" height="112" rx="14" fill="#eef2ff" stroke="#9aa8e8" stroke-width="1.6"/>
+  <text x="138" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#24356b">TDengine Cluster A</text>
+  <text x="138" y="232" text-anchor="middle" font-size="14" fill="#3d4d86">Source cluster</text>
+  <text x="138" y="254" text-anchor="middle" font-size="14" fill="#3d4d86">receiving live writes</text>
+
+  <line x1="230" y1="220" x2="250" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="252" y="164" width="180" height="112" rx="14" fill="#eef8ee" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="342" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#1e4620">taosX backup task</text>
+  <text x="342" y="232" text-anchor="middle" font-size="14" fill="#2f5a31">subscribes via TMQ</text>
+  <text x="342" y="254" text-anchor="middle" font-size="14" fill="#2f5a31">writes incremental backups</text>
+
+  <line x1="434" y1="220" x2="454" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="456" y="164" width="180" height="112" rx="14" fill="#fff8e6" stroke="#d9b95c" stroke-width="1.6"/>
+  <text x="546" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#6b4e00">Outbound folder</text>
+  <text x="546" y="232" text-anchor="middle" font-size="14" fill="#7d6200">completed files are</text>
+  <text x="546" y="254" text-anchor="middle" font-size="14" fill="#7d6200">moved in atomically</text>
+
+  <line x1="638" y1="220" x2="682" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="684" y="152" width="368" height="136" rx="14" fill="#fdeeee" stroke="#d98880" stroke-width="1.6"/>
+  <text x="868" y="190" text-anchor="middle" font-size="17" font-weight="700" fill="#8b1a1a">One-way data diode</text>
+  <text x="868" y="216" text-anchor="middle" font-size="14" fill="#8b1a1a">vendor file-transfer utility</text>
+  <line x1="780" y1="242" x2="936" y2="242" stroke="#c0392b" stroke-width="2.4" marker-end="url(#arrow)"/>
+  <rect x="944" y="230" width="4" height="24" fill="#c0392b"/>
+  <text x="868" y="274" text-anchor="middle" font-size="14" fill="#8b1a1a">OT to IT transfer only</text>
+
+  <line x1="1054" y1="220" x2="1098" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1100" y="164" width="180" height="112" rx="14" fill="#fff8e6" stroke="#d9b95c" stroke-width="1.6"/>
+  <text x="1190" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#6b4e00">Inbound folder</text>
+  <text x="1190" y="232" text-anchor="middle" font-size="14" fill="#7d6200">completed files only</text>
+  <text x="1190" y="254" text-anchor="middle" font-size="14" fill="#7d6200">(temporary-suffix guard)</text>
+
+  <line x1="1282" y1="220" x2="1302" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1304" y="164" width="180" height="112" rx="14" fill="#eef8ee" stroke="#8fbf8f" stroke-width="1.6"/>
+  <text x="1394" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#1e4620">taosX restore task</text>
+  <text x="1394" y="232" text-anchor="middle" font-size="14" fill="#2f5a31">replays files in</text>
+  <text x="1394" y="254" text-anchor="middle" font-size="14" fill="#2f5a31">write-event order</text>
+
+  <line x1="1486" y1="220" x2="1506" y2="220" stroke="#2f6fb0" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <rect x="1508" y="164" width="180" height="112" rx="14" fill="#eef2ff" stroke="#9aa8e8" stroke-width="1.6"/>
+  <text x="1598" y="204" text-anchor="middle" font-size="17" font-weight="700" fill="#24356b">TDengine Cluster B</text>
+  <text x="1598" y="232" text-anchor="middle" font-size="14" fill="#3d4d86">Destination cluster</text>
+  <text x="1598" y="254" text-anchor="middle" font-size="14" fill="#3d4d86">for analytics</text>
+</svg>
