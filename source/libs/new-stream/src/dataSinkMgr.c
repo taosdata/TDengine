@@ -2049,6 +2049,23 @@ void releaseDataResultAndResetMgrStatus(void** pIter) {
   releaseDataResult(pIter);
 }
 
+/* Release the unread fragments of the window an early-finished or cancelled read was serving, then free the
+ * iterator. This is separate from releaseDataResultAndResetMgrStatus (the normal EOF path) so that reading
+ * N windows one by one does not rescan every remaining cache record for each window's normal completion. */
+void releaseDataResultAndResetMgrStatusWithCleanup(void** pIter) {
+  if (pIter == NULL || *pIter == NULL) {
+    return;
+  }
+  SResultIter* pResult = (SResultIter*)*pIter;
+  if (!pResult->scopedResult && pResult->cleanMode == DATA_CLEAN_IMMEDIATE && !pResult->exactWindow &&
+      pResult->groupData != NULL) {
+    SAlignGrpMgr* pAlignGrpMgr = (SAlignGrpMgr*)pResult->groupData;
+    alignReleaseWindowFragments(pAlignGrpMgr, pResult->reqStartTime, pResult->reqEndTime,
+                                pResult->eventConditionPath);
+  }
+  releaseDataResultAndResetMgrStatus(pIter);
+}
+
 void moveToNextIterator(void** ppIter) {
   if (ppIter == NULL || *ppIter == NULL) {
     return;
@@ -2200,7 +2217,7 @@ _end:
   return code;
 }
 
-void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatus(pIter); }
+void cancelStreamDataCacheIterate(void** pIter) { releaseDataResultAndResetMgrStatusWithCleanup(pIter); }
 
 void destroyDataSinkMgr() {
   if (g_pDataSinkManager.dsStreamTaskList) {

@@ -30729,6 +30729,147 @@ _end:
   return code;
 }
 
+/* Serialize the full identity without struct padding or a truncated condition path.
+ * A missing path has no bytes; an empty path includes its terminator and remains distinct.
+ * Sliding prevTs/currentTs alias wstart/wend in SSTriggerCalcParam's union. */
+static int32_t stRealtimeCalcReqRememberWindow(SSHashObj *pSeen, const SSTriggerCalcParam *pParam, bool *pDuplicate) {
+  size_t pathLen = pParam->eventConditionPath == NULL ? 0 : strlen(pParam->eventConditionPath) + 1;
+  size_t keyLen = sizeof(pParam->wstart) + sizeof(pParam->wend) + sizeof(pParam->notifyType) + pathLen;
+  char *pKey = taosMemoryMalloc(keyLen);
+  if (pKey == NULL) {
+    return terrno;
+  }
+  size_t offset = 0;
+  memcpy(pKey + offset, &pParam->wstart, sizeof(pParam->wstart));
+  offset += sizeof(pParam->wstart);
+  memcpy(pKey + offset, &pParam->wend, sizeof(pParam->wend));
+  offset += sizeof(pParam->wend);
+  memcpy(pKey + offset, &pParam->notifyType, sizeof(pParam->notifyType));
+  offset += sizeof(pParam->notifyType);
+  if (pathLen > 0) {
+    memcpy(pKey + offset, pParam->eventConditionPath, pathLen);
+  }
+  *pDuplicate = tSimpleHashGet(pSeen, pKey, keyLen) != NULL;
+  uint8_t present = 1;
+  int32_t code = *pDuplicate ? TSDB_CODE_SUCCESS : tSimpleHashPut(pSeen, pKey, keyLen, &present, sizeof(present));
+  taosMemoryFree(pKey);
+  return code;
+}
+
+/* Whether the window range identifies the window, which is what the deduplication key above relies on.
+ * Only triggers that align windows to the time axis map one range to one window:
+ *   - PERIOD and SLIDING advance by a fixed interval;
+ *   - SESSION windows are separated by a gap, so their ranges are disjoint.
+ * The other triggers derive windows from rows, so two rows that share a timestamp and differ only by primary
+ * key can close two windows with the same range, and each of them holds its own rows:
+ *   - COUNT windows are counted by rows: COUNT_WINDOW(1) over two such rows yields two [T,T] windows;
+ *   - STATE windows are cut by state transitions: (T, state=A), (T, state=B) closes one [T,T] window each;
+ *   - EVENT windows are opened and closed by condition rows, so two such rows also close two [T,T] windows.
+ * Those params carry distinct calculations, so they must all reach the request even though their keys are equal. */
+static bool stRealtimeCalcReqRangeIdentifiesWindow(int32_t triggerType) {
+  return triggerType == STREAM_TRIGGER_PERIOD || triggerType == STREAM_TRIGGER_SLIDING ||
+         triggerType == STREAM_TRIGGER_SESSION;
+}
+
+/* Deduplication only runs for close-only streams, and only for the triggers whose window range
+ * identifies the window (see stRealtimeCalcReqRangeIdentifiesWindow). */
+static bool stRealtimeCalcReqDedupEnabled(const SStreamTriggerTask *pTask) {
+  return pTask->calcEventType == STRIGGER_EVENT_WINDOW_CLOSE &&
+         stRealtimeCalcReqRangeIdentifiesWindow(pTask->triggerType);
+}
+
+/* Move pending calculation parameters into the given request parameter array, skipping any
+ * window identity that the array already holds. A mixed virtual table can queue the same window
+ * range twice: an external source may deliver its rows for a window that the other sources
+ * already closed. Calculating such a window twice makes the sink aggregate the same rows twice
+ * (defect 7147722181). Recalculations use their own request path, so they are not filtered out
+ * here. The skipped entries are released and also removed from the pending list.
+ * Deduplication is disabled for mixed calculation event types: notifyType can be NONE
+ * for both OPEN and CLOSE and cannot distinguish those calculations. It is also disabled for
+ * triggers whose window range does not identify the window, see stRealtimeCalcReqRangeIdentifiesWindow. */
+static int32_t stRealtimeCalcReqMovePending(SArray *pParams, SObjList *pPending, int32_t maxParams,
+                                            int64_t maxWendExclusive, bool hasEndLimit, bool deduplicate, int32_t *pMoved,
+                                            int32_t *pDupSkipped) {
+  if (pParams == NULL || pPending == NULL || pMoved == NULL || pDupSkipped == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  SSHashObj *pSeen = NULL;
+  *pMoved = 0;
+  *pDupSkipped = 0;
+  if (taosArrayGetSize(pParams) >= maxParams || pPending->neles == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (deduplicate) {
+    pSeen = tSimpleHashInit(TMAX(taosArrayGetSize(pParams), 16), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (pSeen == NULL) {
+      code = terrno;
+      goto _end;
+    }
+    for (int32_t index = 0; index < taosArrayGetSize(pParams); ++index) {
+      bool duplicate = false;
+      code = stRealtimeCalcReqRememberWindow(pSeen, taosArrayGet(pParams, index), &duplicate);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
+    }
+  }
+  while (taosArrayGetSize(pParams) < maxParams) {
+    SSTriggerCalcParam *pParam = taosObjListGetHead(pPending);
+    if (pParam == NULL || (hasEndLimit && pParam->wend >= maxWendExclusive)) break;
+    bool duplicate = false;
+    if (deduplicate) {
+      code = stRealtimeCalcReqRememberWindow(pSeen, pParam, &duplicate);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
+    }
+    if (duplicate) {
+      stTrace("drop duplicate pending calc window, wstart:%" PRId64 " wend:%" PRId64 " notifyType:%d path:%s",
+              pParam->wstart, pParam->wend, pParam->notifyType,
+              pParam->eventConditionPath != NULL ? pParam->eventConditionPath : "<none>");
+      tDestroySSTriggerCalcParam(pParam);
+      taosObjListPopHead(pPending);
+      ++*pMoved;
+      ++*pDupSkipped;
+      continue;
+    }
+    void *px = taosArrayPush(pParams, pParam);
+    if (px == NULL) {
+      code = terrno;
+      goto _end;
+    }
+    pParam->extraNotifyContent = NULL;
+    pParam->resultNotifyContent = NULL;
+    pParam->pExternalWindowData = NULL;
+    pParam->eventConditionPath = NULL;
+    taosObjListPopHead(pPending);
+    ++*pMoved;
+  }
+_end:
+  tSimpleHashCleanup(pSeen);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to move pending calc windows, moved:%d duplicates:%d error:%s", *pMoved, *pDupSkipped,
+            tstrerror(code));
+  }
+  return code;
+}
+
+/* Exported for unit tests: exercises the same code path the real dispatch uses. */
+int32_t stTestRealtimeCalcReqMovePending(SArray *pParams, SObjList *pPending, int32_t maxParams,
+                                        int64_t maxWendExclusive, int32_t *pMoved, int32_t *pDupSkipped) {
+  return stRealtimeCalcReqMovePending(pParams, pPending, maxParams, maxWendExclusive,
+                                      maxWendExclusive != INT64_MAX, true, pMoved, pDupSkipped);
+}
+
+/* Exported for unit tests: takes the deduplication decision the way the real dispatch does, so a test can
+ * replay the params of a trigger whose window range does not identify the window. */
+int32_t stTestRealtimeCalcReqMovePendingForTrigger(SArray *pParams, SObjList *pPending, int32_t maxParams,
+                                                   int64_t maxWendExclusive, int32_t triggerType,
+                                                   int32_t calcEventType, int32_t *pMoved, int32_t *pDupSkipped) {
+  bool deduplicate = calcEventType == STRIGGER_EVENT_WINDOW_CLOSE &&
+                     stRealtimeCalcReqRangeIdentifiesWindow(triggerType);
+  return stRealtimeCalcReqMovePending(pParams, pPending, maxParams, maxWendExclusive, maxWendExclusive != INT64_MAX,
+                                      deduplicate, pMoved, pDupSkipped);
+}
+
 static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
@@ -30745,30 +30886,26 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
   if (pGroup->pPendingParWinCalcParams.neles > 0) {
     int64_t end = INT64_MAX;
     if (pGroup->pPendingCalcParams.neles > 0) {
-      SSTriggerCalcParam *pParam = taosObjListGetHead(&pGroup->pPendingCalcParams);
-      end = pParam->wend;
+      SSTriggerCalcParam *pHeadParam = taosObjListGetHead(&pGroup->pPendingCalcParams);
+      end = pHeadParam->wend;
     }
-    int64_t             origNele = pGroup->pPendingParWinCalcParams.neles;
-    int64_t             origTotal = pContext->calcParamPool.size;
-    int32_t             nele = 0;
-    SObjListIter        iter = {0};
-    SSTriggerCalcParam *pParam = NULL;
-    taosObjListInitIter(&pGroup->pPendingParWinCalcParams, &iter, TOBJLIST_ITER_FORWARD);
-    while ((pParam = taosObjListIterNext(&iter)) != NULL && pParam->wend < end &&
-           TARRAY_SIZE(pContext->pCalcReq->params) < STREAM_CALC_REQ_MAX_WIN_NUM) {
-      void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      pParam->extraNotifyContent = NULL;
-      pParam->resultNotifyContent = NULL;
-      pParam->pExternalWindowData = NULL;
-      pParam->eventConditionPath = NULL;
-      nele++;
-    }
+    int64_t origNele = pGroup->pPendingParWinCalcParams.neles;
+    int64_t origTotal = pContext->calcParamPool.size;
+    int32_t nele = 0;
+    int32_t dupSkipped = 0;
+    code = stRealtimeCalcReqMovePending(pContext->pCalcReq->params, &pGroup->pPendingParWinCalcParams,
+                                        STREAM_CALC_REQ_MAX_WIN_NUM, end, pGroup->pPendingCalcParams.neles > 0,
+                                        stRealtimeCalcReqDedupEnabled(pTask), &nele, &dupSkipped);
+    QUERY_CHECK_CODE(code, lino, _end);
     if (nele > 0) {
-      taosObjListPopHeadTo(&pGroup->pPendingParWinCalcParams, pParam, nele);
       int64_t freedNele = origNele - pGroup->pPendingParWinCalcParams.neles;
-      stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW, (uint64_t)freedNele,
-                                    streamTaskGetMonotonicUs());
+      int64_t dispatched = freedNele - dupSkipped;
+      if (dupSkipped > 0) {
+        ST_TASK_DLOG("drop %d duplicated pending parwin calc param(s) of already requested windows, gid:%" PRId64,
+                     dupSkipped, pGroup->gid);
+      }
+      stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW,
+                                    (uint64_t)(dispatched > 0 ? dispatched : 0), streamTaskGetMonotonicUs());
       if (stDebugFlag & DEBUG_DEBUG) {
         ST_TASK_DLOG("group %" PRId64 " retrieved %" PRId64 " pending parwin params, calc param pool size from %" PRId64
                      " to %" PRId64,
@@ -30786,26 +30923,22 @@ static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup
   }
 
   if (pGroup->pPendingCalcParams.neles > 0) {
-    int64_t             origNele = pGroup->pPendingCalcParams.neles;
-    int64_t             origTotal = pContext->calcParamPool.size;
-    int32_t             nele = 0;
-    SSTriggerCalcParam *pParam = NULL;
-    SObjListIter        iter = {0};
-    taosObjListInitIter(&pGroup->pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
-    while ((pParam = taosObjListIterNext(&iter)) != NULL &&
-           TARRAY_SIZE(pContext->pCalcReq->params) < STREAM_CALC_REQ_MAX_WIN_NUM) {
-      void *px = taosArrayPush(pContext->pCalcReq->params, pParam);
-      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
-      pParam->extraNotifyContent = NULL;
-      pParam->resultNotifyContent = NULL;
-      pParam->pExternalWindowData = NULL;
-      pParam->eventConditionPath = NULL;
-      nele++;
-    }
-    taosObjListPopHeadTo(&pGroup->pPendingCalcParams, pParam, nele);
+    int64_t origNele = pGroup->pPendingCalcParams.neles;
+    int64_t origTotal = pContext->calcParamPool.size;
+    int32_t nele = 0;
+    int32_t dupSkipped = 0;
+    code = stRealtimeCalcReqMovePending(pContext->pCalcReq->params, &pGroup->pPendingCalcParams,
+                                        STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, false,
+                                        stRealtimeCalcReqDedupEnabled(pTask), &nele, &dupSkipped);
+    QUERY_CHECK_CODE(code, lino, _end);
     int64_t freedNele = origNele - pGroup->pPendingCalcParams.neles;
-    stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW, (uint64_t)freedNele,
-                                  streamTaskGetMonotonicUs());
+    int64_t dispatched = freedNele - dupSkipped;
+    if (dupSkipped > 0) {
+      ST_TASK_DLOG("drop %d duplicated pending calc param(s) of already requested windows, gid:%" PRId64,
+                   dupSkipped, pGroup->gid);
+    }
+    stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW,
+                                  (uint64_t)(dispatched > 0 ? dispatched : 0), streamTaskGetMonotonicUs());
     if (stDebugFlag & DEBUG_DEBUG) {
       ST_TASK_DLOG("group %" PRId64 " retrieved %" PRId64 " pending params, calc param pool size from %" PRId64
                    " to %" PRId64,

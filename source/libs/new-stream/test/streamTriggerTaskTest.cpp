@@ -92,6 +92,11 @@ int32_t stTriggerTaskGetInternalGroupInfo(SStreamTriggerTask* pTask, int64_t gid
 void    stTriggerTaskInvalidateInternalGroupIndex(SStreamTriggerTask* pTask);
 int32_t stRealtimeContextUpdateExtCompletedCutoffForGroup(SSTriggerRealtimeContext* pContext, int64_t gid,
                                                           int64_t maxEnd);
+int32_t stTestRealtimeCalcReqMovePending(SArray* pParams, SObjList* pPending, int32_t maxParams,
+                                         int64_t maxWendExclusive, int32_t* pMoved, int32_t* pDupSkipped);
+int32_t stTestRealtimeCalcReqMovePendingForTrigger(SArray* pParams, SObjList* pPending, int32_t maxParams,
+                                                   int64_t maxWendExclusive, int32_t triggerType,
+                                                   int32_t calcEventType, int32_t* pMoved, int32_t* pDupSkipped);
 int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pContext, SSHashObj* pGroupMaxEnds);
 }
 
@@ -30784,13 +30789,14 @@ static int32_t captureIntervalGapNotifications(SStreamTask*, const char*, const 
 
 class StreamTriggerIntervalGapTest : public StreamTriggerRowObservabilityTest {
  protected:
-  void CheckGap(bool ignoreNoData, bool calcOpen, int64_t gapWindows) {
+  void CheckGap(bool ignoreNoData, bool calcOpen, int64_t gapWindows, bool notify = true) {
     ConfigureInterval(10000, 'a', 10000, 'a');
     gIntervalGapNotifications.clear();
     stub_.set(streamSendNotifyContent, captureIntervalGapNotifications);
     task_.ignoreNoDataTrigger = ignoreNoData;
-    task_.notifyEventType = static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
-    if (calcOpen) task_.calcEventType = task_.notifyEventType;
+    const auto bothEvents = static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+    task_.notifyEventType = notify ? bothEvents : STRIGGER_EVENT_WINDOW_NONE;
+    if (calcOpen) task_.calcEventType = bothEvents;
 
     const TSKEY first = group_.newThreshold - 5;
     const TSKEY last = first + gapWindows * 10000;
@@ -30807,7 +30813,13 @@ class StreamTriggerIntervalGapTest : public StreamTriggerRowObservabilityTest {
     const int64_t closed = ignoreNoData ? 2 : gapWindows + 1;
     const int64_t opened = closed + 1;
     ASSERT_EQ(closed + (calcOpen ? opened : 0), taosArrayGetSize(gTriggerRowRequest.params));
-    ASSERT_EQ(calcOpen ? 0 : opened, gIntervalGapNotifications.size());
+    ASSERT_EQ(calcOpen || !notify ? 0 : opened, gIntervalGapNotifications.size());
+    if (!notify) {
+      for (int32_t index = 0; index < taosArrayGetSize(gTriggerRowRequest.params); ++index) {
+        const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(gTriggerRowRequest.params, index));
+        EXPECT_EQ(param->notifyType, STRIGGER_EVENT_WINDOW_NONE);
+      }
+    }
     if (ignoreNoData) {
       for (const auto& param : gIntervalGapNotifications) {
         EXPECT_EQ(STRIGGER_EVENT_WINDOW_OPEN, param.notifyType);
@@ -30835,6 +30847,14 @@ TEST_F(StreamTriggerIntervalGapTest, IgnoreNoDataSuppressesClosedEmptyWindowOpen
 }
 
 TEST_F(StreamTriggerIntervalGapTest, DefaultKeepsClosedEmptyWindowEvents) { CheckGap(false, true, 3); }
+
+TEST_F(StreamTriggerIntervalGapTest, KeepsOpenAndCloseCalculationsWithoutNotifications) {
+  CheckGap(false, true, 3, false);
+}
+
+TEST_F(StreamTriggerIntervalGapTest, KeepsNonemptyOpenAndCloseCalculationsWithoutNotifications) {
+  CheckGap(true, true, 3, false);
+}
 
 static int32_t deferSparseSlidingRequest(SStreamTriggerTask*, int64_t, int64_t, SSTriggerCalcRequest** ppRequest) {
   *ppRequest = nullptr;
@@ -31032,6 +31052,21 @@ TEST_F(StreamTriggerSparseSlidingTest, EmptyGapDoesNotConsumeWindowBatches) {
   EXPECT_EQ(group_.windows.neles, 0);
   // Five input rows must not allocate a batch of tens of thousands of empty windows.
   EXPECT_LE(context_.pWindows->capacity, 256);
+
+  SArray* dispatched = taosArrayInit(2, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(dispatched, nullptr);
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(dispatched, &group_.pPendingCalcParams, STREAM_CALC_REQ_MAX_WIN_NUM,
+                                            INT64_MAX, &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(dispatched), 2);
+  EXPECT_EQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(dispatched, 0))->currentTs, params[0].currentTs);
+  EXPECT_EQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(dispatched, 1))->currentTs, params[1].currentTs);
+  EXPECT_EQ(group_.pPendingCalcParams.neles, 0);
+  taosArrayDestroyEx(dispatched, [](void* param) { tDestroySSTriggerCalcParam(static_cast<SSTriggerCalcParam*>(param)); });
 }
 
 TEST_F(StreamTriggerSparseSlidingTest, YearGapKeepsOnlyDataAndBoundaryWindows) {
@@ -39369,4 +39404,417 @@ TEST(StreamRunnerTaskMgmtReqTest, KeepsPendingRequestInsteadOfReplacingIt) {
   EXPECT_EQ(atomic_load_8(&task.vtableDeployGot), 1);
   // Nothing was built: no request id consumed and no exec manager list touched (both left empty).
   EXPECT_EQ(atomic_load_64(&task.mgmtReqId), 0);
+}
+
+/* A mixed virtual table can queue the same window range twice: an external source may deliver its
+ * rows for a window the other sources already closed. Dispatching it twice makes the sink aggregate
+ * the same rows twice (defect 7147722181), so the request keeps only the first param per range. */
+static Stub* gPendingDedupArrayStub = nullptr;
+static const SArray* gPendingDedupParams = nullptr;
+static int64_t gPendingDedupArrayReads = 0;
+
+static void* countPendingDedupArrayReads(const SArray* array, size_t index) {
+  if (array == gPendingDedupParams) ++gPendingDedupArrayReads;
+  gPendingDedupArrayStub->reset(taosArrayGet);
+  void* result = taosArrayGet(array, index);
+  gPendingDedupArrayStub->set(taosArrayGet, countPendingDedupArrayReads);
+  return result;
+}
+
+TEST(StreamTriggerPendingCalcDedupTest, BatchDoesNotRescanAssembledParameters) {
+  constexpr int32_t kWindowCount = 1024;
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 128, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+  for (int32_t index = 0; index < kWindowCount; ++index) {
+    SSTriggerCalcParam param = {};
+    param.wstart = index;
+    param.wend = index;
+    ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  }
+  SArray* params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(params, nullptr);
+  int32_t moved = 0;
+  int32_t duplicates = 0;
+  Stub arrayStub;
+  gPendingDedupArrayStub = &arrayStub;
+  gPendingDedupParams = params;
+  gPendingDedupArrayReads = 0;
+  arrayStub.set(taosArrayGet, countPendingDedupArrayReads);
+  const int32_t code = stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
+                                                       &moved, &duplicates);
+  arrayStub.reset(taosArrayGet);
+  gPendingDedupArrayStub = nullptr;
+  gPendingDedupParams = nullptr;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, kWindowCount);
+  EXPECT_EQ(duplicates, 0);
+  EXPECT_EQ(pending.neles, 0);
+  ASSERT_EQ(taosArrayGetSize(params), kWindowCount);
+  EXPECT_LE(gPendingDedupArrayReads, 2 * kWindowCount);
+  for (int32_t index = 0; index < kWindowCount; ++index) {
+    const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(params, index));
+    EXPECT_EQ(param->wstart, index);
+  }
+  taosArrayDestroy(params);
+  taosObjPoolDestroy(&pool);
+}
+
+TEST(StreamTriggerPendingCalcDedupTest, PreservesPendingWindowsAtBatchAndTimeLimits) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+  for (int64_t timestamp : {0, 0, 1, 2}) {
+    SSTriggerCalcParam param = {};
+    param.wstart = timestamp;
+    param.wend = timestamp;
+    ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  }
+  SArray* params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(params, nullptr);
+  int32_t moved = 0;
+  int32_t duplicates = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(params, &pending, 2, INT64_MAX, &moved, &duplicates),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 3);
+  EXPECT_EQ(duplicates, 1);
+  ASSERT_EQ(pending.neles, 1);
+  EXPECT_EQ(static_cast<SSTriggerCalcParam*>(taosObjListGetHead(&pending))->wend, 2);
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(params, &pending, 3, 2, &moved, &duplicates), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 0);
+  EXPECT_EQ(pending.neles, 1);
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(params, &pending, 3, INT64_MAX, &moved, &duplicates),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 1);
+  EXPECT_EQ(duplicates, 0);
+  EXPECT_EQ(pending.neles, 0);
+  ASSERT_EQ(taosArrayGetSize(params), 3);
+  taosArrayDestroy(params);
+  taosObjPoolDestroy(&pool);
+}
+
+TEST(StreamTriggerPendingCalcDedupTest, DropsDuplicatedWindowRange) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winAStart = 1767225600000;
+  const int64_t winAEnd = 1767225600000;
+  const int64_t winBStart = 1767225610000;
+  const int64_t winBEnd = 1767225610000;
+  SSTriggerCalcParam paramA = {};
+  paramA.wstart = winAStart;
+  paramA.wend = winAEnd;
+  SSTriggerCalcParam paramB = {};
+  paramB.wstart = winBStart;
+  paramB.wend = winBEnd;
+  SSTriggerCalcParam paramADup = {};
+  paramADup.wstart = winAStart;
+  paramADup.wend = winAEnd;
+  ASSERT_EQ(taosObjListAppend(&pending, &paramA), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListAppend(&pending, &paramB), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListAppend(&pending, &paramADup), TSDB_CODE_SUCCESS);
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(pParams, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, &moved,
+                                             &dupSkipped),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(moved, 3);       // every queued entry leaves the pending list
+  EXPECT_EQ(dupSkipped, 1);  // only the repeated window range is dropped
+  ASSERT_EQ(taosArrayGetSize(pParams), 2);
+  auto* pFirst = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 0));
+  auto* pSecond = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 1));
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+  EXPECT_EQ(pFirst->wstart, winAStart);
+  EXPECT_EQ(pFirst->wend, winAEnd);
+  EXPECT_EQ(pSecond->wstart, winBStart);
+  EXPECT_EQ(pSecond->wend, winBEnd);
+  EXPECT_EQ(pending.neles, 0);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
+}
+
+/* The duplicate may also be the first queued entry when the request already carries that window
+ * from an earlier round: the request must still end up with one param per window range. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsWindowAlreadyInRequest) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winAStart = 1767225600000;
+  const int64_t winAEnd = 1767225600000;
+  const int64_t winBStart = 1767225610000;
+  const int64_t winBEnd = 1767225610000;
+  SSTriggerCalcParam fromEarlierRound = {};
+  fromEarlierRound.wstart = winAStart;
+  fromEarlierRound.wend = winAEnd;
+  SSTriggerCalcParam paramADup = {};
+  paramADup.wstart = winAStart;
+  paramADup.wend = winAEnd;
+  SSTriggerCalcParam paramB = {};
+  paramB.wstart = winBStart;
+  paramB.wend = winBEnd;
+  ASSERT_EQ(taosObjListAppend(&pending, &paramADup), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListAppend(&pending, &paramB), TSDB_CODE_SUCCESS);
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+  ASSERT_NE(taosArrayPush(pParams, &fromEarlierRound), nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(pParams, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, &moved,
+                                             &dupSkipped),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 1);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2);
+  auto* pFirst = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 0));
+  auto* pSecond = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 1));
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+  EXPECT_EQ(pFirst->wstart, winAStart);
+  EXPECT_EQ(pSecond->wstart, winBStart);
+  EXPECT_EQ(pending.neles, 0);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
+}
+
+/* The open and close params of a single-point window carry the same range but describe different
+ * calculations, so both must reach the request. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsOpenAndCloseOfSameRange) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winStart = 1767225600000;
+  const int64_t winEnd = 1767225600000;
+  SSTriggerCalcParam closeParam = {};
+  closeParam.wstart = winStart;
+  closeParam.wend = winEnd;
+  SSTriggerCalcParam openParam = {};
+  openParam.wstart = winStart;
+  openParam.wend = winEnd;
+  openParam.notifyType = STRIGGER_EVENT_WINDOW_OPEN;
+  ASSERT_EQ(taosObjListAppend(&pending, &closeParam), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosObjListAppend(&pending, &openParam), TSDB_CODE_SUCCESS);
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(pParams, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX, &moved,
+                                             &dupSkipped),
+            TSDB_CODE_SUCCESS);
+
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2);
+  auto* pFirst = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 0));
+  auto* pSecond = static_cast<SSTriggerCalcParam*>(taosArrayGet(pParams, 1));
+  ASSERT_NE(pFirst, nullptr);
+  ASSERT_NE(pSecond, nullptr);
+  EXPECT_EQ(pFirst->notifyType, static_cast<int32_t>(STRIGGER_EVENT_WINDOW_NONE));
+  EXPECT_EQ(pSecond->notifyType, static_cast<int32_t>(STRIGGER_EVENT_WINDOW_OPEN));
+  EXPECT_EQ(pFirst->wstart, winStart);
+  EXPECT_EQ(pSecond->wstart, winStart);
+  EXPECT_EQ(pending.neles, 0);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
+}
+
+/* Builds a pending list holding two closed [T,T] windows of COUNT_WINDOW(1) over two rows that share one
+ * timestamp, and dispatches it the way the real path does for the given trigger type. */
+static int32_t dispatchTwoSingleRowWindows(int32_t triggerType, int32_t calcEventType, SArray** ppParams,
+                                           int32_t* pMoved, int32_t* pDupSkipped) {
+  *ppParams = nullptr;
+  *pMoved = 0;
+  *pDupSkipped = 0;
+  SObjPool pool = {};
+  int32_t  code = taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam));
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SObjList pending = {};
+  code = taosObjListInit(&pending, &pool);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosObjPoolDestroy(&pool);
+    return code;
+  }
+  const int64_t winStart = 1767225600000;
+  for (int32_t i = 0; i < 2 && code == TSDB_CODE_SUCCESS; ++i) {
+    SSTriggerCalcParam param = {};
+    param.wstart = winStart;
+    param.wend = winStart;
+    param.wrownum = 1;
+    code = taosObjListAppend(&pending, &param);
+  }
+  SArray* pParams = code == TSDB_CODE_SUCCESS ? taosArrayInit(4, sizeof(SSTriggerCalcParam)) : nullptr;
+  if (pParams == nullptr) {
+    taosObjPoolDestroy(&pool);
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : code;
+  }
+  code = stTestRealtimeCalcReqMovePendingForTrigger(pParams, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
+                                                    triggerType, calcEventType, pMoved, pDupSkipped);
+  taosObjPoolDestroy(&pool);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pParams);
+    return code;
+  }
+  *ppParams = pParams;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* COUNT_WINDOW(1) over two rows that share a timestamp and differ only by primary key closes two [T,T]
+ * windows, each holding its own row. Their deduplication keys are equal, but they are distinct
+ * calculations, so both must reach the request. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryCountWindowSharingOneRange) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_COUNT, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
+                                        &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2U);
+  for (int32_t i = 0; i < 2; ++i) {
+    const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, (size_t)i));
+    ASSERT_NE(pParam, nullptr);
+    EXPECT_EQ(pParam->wstart, 1767225600000);
+    EXPECT_EQ(pParam->wend, 1767225600000);
+  }
+  taosArrayDestroy(pParams);
+}
+
+/* EVENT windows are opened and closed by condition rows: two rows that share a timestamp and satisfy the same
+ * condition close one [T,T] window each. Their deduplication keys are equal, but they are distinct
+ * calculations, so both must reach the request. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryEventWindowSharingOneRange) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_EVENT, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
+                                        &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2U);
+  for (int32_t i = 0; i < 2; ++i) {
+    const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, (size_t)i));
+    ASSERT_NE(pParam, nullptr);
+    EXPECT_EQ(pParam->wstart, 1767225600000);
+    EXPECT_EQ(pParam->wend, 1767225600000);
+  }
+  taosArrayDestroy(pParams);
+}
+
+/* STATE windows are cut by state transitions: two rows that share a timestamp but carry different
+ * states close one [T,T] window each. Their deduplication keys are equal, but they are distinct
+ * calculations, so both must reach the request. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryStateWindowSharingOneRange) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_STATE, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
+                                        &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2U);
+  for (int32_t i = 0; i < 2; ++i) {
+    const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, (size_t)i));
+    ASSERT_NE(pParam, nullptr);
+    EXPECT_EQ(pParam->wstart, 1767225600000);
+    EXPECT_EQ(pParam->wend, 1767225600000);
+  }
+  taosArrayDestroy(pParams);
+}
+
+/* A trigger whose range identifies the window keeps deduplicating the repeated range. */
+TEST(StreamTriggerPendingCalcDedupTest, DropsRepeatedRangeOfTimeAlignedWindow) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_SLIDING, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
+                                        &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 1);
+  ASSERT_EQ(taosArrayGetSize(pParams), 1U);
+  taosArrayDestroy(pParams);
+}
+
+TEST(StreamTriggerPendingCalcDedupTest, KeepsDistinctEventPathsAndDeduplicatesMatchingPaths) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const char* paths[] = {"", "0", "0.0", "0", "", nullptr};
+  for (const char* path : paths) {
+    SSTriggerCalcParam param = {};
+    param.wstart = 1767225600000;
+    param.wend = 1767225601000;
+    if (path != nullptr) {
+      param.eventConditionPath = taosStrdup(path);
+      ASSERT_NE(param.eventConditionPath, nullptr);
+    }
+    ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  }
+
+  SArray* params = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(params, nullptr);
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
+                                            &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 6);
+  EXPECT_EQ(dupSkipped, 2);
+  ASSERT_EQ(taosArrayGetSize(params), 4);
+  EXPECT_STREQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(params, 0))->eventConditionPath, "");
+  EXPECT_STREQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(params, 1))->eventConditionPath, "0");
+  EXPECT_STREQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(params, 2))->eventConditionPath, "0.0");
+  EXPECT_EQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(params, 3))->eventConditionPath, nullptr);
+  EXPECT_EQ(pending.neles, 0);
+
+  const char* nextPaths[] = {"0", "0.1"};
+  for (const char* path : nextPaths) {
+    SSTriggerCalcParam param = {};
+    param.wstart = 1767225600000;
+    param.wend = 1767225601000;
+    param.eventConditionPath = taosStrdup(path);
+    ASSERT_NE(param.eventConditionPath, nullptr);
+    ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(stTestRealtimeCalcReqMovePending(params, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
+                                            &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 1);
+  ASSERT_EQ(taosArrayGetSize(params), 5);
+  EXPECT_STREQ(static_cast<SSTriggerCalcParam*>(taosArrayGet(params, 4))->eventConditionPath, "0.1");
+  EXPECT_EQ(pending.neles, 0);
+
+  taosArrayDestroyEx(params, [](void* param) { tDestroySSTriggerCalcParam(static_cast<SSTriggerCalcParam*>(param)); });
+  taosObjPoolDestroy(&pool);
 }
