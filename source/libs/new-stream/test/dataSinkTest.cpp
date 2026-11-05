@@ -2461,6 +2461,377 @@ TEST(dataSinkTest, SpillCreationSucceedsWithMoreThan32FilesFromPreviousProcess) 
   }
 }
 
+/* A mixed stream dispatches the windows of one group over several requests and
+ * may deliver them out of order. Every window must still be readable by its own
+ * request, no matter which other window was read first. */
+TEST(dataSinkTest, alignCacheServesWindowsInAnyReadOrder) {
+  INIT_DATA_SINK();
+  int64_t streamId = 21;
+  int64_t taskId = 21;
+  int64_t groupID = 21;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const TSKEY win0 = baseTestTime1 + 0;
+  const TSKEY win1 = baseTestTime1 + 1;
+  const TSKEY win2 = baseTestTime1 + 2;
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, win0, win0, pBlock, 0, 0), 0);
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, win2, win2, pBlock, 2, 2), 0);
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, win1, win1, pBlock, 1, 1), 0);
+  blockDataDestroy(pBlock);
+
+  const TSKEY readOrder[3] = {win1, win0, win2};
+  for (int32_t i = 0; i < 3; ++i) {
+    void*        pIter = NULL;
+    SSDataBlock* pRead = NULL;
+    ASSERT_EQ(getStreamDataCache(pCache, groupID, readOrder[i], readOrder[i], &pIter), 0);
+    ASSERT_NE(pIter, nullptr);
+    ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+    ASSERT_NE(pRead, nullptr);
+    ASSERT_EQ(pRead->info.rows, 1);
+    SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pRead->pDataBlock, 0);
+    ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, 0), readOrder[i]);
+    blockDataDestroy(pRead);
+    pRead = NULL;
+    ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+    ASSERT_EQ(pRead, nullptr);
+  }
+
+  destroyDataSinkMgr();
+}
+
+/* A window whose rows are delivered in several pieces must be served
+ * completely: the cache returns one piece per fetch and never drops a piece. */
+TEST(dataSinkTest, alignCacheServesFragmentedWindow) {
+  INIT_DATA_SINK();
+  int64_t streamId = 22;
+  int64_t taskId = 22;
+  int64_t groupID = 22;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const TSKEY winStart = baseTestTime1 + 0;
+  const TSKEY winEnd = baseTestTime1 + 2;
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, winStart, winEnd, pBlock, 0, 0), 0);
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, winStart, winEnd, pBlock, 2, 2), 0);
+  blockDataDestroy(pBlock);
+
+  void* pIter = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, winStart, winEnd, &pIter), 0);
+  ASSERT_NE(pIter, nullptr);
+  for (int32_t i = 0; i < 2; ++i) {
+    SSDataBlock* pRead = NULL;
+    ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+    ASSERT_NE(pRead, nullptr);
+    ASSERT_EQ(pRead->info.rows, 1);
+    SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pRead->pDataBlock, 0);
+    ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, 0), baseTestTime1 + i * 2);
+    blockDataDestroy(pRead);
+  }
+
+  SSDataBlock* pRead = NULL;
+  ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+  ASSERT_EQ(pRead, nullptr);
+
+  destroyDataSinkMgr();
+}
+
+/* An early-finished read (e.g. a LIMIT projection that stops fetching) leaves the remaining fragments of
+ * its window unread. Cancelling the iterator must drop those fragments so they neither pin their block nor
+ * leak, and a later read of the same window finds no stale data. */
+TEST(dataSinkTest, alignCacheReleasesUnreadFragmentsOnCancel) {
+  INIT_DATA_SINK();
+  int64_t streamId = 40;
+  int64_t taskId = 40;
+  int64_t groupID = 40;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const TSKEY winStart = baseTestTime1 + 0;
+  const TSKEY winEnd = baseTestTime1 + 2;
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, winStart, winEnd, pBlock, 0, 0), 0);
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, winStart, winEnd, pBlock, 2, 2), 0);
+  blockDataDestroy(pBlock);
+
+  void* pIter = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, winStart, winEnd, &pIter), 0);
+  ASSERT_NE(pIter, nullptr);
+
+  // Read only the first fragment, then cancel: the second fragment must be released.
+  SSDataBlock* pRead = NULL;
+  ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+  ASSERT_NE(pRead, nullptr);
+  ASSERT_EQ(pRead->info.rows, 1);
+  blockDataDestroy(pRead);
+  ASSERT_NE(pIter, nullptr);
+  cancelStreamDataCacheIterate(&pIter);
+  ASSERT_EQ(pIter, nullptr);
+
+  // The remaining fragment was dropped with its block, so the window now reads empty.
+  void* pIter2 = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, winStart, winEnd, &pIter2), 0);
+  ASSERT_EQ(pIter2, nullptr);
+
+  destroyDataSinkMgr();
+}
+
+/* Two pending requests of the same group can read one block at the same time: consuming a window
+ * for one request must not consume or release the window the other request still has to read. */
+TEST(dataSinkTest, alignCacheInterleavedRequestsDoNotConsumeEachOther) {
+  INIT_DATA_SINK();
+  int64_t streamId = 23;
+  int64_t taskId = 23;
+  int64_t groupID = 23;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const TSKEY win0 = baseTestTime1 + 0;
+  const TSKEY win2 = baseTestTime1 + 2;
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, win0, win0, pBlock, 0, 0), 0);
+  ASSERT_EQ(putStreamDataCache(pCache, groupID, win2, win2, pBlock, 2, 2), 0);
+  blockDataDestroy(pBlock);
+
+  void* pIterA = NULL;
+  void* pIterB = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, win0, win0, &pIterA), 0);
+  ASSERT_NE(pIterA, nullptr);
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, win2, win2, &pIterB), 0);
+  ASSERT_NE(pIterB, nullptr);
+
+  const int64_t expected[2] = {win0, win2};
+  void*         iters[2] = {pIterA, pIterB};
+  for (int32_t i = 0; i < 2; ++i) {
+    SSDataBlock* pRead = NULL;
+    ASSERT_EQ(getNextStreamDataCache(&iters[i], &pRead), 0);
+    ASSERT_NE(pRead, nullptr);
+    ASSERT_EQ(pRead->info.rows, 1);
+    SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pRead->pDataBlock, 0);
+    ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, 0), expected[i]);
+    blockDataDestroy(pRead);
+  }
+
+  // Both requests are drained; neither one consumed the other's window.
+  for (int32_t i = 0; i < 2; ++i) {
+    SSDataBlock* pRead = NULL;
+    ASSERT_EQ(getNextStreamDataCache(&iters[i], &pRead), 0);
+    ASSERT_EQ(pRead, nullptr);
+  }
+
+  destroyDataSinkMgr();
+}
+
+/* A moved window keeps its rows inside the cache as a moved block (window record with dataLen 0).
+ * Reading it must hand the whole block over and release the cache entry afterwards. */
+TEST(dataSinkTest, alignCacheServesMovedWindow) {
+  INIT_DATA_SINK();
+  int64_t streamId = 24;
+  int64_t taskId = 24;
+  int64_t groupID = 24;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const int64_t movedRows = pBlock->info.rows;
+  ASSERT_GT(movedRows, 0);
+  const TSKEY winStart = baseTestTime1;
+  const TSKEY winEnd = baseTestTime1 + movedRows - 1;
+  // The cache takes ownership of pBlock on success.
+  ASSERT_EQ(moveStreamDataCache(pCache, groupID, winStart, winEnd, pBlock), 0);
+
+  void*        pIter = NULL;
+  SSDataBlock* pRead = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, winStart, winEnd, &pIter), 0);
+  ASSERT_NE(pIter, nullptr);
+  ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+  ASSERT_NE(pRead, nullptr);
+  ASSERT_EQ(pRead->info.rows, movedRows);
+  SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pRead->pDataBlock, 0);
+  ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, 0), winStart);
+  ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, movedRows - 1), winEnd);
+  blockDataDestroy(pRead);
+
+  pRead = NULL;
+  ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+  ASSERT_EQ(pRead, nullptr);
+
+  destroyDataSinkMgr();
+}
+
+/* One calculation request can span several windows stored in the same block: every fetch has to
+ * return the next unread window, and a window is marked read only once its data is in hand. */
+TEST(dataSinkTest, alignCacheServesAllWindowsOfOneRequest) {
+  INIT_DATA_SINK();
+  int64_t streamId = 25;
+  int64_t taskId = 25;
+  int64_t groupID = 25;
+  void*   pCache = NULL;
+  ASSERT_EQ(initStreamDataCache(streamId, taskId, 0, DATA_CLEAN_IMMEDIATE, 0, &pCache), 0);
+
+  SSDataBlock* pBlock = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(pBlock, nullptr);
+  const TSKEY firstWin = baseTestTime1 + 0;
+  const TSKEY lastWin = baseTestTime1 + 2;
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(putStreamDataCache(pCache, groupID, baseTestTime1 + i, baseTestTime1 + i, pBlock, i, i), 0);
+  }
+  blockDataDestroy(pBlock);
+
+  void* pIter = NULL;
+  ASSERT_EQ(getStreamDataCache(pCache, groupID, firstWin, lastWin, &pIter), 0);
+  ASSERT_NE(pIter, nullptr);
+  for (int32_t i = 0; i < 3; ++i) {
+    SSDataBlock* pRead = NULL;
+    ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+    ASSERT_NE(pRead, nullptr);
+    ASSERT_EQ(pRead->info.rows, 1);
+    SColumnInfoData* pTsCol = (SColumnInfoData*)taosArrayGet(pRead->pDataBlock, 0);
+    ASSERT_EQ(*(int64_t*)colDataGetData(pTsCol, 0), baseTestTime1 + i);
+    blockDataDestroy(pRead);
+  }
+
+  SSDataBlock* pRead = NULL;
+  ASSERT_EQ(getNextStreamDataCache(&pIter, &pRead), 0);
+  ASSERT_EQ(pRead, nullptr);
+
+  destroyDataSinkMgr();
+}
+
+static void checkLargeSequentialAlignCache(bool separateRequests) {
+  INIT_DATA_SINK();
+  constexpr int32_t kWindowCount = 4096;
+  const int64_t groupId = 26;
+  void* cache = nullptr;
+  ASSERT_EQ(initStreamDataCache(26, 26, 0, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(block, nullptr);
+  auto* tsColumn = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  for (int32_t index = 0; index < kWindowCount; ++index) {
+    const TSKEY timestamp = baseTestTime1 + index;
+    ASSERT_EQ(colDataSetVal(tsColumn, 0, reinterpret_cast<const char*>(&timestamp), false), 0);
+    ASSERT_EQ(putStreamDataCache(cache, groupId, timestamp, timestamp, block, 0, 0), 0);
+  }
+  blockDataDestroy(block);
+
+  void* iter = nullptr;
+  if (!separateRequests) {
+    ASSERT_EQ(getStreamDataCache(cache, groupId, baseTestTime1, baseTestTime1 + kWindowCount - 1, &iter), 0);
+    ASSERT_NE(iter, nullptr);
+  }
+  for (int32_t index = 0; index < kWindowCount; ++index) {
+    if (separateRequests) {
+      ASSERT_EQ(getStreamDataCache(cache, groupId, baseTestTime1 + index, baseTestTime1 + index, &iter), 0);
+      ASSERT_NE(iter, nullptr);
+    }
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->info.rows, 1);
+    auto* resultTs = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 0));
+    EXPECT_EQ(*reinterpret_cast<const TSKEY*>(colDataGetData(resultTs, 0)), baseTestTime1 + index);
+    blockDataDestroy(result);
+    if (separateRequests) {
+      result = nullptr;
+      ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+      EXPECT_EQ(result, nullptr);
+      EXPECT_EQ(iter, nullptr);
+    }
+  }
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+  EXPECT_EQ(result, nullptr);
+  EXPECT_EQ(iter, nullptr);
+  destroyDataSinkMgr();
+}
+
+TEST(dataSinkTest, alignCacheServesLargeSequentialRequest) { checkLargeSequentialAlignCache(false); }
+
+TEST(dataSinkTest, alignCacheFinishesEachSequentialWindowRequest) { checkLargeSequentialAlignCache(true); }
+
+TEST(dataSinkTest, alignCacheFindsLateFragmentAfterFutureMovedWindow) {
+  INIT_DATA_SINK();
+  void* cache = nullptr;
+  const int64_t groupId = 28;
+  ASSERT_EQ(initStreamDataCache(28, 28, 0, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* first = createTestBlock(baseTestTime1, 0);
+  SSDataBlock* future = createTestBlock(baseTestTime1 + 2, 0);
+  ASSERT_NE(first, nullptr);
+  ASSERT_NE(future, nullptr);
+  const int64_t futureRows = future->info.rows;
+  ASSERT_EQ(putStreamDataCache(cache, groupId, baseTestTime1, baseTestTime1, first, 0, 0), 0);
+  ASSERT_EQ(moveStreamDataCache(cache, groupId, baseTestTime1 + 2, baseTestTime1 + 1 + futureRows, future), 0);
+  ASSERT_EQ(putStreamDataCache(cache, groupId, baseTestTime1, baseTestTime1, first, 0, 0), 0);
+  blockDataDestroy(first);
+
+  void* iter = nullptr;
+  ASSERT_EQ(getStreamDataCache(cache, groupId, baseTestTime1, baseTestTime1, &iter), 0);
+  for (int32_t fragment = 0; fragment < 2; ++fragment) {
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(result->info.rows, 1);
+    auto* tsColumn = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 0));
+    EXPECT_EQ(*reinterpret_cast<const TSKEY*>(colDataGetData(tsColumn, 0)), baseTestTime1);
+    blockDataDestroy(result);
+  }
+  SSDataBlock* result = nullptr;
+  ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+  EXPECT_EQ(result, nullptr);
+  ASSERT_EQ(getStreamDataCache(cache, groupId, baseTestTime1 + 2, baseTestTime1 + 1 + futureRows, &iter), 0);
+  ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+  ASSERT_NE(result, nullptr);
+  EXPECT_EQ(result->info.rows, futureRows);
+  blockDataDestroy(result);
+  result = nullptr;
+  ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+  EXPECT_EQ(result, nullptr);
+  EXPECT_EQ(iter, nullptr);
+  destroyDataSinkMgr();
+}
+
+TEST(dataSinkTest, alignCachePreservesUnreadWindowsAfterAppend) {
+  INIT_DATA_SINK();
+  const int64_t groupId = 27;
+  void* cache = nullptr;
+  ASSERT_EQ(initStreamDataCache(27, 27, 0, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createTestBlock(baseTestTime1, 0);
+  ASSERT_NE(block, nullptr);
+  for (int32_t index = 0; index < 4; ++index) {
+    ASSERT_EQ(putStreamDataCache(cache, groupId, baseTestTime1 + index, baseTestTime1 + index, block, index, index), 0);
+  }
+
+  const int32_t readOrder[] = {1, 0, 2, 3, 4};
+  for (int32_t index : readOrder) {
+    if (index == 2) {
+      ASSERT_EQ(putStreamDataCache(cache, groupId, baseTestTime1 + 4, baseTestTime1 + 4, block, 4, 4), 0);
+    }
+    void* iter = nullptr;
+    ASSERT_EQ(getStreamDataCache(cache, groupId, baseTestTime1 + index, baseTestTime1 + index, &iter), 0);
+    ASSERT_NE(iter, nullptr);
+    SSDataBlock* result = nullptr;
+    ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(result->info.rows, 1);
+    auto* resultTs = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 0));
+    EXPECT_EQ(*reinterpret_cast<const TSKEY*>(colDataGetData(resultTs, 0)), baseTestTime1 + index);
+    blockDataDestroy(result);
+    result = nullptr;
+    ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(iter, nullptr);
+  }
+  blockDataDestroy(block);
+  destroyDataSinkMgr();
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
