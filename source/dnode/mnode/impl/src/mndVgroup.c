@@ -3872,16 +3872,20 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   TAOS_CHECK_GOTO(mndAddDbStatusAction(pTrans, &dbObj, SDB_STATUS_READY, TRN_STAGE_REDO_ACTION), NULL, _OVER);
 
   // adjust vgroup replica
+  // mndBuildAlterVgroupAction writes the altered vgroup into the output SVgObj (newVg1Altered/newVg2Altered)
+  // and does NOT modify newVg1/newVg2 in place, so we must keep those altered objects for the arbgroup below.
+  // If mndBuildAlterVgroupAction fails (e.g. no available dnode / insufficient memory), it returns an error and
+  // the whole split transaction is dropped/rolled back by mndTransDrop, so no partial vnode state persists.
+  SVgObj newVg1Altered = {0};
+  SVgObj newVg2Altered = {0};
   if (pDb->cfg.replications != newVg1.replica) {
-    SVgObj tmpGroup = {0};
-    TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg1, pArray, &tmpGroup), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg1, pArray, &newVg1Altered), NULL, _OVER);
   } else {
     TAOS_CHECK_GOTO(mndAddVgStatusAction(pTrans, &newVg1, SDB_STATUS_READY, TRN_STAGE_COMMIT_ACTION), NULL, _OVER);
   }
 
   if (pDb->cfg.replications != newVg2.replica) {
-    SVgObj tmpGroup = {0};
-    TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg2, pArray, &tmpGroup), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndBuildAlterVgroupAction(pMnode, pTrans, pDb, pDb, &newVg2, pArray, &newVg2Altered), NULL, _OVER);
   } else {
     TAOS_CHECK_GOTO(mndAddVgStatusAction(pTrans, &newVg2, SDB_STATUS_READY, TRN_STAGE_COMMIT_ACTION), NULL, _OVER);
   }
@@ -3892,6 +3896,69 @@ int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj *pVgro
   dbObj.vgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
   TAOS_CHECK_GOTO(mndAddDbStatusAction(pTrans, &dbObj, SDB_STATUS_READY, TRN_STAGE_COMMIT_ACTION), NULL, _OVER);
+
+  // update arbgroup for double-replica (withArbitrator) split:
+  // the original vgroup (replica=2) is dropped, so its corresponding arbgroup must be dropped as well;
+  // the two resulting vgroups are altered back to replica=2, so each of them needs a brand-new arbgroup.
+  // Without this, the source arbgroup becomes stale and the two new replica=2 vgroups end up with no arbgroup,
+  // which breaks the invariant "every replica=2 vgroup owns exactly one arbgroup".
+  if (pDb->cfg.withArbitrator) {
+    // 1) drop the source arbgroup, which is keyed by the original vgroup vgId
+    SArbGroup dropArbGroup = {0};
+    if (mndArbGroupInitFromVgObj(pVgroup, &dropArbGroup) == TSDB_CODE_SUCCESS) {
+      mInfo(KEYOP("split-vgroup", "STEP") "trans:%d, vgId:%d, drop arbgroup for the source vgroup since it is being split",
+            pTrans->id, pVgroup->vgId);
+      // prepare + commit log (no redo), matching the drop-database path in mndDb.c
+      // (mndBuildDropArbGroups at 2083/2116). The DROPPING state written at prepare stage is rolled back
+      // by the transaction framework if the split fails before commit.
+      TAOS_CHECK_GOTO(mndSetDropArbGroupPrepareLogs(pTrans, &dropArbGroup), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndSetDropArbGroupCommitLogs(pTrans, &dropArbGroup), NULL, _OVER);
+    } else {
+      // withArbitrator guarantees replica==2, so this branch is only a defensive fallback;
+      // failing the split here avoids leaving a stale source arbgroup behind.
+      mError("trans:%d, vgId:%d, failed to init arbgroup from source vgroup (replica:%d), cannot drop arbgroup",
+             pTrans->id, pVgroup->vgId, pVgroup->replica);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
+
+    // 2) create a new arbgroup for each resulting replica=2 vgroup.
+    //    newVg1Altered/newVg2Altered hold the altered vgroups (replica=2 with valid vnodeGid[0..1] dnodeIds),
+    //    which is exactly what mndArbGroupInitFromVgObj needs to build the arbgroup members.
+    //    Use the same redo + undo + commit triplet as the create-database path in mndDb.c
+    //    (mndBuildCreateArbGroups / mndBuildCommitDbActions): redo inserts the arbgroup as CREATING,
+    //    undo rolls it back on transaction failure, commit promotes it to READY.
+    //    Guard with vgId>0 so we never build a bogus (vgId=0) arbgroup from an uninitialized object.
+    SArbGroup newArbGroup1 = {0};
+    if (newVg1Altered.vgId > 0 &&
+        mndArbGroupInitFromVgObj(&newVg1Altered, &newArbGroup1) == TSDB_CODE_SUCCESS) {
+      mInfo(KEYOP("split-vgroup", "STEP") "trans:%d, vgId:%d, create arbgroup for the 1st new vgroup after split",
+            pTrans->id, newVg1Altered.vgId);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupRedoLogs(pTrans, &newArbGroup1), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupUndoLogs(pTrans, &newArbGroup1), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupCommitLogs(pTrans, &newArbGroup1), NULL, _OVER);
+    } else {
+      mError("trans:%d, vgId:%d, failed to create arbgroup for the 1st new vgroup after split", pTrans->id,
+             newVg1Altered.vgId);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
+
+    SArbGroup newArbGroup2 = {0};
+    if (newVg2Altered.vgId > 0 &&
+        mndArbGroupInitFromVgObj(&newVg2Altered, &newArbGroup2) == TSDB_CODE_SUCCESS) {
+      mInfo(KEYOP("split-vgroup", "STEP") "trans:%d, vgId:%d, create arbgroup for the 2nd new vgroup after split",
+            pTrans->id, newVg2Altered.vgId);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupRedoLogs(pTrans, &newArbGroup2), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupUndoLogs(pTrans, &newArbGroup2), NULL, _OVER);
+      TAOS_CHECK_GOTO(mndSetCreateArbGroupCommitLogs(pTrans, &newArbGroup2), NULL, _OVER);
+    } else {
+      mError("trans:%d, vgId:%d, failed to create arbgroup for the 2nd new vgroup after split", pTrans->id,
+             newVg2Altered.vgId);
+      code = TSDB_CODE_INVALID_PARA;
+      goto _OVER;
+    }
+  }
 
   TAOS_CHECK_GOTO(mndTransPrepare(pMnode, pTrans), NULL, _OVER);
   code = 0;
