@@ -218,6 +218,7 @@ typedef struct SFilterComUnit {
 
 typedef struct SFilterPCtx {
   SHashObj *valHash;
+  SHashObj *inHash;
   SHashObj *unitHash;
 } SFilterPCtx;
 

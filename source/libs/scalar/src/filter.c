@@ -1107,30 +1107,30 @@ int32_t filterGetFiledByDesc(SFilterFields *fields, int32_t type, void *v) {
   return -1;
 }
 
-int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t dataLen, bool *sameBuf) {
-  if (type == FLD_TYPE_VALUE) {
-    if (info->pctx.valHash == false) {
-      qError("value hash is empty");
-      return -1;
-    }
+int32_t filterGetFiledByData(SHashObj *valueHash, void *key, int32_t keyLen, void *data, bool *sameBuf) {
+  if (valueHash == NULL) {
+    return -1;
+  }
 
-    SFilterDataInfo *dInfo = taosHashGet(info->pctx.valHash, v, dataLen);
-    if (dInfo) {
-      *sameBuf = (dInfo->addr == v);
-      return dInfo->idx;
-    }
+  SFilterDataInfo *dInfo = taosHashGet(valueHash, key, keyLen);
+  if (dInfo) {
+    *sameBuf = (dInfo->addr == data);
+    return dInfo->idx;
   }
 
   return -1;
 }
 
-// In the params, we should use void *data instead of void **data, there is no need to use taosMemoryFreeClear(*data) to
-// set *data = 0 Besides, fields data value is a pointer, so dataLen should be POINTER_BYTES for better.
 int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen,
                        bool freeIfExists, int16_t *srcFlag) {
   int32_t   idx = -1;
   uint32_t *num;
   bool      sameBuf = false;
+  bool      isHash = srcFlag && FILTER_GET_FLAG(*srcFlag, FLD_DATA_IS_HASH);
+  SHashObj **valueHash = isHash ? &info->pctx.inHash : &info->pctx.valHash;
+  // IN sets are deduplicated by object identity, separately from scalar values.
+  void     *key = isHash ? (void *)data : (data ? *data : NULL);
+  int32_t   keyLen = isHash ? POINTER_BYTES : dataLen;
 
   num = &info->fields[type].num;
 
@@ -1138,7 +1138,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
     if (type == FLD_TYPE_COLUMN) {
       idx = filterGetFiledByDesc(&info->fields[type], type, desc);
     } else if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
-      idx = filterGetFiledByData(info, type, *data, dataLen, &sameBuf);
+      idx = filterGetFiledByData(*valueHash, key, keyLen, *data, &sameBuf);
     }
   }
 
@@ -1166,10 +1166,10 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
     ++(*num);
 
     if (data && (*data) && dataLen > 0 && FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
-      if (info->pctx.valHash == NULL) {
-        info->pctx.valHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE,
+      if (*valueHash == NULL) {
+        *valueHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE,
                                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
-        if (NULL == info->pctx.valHash) {
+        if (NULL == *valueHash) {
           fltError("taosHashInit failed, size:%d", FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_VALUE_SIZE);
           if (srcFlag) {
             FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
@@ -1179,7 +1179,7 @@ int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type,
       }
 
       SFilterDataInfo dInfo = {idx, *data};
-      if (taosHashPut(info->pctx.valHash, *data, dataLen, &dInfo, sizeof(dInfo))) {
+      if (taosHashPut(*valueHash, key, keyLen, &dInfo, sizeof(dInfo))) {
         fltError("taosHashPut to set failed");
         if (srcFlag) {
           FILTER_SET_FLAG(*srcFlag, FLD_DATA_NO_FREE);
@@ -1474,7 +1474,6 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) == OP_TYPE_IN) {
         FLT_ERR_RET(filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES, false, &rField->flag));
-        // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
 
         t = FILTER_GET_FIELD(dst, right);
         FILTER_SET_FLAG(t->flag, FLD_DATA_IS_HASH);
@@ -2209,6 +2208,7 @@ void filterFreeField(SFilterField *field, int32_t type) {
 
 void filterFreePCtx(SFilterPCtx *pctx) {
   taosHashCleanup(pctx->valHash);
+  taosHashCleanup(pctx->inHash);
   taosHashCleanup(pctx->unitHash);
 }
 
