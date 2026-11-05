@@ -4262,7 +4262,12 @@ static int32_t readStreamDataCacheLegacy(SStreamTriggerTask* pTask, int64_t sess
   }
 
   if (*px == NULL) {
-    code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    if (pTask->pRealtimeContext != NULL && sessionId == pTask->pRealtimeContext->sessionId &&
+        pTask->pRealtimeContext->pPeriod != NULL) {
+      code = getStreamDataCacheSnapshot(pCalcDataCache, gid, start, end, px);
+    } else {
+      code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       removeEntry = true;
       goto _end;

@@ -1377,6 +1377,7 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     VnodeStreamSetTableTest::SetUp();
     active_ = this;
     reader_.vTableReady = true;
+    vnode_.config.tsdbCfg.keep2 = 100 * 365 * 24 * 60;
     path_ = std::string(TD_TMP_DIR_PATH) + "stream-wal-recovery-" + std::to_string(taosGetTimestampUs());
     SWalCfg cfg = {};
     cfg.vgId = 7;
@@ -1428,6 +1429,10 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
 
   void TearDown() override {
     stub_.reset(walFetchHead);
+    stub_.reset(walNextValidMsg);
+    stub_.reset(walReaderSeekVer);
+    stub_.reset(taosClockGetTime);
+    blockDataDestroy(static_cast<SSDataBlock *>(reader_.metaBlock));
     blockDataDestroy(reader_.triggerBlock);
     taosHashCleanup(reader_.triggerTableSchemaMapVTable);
     taosMemoryFree(schema_);
@@ -1478,6 +1483,66 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
     ASSERT_EQ(0, walBeginSnapshot(vnode_.pWal, ver - 1, 0));
     ASSERT_EQ(0, walEndSnapshot(vnode_.pWal, false));
     ASSERT_EQ(ver, walGetFirstVer(vnode_.pWal));
+  }
+
+  void appendAt(int64_t ver, int64_t ingestUs) {
+    ingestUs_ = ingestUs;
+    stub_.set(taosClockGetTime, ingestTime);
+    append(ver);
+    stub_.reset(taosClockGetTime);
+    ASSERT_EQ(ingestUs, vnode_.pWal->writeHead.head.ingestTs);
+  }
+
+  void requestMeta(int64_t cursor, int64_t cutoffNs, int32_t expectedCode, int64_t expectedCursor,
+                   std::initializer_list<int64_t> expectedVersions) {
+    SSTriggerPullRequestUnion req = {};
+    req.base.type = STRIGGER_PULL_WAL_META_NEW;
+    req.base.streamId = task_.task.streamId;
+    req.base.readerTaskId = task_.task.taskId;
+    req.walMetaNewReq.lastVer = cursor;
+    req.walMetaNewReq.ctime = cutoffNs;
+    int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &req.base);
+    ASSERT_GT(length, 0);
+    std::vector<char> content(sizeof(SMsgHead) + length);
+    ASSERT_EQ(length, tSerializeSTriggerPullRequest(content.data() + sizeof(SMsgHead), length, &req.base));
+    SRpcMsg msg = {};
+    msg.msgType = TDMT_STREAM_TRIGGER_PULL;
+    msg.pCont = content.data();
+    msg.contLen = static_cast<int32_t>(content.size());
+    response_.clear();
+    gPullResponseCount = 0;
+    const int32_t code = vnodeProcessStreamReaderMsg(&vnode_, &msg, nullptr);
+    ASSERT_EQ(expectedCode == TSDB_CODE_STREAM_NO_DATA ? 0 : expectedCode, code);
+    ASSERT_EQ(1, gPullResponseCount);
+    ASSERT_EQ(expectedCode, gPullResponseCode);
+    if (expectedCode == TSDB_CODE_STREAM_NO_DATA) {
+      ASSERT_EQ(2 * sizeof(int64_t), response_.size());
+      int64_t nextVer = -1;
+      memcpy(&nextVer, response_.data(), sizeof(nextVer));
+      EXPECT_EQ(expectedCursor, nextVer);
+    } else if (expectedCode == 0) {
+      SSDataBlock        meta = {};
+      SSDataBlock        deleted = {};
+      SSDataBlock        tables = {};
+      SSTriggerWalNewRsp rsp = {};
+      rsp.metaBlock = &meta;
+      rsp.deleteBlock = &deleted;
+      rsp.tableBlock = &tables;
+      EXPECT_EQ(0, tDeserializeSStreamWalDataResponse(response_.data(), response_.size(), &rsp, nullptr));
+      EXPECT_EQ(expectedCursor, rsp.ver);
+      EXPECT_EQ(expectedVersions.size(), meta.info.rows);
+      std::vector<int64_t> actual;
+      if (meta.info.rows > 0) {
+        auto *versions = static_cast<SColumnInfoData *>(taosArrayGet(meta.pDataBlock, 3));
+        for (int32_t i = 0; i < meta.info.rows; ++i) {
+          actual.push_back(*reinterpret_cast<int64_t *>(colDataGetData(versions, i)));
+        }
+      }
+      EXPECT_EQ(std::vector<int64_t>(expectedVersions), actual);
+      blockDataFreeRes(&meta);
+      blockDataFreeRes(&deleted);
+      blockDataFreeRes(&tables);
+    }
   }
 
   void request(int32_t type, std::initializer_list<int64_t> versions, int32_t expectedCode,
@@ -1569,6 +1634,26 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
   }
 
   static int32_t failedHead(SWalReader *, int64_t) { return active_->headError_; }
+  static int32_t advanceAfterCaughtUp(SWalReader *reader, bool scanMeta) {
+    active_->stub_.reset(walNextValidMsg);
+    int32_t code = walNextValidMsg(reader, scanMeta);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) walApplyVer(reader->pWal, 1);
+    active_->stub_.set(walNextValidMsg, advanceAfterCaughtUp);
+    return code;
+  }
+
+  static int32_t appendAfterSeekEnd(SWalReader *reader, int64_t ver) {
+    active_->stub_.reset(walReaderSeekVer);
+    int32_t code = walReaderSeekVer(reader, ver);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST) active_->append(0);
+    return code;
+  }
+
+  static int32_t ingestTime(int, struct timespec *time) {
+    time->tv_sec = active_->ingestUs_ / 1000000;
+    time->tv_nsec = (active_->ingestUs_ % 1000000) * 1000;
+    return 0;
+  }
 
   static VnodeStreamWalRecoveryTest *active_;
   std::string                        path_;
@@ -1578,9 +1663,100 @@ class VnodeStreamWalRecoveryTest : public VnodeStreamSetTableTest {
   int32_t                            headCalls_ = 0;
   int32_t                            recycleAt_ = 0;
   int32_t                            headError_ = 0;
+  int64_t                            ingestUs_ = 0;
 };
 
 VnodeStreamWalRecoveryTest *VnodeStreamWalRecoveryTest::active_ = nullptr;
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaExpiredCursorReadsFirstRetainedVersionImmediately) {
+  append(0);
+  append(1);
+  append(2);
+  recycleBefore(2);
+  requestMeta(0, INT64_MAX, 0, 3, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffKeepsFirstLaterRecordForNextRequest) {
+  appendAt(0, 1000001);
+  appendAt(1, 1000002);
+  appendAt(2, 1000003);
+  requestMeta(0, 1000002000LL, 0, 2, {0, 1});
+  requestMeta(2, 1000003000LL, 0, 3, {2});
+  requestMeta(3, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 3, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffBeforeFirstRecordDoesNotAdvanceCursor) {
+  appendAt(0, 1000001);
+  requestMeta(0, 1000000999LL, TSDB_CODE_STREAM_NO_DATA, 0, {});
+  requestMeta(0, 1000001000LL, 0, 1, {0});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaRetentionDuringScanContinuesAtNewFirstVersion) {
+  append(0);
+  append(1);
+  append(2);
+  recycleAt_ = 2;
+  headError_ = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  stub_.set(walFetchHead, fetchWithRetention);
+  requestMeta(0, INT64_MAX, 0, 3, {0, 2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaRetainedReadErrorIsNotReportedAsNoData) {
+  append(0);
+  stub_.set(walFetchHead, failedHead);
+  const int32_t errors[] = {TSDB_CODE_WAL_LOG_NOT_EXIST, TSDB_CODE_WAL_INVALID_VER,
+                            static_cast<int32_t>(TAOS_SYSTEM_ERROR(ENOENT)), TSDB_CODE_WAL_FILE_CORRUPTED};
+  for (int32_t error : errors) {
+    headError_ = error;
+    requestMeta(0, INT64_MAX, error, 0, {});
+  }
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaCutoffDoesNotDependOnDatabasePrecision) {
+  appendAt(0, 1000001);
+  appendAt(1, 1000002);
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    vnode_.config.tsdbCfg.precision = precision;
+    requestMeta(0, 1000001000LL, 0, 1, {0});
+  }
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaExpiredCursorDoesNotPreventLaterInput) {
+  append(0);
+  append(1);
+  recycleBefore(2);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 2, {});
+  append(2);
+  requestMeta(2, INT64_MAX, 0, 3, {2});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaEmptyWalReturnsUnchangedNextCursor) {
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 0, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaFutureCursorIsNotTreatedAsCaughtUp) {
+  append(0);
+  requestMeta(2, INT64_MAX, TSDB_CODE_WAL_LOG_NOT_EXIST, 2, {});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaAppliedVersionAdvanceAfterCaughtUpDoesNotFailRequest) {
+  append(0);
+  append(1);
+  vnode_.pWal->vers.appliedVer = 0;
+  stub_.set(walNextValidMsg, advanceAfterCaughtUp);
+  requestMeta(0, INT64_MAX, 0, 1, {0});
+  stub_.reset(walNextValidMsg);
+  walApplyVer(vnode_.pWal, 1);
+  requestMeta(1, INT64_MAX, 0, 2, {1});
+}
+
+TEST_F(VnodeStreamWalRecoveryTest, MetaAppendAfterSeekingEndDoesNotFailRequest) {
+  stub_.set(walReaderSeekVer, appendAfterSeekEnd);
+  requestMeta(0, INT64_MAX, TSDB_CODE_STREAM_NO_DATA, 0, {});
+  stub_.reset(walReaderSeekVer);
+  if (walGetLastVer(vnode_.pWal) < 0) append(0);
+  requestMeta(0, INT64_MAX, 0, 1, {0});
+}
 
 TEST_F(VnodeStreamWalRecoveryTest, RetainedVersionsRemainReadable) {
   append(0);

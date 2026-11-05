@@ -24,6 +24,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/os"
     PUBLIC "${TD_SOURCE_DIR}/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+    PRIVATE "${TD_SOURCE_DIR}/source/libs/executor/inc"
     PRIVATE "${TD_SOURCE_DIR}/source/libs/extconnector/inc"
 )
 DEP_td_rocksdb(new-stream)

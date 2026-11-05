@@ -37,6 +37,7 @@
 #include "tglobal.h"
 
 extern "C" int32_t moveMemCacheAllList();
+extern "C" int64_t dataSinkTestScopedSpillVisits(void* cache);
 
 // Macro to initialize DataSink at the beginning of each test
 #define INIT_DATA_SINK() do { \
@@ -2854,4 +2855,240 @@ int main(int argc, char** argv) {
 
   taos_cleanup();
   return ret || ret2;
+}
+
+namespace {
+std::vector<int32_t> readRawSnapshot(void* cache, int64_t sourceId) {
+  std::vector<int32_t> values;
+  void*                iter = nullptr;
+  EXPECT_EQ(getStreamDataCacheSnapshot(cache, sourceId, TSKEY_MIN, TSKEY_MAX, &iter), 0);
+  while (iter != nullptr) {
+    SSDataBlock* block = nullptr;
+    int32_t      code = getNextStreamDataCache(&iter, &block);
+    EXPECT_EQ(code, 0);
+    if (code != 0) {
+      cancelStreamDataCacheIterate(&iter);
+      break;
+    }
+    if (block == nullptr) continue;
+    const auto* col = static_cast<const SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1));
+    for (int32_t row = 0; row < block->info.rows; ++row) {
+      values.push_back(*reinterpret_cast<const int32_t*>(colDataGetData(col, row)));
+    }
+    blockDataDestroy(block);
+  }
+  return values;
+}
+int64_t failSnapshotWrite(TdFilePtr, const void*, int64_t, int64_t) {
+  terrno = TAOS_SYSTEM_ERROR(ENOSPC);
+  return -1;
+}
+}  // namespace
+
+TEST(dataSinkTest, RawSnapshotRetainsUnorderedEventTimesAcrossBatchesAndReads) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  void* cache = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createScopedBlock({9000, 10, 30000}, {90, 1, 300});
+  ASSERT_NE(block, nullptr);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 0, 1), 0);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 2, 2), 0);
+  blockDataDestroy(block);
+  EXPECT_EQ(readRawSnapshot(cache, 1), (std::vector<int32_t>{90, 1, 300}));
+  EXPECT_EQ(readRawSnapshot(cache, 1), (std::vector<int32_t>{90, 1, 300}));
+  EXPECT_TRUE(readRawSnapshot(cache, 2).empty());
+  destroyStreamDataCache(cache);
+}
+
+TEST(dataSinkTest, RawSnapshotSpillsDetachedCacheAndPreservesRepeatedReads) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  void* cache = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createScopedBlock({100, 10}, {10, 1});
+  ASSERT_NE(block, nullptr);
+  gScopedCacheWrites.clear();
+  Stub stub;
+  gScopedCacheWriteStub = &stub;
+  stub.set(taosPWriteFile, captureScopedCacheWrite);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 0, 1), 0);
+  stub.reset(taosPWriteFile);
+  gScopedCacheWriteStub = nullptr;
+  blockDataDestroy(block);
+  EXPECT_FALSE(gScopedCacheWrites.empty());
+  EXPECT_EQ(readRawSnapshot(cache, 1), (std::vector<int32_t>{10, 1}));
+  EXPECT_EQ(readRawSnapshot(cache, 1), (std::vector<int32_t>{10, 1}));
+  destroyStreamDataCache(cache);
+}
+
+TEST(dataSinkTest, RawSnapshotReportsDiskFailure) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  void* cache = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createScopedBlock({100}, {10});
+  ASSERT_NE(block, nullptr);
+  {
+    Stub stub;
+    stub.set(taosPWriteFile, failSnapshotWrite);
+    EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 0, 0), TAOS_SYSTEM_ERROR(ENOSPC));
+  }
+  blockDataDestroy(block);
+  destroyStreamDataCache(cache);
+}
+
+TEST(dataSinkTest, RawSnapshotContinuousSpillVisitsOnlyResidentBlocks) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  constexpr int32_t    blocks = 64;
+  constexpr int32_t    rowsPerBlock = 1024;
+  std::vector<TSKEY>   timestamps(blocks * rowsPerBlock);
+  std::vector<int32_t> values(timestamps.size());
+  for (size_t i = 0; i < timestamps.size(); ++i) {
+    timestamps[i] = static_cast<TSKEY>(i);
+    values[i] = static_cast<int32_t>(i);
+  }
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(createScopedBlock(timestamps, values),
+                                                                  blockDataDestroy);
+  ASSERT_NE(block, nullptr);
+  ASSERT_EQ(putStreamDataCacheSnapshot(env.cache, 42, 0, block.get(), 0, blocks * rowsPerBlock - 1), 0);
+  EXPECT_EQ(dataSinkTestScopedSpillVisits(env.cache), blocks);
+  EXPECT_EQ(readRawSnapshot(env.cache, 42), values);
+  EXPECT_EQ(readRawSnapshot(env.cache, 42), values);
+  ASSERT_EQ(moveMemCacheAllList(), 0);
+  EXPECT_EQ(dataSinkTestScopedSpillVisits(env.cache), blocks);
+}
+
+TEST(dataSinkTest, RawSnapshotCleanupRemovesResidentBlocksBeforeSpill) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  const int64_t initialUsed = g_pDataSinkManager.usedMemSize;
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(createScopedBlock({100}, {10}), blockDataDestroy);
+  ASSERT_NE(block, nullptr);
+  for (int64_t gid : {41, 42, 43}) {
+    ASSERT_EQ(putStreamDataCacheSnapshot(env.cache, gid, 0, block.get(), 0, 0), 0);
+  }
+  ASSERT_EQ(cleanStreamDataCacheGroup(env.cache, 42), 0);
+  ASSERT_EQ(cleanStreamDataCacheGroup(env.cache, 41), 0);
+  EXPECT_TRUE(readRawSnapshot(env.cache, 42).empty());
+  EXPECT_TRUE(readRawSnapshot(env.cache, 41).empty());
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  ASSERT_EQ(putStreamDataCacheSnapshot(env.cache, 44, 0, block.get(), 0, 0), 0);
+  EXPECT_EQ(dataSinkTestScopedSpillVisits(env.cache), 2);
+  for (int64_t gid : {43, 44}) {
+    EXPECT_EQ(readRawSnapshot(env.cache, gid), (std::vector<int32_t>{10}));
+    ASSERT_EQ(cleanStreamDataCacheGroup(env.cache, gid), 0);
+  }
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1024 * 1024);
+  ASSERT_EQ(putStreamDataCacheSnapshot(env.cache, 45, 0, block.get(), 0, 0), 0);
+  ASSERT_EQ(cleanStreamDataCacheGroup(env.cache, 45), 0);
+  ASSERT_EQ(moveMemCacheAllList(), 0);
+  EXPECT_EQ(dataSinkTestScopedSpillVisits(env.cache), 2);
+  EXPECT_EQ(g_pDataSinkManager.usedMemSize, initialUsed);
+}
+
+TEST(dataSinkTest, AppendRawSnapshotPreservesTimestampSlotAndSpilledRows) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  void* source = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &source),
+            0);
+  SSDataBlock* block = createScopedBlock({9000, 10}, {90, 1});
+  ASSERT_NE(block, nullptr);
+  auto* timestamp = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  auto* value = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1));
+  std::swap(*timestamp, *value);
+  block->info.version = 17;
+  EXPECT_EQ(putStreamDataCacheSnapshot(source, 1, 1, block, 0, 1), 0);
+  EXPECT_EQ(putStreamDataCacheSnapshot(env.cache, 42, 1, block, 1, 1), 0);
+  blockDataDestroy(block);
+  EXPECT_EQ(appendStreamDataCacheSnapshot(env.cache, 42, source, 1), 0);
+  destroyStreamDataCache(source);
+  for (int i = 0; i < 2; ++i) {
+    void* iter = nullptr;
+    ASSERT_EQ(getStreamDataCacheSnapshot(env.cache, 42, 10, 10, &iter), 0);
+    std::vector<int32_t> values;
+    while (iter != nullptr) {
+      SSDataBlock* result = nullptr;
+      ASSERT_EQ(getNextStreamDataCache(&iter, &result), 0);
+      if (result == nullptr) continue;
+      EXPECT_EQ(result->info.version, 17);
+      auto* col = static_cast<SColumnInfoData*>(taosArrayGet(result->pDataBlock, 0));
+      for (int32_t row = 0; row < result->info.rows; ++row) {
+        values.push_back(*reinterpret_cast<const int32_t*>(colDataGetData(col, row)));
+      }
+      blockDataDestroy(result);
+    }
+    EXPECT_EQ(values, (std::vector<int32_t>{1, 1}));
+  }
+}
+
+TEST(dataSinkTest, AppendRawSnapshotReportsDiskFailureAndLeavesSourceReadable) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  void* source = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &source),
+            0);
+  SSDataBlock* block = createScopedBlock({100}, {10});
+  ASSERT_NE(block, nullptr);
+  EXPECT_EQ(putStreamDataCacheSnapshot(source, 1, 0, block, 0, 0), 0);
+  blockDataDestroy(block);
+  {
+    Stub stub;
+    stub.set(taosPWriteFile, failSnapshotWrite);
+    EXPECT_EQ(appendStreamDataCacheSnapshot(env.cache, 42, source, 1), TAOS_SYSTEM_ERROR(ENOSPC));
+  }
+  EXPECT_EQ(readRawSnapshot(source, 1), (std::vector<int32_t>{10}));
+  // The write may be committed in memory before spill fails; discard the target.
+  EXPECT_EQ(cleanStreamDataCacheGroup(env.cache, 42), 0);
+  destroyStreamDataCache(source);
+}
+
+TEST(dataSinkTest, RawSnapshotRejectsSchemaChangeWithinSource) {
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  void* cache = nullptr;
+  ASSERT_EQ(createDetachedStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createScopedBlock({100}, {10});
+  ASSERT_NE(block, nullptr);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 0, 0), 0);
+  auto* col = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1));
+  ++col->info.colId;
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 1, 0, block, 0, 0), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 2, 0, block, 0, 0), 0);
+  blockDataDestroy(block);
+  EXPECT_EQ(readRawSnapshot(cache, 1), (std::vector<int32_t>{10}));
+  EXPECT_EQ(readRawSnapshot(cache, 2), (std::vector<int32_t>{10}));
+  destroyStreamDataCache(cache);
+}
+
+TEST(dataSinkTest, RawSnapshotSupportsRegisteredRunnerCacheAndRepeatedReads) {
+  DataSinkMemoryLimitGuard  limit;
+  ScopedDataSinkEnvironment env;
+  ASSERT_EQ(env.code, 0);
+  setDataSinkMaxMemSize(DS_MEM_SIZE_RESERVED + 1);
+  void* cache = nullptr;
+  ASSERT_EQ(initStreamDataCache(env.streamId, env.taskId, env.sessionId, DATA_CLEAN_IMMEDIATE, 0, &cache), 0);
+  SSDataBlock* block = createScopedBlock({100, 10}, {10, 1});
+  ASSERT_NE(block, nullptr);
+  EXPECT_EQ(putStreamDataCacheSnapshot(cache, 42, 0, block, 0, 1), 0);
+  blockDataDestroy(block);
+  EXPECT_EQ(readRawSnapshot(cache, 42), (std::vector<int32_t>{10, 1}));
+  EXPECT_EQ(readRawSnapshot(cache, 42), (std::vector<int32_t>{10, 1}));
+  cleanStreamDataCacheGroup(cache, 42);
+  EXPECT_TRUE(readRawSnapshot(cache, 42).empty());
+  destroyStreamDataCache(cache);
 }

@@ -263,6 +263,15 @@ int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, 
 int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope);
 int32_t cleanStreamDataCacheGroup(void* pCache, int64_t gid);
 
+// Raw snapshots in a private or registered cache. Source ids are local to that cache;
+// no window lineage or event-time identity is added. Range reads preserve stored rows.
+int32_t putStreamDataCacheSnapshot(void* pCache, int64_t sourceId, int32_t tsSlotId, SSDataBlock* pBlock,
+                                   int32_t startIndex, int32_t endIndex);
+int32_t getStreamDataCacheSnapshot(void* pCache, int64_t sourceId, TSKEY start, TSKEY end, void** ppIter);
+// Append an immutable source in bounded blocks, retaining its schema and timestamp slot.
+// On failure the target may contain a prefix; the caller must discard it, not retry the append.
+int32_t appendStreamDataCacheSnapshot(void* pTarget, int64_t targetSourceId, void* pSource, int64_t sourceId);
+
 typedef struct SStreamDataCacheWriteBatch SStreamDataCacheWriteBatch;
 typedef struct {
   int32_t sourceSlotId;

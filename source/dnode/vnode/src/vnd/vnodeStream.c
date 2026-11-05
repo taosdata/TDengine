@@ -2489,17 +2489,22 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
 
   SWalReader* pWalReader = walOpenReader(pVnode->pWal, 0);
   STREAM_CHECK_NULL_GOTO(pWalReader, terrno);
-  code = walReaderSeekVer(pWalReader, rsp->ver);
-  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
-    if (rsp->ver < walGetFirstVer(pWalReader->pWal)) {
-      rsp->ver = walGetFirstVer(pWalReader->pWal);
-      rsp->verTime = 0;
-    } else {
-      rsp->verTime = taosGetTimestampUs();
-    }
-    ST_TASK_DLOG("vgId:%d %s scan wal end:%s", TD_VID(pVnode), __func__, tstrerror(code));
+
+seek:
+  // Decide normal end before reading: a concurrent append must not turn it into an error.
+  if (rsp->ver == walGetLastVer(pWalReader->pWal) + 1) {
+    rsp->verTime = taosGetTimestampUs();
     code = TSDB_CODE_SUCCESS;
     goto end;
+  }
+  code = walReaderSeekVer(pWalReader, rsp->ver);
+  if (code == TSDB_CODE_WAL_LOG_NOT_EXIST || code == TSDB_CODE_WAL_INVALID_VER || code == TAOS_SYSTEM_ERROR(ENOENT)) {
+    int64_t firstVer = walGetFirstVer(pWalReader->pWal);
+    if (rsp->ver < firstVer) {
+      rsp->ver = firstVer;
+      walReadReset(pWalReader);
+      goto seek;
+    }
   }
   STREAM_CHECK_RET_GOTO(code);
 
@@ -2507,18 +2512,33 @@ static int32_t processWalVerMetaNew(SVnode* pVnode, SSTriggerWalNewRsp* rsp, SSt
 
   STimeWindow win = getDbTimeRange(pVnode);
   while (1) {
-    code = walNextValidMsg(pWalReader, true);
-    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST){
+    int64_t nextVer = pWalReader->curVersion;
+    // Applied versions only advance while this Reader is active. Check before
+    // walNextValidMsg so a later advance cannot misclassify a caught-up result.
+    if (nextVer > walGetAppliedVer(pWalReader->pWal)) {
       rsp->verTime = taosGetTimestampUs();
-      ST_TASK_DLOG("vgId:%d %s scan wal end:%s", TD_VID(pVnode), __func__, tstrerror(code));
       code = TSDB_CODE_SUCCESS;
       goto end;
     }
+    code = walNextValidMsg(pWalReader, true);
+    if (code == TSDB_CODE_WAL_LOG_NOT_EXIST || code == TSDB_CODE_WAL_INVALID_VER || code == TAOS_SYSTEM_ERROR(ENOENT)) {
+      int64_t firstVer = walGetFirstVer(pWalReader->pWal);
+      if (nextVer < firstVer) {
+        // Keep rows already read; only the unread reclaimed versions are lost.
+        rsp->ver = firstVer;
+        walReadReset(pWalReader);
+        goto seek;
+      }
+    }
     STREAM_CHECK_RET_GOTO(code);
-    rsp->ver = pWalReader->curVersion;
     SWalCont* wCont = &pWalReader->pHead->head;
     rsp->verTime = wCont->ingestTs;
-    if (wCont->ingestTs / 1000 > ctime) break;
+    // The request cutoff is nanoseconds; WAL ingest timestamps are microseconds.
+    if (ctime != INT64_MAX && wCont->ingestTs > ctime / 1000) {
+      rsp->ver = wCont->version;
+      break;
+    }
+    rsp->ver = pWalReader->curVersion;
     void*   data = POINTER_SHIFT(walContBody(wCont), sizeof(SMsgHead));
     int32_t len = walContBodyLen(wCont) - sizeof(SMsgHead);
     int64_t ver = wCont->version;

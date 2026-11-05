@@ -37,6 +37,8 @@ SDataSinkManager2 g_pDataSinkManager = {0};
 
 typedef struct SScopedCacheBlock {
   struct SScopedCacheBlock* pNext;
+  struct SScopedCacheBlock* pNextResident;
+  struct SScopedCacheBlock* pPrevResident;
   TSKEY                     minTs;
   TSKEY                     maxTs;
   int32_t                   rows;
@@ -78,12 +80,16 @@ typedef struct {
   SScopedCacheEntry** scopeTails[STREAM_SCOPED_CACHE_BUCKETS];
   SScopedCacheEntry*  groupBuckets[STREAM_SCOPED_CACHE_BUCKETS];
   SScopedCacheEntry** groupTails[STREAM_SCOPED_CACHE_BUCKETS];
+  SScopedCacheBlock*  pResidentBlocks;
   TdFilePtr           pFile;
   char                fileName[FILENAME_MAX];
   int64_t             fileSize;
   int64_t             fileBlockCount;
   uint64_t            nextEntryId;
   SArray*             pFreeFileBlocks;
+#ifdef BUILD_TEST
+  int64_t spillBlockVisits;
+#endif
 } SScopedCacheStore;
 
 typedef struct {
@@ -290,9 +296,28 @@ static void releaseScopedCacheFileBlock(SScopedCacheStore* pStore, const SFileBl
   recycleScopedCacheFileRange(pStore, pFileBlock);
 }
 
+// Only committed blocks with an in-memory payload are linked, under the store lock.
+static void linkResidentScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+  pBlock->pPrevResident = NULL;
+  pBlock->pNextResident = pStore->pResidentBlocks;
+  if (pStore->pResidentBlocks != NULL) pStore->pResidentBlocks->pPrevResident = pBlock;
+  pStore->pResidentBlocks = pBlock;
+}
+
+static void unlinkResidentScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+  if (pBlock->pPrevResident != NULL)
+    pBlock->pPrevResident->pNextResident = pBlock->pNextResident;
+  else
+    pStore->pResidentBlocks = pBlock->pNextResident;
+  if (pBlock->pNextResident != NULL) pBlock->pNextResident->pPrevResident = pBlock->pPrevResident;
+  pBlock->pPrevResident = NULL;
+  pBlock->pNextResident = NULL;
+}
+
 static void destroyTrackedScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
   if (pBlock == NULL) return;
   if (pBlock->pBlock != NULL) {
+    unlinkResidentScopedCacheBlock(pStore, pBlock);
     blockDataDestroy(pBlock->pBlock);
     (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pBlock->payloadMemSize);
   } else {
@@ -1101,6 +1126,9 @@ static SFileBlockInfo allocateScopedCacheFileBlock(SScopedCacheStore* pStore, in
 }
 
 static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBlock* pBlock) {
+#ifdef BUILD_TEST
+  ++pStore->spillBlockVisits;
+#endif
   if (pBlock->pBlock == NULL) return TSDB_CODE_SUCCESS;
   int32_t bufferSize = blockGetEncodeSize(pBlock->pBlock);
   if (bufferSize <= 0) return TSDB_CODE_STREAM_INTERNAL_ERROR;
@@ -1131,6 +1159,7 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
   }
   pBlock->fileBlock = fileBlock;
   pBlock->fileDataLen = dataLen;
+  unlinkResidentScopedCacheBlock(pStore, pBlock);
   blockDataDestroy(pBlock->pBlock);
   pBlock->pBlock = NULL;
   (void)atomic_sub_fetch_64(&g_pDataSinkManager.usedMemSize, pBlock->payloadMemSize);
@@ -1142,18 +1171,22 @@ static int32_t spillScopedCacheBlock(SScopedCacheStore* pStore, SScopedCacheBloc
 static int32_t spillScopedCacheStore(SScopedCacheStore* pStore) {
   int32_t code = taosThreadMutexLock(&pStore->lock);
   if (code != TSDB_CODE_SUCCESS) return code;
-  for (int32_t i = 0; code == TSDB_CODE_SUCCESS && i < STREAM_SCOPED_CACHE_BUCKETS; ++i) {
-    for (SScopedCacheEntry* pEntry = pStore->scopeBuckets[i]; code == TSDB_CODE_SUCCESS && pEntry != NULL;
-         pEntry = pEntry->pNextScope) {
-      for (SScopedCacheBlock* pBlock = pEntry->pBlocks; code == TSDB_CODE_SUCCESS && pBlock != NULL;
-           pBlock = pBlock->pNext) {
-        code = spillScopedCacheBlock(pStore, pBlock);
-      }
-    }
+  while (code == TSDB_CODE_SUCCESS && pStore->pResidentBlocks != NULL) {
+    code = spillScopedCacheBlock(pStore, pStore->pResidentBlocks);
   }
   taosThreadMutexUnlock(&pStore->lock);
   return code;
 }
+
+#ifdef BUILD_TEST
+int64_t dataSinkTestScopedSpillVisits(void* pCache) {
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  taosThreadMutexLock(&pStore->lock);
+  int64_t visits = pStore->spillBlockVisits;
+  taosThreadMutexUnlock(&pStore->lock);
+  return visits;
+}
+#endif
 
 static int32_t restoreScopedCacheSchema(const SScopedCacheEntry* pEntry, SSDataBlock* pBlock) {
   if (taosArrayGetSize(pEntry->pSchema) != taosArrayGetSize(pBlock->pDataBlock)) return TSDB_CODE_INVALID_MSG;
@@ -1575,12 +1608,13 @@ static void commitStagedScopedCacheBlock(SScopedCacheStore* pStore, SScopedCache
   *pEntry->ppBlockTail = pNewBlock;
   pEntry->ppBlockTail = &pNewBlock->pNext;
   pEntry->pLastBlock = pNewBlock;
+  linkResidentScopedCacheBlock(pStore, pNewBlock);
   (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, sizeof(*pNewBlock) + pNewBlock->payloadMemSize);
 }
 
-void commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
+static int32_t commitStreamDataCacheWriteBatchImpl(SStreamDataCacheWriteBatch** ppBatch) {
   if (ppBatch == NULL || *ppBatch == NULL) {
-    return;
+    return TSDB_CODE_SUCCESS;
   }
   SStreamDataCacheWriteBatch* pBatch = *ppBatch;
   SScopedCacheStore*          pStore = pBatch->pCache->pScopedStore;
@@ -1601,6 +1635,7 @@ void commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
       pStore->groupTails[groupBucket] = &pEntry->pNextGroup;
       (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, pEntry->metadataMemSize);
       for (SScopedCacheBlock* pBlock = pEntry->pBlocks; pBlock != NULL; pBlock = pBlock->pNext) {
+        linkResidentScopedCacheBlock(pStore, pBlock);
         (void)atomic_add_fetch_64(&g_pDataSinkManager.usedMemSize, sizeof(*pBlock) + pBlock->payloadMemSize);
       }
       pStaged->pEntry = NULL;
@@ -1622,12 +1657,18 @@ void commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
   taosThreadMutexUnlock(&pStore->lock);
   taosArrayDestroyEx(pBatch->pScopes, destroyStagedScopedCacheScope);
   taosHashCleanup(pBatch->pScopeIndex);
+  int32_t code = TSDB_CODE_SUCCESS;
   if (tsStreamBufferSizeBytes > DS_MEM_SIZE_RESERVED && !hasEnoughMemSize()) {
-    int32_t code = spillScopedCacheStore(pStore);
+    code = spillScopedCacheStore(pStore);
     if (code != TSDB_CODE_SUCCESS) stError("failed to spill scoped cache, err: %s", tstrerror(code));
   }
   taosMemoryFree(pBatch);
   *ppBatch = NULL;
+  return code;
+}
+
+void commitStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
+  (void)commitStreamDataCacheWriteBatchImpl(ppBatch);
 }
 
 void abortStreamDataCacheWriteBatch(SStreamDataCacheWriteBatch** ppBatch) {
@@ -1663,11 +1704,12 @@ int32_t putStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end, void** ppIter) {
+static int32_t getStreamDataCacheScopedImpl(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end,
+                                            void** ppIter, bool snapshot) {
   if (pCache == NULL || pScope == NULL || ppIter == NULL || start > end) {
     return TSDB_CODE_INVALID_PARA;
   }
-  if (taosArrayGetSize(pScope->lineage.pScopes) == 0) {
+  if (!snapshot && taosArrayGetSize(pScope->lineage.pScopes) == 0) {
     return getStreamDataCache(pCache, pScope->gid, start, end, ppIter);
   }
   *ppIter = NULL;
@@ -1712,6 +1754,7 @@ int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, 
       pScoped->pNextBlock = pStored;
       break;
     }
+    pResult->tsColSlotId = pEntry->tsSlotId;
     pScoped->entryId = pEntry->entryId;
     pScoped->pSnapshotLastBlock = pEntry->pLastBlock;
     pScoped->snapshotLastRows = pEntry->pLastBlock == NULL ? 0 : pEntry->pLastBlock->rows;
@@ -1724,6 +1767,10 @@ int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, 
   }
   *ppIter = pResult;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, TSKEY start, TSKEY end, void** ppIter) {
+  return getStreamDataCacheScopedImpl(pCache, pScope, start, end, ppIter, false);
 }
 
 int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope) {
@@ -2468,4 +2515,95 @@ bool changeMgrStatusToMoving(int8_t* pStatus, int8_t mode) {
     }
     return false;
   }
+}
+
+int32_t putStreamDataCacheSnapshot(void* pCache, int64_t sourceId, int32_t tsSlotId, SSDataBlock* pBlock,
+                                   int32_t startIndex, int32_t endIndex) {
+  if (pCache == NULL || pBlock == NULL || tsSlotId < 0 || tsSlotId >= blockDataGetNumOfCols(pBlock) || startIndex < 0 ||
+      endIndex < startIndex || endIndex >= pBlock->info.rows)
+    return TSDB_CODE_INVALID_PARA;
+  SColumnInfoData* pTsCol = taosArrayGet(pBlock->pDataBlock, tsSlotId);
+  if (pTsCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) return TSDB_CODE_INVALID_PARA;
+  SStreamCacheScope  scope = {.gid = sourceId};
+  SScopedCacheStore* pStore = ((SStreamDataCacheBase*)pCache)->pScopedStore;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  for (int32_t start = startIndex; start <= endIndex && code == TSDB_CODE_SUCCESS;) {
+    int32_t                     rows = TMIN(STREAM_SCOPED_CACHE_BLOCK_ROWS, endIndex - start + 1);
+    void*                       pKey = NULL;
+    int32_t                     keyLen = 0;
+    SStreamDataCacheWriteBatch* pBatch = NULL;
+    SStagedScopedCacheScope*    pStaged = NULL;
+    SSDataBlock*                pExtracted = NULL;
+    code = buildScopedCacheKey(&scope, &pKey, &keyLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    // A frozen source owns its schema; a later table patch must not reinterpret it.
+    taosThreadMutexLock(&pStore->lock);
+    SScopedCacheEntry* pExisting = findScopedCacheEntry(pStore, pKey, keyLen);
+    if (pExisting != NULL) {
+      if (pExisting->tsSlotId != tsSlotId || taosArrayGetSize(pExisting->pSchema) != blockDataGetNumOfCols(pBlock)) {
+        code = TSDB_CODE_INVALID_MSG;
+      }
+      for (int32_t col = 0; code == TSDB_CODE_SUCCESS && col < blockDataGetNumOfCols(pBlock); ++col) {
+        const SColumnInfo*     pInfo = taosArrayGet(pExisting->pSchema, col);
+        const SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, col);
+        if (pInfo->colId != pCol->info.colId || pInfo->type != pCol->info.type || pInfo->bytes != pCol->info.bytes ||
+            pInfo->precision != pCol->info.precision || pInfo->scale != pCol->info.scale)
+          code = TSDB_CODE_INVALID_MSG;
+      }
+    }
+    taosThreadMutexUnlock(&pStore->lock);
+    if (code == TSDB_CODE_SUCCESS) code = beginStreamDataCacheWriteBatch(pCache, &pBatch);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pKey);
+      return code;
+    }
+    code = getOrCreateStagedScopedCacheScope(pBatch, sourceId, pKey, keyLen, tsSlotId, pBlock, &pStaged);
+    if (code == TSDB_CODE_SUCCESS) code = blockDataExtractBlock(pBlock, start, rows, &pExtracted);
+    TSKEY minTs = TSKEY_MAX, maxTs = TSKEY_MIN;
+    for (int32_t row = start; code == TSDB_CODE_SUCCESS && row < start + rows; ++row) {
+      if (colDataIsNull_s(pTsCol, row)) {
+        code = TSDB_CODE_INVALID_PARA;
+        break;
+      }
+      TSKEY ts = *(TSKEY*)colDataGetData(pTsCol, row);
+      minTs = TMIN(minTs, ts);
+      maxTs = TMAX(maxTs, ts);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = appendStagedScopedCacheBlock(pStaged, minTs, pExtracted);
+      if (code == TSDB_CODE_SUCCESS) {
+        pExtracted = NULL;
+        pStaged->pEntry->pLastBlock->maxTs = maxTs;
+        code = commitStreamDataCacheWriteBatchImpl(&pBatch);
+      }
+    }
+    blockDataDestroy(pExtracted);
+    abortStreamDataCacheWriteBatch(&pBatch);
+    start += rows;
+  }
+  return code;
+}
+
+int32_t getStreamDataCacheSnapshot(void* pCache, int64_t sourceId, TSKEY start, TSKEY end, void** ppIter) {
+  if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
+  SStreamCacheScope scope = {.gid = sourceId};
+  return getStreamDataCacheScopedImpl(pCache, &scope, start, end, ppIter, true);
+}
+
+int32_t appendStreamDataCacheSnapshot(void* pTarget, int64_t targetSourceId, void* pSource, int64_t sourceId) {
+  if (pTarget == NULL || pSource == NULL || pTarget == pSource) return TSDB_CODE_INVALID_PARA;
+  void*   pIter = NULL;
+  int32_t code = getStreamDataCacheSnapshot(pSource, sourceId, TSKEY_MIN, TSKEY_MAX, &pIter);
+  if (code != TSDB_CODE_SUCCESS || pIter == NULL) return code;
+  int32_t tsSlotId = ((SResultIter*)pIter)->tsColSlotId;
+  while (pIter != NULL && code == TSDB_CODE_SUCCESS) {
+    SSDataBlock* pBlock = NULL;
+    code = getNextStreamDataCache(&pIter, &pBlock);
+    if (code == TSDB_CODE_SUCCESS && pBlock != NULL) {
+      code = putStreamDataCacheSnapshot(pTarget, targetSourceId, tsSlotId, pBlock, 0, pBlock->info.rows - 1);
+    }
+    blockDataDestroy(pBlock);
+  }
+  cancelStreamDataCacheIterate(&pIter);
+  return code;
 }

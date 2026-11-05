@@ -1133,6 +1133,57 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
 // Force PERIOD's "fire regardless of new data" semantics onto groupsToCheck.
 static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext);
+
+typedef struct SSTriggerPeriodInput {
+  SStreamTaskAddr           address;
+  SSTriggerPullRequestUnion request;
+  SSTriggerPeriodCycle     *pCycle;
+  uint64_t                  generation;
+  uint64_t                  batchToken;
+  int64_t                   nextVer;
+  int64_t                   issuedAt;
+  int64_t                   nextPoll;
+  bool                      inFlight;
+  bool                      retry;
+  bool                      caughtUp;
+  bool                      atCutoff;
+  int64_t                   pendingVerTime;
+  int64_t                   pendingTbVer;
+  SArray                   *pVersions;
+  SSHashObj                *pRanges;
+  SSDataBlock              *pBlock;
+  SArray                   *pSlices;
+} SSTriggerPeriodInput;
+
+struct SSTriggerPeriodState {
+  SSHashObj            *pInputs;
+  SSTriggerPeriodCycle *pCollecting;
+  SSTriggerPeriodCycle *pPending;
+  SSTriggerPeriodCycle *pDispatch;
+  SSTriggerPeriodInput *pReceiving;
+  bool                  dispatchDone;
+  bool                  idleChecked;
+};
+
+static int32_t stRealtimePeriodPoll(SSTriggerRealtimeContext *pContext, int64_t now);
+static bool    stRealtimePeriodHasExtPulls(SSTriggerRealtimeContext *pContext);
+static int32_t stRealtimePeriodBindGroup(SSTriggerRealtimeGroup *pGroup, SSTriggerPeriodCycle *pCycle);
+static int32_t stRealtimePeriodPrepareCalc(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup);
+static int32_t stRealtimePeriodSetMerger(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup,
+                                         int64_t virtualUid, STimeWindow *pRange);
+static int32_t stRealtimePeriodFinishBatch(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                           int64_t now);
+static int32_t stRealtimePeriodPrepareData(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                           int64_t now);
+static int32_t stRealtimePeriodSaveData(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                        SRpcMsg *pRsp);
+
+static int32_t               stRealtimePeriodDispatch(SSTriggerRealtimeContext *pContext, int64_t now, bool *pReady);
+static void                  stRealtimePeriodDestroyState(SSTriggerPeriodState **ppState);
+static SSTriggerPeriodInput *stRealtimePeriodFindInput(SSTriggerRealtimeContext *pContext, void *pRequest);
+static int32_t               stRealtimePeriodProcRsp(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                                     SSTriggerAHandle *pAhandle, SRpcMsg *pRsp, int64_t now);
+
 static int32_t stRealtimeContextCheckForTurn(SSTriggerRealtimeContext *pContext, int64_t nowNs);
 static int32_t stRealtimeContextPrepareNotifyName(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup,
                                                   bool *pReady);
@@ -1263,6 +1314,7 @@ typedef struct SSTriggerOrigColumnInfo {
 typedef enum {
   STREAM_TRIGGER_WAIT_GENERIC = 0,
   STREAM_TRIGGER_WAIT_CALC_RETRY,
+  STREAM_TRIGGER_WAIT_PERIOD_POLL,
 } EStreamTriggerWaitReason;
 
 typedef struct StreamTriggerWaitInfo {
@@ -2179,6 +2231,20 @@ static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, i
       .reason = reason,
   };
   taosWLockLatch(&gStreamTriggerWaitLatch);
+  if (reason == STREAM_TRIGGER_WAIT_PERIOD_POLL) {
+    SListIter  iter = {0};
+    SListNode *pNode = NULL;
+    tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
+    while ((pNode = tdListNext(&iter)) != NULL) {
+      StreamTriggerWaitInfo *pWait = (StreamTriggerWaitInfo *)pNode->data;
+      if (pWait->streamId == info.streamId && pWait->taskId == info.taskId && pWait->sessionId == info.sessionId &&
+          pWait->reason == reason) {
+        pWait->resumeTime = TMIN(pWait->resumeTime, resumeTime);
+        taosWUnLockLatch(&gStreamTriggerWaitLatch);
+        return TSDB_CODE_SUCCESS;
+      }
+    }
+  }
   code = tdListAppend(&gStreamTriggerWaitList, &info);
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -13497,6 +13563,17 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       QUERY_CHECK_CODE(code, lino, _end);
       goto _end;
     }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_PERIOD_INPUT) {
+      SSTriggerPeriodInput *pPeriodInput = stRealtimePeriodFindInput(pTask->pRealtimeContext, pAhandle->param);
+      if (pPeriodInput == NULL || !pPeriodInput->inFlight || pAhandle->requestGeneration != pPeriodInput->generation ||
+          pAhandle->requestType != pPeriodInput->request.base.type)
+        goto _end;
+      code = stRealtimePeriodProcRsp(pTask->pRealtimeContext, pPeriodInput, pAhandle, pRsp, taosGetTimestampNs());
+      retryScheduled = pPeriodInput->retry;
+      if (retryScheduled) *pErrTaskId = pPeriodInput->address.taskId;
+      localFailure = code != TSDB_CODE_SUCCESS && !retryScheduled;
+      goto _end;
+    }
     QUERY_CHECK_CONDITION(pAhandle->paramType == STRIGGER_AHANDLE_PARAM_PULL_REQUEST, code, lino, _end,
                           TSDB_CODE_INVALID_MSG);
     SSTriggerPullRequest *pReq = pAhandle->param;
@@ -13649,7 +13726,11 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       case TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND:
       case TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY: {
         // todo(kjq): retry calc request when trigger could clear data cache manually
-        if (pRsp->code != TSDB_CODE_SUCCESS && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS)) {
+        bool periodSnapshotRetry = pRsp->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY &&
+                                   pTask->pRealtimeContext != NULL && pTask->pRealtimeContext->pPeriod != NULL &&
+                                   pReq->sessionId == pTask->pRealtimeContext->sessionId;
+        if (pRsp->code != TSDB_CODE_SUCCESS && (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) &&
+            !periodSnapshotRetry) {
           *pErrTaskId = pReq->runnerTaskId;
           int32_t responseCode = pRsp->code;
           code = stTriggerTaskReleaseRequest(pTask, &pReq, false);
@@ -15907,6 +15988,11 @@ static int32_t stRealtimeContextFinishVtablePatch(SSTriggerRealtimeContext *pCon
   }
   stRealtimeContextResetPatchContext(pContext);
   ST_TASK_DLOG("finished virtual table patch, externalEntries:%d", (int32_t)TARRAY_SIZE(pTask->pExtOrigTableRefs));
+  if (pContext->pPeriod != NULL) {
+    // The patch barrier has drained every old-layout batch. Later input must not
+    // share either its source cache schema or its binding with earlier input.
+    ++pContext->pPeriod->pCollecting->bindingGeneration;
+  }
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -16940,6 +17026,7 @@ static void stRealtimeContextDestroy(void *ptr) {
   if (pContext->pCalcMerger != NULL) {
     stNewVtableMergerDestroy(&pContext->pCalcMerger);
   }
+  stRealtimePeriodDestroyState(&pContext->pPeriod);
 
   colDataDestroy(&pContext->stateCol);
   colDataDestroy(&pContext->eventStartCol);
@@ -19175,7 +19262,9 @@ static int32_t stAppendOrdinaryGroupReadInfoForNode(SSTriggerCalcRequest *pReq, 
 static int32_t stAppendOrdinaryGroupReadInfos(SSTriggerCalcRequest *pReq, const SSTriggerRealtimeGroup *pGroup,
                                               const SArray *pParams) {
   const SStreamTriggerTask *pTask = pGroup == NULL || pGroup->pContext == NULL ? NULL : pGroup->pContext->pTask;
-  if (pReq == NULL || pTask == NULL || pGroup->pWalMetas == NULL || tSimpleHashGetSize(pGroup->pWalMetas) == 0 ||
+  if (pReq == NULL || pTask == NULL ||
+      (pGroup->pContext->pPeriod == NULL &&
+       (pGroup->pWalMetas == NULL || tSimpleHashGetSize(pGroup->pWalMetas) == 0)) ||
       pTask->readerList == NULL || taosArrayGetSize(pTask->readerList) == 0) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -19273,7 +19362,9 @@ static int32_t stRealtimeGroupMovePendingCalc(SSTriggerRealtimeGroup *pGroup, SO
   *pMoved = 0;
   while (*pMoved < limit) {
     SSTriggerCalcParam *pSource = taosObjListGetHead(pPending);
-    if (pSource == NULL || pSource->wend >= endExclusive) break;
+    // A scheduled PERIOD is closed even though its event-time range has no upper bound.
+    bool unboundedPeriod = pGroup->pContext->pPeriod != NULL && endExclusive == INT64_MAX;
+    if (pSource == NULL || (!unboundedPeriod && pSource->wend >= endExclusive)) break;
     SSTriggerCalcParam *pTarget = taosArrayPush(pGroupCalc->pParams, pSource);
     if (pTarget == NULL) return terrno;
     ++pGroup->pContext->pCalcReq->assembledParamCount;
@@ -19366,8 +19457,9 @@ static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, 
   if (*pAppended > 0) {
     stTaskStatsRecordTriggerEvent(pTask->pStats, STREAM_TRIGGER_EVENT_LOGICAL_WINDOW, (uint64_t)*pAppended,
                                   streamTaskGetMonotonicUs());
-    bool completeRoute = pGroup->pWalMetas != NULL && tSimpleHashGetSize(pGroup->pWalMetas) > 0 &&
-                         pTask->readerList != NULL && taosArrayGetSize(pTask->readerList) > 0;
+    bool completeRoute =
+        (pContext->pPeriod != NULL || (pGroup->pWalMetas != NULL && tSimpleHashGetSize(pGroup->pWalMetas) > 0)) &&
+        pTask->readerList != NULL && taosArrayGetSize(pTask->readerList) > 0;
     if (completeRoute) {
       code = stAppendOrdinaryGroupReadInfos(pContext->pCalcReq, pGroup, pGroupCalc->pParams);
       if (code != TSDB_CODE_SUCCESS) return code;
@@ -19606,6 +19698,12 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
       goto _end;
     }
 
+    if (pContext->pPeriod != NULL && !pContext->calcWalPulled) {
+      code = stRealtimePeriodPrepareCalc(pContext, pGroup);
+      QUERY_CHECK_CODE(code, lino, _end);
+      pContext->calcWalPulled = true;
+    }
+
     if (hasWalProgress && !pContext->calcWalPulled) {
       tSimpleHashClear(pContext->pRanges);
       if (pTask->isVirtualTable) {
@@ -19693,7 +19791,14 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
         if (pContext->needPseudoCols || pDataBlock == NULL || startIdx >= endIdx) {
           break;
         }
-        if (pTask->isVirtualTable || pContext->pReaderExtProgress != NULL) {
+        if (pContext->pPeriod != NULL) {
+          bool versionColumn = !pTask->isVirtualTable && !stRealtimeContextHasExtProgress(pContext);
+          if (versionColumn) TARRAY_SIZE(pDataBlock->pDataBlock)--;
+          code = putStreamDataCacheSnapshot(pContext->pCalcDataCache, pGroup->gid, pTask->calcTsIndex, pDataBlock,
+                                            startIdx, endIdx - 1);
+          if (versionColumn) TARRAY_SIZE(pDataBlock->pDataBlock)++;
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (pTask->isVirtualTable || pContext->pReaderExtProgress != NULL) {
           /* Virtual-table and EXT streams: data block has no trailing metadata column.
            * Pass it to the cache as-is, without the TARRAY_SIZE-- strip used for
            * WAL-sourced blocks (which carry an extra _wstart/last_row_ts column). */
@@ -20791,6 +20896,8 @@ static int32_t stRealtimeContextCheckExt(SSTriggerRealtimeContext *pContext, int
  * stRealtimeContextProcExtPullRsp and the readerless PERIOD case below.
  */
 static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext) {
+  // Continuous PERIOD already froze the force-fire group set at the boundary.
+  if (pContext->pPeriod != NULL) return TSDB_CODE_SUCCESS;
   int32_t             code  = TSDB_CODE_SUCCESS;
   int32_t             lino  = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -20931,6 +21038,12 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     }
   }
 
+  if (pContext->pPeriod != NULL) {
+    code = stRealtimePeriodPoll(pContext, now);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pContext->pPeriod->pDispatch != NULL && stRealtimePeriodHasExtPulls(pContext)) goto _end;
+  }
+
   if (listNEles(&pContext->retryPullReqs) > 0) {
     while (listNEles(&pContext->retryPullReqs) > 0) {
       SListNode            *pNode = TD_DLIST_HEAD(&pContext->retryPullReqs);
@@ -21035,7 +21148,22 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     }
   }
 
-  if (IS_PATCHING_VITRUAL_TABLE(pContext)) {
+  bool periodPatchBusy = false;
+  if (IS_PATCHING_VITRUAL_TABLE(pContext) && pContext->pPeriod != NULL) {
+    int32_t               iter = 0;
+    SSTriggerPeriodInput *pInput = tSimpleHashIterate(pContext->pPeriod->pInputs, NULL, &iter);
+    while (pInput != NULL) {
+      SSTriggerPeriodReader *pReader =
+          tSimpleHashGet(pInput->pCycle->pReaders, &pInput->address.nodeId, sizeof(int32_t));
+      periodPatchBusy = periodPatchBusy || pInput->inFlight || pReader->pendingToken != 0;
+      pInput = tSimpleHashIterate(pContext->pPeriod->pInputs, pInput, &iter);
+    }
+    // Let the active calculation drain without overwriting its shared status with GATHER_VTABLE_INFO.
+    bool dispatchBusy = pContext->pPeriod->pDispatch != NULL && !pContext->pPeriod->dispatchDone;
+    if (periodPatchBusy && !dispatchBusy) goto _end;
+    periodPatchBusy = periodPatchBusy || dispatchBusy;
+  }
+  if (IS_PATCHING_VITRUAL_TABLE(pContext) && !periodPatchBusy) {
     int64_t waitingReqId = atomic_load_64(&pTask->waitingMgmtReqId);
     if (waitingReqId != -1) {
       ST_TASK_DLOG("wait virtual table patch mgmt response, reqId:%" PRId64, waitingReqId);
@@ -21228,6 +21356,16 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
       goto _end;
     }
 
+    if (hasWalProgress) {
+      code = stRealtimePeriodPoll(pContext, now);
+      QUERY_CHECK_CODE(code, lino, _end);
+      bool ready = false;
+      code = stRealtimePeriodDispatch(pContext, now, &ready);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!ready) goto _end;
+      goto _check;
+    }
+
     // check if to start for period trigger
     if (pContext->periodWindow.skey == INT64_MIN) {
       pContext->periodWindow = stTriggerTaskGetTimeWindow(pTask, now);
@@ -21275,8 +21413,8 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     }
   }
 
-  if (pContext->needAlignWalForExtTrigger && hasWalProgress && TD_DLIST_NELES(&pContext->groupsToCheck) > 0 &&
-      pContext->status == STRIGGER_CONTEXT_FETCH_META) {
+  if (pContext->pPeriod == NULL && pContext->needAlignWalForExtTrigger && hasWalProgress &&
+      TD_DLIST_NELES(&pContext->groupsToCheck) > 0 && pContext->status == STRIGGER_CONTEXT_FETCH_META) {
     pContext->needAlignWalForExtTrigger = false;
     ST_TASK_DLOG("ext: align mixed WAL trigger data before checking groups:%" PRId64,
                  (int64_t)TD_DLIST_NELES(&pContext->groupsToCheck));
@@ -21291,6 +21429,12 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   }
 
 _check:
+  if (pContext->pPeriod != NULL && pContext->pPeriod->pDispatch != NULL && !pContext->pPeriod->idleChecked) {
+    code = stRealtimeContextCheckIdleGroup(pContext, now);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (pContext->notifyGroupColValuePending) goto _end;
+    pContext->pPeriod->idleChecked = true;
+  }
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0 && pContext->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST &&
          pContext->status != STRIGGER_CONTEXT_SEND_CALC_REQ) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
@@ -21458,8 +21602,9 @@ _check:
       continue;
     }
     if (pTask->multiGroupBatch) {
-      bool completeRoute = pGroup->pWalMetas != NULL && tSimpleHashGetSize(pGroup->pWalMetas) > 0 &&
-                           pTask->readerList != NULL && taosArrayGetSize(pTask->readerList) > 0;
+      bool completeRoute =
+          (pContext->pPeriod != NULL || (pGroup->pWalMetas != NULL && tSimpleHashGetSize(pGroup->pWalMetas) > 0)) &&
+          pTask->readerList != NULL && taosArrayGetSize(pTask->readerList) > 0;
       if (stTriggerTaskNeedGroupColVals(pTask, true)) {
         void *px = tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(pGroup->gid));
         if (px == NULL) {
@@ -21780,7 +21925,13 @@ _calc_done:
   code = stRealtimeContextAddUserRecalc(pContext);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+  if (pContext->pPeriod != NULL) {
+    pContext->pPeriod->dispatchDone = noPendingCalc;
+    pContext->status = STRIGGER_CONTEXT_IDLE;
+    code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, now + STREAM_TRIGGER_IDLE_TIME_NS,
+                                                STREAM_TRIGGER_WAIT_PERIOD_POLL);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     stTriggerTaskNextTimeWindow(pTask, &pContext->periodWindow);
     pContext->status = STRIGGER_CONTEXT_IDLE;
     code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, pContext->periodWindow.ekey);
@@ -21906,7 +22057,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                     stTriggerTaskInternalReaderDataKey(0, pVirtTableInfo->tbUid, pVirtTableInfo->vgId);
                 code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs);
                 QUERY_CHECK_CODE(code, lino, _end);
-                if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+                if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
+                    stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
                   TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
                 }
                 matchedNestedGroup = true;
@@ -21937,7 +22089,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                 stTriggerTaskInternalReaderDataKey(pOrigTableInfo->tbSuid, pOrigTableInfo->tbUid, vgId);
             code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs);
             QUERY_CHECK_CODE(code, lino, _end);
-            if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+            if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
+                stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
               TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
             }
           }
@@ -21972,7 +22125,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
         SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
         code = stRealtimeGroupAddMeta(pGroup, vgId, NULL, &meta, nowNs);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+        if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) && stRealtimeGroupNeedCheck(pGroup) &&
+            !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -22028,7 +22182,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                          range.skey, range.ekey);
             code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, false, false, 0);
             QUERY_CHECK_CODE(code, lino, _end);
-            if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+            if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
+                stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
               TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
             }
           }
@@ -22057,7 +22212,8 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                      range.skey, range.ekey);
         code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, false, false, 0);
         QUERY_CHECK_CODE(code, lino, _end);
-        if (stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
+        if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) && stRealtimeGroupNeedCheck(pGroup) &&
+            !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
           TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
         }
       }
@@ -22162,7 +22318,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
   }
 
 _end:
-  if (code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS && (pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL)) {
     stTriggerTaskUpdateReaderProgress(pTask, pProgress);
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -27193,16 +27349,12 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
   }
 }
 
-static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
-                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta,
-                                      int64_t nowNs) {
+static int32_t stRealtimeGroupRecordInput(SSTriggerRealtimeGroup *pGroup, int64_t nowNs) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
-  SObjList                 *pMetas = NULL;
   bool                      nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
-
   // Update idle trigger timestamps when receiving data
   if (pTask->idleTimeoutMs > 0 && !pContext->recovering) {
     int64_t prevRecvTimeMono = pGroup->lastRecvTimeMono;
@@ -27273,6 +27425,40 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
     code = stRealtimeContextAppendIdleList(pContext, pGroup);
     QUERY_CHECK_CODE(code, lino, _end);
   }
+
+_end:
+  return code;
+}
+
+static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
+                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta,
+                                      int64_t nowNs) {
+  int32_t                   code = TSDB_CODE_SUCCESS;
+  int32_t                   lino = 0;
+  SSTriggerRealtimeContext *pContext = pGroup->pContext;
+  SStreamTriggerTask       *pTask = pContext->pTask;
+  SObjList                 *pMetas = NULL;
+  bool                      nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+
+  if (pContext->pPeriod != NULL && pContext->pPeriod->pReceiving != NULL) {
+    SSTriggerPeriodInput *pInput = pContext->pPeriod->pReceiving;
+    code = stRealtimePeriodBindGroup(pGroup, pInput->pCycle);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    return stRealtimePeriodCollectMeta(pInput->pCycle, pInput->address.nodeId, pInput->batchToken, pGroup->gid,
+                                       pGroup->vgId);
+  }
+
+  if (pContext->pPeriod != NULL && pContext->pPeriod->pDispatch != NULL) {
+    SSTriggerPeriodCycle *pCycle = pContext->pPeriod->pDispatch;
+    SSTriggerPeriodGroup  group = {.vgId = pGroup->vgId, .hasInput = true};
+    code = tSimpleHashPut(pCycle->pGroups, &pGroup->gid, sizeof(pGroup->gid), &group, sizeof(group));
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stRealtimePeriodBindGroup(pGroup, pCycle);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  code = stRealtimeGroupRecordInput(pGroup, nowNs);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   if (!pTask->isVirtualTable) {
     pGroup->vgId = vgId;
@@ -28627,7 +28813,7 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         SSTriggerDataSlice *pSlice = tSimpleHashGet(pContext->pSlices, pKey, keyLen);
         QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
         SObjList *pMetas = tSimpleHashGet(pGroup->pWalMetas, &vgId, sizeof(int32_t));
-        if (pMetas == NULL || pContext->pReaderExtProgress != NULL) {
+        if (pSlice->pSnapshotCache == NULL && (pMetas == NULL || pContext->pReaderExtProgress != NULL)) {
           /* EXT stream: data in pSlices covers the full calcRange, not a single
            * 1-minute window.  Filter rows to [pCurParam->wstart, pCurParam->wend]
            * by timestamp. External sources are not required to return each uid
@@ -28697,8 +28883,11 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
       if (!pContext->pCalcMerger->inUse) {
         SSTriggerVirtualTableSliceRef *pRef = taosObjListGetHead(&pContext->pCalcTableUids);
         int64_t                         vtbUid = pRef->virtualUid;
-        SSTriggerVirtTableInfo *pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(int64_t));
-        QUERY_CHECK_NULL(pInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        SSTriggerVirtTableInfo         *pInfo = NULL;
+        if (pContext->pPeriod == NULL) {
+          pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(vtbUid));
+          QUERY_CHECK_NULL(pInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        }
         if (stNewVtableMergerNeedPseudoCols(pContext->pCalcMerger)) {
           pContext->needPseudoCols = true;
           break;
@@ -28714,9 +28903,13 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
         } else if (!allowOverlap && TARRAY_DATA(pContext->pCalcReq->params) != pContext->pCurParam) {
           range.skey = TMAX(range.skey, (pContext->pCurParam - 1)->wend + 1);
         }
-        code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
-                                        &pContext->pCalcTableUids, pInfo->pCalcColRefs, pGroup->pWalMetas,
-                                        pContext->pSlices, NULL, stTriggerTaskRequiresOrderedInput(pTask));
+        if (pContext->pPeriod != NULL) {
+          code = stRealtimePeriodSetMerger(pContext, pGroup, vtbUid, &range);
+        } else {
+          code = stNewVtableMergerSetData(pContext->pCalcMerger, vtbUid, pTask->calcTsIndex, pTask->calcPkIndex, &range,
+                                          &pContext->pCalcTableUids, pInfo->pCalcColRefs, pGroup->pWalMetas,
+                                          pContext->pSlices, NULL, stTriggerTaskRequiresOrderedInput(pTask));
+        }
         QUERY_CHECK_CODE(code, lino, _end);
       }
       code = stNewVtableMergerNextDataBlock(pContext->pCalcMerger, ppDataBlock, pStartIdx, pEndIdx);
@@ -33923,4 +34116,815 @@ static int32_t stHistoryGroupRetrievePendingCalc(SSTriggerHistoryGroup *pGroup) 
   if (requestCount >= STREAM_CALC_REQ_MAX_WIN_NUM) return TSDB_CODE_SUCCESS;
   int32_t appended = 0;
   return stHistoryGroupAppendPendingCalc(pGroup, STREAM_CALC_REQ_MAX_WIN_NUM - requestCount, &appended);
+}
+
+int32_t stRealtimePeriodCreate(int64_t streamId, int64_t taskId, int64_t sessionId, STimeWindow window,
+                               SSTriggerPeriodCycle **ppCycle) {
+  SSTriggerPeriodCycle *pCycle = taosMemoryCalloc(1, sizeof(*pCycle));
+  if (pCycle == NULL) return terrno;
+  pCycle->window = window;
+  pCycle->streamId = streamId;
+  pCycle->taskId = taskId;
+  pCycle->sessionId = sessionId;
+  pCycle->pGroups = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pCycle->pSources = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pCycle->pReaders = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (pCycle->pGroups == NULL || pCycle->pSources == NULL || pCycle->pReaders == NULL) {
+    int32_t code = terrno;
+    stRealtimePeriodDestroy(&pCycle);
+    return code;
+  }
+  *ppCycle = pCycle;
+  return TSDB_CODE_SUCCESS;
+}
+
+void stRealtimePeriodDestroy(SSTriggerPeriodCycle **ppCycle) {
+  if (ppCycle == NULL || *ppCycle == NULL) return;
+  SSTriggerPeriodCycle *pCycle = *ppCycle;
+  destroyStreamDataCache(pCycle->pDataCache);
+  tSimpleHashCleanup(pCycle->pGroups);
+  tSimpleHashCleanup(pCycle->pSources);
+  tSimpleHashCleanup(pCycle->pBindings);
+  tSimpleHashCleanup(pCycle->pReaders);
+  taosMemoryFreeClear(*ppCycle);
+}
+
+int32_t stRealtimePeriodBeginBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t firstVer,
+                                   int64_t nextVer, bool *pAccepted) {
+  *pAccepted = false;
+  if (pCycle->sealed || token == 0 || nextVer < firstVer) return TSDB_CODE_INVALID_PARA;
+  SSTriggerPeriodReader *pReader = tSimpleHashGet(pCycle->pReaders, &readerId, sizeof(readerId));
+  if (pReader == NULL) {
+    SSTriggerPeriodReader reader = {.nextVer = firstVer};
+    int32_t               code = tSimpleHashPut(pCycle->pReaders, &readerId, sizeof(readerId), &reader, sizeof(reader));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pReader = tSimpleHashGet(pCycle->pReaders, &readerId, sizeof(readerId));
+  }
+  if (token <= pReader->committedToken || token == pReader->pendingToken) return TSDB_CODE_SUCCESS;
+  if (pReader->pendingToken != 0 || firstVer != pReader->nextVer) return TSDB_CODE_INVALID_PARA;
+  pReader->pendingToken = token;
+  pReader->pendingVer = nextVer;
+  pReader->atCutoff = false;
+  *pAccepted = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSTriggerPeriodReader *stRealtimePeriodBatchReader(SSTriggerPeriodCycle *pCycle, int32_t readerId,
+                                                          uint64_t token) {
+  SSTriggerPeriodReader *pReader = tSimpleHashGet(pCycle->pReaders, &readerId, sizeof(readerId));
+  return !pCycle->sealed && token != 0 && pReader != NULL && pReader->pendingToken == token ? pReader : NULL;
+}
+
+int32_t stRealtimePeriodCollectMeta(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t gid,
+                                    int32_t vgId) {
+  SSTriggerPeriodReader *pReader = stRealtimePeriodBatchReader(pCycle, readerId, token);
+  if (pReader == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+  SSTriggerPeriodGroup group = {.vgId = vgId, .hasInput = true};
+  pReader->error = tSimpleHashPut(pCycle->pGroups, &gid, sizeof(gid), &group, sizeof(group));
+  return pReader->error;
+}
+
+int32_t stRealtimePeriodCollectData(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token,
+                                    const SSTriggerPeriodSourceKey *pKey, SSDataBlock *pBlock, int32_t startIdx,
+                                    int32_t endIdx, int32_t tsSlotId) {
+  SSTriggerPeriodReader *pReader = stRealtimePeriodBatchReader(pCycle, readerId, token);
+  if (pReader == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+  if (pCycle->pDataCache == NULL) {
+    pReader->error = createDetachedStreamDataCache(pCycle->streamId, pCycle->taskId, pCycle->sessionId,
+                                                   DATA_CLEAN_IMMEDIATE, 0, &pCycle->pDataCache);
+    if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+  }
+  int64_t *pSourceId = tSimpleHashGet(pCycle->pSources, pKey, sizeof(*pKey));
+  if (pSourceId == NULL) {
+    int64_t sourceId = tSimpleHashGetSize(pCycle->pSources) + 1;
+    pReader->error = tSimpleHashPut(pCycle->pSources, pKey, sizeof(*pKey), &sourceId, sizeof(sourceId));
+    if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+    pSourceId = tSimpleHashGet(pCycle->pSources, pKey, sizeof(*pKey));
+  }
+  pReader->error = putStreamDataCacheSnapshot(pCycle->pDataCache, *pSourceId, tsSlotId, pBlock, startIdx, endIdx - 1);
+  return pReader->error;
+}
+
+int32_t stRealtimePeriodCommitBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, bool atCutoff) {
+  SSTriggerPeriodReader *pReader = stRealtimePeriodBatchReader(pCycle, readerId, token);
+  if (pReader == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+  pReader->nextVer = pReader->pendingVer;
+  pReader->committedToken = token;
+  pReader->pendingToken = 0;
+  pReader->atCutoff = atCutoff;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t stRealtimePeriodSeal(SSTriggerPeriodCycle *pCycle, bool *pSealed) {
+  *pSealed = false;
+  int32_t                iter = 0;
+  SSTriggerPeriodReader *pReader = tSimpleHashIterate(pCycle->pReaders, NULL, &iter);
+  while (pReader != NULL) {
+    if (pReader->error != TSDB_CODE_SUCCESS) return pReader->error;
+    if (pReader->pendingToken != 0 || !pReader->atCutoff) return TSDB_CODE_SUCCESS;
+    pReader = tSimpleHashIterate(pCycle->pReaders, pReader, &iter);
+  }
+  pCycle->sealed = true;
+  *pSealed = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSTriggerPeriodInput *stRealtimePeriodFindInput(SSTriggerRealtimeContext *pContext, void *pRequest) {
+  if (pContext == NULL || pContext->pPeriod == NULL) return NULL;
+  int32_t               iter = 0;
+  SSTriggerPeriodInput *pInput = tSimpleHashIterate(pContext->pPeriod->pInputs, NULL, &iter);
+  while (pInput != NULL) {
+    if (&pInput->request.base == pRequest) return pInput;
+    pInput = tSimpleHashIterate(pContext->pPeriod->pInputs, pInput, &iter);
+  }
+  return NULL;
+}
+
+static void stRealtimePeriodDestroyState(SSTriggerPeriodState **ppState) {
+  SSTriggerPeriodState *pState = *ppState;
+  if (pState == NULL) return;
+  stRealtimePeriodDestroy(&pState->pCollecting);
+  stRealtimePeriodDestroy(&pState->pDispatch);
+  stRealtimePeriodDestroy(&pState->pPending);
+  int32_t               iter = 0;
+  SSTriggerPeriodInput *pInput = tSimpleHashIterate(pState->pInputs, NULL, &iter);
+  while (pInput != NULL) {
+    taosArrayDestroy(pInput->pVersions);
+    tSimpleHashCleanup(pInput->pRanges);
+    taosArrayDestroy(pInput->pSlices);
+    blockDataDestroy(pInput->pBlock);
+    pInput = tSimpleHashIterate(pState->pInputs, pInput, &iter);
+  }
+  tSimpleHashCleanup(pState->pInputs);
+  taosMemoryFreeClear(*ppState);
+}
+
+static int32_t stRealtimePeriodStartCycle(SSTriggerRealtimeContext *pContext, STimeWindow window) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodState *pState = pContext->pPeriod;
+  int32_t code = stRealtimePeriodCreate(pTask->task.streamId, pTask->task.taskId, pContext->sessionId, window,
+                                        &pState->pCollecting);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  int32_t               iter = 0;
+  SSTriggerPeriodInput *pInput = tSimpleHashIterate(pState->pInputs, NULL, &iter);
+  while (pInput != NULL) {
+    // Register every reader before any reply can seal the cycle.
+    SSTriggerPeriodReader reader = {.nextVer = pInput->nextVer};
+    code = tSimpleHashPut(pState->pCollecting->pReaders, &pInput->address.nodeId, sizeof(int32_t), &reader,
+                          sizeof(reader));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pInput->pCycle = pState->pCollecting;
+    pInput->nextPoll = 0;
+    pInput = tSimpleHashIterate(pState->pInputs, pInput, &iter);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodInitState(SSTriggerRealtimeContext *pContext, int64_t now) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodState *pState = taosMemoryCalloc(1, sizeof(*pState));
+  if (pState == NULL) return terrno;
+  pContext->pPeriod = pState;
+  pState->pInputs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (pState->pInputs == NULL) return terrno;
+  STimeWindow window = pContext->periodWindow;
+  if (window.skey == INT64_MIN) window = stTriggerTaskGetTimeWindow(pTask, now);
+  return stRealtimePeriodStartCycle(pContext, window);
+}
+
+static int32_t stRealtimePeriodSyncReaders(SSTriggerRealtimeContext *pContext) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodState *pState = pContext->pPeriod;
+  int32_t               iter = 0;
+  SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
+  while (pProgress != NULL) {
+    SStreamTaskAddr      *pAddress = pProgress->pTaskAddr;
+    SSTriggerPeriodInput *pInput = tSimpleHashGet(pState->pInputs, &pAddress->nodeId, sizeof(int32_t));
+    if (pInput == NULL) {
+      SSTriggerPeriodInput input = {
+          .address = *pAddress, .pCycle = pState->pCollecting, .nextVer = pProgress->lastScanVer};
+      input.request.base.streamId = pTask->task.streamId;
+      input.request.base.triggerTaskId = pTask->task.taskId;
+      input.request.base.sessionId = pContext->sessionId;
+      input.request.base.readerTaskId = pAddress->taskId;
+      int32_t code = tSimpleHashPut(pState->pInputs, &pAddress->nodeId, sizeof(int32_t), &input, sizeof(input));
+      if (code != TSDB_CODE_SUCCESS) return code;
+      SSTriggerPeriodReader reader = {.nextVer = input.nextVer};
+      code = tSimpleHashPut(pState->pCollecting->pReaders, &pAddress->nodeId, sizeof(int32_t), &reader, sizeof(reader));
+      if (code != TSDB_CODE_SUCCESS) return code;
+    } else if (!pInput->inFlight && !pInput->retry) {
+      pInput->address = *pAddress;
+      pInput->request.base.readerTaskId = pAddress->taskId;
+    }
+    pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, pProgress, &iter);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodSend(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput, int64_t now,
+                                    bool newBatch) {
+  int32_t               code = TSDB_CODE_SUCCESS;
+  int32_t               lino = 0;
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPullRequest *pReq = &pInput->request.base;
+  SRpcMsg               msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  if (newBatch) {
+    pReq->type = STRIGGER_PULL_WAL_META_NEW;
+    pInput->request.walMetaNewReq.lastVer = pInput->nextVer;
+    pInput->request.walMetaNewReq.ctime = pInput->pCycle->window.ekey;
+    pInput->batchToken++;
+    bool accepted = false;
+    code = stRealtimePeriodBeginBatch(pInput->pCycle, pInput->address.nodeId, pInput->batchToken, pInput->nextVer,
+                                      pInput->nextVer, &accepted);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(accepted, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  }
+  pInput->generation = (uint64_t)tGenIdPI64();
+  if (pReq->type == STRIGGER_PULL_WAL_META_NEW) pInput->issuedAt = now;
+  code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, 0, 0, &msg.info.ahandle);
+  QUERY_CHECK_CODE(code, lino, _end);
+  SSTriggerAHandle *pAhandle = ((SMsgSendInfo *)msg.info.ahandle)->param;
+  pAhandle->paramType = STRIGGER_AHANDLE_PARAM_PERIOD_INPUT;
+  pAhandle->requestGeneration = pInput->generation;
+  pAhandle->requestType = pReq->type;
+  msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
+  QUERY_CHECK_CONDITION(msg.contLen > 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  msg.contLen += sizeof(SMsgHead);
+  msg.pCont = rpcMallocCont(msg.contLen);
+  QUERY_CHECK_NULL(msg.pCont, code, lino, _end, terrno);
+  SMsgHead *pHead = msg.pCont;
+  pHead->contLen = htonl(msg.contLen);
+  pHead->vgId = htonl(pInput->address.nodeId);
+  int32_t len =
+      tSerializeSTriggerPullRequest((char *)msg.pCont + sizeof(SMsgHead), msg.contLen - sizeof(SMsgHead), pReq);
+  QUERY_CHECK_CONDITION(len == msg.contLen - sizeof(SMsgHead), code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  TRACE_SET_ROOTID(&msg.info.traceId, pTask->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+  pInput->inFlight = true;
+  pInput->retry = false;
+  code = tmsgSendReq(&pInput->address.epset, &msg);
+  QUERY_CHECK_CODE(code, lino, _end);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    pInput->inFlight = false;
+    destroyAhandle(msg.info.ahandle);
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stRealtimePeriodPoll(SSTriggerRealtimeContext *pContext, int64_t now) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  if (pContext->pPeriod == NULL) {
+    code = stRealtimePeriodInitState(pContext, now);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  SSTriggerPeriodState *pState = pContext->pPeriod;
+  int64_t               wake = now + STREAM_TRIGGER_IDLE_TIME_NS;
+  bool                  patching = IS_PATCHING_VITRUAL_TABLE(pContext);
+  if (!patching) {
+    code = stRealtimePeriodSyncReaders(pContext);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  int32_t               iter = 0;
+  SSTriggerPeriodInput *pInput = tSimpleHashIterate(pState->pInputs, NULL, &iter);
+  while (pInput != NULL) {
+    SSTriggerPeriodReader *pReader = tSimpleHashGet(pInput->pCycle->pReaders, &pInput->address.nodeId, sizeof(int32_t));
+    if (!pInput->inFlight && !pReader->atCutoff && (!patching || pInput->retry)) {
+      if (now >= pInput->nextPoll) {
+        code = stRealtimePeriodSend(pContext, pInput, now, !pInput->retry);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      } else {
+        wake = TMIN(wake, pInput->nextPoll);
+      }
+    }
+    pInput = tSimpleHashIterate(pState->pInputs, pInput, &iter);
+  }
+  if (now < pState->pCollecting->window.ekey) wake = TMIN(wake, pState->pCollecting->window.ekey);
+  return stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, wake, STREAM_TRIGGER_WAIT_PERIOD_POLL);
+}
+
+int32_t stRealtimePeriodMerge(SSTriggerPeriodCycle *pPending, SSTriggerPeriodCycle *pCycle) {
+  if (!pPending->sealed || !pCycle->sealed || pPending->window.ekey != pCycle->window.skey - 1)
+    return TSDB_CODE_INVALID_PARA;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pCycle->pDataCache != NULL && pPending->pDataCache == NULL) {
+    code = createDetachedStreamDataCache(pPending->streamId, pPending->taskId, pPending->sessionId,
+                                         DATA_CLEAN_IMMEDIATE, 0, &pPending->pDataCache);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  int32_t  iter = 0;
+  int64_t *pSource = tSimpleHashIterate(pCycle->pSources, NULL, &iter);
+  while (pSource != NULL) {
+    const SSTriggerPeriodSourceKey *pKey = tSimpleHashGetKey(pSource, NULL);
+    int64_t                        *pTarget = tSimpleHashGet(pPending->pSources, pKey, sizeof(*pKey));
+    if (pTarget == NULL) {
+      int64_t sourceId = tSimpleHashGetSize(pPending->pSources) + 1;
+      code = tSimpleHashPut(pPending->pSources, pKey, sizeof(*pKey), &sourceId, sizeof(sourceId));
+      if (code != TSDB_CODE_SUCCESS) return code;
+      pTarget = tSimpleHashGet(pPending->pSources, pKey, sizeof(*pKey));
+    }
+    // Only copy the newly sealed cycle, never rescan the accumulated pending data.
+    code = appendStreamDataCacheSnapshot(pPending->pDataCache, *pTarget, pCycle->pDataCache, *pSource);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pSource = tSimpleHashIterate(pCycle->pSources, pSource, &iter);
+  }
+  iter = 0;
+  SSTriggerPeriodGroup *pGroup = tSimpleHashIterate(pCycle->pGroups, NULL, &iter);
+  while (pGroup != NULL) {
+    int64_t              *pGid = tSimpleHashGetKey(pGroup, NULL);
+    SSTriggerPeriodGroup *pExisting = tSimpleHashGet(pPending->pGroups, pGid, sizeof(*pGid));
+    if (pExisting != NULL) {
+      pExisting->vgId = pGroup->vgId;
+      pExisting->hasInput |= pGroup->hasInput;
+    } else {
+      code = tSimpleHashPut(pPending->pGroups, pGid, sizeof(*pGid), pGroup, sizeof(*pGroup));
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    pGroup = tSimpleHashIterate(pCycle->pGroups, pGroup, &iter);
+  }
+  if (pPending->pBindings == NULL) {
+    TSWAP(pPending->pBindings, pCycle->pBindings);
+  } else {
+    iter = 0;
+    SSTriggerVirtTableInfo **ppBinding = tSimpleHashIterate(pCycle->pBindings, NULL, &iter);
+    while (ppBinding != NULL) {
+      const SSTriggerPeriodBindingKey *pKey = tSimpleHashGetKey(ppBinding, NULL);
+      if (tSimpleHashGet(pPending->pBindings, pKey, sizeof(*pKey)) == NULL) {
+        code = tSimpleHashPut(pPending->pBindings, pKey, sizeof(*pKey), ppBinding, sizeof(*ppBinding));
+        if (code != TSDB_CODE_SUCCESS) return code;
+        *ppBinding = NULL;
+      }
+      ppBinding = tSimpleHashIterate(pCycle->pBindings, ppBinding, &iter);
+    }
+  }
+  TSWAP(pPending->pReaders, pCycle->pReaders);
+  pPending->bindingGeneration = pCycle->bindingGeneration;
+  pPending->window.ekey = pCycle->window.ekey;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodFreeze(SSTriggerRealtimeContext *pContext) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodState *pState = pContext->pPeriod;
+  SSTriggerPeriodCycle *pCycle = pState->pCollecting;
+  bool                  sealed = false;
+  int32_t               code = stRealtimePeriodSeal(pCycle, &sealed);
+  if (code != TSDB_CODE_SUCCESS || !sealed) return code;
+  if (!pTask->ignoreNoDataTrigger) {
+    int32_t                  iter = 0;
+    SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    while (ppGroup != NULL) {
+      if (tSimpleHashGet(pCycle->pGroups, &(*ppGroup)->gid, sizeof(int64_t)) == NULL) {
+        SSTriggerPeriodGroup group = {.vgId = (*ppGroup)->vgId};
+        code = tSimpleHashPut(pCycle->pGroups, &(*ppGroup)->gid, sizeof(int64_t), &group, sizeof(group));
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      ppGroup = tSimpleHashIterate(pContext->pGroups, ppGroup, &iter);
+    }
+  }
+  STimeWindow next = pCycle->window;
+  int64_t     generation = pCycle->bindingGeneration;
+  if (pState->pPending == NULL) {
+    pState->pPending = pCycle;
+    pState->pCollecting = NULL;
+  } else {
+    code = stRealtimePeriodMerge(pState->pPending, pCycle);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    stRealtimePeriodDestroy(&pState->pCollecting);
+  }
+  stTriggerTaskNextTimeWindow(pTask, &next);
+  code = stRealtimePeriodStartCycle(pContext, next);
+  if (code == TSDB_CODE_SUCCESS) pState->pCollecting->bindingGeneration = generation;
+  return code;
+}
+
+#if defined(BUILD_TEST)
+void stTriggerTestPeriodPendingStats(SSTriggerRealtimeContext *pContext, int32_t *pCycles, int64_t *pGroups) {
+  *pCycles = 0;
+  *pGroups = 0;
+  if (pContext->pPeriod == NULL) return;
+  if (pContext->pPeriod->pPending != NULL) {
+    *pCycles = 1;
+    *pGroups = tSimpleHashGetSize(pContext->pPeriod->pPending->pGroups);
+  }
+}
+#endif
+
+static int32_t stRealtimePeriodProcRsp(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                       SSTriggerAHandle *pAhandle, SRpcMsg *pRsp, int64_t now) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  pInput->inFlight = false;
+  if (pRsp->code != TSDB_CODE_SUCCESS && pRsp->code != TSDB_CODE_STREAM_NO_DATA) {
+    switch (pRsp->code) {
+      case TSDB_CODE_STREAM_TASK_NOT_EXIST:
+      case TSDB_CODE_STREAM_VTB_TAG_CHANGED:
+      case TSDB_CODE_STREAM_VTB_REF_TABLE_NOT_EXIST:
+      case TSDB_CODE_STREAM_VTB_REF_COL_NOT_EXIST:
+      case TSDB_CODE_STREAM_VTB_REF_TOO_DEEP:
+        return pRsp->code;
+      default:
+        pInput->retry = true;
+        pInput->nextPoll = now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+        code = stTriggerTaskAddWaitSessionForReason(pTask, pContext->sessionId, pInput->nextPoll,
+                                                    STREAM_TRIGGER_WAIT_PERIOD_POLL);
+        return code == TSDB_CODE_SUCCESS ? pRsp->code : code;
+    }
+  }
+  if (pInput->request.base.type == STRIGGER_PULL_WAL_CALC_DATA_NEW) {
+    code = stRealtimePeriodSaveData(pContext, pInput, pRsp);
+    QUERY_CHECK_CODE(code, lino, _end);
+    return stRealtimePeriodFinishBatch(pContext, pInput, now);
+  }
+  SSTriggerWalProgress *pProgress =
+      tSimpleHashGet(pContext->pReaderWalProgress, &pInput->address.nodeId, sizeof(int32_t));
+  QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
+  SSTriggerWalProgress progress = *pProgress;
+  if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
+    QUERY_CHECK_CONDITION(pRsp->pCont != NULL && pRsp->contLen >= (int32_t)sizeof(int64_t), code, lino, _end,
+                          TSDB_CODE_INVALID_MSG);
+    blockDataEmpty(pContext->pMetaBlock);
+    blockDataEmpty(pContext->pDeleteBlock);
+    blockDataEmpty(pContext->pTableBlock);
+    memcpy(&pContext->pMetaBlock->info.version, pRsp->pCont, sizeof(int64_t));
+    if (pRsp->contLen >= (int32_t)(2 * sizeof(int64_t))) {
+      memcpy(&progress.verTime, (char *)pRsp->pCont + sizeof(int64_t), sizeof(int64_t));
+    }
+  } else {
+    SSTriggerWalNewRsp rsp = {
+        .metaBlock = pContext->pMetaBlock, .deleteBlock = pContext->pDeleteBlock, .tableBlock = pContext->pTableBlock};
+    code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pContext->pMetaBlock->info.version = rsp.ver;
+    progress.verTime = rsp.verTime;
+  }
+  QUERY_CHECK_CONDITION(pContext->pMetaBlock->info.version >= pInput->nextVer, code, lino, _end, TSDB_CODE_INVALID_MSG);
+  pContext->pPeriod->pReceiving = pInput;
+  code = stRealtimeContextProcWalMeta(pContext, &progress, now);
+  pContext->pPeriod->pReceiving = NULL;
+  QUERY_CHECK_CODE(code, lino, _end);
+  pInput->caughtUp = blockDataGetNumOfRows(pContext->pMetaBlock) < STREAM_RETURN_ROWS_NUM;
+  pInput->atCutoff = pInput->caughtUp && pInput->issuedAt >= pInput->pCycle->window.ekey &&
+                     blockDataGetNumOfRows(pContext->pTableBlock) == 0;
+  pInput->pendingVerTime = progress.verTime;
+  pInput->pendingTbVer = progress.savedTbVer;
+  SSTriggerPeriodReader *pReader = tSimpleHashGet(pInput->pCycle->pReaders, &pInput->address.nodeId, sizeof(int32_t));
+  pReader->pendingVer = progress.lastScanVer;
+  if ((pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) != 0 && pContext->pMetaBlock->info.rows > 0) {
+    return stRealtimePeriodPrepareData(pContext, pInput, now);
+  }
+  return stRealtimePeriodFinishBatch(pContext, pInput, now);
+_end:
+  if (code != TSDB_CODE_SUCCESS) ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static bool stRealtimePeriodCanDispatch(SSTriggerRealtimeContext *pContext) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  if (taosArrayGetSize(pTask->runnerList) == 0) return true;
+  int32_t idle = 0, total = 0;
+  taosRLockLatch(&pTask->calcPoolLock);
+  for (int32_t i = 0; i < taosArrayGetSize(pTask->pCalcNodes); ++i) {
+    SSTriggerCalcNode *pNode = taosArrayGet(pTask->pCalcNodes, i);
+    idle += TD_DLIST_NELES(&pNode->idleSlots);
+    total += taosArrayGetSize(pNode->pSlots);
+  }
+  int64_t *pRunning = tSimpleHashGet(pTask->pSessionRunning, &pContext->sessionId, sizeof(int64_t));
+  bool     ready = idle > 0 && (pRunning == NULL ? 0 : *pRunning) < total - 1;
+  taosRUnLockLatch(&pTask->calcPoolLock);
+  return ready;
+}
+
+static int32_t stRealtimePeriodDispatch(SSTriggerRealtimeContext *pContext, int64_t now, bool *pReady) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodState *pState = pContext->pPeriod;
+  *pReady = false;
+  int64_t running = 0;
+  int32_t code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &running);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pState->pDispatch != NULL) {
+    if (!pState->dispatchDone) {
+      pContext->status = STRIGGER_CONTEXT_FETCH_META;
+      *pReady = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (running != 0 || pContext->pCalcReq != NULL) return TSDB_CODE_SUCCESS;
+    if (pContext->pCalcDataCache != NULL) {
+      int32_t iter = 0;
+      void   *pGroup = tSimpleHashIterate(pState->pDispatch->pGroups, NULL, &iter);
+      while (pGroup != NULL) {
+        int64_t gid = *(int64_t *)tSimpleHashGetKey(pGroup, NULL);
+        code = cleanStreamDataCacheGroup(pContext->pCalcDataCache, gid);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        pGroup = tSimpleHashIterate(pState->pDispatch->pGroups, pGroup, &iter);
+      }
+    }
+    stRealtimePeriodDestroy(&pState->pDispatch);
+  }
+  if (pState->pPending != NULL && stRealtimePeriodCanDispatch(pContext)) {
+    SSTriggerPeriodCycle *pCycle = pState->pPending;
+    pState->pPending = NULL;
+    pState->pDispatch = pCycle;
+    pState->dispatchDone = false;
+    pState->idleChecked = false;
+    pContext->periodWindow = pCycle->window;
+    pContext->status = STRIGGER_CONTEXT_FETCH_META;
+    int32_t               iter = 0;
+    SSTriggerPeriodGroup *pInputGroup = tSimpleHashIterate(pCycle->pGroups, NULL, &iter);
+    while (pInputGroup != NULL) {
+      int64_t                 gid = *(int64_t *)tSimpleHashGetKey(pInputGroup, NULL);
+      SSTriggerRealtimeGroup *pGroup = NULL;
+      code = stRealtimeContextGetOrCreateGroup(pContext, gid, pInputGroup->vgId, &pGroup);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      if (pInputGroup->hasInput) {
+        code = stRealtimeGroupRecordInput(pGroup, now);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      pGroup->oldThreshold = INT64_MIN;
+      pGroup->newThreshold = INT64_MAX;
+      if (!IS_TRIGGER_GROUP_TO_CHECK(pGroup)) TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+      pInputGroup = tSimpleHashIterate(pCycle->pGroups, pInputGroup, &iter);
+    }
+    if (stRealtimeContextHasExtProgress(pContext)) {
+      return stRealtimeContextCheckExtImpl(pContext, now, true);
+    }
+    *pReady = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodBindGroup(SSTriggerRealtimeGroup *pGroup, SSTriggerPeriodCycle *pCycle) {
+  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+  if (!pTask->isVirtualTable || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) == 0) return 0;
+  if (pCycle->pBindings == NULL) {
+    pCycle->pBindings = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (pCycle->pBindings == NULL) return terrno;
+    tSimpleHashSetFreeFp(pCycle->pBindings, stTriggerTaskDestroyVirtTableInfoClone);
+  }
+  int32_t                 iter = 0;
+  SSTriggerVirtTableInfo *pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
+  while (pInfo != NULL) {
+    SSTriggerPeriodBindingKey key = {.generation = pCycle->bindingGeneration, .virtualUid = pInfo->tbUid};
+    if (stTriggerTaskMatchVirtTableInfo(pInfo, pGroup->gid) &&
+        tSimpleHashGet(pCycle->pBindings, &key, sizeof(key)) == NULL) {
+      SSTriggerVirtTableInfo *pClone = NULL;
+      int32_t                 code = stTriggerTaskCloneVirtTableInfo(pTask, pInfo, &pClone);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      code = tSimpleHashPut(pCycle->pBindings, &key, sizeof(key), &pClone, sizeof(pClone));
+      if (code != TSDB_CODE_SUCCESS) {
+        stTriggerTaskDestroyVirtTableInfoClone(&pClone);
+        return code;
+      }
+    }
+    pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodPrepareData(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                           int64_t now) {
+  if (pInput->pVersions == NULL) pInput->pVersions = taosArrayInit(8, sizeof(int64_t));
+  if (pInput->pRanges == NULL) pInput->pRanges = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pInput->pBlock == NULL) pInput->pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (pInput->pSlices == NULL) pInput->pSlices = taosArrayInit(8, 3 * sizeof(int64_t));
+  if (pInput->pVersions == NULL || pInput->pRanges == NULL || pInput->pBlock == NULL || pInput->pSlices == NULL)
+    return terrno;
+  taosArrayClear(pInput->pVersions);
+  tSimpleHashClear(pInput->pRanges);
+  SColumnInfoData *pGids = taosArrayGet(pContext->pMetaBlock->pDataBlock, STREAM_WAL_META_GID_COL);
+  SColumnInfoData *pVers = taosArrayGet(pContext->pMetaBlock->pDataBlock, STREAM_WAL_META_VER_COL);
+  for (int32_t row = 0; row < pContext->pMetaBlock->info.rows; ++row) {
+    int64_t gid = *(int64_t *)colDataGetData(pGids, row);
+    int64_t ver = *(int64_t *)colDataGetData(pVers, row);
+    if (taosArrayPush(pInput->pVersions, &ver) == NULL) return terrno;
+    STimeWindow range = {.skey = INT64_MIN, .ekey = INT64_MAX};
+    int32_t     code = tSimpleHashPut(pInput->pRanges, &gid, sizeof(gid), &range, sizeof(range));
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  taosArraySort(pInput->pVersions, compareInt64Val);
+  taosArrayRemoveDuplicate(pInput->pVersions, compareInt64Val, NULL);
+  pInput->request.walDataNewReq.base.type = STRIGGER_PULL_WAL_CALC_DATA_NEW;
+  pInput->request.walDataNewReq.versions = pInput->pVersions;
+  pInput->request.walDataNewReq.ranges = pInput->pRanges;
+  return stRealtimePeriodSend(pContext, pInput, now, false);
+}
+
+static int32_t stRealtimePeriodSaveData(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                        SRpcMsg *pRsp) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) return TSDB_CODE_SUCCESS;
+  blockDataEmpty(pInput->pBlock);
+  taosArrayClear(pInput->pSlices);
+  SSTriggerWalNewRsp rsp = {.dataBlock = pInput->pBlock};
+  int32_t            code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pInput->pSlices);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t i = 0; i < TARRAY_SIZE(pInput->pSlices); ++i) {
+    int64_t *pSlice = TARRAY_GET_ELEM(pInput->pSlices, i);
+    int32_t  start = pSlice[2] >> 32;
+    int32_t  end = pSlice[2];
+    if (start < 0 || end < start || end > pInput->pBlock->info.rows) return TSDB_CODE_INVALID_MSG;
+    SSTriggerPeriodSourceKey key = {
+        .gid = pSlice[0], .uid = pSlice[1], .generation = pInput->pCycle->bindingGeneration};
+    int32_t tsSlot = pTask->calcTsIndex;
+    if (pTask->isVirtualTable) {
+      SSTriggerOrigTableInfo *pOrig = tSimpleHashGet(pTask->pOrigTableInfos, &key.uid, sizeof(key.uid));
+      if (pOrig == NULL) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      key.gid = 0;
+      key.readerKey = stTriggerTaskInternalReaderDataKey(pOrig->tbSuid, key.uid, pInput->address.nodeId);
+      bool                     matched = false;
+      int32_t                  iter = 0;
+      SSTriggerVirtTableInfo **ppInfo = tSimpleHashIterate(pInput->pCycle->pBindings, NULL, &iter);
+      while (ppInfo != NULL && !matched) {
+        SSTriggerPeriodBindingKey *pBindingKey = tSimpleHashGetKey(ppInfo, NULL);
+        if (pBindingKey->generation != key.generation) {
+          ppInfo = tSimpleHashIterate(pInput->pCycle->pBindings, ppInfo, &iter);
+          continue;
+        }
+        for (int32_t j = 0; j < TARRAY_SIZE((*ppInfo)->pCalcColRefs); ++j) {
+          SSTriggerTableColRef *pRef = TARRAY_GET_ELEM((*ppInfo)->pCalcColRefs, j);
+          if (memcmp(&pRef->readerKey, &key.readerKey, sizeof(key.readerKey)) != 0) continue;
+          for (int32_t col = 0; col < TARRAY_SIZE(pRef->pNewColMatches); ++col) {
+            SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pRef->pNewColMatches, col);
+            if (pMatch->vtbSlotId == pTask->calcTsIndex) {
+              tsSlot = pMatch->otbSlotId;
+              matched = true;
+              break;
+            }
+          }
+        }
+        ppInfo = tSimpleHashIterate(pInput->pCycle->pBindings, ppInfo, &iter);
+      }
+      if (!matched) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    } else {
+      key.readerKey = stTriggerTaskInternalReaderDataKey(0, key.uid, pInput->address.nodeId);
+    }
+    if (end == start) continue;
+    code = stRealtimePeriodCollectData(pInput->pCycle, pInput->address.nodeId, pInput->batchToken, &key, pInput->pBlock,
+                                       start, end, tsSlot);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodFinishBatch(SSTriggerRealtimeContext *pContext, SSTriggerPeriodInput *pInput,
+                                           int64_t now) {
+  SStreamTriggerTask *pTask = pContext->pTask;
+  int32_t             code =
+      stRealtimePeriodCommitBatch(pInput->pCycle, pInput->address.nodeId, pInput->batchToken, pInput->atCutoff);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SSTriggerPeriodReader *pReader = tSimpleHashGet(pInput->pCycle->pReaders, &pInput->address.nodeId, sizeof(int32_t));
+  SSTriggerWalProgress  *pProgress =
+      tSimpleHashGet(pContext->pReaderWalProgress, &pInput->address.nodeId, sizeof(int32_t));
+  pInput->nextVer = pReader->nextVer;
+  pInput->nextPoll = pInput->caughtUp ? TMIN(now + STREAM_TRIGGER_IDLE_TIME_NS, pInput->pCycle->window.ekey) : now;
+  pProgress->lastScanVer = pReader->nextVer;
+  pProgress->verTime = pInput->pendingVerTime;
+  pProgress->savedTbVer = pInput->pendingTbVer;
+  stTriggerTaskUpdateReaderProgress(pTask, pProgress);
+  code = stRealtimePeriodFreeze(pContext);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  return stRealtimeContextCheckAt(pContext, now);
+}
+
+static int32_t stRealtimePeriodPrepareCalc(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodCycle *pCycle = pContext->pPeriod->pDispatch;
+  if (pCycle == NULL) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  if (pTask->isVirtualTable) {
+    int32_t                  bindingIter = 0;
+    SSTriggerVirtTableInfo **ppInfo = tSimpleHashIterate(pCycle->pBindings, NULL, &bindingIter);
+    while (ppInfo != NULL) {
+      if (stTriggerTaskMatchVirtTableInfo(*ppInfo, pGroup->gid)) {
+        SSTriggerPeriodBindingKey *pBindingKey = tSimpleHashGetKey(ppInfo, NULL);
+        for (int32_t i = 0; i < TARRAY_SIZE((*ppInfo)->pCalcColRefs); ++i) {
+          SSTriggerTableColRef    *pRef = TARRAY_GET_ELEM((*ppInfo)->pCalcColRefs, i);
+          SSTriggerPeriodSourceKey key = {
+              .uid = pRef->readerKey.logicalUid, .generation = pBindingKey->generation, .readerKey = pRef->readerKey};
+          if (tSimpleHashGet(pCycle->pSources, &key, sizeof(key)) == NULL) continue;
+          SSTriggerVirtualTableSliceRef ref = {
+              .virtualUid = (*ppInfo)->tbUid, .virtualGid = pGroup->gid, .readerKey = pRef->readerKey};
+          int32_t code = taosObjListAppend(&pContext->pAllCalcTableUids, &ref);
+          if (code != TSDB_CODE_SUCCESS) return code;
+        }
+      }
+      ppInfo = tSimpleHashIterate(pCycle->pBindings, ppInfo, &bindingIter);
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t  iter = 0;
+  int64_t *pSourceId = tSimpleHashIterate(pCycle->pSources, NULL, &iter);
+  while (pSourceId != NULL) {
+    SSTriggerPeriodSourceKey *pSource = tSimpleHashGetKey(pSourceId, NULL);
+    SSTriggerDataSlice        slice = {.pSnapshotCache = pCycle->pDataCache, .snapshotSourceId = *pSourceId};
+    int32_t                   code = TSDB_CODE_SUCCESS;
+    if (pSource->gid == pGroup->gid) {
+      SSTriggerRollupSliceKey keyBuf = {0};
+      const void             *pKey = NULL;
+      int32_t                 keyLen = 0;
+      stTriggerTaskSliceKey(pTask, pGroup->gid, pSource->uid, &keyBuf, &pKey, &keyLen);
+      code = tSimpleHashPut(pContext->pSlices, pKey, keyLen, &slice, sizeof(slice));
+      if (code != TSDB_CODE_SUCCESS) return code;
+      int64_t ids[2] = {pSource->uid, 0};
+      code = taosObjListAppend(&pContext->pAllCalcTableUids, ids);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    pSourceId = tSimpleHashIterate(pCycle->pSources, pSourceId, &iter);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stRealtimePeriodSetMerger(SSTriggerRealtimeContext *pContext, SSTriggerRealtimeGroup *pGroup,
+                                         int64_t virtualUid, STimeWindow *pRange) {
+  SStreamTriggerTask   *pTask = pContext->pTask;
+  SSTriggerPeriodCycle *pCycle = pContext->pPeriod->pDispatch;
+  SArray               *pSources = taosArrayInit(4, sizeof(SSTriggerVtableSource));
+  if (pSources == NULL) return terrno;
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  iter = 0;
+  SSTriggerVirtTableInfo **ppBinding = tSimpleHashIterate(pCycle->pBindings, NULL, &iter);
+  while (ppBinding != NULL) {
+    SSTriggerPeriodBindingKey *pBindingKey = tSimpleHashGetKey(ppBinding, NULL);
+    if (pBindingKey->virtualUid == virtualUid && stTriggerTaskMatchVirtTableInfo(*ppBinding, pGroup->gid)) {
+      int32_t  sourceIter = 0;
+      int64_t *pSourceId = tSimpleHashIterate(pCycle->pSources, NULL, &sourceIter);
+      while (pSourceId != NULL) {
+        SSTriggerPeriodSourceKey *pKey = tSimpleHashGetKey(pSourceId, NULL);
+        for (int32_t i = 0; pKey->generation == pBindingKey->generation && i < TARRAY_SIZE((*ppBinding)->pCalcColRefs);
+             ++i) {
+          SSTriggerTableColRef *pRef = TARRAY_GET_ELEM((*ppBinding)->pCalcColRefs, i);
+          if (memcmp(&pRef->readerKey, &pKey->readerKey, sizeof(pKey->readerKey)) != 0) continue;
+          SSTriggerVtableSource source = {
+              .readerKey = pKey->readerKey,
+              .pColRef = pRef,
+              .slice = {.pSnapshotCache = pCycle->pDataCache, .snapshotSourceId = *pSourceId},
+              .generation = pKey->generation};
+          if (taosArrayPush(pSources, &source) == NULL) {
+            code = terrno;
+            goto _end;
+          }
+          break;
+        }
+        pSourceId = tSimpleHashIterate(pCycle->pSources, pSourceId, &sourceIter);
+      }
+    }
+    ppBinding = tSimpleHashIterate(pCycle->pBindings, ppBinding, &iter);
+  }
+
+  // EXT remains a scheduled calc read. Its response and column mapping belong
+  // to the active calc request, while internal input uses the saved generations.
+  SSTriggerVirtTableInfo *pLive = tSimpleHashGet(pTask->pVirtTableInfos, &virtualUid, sizeof(virtualUid));
+  SObjListIter            tableIter = {0};
+  taosObjListInitIter(&pContext->pCalcTableUids, &tableIter, TOBJLIST_ITER_FORWARD);
+  SSTriggerVirtualTableSliceRef *pTable = NULL;
+  while ((pTable = taosObjListIterNext(&tableIter)) != NULL) {
+    if (pTable->virtualUid != virtualUid || pTable->readerKey.readerKind == STRIGGER_READER_KIND_INTERNAL) continue;
+    SSTriggerDataSlice   *pSlice = tSimpleHashGet(pContext->pSlices, &pTable->readerKey, sizeof(pTable->readerKey));
+    SSTriggerTableColRef *pColRef = NULL;
+    for (int32_t i = 0; pLive != NULL && i < TARRAY_SIZE(pLive->pCalcColRefs); ++i) {
+      SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pLive->pCalcColRefs, i);
+      if (pRef->readerKey.readerKind == pTable->readerKey.readerKind &&
+          pRef->readerKey.stableReaderId == pTable->readerKey.stableReaderId &&
+          (pRef->readerKey.logicalUid == 0 || pRef->readerKey.logicalUid == pTable->readerKey.logicalUid)) {
+        pColRef = pRef;
+        break;
+      }
+    }
+    if (pSlice == NULL || pColRef == NULL) {
+      code = TSDB_CODE_STREAM_INTERNAL_ERROR;
+      goto _end;
+    }
+    SSTriggerVtableSource source = {
+        .readerKey = pTable->readerKey,
+        .pColRef = pColRef,
+        .slice = *pSlice,
+        .pMetas = tSimpleHashGet(pGroup->pWalMetas, &pTable->readerKey, sizeof(pTable->readerKey)),
+        .generation = pCycle->bindingGeneration};
+    if (taosArrayPush(pSources, &source) == NULL) {
+      code = terrno;
+      goto _end;
+    }
+  }
+  code = stNewVtableMergerSetSources(pContext->pCalcMerger, virtualUid, pTask->calcTsIndex, pTask->calcPkIndex, pRange,
+                                     pSources, stTriggerTaskRequiresOrderedInput(pTask));
+_end:
+  taosArrayDestroy(pSources);
+  return code;
+}
+
+static bool stRealtimePeriodHasExtPulls(SSTriggerRealtimeContext *pContext) {
+  int32_t                iter = 0;
+  SSTriggerExtProgress **ppProgress = tSimpleHashIterate(pContext->pReaderExtProgress, NULL, &iter);
+  while (ppProgress != NULL) {
+    if ((*ppProgress)->pendingPulls > 0 || (*ppProgress)->pullReq != NULL) return true;
+    ppProgress = tSimpleHashIterate(pContext->pReaderExtProgress, ppProgress, &iter);
+  }
+  return false;
 }
