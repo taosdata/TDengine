@@ -1213,11 +1213,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       } else
 #endif
       {
-        mError("dnode:%d, %s, status machineId mismatch (possible forged heartbeat), "
-               "stored:%s incoming:%s",
-               statusReq.dnodeId, statusReq.dnodeEp, pDnode->machineId, statusReq.machineId);
-        code = TSDB_CODE_MND_AUTH_FAILURE;
-        TAOS_CHECK_GOTO(code, &lino, _OVER);
+        mWarn(
+            "dnode:%d, %s, status machineId mismatch (possible forged heartbeat), "
+            "stored:%s incoming:%s",
+            statusReq.dnodeId, statusReq.dnodeEp, pDnode->machineId, statusReq.machineId);
       }
     }
   }
