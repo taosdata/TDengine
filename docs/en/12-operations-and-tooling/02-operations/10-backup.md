@@ -298,6 +298,60 @@ To restore a backup from an actual job, copy the job directory that contains the
 
 If neither a layout marker nor an explicit `layout` is present, `taosx` performs legacy compatibility detection and logs the warning `backup layout marker is missing; using legacy layout detection`. Only in this case, if backup files exist both directly in the task directory and in its historical `-1` subdirectory, does the restore report a directory-layout conflict. Verify both locations and consolidate the complete chain in a separate restore directory before retrying. Do not overwrite files with the same name when their contents differ.
 
+## Back Up and Restore Specified Tables With taosX
+
+In addition to full-database and supertable-level backups, you can use the taosX CLI to back up selected child tables or normal tables by **table name list**, and restore the generated backup files to another cluster. For general information about the taosX CLI and DSN, see [taosX Reference](../03-components/06-taosx.md).
+
+### Back Up Specified Tables
+
+Use the `taosx run` command and specify the tables in the source DSN with the `tables` parameter:
+
+```shell
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/db01?tables=d0,d1,table1' \
+  -t 'local:/tmp/dump/' \
+  -v
+```
+
+The `tables` parameter takes a comma-separated list of table names. Each table can be a **child table** or a **normal table**; supertables are not supported in the list (use the `stables` parameter to back up supertables). In addition to inline table names, you can use `@<file_path>` to read table names from a list file (one table name per line). Both forms can be mixed:
+
+```shell
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/db01?tables=@/home/taos/tblist.txt,d0' \
+  -t 'local:/tmp/dump/' \
+  -v
+```
+
+**Notes**
+
+1. If the list contains child tables, the backup automatically includes the table creation statements of their parent supertables, so that supertables are created before child tables during restoration. Other child tables under those supertables are not backed up.
+2. When `tables` is specified together with `stables` or `select`, the parameters take effect in the precedence order `stables` > `tables` > `select`. Lower-precedence parameters are ignored, and a warning is printed in the `taosx` logs.
+3. The list file must contain one table name per line: comment lines starting with `#` are not supported, blank lines are not skipped, leading/trailing whitespace is not trimmed, and every line is treated as a table name. The file must be encoded in UTF-8. Make sure the list file is clean.
+4. A relative `@<file_path>` is resolved against the working directory where the `taosx` command runs. Using an absolute path is recommended.
+5. The `tables` parameter can be combined with `start`, `end` (back up data within a time range only), `schema_only` (back up table schema only), and `workers` (task concurrency). For example, to back up data of the specified tables within September 2, 2025 only:
+
+   ```shell
+   taosx run \
+     -f 'taos://root:taosdata@localhost:6030/db01?tables=d0,d1&start=2025-09-02T00:00:00Z&end=2025-09-03T00:00:00Z' \
+     -t 'local:/tmp/dump/' \
+     -v
+   ```
+
+After the backup completes, the backup directory contains a `schema.meta` metadata file and `.z` data files.
+
+### Restore a Specified-Table Backup
+
+The procedure is the same as [Restore to Another Cluster With the taosx CLI](#restore-to-another-cluster-with-the-taosx-cli) described above: the backup files contain only the data and metadata of the tables in the list. Copy the backup directory to the target cluster and run the restoration directly:
+
+```shell
+taosx run \
+  -f 'local:/tmp/dump?to=now&watch=false' \
+  -t 'taos:///db01' \
+  -v
+```
+
+After the restoration completes, check the `taosx` logs for the actual number of files and rows processed, and run queries against the target cluster to verify the restored data.
+
 ## Troubleshooting
 
 ### Port Access Exception
