@@ -39,6 +39,7 @@ function printHelp() {
     echo "    -f [Capture gcda dir]       Capture gcda directory (default: <project dir>/debug)"
     echo "    -b [Coverage branch]        Covevrage branch "
     echo "    -l [Test log dir]           Test log directory containing gcda files"
+    echo "    -g [Thread gcda root]       Per-thread GCOV_PREFIX trees (thread_volume)"
     exit 0
 }
 
@@ -548,6 +549,105 @@ function merge_files_uniform_batch() {
     rm -rf "$temp_dir"
 }
 
+function capture_per_thread_gcov() {
+    local root="$1"
+    local output_file="$2"
+    local build build_dir d acc next info extracted
+    local -a dirs=()
+    local -a infos=()
+    local i merged
+
+    if [ -z "$root" ] || [ ! -d "$root" ]; then
+        echo "Per-thread gcda root missing: ${root}"
+        return 1
+    fi
+    if ! command -v gcov-tool >/dev/null 2>&1; then
+        echo "gcov-tool is required to merge per-thread gcda"
+        return 1
+    fi
+
+    for build in debugSan debugNoSan; do
+        build_dir="/home/builds/${build}"
+        if [ ! -d "$build_dir" ]; then
+            echo "Skip ${build}: notes directory ${build_dir} is not mounted"
+            continue
+        fi
+        dirs=()
+        for d in "$root"/*/gcov_data/"$build"; do
+            [ -d "$d" ] || continue
+            if find "$d" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+                dirs+=("$d")
+            fi
+        done
+        if [ ${#dirs[@]} -eq 0 ]; then
+            echo "Skip ${build}: no per-thread gcda"
+            continue
+        fi
+        echo "=== 合并 ${build} 的 ${#dirs[@]} 个线程 gcda ==="
+        if [ ${#dirs[@]} -eq 1 ]; then
+            merged="${dirs[0]}"
+        else
+            acc="${dirs[0]}"
+            for ((i = 1; i < ${#dirs[@]}; i++)); do
+                next=$(mktemp -d "/tmp/gcov_merge_${build}_${i}.XXXXXX")
+                echo "gcov-tool merge ($i/$((${#dirs[@]} - 1))) ${dirs[$i]}"
+                if ! gcov-tool merge -o "$next" "$acc" "${dirs[$i]}"; then
+                    echo "gcov-tool merge failed for ${build}"
+                    return 1
+                fi
+                acc="$next"
+            done
+            merged="$acc"
+        fi
+
+        if ! find "$merged" -name '*.gcda' -print -quit 2>/dev/null | grep -q .; then
+            echo "Skip ${build}: merged tree has no gcda"
+            continue
+        fi
+        info="/tmp/coverage_threads_${build}.info"
+        rm -f "$info"
+        # -d must be the gcda root. Pointing it at community/source makes lcov
+        # look up gcno by the path relative to that directory and miss the notes.
+        echo "lcov ${build} from ${merged}, notes ${build_dir}"
+        if ! lcov --quiet -d "$merged" --capture \
+            --build-directory "$build_dir" \
+            --rc lcov_branch_coverage=0 --rc branch_coverage=0 \
+            --rc max_message_count=0 --rc check_data_consistency=0 \
+            --ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused,corrupt,path,empty \
+            --no-external -b /home/TDinternal \
+            -o "$info"; then
+            echo "lcov failed for ${build}"
+            return 1
+        fi
+        if [ -s "$info" ]; then
+            local extracted="${info}.product"
+            if lcov --quiet --rc lcov_branch_coverage=0 --rc branch_coverage=0 \
+                --ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused,corrupt,empty \
+                --extract "$info" '*/community/source/*' '*/community/tools/*' '*/community/utils/*' \
+                -o "$extracted" && [ -s "$extracted" ]; then
+                mv -f "$extracted" "$info"
+            else
+                rm -f "$extracted"
+            fi
+            infos+=("$info")
+            echo "✓ ${build} $(stat -c%s "$info" 2>/dev/null || echo 0) bytes"
+        fi
+    done
+
+    if [ ${#infos[@]} -eq 0 ]; then
+        echo "No per-thread coverage info produced"
+        return 1
+    fi
+    if [ ${#infos[@]} -eq 1 ]; then
+        cp "${infos[0]}" "$output_file"
+        return 0
+    fi
+    lcov --quiet --rc lcov_branch_coverage=0 --rc branch_coverage=0 \
+        --ignore-errors negative,inconsistent,deprecated,source,count,usage,missing,unused,corrupt \
+        --add-tracefile "${infos[0]}" --add-tracefile "${infos[1]}" \
+        -o "$output_file"
+}
+
 function capture_full_gcda_coverage() {
     local gcda_dir="$1"
     local output_file="$2"
@@ -686,11 +786,22 @@ function lcovFunc {
         echo "警告: 未指定测试日志目录，跳过 per-case 覆盖率收集"
     fi
 
-    # 全量 GCDA 采集，补齐 interval 跳过及失败 case 遗漏的覆盖率
-    if resolve_capture_gcda_dir; then
-        capture_full_gcda_coverage "$CAPTURE_GCDA_DIR" "$TDENGINE_DIR/coverage_tdengine_full.info" || true
-    else
-        echo "警告: 未找到含 GCDA 的 debug 目录，跳过全量采集"
+    # 每个线程的 gcda 在 GCOV_PREFIX 下。合并后再采集一次，避免用例中间扫整棵编译树。
+    local thread_captured=0
+    if [ -n "${THREAD_GCOV_ROOT:-}" ]; then
+        if capture_per_thread_gcov "$THREAD_GCOV_ROOT" "$TDENGINE_DIR/coverage_tdengine_full.info"; then
+            thread_captured=1
+            echo "Per-thread gcda capture saved to coverage_tdengine_full.info"
+        else
+            echo "警告: 按线程 gcda 采集失败，回退到共享 debug 目录"
+        fi
+    fi
+    if [ "$thread_captured" -eq 0 ]; then
+        if resolve_capture_gcda_dir; then
+            capture_full_gcda_coverage "$CAPTURE_GCDA_DIR" "$TDENGINE_DIR/coverage_tdengine_full.info" || true
+        else
+            echo "警告: 未找到含 GCDA 的 debug 目录，跳过全量采集"
+        fi
     fi
 
     if ! merge_coverage_raw_inputs; then
@@ -1059,9 +1170,10 @@ TDINTERNAL_DIR="/home/TDinternal"
 TDENGINE_DIR="/home/TDinternal/community"
 CAPTURE_GCDA_DIR="/home/TDinternal/debug"
 TEST_LOG_DIR=""
+THREAD_GCOV_ROOT=""
 
 # Parse command line parameters
-while getopts "hd:b:f:l:" arg; do
+while getopts "hd:b:f:l:g:" arg; do
   case $arg in
     d)
       TDINTERNAL_DIR=$OPTARG
@@ -1074,6 +1186,9 @@ while getopts "hd:b:f:l:" arg; do
       ;;
     l)
       TEST_LOG_DIR=$OPTARG
+      ;;
+    g)
+      THREAD_GCOV_ROOT=$OPTARG
       ;;
     h)
       printHelp
@@ -1091,6 +1206,7 @@ print_color "$GREEN" "Run coverage test on workflow!"
 echo "TDENGINE_DIR = $TDENGINE_DIR"
 echo "CAPTURE_GCDA_DIR = $CAPTURE_GCDA_DIR"
 echo "TEST_LOG_DIR = $TEST_LOG_DIR"
+echo "THREAD_GCOV_ROOT = $THREAD_GCOV_ROOT"
 echo "BRANCH = $BRANCH"
 
 lcovFunc

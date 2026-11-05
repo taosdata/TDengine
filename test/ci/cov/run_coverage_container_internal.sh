@@ -57,8 +57,14 @@ echo "DEBUGPATH: $DEBUGPATH"
 echo "TEST_EXIT: $TEST_EXIT"
 
 if [ "$TEST_EXIT" -ne 0 ]; then
-    echo "Note: collecting lcov despite test exit code=$TEST_EXIT"
+    echo "Note: test exit code=$TEST_EXIT; gcda is kept for the final lcov"
 fi
+
+# Each thread writes gcda under GCOV_PREFIX. Capturing lcov here walks the
+# whole build tree and holds the case slot for many minutes. The suite captures
+# once, after every thread has finished.
+echo "Skip per-case lcov; gcda is under ${GCOV_PREFIX:-unset}"
+exit 0
 
 COVERAGE_LCOV_EVERY="${COVERAGE_LCOV_EVERY:-5}"
 LCOV_COUNTER="${CONTAINER_TESTDIR}/test/.coverage_lcov_counter"
@@ -307,6 +313,16 @@ else
     REP_MOUNT_LIB="${REPDIR_DEBUG}/build/lib:/home/TDinternal/debug/build/lib:ro"
 fi
 
+# Compile paths look like /home/TDinternal/debug/... . Strip that prefix and
+# write this thread's gcda under the per-thread mount, split by build so the
+# ASAN and non-ASAN counters are not added into the same files.
+_gcov_build_root="/home/TDinternal/debug"
+if [ "$ent" -eq 0 ]; then
+    _gcov_build_root="/home/TDengine/debug"
+fi
+GCOV_PREFIX_STRIP=$(awk -F/ '{print NF-1}' <<< "${_gcov_build_root}")
+GCOV_CONTAINER_PREFIX="${CONTAINER_TESTDIR}/test/gcov_data/${DEBUGPATH}"
+
 ulimit -c unlimited
 
 TMP_DIR=$WORKDIR/tmp
@@ -354,7 +370,7 @@ if [ -z "$coredump_dir" ] || [ "$coredump_dir" = "." ]; then
 fi
 
 # 修改：创建一个复合命令，先运行测试，然后生成覆盖率信息
-composite_cmd="${CONTAINER_TESTDIR}/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f ${CONTAINER_TESTDIR}/test/generate_coverage.sh ]; then echo \"Generating coverage information...\"; bash ${CONTAINER_TESTDIR}/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\" \"\$coverage_exit_code\"; coverage_gen_code=\$?; echo \"Coverage generation completed with exit code: \$coverage_gen_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
+composite_cmd="echo \"GCOV_PREFIX=\${GCOV_PREFIX:-unset} GCOV_PREFIX_STRIP=\${GCOV_PREFIX_STRIP:-unset}\"; ${CONTAINER_TESTDIR}/test/ci/run_case.sh -d \"$exec_dir\" -c \"$cmd\" $extra_param; coverage_exit_code=\$?; echo \"Test execution completed with exit code: \$coverage_exit_code\"; if [ -f ${CONTAINER_TESTDIR}/test/generate_coverage.sh ]; then bash ${CONTAINER_TESTDIR}/test/generate_coverage.sh \"$WORKDIR\" \"$thread_no\" \"$case_name\" \"$CONTAINER_TESTDIR\" \"$DEBUGPATH\" \"\$coverage_exit_code\"; else echo \"Coverage generation script not found\"; fi; exit \$coverage_exit_code"
 
 echo "执行复合命令: $composite_cmd"
 
@@ -438,6 +454,8 @@ if [[ ${#fq_default_services[@]} -gt 0 ]]; then
 fi
 docker_cmd+=(
     -e "COVERAGE_LCOV_EVERY=${COVERAGE_LCOV_EVERY}"
+    -e "GCOV_PREFIX=${GCOV_CONTAINER_PREFIX}"
+    -e "GCOV_PREFIX_STRIP=${GCOV_PREFIX_STRIP}"
     -v "${REP_MOUNT_PARAM}"
     -v "${REP_MOUNT_DEBUG}"
     -v "${REP_MOUNT_LIB}"

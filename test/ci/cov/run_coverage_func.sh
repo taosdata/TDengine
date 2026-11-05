@@ -395,7 +395,9 @@ function run_thread() {
         coverage_script="${workdirs[index]}/TDinternal/community/test/ci/cov/run_coverage_container_internal.sh"
     fi
 
-    # 为每个线程创建独立的 GCOV 输出目录
+    # Per-thread gcda directory. The container script publishes it as
+    # GCOV_PREFIX; setting the variable on this host process does not enter
+    # the container.
     local gcov_output_dir="${workdirs[index]}/tmp/thread_volume/$thread_no/gcov_data"
     local cmd=""
     if ! is_local_host "${hosts[index]}"; then
@@ -538,9 +540,9 @@ function run_thread() {
                 remote_cmd=$(get_remote_ssh_command "$index")
                 local quoted_args
                 quoted_args=$(printf '%q ' "${coverage_args[@]}")
-                ${remote_cmd} "GCOV_PREFIX=$(printf '%q' "${gcov_output_dir}") GCOV_PREFIX_STRIP=0 $(printf '%q' "${coverage_script}") ${quoted_args}" >>"$case_log_file" 2>&1
+                ${remote_cmd} "$(printf '%q' "${coverage_script}") ${quoted_args}" >>"$case_log_file" 2>&1
             else
-                GCOV_PREFIX="${gcov_output_dir}" GCOV_PREFIX_STRIP=0 bash "${coverage_script}" "${coverage_args[@]}" >>"$case_log_file" 2>&1
+                bash "${coverage_script}" "${coverage_args[@]}" >>"$case_log_file" 2>&1
             fi
             ret=$?
             local real_end_time

@@ -110,7 +110,18 @@ CONTAINER_GCDA_DIR="/home/TDinternal/debug"
 DEBUGSAN_DIR=$WORKDIR/debugSan
 if [ -d "$DEBUGSAN_DIR" ]; then
     DOCKER_MOUNTS="$DOCKER_MOUNTS -v $DEBUGSAN_DIR:$CONTAINER_GCDA_DIR"
+    DOCKER_MOUNTS="$DOCKER_MOUNTS -v $DEBUGSAN_DIR:/home/builds/debugSan:ro"
     echo "Mounting debugSan for full GCDA capture: $DEBUGSAN_DIR -> $CONTAINER_GCDA_DIR"
+fi
+DEBUGNOSAN_DIR=$WORKDIR/debugNoSan
+if [ -d "$DEBUGNOSAN_DIR" ]; then
+    DOCKER_MOUNTS="$DOCKER_MOUNTS -v $DEBUGNOSAN_DIR:/home/builds/debugNoSan:ro"
+    echo "Mounting debugNoSan notes: $DEBUGNOSAN_DIR -> /home/builds/debugNoSan"
+fi
+THREAD_GCOV_HOST=$WORKDIR/tmp/thread_volume
+if [ -d "$THREAD_GCOV_HOST" ]; then
+    DOCKER_MOUNTS="$DOCKER_MOUNTS -v $THREAD_GCOV_HOST:/home/gcov_threads:ro"
+    echo "Mounting per-thread gcda: $THREAD_GCOV_HOST -> /home/gcov_threads"
 fi
 
 # 挂载测试日志目录（如果存在）- 这里包含所有case的.info文件
@@ -129,6 +140,9 @@ if [ -d "$DEBUGSAN_DIR" ]; then
 fi
 if [ -n "$test_log_dir" ] && [ -d "$test_log_dir" ]; then
     COVERAGE_ARGS="$COVERAGE_ARGS -l $CONTAINER_LOG_DIR"
+fi
+if [ -d "$THREAD_GCOV_HOST" ]; then
+    COVERAGE_ARGS="$COVERAGE_ARGS -g /home/gcov_threads"
 fi
 
 echo "Running coverage analysis..."
