@@ -27,6 +27,7 @@ class TestStreamMetaChangeVTable:
         """Meta Change: virtual table
 
         test meta change (add/drop/modify) cases to stream for virtual table
+        Verify virtual super table schema changes propagate to virtual child tables.
 
         Catalog:
             - Streams:UseCases
@@ -34,10 +35,12 @@ class TestStreamMetaChangeVTable:
         Since: v3.3.3.7
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
             - 2025-6-16 Lihui Created
+            - 2026-11-05 Jing Sima Use ALTER STABLE and verify virtual table schemas
 
         """
 
@@ -1590,18 +1593,33 @@ class TestStreamMetaChangeVTable:
             tdSql.execute(f"alter table {self.db}.{self.stbName1} drop tag tfloat")            
             
             # vtable
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} add column cdouble double")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop column cbigint")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop column cfloat")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} add column cdouble double")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop column cbigint")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop column cfloat")
             
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} add column cdouble double")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} drop column cbigint")
             tdSql.execute(f"alter vtable {self.db}.{self.vntbName1} drop column cfloat")
             
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} add tag tdouble double")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop tag tbigint")
-            tdSql.execute(f"alter vtable {self.db}.{self.vstbName1} drop tag tfloat")
-            
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} add tag tdouble double")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop tag tbigint")
+            tdSql.execute(f"alter stable {self.db}.{self.vstbName1} drop tag tfloat")
+
+            expected_schema = [
+                ("cts", "TIMESTAMP", ""),
+                ("cint", "INT", ""),
+                ("cdouble", "DOUBLE", ""),
+                ("tint", "INT", "TAG"),
+                ("tdouble", "DOUBLE", "TAG"),
+            ]
+            for table in (self.vstbName1, "vctx", "vcty", "vctz"):
+                tdSql.query(f"desc {self.db}.{table}")
+                tdSql.checkRows(len(expected_schema))
+                for row, (name, data_type, note) in enumerate(expected_schema):
+                    tdSql.checkData(row, 0, name)
+                    tdSql.checkData(row, 1, data_type)
+                    tdSql.checkData(row, 3, note)
+
             sqls = [
                 "insert into ctx (cts, cint, cdouble) values ('2025-01-01 00:01:05', 3,3);",
                 "insert into ctx (cts, cint, cdouble) values ('2025-01-01 00:01:10', 3,3);",

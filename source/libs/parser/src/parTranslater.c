@@ -23092,6 +23092,11 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not super table");
     }
 
+    if (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType && NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                     "Cannot drop tag '%s' using DROP COLUMN", pStmt->colName);
+    }
+
     const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
     if (NULL == pSchema) {
       return generateSyntaxErrMsg(
@@ -39146,6 +39151,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
         "virtual child table requires FROM <db>.<table>.<col> reference when adding column");
   }
 
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "Column '%s' already exists as a tag", pStmt->colName);
+  }
   if (NULL != getColSchema(pTableMeta, pStmt->colName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
   }
@@ -39305,6 +39314,11 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
                                SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot drop tag '%s' using DROP COLUMN", pStmt->colName);
   }
 
   // virtual child table: only an own (extension) column may be dropped from the vchild. The name
@@ -39564,6 +39578,10 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot alter column reference for tag '%s'", pStmt->colName);
+  }
   int32_t        code = TSDB_CODE_SUCCESS;
   const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
@@ -39666,6 +39684,10 @@ static int32_t buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStm
                                      SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot alter column reference for tag '%s'", pStmt->colName);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -39983,6 +40005,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       // resolve the tag here (buildDropTagReq). Super tables handle tag drop via
       // translateAlterSuperTable.
       if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+        const SSchema* pTag = getTagSchema(pTableMeta, pStmt->colName);
+        if (NULL != pTag && pTag->colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                         "Tag '%s' belongs to super table, cannot drop it from child table",
+                                         pStmt->colName);
+        }
         pReq->colName = taosStrdup(pStmt->colName);
         if (NULL == pReq->colName) {
           return terrno;
@@ -40781,6 +40809,10 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    if (isVirtual) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                     "cannot alter virtual super table using alter vtable");
+    }
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType &&
              !isVirtualTable(pTableMeta)) {
