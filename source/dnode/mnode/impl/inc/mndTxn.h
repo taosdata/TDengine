@@ -144,6 +144,10 @@ typedef struct {
 // Return MND_TRANS_CONFLICT while this txn has a pending internal CREATE_STREAM transaction.
 int32_t mndTxnCheckPendingStreamCreate(SMnode* pMnode, txn_id_t txnId);
 
+// Drop the runtime shadow ops of ACTIVE txns when this mnode becomes leader; the restore of
+// the new term rebuilds them from SDB.
+void mndTxnHandleBecomeLeader(SMnode* pMnode);
+
 // Merge a single vgId into the txn's participant set, so it receives TDMT_VND_TXN_COMMIT /
 // TDMT_VND_TXN_ROLLBACK at the end of the txn. Needed when the mnode issues a vnode DDL on
 // the client's behalf: the client's pTxnVgSet only accumulates vgIds it routed itself, and

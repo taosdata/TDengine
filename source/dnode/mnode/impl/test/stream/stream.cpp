@@ -27,6 +27,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -12799,4 +12800,195 @@ TEST(MndBroadcastReuseTest, ReaderDecodeFailureStopsBeforeRunnerMutation) {
   nodesDestroyNode(raw);
   taosArrayDestroy(runners);
   taosArrayDestroy(create.calcScanPlanList);
+}
+
+// Shadow ops of an ACTIVE batch-meta txn are runtime-only and rebuilt from SDB (STB / stream
+// rows carrying txnId + txnStatus). A new Raft leader first reports "restore finished" from the
+// committed prefix it had at startup, applies the remaining entries of earlier terms, and only
+// then finishes the restore of its own term -- a second sdbAfterRestored() in the same process.
+// These tests replay that sequence without Raft, to pin down that the second pass must see
+// the SDB as it is by then instead of keeping the shadow ops built by the first pass.
+class MndTxnRestoreShadowRebuildTest : public MndTxnPendingStreamCreateTest {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    savedDisableStream_ = tsDisableStream;
+    SSdbOpt options = {};
+    options.path = TD_TMP_DIR_PATH "stream_restore_shadow";
+    options.pMnode = &node_;
+    taosRemoveDir(options.path);
+    node_.pSdb = sdbInit(&options);
+    ASSERT_NE(node_.pSdb, nullptr);
+    ASSERT_EQ(mndInitTrans(&node_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mndInitTxn(&node_), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mndInitStb(&node_), TSDB_CODE_SUCCESS);
+    // Register the real stream table (decode/insert/update/delete) without the stream runtime.
+    tsDisableStream = true;
+    ASSERT_EQ(mndInitStream(&node_), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    tsDisableStream = savedDisableStream_;
+    if (node_.pSdb != nullptr) sdbCleanup(node_.pSdb);
+    node_.pSdb = nullptr;
+    mndCleanupTxn(&node_);
+    taosRemoveDir(TD_TMP_DIR_PATH "stream_restore_shadow");
+    terrno = savedErrno_;
+  }
+
+  // Writes (or overwrites) the stream row owned by txnId_, as a marker trans would.
+  void WriteStreamMarker(EMetaTxnStatus status) {
+    SStreamObj stream = BuildMinimalStreamObj();
+    ASSERT_NE(stream.pCreate, nullptr);
+    taosMemoryFreeClear(stream.pCreate->name);
+    stream.pCreate->name = taosStrdup(name_);
+    tstrncpy(stream.name, name_, sizeof(stream.name));
+    stream.pCreate->streamId = 42;
+    stream.txnId = txnId_;
+    stream.txnStatus = status;
+    ASSERT_TRUE(WriteRaw(mndStreamActionEncode(&stream), SDB_STATUS_READY));
+    tFreeStreamObj(&stream);
+  }
+
+  std::vector<int8_t> ShadowOpTypes() {
+    std::vector<int8_t> types;
+    auto *txn = static_cast<STxnObj *>(sdbAcquire(node_.pSdb, SDB_TXN, &txnId_));
+    if (txn == nullptr) return types;
+    if (txn->pShadowOps != nullptr) {
+      for (int32_t i = 0; i < taosArrayGetSize(txn->pShadowOps); ++i) {
+        types.push_back(static_cast<SMndShadowOp *>(taosArrayGet(txn->pShadowOps, i))->opType);
+      }
+    }
+    sdbRelease(node_.pSdb, txn);
+    return types;
+  }
+
+  bool savedDisableStream_ = false;
+};
+
+TEST_F(MndTxnRestoreShadowRebuildTest, RepeatRestoreRebuildsShadowOpsFromCurrentSdb) {
+  ASSERT_TRUE(WriteUserTxn());
+  // First restore: only the PRE_CREATE marker is applied so far.
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM}));
+
+  // The remaining log entries of the previous term are applied: the DROP marker lands.
+  WriteStreamMarker(META_TXN_PRE_CREATE_DROP);
+
+  // The node wins the election, then finishes the restore of its own term. The cached ops
+  // from the first pass are stale.
+  mndTxnHandleBecomeLeader(&node_);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM, MND_SHADOW_OP_DROP_STREAM}));
+}
+
+// sdbAfterRestored runs after sync already reports restored, so on a leader DDL / COMMIT
+// workers can be reading pShadowOps at that point. It may fill a NULL cache but must never
+// free a populated one; dropping the cache belongs to the become-leader callback.
+TEST_F(MndTxnRestoreShadowRebuildTest, RestoreDoesNotFreeCachedShadowOps) {
+  ASSERT_TRUE(WriteUserTxn());
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+
+  auto *txn = static_cast<STxnObj *>(sdbAcquire(node_.pSdb, SDB_TXN, &txnId_));
+  ASSERT_NE(txn, nullptr);
+  // Release on every exit so a failed assertion does not leak the reference.
+  std::unique_ptr<void, std::function<void(void *)>> guard(
+      txn, [this](void *p) { sdbRelease(node_.pSdb, p); });
+  SArray *cached = txn->pShadowOps;
+  ASSERT_NE(cached, nullptr);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(txn->pShadowOps, cached);
+}
+
+// Becoming leader drops the cache and its conflict-map entries; the next restore rebuilds both.
+TEST_F(MndTxnRestoreShadowRebuildTest, BecomeLeaderDropsCacheAndConflictEntries) {
+  ASSERT_TRUE(WriteUserTxn());
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM}));
+
+  mndTxnHandleBecomeLeader(&node_);
+  EXPECT_TRUE(ShadowOpTypes().empty());
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnCheckStbConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM}));
+  EXPECT_NE(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+  EXPECT_NE(mndTxnCheckStbConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+}
+
+TEST_F(MndTxnRestoreShadowRebuildTest, RepeatRestoreKeepsOtherTxnsConflictOwnership) {
+  ASSERT_TRUE(WriteUserTxn());
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+
+  // An entry owned by another txn must survive this txn's discard and rebuild.
+  const char    otherName[] = "1.db.owned_by_other";
+  const txn_id_t otherTxn = txnId_ + 100;
+  ASSERT_NE(node_.txnMgmt.pStbConflictMap, nullptr);
+  ASSERT_EQ(taosHashPut(node_.txnMgmt.pStbConflictMap, otherName, strlen(otherName), &otherTxn, sizeof(otherTxn)), 0);
+
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  mndTxnHandleBecomeLeader(&node_);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  // Rebuilding twice must not duplicate ops.
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM}));
+
+  auto *pOwner = static_cast<txn_id_t *>(taosHashGet(node_.txnMgmt.pStbConflictMap, otherName, strlen(otherName)));
+  ASSERT_NE(pOwner, nullptr);
+  EXPECT_EQ(*pOwner, otherTxn);
+}
+
+TEST_F(MndTxnRestoreShadowRebuildTest, PendingDropMarkerDefersRebuildUntilItIsDeleted) {
+  ASSERT_TRUE(WriteUserTxn());
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+  // A DROP marker trans is still unfinished (its commit-log has not been applied yet).
+  ASSERT_TRUE(WritePending(TDMT_MND_DROP_STREAM));
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  ExpectRecoveryState(true);
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_MND_TRANS_CONFLICT);
+
+  // The marker trans finishes: its commit-log flips the row, then the trans is deleted.
+  WriteStreamMarker(META_TXN_PRE_CREATE_DROP);
+  ASSERT_TRUE(WritePending(TDMT_MND_DROP_STREAM, SDB_STATUS_DROPPED));
+  mndTxnHandleBecomeLeader(&node_);
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM, MND_SHADOW_OP_DROP_STREAM}));
+}
+
+// A leader restores exactly once. If it restores while the DROP marker trans of the txn is still
+// unfinished, the ops it builds are based on the PRE_CREATE row. Clearing the cache at restore
+// cannot help here: no further restore follows. The only protection is to not build the ops until
+// the marker trans is gone. Any later use of the txn (COMMIT, or another DDL as exercised here)
+// then has to see both ops.
+TEST_F(MndTxnRestoreShadowRebuildTest, SingleRestoreWithPendingDropMarkerNeverKeepsStaleOps) {
+  ASSERT_TRUE(WriteUserTxn());
+  WriteStreamMarker(META_TXN_PRE_CREATE);
+  ASSERT_TRUE(WritePending(TDMT_MND_DROP_STREAM));
+  ASSERT_EQ(sdbAfterRestored(node_.pSdb), TSDB_CODE_SUCCESS);  // the one and only restore
+
+  // The pulled-up marker trans now finishes: row flips to PRE_CREATE_DROP, trans is deleted.
+  WriteStreamMarker(META_TXN_PRE_CREATE_DROP);
+  ASSERT_TRUE(WritePending(TDMT_MND_DROP_STREAM, SDB_STATUS_DROPPED));
+
+  // Next use of the txn: recovery is resumed first and must see the final row.
+  ASSERT_EQ(mndTxnAddShadowOp(&node_, txnId_, MND_SHADOW_OP_DROP_STREAM, "1.db.second", 7, "1.db", nullptr, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(ShadowOpTypes(), std::vector<int8_t>({MND_SHADOW_OP_CREATE_STREAM, MND_SHADOW_OP_DROP_STREAM,
+                                                  MND_SHADOW_OP_DROP_STREAM}));
+}
+
+TEST_F(MndTxnRestoreShadowRebuildTest, PendingDropMarkerDoesNotBlockFurtherDdlOrNameReservation) {
+  ASSERT_TRUE(WriteUserTxn());
+  ASSERT_TRUE(WritePending(TDMT_MND_DROP_STREAM));
+  // COMMIT / ROLLBACK / restore wait for the DROP marker ...
+  EXPECT_EQ(mndTxnCheckPendingStreamCreate(&node_, txnId_), TSDB_CODE_MND_TRANS_CONFLICT);
+  // ... but a DROP marker never reserves the stream name for other DDL, and the client has
+  // already been answered when it is still pending, so a following DDL in the txn must pass.
+  EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(mndTxnAddShadowOp(&node_, txnId_, MND_SHADOW_OP_DROP_STREAM, "1.db.second", 7, "1.db", nullptr, 0),
+            TSDB_CODE_SUCCESS);
 }

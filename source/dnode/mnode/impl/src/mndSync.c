@@ -21,6 +21,7 @@
 #include "mndStream.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "mndTxn.h"
 #include "mndTxnSeq.h"
 #include "mndUser.h"
 #include "mndXnode.h"
@@ -552,6 +553,7 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   mInfo(KEYOP("mnode-leader-elect", "START") "vgId:1, becomeleader callback");
   SMnode *pMnode = pFsm->data;
 
+  mndTxnHandleBecomeLeader(pMnode);
   msmHandleBecomeLeader(pMnode);
   mndXnodeHandleBecomeLeader(pMnode);
 
