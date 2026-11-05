@@ -77,7 +77,7 @@ class TestManualRecalcReliability:
         History:
             - 2026-08-21 OpenAI GPT-5.6 Codex Created
         """
-        tdStream.createSnode(1)
+        tdStream.ensureSnode(1)
         tdSql.executes(
             [
                 "drop database if exists recalc_reliable",
@@ -143,3 +143,90 @@ class TestManualRecalcReliability:
                 return
             time.sleep(0.5)
         raise AssertionError("realtime calculation stopped after manual recovery")
+
+    def test_manual_recalc_without_end_finishes(self):
+        """Open-ended state-window recalculation finishes after writing history.
+
+        1. Create ordinary and virtual-table streams after inserting old data.
+        2. Advance realtime windows and confirm history has not been calculated.
+        3. Recalculate with and without TO and wait for Finished at 100%.
+        4. Verify both request forms produce the same historical aggregates.
+
+        Catalog: Streams:Recalculation
+
+        Since: v3.4.0.0
+
+        Labels: stream,recalc,reliability,virtual-table,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7045278024
+
+        History:
+            - 2026-11-05 OpenAI Created
+        """
+        tdStream.ensureSnode(1)
+        db = "recalc_without_end"
+        tdSql.executes(
+            [
+                f"drop database if exists {db}",
+                f"create database {db} vgroups 1",
+                f"create table {db}.raw (ts timestamp, state_value int, v int)",
+                f"create vtable {db}.vt (ts timestamp, "
+                f"state_value int from {db}.raw.state_value, v int from {db}.raw.v)",
+            ]
+        )
+        old = int(time.time() * 1000) - 86400000
+        values = "".join(
+            f"({old + i * 1000},{state},{(i + 1) * 10})"
+            for i, state in enumerate((0, 0, 1, 1, 0))
+        )
+        tdSql.execute(f"insert into {db}.raw values {values}")
+        streams = [f"{src}_{kind}" for src in ("raw", "vt") for kind in ("open", "bound")]
+        for name in streams:
+            src = name.split("_")[0]
+            tdSql.execute(
+                f"create stream {db}.{name} state_window(state_value) extend(1) "
+                f"from {db}.{src} stream_options(ignore_disorder) "
+                f"into {db}.out_{name} nodelay_create_subtable "
+                f"as select _twstart as ts, count(*) as cnt, sum(v) as total "
+                f"from {db}.{src} where ts >= _twstart and ts <= _twend"
+            )
+        tdStream.checkStreamStatus()
+        recent = int(time.time() * 1000) + 1000
+        values = "".join(
+            f"({recent + i * 1000},{i // 2 % 2},{100 + i})" for i in range(6)
+        )
+        tdSql.execute(f"insert into {db}.raw values {values}")
+        for name in streams:
+            tdSql.checkResultsByFunc(
+                f"select count(*) from {db}.out_{name}",
+                lambda: tdSql.getData(0, 0) == 2,
+            )
+            assert self._rows(
+                f"select count(*) from {db}.out_{name} where ts < {recent}"
+            ) == [(0,)]
+
+        for name in streams:
+            end = f" to {recent + 4000}" if name.endswith("bound") else ""
+            tdSql.execute(f"recalculate stream {db}.{name} from {old}{end}")
+        names = ",".join(f"'{name}'" for name in streams)
+        view_sql = (
+            "select stream_name, progress, status, message "
+            "from information_schema.ins_stream_recalculates "
+            f"where stream_name in ({names})"
+        )
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            rows = self._rows(view_sql)
+            assert all(row[2] != "Failed" for row in rows), rows
+            if len(rows) == len(streams) and all(row[2] == "Finished" for row in rows):
+                break
+            time.sleep(0.5)
+        else:
+            raise AssertionError(f"recalculations did not finish: {rows!r}")
+        assert all(row[1] == "100%" and row[3] is None for row in rows), rows
+        for name in streams:
+            rows = self._rows(
+                f"select cnt, total from {db}.out_{name} "
+                f"where ts <= {old + 2000} order by ts"
+            )
+            assert rows == [(2, 30), (2, 70)], (name, rows)
