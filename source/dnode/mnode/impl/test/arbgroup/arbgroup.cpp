@@ -39,6 +39,14 @@ void generateArbToken(int32_t nodeId, int32_t vgId, char* buf) {
   snprintf(buf, TSDB_ARB_TOKEN_SIZE, "d%d#g%d#%" PRId64 "#%d", nodeId, vgId, currentMs, randVal);
 }
 
+struct ScopedMutex {
+  TdThreadMutex* m;
+  ScopedMutex(TdThreadMutex* m) : m(m) {}
+  ~ScopedMutex() {
+    if (m) taosThreadMutexDestroy(m);
+  }
+};
+
 }  // namespace
 
 class ArbgroupTest : public testing::Test {
@@ -355,4 +363,232 @@ TEST_F(ArbgroupTest, 05_check_sync_timer) {
   ASSERT_EQ(newGroup.assignedLeader.assignAcked, false);
 }
 
+TEST_F(ArbgroupTest, 06_update_dnode_by_vgobj) {
+  const int32_t vgId = 5;
+
+  // --------------------------------------------------------------------------------
+  // Case A: leader vnode (dnode 1) is migrated away to dnode 3; follower (dnode 2) stays.
+  {
+    SArbGroup old = {0};
+    old.vgId = vgId;
+    old.dbUid = 1234;
+    old.members[0].info.dnodeId = 1;
+    generateArbToken(1, vgId, old.members[0].state.token);
+    old.members[1].info.dnodeId = 2;
+    generateArbToken(2, vgId, old.members[1].state.token);
+    old.isSync = 1;
+    old.assignedLeader.assignedDnodeId = 1;  // leader was on dnode 1
+    strncpy(old.assignedLeader.token, old.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
+
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 3;  // leader migrated 1 -> 3
+    vg.vnodeGid[1].dnodeId = 2;  // follower unchanged
+
+    SArbGroup newGroup = {0};
+    int32_t   code = mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(newGroup.members[0].info.dnodeId, 3);
+    ASSERT_EQ(newGroup.members[1].info.dnodeId, 2);
+    // token must be preserved (heartbeat self-heals the fresh vnode token)
+    ASSERT_EQ(std::string(newGroup.members[0].state.token), std::string(old.members[0].state.token));
+    ASSERT_EQ(std::string(newGroup.members[1].state.token), std::string(old.members[1].state.token));
+    // assigned leader (dnode 1) no longer in vgroup -> reset
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 0);
+    ASSERT_EQ(std::string(newGroup.assignedLeader.token).size(), 0);
+  }
+
+  // --------------------------------------------------------------------------------
+  // Case B: only the follower (dnode 2) is migrated to dnode 4; leader dnode 1 stays.
+  {
+    SArbGroup old = {0};
+    old.vgId = vgId;
+    old.dbUid = 1234;
+    old.members[0].info.dnodeId = 1;
+    generateArbToken(1, vgId, old.members[0].state.token);
+    old.members[1].info.dnodeId = 2;
+    generateArbToken(2, vgId, old.members[1].state.token);
+    old.isSync = 1;
+    old.assignedLeader.assignedDnodeId = 1;  // leader on dnode 1, unchanged
+    strncpy(old.assignedLeader.token, old.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
+
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 1;  // leader unchanged
+    vg.vnodeGid[1].dnodeId = 4;  // follower migrated 2 -> 4
+
+    SArbGroup newGroup = {0};
+    int32_t   code = mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(newGroup.members[0].info.dnodeId, 1);
+    ASSERT_EQ(newGroup.members[1].info.dnodeId, 4);
+    // leader dnode still present -> assigned leader must be preserved
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 1);
+    ASSERT_EQ(std::string(newGroup.assignedLeader.token), std::string(old.assignedLeader.token));
+  }
+
+  // --------------------------------------------------------------------------------
+  // Case C: replica != 2 must be rejected.
+  {
+    SArbGroup old = {0};
+    old.vgId = vgId;
+    old.members[0].info.dnodeId = 1;
+    old.members[1].info.dnodeId = 2;
+
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 3;
+    vg.vnodeGid[0].dnodeId = 1;
+    vg.vnodeGid[1].dnodeId = 2;
+    vg.vnodeGid[2].dnodeId = 3;
+
+    SArbGroup newGroup = {0};
+    int32_t   code = mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup);
+    ASSERT_EQ(code, TSDB_CODE_INVALID_PARA);
+  }
+}
+
+TEST_F(ArbgroupTest, 07_redistribute_realigns_arbgroup_dnode) {
+  const int32_t vgId = 5;
+
+  // Simulate the live arbgroup currently stored in SDB (this is what "show arbgroups" reads).
+  SArbGroup old = {0};
+  old.vgId = vgId;
+  old.dbUid = 1234;
+  old.members[0].info.dnodeId = 1;
+  generateArbToken(1, vgId, old.members[0].state.token);
+  old.members[1].info.dnodeId = 2;
+  generateArbToken(2, vgId, old.members[1].state.token);
+  old.isSync = 1;
+  old.assignedLeader.assignedDnodeId = 1;  // leader currently on dnode 1
+  strncpy(old.assignedLeader.token, old.members[0].state.token, TSDB_ARB_TOKEN_SIZE);
+  old.version = 10;
+  taosThreadMutexInit(&old.mutex, NULL);
+  ScopedMutex guard(&old.mutex);  // ensures destroy even if an ASSERT fails
+
+  // Member tokens must be preserved by the realign helper (the fresh vnode self-heals its token via
+  // heartbeat), so capture them before redistribution to assert they are not overwritten.
+  const std::string oldTok0 = old.members[0].state.token;
+  const std::string oldTok1 = old.members[1].state.token;
+
+  // --------------------------------------------------------------------------------
+  // Case A: redistribute migrates the LEADER vnode (dnode 1 -> dnode 3); follower (dnode 2) stays.
+  {
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 3;  // leader migrated 1 -> 3
+    vg.vnodeGid[1].dnodeId = 2;  // follower unchanged
+
+    SArbGroup newGroup = {0};
+    ASSERT_EQ(mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup), TSDB_CODE_SUCCESS);
+
+    // The pure function must compute the assigned-leader reset: the leader dnode is no longer part of
+    // the vgroup, so it must be cleared in the new arbgroup state (applied under the version gate by
+    // mndArbGroupActionUpdate, NOT by the unconditional realign helper).
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 0);
+
+    // Apply the commit log the same way SDB does. This is exactly the path that previously dropped
+    // members[i].info.dnodeId, leaving "show arbgroups" stale after redistribute.
+    mndArbGroupApplyDnodeRealign(&old, &newGroup);
+
+    // "show arbgroups" must now report the redistributed member mapping.
+    ASSERT_EQ(old.members[0].info.dnodeId, 3);
+    ASSERT_EQ(old.members[1].info.dnodeId, 2);
+    // The realign helper only touches members[i].info.dnodeId; assignedLeader stays intact here and is
+    // updated (from newGroup) only under the version gate in mndArbGroupActionUpdate.
+    ASSERT_EQ(old.assignedLeader.assignedDnodeId, 1);
+    // Member tokens are preserved (not copied from newGroup).
+    ASSERT_EQ(std::string(old.members[0].state.token), oldTok0);
+    ASSERT_EQ(std::string(old.members[1].state.token), oldTok1);
+  }
+
+  // Reset the live object back to the pre-redistribute layout for Case B.
+  old.members[0].info.dnodeId = 1;
+  old.members[1].info.dnodeId = 2;
+  old.assignedLeader.assignedDnodeId = 1;
+
+  // --------------------------------------------------------------------------------
+  // Case B: redistribute migrates only the FOLLOWER (dnode 2 -> dnode 4); leader dnode 1 stays.
+  {
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 1;  // leader unchanged
+    vg.vnodeGid[1].dnodeId = 4;  // follower migrated 2 -> 4
+
+    SArbGroup newGroup = {0};
+    ASSERT_EQ(mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup), TSDB_CODE_SUCCESS);
+
+    // The leader dnode is still present -> assigned leader must be preserved in the new state.
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 1);
+
+    mndArbGroupApplyDnodeRealign(&old, &newGroup);
+
+    ASSERT_EQ(old.members[0].info.dnodeId, 1);
+    ASSERT_EQ(old.members[1].info.dnodeId, 4);
+    // Leader dnode is still present -> assigned leader must be preserved by the helper.
+    ASSERT_EQ(old.assignedLeader.assignedDnodeId, 1);
+    ASSERT_EQ(std::string(old.members[0].state.token), oldTok0);
+    ASSERT_EQ(std::string(old.members[1].state.token), oldTok1);
+  }
+
+  // Reset the live object back to a layout where the assigned leader is ALREADY cleared.
+  old.members[0].info.dnodeId = 1;
+  old.members[1].info.dnodeId = 2;
+  old.assignedLeader.assignedDnodeId = 0;  // already cleared (e.g. previous redistribute)
+  memset(old.assignedLeader.token, 0, TSDB_ARB_TOKEN_SIZE);
+
+  // --------------------------------------------------------------------------------
+  // Case C: leader vnode (dnode 1 -> dnode 3) migrated while assigned leader is already 0.
+  {
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 3;
+    vg.vnodeGid[1].dnodeId = 2;
+
+    SArbGroup newGroup = {0};
+    ASSERT_EQ(mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup), TSDB_CODE_SUCCESS);
+    // assigned leader already 0 and still 0 after the update (boundary branch).
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 0);
+
+    mndArbGroupApplyDnodeRealign(&old, &newGroup);
+    ASSERT_EQ(old.members[0].info.dnodeId, 3);
+    ASSERT_EQ(old.members[1].info.dnodeId, 2);
+    ASSERT_EQ(old.assignedLeader.assignedDnodeId, 0);  // unchanged by helper
+    ASSERT_EQ(std::string(old.members[0].state.token), oldTok0);
+    ASSERT_EQ(std::string(old.members[1].state.token), oldTok1);
+  }
+
+  // Reset back to the pre-redistribute layout for Case D.
+  old.members[0].info.dnodeId = 1;
+  old.members[1].info.dnodeId = 2;
+  old.assignedLeader.assignedDnodeId = 1;
+
+  // --------------------------------------------------------------------------------
+  // Case D (idempotent): vnodeGid unchanged -> realign must be a no-op on dnodeId.
+  {
+    SVgObj vg = {0};
+    vg.vgId = vgId;
+    vg.replica = 2;
+    vg.vnodeGid[0].dnodeId = 1;  // unchanged
+    vg.vnodeGid[1].dnodeId = 2;  // unchanged
+
+    SArbGroup newGroup = {0};
+    ASSERT_EQ(mndArbGroupUpdateDnodeByVgObj(&old, &vg, &newGroup), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(newGroup.assignedLeader.assignedDnodeId, 1);  // leader still present
+
+    mndArbGroupApplyDnodeRealign(&old, &newGroup);
+    ASSERT_EQ(old.members[0].info.dnodeId, 1);
+    ASSERT_EQ(old.members[1].info.dnodeId, 2);
+    ASSERT_EQ(old.assignedLeader.assignedDnodeId, 1);
+    ASSERT_EQ(std::string(old.members[0].state.token), oldTok0);
+    ASSERT_EQ(std::string(old.members[1].state.token), oldTok1);
+  }
+}
 #pragma GCC diagnostic pop
