@@ -682,7 +682,65 @@ typedef struct SSTriggerVTablePatchContext {
   int64_t    prepareFirstFailureMs;
 } SSTriggerVTablePatchContext;
 
+typedef struct SSTriggerPeriodSourceKey {
+  int64_t                gid;
+  int64_t                uid;
+  int64_t                generation;
+  SSTriggerReaderDataKey readerKey;
+} SSTriggerPeriodSourceKey;
+
+typedef struct SSTriggerPeriodBindingKey {
+  int64_t generation;
+  int64_t virtualUid;
+} SSTriggerPeriodBindingKey;
+
+typedef struct SSTriggerPeriodReader {
+  int64_t  nextVer;
+  int64_t  pendingVer;
+  uint64_t committedToken;
+  uint64_t pendingToken;
+  int32_t  error;
+  bool     atCutoff;
+} SSTriggerPeriodReader;
+
+typedef struct SSTriggerPeriodGroup {
+  int32_t vgId;
+  bool    hasInput;
+} SSTriggerPeriodGroup;
+
+typedef struct SSTriggerPeriodCycle {
+  STimeWindow                  window;
+  int64_t                      streamId;
+  int64_t                      taskId;
+  int64_t                      sessionId;
+  SSHashObj                   *pGroups;   // gid -> SSTriggerPeriodGroup
+  SSHashObj                   *pSources;  // SSTriggerPeriodSourceKey -> cache-local source id
+  SSHashObj                   *pReaders;  // vgId -> SSTriggerPeriodReader
+  void                        *pDataCache;
+  SSHashObj                   *pBindings;  // SSTriggerPeriodBindingKey -> owned SSTriggerVirtTableInfo*
+  int64_t                      bindingGeneration;
+  bool                         sealed;
+} SSTriggerPeriodCycle;
+
+int32_t stRealtimePeriodCreate(int64_t streamId, int64_t taskId, int64_t sessionId, STimeWindow window,
+                               SSTriggerPeriodCycle **ppCycle);
+int32_t stRealtimePeriodBeginBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t firstVer,
+                                   int64_t nextVer, bool *pAccepted);
+int32_t stRealtimePeriodCollectMeta(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, int64_t gid,
+                                    int32_t vgId);
+int32_t stRealtimePeriodCollectData(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token,
+                                    const SSTriggerPeriodSourceKey *pKey, SSDataBlock *pBlock, int32_t startIdx,
+                                    int32_t endIdx, int32_t tsSlotId);
+int32_t stRealtimePeriodCommitBatch(SSTriggerPeriodCycle *pCycle, int32_t readerId, uint64_t token, bool atCutoff);
+int32_t stRealtimePeriodSeal(SSTriggerPeriodCycle *pCycle, bool *pSealed);
+// Merge consecutive sealed cycles; on failure both must be discarded by task teardown.
+int32_t stRealtimePeriodMerge(SSTriggerPeriodCycle *pPending, SSTriggerPeriodCycle *pCycle);
+void    stRealtimePeriodDestroy(SSTriggerPeriodCycle **ppCycle);
+
+typedef struct SSTriggerPeriodState SSTriggerPeriodState;
+
 struct SSTriggerRealtimeContext {
+  SSTriggerPeriodState      *pPeriod;
   struct SStreamTriggerTask *pTask;
   SSTriggerNestedRecovery   *pRecovery;
   EStreamTriggerType         triggerType;
@@ -1197,6 +1255,7 @@ int64_t     stRealtimeContextExtTriggerRecoveryCutoff(const SSTriggerRealtimeCon
 int32_t     stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int64_t gid, SArray **ppBindings);
 
 #if defined(BUILD_TEST)
+void stTriggerTestPeriodPendingStats(SSTriggerRealtimeContext *pContext, int32_t *pCycles, int64_t *pGroups);
 /* Test seams for streamTriggerTaskTest. They expose the virtual-table patch state machine and the WAL
  * table-change gate so the retry/escalation and replay-dedup rules can be verified without a live
  * vnode. They are compiled only when BUILD_TEST is set, so the production library exports none of

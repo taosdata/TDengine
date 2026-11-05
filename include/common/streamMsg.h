@@ -1466,8 +1466,8 @@ typedef struct SSTriggerTsdbDataRequest {
 
 typedef struct SSTriggerWalMetaNewRequest {
   SSTriggerPullRequest base;
-  int64_t              lastVer;
-  int64_t              ctime;
+  int64_t              lastVer;  // next WAL version to read, inclusive
+  int64_t              ctime;    // inclusive ingest-time cutoff in ns; INT64_MAX means no cutoff
 } SSTriggerWalMetaNewRequest;
 
 typedef enum {

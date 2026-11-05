@@ -372,6 +372,8 @@ typedef struct SSTriggerDataSlice {
   SSDataBlock *pDataBlock;
   int32_t      startIdx;
   int32_t      endIdx;
+  void        *pSnapshotCache;
+  int64_t      snapshotSourceId;
 } SSTriggerDataSlice;
 
 typedef struct SSTriggerNewTimestampSorter {
@@ -387,6 +389,7 @@ typedef struct SSTriggerNewTimestampSorter {
   SArray                 *pSliceBuf;    // SArray<SNewTimestampSorterSlice>
   SArray                 *pSliceLists;  // SArray<SNewTimestampSorterSliceList>
   SMultiwayMergeTreeInfo *pDataMerger;
+  void                   *pSnapshotSort;
 } SSTriggerNewTimestampSorter;
 
 /**
@@ -457,6 +460,18 @@ typedef struct SSTriggerNewVtableMerger {
   SArray                 *pReaderInfos;  // SArray<SNewVtableMergerReaderInfo>
   SMultiwayMergeTreeInfo *pDataMerger;
 } SSTriggerNewVtableMerger;
+
+// Borrowed input descriptors; each layout generation keeps its own column mapping.
+typedef struct SSTriggerVtableSource {
+  SSTriggerReaderDataKey readerKey;
+  SSTriggerTableColRef  *pColRef;
+  SSTriggerDataSlice     slice;
+  SObjList              *pMetas;
+  int64_t                generation;
+} SSTriggerVtableSource;
+
+int32_t stNewVtableMergerSetSources(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SArray *pSources, bool orderedInput);
 
 /**
  * @brief Initializes a vtable merger for merging data from original tables.
