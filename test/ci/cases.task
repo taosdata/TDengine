@@ -1398,7 +1398,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_three_gorges_second_case22.py
 ## 21-Stability
 ## 22-Performance
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py::TestVirtualStreamMixedExternalPerf::test_virtual_stream_mixed_tdengine_mysql_throughput
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql VSTREAM_EXT_PERF_TIMEOUT_SEC=600 ./ci/pytest.sh pytest cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py::TestVirtualStreamMixedExternalPerf::test_virtual_stream_mixed_tdengine_mysql_throughput
 #100,,y,.,CASE_TIMEOUT=1800 env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py::TestVirtualStreamMixedExternalPerf::test_virtual_stream_mixed_tdengine_mysql_large_scale_throughput --timeout=1800
 ## 23-Compatibility
 

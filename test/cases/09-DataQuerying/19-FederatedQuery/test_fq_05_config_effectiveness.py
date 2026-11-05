@@ -773,16 +773,20 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._c4_pool_size_sqlserver_client()
             self._c5_idle_ttl_sqlserver_client()
             # --- Oracle (5th source) — parallel to the paths above ---
-            self._c1_enable_oracle()
-            self._c2_connect_timeout_oracle()
-            self._c3_query_timeout_oracle()
-            self._c4_pool_size_oracle()
-            self._c5_idle_ttl_oracle()
-            # --- Oracle client-side (ALTER LOCAL) mirrors ---
-            self._c2_connect_timeout_oracle_client()
-            self._c3_query_timeout_oracle_client()
-            self._c4_pool_size_oracle_client()
-            self._c5_idle_ttl_oracle_client()
+            # Only when the run provisions Oracle: the Windows CI service
+            # list leaves it out, and the MySQL/SQL Server legs above must
+            # still run (and be checked against the baseline) in that case.
+            if "oracle" in ExtSrcEnv.required_services():
+                self._c1_enable_oracle()
+                self._c2_connect_timeout_oracle()
+                self._c3_query_timeout_oracle()
+                self._c4_pool_size_oracle()
+                self._c5_idle_ttl_oracle()
+                # --- Oracle client-side (ALTER LOCAL) mirrors ---
+                self._c2_connect_timeout_oracle_client()
+                self._c3_query_timeout_oracle_client()
+                self._c4_pool_size_oracle_client()
+                self._c5_idle_ttl_oracle_client()
         finally:
             self._restore_all_defaults()
         self._check_baseline("test_fq_05_003_behavioral")

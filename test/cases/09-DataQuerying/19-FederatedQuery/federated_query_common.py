@@ -630,9 +630,9 @@ class ExtSrcEnv:
                           if v.strip()]
     # Oracle version axis ("11g" / "19c" / "26ai").  Like SQL Server it is not
     # merged into _version_combos(); Oracle scenarios select their version
-    # explicitly.  Linux defaults to 11g (11.2.0.4); Windows keeps 26ai until
-    # an 11g Windows instance is part of that platform's test set.
-    _DEFAULT_ORACLE_VERSION = "26ai" if os.name == "nt" else "11g"
+    # explicitly.  Both platforms default to 11g (11.2.0.4) and treat 26ai as
+    # the optional second generation (FQ_ORACLE_VERSIONS=26ai).
+    _DEFAULT_ORACLE_VERSION = "11g"
     ORACLE_VERSIONS = [v.strip() for v in
                        os.getenv("FQ_ORACLE_VERSIONS", _DEFAULT_ORACLE_VERSION).split(",")
                        if v.strip()]
@@ -964,11 +964,10 @@ class ExtSrcEnv:
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
         # of them, so a provider missing from this list would only be detected
         # later, as an unreachable host inside a case (Oracle TS 5.5).
-        # Windows Oracle provisioning is deferred; Linux keeps its Oracle
-        # coverage. Explicit service selections still apply to custom runs.
-        default = "mysql,pg,influx,sqlserver"
-        if os.name != "nt":
-            default += ",oracle"
+        # Oracle is part of the Windows default too: 11g has no Windows server
+        # media, so ensure_ext_env.ps1 runs the Linux 11.2.0.4 image in a local
+        # container. Explicit service selections still apply to custom runs.
+        default = "mysql,pg,influx,sqlserver,oracle"
         value = os.getenv("FQ_REQUIRED_SERVICES", default)
         services = set() if value == "none" else set(value.split(","))
         if services - {"mysql", "pg", "influx", "sqlserver", "oracle"}:
@@ -2293,6 +2292,8 @@ class ExtSrcEnv:
     @classmethod
     def stop_oracle_instance(cls, ver, wait_s=120):
         """Stop the Oracle instance; the port becomes unreachable."""
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            return
         if cls._external_service_action("stop", "oracle", ver):
             return
         import subprocess
@@ -2322,6 +2323,8 @@ class ExtSrcEnv:
     @classmethod
     def kill_oracle_instance(cls, ver):
         """Hard-stop the Oracle instance (kill -9 equivalent)."""
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            return
         if cls._external_service_action("kill", "oracle", ver):
             return
         import subprocess
@@ -2349,6 +2352,9 @@ class ExtSrcEnv:
         session (ORA-01033 during startup).  Both modes therefore share the
         same application-level readiness probe below.
         """
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         import time
         external = cls._external_service_action("start", "oracle", ver)
@@ -3027,15 +3033,50 @@ class ExtSrcEnv:
         params = {"db" if native else "bucket": bucket, "precision": precision}
         if retention_policy is not None:
             params["rp"] = retention_policy
-        headers = {"Content-Type": "text/plain; charset=utf-8"}
-        if cfg.token:
-            headers["Authorization"] = f"Bearer {cfg.token}"
-        # A write without a timeout can hang forever when InfluxDB stops
-        # answering mid-run (the per-case 3600s watchdog would then kill the
-        # whole case), so always bound it and recover from a dead server.
-        r = cls._influx_request("POST", url, ver=cfg.version, params=params,
-                                headers=headers, data=data.encode('utf-8'),
-                                auth=cls.influx_request_auth(cfg), timeout=30)
+
+        def _post(current_cfg):
+            headers = {"Content-Type": "text/plain; charset=utf-8"}
+            if current_cfg.token:
+                headers["Authorization"] = f"Bearer {current_cfg.token}"
+            # A write without a timeout can hang forever when InfluxDB stops
+            # answering mid-run (the per-case 3600s watchdog would then kill the
+            # whole case), so always bound it and recover from a dead server.
+            return cls._influx_request(
+                "POST", url, ver=current_cfg.version, params=params,
+                headers=headers, data=data.encode('utf-8'),
+                auth=cls.influx_request_auth(current_cfg), timeout=30)
+
+        r = _post(cfg)
+        if (r.status_code >= 400 and "number of tables limit" in (r.text or "")
+                and sys.platform == "win32"):
+            # InfluxDB 3 Core caps an instance at 2000 tables across all
+            # databases, and dropped databases do not release their slots
+            # (influxdata/influxdb#27281).  Once a long matrix reaches that
+            # state every later write fails, so recreate the data directory
+            # through the setup script and retry against the fresh instance.
+            # The hard reset destroys the catalog, hence the bucket is
+            # re-created and the new admin token re-read below.
+            import subprocess
+            env = _fq_subprocess_env()
+            env["FQ_SERVICES_TO_RESET"] = "influx"
+            env["FQ_INFLUX_VERSIONS"] = str(cfg.version)
+            subprocess.run(
+                cls._ext_env_script_cmd() + ["--influx-reset", str(cfg.version)],
+                env=env, capture_output=True, encoding="utf-8",
+                errors="replace", timeout=600, stdin=subprocess.DEVNULL)
+            cfg = cfg._replace(token=cls._get_influx_token(cfg.version))
+            cls.influx_create_db_cfg(cfg, bucket)
+            r = _post(cfg)
+        if r.status_code >= 400:
+            # The stock HTTPError carries only the reason phrase; the response
+            # body is where InfluxDB names the actual problem (missing/soft
+            # deleted database, rejected line protocol, ...).  Keep it in the
+            # message so a setup failure is diagnosable from the case log.
+            import requests
+            raise requests.exceptions.HTTPError(
+                f"{r.status_code} writing {len(data.encode('utf-8'))} byte(s) "
+                f"to bucket={bucket} precision={precision}: {r.text[:500]!r}",
+                response=r)
         r.raise_for_status()
 
     @classmethod
@@ -3306,6 +3347,15 @@ class ExtSrcEnv:
         what the retry/classification tests assert on, so it must not be
         swallowed here.
         """
+        if "oracle" not in cls.required_services():
+            # The run does not provision Oracle (Windows CI omits it): stop at
+            # the test's first Oracle statement instead of failing.  When the
+            # call comes from a cleanup block while another exception is in
+            # flight, return quietly so a skip or a real failure is not masked.
+            if sys.exc_info()[0] is not None:
+                return ""
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         if isinstance(sql, (list, tuple)):
             # A batch is one sqlplus session, so statements that must share it
@@ -3504,6 +3554,13 @@ class ExtSrcEnv:
         lease the instance is owned by the controller, so the same batch goes
         through its exec channel with the admin credentials.
         """
+        if "oracle" not in cls.required_services() and cls._env_mode() != "external":
+            # This path runs sqlplus directly instead of going through
+            # _oracle_sql, so it needs the same "oracle not provisioned" skip.
+            if sys.exc_info()[0] is not None:
+                return ""
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         import subprocess
         if cls._env_mode() == "external":
             for sql in sqls:
@@ -3679,6 +3736,13 @@ class FederatedQueryTestMixin:
         other engines, doubles as the login user.  Pass empty strings to
         exercise the "not configured" namespace cases.
         """
+        if "oracle" not in ExtSrcEnv.required_services():
+            # Without a provisioned Oracle there is no server behind the
+            # source, so skip the test here (see _oracle_sql for the guard).
+            if sys.exc_info()[0] is not None:
+                return
+            import pytest
+            pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         tdSql.execute(f"drop database if exists {name}")
         tdSql.execute(f"drop external source if exists {name}")
         cfg = self._oracle_cfg()

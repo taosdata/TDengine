@@ -30,16 +30,12 @@ cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 # copy-mode repair not supported in Windows
 cases/50-Others/02-Repair/test_copy_repair.py
 
-# Federated queries and xnode are unavailable on Windows.
+# Xnode is unavailable on Windows.  Federated queries ARE supported: the
+# external engines are provisioned by ensure_ext_env.ps1 (Oracle 11g runs from
+# the Linux container on the runner), so the FQ suites run on Windows like on
+# Linux and must not be listed here.
 # Patterns also match pytest node IDs (file.py::Class::test).
-FQ_REQUIRED_SERVICES=*
-cases/09-DataQuerying/19-FederatedQuery/
 cases/42-Xnode/
-cases/05-VirtualTables/01-DDL/03-ExtSource/
-cases/05-VirtualTables/02-Auth/test_vtable_auth_ext_source.py
-cases/05-VirtualTables/04-Query/03-ExtSource/
-cases/05-VirtualTables/05-Plan/*ext_source*.py
-cases/05-VirtualTables/05-Plan/*federated*.py
 cases/05-VirtualTables/06-Meta/02-Series/
 cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
 cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py

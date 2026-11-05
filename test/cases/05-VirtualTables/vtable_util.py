@@ -768,6 +768,20 @@ def _prepare_one_origin_database(
 # start_*_instance are delegated to ExtSrcEnv to avoid duplication.
 
 
+def _skip_unless_service_required(source):
+    """Skip the test when the provider is outside FQ_REQUIRED_SERVICES.
+
+    required_services is the single source of truth for the providers a run
+    exercises: a Windows CI job without Docker for the 11g container keeps the
+    four native engines, and Oracle-backed classes skip here instead of
+    failing inside ensure_running().
+    """
+    if source in ExtSrcEnv.required_services():
+        return
+    import pytest
+    pytest.skip(f"{source} is not in FQ_REQUIRED_SERVICES")
+
+
 # --- PostgreSQL adapter ----------------------------------------------------
 class _PgAdapter:
     BACKEND       = "pg"
@@ -792,6 +806,7 @@ class _PgAdapter:
 
     # ----- env lifecycle ---------------------------------------------------
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -904,6 +919,7 @@ class _MysqlAdapter:
     def version(self): return ExtSrcEnv.MYSQL_VERSIONS[0]
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1029,6 +1045,7 @@ class _SqlserverAdapter:
     def version(self): return ExtSrcEnv.SQLSERVER_VERSIONS[0]
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1186,6 +1203,7 @@ class _OracleAdapter:
         return next(ExtSrcEnv.oracle_version_configs())
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if ExtSrcEnv._tcp_probe(self.host, self.port, timeout=5):
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":
@@ -1370,6 +1388,7 @@ class _InfluxAdapter:
             return False
 
     def ensure_running(self):
+        _skip_unless_service_required(self.BACKEND)
         if self._health_ready():
             return
         if os.environ.get("FQ_SKIP_ENV_RESET") == "1":

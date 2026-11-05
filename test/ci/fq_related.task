@@ -1,0 +1,29 @@
+## Focused federated-query verification for the Oracle-on-Windows work.
+## Selected with CASES_TASK=source/taos-community/test/ci/fq_related.task on
+## the coordinator; the default inventory (cases.task) stays untouched.
+## Entries mirror the corresponding cases.task lines:
+##  - fq_01 / fq_05: the FQ files that changed (Oracle fixture gating)
+##  - fq_09 o05: exercises oracle_admin_exec_cfg (the guard added here)
+##  - fq_19: the runtime-lib tests that were adjusted for the shared roots
+##  - the two external-source vtable files that changed
+##  - the taosdump cases that exercise the bckLog stdout fix
+100,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_001_defaults
+100,,y,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_002_alter_and_verify
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=mysql,sqlserver,oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_05_config_effectiveness.py::TestFq05ConfigEffectiveness::test_fq_05_003_behavioral
+100,,y,.,CASE_TIMEOUT=1500 env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_09_stability.py::TestFq09Stability::test_fq_stab_o05_oracle_pool_exhaustion_recovery
+100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_prepare_runtime_libs_sanitizes_shell_helper_env cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_pymysql_dependency cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_taos_cli_env_disables_leak_detection_for_asan_child cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_runtime_moves_normal_provider_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_driver_moves_only_sqlserver_driver_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_influx_runtime_moves_arrow_third_party_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_existing_source_query_missing_uses_provider_error cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_influx_http_uses_runtime_missing_query_check
+100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_available
+100,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_missing
+100,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_sqlserver_missing_driver_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_runtime_libs_available
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_driver_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_unixodbc_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_instant_client_uses_provider_error
+100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_pool_disconnect_reconnects
+100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py
+100,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_basic.py -B
+100,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_bugs.py -B
+100,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_precision.py
+100,,y,.,./ci/pytest.sh pytest cases/81-Tools/04-Taosdump/test_taosdump_schema_change.py -B
