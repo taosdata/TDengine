@@ -266,6 +266,29 @@ static inline uint32_t walCalcBodyCksum(const void* body, uint32_t len) {
   return taosCalcChecksum(0, (uint8_t*)body, len);
 }
 
+// Reads the index entry that describes `ver` from an idx file whose first
+// version is `fileFirstVer`. The slot is derived from `ver`, so the entry found
+// there has to describe `ver` and point inside the log: the reader stays a
+// single definition of that layout for both the replay path and the offline
+// inspection, which otherwise each re-derive it.
+static inline int32_t walReadIdxEntry(TdFilePtr pIdx, int64_t fileFirstVer, int64_t ver,
+                                      SWalIdxEntry* pEntry) {
+  int64_t offset = (ver - fileFirstVer) * (int64_t)sizeof(SWalIdxEntry);
+  pEntry->ver = 0;
+  pEntry->offset = 0;
+  if (taosLSeekFile(pIdx, offset, SEEK_SET) != offset) {
+    return terrno != 0 ? terrno : TAOS_SYSTEM_ERROR(EIO);
+  }
+  int64_t n = taosReadFile(pIdx, pEntry, sizeof(SWalIdxEntry));
+  if (n != sizeof(SWalIdxEntry)) {
+    return n < 0 ? terrno : TSDB_CODE_WAL_FILE_CORRUPTED;
+  }
+  if (pEntry->ver != ver || pEntry->offset < 0) {
+    return TSDB_CODE_WAL_FILE_CORRUPTED;
+  }
+  return 0;
+}
+
 static inline int64_t walGetVerIdxOffset(SWal* pWal, int64_t ver) {
   return (ver - walGetCurFileFirstVer(pWal)) * sizeof(SWalIdxEntry);
 }

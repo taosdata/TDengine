@@ -250,7 +250,7 @@ _OVER:
   return pRaw;
 }
 
-static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
+static SSdbRow *mndDnodeDecode(SSdbRaw *pRaw, bool updateEndpoint) {
   int32_t code = 0;
   int32_t lino = 0;
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -287,7 +287,8 @@ static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
   }
 
   terrno = 0;
-  if (tmsgUpdateDnodeInfo(&pDnode->id, NULL, pDnode->fqdn, &pDnode->port)) {
+  if (updateEndpoint &&
+      tmsgUpdateDnodeInfo(&pDnode->id, NULL, pDnode->fqdn, &pDnode->port)) {
     mInfo("dnode:%d, endpoint changed", pDnode->id);
   }
 
@@ -300,6 +301,108 @@ _OVER:
 
   mTrace("dnode:%d, decode from raw:%p, row:%p ep:%s:%u", pDnode->id, pRaw, pDnode, pDnode->fqdn, pDnode->port);
   return pRow;
+}
+
+static SSdbRow *mndDnodeActionDecode(SSdbRaw *pRaw) {
+  return mndDnodeDecode(pRaw, true);
+}
+
+typedef struct {
+  SArray *dnodes;
+  int32_t transactions;
+} SMndInspectSdb;
+
+static int32_t mndInspectSdbRaw(SSdbRaw *raw, void *param) {
+  SMndInspectSdb *inspect = param;
+  if (raw->type == SDB_TRANS && raw->status != SDB_STATUS_DROPPED) {
+    ++inspect->transactions;
+  }
+  if (raw->type != SDB_DNODE) return 0;
+  if (raw->status != SDB_STATUS_READY) return TSDB_CODE_INVALID_CFG;
+  SSdbRow *row = mndDnodeDecode(raw, false);
+  if (row == NULL) return terrno != 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
+  SDnodeObj *node = sdbGetRowObj(row);
+  SDnodeEp ep = {.id = node->id, .ep.port = node->port};
+  int32_t code = 0;
+  if (memchr(node->fqdn, '\0', sizeof(node->fqdn)) == NULL) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+  } else {
+    tstrncpy(ep.ep.fqdn, node->fqdn, sizeof(ep.ep.fqdn));
+    if (taosArrayPush(inspect->dnodes, &ep) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  taosMemoryFree(row);
+  return code;
+}
+
+int32_t mndInspectSdb(const char *path, bool encrypted, SArray *dnodes,
+                      int64_t *index, int64_t *term, int32_t *transactions) {
+  SSdb head = {0};
+  SMndInspectSdb inspect = {.dnodes = dnodes};
+  size_t         before = taosArrayGetSize(dnodes);
+  int32_t code = sdbInspectFile(path, encrypted, &head, mndInspectSdbRaw, &inspect);
+  if (code == 0) {
+    *index = head.applyIndex;
+    *term = head.applyTerm;
+    *transactions = inspect.transactions;
+  } else {
+    taosArrayRemoveBatch(dnodes, before, taosArrayGetSize(dnodes) - before, NULL);
+  }
+  return code;
+}
+
+typedef struct {
+  const SArray *endpoints;
+  int32_t       rewritten;
+} SMndRewriteSdbDnodes;
+
+static const SDnodeEp *mndFindEndpoint(const SArray *endpoints, int32_t id) {
+  for (size_t i = 0; i < taosArrayGetSize(endpoints); ++i) {
+    const SDnodeEp *ep = taosArrayGet(endpoints, i);
+    if (ep->id == id) return ep;
+  }
+  return NULL;
+}
+
+static int32_t mndRewriteSdbDnodeRaw(SSdbRaw *raw, void *param,
+                                      SSdbRaw **ppOut) {
+  SMndRewriteSdbDnodes *rewrite = param;
+  if (raw->type != SDB_DNODE) return 0;
+  if (raw->status != SDB_STATUS_READY) return 0;
+  SSdbRow *row = mndDnodeDecode(raw, false);
+  if (row == NULL) return terrno != 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
+  SDnodeObj       *node = sdbGetRowObj(row);
+  const SDnodeEp  *ep = mndFindEndpoint(rewrite->endpoints, node->id);
+  int32_t code = 0;
+  if (ep == NULL) {
+    code = TSDB_CODE_INVALID_CFG;
+  } else if (strcmp(node->fqdn, ep->ep.fqdn) == 0 && node->port == ep->ep.port) {
+    code = 0;
+  } else {
+    node->port = ep->ep.port;
+    tstrncpy(node->fqdn, ep->ep.fqdn, sizeof(node->fqdn));
+    SSdbRaw *encoded = mndDnodeActionEncode(node);
+    if (encoded == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      // The encoder leaves the row status at its zero value, exactly as it does
+      // for every other caller; the snapshot writer is what restores it.
+      encoded->status = raw->status;
+      *ppOut = encoded;
+      ++rewrite->rewritten;
+    }
+  }
+  taosMemoryFree(row);
+  return code;
+}
+
+int32_t mndRewriteSdbDnodes(const char *path, bool encrypted,
+                            const SArray *pEndpoints, int32_t *rewritten) {
+  SMndRewriteSdbDnodes rewrite = {.endpoints = pEndpoints};
+  int32_t code = sdbRewriteFile(path, encrypted, mndRewriteSdbDnodeRaw, &rewrite);
+  if (code == 0) *rewritten = rewrite.rewritten;
+  return code;
 }
 
 static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {

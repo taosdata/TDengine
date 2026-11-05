@@ -1882,6 +1882,12 @@
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_repair.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/02-Repair/test_copy_accuracy.py
 
+## 03-RewriteEndpoint
+,,y,.,./ci/pytest.sh pytest cases/50-Others/03-RewriteEndpoint/test_rewrite_endpoint_precheck.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/03-RewriteEndpoint/test_rewrite_endpoint_apply.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/03-RewriteEndpoint/test_rewrite_endpoint_other.py
+,,y,.,./ci/pytest.sh pytest cases/50-Others/03-RewriteEndpoint/test_rewrite_endpoint_service.py
+
 ## 50-Others
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/test_enterprise_feature_reminder.py
 ,,y,.,./ci/pytest.sh pytest cases/50-Others/test_wrapper_config_dir_logs.py

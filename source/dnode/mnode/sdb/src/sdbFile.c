@@ -331,6 +331,200 @@ static bool sdbReadEncryptedFlagFromMnodeJson(SSdb *pSdb) {
   return (encrypted != 0);
 }
 
+static int32_t sdbInspectRaw(TdFilePtr file, bool encrypted, SSdbRaw **ppRaw) {
+  SSdbRaw head = {0};
+  int64_t n = taosReadFile(file, &head, sizeof(head));
+  *ppRaw = NULL;
+  if (n == 0) return 0;
+  if (n < 0) return terrno;
+  if (n != sizeof(head) || head.dataLen < 0 ||
+      head.dataLen > TSDB_MAX_MSG_SIZE || head.type < 0 ||
+      head.type >= SDB_MAX || head.status < SDB_STATUS_INIT ||
+      head.status > SDB_STATUS_UPDATE) {
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  int32_t diskLen = encrypted ? ENCRYPTED_LEN(head.dataLen) : head.dataLen;
+  SSdbRaw *raw = taosMemoryMalloc(sizeof(head) + diskLen + sizeof(int32_t));
+  if (raw == NULL) return terrno;
+  memcpy(raw, &head, sizeof(head));
+  int32_t code = 0;
+  n = taosReadFile(file, raw->pData, diskLen + sizeof(int32_t));
+  if (n != diskLen + sizeof(int32_t)) {
+    code = n < 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
+    goto _exit;
+  }
+  if (encrypted) {
+    if (tsMetaKey[0] == '\0') {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+      goto _exit;
+    }
+    char *plain = taosMemoryMalloc(diskLen);
+    if (plain == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+    SCryptOpts opts = {0};
+    opts.len = diskLen;
+    opts.source = raw->pData;
+    opts.result = plain;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+    tstrncpy(opts.key, tsMetaKey, sizeof(opts.key));
+    int32_t count = CBC_Decrypt(&opts);
+    if (count != diskLen) {
+      code = TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+    } else {
+      memcpy(raw->pData, plain, head.dataLen);
+      memmove(raw->pData + head.dataLen, raw->pData + diskLen,
+              sizeof(int32_t));
+    }
+    taosMemoryFree(plain);
+    if (code != 0) goto _exit;
+  }
+  uint32_t checksum = 0;
+  memcpy(&checksum, raw->pData + head.dataLen, sizeof(checksum));
+  if (taosCheckChecksum((const uint8_t *)raw,
+                        sizeof(head) + head.dataLen, checksum) != 0) {
+    code = TSDB_CODE_CHECKSUM_ERROR;
+    goto _exit;
+  }
+  *ppRaw = raw;
+  return 0;
+
+_exit:
+  taosMemoryFree(raw);
+  return code;
+}
+
+int32_t sdbInspectFile(const char *path, bool encrypted, SSdb *pHead,
+                       int32_t (*visit)(SSdbRaw *, void *), void *param) {
+  if (visit == NULL) return TSDB_CODE_INVALID_PARA;
+  if (encrypted && tsMetaKey[0] == '\0') {
+    return TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+  }
+  TdFilePtr file = taosOpenFile(path, TD_FILE_READ | TD_FILE_CLOEXEC);
+  if (file == NULL) return terrno;
+  int32_t code = sdbReadFileHead(pHead, file);
+  while (code == 0) {
+    SSdbRaw *raw = NULL;
+    code = sdbInspectRaw(file, encrypted, &raw);
+    if (code != 0 || raw == NULL) break;
+    code = visit(raw, param);
+    taosMemoryFree(raw);
+  }
+  int32_t closeCode = taosCloseFile(&file);
+  if (code == 0) code = closeCode;
+  if (code != 0) {
+    mError("failed to inspect snapshot:%s since %s", path, tstrerror(code));
+  }
+  return code;
+}
+
+#define SDB_FILE_HEAD_SIZE                                         \
+  (4 * sizeof(int64_t) + SDB_TABLE_SIZE * 2 * sizeof(int64_t) +    \
+   (SDB_TABLE_SIZE_EXTRA - SDB_TABLE_SIZE) * 2 * sizeof(int64_t) + \
+   SDB_RESERVE_SIZE_EXTRA)
+
+static int32_t sdbRewriteRaw(TdFilePtr file, SSdbRaw *raw, bool encrypted) {
+  if (taosWriteFile(file, raw, sizeof(SSdbRaw)) != sizeof(SSdbRaw)) {
+    return terrno;
+  }
+  char   *data = raw->pData;
+  int32_t dataLen = raw->dataLen;
+  char   *encryptedData = NULL;
+  if (encrypted) {
+    dataLen = ENCRYPTED_LEN(raw->dataLen);
+    encryptedData = taosMemoryMalloc(dataLen);
+    if (encryptedData == NULL) return terrno;
+    SCryptOpts opts = {0};
+    opts.len = raw->dataLen;
+    opts.source = raw->pData;
+    opts.result = encryptedData;
+    opts.unitLen = 16;
+    opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
+    tstrncpy(opts.key, tsMetaKey, sizeof(opts.key));
+    int32_t count = CBC_Encrypt(&opts);
+    if (count <= 0) {
+      taosMemoryFree(encryptedData);
+      return terrno != 0 ? terrno : TSDB_CODE_FAILED;
+    }
+    data = encryptedData;
+  }
+  int32_t code = 0;
+  if (taosWriteFile(file, data, dataLen) != dataLen) {
+    code = terrno != 0 ? terrno : TAOS_SYSTEM_ERROR(EIO);
+  }
+  taosMemoryFree(encryptedData);
+  if (code != 0) return code;
+  int32_t cksum = taosCalcChecksum(0, (const uint8_t *)raw, sizeof(SSdbRaw) + raw->dataLen);
+  if (taosWriteFile(file, &cksum, sizeof(int32_t)) != sizeof(int32_t)) {
+    return terrno;
+  }
+  return 0;
+}
+
+int32_t sdbRewriteFile(const char *path, bool encrypted, SdbRewriteFp rewrite, void *param) {
+  if (rewrite == NULL) return TSDB_CODE_INVALID_PARA;
+  if (encrypted && tsMetaKey[0] == '\0') {
+    return TSDB_CODE_DNODE_INVALID_ENCRYPT_CONFIG;
+  }
+  TdFilePtr file = taosOpenFile(path, TD_FILE_READ | TD_FILE_CLOEXEC);
+  if (file == NULL) return terrno;
+  char    tmpfile[PATH_MAX] = {0};
+  int32_t n = snprintf(tmpfile, sizeof(tmpfile), "%s.tmp", path);
+  int32_t code = n < 0 || n >= sizeof(tmpfile) ? TSDB_CODE_OUT_OF_BUFFER : 0;
+  TdFilePtr tmp = NULL;
+  bool      created = false;
+  if (code == 0) {
+    tmp = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_CLOEXEC);
+    if (tmp == NULL) {
+      code = terrno;
+    } else {
+      created = true;
+    }
+  }
+  char head[SDB_FILE_HEAD_SIZE] = {0};
+  if (code == 0) {
+    int64_t readLen = taosReadFile(file, head, sizeof(head));
+    if (readLen != sizeof(head)) {
+      code = readLen < 0 ? terrno : TSDB_CODE_FILE_CORRUPTED;
+    }
+  }
+  if (code == 0 && taosWriteFile(tmp, head, sizeof(head)) != sizeof(head)) {
+    code = terrno;
+  }
+  while (code == 0) {
+    SSdbRaw *raw = NULL;
+    code = sdbInspectRaw(file, encrypted, &raw);
+    if (code != 0 || raw == NULL) break;
+    SSdbRaw *replacement = NULL;
+    code = rewrite(raw, param, &replacement);
+    if (code == 0) {
+      code = sdbRewriteRaw(tmp, replacement != NULL ? replacement : raw,
+                           encrypted);
+    }
+    taosMemoryFree(raw);
+    taosMemoryFree(replacement);
+  }
+  if (code == 0) code = taosFsyncFile(tmp);
+  int32_t closeCode = taosCloseFile(&file);
+  if (code == 0) code = closeCode;
+  closeCode = taosCloseFile(&tmp);
+  if (code == 0) code = closeCode;
+  if (code == 0) code = taosRenameFile(tmpfile, path);
+  if (code != 0 && created) {
+    int32_t removeCode = taosRemoveFile(tmpfile);
+    if (removeCode != 0) {
+      mError("failed to remove temporary snapshot:%s since %s", tmpfile,
+             tstrerror(removeCode));
+    }
+  }
+  if (code != 0) {
+    mError("failed to rewrite snapshot:%s since %s", path, tstrerror(code));
+  }
+  return code;
+}
+
 static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t offset = 0;
   int32_t code = 0, lino = 0;

@@ -20,6 +20,7 @@
 #include "dmMgmt.h"
 #include "dmInt.h"
 #include "dmUtil.h"
+#include "dmRewrite.h"
 #include "mnode.h"
 #include "osEnv.h"
 #include "osFile.h"
@@ -54,6 +55,8 @@
 #define DM_SET_ENCRYPTKEY  "Set encrypt key. such as: -y 1234567890abcdef, the length should be less or equal to 16."
 #define DM_REPAIR_MODE   "Start repair mode."
 #define DM_RESTORE        "Restore from a backup chain."
+#define DM_REWRITE_PRECHECK "Precheck offline endpoint rewriting."
+#define DM_REWRITE_APPLY    "Apply offline endpoint rewriting from collected precheck files."
 
 typedef enum {
   DM_REPAIR_TARGET_META = 0,
@@ -155,6 +158,7 @@ static struct {
   char            encryptKey[ENCRYPT_KEY_LEN + 1];
   SDmRepairOption repairOpt;
   SDmRestoreOption restoreOpt;
+  SDmRewriteEndpointsOption rewriteEndpointsOpt;
 } global = {0};
 
 extern int32_t cryptLoadProviders();
@@ -317,6 +321,152 @@ static int32_t dmParseLongOptionValue(int32_t argc, char const *argv[], int32_t 
   }
 
   tstrncpy(buf, val, bufLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRewriteEndpoint(const char *value, size_t len, SEp *pEp) {
+  const char *host = value;
+  const char *colon = memchr(value, ':', len);
+  size_t      hostLen = colon == NULL ? 0 : (size_t)(colon - host);
+  if (len > 0 && value[0] == '[') {
+    const char *close = memchr(value, ']', len);
+    if (close == NULL || close + 1 >= value + len || close[1] != ':') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    host = value + 1;
+    hostLen = close - host;
+    colon = close + 1;
+    if (memchr(host, ':', hostLen) == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  if (hostLen == 0 || hostLen >= sizeof(pEp->fqdn) ||
+      colon + 1 == value + len) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  for (size_t i = 0; i < hostLen; ++i) {
+    unsigned char ch = (unsigned char)host[i];
+    if (ch <= ' ' || ch == 127 || ch == '/' || ch == '\\' ||
+        ch == '[' || ch == ']' || ch == '=' || ch == '@' ||
+        ch == '?' || ch == '#') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+
+  int32_t port = 0;
+  for (const char *p = colon + 1; p < value + len; ++p) {
+    if (*p < '0' || *p > '9') {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    port = port * 10 + (*p - '0');
+    if (port > DM_REWRITE_ENDPOINTS_MAX_PORT) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  if (port == 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  memcpy(pEp->fqdn, host, hostLen);
+  pEp->fqdn[hostLen] = '\0';
+  pEp->port = (uint16_t)port;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmAddEndpointMapping(const char *value) {
+  SDmRewriteEndpointsOption *pOpt = &global.rewriteEndpointsOpt;
+  SDmEndpointMapping         mapping = {0};
+  const char                *equal = strchr(value, '=');
+  if (equal == NULL || strchr(equal + 1, '=') != NULL ||
+      dmParseRewriteEndpoint(value, equal - value, &mapping.source) != 0 ||
+      dmParseRewriteEndpoint(equal + 1, strlen(equal + 1),
+                             &mapping.target) != 0) {
+    printf("invalid '--map': %s, expected oldFQDN:oldPort=newFQDN:newPort "
+           "with ports in [1, %d]\n", value,
+           DM_REWRITE_ENDPOINTS_MAX_PORT);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (pOpt->pMappings == NULL) {
+    pOpt->pMappings = taosArrayInit(1, sizeof(SDmEndpointMapping));
+    if (pOpt->pMappings == NULL) {
+      printf("failed to allocate endpoint mappings: %s\n", tstrerror(terrno));
+      return terrno;
+    }
+  }
+  for (size_t i = 0; i < taosArrayGetSize(pOpt->pMappings); ++i) {
+    const SDmEndpointMapping *pMap = taosArrayGet(pOpt->pMappings, i);
+    if ((pMap->source.port == mapping.source.port &&
+         strcmp(pMap->source.fqdn, mapping.source.fqdn) == 0) ||
+        (pMap->target.port == mapping.target.port &&
+         strcmp(pMap->target.fqdn, mapping.target.fqdn) == 0)) {
+      printf("duplicate source or target endpoint in '--map': %s\n", value);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  if (taosArrayPush(pOpt->pMappings, &mapping) == NULL) {
+    printf("failed to append endpoint mapping: %s\n", tstrerror(terrno));
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmParseRewriteEndpointsOption(int32_t argc,
+                                            char const *argv[],
+                                            int32_t *pIndex, bool *pParsed) {
+  const char *options[] = {
+      "--rewrite-endpoints-precheck", "--rewrite-endpoints-apply", "--map"};
+  SDmRewriteEndpointsOption *pOpt = &global.rewriteEndpointsOpt;
+  *pParsed = false;
+  for (size_t i = 0; i < tListLen(options); ++i) {
+    char value[PATH_MAX] = {0};
+    int32_t code = dmParseLongOptionValue(
+        argc, argv, pIndex, options[i], value, sizeof(value), pParsed);
+    if (code != 0) {
+      return code;
+    }
+    if (!*pParsed) {
+      continue;
+    }
+    if (i == 2) {
+      return dmAddEndpointMapping(value);
+    }
+    if (pOpt->mode != DM_REWRITE_ENDPOINTS_NONE) {
+      printf("specify exactly one of '--rewrite-endpoints-precheck' and "
+             "'--rewrite-endpoints-apply', only once\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    pOpt->mode = i == 0 ? DM_REWRITE_ENDPOINTS_PRECHECK
+                       : DM_REWRITE_ENDPOINTS_APPLY;
+    tstrncpy(pOpt->precheckDir, value, sizeof(pOpt->precheckDir));
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t dmFinalizeRewriteEndpointsOption(bool hasOtherOptions) {
+  const SDmRewriteEndpointsOption *pOpt = &global.rewriteEndpointsOpt;
+  size_t numOfMappings = taosArrayGetSize(pOpt->pMappings);
+  if (pOpt->mode == DM_REWRITE_ENDPOINTS_NONE) {
+    if (numOfMappings > 0) {
+      printf("'--map' must be used with '--rewrite-endpoints-precheck'\n");
+      return TSDB_CODE_INVALID_PARA;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (hasOtherOptions) {
+    printf("endpoint rewrite commands only accept '-c', '--map' "
+           "(precheck only), and help options\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pOpt->mode == DM_REWRITE_ENDPOINTS_APPLY && numOfMappings > 0) {
+    printf("'--map' cannot be used with '--rewrite-endpoints-apply'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (pOpt->mode == DM_REWRITE_ENDPOINTS_PRECHECK &&
+      numOfMappings == 0 && !global.printHelp) {
+    printf("'--rewrite-endpoints-precheck' requires at least one '--map'\n");
+    return TSDB_CODE_INVALID_PARA;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1145,6 +1295,7 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   global.restoreOpt.verify = 1;
 
   int32_t cmdEnvIndex = 0;
+  bool    hasOtherOptions = false;
   if (argc < 2) return 0;
 
   global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
@@ -1154,7 +1305,19 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
     bool    optionParsed = false;
-    int32_t code = 0;
+    int32_t code =
+        dmParseRewriteEndpointsOption(argc, argv, &i, &optionParsed);
+    if (code != 0) {
+      return code;
+    }
+    if (optionParsed) {
+      continue;
+    }
+    if (strcmp(argv[i], "-c") != 0 && strcmp(argv[i], "-h") != 0 &&
+        strcmp(argv[i], "--help") != 0 && strcmp(argv[i], "--usage") != 0 &&
+        strcmp(argv[i], "-?") != 0) {
+      hasOtherOptions = true;
+    }
 #ifdef TD_ENTERPRISE
     code = dmParseRestoreOption(argc, argv, &i, &optionParsed);
     if (code != 0) {
@@ -1174,7 +1337,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
 
     if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {
+      if (i < argc - 1 && argv[i + 1][0] != '-' &&
+          argv[i + 1][0] != '\0') {
         if (strlen(argv[++i]) >= PATH_MAX) {
           printf("config file path overflow");
           return TSDB_CODE_INVALID_CFG;
@@ -1306,6 +1470,11 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     }
   }
 
+  int32_t rewriteCode = dmFinalizeRewriteEndpointsOption(hasOtherOptions);
+  if (rewriteCode != 0) {
+    return rewriteCode;
+  }
+
 #ifdef TD_ENTERPRISE
   int32_t code = dmFinalizeRestoreOption();
   if (code != 0) {
@@ -1353,6 +1522,9 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
   printf("%s%s%s%s\n", indent, "-r,", indent, DM_REPAIR_MODE);
+  printf("%s%s%s%s\n", indent, "--rewrite-endpoints-precheck DIR --map 'oldFQDN:oldPort=newFQDN:newPort' [--map ...]",
+         indent, DM_REWRITE_PRECHECK);
+  printf("%s%s%s%s\n", indent, "--rewrite-endpoints-apply DIR", indent, DM_REWRITE_APPLY);
 #ifdef TD_ENTERPRISE
   printf("%s%s%s%s\n", indent, "--restore PATH [--password PASSWORD] [--verify=0|1|2] [--parallel N]", indent, DM_RESTORE);
 #endif
@@ -1476,6 +1648,8 @@ static void taosCleanupRepairArgs() {
 static void taosCleanupArgs() {
   taosCleanupTransientArgs();
   taosCleanupRepairArgs();
+  taosArrayDestroy(global.rewriteEndpointsOpt.pMappings);
+  memset(&global.rewriteEndpointsOpt, 0, sizeof(global.rewriteEndpointsOpt));
 }
 
 #ifdef DM_MAIN_TESTING
@@ -1551,6 +1725,16 @@ int mainWindows(int argc, char **argv) {
     return 0;
   }
 
+  if (global.rewriteEndpointsOpt.mode != DM_REWRITE_ENDPOINTS_NONE) {
+    if (global.rewriteEndpointsOpt.mode == DM_REWRITE_ENDPOINTS_PRECHECK) {
+      code = dmRewriteEndpointsPrecheck(configDir, &global.rewriteEndpointsOpt);
+    } else {
+      code = dmRewriteEndpointsApply(configDir, &global.rewriteEndpointsOpt);
+    }
+    taosCleanupArgs();
+    return code == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+  }
+
 #if defined(LINUX)
   if (global.memDbg) {
     code = taosMemoryDbgInit();
@@ -1623,6 +1807,13 @@ int mainWindows(int argc, char **argv) {
 
   if ((code = taosApplyCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0)) != 0) {
     dError("failed to start since apply config error");
+    taosCloseLog();
+    taosCleanupArgs();
+    return code;
+  }
+
+  if ((code = dmRewriteEndpointsCheckLeftovers(configDir)) != 0) {
+    dError("failed to start since an endpoint rewrite backup was left behind");
     taosCloseLog();
     taosCleanupArgs();
     return code;
