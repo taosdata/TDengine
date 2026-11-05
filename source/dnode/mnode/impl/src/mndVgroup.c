@@ -2671,6 +2671,16 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
     }
   }
 
+  // TS-FIX: redistribute moved vnodes between dnodes; keep the arbgroup's member dnode
+  // mapping in sync so the arbitrator can still match vnode heartbeats (mndArbIsNeedUpdateTokenByHeartBeat
+  // matches by members[i].info.dnodeId). Committed in the same transaction as the vgroup change.
+  if (newVg.replica == 2) {
+    mInfo(KEYOP("redistribute-vgroup", "STEP")
+          "vgId:%d, syncing arbgroup member dnode mapping to [%d,%d]",
+          newVg.vgId, newVg.vnodeGid[0].dnodeId, newVg.vnodeGid[1].dnodeId);
+    TAOS_CHECK_GOTO(mndSetUpdateArbGroupDnodeByVgObj(pMnode, pTrans, &newVg), NULL, _OVER);
+  }
+
   mInfo(KEYOP("redistribute-vgroup", "STEP") "vgId:%d, vgroup info after redistribute, replica:%d", newVg.vgId,
         newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
