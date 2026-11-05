@@ -5996,6 +5996,96 @@ static int32_t virtualSourceLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   return TSDB_CODE_SUCCESS;
 }
 
+static bool virtualLastMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || pNode->dynamicOp ||
+      1 != LIST_LENGTH(pNode->pChildren)) {
+    return false;
+  }
+  SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  if (pAgg->hasGroup || NULL != pAgg->pGroupKeys ||
+      QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  SVirtualScanLogicNode* pScan = (SVirtualScanLogicNode*)pChild;
+  if ((TSDB_VIRTUAL_NORMAL_TABLE != pScan->tableType &&
+       TSDB_VIRTUAL_CHILD_TABLE != pScan->tableType) ||
+      pChild->dynamicOp || NULL != pChild->pLimit ||
+      NULL != pChild->pSlimit || pScan->hasFilterCond ||
+      !sortPriKeyOptCanOrderVirtualScan(pScan)) {
+    return false;
+  }
+
+  bool hasLast = false;
+  SNode* pNodeFunc = NULL;
+  FOREACH(pNodeFunc, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNodeFunc;
+    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
+      continue;
+    }
+    if (FUNCTION_TYPE_LAST != pFunc->funcType || hasLast ||
+        pFunc->isDistinct || !scanPathOptIsLastOnlyFunc(pFunc)) {
+      return false;
+    }
+    SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId ||
+        pCol->tableId != pScan->tableId) {
+      return false;
+    }
+    hasLast = true;
+  }
+
+  SNode* pSourceNode = NULL;
+  FOREACH(pSourceNode, pChild->pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSourceNode)) {
+      return false;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pSourceNode;
+    if (SCAN_TYPE_TAG == pSource->scanType) {
+      continue;
+    }
+    // A direction change must preserve the row associated with a timestamp.
+    // Finer precision and composite keys can merge several source rows into it.
+    SColumnNode* pTs = (SColumnNode*)nodesListGetNode(pSource->pScanCols, 0);
+    if ((TSDB_NORMAL_TABLE != pSource->tableType &&
+         TSDB_CHILD_TABLE != pSource->tableType) ||
+        pSource->node.precision != pChild->precision ||
+        NULL == pTs || pTs->tableHasPk) {
+      return false;
+    }
+  }
+  return hasLast;
+}
+
+static int32_t virtualLastOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLogicNode* pAgg = optFindPossibleNode(pLogicSubplan->pNode,
+                                        virtualLastMayBeOptimized, NULL);
+  if (NULL == pAgg) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SLimitNode* pLimit = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_LIMIT, (SNode**)&pLimit));
+  int32_t code = nodesMakeValueNodeFromInt64(1, (SNode**)&pLimit->limit);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pLimit);
+    return code;
+  }
+
+  // Keep LAST and its select-value functions for empty-input and row semantics.
+  // VirtualScan applies this limit after merging equal timestamps and filtering.
+  SVirtualScanLogicNode* pScan =
+      (SVirtualScanLogicNode*)nodesListGetNode(pAgg->pChildren, 0);
+  pScan->node.pLimit = (SNode*)pLimit;
+  pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
+  setVirtualScanOrder(pScan, ORDER_DESC);
+  planSetParentOrder(pAgg, ORDER_DESC, NULL);
+  pCxt->optimized = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 static const char* getJoinCondPKTable(SNode* pNode) {
   if (!pNode) {
     return NULL;
@@ -18114,6 +18204,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "EliminateVirtualScan",       .optimizeFunc = eliminateVirtualScanOptimize},
   {.pName = "VirtualRowFuncTopN",             .optimizeFunc = virtualRowFuncTopNOptimize},
   {.pName = "PushDownAgg",                .optimizeFunc = pdaOptimize},
+  {.pName = "VirtualLast",                .optimizeFunc = virtualLastOptimize},
   {.pName = "VtableWindow",               .optimizeFunc = vtableWindowOptimize},
   {.pName = "VStableWindow",              .optimizeFunc = vstableWindowOptimize},
   {.pName = "VStableWindowSort",          .optimizeFunc = vstableWindowSortOptimize},
