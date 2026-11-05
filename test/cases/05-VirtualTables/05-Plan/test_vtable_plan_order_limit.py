@@ -373,6 +373,93 @@ class TestVtablePlanOrderLimit:
             self.check_source_limit(plan, None)
         print("row function Top N with NULLs and offsets .......... [ passed ]")
 
+    def do_last_primary_timestamp(self):
+        for table in ("vn", "vc0"):
+            sql = f"select cast(last(_c0) as bigint), x, y from {self.db}.{table}"
+            plan = self.plan(sql)
+            self.check_plan_limit(plan, "Virtual Table Scan on ", 1, 1)
+            sources = self.check_plan_limit(plan, "Table Scan on ", 1, 2)
+            assert all("order=[asc|0 desc|1]" in header for header, _ in sources), plan
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            for column, value in enumerate(self.rows[0][-1]):
+                tdSql.checkData(0, column, value)
+            tdSql.query(f"explain analyze verbose true {sql}")
+            analyzed = "\n".join(str(row[0]) for row in tdSql.queryResult)
+            self.check_plan_rows(analyzed, "Virtual Table Scan on ", 1, 1)
+            self.check_plan_rows(analyzed, "Table Scan on ", 1, 2)
+
+            sql += " where x < 30 and y is not null"
+            plan = self.plan(sql)
+            self.check_plan_limit(plan, "Virtual Table Scan on ", 1, 1)
+            self.check_source_limit(plan, None)
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, self.base_ts + 280)
+            tdSql.checkData(0, 1, 28)
+            tdSql.checkData(0, 2, -28)
+
+        # The equivalent expression keeps the original unrestricted scan path.
+        for projection in ("last(_c0)", "last(_c0), x, y"):
+            reference = projection.replace("last(_c0)", "last(_c0 + 0a)")
+            tdSql.query(f"select {reference} from {self.db}.vc3")
+            expected = tdSql.queryResult[:]
+            tdSql.query(f"select {projection} from {self.db}.vc3")
+            tdSql.checkRows(len(expected))
+            for row, values in enumerate(expected):
+                for column, value in enumerate(values):
+                    tdSql.checkData(row, column, value)
+
+        db = f"{self.db}_last_us"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db} precision 'us' keep 36500")
+        tdSql.execute(f"create table {db}.src (ts timestamp, v int)")
+        tdSql.execute(
+            f"insert into {db}.src values ({self.base_ts * 1000 + 1100}, 1) "
+            f"({self.base_ts * 1000 + 1200}, 2) ({self.base_ts * 1000 + 1900}, 3)"
+        )
+        tdSql.execute(f"create vtable {self.db}.vn_last_us (ts timestamp, "
+                      f"x int from {db}.src.v, y int from {self.db}.aux3.v)")
+        sql = f"select cast(last(ts) as bigint), x, y from {self.db}.vn_last_us"
+        self.check_plan_limit(self.plan(sql), "Virtual Table Scan on ", None, 1)
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, self.base_ts + 1)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(0, 2, None)
+
+        test_case = "test_vtable_plan_last_primary_timestamp"
+        directory = Path(__file__).parent
+        tdCom.compare_testcase_result(
+            str(directory / "in" / f"{test_case}.in"),
+            str(directory / "ans" / f"{test_case}.ans"), test_case,
+            result_transform=lambda output: output.rstrip("\r\n") + "\n",
+        )
+        print("LAST primary timestamp and associated columns .... [ passed ]")
+
+    def test_vtable_last_primary_timestamp(self):
+        """Plan: bound LAST(primary timestamp) with associated virtual columns
+
+        1. Check normal and child tables, scalar expressions and UNION ALL branches
+        2. Check complete latest rows, NULL values, merged filters and empty input
+        3. Check fallback for value LAST, mixed aggregates, grouping and windows
+        4. Check finer source precision preserves the associated row
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-05 Joey Sima Add LAST timestamp plan and result coverage
+
+        """
+        self.do_last_primary_timestamp()
+
     @pytest.mark.parametrize("table", ("vn", "vc0", "vst"))
     @pytest.mark.parametrize("order", ("asc", "desc"))
     @pytest.mark.parametrize("scenario", (
