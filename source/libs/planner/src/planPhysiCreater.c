@@ -7977,6 +7977,34 @@ static int32_t buildVnodeModifySubplan(SPhysiPlanContext* pCxt, SLogicSubplan* p
   return code;
 }
 
+// Returns false if any leaf reads user data. Allowed leaves are system table scans (TABLE_COUNT_SCAN*
+// only come from COUNT(*) on ins_tables) and exchanges, which carry data from another subplan that is
+// checked on its own. Any other leaf, including scan types added later, keeps the check.
+// *pHasSysScan is set if a system table scan is found: an exchange-only tree reads no system table
+// either and must not be exempt.
+static bool physiTreeScansOnlySysTables(const SPhysiNode* pNode, bool* pHasSysScan) {
+  if (0 == LIST_LENGTH(pNode->pChildren)) {
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN:
+      case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
+        *pHasSysScan = true;
+        return true;
+      case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+        return true;
+      default:
+        return false;
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (!physiTreeScansOnlySysTables((const SPhysiNode*)pChild, pHasSysScan)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SSubplan** pPhysiSubplan) {
   SSubplan* pSubplan = NULL;
   int32_t   code = makeSubplan(pCxt, pLogicSubplan, &pSubplan);
@@ -8010,9 +8038,18 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     if (TSDB_CODE_SUCCESS == code && pSubplan->localBlockExchange) {
       pSubplan->delayFreeTask = true;
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      // SSubplan.showRewrite exempts the subplan from the vnode license check (qWorkerPreprocessQueryMsg).
+      // System tables must stay readable after the license expired, for SELECT as well as SHOW, so exempt a
+      // subplan that reads system tables only. The exemption covers the whole subplan, hence the full check.
+      bool hasSysScan = false;
+      if (NULL != pSubplan->pNode && physiTreeScansOnlySysTables(pSubplan->pNode, &hasSysScan) && hasSysScan) {
+        pSubplan->showRewrite = true;
+      }
+    }
     if (TSDB_CODE_SUCCESS == code && !pCxt->pPlanCxt->topicQuery) {
-      code = createDataDispatcher(pCxt, pSubplan->pNode, pSubplan->processOneBlock,
-                                  pSubplan->localBlockExchange, &pSubplan->pDataSink);
+      code = createDataDispatcher(pCxt, pSubplan->pNode, pSubplan->processOneBlock, pSubplan->localBlockExchange,
+                                  &pSubplan->pDataSink);
     }
   }
 
