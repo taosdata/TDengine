@@ -74,6 +74,7 @@ typedef enum {
   TSDB_GRANT_XNODE,
   TSDB_GRANT_EXT_SOURCE,  // federated query: external data source
   TSDB_GRANT_QRY_RESTRICTED,
+  TSDB_GRANT_TD_GPT_NUM,  // anode count limit only; ignores basic / TDgpt expiry
 } EGrantType;
 
 int32_t checkAndGetCryptKey(const char *encryptCode, const char *machineId, char **key);
