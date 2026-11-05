@@ -13,7 +13,8 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from new_test_framework.utils import tdLog, tdSql, etool
+from new_test_framework.utils import tdLog, tdSql, etool, tdCom
+from pathlib import Path
 import pytest
 import re
 
@@ -278,6 +279,100 @@ class TestVtablePlanOrderLimit:
         assert tdSql.queryResult == expected
         print("non timestamp order fallback ..................... [ passed ]")
 
+    def do_timestamp_diff_topn(self):
+        case = "test_vtable_plan_diff_order_limit"
+        test_dir = Path(__file__).parent
+        tdCom.compare_testcase_result(
+            str(test_dir / "in" / f"{case}.in"),
+            str(test_dir / "ans" / f"{case}.ans"),
+            case,
+        )
+
+        for table in ("vn", "vc0"):
+            for columns, sources in (("x", 1), ("x, y", 2)):
+                base = (f"select _c0, diff(_c0) as timespan, {columns} from {self.db}.{table} "
+                        "where _c0 is not null order by _c0 desc")
+                tdSql.query(base)
+                expected = tdSql.queryResult[:5019]
+                for limit, offset in ((1, 0), (7, 5), (5000, 19)):
+                    sql = f"{base} limit {limit} offset {offset}"
+                    plan = self.plan(sql)
+                    scans = self.check_plan_limit(plan, "Table Scan on ", limit + offset + 1, sources)
+                    assert all("order=[asc|0 desc|1]" in header for header, _ in scans), plan
+                    tdSql.query(sql)
+                    assert tdSql.queryResult == expected[offset:offset + limit], sql
+
+        sql = ("select count(timespan) as occurs, last(timespan) from "
+               f"(select _c0, diff(_c0) as timespan, x from {self.db}.vn "
+               "where _c0 is not null order by _c0 desc limit 1000) d "
+               "group by timespan order by occurs desc limit 1")
+        tdSql.query(sql)
+        assert tdSql.queryResult == [(1000, 10)]
+        tdSql.query(f"explain analyze verbose true {sql}")
+        plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+        self.check_plan_rows(plan, "Indefinite Rows Function", 1000, 1)
+        self.check_plan_rows(plan, "Table Scan on ", 1001, 1)
+        self.check_source_limit(plan, 1001)
+
+        base = (f"select _c0, diff(_c0), x, y from {self.db}.vn "
+                "where x < 30 and y is not null order by _c0 desc")
+        tdSql.query(base)
+        expected = tdSql.queryResult[:7]
+        sql = f"{base} limit 7"
+        plan = self.plan(sql)
+        self.check_plan_limit(plan, "Virtual Table Scan on ", 8, 1)
+        self.check_source_limit(plan, None)
+        tdSql.query(sql)
+        assert tdSql.queryResult == expected
+
+        for table, func in (("vn", "diff(x)"), ("vn", "diff(_c0, 2)"), ("vst", "diff(_c0)")):
+            sql = f"select _c0, {func}, x from {self.db}.{table} order by _c0 desc limit 7"
+            self.check_source_limit(self.plan(sql), None)
+        print("timestamp DIFF boundary rows and fallback .......... [ passed ]")
+
+    def do_row_function_topn(self):
+        # Keep a real NULL near the latest rows even when only aux0 is scanned.
+        ts = self.base_ts + (self.size - 2) * 10
+        tdSql.execute(f"insert into {self.db}.aux0 values ({ts}, null)")
+        cases = (
+            ("derivative(y, 1s, 0)", 1, True),
+            ("mavg(y, 3)", 2, True),
+            ("lag(y)", 1, False),
+            ("lag(y, 3, -42)", 3, False),
+            ("lead(y, 3, -42)", 0, False),
+            ("lag(y, 4097), lead(y, 3)", 4097, False),
+        )
+        for table in ("vn", "vc0"):
+            for columns, sources in (("y", 1), ("x, y", 2)):
+                for funcs, extra, skip_null in cases:
+                    base = f"select _c0, {funcs}, {columns} from {self.db}.{table} order by _c0 desc"
+                    tdSql.query(base)
+                    expected = tdSql.queryResult[:5019]
+                    for limit, offset in ((1, 0), (7, 5), (5000, 19)):
+                        sql = f"{base} limit {limit} offset {offset}"
+                        cap = limit + offset + extra
+                        if limit == 7:
+                            tdSql.query(f"explain analyze verbose true {sql}")
+                            plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+                            capped_scan = "Virtual Table Scan on " if sources == 2 else "Table Scan on "
+                            self.check_plan_rows(plan, capped_scan, cap, 1)
+                        else:
+                            plan = self.plan(sql)
+                        if sources == 2:
+                            self.check_plan_limit(plan, "Virtual Table Scan on ", cap, 1)
+                        source_cap = None if skip_null and sources == 2 else cap
+                        scans = self.check_plan_limit(plan, "Table Scan on ", source_cap, sources)
+                        assert all("order=[asc|0 desc|1]" in header for header, _ in scans), plan
+                        tdSql.query(sql)
+                        assert tdSql.queryResult == expected[offset:offset + limit], sql
+
+        for func in ("derivative(y, 1s, 1)", "mavg(cast(y as double), 3)"):
+            sql = f"select _c0, {func}, x, y from {self.db}.vn order by _c0 desc limit 7"
+            plan = self.plan(sql)
+            self.check_plan_limit(plan, "Virtual Table Scan on ", None, 1)
+            self.check_source_limit(plan, None)
+        print("row function Top N with NULLs and offsets .......... [ passed ]")
+
     @pytest.mark.parametrize("table", ("vn", "vc0", "vst"))
     @pytest.mark.parametrize("order", ("asc", "desc"))
     @pytest.mark.parametrize("scenario", (
@@ -314,6 +409,8 @@ class TestVtablePlanOrderLimit:
         2. Check local Top N, global OFFSET, sparse columns, filters and empty children
         3. Check fallback for sorting by a value column
         4. Check ANALYZE row counts at source, virtual scan, sort and projection layers
+        5. Compare the timestamp DIFF plan with its expected output and check LIMIT/OFFSET results
+        6. Check DERIVATIVE, MAVG, LAG and LEAD keep their required input rows and handle NULL values
 
         Catalog:
             - VirtualTable
@@ -326,6 +423,7 @@ class TestVtablePlanOrderLimit:
 
         History:
             - 2026-10-28 Joey Sima Add ordered scan and Top N coverage
+            - 2026-11-04 Joey Sima Add ordered row function Top N coverage
 
         """
         self.do_single_table()
@@ -333,5 +431,7 @@ class TestVtablePlanOrderLimit:
         self.do_fallback()
         self.do_local_topn_work()
         self.do_disk_prefix()
+        self.do_timestamp_diff_topn()
+        self.do_row_function_topn()
         self.do_shared_source_ties()
         self.do_precision_fallback()
