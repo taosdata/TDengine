@@ -5210,7 +5210,7 @@ static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SM
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   STagScanInfo*  pInfo = pOperator->info;
-  SExprInfo*     pExprInfo = &pOperator->exprSupp.pExprInfo[0];
+  SExprInfo*     pExprInfo = pOperator->exprSupp.pExprInfo;
   int32_t        count = pRes->info.rows;
 
   STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
@@ -5548,7 +5548,12 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
         ctbCursorFinished = true;
         break;
       }
-      STUidTagInfo info = {.uid = uid, .pTagVal = pCur->pVal};
+      if (pOperator->exprSupp.numOfExprs == 0 && pInfo->pTagCond == NULL) {
+        // No scan columns are requested; only the number of child tables is needed.
+        ++numTables;
+        continue;
+      }
+      STUidTagInfo info = {.uid = uid, .pTagVal = NULL};
       info.pTagVal = taosMemoryMalloc(pCur->vLen);
       QUERY_CHECK_NULL(info.pTagVal, code, lino, _end, terrno);
 
@@ -5570,10 +5575,19 @@ static int32_t doTagScanFromCtbIdxNext(SOperatorInfo* pOperator, SSDataBlock** p
       ignoreFilterIdx = true;
     }
 
-    code = tagScanFillResultBlock(pOperator, pRes, aUidTags, aFilterIdxs, ignoreFilterIdx, pAPI);
-    QUERY_CHECK_CODE(code, lino, _end);
+    if (pOperator->exprSupp.numOfExprs > 0) {
+      code = tagScanFillResultBlock(pOperator, pRes, aUidTags, aFilterIdxs, ignoreFilterIdx, pAPI);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
-    count = ignoreFilterIdx ? taosArrayGetSize(aUidTags) : taosArrayGetSize(aFilterIdxs);
+    if (!ignoreFilterIdx) {
+      // Tag filtering requires aUidTags even when no output columns are requested.
+      count = (int32_t)taosArrayGetSize(aFilterIdxs);
+    } else if (pOperator->exprSupp.numOfExprs == 0) {
+      count = numTables;
+    } else {
+      count = (int32_t)taosArrayGetSize(aUidTags);
+    }
 
     if (count != 0) {
       break;
@@ -5668,7 +5682,6 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
 
-  SExprInfo*   pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
