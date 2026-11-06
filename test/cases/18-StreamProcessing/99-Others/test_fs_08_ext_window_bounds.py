@@ -383,7 +383,7 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         Adjacent period windows share the instant ``_tlocaltime(N) ==
         _tprev_localtime(N+1)``, so the lower bound is inclusive and the upper
         bound is exclusive (``ts >= prev AND ts < cur``), the same half-open
-        convention as FS-BND-001.  The last measured batch is pinned so its
+        convention as FS-BND-001.  Every measured batch is pinned so its
         newest row sits exactly on a whole second: that row must still be
         counted once, which a closed upper bound would violate.
 
@@ -501,14 +501,18 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             base_rows, base_sum = self._bnd003_wait_stable(
                 sink_db, sink, stable_s=3.0, timeout_s=30)
 
-            # Phase 2 - measure: a fixed number of batches, ~1s apart.  The
-            # last one is pinned to the next whole second so its newest row
-            # lands exactly on a period boundary: that row is counted by the
-            # window opening at the boundary, never by both sides of it.
+            # Phase 2 - measure: a fixed number of batches, ~1s apart.  Every
+            # batch is pinned to the next whole second so its newest row lands
+            # exactly on a period boundary (counted by the window opening at
+            # the boundary, never by both sides), and so each INSERT has the
+            # rest of the current second plus a full window of headroom before
+            # its last row's window closes.  Pinning only the last batch left
+            # earlier batches with sub-second headroom that a slow SQL Server
+            # INSERT could exceed, so the batch missed the window that should
+            # have aggregated it (observed as SQL Server counting fewer than
+            # the expected rows).
             for b in range(n_batches):
-                base_ms = None
-                if b == n_batches - 1:
-                    base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
+                base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
                 write_batch(suffix, db_or_bucket, src_name, f"m{b}_", base_ms)
                 time.sleep(1.0)
             expected = n_batches * batch_rows
