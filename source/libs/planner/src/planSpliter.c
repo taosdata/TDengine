@@ -3226,21 +3226,20 @@ static int32_t vstbAggSplit(SSplitContext* pCxt, SLogicSubplan* pSubplan) {
   }
 
   SLogicNode* pPartAgg = NULL;
+  // Both aggregate branches must stay with their source scan: stream exchange
+  // parameters address the original-table vgroup, not a separate snode runner.
+  int32_t scanSubplanFlag = inStreamCalcClause(pCxt->pPlanCxt) ? SPLIT_FLAG_VTB_AGG_PUSHDOWN : 0;
 
   if (info.needPartAgg) {
     PLAN_ERR_JRET(stbSplCreatePartAggNode((SAggLogicNode*)info.pAgg, &pPartAgg));
     PLAN_ERR_JRET(stbSplCreateExchangeNode(pCxt, info.pAgg, pPartAgg));
-    // In a stream calc plan, keep the partial agg fused with its org-table scan in a single reader
-    // subplan (flagged so streamScanSplit will not peel the scan out). This co-locates the partial
-    // aggregate with the per-vgroup scan, mirroring the batch topology so the merge exchange reads
-    // the org-table vgroups directly.
-    int32_t scanSubplanFlag = inStreamCalcClause(pCxt->pPlanCxt) ? SPLIT_FLAG_VTB_AGG_PUSHDOWN : 0;
     PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
                                             (SNode*)splCreateScanSubplan(pCxt, pPartAgg, scanSubplanFlag)));
   } else {
     PLAN_ERR_JRET(splCreateExchangeNodeForSubplan(pCxt, info.pSubplan, (SLogicNode*)info.pAgg,
                                                   info.pSubplan->subplanType, false, false));
-    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren, (SNode*)splCreateScanSubplan(pCxt, (SLogicNode*)info.pAgg, 0)));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&info.pSubplan->pChildren,
+                                            (SNode*)splCreateScanSubplan(pCxt, info.pAgg, scanSubplanFlag)));
   }
 
 

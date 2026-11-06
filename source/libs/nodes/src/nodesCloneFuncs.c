@@ -1796,6 +1796,19 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t physiAggCopy(const SAggPhysiNode* pSrc, SAggPhysiNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  CLONE_NODE_LIST_FIELD(pExprs);
+  CLONE_NODE_LIST_FIELD(pGroupKeys);
+  CLONE_NODE_LIST_FIELD(pAggFuncs);
+  COPY_SCALAR_FIELD(mergeDataBlock);
+  COPY_SCALAR_FIELD(groupKeyOptimized);
+  COPY_SCALAR_FIELD(hasCountLikeFunc);
+  COPY_SCALAR_FIELD(hasMixedDistinct);
+  COPY_SCALAR_FIELD(numDistinctFuncs);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
   CLONE_NODE_LIST_FIELD(pExprs);
@@ -2698,6 +2711,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL:
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL:
       code = physiIntervalCopy((const SIntervalPhysiNode*)pNode, (SIntervalPhysiNode*)pDst);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_HASH_AGG:
+      code = physiAggCopy((const SAggPhysiNode*)pNode, (SAggPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW:
     case QUERY_NODE_PHYSICAL_PLAN_HASH_EXTERNAL:
