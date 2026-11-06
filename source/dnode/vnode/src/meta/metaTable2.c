@@ -1178,12 +1178,14 @@ static int32_t metaSetupVChildOwnSchema(SMeta *pMeta, int64_t version, SVCreateT
     goto _exit;
   }
 
-  // validate own columns: mandatory ref, name dup, type and merged limits
+  // validate own columns: a declared ref must be complete, name dup, type and merged limits.
+  // A bare `name TYPE` declaration (hasRef == false) is allowed: the column is created unbound,
+  // the same state ALTER VTABLE ... SET NULL produces, so SHOW CREATE output stays replayable.
   for (int32_t i = 0; i < pReq->nOwnColDefs; i++) {
     SVChildOwnColDef *pDef = &pReq->pOwnColDefs[i];
-    if (!pDef->ref.hasRef || pDef->ref.refDbName[0] == '\0' || pDef->ref.refTableName[0] == '\0' ||
-        pDef->ref.refColName[0] == '\0') {
-      metaError("vgId:%d, %s failed at %s:%d since own column %s without reference, version:%" PRId64,
+    if (pDef->ref.hasRef && (pDef->ref.refDbName[0] == '\0' || pDef->ref.refTableName[0] == '\0' ||
+                             pDef->ref.refColName[0] == '\0')) {
+      metaError("vgId:%d, %s failed at %s:%d since own column %s has an incomplete reference, version:%" PRId64,
                 TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pDef->schema.name, version);
       code = TSDB_CODE_VND_INVALID_TABLE_ACTION;
       goto _exit;
@@ -1314,7 +1316,7 @@ static int32_t metaSetupVChildOwnSchema(SMeta *pMeta, int64_t version, SVCreateT
       pEntry->own.pOwnColSchemas[i].colId = nextColId;
       pEntry->own.pOwnColRefs[i] = pReq->pOwnColDefs[i].ref;  // shallow: tagCondJson stays owned by pReq
       pEntry->own.pOwnColRefs[i].id = nextColId;
-      pEntry->own.pOwnColRefs[i].hasRef = true;
+      // keep the declared hasRef: false for a bare `name TYPE` own column (created unbound)
       if (pEntry->own.pOwnColExtSchemas != NULL) {
         pEntry->own.pOwnColExtSchemas[i].typeMod = pReq->pOwnColDefs[i].typeMod;
       }
@@ -5787,14 +5789,36 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   // search the column to update
   SSchemaWrapper *pSchema =
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
   // colRef is parallel to the schema but its length comes from the persisted entry
   for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+      pColSchema = &pSchema->pSchema[i];
       break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET on an own column failed with
+  // TSDB_CODE_VND_COL_NOT_EXISTS because the name is resolvable only in the own area.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // ALTER COLUMN on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
     }
   }
 
@@ -5817,7 +5841,18 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
   // bumps the row-schema and colRef versions, which makes the mnode broadcast a new super table
   // version and every client drop its cached meta for a vstb that can have tens of thousands of
   // children. Skipping the no-op keeps that churn - and the entry write - out of the system.
-  if (metaColRefMatchesAlterReq(pColRef, pReq, pSchema->pSchema[iColumn].colId, pNewTagCondJson, newTagCondLen)) {
+  //
+  // Exception: inside a batch meta txn the table may have been created by this very txn
+  // (META_TXN_PRE_CREATE). The txn machinery marks the entry PRE_ALTER in place after the ALTER
+  // and relies on a newer entry version existing, so that ROLLBACK deletes it and restores the
+  // PRE_CREATE mark for the create chain-delete. Skipping the write would overwrite the mark on
+  // the create version itself and the entry would be cleared to NORMAL on rollback - the new
+  // table would wrongly survive the ROLLBACK. Take the versioned write path in that case, which
+  // behaves exactly like any real change. Applies to cascaded and own columns alike.
+  bool sameTxnPreCreate =
+      (pReq->txnId != 0 && pEntry->txnStatus == META_TXN_PRE_CREATE && pEntry->txnId == pReq->txnId);
+  if (!sameTxnPreCreate &&
+      metaColRefMatchesAlterReq(pColRef, pReq, pColSchema->colId, pNewTagCondJson, newTagCondLen)) {
     metaInfo(KEYOP("vtable-alter", "SKIP") "vgId:%d, table %s column %s ref unchanged, version:%" PRId64,
              TD_VID(pMeta->pVnode), pReq->tbName, pReq->colName, version);
   } else {
@@ -5848,7 +5883,7 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     }
     pEntry->version = version;
     pColRef->hasRef = true;
-    pColRef->id = pSchema->pSchema[iColumn].colId;
+    pColRef->id = pColSchema->colId;
     pColRef->refType = pReq->refType;
     tstrncpy(pColRef->refSourceName, pReq->refSourceName ? pReq->refSourceName : "", TSDB_EXT_SOURCE_NAME_LEN);
     if (NULL != pReq->refSchemaName && '\0' != pReq->refSchemaName[0]) {
@@ -5867,7 +5902,13 @@ int32_t metaAlterTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pRe
     taosMemoryFreeClear(pColRef->tagCondJson);
     pColRef->tagCondJson = pTagCondJson;
     pColRef->tagCondLen = (NULL != pTagCondJson) ? newTagCondLen : 0;
-    pSchema->version++;
+    // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+    // colRef version (rversion), exactly like the add/drop own-column paths, and leave the vstb
+    // row-schema version alone. For a cascaded column the pSchema bump is kept for response
+    // compatibility (for a vchild it is an in-memory copy; only the entry is persisted).
+    if (!isOwnCol) {
+      pSchema->version++;
+    }
     pEntry->colRef.version++;
 
     // do handle entry
@@ -5985,20 +6026,42 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // search the column to update
   SSchemaWrapper *pSchema =
       pEntry->type == TSDB_VIRTUAL_CHILD_TABLE ? &pSuper->stbEntry.schemaRow : &pEntry->ntbEntry.schemaRow;
-  SColRef *pColRef = NULL;
-  int32_t  iColumn = 0;
+  SColRef       *pColRef = NULL;
+  const SSchema *pColSchema = NULL;
   // colRef is parallel to the schema but its length comes from the persisted entry
   for (int32_t i = 0; i < pSchema->nCols && i < pEntry->colRef.nCols; i++) {
     if (strncmp(pSchema->pSchema[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
       pColRef = &pEntry->colRef.pColRef[i];
-      iColumn = i;
+      pColSchema = &pSchema->pSchema[i];
       break;
+    }
+  }
+
+  // fall back to the vchild's own (extension) columns: an own column is not part of the vstb row
+  // schema, its schema and its ref live in the entry's own area (same fallback rule as the own-tag
+  // lookup in metaAlterTagRef). Without it every ALTER COLUMN ... SET NULL on an own column failed
+  // with TSDB_CODE_VND_COL_NOT_EXISTS even though no source column is involved at all.
+  // Note: tag names (own tags and vstb tags) resolve on the parser side but are no columns;
+  // SET NULL on them keeps failing here with TSDB_CODE_VND_COL_NOT_EXISTS - the pre-existing
+  // behavior of the column actions, unchanged by the own-column support.
+  // Defensive: a decoder-built entry keeps nOwnCols and the arrays consistent; guard the
+  // dereference anyway (same guard as metaBuildMergedColView/metaUpdateVtbMetaRsp).
+  bool isOwnCol = false;
+  if (NULL == pColRef && pEntry->type == TSDB_VIRTUAL_CHILD_TABLE && pEntry->own.nOwnCols > 0 &&
+      NULL != pEntry->own.pOwnColSchemas && NULL != pEntry->own.pOwnColRefs) {
+    for (int32_t i = 0; i < pEntry->own.nOwnCols; i++) {
+      if (strncmp(pEntry->own.pOwnColSchemas[i].name, pReq->colName, TSDB_COL_NAME_LEN) == 0) {
+        pColRef = &pEntry->own.pOwnColRefs[i];
+        pColSchema = &pEntry->own.pOwnColSchemas[i];
+        isOwnCol = true;
+        break;
+      }
     }
   }
 
   if (NULL == pColRef) {
     metaError("vgId:%d, %s failed at %s:%d since column id %d not found in table %s, version:%" PRId64,
-              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, iColumn + 1, pReq->tbName, version);
+              TD_VID(pMeta->pVnode), __func__, __FILE__, __LINE__, pReq->colId, pReq->tbName, version);
     metaFetchEntryFree(&pEntry);
     metaFetchEntryFree(&pSuper);
     TAOS_RETURN(TSDB_CODE_VND_COL_NOT_EXISTS);
@@ -6007,10 +6070,15 @@ int32_t metaRemoveTableColumnRef(SMeta *pMeta, int64_t version, SVAlterTbReq *pR
   // do update column name
   pEntry->version = version;
   pColRef->hasRef = false;
-  pColRef->id = pSchema->pSchema[iColumn].colId;
+  pColRef->id = pColSchema->colId;
   taosMemoryFreeClear(pColRef->filterCondJson);
   pColRef->filterCondLen = 0;
-  pSchema->version++;
+  // An own column lives in the vchild entry, not in the vstb row schema: bump only the entry's
+  // colRef version (rversion), exactly like the add/drop own-column paths; the vstb row-schema
+  // version must not advance for an own column's change.
+  if (!isOwnCol) {
+    pSchema->version++;
+  }
   pEntry->colRef.version++;
 
   // do handle entry

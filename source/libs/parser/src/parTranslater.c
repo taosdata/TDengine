@@ -36664,6 +36664,15 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         tstrncpy(pDef->schema.name, pColRef->colName, TSDB_COL_NAME_LEN);
         pDef->typeMod =
             IS_DECIMAL_TYPE(pColRef->dataType.type) ? decimalCalcTypeMod(pColRef->dataType.precision, pColRef->dataType.scale) : 0;
+        if (vtableColRefWithoutBinding(pColRef)) {
+          // bare `name TYPE` declaration: an own column created unbound. Zero the whole ref
+          // in one explicit statement (not field by field, and not relying on the calloc'd
+          // zeroes), so the vnode-side contract - an unbound own column carries no condition
+          // payloads and no partial names - holds even if the allocation ever changes; a
+          // binding can be attached later via ALTER ... SET.
+          memset(&pDef->ref, 0, sizeof(pDef->ref));
+          continue;
+        }
         char*   tagJson = NULL;
         int32_t tagCondLen = 0;
         if (pColRef->pTagCond) {
@@ -39587,6 +39596,12 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
   if (NULL == pSchema) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);
   }
+  // for the vnode-side diagnostic log only: tEncodeSVAlterTbReq transmits colId, but the
+  // vnode locates ALTER COLUMN REF targets by name (metaAlterTableColumnRef scans the
+  // schema for pReq->colName) and reads pReq->colId solely in the not-found metaError line;
+  // the assignment replaces the zero of the zero-initialized request so that log prints
+  // the parser-resolved column id
+  pReq->colId = pSchema->colId;
   int32_t schemaIdx = getNormalColSchemaIndex(pTableMeta, pStmt->colName);
   const SSchemaExt* pSchemaExt =
       (schemaIdx >= 0 && pTableMeta->schemaExt && schemaIdx < pTableMeta->tableInfo.numOfColumns)
@@ -39701,6 +39716,12 @@ static int32_t buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStm
   if (NULL == pReq->colName) {
     return terrno;
   }
+  // for the vnode-side diagnostic log only: tEncodeSVAlterTbReq transmits colId, but the
+  // vnode locates SET NULL targets by name (metaRemoveTableColumnRef scans the schema for
+  // pReq->colName) and reads pReq->colId solely in the not-found metaError line; the
+  // assignment replaces the zero of the zero-initialized request so that log prints the
+  // parser-resolved column id
+  pReq->colId = pSchema->colId;
 
   return code;
 }
@@ -41460,7 +41481,20 @@ static int32_t checkCreateVChildOwnColRef(STranslateContext* pCxt, SCreateVSubTa
     PAR_ERR_RET(generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW_VIRTUAL));
   }
 
-  // reference validation, same as vstb-aligned columns
+  // reference validation, same as vstb-aligned columns - skipped for a bare `name TYPE`
+  // declaration: the own column is created unbound (the state ALTER ... SET NULL produces) and
+  // can be bound later with ALTER VTABLE ... ALTER COLUMN SET.
+  if (vtableColRefWithoutBinding(pColRef)) {
+    return code;
+  }
+  if (vtableColRefIncomplete(pColRef)) {
+    // binding artifacts without a complete reference (a condition or a partial path). Both
+    // shapes are unreachable through the grammar (a condition rides on a FROM triplet that
+    // also fills the names; empty path segments do not parse); reject readable instead of
+    // silently dropping whatever is set.
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                   "column %s carries an incomplete column reference", pColRef->colName);
+  }
   SDataType colType = pColRef->dataType;
   colType.bytes = calcTypeBytes(colType);
   PAR_ERR_RET(disambiguateThreeSegColRef(pCxt, pColRef));

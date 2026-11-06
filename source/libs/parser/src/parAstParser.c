@@ -843,6 +843,20 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
         break;
       }
 
+      // a bare `name TYPE` own-column declaration carries no binding: there is no source
+      // table whose meta, vgroup or read auth could be reserved (it is created unbound,
+      // same as after ALTER VTABLE ... SET NULL)
+      if (vtableColRefWithoutBinding(pColRef)) {
+        continue;
+      }
+      // binding artifacts without a complete reference (a condition or a partial path,
+      // e.g. a source name without a table name): unreachable through the grammar; fail
+      // closed here instead of reserving meta for whatever partial names are set
+      if (vtableColRefIncomplete(pColRef)) {
+        code = TSDB_CODE_PAR_INVALID_COLUMN;
+        break;
+      }
+
       // Expand empty refDbName to vtable's database for 2-segment refs
       if (pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0' && pColRef->refSourceName[0] == '\0') {
         tstrncpy(pColRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);

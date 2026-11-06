@@ -915,8 +915,10 @@ static int32_t appendColRefFields(char* buf, int32_t bufSize, int32_t* len, STab
     char     type[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_COL_FNAME_LEN + 24];
     int      typeLen = 0;
 
-    if (hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef) {
-      if (pSchema->colId >= TSDB_VCHILD_OWN_COL_ID_BASE) {
+    bool bound = hasColRef(pCfg->tableType) && pCfg->pColRefs && pRef->hasRef;
+    bool ownCol = pSchema->colId >= TSDB_VCHILD_OWN_COL_ID_BASE;
+    if (bound) {
+      if (ownCol) {
         // own (extension) column of a vchild: spell out the declared type before FROM
         char ownType[64];
         int32_t code = formatOwnSchemaType(ownType, sizeof(ownType), pSchema,
@@ -946,6 +948,18 @@ static int32_t appendColRefFields(char* buf, int32_t bufSize, int32_t* len, STab
             appendFmt(type, sizeof(type), &typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS)
           return TSDB_CODE_OUT_OF_BUFFER;
       }
+    } else if (ownCol) {
+      // An unbound own (extension) column must still be emitted with its declared type: the
+      // column lives only in the vchild's own area, not in the vstb definition, so omitting the
+      // field would drop the column when the SHOW CREATE output is replayed. No FROM is emitted
+      // because the column has no binding. Cascaded columns stay skipped when unbound - their
+      // schema is inherited from the vstb, so the replayed table keeps them regardless.
+      char ownType[64];
+      int32_t code = formatOwnSchemaType(ownType, sizeof(ownType), pSchema,
+                                         pCfg->pSchemaExt ? pCfg->pSchemaExt + i : NULL);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      code = appendFmt(type, sizeof(type), &typeLen, "%s", ownType);
+      if (code != TSDB_CODE_SUCCESS) return code;
     } else {
       continue;
     }

@@ -134,8 +134,8 @@ typedef struct SColumnRefNode {
   SNode*    pTagCond;           // series tag condition (SOperatorNode or SLogicConditionNode), or NULL
   SNode*    pFilterCond;        // MySQL/PostgreSQL external-column filter, or NULL
   // Own (extension) column declaration of a virtual child table: set when the col_ref
-  // carries an explicit type (`name TYPE FROM db.tb.col`), meaning the column is not
-  // defined in the vstb schema. Only valid in CREATE VTABLE specific_column_ref_list.
+  // carries an explicit type (`name TYPE [FROM db.tb.col]`), meaning the column is not
+  // defined in the vstb schema. Only valid in the CREATE VTABLE ... USING column list.
   bool      hasDataType;
   SDataType dataType;
 } SColumnRefNode;
