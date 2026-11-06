@@ -309,8 +309,16 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         tdSql.execute(f"create table {local_db}.local_t(ts timestamp, val int)")
         tdSql.execute(f"insert into {local_db}.local_t values(1704067200000, 99)")
 
+        # _with_std_sources 按 InfluxDB 版本逐条执行，但每个版本都复用同一个源名，
+        # 由源名派生的用户名因此会被 drop 后原地重建。客户端目录缓存按用户名保存
+        # 授权结果，重建的用户在心跳刷新前的权限判定仍是上一轮（已 grant）的结果，
+        # 于是本地库 use 会越过 parser 检查、由 mnode 返回 0x0303 而不是 0x2644。
+        # 每轮用独立用户名，保证权限检查从干净状态开始。
+        leg = [0]
+
         def check_source(src):
-            user = f"{src}_user"
+            leg[0] += 1
+            user = f"{src}_{leg[0]}_user"
             tdSql.execute(f"drop user if exists {user}")
             tdSql.execute(f"create user {user} pass 'Test1234' sysinfo 0")
             tdSql.query("show external sources")
@@ -397,6 +405,7 @@ class TestFq11Security(FederatedQueryVersionedMixin):
         History:
             - 2026-10-09 wpan 补齐普通用户外部查询权限回归
             - 2026-10-27 wpan 中间路径段按源类型取（Oracle 用 schema，不用服务名）
+            - 2026-11-05 wpan InfluxDB 多版本复用源名导致普通用户名被原地重建，改为按轮次区分
         """
         self.do_normal_user_external_queries()
 
@@ -2657,6 +2666,95 @@ finally:
     # ------------------------------------------------------------------
     # SEC-009  SQL injection protection
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # SEC-028  MySQL caching_sha2_password client plugin
+    # ------------------------------------------------------------------
+
+    def test_fq_sec_028_caching_sha2_auth(self):
+        """SEC-028: MySQL caching_sha2_password account authentication
+
+        MySQL 8 creates accounts with caching_sha2_password unless told
+        otherwise, and MariaDB Connector/C implements that plugin as a
+        loadable client module.  A runtime that ships the client library
+        without the module still "connects" far enough for the client to
+        synthesize a 1045, which looks exactly like a wrong password, so the
+        normal path and the wrong-password path are both pinned here.
+
+        Multi-dimensional coverage:
+        1. Account created with IDENTIFIED WITH caching_sha2_password
+        2. External source using it reads the granted table normally
+        3. Wrong password on the same account still reports AUTH_FAILED
+           (the plugin path must not swallow real authentication failures)
+
+        Catalog:
+            - Query:FederatedSecurity
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 wpan Cover caching_sha2_password client plugin staging
+
+        """
+        cfg = self._mysql_cfg()
+        if int(str(cfg.version).split(".")[0]) < 8:
+            pytest.skip("caching_sha2_password requires MySQL 8.0 or later")
+
+        run_tag = str(int(_time.time() * 1000))[-6:]
+        src = f"sec028_src_{run_tag}"
+        src_bad = f"sec028_bad_{run_tag}"
+        db = f"sec028_db_{run_tag}"
+        user = f"fq_sec028_{run_tag}"
+        password = "FqSha2Pass_2026"
+        names = [src, src_bad]
+        self._cleanup(*names)
+
+        ExtSrcEnv.mysql_drop_db_cfg(cfg, db)
+        ExtSrcEnv.mysql_create_db_cfg(cfg, db)
+        ExtSrcEnv.mysql_exec_cfg(cfg, db, [
+            "DROP TABLE IF EXISTS t_sha2",
+            "CREATE TABLE t_sha2 (ts datetime NOT NULL PRIMARY KEY, v INT)",
+            "INSERT INTO t_sha2 VALUES ('2024-01-01 00:00:00', 7), ('2024-01-01 00:01:00', 9)",
+        ])
+        ExtSrcEnv.mysql_exec_cfg(cfg, None, [
+            f"DROP USER IF EXISTS '{user}'@'%'",
+            f"CREATE USER '{user}'@'%' IDENTIFIED WITH caching_sha2_password BY '{password}'",
+            f"GRANT SELECT ON `{db}`.* TO '{user}'@'%'",
+            "FLUSH PRIVILEGES",
+        ])
+
+        try:
+            self._mk_mysql_real(src, database=db, user=user, password=password,
+                                extra_options="'connect_timeout_ms'='3000'")
+            tdSql.query(f"select ts, v from {src}.t_sha2 order by ts")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 1, 7)
+            tdSql.checkData(1, 1, 9)
+
+            # A real credential failure must keep reporting the authentication
+            # error instead of the client-plugin error.
+            self._mk_mysql_real(src_bad, database=db, user=user,
+                                password="WrongSha2Pass_2026",
+                                extra_options="'connect_timeout_ms'='3000'")
+            tdSql.error(f"select count(*) from {src_bad}.t_sha2",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+
+            # Neither source may be dropped by the failed authentication.
+            assert self._find_row(src) >= 0, "working source should stay listed"
+        finally:
+            self._cleanup(*names)
+            try:
+                ExtSrcEnv.mysql_drop_db_cfg(cfg, db)
+            except Exception:
+                pass
+            try:
+                ExtSrcEnv.mysql_exec_cfg(cfg, None, [f"DROP USER IF EXISTS '{user}'@'%'"])
+            except Exception:
+                pass
 
     def test_fq_sec_009_sql_injection_protection(self):
         """SEC-009: SQL injection protection — source/path/identifier safe

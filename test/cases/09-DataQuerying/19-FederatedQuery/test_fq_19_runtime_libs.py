@@ -1485,6 +1485,35 @@ class TestFq19RuntimeLibs(FederatedQueryVersionedMixin):
                 f"options('api_token'='tok','protocol'='{protocol}')",
             )
 
+    def test_mysql_auth_plugin_staged(self):
+        """Check the MySQL client authentication plugins ship with the runtime
+
+        MySQL 8 accounts default to caching_sha2_password, which MariaDB
+        Connector/C loads as a client plugin from a directory next to the
+        client library.  Staging only libmariadb makes every such account
+        fail with a client-synthesized 1045 that looks like a bad password,
+        so the packaged runtime must carry the plugin from the same build.
+
+        Since: v3.5.0.0
+
+        """
+        if sys.platform == "win32":
+            # Windows stages the plugins next to libmariadb.dll; the packaged
+            # layout is asserted by the Windows package test.
+            pytest.skip("Windows package layout is covered by test_fq_22")
+        runtime_dir = self._runtime_lib_dir()
+        clients = self._existing_runtime_files(
+            glob.glob(os.path.join(runtime_dir, "libmariadb.so*"))
+            + glob.glob(os.path.join(runtime_dir, "libmariadb*.dylib*")))
+        if not clients:
+            pytest.skip(f"no libmariadb staged in {runtime_dir}")
+        plugins = self._existing_runtime_files(
+            glob.glob(os.path.join(runtime_dir, "caching_sha2_password.so"))
+            + glob.glob(os.path.join(runtime_dir, "caching_sha2_password.dylib")))
+        assert plugins, (
+            "caching_sha2_password must be staged next to the MySQL client library in "
+            f"{runtime_dir}; MySQL 8 accounts cannot authenticate without it")
+
     def test_fq_runtime_provider_libs_available(self):
         """Check federated-query provider runtime libraries work when present
 
