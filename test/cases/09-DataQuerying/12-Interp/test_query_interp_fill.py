@@ -1451,9 +1451,12 @@ class TestInterpFill:
 
         History:
             - 2026-06-17 Tony Zhang created
+            - 2026-11-04 Tony Zhang cover flushed STT data
 
         """
         tdSql.execute("use fill_interp_test")
+        # Exercise STT cursors even when all benchmark data fits in memory.
+        tdSql.execute("flush database fill_interp_test")
         # the prev/next finalize markers are emitted by the tsdb reader
         tdSql.execute("alter dnode 1 'tsdbDebugFlag 135'")
         try:
