@@ -7172,17 +7172,43 @@ int32_t tsdbNextDataBlock2(void* p, bool* hasNext) {
     pReader->currentStepDone = false;
 
     if (!isEmptyQueryTimeWindow(&pReader->info.window)) {
+      STsdbReader* pPrev = pReader->innerReader[0];
+      bool prevWindowEmpty = pPrev != NULL &&
+                             isEmptyQueryTimeWindow(&pPrev->info.window);
+      if (prevWindowEmpty) {
+        // A pruned PREV has no cursor boundary to hand off to MAIN.
+        bool asc = ASCENDING_TRAVERSE(pReader->info.order);
+        int64_t seedKey = asc ? pReader->info.window.skey
+                              : pReader->info.window.ekey;
+        bool saturated = asc ? seedKey == INT64_MIN : seedKey == INT64_MAX;
+        if (!saturated) {
+          seedKey += asc ? -1 : 1;
+        }
+        code = resetAllDataBlockScanInfo(pReader->status.pTableMap, seedKey,
+                                         asc ? 1 : -1, &pReader->suppInfo);
+        TSDB_CHECK_CODE(code, lino, _end);
+        if (saturated) {
+          // An unshiftable MAIN boundary is inclusive for STT.
+          int32_t iter = 0;
+          STableBlockScanInfo** ppInfo = NULL;
+          while ((ppInfo = tSimpleHashIterate(pReader->status.pTableMap, ppInfo,
+                                              &iter)) != NULL) {
+            if (*ppInfo != NULL) {
+              (*ppInfo)->sttKeyInfo.nextProcKey.ts = seedKey;
+            }
+          }
+        }
+      }
+
       if (tSimpleHashGetSize(pReader->status.pTableMap) > 0) {
         code = doOpenReaderImpl(pReader);
       }
       TSDB_CHECK_CODE(code, lino, _end);
 
-      if (pReader->innerReader[0] != NULL) {
-        int32_t step = 1;
-        code = resetAllDataBlockScanInfo(
-            pReader->status.pTableMap,
-            pReader->innerReader[0]->info.window.ekey, step,
-            &pReader->suppInfo);
+      if (pPrev != NULL && !prevWindowEmpty) {
+        code = resetAllDataBlockScanInfo(pReader->status.pTableMap,
+                                         pPrev->info.window.ekey, 1,
+                                         &pReader->suppInfo);
         TSDB_CHECK_CODE(code, lino, _end);
       }
     }

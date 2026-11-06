@@ -720,6 +720,16 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
       if (NULL == pColRef) {
         PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
+      // a bare `name TYPE` own-column declaration carries no binding: there is no source
+      // table to authorize, the column is created unbound (see checkCreateVChildOwnColRef)
+      if (vtableColRefWithoutBinding(pColRef)) {
+        continue;
+      }
+      // binding artifacts without a complete reference: never authorize a partial shape,
+      // reject here so all three layers enforce the same boundary
+      if (vtableColRefIncomplete(pColRef)) {
+        PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
 #ifdef TD_ENTERPRISE
       if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName)) {
         continue;

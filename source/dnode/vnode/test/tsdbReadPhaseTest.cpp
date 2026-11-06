@@ -143,6 +143,78 @@ TEST_F(TsdbReadPhaseTest, ResetRebuildsVariableCompositeRowKey) {
   EXPECT_EQ(scanInfo.sttKeyInfo.nextProcKey.numOfPKs, 1);
 }
 
+TEST_F(TsdbReadPhaseTest, ResetPreservesScalarBoundaryAndDirection) {
+  struct ResetCase {
+    int16_t order;
+    int64_t lastTs;
+    int64_t nextTs;
+  };
+  const ResetCase cases[] = {
+      {TSDB_ORDER_ASC, 99, 100},
+      {TSDB_ORDER_DESC, 200, 199},
+      {TSDB_ORDER_ASC, INT64_MIN, INT64_MIN + 1},
+      {TSDB_ORDER_DESC, INT64_MAX, INT64_MAX - 1},
+  };
+  scanInfo.uid = 1;
+  reader.suppInfo.numOfPks = 1;
+  reader.suppInfo.pk.type = TSDB_DATA_TYPE_BIGINT;
+  reader.suppInfo.pk.bytes = sizeof(int64_t);
+  AddScanInfo();
+
+  for (const auto& item : cases) {
+    SCOPED_TRACE(::testing::Message()
+                 << "order=" << item.order << " seed=" << item.lastTs);
+    const bool asc = item.order == TSDB_ORDER_ASC;
+    scanInfo.iterInit = true;
+    scanInfo.iter.hasVal = true;
+    scanInfo.iiter.hasVal = true;
+    for (SRowKey* key : {&scanInfo.lastProcKey,
+                        &scanInfo.sttKeyInfo.nextProcKey}) {
+      ASSERT_EQ(initRowKey(key, 0, 1, TSDB_DATA_TYPE_BIGINT,
+                           sizeof(int64_t), !asc), TSDB_CODE_SUCCESS);
+    }
+
+    ASSERT_EQ(resetAllDataBlockScanInfo(pTableMap, item.lastTs,
+                                       asc ? 1 : -1, &reader.suppInfo),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(scanInfo.lastProcKey.ts, item.lastTs);
+    EXPECT_EQ(scanInfo.sttKeyInfo.nextProcKey.ts, item.nextTs);
+    for (const SRowKey* key : {&scanInfo.lastProcKey,
+                              &scanInfo.sttKeyInfo.nextProcKey}) {
+      EXPECT_EQ(key->numOfPKs, 1);
+      EXPECT_EQ(*static_cast<int64_t*>(VALUE_GET_DATUM(
+                    &key->pks[0], TSDB_DATA_TYPE_BIGINT)),
+                asc ? INT64_MIN : INT64_MAX);
+    }
+    EXPECT_FALSE(scanInfo.iterInit);
+    EXPECT_FALSE(scanInfo.iter.hasVal);
+    EXPECT_FALSE(scanInfo.iiter.hasVal);
+  }
+}
+
+TEST_F(TsdbReadPhaseTest, ResetRebuildsVariableKeysInBothDirections) {
+  scanInfo.uid = 1;
+  reader.suppInfo.numOfPks = 1;
+  reader.suppInfo.pk.type = TSDB_DATA_TYPE_BINARY;
+  reader.suppInfo.pk.bytes = 16;
+  AddScanInfo();
+
+  for (int order : {TSDB_ORDER_ASC, TSDB_ORDER_DESC}) {
+    SCOPED_TRACE(::testing::Message() << "order=" << order);
+    ASSERT_EQ(resetAllDataBlockScanInfo(pTableMap, 100,
+                                       order == TSDB_ORDER_ASC ? 1 : -1,
+                                       &reader.suppInfo),
+              TSDB_CODE_SUCCESS);
+    for (const SRowKey* key : {&scanInfo.lastProcKey,
+                              &scanInfo.sttKeyInfo.nextProcKey}) {
+      EXPECT_EQ(key->numOfPKs, order == TSDB_ORDER_ASC ? 1 : 2);
+      EXPECT_EQ(key->pks[0].type, TSDB_DATA_TYPE_BINARY);
+      EXPECT_EQ(key->pks[0].nData, 0);
+      EXPECT_NE(key->pks[0].pData, nullptr);
+    }
+  }
+}
+
 // MAIN_FIRST early-stop advances MAIN and NEXT on the next read, while PREV
 // is terminal. Boundary checks keep delayed notifications out of other phases.
 TEST_F(TsdbReadPhaseTest, MainFirstEarlyStopFollowsPhaseOrder) {

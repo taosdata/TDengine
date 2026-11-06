@@ -1125,14 +1125,14 @@ cmd ::= CREATE STABLE not_exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP BASE ON base_on_list(F) table_options(E).
                                                                                    { pCxt->pRootNode = createCreateInheritedStableStmt(pCxt, A, B, C, NULL, F, E); }
 cmd ::= CREATE VTABLE not_exists_opt(A) full_table_name(B)
-  NK_LP column_def_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
+  NK_LP vtable_col_list(C) NK_RP series_clause_opt(S) vtags_def_opt(T).           { pCxt->pRootNode = createCreateVTableStmt(pCxt, A, B, C, S, T); }
 cmd ::= CREATE VTABLE create_vsubtable_clause(A).                                { pCxt->pRootNode = A; }
 cmd ::= CREATE VTABLE multi_create_vsubtable_clause(A).                          { pCxt->pRootNode = createCreateMultiTableStmt(pCxt, A); }
 
 %type create_vsubtable_clause                                                    { SNode* }
 %destructor create_vsubtable_clause                                              { nodesDestroyNode($$); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
-  NK_LP specific_column_ref_list(D) NK_RP USING full_table_name(E)
+  NK_LP vtable_col_list(D) NK_RP USING full_table_name(E)
   vchild_tags_opt(F) TAGS NK_LP vtags_literal_list(G) NK_RP
   series_clause_opt(H).                                                           { A = createCreateVSubTableStmt(pCxt, B, C, D, NULL, E, F, G, NULL, NULL, H); }
 create_vsubtable_clause(A) ::= not_exists_opt(B) full_table_name(C)
@@ -1322,19 +1322,24 @@ column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).               
 // column_def(A) ::= column_name(B) type_name(C).                                 { A = createColumnDefNode(pCxt, &B, C, NULL); }
 column_def(A) ::= column_name(B) type_name(C) column_options(D).                  { A = createColumnDefNode(pCxt, &B, C, D); }
 
-%type specific_column_ref_list                                                               { SNodeList* }
-%destructor specific_column_ref_list                                                         { nodesDestroyList($$); }
-specific_column_ref_list(A) ::= specific_column_ref(B).                                      { A = createNodeList(pCxt, B); }
-specific_column_ref_list(A) ::= specific_column_ref_list(B) NK_COMMA specific_column_ref(C). { A = addNodeToList(pCxt, B, C); }
+%type vtable_col_list                                                             { SNodeList* }
+%destructor vtable_col_list                                                       { nodesDestroyList($$); }
+vtable_col_list(A) ::= vtable_col(B).                                             { A = createNodeList(pCxt, B); }
+vtable_col_list(A) ::= vtable_col_list(B) NK_COMMA vtable_col(C).                 { A = addNodeToList(pCxt, B, C); }
+
+// One entry of a CREATE VTABLE column list. column_def covers `name TYPE [FROM db.tb.col]`
+// (the optional binding lives in column_options); specific_column_ref covers the untyped
+// `name FROM db.tb.col` cascaded form. The vchild statement converts typed column_defs into
+// own-column declarations whose binding is optional, so SHOW CREATE output stays replayable
+// for unbound own columns; the vntb statement requires typed column_defs. Both statement
+// forms share this one entry nonterminal: a separate bare `name TYPE` specific_column_ref
+// rule would reduce/reduce against column_def in the shared CREATE VTABLE prefix state.
+%type vtable_col                                                                  { SNode* }
+%destructor vtable_col                                                            { nodesDestroyNode($$); }
+vtable_col(A) ::= column_def(B).                                                  { A = B; }
+vtable_col(A) ::= specific_column_ref(B).                                         { A = B; }
 
 specific_column_ref(A) ::= column_name(B) FROM column_ref(C).                    { A = createColumnRefNodeByNode(pCxt, &B, C); }
-// Own (extension) column declared inline with an explicit type (SHOW CREATE replay form:
-// `col TYPE FROM db.tb.col`). createColumnRefNodeByNodeWithType sets hasDataType so the
-// translator routes it to the own-column branch (buildVirtualSubTableBatchReq). This shares the
-// `column_name type_name` prefix with `column_def`, so the lookahead-FROM state (lemon 801)
-// shifts FROM for specific_column_ref instead of reducing `column_options ::=` (empty) for
-// column_def; that empty rule carries [LOWPREC] and FROM has higher precedence.
-specific_column_ref(A) ::= column_name(B) type_name(C) FROM column_ref(D).       { A = createColumnRefNodeByNodeWithType(pCxt, &B, C, D); }
 
 %type column_ref_list                                                             { SNodeList* }
 %destructor column_ref_list                                                       { nodesDestroyList($$); }

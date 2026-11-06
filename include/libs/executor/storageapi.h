@@ -56,9 +56,10 @@ typedef TSKEY (*GetTsFun)(void*);
 // when SMetaEntry.type == TSDB_VIRTUAL_CHILD_TABLE. Own colIds are allocated from
 // TSDB_VCHILD_OWN_COL_ID_BASE upwards (see tdef.h) so they never collide with vstb colIds.
 typedef struct SVChildOwnSchema {
-  int32_t    nOwnCols;         // own data columns; each carries a mandatory origin reference
+  int32_t    nOwnCols;         // own data columns; may carry an origin reference or be unbound
   SSchema   *pOwnColSchemas;   // nOwnCols entries, appended after the vstb row schema
-  SColRef   *pOwnColRefs;      // 1:1 position-aligned with pOwnColSchemas, hasRef always true
+  SColRef   *pOwnColRefs;      // 1:1 position-aligned with pOwnColSchemas; hasRef = false marks an
+                               // unbound own column (bare `name TYPE` at CREATE, or after SET NULL)
   SExtSchema *pOwnColExtSchemas;  // nOwnCols entries, 1:1 with pOwnColSchemas; carries typeMod
                                   // (decimal precision/scale). NULL when no own column has
                                   // COL_HAS_TYPE_MOD (incl. older persisted entries).

@@ -4224,15 +4224,76 @@ _err:
   return NULL;
 }
 
-// Own (extension) column of a virtual child table at CREATE VTABLE time:
-// `name TYPE FROM db.tb.col`  -  same as createColumnRefNodeByNode plus the declared type.
-SNode* createColumnRefNodeByNodeWithType(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pRef) {
-  SNode* pNode = createColumnRefNodeByNode(pCxt, pColName, pRef);
-  if (NULL != pNode) {
-    ((SColumnRefNode*)pNode)->hasDataType = true;
-    ((SColumnRefNode*)pNode)->dataType = dataType;
+// Own (extension) column of a virtual child table declared in a CREATE VTABLE ... USING list.
+// `name TYPE [FROM db.tb.col]`: the grammar parses the typed form as a column_def (the binding
+// rides in column_options), and the vchild statement converts it into the typed SColumnRefNode
+// shape its translator works with. The binding is optional - a bare `name TYPE` declares an own
+// column with no reference, the same state ALTER VTABLE ... SET NULL produces - so SHOW CREATE
+// output stays replayable for unbound own columns.
+static SNode* columnDefToTypedColumnRef(SAstCreateContext* pCxt, SColumnDefNode* pDef) {
+  SColumnRefNode* pCol = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_COLUMN_REF, (SNode**)&pCol);
+  CHECK_MAKE_NODE(pCol);
+  tstrncpy(pCol->colName, pDef->colName, TSDB_COL_NAME_LEN);
+  pCol->hasDataType = true;
+  pCol->dataType = pDef->dataType;
+  // pDef->pTagVal (inline `TAGS(name TYPE = value)` tag values, set by
+  // createColumnDefNodeWithTagVal) is never populated here: the = value form only exists in
+  // the vtag_def rules of the USING tag list, and vtag_def is not part of vtable_col, so a
+  // column_def from a CREATE VTABLE column list always carries pTagVal == NULL.
+  SColumnOptions* pOpts = (SColumnOptions*)pDef->pOptions;
+  // PRIMARY KEY is a normal-table column option; an own column of a virtual child table has
+  // no key semantics. The grammar can produce the combination, so reject it explicitly
+  // instead of silently ignoring the flag.
+  if (NULL != pOpts && pOpts->bPrimaryKey) {
+    pCxt->errCode = generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                            "column %s cannot be a primary key in a virtual child table",
+                                            pDef->colName);
+    goto _err;
   }
-  return pNode;
+  if (NULL != pOpts && pOpts->hasRef) {
+    pCol->refType = pOpts->refType;
+    tstrncpy(pCol->refSourceName, pOpts->refSourceName, TSDB_EXT_SOURCE_NAME_LEN);
+    tstrncpy(pCol->refSchemaName, pOpts->refSchema, TSDB_EXT_SOURCE_SCHEMA_LEN);
+    tstrncpy(pCol->refDbName, pOpts->refDb, TSDB_DB_NAME_LEN);
+    tstrncpy(pCol->refTableName, pOpts->refTable, TSDB_TABLE_NAME_LEN);
+    tstrncpy(pCol->refColName, pOpts->refColumn, TSDB_COL_NAME_LEN);
+    // ownership of both condition nodes moves to the ref node: the old def node is
+    // destroyed by the caller right after, with the moved-out pointers already NULL
+    pCol->pTagCond = pOpts->pTagCond;
+    pOpts->pTagCond = NULL;
+    pCol->pFilterCond = pOpts->pFilterCond;
+    pOpts->pFilterCond = NULL;
+  }
+  return (SNode*)pCol;
+_err:
+  return NULL;
+}
+
+// A CREATE VTABLE ... USING column list carries typed column_defs (own columns, binding
+// optional) next to untyped refs (cascaded columns). Replace the column_defs in place so the
+// statement's pSpecificColRefs stays a homogeneous SColumnRefNode list; the original def node
+// is released only after the cell points at its replacement.
+static void convertColDefsToTypedRefs(SAstCreateContext* pCxt, SNodeList* pCols) {
+  if (NULL == pCols) {
+    return;
+  }
+  SListCell* pCell = pCols->pHead;
+  while (NULL != pCell) {
+    if (QUERY_NODE_COLUMN_DEF == nodeType(pCell->pNode)) {
+      SNode* pOld = pCell->pNode;
+      pCell->pNode = columnDefToTypedColumnRef(pCxt, (SColumnDefNode*)pOld);
+      if (NULL == pCell->pNode) {
+        // restore the cell and stop: the error code is set, and converting the remaining
+        // entries would only churn allocations on a path that is about to fail anyway
+        pCell->pNode = pOld;
+        return;
+      }
+      nodesDestroyNode(pOld);
+    }
+    pCell = pCell->pNext;
+  }
 }
 
 // Create a SColumnRefNode from db.table.col triplet tokens (for positional tag refs in vtags_literal)
@@ -4537,6 +4598,24 @@ SNode* createCreateVTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode*
                               SNodeList* pCols, SNodeList* pSeriesList, SNodeList* pTags) {
   SCreateVTableStmt* pStmt = NULL;
   CHECK_PARSER_STATUS(pCxt);
+  // The vntb column list shares its entry nonterminal with the vchild form (see vtable_col in
+  // sql.y). A cascaded-style untyped `name FROM ...` entry is only meaningful with USING;
+  // reject it here so a virtual NORMAL table keeps requiring a declared type per column.
+  // Reachability: this creator is only called from the `CREATE VTABLE name ( vtable_col_list )
+  // [series] [vtags]` rule (no USING); the vchild path goes through create_vsubtable_clause
+  // and folds its column_defs inside createCreateVSubTableStmt, so it never passes through
+  // here. column_def entries (QUERY_NODE_COLUMN_DEF) are what a valid vntb list holds.
+  if (NULL != pCols) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pCols) {
+      if (QUERY_NODE_COLUMN_REF == nodeType(pNode)) {
+        pCxt->errCode = generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, "column %s in a virtual normal table requires a type declaration",
+            ((SColumnRefNode*)pNode)->colName);
+        goto _err;
+      }
+    }
+  }
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   tstrncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName));
@@ -4562,6 +4641,14 @@ SNode* createCreateVSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNo
                                  SNodeList* pSeriesList) {
   CHECK_PARSER_STATUS(pCxt);
   SCreateVSubTableStmt* pStmt = NULL;
+  // The USING column list carries typed column_defs (own columns, binding optional) next to
+  // untyped cascaded refs: fold the defs into the typed SColumnRefNode form here so the
+  // translator sees one homogeneous list.
+  convertColDefsToTypedRefs(pCxt, pSpecificColRefs);
+  // on failure the list still holds COLUMN_DEF nodes that every consumer below blindly casts
+  // to SColumnRefNode; bail out before nodesMakeNode overwrites errCode and the statement
+  // would continue with a SUCCESS status
+  CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
 

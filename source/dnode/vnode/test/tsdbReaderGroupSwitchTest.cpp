@@ -689,6 +689,191 @@ class TsdbReaderGroupSwitchTest : public ::testing::TestWithParam<std::tuple<Pat
   int           directBlocks_ = 0;
   int           composedBlocks_ = 0;
 };
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyMainWindowAfterPrunedSides) {
+  const int order = std::get<1>(GetParam());
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {12, 17};
+  c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "legacy-main-window", nullptr));
+
+  std::vector<Row> expected;
+  for (int64_t ts = 12; ts <= 17; ++ts) {
+    for (int64_t pk : {1, 2}) {
+      expected.emplace_back(7, ts, pk, ts * 10 + pk);
+    }
+  }
+  if (order == TSDB_ORDER_DESC) {
+    std::reverse(expected.begin(), expected.end());
+  }
+  expectRows(read(), expected);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyUnboundedMainWindowAfterPrunedSides) {
+  const int order = std::get<1>(GetParam());
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {INT64_MIN, INT64_MAX};
+  c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "unbounded-main-window", nullptr));
+
+  std::vector<Row> expected;
+  for (int64_t ts = 9; ts <= 20; ++ts) {
+    for (int64_t pk : {1, 2}) {
+      expected.emplace_back(7, ts, pk, ts * 10 + pk);
+    }
+  }
+  if (order == TSDB_ORDER_DESC) {
+    std::reverse(expected.begin(), expected.end());
+  }
+  expectRows(read(), expected);
+}
+
+TEST_P(TsdbReaderGroupSwitchTest, LegacyHandoffAfterNonemptyPrevWindowNoRows) {
+  const int order = std::get<1>(GetParam());
+  const bool asc = order == TSDB_ORDER_ASC;
+  seed(std::get<0>(GetParam()));
+  auto c = cond(order);
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {1000, 1009};
+  c.extTwindows[0] = asc ? STimeWindow{500, 599}
+                         : STimeWindow{INT64_MAX, INT64_MIN};
+  c.extTwindows[1] = asc ? STimeWindow{INT64_MAX, INT64_MIN}
+                         : STimeWindow{1500, 1599};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "nonempty-prev-window", nullptr));
+  expectRows(read(), {});
+
+  auto* reader = static_cast<STsdbReader*>(reader_);
+  STableBlockScanInfo* info = nullptr;
+  ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                     "nonempty-prev-window"));
+  EXPECT_EQ(info->lastProcKey.ts, asc ? 599 : 1599);
+}
+
+class TsdbReaderBoundaryTest : public TsdbReaderGroupSwitchTest {
+ protected:
+  void SetUp() override {
+    ASSERT_NO_FATAL_FAILURE(TsdbReaderGroupSwitchTest::SetUp());
+    // Keep the test windows intact instead of clipping them to retention.
+    stub_.reset(tsdbGetEarliestTs);
+    stub_.set(tsdbGetEarliestTs, +[](STsdb*) { return INT64_MIN; });
+  }
+};
+
+TEST_F(TsdbReaderBoundaryTest, NonemptyMinPrevKeepsExclusiveHandoff) {
+  auto c = cond();
+  c.type = TIMEWINDOW_RANGE_EXTERNAL;
+  c.twindows = {100, 199};
+  c.extTwindows[0] = {INT64_MIN, INT64_MIN};
+  c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+  STableKeyInfo table = {};
+  table.uid = 7;
+  ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                              "min-prev-window", nullptr));
+  auto* reader = static_cast<STsdbReader*>(reader_);
+  ASSERT_EQ(reader->innerReader[0]->info.window.skey, INT64_MIN);
+  ASSERT_EQ(reader->innerReader[0]->info.window.ekey, INT64_MIN);
+  expectRows(read(), {});
+
+  STableBlockScanInfo* info = nullptr;
+  ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                     "min-prev-window"));
+  EXPECT_EQ(info->lastProcKey.ts, INT64_MIN);
+  EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, INT64_MIN + 1);
+}
+
+TEST_F(TsdbReaderBoundaryTest, PrunedPrevKeepsExactMainBoundary) {
+  struct BoundaryCase {
+    int order;
+    STimeWindow window;
+    int64_t lastTs;
+    int64_t nextTs;
+  };
+  const BoundaryCase cases[] = {
+      {TSDB_ORDER_ASC, {INT64_MIN, 199}, INT64_MIN, INT64_MIN},
+      {TSDB_ORDER_ASC, {INT64_MIN + 1, 199}, INT64_MIN, INT64_MIN + 1},
+      {TSDB_ORDER_DESC, {100, INT64_MAX}, INT64_MAX, INT64_MAX},
+      {TSDB_ORDER_DESC, {100, INT64_MAX - 1}, INT64_MAX, INT64_MAX - 1},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(::testing::Message()
+                 << "order=" << item.order << " window=["
+                 << item.window.skey << "," << item.window.ekey << "]");
+    auto c = cond(item.order);
+    c.type = TIMEWINDOW_RANGE_EXTERNAL;
+    c.twindows = item.window;
+    c.extTwindows[0] = {INT64_MAX, INT64_MIN};
+    c.extTwindows[1] = {INT64_MAX, INT64_MIN};
+    STableKeyInfo table = {};
+    table.uid = 7;
+    ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                                "pruned-prev-boundary", nullptr));
+    auto* reader = static_cast<STsdbReader*>(reader_);
+    ASSERT_EQ(reader->info.window.skey, item.window.skey);
+    ASSERT_EQ(reader->info.window.ekey, item.window.ekey);
+    expectRows(read(), {});
+
+    STableBlockScanInfo* info = nullptr;
+    ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                       "pruned-prev-boundary"));
+    EXPECT_EQ(info->lastProcKey.ts, item.lastTs);
+    EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, item.nextTs);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
+TEST_F(TsdbReaderBoundaryTest, MainFirstSidesKeepExclusiveExtremeSeeds) {
+  struct BoundaryCase {
+    STimeWindow main;
+    STimeWindow prev;
+    STimeWindow next;
+    int64_t nextTs;
+  };
+  const BoundaryCase cases[] = {
+      {{INT64_MIN, INT64_MIN}, {INT64_MAX, INT64_MIN},
+       {INT64_MIN + 1, INT64_MIN + 2}, INT64_MIN + 1},
+      {{INT64_MAX, INT64_MAX}, {INT64_MAX - 2, INT64_MAX - 1},
+       {INT64_MAX, INT64_MIN}, INT64_MAX - 1},
+  };
+  for (const auto& item : cases) {
+    SCOPED_TRACE(::testing::Message() << "MAIN=" << item.main.skey);
+    auto c = cond();
+    c.type = TIMEWINDOW_RANGE_EXTERNAL;
+    c.mainFirst = true;
+    c.twindows = item.main;
+    c.extTwindows[0] = item.prev;
+    c.extTwindows[1] = item.next;
+    STableKeyInfo table = {};
+    table.uid = 7;
+    ASSERT_EQ(0, tsdbReaderOpen2(&vnode_, &c, &table, 1, nullptr, &reader_,
+                                "main-first-boundary", nullptr));
+    expectRows(read(), {});
+
+    auto* reader = static_cast<STsdbReader*>(reader_);
+    STableBlockScanInfo* info = nullptr;
+    ASSERT_EQ(0, getTableBlockScanInfo(reader->status.pTableMap, 7, &info,
+                                       "main-first-boundary"));
+    EXPECT_EQ(info->sttKeyInfo.nextProcKey.ts, item.nextTs);
+    tsdbReaderClose2(reader_);
+    reader_ = nullptr;
+  }
+}
+
 class TsdbSttPreparationTest : public TsdbReaderGroupSwitchTest {
  protected:
   void TearDown() override {

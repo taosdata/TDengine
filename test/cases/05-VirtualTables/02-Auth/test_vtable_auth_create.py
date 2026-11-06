@@ -202,3 +202,66 @@ class TestVtableAuthCreate:
                     i+=1
 
         tdSql.execute("drop database test_vctable_auth_create;")
+    def test_create_vtable_own_column_source_auth(self):
+        """Auth: bound own columns need source SELECT, bare ones do not
+
+        A user granted only database usage and table creation must not be able
+        to bind an own column (nor a cascaded one) to a source table it cannot
+        read: create time is the only gate, queries through the virtual table
+        never re-check the source. A bare own-column declaration touches no
+        source table and must go through.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: auth,create,virtual,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-11-05 Yihao Deng Added for the review round of defect 7155574571
+
+        """
+        tdSql.execute("create database if not exists test_vct_auth_own;")
+        tdSql.execute("use test_vct_auth_own;")
+        tdSql.execute("create table org_src(ts timestamp, secret nchar(32));")
+        tdSql.execute("insert into org_src values(now, 'classified');")
+        tdSql.execute("create stable vstb(ts timestamp, c1 int) tags(t int) virtual 1;")
+        tdSql.execute("create user test_vct_own_user PASS 'test12@#*';")
+        # database usage and table creation only: no SELECT on the source table
+        tdSql.execute("grant use on database test_vct_auth_own to test_vct_own_user;")
+        tdSql.execute("grant create table on database test_vct_auth_own to test_vct_own_user;")
+        tdSql.execute("reset query cache")
+
+        testconn = taos.connect(user='test_vct_own_user', password='test12@#*')
+        cursor = testconn.cursor()
+        testSql = TDSql()
+        testSql.init(cursor)
+        testSql.execute("use test_vct_auth_own;")
+
+        # 1. a bound own column reads a table the user cannot select from: denied
+        testSql.error("create vtable vt_bound(note nchar(32) from org_src.secret) using vstb tags (1);",
+                      expectErrInfo="Permission denied to select from table or view")
+        # 2. a bound cascaded column is denied by the same gate
+        testSql.error("create vtable vt_bound_cas(c1 from org_src.ts) using vstb tags (2);",
+                      expectErrInfo="Permission denied to select from table or view")
+        # 3. a bare own-column declaration involves no source table: allowed
+        testSql.execute("create vtable vt_bare(note nchar(32)) using vstb tags (3);")
+
+        cursor.close()
+        testconn.close()
+
+        # the bare column exists with its declared type and no source
+        tdSql.query(
+            "select col_type, col_source from information_schema.ins_columns "
+            "where db_name='test_vct_auth_own' and table_name='vt_bare' and col_name='note';"
+        )
+        tdSql.checkData(0, 0, "NCHAR(32)")
+        tdSql.checkData(0, 1, None)
+
+        tdSql.execute("revoke use on database test_vct_auth_own from test_vct_own_user;")
+        tdSql.execute("revoke create table on database test_vct_auth_own from test_vct_own_user;")
+        tdSql.execute("drop user test_vct_own_user;")
+        tdSql.execute("drop database test_vct_auth_own;")

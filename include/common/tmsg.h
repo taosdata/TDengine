@@ -6366,7 +6366,9 @@ void    tFreeSVCheckStbAlterNameReq(SVCheckStbAlterNameReq* pReq);
 // the vnode assigns colIds from TSDB_VCHILD_OWN_COL_ID_BASE upwards.
 typedef struct SVChildOwnColDef {
   SSchema  schema;
-  SColRef  ref;  // hasRef is always true: an own data column must carry an origin reference
+  SColRef  ref;  // hasRef = true: own column with an origin reference. hasRef = false: an unbound
+               // own column (bare `name TYPE` declaration at CREATE VTABLE, same state as after
+               // ALTER ... SET NULL); a declared ref must still carry complete names
   STypeMod typeMod;  // decimal precision/scale for own columns of decimal type (0 otherwise)
 } SVChildOwnColDef;
 
