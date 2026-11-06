@@ -4454,6 +4454,17 @@ typedef struct {
   int32_t  reserved;
 } SAlterVnodeHashRangeReq;
 
+// alter-confirm response: the vnode that handled the (sync-write) confirm reports the local
+// node's dnodeId (i.e. the vgroup leader that answered) so the mnode can stamp the vgroup's
+// leader immediately after commit, instead of waiting for the next dnode heartbeat.
+// See mndTransProcessRsp / mndTransSendRpcRsp.
+typedef struct {
+  int32_t dnodeId;
+} SAlterVnodeConfirmRsp;
+
+int32_t tSerializeSAlterVnodeConfirmRsp(void* buf, int32_t bufLen, SAlterVnodeConfirmRsp* pRsp);
+int32_t tDeserializeSAlterVnodeConfirmRsp(void* buf, int32_t bufLen, SAlterVnodeConfirmRsp* pRsp);
+
 int32_t tSerializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 int32_t tDeserializeSAlterVnodeHashRangeReq(void* buf, int32_t bufLen, SAlterVnodeHashRangeReq* pReq);
 

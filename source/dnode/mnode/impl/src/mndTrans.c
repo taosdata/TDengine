@@ -1810,6 +1810,37 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
         mInfo("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
+
+        // Stamp each newly created vgroup's leader immediately after commit, using the leader dnodeId
+        // captured from the alter-confirm responses. This closes the heartbeat-lag window during which
+        // the vgroup is already visible (committed) but the mnode's cached syncState is still the
+        // initial FOLLOWER, which made `show cluster alive` transiently report 2 right after create-db.
+        //
+        // This MUST run BEFORE the mndIsDbReady wait loop below: test_create_db_alive_from_other_client
+        // uses an independent connection that polls `show cluster alive` WHILE create-db is held back by
+        // that loop. Stamping afterwards would leave the observer seeing leaderless vgroups during the
+        // heartbeat wait and re-open the bug.
+        //
+        // The stamped value is the GENUINE leader, proven by the alter-confirm sync-write (only the
+        // leader applies it). So mndIsDbReady passing immediately is the legitimate "leader is ready"
+        // signal, not a fabricated bypass. The next real heartbeat (~1s) re-writes the same leader.
+        int32_t nActions = (pTrans->redoActions != NULL) ? taosArrayGetSize(pTrans->redoActions) : 0;
+        for (int32_t a = 0; a < nActions; ++a) {
+          STransAction *pAct = taosArrayGet(pTrans->redoActions, a);
+          if (pAct->msgType != TDMT_VND_ALTER_CONFIRM || pAct->leaderDnodeId <= 0) continue;
+          SVgObj *pVg = mndAcquireVgroup(pMnode, pAct->groupId);
+          if (pVg == NULL) continue;
+          for (int32_t g = 0; g < pVg->replica; ++g) {
+            if (pVg->vnodeGid[g].dnodeId == pAct->leaderDnodeId) {
+              pVg->vnodeGid[g].syncState = TAOS_SYNC_STATE_LEADER;
+              mInfo("trans:%d, vgId:%d stamp leader dnode:%d (alter-confirm) to avoid show cluster alive = 2",
+                    pTrans->id, pAct->groupId, pAct->leaderDnodeId);
+              break;
+            }
+          }
+          mndReleaseVgroup(pMnode, pVg);
+        }
+
         SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname);
         if (pDb != NULL) {
           for (int32_t j = 0; j < 12; j++) {
@@ -1922,6 +1953,19 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
       pAction->msgReceived = 1;
       pAction->errCode = pRsp->code;
       pAction->endTime = taosGetTimestampMs();
+
+      // Capture the alter-confirm leader dnodeId so we can stamp the vgroup leader right after
+      // commit (see mndTransSendRpcRsp), closing the heartbeat-lag window where `show cluster
+      // alive` transiently reports 2 for a just-created database.
+      if (pAction->msgType == TDMT_VND_ALTER_CONFIRM && pRsp->code == 0 && pRsp->pCont != NULL &&
+          pRsp->contLen > 0) {
+        SAlterVnodeConfirmRsp confirm = {0};
+        if (tDeserializeSAlterVnodeConfirmRsp(pRsp->pCont, pRsp->contLen, &confirm) == 0 && confirm.dnodeId > 0) {
+          pAction->leaderDnodeId = confirm.dnodeId;
+          mInfo("trans:%d, alter-confirm vgId:%d leader dnodeId:%d captured", pTrans->id, pAction->groupId,
+                pAction->leaderDnodeId);
+        }
+      }
 
       // pTrans->lastErrorNo = pRsp->code;
       mndSetTransLastAction(pTrans, pAction);
