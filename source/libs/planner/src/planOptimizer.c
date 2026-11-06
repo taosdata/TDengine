@@ -15821,6 +15821,11 @@ static int32_t vstableCreateSingleCalc(SArray* pUnits, SLogicNode** ppCalc) {
   if (NULL == pUnit || NULL == pUnit->pWindow) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  if (0 == LIST_LENGTH(pUnit->pWindow->pFuncs)) {
+    // Pseudo columns stay in the boundary branch. Keep the calc branch in aggregate mode.
+    int32_t wstartIndex = -1;
+    PLAN_ERR_RET(vstableAppendWstartPlaceholder(&pUnit->pWindow->pFuncs, pUnit->pWindow->node.precision, &wstartIndex));
+  }
   int32_t code = createColumnByRewriteExprs(pUnit->pWindow->pFuncs, &pUnit->pWindow->node.pTargets);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
