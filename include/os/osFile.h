@@ -102,6 +102,9 @@ typedef struct TdFile *TdFilePtr;
  * POSIX-only/umask- and symlink-sensitive semantics are acceptable.
  */
 #define TD_FILE_PRIVATE       0x2000
+// Windows only: let others rename/delete the file while it is open. Ignored on the stream/fopen path,
+// and a no-op on POSIX, where renaming or deleting an open file is always allowed.
+#define TD_FILE_SHARE_DELETE  0x4000
 
 // Create with TD_FILE_CREATE | TD_FILE_EXCL and TD_FILE_READ and/or TD_FILE_WRITE,
 // or open an existing file with flags == TD_FILE_READ; all other flags are rejected.
@@ -185,6 +188,11 @@ int32_t taosEOFFile(TdFilePtr pFile);
 int32_t taosCloseFile(TdFilePtr *ppFile);
 
 int32_t taosRenameFile(const char *oldName, const char *newName);
+/* Like taosRenameFile. For a source that this process may still hold open (e.g. a log file rotated while
+ * its handle is open), allowFallback lets Windows redo a rename that failed with a transaction conflict
+ * without the transaction. It is a no-op on other platforms, where rename() has no such conflict.
+ * Unlike taosRenameFile, it is not redirected to a wide-path variant under TAOS_OS_WIDE_PATH. */
+int32_t taosRenameFileEx(const char *oldName, const char *newName, bool allowFallback);
 int64_t taosCopyFile(const char *from, const char *to);
 int32_t taosRemoveFile(const char *path);
 
