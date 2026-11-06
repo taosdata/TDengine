@@ -17,6 +17,8 @@
 
 #include <gtest/gtest.h>
 
+#include "tdTestSeam.h"
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -599,13 +601,28 @@ TEST_F(MgmtMnodeWorkerTest, VnodeReuseFetchWithoutExistingResettableTaskFailsBef
 
 }  // namespace
 
+namespace {
+
+// The engine inside libtaosd_shared.so reads its own copy of the seam pointers,
+// so the test assigns that copy.
+void real_rpcFreeCont(void* pCont) { tdSeamReal_rpcFreeCont(pCont); }
+
+void real_tSingleWorkerCleanup(SSingleWorker* pWorker) {
+  void* saved = gTdSeam_tSingleWorkerCleanup;
+  gTdSeam_tSingleWorkerCleanup = nullptr;
+  tSingleWorkerCleanup(pWorker);
+  gTdSeam_tSingleWorkerCleanup = saved;
+}
+
+using tdtestseam::seamSlot;
+
+}  // namespace
+
 extern "C" {
 
 SDmNotifyHandle dmNotifyHdl = {};
 
-void __real_rpcFreeCont(void* pCont);
-
-int32_t __wrap_rpcSendResponse(const SRpcMsg* pMsg) {
+int32_t seam_rpcSendResponse(const SRpcMsg* pMsg) {
   std::unique_lock<std::mutex> lock(gMutex);
   ObservedItem*                item = findByHandle(pMsg->info.handle);
   if (item == nullptr) return TSDB_CODE_SUCCESS;
@@ -621,11 +638,11 @@ int32_t __wrap_rpcSendResponse(const SRpcMsg* pMsg) {
   gCv.notify_all();
   void* response = pMsg->pCont;
   lock.unlock();
-  __real_rpcFreeCont(response);
+  real_rpcFreeCont(response);
   return TSDB_CODE_SUCCESS;
 }
 
-void __wrap_rpcFreeCont(void* pCont) {
+void seam_rpcFreeCont(void* pCont) {
   {
     std::lock_guard<std::mutex> lock(gMutex);
     ObservedItem*               item = findByPayload(pCont);
@@ -634,12 +651,10 @@ void __wrap_rpcFreeCont(void* pCont) {
       gCv.notify_all();
     }
   }
-  __real_rpcFreeCont(pCont);
+  real_rpcFreeCont(pCont);
 }
 
-void __real_tSingleWorkerCleanup(SSingleWorker* pWorker);
-
-void __wrap_tSingleWorkerCleanup(SSingleWorker* pWorker) {
+void seam_tSingleWorkerCleanup(SSingleWorker* pWorker) {
   {
     std::lock_guard<std::mutex> lock(gMutex);
     if (gMgmt != nullptr && pWorker == &gMgmt->writeWorker) {
@@ -647,27 +662,27 @@ void __wrap_tSingleWorkerCleanup(SSingleWorker* pWorker) {
       gCv.notify_all();
     }
   }
-  __real_tSingleWorkerCleanup(pWorker);
+  real_tSingleWorkerCleanup(pWorker);
 }
 
-void* __wrap_qStreamGetReaderInfo(int64_t, int64_t, void** taskAddr) {
+void* seam_qStreamGetReaderInfo(int64_t, int64_t, void** taskAddr) {
   *taskAddr = nullptr;
   return gReaderCalcInfos;
 }
 
-bool __wrap_syncIsReadyForRead(int64_t) { return true; }
+bool seam_syncIsReadyForRead(int64_t) { return true; }
 
-void __wrap_initStorageAPI(SStorageAPI*) {
+void seam_initStorageAPI(SStorageAPI*) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.initStorage;
 }
 
-void __wrap_qDestroyTask(qTaskInfo_t) {
+void seam_qDestroyTask(qTaskInfo_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.destroyTask;
 }
 
-int32_t __wrap_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHandle*, SStreamInserterParam*, int32_t,
+int32_t seam_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHandle*, SStreamInserterParam*, int32_t,
                                          int32_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.createTask;
@@ -675,27 +690,27 @@ int32_t __wrap_qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void*, SReadHan
   return TSDB_CODE_SUCCESS;
 }
 
-bool __wrap_qNeedReset(qTaskInfo_t pTaskInfo) { return pTaskInfo != nullptr; }
+bool seam_qNeedReset(qTaskInfo_t pTaskInfo) { return pTaskInfo != nullptr; }
 
-void __wrap_qFinishReaderGroupRead(qTaskInfo_t) {
+void seam_qFinishReaderGroupRead(qTaskInfo_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.finishGroupRead;
 }
 
-int32_t __wrap_qResetTableScan(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode mode) {
+int32_t seam_qResetTableScan(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode mode) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.resetScan;
   gReaderSideEffects.resetMode = mode;
   return mode == QUERY_TABLE_SCAN_RESET_REUSE_READER ? gReuseReaderResetCode : TSDB_CODE_SUCCESS;
 }
 
-int32_t __wrap_qSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
+int32_t seam_qSetTaskId(qTaskInfo_t, uint64_t, uint64_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.setTaskId;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t __wrap_qEnableReaderGroupOutput(qTaskInfo_t, bool requested, bool* pEnabled) {
+int32_t seam_qEnableReaderGroupOutput(qTaskInfo_t, bool requested, bool* pEnabled) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.configureGroupOutput;
   EXPECT_FALSE(requested);
@@ -703,25 +718,73 @@ int32_t __wrap_qEnableReaderGroupOutput(qTaskInfo_t, bool requested, bool* pEnab
   return TSDB_CODE_SUCCESS;
 }
 
-void __wrap_qUpdateOperatorParam(qTaskInfo_t, void*) {
+void seam_qUpdateOperatorParam(qTaskInfo_t, void*) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.updateOperator;
 }
 
-void __wrap_qSetStreamGen(qTaskInfo_t, uint64_t) {
+void seam_qSetStreamGen(qTaskInfo_t, uint64_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.setStreamGen;
 }
 
-void __wrap_setTaskScalarExtraInfo(qTaskInfo_t) {
+void seam_setTaskScalarExtraInfo(qTaskInfo_t) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.setScalarExtra;
 }
 
-int32_t __wrap_qExecTaskOpt(qTaskInfo_t, SArray*, uint64_t*, bool* hasMore, SLocalFetch*, bool) {
+int32_t seam_qExecTaskOpt(qTaskInfo_t, SArray*, uint64_t*, bool* hasMore, SLocalFetch*, bool) {
   std::lock_guard<std::mutex> lock(gMutex);
   ++gReaderSideEffects.executeTask;
   *hasMore = false;
   return TSDB_CODE_SUCCESS;
 }
 }
+
+
+namespace {
+
+struct SeamInstaller {
+  SeamInstaller() {
+    *seamSlot(gTdSeam_initStorageAPI, "gTdSeam_initStorageAPI") = reinterpret_cast<void*>(&seam_initStorageAPI);
+    *seamSlot(gTdSeam_qCreateStreamExecTaskInfo, "gTdSeam_qCreateStreamExecTaskInfo") = reinterpret_cast<void*>(&seam_qCreateStreamExecTaskInfo);
+    *seamSlot(gTdSeam_qDestroyTask, "gTdSeam_qDestroyTask") = reinterpret_cast<void*>(&seam_qDestroyTask);
+    *seamSlot(gTdSeam_qEnableReaderGroupOutput, "gTdSeam_qEnableReaderGroupOutput") = reinterpret_cast<void*>(&seam_qEnableReaderGroupOutput);
+    *seamSlot(gTdSeam_qExecTaskOpt, "gTdSeam_qExecTaskOpt") = reinterpret_cast<void*>(&seam_qExecTaskOpt);
+    *seamSlot(gTdSeam_qFinishReaderGroupRead, "gTdSeam_qFinishReaderGroupRead") = reinterpret_cast<void*>(&seam_qFinishReaderGroupRead);
+    *seamSlot(gTdSeam_qNeedReset, "gTdSeam_qNeedReset") = reinterpret_cast<void*>(&seam_qNeedReset);
+    *seamSlot(gTdSeam_qResetTableScan, "gTdSeam_qResetTableScan") = reinterpret_cast<void*>(&seam_qResetTableScan);
+    *seamSlot(gTdSeam_qSetStreamGen, "gTdSeam_qSetStreamGen") = reinterpret_cast<void*>(&seam_qSetStreamGen);
+    *seamSlot(gTdSeam_qSetTaskId, "gTdSeam_qSetTaskId") = reinterpret_cast<void*>(&seam_qSetTaskId);
+    *seamSlot(gTdSeam_qStreamGetReaderInfo, "gTdSeam_qStreamGetReaderInfo") = reinterpret_cast<void*>(&seam_qStreamGetReaderInfo);
+    *seamSlot(gTdSeam_qUpdateOperatorParam, "gTdSeam_qUpdateOperatorParam") = reinterpret_cast<void*>(&seam_qUpdateOperatorParam);
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = reinterpret_cast<void*>(&seam_rpcFreeCont);
+    *seamSlot(gTdSeam_rpcSendResponse, "gTdSeam_rpcSendResponse") = reinterpret_cast<void*>(&seam_rpcSendResponse);
+    *seamSlot(gTdSeam_setTaskScalarExtraInfo, "gTdSeam_setTaskScalarExtraInfo") = reinterpret_cast<void*>(&seam_setTaskScalarExtraInfo);
+    *seamSlot(gTdSeam_syncIsReadyForRead, "gTdSeam_syncIsReadyForRead") = reinterpret_cast<void*>(&seam_syncIsReadyForRead);
+    *seamSlot(gTdSeam_tSingleWorkerCleanup, "gTdSeam_tSingleWorkerCleanup") = reinterpret_cast<void*>(&seam_tSingleWorkerCleanup);
+  }
+  ~SeamInstaller() {
+    *seamSlot(gTdSeam_initStorageAPI, "gTdSeam_initStorageAPI") = nullptr;
+    *seamSlot(gTdSeam_qCreateStreamExecTaskInfo, "gTdSeam_qCreateStreamExecTaskInfo") = nullptr;
+    *seamSlot(gTdSeam_qDestroyTask, "gTdSeam_qDestroyTask") = nullptr;
+    *seamSlot(gTdSeam_qEnableReaderGroupOutput, "gTdSeam_qEnableReaderGroupOutput") = nullptr;
+    *seamSlot(gTdSeam_qExecTaskOpt, "gTdSeam_qExecTaskOpt") = nullptr;
+    *seamSlot(gTdSeam_qFinishReaderGroupRead, "gTdSeam_qFinishReaderGroupRead") = nullptr;
+    *seamSlot(gTdSeam_qNeedReset, "gTdSeam_qNeedReset") = nullptr;
+    *seamSlot(gTdSeam_qResetTableScan, "gTdSeam_qResetTableScan") = nullptr;
+    *seamSlot(gTdSeam_qSetStreamGen, "gTdSeam_qSetStreamGen") = nullptr;
+    *seamSlot(gTdSeam_qSetTaskId, "gTdSeam_qSetTaskId") = nullptr;
+    *seamSlot(gTdSeam_qStreamGetReaderInfo, "gTdSeam_qStreamGetReaderInfo") = nullptr;
+    *seamSlot(gTdSeam_qUpdateOperatorParam, "gTdSeam_qUpdateOperatorParam") = nullptr;
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = nullptr;
+    *seamSlot(gTdSeam_rpcSendResponse, "gTdSeam_rpcSendResponse") = nullptr;
+    *seamSlot(gTdSeam_setTaskScalarExtraInfo, "gTdSeam_setTaskScalarExtraInfo") = nullptr;
+    *seamSlot(gTdSeam_syncIsReadyForRead, "gTdSeam_syncIsReadyForRead") = nullptr;
+    *seamSlot(gTdSeam_tSingleWorkerCleanup, "gTdSeam_tSingleWorkerCleanup") = nullptr;
+  }
+};
+
+SeamInstaller gSeamInstaller;
+
+}  // namespace

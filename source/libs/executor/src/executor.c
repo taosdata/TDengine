@@ -16,6 +16,7 @@
  */
 
 #include "executor.h"
+#include "tdTestSeam.h"
 #include <stdint.h>
 #include "cmdnodes.h"
 #include "dataSinkInt.h"
@@ -44,6 +45,7 @@ int32_t             fetchObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
 
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
+  TD_SEAM_VOID(setTaskScalarExtraInfo, void (*)(qTaskInfo_t), (tinfo));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   gTaskScalarExtra.pSubJobCtx = pTaskInfo->pSubJobCtx;
   gTaskScalarExtra.isStream =
@@ -55,6 +57,7 @@ void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
 }
 
 void qSetStreamGen(qTaskInfo_t tinfo, uint64_t gen) {
+  TD_SEAM_VOID(qSetStreamGen, void (*)(qTaskInfo_t, uint64_t), (tinfo, gen));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (pTaskInfo && pTaskInfo->pSubJobCtx) {
     pTaskInfo->pSubJobCtx->streamGen = gen;
@@ -166,6 +169,7 @@ int32_t doSetTaskId(SOperatorInfo* pOperator, SStorageAPI* pAPI) {
 }
 
 int32_t qSetTaskId(qTaskInfo_t tinfo, uint64_t taskId, uint64_t queryId) {
+  TD_SEAM_RET(qSetTaskId, int32_t (*)(qTaskInfo_t, uint64_t, uint64_t), (tinfo, taskId, queryId));
   SExecTaskInfo* pTaskInfo = tinfo;
   pTaskInfo->id.queryId = queryId;
   buildTaskId(taskId, queryId, pTaskInfo->id.str, 64);
@@ -376,6 +380,7 @@ _error:
 }
 
 bool qNeedReset(qTaskInfo_t pInfo) {
+  TD_SEAM_RET(qNeedReset, bool (*)(qTaskInfo_t), (pInfo));
   if (pInfo == NULL) {
     return false;
   }
@@ -430,6 +435,7 @@ static int32_t validateReaderReuseReset(SOperatorInfo* pOperator) {
 }
 
 int32_t qResetTableScan(qTaskInfo_t pInfo, SReadHandle* handle, EQueryTableScanResetMode mode) {
+  TD_SEAM_RET(qResetTableScan, int32_t (*)(qTaskInfo_t, SReadHandle*, EQueryTableScanResetMode), (pInfo, handle, mode));
   if (pInfo == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -524,6 +530,7 @@ int32_t qClearStreamDimensionPreparation(qTaskInfo_t task) {
 
 int32_t qCreateStreamExecTaskInfo(qTaskInfo_t* pTaskInfo, void* msg, SReadHandle* readers,
                                   SStreamInserterParam* pInserterParams, int32_t vgId, int32_t taskId) {
+  TD_SEAM_RET(qCreateStreamExecTaskInfo, int32_t (*)(qTaskInfo_t*, void*, SReadHandle*, SStreamInserterParam*, int32_t, int32_t), (pTaskInfo, msg, readers, pInserterParams, vgId, taskId));
   if (msg == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -901,6 +908,7 @@ void qDestroyOperatorParam(SOperatorParam* pParam) {
          operator type mismatch.
 */
 void qUpdateOperatorParam(qTaskInfo_t tinfo, void* pParam) {
+  TD_SEAM_VOID(qUpdateOperatorParam, void (*)(qTaskInfo_t, void*), (tinfo, pParam));
   SExecTaskInfo* pTask = (SExecTaskInfo*)tinfo;
   SOperatorParam* pNewParam = (SOperatorParam*)pParam;
   if (pTask->pRoot && pTask->pRoot->operatorType != pNewParam->opType) {
@@ -1054,6 +1062,8 @@ static void resetOperatorExecDepth(SOperatorInfo* pOperator) {
 
 int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal,
                      bool processOneBlock) {
+  TD_SEAM_RET(qExecTaskOpt, int32_t (*)(qTaskInfo_t, SArray*, uint64_t*, bool*, SLocalFetch*, bool),
+              (tinfo, pResList, useconds, hasMore, pLocal, processOneBlock));
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
@@ -1556,6 +1566,7 @@ static void printTaskExecCostInLog(SExecTaskInfo* pTaskInfo) {
 
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
+  TD_SEAM_VOID(qDestroyTask, void (*)(qTaskInfo_t), (qTaskHandle));
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qTaskHandle;
   if (pTaskInfo == NULL) {
     return;

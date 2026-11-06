@@ -16,6 +16,7 @@
  */
 
 #include "vnd.h"
+#include "tdTestSeam.h"
 #include "vnodeHash.h"
 
 typedef struct SVAsync    SVAsync;
@@ -503,6 +504,8 @@ void vnodeAsyncClose() {
 
 int32_t vnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(void *), void (*complete)(void *), void *arg,
                    SVATaskID *taskID) {
+  TD_SEAM_RET(vnodeAsync, int32_t (*)(int64_t, EVAPriority, int32_t (*)(void *), void (*)(void *), void *, SVATaskID *),
+              (async, priority, execute, complete, arg, taskID));
   SVAChannelID channelID = {
       .async = async,
       .id = 0,

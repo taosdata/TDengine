@@ -16,6 +16,7 @@
  */
 
 #include "executor.h"
+#include "tdTestSeam.h"
 #include "executorInt.h"
 #include "filter.h"
 #include "function.h"
@@ -3041,6 +3042,7 @@ static int32_t compareReaderGroupId(const void* lhs, const void* rhs) {
 }
 
 int32_t qEnableReaderGroupOutput(qTaskInfo_t task, bool requested, bool* pEnabled) {
+  TD_SEAM_RET(qEnableReaderGroupOutput, int32_t (*)(qTaskInfo_t, bool, bool*), (task, requested, pEnabled));
   if (task == NULL || pEnabled == NULL) return TSDB_CODE_INVALID_PARA;
   SExecTaskInfo* pTask = task;
   *pEnabled = false;
@@ -4043,6 +4045,7 @@ static void forceCloseTableScanReader(STableScanBase* pBase) {
 
 
 void qFinishReaderGroupRead(qTaskInfo_t task) {
+  TD_SEAM_VOID(qFinishReaderGroupRead, void (*)(qTaskInfo_t), (task));
   SExecTaskInfo* pTask = task;
   if (pTask == NULL || (pTask->pReaderTableRanges == NULL && !pTask->readerGroupOutput) || pTask->pRoot == NULL ||
       pTask->pRoot->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN)

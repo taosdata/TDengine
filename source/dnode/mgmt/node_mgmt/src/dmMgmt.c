@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "tdTestSeam.h"
 #include "dmCorrelation.h"
 #include "dmNodes.h"
 #include "index.h"
@@ -356,6 +357,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
 }
 
 int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_RET(dmMarkWrapper, int32_t (*)(SMgmtWrapper *), (pWrapper));
   int32_t code = 0;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);
@@ -393,6 +395,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
 }
 
 void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
+  TD_SEAM_VOID(dmReleaseWrapper, void (*)(SMgmtWrapper *), (pWrapper));
   if (pWrapper == NULL) return;
 
   (void)taosThreadRwlockRdlock(&pWrapper->lock);

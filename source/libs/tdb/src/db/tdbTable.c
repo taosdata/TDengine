@@ -16,6 +16,7 @@
  */
 
 #include "tdbInt.h"
+#include "tdTestSeam.h"
 
 struct STTB {
   TDB    *pEnv;
@@ -300,13 +301,19 @@ int32_t tdbTbTraversal(TTB *pTb, void *data,
   return 0;
 }
 
-int tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c) { return tdbBtcMoveTo(&pTbc->btc, pKey, kLen, c); }
+int tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c) {
+  TD_SEAM_RET(tdbTbcMoveTo, int32_t (*)(TBC *, const void *, int, int *), (pTbc, pKey, kLen, c));
+  return tdbBtcMoveTo(&pTbc->btc, pKey, kLen, c);
+}
 
 int tdbTbcMoveToFirst(TBC *pTbc) { return tdbBtcMoveToFirst(&pTbc->btc); }
 
 int tdbTbcMoveToLast(TBC *pTbc) { return tdbBtcMoveToLast(&pTbc->btc); }
 
-int tdbTbcMoveToNext(TBC *pTbc) { return tdbBtcMoveToNext(&pTbc->btc); }
+int tdbTbcMoveToNext(TBC *pTbc) {
+  TD_SEAM_RET(tdbTbcMoveToNext, int32_t (*)(TBC *), (pTbc));
+  return tdbBtcMoveToNext(&pTbc->btc);
+}
 
 int tdbTbcMoveToPrev(TBC *pTbc) { return tdbBtcMoveToPrev(&pTbc->btc); }
 
@@ -317,6 +324,7 @@ int tdbTbcGet(TBC *pTbc, const void **ppKey, int *pkLen, const void **ppVal, int
 int tdbTbcDelete(TBC *pTbc) { return tdbBtcDelete(&pTbc->btc); }
 
 int tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  TD_SEAM_RET(tdbTbcNext, int32_t (*)(TBC *, void **, int *, void **, int *), (pTbc, ppKey, kLen, ppVal, vLen));
   return tdbBtreeNext(&pTbc->btc, ppKey, kLen, ppVal, vLen);
 }
 

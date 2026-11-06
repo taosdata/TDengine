@@ -210,6 +210,9 @@ macro(INIT_EXT name)               # {
             if("z${name}" STREQUAL "zext_gtest")
                 target_compile_features(${tgt} PUBLIC cxx_std_11)
                 target_link_libraries(${tgt} PRIVATE Threads::Threads)
+                # Optional: resolve the engine from libtaosd_shared.so instead of
+                # statically embedding it into every test binary.
+                td_test_link_shared_engine(${tgt})
             endif()
         else()
             if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")

@@ -10,6 +10,7 @@
 
 #include "meta.h"
 #include "vnodeInt.h"
+#include "tdTestSeam.h"
 
 extern SDmNotifyHandle dmNotifyHdl;
 
@@ -67,6 +68,8 @@ typedef struct {
 } SMetaTableOp;
 
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
+  TD_SEAM_RET(metaFetchEntryByUid, int32_t (*)(SMeta *, int64_t, SMetaEntry **), (pMeta, uid, ppEntry));
+
   int32_t code = TSDB_CODE_SUCCESS;
   void   *value = NULL;
   int32_t valueSize = 0;
@@ -144,7 +147,10 @@ int32_t metaFetchEntryByName(SMeta *pMeta, const char *name, SMetaEntry **ppEntr
   return code;
 }
 
-void metaFetchEntryFree(SMetaEntry **ppEntry) { metaCloneEntryFree(ppEntry); }
+void metaFetchEntryFree(SMetaEntry **ppEntry) {
+  TD_SEAM_VOID(metaFetchEntryFree, void (*)(SMetaEntry **), (ppEntry));
+  metaCloneEntryFree(ppEntry);
+}
 
 // ============================================================================
 // txn.idx  -  small B+ tree tracking pending txn entries for O(k) startup rebuild
@@ -168,6 +174,7 @@ int32_t metaTxnIdxUpsert(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int8_t txnSt
 }
 
 int32_t metaTxnIdxDelete(SMeta *pMeta, tb_uid_t uid) {
+  TD_SEAM_RET(metaTxnIdxDelete, int32_t (*)(SMeta *, tb_uid_t), (pMeta, uid));
   metaWLock(pMeta);
   int32_t code = tdbTbDelete(pMeta->pTxnIdx, &uid, sizeof(uid), pMeta->txn);
   metaULock(pMeta);
@@ -267,6 +274,7 @@ _exit:
  * Returns an SArray of SMetaTxnScanEntry (caller must destroy).
  */
 int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
+  TD_SEAM_RET(metaScanTxnEntries, int32_t (*)(SMeta *, SArray **), (pMeta, ppResult));
   int32_t code = TSDB_CODE_SUCCESS;
   TBC    *pCursor = NULL;
 
@@ -325,6 +333,7 @@ int32_t metaScanTxnEntries(SMeta *pMeta, SArray **ppResult) {
 // ============================================================================
 
 int32_t metaTxnMetaUpsert(SMeta *pMeta, int64_t txnId, const STxnMetaVal *pVal) {
+  TD_SEAM_RET(metaTxnMetaUpsert, int32_t (*)(SMeta *, int64_t, const STxnMetaVal *), (pMeta, txnId, pVal));
   int32_t code = tdbTbUpsert(pMeta->pTxnMeta, &txnId, sizeof(txnId), pVal, sizeof(STxnMetaVal), pMeta->txn);
   if (code != 0) {
     metaError("vgId:%d, metaTxnMetaUpsert failed, txnId:%" PRId64 " status:%d code:0x%x",
@@ -334,6 +343,7 @@ int32_t metaTxnMetaUpsert(SMeta *pMeta, int64_t txnId, const STxnMetaVal *pVal) 
 }
 
 int32_t metaTxnMetaDelete(SMeta *pMeta, int64_t txnId) {
+  TD_SEAM_RET(metaTxnMetaDelete, int32_t (*)(SMeta *, int64_t), (pMeta, txnId));
   int32_t code = tdbTbDelete(pMeta->pTxnMeta, &txnId, sizeof(txnId), pMeta->txn);
   if (code == TSDB_CODE_NOT_FOUND) {
     return TSDB_CODE_SUCCESS;
@@ -345,6 +355,7 @@ int32_t metaTxnMetaDelete(SMeta *pMeta, int64_t txnId) {
 }
 
 int32_t metaTxnMetaGet(SMeta *pMeta, int64_t txnId, STxnMetaVal *pVal) {
+  TD_SEAM_RET(metaTxnMetaGet, int32_t (*)(SMeta *, int64_t, STxnMetaVal *), (pMeta, txnId, pVal));
   void   *pData = NULL;
   int32_t nData = 0;
   int32_t code = tdbTbGet(pMeta->pTxnMeta, &txnId, sizeof(txnId), &pData, &nData);
@@ -361,6 +372,7 @@ int32_t metaTxnMetaGet(SMeta *pMeta, int64_t txnId, STxnMetaVal *pVal) {
 }
 
 int32_t metaScanTxnMetaEntries(SMeta *pMeta, SArray **ppResult) {
+  TD_SEAM_RET(metaScanTxnMetaEntries, int32_t (*)(SMeta *, SArray **), (pMeta, ppResult));
   int32_t code = TSDB_CODE_SUCCESS;
   TBC    *pCursor = NULL;
 

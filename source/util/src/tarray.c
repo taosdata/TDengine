@@ -18,6 +18,7 @@
 #define _DEFAULT_SOURCE
 #include "tarray.h"
 #include "tcoding.h"
+#include "tdTestSeam.h"
 
 // todo refactor API
 #define BOUNDARY_SIZE         1024 * 1024 * 1024  // 1G
@@ -109,6 +110,8 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t newCap) {
 }
 
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles) {
+  TD_SEAM_RET(taosArrayAddBatch, void* (*)(SArray*, const void*, int32_t), (pArray, pData, nEles));
+
   if (pData == NULL) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
