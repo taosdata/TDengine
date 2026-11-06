@@ -55,6 +55,10 @@
 
 extern "C" {
 #include "tcurl.h"
+
+// Keep curl_ws_send real; inject backpressure below its frame encoder.
+struct Curl_easy;
+CURLcode Curl_senddata(struct Curl_easy*, const void*, size_t, size_t*);
 }
 
 namespace {
@@ -101,6 +105,11 @@ CURLcode FailCurlWsSend(CURL*, const void*, size_t, size_t* sent, curl_off_t, un
   ++gCurlWsSendCalls;
   *sent = 0;
   return CURLE_SEND_ERROR;
+}
+
+CURLcode BlockCurlSocketSend(Curl_easy*, const void*, size_t, size_t* sent) {
+  *sent = 0;
+  return CURLE_AGAIN;
 }
 
 CURLcode RetryCurlWsSend(CURL*, const void*, size_t buflen, size_t* sent, curl_off_t, unsigned int) {
@@ -1196,6 +1205,54 @@ TEST_F(StreamNotifyTest, ShortWritesContinueWithinEachFrame) {
   cJSON* receivedPayload = cJSON_GetObjectItemCaseSensitive(event, "payload");
   ASSERT_TRUE(cJSON_IsString(receivedPayload));
   EXPECT_EQ(std::string(receivedPayload->valuestring), payload);
+}
+
+TEST(TcurlWebSocketDeathTest, BackpressureRetrySendsCompleteFrame) {
+  // The unpatched curl 8.11.1 encoder spins while retrying the last byte.
+  // Bound the child so this regression fails instead of hanging the suite.
+  ASSERT_EXIT(
+      {
+        alarm(10);
+        int result = ([]() {
+          LoopbackWebSocketServer server;
+          if (!server.Start()) return 1;
+          std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> connection(curl_easy_init(), curl_easy_cleanup);
+          if (!connection) return 2;
+          std::string url = server.Url();
+          if (curl_easy_setopt(connection.get(), CURLOPT_URL, url.c_str()) != CURLE_OK ||
+              curl_easy_setopt(connection.get(), CURLOPT_CONNECT_ONLY, 2L) != CURLE_OK ||
+              curl_easy_setopt(connection.get(), CURLOPT_NOPROXY, "*") != CURLE_OK ||
+              curl_easy_perform(connection.get()) != CURLE_OK) {
+            return 3;
+          }
+
+          std::string payload(1024, 'a');
+          size_t      sent = 0;
+          {
+            Stub stub;
+            stub.set(Curl_senddata, BlockCurlSocketSend);
+            if (curl_ws_send(connection.get(), payload.data(), payload.size(), &sent, payload.size(),
+                             CURLWS_TEXT | CURLWS_OFFSET) != CURLE_AGAIN) {
+              return 4;
+            }
+          }
+          size_t totalSent = sent;
+          for (int attempt = 0; totalSent < payload.size() && attempt < 10; ++attempt) {
+            sent = 0;
+            CURLcode code = curl_ws_send(connection.get(), payload.data() + totalSent, payload.size() - totalSent,
+                                         &sent, 0, CURLWS_TEXT | CURLWS_OFFSET);
+            if (code != CURLE_OK && code != CURLE_AGAIN) return 5;
+            totalSent += sent;
+          }
+          if (totalSent != payload.size()) return 6;
+          server.Wait();
+          if (!server.Error().empty() || server.Frames().size() != 1) return 7;
+          const WebSocketFrame& frame = server.Frames()[0];
+          return frame.fin && frame.opcode == 1 && frame.masked && frame.payload == payload ? 0 : 8;
+        }());
+        _exit(result);
+      },
+      ::testing::ExitedWithCode(0), "");
 }
 
 TEST_F(StreamNotifyTest, LargeNotificationIsFragmentedWithoutChangingMessage) {

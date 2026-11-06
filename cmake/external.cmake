@@ -1212,6 +1212,9 @@ if(${TD_WINDOWS})
         URL ${_url}
         URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
         PREFIX "${_base}"
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" "-DCURL_SOURCE_DIR=<SOURCE_DIR>"
+                    -P "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
@@ -1232,10 +1235,6 @@ if(${TD_WINDOWS})
         VERBATIM
     )
 else()
-    find_program(_EXT_CURL_PATCH_EXECUTABLE NAMES patch)
-    if(NOT _EXT_CURL_PATCH_EXECUTABLE)
-        message(FATAL_ERROR "The patch utility is required to build ext_curl")
-    endif()
     string(JOIN " " _c_flags ${_c_flags_list})
     set(_ext_curl_configure_env
         "CFLAGS=${_c_flags}"
@@ -1273,7 +1272,8 @@ else()
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         PATCH_COMMAND
-            COMMAND sh -c "grep -q sendbuf_payload lib/ws.h && grep -q 'buffer + ws->sendbuf_payload' lib/ws.c || '${_EXT_CURL_PATCH_EXECUTABLE}' -p1 -i '${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch'"
+            COMMAND "${CMAKE_COMMAND}" "-DCURL_SOURCE_DIR=<SOURCE_DIR>"
+                    -P "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
@@ -1295,6 +1295,17 @@ else()
         VERBATIM
     )
 endif()
+# CMake 3.27+ uses a separate patch step with EP_UPDATE_DISCONNECTED.
+set(_ext_curl_patch_steps patch)
+if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
+    list(APPEND _ext_curl_patch_steps patch_disconnected)
+endif()
+foreach(_ext_curl_patch_step IN LISTS _ext_curl_patch_steps)
+    ExternalProject_Add_StepDependencies(ext_curl ${_ext_curl_patch_step}
+        "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
+        "${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch"
+    )
+endforeach()
 add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 
 # geos
