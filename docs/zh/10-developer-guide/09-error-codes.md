@@ -814,6 +814,7 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x8000641F | Too many external tags required by query | 当前 SQL 实际引用的外部 Tag 数量超过 TDengine 上限 | 减少当前查询引用的 Tag；外部 measurement 总 Tag 数超限本身不会导致该错误 |
 | 0x80006420 | Oracle client and server versions are not compatible | Oracle 客户端与服务端版本组合不受支持 | 使用与服务端版本匹配的 Oracle Instant Client |
 | 0x8000642D | External column type or Field/Tag role conflict | InfluxDB 同一 measurement 中的同名 Field 跨 shard 或 RP 存在不同类型，Field/Tag 同名，或列名仅大小写不同 | 统一 Field 类型或拆分 measurement，消除名称或 Field/Tag 冲突后刷新外部数据源 |
+| 0x8000642E | External source client authentication plugin is missing | 客户端认证插件（如 MySQL 8 的 caching_sha2_password）缺失或无法加载，连接在密码校验前就失败 | 确认部署包内客户端库同目录下存在对应的认证插件（如 caching_sha2_password.so），或改用 mysql_native_password 账号 |
 
 #### TDgpt
 

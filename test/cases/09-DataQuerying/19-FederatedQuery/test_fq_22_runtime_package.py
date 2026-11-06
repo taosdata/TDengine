@@ -42,7 +42,9 @@ _STAGER = _COMMUNITY_ROOT / "packaging" / "tools" / "stage_fq_runtime.bat"
 # and odbc_install.exe registers it on the target host.
 # Wildcards are allowed in the final path component.
 _REQUIRED_FILES = {
-    "mysql": ["libmariadb.dll"],
+    # caching_sha2_password.dll is required for MySQL 8 default accounts;
+    # MariaDB Connector/C resolves it as a client plugin.
+    "mysql": ["libmariadb.dll", "caching_sha2_password.dll"],
     "postgresql": ["libpq.dll"],
     "influxdb": ["taos_ext_influx_arrow.dll"],
     "sqlserver": [os.path.join("driver", "msodbcsql18.msi")],

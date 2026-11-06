@@ -181,10 +181,37 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       endif()
       _stage_fq_provider_runtime("${ext_mariadb_install}/lib/mariadb"
         "libmariadb.so*" "libmysqlclient.so*" "libmariadb*.dylib*" "libmysqlclient*.dylib*")
+      # MariaDB Connector/C implements the MySQL 8 default authentication
+      # (caching_sha2_password) as a loadable client plugin.  Its compiled-in
+      # PLUGINDIR points into the build machine's externals tree, so the plugin
+      # must travel with the client library: the provider points
+      # MYSQL_PLUGIN_DIR at this copy (mysqlResolvePluginDir in
+      # extConnectorMySQL.c).  Same build, same version as the client library.
+      # Windows stages the equivalent DLLs next to libmariadb.dll below.
+      _stage_fq_provider_runtime("${ext_mariadb_install}/lib/mariadb/plugin"
+        "caching_sha2_password.*" "sha256_password.*" "mysql_clear_password.*" "dialog.*"
+        "client_ed25519.*")
     elseif(DEFINED EXT_MARIADB_SO_SRCPATH AND NOT "${EXT_MARIADB_SO_SRCPATH}" STREQUAL "")
       get_filename_component(_mariadb_runtime_dir "${EXT_MARIADB_SO_SRCPATH}" DIRECTORY)
       _stage_fq_provider_runtime("${_mariadb_runtime_dir}"
         "libmariadb.so*" "libmysqlclient.so*" "libmariadb*.dylib*" "libmysqlclient*.dylib*")
+      # Distributions keep the client auth plugins in a sibling directory
+      # (for example <libdir>/libmariadb3/plugin) rather than next to the
+      # client library.  Stage them beside the library so the packaged runtime
+      # does not depend on the build host's package layout; same package, so
+      # the plugin version always matches the client library.
+      file(GLOB _mariadb_system_plugin_dirs
+        "${_mariadb_runtime_dir}/plugin"
+        "${_mariadb_runtime_dir}/*/plugin")
+      list(REMOVE_DUPLICATES _mariadb_system_plugin_dirs)
+      foreach(_mariadb_plugin_dir IN LISTS _mariadb_system_plugin_dirs)
+        if(EXISTS "${_mariadb_plugin_dir}/caching_sha2_password.so" OR
+           EXISTS "${_mariadb_plugin_dir}/caching_sha2_password.dylib")
+          _stage_fq_provider_runtime("${_mariadb_plugin_dir}"
+            "caching_sha2_password.*" "sha256_password.*" "mysql_clear_password.*" "dialog.*"
+            "client_ed25519.*")
+        endif()
+      endforeach()
     endif()
   endif()
 

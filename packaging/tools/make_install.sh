@@ -478,6 +478,10 @@ function install_lib() {
     ${csudo}rm -rf "${install_main_dir}/driver/oracle" || :
 
     for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib" \
       "libmariadb.so*" "libmysqlclient.so*" "libpq.so*" "libarrow*.so*" "libparquet.so*" "libtaos_ext_influx_arrow.so*" \
       "libodbc.so*" "libodbcinst.so*" "libmsodbcsql*.so*" \
       "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*" "libociei*.so*" \
@@ -574,6 +578,20 @@ function install_lib() {
       for src in "${binary_dir}/build/lib"/${pattern}; do
         [ -e "${src}" ] || continue
         [ -L "${src}" ] || continue
+        copy_fq_runtime_lib "${src}"
+      done
+    done
+    # MySQL 8 accounts default to caching_sha2_password, which MariaDB
+    # Connector/C loads as a client plugin.  The provider points
+    # MYSQL_PLUGIN_DIR at the client library's directory, so these files must
+    # sit next to libmariadb in driver/ (same build, same version).
+    for pattern in \
+      "caching_sha2_password.so" "sha256_password.so" "mysql_clear_password.so" \
+      "dialog.so" "client_ed25519.so" \
+      "caching_sha2_password.dylib" "sha256_password.dylib" "mysql_clear_password.dylib" \
+      "dialog.dylib" "client_ed25519.dylib"; do
+      for src in "${binary_dir}/build/lib"/${pattern}; do
+        [ -e "${src}" ] || continue
         copy_fq_runtime_lib "${src}"
       done
     done

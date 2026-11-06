@@ -735,6 +735,8 @@
 
 ## Oracle dependency package / install script (no database required)
 100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest ../packaging/test_fq_oracle_install.py
+## make_install.sh must ship the MySQL client auth plugins into driver/ (no database required)
+100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest ../packaging/test_fq_private_runtime.py::test_make_install_stages_mysql_auth_plugins
 
 ## 19-FederatedQuery
 100,,y,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py
@@ -840,6 +842,7 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py::TestFq20SqlServerSemantics::test_sqlserver_time_format_semantics
 100,,y,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py::TestFq20SqlServerSemantics::test_sqlserver_vtable_filter_semantics
 100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_prepare_runtime_libs_sanitizes_shell_helper_env cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_pymysql_dependency cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_taos_cli_env_disables_leak_detection_for_asan_child cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_runtime_moves_normal_provider_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_driver_moves_only_sqlserver_driver_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_missing_influx_runtime_moves_arrow_third_party_libs cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_existing_source_query_missing_uses_provider_error cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_influx_http_uses_runtime_missing_query_check
+100,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_mysql_auth_plugin_staged
 100,,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_available
 100,,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_fq_runtime_provider_libs_missing
 100,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_sqlserver_missing_driver_uses_provider_error

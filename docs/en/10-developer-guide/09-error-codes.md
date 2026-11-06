@@ -829,6 +829,7 @@ Below are the business error codes for each module.
 | 0x8000641F | Too many external tags required by query | The current SQL statement references more external tags than TDengine permits | Reduce the tags referenced by this query; an oversized external measurement alone does not cause this error |
 | 0x80006420 | Oracle client and server versions are not compatible | The Oracle client and server version combination is not supported | Use an Oracle Instant Client that matches the server version |
 | 0x8000642D | External column type or Field/Tag role conflict | InfluxDB metadata contains conflicting types for the same field across shards or RPs, a field/tag name collision, or column names that differ only by case | Unify field types or split the measurement, resolve name or field/tag conflicts, then refresh the external source |
+| 0x8000642E | External source client authentication plugin is missing | A client authentication plugin (for example MySQL 8 caching_sha2_password) is missing or cannot be loaded, so the connection fails before the password is verified | Make sure the plugin file (for example caching_sha2_password.so) ships next to the client library, or use a mysql_native_password account |
 
 #### stream
 
