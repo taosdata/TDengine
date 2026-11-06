@@ -13,17 +13,17 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 
 本文介绍三种将 Neuron 采集数据写入 TDengine 的方式：
 
-- **安装时接入**：适用于尚未安装 NeuronEX 企业版的环境。执行安装命令时，自动完成 NeuronEX 安装、注册到 taosExplorer、创建 `neuron` 业务数据库、`neuron_demo` 示例数据库和四个示例设备，并配置写入链路，安装后无需在 taosExplorer 页面操作。
+- **安装时接入**：适用于尚未安装 NeuronEX 企业版的环境。执行安装命令时，自动完成 NeuronEX 安装、License 激活、注册到 taosExplorer、创建 `neuron` 业务数据库、`neuron_demo` 示例数据库和四个示例设备，并配置写入链路，安装后无需在 taosExplorer 页面操作。
 - **一键接入**：适用于已部署 Neuron 或 NeuronEX 的环境。在 taosExplorer 的「数据写入 → 数据采集代理 → Neuron」页面填写 Neuron 地址和凭据，taosExplorer 自动完成数据流、处理规则和采集订阅的配置。
 - **手工接入**：适用于已部署 Neuron 或 NeuronEX、需要自定义标签、业务属性或数据转换的场景。在 NeuronEX 页面手工配置数据流、处理规则和 InfluxDB v1 写入动作。
 
-| 方式 | Neuron 是否需预装 | 适用场景 | taosExplorer 操作 |
-| --- | --- | --- | --- |
-| 安装时接入 | 不需要 | 尚未安装 NeuronEX 企业版 | 不需要 |
-| 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 |
-| 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 |
+| 方式 | Neuron 是否需预装 | 适用场景 | taosExplorer 操作 | License 激活 |
+| --- | --- | --- | --- | --- |
+| 安装时接入 | 不需要 | 尚未安装 NeuronEX 企业版 | 不需要 | 自动激活 |
+| 一键接入 | 需要 | 已部署 Neuron 或 NeuronEX | 需要向导 | 用户自行激活 |
+| 手工接入 | 需要 | 已部署，需要自定义标签或转换 | 需要手工配置 | 用户自行激活 |
 
-三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，可核对的名称见[驱动明细](#驱动明细)。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购。
+三种方式的数据面完全相同：Neuron 将采集报告发给 eKuiper，eKuiper 提取测量列和标签，编码为 Influx 行协议并批量写入 TDengine，通过无模式写入自动创建超级表和子表。该方式可接入 Neuron 支持的工业协议：按协议族计为 70 多种，按 PLC 子系列等细分驱动计为 100 多种，可核对的名称见[驱动明细](#驱动明细)。购买 TDengine 企业版后，EMQX Neuron 的软件许可证可由涛思数据代为采购；安装时接入会使用随企业版提供的 License（或安装参数中指定的 License）自动完成激活。
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -45,6 +45,8 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 :::
 
 本节适用于尚未安装 NeuronEX 企业版的环境。安装过程会自动创建业务数据库 `neuron`、示例数据库 `neuron_demo`、四个示例设备和采集组 `meters`，完成后可直接在 taosExplorer 查看对接效果，无需在 taosExplorer 页面创建接入。接入真实设备时，继续在 NeuronEX 添加设备、采集组和点位；设备命名和分组建议先参考[数据映射与采集配置规范](#附录数据映射与采集配置规范)。
+
+安装过程还会自动导入并激活 NeuronEX License，无需登录 NeuronEX 手工上传。如果未提供有效 License，NeuronEX 使用内置的 30 标签免费授权，安装仍可完成；超出免费额度或需要完整数据处理能力时，请补充 License。License 的授权范围、有效期和硬件绑定以 NeuronEX 的 **Administration → License** 页面为准。
 
 安装命令由 TDengine 企业版安装包提供的 `apex` 工具执行，无需单独安装 NeuronEX。
 
@@ -70,6 +72,7 @@ sudo apex install all
 
 - 安装并启动 NeuronEX，默认 Web 端口为 `8085`；
 - 将 NeuronEX 注册到本机 taosExplorer；
+- 导入并激活 NeuronEX License；安装完成后可在 NeuronEX 的 **Administration → License** 查看授权状态、到期时间和标签配额；
 - 创建业务数据库 `neuron`（`--database`，默认 `neuron`），已存在时复用；
 - 创建示例数据库 `neuron_demo`（`--database-demo`，默认 `neuron_demo`），已存在时复用；
 - 创建四个 Modbus 模拟设备 `demo_meter01` 至 `demo_meter04`，采集组均为 `meters`，写入 `neuron_demo`；
@@ -565,8 +568,9 @@ Neuron 与 eKuiper 平均各使用约 6.6 个逻辑核；Neuron 驻留内存约 
 | --- | --- |
 | 安装时接入后 taosExplorer 中没有接入记录 | 确认安装命令执行成功；同机安装检查本机 taosExplorer，跨机安装检查 `--tdengine-host` 对应的 taosExplorer，并查看安装输出和 taosExplorer 日志 |
 | 安装时接入后状态一直是「配置已保留，待验收」 | 确认四个示例设备运行中、已连接；查看 NeuronEX「数据监控」是否有数据，并检查 taosExplorer 日志 |
+| 安装后 NeuronEX 仍显示 30 标签免费授权 | 确认安装包或安装参数提供了有效 License；在 NeuronEX 的 **Administration → License** 查看 `Hardware Token`、`Expire At` 和 `Tags Usage`；如未生效，可手工上传 License 或重新执行安装命令 |
 | 忘记 NeuronEX 管理员密码 | 执行 `sudo cat /var/lib/apex/neuronex-admin-password` 查看安装时自动生成的密码 |
-| 修改 NeuronEX 密码后数据停止写入 | 重新执行安装命令并通过 `--neuron-password-file` 传入新密码，更新 taosExplorer 中的凭据 |
+| 修改 NeuronEX 密码后数据停止写入 | 在 taosExplorer 接入详情页点击「修改配置」更新凭据；也可以重新执行安装命令并通过 `--neuron-password-file` 传入新密码 |
 | 一键接入提示「没有找到含可读点位的采集组」 | 先在 Neuron 完成设备采集配置，确认设备运行中、已连接，且「数据监控」中有点位值 |
 | 一键接入创建失败，提示子表重名或冲突 | 子表名与库中现有表冲突，为接入设置「子表名前缀」区分；同时确认同名测量列类型兼容 |
 | 修改 TDengine 密码后数据停止写入 | 在接入详情页点击「刷新配置」，用当前登录凭据更新规则 |
