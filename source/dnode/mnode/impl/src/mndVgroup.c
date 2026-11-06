@@ -1912,6 +1912,9 @@ int32_t mndAddAlterVnodeConfirmAction(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   action.pCont = pHead;
   action.contLen = contLen;
   action.msgType = TDMT_VND_ALTER_CONFIRM;
+  // -1: leader dnodeId not yet learned; filled in when the alter-confirm response arrives
+  // (see mndTransProcessRsp). Used to stamp the vgroup leader right after commit.
+  action.leaderDnodeId = -1;
   // incorrect redirect result will cause this erro
   action.retryCode = TSDB_CODE_VND_INVALID_VGROUP_ID;
   action.groupId = pVgroup->vgId;
