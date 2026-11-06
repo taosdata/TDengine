@@ -78,10 +78,6 @@ TARGET_LINK_LIBRARIES(
          vnodeTxnTest
          PUBLIC os util common vnode mgmt_mnode
 )
-SET_TARGET_PROPERTIES(
-         vnodeTxnTest PROPERTIES
-         LINK_FLAGS "-Wl,--wrap=metaFetchEntryByUid -Wl,--wrap=metaFetchEntryFree -Wl,--wrap=metaDropTable2 -Wl,--wrap=metaRollbackAlterTable -Wl,--wrap=metaTxnIdxDelete -Wl,--wrap=metaScanTxnEntries -Wl,--wrap=metaScanTxnMetaEntries -Wl,--wrap=metaTxnMetaDelete -Wl,--wrap=metaTxnMetaGet -Wl,--wrap=metaTxnMetaUpsert -Wl,--wrap=taosArrayAddBatch -Wl,--wrap=metaMarkTableTxnStatus -Wl,--wrap=vnodeAsync -Wl,--wrap=metaRLock -Wl,--wrap=metaULock"
-)
 
 TARGET_INCLUDE_DIRECTORIES(
          vnodeTxnTest
@@ -125,7 +121,6 @@ ADD_EXECUTABLE(metaTagFilterCacheTest metaTagFilterCacheTest.cpp)
 DEP_ext_gtest(metaTagFilterCacheTest)
 DEP_ext_cppstub(metaTagFilterCacheTest)
 TARGET_LINK_LIBRARIES(metaTagFilterCacheTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
-SET_TARGET_PROPERTIES(metaTagFilterCacheTest PROPERTIES LINK_FLAGS "-Wl,--wrap=taosArrayAddBatch -Wl,--wrap=tdbTbcNext -Wl,--wrap=tdbTbcMoveTo -Wl,--wrap=tdbTbcMoveToNext")
 TARGET_INCLUDE_DIRECTORIES(metaTagFilterCacheTest PUBLIC
         "${TD_SOURCE_DIR}/include/common"
         "${TD_SOURCE_DIR}/include/libs/executor"

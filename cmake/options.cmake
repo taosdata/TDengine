@@ -16,6 +16,7 @@
 if(TD_COMMUNITY_STANDALONE)
   option(BUILD_ENTERPRISE    "If build enterprise edition (requires sibling taos-internal repo)" OFF)
   option(BUILD_TEST          "If build unit tests using googletest"  OFF)
+  option(BUILD_TEST_SHARED_ENGINE "Link unit tests against a shared server engine (CI only)" OFF)
   option(BUILD_TOOLS         "Build tools component"                 OFF)
   option(BUILD_SANITIZER     "Enable sanitizers"                     OFF)
   option(BUILD_COVERAGE      "Enable code coverage"                  OFF)

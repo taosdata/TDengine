@@ -16,6 +16,7 @@
  */
 
 #include "executor.h"
+#include "tdTestSeam.h"
 #include "streamInt.h"
 #include "tmisce.h"
 #include "tref.h"
@@ -150,6 +151,7 @@ int32_t streamHbInit(SStreamHbInfo* pHb) {
 }
 
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs) {
+  TD_SEAM_RET(streamHbHandleRspErr, int32_t (*)(int32_t, int64_t), (errCode, currTs));
   if (gStreamMgmt.hb.lastErrCode) {
     int64_t errTime = currTs - gStreamMgmt.hb.lastErrTs;
     if (errTime >= STREAM_HB_ERR_HANDLE_MAX_DELAY) {
@@ -175,6 +177,7 @@ int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs) {
 }
 
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg* pRsp) {
+  TD_SEAM_RET(streamHbProcessRspMsg, int32_t (*)(SMStreamHbRspMsg*), (pRsp));
   int32_t      code = 0;
   int32_t      lino = 0;
 

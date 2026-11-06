@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tworker.h"
+#include "tdTestSeam.h"
 #include "taoserror.h"
 #include "tcompare.h"
 #include "tgeosctx.h"
@@ -542,6 +543,7 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
 }
 
 void tSingleWorkerCleanup(SSingleWorker *pWorker) {
+  TD_SEAM_VOID(tSingleWorkerCleanup, void (*)(SSingleWorker *), (pWorker));
   if (pWorker->queue == NULL) return;
   if (!pWorker->stopNoWaitQueue) {
     while (!taosQueueEmpty(pWorker->queue)) {

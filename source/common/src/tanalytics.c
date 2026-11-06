@@ -18,8 +18,9 @@
 #define _DEFAULT_SOURCE
 // the opensocket callback below creates the connection socket itself
 #define ALLOW_FORBID_FUNC
+#include "os.h"
+#include "tdTestSeam.h"
 #include "tanalytics.h"
-
 #include <math.h>
 
 #include "os.h"
@@ -155,6 +156,7 @@ void taosAnalyticsCleanup() {
 }
 
 void taosAnalyUpdate(int64_t newVer, SHashObj *pHash) {
+  TD_SEAM_VOID(taosAnalyUpdate, void (*)(int64_t, SHashObj *), (newVer, pHash));
   if (newVer > tsAlgos.ver) {
     if (taosThreadMutexLock(&tsAlgos.lock) == 0) {
       SHashObj *hash = tsAlgos.hash;

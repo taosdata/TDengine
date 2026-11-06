@@ -16,15 +16,26 @@
  */
 
 #include <gtest/gtest.h>
+
+#include "tdTestSeam.h"
 #include <vector>
+
 
 extern "C" {
 #include "dmMgmt.h"
 #include "stream.h"
 #include "tversion.h"
 int32_t dmDispatchStreamHbMsg(struct SDispatchWorkerPool*, void*, int32_t*);
-void    __real_rpcFreeCont(void*);
 }
+
+namespace {
+
+// The engine inside libtaosd_shared.so reads its own copy of the seam pointers,
+// so the test assigns that copy.
+using tdtestseam::seamSlot;
+
+}  // namespace
+
 
 namespace {
 std::vector<SRpcInit> registrations;
@@ -385,15 +396,15 @@ TEST_F(StreamHeartbeatTest, TruncatedBodyPreservesDecodeErrorPolicy) {
 }  // namespace
 
 extern "C" {
-void* __wrap_rpcOpen(const SRpcInit* init) {
+void* seam_rpcOpen(const SRpcInit* init) {
   registrations.push_back(*init);
   return &registrations;
 }
-void __wrap_rpcFreeCont(void* body) {
+void seam_rpcFreeCont(void* body) {
   if (body != nullptr && body == trackedBody) ++bodyFrees;
-  __real_rpcFreeCont(body);
+  tdSeamReal_rpcFreeCont(body);
 }
-int32_t __wrap_rpcSendRequest(void* transport, const SEpSet* epSet, SRpcMsg* msg, int64_t*) {
+int32_t seam_rpcSendRequest(void* transport, const SEpSet* epSet, SRpcMsg* msg, int64_t*) {
   ++requestCalls;
   requestTransport = transport;
   requestEpSet = epSet;
@@ -401,22 +412,55 @@ int32_t __wrap_rpcSendRequest(void* transport, const SEpSet* epSet, SRpcMsg* msg
   // Keep the body pending until the fixture tears down, as an asynchronous send would.
   return requestCode;
 }
-int32_t __wrap_rpcSendResponse(const SRpcMsg* msg) {
+int32_t seam_rpcSendResponse(const SRpcMsg* msg) {
   responseCode = msg->code;
   rpcFreeCont(msg->pCont);
   return 0;
 }
-int32_t __wrap_dmMarkWrapper(SMgmtWrapper*) { return 0; }
-void    __wrap_dmReleaseWrapper(SMgmtWrapper*) {}
-int32_t __wrap_streamHbProcessRspMsg(SMStreamHbRspMsg* response) {
+int32_t seam_dmMarkWrapper(SMgmtWrapper*) { return 0; }
+void    seam_dmReleaseWrapper(SMgmtWrapper*) {}
+int32_t seam_streamHbProcessRspMsg(SMStreamHbRspMsg* response) {
   ++processed;
   processedGid = response->streamGId;
   tDeepFreeSMStreamHbRspMsg(response);
   return 0;
 }
-int32_t __wrap_streamHbHandleRspErr(int32_t code, int64_t) {
+int32_t seam_streamHbHandleRspErr(int32_t code, int64_t) {
   ++errorCalls;
   lastError = code;
   return 0;
 }
 }
+
+
+namespace {
+
+// Installs the seam replacements for the whole test binary.  The engine runs
+// from libtaosd_shared.so and reads the pointers there, so seamSlot() resolves
+// that copy; for a static link it falls back to the one in this binary.
+struct SeamInstaller {
+  SeamInstaller() {
+    *seamSlot(gTdSeam_rpcOpen, "gTdSeam_rpcOpen") = reinterpret_cast<void*>(&seam_rpcOpen);
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = reinterpret_cast<void*>(&seam_rpcFreeCont);
+    *seamSlot(gTdSeam_rpcSendRequest, "gTdSeam_rpcSendRequest") = reinterpret_cast<void*>(&seam_rpcSendRequest);
+    *seamSlot(gTdSeam_rpcSendResponse, "gTdSeam_rpcSendResponse") = reinterpret_cast<void*>(&seam_rpcSendResponse);
+    *seamSlot(gTdSeam_dmMarkWrapper, "gTdSeam_dmMarkWrapper") = reinterpret_cast<void*>(&seam_dmMarkWrapper);
+    *seamSlot(gTdSeam_dmReleaseWrapper, "gTdSeam_dmReleaseWrapper") = reinterpret_cast<void*>(&seam_dmReleaseWrapper);
+    *seamSlot(gTdSeam_streamHbProcessRspMsg, "gTdSeam_streamHbProcessRspMsg") = reinterpret_cast<void*>(&seam_streamHbProcessRspMsg);
+    *seamSlot(gTdSeam_streamHbHandleRspErr, "gTdSeam_streamHbHandleRspErr") = reinterpret_cast<void*>(&seam_streamHbHandleRspErr);
+  }
+  ~SeamInstaller() {
+    *seamSlot(gTdSeam_rpcOpen, "gTdSeam_rpcOpen") = nullptr;
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = nullptr;
+    *seamSlot(gTdSeam_rpcSendRequest, "gTdSeam_rpcSendRequest") = nullptr;
+    *seamSlot(gTdSeam_rpcSendResponse, "gTdSeam_rpcSendResponse") = nullptr;
+    *seamSlot(gTdSeam_dmMarkWrapper, "gTdSeam_dmMarkWrapper") = nullptr;
+    *seamSlot(gTdSeam_dmReleaseWrapper, "gTdSeam_dmReleaseWrapper") = nullptr;
+    *seamSlot(gTdSeam_streamHbProcessRspMsg, "gTdSeam_streamHbProcessRspMsg") = nullptr;
+    *seamSlot(gTdSeam_streamHbHandleRspErr, "gTdSeam_streamHbHandleRspErr") = nullptr;
+  }
+};
+
+SeamInstaller gSeamInstaller;
+
+}  // namespace

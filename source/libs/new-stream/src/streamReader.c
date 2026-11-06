@@ -16,6 +16,7 @@
  */
 
 #include "streamReader.h"
+#include "tdTestSeam.h"
 #include <stdint.h>
 #include <tdef.h>
 #include "osMemPool.h"
@@ -2692,6 +2693,7 @@ int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force) {
 // }
 
 void* qStreamGetReaderInfo(int64_t streamId, int64_t taskId, void** taskAddr) {
+  TD_SEAM_RET(qStreamGetReaderInfo, void* (*)(int64_t, int64_t, void**), (streamId, taskId, taskAddr));
   int32_t      code = 0;
   int32_t      lino = 0;
   SStreamTask* pTask = NULL;

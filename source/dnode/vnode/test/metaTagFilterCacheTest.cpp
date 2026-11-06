@@ -21,6 +21,18 @@
 
 #include "gtest/gtest.h"
 #include "stub.h"
+#include "tdTestSeam.h"
+
+namespace {
+
+// The engine that runs from libtaosd_shared.so reads its own copy of the seam
+// pointers, so the test assigns that copy explicitly instead of the one linked
+// into this binary.
+using tdtestseam::seamSlot;
+
+}  // namespace
+
+
 
 extern "C" {
 #include "meta.h"
@@ -38,45 +50,52 @@ bool        uidAppendFailed = false;
 int32_t     cursorNextBeforeFailure = -1;
 bool        failCursorSeek = false;
 bool        failCursorAdjust = false;
+
+// Clears the seam for the duration of the call so the replacement can reach the
+// real implementation.
+template <typename T, typename Fn>
+auto bypassSeam(T& slot, Fn&& fn) -> decltype(fn()) {
+  T saved = slot;
+  slot = nullptr;
+  auto result = fn();
+  slot = saved;
+  return result;
+}
 }  // namespace
 
-extern "C" void* __real_taosArrayAddBatch(SArray* array, const void* data, int32_t count);
-extern "C" void* __wrap_taosArrayAddBatch(SArray* array, const void* data, int32_t count) {
+extern "C" void* seamTaosArrayAddBatch(SArray* array, const void* data, int32_t count) {
   if (data != nullptr && data == failUidAppend) {
     failUidAppend = nullptr;
     uidAppendFailed = true;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return nullptr;
   }
-  return __real_taosArrayAddBatch(array, data, count);
+  return bypassSeam(gTdSeam_taosArrayAddBatch, [&] { return taosArrayAddBatch(array, data, count); });
 }
 
-extern "C" int32_t __real_tdbTbcNext(TBC* cursor, void** key, int32_t* keyLen, void** value, int32_t* valueLen);
-extern "C" int32_t __wrap_tdbTbcNext(TBC* cursor, void** key, int32_t* keyLen, void** value, int32_t* valueLen) {
+extern "C" int32_t seamTdbTbcNext(TBC* cursor, void** key, int32_t* keyLen, void** value, int32_t* valueLen) {
   if (cursorNextBeforeFailure == 0) {
     cursorNextBeforeFailure = -1;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (cursorNextBeforeFailure > 0) --cursorNextBeforeFailure;
-  return __real_tdbTbcNext(cursor, key, keyLen, value, valueLen);
+  return bypassSeam(gTdSeam_tdbTbcNext, [&] { return tdbTbcNext(cursor, key, keyLen, value, valueLen); });
 }
 
-extern "C" int32_t __real_tdbTbcMoveTo(TBC* cursor, const void* key, int32_t keyLen, int32_t* comparison);
-extern "C" int32_t __wrap_tdbTbcMoveTo(TBC* cursor, const void* key, int32_t keyLen, int32_t* comparison) {
+extern "C" int32_t seamTdbTbcMoveTo(TBC* cursor, const void* key, int32_t keyLen, int32_t* comparison) {
   if (failCursorSeek) {
     failCursorSeek = false;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return __real_tdbTbcMoveTo(cursor, key, keyLen, comparison);
+  return bypassSeam(gTdSeam_tdbTbcMoveTo, [&] { return tdbTbcMoveTo(cursor, key, keyLen, comparison); });
 }
 
-extern "C" int32_t __real_tdbTbcMoveToNext(TBC* cursor);
-extern "C" int32_t __wrap_tdbTbcMoveToNext(TBC* cursor) {
+extern "C" int32_t seamTdbTbcMoveToNext(TBC* cursor) {
   if (failCursorAdjust) {
     failCursorAdjust = false;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return __real_tdbTbcMoveToNext(cursor);
+  return bypassSeam(gTdSeam_tdbTbcMoveToNext, [&] { return tdbTbcMoveToNext(cursor); });
 }
 
 namespace {
@@ -164,9 +183,18 @@ class MetaTagFilterCacheTest : public ::testing::Test {
     columns_.reset(taosArrayInit(1, sizeof(col_id_t)));
     ASSERT_NE(nullptr, columns_);
     ASSERT_NE(nullptr, taosArrayPush(columns_.get(), &kTagId));
+
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = reinterpret_cast<void*>(&seamTaosArrayAddBatch);
+    *seamSlot(gTdSeam_tdbTbcNext, "gTdSeam_tdbTbcNext") = reinterpret_cast<void*>(&seamTdbTbcNext);
+    *seamSlot(gTdSeam_tdbTbcMoveTo, "gTdSeam_tdbTbcMoveTo") = reinterpret_cast<void*>(&seamTdbTbcMoveTo);
+    *seamSlot(gTdSeam_tdbTbcMoveToNext, "gTdSeam_tdbTbcMoveToNext") = reinterpret_cast<void*>(&seamTdbTbcMoveToNext);
   }
 
   void TearDown() override {
+    *seamSlot(gTdSeam_taosArrayAddBatch, "gTdSeam_taosArrayAddBatch") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcNext, "gTdSeam_tdbTbcNext") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcMoveTo, "gTdSeam_tdbTbcMoveTo") = nullptr;
+    *seamSlot(gTdSeam_tdbTbcMoveToNext, "gTdSeam_tdbTbcMoveToNext") = nullptr;
     onMetaUnlock = nullptr;
     failUidAppend = nullptr;
     cursorNextBeforeFailure = -1;
