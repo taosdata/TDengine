@@ -628,6 +628,33 @@ static bool isZeroLimit(SLimitNode* pLimit) {
          0 == pLimit->limit->datum.i;
 }
 
+// EXPLAIN still plans a LIMIT 0 payload, so only a folded empty input or
+// predicate (for example WHERE 0=1) makes the explained statement empty.
+static bool isEmptyExplainedQuery(SNode* pStmt) {
+  if (NULL == pStmt) {
+    return false;
+  }
+  switch (nodeType(pStmt)) {
+    case QUERY_NODE_SELECT_STMT:
+      return ((SSelectStmt*)pStmt)->isEmptyResult;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOp = (SSetOperator*)pStmt;
+      int32_t       childCount = setOperatorChildCount(pSetOp);
+      if (childCount <= 0) {
+        return false;
+      }
+      for (int32_t i = 0; i < childCount; ++i) {
+        if (!isEmptyExplainedQuery(setOperatorChildAt(pSetOp, i))) {
+          return false;
+        }
+      }
+      return true;
+    }
+    default:
+      return isEmptyResultQuery(pStmt);
+  }
+}
+
 static bool isEmptyResultQuery(SNode* pStmt) {
   if (NULL == pStmt) {
     return false;
@@ -641,8 +668,7 @@ static bool isEmptyResultQuery(SNode* pStmt) {
       break;
     }
     case QUERY_NODE_EXPLAIN_STMT:
-      // Newly folded empty inputs still need an EXPLAIN plan. Preexisting
-      // empty-result decisions are preserved separately in calculateConstant.
+      isEmptyResult = isEmptyExplainedQuery(((SExplainStmt*)pStmt)->pQuery);
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
@@ -1427,14 +1453,6 @@ static int32_t pruneUnusedSubqueries(SCalcConstContext* pCxt, SNode* pRoot) {
 }
 
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
-  SSelectStmt* pExplainedSelect = NULL;
-  if (QUERY_NODE_EXPLAIN_STMT == nodeType(pQuery->pRoot)) {
-    SNode* pStmt = ((SExplainStmt*)pQuery->pRoot)->pQuery;
-    if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
-      pExplainedSelect = (SSelectStmt*)pStmt;
-    }
-  }
-  bool wasEmptyExplain = NULL != pExplainedSelect && pExplainedSelect->isEmptyResult;
   SNodeList** ppSubQueries = querySubqueries(pQuery->pRoot);
   SCalcConstContext cxt = {.pParseCxt = pParseCxt,
                            .msgBuf.buf = pParseCxt->pMsg,
@@ -1455,10 +1473,7 @@ int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     resetProjectNullType(pQuery->pRoot);
-    // Keep semantic-analysis shortcuts such as contradictory ASOF ranges,
-    // unless folding corrected an empty-input flag (for example, COUNT).
-    if (isEmptyResultQuery(pQuery->pRoot) ||
-        (wasEmptyExplain && pExplainedSelect->isEmptyResult)) {
+    if (isEmptyResultQuery(pQuery->pRoot)) {
       pQuery->execMode = QUERY_EXEC_MODE_EMPTY_RESULT;
     }
   }
