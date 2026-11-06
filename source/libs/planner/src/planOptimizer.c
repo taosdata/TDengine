@@ -23788,28 +23788,6 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
   if (!(qDebugFlag & DEBUG_DEBUG)) return;
 
-  // Build pScanCols string
-  char scanColsBuf[512] = {0};
-  int  off = 0;
-  if (pScan->pScanCols != NULL) {
-    SNode* pSCol = NULL;
-    FOREACH(pSCol, pScan->pScanCols) {
-      const char* colName = "?";
-      if (nodeType(pSCol) == QUERY_NODE_COLUMN) {
-        colName = ((const SColumnNode*)pSCol)->colName;
-      } else if (nodeType(pSCol) == QUERY_NODE_TARGET) {
-        const SNode* pInner = ((const STargetNode*)pSCol)->pExpr;
-        if (pInner && nodeType(pInner) == QUERY_NODE_COLUMN)
-          colName = ((const SColumnNode*)pInner)->colName;
-      }
-      off += snprintf(scanColsBuf + off, sizeof(scanColsBuf) - (size_t)off - 1, "%s,", colName);
-      if (off >= (int)sizeof(scanColsBuf) - 2) break;
-    }
-    if (off > 0 && scanColsBuf[off - 1] == ',') scanColsBuf[off - 1] = '\0';
-  } else {
-    tstrncpy(scanColsBuf, "(EMPTY - BUG)", sizeof(scanColsBuf));
-  }
-
   // Build pRemoteLogicPlan chain string
   char chainBuf[256] = {0};
   int  chainOff = 0;
@@ -23819,17 +23797,22 @@ static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
     const char* name = (rtype == QUERY_NODE_LOGIC_PLAN_SORT)    ? "Sort" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_PROJECT)  ? "Project" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_AGG)      ? "Agg" : "?";
-    chainOff += snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s->", name);
+    int n = snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s->", name);
+    if (n < 0) break;
+    chainOff += n;
     if (chainOff >= (int)sizeof(chainBuf) - 2) break;
     const SNodeList* pCh = ((const SLogicNode*)pRLP)->pChildren;
     pRLP = (pCh && LIST_LENGTH(pCh) > 0) ? nodesListGetNode((SNodeList*)pCh, 0) : NULL;
   }
+  // A truncated chain can push the reported length past the buffer; clamp
+  // before indexing the terminator check.
+  if (chainOff > (int)sizeof(chainBuf) - 1) chainOff = (int)sizeof(chainBuf) - 1;
   if (chainOff > 1 && chainBuf[chainOff - 1] == '>') chainBuf[chainOff - 1] = '\0';
   if (chainOff == 0) tstrncpy(chainBuf, "(none)", sizeof(chainBuf));
 
-  planDebug("FQ-OPT result: dialect=%d pScanCols=[%s] remoteChain=[%s] "
+  planDebug("FQ-OPT result: dialect=%d pScanCols=%d remoteChain=[%s] "
             "localWHERE=%s remotePlan=%s pLimit=%s",
-            dialect, scanColsBuf, chainBuf,
+            dialect, LIST_LENGTH(pScan->pScanCols), chainBuf,
             pScan->node.pConditions    ? "YES" : "none",
             pScan->pRemoteLogicPlan    ? "YES" : "none",
             pScan->node.pLimit         ? "YES" : "none");
@@ -26119,18 +26102,11 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // Idempotency guard: fqPushdownOptimize may be called multiple times for the
   // same logical plan (e.g. different sub-tasks with LIMIT).  If
   planDebug("FQ-push: optimize start - scan=%p dialect=%d", pScan, dialect);
-  // DIAG: log pScanCols at entry to fqOptimizeScan
-  {
-    char _scBuf[512] = {0}; int _scOff = 0;
-    if (pScan->pScanCols) {
-      SNode* _sc = NULL;
-      FOREACH(_sc, pScan->pScanCols) {
-        const char* _cn = (nodeType(_sc) == QUERY_NODE_COLUMN) ? ((SColumnNode*)_sc)->colName : "?";
-        _scOff += snprintf(_scBuf + _scOff, sizeof(_scBuf) - (size_t)_scOff - 1, "%s,", _cn);
-      }
-    }
-    planDebug("FQ-push: pScanCols at entry=[%s]", _scBuf);
-  }
+  // DIAG: log only the number of scan columns.  A valid external table may
+  // reference up to 4096 columns of up to 64 bytes, which no fixed stack
+  // buffer can hold; the names are not needed here.  qDebug evaluates its
+  // arguments only when DEBUG is enabled.
+  planDebug("FQ-push: pScanCols count=%d", LIST_LENGTH(pScan->pScanCols));
 
   if (NULL == pScan->pScanCols || LIST_LENGTH(pScan->pScanCols) == 0) {
     planError("FQ-push: external scan invariant violated at optimize entry, source=%s table=%s scan=%p remotePlan=%p",

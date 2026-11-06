@@ -853,6 +853,7 @@
 100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_unixodbc_uses_provider_error
 100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_instant_client_uses_provider_error
 100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_pool_disconnect_reconnects
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_24_wide_column_list.py
 
 ## 20-Charset
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/20-Charset/test_query_client_charset.py
