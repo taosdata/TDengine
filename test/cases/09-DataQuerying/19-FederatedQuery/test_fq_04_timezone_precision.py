@@ -47,6 +47,7 @@ import re
 import sys
 import time as _time
 
+import pytest
 import pytz as _pytz
 import taos.field as _taos_field
 from taos.constants import FieldType
@@ -57,6 +58,19 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     _code,
+)
+from federated_time_types import (
+    INFLUX as _TTP_INFLUX,
+    MYSQL as _TTP_MYSQL,
+    ORACLE as _TTP_ORACLE,
+    PG as _TTP_PG,
+    SQLSERVER as _TTP_SQLSERVER,
+    INFLUX_TYPES as _TTP_INFLUX_TYPES,
+    ROWS as _TTP_ROWS,
+    axis_types as _ttp_axis_types,
+    expected_direct_value as _ttp_expected_direct,
+    mixed_pk as _ttp_mixed_pk,
+    mixed_types as _ttp_mixed_types,
 )
 
 # ── Error codes for negative cases ──
@@ -2664,3 +2678,153 @@ class TestFq04TimezonePrecision(FederatedQueryVersionedMixin):
             except Exception:
                 pass
             tdSql.execute(f"DROP DATABASE IF EXISTS {self._O_REF_DB}")
+
+    # ------------------------------------------------------------------
+    # FQOR-TYPE-018: every external time type and declared precision
+    # ------------------------------------------------------------------
+
+    def _ttp_backends(self):
+        """Fixtures for the time-type matrix, under their own source names.
+
+        InfluxDB has a single time type but is included so the matrix is
+        complete rather than conveniently skipping the ns-only source.
+        """
+        # InfluxDB goes last: its FlightSQL view depends on a background
+        # WAL->Parquet persister, and a stalled persister would otherwise keep
+        # the relational legs from ever running.
+        return [
+            _TTP_MYSQL.clone("fq04_ttp_my", "fq04_ttp_mydb"),
+            _TTP_PG.clone("fq04_ttp_pg", "fq04_ttp_pgdb"),
+            _TTP_SQLSERVER.clone("fq04_ttp_ss", "fq04_ttp_ssdb"),
+            _TTP_ORACLE.clone("fq04_ttp_or"),
+            _TTP_INFLUX.clone("fq04_ttp_if", "fq04_ttp_ifdb"),
+        ]
+
+    @staticmethod
+    def _wait_influx_rows(sql, expected, timeout=180):
+        """InfluxDB 3 exposes WAL data to FlightSQL only after it is persisted."""
+        deadline = _time.monotonic() + timeout
+        while True:
+            tdSql.query(sql)
+            if tdSql.queryRows == expected or _time.monotonic() >= deadline:
+                return
+            _time.sleep(5)
+
+    def do_time_type_matrix(self):
+        backends = self._ttp_backends()
+        axis_tables = {backend.key: [] for backend in backends}
+        mixed_tables = {}
+        try:
+            for backend in backends:
+                backend.prepare()
+                if backend.key == _TTP_INFLUX.key:
+                    backend.create_measurement("ax_time")
+                    backend.wait_visible("ax_time")
+                    axis_tables[backend.key].append(("ax_time", None))
+                    continue
+                for ts_type in _ttp_axis_types(backend):
+                    table = "ax_" + ts_type.label
+                    backend.create_axis_table(table, ts_type)
+                    axis_tables[backend.key].append((table, ts_type))
+                pk_type = _ttp_mixed_pk(backend)
+                cols = _ttp_mixed_types(backend)
+                mixed_name = "mix_" + backend.key
+                backend.create_mixed_table(mixed_name, pk_type, cols)
+                mixed_tables[backend.key] = (mixed_name, pk_type, cols)
+
+            for timezone_name in ("Asia/Shanghai", "UTC"):
+                self._reset_td_session(timezone_name)
+                for backend in backends:
+                    for table, ts_type in axis_tables[backend.key]:
+                        # A direct InfluxDB read exposes the time column as
+                        # "time"; every relational source names it "ts".
+                        ts_col = "time" if ts_type is None else "ts"
+                        sql = (f"SELECT CAST({ts_col} AS BIGINT), v "
+                               f"FROM {backend.direct_table_ref(table)} "
+                               f"ORDER BY {ts_col}")
+                        if ts_type is None:
+                            self._wait_influx_rows(sql, len(_TTP_ROWS))
+                            if tdSql.queryRows == 0:
+                                # InfluxDB 3 answers its own HTTP SQL API from
+                                # the WAL while FlightSQL reads only persisted
+                                # Parquet.  When the server holds the rows but
+                                # the connector sees none, report that
+                                # explicitly instead of failing the matrix.
+                                try:
+                                    server_rows = backend.count_via_http(table)
+                                except Exception as exc:  # noqa: BLE001
+                                    server_rows = -1
+                                    tdLog.info(f"[fq04] InfluxDB HTTP probe: {exc}")
+                                if server_rows > 0:
+                                    pytest.skip(
+                                        "InfluxDB holds %d row(s) for %s but its "
+                                        "FlightSQL view is empty (WAL not "
+                                        "persisted to Parquet)"
+                                        % (server_rows, table))
+                        else:
+                            tdSql.query(sql)
+                        tdSql.checkRows(len(_TTP_ROWS))
+                        axis_type = ts_type or _TTP_INFLUX_TYPES[0]
+                        for index, row in enumerate(_TTP_ROWS):
+                            tdSql.checkData(
+                                index, 0,
+                                _ttp_expected_direct(row, axis_type,
+                                                     timezone_name,
+                                                     backend.transport_rank(
+                                                         [axis_type])))
+                            tdSql.checkData(index, 1, row.v)
+
+                    if backend.key not in mixed_tables:
+                        continue
+                    mixed_name, pk_type, cols = mixed_tables[backend.key]
+                    transport = backend.transport_rank([pk_type] + list(cols))
+                    select = ", ".join(f"CAST({t.col} AS BIGINT)" for t in cols)
+                    tdSql.query(
+                        f"SELECT {select}, v "
+                        f"FROM {backend.direct_table_ref(mixed_name)} "
+                        f"ORDER BY ts")
+                    tdSql.checkRows(len(_TTP_ROWS))
+                    for row_index, row in enumerate(_TTP_ROWS):
+                        for col_index, ts_type in enumerate(cols):
+                            tdSql.checkData(
+                                row_index, col_index,
+                                _ttp_expected_direct(row, ts_type,
+                                                     timezone_name, transport))
+                        tdSql.checkData(row_index, len(cols), row.v)
+        finally:
+            self._reset_td_session("Asia/Shanghai")
+            for backend in backends:
+                try:
+                    tdSql.execute(
+                        f"DROP EXTERNAL SOURCE IF EXISTS {backend.source}")
+                except Exception as exc:
+                    tdLog.info(f"[fq04] drop source {backend.source}: {exc}")
+                names = [name for name, _ in axis_tables[backend.key]]
+                if backend.key in mixed_tables:
+                    names.append(mixed_tables[backend.key][0])
+                try:
+                    backend.cleanup(names)
+                except Exception as exc:
+                    tdLog.info(f"[fq04] cleanup {backend.key}: {exc}")
+
+        print("time type matrix (direct) ............... [ passed ]")
+
+    def test_time_type_matrix(self):
+        """Every external time type at every declared precision, direct read
+
+        1. Create one remote table per time type/precision as its primary key
+           and read them all directly, in both the CST and UTC session
+           timezones.
+        2. Read every time type/precision as a non-key column from one wide
+           table per source.
+        3. Require each value to match the transport-precision expectation,
+           which is the reference the virtual-table suite compares against.
+
+        Catalog: - Query:FederatedTimezonePrecision
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        """
+        self.do_time_type_matrix()
