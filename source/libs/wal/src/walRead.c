@@ -115,35 +115,17 @@ static int32_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
   TdFilePtr pIdxTFile = pReader->pIdxFile;
   TdFilePtr pLogTFile = pReader->pLogFile;
 
-  // seek position
-  int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
-  ret = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
-  if (ret < 0) {
-    wError("vgId:%d, failed to seek idx file, index:%" PRId64 ", pos:%" PRId64 ", since %s", pReader->pWal->cfg.vgId,
-           ver, offset, terrstr());
-
-    TAOS_RETURN(terrno);
-  }
-  SWalIdxEntry entry = {0};
-  if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
-    if (ret < 0) {
-      wError("vgId:%d, failed to read idx file, since %s", pReader->pWal->cfg.vgId, terrstr());
-      TAOS_RETURN(terrno);
-    } else {
-      wError("vgId:%d, read idx file incompletely, read bytes %" PRId64 ", bytes should be %d", pReader->pWal->cfg.vgId,
-             ret, (int32_t)sizeof(SWalIdxEntry));
-      TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
-    }
-  }
-
   // The slot was computed from `ver`, so the entry stored in it must describe `ver`, and
   // its offset must land inside the log file. Seeking the log fd to an unvalidated offset
   // makes every later check (version equality, checksums) run against whatever bytes
   // happen to be there instead of against the record the caller asked for.
-  if (entry.ver != ver || entry.offset < 0) {
-    wError("vgId:%d, invalid idx entry for index:%" PRId64 ", entry index:%" PRId64 ", offset:%" PRId64,
-           pReader->pWal->cfg.vgId, ver, entry.ver, entry.offset);
-    TAOS_RETURN(TSDB_CODE_WAL_FILE_CORRUPTED);
+  SWalIdxEntry entry = {0};
+  int32_t     code = walReadIdxEntry(pIdxTFile, fileFirstVer, ver, &entry);
+  if (code != 0) {
+    wError("vgId:%d, invalid idx entry for index:%" PRId64 " since %s", pReader->pWal->cfg.vgId, ver,
+           tstrerror(code));
+
+    TAOS_RETURN(code);
   }
 
   ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
@@ -582,7 +564,10 @@ int32_t decryptBody(SWalCfg *cfg, SWalCkHead *pHead, int32_t plainBodyLen, const
     tstrncpy((char *)opts.key, cfg->encryptData.encryptKey, sizeof(opts.key));
 
     int32_t count = CBC_Decrypt(&opts);
-    if (count != opts.len) return terrno;
+    if (count != opts.len) {
+      taosMemoryFree(newBody);
+      return TSDB_CODE_WAL_FILE_CORRUPTED;
+    }
     // wDebug("CBC Decrypt cryptedBodyLen:%d, plainBodyLen:%d, %s", count, plainBodyLen, func);
 
     (void)memcpy(pHead->head.body, newBody, plainBodyLen);

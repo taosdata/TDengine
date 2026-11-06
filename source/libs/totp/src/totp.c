@@ -31,6 +31,10 @@ int32_t taosGenerateTotpCode(const uint8_t *secret, size_t secretLen, int digits
   return 0;
 }
 
+int32_t taosGenerateTotpCodeAt(const uint8_t *secret, size_t secretLen, uint64_t tm, int digits) {
+  return -1;
+}
+
 int taosVerifyTotpCode(const uint8_t *secret, size_t secretLen, int32_t userCode, int digits, int window) {
   return 1;
 }

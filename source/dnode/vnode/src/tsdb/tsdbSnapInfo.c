@@ -312,6 +312,11 @@ int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartLis
     goto _err;
   }
   if ((code = tDecodeI32(&decoder, &len))) goto _err;
+  // each partition needs at least fid(8)+stat(1)+rsvd8(1)+rsvd16(2)+typMax(4) bytes
+  if (len < 0 || (int64_t)len * 16 > (int64_t)(decoder.size - decoder.pos)) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
 
   for (int32_t u = 0; u < len; u++) {
     p = tsdbFSetPartitionCreate();
@@ -327,11 +332,21 @@ int32_t tDeserializeTsdbFSetPartList(void* buf, int32_t bufLen, STsdbFSetPartLis
 
     int32_t typMax = 0;
     if ((code = tDecodeI32(&decoder, &typMax))) goto _err;
+    // verRanges[] has exactly TSDB_FSET_RANGE_TYP_MAX slots
+    if (typMax < 0 || typMax > TSDB_FSET_RANGE_TYP_MAX) {
+      code = TSDB_CODE_INVALID_MSG;
+      goto _err;
+    }
 
     for (int32_t i = 0; i < typMax; i++) {
       SVerRangeList* iList = &p->verRanges[i];
       int32_t        iLen = 0;
       if ((code = tDecodeI32(&decoder, &iLen))) goto _err;
+      // each range is 3 * int64
+      if (iLen < 0 || (int64_t)iLen * 24 > (int64_t)(decoder.size - decoder.pos)) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
       for (int32_t j = 0; j < iLen; j++) {
         SVersionRange r = {0};
         if ((code = tDecodeI64(&decoder, &r.minVer))) goto _err;
@@ -505,7 +520,10 @@ int32_t tDeserializeTsdbRepOpts(void* buf, int32_t bufLen, STsdbRepOpts* pOpts) 
 
   if ((code = tStartDecode(&decoder))) goto _err;
   if ((code = tDecodeI8(&decoder, &msgVer))) goto _err;
-  if (msgVer != TSDB_SNAP_MSG_VER) goto _err;
+  if (msgVer != TSDB_SNAP_MSG_VER) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _err;
+  }
   int16_t format = 0;
   if ((code = tDecodeI16(&decoder, &format))) goto _err;
   pOpts->format = format;
@@ -540,6 +558,30 @@ static int32_t tsdbRepOptsSerialize(STsdbRepOpts* pOpts, void* buf, int32_t bufL
   return offset;
 }
 
+// Iterate the sub-fields of a snapshot-info SSyncTLV. pHead->len is the byte length of pHead->val and
+// *pOffset is the cursor into it (start with 0). On return *ppField is the next sub-field, or NULL when
+// the walk is complete. Every length is validated against pHead->len so a malformed blob can neither
+// read out of bounds nor stall the loop (progress is always >= sizeof(SSyncTLV)).
+int32_t tsdbSnapTlvNext(const SSyncTLV* pHead, int64_t* pOffset, const SSyncTLV** ppField) {
+  *ppField = NULL;
+  if (pHead == NULL || pOffset == NULL || pHead->len < 0 || *pOffset < 0) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  int64_t total = pHead->len;
+  if (*pOffset + (int64_t)sizeof(SSyncTLV) >= total) {
+    return 0;  // no more complete sub-fields
+  }
+  const SSyncTLV* pField = (const void*)(pHead->val + *pOffset);
+  if (pField->len < 0 || (int64_t)pField->len > total - *pOffset - (int64_t)sizeof(SSyncTLV)) {
+    tsdbError("invalid snapshot info sub-field len:%d typ:%d offset:%" PRId64 " total:%" PRId64, pField->len,
+              pField->typ, *pOffset, total);
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  *pOffset += (int64_t)sizeof(SSyncTLV) + pField->len;
+  *ppField = pField;
+  return 0;
+}
+
 // snap info
 static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, STsdbRepOpts* pInfo) {
   if (!pSnap->data) {
@@ -548,12 +590,17 @@ static int32_t tsdbSnapPrepDealWithSnapInfo(SVnode* pVnode, SSnapshot* pSnap, ST
   int32_t code = 0;
 
   SSyncTLV* pHead = (void*)pSnap->data;
-  int32_t   offset = 0;
+  int64_t   offset = 0;
 
-  while (offset + sizeof(*pHead) < pHead->len) {
-    SSyncTLV* pField = (void*)(pHead->val + offset);
-    offset += sizeof(*pField) + pField->len;
-    void*   buf = pField->val;
+  for (;;) {
+    const SSyncTLV* pField = NULL;
+    code = tsdbSnapTlvNext(pHead, &offset, &pField);
+    if (code) {
+      tsdbError("vgId:%d, invalid snap info TLV since %s", TD_VID(pVnode), tstrerror(code));
+      return code;
+    }
+    if (pField == NULL) break;
+    void*   buf = (void*)pField->val;
     int32_t bufLen = pField->len;
 
     switch (pField->typ) {

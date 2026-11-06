@@ -364,4 +364,95 @@ TEST(TsdbReadVersionTest, PinEndVersionUsesOneEffectiveUpperBound) {
   EXPECT_EQ(historical.endVersion, 50);
 }
 
+// The file block column type must match the result column type exactly,
+// otherwise the bulk memcpy would be sized from the wrong width.
+TEST(TsdbReadHardeningTest, CopyNumericColsRejectsTypeMismatch) {
+  int32_t src[4] = {1, 2, 3, 4};
+  SColData data = {};
+  data.type = TSDB_DATA_TYPE_INT;
+  data.nVal = 4;
+  data.flag = HAS_VALUE;
+  data.pData = (uint8_t*)src;
+
+  int64_t dst[4] = {0};
+  SColumnInfoData col = {};
+  col.info.type = TSDB_DATA_TYPE_BIGINT;
+  col.info.bytes = sizeof(int64_t);
+  col.pData = (char*)dst;
+
+  SFileBlockDumpInfo dump = {};
+  dump.totalRows = 4;
+  dump.rowIndex = 0;
+
+  EXPECT_EQ(tsdbCopyNumericCols(&data, &dump, &col, 4, true), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(dst[0], 0);
+
+  // invalid file block type
+  data.type = TSDB_DATA_TYPE_MAX;
+  EXPECT_EQ(tsdbCopyNumericCols(&data, &dump, &col, 4, true), TSDB_CODE_INVALID_PARA);
+
+  // matching type copies
+  int32_t out[4] = {0};
+  data.type = TSDB_DATA_TYPE_INT;
+  col.info.type = TSDB_DATA_TYPE_INT;
+  col.info.bytes = sizeof(int32_t);
+  col.pData = (char*)out;
+  EXPECT_EQ(tsdbCopyNumericCols(&data, &dump, &col, 4, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(out[3], 4);
+
+  // matching type but different width
+  col.info.bytes = sizeof(int64_t);
+  EXPECT_EQ(tsdbCopyNumericCols(&data, &dump, &col, 4, true), TSDB_CODE_INVALID_PARA);
+}
+
+// A varchar primary key longer than the schema-sized key buffer is rejected.
+TEST(TsdbReadHardeningTest, PkDeepCopyRejectsOverflow) {
+  EXPECT_EQ(tsdbCheckPkDataLen(0, 10), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbCheckPkDataLen(8, 10), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsdbCheckPkDataLen(9, 10), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tsdbCheckPkDataLen(-1, 10), TSDB_CODE_INVALID_PARA);
+  EXPECT_EQ(tsdbCheckPkDataLen(0, 1), TSDB_CODE_INVALID_PARA);
+
+  const int32_t pkBytes = 10;  // varchar(8)
+  uint8_t       raw[32];
+  memset(raw, 'a', sizeof(raw));
+  int32_t   aOffset[1] = {0};
+  SColData  cd = {};
+  cd.type = TSDB_DATA_TYPE_VARCHAR;
+  cd.flag = HAS_VALUE;
+  cd.nVal = 1;
+  cd.aOffset = aOffset;
+  cd.pData = raw;
+
+  SBlockData block = {};
+  block.nColData = 1;
+  block.aColData = &cd;
+
+  char    buf[pkBytes];
+  SRowKey key = {};
+  key.pks[0].pData = (uint8_t*)buf;
+
+  cd.nData = 8;
+  EXPECT_EQ(tsdbBlockDataGetPrimaryKeyDeepCopy(&block, 0, 0, &key, pkBytes), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(key.pks[0].nData, 8u);
+
+  cd.nData = 32;
+  EXPECT_EQ(tsdbBlockDataGetPrimaryKeyDeepCopy(&block, 0, 0, &key, pkBytes), TSDB_CODE_INVALID_PARA);
+
+  // slot id out of range
+  cd.nData = 8;
+  EXPECT_EQ(tsdbBlockDataGetPrimaryKeyDeepCopy(&block, 0, 1, &key, pkBytes), TSDB_CODE_INVALID_PARA);
+}
+
+TEST(TsdbReadHardeningTest, GetBucketIndexClamps) {
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 5, 4), 0);     // rows below start
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 10, 4), 0);
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 17, 4), 1);
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 30, 4), 3);    // == numOfBucket
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 1000, 4), 3);  // far beyond
+  EXPECT_EQ(tsdbGetBucketIndex(10, 0, 100, 4), 0);   // zero range
+  EXPECT_EQ(tsdbGetBucketIndex(10, 5, 100, 0), 0);   // no bucket
+  EXPECT_EQ(tsdbGetBucketIndex(INT32_MIN, 1, INT32_MAX, 4), 3);
+}
+
 }  // namespace

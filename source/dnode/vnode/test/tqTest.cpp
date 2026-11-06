@@ -15,12 +15,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// C++ standard headers first: os.h turns nanosleep() into a forbidden symbol, which breaks std::this_thread
+#include <atomic>
+#include <iostream>
+#include <thread>
+#include <vector>
+
 #include <gtest/gtest.h>
 #include <vnodeInt.h>
 
 #include <taoserror.h>
 #include <tglobal.h>
-#include <iostream>
 
 #include <tmsg.h>
 #include <vnodeInt.h>
@@ -171,3 +176,212 @@ TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
 }
 
 #pragma GCC diagnostic pop
+
+namespace {
+
+struct TqTestEnv {
+  SVnode* pVnode;
+  STQ*    pTq;
+};
+
+TqTestEnv tqTestEnvCreate() {
+  TqTestEnv env = {};
+  env.pVnode = (SVnode*)taosMemoryCalloc(1, sizeof(SVnode));
+  env.pTq = (STQ*)taosMemoryCalloc(1, sizeof(STQ));
+  env.pVnode->restored = 1;
+  env.pTq->pVnode = env.pVnode;
+  taosInitRWLatch(&env.pTq->lock);
+  env.pTq->pHandle = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+  env.pTq->pOffset = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_ENTRY_LOCK);
+  taosHashSetFreeFp(env.pTq->pOffset, (FDelete)tDeleteSTqOffset);
+  return env;
+}
+
+void tqTestEnvDestroy(TqTestEnv* pEnv) {
+  taosHashCleanup(pEnv->pTq->pHandle);
+  taosHashCleanup(pEnv->pTq->pOffset);
+  taosMemoryFree(pEnv->pTq);
+  taosMemoryFree(pEnv->pVnode);
+}
+
+// puts a snapshot offset with a heap allocated varchar primary key into the offset cache
+void tqTestPutVarKeyOffset(STQ* pTq, const char* subKey, const char* pk) {
+  STqOffset offset = {};
+  offset.val.type = TMQ_OFFSET__SNAPSHOT_DATA;
+  offset.val.uid = 7;
+  offset.val.ts = 99;
+  offset.val.primaryKey.type = TSDB_DATA_TYPE_VARCHAR;
+  offset.val.primaryKey.nData = strlen(pk);
+  offset.val.primaryKey.pData = (uint8_t*)taosMemoryCalloc(1, strlen(pk));
+  memcpy(offset.val.primaryKey.pData, pk, strlen(pk));
+  tstrncpy(offset.subKey, subKey, sizeof(offset.subKey));
+  ASSERT_EQ(0, taosHashPut(pTq->pOffset, subKey, strlen(subKey), &offset, sizeof(STqOffset)));
+}
+
+}  // namespace
+
+TEST(testCase, tqProcessDeleteSubReqRejectsShortMsg) {
+  TqTestEnv env = tqTestEnvCreate();
+
+  char msg[8] = {0};
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, msg, (int32_t)sizeof(msg)));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, msg, 0));
+
+  std::vector<char> almost(sizeof(SMqVDeleteReq), 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, almost.data(), (int32_t)almost.size() - 1));
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqProcessDeleteSubReqRejectsNonTerminatedSubKey) {
+  TqTestEnv env = tqTestEnvCreate();
+
+  // body is long enough but subKey has no NUL byte: must not be strlen()'d
+  std::vector<char> exact(sizeof(SMqVDeleteReq), 'a');
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, exact.data(), (int32_t)exact.size()));
+
+  std::vector<char> big(1500, 'a');
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, big.data(), (int32_t)big.size()));
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetCopiesOut) {
+  TqTestEnv env = tqTestEnvCreate();
+  tqTestPutVarKeyOffset(env.pTq, "g1:topic", "abcde");
+
+  STqOffset copy = {};
+  ASSERT_EQ(0, tqMetaGetOffset(env.pTq, "g1:topic", &copy));
+  EXPECT_EQ(TMQ_OFFSET__SNAPSHOT_DATA, copy.val.type);
+  EXPECT_EQ(7, copy.val.uid);
+  EXPECT_EQ(99, copy.val.ts);
+  EXPECT_STREQ("g1:topic", copy.subKey);
+  ASSERT_EQ(5u, copy.val.primaryKey.nData);
+  ASSERT_NE(nullptr, copy.val.primaryKey.pData);
+
+  // the copy must not alias the cached entry
+  STqOffset* pCached = (STqOffset*)taosHashGet(env.pTq->pOffset, "g1:topic", strlen("g1:topic"));
+  ASSERT_NE(nullptr, pCached);
+  EXPECT_NE(pCached, &copy);
+  EXPECT_NE(pCached->val.primaryKey.pData, copy.val.primaryKey.pData);
+
+  // a concurrent commit replaces (and frees) the cached entry, the copy has to stay valid
+  STqOffset newer = {};
+  newer.val.type = TMQ_OFFSET__LOG;
+  newer.val.version = 123;
+  tstrncpy(newer.subKey, "g1:topic", sizeof(newer.subKey));
+  taosWLockLatch(&env.pTq->lock);
+  ASSERT_EQ(0, taosHashPut(env.pTq->pOffset, "g1:topic", strlen("g1:topic"), &newer, sizeof(STqOffset)));
+  taosWUnLockLatch(&env.pTq->lock);
+
+  EXPECT_EQ(TMQ_OFFSET__SNAPSHOT_DATA, copy.val.type);
+  EXPECT_EQ(0, memcmp(copy.val.primaryKey.pData, "abcde", 5));
+  tDeleteSTqOffset(&copy);
+
+  STqOffset copy2 = {};
+  ASSERT_EQ(0, tqMetaGetOffset(env.pTq, "g1:topic", &copy2));
+  EXPECT_EQ(TMQ_OFFSET__LOG, copy2.val.type);
+  EXPECT_EQ(123, copy2.val.version);
+  tDeleteSTqOffset(&copy2);
+
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetConcurrentWithReplace) {
+  TqTestEnv env = tqTestEnvCreate();
+  tqTestPutVarKeyOffset(env.pTq, "g1:topic", "abcde");
+
+  std::atomic<bool> stop{false};
+  std::atomic<int>  bad{0};
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; i++) {
+    readers.emplace_back([&]() {
+      while (!stop.load()) {
+        STqOffset copy = {};
+        if (tqMetaGetOffset(env.pTq, "g1:topic", &copy) != 0 || copy.val.primaryKey.nData != 5 ||
+            copy.val.primaryKey.pData == nullptr || memcmp(copy.val.primaryKey.pData, "abcde", 5) != 0) {
+          bad++;
+        }
+        tDeleteSTqOffset(&copy);
+      }
+    });
+  }
+
+  // replacing a cached entry frees the old one, readers must be excluded by the write latch while it happens
+  for (int i = 0; i < 2000; i++) {
+    STqOffset next = {};
+    next.val.type = TMQ_OFFSET__SNAPSHOT_DATA;
+    next.val.uid = 7;
+    next.val.ts = i;
+    next.val.primaryKey.type = TSDB_DATA_TYPE_VARCHAR;
+    next.val.primaryKey.nData = 5;
+    next.val.primaryKey.pData = (uint8_t*)taosMemoryCalloc(1, 5);
+    memcpy(next.val.primaryKey.pData, "abcde", 5);
+    tstrncpy(next.subKey, "g1:topic", sizeof(next.subKey));
+    taosWLockLatch(&env.pTq->lock);
+    ASSERT_EQ(0, taosHashPut(env.pTq->pOffset, "g1:topic", strlen("g1:topic"), &next, sizeof(STqOffset)));
+    taosWUnLockLatch(&env.pTq->lock);
+  }
+
+  stop = true;
+  for (auto& t : readers) t.join();
+  EXPECT_EQ(0, bad.load());
+  tqTestEnvDestroy(&env);
+}
+
+// tqOffsetCommit (iterates the offset hash) and tqMetaGetOffset (readers) must never wait for each other in opposite
+// orders: the iteration keeps the latch of the current hash entry, and saving an offset needs pTq->lock
+TEST(testCase, tqOffsetCommitConcurrentWithGetOffset) {
+  TqTestEnv env = tqTestEnvCreate();
+  const int kKeys = 8;
+  char      keys[kKeys][32];
+  for (int i = 0; i < kKeys; i++) {
+    snprintf(keys[i], sizeof(keys[i]), "g%d:topic", i);
+    tqTestPutVarKeyOffset(env.pTq, keys[i], "abcde");
+  }
+
+  std::atomic<bool> stop{false};
+  std::atomic<bool> finished{false};
+  std::atomic<int>  bad{0};
+
+  // a deadlock must fail the test instead of hanging the whole run
+  std::thread watchdog([&]() {
+    for (int i = 0; i < 600 && !finished.load(); i++) taosMsleep(100);
+    if (!finished.load()) {
+      fprintf(stderr, "tqOffsetCommit/tqMetaGetOffset deadlock: no progress for 60s\n");
+      _exit(1);
+    }
+  });
+
+  std::vector<std::thread> readers;
+  for (int i = 0; i < 4; i++) {
+    readers.emplace_back([&, i]() {
+      int n = i;
+      while (!stop.load()) {
+        STqOffset copy = {};
+        if (tqMetaGetOffset(env.pTq, keys[n++ % kKeys], &copy) != 0 || copy.val.primaryKey.nData != 5) bad++;
+        tDeleteSTqOffset(&copy);
+      }
+    });
+  }
+
+  // the offset store is not set up in this environment, saving fails after taking pTq->lock: that is all the
+  // lock order needs
+  for (int i = 0; i < 300; i++) (void)tqOffsetCommit(env.pTq);
+
+  stop = true;
+  for (auto& t : readers) t.join();
+  finished = true;
+  watchdog.join();
+  EXPECT_EQ(0, bad.load());
+  tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqMetaGetOffsetInvalidParam) {
+  TqTestEnv env = tqTestEnvCreate();
+  STqOffset offset = {};
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(NULL, "k", &offset));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(env.pTq, NULL, &offset));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, tqMetaGetOffset(env.pTq, "k", NULL));
+  tqTestEnvDestroy(&env);
+}

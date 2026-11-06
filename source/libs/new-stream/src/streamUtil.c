@@ -3919,7 +3919,9 @@ void streamNotifyWorkerPoolDestroy(SStreamNotifyWorkerPool* pPool) {
   stInfo("stream async notify worker pool stopped");
 }
 
-static void stReleaseCalcDataCacheIter(void* pValue) { releaseDataResultAndResetMgrStatus((void**)pValue); }
+static void stReleaseCalcDataCacheIter(void* pValue) {
+  releaseDataResultAndResetMgrStatusWithCleanup((void**)pValue);
+}
 
 int32_t stCreateCalcDataCacheIterMap(SHashObj** ppMap) {
   if (ppMap == NULL) {
@@ -4013,12 +4015,65 @@ static int32_t stRemoveCalcDataCacheIterForScope(SStreamTriggerTask* pTask, int6
   return code;
 }
 
+typedef struct SStreamDataCacheIterKey {
+  int64_t groupId;
+  TSKEY   start;
+  TSKEY   end;
+  char    eventConditionPath[32];
+} SStreamDataCacheIterKey;
+
+/* Adjust a dispatched calc range back to the cache-write boundary, matching readStreamDataCache. The
+ * trigger side mutates sliding boundaries after writing the cache, and the read side reverses that mutation. */
+static void stAdjustCacheReadRange(const SStreamTriggerTask* pTask, TSKEY* pStart, TSKEY* pEnd) {
+  if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
+    *pStart = INT64_MIN;
+    *pEnd = INT64_MAX;
+  } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
+    if (pTask->interval.interval > 0) {
+      (*pEnd)--;
+    } else {
+      (*pStart)++;
+    }
+  }
+}
+
 int32_t stCleanupCalcDataCacheItersForRequest(SStreamTriggerTask* pTask, const SSTriggerCalcRequest* pReq) {
   if (pTask == NULL || pReq == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   if (pReq->pAncestorContext == NULL) {
-    return TSDB_CODE_SUCCESS;
+    // Non-nested requests use the legacy iterator keyed by (gid, cache-adjusted range, path). Remove them
+    // here so an early-finished (e.g. LIMIT) read does not leave unread fragments pinning their block.
+    if (pReq->isMultiGroupCalc) {
+      return TSDB_CODE_SUCCESS;
+    }
+    SHashObj* pCalcDataCacheIters = stGetCalcDataCacheIterMap(pTask, pReq->sessionId);
+    if (pCalcDataCacheIters == NULL || pReq->params == NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int32_t firstCode = TSDB_CODE_SUCCESS;
+    taosWLockLatch(&pTask->calcDataCacheIterLock);
+    for (int32_t i = 0; i < taosArrayGetSize(pReq->params); ++i) {
+      const SSTriggerCalcParam* pParam = (const SSTriggerCalcParam*)taosArrayGet(pReq->params, i);
+      if (pParam == NULL) {
+        continue;
+      }
+      TSKEY start = pParam->wstart;
+      TSKEY end = pParam->wend;
+      stAdjustCacheReadRange(pTask, &start, &end);
+      SStreamDataCacheIterKey key = {.groupId = pReq->gid, .start = start, .end = end};
+      if (pParam->eventConditionPath != NULL) {
+        tstrncpy(key.eventConditionPath, pParam->eventConditionPath, sizeof(key.eventConditionPath));
+      }
+      int32_t code = taosHashRemove(pCalcDataCacheIters, &key, sizeof(key));
+      if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_NOT_FOUND && code != TSDB_CODE_INVALID_PARA &&
+          firstCode == TSDB_CODE_SUCCESS) {
+        firstCode = code;
+      }
+    }
+    taosWUnLockLatch(&pTask->calcDataCacheIterLock);
+    return firstCode;
   }
 
   const SArray* pIdentities =
@@ -4153,13 +4208,6 @@ _end:
   return code;
 }
 
-typedef struct SStreamDataCacheIterKey {
-  int64_t groupId;
-  TSKEY   start;
-  TSKEY   end;
-  char    eventConditionPath[32];
-} SStreamDataCacheIterKey;
-
 static int32_t readStreamDataCacheLegacy(SStreamTriggerTask* pTask, int64_t sessionId, int64_t gid, TSKEY start,
                                          TSKEY end, const char* eventConditionPath, SSDataBlock** ppBlock, bool reset,
                                          bool* finished) {
@@ -4214,7 +4262,12 @@ static int32_t readStreamDataCacheLegacy(SStreamTriggerTask* pTask, int64_t sess
   }
 
   if (*px == NULL) {
-    code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    if (pTask->pRealtimeContext != NULL && sessionId == pTask->pRealtimeContext->sessionId &&
+        pTask->pRealtimeContext->pPeriod != NULL) {
+      code = getStreamDataCacheSnapshot(pCalcDataCache, gid, start, end, px);
+    } else {
+      code = getStreamDataCache(pCalcDataCache, gid, start, end, px);
+    }
     if (code != TSDB_CODE_SUCCESS) {
       removeEntry = true;
       goto _end;
@@ -4278,16 +4331,7 @@ int32_t readStreamDataCache(SStreamCacheReadInfo* pInfo, bool* finished) {
 
   TSKEY start = pInfo->start;
   TSKEY end = pInfo->end;
-  if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_PERIOD) {
-    start = INT64_MIN;
-    end = INT64_MAX;
-  } else if (((SStreamTriggerTask*)pTask)->triggerType == STREAM_TRIGGER_SLIDING) {
-    if (((SStreamTriggerTask*)pTask)->interval.interval > 0) {
-      end--;
-    } else {
-      start++;
-    }
-  }
+  stAdjustCacheReadRange((SStreamTriggerTask*)pTask, &start, &end);
 
   if (!requiresContextPolicy) {
     code = readStreamDataCacheLegacy(pTask, pInfo->taskInfo.sessionId, pInfo->gid, start, end,

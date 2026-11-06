@@ -17,13 +17,99 @@
 
 #include "extDialect.h"
 
+#include "cJSON.h"
+#include "extConnector.h"
+#include "os.h"
+#include "taoserror.h"
 #include "ttime.h"
+#include "tutil.h"
 
 int32_t extDialectGetDefaultClauseDemotions(int32_t dialect, const EExtClauseKind** ppClauses, int32_t* pNum);
 int32_t extDialectGetCommonClauseDemotions(const EExtClauseKind** ppClauses, int32_t* pNum);
 int32_t extDialectGetDefaultFuncDemotions(int32_t dialect, const char* const** pppFuncs, int32_t* pNum);
 int32_t extDialectGetCommonFuncDemotions(const char* const** pppFuncs, int32_t* pNum);
 int32_t extDialectGetDefaultOpDemotions(int32_t dialect, const EOperatorType** ppOps, int32_t* pNum);
+
+int32_t extConnectorValidateInfluxOptions(const char *options, const char *schema, EExtSQLDialect *pDialect) {
+  EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+  bool http = false;
+
+  cJSON *root = cJSON_Parse(options != NULL && options[0] != '\0' ? options : "{}");
+  if (!cJSON_IsObject(root)) {
+    cJSON_Delete(root);
+    return TSDB_CODE_PAR_SYNTAX_ERROR;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  const cJSON *version = cJSON_GetObjectItem(root, "version");
+  const cJSON *protocol = cJSON_GetObjectItem(root, "protocol");
+  const cJSON *rp = cJSON_GetObjectItem(root, "retention_policy");
+  if (version != NULL) {
+    if (!cJSON_IsString(version)) {
+      code = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _OVER;
+    }
+    if (strcmp(version->valuestring, "1.8") == 0) {
+      dialect = EXT_SQL_DIALECT_INFLUXDB_1_8;
+    } else if (strcmp(version->valuestring, "3") != 0) {
+      code = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _OVER;
+    }
+  }
+
+  http = dialect == EXT_SQL_DIALECT_INFLUXDB_1_8;
+  if (protocol != NULL) {
+    if (!cJSON_IsString(protocol)) {
+      code = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _OVER;
+    }
+    if (strcasecmp(protocol->valuestring, "http") == 0) {
+      http = true;
+    } else if (strcasecmp(protocol->valuestring, "flight_sql") == 0) {
+      http = false;
+    } else if (protocol->valuestring[0] != '\0') {
+      code = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _OVER;
+    }
+  }
+
+  if (rp != NULL) {
+    if (!cJSON_IsString(rp) || rp->valuestring[0] == '\0') {
+      code = TSDB_CODE_PAR_SYNTAX_ERROR;
+      goto _OVER;
+    }
+    if (dialect != EXT_SQL_DIALECT_INFLUXDB_1_8) {
+      code = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      goto _OVER;
+    }
+    if (strlen(rp->valuestring) >= TSDB_EXT_INFLUX_RP_LEN) {
+      code = TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG;
+      goto _OVER;
+    }
+  }
+
+  if (dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    if (!http || (schema != NULL && schema[0] != '\0')) {
+      code = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      goto _OVER;
+    }
+    const char *unsupported[] = {"api_token", "tls_client_cert", "tls_client_key"};
+    for (int32_t i = 0; i < (int32_t)(sizeof(unsupported) / sizeof(unsupported[0])); ++i) {
+      const cJSON *value = cJSON_GetObjectItem(root, unsupported[i]);
+      if (value != NULL && (!cJSON_IsString(value) || value->valuestring[0] != '\0')) {
+        code = TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+        goto _OVER;
+      }
+    }
+  }
+
+_OVER:
+  cJSON_Delete(root);
+  if (code == TSDB_CODE_SUCCESS && pDialect != NULL) {
+    *pDialect = dialect;
+  }
+  return code;
+}
 
 int32_t extResolveDialectBySource(int8_t sourceType, int32_t* pDialect) {
   if (NULL == pDialect) {
@@ -53,7 +139,29 @@ int32_t extResolveDialectBySource(int8_t sourceType, int32_t* pDialect) {
   }
 }
 
+int32_t extLoadSourceDialectDefaults(int8_t sourceType, const char* options, SExtSourceCapability* pCap) {
+  if (pCap == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (sourceType == EXT_SOURCE_INFLUXDB) {
+    EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+    int32_t code = extConnectorValidateInfluxOptions(options, NULL, &dialect);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (pCap->dialect != dialect) {
+      extCapDestroy(pCap);
+      pCap->loadedAtMs = 0;
+    }
+    pCap->dialect = dialect;
+  }
+  return extLoadDialectDefaults(sourceType, pCap);
+}
+
 bool extDialectClauseMappable(int32_t dialect, EExtClauseKind clause) {
+  if (dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    return false;
+  }
   const EExtClauseKind* pCommon = NULL;
   int32_t               commonNum = 0;
   if (TSDB_CODE_SUCCESS == extDialectGetCommonClauseDemotions(&pCommon, &commonNum)) {
@@ -95,6 +203,9 @@ int32_t extLoadDialectDefaults(int8_t sourceType, SExtSourceCapability* pCap) {
     return code;
   }
 
+  if (sourceType == EXT_SOURCE_INFLUXDB && pCap->dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    dialect = EXT_SQL_DIALECT_INFLUXDB_1_8;
+  }
   pCap->dialect = dialect;
 
   // -- Clause defaults ---------------------------------------------------------

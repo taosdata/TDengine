@@ -1700,6 +1700,7 @@ _CASES = [
 class TestFq02PathResolution(FederatedQueryVersionedMixin):
     _fw_data_prepared = False
 
+
     # ──────────────────────────────────────────────────────────────────────
     # Lifecycle
     # ──────────────────────────────────────────────────────────────────────
@@ -1710,7 +1711,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         self.helper.require_external_source_feature()
         ExtSrcEnv.ensure_env()
 
-    def setup_method(self, method):
+    def _setup_version_data(self, method):
         if TestFq02PathResolution._fw_data_prepared:
             return
         self._fw_prepare_shared_data()
@@ -1742,7 +1743,6 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         """Prepare test tables in all external databases."""
         mysql_cfg  = self._mysql_cfg()
         pg_cfg     = self._pg_cfg()
-        influx_cfg = self._influx_cfg()
 
         mysql_values = _rows_to_sql_values(_FW_ROWS)
         mysql_values_alt = _rows_to_sql_values(_FW_ROWS_ALT)
@@ -1832,10 +1832,11 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         ])
 
         # InfluxDB: default database and alternate database must have distinct rows.
-        for db, rows in [(_I_DB, _FW_ROWS), (_I_DB2, _FW_ROWS_ALT)]:
-            ExtSrcEnv.influx_create_db_cfg(influx_cfg, db)
-            influx_lines = _influx_lines_for_rows(rows)
-            ExtSrcEnv.influx_write_cfg(influx_cfg, db, influx_lines)
+        for influx_cfg in ExtSrcEnv.influx_version_configs():
+            for db, rows in [(_I_DB, _FW_ROWS), (_I_DB2, _FW_ROWS_ALT)]:
+                ExtSrcEnv.influx_create_db_cfg(influx_cfg, db)
+                influx_lines = _influx_lines_for_rows(rows)
+                ExtSrcEnv.influx_write_cfg(influx_cfg, db, influx_lines)
 
         # Oracle: the login schema is the default namespace, the second
         # provisioned account the alternate one.  A schema is a user, so the
@@ -2055,7 +2056,7 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
     # ──────────────────────────────────────────────────────────────────────
 
     def _fw_baseline_file(self) -> str:
-        label = self._version_label().replace(".", "_").replace("/", "_")
+        label = self._framework_baseline_label()
         return os.path.join(
             os.path.dirname(__file__),
             "ans",
@@ -2157,7 +2158,8 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         # FQ_CASES="DIM-01,DIM-05" → only run specified dimensions
         _only = os.environ.get("FQ_CASES", "").strip()
         _only_set = set(_only.split(",")) if _only else None
-        blocks: List[str] = []
+        configs = self._influx_configs()
+        version_blocks = {cfg.version: [] for cfg in configs}
         timings: List[str] = []
 
         for case in _CASES:
@@ -2165,21 +2167,27 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
             if _only_set and case_id not in _only_set:
                 continue
             for src_type in types:
-                label = f"{case_id}[{src_type[:3].upper()}]"
-                tdLog.info(f"Running {label}: {desc}")
-                # Reconnect to clear USE context — new connection has no db selected
-                tdSql.connect()
-                self._fw_append_case_boundary(blocks, label, desc, is_start=True)
-                _t0 = time.monotonic()
-                for step_no, step in enumerate(steps, start=1):
-                    step_tag = f"STEP-{step_no:03d}"
-                    self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
-                elapsed = time.monotonic() - _t0
-                self._fw_append_case_boundary(blocks, label, desc, is_start=False)
-                timing_line = f"{label}: {elapsed:.2f}s"
-                print(f"[TIMING] {timing_line}", flush=True)
-                timings.append(timing_line)
-
+                for cfg in (configs if src_type == _influxdb else [None]):
+                    with self._using_influx(cfg):
+                        blocks = []
+                        desc, steps = case[3], case[4]
+                        label = f"{case_id}[{src_type[:3].upper()}]"
+                        tdLog.info(f"Running {label}: {desc}")
+                        # Reconnect to clear USE context — new connection has no db selected
+                        tdSql.connect()
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=True)
+                        _t0 = time.monotonic()
+                        for step_no, step in enumerate(steps, start=1):
+                            step_tag = f"STEP-{step_no:03d}"
+                            self._fw_exec_step(step, src_type, source_names, blocks, label, step_tag)
+                        elapsed = time.monotonic() - _t0
+                        self._fw_append_case_boundary(blocks, label, desc, is_start=False)
+                        timing_line = f"{label}: {elapsed:.2f}s"
+                        print(f"[TIMING] {timing_line}", flush=True)
+                        timings.append(timing_line)
+                        targets = version_blocks.values() if cfg is None else [version_blocks[cfg.version]]
+                        for target in targets:
+                            target.extend(blocks)
         print("[TIMING SUMMARY]", flush=True)
         for t in timings:
             print(f"  {t}", flush=True)
@@ -2187,4 +2195,6 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
         if _only_set:
             tdLog.info(f"FQ_CASES={_only} — skipping baseline comparison")
         else:
-            self._fw_compare_baseline(blocks)
+            for cfg in configs:
+                with self._using_influx(cfg):
+                    self._fw_compare_baseline(version_blocks[cfg.version])

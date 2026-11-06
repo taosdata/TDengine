@@ -25,7 +25,7 @@ OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展�
 
 选择 **类型** 下拉框中的 *`OpenTSDB`* ，如下图所示（选择完成后页面中的字段会发生变化）。
 
-**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮
+**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮。代理与 taosX 之间的网络要求（端口放通与检查方法）见 [数据接入前置条件](./00-prerequisites.md)。
 
 **目标数据库** 是必填项，由于 OpenTSDB 存储数据的时间精度是毫秒，所以这里需要选择一个 *`毫秒精度的数据库`* ，也可以先点击右侧的 **+创建数据库** 按钮
 
@@ -37,10 +37,10 @@ OpenTSDB 是一个架构在 HBase 系统之上的实时监控信息收集和展�
 
 ![OpenTSDB-03zh-FillInTheConnectionInformation.webp](../../assets/OpenTSDB-03zh-FillInTheConnectionInformation.webp "填写源OpenTSDB数据库的连接信息")
 
-在 **连接配置** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 OpenTSDB 数据库的数据，检查结果如下图所示：  
-  **失败**  
-  ![OpenTSDB-04zh-ConnectivityCheckFailed.webp](../../assets/OpenTSDB-04zh-ConnectivityCheckFailed.webp "连通性检查失败")  
-  **成功**  
+在 **连接配置** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 OpenTSDB 数据库的数据，检查结果如下图所示：
+  **失败**
+  ![OpenTSDB-04zh-ConnectivityCheckFailed.webp](../../assets/OpenTSDB-04zh-ConnectivityCheckFailed.webp "连通性检查失败")
+  **成功**
   ![OpenTSDB-05zh-ConnectivityCheckSuccessful.webp](../../assets/OpenTSDB-05zh-ConnectivityCheckSuccessful.webp "连通性检查成功")
 
 ### 配置任务信息

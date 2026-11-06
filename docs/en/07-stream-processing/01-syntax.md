@@ -1001,3 +1001,18 @@ Notes:
 - If IF EXISTS is not specified and the stream does not exist, an error is returned; if the stream exists, the stream processing is stopped.
 - If IF EXISTS is specified and the stream does not exist, the operation returns success; if the stream exists, the stream processing is stopped.
 - The stop operation is persistent. The stream will not resume until the user explicitly restarts it.
+
+## External Sources in Stream Processing
+
+Notes:
+
+- Starting with `v3.4.2.0`, stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB, and SQL Server are supported. Oracle is not supported.
+- Historical calculation does not yet support external sources.
+- External sources perform worse than local databases. Tune the workload for the specific scenario.
+- When an external source is the trigger, `EXPIRED_TIME`, `IGNORE_DISORDER`, and `DELETE_RECALC` are not supported.
+- Changes to an external source, such as dropping or altering a table or losing connectivity, can leave stream behavior undefined. Delete the stream and create it again before changing the external source.
+- `tbname` support:
+  - MySQL and PostgreSQL external sources do not support `PARTITION BY tbname` in stream processing.
+  - InfluxDB external sources support `PARTITION BY tbname`. It is converted internally to `PARTITION BY` every tag. `PARTITION BY` a function of `tbname` is not supported.
+  - InfluxDB external sources can use `%%tbname`. It joins every tag into the table name. When the result exceeds the table-name length, the joined string is hashed.
+- For an InfluxDB external source, a tag name longer than 64 characters or a tag value longer than 256 characters returns an error. Correct the data and create the stream again.

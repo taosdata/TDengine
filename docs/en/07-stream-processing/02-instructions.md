@@ -137,7 +137,7 @@ After a stream is created, users may perform operations on the databases and tab
 | User deletes the trigger table                               | Ignored; no additional handling.                             |
 | User adds a column to the trigger table                      | Ignored; no additional handling.                             |
 | User deletes a column from the trigger table                 | Ignored; no additional handling.                             |
-| User modifies the tag value of a child table under the trigger supertable | If the tag column is used by the stream as a grouping key, the operation is not allowed and results in an error.<br/>Otherwise, ignored. |
+| User modifies the tag value of a child table under the trigger supertable | If the tag column is used by the stream as a grouping key, the operation is not allowed and results in an error.<br/>Otherwise, the change is allowed. The stream does not recalculate existing results and does not trigger because of the change. Later calculations read the new value. See [Update a Calculation Threshold at Runtime](#update-threshold). |
 | User modifies the schema of the trigger table columns        | Ignored; no additional handling. (An error will be raised when a schema mismatch is detected at read time.) |
 | User modifies or deletes a source table                      | Ignored; no additional handling.                             |
 | User modifies or deletes an output table                     | Ignored; no additional handling. (If a schema mismatch is detected at write time, an error is raised. If the table does not exist, it will be recreated.) |
@@ -145,6 +145,21 @@ After a stream is created, users may perform operations on the databases and tab
 | User deletes a database                                      | Not allowed if the deleted database is a source database of a stream, or a trigger table database that is not the same as the stream’s own database.<br/>Not allowed if the stream involves triggers or computations on virtual tables from non-target databases.<br/>The user may force execution after confirming no impact with `DROP DATABASE name FORCE`. |
 
 Apart from the operations explicitly restricted or specially handled in the table above, all other operations—as well as those marked as ignored; no additional handling—are unrestricted. However, if such operations may affect stream computation, it is the user’s responsibility to decide how to proceed: either ignore the impact or perform a manual recalculation to restore correctness.
+
+#### Update a Calculation Threshold at Runtime {#update-threshold}
+
+Thresholds such as alarm limits and process standard values can be stored in tags and referenced in the calculation query, for example `LAST(vol) > LAST(hi)`. The tag value can be changed while the stream is running, without recreating the stream:
+
+- The tag must not be a grouping column of `PARTITION BY` or `ROLLUP BY`. Otherwise, `ALTER TABLE ... SET TAG` fails with `Col/Tag referenced by stream`.
+- After the change, the next triggered calculation uses the new value. Results already written to the output table do not change. To recompute historical windows with the new threshold, run a manual recalculation.
+- Changing the tag does not itself trigger a calculation. The new value takes effect on the next trigger produced by a write or a schedule.
+
+The threshold can be stored in either of two ways:
+
+- **The threshold is a tag of the trigger child table.** Change that child table's tag directly, for example `ALTER TABLE d1 SET TAG hi = 100.0`.
+- **Thresholds are kept together in a configuration table.** The virtual table uses a [tag reference](../05-tdengine-sql/02-ddl/04-virtualtable.md#virtual-table-reference-capabilities) (tag-ref) to a tag on the configuration table, and the stream uses the virtual supertable as the trigger table. After the configuration-table tag changes, the next calculation reads the new value. The threshold value is stored in the configuration table, so the statement does not modify a grouping column of the stream.
+
+For an example, see [Use a Tag as a Runtime-Modifiable Threshold](./03-best-practices.md#dynamic-threshold).
 
 ### Configuration Parameters
 

@@ -74,6 +74,22 @@ void    metaHandleSyncEntry(SMeta* pMeta, const SMetaEntry* pEntry);
 int32_t metaBuildMergedColView(const SMetaEntry* pEntry, const SSchemaWrapper* pRowSchema,
                                SSchema** ppSchemas, SColRef** ppColRefs, int32_t* pNumCols);
 
+// Resolve the series tag condition that a TSDB_ALTER_TABLE_ALTER_COLUMN_REF request would install on
+// the column, without copying it: *ppTagCondJson points into pEntry's own series list (or is NULL
+// when the request is not an external ref or no series matches). Caller must not free it.
+void metaResolveColRefTagCond(const SMetaEntry* pEntry, const SVAlterTbReq* pReq, const char** ppTagCondJson,
+                              int32_t* pTagCondLen);
+
+// Return true when applying pReq to pColRef would leave every stored field byte-identical, i.e. the
+// ALTER is a no-op. colId is the id of the column pColRef belongs to; pNewTagCondJson/newTagCondLen
+// are what metaResolveColRefTagCond() produced for the same request.
+//
+// filterCondJson and tagCondJson take part in the comparison: both are persisted on the SColRef and
+// both change what the virtual-table reader resolves, so a request differing only there is a real
+// change and must not be treated as idempotent.
+bool metaColRefMatchesAlterReq(const SColRef* pColRef, const SVAlterTbReq* pReq, col_id_t colId,
+                               const char* pNewTagCondJson, int32_t newTagCondLen);
+
 // Build the merged tag view of a table for meta responses: pTagSchema (the vstb tag schema for
 // a virtual child table) followed by the vchild's own (extension) tags. For non-vchild tables
 // the output is a plain copy of pTagSchema. The output array is newly allocated (taosMemory*);

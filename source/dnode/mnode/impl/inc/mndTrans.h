@@ -118,6 +118,11 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
 
 SSdbRaw *mndTransEncode(STrans *pTrans);
 SSdbRow *mndTransDecode(SSdbRaw *pRaw);
+// Releases a row returned by mndTransDecode. Such a row was never registered in
+// an SDB and its runtime state was never initialized, so it must be freed with
+// this function and never handed to mndTransDrop or an SDB: doing so would skip
+// the mutex teardown and free memory an SDB still references.
+void     mndTransFreeDecoded(SSdbRow *pRow);
 void     mndTransDropData(STrans *pTrans);
 
 bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans, bool topHalf);

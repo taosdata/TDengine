@@ -30,6 +30,7 @@ Typical use cases:
 | High availability | Connects to multiple taosX instances at the same time. When one taosX instance stops, the task moves to another taosX instance and collection continues. See [High Availability](./03-high-availability.md) |
 | Store and Forward | Persists collected data to local disk during network outages and automatically resends it when the network recovers, ensuring zero data loss. See [Store and Forward](./02-store-and-forward.md) |
 | Multi-instance deployment | Multiple Agent instances can be deployed on the same machine, distinguished by instanceId |
+| Resource limits | Supports `[resource]` configuration to limit memory, CPU, and egress bandwidth for the Agent and its connector children. See [Configuration Reference](./01-configuration.md#resource-limits) |
 
 ## Getting taosX-Agent
 

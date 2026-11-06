@@ -19,6 +19,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, tdDnodes

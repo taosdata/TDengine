@@ -10921,6 +10921,8 @@ static int32_t createVStbExtTableNodes(STranslateContext* pCxt, SVirtualTableNod
     tstrncpy(pExtNode->schemaName, pExtInfo->schema_name, sizeof(pExtNode->schemaName));
     tstrncpy(pExtNode->srcSchema, pExtInfo->schema_name, sizeof(pExtNode->srcSchema));
     tstrncpy(pExtNode->srcOptions, pExtInfo->options, sizeof(pExtNode->srcOptions));
+    pExtNode->metaVersion = pExtInfo->meta_version;
+    PAR_ERR_JRET(extLoadSourceDialectDefaults(pExtNode->sourceType, pExtNode->srcOptions, &pExtNode->capability));
 
     PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, (SNode*)pExtNode));
     pExtNode = NULL;
@@ -11401,7 +11403,11 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   // every SQL Server predicate under the MySQL dialect and pushes constructs
   // T-SQL cannot reproduce exactly.  Load the dialect defaults here, mirroring
   // translateExternalTableImpl() for direct external references.
-  PAR_ERR_JRET(extLoadDialectDefaults(pExtNode->sourceType, &pExtNode->capability));
+  PAR_ERR_JRET(extLoadSourceDialectDefaults(pExtNode->sourceType, pExtNode->srcOptions, &pExtNode->capability));
+
+  if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
+    PAR_ERR_JRET(nodesCaptureInfluxSchema(pExtNode));
+  }
 
   // Compute tsPrimaryColIdx from pExtMeta: must be isPrimaryKey=true AND maps to TIMESTAMP.
   pExtNode->tsPrimaryColIdx = -1;
@@ -18306,6 +18312,16 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translateExpr(pCxt, (SNode**)&pSelect->pSlimit->offset);
   }
 
+  if (TSDB_CODE_SUCCESS == code &&
+      ((NULL != pSelect->pLimit && NULL != pSelect->pLimit->limit &&
+        IS_SIGNED_NUMERIC_TYPE(pSelect->pLimit->limit->node.resType.type) &&
+        pSelect->pLimit->limit->datum.i < 0) ||
+       (NULL != pSelect->pSlimit && NULL != pSelect->pSlimit->limit &&
+        IS_SIGNED_NUMERIC_TYPE(pSelect->pSlimit->limit->node.resType.type) &&
+        pSelect->pSlimit->limit->datum.i < 0))) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_LIMIT_LESS_ZERO);
+  }
+
   if ((TSDB_CODE_SUCCESS == code) &&
       ((NULL != pSelect->pLimit && pSelect->pLimit->offset && pSelect->pLimit->offset->datum.i < 0) ||
        (NULL != pSelect->pSlimit && pSelect->pSlimit->offset && pSelect->pSlimit->offset->datum.i < 0))) {
@@ -20042,6 +20058,11 @@ static int32_t checkSetOperLimit(STranslateContext* pCxt, SLimitNode* pLimit) {
   if (TSDB_CODE_SUCCESS == code && pLimit && pLimit->offset) {
     code = translateExpr(pCxt, (SNode**)&pLimit->offset);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != pLimit && NULL != pLimit->limit &&
+      IS_SIGNED_NUMERIC_TYPE(pLimit->limit->node.resType.type) && pLimit->limit->datum.i < 0) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_LIMIT_LESS_ZERO);
+  }
+
   if (TSDB_CODE_SUCCESS == code && (NULL != pLimit && NULL != pLimit->offset && pLimit->offset->datum.i < 0)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_OFFSET_LESS_ZERO);
   }
@@ -23238,6 +23259,11 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
       TSDB_ALTER_TABLE_DROP_TAG == pStmt->alterType) {
     if (TSDB_SUPER_TABLE != pTableMeta->tableType) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "Table is not super table");
+    }
+
+    if (TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType && NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                     "Cannot drop tag '%s' using DROP COLUMN", pStmt->colName);
     }
 
     const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
@@ -33379,7 +33405,7 @@ static const char* const s_extCommonOpts[] = {
 static const char* const s_extTypeSpecOpts[6][8] = {
     /* MySQL      */ {"charset", "ssl_mode", NULL},
   /* PostgreSQL */ {"sslmode", NULL},
-    /* InfluxDB   */ {"api_token", "protocol", NULL},
+    /* InfluxDB   */ {"api_token", "protocol", "version", "retention_policy", NULL},
     /* TDengine (reserved) */ {NULL},
     /* SQL Server */ {"trust_server_certificate", NULL},
     /* Oracle     */ {NULL},
@@ -33464,6 +33490,12 @@ static int32_t validateExtSourceOptionSemantic(int8_t srcType, const char* key, 
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "protocol must be one of flight_sql/http");
     }
+  }
+
+  if (srcType == EXT_SOURCE_INFLUXDB && strcasecmp(key, "version") == 0 &&
+      value != NULL && value[0] != '\0' && strcmp(value, "1.8") != 0 && strcmp(value, "3") != 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "InfluxDB version must be 1.8 or 3");
   }
 
   if (srcType == EXT_SOURCE_SQLSERVER && strcasecmp(key, "trust_server_certificate") == 0) {
@@ -33840,6 +33872,12 @@ static int32_t translateCreateExtSource(STranslateContext* pCxt, SCreateExtSourc
   tstrncpy(req.database, pStmt->database, TSDB_EXT_SOURCE_DATABASE_LEN);
   tstrncpy(req.schema_name, pStmt->schemaName, TSDB_EXT_SOURCE_SCHEMA_LEN);
   serializeOptionsToJson(pStmt->sourceType, pStmt->pOptions, req.options, sizeof(req.options));
+  if (pStmt->sourceType == EXT_SOURCE_INFLUXDB) {
+    code = extConnectorValidateInfluxOptions(req.options, pStmt->schemaName, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid InfluxDB version, protocol, RP or authentication options");
+    }
+  }
   req.ignoreExists = pStmt->ignoreExists ? 1 : 0;
   return buildCmdMsg(pCxt, TDMT_MND_CREATE_EXT_SOURCE, (FSerializeFunc)tSerializeSCreateExtSourceReq, &req);
 }
@@ -37978,6 +38016,18 @@ static int32_t createSubTableFromFile(SMsgBuf* pMsgBuf, SParseContext* pParseCxt
         pModifyStmt->fileProcessing = true;
       } else {
         pModifyStmt->fileProcessing = false;
+        /*
+         * The whole csv has been consumed.  Release the handle now instead of
+         * waiting for the statement to be destroyed: the caller can delete or
+         * rewrite the file as soon as the statement returns, and on Windows an
+         * open handle makes that fail with a sharing violation
+         * (PermissionError [WinError 32]).  taosCloseFile() clears the pointer,
+         * so a later statement destroy and a re-execution that reopens the file
+         * are both unaffected.
+         */
+        if (pModifyStmt->fp != NULL && TSDB_CODE_SUCCESS != taosCloseFile(&pModifyStmt->fp)) {
+          parserWarn("failed to close the csv file of create table ... file, code:%s", tstrerror(terrno));
+        }
       }
     }
   }
@@ -38075,7 +38125,8 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   pModifyStmt->destroyParseFileCxt = destructParseFileContext;
   pModifyStmt->pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (NULL == pModifyStmt->pVgroupsHashObj) {
-    return terrno;
+    code = terrno;
+    goto _ERR;
   }
   taosHashSetFreeFp(pModifyStmt->pVgroupsHashObj, destroyCreateTbReqBatch);
 
@@ -38083,14 +38134,12 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
 
   code = prepareReadCsvFile(pCxt, pCreateStmt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) {
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   code = createSubTableFromFile(&pCxt->msgBuf, pCxt->pParseCxt, pModifyStmt);
   if (TSDB_CODE_SUCCESS != code) {
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   SArray* pBufArray = NULL;
@@ -38100,8 +38149,7 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
     if (TSDB_CODE_INVALID_MSG_LEN == code) {
       parserError("maxInsertBatchRows may need to be reduced, current:%d", tsMaxInsertBatchRows);
     }
-    taosHashCleanup(pModifyStmt->pVgroupsHashObj);
-    return code;
+    goto _ERR;
   }
 
   pModifyStmt->pDataBlocks = pBufArray;
@@ -38109,6 +38157,15 @@ static int32_t rewriteCreateTableFromFile(STranslateContext* pCxt, SQuery* pQuer
   pQuery->pRoot = (SNode*)pModifyStmt;
 
   return TSDB_CODE_SUCCESS;
+
+_ERR:
+  // The statement has not been attached to the query yet, so no other frame
+  // will release it. Destroying it here closes the opened csv file, which
+  // Windows keeps locked until the last handle is closed, and frees the parse
+  // context. Without it a rejected file (e.g. an unsupported BOM) could not be
+  // deleted by the caller after the error was returned.
+  nodesDestroyNode((SNode*)pModifyStmt);
+  return code;
 }
 
 int32_t continueCreateTbFromFile(SParseContext* pParseCxt, SQuery** pQuery) {
@@ -39263,6 +39320,10 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
         "virtual child table requires FROM <db>.<table>.<col> reference when adding column");
   }
 
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "Column '%s' already exists as a tag", pStmt->colName);
+  }
   if (NULL != getColSchema(pTableMeta, pStmt->colName)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
   }
@@ -39422,6 +39483,11 @@ static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
                                SVAlterTbReq* pReq) {
   if (TSDB_CHILD_TABLE == pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot drop tag '%s' using DROP COLUMN", pStmt->colName);
   }
 
   // virtual child table: only an own (extension) column may be dropped from the vchild. The name
@@ -39681,6 +39747,10 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
   }
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot alter column reference for tag '%s'", pStmt->colName);
+  }
   int32_t        code = TSDB_CODE_SUCCESS;
   const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
@@ -39783,6 +39853,10 @@ static int32_t buildRemoveTableColumnRef(STranslateContext* pCxt, SAlterTableStm
                                      SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
+  }
+  if (NULL != getTagSchema(pTableMeta, pStmt->colName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                   "Cannot alter column reference for tag '%s'", pStmt->colName);
   }
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -40100,6 +40174,12 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       // resolve the tag here (buildDropTagReq). Super tables handle tag drop via
       // translateAlterSuperTable.
       if (TSDB_VIRTUAL_CHILD_TABLE == pTableMeta->tableType) {
+        const SSchema* pTag = getTagSchema(pTableMeta, pStmt->colName);
+        if (NULL != pTag && pTag->colId < TSDB_VCHILD_OWN_COL_ID_BASE) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                         "Tag '%s' belongs to super table, cannot drop it from child table",
+                                         pStmt->colName);
+        }
         pReq->colName = taosStrdup(pStmt->colName);
         if (NULL == pReq->colName) {
           return terrno;
@@ -40898,6 +40978,10 @@ static int32_t rewriteAlterTableImpl(STranslateContext* pCxt, SAlterTableStmt* p
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    if (isVirtual) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                     "cannot alter virtual super table using alter vtable");
+    }
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType &&
              !isVirtualTable(pTableMeta)) {

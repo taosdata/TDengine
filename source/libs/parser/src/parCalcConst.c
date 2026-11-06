@@ -37,6 +37,10 @@ typedef struct SCalcConstContext {
   // the planner selects the effective keys and prunes unused candidates.
   bool                keepTemporalCandidates;
   bool                tagScan;
+  // Set while folding an EXPLAIN payload.  LIMIT 0 must not mark that payload
+  // empty: EXPLAIN still has to produce the plan, even though the executed
+  // statement would return no rows.
+  bool                explainQuery;
 } SCalcConstContext;
 
 static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subquery);
@@ -549,6 +553,8 @@ static EDealRes findCountLikeFunction(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+// An ungrouped COUNT-like aggregate produces one row for empty input.  GROUP
+// BY / PARTITION BY / window queries do not: an empty input yields no groups.
 static bool countMayReturnEmptyInputRow(SSelectStmt* pSelect) {
   if (NULL != pSelect->pGroupByList || NULL != pSelect->pPartitionByList ||
       NULL != pSelect->pWindow || pSelect->implicitPartitionHaving) {
@@ -612,6 +618,9 @@ static int32_t calcConstSelectFrom(SCalcConstContext* pCxt, SSelectStmt* pSelect
 }
 
 
+// LIMIT 0 can never produce a row.  A LIMIT placeholder is considered only
+// after translate has stored its bound value; an unbound placeholder must not
+// be mistaken for zero.
 static bool isZeroLimit(SLimitNode* pLimit) {
   return NULL != pLimit && NULL != pLimit->limit &&
          QUERY_NODE_VALUE == nodeType(pLimit->limit) &&
@@ -707,7 +716,9 @@ static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bo
     code = pCxt->code;
   }
 
-  if (TSDB_CODE_SUCCESS == code &&
+  // A LIMIT 0 SELECT publishes itself as empty so parent set operators can
+  // prune it.  Under EXPLAIN the payload must keep planning normally.
+  if (TSDB_CODE_SUCCESS == code && !pCxt->explainQuery &&
       (isZeroLimit(pSelect->pLimit) || isZeroLimit(pSelect->pSlimit))) {
     pSelect->isEmptyResult = true;
   }
@@ -895,9 +906,13 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
     case QUERY_NODE_SELECT_STMT:
       code = calcConstSelect(pCxt, (SSelectStmt*)pStmt, subquery);
       break;
-    case QUERY_NODE_EXPLAIN_STMT:
+    case QUERY_NODE_EXPLAIN_STMT: {
+      bool previous = pCxt->explainQuery;
+      pCxt->explainQuery = true;
       code = calcConstQuery(pCxt, ((SExplainStmt*)pStmt)->pQuery, subquery);
+      pCxt->explainQuery = previous;
       break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       code = calcConstSetOperator(pCxt, (SSetOperator*)pStmt, subquery);
       break;

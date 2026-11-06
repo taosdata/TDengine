@@ -5241,7 +5241,7 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     pEntry = *ppExist;
     CTG_LOCK(CTG_WRITE, &pEntry->entryLock);
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
-    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    code = extLoadSourceDialectDefaults(msg->sourceRsp.type, msg->sourceRsp.options, &pEntry->capability);
     if (TSDB_CODE_SUCCESS != code) {
       CTG_UNLOCK(CTG_WRITE, &pEntry->entryLock);
       goto _return;
@@ -5256,7 +5256,7 @@ int32_t ctgOpUpdateExtSource(SCtgCacheOperation* operation) {
     }
     // entryLock is zero-initialised by calloc; no explicit init needed.
     TAOS_MEMCPY(&pEntry->source, &msg->sourceRsp, sizeof(pEntry->source));
-    code = extLoadDialectDefaults(msg->sourceRsp.type, &pEntry->capability);
+    code = extLoadSourceDialectDefaults(msg->sourceRsp.type, msg->sourceRsp.options, &pEntry->capability);
     if (TSDB_CODE_SUCCESS != code) {
       ctgError("ctgOpUpdateExtSource: extLoadDialectDefaults failed for source '%s', error:%s",
                msg->sourceName, tstrerror(code));

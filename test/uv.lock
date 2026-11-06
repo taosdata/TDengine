@@ -1149,16 +1149,16 @@ wheels = [
 
 [[package]]
 name = "taos-ws-py"
-version = "0.6.9"
+version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9b/fe/56cbd1ca6951e82adfc4e3acec62b92a4c7ed38bd8b4f510b89ac49860b3/taos_ws_py-0.6.9-cp37-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:8b91c5f3b01aa68d841ea0d42afa6c9c9b1260505fe80a0070fbfad8578a0455", size = 8100522, upload-time = "2026-04-23T10:00:14.523Z" },
-    { url = "https://files.pythonhosted.org/packages/f1/95/c68cdca3cd31197c9fd2dafb5330ead18ddabdb42c38228cf2bef70e2cd1/taos_ws_py-0.6.9-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:1d700a5fc9a60efead6a23f2685cd651539c51864195bc3f8b441ce94ff4cb52", size = 4136040, upload-time = "2026-04-23T10:00:16.735Z" },
-    { url = "https://files.pythonhosted.org/packages/b8/fb/0b8738f6818721769469848f6548d0f727d6fe7ef361ab534230eef09f81/taos_ws_py-0.6.9-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:244ebb055dc22900fe93ef8bc9f0985dc2bbd33e8aae9eb7f827e2de133496d6", size = 4313756, upload-time = "2026-04-23T10:00:18.74Z" },
-    { url = "https://files.pythonhosted.org/packages/21/11/80273b8eb0845a1992b923b645706fa2a674cfe1914a20756645f5b89c12/taos_ws_py-0.6.9-cp37-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:614dc810a21b9eda4b3d37a960ce900b0c97fd7e9b7fa8e549dccca21ea5e35e", size = 4036618, upload-time = "2026-04-23T10:00:20.972Z" },
-    { url = "https://files.pythonhosted.org/packages/2d/24/5d70ee3ddc84e0081111fe59b91bef62c948d1939919b2f5fbbfeb51f658/taos_ws_py-0.6.9-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:992e8fc0256b88e4f01a11dd52f9c9f9d4fd916f9bf9ebad2db59d610ed0312d", size = 4498027, upload-time = "2026-04-23T10:00:22.671Z" },
-    { url = "https://files.pythonhosted.org/packages/4e/db/6212a878abc76bf8ecbda85d9030fa7fae0a16e7774c4692c8bb01dd3b1d/taos_ws_py-0.6.9-cp37-abi3-manylinux_2_31_riscv64.whl", hash = "sha256:68e85c16833691094555bc5dfea31743e11e3210a385767a3f11237c97b5fe63", size = 4246816, upload-time = "2026-04-23T10:00:24.48Z" },
-    { url = "https://files.pythonhosted.org/packages/6a/f6/3a5ee3384636ca7ad303d774c725781073fcfd43728efa95299662907cf2/taos_ws_py-0.6.9-cp37-abi3-win_amd64.whl", hash = "sha256:8e020f7d8ba3b8c4c623d5189f63f9223b7a54f10fb8cba756defaec842e52b7", size = 4781832, upload-time = "2026-04-23T10:00:26.2Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/4b/95dcf44d46dba0cb52a656ed52db29df67c79b29b6f674068e1c02e5014f/taos_ws_py-0.7.1-cp38-abi3-macosx_10_12_universal2.macosx_10_12_x86_64.macosx_11_0_arm64.whl", hash = "sha256:24687501f950ad9ef2e8222dd162111d4ba557d298766627c139f89f690a602c", size = 8050426, upload-time = "2026-11-03T06:38:44.595Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/2d/3f3ec9ed2c4c27f627fc4439045d59cbc9f9a7e1adaebf64b0044a496f3d/taos_ws_py-0.7.1-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:f1a7a25140bd053df904e878172e6c6d7b8e5ab2d34cc1e102cc5df30fcb4775", size = 4101742, upload-time = "2026-11-03T06:38:47.04Z" },
+    { url = "https://files.pythonhosted.org/packages/67/09/005e6b9dd8e1923b4aef2b3105c96746c28c20e3ff26f55efb06b3ef60e0/taos_ws_py-0.7.1-cp38-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:9fb53e6f924108ae8b50589e30fb2981c41b00a2c6d2ec1d232ca9ec8bd29c61", size = 4273177, upload-time = "2026-11-03T06:38:48.913Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/de/e992bd5fd89eb8eb753fbeb65f6c69b883fcbafe4cc1173f9b1f89f48229/taos_ws_py-0.7.1-cp38-abi3-manylinux2014_armv7l.manylinux_2_17_armv7l.whl", hash = "sha256:ea0475d490b75b7c58cf719813e5b7831f73aa440b65ca711f01143eca599602", size = 3968678, upload-time = "2026-11-03T06:38:50.802Z" },
+    { url = "https://files.pythonhosted.org/packages/12/d6/1c059e01fc6de68fe909a504a58c872a395833727d6fa267f63dcc077439/taos_ws_py-0.7.1-cp38-abi3-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9e35b4721fe533942853ff347e25250c4b2f2a2315d5b59008cf0830fbad6687", size = 4461879, upload-time = "2026-11-03T06:38:52.791Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/5a/9d4ad56f7f2e34fb211d6225c60dd8f850410e8e7511a139809665e2c84f/taos_ws_py-0.7.1-cp38-abi3-manylinux_2_31_riscv64.whl", hash = "sha256:72bae26fe8d2949f13a198e60c62ff2706c6d27bbbe2a10c52e0d059ff4c839e", size = 4155175, upload-time = "2026-11-03T06:38:54.914Z" },
+    { url = "https://files.pythonhosted.org/packages/80/dc/c8f6189bc3aa887a39a716d9739140a492ff9ab16518865eebb9ca6d67aa/taos_ws_py-0.7.1-cp38-abi3-win_amd64.whl", hash = "sha256:eef6def0e44f6ccde7e022de13b8456661b658b7febebdacfccb78f51194ceb8", size = 4752460, upload-time = "2026-11-03T06:38:56.747Z" },
 ]
 
 [[package]]
@@ -1258,7 +1258,7 @@ requires-dist = [
     { name = "pywinrm", specifier = ">=0.5.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "requests", specifier = "==2.34.2" },
-    { name = "taos-ws-py", specifier = ">=0.6.9" },
+    { name = "taos-ws-py", specifier = ">=0.7.1" },
     { name = "taospy", specifier = ">=2.8.10" },
     { name = "threadpool", specifier = ">=1.3.2" },
     { name = "toml", specifier = ">=0.10.2" },
@@ -1269,7 +1269,7 @@ requires-dist = [
 name = "threadpool"
 version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/1f/0f/e14266504330f08e8cddfe1bc03198a94193770c6740a4836985e8a64b5f/threadpool-1.3.2.tar.bz2", hash = "sha256:cce4ef898b7eda686a6086facf33c9ac006d1809281db0030673d1647bfeefa4", size = 33088, upload-time = "2015-10-29T19:45:27.307Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/db/64/3afa065043b0d36c64df418c5187024ac9226f371f0cf1615faa27445c11/threadpool-1.3.2.zip", hash = "sha256:6a3bbb0c0e7ce26ff4f24193c15464595754bd46f87d84126a7c2773ddb7b9ca", size = 72244, upload-time = "2015-10-29T19:45:22.231Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/6a/92/483af8a4325cd72c131db4e42cc4812505667b784eb180a4fba9348c4a3c/threadpool-1.3.2-py3-none-any.whl", hash = "sha256:da4ea68ce6766b7886f4c86114df1c1eedc07484c8a33b4f737ba6f5413a12ad", size = 8538, upload-time = "2015-10-29T19:51:56.707Z" },
 ]

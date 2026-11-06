@@ -469,6 +469,16 @@ static SSDataBlock* popExchangeOwnedRecycledBlock(SExchangeInfo* pExchangeInfo) 
   return NULL;
 }
 
+static void destroyRecycledVtableBlocks(SExchangeInfo* pExchangeInfo) {
+  for (int32_t i = taosArrayGetSize(pExchangeInfo->pRecycledBlocks) - 1; i >= 0; --i) {
+    SSDataBlock* pBlock = taosArrayGetP(pExchangeInfo->pRecycledBlocks, i);
+    // Local leases must be returned through their original owner, including task result slots.
+    if (findLocalBlockLease(pExchangeInfo, pBlock) != NULL) continue;
+    taosArrayRemove(pExchangeInfo->pRecycledBlocks, i);
+    blockDataDestroy(pBlock);
+  }
+}
+
 static int32_t restoreRecycledLocalBlocks(SExchangeInfo* pExchangeInfo) {
   if (NULL == pExchangeInfo->pLocalBlockLeases) {
     return TSDB_CODE_SUCCESS;
@@ -3319,6 +3329,12 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
 
   int32_t index = 0;
 
+  if (pDataInfo->type == EX_SRC_TYPE_VSTB_SCAN || pDataInfo->type == EX_SRC_TYPE_VSTB_TAG_SCAN) {
+    // These responses carry dynamic schemas, so consumed blocks cannot use the fixed-schema recycle path.
+    // The next fetch ends their consumer lifetime; unread blocks remain in pResultBlockList.
+    destroyRecycledVtableBlocks(pExchangeInfo);
+  }
+
   while (index++ < pRetrieveRsp->numOfBlocks) {
     pStart = pNextStart;
 
@@ -4094,6 +4110,15 @@ int32_t exchangeTestLoadNextMultiGroupResult(void* pParam, SSDataBlock** ppBlock
   if (code != TSDB_CODE_SUCCESS || *ppBlock == NULL) return code;
   bool continueLoad = false;
   return processExchangeLoadedBlock(&pOwner->operatorInfo, *ppBlock, ppBlock, &continueLoad);
+}
+
+SExchangeInfo* exchangeTestConfigureVtableSource(void* pParam, int32_t sourceType) {
+  SExchangeMultiGroupTestOwner* pOwner = pParam;
+  if (pOwner == NULL) return NULL;
+  SSourceDataInfo* pSource = taosArrayGet(pOwner->exchange.pSourceDataInfo, 0);
+  if (pSource == NULL) return NULL;
+  pSource->type = sourceType;
+  return &pOwner->exchange;
 }
 
 int32_t exchangeTestGetResultQueueSizes(void* pParam, int32_t* pStrictItems, int32_t* pOrdinaryBlocks) {

@@ -25,7 +25,7 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
 
 选择 **类型** 下拉框中的 *`InfluxDB`* ，如下图所示（选择完成后页面中的字段会发生变化）。
 
-**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮
+**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮。代理与 taosX 之间的网络要求（端口放通与检查方法）见 [数据接入前置条件](./00-prerequisites.md)。
 
 **目标数据库** 是必填项，由于 InfluxDB 存储数据的时间精度可以同时存在秒、毫秒、微秒与纳秒等，所以这里需要选择一个 *`纳秒精度的数据库`* ，也可以先点击右侧的 **+创建数据库** 按钮
 
@@ -39,23 +39,23 @@ InfluxDB 是一种流行的开源时间序列数据库，它针对处理大量�
 
 ### 配置认证信息
 
-在 **认证** 区域有两个选项卡，*`1.x 版本`* 与 *`2.x 版本`* ，这是由于不同版本的 InfluxDB 数据库的鉴权参数不同且 API 存在较大差异，请根据实际情况进行选择：  
-  *`1.x 版本`*  
-  **版本** 在下拉框中选择源 InfluxDB 数据库的版本。  
-  **用户** 输入源 InfluxDB 数据库的用户，该用户必须在该组织中拥有读取权限。  
-  **密码** 输入源 InfluxDB 数据库中上方用户的登录密码。  
-  ![InfluxDB-04zh-SelectVersion1.x.webp](../../assets/InfluxDB-04zh-SelectVersion1.x.webp "选择1.x版本")  
-  *`2.x 版本`*  
-  **版本** 在下拉框中选择源 InfluxDB 数据库的版本。  
-  **组织 ID** 输入源 InfluxDB 数据库的组织 ID，它是一个由十六进制字符组成的字符串，而不是组织名称，可以从 InfluxDB 控制台的 Organization->About 页面获取。  
-  **令牌 Token**：输入源 InfluxDB 数据库的访问令牌，该令牌必须在该组织中拥有读取权限。  
-  **添加数据库保留策略** 这是一个 *`是/否`* 的开关项，InfluxQL 需要数据库与保留策略（DBRP）的组合才能查询数据，InfluxDB 的 Cloud 版本及某些 2.x 版本需要人工添加这个映射关系，打开这个开关，连接器可以在执行任务时自动添加。  
+在 **认证** 区域有两个选项卡，*`1.x 版本`* 与 *`2.x 版本`* ，这是由于不同版本的 InfluxDB 数据库的鉴权参数不同且 API 存在较大差异，请根据实际情况进行选择：
+  *`1.x 版本`*
+  **版本** 在下拉框中选择源 InfluxDB 数据库的版本。
+  **用户** 输入源 InfluxDB 数据库的用户，该用户必须在该组织中拥有读取权限。
+  **密码** 输入源 InfluxDB 数据库中上方用户的登录密码。
+  ![InfluxDB-04zh-SelectVersion1.x.webp](../../assets/InfluxDB-04zh-SelectVersion1.x.webp "选择1.x版本")
+  *`2.x 版本`*
+  **版本** 在下拉框中选择源 InfluxDB 数据库的版本。
+  **组织 ID** 输入源 InfluxDB 数据库的组织 ID，它是一个由十六进制字符组成的字符串，而不是组织名称，可以从 InfluxDB 控制台的 Organization->About 页面获取。
+  **令牌 Token**：输入源 InfluxDB 数据库的访问令牌，该令牌必须在该组织中拥有读取权限。
+  **添加数据库保留策略** 这是一个 *`是/否`* 的开关项，InfluxQL 需要数据库与保留策略（DBRP）的组合才能查询数据，InfluxDB 的 Cloud 版本及某些 2.x 版本需要人工添加这个映射关系，打开这个开关，连接器可以在执行任务时自动添加。
   ![InfluxDB-05zh-SelectVersion2.x.webp](../../assets/InfluxDB-05zh-SelectVersion2.x.webp "选择2.x版本")
 
-在 **认证** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 InfluxDB 数据库的数据，检查结果如下图所示：  
-  **失败**  
-  ![InfluxDB-06zh-ConnectivityCheckFailed.webp](../../assets/InfluxDB-06zh-ConnectivityCheckFailed.webp "连通性检查失败")  
-  **成功**  
+在 **认证** 区域的下方有一个 **连通性检查** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 InfluxDB 数据库的数据，检查结果如下图所示：
+  **失败**
+  ![InfluxDB-06zh-ConnectivityCheckFailed.webp](../../assets/InfluxDB-06zh-ConnectivityCheckFailed.webp "连通性检查失败")
+  **成功**
   ![InfluxDB-07zh-ConnectivityCheckSuccessful.webp](../../assets/InfluxDB-07zh-ConnectivityCheckSuccessful.webp "连通性检查成功")
 
 ### 配置任务信息

@@ -18,6 +18,8 @@
 #define MND_ENCRYPT_ALGR_VER_NUMBER 1
 #if defined(TD_ENTERPRISE) && defined(LINUX)
 #define MND_ENCRYPT_ALGR_LAST_ID 6
+#elif defined(TD_ENTERPRISE) && defined(WINDOWS)
+#define MND_ENCRYPT_ALGR_LAST_ID 2
 #else
 #define MND_ENCRYPT_ALGR_LAST_ID 1
 #endif
@@ -314,13 +316,16 @@ static int32_t mndCreateBuiltinEncryptAlgr(SMnode *pMnode) {
   STrans *pTrans = NULL;
 
   mndSetEncryptAlgrFp setFpArr[] = {mndSetSM4EncryptAlgr
-#if defined(TD_ENTERPRISE) && defined(LINUX)
+#if defined(TD_ENTERPRISE)
                                     ,
-                                    mndSetAESEncryptAlgr,
+                                    mndSetAESEncryptAlgr
+#if defined(LINUX)
+                                    ,
                                     mndSetSM3EncryptAlgr,
                                     mndSetSHAEncryptAlgr,
                                     mndSetSM2EncryptAlgr,
                                     mndSetRSAEncryptAlgr
+#endif
 #endif
   };
 

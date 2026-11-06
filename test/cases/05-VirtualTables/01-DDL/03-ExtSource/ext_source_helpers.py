@@ -80,8 +80,8 @@ def create_ext_source(name, src_type, database, schema="public",
         tdSql.execute(
             f"CREATE EXTERNAL SOURCE {name} TYPE='{src_type}' "
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
-            f"API_TOKEN='{token}' "
-            f"DATABASE={database} OPTIONS('protocol'='flight_sql')")
+            f"USER='{ExtSrcEnv.influx_source_credentials()[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials()[1]}' "
+            f"DATABASE={database} OPTIONS({ExtSrcEnv.influx_source_options()})")
     elif src_type == "sqlserver":
         # The shared default schema is PG's "public"; SQL Server's default is "dbo".
         sqlserver_schema = "dbo" if schema in ("", None, "public") else schema

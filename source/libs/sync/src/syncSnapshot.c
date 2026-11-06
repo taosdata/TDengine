@@ -823,10 +823,27 @@ SyncIndex syncNodeGetSnapBeginIndex(SSyncNode *ths) {
   return snapStart;
 }
 
+// The fsm parser walks the leader's TLV by its self-declared lengths; validate the outer header against the actual
+// payload size before handing the data over.
+int32_t syncSnapCheckPrepData(const void *data, uint32_t dataLen) {
+  if (data == NULL || dataLen < (uint32_t)sizeof(SSyncTLV)) return TSDB_CODE_INVALID_DATA_FMT;
+
+  SSyncTLV head = {0};
+  (void)memcpy(&head, data, sizeof(head));  // the payload is not guaranteed to be aligned
+  if (head.len < 0 || (uint64_t)head.len > (uint64_t)dataLen - sizeof(SSyncTLV)) return TSDB_CODE_INVALID_DATA_FMT;
+  return 0;
+}
+
 static int32_t syncSnapReceiverExchgSnapInfo(SSyncNode *pSyncNode, SSyncSnapshotReceiver *pReceiver,
                                              SyncSnapshotSend *pMsg, SSnapshot *pInfo) {
   if (pMsg->payloadType != TDMT_SYNC_PREP_SNAPSHOT) return TSDB_CODE_SYN_INTERNAL_ERROR;
   int32_t code = 0, lino = 0;
+
+  code = syncSnapCheckPrepData(pMsg->data, pMsg->dataLen);
+  if (code != 0) {
+    sRError(pReceiver, "invalid prep snapshot data, dataLen:%u since %s", pMsg->dataLen, tstrerror(code));
+    return code;
+  }
 
   // copy snap info from leader
   void *data = taosMemoryCalloc(1, pMsg->dataLen);

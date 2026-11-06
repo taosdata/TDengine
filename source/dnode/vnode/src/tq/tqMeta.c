@@ -224,41 +224,76 @@ END:
   return code;
 }
 
-int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset** pOffset) {
+// deep copy of an offset, the copy is released by tDeleteSTqOffset
+static int32_t tqOffsetDeepCopy(STqOffset* pDst, const STqOffset* pSrc) {
+  (void)memset(pDst, 0, sizeof(STqOffset));
+  tOffsetCopy(&pDst->val, &pSrc->val);
+  if (IS_VAR_DATA_TYPE(pSrc->val.primaryKey.type) && pSrc->val.primaryKey.nData > 0 &&
+      pDst->val.primaryKey.pData == NULL) {
+    (void)memset(pDst, 0, sizeof(STqOffset));
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (void)memcpy(pDst->subKey, pSrc->subKey, sizeof(pDst->subKey));
+  return TSDB_CODE_SUCCESS;
+}
+
+// copy-out API: *pOffset is owned by the caller and must be released with tDeleteSTqOffset
+int32_t tqMetaGetOffset(STQ* pTq, const char* subkey, STqOffset* pOffset) {
   if (pTq == NULL || subkey == NULL || pOffset == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  (void)memset(pOffset, 0, sizeof(STqOffset));
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  taosRLockLatch(&pTq->lock);
   void* data = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
-  if (data == NULL) {
-    int vLen = 0;
-    taosRLockLatch(&pTq->lock);
-    if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
-      taosRUnLockLatch(&pTq->lock);
-      tdbFree(data);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+  if (data != NULL) {
+    code = tqOffsetDeepCopy(pOffset, (const STqOffset*)data);
     taosRUnLockLatch(&pTq->lock);
-
-    STqOffset offset = {0};
-    if (tqMetaDecodeOffsetInfo(&offset, data, vLen >= 0 ? vLen : 0) != TDB_CODE_SUCCESS) {
-      tdbFree(data);
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    if (taosHashPut(pTq->pOffset, subkey, strlen(subkey), &offset, sizeof(STqOffset)) != 0) {
-      tDeleteSTqOffset(&offset);
-      tdbFree(data);
-      return terrno;
-    }
-    tdbFree(data);
-
-    *pOffset = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
-    if (*pOffset == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  } else {
-    *pOffset = data;
+    return code;
   }
+
+  int vLen = 0;
+  if (tdbTbGet(pTq->pOffsetStore, subkey, strlen(subkey), &data, &vLen) < 0) {
+    taosRUnLockLatch(&pTq->lock);
+    tdbFree(data);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  taosRUnLockLatch(&pTq->lock);
+
+  STqOffset offset = {0};
+  if (tqMetaDecodeOffsetInfo(&offset, data, vLen >= 0 ? vLen : 0) != TDB_CODE_SUCCESS) {
+    tdbFree(data);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tdbFree(data);
+
+  // Populating the cache must hold the write latch: a put on an existing key frees the old entry, which readers
+  // copying it under the read latch may still be using. Re-check first, another reader (or a save) may have won.
+  taosWLockLatch(&pTq->lock);
+  void* cached = taosHashGet(pTq->pOffset, subkey, strlen(subkey));
+  if (cached != NULL) {
+    // the cached entry is at least as new as what was read from the store, hand out a copy of it
+    tDeleteSTqOffset(&offset);
+    code = tqOffsetDeepCopy(pOffset, (const STqOffset*)cached);
+    taosWUnLockLatch(&pTq->lock);
+    return code;
+  }
+
+  // cache a private copy in the hash, hand the decoded one to the caller
+  STqOffset cache = {0};
+  code = tqOffsetDeepCopy(&cache, &offset);
+  if (code == 0 && taosHashPut(pTq->pOffset, subkey, strlen(subkey), &cache, sizeof(STqOffset)) != 0) {
+    code = terrno;
+    tDeleteSTqOffset(&cache);
+  }
+  taosWUnLockLatch(&pTq->lock);
+  if (code != 0) {
+    tDeleteSTqOffset(&offset);
+    return code;
+  }
+
+  *pOffset = offset;
   return 0;
 }
 
@@ -322,6 +357,11 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
   initStorageAPI(&reader.api);
 
   if (handle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (handle->execHandle.execCol.qmsg == NULL) {
+      tqError("vgId:%d, tq init handle %s failed, column subscription without qmsg", vgId, handle->subKey);
+      code = TSDB_CODE_INVALID_PARA;
+      goto END;
+    }
     handle->execHandle.task = qCreateQueueExecTaskInfo(handle->execHandle.execCol.qmsg, &reader, vgId, handle->consumerId);
     TQ_NULL_GO_TO_END(handle->execHandle.task);
     void* scanner = NULL;
@@ -364,6 +404,10 @@ static int tqMetaInitHandle(STQ* pTq, STqHandle* handle) {
     handle->execHandle.pTqReader = tqReaderOpen(pVnode);
     TQ_NULL_GO_TO_END(handle->execHandle.pTqReader);
     TQ_ERR_GO_TO_END(tqReaderSetTbUidList(handle->execHandle.pTqReader, tbUidList, NULL));
+  } else {
+    tqError("vgId:%d, tq init handle %s failed, unknown subType:%d", vgId, handle->subKey, handle->execHandle.subType);
+    code = TSDB_CODE_INVALID_PARA;
+    goto END;
   }
   handle->tableCreateTimeHash = (SHashObj*)taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
@@ -404,6 +448,9 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
   handle->execHandle.subType = req->subType;
   handle->fetchMeta = req->withMeta;
   if (req->subType == TOPIC_SUB_TYPE__COLUMN) {
+    if (req->qmsg == NULL) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     void* tmp = taosStrdup(req->qmsg);
     if (tmp == NULL) {
       return terrno;
@@ -413,11 +460,13 @@ int32_t tqMetaCreateHandle(STQ* pTq, SMqRebVgReq* req, STqHandle* handle) {
     req->schema.pSchema = NULL;
   } else if (req->subType == TOPIC_SUB_TYPE__TABLE) {
     handle->execHandle.execTb.suid = req->suid;
-    void* tmp = taosStrdup(req->qmsg);
-    if (tmp == NULL) {
-      return terrno;
+    if (req->qmsg != NULL) {
+      void* tmp = taosStrdup(req->qmsg);
+      if (tmp == NULL) {
+        return terrno;
+      }
+      handle->execHandle.execTb.qmsg = tmp;
     }
-    handle->execHandle.execTb.qmsg = tmp;
   }
 
   {

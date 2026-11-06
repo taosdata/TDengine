@@ -1062,6 +1062,12 @@ static int32_t tsdbSnapWriteTimeSeriesData(STsdbSnapWriter* writer, SSnapDataHdr
   code = tBlockDataDecompress(&br, blockData, &writer->buffers[0]);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  if (blockData->uid == 0 && blockData->aUid == NULL) {
+    tsdbError("invalid snapshot block: no uid, nRow:%d", blockData->nRow);
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   int32_t fid = tsdbKeyFid(blockData->aTSKEY[0], writer->minutes, writer->precision);
   if (!writer->ctx->fsetWriteBegin || fid != writer->ctx->fid) {
     code = tsdbSnapWriteFileSetEnd(writer);

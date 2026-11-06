@@ -480,18 +480,27 @@ Adjusts the distribution of vnodes in a vgroup according to the given list of dn
 ### Automatically Adjust the Distribution of VNODEs in VGROUP
 
 ```sql
-BALANCE VGROUP
+BALANCE VGROUP;
 ```
 
-Automatically adjusts the distribution of vnodes in all vgroups of the cluster, equivalent to performing data load balancing at the vnode level for the cluster.
+Adjusts the vnode distribution of all vgroups in the cluster by the number of vnodes on each dnode, without regard to data size or read and write load. Migration continues in the background after the command returns. Use `SHOW TRANSACTIONS` to follow the progress.
+
+:::warning
+This command migrates data between dnodes, applies to the whole cluster, and starts immediately. With large data volumes it can take a long time. In production, use `REDISTRIBUTE VGROUP` to move one vgroup at a time instead.
+:::
 
 ### Automatically Re-elect VGROUP Leaders
 
 ```sql
-BALANCE VGROUP LEADER
+BALANCE VGROUP LEADER;
+BALANCE VGROUP LEADER FORCE;
+BALANCE VGROUP LEADER ON vgroup_id;
+BALANCE VGROUP LEADER ON vgroup_id FORCE;
+BALANCE VGROUP LEADER DATABASE db_name;
+BALANCE VGROUP LEADER DATABASE db_name FORCE;
 ```
 
-Triggers leader re-election in all vgroups of the cluster to rebalance load across nodes. This command is available in TDengine Enterprise only.
+Re-elects vgroup leaders only. It does not migrate vnodes and does not copy data. This command is available in TDengine Enterprise only. For the difference between the two modes, and for the short period when a vgroup cannot serve reads or writes during election, see [VGroup Leader Rebalancing](../../12-operations-and-tooling/02-operations/04-maintenance.md#vgroup-leader-rebalancing).
 
 ### Check Database Working Status
 

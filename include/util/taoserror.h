@@ -1174,6 +1174,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED     TAOS_DEF_ERROR_CODE(0, 0x26E6)
 #define TSDB_CODE_PAR_STREAM_CREATE_PERMISSION_DENIED TAOS_DEF_ERROR_CODE(0, 0x26E7)
 #define TSDB_CODE_PAR_NOT_SUPPORT_VTABLE_TWO_PASS     TAOS_DEF_ERROR_CODE(0, 0x26E8)
+#define TSDB_CODE_PAR_LIMIT_LESS_ZERO                 TAOS_DEF_ERROR_CODE(0, 0x26E9)
 #define TSDB_CODE_PAR_INTERNAL_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x26FF)
 
 //planner
@@ -1503,7 +1504,9 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY    TAOS_DEF_ERROR_CODE(0, 0x642A)  // Internal: apply session overlay demotion and retry
 #define TSDB_CODE_EXT_PUSHDOWN_BASELINE          TAOS_DEF_ERROR_CODE(0, 0x642B)  // Internal: force baseline path
 #define TSDB_CODE_EXT_PUSHDOWN_BAILOUT_BROKEN    TAOS_DEF_ERROR_CODE(0, 0x642C)  // Internal: baseline path still triggered pushdown demotion
-// 0x642D-0x64FF reserved for extension
+#define TSDB_CODE_EXT_SCHEMA_CONFLICT             TAOS_DEF_ERROR_CODE(0, 0x642D)  // Connector: ambiguous external column types or roles
+#define TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING       TAOS_DEF_ERROR_CODE(0, 0x642E)  // Connector: client authentication plugin (e.g. caching_sha2_password) missing or unloadable
+// 0x642F-0x64FF reserved for extension
 
 // NEW-STREAM
 #define TSDB_CODE_MND_STREAM_INTERNAL_ERROR      TAOS_DEF_ERROR_CODE(0, 0x7000)

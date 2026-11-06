@@ -74,6 +74,7 @@ from federated_query_common import (
     FederatedQueryCaseHelper,
     FederatedQueryVersionedMixin,
     ExtSrcEnv,
+    influx18_basic_gate,
     TSDB_CODE_EXT_PUSHDOWN_FAILED,
     TSDB_CODE_EXT_SOURCE_NOT_FOUND,
     TSDB_CODE_EXT_SOURCE_UNAVAILABLE,
@@ -90,6 +91,7 @@ from federated_query_common import (
     TSDB_CODE_EXT_QUERY_TIMEOUT,
     TSDB_CODE_MND_EXTERNAL_SOURCE_NOT_EXIST,
     _code,
+    influx_versions,
 )
 
 
@@ -459,6 +461,7 @@ _INFLUX_PUSH_T_LINES = [
 class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
     """FQ-06-001 through FQ-06-004: error classification & retry policy."""
 
+
     def setup_class(self):
         tdLog.debug(f"start to execute {__file__}")
         self.helper = FederatedQueryCaseHelper(__file__)
@@ -493,6 +496,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-06-30 wpan Add dimension d: recovery verification after service restart
 
         """
+
         # Real MySQL: create source, verify works, STOP instance → connection error,
         # catalog persistence verified, then RESTART + verify recovery.
         src = "fq_06_001"
@@ -560,35 +564,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
         # --- InfluxDB path ---
-        i_src = "fq_06_001_i"
-        i_db = "fq_06_001_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            ExtSrcEnv.stop_influx_instance(influx_ver)
-            try:
-                tdSql.error(f"select * from {i_src}.push_t limit 1",
-                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
-                tdSql.query(
-                    f"select source_name from information_schema.ins_ext_sources "
-                    f"where source_name = '{i_src}'")
-                tdSql.checkRows(1)
-            finally:
-                ExtSrcEnv.start_influx_instance(influx_ver)
-                # Dimension d) Recovery: query succeeds again after service restart
-                tdSql.query(f"select count(*) from {i_src}.push_t")
-                tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_connection_recovery()
+
         # --- SQL Server path ---
         s_src = "fq_06_001_s"
         s_db = "fq_06_001_s_ext"
@@ -680,6 +657,56 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
+    def do_influx_connection_recovery(self):
+        i_src = "fq_06_001_i"
+        i_db = "fq_06_001_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            ExtSrcEnv.stop_influx_instance(influx_ver)
+            try:
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_influx_instance(influx_ver)
+                # Dimension d) Recovery: query succeeds again after service restart
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+
+    def do_influx18_auth_failure_recovery(self, source, database):
+        with influx18_basic_gate(self._influx_cfg()) as (port, _):
+            tdSql.execute(self._mk_influx_source_sql(
+                source, "127.0.0.1", port, "", database=database,
+                user="basic18", password="incorrect"))
+            tdSql.error(f"select * from {source}.push_t limit 1",
+                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+            tdSql.query(
+                "select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{source}'")
+            tdSql.checkRows(1)
+            self._cleanup_src(source)
+            tdSql.execute(self._mk_influx_source_sql(
+                source, "127.0.0.1", port, "", database=database,
+                user="basic18", password="basic18_test_password"))
+            tdSql.query(f"select count(*) from {source}.push_t")
+            tdSql.checkData(0, 0, 5)
+
     def test_fq_06_002(self):
         """FQ-06-002: Auth error fast-fail — wrong credentials produce EXT_AUTH_FAILED
 
@@ -706,6 +733,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                                password; verify EXT_AUTH_FAILED + recovery
 
         """
+
         # --- MySQL path ---
         src = "fq_06_002"
         ext_db = "fq_06_002_ext"
@@ -776,38 +804,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
         # --- InfluxDB path ---
-        i_src = "fq_06_002_i"
-        i_db = "fq_06_002_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(
-                i_src,
-                database=i_db,
-                api_token="TOTALLY_WRONG_TOKEN_FQ06_xr2p7",
-            )
-            # Dimension a/b) Wrong token → EXT_AUTH_FAILED
-            # Generic Influx auth-consumption check: if api_token handling breaks,
-            # the query path should not authenticate successfully.
-            tdSql.error(f"select * from {i_src}.push_t limit 1",
-                        expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
-            # Dimension c)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            # Dimension d) Recovery: recreate with correct token → query succeeds
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_syntax_diagnostics()
+
         # --- SQL Server path ---
         s_src = "fq_06_002_s"
         s_db = "fq_06_002_s_ext"
@@ -879,6 +877,44 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
+    def do_influx_syntax_diagnostics(self):
+        i_src = "fq_06_002_i"
+        i_db = "fq_06_002_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            if influx_ver == "1.8":
+                self.do_influx18_auth_failure_recovery(i_src, i_db)
+            else:
+                self._mk_influx_real(
+                    i_src,
+                    database=i_db,
+                    api_token="TOTALLY_WRONG_TOKEN_FQ06_xr2p7",
+                )
+                # Dimension a/b) Wrong token → EXT_AUTH_FAILED
+                # Generic Influx auth-consumption check: if api_token handling breaks,
+                # the query path should not authenticate successfully.
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_AUTH_FAILED)
+                # Dimension c)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+                # Dimension d) Recovery: recreate with correct token → query succeeds
+                self._mk_influx_real(i_src, database=i_db)
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+
     def test_fq_06_003(self):
         """FQ-06-003: Resource exhaustion — EXT_RESOURCE_EXHAUSTED (real verification)
 
@@ -924,6 +960,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                                with MySQL SLEEP() VIEW holds slot for RESOURCE_EXHAUSTED.
 
         """
+
         import threading
         import time
 
@@ -1053,26 +1090,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         # ----------------------------------------------------------------
         # InfluxDB path — sanity-check
         # ----------------------------------------------------------------
-        i_src = "fq_06_003_i"
-        i_db = "fq_06_003_i_ext"
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'"
-            )
-            tdSql.checkRows(1)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
+        self.do_influx_error_classification()
 
         # ----------------------------------------------------------------
         # SQL Server path — real RESOURCE_EXHAUSTED verification
@@ -1266,6 +1284,29 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             except Exception:
                 pass
 
+    @influx_versions()
+    def do_influx_error_classification(self):
+        i_src = "fq_06_003_i"
+        i_db = "fq_06_003_i_ext"
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'"
+            )
+            tdSql.checkRows(1)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+
     def test_fq_06_004(self):
         """FQ-06-004: Availability state transitions — available/degraded/unavailable switching correct
 
@@ -1287,6 +1328,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-06-30 wpan Add dimension e: recovery verification after service restart
 
         """
+
         src = "fq_06_004"
         ext_db = "fq_06_004_ext"
         mysql_ver = getattr(self, "_active_mysql_ver", None) or ExtSrcEnv.MYSQL_VERSIONS[0]
@@ -1370,43 +1412,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             f"where source_name = '{p_src}'")
         tdSql.checkRows(0)
         # --- InfluxDB path ---
-        i_src = "fq_06_004_i"
-        i_db = "fq_06_004_i_ext"
-        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
-        self._cleanup_src(i_src)
-        try:
-            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
-            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
-            self._mk_influx_real(i_src, database=i_db)
-            tdSql.query(
-                f"select source_name from information_schema.ins_ext_sources "
-                f"where source_name = '{i_src}'")
-            tdSql.checkRows(1)
-            tdSql.query(f"select count(*) from {i_src}.push_t")
-            tdSql.checkData(0, 0, 5)
-            ExtSrcEnv.stop_influx_instance(influx_ver)
-            try:
-                tdSql.error(f"select * from {i_src}.push_t limit 1",
-                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
-                tdSql.query(
-                    f"select source_name from information_schema.ins_ext_sources "
-                    f"where source_name = '{i_src}'")
-                tdSql.checkRows(1)
-            finally:
-                ExtSrcEnv.start_influx_instance(influx_ver)
-                # Dimension e) Recovery
-                tdSql.query(f"select count(*) from {i_src}.push_t")
-                tdSql.checkData(0, 0, 5)
-        finally:
-            self._cleanup_src(i_src)
-            try:
-                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
-            except Exception:
-                pass
-        tdSql.query(
-            f"select source_name from information_schema.ins_ext_sources "
-            f"where source_name = '{i_src}'")
-        tdSql.checkRows(0)
+        self.do_influx_abort_cleanup()
+
         # --- SQL Server path ---
         s_src = "fq_06_004_s"
         s_db = "fq_06_004_s_ext"
@@ -1510,6 +1517,46 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         tdSql.query(
             f"select source_name from information_schema.ins_ext_sources "
             f"where source_name = '{o_src}'")
+        tdSql.checkRows(0)
+
+    @influx_versions()
+    def do_influx_abort_cleanup(self):
+        i_src = "fq_06_004_i"
+        i_db = "fq_06_004_i_ext"
+        influx_ver = getattr(self, "_active_influx_ver", None) or ExtSrcEnv.INFLUX_VERSIONS[0]
+        self._cleanup_src(i_src)
+        try:
+            ExtSrcEnv.influx_create_db_cfg(self._influx_cfg(), i_db)
+            ExtSrcEnv.influx_write_cfg(self._influx_cfg(), i_db, _INFLUX_PUSH_T_LINES)
+            self._mk_influx_real(i_src, database=i_db)
+            tdSql.query(
+                f"select source_name from information_schema.ins_ext_sources "
+                f"where source_name = '{i_src}'")
+            tdSql.checkRows(1)
+            tdSql.query(f"select count(*) from {i_src}.push_t")
+            tdSql.checkData(0, 0, 5)
+            ExtSrcEnv.stop_influx_instance(influx_ver)
+            try:
+                tdSql.error(f"select * from {i_src}.push_t limit 1",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_UNAVAILABLE)
+                tdSql.query(
+                    f"select source_name from information_schema.ins_ext_sources "
+                    f"where source_name = '{i_src}'")
+                tdSql.checkRows(1)
+            finally:
+                ExtSrcEnv.start_influx_instance(influx_ver)
+                # Dimension e) Recovery
+                tdSql.query(f"select count(*) from {i_src}.push_t")
+                tdSql.checkData(0, 0, 5)
+        finally:
+            self._cleanup_src(i_src)
+            try:
+                ExtSrcEnv.influx_drop_db_cfg(self._influx_cfg(), i_db)
+            except Exception:
+                pass
+        tdSql.query(
+            f"select source_name from information_schema.ins_ext_sources "
+            f"where source_name = '{i_src}'")
         tdSql.checkRows(0)
 
     def test_fq_06_005(self):

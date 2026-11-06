@@ -25,7 +25,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 选择 **类型** 下拉框中的 *`PostgreSQL`* ，如下图所示（选择完成后页面中的字段会发生变化）。
 
-**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮创建一个新的代理。
+**代理** 是非必填项，如有需要，可以在下拉框中选择指定的代理，也可以先点击右侧的 **+创建新的代理** 按钮创建一个新的代理。代理与 taosX 之间的网络要求（端口放通与检查方法）见 [数据接入前置条件](./00-prerequisites.md)。
 
 **目标数据库** 是必填项，可以先点击右侧的 **+创建数据库** 按钮创建一个新的数据库。
 
@@ -39,11 +39,11 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 ### 配置认证信息
 
-**用户** 输入源 PostgreSQL 数据库的用户，该用户必须在该组织中拥有读取权限。  
+**用户** 输入源 PostgreSQL 数据库的用户，该用户必须在该组织中拥有读取权限。
 
 **密码** 输入源 PostgreSQL 数据库中上方用户的登录密码。
 
-![ postgres-03.webp](../../assets/postgres-03.webp "配置认证信息")  
+![ postgres-03.webp](../../assets/postgres-03.webp "配置认证信息")
 
 ### 配置连接选项
 
@@ -51,7 +51,7 @@ TDengine 可以高效地从 PostgreSQL 读取数据并将其写入 TDengine，�
 
 **SSL 模式** 设置是否与服务器协商安全 SSL TCP/IP 连接或以何种优先级进行协商。默认值是 PREFER。可选项有 DISABLE、ALLOW、PREFER、REQUIRE。
 
-![ postgres-04.webp](../../assets/postgres-04.webp "配置连接选项")  
+![ postgres-04.webp](../../assets/postgres-04.webp "配置连接选项")
 
 然后点击 **检查连通性** 按钮，用户可以点击此按钮检查上方填写的信息是否可以正常获取源 PostgreSQL 数据库的数据。
 

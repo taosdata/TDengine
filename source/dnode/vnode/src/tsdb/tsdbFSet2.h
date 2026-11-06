@@ -45,6 +45,9 @@ int32_t tsdbTFileSetInit(int32_t fid, STFileSet **fset);
 int32_t tsdbTFileSetInitCopy(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 int32_t tsdbTFileSetInitRef(STsdb *pTsdb, const STFileSet *fset1, STFileSet **fset);
 void    tsdbTFileSetClear(STFileSet **fset);
+// shared-storage migration helpers (tsdbMigrate.c), exposed for unit tests
+int32_t     tsdbValidateRemoteFset(const STFileSet *pFset, int32_t fid);
+const char *tsdbSsKeyBasename(const char *key);
 void    tsdbTFileSetRemove(STFileSet *fset);
 int64_t tsdbTFileSetGetDataSize(const STFileSet *fset);
 

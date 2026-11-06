@@ -16,6 +16,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <chrono>
 #include <iostream>
 #include <string>
@@ -25,6 +26,9 @@
 #include "transComm.h"
 #include "transportInt.h"
 #include "trpc.h"
+#include "tversion.h"
+#include "tmisce.h"
+#include "tmsg.h"
 
 #if defined(USE_UV) && !defined(TD_ASTRA_RPC)
 
@@ -548,5 +552,124 @@ TEST(TransDevonSecTest, TdItem351ReleaseRespUnknownQidIgnored) {
   // the registered entry
   EXPECT_EQ(testCliReleaseRespGate(8, 7), 1);
   EXPECT_EQ(testCliReleaseRespGate(-1, 7), 1);
+}
+
+// ---------------------------------------------------------------------------------------------
+// COMMIT / ROLLBACK refused with TRANS_CONFLICT must be resent by the RPC layer (with
+// backoff) once the client's retry hook asks for it; other messages must not be.
+// Own server returning the error a few times, own client carrying a retry hook shaped like the
+// one the real client registers (the real one is static in clientMain.c and not reachable here).
+// ---------------------------------------------------------------------------------------------
+namespace {
+const int32_t kConflictTestPort = 7100;
+
+std::atomic<int32_t> gConflictReqCount(0);
+std::atomic<int32_t> gConflictFailTimes(0);
+std::atomic<int32_t> gConflictRespCode(-1);
+tsem_t               gConflictSem;
+
+void conflictServerProcess(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  int32_t n = ++gConflictReqCount;
+  SRpcMsg rsp = {0};
+  rsp.info = pMsg->info;
+  rsp.code = (n <= gConflictFailTimes.load()) ? TSDB_CODE_MND_TRANS_CONFLICT : 0;
+  rpcFreeCont(pMsg->pCont);
+  rpcSendResponse(&rsp);
+}
+
+void conflictClientProcess(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  gConflictRespCode = pMsg->code;
+  rpcFreeCont(pMsg->pCont);
+  (void)tsem_post(&gConflictSem);
+}
+
+// Must match the TRANS_CONFLICT branch of instanceRegisterRpcRfp's retry hook in clientMain.c.
+bool conflictRetryHook(int32_t code, tmsg_t msgType) {
+  return code == TSDB_CODE_MND_TRANS_CONFLICT &&
+         (msgType == TDMT_MND_COMMIT_TXN || msgType == TDMT_MND_ROLLBACK_TXN);
+}
+
+int32_t SendOnce(tmsg_t msgType, int32_t failTimes, int32_t *pReqCount) {
+  gConflictReqCount = 0;
+  gConflictFailTimes = failTimes;
+  gConflictRespCode = -1;
+  *pReqCount = 0;
+  EXPECT_EQ(tsem_init(&gConflictSem, 0, 0), 0);
+
+  SRpcInit srvInit = {0};
+  memcpy(srvInit.localFqdn, "localhost", strlen("localhost"));
+  srvInit.localPort = kConflictTestPort;
+  srvInit.label = (char *)"conflictSrv";
+  srvInit.numOfThreads = 1;
+  srvInit.cfp = conflictServerProcess;
+  srvInit.user = (char *)"user";
+  srvInit.connType = TAOS_CONN_SERVER;
+  taosVersionStrToInt(td_version, &(srvInit.compatibilityVer));
+  void *srv = rpcOpen(&srvInit);
+  if (srv == nullptr) {
+    ADD_FAILURE() << "failed to open conflict test server";
+    (void)tsem_destroy(&gConflictSem);
+    return -1;
+  }
+  taosMsleep(500);
+
+  SRpcInit cliInit = {0};
+  cliInit.localPort = 0;
+  cliInit.label = (char *)"conflictCli";
+  cliInit.numOfThreads = 1;
+  cliInit.cfp = conflictClientProcess;
+  cliInit.user = (char *)"user";
+  cliInit.connType = TAOS_CONN_CLIENT;
+  cliInit.shareConnLimit = 10;
+  cliInit.rfp = conflictRetryHook;
+  cliInit.retryMinInterval = 10;
+  cliInit.retryStepFactor = 2;
+  cliInit.retryMaxInterval = 100;
+  cliInit.retryMaxTimeout = 10000;
+  taosVersionStrToInt(td_version, &(cliInit.compatibilityVer));
+  void *cli = rpcOpen(&cliInit);
+  if (cli == nullptr) {
+    ADD_FAILURE() << "failed to open conflict test client";
+    rpcClose(srv);
+    (void)tsem_destroy(&gConflictSem);
+    return -1;
+  }
+
+  SEpSet epSet = {0};
+  epSet.inUse = 0;
+  addEpIntoEpSet(&epSet, "127.0.0.1", kConflictTestPort);
+  SRpcMsg req = {0};
+  req.msgType = msgType;
+  req.pCont = rpcMallocCont(10);
+  req.contLen = 10;
+  EXPECT_EQ(rpcSendRequest(cli, &epSet, &req, NULL), 0);
+  // Bounded wait: if the retry hook regresses and no final response arrives, fail instead of
+  // hanging the runner. retryMaxTimeout plus margin.
+  EXPECT_EQ(tsem_timewait(&gConflictSem, cliInit.retryMaxTimeout + 5000), 0);
+
+  rpcClose(cli);
+  rpcClose(srv);
+  (void)tsem_destroy(&gConflictSem);
+  *pReqCount = gConflictReqCount.load();
+  return gConflictRespCode.load();
+}
+}  // namespace
+
+TEST(TransConflictRetry, CommitIsResentUntilTheConflictClears) {
+  int32_t reqCount = 0;
+  EXPECT_EQ(SendOnce(TDMT_MND_COMMIT_TXN, 3, &reqCount), 0);
+  EXPECT_EQ(reqCount, 4);
+}
+
+TEST(TransConflictRetry, RollbackIsResentUntilTheConflictClears) {
+  int32_t reqCount = 0;
+  EXPECT_EQ(SendOnce(TDMT_MND_ROLLBACK_TXN, 2, &reqCount), 0);
+  EXPECT_EQ(reqCount, 3);
+}
+
+TEST(TransConflictRetry, OtherMessagesAreNotResent) {
+  int32_t reqCount = 0;
+  EXPECT_EQ(SendOnce(TDMT_MND_CREATE_DB, 3, &reqCount), TSDB_CODE_MND_TRANS_CONFLICT);
+  EXPECT_EQ(reqCount, 1);
 }
 #endif

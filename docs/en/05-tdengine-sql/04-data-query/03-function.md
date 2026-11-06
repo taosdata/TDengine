@@ -3885,7 +3885,7 @@ BIT_DURATION(expr [, mask [, flag]])
 
 **Function Classification**: Aggregate function.
 
-**Version**: v3.4.3.0.
+**Version**: v3.4.3.7.
 
 **Function Description**: Calculates the duration of the masked binary state for an integer measurement. `mask` defaults to `1` and ranges from `1` to `INT64_MAX`; `flag` defaults to `0`.
 

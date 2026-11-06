@@ -128,6 +128,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Incorrect TIMESTAMP value: %s";
     case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
       return "soffset/offset cannot be less than 0";
+    case TSDB_CODE_PAR_LIMIT_LESS_ZERO:
+      return "limit cannot be less than 0";
     case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY:
       return "slimit/soffset are only available for PARTITION/GROUP BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:

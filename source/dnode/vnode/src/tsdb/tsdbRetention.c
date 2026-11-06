@@ -69,8 +69,8 @@ static int32_t tsdbDoCopyFileLC(SRTNer *rtner, const STFileObj *from, const STFi
   int32_t   code = 0;
   int32_t   lino = 0;
   TdFilePtr fdFrom = NULL, fdTo = NULL;
-  char      fname_from[TSDB_FILENAME_LEN];
-  char      fname_to[TSDB_FILENAME_LEN];
+  char      fname_from[TSDB_PATH_LEN];
+  char      fname_to[TSDB_PATH_LEN];
 
   tsdbTFileLastChunkName(rtner->tsdb, from->f, fname_from);
   tsdbTFileLastChunkName(rtner->tsdb, to, fname_to);
@@ -113,7 +113,7 @@ static int32_t tsdbDoCopyFile(SRTNer *rtner, const STFileObj *from, const STFile
   int32_t code = 0;
   int32_t lino = 0;
 
-  char      fname[TSDB_FILENAME_LEN];
+  char      fname[TSDB_PATH_LEN];
   TdFilePtr fdFrom = NULL;
   TdFilePtr fdTo = NULL;
 

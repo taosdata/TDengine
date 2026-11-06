@@ -19,10 +19,11 @@ Test querying virtual tables that reference different InfluxDB series
 from the same measurement using the SERIES clause.
 
 Scenario:
-  - One InfluxDB measurement `machine_metrics` with fields: cpu, mem, disk
+  - Measurement `machine_metrics` with fields: cpu, mem, disk
+  - Sparse Fields and missing Tags in additional measurements
   - Multiple series distinguished by tags: (host, datacenter)
   - Virtual tables pin to specific series via SERIES clause
-  - Each series uses UNIQUE timestamps (no overlap) so dedup doesn't mask data
+  - Disjoint and interleaved series timestamps
 
 Tests verified:
   1. CREATE VTABLE with SERIES clause succeeds (DDL)
@@ -31,6 +32,7 @@ Tests verified:
   4. Multi-SERIES vtable (columns from different series) works
   5. Series isolation: each vtable only returns its pinned series data
      (requires series filter push-down to InfluxDB query)
+  6. Sparse projections, complete Tag Sets, virtual supertables and time bounds
 """
 
 import os
@@ -52,6 +54,7 @@ EXT_SOURCE_NAME = "influx_series_src"
 TDENGINE_DB = "db_series_query"
 
 BASE_TS = 1716000000  # 2024-05-18 approx, in seconds
+REFERENCE_TS = BASE_TS * 1_000_000_000 + 1
 
 # Series definitions: each series has UNIQUE timestamps (10s apart, offset
 # between series by 100s) so there's no timestamp collision.
@@ -91,6 +94,14 @@ def _build_line_protocol():
                 f"{MEASUREMENT},host={host},datacenter={dc} "
                 f"cpu={cpu},mem={mem},disk={disk} {ts_ns}"
             )
+    lines.extend([
+        f"sparse,site=a value=1i {REFERENCE_TS}",
+        f"sparse,site=b other=2i {REFERENCE_TS + 1}",
+        f"sparse,site=a value=3i {REFERENCE_TS + 2}",
+        f"complete,site=a,zone=east value=1i {REFERENCE_TS}",
+        f"complete,site=a,zone=west value=9i {REFERENCE_TS + 1}",
+        f"complete,site=a value=5i {REFERENCE_TS + 2}",
+    ])
     return lines
 
 
@@ -130,13 +141,12 @@ class TestVTableQueryExtSourceSeries:
         ExtSrcEnv.ensure_qnode()
 
         # External source
-        influx_token = ExtSrcEnv._get_influx_token(ExtSrcEnv.INFLUX_VERSIONS[0])
         tdSql.execute(
             f"CREATE EXTERNAL SOURCE IF NOT EXISTS {EXT_SOURCE_NAME} "
             f"TYPE='influxdb' "
             f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
-            f"USER='u' PASSWORD='' DATABASE={INFLUX_DB} "
-            f"OPTIONS('api_token'='{influx_token}','protocol'='flight_sql')"
+            f"USER='{ExtSrcEnv.influx_source_credentials()[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials()[1]}' DATABASE={INFLUX_DB} "
+            f"OPTIONS({ExtSrcEnv.influx_source_options()})"
         )
 
         # VTable for web01/us-east series
@@ -216,32 +226,148 @@ class TestVTableQueryExtSourceSeries:
     def test_vtable_queryable(self):
         """Virtual tables with SERIES clause are queryable.
 
-        Virtual tables with SERIES clause are queryable.
+        1. Check projections, aggregates and filters over bound SERIES.
+        2. Verify sparse Fields and exact nanosecond time bounds.
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.4.3.0
 
+        Labels: common, ci
+
+        Jira: None
+
+        History:
+            - 2026-10-30 Share sparse SERIES coverage across InfluxDB versions
+
         """
         self._test_vtable_queryable()
+        self.do_sparse_series_queries()
 
     def test_mixed_series_queryable(self):
         """Multi-SERIES vtable is queryable.
 
-        Multi-SERIES vtable is queryable.
+        1. Check disjoint SERIES timestamps and NULL-filled columns.
+        2. Verify sparse Fields merge correctly at interleaved timestamps.
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.4.3.0
 
+        Labels: common, ci
+
+        Jira: None
+
+        History:
+            - 2026-10-30 Share interleaved SERIES coverage across InfluxDB versions
+
         """
         self._test_mixed_series_queryable()
+        self.do_interleaved_series_queries()
 
     def test_series_isolation(self):
         """Each vtable returns only its pinned series data.
 
-        Each vtable returns only its pinned series data.
+        1. Check exact rows and values for each bound SERIES.
+        2. Verify complete Tag Sets against native missing-Tag queries.
+        3. Check virtual supertable time filters, windows and version details.
+
+        Catalog:
+            - VirtualTable
 
         Since: v3.4.3.0
 
+        Labels: common, ci
+
+        Jira: None
+
+        History:
+            - 2026-10-30 Share Tag Set and virtual supertable SERIES coverage
+            - 2026-11-02 Compare empty-Tag bindings with the native query result
+
         """
         self._test_series_isolation()
+        self.do_complete_tag_set()
+        self.do_virtual_supertable_queries()
+
+    @staticmethod
+    def _check_rows(sql, expected):
+        tdSql.query(sql)
+        assert tdSql.queryResult == expected, (sql, tdSql.queryResult, expected)
+
+    def do_sparse_series_queries(self):
+        tdSql.execute(
+            f"CREATE VTABLE vt_sparse (ts TIMESTAMP, v BIGINT FROM s.value) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.sparse (site='a')")
+        self._check_rows("SELECT CAST(ts AS BIGINT),v FROM vt_sparse ORDER BY ts",
+                         [(REFERENCE_TS, 1), (REFERENCE_TS + 2, 3)])
+        self._check_rows(f"SELECT v FROM vt_sparse WHERE ts>={REFERENCE_TS + 2}", [(3,)])
+        print("sparse SERIES queries .................... [ passed ]")
+
+    def do_interleaved_series_queries(self):
+        tdSql.execute(
+            f"CREATE VTABLE vt_interleaved (ts TIMESTAMP, a BIGINT FROM s1.value, b BIGINT FROM s2.other) "
+            f"SERIES s1 AS {EXT_SOURCE_NAME}.{INFLUX_DB}.sparse (site='a') "
+            f"SERIES s2 AS {EXT_SOURCE_NAME}.{INFLUX_DB}.sparse (site='b')")
+        self._check_rows("SELECT a,b FROM vt_interleaved ORDER BY ts",
+                         [(1, None), (None, 2), (3, None)])
+        if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+            tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE SELECT a,b FROM vt_interleaved ORDER BY ts")
+            plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+            assert "Virtual Table Scan" in plan and "InfluxDB version=1.8" in plan, plan
+        print("interleaved SERIES queries ............... [ passed ]")
+
+    def do_complete_tag_set(self):
+        # Do not infer empty-Tag equality from the configured major version.
+        # Use the backend's native query as an independent result oracle.
+        native_rows = ExtSrcEnv.influx_query_sql(
+            INFLUX_DB, 'SELECT "value" FROM "complete" WHERE "site" = \'a\'')
+        assert sorted(row["value"] for row in native_rows) == [1, 5, 9], native_rows
+        empty_rows = ExtSrcEnv.influx_query_sql(
+            INFLUX_DB, 'SELECT "value" FROM "complete" WHERE "site" = \'a\' AND "zone" = \'\'')
+        self.empty_tag_rows = [(row["value"],) for row in empty_rows]
+        assert self.empty_tag_rows in ([], [(5,)]), empty_rows
+        if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+            assert self.empty_tag_rows == [(5,)], empty_rows
+        tdSql.execute(
+            f"CREATE VTABLE vt_full_tags (ts TIMESTAMP, v BIGINT FROM s.value) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.complete (site='a',zone='east')")
+        self._check_rows("SELECT v FROM vt_full_tags", [(1,)])
+        tdSql.execute(
+            f"CREATE VTABLE vt_empty_tag (ts TIMESTAMP, v BIGINT FROM s.value) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.complete (site='a',zone='')")
+        self._check_rows("SELECT v FROM vt_empty_tag", self.empty_tag_rows)
+        print("complete SERIES Tag Set .................. [ passed ]")
+
+    def do_virtual_supertable_queries(self):
+        tdSql.execute("CREATE STABLE virtual_parent (ts TIMESTAMP,v BIGINT) TAGS(id INT) VIRTUAL 1")
+        tdSql.execute(
+            f"CREATE VTABLE vt_child (v FROM s.value) USING virtual_parent TAGS(1) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.sparse (site='a')")
+        self._check_rows("SELECT v FROM virtual_parent ORDER BY ts", [(1,), (3,)])
+        self._check_rows(f"SELECT v FROM virtual_parent WHERE ts>={REFERENCE_TS + 2}", [(3,)])
+        tdSql.execute(
+            f"CREATE VTABLE vt_child_empty (v FROM s.value) USING virtual_parent TAGS(4) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.complete (site='a',zone='')")
+        self._check_rows("SELECT v FROM virtual_parent WHERE id=4", self.empty_tag_rows)
+        tdSql.execute("DROP VTABLE vt_child_empty")
+        tdSql.execute(
+            f"CREATE VTABLE vt_child_b (v FROM s.other) USING virtual_parent TAGS(2) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.sparse (site='b')")
+        tdSql.execute(
+            f"CREATE VTABLE vt_child_c (v FROM s.value) USING virtual_parent TAGS(3) "
+            f"SERIES s AS {EXT_SOURCE_NAME}.{INFLUX_DB}.complete (site='a',zone='east')")
+        query = "SELECT CAST(_wstart AS BIGINT),COUNT(v) FROM virtual_parent INTERVAL(1s)"
+        self._check_rows(query, [(REFERENCE_TS // 1_000_000_000 * 1_000_000_000, 4)])
+        tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + query)
+        plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+        if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+            assert "influxdb-1.8" in plan and "InfluxDB version=1.8 RP=autogen" in plan, plan
+        else:
+            assert "(influxdb)" in plan, plan
+        print("virtual supertable SERIES queries ........ [ passed ]")
 
     def _test_describe_shows_filter(self):
         """DESCRIBE should show the series filter in the ref column."""

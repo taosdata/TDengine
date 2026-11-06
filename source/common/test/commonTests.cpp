@@ -17,7 +17,10 @@
 
 #include <gtest/gtest.h>
 #include <atomic>
+#include <fstream>
 #include <iostream>
+#include <iterator>
+#include <limits>
 #include <memory>
 #include <string>
 #include <thread>
@@ -41,6 +44,7 @@
 #include "tvariant.h"
 #include "tanalytics.h"
 #include "tglobal.h"
+#include "tjson.h"
 #include "envelope_crypto.h"
 
 #include <openssl/bio.h>
@@ -2529,6 +2533,85 @@ TEST(testCase, function_param_check) {
 
   taosMemoryFree(param);
 }
+
+#ifdef USE_ANALYTICS
+TEST(AnalyticsJson, NumericBoundaries) {
+  const EAnalBufType modes[] = {ANALYTICS_BUF_TYPE_JSON, ANALYTICS_BUF_TYPE_JSON_COL};
+  double             doubles[] = {0.0,
+                                  -0.0,
+                                  1e70,
+                                  -1e70,
+                                  std::numeric_limits<double>::max(),
+                                  std::numeric_limits<double>::lowest(),
+                                  std::numeric_limits<double>::quiet_NaN(),
+                                  std::numeric_limits<double>::infinity(),
+                                  -std::numeric_limits<double>::infinity()};
+  float              floats[] = {0.0f,
+                                 -0.0f,
+                                 1e30f,
+                                 -1e30f,
+                                 std::numeric_limits<float>::max(),
+                                 std::numeric_limits<float>::lowest(),
+                                 std::numeric_limits<float>::quiet_NaN(),
+                                 std::numeric_limits<float>::infinity(),
+                                 -std::numeric_limits<float>::infinity()};
+
+  for (EAnalBufType mode : modes) {
+    SCOPED_TRACE(mode);
+    SAnalyticBuf buf = {};
+    buf.bufType = mode;
+    taosGetTmpfilePath(tsTempDir, "analytics-json-boundaries", buf.fileName);
+    std::unique_ptr<SAnalyticBuf, decltype(&taosAnalyBufDestroy)> cleanup(&buf, taosAnalyBufDestroy);
+    ASSERT_EQ(tsosAnalyBufOpen(&buf, 2, "analytics-json-test"), 0);
+    ASSERT_EQ(taosAnalyBufWriteColMeta(&buf, 0, TSDB_DATA_TYPE_DOUBLE, "d"), 0);
+    ASSERT_EQ(taosAnalyBufWriteColMeta(&buf, 1, TSDB_DATA_TYPE_FLOAT, "f"), 0);
+    ASSERT_EQ(taosAnalyBufWriteDataBegin(&buf), 0);
+    for (int32_t col = 0; col < 2; ++col) {
+      const int32_t type = col == 0 ? TSDB_DATA_TYPE_DOUBLE : TSDB_DATA_TYPE_FLOAT;
+      ASSERT_EQ(taosAnalyBufWriteColBegin(&buf, col), 0);
+      for (int32_t row = 0; row < 9; ++row) {
+        void* value = col == 0 ? static_cast<void*>(&doubles[row]) : static_cast<void*>(&floats[row]);
+        ASSERT_EQ(taosAnalyBufWriteColData(&buf, col, type, value), 0);
+      }
+      ASSERT_EQ(taosAnalyBufWriteColData(&buf, col, type, nullptr), 0);
+      EXPECT_EQ(buf.pCols[col].numOfRows, 10);
+      ASSERT_EQ(taosAnalyBufWriteColEnd(&buf, col), 0);
+    }
+    ASSERT_EQ(taosAnalyBufWriteDataEnd(&buf), 0);
+    ASSERT_EQ(taosAnalyBufClose(&buf), 0);
+
+    std::ifstream input(buf.fileName, std::ios::binary);
+    ASSERT_TRUE(input.is_open());
+    const std::string raw((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    EXPECT_EQ(raw.find('\0'), std::string::npos);
+    std::unique_ptr<SJson, decltype(&tjsonDelete)> json(tjsonParse(raw.c_str()), tjsonDelete);
+    ASSERT_NE(json.get(), nullptr);
+    SJson* data = tjsonGetObjectItem(json.get(), "data");
+    ASSERT_EQ(tjsonGetArraySize(data), 2);
+    for (int32_t col = 0; col < 2; ++col) {
+      SJson* values = tjsonGetArrayItem(data, col);
+      ASSERT_EQ(tjsonGetArraySize(values), 10);
+      for (int32_t row = 0; row < 10; ++row) {
+        SJson* item = tjsonGetArrayItem(values, row);
+        if (row < 6) {
+          double value = 0;
+          tjsonGetObjectValueDouble(item, &value);
+          if (col == 0) {
+            EXPECT_DOUBLE_EQ(value, doubles[row]);
+          } else {
+            EXPECT_FLOAT_EQ(static_cast<float>(value), floats[row]);
+          }
+        } else {
+          char* text = tjsonToUnformattedString(item);
+          ASSERT_NE(text, nullptr);
+          EXPECT_STREQ(text, "null");
+          taosMemoryFree(text);
+        }
+      }
+    }
+  }
+}
+#endif
 
 TEST(testCase, function_fqdn) {
   tsEnableIpv6 = 1;

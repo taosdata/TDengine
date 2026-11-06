@@ -21,6 +21,7 @@ import os
 import re
 import shutil
 import socket
+import stat
 import subprocess
 import sys
 import tempfile
@@ -30,11 +31,27 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
-from windows_case_utils import FQ_SMOKE_CASES, windows_task_manifest, pytest_log_name, resume_task_manifest
+from windows_case_utils import (
+    case_log_prefix,
+    is_fq_command,
+    is_related_command,
+    pytest_log_name,
+    resume_task_manifest,
+    selection_contains_fq,
+    windows_task_manifest,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 BUILD_BINARIES = ("taosd.exe", "taos.exe", "taosBenchmark.exe", "taosadapter.exe", "taoskeeper.exe")
+# The 11g server runs from the Linux container, so the Windows driver tree
+# needs the 19c Instant Client.  ext_oracle_19c treats the Windows bundle as
+# optional (mirror-only artifact): a build that cannot download it completes
+# with an empty source tree and no driver, which is why the stage is retried
+# here once the artifact is published on the mirror.
+ORACLE_19C_ARTIFACT = "oracle-instantclient-19.28.0.0.0-windows-amd64.zip"
+ORACLE_19C_SHA256 = "4c32d73f19c44a33a7e4e0070f6d49be3fa14555cf35e0135e6e96408e741e04"
+ORACLE_EXTERNALS_URL = "https://git.tdengine.net/api/v4/projects/70/packages/generic/externals/latest"
 SERIAL_CTEST_PATTERN = "timerTest|cunit_test|pcre.*|example.*|clientTest|connectOptionsTest|tmqTest|taoscTest|cosTest|tcs_test|osFileTests|idxFstTest"
 CTEST_READY_TIMEOUT_SECONDS = 300
 GIT_LOCK_WAIT_SECONDS = 60
@@ -102,22 +119,36 @@ def tail(path, lines=200):
     print("\n".join(path.read_text(encoding="utf-8", errors="replace").splitlines()[-lines:]))
 
 
+def stop_process_images(names):
+    errors = []
+    for name in names:
+        print(f"[windows-ci] stopping {name}.exe (timeout=15s)", flush=True)
+        try:
+            result = subprocess.run(
+                ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, errors="replace", timeout=15, check=False,
+            )
+        except subprocess.TimeoutExpired:
+            message = f"cleanup timed out stopping {name}.exe after 15s"
+            print(f"[windows-ci] {message}", flush=True)
+            errors.append(message)
+            continue
+        # taskkill returns 128 when no matching process is running.
+        print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
+        if result.returncode not in (0, 128):
+            errors.append(f"cleanup failed stopping {name}.exe: exit={result.returncode}")
+    if errors:
+        raise RuntimeError("; ".join(errors))
+
+
 def stop_processes():
     # Kill the server tree first, then catch UDF processes whose parent has exited.
-    for name in ("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"):
-        result = subprocess.run(
-            ["taskkill", "/f", "/t", "/im", f"{name}.exe"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            text=True, errors="replace", check=False,
-        )
-        # taskkill returns 128 when no matching process is running.
-        if result.returncode != 128:
-            print(f"[windows-ci] stop {name}.exe: exit={result.returncode}; {result.stdout.strip()}", flush=True)
+    stop_process_images(("taosd", "taosudf", "taos", "taosBenchmark", "taosadapter", "taoskeeper"))
 
 
 def stop_build_processes():
-    for name in ("cargo", "rustc", "git", "go", "jom", "cmake", "nmake", "cl", "link", "lib"):
-        subprocess.run(["taskkill", "/f", "/t", "/im", f"{name}.exe"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    stop_process_images(("cargo", "rustc", "git", "go", "jom", "cmake", "nmake", "cl", "link", "lib"))
 
 
 def remove_build_directory(debug_dir):
@@ -186,23 +217,107 @@ def remove_stale_git_index_lock(source_dir):
         fail(f"git index lock remains after {GIT_LOCK_WAIT_SECONDS} seconds: {lock}")
 
 
-def sync_source(source_dir):
-    if run(["git", "fetch", "origin", "--prune", "--force"], cwd=source_dir).returncode:
-        fail("git fetch origin failed")
-    remove_stale_git_index_lock(source_dir)
-    for command in (("git", "reset", "--hard"), ("git", "clean", "-ffd")):
-        if run(command, cwd=source_dir).returncode:
-            fail(f"{' '.join(command)} failed")
-    # Build the exact commit GitLab checked out, including MR head pipelines.
-    # Local runner checkouts do not expose GitLab's synthetic MR merge refs.
-    # Fetch by SHA also handles detached HEADs with no corresponding branch.
-    checkout_ref = os.environ["CI_COMMIT_SHA"]
-    if run(["git", "fetch", "origin", checkout_ref], cwd=source_dir).returncode:
-        fail("git fetch pipeline commit failed")
-    for command in (("git", "checkout", "--detach", "-f", checkout_ref), ("git", "reset", "--hard", checkout_ref), ("git", "clean", "-ffd")):
-        if run(command, cwd=source_dir).returncode:
-            fail(f"{' '.join(command)} failed")
+def stop_processes_under(root):
+    """Kill processes whose executable or working directory lives under root.
 
+    A cancelled job leaves engines such as taosd.exe running from the
+    workspace build tree; their image files cannot be deleted and Windows
+    refuses to remove directories they use, which blocks the rebuild.  A
+    python test driver whose *working directory* is the workspace test
+    tree holds that directory the same way even though its image lives in
+    the CI venv (WinError 32 "used by another process"), so check both.
+    """
+    root_str = str(root).rstrip("\\").lower() + "\\"
+    try:
+        import psutil
+    except ImportError:
+        psutil = None
+    if psutil is not None:
+        own = os.getpid()
+        for proc in psutil.process_iter(["pid", "name", "exe"]):
+            try:
+                if proc.pid == own:
+                    continue
+                exe = (proc.info.get("exe") or "").lower()
+                hit = bool(exe) and exe.startswith(root_str)
+                if not hit:
+                    try:
+                        cwd = (proc.cwd() or "").lower()
+                    except (psutil.Error, OSError):
+                        cwd = ""
+                    hit = bool(cwd) and (cwd + "\\").startswith(root_str)
+                if hit:
+                    proc.kill()
+                    print(f"[windows-ci] killed {proc.pid} {proc.info.get('name')}", flush=True)
+            except (psutil.Error, OSError):
+                continue
+        return
+    # psutil is not installed: fall back to the image-path scan.
+    root_path = str(root)
+    escaped = root_path.replace("'", "''")
+    script = (
+        f"$root = [System.IO.Path]::GetFullPath('{escaped}'); "
+        "Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | "
+        "Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($root, "
+        "[System.StringComparison]::OrdinalIgnoreCase) } | "
+        "ForEach-Object { try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop; "
+        "Write-Output ('[windows-ci] killed ' + $_.ProcessId + ' ' + $_.Name) } catch { } }"
+    )
+    result = subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", check=False)
+    for line in result.stdout.splitlines():
+        if line.strip():
+            print(line.strip(), flush=True)
+
+
+def sync_source(source_dir):
+    source_dir = source_dir.resolve()
+    runner_dir = Path(os.environ.get("CI_PROJECT_DIR", REPOSITORY_ROOT)).resolve()
+    if source_dir == runner_dir:
+        fail("Windows test workspace must be separate from the runner checkout")
+    checkout_ref = os.environ["CI_COMMIT_SHA"]
+
+    # A cancelled job can leave engines and test drivers running from the
+    # previous workspace; they lock the files the metadata swap and the
+    # checkout touch.
+    stop_build_processes()
+    stop_processes()
+    stop_processes_under(source_dir)
+    # A runner checkout is shallow and its boundaries change on every job.
+    # Never accumulate those histories in the persistent build workspace.
+    # Validate fresh metadata before replacing it; ignored dependency caches stay.
+    source_dir.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="windows-ci-git-", dir=source_dir.parent) as temporary:
+        staging = Path(temporary)
+        remote = runner_dir.as_uri()
+        for command in (
+            ["git", "init", str(staging)],
+            ["git", "-c", "gc.auto=0", "fetch", "--depth=1", remote, checkout_ref],
+            ["git", "update-ref", "HEAD", "FETCH_HEAD"],
+            ["git", "fsck", "--connectivity-only"],
+        ):
+            if run(command, cwd=staging).returncode:
+                fail("unable to prepare pipeline commit metadata; existing workspace retained")
+        # Keep origin local: no job token is persisted in the shared workspace.
+        if run(["git", "remote", "add", "origin", str(runner_dir)], cwd=staging).returncode:
+            fail("unable to configure workspace origin")
+        metadata = source_dir / ".git"
+        if (metadata.is_symlink() or getattr(metadata, "is_junction", lambda: False)()
+                or (metadata.exists() and not metadata.is_dir())):
+            fail("refusing to replace linked workspace metadata")
+        if metadata.exists():
+            def writable_retry(function, path, error):
+                os.chmod(path, 0o700)
+                function(path)
+            shutil.rmtree(metadata, onerror=writable_retry)
+        shutil.move(str(staging / ".git"), str(metadata))
+    for command in (
+        ["git", "checkout", "--detach", "-f", checkout_ref],
+        ["git", "clean", "-ffd"],
+    ):
+        if run(command, cwd=source_dir).returncode:
+            fail(f"{' '.join(command)} failed")
     print("[windows-ci] source sync complete; Windows CI does not update taos-ui submodules")
 
 
@@ -356,6 +471,41 @@ def ensure_libpq_runtime(environment):
     print(f"[windows-ci] EXT_LIBPQ_ROOT={target}", flush=True)
 
 
+def ensure_oracle_client(source_dir, debug_dir):
+    """Stage the 19c Instant Client when the build skipped it.
+
+    ext_oracle_19c treats the Windows bundle as optional (the artifact lives
+    only on the dependency mirror): when the download cannot run, the external
+    completes with an empty source tree and ``build\\driver\\oracle\\19c`` is
+    never populated.  The 11g server runs from the container and its admin and
+    provider paths need that client, so fetch the hash-pinned bundle and run
+    the same layout picker the build uses.  A staged tree makes this a no-op.
+    """
+    staged = debug_dir / "build" / "driver" / "oracle" / "19c"
+    if (staged.is_dir() and any(staged.glob("sqora*.dll"))
+            and any(staged.glob("oraociei*.dll"))):
+        return
+    cmake_dir = source_dir / "source" / "taos-community" / "cmake"
+    work_dir = debug_dir / "oracle-client-19c"
+    print("[windows-ci] staging the 19c Oracle Instant Client from the dependency mirror", flush=True)
+    if run([
+        "cmake", f"-Dwork_dir={work_dir}",
+        f"-Dmirror_url={ORACLE_EXTERNALS_URL}/{ORACLE_19C_ARTIFACT}",
+        f"-Dmirror_sha256={ORACLE_19C_SHA256}",
+        f"-Dartifact_name={ORACLE_19C_ARTIFACT}",
+        "-Dbasic_url=", "-Dbasic_sha256=", "-Dodbc_url=", "-Dodbc_sha256=",
+        "-P", str(cmake_dir / "download_oracle_instantclient_windows.cmake"),
+    ], cwd=source_dir).returncode:
+        fail("19c Oracle Instant Client download failed")
+    staged.mkdir(parents=True, exist_ok=True)
+    if run(["cmake", f"-Dsrc={work_dir}", f"-Ddst={staged}",
+             "-P", str(cmake_dir / "install_oracle_instantclient.cmake")],
+           cwd=source_dir).returncode:
+        fail("19c Oracle Instant Client staging failed")
+    if not any(staged.glob("sqora*.dll")):
+        fail(f"19c Oracle Instant Client did not stage into {staged}")
+
+
 def build(source_dir, debug_dir):
     require_env("TD_ENTERPRISE_EDITION_SIGNATURE_SALT")
     sync_source(source_dir)
@@ -404,6 +554,7 @@ def build(source_dir, debug_dir):
     if not taosws.exists():
         run(["jom", "taos_connector_rust"], cwd=debug_dir, env=environment)
         fail("taosws.dll is missing from build output")
+    ensure_oracle_client(source_dir, debug_dir)
 
 
 def write_ctest_failure_junit(path, name, message):
@@ -566,12 +717,14 @@ def federated_query_services(environment):
     engine is required by default, ``none`` disables all of them, and anything
     else narrows the set.  The setup script reads the per-engine version lists,
     where an empty value means "do not provision this engine"; forwarding the
-    selection that way keeps the script's own defaults (Oracle 26ai included)
-    from installing engines this run never uses.
+    selection that way keeps the script's own defaults (Oracle 11g by default,
+    like Linux) from installing engines this run never uses.
     """
-    # Oracle provisioning under the Windows runner service is not supported
-    # yet. Keep the other four providers in the default smoke coverage.
-    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver")
+    # Same default as the test framework: all five providers, Oracle included.
+    # 11g has no Windows server media, so ensure_ext_env.ps1 runs the Linux
+    # 11.2.0.4 image in a container on the runner (FQ_ORACLE_DOCKER=1, or
+    # FQ_ORACLE_DOCKER_WSL=<distro> when the engine lives inside WSL2).
+    value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
     services = set() if value == "none" else set(value.split(","))
     unknown = services - set(FQ_ENGINE_VERSION_VARS)
     if unknown:
@@ -742,6 +895,40 @@ def stop_owned_fq_mysql(existing, source_dir):
                 pass
 
 
+def running_fq_influx():
+    import psutil
+
+    binaries = {path.resolve() for pattern in ("*/bin/influxdb3.exe", "*/bin/influxd.exe")
+                for path in (federated_query_base_dir() / "influxdb").glob(pattern)}
+    instances = {}
+    for process in psutil.process_iter(["pid", "exe", "create_time"]):
+        try:
+            if process.info["exe"] and Path(process.info["exe"]).resolve() in binaries:
+                instances[(process.pid, process.info["create_time"])] = Path(process.info["exe"]).resolve()
+        except (OSError, psutil.Error):
+            continue
+    return instances
+
+
+def stop_owned_fq_influx(existing):
+    import psutil
+
+    for (pid, created), executable in running_fq_influx().items():
+        if (pid, created) in existing or executable in existing.values():
+            continue
+        try:
+            process = psutil.Process(pid)
+            # The PID may have been reused since discovery. Never kill its new owner.
+            if process.create_time() != created:
+                continue
+            print(f"[windows-ci] stopping owned InfluxDB pid={pid}: {executable}", flush=True)
+            process.kill()
+            process.wait(timeout=30)
+            print(f"[windows-ci] stopped owned InfluxDB pid={pid}", flush=True)
+        except psutil.NoSuchProcess:
+            pass
+
+
 @contextmanager
 def managed_fq_services(source_dir):
     # Preserve instances that were already running before this validation.
@@ -749,25 +936,29 @@ def managed_fq_services(source_dir):
     # pytest exits; close only the instances started during our run.
     existing = running_fq_postgres()
     existing_mysql = running_fq_mysql()
+    existing_influx = running_fq_influx()
     try:
         yield
     finally:
         try:
             stop_owned_fq_mysql(existing_mysql, source_dir)
         finally:
-            for data_dir in running_fq_postgres().keys() - existing.keys():
-                pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
-                try:
-                    result = subprocess.run(
-                        [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
-                        capture_output=True, text=True, errors="replace", timeout=60,
-                        check=False,
-                    )
-                    print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
-                          f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
-                          flush=True)
-                except (OSError, subprocess.TimeoutExpired) as error:
-                    print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+            try:
+                for data_dir in running_fq_postgres().keys() - existing.keys():
+                    pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
+                    try:
+                        result = subprocess.run(
+                            [str(pg_ctl), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
+                            capture_output=True, text=True, errors="replace", timeout=60,
+                            check=False,
+                        )
+                        print(f"[windows-ci] stop owned PostgreSQL {data_dir}: "
+                              f"exit={result.returncode}; {result.stdout.strip()} {result.stderr.strip()}",
+                              flush=True)
+                    except (OSError, subprocess.TimeoutExpired) as error:
+                        print(f"[windows-ci] unable to stop owned PostgreSQL {data_dir}: {error}", flush=True)
+            finally:
+                stop_owned_fq_influx(existing_influx)
 
 
 def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", suite="smoke"):
@@ -789,22 +980,51 @@ def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", su
         return run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite)
 
 
+def federated_query_influx_versions(task_text, environment):
+    configured = environment.get('FQ_INFLUX_VERSIONS', '3.0')
+    if not configured:
+        return ''
+    versions = configured.split(',')
+    for value in re.findall(r'\bFQ_INFLUX_VERSIONS=([^\s]+)', task_text):
+        versions.extend(value.strip("\"'").split(','))
+    return ','.join(dict.fromkeys(version.strip() for version in versions if version.strip()))
+
+
 def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite="smoke"):
     test_dir = source_dir / "source" / "taos-community" / "test"
     task_file = log_dir / "windows-cases.task"
     contents = windows_task_manifest(test_dir / "ci", suite)
     if only_fq:
-        if suite != "smoke":
-            raise ValueError("--only-fq selects the supported smoke subset; use --suite smoke")
-        contents = "\n".join(line for line in contents.splitlines()
-                             if any(case in line for case in FQ_SMOKE_CASES)) + "\n"
+        # Federated-query coverage only: Windows CI does not run the rest of
+        # the inventory, so drop every non-FQ line before anything is queued.
+        contents = "\n".join(line for line in contents.splitlines() if is_fq_command(line)) + "\n"
+    # Provisioning covers the whole selected inventory, not just the subset
+    # that runs this round, so an uncovered round still starts both InfluxDB
+    # generations instead of silently narrowing to the default 3.0.
+    inventory = contents
+    subset = os.environ.get("WIN_CASE_SUBSET", "").strip().lower()
+    if subset == "related":
+        # Focused verification: only the cases that exercise the local changes.
+        contents = "\n".join(line for line in contents.splitlines() if is_related_command(line)) + "\n"
+    elif subset == "uncovered":
+        # Complement of the focused round: everything the focused selection
+        # did not already cover.
+        contents = "\n".join(line for line in contents.splitlines() if not is_related_command(line)) + "\n"
+    elif subset:
+        raise ValueError(f"Unknown WIN_CASE_SUBSET: {subset}")
     if case_filter:
         contents = "\n".join(line for line in contents.splitlines() if case_filter in line) + "\n"
     if not any(line.strip() and not line.lstrip().startswith("#") for line in contents.splitlines()):
         raise ValueError("Windows test selection is empty")
-    if suite == "smoke" and any(case in contents for case in FQ_SMOKE_CASES):
+    # Federated-query cases exist in both inventories now that Windows supports
+    # them, so provision the engines whenever the selection contains one (the
+    # full suite includes them too; only the smoke subset used to be exempt
+    # from win_ignore_cases).
+    if selection_contains_fq(contents):
         ensure_fq_pytest_dependencies(environment)
-        provision_federated_query_env(source_dir, environment)
+        provision_environment = dict(environment)
+        provision_environment['FQ_INFLUX_VERSIONS'] = federated_query_influx_versions(inventory, environment)
+        provision_federated_query_env(source_dir, provision_environment)
     print(f"[windows-ci] selected test suite: {suite}", flush=True)
     prior_failures = 0
     resume_file = os.environ.get("WIN_PYTEST_RESUME_FILE")
@@ -851,6 +1071,23 @@ def latest_log_file(log_dir, pattern):
     return max(candidates, key=lambda path: (path.stat().st_mtime, path.name)) if candidates else None
 
 
+def match_pytest_log_name(available, command):
+    """Find the case log, tolerating the environment-specific name hash.
+
+    run_win_cases names each log with the case environment folded into the
+    hash; the failure reporter only knows the command, so an exact lookup can
+    miss.  Fall back to the case-file prefix (the hash is the only suffix).
+    """
+    exact = pytest_log_name(command)
+    if exact in available:
+        return exact
+    prefix = case_log_prefix(command) + "-"
+    for name in available:
+        if name.startswith(prefix) and name.endswith(".log"):
+            return name
+    return None
+
+
 def print_pytest_failure_logs(log_dir):
     records = parse_result_records(latest_log_file(log_dir, "result_*.txt"))
     failures = [record for record in records if record[0] in {"FAILED", "ERROR"}]
@@ -862,8 +1099,12 @@ def print_pytest_failure_logs(log_dir):
     try:
         members = {Path(member).name: member for member in archive.namelist()} if archive else {}
         for status, command, _, detail in failures:
-            log_name = pytest_log_name(command)
-            output = archive.read(members[log_name]).decode("utf-8", errors="replace") if archive and log_name in members else (detail or "pytest runner did not produce a case log")
+            log_name = match_pytest_log_name(members, command) if archive else None
+            if archive and log_name:
+                output = archive.read(members[log_name]).decode("utf-8", errors="replace")
+            else:
+                log_name = pytest_log_name(command)
+                output = detail or "pytest runner did not produce a case log"
             reports.append((status, command, log_name, output))
     finally:
         if archive:
@@ -1002,11 +1243,14 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
             ElementTree.SubElement(case, "skipped").text = skip_details.get(command, "pytest command skipped; see pytest artifact logs")
     ElementTree.ElementTree(suite).write(pytest_artifacts / "junit-pytest-windows.xml", encoding="utf-8", xml_declaration=True)
     archive = latest_log_file(log_dir, "log_*.zip")
+    available_logs = ({path.name for path in (pytest_artifacts / archive.stem).glob("*.log")}
+                      if archive else set())
     rows = []
     for status, command, duration in results:
         link = ""
-        if archive and status in {"FAILED", "ERROR"} and (pytest_artifacts / archive.stem / pytest_log_name(command)).exists():
-            link = f'<a href="{html.escape(archive.stem + "/" + pytest_log_name(command))}">open log</a>'
+        log_name = match_pytest_log_name(available_logs, command) if available_logs else None
+        if archive and status in {"FAILED", "ERROR"} and log_name:
+            link = f'<a href="{html.escape(archive.stem + "/" + log_name)}">open log</a>'
         rows.append(f'<tr><td class="{html.escape(status)}">{html.escape(status)}</td><td><code>{html.escape(command)}</code></td><td>{html.escape(duration)} s</td><td>{link}</td></tr>')
     report = f'<!doctype html><html><head><meta charset="utf-8"><title>Windows pytest report</title><style>body{{font-family:Segoe UI,Arial,sans-serif;margin:2rem;color:#1f2937}}table{{border-collapse:collapse;width:100%}}th,td{{border:1px solid #d1d5db;padding:.55rem;text-align:left}}th{{background:#f3f4f6}}.SUCCESS{{color:#15803d}}.FAILED,.ERROR{{color:#b91c1c;font-weight:600}}.Skip{{color:#6b7280}}</style></head><body><h1>Windows pytest report</h1><table><thead><tr><th>Status</th><th>Command</th><th>Duration</th><th>Failure log</th></tr></thead><tbody>{"".join(rows)}</tbody></table></body></html>'
     report = report.replace("<h1>Windows pytest report</h1>",
@@ -1041,6 +1285,7 @@ def main():
     ctest_failures = []
     pytest_result = 1
     pytest_failures = []
+    tests_started = False
     try:
         if arguments.skip_build:
             if os.environ.get("CI_COMMIT_SHA") or os.environ.get("WIN_BOOTSTRAP_SOURCE") == "true":
@@ -1049,6 +1294,7 @@ def main():
             print("[windows-ci] build is skipped; reusing existing Windows build output")
         else:
             build(arguments.source_dir, arguments.debug_dir)
+        tests_started = True
         if arguments.skip_ctest:
             print("[windows-ci] ctest skipped for this explicit continuation run")
             ctest_result = 0
@@ -1069,9 +1315,22 @@ def main():
     except Exception as error:
         print(f"[windows-ci] failed: {error}")
     finally:
-        stop_processes()
-        stop_build_processes()
-        collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+        for name, cleanup in (("stop_processes", stop_processes), ("stop_build_processes", stop_build_processes)):
+            started = time.monotonic()
+            print(f"[windows-ci] finalization start: {name}", flush=True)
+            try:
+                cleanup()
+            except Exception as error:
+                print(f"[windows-ci] finalization failed: {name}: {error}", flush=True)
+                result = 1
+            print(f"[windows-ci] finalization end: {name} ({time.monotonic() - started:.1f}s)", flush=True)
+        if tests_started:
+            print("[windows-ci] finalization start: collect_artifacts", flush=True)
+            collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+            print("[windows-ci] finalization end: collect_artifacts", flush=True)
+        else:
+            print("[windows-ci] preparation failed; previous test reports are not collected", flush=True)
+    print(f"[windows-ci] exiting with result={result}", flush=True)
     return result
 
 

@@ -1551,6 +1551,167 @@ int32_t tRowGet(SRow *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) 
   return 0;
 }
 
+// bounded varint readers: return bytes consumed, or -1 if running past pEnd (built on tTagReadVarintBounded, which
+// has the single-byte fast path)
+static FORCE_INLINE int32_t tRowGetU32vSafe(const uint8_t *p, const uint8_t *pEnd, uint32_t *v) {
+  uint32_t len = 0;
+  if (p >= pEnd || !tTagReadVarintBounded(p, (uint32_t)(pEnd - p), 5, v, &len)) return -1;
+  return (int32_t)len;
+}
+
+static FORCE_INLINE int32_t tRowGetI16vSafe(const uint8_t *p, const uint8_t *pEnd, int16_t *v) {
+  uint32_t u = 0, len = 0;
+  if (p >= pEnd || !tTagReadVarintBounded(p, (uint32_t)(pEnd - p), 3, &u, &len)) return -1;
+  *v = ZIGZAGD(int16_t, (uint16_t)u);
+  return (int32_t)len;
+}
+
+// check var-length value at pData (varint length + payload [+ blob seq]) stays in [pData, pEnd)
+static FORCE_INLINE int32_t tRowCheckVarValue(const uint8_t *pData, const uint8_t *pEnd, const STColumn *pCol,
+                                              bool blobSeq) {
+  uint32_t nData = 0;
+  int32_t  n = tRowGetU32vSafe(pData, pEnd, &nData);
+  if (n < 0) return TSDB_CODE_INVALID_MSG;
+  uint64_t remain = (uint64_t)(pEnd - (pData + n));
+  if (blobSeq && IS_STR_DATA_BLOB(pCol->type)) {
+    // a row built with a blob set stores a non-empty blob as its 8 byte seq (BSE), nData is the length of the
+    // blob kept elsewhere; an empty blob is just its zero length
+    if (nData > 0 && remain < BSE_SEQUECE_SIZE) return TSDB_CODE_INVALID_MSG;
+    return 0;
+  }
+  // otherwise (including a blob in a row built without a blob set) the value is inline with nData bytes
+  if ((uint64_t)nData > remain) return TSDB_CODE_INVALID_MSG;
+  return 0;
+}
+
+// Find the column of cid, starting from schema slot `from`. A KV row lists its columns in ascending cid order and
+// the schema is sorted by colId, so walking a row only ever moves forward: gallop from the previous hit (1, 2, 4, ...
+// slots) and binary search the last stride. A dense row costs O(1) per column, a sparse one O(log gap), and the
+// whole row is bounded by O(numOfCols + nCol) instead of O(nCol * log numOfCols). A cid that is out of order or
+// absent falls back to the full binary search, so the result is the same as tTSchemaSearchColumn().
+static const STColumn *tRowSearchColumnFrom(const STSchema *pTSchema, int32_t from, int16_t cid) {
+  const STColumn *cols = pTSchema->columns;
+  int32_t         n = pTSchema->numOfCols;
+  if (from < n && cols[from].colId <= cid) {
+    int32_t bound = 1;
+    while (from + bound < n && cols[from + bound].colId < cid) bound <<= 1;
+    int32_t lo = bound > 1 ? from + (bound >> 1) : from;
+    int32_t hi = from + bound < n ? from + bound : n - 1;
+    while (lo <= hi) {
+      int32_t mid = lo + ((hi - lo) >> 1);
+      if (cols[mid].colId == cid) return &cols[mid];
+      if (cols[mid].colId < cid) {
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+  }
+  return tTSchemaSearchColumn(pTSchema, cid);
+}
+
+int32_t tRowValidate(SRow *pRow, STSchema *pTSchema, bool blobSeq) {
+  if (pRow == NULL || pTSchema == NULL || pRow->len < sizeof(SRow)) return TSDB_CODE_INVALID_MSG;
+  if (pRow->flag == HAS_NONE || pRow->flag == HAS_NULL) return pRow->numOfPKs == 0 ? 0 : TSDB_CODE_INVALID_MSG;
+
+  // The primary key index and value areas were validated by tRowPrimaryKeyValid() when the row was decoded
+  // (tDecodeRow), so the index area is only skipped here to find the column data. Reads stay bounded by pEnd.
+  const uint8_t *pEnd = (const uint8_t *)pRow + pRow->len;
+  const uint8_t *data = pRow->data;
+  for (int32_t i = 0; i < pRow->numOfPKs; i++) {
+    uint32_t offset;
+    if (data + sizeof(int8_t) + 1 > pEnd) return TSDB_CODE_INVALID_MSG;
+    int32_t n = tRowGetU32vSafe(data + sizeof(int8_t), pEnd, &offset);
+    if (n < 0) return TSDB_CODE_INVALID_MSG;
+    data += sizeof(int8_t) + n;
+  }
+
+  if (pRow->flag >> 4) {  // KV row
+    if (data + sizeof(SKVIdx) > pEnd) return TSDB_CODE_INVALID_MSG;
+    const SKVIdx *pIdx = (const SKVIdx *)data;
+    int32_t       nCol = pIdx->nCol;
+    int32_t       isz = (pRow->flag & KV_FLG_LIT) ? 1 : ((pRow->flag & KV_FLG_MID) ? 2 : 4);
+    if (nCol < 0 || nCol > pTSchema->numOfCols - 1) return TSDB_CODE_INVALID_MSG;
+    if ((uint64_t)(pEnd - data) < sizeof(SKVIdx) + (uint64_t)nCol * isz) return TSDB_CODE_INVALID_MSG;
+    const uint8_t *pv = pIdx->idx + (int64_t)nCol * isz;
+    int32_t        iNext = 1;  // column 0 (ts) is never stored in a KV row
+    for (int32_t i = 0; i < nCol; i++) {
+      uint32_t off;
+      if (isz == 1) {
+        off = pIdx->idx[i];
+      } else if (isz == 2) {
+        uint16_t t;
+        memcpy(&t, pIdx->idx + i * 2, 2);
+        off = t;
+      } else {
+        memcpy(&off, pIdx->idx + i * 4, 4);
+      }
+      if (off >= (uint64_t)(pEnd - pv)) return TSDB_CODE_INVALID_MSG;
+      const uint8_t *pData = pv + off;
+      int16_t        cid;
+      int32_t        n = tRowGetI16vSafe(pData, pEnd, &cid);
+      if (n < 0) return TSDB_CODE_INVALID_MSG;
+      pData += n;
+      if (cid < 0) continue;  // NULL
+      // column 0 is the primary timestamp, it is never stored in a KV row
+      const STColumn *pCol = tRowSearchColumnFrom(pTSchema, iNext, cid);
+      if (pCol == NULL || pCol == &pTSchema->columns[0]) return TSDB_CODE_INVALID_MSG;
+      iNext = (int32_t)(pCol - pTSchema->columns) + 1;
+      if (IS_VAR_DATA_TYPE(pCol->type)) {
+        int32_t code = tRowCheckVarValue(pData, pEnd, pCol, blobSeq);
+        if (code) return code;
+      } else {
+        if (pCol->bytes < 0 || (uint64_t)pCol->bytes > (uint64_t)(pEnd - pData)) return TSDB_CODE_INVALID_MSG;
+      }
+    }
+  } else {  // tuple row
+    int32_t nBitCols = pTSchema->numOfCols - 1;
+    int64_t bitmapSize = 0;  // HAS_VALUE alone has no bitmap
+    if (pRow->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+      bitmapSize = nBitCols > 0 ? BIT2_SIZE(nBitCols) : 0;
+    } else if (pRow->flag != HAS_VALUE) {
+      bitmapSize = nBitCols > 0 ? BIT1_SIZE(nBitCols) : 0;
+    }
+    // a row without any value (HAS_NONE | HAS_NULL) carries a bitmap only, no fixed-length area
+    int64_t fixedSize = (pRow->flag & HAS_VALUE) ? pTSchema->flen : 0;
+    if (pTSchema->flen < 0 || (uint64_t)(pEnd - data) < (uint64_t)bitmapSize + (uint64_t)fixedSize) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    const uint8_t *bitmap = data;
+    const uint8_t *fixed = data + bitmapSize;
+    const uint8_t *varlen = fixed + fixedSize;
+    // The fixed-length columns lie inside the flen area that was checked above (STColumn.offset comes from the
+    // schema, not from the row), so only the variable-length columns have to be followed into the var area.
+    for (int32_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
+      const STColumn *pCol = &pTSchema->columns[iCol];
+      if (!IS_VAR_DATA_TYPE(pCol->type)) continue;
+
+      uint8_t bit;
+      if (pRow->flag == HAS_VALUE) {
+        bit = BIT_FLG_VALUE;
+      } else if (pRow->flag == (HAS_NONE | HAS_NULL | HAS_VALUE)) {
+        bit = GET_BIT2(bitmap, iCol - 1);
+      } else {
+        bit = GET_BIT1(bitmap, iCol - 1);
+        if (pRow->flag == (HAS_NONE | HAS_VALUE)) {
+          if (bit) bit++;
+        } else if (pRow->flag == (HAS_NULL | HAS_VALUE)) {
+          bit++;
+        }
+      }
+      if (bit != BIT_FLG_VALUE) continue;
+
+      // the 4-byte offset slot of a var column is in the flen area as well
+      int32_t off;
+      memcpy(&off, fixed + pCol->offset, sizeof(off));
+      if (off < 0 || (int64_t)off >= (int64_t)(pEnd - varlen)) return TSDB_CODE_INVALID_MSG;
+      int32_t code = tRowCheckVarValue(varlen + off, pEnd, pCol, blobSeq);
+      if (code) return code;
+    }
+  }
+  return 0;
+}
+
 void tRowDestroy(SRow *pRow) {
   if (pRow) taosMemoryFree(pRow);
 }
@@ -6611,6 +6772,10 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pBlob->len));
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &nSeq));
+  // every entry takes at least 12 bytes of the frame in each of the two loops below: bound the count by what is left
+  if (nSeq < 0 || (uint64_t)nSeq > (uint64_t)(pDecoder->size - pDecoder->pos) / 12) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   // if (pBlob->type) {
   pBlob->pSeqToffset = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
@@ -6645,6 +6810,17 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
     }
   }
 
+  // the blob payload is copied out of the frame, so it can never be larger than what is left in it
+  if (pBlob->len < 0 || (uint64_t)pBlob->len > (uint64_t)(pDecoder->size - pDecoder->pos)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  for (int32_t i = 0; i < nSeq; i++) {
+    SBlobValue *pVal = (SBlobValue *)taosArrayGet(pBlob->pSeqTable, i);
+    if (pVal->offset > (uint64_t)pBlob->len || (uint64_t)pVal->len > (uint64_t)pBlob->len - pVal->offset) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  }
+
   pBlob->data = taosMemCalloc(1, pBlob->len);
   if (pBlob->data == NULL) {
     TAOS_CHECK_EXIT(terrno);
@@ -6657,11 +6833,7 @@ int32_t tDecodeBlobSet(SDecoder *pDecoder, SBlobSet **pBlobSet) {
 
 _exit:
   if (code != 0) {
-    if (pBlob != NULL) {
-      taosMemoryFree(pBlob->data);
-      taosArrayDestroy(pBlob->pSeqTable);
-      taosMemoryFree(pBlob);
-    }
+    tBlobSetDestroy(pBlob);
   }
   return code;
 }
@@ -7326,6 +7498,9 @@ int32_t tValueColumnDecompress(void *input, const SValueColumnCompressInfo *info
   int32_t code;
 
   tValueColumnClear(valCol);
+  if (IS_INVALID_TYPE(info->type)) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   valCol->type = info->type;
   // offset
   if (IS_VAR_DATA_TYPE(valCol->type)) {
@@ -7544,6 +7719,9 @@ int32_t tDecompressData(void                *input,       // input
   } else {
     DEFINE_VAR(info->cmprAlg);
     if (l1 == L1_DISABLED && l2 == L2_DISABLED) {
+      if (info->compressedSize != info->originalSize) {
+        return TSDB_CODE_INVALID_PARA;
+      }
       (void)memcpy(output, input, info->compressedSize);
       return 0;
     }

@@ -888,6 +888,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_ONLY_ONE_JSON_TAG,         "Only one tag if ther
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_NUM_OF_COL,      "Query block has incorrect number of result columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL,   "Incorrect TIMESTAMP value")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_OFFSET_LESS_ZERO,          "soffset/offset cannot be less than 0")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_LIMIT_LESS_ZERO,           "limit cannot be less than 0")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_GROUP_BY,  "slimit/soffset are only available for PARTITION/GROUP BY query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_TOPIC_QUERY,        "Invalid topic query")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INVALID_DROP_STABLE,        "Cannot drop super table in batch")
@@ -1295,6 +1296,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_EXT_TAG_REF_NOT_ALLOWED,       "InfluxDB tag columns
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,        "External object identifier is too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_COLUMNS_TOO_MANY,  "Too many external columns required by query")
 TAOS_DEFINE_ERROR(TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,     "Too many external tags required by query")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_SCHEMA_CONFLICT,            "External column type or Field/Tag role conflict")
+TAOS_DEFINE_ERROR(TSDB_CODE_EXT_CLIENT_PLUGIN_MISSING,      "External source client authentication plugin is missing")
 
 // NEW-STREAM
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,      "Mnode stream internal error")

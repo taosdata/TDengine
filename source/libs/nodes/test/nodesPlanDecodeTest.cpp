@@ -182,3 +182,142 @@ TEST(PlanDecodeTest, PartialLegacySubplanTransferFailureReturnsNull) {
 }
 
 }  // namespace
+
+TEST(PlanDecodeTest, Influx18ReferenceSurvivesCloneJsonAndTlv) {
+  for (bool withBinding : {false, true}) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &raw));
+    NodePtr source(raw, nodesDestroyNode);
+    auto* table = reinterpret_cast<SExtTableNode*>(raw);
+    if (withBinding) {
+      tstrncpy(table->influxRp, "KeepCase", sizeof(table->influxRp));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &table->pSeriesCondition));
+      tstrncpy(reinterpret_cast<SColumnNode*>(table->pSeriesCondition)->colName, "site", TSDB_COL_NAME_LEN);
+      SNode* column = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &column));
+      auto* tag = reinterpret_cast<SColumnNode*>(column);
+      tstrncpy(tag->colName, "site", sizeof(tag->colName));
+      tag->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+      tag->colType = COLUMN_TYPE_TAG;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&table->pInfluxSchema, column));
+    }
+    for (int mode : {0, 1, 2}) {
+      SNode* copy = nullptr;
+      if (mode == 0) {
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(raw, &copy));
+      } else if (mode == 1) {
+        std::string json = saveJson(raw);
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.c_str(), &copy));
+      } else {
+        char* msg = nullptr;
+        int32_t len = 0;
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(raw, &msg, &len));
+        int32_t code = nodesMsgToNode(msg, len, &copy);
+        taosMemoryFree(msg);
+        ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+      }
+      NodePtr owner(copy, nodesDestroyNode);
+      auto* decoded = reinterpret_cast<SExtTableNode*>(copy);
+      ASSERT_NE(nullptr, decoded);
+      EXPECT_STREQ(withBinding ? "KeepCase" : "", decoded->influxRp);
+      EXPECT_EQ(withBinding, decoded->pSeriesCondition != nullptr);
+      EXPECT_EQ(withBinding ? 1 : 0, LIST_LENGTH(decoded->pInfluxSchema));
+      if (withBinding) {
+        EXPECT_NE(table->pSeriesCondition, decoded->pSeriesCondition);
+        auto* tag = reinterpret_cast<SColumnNode*>(nodesListGetNode(decoded->pInfluxSchema, 0));
+        EXPECT_STREQ("site", tag->colName);
+        EXPECT_EQ(COLUMN_TYPE_TAG, tag->colType);
+        EXPECT_EQ(TSDB_DATA_TYPE_VARCHAR, tag->node.resType.type);
+      }
+    }
+  }
+}
+
+TEST(PlanDecodeTest, ExternalTableJsonChecksStringBounds) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &raw));
+  NodePtr source(raw, nodesDestroyNode);
+  auto* table = reinterpret_cast<SExtTableNode*>(raw);
+  tstrncpy(table->influxRp, "rp", sizeof(table->influxRp));
+  const struct {
+    const char* name;
+    size_t capacity;
+  } fields[] = {
+      {"DbName", sizeof(table->table.dbName)}, {"TableName", sizeof(table->table.tableName)},
+      {"SourceName", sizeof(table->sourceName)}, {"SchemaName", sizeof(table->schemaName)},
+      {"SrcHost", sizeof(table->srcHost)}, {"SrcUser", sizeof(table->srcUser)},
+      {"SrcDatabase", sizeof(table->srcDatabase)}, {"SrcSchema", sizeof(table->srcSchema)},
+      {"SrcOptions", sizeof(table->srcOptions)}, {"RemoteTableName", sizeof(table->remoteTableName)},
+      {"InfluxRp", sizeof(table->influxRp)},
+  };
+  const std::string original = saveJson(raw);
+  for (const auto& field : fields) {
+    SCOPED_TRACE(field.name);
+    for (size_t length : {field.capacity - 1, field.capacity}) {
+      SCOPED_TRACE(length);
+      std::string json = original;
+      const std::string marker = std::string("\"") + field.name + "\":\"";
+      size_t begin = json.find(marker);
+      ASSERT_NE(std::string::npos, begin);
+      begin += marker.size();
+      size_t end = json.find('"', begin);
+      ASSERT_NE(std::string::npos, end);
+      const std::string value(length, 'x');
+      json.replace(begin, end - begin, value);
+      SNode* copy = nullptr;
+      int32_t code = nodesStringToNode(json.c_str(), &copy);
+      NodePtr owner(copy, nodesDestroyNode);
+      if (length < field.capacity) {
+        ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+        ASSERT_NE(nullptr, copy);
+        EXPECT_NE(std::string::npos, saveJson(copy).find(marker + value + "\""));
+      } else {
+        EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, code);
+        EXPECT_EQ(nullptr, copy);
+      }
+    }
+  }
+}
+
+TEST(PlanDecodeTest, ExternalTableJsonKeepsFirstErrorAndAcceptsMissingFlags) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_EXTERNAL_TABLE, &raw));
+  NodePtr source(raw, nodesDestroyNode);
+  auto* table = reinterpret_cast<SExtTableNode*>(raw);
+  tstrncpy(table->influxRp, "rp", sizeof(table->influxRp));
+  const std::string original = saveJson(raw);
+  for (const char* name : {"SrcNameFromPath", "NsFromPathOnly"}) {
+    SCOPED_TRACE(name);
+    const std::string marker = std::string("\"") + name + "\":false";
+    size_t begin = original.find(marker);
+    ASSERT_NE(std::string::npos, begin);
+    for (bool missing : {true, false}) {
+      SCOPED_TRACE(missing);
+      std::string json = original;
+      if (missing) {
+        ASSERT_EQ(',', json[begin + marker.size()]);
+        json.erase(begin, marker.size() + 1);
+      } else {
+        json.replace(begin, marker.size(), std::string("\"") + name + "\":\"false\"");
+        const std::string rp = "\"InfluxRp\":\"rp\"";
+        size_t rpBegin = json.find(rp);
+        ASSERT_NE(std::string::npos, rpBegin);
+        json.replace(rpBegin, rp.size(), "\"InfluxRp\":\"" +
+                     std::string(sizeof(table->influxRp), 'x') + "\"");
+      }
+      SNode* copy = nullptr;
+      int32_t code = nodesStringToNode(json.c_str(), &copy);
+      NodePtr owner(copy, nodesDestroyNode);
+      if (missing) {
+        ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+        ASSERT_NE(nullptr, copy);
+        auto* decoded = reinterpret_cast<SExtTableNode*>(copy);
+        EXPECT_FALSE(decoded->srcNameFromPath);
+        EXPECT_FALSE(decoded->nsFromPathOnly);
+      } else {
+        EXPECT_EQ(TSDB_CODE_FAILED, code);
+        EXPECT_EQ(nullptr, copy);
+      }
+    }
+  }
+}

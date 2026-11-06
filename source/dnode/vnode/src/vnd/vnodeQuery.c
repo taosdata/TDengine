@@ -2066,17 +2066,17 @@ int32_t vnodeGetTableSchema(void *pVnode, int64_t uid, STSchema **pSchema, int64
 
 static FORCE_INLINE int32_t vnodeGetDBPrimaryInfo(SVnode *pVnode, SDbSizeStatisInfo *pInfo) {
   int32_t code = 0;
-  char    path[TSDB_FILENAME_LEN] = {0};
+  char    path[TSDB_PATH_LEN] = {0};
 
   char   *dirName[] = {VNODE_TSDB_DIR, VNODE_WAL_DIR, VNODE_META_DIR, VNODE_TSDB_CACHE_DIR};
   int64_t dirSize[4];
 
-  vnodeGetPrimaryPath(pVnode, false, path, TSDB_FILENAME_LEN);
+  vnodeGetPrimaryPath(pVnode, false, path, TSDB_PATH_LEN);
   int32_t offset = strlen(path);
 
   for (int i = 0; i < sizeof(dirName) / sizeof(dirName[0]); i++) {
     int64_t size = {0};
-    (void)snprintf(path + offset, TSDB_FILENAME_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
+    (void)snprintf(path + offset, TSDB_PATH_LEN - offset, "%s%s", TD_DIRSEP, dirName[i]);
     code = taosGetDirSize(path, &size);
     if (code != 0) {
       uWarn("vnode %d get dir %s %s size failed since %s", TD_VID(pVnode), path, dirName[i], tstrerror(code));

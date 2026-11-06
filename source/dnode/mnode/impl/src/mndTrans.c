@@ -125,6 +125,7 @@ static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans, bool t
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransPerformFinishStage(SMnode *pMnode, STrans *pTrans, bool topHalf);
 static bool    mndTransIsStreamStopCallback(ETrnFunc stopFunc);
+static void    mndTransDropDataImpl(STrans *pTrans, bool destroyMutex);
 
 static inline bool mndTransIsInSyncContext(bool topHalf) { return !topHalf; }
 
@@ -406,21 +407,24 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
-      // Validate the raw-supplied length before allocating (security finding item 267):
-      // it must be non-negative and must not exceed the bytes still available in the raw,
-      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
-      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
-        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      if (dataLen < (int32_t)sizeof(SSdbRaw) || dataPos < 0 ||
+          dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_INVALID_MSG;
         goto _OVER;
       }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
+      if (action.pRaw->dataLen < 0 ||
+          action.pRaw->dataLen != dataLen - sizeof(SSdbRaw)) {
+        terrno = TSDB_CODE_INVALID_MSG;
+        goto _OVER;
+      }
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
+      action.pRaw = NULL;
       STransAction *pAction = taosArrayGet(pActions, taosArrayGetSize(pActions) - 1);
       if (mndTransDecodeGroupRedoAction(redoGroupActions, pAction) != 0) goto _OVER;
-      action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       tmsgUpdateDnodeEpSet(&action.epSet);
@@ -436,9 +440,9 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
       if (action.pCont == NULL) goto _OVER;
       SDB_GET_BINARY(pRaw, dataPos, action.pCont, action.contLen, _OVER);
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
+      action.pCont = NULL;
       STransAction *pAction = taosArrayGet(pActions, taosArrayGetSize(pActions) - 1);
       if (mndTransDecodeGroupRedoAction(redoGroupActions, pAction) != 0) goto _OVER;
-      action.pCont = NULL;
     } else {
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
     }
@@ -448,7 +452,10 @@ static int32_t mndTransDecodeActionWithGroup(SSdbRaw *pRaw, int32_t *offset, SAr
 _OVER:
   if (terrno != 0) mError("failed to decode action with group at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
+  // Whatever was not handed over to pActions yet is freed here; a pushed action
+  // is owned by the array and released by mndTransDropActions().
   taosMemoryFreeClear(action.pCont);
+  taosMemoryFreeClear(action.pRaw);
   return ret;
 }
 
@@ -481,17 +488,20 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
     if (action.actionType == TRANS_ACTION_RAW) {
       SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
-      // Validate the raw-supplied length before allocating (security finding item 267):
-      // it must be non-negative and must not exceed the bytes still available in the raw,
-      // otherwise a length near INT32_MAX would allocate gigabytes and memcpy past the raw.
-      if (dataLen < 0 || dataLen > pRaw->dataLen - dataPos) {
-        terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
+      if (dataLen < (int32_t)sizeof(SSdbRaw) || dataPos < 0 ||
+          dataLen > pRaw->dataLen - dataPos) {
+        terrno = TSDB_CODE_INVALID_MSG;
         goto _OVER;
       }
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
       mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
+      if (action.pRaw->dataLen < 0 ||
+          action.pRaw->dataLen != dataLen - sizeof(SSdbRaw)) {
+        terrno = TSDB_CODE_INVALID_MSG;
+        goto _OVER;
+      }
       if (taosArrayPush(pActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
@@ -519,7 +529,10 @@ static int32_t mndTransDecodeAction(SSdbRaw *pRaw, int32_t *offset, SArray *pAct
 _OVER:
   if (terrno != 0) mError("failed to decode action at line:%d, since %s", lino, terrstr());
   *offset = dataPos;
+  // Whatever was not handed over to pActions yet is freed here; a pushed action
+  // is owned by the array and released by mndTransDropActions().
   taosMemoryFreeClear(action.pCont);
+  taosMemoryFreeClear(action.pRaw);
   return ret;
 }
 
@@ -689,7 +702,7 @@ _OVER:
   if (terrno != 0 && pTrans != NULL) {
     mError("trans:%d, failed to parse from raw:%p at line:%d dataPos:%d dataLen:%d since %s", pTrans->id, pRaw, lino,
            dataPos, pRaw->dataLen, terrstr());
-    mndTransDropData(pTrans);
+    mndTransDropDataImpl(pTrans, false);
     taosMemoryFreeClear(pRow);
     return NULL;
   }
@@ -856,7 +869,7 @@ static int32_t mndTransActionInsert(SSdb *pSdb, STrans *pTrans) {
   return 0;
 }
 
-void mndTransDropData(STrans *pTrans) {
+static void mndTransDropDataImpl(STrans *pTrans, bool destroyMutex) {
   if (pTrans->prepareActions != NULL) {
     mndTransDropActions(pTrans->prepareActions);
     pTrans->prepareActions = NULL;
@@ -910,7 +923,18 @@ void mndTransDropData(STrans *pTrans) {
     pTrans->userData = NULL;
     pTrans->userDataLen = 0;
   }
-  (void)taosThreadMutexDestroy(&pTrans->mutex);
+  if (destroyMutex) (void)taosThreadMutexDestroy(&pTrans->mutex);
+}
+
+void mndTransDropData(STrans *pTrans) {
+  mndTransDropDataImpl(pTrans, true);
+}
+
+void mndTransFreeDecoded(SSdbRow *pRow) {
+  if (pRow == NULL) return;
+  // Decoding does not initialize the runtime mutex or execute SDB callbacks.
+  mndTransDropDataImpl(sdbGetRowObj(pRow), false);
+  taosMemoryFree(pRow);
 }
 
 static int32_t mndTransDelete(SSdb *pSdb, STrans *pTrans, bool callFunc) {

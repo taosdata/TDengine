@@ -17,9 +17,11 @@
 
 #include "streamTriggerMerger.h"
 
+#include "dataSink.h"
 #include "streamTriggerTask.h"
 #include "tcompare.h"
 #include "tdatablock.h"
+#include "tsort.h"
 
 static FORCE_INLINE int32_t stCompareRowsInBlocks(const SSDataBlock *pDataBlock, int32_t tsSlotId, int32_t pkSlotId,
                                                   int32_t leftIdx, int32_t rightIdx) {
@@ -1677,6 +1679,197 @@ _end:
   return 0;
 }
 
+typedef struct {
+  void        *pIter;
+  SSDataBlock *pFirstBlock;
+  SSDataBlock *pInput;
+  SSDataBlock *pOutput;
+  SSortHandle *pHandle;
+  SArray      *pOrder;
+  SArray      *pKeys;
+  char        *pLastKey;
+  int32_t      lastKeyLen;
+  int32_t      tsSlotId;
+  int32_t      verSlotId;
+  int64_t      lastVer;
+  int64_t      lastTs;
+  int64_t      frontier;
+  int64_t      watermark;
+  bool         haveVersion;
+  bool         orderedInput;
+  STimeWindow  range;
+} SPeriodSnapshotSort;
+
+static void stPeriodSnapshotSortDestroy(SPeriodSnapshotSort *pSort) {
+  if (pSort == NULL) return;
+  tsortDestroySortHandle(pSort->pHandle);
+  cancelStreamDataCacheIterate(&pSort->pIter);
+  blockDataDestroy(pSort->pFirstBlock);
+  blockDataDestroy(pSort->pInput);
+  blockDataDestroy(pSort->pOutput);
+  taosArrayDestroy(pSort->pOrder);
+  taosArrayDestroy(pSort->pKeys);
+  taosMemoryFree(pSort->pLastKey);
+  taosMemoryFree(pSort);
+}
+
+static int32_t stPeriodSnapshotSortFetch(void *param, SSDataBlock **ppBlock) {
+  SPeriodSnapshotSort *pSort = param;
+  *ppBlock = NULL;
+  blockDataDestroy(pSort->pInput);
+  pSort->pInput = NULL;
+  while (pSort->pFirstBlock != NULL || pSort->pIter != NULL) {
+    SSDataBlock *pBlock = pSort->pFirstBlock;
+    pSort->pFirstBlock = NULL;
+    int32_t code = pBlock == NULL ? getNextStreamDataCache(&pSort->pIter, &pBlock) : TSDB_CODE_SUCCESS;
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pBlock == NULL) continue;
+    SColumnInfoData *pTsCol = taosArrayGet(pBlock->pDataBlock, pSort->tsSlotId);
+    SColumnInfoData *pVerCol = taosArrayGet(pBlock->pDataBlock, pSort->verSlotId);
+    if (pTsCol == NULL || pVerCol == NULL) {
+      blockDataDestroy(pBlock);
+      return TSDB_CODE_INVALID_MSG;
+    }
+    int32_t first = -1;
+    for (int32_t row = 0; row <= pBlock->info.rows; ++row) {
+      bool accepted = false;
+      if (row < pBlock->info.rows) {
+        int64_t ts = *(int64_t *)colDataGetData(pTsCol, row);
+        int64_t ver = *(int64_t *)colDataGetData(pVerCol, row);
+        if (!pSort->haveVersion || ver != pSort->lastVer) {
+          if (pSort->haveVersion && ver < pSort->lastVer) {
+            code = TSDB_CODE_INVALID_MSG;
+            break;
+          }
+          pSort->haveVersion = true;
+          pSort->lastVer = ver;
+          pSort->frontier = pSort->lastTs;
+        }
+        accepted = ts >= pSort->range.skey && ts <= pSort->range.ekey;
+        if (pSort->orderedInput && pSort->frontier != INT64_MIN && pSort->frontier >= INT64_MIN + pSort->watermark &&
+            ts <= pSort->frontier - pSort->watermark) {
+          accepted = false;
+        }
+        pSort->lastTs = TMAX(pSort->lastTs, ts);
+      }
+      if (accepted) {
+        if (first < 0) first = row;
+      } else if (first >= 0) {
+        SSDataBlock *pRange = NULL;
+        code = blockDataExtractBlock(pBlock, first, row - first, &pRange);
+        if (code != TSDB_CODE_SUCCESS) break;
+        if (pSort->pInput == NULL) {
+          pSort->pInput = pRange;
+        } else {
+          code = blockDataMerge(pSort->pInput, pRange);
+          blockDataDestroy(pRange);
+          if (code != TSDB_CODE_SUCCESS) break;
+        }
+        first = -1;
+      }
+    }
+    blockDataDestroy(pBlock);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pSort->pInput != NULL) {
+      *ppBlock = pSort->pInput;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stPeriodSnapshotSortSetData(SSTriggerNewTimestampSorter *pSorter, SSTriggerDataSlice *pSlice,
+                                           const STimeWindow *pRange, bool orderedInput) {
+  int32_t              code = TSDB_CODE_SUCCESS;
+  int32_t              lino = 0;
+  SSortSource         *pSource = NULL;
+  SPeriodSnapshotSort *pSort = taosMemoryCalloc(1, sizeof(*pSort));
+  if (pSort == NULL) return terrno;
+  pSorter->pSnapshotSort = pSort;
+  pSort->range = *pRange;
+  pSort->tsSlotId = pSorter->tsSlotId;
+  pSort->orderedInput = orderedInput;
+  pSort->watermark = pSorter->pTask->watermark;
+  pSort->lastTs = INT64_MIN;
+  code =
+      getStreamDataCacheSnapshot(pSlice->pSnapshotCache, pSlice->snapshotSourceId, TSKEY_MIN, TSKEY_MAX, &pSort->pIter);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pIter == NULL) goto _end;
+  code = getNextStreamDataCache(&pSort->pIter, &pSort->pFirstBlock);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pFirstBlock == NULL) goto _end;
+  pSort->verSlotId = blockDataGetNumOfCols(pSort->pFirstBlock) - 1 - pSorter->verColBias;
+  pSort->pOrder = taosArrayInit(3, sizeof(SBlockOrderInfo));
+  pSort->pKeys = taosArrayInit(2, sizeof(SColumn));
+  QUERY_CHECK_NULL(pSort->pOrder, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(pSort->pKeys, code, lino, _end, terrno);
+  int32_t keySize = 0;
+  int32_t slots[] = {pSorter->tsSlotId, pSorter->pkSlotId, pSort->verSlotId};
+  for (int32_t i = 0; i < 3; ++i) {
+    if (i == 1 && (slots[i] < 0 || slots[i] == slots[0])) continue;
+    SColumnInfoData *pCol = taosArrayGet(pSort->pFirstBlock->pDataBlock, slots[i]);
+    QUERY_CHECK_NULL(pCol, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    SBlockOrderInfo order = {.nullFirst = true, .order = i == 2 ? TSDB_ORDER_DESC : TSDB_ORDER_ASC, .slotId = slots[i]};
+    order.compFn = getKeyComparFunc(pCol->info.type, order.order);
+    QUERY_CHECK_NULL(taosArrayPush(pSort->pOrder, &order), code, lino, _end, terrno);
+    if (i != 2) {
+      SColumn key = {.slotId = slots[i], .type = pCol->info.type, .bytes = pCol->info.bytes};
+      QUERY_CHECK_NULL(taosArrayPush(pSort->pKeys, &key), code, lino, _end, terrno);
+      keySize += 1 + key.bytes;
+    }
+  }
+  pSort->pLastKey = taosMemoryCalloc(1, keySize);
+  QUERY_CHECK_NULL(pSort->pLastKey, code, lino, _end, terrno);
+  int32_t pageSize =
+      getProperSortPageSize(blockDataGetRowSize(pSort->pFirstBlock), blockDataGetNumOfCols(pSort->pFirstBlock));
+  code = tsortCreateSortHandle(pSort->pOrder, SORT_SINGLESOURCE_SORT, pageSize, 1024, pSort->pFirstBlock,
+                               "period snapshot", 0, 0, 0, &pSort->pHandle);
+  QUERY_CHECK_CODE(code, lino, _end);
+  tsortSetFetchRawDataFp(pSort->pHandle, stPeriodSnapshotSortFetch, NULL, pSort);
+  pSource = taosMemoryCalloc(1, sizeof(*pSource));
+  QUERY_CHECK_NULL(pSource, code, lino, _end, terrno);
+  pSource->param = pSort;
+  pSource->onlyRef = true;
+  code = tsortAddSource(pSort->pHandle, pSource);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pSource = NULL;
+  code = tsortOpen(pSort->pHandle);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = tsortGetSortedDataBlock(pSort->pHandle, &pSort->pOutput);
+  QUERY_CHECK_CODE(code, lino, _end);
+  if (pSort->pOutput != NULL) {
+    code = blockDataEnsureCapacity(pSort->pOutput, 4096);
+    pSort->pOutput->info.id.uid = pSorter->readerKey.logicalUid;
+  }
+_end:
+  taosMemoryFree(pSource);
+  return code;
+}
+
+static int32_t stPeriodSnapshotSortNext(SSTriggerNewTimestampSorter *pSorter, SSDataBlock **ppBlock, int32_t *pStart,
+                                        int32_t *pEnd) {
+  SPeriodSnapshotSort *pSort = pSorter->pSnapshotSort;
+  *pStart = *pEnd = 0;
+  if (ppBlock != NULL) *ppBlock = NULL;
+  if (pSort->pOutput == NULL) return TSDB_CODE_SUCCESS;
+  blockDataEmpty(pSort->pOutput);
+  while (pSort->pOutput->info.rows < 4096) {
+    STupleHandle *pTuple = NULL;
+    int32_t       code = tsortNextTuple(pSort->pHandle, &pTuple);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (pTuple == NULL) break;
+    int32_t different = tsortCompAndBuildKeys(pSort->pKeys, pSort->pLastKey, &pSort->lastKeyLen, pTuple);
+    if (different < 0) return different;
+    if (different == 0) continue;
+    code = tsortAppendTupleToBlock(pSort->pHandle, pSort->pOutput, pTuple);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  pSorter->pDataBlock = pSort->pOutput;
+  *pEnd = pSort->pOutput->info.rows;
+  if (ppBlock != NULL && *pEnd > 0) *ppBlock = pSort->pOutput;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t stNewTimestampSorterInit(SSTriggerNewTimestampSorter *pSorter, struct SStreamTriggerTask *pTask,
                                  int32_t verColBias) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1704,6 +1897,7 @@ void stNewTimestampSorterDestroy(void *ptr) {
   }
 
   SSTriggerNewTimestampSorter *pSorter = *ppSorter;
+  stNewTimestampSorterReset(pSorter);
   if (pSorter->pSliceBuf != NULL) {
     taosArrayDestroy(pSorter->pSliceBuf);
     pSorter->pSliceBuf = NULL;
@@ -1724,6 +1918,8 @@ void stNewTimestampSorterReset(SSTriggerNewTimestampSorter *pSorter) {
     return;
   }
 
+  stPeriodSnapshotSortDestroy(pSorter->pSnapshotSort);
+  pSorter->pSnapshotSort = NULL;
   pSorter->inUse = false;
   pSorter->pDataBlock = NULL;
   pSorter->readerKey = (SSTriggerReaderDataKey){0};
@@ -1753,6 +1949,7 @@ int32_t stNewTimestampSorterSetData(SSTriggerNewTimestampSorter *pSorter,
   pSorter->tsSlotId = tsSlotId;
   pSorter->pkSlotId = pkSlotId;
   pSorter->readerKey = *pReaderKey;
+  if (pSlice->pSnapshotCache != NULL) return stPeriodSnapshotSortSetData(pSorter, pSlice, pReadRange, orderedInput);
   pDataBlock->info.id.uid = pReaderKey->logicalUid;
 
   // collect all data slices; data in each slice is in ascending order
@@ -1919,6 +2116,8 @@ int32_t stNewTimestampSorterNextDataBlock(SSTriggerNewTimestampSorter *pSorter, 
 
   QUERY_CHECK_CONDITION(pSorter->inUse, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  if (pSorter->pSnapshotSort != NULL) return stPeriodSnapshotSortNext(pSorter, ppDataBlock, pStartIdx, pEndIdx);
+
   if (ppDataBlock != NULL) {
     *ppDataBlock = NULL;
   }
@@ -2015,6 +2214,7 @@ _end:
 typedef struct SNewVtableMergerReaderInfo {
   SSTriggerNewTimestampSorter *pReader;
   SSTriggerTableColRef        *pColRef;
+  int64_t                      generation;
   int32_t                      startIdx;
   int32_t                      endIdx;
 } SNewVtableMergerReaderInfo;
@@ -2047,6 +2247,9 @@ static int32_t stNewVtableMergerReaderInfoCompare(const void *pLeft, const void 
       return -1;
     } else if (leftTs > rightTs) {
       return 1;
+    }
+    if (pLeftReaderInfo->generation != pRightReaderInfo->generation) {
+      return pLeftReaderInfo->generation < pRightReaderInfo->generation ? -1 : 1;
     }
   }
   // fallback to index comparison
@@ -2170,6 +2373,96 @@ void stNewVtableMergerReset(SSTriggerNewVtableMerger *pMerger) {
   }
 }
 
+static int32_t stNewVtableMergerAddSource(SSTriggerNewVtableMerger *pMerger, int32_t tsSlotId, int32_t pkSlotId,
+                                          STimeWindow *pReadRange, const SSTriggerReaderDataKey *pReaderKey,
+                                          SSTriggerTableColRef *pColRef, SObjList *pMeta, SSTriggerDataSlice *pSlice,
+                                          int64_t generation, bool orderedInput) {
+  int32_t                     code = TSDB_CODE_SUCCESS;
+  int32_t                     lino = 0;
+  SStreamTriggerTask         *pTask = pMerger->pTask;
+  SNewVtableMergerReaderInfo *pReaderInfo = NULL;
+  if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
+    pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->nReaders);
+  } else {
+    pReaderInfo = taosArrayReserve(pMerger->pReaderInfos, 1);
+    QUERY_CHECK_NULL(pReaderInfo, code, lino, _end, terrno);
+  }
+  pMerger->nReaders++;
+  if (pReaderInfo->pReader == NULL) {
+    pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
+    QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
+    code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  QUERY_CHECK_CONDITION(pMeta != NULL || pSlice->pSnapshotCache != NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+  int32_t readerTsSlotId = tsSlotId;
+  for (int32_t i = 0; i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+    SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+    if (pMatch->vtbSlotId == tsSlotId) {
+      readerTsSlotId = pMatch->otbSlotId;
+      break;
+    }
+  }
+  int32_t readerPkSlotId = -1;
+  for (int32_t i = 0; pkSlotId >= 0 && i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
+    SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
+    if (pMatch->vtbSlotId == pkSlotId) {
+      readerPkSlotId = pMatch->otbSlotId;
+      break;
+    }
+  }
+  code = stNewTimestampSorterSetData(pReaderInfo->pReader, pReaderKey, readerTsSlotId, readerPkSlotId, pReadRange,
+                                     pMeta, pSlice, orderedInput);
+  QUERY_CHECK_CODE(code, lino, _end);
+  pReaderInfo->pColRef = pColRef;
+  pReaderInfo->generation = generation;
+  code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+  QUERY_CHECK_CODE(code, lino, _end);
+_end:
+  return code;
+}
+
+static int32_t stNewVtableMergerBuildSources(SSTriggerNewVtableMerger *pMerger) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  if (pMerger->nReaders == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (pMerger->pDataMerger != NULL && pMerger->pDataMerger->numOfSources < pMerger->nReaders) {
+    tMergeTreeDestroy(&pMerger->pDataMerger);
+  }
+  if (pMerger->pDataMerger == NULL) {
+    // round up to the nearest multiple of 8
+    int32_t capacity = (pMerger->nReaders + 7) / 8 * 8;
+    code = tMergeTreeCreate(&pMerger->pDataMerger, capacity, pMerger->pReaderInfos, stNewVtableMergerReaderInfoCompare);
+    QUERY_CHECK_CODE(code, lino, _end);
+  } else {
+    code = tMergeTreeRebuild(pMerger->pDataMerger);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+_end:
+  return code;
+}
+
+int32_t stNewVtableMergerSetSources(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId,
+                                    int32_t pkSlotId, STimeWindow *pReadRange, SArray *pSources, bool orderedInput) {
+  if (pMerger->inUse || stNewVtableMergerNeedPseudoCols(pMerger)) return TSDB_CODE_INVALID_PARA;
+  pMerger->inUse = true;
+  pMerger->nReaders = 0;
+  pMerger->pDataBlock->info.id.uid = vtbUid;
+  pMerger->tsSlotId = tsSlotId;
+  for (int32_t i = 0; i < TARRAY_SIZE(pSources); ++i) {
+    SSTriggerVtableSource *pSource = TARRAY_GET_ELEM(pSources, i);
+    int32_t                code =
+        stNewVtableMergerAddSource(pMerger, tsSlotId, pkSlotId, pReadRange, &pSource->readerKey, pSource->pColRef,
+                                   pSource->pMetas, &pSource->slice, pSource->generation, orderedInput);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  return stNewVtableMergerBuildSources(pMerger);
+}
+
 int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbUid, int32_t tsSlotId, int32_t pkSlotId,
                                  STimeWindow *pReadRange, SObjList *pTableUids, SArray *pTableColRefs,
                                  SSHashObj *pMetas, SSHashObj *pSlices, SSHashObj *pReaderConsumedEkeys,
@@ -2210,38 +2503,8 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
     SSTriggerDataSlice *pSlice =
         tSimpleHashGet(pSlices, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
     QUERY_CHECK_NULL(pSlice, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    SNewVtableMergerReaderInfo *pReaderInfo = NULL;
-    if (pMerger->nReaders < TARRAY_SIZE(pMerger->pReaderInfos)) {
-      pReaderInfo = TARRAY_GET_ELEM(pMerger->pReaderInfos, pMerger->nReaders);
-    } else {
-      pReaderInfo = taosArrayReserve(pMerger->pReaderInfos, 1);
-      QUERY_CHECK_NULL(pReaderInfo, code, lino, _end, terrno);
-    }
-    pMerger->nReaders++;
-    if (pReaderInfo->pReader == NULL) {
-      pReaderInfo->pReader = taosMemoryCalloc(1, sizeof(SSTriggerNewTimestampSorter));
-      QUERY_CHECK_NULL(pReaderInfo->pReader, code, lino, _end, terrno);
-      code = stNewTimestampSorterInit(pReaderInfo->pReader, pTask, 0);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
-    SObjList *pMeta = tSimpleHashGet(pMetas, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
-    QUERY_CHECK_NULL(pMeta, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    int32_t readerTsSlotId = tsSlotId;
-    for (int32_t i = 0; i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
-      SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
-      if (pMatch->vtbSlotId == tsSlotId) {
-        readerTsSlotId = pMatch->otbSlotId;
-        break;
-      }
-    }
-    int32_t readerPkSlotId = -1;
-    for (int32_t i = 0; pkSlotId >= 0 && i < TARRAY_SIZE(pColRef->pNewColMatches); ++i) {
-      SSTriggerColMatch *pMatch = TARRAY_GET_ELEM(pColRef->pNewColMatches, i);
-      if (pMatch->vtbSlotId == pkSlotId) {
-        readerPkSlotId = pMatch->otbSlotId;
-        break;
-      }
-    }
+    SObjList *pMeta =
+        pMetas == NULL ? NULL : tSimpleHashGet(pMetas, &pTableRef->readerKey, sizeof(SSTriggerReaderDataKey));
     STimeWindow readerRange = *pReadRange;
     if (pReaderConsumedEkeys != NULL && pTableRef->readerKey.readerKind == STRIGGER_READER_KIND_EXTERNAL) {
       int64_t *pConsumed =
@@ -2254,34 +2517,12 @@ int32_t stNewVtableMergerSetData(SSTriggerNewVtableMerger *pMerger, int64_t vtbU
         readerRange.skey = TMAX(readerRange.skey, *pConsumed == INT64_MAX ? INT64_MAX : *pConsumed + 1);
       }
     }
-    code = stNewTimestampSorterSetData(pReaderInfo->pReader, &pTableRef->readerKey, readerTsSlotId, readerPkSlotId,
-                                       &readerRange, pMeta, pSlice, orderedInput);
-    QUERY_CHECK_CODE(code, lino, _end);
-    pReaderInfo->pColRef = pColRef;
-    ST_TASK_DLOG("set virtual merger reader kind:%d, readerId:%" PRIu64 ", logicalUid:%" PRId64
-                 ", virtualUid:%" PRId64 ", virtualGid:%" PRId64,
-                 pTableRef->readerKey.readerKind, pTableRef->readerKey.stableReaderId,
-                 pTableRef->readerKey.logicalUid, pTableRef->virtualUid, pTableRef->virtualGid);
-    code = stNewTimestampSorterNextDataBlock(pReaderInfo->pReader, NULL, &pReaderInfo->startIdx, &pReaderInfo->endIdx);
+    code = stNewVtableMergerAddSource(pMerger, tsSlotId, pkSlotId, &readerRange, &pTableRef->readerKey, pColRef, pMeta,
+                                      pSlice, 0, orderedInput);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pMerger->nReaders == 0) {
-    goto _end;
-  }
-
-  if (pMerger->pDataMerger != NULL && pMerger->pDataMerger->numOfSources < pMerger->nReaders) {
-    tMergeTreeDestroy(&pMerger->pDataMerger);
-  }
-  if (pMerger->pDataMerger == NULL) {
-    // round up to the nearest multiple of 8
-    int32_t capacity = (pMerger->nReaders + 7) / 8 * 8;
-    code = tMergeTreeCreate(&pMerger->pDataMerger, capacity, pMerger->pReaderInfos, stNewVtableMergerReaderInfoCompare);
-    QUERY_CHECK_CODE(code, lino, _end);
-  } else {
-    code = tMergeTreeRebuild(pMerger->pDataMerger);
-    QUERY_CHECK_CODE(code, lino, _end);
-  }
+  code = stNewVtableMergerBuildSources(pMerger);
 
 _end:
   if (TSDB_CODE_SUCCESS != code) {

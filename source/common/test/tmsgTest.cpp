@@ -6291,6 +6291,72 @@ TEST(td_msg_test, askep_rsp_accept_epset_inuse_boundary) {
   }
 }
 
+static int32_t secBuildBatchReq(std::vector<char> &out, int32_t msgLen, const char *blob, int32_t blobLen) {
+  SBatchMsg msg = {0};
+  msg.msgIdx = 0;
+  msg.msgType = TDMT_VND_TABLE_META;
+  msg.msgLen = msgLen;
+  msg.msg = (void *)blob;
+  SBatchReq req = {0};
+  req.pMsgs = taosArrayInit(1, sizeof(SBatchMsg));
+  (void)taosArrayPush(req.pMsgs, &msg);
+  int32_t cap = tSerializeSBatchReq(NULL, 0, &req);
+  out.assign(cap, 0);
+  int32_t n = tSerializeSBatchReq(out.data(), cap, &req);
+  taosArrayDestroy(req.pMsgs);
+  (void)blobLen;
+  return n;
+}
+
+TEST(td_msg_test, batch_req_rejects_msglen_mismatch) {
+  char blob[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  std::vector<char> buf;
+
+  // consistent: accepted
+  int32_t n = secBuildBatchReq(buf, 8, blob, 8);
+  ASSERT_GT(n, 0);
+  {
+    // msgLen (offset 24 = head + frame len + num + idx + type) smaller than the real 8-byte blob
+    std::vector<char> shrunk(buf);
+    int32_t           fakeLen = 4;
+    memcpy(shrunk.data() + 24, &fakeLen, sizeof(fakeLen));
+    SBatchReq reqBad = {0};
+    EXPECT_EQ(tDeserializeSBatchReq(shrunk.data(), n, &reqBad), TSDB_CODE_INVALID_MSG);
+    taosArrayDestroy(reqBad.pMsgs);
+  }
+  SBatchReq req = {0};
+  ASSERT_EQ(tDeserializeSBatchReq(buf.data(), n, &req), 0);
+  ASSERT_EQ(taosArrayGetSize(req.pMsgs), 1);
+  SBatchMsg *pMsg = (SBatchMsg *)taosArrayGet(req.pMsgs, 0);
+  EXPECT_EQ(pMsg->msgLen, 8);
+  EXPECT_NE(pMsg->msg, nullptr);
+  taosMemoryFree(pMsg->msg);
+  taosArrayDestroy(req.pMsgs);
+
+  // msgLen larger than the real blob (tEncodeBinary writes only msgLen bytes, so craft via 0-length blob)
+  n = secBuildBatchReq(buf, 0, blob, 0);
+  ASSERT_GT(n, 0);
+  // patch the serialized msgLen field: header + frame len + num + idx + type, then msgLen
+  size_t   pos = sizeof(SMsgHead) + 4 + 4 + 4 + 4;
+  int32_t  fake = 64;
+  std::vector<char> patched(buf);
+  // locate msgLen robustly: it is the first int32 == 0 after type; encoding is fixed-width little endian
+  memcpy(patched.data() + pos, &fake, sizeof(fake));
+  SBatchReq req2 = {0};
+  EXPECT_EQ(tDeserializeSBatchReq(patched.data(), n, &req2), TSDB_CODE_INVALID_MSG);
+  taosArrayDestroy(req2.pMsgs);
+
+  // empty blob with msgLen == 0 is rejected too (msg would be NULL)
+  SBatchReq req3 = {0};
+  EXPECT_EQ(tDeserializeSBatchReq(buf.data(), n, &req3), TSDB_CODE_INVALID_MSG);
+  taosArrayDestroy(req3.pMsgs);
+
+  // NULL buffer / too short
+  SBatchReq req4 = {0};
+  EXPECT_EQ(tDeserializeSBatchReq(NULL, 16, &req4), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(tDeserializeSBatchReq(buf.data(), 4, &req4), TSDB_CODE_INVALID_MSG);
+}
+
 // ---- vnode mgmt request bounds (Devon scan items 34/54/272) ----
 
 static void fillVnodeReplicas(SReplica *replicas, int32_t n) {

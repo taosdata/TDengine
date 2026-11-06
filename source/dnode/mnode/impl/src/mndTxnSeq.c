@@ -287,6 +287,62 @@ static int32_t mndTxnSeqActionInsert(SSdb *pSdb, STxnSeqObj *pObj) {
   return 0;
 }
 
+int32_t mndInspectTxnSeq(const void *body, int32_t len, bool *safe) {
+  *safe = false;
+  if (len < sizeof(SSdbRaw)) return TSDB_CODE_INVALID_MSG;
+  SSdbRaw header = {0};
+  memcpy(&header, body, sizeof(header));
+  if (header.type != SDB_TRANS) return 0;
+  if (header.sver <= 0 ||
+      header.dataLen < 0 || header.dataLen != len - sizeof(header)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SSdbRaw *raw = taosMemoryMalloc(len);
+  if (raw == NULL) return terrno;
+  memcpy(raw, body, len);
+  SSdbRow *row = mndTransDecode(raw);
+  taosMemoryFree(raw);
+  if (row == NULL) return terrno != 0 ? terrno : TSDB_CODE_INVALID_MSG;
+  STrans *trans = sdbGetRowObj(row);
+  int32_t code = 0;
+  bool candidate = header.status == SDB_STATUS_READY &&
+      trans->id > 0 && trans->oper == MND_OPER_ALLOC_TXN_SEQ &&
+      trans->originRpcType == TDMT_MND_ALLOC_TXN_SEQ &&
+      (trans->stage == TRN_STAGE_PREPARE || trans->stage == TRN_STAGE_COMMIT) &&
+      trans->policy == TRN_POLICY_RETRY &&
+      trans->conflict == TRN_CONFLICT_NOTHING &&
+      trans->exec == TRN_EXEC_PARALLEL &&
+      taosArrayGetSize(trans->prepareActions) == 0 &&
+      taosArrayGetSize(trans->redoActions) == 0 &&
+      taosArrayGetSize(trans->undoActions) == 0 &&
+      taosArrayGetSize(trans->commitActions) == 1 &&
+      trans->startFunc == 0 && trans->stopFunc == 0 &&
+      trans->paramLen == 0 && trans->userDataLen == 0 &&
+      taosHashGetSize(trans->arbGroupIds) == 0 &&
+      trans->dbname[0] == '\0' && trans->stbname[0] == '\0' &&
+      memcmp(trans->opername, "alloc-txn-seq", sizeof("alloc-txn-seq")) == 0;
+  if (candidate) {
+    const STransAction *action = taosArrayGet(trans->commitActions, 0);
+    if (action->actionType == TRANS_ACTION_RAW &&
+        action->stage == TRN_STAGE_COMMIT_ACTION && action->pRaw != NULL &&
+        action->pRaw->type == SDB_TXN_SEQ &&
+        action->pRaw->status == SDB_STATUS_READY) {
+      SSdbRow *seqRow = mndTxnSeqActionDecode(action->pRaw);
+      if (seqRow == NULL) {
+        code = terrno != 0 ? terrno : TSDB_CODE_INVALID_MSG;
+      } else {
+        const STxnSeqObj *seq = sdbGetRowObj(seqRow);
+        *safe = seq->id == 0 && seq->maxRangeId > 0 &&
+            seq->maxRangeId > TXN_ID_RANGE_BASE &&
+            (seq->maxRangeId - TXN_ID_RANGE_BASE) % TXN_ID_RANGE_STEP == 0;
+        taosMemoryFree(seqRow);
+      }
+    }
+  }
+  mndTransFreeDecoded(row);
+  return code;
+}
+
 static int32_t mndTxnSeqActionDelete(SSdb *pSdb, STxnSeqObj *pObj) {
   mTrace("txnSeq:%d, perform delete action, row:%p, maxRangeId:%" PRIu64, pObj->id, pObj, pObj->maxRangeId);
   return 0;

@@ -26,6 +26,12 @@
 
 #define _DEFAULT_SOURCE
 
+#ifdef WINDOWS
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0602  // GetSystemTimePreciseAsFileTime requires Windows 8.
+#endif
+#endif
+
 #include "os.h"
 #include "osInt.h"
 #include "taoserror.h"
@@ -586,6 +592,23 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result, char *buf, int3
     return NULL;
   }
 #ifdef WINDOWS
+  // Resolve the zone's own daylight-saving rules first.  offset_seconds below
+  // is the standard-time offset, so using it for instants inside a DST period
+  // makes UTC->local disagree with the DST-aware local->UTC conversion and the
+  // two directions drift apart across a year.
+  if (tz != NULL) {
+    WindowsTimezoneObj* tz_obj = (WindowsTimezoneObj*)tz;
+    char                zoneName[TD_TIMEZONE_LEN] = {0};
+    taosThreadMutexLock(&tz_obj->mutex);
+    tstrncpy(zoneName, tz_obj->zoneName, sizeof(zoneName));
+    taosThreadMutexUnlock(&tz_obj->mutex);
+    if (zoneName[0] != '\0' && taosWindowsEpochToZoneTm(*timep, zoneName, result)) {
+      // Same POSIX sign convention as below: east-negative, west-positive.
+      timezone = (int32_t)(*timep - taosTimeGm(result));
+      return result;
+    }
+  }
+
   // Get timezone offset (correctly use the passed tz parameter)
   int64_t tz_offset = 0;
   if (tz != NULL) {
@@ -739,7 +762,10 @@ int32_t taosClockGetTime(int clock_id, struct timespec *pTS) {
     LARGE_INTEGER t;
     FILETIME      f;
 
-    GetSystemTimeAsFileTime(&f);
+    // Stream output can use wall-clock nanoseconds as a composite key. The
+    // coarse system clock may return the same value for separate windows in
+    // one calculation batch, causing the later row to replace the earlier one.
+    GetSystemTimePreciseAsFileTime(&f);
     t.QuadPart = f.dwHighDateTime;
     t.QuadPart <<= 32;
     t.QuadPart |= f.dwLowDateTime;

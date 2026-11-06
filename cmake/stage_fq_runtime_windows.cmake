@@ -13,17 +13,28 @@ if(NOT DEFINED OUT_DIR OR NOT DEFINED SEARCH_DIRS)
   return()
 endif()
 
-file(MAKE_DIRECTORY "${OUT_DIR}")
 set(_copied 0)
 foreach(_dir IN LISTS SEARCH_DIRS)
   if(NOT IS_DIRECTORY "${_dir}")
     continue()
   endif()
+  # Non-DLL helpers (Oracle's odbc_install.exe) travel with the client.  The
+  # copy is skipped when the file is absent so a deliberately skipped
+  # ExternalProject does not fail the build here.
+  foreach(_extra IN LISTS EXTRA_FILES)
+    if(EXISTS "${_dir}/${_extra}")
+      file(MAKE_DIRECTORY "${OUT_DIR}")
+      execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_dir}/${_extra}" "${OUT_DIR}/${_extra}")
+      message(STATUS "[FQ] staged ${_extra} -> ${OUT_DIR}")
+    endif()
+  endforeach()
   file(GLOB _files "${_dir}/*.dll")
   foreach(_f IN LISTS _files)
     get_filename_component(_name "${_f}" NAME)
     foreach(_pat IN LISTS NAME_PATTERNS)
       if(_name MATCHES "${_pat}")
+        file(MAKE_DIRECTORY "${OUT_DIR}")
         execute_process(
           COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${_f}" "${OUT_DIR}/${_name}")
         message(STATUS "[FQ] staged ${_name} -> ${OUT_DIR}")

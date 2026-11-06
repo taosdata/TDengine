@@ -117,6 +117,10 @@ int32_t setConnMode(int8_t connMode, char *dsn, bool show) {
 
     if (show) {
         fprintf(stdout, "\nConnect mode is : %s\n\n", strMode);
+        /* Flush immediately: with stdout redirected the banner otherwise waits in
+         * the stdio buffer, and any exit path that skips the flush (abrupt
+         * termination, stream handed to another component) loses it entirely. */
+        fflush(stdout);
     }
 
     return 0;

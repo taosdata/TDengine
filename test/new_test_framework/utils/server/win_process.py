@@ -118,34 +118,59 @@ def stop_taosd_windows(dnode_index=None, config_dir=None, timeout=30, log=None):
             _log.info(f"No taosd process found for {match_info}")
             return False
 
-        now = time.monotonic()
-        last_sent = _LAST_CTRL_BREAK_TS.get(pid)
-        if last_sent is None or (now - last_sent) > 2.0:
-            _log.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
-            _send_ctrl_break_event(pid)
-            _LAST_CTRL_BREAK_TS[pid] = now
-        else:
-            _log.info(
-                f"CTRL_BREAK_EVENT already sent recently for taosd process (PID: {pid}), skip duplicate signal"
-            )
-
-        waited = 0
+        deadline = time.monotonic() + timeout
         interval = 0.5
-        while waited < timeout:
+        while True:
             if not psutil.pid_exists(pid):
                 _log.info(f"taosd process {pid} has exited gracefully")
                 return True
+            if time.monotonic() >= deadline:
+                break
+
+            now = time.monotonic()
+            last_sent = _LAST_CTRL_BREAK_TS.get(pid)
+            if last_sent is None or (now - last_sent) > 2.0:
+                _log.info(f"Sending CTRL_BREAK_EVENT to taosd process (PID: {pid})")
+                try:
+                    _send_ctrl_break_event(pid)
+                except Exception as e:
+                    # A taosd that is still starting up can briefly share its console
+                    # with the process tree that launched it, which the signal helper
+                    # refuses to interrupt.  Keep retrying until the timeout instead of
+                    # giving up on the first refusal, otherwise a one-second window
+                    # during startup fails the whole case.
+                    _log.info(f"CTRL_BREAK_EVENT not delivered yet, will retry: {e}")
+                _LAST_CTRL_BREAK_TS[pid] = now
             sleep(interval)
-            waited += interval
 
         _log.info(f"taosd process {pid} did not exit in {timeout}s, force killing...")
+        killed = None
         try:
-            psutil.Process(pid).kill()
+            killed = psutil.Process(pid)
+            killed.kill()
         except Exception:
             # fallback
             os.kill(pid, signal.SIGTERM)
+        # The caller restarts taosd right away.  A start that races with a
+        # still-terminating process fails to bind the server port and then
+        # times out in dnode.start() waiting for "from offline to online", so
+        # wait until the killed process is really gone before returning.
+        deadline = time.monotonic() + 20
+        while time.monotonic() < deadline:
+            alive = killed.is_running() if killed is not None else psutil.pid_exists(pid)
+            if killed is not None:
+                try:
+                    if killed.status() == psutil.STATUS_ZOMBIE:
+                        alive = False
+                except psutil.NoSuchProcess:
+                    alive = False
+            if not alive:
+                _log.info(f"taosd process {pid} exited after force kill")
+                break
+            sleep(0.2)
+        else:
+            _log.warning(f"taosd process {pid} is still alive 20s after force kill")
         return False
-
     except Exception as e:
         _log.error(f"Error stopping taosd: {e}")
         return False

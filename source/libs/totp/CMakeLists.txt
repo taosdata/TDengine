@@ -29,3 +29,9 @@ target_include_directories(
 if (NOT ${TD_WINDOWS})
   DEP_ext_ssl(totp)
 endif()
+
+# The real implementation lives in the enterprise plugin, so the RFC 6238
+# vectors only mean something when it is part of the build.
+if(BUILD_TEST AND TD_ENTERPRISE)
+    ADD_SUBDIRECTORY(test)
+endif()

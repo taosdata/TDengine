@@ -2211,16 +2211,33 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   bool otherCpuCoresExplicit = (pItem->stype != CFG_STYPE_DEFAULT);
   tsOtherCpuCores = pItem->i32;
 
-  // Recompute dynamic defaults for readCpuCores/otherCpuCores when they were
-  // not explicitly set by user but managementCpuCores was changed from default.
-  // The initial dynamic defaults in taosAddServerCfg() are computed with the
-  // default managementCpuCores=1 before the config file is loaded.
-  if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
-    int32_t total = (int32_t)tsNumOfCores;
-    int32_t remaining = total - tsManagementCpuCores;
+  // Recompute the dynamic default for whichever of readCpuCores/otherCpuCores
+  // the user did not set explicitly. taosAddServerCfg() only seeds a dynamic
+  // default when managementCpuCores is still at its own default, so a config
+  // that sets readCpuCores (or otherCpuCores) alone used to leave the other
+  // group at the registration-time placeholder of 1 instead of the documented
+  // (totalCores - managementCpuCores) split.
+  //
+  // The unset group keeps that documented independent default, but is capped by
+  // what the explicit group leaves over: taosInitCpuAllocation() rejects a
+  // configuration whose three groups add up to more than the machine has, and
+  // the plain half default next to an explicitly large group would make an
+  // otherwise valid taos.cfg fail to start.
+  if (!readCpuCoresExplicit || !otherCpuCoresExplicit) {
+    int32_t remaining = (int32_t)tsNumOfCores - tsManagementCpuCores;
     if (remaining < 2) remaining = 2;
-    tsReadCpuCores = remaining / 2;
-    tsOtherCpuCores = remaining - tsReadCpuCores;
+    if (!readCpuCoresExplicit && !otherCpuCoresExplicit) {
+      tsReadCpuCores = remaining / 2;
+      tsOtherCpuCores = remaining - tsReadCpuCores;
+    } else if (!readCpuCoresExplicit) {
+      int32_t fit = remaining - tsOtherCpuCores;
+      tsReadCpuCores = (remaining / 2 < fit) ? remaining / 2 : fit;
+      if (tsReadCpuCores < 1) tsReadCpuCores = 1;
+    } else {
+      int32_t fit = remaining - tsReadCpuCores;
+      tsOtherCpuCores = (remaining - remaining / 2 < fit) ? remaining - remaining / 2 : fit;
+      if (tsOtherCpuCores < 1) tsOtherCpuCores = 1;
+    }
   }
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "enableIpv6");

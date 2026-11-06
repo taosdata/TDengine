@@ -3154,8 +3154,9 @@ uint64_t strToTimestamp(char * tsStr) {
     }
 
     if (toolsParseTime(tsStr, (int64_t*)&ts, strlen(tsStr), TSDB_TIME_PRECISION_MILLI, 0)) {
-        // not timestamp str format, maybe int64 format
-        ts = (int64_t)atol(tsStr);
+        // not timestamp str format, maybe int64 format. Use strtoll(): atol()
+        // is 32-bit on Windows (LONG), which truncates epoch milliseconds.
+        ts = (uint64_t)strtoll(tsStr, NULL, 10);
     }
 
     return ts;
@@ -4326,6 +4327,14 @@ int32_t exitInsertThread(SDataBase* database, SSuperTable* stbInfo, int32_t nthr
             case SML_REST_IFACE:
                 if (g_arguments->terminate)
                     toolsMsleep(100);
+                /* Half-close the socket and drain the peer's replies before
+                 * releasing it.  telnet tcp never reads the adapter's
+                 * responses, so closing a socket that still has unread
+                 * received data makes the OS emit a RST and discard whatever
+                 * is left in the send queue.  Without this drain the tail of
+                 * the last batches is silently lost even though every send()
+                 * reported success. */
+                destroySockFd(pThreadInfo->sockfd);
                 tmfree(pThreadInfo->buffer);
                 // on-purpose no break here
             case SML_IFACE:

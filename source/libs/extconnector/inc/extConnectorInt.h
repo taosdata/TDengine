@@ -51,7 +51,8 @@ typedef struct SExtProvider {
   const char    *name;  // "mysql" / "postgresql" / "influxdb"
 
   // Connection management (DS section 6.1.2.2)
-  // password in cfg is AES-encrypted; providers must decrypt before connecting
+  // mnode decrypts the stored password before SGetExtSourceRsp is returned.
+  // cfg contains plaintext credentials; providers must not decrypt it again.
   int32_t (*connect)(const SExtSourceCfg *cfg, void **ppConn);
   void    (*disconnect)(void *pConn);
   bool    (*isAlive)(void *pConn);  // probe conn before reuse; NULL = skip probe
@@ -160,7 +161,7 @@ typedef struct SExtSlab {
 
 typedef struct SExtConnPool {
   char             sourceName[TSDB_EXT_SOURCE_NAME_LEN];
-  SExtSourceCfg    cfg;             // deep copy (password = AES-encrypted)
+  SExtSourceCfg    cfg;             // deep copy of SGetExtSourceRsp (password is already decrypted)
   volatile int64_t cfgVersion;      // meta_version at last pool update
   volatile int64_t drainGeneration; // bumped on conn-field change
   SExtProvider    *pProvider;       // pointer into gExtProviders[]
@@ -173,6 +174,10 @@ typedef struct SExtConnPool {
   int32_t          maxPoolSize;     // soft cap on (idleCount + inUseCount)
   volatile int32_t destroying;      // 1 = pool shutting down (set by destroyPool)
   volatile int64_t lastActiveTime;  // ms timestamp of last successful open()/close() activity
+  // 1.8 namespace metadata is shared across leases; connection borrowing stays lock-free.
+  SHashObj*        pInfluxRpCache;
+  TdThreadMutex    influxRpMutex;
+  int64_t          influxRpVersion;
 } SExtConnPool;
 
 // ============================================================
@@ -190,10 +195,15 @@ void extConnectorReclaimExpiredEmptyPools(int64_t nowMs, int64_t ttlMs);
 // Opaque handle types (declared in extConnector.h, defined here)
 // ============================================================
 
+struct SInfluxV1Scan;
+
 struct SExtConnectorHandle {
   SExtConnPool  *pPool;
   SExtPoolEntry *pEntry;
+  int64_t       metaVersion; // caller's namespace-cache version, even if the pool is later refreshed
   void          *pAcquiredData;  // value returned by taosHashAcquire; passed to taosHashRelease in Close
+  struct SInfluxV1Scan *pInfluxV1Scan;
+  bool                 influxV1Active;
 };
 
 struct SExtQueryHandle {
@@ -300,6 +310,12 @@ bool oracleProviderInit(void);
 void oracleProviderCleanup(void);
 bool influxProviderInit(SExtProvider *pProvider);
 void influxProviderCleanup(void);
+bool influxProviderIsV1(const SExtProvider *provider, const void *connection);
+bool influxProviderVersionAvailable(const char *options);
+int32_t influxProviderPrepareV1(void *connection, const SExtInfluxScanSpec *spec, struct SInfluxV1Scan **out);
+int32_t influxProviderExecV1(void *connection, struct SInfluxV1Scan *scan, void **out);
+const char *influxV1ScanSQL(const struct SInfluxV1Scan *scan);
+void influxV1FreeScan(struct SInfluxV1Scan *scan);
 void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);
 void *extConnectorLoadRuntimeSymbol(void *handle, const char *symbol);
 void extConnectorCloseRuntimeLibrary(void *handle);

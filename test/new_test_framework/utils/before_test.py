@@ -584,13 +584,32 @@ class BeforeTest:
         # 实例化 tdCommon
         tdCom.init(request.session.taos_bin_path, request.session.cfg_path, request.session.work_dir)
        
+    def _dnode_cfg_baseline(self, dnodes):
+        """Per-dnode config as it was before the first update_cfg() of the session.
+
+        yaml_data lives for the whole pytest session, so merging every class'
+        updatecfgDict into it made a class inherit the keys an earlier class set
+        and never asked for.  For example test_cpu_affinity_switch sets
+        readCpuCores/otherCpuCores in one class, and the following class that
+        only sets managementCpuCores then kept those stale counts instead of the
+        dynamic default it wanted to verify.
+        """
+        if getattr(self, "_cfg_baseline", None) is None:
+            self._cfg_baseline = [copy.deepcopy(d.get("config", {})) for d in dnodes]
+        return self._cfg_baseline
+
     def update_cfg(self, updatecfgDict):
         # Collect client-side config separately; store for ALTER LOCAL application after connection
         self._pending_client_cfg = dict(updatecfgDict.get("clientCfg", {}))
-        for key, value in updatecfgDict.items():
-            if key == "clientCfg":
-                continue
-            for dnode in self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]:
+        dnodes = self.request.session.yaml_data["settings"][0]["spec"]["dnodes"]
+        baseline = self._dnode_cfg_baseline(dnodes)
+        for i, dnode in enumerate(dnodes):
+            # Start from the session baseline so keys set by a previous test class
+            # do not leak into this one.
+            dnode["config"] = copy.deepcopy(baseline[i]) if i < len(baseline) else {}
+            for key, value in updatecfgDict.items():
+                if key == "clientCfg":
+                    continue
                 dnode["config"][key] = value
         with open(os.path.join(self.root_dir, 'env', 'ci_default.yaml'), 'w') as file:
             yaml.dump(self.request.session.yaml_data, file)

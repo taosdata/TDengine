@@ -19,6 +19,7 @@
 #include "syncMessage.h"
 #include "syncRaftEntry.h"
 #include "syncRaftStore.h"
+#include "syncUtil.h"
 
 int32_t syncBuildTimeout(SRpcMsg* pMsg, ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS,
                          SSyncNode* pNode) {
@@ -247,6 +248,29 @@ int32_t syncBuildSnapshotSendRsp(SRpcMsg* pMsg, int32_t dataLen, int32_t vgId) {
   pPreSnapshotRsp->bytes = bytes;
   pPreSnapshotRsp->msgType = TDMT_SYNC_SNAPSHOT_RSP;
   pPreSnapshotRsp->vgId = vgId;
+  return 0;
+}
+
+int32_t syncInspectLeaderTransfer(const void *body, int32_t len, int32_t vgId,
+                                  bool *safe) {
+  *safe = false;
+  if (len != sizeof(SyncLeaderTransfer)) return TSDB_CODE_INVALID_MSG;
+  SyncLeaderTransfer message = {0};
+  memcpy(&message, body, sizeof(message));
+  if (message.bytes != sizeof(message) || message.vgId != vgId ||
+      message.msgType != TDMT_SYNC_LEADER_TRANSFER ||
+      message.newNodeInfo.nodeId <= 0 ||
+      (message.newNodeInfo.nodeRole != TAOS_SYNC_ROLE_VOTER &&
+       message.newNodeInfo.nodeRole != TAOS_SYNC_ROLE_LEARNER) ||
+      message.newNodeInfo.nodePort == 0 ||
+      message.newNodeInfo.nodeFqdn[0] == '\0' ||
+      memchr(message.newNodeInfo.nodeFqdn, '\0',
+             sizeof(message.newNodeInfo.nodeFqdn)) == NULL ||
+      message.newLeaderId.vgId != vgId ||
+      message.newLeaderId.addr != SYNC_ADDR(&message.newNodeInfo)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  *safe = true;
   return 0;
 }
 

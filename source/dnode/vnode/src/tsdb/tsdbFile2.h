@@ -90,10 +90,11 @@ struct STFileObj {
   int32_t       state;
   int32_t       ref;
   int32_t       nlevel;
-  char          fname[TSDB_FILENAME_LEN];
+  char          fname[TSDB_PATH_LEN];
 };
 
 const char *tsdbFTypeLabel(tsdb_ftype_t ftype);
+bool        tsdbFTypeIsValid(int32_t ftype);
 
 #ifdef __cplusplus
 }

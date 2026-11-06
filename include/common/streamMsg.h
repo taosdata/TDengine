@@ -1466,8 +1466,8 @@ typedef struct SSTriggerTsdbDataRequest {
 
 typedef struct SSTriggerWalMetaNewRequest {
   SSTriggerPullRequest base;
-  int64_t              lastVer;
-  int64_t              ctime;
+  int64_t              lastVer;  // next WAL version to read, inclusive
+  int64_t              ctime;    // inclusive ingest-time cutoff in ns; INT64_MAX means no cutoff
 } SSTriggerWalMetaNewRequest;
 
 typedef enum {
@@ -1853,6 +1853,7 @@ void    tDestroySSTriggerDropRequest(SSTriggerDropRequest* pReq);
 typedef enum ESTriggerCtrlType {
   STRIGGER_CTRL_START = 0,
   STRIGGER_CTRL_STOP = 1,
+  STRIGGER_CTRL_CALC_RETRY = 2,
 } ESTriggerCtrlType;
 
 typedef enum {

@@ -231,8 +231,19 @@ class TestFunTimezone:
         rows = tdSql.getRows()
         for i in range(rows):
             if tdSql.getData(i, 0) == "timezone" :
-                if tdSql.getData(i, 1).find(timezone) == -1:
-                    tdLog.exit("show timezone:%s != %s"%(tdSql.getData(i, 1), timezone))
+                value = str(tdSql.getData(i, 1))
+                # The abbreviation inside the parentheses comes from the platform
+                # timezone database, so it legitimately differs: 'CST' where an
+                # abbreviation is available (Linux, and Windows with the registry
+                # data), 'UTC' where the backend has none, a localized name
+                # elsewhere.  Compare the zone name and the numeric offset, which
+                # are the parts the session timezone actually defines.
+                name, _, tail = value.partition(" (")
+                expected_name, _, expected_tail = timezone.partition(" (")
+                actual_offset = tail.rstrip(")").rsplit(",", 1)[-1].strip() if tail else ""
+                expected_offset = expected_tail.rstrip(")").rsplit(",", 1)[-1].strip() if expected_tail else ""
+                if name != expected_name or (expected_offset and actual_offset != expected_offset):
+                    tdLog.exit("show timezone:%s != %s"%(value, timezone))
 
     def charset_check(self, sql, charset):
         tdSql.query(sql)
@@ -271,10 +282,6 @@ class TestFunTimezone:
 
         #tdSql.close()
 
-    @pytest.mark.skipif(
-        platform.system().lower() == 'windows',
-        reason="Windows does not support SET TIMEZONE",
-    )
     def test_fun_sca_timezone_set_fixed_offset(self):
         """summary: SET TIMEZONE with a fixed offset → TIMEZONE() returns fixed-offset representation.
 
@@ -305,6 +312,33 @@ class TestFunTimezone:
                 f"TIMEZONE() after SET TIMEZONE '{offset}' should start with "
                 f"'{offset}', got: {result!r}"
             )
+
+        # A bare fixed offset follows the POSIX sign convention (+ = west), so
+        # SET TIMEZONE '+08:00' must render the ISO offset '-08:00'.  This is the
+        # cross-platform consistency check: the Windows backend used to flip the
+        # sign a second time and produce '+08:00' here, i.e. a 16 hour difference
+        # from Linux for the very same session setting.
+        dbname = 'db_tz_fixed_offset'
+        tdSql.execute(f'create database if not exists {dbname}')
+        tdSql.execute(f'use {dbname}')
+        tdSql.execute('create table if not exists tz_fixed_offset (ts timestamp, c1 int)')
+        tdSql.execute('insert into tz_fixed_offset values (1640966400000, 1)')
+        iso_cases = {
+            '+08:00': '-08:00',
+            '+05:30': '-05:30',
+            '-05:00': '+05:00',
+            'Z': 'Z',
+        }
+        for offset, expected in iso_cases.items():
+            tdSql.execute(f"SET TIMEZONE '{offset}'")
+            tdSql.query('select to_iso8601(ts) from tz_fixed_offset')
+            tdSql.checkRows(1)
+            rendered = str(tdSql.queryResult[0][0])
+            assert expected in rendered, (
+                f"SET TIMEZONE '{offset}' should render ISO offset '{expected}', "
+                f"got: {rendered!r}"
+            )
+        tdSql.execute('drop database if exists db_tz_fixed_offset')
 
         tdSql.connect()
 

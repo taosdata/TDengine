@@ -79,6 +79,7 @@ static void    mndTxnTimeoutScanImpl(SMnode *pMnode);
 static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int32_t reason);
 static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn);
 static int32_t mndTxnAfterRestored(SMnode *pMnode);
+static int32_t mndTxnCheckPendingStreamCreateForDdl(SMnode *pMnode, txn_id_t txnId);
 static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool needAlterData);
 static int32_t mndProcessTxnTimerReq(SRpcMsg *pReq);
 
@@ -556,6 +557,58 @@ _exit:
   return code;
 }
 
+// Drop a txn's in-memory shadow ops and its entries in the global conflict map; both are
+// rebuilt from SDB (mndTxnRebuildShadowOpsFromSdb + mndTxnRepopulateConflictMap).
+static void mndTxnDiscardShadowOps(SMnode *pMnode, STxnObj *pTxn) {
+  taosWLockLatch(&pTxn->lock);
+  if (pTxn->pShadowOps != NULL) {
+    SHashObj *pConflictMap = pMnode->txnMgmt.pStbConflictMap;
+    int32_t   sz = taosArrayGetSize(pTxn->pShadowOps);
+    for (int32_t i = 0; i < sz; i++) {
+      SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
+      if (pConflictMap != NULL) {
+        size_t    nameLen = strnlen(pOp->name, TSDB_TABLE_FNAME_LEN);
+        txn_id_t *pOwner = nameLen > 0 ? (txn_id_t *)taosHashGet(pConflictMap, pOp->name, nameLen) : NULL;
+        if (pOwner != NULL && *pOwner == pTxn->id) {
+          int32_t removeCode = taosHashRemove(pConflictMap, pOp->name, nameLen);
+          if (removeCode != 0) {
+            mError("txn:%" PRIi64 ", failed at line %d to remove shadow ops of %s since %s", pTxn->id, __LINE__,
+                   pOp->name, tstrerror(removeCode));
+          }
+        }
+      }
+      taosMemoryFreeClear(pOp->pReqData);
+    }
+    taosArrayDestroy(pTxn->pShadowOps);
+    pTxn->pShadowOps = NULL;
+    // Sync reports restored just before mndTxnAfterRestored rebuilds the ops, and a DDL arriving
+    // in that gap would otherwise see pShadowOps == NULL and start a fresh array, so the
+    // rebuild would later skip it and lose the earlier ops. Make such a DDL (and COMMIT /
+    // ROLLBACK) rebuild from SDB first via mndTxnResumeShadowRebuild.
+    pTxn->shadowRebuildPending = true;
+  }
+  taosWUnLockLatch(&pTxn->lock);
+}
+
+// A follower also runs mndTxnAfterRestored when its local restore finishes, and builds shadow
+// ops from the SDB prefix it had committed then. Log entries applied later (e.g. a stream
+// marker flipping PRE_CREATE -> PRE_CREATE_DROP) do not update that cache. Drop it when this
+// node becomes leader: sync has just reset restored, so no request can read pShadowOps until
+// the restore of this term finishes and mndTxnAfterRestored rebuilds them from SDB.
+void mndTxnHandleBecomeLeader(SMnode *pMnode) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    STxnObj *pTxn = NULL;
+    pIter = sdbFetch(pSdb, SDB_TXN, pIter, (void **)&pTxn);
+    if (pIter == NULL) break;
+    if (pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING) {
+      mndTxnDiscardShadowOps(pMnode, pTxn);
+    }
+    sdbRelease(pSdb, pTxn);
+  }
+}
+
 static int32_t mndTxnAfterRestored(SMnode *pMnode) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -580,6 +633,9 @@ static int32_t mndTxnAfterRestored(SMnode *pMnode) {
       case UTXN_STAGE_PREPARING: {
         mInfo("txn:%" PRIi64 ", restored in ACTIVE stage, queued for batch shadow rebuild", pTxn->id);
         activeCnt++;
+        // Shadow ops cached by an earlier restore were already dropped by
+        // mndTxnHandleBecomeLeader. Do not free them here: on a leader this callback runs after
+        // sync reports restored, so DDL / COMMIT workers may already be reading pShadowOps.
         if (pTxn->pShadowOps == NULL && mndTxnCheckPendingStreamCreate(pMnode, pTxn->id) != 0) {
           // The pending STrans can still publish PRE_CREATE markers after this scan.
           taosWLockLatch(&pTxn->lock);
@@ -1696,7 +1752,7 @@ int32_t mndTxnAddShadowOp(SMnode *pMnode, txn_id_t txnId, int8_t opType, const c
     return TSDB_CODE_TXN_NOT_EXIST;
   }
 
-  int32_t code = mndTxnCheckPendingStreamCreate(pMnode, txnId);
+  int32_t code = mndTxnCheckPendingStreamCreateForDdl(pMnode, txnId);
   if (code == 0) code = mndTxnResumeShadowRebuild(pMnode, pTxn, true);
   if (code != 0) {
     mndReleaseTxn(pMnode, pTxn);
@@ -1895,7 +1951,7 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
   return TSDB_CODE_SUCCESS;
 }
 
-static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const char *name) {
+static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const char *name, bool includeDrop) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   STrans *pTrans = NULL;
@@ -1905,7 +1961,9 @@ static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const c
     // Updates swap and free userData under the SDB_TRANS lock. sdbFetch holds a reference,
     // but does not keep that lock held while we copy the payload.
     sdbReadLock(pSdb, SDB_TRANS);
-    if (pTrans->originRpcType == TDMT_MND_CREATE_STREAM && pTrans->userDataLen == sizeof(pending) &&
+    if ((pTrans->originRpcType == TDMT_MND_CREATE_STREAM ||
+         (includeDrop && pTrans->originRpcType == TDMT_MND_DROP_STREAM)) &&
+        pTrans->userDataLen == sizeof(pending) &&
         pTrans->userData != NULL) {
       memcpy(&pending, pTrans->userData, sizeof(pending));
       valid = pending.txnId != 0;
@@ -1920,12 +1978,20 @@ static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const c
   return false;
 }
 
+// COMMIT / ROLLBACK / restore: any unfinished stream marker trans (CREATE or DROP) of this txn
+// means SDB is not yet final, so shadow ops must not be rebuilt or applied.
 int32_t mndTxnCheckPendingStreamCreate(SMnode *pMnode, txn_id_t txnId) {
-  return mndTxnHasPendingStreamCreate(pMnode, txnId, NULL) ? TSDB_CODE_MND_TRANS_CONFLICT : TSDB_CODE_SUCCESS;
+  return mndTxnHasPendingStreamCreate(pMnode, txnId, NULL, true) ? TSDB_CODE_MND_TRANS_CONFLICT : TSDB_CODE_SUCCESS;
+}
+
+// Adding another DDL to a live txn: DROP markers are fire-and-forget (pReq=NULL, the client is
+// answered before they finish), so only a pending CREATE blocks here, as before.
+static int32_t mndTxnCheckPendingStreamCreateForDdl(SMnode *pMnode, txn_id_t txnId) {
+  return mndTxnHasPendingStreamCreate(pMnode, txnId, NULL, false) ? TSDB_CODE_MND_TRANS_CONFLICT : TSDB_CODE_SUCCESS;
 }
 
 int32_t mndTxnCheckStreamConflict(SMnode *pMnode, const char *name, txn_id_t callerTxnId) {
-  if (mndTxnHasPendingStreamCreate(pMnode, 0, name)) return TSDB_CODE_TXN_RESOURCE_BUSY;
+  if (mndTxnHasPendingStreamCreate(pMnode, 0, name, false)) return TSDB_CODE_TXN_RESOURCE_BUSY;
 
   SSdb    *pSdb = pMnode->pSdb;
   void    *pIter = NULL;

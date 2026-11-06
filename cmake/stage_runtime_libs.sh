@@ -192,6 +192,8 @@ copy_ldd() {
   local raw_dep=""
   local cur=""
   local seen=""
+  local ldd_output=""
+  local ldd_search_path=""
   local queue=("${src_lib}")
 
   mkdir -p "${dst_dir}"
@@ -218,11 +220,30 @@ copy_ldd() {
     return 0
   fi
 
-  command -v ldd >/dev/null 2>&1 || return 0
+  command -v ldd >/dev/null 2>&1 || {
+    echo "ldd is required to stage runtime dependencies of ${src_lib}" >&2
+    return 1
+  }
+  # Vendor bundles (notably Oracle) keep sibling dependencies without RPATH.
+  # Inspect their closure using the source and staged directories, scoped to
+  # this ldd invocation so different Oracle versions do not affect each other.
+  ldd_search_path="$(cd "$(dirname "${src_lib}")" && pwd):$(cd "${dst_dir}" && pwd)"
+  ldd_search_path="${ldd_search_path}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   while [ ${#queue[@]} -gt 0 ]; do
     cur="${queue[0]}"
     queue=("${queue[@]:1}")
-    ldd "${cur}" >/dev/null 2>&1 || continue
+    ldd_output=$(LD_LIBRARY_PATH="${ldd_search_path}" ldd "${cur}" 2>&1) || {
+      echo "Cannot inspect runtime dependencies of ${cur}: ${ldd_output}" >&2
+      return 1
+    }
+    # ldd can exit successfully even when a DT_NEEDED library is missing.
+    # Do not produce a successful bundle with an incomplete dependency closure.
+    while IFS= read -r raw_dep; do
+      [ -n "${raw_dep}" ] || continue
+      should_skip_ldd_dep "${raw_dep}" && continue
+      echo "Missing runtime dependency ${raw_dep} required by ${cur}" >&2
+      return 1
+    done < <(printf '%s\n' "${ldd_output}" | awk '$2 == "=>" && $3 == "not" && $4 == "found" {print $1}')
     while IFS= read -r dep; do
       [ -n "${dep}" ] || continue
       should_skip_ldd_dep "${dep}" && continue
@@ -233,7 +254,7 @@ copy_ldd() {
       seen="${seen}|${dep}|"
       copy_to_dir "${dep}" "${dst_dir}"
       queue+=("${dep}")
-    done < <(ldd "${cur}" | awk '/=> \// {print $3} /^[[:space:]]*\/.*\.so/ {print $1}' | sort -u)
+    done < <(printf '%s\n' "${ldd_output}" | awk '/=> \// {print $3} /^[[:space:]]*\/.*\.so/ {print $1}' | sort -u)
   done
   prune_toolchain_runtime_libs "${dst_dir}"
 }

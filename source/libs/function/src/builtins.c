@@ -28,6 +28,7 @@
 #include "tanalytics.h"
 #include "taoserror.h"
 #include "tbase64.h"
+#include "tcompare.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttypes.h"
@@ -1589,13 +1590,14 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
         pErrBuf, len, "regexp_extract: pattern must be a literal or parameter constant");
   }
 
-  // Validate the regex pattern compiles as POSIX ERE.
-  // For prepared-statement placeholders, literal may contain the placeholder
-  // token (for example "?") instead of the bound pattern. Prefer the
-  // materialized datum when available, and otherwise defer validation to
-  // runtime for placeholders. NCHAR validation is also deferred because
-  // regcomp() consumes bytes under the executing process locale: the client
-  // translator cannot reliably validate the pattern for a remote server's
+  // Validate the regex pattern with the engine that will execute it - PCRE2 on
+  // Windows, POSIX ERE elsewhere - so a pattern is never rejected by one engine
+  // and accepted by the other.  For prepared-statement placeholders, literal may
+  // contain the placeholder token (for example "?") instead of the bound
+  // pattern. Prefer the materialized datum when available, and otherwise defer
+  // validation to runtime for placeholders. NCHAR validation is also deferred
+  // because the engine consumes bytes under the executing process locale: the
+  // client translator cannot reliably validate the pattern for a remote server's
   // charset. regexpExtractFunction performs the authoritative validation.
   SValueNode* pPatVal = (SValueNode*)pPatNode;
   {
@@ -1626,17 +1628,12 @@ static int32_t translateRegexpExtract(SFunctionNode* pFunc, char* pErrBuf, int32
     }
 
     if (regPattern != NULL) {
-      regex_t re;
-      int     ret = regcomp(&re, regPattern, REG_EXTENDED);
-      if (ret != 0) {
-        char msgbuf[256] = {0};
-        (void)regerror(ret, NULL, msgbuf, sizeof(msgbuf));
-        // do not call regfree - regcomp failed, re is partially initialised (POSIX)
+      char    msgbuf[256] = {0};
+      int32_t code = checkRegexPatternEx(regPattern, msgbuf, sizeof(msgbuf));
+      if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(patternBuf);
-        return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR,
-                               "Invalid regex pattern for regexp_extract: %s", msgbuf);
+        return buildFuncErrMsg(pErrBuf, len, code, "Invalid regex pattern for regexp_extract: %s", msgbuf);
       }
-      regfree(&re);  // only reached when regcomp succeeded
     }
     taosMemoryFree(patternBuf);
   }

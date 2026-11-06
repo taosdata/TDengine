@@ -98,6 +98,21 @@ add_test(
     COMMAND ttimeQuarterParseTest
 )
 
+# machineCodeTest.cpp - format helpers behind the dnode heartbeat identity gate
+add_executable(machineCodeTest "machineCodeTest.cpp")
+DEP_ext_gtest(machineCodeTest)
+target_link_libraries(machineCodeTest PRIVATE os util common)
+target_include_directories(
+    machineCodeTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/os"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(
+    NAME machineCodeTest
+    COMMAND machineCodeTest
+)
+
 add_executable(streamWindowPlanTest "streamWindowPlanTest.cpp")
 DEP_ext_gtest(streamWindowPlanTest)
 DEP_ext_cppstub(streamWindowPlanTest)

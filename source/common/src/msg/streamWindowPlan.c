@@ -164,7 +164,7 @@ int32_t tCloneStreamWindowPlan(const SStreamWindowPlan* pSrc, SStreamWindowPlan*
     }
     for (int32_t i = 0; i < num; ++i) {
       const SStreamWindowLayerSpec* pSrcLayer = taosArrayGet(pSrc->pLayers, i);
-      SStreamWindowLayerSpec        dstLayer = {};
+      SStreamWindowLayerSpec        dstLayer = {0};
       dstLayer.triggerType = pSrcLayer->triggerType;
       memcpy(dstLayer.name, pSrcLayer->name, sizeof(dstLayer.name));
       dstLayer.placeholderMask = pSrcLayer->placeholderMask;
@@ -788,7 +788,7 @@ int32_t tDecodeStreamWindowPlan(SDecoder* pDecoder, SStreamWindowPlan** ppPlan) 
     goto _exit;
   }
   for (int32_t i = 0; i < num; ++i) {
-    SStreamWindowLayerSpec layer = {};
+    SStreamWindowLayerSpec layer = {0};
     code = tDecodeI8(pDecoder, &layer.triggerType);
     if (code == 0) code = tDecodeFixed(pDecoder, layer.name, sizeof(layer.name));
     if (code == 0 && memchr(layer.name, '\0', sizeof(layer.name)) == NULL) code = TSDB_CODE_INVALID_PARA;

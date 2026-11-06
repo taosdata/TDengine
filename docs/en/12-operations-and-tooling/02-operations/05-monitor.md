@@ -99,6 +99,12 @@ Each configuration also has corresponding command line options and environment v
 | port                      | --monitor-port      | MONITOR_PORT         | Port of taosKeeper service                           |             | 6043                                      |
 | interval                  | --monitor-interval  | MONITOR_INTERVAL     | Interval in seconds for taosX to send metrics to taosKeeper | 1-10      | 10                                        |
 
+### Resource Governor Metrics
+
+When `[resource]` limits are configured, taosX also reports resource-governor metrics with `stable=taosx_resource`; taosKeeper writes them to a subtable keyed by `taosx_id`. The Resource Governor row in the TDinsight for taosX dashboard shows RSS, pause state, and max-pause releases. See [taosX Resource Governor metrics](../03-components/06-taosx.md#resource-governor) for field descriptions.
+
+The Agent does not export `resource_*` metrics and does not provide a local metrics endpoint; use the Agent log to observe resource-governor events. Connector subprocess metrics use the real `taosx_id` of the endpoint they are connected to.
+
 ### Monitoring tasoX Based on TDinsight
 
 "TDinsight for taosX" is a Grafana dashboard specifically created for monitoring taosX. You need to import this dashboard before using it.

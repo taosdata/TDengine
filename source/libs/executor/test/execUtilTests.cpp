@@ -987,6 +987,7 @@ extern "C" int32_t   exchangeTestAcceptSourceFetchResponse(void *pOwner, int32_t
 extern "C" int32_t   exchangeTestPopMultiGroupResult(void *pOwner, SSDataBlock **ppBlock,
                                                      const SArray **ppPublishedLineage);
 extern "C" int32_t   exchangeTestLoadNextMultiGroupResult(void *pOwner, SSDataBlock **ppBlock);
+extern "C" SExchangeInfo *exchangeTestConfigureVtableSource(void *pParam, int32_t sourceType);
 extern "C" int32_t   exchangeTestGetResultQueueSizes(void *pOwner, int32_t *pStrictItems, int32_t *pOrdinaryBlocks);
 extern "C" int32_t   exchangeTestEnableFilterLimitGuards(void *pOwner);
 extern "C" int32_t   exchangeTestResetMultiGroupOwner(void *pOwner);
@@ -16151,6 +16152,30 @@ ExchangeFetchResponseBytes makeLegacyExchangeResponse(uint64_t gid, std::initial
   return result;
 }
 
+TEST(ExchangeVtableRetentionTest, ConsumedBlocksDoNotAccumulateAcrossFetches) {
+  for (int32_t sourceType : {EX_SRC_TYPE_VSTB_SCAN, EX_SRC_TYPE_VSTB_TAG_SCAN}) {
+    std::unique_ptr<void, decltype(&exchangeTestDestroyMultiGroupOwner)> owner(
+        exchangeTestCreateMultiGroupOwner(false, false, false), exchangeTestDestroyMultiGroupOwner);
+    ASSERT_NE(nullptr, owner.get());
+    SExchangeInfo *info = exchangeTestConfigureVtableSource(owner.get(), sourceType);
+    ASSERT_NE(nullptr, info);
+    for (int32_t i = 0; i < 64; ++i) {
+      auto response = makeLegacyExchangeResponse(42, {i, i + 1});
+      ASSERT_FALSE(response.bytes.empty());
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                exchangeTestAcceptFetchResponse(owner.get(), response.bytes.data(), response.bytes.size()));
+      SSDataBlock  *block = nullptr;
+      const SArray *lineage = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestPopMultiGroupResult(owner.get(), &block, &lineage));
+      ASSERT_NE(nullptr, block);
+      ASSERT_EQ(2, block->info.rows);
+      auto *column = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+      EXPECT_EQ(i, *reinterpret_cast<int32_t *>(colDataGetData(column, 0)));
+      ASSERT_LE(taosArrayGetSize(info->pRecycledBlocks), 1);
+    }
+  }
+}
+
 void setExchangeResponsePayloadLen(ExchangeFetchResponseBytes *pResponse, int32_t payloadLen) {
   auto *pRsp = reinterpret_cast<SRetrieveTableRsp *>(pResponse->bytes.data());
   pRsp->payloadLen = htonl(payloadLen);
@@ -16221,6 +16246,50 @@ std::vector<uint8_t> makeVarStringValue(const std::string &value) {
   memcpy(encoded.data(), &valueLen, sizeof(valueLen));
   memcpy(encoded.data() + VARSTR_HEADER_SIZE, value.data(), value.size());
   return encoded;
+}
+
+TEST(ExchangeVtableRetentionTest, SchemaChangesPreserveUnreadResultsAndResetOwnership) {
+  std::unique_ptr<void, decltype(&exchangeTestDestroyMultiGroupOwner)> owner(
+      exchangeTestCreateMultiGroupOwner(false, false, false), exchangeTestDestroyMultiGroupOwner);
+  ASSERT_NE(nullptr, owner.get());
+  SExchangeInfo *info = exchangeTestConfigureVtableSource(owner.get(), EX_SRC_TYPE_VSTB_SCAN);
+  ASSERT_NE(nullptr, info);
+  auto ints = makeLegacyExchangeResponse(42, {7, 8});
+  auto strings = makeLegacyExchangeResponse(42, {0, 0});
+  auto encoded = makeInternalSingleColumnBlock(TSDB_DATA_TYPE_VARCHAR, 32,
+                                               {makeVarStringValue("first"), makeVarStringValue("second")});
+  ASSERT_FALSE(encoded.empty());
+  strings.blockSize = static_cast<int32_t>(encoded.size());
+  strings.bytes.resize(sizeof(SRetrieveTableRsp) + INT_BYTES * 2 + encoded.size());
+  auto *response = reinterpret_cast<SRetrieveTableRsp *>(strings.bytes.data());
+  response->payloadLen = response->compLen = htonl(INT_BYTES * 2 + strings.blockSize);
+  memcpy(response->data, &strings.blockSize, INT_BYTES);
+  memcpy(response->data + INT_BYTES, &strings.blockSize, INT_BYTES);
+  memcpy(response->data + INT_BYTES * 2, encoded.data(), encoded.size());
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestAcceptFetchResponse(owner.get(), ints.bytes.data(), ints.bytes.size()));
+  SSDataBlock  *block = nullptr;
+  const SArray *lineage = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestPopMultiGroupResult(owner.get(), &block, &lineage));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            exchangeTestAcceptFetchResponse(owner.get(), strings.bytes.data(), strings.bytes.size()));
+  // Queue another response before consuming the string block. Only the consumed integer block may be reclaimed.
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestAcceptFetchResponse(owner.get(), ints.bytes.data(), ints.bytes.size()));
+  EXPECT_EQ(0, taosArrayGetSize(info->pRecycledBlocks));
+  ASSERT_EQ(2, taosArrayGetSize(info->pResultBlockList));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestPopMultiGroupResult(owner.get(), &block, &lineage));
+  ASSERT_NE(nullptr, block);
+  auto *column = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_EQ(TSDB_DATA_TYPE_VARCHAR, column->info.type);
+  char *value = colDataGetData(column, 1);
+  EXPECT_EQ("second", std::string(varDataVal(value), varDataLen(value)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestPopMultiGroupResult(owner.get(), &block, &lineage));
+  column = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, column->info.type);
+  EXPECT_EQ(7, *reinterpret_cast<int32_t *>(colDataGetData(column, 0)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, exchangeTestResetMultiGroupOwner(owner.get()));
+  EXPECT_EQ(0, taosArrayGetSize(info->pResultBlockList));
+  EXPECT_EQ(0, taosArrayGetSize(info->pRecycledBlocks));
 }
 
 std::vector<uint8_t> makeBlobValue(const std::string &value) {

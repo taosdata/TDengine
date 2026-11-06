@@ -2700,6 +2700,18 @@ static int32_t mndCheckStreamOutTableConflict(SMnode *pMnode, const SStreamObj *
   return code;
 }
 
+// Tag a stream marker trans (persisted via userData) as an unfinished marker of txnId, so
+// COMMIT / ROLLBACK and shadow-op rebuild can see it. On success pTrans owns the payload
+// (mndTransSetUserData takes the pointer, no copy) and frees it in mndTransDrop.
+static int32_t mndStreamTagPendingMarker(STrans *pTrans, txn_id_t txnId, const char *streamName) {
+  SMndTxnStreamCreate *pPending = taosMemoryCalloc(1, sizeof(*pPending));
+  if (pPending == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  pPending->txnId = txnId;
+  tstrncpy(pPending->name, streamName, sizeof(pPending->name));
+  mndTransSetUserData(pTrans, pPending, sizeof(*pPending));
+  return TSDB_CODE_SUCCESS;
+}
+
 /* Batch meta txn (phase 2): persist PRE_CREATE marker for a stream being created
  * in a transaction. Conflict detection and shadow-op registration happen here.
  * Returns 0 on success, error code otherwise. Caller wraps 0 -> ACTION_IN_PROGRESS. */
@@ -2828,14 +2840,7 @@ static int32_t mndMarkStreamTxnCreate(SMnode *pMnode, SRpcMsg *pReq, const SCMCr
   // all actions are built, but before prepare can persist or execute them.
   // Keep the reservation with the durable internal transaction. User COMMIT or
   // ROLLBACK must wait until its output actions and stream marker have finished.
-  SMndTxnStreamCreate *pPending = taosMemoryCalloc(1, sizeof(*pPending));
-  if (pPending == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  pPending->txnId = txnId;
-  tstrncpy(pPending->name, pCreate->name, sizeof(pPending->name));
-  mndTransSetUserData(pTrans, pPending, sizeof(*pPending));
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, pCreate->name));
 
   if (outStbFName[0] != 0) {
     code =
@@ -2921,6 +2926,13 @@ static int32_t mndMarkStreamTxnDrop(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *p
       (pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-predrop")),
       code, lino, _exit, terrno);
   mndTransSetChangeless(pTrans);
+
+  // Tag this marker trans (persisted: originRpcType + userData) so that COMMIT/ROLLBACK and
+  // shadow-op rebuild after a leader restore can see it is still pending. Without the tag
+  // a rebuild could run before this marker is applied, observe PRE_CREATE instead of
+  // PRE_CREATE_DROP, and silently lose the DROP shadow op.
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, pStream->pCreate->name));
+  pTrans->originRpcType = TDMT_MND_DROP_STREAM;
 
   // Encode and append marker.
   code = mndStreamTransAppend(&markerStream, pTrans, SDB_STATUS_READY);

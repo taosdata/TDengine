@@ -1641,9 +1641,9 @@ static bool fedScanIsRemoteInternalCode(int32_t code) {
          (((uint32_t)code & 0xFFFFU) == ((uint32_t)TSDB_CODE_EXT_REMOTE_INTERNAL & 0xFFFFU));
 }
 
-static int32_t fedScanNormalizeInfluxAuthCode(int8_t sourceType, const char* options, int32_t code) {
-  if (fedScanIsRemoteInternalCode(code) &&
-      fedScanIsInfluxHttpTokenOptions(sourceType, options)) {
+static int32_t fedScanNormalizeInfluxAuthCode(const SFederatedScanOperatorInfo* pInfo, int32_t code) {
+  if (!pInfo->influxV1 && fedScanIsRemoteInternalCode(code) &&
+      fedScanIsInfluxHttpTokenOptions(pInfo->pFedScanNode->sourceType, pInfo->pFedScanNode->srcOptions)) {
     return TSDB_CODE_EXT_AUTH_FAILED;
   }
   return code;
@@ -2572,6 +2572,101 @@ void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo) {
   pInfo->pFetchedBlock = NULL;
 }
 
+static int32_t fedScanInfluxV1CancelCode(void* context) {
+  return atomic_load_32(&((SExecTaskInfo*)context)->code);
+}
+
+static int32_t fedScanPrepareInfluxV1(SFederatedScanOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo, char** ppSQL) {
+  SFederatedScanPhysiNode* pNode = pInfo->pFedScanNode;
+  if (pNode->pExtTable == NULL) return TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN;
+  SExtTableNode table = *(SExtTableNode*)pNode->pExtTable;
+  SExtInfluxScanSpec spec = {0};
+  SExtTableMeta* meta = NULL;
+  SExtColTypeMapping* mappings = NULL;
+  SNode* series = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  SForeignScanOperatorParam* param = pInfo->pActiveVStbParam;
+  spec.pColMappings = pNode->pColTypeMappings;
+  spec.fpGetCancelCode = fedScanInfluxV1CancelCode;
+  spec.pCancelContext = pTaskInfo;
+  spec.numColMappings = pNode->numColTypeMappings;
+  spec.virtualScan = pInfo->underVTableScan || param != NULL || table.pSeriesCondition != NULL;
+  spec.scanRange = pNode->scanRange;
+  spec.rangePrecision = pNode->node.pOutputDataBlockDesc != NULL
+                          ? pNode->node.pOutputDataBlockDesc->precision : TSDB_TIME_PRECISION_NANO;
+  spec.hasRuntimeRange = spec.virtualScan && pInfo->hasRuntimeTimeRange;
+  spec.runtimeRange = pInfo->runtimeTimeRange;
+  spec.timeAscending = spec.virtualScan;
+  spec.pSeriesCondition = table.pSeriesCondition;
+  spec.hasSeriesBinding = table.pSeriesCondition != NULL;
+  if (param != NULL) {
+    if (param->filterCondLen > 0) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    const char* database = param->dbName[0] != '\0' ? param->dbName : pNode->srcDatabase;
+    const char* boundDatabase = table.table.dbName[0] != '\0' ? table.table.dbName : table.srcDatabase;
+    if (strcmp(database, boundDatabase) != 0) table.influxRp[0] = '\0';
+    tstrncpy(table.table.dbName, database, sizeof(table.table.dbName));
+    tstrncpy(table.srcDatabase, database, sizeof(table.srcDatabase));
+    tstrncpy(table.table.tableName, param->tableName, sizeof(table.table.tableName));
+    tstrncpy(table.remoteTableName, param->tableName, sizeof(table.remoteTableName));
+    code = extConnectorGetTableSchema(pInfo->pConnHandle, &table, &meta);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    int32_t numColumns = 1 + (int32_t)taosArrayGetSize(param->colMap);
+    mappings = taosMemoryCalloc(numColumns, sizeof(*mappings));
+    if (mappings == NULL) { code = TSDB_CODE_OUT_OF_MEMORY; goto _return; }
+    for (int32_t i = 0; i < numColumns; ++i) {
+      const SColIdNameKV* reference = i > 0 ? taosArrayGet(param->colMap, i - 1) : NULL;
+      const char* name = reference != NULL ? reference->colName : "time";
+      SExtColumnDef* column = NULL;
+      for (int32_t j = 0; j < meta->numOfCols; ++j) {
+        if (strcasecmp(meta->pCols[j].colName, name) == 0) { column = &meta->pCols[j]; break; }
+      }
+      if (column == NULL || column->isTag) { code = TSDB_CODE_EXT_SCHEMA_CHANGED; goto _return; }
+      SDataType remoteType = {0};
+      code = extTypeNameToTDengineType(EXT_SOURCE_INFLUXDB, column->extTypeName, column->extCharsetName, &remoteType);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      code = fedScanGetVstbOutputType(pNode, reference != NULL ? reference->colId : PRIMARYKEY_TIMESTAMP_COL_ID,
+                                    reference == NULL, &mappings[i].tdType);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      if (!isSameRefDataType(&mappings[i].tdType, &remoteType)) {
+        code = TSDB_CODE_VTABLE_COLUMN_TYPE_MISMATCH;
+        goto _return;
+      }
+      tstrncpy(mappings[i].colName, column->colName, sizeof(mappings[i].colName));
+      tstrncpy(mappings[i].extTypeName, column->extTypeName, sizeof(mappings[i].extTypeName));
+      mappings[i].tsPrecision = remoteType.type == TSDB_DATA_TYPE_TIMESTAMP ? TSDB_TIME_PRECISION_NANO : 0;
+    }
+    spec.pColMappings = mappings;
+    spec.numColMappings = numColumns;
+    if (fedScanValidTimePrecision(param->dstPrecision)) spec.rangePrecision = param->dstPrecision;
+    if (param->tagCond != NULL && param->tagCondLen > 0) {
+      code = nodesStringToNode(param->tagCond, &series);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      spec.pSeriesCondition = series;
+      spec.hasSeriesBinding = true;
+    }
+    table.pExtMeta = meta;
+    spec.pCurrentMeta = meta;
+    table.pInfluxSchema = NULL;
+    tstrncpy(table.influxRp, meta->retentionPolicy, sizeof(table.influxRp));
+  }
+  spec.pTable = &table;
+  code = extConnectorPrepareInfluxV1Scan(pInfo->pConnHandle, &spec, ppSQL);
+  if (code == TSDB_CODE_SUCCESS) {
+    tstrncpy(pInfo->influxRp, table.influxRp, sizeof(pInfo->influxRp));
+  }
+  if (code == TSDB_CODE_SUCCESS && mappings != NULL) {
+    taosMemoryFree(pInfo->pDynColMappings);
+    pInfo->pDynColMappings = mappings;
+    pInfo->numDynColMappings = spec.numColMappings;
+    mappings = NULL;
+  }
+_return:
+  nodesDestroyNode(series);
+  extConnectorFreeTableSchema(meta);
+  taosMemoryFree(mappings);
+  return code;
+}
+
 static bool fedScanHasStoredFilter(const SFederatedScanOperatorInfo* pInfo) {
   return (pInfo->pFedScanNode->pushdownFlags & FQ_PUSHDOWN_REQUIRED_FILTER) != 0 ||
          (pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->filterCondLen > 0);
@@ -2598,6 +2693,7 @@ static bool fedScanHasVStbPushdown(const SFederatedScanOperatorInfo* pInfo) {
  * still enforces the limit, so the scan retries once without the remote row
  * limit instead of surfacing the syntax error (DS 5.3.2.3). */
 static bool fedScanRetryWithoutRemoteLimit(SFederatedScanOperatorInfo* pInfo, int32_t code) {
+  if (pInfo->influxV1) return false;
   if (pInfo->vstbLimitDemoted || NULL == pInfo->pActiveVStbParam ||
       pInfo->pActiveVStbParam->rowLimit <= 0) {
     return false;
@@ -2626,6 +2722,7 @@ static bool fedScanRetryWithoutRemoteLimit(SFederatedScanOperatorInfo* pInfo, in
 
 static int32_t fedScanMapQueryError(const SFederatedScanOperatorInfo* pInfo, int32_t code,
                                     const SExtPushdownDiagnostic* pDiag) {
+  if (pInfo->influxV1) return code;
   bool hasStoredFilter = fedScanHasStoredFilter(pInfo);
   if (pInfo->pFedScanNode->pRemotePlan == NULL && !hasStoredFilter &&
       !fedScanHasVStbPushdown(pInfo)) {
@@ -2679,6 +2776,8 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     // Clear any previous value first so early failures never leave a stale SQL
     // string behind in EXPLAIN or later diagnostics.
     pInfo->remoteSql[0] = '\0';
+    pInfo->influxRp[0] = '\0';
+    pInfo->influxV1 = false;
     pInfo->extErrMsg[0] = '\0';
     pInfo->hasPrefetchDiag = false;
     // 1.1 Build connection config from physi node (no Catalog access in taosd)
@@ -2701,24 +2800,45 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
                            : pFedNode->metaVersion;
     cfg.query_timeout_ms = tsFederatedQueryQueryTimeoutMs;
 
+    if (cfg.source_type == EXT_SOURCE_INFLUXDB) {
+      EExtSQLDialect dialect = EXT_SQL_DIALECT_INFLUXQL;
+      code = extConnectorValidateInfluxOptions(cfg.options, cfg.default_schema, &dialect);
+      QUERY_CHECK_CODE(code, lino, _return);
+      pInfo->influxV1 = dialect == EXT_SQL_DIALECT_INFLUXDB_1_8;
+      // Pools are keyed by source and effective database.
+      if (pInfo->influxV1 && pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->dbName[0] != '\0') {
+        tstrncpy(cfg.default_database, pInfo->pActiveVStbParam->dbName, sizeof(cfg.default_database));
+      }
+    }
+
     qDebug("FederatedScan: connecting source=%s host=%s:%d user=%s type=%s",
            cfg.source_name, cfg.host, cfg.port, cfg.user,
            fedScanSourceTypeName(pFedNode->sourceType));
 
     // 1.2 Open connection
     code = extConnectorOpen(&cfg, &pInfo->pConnHandle);
-    code = fedScanNormalizeInfluxAuthCode(pFedNode->sourceType, cfg.options, code);
+    code = fedScanNormalizeInfluxAuthCode(pInfo, code);
     if (code) {
       qError("FederatedScan: connect failed, source=%s host=%s:%d, code=0x%x %s",
              cfg.source_name, cfg.host, cfg.port, code, tstrerror(code));
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
+    bool influxV1 = pInfo->influxV1;
+
     // 1.3 Generate remote SQL; passed to extConnectorExecQuery so the
     // Connector uses the same SQL (with REMOTE_VALUE_LIST resolved) instead
     // of regenerating it without subquery resolve context.
     char* remoteSql = NULL;
-    if (pFedNode->pRemotePlan == NULL && pInfo->pActiveVStbParam != NULL) {
+    if (influxV1) {
+      code = fedScanPrepareInfluxV1(pInfo, pTaskInfo, &remoteSql);
+      if (code != TSDB_CODE_SUCCESS) {
+        extConnectorClose(pInfo->pConnHandle);
+        pInfo->pConnHandle = NULL;
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      fedScanRememberRemoteSql(pInfo, remoteSql, cfg.source_name);
+    } else if (pFedNode->pRemotePlan == NULL && pInfo->pActiveVStbParam != NULL) {
       // VStb dynamic path: build SQL + col type mappings from ext table schema
       code = fedScanBuildVStbQueryAndMappings(
           pInfo, pInfo->pActiveVStbParam,
@@ -2812,7 +2932,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     SExtConnectorError extErr = {0};
     code = extConnectorExecQuery(pInfo->pConnHandle, pFedNode, NULL, remoteSql,
                                  &pInfo->pQueryHandle, &extErr);
-    code = fedScanNormalizeInfluxAuthCode(pFedNode->sourceType, cfg.options, code);
+    code = fedScanNormalizeInfluxAuthCode(pInfo, code);
     if (code) {
       SExtPushdownDiagnostic diag = {0};
       (void)extBuildPushdownDiagnostic(code, &extErr, remoteSql, &diag);
@@ -2886,8 +3006,7 @@ _fetchNext:
                                   pUseMappings,
                                   numUseMappings,
                                   &pBlock, &fetchErr);
-    code = fedScanNormalizeInfluxAuthCode(
-      pInfo->pFedScanNode->sourceType, pInfo->pFedScanNode->srcOptions, code);
+    code = fedScanNormalizeInfluxAuthCode(pInfo, code);
     pInfo->elapsedTimeUs += (taosGetTimestampUs() - startTs);
 
     if (code) {
@@ -3513,7 +3632,9 @@ int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo) {
       .pDynColMappings = pInfo->pDynColMappings,
       .numDynColMappings = pInfo->numDynColMappings,
       .pFetchedBlock = pInfo->pFetchedBlock,
+      .influxV1 = pInfo->influxV1,
   };
+  tstrncpy(ctx.influxRp, pInfo->influxRp, sizeof(ctx.influxRp));
 
   // Evict if at capacity and this is a new entry
   bool keepAllBatchMergeContexts = pInfo->pBatchMergeHandle != NULL;
@@ -3558,10 +3679,14 @@ static void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tab
     pInfo->pDynColMappings  = pCtx->pDynColMappings;
     pInfo->numDynColMappings = pCtx->numDynColMappings;
     pInfo->pFetchedBlock = pCtx->pFetchedBlock;
+    pInfo->influxV1 = pCtx->influxV1;
+    tstrncpy(pInfo->influxRp, pCtx->influxRp, sizeof(pInfo->influxRp));
   } else {
     pInfo->pConnHandle   = NULL;
     pInfo->pQueryHandle  = NULL;
     pInfo->queryStarted  = false;
+    pInfo->influxV1 = false;
+    pInfo->influxRp[0] = '\0';
     pInfo->queryFinished = false;
     pInfo->twoPassPhase1Done = false;
     pInfo->pDynColMappings  = NULL;
@@ -4332,6 +4457,7 @@ static int32_t federatedScanGetExplainInfo(SOperatorInfo* pOperator,
   pExInfo->fetchBlockCount = pInfo->fetchBlockCount;
   pExInfo->elapsedTimeUs   = pInfo->elapsedTimeUs;
   tstrncpy(pExInfo->remoteSql, pInfo->remoteSql, sizeof(pExInfo->remoteSql));
+  tstrncpy(pExInfo->influxRp, pInfo->influxRp, sizeof(pExInfo->influxRp));
   if (pInfo->batchMode) {
     pExInfo->batchMode = true;
     pExInfo->batchTables = pInfo->activeBatchTableCount;

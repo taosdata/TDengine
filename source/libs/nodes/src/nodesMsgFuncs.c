@@ -3544,6 +3544,9 @@ enum {
   EXT_TABLE_CODE_TABLE_ALIAS,
   EXT_TABLE_CODE_SRC_NAME_FROM_PATH,
   EXT_TABLE_CODE_NS_FROM_PATH_ONLY,
+  EXT_TABLE_CODE_SERIES_CONDITION,
+  EXT_TABLE_CODE_INFLUX_SCHEMA,
+  EXT_TABLE_CODE_INFLUX_RP,
 };
 
 static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3595,6 +3598,15 @@ static int32_t extTableNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, EXT_TABLE_CODE_NS_FROM_PATH_ONLY, pNode->nsFromPathOnly);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pSeriesCondition != NULL) {
+    code = tlvEncodeObj(pEncoder, EXT_TABLE_CODE_SERIES_CONDITION, nodeToMsg, pNode->pSeriesCondition);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->pInfluxSchema != NULL) {
+    code = tlvEncodeObj(pEncoder, EXT_TABLE_CODE_INFLUX_SCHEMA, nodeListToMsg, pNode->pInfluxSchema);
+  }
+  if (code == TSDB_CODE_SUCCESS && pNode->influxRp[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, EXT_TABLE_CODE_INFLUX_RP, pNode->influxRp);
   }
   return code;
 }
@@ -3652,6 +3664,15 @@ static int32_t msgToExtTableNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case EXT_TABLE_CODE_NS_FROM_PATH_ONLY:
         code = tlvDecodeBool(pTlv, &pNode->nsFromPathOnly);
+        break;
+      case EXT_TABLE_CODE_SERIES_CONDITION:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSeriesCondition);
+        break;
+      case EXT_TABLE_CODE_INFLUX_SCHEMA:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pInfluxSchema);
+        break;
+      case EXT_TABLE_CODE_INFLUX_RP:
+        code = tlvDecodeCStr(pTlv, pNode->influxRp, sizeof(pNode->influxRp));
         break;
       default:
         break;

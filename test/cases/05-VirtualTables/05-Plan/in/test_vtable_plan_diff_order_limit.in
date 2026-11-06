@@ -1,0 +1,2 @@
+set max_binary_display_width 160;
+explain verbose true select _c0, diff(_c0) as timespan, x from vtable_order_limit.vn where _c0 is not null order by _c0 desc limit 1000;

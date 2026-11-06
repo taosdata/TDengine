@@ -58,8 +58,26 @@ void    DestroyRegexCache();
 int32_t rawStrPatternMatch(const char *pattern, const char *str);
 int32_t patternMatch(const char *pattern, size_t psize, const char *str, size_t ssize, const SPatternCompareInfo *pInfo);
 int32_t checkRegexPattern(const char *pPattern);
+
+// Same as checkRegexPattern(), but compiles the pattern with the engine that
+// will execute it (PCRE2 on Windows, POSIX ERE elsewhere) and writes the engine
+// diagnostic into errBuf. Returns TSDB_CODE_SUCCESS when the pattern is usable.
+int32_t checkRegexPatternEx(const char *pPattern, char *errBuf, int32_t errLen);
 int32_t threadGetRegComp(regex_t **regex, const char *pPattern);
 void    DestoryThreadLocalRegComp();
+
+// Match pString against the POSIX-extended pattern pPattern. Returns 0 on a
+// match and 1 otherwise. Both strings must be NUL terminated. On Windows the
+// match runs through PCRE2 in UTF mode because the CRT engine there counts
+// bytes instead of characters.
+int32_t taosExecRegexMatch(const char *pString, const char *pPattern);
+
+// Match pString against pPattern and report capture group groupIdx.
+// Returns 0 on a match, 1 when nothing matched and a TSDB error code when the
+// engine failed. pStart/pLen receive the byte offsets of the group inside
+// pString; pStart is set to -1 when the group did not participate.
+int32_t taosExecRegexMatchGroups(const char *pString, const char *pPattern, int32_t groupIdx, int32_t *pStart,
+                                 int32_t *pLen);
 
 int32_t wcsPatternMatch(const TdUcs4 *pattern, size_t psize, const TdUcs4 *str, size_t ssize, const SPatternCompareInfo *pInfo);
 

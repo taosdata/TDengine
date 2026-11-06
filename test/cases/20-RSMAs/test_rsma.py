@@ -49,7 +49,9 @@ class TestCase:
                                 f"%s%staos11 1 0" % (hostPath, os.sep),
                                 f"%s%staos12 1 0" % (hostPath, os.sep)],
         'clientCfg'        : clientCfgDict,
-        'ssAccessString'   : f"fs:baseDir={localSSPath}",
+        # The fs: access string is a URL, so the base directory has to use
+        # forward slashes; a Windows path with backslashes is not parsed.
+        'ssAccessString'   : "fs:baseDir=%s" % localSSPath.replace("\\", "/"),
         'ssEnabled'        : 1,
         'ssUploadDelaySec' : 2
     }

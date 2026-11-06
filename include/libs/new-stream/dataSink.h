@@ -102,6 +102,17 @@ typedef struct SAlignBlocksInMem {
   int64_t capacity;
   int64_t dataLen;
   int32_t nWindow;
+  // Per-window consumption flag (index = window ordinal inside this block).
+  // A data-cache read removes only the window it was asked for; the block is
+  // released once every window it holds has been read by its own request.
+  uint8_t* pConsumed;
+  int32_t  consumedCap;
+  int32_t  consumedCount;
+  // Only skip a fully consumed prefix; unmatched windows remain available to other requests.
+  int32_t  firstUnreadIndex;
+  int64_t  firstUnreadOffset;
+  int64_t  lastWindowStart;
+  bool     unorderedWindows;
   // trailing bytes store serialized SSlidingWindowInMem items
 } SAlignBlocksInMem;
 
@@ -169,6 +180,9 @@ typedef struct SSlidingGrpMgr {
 
 typedef struct SAlignGrpMgr {
   int64_t groupId;
+  int64_t lastWindowStart;
+  bool    hasWindow;
+  bool    unorderedWindows;
   int8_t  status;        // EGroupStatus
   SArray* blocksInMem;   // array SAlignBlocksInMem <address, capacity, dataLen>
   SArray* blocksInFile;  // array SBlocksInfoFile <groupOffset, dataStartOffset, dataLen>
@@ -249,6 +263,15 @@ int32_t getStreamDataCacheScoped(void* pCache, const SStreamCacheScope* pScope, 
 int32_t cleanStreamDataCacheScope(void* pCache, const SStreamCacheScope* pScope);
 int32_t cleanStreamDataCacheGroup(void* pCache, int64_t gid);
 
+// Raw snapshots in a private or registered cache. Source ids are local to that cache;
+// no window lineage or event-time identity is added. Range reads preserve stored rows.
+int32_t putStreamDataCacheSnapshot(void* pCache, int64_t sourceId, int32_t tsSlotId, SSDataBlock* pBlock,
+                                   int32_t startIndex, int32_t endIndex);
+int32_t getStreamDataCacheSnapshot(void* pCache, int64_t sourceId, TSKEY start, TSKEY end, void** ppIter);
+// Append an immutable source in bounded blocks, retaining its schema and timestamp slot.
+// On failure the target may contain a prefix; the caller must discard it, not retry the append.
+int32_t appendStreamDataCacheSnapshot(void* pTarget, int64_t targetSourceId, void* pSource, int64_t sourceId);
+
 typedef struct SStreamDataCacheWriteBatch SStreamDataCacheWriteBatch;
 typedef struct {
   int32_t sourceSlotId;
@@ -275,6 +298,10 @@ void    retireStreamDataCache(void** ppCache);
 
 // Cancel iterator traversal early.
 void cancelStreamDataCacheIterate(void** pIter);
+
+// Release unread fragments of one logical window when its read finishes or is cancelled early.
+int32_t alignReleaseWindowFragments(SAlignGrpMgr* pAlignGrpMgr, int64_t reqStartTime, int64_t reqEndTime,
+                                    const char* eventConditionPath);
 
 // Destroy all DataSink manager resources.
 void destroyDataSinkMgr();
@@ -314,6 +341,7 @@ bool    setNextIteratorFromFile(SResultIter** ppResult);
 int32_t createDataResult(void** ppResult);
 void    releaseDataResult(void** ppResult);
 void    releaseDataResultAndResetMgrStatus(void** ppIter);
+void    releaseDataResultAndResetMgrStatusWithCleanup(void** ppIter);
 
 void slidingGrpMgrUsedMemAdd(SSlidingGrpMgr* pSlidingGrpCacheMgr, int64_t size);
 

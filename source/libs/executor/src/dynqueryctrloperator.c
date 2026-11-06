@@ -5971,6 +5971,9 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   tstrncpy(cfg.default_database, pScan->srcDatabase, sizeof(cfg.default_database));
   tstrncpy(cfg.default_schema, pScan->srcSchema, sizeof(cfg.default_schema));
   tstrncpy(cfg.options, pScan->srcOptions, sizeof(cfg.options));
+  const char* boundDatabase = table.table.dbName[0] != '\0' ? table.table.dbName : table.srcDatabase;
+  const char* database = dbName[0] != '\0' ? dbName : pScan->srcDatabase;
+  if (strcmp(database, boundDatabase) != 0) table.influxRp[0] = '\0';
   tstrncpy(table.table.tableName, tableName, sizeof(table.table.tableName));
   tstrncpy(table.table.dbName, dbName, sizeof(table.table.dbName));
   if (EXT_SOURCE_POSTGRESQL == cfg.source_type) {

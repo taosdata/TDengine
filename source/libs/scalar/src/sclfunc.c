@@ -1676,6 +1676,13 @@ static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32
   // a = regex pattern, b = input string from set
   char patBuf[256], strBuf[256], msgbuf[256];
 
+  // An empty pattern matches nothing. Linux returns the same result because the
+  // shared regex cache refuses zero-length keys; without this guard engines
+  // that accept "" (e.g. the MSVC build) report a match on the first element.
+  if (aLen <= 0) {
+    return false;
+  }
+
   char *pattern = patBuf, *str = strBuf;
   if (aLen >= sizeof(patBuf)) {
     pattern = taosMemoryMalloc(aLen + 1);
@@ -1698,19 +1705,10 @@ static bool regexpInSetCompare(const char *a, int32_t aLen, const char *b, int32
   (void)memcpy(str, b, bLen);
   str[bLen] = 0;
 
-  regex_t *regex = NULL;
-  int32_t  ret = threadGetRegComp(&regex, pattern);
-  if (ret != 0) {
-    goto _return;
-  }
-
-  regmatch_t pmatch[1];
-  ret = regexec(regex, str, 1, pmatch, 0);
-  if (ret != 0 && ret != REG_NOMATCH) {
-    terrno = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
-    (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
-    qDebug("Failed to match %s with pattern %s, reason %s", str, pattern, msgbuf);
-  }
+  // taosExecRegexMatch() picks the engine: PCRE2 in UTF mode on Windows (the CRT
+  // engine there is byte oriented) and the POSIX engine everywhere else.
+  (void)msgbuf;
+  int32_t ret = taosExecRegexMatch(str, pattern);
 
 _return:
   if (str != strBuf) {
@@ -2063,31 +2061,20 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     }
   }
 
-  // Compile (or retrieve cached) regex  -  pattern is constant so cache hits every row
-  regex_t *regex = NULL;
-  code = threadGetRegComp(&regex, patStr);
+  // Validate the pattern once: it is constant, so a malformed pattern fails the
+  // statement before any row is visited. The per-row matching goes through the
+  // shared matcher below.
+  code = checkRegexPattern(patStr);
   if (code != 0) {
     terrno = code;
     goto _exit;
   }
-
-  // regmatch_t array: index 0 = whole match, 1..groupIdx = capture groups.
-  // Initialize all entries to -1 so any submatch slots not written by regexec
-  // (for example when groupIdx exceeds regex->re_nsub) remain deterministic.
-  int32_t     nmatch  = groupIdx + 1;
-  regmatch_t *pmatch  = taosMemoryMalloc(nmatch * sizeof(regmatch_t));
-  if (pmatch == NULL) {
-    code = terrno;
-    goto _exit;
-  }
-  (void)memset(pmatch, 0xFF, nmatch * sizeof(regmatch_t));
 
   // Each output cell is a VarData value, and for var-length types info.bytes
   // already includes the VARSTR_HEADER_SIZE length prefix plus payload space.
   int32_t outBufLen = pStrData->info.bytes;
   char   *outBuf    = taosMemoryMalloc(outBufLen);
   if (outBuf == NULL) {
-    taosMemoryFree(pmatch);
     code = terrno;
     goto _exit;
   }
@@ -2139,21 +2126,21 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
     }
     strNt[strMbsLen] = '\0';
 
-    int ret = regexec(regex, strNt, nmatch, pmatch, 0);
-    if (ret == REG_NOMATCH || (ret == 0 && pmatch[groupIdx].rm_so == -1)) {
+    // taosExecRegexMatchGroups() keeps the code point semantics: on Windows the
+    // CRT engine counts bytes, so a group like '(.)' would return a single byte
+    // of a multi byte character and the UCS-4 conversion below would fail.
+    int32_t matchStart = -1;
+    int32_t matchLen   = 0;
+    int     ret        = taosExecRegexMatchGroups(strNt, patStr, groupIdx, &matchStart, &matchLen);
+    if (ret == 1 || (ret == 0 && matchStart < 0)) {
       // no match, or the requested capture group did not participate
       colDataSetNULL(pOutputData, i);
     } else if (ret != 0) {
-      // real regex execution error  -  capture the reason for production debugging
-      char msgbuf[256] = {0};
-      (void)regerror(ret, regex, msgbuf, sizeof(msgbuf));
-      qDebug("REGEXP_EXTRACT: regexec failed for pattern '%s', reason: %s", patStr, msgbuf);
-      code = TSDB_CODE_PAR_REGULAR_EXPRESSION_ERROR;
+      qDebug("REGEXP_EXTRACT: match failed for pattern '%s', code: %d", patStr, ret);
+      code = ret;
       terrno = code;
       break;
     } else {
-      int32_t matchStart = pmatch[groupIdx].rm_so;
-      int32_t matchLen   = pmatch[groupIdx].rm_eo - pmatch[groupIdx].rm_so;
 
       if (isNchar) {
         // Convert matched process-charset bytes back to NCHAR (UCS-4) directly into outBuf
@@ -2210,7 +2197,6 @@ int32_t regexpExtractFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
 
   taosMemoryFree(strNt);
   taosMemoryFree(outBuf);
-  taosMemoryFree(pmatch);
 _exit:
   if (needFreePat) taosMemoryFree(patStr);
   pOutput->numOfRows = numOfRows;

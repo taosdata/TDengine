@@ -21,6 +21,8 @@ if(TD_ENTERPRISE)
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorQuery.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorRuntime.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxPlugin.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxV1.c
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extInfluxHttpCommon.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorMySQL.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorPG.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorSQLServer.c
@@ -43,6 +45,8 @@ target_link_libraries(
   PRIVATE os util common qcom nodes
 )
 
+DEP_ext_cjson(extconnector)
+
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
   target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
 endif()
@@ -51,6 +55,7 @@ endif()
 # ExternalProject_Add; see community/cmake/external.cmake for build rules)
 # ──────────────────────────────────────────────────────────────────────────────
 if(TD_ENTERPRISE)
+  DEP_ext_curl(extconnector)
   if(BUILD_WITH_MARIADB)
     target_compile_definitions(extconnector PRIVATE HAVE_MARIADB_C)
     message(STATUS "ExtConnector: MySQL provider enabled with runtime libmariadb loading")
@@ -74,7 +79,7 @@ if(TD_ENTERPRISE)
     target_compile_definitions(extconnector PRIVATE HAVE_ARROW)
     message(STATUS "ExtConnector: InfluxDB provider enabled via optional runtime plugin")
   else()
-    message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB provider disabled")
+    message(STATUS "ExtConnector: BUILD_WITH_ARROW=OFF — InfluxDB 1.8 HTTP enabled; 3.x provider disabled")
   endif()
 
   if(BUILD_WITH_ODBC)
@@ -176,10 +181,37 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       endif()
       _stage_fq_provider_runtime("${ext_mariadb_install}/lib/mariadb"
         "libmariadb.so*" "libmysqlclient.so*" "libmariadb*.dylib*" "libmysqlclient*.dylib*")
+      # MariaDB Connector/C implements the MySQL 8 default authentication
+      # (caching_sha2_password) as a loadable client plugin.  Its compiled-in
+      # PLUGINDIR points into the build machine's externals tree, so the plugin
+      # must travel with the client library: the provider points
+      # MYSQL_PLUGIN_DIR at this copy (mysqlResolvePluginDir in
+      # extConnectorMySQL.c).  Same build, same version as the client library.
+      # Windows stages the equivalent DLLs next to libmariadb.dll below.
+      _stage_fq_provider_runtime("${ext_mariadb_install}/lib/mariadb/plugin"
+        "caching_sha2_password.*" "sha256_password.*" "mysql_clear_password.*" "dialog.*"
+        "client_ed25519.*")
     elseif(DEFINED EXT_MARIADB_SO_SRCPATH AND NOT "${EXT_MARIADB_SO_SRCPATH}" STREQUAL "")
       get_filename_component(_mariadb_runtime_dir "${EXT_MARIADB_SO_SRCPATH}" DIRECTORY)
       _stage_fq_provider_runtime("${_mariadb_runtime_dir}"
         "libmariadb.so*" "libmysqlclient.so*" "libmariadb*.dylib*" "libmysqlclient*.dylib*")
+      # Distributions keep the client auth plugins in a sibling directory
+      # (for example <libdir>/libmariadb3/plugin) rather than next to the
+      # client library.  Stage them beside the library so the packaged runtime
+      # does not depend on the build host's package layout; same package, so
+      # the plugin version always matches the client library.
+      file(GLOB _mariadb_system_plugin_dirs
+        "${_mariadb_runtime_dir}/plugin"
+        "${_mariadb_runtime_dir}/*/plugin")
+      list(REMOVE_DUPLICATES _mariadb_system_plugin_dirs)
+      foreach(_mariadb_plugin_dir IN LISTS _mariadb_system_plugin_dirs)
+        if(EXISTS "${_mariadb_plugin_dir}/caching_sha2_password.so" OR
+           EXISTS "${_mariadb_plugin_dir}/caching_sha2_password.dylib")
+          _stage_fq_provider_runtime("${_mariadb_plugin_dir}"
+            "caching_sha2_password.*" "sha256_password.*" "mysql_clear_password.*" "dialog.*"
+            "client_ed25519.*")
+        endif()
+      endforeach()
     endif()
   endif()
 
@@ -395,6 +427,69 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       VERBATIM
     )
   endif()
+
+  # Versioned Instant Client tree (19c + 23ai) under build/driver/oracle/,
+  # mirroring install.sh's package layout.  A deployment selects one client
+  # with the `active` marker; the flat build/bin copy above stays the 23ai
+  # generation and remains the legacy development layout.
+  if(BUILD_WITH_ODBC)
+    set(_oracle_windows_19c_dir "")
+    set(_oracle_windows_23ai_dir "")
+    if(TARGET ext_oracle_19c)
+      if(NOT TD_EXTERNALS_USE_ONLY)
+        add_dependencies(extconnector ext_oracle_19c)
+      endif()
+      set(_oracle_windows_19c_dir "${ext_oracle_19c_install}/lib")
+    elseif(DEFINED EXT_ORACLE_19C_SRCPATH AND NOT "${EXT_ORACLE_19C_SRCPATH}" STREQUAL "")
+      set(_oracle_windows_19c_dir "${EXT_ORACLE_19C_SRCPATH}")
+    endif()
+    if(TARGET ext_oracle)
+      set(_oracle_windows_23ai_dir "${ext_oracle_install}/lib")
+    elseif(DEFINED EXT_ORACLE_SO_SRCPATH AND NOT "${EXT_ORACLE_SO_SRCPATH}" STREQUAL "")
+      set(_oracle_windows_23ai_dir "${EXT_ORACLE_SO_SRCPATH}")
+    endif()
+    set(_oracle_versioned_root "${CMAKE_BINARY_DIR}/build/driver/oracle")
+    # Orasqlplusic<ver>.dll is SQL*Plus's message library; SQL*Plus itself
+    # travels via EXTRA_FILES for the Windows FQ harness (the 11g server runs
+    # in a Linux container, so its admin SQL executes on the Windows side).
+    # legacy/extks/pkcs11 are deliberately NOT staged: they are optional
+    # crypto/legacy helpers absent from the Basic + ODBC packages, and a
+    # placeholder with their names must never reach the runtime package
+    # (test_fq_22 rejects a non-PE DLL).
+    set(_oracle_windows_patterns
+      "^sqora" "^sqres" "^oraociei" "^orannz[.]dll$" "^orasql[.]dll$"
+      "^oraocci" "^oci[.]dll$" "^ociw32[.]dll$" "^fips"
+      "^[Oo]rasqlplusic")
+    string(JOIN ";" _oracle_windows_patterns_str ${_oracle_windows_patterns})
+    foreach(_oracle_pair "19c|${_oracle_windows_19c_dir}" "23ai|${_oracle_windows_23ai_dir}")
+      string(REPLACE "|" ";" _oracle_pair_list "${_oracle_pair}")
+      list(GET _oracle_pair_list 0 _oracle_ver)
+      list(GET _oracle_pair_list 1 _oracle_src)
+      if("z${_oracle_src}" STREQUAL "z")
+        continue()
+      endif()
+      add_custom_command(TARGET extconnector POST_BUILD
+        COMMAND "${CMAKE_COMMAND}"
+          "-DOUT_DIR=${_oracle_versioned_root}/${_oracle_ver}"
+          "-DSEARCH_DIRS=${_oracle_src}"
+          "-DNAME_PATTERNS=${_oracle_windows_patterns_str}"
+          "-DEXTRA_FILES=odbc_install.exe;sqlplus.exe"
+          -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
+        COMMENT "Staging Oracle Instant Client ${_oracle_ver} -> build/driver/oracle/${_oracle_ver}"
+        VERBATIM
+      )
+    endforeach()
+    if(NOT "z${_oracle_windows_23ai_dir}" STREQUAL "z" OR
+       NOT "z${_oracle_windows_19c_dir}" STREQUAL "z")
+      if(NOT "z${_oracle_windows_23ai_dir}" STREQUAL "z")
+        set(_oracle_windows_active "23ai")
+      else()
+        set(_oracle_windows_active "19c")
+      endif()
+      file(MAKE_DIRECTORY "${_oracle_versioned_root}")
+      file(WRITE "${_oracle_versioned_root}/active" "${_oracle_windows_active}\n")
+    endif()
+  endif()
 endif()
 
 if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS AND BUILD_WITH_ODBC)
@@ -429,6 +524,7 @@ if(TD_ENTERPRISE AND BUILD_WITH_ARROW)
   # Flight there), so the plugin is built with only the HTTP transport.  The
   # provider registration and dispatch layer are identical on every platform.
   add_library(taos_ext_influx_arrow SHARED
+    ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extInfluxHttpCommon.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxDispatch.c
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInfluxHttp.cpp
     ${TD_ENTERPRISE_DIR}/source/plugins/extsource/src/extConnectorInflux.cpp

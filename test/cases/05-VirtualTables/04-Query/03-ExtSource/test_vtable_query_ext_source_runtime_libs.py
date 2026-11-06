@@ -144,6 +144,20 @@ def _path_is_under(path, root):
         return False
 
 
+def _oracle_windows_client_root():
+    """Versioned Instant Client tree that the ODBC registration points into.
+
+    Windows resolves the Oracle driver through ODBCINST.INI, whose Driver
+    value names an absolute path under ``build\\driver\\oracle\\<client>``.
+    That directory carries its own copies of the base DLLs, so hiding only
+    ``build\\bin`` leaves the provider fully loadable and the negative check
+    meaningless.
+    """
+    build_root = os.path.dirname(_runtime_lib_dir())
+    root = os.path.join(build_root, "driver", "oracle")
+    return root if os.path.isdir(root) else None
+
+
 def _hidden_runtime_roots():
     """Directories extConnectorLoadRuntimeLibrary() can resolve a provider from.
 
@@ -165,6 +179,10 @@ def _provider_runtime_files(provider):
     else:
         patterns = _PROVIDER_RUNTIME_PATTERNS[provider]
     roots = _hidden_runtime_roots()
+    if sys.platform == "win32" and provider == "oracle":
+        client_root = _oracle_windows_client_root()
+        if client_root:
+            roots.append(client_root)
     for root in roots:
         for pattern in patterns:
             files.extend(glob.glob(os.path.join(root, pattern)))
@@ -364,11 +382,12 @@ def _check_count(sql, expected):
 def _create_influx_source(src, protocol):
     token = ExtSrcEnv._get_influx_token(ExtSrcEnv.INFLUX_VERSIONS[0])
     tdSql.execute(f"DROP EXTERNAL SOURCE IF EXISTS {src}")
+    options = (ExtSrcEnv.influx_source_options() if ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8" else
+               f"'api_token'='{token}','protocol'='{protocol}'")
     tdSql.execute(
         f"CREATE EXTERNAL SOURCE {src} TYPE='influxdb' "
         f"HOST='{ExtSrcEnv.INFLUX_HOST}' PORT={ExtSrcEnv.INFLUX_PORT} "
-        f"API_TOKEN='{token}' "
-        f"DATABASE={_INFLUX_DB} OPTIONS('protocol'='{protocol}')"
+        f"USER='{ExtSrcEnv.influx_source_credentials()[0]}' PASSWORD='{ExtSrcEnv.influx_source_credentials()[1]}' DATABASE={_INFLUX_DB} OPTIONS({options})"
     )
 
 
@@ -472,6 +491,15 @@ class TestVtableQueryExtSourceRuntimeLibs:
             tables = (tables,)
         for table in tables:
             _check_count(f"SELECT count(*) FROM {table}", 2)
+        def check_without_runtime(table):
+            if provider == "influxdb" and ExtSrcEnv.INFLUX_VERSIONS[0] == "1.8":
+                # The built-in HTTP provider must work with every 3.x/Arrow
+                # shared library removed, including after a server restart.
+                _check_count(f"SELECT count(*) FROM {table}", 2)
+            else:
+                tdSql.error(f"SELECT count(*) FROM {table}",
+                            expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT)
+
         with _writable_runtime_copy_if_needed():
             if sys.platform == "win32":
                 # Windows keeps a loaded DLL locked, so taosd has to release
@@ -483,10 +511,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
                         _restart_taosd()
                         tdSql.execute(f"USE {_LOCAL_DB}")
                         for table in tables:
-                            tdSql.error(
-                                f"SELECT count(*) FROM {table}",
-                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                            )
+                            check_without_runtime(table)
                     finally:
                         tdDnodes.stop(1)
                 _restart_taosd()
@@ -497,10 +522,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
                         _restart_taosd()
                         tdSql.execute(f"USE {_LOCAL_DB}")
                         for table in tables:
-                            tdSql.error(
-                                f"SELECT count(*) FROM {table}",
-                                expectedErrno=TSDB_CODE_EXT_SOURCE_TYPE_NOT_SUPPORT,
-                            )
+                            check_without_runtime(table)
                 finally:
                     _restart_taosd()
                     tdSql.execute(f"USE {_LOCAL_DB}")

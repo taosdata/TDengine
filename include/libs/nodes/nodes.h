@@ -201,6 +201,10 @@ bool    nodesIsScalarSubQuery(SNode* pNode);
 char*   nodesGetSubSql(SNode* pNode);
 void    nodesGetSubQType(SNode* pNode, int32_t* pType);
 
+// Snapshot the metadata that binds an InfluxDB 1.8 scan, including Tag roles.
+struct SExtTableNode;
+int32_t nodesCaptureInfluxSchema(struct SExtTableNode* pTable);
+
 #ifdef __cplusplus
 }
 #endif

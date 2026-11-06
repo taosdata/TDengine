@@ -272,9 +272,9 @@ static int32_t metaDecodeSColRefBase(SDecoder *pDecoder, SColRef *pColRef) {
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, (int8_t *)&pColRef->hasRef));
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pColRef->id));
   if (pColRef->hasRef) {
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refDbName));
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refTableName));
-    TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pColRef->refColName));
+    TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pColRef->refDbName, sizeof(pColRef->refDbName)));
+    TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pColRef->refTableName, sizeof(pColRef->refTableName)));
+    TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pColRef->refColName, sizeof(pColRef->refColName)));
   }
   return 0;
 }
@@ -366,6 +366,9 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   SColRefWrapper *pWrapper = &pME->colRef;
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nCols));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->version));
+  if (pWrapper->nCols < 0 || pWrapper->nCols > TSDB_MAX_COLUMNS) {
+    return TSDB_CODE_INVALID_MSG;
+  }
   if (pWrapper->nCols == 0) {
     return 0;
   }
@@ -385,6 +388,10 @@ int meteDecodeColRefEntry(SDecoder *pDecoder, SMetaEntry *pME) {
   pWrapper->pTagRef = NULL;
   if (!tDecodeIsEnd(pDecoder)) {
     TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pWrapper->nTagRefs));
+    if (pWrapper->nTagRefs < 0 || pWrapper->nTagRefs > TSDB_MAX_COLUMNS) {
+      pWrapper->nTagRefs = 0;
+      return TSDB_CODE_INVALID_MSG;
+    }
     if (pWrapper->nTagRefs > 0) {
       pWrapper->pTagRef = (SColRef *)tDecoderMalloc(pDecoder, (int64_t)pWrapper->nTagRefs * sizeof(SColRef));
       if (pWrapper->pTagRef == NULL) {

@@ -35,6 +35,7 @@
 #include <cinttypes>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 #include "gtest/gtest.h"
 #include "stub.h"
@@ -287,4 +288,163 @@ TEST(MetaTxnAlterStb, RepeatedAlterRecordsOriginalPrevVerInTxnIdx) {
 
   metaClose(&pMeta);
   taosRemoveDir(kTestDir);
+}
+
+// ============================================================================
+// Security hardening: wire-supplied schemas / suid / colRef strings must be
+// rejected instead of being persisted or copied into fixed-size buffers.
+// ============================================================================
+extern "C" int meteDecodeColRefEntry(SDecoder* pDecoder, SMetaEntry* pME);
+
+namespace {
+
+class MetaStbHardeningTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    memset(&vnode_, 0, sizeof(vnode_));
+    vnode_.config.vgId = 1;
+    vnode_.config.szPage = 4096;
+    vnode_.config.szCache = 256;
+    vnode_.config.cacheLast = 0;
+    taosRemoveDir(kTestDir);
+    taosMkDir(kTestDir);
+    vnode_.path = (char*)kTestDir;
+    ASSERT_EQ(0, metaOpen(&vnode_, &pMeta_, 0));
+    ASSERT_NE(nullptr, pMeta_);
+    vnode_.pMeta = pMeta_;
+    ASSERT_EQ(0, metaBegin(pMeta_, META_BEGIN_HEAP_OS));
+  }
+
+  void TearDown() override {
+    metaClose(&pMeta_);
+    taosRemoveDir(kTestDir);
+  }
+
+  int32_t createStb(int32_t nRowCols, int64_t version) {
+    SVCreateStbReq req;
+    buildStbReq(&req, nRowCols, 0, 0);
+    int32_t code = metaCreateSuperTable(pMeta_, version, &req);
+    freeStbReq(&req);
+    return code;
+  }
+
+  SVnode vnode_;
+  SMeta* pMeta_ = nullptr;
+};
+
+}  // namespace
+
+TEST_F(MetaStbHardeningTest, AlterWithForeignSuidRejected) {
+  ASSERT_EQ(0, createStb(2, 100));
+
+  SVCreateStbReq req;
+  buildStbReq(&req, 3, 1, 0);
+  req.suid = kSuid + 1;  // names the existing table but carries another table's suid
+  int32_t code = metaAlterSuperTable(pMeta_, 101, &req);
+  freeStbReq(&req);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, code);
+
+  // the matching suid is still accepted
+  buildStbReq(&req, 3, 1, 0);
+  code = metaAlterSuperTable(pMeta_, 102, &req);
+  freeStbReq(&req);
+  EXPECT_EQ(0, code);
+}
+
+TEST_F(MetaStbHardeningTest, CreateWithInvalidColumnTypeRejected) {
+  const int8_t badTypes[] = {(int8_t)-1, (int8_t)TSDB_DATA_TYPE_MAX, (int8_t)100, (int8_t)-128};
+  int64_t      version = 100;
+  for (size_t i = 0; i < sizeof(badTypes) / sizeof(badTypes[0]); ++i) {
+    SVCreateStbReq req;
+    buildStbReq(&req, 3, 0, 0);
+    req.schemaRow.pSchema[1].type = badTypes[i];
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, metaCreateSuperTable(pMeta_, version++, &req)) << "row type " << (int)badTypes[i];
+    freeStbReq(&req);
+
+    buildStbReq(&req, 3, 0, 0);
+    req.schemaTag.pSchema[0].type = badTypes[i];
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, metaCreateSuperTable(pMeta_, version++, &req)) << "tag type " << (int)badTypes[i];
+    freeStbReq(&req);
+  }
+
+  // an empty row schema is rejected as well
+  SVCreateStbReq req;
+  buildStbReq(&req, 3, 0, 0);
+  req.schemaRow.nCols = 0;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, metaCreateSuperTable(pMeta_, version++, &req));
+  req.schemaRow.nCols = 3;
+  freeStbReq(&req);
+
+  // nothing was created: a valid request still succeeds afterwards
+  EXPECT_EQ(0, createStb(3, version));
+}
+
+TEST_F(MetaStbHardeningTest, AlterWithInvalidColumnTypeRejected) {
+  ASSERT_EQ(0, createStb(2, 100));
+  SVCreateStbReq req;
+  buildStbReq(&req, 3, 1, 0);
+  req.schemaRow.pSchema[2].type = 100;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, metaAlterSuperTable(pMeta_, 101, &req));
+  freeStbReq(&req);
+}
+
+TEST(MetaColRefDecode, OversizedColRefStringRejected) {
+  const int32_t kLen = 600;  // far larger than refDbName[TSDB_DB_NAME_LEN]
+  std::string   longStr(kLen, 'x');
+
+  for (int field = 0; field < 3; ++field) {
+    uint8_t  buf[4096] = {0};
+    SEncoder enc;
+    tEncoderInit(&enc, buf, sizeof(buf));
+    ASSERT_EQ(0, tEncodeI32v(&enc, 1));  // nCols
+    ASSERT_EQ(0, tEncodeI32v(&enc, 1));  // version
+    ASSERT_EQ(0, tEncodeI8(&enc, 1));    // hasRef
+    ASSERT_EQ(0, tEncodeI16v(&enc, 1));  // id
+    ASSERT_EQ(0, tEncodeCStr(&enc, field == 0 ? longStr.c_str() : "db"));
+    ASSERT_EQ(0, tEncodeCStr(&enc, field == 1 ? longStr.c_str() : "tb"));
+    ASSERT_EQ(0, tEncodeCStr(&enc, field == 2 ? longStr.c_str() : "col"));
+    uint32_t len = enc.pos;
+    tEncoderClear(&enc);
+
+    SDecoder   dec;
+    SMetaEntry entry = {};
+    tDecoderInit(&dec, buf, len);
+    EXPECT_NE(0, meteDecodeColRefEntry(&dec, &entry)) << "field " << field;
+    tDecoderClear(&dec);
+  }
+
+  // well-formed strings still decode
+  uint8_t  buf[256] = {0};
+  SEncoder enc;
+  tEncoderInit(&enc, buf, sizeof(buf));
+  ASSERT_EQ(0, tEncodeI32v(&enc, 1));
+  ASSERT_EQ(0, tEncodeI32v(&enc, 1));
+  ASSERT_EQ(0, tEncodeI8(&enc, 1));
+  ASSERT_EQ(0, tEncodeI16v(&enc, 1));
+  ASSERT_EQ(0, tEncodeCStr(&enc, "db"));
+  ASSERT_EQ(0, tEncodeCStr(&enc, "tb"));
+  ASSERT_EQ(0, tEncodeCStr(&enc, "col"));
+  uint32_t len = enc.pos;
+  tEncoderClear(&enc);
+  SDecoder   dec;
+  SMetaEntry entry = {};
+  tDecoderInit(&dec, buf, len);
+  EXPECT_EQ(0, meteDecodeColRefEntry(&dec, &entry));
+  tDecoderClear(&dec);
+}
+
+TEST(MetaColRefDecode, InvalidColRefCountRejected) {
+  uint8_t  buf[64] = {0};
+  SEncoder enc;
+  tEncoderInit(&enc, buf, sizeof(buf));
+  ASSERT_EQ(0, tEncodeI32v(&enc, 1 << 30));  // nCols far beyond TSDB_MAX_COLUMNS
+  ASSERT_EQ(0, tEncodeI32v(&enc, 1));
+  uint32_t len = enc.pos;
+  tEncoderClear(&enc);
+
+  SDecoder   dec;
+  SMetaEntry entry = {};
+  tDecoderInit(&dec, buf, len);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, meteDecodeColRefEntry(&dec, &entry));
+  tDecoderClear(&dec);
 }

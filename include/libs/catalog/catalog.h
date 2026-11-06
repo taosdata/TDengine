@@ -530,6 +530,11 @@ int32_t ctgHashValueComp(void const* lp, void const* rp);
  *   of the ext-source list (0 = unknown/never synced).  Used by heartbeat to tell
  *   mnode which global version the client has.
  *
+ * catalogGetExtSrcDdlGen - return the client-local ext-source invalidation
+ *   generation.  It is bumped on every local cache invalidation (DDL pre-clear,
+ *   post-DDL invalidation, error-driven refresh) and is used by the heartbeat
+ *   receive path to reject pushes requested before such an invalidation.
+ *
  * catalogUpdateAllExtSources  -  atomically replace the entire ext-source cache with
  *   the pushed list from mnode and record the new global version.  Called when mnode
  *   detects a version mismatch and pushes all sources in the heartbeat response.
@@ -557,6 +562,7 @@ int32_t catalogClearExtSourceDemotions(SCatalog* pCtg, const char* sourceName);
 int32_t catalogClearExtSourceDemoteEntry(SCatalog* pCtg, const char* sourceName,
                                          const SExtCapDemoteSpec* pSpec);
 int32_t catalogGetExtSrcGlobalVer(SCatalog* pCtg, int64_t* pGlobalVer);
+int32_t catalogGetExtSrcDdlGen(SCatalog* pCtg, int64_t* pDdlGen);
 int32_t catalogUpdateAllExtSources(SCatalog* pCtg, int64_t globalVer, SArray* pSources);
 int32_t catalogDisableExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);
 int32_t catalogRestoreExtSourceCapabilities(SCatalog* pCtg, const char* sourceName);

@@ -17,6 +17,13 @@ OPC UA is the next-generation standard of the classic OPC specifications, a plat
 
 TDengine can efficiently read data from OPC UA servers and write it to TDengine, enabling real-time data ingestion.
 
+## Prerequisites
+
+Before starting, confirm that the [data ingestion prerequisites](../00-prerequisites.md) are met. Key points for OPC UA:
+
+- **Network connectivity**: Make sure taosX (direct mode) or taosX-Agent (agent proxy mode) can reach the OPC UA service address. In agent proxy mode, both the taosX-Agent → taosX (gRPC, default port `6055`) and taosX-Agent → OPC UA server segments must be connected. See [Verify Port Connectivity](../00-prerequisites.md#verify-port-connectivity) for how to allow and verify both segments.
+- **Security certificates**: If the OPC UA server requires certificate-based authentication (security mode `Sign` or `SignAndEncrypt`), generate the client certificate in advance and make sure the server trusts it. See [Generate a taosX OPC UA Client Certificate](./01-client-certificate.md).
+
 ## Procedure
 
 ### Add a Data Source
@@ -340,7 +347,8 @@ Day-to-day maintenance of subtable tag values already in TDengine (including aut
 
 ## Related Documents
 
+- [Data Ingestion Prerequisites](../00-prerequisites.md): direct/agent topology and network port requirements
 - [Install taosX-Agent](../01-install-agent.md): remote agent install; task changes usually do not require reinstalling the Agent
-- [OPC-DA](../06-opcda.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
+- [OPC-DA](../06-opcda/index.md): DA-side metadata, collection interval, and task maintenance (for comparison with UA)
 - [TDengine IDMP](../../../19-tdengine-idmp/index.md): point tags and industrial metadata management (recommended)
 - [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md): manage ingest nodes, tasks, and agents with SQL
