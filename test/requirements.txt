@@ -10,7 +10,7 @@ Faker==37.0.0
 hyperloglog==0.0.14
 numpy==2.0.2
 paho-mqtt==2.1.0
-paramiko==3.5.1
+paramiko==5.0.0
 pandas==2.2.3
 pexpect==4.8.0
 prettytable==3.15.1
