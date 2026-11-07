@@ -17,6 +17,20 @@ The taosX-Agent configuration file is located at `/etc/taos/agent.toml` (Linux) 
 | `in_memory_cache_capacity` | No | `64` | Maximum number of message batches that can be cached in memory. Must be greater than 0 |
 | `keep_online` | No | `true` | Whether to keep the Agent running and attempt to reconnect when the taosX service is unavailable or the connection is lost |
 
+## Delivery Window and Timeout
+
+The following environment variables apply to tasks that use delivery protocol v2 to forward data from taosX-Agent to taosX. Set them in the taosX-Agent service process environment. They are not `agent.toml` or task DSN parameters. Restart the corresponding service after changing its environment; new tasks log the effective settings.
+
+| Environment Variable | Default | Description |
+| --- | --- | --- |
+| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | `in_memory_cache_capacity`, normally `64` | Maximum number of uncommitted batches. Must be a positive integer |
+| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864` (64 MiB) | Estimated Arrow array bytes retained for uncommitted batches. Must be a positive integer. This is not a hard process RSS limit |
+| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | Delivery deadline for a sent but incomplete batch, in seconds. Must be a positive integer |
+
+When the window is full, intake waits for existing batches to complete while retaining batch delivery. A batch larger than the byte limit fails explicitly and is not split automatically. An idle source with no pending delivery does not time out, and heartbeats do not extend an existing batch deadline. Account for resource limits and target write latency when choosing a timeout.
+
+Disconnections and delivery timeouts retain unconfirmed data and reconnect with backoff. Explicit writer, authentication, protocol, or configuration errors stop the task. Recovery requires a real batch outcome. See [Store and Forward](./02-store-and-forward.md#confirmation-and-failure-handling).
+
 ## Resource Limits
 
 Agent supports the same `[resource]` configuration as taosX to limit data-plane resource usage for the Agent process and its registered connector children. Limits apply independently to each Agent process and require an Agent restart after changes. The governor is disabled when `[resource]` is absent; set `resource.enabled = false` for a complete rollback.

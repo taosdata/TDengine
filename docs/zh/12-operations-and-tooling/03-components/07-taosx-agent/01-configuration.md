@@ -17,6 +17,20 @@ taosX-Agent 的配置文件默认路径为 `/etc/taos/agent.toml`（Linux）或 
 | `in_memory_cache_capacity` | 否 | `64` | 内存中可缓存的最大消息批次数，必须大于 0 |
 | `keep_online` | 否 | `true` | taosX 服务不可用或连接断开时，是否保持 Agent 运行并尝试重连 |
 
+## 交付窗口与超时
+
+以下环境变量适用于采用统一交付协议 v2、将数据从 taosX-Agent 转发到 taosX 的任务。将它们设置在 taosX-Agent 服务进程的环境中；它们不是 `agent.toml` 或任务 DSN 参数。修改环境后需要重启对应服务进程，新任务会记录实际生效值。
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | 沿用 `in_memory_cache_capacity`，未修改时为 `64` | 未提交批次的数量上限，必须为正整数 |
+| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864`（64 MiB） | 未提交 Arrow 数组的估算字节上限，必须为正整数；不是进程 RSS 硬上限 |
+| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | 已发送但未完成批次的交付期限，单位秒，必须为正整数 |
+
+达到窗口上限时，数据入口等待已有批次完成，保留批量发送。单批超过字节上限会明确报错，不自动拆分消息。没有待确认数据的安静源不会触发交付超时，心跳也不会延长已有批次的期限。资源限制或目标写入较慢时，应结合实际延迟设置交付期限。
+
+断流或交付超时会保留未确认数据，自动退避重连；明确的写入、认证、协议或配置错误会停止任务。恢复以收到真实批次结果为准。详见 [存储转发](./02-store-and-forward.md#确认与失败处理)。
+
 ## 资源限制
 
 Agent 可以使用与 taosX 相同的 `[resource]` 配置，限制本进程及其已注册连接器子进程的数据面资源占用。资源限制按 Agent 进程独立生效，修改后需重启 Agent。未配置 `[resource]` 时不启用治理器；设置 `resource.enabled = false` 可完整关闭。

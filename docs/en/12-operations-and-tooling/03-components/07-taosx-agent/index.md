@@ -28,9 +28,17 @@ Typical use cases:
 | In-memory cache | Supports configuring the number of in-memory cache batches to improve data transfer efficiency |
 | Auto-reconnect | Supports keeping the Agent running and automatically reconnecting when the taosX service is unavailable |
 | High availability | Connects to multiple taosX instances at the same time. When one taosX instance stops, the task moves to another taosX instance and collection continues. See [High Availability](./03-high-availability.md) |
-| Store and Forward | Persists collected data to local disk during network outages and automatically resends it when the network recovers, ensuring zero data loss. See [Store and Forward](./02-store-and-forward.md) |
+| Store and Forward | Uses a disk queue for supported sources and resends unconfirmed data after connectivity recovers. See [Store and Forward](./02-store-and-forward.md) for its scope and reliability limits |
 | Multi-instance deployment | Multiple Agent instances can be deployed on the same machine, distinguished by instanceId |
 | Resource limits | Supports `[resource]` configuration to limit memory, CPU, and egress bandwidth for the Agent and its connector children. See [Configuration Reference](./01-configuration.md#resource-limits) |
+
+## Delivery Confirmation and Version Upgrades
+
+Versions using delivery protocol v2 require a coordinated upgrade of taosX and all taosX-Agent instances. Mixed old and new protocols are rejected explicitly, without falling back to the old protocol. Stop affected tasks before upgrading and retain configuration and Store and Forward queues. Upgrade the components together, then resume tasks and verify target data. Rollbacks also require a matched component set; do not clear queues to resolve a version error.
+
+For batches forwarded from taosX-Agent to taosX, delivery progress advances only after target writes complete, or after configured abnormal-data handling is submitted and all remaining valid data is written. Disconnections and delivery timeouts retain unconfirmed batches for retry. Authentication, configuration, and unknown write errors stop the task and report the cause. Heartbeats and an online Agent indicate connectivity, not successful ingestion.
+
+Delivery retains batch concurrency. See [Configuration Reference](./01-configuration.md#delivery-window-and-timeout) for window and timeout settings and [Store and Forward](./02-store-and-forward.md#confirmation-and-failure-handling) for failure handling and persistence limits. This protocol upgrade does not add persistence or model recovery for raw PI messages.
 
 ## Getting taosX-Agent
 
