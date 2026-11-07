@@ -252,6 +252,15 @@ typedef struct {
   int32_t       failedTimes;
   void*         rpcRsp;
   int32_t       rpcRspLen;
+  // error-detail payload carried by a failed action's response (e.g. the vstb alter
+  // name-conflict check reports the conflicting child table). Runtime-only, never encoded:
+  // attached to the client rsp instead of rpcRsp when the trans fails with an error code.
+  // errRspCode records the error code the payload came with, so the detail is only attached
+  // when the final trans code still equals it (a later undo/rollback failure must not pair a
+  // different code with stale text).
+  void*         errRsp;
+  int32_t       errRspLen;
+  int32_t       errRspCode;
   int32_t       actionPos;
   SArray*       prepareActions;
   SArray*       redoActions;

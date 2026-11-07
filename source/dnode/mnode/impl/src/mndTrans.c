@@ -913,6 +913,12 @@ static void mndTransDropDataImpl(STrans *pTrans, bool destroyMutex) {
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }
+  if (pTrans->errRsp != NULL) {
+    taosMemoryFree(pTrans->errRsp);
+    pTrans->errRsp = NULL;
+    pTrans->errRspLen = 0;
+    pTrans->errRspCode = 0;
+  }
   if (pTrans->param != NULL) {
     taosMemoryFree(pTrans->param);
     pTrans->param = NULL;
@@ -1887,7 +1893,20 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         }
       }
 
-      if (pTrans->rpcRspLen != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        // failed trans: attach the action's error-detail text when present; the (stale)
+        // success rpcRsp built at trans creation must not go out on an error response. Only
+        // attach when the final error code is the one that produced the detail, so a later
+        // undo/rollback failure cannot pair a different code with stale conflict text.
+        if (pTrans->errRspLen > 0 && pTrans->errRsp != NULL && code == pTrans->errRspCode) {
+          void *rpcCont = rpcMallocCont(pTrans->errRspLen);
+          if (rpcCont != NULL) {
+            memcpy(rpcCont, pTrans->errRsp, pTrans->errRspLen);
+            rspMsg.pCont = rpcCont;
+            rspMsg.contLen = pTrans->errRspLen;
+          }
+        }
+      } else if (pTrans->rpcRspLen != 0) {
         void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
         if (rpcCont != NULL) {
           memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
@@ -1967,6 +1986,25 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
         }
       }
 
+      // A failed action response may carry a custom error-detail text payload (e.g. the
+      // vstb alter name-conflict check names the conflicting child table, defect 7160321463).
+      // Keep a copy on the trans so the final client rsp can attach it alongside the error
+      // code. The first error wins; the payload is owned by the rpc layer, hence the copy.
+      // Gate tightly: only the exact conflict code carries the text, and only a payload that
+      // is NUL-terminated text. A vnode redirect (sync not-leader) answers this same msgType
+      // with a serialized SEpSet binary body, which must not be captured as error text.
+      if (pRsp->code == TSDB_CODE_VND_COL_ALREADY_EXISTS && pRsp->msgType == TDMT_VND_CHECK_STB_ALTER_NAME_RSP &&
+          pRsp->pCont != NULL && pRsp->contLen > 0 && pTrans->errRsp == NULL &&
+          memchr(pRsp->pCont, '\0', pRsp->contLen) != NULL) {
+        void *pErr = taosMemoryMalloc(pRsp->contLen);
+        if (pErr != NULL) {
+          memcpy(pErr, pRsp->pCont, pRsp->contLen);
+          pTrans->errRsp = pErr;
+          pTrans->errRspLen = pRsp->contLen;
+          pTrans->errRspCode = pRsp->code;
+        }
+      }
+
       // pTrans->lastErrorNo = pRsp->code;
       mndSetTransLastAction(pTrans, pAction);
 
@@ -2025,6 +2063,15 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     mndTransResetAction(pMnode, pTrans, pAction);
     mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage), pAction->id,
           pAction->errCode, pAction->startTime);
+
+    // a retry may fail on a different action; drop the stale error detail so it cannot be
+    // paired with a mismatched error code in the eventual client response
+    if (pTrans->errRsp != NULL) {
+      taosMemoryFree(pTrans->errRsp);
+      pTrans->errRsp = NULL;
+      pTrans->errRspLen = 0;
+      pTrans->errRspCode = 0;
+    }
   }
 }
 

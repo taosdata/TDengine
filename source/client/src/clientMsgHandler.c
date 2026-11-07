@@ -712,6 +712,15 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+    // Preserve the mnode's custom error-detail string (e.g. a vstb alter name-conflict names
+    // the conflicting child table) so taos_errstr() points at the conflict source instead of
+    // the stock per-code text. Same pattern as genericRspCallback. Guard msgBufLen so a
+    // non-positive buffer cannot make copyLen wrap around to a huge memcpy length.
+    if (pMsg->pData != NULL && pMsg->len > 0 && pRequest->msgBufLen > 0) {
+      int32_t copyLen = TMIN((int32_t)pMsg->len, pRequest->msgBufLen - 1);
+      memcpy(pRequest->msgBuf, (char*)pMsg->pData, copyLen);
+      pRequest->msgBuf[copyLen] = '\0';
+    }
   } else {
     SMAlterStbRsp alterRsp = {0};
     SDecoder      coder = {0};

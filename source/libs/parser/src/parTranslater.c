@@ -23099,6 +23099,17 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
 
     const SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
     if (NULL == pSchema) {
+      if (pTableMeta->virtualStb &&
+          (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
+           TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType)) {
+        // a virtual child table may hold the name as an own (extension) column that DESCRIBE
+        // on the stable never shows; point the user there instead of a bare "Invalid column
+        // name" that looks undroppable (defect 7160321463). Error code stays 0x2602.
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                       "Invalid column name: %s is not defined on stable %s (it may exist as an own "
+                                       "column of a virtual child table of this stable)",
+                                       pStmt->colName, pStmt->tableName);
+      }
       return generateSyntaxErrMsg(
           &pCxt->msgBuf,
           (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType || TSDB_ALTER_TABLE_DROP_COLUMN == pStmt->alterType)

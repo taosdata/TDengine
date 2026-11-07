@@ -113,9 +113,24 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
 void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
-// Check whether any virtual child table of the super table already owns pName as an own
-// (extension) column/tag; returns TSDB_CODE_VND_COL_ALREADY_EXISTS on conflict.
-int32_t metaCheckOwnNameConflictOfChildTables(SMeta* pMeta, tb_uid_t suid, const char* pName);
+
+// Details of the first vchild own-name conflict found by the checks below, used to build a
+// client-facing error message that names the conflicting child table. pConflictTbName is the
+// child table name, pConflictColName the colliding column/tag name, isTag distinguishes an
+// own tag from an own data column. All fields stay zeroed when no conflict is found.
+typedef struct SOwnNameConflictInfo {
+  char childName[TSDB_TABLE_NAME_LEN];
+  char colName[TSDB_COL_NAME_LEN];
+  bool isTag;
+} SOwnNameConflictInfo;
+
+// Check whether any virtual child table of the super table already owns one of pNames (an
+// SArray whose elements are inline char[TSDB_COL_NAME_LEN], each a column/tag name -- NOT
+// char* pointers) as an own (extension) column/tag; returns TSDB_CODE_VND_COL_ALREADY_EXISTS
+// on conflict. pConflict (optional, may be NULL) receives the first conflicting child table /
+// name.
+int32_t metaCheckOwnNameConflictsOfChildTables(SMeta* pMeta, tb_uid_t suid, SArray* pNames,
+                                               SOwnNameConflictInfo* pConflict);
 
 bool schemasHasTypeMod(const SSchema *pSchema, int32_t nCols);
 struct SMeta {
