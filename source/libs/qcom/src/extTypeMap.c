@@ -1452,8 +1452,9 @@ bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
   // stored case; PostgreSQL and InfluxDB compare identifiers literally.
-  // Oracle folds an unquoted reference to upper case and then compares exactly,
-  // so a stored "VAL" matches "val" and "VAL" but not "Val".
+  // Oracle folding for an already resolved name also matches the exact
+  // lower-case spelling; a name that still carries its raw spelling is compared
+  // with extColumnNameEqualReference() instead.
   if (lhs == NULL || rhs == NULL) {
     return lhs == rhs;
   }
@@ -1462,6 +1463,64 @@ bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs
   }
   bool caseInsensitive = (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_SQLSERVER);
   return caseInsensitive ? strcasecmp(lhs, rhs) == 0 : strcmp(lhs, rhs) == 0;
+}
+
+bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
+                                 const char *referenceName) {
+  if (storedName == NULL || referenceName == NULL) {
+    return storedName == referenceName;
+  }
+  if (srcType != EXT_SOURCE_ORACLE) {
+    return extColumnNameEqual(srcType, storedName, referenceName);
+  }
+
+  /* This helper is also used for Oracle table references, whose capacity is
+   * larger than a column name. */
+  char normalizedName[TSDB_TABLE_NAME_LEN] = {0};
+  extCopyRemoteTableSpelling(referenceName, normalizedName, sizeof(normalizedName));
+  if (referenceName[0] == '"') {
+    return strcmp(storedName, normalizedName) == 0;
+  }
+  for (int32_t i = 0; normalizedName[i] != '\0' && i < (int32_t)sizeof(normalizedName) - 1; ++i) {
+    if (normalizedName[i] >= 'a' && normalizedName[i] <= 'z') {
+      normalizedName[i] = (char)(normalizedName[i] - 'a' + 'A');
+    }
+  }
+  return strcmp(storedName, normalizedName) == 0;
+}
+
+void extCopyRemoteTableSpelling(const char *spelling, char *out, int32_t outLen) {
+  if (spelling == NULL || out == NULL || outLen <= 0) {
+    if (out != NULL && outLen > 0) {
+      out[0] = '\0';
+    }
+    return;
+  }
+  int32_t len = (int32_t)strlen(spelling);
+  if (len >= 2 && spelling[0] == '"' && spelling[len - 1] == '"') {
+    ++spelling;
+    len -= 2;
+  }
+  int32_t src = 0;
+  int32_t dst = 0;
+  while (src < len && dst < outLen - 1) {
+    char c = spelling[src];
+    if (c == '"' && src + 1 < len && spelling[src + 1] == '"') {
+      out[dst++] = '"';
+      src += 2;
+    } else {
+      out[dst++] = c;
+      ++src;
+    }
+  }
+  out[dst] = '\0';
+  if (src < len) {
+    /* Truncating a table spelling addresses a different remote table (or none
+     * at all) and no caller can tell from the result: both use it as the exact
+     * name to render.  The remote catalog accepts names longer than the
+     * TDengine limit, so report the truncation instead of failing silently. */
+    qError("external table spelling truncated at %d bytes: '%s'", outLen - 1, spelling);
+  }
 }
 
 bool extTimestampTypeHasSubMicroFraction(EExtSourceType srcType, const char *extTypeName) {

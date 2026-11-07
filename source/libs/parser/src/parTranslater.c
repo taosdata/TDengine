@@ -29966,138 +29966,575 @@ int32_t collectExtSourceRefs(STranslateContext* pCxt, SCreateStreamStmt* pStmt) 
  * Returns TSDB_CODE_SUCCESS or TSDB_CODE_PAR_INTERNAL_ERROR on unsupported
  * node types.
  * --------------------------------------------------------------------------- */
+/* How a remote timestamp literal is spelled for one external source.
+ *
+ * Mirrors extSqlBoundForm() in streamReaderExt.c so that a static prefilter and
+ * a dynamic _twstart/_twend bound spell the same instant the same way. */
+typedef enum {
+  /* Timezone-naive column: the wall clock the connector decodes in the stream
+   * timezone. */
+  EXT_PF_BOUND_LOCAL = 0,
+  /* Timezone-aware column on a dialect that reads an offset-less literal in its
+   * own session timezone, so the literal has to carry an explicit "+00:00". */
+  EXT_PF_BOUND_UTC_SUFFIX,
+  /* Timezone-aware column on a dialect that reads an offset-less literal as
+   * UTC (SQL Server datetimeoffset, Oracle with its session pinned to UTC). */
+  EXT_PF_BOUND_UTC_WALL,
+  /* Timezone-aware MySQL TIMESTAMP: FROM_UNIXTIME(<epoch>) renders the session's
+   * own image of the instant, so the comparison does not depend on a session
+   * timezone the engine cannot observe and needs no 8.0.19-only offset syntax. */
+  EXT_PF_BOUND_UNIX_EPOCH,
+} EExtPrefilterBoundForm;
+
+static EExtPrefilterBoundForm extPrefilterBoundForm(int32_t sourceType, int8_t tzClass) {
+  if (tzClass != EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    return EXT_PF_BOUND_LOCAL;
+  }
+  switch ((EExtSourceType)sourceType) {
+    case EXT_SOURCE_MYSQL:
+      return EXT_PF_BOUND_UNIX_EPOCH;
+    case EXT_SOURCE_SQLSERVER:
+    case EXT_SOURCE_ORACLE:
+      return EXT_PF_BOUND_UTC_WALL;
+    default:
+      return EXT_PF_BOUND_UTC_SUFFIX;
+  }
+}
+
+/* Last instant a MySQL TIMESTAMP column can hold.  FROM_UNIXTIME() returns NULL
+ * beyond it, which would turn the predicate into a comparison with NULL and
+ * silently empty the fetch, and whether the wanted result is "no rows" or "all
+ * rows" depends on the comparison direction.  A constant past this ceiling is
+ * therefore not pushed at all; dropping the prefilter only widens the fetch.
+ * Mirrors EXT_MYSQL_TS_MAX_EPOCH_US in streamReaderExt.c. */
+#define EXT_PF_MYSQL_TS_MAX_EPOCH_US INT64_C(2147483647999999)
+
+/* Render one constant bound as a remote SQL literal.
+ *
+ * Returns the literal length, or a negative TSDB error code when this dialect
+ * cannot spell the instant at all (a bound past the dialect's own domain); the
+ * caller then drops the whole prefilter rather than push a wrong predicate.
+ * Callers must test "< 0", never "!= TSDB_CODE_SUCCESS", because the success
+ * value is a length. */
 static int32_t renderExtPrefilterTimestamp(int64_t epoch, int32_t precision,
                                            int32_t sourceType,
-                                           char *buf, int32_t bufLen) {
-  /* Normalize to microseconds for sub-second formatting. */
-  int64_t epoch_us;
+                                           EExtPrefilterBoundForm form,
+                                           timezone_t tz, char *buf, int32_t bufLen) {
+  /* Split at the column's own precision with floor semantics so the fraction
+   * stays in [0, unit) for a pre-1970 instant.  Wall-clock dialects spell those
+   * natively (MySQL DATETIME starts at 1000-01-01), so they must not be refused
+   * here: the trigger PRE_FILTER has no local filter to fall back on, and
+   * dropping the condition would let rows the user excluded enter the window.
+   * Only FROM_UNIXTIME (below) genuinely cannot express a negative instant.
+   * Nothing here multiplies the epoch, so no legal value can saturate (a
+   * microsecond value past 2262 used to overflow the int64 nanosecond range and
+   * rewrite a valid predicate into a 2262 bound). */
+  int64_t sec   = 0;
+  int32_t usec  = 0;  /* fraction within the second, in microseconds */
+  int32_t subNs = 0;  /* digits below the microsecond a six-digit literal drops */
   if (precision == TSDB_TIME_PRECISION_NANO) {
-    epoch_us = epoch / 1000LL;
+    sec = epoch / INT64_C(1000000000);
+    int32_t nanos = (int32_t)(epoch % INT64_C(1000000000));
+    if (nanos < 0) {
+      --sec;
+      nanos += 1000000000;
+    }
+    usec  = nanos / 1000;
+    subNs = nanos % 1000;
   } else if (precision == TSDB_TIME_PRECISION_MILLI) {
-    epoch_us = epoch * 1000LL;
-  } else {
-    epoch_us = epoch;  /* MICRO  -  already in micros */
+    sec  = epoch / INT64_C(1000);
+    int32_t millis = (int32_t)(epoch % INT64_C(1000));
+    if (millis < 0) {
+      --sec;
+      millis += 1000;
+    }
+    usec = millis * 1000;
+  } else {  /* MICRO */
+    sec  = epoch / INT64_C(1000000);
+    usec = (int32_t)(epoch % INT64_C(1000000));
+    if (usec < 0) {
+      --sec;
+      usec += 1000000;
+    }
   }
 
   if (sourceType == EXT_SOURCE_INFLUXDB) {
-    /* InfluxDB DataFusion: use to_timestamp_nanos() for ns integers. */
-    int64_t epoch_ns = epoch_us * INT64_C(1000);
+    /* InfluxDB DataFusion takes the instant as nanosecond integers.  Its own
+     * domain ends in 2267, so clamping a coarser-scaled epoch there cannot
+     * change which rows the source is able to hold.  Both signs are clamped:
+     * an int64 constant from the statement can sit at either end of the range,
+     * and scaling such a value overflows (signed overflow is undefined). */
+    int64_t epoch_ns;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      epoch_ns = epoch;
+    } else {
+      int64_t factor = (precision == TSDB_TIME_PRECISION_MILLI) ? INT64_C(1000000) : INT64_C(1000);
+      if (epoch > INT64_MAX / factor) {
+        epoch_ns = INT64_MAX;
+      } else if (epoch < INT64_MIN / factor) {
+        epoch_ns = INT64_MIN;
+      } else {
+        epoch_ns = epoch * factor;
+      }
+    }
     return snprintf(buf, bufLen, "to_timestamp_nanos(%" PRId64 ")", epoch_ns);
   }
-  /* MySQL / PostgreSQL: quoted DATETIME literal. */
-  if (epoch_us < 0) epoch_us = 0;
-  time_t     sec = (time_t)(epoch_us / 1000000LL);
-  int        us  = (int)(epoch_us % 1000000LL);
+
+  if (form == EXT_PF_BOUND_UNIX_EPOCH) {
+    /* FROM_UNIXTIME() returns NULL for a negative argument and MySQL TIMESTAMP
+     * cannot hold a pre-1970 instant anyway, so this dialect has no spelling
+     * for it; the caller drops the prefilter (wider fetch). */
+    if (epoch < 0) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    /* Bound the seconds first: multiplying an out-of-range second by a million
+     * would overflow before the ceiling check could reject it. */
+    if (sec > EXT_PF_MYSQL_TS_MAX_EPOCH_US / INT64_C(1000000)) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    int64_t boundUs = sec * INT64_C(1000000) + usec;
+    if (boundUs > EXT_PF_MYSQL_TS_MAX_EPOCH_US) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    return snprintf(buf, bufLen, "FROM_UNIXTIME(%" PRId64 ".%06d)",
+                    (int64_t)(boundUs / INT64_C(1000000)),
+                    (int32_t)(boundUs % INT64_C(1000000)));
+  }
+
+  /* The four-digit-year limit belongs to the rendered wall clock, so it can only
+   * be judged after taosLocalTime() has applied the column's basis: a UTC instant
+   * in year 10000 can still be a legal 9999-12-31 wall clock in a negative-offset
+   * zone (253402300800 s is 9999-12-31 16:00 in America/Los_Angeles).  Refusing it
+   * here dropped a usable pushdown and made a trigger PRE_FILTER fail to create.
+   * Both directions are validated on the converted calendar fields below. */
+  time_t     secT    = (time_t)sec;
   struct tm  tm_info = {0};
-  taosLocalTime(&sec, &tm_info, NULL, 0, NULL);
+  /* The platform calendar conversion fails for instants it cannot express
+   * (Windows stops at 1900-01-01 and returns NULL), leaving tm_info zeroed.  A
+   * zeroed struct would render as the invalid "1900-01-00" and be pushed to the
+   * remote, so the instant is treated as unrenderable instead: the calc path
+   * then gives up the pushdown and a trigger PRE_FILTER is rejected. */
+  if (taosLocalTime(&secT, &tm_info, NULL, 0, tz) == NULL) {
+    parserWarn("prefilter: cannot convert epoch:%" PRId64 " s to a calendar time, refusing the bound",
+               (int64_t)sec);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  int32_t year = tm_info.tm_year + 1900;
+  if (year > 9999 || year < 1 || tm_info.tm_mon < 0 || tm_info.tm_mon > 11 || tm_info.tm_mday < 1 ||
+      tm_info.tm_mday > 31) {
+    parserWarn("prefilter: out-of-range calendar time year:%d month:%d day:%d, refusing the bound",
+               year, tm_info.tm_mon + 1, tm_info.tm_mday);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  /* MySQL / PostgreSQL: quoted DATETIME literal.  Oracle additionally needs the
+   * ANSI TIMESTAMP prefix: an offset-less quoted string compared against a
+   * TIMESTAMP column is converted through NLS_TIMESTAMP_FORMAT, which is session
+   * dependent and rejects this six-digit fraction form with ORA-01843.  This
+   * mirrors extSqlBoundPrefix() in streamReaderExt.c (DS 5.3.6 R4), so a
+   * constant range and a _twstart/_twend bound render the same way.
+   *
+   * The wall clock is rendered in the basis the connector decodes this column
+   * in (see resolveExtColumnBound).  Rendering it in the process timezone
+   * instead would shift every constant bound by the process offset and silently
+   * drop the rows outside it. */
+  const char *prefix = (sourceType == EXT_SOURCE_ORACLE) ? "TIMESTAMP " : "";
+  const char *suffix = (form == EXT_PF_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
+  /* Oracle accepts a nine-digit ANSI literal and TIMESTAMP(9) holds that many
+   * digits; every other dialect stops at six.  Truncating would shrink a
+   * nanosecond window end by up to 999 ns while the fetch keeps an inclusive
+   * "<=" bound, losing the tail rows of every window. */
+  if (sourceType == EXT_SOURCE_ORACLE && precision == TSDB_TIME_PRECISION_NANO) {
+    return snprintf(buf, bufLen,
+                    "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%03d%s",
+                    prefix, year, tm_info.tm_mon + 1, tm_info.tm_mday,
+                    tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, usec, subNs, suffix);
+  }
   return snprintf(buf, bufLen,
-                  "'%04d-%02d-%02d %02d:%02d:%02d.%06d'",
-                  tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
-                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us);
+                  "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
+                  prefix, year, tm_info.tm_mon + 1, tm_info.tm_mday,
+                  tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, usec, suffix);
 }
 
-/* Render a single VALUE node.  When treatAsTimestamp is true, the integer
- * value is converted to a source-specific timestamp literal regardless of
- * its declared type (covers BIGINT values that are semantically timestamps
- * but haven't been cast by the translator). */
-static int32_t renderExtValueNode(SValueNode *pVal, int32_t sourceType,
-                                  int32_t precision, bool treatAsTimestamp,
+/* Everything the renderer needs to know about the table whose columns a WHERE
+ * filters.  Both timezone handles are borrowed; the caller owns them. */
+typedef struct SExtPrefilterCxt {
+  int32_t              sourceType;
+  const SExtTableNode *pExt;          /* filtered table; enables per-column lookup */
+  int32_t              fallbackPrec;  /* unit used for the primary column when the
+                                       * catalog carries no remote type name */
+  timezone_t           streamTz;      /* decode basis of a timezone-naive column */
+  timezone_t           awareTz;       /* UTC basis of a timezone-aware column;
+                                       * NULL means aware bounds are not pushed */
+} SExtPrefilterCxt;
+
+/* Index of the metadata entry a column reference binds to.
+ *
+ * One rule for both a raw trigger PRE_FILTER and an already bound calc
+ * expression, and the same one the query column binding uses: the provider
+ * comparison (extColumnNameEqual()) is applied candidate by candidate in
+ * catalog order, with no separate exact-match pass across candidates.  That
+ * matters for Oracle, whose rule wins an exact spelling over a folded one only
+ * within one candidate: a table holding both VAL and a quoted "val" binds
+ * whichever of the two comes first, exactly as a SELECT of the same name does,
+ * and a reference that keeps its representation quotes resolves nothing. */
+static int32_t extPrefilterFindCol(const SExtPrefilterCxt *pCxt, const char *colName) {
+  if (pCxt->pExt == NULL || pCxt->pExt->pExtMeta == NULL ||
+      pCxt->pExt->pExtMeta->pCols == NULL || colName == NULL) {
+    return -1;
+  }
+  const SExtTableMeta *pMeta = pCxt->pExt->pExtMeta;
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (extColumnNameEqual((EExtSourceType)pCxt->sourceType, pMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/* Unit and timezone basis in which a constant compared with this column has to
+ * be spelled.
+ *
+ * The literals renderExtWhereNode() emits are AND-ed into every PULL query, so
+ * the remote source decides which rows ever reach the engine and a wrongly
+ * spelled literal loses rows for good.  The class comes from the compared
+ * column, but the unit comes from the table's single transport precision: the
+ * connectors bind every timestamp column at the maximum fractional digits
+ * across the table (DS 5.3.7), so a TIMESTAMP(3) column is still read at
+ * microsecond granularity and its constant must not be rounded down to
+ * milliseconds, which would narrow a strict "<" predicate and drop rows the
+ * local filter can never recover.  When the basis cannot be established the
+ * comparison is refused, which costs only a wider remote fetch. */
+static int32_t resolveExtColumnBound(const SExtPrefilterCxt *pCxt, const char *colName,
+                                     timezone_t *pTz, int32_t *pPrec,
+                                     EExtPrefilterBoundForm *pForm) {
+  int32_t idx = extPrefilterFindCol(pCxt, colName);
+  if (idx < 0) {
+    /* Both callers treat this as "cannot render": the calc path drops the
+     * pushdown and filters locally, a trigger PRE_FILTER rejects the CREATE
+     * STREAM, so the message must not promise a silent skip. */
+    parserWarn("prefilter: column '%s' has no remote metadata, refusing the bound",
+               colName != NULL ? colName : "");
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  const char *extType = pCxt->pExt->pExtMeta->pCols[idx].extTypeName;
+  if (extType[0] == '\0') {
+    /* The catalog always records the remote type name.  Without it the column's
+     * class and unit are unknown; only the primary timestamp column can fall
+     * back to the table-level description, which is by definition about it. */
+    if (idx != pCxt->pExt->tsPrimaryColIdx || pCxt->streamTz == NULL) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    *pTz   = pCxt->streamTz;
+    *pPrec = pCxt->fallbackPrec;
+    *pForm = EXT_PF_BOUND_LOCAL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int8_t tzClass = extTimestampTypeTzClass((EExtSourceType)pCxt->sourceType, extType);
+  if (tzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN) {
+    parserWarn("prefilter: unknown timezone class for column '%s' of type %s, "
+               "refusing the bound",
+               colName, extType);
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  /* The constant's unit is the table transport precision, not this column's
+   * declared fractional digits (see the comment above the function). */
+  *pPrec = pCxt->fallbackPrec;
+  if (tzClass == EXT_TIMESTAMP_TZ_CLASS_AWARE) {
+    if (pCxt->awareTz == NULL) {
+      parserWarn("prefilter: no UTC handle for timezone-aware column '%s', "
+                 "refusing the bound",
+                 colName);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    *pTz = pCxt->awareTz;
+  } else {
+    *pTz = pCxt->streamTz;
+  }
+  *pForm = extPrefilterBoundForm(pCxt->sourceType, tzClass);
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Append one rendered fragment, refusing to truncate.
+ *
+ * The prefilter buffer has a fixed size and every fragment derives from the
+ * statement text, so a long enough condition can overflow it.  A silent
+ * truncation would leave *pOff past the end and the next append would compute a
+ * negative remaining size, which snprintf() converts to a huge size_t and writes
+ * outside the buffer.  Callers turn a failure into "do not push this
+ * condition" (the calc path then filters locally) or into a rejected CREATE
+ * STREAM for the trigger PRE_FILTER, which has no local fallback. */
+static int32_t extPfAppend(char *buf, int32_t bufSize, int32_t *pOff, const char *fmt, ...) {
+  if (buf == NULL || pOff == NULL || fmt == NULL || bufSize <= 0 || *pOff < 0 || *pOff >= bufSize) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  int32_t room = bufSize - *pOff;
+  va_list args;
+  va_start(args, fmt);
+  int32_t n = vsnprintf(buf + *pOff, (size_t)room, fmt, args);
+  va_end(args);
+  /* Leave *pOff untouched on failure so the buffer keeps naming the bytes that
+   * were really written. */
+  if (n < 0 || n >= room) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+
+  *pOff += n;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t extPfAppendIdentifier(const SExtPrefilterCxt *pCxt, const char *ident,
+                                     char *buf, int32_t bufSize, int32_t *pOff) {
+  if ((EExtSourceType)pCxt->sourceType != EXT_SOURCE_ORACLE) {
+    return extPfAppend(buf, bufSize, pOff, "%s", ident);
+  }
+
+  int32_t idx = extPrefilterFindCol(pCxt, ident);
+  if (idx < 0) {
+    /* Preserve the previous pass-through behavior for callers that have no
+     * metadata entry; timestamp comparisons still fail closed through
+     * resolveExtColumnBound(). */
+    return extPfAppend(buf, bufSize, pOff, "%s", ident);
+  }
+
+  char exactName[TSDB_COL_NAME_LEN] = {0};
+  const char *rendered = exactName;
+  tstrncpy(exactName, pCxt->pExt->pExtMeta->pCols[idx].colName, sizeof(exactName));
+  char quote = '"';
+  if (extPfAppend(buf, bufSize, pOff, "%c", quote) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  for (const char *p = rendered; *p != '\0'; ++p) {
+    if ((*p == quote && extPfAppend(buf, bufSize, pOff, "%c%c", quote, quote) != TSDB_CODE_SUCCESS) ||
+        (*p != quote && extPfAppend(buf, bufSize, pOff, "%c", *p) != TSDB_CODE_SUCCESS)) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+  }
+  return extPfAppend(buf, bufSize, pOff, "%c", quote);
+}
+
+/* Render a single VALUE node.  asTimestamp is set by the caller when this value
+ * is compared with a timestamp column, in which case the integer is converted to
+ * a dialect literal using the basis already resolved for that column. */
+static int32_t renderExtValueNode(SValueNode *pVal, bool asTimestamp,
+                                  const SExtPrefilterCxt *pCxt, timezone_t tz,
+                                  int32_t precision, EExtPrefilterBoundForm form,
                                   char *buf, int32_t bufSize, int32_t *pOff) {
-  if (treatAsTimestamp || pVal->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    *pOff += renderExtPrefilterTimestamp(pVal->datum.i, precision,
-                                        sourceType,
-                                        buf + *pOff, bufSize - *pOff);
+  if (asTimestamp || pVal->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+    if (!asTimestamp) {
+      /* A timestamp-typed literal with no comparison column to take its basis
+       * from.  Guessing a unit would be worse than not pushing it. */
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    int64_t datum = pVal->datum.i;
+    if (IS_STR_DATA_TYPE(pVal->node.resType.type)) {
+      /* String constant from the raw PRE_FILTER (VARCHAR, never converted to
+       * TIMESTAMP): parse it in the stream timezone as a naive wall clock at
+       * the table transport precision.  The renderer below then spells it in
+       * the compared column's own basis, which reconstructs the same wall
+       * clock for naive columns and the equivalent UTC clock for aware ones. */
+      if (pVal->literal == NULL || pCxt->streamTz == NULL) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
+      int32_t rc = taosParseTime(pVal->literal, &datum, (int32_t)strlen(pVal->literal),
+                                 precision, pCxt->streamTz);
+      if (rc != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
+    }
+    /* For integer epoch and TIMESTAMP constants the datum is already in the
+     * table transport precision. */
+    int32_t room = bufSize - *pOff;
+    if (room <= 0) {
+      /* Renderer contract: the remaining size is never negative when it is
+       * handed to snprintf(), which would take it as a huge size_t. */
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    int32_t n = renderExtPrefilterTimestamp(datum, precision, pCxt->sourceType,
+                                            form, tz, buf + *pOff, room);
+    if (n < 0 || n >= room) {
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
+    }
+    *pOff += n;
   } else {
     char *str = nodesGetStrValueFromNode(pVal);
-    if (str) {
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", str);
-      taosMemoryFree(str);
+    if (str == NULL) {
+      parserWarn("prefilter: cannot render value of type %d", pVal->node.resType.type);
+      return TSDB_CODE_PAR_INTERNAL_ERROR;
     }
+    int32_t code = TSDB_CODE_SUCCESS;
+    size_t  len = strlen(str);
+    if (len >= 2 && str[0] == '\'' && str[len - 1] == '\'') {
+      code = extPfAppend(buf, bufSize, pOff, "'");
+      for (size_t i = 1; code == TSDB_CODE_SUCCESS && i + 1 < len; ++i) {
+        if (str[i] == '\'' || (pCxt->sourceType == EXT_SOURCE_MYSQL && str[i] == '\\')) {
+          code = extPfAppend(buf, bufSize, pOff, "%c%c", str[i], str[i]);
+        } else {
+          code = extPfAppend(buf, bufSize, pOff, "%c", str[i]);
+        }
+      }
+      if (code == TSDB_CODE_SUCCESS) {
+        code = extPfAppend(buf, bufSize, pOff, "'");
+      }
+    } else {
+      code = extPfAppend(buf, bufSize, pOff, "%s", str);
+    }
+    taosMemoryFree(str);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t renderExtWhereNode(SNode *pNode, int32_t sourceType,
-                                  int32_t precision,
+/* Whether a column node is a timestamp column of this external table.
+ *
+ * A column that already went through expression translation carries
+ * TSDB_DATA_TYPE_TIMESTAMP in its result type.  The trigger PRE_FILTER is
+ * rendered from the raw AST before column binding, so its columns are untyped;
+ * fall back to the table's remote type name, which is the same signal the
+ * executor uses to bind every timestamp column at the table transport
+ * precision. */
+static bool extPfIsTsColumn(const SExtPrefilterCxt *pCxt, SNode *pNode) {
+  if (pNode == NULL || nodeType(pNode) != QUERY_NODE_COLUMN) return false;
+  SColumnNode *pCol = (SColumnNode *)pNode;
+  if (pCol->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) return true;
+  int32_t idx = extPrefilterFindCol(pCxt, pCol->colName);
+  if (idx < 0 || pCxt->pExt == NULL || pCxt->pExt->pExtMeta == NULL) return false;
+  const char *extType = pCxt->pExt->pExtMeta->pCols[idx].extTypeName;
+  return extType[0] != '\0' &&
+         extTimestampTypeTzClass((EExtSourceType)pCxt->sourceType, extType) !=
+             EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
+}
+
+static int32_t renderExtWhereNode(const SExtPrefilterCxt *pCxt, SNode *pNode,
                                   char *buf, int32_t bufSize, int32_t *pOff) {
   if (pNode == NULL) return TSDB_CODE_SUCCESS;
+  /* A truncated fragment must stop the rendering rather than let a later append
+   * compute a negative remaining size. */
+  if (*pOff < 0 || *pOff >= bufSize) return TSDB_CODE_PAR_INTERNAL_ERROR;
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_CONDITION: {
       SLogicConditionNode *pLogic = (SLogicConditionNode *)pNode;
       const char *op = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "(");
+      if (extPfAppend(buf, bufSize, pOff, "(") != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       bool   first  = true;
       SNode *pChild = NULL;
       FOREACH(pChild, pLogic->pParameterList) {
-        if (!first) *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", op);
-        int32_t code = renderExtWhereNode(pChild, sourceType, precision, buf, bufSize, pOff);
+        if (!first && extPfAppend(buf, bufSize, pOff, "%s", op) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
+        int32_t code = renderExtWhereNode(pCxt, pChild, buf, bufSize, pOff);
         if (code != TSDB_CODE_SUCCESS) return code;
         first = false;
       }
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, ")");
+      if (extPfAppend(buf, bufSize, pOff, ")") != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       break;
     }
     case QUERY_NODE_OPERATOR: {
       SOperatorNode *pOp = (SOperatorNode *)pNode;
 
       /* Detect timestamp comparison: one side is a TIMESTAMP column, the
-       * other is a BIGINT value that should be treated as an epoch
-       * timestamp for the external source.  This handles the common
-       * pattern `WHERE ts >= <epoch_integer>`. */
-      bool leftIsTsCol  = (pOp->pLeft != NULL &&
-                           nodeType(pOp->pLeft) == QUERY_NODE_COLUMN &&
-                           ((SColumnNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP);
-      bool rightIsTsCol = (pOp->pRight != NULL &&
-                           nodeType(pOp->pRight) == QUERY_NODE_COLUMN &&
-                           ((SColumnNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP);
-      bool leftIsBigint  = (pOp->pLeft != NULL &&
-                            nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
-                            (((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
-                             ((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_UBIGINT));
-      bool rightIsBigint = (pOp->pRight != NULL &&
-                            nodeType(pOp->pRight) == QUERY_NODE_VALUE &&
-                            (((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
-                             ((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_UBIGINT));
+       * other is a value that should be treated as an epoch timestamp for the
+       * external source.  This handles the common pattern
+       * `WHERE ts >= <epoch_integer>`. */
+      bool leftIsTsCol  = extPfIsTsColumn(pCxt, pOp->pLeft);
+      bool rightIsTsCol = extPfIsTsColumn(pCxt, pOp->pRight);
+      bool leftIsValue  = (pOp->pLeft != NULL && nodeType(pOp->pLeft) == QUERY_NODE_VALUE);
+      bool rightIsValue = (pOp->pRight != NULL && nodeType(pOp->pRight) == QUERY_NODE_VALUE);
+      bool leftIsEpoch  = (leftIsValue &&
+                           (((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
+                            ((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_UBIGINT ||
+                            ((SValueNode *)pOp->pLeft)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP));
+      bool rightIsEpoch = (rightIsValue &&
+                           (((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_BIGINT ||
+                            ((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_UBIGINT ||
+                            ((SValueNode *)pOp->pRight)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP));
+      /* The trigger PRE_FILTER is rendered from the raw AST before column
+       * binding, so a string constant keeps its VARCHAR type instead of being
+       * converted to TIMESTAMP as it is in the calc path.  Such a string is
+       * still a timestamp constant when the other side is a timestamp column:
+       * it must be parsed and emitted with the ANSI TIMESTAMP prefix instead
+       * of being pushed down as a bare quoted string that Oracle would only
+       * interpret against the session's NLS_TIMESTAMP_FORMAT. */
+      bool leftIsStrTs  = (leftIsValue &&
+                           IS_STR_DATA_TYPE(((SValueNode *)pOp->pLeft)->node.resType.type));
+      bool rightIsStrTs = (rightIsValue &&
+                           IS_STR_DATA_TYPE(((SValueNode *)pOp->pRight)->node.resType.type));
 
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "(");
+      /* A constant against a timestamp column is rendered in that column's own
+       * unit and timezone basis, so the basis is resolved per comparison
+       * instead of once for the whole WHERE. */
+      bool  leftAsTs   = ((leftIsEpoch || leftIsStrTs) && rightIsTsCol);
+      bool  rightAsTs  = ((rightIsEpoch || rightIsStrTs) && leftIsTsCol);
+      timezone_t boundTz   = NULL;
+      int32_t    boundPrec = TSDB_TIME_PRECISION_MICRO;
+      EExtPrefilterBoundForm boundForm = EXT_PF_BOUND_LOCAL;
+      if (leftAsTs || rightAsTs) {
+        const SColumnNode *pBoundCol = leftAsTs ? (const SColumnNode *)pOp->pRight
+                                                : (const SColumnNode *)pOp->pLeft;
+        int32_t code = resolveExtColumnBound(pCxt, pBoundCol->colName, &boundTz, &boundPrec,
+                                             &boundForm);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+
+      if (extPfAppend(buf, bufSize, pOff, "(") != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
 
       /* Render left operand. */
-      if (nodeType(pOp->pLeft) == QUERY_NODE_VALUE) {
-        bool treatAsTs = leftIsBigint && rightIsTsCol;
-        int32_t code = renderExtValueNode((SValueNode *)pOp->pLeft, sourceType,
-                                          precision, treatAsTs, buf, bufSize, pOff);
+      if (leftIsValue) {
+        int32_t code = renderExtValueNode((SValueNode *)pOp->pLeft, leftAsTs, pCxt, boundTz,
+                                          boundPrec, boundForm, buf, bufSize, pOff);
         if (code != TSDB_CODE_SUCCESS) return code;
       } else {
-        int32_t code = renderExtWhereNode(pOp->pLeft, sourceType, precision, buf, bufSize, pOff);
+        int32_t code = renderExtWhereNode(pCxt, pOp->pLeft, buf, bufSize, pOff);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
 
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, " %s ", operatorTypeStr(pOp->opType));
+      if (extPfAppend(buf, bufSize, pOff, " %s ", operatorTypeStr(pOp->opType)) !=
+          TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
 
       /* Render right operand. */
-      if (nodeType(pOp->pRight) == QUERY_NODE_VALUE) {
-        bool treatAsTs = rightIsBigint && leftIsTsCol;
-        int32_t code = renderExtValueNode((SValueNode *)pOp->pRight, sourceType,
-                                          precision, treatAsTs, buf, bufSize, pOff);
+      if (rightIsValue) {
+        int32_t code = renderExtValueNode((SValueNode *)pOp->pRight, rightAsTs, pCxt, boundTz,
+                                          boundPrec, boundForm, buf, bufSize, pOff);
         if (code != TSDB_CODE_SUCCESS) return code;
       } else {
-        int32_t code = renderExtWhereNode(pOp->pRight, sourceType, precision, buf, bufSize, pOff);
+        int32_t code = renderExtWhereNode(pCxt, pOp->pRight, buf, bufSize, pOff);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
 
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, ")");
+      if (extPfAppend(buf, bufSize, pOff, ")") != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       break;
     }
     case QUERY_NODE_COLUMN: {
       SColumnNode *pCol = (SColumnNode *)pNode;
-      *pOff += snprintf(buf + *pOff, bufSize - *pOff, "%s", pCol->colName);
+      if (extPfAppendIdentifier(pCxt, pCol->colName, buf, bufSize, pOff) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
       break;
     }
     case QUERY_NODE_VALUE: {
-      /* Standalone value (not inside an operator).  No timestamp hint. */
-      return renderExtValueNode((SValueNode *)pNode, sourceType, precision,
-                                false, buf, bufSize, pOff);
+      /* Standalone value (not inside an operator): there is no compared column
+       * to take a timestamp basis from. */
+      if (((SValueNode *)pNode)->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_PAR_INTERNAL_ERROR;
+      }
+      return renderExtValueNode((SValueNode *)pNode, false, pCxt, NULL,
+                                TSDB_TIME_PRECISION_MICRO, EXT_PF_BOUND_LOCAL,
+                                buf, bufSize, pOff);
     }
     default:
       parserWarn("renderExtWhereNode: unsupported node type %d, skipping prefilter",
@@ -30105,6 +30542,23 @@ static int32_t renderExtWhereNode(SNode *pNode, int32_t sourceType,
       return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+/* Precision recorded for the table's primary timestamp column, used as the unit
+ * of a constant compared with that column when the catalog carries no remote
+ * type name for it.  Falls back to the trigger precision and then to
+ * microseconds, so the renderer never sees an out-of-range unit. */
+static int32_t extTableFallbackPrecision(const SExtTableNode *pExt, int32_t fallbackPrec) {
+  int32_t prec = (pExt != NULL && pExt->pExtMeta != NULL) ? pExt->pExtMeta->tsPrecision : 0;
+  if (prec != TSDB_TIME_PRECISION_MILLI && prec != TSDB_TIME_PRECISION_MICRO &&
+      prec != TSDB_TIME_PRECISION_NANO) {
+    prec = fallbackPrec;
+  }
+  if (prec != TSDB_TIME_PRECISION_MILLI && prec != TSDB_TIME_PRECISION_MICRO &&
+      prec != TSDB_TIME_PRECISION_NANO) {
+    prec = TSDB_TIME_PRECISION_MICRO;
+  }
+  return prec;
 }
 
 /* Check whether a WHERE AST contains stream-specific placeholders (_twstart,
@@ -30190,6 +30644,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   SHashObj* pHash  = pCxt->streamInfo.extSourceNames;
   SArray*   pSpecs = NULL;
   void*     pIter  = NULL;
+  /* UTC handle used to render a constant bound against a timezone-aware column
+   * of any source; resolved on first use and released on both exit paths. */
+  timezone_t awareTz = NULL;
   bool      hasExprSubquery = streamQueryHasExprSubqueryRef(pStmt->pQuery);
 
   if (pHash == NULL || taosHashGetSize(pHash) == 0) {
@@ -30203,6 +30660,7 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   const char*    trigSourceName  = NULL;
   const char*    trigExtTable    = NULL;
   const char*    trigTsColumn    = NULL;
+  const SExtTableNode* trigExtNode = NULL;  /* trigger ext table, for bound classification */
   const char*    trigSchemaName  = NULL;  /* PG schema (e.g. "public"); empty for MySQL/InfluxDB */
   SNode*         pTrigPreFilter  = NULL;  /* PRE_FILTER node from CREATE STREAM trigger options */
   if (pStmt->pTrigger != NULL) {
@@ -30217,8 +30675,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
         if (pExt->schemaName[0] != '\0') trigSchemaName = pExt->schemaName;
         if (pExt->tsPrimaryColIdx >= 0 && pExt->pExtMeta != NULL &&
             pExt->tsPrimaryColIdx < pExt->pExtMeta->numOfCols && pExt->pExtMeta->pCols != NULL) {
-          trigTsColumn = pExt->pExtMeta->pCols[pExt->tsPrimaryColIdx].colName;
+          trigTsColumn  = pExt->pExtMeta->pCols[pExt->tsPrimaryColIdx].colName;
         }
+        trigExtNode = pExt;
       }
     }
     /* Extract PRE_FILTER from trigger options (only valid when trigger table is set). */
@@ -30368,7 +30827,14 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
       pSpec->precision = pReq->triggerPrec;
       parserDebug("buildExtSpecs: trigger source=%s precision=%d",
                   sourceName, (int)pSpec->precision);
-      if (trigExtTable   != NULL) tstrncpy(pSpec->extTable,  trigExtTable,   sizeof(pSpec->extTable));
+      if (trigExtTable != NULL) {
+        const char *tableName = trigExtTable;
+        if (pSpec->sourceType == EXT_SOURCE_ORACLE) {
+          extCopyRemoteTableSpelling(tableName, pSpec->extTable, sizeof(pSpec->extTable));
+        } else {
+          tstrncpy(pSpec->extTable, tableName, sizeof(pSpec->extTable));
+        }
+      }
       if (trigTsColumn   != NULL) tstrncpy(pSpec->tsColumn,  trigTsColumn,   sizeof(pSpec->tsColumn));
       /* Override extSchema from the ext-table node so that PostgreSQL uses
        * schema.table (e.g. public.src_t) instead of the source-level default
@@ -30376,9 +30842,28 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
        * is a no-op for those source types. */
       if (trigSchemaName != NULL) tstrncpy(pSpec->extSchema, trigSchemaName, sizeof(pSpec->extSchema));
 
-      int32_t extPrec = (pSpec->sourceType == EXT_SOURCE_INFLUXDB)
-                          ? TSDB_TIME_PRECISION_NANO
-                          : TSDB_TIME_PRECISION_MICRO;
+      /* A WHERE constant is expressed in the unit of the column it filters and
+       * in the basis the connector decodes that column in.  Both are resolved
+       * per compared column inside the renderer, which needs the table's
+       * metadata, the stream timezone (decode basis of a naive column) and a UTC
+       * handle (basis of an aware one).  Without a UTC handle an aware bound is
+       * simply not pushed; a naive one still is. */
+      if (awareTz == NULL && TSDB_CODE_SUCCESS != taosValidateTimezone("UTC", &awareTz)) {
+        awareTz = NULL;
+        parserWarn("buildExtSpecs: cannot resolve UTC, timezone-aware constant bounds are "
+                   "not pushed for source=%s",
+                   sourceName);
+      }
+      SExtPrefilterCxt trigPfCxt = {
+          .sourceType   = pSpec->sourceType,
+          .pExt         = trigExtNode,
+          .fallbackPrec = extTableFallbackPrecision(trigExtNode, pSpec->precision),
+          .streamTz     = pCxt->streamTimezone,
+          .awareTz      = awareTz,
+      };
+      /* The calc prefilter may filter a different table of the same source and
+       * is refined where that table is known below. */
+      SExtPrefilterCxt calcPfCxt = trigPfCxt;
 
       /* Extract the calc SELECT's WHERE clause as a SQL fragment for the
        * CALC reader prefilter.  Only static conditions (no _twstart / _twend
@@ -30419,13 +30904,18 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
           if (pBaseTbl->pExtTableNode != NULL &&
               strcmp(((const SExtTableNode *)pBaseTbl->pExtTableNode)->sourceName, sourceName) == 0) {
             pBaseWhere = pBaseSelect->pWhere;
+            /* The calc prefilter filters this table's columns, which may belong
+             * to a table of the same source whose timestamp column has a
+             * different class or precision than the trigger one. */
+            calcPfCxt.pExt = (const SExtTableNode *)pBaseTbl->pExtTableNode;
+            calcPfCxt.fallbackPrec =
+                extTableFallbackPrecision(calcPfCxt.pExt, pSpec->precision);
           }
         }
         if (pBaseWhere != NULL && !whereHasStreamPlaceholders(pBaseWhere)) {
           char    pfBuf[4096] = {0};
           int32_t pfOff = 0;
-          int32_t rc = renderExtWhereNode(pBaseWhere,
-                                          pSpec->sourceType, extPrec,
+          int32_t rc = renderExtWhereNode(&calcPfCxt, pBaseWhere,
                                           pfBuf, sizeof(pfBuf), &pfOff);
           if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
             pSpec->prefilter = tstrdup(pfBuf);
@@ -30446,18 +30936,26 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
       if (pTrigPreFilter != NULL) {
         char    pfBuf[4096] = {0};
         int32_t pfOff = 0;
-        int32_t rc = renderExtWhereNode(pTrigPreFilter,
-                                        pSpec->sourceType, extPrec,
+        int32_t rc = renderExtWhereNode(&trigPfCxt, pTrigPreFilter,
                                         pfBuf, sizeof(pfBuf), &pfOff);
-        if (rc == TSDB_CODE_SUCCESS && pfOff > 0) {
-          pSpec->triggerPrefilter = tstrdup(pfBuf);
-          if (pSpec->triggerPrefilter == NULL) {
-            freeExtSpecOnBuildError(pHash, pIter, pSpec);
-            PAR_ERR_JRET(terrno);
-          }
-          parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
-                      pSpec->triggerPrefilter, pfOff, sourceName);
+        if (rc != TSDB_CODE_SUCCESS || pfOff <= 0) {
+          /* A direct external trigger has no local filter fallback: PRE_FILTER
+           * is enforced by the source reader. Dropping an unrenderable filter
+           * would therefore admit rows the user excluded. */
+          parserError("buildExtSpecs: cannot render trigger prefilter for source=%s, code=%d, len=%d",
+                      sourceName, rc, pfOff);
+          freeExtSpecOnBuildError(pHash, pIter, pSpec);
+          PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PRE_FILTER,
+                                               "PRE_FILTER cannot be represented for external source %s",
+                                               sourceName));
         }
+        pSpec->triggerPrefilter = tstrdup(pfBuf);
+        if (pSpec->triggerPrefilter == NULL) {
+          freeExtSpecOnBuildError(pHash, pIter, pSpec);
+          PAR_ERR_JRET(terrno);
+        }
+        parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
+                    pSpec->triggerPrefilter, pfOff, sourceName);
       }
     }
 
@@ -30482,9 +30980,15 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   BIT_FLAG_SET_MASK(pReq->flags, CREATE_STREAM_FLAG_REF_EXT_SOURCE);
   parserDebug("buildExtSpecs: %d specs built, CREATE_STREAM_FLAG_REF_EXT_SOURCE set",
               pReq->numOfExtSpecs);
+  if (awareTz != NULL) {
+    tzfree(awareTz);
+  }
   return code;
 
 _return:
+  if (awareTz != NULL) {
+    tzfree(awareTz);
+  }
   if (pSpecs != NULL) {
     int32_t n = (int32_t)taosArrayGetSize(pSpecs);
     for (int32_t i = 0; i < n; ++i) {

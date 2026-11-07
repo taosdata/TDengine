@@ -360,9 +360,10 @@ static EExtSqlBoundForm extSqlBoundForm(const SStreamExtReaderInfo *pInfo) {
 
 /* Longest timestamp literal a remote bound can render:
  * 'YYYY-MM-DD HH:MM:SS.uuuuuu+00:00' (34 bytes incl. quotes) + NUL, or
- * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL. */
-/* The ANSI prefix Oracle needs ("TIMESTAMP ") adds 10 bytes on top of the
- * 40-byte literal, so the buffers below are sized for the prefixed form. */
+ * FROM_UNIXTIME(<13-digit seconds>.<6-digit fraction>) (36 bytes) + NUL.
+ * Oracle additionally takes the ANSI prefix ("TIMESTAMP ", 10 bytes) and up to
+ * nine fraction digits: 10 + 1 + 19 + 1 + 9 + 1 = 41 bytes + NUL.  Every buffer
+ * below is sized for that prefixed form. */
 #define EXT_SQL_TS_LITERAL_LEN 56
 
 /* Oracle needs the ANSI timestamp literal prefix (DS 5.3.6 R4): an offset-less
@@ -375,21 +376,44 @@ static const char *extSqlBoundPrefix(const SStreamExtReaderInfo *pInfo) {
 }
 
 static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *tzName,
-                                  EExtSqlBoundForm form, const char *prefix, char *buf, int32_t bufLen) {
+                                  EExtSqlBoundForm form, const char *prefix,
+                                  bool subMicroDigits, char *buf, int32_t bufLen) {
   if (prefix == NULL) {
     prefix = "";
   }
   const char *suffix = (form == EXT_SQL_BOUND_UTC_SUFFIX) ? "+00:00'" : "'";
-  /* Clamp INT64_MIN / negative to epoch origin. */
-  bool clamped = (epoch == INT64_MIN || epoch < 0);
-  if (clamped) {
+  /* INT64_MIN is the "no bound" sentinel callers pass, so it still renders the
+   * epoch origin.  A real pre-1970 instant must keep its own wall clock: clamping
+   * every negative bound to 1970 would make the remote start each range at
+   * 1970-01-01 and drop the history rows before it, which the static prefilter
+   * already handles (renderExtPrefilterTimestamp in parTranslater.c). */
+  bool unbounded = (epoch == INT64_MIN);
+  if (unbounded) {
+    epoch = 0;
+  }
+  /* FROM_UNIXTIME() has no negative argument and a MySQL TIMESTAMP column cannot
+   * hold a pre-1970 value, so that form keeps the epoch origin. */
+  if (epoch < 0 && form == EXT_SQL_BOUND_UNIX_EPOCH) {
     epoch = 0;
   }
   /* Normalize to microseconds for sub-second formatting. */
   int64_t epoch_us;
+  int32_t sub_ns = 0;
   if (precision == TSDB_TIME_PRECISION_NANO) {
     epoch_us = epoch / 1000LL;
+    /* Digits below the microsecond a six-fraction literal cannot carry.  The
+     * caller only keeps them for a dialect that accepts nine digits.  Floor
+     * semantics keep the fraction non-negative for a pre-1970 instant. */
+    sub_ns = (int32_t)(epoch % 1000LL);
+    if (sub_ns < 0) {
+      sub_ns += 1000;
+      --epoch_us;
+    }
   } else if (precision == TSDB_TIME_PRECISION_MILLI) {
+    if (epoch > INT64_MAX / 1000LL || epoch < INT64_MIN / 1000LL) {
+      stError("ext: millisecond bound epoch:%" PRId64 " overflows microsecond conversion", epoch);
+      return TSDB_CODE_STREAM_INTERNAL_ERROR;
+    }
     epoch_us = epoch * 1000LL;
   } else {
     /* MICRO  -  already in micros */
@@ -401,18 +425,43 @@ static int32_t epochToDatetimeStr(int64_t epoch, int32_t precision, const char *
     return snprintf(buf, bufLen, "FROM_UNIXTIME(%" PRId64 ".%06d)",
                     (int64_t)(epoch_us / 1000000LL), (int32_t)(epoch_us % 1000000LL));
   }
-  if (clamped) {
+  if (unbounded) {
     return snprintf(buf, bufLen, "%s'1970-01-01 00:00:00.000000%s", prefix, suffix);
   }
-  time_t     sec     = (time_t)(epoch_us / 1000000LL);
-  int        us      = (int)(epoch_us % 1000000LL);
+  time_t sec = (time_t)(epoch_us / 1000000LL);
+  int    us  = (int)(epoch_us % 1000000LL);
+  if (us < 0) {
+    /* Floor split: a negative instant belongs to the previous second. */
+    us += 1000000;
+    --sec;
+  }
   struct tm  tm_info = {0};
   /* Render the bound in the same timezone the connector uses to decode the
    * source column; NULL falls back to the server global timezone. */
   timezone_t tz = extResolveSqlTimezone(tzName);
-  taosLocalTime(&sec, &tm_info, NULL, 0, tz);
+  struct tm *pLocal = taosLocalTime(&sec, &tm_info, NULL, 0, tz);
   if (tz != NULL) {
     tzfree(tz);
+  }
+  int32_t year = tm_info.tm_year + 1900;
+  if (pLocal == NULL || year < 1 || year > 9999 || tm_info.tm_mon < 0 || tm_info.tm_mon > 11 ||
+      tm_info.tm_mday < 1 || tm_info.tm_mday > 31) {
+    /* The platform calendar cannot express this instant (Windows stops at
+     * 1900-01-01).  Replacing it with the epoch origin would silently narrow or
+     * widen the remote fetch, so fail the reader request instead. */
+    stError("ext: cannot render tz:%s bound epoch:%" PRId64 " s as a calendar time",
+            tzName != NULL ? tzName : "(default)", (int64_t)sec);
+    return TSDB_CODE_STREAM_INTERNAL_ERROR;
+  }
+  /* A sliding window subtracts one tick from its half-open end and the fetch
+   * keeps an inclusive "<=", so dropping the sub-microsecond digits would
+   * shrink every window end by up to 999 ns and lose its tail rows.  Oracle
+   * TIMESTAMP(7..9) accepts the nine-digit ANSI literal, so keep them there. */
+  if (subMicroDigits && precision == TSDB_TIME_PRECISION_NANO) {
+    return snprintf(buf, bufLen, "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%03d%s",
+                    prefix,
+                    tm_info.tm_year + 1900, tm_info.tm_mon + 1, tm_info.tm_mday,
+                    tm_info.tm_hour, tm_info.tm_min, tm_info.tm_sec, us, sub_ns, suffix);
   }
   return snprintf(buf, bufLen,
                   "%s'%04d-%02d-%02d %02d:%02d:%02d.%06d%s",
@@ -432,7 +481,9 @@ int32_t streamReaderExtRenderTimeBound(const SStreamExtReaderInfo *pInfo, int64_
     return TSDB_CODE_INVALID_PARA;
   }
   return epochToDatetimeStr(bound, precision, extSqlBoundTimezone(pInfo),
-                            extSqlBoundForm(pInfo), extSqlBoundPrefix(pInfo), buf, bufLen);
+                            extSqlBoundForm(pInfo), extSqlBoundPrefix(pInfo),
+                            (EExtSourceType)pInfo->spec.sourceType == EXT_SOURCE_ORACLE,
+                            buf, bufLen);
 }
 
 /* Last instant a MySQL TIMESTAMP column can hold: 2038-01-19 03:14:07.999999
@@ -872,6 +923,41 @@ static bool extIsValidTimePrecision(int8_t precision) {
          precision == TSDB_TIME_PRECISION_NANO;
 }
 
+/* Source transport precision of the reader's timestamp column (DS 5.3.7).
+ *
+ * The trigger column mappings carry it, but the synthetic LAST_TS / MIN / MAX
+ * mappings built inside streamReaderExt.c do not, so it is resolved here and
+ * copied onto them.  The Oracle connector decodes a timestamp column at
+ * tsPrecision and treats every value that is not NANO as microseconds, so a
+ * missing precision truncates a TIMESTAMP(7..9) column by its last three digits
+ * and the tail row can never enter a later pull range.
+ *
+ * SExtColTypeMapping documents tsPrecision 0 as "not set", and 0 collides with
+ * TSDB_TIME_PRECISION_MILLI, so a zero must not be read as a millisecond
+ * column.  When the mapping carries nothing, the spec precision is used: mnode
+ * derives it from the trigger table's schema, which is exactly the transport
+ * precision of that table.  Everything else falls back to MICRO, the
+ * connector's own default. */
+static int8_t extSpecTsSourcePrecision(const SStreamExtTriggerSpec *pSpec, const char *tsCol) {
+  if (pSpec != NULL) {
+    if (pSpec->pColMappings != NULL && tsCol != NULL) {
+      for (int32_t i = 0; i < pSpec->numColMappings; ++i) {
+        if (strcmp(pSpec->pColMappings[i].colName, tsCol) == 0) {
+          int8_t prec = pSpec->pColMappings[i].tsPrecision;
+          if (prec != 0 && extIsValidTimePrecision(prec)) {
+            return prec;
+          }
+          break;
+        }
+      }
+    }
+    if (extIsValidTimePrecision(pSpec->precision)) {
+      return pSpec->precision;
+    }
+  }
+  return TSDB_TIME_PRECISION_MICRO;
+}
+
 /* Keep unbounded sentinels intact and clamp both signs before scaling to nanoseconds. */
 static int64_t extInfluxBoundToNanos(int64_t ts, int8_t precision, bool upperBound) {
   if (ts == INT64_MIN || ts == INT64_MAX || precision == TSDB_TIME_PRECISION_NANO) {
@@ -1282,13 +1368,15 @@ int32_t streamReaderExtOpen(void *pSpec, const SStreamTask *pTask, SNode *pCalcT
     pInfo->tsTzClass = streamReaderExtSpecTsTzClass(pExtSpec);
   }
   if (pInfo->tsTzClass == EXT_TIMESTAMP_TZ_CLASS_UNKNOWN &&
-      (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER) {
-    /* An unclassified SQL Server timestamp would render datetimeoffset bounds
-     * as a client wall clock, which SQL Server reads as UTC; keep the shift
+      ((EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_SQLSERVER ||
+       (EExtSourceType)pExtSpec->sourceType == EXT_SOURCE_ORACLE)) {
+    /* An unclassified timestamp would render timezone-aware bounds as a client
+     * wall clock, which SQL Server (datetimeoffset) and Oracle (TIMESTAMP WITH
+     * TIME ZONE, whose session is pinned to UTC) read as UTC; keep the shift
      * diagnosable instead of silently dropping rows. */
-    stWarn("ext: cannot classify the SQL Server timestamp column, source:%s column:%s; "
-           "datetimeoffset bounds will be rendered in the stream timezone",
-           pExtSpec->sourceName, pExtSpec->tsColumn);
+    stWarn("ext: cannot classify the timestamp column, source:%s type:%d column:%s; "
+           "timezone-aware bounds will be rendered in the stream timezone",
+           pExtSpec->sourceName, (int)pExtSpec->sourceType, pExtSpec->tsColumn);
   }
   stDebug("ext: reader timezone=%s tsTzClass=%d",
           pInfo->timezone[0] != '\0' ? pInfo->timezone : "(server global)",
@@ -2621,12 +2709,17 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   ST_TASK_DLOG("ext: lastTs relational SQL=\"%s\"", sqlBuf);
 
   /* Execute query with a single-column TIMESTAMP mapping for MAX(ts).
-   * Decode source timestamps as nanoseconds, then normalize the result to
-   * spec.precision before exposing the watermark to the trigger. */
+   * Decode the source timestamp at its own transport precision, then normalize
+   * the result to spec.precision before exposing the watermark to the trigger.
+   * The Oracle connector reads tsPrecision, so a zero here silently truncates
+   * TIMESTAMP(7..9) to microseconds and the row whose timestamp only differs in
+   * the sub-microsecond digits is excluded from every later fetch. */
   SExtColTypeMapping tsMapping = {0};
-  tsMapping.tdType.type   = TSDB_DATA_TYPE_TIMESTAMP;
-  tsMapping.tdType.bytes  = sizeof(int64_t);
-  tsMapping.tdType.precision = TSDB_TIME_PRECISION_NANO;
+  int8_t            srcPrec   = extSpecTsSourcePrecision(&pInfo->spec, tsCol);
+  tsMapping.tdType.type       = TSDB_DATA_TYPE_TIMESTAMP;
+  tsMapping.tdType.bytes      = sizeof(int64_t);
+  tsMapping.tdType.precision  = srcPrec;
+  tsMapping.tsPrecision       = srcPrec;
   tstrncpy(tsMapping.colName, tsCol, sizeof(tsMapping.colName));
 
   SSDataBlock *pBlock = NULL;
@@ -2781,15 +2874,18 @@ static int64_t extLookupUidMaxTs(SSHashObj *pUidMaxTs, uint64_t uid) {
   return maxTs;
 }
 
-static void extInitRelationalMetaMappings(const char *tsCol, SExtColTypeMapping metaMappings[4]) {
+static void extInitRelationalMetaMappings(const char *tsCol, int8_t srcPrec,
+                                          SExtColTypeMapping metaMappings[4]) {
   metaMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
   metaMappings[0].tdType.bytes = sizeof(int64_t);
-  metaMappings[0].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  metaMappings[0].tdType.precision = srcPrec;
+  metaMappings[0].tsPrecision = srcPrec;
   tstrncpy(metaMappings[0].colName, tsCol, sizeof(metaMappings[0].colName));
 
   metaMappings[1].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
   metaMappings[1].tdType.bytes = sizeof(int64_t);
-  metaMappings[1].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  metaMappings[1].tdType.precision = srcPrec;
+  metaMappings[1].tsPrecision = srcPrec;
   tstrncpy(metaMappings[1].colName, tsCol, sizeof(metaMappings[1].colName));
 
   metaMappings[2].tdType.type = TSDB_DATA_TYPE_BIGINT;
@@ -2807,8 +2903,6 @@ static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilt
                                          const SStreamExtReaderInfo *pInfo,
                                          char *sqlBuf, int32_t sqlBufLen) {
   char dtBuf[EXT_SQL_TS_LITERAL_LEN] = {0};
-  streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
-
   /* Emit the uid as its signed 64-bit representation: group uids are
    * MurmurHash3 values with the full uint64 range, and roughly half of them
    * exceed INT64_MAX.  The connector parses this literal back into an
@@ -2816,13 +2910,40 @@ static int32_t extBuildRelationalMetaSql(const char *tblRef, const char *prefilt
    * is stored as int64 anyway, so the signed bit pattern round-trips
    * exactly - an unsigned literal merely worked by luck when the hash
    * happened to stay under 2^63. */
-  int32_t sqlLen = snprintf(sqlBuf, sqlBufLen,
-                            "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
-                            "WHERE %s%s > %s",
-                            tsCol, tsCol, (int64_t)uid,
-                            tblRef,
-                            prefilterBuf,
-                            tsCol, dtBuf);
+  int32_t sqlLen;
+  if (maxTs == INT64_MIN) {
+    /* INT64_MIN is the "no watermark yet" sentinel (the first LAST_TS pull on an
+     * empty table).  Rendering it as a timestamp would bound the history query
+     * to ts > 1970-01-01 and hide every older row, which an Oracle TIMESTAMP
+     * column can legally hold, so the lower bound is simply omitted and only
+     * the trigger prefilter (if any) remains. */
+    int32_t pfLen = (int32_t)strlen(prefilterBuf);
+    if (pfLen >= 5 && strcmp(prefilterBuf + pfLen - 5, " AND ") == 0) {
+      pfLen -= 5;
+    }
+    if (pfLen > 0) {
+      sqlLen = snprintf(sqlBuf, sqlBufLen,
+                        "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s WHERE %.*s",
+                        tsCol, tsCol, (int64_t)uid, tblRef, pfLen, prefilterBuf);
+    } else {
+      sqlLen = snprintf(sqlBuf, sqlBufLen,
+                        "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s",
+                        tsCol, tsCol, (int64_t)uid, tblRef);
+    }
+  } else {
+    int32_t boundCode =
+        streamReaderExtRenderTimeBound(pInfo, maxTs, boundPrecision, dtBuf, sizeof(dtBuf));
+    if (boundCode < 0) {
+      return boundCode;
+    }
+    sqlLen = snprintf(sqlBuf, sqlBufLen,
+                      "SELECT MIN(%s),MAX(%s),%" PRId64 ",COUNT(*) FROM %s "
+                      "WHERE %s%s > %s",
+                      tsCol, tsCol, (int64_t)uid,
+                      tblRef,
+                      prefilterBuf,
+                      tsCol, dtBuf);
+  }
   if (sqlLen < 0 || sqlLen >= sqlBufLen) {
     stError("ext: meta relational SQL exceeds %d bytes uid=%" PRIu64,
             sqlBufLen, uid);
@@ -2911,7 +3032,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
     goto _exit;
   }
 
-  extInitRelationalMetaMappings(tsCol, metaMappings);
+  extInitRelationalMetaMappings(tsCol, extSpecTsSourcePrecision(&pInfo->spec, tsCol), metaMappings);
 
   for (int32_t i = 0; i < totalUids; ++i) {
     uint64_t uid = *(uint64_t *)taosArrayGet(pAllUids, i);
@@ -3617,9 +3738,16 @@ static int32_t extBuildRelationalFetchSql(const char *colList, const char *tblRe
                                           char *sqlBuf, int32_t sqlBufLen) {
   char skeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
   char ekeyDt[EXT_SQL_TS_LITERAL_LEN] = {0};
-  streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
-  streamReaderExtRenderTimeBound(pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision),
-                                 boundPrecision, ekeyDt, sizeof(ekeyDt));
+  int32_t code = streamReaderExtRenderTimeBound(pInfo, skey, boundPrecision, skeyDt, sizeof(skeyDt));
+  if (code < 0) {
+    return code;
+  }
+  code = streamReaderExtRenderTimeBound(
+      pInfo, extClampMysqlUpperBound(pInfo, ekey, boundPrecision), boundPrecision, ekeyDt,
+      sizeof(ekeyDt));
+  if (code < 0) {
+    return code;
+  }
 
   // The virtual-table merger and the external timestamp sorter both walk a slice as ascending
   // [skey, ekey] ranges and stop at the first row beyond the window, so an unordered result set
@@ -5041,21 +5169,28 @@ _exit:
   return code;
 }
 
-static bool extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
-                                    const char *tsCol, const char *op,
-                                    int64_t ts, int8_t boundPrecision,
-                                    const SStreamExtReaderInfo *pInfo, bool isInflux) {
+static int32_t extAppendFetchDataBound(char *sql, int32_t sqlLen, int32_t *pOff,
+                                       const char *tsCol, const char *op,
+                                       int64_t ts, int8_t boundPrecision,
+                                       const SStreamExtReaderInfo *pInfo, bool isInflux) {
   if (isInflux) {
     return extSqlCat(sql, sqlLen, pOff, " AND %s %s to_timestamp_nanos(%" PRId64 ")",
-                     tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0));
+                     tsCol, op, extInfluxBoundToNanos(ts, boundPrecision, strcmp(op, "<=") == 0))
+               ? TSDB_CODE_SUCCESS
+               : TSDB_CODE_OUT_OF_RANGE;
   }
 
   char dt[EXT_SQL_TS_LITERAL_LEN] = {0};
   /* Only the inclusive upper bound is clamped into the remote domain; see
    * extClampMysqlUpperBound(). */
   int64_t bound = (strcmp(op, "<=") == 0) ? extClampMysqlUpperBound(pInfo, ts, boundPrecision) : ts;
-  streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
-  return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt);
+  int32_t code = streamReaderExtRenderTimeBound(pInfo, bound, boundPrecision, dt, sizeof(dt));
+  if (code < 0) {
+    return code;
+  }
+  return extSqlCat(sql, sqlLen, pOff, " AND %s %s %s", tsCol, op, dt)
+             ? TSDB_CODE_SUCCESS
+             : TSDB_CODE_OUT_OF_RANGE;
 }
 
 /* ============================================================
@@ -5356,12 +5491,18 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
                " precision:%d isInflux:%d aliasSelectItems:%d",
                skey, ekey, boundPrecision, isInflux, aliasSelectItems);
   if (ok && skey != INT64_MIN) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
-                                 boundPrecision, pReaderInfo, isInflux);
+    code = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, ">=", skey,
+                                   boundPrecision, pReaderInfo, isInflux);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
   }
   if (ok && ekey != INT64_MAX) {
-    ok = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
-                                 boundPrecision, pReaderInfo, isInflux);
+    code = extAppendFetchDataBound(sql, sizeof(sql), &off, tsColQ, "<=", ekey,
+                                   boundPrecision, pReaderInfo, isInflux);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
   }
   // External sources do not guarantee row order, and the trigger consumes calc rows with an
   // ascending time cursor: order the fetch by the timestamp column like the relational uid

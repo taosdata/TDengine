@@ -2245,8 +2245,25 @@ static int32_t stExtBuildTriggerColumns(SStreamReaderTask *pTask,
     SExtColTypeMapping *pMap = &pMsg->pExtSpec->pColMappings[colIdx];
     pMap->tdType = ((SExprNode *)pNode)->resType;
     tstrncpy(pMap->colName, pCol->colName, sizeof(pMap->colName));
-    ST_TASK_DLOG("ext: triggerColumns[%d] col='%s' type=%d bytes=%d",
-                 colIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes);
+    /* The connector decodes a timestamp column at tsPrecision and treats every
+     * other value as microseconds (DS 5.3.7).  This builder runs when mnode did
+     * not pre-fill the mappings - the direct trigger table - and the spec
+     * precision is that table's transport precision (mnode derives it from the
+     * source schema), so it is the decode basis for every timestamp column of
+     * the table, not only for the primary-key one.  Leaving it zero truncates a
+     * TIMESTAMP(7..9) value below one microsecond: on the timestamp column that
+     * the trigger's LAST_TS / MIN / MAX mapping reports as the watermark the
+     * newest row can never enter a later fetch range, and on any other column
+     * the projected value is simply wrong. */
+    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP &&
+        (pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_MILLI ||
+         pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_MICRO ||
+         pMsg->pExtSpec->precision == TSDB_TIME_PRECISION_NANO)) {
+      pMap->tsPrecision = pMsg->pExtSpec->precision;
+    }
+    ST_TASK_DLOG("ext: triggerColumns[%d] col='%s' type=%d bytes=%d tsPrec=%d",
+                 colIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes,
+                 (int)pMap->tsPrecision);
     colIdx++;
   }
   pMsg->pExtSpec->numColMappings = colIdx;
@@ -2305,17 +2322,35 @@ static int32_t stExtCollectScanCols(SStreamReaderTask *pTask,
     if (pFedScan && pFedScan->pColTypeMappings != NULL &&
         calcIdx < pFedScan->numColTypeMappings) {
       pMap->tdType = pFedScan->pColTypeMappings[calcIdx].tdType;
+      /* The plan carries the source transport precision separately from the
+       * output type (DS 5.3.7): carrying it over is what keeps an Oracle
+       * TIMESTAMP(7..9) column decoding at nanoseconds.  Without it the
+       * connector falls back to microseconds and the calc result timestamp is
+       * truncated, which normalization to NANO can only pad with zeros. */
+      pMap->tsPrecision = pFedScan->pColTypeMappings[calcIdx].tsPrecision;
     } else {
       pMap->tdType = ((SExprNode *)pExpr)->resType;
     }
-    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP && pMap->tdType.precision != pExtSpec->precision) {
-      ST_TASK_DLOG("ext: normalize calc mapping timestamp precision col='%s' precision:%d->%d %s",
-                   pCol->colName, pMap->tdType.precision, pExtSpec->precision, tag);
-      pMap->tdType.precision = pExtSpec->precision;
+    if (pMap->tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      if (pMap->tsPrecision == 0 &&
+          (pExtSpec->precision == TSDB_TIME_PRECISION_MILLI ||
+           pExtSpec->precision == TSDB_TIME_PRECISION_MICRO ||
+           pExtSpec->precision == TSDB_TIME_PRECISION_NANO)) {
+        /* No plan mapping (or no source precision in it): the spec precision is
+         * the trigger table's transport precision, the same fallback the trigger
+         * column mappings use. */
+        pMap->tsPrecision = pExtSpec->precision;
+      }
+      if (pMap->tdType.precision != pExtSpec->precision) {
+        ST_TASK_DLOG("ext: normalize calc mapping timestamp precision col='%s' precision:%d->%d %s",
+                     pCol->colName, pMap->tdType.precision, pExtSpec->precision, tag);
+        pMap->tdType.precision = pExtSpec->precision;
+      }
     }
     tstrncpy(pMap->colName, pCol->colName, sizeof(pMap->colName));
-    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d precision=%d %s",
-                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, pMap->tdType.precision, tag);
+    ST_TASK_DLOG("ext: calcColumns[%d] col='%s' type=%d bytes=%d precision=%d srcPrec=%d %s",
+                 calcIdx, pCol->colName, pMap->tdType.type, pMap->tdType.bytes, pMap->tdType.precision,
+                 (int)pMap->tsPrecision, tag);
     calcIdx++;
   }
   pExtSpec->numCalcMappings = calcIdx;
@@ -2582,9 +2617,24 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
       /* Multi-source federated calc: each calc reader scans its own external
        * table, but the mnode-supplied ext spec only carries the source-level
        * connection.  Override the per-scan table identity delivered in the
-       * deploy msg so streamReaderExtFetchData targets the correct table/ts col. */
+       * deploy msg so streamReaderExtFetchData targets the correct table/ts col.
+       *
+       * Only the Oracle connector reports a name with representation quotes
+       * around a quoted identifier ("same_a"); the reader adds its own quoting
+       * when it renders the table reference, so that layer has to be removed
+       * first or the table is dialled as """same_a""" (ORA-00942).  Every other
+       * provider reports the raw catalog name, which may itself contain double
+       * quotes (a MySQL table named "metrics" is created with backticks around
+       * the whole name), so their bytes must be copied verbatim - unquoting
+       * them would silently address a different table. */
       if (pMsg->msg.calc.extTable[0] != '\0') {
-        tstrncpy(pMsg->pExtSpec->extTable, pMsg->msg.calc.extTable, sizeof(pMsg->pExtSpec->extTable));
+        if ((EExtSourceType)pMsg->pExtSpec->sourceType == EXT_SOURCE_ORACLE) {
+          extCopyRemoteTableSpelling(pMsg->msg.calc.extTable, pMsg->pExtSpec->extTable,
+                                     sizeof(pMsg->pExtSpec->extTable));
+        } else {
+          tstrncpy(pMsg->pExtSpec->extTable, pMsg->msg.calc.extTable,
+                   sizeof(pMsg->pExtSpec->extTable));
+        }
       }
       if (pMsg->msg.calc.tsColumn[0] != '\0') {
         tstrncpy(pMsg->pExtSpec->tsColumn, pMsg->msg.calc.tsColumn, sizeof(pMsg->pExtSpec->tsColumn));

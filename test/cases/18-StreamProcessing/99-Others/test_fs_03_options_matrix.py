@@ -267,9 +267,11 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
             self._check_delete_option(src_name)
             self._check_drop_output_option(src_name)
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
+        # The control-option matrix still provisions no Oracle leg: its body
+        # derives a per-source remote database name and middle segment, neither
+        # of which exists for Oracle (one namespace level, service name in the
+        # source default).  Streams accept Oracle external tables now, so this
+        # skip is a pending gap rather than a product limitation.
         self._with_std_sources(
             "ucctl", body, skip_pg=True, skip_influx=True, skip_sqlserver=True,
             skip_oracle=True
@@ -345,6 +347,9 @@ class TestFsOptionsMatrix(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
+        # Same pending gap as the control-option matrix above: the body builds
+        # a per-source remote database name and middle segment, which Oracle
+        # does not have (one namespace level, table in the login schema).
         self._with_std_sources(prefix, body, skip_pg=True, skip_influx=True,
                                skip_sqlserver=True, skip_oracle=True)
 
