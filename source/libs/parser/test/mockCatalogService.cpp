@@ -985,7 +985,9 @@ class MockCatalogServiceImpl {
         const auto sourceIt = extSources_.find(entry->header.sourceName);
         const bool isRelationalSource = sourceIt != extSources_.end() &&
                                         (EXT_SOURCE_MYSQL == sourceIt->second->type ||
-                                         EXT_SOURCE_POSTGRESQL == sourceIt->second->type);
+                                         EXT_SOURCE_POSTGRESQL == sourceIt->second->type ||
+                                         EXT_SOURCE_SQLSERVER == sourceIt->second->type ||
+                                         EXT_SOURCE_ORACLE == sourceIt->second->type);
         SExtTableMeta* p = (SExtTableMeta*)taosMemoryCalloc(1, sizeof(SExtTableMeta));
         if (NULL == p) {
           taosArrayDestroyEx(*pOut, MockCatalogService::destoryMetaRes);

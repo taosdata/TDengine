@@ -546,6 +546,118 @@ TEST(StreamReaderExtTimeBoundTest, SqlServerAwareFetchBoundStaysBareUtcWallClock
   EXPECT_EQ(sql.find("+00:00"), std::string::npos) << sql;
 }
 
+TEST(StreamReaderExtTimeBoundTest, OracleAwareFetchBoundUsesAnsiTimestampLiteral) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_ORACLE,
+                                                EXT_TIMESTAMP_TZ_CLASS_AWARE, "Asia/Shanghai",
+                                                TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // Oracle pins the connector session time zone to UTC, so the bound spells a
+  // bare UTC wall clock with the ANSI "TIMESTAMP" prefix that keeps Oracle from
+  // reinterpreting the literal through NLS_TIMESTAMP_FORMAT.
+  std::string sql = captureFetchSql(&reader, kBoundEpochUs, kBoundEpochUs);
+  EXPECT_NE(sql.find(">= TIMESTAMP '2026-01-01 00:00:00.000000'"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= TIMESTAMP '2026-01-01 00:00:00.000000'"), std::string::npos) << sql;
+  EXPECT_EQ(sql.find("+00:00"), std::string::npos) << sql;
+}
+
+// An Oracle TIMESTAMP(7..9) column is nanosecond resolution, and a sliding
+// window end is the half-open upper bound minus one tick while the fetch keeps an
+// inclusive "<=".  A six-fraction literal would round that end down to the
+// previous microsecond and lose the last 999 ns of every window, so the nine
+// digits Oracle accepts must survive the render.
+TEST(StreamReaderExtTimeBoundTest, OracleNanoFetchBoundKeepsNineFractionDigits) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_ORACLE,
+                                                EXT_TIMESTAMP_TZ_CLASS_AWARE, "Asia/Shanghai",
+                                                TSDB_TIME_PRECISION_NANO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // 1767225600123456789 ns is 2026-01-01T00:00:00.123456789 UTC.
+  const int64_t bound = 1767225600123456789LL;
+  std::string sql = captureFetchSql(&reader, bound, bound);
+  EXPECT_NE(sql.find(">= TIMESTAMP '2026-01-01 00:00:00.123456789'"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= TIMESTAMP '2026-01-01 00:00:00.123456789'"), std::string::npos) << sql;
+}
+
+// A pre-1970 fetch bound must keep its own wall clock.  Clamping every negative
+// instant to the epoch origin made the remote start each range at 1970-01-01, so
+// history rows before it could never be read - and the static prefilter already
+// renders those instants (renderExtPrefilterTimestamp in parTranslater.c), which
+// left the runtime META/DATA bounds disagreeing with it.
+TEST(StreamReaderExtTimeBoundTest, Pre1970FetchBoundKeepsItsWallClock) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_NAIVE,
+                                                "UTC", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // -1 us is 1969-12-31 23:59:59.999999 UTC.
+  const int64_t bound = -1;
+  std::string sql = captureFetchSql(&reader, bound, bound);
+  EXPECT_NE(sql.find(">= '1969-12-31 23:59:59.999999'"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= '1969-12-31 23:59:59.999999'"), std::string::npos) << sql;
+  EXPECT_EQ(sql.find("'1970-01-01"), std::string::npos) << sql;
+}
+
+TEST(StreamReaderExtTimeBoundTest, MilliFetchBoundOverflowFailsBeforeConversion) {
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_NAIVE,
+                                                "UTC", TSDB_TIME_PRECISION_MILLI);
+  char buf[64] = {0};
+  EXPECT_EQ(streamReaderExtRenderTimeBound(&reader, INT64_MAX, TSDB_TIME_PRECISION_MILLI,
+                                           buf, sizeof(buf)),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(buf[0], '\0');
+}
+
+// A valid timestamp can still be outside the platform calendar's range.  The
+// reader has no local filter fallback, so it must fail the fetch instead of
+// silently replacing the requested instant with the epoch origin.
+TEST(StreamReaderExtTimeBoundTest, OutOfDomainFetchBoundFailsBeforeRemoteQuery) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorExecQuery, captureReaderQuery);
+  fetchedConfigs.clear();
+  fetchedSql.clear();
+  returnedConnections = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_NAIVE,
+                                                "UTC", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  // 0000-01-01T00:00:00Z.  MySQL DATETIME cannot hold it, and Windows cannot
+  // convert it, so no valid remote SQL literal exists.
+  const int64_t bound = -62167219200000000LL;
+  SSDataBlock *block = nullptr;
+  EXPECT_EQ(streamReaderExtFetchData(&reader, bound, bound, &block),
+            TSDB_CODE_STREAM_INTERNAL_ERROR);
+  EXPECT_EQ(block, nullptr);
+  EXPECT_TRUE(fetchedConfigs.empty());
+  EXPECT_TRUE(fetchedSql.empty());
+  EXPECT_EQ(returnedConnections, 0);
+}
+
+// The MySQL epoch form still starts at the origin: FROM_UNIXTIME() returns NULL
+// for a negative argument and a TIMESTAMP column cannot hold a pre-1970 value,
+// so rendering the negative instant as an epoch would empty the whole fetch.
+TEST(StreamReaderExtTimeBoundTest, MysqlAwarePre1970BoundStaysAtEpochOrigin) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
+                                                "UTC", TSDB_TIME_PRECISION_MICRO);
+  reader.pTask = &task;
+  reader.borrowConn = true;
+
+  std::string sql = captureFetchSql(&reader, -1, -1);
+  EXPECT_NE(sql.find(">= FROM_UNIXTIME(0.000000)"), std::string::npos) << sql;
+  EXPECT_NE(sql.find("<= FROM_UNIXTIME(0.000000)"), std::string::npos) << sql;
+}
+
 TEST(StreamReaderExtTimeBoundTest, MysqlAwareBoundKeepsFractionAtEveryPrecision) {
   SStreamExtReaderInfo reader = makeBoundReader(EXT_SOURCE_MYSQL, EXT_TIMESTAMP_TZ_CLASS_AWARE,
                                                 "Asia/Shanghai", TSDB_TIME_PRECISION_MICRO);

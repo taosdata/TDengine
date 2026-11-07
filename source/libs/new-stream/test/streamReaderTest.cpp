@@ -609,6 +609,72 @@ TEST_F(ExternalCalcReaderDeployTest, PreservesCaseSensitiveTimestampColumnIdenti
   }
 }
 
+/* The CALC reader overrides its table identity with the name carried in the
+ * deploy message.  MySQL reports the raw INFORMATION_SCHEMA name there, which may
+ * legitimately contain literal double quotes - a table named "metrics" is
+ * created with backticks around the whole name - so the Oracle-only unquoting
+ * rule must not reach it: stripping those quotes silently addresses another
+ * table (or fails with "not found"), because the reader re-quotes whatever the
+ * spec holds. */
+TEST_F(ExternalCalcReaderDeployTest, KeepsMysqlCalcTableSpellingVerbatim) {
+  spec.sourceType = EXT_SOURCE_MYSQL;
+  tstrncpy(message.msg.calc.extTable, "\"metrics\"", sizeof(message.msg.calc.extTable));
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(spec.extTable, "\"metrics\"");
+}
+
+/* Oracle is the provider that reports a quoted identifier together with its
+ * representation quotes; the reader adds its own quoting when it renders the
+ * table reference, so the spec has to hold the bare exact spelling. */
+TEST_F(ExternalCalcReaderDeployTest, UnquotesOracleCalcTableSpelling) {
+  spec.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(message.msg.calc.extTable, "\"same_a\"", sizeof(message.msg.calc.extTable));
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  EXPECT_STREQ(spec.extTable, "same_a");
+}
+
+/* The calc column mappings must keep the SOURCE transport precision carried by
+ * the plan, which is independent of the output precision the stream normalizes
+ * to.  Dropping it made the Oracle connector decode a TIMESTAMP(7..9) column at
+ * microseconds; normalizing that to nanoseconds afterwards only pads zeros, so
+ * the projected timestamp is wrong and rows inside one microsecond collide. */
+TEST_F(ExternalCalcReaderDeployTest, CarriesPlanSourceTimestampPrecisionIntoCalcMappings) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  nodesDestroyList(scan->pScanCols);
+  scan->pScanCols = nullptr;
+
+  SNode *column = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+  auto *col = reinterpret_cast<SColumnNode *>(column);
+  tstrncpy(col->colName, "ts", sizeof(col->colName));
+  col->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  col->node.resType.bytes = sizeof(int64_t);
+  col->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+  ASSERT_EQ(nodesListMakeAppend(&scan->pScanCols, column), TSDB_CODE_SUCCESS);
+
+  scan->pColTypeMappings =
+      static_cast<SExtColTypeMapping *>(taosMemoryCalloc(1, sizeof(SExtColTypeMapping)));
+  ASSERT_NE(scan->pColTypeMappings, nullptr);
+  scan->numColTypeMappings = 1;
+  scan->pColTypeMappings[0].tdType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  scan->pColTypeMappings[0].tdType.bytes = sizeof(int64_t);
+  scan->pColTypeMappings[0].tdType.precision = TSDB_TIME_PRECISION_NANO;
+  // The scanned table holds a TIMESTAMP(9) column while the trigger table (and
+  // therefore the spec) works at microseconds, so only the plan knows the
+  // source precision.
+  scan->pColTypeMappings[0].tsPrecision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(scan->pColTypeMappings[0].colName, "ts", sizeof(scan->pColTypeMappings[0].colName));
+  spec.precision = TSDB_TIME_PRECISION_MICRO;
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(spec.numCalcMappings, 1);
+  EXPECT_EQ(static_cast<int>(spec.pCalcMappings[0].tsPrecision),
+            static_cast<int>(TSDB_TIME_PRECISION_NANO));
+  EXPECT_EQ(static_cast<int>(spec.pCalcMappings[0].tdType.precision),
+            static_cast<int>(TSDB_TIME_PRECISION_MICRO));
+}
+
 TEST_F(ExternalCalcReaderDeployTest, CreatesIndependentReplicasAndClosesAll) {
   ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
   ASSERT_EQ(gExternalReaderOpenCalls, 3);
@@ -764,6 +830,61 @@ TEST_F(ExternalTriggerReaderDeployTest, ClassifiesZeroScaleDatetimeoffsetFromRem
   EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_AWARE);
 }
 
+/* A mapping that leaves tsPrecision at 0 is decoded by the provider as
+ * microseconds (DS 5.3.7), so every timestamp column of the directly referenced
+ * trigger table has to carry the table's transport precision - not only the one
+ * the trigger windows on.  Only filling the window column made an Oracle
+ * TIMESTAMP(7..9) side column lose its last three digits at fetch time, and the
+ * later normalization to the stream precision can only pad zeros. */
+TEST_F(ExternalTriggerReaderDeployTest, FillsSourceTimestampPrecisionForEveryTimestampColumn) {
+  spec.sourceType = EXT_SOURCE_ORACLE;
+  // Nanoseconds: an Oracle table holding any TIMESTAMP(7..9) column transports
+  // its timestamps at nanosecond precision.
+  spec.precision = TSDB_TIME_PRECISION_NANO;
+  // This builder only runs when mnode did not pre-fill the mappings, which is the
+  // directly referenced external table (a virtual table ships its spec from
+  // mnode instead).
+  taosArrayDestroy(spec.triggerColumns);
+  spec.triggerColumns = nullptr;
+  taosMemoryFree(spec.pColMappings);
+  spec.pColMappings = nullptr;
+  spec.numColMappings = 0;
+
+  static const char *kTriggerCols[] = {"ts", "event_ts"};
+  SNodeList *triggerCols = nullptr;
+  for (const char *name : kTriggerCols) {
+    SNode *node = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &node), TSDB_CODE_SUCCESS);
+    auto *column = reinterpret_cast<SColumnNode *>(node);
+    tstrncpy(column->colName, name, sizeof(column->colName));
+    column->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    column->node.resType.bytes = sizeof(int64_t);
+    column->node.resType.precision = TSDB_TIME_PRECISION_NANO;
+    ASSERT_EQ(nodesListMakeAppend(&triggerCols, node), TSDB_CODE_SUCCESS);
+  }
+  char   *serialized = nullptr;
+  int32_t serializedLen = 0;
+  ASSERT_EQ(nodesListToString(triggerCols, false, &serialized, &serializedLen), TSDB_CODE_SUCCESS);
+  message.msg.trigger.triggerCols = serialized;
+
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(spec.numColMappings, 2);
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.triggerColumns, 0)), "ts");
+  EXPECT_STREQ(static_cast<const char *>(taosArrayGet(spec.triggerColumns, 1)), "event_ts");
+  for (int32_t i = 0; i < spec.numColMappings; ++i) {
+    EXPECT_EQ(static_cast<int>(TSDB_DATA_TYPE_TIMESTAMP),
+              static_cast<int>(spec.pColMappings[i].tdType.type))
+        << "column " << i;
+    EXPECT_EQ(static_cast<int>(TSDB_TIME_PRECISION_NANO),
+              static_cast<int>(spec.pColMappings[i].tsPrecision))
+        << "column " << i;
+  }
+
+  nodesDestroyList(triggerCols);
+  taosMemoryFree(serialized);
+  message.msg.trigger.triggerCols = nullptr;
+}
+
 TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
   // MySQL and SQL Server resolve unquoted identifiers case-insensitively, so a
   // reference written in a different case still binds to the stored column;
@@ -773,10 +894,53 @@ TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "Ts", "ts"));
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "Ts", "ts"));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "ts", "ts"));
+  // Oracle folds an unquoted (all lower-case) reference to upper case before
+  // comparing, but a quoted mixed-case reference stays literal.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "val"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "VAL"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "Val"));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "\"val\""));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "\"val\""));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "val"));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "val"));
+  std::string longTable(80, 'a');
+  longTable.back() = 'b';
+  EXPECT_TRUE(extColumnNameEqualReference(
+      EXT_SOURCE_ORACLE, longTable.c_str(), ("\"" + longTable + "\"").c_str()));
   // The helper stays total for optional metadata: a NULL name never matches a
   // real one, and two NULLs compare equal.
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_MYSQL, "ts", nullptr));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, nullptr, nullptr));
+}
+
+/* The connector reports a quoted identifier with its representation quotes and
+ * doubles any embedded quote, while the spec must hold the bare exact spelling
+ * (the reader adds its own quoting).  A name that does not fit is truncated
+ * rather than overrunning the destination, and the result is always
+ * NUL-terminated, so the caller never renders bytes past the buffer. */
+TEST(StreamReaderTest, CopiesRemoteTableSpellingWithinCapacity) {
+  char out[16] = {0};
+  extCopyRemoteTableSpelling("\"same_a\"", out, sizeof(out));
+  EXPECT_STREQ("same_a", out);
+
+  extCopyRemoteTableSpelling("\"sa\"\"me\"", out, sizeof(out));
+  EXPECT_STREQ("sa\"me", out);
+
+  char tight[4] = {0};
+  extCopyRemoteTableSpelling("\"sa\"\"me\"", tight, sizeof(tight));
+  EXPECT_STREQ("sa\"", tight);
+
+  std::string longIn(199, 'a');
+  char        small[8] = {0};
+  extCopyRemoteTableSpelling(longIn.c_str(), small, sizeof(small));
+  EXPECT_EQ(std::string(7, 'a'), std::string(small));
+
+  char one[1] = {'x'};
+  extCopyRemoteTableSpelling("abc", one, sizeof(one));
+  EXPECT_EQ('\0', one[0]);
+
+  extCopyRemoteTableSpelling(nullptr, out, sizeof(out));
+  EXPECT_STREQ("", out);
 }
 
 SSDataBlock *makeReaderFetchDataBlock(uint64_t baseGId, int32_t value) {

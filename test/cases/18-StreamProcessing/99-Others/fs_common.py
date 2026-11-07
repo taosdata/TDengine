@@ -44,6 +44,30 @@ def dt_str(ms: int) -> str:
     return dt.strftime('%Y-%m-%d %H:%M:%S.') + f"{ms % 1000:03d}"
 
 
+def oracle_insert_all_sql(rows: list, render_ts, table: str = "SRC_T") -> str:
+    """INSERT ALL statement for (ts, val, score, name, flag) rows.
+
+    Oracle 11g has no multi-row VALUES list (23ai added one, 11g rejects it with
+    ORA-00933), and a bare string literal would be parsed through the session's
+    NLS_TIMESTAMP_FORMAT, so the format is pinned to the millisecond column.
+    Every Oracle writer in the stream suite goes through this one builder: two
+    copies of the literal form used to exist and would drift apart silently.
+    """
+    if not rows:
+        # An empty batch would render "INSERT ALL  SELECT 1 FROM DUAL", which
+        # Oracle rejects with ORA-00908; fail here so the caller sees its own
+        # mistake instead of a parser error from the remote side.
+        raise ValueError("oracle_insert_all_sql needs at least one row")
+    return (
+        "INSERT ALL "
+        + " ".join(
+            f"INTO {table} (ts, val, score, name, flag) VALUES"
+            f"(TO_TIMESTAMP('{render_ts(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
+            f" {val}, {score}, '{name}', {flag})"
+            for ts, val, score, name, flag in rows)
+        + " SELECT 1 FROM DUAL")
+
+
 def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str) -> None:
     """Wait for `sink` to close all `expected` windows, then assert the exact
     (ts, cnt, avg_val) rows in order."""
@@ -257,10 +281,26 @@ class FsSharedFixtureMixin:
             # ]
             # ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{label}] delete {ts} InfluxDB points")
+        elif suffix == 'o':
+            # Oracle has one namespace level, so there is no database to name;
+            # the table lives in the login schema.
+            timestamp = dt_str(ts)
+            ExtSrcEnv.oracle_exec_cfg(
+                self._oracle_cfg(),
+                [f"DELETE FROM SRC_T WHERE ts = "
+                 f"TO_TIMESTAMP('{timestamp}', 'YYYY-MM-DD HH24:MI:SS.FF3')",
+                 "COMMIT"]
+            )
+            tdLog.info(
+                f"[{label}] deleted Oracle row: ts_ms={ts}, ts={timestamp}")
+        else:
+            raise RuntimeError(
+                f"_delete_rows: unsupported source suffix '{suffix}' ({label})")
 
     def _drop_table(self, suffix: str, db_or_bucket: str, label: str):
-        """Write rows into the external source for the given suffix type
-        ('m' MySQL, 'p' PostgreSQL, 'i' InfluxDB)."""
+        """Drop the trigger table in the external source for the given suffix
+        type ('m' MySQL, 'p' PostgreSQL, 's' SQL Server, 'i' InfluxDB, 'o'
+        Oracle)."""
         if suffix == 'm':
             ExtSrcEnv.mysql_exec_cfg(
                 self._mysql_cfg(), db_or_bucket,
@@ -288,10 +328,23 @@ class FsSharedFixtureMixin:
             # ]
             # ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{label}] drop table InfluxDB")
+        elif suffix == 'o':
+            # The table may not exist yet (a first run, or a case that failed
+            # before its setup): DROP TABLE would then abort the cleanup with
+            # ORA-00942, so the drop runs inside a swallowed-exception block.
+            ExtSrcEnv.oracle_exec_cfg(
+                self._oracle_cfg(),
+                ["BEGIN EXECUTE IMMEDIATE 'DROP TABLE SRC_T'; "
+                 "EXCEPTION WHEN OTHERS THEN NULL; END;"]
+            )
+            tdLog.info(f"[{label}] drop table Oracle")
+        else:
+            raise RuntimeError(
+                f"_drop_table: unsupported source suffix '{suffix}' ({label})")
 
     def _insert_rows(self, suffix: str, db_or_bucket: str, rows: list, label: str):
         """Write rows into the external source for the given suffix type
-        ('m' MySQL, 'p' PostgreSQL, 'i' InfluxDB)."""
+        ('m' MySQL, 'p' PostgreSQL, 's' SQL Server, 'i' InfluxDB, 'o' Oracle)."""
         if suffix == 'm':
             rows_sql = ", ".join(
                 f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
@@ -332,6 +385,19 @@ class FsSharedFixtureMixin:
             ]
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{label}] wrote {len(rows)} InfluxDB points")
+        elif suffix == 'o':
+            # Oracle has one namespace level (the login schema), so
+            # db_or_bucket carries no database name.  11g has no multi-row
+            # VALUES list either — the batch goes through INSERT ALL.
+            insert_sql = oracle_insert_all_sql(rows, dt_str)
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [insert_sql, "COMMIT"])
+            tdLog.info(f"[{label}] inserted {len(rows)} Oracle rows")
+        else:
+            # Never fall through silently: a suffix with no branch used to drop
+            # the whole batch, which surfaced much later as a stream that never
+            # closed a window instead of as a write error.
+            raise RuntimeError(
+                f"_insert_rows: unsupported source suffix '{suffix}' ({label})")
 
     # ------------------------------------------------------------------
     # InfluxDB 4-series (host in {a,b} x region in {x,y}) PARTITION BY

@@ -1704,7 +1704,28 @@ static SStreamExtTriggerSpec* msmGetTrigExtSpec(SStreamObj* pStream) {
   int32_t nSpecs = (int32_t)taosArrayGetSize(pStream->pCreate->extSpecs);
   for (int32_t si = 0; si < nSpecs; ++si) {
     SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->pCreate->extSpecs, si);
-    if (pSpec != NULL && strcmp(pSpec->extTable, pStream->pCreate->triggerTblName) == 0) {
+    if (pSpec == NULL) continue;
+    /* Oracle folds every unquoted identifier to upper case, so the remote table
+     * name the spec carries ("SRC_T", as the data dictionary spelled it) never
+     * matches the spelling used in the statement ("src_t").  A quoted reference
+     * reaches the spec stripped of its outer quotes while triggerTblName still
+     * keeps them, so both sides are normalised the same way the parser does
+     * before comparing.  The trigger-reader deploy is not user visible, so a
+     * mismatch would silently leave the stream without a trigger reader and its
+     * task stuck below Running.
+     *
+     * A quoted reference is compared exactly while an unquoted reference is
+     * folded to upper case.  An Oracle schema can hold both "SAME_A" and
+     * "same_a"; a plain case-insensitive comparison would hand the unquoted
+     * table the quoted lower-case table's spec. */
+    bool matched = false;
+    if (EXT_SOURCE_ORACLE == (EExtSourceType)pSpec->sourceType) {
+      matched = extColumnNameEqualReference(EXT_SOURCE_ORACLE, pSpec->extTable,
+                                            pStream->pCreate->triggerTblName);
+    } else {
+      matched = (0 == strcmp(pSpec->extTable, pStream->pCreate->triggerTblName));
+    }
+    if (matched) {
       return pSpec;
     }
   }
@@ -6215,9 +6236,9 @@ _exit:
   return code;
 }
 
-static void msmResolveExtOrigTblReaderNamespace(const SExtSourceObj *pSource,
-                                               const SStreamExtOrigTblReaderReq *pReq,
-                                               const char **ppDatabase, const char **ppSchema) {
+static int32_t msmResolveExtOrigTblReaderNamespace(const SExtSourceObj *pSource,
+                                                   const SStreamExtOrigTblReaderReq *pReq,
+                                                   const char **ppDatabase, const char **ppSchema) {
   const char *database = pReq->identity.dbName;
   const char *schema = pReq->identity.schemaName;
 
@@ -6237,10 +6258,35 @@ static void msmResolveExtOrigTblReaderNamespace(const SExtSourceObj *pSource,
     schema = database;
     database = "";
   }
+  // Oracle has exactly one user namespace level: the schema.  A column path's middle
+  // segment is that schema and never a database; the Easy Connect service name is a
+  // connection attribute that only comes from the source (DS 5.3.10 item 5).  A stream
+  // binding persisted with the folded schema in dbName would otherwise be dialled as
+  // service=<schema> and fail with ORA-12514, so re-map it here - this mirrors the
+  // Oracle branch of resolveExtPathSegments() and createExtTableRefNode() in
+  // parTranslater.c.  The returned database therefore always falls back to the
+  // source's default, which holds the service name for Oracle.
+  if (pSource->type == EXT_SOURCE_ORACLE) {
+    if (schema[0] == '\0') {
+      schema = database;
+    }
+    database = "";
+  }
   *ppDatabase = database[0] ? database : pSource->defaultDatabase;
   *ppSchema = schema[0] ? schema : pSource->defaultSchema;
+  // A relational table path needs a namespace, and Oracle has only the schema: without one the
+  // reader would render "<service>.<table>", which names nothing (ORA-00942) and hides the real
+  // cause. ctgAsync.c already refuses such a source with TSDB_CODE_EXT_DEFAULT_NS_MISSING and no
+  // implicit fallback to the login user (DS 5.3.3), so the stream reader has to agree instead of
+  // letting the provider fail the query.
+  if (pSource->type == EXT_SOURCE_ORACLE && (*ppSchema)[0] == '\0') {
+    mstWarn("external reader Oracle source has no schema, source:%s, registry:%" PRId64,
+            pSource->sourceName, pReq->registryEntryId);
+    return TSDB_CODE_EXT_DEFAULT_NS_MISSING;
+  }
   mstDebug("resolved external reader namespace, registry:%" PRId64 ", source:%s, type:%d, database:%s, schema:%s",
            pReq->registryEntryId, pSource->sourceName, pSource->type, *ppDatabase, *ppSchema);
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const SStreamExtOrigTblReaderReq *pReq,
@@ -6268,7 +6314,10 @@ static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const 
   tstrncpy(cfg.password, plainPassword, sizeof(cfg.password));
   const char *database = NULL;
   const char *schema = NULL;
-  msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  code = msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
   tstrncpy(cfg.default_database, database, sizeof(cfg.default_database));
   tstrncpy(cfg.default_schema, schema, sizeof(cfg.default_schema));
   tstrncpy(cfg.options, pSource->options, sizeof(cfg.options));
@@ -6281,7 +6330,12 @@ static int32_t msmFetchExtOrigTblReaderMeta(const SExtSourceObj *pSource, const 
 
   table.table.node.type = QUERY_NODE_EXTERNAL_TABLE;
   tstrncpy(table.sourceName, pReq->identity.sourceName, sizeof(table.sourceName));
-  tstrncpy(table.table.dbName, cfg.default_database, sizeof(table.table.dbName));
+  // Oracle has no database level, so the service name that cfg.default_database
+  // carries for the connection must not leak into the path as a database
+  // qualifier (DS 5.3.3).  createExtTableRefNode() keeps it empty for the same
+  // reason, and the Oracle provider warns about any non-empty value it sees.
+  tstrncpy(table.table.dbName, pSource->type == EXT_SOURCE_ORACLE ? "" : cfg.default_database,
+           sizeof(table.table.dbName));
   tstrncpy(table.schemaName, cfg.default_schema, sizeof(table.schemaName));
   tstrncpy(table.table.tableName, pReq->identity.tableName, sizeof(table.table.tableName));
 
@@ -6392,11 +6446,15 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
 }
 
 /*
- * Column-name comparison for external column references. Delegates to qcom's extColumnNameEqual(),
- * the single source of truth the parser and the stream readers also use, so a reference accepted by
- * DDL resolves to the same external column when the reader bindings are built: a PostgreSQL table
- * holding both "Value" and value would otherwise map the lowercase reference onto "Value" and
- * silently produce a mapping with a different TDengine type.
+ * Column-name comparison for external column references.  Delegates to qcom's
+ * extColumnNameEqual(), the single source of truth the parser and the stream
+ * readers also use, so a reference accepted by DDL resolves to the same external
+ * column when the reader bindings are built: a PostgreSQL table holding both
+ * "Value" and value would otherwise map the lowercase reference onto "Value"
+ * and silently produce a mapping with a different TDengine type.  This function is only for
+ * resolving a reference against catalog spellings; the mapping slots are deduped by exact
+ * identity instead, because both sides there are already resolved names (see
+ * msmBuildExtOrigTblReaderSpec()).
  */
 static bool msmExtColumnNameEqual(int8_t sourceType, const char *schemaName, const char *bindingName) {
   return extColumnNameEqual((EExtSourceType)sourceType, schemaName, bindingName);
@@ -6430,10 +6488,32 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   memcpy(pSpec->encryptedPassword, pSource->encryptedPassword, sizeof(pSpec->encryptedPassword));
   const char *database = NULL;
   const char *schema = NULL;
-  msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  code = msmResolveExtOrigTblReaderNamespace(pSource, pReq, &database, &schema);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pSpec);
+    return code;
+  }
   tstrncpy(pSpec->extDb, database, sizeof(pSpec->extDb));
   tstrncpy(pSpec->extSchema, schema, sizeof(pSpec->extSchema));
-  tstrncpy(pSpec->extTable, pReq->identity.tableName, sizeof(pSpec->extTable));
+  // Oracle folds every unquoted identifier to upper case and the reader renders the
+  // name quoted, which makes the remote side case-sensitive: the spelling used in the
+  // column path ("same_a") would then name nothing (ORA-00942) while the data
+  // dictionary holds "SAME_A".  Use the name the schema fetch resolved, which is the
+  // same rule createExtTableRefNode() applies to the schema (DS 5.3.6 R1).
+  const char *remoteTable = pReq->identity.tableName;
+  if (sourceType == EXT_SOURCE_ORACLE) {
+    // Both spellings go through the same Oracle rule: strip the representation quotes
+    // the connector reports and collapse doubled quotes.  Falling back to a verbatim
+    // copy would leave "same_a" (quotes included) in the spec, and the reader adds its
+    // own quoting when it renders the table reference, so the remote side would be
+    // dialled as """same_a""" (ORA-00942).
+    if (pMeta->remoteTableName[0] != '\0') {
+      remoteTable = pMeta->remoteTableName;
+    }
+    extCopyRemoteTableSpelling(remoteTable, pSpec->extTable, sizeof(pSpec->extTable));
+  } else {
+    tstrncpy(pSpec->extTable, remoteTable, sizeof(pSpec->extTable));
+  }
   tstrncpy(pSpec->options, pSource->options, sizeof(pSpec->options));
   pSpec->connCfgVersion = (uint64_t)pSource->metaVersion;
   pSpec->tagCondLen = pReq->tagCondLen;
@@ -6557,9 +6637,13 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
                                                                                      : &pSpec->numCalcMappings;
       SExtColTypeMapping *pMappings = pBinding->kind == STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER
                                           ? pSpec->pColMappings : pSpec->pCalcMappings;
+      // Both sides are resolved catalog spellings, so the slot is matched by exact identity.
+      // Re-applying the provider's fold rule here would merge two distinct Oracle columns whose
+      // names differ only by case into one slot - a table holding TS and a quoted "ts" would read
+      // TS twice - while the binding lookup above already selected the column with that rule and
+      // reported it back to the reader as this very spelling.
       int32_t mapIndex = 0;
-      while (mapIndex < *pMapCount &&
-             !msmExtColumnNameEqual(sourceType, pMappings[mapIndex].colName, pCol->colName)) {
+      while (mapIndex < *pMapCount && 0 != strcmp(pMappings[mapIndex].colName, pCol->colName)) {
         ++mapIndex;
       }
       bool newMapping = mapIndex == *pMapCount;
@@ -6572,6 +6656,14 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
       SExtColTypeMapping *pMapping = &pMappings[mapIndex];
       result.code = extTypeNameToTDengineType((EExtSourceType)sourceType, pCol->extTypeName,
                                                pCol->extCharsetName, &pMapping->tdType);
+      if (result.code == TSDB_CODE_SUCCESS && pMapping->tdType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        // The provider decodes every timestamp column at the table's transport precision, not only
+        // the primary-key column, and a mapping that leaves tsPrecision at 0 is decoded as
+        // microseconds. An Oracle TIMESTAMP(7..9) non-key column would then lose its last three
+        // digits at fetch time; normalizing the block afterwards can only pad zeros. Carry the same
+        // source precision the timestamp mapping above uses (DS 5.3.7).
+        pMapping->tsPrecision = pMeta->tsPrecision;
+      }
       if (result.code == TSDB_CODE_SUCCESS && IS_DECIMAL_TYPE(pMapping->tdType.type)) {
         // Providers decode DECIMAL mappings through extractDecimalTypeInfoFromBytes(), which expects
         // bytes packed as (physicalWidth << 24) | (precision << 8) | scale. The raw physical width
