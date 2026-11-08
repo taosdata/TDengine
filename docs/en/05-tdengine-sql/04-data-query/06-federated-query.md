@@ -46,7 +46,7 @@ Installation steps for the Windows plugin package are not yet described in this 
 
 ### Stream Processing
 
-Stream processing can use MySQL, PostgreSQL, InfluxDB, and SQL Server external sources in triggers and calculations. It cannot use Oracle external tables. Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
+Stream processing can use MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle external sources in triggers and calculations. Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
 
 ### Compatibility
 
@@ -1125,7 +1125,7 @@ Supported and tested external database versions are as follows:
 
 **SQL Server support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
 
-**Oracle support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients. Stream processing cannot use Oracle external tables.
+**Oracle support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Oracle 11g Release 1 (11.1) and earlier are not supported. Only database account and password authentication is supported; operating-system authentication, Kerberos, and other external authentication methods are not supported. An instance that listens on TCPS only is outside the support scope. To access 11g and 26ai from the same deployment, split them into two deployments with different active clients.
 
 ### Installation, Upgrade, and Uninstall
 
