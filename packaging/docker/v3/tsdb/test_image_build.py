@@ -134,6 +134,33 @@ install_services
                 self.assertEqual((root / "calls").read_text().splitlines(),
                                  ["--image-build" if supports_image_mode else "-e no"])
 
+    @unittest.skipUnless(platform.system() == "Linux", "Oracle switch requires GNU readlink")
+    def test_oracle_alias_setup_supports_current_and_legacy_managers(self):
+        source = (HERE / "Dockerfile").read_text()
+        start = source.index("    if [ -f /usr/local/lib/oracle/active ]; then")
+        setup = source[start:source.index("    ldconfig", start)].replace("\\\n", "\n")
+        for manager in ("current", "legacy", "absent"):
+            with self.subTest(manager=manager), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                vendor = root / "lib/oracle/19c"
+                vendor.mkdir(parents=True)
+                (root / "lib/oracle/active").write_text("19c\n")
+                for name in ("libclntsh.so.19.1", "libclntshcore.so.19.1", "libsqora.so.19.1",
+                             "libnnz19.so", "libociei.so"):
+                    (vendor / name).write_text("vendor payload")
+                tool = root / "bin/taos-fq-client"
+                tool.parent.mkdir()
+                if manager == "current":
+                    tool.write_text((INSTALLER.parent / "taos-fq-client").read_text())
+                elif manager == "legacy":
+                    tool.write_text("#!/bin/bash\ncase $4 in show) echo Selected: 19c ;; *) exit 42 ;; esac\n")
+                if manager != "absent":
+                    tool.chmod(0o755)
+                script = setup.replace("/usr/bin/taos-fq-client", str(tool)).replace("/usr/local", str(root))
+                subprocess.run(["bash", "-ec", script], check=True, capture_output=True)
+                self.assertEqual((root / "lib/libnnz19.so").resolve(), vendor / "libnnz19.so")
+                self.assertFalse((root / "driver/libnnz19.so").is_symlink())
+
     def test_legacy_cleanup_preserves_identity_and_unrelated_values(self):
         fixtures = {
             "taos.cfg": "fqdn build.host\nmonitorFQDN build.host\nfirstEp other:6030\n",

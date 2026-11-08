@@ -209,9 +209,9 @@ share_dir="${installDir}/share"
 
 if [ "${verMode}" == "cluster" ]; then
   services=("${serverName}" "${adapterName}" "${keeperName}" "${xName}" "${explorerName}")
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
+  tools=("taos-fq-client" "${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "${taosk_name}" "startPre.sh" "uninstall_taosx.sh")
 else
-  tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
+  tools=("taos-fq-client" "${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${udfdName}" "${mqtt_name}" "${xnode_name}" "set_core.sh" "TDinsight.sh" "$uninstallScript" "start-all.sh" "stop-all.sh" "${taosgen_name}" "startPre.sh")
   services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
 fi
 
@@ -470,7 +470,26 @@ function remove_data_and_config() {
   fi
 }
 
+function clean_private_oracle_links() {
+  local directory link target oracle_dir
+  oracle_dir=$(readlink -m "${install_main_dir}/driver/oracle")
+  for directory in "${install_main_dir}/driver" "${install_main_dir}/lib"; do
+    [ -d "$directory" ] || continue
+    for link in "$directory"/*; do
+      [ -L "$link" ] || continue
+      target=$(readlink -m "$link")
+      case "$target" in
+        "$oracle_dir/19c/"*|"$oracle_dir/23ai/"*) rm -f -- "$link" ;;
+      esac
+    done
+  done
+  rmdir "${install_main_dir}/lib" 2>/dev/null || true
+}
+
 function remove_install_dir() {
+  if [ "$osType" != Darwin ]; then
+    clean_private_oracle_links
+  fi
   for dir in \
     "${bin_dir}" \
     "${connector_dir}" \
@@ -519,6 +538,9 @@ function remove_extension_files() {
     echo "Extension ownership manifest not found: $manifest"
     echo "No files were removed."
     exit 1
+  fi
+  if [ "$osType" != Darwin ]; then
+    clean_private_oracle_links
   fi
   while IFS= read -r path || [ -n "$path" ]; do
     [ -z "$path" ] && continue

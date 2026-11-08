@@ -3012,6 +3012,8 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
         # the 23ai bundle, so the mirror URL is the default and the pinned hash
         # is the only thing a build trusts.  EXT_ORACLE_19C_ARTIFACT /
         # _SHA256 override both for a different mirror.
+        set(_oracle19c_artifact "")
+        set(_oracle19c_artifact_hash "")
         if(TD_WINDOWS)
             # Windows publishes the same Basic + ODBC packages; the merged
             # mirror artifact keeps the Linux naming with -windows-amd64.
@@ -3020,7 +3022,7 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             # pins a hash when the publisher provides one.
             set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-windows-amd64.zip")
             set(_oracle19c_artifact_hash "")
-        else()
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
             set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
             set(_oracle19c_artifact_hash
                 "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
@@ -3031,7 +3033,8 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             "SHA256 of the 19c Instant Client bundle")
         set(_oracle19c_url "${EXT_ORACLE_19C_ARTIFACT}")
         set(_oracle19c_sha "${EXT_ORACLE_19C_ARTIFACT_SHA256}")
-        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL "")
+        if("z${_oracle19c_url}" STREQUAL "z" AND NOT "z${LOCAL_URL}" STREQUAL ""
+           AND NOT "z${_oracle19c_artifact}" STREQUAL "z")
             set(_oracle19c_url "${LOCAL_URL}/${_oracle19c_artifact}")
             set(_oracle19c_sha "${_oracle19c_artifact_hash}")
         endif()

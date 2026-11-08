@@ -63,6 +63,27 @@ class EntrypointTests(unittest.TestCase):
                 pass
             process.wait()
 
+    def test_qnode_bootstrap_uses_ready_dnode_and_is_idempotent(self):
+        self.run_script(r'''qnode_cli() {
+            case "$*" in
+              *"SHOW QNODES;"*) if [ -f created ]; then echo 'Query OK, 1 row(s) in set'; else echo 'Query OK, 0 row(s) in set'; fi ;;
+              *"SELECT id FROM"*) printf ' 7 |\nQuery OK, 1 row(s) in set\n' ;;
+              *"CREATE QNODE ON DNODE 7;"*) echo create >> calls; touch created ;;
+              *) return 9 ;;
+            esac
+        }
+        create_qnode_if_needed
+        create_qnode_if_needed
+        [ "$(wc -l < calls)" -eq 1 ]''')
+
+    def test_qnode_bootstrap_rejects_failed_creation_and_unknown_metadata(self):
+        for output in ('Query OK, 0 row(s) in set', 'authentication failed'):
+            with self.subTest(output=output):
+                self.run_script('qnode_cli() { case "$*" in *"SELECT id FROM"*) '
+                                "printf ' 7 |\\nQuery OK, 1 row(s) in set\\n' ;; "
+                                '*"CREATE QNODE"*) return 1 ;; *) echo "' + output + '" ;; esac; }\n'
+                                'create_qnode_if_needed', expected=1)
+
     def test_running_children_are_healthy(self):
         self.run_script('sleep 30 &\nPIDS="$!"\ncheck_managed_processes\ncleanup_children')
 
