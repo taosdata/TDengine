@@ -1,0 +1,207 @@
+#!/usr/bin/env bash
+
+# Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+# Manage bundled FQ clients. Provider dispatch is intentionally explicit: adding
+# another provider requires its own validation and link policy.
+set -euo pipefail
+
+fail() { echo "taos-fq-client: $*" >&2; exit 1; }
+usage() {
+    echo "Usage: taos-fq-client [--install-dir PATH] oracle show"
+    echo "       taos-fq-client [--install-dir PATH] oracle use 19c|23ai"
+    echo "Stop processes using Oracle FQ before switching; restart them afterwards."
+}
+
+root=""
+if [ "${1:-}" = --install-dir ]; then
+    [ "$#" -ge 2 ] || fail "--install-dir requires a path"
+    root=$2; shift 2
+fi
+case "${1:-}" in -h|--help|"") usage; exit 0 ;; esac
+[ "$#" -ge 2 ] || { usage >&2; exit 1; }
+provider=$1 action=$2; shift 2
+[ "$provider" = oracle ] || fail "unsupported provider: $provider (available: oracle)"
+case "$action" in show) [ "$#" -eq 0 ] || fail "show takes no arguments" ;;
+    use) [ "$#" -eq 1 ] || fail "use requires a client version"
+         case "$1" in 19c|23ai) ;; *) fail "unsupported Oracle client: $1 (available versions: 19c, 23ai)" ;; esac ;;
+    *) fail "unknown action: $action" ;;
+esac
+if [ -z "$root" ]; then
+    self=$(readlink -f "${BASH_SOURCE[0]}")
+    root=$(dirname "$(dirname "$self")")
+    if [ ! -d "$root/driver/oracle" ] && [ "$self" = /usr/bin/taos-fq-client ] &&
+       [ -d /usr/local/driver/oracle ]; then
+        root=/usr/local
+    fi
+fi
+root=$(cd "$root" && pwd -P) || fail "installation directory does not exist"
+oracle="$root/driver/oracle"
+[ -d "$oracle" ] || fail "Oracle clients are not installed under $root"
+link_dir="$root/driver"
+legacy_dir="$root/lib"
+if [ -L "$oracle" ] && [ -d "$root/lib/oracle" ] &&
+   [ "$(readlink -f "$oracle")" = "$(readlink -f "$root/lib/oracle")" ]; then
+    link_dir="$root/lib"
+    legacy_dir="$root/driver"
+fi
+if [ "$action" = show ]; then
+    echo "Provider: oracle"
+    echo "Installation: $root"
+    echo "Runtime links: $link_dir"
+    printf 'Available:'
+    for version in 19c 23ai; do [ ! -d "$oracle/$version" ] || printf ' %s' "$version"; done
+    printf '\nSelected: '
+    if [ -f "$oracle/active" ]; then cat "$oracle/active"; else echo 'unset'; fi
+    echo "Selection applies when a process starts; this does not inspect running processes."
+    exit 0
+fi
+version=$1
+client="$oracle/$version"
+[ -d "$client" ] || fail "Oracle $version is not installed"
+# Check essential payload before touching the current selection.
+for pattern in 'libclntsh.so.*' 'libclntshcore.so.*' 'libsqora.so.*' 'libnnz*.so*' 'libociei.so'; do
+    found=0
+    for file in "$client"/$pattern; do
+        [ ! -s "$file" ] || found=1
+    done
+    [ "$found" -eq 1 ] || fail "incomplete Oracle $version client: missing $pattern"
+done
+mkdir -p "$root/driver"
+# Serialise switch operations. Never silently remove another operation's lock.
+lock="$oracle/.client-switch.lock"
+mkdir "$lock" 2>/dev/null || fail "another switch is active or a stale lock exists: $lock"
+backup="" committed=0 applying=0
+names=() old_names=()
+cleanup() {
+    local rc=$? name
+    trap - EXIT
+    if [ "$committed" -eq 0 ] && [ "$applying" -eq 1 ]; then
+        for name in "${names[@]}"; do
+            [ ! -L "$link_dir/$name" ] || rm -f -- "$link_dir/$name"
+        done
+        for name in ${old_names[@]+"${old_names[@]}"}; do
+            if [ -e "$backup/$name" ] || [ -L "$backup/$name" ]; then
+                mv -f -- "$backup/$name" "$link_dir/$name"
+            fi
+        done
+    fi
+    [ -z "$backup" ] || rm -rf -- "$backup"
+    rmdir "$lock"
+    exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+patterns=('libsqora*.so*' 'libclntsh*.so*' 'libnnz*.so*' 'libociei*.so*'
+          'libons*.so*' 'libnfsodm*.so*' 'liborazt*.so*' 'legacy.so*'
+          'fips*.so*')
+
+# The previous installer copied the active client into <install>/lib as real
+# files. A complete flat layout is safe to migrate only when the active marker
+# is valid and every Oracle-related flat file has a same-named file in that
+# private client tree. Any symlink means the layout is already managed, while a
+# regular file outside the complete legacy shape may belong to the user.
+legacy_layout=0
+legacy_active=""
+detect_legacy_layout() {
+    local active file name pattern
+    local saw_clntsh=0 saw_clntshcore=0 saw_sqora=0 saw_nnz=0 saw_ociei=0
+    [ -f "$oracle/active" ] || return 1
+    active=$(cat "$oracle/active") || return 1
+    case "$active" in 19c|23ai) ;; *) return 1 ;; esac
+    for pattern in "${patterns[@]}"; do
+        for file in "$root/lib"/$pattern; do
+            [ -e "$file" ] || [ -L "$file" ] || continue
+            if [ -L "$file" ] || [ ! -f "$file" ]; then
+                return 1
+            fi
+            name=${file##*/}
+            [ -f "$oracle/$active/$name" ] || return 1
+            cmp -s -- "$file" "$oracle/$active/$name" || return 1
+            case "$name" in
+                libclntshcore.so.*) saw_clntshcore=1 ;;
+                libclntsh.so.*) saw_clntsh=1 ;;
+                libsqora.so.*) saw_sqora=1 ;;
+                libnnz*.so*) saw_nnz=1 ;;
+                libociei.so) saw_ociei=1 ;;
+            esac
+        done
+    done
+    [ "$saw_clntsh" -eq 1 ] && [ "$saw_clntshcore" -eq 1 ] &&
+        [ "$saw_sqora" -eq 1 ] && [ "$saw_nnz" -eq 1 ] &&
+        [ "$saw_ociei" -eq 1 ] || return 1
+    legacy_active=$active
+    return 0
+}
+if [ "$link_dir" = "$root/driver" ] && detect_legacy_layout; then
+    legacy_layout=1
+fi
+
+# Only replace links whose destination belongs to our two private client trees.
+# Legacy flat copies are accepted only when the complete old layout was
+# verified above. Ordinary files and links to other software are never removed.
+owned() {
+    local name target
+    if [ -L "$1" ]; then
+        target=$(readlink -m "$1")
+        case "$target" in "$(readlink -m "$oracle/19c")"/*|"$(readlink -m "$oracle/23ai")"/*) return 0 ;; esac
+        return 1
+    fi
+    [ "$legacy_layout" -eq 1 ] || return 1
+    [ "${1%/*}" = "$root/lib" ] || return 1
+    name=${1##*/}
+    [ -f "$oracle/$legacy_active/$name" ]
+}
+for pattern in "${patterns[@]}"; do
+    for file in "$link_dir"/$pattern; do
+        [ -e "$file" ] || [ -L "$file" ] || continue
+        owned "$file" || fail "refusing to replace unmanaged path: $file"
+    done
+    for file in "$client"/$pattern; do
+        [ -e "$file" ] || continue
+        case "$(readlink -f "$file")" in "$(readlink -f "$client")"/*) ;;
+            *) fail "client link escapes its private directory: $file" ;; esac
+        names+=("${file##*/}")
+    done
+done
+backup=$(mktemp -d "$lock/links.XXXXXX")
+for pattern in "${patterns[@]}"; do
+    for file in "$link_dir"/$pattern; do
+        [ -L "$file" ] || continue
+        name=${file##*/}
+        old_names+=("$name")
+        cp -P -- "$file" "$backup/$name"
+    done
+done
+applying=1
+for name in ${old_names[@]+"${old_names[@]}"}; do rm -- "$link_dir/$name"; done
+for name in "${names[@]}"; do
+    ln -s "oracle/$version/$name" "$link_dir/$name"
+done
+printf '%s\n' "$version" > "$backup/active"
+mv -f -- "$backup/active" "$oracle/active"
+committed=1
+for pattern in "${patterns[@]}" 'libaio*.so*' 'libnsl*.so*'; do
+    for file in "$legacy_dir"/$pattern; do
+        if owned "$file"; then
+            rm -f -- "$file"
+        fi
+    done
+done
+rmdir "$legacy_dir" 2>/dev/null || true
+echo "Oracle client selected: $version"
+echo "Restart processes using Oracle FQ to apply the selection."

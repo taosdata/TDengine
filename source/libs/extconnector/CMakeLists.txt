@@ -162,14 +162,16 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
         "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
         "legacy.so*" "fips*.so*" "libaio*.so*"
         "libsqora*.dylib*" "libclntsh*.dylib*"
-      COMMAND /bin/bash "${_stage_runtime_libs_script}"
-        copy-ldd-glob
-        "${src_dir}"
-        "${_oracle_dst}"
-        "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*"
-        "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
-        "legacy.so*" "fips*.so*" "libaio*.so*"
-        "libsqora*.dylib*" "libclntsh*.dylib*"
+      COMMAND "${CMAKE_COMMAND}" -E env
+        "FQ_RUNTIME_SEARCH_PATH=${_td_runtime_lib_dir}"
+        /bin/bash "${_stage_runtime_libs_script}"
+          copy-ldd-glob
+          "${src_dir}"
+          "${_oracle_dst}"
+          "libsqora*.so*" "libclntsh*.so*" "libclntshcore*.so*" "libnnz*.so*"
+          "libons*.so*" "libnfsodm*.so*" "liborazt*.so*" "libociei*.so*"
+          "legacy.so*" "fips*.so*" "libaio*.so*"
+          "libsqora*.dylib*" "libclntsh*.dylib*"
       COMMENT "Staging Oracle Instant Client ${version} -> build/driver/oracle/${version}"
       VERBATIM)
   endfunction()
@@ -322,10 +324,12 @@ if(TD_ENTERPRISE AND NOT TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       if(DEFINED _oracle_23ai_dir)
         _stage_fq_oracle_runtime("${_oracle_23ai_dir}" 23ai)
       endif()
-      if(DEFINED _oracle_23ai_dir)
-        set(_oracle_active 23ai)
-      else()
+      # Prefer the client currently deployed by customers; retain the
+      # single-client fallback when a source only supplies 23ai.
+      if(DEFINED _oracle_19c_dir)
         set(_oracle_active 19c)
+      else()
+        set(_oracle_active 23ai)
       endif()
       file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/build/driver/oracle")
       file(WRITE "${CMAKE_BINARY_DIR}/build/driver/oracle/active" "${_oracle_active}\n")

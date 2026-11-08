@@ -228,6 +228,7 @@ copy_ldd() {
   # Inspect their closure using the source and staged directories, scoped to
   # this ldd invocation so different Oracle versions do not affect each other.
   ldd_search_path="$(cd "$(dirname "${src_lib}")" && pwd):$(cd "${dst_dir}" && pwd)"
+  ldd_search_path="${ldd_search_path}${FQ_RUNTIME_SEARCH_PATH:+:${FQ_RUNTIME_SEARCH_PATH}}"
   ldd_search_path="${ldd_search_path}${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
   while [ ${#queue[@]} -gt 0 ]; do
     cur="${queue[0]}"

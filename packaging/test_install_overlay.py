@@ -123,6 +123,10 @@ class OverlayInstallTests(unittest.TestCase):
                     for stem in ("libtaosnative", "libtaosws", "libtaospyudf"):
                         (root / f"package space [x]/driver/{stem}.so.{version}").write_text("new")
                         (root / f"installed/driver/{stem}.so.3.1").write_text("old")
+                    if platform.system() == "Linux":
+                        for stem in ("libtaos", "libtaosnative"):
+                            (root / f"package space [x]/driver/{stem}.so").symlink_to(f"{stem}.so.{version}")
+                            (root / f"installed/driver/{stem}.so").symlink_to(f"{stem}.so.3.1")
                     extensions = ("libtaos_ext_influx_arrow.so", "libcrypto.so.10", "libtaos_custom.so")
                     for name in extensions:
                         (root / "installed/driver" / name).write_text("extension")
@@ -133,6 +137,9 @@ class OverlayInstallTests(unittest.TestCase):
                                osType="Linux", user_mode="1")
                     subprocess.run(["bash", "-c", script], env=env, check=True)
                     self.assertEqual((root / "links/libtaos.so.3").resolve().read_text(), "new")
+                    if platform.system() == "Linux":
+                        for stem in ("libtaos", "libtaosnative"):
+                            self.assertEqual(os.readlink(root / f"installed/driver/{stem}.so"), f"{stem}.so.{version}")
                     for stem in ("libtaos", "libtaosnative", "libtaosws", "libtaospyudf"):
                         self.assertFalse((root / f"installed/driver/{stem}.so.3.1").exists())
                         self.assertEqual((root / f"installed/driver/{stem}.so.{version}").read_text(), "new")
@@ -142,6 +149,68 @@ class OverlayInstallTests(unittest.TestCase):
                     self.assertEqual((root / f"installed/driver/libtaos.so.{version}.debug").read_text(), "current symbols")
                     for name in extensions:
                         self.assertEqual((root / "installed/driver" / name).read_text(), "extension")
+
+    @unittest.skipUnless(platform.system() == "Linux", "Exercises Linux .so installation and GNU cp semantics")
+    def test_client_alias_install_upgrade_and_library_uninstall(self):
+        installer = (HERE / "tools/install_client.sh").read_text()
+        remover = (HERE / "tools/remove_client.sh").read_text()
+        helpers = "\n".join(function(installer, name) for name in (
+            "install_main_path", "link_versioned_driver_library", "install_lib"))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            installed = root / "installed"
+            links = root / "links"
+            links64 = root / "links64"
+            for directory in (links, links64):
+                directory.mkdir()
+            env = dict(os.environ, install_main_dir=str(installed), script_dir=str(root / "package"),
+                       lib_link_dir=str(links), lib64_link_dir=str(links64), osType="Linux",
+                       csudo="", productName2="TDengine", verMode="edge")
+            for version in ("3.4.3.9.1104", "3.4.3.9.1105"):
+                package = root / "package/driver"
+                if package.exists():
+                    shutil.rmtree(package)
+                package.mkdir(parents=True)
+                for stem in ("libtaos", "libtaosnative"):
+                    (package / f"{stem}.so.{version}").write_text(version)
+                    (package / f"{stem}.so").symlink_to(f"{stem}.so.{version}")
+                subprocess.run(["bash", "-ec", helpers
+                                + "\nldconfig() { :; }\ninstall_main_path\ninstall_lib"],
+                               env=env, check=True)
+                for stem in ("libtaos", "libtaosnative"):
+                    alias = installed / f"driver/{stem}.so"
+                    self.assertEqual(os.readlink(alias), f"{stem}.so.{version}")
+                    self.assertEqual(alias.read_text(), version)
+                    for directory in (links, links64):
+                        self.assertEqual((directory / f"{stem}.so").resolve(), alias.resolve())
+                if version.endswith("1105"):
+                    self.assertFalse((installed / "driver/libtaos.so.3.4.3.9.1104").exists())
+            subprocess.run(["bash", "-ec", function(remover, "clean_lib") + "\nclean_lib"],
+                           env=env, check=True)
+            self.assertEqual(list(links.iterdir()), [])
+            self.assertEqual(list(links64.iterdir()), [])
+
+    @unittest.skipUnless(platform.system() == "Linux", "Exercises Linux Oracle cleanup with GNU readlink -m")
+    def test_server_uninstall_removes_driver_aliases_without_following_them(self):
+        source = (HERE / "tools/remove.sh").read_text()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            driver = root / "installed/driver"
+            driver.mkdir(parents=True)
+            outside = root / "user-file"
+            outside.write_text("keep")
+            for stem in ("libtaos", "libtaosnative"):
+                (driver / f"{stem}.so.3.4.3.9.1104").write_text("library")
+                (driver / f"{stem}.so").symlink_to(f"{stem}.so.3.4.3.9.1104")
+            (driver / "user-link").symlink_to(outside)
+            env = dict(os.environ, install_main_dir=str(root / "installed"), osType="Linux")
+            for name in ("bin", "connector", "driver", "examples", "include", "plugins", "share"):
+                env[f"{name}_dir"] = str(root / "installed" / name)
+            subprocess.run(["bash", "-ec", function(source, "clean_private_oracle_links")
+                            + "\n" + function(source, "remove_install_dir") + "\nremove_install_dir"],
+                           env=env, check=True)
+            self.assertFalse(driver.exists())
+            self.assertEqual(outside.read_text(), "keep")
 
     def test_absent_core_family_and_failed_copy_do_not_remove_existing_libraries(self):
         for failed in (False, True):

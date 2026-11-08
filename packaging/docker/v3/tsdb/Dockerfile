@@ -81,8 +81,30 @@ COPY entrypoint.sh taos-check /usr/bin/
 
 ENV TAOS_QUERY_USE_MEMORY_POOL=0
 
-RUN chmod 755 /usr/bin/entrypoint.sh /usr/bin/taos-check; \
+RUN set -eu; \
+    chmod 755 /usr/bin/entrypoint.sh /usr/bin/taos-check; \
     mkdir /docker-entrypoint-initdb.d; \
+    # The image relocates driver/ to /usr/local/lib. Keep Oracle's versioned
+    # lookup under its /usr/local installation root and expose only the active
+    # generation to the image loader; preserve the original vendor files.
+    if [ -f /usr/local/lib/oracle/active ]; then \
+        oracle_client=$(cat /usr/local/lib/oracle/active); \
+        case "${oracle_client}" in 19c|23ai) ;; *) exit 1 ;; esac; \
+        test -d "/usr/local/lib/oracle/${oracle_client}"; \
+        mkdir -p /usr/local/driver; \
+        ln -s ../lib/oracle /usr/local/driver/oracle; \
+        if [ -x /usr/bin/taos-fq-client ] && \
+           client_layout=$(/usr/bin/taos-fq-client --install-dir /usr/local oracle show) && \
+           printf "%s\n" "${client_layout}" | grep -Fxq "Runtime links: /usr/local/lib"; then \
+            /usr/bin/taos-fq-client --install-dir /usr/local oracle use "${oracle_client}"; \
+        else \
+            for oracle_lib in /usr/local/lib/oracle/"${oracle_client}"/*; do \
+                [ -f "${oracle_lib}" ] || continue; \
+                oracle_name=$(basename "${oracle_lib}"); \
+                ln -sf "oracle/${oracle_client}/${oracle_name}" "/usr/local/lib/${oracle_name}"; \
+            done; \
+        fi; \
+    fi; \
     ldconfig
 
 VOLUME ["/var/lib/taos", "/var/log/taos"]
