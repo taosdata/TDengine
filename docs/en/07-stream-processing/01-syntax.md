@@ -1006,7 +1006,7 @@ Notes:
 
 Notes:
 
-- Starting with `v3.4.2.0`, stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB, and SQL Server are supported. Oracle is not supported.
+- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle are supported.
 - Historical calculation does not yet support external sources.
 - External sources perform worse than local databases. Tune the workload for the specific scenario.
 - When an external source is the trigger, `EXPIRED_TIME`, `IGNORE_DISORDER`, and `DELETE_RECALC` are not supported.
