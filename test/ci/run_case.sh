@@ -154,8 +154,9 @@ cd $CONTAINER_TESTDIR/$target_dir || { echo "Can't enter the target dirctory: ${
 ulimit -c unlimited
 
 # 使用容器本地 marker + requirements.txt 内容 hash 比较，智能安装依赖。
-# marker 不能放在 bind-mounted 源码目录里；CI 每个 case 是新容器，
-# 但源码目录可能跨容器共享，旧 marker 会让新容器跳过 pip install。
+# marker 不能放在 bind-mounted 源码目录、/tmp 或 /var/tmp 里。
+# 这些路径来自 thread volume，同一个 slot 的下一个 --rm 容器还能看到 marker，
+# 却看不到上一个容器装进 site-packages 的 pymysql。
 # The runtime image supplies the pip index. Python 3.12 provisioning is a
 # prerequisite for this requirement upgrade (7145792566 / image MR !2643).
 # Fail before dependency installation if a worker still uses an older image.
@@ -166,7 +167,9 @@ fi
 _REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"
 _REQ_HASH=$(python3 -c 'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest()[:16])' "${_REQ_FILE}" 2>/dev/null || echo "unknown")
 _PY_TAG=$(python3 -c 'import sys; print(f"{sys.implementation.cache_tag}-{sys.version_info[0]}.{sys.version_info[1]}")' 2>/dev/null || echo "python")
-_DEPS_MARKER="${TMPDIR:-/tmp}/tdengine-ci-deps-${_PY_TAG}-${_REQ_HASH}.installed"
+_DEPS_DIR="/var/lib/tdengine-ci"
+mkdir -p "${_DEPS_DIR}"
+_DEPS_MARKER="${_DEPS_DIR}/deps-${_PY_TAG}-${_REQ_HASH}.installed"
 if [[ ! -f "${_DEPS_MARKER}" ]] || [[ "${_REQ_FILE}" -nt "${_DEPS_MARKER}" ]]; then
     _PIP_LOG=$(mktemp "${TMPDIR:-/tmp}/tdengine-ci-pip.XXXXXX")
     if pip3 install -r "${_REQ_FILE}" -q >"${_PIP_LOG}" 2>&1; then
