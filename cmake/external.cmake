@@ -2878,6 +2878,9 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
                     "b3ed09bb03fb423857bd1a91a3a87d0a012c40025dba7d1c5ab060d7a57cc864")
             elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
                 set(_oracle_artifact "oracle-instantclient-23.26.0.0.0-arm64.tar.gz")
+                # Published from the ARM64 client validated in the 1101 release.
+                set(_oracle_artifact_hash
+                    "c50d3db1894870038d598b1e7e62e708e6ac2e4cdb0a9e7e4cf88f88d2b16b09")
             endif()
         endif()
 
@@ -3029,6 +3032,10 @@ if(TD_ENTERPRISE)   # { ext connector client libraries
             set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-amd64.tar.gz")
             set(_oracle19c_artifact_hash
                 "18101d308ca33aeeedd0c40d9b0ff6fb2f887ea5d12b273f23ead51629c61a8a")
+        elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)$")
+            set(_oracle19c_artifact "oracle-instantclient-19.28.0.0.0-arm64.tar.gz")
+            set(_oracle19c_artifact_hash
+                "6bc83967b00622ec82662c5000ceccfc43343526c0190be975c984aed6edb9a6")
         endif()
         set(EXT_ORACLE_19C_ARTIFACT "" CACHE STRING
             "URL of the 19c Instant Client bundle (Basic + ODBC)")
