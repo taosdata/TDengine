@@ -1321,12 +1321,16 @@ _exit:;
 // Pre-check for a virtual stb alter that introduces new column/tag names: fail with
 // TSDB_CODE_VND_COL_ALREADY_EXISTS if any vchild table of the stb already owns one of the
 // names as an own (extension) column/tag. Same check as the backstop in metaEntry2.c, run
-// ahead of the real alter so the mnode-side trans can fail cleanly.
+// ahead of the real alter so the mnode-side trans can fail cleanly. On conflict the response
+// also carries a text payload naming the conflicting child table (defect 7160321463): the
+// mnode trans forwards it to the client so the error message points at the conflict source
+// instead of a bare "Table column already exists".
 int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
   SVCheckStbAlterNameReq req = {0};
   int32_t                code = 0;
   void                  *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t                bufLen = pMsg->contLen - sizeof(SMsgHead);
+  char                   errText[TSDB_TABLE_NAME_LEN * 2 + TSDB_COL_NAME_LEN + 128] = {0};
 
   code = tDeserializeSVCheckStbAlterNameReq(pBuf, bufLen, &req);
   if (code != 0) {
@@ -1334,10 +1338,30 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(req.pNames); ++i) {
-    code = metaCheckOwnNameConflictOfChildTables(pVnode->pMeta, req.suid, (const char *)taosArrayGet(req.pNames, i));
+  {
+    // single pass over the children for all names; the first conflict wins and is reported
+    SOwnNameConflictInfo conflict = {0};
+    code = metaCheckOwnNameConflictsOfChildTables(pVnode->pMeta, req.suid, req.pNames, &conflict);
     if (code != 0) {
       vError("vgId:%d, check-stb-alter-name failed for suid:%" PRId64 ", code:0x%x", TD_VID(pVnode), req.suid, code);
+      if (code == TSDB_CODE_VND_COL_ALREADY_EXISTS && conflict.childName[0] != '\0') {
+        // best-effort stable name (suid is the stb entry uid); a failed lookup only drops the
+        // stable name from the message, child table and column names are already known
+        char         stbName[TSDB_TABLE_NAME_LEN] = {0};
+        SMetaEntry  *pStbEntry = NULL;
+        if (metaFetchEntryByUid(pVnode->pMeta, req.suid, &pStbEntry) == 0 && pStbEntry != NULL) {
+          tstrncpy(stbName, pStbEntry->name, sizeof(stbName));
+          metaFetchEntryFree(&pStbEntry);
+        }
+        if (stbName[0] != '\0') {
+          (void)snprintf(errText, sizeof(errText),
+                         "Table column already exists on stable %s (conflicting child table: %s, %s: %s)", stbName,
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        } else {
+          (void)snprintf(errText, sizeof(errText), "Table column already exists (conflicting child table: %s, %s: %s)",
+                         conflict.childName, conflict.isTag ? "own tag" : "own column", conflict.colName);
+        }
+      }
       goto _exit;
     }
   }
@@ -1345,6 +1369,16 @@ int32_t vnodeProcessCheckStbAlterNameReq(SVnode *pVnode, SRpcMsg *pMsg) {
 _exit:;
   tFreeSVCheckStbAlterNameReq(&req);
   SRpcMsg rspMsg = {.info = pMsg->info, .code = code};
+  int32_t errLen = (int32_t)strlen(errText);
+  if (errLen > 0) {
+    // attach the conflict detail as the response body; the error code stays authoritative,
+    // clients that ignore the body keep seeing the stock message for the code
+    rspMsg.pCont = rpcMallocCont(errLen + 1);
+    if (rspMsg.pCont != NULL) {
+      memcpy(rspMsg.pCont, errText, errLen + 1);
+      rspMsg.contLen = errLen + 1;
+    }
+  }
   tmsgSendRsp(&rspMsg);
   return 0;  // return 0 so fetch worker doesn't double-send response
 }

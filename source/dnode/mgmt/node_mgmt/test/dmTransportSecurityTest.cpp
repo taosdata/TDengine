@@ -30,14 +30,24 @@
 // payload that happened to be malformed.
 
 #include <gtest/gtest.h>
+
+#include "tdTestSeam.h"
 #include <vector>
 
 extern "C" {
 #include "dmMgmt.h"
 #include "tanalytics.h"
 #include "tversion.h"
-void __real_rpcFreeCont(void*);
-}
+
+namespace {
+
+// The engine inside libtaosd_shared.so reads its own copy of the seam pointers,
+// so the test assigns that copy.
+using tdtestseam::seamSlot;
+
+}  // namespace
+
+}  // namespace
 
 namespace {
 
@@ -268,47 +278,81 @@ TEST_F(DmTransportSecurityTest, InvalidMsgTypesAreRejectedBeforeHandlerLookup) {
 }  // namespace
 
 extern "C" {
-void* __wrap_rpcOpen(const SRpcInit* init) {
+void* seam_rpcOpen(const SRpcInit* init) {
   registrations.push_back(*init);
   return &registrations;
 }
-void __wrap_rpcFreeCont(void* body) {
+void seam_rpcFreeCont(void* body) {
   if (body != nullptr && body == trackedBody) ++bodyFrees;
-  __real_rpcFreeCont(body);
+  tdSeamReal_rpcFreeCont(body);
 }
-int32_t __wrap_dmMarkWrapper(SMgmtWrapper*) {
+int32_t seam_dmMarkWrapper(SMgmtWrapper*) {
   ++wrapperMarks;
   return 0;
 }
-void __wrap_dmReleaseWrapper(SMgmtWrapper*) {}
+void seam_dmReleaseWrapper(SMgmtWrapper*) {}
 
 // Pretend every body decodes into an empty but valid payload carrying an attacker-chosen version,
 // so reaching the apply step is observable no matter what bytes the frame contained.
-int32_t __wrap_tDeserializeSUpdateIpWhiteDual(void*, int32_t, SUpdateIpWhite* pReq) {
+int32_t seam_tDeserializeSUpdateIpWhiteDual(void*, int32_t, SUpdateIpWhite* pReq) {
   pReq->ver = kForgedVer;
   pReq->numOfUser = 0;
   pReq->pUserIpWhite = nullptr;
   return 0;
 }
-int32_t __wrap_tDeserializeSRetrieveDateTimeWhiteListRsp(void*, int32_t, SRetrieveDateTimeWhiteListRsp* pRsp) {
+int32_t seam_tDeserializeSRetrieveDateTimeWhiteListRsp(void*, int32_t, SRetrieveDateTimeWhiteListRsp* pRsp) {
   pRsp->ver = kForgedVer;
   pRsp->numOfUser = 0;
   pRsp->pUsers = nullptr;
   return 0;
 }
-int32_t __wrap_tDeserializeRetrieveAnalyticAlgoRsp(void*, int32_t, SRetrieveAnalyticAlgoRsp* pRsp) {
+int32_t seam_tDeserializeRetrieveAnalyticAlgoRsp(void*, int32_t, SRetrieveAnalyticAlgoRsp* pRsp) {
   pRsp->ver = kForgedVer;
   pRsp->hash = nullptr;
   return 0;
 }
 
-int32_t __wrap_rpcSetIpWhite(void*, void*) {
+int32_t seam_rpcSetIpWhite(void*, void*) {
   ++ipWhiteApplies;
   return 0;
 }
-int32_t __wrap_rpcSetTimeIpWhite(void*, void*) {
+int32_t seam_rpcSetTimeIpWhite(void*, void*) {
   ++timeWhiteApplies;
   return 0;
 }
-void __wrap_taosAnalyUpdate(int64_t, SHashObj*) { ++analyticApplies; }
+void seam_taosAnalyUpdate(int64_t, SHashObj*) { ++analyticApplies; }
 }
+
+
+namespace {
+
+struct SeamInstaller {
+  SeamInstaller() {
+    *seamSlot(gTdSeam_dmMarkWrapper, "gTdSeam_dmMarkWrapper") = reinterpret_cast<void*>(&seam_dmMarkWrapper);
+    *seamSlot(gTdSeam_dmReleaseWrapper, "gTdSeam_dmReleaseWrapper") = reinterpret_cast<void*>(&seam_dmReleaseWrapper);
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = reinterpret_cast<void*>(&seam_rpcFreeCont);
+    *seamSlot(gTdSeam_rpcOpen, "gTdSeam_rpcOpen") = reinterpret_cast<void*>(&seam_rpcOpen);
+    *seamSlot(gTdSeam_rpcSetIpWhite, "gTdSeam_rpcSetIpWhite") = reinterpret_cast<void*>(&seam_rpcSetIpWhite);
+    *seamSlot(gTdSeam_rpcSetTimeIpWhite, "gTdSeam_rpcSetTimeIpWhite") = reinterpret_cast<void*>(&seam_rpcSetTimeIpWhite);
+    *seamSlot(gTdSeam_tDeserializeRetrieveAnalyticAlgoRsp, "gTdSeam_tDeserializeRetrieveAnalyticAlgoRsp") = reinterpret_cast<void*>(&seam_tDeserializeRetrieveAnalyticAlgoRsp);
+    *seamSlot(gTdSeam_tDeserializeSRetrieveDateTimeWhiteListRsp, "gTdSeam_tDeserializeSRetrieveDateTimeWhiteListRsp") = reinterpret_cast<void*>(&seam_tDeserializeSRetrieveDateTimeWhiteListRsp);
+    *seamSlot(gTdSeam_tDeserializeSUpdateIpWhiteDual, "gTdSeam_tDeserializeSUpdateIpWhiteDual") = reinterpret_cast<void*>(&seam_tDeserializeSUpdateIpWhiteDual);
+    *seamSlot(gTdSeam_taosAnalyUpdate, "gTdSeam_taosAnalyUpdate") = reinterpret_cast<void*>(&seam_taosAnalyUpdate);
+  }
+  ~SeamInstaller() {
+    *seamSlot(gTdSeam_dmMarkWrapper, "gTdSeam_dmMarkWrapper") = nullptr;
+    *seamSlot(gTdSeam_dmReleaseWrapper, "gTdSeam_dmReleaseWrapper") = nullptr;
+    *seamSlot(gTdSeam_rpcFreeCont, "gTdSeam_rpcFreeCont") = nullptr;
+    *seamSlot(gTdSeam_rpcOpen, "gTdSeam_rpcOpen") = nullptr;
+    *seamSlot(gTdSeam_rpcSetIpWhite, "gTdSeam_rpcSetIpWhite") = nullptr;
+    *seamSlot(gTdSeam_rpcSetTimeIpWhite, "gTdSeam_rpcSetTimeIpWhite") = nullptr;
+    *seamSlot(gTdSeam_tDeserializeRetrieveAnalyticAlgoRsp, "gTdSeam_tDeserializeRetrieveAnalyticAlgoRsp") = nullptr;
+    *seamSlot(gTdSeam_tDeserializeSRetrieveDateTimeWhiteListRsp, "gTdSeam_tDeserializeSRetrieveDateTimeWhiteListRsp") = nullptr;
+    *seamSlot(gTdSeam_tDeserializeSUpdateIpWhiteDual, "gTdSeam_tDeserializeSUpdateIpWhiteDual") = nullptr;
+    *seamSlot(gTdSeam_taosAnalyUpdate, "gTdSeam_taosAnalyUpdate") = nullptr;
+  }
+};
+
+SeamInstaller gSeamInstaller;
+
+}  // namespace

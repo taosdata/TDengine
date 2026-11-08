@@ -152,6 +152,18 @@ function clean_lib() {
     sudo rm -rf ${lib_dir} || :
 }
 
+function link_versioned_driver_library() {
+    local library_name="$1"
+    local destination_dir="$2"
+    local candidates=("${install_main_dir}/driver/${library_name}.so."*)
+
+    if [ "${#candidates[@]}" -ne 1 ] || [ ! -f "${candidates[0]}" ]; then
+        echo "Expected exactly one versioned ${library_name} library in ${install_main_dir}/driver" >&2
+        return 1
+    fi
+    ${csudo}ln -s "${candidates[0]}" "${destination_dir}/${library_name}.so.1"
+}
+
 function install_lib() {
     # Remove links
     ${csudo}rm -f ${lib_link_dir}/libtaos.*         || :
@@ -166,9 +178,9 @@ function install_lib() {
     ${csudo}cp -rf ${script_dir}/driver/* ${install_main_dir}/driver && ${csudo}chmod 0755 ${install_main_dir}/driver/*
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
+        link_versioned_driver_library libtaos "${lib_link_dir}"
         ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
-        ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib_link_dir}/libtaosnative.so.1
+        link_versioned_driver_library libtaosnative "${lib_link_dir}"
         ${csudo}ln -s ${lib_link_dir}/libtaosnative.so.1 ${lib_link_dir}/libtaosnative.so
 
         # Check if libtaosws.so.* files exist using ls instead of -f with glob
@@ -177,9 +189,9 @@ function install_lib() {
         fi
 
         if [ -d "${lib64_link_dir}" ]; then
-            ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1       || :
+            link_versioned_driver_library libtaos "${lib64_link_dir}" || :
             ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so               || :
-            ${csudo}ln -s ${install_main_dir}/driver/libtaosnative.* ${lib64_link_dir}/libtaosnative.so.1       || :
+            link_versioned_driver_library libtaosnative "${lib64_link_dir}" || :
             ${csudo}ln -s ${lib64_link_dir}/libtaosnative.so.1 ${lib64_link_dir}/libtaosnative.so               || :
 
             # Check if libtaosws.so.* files exist using ls instead of -f with glob

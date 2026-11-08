@@ -63,6 +63,10 @@ typedef struct {
   int64_t startTime;
   int64_t endTime;
   int32_t groupId;
+  // For TDMT_VND_ALTER_CONFIRM actions: dnodeId of the vnode that answered the confirm (the vgroup
+  // leader), captured from the response. Stamped onto the vgroup's syncState at finish time so
+  // `show cluster alive` reports 1 immediately after commit (see mndTransSendRpcRsp). -1 = unset.
+  int32_t leaderDnodeId;
 } STransAction;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);

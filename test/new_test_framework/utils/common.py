@@ -3163,6 +3163,41 @@ class TDCom:
         candidate = os.path.join(self.taos_bin_path, name)
         return candidate if os.path.exists(candidate) else name
 
+    def _result_cli_env(self):
+        """Environment for the short-lived result-comparison ``taos`` process.
+
+        ``pytest.sh`` leaves leak detection on so ``checkAsan.sh`` still sees
+        ``taosd``. This CLI inherits that setting and otherwise exits through
+        LeakSanitizer ``_exit()``, which drops the tail of the result file.
+        """
+        if (os.environ.get("CI_ASAN_BUILD") != "1"
+                and "libasan" not in os.environ.get("LD_PRELOAD", "")):
+            return None
+        env = os.environ.copy()
+        for name in ("ASAN_OPTIONS", "LSAN_OPTIONS"):
+            options = [
+                option for option in env.get(name, "").split(":")
+                if option and not option.startswith("detect_leaks=")
+            ]
+            options.append("detect_leaks=0")
+            env[name] = ":".join(options)
+        return env
+
+    @staticmethod
+    def _os_system_with_env(pipeline, env):
+        if env is None:
+            return os.system(pipeline)
+        saved = {name: os.environ.get(name) for name in ("ASAN_OPTIONS", "LSAN_OPTIONS")}
+        os.environ.update({name: env[name] for name in saved if name in env})
+        try:
+            return os.system(pipeline)
+        finally:
+            for name, value in saved.items():
+                if value is None:
+                    os.environ.pop(name, None)
+                else:
+                    os.environ[name] = value
+
     def _run_taos_cli(self, cfgPath, inputfile):
         """Run ``taos -c <cfg> -f <file>`` and return stdout, status and stderr.
 
@@ -3174,7 +3209,8 @@ class TDCom:
         taos = self._taos_cli_path()
         try:
             proc = subprocess.run([taos, "-c", cfgPath, "-f", inputfile],
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                  env=self._result_cli_env())
         except OSError as e:
             tdLog.info(f"[PIPELINE] cannot run {taos} ({e})")
             return "", -1, ""
@@ -3307,12 +3343,14 @@ class TDCom:
         """
         err_file = os.path.join(tempfile.gettempdir(),
                                 f"taos_result_pipeline_{os.getpid()}.stderr")
+        env = self._result_cli_env()
         rc = None
         try:
             with open(err_file, "w", encoding="utf-8", errors="replace") as err:
                 proc = subprocess.run(
                     ["bash", "-c", f"set -o pipefail; {pipeline}"],
                     stderr=err,
+                    env=env,
                 )
             rc = proc.returncode
             try:
@@ -3323,7 +3361,7 @@ class TDCom:
         except OSError as e:
             tdLog.info(f"[PIPELINE] cannot run result pipeline ({e}), "
                        f"falling back to os.system")
-            rc = os.system(pipeline)
+            rc = self._os_system_with_env(pipeline, env)
             stderr_text = ""
         finally:
             if os.path.exists(err_file):

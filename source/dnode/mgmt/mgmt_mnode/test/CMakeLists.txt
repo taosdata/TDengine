@@ -24,26 +24,5 @@ target_include_directories(
         "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
 )
 target_link_libraries(mgmtMnodeWorkerTest PRIVATE mgmt_mnode mnode vnode)
-target_link_options(
-    mgmtMnodeWorkerTest
-    PRIVATE
-        -Wl,--wrap=rpcSendResponse
-        -Wl,--wrap=rpcFreeCont
-        -Wl,--wrap=tSingleWorkerCleanup
-        -Wl,--wrap=qStreamGetReaderInfo
-        -Wl,--wrap=syncIsReadyForRead
-        -Wl,--wrap=initStorageAPI
-        -Wl,--wrap=qDestroyTask
-        -Wl,--wrap=qCreateStreamExecTaskInfo
-        -Wl,--wrap=qNeedReset
-        -Wl,--wrap=qResetTableScan
-        -Wl,--wrap=qFinishReaderGroupRead
-        -Wl,--wrap=qSetTaskId
-        -Wl,--wrap=qEnableReaderGroupOutput
-        -Wl,--wrap=qUpdateOperatorParam
-        -Wl,--wrap=qSetStreamGen
-        -Wl,--wrap=setTaskScalarExtraInfo
-        -Wl,--wrap=qExecTaskOpt
-)
 
 add_test(NAME mgmtMnodeWorkerTest COMMAND mgmtMnodeWorkerTest)

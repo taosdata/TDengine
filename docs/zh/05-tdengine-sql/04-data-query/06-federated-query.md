@@ -46,7 +46,7 @@ SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令
 
 ### 流式计算
 
-流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 和 SQL Server 外部源，不能使用 Oracle 外部表。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
+流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB、SQL Server 和 Oracle 外部源。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
 
 ### 兼容性
 
@@ -1125,7 +1125,7 @@ FederatedScan on mysql_prod.power.sensor_data
 
 **SQL Server 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
 
-**Oracle 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。不支持 Oracle 11g Release 1（11.1）及更早版本；仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式；只监听 TCPS 的实例不在支持范围内。需要同时访问 11g 与 26ai 时，应按客户端版本拆分为两个部署。流式计算不能使用 Oracle 外部表。
+**Oracle 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。不支持 Oracle 11g Release 1（11.1）及更早版本；仅支持数据库账号口令认证，不支持操作系统认证、Kerberos 等外部认证方式；只监听 TCPS 的实例不在支持范围内。需要同时访问 11g 与 26ai 时，应按客户端版本拆分为两个部署。
 
 ### 安装、升级和卸载
 

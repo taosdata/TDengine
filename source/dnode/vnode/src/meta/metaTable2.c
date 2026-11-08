@@ -20,6 +20,7 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "tarray.h"
+#include "tdTestSeam.h"
 #include "tdatablock.h"
 #include "tdataformat.h"
 #include "thash.h"
@@ -1533,6 +1534,8 @@ int32_t metaCreateTable2(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STa
  * Indexes are NOT modified  -  the entry remains visible but filtered by txnStatus.
  */
 int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t txnStatus, int64_t txnOrigVer) {
+  TD_SEAM_RET(metaMarkTableTxnStatus, int32_t (*)(SMeta *, int64_t, int64_t, int8_t, int64_t),
+              (pMeta, uid, txnId, txnStatus, txnOrigVer));
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL, *tbValue = NULL;
   int32_t uidValueSize = 0, tbValueSize = 0;
@@ -1643,6 +1646,7 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
  * @return TSDB_CODE_SUCCESS on success
  */
 int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
+  TD_SEAM_RET(metaRollbackAlterTable, int32_t (*)(SMeta *, int64_t, int64_t), (pMeta, uid, prevVersion));
   int32_t code = TSDB_CODE_SUCCESS;
   void   *uidValue = NULL;
   int32_t uidValueSize = 0;
@@ -1867,6 +1871,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
 }
 
 int32_t metaDropTable2(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+  TD_SEAM_RET(metaDropTable2, int32_t (*)(SMeta *, int64_t, SVDropTbReq *), (pMeta, version, pReq));
   int32_t code = TSDB_CODE_SUCCESS;
 
   // check request

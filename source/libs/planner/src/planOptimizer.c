@@ -5905,21 +5905,53 @@ static bool virtualTopNMayBeOptimized(SLogicNode* pNode, void* pCtx) {
          sortPriKeyOptCanOrderVirtualScan((SVirtualScanLogicNode*)pScan);
 }
 
-static void setVirtualScanOrder(SVirtualScanLogicNode* pScan, EOrder order) {
-  pScan->node.inputTsOrder = order;
-  pScan->node.outputTsOrder = order;
+static bool setVirtualScanOrder(SVirtualScanLogicNode* pScan, EOrder order) {
+  // Every data scan must be able to emit rows in the requested timestamp order.
+  // A local scan is flipped through scanSeq; an external scan is ordered by the
+  // primary-key ORDER BY already proven in its remote plan, so that sort must
+  // exist before any scan state is changed.
   SNode* pChild = NULL;
   FOREACH(pChild, pScan->node.pChildren) {
-    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) ||
-        SCAN_TYPE_TABLE != ((SScanLogicNode*)pChild)->scanType) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
       continue;
     }
     SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    if (SCAN_TYPE_EXTERNAL == pSource->scanType && !fqScanHasProvenPkOrder(pSource, NULL)) {
+      return false;
+    }
+  }
+
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      continue;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    if (SCAN_TYPE_TABLE != pSource->scanType && SCAN_TYPE_EXTERNAL != pSource->scanType) {
+      continue;
+    }
+    if (SCAN_TYPE_EXTERNAL == pSource->scanType) {
+      // Flip the rendered remote ORDER BY so the FQ scan returns rows in the
+      // same direction as the local source scans.  The pre-check above proved
+      // the sort exists, so a missing key here is an internal error.
+      SSortLogicNode* pSort =
+          (SSortLogicNode*)nodesGetRemoteQueryOutputSort((const SLogicNode*)pSource->pRemoteLogicPlan);
+      SOrderByExprNode* pOrderBy =
+          NULL != pSort ? (SOrderByExprNode*)nodesListGetNode(pSort->pSortKeys, 0) : NULL;
+      if (NULL == pOrderBy) {
+        planError("external scan primary key sort missing while setting virtual scan order, table:%s",
+                  pSource->tableName.tname);
+        return false;
+      }
+      pOrderBy->order = order;
+    }
     pSource->scanSeq[0] = ORDER_ASC == order;
     pSource->scanSeq[1] = ORDER_DESC == order;
     pSource->node.outputTsOrder = order;
     pSource->sortPrimaryKey = true;
   }
+  pScan->node.inputTsOrder = order;
+  pScan->node.outputTsOrder = order;
+  return true;
 }
 
 static int32_t virtualTopNOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -5951,6 +5983,8 @@ static int32_t virtualTopNOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   return TSDB_CODE_SUCCESS;
 }
 
+static bool virtualScanCanOrderSources(SVirtualScanLogicNode* pScan);
+
 static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode) ||
       !limitHasFiniteRows(pNode->pLimit) || NULL != pNode->pConditions ||
@@ -5959,19 +5993,24 @@ static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SVirtualScanLogicNode* pScan = (SVirtualScanLogicNode*)pNode;
-  if (pScan->hasFilterCond || !sortPriKeyOptCanOrderVirtualScan(pScan)) {
+  if (pScan->hasFilterCond || !virtualScanCanOrderSources(pScan)) {
     return false;
   }
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
-    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild) ||
-        SCAN_TYPE_TABLE != ((SScanLogicNode*)pChild)->scanType) {
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
       continue;
     }
     SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    if (SCAN_TYPE_TABLE != pSource->scanType && SCAN_TYPE_EXTERNAL != pSource->scanType) {
+      continue;
+    }
     int32_t direction = ORDER_ASC == pNode->outputTsOrder ? 0 : 1;
+    // An external scan keeps its full remote result (the FQ layer has no LIMIT
+    // pushdown), but it must still stream in the same direction as the merge.
     if (pSource->scanSeq[direction] != 1 ||
-        (!pSource->virtualStableScan && pSource->node.precision > pNode->precision)) {
+        (SCAN_TYPE_TABLE == pSource->scanType && !pSource->virtualStableScan &&
+         pSource->node.precision > pNode->precision)) {
       return false;
     }
   }
@@ -5996,6 +6035,53 @@ static int32_t virtualSourceLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan*
   return TSDB_CODE_SUCCESS;
 }
 
+// A source scan under a virtual scan with a requested timestamp order must be
+// readable in that direction.  Local scans are flipped through scanSeq; an
+// external scan relies on the primary-key ORDER BY already present in its
+// remote plan, which setVirtualScanOrder re-renders in the requested direction.
+static bool virtualScanSourceCanBeOrdered(SScanLogicNode* pSource) {
+  if (SCAN_TYPE_TAG == pSource->scanType) {
+    return true;
+  }
+  if (pSource->scanSeq[0] + pSource->scanSeq[1] != 1 ||
+      NULL != pSource->pGroupTags || NULL != pSource->node.pLimit ||
+      scanIsSmallDataScanSortHinted(pSource)) {
+    return false;
+  }
+  if (SCAN_TYPE_TABLE == pSource->scanType) {
+    return true;
+  }
+  if (SCAN_TYPE_EXTERNAL == pSource->scanType) {
+    return fqScanHasProvenPkOrder(pSource, NULL);
+  }
+  return false;
+}
+
+static bool virtualScanCanOrderSources(SVirtualScanLogicNode* pScan) {
+  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
+    return false;
+  }
+  SNode* pChild = NULL;
+  bool   hasDataScan = false;
+  FOREACH(pChild, pScan->node.pChildren) {
+    if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pChild)) {
+      continue;
+    }
+    if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+      return false;
+    }
+    SScanLogicNode* pSource = (SScanLogicNode*)pChild;
+    if (SCAN_TYPE_TAG == pSource->scanType) {
+      continue;
+    }
+    if (!virtualScanSourceCanBeOrdered(pSource)) {
+      return false;
+    }
+    hasDataScan = true;
+  }
+  return hasDataScan;
+}
+
 static bool virtualLastMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || pNode->dynamicOp ||
       1 != LIST_LENGTH(pNode->pChildren)) {
@@ -6012,7 +6098,7 @@ static bool virtualLastMayBeOptimized(SLogicNode* pNode, void* pCtx) {
        TSDB_VIRTUAL_CHILD_TABLE != pScan->tableType) ||
       pChild->dynamicOp || NULL != pChild->pLimit ||
       NULL != pChild->pSlimit || pScan->hasFilterCond ||
-      !sortPriKeyOptCanOrderVirtualScan(pScan)) {
+      !virtualScanCanOrderSources(pScan)) {
     return false;
   }
 
@@ -6037,11 +6123,27 @@ static bool virtualLastMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SNode* pSourceNode = NULL;
   FOREACH(pSourceNode, pChild->pChildren) {
+    // A tag-ref source supplies one table-level constant row.  VirtualScan stores
+    // that row separately and fills the tag columns after merging, before the
+    // limit is applied, so it neither joins the timestamp merge nor consumes the
+    // limit.  Skipping it keeps referenced tags compatible with the bound scan.
+    if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pSourceNode)) {
+      continue;
+    }
     if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pSourceNode)) {
       return false;
     }
     SScanLogicNode* pSource = (SScanLogicNode*)pSourceNode;
     if (SCAN_TYPE_TAG == pSource->scanType) {
+      continue;
+    }
+    if (SCAN_TYPE_EXTERNAL == pSource->scanType) {
+      // External rows carry their own primary timestamp and no composite-key
+      // row identity; the FQ scan emits them ordered by that key.  The merge
+      // still needs a timestamp precision common with the virtual scan.
+      if (pSource->node.precision != pChild->precision) {
+        return false;
+      }
       continue;
     }
     // A direction change must preserve the row associated with a timestamp.
@@ -6078,9 +6180,13 @@ static int32_t virtualLastOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   // VirtualScan applies this limit after merging equal timestamps and filtering.
   SVirtualScanLogicNode* pScan =
       (SVirtualScanLogicNode*)nodesListGetNode(pAgg->pChildren, 0);
+  if (!setVirtualScanOrder(pScan, ORDER_DESC)) {
+    // Never bound the scan unless every data source can follow the direction.
+    nodesDestroyNode((SNode*)pLimit);
+    return TSDB_CODE_SUCCESS;
+  }
   pScan->node.pLimit = (SNode*)pLimit;
   pScan->node.resultDataOrder = DATA_ORDER_LEVEL_GLOBAL;
-  setVirtualScanOrder(pScan, ORDER_DESC);
   planSetParentOrder(pAgg, ORDER_DESC, NULL);
   pCxt->optimized = true;
   return TSDB_CODE_SUCCESS;
@@ -15821,6 +15927,11 @@ static int32_t vstableCreateSingleCalc(SArray* pUnits, SLogicNode** ppCalc) {
   if (NULL == pUnit || NULL == pUnit->pWindow) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
+  if (0 == LIST_LENGTH(pUnit->pWindow->pFuncs)) {
+    // Pseudo columns stay in the boundary branch. Keep the calc branch in aggregate mode.
+    int32_t wstartIndex = -1;
+    PLAN_ERR_RET(vstableAppendWstartPlaceholder(&pUnit->pWindow->pFuncs, pUnit->pWindow->node.precision, &wstartIndex));
+  }
   int32_t code = createColumnByRewriteExprs(pUnit->pWindow->pFuncs, &pUnit->pWindow->node.pTargets);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
@@ -24098,28 +24209,6 @@ static int32_t fqInterpOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
   if (!(qDebugFlag & DEBUG_DEBUG)) return;
 
-  // Build pScanCols string
-  char scanColsBuf[512] = {0};
-  int  off = 0;
-  if (pScan->pScanCols != NULL) {
-    SNode* pSCol = NULL;
-    FOREACH(pSCol, pScan->pScanCols) {
-      const char* colName = "?";
-      if (nodeType(pSCol) == QUERY_NODE_COLUMN) {
-        colName = ((const SColumnNode*)pSCol)->colName;
-      } else if (nodeType(pSCol) == QUERY_NODE_TARGET) {
-        const SNode* pInner = ((const STargetNode*)pSCol)->pExpr;
-        if (pInner && nodeType(pInner) == QUERY_NODE_COLUMN)
-          colName = ((const SColumnNode*)pInner)->colName;
-      }
-      off += snprintf(scanColsBuf + off, sizeof(scanColsBuf) - (size_t)off - 1, "%s,", colName);
-      if (off >= (int)sizeof(scanColsBuf) - 2) break;
-    }
-    if (off > 0 && scanColsBuf[off - 1] == ',') scanColsBuf[off - 1] = '\0';
-  } else {
-    tstrncpy(scanColsBuf, "(EMPTY - BUG)", sizeof(scanColsBuf));
-  }
-
   // Build pRemoteLogicPlan chain string
   char chainBuf[256] = {0};
   int  chainOff = 0;
@@ -24129,17 +24218,22 @@ static void fqLogPushdownResult(const SScanLogicNode* pScan, int32_t dialect) {
     const char* name = (rtype == QUERY_NODE_LOGIC_PLAN_SORT)    ? "Sort" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_PROJECT)  ? "Project" :
                        (rtype == QUERY_NODE_LOGIC_PLAN_AGG)      ? "Agg" : "?";
-    chainOff += snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s->", name);
+    int n = snprintf(chainBuf + chainOff, sizeof(chainBuf) - (size_t)chainOff - 1, "%s->", name);
+    if (n < 0) break;
+    chainOff += n;
     if (chainOff >= (int)sizeof(chainBuf) - 2) break;
     const SNodeList* pCh = ((const SLogicNode*)pRLP)->pChildren;
     pRLP = (pCh && LIST_LENGTH(pCh) > 0) ? nodesListGetNode((SNodeList*)pCh, 0) : NULL;
   }
+  // A truncated chain can push the reported length past the buffer; clamp
+  // before indexing the terminator check.
+  if (chainOff > (int)sizeof(chainBuf) - 1) chainOff = (int)sizeof(chainBuf) - 1;
   if (chainOff > 1 && chainBuf[chainOff - 1] == '>') chainBuf[chainOff - 1] = '\0';
   if (chainOff == 0) tstrncpy(chainBuf, "(none)", sizeof(chainBuf));
 
-  planDebug("FQ-OPT result: dialect=%d pScanCols=[%s] remoteChain=[%s] "
+  planDebug("FQ-OPT result: dialect=%d pScanCols=%d remoteChain=[%s] "
             "localWHERE=%s remotePlan=%s pLimit=%s",
-            dialect, scanColsBuf, chainBuf,
+            dialect, LIST_LENGTH(pScan->pScanCols), chainBuf,
             pScan->node.pConditions    ? "YES" : "none",
             pScan->pRemoteLogicPlan    ? "YES" : "none",
             pScan->node.pLimit         ? "YES" : "none");
@@ -26429,18 +26523,11 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
   // Idempotency guard: fqPushdownOptimize may be called multiple times for the
   // same logical plan (e.g. different sub-tasks with LIMIT).  If
   planDebug("FQ-push: optimize start - scan=%p dialect=%d", pScan, dialect);
-  // DIAG: log pScanCols at entry to fqOptimizeScan
-  {
-    char _scBuf[512] = {0}; int _scOff = 0;
-    if (pScan->pScanCols) {
-      SNode* _sc = NULL;
-      FOREACH(_sc, pScan->pScanCols) {
-        const char* _cn = (nodeType(_sc) == QUERY_NODE_COLUMN) ? ((SColumnNode*)_sc)->colName : "?";
-        _scOff += snprintf(_scBuf + _scOff, sizeof(_scBuf) - (size_t)_scOff - 1, "%s,", _cn);
-      }
-    }
-    planDebug("FQ-push: pScanCols at entry=[%s]", _scBuf);
-  }
+  // DIAG: log only the number of scan columns.  A valid external table may
+  // reference up to 4096 columns of up to 64 bytes, which no fixed stack
+  // buffer can hold; the names are not needed here.  qDebug evaluates its
+  // arguments only when DEBUG is enabled.
+  planDebug("FQ-push: pScanCols count=%d", LIST_LENGTH(pScan->pScanCols));
 
   if (NULL == pScan->pScanCols || LIST_LENGTH(pScan->pScanCols) == 0) {
     planError("FQ-push: external scan invariant violated at optimize entry, source=%s table=%s scan=%p remotePlan=%p",

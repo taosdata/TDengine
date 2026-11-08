@@ -8738,6 +8738,23 @@ void registerExtSqlServerTimeAxis(const char* sourceName, const char* tableName,
                                        TSDB_TIME_PRECISION_MICRO);
 }
 
+// Helper: register a mock Oracle ext source with one table "metrics" carrying
+// (ts TIMESTAMP PK, v DOUBLE).  Oracle exposes a single namespace level (the
+// login schema, folded to upper case), so the source's schema is "TAOSDATA"
+// and its database holds the Easy Connect service name "ORCL".
+void registerExtOracleMetrics(const char* tsType = "TIMESTAMP(6)",
+                              int8_t tsPrec = TSDB_TIME_PRECISION_MICRO) {
+  // Oracle's type map is driven by the ALL_TAB_COLUMNS DATA_TYPE spelling, so
+  // every column must carry a valid remote type name (unlike the MySQL/PG mocks,
+  // whose maps tolerate an empty extTypeName).
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, tsType});
+  cols.push_back({"V",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics", cols, tsPrec);
+}
+
 // RAII guard for tsFederatedQueryEnable so each test cleans up after itself.
 class FederatedFlagGuard {
  public:
@@ -8760,6 +8777,50 @@ class GlobalTimezoneStringGuard {
 
  private:
   char previous_[TD_TIMEZONE_LEN] = {0};
+};
+
+// Switches the process timezone the constant-bound renderer would otherwise
+// read through taosLocalTime(..., NULL).  Renaming tsTimezoneStr alone leaves
+// the cached default timezone object untouched, so the renderer keeps decoding
+// in the previous zone and a test would not observe the difference.
+// Saves and restores the process-wide default timezone around a case.
+//
+// tsTimezoneStr holds a display string such as "UTC (UTC, +0000)", which
+// taosSetGlobalTimezone() rejects as an input on every platform (Windows needs a
+// zone name or a UTC offset), so restoring it left the case's zone in place and
+// leaked into the following tests.  The canonical name is the part before the
+// first space; both directions check the result instead of assuming success.
+class ProcessTimezoneGuard {
+ public:
+  explicit ProcessTimezoneGuard(const char* pTimezone) : previous_(canonicalName()) {
+    int32_t code = taosSetGlobalTimezone(pTimezone);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS) << "cannot set the process timezone to '" << pTimezone << "'";
+  }
+
+  ~ProcessTimezoneGuard() {
+    const char* restore = (previous_ != nullptr && previous_[0] != '\0') ? previous_ : "UTC";
+    int32_t     code    = taosSetGlobalTimezone(restore);
+    EXPECT_EQ(code, TSDB_CODE_SUCCESS) << "cannot restore the process timezone to '" << restore << "'";
+    taosMemoryFree(previous_);
+  }
+
+ private:
+  static char* canonicalName() {
+    const char* pStr = tsTimezoneStr;
+    if (pStr == nullptr || pStr[0] == '\0') {
+      return nullptr;
+    }
+    size_t len = strcspn(pStr, " ");
+    char*  out = static_cast<char*>(taosMemoryMalloc(len + 1));
+    if (out == nullptr) {
+      return nullptr;
+    }
+    memcpy(out, pStr, len);
+    out[len] = '\0';
+    return out;
+  }
+
+  char* previous_ = nullptr;
 };
 }  // namespace
 
@@ -8896,6 +8957,1022 @@ TEST_F(ParserStreamTest, ExtDerivedSingleScanKeepsPrefilter) {
   runAsyncOnly("create stream stream_streamdb.s_fed_single interval(1s) sliding(1s) "
                "from ext_mysql.events into stream_outdb.stream_out as "
                "select ts, v from (select ts, v from ext_mysql.events where v >= 20) q");
+#endif
+}
+
+TEST_F(ParserStreamTest, OracleCalcPrefilterRendersAnsiTimestampLiteral) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  GlobalTimezoneStringGuard timezoneGuard("UTC");
+  registerExtOracleMetrics();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // Oracle rejects an offset-less quoted literal against a TIMESTAMP column
+      // through NLS_TIMESTAMP_FORMAT (ORA-01843), so the renderer must prefix
+      // the literal with the ANSI TIMESTAMP keyword instead of emitting a bare
+      // quoted string.  The wall-clock component is timezone-dependent (it is
+      // rendered in the session timezone, and the reader-level test pins the
+      // exact UTC spelling), so only the prefix is asserted here.
+      EXPECT_NE(std::string(spec->prefilter).find("\"TS\" >= TIMESTAMP '"), std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("\"TS\" >= '"), std::string::npos)
+          << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_pref interval(1s) sliding(1s) "
+               "from ext_oracle.metrics into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics where ts >= 1767225600000000");
+#endif
+}
+
+// A constant WHERE bound must be spelled in the same basis the connector
+// decodes the source column in.  A timezone-naive Oracle TIMESTAMP is decoded
+// with the stream timezone, so the literal follows that zone.
+TEST_F(ParserStreamTest, OracleNaivePrefilterUsesStreamTimezone) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  // The process timezone and the stream timezone deliberately differ: a naive
+  // column follows the stream's, so falling back to the process one becomes
+  // observable instead of coincidentally correct.
+  ProcessTimezoneGuard tzGuard("UTC");
+  registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // 1767225600000000 us is 2026-01-01T00:00:00Z, i.e. 08:00 in the stream
+      // timezone this case pins.
+      EXPECT_NE(std::string(spec->prefilter).find("TIMESTAMP '2026-01-01 08:00:00.000000'"),
+                std::string::npos)
+          << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_naive_tz interval(1s) sliding(1s) "
+               "from ext_oracle.metrics STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics where ts >= 1767225600000000");
+#endif
+}
+
+// A timezone-aware Oracle column holds an absolute instant and the connector
+// pins its session to UTC, so the same constant must be spelled as the UTC wall
+// clock.  Rendering it in the process timezone shifts every bound by the process
+// offset and drops the rows in between.
+TEST_F(ParserStreamTest, OracleAwarePrefilterUsesUtcBasis) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  registerExtOracleMetrics("TIMESTAMP(6) WITH TIME ZONE", TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      EXPECT_NE(std::string(spec->prefilter).find("TIMESTAMP '2026-01-01 00:00:00.000000'"),
+                std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("08:00:00"), std::string::npos) << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_aware_tz interval(1s) sliding(1s) "
+               "from ext_oracle.metrics STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics where ts >= 1767225600000000");
+#endif
+}
+
+// An Oracle TIMESTAMP(7..9) trigger column is nanoseconds.  Rendering its epoch
+// at a fixed microsecond would reinterpret the value and land in the wrong
+// century, and truncating the fraction would lose the sub-microsecond digits the
+// window end depends on.
+TEST_F(ParserStreamTest, OracleNanoPrefilterKeepsSubMicrosecondDigits) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  registerExtOracleMetrics("TIMESTAMP(9)", TSDB_TIME_PRECISION_NANO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      EXPECT_NE(std::string(spec->prefilter).find("TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+                std::string::npos)
+          << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_nano interval(1s) sliding(1s) "
+               "from ext_oracle.metrics into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics where ts >= 1767225600123456789");
+#endif
+}
+
+// A quoted Oracle table reaches the parser with the double quotes still inside
+// the remote table name.  The stream reader quotes identifiers itself, so the
+// built trigger spec must carry the bare exact spelling instead of the quoted
+// form; otherwise the rendered reference contains nested quotes.
+TEST_F(ParserStreamTest, OracleQuotedTableSpecKeepsBareSpelling) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "\"emp\"", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  std::string specTable;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    specTable = spec->extTable;
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_quoted_tbl interval(1s) sliding(1s) "
+               "from ext_oracle.`\"emp\"` into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.`\"emp\"`");
+  EXPECT_STREQ("emp", specTable.c_str());
+#endif
+}
+
+// The calc prefilter filters the calc SELECT's own base table, which can be a
+// different table of the same source.  Its constants must follow that table's
+// class and precision, not the trigger table's: here the trigger column is a
+// naive microsecond one and the calc column is a nanosecond aware one.
+TEST_F(ParserStreamTest, OracleCalcPrefilterFollowsItsOwnTable) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
+  std::vector<MockCatalogService::MockExtColDef> tzCols;
+  tzCols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, "TIMESTAMP(9) WITH TIME ZONE"});
+  tzCols.push_back({"V",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_tz", tzCols,
+                                       TSDB_TIME_PRECISION_NANO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // Nanosecond aware column: UTC basis, nine fraction digits.
+      EXPECT_NE(std::string(spec->prefilter).find("TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+                std::string::npos)
+          << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_calc_tz interval(1s) sliding(1s) "
+               "from ext_oracle.metrics into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_tz where ts >= 1767225600123456789");
+#endif
+}
+
+// Every timezone-aware source needs the UTC basis, not just Oracle.  A SQL
+// Server datetimeoffset column holds an absolute instant, the connector reads an
+// offset-less literal as +00:00, and the dynamic bound path already renders UTC
+// (SqlServerAwareFetchBoundStaysBareUtcWallClock).  Rendering the static
+// prefilter in the stream timezone shifted the bound by the stream offset, so
+// every row in between was filtered out remotely and could not be recovered.
+TEST_F(ParserStreamTest, SqlServerAwarePrefilterUsesUtcBasis) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  // Process and stream timezone agree on purpose: only the column's own
+  // timezone class can produce the UTC spelling then.
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  registerExtSqlServerTimeAxis("ext_sqlserver", "metrics", "datetimeoffset(6)");
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      EXPECT_NE(std::string(spec->prefilter).find("'2026-01-01 00:00:00.000000'"), std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("08:00:00"), std::string::npos) << spec->prefilter;
+      // SQL Server reads an offset-less literal as +00:00, so no suffix is
+      // needed and none must be invented.
+      EXPECT_EQ(std::string(spec->prefilter).find("+00:00"), std::string::npos) << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_sqlserver_aware interval(1s) sliding(1s) "
+               "from ext_sqlserver.metrics STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_sqlserver.metrics where ts >= 1767225600000000");
+#endif
+}
+
+// A timezone-aware MySQL TIMESTAMP is decoded as an absolute instant, but MySQL
+// reads an offset-less literal in its *session* timezone, which the engine never
+// observes.  The prefilter therefore has to use FROM_UNIXTIME(), exactly like the
+// dynamic bound path, instead of a bare wall clock in either zone.
+TEST_F(ParserStreamTest, MysqlAwarePrefilterUsesUnixEpochLiteral) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_ts", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      EXPECT_NE(std::string(spec->prefilter).find("FROM_UNIXTIME(1767225600.000000)"),
+                std::string::npos)
+          << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_aware interval(1s) sliding(1s) "
+               "from ext_mysql.events_ts STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_ts where ts >= 1767225600000000");
+#endif
+}
+
+// A table may mix a timezone-naive primary timestamp column with a timezone-aware
+// secondary one; the connector decodes each of them on its own basis.  The
+// prefilter used to classify once from the primary column and apply that basis to
+// the whole WHERE, which shifted every constant filtering the aware column.
+TEST_F(ParserStreamTest, OracleMixedColumnPrefilterUsesComparedColumnClass) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
+                  "TIMESTAMP(6) WITH TIME ZONE"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_mixed", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  std::vector<std::string> prefilters;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    prefilters.push_back(spec->prefilter != nullptr ? spec->prefilter : "");
+    tFreeSCMCreateStreamReq(&request);
+  });
+  // The aware column must be rendered as the UTC wall clock even though the
+  // primary column of the same table is naive.
+  runAsyncOnly("create stream stream_streamdb.s_oracle_mixed_aware interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_mixed STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_mixed where event_ts >= 1767225600000000");
+  // The naive primary column keeps following the stream timezone.
+  runAsyncOnly("create stream stream_streamdb.s_oracle_mixed_naive interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_mixed STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_mixed where ts >= 1767225600000000");
+
+  ASSERT_EQ(prefilters.size(), 2);
+  EXPECT_NE(prefilters[0].find("\"EVENT_TS\" >= TIMESTAMP '2026-01-01 00:00:00.000000'"),
+            std::string::npos)
+      << prefilters[0];
+  EXPECT_EQ(prefilters[0].find("08:00:00"), std::string::npos) << prefilters[0];
+  EXPECT_NE(prefilters[1].find("\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
+            std::string::npos)
+      << prefilters[1];
+#endif
+}
+
+// A microsecond constant past 2262-04-11 is perfectly legal and the source can
+// hold it.  It used to be scaled up to nanoseconds, overflowed that range and was
+// replaced by the saturating maximum, so "expiry < 3000-01-01" became
+// "expiry < 2262-04-11 23:47:16.854775" and every row in between was lost.
+TEST_F(ParserStreamTest, MicroPrefilterKeepsDatesPastNanosecondRange) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"expiry", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_expiry", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // 32503680000000000 us is 3000-01-01T00:00:00Z and has to survive intact.
+      EXPECT_NE(std::string(spec->prefilter).find("expiry < '3000-01-01 00:00:00.000000'"),
+                std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("2262"), std::string::npos) << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_expiry interval(1s) sliding(1s) "
+               "from ext_mysql.events_expiry into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_expiry "
+               "where expiry < 32503680000000000");
+#endif
+}
+
+// A pre-1970 instant is legal in TDengine and in wall-clock dialects (MySQL
+// DATETIME spans 1000-01-01 .. 9999-12-31).  Pinning it to the epoch origin
+// used to rewrite the predicate; it must be spelled as its own wall clock
+// instead of being dropped or clamped to 1970.
+// A pre-1970 constant is a legal MySQL DATETIME value and must be spelled as its
+// own wall clock.  Clamping it to 1970 would silently drop every row before it,
+// and the trigger PRE_FILTER has no local fallback that could correct it.
+TEST_F(ParserStreamTest, Pre1970ConstantRendersOwnWallClock) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_pre1970", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // 1950-01-01T00:00:00Z, a pre-1970 instant every supported platform can
+      // convert (the Windows calendar starts at 1900-01-01).
+      EXPECT_NE(std::string(spec->prefilter).find("ts >= '1950-01-01 00:00:00.000000'"),
+                std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("1970"), std::string::npos) << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_pre1970 interval(1s) sliding(1s) "
+               "from ext_mysql.events_pre1970 into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_pre1970 where ts >= -631152000000000");
+#endif
+}
+
+// The four-digit-year limit belongs to the rendered wall clock, not to the UTC
+// instant.  253402300800 s is 10000-01-01T00:00:00Z, yet it is 9999-12-31
+// 16:00:00 in America/Los_Angeles, which a wall-clock dialect can spell.  The
+// renderer used to reject anything past 9999-12-31 UTC before converting, so a
+// legal negative-offset zone lost its pushdown (and a trigger PRE_FILTER could
+// not create the stream).
+TEST_F(ParserStreamTest, Year10000UtcConstantRendersInNegativeOffsetZone) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+#ifdef WINDOWS
+  // MSVC's calendar conversion stops after 3000-12-31, so a year-9999 wall
+  // clock is unrepresentable there and the renderer refuses it by design; the
+  // rejection path is covered by Year10000UtcConstantIsRejectedInUtc.
+  GTEST_SKIP() << "the Windows calendar cannot represent a year-9999 wall clock";
+#endif
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  // The process timezone differs from the stream's on purpose: a naive column
+  // follows the stream timezone, so a fallback to the process one is visible.
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_year10000", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->prefilter, nullptr);
+    if (spec->prefilter != nullptr) {
+      // 253402300800000000 us = 10000-01-01T00:00:00Z = 9999-12-31T16:00:00-08:00.
+      EXPECT_NE(std::string(spec->prefilter).find("ts < '9999-12-31 16:00:00.000000'"),
+                std::string::npos)
+          << spec->prefilter;
+      EXPECT_EQ(std::string(spec->prefilter).find("10000"), std::string::npos) << spec->prefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_year10000 interval(1s) sliding(1s) "
+               "from ext_mysql.events_year10000 "
+               "STREAM_OPTIONS(CONFIG(timezone = 'America/Los_Angeles')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_year10000 where ts < 253402300800000000");
+#endif
+}
+
+// The same instant stays unspellable in a zero/positive-offset basis: the wall
+// clock really is year 10000 there, so the trigger PRE_FILTER must still fail
+// closed instead of pushing a truncated year.
+TEST_F(ParserStreamTest, Year10000UtcConstantIsRejectedInUtc) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_year10000_utc", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  runAsyncOnly("create stream stream_streamdb.s_mysql_year10000_utc interval(1s) sliding(1s) "
+               "from ext_mysql.events_year10000_utc "
+               "STREAM_OPTIONS(PRE_FILTER(ts < 253402300800000000) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_year10000_utc",
+               TSDB_CODE_STREAM_INVALID_PRE_FILTER);
+#endif
+}
+
+// An instant no supported dialect can spell must be refused, never rendered.
+// The platform calendar conversion returns NULL outside its range (and leaves the
+// struct zeroed, which used to print as the invalid "1900-01-00"); the trigger
+// PRE_FILTER is then rejected instead of pushing a wrong predicate.
+TEST_F(ParserStreamTest, OutOfDomainConstantIsRejected) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_pre1970", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  // -62167219200000000 us is 0000-01-01T00:00:00Z: before every supported
+  // dialect's own domain, and before what the platform calendar can express.
+  runAsyncOnly("create stream stream_streamdb.s_mysql_year0 interval(1s) sliding(1s) "
+               "from ext_mysql.events_pre1970 "
+               "STREAM_OPTIONS(PRE_FILTER(ts >= -62167219200000000) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_pre1970",
+               TSDB_CODE_STREAM_INVALID_PRE_FILTER);
+#endif
+}
+
+// FROM_UNIXTIME() returns NULL past 2038-01-19 03:14:07, which would silently
+// empty the fetch.  The ceiling has to be compared against the seconds *before*
+// they are scaled back to microseconds: at 9223372036855 s that multiply already
+// overflows int64, and the wrapped negative value compared "<= ceiling" passes
+// and renders a nonsense literal.
+TEST_F(ParserStreamTest, MysqlAwarePrefilterDropsConstantPastItsCeiling) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp(0)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_ceiling", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    EXPECT_TRUE(spec->prefilter == nullptr || spec->prefilter[0] == '\0')
+        << "a constant past the MySQL TIMESTAMP ceiling must not be rendered: "
+        << (spec->prefilter != nullptr ? spec->prefilter : "(null)");
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_ceiling interval(1s) sliding(1s) "
+               "from ext_mysql.events_ceiling into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_ceiling where ts >= 9223372036855000");
+#endif
+}
+
+// PRE_FILTER on an external trigger is evaluated only by the source reader.  If
+// its timestamp constant cannot be rendered, silently dropping the filter would
+// admit rows the user excluded, so CREATE STREAM must fail closed.
+TEST_F(ParserStreamTest, MysqlAwareTriggerPreFilterRejectsUnrenderableConstant) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp(0)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_trigger_ceiling", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  runAsyncOnly("create stream stream_streamdb.s_mysql_trigger_ceiling interval(1s) sliding(1s) "
+               "from ext_mysql.events_trigger_ceiling "
+               "STREAM_OPTIONS(PRE_FILTER(ts >= 9223372036855000) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_trigger_ceiling",
+               TSDB_CODE_STREAM_INVALID_PRE_FILTER);
+#endif
+}
+
+// The table has a single transport precision: the maximum fractional digits
+// across its time columns.  A TIMESTAMP(3) column is therefore still read at
+// microsecond granularity, and a strict "<" constant with a sub-millisecond
+// fraction must not be rounded down to milliseconds, which would narrow the
+// predicate and drop rows the local filter can never recover.
+TEST_F(ParserStreamTest, OracleMicroTransportPreservesSubMilliConstant) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(3)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_micro", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  std::string pf;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    pf = spec->prefilter != nullptr ? spec->prefilter : "";
+    tFreeSCMCreateStreamReq(&request);
+  });
+  // The transport precision is MICRO (primary TIMESTAMP(6)); the strict "<"
+  // bound's last microsecond must survive instead of being rounded to .000.
+  runAsyncOnly("create stream stream_streamdb.s_micro_trunc interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_micro STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_micro "
+               "where event_ts < '2026-01-01 00:00:00.000001'");
+  EXPECT_NE(pf.find("\"EVENT_TS\" < TIMESTAMP '2026-01-01 00:00:00.000001'"), std::string::npos) << pf;
+  EXPECT_EQ(pf.find(".000000'"), std::string::npos) << pf;
+#endif
+}
+
+// A table with any TIMESTAMP(7..9) column is transported at nanosecond
+// precision, so every timestamp column (including a declared TIMESTAMP(6)
+// primary) carries nanosecond values and its constants render with nine digits.
+TEST_F(ParserStreamTest, OracleNanoTransportRendersEveryColumnAtNano) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("Asia/Shanghai");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
+                  "TIMESTAMP(9) WITH TIME ZONE"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_nano", cols,
+                                       TSDB_TIME_PRECISION_NANO);
+
+  std::vector<std::string> pf;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    pf.push_back(spec->prefilter != nullptr ? spec->prefilter : "");
+    tFreeSCMCreateStreamReq(&request);
+  });
+  // Integer ns against the aware column.
+  runAsyncOnly("create stream stream_streamdb.s_nano_a interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_nano STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_nano where event_ts >= 1767225600123456789");
+  // Integer ns against the naive primary column.
+  runAsyncOnly("create stream stream_streamdb.s_nano_b interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_nano STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_nano where ts >= 1767225600000000000");
+  // String against the aware column: parsed at NANO, rendered as UTC wall clock.
+  runAsyncOnly("create stream stream_streamdb.s_nano_c interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_nano STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_nano where event_ts >= '2026-01-01 00:00:00'");
+  // String against the naive primary column: same naive wall clock, nine digits.
+  runAsyncOnly("create stream stream_streamdb.s_nano_d interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_nano STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_nano where ts >= '2026-01-01 00:00:00'");
+
+  ASSERT_EQ(pf.size(), 4);
+  EXPECT_NE(pf[0].find("\"EVENT_TS\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+            std::string::npos)
+      << pf[0];
+  EXPECT_NE(pf[1].find("\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000000'"), std::string::npos)
+      << pf[1];
+  EXPECT_NE(pf[2].find("\"EVENT_TS\" >= TIMESTAMP '2025-12-31 16:00:00.000000000'"),
+            std::string::npos)
+      << pf[2];
+  EXPECT_NE(pf[3].find("\"TS\" >= TIMESTAMP '2026-01-01 00:00:00.000000000'"), std::string::npos)
+      << pf[3];
+#endif
+}
+
+// The trigger PRE_FILTER is rendered from the raw option AST, whose columns were
+// never type-bound.  A timestamp comparison must still be recognised by looking
+// the column up in the ext metadata, otherwise the predicate is emitted as a
+// bare "ts >= 1767225600000000" and Oracle rejects the TIMESTAMP/NUMBER
+// comparison.
+TEST_F(ParserStreamTest, OraclePreFilterTimestampConstantRendersLiteral) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      EXPECT_NE(std::string(spec->triggerPrefilter).find(
+                    "\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"TS\" >= 1767225600000000"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_pref_ts interval(1s) sliding(1s) "
+               "from ext_oracle.metrics "
+               "STREAM_OPTIONS(PRE_FILTER(ts >= 1767225600000000) | CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics");
+#endif
+}
+
+// A reference that keeps its Oracle representation quotes is not resolved by the
+// column binding: the provider rule never interprets those quotes.  A trigger
+// PRE_FILTER that names a remote column that way is therefore rejected, as it is
+// in a SELECT.  Reaching a mixed-case remote column needs TDengine backticks,
+// whose case this harness cannot preserve - it lower-cases the whole statement
+// outside string and double-quoted literals.
+TEST_F(ParserStreamTest, OraclePrefilterQuotedReferenceIsRejected) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"EventTs", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_quoted", cols,
+                                       TSDB_TIME_PRECISION_NANO);
+
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    FAIL() << "a quoted reference must not resolve to a remote column";
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_quoted_col interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_quoted "
+               "STREAM_OPTIONS(PRE_FILTER(`\"EventTs\"` >= 1767225600123456789) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_quoted",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+#endif
+}
+
+// Oracle can hold both VAL and a quoted "val" in one table.  The trigger
+// PRE_FILTER resolves its column with the same lookup as a query - the provider
+// comparison applied candidate by candidate in catalog order, with no
+// representation-quote interpretation - so this fixture, which lists VAL first,
+// binds VAL; a SELECT of the same name binds VAL too.  A reference that keeps its
+// Oracle quotes resolves nothing, exactly as on the query path.
+TEST_F(ParserStreamTest, OraclePrefilterBindsLikeQueryBinding) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"VAL", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(6)"});
+  cols.push_back({"val", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_case", cols,
+                                       TSDB_TIME_PRECISION_NANO);
+
+  std::vector<std::string> prefilters;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    prefilters.push_back(spec->triggerPrefilter != nullptr ? spec->triggerPrefilter : "");
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_case_plain interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_case "
+               "STREAM_OPTIONS(PRE_FILTER(val >= 1767225600123456789) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as select ts, v from ext_oracle.metrics_case");
+  // A reference that keeps its Oracle quotes is not resolved, exactly as on the
+  // main branch, so the CREATE STREAM is rejected.
+  runAsyncOnly("create stream stream_streamdb.s_case_quoted interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_case "
+               "STREAM_OPTIONS(PRE_FILTER(`\"val\"` >= 1767225600123456789) | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as select ts, v from ext_oracle.metrics_case",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+
+  ASSERT_EQ(prefilters.size(), 1U);
+  // VAL is TIMESTAMP(6) but the literal carries nine fractional digits: the bound
+  // is rendered at the table transport precision, set to NANO by the TIMESTAMP(9)
+  // column of this fixture (DS 5.3.7).
+  EXPECT_NE(prefilters[0].find(
+                "\"VAL\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+            std::string::npos)
+      << prefilters[0];
+#endif
+}
+
+// The calc prefilter resolves through the same column binding as a plain query,
+// so a WHERE clause that names a remote column with its Oracle quotes is
+// rejected as well (main branch rule).
+TEST_F(ParserStreamTest, OracleCalcPrefilterQuotedReferenceIsRejected) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"EventTs", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_quoted", cols,
+                                       TSDB_TIME_PRECISION_NANO);
+
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    FAIL() << "a quoted reference must not resolve to a remote column";
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_quoted_calc interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_quoted STREAM_OPTIONS(CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics_quoted "
+               "where `\"EventTs\"` >= 1767225600123456789",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+#endif
+}
+
+// The trigger PRE_FILTER string constant keeps its VARCHAR type in the raw
+// option AST (unlike the calc WHERE, which converts it to TIMESTAMP).  It must
+// still be parsed and spelled with the ANSI TIMESTAMP prefix: a bare
+// '2026-01-01...' string would only be interpreted against the Oracle session's
+// NLS_TIMESTAMP_FORMAT, which the connector does not pin, and a format mismatch
+// makes the LAST_TS/PULL query fail.
+TEST_F(ParserStreamTest, OraclePreFilterStringTimestampConstantRendersLiteral) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      EXPECT_NE(std::string(spec->triggerPrefilter).find(
+                    "\"TS\" >= TIMESTAMP '2026-01-01 00:00:00.000001'"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"TS\" >= '2026-01-01 00:00:00.000001'"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_pref_ts_str interval(1s) sliding(1s) "
+               "from ext_oracle.metrics "
+               "STREAM_OPTIONS(PRE_FILTER(ts >= '2026-01-01 00:00:00.000001') | CONFIG(timezone = 'Asia/Shanghai')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.metrics");
+#endif
+}
+
+TEST_F(ParserStreamTest, OraclePreFilterEscapesStringLiteral) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"NAME", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
+                                        "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_string", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  setCheckDdlFunc([](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    EXPECT_NE(std::string(spec->triggerPrefilter).find("\"NAME\" = 'O''Reilly'"),
+              std::string::npos)
+        << spec->triggerPrefilter;
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_oracle_quote_str interval(1s) sliding(1s) "
+               "from ext_oracle.metrics_string "
+               "STREAM_OPTIONS(PRE_FILTER(NAME = 'O''Reilly') | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as select ts, name from ext_oracle.metrics_string");
+#endif
+}
+
+// A PRE_FILTER that does not fit the renderer's buffer must be refused, never
+// truncated.  The renderer appended with snprintf() and advanced its offset by
+// the would-be length, so an over-long fragment left the offset past the end and
+// the next append computed a negative remaining size - which snprintf() takes as
+// a huge size_t and writes outside the buffer.  A trigger PRE_FILTER is executed
+// only by the source reader (no local fallback), so the refusal is reported as
+// TSDB_CODE_STREAM_INVALID_PRE_FILTER instead of silently widening the trigger
+// row set.
+TEST_F(ParserStreamTest, OracleTriggerPreFilterTooLongIsRejected) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
+
+  // ~8 KiB of condition, built from many short literals so the statement itself
+  // stays well inside the parser's literal size limits.
+  std::string cond = "ts >= '2026-01-01 00:00:00'";
+  std::string padding(200, 'a');
+  for (int32_t i = 0; i < 40; ++i) {
+    cond += " AND v <> '" + padding + "'";
+  }
+  ASSERT_GT(cond.size(), 4096U) << "the regression needs a condition past the renderer's buffer";
+
+  runAsyncOnly("create stream stream_streamdb.s_oracle_pref_long interval(1s) sliding(1s) "
+               "from ext_oracle.metrics STREAM_OPTIONS(PRE_FILTER(" + cond +
+                   ") | CONFIG(timezone = 'UTC')) "
+                   "into stream_outdb.stream_out as "
+                   "select ts, v from ext_oracle.metrics",
+               TSDB_CODE_STREAM_INVALID_PRE_FILTER);
+#endif
+}
+
+// MySQL DATETIME spans 1000-01-01 .. 9999-12-31, so a pre-1970 string constant
+// in the trigger PRE_FILTER is a legal condition.  The direct external trigger
+// has no local filter to fall back on, so dropping the condition would let
+// contemporary rows the user excluded enter the trigger window; the string must
+// be parsed and re-spelled as its own wall clock instead.
+TEST_F(ParserStreamTest, MysqlPreFilterNegativeStringDateRendersLiterally) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "double"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL,
+                                        "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "events_pre1970_pref", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      EXPECT_NE(std::string(spec->triggerPrefilter).find("ts < '1969-01-01 00:00:00.000000'"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+      EXPECT_EQ(std::string(spec->triggerPrefilter).find("ts < '1969-01-01 00:00:00'"),
+                std::string::npos)
+          << spec->triggerPrefilter;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_mysql_pref_pre1970 interval(1s) sliding(1s) "
+               "from ext_mysql.events_pre1970_pref "
+               "STREAM_OPTIONS(PRE_FILTER(ts < '1969-01-01 00:00:00') | CONFIG(timezone = 'UTC')) "
+               "into stream_outdb.stream_out as "
+               "select ts, v from ext_mysql.events_pre1970_pref");
 #endif
 }
 

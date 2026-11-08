@@ -57,6 +57,45 @@ def test_private_runpath_resolves_transitive_dependencies_after_relocation(tmp_p
         assert subprocess.check_output(["patchelf", "--print-rpath", str(lib)], text=True).strip() == "$ORIGIN"
 
 
+def test_private_runtime_resolves_dependency_from_shared_runtime_dir(tmp_path):
+    if sys.platform != "linux" or not shutil.which("cc"):
+        pytest.skip("native Linux compiler required")
+    source = tmp_path / "source"
+    shared = tmp_path / "shared"
+    private = tmp_path / "private"
+    source.mkdir()
+    shared.mkdir()
+    private.mkdir()
+    (source / "manager.c").write_text("int fq_manager(void) { return 42; }\n")
+    (source / "provider.c").write_text(
+        "extern int fq_manager(void); int fq_provider(void) { return fq_manager(); }\n"
+    )
+    subprocess.run(
+        [
+            "cc", "-shared", "-fPIC", str(source / "manager.c"),
+            "-Wl,-soname,libfq_manager.so.2", "-o", str(shared / "libfq_manager.so.2"),
+        ],
+        check=True,
+    )
+    (shared / "libfq_manager.so").symlink_to("libfq_manager.so.2")
+    subprocess.run(
+        [
+            "cc", "-shared", "-fPIC", str(source / "provider.c"),
+            "-L" + str(shared), "-lfq_manager", "-o", str(source / "libfq_provider.so"),
+        ],
+        check=True,
+    )
+
+    env = dict(os.environ, FQ_RUNTIME_SEARCH_PATH=str(shared))
+    subprocess.run(
+        ["bash", str(STAGER), "copy-ldd-glob", str(source), str(private), "libfq_provider.so"],
+        env=env,
+        check=True,
+    )
+
+    assert (private / "libfq_manager.so.2").is_file()
+
+
 def test_installer_copies_driver_resources_only_inside_installation(tmp_path):
     script = (COMMUNITY / "packaging/tools/install.sh").read_text()
     helper = script.split("function cleanup_legacy_fq_runtime() {", 1)[1].split("function get_config_file()", 1)[0]
@@ -188,7 +227,7 @@ esac
     (mock / "ldconfig").chmod(0o755)
     env = dict(os.environ, PATH=str(mock), RPM_LINK=str(link), CACHE_LOG=str(log))
     command = helper + '\ncleanup_legacy_fq_runtime "$1" "" "" "$2"\n'
-    subprocess.run(["bash", "-euc", command, "test", str(driver), str(system)], env=env, check=True)
+    subprocess.run([shutil.which("bash"), "-euc", command, "test", str(driver), str(system)], env=env, check=True)
     assert link.is_symlink()
     assert os.readlink(link) == "libssl.so.3.5.8"
     assert log.read_text().splitlines() == ["refresh"]

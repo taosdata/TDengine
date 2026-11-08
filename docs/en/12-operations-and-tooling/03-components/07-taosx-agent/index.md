@@ -28,9 +28,21 @@ Typical use cases:
 | In-memory cache | Supports configuring the number of in-memory cache batches to improve data transfer efficiency |
 | Auto-reconnect | Supports keeping the Agent running and automatically reconnecting when the taosX service is unavailable |
 | High availability | Connects to multiple taosX instances at the same time. When one taosX instance stops, the task moves to another taosX instance and collection continues. See [High Availability](./03-high-availability.md) |
-| Store and Forward | Persists collected data to local disk during network outages and automatically resends it when the network recovers, ensuring zero data loss. See [Store and Forward](./02-store-and-forward.md) |
+| Store and Forward | Caches collected data on local disk when the network is interrupted, and automatically resends it after the network recovers. See [Store and Forward](./02-store-and-forward.md) |
 | Multi-instance deployment | Multiple Agent instances can be deployed on the same machine, distinguished by instanceId |
 | Resource limits | Supports `[resource]` configuration to limit memory, CPU, and egress bandwidth for the Agent and its connector children. See [Configuration Reference](./01-configuration.md#resource-limits) |
+
+## Data Confirmation
+
+taosX-Agent sends data to taosX in batches. A batch is delivered only after taosX writes it to TDengine. taosX-Agent then advances the send progress.
+
+- **Network interruption or timeout**: taosX-Agent keeps the unconfirmed data and resends it after reconnecting automatically.
+- **Errors that cannot be recovered automatically**: For example, authentication failure or a configuration error. The task reports the error and stops. Restart the task after the problem is resolved.
+- **Duplicate data is possible**: If taosX has written a batch but the confirmation is lost because of a network interruption, the batch is sent and written again.
+
+An online taosX-Agent in taosExplorer means only that the connection is healthy. It does not mean the data has been written. Check the task status and logs to confirm writes.
+
+See [Configuration Reference](./01-configuration.md#delivery-window-and-timeout) for the send window and timeout, and [Store and Forward](./02-store-and-forward.md#confirmation-and-failure-handling) for how each failure is handled.
 
 ## Getting taosX-Agent
 
@@ -88,6 +100,18 @@ After installation, taosX-Agent files are located at:
 | Configuration file | `/etc/taos/agent.toml` | `C:\TDengine\cfg\agent.toml` |
 | Log directory | `/var/log/taos/` | `C:\TDengine\log\` |
 | Service name | `taosx-agent` (systemd) | `taosx-agent` (Windows Service) |
+
+## Upgrade
+
+taosX and taosX-Agent use delivery protocol v2. taosX and every taosX-Agent connected to it must be upgraded to the same version. If the versions differ, taosX-Agent cannot connect to taosX and reports an error in the log.
+
+Upgrade as follows:
+
+1. In taosExplorer, stop the data ingestion tasks that run through taosX-Agent.
+2. Upgrade taosX and every taosX-Agent. Keep the `agent.toml` configuration file and the Store and Forward cache directory during the upgrade.
+3. Start the services, resume the data ingestion tasks, and verify the data in TDengine.
+
+Roll back taosX and every taosX-Agent together. Do not clear the Store and Forward cache to fix a version mismatch. Data in the cache that has not been written yet would be lost.
 
 ## Usage
 
@@ -213,6 +237,7 @@ View the log file `C:\TDengine\log\taosx-agent.log`.
 | --- | --- | --- |
 | Agent cannot come online | Incorrect `endpoint` or network connectivity issue | Check the taosX address and port; verify network connectivity |
 | Agent cannot come online | Incorrect `token` | Recreate the Agent in Explorer to obtain a new Token |
+| Agent cannot come online, and the log reports an incompatible protocol version | The taosX and taosX-Agent versions differ | Upgrade taosX and every taosX-Agent to the same version. See [Upgrade](#upgrade) |
 | Agent frequently disconnects and reconnects | Unstable network | Check the network quality between Agent and taosX; ensure `keep_online = true` |
 | Data collection fails | Agent cannot access the data source | Check network connectivity and permissions from Agent to the data source |
 

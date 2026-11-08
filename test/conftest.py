@@ -42,6 +42,20 @@ def _apply_runtime_exports(env, output):
         env[key] = value.replace(f'${key}', env.get(key, ''))
 
 
+def _stage_without_interpreter_leaks(env):
+    """Bash and git exit non-zero when libasan reports their own allocations."""
+    if env.get('CI_ASAN_BUILD') != '1' and 'libasan' not in env.get('LD_PRELOAD', ''):
+        return env
+    for name in ('ASAN_OPTIONS', 'LSAN_OPTIONS'):
+        options = [
+            option for option in env.get(name, '').split(':')
+            if option and not option.startswith('detect_leaks=')
+        ]
+        options.append('detect_leaks=0')
+        env[name] = ':'.join(options)
+    return env
+
+
 def _stage_fq_runtime_libs(build_dir, env):
     script = (
         Path(__file__).resolve().parent
@@ -53,7 +67,7 @@ def _stage_fq_runtime_libs(build_dir, env):
     if not script.exists():
         return
 
-    run_env = env.copy()
+    run_env = _stage_without_interpreter_leaks(env.copy())
     run_env.setdefault('TD_BUILD_DIR', str(build_dir))
     run_env.setdefault('FQ_PYTHON', sys.executable)
     timeout = int(os.getenv('FQ_RUNTIME_LIBS_TIMEOUT_S', '900'))

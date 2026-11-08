@@ -428,6 +428,86 @@ class TestVtablePlanOrderLimit:
         tdSql.checkData(0, 1, 3)
         tdSql.checkData(0, 2, None)
 
+        # A referenced tag is a one-row constant side input (TagRefSource).  It must
+        # not disable the bound scan: every data source still gets its own LIMIT 1
+        # so the merged output can pick the globally newest virtual row.
+        tdSql.execute(f"create stable {self.db}.ref_src (ts timestamp, v int) tags (loc nchar(20))")
+        tdSql.execute(f"create table {self.db}.ref_src0 using {self.db}.ref_src tags ('beijing')")
+        tdSql.execute(f"insert into {self.db}.ref_src0 values ({self.base_ts + 10}, 1) ({self.base_ts + 20}, 2)")
+        tdSql.execute(f"create table {self.db}.ref_aux0 (ts timestamp, v int)")
+        tdSql.execute(f"insert into {self.db}.ref_aux0 values ({self.base_ts + 5}, 5)")
+        tdSql.execute(f"create table {self.db}.ref_empty0 using {self.db}.ref_src tags ('empty')")
+        tdSql.execute(f"create stable {self.db}.ref_vst (ts timestamp, x int) tags (t nchar(20)) virtual 1")
+        tdSql.execute(f"create stable {self.db}.ref_vst2 (ts timestamp, x int, y int) "
+                      f"tags (t nchar(20)) virtual 1")
+        tdSql.execute(f"create stable {self.db}.ref_vst3 (ts timestamp, x int) "
+                      f"tags (t nchar(20), u nchar(20)) virtual 1")
+        tdSql.execute(f"create vtable {self.db}.ref_vn (x from {self.db}.ref_src0.v) "
+                      f"using {self.db}.ref_vst tags (t from {self.db}.ref_src0.loc)")
+        tdSql.execute(f"create vtable {self.db}.ref_vn2 (x from {self.db}.ref_src0.v, "
+                      f"y from {self.db}.ref_aux0.v) using {self.db}.ref_vst2 tags (t from {self.db}.ref_src0.loc)")
+        tdSql.execute(f"create vtable {self.db}.ref_vn3 (x from {self.db}.ref_src0.v) "
+                      f"using {self.db}.ref_vst3 tags (t from {self.db}.ref_src0.loc, "
+                      f"u from {self.db}.ref_empty0.loc)")
+        for table, source_count in (("ref_vn", 1), ("ref_vn2", 2)):
+            sql = f"select cast(last(_c0) as bigint), t from {self.db}.{table}"
+            plan = self.plan(sql)
+            self.check_plan_limit(plan, "Virtual Table Scan on ", 1, 1)
+            sources = self.check_plan_limit(plan, "Table Scan on ", 1, source_count)
+            assert all("order=[asc|0 desc|1]" in header for header, _ in sources), plan
+            assert "TagRefSource" in plan, plan
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, self.base_ts + 20)
+            tdSql.checkData(0, 1, "beijing")
+            tdSql.query(f"explain analyze verbose true {sql}")
+            analyzed = "\n".join(str(row[0]) for row in tdSql.queryResult)
+            self.check_plan_rows(analyzed, "Virtual Table Scan on ", 1, 1)
+            self.check_plan_rows(analyzed, "Table Scan on ", 1, source_count)
+
+        # The merged result follows the newest row to another data source.
+        tdSql.execute(f"insert into {self.db}.ref_aux0 values ({self.base_ts + 30}, 7)")
+        for sql in (f"select cast(last(_c0) as bigint), t from {self.db}.ref_vn2",
+                    f"select cast(last(_c0) as bigint), last(t) from {self.db}.ref_vn2"):
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, self.base_ts + 30)
+
+        # Several referenced tags stay constant side inputs.
+        sql = f"select cast(last(_c0) as bigint), t, u from {self.db}.ref_vn3"
+        plan = self.plan(sql)
+        self.check_plan_limit(plan, "Virtual Table Scan on ", 1, 1)
+        self.check_source_limit(plan, 1)
+        assert plan.count("TagRefSource") == 2, plan
+        tdSql.query(sql)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, self.base_ts + 20)
+        tdSql.checkData(0, 1, "beijing")
+        tdSql.checkData(0, 2, "empty")
+
+        # Filtering on the referenced tag keeps the same result.
+        for tag, rows in (("beijing", 1), ("missing", 0)):
+            sql = f"select cast(last(_c0) as bigint), t from {self.db}.ref_vn where t = '{tag}'"
+            tdSql.query(sql)
+            tdSql.checkRows(rows)
+            if rows:
+                tdSql.checkData(0, 0, self.base_ts + 20)
+                tdSql.checkData(0, 1, "beijing")
+
+        # Empty referenced-tag source: the bound scan still returns no rows.
+        tdSql.execute(f"create vtable {self.db}.ref_ve (x from {self.db}.ref_empty0.v) "
+                      f"using {self.db}.ref_vst tags (t from {self.db}.ref_empty0.loc)")
+        sql = f"select cast(last(_c0) as bigint), t from {self.db}.ref_ve"
+        plan = self.plan(sql)
+        self.check_plan_limit(plan, "Virtual Table Scan on ", 1, 1)
+        self.check_source_limit(plan, 1)
+        tdSql.query(sql)
+        tdSql.checkRows(0)
+
+        # LAST over the referenced tag keeps the original unrestricted path.
+        sql = f"select cast(last(_c0) as bigint), last(t) from {self.db}.ref_vn2"
+        self.check_plan_limit(self.plan(sql), "Virtual Table Scan on ", None, 1)
+
         test_case = "test_vtable_plan_last_primary_timestamp"
         directory = Path(__file__).parent
         tdCom.compare_testcase_result(
@@ -444,6 +524,7 @@ class TestVtablePlanOrderLimit:
         2. Check complete latest rows, NULL values, merged filters and empty input
         3. Check fallback for value LAST, mixed aggregates, grouping and windows
         4. Check finer source precision preserves the associated row
+        5. Check referenced tags keep the bound scan across one and several data sources
 
         Catalog:
             - VirtualTable

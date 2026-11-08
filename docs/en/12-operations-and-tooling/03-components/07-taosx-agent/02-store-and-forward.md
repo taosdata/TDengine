@@ -8,7 +8,11 @@ toc_max_heading_level: 4
 
 In industrial data collection scenarios, taosX-Agent is typically deployed on the factory side (OT network) and communicates with taosX on the data center side via VPN or dedicated lines. When the network is interrupted (e.g., VPN disconnection, weekend shutdowns), data collected during the outage would be lost without a caching mechanism.
 
-The **Store and Forward** feature solves this problem: when the network between Agent and taosX is interrupted, Agent continues to collect data from the data source and persists it to local disk. Once the network recovers, the cached data is automatically resent to taosX, ensuring zero data loss.
+**Store and Forward** addresses this: when the network between taosX-Agent and taosX is interrupted, taosX-Agent continues receiving data from the data source and caches it on local disk. After the network recovers, it automatically resends the data that has not been confirmed to taosX.
+
+:::note
+Store and Forward caches only data that taosX-Agent has already received. Cached data is synchronized to disk periodically. If the host loses power suddenly or the disk fails, the most recently cached data may be lost.
+:::
 
 **During network outage**: Agent continues collecting data and writes it to local disk cache.
 
@@ -58,7 +62,7 @@ graph LR
 | Poor network quality | Remote sites with limited bandwidth and occasional disconnections |
 
 :::note
-Store and Forward is currently supported for **OPC UA**, **OPC DA**, and **MQTT** data source types in real-time collection tasks.
+Store and Forward is currently supported for real-time collection tasks with **OPC UA**, **OPC DA**, and **MQTT** data sources.
 :::
 
 ## How to Enable
@@ -84,25 +88,43 @@ When Store and Forward is enabled, Agent creates a **persist_queue** (persistent
 
 1. The connector (e.g., taosx-opc) collects data from the data source and passes it to Agent via an IPC pipe.
 2. Agent serializes the data and writes it to persist_queue disk files.
-3. After writing to disk, Agent replies with an ACK (confirming data is persisted) to the connector.
+3. After a batch is fully written to the cache file, Agent tells the connector that the batch has been received. The data has not been written to TDengine yet.
 
 ### Read Path (Local Disk → taosX)
 
-1. The persist_queue reader reads data from the disk files.
-2. Data is sent to taosX via Arrow Flight RPC.
-3. taosX writes data to TDengine successfully and returns a confirmation.
-4. Agent updates the breakpoint position upon receiving the confirmation.
+1. persist_queue reads cached data from the disk files.
+2. Agent sends the data to taosX.
+3. After taosX writes the data to TDengine, it returns the result for that batch.
+4. Agent updates the breakpoint in send order. The breakpoint advances only after every earlier batch has been confirmed.
 
 ### Breakpoint Recovery
 
-persist_queue uses a breakpoint database to record the confirmed read position. When the network recovers or Agent restarts, it resumes reading from the last breakpoint position, preventing data duplication or loss.
+persist_queue records the confirmed read position in a breakpoint database. After the network recovers or Agent restarts, it continues reading and sending cached data from that position.
+
+If taosX has written a batch but the confirmation is lost because of a network interruption, Agent sends that batch again. Store and Forward therefore guarantees that data is written at least once. In a few cases, duplicate data may be produced.
+
+### Confirmation and Failure Handling
+
+Agent treats a batch as delivered only after it receives the write result from taosX. Each case is handled as follows:
+
+| Condition | Handling |
+| --- | --- |
+| Data is written successfully | Confirm the batch and continue sending subsequent data |
+| The data source ends normally | Send the remaining cached data, confirm all of it, and then end the task normally |
+| The data itself is invalid, and the task is configured to archive abnormal data | Archive the invalid data, write the rest normally, and keep the task running |
+| Network interruption, taosX temporarily unavailable, or delivery timeout | Keep the unconfirmed data and resend it after reconnecting automatically |
+| Authentication failure, configuration error, version mismatch, or another write error that cannot be recovered automatically | The task reports the error and stops. Unconfirmed data stays in the cache. Restart the task after the problem is resolved |
+
+Archiving abnormal data saves invalid data when it can, but it does not guarantee a complete archive. If the archive queue is full or writing the archive file fails, some invalid data may not be archived. This does not affect normal writes of the remaining data.
+
+Check the task status and logs for failures, retries, and recovery. An online Agent means only that the connection is healthy. It does not mean the data has been written to TDengine. See [Configuration Reference](./01-configuration.md#delivery-window-and-timeout) for the send window and delivery timeout.
 
 ### Behavior During Network Outage
 
 When the network between Agent and taosX is interrupted:
 
-1. **Data collection continues**: The connector continues collecting data from the data source and writing to the local persist_queue.
-2. **Data transfer pauses**: The persist_queue reader detects the network is unavailable and pauses sending data to taosX.
+1. **Continue caching data**: The connector continues receiving data from the data source and writes it to persist_queue for as long as local disk space allows.
+2. **Pause sending**: Unconfirmed data is not skipped. After data that has been sent but not confirmed reaches the send window limit, Agent pauses sending new data.
 3. **Automatic resend on recovery**: After Agent reconnects to taosX, it resumes reading cached data from the persist_queue starting at the breakpoint position.
 
 ## Behavior Comparison: Enabled vs. Disabled
@@ -110,10 +132,10 @@ When the network between Agent and taosX is interrupted:
 | Behavior | Disabled (Default) | Enabled |
 | --- | --- | --- |
 | Data buffering | In-memory only (default 64 batches) | Disk-based persistent queue (capacity limited only by disk space) |
-| Agent ↔ taosX disconnect | Collection task terminates; data lost during outage | Collection task continues; data written to local disk |
-| Reconnection strategy | Limited retries | Unlimited retries (`retry_forever=true`) |
-| Breakpoint recovery | Not supported | Supported (breakpoint mechanism) |
-| Data acknowledgment | Acknowledged after sending to in-memory buffer | Acknowledged only after writing to disk |
+| Agent ↔ taosX disconnect | Unconfirmed data stays in memory. New data is no longer accepted after the memory buffer is full | Data continues to be written to local disk and is resent automatically after the network recovers |
+| Reconnection strategy | Reconnect automatically on a network error. A write error that cannot be recovered automatically stops the task | Reconnect automatically on a network error. A write error that cannot be recovered automatically stops the task |
+| After Agent restarts | Data in memory cannot be recovered | Continue sending from the breakpoint on disk |
+| Data confirmation | Confirmed only after taosX writes the data to TDengine | Confirmed only after taosX writes the data to TDengine |
 | Write latency | Low (in-memory direct transfer) | Slightly increased (requires disk write and read) |
 
 :::warning

@@ -17,6 +17,7 @@
 
 #include "dmRepair.h"
 #include "meta.h"
+#include "tdTestSeam.h"
 #include "thash.h"
 #include "vnd.h"
 
@@ -907,6 +908,7 @@ int metaAlterCache(SMeta *pMeta, int32_t nPage) {
 }
 
 void metaRLock(SMeta *pMeta) {
+  TD_SEAM_VOID(metaRLock, void (*)(SMeta *), (pMeta));
   metaTrace("meta rlock %p", &pMeta->lock);
   if (taosThreadRwlockRdlock(&pMeta->lock) != 0) {
     metaError("vgId:%d failed to lock %p", TD_VID(pMeta->pVnode), &pMeta->lock);
@@ -921,6 +923,7 @@ void metaWLock(SMeta *pMeta) {
 }
 
 void metaULock(SMeta *pMeta) {
+  TD_SEAM_VOID(metaULock, void (*)(SMeta *), (pMeta));
   metaTrace("meta ulock %p", &pMeta->lock);
   if (taosThreadRwlockUnlock(&pMeta->lock) != 0) {
     metaError("vgId:%d failed to unlock %p", TD_VID(pMeta->pVnode), &pMeta->lock);

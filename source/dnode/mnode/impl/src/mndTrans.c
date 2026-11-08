@@ -913,6 +913,12 @@ static void mndTransDropDataImpl(STrans *pTrans, bool destroyMutex) {
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }
+  if (pTrans->errRsp != NULL) {
+    taosMemoryFree(pTrans->errRsp);
+    pTrans->errRsp = NULL;
+    pTrans->errRspLen = 0;
+    pTrans->errRspCode = 0;
+  }
   if (pTrans->param != NULL) {
     taosMemoryFree(pTrans->param);
     pTrans->param = NULL;
@@ -1810,6 +1816,37 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
         mInfo("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
+
+        // Stamp each newly created vgroup's leader immediately after commit, using the leader dnodeId
+        // captured from the alter-confirm responses. This closes the heartbeat-lag window during which
+        // the vgroup is already visible (committed) but the mnode's cached syncState is still the
+        // initial FOLLOWER, which made `show cluster alive` transiently report 2 right after create-db.
+        //
+        // This MUST run BEFORE the mndIsDbReady wait loop below: test_create_db_alive_from_other_client
+        // uses an independent connection that polls `show cluster alive` WHILE create-db is held back by
+        // that loop. Stamping afterwards would leave the observer seeing leaderless vgroups during the
+        // heartbeat wait and re-open the bug.
+        //
+        // The stamped value is the GENUINE leader, proven by the alter-confirm sync-write (only the
+        // leader applies it). So mndIsDbReady passing immediately is the legitimate "leader is ready"
+        // signal, not a fabricated bypass. The next real heartbeat (~1s) re-writes the same leader.
+        int32_t nActions = (pTrans->redoActions != NULL) ? taosArrayGetSize(pTrans->redoActions) : 0;
+        for (int32_t a = 0; a < nActions; ++a) {
+          STransAction *pAct = taosArrayGet(pTrans->redoActions, a);
+          if (pAct->msgType != TDMT_VND_ALTER_CONFIRM || pAct->leaderDnodeId <= 0) continue;
+          SVgObj *pVg = mndAcquireVgroup(pMnode, pAct->groupId);
+          if (pVg == NULL) continue;
+          for (int32_t g = 0; g < pVg->replica; ++g) {
+            if (pVg->vnodeGid[g].dnodeId == pAct->leaderDnodeId) {
+              pVg->vnodeGid[g].syncState = TAOS_SYNC_STATE_LEADER;
+              mInfo("trans:%d, vgId:%d stamp leader dnode:%d (alter-confirm) to avoid show cluster alive = 2",
+                    pTrans->id, pAct->groupId, pAct->leaderDnodeId);
+              break;
+            }
+          }
+          mndReleaseVgroup(pMnode, pVg);
+        }
+
         SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname);
         if (pDb != NULL) {
           for (int32_t j = 0; j < 12; j++) {
@@ -1856,7 +1893,20 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         }
       }
 
-      if (pTrans->rpcRspLen != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        // failed trans: attach the action's error-detail text when present; the (stale)
+        // success rpcRsp built at trans creation must not go out on an error response. Only
+        // attach when the final error code is the one that produced the detail, so a later
+        // undo/rollback failure cannot pair a different code with stale conflict text.
+        if (pTrans->errRspLen > 0 && pTrans->errRsp != NULL && code == pTrans->errRspCode) {
+          void *rpcCont = rpcMallocCont(pTrans->errRspLen);
+          if (rpcCont != NULL) {
+            memcpy(rpcCont, pTrans->errRsp, pTrans->errRspLen);
+            rspMsg.pCont = rpcCont;
+            rspMsg.contLen = pTrans->errRspLen;
+          }
+        }
+      } else if (pTrans->rpcRspLen != 0) {
         void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
         if (rpcCont != NULL) {
           memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
@@ -1923,6 +1973,38 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
       pAction->errCode = pRsp->code;
       pAction->endTime = taosGetTimestampMs();
 
+      // Capture the alter-confirm leader dnodeId so we can stamp the vgroup leader right after
+      // commit (see mndTransSendRpcRsp), closing the heartbeat-lag window where `show cluster
+      // alive` transiently reports 2 for a just-created database.
+      if (pAction->msgType == TDMT_VND_ALTER_CONFIRM && pRsp->code == 0 && pRsp->pCont != NULL &&
+          pRsp->contLen > 0) {
+        SAlterVnodeConfirmRsp confirm = {0};
+        if (tDeserializeSAlterVnodeConfirmRsp(pRsp->pCont, pRsp->contLen, &confirm) == 0 && confirm.dnodeId > 0) {
+          pAction->leaderDnodeId = confirm.dnodeId;
+          mInfo("trans:%d, alter-confirm vgId:%d leader dnodeId:%d captured", pTrans->id, pAction->groupId,
+                pAction->leaderDnodeId);
+        }
+      }
+
+      // A failed action response may carry a custom error-detail text payload (e.g. the
+      // vstb alter name-conflict check names the conflicting child table, defect 7160321463).
+      // Keep a copy on the trans so the final client rsp can attach it alongside the error
+      // code. The first error wins; the payload is owned by the rpc layer, hence the copy.
+      // Gate tightly: only the exact conflict code carries the text, and only a payload that
+      // is NUL-terminated text. A vnode redirect (sync not-leader) answers this same msgType
+      // with a serialized SEpSet binary body, which must not be captured as error text.
+      if (pRsp->code == TSDB_CODE_VND_COL_ALREADY_EXISTS && pRsp->msgType == TDMT_VND_CHECK_STB_ALTER_NAME_RSP &&
+          pRsp->pCont != NULL && pRsp->contLen > 0 && pTrans->errRsp == NULL &&
+          memchr(pRsp->pCont, '\0', pRsp->contLen) != NULL) {
+        void *pErr = taosMemoryMalloc(pRsp->contLen);
+        if (pErr != NULL) {
+          memcpy(pErr, pRsp->pCont, pRsp->contLen);
+          pTrans->errRsp = pErr;
+          pTrans->errRspLen = pRsp->contLen;
+          pTrans->errRspCode = pRsp->code;
+        }
+      }
+
       // pTrans->lastErrorNo = pRsp->code;
       mndSetTransLastAction(pTrans, pAction);
 
@@ -1981,6 +2063,15 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     mndTransResetAction(pMnode, pTrans, pAction);
     mInfo("trans:%d, %s:%d reset, errCode:%d, startTime:%" PRId64, pTrans->id, mndTransStr(pAction->stage), pAction->id,
           pAction->errCode, pAction->startTime);
+
+    // a retry may fail on a different action; drop the stale error detail so it cannot be
+    // paired with a mismatched error code in the eventual client response
+    if (pTrans->errRsp != NULL) {
+      taosMemoryFree(pTrans->errRsp);
+      pTrans->errRsp = NULL;
+      pTrans->errRspLen = 0;
+      pTrans->errRspCode = 0;
+    }
   }
 }
 

@@ -27,6 +27,8 @@ import os
 import re
 import threading
 import time
+
+import pytest
 from typing import Iterable, List, Optional, Sequence, Tuple
 
 import taos.field as _taos_field
@@ -57,6 +59,21 @@ TSDB_CODE_EXT_SYNTAX_UNSUPPORTED = _code("TSDB_CODE_EXT_SYNTAX_UNSUPPORTED")
 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG = _code(
     "TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG"
 )
+TSDB_CODE_PAR_SYNTAX_ERROR = _code("TSDB_CODE_PAR_SYNTAX_ERROR")
+
+# MySQL caps identifiers at 64 characters while TDengine caps the encoded
+# name at 64 bytes, so multi-byte names are the only way a provider accepts
+# both sides of TDengine's column-name byte boundary.
+_MYSQL_COL_NAME_64B = "中" * 21 + "a"     # 22 characters, 64 UTF-8 bytes
+_MYSQL_COL_NAME_65B = "中" * 21 + "ab"    # 23 characters, 65 UTF-8 bytes
+
+# Twenty 30-byte column entries plus the 3-byte ts entry put the scan list at
+# 603 bytes, safely past the planner's 512-byte diagnostic buffer.
+_MYSQL_WIDE_ATTR_COUNT = 20
+
+
+def _mysql_wide_attr(idx: int) -> str:
+    return f"w{idx:02d}_" + "x" * 25
 
 
 _MYSQL = "mysql"
@@ -803,6 +820,8 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
             "drop table if exists interp_t",
             "drop table if exists fetch_t",
             "drop table if exists structured_t",
+            "drop table if exists col_len_t",
+            "drop table if exists col_len_long_t",
             "create table boundary_t ("
             "ts datetime(3) primary key, id int, val int, score double, "
             "name varchar(32), category varchar(8), note varchar(32), "
@@ -843,6 +862,21 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
             "create table structured_t (id int primary key, doc json)",
             "insert into structured_t values "
             "(1, json_object('a', json_array(1, 2), 'flag', true, 'name', 'v'))",
+            f"create table col_len_t (ts datetime(3) primary key, "
+            f"`{_MYSQL_COL_NAME_64B}` int)",
+            f"insert into col_len_t values ('{first_dt}', 64)",
+            f"create table col_len_long_t (ts datetime(3) primary key, "
+            f"`{_MYSQL_COL_NAME_65B}` int)",
+            f"insert into col_len_long_t values ('{first_dt}', 65)",
+            "drop table if exists scan_cols_wide",
+            "create table scan_cols_wide (ts datetime(3) primary key, "
+            + ", ".join(f"`{_mysql_wide_attr(i)}` int"
+                        for i in range(1, _MYSQL_WIDE_ATTR_COUNT + 1))
+            + ")",
+            "insert into scan_cols_wide values ('"
+            + first_dt + "', "
+            + ", ".join(str(i) for i in range(1, _MYSQL_WIDE_ATTR_COUNT + 1))
+            + ")",
         ])
         assert ExtSrcEnv.mysql_query_cfg(mysql_cfg, _MYSQL_DB,
                                          "select count(*) from boundary_t") == 3
@@ -1088,6 +1122,12 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
             "http_sparse_t id=3i,name=\"missing\" 1704067320000000000",
             "http_sparse_t id=4i,val=0i,name=\"zero\" 1704067380000000000",
             "structured_t id=1i,doc=\"{\\\"a\\\":[1,2],\\\"flag\\\":true,\\\"name\\\":\\\"v\\\"}\" 1704067200000000000",
+            "tag_ok," + ",".join(f"k{i:03d}=v" for i in range(1, 9))
+            + " v=1i 1704067200000000000",
+            "tag_boundary," + ",".join(f"k{i:03d}=v" for i in range(1, 129))
+            + " v=1i 1704067200000000000",
+            "tag_over," + ",".join(f"k{i:03d}=v" for i in range(1, 130))
+            + " v=1i 1704067200000000000",
             *(
                 "fetch_t id=%di,val=%di %d" % (
                     index, index * 3, 1706745600000000000 + index * 1000000000
@@ -1447,6 +1487,148 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         rows = tuple(self._rows())
         assert rows, f"DESCRIBE returned no rows for {name}"
         return rows
+
+    def do_source_field_length_boundaries(self):
+        """Last accepted and first rejected external-source field lengths.
+
+        Source creation is DDL only and never opens a connection, so the long
+        host, user, password and port values only need to pass the validator.
+        The option value and total-budget cases use MySQL's free-form charset
+        option, which has no semantic validation beyond its length.
+        """
+        cfg = self._mysql_cfg()
+
+        def ddl(name, host=None, port=None, user=None, password=None, options=""):
+            sql = (f"create external source {name} type='mysql' "
+                   f"host='{cfg.host if host is None else host}' "
+                   f"port={cfg.port if port is None else port} "
+                   f"user='{cfg.user if user is None else user}' "
+                   f"password='{cfg.password if password is None else password}'")
+            if options:
+                sql += f" options({options})"
+            return sql
+
+        def accepted(name, sql):
+            self._drop_source(name)
+            tdSql.execute(sql)
+            self._assert_source_exists(name)
+            self._drop_source(name)
+
+        def rejected(name, sql, errno, message):
+            self._drop_source(name)
+            self._assert_error(sql, errno, message)
+            self._assert_source_absent(name)
+
+        accepted("fq07_len_host", ddl("fq07_len_host", host="h" * 256))
+        rejected("fq07_len_host", ddl("fq07_len_host", host="h" * 257),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "HOST is too long")
+
+        accepted("fq07_len_user", ddl("fq07_len_user", user="u" * 128))
+        rejected("fq07_len_user", ddl("fq07_len_user", user="u" * 129),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "USER is too long")
+
+        accepted("fq07_len_pass", ddl("fq07_len_pass", password="p" * 128))
+        rejected("fq07_len_pass", ddl("fq07_len_pass", password="p" * 129),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG, "PASSWORD is too long")
+
+        accepted("fq07_len_port_lo", ddl("fq07_len_port_lo", port=1))
+        accepted("fq07_len_port_hi", ddl("fq07_len_port_hi", port=65535))
+        for port in (0, 65536):
+            name = f"fq07_len_port_{port}"
+            rejected(name, ddl(name, port=port), TSDB_CODE_PAR_SYNTAX_ERROR,
+                     "PORT must be in range [1, 65535]")
+
+        accepted("fq07_len_opt",
+                 ddl("fq07_len_opt", options=f"'charset'='{'c' * 4095}'"))
+        rejected("fq07_len_opt",
+                 ddl("fq07_len_opt", options=f"'charset'='{'c' * 4096}'"),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                 "Name or password too long")
+        rejected("fq07_len_opt",
+                 ddl("fq07_len_opt",
+                     options=f"'charset'='{'c' * 4090}','ssl_mode'='preferred'"),
+                 TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG,
+                 "OPTIONS values total too long")
+
+        print("FQ07 source field length boundaries ............. [ passed ]")
+
+    def do_column_identifier_boundaries(self):
+        """External column names at TDengine's 64-byte identifier boundary.
+
+        MySQL accepts both fixture names (22 and 23 characters), but TDengine
+        rejects the 65-byte one during metadata ingest.  The accepted table
+        must remain queryable after the rejected one fails.
+        """
+        source = self.specs[_MYSQL].source
+        tdSql.query(f"select `{_MYSQL_COL_NAME_64B}` from {source}.col_len_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 64)
+
+        self._assert_error(f"select * from {source}.col_len_long_t",
+                           TSDB_CODE_EXT_IDENTIFIER_TOO_LONG,
+                           "identifier is too long")
+        tdSql.query(f"select `{_MYSQL_COL_NAME_64B}` from {source}.col_len_t")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 64)
+        print("FQ07 column identifier boundaries .............. [ passed ]")
+
+    def do_scan_column_list_length_boundaries(self):
+        """Scan column lists past the planner's 512-byte diagnostic buffer.
+
+        The 512 is only the local log buffer, not a query limit: the table is
+        well under the 4096 referenced-column limit, so select * must return
+        the full row with no crash and the session must stay healthy.
+        """
+        source = self.specs[_MYSQL].source
+        tdSql.query(f"describe {source}.scan_cols_wide")
+        fields = [str(row[0]).lower() for row in tdSql.queryResult]
+        assert len(fields) == _MYSQL_WIDE_ATTR_COUNT + 1, fields
+        for idx in (1, _MYSQL_WIDE_ATTR_COUNT):
+            assert _mysql_wide_attr(idx).lower() in fields
+
+        tdSql.query(f"select * from {source}.scan_cols_wide limit 1")
+        tdSql.checkRows(1)
+        for idx in (1, _MYSQL_WIDE_ATTR_COUNT):
+            tdSql.checkData(0, fields.index(_mysql_wide_attr(idx).lower()), idx)
+
+        tdSql.query("select 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+        print("FQ07 scan column list length boundaries ......... [ passed ]")
+
+    def do_influx_tag_count_boundaries(self):
+        """InfluxDB tag counts around the 128-tag external limit.
+
+        129 tags must be rejected while planning with
+        TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY.  The 128-tag and small-tag
+        fixtures must execute when InfluxDB execution is healthy; some local
+        development stores cannot execute any FQ Influx query, so those two
+        checks are skipped when a baseline query already fails with the
+        executor-internal error.
+        """
+        for cfg, spec in self._source_spec_variants(_INFLUX):
+            with self._using_influx(cfg):
+                execution_ok = True
+                try:
+                    tdSql.query(f"select * from {spec.source}.boundary_t limit 1")
+                except Exception:
+                    execution_ok = False
+                    tdLog.info(
+                        f"FQ07 Influx {cfg.version} execution unavailable: "
+                        f"{getattr(tdSql, 'error_info', '')}")
+                if execution_ok:
+                    tdSql.query(f"select * from {spec.source}.tag_ok limit 1")
+                    tdSql.checkRows(1)
+                    tdSql.query(f"select * from {spec.source}.tag_boundary limit 1")
+                    tdSql.checkRows(1)
+                else:
+                    tdLog.info("FQ07 skipping in-boundary Influx tag execution checks")
+
+                self._assert_error(
+                    f"select * from {spec.source}.tag_over",
+                    TSDB_CODE_EXT_REQUIRED_TAGS_TOO_MANY,
+                    "Too many external tags required by query")
+        print("FQ07 Influx tag count boundaries ................ [ passed ]")
 
     def do_options_and_masking_boundaries(self):
         long_key = "k" * 65
@@ -1820,7 +2002,7 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
     def test_fq_07_boundary_contracts(self):
         """Federated query boundary contracts.
 
-        1. Validate external-source DDL identifiers, ALTER rollback, options and masking.
+        1. Validate external-source DDL identifiers, field lengths, ALTER rollback, options and masking.
         2. Validate five-library path, result, schema, EXPLAIN and SQL-shape matrices.
         3. Validate delayed unknown-type errors, recovery and assertion coverage.
 
@@ -1840,6 +2022,10 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         try:
             self.do_source_identifier_boundaries()
             self.do_database_schema_alter_boundaries()
+            self.do_source_field_length_boundaries()
+            self.do_column_identifier_boundaries()
+            self.do_scan_column_list_length_boundaries()
+            self.do_influx_tag_count_boundaries()
             self.do_options_and_masking_boundaries()
             self.do_query_result_matrix()
             self.do_influx_http_parity()

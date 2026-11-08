@@ -54,7 +54,7 @@ class TDDnode:
             "fqdn": "localhost",
             "monitor": "0",
             "maxShellConns": "30000",
-            "locale": "en_US.UTF-8",
+            **({} if platform.system().lower() == "windows" else {"locale": "en_US.UTF-8"}),
             "charset": "UTF-8",
             "asyncLog": "0",
             "mDebugFlag": "135",

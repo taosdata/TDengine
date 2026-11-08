@@ -39,7 +39,7 @@ class TDSimClient:
         self.cfgDict = {
             "fqdn": "localhost",
             "numOfLogLines": "100000000",
-            "locale": "en_US.UTF-8",
+            **({} if platform.system().lower() == "windows" else {"locale": "en_US.UTF-8"}),
             "charset": "UTF-8",
             "asyncLog": "0",
             "rpcDebugFlag": "135",

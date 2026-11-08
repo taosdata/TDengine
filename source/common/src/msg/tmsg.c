@@ -18,6 +18,7 @@
 #define _DEFAULT_SOURCE
 
 #include "tmsg.h"
+#include "tdTestSeam.h"
 #include "tglobal.h"
 
 #undef TD_MSG_NUMBER_
@@ -4167,6 +4168,7 @@ _exit:
   return tlen;
 }
 int32_t tDeserializeSUpdateIpWhiteDual(void *buf, int32_t bufLen, SUpdateIpWhite *pReq) {
+  TD_SEAM_RET(tDeserializeSUpdateIpWhiteDual, int32_t (*)(void*, int32_t, SUpdateIpWhite*), (buf, bufLen, pReq));
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -4387,6 +4389,7 @@ _exit:
 }
 
 int32_t tDeserializeRetrieveAnalyticAlgoRsp(void *buf, int32_t bufLen, SRetrieveAnalyticAlgoRsp *pRsp) {
+  TD_SEAM_RET(tDeserializeRetrieveAnalyticAlgoRsp, int32_t (*)(void*, int32_t, SRetrieveAnalyticAlgoRsp*), (buf, bufLen, pRsp));
   if (pRsp->hash == NULL) {
     pRsp->hash = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
     if (pRsp->hash == NULL) {
@@ -6102,6 +6105,7 @@ _error:
   return code;
 }
 int32_t tDeserializeSRetrieveDateTimeWhiteListRsp(void *buf, int32_t bufLen, SRetrieveDateTimeWhiteListRsp *pRsp) {
+  TD_SEAM_RET(tDeserializeSRetrieveDateTimeWhiteListRsp, int32_t (*)(void*, int32_t, SRetrieveDateTimeWhiteListRsp*), (buf, bufLen, pRsp));
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
@@ -14963,6 +14967,43 @@ int32_t tDeserializeSAlterVnodeHashRangeReq(void *buf, int32_t bufLen, SAlterVno
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->hashEnd));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->changeVersion));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->reserved));
+
+  tEndDecode(&decoder);
+_exit:
+  tDecoderClear(&decoder);
+  return code;
+}
+
+int32_t tSerializeSAlterVnodeConfirmRsp(void *buf, int32_t bufLen, SAlterVnodeConfirmRsp *pRsp) {
+  SEncoder encoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  int32_t  tlen;
+  tEncoderInit(&encoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartEncode(&encoder));
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->dnodeId));
+
+  tEndEncode(&encoder);
+
+_exit:
+  if (code) {
+    tlen = code;
+  } else {
+    tlen = encoder.pos;
+  }
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAlterVnodeConfirmRsp(void *buf, int32_t bufLen, SAlterVnodeConfirmRsp *pRsp) {
+  SDecoder decoder = {0};
+  int32_t  code = 0;
+  int32_t  lino;
+  tDecoderInit(&decoder, buf, bufLen);
+
+  TAOS_CHECK_EXIT(tStartDecode(&decoder));
+  TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->dnodeId));
 
   tEndDecode(&decoder);
 _exit:

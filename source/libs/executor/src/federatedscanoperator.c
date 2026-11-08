@@ -193,6 +193,38 @@ static int32_t fedScanNormalizeVstbBlock(SFederatedScanOperatorInfo* pInfo, SSDa
 
   int32_t mapSize = (int32_t)taosArrayGetSize(pParam->colMap);
   int32_t inputCols = (int32_t)taosArrayGetSize(pInput->pDataBlock);
+  // Diagnostic: column-to-slot resolution is positional, so a mismatch
+  // between the pScanCols order and the output descriptor order silently
+  // crosses columns.  Keep the two orders visible at debug level.
+  {
+    qDebug("%s vstb-map: outputCols=%d inputCols=%d mapSize=%d tsOutput=%d source=%s table=%s",
+           __func__, outputCols, inputCols, mapSize, tsOutput, pParam->sourceName,
+           pParam->tableName);
+    SNodeList* pSlots = pInfo->pFedScanNode->node.pOutputDataBlockDesc->pSlots;
+    for (int32_t s = 0; s < LIST_LENGTH(pSlots); ++s) {
+      const SSlotDescNode* pSlot = (const SSlotDescNode*)nodesListGetNode(pSlots, s);
+      qDebug("%s vstb-map: out[%d] slotId=%d name=%s", __func__, s, (int)pSlot->slotId,
+             pSlot->name);
+    }
+    SNode* pScanCol = NULL;
+    int32_t scanIdx = 0;
+    FOREACH(pScanCol, pInfo->pFedScanNode->pScanCols) {
+      const SNode* pExpr = pScanCol;
+      if (QUERY_NODE_TARGET == nodeType((SNode*)pExpr)) {
+        pExpr = ((STargetNode*)pExpr)->pExpr;
+      }
+      if (NULL != pExpr && QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
+        const SColumnNode* pCol = (const SColumnNode*)pExpr;
+        qDebug("%s vstb-map: scan[%d] slotId=%d colId=%d name=%s isPrimTs=%d", __func__,
+               scanIdx, (int)pCol->slotId, (int)pCol->colId, pCol->colName,
+               (int)pCol->isPrimTs);
+      } else {
+        qDebug("%s vstb-map: scan[%d] non-column nodeType=%d", __func__, scanIdx,
+               NULL != pExpr ? (int)nodeType((SNode*)pExpr) : -1);
+      }
+      ++scanIdx;
+    }
+  }
   for (int32_t i = 0; i < mapSize && i + 1 < inputCols; ++i) {
     SColIdNameKV* pMap = taosArrayGet(pParam->colMap, i);
     QUERY_CHECK_NULL(pMap, code, lino, _return, terrno);
@@ -2281,6 +2313,16 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
           QUERY_CHECK_CODE(code, lino, _return);
         }
         mappings[mIdx].tdType = outputType;
+        if (outputType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+          // DS 5.3.7: the mapping carries the table's TRANSPORT precision
+          // (the maximum over the remote time columns), because that is the
+          // unit the provider converts the epoch with.  Leaving it 0 made the
+          // Oracle provider normalise the column to MICRO and truncate every
+          // non-key TIMESTAMP(7..9) column of a nanosecond table.
+          mappings[mIdx].tsPrecision = (pMeta->tsPrecision == TSDB_TIME_PRECISION_NANO)
+                                           ? TSDB_TIME_PRECISION_NANO
+                                           : TSDB_TIME_PRECISION_MICRO;
+        }
         int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset, ", ");
         if (written < 0 || written >= sqlBufLen - offset) {
           code = TSDB_CODE_OUT_OF_RANGE;

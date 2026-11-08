@@ -833,13 +833,12 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         INSERT whose written table is the Oracle source are all rejected with
         a concrete engine code, and ordinary local DDL/DML keeps working.
 
-        The Oracle TS also lists ``INSERT INTO <local> SELECT ... FROM
-        <oracle>`` as rejected.  That is not what this branch implements: the
-        write guard fires only when the *written* table resolves to an
-        external source, and the read-remote/write-local ETL direction is the
-        supported shape for every provider (test_fq_04's ins-* cases assert it
-        positively).  That direction is therefore asserted with exact rows
-        here rather than against an invented error.
+        The Oracle TS lists ``INSERT INTO <local> SELECT ... FROM <oracle>``
+        as a supported direction.  The write guard fires only when the *written*
+        table resolves to an external source, and the read-remote/write-local
+        ETL direction is the supported shape for every provider (test_fq_04's
+        ins-* cases assert it positively).  That direction is therefore
+        asserted with exact rows here as well.
 
         Catalog: - Query:FederatedLocal
 

@@ -97,13 +97,43 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
  * reference written in a different case still binds to the stored column;
  * Oracle folds an unquoted reference to upper case and then compares exactly;
  * PostgreSQL and InfluxDB compare identifiers literally.  This is the single
- * source of truth for that rule: the parser accepts an external column
- * reference with it, mnode binds the reader column mappings with it, and the
- * stream reader looks up the planner's timestamp-class hint with it.  Keeping
- * one implementation stops the three from drifting apart, which would make a
- * reference that DDL accepted unresolvable at reader deploy time.
+ * source of truth for resolved names: parser expression binding, mnode reader
+ * mappings, and stream timestamp hints all use it.  Raw SQL references that
+ * still carry representation quotes call extColumnNameEqualReference(), which
+ * applies the same rule without losing the quoted/unquoted distinction.
  */
 bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs);
+
+/**
+ * Compare an external identifier with a reference as written in SQL.
+ *
+ * Unlike extColumnNameEqual(), the reference may retain representation quotes
+ * from the parser AST.  For Oracle, a quoted lower-case name is therefore
+ * distinct from the upper-case name of the same spelling produced by folding an
+ * unquoted identifier.  Other providers follow extColumnNameEqual().
+ *
+ * Column binding (parser) and the DDL paths use extColumnNameEqual(); this
+ * helper is only used where a name still carries its raw spelling - the stream
+ * trigger table-name match in mndStreamMgmt.c.
+ */
+bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
+                                 const char *referenceName);
+
+/**
+ * Unquote an external table spelling as reported by the connector.
+ *
+ * The connectors keep the surrounding double quotes for a quoted identifier
+ * (e.g. Oracle `"same_a"`) and double any embedded quote (`"sa""me"`).
+ * Both the mnode reader-spec builder and the parser trigger-spec builder store
+ * the bare exact spelling, because the stream reader adds its own quoting when
+ * it renders the reference and copying the quoted form would nest quotes.  This
+ * is the single copy of that rule so the two spec builders cannot drift apart.
+ *
+ * @param spelling  The connector-reported spelling; must not be NULL.
+ * @param out       Destination buffer.
+ * @param outLen    Destination capacity in bytes.
+ */
+void extCopyRemoteTableSpelling(const char *spelling, char *out, int32_t outLen);
 
 /**
  * Whether a declared external timestamp type carries fractional seconds that

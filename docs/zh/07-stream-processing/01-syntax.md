@@ -1008,7 +1008,7 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
 
 说明：
 
-- 从 `v3.4.2.0` 开始，流式计算支持在触发和计算中使用外部源。可以使用 MySQL、PostgreSQL、InfluxDB 和 SQL Server，不能使用 Oracle。
+- 流式计算支持在触发和计算中使用外部源。可以使用 MySQL、PostgreSQL、InfluxDB、SQL Server 和 Oracle。
 - 历史计算暂不支持。
 - 使用外部源性能没有本地库性能好，需根据具体使用场景具体优化。
 - 外部源触发，不支持的流计算选项：EXPIRED_TIME/IGNORE_DISORDER/DELETE_RECALC。

@@ -214,7 +214,10 @@ TEST_F(ParserInitialCTest, createVSubTableBatchSyntaxError) {
   runParseOnly("CREATE VTABLE v1 USING vst TAGS (1), v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
   runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_SYNTAX_ERROR);
   runParseOnly("CREATE VTABLE v1 (ts TIMESTAMP) v2 USING vst TAGS (2)", TSDB_CODE_PAR_SYNTAX_ERROR);
-  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_SYNTAX_ERROR);
+  // `v2 (ts TIMESTAMP` is the start of another subtable clause whose column
+  // list is unclosed, so the parser reports an incomplete statement rather
+  // than a syntax error. `v2 (ts TIMESTAMP) USING vst TAGS (2)` completes it.
+  runParseOnly("CREATE VTABLE v1 USING vst TAGS (1) v2 (ts TIMESTAMP)", TSDB_CODE_PAR_INCOMPLETE_SQL);
 }
 
 TEST_F(ParserInitialCTest, xnodeTaskParserPresence) {

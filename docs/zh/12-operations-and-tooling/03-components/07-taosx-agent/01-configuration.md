@@ -17,6 +17,44 @@ taosX-Agent 的配置文件默认路径为 `/etc/taos/agent.toml`（Linux）或 
 | `in_memory_cache_capacity` | 否 | `64` | 内存中可缓存的最大消息批次数，必须大于 0 |
 | `keep_online` | 否 | `true` | taosX 服务不可用或连接断开时，是否保持 Agent 运行并尝试重连 |
 
+## 交付窗口与超时
+
+taosX-Agent 已发送给 taosX、但尚未确认写入的数据，受发送窗口和交付超时的限制。可通过以下环境变量调整：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | 与 `in_memory_cache_capacity` 相同（默认 `64`） | 等待确认的最大批次数，取值为正整数 |
+| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864`（64 MiB） | 等待确认的数据量上限（估算值），单位为字节，取值为正整数。该值不限制进程的总内存占用 |
+| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | 一批数据从发出到确认的最长等待时间，单位为秒，取值为正整数 |
+
+这些参数需要设置在 taosX-Agent 服务的运行环境中，不能写在 `agent.toml` 或数据接入任务的配置中。修改后需重启 taosX-Agent 服务；任务启动时会在日志中记录实际生效的值。
+
+例如，在 Linux 上通过 systemd 设置：
+
+```bash
+systemctl edit taosx-agent
+```
+
+在打开的编辑器中加入以下内容，保存后重启服务：
+
+```ini
+[Service]
+Environment="TAOSX_AGENT_DELIVERY_TIMEOUT_SECS=300"
+```
+
+```bash
+systemctl restart taosx-agent
+```
+
+使用说明：
+
+- 等待确认的批次数或数据量达到上限时，taosX-Agent 暂停发送新数据，待已发送的数据确认后继续发送。
+- 单批数据超过 `TAOSX_AGENT_DELIVERY_MAX_BYTES` 时，任务报错，不会自动拆分该批数据。此时可适当调大该参数。
+- 交付超时只针对已发送、尚未确认的数据。数据源长时间没有新数据时，不会触发超时。
+- TDengine 写入较慢，或配置了 [资源限制](#资源限制) 时，建议适当调大 `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS`。
+
+交付超时或网络中断时，taosX-Agent 保留未确认的数据并自动重连；认证失败、配置错误等无法自动恢复的错误会停止任务。各类情况的处理方式详见 [存储转发](./02-store-and-forward.md#确认与失败处理)。
+
 ## 资源限制
 
 Agent 可以使用与 taosX 相同的 `[resource]` 配置，限制本进程及其已注册连接器子进程的数据面资源占用。资源限制按 Agent 进程独立生效，修改后需重启 Agent。未配置 `[resource]` 时不启用治理器；设置 `resource.enabled = false` 可完整关闭。

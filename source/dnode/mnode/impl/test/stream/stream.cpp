@@ -9842,7 +9842,7 @@ class MndStreamExtReaderSchemaTest : public testing::Test {
   int32_t build() { return msmBuildExtOrigTblReaderSpec(&source_, &req_, &meta_, &spec_, &rsp_); }
 
   SExtSourceObj source_ = {};
-  SExtColumnDef columns_[3] = {};
+  SExtColumnDef columns_[4] = {};
   SExtTableMeta meta_ = {};
   SStreamExtOrigTblReaderReq req_ = {};
   SStreamExtOrigTblReaderRsp rsp_ = {};
@@ -10021,6 +10021,318 @@ TEST_F(MndStreamExtReaderSchemaTest, KeepsDatabaseScopedNamespaceWithoutSchema) 
   ASSERT_NE(nullptr, spec_);
   EXPECT_STREQ("warehouse", spec_->extDb);
   EXPECT_STREQ("", spec_->extSchema);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, ResolvesOracleSchemaOnlyNamespace) {
+  // Oracle has exactly one user namespace level - the schema - and its "database" is the Easy
+  // Connect service name, which is connection state rather than a namespace. A virtual table
+  // binding persisted as source.<schema>.<table> reaches the reader with the folded schema in
+  // dbName; reading that as a database would dial the listener with service=<schema> and fail
+  // with ORA-12514, so the reader re-maps it and keeps the service name from the source.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.dbName, "TAOSDATA", sizeof(req_.identity.dbName));
+  req_.identity.schemaName[0] = '\0';
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  // "int" is not an Oracle type: every numeric column there is a NUMBER, and
+  // NUMBER(10,0) maps to BIGINT, so the virtual column must declare BIGINT too.
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("ORCL", spec_->extDb);
+  EXPECT_STREQ("TAOSDATA", spec_->extSchema);
+  // The wire identity must stay exactly as it arrived so registry entries still match.
+  EXPECT_STREQ("TAOSDATA", req_.identity.dbName);
+  EXPECT_STREQ("", req_.identity.schemaName);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, RejectsOracleSourceWithoutAnySchema) {
+  // Oracle has no database level, so a table path can only be completed by a schema. Without one
+  // the reader would render "<service>.<table>", which names nothing, and the user would see the
+  // provider's ORA-00942 instead of the real cause. The catalog path (ctgAsync.c) already refuses
+  // such a source with TSDB_CODE_EXT_DEFAULT_NS_MISSING and resolves no implicit login schema
+  // (DS 5.3.3), so the reader must return the same code instead of deploying a broken spec.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  source_.defaultSchema[0] = '\0';
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  req_.identity.dbName[0] = '\0';
+  req_.identity.schemaName[0] = '\0';
+
+  EXPECT_EQ(TSDB_CODE_EXT_DEFAULT_NS_MISSING, build());
+  EXPECT_EQ(nullptr, spec_);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, AcceptsOraclePathSchemaWithoutSourceDefault) {
+  // A source may leave SCHEMA unset while the column path names the schema explicitly; that path
+  // supplies the only namespace level Oracle has, so it must still resolve.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  source_.defaultSchema[0] = '\0';
+  tstrncpy(req_.identity.dbName, "TAOSDATA", sizeof(req_.identity.dbName));
+  req_.identity.schemaName[0] = '\0';
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("ORCL", spec_->extDb);
+  EXPECT_STREQ("TAOSDATA", spec_->extSchema);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, UsesOracleDictionaryTableSpelling) {
+  // The reader renders the table name quoted, which makes the remote side case-sensitive, while
+  // Oracle folds every unquoted identifier to upper case: the spelling used in the column path
+  // ("same_a") would then name nothing (ORA-00942). The reader uses the name the schema fetch
+  // resolved, mirroring what createExtTableRefNode() already does for the schema.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(meta_.remoteTableName, "SAME_A", sizeof(meta_.remoteTableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("SAME_A", spec_->extTable);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, StripsOracleQuotedDictionaryTableSpelling) {
+  // A quoted Oracle identifier keeps its exact spelling and the connector reports
+  // it with the surrounding quotes still in place.  The stream reader adds its own
+  // quoting when it renders the table reference, so the spec must store the bare
+  // exact spelling here; otherwise "same_a" becomes """same_a""" on the remote side.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(meta_.remoteTableName, "\"same_a\"", sizeof(meta_.remoteTableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("same_a", spec_->extTable);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, UnescapesOracleQuotedDictionaryTableSpelling) {
+  // An embedded quote inside a quoted Oracle identifier is doubled in the raw
+  // path segment.  The spec stores the bare spelling and the reader re-escapes
+  // it once when rendering, so a single stored quote is the correct form.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(meta_.remoteTableName, "\"sa\"\"me\"", sizeof(meta_.remoteTableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("sa\"me", spec_->extTable);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, FallsBackToReferenceSpellingWithoutDictionaryName) {
+  // A schema fetch that did not report a remote spelling (older connector, or a
+  // table that vanished) must not blank the name: the reference spelling stays.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("same_a", spec_->extTable);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, KeepsReferenceSpellingForNonOracleSources) {
+  // Only Oracle needs the dictionary spelling; every other provider resolves the
+  // reference spelling itself, so a remote name reported for them is not applied.
+  tstrncpy(source_.defaultDatabase, "metrics", sizeof(source_.defaultDatabase));
+  tstrncpy(req_.identity.dbName, "warehouse", sizeof(req_.identity.dbName));
+  req_.identity.schemaName[0] = '\0';
+  tstrncpy(req_.identity.tableName, "cpu", sizeof(req_.identity.tableName));
+  tstrncpy(meta_.remoteTableName, "CPU_DICTIONARY", sizeof(meta_.remoteTableName));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  EXPECT_STREQ("cpu", spec_->extTable);
+}
+
+TEST_F(MndStreamExtReaderSchemaTest, FillsSourceTimestampPrecisionForSideTimestampColumns) {
+  // Providers decode every timestamp column at the table's transport precision, not only at the
+  // primary-key one (DS 5.3.7). Leaving tsPrecision at 0 on a side column made the Oracle
+  // connector decode a TIMESTAMP(7..9) value at microseconds, so its last three digits were gone
+  // before any later normalization could run; carrying the precision here is the only place that
+  // knows both the binding and the source schema.
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
+  static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
+      TSDB_DATA_TYPE_BIGINT;
+  tstrncpy(columns_[3].colName, "event_ts", sizeof(columns_[3].colName));
+  tstrncpy(columns_[3].extTypeName, "TIMESTAMP(9)", sizeof(columns_[3].extTypeName));
+  meta_.numOfCols = 4;
+  meta_.tsPrecision = TSDB_TIME_PRECISION_NANO;
+
+  SStreamExtOrigTblReaderBinding sideTs = {};
+  sideTs.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  sideTs.expectedType = TSDB_DATA_TYPE_TIMESTAMP;
+  // The plain spelling binds by exact match; representation quotes are not
+  // interpreted on the binding path (same rule as the parser).
+  tstrncpy(sideTs.externalColumn, "event_ts", sizeof(sideTs.externalColumn));
+  ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &sideTs));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  ASSERT_EQ(spec_->numCalcMappings, 2);
+  EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, spec_->pCalcMappings[0].tdType.type);
+  EXPECT_EQ(static_cast<int>(TSDB_TIME_PRECISION_NANO),
+            static_cast<int>(spec_->pCalcMappings[0].tsPrecision));
+  EXPECT_EQ(TSDB_DATA_TYPE_TIMESTAMP, spec_->pCalcMappings[1].tdType.type);
+  EXPECT_STREQ("event_ts", spec_->pCalcMappings[1].colName);
+  EXPECT_EQ(static_cast<int>(TSDB_TIME_PRECISION_NANO),
+            static_cast<int>(spec_->pCalcMappings[1].tsPrecision));
+}
+
+// The reader binding resolves its column with the same rule as the parser and as
+// the mapping dedup: extColumnNameEqual() candidate by candidate, with no
+// interpretation of Oracle representation quotes.  A binding that keeps those
+// quotes therefore resolves nothing and is rejected, which is what the main
+// branch does, instead of binding a lower-case column that the dedup step would
+// then merge back into the upper-case one.
+TEST_F(MndStreamExtReaderSchemaTest, RejectsQuotedBindingLikeMain) {
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "metrics_case", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[2].colName, "VAL", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "TIMESTAMP(6)", sizeof(columns_[2].extTypeName));
+  tstrncpy(columns_[3].colName, "val", sizeof(columns_[3].colName));
+  tstrncpy(columns_[3].extTypeName, "TIMESTAMP(9)", sizeof(columns_[3].extTypeName));
+  meta_.numOfCols = 4;
+  meta_.tsPrecision = TSDB_TIME_PRECISION_NANO;
+  taosArrayPopTailBatch(req_.bindings, 1);
+
+  SStreamExtOrigTblReaderBinding quoted = {};
+  quoted.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  quoted.expectedType = TSDB_DATA_TYPE_TIMESTAMP;
+  tstrncpy(quoted.externalColumn, "\"val\"", sizeof(quoted.externalColumn));
+  ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &quoted));
+
+  ASSERT_EQ(TSDB_CODE_EXT_COLUMN_NOT_EXIST, build());
+  EXPECT_EQ(rsp_.code, TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  EXPECT_EQ(nullptr, spec_);
+}
+
+// The same table with the plain spelling binds the column the fold selects, and
+// the mapping dedup uses that same resolution, so no other column can be merged
+// in.  VAL is listed before "val", so VAL wins - as it does in a SELECT.
+TEST_F(MndStreamExtReaderSchemaTest, BindsPlainSpellingByFold) {
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "metrics_case", sizeof(req_.identity.tableName));
+  tstrncpy(columns_[2].colName, "VAL", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "TIMESTAMP(6)", sizeof(columns_[2].extTypeName));
+  tstrncpy(columns_[3].colName, "val", sizeof(columns_[3].colName));
+  tstrncpy(columns_[3].extTypeName, "TIMESTAMP(9)", sizeof(columns_[3].extTypeName));
+  meta_.numOfCols = 4;
+  meta_.tsPrecision = TSDB_TIME_PRECISION_NANO;
+  taosArrayPopTailBatch(req_.bindings, 1);
+
+  SStreamExtOrigTblReaderBinding plain = {};
+  plain.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  plain.expectedType = TSDB_DATA_TYPE_TIMESTAMP;
+  tstrncpy(plain.externalColumn, "val", sizeof(plain.externalColumn));
+  ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &plain));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  bool foundUpper = false;
+  for (int32_t i = 0; i < spec_->numCalcMappings; ++i) {
+    if (strcmp(spec_->pCalcMappings[i].colName, "VAL") == 0) {
+      foundUpper = true;
+    }
+    EXPECT_STRNE(spec_->pCalcMappings[i].colName, "val");
+  }
+  EXPECT_TRUE(foundUpper);
+}
+
+// Mapping slots are matched by the resolved spelling, not by the provider's fold rule: an Oracle
+// table can hold both TS and a quoted "ts", and folding the second binding onto the primary
+// timestamp's slot would have the reader fetch TS for a virtual column bound to "ts" - a wrong
+// value the type check cannot notice because both columns are TIMESTAMP.
+TEST_F(MndStreamExtReaderSchemaTest, KeepsCaseSiblingTimestampColumnsInSeparateSlots) {
+  source_.type = EXT_SOURCE_ORACLE;
+  req_.sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
+  tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
+  tstrncpy(req_.identity.tableName, "metrics_ts_case", sizeof(req_.identity.tableName));
+  // The quoted lower-case column is listed first so the lookup resolves it exactly; the folded
+  // primary timestamp column comes second.
+  tstrncpy(columns_[0].colName, "ts", sizeof(columns_[0].colName));
+  tstrncpy(columns_[0].extTypeName, "TIMESTAMP(6)", sizeof(columns_[0].extTypeName));
+  columns_[0].isRemotePrimaryKey = false;
+  tstrncpy(columns_[1].colName, "TS", sizeof(columns_[1].colName));
+  tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
+  columns_[1].isRemotePrimaryKey = true;
+  tstrncpy(columns_[2].colName, "V", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].extTypeName, "BINARY_DOUBLE", sizeof(columns_[2].extTypeName));
+  meta_.numOfCols = 3;
+  meta_.tsPrecision = TSDB_TIME_PRECISION_MICRO;
+  taosArrayPopTailBatch(req_.bindings, 1);
+
+  SStreamExtOrigTblReaderBinding sideTs = {};
+  sideTs.kind = STREAM_EXT_ORIGTBL_READER_BINDING_CALC;
+  sideTs.expectedType = TSDB_DATA_TYPE_TIMESTAMP;
+  tstrncpy(sideTs.externalColumn, "ts", sizeof(sideTs.externalColumn));
+  ASSERT_NE(nullptr, taosArrayPush(req_.bindings, &sideTs));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, build());
+  ASSERT_NE(nullptr, spec_);
+  ASSERT_EQ(spec_->numCalcMappings, 2);
+  EXPECT_STREQ("TS", spec_->pCalcMappings[0].colName);
+  EXPECT_STREQ("ts", spec_->pCalcMappings[1].colName);
 }
 
 TEST(MndStreamExtReaderDeployTest, BuildsSpecAndConfirmsCompatibleBindingsFromSchema) {

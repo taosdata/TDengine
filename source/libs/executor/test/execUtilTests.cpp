@@ -78,6 +78,10 @@ SDmNotifyHandle dmNotifyHdl = {};
 #include "tref.h"
 #include "trpc.h"
 #include "windowfunc.h"
+#ifdef USE_ANALYTICS
+#include "tanalytics.h"
+#include "tpagedbuf.h"
+#endif
 
 namespace {
 
@@ -28394,3 +28398,99 @@ TEST(SortSpillSecurityTest, RowIdFileRoundTripAcrossReadBlocks) {
   EXPECT_EQ(tsortNextTuple(handle, &tuple), 0);
   EXPECT_EQ(tuple, nullptr);
 }
+
+#ifdef USE_ANALYTICS
+namespace {
+int32_t anomalyResetCleanupCalls = 0;
+
+int32_t anomalyResetAlgoUrl(const char *, EAnalyAlgoType, char *url, int32_t urlLen) {
+  tstrncpy(url, "http://127.0.0.1:1/anomaly-detect", urlLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+void anomalyResetFunctionCleanup(SqlFunctionCtx *ctx) {
+  ++anomalyResetCleanupCalls;
+  // Function cleanup must run while its aggregate result buffer is still alive.
+  ASSERT_NE(ctx->saveHandle.pBuf, nullptr);
+  EXPECT_GT(getBufPageSize(ctx->saveHandle.pBuf), 0);
+}
+
+class AnomalyWindowResetTest : public testing::TestWithParam<bool> {
+ protected:
+  void SetUp() override {
+    savedTempSpace = tsTempSpace;
+    tstrncpy(savedTempDir, tsTempDir, sizeof(savedTempDir));
+    tsTempSpace.size.avail = 1024 * 1024;
+    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    ASSERT_EQ(fmFuncMgtInit(), TSDB_CODE_SUCCESS);
+    stub.set(taosAnalyGetAlgoUrl, anomalyResetAlgoUrl);
+    anomalyResetCleanupCalls = 0;
+    task.id.str = const_cast<char *>("anomaly-reset-test");
+    task.window = {INT64_MIN, INT64_MAX};
+
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY, reinterpret_cast<SNode **>(&plan)), 0);
+    plan->window.node.pOutputDataBlockDesc = createInterpMergeTestDesc(kExtWinFactoryOutputBlockId);
+    ASSERT_NE(plan->window.node.pOutputDataBlockDesc, nullptr);
+    auto *slot = reinterpret_cast<SSlotDescNode *>(nodesListGetNode(plan->window.node.pOutputDataBlockDesc->pSlots, 0));
+    slot->dataType.type = TSDB_DATA_TYPE_BIGINT;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &plan->window.pTspk), 0);
+    auto *timestamp = reinterpret_cast<SColumnNode *>(plan->window.pTspk);
+    timestamp->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    timestamp->node.resType.bytes = sizeof(int64_t);
+    timestamp->dataBlockId = kExtWinFactoryInputBlockId;
+    timestamp->slotId = 0;
+    tstrncpy(plan->anomalyOpt, "algo=ksigma,wncheck=0", sizeof(plan->anomalyOpt));
+
+    // Reuse the factory helpers to build a numeric input and a real count expression.
+    SExternalWindowPhysiNode expressions = {};
+    ASSERT_EQ(appendExternalWindowTarget(&expressions, "count", false, false), 0);
+    plan->window.pFuncs = expressions.window.pFuncs;
+    auto *target = reinterpret_cast<STargetNode *>(nodesListGetNode(plan->window.pFuncs, 0));
+    auto *function = reinterpret_cast<SFunctionNode *>(target->pExpr);
+    SNode *key = nullptr;
+    ASSERT_EQ(nodesCloneNode(nodesListGetNode(function->pParameterList, 0), &key), 0);
+    ASSERT_EQ(nodesListMakeStrictAppend(&plan->pAnomalyKeys, key), 0);
+    if (GetParam()) {
+      ASSERT_EQ(appendExternalWindowTarget(&expressions, nullptr, true, false), 0);
+      plan->window.pExprs = expressions.window.pProjs;
+    }
+    ASSERT_EQ(createAnomalywindowOperatorInfo(nullptr, reinterpret_cast<SPhysiNode *>(plan), &task, &op), 0);
+  }
+
+  void TearDown() override {
+    destroyOperator(op);
+    nodesDestroyNode(reinterpret_cast<SNode *>(plan));
+    fmFuncMgtDestroy();
+    tsTempSpace = savedTempSpace;
+    tstrncpy(tsTempDir, savedTempDir, PATH_MAX);
+  }
+
+  Stub                    stub;
+  SExecTaskInfo           task = {};
+  SAnomalyWindowPhysiNode *plan = nullptr;
+  SOperatorInfo          *op = nullptr;
+  SDiskSpace              savedTempSpace = {};
+  char                    savedTempDir[PATH_MAX] = {};
+};
+
+TEST_P(AnomalyWindowResetTest, ReleasesExpressionsBeforeRebuildingWindowState) {
+  for (int32_t i = 0; i < 10; ++i) {
+    ASSERT_NE(op->exprSupp.pCtx, nullptr);
+    ASSERT_EQ(op->exprSupp.numOfExprs, 1);
+    EXPECT_TRUE(op->exprSupp.hasWindowOrGroup);
+    EXPECT_TRUE(op->exprSupp.pCtx[0].hasWindowOrGroup);
+    op->exprSupp.pCtx[0].fpSet.cleanup = anomalyResetFunctionCleanup;
+    ASSERT_EQ(op->fpSet.resetStateFn(op), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(anomalyResetCleanupCalls, i + 1);
+  }
+  EXPECT_TRUE(op->exprSupp.hasWindowOrGroup);
+  EXPECT_TRUE(op->exprSupp.pCtx[0].hasWindowOrGroup);
+  op->exprSupp.pCtx[0].fpSet.cleanup = anomalyResetFunctionCleanup;
+  destroyOperator(op);
+  op = nullptr;
+  EXPECT_EQ(anomalyResetCleanupCalls, 11);
+}
+
+INSTANTIATE_TEST_SUITE_P(WithAndWithoutScalarExpressions, AnomalyWindowResetTest, testing::Bool());
+}  // namespace
+#endif

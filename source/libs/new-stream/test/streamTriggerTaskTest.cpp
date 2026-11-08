@@ -26399,7 +26399,7 @@ TEST(StreamTriggerExternalIdentityTest, IgnoreOutdatedIdentityResponse) {
 }
 
 TEST(StreamTriggerExternalIdentityTest, RejectUnknownSourceType) {
-  for (int8_t sourceType : {static_cast<int8_t>(-1), static_cast<int8_t>(EXT_SOURCE_SQLSERVER + 1)}) {
+  for (int8_t sourceType : {static_cast<int8_t>(-1), static_cast<int8_t>(EXT_SOURCE_ORACLE + 1)}) {
     SStreamTriggerTask task = {};
     SStreamMgmtRsp response = {};
     SStreamExtSourceIdentityRsp identity = {};
@@ -26472,7 +26472,7 @@ TEST_P(StreamTriggerExternalSourceIdentityTest, ResolveIdentityThenRequestNextRe
 
 INSTANTIATE_TEST_SUITE_P(SupportedSources, StreamTriggerExternalSourceIdentityTest,
                         testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL, EXT_SOURCE_INFLUXDB,
-                                        EXT_SOURCE_TDENGINE, EXT_SOURCE_SQLSERVER));
+                                        EXT_SOURCE_TDENGINE, EXT_SOURCE_SQLSERVER, EXT_SOURCE_ORACLE));
 
 TEST(StreamTriggerExternalRegistryTest, BuildsDeterministicCanonicalRegistryAndBindings) {
   SStreamExtSourceIdentityReq first = {};

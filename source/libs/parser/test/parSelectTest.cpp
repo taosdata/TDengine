@@ -483,6 +483,171 @@ TEST_F(ParserSelectTest, correlatedExternalSourceIsRejected) {
 #endif
 }
 
+// TDengine removes the outer backticks while building the AST, so the quoted
+// reference below carries two literal double quotes.  MySQL permits both `v`
+// and `"v"` as distinct column names; binding must preserve those bytes rather
+// than stripping them as representation quotes.
+TEST_F(ParserSelectDdlTest, mysqlColumnNameWithLiteralQuotesBindsExactColumn) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"v", TSDB_DATA_TYPE_BIGINT, false, true, false, "bigint"},
+      {"\"v\"", TSDB_DATA_TYPE_BIGINT, false, true, false, "bigint"},
+  };
+  g_mockCatalogService->createExtSource("ext_mysql_quoted", EXT_SOURCE_MYSQL, "127.0.0.1", 3306,
+                                        "fake_user", "fake_db");
+  g_mockCatalogService->createExtTable("ext_mysql_quoted", "fake_db", "", "metrics", columns,
+                                       TSDB_TIME_PRECISION_MILLI);
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
+    ASSERT_EQ(1, LIST_LENGTH(select->pProjectionList));
+    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
+    EXPECT_STREQ("\"v\"", col->colName);
+    EXPECT_EQ(4, col->colId);
+  });
+  runAsyncOnly("SELECT `\"v\"` FROM ext_mysql_quoted.fake_db.metrics");
+#endif
+}
+
+// Column binding for a federated query keeps the rule of the main branch:
+// extColumnNameEqual() is applied candidate by candidate in catalog order, and
+// for Oracle that is oracleIdentMatches() - an exact spelling beats a folded one
+// only within the same candidate, and only an all-lower-case reference folds.
+// Representation quotes are never interpreted, so a reference that keeps them
+// resolves nothing (also main behaviour).
+//
+// Dropping the per-candidate rule is what broke the shipped federated query: a
+// fold-only comparison loses a lower-case column and a mixed-case column reached
+// through backticks (test_fq_18 oid-08 / oid-14).
+//
+// The harness lower-cases the whole statement (setParseContext()), so a
+// mixed-case reference cannot be expressed here; test_fq_18 oid-14 covers that
+// spelling end to end.
+TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsMainRules) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "test");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"val", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"},
+      {"VAL", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+  };
+  g_mockCatalogService->createExtSource("ext_oracle_case", EXT_SOURCE_ORACLE, "127.0.0.1", 1521,
+                                        "fake_user", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_case", columns,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  int8_t expectedType = TSDB_DATA_TYPE_VARCHAR;
+  setCheckDdlFunc([&expectedType](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
+    ASSERT_EQ(1, LIST_LENGTH(select->pProjectionList));
+    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
+    EXPECT_EQ(expectedType, col->node.resType.type);
+  });
+  // The lower-case column is listed first, so it wins the exact comparison.
+  runAsyncOnly("SELECT val FROM ext_oracle_case.metrics_case");
+  // A reference that keeps its Oracle quotes is not resolved, as on main.
+  runAsyncOnly("SELECT `\"val\"` FROM ext_oracle_case.metrics_case",
+               TSDB_CODE_PAR_INVALID_COLUMN);
+
+  // Catalog order decides between two candidates that both match: with VAL
+  // listed first the plain reference folds onto it, which is what main also
+  // does.  There is deliberately no exact-match pass across candidates.
+  std::vector<MockCatalogService::MockExtColDef> upperFirst = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"VAL", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+      {"val", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper_first", upperFirst,
+                                       TSDB_TIME_PRECISION_MICRO);
+  expectedType = TSDB_DATA_TYPE_BIGINT;
+  runAsyncOnly("SELECT val FROM ext_oracle_case.metrics_upper_first");
+
+  // The folding rule still applies when only the upper-case column exists.
+  std::vector<MockCatalogService::MockExtColDef> upperOnly = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"UPPER", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper", upperOnly,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
+    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
+    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
+    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
+    EXPECT_EQ(TSDB_DATA_TYPE_BIGINT, col->node.resType.type);
+  });
+  runAsyncOnly("SELECT upper FROM ext_oracle_case.metrics_upper");
+#endif
+}
+
+// Vtable column references resolve exactly like a query column and like the
+// main branch: the exact spelling wins over the folded one, representation
+// quotes are not interpreted, and Oracle folds only an all-lower-case reference.
+// A quoted reference therefore resolves nothing, while the plain spelling binds
+// the lower-case column instead of folding onto VAL.
+TEST_F(ParserSelectDdlTest, oracleVtableBindingKeepsMainRules) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  login("root");
+  g_mockCatalogService->createDatabase("vcase", false, 0, TSDB_TIME_PRECISION_MICRO);
+  useDb("root", "vcase");
+  FederatedFlagGuard guard;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"VAL", TSDB_DATA_TYPE_TINYINT, false, true, false, "NUMBER(1,0)"},
+      {"val", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(18,0)"},
+  };
+  g_mockCatalogService->createExtSource("ext_oracle_case", EXT_SOURCE_ORACLE, "127.0.0.1", 1521,
+                                        "fake_user", "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_vcase", columns,
+                                       TSDB_TIME_PRECISION_MICRO);
+
+  // A reference that keeps its Oracle quotes is not resolved.
+  runAsyncOnly("create vtable v_case_quoted (ts timestamp, value bigint from "
+               "ext_oracle_case.metrics_vcase.`\"val\"`)",
+               TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  // The plain spelling wins the exact comparison, so it binds the lower-case
+  // BIGINT column rather than folding onto the TINYINT VAL above it.
+  runAsyncOnly("create vtable v_case_plain (ts timestamp, value bigint from "
+               "ext_oracle_case.metrics_vcase.val)");
+  // Declaring the folded column's type against the exact column is a mismatch.
+  runAsyncOnly("create vtable v_case_plain_wrong_type (ts timestamp, value tinyint from "
+               "ext_oracle_case.metrics_vcase.val)",
+               TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE);
+
+  // The precision gate covers the source time axis only, as on the main branch:
+  // a TIMESTAMP(9) side column is bound into this microsecond virtual table
+  // without an error.  That gap is inherited from main and tracked separately.
+  std::vector<MockCatalogService::MockExtColDef> sideColumns = {
+      {"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"},
+  };
+  g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_side", sideColumns,
+                                       TSDB_TIME_PRECISION_NANO);
+  runAsyncOnly("create vtable v_case_side_ts (ts timestamp, event_ts timestamp from "
+               "ext_oracle_case.metrics_side.EVENT_TS)");
+#endif
+}
+
 TEST_F(ParserSelectDdlTest, nonCorrelatedAggregateKeepsRemoteValue) {
   useDb("root", "test");
   setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {

@@ -251,6 +251,8 @@ macro(DEP_ext_gtest tgt)
         target_link_libraries(${tgt} PUBLIC GTest::gtest GTest::gtest_main)
         target_compile_features(${tgt} PUBLIC cxx_std_11)
         target_link_libraries(${tgt} PRIVATE Threads::Threads)
+        # Optional shared server engine (see cmake/test-shared-engine.cmake).
+        td_test_link_shared_engine(${tgt})
     endif()
 endmacro()
 

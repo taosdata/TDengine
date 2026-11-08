@@ -17,6 +17,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sync.h"
+#include "tdTestSeam.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
 #include "syncCommit.h"
@@ -599,6 +600,7 @@ bool syncNodeIsReadyForRead(SSyncNode* pSyncNode) {
 }
 
 bool syncIsReadyForRead(int64_t rid) {
+  TD_SEAM_RET(syncIsReadyForRead, bool (*)(int64_t), (rid));
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     sError("sync ready for read error");

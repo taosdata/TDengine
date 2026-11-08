@@ -13,17 +13,17 @@ import NeuronOneClick from './resource/_neuron-one-click.mdx'
 
 This guide describes three ways to write data collected by Neuron to TDengine:
 
-- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
+- **Install-time onboarding**: For environments where NeuronEX Enterprise is not yet installed. The installation command installs NeuronEX, activates its license, registers it with taosExplorer, creates the `neuron` business database, the `neuron_demo` demo database, and four demo devices, and configures the write path. No operation in taosExplorer is required after installation.
 - **One-click onboarding**: For environments where Neuron or NeuronEX is already deployed. On the **Data In → Data Collection Agents → Neuron** page in taosExplorer, enter the Neuron address and credentials; taosExplorer automatically configures the data stream, processing rules, and collection subscriptions.
 - **Manual onboarding**: For environments where Neuron or NeuronEX is already deployed and you need custom tags, business attributes, or data transformation. Manually configure the data stream, processing rule, and InfluxDB v1 write action in the NeuronEX interface.
 
-| Method | Neuron preinstalled? | Use case | taosExplorer operation |
-| --- | --- | --- | --- |
-| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None |
-| One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard |
-| Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration |
+| Method | Neuron preinstalled? | Use case | taosExplorer operation | License activation |
+| --- | --- | --- | --- | --- |
+| Install-time onboarding | No | NeuronEX Enterprise not yet installed | None | Automatic |
+| One-click onboarding | Yes | Neuron or NeuronEX already deployed | Wizard | User-managed |
+| Manual onboarding | Yes | Already deployed; custom tags or transformation needed | Manual configuration | User-managed |
 
-All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license.
+All three methods share the same data plane: Neuron sends collection reports to eKuiper; eKuiper extracts measurement columns and tags, encodes them as Influx line protocol, and writes them to TDengine in batches; schemaless writes automatically create the supertable and subtables. This integration can ingest the industrial protocols supported by Neuron: more than 70 by protocol family, and more than 100 when PLC sub-series and similar drivers are counted separately. Named entries are listed in [Driver Details](#driver-details). After you purchase TDengine TSDB-Enterprise, Taos Data can procure the EMQX Neuron software license; install-time onboarding automatically activates the license provided with the Enterprise package or specified in the installation parameters.
 
 <figure style={{width: 'fit-content', margin: '0 auto'}}>
 
@@ -45,6 +45,8 @@ Install-time onboarding relies on the `apex` tool, which is not yet released. It
 :::
 
 This section applies to environments where NeuronEX Enterprise is not yet installed. The installation automatically creates the business database `neuron`, the demo database `neuron_demo`, four demo devices, and the collection group `meters`. After installation, you can view the result directly in taosExplorer without creating an integration there. To connect real devices, continue adding devices, collection groups, and tags in NeuronEX. Before configuring devices, review the [Data Mapping and Collection Configuration Guidelines](#appendix-data-mapping-and-collection-configuration-guidelines).
+
+The installation also imports and activates the NeuronEX license automatically, so you do not need to upload it manually in NeuronEX. If no valid license is provided, NeuronEX uses the built-in 30-tag free license and the installation still completes; add a license when you exceed the free quota or need the full data-processing capability. The license scope, expiration, and hardware binding are shown on the **Administration → License** page in NeuronEX.
 
 The installation command is provided by the `apex` tool in the TDengine Enterprise package; you do not need to install NeuronEX separately.
 
@@ -70,6 +72,7 @@ The installation automatically performs the following work:
 
 - Install and start NeuronEX; the default web port is `8085`.
 - Register NeuronEX with the local taosExplorer.
+- Import and activate the NeuronEX license; after installation, view the activation status, expiration date, and tag quota under **Administration → License** in NeuronEX.
 - Create the business database `neuron` (`--database`, default `neuron`); reuse it if it already exists.
 - Create the demo database `neuron_demo` (`--database-demo`, default `neuron_demo`); reuse it if it already exists.
 - Create four Modbus simulator devices, `demo_meter01` through `demo_meter04`, all in the `meters` collection group and writing to `neuron_demo`.
@@ -565,8 +568,9 @@ These results support capacity planning and do not represent TDengine's write li
 | --- | --- |
 | No integration record appears in taosExplorer after install-time onboarding | Confirm the installation command succeeded. For same-host installation, check the local taosExplorer; for cross-host installation, check the taosExplorer at `--tdengine-host`. Review the installation output and taosExplorer logs |
 | The status remains "Configuration Preserved; Verification Pending" after install-time onboarding | Confirm the four demo devices are running and connected; check whether **Data Monitoring** in NeuronEX shows data, and review taosExplorer logs |
+| NeuronEX still shows the 30-tag free license after installation | Confirm that the installation package or parameters provide a valid license. Check **Hardware Token**, **Expire At**, and **Tags Usage** under **Administration → License** in NeuronEX. If the license is not active, upload it manually or re-run the installation command |
 | Forgot the NeuronEX administrator password | Run `sudo cat /var/lib/apex/neuronex-admin-password` to view the password generated during installation |
-| Data stops after changing the NeuronEX password | Re-run the installation command and pass the new password with `--neuron-password-file` to update the credentials in taosExplorer |
+| Data stops after changing the NeuronEX password | Update the credentials on the taosExplorer integration detail page (**Edit Configuration**), or re-run the installation command and pass the new password with `--neuron-password-file` |
 | One-click onboarding reports "No acquisition groups with readable points were found" | Configure device collection in Neuron first; confirm devices are running and connected, with tag values visible in **Data Monitoring** |
 | One-click onboarding fails with a subtable name conflict | The subtable name conflicts with an existing table in the database; set a **Table Name Prefix** for the integration to distinguish it, and confirm that same-named measurement columns have compatible types |
 | Data stops being written after the TDengine password is changed | Click **Refresh Configuration** on the integration detail page to update the rules with the current login credentials |

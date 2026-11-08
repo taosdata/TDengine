@@ -4575,8 +4575,50 @@ static int32_t vnodeProcessAlterConfirmReq(SVnode *pVnode, int64_t ver, void *pR
 _exit:
   pRsp->msgType = TDMT_VND_ALTER_CONFIRM_RSP;
   pRsp->code = code;
-  pRsp->pCont = NULL;
-  pRsp->contLen = 0;
+  // The alter-confirm is a sync write that only succeeds on the vgroup leader, so the vnode that
+  // answers is the leader. Report its dnodeId so the mnode can stamp the vgroup's leader without
+  // waiting for the next heartbeat. See mndTransProcessRsp / mndTransSendRpcRsp.
+  if (code == TSDB_CODE_SUCCESS) {
+    SAlterVnodeConfirmRsp rsp = {0};
+    // Initialize up front so a serialization/allocation failure below never leaves pRsp->pCont
+    // carrying an uninitialized value if the caller reused an SRpcMsg (see OpenCodeReview note).
+    pRsp->pCont = NULL;
+    pRsp->contLen = 0;
+    // Report the LOCAL node's dnodeId (the vgroup leader that answered the sync-write confirm),
+    // not nodeInfo[0]: nodeInfo[0] is merely the first replica in the sync config and is unrelated
+    // to which node this vnode is. The local node's position is syncCfg.myIndex (see vnodeOpen.c).
+    // Using nodeInfo[0] would mark the wrong replica as LEADER on replica>1 and leave the real
+    // leader as FOLLOWER, so `show cluster alive` would still report 2 (see mndTransSendRpcRsp).
+    // Guard myIndex against a corrupt/partial config: totalReplicaNum is the size of the nodeInfo
+    // array (vnodeCfg.c:406), so an out-of-range myIndex would index nodeInfo out of bounds and
+    // report a garbage dnodeId, making the mnode mark the wrong replica as LEADER. In that case we
+    // send no dnodeId and let the mnode fall back to the next heartbeat.
+    int32_t myIndex = pVnode->config.syncCfg.myIndex;
+    if (myIndex < 0 || myIndex >= pVnode->config.syncCfg.totalReplicaNum) {
+      vWarn("vgId:%d, invalid myIndex:%d (totalReplicaNum:%d) when reporting alter-confirm leader",
+            TD_VID(pVnode), myIndex, pVnode->config.syncCfg.totalReplicaNum);
+    } else {
+      rsp.dnodeId = pVnode->config.syncCfg.nodeInfo[myIndex].nodeId;
+      int32_t contLen = tSerializeSAlterVnodeConfirmRsp(NULL, 0, &rsp);
+      if (contLen <= 0) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        vWarn("vgId:%d, failed to serialize alter-confirm rsp, len:%d", TD_VID(pVnode), contLen);
+      } else {
+        void *pBody = rpcMallocCont(contLen);
+        if (pBody == NULL) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+        } else if (tSerializeSAlterVnodeConfirmRsp(pBody, contLen, &rsp) <= 0) {
+          rpcFreeCont(pBody);
+        } else {
+          pRsp->pCont = pBody;
+          pRsp->contLen = contLen;
+        }
+      }
+    }
+  } else {
+    pRsp->pCont = NULL;
+    pRsp->contLen = 0;
+  }
 
   return code;
 }

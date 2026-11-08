@@ -23,9 +23,10 @@ Real CREATE STREAM grammar (from removed reference tests + FS §9):
       INTO   <local_db>.<sink>
       AS SELECT _twstart AS ts, ... FROM %%trows [JOIN <ext>.<...>.<tbl>] ...;
 
-Three-segment external reference uses the *remote* db / schema created by
-``_with_std_sources`` (``{prefix}_{m,p,i}db``); PG middle segment is the
-schema (``public``).
+Three-segment external reference uses the *remote* namespace created by
+``_with_std_sources``: ``{prefix}_{m,i}db`` for MySQL/InfluxDB, ``public``
+for PostgreSQL, ``dbo`` for SQL Server, and the login schema (e.g.
+``TAOSDATA``) for Oracle.
 
 Cases:
   FS-UC-001  Periodic summary: ext-driven INTERVAL stream over external metric.
@@ -59,7 +60,7 @@ from fs_common import (  # noqa: E402
 
 
 def _mid_segment(prefix: str, src_name: str) -> str:
-    """For src '{prefix}_{m|p|s|i}', return remote db (mysql/influx) or schema (pg/sqlserver)."""
+    """For src '{prefix}_{m|p|s|i|o}', return remote db (mysql/influx) or schema (pg/sqlserver/oracle)."""
     suffix = src_name[-1]
     if suffix == "p":
         return "public"
@@ -67,6 +68,12 @@ def _mid_segment(prefix: str, src_name: str) -> str:
         # SQL Server 3-segment refs carry the schema in the middle segment;
         # the database comes from the source default (DS §5.3.3).
         return "dbo"
+    if suffix == "o":
+        # Oracle exposes a single namespace level: the login schema, folded to
+        # upper case like every unquoted Oracle identifier.  There is no
+        # per-test database — the source's default service (ORCL) is the
+        # connection target.
+        return ExtSrcEnv.ORACLE_USER.upper()
     return f"{prefix}_{suffix}db"
 
 
@@ -1109,11 +1116,12 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle IS supported by the ext trigger reader (streamReaderExt.c handles
+        # EXT_SOURCE_ORACLE, and streamTriggerTask's identity check admits every
+        # source type up to EXT_SOURCE_ORACLE), so this case provisions both the
+        # SQL Server and the Oracle leg.  The Oracle namespace is one level deep:
+        # the middle segment of the 3-part reference is the login schema.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (two-phase verify)
@@ -1169,11 +1177,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1213,11 +1219,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1258,11 +1262,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Periodic summary, ext-driven (single-batch verify)
@@ -1303,11 +1305,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_mysql=False,
-                               skip_pg=False, skip_influx=False, skip_oracle=True)
+        # Oracle is supported by the ext trigger reader, so every standard
+        # source (MySQL/PostgreSQL/InfluxDB/SQL Server/Oracle) is provisioned.
+        self._with_std_sources(prefix, body)
 
     # ------------------------------------------------------------------
     # FS-UC-001 — Explicit namespace without a source-level default

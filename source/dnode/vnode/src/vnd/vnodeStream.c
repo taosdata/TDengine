@@ -6219,8 +6219,15 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
     handle.cacheSttStatis = true;
 
     initStorageAPI(&handle.api);
-    if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == scanType || QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == scanType) {
-      STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pTimeRange;
+    SPhysiNode* pScanNode = sStreamReaderCalcInfo->calcAst->pNode;
+    // Virtual-table partial aggregates execute with their source scan in one
+    // Reader. Evaluate that scan's runtime bounds before creating the task.
+    if (QUERY_NODE_PHYSICAL_PLAN_HASH_AGG == scanType && LIST_LENGTH(pScanNode->pChildren) == 1) {
+      pScanNode = (SPhysiNode*)nodesListGetNode(pScanNode->pChildren, 0);
+    }
+    if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pScanNode) ||
+        QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == nodeType(pScanNode)) {
+      STimeRangeNode* node = (STimeRangeNode*)((STableScanPhysiNode*)pScanNode)->pTimeRange;
       if (node != NULL) {
         STREAM_CHECK_RET_GOTO(processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle, false, TD_VID(pVnode),
                                                    req.readerGroupMode ? &readRanges : NULL));
@@ -6228,14 +6235,13 @@ static int32_t vnodeProcessStreamFetchMsg(SVnode* pVnode, SRpcMsg* pMsg, SQueueI
         ST_TASK_DLOG("vgId:%d %s no scan time range node", TD_VID(pVnode), __func__);
       }
 
-      node = (STimeRangeNode*)((STableScanPhysiNode*)(sStreamReaderCalcInfo->calcAst->pNode))->pExtTimeRange;
+      node = (STimeRangeNode*)((STableScanPhysiNode*)pScanNode)->pExtTimeRange;
       if (node != NULL) {
         STREAM_CHECK_RET_GOTO(
             processCalaTimeRange(sStreamReaderCalcInfo, &req, node, &handle, true, TD_VID(pVnode), NULL));
       } else {
         ST_TASK_DLOG("vgId:%d %s no interp time range node", TD_VID(pVnode), __func__);
       }
-
     }
 
     TSWAP(sStreamReaderCalcInfo->rtInfo.funcInfo, *req.pStRtFuncInfo);

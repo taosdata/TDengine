@@ -318,8 +318,19 @@ static int32_t buildFedOutputSlotIdsFromScanCols(const SFederatedScanPhysiNode* 
         pScan->pScanCols != NULL && i < LIST_LENGTH(pScan->pScanCols)
             ? getFederatedOutputColumn((NULL != pScanColCell ? pScanColCell->pNode : NULL))
             : NULL;
-    if (TSDB_DATA_TYPE_TIMESTAMP == pSlot->dataType.type ||
-        (pOutputCol != NULL && (pOutputCol->isPrimTs || pOutputCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID))) {
+    // Only the PRIMARY timestamp column feeds the virtual table's time slot.
+    // A plain TIMESTAMP declaration is not enough: a virtual table/stable may
+    // carry secondary TIMESTAMP columns, and mapping those to the time slot
+    // overwrites ts with the secondary column and leaves its own slot NULL.
+    // The type check stays as a fallback for the cases where the producing
+    // expression is not a plain column (e.g. TBNAME) and the column identity
+    // cannot be recovered.
+    if (NULL != pOutputCol) {
+      if (pOutputCol->isPrimTs || pOutputCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pSlotIds[i] = tsSlotId;
+        continue;
+      }
+    } else if (TSDB_DATA_TYPE_TIMESTAMP == pSlot->dataType.type) {
       pSlotIds[i] = tsSlotId;
       continue;
     }

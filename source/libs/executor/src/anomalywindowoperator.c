@@ -88,6 +88,9 @@ static int32_t resetAnomalyWindowOperState(SOperatorInfo* pOper) {
 
   resetBasicOperatorState(&pInfo->binfo);
 
+  // Function cleanup may still access the aggregate result buffers.
+  cleanupExprSupp(&pOper->exprSupp);
+  pOper->exprSupp.hasWindowOrGroup = true;
   cleanupAggSup(&pInfo->aggSup);
   cleanupExprSupp(&pInfo->scalarSup);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);

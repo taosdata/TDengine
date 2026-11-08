@@ -219,10 +219,10 @@ static void getFullPathName(char *fullName, const char *logName) {
 // Try to set log permissions so restrictive umasks do not hide root's logs.
 // Keep writable logs usable when their permissions cannot be changed.
 static TdFilePtr taosOpenLogFile(const char *name, int32_t tdFileOptions) {
-  TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
+  TdFilePtr pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
   if (pFile == NULL && terrno == TAOS_SYSTEM_ERROR(ELOOP)) {
     TAOS_UNUSED(taosRemoveFile(name));
-    pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ);
+    pFile = taosOpenFile(name, tdFileOptions | TD_FILE_NOFOLLOW | TD_FILE_SHARE_READ | TD_FILE_SHARE_DELETE);
   }
 #ifndef WINDOWS
   if (pFile != NULL) {
@@ -432,9 +432,9 @@ static void taosReserveOldLog(char *oldName, char *keepName) {
     fileSec = ++tsLogObj.lastKeepFileSec;
   }
   snprintf(keepName, PATH_MAX + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
-  if ((code = taosRenameFile(oldName, keepName))) {
-    keepName[0] = 0;
+  if ((code = taosRenameFileEx(oldName, keepName, true))) {
     uError("failed to rename file:%s to %s since %s", oldName, keepName, tstrerror(code));
+    keepName[0] = 0;
   }
 }
 

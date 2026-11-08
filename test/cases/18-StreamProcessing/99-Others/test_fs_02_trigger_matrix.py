@@ -51,6 +51,7 @@ from federated_query_common import (  # noqa: E402
 sys.path.insert(0, "cases/18-StreamProcessing/99-Others")
 from fs_common import (  # noqa: E402
     ensure_snode,
+    oracle_insert_all_sql,
     wait_stream_window_closed,
     verify_sink_data,
 )
@@ -135,6 +136,20 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             ]
             ExtSrcEnv.influx_write_cfg(self._influx_cfg(), db_or_bucket, lines)
             tdLog.info(f"[{src_name}] wrote {len(rows)} InfluxDB trigger points")
+        elif suffix == "o":
+            # Oracle has one namespace level (the login schema), so there is no
+            # per-test database to target.  11g also has no multi-row VALUES
+            # list, so the batch goes through INSERT ALL.
+            insert_sql = oracle_insert_all_sql(rows, self._dt_str)
+            # *_exec_cfg(self._*_cfg()) keeps the write on the instance this
+            # run selected; the version-agnostic variant always takes the first
+            # configured generation, which is a different instance once two are
+            # deployed side by side.
+            ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [insert_sql, "COMMIT"])
+            tdLog.info(f"[{src_name}] inserted {len(rows)} Oracle trigger rows")
+        else:
+            raise RuntimeError(
+                f"_insert_ext_rows: unsupported source suffix '{suffix}' ({src_name})")
 
     def test_nested_external_trigger_rejected(self):
         """Nested WINDOW: a real external trigger catalog is rejected.
@@ -156,14 +171,18 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
         prefix = "nwext"
 
         def body(src_name: str):
-            # source.mid.table — mid is the schema for PG ("public") and SQL
-            # Server ("dbo"); the database comes from the source default
-            # (DS §5.3.3: a 3-segment SQL Server path fixes the middle
-            # segment as schema).  MySQL/InfluxDB take the db/bucket.
+            # source.mid.table — mid is the schema for PG ("public"), SQL
+            # Server ("dbo") and Oracle (the login schema; Oracle has a single
+            # namespace level, so there is no per-test database to name); the
+            # database comes from the source default (DS §5.3.3: a 3-segment
+            # path fixes the middle segment as schema).  MySQL/InfluxDB take
+            # the db/bucket.
             if src_name.endswith("_p"):
                 mid = "public"
             elif src_name.endswith("_s"):
                 mid = "dbo"
+            elif src_name.endswith("_o"):
+                mid = ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}_nested"
@@ -183,12 +202,10 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
                 tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
+        # The nested-window rejection is a plan-level rule, so it applies to
+        # every external source type including Oracle.
         self._with_std_sources(
-            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True,
-            skip_oracle=True
+            prefix, body, skip_pg=True, skip_influx=True, skip_sqlserver=True
         )
 
     # ------------------------------------------------------------------
@@ -227,6 +244,10 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
                 mid = "public"
             elif src_name.endswith("_s"):
                 mid = "dbo"
+            elif src_name.endswith("_o"):
+                # Oracle has a single namespace level - the login schema - so a
+                # per-test "<prefix>_odb" would name a schema that does not exist.
+                mid = ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}"
@@ -268,10 +289,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             tdSql.execute(f"DROP STREAM {stream}")
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
 
-        # Streams reject Oracle external tables (streamTriggerTask's identity
-        # check is fail-closed for types past SQL Server), so the stream
-        # matrices never provision an Oracle leg.
-        self._with_std_sources(prefix, body, skip_oracle=True)
+        # Streams over external sources include Oracle; every standard source
+        # is provisioned for this matrix.
+        self._with_std_sources(prefix, body)
 
     # FS-TM-001 PERIOD ----------------------------------------------------
     def test_tm_001_period(self):
