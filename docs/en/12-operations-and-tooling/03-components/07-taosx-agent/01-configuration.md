@@ -19,17 +19,41 @@ The taosX-Agent configuration file is located at `/etc/taos/agent.toml` (Linux) 
 
 ## Delivery Window and Timeout
 
-The following environment variables apply to tasks that use delivery protocol v2 to forward data from taosX-Agent to taosX. Set them in the taosX-Agent service process environment. They are not `agent.toml` or task DSN parameters. Restart the corresponding service after changing its environment; new tasks log the effective settings.
+Data that taosX-Agent has sent to taosX but that has not yet been confirmed as written is limited by the send window and the delivery timeout. Adjust them with the following environment variables:
 
 | Environment Variable | Default | Description |
 | --- | --- | --- |
-| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | `in_memory_cache_capacity`, normally `64` | Maximum number of uncommitted batches. Must be a positive integer |
-| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864` (64 MiB) | Estimated Arrow array bytes retained for uncommitted batches. Must be a positive integer. This is not a hard process RSS limit |
-| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | Delivery deadline for a sent but incomplete batch, in seconds. Must be a positive integer |
+| `TAOSX_AGENT_DELIVERY_MAX_BATCHES` | Same as `in_memory_cache_capacity` (default `64`) | Maximum number of batches waiting for confirmation. Must be a positive integer |
+| `TAOSX_AGENT_DELIVERY_MAX_BYTES` | `67108864` (64 MiB) | Estimated limit, in bytes, on the amount of data waiting for confirmation. Must be a positive integer. This value does not limit the total memory used by the process |
+| `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS` | `120` | Maximum time, in seconds, from sending a batch until it is confirmed. Must be a positive integer |
 
-When the window is full, intake waits for existing batches to complete while retaining batch delivery. A batch larger than the byte limit fails explicitly and is not split automatically. An idle source with no pending delivery does not time out, and heartbeats do not extend an existing batch deadline. Account for resource limits and target write latency when choosing a timeout.
+Set these variables in the environment of the taosX-Agent service. They cannot be written in `agent.toml` or in the data ingestion task configuration. Restart the taosX-Agent service after changing them. The task logs the effective values when it starts.
 
-Disconnections and delivery timeouts retain unconfirmed data and reconnect with backoff. Explicit writer, authentication, protocol, or configuration errors stop the task. Recovery requires a real batch outcome. See [Store and Forward](./02-store-and-forward.md#confirmation-and-failure-handling).
+For example, set them with systemd on Linux:
+
+```bash
+systemctl edit taosx-agent
+```
+
+Add the following content in the editor that opens, save it, and restart the service:
+
+```ini
+[Service]
+Environment="TAOSX_AGENT_DELIVERY_TIMEOUT_SECS=300"
+```
+
+```bash
+systemctl restart taosx-agent
+```
+
+Usage:
+
+- When the number of batches or the amount of data waiting for confirmation reaches its limit, taosX-Agent pauses sending new data and continues after the data already sent is confirmed.
+- If a single batch exceeds `TAOSX_AGENT_DELIVERY_MAX_BYTES`, the task reports an error. The batch is not split automatically. Increase this value if needed.
+- The delivery timeout applies only to data that has been sent and not yet confirmed. It is not triggered when the data source produces no new data for a long time.
+- If writes to TDengine are slow, or if [resource limits](#resource-limits) are configured, increase `TAOSX_AGENT_DELIVERY_TIMEOUT_SECS`.
+
+On a delivery timeout or network interruption, taosX-Agent keeps the unconfirmed data and reconnects automatically. Errors that cannot be recovered automatically, such as an authentication failure or a configuration error, stop the task. See [Store and Forward](./02-store-and-forward.md#confirmation-and-failure-handling) for how each case is handled.
 
 ## Resource Limits
 
