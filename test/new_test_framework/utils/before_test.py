@@ -267,6 +267,10 @@ class BeforeTest:
             }]
         }
         dnode_config_template = load_yaml_config(os.path.join(self.root_dir, 'env', 'taos_config.yaml'))
+        # The shared template uses a POSIX locale that Windows CRT rejects.
+        # Let taosd select its Windows default; case overrides are applied later.
+        if sys.platform == "win32" and dnode_config_template.get("locale") == "en_US.UTF-8":
+            dnode_config_template.pop("locale")
         # Apply the CI default before copying configs for nodes and case overrides.
         ci_memory_reserve = os.environ.get("CI_MIN_RESERVED_MEMORY_MB")
         if ci_memory_reserve is not None:
