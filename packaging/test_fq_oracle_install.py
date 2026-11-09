@@ -52,7 +52,7 @@ def _write(path: Path, text: str, mode: int = 0o644) -> None:
 
 @pytest.mark.parametrize("processor,override,expected", [
     ("x86_64", False, "oracle-instantclient-19.28.0.0.0-amd64.tar.gz"),
-    ("aarch64", False, "missing"),
+    ("aarch64", False, "oracle-instantclient-19.28.0.0.0-arm64.tar.gz"),
     ("riscv64", False, "missing"),
     ("aarch64", True, "arm64-client.tar.gz"),
 ])
