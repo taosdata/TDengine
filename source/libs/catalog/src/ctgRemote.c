@@ -100,9 +100,12 @@ int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBu
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    SCtgTask* pTask = taosArrayGet(pJob->pTasks, *taskId);
+    // Resolve by task id instead of using it as an array index: task creation
+    // from concurrent response handlers must never be able to route a batch
+    // reply to a neighbouring task.
+    SCtgTask* pTask = ctgGetTask(pJob, *taskId);
     if (NULL == pTask) {
-      ctgError("taosArrayGet %d SCtgTask failed, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
+      ctgError("fail to get catalog task:%d, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
@@ -537,9 +540,12 @@ int32_t ctgHandleMsgCallback(void* param, SDataBuf* pMsg, int32_t rspCode) {
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 
-    SCtgTask* pTask = taosArrayGet(pJob->pTasks, *taskId);
+    // Resolve by task id instead of using it as an array index: task creation
+    // from concurrent response handlers must never be able to route a batch
+    // reply to a neighbouring task.
+    SCtgTask* pTask = ctgGetTask(pJob, *taskId);
     if (NULL == pTask) {
-      ctgError("taosArrayGet %d SCtgTask failed, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
+      ctgError("fail to get catalog task:%d, total:%d", *taskId, (int32_t)taosArrayGetSize(pJob->pTasks));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 

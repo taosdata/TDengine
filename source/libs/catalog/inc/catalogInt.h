@@ -502,6 +502,7 @@ typedef struct SCtgJob {
   SHashObj* pBatchs;
   SHashObj* pDbShortNameMap;  // key: short db name, value: full db name
   SArray*   pTasks;
+  SArray*   pRetiredTaskBufs;  // old pTasks buffers kept alive until job free, see ctgGrowTaskArray
   int32_t   subTaskNum;
   int32_t   taskDone;
   SMetaData jobRes;
@@ -1323,6 +1324,7 @@ void    ctgFreeSTableMetaOutput(STableMetaOutput* pOutput);
 int32_t ctgUpdateMsgCtx(SCtgMsgCtx* pCtx, int32_t reqType, void* out, char* target);
 int32_t ctgAddMsgCtx(SArray* pCtxs, int32_t reqType, void* out, char* target);
 char*   ctgTaskTypeStr(CTG_TASK_TYPE type);
+SCtgTask* ctgGetTask(SCtgJob* pJob, int32_t taskId);
 int32_t ctgUpdateSendTargetInfo(SMsgSendInfo* pMsgSendInfo, int32_t msgType, char* dbFName, int32_t vgId);
 int32_t ctgGetTablesReqNum(SArray* pList);
 int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fetchIdx, int32_t resIdx, int32_t flag);

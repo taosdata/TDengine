@@ -1222,6 +1222,17 @@ void ctgFreeJob(void* job) {
   uint64_t qid = pJob->queryId;
 
   ctgFreeTasks(pJob->pTasks, pJob->jobRes.ctgFree);
+  if (NULL != pJob->pRetiredTaskBufs) {
+    int32_t bufNum = taosArrayGetSize(pJob->pRetiredTaskBufs);
+    for (int32_t i = 0; i < bufNum; ++i) {
+      void** ppBuf = taosArrayGet(pJob->pRetiredTaskBufs, i);
+      if (NULL != ppBuf) {
+        taosMemoryFree(*ppBuf);
+      }
+    }
+    taosArrayDestroy(pJob->pRetiredTaskBufs);
+    pJob->pRetiredTaskBufs = NULL;
+  }
   ctgFreeBatchs(pJob->pBatchs);
   taosHashCleanup(pJob->pDbShortNameMap);
 
@@ -2194,7 +2205,8 @@ int32_t ctgAddFetch(SArray** pFetchs, int32_t dbIdx, int32_t tbIdx, int32_t* fet
 int32_t ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch, SName** ppName) {
   STablesReq* pReq = (STablesReq*)taosArrayGet(pNames, pFetch->dbIdx);
   if (NULL == pReq) {
-    qError("fail to get the %dth tb in pTables, tbNum:%d", pFetch->tbIdx, (int32_t)taosArrayGetSize(pReq->pTables));
+    qError("fail to get the %dth db request in pNames, dbNum:%d", pFetch->dbIdx,
+           (int32_t)taosArrayGetSize(pNames));
     return TSDB_CODE_CTG_INTERNAL_ERROR;
   }
 
