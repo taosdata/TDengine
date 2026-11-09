@@ -1156,6 +1156,11 @@ int32_t ctgGetCachedStbNameFromSuid(SCatalog* pCtg, char* dbFName, uint64_t suid
 
 
 int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExists, bool *inCache, SCtgAuthRsp *pRes) {
+  return ctgChkAuthFromCacheWithMeta(pCtg, pReq, tbNotExists, NULL, inCache, pRes);
+}
+
+int32_t ctgChkAuthFromCacheWithMeta(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExists, const STableMeta *pFetchedMeta,
+                                    bool *inCache, SCtgAuthRsp *pRes) {
   int32_t code = 0;
 
   SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, pReq->user, strlen(pReq->user));
@@ -1173,6 +1178,7 @@ int32_t ctgChkAuthFromCache(SCatalog *pCtg, SUserAuthInfo *pReq, bool tbNotExist
   req.pRawReq = pReq;
   req.onlyCache = true;
   req.tbNotExists = tbNotExists;
+  req.pFetchedMeta = pFetchedMeta;
 
   CTG_LOCK(CTG_READ, &pUser->lock);
   TAOS_MEMCPY(&req.authInfo, &pUser->userAuth, sizeof(pUser->userAuth));

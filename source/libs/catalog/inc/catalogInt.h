@@ -181,6 +181,9 @@ typedef struct SCtgAuthReq {
   EPrivType         singleType;
   bool              onlyCache;
   bool              tbNotExists;
+  // Table meta that a GET_TB_META sub task of this very auth check has just fetched (NULL if none). The check uses
+  // it before it looks into the cache, so that its result does not depend on the fetched meta still being there.
+  const STableMeta* pFetchedMeta;
 } SCtgAuthReq;
 
 typedef struct SCtgAuthRsp {
@@ -280,9 +283,16 @@ typedef struct SCtgUdfCtx {
   char udfName[TSDB_FUNC_NAME_LEN];
 } SCtgUdfCtx;
 
+// A user auth check that finds the table meta (or the super table name of a child table) missing in the cache fetches
+// the table meta and decides on what the fetch returned. If that is not enough, it fetches once more with
+// CTG_FLAG_FORCE_UPDATE, which bypasses the finished sub task of the first fetch and refreshes the cache. The callback
+// of a finished sub task runs on the same stack, so any further launch is refused instead of recursing.
+#define CTG_USER_META_FETCH_MAX 2
+
 typedef struct SCtgUserCtx {
   SUserAuthInfo user;
   int32_t       subTaskCode;
+  int8_t        metaFetchTimes;
 } SCtgUserCtx;
 
 typedef struct SCtgViewsCtx {
@@ -1193,6 +1203,8 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 int32_t ctgReadTbVerFromCache(SCatalog* pCtg, SName* pTableName, int32_t* sver, int32_t* tver, int32_t *rver, int32_t* tbType,
                               uint64_t* suid, char* stbName);
 int32_t ctgChkAuthFromCache(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, bool* inCache, SCtgAuthRsp* pRes);
+int32_t ctgChkAuthFromCacheWithMeta(SCatalog* pCtg, SUserAuthInfo* pReq, bool tbNotExists, const STableMeta* pFetchedMeta,
+                                    bool* inCache, SCtgAuthRsp* pRes);
 int32_t ctgGetUserAuthFromCache(SCatalog* pCtg, const char* user, bool* inCache, SGetUserAuthRsp* pRes);
 int32_t ctgDropDbCacheEnqueue(SCatalog* pCtg, const char* dbFName, int64_t dbId);
 int32_t ctgDropDbVgroupEnqueue(SCatalog* pCtg, const char* dbFName, bool syncReq);

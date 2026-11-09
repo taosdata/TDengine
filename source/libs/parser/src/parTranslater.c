@@ -22731,9 +22731,11 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
     code = tNameExtractFullName(&tableName, pReq->name);
   }
   if (TSDB_CODE_SUCCESS == code) code = collectUseTable(&tableName, pCxt->pTables);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(&tableName, pCxt->pTargetTables);
-  }
+  // The stable being created is deliberately NOT a target table: the client invalidates the target tables' cached
+  // meta after the statement, and dropping the cache of the stable itself is both useless (a newly created stable is
+  // written to the cache from the response, an existing one is unchanged by CREATE STABLE IF NOT EXISTS) and harmful,
+  // an application that issues the statement before every write would empty the cache continuously. The parent
+  // stables of BASE ON are registered below, their meta really changes.
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRollupAst(pCxt, pStmt, pReq);
   }

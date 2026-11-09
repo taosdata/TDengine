@@ -5631,7 +5631,17 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
     }
   }
 
-  CTG_ERR_JRET(ctgChkAuthFromCache(pCtg, &pCtx->user, tbNotExists, &inCache, &rsp));
+  // the meta fetched by the previous sub task, if any, decides the check; the cache is only the fallback
+  const STableMeta* pFetchedMeta = NULL;
+  if (CTG_TASK_GET_TB_META == pTask->subRes.type && TSDB_CODE_SUCCESS == pTask->subRes.code && pTask->subRes.res) {
+    pFetchedMeta = (const STableMeta*)pTask->subRes.res;
+  }
+
+  code = ctgChkAuthFromCacheWithMeta(pCtg, &pCtx->user, tbNotExists, pFetchedMeta, &inCache, &rsp);
+  // The fetched meta has been consumed; a later launch must not see it again.
+  ctgClearSubTaskRes(&pTask->subRes);
+  pFetchedMeta = NULL;
+  CTG_ERR_JRET(code);
   if (inCache) {
     pTask->res = rsp.pRawRes;
 
@@ -5645,9 +5655,18 @@ int32_t ctgLaunchGetUserTask(SCtgTask* pTask) {
   taosMemoryFreeClear(rsp.pRawRes);
 
   if (rsp.metaNotExists) {
+    if (pCtx->metaFetchTimes >= CTG_USER_META_FETCH_MAX) {
+      // the sub task callback calls this function again on the same stack, bound it to avoid a stack overflow
+      ctgError("job:0x%" PRIx64 ", user:%s, db:%s, tb:%s, meta still not in cache after %d fetches, give up",
+               pJob->refId, pCtx->user.user, pCtx->user.tbName.dbname, pCtx->user.tbName.tname,
+               (int32_t)pCtx->metaFetchTimes);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
     SCtgTbMetaParam param;
     param.pName = &pCtx->user.tbName;
-    param.flag = CTG_FLAG_SYNC_OP;
+    param.flag = CTG_FLAG_SYNC_OP | (pCtx->metaFetchTimes > 0 ? CTG_FLAG_FORCE_UPDATE : 0);
+    pCtx->metaFetchTimes++;
     SCtgTaskReq tReq = ctgMakeTaskReq(pTask, -1);
     CTG_ERR_JRET(ctgLaunchSubTask(&tReq, CTG_TASK_GET_TB_META, ctgGetUserCb, &param));
   } else {
@@ -6336,7 +6355,8 @@ int32_t ctgCompTbMetaTasks(SCtgTask* pTask, void* param, bool* equal) {
   SCtgTbMetaCtx*   ctx = pTask->taskCtx;
   SCtgTbMetaParam* pParam = (SCtgTbMetaParam*)param;
 
-  *equal = tNameTbNameEqual(ctx->pName, (SName*)pParam->pName);
+  // a forced update must fetch again, not replay the result of a finished task
+  *equal = !CTG_FLAG_IS_FORCE_UPDATE(pParam->flag) && tNameTbNameEqual(ctx->pName, (SName*)pParam->pName);
   if (*equal) {
     ctx->flag |= pParam->flag;
   }
