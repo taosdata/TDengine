@@ -5230,8 +5230,8 @@ static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFunc
     /* Sliding windows are half-open; the others already carry an inclusive end. */
     if (pRt->triggerType == STREAM_TRIGGER_SLIDING && win.ekey != INT64_MIN) win.ekey--;
   } else {
-    /* Time-returning expressions: evaluate the start bound with the first window
-     * parameter and the end bound with the last one. */
+    /* A single window needs the complete predicate, including SQL NULL bounds.
+     * Only a batch uses separate bounds to form its fetch envelope. */
     SStreamRuntimeFuncInfo tmp = *pRt;  // shallow view; never destroy tmp
     tmp.isMultiGroupCalc      = false;
     tmp.pStreamPesudoFuncVals = pParams;
@@ -5241,12 +5241,14 @@ static int32_t extCalcParamsRange(STimeRangeNode *node, const SStreamRuntimeFunc
 
     STimeWindow cur   = {0};
     bool        valid = false;
-    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 1);
+    int32_t     code  = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, first == last ? 3 : 1);
     if (code != TSDB_CODE_SUCCESS) return code;
     win.skey   = cur.skey;
-    tmp.curIdx = last;
-    code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
-    if (code != TSDB_CODE_SUCCESS) return code;
+    if (first != last) {
+      tmp.curIdx = last;
+      code = streamCalcCurrWinTimeRange(node, &tmp, &cur, &valid, 2);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
     /* streamCalcCurrWinTimeRange returns a half-open end; INT64_MAX = unbounded. */
     win.ekey = cur.ekey;
     if (win.ekey != INT64_MAX) {

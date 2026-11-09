@@ -6152,6 +6152,219 @@ _exit:
   return code;
 }
 
+void tCopySTriggerCalcParamValues(SSTriggerCalcParam* pDest, const SSTriggerCalcParam* pSource) {
+  memcpy(pDest, pSource, offsetof(SSTriggerCalcParam, notifyType));
+  pDest->hasPrevWindow = pSource->hasPrevWindow;
+  pDest->prevWstart = pSource->hasPrevWindow ? pSource->prevWstart : 0;
+  pDest->prevWend = pSource->hasPrevWindow ? pSource->prevWend : 0;
+  pDest->countWindowIndex = pSource->countWindowIndex;
+  pDest->snapshotEventType = pSource->snapshotEventType;
+}
+
+bool tEqualSTriggerCalcParamValues(const SSTriggerCalcParam* pLeft, const SSTriggerCalcParam* pRight) {
+  return pLeft != NULL && pRight != NULL &&
+         memcmp(pLeft, pRight, offsetof(SSTriggerCalcParam, notifyType)) == 0 &&
+         pLeft->hasPrevWindow == pRight->hasPrevWindow &&
+         (!pLeft->hasPrevWindow || (pLeft->prevWstart == pRight->prevWstart && pLeft->prevWend == pRight->prevWend));
+}
+
+typedef enum EStreamPrevWindowParamKind {
+  STREAM_PREV_WINDOW_SINGLE_PARAM = 0,
+  STREAM_PREV_WINDOW_GROUP_PARAM = 1,
+  STREAM_PREV_WINDOW_READ_FIRST = 2,
+  STREAM_PREV_WINDOW_READ_LAST = 3,
+  STREAM_PREV_WINDOW_CURRENT_READ_FIRST = 4,
+  STREAM_PREV_WINDOW_CURRENT_READ_LAST = 5,
+} EStreamPrevWindowParamKind;
+
+typedef struct SStreamPrevWindowCodecView {
+  int64_t    gid;
+  SArray*    pParams;
+  SSHashObj* pGroupCalcInfos;
+  SSHashObj* pGroupReadInfos;
+  SArray*    pCurrentGroupRead;
+} SStreamPrevWindowCodecView;
+
+static int32_t tEncodeStreamPrevWindowValue(SEncoder* pEncoder, const SSTriggerCalcParam* pParam, int8_t kind,
+                                            int64_t owner, int32_t index, int32_t* pCount) {
+  if (pParam == NULL) return TSDB_CODE_INVALID_PARA;
+  // Missing entries mean NULL. Streams without previous-window values retain their original bytes.
+  if (!pParam->hasPrevWindow) return TSDB_CODE_SUCCESS;
+  if (*pCount == INT32_MAX) return TSDB_CODE_INVALID_PARA;
+  ++*pCount;
+  if (pEncoder == NULL) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tEncodeI8(pEncoder, kind));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, owner));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, index));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pParam->prevWstart));
+  return tEncodeI64(pEncoder, pParam->prevWend);
+}
+
+static int32_t tEncodeStreamPrevWindowParams(SEncoder* pEncoder, const SArray* pParams, int8_t kind, int64_t owner,
+                                             int32_t* pCount) {
+  for (int32_t i = 0; i < taosArrayGetSize(pParams); ++i) {
+    TAOS_CHECK_RETURN(tEncodeStreamPrevWindowValue(pEncoder, taosArrayGet(pParams, i), kind, owner, i, pCount));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tEncodeStreamPrevWindowReads(SEncoder* pEncoder, const SArray* pReads, int8_t kind, int64_t owner,
+                                            int32_t* pCount) {
+  for (int32_t i = 0; i < taosArrayGetSize(pReads); ++i) {
+    const SSTriggerGroupReadInfo* pRead = taosArrayGet(pReads, i);
+    if (pRead == NULL) return TSDB_CODE_INVALID_PARA;
+    TAOS_CHECK_RETURN(tEncodeStreamPrevWindowValue(pEncoder, &pRead->firstParam, kind, owner, i, pCount));
+    TAOS_CHECK_RETURN(tEncodeStreamPrevWindowValue(pEncoder, &pRead->lastParam, kind + 1, owner, i, pCount));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t tEncodeStreamPrevWindowEntries(SEncoder* pEncoder, const SStreamPrevWindowCodecView* pView,
+                                              int32_t* pCount) {
+  TAOS_CHECK_RETURN(tEncodeStreamPrevWindowParams(pEncoder, pView->pParams, STREAM_PREV_WINDOW_SINGLE_PARAM,
+                                                   pView->gid, pCount));
+  int32_t                 iter = 0;
+  SSTriggerGroupCalcInfo* pCalc = tSimpleHashIterate(pView->pGroupCalcInfos, NULL, &iter);
+  while (pCalc != NULL) {
+    const int64_t* pGid = tSimpleHashGetKey(pCalc, NULL);
+    TAOS_CHECK_RETURN(tEncodeStreamPrevWindowParams(pEncoder, pCalc->pParams, STREAM_PREV_WINDOW_GROUP_PARAM,
+                                                     *pGid, pCount));
+    pCalc = tSimpleHashIterate(pView->pGroupCalcInfos, pCalc, &iter);
+  }
+  iter = 0;
+  SArray** ppReads = tSimpleHashIterate(pView->pGroupReadInfos, NULL, &iter);
+  while (ppReads != NULL) {
+    const int32_t* pVgId = tSimpleHashGetKey(ppReads, NULL);
+    TAOS_CHECK_RETURN(tEncodeStreamPrevWindowReads(pEncoder, *ppReads, STREAM_PREV_WINDOW_READ_FIRST, *pVgId, pCount));
+    ppReads = tSimpleHashIterate(pView->pGroupReadInfos, ppReads, &iter);
+  }
+  return tEncodeStreamPrevWindowReads(pEncoder, pView->pCurrentGroupRead, STREAM_PREV_WINDOW_CURRENT_READ_FIRST,
+                                       0, pCount);
+}
+
+static int32_t tEncodeStreamPrevWindowFrame(SEncoder* pEncoder, const SStreamPrevWindowCodecView* pView) {
+  int32_t count = 0;
+  TAOS_CHECK_RETURN(tEncodeStreamPrevWindowEntries(NULL, pView, &count));
+  if (count == 0) return TSDB_CODE_SUCCESS;
+  TAOS_CHECK_RETURN(tStartEncodeStreamTailFrame(pEncoder, STREAM_PREV_WINDOW_FRAME_MAGIC,
+                                                 STREAM_PREV_WINDOW_FRAME_VERSION, 0));
+  TAOS_CHECK_RETURN(tEncodeI32(pEncoder, count));
+  count = 0;
+  TAOS_CHECK_RETURN(tEncodeStreamPrevWindowEntries(pEncoder, pView, &count));
+  tEndEncodeStreamTailFrame(pEncoder);
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSTriggerCalcParam* tFindStreamPrevWindowParam(const SStreamPrevWindowCodecView* pView, int8_t kind,
+                                                     int64_t owner, int32_t index) {
+  if (index < 0) return NULL;
+  SArray* pArray = NULL;
+  switch (kind) {
+    case STREAM_PREV_WINDOW_SINGLE_PARAM:
+      if (owner != pView->gid) return NULL;
+      pArray = pView->pParams;
+      break;
+    case STREAM_PREV_WINDOW_GROUP_PARAM: {
+      SSTriggerGroupCalcInfo* pCalc = tSimpleHashGet(pView->pGroupCalcInfos, &owner, sizeof(owner));
+      if (pCalc == NULL) return NULL;
+      pArray = pCalc->pParams;
+      break;
+    }
+    case STREAM_PREV_WINDOW_READ_FIRST:
+    case STREAM_PREV_WINDOW_READ_LAST: {
+      if (owner < INT32_MIN || owner > INT32_MAX) return NULL;
+      const int32_t vgId = owner;
+      SArray** ppReads = tSimpleHashGet(pView->pGroupReadInfos, &vgId, sizeof(vgId));
+      if (ppReads == NULL) return NULL;
+      pArray = *ppReads;
+      break;
+    }
+    case STREAM_PREV_WINDOW_CURRENT_READ_FIRST:
+    case STREAM_PREV_WINDOW_CURRENT_READ_LAST:
+      if (owner != 0) return NULL;
+      pArray = pView->pCurrentGroupRead;
+      break;
+    default:
+      return NULL;
+  }
+  if (index >= taosArrayGetSize(pArray)) return NULL;
+  if (kind == STREAM_PREV_WINDOW_SINGLE_PARAM || kind == STREAM_PREV_WINDOW_GROUP_PARAM) {
+    return taosArrayGet(pArray, index);
+  }
+  SSTriggerGroupReadInfo* pRead = taosArrayGet(pArray, index);
+  if (pRead == NULL) return NULL;
+  return kind == STREAM_PREV_WINDOW_READ_FIRST || kind == STREAM_PREV_WINDOW_CURRENT_READ_FIRST
+             ? &pRead->firstParam
+             : &pRead->lastParam;
+}
+
+static int32_t tDecodeStreamPrevWindowFrame(SDecoder* pDecoder, const SStreamPrevWindowCodecView* pView) {
+  int32_t count = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &count));
+  const uint32_t entrySize = sizeof(int8_t) + sizeof(int64_t) * 3 + sizeof(int32_t);
+  if (count <= 0 || (uint32_t)count > (pDecoder->size - pDecoder->pos) / entrySize) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    int8_t  kind = 0;
+    int64_t owner = 0;
+    int32_t index = 0;
+    TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &kind));
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &owner));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &index));
+    SSTriggerCalcParam* pParam = tFindStreamPrevWindowParam(pView, kind, owner, index);
+    if (pParam == NULL || pParam->hasPrevWindow) return TSDB_CODE_INVALID_MSG;
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pParam->prevWstart));
+    TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &pParam->prevWend));
+    pParam->hasPrevWindow = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SStreamPrevWindowCodecView tMakeCalcPrevWindowView(const SSTriggerCalcRequest* pReq) {
+  SStreamPrevWindowCodecView view = {0};
+  if (pReq->isMultiGroupCalc) {
+    view.pGroupCalcInfos = pReq->pGroupCalcInfos;
+    view.pGroupReadInfos = pReq->pGroupReadInfos;
+  } else {
+    view.gid = pReq->gid;
+    view.pParams = pReq->params;
+  }
+  return view;
+}
+
+int32_t tEncodeStreamRuntimePrevWindowFrame(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo,
+                                             bool needStreamRtInfo, bool needStreamGrpInfo) {
+  if (pInfo == NULL || !needStreamRtInfo) return TSDB_CODE_SUCCESS;
+  SStreamPrevWindowCodecView view = {0};
+  if (pInfo->isMultiGroupCalc) {
+    view.pGroupCalcInfos = pInfo->pGroupCalcInfos;
+    if (needStreamGrpInfo) {
+      view.pCurrentGroupRead = pInfo->curGrpRead;
+    } else {
+      view.pGroupReadInfos = pInfo->pGroupReadInfos;
+    }
+  } else {
+    view.gid = pInfo->groupId;
+    view.pParams = pInfo->pStreamPesudoFuncVals;
+  }
+  return tEncodeStreamPrevWindowFrame(pEncoder, &view);
+}
+
+int32_t tDecodeStreamRuntimePrevWindowFrame(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo) {
+  if (pInfo == NULL) return TSDB_CODE_INVALID_MSG;
+  SStreamPrevWindowCodecView view = {0};
+  if (pInfo->isMultiGroupCalc) {
+    view.pGroupCalcInfos = pInfo->pGroupCalcInfos;
+    view.pGroupReadInfos = pInfo->pGroupReadInfos;
+    view.pCurrentGroupRead = pInfo->curGrpRead;
+  } else {
+    view.gid = pInfo->groupId;
+    view.pParams = pInfo->pStreamPesudoFuncVals;
+  }
+  return tDecodeStreamPrevWindowFrame(pDecoder, &view);
+}
+
 static int32_t tSerializeSTriggerCalcParam(SEncoder* pEncoder, SArray* pParams, bool ignoreNotificationInfo, bool full) {
   int32_t size = full ? taosArrayGetSize(pParams) : 0;
   int32_t code = 0;
@@ -6889,7 +7102,8 @@ static int32_t tClassifyAncestorSnapshot(const SWindowAncestorSnapshot*         
                                          EStreamAncestorSnapshotRepresentation* pRepresentation) {
   if (pSnapshot == NULL || pRepresentation == NULL) return TSDB_CODE_INVALID_PARA;
   const int64_t slidingMask = PLACE_HOLDER_PREV_TS | PLACE_HOLDER_CURRENT_TS | PLACE_HOLDER_NEXT_TS;
-  const int64_t windowMask = PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND | PLACE_HOLDER_WDURATION | PLACE_HOLDER_WROWNUM;
+  const int64_t windowMask = PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND | PLACE_HOLDER_PREV_WSTART |
+                             PLACE_HOLDER_PREV_WEND | PLACE_HOLDER_WDURATION | PLACE_HOLDER_WROWNUM;
   const int64_t allowedMask = slidingMask | windowMask;
   if ((pSnapshot->placeholderMask & ~allowedMask) != 0) return TSDB_CODE_INVALID_PARA;
 
@@ -7151,6 +7365,13 @@ static int32_t tEncodeAncestorSnapshot(SEncoder* pEncoder, const SWindowAncestor
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pSnapshot->values.window.end));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pSnapshot->values.window.duration));
     TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pSnapshot->values.window.rownum));
+    if (pSnapshot->placeholderMask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) {
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pSnapshot->values.window.hasPrevWindow ? 1 : 0));
+      if (pSnapshot->values.window.hasPrevWindow) {
+        TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pSnapshot->values.window.prevStart));
+        TAOS_CHECK_EXIT(tEncodeI64(pEncoder, pSnapshot->values.window.prevEnd));
+      }
+    }
   }
 _exit:
   return code;
@@ -7240,6 +7461,19 @@ static int32_t tDecodeAncestorSnapshot(SDecoder* pDecoder, SWindowAncestorSnapsh
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pSnapshot->values.window.end));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pSnapshot->values.window.duration));
     TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pSnapshot->values.window.rownum));
+    if (pSnapshot->placeholderMask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) {
+      int8_t hasPrevWindow = 0;
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &hasPrevWindow));
+      if (hasPrevWindow != 0 && hasPrevWindow != 1) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _exit;
+      }
+      pSnapshot->values.window.hasPrevWindow = hasPrevWindow != 0;
+      if (pSnapshot->values.window.hasPrevWindow) {
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pSnapshot->values.window.prevStart));
+        TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pSnapshot->values.window.prevEnd));
+      }
+    }
   }
 _exit:
   return code;
@@ -7791,8 +8025,8 @@ static int32_t tMakeReadSegmentKey(int64_t gid, const SWindowLineage* pLineage, 
   memset(pKey, 0, sizeof(*pKey));
   int32_t code = tMakeStreamContextLineageKey(gid, pLineage, &pKey->lineage);
   if (code != TSDB_CODE_SUCCESS) return code;
-  memcpy(&pKey->firstParam, pFirstParam, offsetof(SSTriggerCalcParam, notifyType));
-  memcpy(&pKey->lastParam, pLastParam, offsetof(SSTriggerCalcParam, notifyType));
+  tCopySTriggerCalcParamValues(&pKey->firstParam, pFirstParam);
+  tCopySTriggerCalcParamValues(&pKey->lastParam, pLastParam);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -9119,7 +9353,7 @@ static bool tHashIsSemanticallyEmpty(const SSHashObj* pHash) { return pHash == N
 
 static bool tIsSyntheticCreateParam(const SSTriggerCalcParam* pParam) {
   if (pParam == NULL || pParam->notifyType != 0 || pParam->extraNotifyContent != NULL ||
-      pParam->pExternalWindowData != NULL) {
+      pParam->pExternalWindowData != NULL || pParam->hasPrevWindow) {
     return false;
   }
   const SSTriggerCalcParam empty = {0};
@@ -9376,6 +9610,9 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
     tEndEncodeStreamTailFrame(&encoder);
   }
 
+  const SStreamPrevWindowCodecView prevWindowView = tMakeCalcPrevWindowView(pCodecReq);
+  TAOS_CHECK_EXIT(tEncodeStreamPrevWindowFrame(&encoder, &prevWindowView));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -9538,6 +9775,7 @@ static int32_t tDeserializeSTriggerCalcRequestImpl(void* buf, int32_t bufLen, SS
 
   bool policySeen = false;
   bool ancestorSeen = false;
+  bool prevWindowSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     const int32_t           frameStart = decoder.pos;
@@ -9560,6 +9798,22 @@ static int32_t tDeserializeSTriggerCalcRequestImpl(void* buf, int32_t bufLen, SS
       TAOS_CHECK_EXIT(code);
       policyFrameStart = frameStart;
       policyFrameLength = decoder.pos - frameStart;
+      continue;
+    }
+    if (frame.magic == STREAM_PREV_WINDOW_FRAME_MAGIC) {
+      if (prevWindowSeen || frame.version != STREAM_PREV_WINDOW_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      prevWindowSeen = true;
+      const SStreamPrevWindowCodecView view = tMakeCalcPrevWindowView(pReq);
+      code = tDecodeStreamPrevWindowFrame(&frame.payloadDecoder, &view);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
       continue;
     }
     if (frame.magic != STREAM_ANCESTOR_FRAME_MAGIC) {

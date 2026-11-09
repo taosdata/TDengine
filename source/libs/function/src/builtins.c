@@ -1691,6 +1691,8 @@ static int32_t translatePlaceHolderPseudoColumn(SFunctionNode* pFunc, char* pErr
     case FUNCTION_TYPE_TNEXT_TS:
     case FUNCTION_TYPE_TWSTART:
     case FUNCTION_TYPE_TWEND:
+    case FUNCTION_TYPE_TPREV_WSTART:
+    case FUNCTION_TYPE_TPREV_WEND:
     case FUNCTION_TYPE_TLOCALTIME:
     case FUNCTION_TYPE_TIDLESTART:
     case FUNCTION_TYPE_TIDLEEND: {
@@ -9173,6 +9175,29 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = bitDurationFunctionSetup,
     .processFunc  = bitDurationFunction,
     .finalizeFunc = bitDurationFinalize,
+  },
+  // Keep newly added entries at the end: a builtin's array index is its funcId.
+  {
+    .name = "_tpre_wstart",
+    .type = FUNCTION_TYPE_TPREV_WSTART,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .fqPushCap = 0x0,
+    .parameters = {.minParamNum = 0, .maxParamNum = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc = getTimePseudoFuncEnv,
+    .sprocessFunc = streamPseudoScalarFunction,
+  },
+  {
+    .name = "_tpre_wend",
+    .type = FUNCTION_TYPE_TPREV_WEND,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_PLACE_HOLDER_FUNC | FUNC_MGT_SKIP_SCAN_CHECK_FUNC,
+    .fqPushCap = 0x0,
+    .parameters = {.minParamNum = 0, .maxParamNum = 0,
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE}},
+    .translateFunc = translatePlaceHolderPseudoColumn,
+    .getEnvFunc = getTimePseudoFuncEnv,
+    .sprocessFunc = streamPseudoScalarFunction,
   },
 };
 // clang-format on

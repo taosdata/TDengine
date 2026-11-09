@@ -2489,6 +2489,8 @@ column_reference(A) ::= table_name(B) NK_DOT TWSTART(C).                        
 column_reference(A) ::= table_name(B) NK_DOT TWEND(C).                            { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWDURATION(C).                       { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWROWNUM(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPRE_WSTART(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= table_name(B) NK_DOT TPRE_WEND(C).                        { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TPREV_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TCURRENT_TS(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TNEXT_TS(C).                         { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
@@ -2518,6 +2520,8 @@ pseudo_column(A) ::= TWSTART(B).                                                
 pseudo_column(A) ::= TWEND(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TWDURATION(B).                                               { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TWROWNUM(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TPRE_WSTART(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= TPRE_WEND(B).                                                { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TEVENT_CONDITION_PATH(B).                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TPREV_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TNEXT_LOCALTIME(B).                                          { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }

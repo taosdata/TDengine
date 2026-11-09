@@ -64,11 +64,12 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_WINDOW_PLAN_FRAME_VERSION   1
 #define STREAM_CONTEXT_POLICY_VERSION       1
 #define STREAM_CONTEXT_POLICY_FRAME_VERSION 1
-#define STREAM_ANCESTOR_CONTEXT_VERSION     2
+#define STREAM_ANCESTOR_CONTEXT_VERSION       3
 #define STREAM_ANCESTOR_FRAME_VERSION      1
 #define STREAM_FETCH_RESET_MODE_FRAME_VERSION 1
 #define STREAM_TWO_PASS_RESCAN_FRAME_VERSION  1
 #define STREAM_RUNNER_FETCH_FRAME_VERSION     1
+#define STREAM_PREV_WINDOW_FRAME_VERSION      1
 #define STREAM_READER_FETCH_ID_FRAME_VERSION   1
 #define STREAM_READER_FETCH_ID_FRAME_MAGIC     UINT32_C(0x4e575246)
 #define STREAM_READER_GROUP_MODE_FRAME_VERSION 1
@@ -86,6 +87,7 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_ANCESTOR_FRAME_MAGIC        UINT32_C(0x4e574354)
 #define STREAM_FETCH_RESET_MODE_FRAME_MAGIC   UINT32_C(0x4e574652)
 #define STREAM_TWO_PASS_RESCAN_FRAME_MAGIC    UINT32_C(0x4e575052)
+#define STREAM_PREV_WINDOW_FRAME_MAGIC        UINT32_C(0x4e575056)
 #define STREAM_READER_GROUP_MODE_FRAME_MAGIC   UINT32_C(0x4e57474d)
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
@@ -160,6 +162,8 @@ void    tDestroySStreamRunnerFetchBatch(SStreamRunnerFetchBatch* pBatch);
 #define PLACE_HOLDER_ROLLUP_TAG           BIT_FLAG_MASK(16)
 #define PLACE_HOLDER_ROLLUP_TBCOUNT       BIT_FLAG_MASK(17)
 #define PLACE_HOLDER_EVENT_CONDITION_PATH BIT_FLAG_MASK(18)
+#define PLACE_HOLDER_PREV_WSTART          BIT_FLAG_MASK(19)
+#define PLACE_HOLDER_PREV_WEND            BIT_FLAG_MASK(20)
 
 #define CREATE_STREAM_FLAG_NONE                     0
 #define CREATE_STREAM_FLAG_TRIGGER_VIRTUAL_STB      BIT_FLAG_MASK(0)
@@ -322,6 +326,9 @@ typedef union {
     TSKEY   end;
     int64_t duration;
     int64_t rownum;
+    TSKEY   prevStart;
+    TSKEY   prevEnd;
+    bool    hasPrevWindow;
   } window;
 } SWindowAncestorValues;
 
@@ -1764,7 +1771,18 @@ typedef struct SSTriggerCalcParam {
   char*   extraNotifyContent;   // NULL if not available
   char*   resultNotifyContent;  // does not serialize
   SArray* pExternalWindowData;
+
+  // Keep the legacy plain prefix unchanged; these values use a separate wire frame.
+  int64_t prevWstart;  // _tpre_wstart
+  int64_t prevWend;    // _tpre_wend
+  bool    hasPrevWindow;
+  // Trigger-local snapshot identity; not serialized to readers or runners.
+  int64_t countWindowIndex;
+  int8_t  snapshotEventType;
 } SSTriggerCalcParam;
+
+void tCopySTriggerCalcParamValues(SSTriggerCalcParam* pDest, const SSTriggerCalcParam* pSource);
+bool tEqualSTriggerCalcParamValues(const SSTriggerCalcParam* pLeft, const SSTriggerCalcParam* pRight);
 
 typedef struct SSTriggerGroupCalcInfo {
   SArray* pParams;  // SArray<SSTriggerCalcParam>
@@ -1925,6 +1943,9 @@ typedef struct SStreamReaderFetchView {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
+int32_t tEncodeStreamRuntimePrevWindowFrame(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo,
+                                             bool needStreamRtInfo, bool needStreamGrpInfo);
+int32_t tDecodeStreamRuntimePrevWindowFrame(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
 void    tDestroyStRtFuncInfo(SStreamRuntimeFuncInfo* pInfo);
 void    tClearStreamCurrentGroupRead(SStreamRuntimeFuncInfo* pInfo);
 
@@ -2047,6 +2068,7 @@ typedef struct SStreamTSRangeParas { // used for stream
   EOperatorType      opType;    
   EValueType         eType;   
   int64_t            timeValue;
+  bool               isNull;
 } SStreamTSRangeParas;
 
 typedef enum EWindowType {

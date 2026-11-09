@@ -5900,6 +5900,70 @@ TEST(ScalarStreamPlaceholderTest, readsQualifiedAncestorByLayerIndex) {
   tDestroyStRtFuncInfo(&runtime);
 }
 
+TEST(ScalarStreamPlaceholderTest, readsQualifiedPreviousWindowAndPreservesNull) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.groupId = 101;
+  runtime.curIdx = 0;
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam leaf = {};
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &leaf), nullptr);
+  runtime.pContextPolicy = scltMakeAncestorPolicy(runtime.groupId, runtime.curIdx);
+  runtime.pAncestorContext = scltMakeAncestorContext(runtime.groupId, runtime.curIdx);
+
+  auto *param = static_cast<SStreamAncestorParamContext *>(taosArrayGet(runtime.pAncestorContext->pParamContexts, 0));
+  ASSERT_NE(param, nullptr);
+  auto *root = static_cast<SWindowAncestorSnapshot *>(taosArrayGet(param->pSnapshots, 0));
+  ASSERT_NE(root, nullptr);
+  root->placeholderMask = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+
+  auto evaluate = [&](const char *name, int32_t layerIndex, bool *isNull, int64_t *value) {
+    SNodeList  *params = nullptr;
+    SValueNode *result = nullptr;
+    EXPECT_EQ(nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&result)), TSDB_CODE_SUCCESS);
+    result->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+    result->node.resType.bytes = sizeof(int64_t);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(result)), TSDB_CODE_SUCCESS);
+    SValueNode *layer = nullptr;
+    EXPECT_EQ(nodesMakeValueNodeFromInt32(layerIndex, reinterpret_cast<SNode **>(&layer)), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(nodesListMakeStrictAppend(&params, reinterpret_cast<SNode *>(layer)), TSDB_CODE_SUCCESS);
+
+    const int32_t code = fmSetStreamPseudoFuncParamVal(fmGetFuncId(name), params, &runtime);
+    *isNull = result->isNull;
+    *value = result->datum.i;
+    nodesDestroyList(params);
+    return code;
+  };
+
+  bool    isNull = false;
+  int64_t value = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 0, &isNull, &value));
+  EXPECT_TRUE(isNull);
+
+  root->values.window.hasPrevWindow = true;
+  root->values.window.prevStart = 100;
+  root->values.window.prevEnd = 199;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 0, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(100, value);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wend", 0, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(199, value);
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wstart", 2, &isNull, &value));
+  EXPECT_TRUE(isNull);
+  auto *leafParam = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0));
+  ASSERT_NE(leafParam, nullptr);
+  leafParam->hasPrevWindow = true;
+  leafParam->prevWstart = 300;
+  leafParam->prevWend = 399;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, evaluate("_tpre_wend", 2, &isNull, &value));
+  EXPECT_FALSE(isNull);
+  EXPECT_EQ(399, value);
+
+  tDestroyStRtFuncInfo(&runtime);
+}
+
 TEST(ScalarStreamPlaceholderTest, externalWindowRangeReadsQualifiedAncestor) {
   const int32_t funcId = fmGetFuncId("_twstart");
   ASSERT_GE(funcId, 0);
@@ -7134,3 +7198,55 @@ int main(int argc, char **argv) {
 }
 
 #pragma GCC diagnostic pop
+
+TEST(ScalarStreamPlaceholderTest, ordinaryRangePreservesNullPredecessor) {
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.pStreamPesudoFuncVals = taosArrayInit(1, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(runtime.pStreamPesudoFuncVals, nullptr);
+  SSTriggerCalcParam param = {};
+  param.wstart = 100;
+  param.wend = 200;
+  ASSERT_NE(taosArrayPush(runtime.pStreamPesudoFuncVals, &param), nullptr);
+  auto *stored = static_cast<SSTriggerCalcParam *>(taosArrayGet(runtime.pStreamPesudoFuncVals, 0));
+
+  // Exercise NULL in a direct function, an arithmetic expression, and either
+  // side of the extracted range. Reusing the expression must clear NULL later.
+  for (int variant = 0; variant < 3; ++variant) {
+    SCOPED_TRACE(variant);
+    SNode *previous = variant == 1 ? scltMakeTimestampOffset("_tpre_wend", -1, OP_TYPE_ADD, 1)
+                                  : scltMakeStreamPlaceholder("_tpre_wend");
+    SNode *start = scltMakeExternalBound(OP_TYPE_GREATER_THAN,
+        variant == 2 ? scltMakeStreamPlaceholder("_twstart") : previous);
+    SNode *end = scltMakeExternalBound(OP_TYPE_LOWER_EQUAL,
+        variant == 2 ? previous : scltMakeStreamPlaceholder("_twend"));
+    STimeRangeNode range = {};
+    range.type = QUERY_NODE_TIME_RANGE;
+    range.pStart = start;
+    range.pEnd = end;
+    range.needCalc = true;
+    STimeWindow result = {};
+    bool valid = false;
+    stored->hasPrevWindow = false;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, 3), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_GT(result.skey, result.ekey);
+    EXPECT_GT(result.ekey, INT64_MIN);  // Safe conversion to a closed reader range.
+
+    // The reader uses partial ranges as a conservative multi-window envelope.
+    const int partial = variant == 2 ? 2 : 1;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, partial), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(result.skey, INT64_MIN);
+    EXPECT_EQ(result.ekey, INT64_MAX);
+
+    stored->hasPrevWindow = true;
+    stored->prevWend = 150;
+    ASSERT_EQ(streamCalcCurrWinTimeRange(&range, &runtime, &result, &valid, 3), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(valid);
+    EXPECT_EQ(result.skey, variant == 2 ? 101 : variant == 1 ? 152 : 151);
+    EXPECT_EQ(result.ekey, variant == 2 ? 151 : 201);
+    nodesDestroyNode(start);
+    nodesDestroyNode(end);
+  }
+  tDestroyStRtFuncInfo(&runtime);
+}

@@ -120,6 +120,10 @@ void    stWindowChainRearmDelayClocks(SWindowChainState *pState, int64_t nowNs);
 bool    stWindowChainHasCacheScope(const SWindowChainState *pState, const SStreamCacheScope *pScope);
 bool    stWindowChainGetInputRetentionRange(const SWindowChainState *pState, STimeWindow *pRange);
 bool    stWindowChainGetFirstOpenCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
+bool    stWindowChainGetLastClosedCountLeafRange(const SWindowChainState *pState, STimeWindow *pRange);
+bool    stWindowChainMarkDeletedPredecessors(SWindowChainState *pState, const STimeWindow *pRange);
+bool    stWindowChainHasPendingPredecessorRepair(const SWindowChainState *pState);
+void    stWindowChainSetLeafEventTypes(SWindowChainState *pState, int64_t eventTypes);
 bool    stWindowChainCanRepairCountDisorder(const SWindowChainState *pState, const STimeWindow *pRange);
 void    stWindowChainSuppressOpenCountLeafBefore(SWindowChainState *pState, TSKEY firstUnaffectedStart);
 int32_t stWindowChainBuildRecalcImpactDomain(const SStreamWindowPlan *pPlan, int64_t gid,

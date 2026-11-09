@@ -7524,7 +7524,10 @@ TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCh
     ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedSessionHierarchy, false, STRIGGER_EVENT_WINDOW_NONE));
     ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startCode());
     ASSERT_EQ(nullptr, harness.task()->pNestedRecovery);
-    ASSERT_TRUE(harness.feedRows({}, {}));
+    ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+    // A zero-row WAL response must not synthesize metadata and queue a recalculation.
+    ASSERT_TRUE(harness.feedZeroRowWal());
+    ASSERT_EQ(0, listNEles(harness.task()->pRecalcRequests));
     auto* context = harness.context();
     ASSERT_NE(context, nullptr);
     ASSERT_EQ(context->pReaderExtProgress, nullptr);
@@ -7557,7 +7560,8 @@ TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCh
     ScopedCheckpointGenerationProbe checkpointProbe;
 
     ASSERT_FALSE(harness.task()->pendingPeriodicCheckpoint);
-    ASSERT_TRUE(harness.feedRows({}, {}));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
+    ASSERT_TRUE(harness.feedZeroRowWal());
     for (int32_t attempt = 0; attempt < 3; ++attempt) {
       ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedRealtimeStartCode());
     }
@@ -20418,9 +20422,8 @@ TEST_F(StreamNestedHistoryRecoveryBoundaryTest, CheckpointV3BytesRemainUnchanged
   tDecoderClear(&decoder);
   EXPECT_EQ(41, checkpointVersion);
   EXPECT_EQ(42, streamId);
-  // v8 (STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION): the EXT binding completed cutoff moved to
-  // nanosecond wire values; the macro itself lives in streamTriggerTask.c and is not visible here.
-  EXPECT_EQ(8, formatVersion);
+  // v14 stores the COUNT window index and event type in each predecessor snapshot.
+  EXPECT_EQ(14, formatVersion);
   EXPECT_EQ(1, walCount);
   EXPECT_EQ(NestedHistoryHarness::kReaderNodeId, vgId);
   EXPECT_EQ(2, startVer);
@@ -20941,6 +20944,79 @@ TEST_F(StreamNestedRealtimeTest, LegacyEventParityExpressionsEvaluateEncodedSlot
     EXPECT_EQ(expectedStart[row], *reinterpret_cast<const uint8_t*>(colDataGetData(pStart, row)));
     EXPECT_EQ(expectedEnd[row], *reinterpret_cast<const uint8_t*>(colDataGetData(pEnd, row)));
   }
+}
+
+TEST_F(StreamNestedRealtimeTest, DeletedStatePredecessorRepairsAlreadyOpenSuccessor) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityState, false, STRIGGER_EVENT_WINDOW_NONE,
+                           STRIGGER_EVENT_WINDOW_NONE));
+  harness.task()->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  harness.task()->stateExtend = 0;
+  harness.task()->stateTrueForInfo = {};
+  ASSERT_TRUE(harness.start());
+  // Keep the deployment cutoff before the windows exercised by this deletion.
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  ASSERT_TRUE(harness.feedParityRows({{100, false, 1, 0, 0}, {200, false, 1, 0, 0},
+                                     {300, false, 2, 0, 0}, {400, false, 2, 0, 0}}));
+  auto* group = harness.group();
+  ASSERT_NE(group, nullptr);
+  ASSERT_TRUE(group->hasClosedWindow);
+  EXPECT_EQ(group->prevWindow.skey, 100);
+  STimeWindow deleted = {100, 100};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(harness.task(), group, &deleted, false, false, false, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(group->recalcNextWindow);
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(harness.task(), &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  EXPECT_TRUE(group->recalcNextWindow);
+
+  ASSERT_TRUE(harness.feedParityRows({{500, false, 3, 0, 0}}, 3));
+  EXPECT_FALSE(group->recalcNextWindow);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(harness.task(), &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->calcRange.skey, 300);
+  EXPECT_EQ(request->calcRange.ekey, 400);
+  EXPECT_LE(request->scanRange.skey, 100);
+  stTriggerTaskDestroyRecalcRequest(&request);
+}
+
+TEST_F(StreamNestedRealtimeTest, ParentPredecessorRepairSurvivesFirstChildClose) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE,
+                           STRIGGER_EVENT_WINDOW_NONE));
+  harness.task()->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  harness.task()->eventTrueForInfo = {};
+  ASSERT_TRUE(harness.start());
+  // Keep the deployment cutoff before the windows exercised by this deletion.
+  ASSERT_TRUE(harness.feedLastTsForReader(RealtimePipelineHarness::kReaderTaskId, 0));
+  ASSERT_TRUE(harness.feedParityRows({{100, false, 0, 1, 0}, {200, false, 0, 2, 0}, {300, false, 0, 0, 1}}));
+  auto* group = harness.group();
+  ASSERT_NE(group, nullptr);
+  ASSERT_TRUE(group->hasClosedParentWindow);
+  STimeWindow deleted = {100, 100};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(harness.task(), group, &deleted, false, false, false, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(group->recalcNextWindow);
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(harness.task(), &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  stTriggerTaskDestroyRecalcRequest(&request);
+
+  ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}, {2000, false, 0, 2, 0}}, 3));
+  EXPECT_TRUE(group->recalcNextWindow);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(harness.task(), &request), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(request, nullptr);
+
+  ASSERT_TRUE(harness.feedParityRows({{3000, false, 0, 0, 1}}, 4));
+  EXPECT_FALSE(group->recalcNextWindow);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(harness.task(), &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->calcRange.skey, 1000);
+  EXPECT_EQ(request->calcRange.ekey, 3000);
+  EXPECT_EQ(request->scanRange.ekey, 3000);
+  stTriggerTaskDestroyRecalcRequest(&request);
 }
 
 TEST_F(StreamNestedRealtimeTest, DataDrivenLeavesMatchLegacySingleWindowRuntime) {
@@ -24753,6 +24829,52 @@ TEST_F(StreamNestedRealtimeTest, DeleteCrossingOpenCountLeafRecalculatesPrefixAn
   stTriggerTaskDestroyRecalcRequest(&pRequest);
 }
 
+TEST_F(StreamNestedRealtimeTest, DeleteClosedTailCountLeafRepairsFirstFutureLeaf) {
+  RealtimePipelineHarness harness;
+  ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedIntervalCount, false, STRIGGER_EVENT_WINDOW_NONE,
+                           STRIGGER_EVENT_WINDOW_CLOSE));
+  SStreamTriggerTask* pTask = harness.task();
+  ASSERT_NE(nullptr, pTask->pWindowPlan);
+  auto* pLeaf = static_cast<SStreamWindowLayerSpec*>(taosArrayGetLast(pTask->pWindowPlan->pLayers));
+  ASSERT_NE(nullptr, pLeaf);
+  pLeaf->trigger.count.countVal = 1;
+  pLeaf->trigger.count.sliding = 1;
+  pTask->windowCount = 1;
+  pTask->windowSliding = 1;
+  pTask->placeHolderBitmap |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+
+  ASSERT_TRUE(harness.start());
+  ASSERT_TRUE(harness.feedRows({1000, 2000}, {1, 1}));
+
+  SSTriggerRealtimeGroup* pGroup = harness.group();
+  ASSERT_NE(nullptr, pGroup);
+  ASSERT_NE(nullptr, pGroup->pWindowChain);
+  STimeWindow openRange = {};
+  EXPECT_FALSE(stWindowChainGetFirstOpenCountLeafRange(pGroup->pWindowChain, &openRange));
+  STimeWindow closedRange = {};
+  ASSERT_TRUE(stWindowChainGetLastClosedCountLeafRange(pGroup->pWindowChain, &closedRange));
+  EXPECT_EQ(2000, closedRange.skey);
+  EXPECT_EQ(2000, closedRange.ekey);
+
+  STimeWindow deletedRange = {2000, 2000};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(pTask, pGroup, &deletedRange, false, false, false, 0));
+  EXPECT_TRUE(pGroup->recalcNextWindow);
+
+  SSTriggerRecalcRequest* pRequest = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(pTask, &pRequest));
+  ASSERT_NE(nullptr, pRequest);
+  stTriggerTaskDestroyRecalcRequest(&pRequest);
+
+  ASSERT_TRUE(harness.feedRows({3000}, {1}));
+  EXPECT_FALSE(pGroup->recalcNextWindow);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(pTask, &pRequest));
+  ASSERT_NE(nullptr, pRequest);
+  EXPECT_LE(pRequest->calcRange.skey, 3000);
+  EXPECT_GE(pRequest->calcRange.ekey, 3000);
+  stTriggerTaskDestroyRecalcRequest(&pRequest);
+}
+
 TEST_F(StreamNestedRealtimeTest, DisorderRepairsActiveCountLeafBeforeRecalc) {
   RealtimePipelineHarness harness;
   ASSERT_TRUE(harness.init(RealtimePipelinePlan::NestedIntervalCountThree));
@@ -27669,7 +27791,9 @@ class CountRecalcFixture {
     task_.pRecalcRequests = tdListNew(POINTER_BYTES);
     task_.pRecalcRequestMap = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
     task_.pGroupPendingRecalcs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pGroupRunning = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     taosInitRWLatch(&task_.recalcRequestLock);
+    taosInitRWLatch(&task_.calcPoolLock);
 
     group_.pContext = &context_;
     group_.gid = 1;
@@ -27677,24 +27801,299 @@ class CountRecalcFixture {
     group_.newThreshold = 201;
     group_.prevWindow = {.skey = INT64_MIN, .ekey = INT64_MIN};
     context_.pTask = &task_;
+
+    // Zero initialization does not set the object lists' empty-head sentinel.
+    EXPECT_EQ(taosObjListInit(&group_.windows, &context_.windowPool), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(taosObjListInit(&group_.pPendingCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(taosObjListInit(&group_.pPendingParWinCalcParams, &context_.calcParamPool), TSDB_CODE_SUCCESS);
   }
 
   ~CountRecalcFixture() {
-    SSTriggerRecalcRequest* request = nullptr;
-    while (stTriggerTaskFetchRecalcRequest(&task_, &request) == TSDB_CODE_SUCCESS && request != nullptr) {
+    for (int32_t i = 0; i < taosArrayGetSize(task_.pCalcNodes); ++i) {
+      auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, i));
+      taosArrayDestroy(node->pSlots);
+    }
+    taosArrayDestroy(task_.pCalcNodes);
+    task_.pCalcNodes = nullptr;
+    SListNode* requestNode = nullptr;
+    while ((requestNode = tdListPopHead(task_.pRecalcRequests)) != nullptr) {
+      auto* request = *reinterpret_cast<SSTriggerRecalcRequest**>(requestNode->data);
       stTriggerTaskDestroyRecalcRequest(&request);
+      taosMemoryFree(requestNode);
     }
     task_.pRecalcRequests = static_cast<SList*>(tdListFree(task_.pRecalcRequests));
     tSimpleHashCleanup(task_.pRecalcRequestMap);
     tSimpleHashCleanup(task_.pGroupPendingRecalcs);
+    tSimpleHashCleanup(task_.pGroupRunning);
     tSimpleHashCleanup(task_.pHistoryCutoffTime);
     tDestroyStreamWindowPlan(&task_.pWindowPlan);
+  }
+
+  SSTriggerCalcSlot* initRunningCalcSlot() {
+    task_.pCalcNodes = taosArrayInit_s(sizeof(SSTriggerCalcNode), 1);
+    if (task_.pCalcNodes == nullptr) return nullptr;
+    auto* node = static_cast<SSTriggerCalcNode*>(taosArrayGet(task_.pCalcNodes, 0));
+    node->pSlots = taosArrayInit_s(sizeof(SSTriggerCalcSlot), 1);
+    if (node->pSlots == nullptr) return nullptr;
+    auto* slot = static_cast<SSTriggerCalcSlot*>(taosArrayGet(node->pSlots, 0));
+    slot->req.sessionId = kRealtimeSessionId;
+    slot->req.gid = group_.gid;
+    slot->generation = 1;
+    return slot;
   }
 
   SStreamTriggerTask       task_ = {};
   SSTriggerRealtimeContext context_ = {};
   SSTriggerRealtimeGroup   group_ = {};
 };
+
+TEST(StreamTriggerTaskRecalcTest, DeletedTailCountWindowRepairsFirstFutureWindow) {
+  CountRecalcFixture fixture;
+  fixture.task_.windowCount = 1;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  fixture.group_.hasClosedWindow = true;
+  fixture.group_.prevWindow = {100, 100};
+  STimeWindow deleted = {100, 100};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(fixture.group_.recalcNextWindow);
+  SSTriggerRecalcRequest *request = nullptr;
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  // Completion of the deletion replay must leave the future repair armed.
+  EXPECT_TRUE(fixture.group_.recalcNextWindow);
+  STimeWindow future = {200, 200};
+  ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &future), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(fixture.group_.recalcNextWindow);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  EXPECT_LT(request->scanRange.skey, future.skey);
+  EXPECT_EQ(request->calcRange.skey, future.skey);
+  EXPECT_EQ(request->calcRange.ekey, future.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+}
+
+TEST(StreamTriggerTaskRecalcTest, DeletedTailEventWindowRepairsFirstFutureWindow) {
+  CountRecalcFixture fixture;
+  fixture.task_.triggerType = STREAM_TRIGGER_EVENT;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  fixture.group_.hasClosedWindow = true;
+  fixture.group_.prevWindow = {100, 120};
+  STimeWindow deleted = {110, 110};
+
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(fixture.group_.recalcNextWindow);
+
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  stTriggerTaskDestroyRecalcRequest(&request);
+
+  STimeWindow future = {200, 200};
+  ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &future), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(fixture.group_.recalcNextWindow);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+  ASSERT_NE(request, nullptr);
+  EXPECT_EQ(request->calcRange.skey, future.skey);
+  EXPECT_EQ(request->calcRange.ekey, future.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+}
+
+TEST(StreamTriggerTaskRecalcTest, DeletedTailEventTreeMarksAffectedPredecessorScopes) {
+  CountRecalcFixture fixture;
+  SStreamEventTree   eventTree = {};
+  fixture.task_.triggerType = STREAM_TRIGGER_EVENT;
+  fixture.task_.pEventTree = &eventTree;
+  fixture.task_.calcEventType =
+      static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  fixture.group_.eventTreePrevWindows = taosArrayInit_s(sizeof(SSTriggerPrevWindowState), 2);
+  ASSERT_NE(fixture.group_.eventTreePrevWindows, nullptr);
+  auto* affected = static_cast<SSTriggerPrevWindowState*>(taosArrayGet(fixture.group_.eventTreePrevWindows, 0));
+  auto* untouched = static_cast<SSTriggerPrevWindowState*>(taosArrayGet(fixture.group_.eventTreePrevWindows, 1));
+  ASSERT_NE(affected, nullptr);
+  ASSERT_NE(untouched, nullptr);
+  *affected = {};
+  affected->window = {100, 120};
+  affected->hasClosed = true;
+  *untouched = {};
+  untouched->window = {200, 220};
+  untouched->hasClosed = true;
+  STimeWindow deleted = {110, 110};
+
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(fixture.group_.recalcNextWindow);
+  EXPECT_TRUE(affected->recalcNextOpen);
+  EXPECT_TRUE(affected->recalcNextClose);
+  EXPECT_FALSE(untouched->recalcNextOpen);
+  EXPECT_FALSE(untouched->recalcNextClose);
+
+  taosArrayDestroy(fixture.group_.eventTreePrevWindows);
+  fixture.group_.eventTreePrevWindows = nullptr;
+  fixture.task_.pEventTree = nullptr;
+}
+
+TEST(StreamTriggerTaskRecalcTest, FutureOpenRepairWaitsForOriginalOutputButNotWindowClose) {
+  const int32_t eventTypes[] = {STRIGGER_EVENT_WINDOW_OPEN, STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE};
+  for (int32_t events : eventTypes) {
+    CountRecalcFixture fixture;
+    fixture.task_.triggerType = STREAM_TRIGGER_EVENT;
+    fixture.task_.calcEventType = static_cast<ESTriggerEventType>(events);
+    fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    fixture.group_.hasClosedWindow = true;
+    fixture.group_.prevWindow = {100, 200};
+    STimeWindow deleted = {100, 200};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0), 0);
+    ASSERT_TRUE(fixture.group_.recalcNextOpen);
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    ASSERT_NE(request, nullptr);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    ASSERT_EQ(taosObjPoolInit(&fixture.context_.windowPool, 1, sizeof(SSTriggerWindow)), 0);
+    ASSERT_EQ(taosObjPoolInit(&fixture.context_.calcParamPool, 1, sizeof(SSTriggerCalcParam)), 0);
+    ASSERT_EQ(taosObjListInit(&fixture.group_.windows, &fixture.context_.windowPool), 0);
+    ASSERT_EQ(taosObjListInit(&fixture.group_.pPendingCalcParams, &fixture.context_.calcParamPool), 0);
+    SSTriggerWindow window = {};
+    window.range = {300, 300 | (INT64_C(1) << 62)};
+    ASSERT_EQ(taosObjListAppend(&fixture.group_.windows, &window), 0);
+    SSTriggerCalcParam original = {};
+    original.wstart = 300;
+    ASSERT_EQ(taosObjListAppend(&fixture.group_.pPendingCalcParams, &original), 0);
+    fixture.group_.oldThreshold = fixture.group_.newThreshold = 300;
+
+    // Ordinary requests must still wait for a real closing boundary.
+    STimeWindow ordinary = {250, 400};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &ordinary, false, false, true, 0), 0);
+    ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &window.range), 0);
+    EXPECT_TRUE(fixture.group_.recalcNextOpen);
+    EXPECT_EQ(fixture.group_.lastOpenRepairStart, 300);
+    EXPECT_TRUE(fixture.group_.recalcNextWindow);
+    ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), 0);
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    EXPECT_EQ(request, nullptr);
+
+    auto* slot = fixture.initRunningCalcSlot();
+    ASSERT_NE(slot, nullptr);
+    taosObjListClear(&fixture.group_.pPendingCalcParams);
+    ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), 0);
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    EXPECT_EQ(request, nullptr);
+    // Completion and reuse advance the generation. A later request in this
+    // same slot must not keep the original output barrier alive.
+    slot->generation += 2;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    ASSERT_NE(request, nullptr);
+    EXPECT_TRUE(request->openWindowRepair);
+    EXPECT_TRUE(request->waitForOutput);
+    EXPECT_EQ(taosArrayGetSize(request->pRepairWaits), 1);
+    EXPECT_TRUE(request->noMerge);
+    EXPECT_EQ(request->calcRange.skey, 300);
+    EXPECT_EQ(request->calcRange.ekey, 300);
+    stTriggerTaskDestroyRecalcRequest(&request);
+    // Rechecking the same unclosed window must not enqueue the OPEN repair twice.
+    ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &window.range), 0);
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    EXPECT_EQ(request, nullptr);
+
+    taosObjListClear(&fixture.group_.windows);
+    fixture.group_.oldThreshold = fixture.group_.newThreshold = 400;
+    STimeWindow closed = {300, 400};
+    ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &closed), 0);
+    ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), 0);
+    EXPECT_FALSE(fixture.group_.recalcNextWindow);
+    taosObjPoolDestroy(&fixture.context_.windowPool);
+    taosObjPoolDestroy(&fixture.context_.calcParamPool);
+  }
+}
+
+TEST(StreamTriggerTaskRecalcTest, AutomaticPredecessorRepairWaitsForOriginalSuccessorOutput) {
+  for (bool pending : {false, true}) {
+    CountRecalcFixture fixture;
+    fixture.task_.triggerType = STREAM_TRIGGER_EVENT;
+    fixture.task_.calcEventType = STRIGGER_EVENT_WINDOW_CLOSE;
+    fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    fixture.group_.oldThreshold = fixture.group_.newThreshold = 600;
+    fixture.group_.hasClosedWindow = true;
+    fixture.group_.prevWindow = {500, 600};
+
+    ASSERT_EQ(taosObjPoolInit(&fixture.context_.calcParamPool, 1, sizeof(SSTriggerCalcParam)), 0);
+    ASSERT_EQ(taosObjListInit(&fixture.group_.pPendingCalcParams, &fixture.context_.calcParamPool), 0);
+    SSTriggerCalcSlot* slot = nullptr;
+    if (pending) {
+      SSTriggerCalcParam successor = {};
+      successor.wstart = 300;
+      successor.wend = 400;
+      ASSERT_EQ(taosObjListAppend(&fixture.group_.pPendingCalcParams, &successor), 0);
+    } else {
+      slot = fixture.initRunningCalcSlot();
+      ASSERT_NE(slot, nullptr);
+    }
+
+    // A, B and C are closed. Deleting A must repair B after its old output,
+    // even though C is the latest predecessor and no future repair is armed.
+    STimeWindow deleted = {100, 200};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0), 0);
+    EXPECT_FALSE(fixture.group_.recalcNextWindow);
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    EXPECT_EQ(request, nullptr);
+    EXPECT_FALSE(fixture.task_.recalcInProgress);
+    if (pending) {
+      ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), 0);
+      ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+      EXPECT_EQ(request, nullptr);
+      slot = fixture.initRunningCalcSlot();
+      ASSERT_NE(slot, nullptr);
+      taosObjListClear(&fixture.group_.pPendingCalcParams);
+      ASSERT_EQ(stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_), 0);
+      ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+      EXPECT_EQ(request, nullptr);
+    }
+    slot->generation += 2;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    ASSERT_NE(request, nullptr);
+    EXPECT_TRUE(fixture.task_.recalcInProgress);
+    EXPECT_TRUE(request->waitForOutput);
+    EXPECT_TRUE(request->noMerge);
+    EXPECT_FALSE(request->openWindowRepair);
+    EXPECT_EQ(taosArrayGetSize(request->pRepairWaits), 1);
+    stTriggerTaskDestroyRecalcRequest(&request);
+    taosObjPoolDestroy(&fixture.context_.calcParamPool);
+  }
+}
+
+TEST(StreamTriggerTaskRecalcTest, FutureOverlappingCountOpensEachQueueRepairOnce) {
+  CountRecalcFixture fixture;
+  fixture.task_.calcEventType = STRIGGER_EVENT_WINDOW_OPEN;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  fixture.group_.hasClosedWindow = true;
+  fixture.group_.prevWindow = {100, 200};
+  STimeWindow deleted = {100, 200};
+  ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0), 0);
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+  ASSERT_NE(request, nullptr);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  fixture.group_.oldThreshold = fixture.group_.newThreshold = 400;
+  for (TSKEY start : {300, 350}) {
+    STimeWindow open = {start, start | (INT64_C(1) << 62)};
+    ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &open), 0);
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+    ASSERT_NE(request, nullptr);
+    EXPECT_TRUE(request->openWindowRepair);
+    EXPECT_EQ(request->calcRange.skey, start);
+    stTriggerTaskDestroyRecalcRequest(&request);
+  }
+  STimeWindow first = {300, 300 | (INT64_C(1) << 62)};
+  ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &first), 0);
+  ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), 0);
+  EXPECT_EQ(request, nullptr);
+  EXPECT_TRUE(fixture.group_.recalcNextWindow);
+}
 
 TEST(StreamTriggerTaskRecalcTest, UnclosedCountRecalcDefersUntilBoundaryIsReal) {
   CountRecalcFixture fixture;
@@ -27718,6 +28117,51 @@ TEST(StreamTriggerTaskRecalcTest, UnclosedCountRecalcDefersUntilBoundaryIsReal) 
   EXPECT_EQ(ready->calcRange.ekey, 104);
   tSimpleHashCleanup(ready->pTsdbVersions);
   taosMemoryFree(ready);
+}
+
+TEST(StreamTriggerTaskRecalcTest, SessionPredecessorRepairWaitsForSuccessorGap) {
+  const STimeWindow deletedRanges[] = {{100, 100}, {200, 200}, {100, 200}};
+  for (const auto& deletedRange : deletedRanges) {
+    CountRecalcFixture fixture;
+    fixture.task_.triggerType = STREAM_TRIGGER_SESSION;
+    fixture.task_.gap = 1000;
+    fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    fixture.group_.oldThreshold = 2100;
+    fixture.group_.newThreshold = 2100;
+    fixture.group_.hasClosedWindow = true;
+    fixture.group_.prevWindow = {100, 200};
+    STimeWindow deleted = deletedRange;
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0),
+              TSDB_CODE_SUCCESS);
+    ASSERT_TRUE(fixture.group_.recalcNextWindow);
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    // Replay the entire old predecessor so its moved start cannot consume B's OPEN repair.
+    EXPECT_EQ(request->calcRange.ekey, 200);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    // Deletion replay is finished, but B has not yet closed its session gap.
+    const STimeWindow successor = {2000, 2100};
+    for (TSKEY threshold : {2100, 3099}) {
+      fixture.group_.newThreshold = threshold;
+      ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &successor),
+                TSDB_CODE_SUCCESS);
+      EXPECT_TRUE(fixture.group_.recalcNextWindow);
+      ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(request, nullptr);
+    }
+
+    fixture.group_.newThreshold = 4000;
+    ASSERT_EQ(stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &successor), TSDB_CODE_SUCCESS);
+    EXPECT_FALSE(fixture.group_.recalcNextWindow);
+    ASSERT_EQ(stTriggerTaskFetchRecalcRequest(&fixture.task_, &request), TSDB_CODE_SUCCESS);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->scanRange.ekey, 4000);
+    EXPECT_EQ(request->calcRange.skey, successor.skey);
+    EXPECT_EQ(request->calcRange.ekey, successor.ekey);
+    stTriggerTaskDestroyRecalcRequest(&request);
+  }
 }
 
 TEST(StreamTriggerTaskRecalcTest, UnmarkedDeleteRangeDoesNotWaitForUnrelatedWindow) {
@@ -28317,6 +28761,7 @@ TEST_F(StreamTriggerRetryObservabilityTest, FailedResponseRefreshesMutatedOwnerG
 struct TriggerRowState {
   SSDataBlock* dataBlock = nullptr;
   bool         returnSlice = false;
+  bool         deferAcquire = false;
   int32_t      sendCalls = 0;
 };
 
@@ -28347,7 +28792,7 @@ int32_t returnTriggerRowSlice(SSTriggerNewTimestampSorter*, SSDataBlock** ppBloc
 
 int32_t acquireTriggerRowRequest(SStreamTriggerTask*, int64_t, int64_t gid, SSTriggerCalcRequest** ppRequest) {
   gTriggerRowRequest.gid = gid;
-  *ppRequest = &gTriggerRowRequest;
+  *ppRequest = gTriggerRowState.deferAcquire ? nullptr : &gTriggerRowRequest;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -28771,12 +29216,16 @@ static void destroyExternalCheckpointFixture(ExternalCheckpointFixture* fixture)
     while (ppx != nullptr) {
       taosArrayDestroy((*ppx)->openNodeWindows);
       taosArrayDestroy((*ppx)->leafStreaks);
+      taosArrayDestroy((*ppx)->eventTreePrevWindows);
+      taosArrayDestroy((*ppx)->pPrevWindowSnapshots);
       taosMemoryFree(*ppx);
       ppx = static_cast<SSTriggerRealtimeGroup**>(tSimpleHashIterate(fixture->context.pGroups, ppx, &groupIter));
     }
     tSimpleHashCleanup(fixture->context.pGroups);
     fixture->context.pGroups = nullptr;
   }
+  tSimpleHashCleanup(fixture->context.pRecoveredPrevWindows);
+  fixture->context.pRecoveredPrevWindows = nullptr;
   taosObjPoolDestroy(&fixture->context.windowPool);
   taosObjPoolDestroy(&fixture->context.calcParamPool);
   taosArrayDestroy(fixture->ownedProgress);
@@ -28846,6 +29295,47 @@ TEST(StreamTriggerExternalCheckpointTest, DefersEncodingUntilExternalCalculation
   destroyExternalCheckpointFixture(&fixture);
 }
 
+TEST(StreamTriggerExternalCheckpointTest, DefersEncodingUntilQueuedRecalcAndScanComplete) {
+  ExternalCheckpointFixture fixture;
+  initExternalCheckpointFixture(&fixture, 0x5803);
+  addExternalCheckpointRef(&fixture, 703, "source|db|table", 1, 0x703, 1,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9003, 3000);
+  fixture.task.pRecalcRequests = tdListNew(POINTER_BYTES);
+  ASSERT_NE(fixture.task.pRecalcRequests, nullptr);
+  SSTriggerRecalcRequest request = {};
+  SSTriggerRecalcRequest* queued = &request;
+  ASSERT_EQ(tdListAppend(fixture.task.pRecalcRequests, &queued), TSDB_CODE_SUCCESS);
+  int64_t len = 0;
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, 0);
+  tdListEmpty(fixture.task.pRecalcRequests);
+
+  fixture.task.pGroupPendingRecalcs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(fixture.task.pGroupPendingRecalcs, nullptr);
+  SSTriggerGroupPendingRecalc pending = {};
+  TD_DLIST_APPEND(&pending.pendingRequests, &request);
+  int64_t gid = 42;
+  ASSERT_EQ(tSimpleHashPut(fixture.task.pGroupPendingRecalcs, &gid, sizeof(gid), &pending, sizeof(pending)),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, 0);
+  tSimpleHashCleanup(fixture.task.pGroupPendingRecalcs);
+  fixture.task.pGroupPendingRecalcs = nullptr;
+
+  // The history worker may be replacing its context. Checkpoint must use the
+  // task-owned barrier even while that context is absent.
+  fixture.task.recalcInProgress = true;
+  ASSERT_EQ(fixture.task.pHistoryContext, nullptr);
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(len, 0);
+  fixture.task.recalcInProgress = false;
+  EXPECT_EQ(stTriggerTaskDoGenCheckpoint(&fixture.task, nullptr, &len, 1), TSDB_CODE_SUCCESS);
+  EXPECT_GT(len, 0);
+  tdListFree(fixture.task.pRecalcRequests);
+  fixture.task.pRecalcRequests = nullptr;
+  destroyExternalCheckpointFixture(&fixture);
+}
+
 static SArray* failCheckpointGroupAllocation(size_t, size_t) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   return nullptr;
@@ -28904,6 +29394,150 @@ TEST(StreamTriggerExternalCheckpointTest, RestoresAfterRegistryDiscoveryReorders
   taosMemoryFree(checkpoint);
   destroyExternalCheckpointFixture(&restored);
   destroyExternalCheckpointFixture(&saved);
+}
+
+TEST(StreamTriggerExternalCheckpointTest, RestoresCommittedExternalGroupPredecessor) {
+  const int64_t gid = 0x5111;
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, 0x5110);
+  addExternalCheckpointRef(&saved, 511, "source-a|db-a|table-a", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 2000);
+  SSTriggerRealtimeGroup* savedGroup = addExternalCheckpointGroup(&saved, gid, 1000, 2000);
+  ASSERT_NE(savedGroup, nullptr);
+  savedGroup->extReaderTaskId = 0x511;
+  savedGroup->hasClosedWindow = true;
+  savedGroup->prevParentWindow = {500, 2500};
+  savedGroup->hasClosedParentWindow = true;
+  void*   checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  addExternalCheckpointRef(&restored, 511, "source-a|db-a|table-a", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 0);
+  SSTriggerRealtimeGroup* restoredGroup = addExternalCheckpointGroup(&restored, gid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(restoredGroup, nullptr);
+  restoredGroup->prevParentWindow = {INT64_MIN, INT64_MIN};
+
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(restoredGroup->hasClosedWindow);
+  EXPECT_EQ(restoredGroup->prevWindow.skey, 1000);
+  EXPECT_EQ(restoredGroup->prevWindow.ekey, 2000);
+  EXPECT_TRUE(restoredGroup->hasClosedParentWindow);
+  EXPECT_EQ(restoredGroup->prevParentWindow.skey, 500);
+  EXPECT_EQ(restoredGroup->prevParentWindow.ekey, 2500);
+  ASSERT_NE(restored.context.pRecoveredPrevWindows, nullptr);
+  EXPECT_EQ(tSimpleHashGetSize(restored.context.pRecoveredPrevWindows), 0);
+
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
+}
+
+TEST(StreamTriggerExternalCheckpointTest, RestoresDeferredPredecessorRepairs) {
+  for (bool hasClosed : {false, true}) {
+    SCOPED_TRACE(hasClosed);
+    const int64_t gid = 0x5114;
+    ExternalCheckpointFixture saved;
+    initExternalCheckpointFixture(&saved, 0x5115);
+    addExternalCheckpointRef(&saved, 515, "source|db|table", 1, 0x515, 11,
+                             STRIGGER_READER_WATERMARK_ACTIVE, 9005, 2000);
+    auto* savedGroup = addExternalCheckpointGroup(&saved, gid, 1000, 2000);
+    ASSERT_NE(savedGroup, nullptr);
+    savedGroup->extReaderTaskId = 0x515;
+    savedGroup->hasClosedWindow = hasClosed;
+    savedGroup->recalcNextWindow = true;
+    savedGroup->recalcNextOpen = true;
+    savedGroup->lastOpenRepairStart = 3000;
+    savedGroup->eventTreePrevWindows = taosArrayInit_s(sizeof(SSTriggerPrevWindowState), 1);
+    ASSERT_NE(savedGroup->eventTreePrevWindows, nullptr);
+    auto* treeState = static_cast<SSTriggerPrevWindowState*>(taosArrayGet(savedGroup->eventTreePrevWindows, 0));
+    ASSERT_NE(treeState, nullptr);
+    treeState->window = {1000, 2000};
+    treeState->hasClosed = hasClosed;
+    // An already repaired OPEN still needs replay protection until its window closes.
+    treeState->recalcNextOpen = hasClosed;
+    treeState->recalcNextClose = !hasClosed;
+    void* checkpoint = nullptr;
+    int64_t checkpointLen = 0;
+    encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+    ExternalCheckpointFixture restored;
+    initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+    addExternalCheckpointRef(&restored, 515, "source|db|table", 1, 0x515, 11,
+                             STRIGGER_READER_WATERMARK_ACTIVE, 9005, 0);
+    auto* restoredGroup = addExternalCheckpointGroup(&restored, gid, INT64_MIN, INT64_MIN);
+    ASSERT_NE(restoredGroup, nullptr);
+    restoredGroup->lastOpenRepairStart = 3000;
+    ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(restoredGroup->hasClosedWindow, hasClosed);
+    EXPECT_TRUE(restoredGroup->recalcNextWindow);
+    EXPECT_TRUE(restoredGroup->recalcNextOpen);
+    EXPECT_EQ(restoredGroup->lastOpenRepairStart, INT64_MIN);
+    ASSERT_NE(restoredGroup->eventTreePrevWindows, nullptr);
+    const auto* restoredState = static_cast<const SSTriggerPrevWindowState*>(
+        taosArrayGet(restoredGroup->eventTreePrevWindows, 0));
+    ASSERT_NE(restoredState, nullptr);
+    EXPECT_EQ(restoredState->hasClosed, hasClosed);
+    EXPECT_EQ(restoredState->recalcNextOpen, hasClosed);
+    EXPECT_EQ(restoredState->recalcNextClose, !hasClosed);
+
+    taosMemoryFree(checkpoint);
+    destroyExternalCheckpointFixture(&restored);
+    destroyExternalCheckpointFixture(&saved);
+  }
+}
+
+TEST(StreamTriggerExternalCheckpointTest, PendingGridCalculationKeepsCursorAcrossRestart) {
+  for (bool hasClosed : {false, true}) {
+    for (bool withPreviousPlaceholder : {false, true}) {
+      SCOPED_TRACE(hasClosed);
+      SCOPED_TRACE(withPreviousPlaceholder);
+      const int64_t gid = 0x5112;
+      ExternalCheckpointFixture saved;
+      initExternalCheckpointFixture(&saved, 0x5113);
+      saved.task.triggerType = STREAM_TRIGGER_SLIDING;
+      saved.task.interval.interval = 1000;
+      saved.task.interval.sliding = 1000;
+      saved.task.placeHolderBitmap = withPreviousPlaceholder ? PLACE_HOLDER_PREV_WSTART : 0;
+      addExternalCheckpointRef(&saved, 511, "source|db|table", 7, 0x511, 11,
+                               STRIGGER_READER_WATERMARK_ACTIVE, 9001, 2999);
+      const STimeWindow cursor = hasClosed ? STimeWindow{2000, 2999} : STimeWindow{INT64_MIN, INT64_MIN};
+      auto* savedGroup = addExternalCheckpointGroup(&saved, gid, cursor.skey, cursor.ekey);
+      ASSERT_NE(savedGroup, nullptr);
+      savedGroup->extReaderTaskId = 0x511;
+      savedGroup->hasClosedWindow = hasClosed;
+      // Keep the group in the checkpoint even when its interval cursor is uninitialized.
+      savedGroup->hasClosedParentWindow = true;
+      savedGroup->prevParentWindow = {100, 200};
+      addExternalCheckpointPendingCalc(savedGroup, 2000, 2999);
+      void* checkpoint = nullptr;
+      int64_t checkpointLen = 0;
+      encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+      ExternalCheckpointFixture restored;
+      initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+      restored.task.triggerType = STREAM_TRIGGER_SLIDING;
+      addExternalCheckpointRef(&restored, 511, "source|db|table", 7, 0x511, 11,
+                               STRIGGER_READER_WATERMARK_ACTIVE, 9001, 0);
+      auto* restoredGroup = addExternalCheckpointGroup(&restored, gid, INT64_MIN, INT64_MIN);
+      ASSERT_NE(restoredGroup, nullptr);
+      ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+                TSDB_CODE_SUCCESS);
+      EXPECT_EQ(restoredGroup->prevWindow.skey, cursor.skey);
+      EXPECT_EQ(restoredGroup->prevWindow.ekey, cursor.ekey);
+      EXPECT_EQ(restoredGroup->hasClosedWindow, hasClosed);
+      EXPECT_EQ(restoredGroup->prevParentWindow.skey, 100);
+      EXPECT_EQ(restoredGroup->prevParentWindow.ekey, 200);
+      taosMemoryFree(checkpoint);
+      destroyExternalCheckpointFixture(&restored);
+      destroyExternalCheckpointFixture(&saved);
+    }
+  }
 }
 
 TEST(StreamTriggerExternalCheckpointTest, RestoresLastTsBootstrapUidsAcrossRestart) {
@@ -30676,6 +31310,7 @@ class StreamTriggerRowObservabilityTest : public ::testing::Test {
 
   void TearDown() override {
     taosObjListClear(metas_);
+    taosArrayDestroy(group_.pPrevWindowSnapshots);
     taosObjListClear(&group_.pPendingParWinCalcParams);
     taosObjListClear(&group_.pPendingCalcParams);
     taosObjListClear(&group_.windows);
@@ -30745,6 +31380,298 @@ TEST_F(StreamTriggerRowObservabilityTest, FilteredRowsCountOnceWithoutWindowFano
             TSDB_CODE_SUCCESS);
   ASSERT_TRUE(rotated);
   EXPECT_EQ(period.period.trigger.logicalWindowCount, 2U);
+}
+
+TEST_F(StreamTriggerRowObservabilityTest, CollapsedEventOpenRewindsParentPredecessorAcrossRestart) {
+  SNodeListNode startCondition = {};
+  startCondition.node.type = QUERY_NODE_NODE_LIST;
+  task_.triggerType = STREAM_TRIGGER_EVENT;
+  task_.pStartCond = reinterpret_cast<SNode*>(&startCondition);
+  task_.calcEventType = STRIGGER_EVENT_WINDOW_OPEN;
+  task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  gTriggerRowState.deferAcquire = true;
+  group_.hasClosedWindow = true;
+  group_.prevWindow = {200, 300};
+  group_.hasClosedParentWindow = true;
+  group_.prevParentWindow = {100, 300};
+  group_.prevParentWinStart = 100;
+  group_.oldThreshold = 399;
+  group_.newThreshold = 900;
+
+  SColumnInfoData startCol = createColumnInfoData(TSDB_DATA_TYPE_TINYINT, sizeof(int8_t), 3);
+  SColumnInfoData endCol = createColumnInfoData(TSDB_DATA_TYPE_BOOL, sizeof(bool), 4);
+  ASSERT_EQ(blockDataAppendColInfo(block_, &startCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataAppendColInfo(block_, &endCol), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block_, 7), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 6; ++i) {
+    const TSKEY ts = 400 + i * 100;
+    const int8_t start = i >= 1 && i < 4 ? 1 : 0;
+    const bool end = i == 4;
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0)), i,
+                            reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 2)), i,
+                            reinterpret_cast<const char*>(&start), false), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 3)), i,
+                            reinterpret_cast<const char*>(&end), false), TSDB_CODE_SUCCESS);
+  }
+  auto* meta = static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+  ASSERT_NE(meta, nullptr);
+  meta->skey = 400;
+  meta->ekey = 900;
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(group_.pPendingCalcParams.neles, 0);
+  ASSERT_EQ(group_.pPendingParWinCalcParams.neles, 1);
+  auto* param = static_cast<SSTriggerCalcParam*>(taosObjListGetHead(&group_.pPendingParWinCalcParams));
+  ASSERT_NE(param, nullptr);
+  EXPECT_EQ(param->wstart, 500);
+  EXPECT_EQ(param->wend, 500);
+  ASSERT_TRUE(param->hasPrevWindow);
+  EXPECT_EQ(param->prevWstart, 100);
+  EXPECT_EQ(param->prevWend, 300);
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, task_.task.streamId);
+  saved.task.triggerType = STREAM_TRIGGER_EVENT;
+  saved.task.placeHolderBitmap = task_.placeHolderBitmap;
+  addExternalCheckpointRef(&saved, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 900);
+  auto* savedGroup = addExternalCheckpointGroup(&saved, group_.gid, group_.prevWindow.skey, group_.prevWindow.ekey);
+  ASSERT_NE(savedGroup, nullptr);
+  savedGroup->extReaderTaskId = 0x511;
+  savedGroup->hasClosedWindow = group_.hasClosedWindow;
+  savedGroup->prevParentWindow = group_.prevParentWindow;
+  savedGroup->hasClosedParentWindow = group_.hasClosedParentWindow;
+  ASSERT_EQ(taosObjListAppend(&savedGroup->pPendingParWinCalcParams, param), TSDB_CODE_SUCCESS);
+  void* checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  restored.task.triggerType = STREAM_TRIGGER_EVENT;
+  addExternalCheckpointRef(&restored, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 0);
+  auto* restoredGroup = addExternalCheckpointGroup(&restored, group_.gid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(restoredGroup, nullptr);
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(restoredGroup->hasClosedParentWindow);
+  EXPECT_EQ(restoredGroup->prevParentWindow.skey, 100);
+  EXPECT_EQ(restoredGroup->prevParentWindow.ekey, 300);
+  EXPECT_EQ(restoredGroup->prevWindow.skey, 500);
+  EXPECT_EQ(restoredGroup->prevWindow.ekey, 800);
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
+  task_.pStartCond = nullptr;
+}
+
+TEST_F(StreamTriggerRowObservabilityTest, OverlappingCountOpenKeepsOriginalPredecessorAcrossRestart) {
+  task_.calcEventType = STRIGGER_EVENT_WINDOW_OPEN;
+  task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  gTriggerRowState.deferAcquire = true;
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  // Rows 2..5 close [2,4] and [3,5]. OPEN 4 sees NULL; OPEN 5 sees [2,4].
+  ASSERT_EQ(group_.pPendingCalcParams.neles, 4);
+  taosObjListClear(&group_.pPendingCalcParams);  // all OPEN calculations committed
+  ASSERT_TRUE(group_.hasClosedWindow);
+  ASSERT_EQ(group_.prevWindow.skey, 3);
+  ASSERT_EQ(group_.prevWindow.ekey, 5);
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, task_.task.streamId);
+  saved.task.triggerType = STREAM_TRIGGER_COUNT;
+  saved.task.windowCount = 3;
+  saved.task.windowSliding = 1;
+  saved.task.calcEventType = task_.calcEventType;
+  saved.task.placeHolderBitmap = task_.placeHolderBitmap;
+  addExternalCheckpointRef(&saved, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 5);
+  addExternalCheckpointTriggerBinding(&saved, 0x511, group_.gid);
+  auto* savedGroup = addExternalCheckpointGroup(&saved, group_.gid, 3, 5);
+  ASSERT_NE(savedGroup, nullptr);
+  savedGroup->extReaderTaskId = 0x511;
+  savedGroup->hasClosedWindow = true;
+  savedGroup->pPrevWindowSnapshots = taosArrayDup(group_.pPrevWindowSnapshots, nullptr);
+  ASSERT_NE(savedGroup->pPrevWindowSnapshots, nullptr);
+  SObjListIter iter = {};
+  taosObjListInitIter(&group_.windows, &iter, TOBJLIST_ITER_FORWARD);
+  SSTriggerWindow* window = nullptr;
+  while ((window = static_cast<SSTriggerWindow*>(taosObjListIterNext(&iter))) != nullptr) {
+    ASSERT_EQ(taosObjListAppend(&savedGroup->windows, window), TSDB_CODE_SUCCESS);
+  }
+  void* checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  restored.task.triggerType = STREAM_TRIGGER_COUNT;
+  addExternalCheckpointRef(&restored, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 0);
+  auto* restoredGroup = addExternalCheckpointGroup(&restored, group_.gid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(restoredGroup, nullptr);
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(restored.context.recovering);
+  EXPECT_EQ(restoredGroup->prevWindow.skey, 3);
+  EXPECT_EQ(restoredGroup->prevWindow.ekey, 5);
+  auto** restoredProgress = static_cast<SSTriggerExtProgress**>(
+      tSimpleHashGet(restored.context.pReaderExtProgress, &savedGroup->extReaderTaskId, sizeof(int64_t)));
+  ASSERT_NE(restoredProgress, nullptr);
+  const int64_t uid = 9001;
+  auto* watermark = static_cast<int64_t*>(
+      tSimpleHashGet((*restoredProgress)->triggerSideUidMaxTs, &uid, sizeof(uid)));
+  ASSERT_NE(watermark, nullptr);
+  EXPECT_EQ(*watermark, 3);
+
+  // Replay only the two open windows, retaining the latest state for future CLOSEs.
+  TSWAP(group_.pPrevWindowSnapshots, restoredGroup->pPrevWindowSnapshots);
+  group_.prevWindow = restoredGroup->prevWindow;
+  group_.hasClosedWindow = restoredGroup->hasClosedWindow;
+  taosObjListClear(&group_.windows);
+  group_.totalCount = 0;
+  group_.oldThreshold = *watermark;
+  group_.newThreshold = 7;
+  heapRemove(context_.pMaxDelayHeap, &group_.heapNode);
+  group_.nextExecTime = 0;
+  context_.pMinGroup = nullptr;
+  context_.status = STRIGGER_CONTEXT_CHECK_CONDITION;
+  TD_DLIST_APPEND(&context_.groupsToCheck, &group_);
+  SSTriggerMetaData meta = {};
+  meta.skey = 4;
+  meta.ekey = 7;
+  meta.ver = 1;
+  ASSERT_EQ(taosObjListAppend(metas_, &meta), TSDB_CODE_SUCCESS);
+  int64_t ids[2] = {100, reader_->nodeId};
+  ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 6; ++i) {
+    const TSKEY ts = i + 3;
+    ASSERT_EQ(colDataSetVal(static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0)), i,
+                            reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  taosObjListInitIter(&group_.pPendingCalcParams, &iter, TOBJLIST_ITER_FORWARD);
+  auto* open4 = static_cast<SSTriggerCalcParam*>(taosObjListIterNext(&iter));
+  auto* open5 = static_cast<SSTriggerCalcParam*>(taosObjListIterNext(&iter));
+  auto* open6 = static_cast<SSTriggerCalcParam*>(taosObjListIterNext(&iter));
+  ASSERT_NE(open4, nullptr);
+  ASSERT_NE(open5, nullptr);
+  ASSERT_NE(open6, nullptr);
+  EXPECT_EQ(open4->wstart, 4);
+  EXPECT_FALSE(open4->hasPrevWindow);
+  EXPECT_EQ(open5->wstart, 5);
+  EXPECT_TRUE(open5->hasPrevWindow);
+  EXPECT_EQ(open5->prevWstart, 2);
+  EXPECT_EQ(open5->prevWend, 4);
+  EXPECT_EQ(open6->wstart, 6);
+  EXPECT_TRUE(open6->hasPrevWindow);
+  EXPECT_EQ(open6->prevWstart, 3);
+  EXPECT_EQ(open6->prevWend, 5);
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
+}
+
+TEST_F(StreamTriggerRowObservabilityTest, OverlappingIntervalOpenKeepsOriginalPredecessorAcrossRestart) {
+  constexpr TSKEY base = 1705276800000LL;
+  ConfigureInterval(3000, 'a', 1000, 'a');
+  task_.calcEventType = static_cast<ESTriggerEventType>(STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+  task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  gTriggerRowState.deferAcquire = true;
+  const TSKEY offsets[] = {0, 2000, 4000, 6000, 9000, 9500};
+  auto* tsCol = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, 0));
+  ASSERT_NE(tsCol, nullptr);
+  for (int32_t i = 0; i < 6; ++i) {
+    const TSKEY ts = base + offsets[i];
+    ASSERT_EQ(colDataSetVal(tsCol, i, reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+  }
+  auto* meta = static_cast<SSTriggerMetaData*>(taosObjListGetHead(metas_));
+  ASSERT_NE(meta, nullptr);
+  meta->ekey = group_.newThreshold = base + 9500;
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(group_.hasClosedWindow);
+  ASSERT_EQ(group_.prevWindow.skey, base + 6000);
+  ASSERT_EQ(group_.prevWindow.ekey, base + 8999);
+  SObjListIter originalIter = {};
+  taosObjListInitIter(&group_.pPendingCalcParams, &originalIter, TOBJLIST_ITER_FORWARD);
+  const SSTriggerCalcParam* closed = nullptr;
+  while (auto* param = static_cast<SSTriggerCalcParam*>(taosObjListIterNext(&originalIter))) {
+    if (param->wstart == base + 6000) closed = param;  // CLOSE follows OPEN for this window
+  }
+  ASSERT_NE(closed, nullptr);
+  EXPECT_EQ(closed->prevWstart, base + 5000);
+  EXPECT_EQ(closed->prevWend, base + 7999);
+  taosObjListClear(&group_.pPendingCalcParams);  // all original outputs committed
+
+  ExternalCheckpointFixture saved;
+  initExternalCheckpointFixture(&saved, task_.task.streamId);
+  saved.task.triggerType = STREAM_TRIGGER_SLIDING;
+  saved.task.interval = task_.interval;
+  saved.task.placeHolderBitmap = task_.placeHolderBitmap;
+  addExternalCheckpointRef(&saved, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, base + 9500);
+  addExternalCheckpointTriggerBinding(&saved, 0x511, group_.gid);
+  auto* savedGroup = addExternalCheckpointGroup(&saved, group_.gid, base + 6000, base + 8999);
+  ASSERT_NE(savedGroup, nullptr);
+  savedGroup->extReaderTaskId = 0x511;
+  savedGroup->hasClosedWindow = true;
+  savedGroup->pPrevWindowSnapshots = taosArrayDup(group_.pPrevWindowSnapshots, nullptr);
+  ASSERT_NE(savedGroup->pPrevWindowSnapshots, nullptr);
+  SObjListIter iter = {};
+  taosObjListInitIter(&group_.windows, &iter, TOBJLIST_ITER_FORWARD);
+  while (auto* window = static_cast<SSTriggerWindow*>(taosObjListIterNext(&iter))) {
+    ASSERT_EQ(taosObjListAppend(&savedGroup->windows, window), TSDB_CODE_SUCCESS);
+  }
+  void* checkpoint = nullptr;
+  int64_t checkpointLen = 0;
+  encodeExternalCheckpoint(&saved, 31, &checkpoint, &checkpointLen);
+
+  ExternalCheckpointFixture restored;
+  initExternalCheckpointFixture(&restored, saved.task.task.streamId);
+  restored.task.triggerType = STREAM_TRIGGER_SLIDING;
+  addExternalCheckpointRef(&restored, 511, "source|db|table", 7, 0x511, 11,
+                           STRIGGER_READER_WATERMARK_ACTIVE, 9001, 0);
+  auto* restoredGroup = addExternalCheckpointGroup(&restored, group_.gid, INT64_MIN, INT64_MIN);
+  ASSERT_NE(restoredGroup, nullptr);
+  ASSERT_EQ(stTriggerTaskParseCheckpoint(&restored.task, static_cast<uint8_t*>(checkpoint), checkpointLen),
+            TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(restored.context.recovering);
+  EXPECT_EQ(restoredGroup->prevWindow.skey, base + 6000);
+  EXPECT_EQ(restoredGroup->prevWindow.ekey, base + 8999);
+
+  TSWAP(group_.pPrevWindowSnapshots, restoredGroup->pPrevWindowSnapshots);
+  group_.prevWindow = restoredGroup->prevWindow;
+  group_.hasClosedWindow = restoredGroup->hasClosedWindow;
+  taosObjListClear(&group_.windows);
+  group_.oldThreshold = base + 8999;
+  group_.newThreshold = base + 9605;
+  heapRemove(context_.pMaxDelayHeap, &group_.heapNode);
+  group_.nextExecTime = 0;
+  context_.pMinGroup = nullptr;
+  context_.status = STRIGGER_CONTEXT_CHECK_CONDITION;
+  TD_DLIST_APPEND(&context_.groupsToCheck, &group_);
+  SSTriggerMetaData replay = {};
+  replay.skey = base + 9600;
+  replay.ekey = base + 9605;
+  replay.ver = 1;
+  ASSERT_EQ(taosObjListAppend(metas_, &replay), TSDB_CODE_SUCCESS);
+  int64_t ids[2] = {100, reader_->nodeId};
+  ASSERT_EQ(taosObjListAppend(&group_.tableUids, ids), TSDB_CODE_SUCCESS);
+  for (int32_t i = 0; i < 6; ++i) {
+    const TSKEY ts = base + 9600 + i;
+    ASSERT_EQ(colDataSetVal(tsCol, i, reinterpret_cast<const char*>(&ts), false), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(StartCheck(), TSDB_CODE_SUCCESS);
+  const auto* reopened = static_cast<const SSTriggerCalcParam*>(taosObjListGetHead(&group_.pPendingCalcParams));
+  ASSERT_NE(reopened, nullptr);
+  EXPECT_EQ(reopened->wstart, base + 7000);
+  ASSERT_TRUE(reopened->hasPrevWindow);
+  EXPECT_EQ(reopened->prevWstart, base + 4000);
+  EXPECT_EQ(reopened->prevWend, base + 6999);
+  taosMemoryFree(checkpoint);
+  destroyExternalCheckpointFixture(&restored);
+  destroyExternalCheckpointFixture(&saved);
 }
 
 TEST_F(StreamNestedHistoryRangeTest, CountPendingRangeWaitsUntilDetermined) {
@@ -38031,6 +38958,139 @@ TEST(StreamTriggerTaskRecalcTest, NonNestedSlidingKeepsLegacyWindowAlignment) {
   EXPECT_EQ(110, request->scanRange.ekey);
   stTriggerTaskDestroyRecalcRequest(&request);
   tzfree(timezone);
+}
+
+TEST(StreamTriggerTaskRecalcTest, IntervalPreviousWindowReplayIsBoundedToOnePredecessor) {
+  CountRecalcFixture fixture;
+  timezone_t         timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
+  fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART;
+  fixture.task_.interval.timezone = timezone;
+  fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  fixture.task_.interval.firstDayOfWeek = 1;
+  fixture.task_.interval.interval = 100;
+  fixture.task_.interval.sliding = 100;
+  fixture.group_.newThreshold = 1099;
+
+  STimeWindow requested = {1000, 1099};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &requested, false, true, true, 0));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(900, request->scanRange.skey);
+  EXPECT_EQ(1099, request->scanRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  tzfree(timezone);
+}
+
+TEST(StreamTriggerTaskRecalcTest, ManualIntervalReplayKeepsRangeBeforeFillHistoryStart) {
+  CountRecalcFixture fixture;
+  timezone_t         timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
+  fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART;
+  fixture.task_.fillHistory = true;
+  fixture.task_.fillHistoryStartTime = 1000;
+  fixture.task_.interval.timezone = timezone;
+  fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  fixture.task_.interval.firstDayOfWeek = 1;
+  fixture.task_.interval.interval = 100;
+  fixture.task_.interval.sliding = 100;
+  fixture.group_.newThreshold = 1099;
+
+  STimeWindow requested = {800, 899};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &requested, false, true, true, 0));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(700, request->scanRange.skey);
+  EXPECT_EQ(899, request->scanRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  tzfree(timezone);
+}
+
+TEST(StreamTriggerTaskRecalcTest, AutomaticIntervalReplayIncludesOneSuccessorForPreviousWindowDependencies) {
+  CountRecalcFixture fixture;
+  timezone_t timezone = tzalloc("UTC");
+  ASSERT_NE(timezone, nullptr);
+  fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WEND;
+  fixture.task_.interval.timezone = timezone;
+  fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
+  fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+  fixture.task_.interval.firstDayOfWeek = 1;
+  fixture.task_.interval.interval = 100;
+  fixture.task_.interval.sliding = 100;
+  fixture.group_.oldThreshold = 1999;
+  fixture.group_.newThreshold = 1999;
+
+  STimeWindow requested = {1000, 1099};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &requested, false, false, true, 0));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(900, request->scanRange.skey);
+  EXPECT_EQ(1199, request->scanRange.ekey);
+  EXPECT_EQ(1000, request->calcRange.skey);
+  EXPECT_EQ(1099, request->calcRange.ekey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  tzfree(timezone);
+}
+
+TEST(StreamTriggerTaskRecalcTest, StatePreviousWindowReplayStartsAtFillHistoryBoundary) {
+  CountRecalcFixture fixture;
+  fixture.task_.triggerType = STREAM_TRIGGER_STATE;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART;
+  fixture.task_.fillHistory = true;
+  fixture.task_.fillHistoryStartTime = 100;
+  fixture.task_.historyStep = 10;
+  fixture.group_.oldThreshold = 1099;
+  fixture.group_.newThreshold = 1099;
+
+  STimeWindow requested = {1000, 1009};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &requested, false, false, true, 0));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(fixture.task_.fillHistoryStartTime, request->scanRange.skey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+}
+
+TEST_F(StreamNestedRecalcTest, AncestorPreviousWindowReplayStartsAtFillHistoryBoundary) {
+  CountRecalcFixture fixture;
+  configureTask14RecalcFixture(&fixture);
+  auto* root = static_cast<SStreamWindowLayerSpec*>(taosArrayGet(fixture.task_.pWindowPlan->pLayers, 0));
+  ASSERT_NE(nullptr, root);
+  root->placeholderMask = PLACE_HOLDER_PREV_WSTART;
+  fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART;
+  fixture.task_.fillHistory = true;
+  fixture.task_.fillHistoryStartTime = 100;
+  fixture.task_.historyStep = 10;
+  fixture.group_.oldThreshold = 1099;
+  fixture.group_.newThreshold = 1099;
+
+  STimeWindow requested = {1000, 1009};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &requested, false, false, true, 0));
+  SSTriggerRecalcRequest* request = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+  ASSERT_NE(nullptr, request);
+  EXPECT_EQ(fixture.task_.fillHistoryStartTime, request->scanRange.skey);
+  stTriggerTaskDestroyRecalcRequest(&request);
+  destroyTask14RecalcFixture(&fixture);
 }
 
 static int32_t failTask14ReadyListAppend(SList*, const void*) { return TSDB_CODE_OUT_OF_MEMORY; }

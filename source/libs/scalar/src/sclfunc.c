@@ -7739,6 +7739,8 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamRange = &timeStartParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pStart, NULL, NULL, &gTaskScalarExtra));
 
+    if (timeStartParas.isNull) goto _empty;
+
     if (timeStartParas.opType == OP_TYPE_GREATER_THAN) {
       // For greater than or lower than, used different param, rigth or left.
       TAOS_CHECK_EXIT(timeStartParas.timeValue == INT64_MAX ? TSDB_CODE_OUT_OF_RANGE : TSDB_CODE_SUCCESS);
@@ -7758,6 +7760,8 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     gTaskScalarExtra.pStreamRange = &timeEndParas;
     TAOS_CHECK_EXIT(scalarCalculate(node->pEnd, NULL, NULL, &gTaskScalarExtra));
 
+    if (timeEndParas.isNull) goto _empty;
+
     if (timeEndParas.opType == OP_TYPE_LOWER_THAN) {
       pWinRange->ekey = timeEndParas.timeValue;
     } else if (timeEndParas.opType == OP_TYPE_LOWER_EQUAL) {
@@ -7771,6 +7775,17 @@ int32_t streamCalcCurrWinTimeRange(STimeRangeNode *node, void *pStRtFuncInfo, ST
     pWinRange->ekey = INT64_MAX;
   }
 
+  goto _done;
+
+_empty:
+  // A complete predicate with a NULL bound has no input. Keep it valid and
+  // explicitly empty; false validity restores the original reader range.
+  // Partial bounds build a batch envelope from different windows: a NULL in
+  // the first/last window must not exclude other windows in that batch.
+  *pWinRange = type == 3
+                   ? (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN + 1}
+                   : (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+_done:
   qDebug("%s, stream curr win calc range, skey:%" PRId64 ", ekey:%" PRId64, __func__, pWinRange->skey, pWinRange->ekey);
   if (winRangeValid) {
     *winRangeValid = true;

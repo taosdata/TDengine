@@ -1759,7 +1759,7 @@ static bool stRunnerIsCanonicalCreateOnlyRequest(const SSTriggerCalcRequest* pRe
 
   const SSTriggerCalcParam* pParam = taosArrayGet(pReq->params, 0);
   if (pParam == NULL || pParam->notifyType != 0 || pParam->extraNotifyContent != NULL ||
-      pParam->pExternalWindowData != NULL) {
+      pParam->pExternalWindowData != NULL || pParam->hasPrevWindow) {
     return false;
   }
   const SSTriggerCalcParam empty = {0};

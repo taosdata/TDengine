@@ -509,6 +509,9 @@ typedef struct SStmRuntime {
   int8_t           active;
   int8_t           grantExpired;
   int8_t           recalcPullupPending;
+  int8_t           recalcPullupCursorValid;
+  int64_t          recalcPullupCursor;
+  int32_t          recalcPullupRoundRemaining;
   SRWLatch         runtimeLock;
 
   SStmLastTs       lastTs[STM_EVENT_MAX_VALUE];

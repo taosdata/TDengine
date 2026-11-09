@@ -68,6 +68,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-23 Created
 
@@ -97,7 +99,6 @@ class TestEventWindowTree:
                 ("2025-01-01 00:00:02.000", "1", 1),
             ],
         )
-
     def test_event_window_tree_compatibility(self):
         """Existing single-condition and flat sub-event streams remain legal.
 
@@ -112,6 +113,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-23 Created
@@ -147,6 +150,8 @@ class TestEventWindowTree:
 
         Labels: common,ci
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7125293823
+
+        Jira: None
 
         History:
             - 2026-09-27 Created
@@ -200,6 +205,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -248,6 +255,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-25 Created
@@ -303,6 +312,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -357,6 +368,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -402,6 +415,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-24 Created
 
@@ -445,6 +460,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-25 Created
@@ -490,6 +507,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-24 Created
@@ -538,6 +557,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-24 Created
 
@@ -580,6 +601,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-24 Created
@@ -626,6 +649,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-24 Created
 
@@ -667,6 +692,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -707,6 +734,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-25 Created
@@ -754,6 +783,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -800,6 +831,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -816,9 +849,8 @@ class TestEventWindowTree:
             "true_for(count 2) "
             "from t stream_options(event_type(window_open|window_close)) "
             "into r_parent_tf_no_dup_open (start_ts, event_key primary key, path, end_ts, current) "
-            "as select _twstart, "
-            "concat(_event_condition_path, cast(_twend as varchar(64)), cast(_tlocaltime as varchar(64))), "
-            "_event_condition_path, _twend, current "
+            "as select _twstart, concat(_event_condition_path, ':', cast(_twend as varchar(32)), ':', "
+            "cast(cast(_tlocaltime as bigint) as varchar(32))), _event_condition_path, _twend, current "
             "from t where ts = _twstart"
         )
         tdStream.checkStreamStatus()
@@ -853,6 +885,8 @@ class TestEventWindowTree:
 
         Feishu: None
 
+        Jira: None
+
         History:
             - 2026-06-25 Created
 
@@ -872,9 +906,8 @@ class TestEventWindowTree:
             "true_for(count 2) "
             "from t stream_options(fill_history|event_type(window_open|window_close)) "
             "into r_history_parent_tf_no_dup_open (start_ts, event_key primary key, path, end_ts, current) "
-            "as select _twstart, "
-            "concat(_event_condition_path, cast(_twend as varchar(64)), cast(_tlocaltime as varchar(64))), "
-            "_event_condition_path, _twend, current "
+            "as select _twstart, concat(_event_condition_path, ':', cast(_twend as varchar(32)), ':', "
+            "cast(cast(_tlocaltime as bigint) as varchar(32))), _event_condition_path, _twend, current "
             "from t where ts = _twstart"
         )
         tdStream.checkStreamStatus()
@@ -905,6 +938,8 @@ class TestEventWindowTree:
         Labels: common,ci
 
         Feishu: None
+
+        Jira: None
 
         History:
             - 2026-06-24 Created

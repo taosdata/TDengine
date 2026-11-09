@@ -1103,7 +1103,11 @@ int32_t sclSetStreamExtWinParam(int32_t funcId, SNodeList* pParamNodes, SScalarP
       sclFreeParam(res);
       return code;
     }
-    ((int64_t *)res->columnData->pData)[i] = ((SValueNode *)pFirstParam)->datum.i;
+    if (((SValueNode *)pFirstParam)->isNull) {
+      colDataSetNULL(res->columnData, i);
+    } else {
+      ((int64_t *)res->columnData->pData)[i] = ((SValueNode *)pFirstParam)->datum.i;
+    }
   }
 
   return code;
@@ -1216,6 +1220,20 @@ int32_t scalarAssignPlaceHolderRes(SColumnInfoData* pResColData, int64_t offset,
       break;
     case FUNCTION_TYPE_TWEND:
       pData = &pParams->wend;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      if (!pParams->hasPrevWindow) {
+        colDataSetNNULL(pResColData, offset, rows);
+        return TSDB_CODE_SUCCESS;
+      }
+      pData = &pParams->prevWstart;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      if (!pParams->hasPrevWindow) {
+        colDataSetNNULL(pResColData, offset, rows);
+        return TSDB_CODE_SUCCESS;
+      }
+      pData = &pParams->prevWend;
       break;
     case FUNCTION_TYPE_TWDURATION:
       pData = &pParams->wduration;
@@ -1900,11 +1918,15 @@ _return:
   SCL_RET(code);
 }
 
-static int32_t sclGetFirstTsFromParam(SScalarParam* param, int64_t* ts){
+static int32_t sclGetFirstTsFromParam(SScalarParam* param, int64_t* ts,
+                                      bool* isNull) {
   int32_t code = 0, lino = 0;
   int64_t skey = 0;
   char* buf = NULL;
   
+  *isNull = colDataIsNull_s(param->columnData, 0);
+  if (*isNull) return TSDB_CODE_SUCCESS;
+
   void* p = colDataGetData(param->columnData, 0);
   if (IS_VAR_DATA_TYPE(param->columnData->info.type)){
     buf = taosMemoryCalloc(1, varDataTLen(p));
@@ -1954,7 +1976,8 @@ static bool sclIsStreamRangeReq(SOperatorNode *node) {
   return false;
 }
 
-static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue) {
+static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode,
+                                 int64_t *tsValue, bool *isNull) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
   if (nodeType(pNode) == QUERY_NODE_OPERATOR || nodeType(pNode) == QUERY_NODE_FUNCTION) {
     SScalarParam *res = (SScalarParam *)taosHashGet(ctx->pRes, (void *)&pNode, POINTER_BYTES);
@@ -1967,13 +1990,15 @@ static int32_t sclGetExprTSValue(SScalarCtx *ctx, SNode *pNode, int64_t *tsValue
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
     if (res->columnData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      TAOS_CHECK_EXIT(sclGetFirstTsFromParam(res, tsValue));
+      TAOS_CHECK_EXIT(sclGetFirstTsFromParam(res, tsValue, isNull));
     } else {
       sclError("invalid type for ts range expr, type:%d, node:%p", res->columnData->info.type, pNode);
       return TSDB_CODE_QRY_INVALID_INPUT;
     }
   } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
     SValueNode *valueNode = (SValueNode *)pNode;
+    *isNull = valueNode->isNull;
+    if (*isNull) return TSDB_CODE_SUCCESS;
     if (IS_INTEGER_TYPE(valueNode->node.resType.type) || IS_TIMESTAMP_TYPE(valueNode->node.resType.type)) {
       *tsValue = valueNode->datum.i;
     } else {
@@ -2003,17 +2028,22 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
                                                 SOperatorNode *node, SScalarParam *params) {
   int32_t code = 0;
   int64_t timeValue = 0;
+  bool    isNull = false;
 
   if (sclIsPrimTimeStampCol(node->pRight)) {
-    code = sclGetExprTSValue(ctx, node->pLeft, &timeValue);
+    code = sclGetExprTSValue(ctx, node->pLeft, &timeValue, &isNull);
   } else if (sclIsPrimTimeStampCol(node->pLeft)) {
-    code = sclGetExprTSValue(ctx, node->pRight, &timeValue);
+    code = sclGetExprTSValue(ctx, node->pRight, &timeValue, &isNull);
 
   } else {
     sclError("invalid stream timerange start expr, opType:%d, nodeType left:%d, nodeType right:%d", node->opType,
              nodeType(node->pLeft), nodeType(node->pRight));
     return TSDB_CODE_STREAM_INTERNAL_ERROR;         
   }
+
+  if (code != TSDB_CODE_SUCCESS) return code;
+  streamTsRange->isNull = streamTsRange->isNull || isNull;
+  if (streamTsRange->isNull) return TSDB_CODE_SUCCESS;
 
   /*
    * One bound (start or end) may be constrained by more than one condition, e.g.
@@ -2049,9 +2079,6 @@ static int32_t sclCalcStreamCurrWinTimeRange(SScalarCtx *ctx, SStreamTSRangePara
       streamTsRange->timeValue = timeValue;
       streamTsRange->opType = node->opType;
     }
-  }
-  if (code != TSDB_CODE_SUCCESS) {
-    sclError("get ts value for stream timerange failed, code:%d", code);
   }
   return TSDB_CODE_SUCCESS;
 }
