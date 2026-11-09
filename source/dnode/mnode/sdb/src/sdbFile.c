@@ -18,6 +18,14 @@
 #define _DEFAULT_SOURCE
 #include "crypt.h"
 #include "sdb.h"
+
+// Test/debug hook: invoked once per record inside sdbWriteFileImp. It is NULL in production and
+// therefore completely inert. Unit tests set it to inject a mid-write state change (e.g. simulate a
+// key/algorithm rotation between two records) so they can verify that a single snapshot keeps a
+// fixed encryption mode/key (see MndTestSdb.04_Encryption_Snapshot_Consistency). Keeping the hook
+// here (a single predictable NULL check per record) lets the regression test reproduce the exact
+// race the fix closes without any production behavior change.
+void (*tsSdbWriteRecordHook)(void) = NULL;
 #include "sync.h"
 #include "tchecksum.h"
 #include "tencrypt.h"
@@ -532,7 +540,6 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   int64_t ret = 0;
   char    file[PATH_MAX] = {0};
   int32_t bufLen = TSDB_MAX_MSG_SIZE;
-  bool    needMigration = false;
 
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
@@ -543,24 +550,24 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     return code;
   }
 
-  // Check if sdb.data needs encryption migration
-  // This info is stored in mnode.json encrypted flag
+  // Resolve the file-wide encryption mode. The encrypted flag is the single source of truth for the
+  // on-disk format (kept consistent with the actual bytes by sdbWriteFileImp). If the in-memory flag
+  // disagrees with mnode.json while a meta key is available, trust mnode.json as the authoritative
+  // persisted flag so the whole file is read with one uniform decision.
   bool isEncrypted = pSdb->encrypted;
   if (!isEncrypted && tsMetaKey[0] != '\0') {
     mInfo("sdb.data not encrypted but tsMetaKey available, checking encrypted flag from mnode.json");
-    isEncrypted = sdbReadEncryptedFlagFromMnodeJson(pSdb);  // Fix: don't redeclare, just assign
+    isEncrypted = sdbReadEncryptedFlagFromMnodeJson(pSdb);
     if (isEncrypted) {
-      mInfo("reload encrypted flag from mnode.json is true, will not migrate after reading");
-      needMigration = false;
+      mInfo("reload encrypted flag from mnode.json is true, will read as encrypted");
     } else {
-      mInfo("reload encrypted flag from mnode.json is false, will migrate after reading");
-      needMigration = true;
+      mInfo("reload encrypted flag from mnode.json is false, will migrate to encrypted after reading");
     }
   }
 
   pSdb->encrypted = isEncrypted;
 
-  mInfo("start to read sdb file:%s, encrypted:%d, needMigration:%d", file, isEncrypted, needMigration);
+  mInfo("start to read sdb file:%s, encrypted:%d", file, isEncrypted);
 
   SSdbRaw *pRaw = taosMemoryMalloc(bufLen + 100);
   if (pRaw == NULL) {
@@ -609,7 +616,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
     }
 
     readLen = pRaw->dataLen + sizeof(int32_t);
-    if (tsMetaKey[0] != '\0' && !needMigration) {
+    // Read every record with a single, file-wide decision driven by the encrypted flag (which is
+    // kept consistent with the on-disk format by sdbWriteFileImp). This mirrors the write side and
+    // guarantees the whole file is treated uniformly (no per-record mixing).
+    if (pSdb->encrypted) {
       readLen = ENCRYPTED_LEN(pRaw->dataLen) + sizeof(int32_t);
     }
     if (readLen >= bufLen) {
@@ -639,12 +649,10 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       TAOS_CHECK_EXIT(code);
     }
 
-    if (taosWaitCfgKeyLoaded() != 0) {
-      code = terrno;
-      TAOS_CHECK_EXIT(code);
-    }
-
-    if (tsMetaKey[0] != '\0' && !needMigration) {
+    // Keys were already waited for once at the start of sdbReadFileImp, so re-checking per record
+    // is unnecessary. Decrypt only when this file was written in encrypted format (flag-driven),
+    // matching the write side exactly and preserving whole-file consistency.
+    if (pSdb->encrypted) {
       int32_t count = 0;
 
       char *plantContent = taosMemoryMalloc(ENCRYPTED_LEN(pRaw->dataLen));
@@ -738,20 +746,19 @@ int32_t sdbReadFile(SSdb *pSdb) {
       return code;
     }
 
-    // Update encrypted flag and persist to mnode.json immediately (atomic operation)
-    pSdb->encrypted = true;
-
+    // sdbWriteFileImp above already rewrote the file in the correct on-disk format and persisted the
+    // encrypted flag to match (with the real value, not a hardcoded true). Reuse that actual value
+    // here instead of forcing true, so a plaintext migration (key still unavailable) does not leave
+    // mnode.json claiming the file is encrypted while the disk holds plaintext.
     if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
-      code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
+      code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback, pSdb->encrypted);
       if (code == 0) {
-        mInfo("sdb.data migrated to encrypted format and persisted encrypted flag to mnode.json successfully");
+        mInfo("sdb.data migrated and persisted encrypted flag(%d) to mnode.json successfully", pSdb->encrypted);
       } else {
         mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
-        // Rollback encrypted flag
-        pSdb->encrypted = false;
       }
     } else {
-      mWarn("sdb.data migrated to encrypted format but no callback to persist flag");
+      mWarn("sdb.data migrated but no callback to persist flag");
     }
   }
 
@@ -786,7 +793,60 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     if ((ret = taosCloseFile(&pFile)) != 0) {
       mError("failed to close sdb file:%s since %s", tmpfile, tstrerror(ret));
     }
+    // Do not leave a half-written temp snapshot behind on the error path.
+    (void)taosRemoveFile(tmpfile);
     return code;
+  }
+
+  // Wait until the encryption keys reach a definitive state (LOADED / NOT_EXIST / DISABLED)
+  // before deciding how to write this snapshot. While status is still UNLOADED we must block:
+  // writing a snapshot before the meta key is available would either fail to encrypt an
+  // encrypted-cluster file or, worse, race with a key arrival mid-write.
+  if (taosWaitCfgKeyLoaded() != 0) {
+    code = terrno;
+    mError("failed to wait for encryption keys before writing sdb file:%s since %s", tmpfile, tstrerror(code));
+    int32_t ret = 0;
+    if ((ret = taosCloseFile(&pFile)) != 0) {
+      mError("failed to close sdb file:%s since %s", tmpfile, tstrerror(ret));
+    }
+    // Do not leave a half-written temp snapshot behind on the error path.
+    (void)taosRemoveFile(tmpfile);
+    return code;
+  }
+
+  // FIX the encryption mode, the key AND the algorithm for the WHOLE snapshot at this single point.
+  // Re-evaluating the global tsMetaKey / tsEncryptAlgorithmType per record (the previous behaviour)
+  // allowed a key or algorithm arrival/rotation between two records to mix plaintext and ciphertext
+  // records (or records encrypted with different algorithms) in one sdb.data file, which cannot be
+  // read back with a single uniform length/algorithm. Capturing the boolean decision, a private copy
+  // of the key and the algorithm guarantees the file is internally consistent (either fully
+  // plaintext or fully encrypted with one key/algorithm), matching the on-disk format with the
+  // encrypted flag persisted at the end of this function.
+  bool sdbEncrypt = (tsMetaKey[0] != '\0');
+  char sdbMetaKey[ENCRYPT_KEY_LEN + 1] = {0};
+  int32_t sdbAlgo = tsEncryptAlgorithmType;  // freeze algorithm type together with the key
+  if (sdbEncrypt) {
+    tstrncpy(sdbMetaKey, tsMetaKey, sizeof(sdbMetaKey));
+  }
+  mInfo("sdb file encryption mode is fixed for this snapshot, encrypt:%d, algo:%d, file:%s", sdbEncrypt, sdbAlgo,
+        tmpfile);
+
+  // Guard against "encryption required but key missing": if the cluster requires encryption
+  // (key status LOADED) yet the local meta key is still empty, writing a plaintext snapshot would
+  // (a) wrongly clear mnode.json's encrypted flag and (b) produce a plaintext file in an encrypted
+  // cluster, which is exactly the mixed/inconsistent state this fix targets. Refuse to write and
+  // keep the previous (consistent) snapshot instead. NOT_EXIST / DISABLED are legitimate plaintext
+  // cases and are intentionally excluded from this guard.
+  if (tsEncryptKeysStatus == TSDB_ENCRYPT_KEY_STAT_LOADED && !sdbEncrypt) {
+    mError("encryption is required (key status LOADED) but meta key is empty, refusing to write a plaintext sdb "
+           "snapshot to avoid corrupting mnode.json, file:%s",
+           tmpfile);
+    int32_t ret = 0;
+    if ((ret = taosCloseFile(&pFile)) != 0) {
+      mError("failed to close sdb file:%s since %s", tmpfile, tstrerror(ret));
+    }
+    (void)taosRemoveFile(tmpfile);
+    TAOS_RETURN(TSDB_CODE_DNODE_NO_ENCRYPT_KEY);
   }
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
@@ -829,14 +889,18 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
         int32_t newDataLen = pRaw->dataLen;
         char   *newData = pRaw->pData;
 
-        if (taosWaitCfgKeyLoaded() != 0) {
-          code = terrno;
-          taosHashCancelIterate(hash, ppRow);
-          sdbFreeRaw(pRaw);
-          break;
+        // Inert in production (tsSdbWriteRecordHook == NULL). Used by unit tests to inject a
+        // mid-write state change (e.g. key/algorithm rotation) right before the per-record
+        // encryption decision, so they can prove the snapshot stays consistent regardless.
+        if (tsSdbWriteRecordHook) {
+          tsSdbWriteRecordHook();
         }
 
-        if (tsMetaKey[0] != '\0') {
+        // Use the file-wide encryption decision captured before the loop. We must NOT re-check the
+        // global tsMetaKey / tsEncryptAlgorithmType here: doing so would let the snapshot mix
+        // plaintext and ciphertext records (or records encrypted with different algorithms) if the
+        // key or algorithm arrives or rotates while the file is being written.
+        if (sdbEncrypt) {
           newDataLen = ENCRYPTED_LEN(pRaw->dataLen);
           newData = taosMemoryMalloc(newDataLen);
           if (newData == NULL) {
@@ -851,8 +915,8 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           opts.source = pRaw->pData;
           opts.result = newData;
           opts.unitLen = 16;
-          opts.pOsslAlgrName = taosGetEncryptAlgoName(tsEncryptAlgorithmType);
-          tstrncpy(opts.key, tsMetaKey, ENCRYPT_KEY_LEN + 1);
+          opts.pOsslAlgrName = taosGetEncryptAlgoName(sdbAlgo);
+          tstrncpy(opts.key, sdbMetaKey, ENCRYPT_KEY_LEN + 1);
 
           int32_t count = CBC_Encrypt(&opts);
           if (count <= 0) {
@@ -873,7 +937,7 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           break;
         }
 
-        if (tsMetaKey[0] != '\0') {
+        if (sdbEncrypt) {
           taosMemoryFree(newData);
         }
 
@@ -925,20 +989,24 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
           " file:%s",
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
 
-    if (tsMetaKey[0] != '\0') {
-      if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
-        code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback);
-        if (code == 0) {
-          mInfo("sdb.data now is encrypted format and persisted encrypted flag to mnode.json successfully");
-          pSdb->encrypted = true;
-        } else {
-          mError("failed to persist encrypted flag to mnode.json since %s", tstrerror(code));
-          return code;
-        }
+    // The on-disk format of this snapshot is fully determined by the file-wide decision captured
+    // before the loop. Persist that SAME decision as the encrypted flag so the disk format and the
+    // flag are always consistent (a reader trusts pSdb->encrypted / mnode.json to decide whether to
+    // decrypt every record uniformly). This must happen for the plaintext case too: if a snapshot is
+    // written in plaintext (e.g. keys briefly unavailable) we need to correct a stale mnode.json
+    // encrypted=true, otherwise a later restart would read plaintext as ciphertext and fail.
+    pSdb->encrypted = sdbEncrypt;
+    if (pSdb->persistEncryptedFlagFp != NULL && pSdb->pMnodeForCallback != NULL) {
+      code = pSdb->persistEncryptedFlagFp(pSdb->pMnodeForCallback, sdbEncrypt);
+      if (code == 0) {
+        mInfo("sdb.data written in %s format and persisted encrypted flag(%d) to mnode.json successfully",
+              sdbEncrypt ? "encrypted" : "plaintext", sdbEncrypt);
       } else {
-        mWarn("sdb.data written in encrypted format but no callback to persist flag");
-        pSdb->encrypted = true;
+        mError("failed to persist encrypted flag(%d) to mnode.json since %s", sdbEncrypt, tstrerror(code));
+        return code;
       }
+    } else {
+      mWarn("sdb.data written in %s format but no callback to persist flag", sdbEncrypt ? "encrypted" : "plaintext");
     }
   }
 

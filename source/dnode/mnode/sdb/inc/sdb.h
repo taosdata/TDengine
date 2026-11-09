@@ -227,7 +227,11 @@ typedef struct SSdb {
   char              *currDir;
   char              *tmpDir;
   char               mnodePath[PATH_MAX];  // Path to mnode directory for persisting mnode.json
-  int32_t          (*persistEncryptedFlagFp)(void *pMnode);  // Callback to persist encrypted flag
+  // Callback to persist the encrypted flag to mnode.json. The `encrypted` argument carries the
+  // ACTUAL on-disk format of the just-written sdb.data so the callee can keep mnode.json consistent
+  // with the disk (true => encrypted, false => plaintext). Persisting the real value (instead of a
+  // hardcoded true) prevents a stale mnode.json from disagreeing with a plaintext snapshot.
+  int32_t          (*persistEncryptedFlagFp)(void *pMnode, bool encrypted);  // Callback to persist encrypted flag
   void              *pMnodeForCallback;  // Pointer to SMnode for callback
   int64_t            commitIndex;
   int64_t            commitTerm;
