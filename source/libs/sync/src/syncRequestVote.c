@@ -89,6 +89,16 @@ static bool syncNodeOnRequestVoteLogOK(SSyncNode* ths, SyncRequestVote* pMsg) {
 }
 
 int32_t syncNodeOnRequestVote(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): the RPC dispatch path only guarantees
+  // contLen >= sizeof(SMsgHead) (8 bytes), far less than the fixed SyncRequestVote
+  // header. Reject a truncated frame before syncLogRecvRequestVote() and the
+  // srcId / term / log-position reads below, which are out-of-bounds otherwise.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncRequestVote)) {
+    sError("vgId:%d, request vote frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncRequestVote));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t          ret = 0;
   SyncRequestVote* pMsg = pRpcMsg->pCont;
   bool             resetElect = false;

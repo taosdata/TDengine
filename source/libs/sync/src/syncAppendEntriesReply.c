@@ -42,6 +42,18 @@
 //
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncAppendEntriesReply header before syncNodeInRaftGroup() reads pMsg->srcId.
+  // The bound is offsetof(..., appliedIndex) (the last fixed-header field), NOT
+  // sizeof: appliedIndex was added later and the code below explicitly keeps
+  // compatibility with old peers whose reply ends right before it (the 104-byte
+  // frame), so such a frame is still legitimate.
+  if (pRpcMsg->contLen < (int32_t)offsetof(SyncAppendEntriesReply, appliedIndex)) {
+    sError("vgId:%d, append entries reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, (size_t)offsetof(SyncAppendEntriesReply, appliedIndex));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t                 code = 0;
   SyncAppendEntriesReply* pMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
   int32_t                 ret = 0;

@@ -3919,6 +3919,17 @@ static int32_t syncNodeAppendNoopOld(SSyncNode* ths) {
 #endif
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): the RPC dispatch path only guarantees
+  // contLen >= sizeof(SMsgHead) (8 bytes), far less than the fixed SyncHeartbeat
+  // header. The pMsg->srcId / timeStamp / term reads below all live inside that
+  // header, so a truncated frame would otherwise be an out-of-bounds heap read.
+  // Validate the fixed header before the first field access.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeat)) {
+    sError("vgId:%d, heartbeat frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeat));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   SyncHeartbeat* pMsg = pRpcMsg->pCont;
   bool           resetElect = false;
 
@@ -4062,6 +4073,14 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
 }
 
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncHeartbeatReply header before syncNodeGetLogReplMgr() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncHeartbeatReply)) {
+    sError("vgId:%d, heartbeat reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncHeartbeatReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t code = 0;
 
   SyncHeartbeatReply* pMsg = pRpcMsg->pCont;
