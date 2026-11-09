@@ -570,6 +570,54 @@ TEST(NodesPartitionPhasedModeTest, cloneAndSerializationRoundTrips) {
                                      true);
 }
 
+static bool* partitionExtWinGroupBatchRef(SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+      return &((SPartitionLogicNode*)pNode)->extWinGroupBatch;
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return &((SPartitionPhysiNode*)pNode)->extWinGroupBatch;
+    default:
+      return nullptr;
+  }
+}
+
+TEST(NodesPartitionExtWinGroupBatchTest, cloneAndSerializationRoundTrips) {
+  checkNodeFieldRoundTrips(QUERY_NODE_LOGIC_PLAN_PARTITION, false, true,
+                           partitionExtWinGroupBatchRef);
+  checkNodeFieldRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION, true, true,
+                           partitionExtWinGroupBatchRef);
+  checkNodeFieldRoundTrips(QUERY_NODE_PHYSICAL_PLAN_PARTITION, true, false,
+                           partitionExtWinGroupBatchRef);
+}
+
+TEST(NodesPartitionExtWinGroupBatchTest, missingJsonFieldDefaultsToFalse) {
+  for (ENodeType type : {QUERY_NODE_LOGIC_PLAN_PARTITION,
+                         QUERY_NODE_PHYSICAL_PLAN_PARTITION}) {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ASSERT_NE(nullptr, partitionExtWinGroupBatchRef(src.get()));
+    *partitionExtWinGroupBatchRef(src.get()) = true;
+
+    char* pStr = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToString(src.get(), false, &pStr, &len),
+              TSDB_CODE_SUCCESS);
+    std::string json(pStr);
+    taosMemoryFreeClear(pStr);
+    eraseJsonField(&json, "ExtWinGroupBatch");
+
+    SNode* pDecoded = nullptr;
+    ASSERT_EQ(nodesStringToNode(json.c_str(), &pDecoded),
+              TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded,
+                                                    nodesDestroyNode);
+    ASSERT_EQ(nodeType(decoded.get()), type);
+    ASSERT_NE(nullptr, partitionExtWinGroupBatchRef(decoded.get()));
+    EXPECT_FALSE(*partitionExtWinGroupBatchRef(decoded.get()));
+  }
+}
+
 // checkNodeFieldRoundTrips is unusable here: QUERY_NODE_PHYSICAL_PLAN_MERGE
 // has no clone case in nodesCloneFuncs.c, and the logic node's JSON codec
 // carries neither field. Clone is checked on the logic node, JSON and msg

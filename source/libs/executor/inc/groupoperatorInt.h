@@ -156,7 +156,12 @@ typedef struct SPartitionOperatorInfo {
   SArray* pOrderInfoArr;
 
   bool                 phasedMode;
+  // Batch external-window partitions by outer group ID. The planner sets this;
+  // it is mutually exclusive with phasedMode.
+  bool                 extWinGroupBatch;
   int8_t               curPhase;
+  // In phased mode this is the scan phase's outer epoch; in extWinGroupBatch
+  // mode it is the current ordered scan group ID, not a trigger-group ID.
   uint64_t             outerEpoch;
   bool                 outerEpochSet;
   EPartitionPhaseState phaseState;
@@ -201,6 +206,8 @@ void*        partitionGetWritablePage(SPartitionOperatorInfo* pInfo,
                                       SPartitionDataInfo*     pGroupInfo);
 int32_t      phasedHashPartitionNext(SOperatorInfo* pOperator,
                                      SSDataBlock** ppRes);
+int32_t      extWinGroupBatchPartitionNext(SOperatorInfo* pOperator,
+                                           SSDataBlock** ppRes);
 int32_t      partitionReadAt(TdFilePtr pFile, int64_t offset, void* pData,
                              int32_t length);
 int32_t      partitionReadFragmentBlock(SPartitionOperatorInfo* pInfo,
@@ -250,6 +257,7 @@ void partitionTestSetPrepareOutputFailure(int32_t code);
 void partitionTestSetPageAllocationFailure(int32_t code);
 void partitionTestSetSpillReadFailure(int32_t code);
 void partitionTestSetSpillCryptFailure(int32_t code);
+int32_t partitionFinishExtWinGroupDrain(SOperatorInfo* pOperator);
 #endif
 
 #ifdef __cplusplus

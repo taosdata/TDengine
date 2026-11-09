@@ -61,9 +61,22 @@ class QDebugFlagGuard {
  public:
   explicit QDebugFlagGuard(int32_t flag) : previousFlag_(qDebugFlag) { qDebugFlag |= flag; }
   ~QDebugFlagGuard() { qDebugFlag = previousFlag_; }
+  QDebugFlagGuard(const QDebugFlagGuard &) = delete;
+  QDebugFlagGuard &operator=(const QDebugFlagGuard &) = delete;
 
  private:
   int32_t previousFlag_;
+};
+
+class FilterScalarModeGuard {
+ public:
+  FilterScalarModeGuard() : previous_(tsFilterScalarMode) { tsFilterScalarMode = true; }
+  ~FilterScalarModeGuard() { tsFilterScalarMode = previous_; }
+  FilterScalarModeGuard(const FilterScalarModeGuard &) = delete;
+  FilterScalarModeGuard &operator=(const FilterScalarModeGuard &) = delete;
+
+ private:
+  bool previous_;
 };
 
 void flttInitLogFile() {
@@ -797,6 +810,786 @@ TEST(timerangeTest, greater_and_lower_not_strict) {
   ASSERT_EQ(win.ekey, tbig2 - 1);
   // filterFreeInfo(filter);
   nodesDestroyNode(logicNode1);
+}
+
+static SNode *flttRangePredicate(int16_t colId, EOperatorType op, int64_t value,
+                                int8_t dataType = TSDB_DATA_TYPE_BIGINT, bool isPrimTs = false) {
+  SNode *col = NULL, *val = NULL, *predicate = NULL;
+  int64_t datum = value;
+  if (IS_INVALID_TYPE(dataType)) {
+    ADD_FAILURE() << "invalid range predicate type " << static_cast<int>(dataType);
+    return NULL;
+  }
+  if (flttMakeColumnNode(&col, NULL, dataType, tDataTypes[dataType].bytes, 0, NULL) != 0) {
+    ADD_FAILURE() << "range column construction failed: colId=" << colId;
+    return NULL;
+  }
+  if (flttMakeValueNode(&val, dataType, &datum) != 0) {
+    ADD_FAILURE() << "range value construction failed: colId=" << colId << ", op=" << op;
+    nodesDestroyNode(col);
+    return NULL;
+  }
+  if (flttMakeOpNode(&predicate, op, TSDB_DATA_TYPE_BOOL, col, val) != 0) {
+    ADD_FAILURE() << "range operator construction failed: colId=" << colId << ", op=" << op;
+    // On failure, flttMakeOpNode did not create a parent to own the operands.
+    nodesDestroyNode(col);
+    nodesDestroyNode(val);
+    return NULL;
+  }
+  ((SColumnNode *)col)->colId = colId;
+  ((SColumnNode *)col)->isPrimTs = isPrimTs;
+  ((SColumnNode *)col)->colType = COLUMN_TYPE_COLUMN;
+  // SMA pruning uses colId; slotId is a block-column position, not a column ID.
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    if (((SColumnNode *)col)->node.resType.bytes != sizeof(int64_t) ||
+        ((SValueNode *)val)->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      ADD_FAILURE() << "timestamp range predicate metadata mismatch";
+      nodesDestroyNode(predicate);
+      return NULL;
+    }
+    ((SColumnNode *)col)->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+    ((SValueNode *)val)->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
+  // assignVal initializes the value buffer; range extraction reads datum.i.
+  ((SValueNode *)val)->datum.i = datum;
+  return predicate;
+}
+
+static SNode *flttRangeLogic(ELogicConditionType type, SNode *left, SNode *right) {
+  if (NULL == left || NULL == right) {
+    ADD_FAILURE() << "range logic operand construction failed: left=" << (left != NULL)
+                  << ", right=" << (right != NULL);
+    nodesDestroyNode(left);
+    nodesDestroyNode(right);
+    return NULL;
+  }
+  SNode *logic = NULL;
+  if (nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &logic) != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "range logic node construction failed";
+    nodesDestroyNode(left);
+    nodesDestroyNode(right);
+    return NULL;
+  }
+  SLogicConditionNode *condition = (SLogicConditionNode *)logic;
+  condition->condType = type;
+  condition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  condition->node.resType.bytes = sizeof(bool);
+  if (nodesMakeList(&condition->pParameterList) != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "range logic list construction failed";
+    // The operands have not been appended, so the parent does not own them yet.
+    nodesDestroyNode(left);
+    nodesDestroyNode(right);
+    nodesDestroyNode(logic);
+    return NULL;
+  }
+  if (nodesListAppend(condition->pParameterList, left) != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "range logic left operand append failed";
+    nodesDestroyNode(logic);
+    nodesDestroyNode(left);
+    nodesDestroyNode(right);
+    return NULL;
+  }
+  // The parent owns and frees left after the first append; right is still independent.
+  if (nodesListAppend(condition->pParameterList, right) != TSDB_CODE_SUCCESS) {
+    ADD_FAILURE() << "range logic right operand append failed";
+    nodesDestroyNode(logic);
+    nodesDestroyNode(right);
+    return NULL;
+  }
+  return logic;
+}
+
+static SNode *flttTimestampPredicate(EOperatorType op, int64_t value) {
+  return flttRangePredicate(PRIMARYKEY_TIMESTAMP_COL_ID, op, value, TSDB_DATA_TYPE_TIMESTAMP, true);
+}
+
+static SNode *flttDecimal64Predicate(int16_t colId, int64_t value) {
+  // The value is already quantized for scale zero.
+  SDataType decimalType = {};
+  decimalType.type = TSDB_DATA_TYPE_DECIMAL64;
+  decimalType.precision = 18;
+  decimalType.scale = 0;
+  decimalType.bytes = 8;
+  SNode *col = NULL, *val = NULL, *predicate = NULL;
+  if (flttMakeColumnNode(&col, NULL, decimalType.type, decimalType.bytes, 0, NULL) != 0) {
+    ADD_FAILURE() << "decimal column construction failed: colId=" << colId;
+    return NULL;
+  }
+  ((SColumnNode *)col)->colId = colId;
+  ((SColumnNode *)col)->colType = COLUMN_TYPE_COLUMN;
+  ((SColumnNode *)col)->node.resType = decimalType;
+  if (flttMakeValueNode(&val, decimalType.type, &value) != 0) {
+    ADD_FAILURE() << "decimal value construction failed: colId=" << colId;
+    nodesDestroyNode(col);
+    return NULL;
+  }
+  ((SValueNode *)val)->node.resType = decimalType;
+  ((SValueNode *)val)->datum.i = value;
+  if (flttMakeOpNode(&predicate, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, col, val) != 0) {
+    ADD_FAILURE() << "decimal operator construction failed: colId=" << colId;
+    nodesDestroyNode(col);
+    nodesDestroyNode(val);
+    return NULL;
+  }
+  return predicate;
+}
+
+static SNode *flttMixedValuePredicate(int16_t colId, int8_t columnType, int8_t valueType,
+                                     const char *literal) {
+  SNode *predicate = flttRangePredicate(colId, OP_TYPE_EQUAL, 1, columnType);
+  if (NULL == predicate) return NULL;
+  SValueNode *value = (SValueNode *)((SOperatorNode *)predicate)->pRight;
+  value->node.resType.type = valueType;
+  if (valueType == TSDB_DATA_TYPE_VARCHAR || valueType == TSDB_DATA_TYPE_NCHAR) {
+    value->datum.p = NULL;
+    value->literal = taosStrdup(literal);
+    if (NULL == value->literal) {
+      nodesDestroyNode(predicate);
+      return NULL;
+    }
+  } else if (valueType == TSDB_DATA_TYPE_DECIMAL64) {
+    value->node.resType.precision = 18;
+    value->node.resType.scale = 0;
+    value->datum.i = 1;
+  }
+  return predicate;
+}
+
+TEST(scalarOrRangeTest, mixedNumericLiteralsFallBackConservatively) {
+  struct Case { int8_t columnType; int8_t valueType; const char *literal; };
+  const Case cases[] = {
+      {TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_VARCHAR, "1.5"},
+      {TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_VARCHAR, "1.5e0"},
+      {TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_NCHAR, "1.5"},
+      {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_DECIMAL64, NULL},
+  };
+  for (const Case &test : cases) {
+    SCOPED_TRACE(::testing::Message() << "column=" << static_cast<int>(test.columnType)
+                                      << " value=" << static_cast<int>(test.valueType));
+    SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                     flttMixedValuePredicate(3, test.columnType, test.valueType, test.literal),
+                                     flttRangePredicate(4, OP_TYPE_EQUAL, 2));
+    ASSERT_NE(condition, nullptr);
+    SFilterInfo *filter = NULL;
+    ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+    ASSERT_NE(filter, nullptr);
+    SColumnDataAgg stats[2] = {{0}, {0}};
+    stats[0].colId = 3;
+    stats[1].colId = 4;
+    if (test.columnType == TSDB_DATA_TYPE_DOUBLE || test.columnType == TSDB_DATA_TYPE_FLOAT) {
+      double value = 1.5;
+      memcpy(&stats[0].min, &value, sizeof(value));
+      memcpy(&stats[0].max, &value, sizeof(value));
+    } else {
+      stats[0].min = stats[0].max = 1;
+    }
+    stats[1].min = stats[1].max = 0;
+    bool keep = false;
+    ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(keep);
+    filterFreeInfo(filter);
+    nodesDestroyNode(condition);
+  }
+}
+
+TEST(scalarOrRangeTest, wideOrWithIndependentAnd) {
+  SNode *orNode = NULL;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &orNode), TSDB_CODE_SUCCESS);
+  SLogicConditionNode *orCondition = (SLogicConditionNode *)orNode;
+  orCondition->condType = LOGIC_COND_TYPE_OR;
+  orCondition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  orCondition->node.resType.bytes = sizeof(bool);
+  ASSERT_EQ(nodesMakeList(&orCondition->pParameterList), TSDB_CODE_SUCCESS);
+  for (int16_t colId = 3; colId < 123; ++colId) {
+    SNode *arm = flttRangePredicate(colId, OP_TYPE_EQUAL, 0);
+    ASSERT_NE(arm, nullptr);
+    ASSERT_EQ(nodesListAppend(orCondition->pParameterList, arm), TSDB_CODE_SUCCESS);
+  }
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_AND, orNode,
+                                   flttRangePredicate(123, OP_TYPE_EQUAL, 0));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  SColumnDataAgg stats[121] = {{0}};
+  for (int32_t i = 0; i < 121; ++i) {
+    stats[i].colId = i + 3;
+    stats[i].min = 1;
+    stats[i].max = 2;
+  }
+  bool keep = true;
+  for (int32_t i = 0; i < 1000; ++i) {
+    ASSERT_EQ(filterRangeExecute(filter, stats, 121, 100, &keep), TSDB_CODE_SUCCESS);
+    ASSERT_FALSE(keep);
+  }
+  stats[120].min = 0;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 121, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  stats[0].min = 0;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 121, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, decimal64SmaUsesDecimalBounds) {
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttDecimal64Predicate(3, 1),
+                                   flttDecimal64Predicate(3, 2));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  SColumnDataAgg stat = {0};
+  stat.colId = 3 | DECIMAL_AGG_FLAG;
+  // DECIMAL64 uses the low word of each decimal128 SMA slot; this column has scale 0.
+  stat.decimal128Min[0] = 5;
+  stat.decimal128Max[0] = 5;
+  bool keep = true;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  // tGetColumnDataAgg clears the decimal flag after decoding the SMA.
+  stat.colId = 3;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  stat.colId |= DECIMAL_AGG_FLAG;
+  stat.decimal128Min[0] = 1;
+  stat.decimal128Max[0] = 1;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.decimal128Min[0] = 5;
+  stat.decimal128Max[0] = 5;
+  stat.overflow = 1;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.overflow = 0;
+  stat.decimal128Min[0] = 6;
+  stat.decimal128Max[0] = 5;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.decimal128Min[0] = 5;
+  stat.decimal128Max[0] = 5;
+  stat.decimal128Min[1] = UINT64_MAX;
+  stat.decimal128Max[1] = 0;
+  // DECIMAL64 ignores these deliberately contradictory high words.
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, sameColumnGapAndBoundary) {
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttRangePredicate(3, OP_TYPE_LOWER_THAN, 10),
+                                   flttRangePredicate(3, OP_TYPE_GREATER_THAN, 20));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  SColumnDataAgg stat = {0};
+  stat.colId = 3;
+  stat.numOfNull = 0;
+  stat.min = 10;
+  stat.max = 20;
+  bool keep = true;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  stat.min = 9;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.min = 20;
+  stat.max = 30;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.min = 30;
+  stat.max = 20;
+  // Invalid SMA bounds must conservatively retain the block.
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  // The unflagged integer view [10,20] is prunable; the flagged decimal view
+  // has invalid bounds and must retain the block instead.
+  stat.max = 20;
+  stat.decimal128Max[0] = 10;  // Also sets the integer min to 10.
+  stat.decimal128Min[0] = 15;
+  stat.colId = 3;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  stat.colId |= DECIMAL_AGG_FLAG;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.colId = -1;  // Missing-SMA sentinel must not match column 3.
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, crossColumnAndNested) {
+  SNode *orCondition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                     flttRangePredicate(3, OP_TYPE_EQUAL, 1),
+                                     flttRangePredicate(4, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(orCondition, nullptr);
+  SNode *right = flttRangePredicate(5, OP_TYPE_GREATER_THAN, 10);
+  if (NULL == right) {
+    nodesDestroyNode(orCondition);
+    FAIL() << "right AND predicate construction failed";
+  }
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_AND, orCondition, right);
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  SColumnDataAgg stats[3] = {{0}, {0}, {0}};
+  stats[0].colId = 3; stats[0].min = 3; stats[0].max = 5; stats[0].numOfNull = 0;
+  stats[1].colId = 4; stats[1].min = 4; stats[1].max = 6; stats[1].numOfNull = 0;
+  stats[2].colId = 5; stats[2].min = 11; stats[2].max = 20; stats[2].numOfNull = 0;
+  bool keep = true;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 3, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  stats[1].min = 2;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 3, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stats[2].min = 5;
+  stats[2].max = 10;
+  const SColumnDataAgg noMatchCol5 = stats[2];
+  // col4's [2,6] still matches the OR arm; col5 is the only pruning term.
+  ASSERT_EQ(filterRangeExecute(filter, stats, 3, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  // Without the invalid-count guard, [5,10] would also prune the AND term here.
+  stats[2] = noMatchCol5;
+  stats[2].numOfNull = -1;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 3, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stats[2] = noMatchCol5;
+  stats[2].numOfNull = 101;
+  // A NULL count larger than the row count is invalid; retain the block.
+  ASSERT_EQ(filterRangeExecute(filter, stats, 3, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  // With only stats[0] available, the other column predicates remain unproven.
+  ASSERT_EQ(filterRangeExecute(filter, stats, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, unknownOrBranchAndMissingStatistics) {
+  SNode *col = NULL, *isNull = NULL;
+  ASSERT_EQ(flttMakeColumnNode(&col, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL), TSDB_CODE_SUCCESS);
+  ((SColumnNode *)col)->colId = 3;
+  ASSERT_EQ(flttMakeOpNode(&isNull, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, col, NULL), TSDB_CODE_SUCCESS);
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttRangePredicate(3, OP_TYPE_EQUAL, 1), isNull);
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  // A non-range OR arm must retain the full SMA path even without a range tree.
+  // Confirm that this OR has no range tree; behavior alone cannot distinguish that path.
+  EXPECT_EQ(filter->sclCtx.orRangeExpr, nullptr);
+  EXPECT_FALSE(filterBlockSmaOnlyUsesNumOfNull(filter));
+  bool keep = false;
+  ASSERT_EQ(filterRangeExecute(filter, NULL, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  SColumnDataAgg stat = {0};
+  stat.colId = 3;
+  stat.min = 3;
+  stat.max = 5;
+  keep = false;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  filter = NULL;
+  nodesDestroyNode(condition);
+
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttRangePredicate(3, OP_TYPE_EQUAL, 1),
+                             flttRangePredicate(4, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  EXPECT_FALSE(filterBlockSmaOnlyUsesNumOfNull(filter));
+  EXPECT_NE(filter->sclCtx.orRangeExpr, nullptr);
+  keep = false;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, unsupportedAndTermsDoNotExhaustOrBudget) {
+  // Keep this value aligned with filter.c's FLT_SCL_RANGE_EXPR_BUDGET.
+  constexpr int32_t kRangeExprBudget = 128;
+  // Siblings do not increase tree depth.
+  // Unsupported terms must not consume the budget needed by the final OR arm.
+  SNode *children[kRangeExprBudget + 1] = {0};
+  for (int32_t i = 0; i < kRangeExprBudget; ++i) {
+    SNode *col = NULL;
+    ASSERT_EQ(flttMakeColumnNode(&col, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL), TSDB_CODE_SUCCESS);
+    ((SColumnNode *)col)->colId = 3;
+    ((SColumnNode *)col)->colType = COLUMN_TYPE_COLUMN;
+    ASSERT_EQ(flttMakeOpNode(&children[i], OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, col, NULL), TSDB_CODE_SUCCESS);
+  }
+  children[kRangeExprBudget] = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                flttRangePredicate(3, OP_TYPE_EQUAL, 1),
+                                flttRangePredicate(3, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(children[kRangeExprBudget], nullptr);
+  SNode *condition = NULL;
+  ASSERT_EQ(flttMakeLogicNode(&condition, LOGIC_COND_TYPE_AND, children, kRangeExprBudget + 1), TSDB_CODE_SUCCESS);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  EXPECT_NE(filter->sclCtx.orRangeExpr, nullptr);
+  SColumnDataAgg stat = {0};
+  stat.colId = 3;
+  stat.min = 3;
+  stat.max = 5;
+  bool keep = true;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, timeWindowIsConservativeAndNotStrict) {
+  FilterScalarModeGuard guard;
+  SNode *left = flttRangeLogic(LOGIC_COND_TYPE_AND,
+                              flttTimestampPredicate(OP_TYPE_GREATER_THAN, 100),
+                              flttTimestampPredicate(OP_TYPE_LOWER_THAN, 200));
+  SNode *right = flttRangeLogic(LOGIC_COND_TYPE_AND,
+                               flttTimestampPredicate(OP_TYPE_GREATER_THAN, 400),
+                               flttTimestampPredicate(OP_TYPE_LOWER_THAN, 500));
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR, left, right);
+  ASSERT_NE(condition, nullptr);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 101);
+  EXPECT_EQ(window.ekey, 499);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, timestampNotEqualKeepsFullWindow) {
+  FilterScalarModeGuard guard;
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttTimestampPredicate(OP_TYPE_NOT_EQUAL, 100),
+                                   flttTimestampPredicate(OP_TYPE_EQUAL, 200));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_NO_REWRITE | FLT_OPTION_TIMESTAMP, NULL),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  bool hasRangeExpr = NULL != filter->sclCtx.orRangeExpr;
+  filterFreeInfo(filter);
+  ASSERT_TRUE(hasRangeExpr);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, INT64_MIN);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, timeWindowBoundaryDoesNotOverflow) {
+  FilterScalarModeGuard guard;
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttTimestampPredicate(OP_TYPE_GREATER_THAN, INT64_MAX),
+                                   flttTimestampPredicate(OP_TYPE_EQUAL, 100));
+  ASSERT_NE(condition, nullptr);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, 100);
+  EXPECT_LE(window.skey, window.ekey);
+  nodesDestroyNode(condition);
+
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttTimestampPredicate(OP_TYPE_LOWER_THAN, INT64_MIN),
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 100));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, 100);
+  nodesDestroyNode(condition);
+
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttTimestampPredicate(OP_TYPE_GREATER_EQUAL, INT64_MAX),
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 100));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, nonPrimaryTimestampDoesNotNarrowScanWindow) {
+  FilterScalarModeGuard guard;
+  SNode *otherTimestamp = flttRangePredicate(3, OP_TYPE_GREATER_THAN, 200, TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT_NE(otherTimestamp, nullptr);
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttTimestampPredicate(OP_TYPE_GREATER_THAN, 100), otherTimestamp);
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE | FLT_OPTION_TIMESTAMP, NULL),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  // Both timestamp arms must reach the OR range tree for this window test.
+  ASSERT_NE(filter->sclCtx.orRangeExpr, nullptr);
+  filterFreeInfo(filter);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, INT64_MIN);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, unavailableOrTreeDoesNotNarrowScanWindow) {
+  FilterScalarModeGuard guard;
+  SNode *col = NULL, *isNull = NULL;
+  ASSERT_EQ(flttMakeColumnNode(&col, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL),
+            TSDB_CODE_SUCCESS);
+  ((SColumnNode *)col)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  ((SColumnNode *)col)->isPrimTs = true;
+  ASSERT_EQ(flttMakeOpNode(&isNull, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, col, NULL), TSDB_CODE_SUCCESS);
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttTimestampPredicate(OP_TYPE_GREATER_THAN, 100), isNull);
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE | FLT_OPTION_TIMESTAMP, NULL),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  ASSERT_TRUE(filter->sclCtx.hasOrCondition);
+  ASSERT_EQ(filter->sclCtx.orRangeExpr, nullptr);
+  filterFreeInfo(filter);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, INT64_MIN);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, mistypedPrimaryTimestampDoesNotPrune) {
+  SNode *mistyped = flttRangePredicate(PRIMARYKEY_TIMESTAMP_COL_ID, OP_TYPE_EQUAL, 1,
+                                      TSDB_DATA_TYPE_DOUBLE, true);
+  ASSERT_NE(mistyped, nullptr);
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR, mistyped,
+                                   flttRangePredicate(3, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  ASSERT_EQ(filter->sclCtx.orRangeExpr, nullptr);
+  SColumnDataAgg stats[2] = {{0}, {0}};
+  stats[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  stats[0].min = 1;
+  stats[0].max = 1;
+  stats[1].colId = 3;
+  stats[1].min = 5;
+  stats[1].max = 5;
+  bool keep = false;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, allNullOrArmPreservesOtherArm) {
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttRangePredicate(3, OP_TYPE_EQUAL, 1),
+                                   flttRangePredicate(4, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  SColumnDataAgg stats[2] = {{0}, {0}};
+  stats[0].colId = 3;
+  stats[0].numOfNull = 100;
+  stats[1].colId = 4;
+  stats[1].min = stats[1].max = 2;
+  bool keep = false;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stats[1].min = stats[1].max = 3;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, invalidNullCountDoesNotPruneNotNullGroup) {
+  SNode *col = NULL, *condition = NULL;
+  ASSERT_EQ(flttMakeColumnNode(&col, NULL, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0, NULL), TSDB_CODE_SUCCESS);
+  ((SColumnNode *)col)->colType = COLUMN_TYPE_COLUMN;
+  ASSERT_EQ(flttMakeOpNode(&condition, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, col, NULL), TSDB_CODE_SUCCESS);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+  ASSERT_NE(filter->pBlkOrNotNullGroups, nullptr);
+  SColumnDataAgg stat = {0};
+  stat.colId = 3;
+  bool keep = false;
+  stat.numOfNull = 101;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.numOfNull = -1;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(keep);
+  stat.numOfNull = 100;
+  ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(keep);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, bigintTimestampLiteralNarrowsOrWindow) {
+  FilterScalarModeGuard guard;
+  SNode *left = flttTimestampPredicate(OP_TYPE_GREATER_THAN, 100);
+  ASSERT_NE(left, nullptr);
+  SValueNode *leftValue = (SValueNode *)((SOperatorNode *)left)->pRight;
+  leftValue->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  leftValue->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR, left,
+                                   flttTimestampPredicate(OP_TYPE_GREATER_THAN, 200));
+  ASSERT_NE(condition, nullptr);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 101);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, notEqualAndLowerBoundRetainsAndWindow) {
+  FilterScalarModeGuard guard;
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttRangeLogic(LOGIC_COND_TYPE_AND,
+                                                  flttTimestampPredicate(OP_TYPE_NOT_EQUAL, 100),
+                                                  flttTimestampPredicate(OP_TYPE_GREATER_THAN, 500)),
+                                   flttTimestampPredicate(OP_TYPE_EQUAL, 5));
+  ASSERT_NE(condition, nullptr);
+  STimeWindow window = {0};
+  bool strict = true;
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 5);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, timeWindowEmptyAndUnconstrainedBranches) {
+  FilterScalarModeGuard guard;
+  STimeWindow window = {0};
+  bool strict = true;
+
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttTimestampPredicate(OP_TYPE_EQUAL, 100),
+                                   flttTimestampPredicate(OP_TYPE_GREATER_THAN, INT64_MAX));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, 100);
+  nodesDestroyNode(condition);
+
+  window = STimeWindow{};
+  strict = true;
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttRangeLogic(LOGIC_COND_TYPE_AND,
+                                            flttTimestampPredicate(OP_TYPE_EQUAL, 100),
+                                            flttTimestampPredicate(OP_TYPE_GREATER_THAN, INT64_MAX)),
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 200));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 200);
+  EXPECT_EQ(window.ekey, 200);
+  nodesDestroyNode(condition);
+
+  window = STimeWindow{};
+  strict = true;
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttRangeLogic(LOGIC_COND_TYPE_AND,
+                                            flttTimestampPredicate(OP_TYPE_GREATER_THAN, INT64_MAX),
+                                            flttTimestampPredicate(OP_TYPE_LOWER_THAN, 200)),
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 100));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, 100);
+  nodesDestroyNode(condition);
+
+  window = STimeWindow{};
+  strict = true;
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttRangeLogic(LOGIC_COND_TYPE_AND,
+                                            flttRangeLogic(LOGIC_COND_TYPE_AND,
+                                                           flttTimestampPredicate(OP_TYPE_GREATER_THAN, INT64_MAX),
+                                                           flttTimestampPredicate(OP_TYPE_LOWER_THAN, 200)),
+                                            flttTimestampPredicate(OP_TYPE_EQUAL, 300)),
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 100));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, 100);
+  EXPECT_EQ(window.ekey, 100);
+  nodesDestroyNode(condition);
+
+  window = STimeWindow{};
+  strict = true;
+  condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                             flttTimestampPredicate(OP_TYPE_EQUAL, 100),
+                             flttRangePredicate(3, OP_TYPE_EQUAL, 1));
+  ASSERT_NE(condition, nullptr);
+  ASSERT_EQ(filterGetTimeRange(condition, &window, &strict, NULL), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(strict);
+  EXPECT_EQ(window.skey, INT64_MIN);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  nodesDestroyNode(condition);
+}
+
+TEST(scalarOrRangeTest, blockPruningScenario) {
+  SNode *condition = flttRangeLogic(LOGIC_COND_TYPE_OR,
+                                   flttRangePredicate(3, OP_TYPE_EQUAL, 1),
+                                   flttRangePredicate(4, OP_TYPE_EQUAL, 2));
+  ASSERT_NE(condition, nullptr);
+  SFilterInfo *filter = NULL;
+  ASSERT_EQ(filterInitFromNode(condition, &filter, FLT_OPTION_SCALAR_MODE, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_NE(filter, nullptr);
+
+  int32_t keptBlocks = 0;
+  for (int32_t block = 0; block < 100; ++block) {
+    SColumnDataAgg stats[2] = {{0}, {0}};
+    // Reverse column order deliberately: SMA lookup must use colId, not index.
+    stats[0].colId = 4;
+    stats[1].colId = 3;
+    stats[0].numOfNull = 0;
+    stats[1].numOfNull = 0;
+    stats[0].min = stats[0].max = (block + 5) % 10;
+    stats[1].min = stats[1].max = block % 10;
+    SCOPED_TRACE(::testing::Message() << "block=" << block << " col=" << stats[0].colId << ":" << stats[0].min
+                                      << " col=" << stats[1].colId << ":" << stats[1].min);
+    bool keep = true;
+    ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(keep, block % 10 == 1 || (block + 5) % 10 == 2) << "block=" << block;
+    if (keep) {
+      ++keptBlocks;
+    }
+  }
+  // 10 blocks match a=1 and another 10 match b=2; the two sets do not overlap.
+  EXPECT_EQ(keptBlocks, 20);
+  filterFreeInfo(filter);
+  nodesDestroyNode(condition);
 }
 
 #if 0

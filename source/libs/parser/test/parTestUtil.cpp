@@ -187,6 +187,7 @@ class ParserTestBaseImpl {
     array<char, 1024> msgBuf_;
     int32_t           expect_;
     string            checkFunc_;
+    ParserStage       checkStage_;
   };
 
   struct stmtRes {
@@ -266,6 +267,7 @@ class ParserTestBaseImpl {
     stmtEnv_.msgBuf_.fill(0);
     stmtEnv_.expect_ = expect;
     stmtEnv_.checkFunc_ = stageFunc(checkStage, type);
+    stmtEnv_.checkStage_ = checkStage;
 
     res_.parsedAst_.clear();
     res_.translatedAst_.clear();
@@ -347,6 +349,7 @@ class ParserTestBaseImpl {
 
   void doCalculateConstant(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(calculateConstant, pCxt, pQuery);
+    checkQuery(pQuery, PARSER_STAGE_CALC_CONST);
     lastExecMode_ = pQuery->execMode;
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
@@ -368,6 +371,7 @@ class ParserTestBaseImpl {
   void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, SMetaData* pMetaData,
                             SQuery* pQuery) {
     DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
+    checkQuery(pQuery, PARSER_STAGE_CALC_CONST);
     res_.calcConstAst_ = toString(pQuery->pRoot);
   }
 
@@ -394,7 +398,13 @@ class ParserTestBaseImpl {
     return str;
   }
 
-  void checkQuery(const SQuery* pQuery, ParserStage stage) { pBase_->checkDdl(pQuery, stage); }
+  void checkQuery(const SQuery* pQuery, ParserStage stage) {
+    // Keep existing DDL checks at translation unless constant checks are requested.
+    if (PARSER_STAGE_CALC_CONST == stage && PARSER_STAGE_CALC_CONST != stmtEnv_.checkStage_) {
+      return;
+    }
+    pBase_->checkDdl(pQuery, stage);
+  }
 
   void runInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_INTERNAL);

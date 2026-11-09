@@ -262,7 +262,7 @@ typedef struct SSDataBlock {
   SColumnDataAgg* pBlockAggBuf;      // reusable storage for block SMA results
   uint32_t        pBlockAggBufSize;  // number of entries in pBlockAggBuf
   SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SArray*         pConstTagCols;  // owned SConstTagColumn; local single-table scan->aggregate only.
+  SArray*         pConstTagCols;  // owned values for a local scan and its immediate aggregate/window consumer.
   SDataBlockInfo  info;
   uint64_t        recycleKey;
   int64_t         recycleTime;
@@ -292,7 +292,9 @@ typedef struct SColumnInfoData {
 typedef struct SConstTagColumn {
   int32_t         slotId;
   uint64_t        uid;  // zero until the current single-table block supplies a value.
-  SColumnInfoData column;  // one owned value; logical rows come from the input block.
+  // Owned by the block; blockDataEmpty resets it and freeConstTagColumns releases it. Only a local
+  // single-table scan and its immediate aggregate/window consumer use this value.
+  SColumnInfoData column;
 } SConstTagColumn;
 
 typedef struct SQueryTableDataCond {

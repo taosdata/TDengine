@@ -186,7 +186,6 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_wide_org_tables_32767_cols
 ,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
-,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 100,,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_group
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_interval cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_sliding cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_session cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_state_window cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_event_window
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_mixed_external
@@ -434,6 +433,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_during_leader_election.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_from_dnodes.py -N 3
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag.py
+,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_constant_scan_projection.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tag_filter.py
 ,,y,.,./ci/pytest.sh pytest cases/04-SuperTables/04-Query/test_stable_query_tbname_filter.py
@@ -746,6 +746,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_filter_timestamp.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_invalid_type.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_or_range_results.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/02-Filter/test_scalar_null_varbinary_between.py
 ## 03-GroupBy
 ,1,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/03-GroupBy/test_query_groupby_alwaysreturn.py
@@ -771,6 +772,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_query_sub_bugs.py -N 3
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_scalar_sub2.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_empty_subquery_constants.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_semantics.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_stages.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_time_range.py
@@ -821,6 +823,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/09-Having/test_query_having_implicit_partition.py -N 3
 ## 10-Distinct
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/10-Distinct/test_query_distinct.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/10-Distinct/test_distinct_primary_key_baseline.py
 ## 11-PseudoColumn
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/11-PseudoColumn/test_query_pseudo_tbname.py
@@ -841,6 +844,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/15-Explain/test_explain_case_when.py
 ## 16-PartitionBy
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_partition_compact_spill.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_interval_tbname_constant.py
+,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_query_partitionby_tsbs.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/16-PartitonBy/test_table_merge_scan_stt_reuse.py -N 3
 ## 17-BiMode

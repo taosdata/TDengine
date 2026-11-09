@@ -94,6 +94,188 @@ TEST(partitionPhaseTest, drainsMainAndSideBatchesWithoutIntermediateNull) {
   EXPECT_EQ(result.outputs[3].lastTs, 7);
 }
 
+TEST(partitionExtWinGroupBatchTest, drainsEachOuterGroupAndClearsBlockIds) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 2, 10, 1, false, 10},
+      {SCAN_PHASE_MAIN, 2, 2, 20, 1, false, 10},
+      {SCAN_PHASE_MAIN, 3, 2, 30, 1, false, 20},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(partitionTestRunExtWinGroupBatch(blocks, 3, &result),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(result.outputCount, 3);
+  EXPECT_EQ(result.totalPulledBlocks, 3);
+  for (int32_t i = 0; i < result.outputCount; ++i) {
+    EXPECT_NE(result.outputs[i].groupId, 0);
+    EXPECT_EQ(result.outputs[i].baseGId, 0);
+    EXPECT_EQ(result.outputs[i].phase, SCAN_PHASE_MAIN);
+    EXPECT_EQ(result.outputs[i].rows, 2);
+  }
+  EXPECT_NE(result.outputs[0].groupId, result.outputs[1].groupId);
+  EXPECT_NE(result.outputs[1].groupId, result.outputs[2].groupId);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+  EXPECT_EQ(result.hashGroupCountOnExit, 0);
+}
+
+TEST(partitionExtWinGroupBatchTest, consumesHeldBoundaryExactlyOnce) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 2, 10, 1, false, 10},
+      {SCAN_PHASE_MAIN, 1, 2, 12, 1, false, 10},
+      {SCAN_PHASE_MAIN, 2, 2, 20, 1, false, 20},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(partitionTestRunExtWinGroupBatch(blocks, 3, &result),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(result.outputCount, 2);
+  EXPECT_EQ(result.outputs[0].rows, 4);
+  EXPECT_EQ(result.outputs[1].rows, 2);
+  EXPECT_NE(result.outputs[0].groupId, result.outputs[1].groupId);
+  EXPECT_EQ(result.rowCount, 6);
+  EXPECT_EQ(result.totalPulledBlocks, 3);
+  const int64_t expectedTs[] = {10, 11, 12, 13, 20, 21};
+  const int32_t expectedGroups[] = {1, 1, 1, 1, 2, 2};
+  for (int32_t i = 0; i < result.rowCount; ++i) {
+    EXPECT_EQ(result.timestamps[i], expectedTs[i]);
+    EXPECT_EQ(result.groupValues[i], expectedGroups[i]);
+  }
+}
+
+TEST(partitionExtWinGroupBatchTest, keepsEqualKeysInSeparateOuterGroups) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 2, 10, 1, false, 10},
+      {SCAN_PHASE_MAIN, 1, 2, 20, 1, false, 20},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(partitionTestRunExtWinGroupBatch(blocks, 2, &result),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(result.outputCount, 2);
+  EXPECT_EQ(result.outputs[0].rows, 2);
+  EXPECT_EQ(result.outputs[1].rows, 2);
+  EXPECT_EQ(result.rowCount, 4);
+}
+
+TEST(partitionExtWinGroupBatchTest, finishesEmptyInput) {
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(partitionTestRunExtWinGroupBatch(nullptr, 0, &result),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result.outputCount, 0);
+  EXPECT_EQ(result.totalPulledBlocks, 0);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsOuterGroupRegression) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 1, 10, 0, false, 20},
+      {SCAN_PHASE_MAIN, 2, 1, 20, 0, false, 10},
+  };
+  auto resultOwner = makePartitionPhaseResult();
+  EXPECT_EQ(partitionTestRunExtWinGroupBatch(blocks, 2,
+                                            resultOwner.get()),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionExtWinGroupBatchTest, drainsSpilledGroupBeforeNextBatch) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 300, 10, 1, false, 10},
+      {SCAN_PHASE_MAIN, 2, 2, 400, 1, false, 20},
+  };
+  SPartitionPhaseTestConfig config = {};
+  // One small page fits, but the next page forces a spill.
+  config.memBudgetBytes = PARTITION_PHASE_TEST_PAGE_SIZE_SMALL;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+  ASSERT_EQ(partitionTestRunExtWinGroupBatchWithConfig(
+                blocks, 2, &config, &result), TSDB_CODE_SUCCESS);
+  EXPECT_GT(result.spillCountDuringOutput, 0);
+  EXPECT_EQ(result.rowCount, 302);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+  EXPECT_EQ(result.hashGroupCountOnExit, 0);
+  EXPECT_EQ(result.residentPageCountOnExit, 0);
+  EXPECT_FALSE(result.spillFileOpenOnExit);
+  for (int32_t i = 0; i < result.outputCount; ++i) {
+    EXPECT_NE(result.outputs[i].groupId, 0);
+    EXPECT_EQ(result.outputs[i].baseGId, 0);
+  }
+}
+
+TEST(partitionExtWinGroupBatchTest, prepareFailureKeepsHashAsSoleOwner) {
+  const SPartitionPhaseTestBlock blocks[] = {
+      {SCAN_PHASE_MAIN, 1, 2, 10, 1, false, 10},
+  };
+  SPartitionPhaseTestConfig config = {};
+  config.prepareOutputFailureCode = TSDB_CODE_OUT_OF_MEMORY;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunExtWinGroupBatchWithConfig(
+                blocks, 1, &config, &result), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.hashGroupCountOnExit, 1);
+  EXPECT_EQ(result.sortedGroupCountOnExit, 0);
+  // The test samples ownership before the harness destroys the operator.
+  EXPECT_EQ(result.residentPageCountOnExit, 1);
+  EXPECT_FALSE(result.spillFileOpenOnExit);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsNonMainPhase) {
+  const SPartitionPhaseTestBlock block = {
+      SCAN_PHASE_NEXT, 1, 1, 10, 1, false, 10, 0};
+  auto resultOwner = makePartitionPhaseResult();
+  EXPECT_EQ(partitionTestRunExtWinGroupBatch(&block, 1, resultOwner.get()),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsZeroGroupId) {
+  const SPartitionPhaseTestBlock block = {
+      SCAN_PHASE_MAIN, 1, 1, 10, 1, false, 0, 0};
+  auto resultOwner = makePartitionPhaseResult();
+  EXPECT_EQ(partitionTestRunExtWinGroupBatch(&block, 1, resultOwner.get()),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsMetadataOnlyInput) {
+  const SPartitionPhaseTestBlock block = {
+      SCAN_PHASE_MAIN, 1, 1, 10, 1, true, 10, 0};
+  auto resultOwner = makePartitionPhaseResult();
+  EXPECT_EQ(partitionTestRunExtWinGroupBatch(&block, 1, resultOwner.get()),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionExtWinGroupBatchTest, resetReleasesHeldBoundary) {
+  SPartitionPhaseTestLifecycleResult result = {};
+  ASSERT_EQ(partitionTestExtWinGroupBatchHeldBlockReset(&result),
+            TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(result.heldBeforeAction);
+  EXPECT_FALSE(result.heldAfterAction);
+  EXPECT_TRUE(result.readingAfterAction);
+  EXPECT_FALSE(result.inputDoneAfterAction);
+  EXPECT_FALSE(result.outerEpochSetAfterAction);
+}
+
+TEST(partitionExtWinGroupBatchTest, propagatesDownstreamFailure) {
+  SPartitionPhaseTestConfig config = {};
+  config.downstreamFailureCode = TSDB_CODE_OUT_OF_MEMORY;
+  auto resultOwner = makePartitionPhaseResult();
+  SPartitionPhaseTestResult& result = *resultOwner;
+
+  EXPECT_EQ(partitionTestRunExtWinGroupBatchWithConfig(
+                nullptr, 0, &config, &result), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(result.outputCount, 0);
+  EXPECT_EQ(result.totalPulledBlocks, 0);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsConflictingModes) {
+  EXPECT_EQ(partitionTestExtWinGroupBatchRejectModes(),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
+TEST(partitionExtWinGroupBatchTest, rejectsOutOfOrderHeldBoundary) {
+  EXPECT_EQ(partitionTestExtWinGroupBatchRejectHeldBoundary(),
+            TSDB_CODE_PLAN_INTERNAL_ERROR);
+}
+
 TEST(partitionPhaseTest, skipsEmptyPhasesWithoutReturningNull) {
   const SPartitionPhaseTestBlock blocks[] = {
       {SCAN_PHASE_PREV, 7, 2, 9, -1},
