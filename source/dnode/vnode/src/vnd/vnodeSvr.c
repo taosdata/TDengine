@@ -105,9 +105,16 @@ static int32_t vnodePreprocessCreateTableReq(SVnode *pVnode, SDecoder *pCoder, i
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // name
-  char *name = NULL;
-  if (tDecodeCStr(pCoder, &name) < 0) {
+  // name: the wire payload must carry its NUL terminator. name below is used as a C string
+  // (metaGetTableEntryUidByName() -> strlen; the %s trace), so a length-prefixed payload
+  // without '\0' would make those walk past the end of the RPC buffer (CWE-125).
+  char    *name = NULL;
+  uint32_t nameLen = 0;
+  if (tDecodeCStrAndLen(pCoder, &name, &nameLen) < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+  if (nameLen == 0 || name[nameLen] != '\0') {
     code = TSDB_CODE_INVALID_MSG;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
