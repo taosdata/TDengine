@@ -540,7 +540,6 @@ def build(source_dir, debug_dir):
         build_result = run(["jom", "-j8"], cwd=debug_dir, env=environment, stdout=log_file, stderr=subprocess.STDOUT)
     if build_result.returncode:
         tail(build_log, 300)
-        run(["jom", "taosadapter"], cwd=debug_dir, env=environment)
         fail(f"jom build failed with exit code {build_result.returncode}")
     for binary in BUILD_BINARIES:
         if not (debug_dir / "build" / "bin" / binary).exists():
@@ -1258,6 +1257,20 @@ def collect_artifacts(debug_dir, log_dir, artifact_dir):
     (pytest_artifacts / "index.html").write_text(report, encoding="utf-8")
 
 
+def print_failure_summary(stage, message, debug_dir):
+    print("\x1b[31m" + "=" * 80 + "\x1b[0m", flush=True)
+    print(f"\x1b[31m[windows-ci] {stage.upper()} FAILED: {message}\x1b[0m", flush=True)
+    build_log = debug_dir / "build.log"
+    if stage == "build" and message.startswith("jom build failed") and build_log.exists():
+        lines = build_log.read_text(encoding="utf-8", errors="replace").splitlines()
+        diagnostics = list(dict.fromkeys(line for line in lines if re.search(
+            r"\b(?:fatal\s+)?error(?:\s+[A-Z]+\d+|\s*:)|undefined reference|LNK\d+", line, re.IGNORECASE)))
+        for line in (diagnostics[:20] if diagnostics else lines[-15:]):
+            print(f"\x1b[31m{line}\x1b[0m", flush=True)
+        print(f"\x1b[31m[windows-ci] full build log: {build_log}\x1b[0m", flush=True)
+    print("\x1b[31m" + "=" * 80 + "\x1b[0m", flush=True)
+
+
 def main():
     # GitLab consumes UTF-8, while redirected Python stdout on Windows may
     # default to GBK. Failure logs can contain Unicode outside that code page.
@@ -1286,6 +1299,8 @@ def main():
     pytest_result = 1
     pytest_failures = []
     tests_started = False
+    stage = "build"
+    failure_message = None
     try:
         if arguments.skip_build:
             if os.environ.get("CI_COMMIT_SHA") or os.environ.get("WIN_BOOTSTRAP_SOURCE") == "true":
@@ -1295,6 +1310,7 @@ def main():
         else:
             build(arguments.source_dir, arguments.debug_dir)
         tests_started = True
+        stage = "packaging"
         packaging_test = arguments.source_dir / "source/taos-internal/packaging/tests/test_windows_mimalloc.py"
         packaging_env = dict(os.environ, TD_ALLOCATOR_BIN=str(arguments.debug_dir / "build/bin"),
                              TD_ALLOCATOR_CACHE=str(arguments.debug_dir / "CMakeCache.txt"))
@@ -1305,7 +1321,9 @@ def main():
             print("[windows-ci] ctest skipped for this explicit continuation run")
             ctest_result = 0
         else:
+            stage = "ctest"
             ctest_result, ctest_failures = run_ctest(arguments.source_dir, arguments.debug_dir, arguments.ctest_dir)
+        stage = "pytest"
         if arguments.skip_pytest:
             print("[windows-ci] pytest is skipped for this ctest-only validation run")
             pytest_result = 0
@@ -1318,8 +1336,13 @@ def main():
         print(f"[windows-ci] result: ctest={ctest_result}, pytest={pytest_result}")
         print_ctest_failure_logs(arguments.debug_dir, ctest_failures)
         print_pytest_failure_reports(pytest_failures)
+        if result:
+            stage = "tests"
+            failure_message = f"ctest={ctest_result}, pytest={pytest_result}; see failure logs above"
     except Exception as error:
-        print(f"[windows-ci] failed: {error}")
+        failure_message = str(error)
+        result = 1
+        print(f"\x1b[31m[windows-ci] {stage} failed: {error}\x1b[0m", flush=True)
     finally:
         for name, cleanup in (("stop_processes", stop_processes), ("stop_build_processes", stop_build_processes)):
             started = time.monotonic()
@@ -1332,10 +1355,19 @@ def main():
             print(f"[windows-ci] finalization end: {name} ({time.monotonic() - started:.1f}s)", flush=True)
         if tests_started:
             print("[windows-ci] finalization start: collect_artifacts", flush=True)
-            collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+            try:
+                collect_artifacts(arguments.debug_dir, arguments.log_dir, arguments.artifact_dir)
+            except Exception as error:
+                print(f"[windows-ci] artifact collection failed: {error}", flush=True)
+                if failure_message is None:
+                    stage = "artifacts"
+                    failure_message = str(error)
+                result = 1
             print("[windows-ci] finalization end: collect_artifacts", flush=True)
         else:
             print("[windows-ci] preparation failed; previous test reports are not collected", flush=True)
+    if failure_message:
+        print_failure_summary(stage, failure_message, arguments.debug_dir)
     print(f"[windows-ci] exiting with result={result}", flush=True)
     return result
 

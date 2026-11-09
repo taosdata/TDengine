@@ -14,6 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import importlib.util
+import io
 import os
 from pathlib import Path
 import subprocess
@@ -21,6 +22,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from contextlib import redirect_stdout
 
 spec = importlib.util.spec_from_file_location("windows_ci", Path(__file__).with_name("run_windows_ci.py"))
 ci = importlib.util.module_from_spec(spec)
@@ -83,6 +85,44 @@ class SourceSyncTest(unittest.TestCase):
              patch.object(ci, "collect_artifacts") as collect:
             self.assertEqual(ci.main(), 1)
             collect.assert_not_called()
+
+    def test_build_failure_stops_tests_and_prints_errors_after_cleanup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            debug_dir = Path(temporary)
+            diagnostic = "nodesCodeFuncs.c(1300): error C2440: invalid cast"
+            (debug_dir / "build.log").write_text(diagnostic + "\n" + "progress\n" * 400)
+            output = io.StringIO()
+            with patch.object(sys, "argv", ["run_windows_ci.py", "--debug-dir", temporary]), \
+                 patch.dict(os.environ, WIN_SKIP_BUILD="false"), \
+                 patch.object(ci, "print_host_identity"), \
+                 patch.object(ci, "build", side_effect=RuntimeError("jom build failed with exit code 2")), \
+                 patch.object(ci, "stop_processes"), patch.object(ci, "stop_build_processes"), \
+                 patch.object(ci, "run_ctest") as ctest, patch.object(ci, "run_pytest") as pytest, \
+                 patch.object(ci, "collect_artifacts") as collect, redirect_stdout(output):
+                self.assertEqual(ci.main(), 1)
+            ctest.assert_not_called()
+            pytest.assert_not_called()
+            collect.assert_not_called()
+            text = output.getvalue()
+            self.assertIn("\x1b[31m" + diagnostic, text)
+            self.assertGreater(text.index("BUILD FAILED:"), text.index("finalization end: stop_build_processes"))
+
+    def test_ctest_failure_still_runs_pytest_and_preserves_combined_failure(self):
+        with patch.object(sys, "argv", ["run_windows_ci.py"]), \
+             patch.dict(os.environ, WIN_SKIP_BUILD="false", WIN_SKIP_CTEST="false", WIN_SKIP_PYTEST="false"), \
+             patch.object(ci, "print_host_identity"), patch.object(ci, "build"), \
+             patch.object(ci, "run", return_value=subprocess.CompletedProcess([], 0)), \
+             patch.object(ci, "run_ctest", return_value=(1, [])), \
+             patch.object(ci, "run_pytest", return_value=0) as pytest, \
+             patch.object(ci, "print_pytest_failure_logs", return_value=[]), \
+             patch.object(ci, "print_pytest_failure_reports"), \
+             patch.object(ci, "print_ctest_failure_logs"), \
+             patch.object(ci, "stop_processes"), patch.object(ci, "stop_build_processes"), \
+             patch.object(ci, "collect_artifacts", side_effect=RuntimeError("secondary artifact failure")), \
+             patch.object(ci, "print_failure_summary") as summary:
+            self.assertEqual(ci.main(), 1)
+            pytest.assert_called_once()
+            self.assertEqual(summary.call_args.args[:2], ("tests", "ctest=1, pytest=0; see failure logs above"))
 
     def test_runner_checkout_is_not_modified(self):
         with tempfile.TemporaryDirectory() as temporary, \
