@@ -41,6 +41,14 @@
 //
 
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, const SRpcMsg* pRpcMsg) {
+  // Security (MINING-20261106-01, CWE-125): reject a frame shorter than the fixed
+  // SyncRequestVoteReply header before syncNodeInRaftGroup() reads pMsg->srcId.
+  if (pRpcMsg->contLen < (int32_t)sizeof(SyncRequestVoteReply)) {
+    sError("vgId:%d, request vote reply frame too short for header, contLen:%d, need at least:%zu", ths->vgId,
+           pRpcMsg->contLen, sizeof(SyncRequestVoteReply));
+    return TSDB_CODE_INVALID_MSG;
+  }
+
   int32_t               ret = 0;
   SyncRequestVoteReply* pMsg = pRpcMsg->pCont;
 
