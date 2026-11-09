@@ -72,6 +72,7 @@ else()
 endif()
 
 set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
+include(cmake/mimalloc.cmake)
 
 if(BUILD_TEST)
   include(CTest)
