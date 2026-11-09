@@ -137,6 +137,8 @@ if /I "%Enterprise%"=="TRUE" (
 )
 
 copy %binary_dir%\\build\\bin\\taosd.exe %target_dir% > nul
+call "%source_dir%\\packaging\\tools\\stage_mimalloc.bat" "%TD_MIMALLOC_BIN_DIR%" "%target_dir%" "%TD_MIMALLOC_NAME%"
+if errorlevel 1 exit /b 1
 copy %binary_dir%\\build\\bin\\taosudf.exe %target_dir% > nul
 copy %binary_dir%\\build\\bin\\taosmqtt.exe %target_dir% > nul
 

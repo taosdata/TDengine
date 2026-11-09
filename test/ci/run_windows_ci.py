@@ -1295,6 +1295,12 @@ def main():
         else:
             build(arguments.source_dir, arguments.debug_dir)
         tests_started = True
+        packaging_test = arguments.source_dir / "source/taos-internal/packaging/tests/test_windows_mimalloc.py"
+        packaging_env = dict(os.environ, TD_ALLOCATOR_BIN=str(arguments.debug_dir / "build/bin"),
+                             TD_ALLOCATOR_CACHE=str(arguments.debug_dir / "CMakeCache.txt"))
+        if run([sys.executable, str(packaging_test), "-v"], cwd=arguments.source_dir,
+               env=packaging_env).returncode:
+            fail("Windows mimalloc packaging checks failed")
         if arguments.skip_ctest:
             print("[windows-ci] ctest skipped for this explicit continuation run")
             ctest_result = 0
