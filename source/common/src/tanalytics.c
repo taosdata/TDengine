@@ -367,7 +367,7 @@ static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp) {
   }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 20000L) != 0) goto _OVER;
 
   uDebug("curl get request will sent, url:%s", url);
   code = curl_easy_perform(curl);
@@ -403,9 +403,9 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POST, 1) != 0) goto _OVER;
-  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, bufLen) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)timeout) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POST, 1L) != 0) goto _OVER;
+  if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)bufLen) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDS, buf) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;

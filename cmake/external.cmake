@@ -1205,31 +1205,40 @@ INIT_EXT(ext_curl
 )
 
 if(${TD_WINDOWS})
-    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
-    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
-        "curl-8.11.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         PREFIX "${_base}"
-        PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" "-DCURL_SOURCE_DIR=<SOURCE_DIR>"
-                    -P "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR:PATH=lib
         CMAKE_ARGS -DBUILD_SHARED_LIBS:BOOL=OFF
         CMAKE_ARGS -DBUILD_TESTING:BOOL=OFF
         CMAKE_ARGS -DBUILD_CURL_EXE:BOOL=OFF
-        CMAKE_ARGS -DENABLE_WEBSOCKETS:BOOL=ON
+        # curl 8.23.0 no longer has ENABLE_WEBSOCKETS (it was a no-op and made CMake
+        # warn about an unused variable); websockets are on unless
+        # CURL_DISABLE_WEBSOCKETS is set. The engine calls curl_ws_send, so state the
+        # requirement explicitly instead of relying on the default.
+        CMAKE_ARGS -DCURL_DISABLE_WEBSOCKETS:BOOL=OFF
         CMAKE_ARGS -DCURL_USE_SCHANNEL:BOOL=ON
         CMAKE_ARGS -DCURL_USE_OPENSSL:BOOL=OFF
         CMAKE_ARGS -DCURL_ZLIB:BOOL=OFF
         CMAKE_ARGS -DCURL_DISABLE_LDAP:BOOL=ON
         CMAKE_ARGS -DCURL_DISABLE_LDAPS:BOOL=ON
+        # Keep in sync with the Linux/macOS autotools configure below
+        # (--without-libpsl --without-libidn2 --without-nghttp2).
+        # curl 8.23.0 turned CURL_USE_LIBPSL into `find_package(Libpsl MODULE REQUIRED)`
+        # (8.11.1 only warned when libpsl was missing), so without this flag the
+        # Windows ExternalProject configure step fails on runners that have no libpsl.
+        CMAKE_ARGS -DCURL_USE_LIBPSL:BOOL=OFF
+        CMAKE_ARGS -DUSE_LIBIDN2:BOOL=OFF
+        CMAKE_ARGS -DUSE_NGHTTP2:BOOL=OFF
         BUILD_COMMAND
             COMMAND "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
         INSTALL_COMMAND
@@ -1261,22 +1270,19 @@ else()
     else()
         set(_ext_curl_prepare_ssl_include "")
     endif()
-    # URL https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz
-    # URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+    # URL https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz
+    # URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
     get_from_local_if_exists(
-        "https://github.com/curl/curl/releases/download/curl-8_11_1/curl-8.11.1.tar.gz"
-        "curl-8.11.1.tar.gz"
+        "https://github.com/curl/curl/releases/download/curl-8_23_0/curl-8.23.0.tar.gz"
+        "curl-8.23.0.tar.gz"
     )
     ExternalProject_Add(ext_curl
         URL ${_url}
-        URL_HASH SHA256=a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80
+        URL_HASH SHA256=e3de77cfa6367083c776a26647fc9f633b538c06c3baa73d931a252ac8f72b49
         # GIT_SHALLOW TRUE
         DEPENDS ext_ssl
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
-        PATCH_COMMAND
-            COMMAND "${CMAKE_COMMAND}" "-DCURL_SOURCE_DIR=<SOURCE_DIR>"
-                    -P "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:STRING=${_ins}
         CONFIGURE_COMMAND
@@ -1286,7 +1292,7 @@ else()
                     --enable-websockets --enable-shared=no --disable-ldap
                     --disable-ldaps --without-brotli --without-zstd
                     --without-libidn2 --without-nghttp2 --without-libpsl
-                    --without-librtmp --without-libgsasl #--enable-debug
+                    --without-libgsasl #--enable-debug
                     # --without-libgsasl: prevent curl's configure from auto-detecting a
                     # system libgsasl-dev and baking an undeclared dependency into
                     # libcurl.a (would break final link with undefined gsasl_* refs).
@@ -1298,17 +1304,6 @@ else()
         VERBATIM
     )
 endif()
-# CMake 3.27+ uses a separate patch step with EP_UPDATE_DISCONNECTED.
-set(_ext_curl_patch_steps patch)
-if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.27")
-    list(APPEND _ext_curl_patch_steps patch_disconnected)
-endif()
-foreach(_ext_curl_patch_step IN LISTS _ext_curl_patch_steps)
-    ExternalProject_Add_StepDependencies(ext_curl ${_ext_curl_patch_step}
-        "${TD_SOURCE_DIR}/cmake/patch_curl_websocket.cmake"
-        "${TD_SOURCE_DIR}/cmake/curl-8.11.1-websocket-send.patch"
-    )
-endforeach()
 add_dependencies(build_externals ext_curl)     # this is for github workflow in cache-miss step.
 
 # geos

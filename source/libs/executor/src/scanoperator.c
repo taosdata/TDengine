@@ -1609,7 +1609,7 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
   while (true) {
     code = pAPI->tsdReader.tsdNextDataBlock(pTableScanInfo->base.dataReader, &hasNext);
     if (code != TSDB_CODE_SUCCESS) {
-      pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->base.dataReader);
+      // tsdNextDataBlock has already released the reader lock when it fails, do not release it again.
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
@@ -4761,7 +4761,7 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     if (pInfo->dataReader && pInfo->sContext->withMeta != ONLY_META) {
       code = pAPI->tsdReader.tsdNextDataBlock(pInfo->dataReader, &hasNext);
       if (code != TSDB_CODE_SUCCESS) {
-        pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->dataReader);
+        // tsdNextDataBlock has already released the reader lock when it fails, do not release it again.
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -5951,7 +5951,7 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     bool hasNext = false;
     code = pAPI->tsdReader.tsdNextDataBlock(pInfo->base.dataReader, &hasNext);
     if (code != 0) {
-      pAPI->tsdReader.tsdReaderReleaseDataBlock(pInfo->base.dataReader);
+      // tsdNextDataBlock has already released the reader lock when it fails, do not release it again.
       pInfo->base.dataReader = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -6687,7 +6687,7 @@ static int32_t doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFini
 
   code = pAPI->tsdReader.tsdNextDataBlock(reader, &hasNext);
   if (code != 0) {
-    pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+    // tsdNextDataBlock has already released the reader lock when it fails, do not release it again.
     qError("table merge scan fetch next data block error code: %d, %s", code, GET_TASKID(pTaskInfo));
     pTaskInfo->code = code;
     return code;
