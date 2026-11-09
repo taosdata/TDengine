@@ -44,6 +44,14 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return code;
   }
 
+  // defense in depth: the decoder already bounds replica/learnerReplica, but they must never be used
+  // as loop bounds or indices below without this check (a mnode request also needs at least 1 voter)
+  if (createReq.replica < 1 || createReq.replica > TSDB_MAX_REPLICA || createReq.learnerReplica < 0 ||
+      createReq.learnerReplica > TSDB_MAX_LEARNER_REPLICA) {
+    code = TSDB_CODE_INVALID_MSG;
+    return code;
+  }
+
   SMnodeOpt option = {.deploy = true,
                       .numOfReplicas = createReq.replica,
                       .numOfTotalReplicas = createReq.replica + createReq.learnerReplica,

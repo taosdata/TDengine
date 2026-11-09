@@ -15788,12 +15788,21 @@ int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->replica));
+  // replica is used as a loop bound and as an index over replicas[]/nodeRoles[] by the mnode mgmt
+  // layer (mmProcessCreateReq), so bound it to the fixed-size arrays before it leaves the wire
+  if (!tsdbReplicaCfgInRange(pReq->replica, -1, TSDB_MAX_REPLICA)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->learnerReplica));
+    // learnerReplica is likewise used as a loop bound and as an index offset by mmProcessCreateReq
+    if (!tsdbReplicaCfgInRange(pReq->learnerReplica, -1, TSDB_MAX_LEARNER_REPLICA)) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     for (int32_t i = 0; i < TSDB_MAX_LEARNER_REPLICA; ++i) {
       SReplica *pReplica = &pReq->learnerReplicas[i];
       TAOS_CHECK_EXIT(tDecodeSReplica(&decoder, pReplica));
