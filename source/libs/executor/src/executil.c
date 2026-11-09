@@ -5963,15 +5963,14 @@ static int32_t createCurrentGroupReadFromCalc(SStreamRuntimeFuncInfo* pStream) {
   SArray* pReads = taosArrayInit(1, sizeof(SSTriggerGroupReadInfo));
   if (pReads == NULL) return terrno;
   SSTriggerGroupReadInfo    read = {.gid = pStream->groupId};
-  const size_t              plainParamSize = offsetof(SSTriggerCalcParam, notifyType);
   const SSTriggerCalcParam* pFirst = taosArrayGet(pCalc->pParams, 0);
   const SSTriggerCalcParam* pLast = taosArrayGet(pCalc->pParams, paramCount - 1);
   if (pFirst == NULL || pLast == NULL) {
     taosArrayDestroy(pReads);
     return TSDB_CODE_INVALID_PARA;
   }
-  memcpy(&read.firstParam, pFirst, plainParamSize);
-  memcpy(&read.lastParam, pLast, plainParamSize);
+  tCopySTriggerCalcParamValues(&read.firstParam, pFirst);
+  tCopySTriggerCalcParamValues(&read.lastParam, pLast);
   if (taosArrayPush(pReads, &read) == NULL) {
     taosArrayDestroy(pReads);
     return terrno;
@@ -7029,8 +7028,7 @@ int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStream
   SSTriggerCalcParam* pDstParam = taosArrayGet(pDst->pStreamPesudoFuncVals, 0);
   QUERY_CHECK_NULL(pDstParam, code, lino, _exit, terrno);
 
-  int64_t plainFieldSize = offsetof(SSTriggerCalcParam, notifyType);
-  TAOS_MEMCPY(pDstParam, pSrcParam, plainFieldSize);
+  tCopySTriggerCalcParamValues(pDstParam, pSrcParam);
   pDst->curIdx = 0;
   pDst->curOutIdx = 0;
   TAOS_CHECK_EXIT(

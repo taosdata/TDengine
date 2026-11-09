@@ -593,7 +593,9 @@ When performing calculations, you may need to use contextual information from th
 | Sliding Trigger   | _tcurrent_ts     | Event time of current trigger (same precision as record)     |
 | Sliding Trigger   | _tnext_ts        | Event time of next trigger (same precision as record)        |
 | Window Trigger    | _twstart         | Start timestamp of current window                            |
-| Window Trigger    | _twend           | End timestamp of currently open window. Used only with WINDOW_CLOSE trigger. |
+| Window Trigger    | _twend           | End timestamp of the current trigger window. On `WINDOW_OPEN`, data-driven windows use the start timestamp, while time windows use the known window end. |
+| Window Trigger    | `_tpre_wstart`   | Start timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
+| Window Trigger    | `_tpre_wend`     | End timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |
 | Window Trigger    | _twrownum        | Number of rows in currently open window. Used only with WINDOW_CLOSE trigger. |
 | Event Window Trigger | _event_condition_path | Condition path of the current event-window node in the `START WITH` start event tree. Available only for `EVENT_WINDOW` when `START WITH` contains at least one parenthesized group. |
@@ -609,13 +611,16 @@ When performing calculations, you may need to use contextual information from th
 
 Usage Restrictions:
 
+- `_tpre_wstart`, `_tpre_wend`: `WINDOW_OPEN` refers to the most recently closed window when the opening event fires; overlapping windows that are still open are excluded. `WINDOW_CLOSE` refers to the most recently closed window before the current window closes. Values can differ between the two events. Neither placeholder supports combinations with `IDLE` or `RESUME`.
+- Previous-window placeholders support only ordinary single-layer windows, not nested `WINDOW(...)` plans or event windows with multiple `START WITH` conditions. Such references, including unqualified leaf and layer-qualified references, are rejected when the stream is created.
+- When previous-window placeholders are used, automatic recalculation caused by out-of-order inserts, updates, or deletes also refreshes successor windows whose predecessor has changed, even if their own input rows have not changed. After the last closed window is deleted, a future successor's OPEN result is also corrected without waiting for it to close. For windows with data-dependent boundaries, rebuilding predecessor relationships may require replay from the history processing boundary; recalculation cost depends on the replay range.
 - %%trows: Can only be used in the FROM clause. Queries that use %%trows do not support WHERE condition filtering or join operations on %%trows.
 - %%tbname: Can be used in the FROM, SELECT, and WHERE clauses.
 - %%rollup_tag: Available only with `ROLLUP BY`. It can be used in `OUTPUT_SUBTABLE`, `TAGS`, and positions in `AS subquery` where existing trigger placeholders are allowed.
 - _trollup_tbcount: Available only with `ROLLUP BY`. It can be used only in `AS subquery`; it cannot be used in `OUTPUT_SUBTABLE` or `TAGS`.
 - _event_condition_path: Available only for `EVENT_WINDOW` when `START WITH` uses a sub-event structure with at least one parenthesized group. It is invalid for a single ordinary start condition or any non-event-window trigger.
 - Other placeholders: Can only be used in the SELECT and WHERE clauses.
-- In a nested window plan, unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries.
+- In a nested window plan, supported unqualified trigger placeholders refer to the leaf layer. Qualified layer placeholders are visible only in the computation query and its subqueries. Nested windows do not support `_tpre_wstart` or `_tpre_wend`.
 
 ### Stream Processing Control Options
 

@@ -18875,6 +18875,9 @@ static int32_t tEncodeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq
     tEndEncodeStreamTailFrame(&encoder);
   }
 
+  TAOS_CHECK_EXIT(tEncodeStreamRuntimePrevWindowFrame(&encoder, pReq->pStRtFuncInfo, needStreamRtInfo,
+                                                       effectiveNeedStreamGrpInfo));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -18987,6 +18990,7 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
   bool ancestorSeen = false;
   bool resetModeSeen = false;
   bool twoPassSeen = false;
+  bool prevWindowSeen = false;
   bool readerGroupModeSeen = false;
   bool readerDimensionBatchSeen = false;
   bool runnerEogBatchSeen = false;
@@ -19108,6 +19112,21 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
         if (code == TSDB_CODE_SUCCESS) code = TSDB_CODE_INVALID_MSG;
         tFinishDecodeStreamTailFrame(&frame, false);
       }
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
+    if (frame.magic == STREAM_PREV_WINDOW_FRAME_MAGIC) {
+      if (prevWindowSeen || frame.version != STREAM_PREV_WINDOW_FRAME_VERSION || frame.flags != 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      prevWindowSeen = true;
+      code = tDecodeStreamRuntimePrevWindowFrame(&frame.payloadDecoder, pReq->pStRtFuncInfo);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
       TAOS_CHECK_EXIT(code);
       continue;
     }

@@ -745,8 +745,8 @@ int32_t stValidateNodeGroupReadBindings(const SStreamRuntimeFuncInfo* pSource, i
       const SSTriggerGroupReadInfo* pRead = taosArrayGet(pSource->curGrpRead, readInfoIndex);
       const SSTriggerGroupReadInfo* pSourceRead = taosArrayGet(*ppNodeReads, readInfoIndex);
       if (pRead == NULL || pSourceRead == NULL || pSourceRead->gid != pRead->gid ||
-          memcmp(&pSourceRead->firstParam, &pRead->firstParam, offsetof(SSTriggerCalcParam, notifyType)) != 0 ||
-          memcmp(&pSourceRead->lastParam, &pRead->lastParam, offsetof(SSTriggerCalcParam, notifyType)) != 0) {
+          !tEqualSTriggerCalcParamValues(&pSourceRead->firstParam, &pRead->firstParam) ||
+          !tEqualSTriggerCalcParamValues(&pSourceRead->lastParam, &pRead->lastParam)) {
         code = TSDB_CODE_INVALID_PARA;
         goto _exit;
       }

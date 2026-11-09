@@ -593,7 +593,9 @@ tag_definition:
 | 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
 | 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
 | 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
-| 窗口触发 | _twend           | 本次触发窗口的结束时间戳，只适用于 `WINDOW_CLOSE` 触发使用 |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳；`WINDOW_OPEN` 时，数据驱动窗口取窗口起始时间，时间窗口取已确定的窗口结束时间 |
+| 窗口触发 | `_tpre_wstart` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的起始时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
+| 窗口触发 | `_tpre_wend` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的结束时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 窗口触发 | _twrownum        | 本次触发窗口的记录条数，只适用于 `WINDOW_CLOSE` 触发使用   |
 | 事件窗口触发 | _event_condition_path | 当前事件窗口节点在 `START WITH` 开始事件树中的条件路径。只适用于 `EVENT_WINDOW` 且 `START WITH` 至少包含一层括号分组的场景 |
@@ -609,13 +611,16 @@ tag_definition:
 
 使用限制：
 
+- `_tpre_wstart`、`_tpre_wend`：`WINDOW_OPEN` 引用打开事件触发时最近一个已关闭窗口，尚未关闭的重叠窗口不计入；`WINDOW_CLOSE` 引用当前窗口关闭前最近一个已关闭窗口。两类事件中取值可能不同，均不支持与 `IDLE`、`RESUME` 组合使用。
+- 前序窗口占位符仅支持普通单层窗口，不支持嵌套 `WINDOW(...)` 或多 `START WITH` 条件的事件窗口；在这些场景下使用会在创建流时报错，包括叶层和层名限定形式。
+- 使用前序窗口占位符时，乱序写入、更新或删除引发的自动重算也会刷新前序关系发生变化的后继窗口，即使后继窗口内的数据没有变化。删除最后一个已关闭窗口后，未来后继窗口的 OPEN 结果也会修正，无需等待其关闭。对于边界依赖数据的窗口，恢复前序关系可能需要从历史处理起点回放，重算开销取决于回放范围。
 - %%trows：只能用于 FROM 子句，在使用 %%trows 的语句中不支持 where 条件过滤，不支持对 %%trows 进行关联查询。
 - %%tbname：可以用于 FROM、SELECT 和 WHERE 子句。
 - %%rollup_tag：只在使用 `ROLLUP BY` 时可用，可以用于 `OUTPUT_SUBTABLE`、`TAGS`、`AS subquery` 中现有触发占位符允许的位置。
 - _trollup_tbcount：只在使用 `ROLLUP BY` 时可用，只能用于 `AS subquery`，不能用于 `OUTPUT_SUBTABLE` 或 `TAGS`。
 - _event_condition_path：只在 `EVENT_WINDOW` 且 `START WITH` 使用子事件结构（至少一层括号分组）时可用。单个普通开始条件或非事件窗口触发中使用会报错。
 - 其他占位符：只能用于 SELECT 和 WHERE 子句。
-- 嵌套窗口中，未限定的触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。
+- 嵌套窗口中，受支持的未限定触发占位符引用叶层；层名限定占位符只在计算查询及其子查询中可见。嵌套窗口不支持 `_tpre_wstart` 和 `_tpre_wend`。
 
 ### 流式计算的控制选项
 

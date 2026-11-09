@@ -1059,6 +1059,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
       return &pParams->wstart;
     case FUNCTION_TYPE_TWEND:
       return &pParams->wend;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      return &pParams->prevWstart;
+    case FUNCTION_TYPE_TPREV_WEND:
+      return &pParams->prevWend;
     case FUNCTION_TYPE_TWDURATION:
       return &pParams->wduration;
     case FUNCTION_TYPE_TWROWNUM:
@@ -1082,9 +1086,10 @@ const void* fmGetStreamPesudoFuncVal(int32_t funcId, const SStreamRuntimeFuncInf
 }
 
 static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeFuncInfo* pInfo, int32_t layerIndex,
-                                           const void** ppValue) {
-  if (ppValue == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+                                           const void** ppValue, bool* pIsNull) {
+  if (ppValue == NULL || pIsNull == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   *ppValue = NULL;
+  *pIsNull = false;
   if (pInfo == NULL || funcId < 0 || funcId >= funcMgtBuiltinsNum || layerIndex < 0) {
     return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   }
@@ -1110,6 +1115,12 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
     case FUNCTION_TYPE_TWEND:
       requiredMask = PLACE_HOLDER_WEND;
       break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      requiredMask = PLACE_HOLDER_PREV_WSTART;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      requiredMask = PLACE_HOLDER_PREV_WEND;
+      break;
     case FUNCTION_TYPE_TWDURATION:
       requiredMask = PLACE_HOLDER_WDURATION;
       break;
@@ -1130,6 +1141,12 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
   const int32_t snapshotCount = taosArrayGetSize(pMatch->pSnapshots);
   if (layerIndex > snapshotCount) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
   if (layerIndex == snapshotCount) {
+    const int32_t type = funcMgtBuiltins[funcId].type;
+    if (type == FUNCTION_TYPE_TPREV_WSTART || type == FUNCTION_TYPE_TPREV_WEND) {
+      const SSTriggerCalcParam* pParam = taosArrayGet(pInfo->pStreamPesudoFuncVals, pInfo->curIdx);
+      if (pParam == NULL) return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+      *pIsNull = !pParam->hasPrevWindow;
+    }
     *ppValue = fmGetStreamPesudoFuncVal(funcId, pInfo);
     return *ppValue == NULL ? TSDB_CODE_STREAM_INVALID_PLACE_HOLDER : TSDB_CODE_SUCCESS;
   }
@@ -1162,6 +1179,14 @@ static int32_t fmGetWindowPlaceholderValue(int32_t funcId, const SStreamRuntimeF
       break;
     case FUNCTION_TYPE_TWEND:
       *ppValue = &pSnapshot->values.window.end;
+      break;
+    case FUNCTION_TYPE_TPREV_WSTART:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevStart;
+      break;
+    case FUNCTION_TYPE_TPREV_WEND:
+      *pIsNull = !pSnapshot->values.window.hasPrevWindow;
+      *ppValue = &pSnapshot->values.window.prevEnd;
       break;
     case FUNCTION_TYPE_TWDURATION:
       *ppValue = &pSnapshot->values.window.duration;
@@ -1432,12 +1457,23 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return code;
     }
   } else if (LIST_LENGTH(pParamNodes) == 1) {
-    // twstart, twend
+    // twstart, twend, tpre_wstart, tpre_wend
+    SSTriggerCalcParam* pParams =
+        taosArrayGet(pStreamRuntimeInfo->pStreamPesudoFuncVals, pStreamRuntimeInfo->curIdx);
+    if (pParams == NULL) {
+      uError("failed to set stream pseudo func param val, missing calc param for funcId: %d", funcId);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     const void* pVal = fmGetStreamPesudoFuncVal(funcId, pStreamRuntimeInfo);
     if (!pVal) {
       uError("failed to set stream pseudo func param val, NULL val for funcId: %d", funcId);
       return TSDB_CODE_INTERNAL_ERROR;
     }
+    if ((t == FUNCTION_TYPE_TPREV_WSTART || t == FUNCTION_TYPE_TPREV_WEND) && !pParams->hasPrevWindow) {
+      ((SValueNode*)pFirstParam)->isNull = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    ((SValueNode*)pFirstParam)->isNull = false;
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != 0) {
       uError("failed to set value node value: %s", tstrerror(code));
@@ -1450,8 +1486,12 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
       return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
     }
     const void* pVal = NULL;
-    code = fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal);
+    bool        isNull = false;
+    code =
+        fmGetWindowPlaceholderValue(funcId, pStreamRuntimeInfo, ((SValueNode*)pSecondParam)->datum.i, &pVal, &isNull);
     if (code != TSDB_CODE_SUCCESS) return code;
+    ((SValueNode*)pFirstParam)->isNull = isNull;
+    if (isNull) return TSDB_CODE_SUCCESS;
     code = nodesSetValueNodeValue((SValueNode*)pFirstParam, (void*)pVal);
     if (code != TSDB_CODE_SUCCESS) {
       uError("failed to set value node value: %s", tstrerror(code));

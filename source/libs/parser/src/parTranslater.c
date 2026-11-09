@@ -6205,6 +6205,16 @@ static EDealRes translatePlaceHolderFunc(STranslateContext* pCxt, SNode** pFunc)
       PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
       break;
     }
+    case FUNCTION_TYPE_TPREV_WSTART: {
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PREV_WSTART);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
+    case FUNCTION_TYPE_TPREV_WEND: {
+      BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PREV_WEND);
+      PAR_ERR_JRET(nodesMakeValueNodeFromTimestamp(0, &extraValue));
+      break;
+    }
     case FUNCTION_TYPE_TWDURATION: {
       BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_WDURATION);
       PAR_ERR_JRET(nodesMakeValueNodeFromInt64(0, &extraValue));
@@ -6385,6 +6395,8 @@ static bool streamAsciiEqualIgnoreCase(const char* pLeft, const char* pRight) {
 static int64_t streamWindowPlaceholderMask(const char* pName) {
   if (streamAsciiEqualIgnoreCase(pName, "_twstart")) return PLACE_HOLDER_WSTART;
   if (streamAsciiEqualIgnoreCase(pName, "_twend")) return PLACE_HOLDER_WEND;
+  if (streamAsciiEqualIgnoreCase(pName, "_tpre_wstart")) return PLACE_HOLDER_PREV_WSTART;
+  if (streamAsciiEqualIgnoreCase(pName, "_tpre_wend")) return PLACE_HOLDER_PREV_WEND;
   if (streamAsciiEqualIgnoreCase(pName, "_twduration")) return PLACE_HOLDER_WDURATION;
   if (streamAsciiEqualIgnoreCase(pName, "_twrownum")) return PLACE_HOLDER_WROWNUM;
   if (streamAsciiEqualIgnoreCase(pName, "_tprev_ts")) return PLACE_HOLDER_PREV_TS;
@@ -6402,8 +6414,8 @@ static bool streamLayerAllowsPlaceholder(const SNode* pWindow, int64_t mask) {
       nodeType(pWindow) != QUERY_NODE_EVENT_WINDOW) {
     return false;
   }
-  return mask == PLACE_HOLDER_WSTART || mask == PLACE_HOLDER_WEND || mask == PLACE_HOLDER_WDURATION ||
-         mask == PLACE_HOLDER_WROWNUM;
+  return mask == PLACE_HOLDER_WSTART || mask == PLACE_HOLDER_WEND || mask == PLACE_HOLDER_PREV_WSTART ||
+         mask == PLACE_HOLDER_PREV_WEND || mask == PLACE_HOLDER_WDURATION || mask == PLACE_HOLDER_WROWNUM;
 }
 
 static int32_t streamNestedLayerIndex(const SStreamWindowPlanNode* pPlan, const char* pName) {
@@ -6418,6 +6430,9 @@ static int32_t streamNestedLayerIndex(const SStreamWindowPlanNode* pPlan, const 
 }
 
 static int32_t streamNestedSetPlaceholderMask(SStreamNestedWindowContext* pNested, int32_t layerIndex, int64_t mask) {
+  if ((mask & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0) {
+    return TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
+  }
   int64_t* pMask = taosArrayGet(pNested->pPlaceholderMasks, layerIndex);
   if (pMask == NULL) return TSDB_CODE_INVALID_PARA;
   *pMask |= mask;
@@ -29340,6 +29355,9 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasIdleResumeEvent = (pReq->eventTypes & (EVENT_IDLE | EVENT_RESUME)) != 0;
   bool    nested = BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  bool    hasPrevWindowPlaceholder =
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_WSTART) ||
+      BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_WEND);
   if (!nested && (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_CURRENT_TS) ||
                   BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_TS) ||
                   BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_NEXT_TS))) {
@@ -29356,18 +29374,46 @@ static int32_t createStreamReqCheckPlaceHolder(STranslateContext* pCxt, SCMCreat
 
   if (!nested && (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WSTART) ||
                   BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WEND) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_WSTART) ||
+                  BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PREV_WEND) ||
                   BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WDURATION) ||
                   BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_WROWNUM))) {
     if (pReq->triggerType == WINDOW_TYPE_PERIOD ||
         (pReq->triggerType == WINDOW_TYPE_INTERVAL && pReq->trigger.sliding.interval == 0)) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-                                           "_twstart/_twend/_twduration/_twrownum cannot be used in period window and "
-                                           "sliding window without interval"));
+                                           "_twstart/_twend/_tpre_wstart/_tpre_wend/_twduration/_twrownum cannot be "
+                                           "used in period window and sliding window without interval"));
     }
     if (hasIdleResumeEvent) {
       PAR_ERR_JRET(generateSyntaxErrMsgExt(
           &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
-          "_twstart/_twend/_twduration/_twrownum cannot be used when event type includes IDLE or RESUME"));
+          "_twstart/_twend/_tpre_wstart/_tpre_wend/_twduration/_twrownum cannot be used when event type includes "
+          "IDLE or RESUME"));
+    }
+  }
+  if (hasPrevWindowPlaceholder) {
+    if (nested) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+          "_tpre_wstart/_tpre_wend cannot be used in nested windows"));
+    }
+    if (pReq->triggerType == WINDOW_TYPE_EVENT && pReq->trigger.event.startCond != NULL) {
+      SNode* pStart = NULL;
+      code = nodesStringToNode((char*)pReq->trigger.event.startCond, &pStart);
+      bool hasGroup = pStart != NULL && nodeType(pStart) == QUERY_NODE_NODE_LIST;
+      nodesDestroyNode(pStart);
+      PAR_ERR_JRET(code);
+      if (hasGroup) {
+        PAR_ERR_JRET(generateSyntaxErrMsgExt(
+            &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+            "_tpre_wstart/_tpre_wend cannot be used in multi-START event windows"));
+      }
+    }
+    if (pReq->eventTypes == 0 ||
+        (pReq->eventTypes & ~(EVENT_WINDOW_OPEN | EVENT_WINDOW_CLOSE)) != 0) {
+      PAR_ERR_JRET(generateSyntaxErrMsgExt(
+          &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PLACE_HOLDER,
+          "_tpre_wstart/_tpre_wend can only be used with WINDOW_OPEN or WINDOW_CLOSE events"));
     }
   }
 

@@ -161,14 +161,24 @@ typedef struct SSTriggerOrigTableInfo {
 typedef struct SSTriggerWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int64_t     countWindowIndex;  // ordinal among COUNT windows starting at the same timestamp
   int64_t     prevProcTime;  // only used in realtime group for max_delay check
 } SSTriggerWindow;
+
+typedef struct SSTriggerPrevWindowSnapshot {
+  STimeWindow range;
+  STimeWindow prevWindow;  // INT64_MIN marks an event with no predecessor
+  int64_t     countWindowIndex;
+  int8_t      eventType;  // OPEN/CLOSE; zero denotes a legacy timestamp-only snapshot
+} SSTriggerPrevWindowSnapshot;
 
 typedef struct SSTriggerNotifyWindow {
   STimeWindow range;
   int64_t     wrownum;
+  int64_t     countWindowIndex;
   bool        forceWinOpen;
   bool        winOpenEmitted;
+  bool        collapsedParent;
   int32_t     eventTreeNodeIdx;
   char       *pWinOpenNotify;
   char       *pWinCloseNotify;
@@ -202,6 +212,13 @@ typedef struct SStateDeferredState {
   bool   *pendingColTouched;   /* per-column: non-NULL seen in pending row */
   bool    hasPendingPartialNull;
 } SStateDeferredState;
+
+typedef struct SSTriggerPrevWindowState {
+  STimeWindow window;
+  bool        hasClosed;
+  bool        recalcNextOpen;
+  bool        recalcNextClose;
+} SSTriggerPrevWindowState;
 
 typedef struct SSTriggerNestedPeerSource {
   int64_t tableUid;
@@ -250,6 +267,8 @@ typedef struct SSTriggerRealtimeGroup {
   int32_t                          vgId;
   int32_t                          activeVtableCount;
   bool                             recalcNextWindow;
+  bool                             recalcNextOpen;
+  TSKEY                            lastOpenRepairStart;
   bool                             repairCountDisorder;
   STimeWindow                      countDisorderRange;
   // For EXT/federated groups only (vgId == 0): the taskId of the SSTriggerExtProgress
@@ -285,11 +304,19 @@ typedef struct SSTriggerRealtimeGroup {
       SArray *activePath;       // SArray<int32_t>, envelope..leaf
       SArray *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
       SArray *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      SArray *eventTreePrevWindows;  // Envelope at 0; siblings use parent node index + 1
       int32_t activeLeaf;       // leaf array index, -1 when no active leaf
     };
     int64_t totalCount;  // for count window trigger
   };
-  STimeWindow prevWindow;                // the last closed window
+  STimeWindow prevWindow;                // last closed window or initial interval cursor
+  bool        hasClosedWindow;           // the initial interval cursor is not a closed window
+  TSKEY       prevWindowRepairThrough;   // latest applied automatic COUNT replay frontier
+  STimeWindow prevParentWindow;          // last closed parent event window
+  bool        hasClosedParentWindow;
+  SArray     *pPrevWindowSnapshots;       // original event predecessors for replay and MAX_DELAY
+  TSKEY       countWindowStart;
+  int64_t     countWindowIndex;
   SObjList    windows;                   // SObjList<SSTriggerWindow>, windows not yet closed
   SObjList    pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
   SObjList    pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
@@ -321,6 +348,10 @@ typedef struct SSTriggerHistoryGroup {
   SSHashObj *pTableMetas;      // SSHashObj<tbUid, SSTriggerTableMeta>
 
   int64_t finishTs;
+  int64_t predecessorRepairStart;
+  // Flat EVENT parents have a separate predecessor chain during auto repair.
+  int64_t parentFinishTs;
+  int64_t parentPredecessorRepairStart;
 
   TriggerWindowBuf winBuf;
   union {
@@ -335,10 +366,16 @@ typedef struct SSTriggerHistoryGroup {
       SArray               *activePath;       // SArray<int32_t>, envelope..leaf
       SArray               *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
       SArray               *leafStreaks;      // SArray<SEventLeafStreak>, one per event-tree leaf
+      SArray               *eventTreePrevWindows;  // Envelope at 0; siblings use parent node index + 1
       int32_t               activeLeaf;       // leaf array index, -1 when no active leaf
     };
   };
 
+  STimeWindow        prevWindow;                // the last closed window
+  TSKEY              countWindowStart;
+  int64_t            countWindowIndex;
+  STimeWindow        prevParentWindow;          // the last closed parent event window
+  bool               hasClosedParentWindow;
   SObjList           pPendingParWinCalcParams;  // SObjList<SSTriggerCalcParam>
   SObjList           pPendingCalcParams;        // SObjList<SSTriggerCalcParam>
   SWindowChainState        *pWindowChain;
@@ -776,6 +813,7 @@ struct SSTriggerRealtimeContext {
   SSHashObj   *pRanges;      // SSHashObj<gid, STimeWindow>
 
   SSHashObj *pGroups;  // SSHashObj<gid, SSTriggerRealtimeGroup*>
+  SSHashObj *pRecoveredPrevWindows;  // SSHashObj<gid, checkpointed EXT predecessor state>
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheck;
   TD_DLIST(SSTriggerRealtimeGroup) groupsToCheckIdle;  // groups to check for idle timeout
   Heap                   *pMaxDelayHeap;
@@ -863,9 +901,14 @@ typedef struct SSTriggerHistoryContext {
 
   int64_t              gid;
   STimeWindow          scanRange;
+  TSKEY                predecessorScanThrough;  // request frontier before FIRST_TS narrows an empty scan
   STimeWindow          calcRange;
   STimeWindow          stepRange;
+  STimeWindow          openRepairPrevWindow;  // captured OPEN predecessor, possibly NULL
   bool                 isHistory;
+  bool                 openWindowRepair;
+  bool                 ownsOpenRepairHold;
+  bool                 openRepairPrevCaptured;
   bool                 needTsdbMeta;
   bool                 finishCheck;
   bool                 pendingToFinish;
@@ -984,6 +1027,7 @@ typedef struct SStreamEventTree {
 
 typedef struct SSTriggerGroupRunning {
   int32_t runningRequests;
+  int32_t pendingOpenRepairs;  // pause MAX_DELAY until repaired snapshots and output are committed
   bool    runnerInitialized[];
 } SSTriggerGroupRunning;
 
@@ -997,6 +1041,10 @@ typedef struct SSTriggerRecalcRequest {
   SRecalcImpactDomain        impactDomain;
   bool                       frozen;
   bool                       noMerge;
+  bool                       openWindowRepair;
+  bool                       waitForOutput;
+  struct SStreamTriggerTask *pOpenRepairOwner;
+  SArray                    *pRepairWaits;  // slot generations captured after original output dispatch
   bool                       retryScheduled;
   SStreamRecalcAttemptState *pPreparedAttempt;
   SStreamRecalcAttemptRef    attempt;
@@ -1022,6 +1070,8 @@ typedef struct SStreamTriggerTask {
   SStreamTask                       task;
   SStreamTaskStats                 *pStats;
   SRWLatch                          readerProgressLock;
+  SRWLatch                          prevWindowUpdateLock;
+  SArray                           *pPrevWindowUpdates;  // history-to-realtime value updates
   SArray                           *pReaderProgressSnapshots;
   SRWLatch                          debugGaugesLock;
   SStreamTriggerCommonDebugGauges   commonDebugGauges;
@@ -1157,6 +1207,7 @@ typedef struct SStreamTriggerTask {
   SSHashObj *pSessionRunning;  // SSHashObj<sessionId, cnt>
 
   SRWLatch   recalcRequestLock;
+  bool       recalcInProgress;     // Protected by recalcRequestLock through history completion.
   SList     *pRecalcRequests;       // SList<SSTriggerRecalcRequest>
   SSHashObj *pRecalcRequestMap;     // SSHashObj<gid, SSTriggerRecalcRequestList>
   SSHashObj *pGroupPendingRecalcs;  // SSHashObj<gid, SSTriggerGroupPendingRecalc>

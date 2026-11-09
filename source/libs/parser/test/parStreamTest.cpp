@@ -39,6 +39,45 @@ using namespace std;
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
 
+TEST_F(ParserStreamTest, PreviousWindowPlaceholdersSupportOpenAndClose) {
+  const std::vector<std::string> windows = {
+      "interval(2s) sliding(1s)", "session(ts, 1s)", "state_window(c1)",
+      "count_window(3, 1)", "event_window(start with c1 = 1 end with c1 = 2)"};
+  for (const auto& window : windows) {
+    for (const auto& events : {"window_open", "window_close", "window_open | window_close"}) {
+      run("create stream stream_streamdb.s_prev " + window +
+          " from stream_triggerdb.stream_t1 stream_options(event_type(" + events +
+          ")) into stream_outdb.stream_out as select _twstart, _tpre_wstart, _tpre_wend "
+          "from stream_querydb.stream_t2 where ts >= _tpre_wstart and ts <= _tpre_wend");
+    }
+  }
+  run("create stream stream_streamdb.s_prev_nested window("
+      "interval(1m) sliding(1m) as w_outer, count_window(2, 1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 stream_options(event_type(window_open)) "
+      "into stream_outdb.stream_out as select _twstart, w_outer._tpre_wstart as outer_start, "
+      "w_outer._tpre_wend as outer_end, w_leaf._tpre_wstart, w_leaf._tpre_wend from stream_querydb.stream_t2",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
+TEST_F(ParserStreamTest, PreviousWindowPlaceholdersRejectNonWindowEvents) {
+  for (const auto& events : {"idle", "resume", "window_open | idle", "window_open | window_close | resume"}) {
+    run(std::string("create stream stream_streamdb.s_prev state_window(c1) ") +
+        "from stream_triggerdb.stream_t1 stream_options(idle_timeout(1s) | event_type(" + events +
+        ")) into stream_outdb.stream_out as select _twstart, _tpre_wstart, _tpre_wend "
+        "from stream_querydb.stream_t2", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  }
+  for (const auto& window : {"period(1s)", "sliding(1s)"}) {
+    run(std::string("create stream stream_streamdb.s_prev ") + window +
+        " from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+        "as select ts, _tpre_wstart, _tpre_wend from stream_querydb.stream_t2",
+        TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  }
+  run("create stream stream_streamdb.s_prev state_window(c1) from stream_triggerdb.stream_t1 "
+      "stream_options(event_type(window_open)) into stream_outdb.stream_out "
+      "as select _twstart, _tpre_wstart, _tpre_wend, count(*) from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
+
 TEST_F(ParserStreamTest, RejectsConcatenatedCreateStreamWithoutCrashing) {
   run("create stream stream_streamdb.s_invalid interval(1s) sliding(1s) "
       "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
@@ -320,6 +359,7 @@ static EDealRes pstCollectPseudoLayerBinding(SNode* pNode, void* pContext) {
 
   auto* pFunc = (SFunctionNode*)pNode;
   if (strcmp(pFunc->functionName, "_twstart") != 0 && strcmp(pFunc->functionName, "_twend") != 0 &&
+      strcmp(pFunc->functionName, "_tpre_wstart") != 0 && strcmp(pFunc->functionName, "_tpre_wend") != 0 &&
       strcmp(pFunc->functionName, "_twduration") != 0 && strcmp(pFunc->functionName, "_twrownum") != 0 &&
       strcmp(pFunc->functionName, "_tprev_ts") != 0 && strcmp(pFunc->functionName, "_tcurrent_ts") != 0 &&
       strcmp(pFunc->functionName, "_tnext_ts") != 0) {
@@ -972,7 +1012,7 @@ TEST_F(ParserStreamTest, NestedWindowRequestWindowPlanRoundTrips) {
     ASSERT_NE(nullptr, pLeaf->input.pConditionSlotIds);
     EXPECT_EQ(0, taosArrayGetSize(pLeaf->input.pConditionSlotIds));
     EXPECT_EQ(PLACE_HOLDER_WSTART, pState->placeholderMask);
-    EXPECT_EQ(PLACE_HOLDER_WROWNUM, pLeaf->placeholderMask);
+    EXPECT_EQ(PLACE_HOLDER_WROWNUM | PLACE_HOLDER_WEND, pLeaf->placeholderMask);
     EXPECT_EQ(*static_cast<const int16_t*>(taosArrayGet(pState->input.pConditionSlotIds, 0)),
               *static_cast<const int16_t*>(taosArrayGet(pState->trigger.stateWin.pSlotIds, 0)));
     EXPECT_GE(pState->input.tsSlotId, 0);
@@ -1009,7 +1049,33 @@ TEST_F(ParserStreamTest, NestedWindowRequestWindowPlanRoundTrips) {
   run("create stream stream_streamdb.s_nested_request window ("
       "state_window(c1) extend(1) as w_state, count_window(2,1) as w_leaf) "
       "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
-      "select w_state._twstart, w_leaf._twrownum from %%trows");
+      "select w_state._twstart, w_leaf._twrownum, _twend from %%trows");
+}
+
+TEST_F(ParserStreamTest, PreviousWindowPlaceholdersRejectParentChildScopes) {
+  useDb("root", "stream_streamdb");
+  for (const char* placeholder : {"_tpre_wstart", "_tpre_wend", "w_outer._tpre_wstart", "w_leaf._tpre_wend"}) {
+    run(string("create stream stream_streamdb.s_nested_prev window (") +
+            "interval(1m) as w_outer, count_window(2,1) as w_leaf) "
+            "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _twstart, " +
+            placeholder + " from %%trows",
+        TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  }
+  for (const char* start : {"(c1 = 1, c1 = 2)", "((c1 = 1, c1 = 2), c1 = 3)"}) {
+    run(string("create stream stream_streamdb.s_multi_prev event_window(start with ") + start +
+            " end with c1 = 0) from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+            "as select _twstart, _tpre_wstart, _tpre_wend from %%trows",
+        TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  }
+  run("create stream stream_streamdb.s_nested_prev_subquery window ("
+      "interval(1m) as w_outer, count_window(2,1) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select * from (select _twstart, w_outer._tpre_wend from %%trows)",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  // One START condition with TRUE FOR has no user-visible parent/child scope.
+  run("create stream stream_streamdb.s_single_prev event_window(start with c1 > 0 true_for(count 1) end with c1 = 0) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out "
+      "as select _twstart, _tpre_wstart, _tpre_wend from %%trows");
 }
 
 TEST_F(ParserStreamTest, NestedWindowRequestPreservesOnFailurePauseBit) {
@@ -1581,6 +1647,17 @@ TEST_F(ParserStreamTest, NestedWindowCapabilityMatrix) {
   run("create stream stream_streamdb.s_leaf_count_unqualified_prev_ts window ("
       "interval(1m) sliding(1m) as w_outer, count_window(2,1) as w_leaf) "
       "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select _tprev_ts, c1 from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_outer_previous_with_sliding_leaf window ("
+      "count_window(2,2) as w_outer, sliding(1s) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as "
+      "select w_outer._tpre_wstart, w_outer._tpre_wend, _tprev_ts from %%trows",
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+
+  run("create stream stream_streamdb.s_leaf_sliding_previous_window window ("
+      "interval(1m) sliding(1m) as w_outer, sliding(1s) as w_leaf) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as select w_leaf._tpre_wstart, c1 from %%trows",
       TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
 
   run("create stream stream_streamdb.s_nested_idle window ("

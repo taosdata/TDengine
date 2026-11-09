@@ -7795,6 +7795,9 @@ int32_t msmInitRuntimeInfo(SMnode *pMnode) {
   int32_t dnodeNum = sdbGetSize(pMnode->pSdb, SDB_DNODE);
 
   atomic_store_8(&mStreamMgmt.recalcPullupPending, 0);
+  mStreamMgmt.recalcPullupCursorValid = 0;
+  mStreamMgmt.recalcPullupCursor = 0;
+  mStreamMgmt.recalcPullupRoundRemaining = 0;
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_ACTIVE_BEGIN, taosGetTimestampMs());
 

@@ -724,6 +724,8 @@ The reserved keywords are listed below:
 | `_TLOCALTIME`      | |
 | `_TNEXT_LOCALTIME` | |
 | `_TNEXT_TS`        | |
+| `_TPRE_WEND`       | |
+| `_TPRE_WSTART`     | |
 | `_TPREV_LOCALTIME` | |
 | `_TPREV_TS`        | |
 | `_TROLLUP_TBCOUNT` | `v3.4.2.0`+ |

@@ -959,6 +959,49 @@ TEST(StreamWindowChainTimeTest, initializedIntervalLeafEmitsFrozenZeroRowCandida
   EXPECT_EQ(frozenScope, scopeKey(events.at(0)->cacheScope));
 }
 
+TEST(StreamWindowChainTimeTest, previousWindowsStayWithinTheirParentLineage) {
+  SStreamWindowLayerSpec root = intervalLayer(2000, 2000);
+  SStreamWindowLayerSpec leaf = intervalLayer(1000, 1000);
+  root.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  Plan               plan({root, leaf});
+  Chain              chain = createChain(plan);
+  std::vector<Block> blocks;
+
+  SubmitResult firstRow = submit(chain.get(), 100, {1}, 10, &blocks);
+  EXPECT_EQ(0, taosArrayGetSize(firstRow.value().pCandidates));
+  CandidateArray firstRoot;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainAdvanceFrontier(chain.get(), 2000, 20, firstRoot.get()));
+  ASSERT_EQ(2, firstRoot.size());
+
+  const SLeafEventCandidate* firstLeaf = firstRoot.at(0);
+  const SLeafEventCandidate* secondLeaf = firstRoot.at(1);
+  ASSERT_NE(nullptr, firstLeaf);
+  ASSERT_NE(nullptr, secondLeaf);
+  EXPECT_FALSE(firstLeaf->leafParam.hasPrevWindow);
+  EXPECT_TRUE(secondLeaf->leafParam.hasPrevWindow);
+  EXPECT_EQ(0, secondLeaf->leafParam.prevWstart);
+  EXPECT_EQ(999, secondLeaf->leafParam.prevWend);
+  ASSERT_NE(nullptr, snapshot(*firstLeaf, 0));
+  ASSERT_NE(nullptr, snapshot(*secondLeaf, 0));
+  EXPECT_FALSE(snapshot(*firstLeaf, 0)->values.window.hasPrevWindow);
+  EXPECT_FALSE(snapshot(*secondLeaf, 0)->values.window.hasPrevWindow);
+
+  SubmitResult nextRootRow = submit(chain.get(), 2100, {2}, 30, &blocks);
+  EXPECT_EQ(0, taosArrayGetSize(nextRootRow.value().pCandidates));
+  CandidateArray nextRoot;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainAdvanceFrontier(chain.get(), 3000, 40, nextRoot.get()));
+  ASSERT_EQ(1, nextRoot.size());
+  const SLeafEventCandidate* resetLeaf = nextRoot.at(0);
+  ASSERT_NE(nullptr, resetLeaf);
+  EXPECT_FALSE(resetLeaf->leafParam.hasPrevWindow);
+  const SWindowAncestorSnapshot* rootSnapshot = snapshot(*resetLeaf, 0);
+  ASSERT_NE(nullptr, rootSnapshot);
+  EXPECT_TRUE(rootSnapshot->values.window.hasPrevWindow);
+  EXPECT_EQ(0, rootSnapshot->values.window.prevStart);
+  EXPECT_EQ(1999, rootSnapshot->values.window.prevEnd);
+}
+
 TEST(StreamWindowChainTimeTest, laterRowEnumeratesInitializedPureSlidingGap) {
   Plan               plan({slidingLayer(10000), slidingLayer(1000)});
   Chain              chain = createChain(plan);
@@ -1144,6 +1187,50 @@ TEST(StreamWindowChainTimeTest, collectDelayUpdatesOnlyMaturedLeaves) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainCollectDelayedCandidates(chain.get(), 2200, failed.get()));
   ASSERT_EQ(2, failed.size());
   EXPECT_EQ(3200, stWindowChainNextDelayDeadline(chain.get()));
+}
+
+TEST(StreamWindowChainDataPeerTest, DelayedPreviousWindowTracksClosedWindows) {
+  SStreamWindowLayerSpec leaf = stateLayer();
+  leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  Plan               plan({intervalLayer(10000, 10000), leaf});
+  Chain              chain = createChain(plan, STRIGGER_EVENT_WINDOW_CLOSE, 100);
+  ASSERT_NE(nullptr, chain);
+  std::vector<Block> blocks;
+
+  SubmitResult first = submitData(chain.get(), {100, 1, false, 0, 0}, 0, &blocks);
+  ASSERT_EQ(0, taosArrayGetSize(first.value().pCandidates));
+  CandidateArray firstDelay;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainCollectDelayedCandidates(chain.get(), 100, firstDelay.get()));
+  ASSERT_EQ(1, firstDelay.size());
+  EXPECT_EQ(STRIGGER_EVENT_WINDOW_NONE, firstDelay.at(0)->eventType);
+  EXPECT_FALSE(firstDelay.at(0)->leafParam.hasPrevWindow);
+
+  SubmitResult extended = submitData(chain.get(), {200, 1, false, 0, 0}, 110, &blocks);
+  ASSERT_EQ(0, taosArrayGetSize(extended.value().pCandidates));
+  SubmitResult second = submitData(chain.get(), {300, 2, false, 0, 0}, 120, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(second.value().pCandidates));
+  const auto* closed = static_cast<const SLeafEventCandidate*>(taosArrayGet(second.value().pCandidates, 0));
+  EXPECT_EQ(STRIGGER_EVENT_WINDOW_CLOSE, closed->eventType);
+  EXPECT_FALSE(closed->leafParam.hasPrevWindow);
+
+  CandidateArray secondDelay;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainCollectDelayedCandidates(chain.get(), 220, secondDelay.get()));
+  ASSERT_EQ(1, secondDelay.size());
+  EXPECT_EQ(STRIGGER_EVENT_WINDOW_NONE, secondDelay.at(0)->eventType);
+  EXPECT_EQ(300, secondDelay.at(0)->leafParam.wstart);
+  ASSERT_TRUE(secondDelay.at(0)->leafParam.hasPrevWindow);
+  EXPECT_EQ(100, secondDelay.at(0)->leafParam.prevWstart);
+  EXPECT_EQ(200, secondDelay.at(0)->leafParam.prevWend);
+
+  CandidateArray repeatedDelay;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stWindowChainCollectDelayedCandidates(chain.get(), 320, repeatedDelay.get()));
+  ASSERT_EQ(1, repeatedDelay.size());
+  ASSERT_TRUE(repeatedDelay.at(0)->leafParam.hasPrevWindow);
+  EXPECT_EQ(100, repeatedDelay.at(0)->leafParam.prevWstart);
+  EXPECT_EQ(200, repeatedDelay.at(0)->leafParam.prevWend);
+  EXPECT_FALSE(firstDelay.at(0)->leafParam.hasPrevWindow);
+  EXPECT_EQ(100, secondDelay.at(0)->leafParam.prevWstart);
+  EXPECT_EQ(200, secondDelay.at(0)->leafParam.prevWend);
 }
 
 TEST(StreamWindowChainTimeTest, openDelayAndCloseSnapshotsRemainImmutable) {
@@ -1595,6 +1682,140 @@ TEST(StreamWindowChainDataPeerTest, EventPeerEnumerationDoesNotChangeFrozenIdent
   EXPECT_EQ(first.membership, reversed.membership);
 }
 
+TEST(StreamWindowChainTimeTest, OpenPreviousWindowsStayWithinParentScope) {
+  SStreamWindowLayerSpec root = intervalLayer(2000, 2000);
+  SStreamWindowLayerSpec leaf = countLayer(1, 1);
+  root.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  Plan  plan({root, leaf});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN);
+  ASSERT_NE(nullptr, chain);
+  std::vector<Block> blocks;
+
+  SubmitResult first = submitData(chain.get(), {100, 1, false, 0, 0}, 10, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(first.value().pCandidates));
+  EXPECT_FALSE(candidateAt(first, 0)->leafParam.hasPrevWindow);
+  EXPECT_FALSE(snapshot(*candidateAt(first, 0), 0)->values.window.hasPrevWindow);
+
+  SubmitResult second = submitData(chain.get(), {1100, 2, false, 0, 0}, 20, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(second.value().pCandidates));
+  EXPECT_TRUE(candidateAt(second, 0)->leafParam.hasPrevWindow);
+  EXPECT_EQ(100, candidateAt(second, 0)->leafParam.prevWstart);
+  EXPECT_EQ(100, candidateAt(second, 0)->leafParam.prevWend);
+
+  SubmitResult nextScope = submitData(chain.get(), {2100, 3, false, 0, 0}, 30, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(nextScope.value().pCandidates));
+  EXPECT_FALSE(candidateAt(nextScope, 0)->leafParam.hasPrevWindow);
+  const auto* ancestor = snapshot(*candidateAt(nextScope, 0), 0);
+  ASSERT_NE(nullptr, ancestor);
+  EXPECT_TRUE(ancestor->values.window.hasPrevWindow);
+  EXPECT_EQ(0, ancestor->values.window.prevStart);
+  EXPECT_EQ(1999, ancestor->values.window.prevEnd);
+  EXPECT_FALSE(candidateAt(first, 0)->leafParam.hasPrevWindow);
+}
+
+TEST(StreamWindowChainDataPeerTest, OpenPreviousWindowExcludesUnclosedPeers) {
+  SStreamWindowLayerSpec leaf = countLayer(3, 1);
+  leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+  Plan  plan({sessionLayer(10000), leaf});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+  ASSERT_NE(nullptr, chain);
+  std::vector<Block> blocks;
+
+  SubmitResult peers = submitDataPeerGroup(
+      chain.get(), {{1000, 11, false, 0, 0}, {1000, 22, false, 0, 0}, {1000, 33, false, 0, 0}}, 10, &blocks);
+  ASSERT_EQ(4, taosArrayGetSize(peers.value().pCandidates));
+  for (int32_t i = 0; i < 4; ++i) {
+    EXPECT_FALSE(candidateAt(peers, i)->leafParam.hasPrevWindow);
+  }
+
+  SubmitResult next = submitData(chain.get(), {2000, 44, false, 0, 0}, 20, &blocks);
+  ASSERT_EQ(2, taosArrayGetSize(next.value().pCandidates));
+  EXPECT_EQ(STRIGGER_EVENT_WINDOW_OPEN, candidateAt(next, 0)->eventType);
+  EXPECT_EQ(STRIGGER_EVENT_WINDOW_CLOSE, candidateAt(next, 1)->eventType);
+  for (int32_t i = 0; i < 2; ++i) {
+    EXPECT_TRUE(candidateAt(next, i)->leafParam.hasPrevWindow);
+    EXPECT_EQ(1000, candidateAt(next, i)->leafParam.prevWstart);
+    EXPECT_EQ(1000, candidateAt(next, i)->leafParam.prevWend);
+  }
+  EXPECT_FALSE(candidateAt(peers, 1)->leafParam.hasPrevWindow);
+}
+
+TEST(StreamWindowChainDataPeerTest, LeafPreviousWindowRequiresPlaceholderMask) {
+  Plan  plan({sessionLayer(10000), countLayer(1, 1)});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_CLOSE);
+  ASSERT_NE(nullptr, chain);
+  std::vector<Block> blocks;
+
+  SubmitResult first = submitData(chain.get(), {1000, 11, false, 0, 0}, 10, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(first.value().pCandidates));
+  EXPECT_FALSE(candidateAt(first, 0)->leafParam.hasPrevWindow);
+
+  SubmitResult second = submitData(chain.get(), {2000, 22, false, 0, 0}, 20, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(second.value().pCandidates));
+  EXPECT_FALSE(candidateAt(second, 0)->leafParam.hasPrevWindow);
+}
+
+TEST(StreamWindowChainDataPeerTest, ZerothStateIsNeverPreviousWindow) {
+  for (int32_t events : {int32_t(STRIGGER_EVENT_WINDOW_OPEN), int32_t(STRIGGER_EVENT_WINDOW_CLOSE),
+                        STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE}) {
+    SCOPED_TRACE(events);
+    auto leaf = stateLayer(STATE_WIN_EXTEND_OPTION_DEFAULT, 0, true);
+    leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    Plan plan({intervalLayer(10000, 10000), leaf});
+    Chain chain = createChain(plan, events, 0, false, STRIGGER_EVENT_WINDOW_NONE);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+    submitData(chain.get(), {100, 1, false, 0, 0}, 10, &blocks);
+    submitData(chain.get(), {200, 0, false, 0, 0}, 20, &blocks);
+    SubmitResult second = submitData(chain.get(), {300, 2, false, 0, 0}, 30, &blocks);
+    SubmitResult third = submitData(chain.get(), {400, 3, false, 0, 0}, 40, &blocks);
+    int checked = 0;
+    for (const SubmitResult *result : {&second, &third}) {
+      for (int32_t i = 0; i < taosArrayGetSize(result->value().pCandidates); ++i) {
+        const auto *candidate = candidateAt(*result, i);
+        if (candidate->leafParam.wstart != 300) continue;
+        ++checked;
+        EXPECT_TRUE(candidate->leafParam.hasPrevWindow);
+        EXPECT_EQ(candidate->leafParam.prevWstart, 100);
+        EXPECT_EQ(candidate->leafParam.prevWend, 100);
+      }
+    }
+    EXPECT_EQ(checked, events == (STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE) ? 2 : 1);
+  }
+}
+
+TEST(StreamWindowChainDataPeerTest, OpenOnlyRemembersClosedLeafWindows) {
+  for (int32_t type = 0; type < 4; ++type) {
+    SCOPED_TRACE(type);
+    SStreamWindowLayerSpec leaf = type == 0 ? intervalLayer(1000, 1000)
+                                 : type == 1 ? sessionLayer(500)
+                                 : type == 2 ? stateLayer()
+                                             : eventLayer();
+    leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    Plan  plan({intervalLayer(10000, 10000), leaf});
+    Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN, 0, false, STRIGGER_EVENT_WINDOW_NONE);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+
+    SubmitResult first = submitData(chain.get(), {100, 1, false, 1, 0}, 10, &blocks);
+    ASSERT_EQ(1, taosArrayGetSize(first.value().pCandidates));
+    EXPECT_FALSE(candidateAt(first, 0)->leafParam.hasPrevWindow);
+    if (type == 3) {
+      SubmitResult close = submitData(chain.get(), {200, 1, false, 0, 1}, 20, &blocks);
+      EXPECT_EQ(0, taosArrayGetSize(close.value().pCandidates));
+    }
+    SubmitResult second = submitData(chain.get(), {1100, 2, false, 1, 0}, 30, &blocks);
+    ASSERT_EQ(1, taosArrayGetSize(second.value().pCandidates));
+    const auto* open = candidateAt(second, 0);
+    EXPECT_EQ(STRIGGER_EVENT_WINDOW_OPEN, open->eventType);
+    EXPECT_TRUE(open->leafParam.hasPrevWindow);
+    EXPECT_EQ(type == 0 ? 0 : 100, open->leafParam.prevWstart);
+    EXPECT_EQ(type == 0 ? 999 : type == 3 ? 200 : 100, open->leafParam.prevWend);
+    EXPECT_FALSE(candidateAt(first, 0)->leafParam.hasPrevWindow);
+  }
+}
+
 TEST(StreamWindowChainDataPeerTest, StateOpenFreezesAfterCompletePeerGroup) {
   Plan  plan({sessionLayer(10000), stateLayer()});
   Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN, 0, false, STRIGGER_EVENT_WINDOW_NONE);
@@ -1710,6 +1931,53 @@ TEST(StreamWindowChainDataTest, SuppressesRecalculatedCountSiblingsButKeepsNewWi
   SubmitResult nextClose = submitData(chain.get(), {5000, 5, false, 0, 0}, 50, &blocks);
   ASSERT_EQ(1, taosArrayGetSize(nextClose.value().pCandidates));
   expectWindowEvent(candidateAt(nextClose, 0), STRIGGER_EVENT_WINDOW_CLOSE, 3000, 5000, 3);
+}
+
+TEST(StreamWindowChainDataTest, DeletedPredecessorDetectionCoversEventLeafAndAncestorLayers) {
+  {
+    Plan  plan({sessionLayer(10000), eventLayer(false)});
+    Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+
+    submitData(chain.get(), {1000, 1, false, 1, 0}, 10, &blocks);
+    SubmitResult closed = submitData(chain.get(), {2000, 2, false, 0, 1}, 20, &blocks);
+    ASSERT_EQ(1, taosArrayGetSize(closed.value().pCandidates));
+    const STimeWindow deleted = {1000, 2000};
+    EXPECT_TRUE(stWindowChainMarkDeletedPredecessors(chain.get(), &deleted));
+  }
+
+  {
+    Plan  plan({stateLayer(STATE_WIN_EXTEND_OPTION_BACKWARD), countLayer(2, 1)});
+    Chain chain = createChain(plan);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+
+    submitData(chain.get(), {3000, 7, false, 0, 0}, 10, &blocks);
+    submitData(chain.get(), {4000, 7, false, 0, 0}, 20, &blocks);
+    submitData(chain.get(), {5000, 8, false, 0, 0}, 30, &blocks);
+    const STimeWindow deleted = {3000, 4000};
+    const STimeWindow unrelated = {6000, 7000};
+    EXPECT_TRUE(stWindowChainMarkDeletedPredecessors(chain.get(), &deleted));
+    EXPECT_FALSE(stWindowChainMarkDeletedPredecessors(chain.get(), &unrelated));
+  }
+}
+
+TEST(StreamWindowChainDataTest, ExistingOpenOnlyChainCanEmitInternalCloseBoundary) {
+  Plan  plan({sessionLayer(10000), countLayer(1, 1)});
+  Chain chain = createChain(plan, STRIGGER_EVENT_WINDOW_OPEN);
+  ASSERT_NE(nullptr, chain);
+  std::vector<Block> blocks;
+
+  SubmitResult first = submitData(chain.get(), {1000, 1, false, 0, 0}, 10, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(first.value().pCandidates));
+  expectWindowEvent(candidateAt(first, 0), STRIGGER_EVENT_WINDOW_OPEN, 1000, 1000, 1);
+
+  stWindowChainSetLeafEventTypes(chain.get(), STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE);
+  SubmitResult second = submitData(chain.get(), {2000, 2, false, 0, 0}, 20, &blocks);
+  ASSERT_EQ(2, taosArrayGetSize(second.value().pCandidates));
+  expectWindowEvent(candidateAt(second, 0), STRIGGER_EVENT_WINDOW_OPEN, 2000, 2000, 1);
+  expectWindowEvent(candidateAt(second, 1), STRIGGER_EVENT_WINDOW_CLOSE, 2000, 2000, 1);
 }
 
 TEST(StreamWindowChainDataTest, InsertsDisorderIntoActiveOverlappingCountWindows) {
@@ -2603,6 +2871,107 @@ TEST(StreamWindowChainEventNotifyTest, MultiStartFreezesParentAndChildJsonAcross
       "{\"triggerId\":\"8022740039904917180\",\"triggerCondition\":{\"conditionPath\":\"\","
       "\"fieldValues\":{\"startValue\":44,\"identityValue\":404}},\"windowIndex\":-1}",
       candidateAt(ended, 1)->leafParam.extraNotifyContent);
+}
+
+TEST(StreamWindowChainEventNotifyTest, MultiStartParentAndChildrenHaveSeparatePredecessors) {
+  for (int32_t events : std::array<int32_t, 3>{STRIGGER_EVENT_WINDOW_CLOSE, STRIGGER_EVENT_WINDOW_OPEN,
+                                             STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE}) {
+    SCOPED_TRACE(events);
+    auto leaf = eventLayer(true);
+    leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    Plan plan({intervalLayer(10000, 10000), leaf});
+    Chain chain = createChain(plan, events, 0, false, STRIGGER_EVENT_WINDOW_NONE);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+
+    auto expectPrevious = [](const SLeafEventCandidate* candidate, bool exists, TSKEY start, TSKEY end) {
+      ASSERT_NE(nullptr, candidate);
+      EXPECT_EQ(exists, candidate->leafParam.hasPrevWindow);
+      if (exists) {
+        EXPECT_EQ(start, candidate->leafParam.prevWstart);
+        EXPECT_EQ(end, candidate->leafParam.prevWend);
+      }
+    };
+    for (TSKEY base : {0, 400, 10000}) {
+      SCOPED_TRACE(base);
+      const bool secondParent = base == 400;
+      SubmitResult opened = submitData(chain.get(), {base + 100, 1, false, 1, 0}, base + 10, &blocks);
+      if (events & STRIGGER_EVENT_WINDOW_OPEN) {
+        ASSERT_EQ(1, taosArrayGetSize(opened.value().pCandidates));
+        expectPrevious(candidateAt(opened, 0), secondParent, 100, 400);
+      }
+      SubmitResult unchanged = submitData(chain.get(), {base + 200, 1, false, 1, 0}, base + 20, &blocks);
+      EXPECT_EQ(0, taosArrayGetSize(unchanged.value().pCandidates));
+      SubmitResult switched = submitData(chain.get(), {base + 300, 1, false, 2, 0}, base + 30, &blocks);
+      for (int32_t i = 0; i < taosArrayGetSize(switched.value().pCandidates); ++i) {
+        const auto* candidate = candidateAt(switched, i);
+        if (candidate->instanceId.openingTs == base + 300) {
+          expectPrevious(candidate, true, base + 100, base + 200);
+        } else {
+          expectPrevious(candidate, secondParent, 300, 400);
+        }
+      }
+      SubmitResult closed = submitData(chain.get(), {base + 400, 1, false, 0, 1}, base + 40, &blocks);
+      if (events & STRIGGER_EVENT_WINDOW_CLOSE) {
+        ASSERT_EQ(2, taosArrayGetSize(closed.value().pCandidates));
+        expectPrevious(candidateAt(closed, 0), true, base + 100, base + 200);
+        expectPrevious(candidateAt(closed, 1), secondParent, 100, 400);
+      }
+    }
+  }
+}
+
+TEST(StreamWindowChainEventNotifyTest, SingleSegmentParentsAdvanceTheirOwnPredecessor) {
+  for (int32_t events : std::array<int32_t, 3>{STRIGGER_EVENT_WINDOW_OPEN, STRIGGER_EVENT_WINDOW_CLOSE,
+                                             STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE}) {
+    SCOPED_TRACE(events);
+    auto leaf = eventLayer(true);
+    leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    Plan plan({intervalLayer(10000, 10000), leaf});
+    Chain chain = createChain(plan, events, 0, true, STRIGGER_EVENT_WINDOW_NONE);
+    ASSERT_NE(nullptr, chain);
+    std::vector<Block> blocks;
+    struct Step {
+      TSKEY ts;
+      uint8_t start;
+      uint8_t end;
+      bool hasPrevious;
+      TSKEY previousStart;
+      TSKEY previousEnd;
+    };
+    const Step steps[] = {
+        {100, 1, 0, false, 0, 0}, {200, 0, 1, false, 0, 0},
+        {300, 1, 0, true, 100, 200}, {400, 2, 0, true, 100, 200}, {500, 0, 1, true, 100, 200},
+        {600, 1, 0, true, 300, 500}, {700, 0, 1, true, 300, 500},
+        {800, 1, 0, true, 600, 700}, {900, 0, 1, true, 600, 700},
+    };
+    int32_t parentEvents = 0;
+    for (const auto& step : steps) {
+      SCOPED_TRACE(step.ts);
+      SubmitResult result = submitData(chain.get(), {step.ts, 1, false, step.start, step.end}, step.ts, &blocks);
+      for (int32_t i = 0; i < taosArrayGetSize(result.value().pCandidates); ++i) {
+        const auto* candidate = candidateAt(result, i);
+        if (candidate->instanceId.nativeDiscriminator != -1) continue;
+        ++parentEvents;
+        EXPECT_EQ(step.hasPrevious, candidate->leafParam.hasPrevWindow);
+        if (step.hasPrevious) {
+          EXPECT_EQ(step.previousStart, candidate->leafParam.prevWstart);
+          EXPECT_EQ(step.previousEnd, candidate->leafParam.prevWend);
+        }
+      }
+    }
+    EXPECT_EQ(events == (STRIGGER_EVENT_WINDOW_OPEN | STRIGGER_EVENT_WINDOW_CLOSE) ? 8 : 4, parentEvents);
+    if (events & STRIGGER_EVENT_WINDOW_CLOSE) {
+      submitData(chain.get(), {1000, 1, false, 1, 0}, 1000, &blocks);
+      SubmitResult forced = submitData(chain.get(), {10000, 1, false, 0, 0}, 10000, &blocks);
+      ASSERT_EQ(1, taosArrayGetSize(forced.value().pCandidates));
+      const auto* candidate = candidateAt(forced, 0);
+      EXPECT_EQ(STRIGGER_EVENT_WINDOW_CLOSE, candidate->eventType);
+      EXPECT_TRUE(candidate->leafParam.hasPrevWindow);
+      EXPECT_EQ(800, candidate->leafParam.prevWstart);
+      EXPECT_EQ(900, candidate->leafParam.prevWend);
+    }
+  }
 }
 
 TEST(StreamWindowChainEventNotifyTest, EqualEventTimestampsUseDistinctAncestorLineageParentIds) {

@@ -290,7 +290,8 @@ static bool allTimeOrSession(const SStreamWindowPlan* pPlan) {
 static bool layerAllowsPlaceholderMask(const SStreamWindowLayerSpec* pLayer) {
   const int64_t allowed = pLayer->triggerType == WINDOW_TYPE_INTERVAL && pLayer->trigger.sliding.interval == 0
                               ? PLACE_HOLDER_PREV_TS | PLACE_HOLDER_CURRENT_TS | PLACE_HOLDER_NEXT_TS
-                              : PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND | PLACE_HOLDER_WDURATION | PLACE_HOLDER_WROWNUM;
+                              : PLACE_HOLDER_WSTART | PLACE_HOLDER_WEND | PLACE_HOLDER_PREV_WSTART |
+                                    PLACE_HOLDER_PREV_WEND | PLACE_HOLDER_WDURATION | PLACE_HOLDER_WROWNUM;
   return (pLayer->placeholderMask & ~allowed) == 0;
 }
 

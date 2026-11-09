@@ -43,6 +43,25 @@ class TestNestedWindowContext:
         """
         self._run_isolated(self._check_data_window_placeholders_at_three_levels)
 
+    def test_previous_window_placeholders_are_lineage_local(self):
+        """Nested WINDOW: previous-window placeholders are not supported.
+
+        Reject qualified and unqualified references during CREATE STREAM.
+
+        Catalog:
+            - Streams:03-TriggerMode:NestedWindowContext
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        Feishu: None
+
+        History:
+            - 2026-09-03 Codex Added nested previous-window coverage
+        """
+        self._run_isolated(self._check_previous_window_placeholders_are_lineage_local)
+
     def test_sliding_placeholders_and_named_leaf_match_unqualified(self):
         """Nested WINDOW: SLIDING ancestors and named leaf retain tick values.
 
@@ -196,6 +215,19 @@ class TestNestedWindowContext:
                 )
             ],
         )
+
+    def _check_previous_window_placeholders_are_lineage_local(self):
+        tdSql.execute("create database nw_context_previous vgroups 1")
+        tdSql.execute("create table nw_context_previous.src (ts timestamp,scope int,v int)")
+        for placeholder in ["_tpre_wstart", "_tpre_wend",
+                            "w_outer._tpre_wstart", "w_leaf._tpre_wend"]:
+            tdSql.error(
+                "create stream nw_context_previous.s_context window ("
+                "state_window(scope) extend(1) as w_outer,"
+                "count_window(2,2) as w_leaf) from nw_context_previous.src "
+                "into nw_context_previous.r_context as select _twstart,"
+                f"{placeholder} from %%trows"
+            )
 
     def _check_sliding_placeholders_and_named_leaf_match_unqualified(self):
         tdSql.executes(
