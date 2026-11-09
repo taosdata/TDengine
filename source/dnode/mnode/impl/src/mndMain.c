@@ -776,14 +776,18 @@ static void mndCloseWal(SMnode *pMnode) {
 extern int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
 extern int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
 
-// Callback function to persist encrypted flag to mnode.json
-static int32_t mndPersistEncryptedFlag(void *param) {
+// Callback function to persist encrypted flag to mnode.json.
+// `encrypted` is the ACTUAL on-disk format of the just-written sdb.data. Persisting this real value
+// (rather than a hardcoded true) keeps mnode.json consistent with the disk format: when a snapshot
+// is written in plaintext (e.g. keys briefly unavailable) we correct a stale `encrypted=true` so a
+// later restart does not try to read plaintext as ciphertext.
+static int32_t mndPersistEncryptedFlag(void *param, bool encrypted) {
   SMnode *pMnode = (SMnode *)param;
   if (pMnode == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
   
-  mInfo("persisting encrypted flag to mnode.json");
+  mInfo("persisting encrypted flag(%d) to mnode.json", encrypted);
   
   SMnodeOpt option = {0};
   int32_t code = mmReadFile(pMnode->path, &option);
@@ -792,17 +796,17 @@ static int32_t mndPersistEncryptedFlag(void *param) {
     return code;
   }
   
-  option.encrypted = true;
+  option.encrypted = encrypted;
   code = mmWriteFile(pMnode->path, &option);
   if (code != 0) {
     mError("failed to write mnode.json for persisting encrypted flag since %s", tstrerror(code));
     return code;
   }
   
-  // Also update mnode's encrypted flag
-  pMnode->encrypted = true;
+  // Also update mnode's encrypted flag to match the on-disk format
+  pMnode->encrypted = encrypted;
   
-  mInfo("successfully persisted encrypted flag to mnode.json");
+  mInfo("successfully persisted encrypted flag(%d) to mnode.json", encrypted);
   return 0;
 }
 
