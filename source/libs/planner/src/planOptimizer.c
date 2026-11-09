@@ -17702,6 +17702,8 @@ static int32_t rebuildVstbScanTargets(SDynQueryCtrlLogicNode* pDynVstbScan, SLog
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pScanCol = NULL;
 
+  // Cloned control nodes already own scan columns from the previous plan.
+  NODES_DESTORY_LIST(pDynVstbScan->vtbScan.pScanCols);
   PLAN_ERR_JRET(nodesCloneList(pDynVstbScan->node.pTargets, &pDynVstbScan->vtbScan.pScanCols));
   FOREACH(pScanCol, pDynVstbScan->vtbScan.pScanCols) {
     if (QUERY_NODE_COLUMN == nodeType(pScanCol) &&
