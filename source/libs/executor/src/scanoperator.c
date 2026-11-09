@@ -2825,6 +2825,17 @@ static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResul
   QUERY_CHECK_CODE(code, lino, _end);
 
   if (TIMEWINDOW_RANGE_EXTERNAL == pInfo->base.cond.type) {
+    bool cachedReader = false;
+    if (pInfo->readerCache != NULL && num > 0) {
+      void** reader = taosHashGet(pInfo->readerCache, &pList[0].uid, sizeof(uint64_t));
+      cachedReader = reader != NULL && *reader == pInfo->base.dataReader;
+    }
+    // Virtual source scans also retain the active reader in this cache. Remove
+    // that alias before closing it, including when reopening subsequently fails.
+    if (cachedReader) {
+      code = taosHashRemove(pInfo->readerCache, &pList[0].uid, sizeof(uint64_t));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     // An interp RANGE query opens an external (3-segment prev/main/next)
     // reader. tsdbReaderReset2 cannot reset it across groups: it would drop
     // to a contained reader and orphan the prev/next inner readers, silently
@@ -2838,6 +2849,10 @@ static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResul
                                          (void**)&pInfo->base.dataReader, GET_TASKID(pTaskInfo), &pInfo->pIgnoreTables);
     QUERY_CHECK_CODE(code, lino, _end);
     bindFreshReaderStats(&pInfo->base);
+    if (cachedReader) {
+      code = taosHashPut(pInfo->readerCache, &pList[0].uid, sizeof(uint64_t), &pInfo->base.dataReader, POINTER_BYTES);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   } else {
     code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
     QUERY_CHECK_CODE(code, lino, _end);
