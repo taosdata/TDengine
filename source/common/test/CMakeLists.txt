@@ -174,3 +174,17 @@ if(TD_LINUX)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${MSG_TBL_FILE} $<TARGET_FILE_DIR:tmsgTest>
     )
 endif()
+
+# curlResolverFdTest.cpp: regression test for CVE-2025-0665 (libcurl 8.11.1 closes the resolver's eventfd twice).
+# Linux only: it relies on eventfd and on the GNU ld --wrap option, which also reaches the static libcurl objects.
+if(TD_LINUX)
+    add_executable(curlResolverFdTest "curlResolverFdTest.cpp")
+    DEP_ext_gtest(curlResolverFdTest)
+    DEP_ext_curl(curlResolverFdTest)   # also links ext_ssl and ext_zlib
+    target_link_libraries(curlResolverFdTest PRIVATE dl)
+    target_link_options(curlResolverFdTest PRIVATE -Wl,--wrap=close -Wl,--wrap=getaddrinfo)
+    add_test(
+        NAME curlResolverFdTest
+        COMMAND curlResolverFdTest
+    )
+endif()

@@ -40,6 +40,11 @@ endif()
 #     cppstub rewrites the function entry at run time, which only intercepts
 #     the call sites inside the executable, not the ones already compiled into
 #     the DSO.
+#   * targets that use no engine code at all (a pure third-party-library
+#     regression test, for example): they link neither the engine nor the
+#     prebuilt libs3.a, so the DSO's intentionally undefined S3_* entry points
+#     cannot be resolved and, because both the DSO and the test are linked with
+#     -z now, ld.so aborts with "undefined symbol: S3_initialize" before main().
 # Those groups are listed in TD_TEST_SHARED_ENGINE_SKIP.
 
 set(TD_TEST_SHARED_ENGINE_LIBS
@@ -129,6 +134,13 @@ set(TD_TEST_SHARED_ENGINE_SKIP
     wlrRecorderTest
     xnodeRealFunctionsTest
     xnodeSimpleTest
+    # Uses no engine code at all: a self-contained libcurl regression test
+    # (eventfd double-close, CVE-2025-0665).  It links only ext_curl, dl and
+    # gtest, so nothing provides the S3_* symbols that libtaosd_shared.so
+    # deliberately leaves undefined, and with -z now the loader aborts before
+    # main() ("symbol lookup error: libtaosd_shared.so: undefined symbol:
+    # S3_initialize").  Add any further library-only test here as well.
+    curlResolverFdTest
     # Tests that use the shared client (libtaos.so / libtaosnative.so): the
     # engine DSO also carries the client, and putting it first would interpose
     # the client API with a second copy of the client state.
