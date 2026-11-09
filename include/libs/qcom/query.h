@@ -750,6 +750,10 @@ void* getTaskPoolWorkerCb();
    (_type) == TDMT_MND_CREATE_TSMA || (_type) == TDMT_MND_DROP_TSMA || (_type) == TDMT_MND_DROP_TB_WITH_TSMA || \
    (_type) == TDMT_MND_CREATE_STREAM || (_type) == TDMT_MND_DROP_STREAM)
 
+// A CREATE TABLE / CREATE STABLE that succeeded returns the meta of what it really created. A success without meta
+// means nothing was created (IF NOT EXISTS on an existing object), so the cached meta is still valid.
+#define IS_CREATE_TBL_REQUEST(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB)
+
 #define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                              \
   (SYNC_UNKNOWN_LEADER_REDIRECT_ERROR(_code) || SYNC_SELF_LEADER_REDIRECT_ERROR(_code) || \
    SYNC_OTHER_LEADER_REDIRECT_ERROR(_code))

@@ -117,6 +117,9 @@ enum {
   CTGT_ASYNC_RSP_REQTYPE_MISMATCH = 1,
   CTGT_ASYNC_RSP_VIRTUAL_TABLE_NAME,
   CTGT_ASYNC_RSP_TSMA_NULL_STREAM_ADDR,
+  CTGT_ASYNC_RSP_CHILD_TABLE,
+  CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE,
+  CTGT_ASYNC_RSP_SUPER_TABLE,
 };
 
 typedef struct {
@@ -126,6 +129,12 @@ typedef struct {
 } SCtgTestAsyncResult;
 
 int32_t ctgTestAsyncRspType = 0;
+
+int64_t ctgTestMetaOwnerId = 0;
+// number of table meta requests the mock vnode answered, and the request at which the frozen cache is released (0: never)
+int32_t ctgTestMetaReqNum = 0;
+int32_t ctgTestUnfreezeAtMetaReq = 0;
+int64_t ctgTestAuthUserId = 1001;
 
 int32_t ctgTestSerializeTableMetaRsp(STableMetaRsp *rsp, SBatchRspMsg *batchRsp) {
   int32_t len = tSerializeSTableMetaRsp(NULL, 0, rsp);
@@ -195,6 +204,7 @@ int32_t ctgTestBuildNormalTableMetaRsp(SBatchRspMsg *batchRsp) {
   rsp.tversion = 1;
   rsp.tuid = 1;
   rsp.vgId = 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
   rsp.pSchemas = schema;
   rsp.pSchemaExt = schemaExt;
   schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -273,6 +283,112 @@ int32_t ctgTestBuildUseDbRsp(SBatchRspMsg *batchRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
+// meta of a child table (answer of the vnode) and of its super table (answer of the mnode)
+static int32_t ctgTestBuildTableMetaRspOfType(int8_t tableType, SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[3] = {0};
+  SSchemaExt    schemaExt[3] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, TSDB_SUPER_TABLE == tableType ? ctgTestSTablename : ctgTestCTablename);
+  TAOS_STRCPY(rsp.stbName, ctgTestSTablename);
+  rsp.numOfTags = 1;
+  rsp.numOfColumns = 2;
+  rsp.precision = 1;
+  rsp.tableType = tableType;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.suid = 0x2;
+  rsp.tuid = TSDB_SUPER_TABLE == tableType ? 0x2 : 0x3;
+  rsp.vgId = TSDB_SUPER_TABLE == tableType ? 0 : 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "col1s");
+  schema[2].type = TSDB_DATA_TYPE_BINARY;
+  schema[2].colId = 3;
+  schema[2].bytes = 12;
+  TAOS_STRCPY(schema[2].name, "tag1s");
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+static int32_t ctgTestBuildVirtualChildMetaRsp(SBatchRspMsg *batchRsp) {
+  STableMetaRsp rsp = {0};
+  SSchema       schema[3] = {0};
+  SSchemaExt    schemaExt[3] = {0};
+  SColRef       colRef[2] = {0};
+
+  TAOS_STRCPY(rsp.dbFName, ctgTestDbname);
+  TAOS_STRCPY(rsp.tbName, ctgTestCTablename);
+  TAOS_STRCPY(rsp.stbName, ctgTestSTablename);
+  rsp.numOfTags = 1;
+  rsp.numOfColumns = 2;
+  rsp.precision = 1;
+  rsp.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  rsp.sversion = 1;
+  rsp.tversion = 1;
+  rsp.rversion = 1;
+  rsp.suid = 0x2;
+  rsp.tuid = 0x3;
+  rsp.vgId = 1;
+  rsp.ownerId = ctgTestMetaOwnerId;
+  rsp.pSchemas = schema;
+  rsp.pSchemaExt = schemaExt;
+  rsp.numOfColRefs = 2;
+  rsp.pColRefs = colRef;
+  schema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema[0].bytes = sizeof(int64_t);
+  TAOS_STRCPY(schema[0].name, "ts");
+  schema[1].type = TSDB_DATA_TYPE_INT;
+  schema[1].colId = 2;
+  schema[1].bytes = sizeof(int32_t);
+  TAOS_STRCPY(schema[1].name, "col1s");
+  schema[2].type = TSDB_DATA_TYPE_BINARY;
+  schema[2].colId = 3;
+  schema[2].bytes = 12;
+  TAOS_STRCPY(schema[2].name, "tag1s");
+  colRef[0].id = PRIMARYKEY_TIMESTAMP_COL_ID;
+  colRef[1].id = 2;
+
+  return ctgTestSerializeTableMetaRsp(&rsp, batchRsp);
+}
+
+// an ordinary user: enabled, not super, no privilege on any table, so the table level check needs the table meta
+int32_t ctgTestBuildOrdinaryUserAuthRsp(SBatchRspMsg *batchRsp) {
+  SGetUserAuthRsp userRsp = {0};
+  TAOS_STRCPY(userRsp.user, ctgTestUsername);
+  userRsp.version = 1;
+  userRsp.superAuth = 0;
+  userRsp.enable = 1;
+  userRsp.userId = ctgTestAuthUserId;
+
+  int32_t len = tSerializeSGetUserAuthRsp(NULL, 0, &userRsp);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (len <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+  } else {
+    batchRsp->msg = taosMemoryMalloc(len);
+    if (NULL == batchRsp->msg) {
+      code = terrno;
+    } else if (tSerializeSGetUserAuthRsp(batchRsp->msg, len, &userRsp) <= 0) {
+      taosMemoryFreeClear(batchRsp->msg);
+      code = TSDB_CODE_INVALID_MSG;
+    } else {
+      batchRsp->msgLen = len;
+    }
+  }
+  return code;
+}
+
 int32_t ctgTestBuildAsyncBatchRsp(SMsgSendInfo *pInfo, SDataBuf *pMsg) {
   SBatchReq batchReq = {0};
   SBatchRsp batchRsp = {0};
@@ -302,7 +418,22 @@ int32_t ctgTestBuildAsyncBatchRsp(SMsgSendInfo *pInfo, SDataBuf *pMsg) {
     } else if (TDMT_VND_TABLE_NAME == req->msgType) {
       code = ctgTestBuildVirtualTableNameRsp(&rsp);
     } else if (TDMT_VND_TABLE_META == req->msgType) {
-      code = ctgTestBuildNormalTableMetaRsp(&rsp);
+      if (++ctgTestMetaReqNum == ctgTestUnfreezeAtMetaReq) {
+        (void)ctgdEnableDebug(const_cast<char *>("stopUpdate"), false);
+      }
+      if (CTGT_ASYNC_RSP_CHILD_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildTableMetaRspOfType(TSDB_CHILD_TABLE, &rsp);
+      } else if (CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildVirtualChildMetaRsp(&rsp);
+      } else if (CTGT_ASYNC_RSP_SUPER_TABLE == ctgTestAsyncRspType) {
+        code = ctgTestBuildTableMetaRspOfType(TSDB_SUPER_TABLE, &rsp);
+      } else {
+        code = ctgTestBuildNormalTableMetaRsp(&rsp);
+      }
+    } else if (TDMT_MND_TABLE_META == req->msgType) {
+      code = ctgTestBuildTableMetaRspOfType(TSDB_SUPER_TABLE, &rsp);
+    } else if (TDMT_MND_GET_USER_AUTH == req->msgType) {
+      code = ctgTestBuildOrdinaryUserAuthRsp(&rsp);
     } else if (TDMT_MND_GET_TABLE_TSMA == req->msgType) {
       code = ctgTestBuildTsmaRspWithNullStreamAddr(&rsp);
     } else {
@@ -3667,6 +3798,198 @@ TEST(apiTest, catalogGetDnodeList_test) {
   taosArrayDestroy(pList);
 
   catalogDestroy();
+}
+
+// ctgTestDbname is the full name of the database ("<acct>.<db>"); the table name of a request carries the short name
+static const char *ctgTestAuthDb = "db1";
+
+// SELECT on <db>.<tb> granted to a user, keyed the way the auth check looks it up
+static void ctgTestGrantTableSelect(SGetUserAuthRsp *pRsp, const char *tbName) {
+  pRsp->objPrivs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  ASSERT_NE(pRsp->objPrivs, nullptr);
+  const SPrivInfo *pInfo = privInfoGet(PRIV_TBL_SELECT);
+  char             key[TSDB_PRIV_MAX_KEY_LEN] = {0};
+  (void)privObjKey(pInfo, 1, ctgTestAuthDb, tbName, key, sizeof(key));
+  SPrivObjPolicies policies = {0};
+  policies.policy.set[PRIV_GROUP(PRIV_TBL_SELECT)] |= 1ULL << PRIV_OFFSET(PRIV_TBL_SELECT);
+  ASSERT_EQ(taosHashPut(pRsp->objPrivs, key, strlen(key) + 1, &policies, sizeof(policies)), 0);
+}
+
+enum ECtgTestAuthExpect { CTG_TEST_AUTH_PASS, CTG_TEST_AUTH_REFUSED, CTG_TEST_AUTH_ERROR };
+
+static void ctgTestUserAuthOnFetchedMeta(const char *tbName, int32_t asyncRspType, int64_t ownerId,
+                                         ECtgTestAuthExpect expect, const char *grantedTable = NULL,
+                                         bool freezeCache = false, int32_t *pMetaReqNum = NULL) {
+  SCatalog           *pCtg = NULL;
+  SRequestConnInfo    conn = {0};
+  SCatalogReq         req = {0};
+  SCtgTestAsyncResult result = {0};
+
+  ctgTestAsyncRspType = asyncRspType;
+  ctgTestMetaOwnerId = ownerId;
+  ctgTestMetaReqNum = 0;
+  ctgTestSetAsyncBatchRsp();
+  initQueryModuleMsgHandle();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+  ASSERT_EQ(tsem_init(&result.sem, 0, 0), 0);
+
+  // the user is already known, so the check does not need the mnode (asynchronous update, the synchronous one
+  // expects the caller to hold the catalog api lock)
+  SGetUserAuthRsp userRsp = {0};
+  TAOS_STRCPY(userRsp.user, ctgTestUsername);
+  userRsp.version = 1;
+  userRsp.enable = 1;
+  userRsp.userId = ctgTestAuthUserId;
+  if (NULL != grantedTable) {
+    ctgTestGrantTableSelect(&userRsp, grantedTable);
+  }
+  ASSERT_EQ(ctgUpdateUserEnqueue(pCtg, &userRsp, false), 0);
+  for (int32_t i = 0; i < 200; ++i) {
+    uint64_t n = 0;
+    ASSERT_EQ(0, ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n));
+    if (n >= 1) {
+      break;
+    }
+    taosMsleep(50);
+  }
+
+  if (freezeCache) {
+    // freeze every later cache update: nothing fetched by the sub task reaches the cache
+    ASSERT_EQ(ctgdEnableDebug(const_cast<char *>("stopUpdate"), true), 0);
+  }
+
+  req.pUser = taosArrayInit(1, sizeof(SUserAuthInfo));
+  ASSERT_NE(req.pUser, nullptr);
+  SUserAuthInfo authInfo = {0};
+  TAOS_STRCPY(authInfo.user, ctgTestUsername);
+  toName(1, ctgTestAuthDb, tbName, &authInfo.tbName);
+  authInfo.privType = PRIV_TBL_SELECT;
+  authInfo.objType = PRIV_OBJ_TBL;
+  ASSERT_NE(taosArrayPush(req.pUser, &authInfo), nullptr);
+
+  ASSERT_EQ(catalogAsyncGetAllMeta(pCtg, &conn, &req, ctgTestAsyncMetaCb, &result, NULL), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tsem_timewait(&result.sem, 10000), 0);
+
+  EXPECT_EQ(result.code, TSDB_CODE_SUCCESS);  // the job itself succeeds, a failed check is reported in its result
+  ASSERT_NE(result.meta.pUser, nullptr);
+  ASSERT_EQ(taosArrayGetSize(result.meta.pUser), 1);
+  SMetaRes *userRes = (SMetaRes *)taosArrayGet(result.meta.pUser, 0);
+  ASSERT_NE(userRes, nullptr);
+  if (CTG_TEST_AUTH_ERROR == expect) {
+    EXPECT_NE(userRes->code, TSDB_CODE_SUCCESS);
+  } else {
+    EXPECT_EQ(userRes->code, TSDB_CODE_SUCCESS);
+    ASSERT_NE(userRes->pRes, nullptr);
+    EXPECT_EQ(((SUserAuthRes *)userRes->pRes)->pass[AUTH_RES_BASIC], CTG_TEST_AUTH_PASS == expect);
+  }
+
+  if (freezeCache) {
+    (void)ctgdEnableDebug(const_cast<char *>("stopUpdate"), false);
+  }
+  if (NULL != pMetaReqNum) {
+    *pMetaReqNum = ctgTestMetaReqNum;
+  }
+  ctgTestUnfreezeAtMetaReq = 0;
+  taosArrayDestroy(req.pUser);
+  catalogFreeMetaData(&result.meta);
+  tsem_destroy(&result.sem);
+  catalogDestroy();
+  ctgTestMetaOwnerId = 0;
+  ctgTestAsyncRspType = 0;
+}
+
+// table meta fetched by the sub task of the check, then written to the cache as usual
+TEST(catalogAsync, userAuthNormalTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthNormalTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// the user holds SELECT on the table itself, not being its owner
+TEST(catalogAsync, userAuthNormalTableGranted) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, 0, CTG_TEST_AUTH_PASS, ctgTestTablename);
+}
+
+TEST(catalogAsync, userAuthChildTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthChildTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// the user holds SELECT on the super table only: a child table is checked against its super table
+TEST(catalogAsync, userAuthChildTableGrantedOnSuperTable) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_PASS, ctgTestSTablename);
+}
+
+// the same with a SELECT on an unrelated table: the child must be refused
+TEST(catalogAsync, userAuthChildTableGrantedOnOtherTable) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED, "other_table");
+}
+
+// a query on a super table, which is what the customer's coredump was about
+TEST(catalogAsync, userAuthSuperTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthSuperTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, ctgTestAuthUserId,
+                               CTG_TEST_AUTH_PASS);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableNotOwner) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, 0, CTG_TEST_AUTH_REFUSED);
+}
+
+// Nothing fetched by the sub task is kept in the cache (frozen with the "stopUpdate" debug switch; in the field the
+// cache write is still queued, or the entry is removed again by a heartbeat or by a concurrent request).
+// A normal table is decided on the fetched meta, whatever happens to the cache.
+TEST(catalogAsync, userAuthNormalTableWithCacheFrozen) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestTablename, 0, ctgTestAuthUserId, CTG_TEST_AUTH_PASS, NULL, true);
+}
+
+// A child table also needs the name of its super table, which is looked up in the cache. When it is not there, the
+// meta is fetched once more with a forced update; if the cache still lacks it, the check fails with an error instead of
+// launching the sub task again and again until the stack overflows (coredump in ctgSetSubTaskCb).
+TEST(catalogAsync, userAuthSuperTableWithCacheFrozen) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestSTablename, CTGT_ASYNC_RSP_SUPER_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS,
+                               NULL, true);
+}
+
+TEST(catalogAsync, userAuthChildTableWithCacheFrozenFailsWithoutRecursion) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_ERROR,
+                               NULL, true);
+}
+
+// The cache stays frozen for the first fetch and is released for the forced one: the super table name is missing after
+// the first fetch, the forced fetch brings it back and the check passes.
+TEST(catalogAsync, userAuthChildTableForcedRefetchFindsSuperTableName) {
+  int32_t metaReqNum = 0;
+  ctgTestUnfreezeAtMetaReq = 2;
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_PASS,
+                               NULL, true, &metaReqNum);
+  EXPECT_EQ(metaReqNum, 2);
+}
+
+// A super table name that never gets into the cache costs at most two fetches of the child table, not one per loop.
+TEST(catalogAsync, userAuthChildTableWithCacheFrozenFetchesAtMostTwice) {
+  int32_t metaReqNum = 0;
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_CHILD_TABLE, ctgTestAuthUserId, CTG_TEST_AUTH_ERROR,
+                               NULL, true, &metaReqNum);
+  EXPECT_EQ(metaReqNum, CTG_USER_META_FETCH_MAX);
+}
+
+TEST(catalogAsync, userAuthVirtualChildTableWithCacheFrozenFailsWithoutRecursion) {
+  ctgTestUserAuthOnFetchedMeta(ctgTestCTablename, CTGT_ASYNC_RSP_VIRTUAL_CHILD_TABLE, ctgTestAuthUserId,
+                               CTG_TEST_AUTH_ERROR, NULL, true);
 }
 
 TEST(catalogAsync, batchRspReqTypeMismatch) {

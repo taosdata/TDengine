@@ -2534,6 +2534,18 @@ _return:
   CTG_RET(code);
 }
 
+// Table meta used by the auth check of a table. The meta that a sub task of this very check has just fetched is used
+// directly, so the result does not depend on the cache still holding it. Any other table (the super table of a child
+// table) is looked up in the cache.
+static int32_t ctgGetMetaForAuth(SCatalog* pCtg, SCtgAuthReq* req, SName* pSName, STableMeta** ppMeta) {
+  if (NULL != req->pFetchedMeta && pSName == &req->pRawReq->tbName) {
+    CTG_ERR_RET(cloneTableMeta(req->pFetchedMeta, ppMeta));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return catalogGetCachedTableMeta(pCtg, pSName, ppMeta);
+}
+
 #if 0
 static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp* res) {
   int32_t          code = 0;
@@ -2709,7 +2721,7 @@ static int32_t ctgChkSetTbAuthRsp(SCatalog* pCtg, SCtgAuthReq* req, SCtgAuthRsp*
       goto _return;
     }
 
-    CTG_ERR_JRET(catalogGetCachedTableMeta(pCtg, pSName, &pMeta));
+    CTG_ERR_JRET(ctgGetMetaForAuth(pCtg, req, pSName, &pMeta));
     if (NULL == pMeta) {
       res->withInsertCond = (req->authInfo.withInsertCond == 1);
       if (pReq->smlInsert) {

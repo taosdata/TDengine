@@ -2876,7 +2876,14 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   tscTrace("req:0x%" PRIx64 ", scheduler exec cb, request type:%s", pRequest->self, TMSG_INFO(pRequest->type));
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+  // A successful CREATE TABLE / CREATE STABLE returns the meta of everything it really created. No meta in the response
+  // means nothing was created (IF NOT EXISTS on an existing object), the cached meta is still correct and must be kept:
+  // removing it also drops the cached super table (a child entry holds no schema) and every later query of that stable
+  // has to fetch it again. Only the failed create falls through to the removal below.
+  // Condition, read as: the request type needs its cached meta removed, AND the response carries no meta, AND it is
+  // not a successful create (the one case that is skipped).
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res &&
+      !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == code)) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache
     if (code == 0 && pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
@@ -3394,7 +3401,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     qDestroyQuery(pQuery);
   }
 
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+  // see schedulerExecCb: a successful CREATE TABLE / STABLE without a response meta created nothing, keep the cache
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res &&
+      !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == pRequest->code)) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache,
     // so child table queries can detect the parent was dropped.
     if (pRequest->code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
