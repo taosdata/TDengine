@@ -358,6 +358,15 @@ static int32_t vnodePreProcessSubmitTbData(SVnode *pVnode, SDecoder *pCoder, int
       TSDB_CHECK_CODE(code, lino, _exit);
     }
 
+    // The first column of a column-format submit must be the primary timestamp column: the loop
+    // below reads it as TSKEY[nVal]. A forged type (e.g. TINYINT) makes the decoded value area
+    // only TYPE_BYTES[type] * nVal bytes, so the TSKEY reads run past it (CWE-125).
+    if (colData.cid != PRIMARYKEY_TIMESTAMP_COL_ID || colData.type != TSDB_DATA_TYPE_TIMESTAMP ||
+        (int64_t)colData.nData < (int64_t)colData.nVal * (int64_t)sizeof(TSKEY)) {
+      code = TSDB_CODE_INVALID_MSG;
+      TSDB_CHECK_CODE(code, lino, _exit);
+    }
+
     for (uint32_t iRow = 0; iRow < colData.nVal; iRow++) {
       if (((TSKEY *)colData.pData)[iRow] < minKey || ((TSKEY *)colData.pData)[iRow] > maxKey) {
         iTsKey = ((TSKEY *)colData.pData)[iRow];
