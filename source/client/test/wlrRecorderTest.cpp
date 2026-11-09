@@ -722,7 +722,14 @@ TEST_F(WlrRecorderTest, StoppingRejectsNewTokens) {
   worker.join();
   wlrRecorderClose();
 
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  // A bounded writer join can hand cleanup to the reaper, which publishes OFF
+  // only after it has torn everything down. Poll for up to 10s (20 x 500ms) so a
+  // loaded CI host cannot fail this test on scheduling latency, while still
+  // requiring OFF rather than tolerating STOPPING.
+  for (int attempt = 0; attempt < 20 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF) << "deferred recorder cleanup did not finish within 10s";
   EXPECT_GT(accepted.load() + rejected.load(), 0);
   EXPECT_GT(rejected.load(), 0) << "shutdown race never observed a rejected token";
 
