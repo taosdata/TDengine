@@ -131,6 +131,8 @@ Assuming there is an existing single replica cluster with N nodes (N>=1), and yo
 ASSIGN LEADER FORCE;
 ```
 
+If an arbitration group stays unsynchronized, or its membership is wrong after a dnode is replaced, and the statement above cannot recover it, stop the cluster and edit the arbitration group metadata offline. See [Editing mnode Metadata Offline](../04-maintenance.md#editing-mnode-metadata-offline).
+
 ## Frequently Asked Questions
 
 ### 1. Creating or modifying a database to use two replicas causes `DB error: Out of dnodes`

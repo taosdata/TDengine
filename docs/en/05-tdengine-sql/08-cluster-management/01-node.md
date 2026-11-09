@@ -91,6 +91,18 @@ DROP MNODE ON DNODE dnode_id;
 
 Delete the MNODE on the DNODE specified by dnode_id.
 
+## Flush Management Node
+
+```sql
+FLUSH MNODE;
+```
+
+Write all in-memory mnode metadata to the metadata file `sdb.data` and truncate the mnode WAL. The statement runs on the mnode leader. A connection to any node is forwarded to the leader. After it finishes, taosd keeps running. This is supported starting from `v3.4.2.8`.
+
+Run this statement before editing mnode metadata offline. After it finishes, stop taosd and use `taosd -s` and `taosd -mSdb` to export and import the metadata. See [Editing mnode Metadata Offline](../../12-operations-and-tooling/02-operations/04-maintenance.md#editing-mnode-metadata-offline).
+
+Only the superuser, or a user whose SYSINFO is 1, can run this statement.
+
 ## Create Query Node
 
 ```sql
