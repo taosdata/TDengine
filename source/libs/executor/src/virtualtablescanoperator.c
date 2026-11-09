@@ -29,6 +29,12 @@
 
 typedef struct SVirtualTableScanInfo {
   STableScanBase base;
+  // TIME_ALIGN post-merge scalar stage (PREV, phase 1)
+  SExprSupp      alignSup;
+  char*          pAlignRowBuf;
+  uint64_t       alignUid;
+  int8_t         alignPhase;
+  bool           alignUidValid;
   SArray*        pSortInfo;
   SSortHandle*   pSortHandle;
   int32_t        bufPageSize;
@@ -89,6 +95,11 @@ typedef struct SLoadNextCtx {
   int32_t         numOutputSlotIds;
   bool            isFederated;
 } SLoadNextCtx;
+
+static void    resetTimeAlignState(SVirtualTableScanInfo* pInfo);
+static int32_t applyTimeAlign(SVirtualTableScanInfo* pInfo, SOperatorInfo* pOperator, SSDataBlock* pBlock);
+static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* pScanCols,
+                                       SNodeList* pAlignCols, SNodeList* pOutTargets, SExecTaskInfo* pTaskInfo);
 
 static SLoadNextCtx* findLoadNextCtx(const SVirtualTableScanInfo* pInfo, int32_t blockId) {
   if (pInfo == NULL || pInfo->pSortCtxList == NULL) {
@@ -2464,6 +2475,7 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
                                       (*pResBlock)->info.rows));
     }
+    VTS_ERR_JRET(applyTimeAlign(pVirtualScanInfo, pOperator, *pResBlock));
     if (pOperator->exprSupp.pFilterInfo != NULL) {
       const char* filterTbName = NULL;
       if (pOperator->pOperatorGetParam != NULL) {
@@ -2560,6 +2572,9 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
     pInfo->pSortCtxList = NULL;
   }
   destroyResolvedTagsAndCaches(pInfo);
+  resetTimeAlignState(pInfo);
+  cleanupExprSupp(&pInfo->alignSup);
+  taosMemoryFreeClear(pInfo->pAlignRowBuf);
   taosMemoryFreeClear(param);
 }
 
@@ -2636,6 +2651,7 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
 
   pOper->status = OP_NOT_OPENED;
   resetBasicOperatorState(&pMergeInfo->binfo);
+  resetTimeAlignState(pInfo);
   pMergeInfo->phase1Done = false;  // twoPassMode: restart from phase-1 on operator reset/retry
   pMergeInfo->twoPassErr = 0;
 
@@ -2677,6 +2693,231 @@ _exit:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
 
+  return code;
+}
+
+static SColumnNode* findTimeAlignScanCol(SNodeList* pScanCols, col_id_t colId) {
+  if (pScanCols == NULL) return NULL;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScanCols) {
+    SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+    if (QUERY_NODE_COLUMN != nodeType(pExpr)) continue;
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (pCol->colId == colId) return pCol;
+  }
+  return NULL;
+}
+
+// The merged block layout mirrors the physical target list order.  The source column is
+// emitted before the align outputs, so the first target with the source column id is the
+// source; the align output slot is recorded by the planner.
+static int32_t findTimeAlignSrcSlot(SNodeList* pTargets, col_id_t colId) {
+  if (pTargets == NULL) return -1;
+  int32_t idx = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+    if (QUERY_NODE_COLUMN == nodeType(pExpr) && ((SColumnNode*)pExpr)->colId == colId) return idx;
+    ++idx;
+  }
+  return -1;
+}
+
+static int32_t findTimeAlignOutSlot(SNodeList* pTargets, SColumnNode* pOut) {
+  if (pTargets == NULL) return -1;
+  int32_t numTargets = LIST_LENGTH(pTargets);
+  for (int32_t j = numTargets - 1; j >= 0; --j) {
+    SNode* pNode = nodesListGetNode(pTargets, j);
+    SNode* pExpr = (QUERY_NODE_TARGET == nodeType(pNode)) ? ((STargetNode*)pNode)->pExpr : pNode;
+    if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+      SColumnNode* pCol = (SColumnNode*)pExpr;
+      if (pCol->colId == pOut->colId && 0 == strcasecmp(pCol->colName, pOut->colName)) return j;
+    }
+  }
+  return -1;
+}
+
+static void resetTimeAlignState(SVirtualTableScanInfo* pInfo) {
+  if (pInfo->alignSup.numOfExprs == 0 || pInfo->alignSup.pCtx == NULL) return;
+  for (int32_t i = 0; i < pInfo->alignSup.numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pInfo->alignSup.pCtx[i];
+    if (pCtx->resultInfo != NULL && pCtx->fpSet.cleanup != NULL) {
+      pCtx->fpSet.cleanup(pCtx);
+    }
+    if (pCtx->resultInfo != NULL) {
+      pCtx->resultInfo->initialized = false;
+    }
+  }
+  pInfo->alignUidValid = false;
+}
+
+static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* pScanCols,
+                                       SNodeList* pAlignCols, SNodeList* pOutTargets, SExecTaskInfo* pTaskInfo) {
+  if (pAlignCols == NULL || LIST_LENGTH(pAlignCols) == 0) return TSDB_CODE_SUCCESS;
+
+  SNodeList* pTargets = NULL;
+  int32_t    code = nodesMakeList(&pTargets);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAlignCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
+    SColumnNode* pOut = (SColumnNode*)pNode;
+
+    SColumnNode* pSrc = findTimeAlignScanCol(pScanCols, pOut->colId);
+    int32_t      srcSlotId = findTimeAlignSrcSlot(pOutTargets, pOut->colId);
+    int32_t      outSlotId = pOut->slotId;
+    if (outSlotId < 0 || outSlotId >= LIST_LENGTH(pOutTargets)) {
+      outSlotId = findTimeAlignOutSlot(pOutTargets, pOut);
+    }
+    if (pSrc == NULL || srcSlotId < 0 || outSlotId < 0) {
+      qError("TIME_ALIGN: source or slot not found for %s (colId=%d srcSlot=%d outSlot=%d)", pOut->colName,
+             pOut->colId, srcSlotId, outSlotId);
+      code = TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;
+      goto _return;
+    }
+
+    SColumnNode*   pParam = NULL;
+    SFunctionNode* pFunc = NULL;
+    STargetNode*   pTarget = NULL;
+    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pParam);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    *pParam = *pSrc;
+    // Read the source value from its slot in the merged output block, not from the
+    // column's own (unset) slot id.
+    pParam->slotId = srcSlotId;
+
+    code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
+    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pParam); goto _return; }
+    tstrncpy(pFunc->functionName, "fill_forward", TSDB_FUNC_NAME_LEN);
+    if (nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pParam);
+      nodesDestroyNode((SNode*)pFunc);
+      code = terrno;
+      goto _return;
+    }
+    pParam = NULL;
+    pFunc->node.resType = pOut->node.resType;
+    tstrncpy(pFunc->node.aliasName, pOut->colName, TSDB_COL_NAME_LEN);
+    code = fmGetFuncInfo(pFunc, NULL, 0);
+    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pFunc); goto _return; }
+
+    code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
+    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pFunc); goto _return; }
+    pTarget->pExpr = (SNode*)pFunc;
+    pTarget->slotId = outSlotId;
+    if (nodesListMakeStrictAppend(&pTargets, (SNode*)pTarget) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFunc);
+      nodesDestroyNode((SNode*)pTarget);
+      code = terrno;
+      goto _return;
+    }
+  }
+
+  if (LIST_LENGTH(pTargets) == 0) {
+    nodesDestroyList(pTargets);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExprInfo* pExprInfo = NULL;
+  int32_t    numOfExprs = 0;
+  code = createExprInfo(pTargets, NULL, &pExprInfo, &numOfExprs);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+
+  SqlFunctionCtx* pCtx = createSqlFunctionCtx(pExprInfo, numOfExprs, &pInfo->alignSup.rowEntryInfoOffset,
+                                              &pTaskInfo->storageAPI.functionStore);
+  if (pCtx == NULL) {
+    destroyExprInfo(pExprInfo, numOfExprs);
+    taosMemoryFree(pExprInfo);
+    code = terrno;
+    goto _return;
+  }
+
+  int64_t totalSize = 0;
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    totalSize += sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
+  }
+  char* pBuf = taosMemoryCalloc(1, totalSize);
+  if (pBuf == NULL) {
+    destroyExprInfo(pExprInfo, numOfExprs);
+    taosMemoryFree(pExprInfo);
+    taosMemoryFree(pCtx);
+    code = terrno;
+    goto _return;
+  }
+  int64_t off = 0;
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    pCtx[i].resultInfo = (SResultRowEntryInfo*)(pBuf + off);
+    pCtx[i].resultInfo->initialized = false;
+    off += sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
+  }
+
+  // The function nodes are now owned by pExprInfo (destroyExprInfo frees them).
+  // Detach them from the target wrappers before dropping the wrapper list.
+  SNode* pTmp = NULL;
+  FOREACH(pTmp, pTargets) {
+    ((STargetNode*)pTmp)->pExpr = NULL;
+  }
+  nodesDestroyList(pTargets);
+  pTargets = NULL;
+
+  pInfo->alignSup.pExprInfo = pExprInfo;
+  pInfo->alignSup.numOfExprs = numOfExprs;
+  pInfo->alignSup.pCtx = pCtx;
+  pInfo->pAlignRowBuf = pBuf;
+  pInfo->alignUidValid = false;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyList(pTargets);
+  return code;
+}
+
+static int32_t applyTimeAlign(SVirtualTableScanInfo* pInfo, SOperatorInfo* pOperator, SSDataBlock* pBlock) {
+  if (pInfo->alignSup.numOfExprs == 0 || pBlock == NULL) return TSDB_CODE_SUCCESS;
+
+  uint64_t uid = pBlock->info.id.uid;
+  int8_t   phase = pBlock->info.scanFlag;
+  if (pInfo->alignUidValid && (pInfo->alignUid != uid || pInfo->alignPhase != phase)) {
+    resetTimeAlignState(pInfo);
+  }
+  pInfo->alignUid = uid;
+  pInfo->alignPhase = phase;
+  pInfo->alignUidValid = true;
+
+  SVirtualScanMergeOperatorInfo* pMergeInfo = (SVirtualScanMergeOperatorInfo*)pOperator->info;
+  int32_t order = (pMergeInfo != NULL) ? pMergeInfo->binfo.inputTsOrder : TSDB_ORDER_ASC;
+  int32_t code = setInputDataBlock(&pInfo->alignSup, pBlock, order, pBlock->info.scanFlag, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // The align columns are never written by the merge, so their null bitmaps still mark every
+  // row as NULL.  fill_forward clears nothing for fixed-length values (colDataSetDouble et al.
+  // only store the data), so drop the stale null marks first; rows the function decides are
+  // NULL are set again by colDataSetNULL.
+  for (int32_t i = 0; i < pInfo->alignSup.numOfExprs; ++i) {
+    int32_t          slotId = pInfo->alignSup.pExprInfo[i].base.resSchema.slotId;
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+    if (pCol == NULL || !pCol->hasNull) continue;
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+        pCol->varmeta.offset[r] = 0;
+      }
+    } else if (pCol->nullbitmap != NULL) {
+      for (int32_t r = 0; r < pBlock->info.rows; ++r) {
+        colDataClearNull_f(pCol->nullbitmap, r);
+      }
+    }
+  }
+
+  // fill_forward's setup memsets its stale pOutput; drop the previous block's output
+  // pointer so it cannot clear the column data of a block that is being filled in place.
+  for (int32_t i = 0; i < pInfo->alignSup.numOfExprs; ++i) {
+    pInfo->alignSup.pCtx[i].pOutput = NULL;
+  }
+  code = projectApplyFunctions(pInfo->alignSup.pExprInfo, pBlock, pBlock, pInfo->alignSup.pCtx,
+                               pInfo->alignSup.numOfExprs, NULL, NULL, pOperator->pTaskInfo);
   return code;
 }
 
@@ -2742,6 +2983,8 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->sortBufSize = (uint64_t)pVirtualScanInfo->bufPageSize *
                                   (uint64_t)(numOfDownstream + 1);  // one additional is reserved for merged result.
   VTS_ERR_JRET(normalizeFederatedOutputTargets(pVirtualScanPhyNode->pTargets, pDownstream, numOfDownstream));
+  VTS_ERR_JRET(createTimeAlignExprSupp(pVirtualScanInfo, pVirtualScanPhyNode->scan.pScanCols,
+                                       pVirtualScanPhyNode->pAlignCols, pVirtualScanPhyNode->pTargets, pTaskInfo));
   VTS_ERR_JRET(extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId,
                              &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
 

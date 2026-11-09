@@ -727,6 +727,8 @@ const char* nodesNodeName(ENodeType type) {
       return "AlterXnodeStmt";
     case QUERY_NODE_SHOW_XNODE_JOBS_STMT:
       return "ShowXnodeJobsStmt";
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      return "TimeAlignTable";
     default:
       break;
   }
@@ -3568,6 +3570,7 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   }
   return code;
 }
+static const char* jkVirtualTableScanPhysiPlanAlignCols = "AlignCols";
 static const char* jkVirtualTableScanPhysiPlanGroupTags = "GroupTags";
 static const char* jkVirtualTableScanPhysiPlanGroupSort = "GroupSort";
 static const char* jkVirtualTableScanPhysiPlanscanAllCols = "scanAllCols";
@@ -3595,6 +3598,10 @@ static int32_t physiVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SVirtualScanPhysiNode* pNode = (const SVirtualScanPhysiNode*)pObj;
 
   int32_t code = physiScanNodeToJson(pObj, pJson);
+
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanAlignCols, pNode->pAlignCols);
+  }
 
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkVirtualTableScanPhysiPlanGroupTags, pNode->pGroupTags);
@@ -3653,6 +3660,9 @@ static int32_t jsonToPhysiVirtualTableScanNode(const SJson* pJson, void* pObj) {
   SVirtualScanPhysiNode* pNode = (SVirtualScanPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiScanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanAlignCols, &pNode->pAlignCols);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkVirtualTableScanPhysiPlanGroupTags, &pNode->pGroupTags);
   }
@@ -7986,6 +7996,7 @@ static const char* jkColumnRefDb = "RefDb";
 static const char* jkColumnRefTable = "RefTable";
 static const char* jkColumnRefCol = "RefCol";
 static const char* jkColumnIsPrimTs = "IsPrimTs";
+static const char* jkColumnFlags = "Flags";
 
 static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   const SColumnNode* pNode = (const SColumnNode*)pObj;
@@ -8058,6 +8069,9 @@ static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkColumnIsPrimTs, pNode->isPrimTs);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->flags != 0) {
+    code = tjsonAddIntegerToObject(pJson, jkColumnFlags, pNode->flags);
   }
   return code;
 }
@@ -8136,6 +8150,13 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkColumnIsPrimTs, &pNode->isPrimTs);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkColumnFlags) != NULL) {
+    uint32_t flags = 0;
+    code = tjsonGetUIntValue(pJson, jkColumnFlags, &flags);
+    if (TSDB_CODE_SUCCESS == code) {
+      pNode->flags = (uint8_t)flags;
+    }
   }
   return code;
 }

@@ -555,6 +555,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_normal_tags.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_vntb_src.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_select_tag_matrix.py
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align.py
+100,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align_ext_source.py
 
 # 06-DataIngestion
 ## 01-SQL

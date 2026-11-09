@@ -796,6 +796,7 @@ enum {
   COLUMN_CODE_HAS_NULL,
   COLUMN_CODE_REF_SOURCE_NAME,
   COLUMN_CODE_REF_SCHEMA_NAME,   // appended: SQL Server schema segment on external column refs
+  COLUMN_CODE_FLAGS,             // appended: column flag bits (e.g. TIME_ALIGN output marker)
 };
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -886,6 +887,9 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeCStr(pEncoder, COLUMN_CODE_REF_SCHEMA_NAME, pNode->refSchemaName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeU8(pEncoder, COLUMN_CODE_FLAGS, pNode->flags);
   }
 
   return code;
@@ -985,6 +989,9 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_REF_SCHEMA_NAME:
         code = tlvDecodeCStr(pTlv, pNode->refSchemaName, sizeof(pNode->refSchemaName));
+        break;
+      case COLUMN_CODE_FLAGS:
+        code = tlvDecodeU8(pTlv, &pNode->flags);
         break;
       default:
         break;
@@ -3152,6 +3159,8 @@ enum {
   // Appended after the 3.0 const-ref codes: those wire values shipped with the tag-ref
   // feature, so TWO_PASS_MODE must take the next free value (never reuse 16).
   PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE,
+  // TIME_ALIGN output columns (SColumnNode: colId = source column id, colName = output name).
+  PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3220,6 +3229,9 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE, pNode->twoPassMode);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS, nodeListToMsg, pNode->pAlignCols);
+  }
 
   return code;
 }
@@ -3287,6 +3299,9 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE:
         code = tlvDecodeBool(pTlv, &pNode->twoPassMode);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAlignCols);
         break;
       default:
         break;

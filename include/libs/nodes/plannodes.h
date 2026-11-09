@@ -254,6 +254,9 @@ typedef struct SVirtualScanLogicNode {
   bool          scanAllCols;
   SNodeList*    pScanCols;
   SNodeList*    pScanPseudoCols;
+  // TIME_ALIGN output columns: SColumnNode entries with colId = source column id,
+  // colName = output column name.  The matching output targets live in node.pTargets.
+  SNodeList*    pAlignCols;
   int8_t        tableType;
   uint64_t      tableId;
   uint64_t      stableId;
@@ -762,6 +765,7 @@ typedef struct STagRefSourcePhysiNode {
 
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
+  SNodeList*     pAlignCols;  // SColumnNode: colId = source column id, colName = output name
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           scanAllCols;

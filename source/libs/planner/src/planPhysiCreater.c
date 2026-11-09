@@ -5488,6 +5488,9 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   SNodeList* pCondScanCols = NULL;
 
   PLAN_ERR_JRET(createVirtualScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols));
+  if (pScanLogicNode->pAlignCols != NULL) {
+    PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pAlignCols, &pScanPhysiNode->pAlignCols));
+  }
   PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
   if (NULL != pScanLogicNode->pScanPseudoCols) {
     pScanPhysiNode->scan.pScanPseudoCols = NULL;
@@ -5562,6 +5565,12 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
     }
 
     SColumnNode* pCondCol = (SColumnNode*)pNode;
+    if (pCondCol->isAlignOut) {
+      // TIME_ALIGN outputs are computed by the scan and already present in its output
+      // targets; they are not scan columns read from the source tables.
+      ++condIdx;
+      continue;
+    }
     if (pCondCol->colType == COLUMN_TYPE_TAG) {
       if (pCondCol->hasRef) {
         PLAN_ERR_JRET(appendPhysiScanColumn(&pScanPhysiNode->pRefTagCols, pCondCol));

@@ -859,6 +859,7 @@ typedef enum ENodeType {
   QUERY_NODE_EVENT_START_LEAF,
   QUERY_NODE_STREAM_WINDOW_PLAN,
   QUERY_NODE_STREAM_WINDOW_LAYER,
+  QUERY_NODE_TIME_ALIGN_TABLE,  // STimeAlignTableNode: TABLE(TIME_ALIGN(TABLE t, ...))
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,

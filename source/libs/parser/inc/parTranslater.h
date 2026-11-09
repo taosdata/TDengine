@@ -54,6 +54,7 @@ typedef struct STranslateContext {
   bool                     statementTimeSet;
   bool                     hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
   bool                     stableQuery;
+  bool                     inInsertQuery;  // translating the SELECT of INSERT INTO ... SELECT
   bool                     showRewrite;
   bool                     withOpt;
   SNode*                   pPrevRoot;

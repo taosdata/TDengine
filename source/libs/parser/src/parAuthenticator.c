@@ -459,6 +459,60 @@ static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) 
 }
 #endif
 
+// FS 6.1: executing TIME_ALIGN requires SELECT privilege on the input table,
+// with the same model as querying that table directly.  The table function
+// keeps only the db/table names in its AST node (the inner table is resolved
+// during translation), so the auth walker cannot reach a REAL_TABLE node and
+// must check the recorded name here.
+static int32_t authTimeAlignTable(SAuthCxt* pCxt, SSelectStmt* pSelect, STimeAlignTableNode* pAlign) {
+  if (pAlign->dbName[0] == '\0') {
+    // No current database: translation reports the proper "db not specified"
+    // error; there is nothing selectable to check yet.
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = checkDbUseAuth(pCxt, pAlign->dbName);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  STableNode table = {0};
+  tstrncpy(table.dbName, pAlign->dbName, sizeof(table.dbName));
+  tstrncpy(table.tableName, pAlign->tbName, sizeof(table.tableName));
+  tstrncpy(table.tableAlias, pAlign->table.tableAlias, sizeof(table.tableAlias));
+
+#ifdef TD_ENTERPRISE
+  // Mirror the REAL_TABLE path: MAC level check and the owner shortcut.  Both
+  // use the table meta already reserved by collectMetaKey for this statement.
+  SName       name = {0};
+  STableMeta* pTableMeta = NULL;
+  toName(pCxt->pParseCxt->acctId, table.dbName, table.tableName, &name);
+  int32_t metaCode = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pTableMeta, true);
+  if (TSDB_CODE_SUCCESS == metaCode) {
+    if (pCxt->pParseCxt->macMode && macCheckBySecLvl(pCxt, pTableMeta->secLvl, false) != TSDB_CODE_SUCCESS) {
+      queryFreeTableMeta(pTableMeta);
+      return TSDB_CODE_MAC_INSUFFICIENT_LEVEL;
+    }
+    if (pTableMeta->ownerId == pCxt->pParseCxt->userId) {
+      // Owner has all privileges on the table, same as a direct query.
+      queryFreeTableMeta(pTableMeta);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  queryFreeTableMeta(pTableMeta);
+#endif
+
+  SNode* pTagCond = NULL;
+  code = checkAuth(pCxt, table.dbName, table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, NULL);
+  if (TSDB_CODE_SUCCESS != code && NULL != pCxt->pParseCxt->pEffectiveUser) {
+    code = checkEffectiveAuth(pCxt, table.dbName, table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, NULL);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
+    code = rewriteAppendStableTagCond(&pSelect->pWhere, pTagCond, &table);
+  }
+  return code;
+}
+
 static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
   SSelectAuthCxt* pCxt = pContext;
   SAuthCxt*       pAuthCxt = pCxt->pAuthCxt;
@@ -538,6 +592,9 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
             checkViewEffectiveAuth(pAuthCxt, pTable->dbName, pTable->tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
       }
     }
+    return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+  } else if (QUERY_NODE_TIME_ALIGN_TABLE == nodeType(pNode)) {
+    pAuthCxt->errCode = authTimeAlignTable(pAuthCxt, pCxt->pSelect, (STimeAlignTableNode*)pNode);
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
     return authSubquery(pAuthCxt, ((STempTableNode*)pNode)->pSubquery);

@@ -2868,6 +2868,17 @@ table_primary(A) ::= NK_PH TROWS alias_opt(C).                                  
 table_primary(A) ::= TEXT NK_LP column_def_list(B) NK_RP VALUES text_row_list(C) alias_opt(D).  { A = createTextTableNode(pCxt, B, C, &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, false, ',', &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_COMMA file_options_opt(E) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, ((E).header == 1), (E).delimiter, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE table_name(B) time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, NULL, &B, &C, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT table_name(C) time_align_args_opt(D) NK_RP NK_RP alias_opt(E).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, &B, &C, &D, &E); }
+
+%type time_align_args_opt                                                         { STimeAlignArgs }
+%destructor time_align_args_opt                                                   { }
+time_align_args_opt(A) ::= .                                                      { A.outputRaw = -1; A.columnList = nil_token; }
+time_align_args_opt(A) ::= NK_COMMA NK_BOOL(C).                                   { A.outputRaw = timeAlignOutputRaw(&C); A.columnList = nil_token; }
+time_align_args_opt(A) ::= NK_COMMA NK_STRING(B).                                 { A.outputRaw = -1; A.columnList = B; }
+time_align_args_opt(A) ::= NK_COMMA NK_BOOL(C) NK_COMMA NK_STRING(B).             { A.outputRaw = timeAlignOutputRaw(&C); A.columnList = B; }
 
 /* FILE OPTIONS: comma-separated name=value pairs; names as NK_ID, values as literals */
 /* Syntax: FILE('path', 'schema' [, name=value, name=value]) alias */

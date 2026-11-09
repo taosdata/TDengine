@@ -857,6 +857,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_STREAM_WINDOW_LAYER:
       code = makeNode(type, sizeof(SStreamWindowLayerNode), &pNode);
       break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      code = makeNode(type, sizeof(STimeAlignTableNode), &pNode);
+      break;
     case QUERY_NODE_LEFT_VALUE:
       code = makeNode(type, sizeof(SLeftValueNode), &pNode);
       break;
@@ -2016,6 +2019,8 @@ void nodesDestroyNode(SNode* pNode) {
       taosMemoryFreeClear(pVirtual->pVgroupList);
       nodesDestroyList(pVirtual->refTables);
       taosArrayDestroyP(pVirtual->pExtSourceNames, NULL);
+      taosArrayDestroy(pVirtual->pAlignCols);
+      pVirtual->pAlignCols = NULL;
       break;
     }
     case QUERY_NODE_TEMP_TABLE:
@@ -2040,6 +2045,11 @@ void nodesDestroyNode(SNode* pNode) {
         taosMemoryFree(pFile->pBlockBuf);
         pFile->pBlockBuf = NULL;
       }
+      break;
+    }
+    case QUERY_NODE_TIME_ALIGN_TABLE: {
+      STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
+      taosMemoryFreeClear(pAlign->columnList);
       break;
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
@@ -2972,6 +2982,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
+      nodesDestroyList(pLogicNode->pAlignCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pTagRefSources);
       nodesDestroyList(pLogicNode->pLocalTags);
@@ -3160,6 +3171,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanPhysiNode* pPhyNode = (SVirtualScanPhysiNode*)pNode;
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pAlignCols);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTargets);
       nodesDestroyList(pPhyNode->pTags);

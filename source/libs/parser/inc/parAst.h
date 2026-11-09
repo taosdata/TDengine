@@ -246,8 +246,17 @@ typedef struct SFileOptions {
 } SFileOptions;
 
 SFileOptions parseFileOption(SAstCreateContext* pCxt, const SToken* pName, const SToken* pVal);
+int8_t       timeAlignOutputRaw(const SToken* pBool);
 SNode*       createFileTableNode(SAstCreateContext* pCxt, const SToken* pPath, const SToken* pSchemaDecl,
                                  bool header, char delimiter, SToken* pTableAlias);
+
+typedef struct STimeAlignArgs {
+  int8_t outputRaw;       // -1 = unset (default false); 0 = false; 1 = true
+  SToken columnList;      // string literal token; TK_NK_NIL when unset
+} STimeAlignArgs;
+
+SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, SToken* pDbName,
+                                SToken* pTableName, const STimeAlignArgs* pArgs, SToken* pTableAlias);
 SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias);
 SNode*     createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                                SNode* pJoinCond);
