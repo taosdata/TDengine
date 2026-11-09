@@ -437,7 +437,10 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
         bound is exclusive (``ts >= prev AND ts < cur``), the same half-open
         convention as FS-BND-001.  Every measured batch is pinned so its
         newest row sits exactly on a whole second: that row must still be
-        counted once, which a closed upper bound would violate.
+        counted once, which a closed upper bound would violate. Exact-count
+        sources are written ahead of time and independently checked for
+        visibility before the first measured window opens, so client startup
+        and commit latency cannot masquerade as a bounds failure.
 
         InfluxDB 3 only makes a write queryable after its next WAL flush
         (``--wal-flush-interval``, default 1s), which can land after the
@@ -583,23 +586,60 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
                     f"taosd was killed and another instance answered on the "
                     f"same port (see the run's sim/dnode1/log/taosdlog.0).") from e
 
-            # Phase 2 - measure: a fixed number of batches, ~1s apart.
-            # Every batch is pinned to the next whole second so its newest
-            # row lands exactly on a period boundary (counted by the window
-            # opening at the boundary, never by both sides), and so each
-            # INSERT has the rest of the current second plus a full window
-            # of headroom before its last row's window closes.  Pinning
-            # only the last batch left earlier batches with sub-second
-            # headroom that a slow SQL Server INSERT could exceed, so the
-            # batch missed the window that should have aggregated it
-            # (observed as SQL Server counting fewer than the expected
-            # rows).
+            # Phase 2 - measure.  Exact-count sources must be visible before
+            # their first window opens.  Starting a fresh sqlcmd/sqlplus for
+            # each batch can take longer than the sub-second lead provided by
+            # "next whole second", so that scheme races the PERIOD reader.
             written = []
-            for b in range(n_batches):
-                base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
-                written.append(write_batch(suffix, db_or_bucket, src_name,
-                                           f"m{b}_", base_ms))
-                time.sleep(1.0)
+            if suffix == "i":
+                # Preserve the existing InfluxDB WAL-latency coverage.
+                for b in range(n_batches):
+                    base_ms = ((int(time.time() * 1000) // 1000) + 1) * 1000
+                    written.append(write_batch(suffix, db_or_bucket, src_name,
+                                               f"m{b}_", base_ms))
+                    time.sleep(1.0)
+            else:
+                # One remote write avoids five client startups.  The rows
+                # still straddle adjacent one-second boundaries, including
+                # a row exactly on each boundary, with the same 15-row oracle.
+                first_base_ms = (int(time.time()) + 10) * 1000
+                written = [first_base_ms + b * 1000 for b in range(n_batches)]
+                rows = [(base - (batch_rows - 1 - k), k + 1, float(k + 1),
+                         f"m{b}_{k}", 0)
+                        for b, base in enumerate(written)
+                        for k in range(batch_rows)]
+                started_ms = int(time.time() * 1000)
+                self._insert_rows(suffix, db_or_bucket, rows, src_name)
+                write_done_ms = int(time.time() * 1000)
+                # This query uses the independent FQ reader connection, not
+                # the writer session.  Do not assume a helper's return proves
+                # that a window query could already see the committed rows.
+                first_window_ms = first_base_ms - 1000
+                visible = 0
+                while time.time() * 1000 < first_window_ms:
+                    tdSql.query(
+                        f"SELECT COUNT(*) FROM {src_name}.{mid}.src_t "
+                        f"WHERE {ts_col} >= '{dt_str(rows[0][0])}' "
+                        f"AND {ts_col} <= '{dt_str(rows[-1][0])}'",
+                        queryTimes=1)
+                    visible = tdSql.getData(0, 0) or 0
+                    if visible == expected:
+                        break
+                    time.sleep(0.1)
+                visible_ms = int(time.time() * 1000)
+                tdLog.info(
+                    f"[{src_name}] FS-BND-003 preparation: start_ms={started_ms}, "
+                    f"write_done_ms={write_done_ms}, checked_ms={visible_ms}, "
+                    f"first_window_ms={first_window_ms}, visible={visible}/{expected}")
+                assert visible == expected and visible_ms < first_window_ms, (
+                    f"FS-BND-003 preparation missed its visibility deadline: "
+                    f"source={src_name}, visible={visible}/{expected}, "
+                    f"start_ms={started_ms}, write_done_ms={write_done_ms}, "
+                    f"checked_ms={visible_ms}, first_window_ms={first_window_ms}; "
+                    f"window-bound correctness cannot be evaluated")
+                # Wait through the last measured window before inspecting the
+                # sink; the existing bounded result polling starts afterwards.
+                time.sleep(max(0.0, (written[-1] + 1000) / 1000 - time.time()))
 
             deadline = time.time() + self._BND003_ROUND_TIMEOUT_S
             last_val, last_change = None, time.time()
