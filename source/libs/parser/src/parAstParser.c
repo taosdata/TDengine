@@ -560,6 +560,21 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
       return collectMetaKeyFromFunction(pCxt, (SFunctionNode*)pNode);
     case QUERY_NODE_REAL_TABLE:
       return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pNode);
+    case QUERY_NODE_TIME_ALIGN_TABLE: {
+      STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
+      SRealTableNode*      pReal = NULL;
+      if (nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal) != TSDB_CODE_SUCCESS) {
+        pCxt->errCode = terrno;
+        return DEAL_RES_ERROR;
+      }
+      tstrncpy(pReal->table.dbName, pAlign->dbName, sizeof(pReal->table.dbName));
+      tstrncpy(pReal->table.tableName, pAlign->tbName, sizeof(pReal->table.tableName));
+      tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
+      pReal->numPathSegments = (pAlign->dbName[0] != '\0') ? 2 : 1;
+      EDealRes res = collectMetaKeyFromRealTable(pCxt, pReal);
+      nodesDestroyNode((SNode*)pReal);
+      return res;
+    }
     case QUERY_NODE_TEMP_TABLE:
       return collectMetaKeyFromTempTable(pCxt, (STempTableNode*)pNode);
     case QUERY_NODE_OPERATOR:

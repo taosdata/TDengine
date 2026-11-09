@@ -1914,6 +1914,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->statementTimeSet = false;
   pCxt->statementTimeNs = 0;
   pCxt->origStmtType = 0;
+  pCxt->inInsertQuery = false;
   pCxt->vtbRefErrMsgSet = false;
   pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
@@ -2777,6 +2778,95 @@ _return:
   return code;
 }
 
+static int32_t createColumnsByTimeAlignTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags,
+                                             SNodeList* pList) {
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  lino = 0;
+  const SVirtualTableNode* pVTable = (const SVirtualTableNode*)pTable;
+  const STableMeta*        pMeta = pVTable->pMeta;
+  SColumnNode*             pCol = NULL;
+  SHashObj*                pColRefMap = NULL;
+
+  if (pMeta->numOfColRefs > 0 && pMeta->colRef) {
+    pColRefMap = taosHashInit(pMeta->numOfColRefs, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false,
+                              HASH_NO_LOCK);
+    QUERY_CHECK_NULL(pColRefMap, code, lino, _return, terrno);
+    for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+      if (!pMeta->colRef[i].hasRef) continue;
+      col_id_t colId = pMeta->colRef[i].id;
+      SColRef* pRef = &pMeta->colRef[i];
+      PAR_ERR_JRET(taosHashPut(pColRefMap, &colId, sizeof(colId), &pRef, POINTER_BYTES));
+    }
+    for (int32_t i = 0; i < pMeta->numOfTagRefs; ++i) {
+      if (!pMeta->tagRef[i].hasRef) continue;
+      col_id_t colId = pMeta->tagRef[i].id;
+      SColRef* pRef = &pMeta->tagRef[i];
+      PAR_ERR_JRET(taosHashPut(pColRefMap, &colId, sizeof(colId), &pRef, POINTER_BYTES));
+    }
+  }
+
+  // 1. primary timestamp
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  setVtbColumnInfoBySchema(pVTable, pMeta->schema, -1, pColRefMap, pCol);
+  setColumnPrimTs(pCxt, pCol, pTable);
+  PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+  pCol = NULL;
+
+  // 2. raw data columns
+  if (pVTable->outputRaw) {
+    for (int32_t i = 1; i < pMeta->tableInfo.numOfColumns; ++i) {
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      setVtbColumnInfoBySchema(pVTable, pMeta->schema + i, -1, pColRefMap, pCol);
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+  }
+
+  // 3. aligned columns
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pVTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pVTable->pAlignCols, i);
+    const SSchema*      pSrc = NULL;
+    for (int32_t j = 1; j < pMeta->tableInfo.numOfColumns; ++j) {
+      if (pMeta->schema[j].colId == pOut->srcColId) {
+        pSrc = &pMeta->schema[j];
+        break;
+      }
+    }
+    if (pSrc == NULL) {
+      PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+    }
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+    setVtbColumnInfoBySchema(pVTable, pSrc, -1, NULL, pCol);
+    tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+    tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+    tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+    pCol->hasRef = false;
+    pCol->isAlignOut = true;
+    PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+    pCol = NULL;
+  }
+
+  // 4. tags (supertable only, when raw output is requested)
+  if (pVTable->outputRaw && !igTags && TSDB_SUPER_TABLE == pMeta->tableType) {
+    for (int32_t i = pMeta->tableInfo.numOfColumns;
+         i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags; ++i) {
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      setVtbColumnInfoBySchema(pVTable, pMeta->schema + i, i - pMeta->tableInfo.numOfColumns, pColRefMap, pCol);
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+  }
+
+  taosHashCleanup(pColRefMap);
+  return code;
+
+_return:
+  parserError("%s failed since %s", __func__, tstrerror(code));
+  taosHashCleanup(pColRefMap);
+  nodesDestroyNode((SNode*)pCol);
+  return code;
+}
+
 static int32_t createColumnsByVirtualTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags,
                                            SNodeList* pList) {
   int32_t           code = TSDB_CODE_SUCCESS;
@@ -2786,6 +2876,10 @@ static int32_t createColumnsByVirtualTable(STranslateContext* pCxt, const STable
   SHashObj*         pColRefMap = NULL;
   int32_t           nums = pMeta->tableInfo.numOfColumns +
                  (igTags ? 0 : (TSDB_SUPER_TABLE == pMeta->tableType ? pMeta->tableInfo.numOfTags : 0));
+
+  if (((const SVirtualTableNode*)pTable)->pAlignCols != NULL) {
+    PAR_RET(createColumnsByTimeAlignTable(pCxt, pTable, igTags, pList));
+  }
 
   if (pMeta->numOfColRefs > 0 && pMeta->colRef) {
     pColRefMap =
@@ -3224,9 +3318,44 @@ static int32_t findAndSetVirtualTableColumn(STranslateContext* pCxt, SColumnNode
     return TSDB_CODE_SUCCESS;
   }
 
+  SVirtualTableNode* pVTable = (SVirtualTableNode*)pTable;
+  if (pVTable->pAlignCols != NULL) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pVTable->pAlignCols); ++i) {
+      const SAlignOutCol* pOut = taosArrayGet(pVTable->pAlignCols, i);
+      if (0 != strcasecmp(pCol->colName, pOut->outName)) continue;
+
+      const SSchema* pSrc = NULL;
+      for (int32_t j = 1; j < pMeta->tableInfo.numOfColumns; ++j) {
+        if (pMeta->schema[j].colId == pOut->srcColId) {
+          pSrc = &pMeta->schema[j];
+          break;
+        }
+      }
+      if (pSrc == NULL) {
+        return TSDB_CODE_PAR_INVALID_COLUMN;
+      }
+      setVtbColumnInfoBySchema(pVTable, pSrc, -1, NULL, pCol);
+      tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+      tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+      tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+      pCol->hasRef = false;
+      pCol->isAlignOut = true;
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
+      // TIME_ALIGN output_raw=FALSE exposes only ts + the aligned columns (and
+      // tags for reference/filtering).  A data column that is not part of the
+      // output must not silently fall back to the source column -- that would
+      // make e.g. PARTITION BY/sum() read unaligned values.
+      if (pVTable->pAlignCols != NULL && !pVTable->outputRaw && i > 0 &&
+          i < pMeta->tableInfo.numOfColumns) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+      }
       setVtbColumnInfoBySchema((SVirtualTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), NULL,
                                pCol);
       setColumnPrimTs(pCxt, pCol, pTable);
@@ -14027,6 +14156,295 @@ _return:
   return code;
 }
 
+static const SSchema* findTimeAlignDataCol(const STableMeta* pMeta, const char* name, int32_t* pIdx) {
+  for (int32_t i = 1; i < pMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcasecmp(pMeta->schema[i].name, name)) {
+      *pIdx = i;
+      return &pMeta->schema[i];
+    }
+  }
+  return NULL;
+}
+
+static const char* trimTimeAlignToken(const char* pStart, const char* pEnd, char* pBuf, size_t bufLen) {
+  while (pStart < pEnd && (*pStart == ' ' || *pStart == '\t')) ++pStart;
+  while (pEnd > pStart && (pEnd[-1] == ' ' || pEnd[-1] == '\t')) --pEnd;
+  size_t out = 0;
+  if (pEnd - pStart >= 2 && *pStart == '`' && pEnd[-1] == '`') {
+    // Quoted identifier: strip the backticks and unescape `` -> `.
+    ++pStart;
+    --pEnd;
+    for (const char* p = pStart; p < pEnd && out + 1 < bufLen; ++p) {
+      if (*p == '`' && p + 1 < pEnd && p[1] == '`') {
+        pBuf[out++] = '`';
+        ++p;
+      } else {
+        pBuf[out++] = *p;
+      }
+    }
+  } else {
+    if (pEnd - pStart >= 2 && *pStart == '"' && pEnd[-1] == '"') {
+      ++pStart;
+      --pEnd;
+    }
+    size_t len = (size_t)(pEnd - pStart);
+    if (len >= bufLen) len = bufLen - 1;
+    memcpy(pBuf, pStart, len);
+    out = len;
+  }
+  pBuf[out] = '\0';
+  return pBuf;
+}
+
+// Find a separator outside backtick-quoted identifiers.  A doubled backtick
+// inside a quoted identifier is an escaped backtick, so the quote does not
+// close there.  *pUnterminated reports an identifier whose closing backtick
+// is missing.
+static const char* timeAlignScanSep(const char* pStart, const char* pEnd, char sep, bool* pUnterminated) {
+  bool quoted = false;
+  *pUnterminated = false;
+  for (const char* p = pStart; p < pEnd; ++p) {
+    if (*p == '`') {
+      if (quoted && p + 1 < pEnd && p[1] == '`') {
+        ++p;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && *p == sep) {
+      return p;
+    }
+  }
+  *pUnterminated = quoted;
+  return NULL;
+}
+
+static bool timeAlignOutNameExists(const SArray* pCols, const char* name) {
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize((SArray*)pCols); ++i) {
+    const SAlignOutCol* pCol = taosArrayGet((SArray*)pCols, i);
+    if (0 == strcasecmp(pCol->outName, name)) return true;
+  }
+  return false;
+}
+
+static bool timeAlignNameIsDataCol(const STableMeta* pMeta, const char* name) {
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    if (0 == strcasecmp(pMeta->schema[i].name, name)) return true;
+  }
+  return false;
+}
+
+static bool timeAlignNameIsTag(const STableMeta* pMeta, const char* name) {
+  for (int32_t i = pMeta->tableInfo.numOfColumns;
+       i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags; ++i) {
+    if (0 == strcasecmp(pMeta->schema[i].name, name)) return true;
+  }
+  return false;
+}
+
+static int32_t appendTimeAlignCol(STranslateContext* pCxt, SVirtualTableNode* pVTable, const SSchema* pSchema,
+                                  const char* suffix) {
+  char          outName[TSDB_COL_NAME_LEN];
+  int32_t       n = snprintf(outName, sizeof(outName), "%s%s", pSchema->name, suffix);
+  if (n < 0 || n >= (int32_t)sizeof(outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                   "TIME_ALIGN: output column name is too long");
+  }
+  if (timeAlignOutNameExists(pVTable->pAlignCols, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: duplicate output column '%s'", outName);
+  }
+  // FS 4.4.3: the final aligned name must not collide with any tag, with a
+  // raw data column when raw output is requested, or with the always-output
+  // primary timestamp column.
+  if (timeAlignNameIsTag(pVTable->pMeta, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: output column '%s' conflicts with a tag column", outName);
+  }
+  if (pVTable->outputRaw && timeAlignNameIsDataCol(pVTable->pMeta, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: output column '%s' conflicts with an original column", outName);
+  }
+  if (pVTable->pMeta->tableInfo.numOfColumns > 0 &&
+      0 == strcasecmp(pVTable->pMeta->schema[0].name, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: output column '%s' conflicts with the primary timestamp column",
+                                   outName);
+  }
+  SAlignOutCol col = {0};
+  col.srcColId = pSchema->colId;
+  tstrncpy(col.outName, outName, sizeof(col.outName));
+  if (NULL == taosArrayPush(pVTable->pAlignCols, &col)) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildTimeAlignCols(STranslateContext* pCxt, SVirtualTableNode* pVTable, bool outputRaw,
+                                  const char* pColumnList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  // FS 4.2 note 6: an explicitly supplied empty string is invalid; only an
+  // omitted column definition defaults to '*:PREV:'.
+  if (pColumnList != NULL && pColumnList[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "TIME_ALIGN: empty column definition");
+  }
+  const char* pList = (pColumnList == NULL) ? "*:PREV:" : pColumnList;
+  size_t      listLen = strlen(pList);
+  const char* pCur = pList;
+  const char* pListEnd = pList + listLen;
+
+  pVTable->pAlignCols = taosArrayInit(4, sizeof(SAlignOutCol));
+  if (pVTable->pAlignCols == NULL) return terrno;
+  pVTable->outputRaw = outputRaw;
+
+  while (pCur < pListEnd) {
+    bool        badQuote = false;
+    const char* pSemi = timeAlignScanSep(pCur, pListEnd, ';', &badQuote);
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+    const char* pEnd = (pSemi != NULL) ? pSemi : pListEnd;
+    if (pEnd == pCur || (pSemi != NULL && pSemi + 1 == pListEnd)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: empty column definition");
+    }
+
+    const char* pColon1 = timeAlignScanSep(pCur, pEnd, ':', &badQuote);
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+    const char* pColon2 = NULL;
+    if (pColon1 != NULL) {
+      pColon2 = timeAlignScanSep(pColon1 + 1, pEnd, ':', &badQuote);
+      if (badQuote) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "TIME_ALIGN: unterminated quoted identifier");
+      }
+    }
+    if (pColon2 != NULL && timeAlignScanSep(pColon2 + 1, pEnd, ':', &badQuote) != NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: suffix must not contain ':'");
+    }
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+
+    char colName[TSDB_COL_NAME_LEN] = {0};
+    char method[TSDB_COL_NAME_LEN] = {0};
+    char suffix[TSDB_COL_NAME_LEN] = {0};
+    trimTimeAlignToken(pCur, pColon1 != NULL ? pColon1 : pEnd, colName, sizeof(colName));
+    if (pColon1 != NULL) {
+      trimTimeAlignToken(pColon1 + 1, pColon2 != NULL ? pColon2 : pEnd, method, sizeof(method));
+    }
+    if (pColon2 != NULL) {
+      trimTimeAlignToken(pColon2 + 1, pEnd, suffix, sizeof(suffix));
+    }
+    if (colName[0] == '\0') {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: missing column name");
+    }
+    if (method[0] != '\0' && 0 != strcasecmp(method, "PREV")) {
+      if (0 == strcasecmp(method, "NEXT")) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                       "TIME_ALIGN: method NEXT is not supported yet");
+      }
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: unknown method '%s'", method);
+    }
+    if (strchr(suffix, ':') != NULL || strchr(suffix, ';') != NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: suffix must not contain ':' or ';'");
+    }
+
+    if (0 == strcmp(colName, "*")) {
+      for (int32_t i = 1; i < pVTable->pMeta->tableInfo.numOfColumns; ++i) {
+        PAR_ERR_JRET(appendTimeAlignCol(pCxt, pVTable, &pVTable->pMeta->schema[i], suffix));
+      }
+    } else {
+      int32_t         idx = -1;
+      const SSchema* pSchema = findTimeAlignDataCol(pVTable->pMeta, colName, &idx);
+      if (pSchema == NULL) {
+        for (int32_t i = pVTable->pMeta->tableInfo.numOfColumns;
+             i < pVTable->pMeta->tableInfo.numOfColumns + pVTable->pMeta->tableInfo.numOfTags; ++i) {
+          if (0 == strcasecmp(pVTable->pMeta->schema[i].name, colName)) {
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                           "TIME_ALIGN: tag column '%s' cannot be interpolated", colName);
+          }
+        }
+        if (0 == strcasecmp(pVTable->pMeta->schema[0].name, colName)) {
+          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                         "TIME_ALIGN: primary timestamp column '%s' cannot be interpolated", colName);
+        }
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                       "TIME_ALIGN: column '%s' does not exist", colName);
+      }
+      PAR_ERR_JRET(appendTimeAlignCol(pCxt, pVTable, pSchema, suffix));
+    }
+
+    pCur = (pSemi != NULL) ? pSemi + 1 : pListEnd;
+  }
+
+  if (taosArrayGetSize(pVTable->pAlignCols) == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "TIME_ALIGN: column list is empty");
+  }
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  return code;
+}
+
+static int32_t translateTimeAlignTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
+  STimeAlignTableNode* pAlign = (STimeAlignTableNode*)*pTable;
+  int32_t              code = TSDB_CODE_SUCCESS;
+  SRealTableNode*      pReal = NULL;
+
+  if (pCxt->pParseCxt->topicQuery) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_VTABLE_NOT_SUPPORT_TOPIC);
+  }
+  if (pCxt->inInsertQuery) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTR_USAGE,
+                                "TIME_ALIGN is not supported in INSERT ... SELECT");
+  }
+  if (inStreamCalcClause(pCxt)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_OPTR_USAGE,
+                                "TIME_ALIGN is not supported in CREATE STREAM");
+  }
+
+  code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  tstrncpy(pReal->table.dbName, pAlign->dbName, sizeof(pReal->table.dbName));
+  tstrncpy(pReal->table.tableName, pAlign->tbName, sizeof(pReal->table.tableName));
+  tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
+  pReal->numPathSegments = (pAlign->dbName[0] != '\0') ? 2 : 1;
+
+  SNode* pInner = (SNode*)pReal;
+  code = translateRealTable(pCxt, &pInner, inJoin);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pInner);
+    return code;
+  }
+  if (nodeType(pInner) != QUERY_NODE_VIRTUAL_TABLE) {
+    nodesDestroyNode(pInner);
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
+                                "TIME_ALIGN only supports virtual tables in phase 1");
+  }
+
+  SVirtualTableNode* pVTable = (SVirtualTableNode*)pInner;
+  code = buildTimeAlignCols(pCxt, pVTable, pAlign->outputRaw, pAlign->columnList);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pInner);
+    return code;
+  }
+
+  nodesDestroyNode(*pTable);
+  *pTable = pInner;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SSelectStmt* pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -14048,6 +14466,10 @@ int32_t translateTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
     }
     case QUERY_NODE_FILE_TABLE: {
       PAR_ERR_JRET(translateFileTable(pCxt, pTable));
+      break;
+    }
+    case QUERY_NODE_TIME_ALIGN_TABLE: {
+      PAR_ERR_JRET(translateTimeAlignTable(pCxt, pTable, inJoin));
       break;
     }
     case QUERY_NODE_JOIN_TABLE: {
@@ -20155,7 +20577,10 @@ static int32_t translateInsertCols(STranslateContext* pCxt, SInsertStmt* pInsert
 static int32_t translateInsertQuery(STranslateContext* pCxt, SInsertStmt* pInsert) {
   int32_t code = resetTranslateNamespace(pCxt);
   if (TSDB_CODE_SUCCESS == code) {
+    bool previous = pCxt->inInsertQuery;
+    pCxt->inInsertQuery = true;
     code = translateQuery(pCxt, pInsert->pQuery);
+    pCxt->inInsertQuery = previous;
   }
   return code;
 }

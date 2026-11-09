@@ -630,6 +630,7 @@ void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pConte
       SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)pNode;
       nodesWalkExprs(pVScan->pScanCols, walker, pContext);
       nodesWalkExprs(pVScan->pScanPseudoCols, walker, pContext);
+      nodesWalkExprs(pVScan->pAlignCols, walker, pContext);
       nodesWalkExprs(pVScan->pLocalTags, walker, pContext);
       nodesWalkExprs(pVScan->pRefTagCols, walker, pContext);
       nodesWalkExpr(pVScan->pTagFilterCond, walker, pContext);

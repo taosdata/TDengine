@@ -585,6 +585,15 @@ static int32_t fileTableNodeCopy(const SFileTableNode* pSrc, SFileTableNode* pDs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t timeAlignTableNodeCopy(const STimeAlignTableNode* pSrc, STimeAlignTableNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(tbName);
+  COPY_SCALAR_FIELD(outputRaw);
+  COPY_CHAR_POINT_FIELD(columnList);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t joinTableNodeCopy(const SJoinTableNode* pSrc, SJoinTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(joinType);
@@ -905,6 +914,11 @@ static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTabl
       if (NULL == taosArrayPush(pDst->pExtSourceNames, &s)) return terrno;
     }
   }
+  if (pSrc->pAlignCols != NULL) {
+    pDst->pAlignCols = taosArrayDup(pSrc->pAlignCols, NULL);
+    if (NULL == pDst->pAlignCols) return terrno;
+  }
+  COPY_SCALAR_FIELD(outputRaw);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1139,6 +1153,7 @@ static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtual
   COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
+  CLONE_NODE_LIST_FIELD(pAlignCols);
   COPY_SCALAR_FIELD(tableType);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(stableId);
@@ -1559,6 +1574,7 @@ static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
 
 static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVirtualScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
+  CLONE_NODE_LIST_FIELD(pAlignCols);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(scanAllCols);
@@ -2470,6 +2486,9 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_FILE_TABLE:
       code = fileTableNodeCopy((const SFileTableNode*)pNode, (SFileTableNode*)pDst);
+      break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      code = timeAlignTableNodeCopy((const STimeAlignTableNode*)pNode, (STimeAlignTableNode*)pDst);
       break;
     case QUERY_NODE_JOIN_TABLE:
       code = joinTableNodeCopy((const SJoinTableNode*)pNode, (SJoinTableNode*)pDst);

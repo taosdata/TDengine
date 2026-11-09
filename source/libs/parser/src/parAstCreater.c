@@ -10563,6 +10563,59 @@ _err:
   return NULL;
 }
 
+int8_t timeAlignOutputRaw(const SToken* pBool) {
+  if (pBool == NULL || pBool->z == NULL) return -1;
+  return IS_TRUE_STR(pBool->z, pBool->n) ? 1 : 0;
+}
+
+SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, SToken* pDbName,
+                                SToken* pTableName, const STimeAlignArgs* pArgs, SToken* pTableAlias) {
+  CHECK_PARSER_STATUS(pCxt);
+  if (pFuncName == NULL || pFuncName->n != 10 || strncasecmp(pFuncName->z, "time_align", 10) != 0) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "unsupported table function in TABLE(...)");
+    return NULL;
+  }
+  CHECK_NAME(checkTableName(pCxt, pTableName));
+  CHECK_NAME(checkTableName(pCxt, pTableAlias));
+
+  STimeAlignTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TIME_ALIGN_TABLE, (SNode**)&pNode);
+  CHECK_MAKE_NODE(pNode);
+
+  if (pDbName != NULL && TK_NK_NIL != pDbName->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->dbName, pDbName);
+  } else if (pCxt->pQueryCxt->db) {
+    snprintf(pNode->dbName, sizeof(pNode->dbName), "%s", pCxt->pQueryCxt->db);
+  }
+  COPY_STRING_FORM_ID_TOKEN(pNode->tbName, pTableName);
+
+  pNode->outputRaw = (pArgs != NULL && pArgs->outputRaw == 1);
+  if (pArgs != NULL && TK_NK_NIL != pArgs->columnList.type && pArgs->columnList.n >= 2) {
+    uint32_t len = pArgs->columnList.n - 2;
+    pNode->columnList = taosMemoryMalloc(len + 1);
+    if (pNode->columnList == NULL) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    if (len > 0) {
+      tstrncpy(pNode->columnList, pArgs->columnList.z + 1, len + 1);
+    } else {
+      pNode->columnList[0] = '\0';
+    }
+  }
+
+  if (pTableAlias != NULL && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableName);
+  }
+  return (SNode*)pNode;
+_err:
+  nodesDestroyNode((SNode*)pNode);
+  return NULL;
+}
+
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,
     SToken* pSeg1, SToken* pSeg2, SToken* pTableName, SToken* pAlias) {
   CHECK_PARSER_STATUS(pCxt);

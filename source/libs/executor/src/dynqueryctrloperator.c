@@ -7773,6 +7773,11 @@ static int32_t initVtbScanInfo(SDynQueryCtrlOperatorInfo* pInfo, SMsgCb* pMsgCb,
   FOREACH(colNode, pPhyciNode->vtbScan.pScanCols) {
     SColumnNode* pNode = (SColumnNode*)colNode;
     QUERY_CHECK_NULL(pNode, code, line, _return, terrno)
+    if (pNode->isAlignOut) {
+      // TIME_ALIGN outputs are computed by the table scan itself and are not read from
+      // the referenced source tables.
+      continue;
+    }
     QUERY_CHECK_NULL(taosArrayPush(pInfo->vtbScan.readColList, &pNode->colId), code, line, _return, terrno)
     // A rewritten TBNAME can carry a generated alias and an unset column type,
     // but its logical column id remains zero.

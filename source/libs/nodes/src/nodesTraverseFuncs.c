@@ -293,6 +293,8 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_STREAM_WINDOW_LAYER:
       res = walkExpr(((SStreamWindowLayerNode*)pNode)->pWindow, order, walker, pContext);
       break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      break;
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
@@ -525,6 +527,8 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_STREAM_WINDOW_LAYER:
       res = rewriteExpr(&((SStreamWindowLayerNode*)pNode)->pWindow, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_TIME_ALIGN_TABLE:
       break;
     case QUERY_NODE_NODE_LIST:
       res = rewriteExprs(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);

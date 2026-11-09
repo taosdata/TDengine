@@ -5595,6 +5595,9 @@ static int32_t doHandleFillforward(SFillforwardInfo* pFillforwardInfo, int32_t t
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
+    case TSDB_DATA_TYPE_BLOB:
+    case TSDB_DATA_TYPE_MEDIUMBLOB:
       return colDataSetVal(pOutput, pos, (void*)pFillforwardInfo->str, false);
     default:
       return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
@@ -5739,11 +5742,15 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
             break;
           case TSDB_DATA_TYPE_VARCHAR:
           case TSDB_DATA_TYPE_VARBINARY:
-          case TSDB_DATA_TYPE_NCHAR: {
+          case TSDB_DATA_TYPE_NCHAR:
+          case TSDB_DATA_TYPE_GEOMETRY:
+          case TSDB_DATA_TYPE_BLOB:
+          case TSDB_DATA_TYPE_MEDIUMBLOB: {
             // The buffer is sized by the declared column width; a virtual table column may
             // carry a value wider than declared (full source value by design) -- refuse to
-            // overrun it.
-            int32_t dataLen = varDataTLen(pv);
+            // overrun it.  BLOB-family values carry a 4-byte length header, the other
+            // var-data types a 2-byte header.
+            int32_t dataLen = IS_STR_DATA_BLOB(inputType) ? blobDataTLen(pv) : varDataTLen(pv);
             if (dataLen > pInputCol->info.bytes) {
               qError("interp fill-forward value needs %d bytes, buffer width is %d", dataLen,
                      pInputCol->info.bytes);

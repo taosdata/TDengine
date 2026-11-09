@@ -108,7 +108,8 @@ typedef struct SColumnNode {
     struct {
       uint8_t hasMask : 1;
       uint8_t appendByPrivCond : 1;
-      uint8_t reserve : 6;
+      uint8_t isAlignOut : 1;  // TIME_ALIGN output column (planner-side marker)
+      uint8_t reserve : 5;
     };
   };
   char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
@@ -540,12 +541,25 @@ typedef struct SFileTableNode {
   int32_t    numBlocks;
 } SFileTableNode;
 
+typedef struct STimeAlignTableNode {
+  STableNode table;        // QUERY_NODE_TIME_ALIGN_TABLE
+  char       dbName[TSDB_DB_NAME_LEN];
+  char       tbName[TSDB_TABLE_NAME_LEN];
+  bool       outputRaw;    // 2nd argument; default false
+  char*      columnList;   // raw column-def string (quotes stripped); NULL = default '*:PREV:'
+} STimeAlignTableNode;
+
 typedef struct SPlaceHolderTableNode {
   STableNode         table;  // QUERY_NODE_PLACE_HOLDER_TABLE
   struct STableMeta* pMeta;
   SVgroupsInfo*      pVgroupList;
   EStreamPlaceholder placeholderType;
 } SPlaceHolderTableNode;
+
+typedef struct SAlignOutCol {
+  col_id_t srcColId;                     // source data column id in the vtable
+  char     outName[TSDB_COL_NAME_LEN];   // output column name = source name + suffix
+} SAlignOutCol;
 
 typedef struct SVirtualTableNode {
   STableNode         table;  // QUERY_NODE_VIRTUAL_TABLE
@@ -554,6 +568,9 @@ typedef struct SVirtualTableNode {
   SNodeList*         refTables;
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
   bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>; PREV only in phase 1
+  bool               outputRaw;      // output_raw argument
 } SVirtualTableNode;
 
 typedef struct SViewNode {

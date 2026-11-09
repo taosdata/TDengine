@@ -52,6 +52,10 @@
 #define OPTIMIZE_FLAG_CLEAR_MASK(val, mask) (val) &= (~(mask))
 #define OPTIMIZE_FLAG_TEST_MASK(val, mask)  (((val) & (mask)) != 0)
 
+static bool virtualScanContainsAlign(const SVirtualScanLogicNode* pScan) {
+  return pScan != NULL && pScan->pAlignCols != NULL && LIST_LENGTH(pScan->pAlignCols) > 0;
+}
+
 typedef struct SOptimizeContext {
   SPlanContext*         pPlanCxt;
   SExtSourceCapability* pExtCapability;
@@ -1189,6 +1193,11 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
     PLAN_ERR_JRET(generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_INTERNAL_ERROR,
                                       "pdcDealVirtualSuperTableScan get invalid vtable scan logic node from dyn query ctrl node"));
   }
+  // TIME_ALIGN needs the complete input to compute PREV: a ts range pushed into the
+  // child table scan would drop the rows that feed the fill.  Tag/tbname predicates are
+  // still pushed normally (they select whole children, not rows of a child's timeline).
+  bool alignPresent = virtualScanContainsAlign(pVscan);
+
   // Find the SUPER_TABLE scan among pVscan's children (may not be last when external scans are present).
   // Must also exclude Tag Scan nodes which share the same tableType but use SCAN_TYPE_TAG.
   SScanLogicNode* pOrgScan = NULL;
@@ -1215,18 +1224,23 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   }
 
   if (NULL != pPrimaryKeyCond) {
-    PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
-    // Propagate the resolved time range to external scan children so that
-    // federated queries include a WHERE ts clause on the remote source.
-    SNode* pExtChild = NULL;
-    FOREACH(pExtChild, pVscan->node.pChildren) {
-      if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pExtChild) &&
-          SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pExtChild)->scanType) {
-        ((SScanLogicNode*)pExtChild)->scanRange = pOrgScan->scanRange;
+    if (alignPresent) {
+      // Keep the ts range above the align stage; the filter runs after PREV.
+      PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pPrimaryKeyCond));
+    } else {
+      PLAN_ERR_JRET(pushDownCondOptCalcTimeRange(pCxt, &pOrgScan->scanRange, &pPrimaryKeyCond, &pOtherCond, &pOrgScan->pPrimaryCond));
+      // Propagate the resolved time range to external scan children so that
+      // federated queries include a WHERE ts clause on the remote source.
+      SNode* pExtChild = NULL;
+      FOREACH(pExtChild, pVscan->node.pChildren) {
+        if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pExtChild) &&
+            SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pExtChild)->scanType) {
+          ((SScanLogicNode*)pExtChild)->scanRange = pOrgScan->scanRange;
+        }
       }
-    }
-    if (hasExternalScan && NULL != pOrgScan->pPrimaryCond) {
-      PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pOrgScan->pPrimaryCond));
+      if (hasExternalScan && NULL != pOrgScan->pPrimaryCond) {
+        PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pOrgScan->pPrimaryCond));
+      }
     }
   }
 
@@ -4886,6 +4900,9 @@ static int32_t pdcTrivialPushDown(SOptimizeContext* pCxt, SLogicNode* pLogicNode
  * @return TSDB_CODE_SUCCESS on success, otherwise an error code.
  */
 static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode* pVScan) {
+  if (virtualScanContainsAlign(pVScan)) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (NULL == pVScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pVScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE) ||
       pVScan->tableType == TSDB_SUPER_TABLE ||
       (pVScan->node.pParent && nodeType(pVScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL)) {
@@ -5632,7 +5649,7 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
 }
 
 static bool sortPriKeyOptCanOrderVirtualScan(SVirtualScanLogicNode* pScan) {
-  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
+  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren) || virtualScanContainsAlign(pScan)) {
     return false;
   }
   SNode* pChild = NULL;
@@ -13407,6 +13424,9 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN || LIST_LENGTH(pNode->pChildren) != 1) {
     return false;
   }
+  if (virtualScanContainsAlign((SVirtualScanLogicNode*)pNode)) {
+    return false;
+  }
 
   if (nodeType(pNode->pParent) == QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL) {
     return false;
@@ -14506,6 +14526,9 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)pChild;
+  if (virtualScanContainsAlign(pVScan)) {
+    return false;
+  }
   if (TSDB_SUPER_TABLE == pVScan->tableType && NULL != pVScan->node.pConditions) {
     return false;
   }
@@ -15271,6 +15294,9 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) < 1 ||
       ((SVirtualScanLogicNode*)pVirtualScan)->hasFilterCond ||
       NULL != ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
+    return false;
+  }
+  if (virtualScanContainsAlign((SVirtualScanLogicNode*)pVirtualScan)) {
     return false;
   }
 
@@ -17169,6 +17195,24 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+  {
+    SNode* pAggChild0 = nodesListGetNode(pAgg->node.pChildren, 0);
+    SNode* pDyn0 = NULL;
+    if (pAggChild0 != NULL) {
+      if (QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pAggChild0)) {
+        pDyn0 = pAggChild0;
+      } else if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pAggChild0)) {
+        pDyn0 = nodesListGetNode(((SLogicNode*)pAggChild0)->pChildren, 0);
+      }
+    }
+    if (pDyn0 != NULL && QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL == nodeType(pDyn0)) {
+      SNode* pV = nodesListGetNode(((SLogicNode*)pDyn0)->pChildren, 0);
+      if (pV != NULL && QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pV) &&
+          virtualScanContainsAlign((SVirtualScanLogicNode*)pV)) {
+        return false;
+      }
+    }
+  }
   bool           isFederatedVstable = false;
   SVirtualScanLogicNode* pFederatedVScan = NULL;
 
