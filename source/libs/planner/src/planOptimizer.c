@@ -730,7 +730,17 @@ static void scanPathOptSetGroupOrderScan(SScanLogicNode* pScan) {
 
 static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
-    // stream calc query does not support scan path optimization
+    // Stream calc skips scan-path rewrites, but consumers still need the native scan's
+    // timestamp direction before the tree is split into reader and runner subplans.
+    SScanLogicNode* pScan = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, scanPathOptMayBeOptimized, NULL);
+    if (pScan != NULL) {
+      if (pScan->scanType == SCAN_TYPE_TABLE || pScan->scanType == SCAN_TYPE_TABLE_MERGE) {
+        pScan->node.outputTsOrder = pScan->scanSeq[0] > 0 ? ORDER_ASC : ORDER_DESC;
+        planSetParentOrder(pScan->node.pParent, pScan->node.outputTsOrder, NULL);
+      }
+      OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+      pCxt->optimized = true;
+    }
     return TSDB_CODE_SUCCESS;
   }
   SOsdInfo info = {.scanOrder = SCAN_ORDER_ASC};
