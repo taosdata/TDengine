@@ -3906,7 +3906,6 @@ BIT_DURATION(expr [, mask [, flag]])
 - In interval windows with a right-side boundary record, the final state is carried to the window end using LOCF. Boundary masks are evaluated on the original integer value without floating-point conversion. Windows, groups, and supertable subtables do not share state.
 - NULL rows are skipped without changing the previous valid state. An empty table produces no result row; a non-window aggregate with input rows that are all NULL returns 0. A window with a valid predecessor follows the boundary state-carrying rules above.
 - With `flag=2`, `mask` is accepted for signature consistency but does not affect the first-to-last timestamp difference; fewer than two valid records return 0.
-- Supports `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, `COUNT_WINDOW`, and stream calculations.
 - `mask` and `flag` must be constants; `mask` cannot be 0, and `flag` must be 0, 1, or 2. Floating-point, string, binary, JSON, and timestamp inputs are not supported.
 - Input must be in ascending timestamp order; descending or otherwise invalid timelines are rejected.
 
@@ -3945,7 +3944,6 @@ ignore_null: {
 - For tables with a composite primary key, when multiple rows share the same timestamp only the row with the smallest composite key participates; without a composite key, duplicate timestamps raise "Duplicate timestamps not allowed".
 - An out-of-order effective timeline raises an error; use `ORDER BY ts` in a subquery to enforce ordering before counting.
 - Cannot be used on system tables.
-- Supported as a window aggregate in stream computing; incremental results match the equivalent batch query.
 
 **Examples**:
 
@@ -3992,7 +3990,7 @@ flag: {
 
 **Return Data Type**: BIGINT.
 
-**Applicable to**: Tables, supertables, window queries, and stream computations. Supported windows include `INTERVAL`, `STATE_WINDOW`, `SESSION`, `EVENT_WINDOW`, and `COUNT_WINDOW`.
+**Applicable to**: Tables and supertables.
 
 **Usage Instructions**:
 
