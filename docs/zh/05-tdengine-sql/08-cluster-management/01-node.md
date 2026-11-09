@@ -95,6 +95,18 @@ DROP MNODE ON DNODE dnode_id;
 
 删除 `dnode_id` 所指定的 `dnode` 上的 `mnode`。
 
+## 刷写管理节点
+
+```sql
+FLUSH MNODE;
+```
+
+将 mnode 内存中的全部元数据写入元数据文件 `sdb.data`，并截断 mnode 的 WAL。该命令在 mnode leader 上执行，从任意节点连接发起时会自动转发到 leader。执行完成后 taosd 继续正常运行。从 `v3.4.2.8` 开始支持。
+
+该命令用于离线修改 mnode 元数据前的准备，执行后可停止 taosd 并使用 `taosd -s`、`taosd -mSdb` 导出和导入元数据，详见 [离线修改 mnode 元数据](../../12-operations-and-tooling/02-operations/04-maintenance.md#离线修改-mnode-元数据)。
+
+只有超级用户或 SYSINFO 为 1 的用户可以执行该命令。
+
 ## 创建查询节点
 
 ```sql

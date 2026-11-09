@@ -127,6 +127,8 @@ assigned_token：
 ASSIGN LEADER FORCE;
 ```
 
+如果仲裁组长期处于未同步状态，或在 dnode 替换后成员信息错误，且无法通过上述命令恢复，可以在停止集群后离线修改仲裁组元数据，详见 [离线修改 mnode 元数据](../04-maintenance.md#离线修改-mnode-元数据)。
+
 ## 常见问题
 
 ### 1. 创建双副本数据库或修改为双副本时，报错：DB error: Out of dnodes

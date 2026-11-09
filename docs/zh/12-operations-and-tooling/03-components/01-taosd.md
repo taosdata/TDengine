@@ -12,7 +12,10 @@ taosd 命令行参数如下：
 
 - -a `<json file>`：指定一个 JSON 文件，其中包含服务启动时的各项配置参数，其格式形如 `{"fqdn":"td1"}`，关于配置参数的细节请参考下一节。
 - -c `<directory>`：指定配置文件所在目录
-- -s：打印 SDB 信息
+- -s：将 mnode 元数据（SDB）导出为当前工作目录下的 `sdb.json` 文件，详见 [元数据导出与导入](#元数据导出与导入)
+- -mSdb `<json file>`：将编辑后的 `sdb.json` 导入并写回 mnode 元数据文件，详见 [元数据导出与导入](#元数据导出与导入)
+- -fMnode：离线将 mnode 元数据落盘并截断 mnode WAL，详见 [元数据导出与导入](#元数据导出与导入)
+- -dTxn：离线删除 mnode 中的全部事务记录，详见 [元数据导出与导入](#元数据导出与导入)
 - -C：打印配置信息
 - -e：指定环境变量的字符串，例如 `-e 'TAOS_FQDN=td1'`。
 - -E：指定环境变量的文件路径，默认是 `./.env`，.env 文件中的内容可以是 `TAOS_FQDN=td1`。
@@ -171,6 +174,126 @@ taosd -r --mode copy --node-type vnode \
   --source-host 192.168.1.100 \
   --vnode 3,5
 ```
+
+## 元数据导出与导入
+
+mnode 的元数据（SDB，包括 dnode、vgroup、数据库、用户、全局配置等）以二进制格式保存在 `<dataDir>/mnode/data/sdb.data` 中。在集群故障、元数据错误等无法通过 SQL 修复的特殊场景下，可以离线将其导出为 JSON 文件，人工编辑后再导回。从 `v3.4.2.8` 开始支持该功能，面向场景的操作流程见 [离线修改 mnode 元数据](../02-operations/04-maintenance.md#离线修改-mnode-元数据)。
+
+:::warning
+
+离线修改元数据属于高危操作，错误的修改可能导致集群元数据不一致甚至无法启动。操作前务必备份 `<dataDir>/mnode` 目录，仅在明确了解修改后果时使用。
+
+:::
+
+### 相关命令
+
+| 命令 | 运行条件 | 说明 |
+| --- | --- | --- |
+| `FLUSH MNODE;` | 集群正常运行 | SQL 命令，将 mnode leader 的内存元数据写入 `sdb.data` 并截断 WAL，taosd 继续运行。详见 [刷写管理节点](../../05-tdengine-sql/08-cluster-management/01-node.md#刷写管理节点) |
+| `taosd -fMnode` | 本节点 taosd 已停止；多副本 mnode 时所有 mnode 均已停止 | 读取 `sdb.data`，重放其后的 WAL，再写回 `sdb.data` 并截断 WAL，完成后退出 |
+| `taosd -s` | 本节点 taosd 已停止，且已执行过 `FLUSH MNODE` 或 `taosd -fMnode` | 将元数据导出为当前工作目录下的 `sdb.json`，完成后退出 |
+| `taosd -mSdb <json file>` | 同上 | 以指定 JSON 文件为准重建全部元数据并写回 `sdb.data`，完成后退出 |
+| `taosd -dTxn` | 同上 | 重写 `sdb.data` 时丢弃全部事务记录，即删除 mnode 中所有未完成的事务，完成后退出 |
+
+说明：
+
+- 这些命令按配置文件中的 `dataDir` 定位数据目录；配置文件不在默认路径时，可同时使用 `-c` 指定配置文件目录，如 `taosd -c /etc/taos -fMnode`。
+- `taosd -s`、`taosd -mSdb`、`taosd -dTxn` 只读取 `sdb.data`，不会重放 WAL。若未先执行 `FLUSH MNODE` 或 `taosd -fMnode`，导出的内容可能缺少最近的变更；导入后重新启动时，WAL 中尚未落盘的变更还会被重放，覆盖手工修改的内容。
+- 若停止 taosd 前恰好有事务正在执行，`taosd -fMnode` 不会继续推进或回滚该事务，而是保留其原有状态，由下一次正常启动的 mnode 继续执行。
+
+### sdb.json 格式
+
+`taosd -s` 导出的文件结构如下（内容有删减）：
+
+```json
+{
+  "sver": "1",
+  "applyIndex": "12345",
+  "applyTerm": "1",
+  "applyConfig": "1",
+  "maxIds": { "cluster": "0", "dnode": "3", "vgroup": "10" },
+  "tableVers": { "cluster": "1", "dnode": "5", "vgroup": "20" },
+  "records": [
+    {
+      "type": "dnode",
+      "status": "4",
+      "sver": "2",
+      "fields": {
+        "id": "1",
+        "createdTime": "1700000000000",
+        "updateTime": "1700000001000",
+        "port": "6030",
+        "fqdn": "node1.example.com"
+      },
+      "rawData": "AQIDBA=="
+    }
+  ]
+}
+```
+
+顶层字段说明：
+
+- `applyIndex`、`applyTerm`、`applyConfig`：元数据对应的 raft 应用位点。
+- `maxIds`：各类元数据当前已分配的最大 ID。
+- `tableVers`：各类元数据的版本号。
+- `records`：元数据记录数组，每条记录包含：
+  - `type`：记录类型，如 `dnode`、`vgroup`、`db`、`config`、`arb_group`、`trans`。
+  - `status`、`sver`：记录状态与记录格式版本，不要修改。
+  - `fields`：可读的字段视图。部分类型的部分字段在导入时生效，见下文；其余字段仅供查看。
+  - `rawData`：记录原始二进制内容的 base64 编码，导入时以其为准还原记录，不要手工修改。
+
+:::note
+
+`sdb.json` 中的所有值（包括数字）都是带双引号的字符串，编辑时必须保持字符串形式，如 `"port": "6031"`。写成不带引号的数字（如 `"port": 6031`）时，该字段会被当作 0 写入。
+
+:::
+
+### 导入规则
+
+`taosd -mSdb` 按以下规则导入：
+
+1. **全量替换**：先清空现有元数据，再导入 `records` 中的全部记录。`records` 中被删除的记录不会再写入 `sdb.data`，即「省略即删除」。
+2. **以 `rawData` 为准**：每条记录先由 `rawData` 无损还原；对于下表中支持字段修改的类型，再用 `fields` 中出现的对应字段覆盖，未出现的字段保持原值。
+3. **顶层字段生效**：`applyIndex`、`applyTerm`、`applyConfig`、`maxIds`、`tableVers` 以 JSON 中的值为准写回。
+4. **不做一致性校验**：导入时不校验跨记录的一致性（例如 vgroup 引用的数据库是否存在），需要由操作人员自行保证。
+
+支持通过 `fields` 修改的记录类型及字段：
+
+| `type` | 可修改字段 | 说明 |
+| --- | --- | --- |
+| `dnode` | `fqdn`、`port` | 用于节点迁移后修正节点地址 |
+| `vgroup` | `replica`、`replicas[].dnodeId` | 用于修正 vgroup 副本所在的 dnode |
+| `db` | `replications`、`buffer`、`walLevel` | |
+| `cluster` | `name` | |
+| `config` | `value` | 仅对 `dtype` 为布尔、整数或浮点类型的配置生效；字符串类型的配置无法通过 `fields` 修改。修改后必须同时递增 `tsmmConfigVersion`，见下文 |
+| `compact` | `compactId`、`startTime`、`dbname` | 嵌套的 `compactDetail` 数组仅供查看 |
+| `arb_group` | 见 [仲裁组字段](#仲裁组字段) | 从 `v3.5.0.0` 开始支持 |
+
+其他类型（包括 `mnode`、`user`、`trans` 等）的 `fields` 仅供查看，导入时只能原样保留或整条删除。
+
+**修改全局配置后递增 `tsmmConfigVersion`**
+
+`type` 为 `config`、`fields.name` 为 `tsmmConfigVersion` 的记录是全局配置的版本号。dnode 和客户端只有在发现版本号变化时才会重新拉取配置。因此修改任意一条 `config` 记录的 `value` 后，必须在同一次导入中把 `tsmmConfigVersion` 记录的 `value` 改为比当前值更大的数（建议加 1），否则修改不会生效。
+
+#### 仲裁组字段
+
+`arb_group` 记录对应双副本数据库的仲裁组，可通过 [`SHOW ARBGROUPS`](../../05-tdengine-sql/09-system-info/03-show.md#show-arbgroups) 在线查看。导出的 `fields` 如下：
+
+| 字段 | 可修改 | 说明 |
+| --- | --- | --- |
+| `vgId` | 否 | 仲裁组对应的 vgroup ID，是记录的主键，仅供查看 |
+| `dbUid` | 是 | 所属数据库的 UID |
+| `member0.dnodeId`、`member1.dnodeId` | 是 | 两个副本所在的 dnode ID |
+| `member0.token`、`member1.token` | 是 | 两个副本的令牌，最长 31 个字符 |
+| `isSync` | 是 | 两个副本是否已同步，取值为 0 或 1 |
+| `code` | 是 | 仲裁组最近一次的错误码 |
+| `updateTimeMs` | 是 | 仲裁组状态的更新时间 |
+| `assignedLeader.assignedDnodeId` | 是 | 被指派为 leader 的 dnode ID |
+| `assignedLeader.token` | 是 | 被指派 leader 的令牌，最长 31 个字符 |
+| `assignedLeader.assignAcked` | 是 | leader 指派是否已被确认，取值为 0 或 1 |
+| `version` | 是 | 仲裁组版本号 |
+
+`isSync`、`assignedLeader.assignAcked` 只能取 0 或 1；令牌超过 31 个字符，或 0/1 字段取其他值时，该字段的修改被忽略并在日志中记录错误。
 
 ## 配置参数
 
