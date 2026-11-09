@@ -136,7 +136,7 @@ Click the **magnifying glass icon** to view the preview of the filtering results
 
 In the **Target Supertable** dropdown, select a target supertable, or click the **Create Supertable** button on the right.
 
-If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables, creates a missing supertable, and adds missing columns to an existing supertable.
+If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables and adds missing columns to an existing supertable. By default, it creates a missing supertable; you can choose another response in the exception handling strategy.
 
 In **Mapping**, fill in the subtable name in the target supertable, for example: `t_{id}`. Fill in the mapping rules according to the requirements, where mapping supports setting default values.
 
