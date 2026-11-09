@@ -11,7 +11,9 @@ You can configure strategies for these conditions:
 
 - **Target connection timeout**: Archive, discard, error, or cache.
 - **Target database does not exist**: Archive, discard, or error.
-- **Table does not exist**: Archive, discard, error, or create the table automatically and retry.
+- **Table Not Exist**: Handle a missing ordinary table by archiving, skipping, reporting an error, or creating the table automatically and retrying. The default is to create and retry.
+- **Super Table Not Exist**: Handle a missing supertable by archiving, skipping, reporting an error, or creating the supertable automatically and retrying. The default is to create and retry.
+- **Child Table Not Exist**: Handle a missing subtable by archiving, skipping, reporting an error, or creating the subtable automatically and retrying. The default is to create and retry. Archive and skip affect only data for the missing subtable; task metrics count the affected rows.
 - **Primary timestamp out of range** (`now - keep1` through `now + 100y`): Archive, discard, or error.
 - **Primary timestamp is null**: Archive, discard, error, or use the current time.
 - **Composite primary key is null**: Archive, discard, or error.
@@ -22,6 +24,8 @@ You can configure strategies for these conditions:
 - **Column name exceeds 64 characters**: Archive, discard, or error.
 - **Column value exceeds its defined length**: Archive, discard, error, truncate, or truncate and archive. **Automatic Column Expansion** can alter the table and retry instead.
 - **Other data errors**: Archive, discard, or error.
+
+For an existing task without a supertable or subtable strategy, the corresponding strategy falls back to **Table Not Exist**. An explicitly configured supertable or subtable strategy takes precedence.
 
 Additional settings include:
 

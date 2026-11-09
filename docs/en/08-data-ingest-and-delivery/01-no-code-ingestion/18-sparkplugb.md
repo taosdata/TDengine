@@ -95,7 +95,7 @@ You can delete the rule or preview its result.
 
 Select a target supertable or click **Create Supertable**.
 
-If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables, creates a missing supertable, and adds missing columns to an existing supertable.
+If the supertable must be generated dynamically from each message, select **Create Template**. The supertable name, column names, and column types can contain template variables. When data arrives, taosX evaluates the variables and adds missing columns to an existing supertable. By default, it creates a missing supertable; you can choose another response in the exception handling strategy.
 
 Configure the target subtable name, such as `t_{id}`, and map source fields to columns and tags. Mapping rules support default values.
 
