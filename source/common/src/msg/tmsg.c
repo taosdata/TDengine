@@ -20940,7 +20940,10 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
 
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->flags));
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pReq->name));
+  // pReq->name is used as a C string by the apply path (metaCheckCreateChildTableReq() calls
+  // strlen() on it), so the wire payload must carry its NUL terminator; otherwise that walk
+  // runs past the end of the exact-size heap copy (CWE-125).
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pCoder, (void **)&pReq->name, NULL));
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->uid));
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->btime));
   TAOS_CHECK_EXIT(tDecodeI32(pCoder, &pReq->ttl));
@@ -20955,7 +20958,9 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   }
 
   if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(pCoder, &pReq->ctb.stbName));
+    // ctb.stbName is read with strlen() by metaCheckCreateChildTableReq(), so it needs the
+    // same terminator guarantee as pReq->name above.
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pCoder, (void **)&pReq->ctb.stbName, NULL));
     TAOS_CHECK_EXIT(tDecodeU8(pCoder, &pReq->ctb.tagNum));
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->ctb.suid));
     uint32_t tagLen = 0;
@@ -20968,9 +20973,15 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(terrno);
     }
     for (int32_t i = 0; i < len; i++) {
-      char  name[TSDB_COL_NAME_LEN] = {0};
-      char *tmp = NULL;
-      TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &tmp));
+      char     name[TSDB_COL_NAME_LEN] = {0};
+      char    *tmp = NULL;
+      uint32_t tmpLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinary(pCoder, (uint8_t **)&tmp, &tmpLen));
+      // tstrncpy() below reads up to TSDB_COL_NAME_LEN bytes from tmp; without the payload's
+      // own '\0' (or with no payload at all) it would read past the message buffer.
+      if (tmpLen == 0 || tmp[tmpLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
       tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
       if (taosArrayPush(pReq->ctb.tagName, name) == NULL) {
         TAOS_CHECK_EXIT(terrno);
@@ -21299,7 +21310,14 @@ static int32_t tEncodeSVDropTbReq(SEncoder *pCoder, const SVDropTbReq *pReq) {
 
 static int32_t tDecodeSVDropTbReq(SDecoder *pCoder, SVDropTbReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
-  TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pReq->name));
+  // pReq->name is used as a C string by the caller (metaGetTableEntryUidByName() -> strlen,
+  // %s logging), so the wire payload must carry its NUL terminator: a length-prefixed
+  // payload without '\0' would make those walk past the end of the RPC buffer (CWE-125).
+  uint32_t nameLen = 0;
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pReq->name, &nameLen));
+  if (nameLen == 0 || pReq->name[nameLen] != '\0') {
+    TAOS_CHECK_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_RETURN(tDecodeU64(pCoder, &pReq->suid));
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->uid));
   TAOS_CHECK_RETURN(tDecodeI8(pCoder, &pReq->igNotExists));
