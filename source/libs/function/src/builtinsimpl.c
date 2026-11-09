@@ -4292,17 +4292,23 @@ static int32_t doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) 
     case TSDB_DATA_TYPE_BOOL:
       pDiffInfo->prev.i64 = *(bool*)pv ? 1 : 0;
       break;
-    case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_TINYINT:
       pDiffInfo->prev.i64 = *(int8_t*)pv;
       break;
-    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UTINYINT:
+      pDiffInfo->prev.i64 = *(uint8_t*)pv;
+      break;
     case TSDB_DATA_TYPE_INT:
       pDiffInfo->prev.i64 = *(int32_t*)pv;
       break;
-    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+      pDiffInfo->prev.i64 = *(uint32_t*)pv;
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       pDiffInfo->prev.i64 = *(int16_t*)pv;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pDiffInfo->prev.i64 = *(uint16_t*)pv;
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
@@ -4588,11 +4594,90 @@ int32_t setDoDiffResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) 
 
 int32_t diffFunction(SqlFunctionCtx* pCtx) { return TSDB_CODE_SUCCESS; }
 
+// Keep small blocks on the row path to avoid block-path dispatch overhead.
+static const int32_t DIFF_INTEGER_BLOCK_MIN_ROWS = 128;
+
+static int32_t diffIntegerByBlock(SqlFunctionCtx* pCtx) {
+  funcInputUpdate(pCtx);
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SDiffInfo*           pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*     pColumn = pInput->pData[0];
+  SColumnInfoData*     pOutput = (SColumnInfoData*)pCtx->pOutput;
+  int32_t             count = 0;
+  bool                keepNull = !ignoreNull(pInfo->ignoreOption);
+  bool                dropNegative = ignoreNegative(pInfo->ignoreOption);
+  int32_t             end = pInput->startRowIndex + pInput->numOfRows;
+  int8_t              type = pColumn->info.type;
+
+  for (int32_t i = pInput->startRowIndex; i < end; ++i) {
+    bool isNull = colDataIsNull_s(pColumn, i);
+    if (pInfo->isFirstRow) {
+      pInfo->isFirstRow = false;
+      if (!isNull) {
+        int32_t code = doSetPrevVal(pInfo, type, colDataGetData(pColumn, i));
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      continue;
+    }
+
+    if (isNull) {
+      if (!keepNull) continue;
+      colDataSetNull_f_s(pOutput, pCtx->offset + count);
+      pOutput->hasNull = true;
+    } else {
+      const char* data = colDataGetData(pColumn, i);
+      if (!pInfo->hasPrev) {
+        int32_t code = doSetPrevVal(pInfo, type, data);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        if (!keepNull) continue;
+        colDataSetNull_f_s(pOutput, pCtx->offset + count);
+        pOutput->hasNull = true;
+      } else {
+        int64_t value = 0;
+        if (type == TSDB_DATA_TYPE_UBIGINT) {
+          // Preserve the unsigned value's bits, as the row path does.
+          memcpy(&value, data, sizeof(value));
+        } else {
+          GET_TYPED_DATA(value, int64_t, type, data, 0);
+        }
+        bool negative = type == TSDB_DATA_TYPE_UBIGINT
+                            ? (uint64_t)value < (uint64_t)pInfo->prev.i64
+                            : value < pInfo->prev.i64;
+        uint64_t deltaBits = (uint64_t)value - (uint64_t)pInfo->prev.i64;
+        int64_t delta;
+        memcpy(&delta, &deltaBits, sizeof(delta));
+        pInfo->prev.i64 = value;
+        if (negative && dropNegative) {
+          if (!keepNull) continue;
+          colDataSetNull_f_s(pOutput, pCtx->offset + count);
+          pOutput->hasNull = true;
+        } else {
+          colDataSetInt64(pOutput, pCtx->offset + count, &delta);
+        }
+      }
+    }
+    ++count;
+  }
+  pResInfo->numOfRes = count;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t diffFunctionByRow(SArray* pCtxArray) {
   int32_t code = TSDB_CODE_SUCCESS;
   int     diffColNum = pCtxArray->size;
   if (diffColNum == 0) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (diffColNum == 1) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
+    if (pCtx != NULL && pCtx->pOutput != NULL && pCtx->pSrcBlock != NULL && pCtx->subsidiaries.num == 0 &&
+        pCtx->input.pData != NULL && pCtx->input.pData[0] != NULL &&
+        !pCtx->hasPrimaryKey && !pCtx->bInputFinished && !pCtx->input.colDataSMAIsSet &&
+        pCtx->input.numOfRows >= DIFF_INTEGER_BLOCK_MIN_ROWS &&
+        IS_INTEGER_TYPE(pCtx->input.pData[0]->info.type)) {
+      return diffIntegerByBlock(pCtx);
+    }
   }
   int32_t numOfElems = 0;
 
@@ -10547,10 +10632,56 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
   int32_t               valueRowIndex = -1;
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData*      pInputCol = pInput->pData[0];
+  if (pInputCol == NULL) {
+    pInfo->isNull = true;
+    pInfo->hasResult = true;
+    goto _group_value_over;
+  }
+  bool                 constGroupKey = false;
+  if (pInputCol->info.noData && pCtx->pSrcBlock != NULL && pCtx->pExpr != NULL &&
+      pCtx->pExpr->base.pParam != NULL &&
+      fmGetFuncTypeFromId(pCtx->functionId) == FUNCTION_TYPE_GROUP_KEY &&
+      pCtx->pExpr->base.numOfParams == 1 && pCtx->pExpr->base.pParam[0].type == FUNC_PARAM_TYPE_COLUMN &&
+      pCtx->pExpr->base.pParam[0].pCol != NULL) {
+    int32_t slotId = pCtx->pExpr->base.pParam[0].pCol->slotId;
+    SConstTagColumn* pConst = blockDataGetConstTagColumn(pCtx->pSrcBlock, slotId);
+    if (pConst != NULL) {
+      if (pCtx->pSrcBlock->info.id.uid == 0) {
+        pInfo->isNull = true;
+        pInfo->hasResult = true;
+        goto _group_value_over;
+      }
+      if (pCtx->pSrcBlock->pDataBlock == NULL) {
+        qError("constant group key source column missing, slot:%d", slotId);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      SColumnInfoData* pSrcCol = taosArrayGet(pCtx->pSrcBlock->pDataBlock, slotId);
+      if (pSrcCol != pInputCol) {
+        qError("constant group key source mismatch, slot:%d", slotId);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pConst->uid == 0 || pConst->uid != pCtx->pSrcBlock->info.id.uid) {
+        qError("constant group key uid mismatch, slot:%d blockUid:%" PRIu64 " valueUid:%" PRIu64,
+               slotId, pCtx->pSrcBlock->info.id.uid, pConst->uid);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      if (pConst->column.info.type != pInputCol->info.type || pConst->column.info.bytes != pInputCol->info.bytes) {
+        qError("constant group key type mismatch, slot:%d constType:%d/%d inputType:%d/%d", slotId,
+               pConst->column.info.type, pConst->column.info.bytes, pInputCol->info.type, pInputCol->info.bytes);
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      pInputCol = &pConst->column;
+      constGroupKey = true;
+    }
+  }
 
   // try to find a non-null value
-  if (NULL != pInputCol->pData) {
-    if (isWindow) {
+  if (pInputCol != NULL && NULL != pInputCol->pData) {
+    if (constGroupKey) {
+      if (pInput->numOfRows > 0 && !colDataIsNull_s(pInputCol, 0)) {
+        valueRowIndex = 0;
+      }
+    } else if (isWindow) {
       // for 'window', non-null value can appear at any row of any data block
       int64_t startIndex = pInput->startRowIndex;
       int64_t endIndex = pInput->startRowIndex + pInput->numOfRows - 1;

@@ -549,12 +549,17 @@ static int32_t vtbRefResolveSrcColumnChain(const SSysTableScanInfo* pInfo, SExec
                                            SHashObj* pTableCache, int32_t localVgId, SHashObj* pSeenRefs,
                                            int32_t depth, SVtbRefFailure* pFail);
 
+// Returns 0 for a matching vnode, -1 when this filter cannot be used, -2 for
+// a non-matching vnode, or a TSDB error code for a real failure.
 int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   SSTabFltArg* pArg = arg;
   void*        pVnode = pArg->pVnode;
 
   const char* db = NULL;
   pArg->pAPI->metaFn.getBasicInfo(pVnode, &db, NULL, NULL);
+  if (db == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
 
   SName   sn = {0};
   char    dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
@@ -6469,6 +6474,173 @@ _end:
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
+static bool sysTableOnlyDbNameEqual(const SSysTableScanInfo* pInfo) {
+  if (pInfo->showRewrite || pInfo->pVtbRefReqs != NULL || (pInfo->pIdx != NULL && pInfo->pIdx->init == 1) ||
+      pInfo->pCondition == NULL || pInfo->matchInfo.pList == NULL ||
+      taosArrayGetSize(pInfo->matchInfo.pList) != 1 || taosArrayGetSize(pInfo->pRes->pDataBlock) != 1 ||
+      nodeType(pInfo->pCondition) != QUERY_NODE_OPERATOR) {
+    return false;
+  }
+
+  SColMatchItem* pMatch = taosArrayGet(pInfo->matchInfo.pList, 0);
+  SColumnInfoData* pDbCol = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+  SOperatorNode* pCond = (SOperatorNode*)pInfo->pCondition;
+  if (pMatch == NULL || pDbCol == NULL || pDbCol->info.type != TSDB_DATA_TYPE_VARCHAR ||
+      pMatch->colId != TSDB_INS_USER_STABLES_DBNAME_COLID || pMatch->dstSlotId != 0 ||
+      pCond->opType != OP_TYPE_EQUAL || pCond->pLeft == NULL || pCond->pRight == NULL ||
+      nodeType(pCond->pLeft) != QUERY_NODE_COLUMN || nodeType(pCond->pRight) != QUERY_NODE_VALUE ||
+      ((SColumnNode*)pCond->pLeft)->colId != TSDB_INS_USER_STABLES_DBNAME_COLID ||
+      strcasecmp(((SColumnNode*)pCond->pLeft)->colName, "db_name") != 0) {
+    return false;
+  }
+
+  SValueNode* pValue = (SValueNode*)pCond->pRight;
+  return !pValue->isNull && pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR && pValue->datum.p != NULL;
+}
+
+static bool sysTableCountRowsOnly(const SSysTableScanInfo* pInfo) {
+  return !pInfo->showRewrite && pInfo->pVtbRefReqs == NULL && pInfo->pCondition == NULL &&
+         (pInfo->pIdx == NULL || pInfo->pIdx->init != 1) &&
+         (pInfo->matchInfo.pList == NULL || taosArrayGetSize(pInfo->matchInfo.pList) == 0) &&
+         taosArrayGetSize(pInfo->pRes->pDataBlock) == 0;
+}
+
+static SSDataBlock* sysTableBuildUserTablesCountOnly(SOperatorInfo* pOperator, bool countOnly) {
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
+  SSysTableScanInfo* pInfo = pOperator->info;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            lino = 0;
+  int32_t            dbSecLevel = pAPI->metaFn.getSecurityLevel(pInfo->readHandle.vnode);
+
+  if (!countOnly) {
+    SSTabFltArg arg = {.pVnode = pInfo->readHandle.vnode, .pAPI = pAPI};
+    code = sysFilte__DbName(&arg, pInfo->pCondition, NULL);
+    if (code == -2) {
+      blockDataCleanup(pInfo->pRes);
+      setOperatorCompleted(pOperator);
+      return NULL;
+    }
+    if (code == -1) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  char dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  if (!countOnly) {
+    const char* db = NULL;
+    pAPI->metaFn.getBasicInfo(pInfo->readHandle.vnode, &db, NULL, NULL);
+    QUERY_CHECK_NULL(db, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+    SName sn = {0};
+    code = tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = tNameGetDbName(&sn, varDataVal(dbname));
+    QUERY_CHECK_CODE(code, lino, _end);
+    varDataSetLen(dbname, strlen(varDataVal(dbname)));
+  }
+
+  if (pInfo->pCur == NULL) {
+    pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
+    QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
+    pInfo->pCur->txnId = pInfo->readHandle.txnId;
+  } else {
+    code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 1);
+    if (code != TSDB_CODE_SUCCESS) {
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  blockDataCleanup(pInfo->pRes);
+  if (pOperator->resultInfo.capacity <= 0) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
+  QUERY_CHECK_CODE(code, lino, _end);
+  int32_t rows = 0;
+  int32_t ret = 0;
+  uint64_t lastSuid = 0;
+  int32_t lastType = 0;
+  bool lastVisible = false;
+  SColumnInfoData* pDbCol = NULL;
+  if (!countOnly) {
+    pDbCol = taosArrayGet(pInfo->pRes->pDataBlock, 0);
+    QUERY_CHECK_NULL(pDbCol, code, lino, _end, terrno);
+  }
+  while (rows < pOperator->resultInfo.capacity &&
+         (ret = pAPI->metaFn.cursorNext(pInfo->pCur, TSDB_SUPER_TABLE)) == 0) {
+    if (isTaskKilled(pTaskInfo)) {
+      code = TSDB_CODE_TSC_QUERY_KILLED;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    int32_t type = pInfo->pCur->mr.me.type;
+    if (type == TSDB_CHILD_TABLE || type == TSDB_VIRTUAL_CHILD_TABLE) {
+      uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
+      if (pInfo->macMode || suid != lastSuid || type != lastType) {
+        SMetaReader mr = {0};
+        pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn,
+                                      pInfo->readHandle.txnId);
+        mr.txnId = pInfo->readHandle.txnId;
+        code = pAPI->metaReaderFn.getTableEntryByUid(&mr, suid);
+        if (code != TSDB_CODE_SUCCESS) {
+          pAPI->metaReaderFn.clearReader(&mr);
+          if (pAPI->metaFn.hasPendingTxnEntries && pAPI->metaFn.hasPendingTxnEntries(pInfo->readHandle.vnode)) {
+            code = TSDB_CODE_SUCCESS;
+            lastSuid = 0;
+            continue;
+          }
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        lastVisible = !isTsmaResSTb(mr.me.name) &&
+                      sysTableMacVisible(pInfo, type, mr.me.stbEntry.securityLevel, dbSecLevel);
+        pAPI->metaReaderFn.clearReader(&mr);
+        lastSuid = suid;
+        lastType = type;
+      }
+      if (!lastVisible) continue;
+    } else if (type == TSDB_NORMAL_TABLE || type == TSDB_VIRTUAL_NORMAL_TABLE) {
+      // The full unfiltered scan does not apply a MAC check to virtual normal tables.
+      if ((type == TSDB_NORMAL_TABLE || !countOnly) && !sysTableMacVisible(pInfo, type, 0, dbSecLevel)) continue;
+    } else {
+      continue;
+    }
+
+    if (!countOnly) {
+      code = colDataSetVal(pDbCol, rows, dbname, false);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    ++rows;
+  }
+
+  // tdbBtreeNext returns TSDB_CODE_FAILED when its cursor reaches EOF.
+  if (ret != 0 && ret != TSDB_CODE_FAILED) {
+    code = ret;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  pInfo->pRes->info.rows = rows;
+  if (ret != 0) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+    setOperatorCompleted(pOperator);
+  } else {
+    pAPI->metaFn.pauseTableMetaCursor(pInfo->pCur);
+  }
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
+
+_end:
+  pTaskInfo->code = code;
+  if (pInfo->pCur != NULL) {
+    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
+  }
+  T_LONG_JMP(pTaskInfo->env, code);
+  return NULL;
+}
+
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -6478,6 +6650,12 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SSDataBlock*   p = NULL;
 
   SSysTableScanInfo* pInfo = pOperator->info;
+  if (sysTableCountRowsOnly(pInfo)) {
+    return sysTableBuildUserTablesCountOnly(pOperator, true);
+  }
+  if (sysTableOnlyDbNameEqual(pInfo)) {
+    return sysTableBuildUserTablesCountOnly(pOperator, false);
+  }
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
     QUERY_CHECK_NULL(pInfo->pCur, code, lino, _end, terrno);
@@ -7125,6 +7303,9 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
           return blk;
         } else if ((flt == -1) || (flt == -2)) {
           qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
+        } else {
+          code = flt;
+          QUERY_CHECK_CODE(code, lino, _end);
         }
       } else if (pCondition != NULL && (pInfo->pIdx != NULL && pInfo->pIdx->init == 1)) {
         SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
@@ -9036,7 +9217,8 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
 
     SArray* aRslt = taosArrayInit(16, sizeof(int64_t));
     if (!aRslt) {
-      return terrno;
+      ret = terrno;
+      goto _cleanup;
     }
 
     ret = optSysTabFilteImpl(arg, cell->pNode, aRslt);
@@ -9046,7 +9228,9 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
         hasUidIdx = true;
         void* tmp = taosArrayPush(mRslt, &aRslt);
         if (!tmp) {
-          return TSDB_CODE_FAILED;
+          ret = terrno;
+          taosArrayDestroy(aRslt);
+          goto _cleanup;
         }
       } else {
         // db_name/vgroup not result
@@ -9057,6 +9241,9 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
       hasRslt = false;
       taosArrayDestroy(aRslt);
       break;
+    } else if (ret != -1) {
+      taosArrayDestroy(aRslt);
+      goto _cleanup;
     } else {
       taosArrayDestroy(aRslt);
     }
@@ -9065,15 +9252,20 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   if (hasRslt && hasUidIdx) {
     int32_t code = optSysMergeRslt(mRslt, result);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      ret = code;
+      goto _cleanup;
     }
   }
 
+_cleanup:
   for (int i = 0; i < taosArrayGetSize(mRslt); i++) {
     SArray* aRslt = taosArrayGetP(mRslt, i);
     taosArrayDestroy(aRslt);
   }
   taosArrayDestroy(mRslt);
+  if (ret != 0 && ret != -1 && ret != -2) {
+    return ret;
+  }
   if (hasRslt == false) {
     return -2;
   }

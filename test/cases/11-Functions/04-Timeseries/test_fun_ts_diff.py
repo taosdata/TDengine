@@ -1451,6 +1451,84 @@ class TestFunDiff:
         print("do_function_diff ...................... [passed]")
 
 
+    def do_integer_block_regression(self):
+        """Check all integer DIFF types against an independent row model."""
+        db = "diff_integer_regression"
+        base_ts = 1791000000000
+        cases = (
+            ("tinyint", -128, 127),
+            ("smallint", -32768, 32767),
+            ("int", -(1 << 31), (1 << 31) - 1),
+            ("bigint", -(1 << 63), (1 << 63) - 1),
+            ("tinyint unsigned", 0, 255),
+            ("smallint unsigned", 0, 65535),
+            ("int unsigned", 0, (1 << 32) - 1),
+            ("bigint unsigned", 0, (1 << 64) - 1),
+        )
+        tdSql.execute(f"create database if not exists {db} vgroups 1")
+        tdSql.execute(f"use {db}")
+        try:
+            for type_index, (type_name, minimum, maximum) in enumerate(cases):
+                high = maximum - 4
+                # High-half descending runs expose signed decoding of unsigned values.
+                pattern = [minimum, high + 4, high + 3, high + 2, None,
+                           high + 1, minimum, maximum, maximum - 1, None]
+                for length in (127, 128, 129, 256, 512):
+                    table = f"diff_integer_{type_index}_{length}"
+                    tdSql.execute(f"create table {table} (ts timestamp, c {type_name})")
+                    if length == 256:
+                        values = [None] * length
+                    elif length == 129:
+                        values = [None] + [pattern[i % len(pattern)] for i in range(length - 1)]
+                    else:
+                        values = [pattern[i % len(pattern)] for i in range(length)]
+                    for start in range(0, length, 100):
+                        rows = " ".join(
+                            f"({base_ts + i * 10},{'NULL' if values[i] is None else values[i]})"
+                            for i in range(start, min(start + 100, length))
+                        )
+                        tdSql.execute(f"insert into {table} values {rows}")
+                    for option in range(4):
+                        expected = []
+                        previous = values[0]
+                        for value in values[1:]:
+                            if value is None:
+                                if not option & 2:
+                                    expected.append((None,))
+                                continue
+                            if previous is None:
+                                previous = value
+                                if not option & 2:
+                                    expected.append((None,))
+                                continue
+                            negative = value < previous
+                            delta = (value - previous + (1 << 63)) % (1 << 64) - (1 << 63)
+                            previous = value
+                            if negative and option & 1:
+                                if not option & 2:
+                                    expected.append((None,))
+                            else:
+                                expected.append((delta,))
+                        tdSql.query(f"select diff(c, {option}) from {table}", queryTimes=1)
+                        actual = tdSql.queryResult
+                        if actual != expected:
+                            mismatch = next((i for i, (a, e) in enumerate(zip(actual, expected)) if a != e), None)
+                            raise AssertionError(
+                                f"{type_name} length={length} option={option}: "
+                                f"rows {len(actual)} != {len(expected)}, first mismatch={mismatch}"
+                            )
+                        if type_index >= 4 and length == 512:
+                            # The extra timestamp column forces the generic path.
+                            tdSql.query(f"select ts, diff(c, {option}) from {table}", queryTimes=1)
+                            generic = [(row[1],) for row in tdSql.queryResult]
+                            if generic != expected:
+                                raise AssertionError(
+                                    f"generic path differs: {type_name} option={option}"
+                                )
+        finally:
+            tdSql.execute(f"drop database {db}")
+        print("do_integer_block_regression .......... [passed]")
+
     #
     # ------------------ main ------------------
     #
@@ -1472,9 +1550,9 @@ class TestFunDiff:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
-        History:
         History:
             - 2025-8-26 Simon Guan Migrated from tsim/query/diff.sim
             - 2025-8-26 Simon Guan Migrated from tsim/compute/diff.sim
@@ -1486,3 +1564,4 @@ class TestFunDiff:
         self.do_sim_diff()
         self.do_diff()
         self.do_function_diff()
+        self.do_integer_block_regression()

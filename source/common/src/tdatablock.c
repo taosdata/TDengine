@@ -546,10 +546,26 @@ static int32_t colDataReserve(SColumnInfoData* pColumnInfoData, size_t newSize) 
   return TSDB_CODE_SUCCESS;
 }
 
+static bool colDataPointsIntoPayload(const SColumnInfoData* pColumnInfoData, const char* pData, size_t* pOffset) {
+  if (pColumnInfoData->pData == NULL || pData == NULL) {
+    return false;
+  }
+  uintptr_t base = (uintptr_t)pColumnInfoData->pData;
+  uintptr_t source = (uintptr_t)pData;
+  if (source < base || source - base >= pColumnInfoData->varmeta.allocLen) {
+    return false;
+  }
+  *pOffset = source - base;
+  return true;
+}
+
 int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow, const char* pData,
                             int32_t itemLen, int32_t numOfRows, bool trimValue) {
   if (numOfRows <= 0) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (itemLen <= 0 || currentRow < 0 || pData == NULL) {
+    return TSDB_CODE_INVALID_PARA;
   }
 
   if (pColumnInfoData->info.bytes < itemLen) {
@@ -562,35 +578,47 @@ int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow
     }
   }
 
-  size_t   start = 1;
-  int32_t  t = 0;
-  int32_t  count = log(numOfRows) / log(2);
-  uint32_t startOffset =
-      (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) ? pColumnInfoData->varmeta.length : (currentRow * itemLen);
+  uint64_t copyBytes = (uint64_t)numOfRows * (uint64_t)itemLen;
+  bool     isVar = IS_VAR_DATA_TYPE(pColumnInfoData->info.type);
+  size_t   startOffset = isVar ? pColumnInfoData->varmeta.length : (size_t)currentRow * itemLen;
+  if (isVar) {
+    if ((uint64_t)startOffset + copyBytes + BLOBSTR_HEADER_SIZE > INT32_MAX) {
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+    size_t sourceOffset = 0;
+    bool selfRef = colDataPointsIntoPayload(pColumnInfoData, pData, &sourceOffset);
+    if (selfRef && (size_t)itemLen > pColumnInfoData->varmeta.allocLen - sourceOffset) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    // Callers must allocate offset entries through currentRow + numOfRows.
+    int32_t code = colDataReserve(pColumnInfoData, startOffset + copyBytes);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (selfRef) {
+      pData = pColumnInfoData->pData + sourceOffset;
+    }
+  }
+  size_t copied = 1;
 
   // the first item
-  memcpy(pColumnInfoData->pData + startOffset, pData, itemLen);
+  memmove(pColumnInfoData->pData + startOffset, pData, itemLen);
 
-  while (t < count) {
-    int32_t xlen = 1 << t;
-    memcpy(pColumnInfoData->pData + start * itemLen + startOffset, pColumnInfoData->pData + startOffset,
-           xlen * itemLen);
-    t += 1;
-    start += xlen;
+  // Double the initialized span without calculating a logarithm for each call.
+  while (copied < (size_t)numOfRows) {
+    size_t copyRows = TMIN(copied, (size_t)numOfRows - copied);
+    memcpy(pColumnInfoData->pData + startOffset + copied * itemLen, pColumnInfoData->pData + startOffset,
+           copyRows * itemLen);
+    copied += copyRows;
   }
 
-  // the tail part
-  if (numOfRows > start) {
-    memcpy(pColumnInfoData->pData + start * itemLen + startOffset, pColumnInfoData->pData + startOffset,
-           (numOfRows - start) * itemLen);
-  }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+  if (isVar) {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      pColumnInfoData->varmeta.offset[i + currentRow] = pColumnInfoData->varmeta.length + i * itemLen;
+      pColumnInfoData->varmeta.offset[i + currentRow] =
+          (int32_t)((uint64_t)startOffset + (uint64_t)i * itemLen);
     }
 
-    pColumnInfoData->varmeta.length += numOfRows * itemLen;
+    pColumnInfoData->varmeta.length += (uint32_t)copyBytes;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -598,9 +626,26 @@ int32_t doCopyNItems(struct SColumnInfoData* pColumnInfoData, int32_t currentRow
 
 int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows, uint32_t capacity,
                          bool trimValue) {
+  if (numOfRows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pData == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  if (currentRow > INT32_MAX || numOfRows > INT32_MAX || currentRow + (uint64_t)numOfRows > INT32_MAX) {
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
   int32_t len = pColumnInfoData->info.bytes;
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     len = calcStrBytesByType(pColumnInfoData->info.type, (char*)pData);
+    if (len <= 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    size_t sourceOffset = 0;
+    bool selfRef = colDataPointsIntoPayload(pColumnInfoData, pData, &sourceOffset);
+    if (selfRef && (size_t)len > pColumnInfoData->varmeta.allocLen - sourceOffset) {
+      return TSDB_CODE_INVALID_PARA;
+    }
     // if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
     //   len = getJsonValueLen(pData);
     // } else if (IS_STR_DATA_BLOB(pColumnInfoData->info.type)) {
@@ -608,11 +653,27 @@ int32_t colDataSetNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, 
     // } else {
     //   len = varDataTLen(pData);
     // }
-    if (pColumnInfoData->varmeta.allocLen < (capacity * numOfRows * len + pColumnInfoData->varmeta.length)) {
-      int32_t code = colDataReserve(pColumnInfoData, (capacity * numOfRows * len + pColumnInfoData->varmeta.length));
+    // capacity is the caller's payload reservation multiplier; zero still reserves the written rows.
+    uint32_t reserveFactor = TMAX(capacity, 1);
+    uint64_t perCopyBytes = (uint64_t)numOfRows * (uint32_t)len;
+    if (perCopyBytes == 0) {
+      return TSDB_CODE_INVALID_PARA;
+    }
+    // Match checkAllocLen's headroom so signed row offsets remain representable.
+    if ((uint64_t)pColumnInfoData->varmeta.length + BLOBSTR_HEADER_SIZE > INT32_MAX ||
+        reserveFactor > (INT32_MAX - BLOBSTR_HEADER_SIZE - (uint64_t)pColumnInfoData->varmeta.length) /
+                            perCopyBytes) {
+      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    }
+    uint64_t required = (uint64_t)reserveFactor * perCopyBytes + pColumnInfoData->varmeta.length;
+    if (pColumnInfoData->varmeta.allocLen < required) {
+      int32_t code = colDataReserve(pColumnInfoData, (size_t)required);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
+    }
+    if (selfRef) {
+      pData = pColumnInfoData->pData + sourceOffset;
     }
   }
 
@@ -2156,6 +2217,11 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
       continue;
     }
     if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+      if (pSrc->pData == NULL) {
+        // Unmaterialized slots still need per-row NULL metadata for spilling.
+        memset(pDst->varmeta.offset, -1, pDataBlock->info.rows * sizeof(int32_t));
+        continue;
+      }
       if (pSrc->varmeta.length != 0) {
         memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
       }
@@ -2164,7 +2230,7 @@ static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBloc
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
         pDst->varmeta.offset[j] = pSrc->varmeta.offset[index[j]];
       }
-    } else {
+    } else if (pSrc->pData != NULL) {
       for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
         if (colDataIsNull_f(pSrc, index[j])) {
           colDataSetNull_f_s(pDst, j);
@@ -2198,8 +2264,16 @@ static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoD
     pCols[i].info = pColInfoData->info;
     if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
       pCols[i].varmeta.offset = taosMemoryCalloc(rows, sizeof(int32_t));
+      if (pCols[i].varmeta.offset == NULL) {
+        code = terrno;
+        goto _error;
+      }
+      // Keep the payload unmaterialized without dropping its NULL offsets.
+      if (pColInfoData->pData == NULL) {
+        continue;
+      }
       pCols[i].pData = taosMemoryCalloc(1, pColInfoData->varmeta.length);
-      if (pCols[i].varmeta.offset == NULL || pCols[i].pData == NULL) {
+      if (pCols[i].pData == NULL) {
         code = terrno;
         taosMemoryFree(pCols[i].varmeta.offset);
         taosMemoryFree(pCols[i].pData);
@@ -2208,7 +2282,7 @@ static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoD
 
       pCols[i].varmeta.length = pColInfoData->varmeta.length;
       pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
-    } else {
+    } else if (pColInfoData->pData != NULL) {
       pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
       pCols[i].pData = taosMemoryCalloc(rows, pCols[i].info.bytes);
       if (pCols[i].nullbitmap == NULL || pCols[i].pData == NULL) {

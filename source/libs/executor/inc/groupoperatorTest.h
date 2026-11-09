@@ -263,7 +263,10 @@ typedef struct SPartitionPhaseTestConfig {
   int64_t memBudgetBytes;
   bool    encryptSpill;
   bool    reserveColumn;
+  bool    extWinGroupBatch;  // selects batch rather than phased test execution
   int32_t prepareOutputFailureCode;
+  // Persistent source failure returned by the runner; no second-batch spill snapshot.
+  int32_t downstreamFailureCode;
   int32_t pageAllocationFailureCode;
   int32_t spillReadFailureCode;
   int32_t spillCryptFailureCode;
@@ -311,6 +314,7 @@ typedef struct SPartitionPhaseTestLifecycleResult {
   int8_t  phaseAfterAction;
   bool    readingAfterAction;
   bool    inputDoneAfterAction;
+  bool    outerEpochSetAfterAction;  // valid only after RESET
 } SPartitionPhaseTestLifecycleResult;
 
 int32_t partitionSpillTestSelectGroup(const SPartitionSpillTestGroup* pGroups,
@@ -364,8 +368,20 @@ int32_t partitionTestRunPhasedWithConfig(
     const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
     const SPartitionPhaseTestConfig* pConfig,
     SPartitionPhaseTestResult* pResult);
+int32_t partitionTestRunExtWinGroupBatch(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    SPartitionPhaseTestResult* pResult);
+int32_t partitionTestRunExtWinGroupBatchWithConfig(
+    const SPartitionPhaseTestBlock* pBlocks, int32_t numBlocks,
+    const SPartitionPhaseTestConfig* pConfig,
+    SPartitionPhaseTestResult* pResult);
+
+int32_t partitionTestExtWinGroupBatchRejectModes(void);
+int32_t partitionTestExtWinGroupBatchRejectHeldBoundary(void);
 int32_t partitionTestHeldBlockLifecycle(
     EPartitionPhaseTestLifecycleAction action,
+    SPartitionPhaseTestLifecycleResult* pResult);
+int32_t partitionTestExtWinGroupBatchHeldBlockReset(
     SPartitionPhaseTestLifecycleResult* pResult);
 
 #ifdef __cplusplus

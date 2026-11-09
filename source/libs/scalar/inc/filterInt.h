@@ -18,6 +18,8 @@
 #ifndef TDENGINE_FILTER_INT_H
 #define TDENGINE_FILTER_INT_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -229,9 +231,19 @@ typedef struct SFltTreeStat {
   SFilterInfo *info;
 } SFltTreeStat;
 
+// Defined and dereferenced only in filter.c; freed on rebuild or by filterFreeInfo.
+typedef struct SFltSclRangeExpr SFltSclRangeExpr;
+
 typedef struct SFltScalarCtx {
-  SNode  *node;
-  SArray *fltSclRange;
+  // Borrowed AST node; the filter does not own its lifetime.
+  SNode            *node;
+  SArray           *fltSclRange;
+  // Owned by this context; NULL until built. A shallow copy must not create
+  // two owners of the same range tree.
+  SFltSclRangeExpr *orRangeExpr;
+  // Meaningful after range optimization: OR exists or detection reached its
+  // depth limit. Without a usable tree, callers assume the full time window.
+  bool              hasOrCondition;
 } SFltScalarCtx;
 
 typedef struct SFltBuildGroupCtx {

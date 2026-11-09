@@ -874,7 +874,21 @@ static int32_t addPrimaryTsCol(SRealTableNode* pTable, SNodeList** pCols) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t addSystableFirstCol(SRealTableNode* pTable, SNodeList** pCols) {
+static int32_t addSystableFirstCol(SLogicPlanContext* pCxt, SRealTableNode* pTable, SNodeList** pCols) {
+  if (pTable == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "system table is missing");
+  }
+  if (pTable->pMeta == NULL || pTable->pMeta->tableInfo.numOfColumns == 0 || pTable->pMeta->schema == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "system table %s.%s has no column metadata", pTable->table.dbName,
+                                   pTable->table.tableName);
+  }
+  if (pTable->pMeta->tableType != TSDB_SYSTEM_TABLE) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "table %s.%s is not a system table", pTable->table.dbName,
+                                   pTable->table.tableName);
+  }
   if (LIST_LENGTH(*pCols) > 0) {
     return TSDB_CODE_SUCCESS;
   }
@@ -908,8 +922,21 @@ static int32_t addPrimaryKeyCol(SLogicPlanContext* pCxt, SRealTableNode* pTable,
 }
 
 static int32_t addDefaultScanCol(SLogicPlanContext* pCxt, SRealTableNode* pTable, SNodeList** pCols) {
+  if (pTable == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "scan requires a real table node");
+  }
+  if (pTable->pMeta == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "table %s.%s has no metadata", pTable->table.dbName, pTable->table.tableName);
+  }
   if (TSDB_SYSTEM_TABLE == pTable->pMeta->tableType) {
-    return addSystableFirstCol(pTable, pCols);
+    return addSystableFirstCol(pCxt, pTable, pCols);
+  }
+  if (pTable->pMeta->schema == NULL || pTable->pMeta->tableInfo.numOfColumns <= 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PLAN_INVALID_TABLE_TYPE,
+                                   "table %s.%s has no column metadata", pTable->table.dbName,
+                                   pTable->table.tableName);
   }
   int32_t code = addPrimaryTsCol(pTable, pCols);
   if (code == TSDB_CODE_SUCCESS && hasPkInTable(pTable->pMeta)) {
@@ -969,7 +996,9 @@ static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealT
   return TSDB_CODE_SUCCESS;
 }
 
-static bool needScanDefaultCol(EScanType scanType) { return SCAN_TYPE_TABLE_COUNT != scanType; }
+static bool needScanDefaultCol(EScanType scanType) {
+  return scanType != SCAN_TYPE_TABLE_COUNT && scanType != SCAN_TYPE_SYSTEM_TABLE && scanType != SCAN_TYPE_TAG;
+}
 
 static int32_t updateScanNoPseudoRefAfterGrp(SSelectStmt* pSelect, SScanLogicNode* pScan, SRealTableNode* pRealTable) {
   if (NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
@@ -1803,7 +1832,11 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->hasNormalCols = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code && needScanDefaultCol(pScan->scanType)) {
+  // Sort and partition both pass through a child target, even for constant expressions.
+  bool needsPassThroughCol = (pScan->scanType == SCAN_TYPE_TAG || pScan->scanType == SCAN_TYPE_SYSTEM_TABLE) &&
+                             (LIST_LENGTH(pSelect->pOrderByList) > 0 || hasEffectivePartition(pSelect)) &&
+                             LIST_LENGTH(pScan->pScanCols) == 0 && LIST_LENGTH(pScan->pScanPseudoCols) == 0;
+  if (TSDB_CODE_SUCCESS == code && (needScanDefaultCol(pScan->scanType) || needsPassThroughCol)) {
     code = addDefaultScanCol(pCxt, pRealTable, &pScan->pScanCols);
   }
 
@@ -6202,6 +6235,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   SNodeList*              pTagRefCols = NULL;
   SNodeList*              pAlignDynReadCols = NULL;  // TIME_ALIGN: referenced source columns (rowset)
   SHashObj*               pRefTableNodeMap = NULL;  // For tagRef processing
+  bool                    insScanAttached = false;
+  bool                    realScanAttached = false;
 
   if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
     scanAllCols = false;
@@ -6218,6 +6253,20 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0), &pRealTableScan));
   if (((SScanLogicNode*)pRealTableScan)->scanType == SCAN_TYPE_TAG) {
     ((SScanLogicNode*)pRealTableScan)->scanType = SCAN_TYPE_TABLE;
+    PLAN_ERR_JRET(addDefaultScanCol(pCxt, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 0),
+                                    &((SScanLogicNode*)pRealTableScan)->pScanCols));
+    // Rebuild targets from both final column lists; the TAG scan may already have targets.
+    SNodeList* pTargets = NULL;
+    code = createColumnByRewriteExprs(((SScanLogicNode*)pRealTableScan)->pScanCols, &pTargets);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = createColumnByRewriteExprs(((SScanLogicNode*)pRealTableScan)->pScanPseudoCols, &pTargets);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyList(pTargets);
+      goto _return;
+    }
+    nodesDestroyList(((SScanLogicNode*)pRealTableScan)->node.pTargets);
+    ((SScanLogicNode*)pRealTableScan)->node.pTargets = pTargets;
   }
 
   PLAN_ERR_JRET(addVtbPrimaryTsCol(pCxt, pVirtualTable, &pVtableScan->pScanCols));
@@ -6452,7 +6501,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     ((SLogicNode *)pTagScan)->pParent = (SLogicNode *)pVtableScan;
     PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, pTagScan));
   }
-  PLAN_ERR_JRET(nodesListStrictAppend(pVtableScan->node.pChildren, (SNode*)(pRealTableScan)));
+  PLAN_ERR_JRET(nodesListAppend(pVtableScan->node.pChildren, (SNode*)pRealTableScan));
+  realScanAttached = true;
   pRealTableScan->pParent = (SLogicNode *)pVtableScan;
 
   // Add external scan nodes (one per external source) as children of VirtualTableScan
@@ -6496,6 +6546,8 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   PLAN_ERR_JRET(createScanLogicNode(pCxt, pSelect, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1), &pInsColumnsScan));
   nodesDestroyList(((SScanLogicNode*)pInsColumnsScan)->node.pTargets);
   ((SScanLogicNode*)pInsColumnsScan)->node.pTargets = NULL;  // Set to NULL after destroy to avoid use-after-free
+  PLAN_ERR_JRET(addSystableFirstCol(pCxt, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1),
+                                    &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(addInsColumnScanCol(pCxt, (SRealTableNode*)nodesListGetNode(pVirtualTable->refTables, 1),
                                    &((SScanLogicNode*)pInsColumnsScan)->pScanCols));
   PLAN_ERR_JRET(createColumnByRewriteExprs(((SScanLogicNode*)pInsColumnsScan)->pScanCols, &((SScanLogicNode*)pInsColumnsScan)->node.pTargets));
@@ -6650,9 +6702,11 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     }
   }
 
-  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pVtableScan));
-  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
   PLAN_ERR_JRET(nodesCloneList(pVtableScan->node.pTargets, &pDynCtrl->node.pTargets));
+  PLAN_ERR_JRET(nodesListMakeAppend(&pDynCtrl->node.pChildren, (SNode*)pInsColumnsScan));
+  insScanAttached = true;
+  // Push the caller-owned scan to the front last; no fallible work follows its ownership transfer.
+  PLAN_ERR_JRET(nodesListPushFront(pDynCtrl->node.pChildren, (SNode*)pVtableScan));
 
   TSWAP(pVtableScan->pVgroupList, pDynCtrl->vtbScan.pVgroupList);
   pVtableScan->node.pParent = (SLogicNode*)pDynCtrl;
@@ -6669,7 +6723,12 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   return code;
 _return:
   planError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-  nodesDestroyNode((SNode*)pRealTableScan);
+  if (!realScanAttached) {
+    nodesDestroyNode((SNode*)pRealTableScan);
+  }
+  if (!insScanAttached) {
+    nodesDestroyNode((SNode*)pInsColumnsScan);
+  }
   nodesDestroyNode((SNode*)pDynCtrl);
   nodesDestroyList(pAlignDynReadCols);
   nodesDestroyList(pTagRefCols);
@@ -10603,6 +10662,19 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   pPartition->node.groupAction = GROUP_ACTION_SET;
   pPartition->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
   pPartition->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  // Syntax only selects a candidate. Post-split optimization checks the
+  // Window -> Partition -> TableMergeScan topology and scan ordering. The
+  // positive hint explicitly selects the default policy and does not override
+  // eligibility; only NO disables this candidate.
+  // External Window's FILL belongs to pWindow, not pSelect->pFill, and is
+  // evaluated per partition after this input grouping.
+  pPartition->extWinGroupBatch =
+      pSelect->pWindow != NULL &&
+      nodeType(pSelect->pWindow) == QUERY_NODE_EXTERNAL_WINDOW &&
+      !pSelect->isDistinct &&
+      pSelect->pOrderByList == NULL && pSelect->pHaving == NULL &&
+      pSelect->pLimit == NULL && pSelect->pSlimit == NULL &&
+      !getOptHint(pSelect->pHint, HINT_NO_EXTWIN_PARTITION_BATCH);
 
   PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets));
 

@@ -49,3 +49,53 @@ acceptance criteria. The column mode defaults to a 15% regression tolerance.
 Record the hardware, build configuration, workload parameters and measured
 latencies when reporting results; these thresholds are for controlled manual
 acceptance, not shared functional CI.
+
+## Repeated cols selector benchmark
+
+`cols_select_dedup_performance.py` is a standalone benchmark shared by the
+pre-optimization and optimized builds. It creates `cols_dedup_perf.samples`
+with one million deterministic rows by default; `prepare` drops that database.
+Run `prepare` once, then run `measure` against each build with the same data
+directory, server configuration, Python connector and SQL. Both the server and
+client must load the selected build's `libtaos.so` and `libtaosnative.so`.
+
+```bash
+export PYTHONPATH="$PWD/source/taos-connector-python"
+export LD_LIBRARY_PATH=/path/to/selected/install/lib
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  prepare --config /path/to/taos-config --port 6130
+python3 source/taos-community/test/benchmarks/cols_select_dedup_performance.py \
+  measure --config /path/to/taos-config --port 6130 \
+  --output /path/to/results.json
+```
+
+Run `prepare` only for the first build. Stop the server before switching
+binaries, then point the next server at the same data directory. Each measure
+run checks the row count and results, records `EXPLAIN VERBOSE`, warms all five
+SQLs three times, and records 15 rounds in alternating case order. The five
+cases repeat the identical `cols(max(c0), c1 as v)` expression 1 through 5
+times. Override `--rows`, `--rounds`, `--warmups` or `--batch-size` if needed;
+use the same `--rows` value for preparation and measurement.
+## Constant system and tag scan benchmark
+
+`count_only_scan.py` is a standalone, opt-in script. Run it against an isolated
+server with the TDengine Python connector installed. First create child tables,
+then measure the same data set with each build under comparison:
+
+```bash
+python3 benchmarks/count_only_scan.py --prepare --tables 10000 \
+  --config "$TAOS_CONFIG_DIR" --port "$TAOS_SERVER_PORT"
+python3 benchmarks/count_only_scan.py --measure --samples 8 \
+  --tables 10000 --config "$TAOS_CONFIG_DIR" --port "$TAOS_SERVER_PORT"
+```
+
+Set `TAOS_CONFIG_DIR` and `TAOS_SERVER_PORT` to that server's configuration
+directory and SQL port. The default database is `count_scan_bench`; use
+`--database` to choose another. `--prepare` replaces that database; run it only
+once for a comparison. Pass the same `--tables` value to `--measure`, which
+checks the row count of every query. The script creates child tables without time
+series rows because `SELECT TAGS` scans child-table metadata. Each query must
+return at least one row, and the output reports row counts and individual
+client-side latency samples in milliseconds. Use the same database and server
+settings for the baseline and changed builds; this benchmark is not collected
+by pytest or run in CI.
