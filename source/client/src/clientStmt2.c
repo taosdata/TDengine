@@ -4478,7 +4478,9 @@ int stmtBindBatch2(TAOS_STMT2* stmt, TAOS_STMT2_BIND* bind, int32_t colIdx, SVCr
     pStmt->bInfo.needParse = false;
   }
 
-  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type && pStmt->sql.runTimes) {
+  // The prepare-time request predates binding. Every query execution needs a
+  // fresh request so its result snapshots match the session used for binding.
+  if (pStmt->exec.pRequest && STMT_TYPE_QUERY == pStmt->sql.type) {
     resetRequest(pStmt);
   }
 

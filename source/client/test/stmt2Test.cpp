@@ -33,6 +33,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "ttime.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -9838,6 +9839,142 @@ TEST(stmt2Case, query_timezone_with_timestamp_params) {
   expectStmt2ToCharRows(taos, implicitSql, tsEnd, tsEnd, kolkata, 1);
 
   do_query(taos, "drop database if exists stmt2_query_timezone");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_result_timezone_matches_execution_session) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists stmt2_result_tz");
+  do_query(taos, "create database stmt2_result_tz precision 'ms'");
+  do_query(taos, "create table stmt2_result_tz.t (ts timestamp, v int)");
+  do_query(taos, "insert into stmt2_result_tz.t values (1704067200000, 1)");
+
+  struct SessionCase {
+    const char* timezone;
+    int64_t     offset;
+    const char* formatted;
+  } sessionCases[] = {{"Asia/Shanghai", 8 * 3600, "20240101080000"},
+                      {"Asia/Kolkata", 5 * 3600 + 30 * 60, "20240101053000"},
+                      {"UTC", 0, "20240101000000"}};
+  const char* sql =
+      "select ts, to_char(ts, 'yyyyMMddHH24miss') from stmt2_result_tz.t "
+      "where ts between ? and ? order by ts";
+  int64_t          start = 1704067200000LL;
+  int64_t          end = start;
+  TAOS_STMT2_BIND  params[2] = {{TSDB_DATA_TYPE_TIMESTAMP, &start, NULL, NULL, 1},
+                                {TSDB_DATA_TYPE_TIMESTAMP, &end, NULL, NULL, 1}};
+  TAOS_STMT2_BIND* paramv[2] = {&params[0], &params[1]};
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, paramv};
+
+  for (bool async : {false, true}) {
+    SCOPED_TRACE(async ? "async" : "sync");
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+    struct Completion {
+      tsem_t sem;
+      int    code;
+    } completion = {};
+    ASSERT_EQ(tsem_init(&completion.sem, 0, 0), TSDB_CODE_SUCCESS);
+    TAOS_STMT2_OPTION option = {0};
+    option.reqid = 123456789;
+    if (async) {
+      option.asyncExecFn = [](void* param, TAOS_RES*, int code) {
+        Completion* completion = static_cast<Completion*>(param);
+        completion->code = code;
+        EXPECT_EQ(tsem_post(&completion->sem), TSDB_CODE_SUCCESS);
+      };
+      option.userdata = &completion;
+    }
+    TAOS_STMT2* stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    ASSERT_EQ(taos_stmt2_prepare(stmt, sql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    STscStmt2* internalStmt = static_cast<STscStmt2*>(stmt);
+    uint64_t   previousRequestId = internalStmt->exec.pRequest->requestId;
+    int64_t    previousRequestRef = internalStmt->exec.pRequest->self;
+
+    for (const SessionCase& session : sessionCases) {
+      SCOPED_TRACE(session.timezone);
+      // The first bind must replace the prepare-time request, just as later binds do.
+      ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, session.timezone), TSDB_CODE_SUCCESS);
+      ASSERT_EQ(taos_stmt2_bind_param(stmt, &bindv, -1), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+      EXPECT_NE(internalStmt->exec.pRequest->self, previousRequestRef);
+      EXPECT_EQ(internalStmt->exec.pRequest->requestId, previousRequestId + 1);
+      previousRequestId = internalStmt->exec.pRequest->requestId;
+      previousRequestRef = internalStmt->exec.pRequest->self;
+      ASSERT_EQ(taos_stmt2_exec(stmt, NULL), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+      // Changing the connection after launch must leave this result's snapshot intact.
+      ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "America/Los_Angeles"),
+                TSDB_CODE_SUCCESS);
+      if (async) {
+        ASSERT_EQ(tsem_wait(&completion.sem), TSDB_CODE_SUCCESS);
+        ASSERT_EQ(completion.code, TSDB_CODE_SUCCESS);
+      }
+      TAOS_RES* result = taos_stmt2_result(stmt);
+      ASSERT_NE(result, nullptr);
+      timezone_t resultTz = static_cast<timezone_t>(taos_get_result_tz(result));
+      ASSERT_NE(resultTz, nullptr);
+      int64_t offset = 0;
+      ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1704067200, resultTz, &offset), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(offset, session.offset);
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_NE(row, nullptr);
+      ASSERT_NE(row[0], nullptr);
+      ASSERT_NE(row[1], nullptr);
+      EXPECT_EQ(*static_cast<int64_t*>(row[0]), start);
+      int* lengths = taos_fetch_lengths(result);
+      ASSERT_EQ(lengths[1], strlen(session.formatted));
+      EXPECT_EQ(memcmp(row[1], session.formatted, lengths[1]), 0);
+      EXPECT_EQ(taos_fetch_row(result), nullptr);
+      EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(taos_stmt2_close(stmt), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(tsem_destroy(&completion.sem), TSDB_CODE_SUCCESS);
+  }
+  do_query(taos, "drop database if exists stmt2_result_tz");
+  taos_close(taos);
+}
+
+TEST(stmt2Case, query_result_charset_matches_execution_session) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
+  ASSERT_NE(taos, nullptr);
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_CHARSET, "UTF-8"), TSDB_CODE_SUCCESS);
+  do_query(taos, "drop database if exists stmt2_result_charset");
+  do_query(taos, "create database stmt2_result_charset");
+  do_query(taos, "create table stmt2_result_charset.t (ts timestamp, s nchar(10))");
+  do_query(taos, "insert into stmt2_result_charset.t values (1704067200000, '\xe4\xb8\xad\xe6\x96\x87')");
+  TAOS_STMT2_OPTION option = {0};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  ASSERT_EQ(taos_stmt2_prepare(stmt, "select s from stmt2_result_charset.t where s = ?", 0), TSDB_CODE_SUCCESS);
+
+  struct CharsetCase {
+    const char* charset;
+    const char* text;
+  } charsetCases[] = {{"GB18030", "\xd6\xd0\xce\xc4"}, {"UTF-8", "\xe4\xb8\xad\xe6\x96\x87"}};
+  for (const CharsetCase& session : charsetCases) {
+    SCOPED_TRACE(session.charset);
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_CHARSET, session.charset), TSDB_CODE_SUCCESS);
+    int32_t          length = strlen(session.text);
+    TAOS_STMT2_BIND  param = {TSDB_DATA_TYPE_NCHAR, const_cast<char*>(session.text), &length, NULL, 1};
+    TAOS_STMT2_BIND* paramv = &param;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &paramv};
+    ASSERT_EQ(taos_stmt2_bind_param(stmt, &bindv, -1), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    ASSERT_EQ(taos_stmt2_exec(stmt, NULL), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_CHARSET, "UTF-8"), TSDB_CODE_SUCCESS);
+    TAOS_RES* result = taos_stmt2_result(stmt);
+    ASSERT_NE(result, nullptr);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    int* lengths = taos_fetch_lengths(result);
+    ASSERT_EQ(lengths[0], length);
+    EXPECT_EQ(memcmp(row[0], session.text, length), 0);
+    EXPECT_EQ(taos_fetch_row(result), nullptr);
+    EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  }
+  ASSERT_EQ(taos_stmt2_close(stmt), TSDB_CODE_SUCCESS);
+  do_query(taos, "drop database if exists stmt2_result_charset");
   taos_close(taos);
 }
 
