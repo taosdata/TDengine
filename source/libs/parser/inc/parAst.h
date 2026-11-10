@@ -268,8 +268,9 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList, SNod
 SNode* createEventWindowNode(SAstCreateContext* pCxt, SNode* pStartCond, SNode* pEndCond, SNode* pTrueForLimit);
 SNode* createEventStartLeafNode(SAstCreateContext* pCxt, SNode* pCond, SNode* pTrueFor);
 SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount);
-SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
-SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount);
+SNode* createTrueForCountTagNode(SAstCreateContext* pCxt, SNode* pCountCol);
+SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol);
+SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol);
 SNode*     createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration);
 SNode*     createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode* pStartLimit, SNode* pEndLimit);
 SNode*     createCountWindowNode(SAstCreateContext* pCxt, const SToken* pCountToken, const SToken* pSlidingToken,

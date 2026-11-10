@@ -42,6 +42,7 @@
 #include "operator.h"
 #include "tref.h"
 #include "streamMsg.h"
+#include "streamReader.h"
 
 static bool physiNodeContainsMultiGroupJoin(const SPhysiNode* pNode) {
   if (NULL == pNode) {
@@ -1126,21 +1127,25 @@ static int32_t buildGroupInfo(SColumnInfoData* pValue, int32_t i, SArray* gInfo)
 end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
-    v->isNull = true;
+    if (v != NULL) {
+      v->isNull = true;
+    }
   }
   return code;
 }
 
 static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* group, STableListInfo* pTableListInfo,
-                                   SStorageAPI* pAPI, SHashObj* groupIdMap, int64_t txnId) {
+                                                   int64_t version, SStorageAPI* pAPI, SHashObj* groupIdMap,
+                                                   int64_t txnId) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
   SArray*      groupData = NULL;
   SArray*      pUidTagList = NULL;
-  SArray*      gInfo = NULL;
   SArray*      pColList = NULL;
+  SArray*      gInfo = NULL;
+  char*        pTableNames = NULL;
   int32_t      tbNameIndex = -1;
 
   int32_t rows = taosArrayGetSize(pTableListInfo->pTableList);
@@ -1150,17 +1155,37 @@ static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* grou
 
   pUidTagList = taosArrayInit(8, sizeof(STUidTagInfo));
   QUERY_CHECK_NULL(pUidTagList, code, lino, end, terrno);
+  // STUidTagInfo.name borrows from this buffer until the block has copied it.
+  pTableNames = taosMemoryCalloc(rows, TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE);
+  QUERY_CHECK_NULL(pTableNames, code, lino, end, terrno);
 
   for (int32_t i = 0; i < rows; ++i) {
     STableKeyInfo* pkeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
     QUERY_CHECK_NULL(pkeyInfo, code, lino, end, terrno);
-    STUidTagInfo info = {.uid = pkeyInfo->uid};
+    // A CREATE in WAL can outlive its table. Retain each surviving name so
+    // block construction does not race a second current-metadata lookup.
+    char* name = pTableNames + (size_t)i * (TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE);
+    code = pAPI->metaFn.getTableNameByUid(pVnode, pkeyInfo->uid, name, 0);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      code = TSDB_CODE_SUCCESS;
+      continue;
+    }
+    QUERY_CHECK_CODE(code, lino, end);
+    STUidTagInfo info = {.uid = pkeyInfo->uid, .name = varDataVal(name)};
     void*        tmp = taosArrayPush(pUidTagList, &info);
     QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+    if (taosArrayGetSize(pUidTagList) - 1 != i) {
+      taosArraySet(pTableListInfo->pTableList, taosArrayGetSize(pUidTagList) - 1, pkeyInfo);
+    }
+  }
+  taosArrayPopTailBatch(pTableListInfo->pTableList, rows - taosArrayGetSize(pUidTagList));
+  rows = taosArrayGetSize(pUidTagList);
+  if (rows == 0) {
+    goto end;
   }
  
   if (taosArrayGetSize(pUidTagList) > 0) {
-    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, version);
   } else {
     // Defensive: unreachable while `rows > 0` above guarantees a non-empty uid list.
     // Keep the caller's txn snapshot rather than a literal 0 so this branch can never
@@ -1260,13 +1285,16 @@ static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* grou
       goto end;
     }
 
-    // Input columns are deduplicated; the marker belongs to the evaluated result slot.
+    // Input columns are deduplicated; mark the evaluated result slot.
     if (fmIsCanonicalTbnameFunction(pNode) ||
         (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME)) {
       tbNameIndex = taosArrayGetSize(groupData);
     }
-    void* tmp = taosArrayPush(groupData, &output.columnData);
-    QUERY_CHECK_NULL(tmp, code, lino, end, terrno);
+    if (taosArrayPush(groupData, &output.columnData) == NULL) {
+      releaseColInfoData(output.columnData);
+      code = terrno;
+      goto end;
+    }
   }
 
   for (int i = 0; i < rows; i++) {
@@ -1278,23 +1306,23 @@ static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* grou
 
     for (int j = 0; j < taosArrayGetSize(groupData); j++) {
       SColumnInfoData* pValue = (SColumnInfoData*)taosArrayGetP(groupData, j);
-        int32_t ret = buildGroupInfo(pValue, i, gInfo);
-        if (ret != TSDB_CODE_SUCCESS) {
-          qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(ret));
-          goto end;
+      code = buildGroupInfo(pValue, i, gInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("buildGroupInfo failed at line %d since %s", __LINE__, tstrerror(code));
+        goto end;
+      }
+      if (j == tbNameIndex) {
+        SStreamGroupValue* v = taosArrayGetLast(gInfo);
+        if (v != NULL) {
+          v->isTbname = true;
+          v->uid = info->uid;
         }
-        if (j == tbNameIndex) {
-          SStreamGroupValue* v = taosArrayGetLast(gInfo);
-          if (v != NULL){
-            v->isTbname = true;
-            v->uid = info->uid;
-          }
-        }
+      }
     }
 
-    int32_t ret = taosHashPut(groupIdMap, &info->uid, sizeof(info->uid), &gInfo, POINTER_BYTES);
-    if (ret != TSDB_CODE_SUCCESS) {
-      qError("put groupid to map failed at line %d since %s", __LINE__, tstrerror(ret));
+    code = taosHashPut(groupIdMap, &info->uid, sizeof(info->uid), &gInfo, POINTER_BYTES);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("put groupid to map failed at line %d since %s", __LINE__, tstrerror(code));
       goto end;
     }
     qDebug("put groupid to map gid:%" PRIu64, info->uid);
@@ -1305,9 +1333,10 @@ end:
   blockDataDestroy(pResBlock);
   taosArrayDestroy(pBlockList);
   taosArrayDestroyEx(pUidTagList, freeItem);
+  taosMemoryFree(pTableNames);
+  taosArrayDestroy(pColList);
   taosArrayDestroyP(groupData, releaseColInfoData);
   taosArrayDestroyEx(gInfo, tDestroySStreamGroupValue);
-  taosArrayDestroy(pColList);
 
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -1372,6 +1401,8 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   }
 
   if (taosArrayGetSize(pUidTagList) > 0) {
+    // Batch queries read current tags. WAL-version pinning is limited to the
+    // stream-specific path.
     code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
   } else {
     code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList, pHandle->txnId);
@@ -5554,7 +5585,8 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
                                     SNodeList* group, bool groupSort, uint8_t* digest, SStorageAPI* pAPI, SHashObj* groupIdMap, bool gIdFromBaseId) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  bool   groupByTbname = groupbyTbname(group);
+  // Only stream Reader supplies groupIdMap; batch/TMQ retain their grouping path.
+  bool   groupByTbname = groupIdMap != NULL ? qStreamPartitionByTbname(group) : groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
   if (!numOfTables) {
     return code;
@@ -5595,11 +5627,16 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
       }
     }
     if (groupIdMap && group != NULL) {
-      code = getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pAPI, groupIdMap,
-                                                 pHandle->txnId);
+      code = getColInfoResultForGroupbyForStream(pHandle->vnode, group, pTableListInfo, pHandle->version, pAPI,
+                                                 groupIdMap, pHandle->txnId);
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
         return code;
+      }
+      numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
+      if (numOfTables == 0) {
+        pTableListInfo->numOfOuputGroups = 0;
+        return TSDB_CODE_SUCCESS;
       }
     }
 

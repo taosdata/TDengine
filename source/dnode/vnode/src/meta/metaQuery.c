@@ -135,12 +135,13 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   int64_t version1;
 
   // query uid.idx
-  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
-    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  int code = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf);
+  if (code < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
   }
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  int code = metaGetTableEntryByVersion(pReader, version1, uid);
+  code = metaGetTableEntryByVersion(pReader, version1, uid);
   if (code) return code;
 
   // batch meta txn: finalized txn visibility adjustment
@@ -245,12 +246,16 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
   }
   if (info.version <= version) {
     version = info.version;
-  } else {
+  }
+  // Bulk SET TAG records share a WAL version. Probe the exact entry before
+  // scanning older records, even when a newer batch has already been applied.
+  code = metaGetTableEntryByVersion(pReader, version, uid);
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && info.version > version) {
     if (getUidVersion(pReader, &version, uid) != 0) {
       version = -1;
     }
+    code = metaGetTableEntryByVersion(pReader, version, uid);
   }
-  code = metaGetTableEntryByVersion(pReader, version, uid);
   if (code) return code;
 
   // batch meta txn: finalized txn visibility adjustment
@@ -2603,11 +2608,15 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
   if (version != -1) {
     SMetaReader mr = {0};
     metaReaderDoInit(&mr, pMeta, META_READER_NOLOCK, 0);
-    if (getUidVersion(&mr, &version, uid) != 0) {
-      version = -1;
-    }
-
+    // A batch SET TAG writes many UIDs at one WAL version. Avoid rescanning
+    // that version's records for each UID when its exact entry is present.
     ret = metaGetTableEntryByVersion(&mr, version, uid);
+    if (ret == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
+      if (getUidVersion(&mr, &version, uid) != 0) {
+        version = -1;
+      }
+      ret = metaGetTableEntryByVersion(&mr, version, uid);
+    }
     if (ret == 0) {
       // ctbEntry/ntbEntry share a union: child tables carry tags in ctbEntry.pTags, normal and
       // virtual-normal tables carry owned tags in ntbEntry.pTags (NULL when tag-less).

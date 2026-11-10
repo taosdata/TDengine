@@ -36,6 +36,7 @@
 #include "tmisce.h"
 #include "tname.h"
 #include "tref.h"
+#include "trpc.h"
 #include "ttimer.h"
 
 #define MND_STREAM_MAX_NUM 100000
@@ -2025,35 +2026,122 @@ static void mndCancelGetNextStreamRecalculates(SMnode *pMnode, void *pIter) {
   sdbCancelFetchByType(pSdb, pIter, SDB_STREAM);
 }
 
-static void mndStreamMarkTagsFlag(void *pCols, const char *colName, SSchema *pTags, int32_t tagNum) {
+typedef struct SStreamTagRefContext {
+  SSchema   *pTags;
+  int32_t    tagNum;
+} SStreamTagRefContext;
+
+static bool mndStreamTagRefSkipped(const SColumnNode *pCol, SNodeList *pSkip) {
+  if (pSkip == NULL) {
+    return false;
+  }
+  SNode *pSkipNode = NULL;
+  FOREACH(pSkipNode, pSkip) {
+    if (nodeType(pSkipNode) == QUERY_NODE_COLUMN && ((SColumnNode *)pSkipNode)->colId == pCol->colId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static EDealRes mndStreamMarkTagRef(SNode *pNode, void *pContext) {
+  if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SStreamTagRefContext *pCxt = pContext;
+  SColumnNode          *pCol = (SColumnNode *)pNode;
+  for (int32_t i = 0; i < pCxt->tagNum; ++i) {
+    if (pCol->colId == pCxt->pTags[i].colId) {
+      pCxt->pTags[i].flags |= COL_REF_BY_STM;
+      break;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void mndStreamMarkTagsFlag(void *pCols, const char *colName, SSchema *pTags, int32_t tagNum,
+                                  void *pSkipCols) {
   if (pCols == NULL) {
     return;
   }
 
   SNodeList *pList = NULL;
+  SNodeList *pSkip = NULL;
   int32_t    code = nodesStringToList(pCols, &pList);
   if (code) {
     nodesDestroyList(pList);
     mstError("%s [%s] nodesStringToList failed with error:%s", colName, (char *)pCols, tstrerror(code));
     return;
   }
-
-  SNode *pNode = NULL;
-  FOREACH(pNode, pList) {
-    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
-      continue;
-    }
-
-    SColumnNode *pCol = (SColumnNode *)pNode;
-    for (int32_t i = 0; i < tagNum; ++i) {
-      if (pCol->colId == pTags[i].colId) {
-        pTags[i].flags |= COL_REF_BY_STM;
-        break;
-      }
+  if (pSkipCols != NULL) {
+    code = nodesStringToList(pSkipCols, &pSkip);
+    if (code) {
+      nodesDestroyList(pList);
+      nodesDestroyList(pSkip);
+      mstError("durationTagCols [%s] nodesStringToList failed with error:%s", (char *)pSkipCols, tstrerror(code));
+      return;
     }
   }
 
+  SStreamTagRefContext cxt = {.pTags = pTags, .tagNum = tagNum};
+  SNode              *pNode = NULL;
+  FOREACH(pNode, pList) {
+    // Only injected top-level columns are SET-able, not user expressions.
+    if (nodeType(pNode) == QUERY_NODE_COLUMN && mndStreamTagRefSkipped((SColumnNode *)pNode, pSkip)) {
+      continue;
+    }
+    nodesWalkExpr(pNode, mndStreamMarkTagRef, &cxt);
+  }
+
   nodesDestroyList(pList);
+  nodesDestroyList(pSkip);
+}
+
+static bool mndStreamCreateUsesDurationTagColId(SCMCreateStreamReq *pCreate, col_id_t colId) {
+  if (pCreate == NULL || colId == 0) {
+    return false;
+  }
+  if (pCreate->maxDelayTagColId == colId) {
+    return true;
+  }
+  if (pCreate->triggerType == WINDOW_TYPE_EVENT) {
+    return pCreate->trigger.event.trueForDurationTagColId == colId ||
+           pCreate->trigger.event.startTrueForDurationTagColId == colId ||
+           pCreate->trigger.event.endTrueForDurationTagColId == colId ||
+           pCreate->trigger.event.trueForCountTagColId == colId ||
+           pCreate->trigger.event.startTrueForCountTagColId == colId ||
+           pCreate->trigger.event.endTrueForCountTagColId == colId;
+  }
+  if (pCreate->triggerType == WINDOW_TYPE_STATE) {
+    return pCreate->trigger.stateWin.trueForDurationTagColId == colId ||
+           pCreate->trigger.stateWin.trueForCountTagColId == colId;
+  }
+  return false;
+}
+
+static bool mndStreamDurationTagRefCheck(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
+  SStreamObj *pStream = pObj;
+  if (atomic_load_8(&pStream->userDropped) || pStream->pCreate == NULL) {
+    return true;
+  }
+  if (pStream->pCreate->triggerTblSuid != *(int64_t *)p1) {
+    return true;
+  }
+  if (mndStreamCreateUsesDurationTagColId(pStream->pCreate, *(col_id_t *)p2)) {
+    *(bool *)p3 = true;
+    return false;
+  }
+  return true;
+}
+
+bool mndStreamTagReferencedByDuration(SMnode *pMnode, int64_t suid, col_id_t colId) {
+  if (pMnode == NULL || colId == 0 || sdbGetSize(pMnode->pSdb, SDB_STREAM) <= 0) {
+    return false;
+  }
+  bool found = false;
+  sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamDurationTagRefCheck, &suid, &colId, &found);
+  return found;
 }
 
 static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
@@ -2075,8 +2163,12 @@ static bool mndStreamUpdateTagsFlag(SMnode *pMnode, void *pObj, void *p1, void *
   SSchema* pTags = (SSchema*)p2;
   int32_t* tagNum = (int32_t*)p3;
 
-  mndStreamMarkTagsFlag(pStream->pCreate->partitionCols, "partitionCols", pTags, *tagNum);
-  mndStreamMarkTagsFlag(pStream->pCreate->rollupTagCols, "rollupTagCols", pTags, *tagNum);
+  /* Skip durationTagCols: injected-only tags must remain SET-able. DROP of those
+   * tags is rejected via mndStreamTagReferencedByDuration. Tags that also appear
+   * in the user PARTITION BY are still marked below and block SET. */
+  mndStreamMarkTagsFlag(pStream->pCreate->partitionCols, "partitionCols", pTags, *tagNum,
+                        pStream->pCreate->durationTagCols);
+  mndStreamMarkTagsFlag(pStream->pCreate->rollupTagCols, "rollupTagCols", pTags, *tagNum, NULL);
 
   return true;
 }

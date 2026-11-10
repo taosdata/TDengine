@@ -4242,6 +4242,27 @@ TEST(StreamFetchGroupProjectionTest, FetchRoundTripKeepsLineageSplitEntriesPerGi
   tDestroyStRtFuncInfo(&runtime);
 }
 
+double projectionCpuTicks() {
+#ifdef WINDOWS
+  // MSVC's std::clock() measures wall time, including time descheduled by CI.
+  // Compare thread CPU cycles directly; no conversion to elapsed time is needed.
+  ULONG64 cycles = 0;
+  if (!QueryThreadCycleTime(GetCurrentThread(), &cycles)) {
+    ADD_FAILURE() << "QueryThreadCycleTime failed: " << GetLastError();
+    return -1;
+  }
+  return static_cast<double>(cycles);
+#else
+  // Short projections can round to zero with std::clock() on older libc.
+  struct timespec time = {};
+  if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &time) != 0) {
+    ADD_FAILURE() << "clock_gettime(CLOCK_THREAD_CPUTIME_ID) failed";
+    return -1;
+  }
+  return static_cast<double>(time.tv_sec) * 1e9 + time.tv_nsec;
+#endif
+}
+
 template <typename MeasureCpuTicks>
 void expectLinearProjectionScaling(MeasureCpuTicks measureCpuTicks) {
   constexpr int32_t kSmallCount = 4096;
@@ -5357,9 +5378,9 @@ TEST(StreamFetchGroupProjectionTest, ActualNodeProjectionScalesLinearly) {
     SStreamRuntimeFuncInfo  runtime = makeDenseActualNodeMultiGroupFetchRuntime(paramCount);
     SStreamContextPolicy*   policy = nullptr;
     SStreamAncestorContext* context = nullptr;
-    const std::clock_t      start = std::clock();
+    const double           start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForFetch(&runtime, true, true, &policy, &context));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamContextPolicy(&policy);
     tDestroyStreamAncestorContext(&context);
     tDestroyStRtFuncInfo(&runtime);
@@ -5374,10 +5395,10 @@ TEST(StreamFetchGroupProjectionTest, GroupParamLookupScalesLinearly) {
     SStreamRuntimeFuncInfo  runtime = makeSingleGroupFetchRuntime(paramCount);
     SStreamContextPolicy*   policy = nullptr;
     SStreamAncestorContext* context = nullptr;
-    const std::clock_t      start = std::clock();
+    const double           start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForGroup(runtime.pContextPolicy, runtime.pAncestorContext,
                                                                    runtime.groupId, &policy, &context));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamContextPolicy(&policy);
     tDestroyStreamAncestorContext(&context);
     tDestroyStRtFuncInfo(&runtime);
@@ -5429,10 +5450,10 @@ TEST(StreamFetchGroupProjectionTest, AllGroupsProjectionScalesLinearly) {
       EXPECT_NE(nullptr, taosArrayPush(policy.pEntries, &entry));
     }
 
-    SArray*            views = nullptr;
-    const std::clock_t start = std::clock();
+    SArray*       views = nullptr;
+    const double start = projectionCpuTicks();
     EXPECT_EQ(TSDB_CODE_SUCCESS, tProjectStreamCalcContextForAllGroups(&policy, nullptr, &views));
-    const double elapsed = static_cast<double>(std::clock() - start);
+    const double elapsed = projectionCpuTicks() - start;
     tDestroyStreamCalcContextGroupViews(&views);
     taosArrayDestroy(policy.pEntries);
     return elapsed;
@@ -7874,7 +7895,7 @@ class StreamWalDataCodecTest : public ::testing::Test {
     taosArrayDestroy(slices_);
   }
 
-  std::vector<char> encode(int32_t start = 0, int32_t rows = 2) {
+  std::vector<char> encode(int32_t start = 0, int32_t rows = 2, bool withGroupInfoTail = false) {
     SStreamWalDataSlice slice = {};
     slice.uid = 1;
     slice.gId = 2;
@@ -7886,11 +7907,22 @@ class StreamWalDataCodecTest : public ::testing::Test {
     response.dataBlock = source_;
     response.ver = 3;
     response.verTime = 4;
+    SArray* groupInfos = nullptr;
+    if (withGroupInfoTail) {
+      groupInfos = taosArrayInit(0, sizeof(SStreamGroupInfoWithId));
+      EXPECT_NE(nullptr, groupInfos);
+      if (groupInfos == nullptr) return {};
+      response.groupInfos = groupInfos;
+    }
     int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
     EXPECT_GT(len, 0);
-    if (len <= 0) return {};
+    if (len <= 0) {
+      taosArrayDestroy(groupInfos);
+      return {};
+    }
     std::vector<char> result(len);
     EXPECT_EQ(len, tSerializeSStreamWalDataResponse(result.data(), len, &response));
+    taosArrayDestroy(groupInfos);
     return result;
   }
 
@@ -7937,15 +7969,35 @@ TEST_F(StreamWalDataCodecTest, DataRequiresSliceOutputContainer) {
   EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, nullptr));
 }
 
-TEST_F(StreamWalDataCodecTest, TruncatedBlocksAndTailUseActualFrameLength) {
-  const auto complete = encode();
-  for (size_t len = sizeof(int32_t) + 1; len < complete.size(); ++len) {
+TEST_F(StreamWalDataCodecTest, TruncatedBlocksAndOptionalTailUseActualFrameLength) {
+  const auto complete = encode(0, 2, true);
+  ASSERT_GT(complete.size(), sizeof(int32_t) * 2);
+
+  // groupInfos was added as an optional int32 count at the end of the frame.
+  // A frame ending immediately before that count is a valid legacy message.
+  const size_t legacyFrameSize = complete.size() - sizeof(int32_t);
+  EXPECT_EQ(legacyFrameSize, encode().size());
+  for (size_t len = sizeof(int32_t) + 1; len < legacyFrameSize; ++len) {
     SCOPED_TRACE(len);
     std::vector<char> bytes(complete.begin(), complete.begin() + len);
     const int32_t     frameLen = len - sizeof(int32_t);
     memcpy(bytes.data(), &frameLen, sizeof(frameLen));
     EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
   }
+
+  std::vector<char> legacy(complete.begin(), complete.begin() + legacyFrameSize);
+  const int32_t     legacyPayloadLen = legacyFrameSize - sizeof(int32_t);
+  memcpy(legacy.data(), &legacyPayloadLen, sizeof(legacyPayloadLen));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, decode(legacy, slices_));
+
+  for (size_t len = legacyFrameSize + 1; len < complete.size(); ++len) {
+    SCOPED_TRACE(len);
+    std::vector<char> bytes(complete.begin(), complete.begin() + len);
+    const int32_t     frameLen = len - sizeof(int32_t);
+    memcpy(bytes.data(), &frameLen, sizeof(frameLen));
+    EXPECT_NE(TSDB_CODE_SUCCESS, decode(bytes, slices_));
+  }
+
   auto bytes = complete;
   EXPECT_EQ(TSDB_CODE_SUCCESS, decode(bytes, slices_));
 }

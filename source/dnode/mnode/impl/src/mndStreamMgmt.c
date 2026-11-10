@@ -1147,6 +1147,7 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   }
 
   pMsg->maxDelay = pStream->pCreate->maxDelay;
+  pMsg->maxDelayTagColId = pStream->pCreate->maxDelayTagColId;
   pMsg->fillHistoryStartTime = pStream->pCreate->fillHistoryStartTime;
   pMsg->watermark = pStream->pCreate->watermark;
   pMsg->expiredTime = pStream->pCreate->expiredTime;

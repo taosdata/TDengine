@@ -9824,6 +9824,9 @@ static int32_t trueForNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTrueForCount, pNode->count);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->pCount != NULL) {
+    code = tjsonAddObject(pJson, "CountTag", nodeToJson, pNode->pCount);
+  }
   if (TSDB_CODE_SUCCESS == code && pNode->pStartLimit != NULL) {
     code = tjsonAddObject(pJson, "StartLimit", nodeToJson, pNode->pStartLimit);
   }
@@ -9844,6 +9847,9 @@ static int32_t jsonToTrueForNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkTrueForCount, &pNode->count);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, "CountTag", &pNode->pCount);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, "StartLimit", &pNode->pStartLimit);

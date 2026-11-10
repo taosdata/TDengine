@@ -185,6 +185,12 @@ static int32_t extFetchUidBlocks(SStreamExtReaderInfo *pInfo,
 static int32_t extBuildUidWindowFromMetaBlock(SSDataBlock *pMetaBlock,
                                               SSHashObj **ppUidWindow);
 
+static void freeGroupInfoWithId(void *ptr) {
+  SStreamGroupInfoWithId *pInfo = ptr;
+  taosArrayDestroyEx(pInfo->gInfo, tDestroySStreamGroupValue);
+  pInfo->gInfo = NULL;
+}
+
 /* ============================================================
  * Utility: free a response struct (all owned sub-objects).
  * ============================================================ */
@@ -202,6 +208,8 @@ void streamExtPullRspFree(SSTriggerExtPullRsp *pRsp) {
   }
   taosArrayDestroyEx(pRsp->pGroupColVals, tDestroySStreamGroupValue);
   pRsp->pGroupColVals = NULL;
+  taosArrayDestroyEx(pRsp->pGroupInfos, freeGroupInfoWithId);
+  pRsp->pGroupInfos = NULL;
   taosMemoryFree(pRsp);
 }
 
@@ -2613,7 +2621,6 @@ static int32_t extHandlePullLocked(SStreamExtReaderInfo *pInfo,
         typedPullType == STRIGGER_PULL_GROUP_COL_VALUE_EXT)) {
     ST_TASK_ELOG("ext: handlePull unknown pullType=%d", pullType);
   }
-
   if (code == TSDB_CODE_STREAM_NO_DATA) {
     /* No data is a normal signal, not an error.  Propagate the code to the
      * caller (snode.c) so it sets rspMsg.code = NO_DATA, enabling the trigger

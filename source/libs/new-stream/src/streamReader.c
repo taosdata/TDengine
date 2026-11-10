@@ -1454,6 +1454,14 @@ static void releaseStreamReaderInfo(void* p) {
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
+  taosArrayDestroy(pInfo->pendingGroupColRefresh);
+  pInfo->pendingGroupColRefresh = NULL;
+  if (pInfo->groupColRefreshCursor != NULL) {
+    pInfo->storageApi.metaFn.closeCtbCursor(pInfo->groupColRefreshCursor);
+    pInfo->groupColRefreshCursor = NULL;
+  }
+  taosMemoryFreeClear(pInfo->walMetaRspCache);
+  pInfo->walMetaRspCacheLen = 0;
   pInfo->streamTaskMap = NULL;
 
   nodesDestroyNode((SNode*)(pInfo->triggerAst));
@@ -1569,16 +1577,17 @@ static void freeSchema(void* pData){
   taosMemoryFree(schema);
 }
 
-static bool groupbyTbname(SNodeList* pGroupList) {
-  bool   bytbname = false;
+bool qStreamPartitionByTbname(SNodeList* pGroupList) {
   SNode* pNode = NULL;
   FOREACH(pNode, pGroupList) {
-    if (pNode->type == QUERY_NODE_FUNCTION) {
-      bytbname = (strcmp(((struct SFunctionNode*)pNode)->functionName, "tbname") == 0);
-      break;
+    if ((nodeType(pNode) == QUERY_NODE_FUNCTION &&
+         strcmp(((SFunctionNode*)pNode)->functionName, "tbname") == 0) ||
+        (nodeType(pNode) == QUERY_NODE_COLUMN &&
+         ((SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME)) {
+      return true;
     }
   }
-  return bytbname;
+  return false;
 }
 
 static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStreamReaderDeployMsg* pMsg) {
@@ -1633,7 +1642,7 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
     }
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerPseudoCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
     STREAM_CHECK_RET_GOTO(setColIdForCalcResBlock(sStreamReaderInfo->triggerCols, sStreamReaderInfo->triggerResBlock->pDataBlock));
-    sStreamReaderInfo->groupByTbname = groupbyTbname(sStreamReaderInfo->partitionCols);
+    sStreamReaderInfo->groupByTbname = qStreamPartitionByTbname(sStreamReaderInfo->partitionCols);
     if (pMsg->msg.trigger.rollupTagCols != NULL) {
       SNodeList* pList = NULL;
       STREAM_CHECK_RET_GOTO(nodesStringToList(pMsg->msg.trigger.rollupTagCols, &pList));

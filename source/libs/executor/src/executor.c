@@ -2423,7 +2423,7 @@ int32_t qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t ui
   }
 
   SScanPhysiNode pScanNode = {.suid = suid, .uid = uid, .tableType = tableType};
-  SReadHandle    pHandle = {.vnode = pVnode};
+  SReadHandle    pHandle = {.vnode = pVnode, .version = -1};
   SExecTaskInfo  pTaskInfo = {.id.str = "", .storageAPI = *storageAPI};
 
   code = createScanTableListInfo(&pScanNode, pGroupTags, groupSort, &pHandle, pList, pTagCond, pTagIndexCond, &pTaskInfo, groupIdMap);
@@ -2438,13 +2438,11 @@ end:
   return code;
 }
 
-static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, SNode* pTagCond, SStorageAPI* pStorageAPI){
-  // Only called from qStreamFilterTableListForReader, which runs on the WAL-driven
-  // stream-reader path. That path has no metadata transaction context (the reader
-  // reacts to committed WAL entries), so txnId is intentionally 0 here and the
-  // readers below see the latest committed snapshot.
-  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, -1, pTagCond, pVnode, SFLT_NOT_INDEX,
-                                    pStorageAPI, NULL, 0, pListInfo);
+static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, SArray* pUidList, int64_t version,
+                                      SNode* pTagCond, SStorageAPI* pStorageAPI) {
+  // WAL readers have no metadata transaction; keep txnId 0 and the caller's WAL version.
+  int32_t code = doFilterByTagCond(pListInfo->idInfo.suid, pUidList, version, pTagCond, pVnode, SFLT_NOT_INDEX,
+                                   pStorageAPI, NULL, 0, pListInfo);
   if (code != 0) {
     return code;
   }
@@ -2464,7 +2462,7 @@ static int32_t doFilterTableByTagCond(void* pVnode, STableListInfo* pListInfo, S
   return code;
 }
 
-int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList, int64_t version,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -2480,11 +2478,11 @@ int32_t qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
     goto end;
   }
   SScanPhysiNode pScanNode = {.suid = suid, .tableType = TD_SUPER_TABLE};
-  SReadHandle    pHandle = {.vnode = pVnode};
+  SReadHandle    pHandle = {.vnode = pVnode, .version = version};
 
   pList->idInfo.suid = suid;
   pList->idInfo.tableType = TD_SUPER_TABLE;
-  code = doFilterTableByTagCond(pVnode, pList, uidList, pTagCond, storageAPI);
+  code = doFilterTableByTagCond(pVnode, pList, uidList, version, pTagCond, storageAPI);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }                                              

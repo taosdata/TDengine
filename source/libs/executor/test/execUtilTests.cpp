@@ -3592,6 +3592,239 @@ TEST_F(ReaderTableRangeOwnershipTest, TaskDestructionReleasesRanges) {
   qDestroyTask(task);
 }
 
+class StreamWalGroupMetadataTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    uids_ = taosArrayInit(4, sizeof(uint64_t));
+    // Match the reader map's update behavior when tag metadata is refreshed.
+    groups_ = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, uids_);
+    ASSERT_NE(nullptr, groups_);
+    taosHashSetFreeFp(groups_, [](void *value) {
+      taosArrayDestroyEx(*static_cast<SArray **>(value), tDestroySStreamGroupValue);
+    });
+    api_.metaFn.extractTagVal = [](const void *tags, int16_t, STagVal *value) -> const void * {
+      return tTagGet(static_cast<const STag *>(tags), value) ? value : nullptr;
+    };
+    api_.metaFn.getTableNameByUid = [](void *context, uint64_t uid, char *name, int64_t) {
+      auto *self = static_cast<StreamWalGroupMetadataTest *>(context);
+      ++self->nameReads_[uid];
+      auto found = self->nameErrors_.find(uid);
+      if (found != self->nameErrors_.end()) return found->second;
+      const std::string text = "child_" + std::to_string(uid);
+      STR_TO_VARSTR(name, text.c_str());
+      return int32_t(TSDB_CODE_SUCCESS);
+    };
+    api_.metaFn.getTableTagsByUidVersion = [](void *context, int64_t, SArray *tags, int64_t version) {
+      auto *self = static_cast<StreamWalGroupMetadataTest *>(context);
+      self->tagVersion_ = version;
+      for (size_t i = 0; i < taosArrayGetSize(tags); ++i) {
+        auto *info = static_cast<STUidTagInfo *>(taosArrayGet(tags, i));
+        self->tagUids_.push_back(info->uid);
+        if (self->withTag_) {
+          SArray *values = taosArrayInit(2, sizeof(STagVal));
+          if (values == nullptr) return terrno;
+          for (col_id_t colId : {3, 4}) {
+            STagVal value = {};
+            value.cid = colId;
+            value.type = TSDB_DATA_TYPE_INT;
+            value.i64 = colId == 3 ? 42 : self->tagValue_;
+            if (taosArrayPush(values, &value) == nullptr) {
+              const int32_t code = terrno;
+              taosArrayDestroy(values);
+              return code;
+            }
+          }
+          STag *tag = nullptr;
+          const int32_t code = tTagNew(values, 0, false, &tag);
+          taosArrayDestroy(values);
+          if (code != TSDB_CODE_SUCCESS) return code;
+          info->pTagVal = tag;
+        }
+        // A later DROP must not force another name lookup in block construction.
+        self->nameErrors_[info->uid] = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+      }
+      return self->tagCode_;
+    };
+  }
+
+  void TearDown() override {
+    taosHashCleanup(groups_);
+    taosArrayDestroy(uids_);
+    taosArrayDestroy(tables_);
+    nodesDestroyList(partition_);
+  }
+
+  int32_t filter(std::initializer_list<uint64_t> uids, bool constants = false, bool scalarFirst = false) {
+    taosArrayClear(uids_);
+    for (uint64_t uid : uids) {
+      if (taosArrayPush(uids_, &uid) == nullptr) return terrno;
+    }
+    nodesDestroyList(partition_);
+    partition_ = nullptr;
+    withTag_ = constants || scalarFirst;
+    if (scalarFirst) {
+      SFunctionNode *scalar = nullptr;
+      int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&scalar));
+      if (code != TSDB_CODE_SUCCESS) return code;
+      tstrncpy(scalar->functionName, "abs", sizeof(scalar->functionName));
+      scalar->funcId = fmGetFuncId("abs");
+      scalar->funcType = fmGetFuncTypeFromId(scalar->funcId);
+      scalar->node.resType.type = TSDB_DATA_TYPE_INT;
+      scalar->node.resType.bytes = sizeof(int32_t);
+      code = appendTag(&scalar->pParameterList, 3);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyNode(reinterpret_cast<SNode *>(scalar));
+        return code;
+      }
+      code = nodesListMakeStrictAppend(&partition_, reinterpret_cast<SNode *>(scalar));
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    SFunctionNode *tbname = nullptr;
+    int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode **>(&tbname));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    tstrncpy(tbname->functionName, "tbname", sizeof(tbname->functionName));
+    tbname->funcType = FUNCTION_TYPE_TBNAME;
+    code = nodesListMakeStrictAppend(&partition_, reinterpret_cast<SNode *>(tbname));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    if (constants) {
+      for (bool isNull : {false, true}) {
+        SValueNode *value = nullptr;
+        code = nodesMakeNode(QUERY_NODE_VALUE, reinterpret_cast<SNode **>(&value));
+        if (code != TSDB_CODE_SUCCESS) return code;
+        value->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+        value->node.resType.bytes = sizeof(int64_t);
+        value->datum.i = 1;
+        value->isNull = isNull;
+        code = nodesListMakeStrictAppend(&partition_, reinterpret_cast<SNode *>(value));
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+    }
+    if (withTag_) {
+      code = appendTag(&partition_);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    taosArrayDestroy(tables_);
+    tables_ = nullptr;
+    return qStreamFilterTableListForReader(this, uids_, 123, partition_, nullptr, nullptr, &api_, groups_, 7001,
+                                           &tables_);
+  }
+
+  static int32_t appendTag(SNodeList **list, col_id_t colId = 4) {
+    SColumnNode *tag = nullptr;
+    int32_t code = nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&tag));
+    if (code != TSDB_CODE_SUCCESS) return code;
+    tag->colId = colId;
+    tag->colType = COLUMN_TYPE_TAG;
+    tag->node.resType.type = TSDB_DATA_TYPE_INT;
+    tag->node.resType.bytes = sizeof(int32_t);
+    return nodesListMakeStrictAppend(list, reinterpret_cast<SNode *>(tag));
+  }
+
+  std::map<uint64_t, int32_t> nameErrors_;
+  std::map<uint64_t, int32_t> nameReads_;
+  std::vector<uint64_t> tagUids_;
+  int64_t tagVersion_ = -1;
+  int32_t tagCode_ = TSDB_CODE_SUCCESS;
+  int32_t tagValue_ = 3;
+  bool withTag_ = false;
+  SStorageAPI api_ = {};
+  SArray *uids_ = nullptr;
+  SArray *tables_ = nullptr;
+  SHashObj *groups_ = nullptr;
+  SNodeList *partition_ = nullptr;
+};
+
+TEST_F(StreamWalGroupMetadataTest, DeletedCreateDoesNotBlockLaterLiveTable) {
+  nameErrors_[88] = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, filter({88}));
+  EXPECT_EQ(0, taosArrayGetSize(tables_));
+  ASSERT_EQ(1, taosArrayGetSize(uids_));
+  EXPECT_EQ(88, *static_cast<uint64_t *>(taosArrayGet(uids_, 0)));
+  EXPECT_EQ(0, taosHashGetSize(groups_));
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, filter({99}));
+  ASSERT_EQ(1, taosArrayGetSize(tables_));
+  EXPECT_EQ(99, static_cast<STableKeyInfo *>(taosArrayGet(tables_, 0))->uid);
+  EXPECT_EQ(0, taosArrayGetSize(uids_));
+  EXPECT_EQ(123, tagVersion_);
+  EXPECT_EQ((std::vector<uint64_t>{99}), tagUids_);
+  uint64_t uid = 99;
+  auto *values = static_cast<SArray **>(taosHashGet(groups_, &uid, sizeof(uid)));
+  ASSERT_NE(nullptr, values);
+  auto *name = static_cast<SStreamGroupValue *>(taosArrayGet(*values, 0));
+  ASSERT_NE(nullptr, name);
+  EXPECT_TRUE(name->isTbname);
+  EXPECT_EQ("child_99", std::string(reinterpret_cast<const char *>(name->data.pData), name->data.nData));
+  EXPECT_EQ(1, nameReads_[99]);
+}
+
+TEST_F(StreamWalGroupMetadataTest, MixedBatchKeepsUidNameAndTagRowsAligned) {
+  nameErrors_[88] = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  nameErrors_[100] = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, filter({88, 99, 100, 101}));
+  ASSERT_EQ(2, taosArrayGetSize(tables_));
+  EXPECT_EQ((std::vector<uint64_t>{99, 101}), tagUids_);
+  for (size_t i = 0; i < tagUids_.size(); ++i) {
+    uint64_t uid = tagUids_[i];
+    EXPECT_EQ(uid, static_cast<STableKeyInfo *>(taosArrayGet(tables_, i))->uid);
+    auto *values = static_cast<SArray **>(taosHashGet(groups_, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, values);
+    auto *name = static_cast<SStreamGroupValue *>(taosArrayGet(*values, 0));
+    ASSERT_NE(nullptr, name);
+    EXPECT_EQ("child_" + std::to_string(uid),
+              std::string(reinterpret_cast<const char *>(name->data.pData), name->data.nData));
+    EXPECT_EQ(1, nameReads_[uid]);
+  }
+  EXPECT_EQ(2, taosArrayGetSize(uids_));
+}
+
+TEST_F(StreamWalGroupMetadataTest, RealMetadataErrorsStillPropagate) {
+  nameErrors_[88] = TSDB_CODE_OUT_OF_MEMORY;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, filter({88, 99}));
+  EXPECT_EQ(nullptr, tables_);
+  EXPECT_EQ(0, taosHashGetSize(groups_));
+  nameErrors_.clear();
+  tagCode_ = TSDB_CODE_OUT_OF_MEMORY;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, filter({99}));
+  EXPECT_EQ(nullptr, tables_);
+  EXPECT_EQ(0, taosHashGetSize(groups_));
+}
+
+TEST_F(StreamWalGroupMetadataTest, ConstantKeysKeepNativeReaderCompactLayout) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, filter({99, 101}, true));
+  for (uint64_t uid : {99, 101}) {
+    auto *values = static_cast<SArray **>(taosHashGet(groups_, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, values);
+    ASSERT_EQ(2, taosArrayGetSize(*values));
+    EXPECT_TRUE(static_cast<SStreamGroupValue *>(taosArrayGet(*values, 0))->isTbname);
+    auto *tag = static_cast<SStreamGroupValue *>(taosArrayGet(*values, 1));
+    EXPECT_FALSE(tag->isNull);
+    EXPECT_EQ(tagValue_, tag->data.val);
+  }
+}
+
+TEST_F(StreamWalGroupMetadataTest, ScalarBeforeTbnameKeepsUidGroupAfterTagRefresh) {
+  for (int32_t value : {3, 7}) {
+    nameErrors_.clear();
+    tagValue_ = value;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, filter({99}, false, true));
+    ASSERT_EQ(1, taosArrayGetSize(tables_));
+    auto *table = static_cast<STableKeyInfo *>(taosArrayGet(tables_, 0));
+    EXPECT_EQ(99, table->groupId);
+    const uint64_t uid = 99;
+    auto *values = static_cast<SArray **>(taosHashGet(groups_, &uid, sizeof(uid)));
+    ASSERT_NE(nullptr, values);
+    ASSERT_EQ(3, taosArrayGetSize(*values));
+    EXPECT_FALSE(static_cast<SStreamGroupValue *>(taosArrayGet(*values, 0))->isTbname);
+    auto *name = static_cast<SStreamGroupValue *>(taosArrayGet(*values, 1));
+    EXPECT_TRUE(name->isTbname);
+    EXPECT_EQ(uid, name->uid);
+    EXPECT_EQ(value, static_cast<SStreamGroupValue *>(taosArrayGet(*values, 2))->data.val);
+    EXPECT_TRUE(qStreamPartitionByTbname(partition_));
+  }
+}
+
 TEST(StreamGroupTableListTest, FromCondKeepsSameUidInEachGid) {
   SStreamRuntimeFuncInfo runtime = {};
   appendStreamGroupRead(&runtime, 101, {});

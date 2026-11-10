@@ -1320,6 +1320,10 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
   run("SELECT diff(c1) FROM t1");
 
+  run("SELECT diff(c1) FROM t1 INTERVAL(10s)");
+
+  run("SELECT derivative(c1, 1s, 0) FROM t1 INTERVAL(10s)");
+
   // timeline fallback: the subquery projects a TIMESTAMP column (ts), which diff uses as a degraded timeline
   run("select diff(ts) from (select _wstart as ts, count(*) from st1 partition by tbname interval(1d))");
 

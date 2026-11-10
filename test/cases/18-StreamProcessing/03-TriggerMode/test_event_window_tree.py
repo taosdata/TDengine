@@ -143,6 +143,9 @@ class TestEventWindowTree:
         Compare implicit and explicit closing in ordinary and event-tree paths,
         for realtime input and history replay, checking window bounds and counts.
 
+        1. Close a single-condition window and insert rows that open subsequent windows.
+        2. Verify window boundaries and row counts, including a window that closes on its opening row.
+
         Catalog:
             - StreamProcessing:TriggerMode
 
@@ -969,3 +972,156 @@ class TestEventWindowTree:
                 ("2025-01-01 00:00:00.000", "1", 3),
             ],
         )
+
+    def do_event_tree_duration_tags(self):
+        for history in (False, True):
+            tdStream.dropAllStreamsAndDbs()
+            tdStream.ensureSnode()
+            tdSql.prepare(dbname="ewtree_duration_tags", vgroups=1)
+            tdSql.execute(
+                "create stable meters (ts timestamp, current int, voltage int) "
+                "tags (duration_limit varchar(16), row_limit int)"
+            )
+            tdSql.execute("create table fast using meters tags ('1s', 2)")
+            tdSql.execute("create table slow using meters tags ('5s', 6)")
+            statements = []
+            for table in ("fast", "slow"):
+                # The first/third windows inherit the global limit; the second
+                # uses a local literal on leaf 0, independently of the parent.
+                for start, length, current in ((0, 3, 10), (10, 3, 12), (20, 7, 10)):
+                    for offset in range(length):
+                        voltage = 190 if offset == length - 1 else 230
+                        statements.append(
+                            f"insert into {table} values "
+                            f"('2025-01-01 00:00:{start + offset:02d}.000', {current}, {voltage})"
+                        )
+            if history:
+                tdSql.executes(statements)
+            options = "fill_history|" if history else ""
+            tdSql.execute(
+                "create stream s_tree_tags "
+                "event_window(start with (current >= 12 true_for(count 1), current >= 10) "
+                "end with voltage < 200) true_for(duration_limit and count row_limit) "
+                "from meters partition by tbname "
+                f"stream_options({options}event_type(window_close)) "
+                "into r_tree_tags (ts, path primary key, cnt) "
+                "as select _twstart, _event_condition_path, count(*) from %%trows"
+            )
+            tdStream.checkStreamStatus()
+            if not history:
+                tdSql.executes(statements)
+            # Wait for both groups' last windows before checking filtered windows.
+            expected = []
+            for table in ("fast", "slow"):
+                windows = ((0, ("", "1")), (10, ("", "0")), (20, ("", "1")))
+                if table == "slow":
+                    windows = ((10, ("0",)), (20, ("", "1")))
+                for start, paths in windows:
+                    for path in paths:
+                        expected.append((table, f"2025-01-01 00:00:{start:02d}.000", path))
+            self._query_until_result(
+                "select tag_tbname, ts, path from r_tree_tags order by tag_tbname, ts, path", expected
+            )
+            tdSql.execute("alter table slow set tag duration_limit = '1s'")
+            tdSql.execute("alter table slow set tag row_limit = 2")
+            for offset in range(3):
+                voltage = 190 if offset == 2 else 230
+                tdSql.execute(
+                    f"insert into slow values ('2025-01-01 00:00:{40 + offset}.000', 10, {voltage})"
+                )
+            self._query_until_result(
+                "select tag_tbname, ts, path from r_tree_tags "
+                "where ts >= '2025-01-01 00:00:40.000' order by path",
+                [("slow", "2025-01-01 00:00:40.000", ""), ("slow", "2025-01-01 00:00:40.000", "1")],
+            )
+        tdLog.info("event tree duration tags ......................... [ passed ]")
+
+    def do_event_tree_start_count_tag(self):
+        for history in (False, True):
+            tdStream.dropAllStreamsAndDbs()
+            tdStream.ensureSnode()
+            tdSql.prepare(dbname="ewtree_start_tag", vgroups=1)
+            tdSql.execute(
+                "create stable meters (ts timestamp, current int) tags (row_limit int)"
+            )
+            tdSql.execute("create table fast using meters tags (2)")
+            tdSql.execute("create table slow using meters tags (6)")
+            statements = []
+            for table in ("fast", "slow"):
+                for start, length in ((0, 2), (10, 7)):
+                    for offset in range(length + 1):
+                        current = 0 if offset == length else 1
+                        statements.append(
+                            f"insert into {table} values "
+                            f"('2025-01-01 00:00:{start + offset:02d}.000', {current})"
+                        )
+            if history:
+                tdSql.executes(statements)
+            options = "fill_history|" if history else ""
+            # A local zero literal selects the single-condition tree while leaving
+            # its effective start limit to the window-level START count Tag.
+            tdSql.execute(
+                "create stream s_start_tag "
+                "event_window(start with current > 0 true_for(count 0) end with current = 0) "
+                "true_for(start(count row_limit)) "
+                "from meters partition by tbname "
+                f"stream_options({options}event_type(window_close)) "
+                "into r_start_tag (ts, cnt) "
+                "as select _twstart, count(*) from %%trows"
+            )
+            tdStream.checkStreamStatus()
+            if not history:
+                tdSql.executes(statements)
+            self._query_until_result(
+                "select tag_tbname, ts from r_start_tag order by tag_tbname, ts",
+                [
+                    ("fast", "2025-01-01 00:00:00.000"),
+                    ("fast", "2025-01-01 00:00:10.000"),
+                    ("slow", "2025-01-01 00:00:10.000"),
+                ],
+            )
+        tdLog.info("event tree start count tag ......................... [ passed ]")
+
+    def test_event_tree_duration_tags(self):
+        """Event trees apply each group's duration and count Tag thresholds.
+
+        1. Check inherited leaf and parent thresholds during realtime and history processing.
+        2. Keep local literal thresholds independent of each group's global Tag values.
+
+        Catalog:
+            - StreamProcessing:TriggerMode
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7056479926
+
+        Jira: None
+
+        History:
+            - 2026-09-10 Add group-specific event tree threshold regression.
+        """
+        self.do_event_tree_duration_tags()
+
+    def test_event_tree_start_count_tag(self):
+        """Single-condition event trees honor the START WITH count Tag.
+
+        1. Select the event tree with a local zero literal and inherit the START count Tag.
+        2. Check short-window rejection and long-window output in realtime and history.
+
+        Catalog:
+            - StreamProcessing:TriggerMode
+
+        Since: v3.4.2.0
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7056479926
+
+        Jira: None
+
+        History:
+            - 2026-09-10 Add START WITH Tag inheritance regression.
+        """
+        self.do_event_tree_start_count_tag()

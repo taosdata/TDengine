@@ -14,6 +14,7 @@
  */
 
 #include <array>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -36,10 +37,13 @@ using tdtestseam::seamSlot;
 
 extern "C" {
 #include "meta.h"
+#include "tcommon.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "tmd5.h"
 #include "tmsgcb.h"
 #include "vnd.h"
+#include "vnode.h"
 }
 
 SDmNotifyHandle dmNotifyHdl = {};
@@ -102,11 +106,31 @@ namespace {
 
 using ArrayOwner = std::unique_ptr<SArray, decltype(&taosArrayDestroy)>;
 using TagOwner = std::unique_ptr<STag, decltype(&tTagFree)>;
+
+void destroyVersionTagList(SArray* tags) {
+  for (size_t i = 0; i < taosArrayGetSize(tags); ++i) {
+    auto* info = static_cast<STUidTagInfo*>(taosArrayGet(tags, i));
+    taosMemoryFree(info->pTagVal);
+  }
+  taosArrayDestroy(tags);
+}
+
 constexpr tb_uid_t    kSuid = 700001;
 constexpr col_id_t    kTagId = 100;
 constexpr int64_t     kTxnId = 42;
 const uint8_t         kCondition[] = "100";
 std::function<void()> onMetaUnlock;
+
+void expectIntTagValue(const void* tags, int32_t expected) {
+  STagVal value = {};
+  value.cid = kTagId;
+  ASSERT_TRUE(tTagGet(static_cast<const STag*>(tags), &value));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  // tTagGet populates only the bytes belonging to the stored tag type.
+  int32_t actual = 0;
+  memcpy(&actual, &value.i64, sizeof(actual));
+  EXPECT_EQ(expected, actual);
+}
 
 void unlockMetaThenMutate(SMeta* meta) {
   EXPECT_EQ(0, taosThreadRwlockUnlock(&meta->lock));
@@ -324,6 +348,153 @@ class MetaTagFilterCacheTest : public ::testing::Test {
   Stub       stub_;
   char       directory_[64] = "/tmp/tsdb-tag-cache-XXXXXX";
 };
+
+TEST_F(MetaTagFilterCacheTest, TableNameLookupPreservesUidIndexAllocationFailure) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  char name[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {};
+  ASSERT_EQ(0, metaGetTableNameByUid(&vnode_, uid, name, 0));
+
+  {
+    Stub stub;
+    stub.set(tdbTbGet, +[](TTB*, const void*, int, void**, int*) -> int {
+      return terrno = TSDB_CODE_OUT_OF_MEMORY;
+    });
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, metaGetTableNameByUid(&vnode_, uid, name, 0));
+  }
+
+  EXPECT_EQ(0, metaGetTableNameByUid(&vnode_, uid, name, 0));
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, metaGetTableNameByUid(&vnode_, uid + 1, name, 0));
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedBatchTagsDoNotScanTheVersionRangePerUid) {
+  constexpr uint64_t firstUid = 800001;
+  constexpr int32_t count = 257;  // Cross 128-UID lock-slice boundaries.
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, putChild(firstUid + i, 1));
+  }
+  const int64_t batchVersion = version_ + 1;
+  ArrayOwner tags(taosArrayInit(count, sizeof(STUidTagInfo)), destroyVersionTagList);
+  ASSERT_NE(nullptr, tags);
+  for (int32_t i = 0; i < count; ++i) {
+    // A bulk SET TAG gives every updated child the same WAL version.
+    version_ = batchVersion - 1;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 10));
+    STUidTagInfo info = {};
+    info.uid = firstUid + i;
+    ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+  }
+
+  // The existing cursor failure hook must remain unused on exact-version hits.
+  failCursorSeek = true;
+  ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), batchVersion));
+  EXPECT_TRUE(failCursorSeek);
+  failCursorSeek = false;
+  for (int32_t i = 0; i < count; ++i) {
+    auto* info = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), i));
+    ASSERT_NE(nullptr, info->pTagVal);
+    expectIntTagValue(info->pTagVal, i + 10);
+  }
+}
+
+TEST_F(MetaTagFilterCacheTest, MissingExactVersionFallsBackWithoutReadingFutureTags) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t oldVersion = version_;
+  ASSERT_EQ(0, putChild(uid + 1, 2));
+  const int64_t betweenVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 3));
+  ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+  ASSERT_NE(nullptr, tags);
+  STUidTagInfo info = {};
+  info.uid = uid;
+  ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+
+  for (int64_t version : {oldVersion, betweenVersion, int64_t(-1)}) {
+    SCOPED_TRACE(version);
+    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), version));
+    auto* result = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, result->pTagVal);
+    expectIntTagValue(result->pTagVal, version == -1 ? 3 : 1);
+    taosMemoryFreeClear(result->pTagVal);
+  }
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderDoesNotScanWhenLaterBatchIsAlreadyApplied) {
+  constexpr uint64_t firstUid = 800001;
+  constexpr int32_t count = 257;
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, putChild(firstUid + i, 1));
+  }
+  const int64_t batchVersion = version_ + 1;
+  for (int32_t i = 0; i < count; ++i) {
+    version_ = batchVersion - 1;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 10));
+  }
+  for (int32_t i = 0; i < count; ++i) {
+    version_ = batchVersion;
+    ASSERT_EQ(0, putChild(firstUid + i, i + 1000));
+  }
+
+  SMetaReader reader = {};
+  metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, 0);
+  std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+  failCursorSeek = true;
+  for (int32_t i = 0; i < count; ++i) {
+    ASSERT_EQ(0, metaReaderGetTableEntryByVersionUid(&reader, batchVersion, firstUid + i));
+    EXPECT_EQ(batchVersion, reader.me.version);
+    expectIntTagValue(reader.me.ctbEntry.pTags, i + 10);
+  }
+  EXPECT_TRUE(failCursorSeek);
+  failCursorSeek = false;
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderFallsBackWithoutReadingFutureTags) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t oldVersion = version_;
+  ASSERT_EQ(0, putChild(uid + 1, 2));
+  const int64_t betweenVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 3));
+
+  SMetaReader reader = {};
+  metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, 0);
+  std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+  for (int64_t version : {oldVersion, betweenVersion, int64_t(-1)}) {
+    SCOPED_TRACE(version);
+    ASSERT_EQ(0, metaReaderGetTableEntryByVersionUid(&reader, version, uid));
+    expectIntTagValue(reader.me.ctbEntry.pTags, version == -1 ? 3 : 1);
+  }
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST,
+            metaReaderGetTableEntryByVersionUid(&reader, oldVersion - 1, uid));
+}
+
+TEST_F(MetaTagFilterCacheTest, VersionedReaderExactHitKeepsPendingCreateVisibility) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putPendingChild(uid, 1));
+  const int64_t pendingVersion = version_;
+  ASSERT_EQ(0, putChild(uid, 2, false, false, kTxnId));
+  auto readPending = [&](int64_t txnId) {
+    SMetaReader reader = {};
+    metaReaderDoInit(&reader, vnode_.pMeta, META_READER_NOLOCK, txnId);
+    std::unique_ptr<SMetaReader, decltype(&metaReaderClear)> cleanup(&reader, metaReaderClear);
+    return metaReaderGetTableEntryByVersionUid(&reader, pendingVersion, uid);
+  };
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, readPending(0));
+  EXPECT_EQ(0, readPending(kTxnId));
+  // Keep the pending records until vacuum so the exact historical hit must
+  // honor the finalized transaction marker instead of inline promotion.
+  for (int32_t i = 1; i <= TSDB_TXN_INLINE_THRESHOLD; ++i) {
+    ASSERT_EQ(0, putPendingChild(uid + i, 1));
+  }
+  vnode_.vacuumRunning = 1;
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_EQ(TXN_META_COMMITTED, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+  EXPECT_EQ(0, readPending(0));
+  ASSERT_EQ(TSDB_TXN_INLINE_THRESHOLD + 1,
+            vnodeTxnVacuumBatch(&vnode_, TSDB_TXN_INLINE_THRESHOLD + 1));
+  vnode_.vacuumRunning = 0;
+}
 
 class MetaVarTagFilterCacheTest : public MetaTagFilterCacheTest, public ::testing::WithParamInterface<int8_t> {
  protected:

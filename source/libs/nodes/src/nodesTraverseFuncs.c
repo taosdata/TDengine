@@ -298,11 +298,32 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_STREAM_TRIGGER_OPTIONS: {
       SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pNode;
       res = walkExpr(pOptions->pPreFilter, order, walker, pContext);
+      // max_delay may reference a Tag column; must be walked so createStreamReqBuildTriggerSelect
+      // collects it into the trigger scan projection (needed when PARTITION BY is only tbname and
+      // injectStreamDurationTagsIntoPartition appends the Tag later for group-col fetch).
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pMaxDelay, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pWaterMark, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pExpiredTime, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pFillHisStartTime, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pOptions->pIdleTimeout, order, walker, pContext);
+      }
       break;
     }
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       res = walkExpr(pTrueFor->pDuration, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pTrueFor->pCount, order, walker, pContext);
+      }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkExpr(pTrueFor->pStartLimit, order, walker, pContext);
       }
@@ -665,6 +686,9 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_TRUE_FOR: {
       STrueForNode* pTrueFor = (STrueForNode*)pNode;
       res = rewriteExpr(&pTrueFor->pDuration, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pTrueFor->pCount, order, rewriter, pContext);
+      }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = rewriteExpr(&pTrueFor->pStartLimit, order, rewriter, pContext);
       }

@@ -142,6 +142,17 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
   SHashObj*    groupIdMap;
+  SArray*      pendingGroupColRefresh;  // lazily allocated int64_t gids whose tag values changed (SET TAG)
+  SMCtbCursor* groupColRefreshCursor;   // paused cursor for a chunked bulk SET TAG refresh
+  int64_t      groupColRefreshVer;
+  int64_t      groupColRefreshVerTime;
+  bool         groupColRefreshRestart;  // retry the WAL record after a failed continuation
+  void*        walMetaRspCache;          // last response retained until a new requestId acknowledges it
+  int32_t      walMetaRspCacheLen;
+  int32_t      walMetaRspCacheCode;
+  int32_t      walMetaRspCacheType;
+  int64_t      walMetaRspCacheSessionId;
+  uint64_t     walMetaRspCacheRequestId;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
   SSDataBlock* triggerResBlock;
@@ -292,6 +303,8 @@ int32_t createStreamTaskForTs(SStreamOptions* options, SStreamReaderTaskInner** 
 bool isRollupMultiReader(SStreamTriggerReaderInfo* sStreamReaderInfo);
 
 int32_t initStreamTableListInfo(StreamTableListInfo* pTableListInfo, EUidMapMode uIdMapMode);
+// Stream partitions may place other expressions before the bare tbname key.
+bool     qStreamPartitionByTbname(SNodeList* pGroupList);
 int32_t  qStreamGetTableList(SStreamTriggerReaderInfo* sStreamReaderInfo, uint64_t gid, STableKeyInfo** pKeyInfo, int32_t* size);
 void     qStreamDestroyTableInfo(StreamTableListInfo* pTableListInfo);
 void     qStreamClearTableInfo(StreamTableListInfo* pTableListInfo);

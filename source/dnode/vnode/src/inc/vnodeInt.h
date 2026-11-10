@@ -250,9 +250,8 @@ void    metaReaderDoInit(SMetaReader* pReader, SMeta* pMeta, int32_t flags, int6
 int32_t metaGetTableUidsByNames(void* pVnode, const SArray* pTbNames, SArray* pUids, int64_t txnId);
 int32_t metaGetTableInfosByNames(void* pVnode, const SArray* pTbNames, SArray* pInfos, int64_t txnId);
 
-int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, 
-                 int32_t numOfExpr, SStorageAPI* api, uint64_t uid, 
-                 col_id_t colId, SRWLatch* lock);
+int32_t cacheTag(SVnode* pVnode, SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr, SStorageAPI* api,
+                 uint64_t uid, col_id_t colId, SRWLatch* lock);
 int32_t fillTag(SHashObj* metaCache, SExprInfo* pExprInfo, int32_t numOfExpr,
                 uint64_t uid, SSDataBlock* pBlock, uint32_t currentRow, 
                 uint32_t numOfRows, uint32_t numOfBlocks, SRWLatch* lock);

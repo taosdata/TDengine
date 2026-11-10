@@ -91,6 +91,8 @@ typedef struct STrueForInfo {
   ETrueForType trueForType;
   int32_t      count;
   int64_t      duration;
+  col_id_t     durationTagColId;  // 0 = use duration literal
+  col_id_t     countTagColId;     // 0 = use count literal
 } STrueForInfo;
 
 typedef struct SStreamInserterParam {
@@ -381,7 +383,7 @@ int32_t  qStreamCreateTableListForReader(void* pVnode, uint64_t suid, uint64_t u
                                          SNodeList* pGroupTags, bool groupSort, SNode* pTagCond, SNode* pTagIndexCond,
                                          SStorageAPI* storageAPI, void** pTableListInfo, SHashObj* groupIdMap);
 
-int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList,
+int32_t  qStreamFilterTableListForReader(void* pVnode, SArray* uidList, int64_t version,
                                         SNodeList* pGroupTags, SNode* pTagCond, SNode* pTagIndexCond,
                                         SStorageAPI* storageAPI, SHashObj* groupIdMap, uint64_t suid, SArray** tableList);
 

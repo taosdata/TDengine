@@ -13,7 +13,7 @@ CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]tabl
 options: {
     trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-    
+
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
@@ -55,12 +55,20 @@ true_for_arg: {
 
 limit_expr: {
     duration_time
+  | tag_name
   | COUNT count_val
+  | COUNT tag_name
   | duration_time AND COUNT count_val
+  | duration_time AND COUNT tag_name
+  | tag_name AND COUNT count_val
+  | tag_name AND COUNT tag_name
   | duration_time OR COUNT count_val
+  | duration_time OR COUNT tag_name
+  | tag_name OR COUNT count_val
+  | tag_name OR COUNT tag_name
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
@@ -117,7 +125,7 @@ PERIOD(period_time[, offset_time])
 ##### 滑动触发
 
 ```sql
-SLIDING(sliding_val[, offset_time]) 
+SLIDING(sliding_val[, offset_time])
 ```
 
 滑动触发是指对触发表的写入数据按照事件时间的固定间隔来驱动的触发。滑动触发不属于窗口触发，必须指定触发表。滑动触发的触发时刻、时间偏移规则和定时触发相同，唯一的区别是系统时间变更为事件时间。
@@ -419,7 +427,7 @@ CREATE STREAM s_event_tree
 ##### 计数窗口触发
 
 ```sql
-COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```
 
 计数窗口触发是指对触发表的写入数据按照计数窗口的方式进行窗口划分，当窗口启动和（或）关闭时进行的触发。支持列的触发，只有当指定的列有数据写入时才触发。各参数含义如下：
@@ -550,7 +558,7 @@ CREATE STREAM order_pairs
 流式计算的计算结果默认会保存到输出表中，每个输出表中的计算结果是截至当前时刻已经触发和计算完成的输出。可以指定输出表的结构定义，如果存在分组还可以指定子表的标签值。
 
 ```sql
-[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
     tag_name type_name AS expr
@@ -627,7 +635,7 @@ tag_definition:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
@@ -645,7 +653,8 @@ config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 - LOW_LATENCY_CALC：指定触发后需要低延迟的计算或通知，单次触发发生后会立即启动计算或通知。低延迟的计算或通知会保证实时流式计算任务的时效性，但是也会造成处理效率的降低，有可能需要更多的处理资源才能满足需求，因此只推荐在业务有强时效性要求时使用。未指定时单次触发发生后有可能不会立即进行计算，采用批量计算与通知的方式来达到较好的资源利用效率。
 - PRE_FILTER(expr) ：指定在触发进行前对触发表进行数据过滤处理，只有符合条件的数据才会进入触发判断，`expr` 中可以包含列、标签、常量及其标量与逻辑运算。例如：`col1 > 0` 则只有 col1 为正数的数据行可以进行触发，未指定时无触发表数据过滤。
 - FORCE_OUTPUT：指定计算结果强制输出选项，当某次触发没有计算结果时将强制输出一行数据，除常量外（含常量对待列）其他列的值都为 NULL，后续版本会增加更多填充策略。
-- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），从窗口开启时每经过该时间段且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即使最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持的时间单位包括：秒 (s)、分 (m)、小时 (h)、天 (d)，最小允许的值为 3 秒，误差范围在 1 秒以内，当计算时长超过 `delay_time` 时忽略期间的 `MAX_DELAY` 触发。`WATERMARK` 的判断逻辑早于窗口判定，因此可能出现设定 `max_delay` 但仍未产生触发的情况，这是由于窗口并未真正开启。
+- MAX_DELAY(delay_time)：指定在窗口未关闭时的最长等待的时长（处理时间），从窗口开启时每经过该时间段且窗口仍未关闭时产生触发，非窗口触发时自动忽略。当窗口触发存在 `TRUE_FOR` 条件且 `TRUE_FOR` 时长大于 `MAX_DELAY` 时，`MAX_DELAY` 仍然生效 (即使最终当前窗口未满足 `TRUE_FOR` 条件)。`delay_time` 为等待时长，支持时间字面量或 duration Tag 列名；字面量支持的时间单位包括：秒 (s)、分 (m)、小时 (h)、天 (d)，最小允许的值为 3 秒，误差范围在 1 秒以内，当计算时长超过 `delay_time` 时忽略期间的 `MAX_DELAY` 触发。`WATERMARK` 的判断逻辑早于窗口判定，因此可能出现设定 `max_delay` 但仍未产生触发的情况，这是由于窗口并未真正开启。
+- **TRUE_FOR / MAX_DELAY 引用 Tag 列**：窗口触发中的 `TRUE_FOR`（含 `start(...)`、`end(...)` 及 `AND`/`OR` 组合）可将 `duration_time`、`COUNT n` 替换为超级表 Tag 列名；`MAX_DELAY` 同理可引用 duration Tag。duration Tag 支持字符串（如 `'3s'`）或以库时间精度（`ms`、`us` 或 `ns`）为单位的整型；count Tag 须为正整数。`PARTITION BY` 不含 `tbname` 时，被引用 Tag 须显式出现在分区列表中；包含 `tbname` 时，可省略门限 Tag，系统会在内部补充并支持其 `SET TAG` 热更新，显式参与分区的 Tag 仍不允许 `SET TAG`。非法或空值 Tag 会打印 ERROR 并按 0 处理，对应分组继续正常处理且不影响其他分组。开始事件树叶子上的局部 `TRUE_FOR` 以及嵌套 `WINDOW(...)` 触发器暂不支持 Tag 门限。
 - EVENT_TYPE(event_types)：指定窗口触发的事件类型，可以多选，未指定时默认值为 `WINDOW_CLOSE`。SLIDING 触发（不带 INTERVAL）和 PERIOD 触发不适用（自动忽略）。各选项含义如下：
   - WINDOW_OPEN：窗口启动事件。
   - WINDOW_CLOSE：窗口关闭事件。
@@ -987,7 +996,7 @@ SELECT * FROM information_schema.`ins_stream_tasks`;
 ### 启动操作
 
 ``` SQL
-START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
+START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ```
 
 说明：
@@ -1000,7 +1009,7 @@ START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ### 停止操作
 
 ``` SQL
-STOP STREAM [IF EXISTS] [db_name.]stream_name; 
+STOP STREAM [IF EXISTS] [db_name.]stream_name;
 ```
 
 说明：

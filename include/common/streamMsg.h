@@ -210,6 +210,8 @@ typedef struct SStateWinTrigger {
   int32_t trueForType;
   int32_t trueForCount;
   int64_t trueForDuration;
+  col_id_t trueForDurationTagColId;  // 0 = use trueForDuration literal; otherwise PARTITION BY tag
+  col_id_t trueForCountTagColId;     // 0 = use trueForCount literal; otherwise PARTITION BY tag
   void*   expr;  // serialized nodelist
 } SStateWinTrigger;
 
@@ -240,6 +242,12 @@ typedef struct SEventTrigger {
   int32_t endTrueForType;
   int32_t endTrueForCount;
   int64_t endTrueForDuration;
+  col_id_t trueForDurationTagColId;       // 0 = use trueForDuration literal
+  col_id_t startTrueForDurationTagColId;  // 0 = use startTrueForDuration literal
+  col_id_t endTrueForDurationTagColId;    // 0 = use endTrueForDuration literal
+  col_id_t trueForCountTagColId;          // 0 = use trueForCount literal
+  col_id_t startTrueForCountTagColId;     // 0 = use startTrueForCount literal
+  col_id_t endTrueForCountTagColId;       // 0 = use endTrueForCount literal
 } SEventTrigger;
 
 typedef struct SCountTrigger {
@@ -445,13 +453,15 @@ typedef struct {
 
   void*          triggerFilterCols;     // nodelist of SColumnNode
   void*          triggerCols;           // nodelist of SColumnNode
-  void*          partitionCols;         // nodelist of SColumnNode
+  void*          partitionCols;         // nodelist of SColumnNode (user PARTITION BY + injected duration tags for fetch)
+  void*          durationTagCols;       // duration/count tags injected for fetch only (not user PARTITION BY)
   void*          rollupTagCols;         // serialized SNodeList* of SColumnNode; NULL = not rollup
   SArray*        outCols;               // array of SFieldWithOptions
   SArray*        outStbFullCols;        // full out stb columns when outStbExists
   SArray*        outStbFullColCids;      // colIds for outStbFullCols
   SArray*        outTags;               // array of SFieldWithOptions
   int64_t        maxDelay;              // precision is ms
+  col_id_t       maxDelayTagColId;      // 0 = use maxDelay literal; otherwise PARTITION BY duration tag
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
@@ -1139,6 +1149,7 @@ typedef struct {
   SStreamWindowPlan* pWindowPlan;
 
   int64_t        maxDelay;              // precision is ms
+  col_id_t       maxDelayTagColId;      // 0 = use maxDelay literal; otherwise PARTITION BY duration tag
   int64_t        fillHistoryStartTime;  // precision same with triggerDB, INT64_MIN for no value specified
   int64_t        watermark;             // precision same with triggerDB
   int64_t        expiredTime;           // precision same with triggerDB
@@ -1475,6 +1486,8 @@ typedef struct SSTriggerWalMetaNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;  // next WAL version to read, inclusive
   int64_t              ctime;    // inclusive ingest-time cutoff in ns; INT64_MAX means no cutoff
+  bool                 withGroupColVals;
+  uint64_t             requestId;  // stable across retries; acknowledges the previous response
 } SSTriggerWalMetaNewRequest;
 
 typedef enum {
@@ -1495,6 +1508,7 @@ typedef struct SSTriggerWalNewRsp {
   void*                metaBlock;
   void*                deleteBlock;
   void*                tableBlock;
+  SArray*              groupInfos;  // SArray<SStreamGroupInfoWithId>
   int64_t              ver;
   int64_t              verTime;  // us
 
@@ -1517,6 +1531,8 @@ typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
   int64_t              endVer;  // exclusive upper bound; 0 means unbounded
+  bool                 withGroupColVals;
+  uint64_t             requestId;  // stable across retries; acknowledges the previous response
 } SSTriggerWalMetaDataNewRequest;
 
 typedef struct SSTriggerGroupColValueRequest {
@@ -1676,6 +1692,8 @@ typedef struct SSTriggerExtPullReq {
   /* GROUP_COL_VALUE_EXT only: the group id to resolve partition tag value(s) for.
    * Ignored (0) for all other EXT pull subtypes. */
   int64_t    gid;
+  /* META_EXT / META_DATA_EXT: piggyback group values for duration-tag freezing. */
+  bool       withGroupColVals;
 } SSTriggerExtPullReq;
 
 /* Row threshold per EXT PULL response.  Reader returns rows >= this value
@@ -1702,6 +1720,8 @@ typedef struct SSTriggerExtPullRsp {
   SSHashObj        *pIndexHash; /* SSHashObj<int64_t uid, SExtIndexEntry>; owned */
   /* GROUP_COL_VALUE_EXT response */
   SArray           *pGroupColVals; /* SArray<SStreamGroupValue>; owned, caller frees via tDestroySStreamGroupValue */
+  /* META_EXT / META_DATA_EXT response; SArray<SStreamGroupInfoWithId>. */
+  SArray           *pGroupInfos;
   /* No hasMore field: trigger infers "more data" from row count >= STREAM_RETURN_ROWS_NUM. */
 } SSTriggerExtPullRsp;
 
@@ -2045,6 +2065,11 @@ typedef struct SStreamGroupValue {
 typedef struct SStreamGroupInfo {
   SArray* gInfo;  // SArray<SStreamGroupValue>
 } SStreamGroupInfo;
+
+typedef struct SStreamGroupInfoWithId {
+  int64_t gid;
+  SArray* gInfo;  // SArray<SStreamGroupValue>
+} SStreamGroupInfoWithId;
 
 int32_t tSerializeSStreamGroupInfo(void* buf, int32_t bufLen, const SStreamGroupInfo* gInfo, int32_t vgId);
 int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo* gInfo);

@@ -776,8 +776,9 @@ typedef enum ETrueForType {
 typedef struct STrueForNode {
   ENodeType    type;  // QUERY_NODE_TRUE_FOR
   ETrueForType trueForType;
-  int32_t      count;     // Row count threshold (0 if duration-only)
+  int32_t      count;     // Row count threshold (0 if duration-only or count tag)
   SNode*       pDuration;
+  SNode*       pCount;      // SColumnNode* when COUNT references a tag column
   SNode*       pStartLimit;  // STrueForNode* or NULL: start condition threshold (NULL = no limit)
   SNode*       pEndLimit;    // STrueForNode* or NULL: end condition threshold (NULL = no limit)
 } STrueForNode;

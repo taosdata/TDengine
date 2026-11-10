@@ -17,6 +17,7 @@
 
 #include "meta.h"
 #include "tsdb.h"
+#include "ttime.h"
 #include "tutil.h"
 #include "vnd.h"
 

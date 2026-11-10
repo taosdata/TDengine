@@ -13,7 +13,7 @@ CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]tabl
 options: {
     trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
-    
+
 trigger_type: {
     PERIOD(period_time[, offset_time])
   | SLIDING(sliding_val[, offset_time]) 
@@ -55,12 +55,20 @@ true_for_arg: {
 
 limit_expr: {
     duration_time
+  | tag_name
   | COUNT count_val
+  | COUNT tag_name
   | duration_time AND COUNT count_val
+  | duration_time AND COUNT tag_name
+  | tag_name AND COUNT count_val
+  | tag_name AND COUNT tag_name
   | duration_time OR COUNT count_val
+  | duration_time OR COUNT tag_name
+  | tag_name OR COUNT count_val
+  | tag_name OR COUNT tag_name
 }
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 
@@ -117,7 +125,7 @@ Applicable scenarios: Situations requiring scheduled computation driven continuo
 ##### Sliding Trigger
 
 ```sql
-SLIDING(sliding_val[, offset_time]) 
+SLIDING(sliding_val[, offset_time])
 ```
 
 A sliding trigger drives execution based on a fixed interval of event time for data written to the trigger table. It is not considered a window trigger. A trigger table must be specified. The trigger times and time offset rules are the same as for scheduled triggers, with the only difference being that the system time is replaced by event time.
@@ -419,7 +427,7 @@ Applicable Scenarios: Suitable for use cases where computations and/or notificat
 ##### Count Window Trigger
 
 ```sql
-COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]]) 
+COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ```
 
 A count window trigger partitions the written data from the trigger table based on a counting window, and triggers when the window starts and/or closes. It supports column-based triggering, where the trigger occurs only when the specified columns receive data writes. Parameter definitions are as follows:
@@ -550,7 +558,7 @@ Usage notes:
 By default, the results of a stream are stored in an output table. Each output table contains only the results that have been triggered and computed up to the current time. You can define the structure of the output table, and if grouping is used, you can also specify the tag values for each subtable.
 
 ```sql
-[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] 
+[INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
     tag_name type_name AS expr
@@ -627,7 +635,7 @@ Usage Restrictions:
 ```sql
 [STREAM_OPTIONS(stream_option [|...])]
 
-stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
+stream_option: {WATERMARK(duration_time) | EXPIRED_TIME(exp_time) | IGNORE_DISORDER | DELETE_RECALC | DELETE_OUTPUT_TABLE | FILL_HISTORY[(start_time)] | FILL_HISTORY_FIRST[(start_time)] | CALC_NOTIFY_ONLY | LOW_LATENCY_CALC | PRE_FILTER(expr) | FORCE_OUTPUT | MAX_DELAY(delay_time | tag_name) | EVENT_TYPE(event_types) | IGNORE_NODATA_TRIGGER | IDLE_TIMEOUT(duration_time) | FLUSH_ON_OUTER_CLOSE | CONFIG(config_item [, config_item ...])}
 
 config_item: {timezone = timezone_name | firstDayOfWeek = first_day_of_week}
 ```
@@ -645,7 +653,8 @@ Control options are used to manage trigger and computation behavior. Multiple op
 - LOW_LATENCY_CALC ensures low-latency computation or notification after each trigger. Processing starts immediately. This option guarantees the timeliness of real-time stream processing, but at the cost of lower efficiency and potentially higher resource usage. It is recommended only for workloads with strict real-time requirements. By default, if not specified, computation may be deferred and performed in batches to achieve better resource efficiency.
 - PRE_FILTER(expr) specifies data filtering on the trigger table before evaluation. Only rows that meet the condition will be considered for triggering. The expr can include columns, tags, constants, and scalar or logical operations. Example: `col1 > 0` ensures that only rows where col1 is positive will be evaluated. Default: If not specified, no pre-filtering is applied.
 - FORCE_OUTPUT forces an output row even when a trigger produces no computation result. In this case, all columns except constants (including constant-treated columns) will be set to NULL. More fill strategies will be added in future releases.
-- MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed. Starting from the time a window opens, a trigger will be generated at every interval of delay_time if the window remains open. Non-window triggers automatically ignore this option. If a TRUE_FOR condition is specified and its duration is greater than MAX_DELAY, the MAX_DELAY setting still applies even if the window ultimately does not satisfy the TRUE_FOR condition. delay_time supports the following units: seconds (s), minutes (m), hours (h), days (d). Minimum value: 3 seconds, with an accuracy tolerance of about 1 second. If computation time exceeds delay_time, intermediate MAX_DELAY triggers are skipped. Note: WATERMARK is evaluated before window determination. This may cause cases where MAX_DELAY is set but no trigger occurs, because the window never actually opened.
+- MAX_DELAY(delay_time) defines the maximum waiting time (processing time) before a window is forcibly triggered if it has not yet closed. Starting from the time a window opens, a trigger will be generated at every interval of delay_time if the window remains open. Non-window triggers automatically ignore this option. If a TRUE_FOR condition is specified and its duration is greater than MAX_DELAY, the MAX_DELAY setting still applies even if the window ultimately does not satisfy the TRUE_FOR condition. delay_time may be a time literal or a duration tag column name. For literals, supported units are seconds (s), minutes (m), hours (h), days (d). Minimum value: 3 seconds, with an accuracy tolerance of about 1 second. If computation time exceeds delay_time, intermediate MAX_DELAY triggers are skipped. Note: WATERMARK is evaluated before window determination. This may cause cases where MAX_DELAY is set but no trigger occurs, because the window never actually opened.
+- **TRUE_FOR / MAX_DELAY with tag columns**: In window triggers, `TRUE_FOR` (including `start(...)`, `end(...)`, and `AND`/`OR` combinations) may use supertable tag column names instead of `duration_time` or `COUNT n`; `MAX_DELAY` may reference a duration tag the same way. Duration tags accept strings (e.g. `'3s'`) or integers in the database's time precision (`ms`, `us`, or `ns`); count tags must be positive integers. Referenced tags must appear in `PARTITION BY` unless it contains `tbname`. When `PARTITION BY` contains `tbname`, omitted threshold tags are added internally and support `SET TAG` updates; explicitly partitioned tags still reject `SET TAG`. An invalid or null tag value is logged as an error and treated as 0, so processing for that group continues without affecting other groups. Local `TRUE_FOR` on start-event-tree leaves and nested `WINDOW(...)` triggers do not support tag thresholds.
 - EVENT_TYPE(event_types) specifies the types of events that can trigger a window. Multiple types may be selected. Default: WINDOW_CLOSE. Not applicable for sliding triggers without INTERVAL or for periodic (PERIOD) triggers (automatically ignored). Options:
   - WINDOW_OPEN: Window start event.
   - WINDOW_CLOSE: Window close event.
@@ -682,8 +691,8 @@ notification_definition:
     NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 event_types:
-    event_type [|event_type]    
-    
+    event_type [|event_type]
+
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
 
@@ -985,7 +994,7 @@ SELECT * from information_schema.`ins_stream_tasks`;
 ### Start a Stream
 
 ```sql
-START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name; 
+START STREAM [IF EXISTS] [IGNORE UNTREATED] [db_name.]stream_name;
 ```
 
 Notes:
@@ -998,7 +1007,7 @@ Notes:
 ### Stop a Stream
 
 ```sql
-STOP STREAM [IF EXISTS] [db_name.]stream_name; 
+STOP STREAM [IF EXISTS] [db_name.]stream_name;
 ```
 
 Notes:

@@ -1520,6 +1520,127 @@ class SnodeLookupStubGuard {
   Stub stub_;
 };
 
+class MndStreamTagRefTest;
+MndStreamTagRefTest* gStreamTagRefTest = nullptr;
+
+class MndStreamTagRefTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    gStreamTagRefTest = this;
+    stream_.pCreate = &create_;
+    create_.triggerTblType = TSDB_SUPER_TABLE;
+    create_.triggerTblSuid = 1;
+    tags_[0].colId = 7;
+    tags_[1].colId = 8;
+    stub_.set(sdbGetSize, streamCount);
+    stub_.set(sdbTraverse, visitStream);
+  }
+
+  void TearDown() override {
+    stub_.reset(sdbTraverse);
+    stub_.reset(sdbGetSize);
+    nodesDestroyList(partition_);
+    nodesDestroyList(injected_);
+    taosMemoryFree(create_.partitionCols);
+    taosMemoryFree(create_.durationTagCols);
+    gStreamTagRefTest = nullptr;
+  }
+
+  static int32_t streamCount(SSdb*, ESdbType) { return 1; }
+
+  static void visitStream(SSdb*, ESdbType type, sdbTraverseFp callback, void* p1, void* p2, void* p3) {
+    EXPECT_EQ(SDB_STREAM, type);
+    (void)callback(&gStreamTagRefTest->mnode_, &gStreamTagRefTest->stream_, p1, p2, p3);
+  }
+
+  static SNode* tagColumn() {
+    SNode* node = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &node));
+    if (node != nullptr) {
+      auto* column = reinterpret_cast<SColumnNode*>(node);
+      column->colId = 7;
+      column->colType = COLUMN_TYPE_TAG;
+      column->node.resType.type = TSDB_DATA_TYPE_INT;
+      column->node.resType.bytes = sizeof(int32_t);
+    }
+    return node;
+  }
+
+  void setPartition(bool expression, bool injected) {
+    SNode* tbname = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &tbname));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&partition_, tbname));
+    auto* tbnameColumn = reinterpret_cast<SColumnNode*>(tbname);
+    tbnameColumn->colId = -1;
+    tbnameColumn->colType = COLUMN_TYPE_TBNAME;
+    tbnameColumn->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    tbnameColumn->node.resType.bytes = TSDB_TABLE_NAME_LEN;
+    if (expression) {
+      SNode* node = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, &node));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&partition_, node));
+      auto* op = reinterpret_cast<SOperatorNode*>(node);
+      op->opType = OP_TYPE_ADD;
+      op->node.resType.type = TSDB_DATA_TYPE_INT;
+      op->node.resType.bytes = sizeof(int32_t);
+      op->pLeft = tagColumn();
+      ASSERT_NE(nullptr, op->pLeft);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &op->pRight));
+      auto* zero = reinterpret_cast<SValueNode*>(op->pRight);
+      zero->node.resType.type = TSDB_DATA_TYPE_INT;
+      zero->node.resType.bytes = sizeof(int32_t);
+      zero->translate = true;
+      int32_t value = 0;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesSetValueNodeValue(zero, &value));
+    }
+    SNode* rawTag = tagColumn();
+    ASSERT_NE(nullptr, rawTag);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&partition_, rawTag));
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesListToString(partition_, false, reinterpret_cast<char**>(&create_.partitionCols), &length));
+    if (injected) {
+      SNode* injectedTag = tagColumn();
+      ASSERT_NE(nullptr, injectedTag);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&injected_, injectedTag));
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                nodesListToString(injected_, false, reinterpret_cast<char**>(&create_.durationTagCols), &length));
+    }
+  }
+
+  SMnode mnode_ = {};
+  SStreamObj stream_ = {};
+  SCMCreateStreamReq create_ = {};
+  SSchema tags_[2] = {};
+  SNodeList* partition_ = nullptr;
+  SNodeList* injected_ = nullptr;
+  Stub stub_;
+};
+
+TEST_F(MndStreamTagRefTest, UserPartitionExpressionIsNotExemptedByInjectedTag) {
+  setPartition(true, true);
+  ASSERT_FALSE(HasFatalFailure());
+  mndStreamUpdateTagsRefFlag(&mnode_, create_.triggerTblSuid, tags_, 2);
+  EXPECT_NE(0, tags_[0].flags & COL_REF_BY_STM);
+  EXPECT_EQ(0, tags_[1].flags & COL_REF_BY_STM);
+}
+
+TEST_F(MndStreamTagRefTest, InjectedOnlyTagRemainsSettable) {
+  setPartition(false, true);
+  ASSERT_FALSE(HasFatalFailure());
+  mndStreamUpdateTagsRefFlag(&mnode_, create_.triggerTblSuid, tags_, 2);
+  EXPECT_EQ(0, tags_[0].flags & COL_REF_BY_STM);
+  EXPECT_EQ(0, tags_[1].flags & COL_REF_BY_STM);
+}
+
+TEST_F(MndStreamTagRefTest, ExplicitPartitionTagRemainsReadOnly) {
+  setPartition(false, false);
+  ASSERT_FALSE(HasFatalFailure());
+  mndStreamUpdateTagsRefFlag(&mnode_, create_.triggerTblSuid, tags_, 2);
+  EXPECT_NE(0, tags_[0].flags & COL_REF_BY_STM);
+  EXPECT_EQ(0, tags_[1].flags & COL_REF_BY_STM);
+}
+
 class MndStreamTest : public ::testing::Test {
  protected:
   void SetUp() override {

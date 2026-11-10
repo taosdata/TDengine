@@ -5828,7 +5828,8 @@ static int32_t translateIndefiniteRowsFunc(STranslateContext* pCxt, SFunctionNod
                                    "Function '%s' is not supported in group query",
                                    pFunc->functionName);
   }
-  if (NULL != pSelect->pWindow && (pFunc->funcType == FUNCTION_TYPE_UNIQUE || pFunc->funcType == FUNCTION_TYPE_TAIL)) {
+  if (NULL != pSelect->pWindow &&
+      (pFunc->funcType == FUNCTION_TYPE_UNIQUE || pFunc->funcType == FUNCTION_TYPE_TAIL)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
                                    "Function '%s' is not supported in window query",
                                    pFunc->functionName);
@@ -8885,6 +8886,39 @@ static bool hasTbnameFunction(SNodeList* pPartitionByList) {
   SNode* pPartKey = NULL;
   FOREACH(pPartKey, pPartitionByList) {
     if (isTbnameFuction(pPartKey)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Stream PARTITION BY tbname may appear as an unresolved tbname() function (funcType
+ * unset before translateExprList), a resolved FUNCTION_TYPE_TBNAME, or a TBNAME
+ * pseudo-column after rewrite. A real tag named tbname is not a pseudo-column. */
+static bool isStreamPartitionTbnameKey(const SNode* pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+    if (FUNCTION_TYPE_TBNAME == pFunc->funcType) {
+      return true;
+    }
+    return strcasecmp(pFunc->functionName, "tbname") == 0;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return ((const SColumnNode*)pNode)->colType == COLUMN_TYPE_TBNAME;
+  }
+  return false;
+}
+
+static bool streamPartitionHasTbname(SNodeList* pPartitionByList) {
+  if (pPartitionByList == NULL) {
+    return false;
+  }
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPartitionByList) {
+    if (isStreamPartitionTbnameKey(pPartKey)) {
       return true;
     }
   }
@@ -17077,6 +17111,124 @@ static int32_t checkStateExtend(STranslateContext* pCxt, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool isStreamDurationStringTagType(int8_t type) {
+  return type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY;
+}
+
+static bool isStreamDurationTagType(int8_t type) {
+  return isStreamDurationStringTagType(type) || IS_INTEGER_TYPE(type);
+}
+
+static SRealTableNode* getStreamThresholdTable(STranslateContext* pCxt) {
+  if (!isSelectStmt(pCxt->pCurrStmt)) {
+    return NULL;
+  }
+  SNode* pTable = ((SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+  return pTable != NULL && nodeType(pTable) == QUERY_NODE_REAL_TABLE ? (SRealTableNode*)pTable : NULL;
+}
+
+static bool isStreamThresholdTagColumn(const SRealTableNode* pTable, const SColumnNode* pCol) {
+  if (pTable == NULL || pTable->pExtTableNode == NULL) {
+    return pCol->colType == COLUMN_TYPE_TAG;
+  }
+  const SExtTableNode* pExt = (const SExtTableNode*)pTable->pExtTableNode;
+  const SExtTableMeta* pMeta = pExt->pExtMeta;
+  if (pMeta == NULL || pMeta->pCols == NULL) {
+    return false;
+  }
+  // External schemas flatten tags into ordinary columns. Keep their scan
+  // representation and recover tag identity from the provider metadata.
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (externalColumnNamesEqual(pExt->sourceType, pMeta->pCols[i].colName, pCol->colName)) {
+      return pMeta->pCols[i].isTag;
+    }
+  }
+  return false;
+}
+
+static bool isDurationTagInPartitionList(const SColumnNode* pCol, SNodeList* pPartition,
+                                         const SRealTableNode* pTable) {
+  if (pPartition == NULL) {
+    return false;
+  }
+  SNode* pNode = NULL;
+  FOREACH(pNode, pPartition) {
+    if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+      continue;
+    }
+    const SColumnNode* pPartCol = (const SColumnNode*)pNode;
+    if (pPartCol->colId != 0 && pCol->colId != 0) {
+      if (pPartCol->colId == pCol->colId) {
+        return true;
+      }
+    } else if (pCol->colName[0] != '\0' && pPartCol->colName[0] != '\0' &&
+               (pTable != NULL ? externalTableColumnNameEqual(pTable, pPartCol->colName, pCol->colName)
+                               : strcmp(pPartCol->colName, pCol->colName) == 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t checkStreamThresholdTagInPartition(STranslateContext* pCxt, const SColumnNode* pCol,
+                                                  SNodeList* pPartition, const char* pOptionName,
+                                                  const char* pTagKind) {
+  if (pPartition != NULL && streamPartitionHasTbname(pPartition)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!isDurationTagInPartitionList(pCol, pPartition, getStreamThresholdTable(pCxt))) {
+    return generateSyntaxErrMsgExt(
+        &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+        "%s %s tag column must appear in PARTITION BY when PARTITION BY tbname is not used", pOptionName, pTagKind);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/* When PARTITION BY contains tbname, duration/count tags may be omitted from the
+ * partition list: gid is uid-stable, and tags are injected into partitionCols later
+ * for runtime fetch / SET TAG refresh. */
+static int32_t checkStreamCountTagColumn(STranslateContext* pCxt, SColumnNode* pCol, SNodeList* pPartition,
+                                         col_id_t* pTagColId, const char* pOptionName) {
+  // AS SELECT retains the trigger partition metadata but cannot evaluate tag thresholds.
+  if (inStreamCalcClause(pCxt) ||
+      (!inStreamTriggerClause(pCxt) && getStreamTriggerPartition(pCxt) == NULL)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s count tag is only supported in CREATE STREAM", pOptionName);
+  }
+  if (!isStreamThresholdTagColumn(getStreamThresholdTable(pCxt), pCol)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s count parameter must be a tag column", pOptionName);
+  }
+  if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s count tag must be integer type", pOptionName);
+  }
+  PAR_ERR_RET(checkStreamThresholdTagInPartition(pCxt, pCol, pPartition, pOptionName, "count"));
+  *pTagColId = pCol->colId;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkStreamDurationTagColumn(STranslateContext* pCxt, SColumnNode* pCol, SNodeList* pPartition,
+                                            col_id_t* pTagColId, const char* pOptionName) {
+  if (inStreamCalcClause(pCxt) ||
+      (!inStreamTriggerClause(pCxt) && getStreamTriggerPartition(pCxt) == NULL)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s duration tag is only supported in CREATE STREAM", pOptionName);
+  }
+  if (!isStreamThresholdTagColumn(getStreamThresholdTable(pCxt), pCol)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s duration parameter must be a tag column", pOptionName);
+  }
+  if (!isStreamDurationTagType(pCol->node.resType.type)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "%s duration tag must be string (VARCHAR/NCHAR/BINARY) or integer type",
+                                   pOptionName);
+  }
+  PAR_ERR_RET(checkStreamThresholdTagInPartition(pCxt, pCol, pPartition, pOptionName, "duration"));
+  *pTagColId = pCol->colId;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t checkTrueForLimit(STranslateContext* pCxt, SNode* pNode) {
   if (pNode == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -17091,10 +17243,27 @@ static int32_t checkTrueForLimit(STranslateContext* pCxt, SNode* pNode) {
       if (pTrueFor->count < 0) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TRUE_FOR_COUNT);
       }
+      if (pTrueFor->pCount != NULL && nodeType(pTrueFor->pCount) == QUERY_NODE_COLUMN) {
+        col_id_t tagColId = 0;
+        PAR_ERR_RET(checkStreamCountTagColumn(pCxt, (SColumnNode*)pTrueFor->pCount, getStreamTriggerPartition(pCxt),
+                                              &tagColId, "TRUE_FOR"));
+      }
     }
     if (pTrueFor->trueForType != TRUE_FOR_COUNT_ONLY) {
-      pTrueForDuration = (SValueNode*)pTrueFor->pDuration;
+      if (pTrueFor->pDuration != NULL && nodeType(pTrueFor->pDuration) == QUERY_NODE_COLUMN) {
+        col_id_t tagColId = 0;
+        PAR_ERR_RET(checkStreamDurationTagColumn(pCxt, (SColumnNode*)pTrueFor->pDuration,
+                                                 getStreamTriggerPartition(pCxt), &tagColId, "TRUE_FOR"));
+      } else {
+        pTrueForDuration = (SValueNode*)pTrueFor->pDuration;
+      }
     }
+    PAR_ERR_RET(checkTrueForLimit(pCxt, pTrueFor->pStartLimit));
+    PAR_ERR_RET(checkTrueForLimit(pCxt, pTrueFor->pEndLimit));
+  } else if (pNode != NULL && nodeType(pNode) == QUERY_NODE_COLUMN) {
+    col_id_t tagColId = 0;
+    PAR_ERR_RET(checkStreamDurationTagColumn(pCxt, (SColumnNode*)pNode, getStreamTriggerPartition(pCxt), &tagColId,
+                                             "TRUE_FOR"));
   } else {
     pTrueForDuration = (SValueNode*)pNode;
   }
@@ -27043,7 +27212,294 @@ static int32_t checkExpiredTime(STranslateContext* pCxt, SValueNode* pTime) {
   return TSDB_CODE_SUCCESS;
 }
 
+static SNodeList* getStreamDurationTagPartitionList(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  SNodeList* pPartition = getStreamTriggerPartition(pCxt);
+  if (pPartition != NULL) {
+    return pPartition;
+  }
+  if (pStmt != NULL && pStmt->pTrigger != NULL) {
+    return ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList;
+  }
+  return NULL;
+}
+
+static int32_t resolveStreamTagColumn(STranslateContext* pCxt, SColumnNode* pCol, const STableMeta* pMeta) {
+  SRealTableNode* pTable = getStreamThresholdTable(pCxt);
+  if (pMeta == NULL) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+  }
+  // Only native super/child tables guarantee threshold-tag refresh and DDL safety.
+  // Virtual supertables also use TSDB_SUPER_TABLE, so check virtualStb explicitly.
+  if ((pTable != NULL && pTable->pExtTableNode != NULL) || pMeta->extSrcSynthetic || pMeta->virtualStb ||
+      (pMeta->tableType != TSDB_SUPER_TABLE && pMeta->tableType != TSDB_CHILD_TABLE)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "Tag thresholds in TRUE_FOR/MAX_DELAY are only supported for "
+                                   "native super or child trigger tables");
+  }
+  int32_t end = pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags;
+  for (int32_t i = pMeta->tableInfo.numOfColumns; i < end; ++i) {
+    if (strcasecmp(pCol->colName, pMeta->schema[i].name) == 0) {
+      pCol->colId = pMeta->schema[i].colId;
+      pCol->colType = COLUMN_TYPE_TAG;
+      pCol->node.resType.type = pMeta->schema[i].type;
+      pCol->node.resType.bytes = pMeta->schema[i].bytes;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+}
+
+static int32_t lookupStreamDurationTag(STranslateContext* pCxt, SColumnNode* pCol, const STableMeta* pMeta,
+                                       SNodeList* pPartition, const char* pOptionName, col_id_t* pTagColId) {
+  PAR_ERR_RET(resolveStreamTagColumn(pCxt, pCol, pMeta));
+  return checkStreamDurationTagColumn(pCxt, pCol, pPartition, pTagColId, pOptionName);
+}
+
+static int32_t lookupStreamCountTag(STranslateContext* pCxt, SColumnNode* pCol, const STableMeta* pMeta,
+                                    SNodeList* pPartition, const char* pOptionName, col_id_t* pTagColId) {
+  PAR_ERR_RET(resolveStreamTagColumn(pCxt, pCol, pMeta));
+  return checkStreamCountTagColumn(pCxt, pCol, pPartition, pTagColId, pOptionName);
+}
+
+static int32_t prepDurationTagRef(STranslateContext* pCxt, SNode** ppNode, const STableMeta* pMeta,
+                                  SNodeList* pPartition, const char* pOptionName) {
+  if (ppNode == NULL || *ppNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(*ppNode) == QUERY_NODE_COLUMN) {
+    col_id_t tagColId = 0;
+    return lookupStreamDurationTag(pCxt, (SColumnNode*)*ppNode, pMeta, pPartition, pOptionName, &tagColId);
+  }
+  if (nodeType(*ppNode) == QUERY_NODE_TRUE_FOR) {
+    STrueForNode* pTrueFor = (STrueForNode*)*ppNode;
+    PAR_ERR_RET(prepDurationTagRef(pCxt, &pTrueFor->pDuration, pMeta, pPartition, pOptionName));
+    if (pTrueFor->pCount != NULL && nodeType(pTrueFor->pCount) == QUERY_NODE_COLUMN) {
+      col_id_t tagColId = 0;
+      PAR_ERR_RET(lookupStreamCountTag(pCxt, (SColumnNode*)pTrueFor->pCount, pMeta, pPartition, pOptionName, &tagColId));
+    }
+    PAR_ERR_RET(prepDurationTagRef(pCxt, &pTrueFor->pStartLimit, pMeta, pPartition, pOptionName));
+    return prepDurationTagRef(pCxt, &pTrueFor->pEndLimit, pMeta, pPartition, pOptionName);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool durationRefContainsColumn(const SNode* pNode) {
+  if (pNode == NULL) {
+    return false;
+  }
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    return true;
+  }
+  if (nodeType(pNode) == QUERY_NODE_TRUE_FOR) {
+    const STrueForNode* pTrueFor = (const STrueForNode*)pNode;
+    return durationRefContainsColumn(pTrueFor->pDuration) || durationRefContainsColumn(pTrueFor->pCount) ||
+           durationRefContainsColumn(pTrueFor->pStartLimit) ||
+           durationRefContainsColumn(pTrueFor->pEndLimit);
+  }
+  return false;
+}
+
+static EDealRes findStreamThresholdTagRef(SNode* pNode, void* pContext) {
+  SNode* pTrueFor = NULL;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_STATE_WINDOW:
+      pTrueFor = ((SStateWindowNode*)pNode)->pTrueForLimit;
+      break;
+    case QUERY_NODE_EVENT_WINDOW:
+      pTrueFor = ((SEventWindowNode*)pNode)->pTrueForLimit;
+      break;
+    case QUERY_NODE_EVENT_START_LEAF:
+      pTrueFor = ((SEventStartLeafNode*)pNode)->pTrueFor;
+      break;
+    default:
+      break;
+  }
+  if (durationRefContainsColumn(pTrueFor)) {
+    *(bool*)pContext = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkStreamNestedThresholdTags(STranslateContext* pCxt, SStreamTriggerNode* pTrigger) {
+  const SStreamTriggerOptions* pOptions = (const SStreamTriggerOptions*)pTrigger->pOptions;
+  bool                         hasTag = pOptions != NULL && durationRefContainsColumn(pOptions->pMaxDelay);
+  if (!hasTag) {
+    nodesWalkExpr(pTrigger->pTriggerWindow, findStreamThresholdTagRef, &hasTag);
+  }
+  if (hasTag) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                   "Tag thresholds in TRUE_FOR/MAX_DELAY are not supported in nested WINDOW");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t prepEventStartDurationTags(STranslateContext* pCxt, SNode* pNode, const STableMeta* pMeta,
+                                          SNodeList* pPartition) {
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(pNode) == QUERY_NODE_EVENT_START_LEAF) {
+    SNode** ppTrueFor = &((SEventStartLeafNode*)pNode)->pTrueFor;
+    PAR_ERR_RET(prepDurationTagRef(pCxt, ppTrueFor, pMeta, pPartition, "TRUE_FOR"));
+    if (durationRefContainsColumn(*ppTrueFor)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_TRIGGER,
+                                     "Tag duration is not supported in per-condition TRUE_FOR");
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(pNode) == QUERY_NODE_NODE_LIST) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SNodeListNode*)pNode)->pNodeList) {
+      PAR_ERR_RET(prepEventStartDurationTags(pCxt, pChild, pMeta, pPartition));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t prepStreamDurationTags(STranslateContext* pCxt, SNode* pWindow, const STableMeta* pMeta,
+                                      SNodeList* pPartition) {
+  if (pWindow == NULL || pMeta == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  switch (nodeType(pWindow)) {
+    case QUERY_NODE_EVENT_WINDOW: {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pWindow;
+      PAR_ERR_RET(prepDurationTagRef(pCxt, &pEvent->pTrueForLimit, pMeta, pPartition, "TRUE_FOR"));
+      return prepEventStartDurationTags(pCxt, pEvent->pStartCond, pMeta, pPartition);
+    }
+    case QUERY_NODE_STATE_WINDOW:
+      return prepDurationTagRef(pCxt, &((SStateWindowNode*)pWindow)->pTrueForLimit, pMeta, pPartition, "TRUE_FOR");
+    default:
+      return TSDB_CODE_SUCCESS;
+  }
+}
+
 static const int64_t maxDelayLowerBound = (int64_t)3 * 1000;  // 3s in milliseconds
+
+static bool createStreamReqHasDurationTag(const SCMCreateStreamReq* pReq) {
+  bool hasDurationTag = pReq->maxDelayTagColId != 0;
+  if (pReq->triggerType == WINDOW_TYPE_EVENT) {
+    hasDurationTag = hasDurationTag || pReq->trigger.event.trueForDurationTagColId != 0 ||
+                     pReq->trigger.event.startTrueForDurationTagColId != 0 ||
+                     pReq->trigger.event.endTrueForDurationTagColId != 0 ||
+                     pReq->trigger.event.trueForCountTagColId != 0 ||
+                     pReq->trigger.event.startTrueForCountTagColId != 0 ||
+                     pReq->trigger.event.endTrueForCountTagColId != 0;
+  } else if (pReq->triggerType == WINDOW_TYPE_STATE) {
+    hasDurationTag = hasDurationTag || pReq->trigger.stateWin.trueForDurationTagColId != 0 ||
+                     pReq->trigger.stateWin.trueForCountTagColId != 0;
+  }
+  return hasDurationTag;
+}
+
+static int32_t appendDurationTagColToPartition(SNodeList** ppPartition, SNode* pTagCol, const SRealTableNode* pTable) {
+  if (ppPartition == NULL || pTagCol == NULL || nodeType(pTagCol) != QUERY_NODE_COLUMN) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnNode* pCol = (SColumnNode*)pTagCol;
+  if (!isStreamThresholdTagColumn(pTable, pCol) || pCol->colId == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (*ppPartition != NULL && isDurationTagInPartitionList(pCol, *ppPartition, pTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pClone = NULL;
+  PAR_ERR_RET(nodesCloneNode(pTagCol, &pClone));
+  return nodesListMakeStrictAppend(ppPartition, pClone);
+}
+
+static int32_t collectDurationTagColsFromTrueFor(SNode* pNode, SNodeList** ppPartition, const SRealTableNode* pTable) {
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    return appendDurationTagColToPartition(ppPartition, pNode, pTable);
+  }
+  if (nodeType(pNode) != QUERY_NODE_TRUE_FOR) {
+    return TSDB_CODE_SUCCESS;
+  }
+  STrueForNode* pTrueFor = (STrueForNode*)pNode;
+  PAR_ERR_RET(appendDurationTagColToPartition(ppPartition, pTrueFor->pDuration, pTable));
+  PAR_ERR_RET(appendDurationTagColToPartition(ppPartition, pTrueFor->pCount, pTable));
+  PAR_ERR_RET(collectDurationTagColsFromTrueFor(pTrueFor->pStartLimit, ppPartition, pTable));
+  return collectDurationTagColsFromTrueFor(pTrueFor->pEndLimit, ppPartition, pTable);
+}
+
+static int32_t collectDurationTagColsFromEventStart(SNode* pNode, SNodeList** ppPartition) {
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(pNode) == QUERY_NODE_EVENT_START_LEAF) {
+    /* Per-condition TRUE_FOR cannot reference tags; nothing to inject. */
+    return TSDB_CODE_SUCCESS;
+  }
+  if (nodeType(pNode) == QUERY_NODE_NODE_LIST) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, ((SNodeListNode*)pNode)->pNodeList) {
+      PAR_ERR_RET(collectDurationTagColsFromEventStart(pChild, ppPartition));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Collect duration/count tags that are absent from user PARTITION BY, append them
+ * for Reader/Trigger fetch, and record injected-only tags in durationTagCols so
+ * mnode can skip COL_REF_BY_STM on them (SET TAG allowed). Must run after
+ * createStreamReqSetDefaultTag so output TAGS stay user-facing. */
+static int32_t injectStreamDurationTagsIntoPartition(SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  if (pTrigger == NULL || pTrigger->pPartitionList == NULL ||
+      !streamPartitionHasTbname(pTrigger->pPartitionList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t     userPartLen = LIST_LENGTH(pTrigger->pPartitionList);
+  SNodeList** ppPartition = &pTrigger->pPartitionList;
+  SRealTableNode* pTable = (SRealTableNode*)pTrigger->pTrigerTable;
+  SNode*      pWindow = pTrigger->pTriggerWindow;
+  if (pWindow != NULL) {
+    if (nodeType(pWindow) == QUERY_NODE_EVENT_WINDOW) {
+      SEventWindowNode* pEvent = (SEventWindowNode*)pWindow;
+      PAR_ERR_RET(collectDurationTagColsFromTrueFor(pEvent->pTrueForLimit, ppPartition, pTable));
+      PAR_ERR_RET(collectDurationTagColsFromEventStart(pEvent->pStartCond, ppPartition));
+    } else if (nodeType(pWindow) == QUERY_NODE_STATE_WINDOW) {
+      PAR_ERR_RET(collectDurationTagColsFromTrueFor(((SStateWindowNode*)pWindow)->pTrueForLimit, ppPartition, pTable));
+    }
+  }
+
+  if (pTrigger->pOptions != NULL) {
+    SStreamTriggerOptions* pOptions = (SStreamTriggerOptions*)pTrigger->pOptions;
+    if (pOptions->pMaxDelay != NULL && nodeType(pOptions->pMaxDelay) == QUERY_NODE_COLUMN) {
+      PAR_ERR_RET(appendDurationTagColToPartition(ppPartition, pOptions->pMaxDelay, pTable));
+    }
+  }
+
+  int32_t newLen = LIST_LENGTH(pTrigger->pPartitionList);
+  if (newLen > userPartLen) {
+    SNodeList* pDurationOnly = NULL;
+    int32_t    code = TSDB_CODE_SUCCESS;
+    for (int32_t i = userPartLen; i < newLen; ++i) {
+      SNode* pNode = nodesListGetNode(pTrigger->pPartitionList, i);
+      SNode* pClone = NULL;
+      code = nodesCloneNode(pNode, &pClone);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pDurationOnly);
+        return code;
+      }
+      code = nodesListMakeStrictAppend(&pDurationOnly, pClone);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pDurationOnly);
+        return code;
+      }
+    }
+    int32_t len = 0;
+    code = nodesListToString(pDurationOnly, false, (char**)&pReq->durationTagCols, &len);
+    nodesDestroyList(pDurationOnly);
+    PAR_ERR_RET(code);
+  }
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
   int32_t len = (int32_t)strlen(pTime->literal);
@@ -27061,7 +27517,8 @@ static int32_t checkDelayTime(STranslateContext* pCxt, SValueNode* pTime) {
 
 // build trigger options in create stream request
 static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
-                                                  SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq) {
+                                                  SStreamTriggerOptions* pOptions, SCMCreateStreamReq* pReq,
+                                                  SSelectStmt* pTriggerSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   parserDebug("translate create stream req start build trigger options, streamId:%" PRId64, pReq->streamId);
@@ -27092,14 +27549,38 @@ static int32_t createStreamReqBuildTriggerOptions(STranslateContext* pCxt, SCrea
   }
 
   if (pOptions->pMaxDelay) {
-    SNode* tmpStmt = pCxt->pCurrStmt;
-    pCxt->pCurrStmt = NULL;
-    // since max delay do not need to translate with trigger table's precision, set currStmt to NULL, so we can use
-    // default precision 'ms'
-    PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
-    pCxt->pCurrStmt = tmpStmt;
-    PAR_ERR_JRET(checkDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
-    pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
+    if (nodeType(pOptions->pMaxDelay) == QUERY_NODE_COLUMN) {
+      const STableMeta* pMeta =
+          (pTriggerSelect && pTriggerSelect->pFromTable)
+              ? ((SRealTableNode*)pTriggerSelect->pFromTable)->pMeta
+              : NULL;
+      col_id_t tagColId = 0;
+      SNodeList* pPartition = getStreamDurationTagPartitionList(pCxt, pStmt);
+      PAR_ERR_JRET(lookupStreamDurationTag(pCxt, (SColumnNode*)pOptions->pMaxDelay, pMeta, pPartition, "MAX_DELAY",
+                                           &tagColId));
+      // lookup only fills colId/type; translateExpr sets tableAlias so inject +
+      // createStreamSetListSlotId keys match scan slots (hash of alias.colName).
+      if (pTriggerSelect != NULL) {
+        SNode*   tmpStmt = pCxt->pCurrStmt;
+        ESqlClause tmpClause = pCxt->currClause;
+        pCxt->pCurrStmt = (SNode*)pTriggerSelect;
+        pCxt->currClause = SQL_CLAUSE_SELECT;
+        PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
+        pCxt->pCurrStmt = tmpStmt;
+        pCxt->currClause = tmpClause;
+      }
+      pReq->maxDelay = 0;
+      pReq->maxDelayTagColId = tagColId;
+    } else {
+      SNode* tmpStmt = pCxt->pCurrStmt;
+      pCxt->pCurrStmt = NULL;
+      // Literal duration uses default precision 'ms', not trigger table precision.
+      PAR_ERR_JRET(translateExpr(pCxt, &pOptions->pMaxDelay));
+      pCxt->pCurrStmt = tmpStmt;
+      PAR_ERR_JRET(checkDelayTime(pCxt, (SValueNode*)pOptions->pMaxDelay));
+      pReq->maxDelay = ((SValueNode*)pOptions->pMaxDelay)->datum.i;
+      pReq->maxDelayTagColId = 0;
+    }
   }
 
   if (pOptions->pWaterMark) {
@@ -27623,7 +28104,14 @@ static int64_t createStreamReqWindowGetBigInt(SNode* pVal) { return pVal ? ((SVa
 
 static int8_t createStreamReqWindowGetUnit(SNode* pVal) { return pVal ? ((SValueNode*)pVal)->unit : 0; }
 
-static void createStreamReqGetTrueForOptions(SNode* pVal, int32_t* pType, int32_t* pCount, int64_t* pDuration) {
+static void createStreamReqGetTrueForOptions(SNode* pVal, int32_t* pType, int32_t* pCount, int64_t* pDuration,
+                                             col_id_t* pDurationTagColId, col_id_t* pCountTagColId) {
+  if (pDurationTagColId != NULL) {
+    *pDurationTagColId = 0;
+  }
+  if (pCountTagColId != NULL) {
+    *pCountTagColId = 0;
+  }
   if (pVal == NULL) {
     *pType = 0;
     *pCount = 0;
@@ -27635,8 +28123,22 @@ static void createStreamReqGetTrueForOptions(SNode* pVal, int32_t* pType, int32_
   } else {
     STrueForNode* pTrueFor = (STrueForNode*)pVal;
     *pType = pTrueFor->trueForType;
-    *pCount = pTrueFor->count;
-    *pDuration = pTrueFor->pDuration ? ((SValueNode*)pTrueFor->pDuration)->datum.i : 0;
+    if (pTrueFor->pCount != NULL && nodeType(pTrueFor->pCount) == QUERY_NODE_COLUMN) {
+      if (pCountTagColId != NULL) {
+        *pCountTagColId = ((SColumnNode*)pTrueFor->pCount)->colId;
+      }
+      *pCount = 0;
+    } else {
+      *pCount = pTrueFor->count;
+    }
+    if (pTrueFor->pDuration != NULL && nodeType(pTrueFor->pDuration) == QUERY_NODE_COLUMN) {
+      if (pDurationTagColId != NULL) {
+        *pDurationTagColId = ((SColumnNode*)pTrueFor->pDuration)->colId;
+      }
+      *pDuration = 0;
+    } else {
+      *pDuration = pTrueFor->pDuration ? ((SValueNode*)pTrueFor->pDuration)->datum.i : 0;
+    }
   }
 }
 
@@ -27685,7 +28187,9 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
     PAR_ERR_RET(nodesNodeToString(pTriggerWindow->pEndCond, false, (char**)&pReq->trigger.event.endCond, NULL));
   }
   createStreamReqGetTrueForOptions(pTriggerWindow->pTrueForLimit, &pReq->trigger.event.trueForType,
-                                   &pReq->trigger.event.trueForCount, &pReq->trigger.event.trueForDuration);
+                                   &pReq->trigger.event.trueForCount, &pReq->trigger.event.trueForDuration,
+                                   &pReq->trigger.event.trueForDurationTagColId,
+                                   &pReq->trigger.event.trueForCountTagColId);
   if (pTriggerWindow->pTrueForLimit != NULL &&
       nodeType(pTriggerWindow->pTrueForLimit) == QUERY_NODE_TRUE_FOR) {
     STrueForNode* pTrueFor = (STrueForNode*)pTriggerWindow->pTrueForLimit;
@@ -27696,14 +28200,16 @@ static int32_t createStreamReqBuildTriggerEventWindow(STranslateContext* pCxt, S
                                      "(START WITH multiple conditions)");
     }
     if (pTrueFor->pStartLimit != NULL) {
-      createStreamReqGetTrueForOptions(pTrueFor->pStartLimit, &pReq->trigger.event.startTrueForType,
-                                       &pReq->trigger.event.startTrueForCount,
-                                       &pReq->trigger.event.startTrueForDuration);
+      createStreamReqGetTrueForOptions(
+          pTrueFor->pStartLimit, &pReq->trigger.event.startTrueForType, &pReq->trigger.event.startTrueForCount,
+          &pReq->trigger.event.startTrueForDuration, &pReq->trigger.event.startTrueForDurationTagColId,
+          &pReq->trigger.event.startTrueForCountTagColId);
     }
     if (pTrueFor->pEndLimit != NULL) {
       createStreamReqGetTrueForOptions(pTrueFor->pEndLimit, &pReq->trigger.event.endTrueForType,
-                                       &pReq->trigger.event.endTrueForCount,
-                                       &pReq->trigger.event.endTrueForDuration);
+                                       &pReq->trigger.event.endTrueForCount, &pReq->trigger.event.endTrueForDuration,
+                                       &pReq->trigger.event.endTrueForDurationTagColId,
+                                       &pReq->trigger.event.endTrueForCountTagColId);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -27761,7 +28267,9 @@ static int32_t createStreamReqBuildTriggerStateWindow(STranslateContext* pCxt, S
   }
   pReq->trigger.stateWin.extend = createStreamReqWindowGetBigInt(pTriggerWindow->pExtend);
   createStreamReqGetTrueForOptions(pTriggerWindow->pTrueForLimit, &pReq->trigger.stateWin.trueForType,
-                                   &pReq->trigger.stateWin.trueForCount, &pReq->trigger.stateWin.trueForDuration);
+                                   &pReq->trigger.stateWin.trueForCount, &pReq->trigger.stateWin.trueForDuration,
+                                   &pReq->trigger.stateWin.trueForDurationTagColId,
+                                   &pReq->trigger.stateWin.trueForCountTagColId);
   if (NULL != pTriggerWindow->pZerothList) {
     int32_t _zerothLen = 0;
     PAR_ERR_RET(nodesListToString(pTriggerWindow->pZerothList, false, (char**)&pReq->trigger.stateWin.zeroth, &_zerothLen));
@@ -28914,7 +29422,7 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   }
   PAR_ERR_JRET(
       createSimpleSelectStmtImpl(pTriggerTable->table.dbName, pTriggerTable->table.tableName, NULL, pTriggerSelect));
-  // only collect columns appeared in trigger and tags in pre-filter
+  // only collect columns appeared in trigger and tags in pre-filter / max_delay(tag)
   PAR_ERR_JRET(nodesCollectColumnsFromNode(pStmt->pTrigger, NULL, COLLECT_COL_TYPE_COL,
                                            &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   if (pNested != NULL) {
@@ -28922,6 +29430,12 @@ static int32_t createStreamReqBuildTriggerSelect(STranslateContext* pCxt, SRealT
   }
   if (pPreFilter) {
     PAR_ERR_JRET(nodesCollectColumnsFromNode(pPreFilter, NULL, COLLECT_COL_TYPE_TAG,
+                                             &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
+  }
+  // max_delay(tag) is under STREAM_TRIGGER_OPTIONS; COLLECT_COL_TYPE_COL may miss it once
+  // typed as TAG. Collect explicitly so PARTITION BY tbname + inject still has a scan slot.
+  if (pOptions && pOptions->pMaxDelay && nodeType(pOptions->pMaxDelay) == QUERY_NODE_COLUMN) {
+    PAR_ERR_JRET(nodesCollectColumnsFromNode(pOptions->pMaxDelay, NULL, COLLECT_COL_TYPE_ALL,
                                              &((SSelectStmt*)*pTriggerSelect)->pProjectionList));
   }
   // TODO(smj) : maybe we can remove tbname function from trigger select list, but some case will fail.
@@ -29112,13 +29626,24 @@ _return:
 }
 
 // Translate trigger window in create stream request
-static int32_t createStreamReqBuildTriggerTranslateWindow(STranslateContext* pCxt, SNode** pTriggerWindow) {
+static int32_t createStreamReqBuildTriggerTranslateWindow(STranslateContext* pCxt, SNode** pTriggerWindow,
+                                                          SSelectStmt* pTriggerSelect) {
   int32_t code = TSDB_CODE_SUCCESS;
+  bool    savedTriggerClause = pCxt->streamInfo.triggerClause;
+  const STableMeta* pMeta =
+      (pTriggerSelect && pTriggerSelect->pFromTable) ? ((SRealTableNode*)pTriggerSelect->pFromTable)->pMeta : NULL;
 
+  // Window validation is in the trigger clause even without PARTITION BY.
+  pCxt->streamInfo.triggerClause = true;
+  if (pTriggerSelect != NULL) {
+    pCxt->pCurrStmt = (SNode*)pTriggerSelect;
+  }
+  PAR_ERR_JRET(prepStreamDurationTags(pCxt, *pTriggerWindow, pMeta, getStreamTriggerPartition(pCxt)));
   pCxt->currClause = SQL_CLAUSE_WINDOW;
   PAR_ERR_JRET(translateExpr(pCxt, pTriggerWindow));
 
 _return:
+  pCxt->streamInfo.triggerClause = savedTriggerClause;
   if (code) {
     parserError("%s failed, code:%d", __func__, code);
   }
@@ -29213,7 +29738,7 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
   if (!pTriggerTable) {
     // no trigger table, only translate trigger window
     parserDebug("no trigger table in create stream req, streamId:%" PRId64, pReq->streamId);
-    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow));
+    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow, NULL));
     pTrigger->pTriggerWindow = pTriggerWindow;
     PAR_RET(createStreamReqBuildTriggerBuildWindowInfo(pCxt, pTriggerWindow, pReq));
   }
@@ -29319,13 +29844,13 @@ static int32_t createStreamReqBuildTriggerAst(STranslateContext* pCxt, SCreateSt
 
   PAR_ERR_JRET(createStreamReqBuildTriggerTranslateSelect(pCxt, pTrigger, *pTriggerSelect, pTriggerFilter));
   if (pNested == NULL) {
-    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow));
+    PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pTriggerWindow, *pTriggerSelect));
     pTrigger->pTriggerWindow = pTriggerWindow;
   } else {
     SNode* pLayerNode = NULL;
     FOREACH(pLayerNode, pNested->pPlanAst->pLayers) {
       SStreamWindowLayerNode* pLayer = (SStreamWindowLayerNode*)pLayerNode;
-      PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pLayer->pWindow));
+      PAR_ERR_JRET(createStreamReqBuildTriggerTranslateWindow(pCxt, &pLayer->pWindow, *pTriggerSelect));
     }
     pNested->pLeafWindow = getStreamNestedLeafWindow(pNested->pPlanAst);
   }
@@ -29634,6 +30159,12 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
     PAR_RET(TSDB_CODE_SUCCESS);
   }
 
+  // Default output TAGS must be derived from the user-facing PARTITION BY (e.g. tbname
+  // only) before duration/count tags are injected for runtime group-col fetch.
+  PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
+  PAR_ERR_JRET(injectStreamDurationTagsIntoPartition(pStmt, pReq));
+  pTriggerPartition = pTrigger->pPartitionList;
+
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
                                                     pTriggerPartition, pTrigger->pRollupTagList, pNested,
                                                     pStmt->pTimeInfo));
@@ -29641,7 +30172,6 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
       createStreamReqBuildTriggerBuildWindowInfo(pCxt, pNested == NULL ? pTriggerWindow : pNested->pLeafWindow, pReq));
   PAR_ERR_JRET(createStreamReqCheckPlaceHolder(pCxt, pReq, pReq->placeHolderBitmap, pTriggerPartition));
   if (pNested != NULL) PAR_ERR_JRET(buildStreamNestedWindowPlan(pCxt, pNested, pReq));
-  PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
 
 _return:
   if (code) {
@@ -30346,6 +30876,7 @@ static int32_t createStreamReqBuildDefaultReq(STranslateContext* pCxt, SCreateSt
 
   pReq->expiredTime = 0;
   pReq->maxDelay = 0;
+  pReq->maxDelayTagColId = 0;
   pReq->watermark = 0;
   pReq->fillHistoryStartTime = 0;
   pReq->eventTypes = EVENT_WINDOW_CLOSE;
@@ -31662,6 +32193,7 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   SStreamNestedWindowContext  nestedContext = {0};
   SStreamNestedWindowContext* pNested = NULL;
   if (pWindowPlanAst != NULL) {
+    PAR_ERR_JRET(checkStreamNestedThresholdTags(pCxt, pTrigger));
     pNested = &nestedContext;
     PAR_ERR_JRET(initStreamNestedWindowContext(pWindowPlanAst, pNested));
     PAR_ERR_JRET(validateStreamNestedLayerNamespace(pNested, pStmt->pQuery));
@@ -31692,23 +32224,24 @@ static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* 
   PAR_ERR_JRET(
       createStreamReqBuildTriggerAst(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, &pTriggerFilter, pReq, pNested));
   parserDebug("buildCreateStreamReq step: TriggerAst done");
-  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq));
+  PAR_ERR_JRET(createStreamReqBuildTriggerOptions(pCxt, pStmt, pTriggerOptions, pReq, pTriggerSelect));
   parserDebug("buildCreateStreamReq step: TriggerOptions done");
   PAR_ERR_JRET(createStreamReqBuildCalc(pCxt, pStmt, pTrigger->pPartitionList, pTriggerSelect,
                                         pNested == NULL ? pTriggerWindow : pNested->pLeafWindow, &pNotifyCond, pReq));
   parserDebug("buildCreateStreamReq step: Calc done");
-  // Pt A4/A5 + Pt-Followup F1 ordering: collect EXT source refs and build extSpecs AFTER trigger AST and calc
-  // translation, so pExtTableNode is set on both sides (see DS Sec 6.1.1 / Sec 6.2.1).
+  // Collect external source refs after both trigger and calculation translation.
   {
     extern int32_t collectExtSourceRefs(STranslateContext * pCxt, SCreateStreamStmt * pStmt);
     PAR_ERR_JRET(collectExtSourceRefs(pCxt, pStmt));
   }
   parserDebug("buildCreateStreamReq step: collectExtSourceRefs done");
-  PAR_ERR_JRET(createStreamReqBuildExtSpecs(pCxt, pStmt, pReq));
-  parserDebug("buildCreateStreamReq step: ExtSpecs done");
   PAR_ERR_JRET(createStreamReqBuildTriggerPlan(pCxt, pStmt, &pTriggerSelect, &pTriggerSlotHash, pReq,
                                                pNested == NULL ? pTriggerWindow : (SNode*)pNested->pPlanAst, pNested));
   parserDebug("buildCreateStreamReq step: TriggerPlan done");
+  // TriggerPlan derives output TAGS from user keys before injecting thresholds.
+  // External reader slots must include those injected keys in the same order.
+  PAR_ERR_JRET(createStreamReqBuildExtSpecs(pCxt, pStmt, pReq));
+  parserDebug("buildCreateStreamReq step: ExtSpecs done");
   PAR_ERR_JRET(createStreamReqBuildOutTable(pCxt, pStmt, pTriggerSlotHash, pReq));
   parserDebug("buildCreateStreamReq step: OutTable done");
 

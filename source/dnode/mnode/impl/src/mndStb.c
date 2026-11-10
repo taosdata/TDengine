@@ -3257,6 +3257,10 @@ static int32_t mndDropSuperTableTag(SMnode *pMnode, const SStbObj *pOld, SStbObj
   }
 
   col_id_t colId = pOld->pTags[tag].colId;
+  if (mndStreamTagReferencedByDuration(pMnode, pOld->uid, colId)) {
+    mError("stb:%s, tag:%s referenced by stream duration/count, cannot drop", pOld->name, tagName);
+    TAOS_RETURN(TSDB_CODE_PAR_COL_TAG_REF_BY_STM);
+  }
   TAOS_CHECK_RETURN(mndCheckAlterColForTSma(pMnode, pOld->name, pOld->uid, colId, true));
 
   TAOS_CHECK_RETURN(mndAllocStbSchemas(pOld, pNew));

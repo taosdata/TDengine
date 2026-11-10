@@ -4434,10 +4434,13 @@ TEST(td_msg_test, stream_ext_pull_timestamp_precision_roundtrip) {
   int32_t frameLen = 0;
   ASSERT_EQ(tDecodeI32(&frameDecoder, &frameLen), 0);
   tDecoderClear(&frameDecoder);
-  const int32_t legacyLen = len - 6;
+  // The legacy response has neither six TIMESTAMP precision bytes nor the
+  // groupInfos count appended by the newer encoder.
+  constexpr int32_t legacyTrailerLen = 6 + sizeof(int32_t);
+  const int32_t legacyLen = len - legacyTrailerLen;
   SEncoder frameEncoder = {};
   tEncoderInit(&frameEncoder, buf.data(), legacyLen);
-  ASSERT_EQ(tEncodeI32(&frameEncoder, frameLen - 6), 0);
+  ASSERT_EQ(tEncodeI32(&frameEncoder, frameLen - legacyTrailerLen), 0);
   tEncoderClear(&frameEncoder);
   decoded = {};
   ASSERT_EQ(tDeserializeSSTriggerExtPullRsp(buf.data(), legacyLen, &decoded), 0);

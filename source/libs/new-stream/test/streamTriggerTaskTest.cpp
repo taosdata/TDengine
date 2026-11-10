@@ -16,7 +16,9 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstring>
 #include <time.h>
+#include <vector>
 #include "cJSON.h"
 
 #include <algorithm>
@@ -64,6 +66,7 @@ extern "C" {
 #include "streamRecalcTracker.h"
 #include "stream.h"
 #include "streamInt.h"
+#include "streamMsg.h"
 #include "streamRunner.h"
 #include "streamTriggerMerger.h"
 #include "streamTriggerTask.h"
@@ -85,6 +88,8 @@ int32_t stTriggerTaskAcquireDropTableRequest(SStreamTriggerTask* pTask, int64_t 
                                              SSTriggerDropRequest** ppRequest);
 int32_t stTestCalcRequestParamCount(const SSTriggerCalcRequest* pReq, int32_t* pCount);
 int32_t stTestFinalizeCalcRequest(SSTriggerCalcRequest* pReq);
+int32_t stTestFreezeDurationTags(SStreamTriggerTask* pTask, SSTriggerGroupDurationState* pDur,
+                                  SArray* pGroupColVals);
 int32_t stTriggerTaskEnsureExtRefBindingIndex(SSTriggerExtOrigTableRef* pRef, SSHashObj** ppIndex);
 int32_t stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef* pRef, int64_t gid, SArray** ppBindings);
 void    stTriggerTaskInvalidateExtRefBindingIndex(SSTriggerExtOrigTableRef* pRef);
@@ -104,6 +109,294 @@ static void destroyPoolDropRequest(SSTriggerDropRequest** ppRequest) {
   if (ppRequest == nullptr || *ppRequest == nullptr) return;
   tDestroySSTriggerDropRequest(*ppRequest);
   taosMemoryFreeClear(*ppRequest);
+}
+
+class StreamTriggerDeployCodecTest : public ::testing::Test {
+ protected:
+  void TearDown() override {
+    tEncoderClear(&encoder_);
+    tDecoderClear(&decoder_);
+    tDeepFreeSMStreamHbRspMsg(&deployOutput_);
+    tDeepFreeSMStreamHbRspMsg(&deployInput_);
+    taosArrayDestroyEx(walOutput_.groupInfos, destroyDecodedGroupInfo);
+    // Input group values borrow their payloads from the test's stack.
+    taosArrayDestroy(infos_);
+    taosArrayDestroy(values_);
+  }
+
+  static void destroyDecodedGroupInfo(void* ptr) {
+    auto* info = static_cast<SStreamGroupInfoWithId*>(ptr);
+    taosArrayDestroyEx(info->gInfo, tDestroySStreamGroupValue);
+  }
+
+  SMStreamHbRspMsg   deployInput_ = {0};
+  SMStreamHbRspMsg   deployOutput_ = {0};
+  SSTriggerWalNewRsp walOutput_ = {0};
+  SEncoder           encoder_ = {0};
+  SDecoder           decoder_ = {0};
+  SArray*            values_ = nullptr;
+  SArray*            infos_ = nullptr;
+};
+
+TEST_F(StreamTriggerDeployCodecTest, DurationTagRefsKeepDeployWireLayout) {
+  SMStreamHbRspMsg& input = deployInput_;
+  input.streamGId = 7;
+  input.deploy.streamList = taosArrayInit_s(sizeof(SStmStreamDeploy), 1);
+  ASSERT_NE(input.deploy.streamList, nullptr);
+  SStmStreamDeploy* stream = (SStmStreamDeploy*)taosArrayGet(input.deploy.streamList, 0);
+  stream->streamId = 100;
+  stream->triggerTask = (SStmTaskDeploy*)taosMemoryCalloc(1, sizeof(SStmTaskDeploy));
+  ASSERT_NE(stream->triggerTask, nullptr);
+  stream->triggerTask->task.type = STREAM_TRIGGER_TASK;
+
+  SStreamTriggerDeployMsg* trigger = &stream->triggerTask->msg.trigger;
+  trigger->triggerType = WINDOW_TYPE_EVENT;
+  trigger->streamName = taosStrdup("duration_tag_stream");
+  ASSERT_NE(trigger->streamName, nullptr);
+  trigger->maxDelayTagColId = 9;
+  trigger->trigger.event.trueForDurationTagColId = 10;
+  trigger->trigger.event.startTrueForDurationTagColId = 11;
+  trigger->trigger.event.endTrueForDurationTagColId = 12;
+  trigger->trigger.event.trueForCountTagColId = 13;
+  trigger->trigger.event.startTrueForCountTagColId = 14;
+  trigger->trigger.event.endTrueForCountTagColId = 15;
+
+  SEncoder& encoder = encoder_;
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(tEncodeStreamHbRsp(&encoder, &input), 0);
+  int32_t taggedLen = encoder.pos;
+  tEncoderClear(&encoder);
+  ASSERT_GT(taggedLen, 0);
+
+  trigger->maxDelayTagColId = 0;
+  trigger->trigger.event.trueForDurationTagColId = 0;
+  trigger->trigger.event.startTrueForDurationTagColId = 0;
+  trigger->trigger.event.endTrueForDurationTagColId = 0;
+  trigger->trigger.event.trueForCountTagColId = 0;
+  trigger->trigger.event.startTrueForCountTagColId = 0;
+  trigger->trigger.event.endTrueForCountTagColId = 0;
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(tEncodeStreamHbRsp(&encoder, &input), 0);
+  ASSERT_EQ(encoder.pos, taggedLen);
+  tEncoderClear(&encoder);
+
+  trigger->maxDelayTagColId = 9;
+  trigger->trigger.event.trueForDurationTagColId = 10;
+  trigger->trigger.event.startTrueForDurationTagColId = 11;
+  trigger->trigger.event.endTrueForDurationTagColId = 12;
+  trigger->trigger.event.trueForCountTagColId = 13;
+  trigger->trigger.event.startTrueForCountTagColId = 14;
+  trigger->trigger.event.endTrueForCountTagColId = 15;
+  std::vector<uint8_t> buf(taggedLen, 0);
+  tEncoderInit(&encoder, buf.data(), taggedLen);
+  ASSERT_EQ(tEncodeStreamHbRsp(&encoder, &input), 0);
+  tEncoderClear(&encoder);
+
+  SMStreamHbRspMsg& output = deployOutput_;
+  SDecoder&         decoder = decoder_;
+  tDecoderInit(&decoder, buf.data(), taggedLen);
+  ASSERT_EQ(tDecodeStreamHbRsp(&decoder, &output), 0);
+  tDecoderClear(&decoder);
+
+  ASSERT_EQ((int32_t)taosArrayGetSize(output.deploy.streamList), 1);
+  SStmStreamDeploy* decodedStream = (SStmStreamDeploy*)taosArrayGet(output.deploy.streamList, 0);
+  ASSERT_NE(decodedStream->triggerTask, nullptr);
+  SStreamTriggerDeployMsg* decoded = &decodedStream->triggerTask->msg.trigger;
+  ASSERT_EQ(decoded->maxDelay, 0);
+  ASSERT_EQ(decoded->maxDelayTagColId, 9);
+  ASSERT_EQ(decoded->trigger.event.trueForDuration, 0);
+  ASSERT_EQ(decoded->trigger.event.trueForDurationTagColId, 10);
+  ASSERT_EQ(decoded->trigger.event.startTrueForDurationTagColId, 11);
+  ASSERT_EQ(decoded->trigger.event.endTrueForDurationTagColId, 12);
+  ASSERT_EQ(decoded->trigger.event.trueForCountTagColId, 13);
+  ASSERT_EQ(decoded->trigger.event.startTrueForCountTagColId, 14);
+  ASSERT_EQ(decoded->trigger.event.endTrueForCountTagColId, 15);
+}
+
+TEST(StreamDurationTagTest, ConstantPartitionsSupportCompactNativeAndFullExtValues) {
+  for (bool byTable : {false, true}) {
+    for (bool fullLayout : {false, true}) {
+      SCOPED_TRACE(std::to_string(byTable) + ":" + std::to_string(fullLayout));
+      struct Owner {
+        SStreamTriggerTask task = {};
+        SArray* values = nullptr;
+        ~Owner() {
+          nodesDestroyList(task.pPartitionCols);
+          taosArrayDestroy(values);  // String payloads below are borrowed.
+        }
+      } owner;
+      owner.task.useDurationTagRuntime = true;
+      owner.task.precision = TSDB_TIME_PRECISION_MILLI;
+      owner.task.triggerType = STREAM_TRIGGER_STATE;
+      owner.task.maxDelayTagColId = 3;
+      owner.task.stateTrueForInfo.trueForType = TRUE_FOR_AND;
+      owner.task.stateTrueForInfo.durationTagColId = 4;
+      owner.task.stateTrueForInfo.countTagColId = 5;
+      owner.values = taosArrayInit(6, sizeof(SStreamGroupValue));
+      ASSERT_NE(nullptr, owner.values);
+      char maxDelay[] = "3s";
+      char trueFor[] = "2s";
+      // Constants before threshold tags must occupy slots only in the EXT payload.
+      for (col_id_t slot : {0, 1, 3, 2, 4, 5}) {
+        if (slot == 0 && !byTable) continue;
+        const bool constant = slot == 1 || slot == 2;
+        SNode* node = nullptr;
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(constant ? QUERY_NODE_VALUE : QUERY_NODE_COLUMN, &node));
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&owner.task.pPartitionCols, node));
+        SStreamGroupValue value = {};
+        value.data.type = TSDB_DATA_TYPE_INT;
+        value.data.val = slot == 5 ? 5 : 1;
+        if (constant) {
+          auto* literal = reinterpret_cast<SValueNode*>(node);
+          literal->node.resType.type = TSDB_DATA_TYPE_INT;
+          literal->node.resType.bytes = sizeof(int32_t);
+          literal->datum.i = 1;
+          literal->isNull = slot == 2;
+          value.isNull = literal->isNull;
+        } else {
+          auto* column = reinterpret_cast<SColumnNode*>(node);
+          column->colId = slot == 0 ? -1 : slot;
+          column->colType = slot == 0 ? COLUMN_TYPE_TBNAME : COLUMN_TYPE_TAG;
+          if (slot == 3 || slot == 4) {
+            value.data.type = TSDB_DATA_TYPE_VARCHAR;
+            value.data.pData = reinterpret_cast<uint8_t*>(slot == 3 ? maxDelay : trueFor);
+            value.data.nData = 2;
+          }
+        }
+        if (!constant || fullLayout) {
+          ASSERT_NE(nullptr, taosArrayPush(owner.values, &value));
+        }
+      }
+      SSTriggerGroupDurationState frozen = {};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFreezeDurationTags(&owner.task, &frozen, owner.values));
+      EXPECT_TRUE(frozen.durationsFrozen);
+      EXPECT_FALSE(frozen.durationTagErrLogged);
+      EXPECT_EQ(3 * NANOSECOND_PER_SEC, frozen.frozenMaxDelayNs);
+      EXPECT_EQ(2000, frozen.frozenStateTrueFor.duration);
+      EXPECT_EQ(5, frozen.frozenStateTrueFor.count);
+    }
+  }
+}
+
+TEST(StreamDurationTagTest, RejectsMalformedDurationStringsWithoutChangingOtherSlots) {
+  struct DurationCase {
+    const char* text;
+    int32_t length;
+    int64_t expectedMs;
+  };
+  const DurationCase cases[] = {
+      {"3s", 2, 3000}, {"3garbages", 9, 0}, {"3.5s", 4, 0}, {"3000ms", 6, 0},
+      {"3000", 4, 0}, {" 3s", 3, 0}, {"+3s", 3, 0}, {"3s ", 3, 0},
+      {"3\0s", 3, 0}, {"", 0, 0}, {"0s", 2, 0},
+  };
+  for (int8_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (const DurationCase& input : cases) {
+      SCOPED_TRACE(::testing::Message() << "type=" << static_cast<int>(type) << " text=" << input.text);
+      struct Owner {
+        SStreamTriggerTask task = {};
+        SArray* values = nullptr;
+        ~Owner() {
+          nodesDestroyList(task.pPartitionCols);
+          taosArrayDestroy(values);  // Payloads below are borrowed.
+        }
+      } owner;
+      owner.task.useDurationTagRuntime = true;
+      owner.task.precision = TSDB_TIME_PRECISION_MILLI;
+      owner.task.triggerType = STREAM_TRIGGER_STATE;
+      owner.task.maxDelayTagColId = 1;
+      owner.task.stateTrueForInfo.trueForType = TRUE_FOR_AND;
+      owner.task.stateTrueForInfo.durationTagColId = 1;
+      owner.task.stateTrueForInfo.count = 2;
+      SNode* node = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &node));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&owner.task.pPartitionCols, node));
+      auto* column = reinterpret_cast<SColumnNode*>(node);
+      column->colId = 1;
+      column->colType = COLUMN_TYPE_TAG;
+
+      std::array<TdUcs4, 16> wideText = {};
+      for (int32_t i = 0; i < input.length; ++i) wideText[i] = static_cast<TdUcs4>(input.text[i]);
+      SStreamGroupValue value = {};
+      value.data.type = type;
+      value.data.pData = type == TSDB_DATA_TYPE_NCHAR ? reinterpret_cast<uint8_t*>(wideText.data())
+                                                    : reinterpret_cast<uint8_t*>(const_cast<char*>(input.text));
+      value.data.nData = input.length * (type == TSDB_DATA_TYPE_NCHAR ? sizeof(TdUcs4) : 1);
+      owner.values = taosArrayInit(1, sizeof(SStreamGroupValue));
+      ASSERT_NE(nullptr, owner.values);
+      ASSERT_NE(nullptr, taosArrayPush(owner.values, &value));
+
+      SSTriggerGroupDurationState frozen = {};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFreezeDurationTags(&owner.task, &frozen, owner.values));
+      EXPECT_TRUE(frozen.durationsFrozen);
+      EXPECT_EQ(input.expectedMs == 0, frozen.durationTagErrLogged);
+      EXPECT_EQ(input.expectedMs * NANOSECOND_PER_MSEC, frozen.frozenMaxDelayNs);
+      EXPECT_EQ(input.expectedMs, frozen.frozenStateTrueFor.duration);
+      EXPECT_EQ(2, frozen.frozenStateTrueFor.count);
+    }
+  }
+}
+
+TEST_F(StreamTriggerDeployCodecTest, WalMetaPiggybacksGroupValues) {
+  char duration[] = "3s";
+  SArray*& values = values_;
+  values = taosArrayInit(1, sizeof(SStreamGroupValue));
+  ASSERT_NE(values, nullptr);
+  SStreamGroupValue value = {0};
+  value.data.type = TSDB_DATA_TYPE_BINARY;
+  value.data.pData = reinterpret_cast<uint8_t*>(duration);
+  value.data.nData = strlen(duration);
+  ASSERT_NE(taosArrayPush(values, &value), nullptr);
+
+  SArray*& infos = infos_;
+  infos = taosArrayInit(1, sizeof(SStreamGroupInfoWithId));
+  ASSERT_NE(infos, nullptr);
+  SStreamGroupInfoWithId info = {0};
+  info.gid = 42;
+  info.gInfo = values;
+  ASSERT_NE(taosArrayPush(infos, &info), nullptr);
+
+  SSTriggerWalNewRsp input = {0};
+  input.groupInfos = infos;
+  input.ver = 100;
+  input.verTime = 200;
+  int32_t len = tSerializeSStreamWalDataResponse(nullptr, 0, &input);
+  ASSERT_GT(len, 0);
+  std::vector<uint8_t> buf(len);
+  ASSERT_EQ(tSerializeSStreamWalDataResponse(buf.data(), len, &input), len);
+
+  SSTriggerWalNewRsp& output = walOutput_;
+  ASSERT_EQ(tDeserializeSStreamWalDataResponse(buf.data(), len, &output, nullptr), 0);
+  ASSERT_EQ(output.ver, 100);
+  ASSERT_EQ(output.verTime, 200);
+  ASSERT_EQ(taosArrayGetSize(output.groupInfos), 1);
+  auto* decodedInfo = static_cast<SStreamGroupInfoWithId*>(taosArrayGet(output.groupInfos, 0));
+  ASSERT_EQ(decodedInfo->gid, 42);
+  ASSERT_EQ(taosArrayGetSize(decodedInfo->gInfo), 1);
+  auto* decodedValue = static_cast<SStreamGroupValue*>(taosArrayGet(decodedInfo->gInfo, 0));
+  ASSERT_EQ(decodedValue->data.type, TSDB_DATA_TYPE_BINARY);
+  ASSERT_EQ(decodedValue->data.nData, 2);
+  ASSERT_EQ(memcmp(decodedValue->data.pData, duration, 2), 0);
+}
+
+TEST_F(StreamTriggerDeployCodecTest, WalMetaRejectsInvalidGroupInfoCounts) {
+  infos_ = taosArrayInit(0, sizeof(SStreamGroupInfoWithId));
+  ASSERT_NE(infos_, nullptr);
+  SSTriggerWalNewRsp input = {0};
+  input.groupInfos = infos_;
+  int32_t            len = tSerializeSStreamWalDataResponse(nullptr, 0, &input);
+  ASSERT_GT(len, static_cast<int32_t>(sizeof(int32_t)));
+  std::vector<uint8_t> buf(len);
+  ASSERT_EQ(tSerializeSStreamWalDataResponse(buf.data(), len, &input), len);
+  ASSERT_EQ(tDeserializeSStreamWalDataResponse(buf.data(), len, &walOutput_, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(walOutput_.groupInfos, nullptr);
+
+  // An empty WAL response ends with the group-info count and no group payload.
+  const int32_t invalidCounts[] = {-1, 1, (std::numeric_limits<int32_t>::max)()};
+  for (int32_t count : invalidCounts) {
+    memcpy(buf.data() + len - sizeof(count), &count, sizeof(count));
+    EXPECT_EQ(tDeserializeSStreamWalDataResponse(buf.data(), len, &walOutput_, nullptr), TSDB_CODE_INVALID_MSG);
+    EXPECT_EQ(walOutput_.groupInfos, nullptr);
+  }
 }
 
 static void* rejectInternalGroupIndexRescan(const SSHashObj*, void*, int32_t*) { return nullptr; }
@@ -1601,6 +1894,39 @@ TEST_F(StreamTriggerTaskTest, EventDeployUndeployPreservesUnionUntilEventCleanup
   EXPECT_EQ(task.pStartCond, nullptr);
   taosMemoryFreeClear(msg.trigger.event.startCond);
   taosMemoryFreeClear(msg.trigger.event.endCond);
+}
+
+TEST_F(StreamTriggerTaskTest, EventStartEndTagsEnableOnlyHistoryTree) {
+  // Zero selects a literal threshold, one a COUNT tag, and two a duration tag.
+  for (int startKind : {0, 1, 2}) {
+    for (int endKind : {0, 1, 2}) {
+      SCOPED_TRACE(std::to_string(startKind) + ":" + std::to_string(endKind));
+      SStreamTriggerDeployMsg msg = makeNonTimeTriggerDeployMsg(WINDOW_TYPE_EVENT);
+      msg.trigger.event.startCond = makeSerializedColumnNode(0);
+      msg.trigger.event.endCond = makeSerializedColumnNode(0);
+      ASSERT_NE(msg.trigger.event.startCond, nullptr);
+      ASSERT_NE(msg.trigger.event.endCond, nullptr);
+      msg.trigger.event.startTrueForType = startKind == 2 ? TRUE_FOR_DURATION_ONLY : TRUE_FOR_COUNT_ONLY;
+      msg.trigger.event.startTrueForCount = startKind == 0 ? 2 : 0;
+      msg.trigger.event.startTrueForCountTagColId = startKind == 1 ? 2 : 0;
+      msg.trigger.event.startTrueForDurationTagColId = startKind == 2 ? 2 : 0;
+      msg.trigger.event.endTrueForType = endKind == 2 ? TRUE_FOR_DURATION_ONLY : TRUE_FOR_COUNT_ONLY;
+      msg.trigger.event.endTrueForCount = endKind == 0 ? 2 : 0;
+      msg.trigger.event.endTrueForCountTagColId = endKind == 1 ? 3 : 0;
+      msg.trigger.event.endTrueForDurationTagColId = endKind == 2 ? 3 : 0;
+
+      SStreamTriggerTask task = {};
+      task.task.type = STREAM_TRIGGER_TASK;
+      ASSERT_EQ(stTriggerTaskDeploy(&task, &msg), TSDB_CODE_SUCCESS);
+      EXPECT_EQ(task.pEventTree, nullptr);
+      EXPECT_EQ(task.pHistEventTree != nullptr, startKind != 0 || endKind != 0);
+
+      cleanupTriggerDeployTestTask(&task);
+      EXPECT_EQ(task.pHistEventTree, nullptr);
+      taosMemoryFreeClear(msg.trigger.event.startCond);
+      taosMemoryFreeClear(msg.trigger.event.endCond);
+    }
+  }
 }
 
 TEST_F(StreamTriggerTaskTest, EventPartialFailurePreservesUnionForUndeploy) {
@@ -16736,6 +17062,69 @@ TEST_F(StreamHistoryBatchTest, OrdinaryHistoryPacksReadyGroupsIntoOneRequest) {
   expectHistoryBatchGroups(pAttempt->decoded, 3, false);
 }
 
+TEST_F(StreamHistoryBatchTest, DroppedDurationTagGroupDoesNotReuseEmptyReservation) {
+  for (int32_t droppedIndex : {0, 1}) {
+    SCOPED_TRACE(droppedIndex);
+    NestedHistoryHarness harness;
+    ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
+                               NestedHistoryHarness::kScanStart + NestedHistoryHarness::kHistoryStep,
+                               false, 0, true, false, 4, false, false, false));
+    harness.task()->multiGroupBatch = true;
+    harness.task()->useDurationTagRuntime = true;
+    harness.task()->maxDelayTagColId = 1;
+    ASSERT_EQ(nullptr, harness.task()->pPartitionCols);
+    SNode* node = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &node));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&harness.task()->pPartitionCols, node));
+    auto* column = reinterpret_cast<SColumnNode*>(node);
+    column->colId = 1;
+    column->colType = COLUMN_TYPE_TAG;
+    ASSERT_TRUE(harness.setHistoryEffectPolicy(STRIGGER_EVENT_WINDOW_CLOSE, STRIGGER_EVENT_WINDOW_NONE, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+    ASSERT_NE(nullptr, harness.historyContext());
+
+    const int64_t droppedGid = NestedHistoryHarness::kGid + droppedIndex;
+    const std::vector<int64_t> gids = {
+        NestedHistoryHarness::kGid, NestedHistoryHarness::kGid + 1, NestedHistoryHarness::kGid + 2};
+    for (int64_t gid : gids) {
+      if (gid == droppedGid) continue;
+      std::unique_ptr<SArray, void (*)(SArray*)> values(taosArrayInit(1, sizeof(SStreamGroupValue)),
+          [](SArray* pValues) { taosArrayDestroyEx(pValues, tDestroySStreamGroupValue); });
+      ASSERT_NE(nullptr, values.get());
+      SStreamGroupValue value = {};
+      value.data.type = TSDB_DATA_TYPE_BIGINT;
+      value.data.val = 3000;
+      ASSERT_NE(nullptr, taosArrayPush(values.get(), &value));
+      SArray* rawValues = values.get();
+      ASSERT_EQ(TSDB_CODE_SUCCESS, tSimpleHashPut(harness.historyContext()->pGroupColVals, &gid, sizeof(gid),
+                                                &rawValues, POINTER_BYTES));
+      (void)values.release();
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondTriggerGroups(gids));
+    CapturedPullAttempt* pull = harness.findPull(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+    ASSERT_NE(nullptr, pull);
+    EXPECT_EQ(droppedGid, pull->request.value().groupColValueReq.gid);
+    ASSERT_NE(nullptr, harness.historyContext()->pCalcReq);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPullError(*pull, TSDB_CODE_STREAM_NO_CONTEXT));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+
+    ASSERT_EQ(1, harness.calcAttemptCount());
+    const PipelineCalcAttempt* attempt = harness.calcAttempt(0);
+    ASSERT_NE(nullptr, attempt);
+    ASSERT_NE(nullptr, attempt->decoded.pGroupCalcInfos);
+    EXPECT_EQ(2, tSimpleHashGetSize(attempt->decoded.pGroupCalcInfos));
+    EXPECT_EQ(nullptr, historyGroupCalcInfo(&attempt->decoded, droppedGid));
+    for (int64_t gid : gids) {
+      if (gid == droppedGid) continue;
+      const SSTriggerGroupCalcInfo* group = historyGroupCalcInfo(&attempt->decoded, gid);
+      ASSERT_NE(nullptr, group);
+      EXPECT_EQ(1, taosArrayGetSize(group->pParams));
+    }
+  }
+}
+
 TEST_F(StreamHistoryBatchTest, RejectsTruncatedTriggerDataFrames) {
   for (const std::vector<char>& frame : {std::vector<char>(1, 0),
                                          std::vector<char>(sizeof(int32_t), 0),
@@ -20943,6 +21332,84 @@ TEST_F(StreamNestedRealtimeTest, LegacyEventParityExpressionsEvaluateEncodedSlot
   for (int32_t row = 0; row < blockDataGetNumOfRows(pBlock); ++row) {
     EXPECT_EQ(expectedStart[row], *reinterpret_cast<const uint8_t*>(colDataGetData(pStart, row)));
     EXPECT_EQ(expectedEnd[row], *reinterpret_cast<const uint8_t*>(colDataGetData(pEnd, row)));
+  }
+}
+
+TEST_F(StreamNestedRealtimeTest, ZeroStartTagFallbackConsumesPreviousStreak) {
+  for (bool countTag : {false, true}) {
+    SCOPED_TRACE(countTag);
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacyParityEvent, false, STRIGGER_EVENT_WINDOW_NONE,
+                             STRIGGER_EVENT_WINDOW_NONE));
+    SStreamTriggerTask* pTask = harness.task();
+    ASSERT_EQ(nullptr, pTask->pEventTree);
+    ASSERT_EQ(QUERY_NODE_NODE_LIST, nodeType(pTask->pStartCond));
+    SNode* pSingleStart = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(pTask->pStartCond)->pNodeList, 0),
+                             &pSingleStart));
+    nodesDestroyNode(pTask->pStartCond);
+    pTask->pStartCond = pSingleStart;
+    pTask->eventTrueForInfo = {};
+    pTask->startTrueForInfo = {};
+    pTask->startTrueForInfo.trueForType = countTag ? TRUE_FOR_COUNT_ONLY : TRUE_FOR_DURATION_ONLY;
+    pTask->startTrueForInfo.countTagColId = countTag ? 7 : 0;
+    pTask->startTrueForInfo.durationTagColId = countTag ? 0 : 7;
+    pTask->useDurationTagRuntime = true;
+    ASSERT_EQ(nullptr, pTask->pPartitionCols);
+    SNode* pTag = makeDeployColumnNode(7);
+    ASSERT_NE(nullptr, pTag);
+    reinterpret_cast<SColumnNode*>(pTag)->colType = COLUMN_TYPE_TAG;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pTask->pPartitionCols, pTag));
+    ASSERT_TRUE(harness.start());
+    ASSERT_NE(nullptr, harness.context());
+
+    // The realtime context owns this cache, as with a Reader response.
+    SArray* values = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(nullptr, values);
+    SStreamGroupValue value = {};
+    value.data.type = TSDB_DATA_TYPE_BIGINT;
+    value.data.val = countTag ? 3 : 3000;
+    if (taosArrayPush(values, &value) == nullptr) {
+      taosArrayDestroy(values);
+      FAIL() << "cannot allocate group value";
+    }
+    const int64_t gid = RealtimePipelineHarness::kGid;
+    int32_t code = tSimpleHashPut(harness.context()->pGroupColVals, &gid, sizeof(gid), &values, sizeof(values));
+    if (code != TSDB_CODE_SUCCESS) taosArrayDestroy(values);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    ASSERT_TRUE(harness.feedParityRows({{1000, false, 0, 1, 0}}, 2));
+    SSTriggerRealtimeGroup* pGroup = harness.group();
+    ASSERT_NE(nullptr, pGroup);
+    ASSERT_EQ(1, pGroup->startCondCount);
+    ASSERT_EQ(0, pGroup->windows.neles);
+
+    auto* pValue = static_cast<SStreamGroupValue*>(taosArrayGet(values, 0));
+    ASSERT_NE(nullptr, pValue);
+    pValue->data.val = 0;
+    pGroup->dur.durationsFrozen = false;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFreezeDurationTags(pTask, &pGroup->dur, values));
+    ASSERT_TRUE(pGroup->dur.durationTagErrLogged);
+    ASSERT_TRUE(harness.feedParityRows({{2000, false, 0, 1, 0}, {3000, false, 0, 1, 1}}, 3));
+    EXPECT_EQ(0, pGroup->windows.neles);
+    EXPECT_EQ(0, pGroup->startCondCount);
+    EXPECT_EQ(INT64_MIN, pGroup->startCondFirstTs);
+
+    pValue->data.val = countTag ? 3 : 3000;
+    pGroup->dur.durationsFrozen = false;
+    pGroup->dur.durationTagErrLogged = false;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTestFreezeDurationTags(pTask, &pGroup->dur, values));
+    ASSERT_TRUE(harness.feedParityRows({{4000, false, 0, 1, 0}, {5000, false, 0, 1, 0}}, 4));
+    EXPECT_EQ(0, pGroup->windows.neles);
+    EXPECT_EQ(2, pGroup->startCondCount);
+    EXPECT_EQ(4000, pGroup->startCondFirstTs);
+    ASSERT_TRUE(harness.feedParityRows({{7000, false, 0, 1, 0}}, 5));
+    ASSERT_EQ(1, pGroup->windows.neles);
+    const auto* pWindow = static_cast<const SSTriggerWindow*>(taosObjListGetHead(&pGroup->windows));
+    ASSERT_NE(nullptr, pWindow);
+    EXPECT_EQ(4000, pWindow->range.skey);
+    EXPECT_EQ(0, pGroup->startCondCount);
+    EXPECT_EQ(INT64_MIN, pGroup->startCondFirstTs);
   }
 }
 
@@ -27874,6 +28341,24 @@ TEST(StreamTriggerTaskRecalcTest, DeletedTailCountWindowRepairsFirstFutureWindow
   stTriggerTaskDestroyRecalcRequest(&request);
 }
 
+TEST(StreamTriggerTaskRecalcTest, MaxDelayTagRetainsFutureOpenPredecessorRepair) {
+  for (bool tagDelay : {false, true}) {
+    SCOPED_TRACE(tagDelay);
+    CountRecalcFixture fixture;
+    fixture.task_.placeHolderBitmap = PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND;
+    fixture.task_.maxDelayNs = tagDelay ? 0 : NANOSECOND_PER_SEC;
+    fixture.task_.useDurationTagRuntime = tagDelay;
+    fixture.task_.maxDelayTagColId = tagDelay ? 1 : 0;
+    fixture.group_.hasClosedWindow = true;
+    fixture.group_.prevWindow = {100, 100};
+    STimeWindow deleted = {100, 100};
+    ASSERT_EQ(stTriggerTaskAddRecalcRequest(&fixture.task_, &fixture.group_, &deleted, false, false, false, 0),
+              TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(fixture.group_.recalcNextWindow);
+    EXPECT_TRUE(fixture.group_.recalcNextOpen);
+  }
+}
+
 TEST(StreamTriggerTaskRecalcTest, DeletedTailEventWindowRepairsFirstFutureWindow) {
   CountRecalcFixture fixture;
   fixture.task_.triggerType = STREAM_TRIGGER_EVENT;
@@ -28947,6 +29432,86 @@ TEST(StreamTriggerMixedRealtimeTest, ExtPullCodecPreservesDeploymentGeneration) 
   EXPECT_EQ(decodedRsp.pullType, rsp.pullType);
   tDestroySSTriggerExtPullRsp(&decodedRsp);
   taosMemoryFree(rspBuf);
+}
+
+TEST(StreamTriggerPullCodecTest, WalMetaRequestIdRoundTrips) {
+  for (ESTriggerPullType type : {STRIGGER_PULL_WAL_META_NEW, STRIGGER_PULL_WAL_META_DATA_NEW}) {
+    SSTriggerPullRequestUnion request = {};
+    request.base.type = type;
+    request.base.streamId = 1;
+    request.base.readerTaskId = 2;
+    request.base.sessionId = 3;
+    if (type == STRIGGER_PULL_WAL_META_NEW) {
+      request.walMetaNewReq.lastVer = 10;
+      request.walMetaNewReq.ctime = 20;
+      request.walMetaNewReq.withGroupColVals = true;
+      request.walMetaNewReq.requestId = 30;
+    } else {
+      request.walMetaDataNewReq.lastVer = 10;
+      request.walMetaDataNewReq.endVer = 20;
+      request.walMetaDataNewReq.withGroupColVals = true;
+      request.walMetaDataNewReq.requestId = 30;
+    }
+
+    int32_t len = tSerializeSTriggerPullRequest(nullptr, 0, &request.base);
+    ASSERT_GT(len, 0);
+    void* buf = taosMemoryMalloc(len);
+    ASSERT_NE(buf, nullptr);
+    ASSERT_EQ(len, tSerializeSTriggerPullRequest(buf, len, &request.base));
+
+    SSTriggerPullRequestUnion decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerPullRequest(buf, len, &decoded));
+    if (type == STRIGGER_PULL_WAL_META_NEW) {
+      EXPECT_EQ(30U, decoded.walMetaNewReq.requestId);
+    } else {
+      EXPECT_EQ(30U, decoded.walMetaDataNewReq.requestId);
+    }
+    tDestroySTriggerPullRequest(&decoded);
+    taosMemoryFree(buf);
+  }
+}
+
+TEST(StreamTriggerPullCodecTest, WalMetaWithoutGroupValuesKeepsLegacyLayout) {
+  for (ESTriggerPullType type : {STRIGGER_PULL_WAL_META_NEW, STRIGGER_PULL_WAL_META_DATA_NEW}) {
+    SSTriggerPullRequestUnion request = {};
+    request.base.type = type;
+    request.base.streamId = 1;
+    request.base.readerTaskId = 2;
+    request.base.sessionId = 3;
+    if (type == STRIGGER_PULL_WAL_META_NEW) {
+      request.walMetaNewReq.lastVer = 10;
+      request.walMetaNewReq.ctime = 20;
+      request.walMetaNewReq.requestId = 30;
+    } else {
+      request.walMetaDataNewReq.lastVer = 10;
+      request.walMetaDataNewReq.endVer = 20;
+      request.walMetaDataNewReq.requestId = 30;
+    }
+
+    int32_t len = tSerializeSTriggerPullRequest(nullptr, 0, &request.base);
+    ASSERT_GT(len, 0);
+    void* buf = taosMemoryMalloc(len);
+    ASSERT_NE(buf, nullptr);
+    ASSERT_EQ(len, tSerializeSTriggerPullRequest(buf, len, &request.base));
+
+    SSTriggerPullRequestUnion decoded = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSTriggerPullRequest(buf, len, &decoded));
+    if (type == STRIGGER_PULL_WAL_META_NEW) {
+      EXPECT_FALSE(decoded.walMetaNewReq.withGroupColVals);
+      EXPECT_EQ(0U, decoded.walMetaNewReq.requestId);
+    } else {
+      EXPECT_FALSE(decoded.walMetaDataNewReq.withGroupColVals);
+      EXPECT_EQ(0U, decoded.walMetaDataNewReq.requestId);
+    }
+    if (type == STRIGGER_PULL_WAL_META_NEW) {
+      request.walMetaNewReq.withGroupColVals = true;
+    } else {
+      request.walMetaDataNewReq.withGroupColVals = true;
+    }
+    EXPECT_GT(tSerializeSTriggerPullRequest(nullptr, 0, &request.base), len);
+    tDestroySTriggerPullRequest(&decoded);
+    taosMemoryFree(buf);
+  }
 }
 
 TEST(StreamTriggerMixedRealtimeTest, IgnoresStaleExternalPullResponseGeneration) {

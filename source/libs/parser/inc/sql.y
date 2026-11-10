@@ -1890,6 +1890,7 @@ trigger_option(A) ::= FORCE_OUTPUT(B).                                          
 trigger_option(A) ::= IGNORE_DISORDER(B).                                          { A.type = STREAM_TRIGGER_OPTION_IGNORE_DISORDER; A.pNode = NULL; A.first = B; A.last = B; }
 trigger_option(A) ::= LOW_LATENCY_CALC(B).                                         { A.type = STREAM_TRIGGER_OPTION_LOW_LATENCY_CALC; A.pNode = NULL; A.first = B; A.last = B; }
 trigger_option(A) ::= MAX_DELAY(B) NK_LP duration_literal(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_MAX_DELAY; A.pNode = releaseRawExprNode(pCxt, C); A.first = B; A.last = D; }
+trigger_option(A) ::= MAX_DELAY(B) NK_LP column_name(C) NK_RP(D).                  { A.type = STREAM_TRIGGER_OPTION_MAX_DELAY; A.pNode = createColumnNode(pCxt, NULL, &C); A.first = B; A.last = D; }
 trigger_option(A) ::= PRE_FILTER(B) NK_LP search_condition(C) NK_RP(D).            { A.type = STREAM_TRIGGER_OPTION_PRE_FILTER; A.pNode = C; A.first = B; A.last = D; }
 trigger_option(A) ::= WATERMARK(B) NK_LP duration_literal(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_WATERMARK; A.pNode = releaseRawExprNode(pCxt, C); A.first = B; A.last = D; }
 trigger_option(A) ::= EVENT_TYPE(B) NK_LP event_type_list(C) NK_RP(D).             { A.type = STREAM_TRIGGER_OPTION_EVENT_TYPE; A.flag = C; A.pNode = NULL; A.first = B; A.last = D; }
@@ -3264,15 +3265,31 @@ every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                         
 
 true_for_opt(A) ::= .                                                             { A = NULL; }
 true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) NK_RP.    { A = releaseRawExprNode(pCxt, B); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) NK_RP.                          { A = createTrueForDurationNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
 true_for_opt(A) ::= TRUE_FOR NK_LP COUNT NK_INTEGER(B) NK_RP.                     { A = createTrueForCountNode(pCxt, &B); }
-true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
-true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_opt(A) ::= TRUE_FOR NK_LP COUNT column_name(B) NK_RP.                    { A = createTrueForCountTagNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) AND COUNT column_name(C) NK_RP. { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) AND COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) AND COUNT column_name(C) NK_RP. { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT NK_INTEGER(C) NK_RP.  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP interval_sliding_duration_literal(B) OR COUNT column_name(C) NK_RP.   { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) OR COUNT NK_INTEGER(C) NK_RP.    { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_opt(A) ::= TRUE_FOR NK_LP column_name(B) OR COUNT column_name(C) NK_RP.  { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
 
 // A single limit sub-expression (used as window_limit, start_limit, or end_limit).
 true_for_limit_expr(A) ::= interval_sliding_duration_literal(B).                  { A = createTrueForDurationNode(pCxt, releaseRawExprNode(pCxt, B)); }
+true_for_limit_expr(A) ::= column_name(B).                                        { A = createTrueForDurationNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
 true_for_limit_expr(A) ::= COUNT NK_INTEGER(B).                                   { A = createTrueForCountNode(pCxt, &B); }
-true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
-true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT NK_INTEGER(C). { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+true_for_limit_expr(A) ::= COUNT column_name(B).                                  { A = createTrueForCountTagNode(pCxt, createColumnNode(pCxt, NULL, &B)); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT NK_INTEGER(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) AND COUNT column_name(C). { A = createTrueForAndNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= column_name(B) AND COUNT NK_INTEGER(C).                { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_limit_expr(A) ::= column_name(B) AND COUNT column_name(C).               { A = createTrueForAndNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT NK_INTEGER(C). { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), &C, NULL); }
+true_for_limit_expr(A) ::= interval_sliding_duration_literal(B) OR  COUNT column_name(C).  { A = createTrueForOrNode(pCxt, releaseRawExprNode(pCxt, B), NULL, createColumnNode(pCxt, NULL, &C)); }
+true_for_limit_expr(A) ::= column_name(B) OR COUNT NK_INTEGER(C).                 { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), &C, NULL); }
+true_for_limit_expr(A) ::= column_name(B) OR COUNT column_name(C).                { A = createTrueForOrNode(pCxt, createColumnNode(pCxt, NULL, &B), NULL, createColumnNode(pCxt, NULL, &C)); }
 
 // Extended true_for_opt with start/end sub-expressions.
 // window_limit + start

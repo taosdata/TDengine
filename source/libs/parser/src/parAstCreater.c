@@ -2383,6 +2383,7 @@ SNode* createTrueForCountNode(SAstCreateContext* pCxt, const SToken* pCount) {
   CHECK_MAKE_NODE(pTrueFor);
   pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
   pTrueFor->pDuration = NULL;
+  pTrueFor->pCount = NULL;
   if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
     goto _err;
   }
@@ -2392,7 +2393,23 @@ _err:
   return NULL;
 }
 
-SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+SNode* createTrueForCountTagNode(SAstCreateContext* pCxt, SNode* pCountCol) {
+  STrueForNode* pTrueFor = NULL;
+  CHECK_PARSER_STATUS(pCxt);
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
+  CHECK_MAKE_NODE(pTrueFor);
+  pTrueFor->trueForType = TRUE_FOR_COUNT_ONLY;
+  pTrueFor->count = 0;
+  pTrueFor->pDuration = NULL;
+  pTrueFor->pCount = pCountCol;
+  return (SNode*)pTrueFor;
+_err:
+  nodesDestroyNode(pCountCol);
+  nodesDestroyNode((SNode*)pTrueFor);
+  return NULL;
+}
+
+SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol) {
   STrueForNode* pTrueFor = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
@@ -2400,17 +2417,23 @@ SNode* createTrueForAndNode(SAstCreateContext* pCxt, SNode* pDuration, const STo
   pTrueFor->trueForType = TRUE_FOR_AND;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
-    goto _err;
+  pTrueFor->pCount = pCountCol;
+  if (pCountCol == NULL) {
+    if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+      goto _err;
+    }
+  } else {
+    pTrueFor->count = 0;
   }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
   nodesDestroyNode(pDuration);
+  nodesDestroyNode(pCountCol);
   return NULL;
 }
 
-SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount) {
+SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const SToken* pCount, SNode* pCountCol) {
   STrueForNode* pTrueFor = NULL;
   CHECK_PARSER_STATUS(pCxt);
   pCxt->errCode = nodesMakeNode(QUERY_NODE_TRUE_FOR, (SNode**)&pTrueFor);
@@ -2418,13 +2441,19 @@ SNode* createTrueForOrNode(SAstCreateContext* pCxt, SNode* pDuration, const STok
   pTrueFor->trueForType = TRUE_FOR_OR;
   pTrueFor->pDuration = pDuration;
   pDuration = NULL;
-  if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
-    goto _err;
+  pTrueFor->pCount = pCountCol;
+  if (pCountCol == NULL) {
+    if (!parseTrueForCount(pCxt, pCount, &pTrueFor->count)) {
+      goto _err;
+    }
+  } else {
+    pTrueFor->count = 0;
   }
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode((SNode*)pTrueFor);
   nodesDestroyNode(pDuration);
+  nodesDestroyNode(pCountCol);
   return NULL;
 }
 
@@ -2436,6 +2465,7 @@ SNode* createTrueForDurationNode(SAstCreateContext* pCxt, SNode* pDuration) {
   pTrueFor->trueForType = TRUE_FOR_DURATION_ONLY;
   pTrueFor->count = 0;
   pTrueFor->pDuration = pDuration;
+  pTrueFor->pCount = NULL;
   return (SNode*)pTrueFor;
 _err:
   nodesDestroyNode(pDuration);
@@ -2454,7 +2484,9 @@ SNode* createTrueForFullNode(SAstCreateContext* pCxt, SNode* pWindowLimit, SNode
     pNode->trueForType = pW->trueForType;
     pNode->count = pW->count;
     pNode->pDuration = pW->pDuration;
+    pNode->pCount = pW->pCount;
     pW->pDuration = NULL;
+    pW->pCount = NULL;
     nodesDestroyNode(pWindowLimit);
     pWindowLimit = NULL;
   }

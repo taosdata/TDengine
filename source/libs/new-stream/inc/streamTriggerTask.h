@@ -248,6 +248,16 @@ typedef struct SSTriggerNestedInputRetry {
   SSTriggerVirTablePseudoColRequest request;
 } SSTriggerNestedInputRetry;
 
+typedef struct SSTriggerGroupDurationState {
+  bool         durationsFrozen;
+  bool         durationTagErrLogged; /* suppress repeated invalid-tag ELOG */
+  int64_t      frozenMaxDelayNs;
+  STrueForInfo frozenEventTrueFor;
+  STrueForInfo frozenStartTrueFor;
+  STrueForInfo frozenEndTrueFor;
+  STrueForInfo frozenStateTrueFor;
+} SSTriggerGroupDurationState;
+
 typedef struct SSTriggerRealtimeGroup {
   struct SSTriggerRealtimeContext *pContext;
   SWindowChainState               *pWindowChain;
@@ -324,6 +334,9 @@ typedef struct SSTriggerRealtimeGroup {
   bool        pendingWinOpen;            // for event window trigger and state window trigger
   char       *pPendWinOpenNotify;        // for event window trigger and state window trigger
 
+  // Frozen per-group TRUE_FOR / max_delay values resolved from PARTITION BY tags at first use.
+  SSTriggerGroupDurationState dur;
+
   int64_t  nextExecTime;  // used for max delay and batch window mode
   HeapNode heapNode;      // used for max delay and batch window mode
   int64_t  nestedCalcDeadline;
@@ -389,6 +402,8 @@ typedef struct SSTriggerHistoryGroup {
   SSTriggerCalcParam pendingWinParam;           // for event window trigger and state window trigger
   HeapNode           heapNode;
   bool               inMaxDelayHeap;
+
+  SSTriggerGroupDurationState dur;
 } SSTriggerHistoryGroup;
 
 typedef enum ESTriggerContextStatus {
@@ -1017,6 +1032,7 @@ typedef struct SStreamEventTreeNode {
   bool         isLeaf;
   SNode       *pCond;  // borrowed from the AST used to build this tree
   STrueForInfo trueFor;
+  bool         usesStartTrueFor;  // single leaf inherits the START WITH limit instead of the global limit
 } SStreamEventTreeNode;
 
 typedef struct SStreamEventTree {
@@ -1115,6 +1131,9 @@ typedef struct SStreamTriggerTask {
   int32_t trigPkIndex;
   int32_t calcPkIndex;
   int64_t maxDelayNs;
+  col_id_t maxDelayTagColId;
+  bool    useDurationTagRuntime;  // true only when max_delay/true_for use tag columns
+  SNodeList *pPartitionCols;
   int64_t fillHistoryStartTime;
   int64_t watermark;
   int64_t expiredTime;

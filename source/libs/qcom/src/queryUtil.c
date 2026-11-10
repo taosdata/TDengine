@@ -844,9 +844,12 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   }
 
   int32_t numOfField = pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags;
-  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < TSDB_MIN_COLUMNS) {
+  // Sparse external schemas start with one column and materialize others lazily.
+  int32_t minColumns = pSrc->extSrcSynthetic ? 1 : TSDB_MIN_COLUMNS;
+  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < minColumns) {
     *pDst = NULL;
-    qError("too many column and tag num:%d,%d", pSrc->tableInfo.numOfColumns, pSrc->tableInfo.numOfTags);
+    qError("invalid column and tag num:%d,%d", pSrc->tableInfo.numOfColumns,
+           pSrc->tableInfo.numOfTags);
     return TSDB_CODE_INVALID_PARA;
   }
 

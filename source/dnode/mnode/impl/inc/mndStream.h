@@ -636,6 +636,7 @@ int32_t mstBuildDBVgroupsMap(SMnode* pMnode, SSHashObj** ppRes);
 int32_t mstGetTableVgId(SSHashObj* pDbVgroups, char* dbFName, char *tbName, int32_t* vgId);
 void mstDestroyDbVgroupsHash(SSHashObj *pDbVgs);
 void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, int32_t tagNum);
+bool mndStreamTagReferencedByDuration(SMnode *pMnode, int64_t suid, col_id_t colId);
 void mstCheckDbInUse(SMnode *pMnode, char *dbFName, bool *dbStream, bool *vtableStream, bool ignoreCurrDb);
 void mstDestroySStmSnodeTasksDeploy(void* param);
 int32_t mstRestoreRunnerDeploy(SStmStatus* pStatus, int32_t deployId);
