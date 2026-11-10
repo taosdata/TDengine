@@ -108,7 +108,7 @@ def prune_runtime(venv_dir: Path) -> None:
         shutil.rmtree(path, ignore_errors=True)
     # Test directories are pruned only with package/runtime regression coverage.
     for name in ("test", "tests"):
-        for path in list(venv_dir.rglob(name)):
+        for path in [item for item in venv_dir.rglob("*") if item.name.lower() == name]:
             if (path.is_dir() and not path.is_symlink()
                     and not any(part.casefold() == "include"
                                 for part in path.relative_to(venv_dir).parts)):
@@ -146,7 +146,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runtime-dir", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--version", default="1.0.2")
+    parser.add_argument("--version", default="1.0.3")
     parser.add_argument(
         "--requirements",
         type=Path,
@@ -213,9 +213,13 @@ def main() -> int:
             "-B",
             "-c",
             "import flask, pyarrow, requests, statsforecast, waitress; "
-            "import numpy, pandas, scipy, statsmodels, sklearn, Cython, setuptools, wheel",
+            "import numpy, pandas, scipy, statsmodels, sklearn, Cython, setuptools, wheel; "
+            "import xgboost, pyod, numba, llvmlite; "
+            "from sklearn.cross_decomposition import PLSRegression",
         ]
     )
+
+    run([str(python), "-B", str(Path(__file__).with_name("validate_lite_venv.py"))])
 
     freeze = subprocess.run(
         [str(python), "-m", "pip", "freeze", "--all"],

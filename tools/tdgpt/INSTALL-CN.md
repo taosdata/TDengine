@@ -4,6 +4,12 @@
 
 本指南涵盖 TDGPT 在 Linux 和 Windows 平台上的安装和使用。
 
+## 用户 Python 算法与升级保留
+
+正常安装无需手动配置，安装器自动创建默认算法目录及 `ad/`、`fc/` 子目录。默认路径由 `data_dir` 派生为 `<data_dir>/custom`；更换 `data_dir` 时无需另改算法路径，但需同步迁移已有数据。`custom_algo_dir` 仅用于显式指定其他存储位置。 Linux / Docker 默认 `/var/lib/taos/taosanode/custom`，Windows 默认 `<安装目录>/data/custom`。Docker 可通过 `TDGPT_CUSTOM_ALGO_DIR` 覆盖配置，必须将宿主机算法目录挂载到对应容器路径。修改算法后重启主服务；额外依赖安装在主 venv，与官方模型的 TSFM venv 分开管理。
+
+安装器迁移旧 `lib/taosanalytics/algo/custom`，校验后退役旧目录，保留备份和迁移记录。冲突时中止升级，不覆盖用户文件；后续升级不会恢复用户在新目录中删除的算法。升级和默认卸载保留新目录。Docker 更换容器前必须先从旧容器导出未挂载的旧算法，再挂载新目录，不能直接删除旧容器。完整目录、迁移及升级步骤见 [Lite 设计文档](packaging/TDGPT-LITE-DESIGN-CN.md)。
+
 ## 目录
 
 - [系统要求](#系统要求)
@@ -307,8 +313,7 @@ python <install_dir>/bin/taosanode_service.py model-status
 
 #### 动态资源删除
 
-动态模型只能从 `model/tsfm/<模型名>` 删除；共享 TSFM runtime 使用 `tsfm_runtime` 作为目标。
-删除前必须停止对应模型，删除 runtime 前必须停止所有 TSFM 模型 worker。
+动态模型只能从 `model/tsfm/<模型名>` 删除；共享 TSFM runtime 使用 `tsfm_runtime` 作为目标。删除前必须停止对应模型，删除 runtime 前必须停止所有 TSFM 模型 worker。
 
 ```bash
 # 删除单个模型

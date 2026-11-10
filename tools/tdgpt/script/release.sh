@@ -95,6 +95,8 @@ find "${top_dir}/lib/" -type d -name "$TARGET_PATTERN" -exec rm -rf {} +
 # copy lib packages: top-level py files, taosanalytics, tsfm, dynamic
 cp ${top_dir}/lib/*.py ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/taosanalytics ${lib_install_dir}/ && chmod a+x ${lib_install_dir}/ || :
+# User plugins live in the data directory; never ship legacy plugin placeholders.
+rm -rf "${lib_install_dir}/taosanalytics/algo/custom"
 cp -R ${top_dir}/lib/tsfm ${lib_install_dir}/ || :
 cp -R ${top_dir}/lib/dynamic ${lib_install_dir}/ || :
 # Keep the payload explicit: new development scripts must not be shipped by a glob.

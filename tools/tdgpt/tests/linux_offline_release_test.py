@@ -22,7 +22,8 @@ import pytest
 
 
 @pytest.mark.parametrize("arch", ["x64", "arm64"])
-def test_lite_release_builds_only_runtime_main_venv_and_installer(tmp_path, arch):
+@pytest.mark.parametrize("venv_version", [None, "1.0.9"])
+def test_lite_release_builds_only_runtime_main_venv_and_installer(tmp_path, arch, venv_version):
     packaging = tmp_path / "packaging"
     packaging.mkdir()
     source = Path(__file__).resolve().parents[1] / "packaging" / "build_linux_offline_release.sh"
@@ -30,10 +31,12 @@ def test_lite_release_builds_only_runtime_main_venv_and_installer(tmp_path, arch
     shutil.copyfile(source, driver)
     builder = '''set -eu
 output=""
+venv_version="1.0.3"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --output-dir) output="$2"; shift 2 ;;
     --arch) arch="$2"; shift 2 ;;
+    --venv-version) venv_version="$2"; shift 2 ;;
     --bundle) test "$2" = main; shift 2 ;;
     --tdmodel-requirements) exit 99 ;;
     --lite) shift ;;
@@ -44,7 +47,7 @@ printf payload > "$output/ARTIFACT-linux-$arch.tar.xz"
 '''
     for filename, artifact in [
         ("build_python_runtime_linux.sh", "tdengine-python-runtime-3.12.12"),
-        ("build_linux_offline_assets.sh", "tdengine-tdgpt-lite-venv-1.0.2"),
+        ("build_linux_offline_assets.sh", "tdengine-tdgpt-lite-venv-${venv_version}"),
     ]:
         stub = packaging / filename
         stub.write_text(builder.replace("ARTIFACT", artifact))
@@ -59,7 +62,8 @@ printf payload > "$output/ARTIFACT-linux-$arch.tar.xz"
     release_sh.chmod(0o755)
     result = subprocess.run(
         ["bash", str(driver), "--lite", "--version", "3.4.2.9.0909",
-         "--arch", arch, "--work-dir", "work dir", "--output-dir", "output dir"],
+         "--arch", arch, "--work-dir", "work dir", "--output-dir", "output dir",
+         *(["--venv-version", venv_version] if venv_version else [])],
         cwd=tmp_path, capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr

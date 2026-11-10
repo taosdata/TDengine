@@ -29,8 +29,9 @@ SPEC.loader.exec_module(win_release)
 
 def test_windows_package_version_with_copyright_header(tmp_path, monkeypatch):
     source_dir = tmp_path / "source"
-    analytics = source_dir / "taosanalytics"
+    analytics = source_dir / "lib" / "taosanalytics"
     analytics.mkdir(parents=True)
+    (source_dir / "lib" / "service_registry.py").write_text("# runtime loader\n")
     (analytics / "__init__.py").write_text(
         "# Copyright (c) TAOS Data\n\n__version__ = '3.3.7.1'\n"
         "raise RuntimeError('version lookup must not import analytics')\n",

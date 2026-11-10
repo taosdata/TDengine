@@ -379,6 +379,10 @@ class Config:
         if config_path is None:
             config_path = os.path.join(self.cfg_dir, "taosanode.config.py")
 
+        self.config_path = os.path.abspath(config_path)
+        self.cfg_dir = os.path.dirname(self.config_path)
+        config_path = self.config_path
+
         # Set attribute defaults so they always exist even if config file is missing
         self.pid_file = PID_FILE
         self.app_log = os.path.join(self.log_dir, "taosanode.app.log")
@@ -716,7 +720,7 @@ class ProcessManager:
             markers = [
                 "taosanode_service.py",
                 "from waitress import serve",
-                "taosanalytics.app",
+                "lib.app",
                 "gunicorn",
             ]
             return any(marker in commandline for marker in markers)
@@ -896,7 +900,8 @@ class TaosanodeService:
     def _build_runtime_env(self) -> Dict[str, str]:
         """Build a consistent runtime environment for import checks and service start."""
         env = os.environ.copy()
-        lib_root = os.path.join(self.config.install_dir, "lib")
+        env["TDGPT_CONF"] = self.config.config_path
+        lib_root = self.config.install_dir
         existing_pythonpath = env.get("PYTHONPATH", "").strip()
         env["PYTHONPATH"] = (
             lib_root if not existing_pythonpath else lib_root + os.pathsep + existing_pythonpath
@@ -945,8 +950,8 @@ class TaosanodeService:
     def _collect_preflight_diagnostics(self, python_exe: str, env: Dict[str, str], cwd: str) -> None:
         """Run focused import probes so startup failures identify the exact failing dependency."""
         self.logger.info("Collecting taosanode startup diagnostics...")
-        lib_root = os.path.join(self.config.install_dir, "lib").replace("\\", "\\\\")
-        discovered_modules = self._discover_runtime_dependencies("taosanalytics.app")
+        lib_root = self.config.install_dir.replace("\\", "\\\\")
+        discovered_modules = self._discover_runtime_dependencies("lib.app")
         fallback_modules = ["waitress", "numpy", "pandas", "flask", "torch", "tensorflow", "keras"]
         probe_modules = []
         for module_name in discovered_modules + fallback_modules:
@@ -954,7 +959,7 @@ class TaosanodeService:
                 probe_modules.append(module_name)
 
         self.logger.info(
-            "Dependency probes derived from taosanalytics.app: " +
+            "Dependency probes derived from lib.app: " +
             (", ".join(discovered_modules) if discovered_modules else "none discovered")
         )
 
@@ -964,12 +969,12 @@ class TaosanodeService:
         ]
         probes.extend([
             (
-                "import taosanalytics.conf",
-                f"import sys; sys.path.insert(0, r'{lib_root}'); import taosanalytics.conf; print('conf ok')"
+                "import lib.conf",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); import lib.conf; print('conf ok')"
             ),
             (
-                "import taosanalytics.app",
-                f"import sys; sys.path.insert(0, r'{lib_root}'); from taosanalytics.app import app; print('app ok')"
+                "import lib.app",
+                f"import sys; sys.path.insert(0, r'{lib_root}'); from lib.app import app; print('app ok')"
             ),
         ])
         for label, code in probes:
@@ -1181,9 +1186,9 @@ class TaosanodeService:
         return module_name in stdlib_names
 
     def _resolve_local_module_path(self, module_name: str, package_root: str) -> Optional[str]:
-        if not module_name.startswith("taosanalytics"):
+        if module_name != "lib" and not module_name.startswith("lib."):
             return None
-        relative_parts = module_name.split(".")[1:]
+        relative_parts = module_name.split(".")
         base_path = os.path.join(package_root, *relative_parts) if relative_parts else package_root
         file_candidate = base_path + ".py"
         init_candidate = os.path.join(base_path, "__init__.py")
@@ -1202,8 +1207,8 @@ class TaosanodeService:
             prefix_parts.extend(module_name.split("."))
         return ".".join(part for part in prefix_parts if part)
 
-    def _discover_runtime_dependencies(self, entry_module: str = "taosanalytics.app") -> List[str]:
-        package_root = os.path.join(self.config.install_dir, "lib")
+    def _discover_runtime_dependencies(self, entry_module: str = "lib.app") -> List[str]:
+        package_root = self.config.install_dir
         entry_path = self._resolve_local_module_path(entry_module, package_root)
         if not entry_path:
             return []
@@ -1231,7 +1236,7 @@ class TaosanodeService:
                     for alias in node.names:
                         imported = alias.name
                         top_level = imported.split(".")[0]
-                        if top_level == "taosanalytics":
+                        if top_level == "lib":
                             visit(imported)
                         elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                             external_modules.add(top_level)
@@ -1243,7 +1248,7 @@ class TaosanodeService:
                     if not resolved:
                         continue
                     top_level = resolved.split(".")[0]
-                    if top_level == "taosanalytics":
+                    if top_level == "lib":
                         visit(resolved)
                     elif top_level not in stdlib_exclusions and not self._is_stdlib_module(top_level):
                         external_modules.add(top_level)
@@ -1252,11 +1257,11 @@ class TaosanodeService:
         return sorted(external_modules)
 
     def _preflight_app_import(self, python_exe: str, env: Dict[str, str], cwd: str) -> bool:
-        """Validate that taosanalytics.app can be imported before starting the service."""
+        """Validate that lib.app can be imported before starting the service."""
         self.logger.info("Running taosanode import preflight check...")
         check_script = (
-            "from taosanalytics.app import app; "
-            "print('taosanalytics.app import ok')"
+            "from lib.app import app; "
+            "print('lib.app import ok')"
         )
 
         try:
@@ -1306,7 +1311,7 @@ class TaosanodeService:
         """Run taosanode in the current process for WinSW-managed service mode."""
         redirect_stdio_if_needed()
         python_exe = self.process_mgr._get_python_exe()
-        lib_root = os.path.join(self.config.install_dir, "lib")
+        lib_root = self.config.install_dir
         lib_dir = os.path.join(self.config.install_dir, "lib", "taosanalytics")
         env = self._build_runtime_env()
         try:
@@ -1390,7 +1395,8 @@ class TaosanodeService:
 
         cmd = [
             python_exe, "-m", "gunicorn",
-            "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+            "-c", self.config.config_path,
+            "--pythonpath", self.config.install_dir, "lib.app:app",
         ]
 
         try:
@@ -1453,7 +1459,7 @@ class TaosanodeService:
 
                 cmd = [
                     python_exe, "-c",
-                    f"from waitress import serve; from taosanalytics.app import app; "
+                    f"from waitress import serve; from lib.app import app; "
                     f"serve(app, "
                     f"host='{bind_host}', "
                     f"port={bind_port}, "
@@ -1467,7 +1473,8 @@ class TaosanodeService:
                 # Linux: use gunicorn
                 cmd = [
                     python_exe, "-m", "gunicorn",
-                    "-c", os.path.join(self.config.cfg_dir, "taosanode.config.py"),
+                    "-c", self.config.config_path,
+                    "--pythonpath", self.config.install_dir, "lib.app:app",
                     "-D",  # Daemon mode
                 ]
 
@@ -2363,7 +2370,7 @@ Examples:
     parser.add_argument(
         "--full-preflight",
         action="store_true",
-        help="Run the full taosanalytics.app import preflight before startup"
+        help="Run the full lib.app import preflight before startup"
     )
     parser.add_argument(
         "--timeout",

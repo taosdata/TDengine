@@ -74,6 +74,9 @@ Source: "{#MyAppSourceDir}\uninstall.bat"; DestDir: "{app}"; Flags: ignoreversio
 Source: "{#MyAppSourceDir}\uninstall.py"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
+Name: "{app}\data\custom"; Flags: uninsneveruninstall
+Name: "{app}\data\custom\ad"; Flags: uninsneveruninstall
+Name: "{app}\data\custom\fc"; Flags: uninsneveruninstall
 Name: "{app}\cfg"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\log"; Permissions: everyone-modify; Flags: uninsneveruninstall
 Name: "{app}\model"; Permissions: everyone-modify; Flags: uninsneveruninstall

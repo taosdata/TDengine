@@ -1131,6 +1131,28 @@ function installProduct() {
   echo "Start to install ${productName}..."
   validate_offline_packages
 
+  # Check conflicts without moving or retiring files before stopping services.
+  local migration_python
+  migration_python=$(resolve_repair_python_bin) || return 1
+  local migration_args=(
+    "${script_dir}/lib/custom_algorithms.py"
+    --install-dir "${install_main_dir}" --default "${dataDir}/custom"
+    --config "${global_conf_dir}/${configFile}" --backup-dir "${dataDir}/custom-backups"
+  )
+  ${csudo} "${migration_python}" "${migration_args[@]}" --check-only || return 1
+  # Stop with the installed controller while its code and main venv still exist.
+  if [ -x "${venvDir}/bin/python3" ] && [ -f "${install_main_dir}/bin/taosanodectl.py" ]; then
+    if ! ${csudo} "${venvDir}/bin/python3" "${install_main_dir}/bin/taosanodectl.py" model stop all; then
+      echo "Unable to stop model workers; installation aborted, legacy algorithms preserved." >&2
+      return 1
+    fi
+    if ! ${csudo} "${venvDir}/bin/python3" "${install_main_dir}/bin/taosanodectl.py" service stop; then
+      echo "Unable to stop Taosanode; installation aborted, legacy algorithms preserved." >&2
+      return 1
+    fi
+  fi
+  # Retire the legacy directory only after successful service shutdown.
+  ${csudo} "${migration_python}" "${migration_args[@]}" || return 1
   install_main_path
   install_log
   install_anode_config

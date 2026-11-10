@@ -4,6 +4,12 @@
 
 This guide covers installation and usage of TDGPT on both Linux and Windows platforms.
 
+## Persistent user Python algorithms
+
+No manual configuration is required for a normal installation. The installer creates the default algorithm directory with `ad/` and `fc/`. Set `custom_algo_dir` only when choosing another persistent location. By default it follows `<data_dir>/custom`; changing `data_dir` does not require a separate algorithm path change. Move the existing data as part of relocating the data directory. The default is `/var/lib/taos/taosanode/custom` on Linux/Docker and `<install-directory>/data/custom` on Windows. Docker also supports the `TDGPT_CUSTOM_ALGO_DIR` environment override; bind-mount the host directory at that container path. Restart the main service after changing Python files. Plugins run in the main venv, separately from the official TSFM model runtime.
+
+Installers migrate legacy `lib/taosanalytics/algo/custom` files with a backup, refuse conflicting files, and retire the old directory after verification. Backups and migration records are kept separately; later upgrades do not restore plugins removed from the new directory. Upgrade and default uninstall preserve the new directory. Before replacing an existing Docker container, export any unmounted legacy plugins and mount the persistent directory; do not delete the old container first. See the [Lite design](packaging/TDGPT-LITE-DESIGN-CN.md) for the complete directory and upgrade contract.
+
 ## Table of Contents
 
 - [System Requirements](#system-requirements)

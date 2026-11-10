@@ -27,5 +27,6 @@ if [ ! -f "${CONFIG_FILE}" ]; then
   exit 1
 fi
 
-cd /usr/local/taos/taosanode/lib/taosanalytics/
-exec gunicorn -c "${CONFIG_FILE}"
+export TDGPT_CONF="${CONFIG_FILE}"
+cd /usr/local/taos/taosanode
+exec gunicorn -c "${CONFIG_FILE}" --pythonpath /usr/local/taos/taosanode lib.app:app

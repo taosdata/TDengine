@@ -77,10 +77,10 @@ pidfile = _os.path.join(base_dir, 'taosanode.pid')
 virtualenv = _os.path.join(base_dir, 'venvs', 'venv') if (on_windows or on_github_actions) else '/var/lib/taos/taosanode/venv'
 
 # set the taosanoded basic python library directory
-pythonpath = _os.path.join(base_dir, 'lib', 'taosanalytics')
+pythonpath = base_dir
 
 # wsgi app name
-wsgi_app = 'app:app'
+wsgi_app = 'lib.app:app'
 
 # Preload application before forking worker processes. This can improve startup time and save memory
 preload_app = True
@@ -92,6 +92,10 @@ app_log = _os.path.join(log_dir, 'taosanode.app.log')
 
 # model storage directory
 model_dir = _os.path.join(base_dir, 'model') if (on_windows or on_github_actions) else _os.path.join(data_dir, 'model')
+
+# User Python algorithms default to <data_dir>/custom; no separate setting is required.
+# Uncomment only to override that location. Restart after code changes.
+# custom_algo_dir = _os.path.join(data_dir, 'custom')
 
 # dynamic load model directory, models in this directory will be loaded dynamically when the server is running,
 # and can be added or removed at any time without restarting the server

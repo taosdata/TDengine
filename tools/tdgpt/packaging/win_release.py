@@ -296,16 +296,18 @@ def copy_python_files():
 
     source_dir = install_info.source_dir
 
-    # Copy taosanalytics directory
-    src_analytics = os.path.join(source_dir, "taosanalytics")
+    # Match the Linux payload: shared loaders plus analytics, dynamic and TSFM.
+    # Copy from the current lib/ layout, not the historical source root.
+    source_lib = os.path.join(source_dir, "lib")
+    if not os.path.isfile(os.path.join(source_lib, "service_registry.py")):
+        raise FileNotFoundError(f"Missing TDgpt runtime library: {source_lib}")
     dst_analytics = os.path.join(lib_dir, "taosanalytics")
 
-    if os.path.exists(dst_analytics):
-        shutil.rmtree(dst_analytics)
-
     # Copy directory, excluding __pycache__ and .pyc files
-    shutil.copytree(src_analytics, dst_analytics,
+    shutil.copytree(source_lib, lib_dir, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc', '.git*'))
+    # Legacy package markers must not overwrite user files before migration.
+    shutil.rmtree(os.path.join(dst_analytics, 'algo', 'custom'), ignore_errors=True)
     logging.info(f"Copied taosanalytics to {dst_analytics}")
 
     # Update version in __init__.py

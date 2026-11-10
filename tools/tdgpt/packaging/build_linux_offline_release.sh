@@ -29,7 +29,7 @@ python_version="3.12.12"
 target_python_home="/usr/local/taos-deps/python-runtime"
 pip_extra_args=""
 lite=0
-venv_version="1.0.2"
+venv_version="1.0.3"
 
 usage() {
   cat <<'EOF'
@@ -54,7 +54,7 @@ Options:
                                  Default: /usr/local/taos-deps/python-runtime
   --pip-extra-args STRING        Extra pip arguments passed to venv builder.
   --lite                         Build Lite installer and Lite TDgpt venv archives.
-  --venv-version VERSION         Version used in venv archive names. Default: 1.0.2.
+  --venv-version VERSION         Version used in venv archive names. Default: 1.0.3.
 EOF
 }
 

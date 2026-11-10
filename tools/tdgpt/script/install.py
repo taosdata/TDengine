@@ -2318,6 +2318,30 @@ class WindowsInstaller:
                 self.print_warning(f"Unable to stop PID {pid}: {exc}")
         time.sleep(2)
 
+    def migrate_custom_algorithms(self, *, check_only: bool = False) -> bool:
+        """Report migration failures through the installer log and progress UI."""
+        command = [
+            sys.executable, str(self.install_dir / "lib" / "custom_algorithms.py"),
+            "--install-dir", str(self.install_dir),
+            "--default", str(self.install_dir / "data" / "custom"),
+            "--config", str(self.install_dir / "cfg" / "taosanode.config.py"),
+            "--backup-dir", str(self.install_dir / "data" / "custom-backups"),
+        ]
+        if check_only:
+            command.append("--check-only")
+        try:
+            result = subprocess.run(command, capture_output=True, text=True, check=False)
+        except OSError as exc:
+            self.print_error(f"Unable to migrate custom algorithms: {exc}")
+            return False
+        if result.returncode:
+            detail = (result.stderr or result.stdout or f"exit code {result.returncode}").strip()
+            self.print_error(f"Unable to migrate custom algorithms: {detail}")
+            return False
+        if result.stdout.strip():
+            self.print_info(result.stdout.strip())
+        return True
+
     def stop_existing_service(self) -> None:
         self.print_info(
             "Stopping any existing Taosanode service before installation..."
@@ -3635,8 +3659,14 @@ except Exception as exc:
                 "Stopping existing Taosanode service",
             )
             timer = self.start_phase_timer("Stop existing Taosanode service")
+            if not self.migrate_custom_algorithms(check_only=True):
+                return False
             self.stop_existing_service()
             self.finish_phase_timer("Stop existing Taosanode service", timer)
+            # lib is already extracted by Inno; unshipped legacy plugin files
+            # remain available here. Migrate before replacing the main venv.
+            if not self.migrate_custom_algorithms():
+                return False
             timer = self.start_phase_timer("Install Python environments")
             if not self.install_venvs():
                 return False

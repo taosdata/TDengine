@@ -25,6 +25,27 @@ from unittest import mock
 import pytest
 
 
+def test_windows_package_contains_complete_runtime_library(tmp_path):
+    """A clean checkout must package loaders, analytics and model runtimes."""
+    root = Path(__file__).parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "tdgpt_win_release", root / "packaging" / "win_release.py"
+    )
+    release = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(release)
+    release.install_info.source_dir = str(root)
+    release.install_info.install_dir = str(tmp_path)
+    release.copy_python_files()
+    for name in (
+        "app.py", "conf.py", "service_registry.py", "custom_algorithms.py",
+        "taosanalytics/__init__.py", "dynamic/model_loader.py",
+        "tsfm/service/moirai_server.py",
+    ):
+        assert (tmp_path / "lib" / name).is_file(), name
+    assert not (tmp_path / "lib/taosanalytics/algo/custom").exists()
+    assert not list((tmp_path / "lib").rglob("__pycache__"))
+
+
 @pytest.fixture(scope="module")
 def install_module():
     module_path = Path(__file__).parents[1] / "script" / "install.py"
@@ -48,6 +69,22 @@ def make_installer(install_module, tmp_path):
     installer.print_success = mock.Mock()
     installer.print_warning = mock.Mock()
     return installer
+
+
+def test_migration_failure_is_reported_in_installer_log(install_module, tmp_path):
+    installer = make_installer(install_module, tmp_path)
+    result = mock.Mock(returncode=1, stdout="", stderr="migration conflicts: first.py, second.py")
+    with mock.patch.object(install_module.subprocess, "run", return_value=result) as run:
+        assert installer.migrate_custom_algorithms(check_only=True) is False
+    assert "--check-only" in run.call_args.args[0]
+    assert "first.py, second.py" in installer.print_error.call_args.args[0]
+
+
+def test_migration_launch_failure_is_reported(install_module, tmp_path):
+    installer = make_installer(install_module, tmp_path)
+    with mock.patch.object(install_module.subprocess, "run", side_effect=OSError("python unavailable")):
+        assert installer.migrate_custom_algorithms() is False
+    assert "python unavailable" in installer.print_error.call_args.args[0]
 
 
 @pytest.mark.parametrize(

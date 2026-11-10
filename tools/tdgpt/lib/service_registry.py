@@ -36,6 +36,7 @@ from lib.base import (
     AbstractSeriesDiagnosisService,
 )
 from lib.conf import Configure
+from lib.custom_algorithms import module_prefix
 from lib.dynamic.wrapper import (
     DynamicAnomalyService,
     DynamicClassificationService,
@@ -464,7 +465,7 @@ class ServiceRegistry:
                 # ignore the failure and continue in case of registering custom models
                 return
 
-        all_files = os.listdir(service_directory)
+        all_files = sorted(os.listdir(service_directory))
 
         for item in all_files:
             if item in ("__init__.py", "__pycache__") or not item.endswith(".py"):
@@ -481,7 +482,7 @@ class ServiceRegistry:
                 module = importlib.import_module(name)
             except Exception as e:
                 AppLogger.error(
-                    "failed to import module %s: %s, skipping", name, str(e)
+                    "failed to import module %s (%s): %s, skipping", name, full_path, str(e)
                 )
                 continue
 
@@ -536,10 +537,33 @@ class ServiceRegistry:
                         AppLogger.error(
                             "failed to register service:%s from %s: %s, skipping",
                             class_name,
-                            name,
+                            full_path,
                             str(e),
                         )
                         continue
+
+    def load_custom_services(self):
+        """Discover persistent ad/fc plugins without exposing them on sys.path."""
+        config = Configure.get_instance()
+        root = Path(config.get_custom_algo_directory())
+        explicit = bool(os.environ.get("TDGPT_CUSTOM_ALGO_DIR")) or (
+            config.custom_algo_explicit
+        )
+        if not root.exists():
+            if explicit:
+                raise FileNotFoundError(f"custom algorithm directory does not exist: {root}")
+            return
+        if not root.is_dir() or not os.access(root, os.R_OK | os.X_OK):
+            raise OSError(f"custom algorithm directory is not readable: {root}")
+        try:
+            prefix = module_prefix(root)
+        except Exception as exc:
+            AppLogger.error("failed to initialize custom algorithm package %s: %s, skipping", root, exc)
+            return
+        for kind in ("ad", "fc"):
+            directory = root / kind
+            if directory.exists():
+                self._register_services_in_dir(str(root), f"{prefix}.{kind}.", kind, True)
 
     def load_all_services(self) -> None:
         """register all algorithms/models in the specified directory"""
@@ -572,12 +596,7 @@ class ServiceRegistry:
         # load user defined ML model-driven script.
         AppLogger.info("start to load custom defined models")
 
-        self._register_services_in_dir(
-            current_directory, "lib.taosanalytics.algo.custom.ad.", "taosanalytics/algo/custom/ad/", False
-        )
-        self._register_services_in_dir(
-            current_directory, "lib.taosanalytics.algo.custom.fc.", "taosanalytics/algo/custom/fc/", False
-        )
+        self.load_custom_services()
 
         AppLogger.info("start to load custom defined models from config files")
 

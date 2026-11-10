@@ -24,10 +24,7 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 
 ### 2.1.1 打包工具与产品 Python 环境
 
-打包机用于执行 `build_tdgpt.py` 等发版脚本的 Python，与产品运行环境分开管理，
-不会因为用于构建而被复制进安装包或替换离线 venv。本轮打包工具已使用 Python
-3.10 验证通过；无需为构建统一改成 Python 3.12。执行前确认解释器及构建依赖可用，
-构建失败后不得将旧输出误认为本次产物。
+打包机用于执行 `build_tdgpt.py` 等发版脚本的 Python，与产品运行环境分开管理，不会因为用于构建而被复制进安装包或替换离线 venv。本轮打包工具已使用 Python 3.10 验证通过；无需为构建统一改成 Python 3.12。执行前确认解释器及构建依赖可用，构建失败后不得将旧输出误认为本次产物。
 
 产品安装和验收必须使用既有的对应平台、架构资源：
 
@@ -37,13 +34,11 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 | Lite 主 venv | 运行 TDgpt 主服务，使用已交付的 Lite 离线 venv |
 | TSFM runtime / 模型 venv | 运行动态模型，使用匹配平台与架构的共享 TSFM runtime |
 
-模型权重使用独立模型资源包。产品验收应记录实际运行的解释器路径及版本，
-不得以打包工具 Python 或系统 Python 代替主 venv、TSFM runtime 执行导入和推理检查。
+模型权重使用独立模型资源包。产品验收应记录实际运行的解释器路径及版本，不得以打包工具 Python 或系统 Python 代替主 venv、TSFM runtime 执行导入和推理检查。
 
 ### 2.1.2 产品与资源版本分别管理
 
-以下为 `3.4.3.3` 本轮交付和验收使用的版本；后续发版以实际发布清单、资源
-manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
+以下为 `3.4.3.3` 本轮交付和验收使用的版本；后续发版以实际发布清单、资源 manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
 
 | 对象 | 本轮版本 | 升级方式 |
 | --- | --- | --- |
@@ -54,9 +49,7 @@ manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
 | 共享 TSFM runtime | 默认 `1.0.0` 清单中的 runtime | 通过资源命令单独导入或替换，不随主 venv 升级 |
 | 模型权重 | 各模型独立版本 | 按发布清单中的 `model_version`、资源版本与 SHA-256 识别 |
 
-`1.0.2` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到
-`tsfm/1.0.2`。当前 CLI 的 `--release` 默认值仍为 `1.0.0`，不能仅修改本文示例
-就视为已升级动态资源。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
+`1.0.2` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到 `tsfm/1.0.2`。当前 CLI 的 `--release` 默认值仍为 `1.0.0`，不能仅修改本文示例就视为已升级动态资源。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
 
 本轮三平台主 venv 资源为：
 
@@ -66,9 +59,7 @@ tdengine-tdgpt-lite-venv-1.0.2-linux-arm64.tar.xz
 tdengine-tdgpt-lite-venv-1.0.2-windows-x64.zip
 ```
 
-资源位于 `tdengine-tdgpt-enterprise/deps/`；构建与验收时应核对清单，复用已发布
-资源不等于从 requirements 重建环境。资源构建方法见
-[TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md)。
+资源位于 `tdengine-tdgpt-enterprise/deps/`；构建与验收时应核对清单，复用已发布资源不等于从 requirements 重建环境。资源构建方法见 [TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md)。
 
 ### 2.2 安装行为
 
@@ -87,17 +78,11 @@ Lite 安装流程必须显式使用 `--model-source none`，只安装 TDgpt 程�
 
 Lite 升级可以替换程序文件、配置模板和主 venv，但不得删除或覆盖 `model/` 与 `model_venvs/`。卸载默认保留模型和模型 venv；只有用户显式选择删除数据和动态资源时才清理这些目录。
 
-Windows 动态资源运行数据统一保存在 `data/resource`。从已发布版本升级时，
-安装器保留其中的模型状态、任务状态和缓存，并将已有配置中的 `resource_dir`
-修正为该目录。早期版本错误写入安装目录 `resource` 的
-`foundation_models.db` 属于可重建的运行时索引，升级时删除并在
-`data/resource` 中重新生成。安装目录 `resource` 已废弃，新安装不再创建，
-从旧版本升级时删除整个目录。
+Windows 动态资源运行数据统一保存在 `data/resource`。从已发布版本升级时，安装器保留其中的模型状态、任务状态和缓存，并将已有配置中的 `resource_dir` 修正为该目录。早期版本错误写入安装目录 `resource` 的 `foundation_models.db` 属于可重建的运行时索引，升级时删除并在 `data/resource` 中重新生成。安装目录 `resource` 已废弃，新安装不再创建，从旧版本升级时删除整个目录。
 
 ## 3. 动态资源目录
 
-Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 的模型和运行时
-根目录为 `C:\TDengine\taosanode`。模型目录结构如下：
+Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 的模型和运行时根目录为 `C:\TDengine\taosanode`。模型目录结构如下：
 
 ```text
 .
@@ -122,8 +107,7 @@ Linux 的动态资源根目录为 `/var/lib/taos/taosanode`，Windows 的模型�
 | Linux / Docker | `/var/lib/taos/taosanode/resource` |
 | Windows | `C:\TDengine\taosanode\data\resource` |
 
-`foundation_models.db`、`state/models/`、`state/tasks/`、`cache/` 以及资源操作
-锁必须使用同一个资源目录，不能分别写入安装目录和 `data` 目录。
+`foundation_models.db`、`state/models/`、`state/tasks/`、`cache/` 以及资源操作锁必须使用同一个资源目录，不能分别写入安装目录和 `data` 目录。
 
 ## 4. 资源所有权
 
@@ -229,6 +213,85 @@ model_venvs/user/<model_name>/
 
 用户模型的动态下载、requirements 安装器和 worker 隔离属于后续功能；在其实现前，Lite 不应宣称已支持自动加载 `model/user` 中的任意模型。
 
+### 6.1 用户 Python 算法持久化
+
+本节的配置、加载器和安装迁移随本 MR 实现，覆盖 Linux、Windows 安装包及 Docker 的 Full / Lite 交付。旧版从程序目录 `lib/taosanalytics/algo/custom/ad/`、`fc/` 导入用户算法，新版改为下述持久化目录。构建和升级验收状态以 MR 验证记录为准，代码实现不代表所有平台均已完成发布验收。
+
+配置项 `custom_algo_dir`，指定用户 Python 算法根目录。它与第 6 节的用户模型独立 venv/worker 是两个入口：本期 Python 算法继续使用主服务解释器，遵守现有算法基类、类名和算法名注册规则，不自动安装依赖，也不提供进程隔离。
+
+| 平台 | 默认 `custom_algo_dir` | 配置与保留规则 |
+| --- | --- | --- |
+| Linux / Docker | `/var/lib/taos/taosanode/custom` | 主机使用已有配置文件；容器使用配置文件或下述环境变量 |
+| Linux 自定义安装目录 | `<安装目录>/data/custom` | 由实际 `data_dir` 派生默认值 |
+| Windows | `<安装目录>/data/custom` | 跟随实际安装目录，不固定盘符，不需要 junction |
+
+目录结构固定为：
+
+```text
+custom/
+├── ad/                          # 用户异常检测算法 Python 文件
+└── fc/                          # 用户预测算法 Python 文件
+```
+
+首次安装自动创建默认目录，无需用户手工配置。默认统一从 `data_dir` 派生为 `<data_dir>/custom`，配置模板不单独固定算法路径；仅修改 `data_dir` 时加载器自动跟随新位置。更换数据目录须同步迁移已有数据，不会自动搬移已部署文件。管理员需要更换存储位置时，可将 `custom_algo_dir` 改为其他持久化目录。Docker 支持可选的 `TDGPT_CUSTOM_ALGO_DIR` 环境变量，非空值优先于配置文件；容器内路径必须与挂载目标一致。该变量仅覆盖运行时目录，安装器迁移不继承它；需要改变主机迁移位置时，须将路径写入现有配置的 `custom_algo_dir` 或 `data_dir`，确保安装后服务使用相同位置。配置路径必须是绝对目录，拒绝与程序 `lib/`、主 venv、`model/` 或 `model_venvs/` 及资源状态目录重叠，避免升级清理与资源操作相互覆盖。旧配置未包含该项时，由加载器按实际数据目录兼容；旧配置连 `data_dir` 也没有时由安装器补齐数据根目录，不写死 `custom_algo_dir`，不能要求用户覆盖整个旧配置文件。Windows 还须拒绝程序 `bin/`、 `requirements/`、`python/`、`resource/` 和日志目录，避免升级或卸载删除用户算法。
+
+加载器从 `ad/*.py`、`fc/*.py` 发现算法，使用独立包命名空间导入，支持同目录辅助模块及相对导入，不将用户目录插到全局 `sys.path` 前端。辅助包允许被导入，但不递归发现包内算法。内置算法先注册，用户算法后注册；与内置或其他用户算法重名时记录算法名、冲突文件并跳过冲突项，不覆盖已有注册。单个模块导入或实例化失败须记录完整文件路径和原因，其余算法继续加载；显式配置的目录不可读或配置无效时启动失败，默认空目录则正常启动。文件变更后显式重启主服务生效，本期不做热加载，不能把 `tdmodel` 的动态同步行为当作 Python 文件热更新。
+
+算法类名按现有加载规则以 `_` 开头，并在该文件中定义；`name` 是对外注册名。迁移只复制文件，不改写 Python 导入语句。引用历史 `lib.taosanalytics.algo.custom` 路径的用户代码需改用相对导入后验证。
+
+无需公共初始化代码时，不需要创建 `custom/__init__.py`。存在该文件时，加载器按正常 Python 包规则执行一次；根包初始化失败时记录原因并跳过该目录的用户算法，内置算法不受影响。例如将通用函数放在根包，在预测算法中相对导入：
+
+```python
+# <data_dir>/custom/__init__.py
+def adjust(value):
+    return value + 10
+```
+
+```python
+# <data_dir>/custom/fc/my_ets.py
+from .. import adjust
+from lib.taosanalytics.algo.fc.ets import _EtsService
+
+class _MyETS(_EtsService):
+    name = "my_ets"
+    _builtins = False
+
+    def get_desc(self):
+        return f"Custom ETS example: {adjust(32)}"
+```
+
+该示例复用内置 ETS 的预测实现，服务重启后以 `my_ets` 注册，描述中包含 `42`。独立算法也可省略根包文件及 `adjust` 导入。
+
+手工启动服务需要外部配置时，可使用以下命令（Windows 示例）：
+
+```powershell
+& "D:\TDengine\taosanode\venvs\venv\Scripts\python.exe" `
+  "D:\TDengine\taosanode\bin\taosanode_service.py" start --foreground `
+  --config "D:\TDgpt settings\custom.py"
+```
+
+`custom.py` 应包含完整服务配置，可复制已有配置后修改 `bind` 和 `custom_algo_dir`。控制器与应用均使用该文件，无需再设置 `TDGPT_CONF`；显式路径优先于继承的环境变量。 `--config` 仅对本次命令生效，不会修改已注册的 Windows 服务启动参数。
+
+`custom/` 保存 Python 算法代码；`model/user/` 保存用户模型资源； `model_venvs/user/` 保存未来用户模型独立环境；`model_venvs/tsfm/` 仅供官方 TSFM。内置算法仍随程序交付，不复制到 `custom/`。主 venv 被替换时，算法代码保留，但用户额外安装到旧主 venv 的依赖不会自动保留；升级前须记录依赖并在测试环境验证它们与新主 venv 的兼容性。不能通过修改 TSFM venv 解决主服务算法的缺失依赖。
+
+安装与迁移顺序如下：
+
+1. 在维护窗口读取旧配置并确定最终目标目录，在清理程序文件前检查历史算法，通过只读预检查一次列出全部目标冲突；预检查不复制文件或修改配置。 Linux `script/install.sh::install_main_path` 当前会删除旧 `lib/`，迁移必须先于此步骤；Linux 安装器先确认已有模型 worker 与主服务停止，再迁移并替换程序。停止失败则终止安装，保留旧算法目录与程序，不忽略失败继续升级。 Windows 发行包不再交付旧 custom 目录占位文件，保留旧算法供安装脚本在替换主 venv 前迁移。Docker 用户须在删除旧容器前，从旧容器导出未挂载的历史目录，不能指望新镜像访问旧容器文件。
+2. 首次安装创建 `custom/ad`、`custom/fc`；升级将历史目录的代码、辅助包和资源复制到目标目录，排除 `__pycache__` 和字节码。目标不存在则复制，内容相同则跳过，同名内容不同则停止升级并列出冲突，保留源目录与备份，不静默覆盖用户文件。
+3. 校验新目录及备份中的文件内容与源文件一致后，将旧目录原子改名并清理，不再作为后续升级的迁移来源；已存在且内容相同的文件也须备份后退役。在备份目录中保留迁移记录，包括源路径、目标路径、备份路径、文件摘要和退役状态。输出迁移数量、备份与记录路径到安装日志。复制或校验失败时保留旧源，可重试；退役后即使清理中断，后续升级也不会覆盖新目录的修改或恢复已删除的算法。新版不再同时扫描旧目录，避免同一算法重复注册。复制优先用硬链接发布完整临时文件；文件系统不支持硬链接时采用独占创建，不覆盖已有文件。备用复制发生异常时清理本次创建的半成品并保留旧源，以便重试。进程被强制终止时可能留下半成品；再次安装会报告内容冲突，须核对备份后处理。
+4. 升级保留 `custom/` 以及原有模型、venv 和资源状态；默认卸载也保留用户算法。外部自定义路径绝不由卸载器递归删除。清空数据应由管理员备份后单独执行。 Linux 非默认路径不得放进后续会被删除的安装目录；Windows 两套 Inno 模板须将默认目录标为卸载保留。
+
+Docker 在第 8 节三个动态资源挂载之外增加独立算法挂载：
+
+```yaml
+volumes:
+  - ./tdgpt-data/custom:/var/lib/taos/taosanode/custom
+```
+
+宿主机预先创建 `custom/ad`、`custom/fc`，赋予服务账号读取和目录遍历权限，只允许可信管理员修改这些可执行代码。可使用只读算法挂载；模型和资源目录继续按各自用途读写。无需软链接，也不挂载整个 `/var/lib/taos/taosanode`，避免遮蔽镜像里的主 venv。Full 镜像已有内置模型目录，增加挂载时需先导出其中需要保留的资源，不能直接以空目录遮蔽预置模型。
+
+实现覆盖 `lib/conf.py`、配置模板、`lib/service_registry.py`、Linux 安装/卸载、Windows `install.py` / `uninstall.py` 与 Full / Lite Inno 模板，以及 Docker 部署示例。发布前在 Linux x64、Linux ARM64、Windows x64 和双架构镜像验证新安装、旧目录迁移、迁移冲突、中断重试、重复升级、默认卸载保留、外部路径、相对导入、重名拒绝、坏模块隔离、重启生效及算法实际调用。只验证目录存在不算通过。
+
 ## 7. 资源导入、升级与回滚
 
 ### 7.1 升级触发
@@ -292,9 +355,7 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 
 #### 7.2.1 在线与离线发布清单发现（规划）
 
-当前版本默认使用固定的 `1.0.0`，在线 `resource check` 只在内存中读取发布清单，
-不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线
-发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
+当前版本默认使用固定的 `1.0.0`，在线 `resource check` 只在内存中读取发布清单，不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
 
 新增统一配置 `resource_release`，允许发布通道或固定版本：
 
@@ -308,9 +369,7 @@ environment:
   TDGPT_RESOURCE_RELEASE: "${TDGPT_RESOURCE_RELEASE:-stable}"
 ```
 
-读取优先级为：API 显式 `release`、`TDGPT_RESOURCE_RELEASE`、
-`taosanode.config.py` 的 `resource_release`、默认 `stable`。固定为 `1.0.0` 时不得
-自动切换到新版本，便于验收和回滚。
+读取优先级为：API 显式 `release`、`TDGPT_RESOURCE_RELEASE`、 `taosanode.config.py` 的 `resource_release`、默认 `stable`。固定为 `1.0.0` 时不得自动切换到新版本，便于验收和回滚。
 
 发布站点使用不可变版本清单和一个稳定通道指针：
 
@@ -320,28 +379,19 @@ tsfm/1.0.0/tdengine-tdgpt-tsfm-release-1.0.0.json
 tsfm/1.0.1/tdengine-tdgpt-tsfm-release-1.0.1.json
 ```
 
-`stable.json` 只记录当前稳定版本。发布时先上传全部资源包，再上传并验证不可变的
-版本清单，最后原子更新 `stable.json`。正式发布后不得覆盖同版本清单；资源内容或
-SHA-256 变化必须发布新版本。
+`stable.json` 只记录当前稳定版本。发布时先上传全部资源包，再上传并验证不可变的版本清单，最后原子更新 `stable.json`。正式发布后不得覆盖同版本清单；资源内容或 SHA-256 变化必须发布新版本。
 
 在线 `check` 按以下顺序处理：
 
 1. 解析配置的通道或固定版本；
 2. 依次尝试配置的主地址和公共备用地址；
-3. 校验成功后，将通道指针和版本清单原子保存到
-   `resource/releases/<version>/`；
+3. 校验成功后，将通道指针和版本清单原子保存到 `resource/releases/<version>/`；
 4. 两个远端地址均失败时，读取同版本的本地缓存；
 5. 将清单与本地目录、状态文件和必要文件校验结果比较后返回，不自动下载或升级。
 
-首次离线部署必须携带版本清单、当前平台 runtime 和所需模型包。导入命令应支持
-显式 `--release-manifest`，校验并保存清单后再导入多个包。以后离线升级只需携带
-新版本清单和发生变化的资源包。既无网络又无本地清单时，`check` 明确失败；仅凭
-已解压目录无法得知完整的可部署模型目录。
+首次离线部署必须携带版本清单、当前平台 runtime 和所需模型包。导入命令应支持显式 `--release-manifest`，校验并保存清单后再导入多个包。以后离线升级只需携带新版本清单和发生变化的资源包。既无网络又无本地清单时，`check` 明确失败；仅凭已解压目录无法得知完整的可部署模型目录。
 
-`check` 成功响应应包含 `configured_release`、`resolved_release`、
-`manifest_source`（`remote` 或 `local_cache`）和 `repository_available`。页面始终
-正常展示资源目录；`repository_available=false` 时禁用在线下载，但已安装模型仍可
-启动、停止和删除。
+`check` 成功响应应包含 `configured_release`、`resolved_release`、 `manifest_source`（`remote` 或 `local_cache`）和 `repository_available`。页面始终正常展示资源目录；`repository_available=false` 时禁用在线下载，但已安装模型仍可启动、停止和删除。
 
 资源状态与服务状态必须分开。资源状态规划如下：
 
@@ -354,22 +404,15 @@ SHA-256 变化必须发布新版本。
 | `invalid` | 已纳管资源缺少必要文件或完整性校验失败 | 资源损坏，禁止启动 |
 | `unavailable` | 清单中存在，但没有当前平台匹配的资源 | 当前平台不可用 |
 
-`downloading`、`verifying`、`importing` 和 `failed` 属于任务状态，不应覆盖资源
-状态；`running` 和 `stopped` 属于服务状态。`outdated` 是正常业务结果，不返回
-HTTP 错误，也不触发自动升级。手工保留目录但缺少状态文件应显示 `unmanaged`，
-手工删除已纳管目录中的必要文件应显示 `invalid`，两者都不能误报为 `outdated`。
+`downloading`、`verifying`、`importing` 和 `failed` 属于任务状态，不应覆盖资源状态；`running` 和 `stopped` 属于服务状态。`outdated` 是正常业务结果，不返回 HTTP 错误，也不触发自动升级。手工保留目录但缺少状态文件应显示 `unmanaged`，手工删除已纳管目录中的必要文件应显示 `invalid`，两者都不能误报为 `outdated`。
 
-以上通道指针、清单缓存、`--release-manifest` 和细分状态为后续实现范围；当前版本
-仍支持通过 `--release <本地-json路径>` 手工执行离线 `check`。
+以上通道指针、清单缓存、`--release-manifest` 和细分状态为后续实现范围；当前版本仍支持通过 `--release <本地-json路径>` 手工执行离线 `check`。
 
 ### 7.2.2 当前可执行的升级操作
 
-升级 Lite 程序或主 venv 时，使用产品安装器并显式提供所需主 venv 包；
-`resource apply/import` 不管理主 venv。已有模型和共享 TSFM runtime 保留，
-不会因为产品或主 venv 版本变化自动下载新资源。
+升级 Lite 程序或主 venv 时，使用产品安装器并显式提供所需主 venv 包； `resource apply/import` 不管理主 venv。已有模型和共享 TSFM runtime 保留，不会因为产品或主 venv 版本变化自动下载新资源。
 
-升级共享 TSFM runtime 前，先记录正在运行的模型并停止全部模型 worker。
-使用 `--replace` 显式替换，再校验资源并逐个恢复原先运行的模型。例如 Linux：
+升级共享 TSFM runtime 前，先记录正在运行的模型并停止全部模型 worker。使用 `--replace` 显式替换，再校验资源并逐个恢复原先运行的模型。例如 Linux：
 
 ```bash
 sudo /usr/bin/taosanodectl model status all
@@ -382,21 +425,41 @@ sudo /usr/bin/taosanodectl model start "<原先运行的模型名>"
 sudo /usr/bin/taosanodectl model status "<原先运行的模型名>"
 ```
 
-Windows 使用相同参数，通过第 10.2 节的 `.bat` 入口执行。只升级一个模型时，
-停止该模型后导入其 ZIP 并指定 `--replace`，共享 runtime 无需同时替换。
-在线升级也必须显式选择已发布清单；先 `resource check`，再对目标执行
-`resource apply <目标> --release <清单> --replace`。共享 runtime 的目标名为
-`tsfm_runtime`；不要使用 `all` 代替单个目标，以免安装清单中的全部模型。
+Windows 使用相同参数，通过第 10.2 节的 `.bat` 入口执行。只升级一个模型时，停止该模型后导入其 ZIP 并指定 `--replace`，共享 runtime 无需同时替换。在线升级也必须显式选择已发布清单；先 `resource check`，再对目标执行 `resource apply <目标> --release <清单> --replace`。共享 runtime 的目标名为 `tsfm_runtime`；不要使用 `all` 代替单个目标，以免安装清单中的全部模型。
 
-即使 Python 依赖版本不变，仅清理文件或改变归档压缩格式也会改变归档 SHA-256。
-发布新的资源包时必须更新文件名、大小、SHA-256 和对应资源版本，不覆盖已发布的
-不可变清单。旧清单仍指向旧 gzip 文件时，不能只把下载 URL 后缀改成 `.tar.xz`；
-须先发布并核验实际 XZ 文件及新清单，再显式切换消费方。
+即使 Python 依赖版本不变，仅清理文件或改变归档压缩格式也会改变归档 SHA-256。发布新的资源包时必须更新文件名、大小、SHA-256 和对应资源版本，不覆盖已发布的不可变清单。旧清单仍指向旧 gzip 文件时，不能只把下载 URL 后缀改成 `.tar.xz`；须先发布并核验实际 XZ 文件及新清单，再显式切换消费方。
 
-目录校验通过不等于模型可用；还需确认主服务就绪，并完成相关模型的权重加载及
-预测/补值请求。以下原子切换、整组升级和启动失败自动回滚描述包含目标设计，
-当前操作不能依赖自动恢复全部模型；应保留旧清单和资源包，失败时停止相关模型，
-使用旧包显式替换并重新验收。
+目录校验通过不等于模型可用；还需确认主服务就绪，并完成相关模型的权重加载及预测/补值请求。以下原子切换、整组升级和启动失败自动回滚描述包含目标设计，当前操作不能依赖自动恢复全部模型；应保留旧清单和资源包，失败时停止相关模型，使用旧包显式替换并重新验收。
+
+### 7.2.3 下一版产品与已有动态资源的升级顺序（发布方案）
+
+本期仅更新产品、用户算法持久化及主 venv；TSFM runtime 与 release 继续使用 `1.0.0`，不纳入本期升级。以下替换 TSFM 的步骤适用于后续单独发布新 runtime，本期不执行。旧 TSFM 的 pyarrow 修复尚未交付，不能在本期发布说明中宣称已修复。
+
+下一版产品暂按 `3.4.3.8` 规划，主 venv、TSFM runtime 和资源 release 独立编号，具体候选版本、依赖差异和发布阻塞项见 [构建文档第 7 节](TDGPT-LITE-BUILD-CN.md#7-下一版发布准备与版本决策待执行)。本方案不表示这些制品已经构建或发布，也不修改当前默认 release `1.0.0`。
+
+已动态加载的模型不必因产品版本变化而重新下载权重，但旧 TSFM venv 不会自动获得新版 pyarrow。需要修复 TSFM 依赖问题的安装必须显式升级共享 runtime。升级流程如下：
+
+1. 记录产品、主 venv、Python runtime、TSFM runtime 的版本、包摘要及正在运行的模型；备份配置、用户算法、模型、模型 venv 与资源状态，并保留旧安装介质和旧资源清单。不要仅依赖安装过程中短暂存在的 backup 目录。
+2. 在维护窗口停止全部模型 worker 与主服务，确认无遗留进程。先迁移旧算法，再安装新产品并显式提供新版主 venv；Docker 换用已重建依赖的镜像并复用四类持久化挂载。Python runtime 未变化且已验证兼容时复用；不要随意移动旧 TSFM venv 引用的基础 Python 路径。
+3. 先启动主服务，验证基本算法、动态模型管理及用户算法。如果暂时保留旧 TSFM runtime，必须完成新程序配旧 runtime 的验收，并明确依赖漏洞尚未因此修复。
+4. 确认全部模型仍停止后，按第 7.2.2 节显式升级 `tsfm_runtime`，再逐个检查已有模型。新清单中权重 digest 未变时，针对已安装模型执行 `apply` 应为 `unchanged`，只刷新发布元数据；无需执行 `apply all`，也无需重新训练 `model/dynamic`。
+5. 校验资源后只恢复原先运行的模型，逐个检查 readiness，并执行实际预测/补值。主 venv 依赖变化也可能影响 `model/dynamic` 的序列化模型，须进行加载和推理回归，不能将“保留文件”当作“保证兼容”。全部通过后才结束维护窗口。
+
+在线操作使用同一份已发布清单的 URL 或本地文件绝对路径，避免依赖 CLI 默认版本。以下占位符须替换为发布登记中的实际值，不能直接作为发布脚本运行：
+
+```bash
+sudo /usr/bin/taosanodectl resource check tsfm_runtime --release "<新发布清单URL或绝对路径>"
+sudo /usr/bin/taosanodectl resource apply tsfm_runtime --release "<新发布清单URL或绝对路径>" --replace
+sudo /usr/bin/taosanodectl resource check "<已安装模型名>" --release "<同一新发布清单>"
+sudo /usr/bin/taosanodectl resource apply "<已安装模型名>" --release "<同一新发布清单>" --replace
+sudo /usr/bin/taosanodectl resource verify all
+```
+
+Windows 使用 `taosanodectl.bat`，参数相同；Docker 在新容器内执行同一入口。离线升级按第 7.2.2 节导入带正确 SHA-256 的新 runtime 包；权重未变时不需再导入模型 ZIP。若清单对模型的运行时要求发生变化，在线需刷新模型发布元数据，离线需随介质提供相同清单并以本地清单执行模型 `apply`，复用已安装的相同 digest。
+
+现有 `resource_manager.py` 的单模型 `apply` 只选择该模型，不隐式更新 runtime； `runtime_readiness` 检查 runtime 的完整性，但当前没有强制校验清单中的 `required_runtime`。新发布不能只把该字段改成新版本便宣称已完成兼容保护：实施时须补充运行时版本要求的校验、已有模型状态更新和对应回归。共享 runtime 升级必须验证全部已安装官方模型；同一目标目录只有一个激活 runtime，无法让部分模型继续使用旧共享环境。版本要求采用明确的兼容规则，避免新 runtime 错误拒绝经验证兼容的旧模型权重。
+
+任何模型验证失败时停止受影响 worker，以旧清单/归档显式替换旧 TSFM runtime，必要时同时还原程序、主 venv、配置和资源状态，再恢复原运行集合。当前不能依赖整组自动回滚；回滚旧 runtime 也意味着回到旧依赖，须记录修复尚未完成。
 
 ### 7.3 下载与缓存
 
@@ -428,17 +491,9 @@ Lite 升级不得删除 `model/dynamic`、`model/tsfm`、`model/user`、`model_v
 
 ### 7.6 主机安装的离线导入与页面管理
 
-主机安装模式与 Docker 使用同一资源协议，但没有离线包卷挂载。管理员将与当前
-操作系统和架构匹配的 TSFM runtime 包及模型 ZIP 放在本机任意可读的临时目录，
-再通过 `taosanodectl resource import` 导入。导入器只从该路径读取归档，资源
-实际安装到 TDgpt 数据目录；导入成功后可删除临时归档。
+主机安装模式与 Docker 使用同一资源协议，但没有离线包卷挂载。管理员将与当前操作系统和架构匹配的 TSFM runtime 包及模型 ZIP 放在本机任意可读的临时目录，再通过 `taosanodectl resource import` 导入。导入器只从该路径读取归档，资源实际安装到 TDgpt 数据目录；导入成功后可删除临时归档。
 
-以下是当前默认 `1.0.0` 发布清单对应的资源，Linux runtime 仍为历史 gzip 文件；
-不要将其误认为本轮 Lite 主 venv `1.0.2`。新构建的 Linux runtime 使用 XZ，
-导入时以所选发布清单的实际文件名与 SHA-256 为准。内网目录为
-`https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。离线介质
-应从该目录取得以下文件；发布清单用于核对版本和 SHA-256，不作为
-`resource import --package` 的输入。
+以下是当前默认 `1.0.0` 发布清单对应的资源，Linux runtime 仍为历史 gzip 文件；不要将其误认为本轮 Lite 主 venv `1.0.2`。新构建的 Linux runtime 使用 XZ，导入时以所选发布清单的实际文件名与 SHA-256 为准。内网目录为 `https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。离线介质应从该目录取得以下文件；发布清单用于核对版本和 SHA-256，不作为 `resource import --package` 的输入。
 
 | 类型 | 文件 | 使用方式 |
 | --- | --- | --- |
@@ -453,9 +508,7 @@ Lite 升级不得删除 `model/dynamic`、`model/tsfm`、`model/user`、`model_v
 | Time-MoE 模型 | [tdengine-tdgpt-model-timemoe-200m.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-timemoe-200m.zip) | 按需导入 |
 | TimesFM 模型 | [tdengine-tdgpt-model-timesfm-2-5-200m-pytorch.zip](https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/tdengine-tdgpt-model-timesfm-2-5-200m-pytorch.zip) | 按需导入 |
 
-一次命令可导入一个 runtime 和多个模型包。相同 runtime 的重复导入会返回
-`unchanged`，无需为每个模型重复导入 runtime。Linux x64 导入 Moment、Moirai
-与 Time-MoE 的示例：
+一次命令可导入一个 runtime 和多个模型包。相同 runtime 的重复导入会返回 `unchanged`，无需为每个模型重复导入 runtime。Linux x64 导入 Moment、Moirai 与 Time-MoE 的示例：
 
 ```bash
 sudo /usr/bin/taosanodectl resource import \
@@ -467,9 +520,7 @@ sudo /usr/bin/taosanodectl resource verify all
 sudo /usr/bin/taosanodectl resource list --format json
 ```
 
-Linux arm64 仅将上述 runtime 文件替换为
-`tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz`；模型 ZIP 不区分架构。
-Windows PowerShell 同样可在一次命令中传入多个模型包：
+Linux arm64 仅将上述 runtime 文件替换为 `tdengine-tdgpt-tsfm-runtime-1.0.0-linux-arm64.tar.gz`；模型 ZIP 不区分架构。 Windows PowerShell 同样可在一次命令中传入多个模型包：
 
 ```powershell
 & C:\TDengine\taosanode\bin\taosanodectl.bat resource import `
@@ -480,29 +531,23 @@ Windows PowerShell 同样可在一次命令中传入多个模型包：
 & C:\TDengine\taosanode\bin\taosanodectl.bat resource list --format json
 ```
 
-导入完成后，IDMP 页面与 Docker 场景一样，调用模型信息、启动、停止、删除和任务
-状态接口管理本机模型。页面在展示启停按钮前应先查询对应模型信息，以同步本地
-`install_status` 和 `service_status`。离线环境不使用页面的 `download` 或
-`download-start`；当前 HTTP API 不接收离线包上传，也不接收任意本地文件路径。
+导入完成后，IDMP 页面与 Docker 场景一样，调用模型信息、启动、停止、删除和任务状态接口管理本机模型。页面在展示启停按钮前应先查询对应模型信息，以同步本地 `install_status` 和 `service_status`。离线环境不使用页面的 `download` 或 `download-start`；当前 HTTP API 不接收离线包上传，也不接收任意本地文件路径。
 
-主机升级 Lite 时安装器保留动态资源目录，因此无需重新导入已安装资源。升级共享
-TSFM runtime 时必须先停止全部使用它的模型；升级单个模型时只停止该模型。离线包
-本身不应放在 TDgpt 安装目录或动态资源目录中，以免安装、卸载或运维清理误删它们。
+主机升级 Lite 时安装器保留动态资源目录，因此无需重新导入已安装资源。升级共享 TSFM runtime 时必须先停止全部使用它的模型；升级单个模型时只停止该模型。离线包本身不应放在 TDgpt 安装目录或动态资源目录中，以免安装、卸载或运维清理误删它们。
 
 ## 8. Docker 部署
 
-Lite Docker 镜像只包含 Lite 服务与主运行环境；Full 镜像仍保留预置模型及其
-运行环境，不能按 Lite 的“无模型”初始状态验收。Lite Docker 部署必须分别挂载以下三个动态
-资源目录，而不是覆盖整个 TDgpt 数据根目录：
+Lite Docker 镜像只包含 Lite 服务与主运行环境；Full 镜像仍保留预置模型及其运行环境，不能按 Lite 的“无模型”初始状态验收。Lite Docker 部署必须分别挂载以下四个持久化目录，而不是覆盖整个 TDgpt 数据根目录：
 
 ```yaml
 volumes:
+  - ./tdgpt-data/custom:/var/lib/taos/taosanode/custom
   - ./tdgpt-data/model:/var/lib/taos/taosanode/model
   - ./tdgpt-data/model_venvs:/var/lib/taos/taosanode/model_venvs
   - ./tdgpt-data/resource:/var/lib/taos/taosanode/resource
 ```
 
-`resource` 挂载用于持久化发布缓存、任务状态和模型状态；只挂载 `model`、`model_venvs`、`resource`，不要覆盖整个 TDgpt 数据根目录。这样容器升级不会覆盖模型和模型 venv，也不会因整个数据根目录被挂载而遮蔽镜像或安装器创建的主 venv。容器启动时按第 5 节的校验规则发现可用 TSFM 资源；没有资源时只运行 Lite 主服务。
+`resource` 挂载用于持久化发布缓存、任务状态和模型状态；分别挂载 `custom`、`model`、`model_venvs`、`resource`，不要覆盖整个 TDgpt 数据根目录。这样容器升级不会覆盖模型和模型 venv，也不会因整个数据根目录被挂载而遮蔽镜像或安装器创建的主 venv。容器启动时按第 5 节的校验规则发现可用 TSFM 资源；没有资源时只运行 Lite 主服务。
 
 资源下载地址通过 `TDGPT_RESOURCE_BASE_URL` 注入容器，例如：
 
@@ -511,20 +556,15 @@ environment:
   TDGPT_RESOURCE_BASE_URL: "${TDGPT_RESOURCE_BASE_URL:-https://downloads.taosdata.com}"
 ```
 
-Docker 环境变量在容器创建时确定。修改 Compose 中的 URL 后，必须执行
-`docker compose up -d --force-recreate tdengine-tdgpt` 重新创建 TDgpt 容器；
-`docker compose restart` 不会更新既有容器的环境变量。挂载的 `model`、
-`model_venvs` 与 `resource` 数据不受重新创建容器影响。
+Docker 环境变量在容器创建时确定。修改 Compose 中的 URL 后，必须执行 `docker compose up -d --force-recreate tdengine-tdgpt` 重新创建 TDgpt 容器； `docker compose restart` 不会更新既有容器的环境变量。挂载的 `model`、 `model_venvs` 与 `resource` 数据不受重新创建容器影响。
 
 ### 8.1 Docker 离线导入与页面管理
 
-隔离网络中不使用 `resource apply`，而是由运维将与容器架构匹配的 TSFM
-runtime 包和模型包提供给容器，再执行本地导入。以上三个动态资源挂载是必需项；
-离线包可以额外作为只读卷挂载，也可以通过 `docker cp` 复制到容器；不要让浏览器
-或页面直接写入容器资源目录。
+隔离网络中不使用 `resource apply`，而是由运维将与容器架构匹配的 TSFM runtime 包和模型包提供给容器，再执行本地导入。以上三个动态资源挂载是必需项；离线包可以额外作为只读卷挂载，也可以通过 `docker cp` 复制到容器；不要让浏览器或页面直接写入容器资源目录。
 
 ```yaml
 volumes:
+  - ./tdgpt-data/custom:/var/lib/taos/taosanode/custom
   - ./tdgpt-data/model:/var/lib/taos/taosanode/model
   - ./tdgpt-data/model_venvs:/var/lib/taos/taosanode/model_venvs
   - ./tdgpt-data/resource:/var/lib/taos/taosanode/resource
@@ -541,9 +581,7 @@ docker exec tdengine-tdgpt taosanodectl resource verify moment
 docker exec tdengine-tdgpt taosanodectl resource list --format json
 ```
 
-离线 `resource import` 与在线 `resource apply` 使用相同的本地资源目录、
-完整性校验、状态文件和模型启动路径。因此导入成功后，后台页面仍可调用现有
-模型管理接口查询状态、启动、停止和删除模型：
+离线 `resource import` 与在线 `resource apply` 使用相同的本地资源目录、完整性校验、状态文件和模型启动路径。因此导入成功后，后台页面仍可调用现有模型管理接口查询状态、启动、停止和删除模型：
 
 ```text
 GET  /api/v1/foundation-models/<model_name>
@@ -553,14 +591,9 @@ POST /api/v1/foundation-models/delete
 GET  /api/v1/foundation-models/<task_id>/status
 ```
 
-页面在离线导入完成后应先查询对应模型信息再展示启停操作，
-以同步 `install_status`、`service_status` 与异步任务状态。模型、TSFM runtime
-及 `resource` 目录按本节挂载持久化时，重建容器后模型仍可继续由页面启停。
+页面在离线导入完成后应先查询对应模型信息再展示启停操作，以同步 `install_status`、`service_status` 与异步任务状态。模型、TSFM runtime 及 `resource` 目录按本节挂载持久化时，重建容器后模型仍可继续由页面启停。
 
-页面的 `download` 与 `download-start` 接口仍是在线下载流程，隔离网络下不可用。
-当前 HTTP API 不提供离线包上传或按容器路径执行导入的能力；若后续需要页面“一键
-离线导入”，应由宿主机控制面提供受控的包选择与导入任务，不能由浏览器任意传入
-容器文件路径。
+页面的 `download` 与 `download-start` 接口仍是在线下载流程，隔离网络下不可用。当前 HTTP API 不提供离线包上传或按容器路径执行导入的能力；若后续需要页面“一键离线导入”，应由宿主机控制面提供受控的包选择与导入任务，不能由浏览器任意传入容器文件路径。
 
 ### 8.2 资源下载地址与外网兜底
 
@@ -573,19 +606,11 @@ API 请求的 resource_base_url
   > https://downloads.taosdata.com
 ```
 
-主机安装模式通过 `taosanode.config.py` 保存默认地址；Docker 模式通过
-`TDGPT_RESOURCE_BASE_URL` 提供默认地址。`taosanalytics/conf.py` 和
-`taosanode_service.py` 是读取并合并这些配置的代码，不是额外配置文件。
+主机安装模式通过 `taosanode.config.py` 保存默认地址；Docker 模式通过 `TDGPT_RESOURCE_BASE_URL` 提供默认地址。`taosanalytics/conf.py` 和 `taosanode_service.py` 是读取并合并这些配置的代码，不是额外配置文件。
 
-对于由配置或环境变量提供的 HTTP(S) 基础地址，资源管理器先访问主地址；获取
-发布清单或下载资源时遇到连接失败、超时、HTTP `404` 或 HTTP `5xx`，会尝试
-公共备用地址 `https://downloads.taosdata.com`。日志必须记录主地址失败和实际
-使用的备用地址。显式指定完整发布清单 URL 或本地路径时不启用备用地址，避免
-调用方要求严格来源时被静默替换。
+对于由配置或环境变量提供的 HTTP(S) 基础地址，资源管理器先访问主地址；获取发布清单或下载资源时遇到连接失败、超时、HTTP `404` 或 HTTP `5xx`，会尝试公共备用地址 `https://downloads.taosdata.com`。日志必须记录主地址失败和实际使用的备用地址。显式指定完整发布清单 URL 或本地路径时不启用备用地址，避免调用方要求严格来源时被静默替换。
 
-如果主地址与备用地址均失败，命令返回非零，并同时保留主地址错误。备用地址的
-清单和资源必须先正式发布，才能作为可用性兜底；未发布资源返回 `404` 属于预期
-发布状态，不应被误判为代码故障。
+如果主地址与备用地址均失败，命令返回非零，并同时保留主地址错误。备用地址的清单和资源必须先正式发布，才能作为可用性兜底；未发布资源返回 `404` 属于预期发布状态，不应被误判为代码故障。
 
 ## 9. 发布物与兼容绑定
 
@@ -597,12 +622,7 @@ API 请求的 resource_base_url
 - 官方 TSFM venv 资源包：Linux 新构建包使用 `tar.xz`，Windows ZIP；当前默认 `1.0.0` 清单仍引用 Linux gzip；
 - 每个官方 TSFM 模型资源包，所有平台统一使用 ZIP。
 
-Linux 产品安装包直接包含程序目录，不再生成内层 `package.tar.gz` 或
-`package.tar.xz`。Lite 镜像的离线 `docker save` 归档使用 XZ，文件名为
-`tdengine-tdgpt-enterprise-lite-docker-<产品版本>-linux-<x64|arm64>.tar.xz`；
-它与产品安装包是不同产物。XZ 是离线归档格式，不改变 registry 的镜像层格式。
-Linux 解压目标需提供 `xz`，Python 资源导入解释器需支持 `lzma`；历史 gzip 导入
-继续兼容。格式变化须同步构建、NAS 文件名、Apex 清单、下载 URL、SHA-256 和验收入口。
+Linux 产品安装包直接包含程序目录，不再生成内层 `package.tar.gz` 或 `package.tar.xz`。Lite 镜像的离线 `docker save` 归档使用 XZ，文件名为 `tdengine-tdgpt-enterprise-lite-docker-<产品版本>-linux-<x64|arm64>.tar.xz`；它与产品安装包是不同产物。XZ 是离线归档格式，不改变 registry 的镜像层格式。 Linux 解压目标需提供 `xz`，Python 资源导入解释器需支持 `lzma`；历史 gzip 导入继续兼容。格式变化须同步构建、NAS 文件名、Apex 清单、下载 URL、SHA-256 和验收入口。
 
 共享 TSFM venv 包的 manifest 必须绑定 `platform`、`arch`、`python_version`、`runtime_id` 和 `requirements_sha256`。不同平台、架构或 runtime 的 venv 包不得混用。下载目录或产品资源清单必须提供每个 venv 包和模型 ZIP 的归档 SHA-256；`requirements_sha256` 只校验依赖锁文件，不能替代资源包完整性校验。
 
@@ -642,11 +662,7 @@ taosanodectl model stop <model_name|all>
 taosanodectl model status [<model_name|all>]
 ```
 
-模型启动的默认 readiness 期限由 `taosanode.config.py` 中的
-`timeouts["model_startup"]` 控制，默认值为 300 秒。该值是模型进程创建后到端口就绪的
-总期限，不是单次 TCP 连接超时；单次 TCP 探测仍为 1 秒。模型进程若在期限内提前退出，
-启动立即失败并输出模型日志路径及日志尾部。`model start --timeout` 仅覆盖本次命令，
-不修改配置文件。
+模型启动的默认 readiness 期限由 `taosanode.config.py` 中的 `timeouts["model_startup"]` 控制，默认值为 300 秒。该值是模型进程创建后到端口就绪的总期限，不是单次 TCP 连接超时；单次 TCP 探测仍为 1 秒。模型进程若在期限内提前退出，启动立即失败并输出模型日志路径及日志尾部。`model start --timeout` 仅覆盖本次命令，不修改配置文件。
 
 `resource check` 只比较发布清单和本地状态，不下载或修改资源，并输出模型标识、模型版本、digest、归档大小、状态和备注；它用于展示可下载模型列表。`resource apply` 按发布清单同步下载并显式安装或升级资源。`resource import` 导入本地包。`resource list` 不访问远端，输出本机已安装模型的上述元数据、部署时间、安装状态、服务状态、PID 和端口，并合并当前下载/导入任务的状态和进度。资源不存在或校验失败时返回非零，并保留当前可用版本。
 
@@ -668,27 +684,16 @@ taosanodectl model status [<model_name|all>]
 | Windows 安装包 | `C:\TDengine\taosanode\bin\taosanodectl.bat` |
 | Docker | 容器内 `taosanodectl`；主服务由容器 entrypoint 前台运行 |
 
-Linux 安装器当前只创建以下两个模型命令兼容链接；脚本内部调用
-`taosanode_service.py` 的 `model-start`、`model-stop`：
+Linux 安装器当前只创建以下两个模型命令兼容链接；脚本内部调用 `taosanode_service.py` 的 `model-start`、`model-stop`：
 
 ```text
 /usr/bin/start-model -> <安装目录>/bin/start-model.sh
 /usr/bin/stop-model  -> <安装目录>/bin/stop-model.sh
 ```
 
-Linux 当前不创建 `start-taosanode`、`stop-taosanode`、`status-taosanode` 或
-`status-model` 别名；主服务使用 `taosanodectl service`，模型状态使用
-`taosanodectl model status`。`start-model.sh`、`stop-model.sh` 保留在包内；
-`start.sh`、`stop.sh` 以及 `start-tdtsfm.sh`、`stop-tdtsfm.sh`、
-`start-time-moe.sh`、`stop-time-moe.sh` 四个单模型包装脚本已移除。
+Linux 当前不创建 `start-taosanode`、`stop-taosanode`、`status-taosanode` 或 `status-model` 别名；主服务使用 `taosanodectl service`，模型状态使用 `taosanodectl model status`。`start-model.sh`、`stop-model.sh` 保留在包内； `start.sh`、`stop.sh` 以及 `start-tdtsfm.sh`、`stop-tdtsfm.sh`、 `start-time-moe.sh`、`stop-time-moe.sh` 四个单模型包装脚本已移除。
 
-Windows 打包工具在安装目录的 `bin` 下生成 `start-taosanode.bat`、
-`stop-taosanode.bat`、`status-taosanode.bat`、`start-model.bat`、
-`stop-model.bat` 和 `status-model.bat`，内部直接调用 `taosanode_service.py`。
-这些兼容包装脚本与 `taosanodectl.bat` 的参数及交互行为并不完全相同：例如
-Windows 的模型启停包装脚本省略目标时默认使用 `all`，部分脚本会等待按键。
-自动化应使用 `taosanodectl.bat service ...` 或 `taosanodectl.bat model ...`，
-并显式指定模型启停目标。
+Windows 打包工具在安装目录的 `bin` 下生成 `start-taosanode.bat`、 `stop-taosanode.bat`、`status-taosanode.bat`、`start-model.bat`、 `stop-model.bat` 和 `status-model.bat`，内部直接调用 `taosanode_service.py`。这些兼容包装脚本与 `taosanodectl.bat` 的参数及交互行为并不完全相同：例如 Windows 的模型启停包装脚本省略目标时默认使用 `all`，部分脚本会等待按键。自动化应使用 `taosanodectl.bat service ...` 或 `taosanodectl.bat model ...`，并显式指定模型启停目标。
 
 ### 10.3 职责边界
 
@@ -718,12 +723,7 @@ taosanodectl resource check --format json
 - 当前资源操作采用同步 CLI 和全局文件锁，不重复下载相同 digest；
 - 已在 Linux x64、Linux arm64 和 Windows x64 完成在线首次导入、第二模型复用 runtime、重复导入、完整性校验、Moirai/Moment 启动与端口验收；
 
-ARM64 的共享 TSFM runtime 发布前必须使用 `patchelf >= 0.14.0` 修复
-`jaxlib/libjax_common.so` 的 `librt.so.1` 依赖，将其改为
-`libc.so.6`。这是 Ubuntu 18.04/glibc 2.27 上 Moirai 使用的
-`clock_gettime@GLIBC_2.17` 兼容修复；系统默认的 `patchelf 0.9` 不得用于
-构建。发布验收必须直接导入 `jax/jaxlib`，并实际启动 Moirai 检查 6064
-端口。
+ARM64 的共享 TSFM runtime 发布前必须使用 `patchelf >= 0.14.0` 修复 `jaxlib/libjax_common.so` 的 `librt.so.1` 依赖，将其改为 `libc.so.6`。这是 Ubuntu 18.04/glibc 2.27 上 Moirai 使用的 `clock_gettime@GLIBC_2.17` 兼容修复；系统默认的 `patchelf 0.9` 不得用于构建。发布验收必须直接导入 `jax/jaxlib`，并实际启动 Moirai 检查 6064 端口。
 
 - `resource apply` 支持发布清单、平台/架构筛选、SHA-256 缓存、HTTP Range 断点续传和显式替换。
 - platform-group 已支持 Lite 三平台安装包构建、双架构 Docker 构建和发布；动态资源下载到模型 readiness 的验收当前保留为手工发布检查，后续再固化为流水线自动化。

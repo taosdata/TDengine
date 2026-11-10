@@ -1,8 +1,6 @@
 # TDgpt 发版与生命周期文件
 
-本目录保留 Full 与 Lite 安装包构建入口。Lite 动态资源的详细契约由下列专门文档维护。
-安装包类型与 Docker 镜像类型是两个不同维度：云服务的 Full 镜像仍使用 Lite
-代码安装包，venv 由 Full 基础镜像提供，模型权重由镜像构建时保留。
+本目录保留 Full 与 Lite 安装包构建入口。Lite 动态资源的详细契约由下列专门文档维护。安装包类型与 Docker 镜像类型是两个不同维度：云服务的 Full 镜像仍使用 Lite 代码安装包，venv 由 Full 基础镜像提供，模型权重由镜像构建时保留。
 
 ## 发版、安装、卸载与启动链路
 
@@ -18,32 +16,15 @@
 | 模型 | `start-model.sh` / `stop-model.sh` 调用 `taosanode_service.py` | 生成 `start-model.bat` / `stop-model.bat` / `status-model.bat` |
 | 统一命令 | `taosanodectl` 启动器调用 `script/taosanodectl.py` | 生成 `taosanodectl.bat` 调用同一 Python 入口 |
 
-`taosanode_service.py` 使用 `resource_manager.py` 和 `resource_manifest.py` 管理动态资源，
-这四个 Python 文件均需进入安装包。主服务使用 `taosanodectl service start/stop/status`，
-模型使用 `start-model <name|all>` / `stop-model <name|all>` 或 `taosanodectl model`。
-原 `start-tdtsfm` / `stop-tdtsfm` 对应 `start-model tdtsfm` / `stop-model tdtsfm`；
-原 `start-time-moe` / `stop-time-moe` 对应 `start-model timemoe` / `stop-model timemoe`。
-旧的 `start-model-from-remote` 不再交付；动态资源准备使用 `taosanodectl resource`。
-升级安装清理旧命令软链接，卸载同时清理当前与旧模型命令。
+`taosanode_service.py` 使用 `resource_manager.py` 和 `resource_manifest.py` 管理动态资源，这四个 Python 文件均需进入安装包。主服务使用 `taosanodectl service start/stop/status`，模型使用 `start-model <name|all>` / `stop-model <name|all>` 或 `taosanodectl model`。原 `start-tdtsfm` / `stop-tdtsfm` 对应 `start-model tdtsfm` / `stop-model tdtsfm`；原 `start-time-moe` / `stop-time-moe` 对应 `start-model timemoe` / `stop-model timemoe`。旧的 `start-model-from-remote` 不再交付；动态资源准备使用 `taosanodectl resource`。升级安装清理旧命令软链接，卸载同时清理当前与旧模型命令。
 
 ### Docker 交付
 
-`DockerfileTDgpt` 的 `tdgpt` / `tdgpt_full` 使用 `tdgpt-env-*` 基础镜像已有的
-venv，设置 `INSTALL_VENV=False`，安装 Lite 代码包后由 `entrypoint.sh` 启动模型和 API。
-`tdgpt_full` 继续携带 TimeMoE、MOMENT、Moirai 模型，`tdgpt` 携带 TDtsfm。
-`tdgpt_lite` 使用 `tdgpt-lite-env-*` 和 `entrypoint-lite.sh`，只启动 API。
-因此不得因 Lite 安装包不内置模型而删除 `lib/tsfm/service/`、
-模型依赖构建文件、Full 基础镜像或 Full 模型复制逻辑。
+`DockerfileTDgpt` 的 `tdgpt` / `tdgpt_full` 使用 `tdgpt-env-*` 基础镜像已有的 venv，设置 `INSTALL_VENV=False`，安装 Lite 代码包后由 `entrypoint.sh` 启动模型和 API。 `tdgpt_full` 继续携带 TimeMoE、MOMENT、Moirai 模型，`tdgpt` 携带 TDtsfm。 `tdgpt_lite` 使用 `tdgpt-lite-env-*` 和 `entrypoint-lite.sh`，只启动 API。因此不得因 Lite 安装包不内置模型而删除 `lib/tsfm/service/`、模型依赖构建文件、Full 基础镜像或 Full 模型复制逻辑。
 
 ### 文件清理边界
 
-Linux release 明确列出交付脚本，不再按 `st*.sh` 自动打包。
-删除 `start-with-allmd.sh`、`start.sh`、`stop.sh`、四个单模型包装脚本和
-`start_model_from_remote.sh`；不存在的 `ini_utils.sh` 复制逻辑已移除。
-`build_offline_assets.py` 保留 Full 资源归档能力，删除没有调用入口的 Python runtime
-下载函数及 uv 查找逻辑，工具缓存文档只保留实际使用的 WinSW。
-历史 SQL `resource/` 目录仅在存在时复制，干净源码不要求该目录。
-模型示例、依赖清单、Full / Lite Inno 模板及独立资源构建工具仍有用途，继续保留。
+Linux release 明确列出交付脚本，不再按 `st*.sh` 自动打包。删除 `start-with-allmd.sh`、`start.sh`、`stop.sh`、四个单模型包装脚本和 `start_model_from_remote.sh`；不存在的 `ini_utils.sh` 复制逻辑已移除。 `build_offline_assets.py` 保留 Full 资源归档能力，删除没有调用入口的 Python runtime 下载函数及 uv 查找逻辑，工具缓存文档只保留实际使用的 WinSW。历史 SQL `resource/` 目录仅在存在时复制，干净源码不要求该目录。模型示例、依赖清单、Full / Lite Inno 模板及独立资源构建工具仍有用途，继续保留。
 
 ## 文档关系
 
@@ -52,9 +33,12 @@ Linux release 明确列出交付脚本，不再按 `st*.sh` 自动打包。
 | [TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md) | 三平台安装包、runtime 和主 venv 构建 | 构建与发布人员 |
 | [TDGPT-LITE-DESIGN-CN.md](TDGPT-LITE-DESIGN-CN.md) | 安装契约、资源目录、下载、导入、升级和回滚 | 开发与架构人员 |
 | [TDGPT-LITE-VALIDATION-CN.md](TDGPT-LITE-VALIDATION-CN.md) | 三平台动态资源和模型启动验收 | 测试与发布人员 |
+| [用户算法与主 venv 验证记录](TDGPT-CUSTOM-ALGORITHMS-VALIDATION-20261101.md) | !3123 测试提交、产物摘要和验收边界 | 开发、评审与测试人员 |
 | [offline-pkgs/README.md](offline-pkgs/README.md) | TSFM 资源上传流程 | 资源发布人员 |
 
 修改代码前查看设计文档；构建制品时查看构建文档；发布前按验收文档执行完整验证。
+
+下一版用户 Python 算法目录方案见设计文档第 6.1 节，已有动态资源的升级顺序见第 7.2.3 节；主 venv 与 TSFM runtime 的依赖差异、版本决策和发布条件见构建文档第 7 节。本期实现用户算法持久化并更新主 venv，保留 TSFM runtime 1.0.0；发布与平台验收状态以 MR 记录为准，新版资源尚未正式发布。
 
 ## 当前交付范围
 
