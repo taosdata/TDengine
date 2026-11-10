@@ -50,13 +50,19 @@ def _write(path: Path, text: str, mode: int = 0o644) -> None:
     path.chmod(mode)
 
 
-@pytest.mark.parametrize("processor,override,expected", [
-    ("x86_64", False, "oracle-instantclient-19.28.0.0.0-amd64.tar.gz"),
-    ("aarch64", False, "oracle-instantclient-19.28.0.0.0-arm64.tar.gz"),
-    ("riscv64", False, "missing"),
-    ("aarch64", True, "arm64-client.tar.gz"),
+@pytest.mark.parametrize("client,processor,override,expected", [
+    ("19c", "x86_64", False, "oracle-instantclient-19.28.0.0.0-amd64.tar.gz"),
+    ("19c", "aarch64", False, "oracle-instantclient-19.28.0.0.0-arm64.tar.gz"),
+    ("19c", "arm64", False, "oracle-instantclient-19.28.0.0.0-arm64.tar.gz"),
+    ("19c", "riscv64", False, "missing"),
+    ("19c", "aarch64", True, "arm64-client.tar.gz"),
+    ("19c", "arm64", True, "arm64-client.tar.gz"),
+    ("23ai", "x86_64", False, "oracle-instantclient-23.26.0.0.0-amd64.tar.gz"),
+    ("23ai", "aarch64", False, "oracle-instantclient-23.26.0.0.0-arm64.tar.gz"),
+    ("23ai", "arm64", False, "oracle-instantclient-23.26.0.0.0-arm64.tar.gz"),
+    ("23ai", "riscv64", False, "missing"),
 ])
-def test_oracle_cmake_resource_architecture(tmp_path, processor, override, expected):
+def test_oracle_cmake_resource_architecture(tmp_path, processor, override, expected, client):
     """Configure the actual Oracle resolution block without downloading clients."""
     if not shutil.which("cmake"):
         pytest.skip("cmake required")
@@ -80,18 +86,19 @@ macro(get_from_local_if_exists upstream filename)
   set(_url "${LOCAL_URL}/${filename}")
 endmacro()
 '''
+    target = "ext_oracle_19c" if client == "19c" else "ext_oracle"
     project += f'set(CMAKE_SYSTEM_PROCESSOR "{processor}")\n'
     if override:
         project += 'set(EXT_ORACLE_19C_ARTIFACT "https://mirror.invalid/arm64-client.tar.gz" CACHE STRING "")\n'
         project += 'set(EXT_ORACLE_19C_ARTIFACT_SHA256 "' + 'a' * 64 + '" CACHE STRING "")\n'
     project += block + '''
-if(TARGET ext_oracle_19c)
-  get_property(client_url TARGET ext_oracle_19c PROPERTY _EP_URL)
+if(TARGET @CLIENT_TARGET@)
+  get_property(client_url TARGET @CLIENT_TARGET@ PROPERTY _EP_URL)
 else()
   set(client_url missing)
 endif()
 file(WRITE "${CMAKE_BINARY_DIR}/selected-client.txt" "${client_url}")
-'''
+'''.replace("@CLIENT_TARGET@", target)
     (tmp_path / "CMakeLists.txt").write_text(project)
     result = subprocess.run(["cmake", "-Wno-dev", "-S", str(tmp_path),
                              "-B", str(tmp_path / "build")], capture_output=True, text=True)

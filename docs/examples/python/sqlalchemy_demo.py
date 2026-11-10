@@ -16,7 +16,8 @@
 import taosws
 from sqlalchemy import create_engine
 from sqlalchemy import text
-import threading
+from concurrent.futures import ThreadPoolExecutor
+import time
 
 # Create a SQLAlchemy engine with WebSocket connection
 # If using native connection, use `taos` instead of `taosws`
@@ -27,7 +28,7 @@ def init_db():
         with engine.begin() as conn:
             # create database
             conn.execute(text("DROP DATABASE IF EXISTS power"))
-            conn.execute(text("CREATE DATABASE IF NOT EXISTS power"))
+            conn.execute(text("CREATE DATABASE IF NOT EXISTS power PRECISION 'ms'"))
             print(f"Create database power successfully")
 
             # create super table
@@ -40,16 +41,16 @@ def init_db():
         print(f"Failed to create db and table; ErrMessage:{err}")
         raise
 
-def ws_insert_sql(i: int):
+def ws_insert_sql(i: int, base_ts: int):
     try:
         with engine.begin() as conn:
             sql = text(f"""
-                INSERT INTO 
+                INSERT INTO
                 power.d1001 USING power.meters (groupid, location) TAGS(2, 'California.SanFrancisco')
-                    VALUES (NOW + {i+1}a, 10.30000, 219, 0.31000) 
-                    (NOW + {i+2}a, 12.60000, 218, 0.33000) (NOW + {i+3}a, 12.30000, 221, 0.31000)
-                power.d1002 USING power.meters (groupid, location)  TAGS(3, 'California.SanFrancisco') 
-                    VALUES (NOW + {i+1}a, 10.30000, 218, 0.25000)
+                    VALUES ({base_ts+i+1}, 10.30000, 219, 0.31000)
+                    ({base_ts+i+2}, 12.60000, 218, 0.33000) ({base_ts+i+3}, 12.30000, 221, 0.31000)
+                power.d1002 USING power.meters (groupid, location)  TAGS(3, 'California.SanFrancisco')
+                    VALUES ({base_ts+i+1}, 10.30000, 218, 0.25000)
                 """)
             affectedRows = conn.execute(sql)
             print(f"Successfully inserted {affectedRows.cursor.row_count} rows to power.meters.")
@@ -73,20 +74,29 @@ def ws_query(sql: str):
         print(f"TDengine query failed: {e}")
         raise
 
+def main():
+    try:
+        init_db()
+        # Use one millisecond base for all writers. Per-query NOW values can
+        # make different writers collide on the same table/timestamp key.
+        base_ts = time.time_ns() // 1_000_000
+        with ThreadPoolExecutor(max_workers=10) as pool:
+            futures = []
+            for i in range(5):
+                futures.append(pool.submit(ws_insert_sql, i * 10, base_ts))
+                futures.append(pool.submit(ws_query, "SELECT * FROM power.meters"))
+            # Propagate worker errors to the main thread and wait for all writes
+            # before checking the final count.
+            for future in futures:
+                future.result()
+
+        data = ws_query("SELECT count(*) FROM power.meters")
+        if data[0][0] != 20:
+            raise RuntimeError(f"Expected 20 rows in power.meters, got {data[0][0]}")
+        print("All sub-threads completed, main thread ending")
+    finally:
+        engine.dispose()
+
+
 if __name__ == "__main__":
-    init_db()  # Initialize database and tables
-    threads = []
-    for i in range(5):
-        t1 = threading.Thread(target=ws_insert_sql, args=(i*10,))
-        t2 = threading.Thread(target=ws_query, args=("SELECT * FROM power.meters",))
-        threads.extend([t1, t2])
-        t1.start()
-        t2.start()
-
-    for t in threads:
-        t.join()
-
-    data = ws_query("SELECT count(*) FROM power.meters")
-    assert data[0][0] == 20, "Expected 20 rows in power.meters"
-    print("All sub-threads completed, main thread ending")
-    
+    main()
