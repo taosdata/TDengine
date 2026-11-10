@@ -33,6 +33,7 @@ Linux release 明确列出交付脚本，不再按 `st*.sh` 自动打包。删�
 | [TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md) | 三平台安装包、runtime 和主 venv 构建 | 构建与发布人员 |
 | [TDGPT-LITE-DESIGN-CN.md](TDGPT-LITE-DESIGN-CN.md) | 安装契约、资源目录、下载、导入、升级和回滚 | 开发与架构人员 |
 | [TDGPT-LITE-VALIDATION-CN.md](TDGPT-LITE-VALIDATION-CN.md) | 三平台动态资源和模型启动验收 | 测试与发布人员 |
+| [TDGPT-CUSTOM-BATCH-ALGORITHM-CN.md](TDGPT-CUSTOM-BATCH-ALGORITHM-CN.md) | 用户自定义批量包络线算法的开发、参数声明与调用 | 用户算法开发者 |
 | [用户算法与主 venv 验证记录](TDGPT-CUSTOM-ALGORITHMS-VALIDATION-20261101.md) | !3123 测试提交、产物摘要和验收边界 | 开发、评审与测试人员 |
 | [offline-pkgs/README.md](offline-pkgs/README.md) | TSFM 资源上传流程 | 资源发布人员 |
 

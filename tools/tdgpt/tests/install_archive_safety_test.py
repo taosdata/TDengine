@@ -38,6 +38,7 @@ def test_windows_package_contains_complete_runtime_library(tmp_path):
     release.copy_python_files()
     for name in (
         "app.py", "conf.py", "service_registry.py", "custom_algorithms.py",
+        "taosanalytics/algo/envelop/batch_algorithms.py",
         "taosanalytics/__init__.py", "dynamic/model_loader.py",
         "tsfm/service/moirai_server.py",
     ):

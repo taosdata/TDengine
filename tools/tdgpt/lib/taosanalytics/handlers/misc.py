@@ -21,7 +21,17 @@ import numpy as np
 from scipy.stats import pearsonr
 
 from lib.log import AppLogger
-from lib.taosanalytics.algo.envelop.batch_env import gen_batch_envelop, update_config
+from lib.service_registry import loader
+from lib.taosanalytics.algo.envelop.batch_algorithms import (
+    DEFAULT_ALGO,
+    BatchAlgoParamsError,
+    resolve_params,
+)
+from lib.taosanalytics.algo.envelop.batch_env import (
+    gen_batch_envelop,
+    get_default_config,
+    update_config,
+)
 from lib.taosanalytics.algo.search.profile_search import do_profile_search_impl
 from lib.util import (
     SINGLE_COLUMN_ERROR_MSG,
@@ -211,26 +221,132 @@ def handle_build_batch_env(request):
         AppLogger.error(msg)
         return {"msg": msg, "rows": -1}
 
-    conf = update_config(payload_obj.get("config", None))
+    algo = payload_obj.get("algo", None)
+    if algo is None:
+        algo = DEFAULT_ALGO
+    if not isinstance(algo, str) or not algo.strip():
+        msg = f"'algo' must be a non-empty string, got {algo!r}."
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
+    algo = algo.strip()
+
+    ts_array = np.array(ts)
+    values_array = np.array(values)
+
+    if algo == DEFAULT_ALGO:
+        conf = update_config(payload_obj.get("config", None))
+        try:
+            # median, lower bounding, upper bounding, processed_batches
+            center, lower, upper, processed_batches = gen_batch_envelop(
+                ts_array, values_array, windows, conf
+            )
+            res = _envelope_response(
+                center,
+                lower,
+                upper,
+                {"algo": DEFAULT_ALGO, "version": None, "entry_sha256": None},
+            )
+        except Exception as e:
+            AppLogger.error("golden batch process failed, %s", str(e))
+            return {"msg": str(e), "rows": -1}
+
+        AppLogger.debug("batch processed result: %s", res)
+        return res
+
+    plugin = loader.get_batch_algo(algo)
+    if plugin is None:
+        msg = (
+            f"unknown batch algorithm '{algo}', available: "
+            f"{', '.join([DEFAULT_ALGO] + sorted(loader.batch_services))}"
+        )
+        AppLogger.error(msg)
+        return {"msg": msg, "rows": -1}
 
     try:
-        # median, lower bounding, upper bounding, processed_batches
-        center, lower, upper, processed_batches = gen_batch_envelop(
-            np.array(ts), np.array(values), windows, conf
+        params = resolve_params(plugin, payload_obj.get("config", None))
+    except BatchAlgoParamsError as e:
+        AppLogger.error("invalid parameters for batch algorithm '%s': %s", algo, e)
+        return {"msg": str(e), "rows": -1}
+
+    try:
+        center, lower, upper = plugin.cls().build(ts_array, values_array, windows, params)
+        res = _envelope_response(center, lower, upper, plugin.trace())
+    except Exception as e:
+        # The plugin runs in the service process, so its failure is reported with
+        # the algorithm and version that produced it instead of being retried.
+        AppLogger.error(
+            "batch algorithm '%s' (version=%s) failed: %s",
+            algo,
+            plugin.version,
+            e,
+        )
+        return {"msg": f"batch algorithm '{algo}' failed: {e}", "rows": -1}
+
+    AppLogger.debug(
+        "batch algorithm '%s' (version=%s) result: rows=%s",
+        algo,
+        plugin.version,
+        res["rows"],
+    )
+    return res
+
+
+def _envelope_response(center, lower, upper, trace):
+    """Validate the three curves and build the response body.
+
+    `center`, `lower` and `upper` are returned to the client as plain lists, so
+    they must be one-dimensional, of equal length and finite; a plugin returning
+    anything else would otherwise surface as an opaque JSON encoding error.
+    """
+    arrays = []
+    for label, value in (
+        ("center", center),
+        ("lower", lower),
+        ("upper", upper),
+    ):
+        try:
+            array = np.asarray(value, dtype=float)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"'{label}' is not a numeric array: {exc}") from exc
+
+        if array.ndim != 1:
+            raise ValueError(f"'{label}' must be one-dimensional, got shape {array.shape}")
+        if not np.isfinite(array).all():
+            raise ValueError(f"'{label}' contains NaN or infinite values")
+        arrays.append(array)
+
+    sizes = [array.size for array in arrays]
+    if len(set(sizes)) != 1:
+        raise ValueError(
+            "center, lower and upper must have the same length, got "
+            f"center={sizes[0]}, lower={sizes[1]}, upper={sizes[2]}"
         )
 
-        res = {
-            "rows": lower.size,
-            "center": center.tolist(),
-            "lower": lower.tolist(),
-            "upper": upper.tolist(),
-        }
-        AppLogger.debug("batch processed result: %s", res)
+    center, lower, upper = arrays
+    res = {
+        "rows": int(lower.size),
+        "center": center.tolist(),
+        "lower": lower.tolist(),
+        "upper": upper.tolist(),
+    }
+    res.update(trace)
+    return res
 
-        return res
-    except Exception as e:
-        AppLogger.error("golden batch process failed, %s", str(e))
-        return {"msg": str(e), "rows": -1}
+
+def handle_list_batch_algos():
+    """Describe the built-in pipeline and the user-provided batch algorithms."""
+    builtin = {
+        "name": DEFAULT_ALGO,
+        "description": "built-in golden batch envelope pipeline",
+        "version": None,
+        "entry_sha256": None,
+        "builtin": True,
+        # The built-in pipeline consumes the nested pipeline configuration, not
+        # a flat parameter schema, so it is reported under the request field
+        # name instead of `params` to keep the two shapes apart.
+        "config": get_default_config(),
+    }
+    return {"protocol": 1.0, "algo": [builtin] + loader.get_batch_algo_list()}
 
 
 def handle_pearsonr(request, api_version):

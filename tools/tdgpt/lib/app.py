@@ -36,6 +36,7 @@ from lib.taosanalytics.handlers.imputation import handle_imputation
 from lib.taosanalytics.handlers.misc import (
     do_profile_search,
     handle_build_batch_env,
+    handle_list_batch_algos,
     handle_pearsonr,
 )
 from lib.taosanalytics.handlers.model_mgmt import (
@@ -188,6 +189,14 @@ def handle_clustering_req():
 def handle_batch_req():
     """handle the batch request request"""
     return handle_build_batch_env(request)
+
+
+@app.route("/api/v1/analysis/batch/algos", methods=["GET"])
+@app.route("/tool/batch/algos", methods=["GET"])
+def list_batch_algos():
+    """list the batch envelope algorithms accepted by the batch endpoint"""
+    AppLogger.info("Received request to list batch algorithms, ip:%s", request.remote_addr)
+    return handle_list_batch_algos()
 
 
 @app.route("/deploy", methods=["POST"])
