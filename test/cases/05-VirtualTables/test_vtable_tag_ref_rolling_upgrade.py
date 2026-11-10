@@ -251,7 +251,10 @@ class TestVtableTagRefRollingUpgrade:
         time.sleep(10)
 
         # ---- phase 1: fixtures on the OLD version — only features the old build supports
-        tdSql.execute(f"CREATE DATABASE {DB} BUFFER 16 VGROUPS 2;")
+        # SS_CHUNKPAGES is pinned on purpose: the CI build (ASSERT_NOT_CORE=OFF) defaults it to
+        # 4096, but the released base package (ASSERT_NOT_CORE=ON) has a minimum of 128*1024 and
+        # rejects the new client's default with "Invalid database options". 131072 is valid for both.
+        tdSql.execute(f"CREATE DATABASE {DB} BUFFER 16 VGROUPS 2 SS_CHUNKPAGES 131072;")
         tdSql.execute(f"CREATE STABLE {DB}.src_stb (ts TIMESTAMP, val INT) TAGS (city NCHAR(20), code INT);")
         tdSql.execute(f"CREATE TABLE {DB}.c1 USING {DB}.src_stb TAGS ('beijing', 100);")
         tdSql.execute(f"CREATE TABLE {DB}.c2 USING {DB}.src_stb TAGS ('shanghai', 200);")
