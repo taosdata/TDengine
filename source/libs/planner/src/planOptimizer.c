@@ -79,6 +79,7 @@ static int32_t fqUnionDeduplicateOptimize(SOptimizeContext* pCxt, SLogicSubplan*
 static SLogicNode* fqFirstChild(const SLogicNode* pNode);
 static SScanLogicNode* fqFindExternalLogicLeafScan(SLogicNode* pNode);
 static SNode* findDepScanCol(SScanLogicNode* pScan, SColumnNode* pCol);
+static SNode* findPrimaryTsScanCol(SScanLogicNode* pScan);
 static void fqPlanDebugLogExprList(const char* pTag, const SNodeList* pExprs);
 static void fqPlanDebugLogNodeOutputs(const char* pTag, const SLogicNode* pNode);
 static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
@@ -13812,6 +13813,38 @@ _return:
   return code;
 }
 
+static bool pdaSelectInputsAreIndependent(SAggLogicNode* pAgg, SVirtualScanLogicNode* pVScan) {
+  if (virtualScanContainsAlign(pVScan) || pVScan->hasFilterCond || NULL != pVScan->node.pConditions ||
+      NULL != pVScan->node.pLimit || NULL != pVScan->node.pSlimit) {
+    return false;
+  }
+
+  SNode* pAggFunc = NULL;
+  FOREACH(pAggFunc, pAgg->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pAggFunc;
+    int32_t numParams = (FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) ? 2 : 1;
+    if (pFunc->isDistinct || LIST_LENGTH(pFunc->pParameterList) != numParams ||
+        QUERY_NODE_COLUMN != nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
+      return false;
+    }
+  }
+
+  SNode* pChild = NULL;
+  FOREACH(pChild, pVScan->node.pChildren) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pChild;
+    SNode* pTs = findPrimaryTsScanCol(pScan);
+    // Precision conversion and composite keys can collapse several source
+    // rows into one virtual row, changing the selector's input values.
+    if (pScan->node.precision != pVScan->node.precision || NULL == pTs ||
+        ((SColumnNode*)pTs)->tableHasPk ||
+        (SCAN_TYPE_EXTERNAL != pScan->scanType &&
+         TSDB_NORMAL_TABLE != pScan->tableType && TSDB_CHILD_TABLE != pScan->tableType)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -13840,29 +13873,46 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  SNode*                 pCol;
-  FOREACH(pCol, pVScan->pScanCols) {
-    SColumnNode* pScanCol = (SColumnNode* )pCol;
-    if (!pScanCol->hasRef) {
-      // if col don't have ref, it can't be eliminated. If the vscan operator is eliminated,
-      // the upper operator can't find the right slot id.
-      return false;
-    }
-  }
-
   SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
   SNode*          pAggFunc = NULL;
+  bool            hasSelectFunc = false;
   FOREACH(pAggFunc, pAgg->pAggFuncs) {
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
     // REPEAT_SCAN_FUNC (exact PERCENTILE) is single-table two-pass only: it has no
     // partial/merge func pair, so PushDownAgg must not distribute it per origin scan.
     // Leave the AGG -> VirtualScan shape to the VtableTwoPass rule instead.
-    if (fmIsSelectFunc(pFunc->funcId) || fmIsGroupKeyFunc(pFunc->funcId) || fmIsRepeatScanFunc(pFunc->funcId)) {
+    if (fmIsGroupKeyFunc(pFunc->funcId) || fmIsRepeatScanFunc(pFunc->funcId)) {
       return false;
+    }
+    if (fmIsSelectFunc(pFunc->funcId)) {
+      // These single-row selectors ignore NULLs added by timestamp merging.
+      // SELECT_VALUE needs the selected virtual row, LAST_ROW observes those
+      // added NULLs, and multi-row selectors cannot use the one-row cols merge.
+      if (FUNCTION_TYPE_MIN != pFunc->funcType && FUNCTION_TYPE_MAX != pFunc->funcType &&
+          FUNCTION_TYPE_FIRST != pFunc->funcType && FUNCTION_TYPE_LAST != pFunc->funcType &&
+          FUNCTION_TYPE_MODE != pFunc->funcType) {
+        return false;
+      }
+      hasSelectFunc = true;
     }
     if (hasExternalChild &&
         (1 != LIST_LENGTH(pFunc->pParameterList) ||
          QUERY_NODE_COLUMN != nodeType(nodesListGetNode(pFunc->pParameterList, 0)))) {
+      return false;
+    }
+  }
+
+  if (hasSelectFunc && !pdaSelectInputsAreIndependent(pAgg, pVScan)) {
+    return false;
+  }
+
+  SNode* pCol = NULL;
+  FOREACH(pCol, pVScan->pScanCols) {
+    SColumnNode* pScanCol = (SColumnNode*)pCol;
+    if (!pScanCol->hasRef &&
+        !(hasSelectFunc && PRIMARYKEY_TIMESTAMP_COL_ID == pScanCol->colId)) {
+      // The implicit FIRST/LAST timestamp is rebound to its source scan.
+      // Explicit arguments without a source still abort PDA during rewriting.
       return false;
     }
   }
@@ -13983,6 +14033,14 @@ static int32_t mergeAggFuncToAggNode(SAggLogicNode* pAgg, SFunctionNode* pFunc, 
   int32_t code = TSDB_CODE_SUCCESS;
   SNode  *ppFuncNode = NULL;
   PLAN_ERR_JRET(nodesCloneNode((SNode *)pFunc, &ppFuncNode));
+  if (FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) {
+    SFunctionNode* pNewFunc = (SFunctionNode*)ppFuncNode;
+    SListCell* pTsCell = nodesListGetCell(pNewFunc->pParameterList, 1);
+    SNode* pTs = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(findPrimaryTsScanCol(pScan), &pTs));
+    nodesDestroyNode(pTsCell->pNode);
+    pTsCell->pNode = pTs;
+  }
   if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
     SPdaRewriteCxt cxt = {.pScan = pScan, .code = TSDB_CODE_SUCCESS};
     nodesRewriteExpr(&ppFuncNode, pdaRewriteExternalColumn, &cxt);
@@ -14108,6 +14166,11 @@ static int32_t pdaOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan)
     SFunctionNode *pFunc = (SFunctionNode *)pAggFunc;
     SNode         *pParam = NULL;
     FOREACH(pParam, pFunc->pParameterList) {
+      if ((FUNCTION_TYPE_FIRST == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) &&
+          pParam != nodesListGetNode(pFunc->pParameterList, 0)) {
+        // The remaining parameters identify the source row, not another source.
+        continue;
+      }
       if (QUERY_NODE_COLUMN == nodeType(pParam)) {
         SColumnNode *pCol = (SColumnNode *)pParam;
         syncPdaColumnRef(pVScan, pCol);

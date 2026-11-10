@@ -34,6 +34,52 @@ class TestVTablePlanAggOptimize:
 
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
 
+    def do_select_function_pushdown(self, test_case):
+        self.run_normal_query(test_case)
+        print(f"{test_case} [ passed ]")
+
+    def test_select_function_pushdown_result(self):
+        """Query: independent selection aggregates on multi-source virtual tables.
+
+        1. Compare MIN, MAX, FIRST, LAST and MODE results with golden answers.
+        2. Cover sparse timestamps, NULLs, empty sources, scalar expressions and time ranges.
+        3. Check mixed aggregates and row-dependent selectors before and after flush.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-10 Joey Sima Created
+        """
+        self.do_select_function_pushdown("test_vtable_select_function_pushdown")
+
+    def test_select_function_pushdown_plan(self):
+        """Plan: selection aggregate pushdown and merged-row safety boundaries.
+
+        1. Compare EXPLAIN plans for five independent single-row selectors.
+        2. Keep companions, LAST_ROW, multi-row selectors and virtual timestamps above merging.
+        3. Preserve filters and aggregates with cross-source expressions.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-10 Joey Sima Created
+        """
+        self.do_select_function_pushdown("test_vtable_plan_select_function_pushdown")
+
     def test_virtual_table_plan(self):
         """Query: virtual stable query plan
 
@@ -45,6 +91,7 @@ class TestVTablePlanAggOptimize:
         Since: v3.3.8.0
 
         Labels: virtual,integration,functional
+
         Jira: None
 
         History:
