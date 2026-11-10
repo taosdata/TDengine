@@ -1,0 +1,60 @@
+# Prepare data.
+drop database if exists duplicate_mixed_consumers;
+create database duplicate_mixed_consumers vgroups 2 keep 36500;
+use duplicate_mixed_consumers;
+create table matrix_readings (ts timestamp, k int, v int, d double);
+create table matrix_history (ts timestamp, k int, v int);
+create table matrix_other (ts timestamp, k int, v int);
+insert into matrix_readings values (1760000000000, 1, 10, 10);
+insert into matrix_readings values (1760000001000, 2, 20, 20);
+insert into matrix_readings values (1760000002000, 3, 30, 30);
+insert into matrix_readings values (1760000003000, 2, null, null);
+insert into matrix_readings values (1760000004000, null, 40, 40);
+insert into matrix_history values (1760000000000, 1, 5);
+insert into matrix_history values (1760000001000, 1, 15);
+insert into matrix_history values (1760000002000, 2, 20);
+insert into matrix_history values (1760000003000, 3, null);
+insert into matrix_other values (1760000000000, 1, 100);
+
+# Mixed consumers.
+select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 2.
+explain select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze select (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.v in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts;
+# Expected InitPlans 3, correlated templates 1.
+explain select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+explain analyze select r.k, (select max(h.v) from matrix_history h), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.k from matrix_history h where h.k > 0) from matrix_readings r where (coalesce(r.v, 0) <= (select max(h.v) from matrix_history h) or r.k = 3 or r.k is null) and (r.v in (select h.v from matrix_history h where h.v is not null) or r.v not in (select h.v from matrix_history h where h.v is not null) or r.v is null) and exists (select h.k from matrix_history h where h.k > 0) order by r.ts\G;
+select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 4, correlated templates 1.
+explain select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze select (select max(h.v) from matrix_history h), (select max(v) from matrix_other), (select max(h.v) from matrix_history h where h.k = r.k), r.v in (select h.v from matrix_history h where h.v is not null), r.d in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select (select v from matrix_history where k = 2), r.v in (select v from matrix_history where k = 2) from matrix_readings r order by r.ts\G;
+select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select h.v from matrix_history h where h.v is not null), exists (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v > any (select h.v from matrix_history h where h.v is not null), r.v > all (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select h.v from matrix_history h where h.v is not null), r.v not in (select h.v from matrix_history h where h.v is not null) from matrix_readings r order by r.ts\G;
+select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts;
+# Expected InitPlans 1, correlated templates 1.
+explain select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+explain analyze select (select max(h.v) from matrix_history h where h.k = r.k and h.v <= (select max(h.v) from matrix_history h)), (select max(h.v) from matrix_history h) from matrix_readings r order by r.ts\G;
+select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts;
+# Expected InitPlans 2.
+explain select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts\G;
+explain analyze select (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h), (select max(h.v + (select max(z.v) from matrix_other z where z.k = h.k)) from matrix_history h) from matrix_readings r order by r.ts\G;
+select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts;
+# Expected InitPlans 0, correlated templates 0.
+explain verbose true select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts\G;
+explain analyze verbose true select a.v, b.v from (select ts, v from matrix_history where v is not null) a join (select ts, v from matrix_history where v is not null) b on a.ts = b.ts order by a.ts\G;
+drop database duplicate_mixed_consumers;

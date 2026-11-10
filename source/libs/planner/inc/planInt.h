@@ -150,6 +150,11 @@ int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* 
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement);
 SLogicNode*    planGetSubqueryRenderLogic(const SPlanContext* pCxt, int32_t subQIdx, ENodeType remoteNodeType);
 bool           planIsSubqueryPushedDown(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planIsSharedSubquery(const SPlanContext* pCxt, int32_t subQIdx);
+bool           planSubqueryCanShare(const SNode* pLeft, const SNode* pRight);
+static inline bool planSubqueryTypeEqual(SDataType a, SDataType b) {
+  return a.type == b.type && a.bytes == b.bytes && a.precision == b.precision && a.scale == b.scale;
+}
 bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t subQIdx);
 int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 

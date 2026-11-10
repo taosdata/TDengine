@@ -32,6 +32,35 @@ _WINDOWS_DLL_DIR = None
 _POSIX_TAOS_LIB_SENTINEL = "_TAOS_TEST_LIB_DIR"
 
 
+def _create_mnodes(cursor, mnode_count, timeout=180):
+    for dnode_id in range(2, mnode_count + 1):
+        deadline = time.monotonic() + timeout
+        statement = f"create mnode on dnode {dnode_id}"
+        while True:
+            try:
+                cursor.execute(statement)
+                break
+            except Exception as exc:
+                errno = getattr(exc, "errno", None)
+                # A previous global transaction can still be committing.
+                if errno is None or (errno & 0xFFFF) != 0x03D3:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise TimeoutError(f"{statement}: transaction conflict after {timeout}s") from exc
+                time.sleep(1)
+
+        while True:
+            cursor.execute("select `id`, `role`, `status` from information_schema.ins_mnodes")
+            rows = cursor.fetchall()
+            if (set(row[0] for row in rows) == set(range(1, dnode_id + 1))
+                    and sum(row[1] == "leader" for row in rows) == 1
+                    and all(row[1] in ("leader", "follower") and row[2] == "ready" for row in rows)):
+                break
+            if time.monotonic() >= deadline:
+                raise TimeoutError(f"{statement}: mnodes not ready after {timeout}s: {rows!r}")
+            time.sleep(1)
+
+
 def _apply_runtime_exports(env, output):
     for line in output.splitlines():
         if not line.startswith('export '):
@@ -597,8 +626,7 @@ def before_test_class(request):
         )
 
     if request.session.mnodes_num:
-        for i in range(2, request.session.mnodes_num + 1):
-            tdSql.execute(f"create mnode on dnode {i}")
+        _create_mnodes(tdSql.cursor, request.session.mnodes_num)
         tdLog.debug(tdSql.query(f"show mnodes", row_tag=True))
 
     # 处理-Q参数，如果-Q参数不等于1，则创建qnode，并设置queryPolicy

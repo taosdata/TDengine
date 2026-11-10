@@ -945,6 +945,10 @@ extern "C" int32_t getTableList(void *pVnode, SScanPhysiNode *pScanNode, SNode *
                                 void *pStreamInfo, int64_t txnId);
 extern "C" void handleRemoteRowRes(SScalarFetchParam* pParam, STaskSubJobCtx* ctx, SRetrieveTableRsp* pRsp,
                                     bool* fetchDone);
+extern "C" void handleRemoteValueRes(SScalarFetchParam*, STaskSubJobCtx*, SRetrieveTableRsp*, bool*);
+extern "C" void handleRemoteValueListRes(SScalarFetchParam*, STaskSubJobCtx*, SRetrieveTableRsp*, bool*);
+extern "C" void handleRemoteZeroRowsRes(SScalarFetchParam*, STaskSubJobCtx*, SRetrieveTableRsp*, bool*);
+extern "C" void handleRemoteTableRes(SScalarFetchParam*, STaskSubJobCtx*, SRetrieveTableRsp*, bool*);
 extern "C" int32_t   extWinTestGetMergeAlignedAggBufferState(SOperatorInfo *pOperator, int32_t *pPageCount,
                                                              int32_t *pCurrentPageId, int32_t *pCurrentPageUsed);
 extern "C" int32_t   extWinTestConfigureBroadcastBenchmark(SOperatorInfo *pOperator, bool legacy);
@@ -6196,6 +6200,7 @@ TEST(execUtilTest, remoteScalarCopyRetainsRemotePlanOwnershipAfterValueRewrite) 
     ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pRemote->pRemotePlan), TSDB_CODE_SUCCESS);
     pRemote->val.literal = taosStrdup("serialized remote subquery");
     ASSERT_NE(pRemote->val.literal, nullptr);
+    pRemote->val.node.resType = pCached->node.resType;
 
     ASSERT_EQ(remoteNodeCopy(reinterpret_cast<SNode*>(pCached), reinterpret_cast<SNode*>(pRemote)), TSDB_CODE_SUCCESS);
     EXPECT_EQ(nodeType(reinterpret_cast<SNode*>(pRemote)), QUERY_NODE_VALUE);
@@ -6205,6 +6210,306 @@ TEST(execUtilTest, remoteScalarCopyRetainsRemotePlanOwnershipAfterValueRewrite) 
   }
 
   nodesDestroyNode(reinterpret_cast<SNode*>(pCached));
+}
+
+TEST(execUtilTest, remoteScalarCacheSurvivesFirstConsumerDestruction) {
+  for (bool isNull : {false, true}) {
+    SRemoteValueNode* pFirst = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE, reinterpret_cast<SNode**>(&pFirst)), TSDB_CODE_SUCCESS);
+    pFirst->val.node.type = QUERY_NODE_VALUE;
+    pFirst->val.node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    pFirst->val.node.resType.bytes = 16;
+    pFirst->val.flag = VALUE_FLAG_REMOTE_PLAN;
+    pFirst->val.translate = true;
+    pFirst->val.isNull = isNull;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &pFirst->pRemotePlan), TSDB_CODE_SUCCESS);
+    if (!isNull) {
+      pFirst->val.datum.p = static_cast<char*>(taosMemoryMalloc(VARSTR_HEADER_SIZE + 5));
+      ASSERT_NE(pFirst->val.datum.p, nullptr);
+      varDataSetLen(pFirst->val.datum.p, 5);
+      memcpy(varDataVal(pFirst->val.datum.p), "value", 5);
+    }
+
+    SNode* pCached = nullptr;
+    ASSERT_EQ(qCloneRemoteResult(reinterpret_cast<SNode*>(pFirst), &pCached), TSDB_CODE_SUCCESS);
+    ASSERT_NE(pCached, nullptr);
+    EXPECT_EQ(reinterpret_cast<SValueNode*>(pCached)->flag & VALUE_FLAG_REMOTE_PLAN, 0);
+    if (!isNull) {
+      EXPECT_NE(reinterpret_cast<SValueNode*>(pCached)->datum.p, pFirst->val.datum.p);
+    }
+    nodesDestroyNode(reinterpret_cast<SNode*>(pFirst));
+
+    STaskSubJobCtx ctx = {};
+    ctx.idStr = const_cast<char*>("remote scalar cache test");
+    ctx.subEndPoints = taosArrayInit_s(POINTER_BYTES, 1);
+    ctx.subResCache = taosArrayInit_s(POINTER_BYTES, 1);
+    ASSERT_NE(ctx.subEndPoints, nullptr);
+    ASSERT_NE(ctx.subResCache, nullptr);
+    taosArraySet(ctx.subResCache, 0, &pCached);
+
+    SRemoteValueNode* pSecond = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE, reinterpret_cast<SNode**>(&pSecond)), TSDB_CODE_SUCCESS);
+    pSecond->val.node.resType = reinterpret_cast<SValueNode*>(pCached)->node.resType;
+    ASSERT_EQ(qFetchRemoteNode(&ctx, 0, reinterpret_cast<SNode*>(pSecond)), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(pSecond->val.isNull, isNull);
+    if (!isNull) {
+      EXPECT_NE(pSecond->val.datum.p, reinterpret_cast<SValueNode*>(pCached)->datum.p);
+      EXPECT_EQ(std::string(varDataVal(pSecond->val.datum.p), varDataLen(pSecond->val.datum.p)), "value");
+    }
+
+    nodesDestroyNode(reinterpret_cast<SNode*>(pSecond));
+    taosArrayDestroyP(ctx.subResCache, reinterpret_cast<FDelete>(nodesDestroyNode));
+    taosArrayDestroy(ctx.subEndPoints);
+  }
+}
+
+TEST(execUtilTest, remoteScalarCopyPreservesConsumerBindings) {
+  SValueNode source = {};
+  source.node.type = QUERY_NODE_VALUE;
+  source.node.resType.type = TSDB_DATA_TYPE_INT;
+  source.node.resType.bytes = sizeof(int32_t);
+  source.translate = true;
+  int32_t value = 42;
+  ASSERT_EQ(nodesSetValueNodeValue(&source, &value), TSDB_CODE_SUCCESS);
+  tstrncpy(source.node.aliasName, "first", sizeof(source.node.aliasName));
+  source.node.projIdx = 1;
+  for (ENodeType type : {QUERY_NODE_REMOTE_VALUE, QUERY_NODE_REMOTE_ZERO_ROWS}) {
+    SRemoteValueNode* consumer = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, reinterpret_cast<SNode**>(&consumer)), TSDB_CODE_SUCCESS);
+    consumer->val.node.resType = source.node.resType;
+    tstrncpy(consumer->val.node.aliasName, "second", sizeof(consumer->val.node.aliasName));
+    tstrncpy(consumer->val.node.userAlias, "user_second", sizeof(consumer->val.node.userAlias));
+    consumer->val.node.projIdx = 7;
+    consumer->val.node.bindExprID = 72;
+    consumer->val.node.asParam = true;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &consumer->pRemotePlan), TSDB_CODE_SUCCESS);
+    SNode* plan = consumer->pRemotePlan;
+    ASSERT_EQ(remoteNodeCopy(reinterpret_cast<SNode*>(&source), reinterpret_cast<SNode*>(consumer)),
+              TSDB_CODE_SUCCESS);
+    EXPECT_EQ(42, consumer->val.datum.i);
+    EXPECT_STREQ("second", consumer->val.node.aliasName);
+    EXPECT_STREQ("user_second", consumer->val.node.userAlias);
+    EXPECT_EQ(7, consumer->val.node.projIdx);
+    EXPECT_EQ(72, consumer->val.node.bindExprID);
+    EXPECT_TRUE(consumer->val.node.asParam);
+    EXPECT_EQ(plan, consumer->pRemotePlan);
+    nodesDestroyNode(reinterpret_cast<SNode*>(consumer));
+  }
+}
+
+TEST(execUtilTest, remoteSnapshotOmitsConsumerSqlAndPlan) {
+  for (ENodeType type : {QUERY_NODE_REMOTE_VALUE_LIST, QUERY_NODE_REMOTE_ROW}) {
+    SNode* source = nullptr;
+    ASSERT_EQ(nodesMakeNode(type, &source), TSDB_CODE_SUCCESS);
+    reinterpret_cast<SExprNode*>(source)->resType.type = TSDB_DATA_TYPE_INT;
+    if (type == QUERY_NODE_REMOTE_VALUE_LIST) {
+      auto* list = reinterpret_cast<SRemoteValueListNode*>(source);
+      list->inSubquerySql = taosStrdup("select value from source_table");
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &list->pRemotePlan), TSDB_CODE_SUCCESS);
+    } else {
+      auto* row = reinterpret_cast<SRemoteRowNode*>(source);
+      row->val.translate = true;
+      row->val.literal = taosStrdup("select value from source_table");
+      row->pSubquerySql = taosStrdup("select value from source_table");
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &row->pRemotePlan), TSDB_CODE_SUCCESS);
+    }
+    SNode* snapshot = nullptr;
+    ASSERT_EQ(qCloneRemoteResult(source, &snapshot), TSDB_CODE_SUCCESS);
+    if (type == QUERY_NODE_REMOTE_VALUE_LIST) {
+      EXPECT_EQ(nullptr, reinterpret_cast<SRemoteValueListNode*>(snapshot)->inSubquerySql);
+      EXPECT_EQ(nullptr, reinterpret_cast<SRemoteValueListNode*>(snapshot)->pRemotePlan);
+    } else {
+      EXPECT_EQ(nullptr, reinterpret_cast<SRemoteRowNode*>(snapshot)->val.literal);
+      EXPECT_EQ(nullptr, reinterpret_cast<SRemoteRowNode*>(snapshot)->pSubquerySql);
+      EXPECT_EQ(nullptr, reinterpret_cast<SRemoteRowNode*>(snapshot)->pRemotePlan);
+    }
+    nodesDestroyNode(source);
+    nodesDestroyNode(snapshot);
+  }
+}
+
+TEST(execUtilTest, lateRemoteResponsesRetainBorrowedConsumerOwnership) {
+  const ENodeType types[] = {QUERY_NODE_REMOTE_VALUE, QUERY_NODE_REMOTE_VALUE_LIST, QUERY_NODE_REMOTE_ROW,
+                            QUERY_NODE_REMOTE_ZERO_ROWS, QUERY_NODE_REMOTE_TABLE};
+  using Handler = void (*)(SScalarFetchParam*, STaskSubJobCtx*, SRetrieveTableRsp*, bool*);
+  const Handler handlers[] = {handleRemoteValueRes, handleRemoteValueListRes, handleRemoteRowRes,
+                              handleRemoteZeroRowsRes, handleRemoteTableRes};
+  for (int index = 0; index < 5; ++index) {
+    SCOPED_TRACE(index);
+    auto* ctx = static_cast<STaskSubJobCtx*>(taosMemoryCalloc(1, sizeof(STaskSubJobCtx)));
+    ASSERT_NE(nullptr, ctx);
+    SExecTaskInfo task = {};
+    task.execModel = OPTR_EXEC_MODEL_BATCH;
+    task.code = TSDB_CODE_TIMEOUT_ERROR;
+    ctx->pTaskInfo = &task;
+    ctx->idStr = const_cast<char*>("late remote response test");
+    ctx->subEndPoints = taosArrayInit_s(POINTER_BYTES, 1);
+    ctx->subResNodes = taosArrayInit_s(POINTER_BYTES, 1);
+    ctx->subResCache = taosArrayInit_s(POINTER_BYTES, 1);
+    ASSERT_NE(nullptr, ctx->subEndPoints);
+    ASSERT_NE(nullptr, ctx->subResNodes);
+    ASSERT_NE(nullptr, ctx->subResCache);
+    ASSERT_EQ(0, tsem_init(&ctx->ready, 0, 0));
+    SNode* consumer = nullptr;
+    SNode* snapshot = nullptr;
+    ASSERT_EQ(nodesMakeNode(types[index], &consumer), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_VALUE, &snapshot), TSDB_CODE_SUCCESS);
+    taosArraySet(ctx->subResCache, 0, &snapshot);
+    if (types[index] != QUERY_NODE_REMOTE_TABLE) {
+      reinterpret_cast<SExprNode*>(consumer)->resType.type = TSDB_DATA_TYPE_INT;
+    }
+    if (types[index] == QUERY_NODE_REMOTE_VALUE_LIST) {
+      reinterpret_cast<SRemoteValueListNode*>(consumer)->targetType = TSDB_DATA_TYPE_INT;
+    }
+    SScalarFetchParam param = {};
+    param.pRes = consumer;
+    auto* response = static_cast<SRetrieveTableRsp*>(taosMemoryCalloc(1, sizeof(SRetrieveTableRsp)));
+    ASSERT_NE(nullptr, response);
+    response->completed = true;
+    bool done = false;
+    handlers[index](&param, ctx, response, &done);
+    EXPECT_TRUE(done);
+    EXPECT_EQ(TSDB_CODE_SUCCESS, ctx->code);
+    EXPECT_EQ(consumer, taosArrayGetP(ctx->subResNodes, 0));
+    EXPECT_EQ(snapshot, taosArrayGetP(ctx->subResCache, 0));
+    destroySubJobCtx(ctx);
+    // The context released its snapshot, but the operator still owns this node.
+    EXPECT_EQ(types[index] == QUERY_NODE_REMOTE_VALUE || types[index] == QUERY_NODE_REMOTE_ZERO_ROWS
+                  ? QUERY_NODE_VALUE : types[index], nodeType(consumer));
+    nodesDestroyNode(consumer);
+    taosMemoryFree(response);
+  }
+}
+
+TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
+  SRemoteValueListNode* pFirst = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, reinterpret_cast<SNode**>(&pFirst)), TSDB_CODE_SUCCESS);
+  pFirst->node.resType.type = TSDB_DATA_TYPE_INT;
+  pFirst->node.resType.bytes = sizeof(int32_t);
+  pFirst->hasValue = true;
+  pFirst->hasNull = true;
+  pFirst->hasNotNull = true;
+  pFirst->filterValueType = TSDB_DATA_TYPE_INT;
+  pFirst->hashAllocated = true;
+  pFirst->pHashFilter = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  pFirst->pHashFilterOthers = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  ASSERT_NE(pFirst->pHashFilter, nullptr);
+  ASSERT_NE(pFirst->pHashFilterOthers, nullptr);
+  int32_t key = 42;
+  ASSERT_EQ(taosHashPut(pFirst->pHashFilter, &key, sizeof(key), &key, sizeof(key)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taosHashPut(pFirst->pHashFilterOthers, &key, sizeof(key), &key, sizeof(key)), TSDB_CODE_SUCCESS);
+
+  SNode* pSnapshot = nullptr;
+  ASSERT_EQ(qCloneRemoteResult(reinterpret_cast<SNode*>(pFirst), &pSnapshot), TSDB_CODE_SUCCESS);
+  SRemoteValueListNode* pCached = reinterpret_cast<SRemoteValueListNode*>(pSnapshot);
+  EXPECT_FALSE(pFirst->hashAllocated);
+  EXPECT_TRUE(pCached->hashAllocated);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pFirst));
+
+  SRemoteValueListNode* pSecond = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, reinterpret_cast<SNode**>(&pSecond)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(remoteNodeCopy(pSnapshot, reinterpret_cast<SNode*>(pSecond)), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(pSecond->hashAllocated);
+  EXPECT_TRUE(pSecond->hasValue);
+  EXPECT_TRUE(pSecond->hasNull);
+  EXPECT_TRUE(pSecond->hasNotNull);
+  EXPECT_EQ(pSecond->pHashFilter, pCached->pHashFilter);
+  EXPECT_EQ(pSecond->pHashFilterOthers, pCached->pHashFilterOthers);
+  EXPECT_NE(taosHashGet(pSecond->pHashFilter, &key, sizeof(key)), nullptr);
+  EXPECT_NE(taosHashGet(pSecond->pHashFilterOthers, &key, sizeof(key)), nullptr);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pSecond));
+  EXPECT_NE(taosHashGet(pCached->pHashFilter, &key, sizeof(key)), nullptr);
+  nodesDestroyNode(pSnapshot);
+}
+
+TEST(execUtilTest, remoteTableCacheOwnsBlocksAfterFirstConsumerDestruction) {
+  SRemoteTableNode* pFirst = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_TABLE, reinterpret_cast<SNode**>(&pFirst)), TSDB_CODE_SUCCESS);
+  pFirst->flag = REMOTE_TABLE_FLAG_RES_ALLOCED;
+  pFirst->pResBlks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pFirst->pResBlks, nullptr);
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  ASSERT_NE(taosArrayPush(pFirst->pResBlks, &pBlock), nullptr);
+
+  SNode* pSnapshot = nullptr;
+  ASSERT_EQ(qCloneRemoteResult(reinterpret_cast<SNode*>(pFirst), &pSnapshot), TSDB_CODE_SUCCESS);
+  SRemoteTableNode* pCached = reinterpret_cast<SRemoteTableNode*>(pSnapshot);
+  EXPECT_EQ(pFirst->flag & REMOTE_TABLE_FLAG_RES_ALLOCED, 0);
+  EXPECT_NE(pCached->flag & REMOTE_TABLE_FLAG_RES_ALLOCED, 0);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pFirst));
+  ASSERT_EQ(taosArrayGetSize(pCached->pResBlks), 1);
+  EXPECT_EQ(taosArrayGetP(pCached->pResBlks, 0), pBlock);
+  nodesDestroyNode(pSnapshot);
+}
+
+TEST(execUtilTest, remoteTableCachePreservesBorrowedBlockOwnership) {
+  SRemoteTableNode* pOwner = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_TABLE, reinterpret_cast<SNode**>(&pOwner)), TSDB_CODE_SUCCESS);
+  pOwner->flag = REMOTE_TABLE_FLAG_RES_ALLOCED;
+  pOwner->pResBlks = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pOwner->pResBlks, nullptr);
+  SSDataBlock* pBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&pBlock), TSDB_CODE_SUCCESS);
+  ASSERT_NE(taosArrayPush(pOwner->pResBlks, &pBlock), nullptr);
+
+  SRemoteTableNode* pBorrower = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_TABLE, reinterpret_cast<SNode**>(&pBorrower)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(remoteNodeCopy(reinterpret_cast<SNode*>(pOwner), reinterpret_cast<SNode*>(pBorrower)), TSDB_CODE_SUCCESS);
+  SNode* pSnapshot = nullptr;
+  ASSERT_EQ(qCloneRemoteResult(reinterpret_cast<SNode*>(pBorrower), &pSnapshot), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(reinterpret_cast<SRemoteTableNode*>(pSnapshot)->flag & REMOTE_TABLE_FLAG_RES_ALLOCED, 0);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pBorrower));
+  nodesDestroyNode(pSnapshot);
+  ASSERT_EQ(taosArrayGetSize(pOwner->pResBlks), 1);
+  EXPECT_EQ(taosArrayGetP(pOwner->pResBlks, 0), pBlock);
+  nodesDestroyNode(reinterpret_cast<SNode*>(pOwner));
+}
+
+TEST(execUtilTest, remoteRowCachePreservesEmptyNullAndValueState) {
+  for (int32_t state = 0; state < 3; ++state) {
+    SRemoteRowNode* pFirst = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_ROW, reinterpret_cast<SNode**>(&pFirst)), TSDB_CODE_SUCCESS);
+    pFirst->val.node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    pFirst->val.node.resType.bytes = 16;
+    pFirst->val.translate = true;
+    pFirst->val.isNull = state != 2;
+    pFirst->valSet = true;
+    pFirst->hasValue = state != 0;
+    pFirst->hasNull = state == 1;
+    if (state == 2) {
+      pFirst->val.datum.p = static_cast<char*>(taosMemoryMalloc(VARSTR_HEADER_SIZE + 3));
+      ASSERT_NE(pFirst->val.datum.p, nullptr);
+      varDataSetLen(pFirst->val.datum.p, 3);
+      memcpy(varDataVal(pFirst->val.datum.p), "row", 3);
+    }
+
+    SNode* pSnapshot = nullptr;
+    ASSERT_EQ(qCloneRemoteResult(reinterpret_cast<SNode*>(pFirst), &pSnapshot), TSDB_CODE_SUCCESS);
+    SRemoteRowNode* pCached = reinterpret_cast<SRemoteRowNode*>(pSnapshot);
+    EXPECT_TRUE(pCached->valSet);
+    EXPECT_EQ(pCached->hasValue, pFirst->hasValue);
+    EXPECT_EQ(pCached->hasNull, pFirst->hasNull);
+    if (state == 2) {
+      EXPECT_NE(pCached->val.datum.p, pFirst->val.datum.p);
+    }
+    nodesDestroyNode(reinterpret_cast<SNode*>(pFirst));
+
+    SRemoteRowNode* pSecond = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_ROW, reinterpret_cast<SNode**>(&pSecond)), TSDB_CODE_SUCCESS);
+    pSecond->val.node.resType = pCached->val.node.resType;
+    ASSERT_EQ(remoteNodeCopy(pSnapshot, reinterpret_cast<SNode*>(pSecond)), TSDB_CODE_SUCCESS);
+    EXPECT_TRUE(pSecond->valSet);
+    EXPECT_EQ(pSecond->hasValue, state != 0);
+    EXPECT_EQ(pSecond->hasNull, state == 1);
+    EXPECT_EQ(pSecond->val.isNull, state != 2);
+    if (state == 2) {
+      EXPECT_NE(pSecond->val.datum.p, pCached->val.datum.p);
+      EXPECT_EQ(std::string(varDataVal(pSecond->val.datum.p), varDataLen(pSecond->val.datum.p)), "row");
+    }
+    nodesDestroyNode(reinterpret_cast<SNode*>(pSecond));
+    nodesDestroyNode(pSnapshot);
+  }
 }
 
 TEST(execUtilTest, streamScalarExprInRangeCleansFailedExprInfo) {

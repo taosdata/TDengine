@@ -19812,6 +19812,11 @@ static bool fqSubqueryLogicIsPushable(const SPlanContext* pPlanCxt, int32_t subQ
     planDebug("FQ-subq: missing plan context for subQIdx:%d remoteNodeType:%d", subQIdx, (int)remoteNodeType);
     return false;
   }
+  // Inlining each reference would execute a shared producer repeatedly and can
+  // remove an endpoint still needed by another local consumer.
+  if (planIsSharedSubquery(pPlanCxt, subQIdx)) {
+    return false;
+  }
   if (planIsSubqueryPushedDown(pPlanCxt, subQIdx)) {
     planDebug("FQ-subq: subQIdx:%d already marked pushedDown, treat as absorbed", subQIdx);
     return true;

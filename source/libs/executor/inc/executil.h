@@ -93,7 +93,8 @@ typedef struct STaskSubJobCtx {
   tsem_t             ready;
   uint64_t           blockIdx;
   SArray*            subEndPoints;  // SArray<SDownstreamSourceNode*>
-  SArray*            subResNodes;  // SArray<SNode*>
+  SArray*            subResNodes;  // Borrowed response-handler nodes; never owned by this context.
+  SArray*            subResCache;  // Owned ordinary-query result snapshots; handlers never write here.
   uint64_t           streamGen;    // incremented per runner invocation for cache invalidation
 } STaskSubJobCtx;
 

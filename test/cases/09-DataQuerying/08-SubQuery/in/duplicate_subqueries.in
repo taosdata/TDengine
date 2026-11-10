@@ -1,0 +1,140 @@
+# Prepare data.
+drop database if exists duplicate_subqueries;
+create database duplicate_subqueries vgroups 2 keep 36500;
+use duplicate_subqueries;
+create table readings (ts timestamp, v int, d double);
+create table history (ts timestamp, v int, s varchar(64));
+insert into readings values (1760000000000, 1, 1) (1760000001000, 2, 4) (1760000002000, null, null) (1760000003000, 4, 4);
+insert into history values (1760000000000, 1, 'one') (1760000001000, null, null) (1760000003000, 4, 'four');
+
+# Scalar.
+select (select max(v) from history), (select max(v) from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+explain analyze select (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+explain analyze select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+explain analyze select (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history), (select max(v) from history) from readings order by ts\G;
+select v, (select max(v) from history) from readings where v <= (select max(v) from history) order by ts;
+# Expected InitPlans 1.
+explain select v, (select max(v) from history) from readings where v <= (select max(v) from history) order by ts\G;
+explain analyze select v, (select max(v) from history) from readings where v <= (select max(v) from history) order by ts\G;
+select (select s from history where v = 1), (select s from history where v = 1) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select s from history where v = 1), (select s from history where v = 1) from readings limit 1\G;
+explain analyze select (select s from history where v = 1), (select s from history where v = 1) from readings limit 1\G;
+select (select v from history where v > 100), (select v from history where v > 100) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select v from history where v > 100), (select v from history where v > 100) from readings limit 1\G;
+explain analyze select (select v from history where v > 100), (select v from history where v > 100) from readings limit 1\G;
+select v, cast((select min(ts) from history) as bigint) from readings where ts >= (select min(ts) from history) + 1000 order by ts;
+# Expected InitPlans 1.
+explain select v, cast((select min(ts) from history) as bigint) from readings where ts >= (select min(ts) from history) + 1000 order by ts\G;
+explain analyze select v, cast((select min(ts) from history) as bigint) from readings where ts >= (select min(ts) from history) + 1000 order by ts\G;
+select (select v from history), (select v from history) from readings;
+
+# Predicates.
+select v in (select v from history), v in (select v from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select v in (select v from history), v in (select v from history) from readings order by ts\G;
+explain analyze select v in (select v from history), v in (select v from history) from readings order by ts\G;
+select v not in (select v from history), v not in (select v from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select v not in (select v from history), v not in (select v from history) from readings order by ts\G;
+explain analyze select v not in (select v from history), v not in (select v from history) from readings order by ts\G;
+select exists (select v from history where v = 1), exists (select v from history where v = 1) from readings limit 1;
+# Expected InitPlans 1.
+explain select exists (select v from history where v = 1), exists (select v from history where v = 1) from readings limit 1\G;
+explain analyze select exists (select v from history where v = 1), exists (select v from history where v = 1) from readings limit 1\G;
+select not exists (select v from history where v > 100), not exists (select v from history where v > 100) from readings limit 1;
+# Expected InitPlans 1.
+explain select not exists (select v from history where v > 100), not exists (select v from history where v > 100) from readings limit 1\G;
+explain analyze select not exists (select v from history where v > 100), not exists (select v from history where v > 100) from readings limit 1\G;
+select v = any (select v from history), v = any (select v from history) from readings order by ts;
+# Expected InitPlans 1.
+explain select v = any (select v from history), v = any (select v from history) from readings order by ts\G;
+explain analyze select v = any (select v from history), v = any (select v from history) from readings order by ts\G;
+
+# Dependencies.
+select (select max(v) from readings where v > (select avg(v) from history)), (select max(v) from readings where v > (select avg(v) from history)) from readings limit 1;
+# Expected InitPlans 3.
+explain select (select max(v) from readings where v > (select avg(v) from history)), (select max(v) from readings where v > (select avg(v) from history)) from readings limit 1\G;
+explain analyze select (select max(v) from readings where v > (select avg(v) from history)), (select max(v) from readings where v > (select avg(v) from history)) from readings limit 1\G;
+select (select v from history where v = 1 union all select v from history where v > 100), (select v from history where v = 1 union all select v from history where v > 100) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select v from history where v = 1 union all select v from history where v > 100), (select v from history where v = 1 union all select v from history where v > 100) from readings limit 1\G;
+explain analyze select (select v from history where v = 1 union all select v from history where v > 100), (select v from history where v = 1 union all select v from history where v > 100) from readings limit 1\G;
+
+# Renamed bindings.
+select (select max(a.v) as x from history a where a.v > 1), (select max(b.v) as y from history b where b.v > 1) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(a.v) as x from history a where a.v > 1), (select max(b.v) as y from history b where b.v > 1) from readings limit 1\G;
+explain analyze select (select max(a.v) as x from history a where a.v > 1), (select max(b.v) as y from history b where b.v > 1) from readings limit 1\G;
+select (select max(v) from history), (select max(b.v) from history b) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(v) from history), (select max(b.v) from history b) from readings limit 1\G;
+explain analyze select (select max(v) from history), (select max(b.v) from history b) from readings limit 1\G;
+select (select max(s.x) from (select a.v as x from history a) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(s.x) from (select a.v as x from history a) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1\G;
+explain analyze select (select max(s.x) from (select a.v as x from history a) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1\G;
+select (select max(s.x) from (select s.v as x from history s) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(s.x) from (select s.v as x from history s) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1\G;
+explain analyze select (select max(s.x) from (select s.v as x from history s) s), (select max(d.y) from (select b.v as y from history b) d) from readings limit 1\G;
+select (select max(s.x) from (select * from (select a.v as x from history a) z) s), (select max(d.y) from (select * from (select b.v as y from history b) z) d) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(s.x) from (select * from (select a.v as x from history a) z) s), (select max(d.y) from (select * from (select b.v as y from history b) z) d) from readings limit 1\G;
+explain analyze select (select max(s.x) from (select * from (select a.v as x from history a) z) s), (select max(d.y) from (select * from (select b.v as y from history b) z) d) from readings limit 1\G;
+select (select max(s.x) from (select a.v as x from history a union all select b.v as x from history b) s), (select max(d.y) from (select c.v as y from history c union all select e.v as y from history e) d) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(s.x) from (select a.v as x from history a union all select b.v as x from history b) s), (select max(d.y) from (select c.v as y from history c union all select e.v as y from history e) d) from readings limit 1\G;
+explain analyze select (select max(s.x) from (select a.v as x from history a union all select b.v as x from history b) s), (select max(d.y) from (select c.v as y from history c union all select e.v as y from history e) d) from readings limit 1\G;
+select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(x.v) from history x join history y on x.ts = y.ts) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(x.v) from history x join history y on x.ts = y.ts) from readings limit 1\G;
+explain analyze select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(x.v) from history x join history y on x.ts = y.ts) from readings limit 1\G;
+select v in (select a.v from history a), v in (select b.v from history b) from readings order by ts;
+# Expected InitPlans 1.
+explain select v in (select a.v from history a), v in (select b.v from history b) from readings order by ts\G;
+explain analyze select v in (select a.v from history a), v in (select b.v from history b) from readings order by ts\G;
+select v > any (select a.v from history a), v > any (select b.v from history b) from readings order by ts;
+# Expected InitPlans 1.
+explain select v > any (select a.v from history a), v > any (select b.v from history b) from readings order by ts\G;
+explain analyze select v > any (select a.v from history a), v > any (select b.v from history b) from readings order by ts\G;
+select v > all (select a.v from history a), v > all (select b.v from history b) from readings order by ts;
+# Expected InitPlans 1.
+explain select v > all (select a.v from history a), v > all (select b.v from history b) from readings order by ts\G;
+explain analyze select v > all (select a.v from history a), v > all (select b.v from history b) from readings order by ts\G;
+select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(y.v) from history x join history y on x.ts = y.ts) from readings limit 1;
+# Expected InitPlans 2.
+explain select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(y.v) from history x join history y on x.ts = y.ts) from readings limit 1\G;
+explain analyze select (select max(a.v) from history a join history b on a.ts = b.ts), (select max(y.v) from history x join history y on x.ts = y.ts) from readings limit 1\G;
+
+# Independent results.
+select v in (select v from history), d in (select v from history) from readings order by ts;
+# Expected InitPlans 2.
+explain select v in (select v from history), d in (select v from history) from readings order by ts\G;
+explain analyze select v in (select v from history), d in (select v from history) from readings order by ts\G;
+select (select max(v) from history where v < 2), (select max(v) from history where v > 2) from readings limit 1;
+# Expected InitPlans 2.
+explain select (select max(v) from history where v < 2), (select max(v) from history where v > 2) from readings limit 1\G;
+explain analyze select (select max(v) from history where v < 2), (select max(v) from history where v > 2) from readings limit 1\G;
+select (select x from (select cast(v as int) as x, cast(v + 100 as int) as y from history where v = 1) s), (select x from (select cast(v as int) as y, cast(v + 100 as int) as x from history where v = 1) s) from readings limit 1;
+# Expected InitPlans 2.
+explain select (select x from (select cast(v as int) as x, cast(v + 100 as int) as y from history where v = 1) s), (select x from (select cast(v as int) as y, cast(v + 100 as int) as x from history where v = 1) s) from readings limit 1\G;
+explain analyze select (select x from (select cast(v as int) as x, cast(v + 100 as int) as y from history where v = 1) s), (select x from (select cast(v as int) as y, cast(v + 100 as int) as x from history where v = 1) s) from readings limit 1\G;
+# Expected InitPlans 2.
+explain select (select rand() from history limit 1), (select rand() from history limit 1) from readings limit 1\G;
+explain analyze select (select rand() from history limit 1), (select rand() from history limit 1) from readings limit 1\G;
+insert into history values (1760000004000, 5, 'five');
+select (select max(v) from history), (select max(v) from history) from readings limit 1;
+# Expected InitPlans 1.
+explain select (select max(v) from history), (select max(v) from history) from readings limit 1\G;
+explain analyze select (select max(v) from history), (select max(v) from history) from readings limit 1\G;
+drop database duplicate_subqueries;

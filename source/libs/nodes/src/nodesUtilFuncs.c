@@ -1961,7 +1961,7 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_REMOTE_TABLE: {
       SRemoteTableNode* pRemote = (SRemoteTableNode*)pNode;
       if (pRemote->pResBlks && (pRemote->flag & REMOTE_TABLE_FLAG_RES_ALLOCED)) {
-        taosArrayDestroyEx(pRemote->pResBlks, destroySSDataBlock);
+        taosArrayDestroyP(pRemote->pResBlks, destroySSDataBlock);
       }
       pRemote->pResBlks = NULL;
       break;

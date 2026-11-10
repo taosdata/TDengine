@@ -148,6 +148,11 @@ int32_t initTaskSubJobCtx(SExecTaskInfo* pTaskInfo, SArray** subEndPoints, SRead
   
   TAOS_CHECK_EXIT(tsem_init(&ctx->ready, 0, 0));
 
+  if (!ctx->isStream) {
+    ctx->subResCache = taosArrayInit_s(POINTER_BYTES, subJobNum);
+    TSDB_CHECK_NULL(ctx->subResCache, code, lino, _exit, terrno);
+  }
+
   int64_t refId = taosAddRef(fetchObjRefPool, ctx);
   if (refId < 0) {
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(terrno));
@@ -402,7 +407,6 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
       if (code != TSDB_CODE_SUCCESS) {
         qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
       }
-      taosArrayDestroy(pCtx->subResNodes);
     }
     if (pCtx->isStream) {
       taosArrayDestroyP(pCtx->subEndPoints, (FDelete)nodesDestroyNode);
@@ -412,7 +416,9 @@ void destroySubJobCtx(STaskSubJobCtx* pCtx) {
     pCtx->subEndPoints = NULL;
   }
   
-  taosMemoryFreeClear(pCtx);  
+  taosArrayDestroy(pCtx->subResNodes);
+  taosArrayDestroyP(pCtx->subResCache, (FDelete)nodesDestroyNode);
+  taosMemoryFreeClear(pCtx);
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

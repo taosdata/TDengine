@@ -1,0 +1,238 @@
+# Prepare data.
+drop database if exists duplicate_unshareable;
+create database duplicate_unshareable vgroups 2 keep 36500;
+use duplicate_unshareable;
+create table matrix_readings (ts timestamp, k int, v int, d double);
+create table matrix_history (ts timestamp, k int, v int);
+create table matrix_other (ts timestamp, k int, v int);
+insert into matrix_readings values (1760000000000, 1, 10, 10);
+insert into matrix_readings values (1760000001000, 2, 20, 20);
+insert into matrix_readings values (1760000002000, 3, 30, 30);
+insert into matrix_readings values (1760000003000, 2, null, null);
+insert into matrix_readings values (1760000004000, null, 40, 40);
+insert into matrix_history values (1760000000000, 1, 5);
+insert into matrix_history values (1760000001000, 1, 15);
+insert into matrix_history values (1760000002000, 2, 20);
+insert into matrix_history values (1760000003000, 3, null);
+insert into matrix_other values (1760000000000, 1, 100);
+
+# Different query semantics.
+select (select max(v) from matrix_history where k = 1), (select max(v) from matrix_history where k = 2) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select max(v) from matrix_history where k = 1), (select max(v) from matrix_history where k = 2) from matrix_readings limit 1\G;
+explain analyze verbose true select (select max(v) from matrix_history where k = 1), (select max(v) from matrix_history where k = 2) from matrix_readings limit 1\G;
+select (select min(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select min(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings limit 1\G;
+explain analyze verbose true select (select min(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings limit 1\G;
+select (select max(v) from matrix_history), (select max(v) from matrix_other) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_other) from matrix_readings limit 1\G;
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_other) from matrix_readings limit 1\G;
+select (select v from matrix_history where v is not null order by v asc limit 1), (select v from matrix_history where v is not null order by v desc limit 1) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select v from matrix_history where v is not null order by v asc limit 1), (select v from matrix_history where v is not null order by v desc limit 1) from matrix_readings limit 1\G;
+explain analyze verbose true select (select v from matrix_history where v is not null order by v asc limit 1), (select v from matrix_history where v is not null order by v desc limit 1) from matrix_readings limit 1\G;
+select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 1 offset 1) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 1 offset 1) from matrix_readings limit 1\G;
+explain analyze verbose true select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 1 offset 1) from matrix_readings limit 1\G;
+select (select cast(v as double) from matrix_history where k = 2), (select v from matrix_history where k = 2) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select cast(v as double) from matrix_history where k = 2), (select v from matrix_history where k = 2) from matrix_readings limit 1\G;
+explain analyze verbose true select (select cast(v as double) from matrix_history where k = 2), (select v from matrix_history where k = 2) from matrix_readings limit 1\G;
+select (select max(s.v) from (select v from matrix_history union all select v from matrix_other) s), (select max(s.v) from (select v from matrix_history union select v from matrix_other) s) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select max(s.v) from (select v from matrix_history union all select v from matrix_other) s), (select max(s.v) from (select v from matrix_history union select v from matrix_other) s) from matrix_readings limit 1\G;
+explain analyze verbose true select (select max(s.v) from (select v from matrix_history union all select v from matrix_other) s), (select max(s.v) from (select v from matrix_history union select v from matrix_other) s) from matrix_readings limit 1\G;
+select r.v in (select v from matrix_history where v is not null), r.v in (select distinct v from matrix_history where v is not null) from matrix_readings r order by r.ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select r.v in (select v from matrix_history where v is not null), r.v in (select distinct v from matrix_history where v is not null) from matrix_readings r order by r.ts\G;
+explain analyze verbose true select r.v in (select v from matrix_history where v is not null), r.v in (select distinct v from matrix_history where v is not null) from matrix_readings r order by r.ts\G;
+select k in (select count(*) from matrix_history interval(1s)), k in (select count(*) from matrix_history interval(2s)) from matrix_readings order by ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select k in (select count(*) from matrix_history interval(1s)), k in (select count(*) from matrix_history interval(2s)) from matrix_readings order by ts\G;
+explain analyze verbose true select k in (select count(*) from matrix_history interval(1s)), k in (select count(*) from matrix_history interval(2s)) from matrix_readings order by ts\G;
+select k in (select count(*) from matrix_history a interval(1s)), k in (select count(*) from matrix_history b interval(1s)) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select k in (select count(*) from matrix_history a interval(1s)), k in (select count(*) from matrix_history b interval(1s)) from matrix_readings order by ts\G;
+explain analyze verbose true select k in (select count(*) from matrix_history a interval(1s)), k in (select count(*) from matrix_history b interval(1s)) from matrix_readings order by ts\G;
+select k in (select count(*) from matrix_history group by k), k in (select count(*) from matrix_history) from matrix_readings order by ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select k in (select count(*) from matrix_history group by k), k in (select count(*) from matrix_history) from matrix_readings order by ts\G;
+explain analyze verbose true select k in (select count(*) from matrix_history group by k), k in (select count(*) from matrix_history) from matrix_readings order by ts\G;
+select k in (select k from matrix_history where ts < 1760000002000), k in (select k from matrix_history where ts >= 1760000002000) from matrix_readings order by ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select k in (select k from matrix_history where ts < 1760000002000), k in (select k from matrix_history where ts >= 1760000002000) from matrix_readings order by ts\G;
+explain analyze verbose true select k in (select k from matrix_history where ts < 1760000002000), k in (select k from matrix_history where ts >= 1760000002000) from matrix_readings order by ts\G;
+select k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(null)), k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(value, 0)) from matrix_readings order by ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(null)), k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(value, 0)) from matrix_readings order by ts\G;
+explain analyze verbose true select k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(null)), k in (select count(*) from matrix_history where ts >= 1760000000000 and ts < 1760000006000 interval(1s) fill(value, 0)) from matrix_readings order by ts\G;
+select (select v from matrix_history order by v nulls first limit 1), (select v from matrix_history order by v nulls last limit 1) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select v from matrix_history order by v nulls first limit 1), (select v from matrix_history order by v nulls last limit 1) from matrix_readings limit 1\G;
+explain analyze verbose true select (select v from matrix_history order by v nulls first limit 1), (select v from matrix_history order by v nulls last limit 1) from matrix_readings limit 1\G;
+select (select max(a.v) from matrix_history a join matrix_history b on a.k = b.k where a.v < b.v), (select max(y.v) from matrix_history x join matrix_history y on x.k = y.k where x.v < y.v) from matrix_readings limit 1;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select max(a.v) from matrix_history a join matrix_history b on a.k = b.k where a.v < b.v), (select max(y.v) from matrix_history x join matrix_history y on x.k = y.k where x.v < y.v) from matrix_readings limit 1\G;
+explain analyze verbose true select (select max(a.v) from matrix_history a join matrix_history b on a.k = b.k where a.v < b.v), (select max(y.v) from matrix_history x join matrix_history y on x.k = y.k where x.v < y.v) from matrix_readings limit 1\G;
+select (select rand() from matrix_history limit 1) >= 0 and (select rand() from matrix_history limit 1) <= 1 from matrix_readings order by ts;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select rand() from matrix_history limit 1) >= 0 and (select rand() from matrix_history limit 1) <= 1 from matrix_readings order by ts\G;
+explain analyze verbose true select (select rand() from matrix_history limit 1) >= 0 and (select rand() from matrix_history limit 1) <= 1 from matrix_readings order by ts\G;
+select count(*) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w);
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select count(*) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+explain analyze verbose true select count(*) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+select count(*), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w);
+# Expected InitPlans 3, correlated templates 0.
+explain verbose true select count(*), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+explain analyze verbose true select count(*), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings external_window((select ts, ts + 999 as endtime from matrix_history) w)\G;
+
+# Empty null and errors.
+select v in (select v from matrix_history where v > 1000), v in (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v in (select v from matrix_history where v > 1000), v in (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select v in (select v from matrix_history where v > 1000), v in (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select v not in (select v from matrix_history where v > 1000), v not in (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v not in (select v from matrix_history where v > 1000), v not in (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select v not in (select v from matrix_history where v > 1000), v not in (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select v > any (select v from matrix_history where v > 1000), v > any (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v > any (select v from matrix_history where v > 1000), v > any (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select v > any (select v from matrix_history where v > 1000), v > any (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select v > all (select v from matrix_history where v > 1000), v > all (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v > all (select v from matrix_history where v > 1000), v > all (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select v > all (select v from matrix_history where v > 1000), v > all (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select exists (select v from matrix_history where v > 1000), exists (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select exists (select v from matrix_history where v > 1000), exists (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select exists (select v from matrix_history where v > 1000), exists (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select not exists (select v from matrix_history where v > 1000), not exists (select v from matrix_history where v > 1000) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select not exists (select v from matrix_history where v > 1000), not exists (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+explain analyze verbose true select not exists (select v from matrix_history where v > 1000), not exists (select v from matrix_history where v > 1000) from matrix_readings order by ts\G;
+select (select v from matrix_history where v > 1000), (select v from matrix_history where v > 1000) from matrix_readings limit 1;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select (select v from matrix_history where v > 1000), (select v from matrix_history where v > 1000) from matrix_readings limit 1\G;
+explain analyze verbose true select (select v from matrix_history where v > 1000), (select v from matrix_history where v > 1000) from matrix_readings limit 1\G;
+select v in (select v from matrix_history where k = 3), v in (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v in (select v from matrix_history where k = 3), v in (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select v in (select v from matrix_history where k = 3), v in (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select v not in (select v from matrix_history where k = 3), v not in (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v not in (select v from matrix_history where k = 3), v not in (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select v not in (select v from matrix_history where k = 3), v not in (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select v > any (select v from matrix_history where k = 3), v > any (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v > any (select v from matrix_history where k = 3), v > any (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select v > any (select v from matrix_history where k = 3), v > any (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select v > all (select v from matrix_history where k = 3), v > all (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select v > all (select v from matrix_history where k = 3), v > all (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select v > all (select v from matrix_history where k = 3), v > all (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select exists (select v from matrix_history where k = 3), exists (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select exists (select v from matrix_history where k = 3), exists (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select exists (select v from matrix_history where k = 3), exists (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select not exists (select v from matrix_history where k = 3), not exists (select v from matrix_history where k = 3) from matrix_readings order by ts;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select not exists (select v from matrix_history where k = 3), not exists (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+explain analyze verbose true select not exists (select v from matrix_history where k = 3), not exists (select v from matrix_history where k = 3) from matrix_readings order by ts\G;
+select (select v from matrix_history where k = 3), (select v from matrix_history where k = 3) from matrix_readings limit 1;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select (select v from matrix_history where k = 3), (select v from matrix_history where k = 3) from matrix_readings limit 1\G;
+explain analyze verbose true select (select v from matrix_history where k = 3), (select v from matrix_history where k = 3) from matrix_readings limit 1\G;
+select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000;
+# Expected InitPlans 1, correlated templates 1.
+explain select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
+explain analyze select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
+# Expected InitPlans 1, correlated templates 0.
+explain verbose true select (select v from matrix_history where k = 1), (select v from matrix_history where k = 1) from matrix_readings\G;
+# Expected error 0x26A5.
+select (select v from matrix_history where k = 1), (select v from matrix_history where k = 1) from matrix_readings;
+# Expected error 0x26A5.
+explain analyze select (select v from matrix_history where k = 1), (select v from matrix_history where k = 1) from matrix_readings;
+# Expected InitPlans 2, correlated templates 0.
+explain verbose true select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 2) from matrix_readings\G;
+# Expected error 0x26A5.
+select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 2) from matrix_readings;
+# Expected error 0x26A5.
+explain analyze select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 2) from matrix_readings;
+# Expected InitPlans 1, correlated templates 1.
+explain select (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r\G;
+# Expected error 0x26A5.
+select (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r;
+# Expected error 0x26A5.
+explain analyze select (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r;
+# Expected error 0x26A4.
+select (select k, v from matrix_history limit 1), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings;
+# Expected error 0x26A4.
+explain verbose true select (select k, v from matrix_history limit 1), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings;
+# Expected error 0x26A4.
+explain analyze verbose true select (select k, v from matrix_history limit 1), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings;
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v in (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v in (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v in (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v in (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v in (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v in (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history), exists (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), exists (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), exists (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where exists (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where exists (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where exists (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > any (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > any (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > any (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > any (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > all (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > all (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history), r.v > all (select h.v from matrix_history h where h.k = r.k) from matrix_readings r;
+# Expected error 0x26A6.
+select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x26A6.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r where r.v > all (select h.v from matrix_history h where h.k = r.k);
+# Expected error 0x260A.
+select (select max(h.v) from matrix_history h where h.k = r.k), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k);
+# Expected error 0x260A.
+explain verbose true select (select max(h.v) from matrix_history h where h.k = r.k), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k);
+# Expected error 0x260A.
+explain analyze verbose true select (select max(h.v) from matrix_history h where h.k = r.k), count(*) from matrix_readings r group by (select max(h.v) from matrix_history h where h.k = r.k);
+# Expected error 0x2603.
+select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r, (select h.v from matrix_history h where h.k = r.k) d;
+# Expected error 0x2603.
+explain verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r, (select h.v from matrix_history h where h.k = r.k) d;
+# Expected error 0x2603.
+explain analyze verbose true select (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r, (select h.v from matrix_history h where h.k = r.k) d;
+drop database duplicate_unshareable;

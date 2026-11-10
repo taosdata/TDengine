@@ -9628,6 +9628,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
   SArray*     pBlocks = NULL;
+  bool        ownBlocks = true;
   STimeWindow extWinTimeRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
 
   if (NULL == pPhynode->pSubquery || nodeType(pPhynode->pSubquery) != QUERY_NODE_REMOTE_TABLE) {
@@ -9666,6 +9667,9 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
 
   pBlocks = pRemote->pResBlks;
 #endif
+  // Remote results belong to the task cache (or the remote AST node). Only
+  // blocks manufactured by the BUILD_TEST mock are owned by this initializer.
+  ownBlocks = pBlocks != ((SRemoteTableNode*)pPhynode->pSubquery)->pResBlks;
   // For non-stream external_window, whether trigger windows should be built as
   // grouped calc infos must follow the OUTER query partition semantics instead of
   // raw remote block ids. Remote subquery result blocks may carry non-zero ids
@@ -9723,7 +9727,7 @@ static int32_t extWinInitNonStreamWindowDataFromBlock(SExternalWindowPhysiNode* 
   }
 
 _exit:
-  if (pBlocks) {
+  if (pBlocks && ownBlocks) {
     for (int32_t blockIdx = 0; blockIdx < taosArrayGetSize(pBlocks); ++blockIdx) {
       SSDataBlock** ppOne = taosArrayGet(pBlocks, blockIdx);
       if (ppOne && *ppOne) {

@@ -6839,6 +6839,7 @@ int32_t setTableFromResBlock(STaskSubJobCtx* ctx, SRemoteTableNode* pRes, SSData
   if (NULL == pRes->pResBlks) {
     pRes->pResBlks = taosArrayInit(10, POINTER_BYTES);
     TSDB_CHECK_NULL(pRes->pResBlks, code, lino, _exit, terrno);
+    pRes->flag |= REMOTE_TABLE_FLAG_RES_ALLOCED;
   }
 
   TSDB_CHECK_NULL(taosArrayPush(pRes->pResBlks, ppBlock), code, lino, _exit, terrno);
@@ -7321,13 +7322,19 @@ _end:
 }
 
 static int32_t replaceValueNode(const SValueNode* pSrc, SValueNode* pDst) {
+  SValueNode value = *pSrc;
+  // Resolved remote values use datum, not the original consumer SQL literal.
+  value.literal = NULL;
   SValueNode copied = {0};
-  int32_t    code = valueNodeCopy(pSrc, &copied);
+  int32_t    code = valueNodeCopy(&value, &copied);
   if (TSDB_CODE_SUCCESS != code) {
     nodesClearValueNode(&copied);
     return code;
   }
 
+  // The result may come from a different SQL position in a shared producer.
+  // Keep the destination's alias, bindings, type and projection metadata.
+  copied.node = pDst->node;
   nodesClearValueNode(pDst);
   *pDst = copied;
   return TSDB_CODE_SUCCESS;
@@ -7374,7 +7381,7 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
       SRemoteTableNode* pDstNode = (SRemoteTableNode*)pDst;
       SRemoteTableNode* pSrcNode = (SRemoteTableNode*)pSrc;
       pDstNode->pResBlks = pSrcNode->pResBlks;
-      pDstNode->flag = 0;      
+      pDstNode->flag = pSrcNode->flag & ~REMOTE_TABLE_FLAG_RES_ALLOCED;
       break;
     }
     case QUERY_NODE_REMOTE_ZERO_ROWS: {
@@ -7397,6 +7404,50 @@ _exit:
   return code;
 }
 
+int32_t qCloneRemoteResult(SNode* pSrc, SNode** ppResult) {
+  SNode*  pResult = NULL;
+  int32_t code = nodesMakeNode(nodeType(pSrc), &pResult);
+  *ppResult = NULL;
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pResult);
+    return code;
+  }
+
+  // Cache only resolved values. Consumer SQL, render plans and expression
+  // bindings stay with the consumer and are not cloned on every first fetch.
+  if (nodesIsExprNode(pSrc)) {
+    ((SExprNode*)pResult)->resType = ((const SExprNode*)pSrc)->resType;
+  }
+  code = remoteNodeCopy(pSrc, pResult);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pResult);
+    return code;
+  }
+
+  if (QUERY_NODE_VALUE == nodeType(pSrc)) {
+    // This is a plain value allocation, with no trailing remote-plan fields.
+    ((SValueNode*)pResult)->flag &= ~VALUE_FLAG_REMOTE_PLAN;
+  } else if (QUERY_NODE_REMOTE_VALUE_LIST == nodeType(pSrc)) {
+    SRemoteValueListNode* pSource = (SRemoteValueListNode*)pSrc;
+    SRemoteValueListNode* pCached = (SRemoteValueListNode*)pResult;
+    // Keep one owner so folding the first consumer cannot invalidate the hash.
+    pCached->hashAllocated = pSource->hashAllocated;
+    pSource->hashAllocated = false;
+  } else if (QUERY_NODE_REMOTE_TABLE == nodeType(pSrc)) {
+    SRemoteTableNode* pSource = (SRemoteTableNode*)pSrc;
+    SRemoteTableNode* pCached = (SRemoteTableNode*)pResult;
+    pCached->resCols = pSource->resCols;
+    pCached->pResBlks = pSource->pResBlks;
+    if (pSource->flag & REMOTE_TABLE_FLAG_RES_ALLOCED) {
+      pCached->flag |= REMOTE_TABLE_FLAG_RES_ALLOCED;
+      pSource->flag &= ~REMOTE_TABLE_FLAG_RES_ALLOCED;
+    }
+  }
+
+  *ppResult = pResult;
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   STaskSubJobCtx*  ctx = (STaskSubJobCtx*)pCtx;
   int32_t code = 0, lino = 0;
@@ -7412,9 +7463,10 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   // into constants.  Always go to the wire so req.reset=true reaches the
   // vnode reader and rebuilds its task with the current ranges.
   //
-  // Note: pRes here is a pointer into the operator's AST (the SRemoteValueNode
-  // placeholder), not a heap-owned node.  In non-stream mode we still cache
-  // that borrowed pointer in subResNodes[] so subsequent calls memcpy from it.
+  // pRes belongs to the operator's AST. Ordinary queries retain owned snapshots
+  // separately from response-handler state, which may be updated by a late
+  // response after a timeout. Such a borrowed pointer must never be freed as a
+  // cached result when the last callback releases the context.
   // In stream mode the slot must not retain a stale pRes across trigger
   // events or be treated as owning pRes: a stale entry would create a
   // dangling alias once the AST is rebuilt, and freeing through that slot
@@ -7423,7 +7475,7 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   // single fetch to distinguish data from the completion sentinel; the
   // requirement here is to clear the slot to NULL before each refetch so
   // that only stale per-event state is invalidated, not to take ownership.
-  SNode** ppRes = taosArrayGet(ctx->subResNodes, subQIdx);
+  SNode** ppRes = taosArrayGet(ctx->isStream ? ctx->subResNodes : ctx->subResCache, subQIdx);
   if (ctx->isStream) {
     // Stream mode: re-evaluate subquery for every trigger event.
     // Save previous slot value so we can restore it if the fetch fails.
@@ -7440,8 +7492,9 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
     }
     TAOS_CHECK_EXIT(code);
   } else if (NULL == *ppRes) {
-    TAOS_CHECK_EXIT(fetchRemoteNodeImpl(ctx, subQIdx, pRes));
-    *ppRes = pRes;
+    code = fetchRemoteNodeImpl(ctx, subQIdx, pRes);
+    TAOS_CHECK_EXIT(code);
+    TAOS_CHECK_EXIT(qCloneRemoteResult(pRes, ppRes));
   } else {
     TAOS_CHECK_EXIT(remoteNodeCopy(*ppRes, pRes));
   }

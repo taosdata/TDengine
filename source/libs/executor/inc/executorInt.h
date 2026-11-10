@@ -1100,6 +1100,10 @@ int32_t setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t ord
 
 int32_t createDataSinkParam(SDataSinkNode* pNode, void** pParam, SExecTaskInfo* pTask, SReadHandle* readHandle);
 
+// Clone a resolved ordinary-query result. Success transfers ownership of runtime
+// hashes/blocks to the snapshot; the source node retains borrowed access.
+int32_t qCloneRemoteResult(SNode* pSrc, SNode** ppResult);
+
 STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts, SInterval* pInterval,
                                 int32_t order);
 int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos, TSKEY ekey,
