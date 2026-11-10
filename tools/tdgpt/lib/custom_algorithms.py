@@ -136,7 +136,7 @@ def migrate(install_dir, default, config_path, backup_dir, *, check_only=False):
             conflicts.add(f"{source} -> {dest}")
         if not dest.exists():
             pending.append((source, dest))
-    for path in (target, target / "ad", target / "fc"):
+    for path in (target, target / "ad", target / "fc", target / "batch"):
         if path.is_symlink() or (path.exists() and not path.is_dir()):
             conflicts.add(str(path))
     if conflicts:
@@ -148,7 +148,7 @@ def migrate(install_dir, default, config_path, backup_dir, *, check_only=False):
         backup = Path(backup_dir) / ("custom-" + uuid.uuid4().hex)
         shutil.copytree(legacy, backup, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
     target.mkdir(parents=True, exist_ok=True)
-    for kind in ("ad", "fc"):
+    for kind in ("ad", "fc", "batch"):
         (target / kind).mkdir(exist_ok=True)
     for source, dest in pending:
         dest.parent.mkdir(parents=True, exist_ok=True)

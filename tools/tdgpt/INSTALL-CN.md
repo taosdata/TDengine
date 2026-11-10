@@ -6,7 +6,9 @@
 
 ## 用户 Python 算法与升级保留
 
-正常安装无需手动配置，安装器自动创建默认算法目录及 `ad/`、`fc/` 子目录。默认路径由 `data_dir` 派生为 `<data_dir>/custom`；更换 `data_dir` 时无需另改算法路径，但需同步迁移已有数据。`custom_algo_dir` 仅用于显式指定其他存储位置。 Linux / Docker 默认 `/var/lib/taos/taosanode/custom`，Windows 默认 `<安装目录>/data/custom`。Docker 可通过 `TDGPT_CUSTOM_ALGO_DIR` 覆盖配置，必须将宿主机算法目录挂载到对应容器路径。修改算法后重启主服务；额外依赖安装在主 venv，与官方模型的 TSFM venv 分开管理。
+正常安装无需手动配置，安装器自动创建默认算法目录及 `ad/`、`fc/`、`batch/` 子目录。默认路径由 `data_dir` 派生为 `<data_dir>/custom`；更换 `data_dir` 时无需另改算法路径，但需同步迁移已有数据。`custom_algo_dir` 仅用于显式指定其他存储位置。 Linux / Docker 默认 `/var/lib/taos/taosanode/custom`，Windows 默认 `<安装目录>/data/custom`。Docker 可通过 `TDGPT_CUSTOM_ALGO_DIR` 覆盖配置，必须将宿主机算法目录挂载到对应容器路径。修改算法后重启主服务；额外依赖安装在主 venv，与官方模型的 TSFM venv 分开管理。
+
+`batch/` 存放 `/api/v1/analysis/batch`（兼容 `/tool/batch`）使用的批量包络线算法。模块内定义以 `_` 开头的类，暴露 `name` 与 `build(ts, values, windows, params)`，返回 `center`、`lower`、`upper` 三条曲线。可选的同名 sidecar `<module>.json` 声明版本与可接受的参数；缺失时请求参数原样透传、不做校验。`GET /api/v1/analysis/batch/algos` 列出内置 `golden` 流水线与用户算法。开发步骤、参数声明与调用示例见 [用户自定义批量包络线算法](packaging/TDGPT-CUSTOM-BATCH-ALGORITHM-CN.md)。
 
 安装器迁移旧 `lib/taosanalytics/algo/custom`，校验后退役旧目录，保留备份和迁移记录。冲突时中止升级，不覆盖用户文件；后续升级不会恢复用户在新目录中删除的算法。升级和默认卸载保留新目录。Docker 更换容器前必须先从旧容器导出未挂载的旧算法，再挂载新目录，不能直接删除旧容器。完整目录、迁移及升级步骤见 [Lite 设计文档](packaging/TDGPT-LITE-DESIGN-CN.md)。
 
