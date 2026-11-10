@@ -1237,6 +1237,8 @@ if(${TD_WINDOWS})
         # (8.11.1 only warned when libpsl was missing), so without this flag the
         # Windows ExternalProject configure step fails on runners that have no libpsl.
         CMAKE_ARGS -DCURL_USE_LIBPSL:BOOL=OFF
+        # Do not import a host MinGW Zstd package into the MSVC build.
+        CMAKE_ARGS -DCURL_ZSTD:STRING=OFF
         CMAKE_ARGS -DUSE_LIBIDN2:BOOL=OFF
         CMAKE_ARGS -DUSE_NGHTTP2:BOOL=OFF
         BUILD_COMMAND
