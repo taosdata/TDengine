@@ -1101,9 +1101,11 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
     } else {
       pBlock = getNextBlockFromDownstream(pOperator, i);
+      // An empty aggregate branch still owns output columns. Initialize them
+      // to NULL when another branch contributes the merged result row.
+      code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
+      QUERY_CHECK_CODE(code, lino, _return);
       if (pBlock) {
-        code = copyColumnsValue(pColsMerge->pTargets, pColsMerge->srcBlkIds[i], pInfo->binfo.pRes, pBlock, numOfRows);
-        QUERY_CHECK_CODE(code, lino, _return);
         allNull = false;
       }
     }
