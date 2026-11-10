@@ -25,8 +25,21 @@
 #include "tglobal.h"
 #include "tssInt.h"
 
+// Builds a name that is unique for every test run. Multiple tssTest processes may
+// run in parallel (e.g. in CI) and share the same remote storage, so each run must
+// use its own remote paths; otherwise one process may delete the files another
+// process is still using.
+static void tssMakeUniqueName(char* buf, int32_t size, const char* prefix, const char* fileExt) {
+    snprintf(buf, size, "%s-%d-%u%s", prefix, taosGetPId(), taosSafeRand(), fileExt == NULL ? "" : fileExt);
+}
+
 static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
-    const char* path = "shared-storage-instance-test-file";
+    char name[64];
+    tssMakeUniqueName(name, sizeof(name), "tss-test", "");
+
+    char path[192];
+    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
+
     const char* smallData = "small data of the shared storage instance test file.";
 
     const void* uploadData = smallData;
@@ -119,17 +132,21 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     GTEST_ASSERT_FALSE(found);
     
     // upload/download file and delete file by prefix
+    char prefix[192];
+    snprintf(prefix, sizeof(prefix), "%s/test/", name);
     for(int i = 0; i < 10; i++) {
-        char path[64];
-        snprintf(path, sizeof(path), "test/test%d.txt", i);
-        code = tssUploadFile(ss, path, "/tmp/ss_test.txt", 0, 0);
+        char objPath[224];
+        snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
+        code = tssUploadFile(ss, objPath, "/tmp/ss_test.txt", 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
-    code = tssDownloadFile(ss, "test/test0.txt", "/tmp/ss_test.txt", 0, 0);
+    char firstObjPath[224];
+    snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
+    code = tssDownloadFile(ss, firstObjPath, "/tmp/ss_test.txt", 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-    code = tssDeleteFileByPrefix(ss, "test/");
+    code = tssDeleteFileByPrefix(ss, prefix);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 }
 
@@ -206,7 +223,12 @@ TEST(TssTest, DefaultInstanceTest) {
 
     tssPrintDefaultConfig();
 
-    const char* path = "shared-storage-instance-test-file";
+    char name[64];
+    tssMakeUniqueName(name, sizeof(name), "tss-test", "");
+
+    char path[192];
+    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
+
     const char* smallData = "small data of the shared storage instance test file.";
 
     const void* uploadData = smallData;
@@ -296,17 +318,21 @@ TEST(TssTest, DefaultInstanceTest) {
     GTEST_ASSERT_FALSE(found);
     
     // upload/download file and delete file by prefix
+    char prefix[192];
+    snprintf(prefix, sizeof(prefix), "%s/test/", name);
     for(int i = 0; i < 10; i++) {
-        char path[64];
-        snprintf(path, sizeof(path), "test/test%d.txt", i);
-        code = tssUploadFileToDefault(path, "/tmp/ss_test.txt", 0, 0);
+        char objPath[224];
+        snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
+        code = tssUploadFileToDefault(objPath, "/tmp/ss_test.txt", 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
-    code = tssDownloadFileFromDefault("test/test0.txt", "/tmp/ss_test.txt", 0, 0);
+    char firstObjPath[224];
+    snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
+    code = tssDownloadFileFromDefault(firstObjPath, "/tmp/ss_test.txt", 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-    code = tssDeleteFileByPrefixFromDefault("test/");
+    code = tssDeleteFileByPrefixFromDefault(prefix);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     code = tssCheckDefaultInstance(0);
