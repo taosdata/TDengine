@@ -7764,6 +7764,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   bool winJoin = isWindowJoinStmt(pSelect);
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
   pAgg->hasLast = pSelect->hasLastFunc;
+  // Capture the owning SELECT before root-project rewrites move its hints.
+  pAgg->concurrentLastScan = !getOptHint(pSelect->pHint,
+                                       HINT_NO_CONCURRENT_LAST_SCAN);
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->hasGroupKeyOptimized = false;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;

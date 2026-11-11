@@ -20,10 +20,16 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
 
-hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+hints: /*+ [hint_option] ... */
+
+hint_option:
+    hint([hint_param_list])
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST
+  | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+  | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO
+  | HASH_JOIN | MERGE_JOIN | NO_CONCURRENT_LAST_SCAN
 
 select_list:
     select_expr [, select_expr] ...
@@ -178,6 +184,7 @@ The currently supported Hints list is as follows:
 | `JOIN_ALGO` | One of `HASH`, `MERGE`, `THETA` | Available from `v3.4.3.0`; join algorithm preference with fallback when inapplicable; see [Join Algorithms and Hints](./05-join.md#join-algorithms-and-hints) | Ordinary joins |
 | `HASH_JOIN` | None | Existing form corresponding to `JOIN_ALGO(HASH)` | Ordinary joins |
 | `MERGE_JOIN` | None | Available from `v3.4.3.0`; corresponds to `JOIN_ALGO(MERGE)` | Ordinary joins |
+| `NO_CONCURRENT_LAST_SCAN` | None | Shared scan | Grouped and ungrouped mixed aggregates |
 
 Examples:
 
@@ -194,6 +201,49 @@ SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
 ```
+
+### NO_CONCURRENT_LAST_SCAN
+
+Eligible grouped and ungrouped queries combining last-value and other
+aggregates use parallel cache and table scans by default. Add
+`/*+ NO_CONCURRENT_LAST_SCAN() */` after the owning `SELECT` to disable this
+split and use the shared scan path. The name is case-insensitive and takes
+no parameters. Use empty parentheses; omitting them or supplying parameters
+causes the hint to be ignored, preserving the default behavior.
+
+```sql
+-- Concurrent scans by default
+SELECT tbname, COUNT(*), LAST(current)
+FROM meters PARTITION BY tbname;
+
+-- Disable grouped concurrent splitting
+SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ tbname, COUNT(*), LAST(current)
+FROM meters PARTITION BY tbname;
+
+-- Disable ungrouped concurrent splitting
+SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*), LAST(current) FROM meters;
+```
+
+For eligible grouped queries, the planner splits cache-eligible `LAST` and
+`LAST_ROW` from other aggregates into cache-scan and ordinary-scan branches. A parent
+aggregate combines their results by the complete grouping key. Eligible
+`TAG` and `tbname` grouping, including equivalent `GROUP BY` queries, is
+supported. Cache mode, filters, time ranges, grouping expressions, and
+function arguments must still meet the existing eligibility rules.
+Ineligible queries keep their original plans.
+
+The hint also controls mixed aggregates without `PARTITION BY` or `GROUP BY`.
+They use the existing split rules by default and share an ordinary scan
+when the hint is specified.
+Standalone last-value cache scans retain their existing behavior.
+
+The hint applies only to its own `SELECT`. An outer hint does not disable
+concurrent scans inside a subquery or another `UNION` branch. Use
+`EXPLAIN VERBOSE TRUE` to check for `Last Row Scan` and `Table Scan` in the
+default plan. Grouped queries also use a combining `GroupAggregate`.
+Branches and the parent aggregate add fixed overhead, so use workload
+measurements to decide whether to apply the hint when there are many groups
+with few rows each.
 
 ### FAST_INTERVAL
 

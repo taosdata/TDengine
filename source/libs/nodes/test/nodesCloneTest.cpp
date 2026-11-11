@@ -25,9 +25,12 @@
 #include "os.h"
 #include "plannodes.h"
 #include "querynodes.h"
+#include "taoserror.h"
 #include "tconv.h"
 
 extern "C" void nodesTestSetStrictAppendFailOnce(void);
+extern "C" void nodesTestSetCollectColumnsHashFailOnce(void);
+extern "C" int64_t nodesTestGetLiveAllocations(void);
 
 static void eraseJsonField(std::string* pJson, const char* pField) {
   const std::string field = std::string("\"") + pField + "\":";
@@ -1500,6 +1503,83 @@ TEST(NodesCollectTest, functionsStayWithinOuterQueryBlock) {
   ASSERT_NE(pFunctions, nullptr);
   ASSERT_EQ(LIST_LENGTH(pFunctions), 1);
   EXPECT_STREQ(((SFunctionNode*)nodesListGetNode(pFunctions, 0))->functionName, "outer_func");
+}
+
+using CollectNodePtr = std::unique_ptr<SNode, decltype(&nodesDestroyNode)>;
+using CollectListPtr = std::unique_ptr<SNodeList, decltype(&nodesDestroyList)>;
+
+struct ColumnCollector {
+  const char* name;
+  int32_t (*collect)(SSelectStmt*, SNodeList**);
+};
+
+static const ColumnCollector kColumnCollectors[] = {
+    {"select", [](SSelectStmt* select, SNodeList** columns) {
+       return nodesCollectColumns(select, SQL_CLAUSE_FROM, nullptr,
+                                  COLLECT_COL_TYPE_ALL, columns);
+     }},
+    {"selectExt", [](SSelectStmt* select, SNodeList** columns) {
+       return nodesCollectColumnsExt(select, SQL_CLAUSE_FROM, nullptr,
+                                     COLLECT_COL_TYPE_ALL, columns);
+     }},
+    {"node", [](SSelectStmt* select, SNodeList** columns) {
+       SNode* node = nodesListGetNode(select->pProjectionList, 0);
+       return nodesCollectColumnsFromNode(node, nullptr, COLLECT_COL_TYPE_ALL,
+                                          columns);
+     }},
+    {"multiNodes", [](SSelectStmt* select, SNodeList** columns) {
+       SNode* node = nodesListGetNode(select->pProjectionList, 0);
+       return nodesCollectColumnsFromMultiNodes(&node, 1, nullptr,
+                                                COLLECT_COL_TYPE_ALL, columns);
+     }},
+};
+
+TEST(NodesCollectTest, hashInitFailureReclaimsNewColumnList) {
+  for (const auto& collector : kColumnCollectors) {
+    SCOPED_TRACE(collector.name);
+    CollectNodePtr select((SNode*)makeCollectSelect("c1", "f1", 1),
+                          nodesDestroyNode);
+    ASSERT_NE(select.get(), nullptr);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+    SNodeList* columns = nullptr;
+
+    nodesTestSetCollectColumnsHashFailOnce();
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    EXPECT_EQ(columns, nullptr);
+    EXPECT_EQ(allocations, nodesTestGetLiveAllocations());
+
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    CollectListPtr columnList(columns, nodesDestroyList);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    EXPECT_STREQ("c1", ((SColumnNode*)nodesListGetNode(columns, 0))->colName);
+  }
+}
+
+TEST(NodesCollectTest, hashInitFailurePreservesExistingColumnList) {
+  for (const auto& collector : kColumnCollectors) {
+    SCOPED_TRACE(collector.name);
+    CollectNodePtr select((SNode*)makeCollectSelect("c1", "f1", 1),
+                          nodesDestroyNode);
+    ASSERT_NE(select.get(), nullptr);
+    SNodeList* columns = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    CollectListPtr columnList(columns, nodesDestroyList);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    SNode* column = nodesListGetNode(columns, 0);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+
+    nodesTestSetCollectColumnsHashFailOnce();
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              collector.collect((SSelectStmt*)select.get(), &columns));
+    ASSERT_EQ(columnList.get(), columns);
+    ASSERT_EQ(1, LIST_LENGTH(columns));
+    EXPECT_EQ(column, nodesListGetNode(columns, 0));
+    EXPECT_STREQ("c1", ((SColumnNode*)column)->colName);
+    EXPECT_EQ(allocations, nodesTestGetLiveAllocations());
+  }
 }
 
 TEST_F(NodesCloneTest, physiPartition) {

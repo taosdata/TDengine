@@ -227,7 +227,9 @@ static bool splIsChildSubplan(SLogicNode* pLogicNode, int32_t groupId) {
            groupId <= ((SExchangeLogicNode*)pLogicNode)->srcEndGroupId;
   }
 
-  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode)) {
+  // Column merges depend on child exchanges rather than a remote source range.
+  if (QUERY_NODE_LOGIC_PLAN_MERGE == nodeType(pLogicNode) &&
+      !((SMergeLogicNode*)pLogicNode)->colsMerge) {
     return ((SMergeLogicNode*)pLogicNode)->srcGroupId <= groupId &&
            ((SMergeLogicNode*)pLogicNode)->srcEndGroupId >= groupId;
   }

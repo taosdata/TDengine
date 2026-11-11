@@ -84,7 +84,9 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
       if (NULL == pCol) {
         return DEAL_RES_ERROR;
       }
-      return (TSDB_CODE_SUCCESS == nodesListAppend(pCxt->pList, pCol) ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
@@ -112,8 +114,9 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
         }
       }
       pCol->node.relatedTo = pExpr->relatedTo;
-      return (TSDB_CODE_SUCCESS == nodesListStrictAppend(pCxt->pList, (SNode*)pCol) ? DEAL_RES_IGNORE_CHILD
-                                                                                    : DEAL_RES_ERROR);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pList, (SNode*)pCol);
+      return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD :
+                                                DEAL_RES_ERROR;
     }
     default:
       break;
@@ -122,7 +125,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+static int32_t createColumnsByRewrite(SNode* pExpr, SNodeList* pExprs,
+                                      SNodeList** pList) {
   SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
   if (!cxt.pList) {
     int32_t code = nodesMakeList(&cxt.pList);
@@ -131,35 +135,25 @@ int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
     }
   }
 
-  nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  if (NULL != pExprs) {
+    nodesWalkExprs(pExprs, doCreateColumn, &cxt);
+  } else {
+    nodesWalkExpr(pExpr, doCreateColumn, &cxt);
+  }
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
-    return cxt.errCode;
+    cxt.pList = NULL;
   }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
+  *pList = cxt.pList;
   return cxt.errCode;
 }
 
-int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
-  SCreateColumnCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pList = *pList};
-  if (!cxt.pList) {
-    int32_t code = nodesMakeList(&cxt.pList);
-    if (TSDB_CODE_SUCCESS != code) {
-      return code;
-    }
-  }
+int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList) {
+  return createColumnsByRewrite(NULL, pExprs, pList);
+}
 
-  nodesWalkExpr(pExpr, doCreateColumn, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesDestroyList(cxt.pList);
-    return cxt.errCode;
-  }
-  if (NULL == *pList) {
-    *pList = cxt.pList;
-  }
-  return cxt.errCode;
+int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList) {
+  return createColumnsByRewrite(pExpr, NULL, pList);
 }
 
 static const SNode* planUnwrapRemoteOutputExpr(const SNode* pExprNode) {
