@@ -22,10 +22,16 @@ SELECT [hints] [DISTINCT] [TAGS] [SCALAR | AGG] select_list
     [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file]
 
-hints: /*+ [hint([hint_param_list])] [hint([hint_param_list])] */
+hints: /*+ [hint_option] ... */
+
+hint_option:
+    hint([hint_param_list])
 
 hint:
-    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO | HASH_JOIN | MERGE_JOIN
+    BATCH_SCAN | NO_BATCH_SCAN | SORT_FOR_GROUP | PARTITION_FIRST
+  | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
+  | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO
+  | HASH_JOIN | MERGE_JOIN | NO_CONCURRENT_LAST_SCAN
 
 select_list:
     select_expr [, select_expr] ...
@@ -169,17 +175,18 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `BATCH_SCAN`          | 无 | 采用批量读表方式 | 超级表 `JOIN` 语句 |
 | `NO_BATCH_SCAN`       | 无 | 采用顺序读表方式 | 超级表 `JOIN` 语句 |
 | `SORT_FOR_GROUP`      | 无 | 采用 sort 方式分组，与 `PARTITION_FIRST` 冲突 | `PARTITION BY` 列表含普通列时 |
-| `PARTITION_FIRST`     | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
+| [`PARTITION_FIRST`](#partition_first) | 无 | 优先保留独立的 `Partition` 算子完成分区，与 `SORT_FOR_GROUP` 冲突 | `PARTITION BY` 列表含普通列时；从 `v3.4.3.0` 起，也适用于超级表按标签列或 `tbname` 分区的 `STATE_WINDOW` 查询 |
 | `PARA_TABLES_SORT`    | 无 | 超级表按时间戳排序时不使用临时磁盘空间，仅使用内存；子表多、行长大时可能 OOM | 超级表按时间戳排序时 |
 | `SMALLDATA_TS_SORT`   | 无 | 超级表按时间戳排序时，查询列长度大于等于 256 但行数不多，可提升性能 | 超级表按时间戳排序时 |
 | `SMALLDATA_SCAN_SORT` | 无 | 超级表需要按时间戳有序扫描输出时，用普通表扫描加排序代替表合并扫描；每 vnode 数据量较小时更优。适用于引擎会用表合并扫描产生时间戳有序输出的场景，包括 `ORDER BY ts`，以及会话窗口 `SESSION`、状态窗口 `STATE_WINDOW`（无需显式 `ORDER BY`）；对时间窗口 `INTERVAL`（本身不使用表合并扫描）以及按非时间戳列的 `ORDER BY` 无效 | 小数据量超级表需要时间戳有序时 |
 | `SKIP_TSMA`           | 无 | 显式禁用 TSMA 查询优化 | 带聚合函数的查询语句 |
-| `FAST_INTERVAL`       | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 partial 或 merge FAST 执行路径 | 支持无分区、按标签分区、按 `tbname` 及其他标签分区，以及符合条件的 TSMA 改写计划；窗口和分区限制见下文 |
+| [`FAST_INTERVAL`](#fast_interval) | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 partial 或 merge FAST 执行路径 | 支持无分区、按标签分区、按 `tbname` 及其他标签分区，以及符合条件的 TSMA 改写计划；窗口和分区限制见下文 |
 | `EX_INTERVAL`         | 无 | 对符合条件的固定窗口 `INTERVAL` 聚合查询启用 EX 执行路径 | 满足 `FAST_INTERVAL` 的基础窗口条件，且无 `PARTITION BY`、`LIMIT`、`SLIMIT`；查询仅有一个表扫描、所有 vgroup 位于同一 dnode，选择列表仅支持 `_wstart`、`_wend`、`_wduration`、`COUNT`、`SUM` 和 `AVG` 的受限组合 |
-| `INTERVAL_LIMIT`      | 无 | 对符合条件的 `INTERVAL` 查询按子表裁剪后续扫描，减少获取前几个窗口所需的工作量，默认关闭 | 带正数 `LIMIT`、窗口直接读取 Table Scan 且扫描与窗口输出顺序一致的查询；完整限制见下文 |
+| [`INTERVAL_LIMIT`](#interval_limit) | 无 | 对符合条件的 `INTERVAL` 查询按子表裁剪后续扫描，减少获取前几个窗口所需的工作量，默认关闭 | 带正数 `LIMIT`、窗口直接读取 Table Scan 且扫描与窗口输出顺序一致的查询；完整限制见下文 |
 | `JOIN_ALGO` | `HASH`、`MERGE` 或 `THETA`，仅一个参数 | 自 `v3.4.3.0` 起支持，指定 JOIN 算法偏好，不适用时回退；详见 [JOIN 算法与 Hint](./05-join.md#join-算法与-hint) | 普通 JOIN |
 | `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
 | `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
+| [`NO_CONCURRENT_LAST_SCAN`](#no_concurrent_last_scan) | 无 | 禁用缓存与普通扫描的并发拆分 | 数据库已启用相应的 `cachemodel`，且查询同时包含可使用缓存的 `LAST`/`LAST_ROW` 与需要普通扫描的聚合函数 |
 
 示例：
 
@@ -196,6 +203,14 @@ SELECT /*+ FAST_INTERVAL() */ _wstart, count(*), sum(c1) FROM stable1 WHERE ts >
 SELECT /*+ EX_INTERVAL() */ _wstart, count(*), sum(c1), avg(c2) FROM stable1 WHERE ts >= '2024-01-01 00:00:00' AND ts < '2024-01-01 01:00:00' INTERVAL(10s);
 SELECT /*+ INTERVAL_LIMIT() */ _wstart, max(c1) FROM stable1 INTERVAL(1m) LIMIT 5;
 ```
+
+### PARTITION_FIRST
+
+从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+
+当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+
+该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
 
 ### FAST_INTERVAL
 
@@ -246,13 +261,42 @@ LIMIT 5 OFFSET 20;
 
 该优化主要适合只需少量窗口的查询。`LIMIT` 较大或无法减少扫描时，额外的窗口跟踪可能增加开销；建议通过 `EXPLAIN ANALYZE` 对比启用前后的扫描行数和查询耗时，按需使用。
 
-### PARTITION_FIRST
+### NO_CONCURRENT_LAST_SCAN
 
-从 `v3.4.3.0` 起，`PARTITION_FIRST` 也适用于超级表按标签列或 `tbname` 分区的状态窗口查询。在该执行路径中，Table Merge Scan 先扫描相关子表，独立的 `Partition` 算子再按标签列或 `tbname` 组织分区，之后由 `STATE_WINDOW` 在每个分区内计算状态窗口。多 vnode 查询会保持分区内的主时间戳顺序；表具有第二主键时，也会使用第二主键确定相同时间戳记录的顺序。
+符合缓存扫描资格的分组及非分组混合聚合默认将缓存扫描与普通扫描并发执行。
+在所属 `SELECT` 后指定 `/*+ NO_CONCURRENT_LAST_SCAN() */`，
+可关闭该项并发拆分，恢复共享扫描路径。
+该 Hint 使用空括号写法，不接收参数，名称不区分大小写。
+省略括号或带参数的写法会被忽略，保持默认并发行为。
 
-当 `PARTITION BY` 包含普通数据列，或者同时包含标签和普通数据列时，系统在有无 `PARTITION_FIRST` 时都会保留独立的 `Partition`。这是因为普通列的值可能逐行变化，不能按子表标签在扫描阶段预先分组。多 vnode 查询同样会保持分区内的主时间戳和可选第二主键顺序。此类查询使用 Hint 通常不会改变算子结构，也不应预期获得额外的扫描性能收益。
+```sql
+-- 默认允许并发扫描
+SELECT tbname, COUNT(*), LAST(current)
+FROM meters PARTITION BY tbname;
 
-该 Hint 不改变查询结果语义。对纯标签或 `tbname` 分区，它主要用于减少大量小分区带来的扫描分组切换和小数据块调度开销；少量大分区可能因额外的分区重组而无法获得性能收益。建议使用 `EXPLAIN` 确认计划中存在独立的 `Partition`，并使用 `EXPLAIN ANALYZE` 对比启用 Hint 前后的耗时和资源使用。不使用该 Hint 时，系统继续采用默认计划。
+-- 显式关闭分组并发拆分
+SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ tbname, COUNT(*), LAST(current)
+FROM meters PARTITION BY tbname;
+
+-- 显式关闭非分组并发拆分
+SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*), LAST(current) FROM meters;
+```
+
+Hint 仅控制所属 `SELECT`，外层 Hint 不会关闭子查询或其他 `UNION`
+分支的并发拆分。
+
+当普通扫描本身很快时，分支调度、数据传输和结果合并的固定开销可能占比较高。
+此时可尝试使用该 Hint，让混合聚合共用一次普通扫描，以降低完整查询耗时。
+以下场景可优先对比：
+
+- 对于按 `tbname` 分组的 `COUNT(*)` 与 `LAST` 混合聚合，
+  每组历史数据在几百行以内、分组数在几千个以内时，推荐尝试添加该 Hint。
+- 不分组、参与查询的子表较少且总扫描量很小的混合聚合。
+
+上述数据量仅用于选择对比场景，不是固定的启用阈值。应同时考虑参与查询的子表数、
+每组历史行数、行宽、聚合函数、数据是否落盘、缓存状态及硬件条件。
+当每组达到上千行或更多时，缓存分支减少历史列读取的收益通常更明显，
+宜优先保留默认并发路径。
 
 ## SELECT 列表
 

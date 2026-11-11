@@ -7896,6 +7896,7 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
 
 static const char* jkAggLogicPlanGroupKeys = "GroupKeys";
 static const char* jkAggLogicPlanAggFuncs = "AggFuncs";
+static const char* jkAggLogicPlanConcurrentLastScan = "ConcurrentLastScan";
 
 static int32_t logicAggNodeToJson(const void* pObj, SJson* pJson) {
   const SAggLogicNode* pNode = (const SAggLogicNode*)pObj;
@@ -7906,6 +7907,9 @@ static int32_t logicAggNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkAggLogicPlanAggFuncs, pNode->pAggFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->concurrentLastScan) {
+    code = tjsonAddBoolToObject(pJson, jkAggLogicPlanConcurrentLastScan, true);
   }
 
   return code;
@@ -7920,6 +7924,12 @@ static int32_t jsonToLogicAggNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkAggLogicPlanAggFuncs, &pNode->pAggFuncs);
+  }
+  pNode->concurrentLastScan = false;
+  if (TSDB_CODE_SUCCESS == code &&
+      NULL != tjsonGetObjectItem(pJson, jkAggLogicPlanConcurrentLastScan)) {
+    code = tjsonGetBoolValue(pJson, jkAggLogicPlanConcurrentLastScan,
+                            &pNode->concurrentLastScan);
   }
 
   return code;

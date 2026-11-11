@@ -25,11 +25,18 @@
 #include "planner.h"
 #include "stub.h"
 
+extern "C" void nodesTestSetStrictAppendFailOnce(void);
+
 using namespace std;
 
 class PlanBasicTest : public PlannerTestBase {};
 
 namespace {
+
+int32_t failColumnClone(const SNode*, SNode** output) {
+  *output = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
 
 template <typename T>
 T* makePlanNode(ENodeType type) {
@@ -1610,4 +1617,56 @@ TEST_F(PlanBasicTest, withoutFrom) {
   useDb("root", "test");
 
   run("SELECT 1");
+}
+
+TEST(PlanUtilTest, ColumnRewriteFailureClearsExistingOutputs) {
+  for (bool useList : {false, true}) {
+    SCOPED_TRACE(useList);
+    auto* column = makePlanColumn("tag1");
+    ASSERT_NE(column, nullptr);
+    column->colType = COLUMN_TYPE_TAG;
+    SNode* node = reinterpret_cast<SNode*>(column);
+    SNodeList* inputs = nullptr;
+    ASSERT_EQ(nodesListMakeStrictAppend(&inputs, node), 0);
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> inputGuard(
+        inputs, nodesDestroyList);
+    SNodeList* output = nullptr;
+    ASSERT_EQ(createColumnByRewriteExpr(node, &output), 0);
+    ASSERT_EQ(LIST_LENGTH(output), 1);
+
+    int32_t code = TSDB_CODE_SUCCESS;
+    {
+      Stub stub;
+      stub.set(nodesCloneNode, failColumnClone);
+      code = useList ? createColumnByRewriteExprs(inputs, &output) :
+                      createColumnByRewriteExpr(node, &output);
+    }
+    EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+    EXPECT_EQ(output, nullptr);
+  }
+}
+
+TEST(PlanUtilTest, ColumnRewriteAppendFailureClearsExistingOutputs) {
+  for (ENodeType type : {QUERY_NODE_COLUMN, QUERY_NODE_VALUE}) {
+    SCOPED_TRACE(type);
+    for (bool useList : {false, true}) {
+      SCOPED_TRACE(useList);
+      SNode* node = makePlanNode<SNode>(type);
+      ASSERT_NE(node, nullptr);
+      SNodeList* inputs = nullptr;
+      ASSERT_EQ(nodesListMakeStrictAppend(&inputs, node), 0);
+      std::unique_ptr<SNodeList, void (*)(SNodeList*)> inputGuard(
+          inputs, nodesDestroyList);
+      SNodeList* output = nullptr;
+      ASSERT_EQ(createColumnByRewriteExpr(node, &output), 0);
+      ASSERT_EQ(LIST_LENGTH(output), 1);
+
+      nodesTestSetStrictAppendFailOnce();
+      int32_t code = useList ? createColumnByRewriteExprs(inputs, &output) :
+                              createColumnByRewriteExpr(node, &output);
+      EXPECT_EQ(code, TSDB_CODE_OUT_OF_MEMORY);
+      EXPECT_EQ(output, nullptr);
+      nodesDestroyList(output);
+    }
+  }
 }

@@ -579,7 +579,9 @@ static int32_t scanPathOptGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSd
       if (TSDB_CODE_SUCCESS == code) {
         code = nodesListMakeStrictAppend(&pTmpDsoFuncs, pNew);
       }
-    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSkipScanCheckFunc)) {
+    } else if (scanPathOptIsSpecifiedFuncType(pFunc, fmIsSkipScanCheckFunc) ||
+               (FUNCTION_TYPE_GROUP_KEY == pFunc->funcType &&
+                !scanPathOptHaveNormalCol(pFunc->pParameterList))) {
       continue;
     } else {
       otherFunc = true;
@@ -9795,6 +9797,36 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   return TSDB_CODE_SUCCESS;
 }
 
+static bool splitCacheLastFuncOptCanRegroup(const SLogicNode* pNode) {
+  // Rebuilding group IDs is only proven for these ordinary consumers.
+  for (const SLogicNode* pParent = pNode->pParent; pParent != NULL;
+       pParent = pParent->pParent) {
+    switch (nodeType(pParent)) {
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+      case QUERY_NODE_LOGIC_PLAN_AGG:
+        break;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
+
+static EDealRes splitCacheLastFuncOptCheckGroupKey(SNode* pNode,
+                                                 void* pContext) {
+  if (nodeType(pNode) != QUERY_NODE_FUNCTION) {
+    return DEAL_RES_CONTINUE;
+  }
+  const SFunctionNode* pFunc = (const SFunctionNode*)pNode;
+  if (pFunc->funcType == FUNCTION_TYPE_RAND ||
+      fmIsVolatileFunc(pFunc->funcId) || fmIsUserDefinedFunc(pFunc->funcId)) {
+    *(bool*)pContext = false;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -9803,7 +9835,8 @@ static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
 
   SAggLogicNode*  pAgg = (SAggLogicNode*)pNode;
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
-  if (!lastRowScanOptCheckLastCache(pAgg, pScan)) {
+  if (!pAgg->concurrentLastScan ||
+      !lastRowScanOptCheckLastCache(pAgg, pScan)) {
     return false;
   }
 
@@ -9812,8 +9845,34 @@ static bool splitCacheLastFuncOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  if (pAgg->hasGroup || !hasOtherFunc) {
+  if (!hasOtherFunc) {
     return false;
+  }
+
+  if (pAgg->hasGroup) {
+    if (LIST_LENGTH(pScan->pGroupTags) == 0 || pNode->pLimit != NULL ||
+        pNode->pSlimit != NULL || !splitCacheLastFuncOptCanRegroup(pNode)) {
+      return false;
+    }
+    bool deterministic = true;
+    nodesWalkExprs(pScan->pGroupTags, splitCacheLastFuncOptCheckGroupKey,
+                   &deterministic);
+    if (!deterministic) return false;
+    bool hasCachedFunction = false;
+    SNode* pFunc = NULL;
+    FOREACH(pFunc, pAgg->pAggFuncs) {
+      SFunctionNode* pFunction = (SFunctionNode*)pFunc;
+      if (fmIsMultiRowsFunc(pFunction->funcId) ||
+          fmIsIndefiniteRowsFunc(pFunction->funcId)) {
+        return false;
+      }
+      if ((pFunction->funcType == FUNCTION_TYPE_LAST ||
+           pFunction->funcType == FUNCTION_TYPE_LAST_ROW) &&
+          !isNeedSplitCacheLastFunc(pFunction, pScan, NULL)) {
+        hasCachedFunction = true;
+      }
+    }
+    if (!hasCachedFunction) return false;
   }
 
   return true;
@@ -10027,6 +10086,403 @@ static int32_t splitCacheLastFuncOptCreateMergeLogicNode(SMergeLogicNode** pNew,
   return code;
 }
 
+static EDealRes splitCacheLastFuncOptTbname(SNode** ppNode, void* pContext) {
+  if (nodeType(*ppNode) != QUERY_NODE_FUNCTION ||
+      ((SFunctionNode*)*ppNode)->funcType != FUNCTION_TYPE_TBNAME) {
+    return DEAL_RES_CONTINUE;
+  }
+  SColumnNode* pCol = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (code != TSDB_CODE_SUCCESS) {
+    *(int32_t*)pContext = code;
+    return DEAL_RES_ERROR;
+  }
+  pCol->node.resType = ((SExprNode*)*ppNode)->resType;
+  pCol->colType = COLUMN_TYPE_TBNAME;
+  tstrncpy(pCol->colName, "tbname", sizeof(pCol->colName));
+  tstrncpy(pCol->node.aliasName, "tbname", sizeof(pCol->node.aliasName));
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pCol;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t splitCacheLastFuncOptGroupKeys(SAggLogicNode* pCache,
+                                              SAggLogicNode* pOther,
+                                              SNodeList** ppKeys,
+                                              SNodeList* pLayout) {
+  PLAN_ERR_RET(nodesMakeList(ppKeys));
+  SScanLogicNode* pScan =
+      (SScanLogicNode*)nodesListGetNode(pCache->node.pChildren, 0);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCache->pAggFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (pFunc->funcType == FUNCTION_TYPE_GROUP_KEY ||
+        pFunc->funcType == FUNCTION_TYPE_GROUP_CONST_VALUE) {
+      SNode* pCopy = NULL;
+      PLAN_ERR_RET(nodesCloneNode(pNode, &pCopy));
+      PLAN_ERR_RET(nodesListMakeStrictAppend(&pOther->pAggFuncs, pCopy));
+    }
+  }
+  FOREACH(pNode, pScan->pGroupTags) {
+    SFunctionNode* pFunc = NULL;
+    PLAN_ERR_RET(partTagsCreateWrapperFunc("_group_key", pNode, &pFunc));
+    int32_t code = TSDB_CODE_SUCCESS;
+    nodesRewriteExprs(pFunc->pParameterList, splitCacheLastFuncOptTbname,
+                      &code);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFunc);
+      return code;
+    }
+    SNode*         pParam = nodesListGetNode(pFunc->pParameterList, 0);
+    SNode*         pExisting = NULL;
+    SFunctionNode* pKey = NULL;
+    FOREACH(pExisting, pCache->pAggFuncs) {
+      SFunctionNode* pCandidate = (SFunctionNode*)pExisting;
+      if (pCandidate->funcType != FUNCTION_TYPE_GROUP_KEY) continue;
+      SNode* pInput = nodesListGetNode(pCandidate->pParameterList, 0);
+      if (pInput == NULL) continue;
+      bool   tbname = nodeType(pParam) == QUERY_NODE_COLUMN &&
+                    nodeType(pInput) == QUERY_NODE_COLUMN &&
+                    ((SColumnNode*)pParam)->colType == COLUMN_TYPE_TBNAME &&
+                    ((SColumnNode*)pInput)->colType == COLUMN_TYPE_TBNAME;
+      if (tbname || nodesEqualNode(pParam, pInput)) {
+        pKey = pCandidate;
+        break;
+      }
+    }
+    bool hidden = pKey == NULL;
+    if (hidden) {
+      snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName),
+               "_cache_group_%p", (void*)pFunc);
+      code = nodesListMakeStrictAppend(&pCache->pAggFuncs, (SNode*)pFunc);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      SNode* pCopy = NULL;
+      PLAN_ERR_RET(nodesCloneNode((SNode*)pFunc, &pCopy));
+      PLAN_ERR_RET(nodesListMakeStrictAppend(&pOther->pAggFuncs, pCopy));
+      pKey = pFunc;
+    } else {
+      nodesDestroyNode((SNode*)pFunc);
+    }
+    // Use a fresh list: rewriting frees its input list on failure.
+    SNodeList* pColumns = NULL;
+    PLAN_ERR_RET(createColumnByRewriteExpr((SNode*)pKey, &pColumns));
+    if (LIST_LENGTH(pColumns) != 1) {
+      nodesDestroyList(pColumns);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    PLAN_ERR_RET(nodesListStrictAppendList(*ppKeys, pColumns));
+    if (hidden) {
+      SNode* pCopy = NULL;
+      PLAN_ERR_RET(nodesCloneNode((*ppKeys)->pTail->pNode, &pCopy));
+      PLAN_ERR_RET(nodesListStrictAppend(pLayout, pCopy));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t splitCacheLastFuncOptAddTbnameCols(SAggLogicNode* pAgg) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNodeList* pColumns = NULL;
+  SNodeListNode list = {0};
+  setNodeType(&list, QUERY_NODE_NODE_LIST);
+  list.pNodeList = pAgg->pAggFuncs;
+  PLAN_ERR_JRET(nodesCollectColumnsFromNode((SNode*)&list, NULL,
+                                            COLLECT_COL_TYPE_ALL, &pColumns));
+  SScanLogicNode* pScan =
+      (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pColumns) {
+    if (((SColumnNode*)pNode)->colType != COLUMN_TYPE_TBNAME) continue;
+    SNode* pCopy = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pNode, &pCopy));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->node.pTargets, pCopy));
+    PLAN_ERR_JRET(nodesCloneNode(pNode, &pCopy));
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pScan->pScanPseudoCols, pCopy));
+    nodesRewriteExpr(&pScan->pScanPseudoCols->pTail->pNode, optRebuildTbanme,
+                     &code);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    SExprNode* pExpr = (SExprNode*)pScan->pScanPseudoCols->pTail->pNode;
+    tstrncpy(pExpr->aliasName, "tbname", sizeof(pExpr->aliasName));
+  }
+
+_return:
+  nodesDestroyList(pColumns);
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptGroupBranch(SAggLogicNode* pAgg,
+                                                bool           cached) {
+  pAgg->hasLast = false;
+  pAgg->hasLastRow = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAgg->pAggFuncs) {
+    int32_t type = ((SFunctionNode*)pNode)->funcType;
+    pAgg->hasLast |= type == FUNCTION_TYPE_LAST;
+    pAgg->hasLastRow |= type == FUNCTION_TYPE_LAST_ROW;
+  }
+  if (cached) {
+    pAgg->hasTimeLineFunc = false;
+    pAgg->onlyHasKeepOrderFunc = true;
+  }
+  nodesDestroyNode(pAgg->node.pConditions);
+  pAgg->node.pConditions = NULL;
+  nodesDestroyList(pAgg->node.pTargets);
+  pAgg->node.pTargets = NULL;
+  PLAN_ERR_RET(createColumnByRewriteExprs(pAgg->pAggFuncs,
+                                          &pAgg->node.pTargets));
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
+  pChild->pParent = (SLogicNode*)pAgg;
+  PLAN_ERR_RET(splitCacheLastFuncOptUpdateScanNode(pAgg, pAgg->pAggFuncs,
+                                                   false));
+  return splitCacheLastFuncOptAddTbnameCols(pAgg);
+}
+
+static bool splitCacheLastFuncOptHasOutput(const SAggLogicNode* pAgg,
+                                           const SColumnNode* pColumn) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAgg->pAggFuncs) {
+    if (strcmp(((SExprNode*)pNode)->aliasName, pColumn->colName) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t splitCacheLastFuncOptCreateProject(uint8_t precision,
+                                                SProjectLogicNode** ppProject) {
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT,
+                             (SNode**)ppProject));
+  SProjectLogicNode* pProject = *ppProject;
+  pProject->node.precision = precision;
+  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->ignoreGroupId = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t splitCacheLastFuncOptProject(SAggLogicNode* pAgg,
+                                            SNodeList* pLayout,
+                                            SProjectLogicNode** ppProject) {
+  SProjectLogicNode* pProject = NULL;
+  int32_t code = splitCacheLastFuncOptCreateProject(pAgg->node.precision,
+                                                    &pProject);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pLayout) {
+    SColumnNode* pColumn = (SColumnNode*)pNode;
+    SNode* pExpr = NULL;
+    if (splitCacheLastFuncOptHasOutput(pAgg, pColumn)) {
+      code = nodesCloneNode(pNode, &pExpr);
+    } else {
+      SValueNode* pNull = NULL;
+      code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNull);
+      if (code == TSDB_CODE_SUCCESS) {
+        pNull->node.resType = pColumn->node.resType;
+        pNull->translate = true;
+        pNull->isNull = true;
+        pExpr = (SNode*)pNull;
+      }
+    }
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    tstrncpy(((SExprNode*)pExpr)->aliasName, pColumn->colName,
+             TSDB_COL_NAME_LEN);
+    code = nodesListMakeStrictAppend(&pProject->pProjections, pExpr);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+  }
+  code = nodesCloneList(pLayout, &pProject->node.pTargets);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = nodesListMakeAppend(&pProject->node.pChildren, (SNode*)pAgg);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  pAgg->node.pParent = (SLogicNode*)pProject;
+  *ppProject = pProject;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode((SNode*)pProject);
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptParent(SAggLogicNode* pOriginal,
+                                           SNodeList* pKeys,
+                                           SAggLogicNode** ppParent) {
+  SAggLogicNode* pParent = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_LOGIC_PLAN_AGG, (SNode**)&pParent);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pParent->node.precision = pOriginal->node.precision;
+  pParent->node.groupAction = pOriginal->node.groupAction;
+  pParent->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pParent->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pParent->hasGroup = true;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pKeys) {
+    SGroupingSetNode* pKey = NULL;
+    code = nodesMakeNode(QUERY_NODE_GROUPING_SET, (SNode**)&pKey);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    pKey->groupingSetType = GP_TYPE_NORMAL;
+    code = nodesListMakeStrictAppend(&pParent->pGroupKeys, (SNode*)pKey);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    SNode* pCopy = NULL;
+    code = nodesCloneNode(pNode, &pCopy);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    code = nodesListMakeStrictAppend(&pKey->pParameterList, pCopy);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+  }
+  FOREACH(pNode, pOriginal->pAggFuncs) {
+    SFunctionNode* pOriginalFunc = (SFunctionNode*)pNode;
+    SNodeList* pColumns = NULL;
+    code = createColumnByRewriteExpr(pNode, &pColumns);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    if (LIST_LENGTH(pColumns) != 1) {
+      nodesDestroyList(pColumns);
+      code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      goto _return;
+    }
+    const char* name =
+        pOriginalFunc->funcType == FUNCTION_TYPE_GROUP_KEY ||
+        pOriginalFunc->funcType == FUNCTION_TYPE_GROUP_CONST_VALUE ?
+            "_group_key" : "last";
+    // Each non-key column has one producing branch per full key; the other
+    // branch supplies typed NULLs. LAST selects that unique non-NULL value.
+    // Keep one argument, without adding an implicit source timestamp.
+    // Non-timestamp values use input order; timestamp values may act as
+    // their own time key. Either way only one candidate can contribute.
+    SFunctionNode* pFunc = NULL;
+    code = partTagsCreateWrapperFunc(name, nodesListGetNode(pColumns, 0),
+                                     &pFunc);
+    nodesDestroyList(pColumns);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    tstrncpy(pFunc->node.aliasName, pOriginalFunc->node.aliasName,
+             TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pOriginalFunc->node.userAlias,
+             TSDB_COL_NAME_LEN);
+    SDataType actual = pFunc->node.resType;
+    SDataType expected = pOriginalFunc->node.resType;
+    if (actual.type != expected.type || actual.bytes != expected.bytes ||
+        actual.precision != expected.precision ||
+        actual.scale != expected.scale) {
+      nodesDestroyNode((SNode*)pFunc);
+      // Leave the original plan intact if LAST cannot preserve its type.
+      goto _return;
+    }
+    pFunc->node.projIdx = pOriginalFunc->node.projIdx;
+    pFunc->node.relatedTo = pOriginalFunc->node.relatedTo;
+    pFunc->node.bindExprID = pOriginalFunc->node.bindExprID;
+    code = nodesListMakeStrictAppend(&pParent->pAggFuncs, (SNode*)pFunc);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+  }
+  code = nodesCloneList(pOriginal->node.pTargets, &pParent->node.pTargets);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = nodesCloneNode(pOriginal->node.pConditions,
+                        &pParent->node.pConditions);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  *ppParent = pParent;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode((SNode*)pParent);
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptUnion(uint8_t precision, SNodeList* pLayout,
+                                          SAggLogicNode** ppOther,
+                                          SAggLogicNode** ppCache,
+                                          SProjectLogicNode** ppUnion) {
+  SProjectLogicNode* pUnion = NULL;
+  SProjectLogicNode* pProject = NULL;
+  int32_t code = splitCacheLastFuncOptCreateProject(precision, &pUnion);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  pUnion->isSetOpProj = true;
+  code = nodesCloneList(pLayout, &pUnion->node.pTargets);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = nodesCloneList(pLayout, &pUnion->pProjections);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  for (int side = 0; side < 2; ++side) {
+    SAggLogicNode** ppBranch = side == 0 ? ppOther : ppCache;
+    code = splitCacheLastFuncOptProject(*ppBranch, pLayout, &pProject);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    *ppBranch = NULL;
+    pProject->node.pParent = (SLogicNode*)pUnion;
+    code = nodesListMakeStrictAppend(&pUnion->node.pChildren, (SNode*)pProject);
+    pProject = NULL;
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+  }
+  *ppUnion = pUnion;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode((SNode*)pProject);
+  nodesDestroyNode((SNode*)pUnion);
+  return code;
+}
+
+static int32_t splitCacheLastFuncOptGrouped(SOptimizeContext* pCxt,
+                                            SLogicSubplan* pSubplan,
+                                            SAggLogicNode* pAgg) {
+  SAggLogicNode* pCache = NULL;
+  SAggLogicNode* pOther = NULL;
+  SAggLogicNode* pParent = NULL;
+  SProjectLogicNode* pUnion = NULL;
+  SNodeList* pKeys = NULL;
+  SNodeList* pLayout = NULL;
+  int32_t code = nodesCloneNode((SNode*)pAgg, (SNode**)&pCache);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = nodesCloneNode((SNode*)pAgg, (SNode**)&pOther);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  nodesDestroyList(pOther->pAggFuncs);
+  pOther->pAggFuncs = NULL;
+
+  SScanLogicNode* pScan =
+      (SScanLogicNode*)nodesListGetNode(pCache->node.pChildren, 0);
+  SNode* pNode = NULL;
+  WHERE_EACH(pNode, pCache->pAggFuncs) {
+    if (isNeedSplitCacheLastFunc((SFunctionNode*)pNode, pScan,
+                                 pOther->pAggFuncs)) {
+      SNode* pCopy = NULL;
+      code = nodesCloneNode(pNode, &pCopy);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      code = nodesListMakeStrictAppend(&pOther->pAggFuncs, pCopy);
+      if (code != TSDB_CODE_SUCCESS) goto _return;
+      ERASE_NODE(pCache->pAggFuncs);
+      WHERE_FIRST(pCache->pAggFuncs);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+
+  code = createColumnByRewriteExprs(pAgg->pAggFuncs, &pLayout);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = splitCacheLastFuncOptGroupKeys(pCache, pOther, &pKeys, pLayout);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = splitCacheLastFuncOptGroupBranch(pCache, true);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = splitCacheLastFuncOptGroupBranch(pOther, false);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = splitCacheLastFuncOptParent(pAgg, pKeys, &pParent);
+  if (code != TSDB_CODE_SUCCESS || pParent == NULL) goto _return;
+  code = splitCacheLastFuncOptUnion(pAgg->node.precision, pLayout, &pOther,
+                                    &pCache, &pUnion);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  pUnion->node.pParent = (SLogicNode*)pParent;
+  code = nodesListMakeStrictAppend(&pParent->node.pChildren, (SNode*)pUnion);
+  pUnion = NULL;
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = replaceLogicNode(pSubplan, (SLogicNode*)pAgg, (SLogicNode*)pParent);
+  if (code != TSDB_CODE_SUCCESS) goto _return;
+  pParent = NULL;
+  nodesDestroyNode((SNode*)pAgg);
+  pCxt->optimized = true;
+
+_return:
+  nodesDestroyList(pLayout);
+  nodesDestroyList(pKeys);
+  nodesDestroyNode((SNode*)pCache);
+  nodesDestroyNode((SNode*)pOther);
+  nodesDestroyNode((SNode*)pUnion);
+  nodesDestroyNode((SNode*)pParent);
+  return code;
+}
+
 static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   if (inStreamCalcClause(pCxt->pPlanCxt)) {
     // stream calc query does not support last/last_row optimization
@@ -10037,6 +10493,12 @@ static int32_t splitCacheLastFuncOptimize(SOptimizeContext* pCxt, SLogicSubplan*
 
   if (NULL == pAgg) {
     return TSDB_CODE_SUCCESS;
+  }
+  if (pAgg->hasGroup) {
+    if (inStreamTriggerClause(pCxt->pPlanCxt)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    return splitCacheLastFuncOptGrouped(pCxt, pLogicSubplan, pAgg);
   }
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   SNode*          pNode = NULL;

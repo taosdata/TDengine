@@ -57,6 +57,8 @@ static threadlocal SNodeAllocator* g_pNodeAllocator;
 static int32_t                     g_allocatorReqRefPool = -1;
 #if defined(BUILD_TEST)
 static threadlocal bool g_nodesTestStrictAppendFailOnce = false;
+static threadlocal bool g_nodesTestCollectColumnsHashFailOnce = false;
+static threadlocal int64_t g_nodesTestLiveAllocations = 0;
 #endif
 
 bool nodesIsValidPhysiJoin(ENodeType type, int32_t joinType, int32_t subType) {
@@ -504,16 +506,30 @@ static int32_t nodesCalloc(int32_t num, int32_t size, void** pOut) {
   }
   *(char*)p = (NULL != g_pNodeAllocator) ? 1 : 0;
   *pOut = (char*)p + NODE_ALLOCATOR_HEAD_LEN;
+#if defined(BUILD_TEST)
+  if (NULL == g_pNodeAllocator) {
+    ++g_nodesTestLiveAllocations;
+  }
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
 void nodesFree(void* p) {
   char* ptr = (char*)p - NODE_ALLOCATOR_HEAD_LEN;
   if (0 == *ptr) {
+#if defined(BUILD_TEST)
+    --g_nodesTestLiveAllocations;
+#endif
     taosMemoryFree(ptr);
   }
   return;
 }
+
+#if defined(BUILD_TEST)
+int64_t nodesTestGetLiveAllocations(void) {
+  return g_nodesTestLiveAllocations;
+}
+#endif
 
 static int32_t createNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator) {
   *pAllocator = taosMemoryCalloc(1, sizeof(SNodeAllocator));
@@ -5228,6 +5244,24 @@ typedef struct SCollectColumnsCxt {
   SHashObj*       pColHash;
 } SCollectColumnsCxt;
 
+#if defined(BUILD_TEST)
+void nodesTestSetCollectColumnsHashFailOnce(void) {
+  g_nodesTestCollectColumnsHashFailOnce = true;
+}
+#endif
+
+static SHashObj* createCollectColumnsHash(void) {
+#if defined(BUILD_TEST)
+  if (g_nodesTestCollectColumnsHashFailOnce) {
+    g_nodesTestCollectColumnsHashFailOnce = false;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+#endif
+  return taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY),
+                      true, HASH_NO_LOCK);
+}
+
 static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
@@ -5311,8 +5345,9 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
       .pTableAlias = pTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
@@ -5351,8 +5386,9 @@ int32_t nodesCollectColumnsExt(SSelectStmt* pSelect, ESqlClause clause, SSHashOb
       .pMultiTableAlias = pMultiTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
@@ -5389,8 +5425,9 @@ int32_t nodesCollectColumnsFromMultiNodes(SNode** pNodes, int32_t numNodes, cons
       .pTableAlias = pTableAlias,
       .collectType = type,
       .pCols = (NULL == *pCols ? pList : *pCols),
-      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
+      .pColHash = createCollectColumnsHash()};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
+    nodesDestroyList(pList);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pCols = NULL;
