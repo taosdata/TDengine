@@ -175,6 +175,22 @@ TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
   snapshotBlock = nullptr;
 }
 
+TEST(testCase, setForSnapShotRestoresQueryMeta) {
+  SSnapContext ctx = {0};
+  ctx.withMeta = WITH_META;
+  ctx.queryMeta = 0;  // simulate a completed snapshot meta scan
+  ctx.index = 42;
+
+  // uid == 0: reposition the snapshot cursor to the earliest entry.
+  setForSnapShot(&ctx, 0);
+
+  EXPECT_EQ(ctx.index, 0);
+  // Regression: repositioning must restore the meta phase, otherwise a retried
+  // SNAPSHOT_META request after a consumer-group rebalance skips create-table
+  // metadata delivery and the destination loses child tables.
+  EXPECT_EQ(ctx.queryMeta, WITH_META);
+}
+
 #pragma GCC diagnostic pop
 
 namespace {
