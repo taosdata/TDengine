@@ -2444,6 +2444,7 @@ struct RecalcPersistenceHarness {
   std::atomic<bool>                     snapshotDupEntered{false};
   std::atomic<bool>                     snapshotDupHasRuntimeRead{false};
   std::atomic<bool>                     releaseSnapshotDup{false};
+  std::atomic<bool>                     queryRuntimeWaiting{false};
   std::deque<int32_t>                   createCodes;
   std::deque<int32_t>                   appendCodes;
   std::deque<int32_t>                   prepareCodes;
@@ -2464,6 +2465,18 @@ struct RecalcPersistenceHarness {
 };
 
 RecalcPersistenceHarness *gRecalcPersistenceHarness = nullptr;
+
+bool observeRecalcRuntimeLockWait(SRWLatch *pLock, bool readLock) {
+  if (readLock) {
+    while (taosRTryLockLatch(pLock)) {
+      if (pLock == &mStreamMgmt.runtimeLock) gRecalcPersistenceHarness->queryRuntimeWaiting.store(true);
+      taosMsleep(1);
+    }
+  } else {
+    taosWWaitLockLatch(pLock);
+  }
+  return true;
+}
 
 bool runtimeReadPreventsWriter() {
   bool        prevented = false;
@@ -4353,7 +4366,7 @@ TEST_F(MndStreamRecalcPersistenceTest, PullupRuntimeReaderBlocksTeardownThroughC
   EXPECT_EQ(harness_.createCalls, 2);
 }
 
-TEST_F(MndStreamRecalcPersistenceTest, FinishCommitCompletesWithRuntimeWriterWaiting) {
+TEST_F(MndStreamRecalcPersistenceTest, FinishCommitAndRecalculateQueryCompleteWithRuntimeWriterWaiting) {
   STimeWindow range = {100, 200};
   ASSERT_EQ(AcceptA(range), TSDB_CODE_SUCCESS);
   const int64_t recalcId = FirstCapturedRecalcId();
@@ -4373,16 +4386,37 @@ TEST_F(MndStreamRecalcPersistenceTest, FinishCommitCompletesWithRuntimeWriterWai
   GateSnapshotDup(pStream->pIncompleteRecalcs);
   mndReleaseStream(&mnode_, pStream);
 
+  Stub waitProbe;
+  waitProbe.set(mstWaitLock, observeRecalcRuntimeLockWait);
   EXPECT_EXIT(
       {
         // Preserve the real completion callback and the cross-thread wait that
         // the ordinary prepare stub omits. A pending writer must not deadlock it.
+        const auto queryRecalculates = [&](bool finished) {
+          SSDataBlock *pBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAM_RECALCULATES, 128);
+          ASSERT_NE(pBlock, nullptr);
+          SRpcMsg request = {};
+          request.info.node = &mnode_;
+          SShowObj   show = {};
+          const auto retrieve = mnode_.showMgmt.retrieveFps[TSDB_MGMT_TABLE_STREAM_RECALCULATES];
+          EXPECT_EQ(retrieve(&request, &show, pBlock, 128), 1);
+          EXPECT_EQ(pBlock->info.rows, 1);
+          if (pBlock->info.rows == 1) {
+            EXPECT_EQ(getVarCharValue(pBlock, 0, 0), "recalc_a");
+            if (finished) {
+              EXPECT_EQ(getVarCharValue(pBlock, 5, 0), "100%");
+              EXPECT_EQ(getVarCharValue(pBlock, 6, 0), "Finished");
+            }
+          }
+          blockDataDestroy(pBlock);
+        };
         harness_.onPrepare = [&]() {
           std::thread sync([&]() { CommitNext(true); });
           sync.join();
         };
         std::atomic<bool> pullupFinished{false};
         std::atomic<bool> writerFinished{false};
+        std::atomic<bool> queryFinished{false};
         std::thread       pullup([&]() {
           RunImmediateWake();
           pullupFinished.store(true);
@@ -4403,18 +4437,31 @@ TEST_F(MndStreamRecalcPersistenceTest, FinishCommitCompletesWithRuntimeWriterWai
           std::this_thread::yield();
         }
         if (!taosHasRWWFlag(&mStreamMgmt.runtimeLock)) std::_Exit(3);
-        harness_.releaseSnapshotDup.store(true);
-        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-        while ((!pullupFinished.load() || !writerFinished.load()) && std::chrono::steady_clock::now() < deadline) {
+        // The status-table reader in defect 7153905841 waits behind this writer.
+        std::thread query([&]() {
+          queryRecalculates(false);
+          queryFinished.store(true);
+        });
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (!harness_.queryRuntimeWaiting.load() && std::chrono::steady_clock::now() < deadline) {
           std::this_thread::yield();
         }
-        if (!pullupFinished.load() || !writerFinished.load()) std::_Exit(5);
+        if (!harness_.queryRuntimeWaiting.load()) std::_Exit(4);
+        harness_.releaseSnapshotDup.store(true);
+        deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        while ((!pullupFinished.load() || !writerFinished.load() || !queryFinished.load()) &&
+               std::chrono::steady_clock::now() < deadline) {
+          std::this_thread::yield();
+        }
+        if (!pullupFinished.load() || !writerFinished.load() || !queryFinished.load()) std::_Exit(5);
         pullup.join();
         writer.join();
+        query.join();
         EXPECT_FALSE(PersistedRequestExists(kStreamA, recalcId));
         EXPECT_EQ(Record(kStreamA, recalcId)->snapshot.status, STREAM_RECALC_STATUS_FINISHED);
         EXPECT_FALSE(Status()->recalcTransActive);
         EXPECT_TRUE(isListEmpty(&Status()->recalcPersistOps));
+        queryRecalculates(true);
         std::_Exit(::testing::Test::HasFailure() ? 6 : 0);
       },
       ::testing::ExitedWithCode(0), "");

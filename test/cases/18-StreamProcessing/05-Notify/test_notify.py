@@ -154,8 +154,10 @@ class TestStreamNotifyTrigger:
         streams.append(self.Basic18())
         streams.append(self.Basic19())
 
-        tdStream.checkAll(streams)      
-        stop_notify_server_background()
+        try:
+            tdStream.checkAll(streams)
+        finally:
+            stop_notify_server_background()
         for stream in streams:
             tdSql.execute(f"drop database {stream.db} force")
 
@@ -608,14 +610,29 @@ class TestStreamNotifyTrigger:
             ]
 
             tdSql.executes(sqls)
+
+        def check1(self):
+            # Observe the initial window before deleting its first row.
+            expect_event(
+                os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
+                streamName="sdb2.s0",
+                eventType="WINDOW_OPEN",
+                triggerType="State",
+                windowStart=1735660800000,
+                result_pred=lambda rows: not rows,
+            )
+
+        def insert2(self):
             tdSql.execute(f"delete from ct0 where _c0 = '2025-01-01 00:00:00.000';")
 
             tdSql.execute(f"insert into ct0 values('2025-01-01 00:00:05.000', 911, 0, 1.1, 1.1, '1', 23.123456);")
+            # Updates inside an open window are recalculated after that window closes.
+            tdSql.execute("insert into ct0 values('2025-01-01 00:00:11.000', 2, 0, 1.1, 12.1, '1', 14.3333);")
 
-        def check1(self):
+        def check2(self):
             tdLog.info("do check the results")
             
-            for ws in (1735660800000, 1735660805000, 1735660806000):
+            for ws in (1735660801000, 1735660805000, 1735660806000, 1735660811000):
                 expect_event(
                     os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
                     streamName="sdb2.s0",
@@ -624,14 +641,6 @@ class TestStreamNotifyTrigger:
                     result_pred=lambda rows: not rows  # 空
                 )
                 
-            expect_event(
-                os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
-                streamName="sdb2.s0",
-                eventType="WINDOW_OPEN",
-                triggerType="State",
-                windowStart=1735660800000
-            )
-
             expect_event(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
              streamName="sdb2.s0",
              eventType="WINDOW_CLOSE",
@@ -648,12 +657,12 @@ class TestStreamNotifyTrigger:
             windowEnd=1735660804000)
             
             expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
-            rows=4,
+            rows=5,
             streamName="sdb2.s0",
             eventType="WINDOW_CLOSE",
             tableName="res_ct0",
-            windowStart=1735660800000,
-            windowEnd=1735660804000)
+            windowStart=1735660806000,
+            windowEnd=1735660810000)
             
             expect_rows(os.path.join(NOTIFY_RESULT_DIR, "basic2_s0.log"),
             rows=1,
@@ -2371,17 +2380,18 @@ class TestStreamNotifyTrigger:
             single_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_single.log")
             events = _wait_notify_events(single_log, 2)
             actual = [_subevent_key(e) for e in events[:2]]
+            # A single sub-event keeps the envelope identity until a second child opens.
             expected = [
-                ("WINDOW_OPEN", "0", 1735660800000),
-                ("WINDOW_CLOSE", "0", 1735660800000),
+                ("WINDOW_OPEN", "", 1735660800000),
+                ("WINDOW_CLOSE", "", 1735660800000),
             ]
             assert actual == expected, events
             assert len(events) == 2, events
             _assert_condition_path_payload(events)
-            parent_trigger_id = events[0].get("parentTriggerId", [None])[0]
-            assert parent_trigger_id, events
-            assert all(e.get("parentTriggerId") == [parent_trigger_id] for e in events[:2]), events
-            assert all(e.get("triggerId") != parent_trigger_id for e in events[:2]), events
+            trigger_id = events[0].get("triggerId")
+            assert trigger_id, events
+            assert all(e.get("parentTriggerId") == [] for e in events), events
+            assert all(e.get("triggerId") == trigger_id for e in events), events
 
             order_log = os.path.join(NOTIFY_RESULT_DIR, "basic18_order.log")
             _wait_notify_events(order_log, 1)
