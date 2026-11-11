@@ -20741,7 +20741,14 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
 
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
 
-  TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->name));
+  // pReq->name is used as a C string by the apply path (metaCheckCreateSuperTableReq() calls
+  // strlen() on it), so the wire payload must carry its NUL terminator; otherwise that walk
+  // runs past the end of the RPC buffer (CWE-125). This decoder also serves ALTER STB.
+  uint32_t nameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAndLen(pCoder, &pReq->name, &nameLen));
+  if (nameLen == 0 || pReq->name[nameLen] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->suid));
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, &pReq->rollup));
   TAOS_CHECK_EXIT(tDecodeSSchemaWrapperEx(pCoder, &pReq->schemaRow));
@@ -21444,7 +21451,14 @@ int32_t tEncodeSVDropStbReq(SEncoder *pCoder, const SVDropStbReq *pReq) {
 
 int32_t tDecodeSVDropStbReq(SDecoder *pCoder, SVDropStbReq *pReq) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
-  TAOS_CHECK_RETURN(tDecodeCStr(pCoder, &pReq->name));
+  // pReq->name is used as a C string by the apply path (metaCheckDropSuperTableReq() calls
+  // strlen() on it), so the wire payload must carry its NUL terminator; otherwise that walk
+  // runs past the end of the RPC buffer (CWE-125).
+  uint32_t nameLen = 0;
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pCoder, &pReq->name, &nameLen));
+  if (nameLen == 0 || pReq->name[nameLen] != '\0') {
+    TAOS_CHECK_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_RETURN(tDecodeI64(pCoder, &pReq->suid));
   // batch-meta-txn: txnId (backward compatible)
   if (!tDecodeIsEnd(pCoder)) {
