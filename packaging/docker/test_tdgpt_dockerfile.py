@@ -62,6 +62,15 @@ def test_lite_requirements_include_http_client():
     assert "requests==2.33" in text
 
 
+def test_base_images_validate_all_five_pyod_algorithms():
+    for dockerfile in (DOCKERFILE, LITE_DOCKERFILE):
+        text = dockerfile.read_text(encoding="utf-8")
+        requirements_install = text.index("-r /tmp/requirements_docker.txt")
+        imports = "from pyod.models.copod import COPOD; from pyod.models.ecod import ECOD; from pyod.models.hbos import HBOS; from pyod.models.iforest import IForest; from pyod.models.pca import PCA"
+        validation = text.index(f'python3 -B -c "{imports}"')
+        assert validation > requirements_install
+
+
 def test_lite_target_uses_the_model_free_entrypoint():
     text = IMAGE_DOCKERFILE.read_text(encoding="utf-8")
 

@@ -17,6 +17,7 @@ RUN apt-get -o Acquire::Check-Valid-Until=false -o Acquire::Check-Date=false upd
     PIP_INDEX_ARG="${PIP_INDEX_URL:+-i ${PIP_INDEX_URL}}" && \
     pip3 install --upgrade pip && \
     pip3 install --no-cache-dir -r /tmp/requirements_docker.txt ${PIP_INDEX_ARG} && \
+    python3 -B -c "from pyod.models.copod import COPOD; from pyod.models.ecod import ECOD; from pyod.models.hbos import HBOS; from pyod.models.iforest import IForest; from pyod.models.pca import PCA" && \
     python3.12 -m venv --system-site-packages /var/lib/taos/taosanode/venv && \
     (find /usr/local/lib/python3.12 -depth -type d \( -name '__pycache__' -o \( \( -iname 'test' -o -iname 'tests' \) ! -path '*/include/*' \) \) -exec rm -rf {} + 2>/dev/null || true) && \
     python3.12 -B -c "import numpy, pandas, scipy, statsmodels, flask; import Cython, setuptools, wheel" && \
