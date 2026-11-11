@@ -10638,10 +10638,12 @@ TEST_F(MndStreamExtReaderSchemaTest, RejectsQuotedBindingLikeMain) {
   EXPECT_EQ(nullptr, spec_);
 }
 
-// The same table with the plain spelling binds the column the fold selects, and
-// the mapping dedup uses that same resolution, so no other column can be merged
-// in.  VAL is listed before "val", so VAL wins - as it does in a SELECT.
-TEST_F(MndStreamExtReaderSchemaTest, BindsPlainSpellingByFold) {
+// The reader binding resolves a reference exactly as the DDL and the stored filter do: an exact
+// spelling anywhere in the catalog wins over the provider fold.  VAL is listed before "val", so a
+// folding-first lookup bound VAL while the DDL had already accepted the reference for the
+// lower-case column - the reader then fetched a different column of the same type, which no type
+// check can detect.
+TEST_F(MndStreamExtReaderSchemaTest, BindsExactSpellingOverFoldedSibling) {
   source_.type = EXT_SOURCE_ORACLE;
   req_.sourceType = EXT_SOURCE_ORACLE;
   tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
@@ -10663,14 +10665,14 @@ TEST_F(MndStreamExtReaderSchemaTest, BindsPlainSpellingByFold) {
 
   ASSERT_EQ(TSDB_CODE_SUCCESS, build());
   ASSERT_NE(nullptr, spec_);
-  bool foundUpper = false;
+  bool foundLower = false;
   for (int32_t i = 0; i < spec_->numCalcMappings; ++i) {
-    if (strcmp(spec_->pCalcMappings[i].colName, "VAL") == 0) {
-      foundUpper = true;
+    if (strcmp(spec_->pCalcMappings[i].colName, "val") == 0) {
+      foundLower = true;
     }
-    EXPECT_STRNE(spec_->pCalcMappings[i].colName, "val");
+    EXPECT_STRNE(spec_->pCalcMappings[i].colName, "VAL");
   }
-  EXPECT_TRUE(foundUpper);
+  EXPECT_TRUE(foundLower);
 }
 
 // Mapping slots are matched by the resolved spelling, not by the provider's fold rule: an Oracle

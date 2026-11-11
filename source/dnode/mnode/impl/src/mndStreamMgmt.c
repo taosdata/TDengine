@@ -6446,21 +6446,6 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
   return code;
 }
 
-/*
- * Column-name comparison for external column references.  Delegates to qcom's
- * extColumnNameEqual(), the single source of truth the parser and the stream
- * readers also use, so a reference accepted by DDL resolves to the same external
- * column when the reader bindings are built: a PostgreSQL table holding both
- * "Value" and value would otherwise map the lowercase reference onto "Value"
- * and silently produce a mapping with a different TDengine type.  This function is only for
- * resolving a reference against catalog spellings; the mapping slots are deduped by exact
- * identity instead, because both sides there are already resolved names (see
- * msmBuildExtOrigTblReaderSpec()).
- */
-static bool msmExtColumnNameEqual(int8_t sourceType, const char *schemaName, const char *bindingName) {
-  return extColumnNameEqual((EExtSourceType)sourceType, schemaName, bindingName);
-}
-
 int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
                                      const SStreamExtOrigTblReaderReq *pReq,
                                      const SExtTableMeta *pMeta,
@@ -6614,15 +6599,14 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   for (int32_t i = 0; i < bindingNum; ++i) {
     const SStreamExtOrigTblReaderBinding *pBinding = taosArrayGet(pReq->bindings, i);
     SStreamExtOrigTblReaderResult result = {.binding = *pBinding, .code = TSDB_CODE_SUCCESS};
-    const SExtColumnDef *pCol = NULL;
-    int32_t              matchedColIdx = -1;
-    for (int32_t j = 0; j < pMeta->numOfCols; ++j) {
-      if (msmExtColumnNameEqual(sourceType, pMeta->pCols[j].colName, pBinding->externalColumn)) {
-        pCol = pMeta->pCols + j;
-        matchedColIdx = j;
-        break;
-      }
-    }
+    // extFindColumnIndex() is the rule the parser and the stored filter resolve references with:
+    // the exact spelling wins across the catalog and only a reference without an exact candidate
+    // falls back to the provider fold.  Folding first would rebind a reference the DDL accepted
+    // for a lower-case column to an upper-case sibling that merely comes first in the catalog, and
+    // both spellings normally share the TDengine type, so no later type check can notice.
+    int32_t              matchedColIdx =
+        extFindColumnIndex((EExtSourceType)sourceType, pMeta, pBinding->externalColumn);
+    const SExtColumnDef *pCol = matchedColIdx >= 0 ? pMeta->pCols + matchedColIdx : NULL;
     // A virtual column may legitimately reference the external table's timestamp column: the
     // source timestamp already occupies mapping slot 0 (see the trigger/calc mapping pre-fill
     // above), so such a binding has to resolve to slot 0 instead of being rejected as an unmapped

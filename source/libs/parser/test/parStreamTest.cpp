@@ -14857,6 +14857,454 @@ TEST_F(ParserStreamTest, OracleNanoPrefilterKeepsSubMicrosecondDigits) {
 #endif
 }
 
+// PRE_FILTER(NOT(v > 7)) is a unary logic node.  The renderer used to take every
+// non-AND logic node as n-ary OR, which emitted no operator for the single
+// operand: the pushed predicate became (v > 7) and the trigger row set was
+// inverted.  A direct external trigger has no local PRE_FILTER to compensate, so
+// the operand has to be negated in the rendered SQL.
+TEST_F(ParserStreamTest, PrefilterRendersNotAsUnary) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  registerExtMysqlEvents();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      EXPECT_NE(rendered.find("(NOT "), std::string::npos) << rendered;
+      EXPECT_NE(rendered.find("v > 7"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_not interval(1s) sliding(1s) "
+               "from ext_mysql.events "
+               "stream_options(pre_filter(NOT(v > 7))) "
+               "into stream_outdb.stream_out as select ts, v from ext_mysql.events");
+#endif
+}
+
+// A reference has to bind to the column the validated statement bound it to.
+// That binding is findAndSetRealTableColumn(): the first entry of the synthetic
+// schema (the primary timestamp is normalized to the front) whose provider
+// comparison folds onto the reference.  Here the naive primary "ts" is stored
+// second and moves to the front, so it wins over the aware "TS" sibling;
+// rendering the exact-spelling "TS" instead would take its UTC basis while every
+// predicate the statement itself evaluates follows the stream timezone.
+TEST_F(ParserStreamTest, ExtPrefilterBindsExactColumnOverFoldedSibling) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  // Catalog (physical) order: the aware sibling first, the naive primary second.
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, false, false, false, "TIMESTAMP(6) WITH TIME ZONE"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
+                                        "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "case_siblings", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // The naive primary column follows the stream timezone, so the bound is
+      // rendered there; the aware sibling would print the UTC wall clock.
+      EXPECT_NE(rendered.find("\"ts\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"), std::string::npos)
+          << rendered;
+      EXPECT_EQ(rendered.find("\"TS\""), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_case interval(1s) sliding(1s) "
+               "from ext_oracle.case_siblings "
+               "stream_options(config(timezone = 'Asia/Shanghai') | "
+               "pre_filter(ts >= 1767225600000000)) "
+               "into stream_outdb.stream_out as select ts, v from ext_oracle.case_siblings");
+#endif
+}
+
+// The rendered trigger PRE_FILTER must name the column the validated predicate
+// bound.  The renderer used to prefer an exact spelling anywhere in the catalog,
+// which is not the rule findAndSetRealTableColumn() applies while the CREATE
+// STREAM is validated: among candidates the provider comparison folds onto the
+// reference it takes the first one in catalog order.  A table holding both VAL
+// and a quoted "val" therefore validated an unquoted `val` reference as VAL while
+// the pushed predicate named "val" - two independently valued columns, so the
+// remote fetch dropped exactly the rows the validated expression keeps, and a
+// direct external trigger has no local PRE_FILTER to recover them.
+TEST_F(ParserStreamTest, ExtPrefilterRendersValidatedColumnIdentity) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  ProcessTimezoneGuard tzGuard("UTC");
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  // Catalog order: primary timestamp, then VAL, its quoted lower-case sibling
+  // and V.  An unquoted `val` folds onto the first candidate, VAL.
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"VAL", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"val", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
+                                        "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "sibling_case", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // The bound columns, not the exact-spelling siblings.
+      EXPECT_NE(rendered.find("(\"VAL\" > \"V\")"), std::string::npos) << rendered;
+      EXPECT_EQ(rendered.find("\"val\""), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_identity interval(1s) sliding(1s) "
+               "from ext_oracle.sibling_case "
+               "stream_options(pre_filter(val > v)) "
+               "into stream_outdb.stream_out as select ts, val from ext_oracle.sibling_case");
+#endif
+}
+
+// MySQL reads a backslash in a string literal as an escape character unless the
+// session runs with NO_BACKSLASH_ESCAPES, and the connector can neither observe
+// nor set that mode.  A quoted literal therefore cannot be right in both modes, so
+// a value holding a backslash has to be pushed in an escape-mode independent
+// form; _utf8mb4 X'..' is still an ordinary literal, so the column collation keeps
+// deciding the comparison.
+TEST_F(ParserStreamTest, MysqlPrefilterRendersBackslashValueEscapingIndependent) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(32)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser", "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped", cols, TSDB_TIME_PRECISION_MILLI);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // 'a\b' -> 61 5C 62
+      EXPECT_NE(rendered.find("_utf8mb4 X'615C62'"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_bs interval(1s) sliding(1s) "
+               "from ext_mysql.escaped "
+               // TDengine unescapes the literal, so 'a\\b' reaches the renderer as
+               // the three bytes a, backslash, b.
+               "stream_options(pre_filter(s = 'a\\\\b')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped");
+#endif
+}
+
+// The introducer of a hexadecimal literal declares the character set its bytes are
+// read in, and MySQL then converts that text for the comparison exactly as it does
+// for a quoted literal on the same connection.  Declaring the *session* charset is
+// what keeps the two forms equivalent; picking the label from the bytes themselves
+// would reinterpret them whenever the source is not configured for UTF-8.  Here the
+// source sets charset=latin1, so a value whose bytes happen to be valid UTF-8 is
+// still read as latin1: 0xC3 0xA9 is the two latin1 characters "Ã©", not U+00E9.
+TEST_F(ParserStreamTest, MysqlPrefilterDeclaresSourceCharset) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(32)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser",
+                                        "mydb", "", "{\"charset\":\"latin1\"}");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped_latin1", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    checked = true;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request),
+              0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // C3 A9, backslash, 'b'
+      EXPECT_NE(rendered.find("_latin1 X'C3A95C62'"), std::string::npos) << rendered;
+      EXPECT_EQ(rendered.find("_utf8mb4"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_latin1 interval(1s) sliding(1s) "
+               "from ext_mysql.escaped_latin1 "
+               "stream_options(pre_filter(s = '\xC3"
+               "\xA9"
+               "\\\\b')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped_latin1");
+  // A rejected statement would skip the callback above and assert nothing.
+  EXPECT_TRUE(checked) << "the DDL check never rendered the trigger prefilter";
+#endif
+}
+
+// Without the charset OPTIONS key the connector uses its default session charset
+// (utf8mb4), so that is the charset a hexadecimal literal has to declare.  The bytes
+// are never inspected: 0xE9 is not valid UTF-8, and the label still names the
+// connection charset, because MySQL would reject those same bytes in the quoted form
+// too - which is what keeps the escape-mode independent form equivalent.
+TEST_F(ParserStreamTest, MysqlPrefilterUsesDefaultSessionCharset) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(32)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser",
+                                        "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped_default", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    checked = true;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request),
+              0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // E9, backslash, 'b'
+      EXPECT_NE(rendered.find("_utf8mb4 X'E95C62'"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_default interval(1s) sliding(1s) "
+               "from ext_mysql.escaped_default "
+               "stream_options(pre_filter(s = '\xE9"
+               "\\\\b')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped_default");
+  // A rejected statement would skip the callback above and assert nothing.
+  EXPECT_TRUE(checked) << "the DDL check never rendered the trigger prefilter";
+#endif
+}
+
+// The connector reads the OPTIONS with a case-sensitive lookup, so a key persisted with a
+// non-lowercase spelling (OPTIONS('CHARSET'='latin1')) is not applied by the connector, which
+// keeps its default utf8mb4 session.  The renderer has to resolve the key the same way, or its
+// introducer would name a charset the session does not use and silently compare different text.
+TEST_F(ParserStreamTest, MysqlPrefilterFallsBackToDefaultCharsetForNonLowercaseKey) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(32)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser",
+                                        "mydb", "", "{\"CHARSET\":\"latin1\"}");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped_upper_charset", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    checked = true;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request),
+              0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      // C3 A9, backslash, 'b': the uppercase key is not applied by the connector, so the
+      // session stays utf8mb4 and the introducer must say utf8mb4, never latin1.
+      EXPECT_NE(rendered.find("_utf8mb4 X'C3A95C62'"), std::string::npos) << rendered;
+      EXPECT_EQ(rendered.find("_latin1"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_upper_charset interval(1s) sliding(1s) "
+               "from ext_mysql.escaped_upper_charset "
+               "stream_options(pre_filter(s = '\xC3"
+               "\xA9"
+               "\\\\b')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped_upper_charset");
+  // A rejected statement would skip the callback above and assert nothing.
+  EXPECT_TRUE(checked) << "the DDL check never rendered the trigger prefilter";
+#endif
+}
+
+// The hexadecimal form doubles the value, and the reader then builds its own clause out of
+// it.  A value that used to fit must keep working across that boundary, so a legal long value
+// is checked to stay inside the parser's 4096-byte prefilter buffer - the reader sizes its
+// clause and statement buffers off the same limit.
+TEST_F(ParserStreamTest, MysqlPrefilterKeepsLongBackslashValueHexadecimal) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(4000)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser",
+                                        "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped_long", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  // 600 bytes, one of them a backslash: a value a legal VARCHAR(600) column can hold.  The
+  // SQL text has to spell the backslash twice because the tokenizer unescapes it.
+  std::string value(598, 'a');
+  value += "\\\\";
+  value += 'b';
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    checked = true;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request),
+              0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      EXPECT_NE(rendered.find("_utf8mb4 X'"), std::string::npos) << rendered.substr(0, 64);
+      // The backslash and the 'b' that follows it are the last bytes of the literal.
+      EXPECT_NE(rendered.find("5C62'"), std::string::npos) << rendered.substr(rendered.size() - 32);
+      // 600 bytes double to 1200 hex digits and still leave room in the 4096-byte buffer.
+      EXPECT_GT(rendered.size(), 1200u) << rendered.size();
+      EXPECT_LT(rendered.size(), 4096u) << rendered.size();
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_long interval(1s) sliding(1s) "
+               "from ext_mysql.escaped_long "
+               "stream_options(pre_filter(s = '" + value + "')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped_long");
+  // A rejected statement would skip the callback above and assert nothing.
+  EXPECT_TRUE(checked) << "the DDL check never rendered the trigger prefilter";
+#endif
+}
+
+// A value whose doubled form does not fit the prefilter buffer keeps the quoted spelling it
+// had before, rather than being rejected: the statement the user already had stays valid.
+TEST_F(ParserStreamTest, MysqlPrefilterFallsBackToQuotedSpellingWhenHexDoesNotFit) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "datetime(3)"});
+  cols.push_back({"s", TSDB_DATA_TYPE_VARCHAR, false, true, false, "varchar(4000)"});
+  g_mockCatalogService->createExtSource("ext_mysql", EXT_SOURCE_MYSQL, "127.0.0.1", 3306, "myuser",
+                                        "mydb");
+  g_mockCatalogService->createExtTable("ext_mysql", "", "", "escaped_huge", cols,
+                                       TSDB_TIME_PRECISION_MILLI);
+  // 2102 bytes: the hexadecimal form would need over 4200 digits, past the 4096-byte buffer.
+  std::string value(2100, 'a');
+  value += "\\\\";
+  value += 'b';
+  bool checked = false;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    checked = true;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request),
+              0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      EXPECT_EQ(rendered.find("X'"), std::string::npos) << rendered.substr(0, 64);
+      // The quoted form escapes the backslash by doubling it.
+      EXPECT_NE(rendered.find("\\\\b'"), std::string::npos)
+          << rendered.substr(rendered.size() - 32);
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_huge interval(1s) sliding(1s) "
+               "from ext_mysql.escaped_huge "
+               "stream_options(pre_filter(s = '" + value + "')) "
+               "into stream_outdb.stream_out as select ts, s from ext_mysql.escaped_huge");
+  // A rejected statement would skip the callback above and assert nothing.
+  EXPECT_TRUE(checked) << "the DDL check never rendered the trigger prefilter";
+#endif
+}
+
+// Oracle and SQL Server have no boolean literal.  A PRE_FILTER(FLAG = true) on an
+// Oracle NUMBER(1,0) column passes TDengine's type check, so the rendered SQL has
+// to use the numeric form the column actually holds instead of pushing "true" and
+// leaving the reader with a query the source cannot execute.
+TEST_F(ParserStreamTest, OraclePrefilterRendersBoolAsNumber) {
+#ifndef TD_ENTERPRISE
+  GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
+#else
+  useDb("root", "stream_streamdb");
+  FederatedFlagGuard guard(true);
+  std::vector<MockCatalogService::MockExtColDef> cols;
+  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"FLAG", TSDB_DATA_TYPE_TINYINT, false, true, false, "NUMBER(1,0)"});
+  g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
+                                        "ORCL", "TAOSDATA");
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "flag_tbl", cols,
+                                       TSDB_TIME_PRECISION_MICRO);
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq request = {};
+    ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
+    ASSERT_EQ(request.numOfExtSpecs, 1);
+    auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
+    ASSERT_NE(spec->triggerPrefilter, nullptr);
+    if (spec->triggerPrefilter != nullptr) {
+      std::string rendered(spec->triggerPrefilter);
+      EXPECT_NE(rendered.find("= 1"), std::string::npos) << rendered;
+      EXPECT_EQ(rendered.find("true"), std::string::npos) << rendered;
+    }
+    tFreeSCMCreateStreamReq(&request);
+  });
+  runAsyncOnly("create stream stream_streamdb.s_pf_bool interval(1s) sliding(1s) "
+               "from ext_oracle.flag_tbl "
+               "stream_options(pre_filter(FLAG = true)) "
+               "into stream_outdb.stream_out as select ts, flag from ext_oracle.flag_tbl");
+#endif
+}
+
 // A quoted Oracle table reaches the parser with the double quotes still inside
 // the remote table name.  The stream reader quotes identifiers itself, so the
 // built trigger spec must carry the bare exact spelling instead of the quoted
@@ -15499,12 +15947,17 @@ TEST_F(ParserStreamTest, OraclePrefilterQuotedReferenceIsRejected) {
 }
 
 // Oracle can hold both VAL and a quoted "val" in one table.  The trigger
-// PRE_FILTER resolves its column with the same lookup as a query - the provider
-// comparison applied candidate by candidate in catalog order, with no
-// representation-quote interpretation - so this fixture, which lists VAL first,
-// binds VAL; a SELECT of the same name binds VAL too.  A reference that keeps its
-// Oracle quotes resolves nothing, exactly as on the query path.
-TEST_F(ParserStreamTest, OraclePrefilterBindsLikeQueryBinding) {
+// PRE_FILTER has to render the column the CREATE STREAM actually bound, and that
+// binding is findAndSetRealTableColumn(): the first catalog entry the provider
+// comparison folds onto the reference - the same rule a plain `SELECT val` uses
+// (ParserSelectDdlTest.oracleQueryBindingKeepsMainRules), not the whole-catalog
+// exact-spelling pass of the already-bound calc WHERE or the DDL column refs.
+// This fixture stores VAL first, so an unquoted `val` reference validates as VAL
+// (Oracle would fold it there too, while an exact-name pass would pick the
+// separate lower-case column); rendering "val" there pushed the trigger rows
+// through a column the validated statement never compared.  A reference that
+// keeps its Oracle quotes resolves nothing, exactly as before.
+TEST_F(ParserStreamTest, OraclePrefilterBindsValidatedColumnRule) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
 #else
@@ -15543,13 +15996,16 @@ TEST_F(ParserStreamTest, OraclePrefilterBindsLikeQueryBinding) {
                TSDB_CODE_PAR_INVALID_COLUMN);
 
   ASSERT_EQ(prefilters.size(), 1U);
-  // VAL is TIMESTAMP(6) but the literal carries nine fractional digits: the bound
-  // is rendered at the table transport precision, set to NANO by the TIMESTAMP(9)
-  // column of this fixture (DS 5.3.7).
+  // The reference validates as VAL (the first folded candidate), so the pushed
+  // predicate names VAL; the lower-case sibling the exact-spelling pass would
+  // have picked is a different column the statement never reads.  The literal
+  // keeps nine fractional digits because the table transport precision is NANO,
+  // not because of the bound column's own declared type (DS 5.3.7).
   EXPECT_NE(prefilters[0].find(
                 "\"VAL\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
             std::string::npos)
       << prefilters[0];
+  EXPECT_EQ(prefilters[0].find("\"val\""), std::string::npos) << prefilters[0];
 #endif
 }
 

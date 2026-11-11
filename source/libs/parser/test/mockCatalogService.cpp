@@ -892,7 +892,8 @@ class MockCatalogServiceImpl {
 
  public:
   void createExtSource(const string& sourceName, int8_t sourceType, const string& host, int32_t port,
-                       const string& user, const string& database, const string& schemaName = "") {
+                       const string& user, const string& database, const string& schemaName = "",
+                       const string& options = "") {
     auto info = std::make_shared<SExtSourceInfo>();
     memset(info.get(), 0, sizeof(SExtSourceInfo));
     tstrncpy(info->source_name, sourceName.c_str(), TSDB_EXT_SOURCE_NAME_LEN);
@@ -902,6 +903,7 @@ class MockCatalogServiceImpl {
     tstrncpy(info->user, user.c_str(), TSDB_EXT_SOURCE_USER_LEN);
     tstrncpy(info->database, database.c_str(), TSDB_EXT_SOURCE_DATABASE_LEN);
     tstrncpy(info->schema_name, schemaName.c_str(), TSDB_EXT_SOURCE_SCHEMA_LEN);
+    tstrncpy(info->options, options.c_str(), TSDB_EXT_SOURCE_OPTIONS_LEN);
     info->meta_version = 1;
     info->create_time = 0;
     // Keep parser-test ext capabilities aligned with production defaults.
@@ -1072,8 +1074,8 @@ void MockCatalogService::createDnode(int32_t dnodeId, const string& host, int16_
 
 void MockCatalogService::createExtSource(const string& sourceName, int8_t sourceType, const string& host,
                                          int32_t port, const string& user, const string& database,
-                                         const string& schemaName) {
-  impl_->createExtSource(sourceName, sourceType, host, port, user, database, schemaName);
+                                         const string& schemaName, const string& options) {
+  impl_->createExtSource(sourceName, sourceType, host, port, user, database, schemaName, options);
 }
 
 void MockCatalogService::createExtTable(const string& sourceName, const string& mid0, const string& mid1,

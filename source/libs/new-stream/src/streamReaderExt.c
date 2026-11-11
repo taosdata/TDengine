@@ -69,8 +69,8 @@
  * need the largest buffer; fixed-shape and single-uid queries have smaller
  * bounded inputs. */
 #define EXT_SCHEMA_SQL_BUF_LEN  512
-#define EXT_SIMPLE_SQL_BUF_LEN  (1024 * 2)
-#define EXT_CALC_SQL_BUF_LEN    4096
+#define EXT_SIMPLE_SQL_BUF_LEN  (EXT_SQL_PREFILTER_BUF_LEN + 1024 * 2)
+#define EXT_CALC_SQL_BUF_LEN    (EXT_SQL_PREFILTER_BUF_LEN + 4096)
 #define EXT_DATA_SQL_BUF_LEN    (4096 * 2)
 #define EXT_BATCH_SQL_BUF_LEN   (4096 * 4)
 
@@ -86,6 +86,19 @@
  * prefilter condition or a SELECT column list) before it is spliced into a
  * full statement in one of the statement-shape buffers above. */
 #define EXT_SQL_CLAUSE_BUF_LEN 1024
+
+/* Buffer for a prefilter clause, i.e. the stored prefilter wrapped as
+ * "(<prefilter>) AND ".
+ *
+ * The parser renders a PRE_FILTER into a 4096-byte buffer and fails the
+ * statement rather than truncating, so a stored prefilter can be up to 4095
+ * bytes - well past EXT_SQL_CLAUSE_BUF_LEN.  The MySQL hexadecimal form of a
+ * string holding a backslash is twice as long as the value, which is how a
+ * prefilter that used to fit can grow past a clause-sized buffer; building it
+ * there returns OUT_OF_RANGE and leaves the reader FAILED on its first
+ * watermark read, so a stream that used to run would break at startup.  The
+ * statement buffers above are sized off this one for the same reason. */
+#define EXT_SQL_PREFILTER_BUF_LEN (4096 + 16)
 
 /* A quoted identifier is at most quote + ident + escaped-quote pairs + quote + NUL; the largest
  * identifier spliced into generated SQL is a table name. */
@@ -2682,7 +2695,7 @@ static int32_t handleLastTsPullRelational(SStreamExtReaderInfo *pInfo,
   int32_t            code  = TSDB_CODE_SUCCESS;
 
   char sqlBuf[EXT_SIMPLE_SQL_BUF_LEN] = {0};
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE. */
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) return code;
@@ -3020,7 +3033,7 @@ static int32_t handleMetaPullRelational(SStreamExtReaderInfo *pInfo,
   int32_t totalFetched = 0;
   SSDataBlock *pBlock = NULL;
   SExtColTypeMapping metaMappings[4] = {0};
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   char tblRef[EXT_TBL_REF_BUF_LEN] = {0};
   // Quote the timestamp column for the source dialect; the mapping keeps the raw name so the
   // connector can match result columns.
@@ -3500,7 +3513,7 @@ static int32_t handleMetaPullInflux(SStreamExtReaderInfo *pInfo,
 
   /* Trigger reader uses PRE_FILTER (triggerPrefilter), not the calc WHERE.
    * Build once; invariant across all uid batches. */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) goto _done;
 
@@ -3634,7 +3647,7 @@ static int32_t handleLastTsPullInflux(SStreamExtReaderInfo *pInfo,
   int32_t batchIdx = 0;
   int32_t nCols = 0;
   SExtColTypeMapping *pMappings = NULL;
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
 
   code = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {
@@ -4606,7 +4619,7 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
   }
 
   /* Trigger data path: use PRE_FILTER (triggerPrefilter). */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   int32_t pfCode = buildTriggerPrefilterClause(&pInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (pfCode < 0) {
     code = pfCode;
@@ -4755,7 +4768,7 @@ static int32_t handleCalcDataPull(SStreamExtReaderInfo *pInfo,
   int32_t nMappings = 0;
   SArray *pUidBlocks = NULL;
   char colList[EXT_SQL_CLAUSE_BUF_LEN] = {0};
-  char calcPrefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char calcPrefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   const SExtColTypeMapping *pMappings = NULL;
 
   ST_TASK_DLOG("ext: handleCalcDataPull enter source=%s calcCols=%d",
@@ -5473,7 +5486,7 @@ int32_t streamReaderExtFetchData(SStreamExtReaderInfo *pReaderInfo,
 
   /* streamReaderExtFetchData fetches pure calc data for aggregation;
    * apply calc WHERE prefilter (prefilter) only  -  not PRE_FILTER. */
-  char prefilterBuf[EXT_SQL_CLAUSE_BUF_LEN] = {0};
+  char prefilterBuf[EXT_SQL_PREFILTER_BUF_LEN] = {0};
   code = buildPrefilterClause(&pReaderInfo->spec, prefilterBuf, sizeof(prefilterBuf));
   if (code < 0) {
     goto _exit;

@@ -1489,6 +1489,29 @@ bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
   return strcmp(storedName, normalizedName) == 0;
 }
 
+int32_t extFindColumnIndex(EExtSourceType srcType, const SExtTableMeta *pMeta,
+                           const char *colName) {
+  if (pMeta == NULL || pMeta->pCols == NULL || colName == NULL) {
+    return -1;
+  }
+  /* An exact hit anywhere in the catalog beats a folded one earlier in it: the
+   * fold is only a convention about how the remote parses an unquoted name, so
+   * it must never merge two columns the catalog holds separately.  For MySQL,
+   * SQL Server, PostgreSQL and InfluxDB the exact pass is a subset of the fold
+   * pass and only decides which of several equally valid candidates is used. */
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (0 == strcmp(pMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (extColumnNameEqual(srcType, pMeta->pCols[i].colName, colName)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 void extCopyRemoteTableSpelling(const char *spelling, char *out, int32_t outLen) {
   if (spelling == NULL || out == NULL || outLen <= 0) {
     if (out != NULL && outLen > 0) {

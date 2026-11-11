@@ -609,6 +609,33 @@ TEST_F(ExternalCalcReaderDeployTest, PreservesCaseSensitiveTimestampColumnIdenti
   }
 }
 
+/* Oracle folds an unquoted reference to upper case, so one table can hold both
+ * TS and a quoted "ts".  The hints keep the catalog order, so a folding-first
+ * lookup took the class of TS (stored first) and rendered the naive primary
+ * column's fetch bounds in the aware column's UTC basis - the META/DATA windows
+ * then disagreed with the column the reader actually decodes.  The exact spelling
+ * has to win, as it does in DDL validation and in the prefilter. */
+TEST_F(ExternalCalcReaderDeployTest, ResolvesCaseSiblingTimestampHintByExactSpelling) {
+  auto *scan = reinterpret_cast<SFederatedScanPhysiNode *>(gExternalReaderPlan);
+  scan->sourceType = EXT_SOURCE_ORACLE;
+  tstrncpy(scan->timezone, "Asia/Shanghai", sizeof(scan->timezone));
+  tstrncpy(spec.tsColumn, "ts", sizeof(spec.tsColumn));
+  scan->pTimestampTypeHints = static_cast<SExtTimestampTypeHint *>(
+      taosMemoryCalloc(2, sizeof(SExtTimestampTypeHint)));
+  ASSERT_NE(scan->pTimestampTypeHints, nullptr);
+  scan->numTimestampTypeHints = 2;
+  tstrncpy(scan->pTimestampTypeHints[0].colName, "TS", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[0].tzClass = EXT_TIMESTAMP_TZ_CLASS_AWARE;
+  tstrncpy(scan->pTimestampTypeHints[1].colName, "ts", TSDB_COL_NAME_LEN);
+  scan->pTimestampTypeHints[1].tzClass = EXT_TIMESTAMP_TZ_CLASS_NAIVE;
+  ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
+  auto *readers = static_cast<SArray *>(task.info);
+  for (int32_t i = 0; i < message.msg.calc.execReplica; ++i) {
+    auto *reader = static_cast<ExternalCalcReaderStub *>(taosArrayGetP(readers, i));
+    EXPECT_EQ(reader->tsTzClass, EXT_TIMESTAMP_TZ_CLASS_NAIVE);
+  }
+}
+
 /* The CALC reader overrides its table identity with the name carried in the
  * deploy message.  MySQL reports the raw INFORMATION_SCHEMA name there, which may
  * legitimately contain literal double quotes - a table named "metrics" is

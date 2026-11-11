@@ -119,6 +119,8 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
 
         Jira: None
 
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7132783339
+
         History:
             - 2026-11-02 Wang Mingming Add Oracle TIMESTAMP(9) trigger coverage.
             - 2026-11-05 Wang Mingming Wait for the history watermark before the
@@ -216,6 +218,8 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
         Labels: common,ci
 
         Jira: None
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7132783339
 
         History:
             - 2026-11-05 Wang Mingming Cover non-key TIMESTAMP(9) projection

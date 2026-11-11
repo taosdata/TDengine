@@ -2052,9 +2052,14 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
  * and timezone-aware ones (MySQL TIMESTAMP, PG timestamptz) with the server
  * timezone.  The remote fetch/metadata bounds must be rendered with the same
  * timezone as the decode, so the reader needs the class of the ts column.
- * The hint is matched with extColumnNameEqual() -- the same fold the parser and
- * mnode use -- so a column referenced in a different case still finds its hint
- * instead of silently falling back to the spec lookup.
+ * The hint is resolved with the rule the parser and mnode use for the same
+ * reference: the exact spelling wins across the whole hint list, and only a
+ * column without an exact hint falls back to the provider fold
+ * (extColumnNameEqual()).  The hints keep the catalog order, so folding first
+ * would take the class of a case-sibling column stored earlier - a table
+ * holding TS and a quoted "ts" would render the naive primary column's bounds in
+ * the aware column's UTC basis.  A column referenced in a different case still
+ * finds its hint through the fallback pass.
  * Returns EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the plan carries no hint.
  * --------------------------------------------------------------------------- */
 static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
@@ -2065,13 +2070,17 @@ static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
   }
 
   EExtSourceType srcType = (EExtSourceType)pFedScan->sourceType;
-  for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
-    const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
-    if (extColumnNameEqual(srcType, hintName, tsColumn)) {
-      stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
-              (int)pFedScan->sourceType, tsColumn,
-              (int)pFedScan->pTimestampTypeHints[i].tzClass);
-      return pFedScan->pTimestampTypeHints[i].tzClass;
+  for (int32_t pass = 0; pass < 2; ++pass) {
+    for (int32_t i = 0; i < pFedScan->numTimestampTypeHints; ++i) {
+      const char *hintName = pFedScan->pTimestampTypeHints[i].colName;
+      bool matched = (pass == 0) ? (0 == strcmp(hintName, tsColumn))
+                                 : extColumnNameEqual(srcType, hintName, tsColumn);
+      if (matched) {
+        stDebug("ext: resolved timestamp class sourceType:%d column:%s class:%d",
+                (int)pFedScan->sourceType, tsColumn,
+                (int)pFedScan->pTimestampTypeHints[i].tzClass);
+        return pFedScan->pTimestampTypeHints[i].tzClass;
+      }
     }
   }
   return EXT_TIMESTAMP_TZ_CLASS_UNKNOWN;
