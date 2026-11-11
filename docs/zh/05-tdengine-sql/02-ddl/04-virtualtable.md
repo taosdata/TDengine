@@ -71,7 +71,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 
   create_definition:
      [stb_col_name FROM] column_reference
-     | owned_col_name type_name FROM column_reference
+     | owned_col_name type_name [FROM column_reference]
   tag_definition:
      tag_name
      | owned_tag_name type_name
@@ -119,7 +119,7 @@ CREATE VTABLE
 
 虚拟子表可以拥有独立于虚拟超级表的成员。语法上靠是否携带显式类型区分：
 
-- `create_definition` 中**不带类型**的 `[stb_col_name FROM] table_name.col_name` 为对齐列（既有语义，按名或按位置对齐虚拟超级表列）；**带显式类型**的 `owned_col_name type_name FROM table_name.col_name` 声明**自有列**——列名不在虚拟超级表 schema 中，且必须携带 `FROM` 数据源引用。对虚拟超级表已有的列再声明类型会报错。
+- `create_definition` 中**不带类型**的 `[stb_col_name FROM] table_name.col_name` 为对齐列（既有语义，按名或按位置对齐虚拟超级表列）；**带显式类型**的 `owned_col_name type_name [FROM table_name.col_name]` 声明**自有列**——列名不在虚拟超级表 schema 中。携带 `FROM` 时该列绑定数据源；省略 `FROM` 时声明为**未绑定**的自有列（自 `v3.4.3.10` 起支持），其状态与绑定后执行 `ALTER COLUMN ... SET NULL` 相同，之后可用 `ALTER COLUMN ... SET` 绑定。对虚拟超级表已有的列再声明类型会报错。
 - `tag_definition` 中**不带类型**的 `tag_name` 为按名绑定虚拟超级表标签（既有语义）；**带显式类型**的 `owned_tag_name type_name` 声明**自有标签**，其值在 `TAGS(...)` 中按位置给出，可为字面量、`NULL` 或标签引用。位置式标签绑定（不写标签清单）不支持声明自有标签。
 
 **示例**
@@ -137,6 +137,8 @@ CREATE VTABLE v_d1 (
 ```
 
 自有列、自有标签只存在于该虚拟子表本身：直接查询该子表时可见（`SELECT *` 的结果中自有列排在虚拟超级表列之后），查询虚拟超级表时**不可见**，虚拟超级表的 schema 不受影响。
+
+未绑定的自有列没有数据源，不提供数据，也不参与时间戳并集；与其他列一起查询时，该列取值为 `NULL`。裸声明不能携带 `WHERE` 过滤条件（`WHERE` 只能紧跟 `FROM` 引用），自有列也不能声明 `PRIMARY KEY`。
 
 **使用说明**
 
@@ -156,9 +158,10 @@ CREATE VTABLE v_d1 (
 14. 创建虚拟子表时，`TAGS (...)` 中的标签既可以使用常量值，也可以使用标签引用（语法见上方 `tag_value` 定义）。跨库时可写成 `db_name.table.tag`。
 15. 引用相关的限制和行为详见下方“当前支持的引用能力”章节。
 16. 虚拟普通表的标签（`TAGS` 子句）规则详见下方“虚拟普通表标签”章节。
-17. 自有列必须携带 `FROM` 数据源引用，不支持纯本地数据列；引用目标必须是数据列（不能是标签列），类型必须与声明一致，且不允许形成引用环。
+17. 自有列可以不携带 `FROM`，声明为未绑定状态，但不支持存储本地数据；绑定时引用目标必须是数据列（不能是标签列），类型必须与声明一致，且不允许形成引用环。
 18. 自有标签不支持 `JSON` 和 `DECIMAL` 类型；虚拟超级表仅有单个 `JSON` 标签时，不可再为虚拟子表声明自有标签。
 19. 列名与标签名共享同一个名字空间：自有列/自有标签的名称不得与虚拟超级表的列、标签及其他自有成员重名。此外，`ALTER STABLE` 为虚拟超级表引入的新列名/标签名若被任一虚拟子表的自有成员占用，该 `ALTER` 会失败。
+20. 虚拟普通表的列定义必须带类型（`name TYPE [FROM ...]`）；不带类型的 `name FROM ...` 形式仅用于虚拟子表的对齐列。
 
 ### 外部列引用条件过滤
 
@@ -654,7 +657,7 @@ alter_table_clause: {
 **使用说明**
 
 1. 对虚拟子表上来自虚拟超级表的列和标签（级联成员）的修改，需要通过虚拟超级表进行。
-2. 对虚拟子表的**自有列**和**自有标签**，可以直接在本表上执行 `ADD COLUMN`、`ADD TAG`、`SET TAG`、`DROP COLUMN`、`DROP TAG`。
+2. 对虚拟子表的**自有列**和**自有标签**，可以直接在本表上执行 `ADD COLUMN`、`ALTER COLUMN ... SET`、`ADD TAG`、`SET TAG`、`DROP COLUMN`、`DROP TAG`。
 3. `DROP COLUMN` / `DROP TAG` 仅对自有成员合法；对级联成员执行会报错，需改用 `ALTER STABLE`（会级联影响该虚拟超级表下的全部虚拟子表）。
 4. 删除自有成员后名字立即释放，可被列或标签任意一侧复用；删除自有标签时若其携带标签引用，引用关系同步清除。
 5. `MODIFY COLUMN`、`RENAME COLUMN`、`RENAME TAG` 对虚拟子表不支持；自有成员的列宽和名称不可修改，只能删除后重新创建。
@@ -708,13 +711,26 @@ ALTER VTABLE v0 SET TAG ref_city=db1.src1.city;
 ALTER VTABLE vtb_name ALTER COLUMN vtb_col_name SET {column_reference | NULL}
 ```
 
+`ALTER COLUMN ... SET` 替换列的数据源绑定，对级联列和自有列都适用。对自有列，`SET column_reference` 完成（重新）绑定，`SET NULL` 解除绑定并保留该列及其类型；解除后可以再次绑定，状态与创建时省略 `FROM` 的裸声明相同。级联列执行 `SET NULL` 只清空本表的数据源，虚拟超级表的 schema 不变。
+
+```sql
+-- 将自有列 ext_ev 改绑到另一张事件表
+ALTER VTABLE v_d1 ALTER COLUMN ext_ev SET db.ev_log_2.event;
+
+-- 解除绑定：列保留，但不再提供数据
+ALTER VTABLE v_d1 ALTER COLUMN ext_ev SET NULL;
+
+-- 重新绑定
+ALTER VTABLE v_d1 ALTER COLUMN ext_ev SET db.ev_log.event;
+```
+
 ### 增加自有列
 
 ```sql
 ALTER VTABLE vtb_name ADD COLUMN owned_col_name type_name FROM column_reference
 ```
 
-为虚拟子表追加自有列。自有列必须携带 `FROM` 数据源引用，不带引用会报错；引用目标必须是数据列，类型必须与声明一致，校验规则与创建时一致。
+为虚拟子表追加自有列。`ADD COLUMN` 追加时必须携带 `FROM` 数据源引用，不带引用会报错；如需未绑定的自有列，可以在创建虚拟子表时使用裸声明，或追加后执行 `SET NULL`。引用目标必须是数据列，类型必须与声明一致，校验规则与创建时一致。
 
 ```sql
 ALTER VTABLE v_d1 ADD COLUMN ext_v2 INT FROM p20.val;
@@ -780,7 +796,7 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 
 显示 `vtable_name` 指定的虚拟表的创建语句。支持虚拟普通表和虚拟子表。常用于数据库迁移。对一个已经存在的虚拟表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的虚拟表。
 对于使用标签引用创建的虚拟子表，返回结果会保留对应的标签引用定义。
-对于包含自有成员的虚拟子表，返回结果同样包含自有列（含其数据源引用）与自有标签（含其值或引用）的完整定义，`DECIMAL` 列输出精度标度 `DECIMAL(p,s)`；输出为单条完整可回放的 DDL。
+对于包含自有成员的虚拟子表，返回结果同样包含自有列（含其数据源引用）与自有标签（含其值或引用）的完整定义，`DECIMAL` 列输出精度标度 `DECIMAL(p,s)`；数据源已置空的自有列输出为不带 `FROM` 的 `name TYPE`，重放后保持未绑定状态；数据源为空的级联列由虚拟超级表提供 schema，不会出现在输出中。输出为单条完整可回放的 DDL。
 对于带标签的虚拟普通表，返回结果包含 `TAGS(...)` 子句：自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），标签引用输出 `FROM db_name.table_name.tag_name`，单条语句即可完整重建该虚拟表。
 
 ### 获取虚拟表结构信息
