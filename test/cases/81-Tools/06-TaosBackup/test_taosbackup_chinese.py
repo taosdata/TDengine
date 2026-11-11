@@ -950,6 +950,80 @@ class TestTaosBackupChinese:
 
         tdLog.info("do_windows_backup_cn_restore ................. [passed]")
 
+    # ───────────────────── Test: non-ASCII backup / restore paths ─────────────────────
+
+    def do_chinese_paths(self):
+        """Non-ASCII -o / -i / -c paths (backup dir, restore source, config dir).
+
+        -o/-i/-c are argv values that taosdump turns into directory names.  They
+        only round-trip on Windows when argv arrives as UTF-8 (wmain) and the
+        path helpers read it as UTF-8 (TAOS_OS_WIDE_PATH), while the client
+        library still resolves -c through the ANSI APIs and therefore needs the
+        ACP form: with the system ANSI code page (e.g. 936) the directory used
+        to be created under a mojibake name, or the config file was ignored.
+        """
+        db = "路径备份测试"
+        tmpdir = "./taosbackuptest/中文输出目录"
+        bin_ = self.binPath()
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdSql.execute(f"create database `{db}` keep 3649")
+        tdSql.execute(f"create table `{db}`.`表一`(ts timestamp, `说明` nchar(20))")
+        tdSql.execute(
+            f"insert into `{db}`.`表一` values"
+            f"(1640000000000, '路径测试数据')"
+            f"(1640000001000, '第二条记录')"
+        )
+
+        self.makeDir(tmpdir)
+        self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
+        assert os.path.isdir(os.path.join(tmpdir, db)), (
+            f"backup directory for `{db}` missing under {tmpdir}"
+        )
+
+        # ── non-ASCII -c directory ──
+        # libtaos resolves the config directory with the ANSI Win32 APIs, so
+        # taosdump must hand over the ACP form of the UTF-8 argv value; handed
+        # UTF-8 bytes, the client silently falls back to its default taos.cfg.
+        # Loading taos.cfg is observable through the client logDir it names.
+        cfg_dir = "./taosbackuptest/中文配置目录"
+        cfg_log_dir = os.path.abspath("./taosbackuptest/cfg_logdir")
+        try:
+            cfg_dir.encode("mbcs")
+        except (LookupError, UnicodeEncodeError):
+            tdLog.info("non-ASCII -c: system code page cannot represent the "
+                       "path, skipped")
+        else:
+            for path in (cfg_dir, cfg_log_dir):
+                if os.path.exists(path):
+                    shutil.rmtree(path)
+            os.makedirs(cfg_dir)
+            with open(os.path.join(cfg_dir, "taos.cfg"), "w",
+                      encoding="ascii") as f:
+                # ASCII logDir isolates the -c path encoding.
+                f.write("logDir %s\n" % cfg_log_dir.replace("\\", "/"))
+            cfg_out = "./taosbackuptest/tmpdir_cfg_cn"
+            self.makeDir(cfg_out)
+            self.execArgs([bin_, "-c", cfg_dir, "-D", db, "-o", cfg_out,
+                           "-T", "1"])
+            assert os.path.isdir(cfg_log_dir), (
+                "taos.cfg in the non-ASCII -c directory was not read "
+                f"(logDir {cfg_log_dir} was not created)")
+
+        tdSql.execute(f"drop database `{db}`")
+        assert not self.dbFound(db), f"db `{db}` should be gone before restore"
+
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
+        assert self.dbFound(db), f"db `{db}` not found after restore"
+
+        tdSql.query(f"select `说明` from `{db}`.`表一` order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "路径测试数据")
+        tdSql.checkData(1, 0, "第二条记录")
+
+        tdSql.execute(f"drop database if exists `{db}`")
+        tdLog.info("do_chinese_paths ............................ [passed]")
+
     # ──────────────────────────── entry point ────────────────────────────────
 
     def test_taosbackup_chinese(self):
@@ -970,6 +1044,10 @@ class TestTaosBackupChinese:
         8. Restore a BINARY (.dat) backup produced by a fixed Windows
            taosBackup (committed under data/windows_backup_cn/) and verify all
            Chinese / special-char identifiers + NCHAR content round-trip.
+
+        9. Non-ASCII -o / -i / -c paths: the backup directory, the restore
+           source directory and the config directory round-trip under a
+           non-UTF-8 system code page.
 
         Windows notes: taosBackup uses DB/table names as directory/file names.
         Characters illegal in Windows paths (< > : " / \\ | ? * %) are
@@ -994,6 +1072,7 @@ class TestTaosBackupChinese:
         self.do_chinese_stb()
         self.do_chinese_parquet()
         self.do_chinese_mixed_ascii()
+        self.do_chinese_paths()
         self.do_special_chars_path()
         self.do_special_chars_illegal()
         self.do_boundary()
@@ -1008,6 +1087,7 @@ class TestTaosBackupChinese:
             "db@monitor",
             "db#test",
             "db monitor",
+            "路径备份测试",
         ) + tuple(_WIN_BCK_DBS):
             tdSql.execute(f"drop database if exists `{db}`")
         os.system("rm -rf ./taosbackuptest/")
