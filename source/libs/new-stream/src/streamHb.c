@@ -145,6 +145,11 @@ _exit:
 }
 
 int32_t streamHbInit(SStreamHbInfo* pHb) {
+  if (tsDisableStream) {
+    stInfo("stream disabled");
+    return TSDB_CODE_SUCCESS;
+  }
+
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &pHb->hbTmr, "stream-hb");
   
   return TSDB_CODE_SUCCESS;

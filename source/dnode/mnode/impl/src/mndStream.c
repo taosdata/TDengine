@@ -3686,12 +3686,15 @@ int32_t mndInitStream(SMnode *pMnode) {
     (void)taosThreadMutexUnlock(&mndStreamPreflightAdmissionMutex);
     mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_UNUSED1, mndProcessCreateStreamContinuation);
-    mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_START_STREAM, mndProcessStartStreamReq);
-    mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
     mndSetMsgHandle(pMnode, TDMT_MND_STREAM_HEARTBEAT, mndProcessStreamHb);  
     mndSetMsgHandle(pMnode, TDMT_MND_RECALC_STREAM, mndProcessRecalcStreamReq);
   }
+  // STOP/DROP must stay registered even when disableStream is set: streams created before the
+  // config was turned on still need to be stopped and dropped. CREATE/START/RECALC/HB remain
+  // gated above because they are the handlers that (re)deploy stream tasks.
+  mndSetMsgHandle(pMnode, TDMT_MND_STOP_STREAM, mndProcessStopStreamReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_STREAM_CREATE_SQL, mndProcessGetStreamCreateSqlReq);
   
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STREAMS, mndRetrieveStream);

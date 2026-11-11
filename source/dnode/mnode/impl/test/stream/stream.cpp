@@ -53,6 +53,7 @@
 #include "../../inc/mndSnode.h"
 #include "../../inc/mndStb.h"
 #include "../../inc/mndStream.h"
+#include "../../../../../../include/libs/new-stream/stream.h"
 #include "../../inc/mndStreamRecalc.h"
 #include "../../inc/mndSync.h"
 #include "../../inc/mndTrans.h"
@@ -2398,6 +2399,14 @@ struct CapturedRecalcTransaction {
   std::vector<uint8_t>        callbackParam;
 };
 
+// The streamTest binary never calls streamInit(), so the production guard
+// streamMgmtInited() is permanently false here. Fixtures that model an ONLINE mnode
+// (mStreamMgmt initialized, msmHandleBecomeNotLeader() expected to tear the runtime down)
+// must stub it to true, otherwise the guard returns early and their probes never fire.
+// The offline mini-mnode tests at the bottom of this file deliberately use the real
+// implementation, which keeps the uninitialized path covered.
+bool alwaysStreamMgmtInited() { return true; }
+
 std::atomic<bool> *gRuntimeDestroyEntered = nullptr;
 
 void captureRuntimeDestroy(SMnode *) { gRuntimeDestroyEntered->store(true); }
@@ -2803,12 +2812,14 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
     stub_.set(mndTransPrepare, captureRecalcPrepare);
     stub_.set(mndTransPullup, ignoreRecalcTransPullup);
     stub_.set(rpcSendResponse, captureRecalcResponse);
+    stub_.set(streamMgmtInited, alwaysStreamMgmtInited);
 
     AddStream(kStreamA, "1.test.recalc_a");
     AddStream(kStreamB, "1.test.recalc_b");
   }
 
   void TearDown() override {
+    stub_.reset(streamMgmtInited);
     stub_.reset(taosArrayDup);
     stub_.reset(rpcSendResponse);
     stub_.reset(mndTransPullup);
@@ -3645,12 +3656,14 @@ class StreamLifecycleTransactionTest : public ::testing::Test {
     stub_.set(msmUndeployStream, captureLifecycleUndeploy);
     stub_.set(mstPostStreamAction, captureLifecyclePost);
     stub_.set(tmsgSendRsp, captureLifecycleResponse);
+    stub_.set(streamMgmtInited, alwaysStreamMgmtInited);
 
     ASSERT_TRUE(WriteStream(kStreamA, kStreamAName, 0));
     ASSERT_TRUE(WriteStream(kStreamB, kStreamBName, 0));
   }
 
   void TearDown() override {
+    stub_.reset(streamMgmtInited);
     stub_.reset(tmsgSendRsp);
     stub_.reset(mstPostStreamAction);
     stub_.reset(msmUndeployStream);
@@ -13678,4 +13691,36 @@ TEST_F(MndTxnRestoreShadowRebuildTest, PendingDropMarkerDoesNotBlockFurtherDdlOr
   EXPECT_EQ(mndTxnCheckStreamConflict(&node_, name_, txnId_ + 1), TSDB_CODE_SUCCESS);
   EXPECT_EQ(mndTxnAddShadowOp(&node_, txnId_, MND_SHADOW_OP_DROP_STREAM, "1.db.second", 7, "1.db", nullptr, 0),
             TSDB_CODE_SUCCESS);
+}
+
+// ============================================================================
+// Offline mini-mnode guard
+//
+// `taosd -fMnode` (and the other mndDump.c one-shot tools) drive a mini-mnode that never calls
+// streamInit(), so the global stream mgmt state is left unallocated. The become-leader callbacks
+// still fire on that path through the sync FSM, and they must bail out on streamMgmtInited()
+// instead of dereferencing a NULL gStreamMgmt (mndDump.c records the gdb-verified segfault this
+// guard prevents). Without the guard the calls below crash the whole test binary.
+//
+// NOTE: nothing in this binary calls streamInit(), so gStreamMgmt is guaranteed to be
+// zero-initialized here. If that ever changes, these tests must start from a fresh state rather
+// than silently lose their meaning -- hence the ASSERT_FALSE below.
+// ============================================================================
+
+TEST(MndStreamOfflineMiniMnode, BecomeLeaderToleratesUninitializedMgmt) {
+  ASSERT_FALSE(streamMgmtInited()) << "gStreamMgmt was already initialized by another test";
+
+  SMnode node = {};
+  msmHandleBecomeLeader(&node);
+
+  SUCCEED();
+}
+
+TEST(MndStreamOfflineMiniMnode, BecomeNotLeaderToleratesUninitializedMgmt) {
+  ASSERT_FALSE(streamMgmtInited()) << "gStreamMgmt was already initialized by another test";
+
+  SMnode node = {};
+  msmHandleBecomeNotLeader(&node);
+
+  SUCCEED();
 }
