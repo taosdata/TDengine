@@ -53,6 +53,71 @@ static void signalHandler(int32_t signum, void *sigInfo, void *context) {
 }
 #endif
 
+#ifdef WINDOWS
+// ---------------------------------------------------------------------------
+// Windows text encoding
+//
+// Everything taosdump itself handles is UTF-8: wmain() converts the wide
+// command line once, identifiers and SQL stay UTF-8 end to end, and the
+// TAOS_OS_WIDE_PATH mapping makes taosOpenFile()/taosMulMkDir() interpret path
+// arguments as UTF-8.  The client library is not part of that contract yet: it
+// resolves paths through the ANSI Win32 APIs (CreateFileA / fopen / _fullpath),
+// i.e. the process ANSI code page (ACP).  The two helpers below are the only
+// places where taosdump has to cross that boundary.
+// ---------------------------------------------------------------------------
+
+// UTF-8 -> process ACP.  Returns 0 on success, -1 when the input is not valid
+// UTF-8 or does not fit.  Characters the ACP cannot represent become '?', which
+// is what the CRT did to argv before wmain() existed.
+static int32_t utf8ToAcp(const char *utf8, char *acp, int32_t acpCap) {
+    if (utf8 == NULL || acp == NULL || acpCap <= 0) return -1;
+    acp[0] = '\0';
+
+    int32_t wideLen = MultiByteToWideChar(CP_UTF8, 0, utf8, -1, NULL, 0);
+    if (wideLen <= 0) return -1;
+
+    WCHAR *wide = taosMemoryMalloc((size_t)wideLen * sizeof(WCHAR));
+    if (wide == NULL) return -1;
+    if (MultiByteToWideChar(CP_UTF8, 0, utf8, -1, wide, wideLen) <= 0) {
+        taosMemoryFree(wide);
+        return -1;
+    }
+
+    int32_t ok = 0;
+    if (WideCharToMultiByte(CP_ACP, 0, wide, -1, acp, acpCap, NULL, NULL) <= 0) {
+        acp[0] = '\0';
+        ok = -1;
+    }
+    taosMemoryFree(wide);
+    return ok;
+}
+
+// UTF-8 working directory for restore.log.  taosGetCwd() returns ACP bytes on
+// Windows (GetCurrentDirectoryA), and feeding those to the UTF-8 path helpers
+// would resolve a mojibake directory or fail outright, so rebuild the path from
+// the wide form instead.
+static void getCwdUtf8(char *buf, int32_t len) {
+    if (buf == NULL || len <= 0) return;
+    buf[0] = '\0';
+
+    DWORD wideLen = GetCurrentDirectoryW(0, NULL);
+    WCHAR *wide = (wideLen > 0) ? taosMemoryMalloc((size_t)wideLen * sizeof(WCHAR)) : NULL;
+    if (wide != NULL) {
+        if (GetCurrentDirectoryW(wideLen, wide) != 0 &&
+            WideCharToMultiByte(CP_UTF8, 0, wide, -1, buf, len, NULL, NULL) > 0) {
+            taosMemoryFree(wide);
+            return;
+        }
+        taosMemoryFree(wide);
+    }
+
+    // Keep the log next to the process instead of at the filesystem root.
+    (void)snprintf(buf, (size_t)len, "%s", ".");
+}
+#else
+#define getCwdUtf8(buf, len) taosGetCwd((buf), (len))
+#endif
+
 // Format epoch ms as "YYYY-MM-DD HH:MM:SS" into buf (must be >= 20 bytes).
 static void formatDateTime(int64_t ms, char *buf, int len) {
     time_t t = (time_t)(ms / 1000);
@@ -292,7 +357,7 @@ static void printEndSummary(enum ActionType action, int code, double elapsed, in
     logTee("\n");
 }
 
-int main(int argc, char *argv[]) {
+static int runBackupTool(int argc, char *argv[]) {
     // register signal handlers for graceful shutdown
 #ifdef WINDOWS
     // On Windows, use SetConsoleCtrlHandler for Ctrl-C / Ctrl-Break / close
@@ -328,7 +393,9 @@ int main(int argc, char *argv[]) {
         logFileOpen(logPath, !argCheckpoint());
     } else if (action == ACTION_RESTORE) {
         char cwd[MAX_PATH_LEN];
-        taosGetCwd(cwd, sizeof(cwd));
+        // UTF-8 on every platform, so the log path goes through the same path
+        // helpers as the rest of the tool (see getCwdUtf8 above).
+        getCwdUtf8(cwd, (int32_t)sizeof(cwd));
         char logPath[MAX_PATH_LEN];
         snprintf(logPath, sizeof(logPath), "%s/restore.log", cwd);
         logFileOpen(logPath, false);
@@ -349,7 +416,20 @@ int main(int argc, char *argv[]) {
     // Apply config directory only when user explicitly passed -c
     const char *cfgPath = argConfigDir();
     if (cfgPath && cfgPath[0] != '\0') {
+#ifdef WINDOWS
+        // libtaos resolves the config directory through the ANSI Win32 APIs, so
+        // it must receive the ACP form of the path.  Fed the UTF-8 form, a
+        // non-ASCII -c directory is silently ignored and the client falls back
+        // to its default taos.cfg.
+        char acpCfgPath[MAX_PATH_LEN];
+        if (utf8ToAcp(cfgPath, acpCfgPath, (int32_t)sizeof(acpCfgPath)) == 0) {
+            taos_options(TSDB_OPTION_CONFIGDIR, acpCfgPath);
+        } else {
+            taos_options(TSDB_OPTION_CONFIGDIR, cfgPath);
+        }
+#else
         taos_options(TSDB_OPTION_CONFIGDIR, cfgPath);
+#endif
     }
     // conn pool
     // conn pool: data threads each need 2 conns (one pre-assigned, one for queries),
@@ -420,3 +500,73 @@ int main(int argc, char *argv[]) {
     destroyConnectionPool();
     return code;
 }
+
+#ifdef WINDOWS
+// Console output code page.  Everything taosdump prints is UTF-8 now, but a
+// console whose output code page is the system ANSI code page (936 on a Chinese
+// Windows) renders those bytes as mojibake.  Switch it to UTF-8 for the run and
+// put the original back on exit: the console belongs to the shell that started
+// us.  atexit() is what makes the restore cover the exit() paths taken by
+// -V/--help and by argument errors inside argsInit().
+static UINT g_savedConsoleOutputCp = 0;
+
+static void restoreConsoleOutputCp(void) {
+    if (g_savedConsoleOutputCp != 0) {
+        SetConsoleOutputCP(g_savedConsoleOutputCp);
+        g_savedConsoleOutputCp = 0;
+    }
+}
+
+static void useUtf8Console(void) {
+    UINT cp = GetConsoleOutputCP();
+    // 0 means no console is attached (stdout/stderr redirected); consumers get
+    // plain UTF-8 bytes and there is nothing to switch.
+    if (cp == 0 || cp == CP_UTF8) return;
+    if (SetConsoleOutputCP(CP_UTF8) != 0) {
+        g_savedConsoleOutputCp = cp;
+        (void)atexit(restoreConsoleOutputCp);
+    }
+}
+
+int wmain(int argc, wchar_t *wideArgv[]) {
+    useUtf8Console();
+
+    char **utf8Argv = taosMemoryCalloc((size_t)argc + 1, sizeof(*utf8Argv));
+    if (utf8Argv == NULL) {
+        fprintf(stderr, "failed to allocate command-line arguments\n");
+        return -1;
+    }
+
+    int code = -1;
+    for (int index = 0; index < argc; ++index) {
+        int length = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideArgv[index], -1, NULL,
+                                         0, NULL, NULL);
+        if (length == 0) {
+            fprintf(stderr, "invalid Unicode command-line argument\n");
+            goto cleanup;
+        }
+        utf8Argv[index] = taosMemoryMalloc((size_t)length);
+        if (utf8Argv[index] == NULL) {
+            fprintf(stderr, "failed to allocate command-line argument\n");
+            goto cleanup;
+        }
+        if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, wideArgv[index], -1,
+                                utf8Argv[index], length, NULL, NULL) == 0) {
+            fprintf(stderr, "failed to encode command-line argument as UTF-8\n");
+            goto cleanup;
+        }
+    }
+    code = runBackupTool(argc, utf8Argv);
+
+cleanup:
+    for (int index = 0; index < argc; ++index) {
+        taosMemoryFree(utf8Argv[index]);
+    }
+    taosMemoryFree(utf8Argv);
+    return code;
+}
+#else
+int main(int argc, char *argv[]) {
+    return runBackupTool(argc, argv);
+}
+#endif
