@@ -1971,3 +1971,5 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
 100,,y,.,env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
 ,,y,.,env FQ_REQUIRED_SERVICES=influx env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_series.py
+100,,n,.,./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py
+100,,n,.,CASE_TIMEOUT=3600 env WLR_REPLAY_SCENARIO=idmp-e2e env WLR_REPLAY_TIMEOUT_SEC=3300 ./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py

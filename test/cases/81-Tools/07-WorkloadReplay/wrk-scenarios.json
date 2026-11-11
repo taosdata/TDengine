@@ -1,0 +1,32 @@
+{
+  "_comment": "Workload replay scenarios. Each entry points at a .wlr recording captured from a real workload and the acceptance thresholds the replay must meet. Recordings are too large for the repository, so they are fetched from sampleUrl. A scenario that declares a source is mandatory: a failed download fails the case rather than skipping it. Override per scenario with the environment variable named by its 'sample' field.",
+  "default": "idmp-lifecycle",
+  "scenarios": {
+    "idmp-lifecycle": {
+      "description": "IDMP sample-scenario lifecycle: schema bootstrap, sample data generation and dashboard queries",
+      "sample": "WLR_REPLAY_SAMPLE",
+      "sampleUrl": "{nas_root}workload/idmp-lifecycle.wlr",
+      "sampleSha256": "baab5a6893d04ebcbad52116661bb0fea41049b27dc4ee5c218bb25729190c68",
+      "sampleHint": "A .wlr captured from an empty instance, so it contains the CREATE DATABASE / CREATE STABLE / CREATE VTABLE statements needed to rebuild the schema on replay.",
+      "timeScale": 10,
+      "allowAsyncOverlap": true,
+      "minExecutedRatio": 0.9,
+      "maxCountMismatches": 0,
+      "maxApiErrorRatio": 0.05
+    },
+    "idmp-e2e": {
+      "description": "Full IDMP end-to-end suite workload (others + Chrome + versionControl projects) replayed on top of the lifecycle bootstrap",
+      "sample": "WLR_REPLAY_E2E_SAMPLE",
+      "sampleUrl": "{nas_root}workload/idmp-e2e-session.wlr",
+      "sampleSha256": "ea61763f59cf6c713abbcf4210a0870c05d19e99bde262be1952977d831a0b26",
+      "sampleHint": "A .wlr captured while the E2E suite ran against an already-provisioned instance. It carries no schema DDL, so the bootstrap scenario has to run first.",
+      "bootstrap": "idmp-lifecycle",
+      "timeScale": 500,
+      "allowAsyncOverlap": true,
+      "allowIncomplete": true,
+      "minExecutedRatio": 0.98,
+      "maxCountMismatchRatio": 0.02,
+      "maxApiErrorRatio": 0.01
+    }
+  }
+}
