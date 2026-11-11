@@ -4218,24 +4218,12 @@ static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTab
   // InfluxDB compare literally) is shared with the parser-side contract
   // externalColumnNamesEqual() through extColumnNameEqual().
   //
-  // The exact spelling wins over the folded one.  Oracle keeps a quoted
-  // "Device" apart from a folded DEVICE, and TDengine has already dropped the
-  // quoting by the time the reference gets here, so a single folding pass would
-  // map both spellings onto DEVICE and turn a filter that pins both columns
-  // into a duplicate-column error (DS 5.3.6 R1).  For MySQL / SQL Server /
-  // PostgreSQL / InfluxDB the first pass is a subset of the second and only
-  // changes which of several equally valid candidates is picked.
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (0 == strcmp(pExtMeta->pCols[i].colName, colName)) {
-      return i;
-    }
-  }
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
-    if (extColumnNameEqual(sourceType, pExtMeta->pCols[i].colName, colName)) {
-      return i;
-    }
-  }
-  return -1;
+  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps a
+  // quoted "Device" apart from a folded DEVICE, and TDengine has already dropped
+  // the quoting by the time the reference gets here, so a single folding pass
+  // would map both spellings onto DEVICE and turn a filter that pins both
+  // columns into a duplicate-column error (DS 5.3.6 R1).
+  return extFindColumnIndex(sourceType, pExtMeta, colName);
 }
 
 typedef struct SExternalFilterLiteralCxt {

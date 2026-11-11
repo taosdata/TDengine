@@ -139,8 +139,9 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
     _ms_to_dt = staticmethod(ms_to_dt)
     _dt_str = staticmethod(dt_str)
 
-    def _verify(self, stream: str, sink: str, expected: list, label: str):
-        verify_sink_rows(self.DB, stream, sink, expected, label)
+    def _verify(self, stream: str, sink: str, expected: list, label: str,
+                since_ms: int = None):
+        verify_sink_rows(self.DB, stream, sink, expected, label, since_ms=since_ms)
 
     def _create_uc001_stream(self, stream: str, sink: str, src_name: str, mid: str,
                              mode: str = "trows"):
@@ -1109,9 +1110,15 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             db_or_bucket = f"{prefix}_{suffix}db"
 
             self._create_uc001_stream(stream, sink, src_name, mid)
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
             self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            # The canary windows sit before the measured range, so they are not
+            # part of the exact comparison (see verify_sink_rows).
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -1166,13 +1173,21 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid)
 
+            # The reader samples its history cutoff after checkStreamStatus()
+            # returns; a canary window isolated from the measured ones proves
+            # that sample already happened before batch1 is written.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+            since_ms = None if canary_ts is None else self._BASE_MS
+
             # Phase 1: batch1 closes windows 08:00 and 08:01.
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED1, src_name)
+            self._verify(stream, sink, EXPECTED1, src_name, since_ms=since_ms)
 
             # Phase 2: batch2 closes windows 08:02 and 08:03.
             self._insert_rows(suffix, db_or_bucket, self._BATCH2, src_name)
-            self._verify(stream, sink, EXPECTED2, src_name)
+            self._verify(stream, sink, EXPECTED2, src_name, since_ms=since_ms)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -1213,8 +1228,16 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             db_or_bucket = f"{prefix}_{suffix}db"
 
             self._create_uc001_stream(stream, sink, src_name, mid, mode="no_trows")
+            # This mode re-reads the whole remote table, so the canary is only a
+            # probe: it is deleted again before the measured batch, and its own
+            # window (a closed window emits a COUNT row even without input) stays
+            # out of the comparison through `since_ms`.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1, src_name)
-            self._verify(stream, sink, EXPECTED_NO_TROWS, src_name)
+            self._verify(stream, sink, EXPECTED_NO_TROWS, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -1256,8 +1279,12 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid,
                                       mode="no_trows_with_wstart")
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -1299,8 +1326,17 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
 
             self._create_uc001_stream(stream, sink, src_name, mid,
                                       mode="no_trows_with_range")
+            # The calc fetch is pinned to a fixed literal range that covers only
+            # the measured windows: the canary window still emits a row (a closed
+            # window emits a COUNT row even when the range yields nothing), so the
+            # probe stays observable, and the deleted canary cannot change the
+            # measured fetch.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
             self._insert_rows(suffix, db_or_bucket, self._BATCH1_MORE, src_name)
-            self._verify(stream, sink, EXPECTED, src_name)
+            self._verify(stream, sink, EXPECTED, src_name,
+                         since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")

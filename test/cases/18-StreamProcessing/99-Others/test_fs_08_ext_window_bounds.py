@@ -197,8 +197,22 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             )
             tdStream.checkStreamStatus(stream)
 
+            # The reader samples its history cutoff (MAX(ts)) after the START
+            # request is queued, and a row written before that sample becomes
+            # history that no later META pull asks for.  Prove the sample already
+            # happened with a canary window isolated from the measured ones
+            # before the measured rows are written.
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+
             self._insert_rows(suffix, db_or_bucket, rows, src_name)
-            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name)
+            # The canary windows stay out of the comparison: a window that closes
+            # without input still emits a COUNT row (cnt=0, avg_val=NULL), so the
+            # canary slot and the minutes after it would otherwise be compared too.
+            # The measured windows are still compared exactly.
+            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name,
+                             since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")
@@ -274,8 +288,16 @@ class TestFsExtWindowBounds(FsSharedFixtureMixin, FederatedQueryTestMixin):
             )
             tdStream.checkStreamStatus(stream)
 
+            canary_ts = self._wait_reader_bootstrap(
+                src_name=src_name, db_or_bucket=db_or_bucket, stream=stream,
+                result_db=self.DB, result_tbl=sink, before_ms=self._BASE_MS)
+
             self._insert_rows(suffix, db_or_bucket, rows, src_name)
-            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name)
+            # Same as FS-BND-001: the canary windows (including the ones that close
+            # without input and still emit a COUNT row) are excluded, the measured
+            # windows are compared exactly.
+            verify_sink_rows(self.DB, stream, sink, EXPECTED, src_name,
+                             since_ms=None if canary_ts is None else self._BASE_MS)
 
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}", queryTimes=30)
             tdSql.execute(f"DROP TABLE IF EXISTS {self.DB}.{sink}")

@@ -68,12 +68,20 @@ def oracle_insert_all_sql(rows: list, render_ts, table: str = "SRC_T") -> str:
         + " SELECT 1 FROM DUAL")
 
 
-def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str) -> None:
+def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str,
+                     since_ms: int = None) -> None:
     """Wait for `sink` to close all `expected` windows, then assert the exact
-    (ts, cnt, avg_val) rows in order."""
+    (ts, cnt, avg_val) rows in order.
+
+    `since_ms` restricts the comparison to the measured windows.  It is used by
+    cases that established the reader bootstrap with a canary window placed
+    before the measured range: the canary rows are not part of the assertion, but
+    the measured rows are still compared exactly.
+    """
+    where = "" if since_ms is None else f" WHERE ts >= '{dt_str(since_ms)}'"
     wait_stream_window_closed(stream, db, sink,
-                              expected_rows=len(expected), timeout=120)
-    res = tdSql.getResult(f"SELECT ts, cnt, avg_val FROM {db}.{sink} ORDER BY ts")
+                              expected_rows=len(expected), timeout=120, where=where)
+    res = tdSql.getResult(f"SELECT ts, cnt, avg_val FROM {db}.{sink}{where} ORDER BY ts")
     tdSql.checkEqual(res, expected)
     tdLog.info(f"[{label}] verified {len(expected)} sink rows OK")
 
@@ -90,23 +98,50 @@ def ensure_snode(host_id: int = 1) -> None:
         raise
 
 
+class StreamWindowNotClosed(TimeoutError):
+    """`wait_stream_window_closed` expired; carries the observed row count.
+
+    The row count is what separates the two ways a window can be missing.  Zero
+    rows means the reader may have sampled its history cutoff after the batch was
+    written, so the whole batch became history and a fresh reader is the only
+    recovery.  One or more rows means the window did close and only the expected
+    content is missing: rebuilding the stream would delete that evidence, and a
+    late cutoff sample can never drop a single row of a window that already
+    emitted.
+    """
+
+    def __init__(self, message: str, observed_rows: int):
+        super().__init__(message)
+        self.observed_rows = observed_rows
+
+
 def wait_stream_window_closed(stream_name: str,
                               result_db: str,
                               result_tbl: str,
                               expected_rows: int,
                               timeout: float = 30.0,
-                              poll: float = 0.5) -> None:
+                              poll: float = 0.5,
+                              where: str = "") -> None:
     """Block until result table has at least `expected_rows` rows.
 
     Tolerates transient 'Table does not exist' errors that may occur when the
     stream engine is still creating the sink table (especially for EXT streams
     whose sink table is built asynchronously via the MND transaction).
+
+    `where` (a ready-to-append ` WHERE ...` clause) counts only the rows the
+    caller is about to compare, so rows outside that range - a bootstrap canary
+    window, for instance - can neither satisfy the threshold early nor hide a
+    missing measured window.
+
+    Raises `StreamWindowNotClosed` (a `TimeoutError`) carrying the row count
+    observed when the deadline expired: an empty sink can be the reader's
+    history-cutoff race, while a non-empty one is a real partial result.
     """
     deadline = time.time() + timeout
     last = -1
     while time.time() < deadline:
         try:
-            tdSql.query(sql=f"SELECT COUNT(*) FROM {result_db}.{result_tbl}", queryTimes=30)
+            tdSql.query(sql=f"SELECT COUNT(*) FROM {result_db}.{result_tbl}{where}", queryTimes=30)
             last = tdSql.getData(0, 0) or 0
             if last >= expected_rows:
                 tdLog.info(
@@ -125,11 +160,112 @@ def wait_stream_window_closed(stream_name: str,
             else:
                 raise
         time.sleep(poll)
-    raise TimeoutError(
+    raise StreamWindowNotClosed(
         f"stream {stream_name} did not close enough windows in {timeout}s: "
-        f"got {last}, expected {expected_rows}"
+        f"got {last}, expected {expected_rows}",
+        observed_rows=max(last, 0),
     )
 
+
+
+def sink_window_rows(result_db: str, result_tbl: str, ts_ms: int) -> int:
+    """Rows the sink holds for the window that starts at `ts_ms`."""
+    tdSql.query(
+        f"SELECT COUNT(*) FROM {result_db}.{result_tbl} "
+        f"WHERE ts = '{dt_str(ts_ms)}'", queryTimes=30)
+    return tdSql.getData(0, 0) or 0
+
+
+def wait_ext_reader_bootstrap(stream_name: str,
+                              result_db: str,
+                              result_tbl: str,
+                              *,
+                              insert_canary,
+                              delete_canary,
+                              before_ms: int,
+                              slot_gap_ms: int = 3_600_000,
+                              attempts: int = 4,
+                              per_attempt: float = 30.0,
+                              poll: float = 0.5) -> int:
+    """Prove the external reader already sampled its history cutoff.
+
+    `checkStreamStatus()` only proves the START request was queued: the EXT
+    trigger reader pulls its initial watermark (`MAX(ts)`) afterwards, and a
+    batch written before that pull is consumed as history - the later META pulls
+    only ask for `ts > maxTs`, so those rows are lost for good and no sink
+    timeout can recover them.
+
+    A canary row written after the pull is fetched normally, so an emitted
+    canary window proves the bootstrap finished.  Each attempt writes two rows
+    one window apart (`ts` and `ts + 60s`) at a slot well before `before_ms`,
+    because an INTERVAL(1m) window only closes once a later row arrives; the
+    slot and its closer are both deleted again through `delete_canary` as soon
+    as the first window reached the sink, so the measured batch sees exactly the
+    source it expects.
+
+    A swallowed attempt became history and can never come back, and the reader's
+    watermark only moves forward: once the cutoff sampled a slot, every earlier
+    row stays invisible (`ts > maxTs`).  Retries therefore step *towards*
+    `before_ms`, so each attempt is later than anything a previous sample could
+    have consumed; stepping backwards could only waste the remaining attempts.
+
+    The caller keeps the canary windows out of its assertion: they sit before the
+    measured range and are excluded with `since_ms`, so every measured window keeps
+    its exact expectation.  A closed window emits a COUNT row even when its calc
+    finds no input, so the canary slot must never be compared by content.
+
+    Only window-bounded calc SELECTs qualify.  A calc that re-reads the whole
+    table or a fixed literal range would include the canary in every measured
+    window, so those cases cannot use this barrier.
+
+    `before_ms` must be aligned to a whole minute, because the canary is placed on
+    a window start so the sink row it produces has a predictable timestamp.
+
+    Raises `StreamWindowNotClosed` (observed_rows == 0) when no slot was ever
+    emitted: the reader is still stuck before its watermark.
+    """
+    for attempt in range(attempts):
+        slot = before_ms - (attempts - attempt) * slot_gap_ms
+        slots = (slot, slot + 60_000)
+        inserted = []
+        emitted = False
+        try:
+            for ts in slots:
+                insert_canary(ts)
+                inserted.append(ts)
+            deadline = time.time() + per_attempt
+            while time.time() < deadline:
+                try:
+                    if sink_window_rows(result_db, result_tbl, slot) > 0:
+                        emitted = True
+                        break
+                except Exception as e:
+                    msg = str(e).lower()
+                    # The sink table is created asynchronously for an EXT stream, so
+                    # a probe that races its creation is not a failure.
+                    if "not exist" not in msg and "0x0112" not in msg and "out of range" not in msg:
+                        raise
+                time.sleep(poll)
+        finally:
+            # Never leave a canary behind: the measured batch has to see exactly
+            # the source it expects, even when the probe raised.
+            for ts in inserted:
+                delete_canary(ts)
+        if emitted:
+            tdLog.info(
+                f"stream {stream_name}: external reader bootstrap confirmed by "
+                f"canary window {dt_str(slot)} (attempt {attempt + 1})"
+            )
+            return slot
+        tdLog.info(
+            f"stream {stream_name}: canary window {dt_str(slot)} was consumed as "
+            f"history (attempt {attempt + 1}/{attempts}), retrying at a later slot"
+        )
+    raise StreamWindowNotClosed(
+        f"stream {stream_name}: no canary window was emitted in {attempts} "
+        f"attempt(s), the external reader never sampled its history cutoff",
+        observed_rows=0,
+    )
 
 
 def get_ext_last_ts(stream_name: str) -> int:
@@ -255,15 +391,14 @@ class FsSharedFixtureMixin:
                 f"[{label}] deleted MySQL row: ts_ms={ts}, ts={timestamp}"
             )
         elif suffix == 'p':
-            # rows_sql = ", ".join(
-            #     f"('{dt_str(ts)}', {val}, {score}, '{name}', {flag})"
-            #     for ts, val, score, name, flag in rows
-            # )
-            # ExtSrcEnv.pg_exec_cfg(
-            #     self._pg_cfg(), db_or_bucket,
-            #     [f"INSERT INTO public.src_t VALUES {rows_sql}"]
-            # )
-            tdLog.info(f"[{label}] delete {ts} PG rows")
+            timestamp = dt_str(ts)
+            ExtSrcEnv.pg_exec_cfg(
+                self._pg_cfg(), db_or_bucket,
+                [f"DELETE FROM public.src_t WHERE ts = '{timestamp}'"]
+            )
+            tdLog.info(
+                f"[{label}] deleted PG row: ts_ms={ts}, ts={timestamp}"
+            )
         elif suffix == 's':
             timestamp = dt_str(ts)
             ExtSrcEnv.sqlserver_exec(
@@ -296,6 +431,48 @@ class FsSharedFixtureMixin:
         else:
             raise RuntimeError(
                 f"_delete_rows: unsupported source suffix '{suffix}' ({label})")
+
+    def _can_delete_rows(self, suffix: str) -> bool:
+        """Whether `_delete_rows` can undo a write to this source.
+
+        The bootstrap barrier has to remove its canary again before the measured
+        batch is written, so a source with no delete path in this harness cannot
+        use it.  InfluxDB is the one such source.
+        """
+        return suffix in ('m', 'p', 's', 'o')
+
+    def _wait_reader_bootstrap(self, *, src_name: str, db_or_bucket: str,
+                               stream: str, result_db: str, result_tbl: str,
+                               before_ms: int):
+        """Prove the EXT reader sampled its history cutoff before any row of the
+        measured batch is written (see `wait_ext_reader_bootstrap`).
+
+        Returns the confirmed canary slot (ms), whose sink row is excluded from the
+        caller's comparison with `since_ms`, or None when this source has no delete
+        path and the barrier therefore cannot undo its canary (InfluxDB): that leg
+        keeps the timing it had before Oracle was enabled and must not expect a
+        canary window.
+        """
+        suffix = src_name[-1]
+        if not self._can_delete_rows(suffix):
+            tdLog.info(
+                f"[{src_name}] no delete path for this source: the measured batch "
+                f"is written without a bootstrap barrier")
+            return None
+
+        def insert_canary(ts_ms: int):
+            self._insert_rows(suffix, db_or_bucket,
+                              [(ts_ms, 1, 1.0, 'can', 0)], src_name)
+
+        def delete_canary(ts_ms: int):
+            self._delete_rows(suffix, db_or_bucket, ts_ms, src_name)
+
+        return wait_ext_reader_bootstrap(
+            stream, result_db, result_tbl,
+            insert_canary=insert_canary,
+            delete_canary=delete_canary,
+            before_ms=before_ms,
+        )
 
     def _drop_table(self, suffix: str, db_or_bucket: str, label: str):
         """Drop the trigger table in the external source for the given suffix

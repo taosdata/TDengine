@@ -84,7 +84,8 @@ class MockCatalogService {
   // sourceType uses EExtSourceType (EXT_SOURCE_POSTGRESQL/EXT_SOURCE_MYSQL/...).
   void createExtSource(const std::string& sourceName, int8_t sourceType, const std::string& host,
                        int32_t port, const std::string& user, const std::string& database,
-                       const std::string& schemaName = "");
+                       const std::string& schemaName = "",
+                       const std::string& options = "");
   // Register a fake external table.  mid0/mid1 are optional path segments
   // (e.g. db/schema for PG); pass empty string to omit.  pkColIdx marks which
   // column is the timestamp primary key.  Column types use TSDB_DATA_TYPE_*.

@@ -31334,6 +31334,10 @@ static int32_t renderExtPrefilterTimestamp(int64_t epoch, int32_t precision,
 typedef struct SExtPrefilterCxt {
   int32_t              sourceType;
   const SExtTableNode *pExt;          /* filtered table; enables per-column lookup */
+  const char          *srcOptions;    /* source OPTIONS JSON; carries the MySQL charset */
+  const STableMeta    *pBoundMeta;    /* table meta the validated statement bound
+                                       * this WHERE against; NULL when the WHERE
+                                       * is already bound (calc path) */
   int32_t              fallbackPrec;  /* unit used for the primary column when the
                                        * catalog carries no remote type name */
   timezone_t           streamTz;      /* decode basis of a timezone-naive column */
@@ -31341,28 +31345,51 @@ typedef struct SExtPrefilterCxt {
                                        * NULL means aware bounds are not pushed */
 } SExtPrefilterCxt;
 
-/* Index of the metadata entry a column reference binds to.
+/* Index of the remote metadata entry a column reference binds to.
  *
- * One rule for both a raw trigger PRE_FILTER and an already bound calc
- * expression, and the same one the query column binding uses: the provider
- * comparison (extColumnNameEqual()) is applied candidate by candidate in
- * catalog order, with no separate exact-match pass across candidates.  That
- * matters for Oracle, whose rule wins an exact spelling over a folded one only
- * within one candidate: a table holding both VAL and a quoted "val" binds
- * whichever of the two comes first, exactly as a SELECT of the same name does,
- * and a reference that keeps its representation quotes resolves nothing. */
+ * The calc WHERE arrives already bound, so its column names are the catalog
+ * spelling and extFindColumnIndex()'s exact pass resolves them to that same
+ * column.  A raw trigger PRE_FILTER, by contrast, still carries the reference
+ * the user wrote: createStreamReqBuildTriggerTranslateSelect() validates a
+ * *clone* of pOptions->pPreFilter and never writes the binding back, so the
+ * column this renderer must name is the one findAndSetRealTableColumn() chose
+ * - the first entry of pBoundMeta->schema (primary timestamp first, then the
+ * catalog order) accepted by extColumnNameEqual().
+ *
+ * Resolving the raw reference with extFindColumnIndex()'s whole-catalog exact
+ * pass instead would disagree with that binding whenever two sibling columns
+ * fold onto the reference.  Oracle METRICS(TS, VAL, "val", V) shows it:
+ * PRE_FILTER(val > v) validates as VAL > V but rendered as "val" > "V", so the
+ * pushed predicate excluded exactly the rows the validated expression keeps,
+ * and a direct external trigger has no local filter to recover them. */
 static int32_t extPrefilterFindCol(const SExtPrefilterCxt *pCxt, const char *colName) {
-  if (pCxt->pExt == NULL || pCxt->pExt->pExtMeta == NULL ||
-      pCxt->pExt->pExtMeta->pCols == NULL || colName == NULL) {
+  if (pCxt->pExt == NULL || pCxt->pExt->pExtMeta == NULL || colName == NULL) {
     return -1;
   }
-  const SExtTableMeta *pMeta = pCxt->pExt->pExtMeta;
-  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
-    if (extColumnNameEqual((EExtSourceType)pCxt->sourceType, pMeta->pCols[i].colName, colName)) {
-      return i;
-    }
+  if (pCxt->pBoundMeta == NULL) {
+    return extFindColumnIndex((EExtSourceType)pCxt->sourceType, pCxt->pExt->pExtMeta, colName);
   }
-  return -1;
+
+  const STableMeta *pMeta = pCxt->pBoundMeta;
+  int32_t           nums  = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
+  for (int32_t i = 0; i < nums; ++i) {
+    if (pMeta->schema[i].name[0] == '\0') {
+      continue;
+    }
+    if (!extColumnNameEqual((EExtSourceType)pCxt->sourceType, pMeta->schema[i].name, colName)) {
+      continue;
+    }
+    /* Report the entry by its catalog spelling: the same name the bound column
+     * node carries, so every later lookup (unit, class, rendered identifier)
+     * reads the column the validation compared against. */
+    return extFindColumnIndex((EExtSourceType)pCxt->sourceType, pCxt->pExt->pExtMeta,
+                              pMeta->schema[i].name);
+  }
+  /* The validated statement could not have accepted a reference this meta does
+   * not hold, so reaching here means the meta handed over here is not the one the
+   * binding used (a sparse schema, for one).  Fall back to the whole-catalog pass
+   * rather than failing a condition the CREATE STREAM already accepted. */
+  return extFindColumnIndex((EExtSourceType)pCxt->sourceType, pCxt->pExt->pExtMeta, colName);
 }
 
 /* Unit and timezone basis in which a constant compared with this column has to
@@ -31490,6 +31517,90 @@ static int32_t extPfAppendIdentifier(const SExtPrefilterCxt *pCxt, const char *i
   return extPfAppend(buf, bufSize, pOff, "%c", quote);
 }
 
+/* Value of a top-level string key of an OPTIONS JSON object, e.g. {"charset":"latin1"}.
+ *
+ * The serializer that writes these objects only ever emits `"key":"value"` pairs with no
+ * nesting, escapes or whitespace of its own, so a scan of the same shape is enough and
+ * keeps the parser free of a JSON dependency.  The key match is deliberately case-sensitive:
+ * the MySQL connector looks the option up with strstr and therefore only recognizes the
+ * lowercase spelling, so a stored key that is not spelled in lowercase must fall back to the
+ * default here as well, or the rendered introducer would disagree with the session the
+ * connector actually establishes. */
+static bool extPfFindJsonString(const char *json, const char *key, char *out, int32_t outLen) {
+  if (json == NULL || key == NULL || out == NULL || outLen <= 0) {
+    return false;
+  }
+  size_t keyLen = strlen(key);
+  for (const char *p = json; *p != '\0';) {
+    /* Skip to the opening quote of the next key. */
+    while (*p != '\0' && *p != '"') ++p;
+    if (*p == '\0') break;
+    const char *keyBeg = ++p;
+    while (*p != '\0' && *p != '"') ++p;
+    if (*p == '\0') break;
+    size_t foundLen = (size_t)(p - keyBeg);
+    ++p; /* past the closing quote of the key */
+    if (foundLen != keyLen || strncmp(keyBeg, key, keyLen) != 0) continue;
+    while (*p == ' ' || *p == '\t') ++p;
+    if (*p != ':') continue;
+    ++p;
+    while (*p == ' ' || *p == '\t') ++p;
+    if (*p != '"') return false;
+    const char *valBeg = ++p;
+    while (*p != '\0' && *p != '"') ++p;
+    if (*p == '\0') return false;
+    size_t valLen = (size_t)(p - valBeg);
+    if (valLen == 0 || valLen >= (size_t)outLen) return false;
+    (void)memcpy(out, valBeg, valLen);
+    out[valLen] = '\0';
+    return true;
+  }
+  return false;
+}
+
+/* The charset a MySQL source resolves to, i.e. the client charset the connector sets the
+ * session to before it runs any generated statement.
+ *
+ * MySQL reads every literal that arrives without an introducer in the session charset and
+ * converts it for comparison from there, so this is the charset a quoted value would have
+ * been decoded in - and the one a hexadecimal literal has to declare to mean the same thing.
+ * The connector defaults the key to utf8mb4, and an empty or unparsable value cannot be
+ * checked here (MySQL would reject an unknown charset name at connect time), so the default
+ * stands in for those.  Only a plain identifier is spliced into SQL. */
+#define EXT_PF_MYSQL_DEFAULT_CHARSET "utf8mb4"
+static const char *extPfMysqlCharset(const SExtPrefilterCxt *pCxt, char *buf, int32_t bufLen) {
+  if (extPfFindJsonString(pCxt->srcOptions, "charset", buf, bufLen)) {
+    size_t      n  = strlen(buf);
+    bool        ok = (n > 0 && n <= 32);
+    for (size_t i = 0; ok && i < n; ++i) {
+      unsigned char c = (unsigned char)buf[i];
+      ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    }
+    if (ok) {
+      return buf;
+    }
+  }
+  return EXT_PF_MYSQL_DEFAULT_CHARSET;
+}
+
+/* Whether the hexadecimal form of a MySQL value still fits in the renderer's buffer.
+ *
+ * The form doubles the bytes (two hex digits each) and adds the introducer, so a long value
+ * can outgrow the buffer that used to hold its quoted spelling.  The renderer keeps the
+ * quoted form in that case: it is exactly what the previous implementation emitted, so a
+ * value that used to produce a working stream keeps producing one, instead of the statement
+ * being rejected for a reason unrelated to what the user wrote. */
+static bool extPfHexFits(const SExtPrefilterCxt *pCxt, size_t bytesLen, int32_t room) {
+  if (room <= 0) {
+    return false;
+  }
+  char        charsetBuf[TSDB_EXT_SOURCE_OPTION_VALUE_LEN] = {0};
+  const char *charset = extPfMysqlCharset(pCxt, charsetBuf, sizeof(charsetBuf));
+  /* "_" + charset + " X'" + two hex digits per byte + "'" + NUL */
+  size_t need = 1 + strlen(charset) + 3 + 2 * bytesLen + 1 + 1;
+  return need <= (size_t)room;
+}
+
 /* Render a single VALUE node.  asTimestamp is set by the caller when this value
  * is compared with a timestamp column, in which case the integer is converted to
  * a dialect literal using the basis already resolved for that column. */
@@ -31534,6 +31645,16 @@ static int32_t renderExtValueNode(SValueNode *pVal, bool asTimestamp,
     }
     *pOff += n;
   } else {
+    /* A BOOL constant is spelled "true" / "false" by nodesGetStrValueFromNode().
+     * MySQL and PostgreSQL accept those keywords, but Oracle and SQL Server have
+     * no boolean literal at all, so a PRE_FILTER(flag = true) that passed
+     * validation used to build a stream whose reader could never run its query.
+     * Both map the TDengine BOOL onto a numeric column (NUMBER(1,0) / bit), where
+     * 1 / 0 is exactly the comparison the validated expression means. */
+    if (pVal->node.resType.type == TSDB_DATA_TYPE_BOOL &&
+        (pCxt->sourceType == EXT_SOURCE_ORACLE || pCxt->sourceType == EXT_SOURCE_SQLSERVER)) {
+      return extPfAppend(buf, bufSize, pOff, "%d", pVal->datum.b ? 1 : 0);
+    }
     char *str = nodesGetStrValueFromNode(pVal);
     if (str == NULL) {
       parserWarn("prefilter: cannot render value of type %d", pVal->node.resType.type);
@@ -31542,16 +31663,57 @@ static int32_t renderExtValueNode(SValueNode *pVal, bool asTimestamp,
     int32_t code = TSDB_CODE_SUCCESS;
     size_t  len = strlen(str);
     if (len >= 2 && str[0] == '\'' && str[len - 1] == '\'') {
-      code = extPfAppend(buf, bufSize, pOff, "'");
-      for (size_t i = 1; code == TSDB_CODE_SUCCESS && i + 1 < len; ++i) {
-        if (str[i] == '\'' || (pCxt->sourceType == EXT_SOURCE_MYSQL && str[i] == '\\')) {
-          code = extPfAppend(buf, bufSize, pOff, "%c%c", str[i], str[i]);
-        } else {
-          code = extPfAppend(buf, bufSize, pOff, "%c", str[i]);
-        }
+      /* MySQL reads a backslash inside a string literal as an escape character
+       * unless the session runs with NO_BACKSLASH_ESCAPES, and the connector can
+       * neither observe nor set that mode (it inherits the server default).  A
+       * value holding a backslash therefore has no quoted spelling that is right
+       * in both modes: 'a\b' loses the backslash in the default mode, 'a\\b'
+       * gains one under NO_BACKSLASH_ESCAPES.  A hexadecimal literal does not
+       * involve the escape mode at all and is still an ordinary literal, so
+       * declaring the source's charset in its introducer keeps the text and the
+       * charset conversion identical to the quoted form (see below).  Values
+       * without a backslash stay in the readable quoted form, where doubling the
+       * single quote is correct in every mode. */
+      bool hasBackslash = false;
+      for (size_t i = 1; !hasBackslash && i + 1 < len; ++i) {
+        hasBackslash = (str[i] == '\\');
       }
-      if (code == TSDB_CODE_SUCCESS) {
+      if (hasBackslash && pCxt->sourceType == EXT_SOURCE_MYSQL &&
+          extPfHexFits(pCxt, len - 2, bufSize - *pOff)) {
+        /* A MySQL literal is a sequence of bytes plus a character set: without an
+         * introducer the session charset applies, with one the declared charset applies.
+         * Both spellings then decode to the same text and MySQL converts it for the
+         * comparison exactly as it does for the quoted form, which is what keeps the
+         * pushed predicate equivalent to the validated expression.  Declaring the
+         * session charset is what makes the hexadecimal form equivalent; picking the
+         * label from the bytes themselves would instead reinterpret them whenever the
+         * configured charset is not UTF-8 (a latin1 source would silently compare a
+         * different string).  The bare form is not an option either: a binary literal
+         * skips the charset conversion and stops matching text that the quoted literal
+         * matched. */
+        char charsetBuf[TSDB_EXT_SOURCE_OPTION_VALUE_LEN] = {0};
+        const char *charset = extPfMysqlCharset(pCxt, charsetBuf, sizeof(charsetBuf));
+        const char *bytes = str + 1;
+        size_t      bytesLen = len - 2;
+        code = extPfAppend(buf, bufSize, pOff, "_%s X'", charset);
+        for (size_t i = 0; code == TSDB_CODE_SUCCESS && i < bytesLen; ++i) {
+          code = extPfAppend(buf, bufSize, pOff, "%02X", (unsigned int)(unsigned char)bytes[i]);
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = extPfAppend(buf, bufSize, pOff, "'");
+        }
+      } else {
         code = extPfAppend(buf, bufSize, pOff, "'");
+        for (size_t i = 1; code == TSDB_CODE_SUCCESS && i + 1 < len; ++i) {
+          if (str[i] == '\'' || (pCxt->sourceType == EXT_SOURCE_MYSQL && str[i] == '\\')) {
+            code = extPfAppend(buf, bufSize, pOff, "%c%c", str[i], str[i]);
+          } else {
+            code = extPfAppend(buf, bufSize, pOff, "%c", str[i]);
+          }
+        }
+        if (code == TSDB_CODE_SUCCESS) {
+          code = extPfAppend(buf, bufSize, pOff, "'");
+        }
       }
     } else {
       code = extPfAppend(buf, bufSize, pOff, "%s", str);
@@ -31592,6 +31754,29 @@ static int32_t renderExtWhereNode(const SExtPrefilterCxt *pCxt, SNode *pNode,
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_CONDITION: {
       SLogicConditionNode *pLogic = (SLogicConditionNode *)pNode;
+      /* NOT is unary and has no infix operator to join its operand with.  It
+       * used to fall into the OR branch below, which emits no operator for a
+       * single child: PRE_FILTER(NOT(v > 7)) pushed ((v > 7)) and inverted the
+       * row set.  A trigger PRE_FILTER has no local filter to compensate, so a
+       * malformed NOT (a unary node without exactly one operand) is refused
+       * instead of being rendered as its operand. */
+      if (pLogic->condType == LOGIC_COND_TYPE_NOT) {
+        if (LIST_LENGTH(pLogic->pParameterList) != 1) {
+          parserWarn("prefilter: NOT with %d operands, refusing the condition",
+                     LIST_LENGTH(pLogic->pParameterList));
+          return TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
+        if (extPfAppend(buf, bufSize, pOff, "(NOT ") != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
+        int32_t code =
+            renderExtWhereNode(pCxt, (SNode *)pLogic->pParameterList->pHead->pNode, buf, bufSize, pOff);
+        if (code != TSDB_CODE_SUCCESS) return code;
+        if (extPfAppend(buf, bufSize, pOff, ")") != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_PAR_INTERNAL_ERROR;
+        }
+        break;
+      }
       const char *op = (pLogic->condType == LOGIC_COND_TYPE_AND) ? " AND " : " OR ";
       if (extPfAppend(buf, bufSize, pOff, "(") != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_PAR_INTERNAL_ERROR;
@@ -31834,6 +32019,7 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
   const char*    trigExtTable    = NULL;
   const char*    trigTsColumn    = NULL;
   const SExtTableNode* trigExtNode = NULL;  /* trigger ext table, for bound classification */
+  const STableMeta*    trigMeta     = NULL; /* meta the trigger clause was validated against */
   const char*    trigSchemaName  = NULL;  /* PG schema (e.g. "public"); empty for MySQL/InfluxDB */
   SNode*         pTrigPreFilter  = NULL;  /* PRE_FILTER node from CREATE STREAM trigger options */
   if (pStmt->pTrigger != NULL) {
@@ -31844,6 +32030,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
         SExtTableNode* pExt = (SExtTableNode*)pRT->pExtTableNode;
         trigSourceName = pExt->sourceName;
         trigExtTable   = (pExt->remoteTableName[0] != '\0') ? pExt->remoteTableName : pExt->table.tableName;
+        /* The column resolution of the raw PRE_FILTER below mirrors the binding
+         * findAndSetRealTableColumn() performed on this very meta. */
+        trigMeta       = pRT->pMeta;
         /* schemaName is set for PostgreSQL (e.g. "public"); empty otherwise. */
         if (pExt->schemaName[0] != '\0') trigSchemaName = pExt->schemaName;
         if (pExt->tsPrimaryColIdx >= 0 && pExt->pExtMeta != NULL &&
@@ -32030,13 +32219,18 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
       SExtPrefilterCxt trigPfCxt = {
           .sourceType   = pSpec->sourceType,
           .pExt         = trigExtNode,
+          .srcOptions   = pSpec->options,
+          .pBoundMeta   = trigMeta,
           .fallbackPrec = extTableFallbackPrecision(trigExtNode, pSpec->precision),
           .streamTz     = pCxt->streamTimezone,
           .awareTz      = awareTz,
       };
       /* The calc prefilter may filter a different table of the same source and
-       * is refined where that table is known below. */
+       * is refined where that table is known below.  Its WHERE is already bound
+       * by translateSelect(), so it must keep the exact-spelling rule instead of
+       * re-deriving a binding. */
       SExtPrefilterCxt calcPfCxt = trigPfCxt;
+      calcPfCxt.pBoundMeta       = NULL;
 
       /* Extract the calc SELECT's WHERE clause as a SQL fragment for the
        * CALC reader prefilter.  Only static conditions (no _twstart / _twend

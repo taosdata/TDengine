@@ -120,6 +120,24 @@ bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
                                  const char *referenceName);
 
 /**
+ * Index of the external column a reference binds to, -1 when none matches.
+ *
+ * The exact spelling wins over the provider fold across the whole catalog, and
+ * only a catalog without an exact match falls back to extColumnNameEqual().
+ * Oracle keeps a quoted "val" apart from the folded VAL, while TDengine has
+ * already dropped the quoting by the time a resolved reference reaches these
+ * paths, so a single folding pass in catalog order would bind whichever case
+ * variant happens to be stored first.  Every consumer that turns a reference
+ * into a column - DDL validation, the stored filter, the trigger prefilter and
+ * the mnode reader binding - resolves through this rule, so they cannot pick
+ * different columns for the same reference.
+ *
+ * The caller keeps ownership of nothing: pMeta is only read.
+ */
+int32_t extFindColumnIndex(EExtSourceType srcType, const SExtTableMeta *pMeta,
+                           const char *colName);
+
+/**
  * Unquote an external table spelling as reported by the connector.
  *
  * The connectors keep the surrounding double quotes for a quoted identifier
