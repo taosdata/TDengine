@@ -815,9 +815,9 @@ static void mndReplayMnodeWal(SMnode *pMnode) {
   // management (msmHandleBecomeLeader -> streamAddVnodeLeader) and touches the gStreamMgmt
   // global. That's only allocated by the full streamInit(), which this offline one-shot
   // mini-mnode never calls -- so left enabled, this segfaults on a NULL gStreamMgmt.vgLeaders
-  // (verified via gdb backtrace). The callback already gates on tsDisableStream and returns
-  // immediately when set, so disable it here instead of standing up the whole (thread-spawning)
-  // stream subsystem just to satisfy it; this process exits right after, so there's no need to
+  // (verified via gdb backtrace). msmHandleBecomeLeader() now bails out on streamMgmtInited(),
+  // which covers this mini-mnode; tsDisableStream is still set here so that no other stream
+  // management path kicks in either. This process exits right after, so there's no need to
   // restore the previous value.
   tsDisableStream = true;
 
@@ -884,10 +884,11 @@ int32_t mndFlushMnode() {
   // NOTE: deliberately not calling mndClose(pMnode) here, matching mndDeleteTrans()/mndModifySdb()
   // above: pMnode was created via mndPrepareMnode(), which never calls the global streamInit(), so
   // gStreamMgmt.vgLeaders etc. are left NULL. mndClose() -> mndCleanupSteps() -> mndCleanupStream()
-  // -> msmHandleBecomeNotLeader() -> streamRemoveVnodeLeader() dereferences that NULL array and
-  // segfaults (verified via gdb backtrace). The flush (sdb file write + WAL snapshot/trim) is
-  // already fsync'd to disk above; this is a one-shot CLI process about to exit via return 0/exit
-  // code, so skipping the in-memory teardown is safe and avoids the crash.
+  // -> msmHandleBecomeNotLeader() -> streamRemoveVnodeLeader() used to dereference that NULL array
+  // and segfault (verified via gdb backtrace); that path is now guarded by streamMgmtInited(), but
+  // the in-memory teardown still buys this one-shot CLI nothing. The flush (sdb file write + WAL
+  // snapshot/trim) is already fsync'd to disk above; this is a one-shot CLI process about to exit
+  // via return 0/exit code, so skipping the in-memory teardown is safe and avoids the crash.
   return code;
 }
 

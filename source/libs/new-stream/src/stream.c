@@ -34,21 +34,19 @@ void streamGetMnodeEpset(SEpSet *pEpSet) {
   }
 }
 
+bool streamMgmtInited(void) {
+  bool inited = gStreamMgmt.vgLeaders != NULL && gStreamMgmt.taskMap != NULL && gStreamMgmt.vgroupMap != NULL;
+  stTrace("stream mgmt inited:%d", inited);
+  return inited;
+}
+
 void streamSetSnodeEnabled(  SMsgCb* msgCb) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   gStreamMgmt.snodeEnabled = true;
   gStreamMgmt.msgCb = *msgCb;
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(bool cleanup) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   stInfo("snode disabled");
   gStreamMgmt.snodeEnabled = false;
   smUndeploySnodeTasks(cleanup);
@@ -68,10 +66,6 @@ void streamMgmtCleanup() {
 }
 
 void streamCleanup(void) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   stInfo("stream cleanup start");
 
   // Phase 1: stop the hb timer up-front and wait until every callback that was
@@ -103,13 +97,15 @@ void streamCleanup(void) {
 }
 
 int32_t streamInit(void* pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset) {
-  if (tsDisableStream) {
-    stInfo("stream disabled");
-    return TSDB_CODE_SUCCESS;
-  }
-  
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+
+  // Always initialize the runtime, even when disableStream is set: STOP/DROP STREAM must keep
+  // working for streams created before the config was turned on, which needs the mgmt state, data
+  // sink and notify workers. Only streamHbInit() is skipped under disableStream, so no new
+  // deployment is triggered. Trade-off: disableStream blocks (re)deployment only and no longer
+  // reduces the stream subsystem's resident resources (notify worker threads / param pool).
+  stInfo("stream init start, disableStream:%d", tsDisableStream);
 
   gStreamMgmt.dnode = pDnode;
   gStreamMgmt.getMnode = getMnode;
@@ -171,10 +167,6 @@ int32_t streamVgIdSort(void const *lp, void const *rp) {
 
 
 void streamRemoveVnodeLeader(int32_t vgId) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   int32_t idx = taosArraySearchIdx(gStreamMgmt.vgLeaders, &vgId, streamVgIdSort, TD_EQ);
   if (idx >= 0) {
@@ -192,10 +184,6 @@ void streamRemoveVnodeLeader(int32_t vgId) {
 }
 
 void streamAddVnodeLeader(int32_t vgId) {
-  if (tsDisableStream) {
-    return;
-  }
-  
   int32_t code = TSDB_CODE_SUCCESS;
   taosWLockLatch(&gStreamMgmt.vgLeadersLock);
   void* p = taosArrayPush(gStreamMgmt.vgLeaders, &vgId);

@@ -7162,7 +7162,13 @@ _exit:
 }
 
 void msmHandleBecomeLeader(SMnode *pMnode) {
-  if (tsDisableStream) {
+  // Offline one-shot tools (e.g. -fMnode/mndDump.c) replay the wal through a mini-mnode that
+  // never calls streamInit(), so the global stream mgmt state stays unallocated and touching it
+  // here would dereference a NULL vgLeaders/vgroupMap. Gate on that instead of tsDisableStream:
+  // an online dnode always calls streamInit(), even when disableStream is set, so that streams
+  // created before the config was enabled can still be stopped and dropped.
+  if (!streamMgmtInited()) {
+    mstWarn("stream mgmt is not initialized, skip mnode become leader processing");
     return;
   }
 
@@ -7184,7 +7190,10 @@ void msmHandleBecomeLeader(SMnode *pMnode) {
 }
 
 void msmHandleBecomeNotLeader(SMnode *pMnode) {  
-  if (tsDisableStream) {
+  // Same guard as msmHandleBecomeLeader(): the mini-mnode used by offline tools never calls
+  // streamInit(), and streamRemoveVnodeLeader() would otherwise touch a NULL gStreamMgmt.
+  if (!streamMgmtInited()) {
+    mstWarn("stream mgmt is not initialized, skip mnode become not leader processing");
     return;
   }
 

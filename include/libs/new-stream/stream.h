@@ -362,9 +362,23 @@ void    streamSetSnodeEnabled(  SMsgCb* msgCb);
 void    streamSetSnodeDisabled(bool cleanup);
 int32_t streamHbProcessRspMsg(SMStreamHbRspMsg *pRsp);
 int32_t streamHbHandleRspErr(int32_t errCode, int64_t currTs);
+// Initialization contract for the stream subsystem.
+//
+// streamInit()/streamCleanup() run unconditionally, including when the server config
+// `disableStream` is enabled. An online dnode always allocates the stream mgmt state so that
+// streams created before the config was turned on can still be stopped and dropped. As a
+// result `disableStream` only prevents task (re)deployment; it no longer reduces the stream
+// subsystem's resident footprint (async notify worker threads, pending-item pool, mnode stream
+// mgmt thread contexts). The single remaining `disableStream` early-return lives in
+// streamHbInit(): without the heartbeat timer nothing is ever (re)deployed.
 int32_t streamInit(void *pDnode, getDnodeId_f getDnode, getMnodeEpset_f getMnode, getSynEpset_f getSynEpset);
 void    streamGetMnodeEpset(SEpSet *pEpSet);
 void    streamCleanup(void);
+
+// Returns true once streamInit() has allocated the global stream mgmt state.
+// Offline one-shot tools (e.g. -fMnode/mndDump.c) drive a mini-mnode without ever calling
+// streamInit(), so callers that touch gStreamMgmt must check this first.
+bool    streamMgmtInited(void);
 int32_t streamAcquireTask(int64_t streamId, int64_t taskId, SStreamTask** ppTask, void** ppAddr);
 void    streamReleaseTask(void* taskAddr);
 int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** ppAddr);
