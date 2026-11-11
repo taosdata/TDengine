@@ -102,6 +102,8 @@ add_custom_target(stage_mimalloc ALL
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TD_MIMALLOC_RUNTIME_FILES} "$<TARGET_FILE_DIR:taosd>"
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "${TD_MIMALLOC_INSTALL}/share/mimalloc/LICENSE" "$<TARGET_FILE_DIR:taosd>/mimalloc-LICENSE.txt"
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_CURRENT_LIST_DIR}/../packaging/tools/set_taos_malloc.ps1" "$<TARGET_FILE_DIR:taosd>"
   DEPENDS taosd
   VERBATIM)
 if(TARGET ext_mimalloc)
