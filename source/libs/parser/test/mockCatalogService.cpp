@@ -593,8 +593,12 @@ class MockCatalogServiceImpl {
       }
       for (int32_t i = 0; i < ndbs; ++i) {
         SMetaRes res = {0};
+        SArray*  vgList = nullptr;
+        res.code = catalogGetDBVgList((const char*)taosArrayGet(pDbVgroupReq, i), &vgList);
+        res.pRes = vgList;
         if (nullptr == taosArrayPush(*pDbVgroupData, &res)) {
-          taosArrayDestroyEx(*pDbVgroupData, MockCatalogService::destoryMetaRes);
+          MockCatalogService::destoryMetaArrayRes(&res);
+          taosArrayDestroyEx(*pDbVgroupData, MockCatalogService::destoryMetaArrayRes);
           *pDbVgroupData = nullptr;
           return TSDB_CODE_OUT_OF_MEMORY;
         }
@@ -1194,7 +1198,7 @@ void MockCatalogService::destoryMetaData(SMetaData* pData) {
   if (nullptr == pData) {
     return;
   }
-  taosArrayDestroyEx(pData->pDbVgroup, destoryMetaRes);
+  taosArrayDestroyEx(pData->pDbVgroup, destoryMetaArrayRes);
   taosArrayDestroyEx(pData->pDbCfg, destoryMetaRes);
   taosArrayDestroyEx(pData->pDbInfo, destoryMetaRes);
   taosArrayDestroyEx(pData->pTableMeta, destoryMetaRes);
