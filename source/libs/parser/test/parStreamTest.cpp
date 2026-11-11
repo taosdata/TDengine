@@ -1633,6 +1633,7 @@ TEST_F(ParserStreamTest, CalculationWindowsRejectTagThresholds) {
 }
 
 TEST_F(ParserStreamTest, EventStartEndThresholdsRespectQueryScope) {
+  AsyncFlagGuard asyncGuard(true);
   useDb("root", "stream_streamdb");
   const string queryPrefix =
       "select _wstart as ts, count(*) as cnt from stream_triggerdb.st1 partition by tbname "
@@ -1682,6 +1683,7 @@ TEST_F(ParserStreamTest, NestedWindowPreservesLiteralThresholds) {
 }
 
 TEST_F(ParserStreamTest, DurationTagInsidePartitionExpressionInjectsRawTag) {
+  AsyncFlagGuard asyncGuard(true);
   useDb("root", "stream_streamdb");
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     if (stage != PARSER_STAGE_TRANSLATE) return;
