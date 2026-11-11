@@ -1342,6 +1342,10 @@ void replayLaneWaitUntil(SReplayShared *sh, int64_t eventMonoNs) {
     return;
   }
   uint64_t offset = (uint64_t)eventMonoNs - (uint64_t)sh->originMonoNs;
+  double   scale = (sh->opts != NULL && sh->opts->timeScale > 0.0) ? sh->opts->timeScale : 1.0;
+  if (scale != 1.0) {
+    offset = (uint64_t)((double)offset / scale);
+  }
   if (offset > (uint64_t)INT64_MAX ||
       (sh->startMonoNs >= 0 && (uint64_t)sh->startMonoNs > (uint64_t)INT64_MAX - offset)) {
     replayLaneWarnPacing(sh, "event pacing target is outside the monotonic clock range");

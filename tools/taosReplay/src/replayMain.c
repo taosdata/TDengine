@@ -43,18 +43,26 @@ static void replayPrintUsage(void) {
       "\n"
       "Usage:\n"
       "  taosreplay inspect --input <path> [--input <path>...] [--verbose]\n"
+      "  taosreplay export  --input <path> [--input <path>...]\n"
+      "                     [--format jsonl|csv] [--output <file>]\n"
       "  taosreplay replay  --input <path> [--input <path>...]\n"
       "                     --user-password <user=password> [--user-password ...]\n"
       "                     [--target-host <host> --target-port <port> |\n"
       "                      --endpoint-map <old-host[:port]=new-host[:port]>...]\n"
       "                     [--allow-incomplete] [--unfinished-timeout <seconds>]\n"
-      "                     [--report-dir <path>]\n"
+      "                     [--report-dir <path>] [--time-scale <factor>]\n"
+      "                     [--allow-async-overlap]\n"
       "\n"
       "Notes:\n"
       "  --input accepts a session directory or a single .wlr segment.\n"
       "  Credentials may instead be supplied as TAOSREPLAY_USER_PASSWORD=user=password.\n"
       "  --target-host/--target-port and --endpoint-map are mutually exclusive.\n"
       "  --unfinished-timeout defaults to 300 seconds; use 0 to disable the bound.\n"
+      "  --time-scale 2 replays in half the recorded time (default 1).\n"
+      "  --allow-async-overlap replays calls whose async completion overlapped a later\n"
+      "  call on the recorded thread, in recorded begin order. The overlap itself is\n"
+      "  NOT reproduced: async APIs are reissued synchronously, so each call finishes\n"
+      "  before the next begins. Without the flag such a session is refused.\n"
       "  A session with a real event gap is refused unless --allow-incomplete is\n"
       "  given. A session that merely has unfinished calls is NOT such a case: a\n"
       "  BEGIN without an END is how a hung call is recorded, and it replays normally.\n"
@@ -73,6 +81,11 @@ typedef enum {
   REPLAY_OPT_UNFINISHED_TIMEOUT,
   REPLAY_OPT_REPORT_DIR,
   REPLAY_OPT_VERBOSE,
+  REPLAY_OPT_FORMAT,
+  REPLAY_OPT_OUTPUT,
+  REPLAY_OPT_TIME_SCALE,
+  /* New members go here: the enum check job rejects a change to any existing value. */
+  REPLAY_OPT_ALLOW_ASYNC_OVERLAP,
 } EReplayOptionId;
 
 typedef struct {
@@ -89,9 +102,13 @@ static const SReplayOptionSpec kReplayOptionSpecs[] = {
     {"--endpoint-map", REPLAY_OPT_ENDPOINT_MAP, true, true},
     {"--user-password", REPLAY_OPT_USER_PASSWORD, true, true},
     {"--allow-incomplete", REPLAY_OPT_ALLOW_INCOMPLETE, false, true},
+    {"--allow-async-overlap", REPLAY_OPT_ALLOW_ASYNC_OVERLAP, false, true},
     {"--unfinished-timeout", REPLAY_OPT_UNFINISHED_TIMEOUT, true, true},
     {"--report-dir", REPLAY_OPT_REPORT_DIR, true, true},
     {"--verbose", REPLAY_OPT_VERBOSE, false, false},
+    {"--format", REPLAY_OPT_FORMAT, true, false},
+    {"--output", REPLAY_OPT_OUTPUT, true, false},
+    {"--time-scale", REPLAY_OPT_TIME_SCALE, true, true},
 };
 
 static const SReplayOptionSpec *replayFindOptionSpec(const char *name) {
@@ -100,6 +117,40 @@ static const SReplayOptionSpec *replayFindOptionSpec(const char *name) {
     if (strcmp(name, kReplayOptionSpecs[i].name) == 0) return &kReplayOptionSpecs[i];
   }
   return NULL;
+}
+
+static bool replayParsePositiveDouble(const char *value, double *out) {
+  if (value == NULL || value[0] == '\0') return false;
+  const char *p = value;
+  int64_t     whole = 0;
+  int32_t     frac = 0;
+  int32_t     fracDigits = 0;
+  bool        haveDigit = false;
+  if (*p == '+') ++p;
+  while (*p >= '0' && *p <= '9') {
+    whole = whole * 10 + (*p - '0');
+    if (whole > 1000000) return false;
+    haveDigit = true;
+    ++p;
+  }
+  if (*p == '.') {
+    ++p;
+    while (*p >= '0' && *p <= '9') {
+      if (fracDigits < 6) {
+        frac = frac * 10 + (*p - '0');
+        ++fracDigits;
+      }
+      haveDigit = true;
+      ++p;
+    }
+  }
+  if (!haveDigit || *p != '\0') return false;
+  double f = (double)frac;
+  for (int32_t i = 0; i < fracDigits; ++i) f /= 10.0;
+  double v = (double)whole + f;
+  if (!(v > 0.0)) return false;
+  *out = v;
+  return true;
 }
 
 static bool replayIsDecimal(const char *value) {
@@ -180,6 +231,7 @@ static int32_t replayParseArgs(int argc, char **argv, SReplayOpts *opts) {
   memset(opts, 0, sizeof(*opts));
   opts->unfinishedTimeoutSec = 300; /* DS 6.19.1 default */
   opts->targetPort = 0;
+  opts->timeScale = 1.0;
 
   if (argc < 2) {
     replayPrintUsage();
@@ -188,6 +240,8 @@ static int32_t replayParseArgs(int argc, char **argv, SReplayOpts *opts) {
 
   if (strcmp(argv[1], "inspect") == 0) {
     opts->mode = REPLAY_MODE_INSPECT;
+  } else if (strcmp(argv[1], "export") == 0) {
+    opts->mode = REPLAY_MODE_EXPORT;
   } else if (strcmp(argv[1], "replay") == 0) {
     opts->mode = REPLAY_MODE_REPLAY;
   } else if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0) {
@@ -213,7 +267,10 @@ static int32_t replayParseArgs(int argc, char **argv, SReplayOpts *opts) {
       (void)fprintf(stderr, "unknown or incomplete argument: %s\n", a);
       return REPLAY_EXIT_INPUT;
     }
-    if (opts->mode == REPLAY_MODE_INSPECT && spec->replayOnly) {
+    /* Replay-only options are rejected by every other mode. Checking only INSPECT let
+     * `export --time-scale 5 --target-host ...` through, where they were silently
+     * ignored -- an operator would believe the speed-up or redirect had been applied. */
+    if (opts->mode != REPLAY_MODE_REPLAY && spec->replayOnly) {
       (void)fprintf(stderr, "%s is only valid with replay\n", a);
       return REPLAY_EXIT_INPUT;
     }
@@ -286,6 +343,9 @@ static int32_t replayParseArgs(int argc, char **argv, SReplayOpts *opts) {
       case REPLAY_OPT_ALLOW_INCOMPLETE:
         opts->allowIncomplete = true;
         break;
+      case REPLAY_OPT_ALLOW_ASYNC_OVERLAP:
+        opts->allowAsyncOverlap = true;
+        break;
       case REPLAY_OPT_UNFINISHED_TIMEOUT: {
         /* Validated like --target-port rather than trusting atoi: "abc" and "" both
          * yield 0, which is a MEANINGFUL value here ("no timeout"), so a typo would
@@ -316,7 +376,32 @@ static int32_t replayParseArgs(int argc, char **argv, SReplayOpts *opts) {
       case REPLAY_OPT_VERBOSE:
         opts->verbose = true;
         break;
+      case REPLAY_OPT_FORMAT:
+        if (strcmp(value, "jsonl") != 0 && strcmp(value, "csv") != 0) {
+          (void)fprintf(stderr, "invalid --format '%s': expected jsonl or csv\n", value);
+          return REPLAY_EXIT_INPUT;
+        }
+        opts->exportFormat = value;
+        break;
+      case REPLAY_OPT_OUTPUT:
+        opts->exportOutput = value;
+        break;
+      case REPLAY_OPT_TIME_SCALE: {
+        double scale = 0.0;
+        if (!replayParsePositiveDouble(value, &scale) || scale > 1000.0) {
+          (void)fprintf(stderr, "invalid --time-scale '%s': expected a factor in (0, 1000]\n", value);
+          return REPLAY_EXIT_INPUT;
+        }
+        opts->timeScale = scale;
+        break;
+      }
     }
+  }
+
+  if (opts->mode != REPLAY_MODE_EXPORT &&
+      (opts->exportFormat != NULL || opts->exportOutput != NULL)) {
+    (void)fprintf(stderr, "--format and --output are only valid with export\n");
+    return REPLAY_EXIT_INPUT;
   }
 
   if (opts->inputCount == 0) {
@@ -397,6 +482,14 @@ int main(int argc, char **argv) {
     bool complete = session.structurallyComplete && !session.sawFatal;
     replayPrintInspect(&opts, &session);
     replayFreeSession(&session);
+    return complete ? REPLAY_EXIT_OK : REPLAY_EXIT_PARTIAL;
+  }
+
+  if (opts.mode == REPLAY_MODE_EXPORT) {
+    bool complete = session.structurallyComplete && !session.sawFatal;
+    code = replayPrintExport(&opts, &session);
+    replayFreeSession(&session);
+    if (code != REPLAY_EXIT_OK) return code;
     return complete ? REPLAY_EXIT_OK : REPLAY_EXIT_PARTIAL;
   }
 
