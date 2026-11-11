@@ -1,0 +1,222 @@
+
+taos> USE vt_tag_filter_idmp;
+Database changed.
+
+taos> SELECT DISTINCT local_tag FROM vst ORDER BY local_tag;
+  local_tag  |
+==============
+           0 |
+           1 |
+
+taos> SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380%' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT tbname FROM vst GROUP BY tbname HAVING first(`手机`) LIKE '1380%' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT tbname FROM vst GROUP BY tbname HAVING last_row(`手机`) LIKE '1380%' ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000004                      |
+ vt_000008                      |
+ vt_000012                      |
+ vt_000016                      |
+ vt_000020                      |
+ vt_000024                      |
+ vt_000028                      |
+ vt_000032                      |
+ vt_000036                      |
+ vt_000040                      |
+ vt_000044                      |
+ vt_000048                      |
+ vt_000052                      |
+ vt_000056                      |
+ vt_000060                      |
+ vt_000064                      |
+ vt_000068                      |
+ vt_000072                      |
+ vt_000076                      |
+ vt_000080                      |
+ vt_000084                      |
+ vt_000088                      |
+ vt_000092                      |
+ vt_000096                      |
+ vt_000100                      |
+ vt_000104                      |
+ vt_000108                      |
+ vt_000112                      |
+ vt_000116                      |
+ vt_000120                      |
+ vt_000124                      |
+
+taos> SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380' ORDER BY tbname;
+
+taos> SELECT tbname FROM vst GROUP BY tbname HAVING last(`手机`) IS NULL ORDER BY tbname;
+             tbname             |
+=================================
+ vt_000014                      |
+ vt_000030                      |
+ vt_000046                      |
+ vt_000062                      |
+ vt_000078                      |
+ vt_000094                      |
+ vt_000110                      |
+ vt_000126                      |
+
+taos> SELECT tbname, count(*) FROM vst GROUP BY tbname HAVING last(`手机`) LIKE '1380%' ORDER BY tbname;
+             tbname             |       count(*)        |
+=========================================================
+ vt_000004                      |                     2 |
+ vt_000008                      |                     2 |
+ vt_000012                      |                     2 |
+ vt_000016                      |                     2 |
+ vt_000020                      |                     2 |
+ vt_000024                      |                     2 |
+ vt_000028                      |                     2 |
+ vt_000032                      |                     2 |
+ vt_000036                      |                     2 |
+ vt_000040                      |                     2 |
+ vt_000044                      |                     2 |
+ vt_000048                      |                     2 |
+ vt_000052                      |                     2 |
+ vt_000056                      |                     2 |
+ vt_000060                      |                     2 |
+ vt_000064                      |                     2 |
+ vt_000068                      |                     2 |
+ vt_000072                      |                     2 |
+ vt_000076                      |                     2 |
+ vt_000080                      |                     2 |
+ vt_000084                      |                     2 |
+ vt_000088                      |                     2 |
+ vt_000092                      |                     2 |
+ vt_000096                      |                     2 |
+ vt_000100                      |                     2 |
+ vt_000104                      |                     2 |
+ vt_000108                      |                     2 |
+ vt_000112                      |                     2 |
+ vt_000116                      |                     2 |
+ vt_000120                      |                     2 |
+ vt_000124                      |                     2 |
+
+taos> SELECT count(*) FROM vst WHERE `手机` LIKE '1380%';
+       count(*)        |
+========================
+                    62 |
+
+taos> SELECT tbname, count(*) FROM vst WHERE `手机` LIKE '1380%' GROUP BY tbname ORDER BY tbname;
+             tbname             |       count(*)        |
+=========================================================
+ vt_000004                      |                     2 |
+ vt_000008                      |                     2 |
+ vt_000012                      |                     2 |
+ vt_000016                      |                     2 |
+ vt_000020                      |                     2 |
+ vt_000024                      |                     2 |
+ vt_000028                      |                     2 |
+ vt_000032                      |                     2 |
+ vt_000036                      |                     2 |
+ vt_000040                      |                     2 |
+ vt_000044                      |                     2 |
+ vt_000048                      |                     2 |
+ vt_000052                      |                     2 |
+ vt_000056                      |                     2 |
+ vt_000060                      |                     2 |
+ vt_000064                      |                     2 |
+ vt_000068                      |                     2 |
+ vt_000072                      |                     2 |
+ vt_000076                      |                     2 |
+ vt_000080                      |                     2 |
+ vt_000084                      |                     2 |
+ vt_000088                      |                     2 |
+ vt_000092                      |                     2 |
+ vt_000096                      |                     2 |
+ vt_000100                      |                     2 |
+ vt_000104                      |                     2 |
+ vt_000108                      |                     2 |
+ vt_000112                      |                     2 |
+ vt_000116                      |                     2 |
+ vt_000120                      |                     2 |
+ vt_000124                      |                     2 |
+
+taos> SELECT tbname FROM vst WHERE `手机` = '13800000' ORDER BY tbname LIMIT 20;
+             tbname             |
+=================================
+ vt_000016                      |
+ vt_000016                      |
+ vt_000032                      |
+ vt_000032                      |
+ vt_000048                      |
+ vt_000048                      |
+ vt_000064                      |
+ vt_000064                      |
+ vt_000080                      |
+ vt_000080                      |
+ vt_000096                      |
+ vt_000096                      |
+ vt_000112                      |
+ vt_000112                      |
+

@@ -21302,6 +21302,215 @@ TEST(execUtilTest, interpResultStoreAllocationFailuresPreserveState) {
   interpResultStoreDestroy(pStore);
 }
 
+class QueryVirtualTagsTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    savedExecInfo = gExecInfo;
+    savedDisableStream = tsDisableStream;
+    gExecInfoInit(this, nullptr, [](void *, SEpSet *eps) {
+      eps->numOfEps = 1;
+      eps->eps[0].port = 16603;
+      tstrncpy(eps->eps[0].fqdn, "query-mnode", sizeof(eps->eps[0].fqdn));
+    });
+    task.storageAPI.metaReaderFn.initReader = [](SMetaReader *reader, void *vnode, int32_t, SStoreMeta *, int64_t) {
+      reader->pMeta = vnode;
+    };
+    task.storageAPI.metaReaderFn.readerReleaseLock = [](SMetaReader *) {};
+    task.storageAPI.metaReaderFn.clearReader = [](SMetaReader *) {};
+    task.storageAPI.metaReaderFn.getTableEntryByUid = [](SMetaReader *reader, tb_uid_t uid) -> int32_t {
+      auto *self = static_cast<QueryVirtualTagsTest *>(reader->pMeta);
+      ++self->lookupCalls;
+      if (uid == 1) return self->lookupError;
+      reader->me.colRef.nTagRefs = self->ref.hasRef ? 1 : 0;
+      reader->me.colRef.pTagRef = &self->ref;
+      return TSDB_CODE_SUCCESS;
+    };
+    ctx.vnode = this;
+    ctx.pAPI = &task.storageAPI;
+    ctx.pTaskInfo = &task;
+    tags = taosArrayInit(2, sizeof(STUidTagInfo));
+    cols = taosArrayInit(1, sizeof(SColumnInfo));
+    ASSERT_NE(tags, nullptr);
+    ASSERT_NE(cols, nullptr);
+    SColumnInfo col = {};
+    col.colId = 3;
+    col.type = TSDB_DATA_TYPE_INT;
+    col.bytes = sizeof(int32_t);
+    ASSERT_NE(taosArrayPush(cols, &col), nullptr);
+  }
+
+  void TearDown() override {
+    for (int32_t i = 0; i < taosArrayGetSize(tags); ++i) {
+      taosMemoryFree(static_cast<STUidTagInfo *>(taosArrayGet(tags, i))->pTagVal);
+    }
+    taosArrayDestroy(tags);
+    taosArrayDestroy(cols);
+    clearQueryTagRefContext(&ctx);
+    gExecInfo = savedExecInfo;
+    tsDisableStream = savedDisableStream;
+  }
+
+  SGlobalExecInfo savedExecInfo = {};
+  decltype(tsDisableStream) savedDisableStream = 0;
+  SExecTaskInfo task = {};
+  SRefChainCtx ctx = {};
+  SColRef ref = {};
+  SArray *tags = nullptr;
+  SArray *cols = nullptr;
+  int32_t lookupError = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  int32_t lookupCalls = 0;
+};
+
+TEST_F(QueryVirtualTagsTest, MissingChildrenKeepBatchSlots) {
+  for (int32_t missingCode : {TSDB_CODE_PAR_TABLE_NOT_EXIST, TSDB_CODE_TDB_TABLE_NOT_EXIST}) {
+    lookupError = missingCode;
+    taosArrayClear(tags);
+    STUidTagInfo missing = {};
+    missing.uid = 1;
+    missing.pTagVal = taosMemoryMalloc(sizeof(STag));
+    ASSERT_NE(missing.pTagVal, nullptr);
+    ASSERT_NE(taosArrayPush(tags, &missing), nullptr);
+    STUidTagInfo live = {};
+    live.uid = 2;
+    ASSERT_NE(taosArrayPush(tags, &live), nullptr);
+    ASSERT_EQ(resolveQueryVirtualTags(&ctx, tags, cols), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosArrayGetSize(tags), 2);
+    const auto *first = static_cast<STUidTagInfo *>(taosArrayGet(tags, 0));
+    EXPECT_EQ(first->uid, 0);
+    EXPECT_EQ(first->pTagVal, nullptr);
+    EXPECT_EQ(static_cast<STUidTagInfo *>(taosArrayGet(tags, 1))->uid, 2);
+  }
+  EXPECT_EQ(lookupCalls, 4);
+}
+
+TEST_F(QueryVirtualTagsTest, MetadataErrorsPropagate) {
+  STUidTagInfo tag = {};
+  tag.uid = 1;
+  ASSERT_NE(taosArrayPush(tags, &tag), nullptr);
+  for (int32_t code : {TSDB_CODE_OUT_OF_MEMORY, TSDB_CODE_APP_ERROR}) {
+    lookupError = code;
+    EXPECT_EQ(resolveQueryVirtualTags(&ctx, tags, cols), code);
+    EXPECT_EQ(static_cast<STUidTagInfo *>(taosArrayGet(tags, 0))->uid, 1);
+  }
+  EXPECT_EQ(lookupCalls, 2);
+}
+
+TEST_F(QueryVirtualTagsTest, JsonTagsKeepOriginalContainer) {
+  static_cast<SColumnInfo *>(taosArrayGet(cols, 0))->type = TSDB_DATA_TYPE_JSON;
+  ref.id = 3;
+  ref.hasRef = true;
+  STUidTagInfo tag = {};
+  tag.uid = 2;
+  auto *blob = static_cast<STag *>(taosMemoryCalloc(1, sizeof(STag)));
+  ASSERT_NE(blob, nullptr);
+  blob->flags = TD_TAG_JSON;
+  blob->len = sizeof(STag);
+  tag.pTagVal = blob;
+  ASSERT_NE(taosArrayPush(tags, &tag), nullptr);
+  EXPECT_EQ(resolveQueryVirtualTags(&ctx, tags, cols), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(static_cast<STUidTagInfo *>(taosArrayGet(tags, 0))->pTagVal, blob);
+  EXPECT_EQ(blob->flags, TD_TAG_JSON);
+}
+
+TEST_F(QueryVirtualTagsTest, UsesExecutorRoutingWithStreamsDisabled) {
+  tsDisableStream = 1;
+  SReadHandle handle = {};
+  handle.vnode = this;
+  SEpSet eps = {};
+  ASSERT_EQ(initQueryTagRefContext(&ctx, &handle, &task, 0, &eps), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(eps.numOfEps, 1);
+  EXPECT_EQ(eps.eps[0].port, 16603);
+  EXPECT_STREQ(eps.eps[0].fqdn, "query-mnode");
+}
+
+TEST_F(QueryVirtualTagsTest, RoutingInitializationFailurePropagates) {
+  gExecInfo = {};
+  SReadHandle handle = {};
+  SEpSet eps = {};
+  EXPECT_EQ(initQueryTagRefContext(&ctx, &handle, &task, 0, &eps), TSDB_CODE_APP_ERROR);
+  EXPECT_EQ(ctx.pQueryTagValueCache, nullptr);
+  EXPECT_EQ(ctx.pRefTableCfgCache, nullptr);
+}
+
+TEST_F(QueryVirtualTagsTest, TbnameRestrictionsAvoidChildEnumeration) {
+  task.execModel = OPTR_EXEC_MODEL_BATCH;
+  task.storageAPI.metaFn.isVirtualSuperTable = [](void *, int64_t, int64_t) { return true; };
+  task.storageAPI.metaFn.getChildTableList = [](void *, int64_t, SArray *) -> int32_t {
+    ADD_FAILURE() << "A name restriction must not enumerate all children";
+    return TSDB_CODE_APP_ERROR;
+  };
+  task.storageAPI.metaFn.extractTagVal = [](const void *tags, int16_t, STagVal *value) -> const void * {
+    return tTagGet(static_cast<const STag *>(tags), value) ? value : nullptr;
+  };
+  task.storageAPI.metaFn.getTableInfosByNames = [](void *, const SArray *names, SArray *infos, int64_t) -> int32_t {
+    for (int32_t i = 0; i < taosArrayGetSize(names); ++i) {
+      const char *name = static_cast<const char *>(taosArrayGetP(names, i));
+      SMetaTableBatchInfo info = {};
+      info.suid = 42;
+      info.type = TSDB_VIRTUAL_CHILD_TABLE;
+      if (strcmp(name, "vt_selected") == 0) info.uid = 2;
+      if (strcmp(name, "vt_deleted") == 0) info.uid = 1;
+      if (taosArrayPush(infos, &info) == nullptr) return terrno;
+    }
+    return TSDB_CODE_SUCCESS;
+  };
+  task.storageAPI.metaFn.getTableTagsByUidVersion = [](void *, int64_t, SArray *entries, int64_t) -> int32_t {
+    for (int32_t i = 0; i < taosArrayGetSize(entries); ++i) {
+      auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(entries, i));
+      if (entry->pTagVal != nullptr) continue;
+      SArray *values = taosArrayInit(1, sizeof(STagVal));
+      if (values == nullptr) return terrno;
+      STagVal value = {};
+      value.cid = 3;
+      value.type = TSDB_DATA_TYPE_INT;
+      value.i64 = 7;
+      taosArrayPush(values, &value);
+      STag *tag = nullptr;
+      int32_t code = tTagNew(values, 1, false, &tag);
+      taosArrayDestroy(values);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      entry->pTagVal = tag;
+    }
+    return TSDB_CODE_SUCCESS;
+  };
+  for (const char *name : {"vt_selected", "vt_absent", "vt_deleted"}) {
+    SCOPED_TRACE(name);
+    auto *tbname = reinterpret_cast<SColumnNode *>(makeTagColumn(-1, TSDB_DATA_TYPE_VARCHAR, 128));
+    tbname->colType = COLUMN_TYPE_TBNAME;
+    auto *value = reinterpret_cast<SValueNode *>(makeIntValue(0));
+    value->node.resType.type = value->typeData = TSDB_DATA_TYPE_VARCHAR;
+    value->node.resType.bytes = VARSTR_HEADER_SIZE + strlen(name);
+    value->datum.p = static_cast<char *>(taosMemoryCalloc(1, value->node.resType.bytes + 1));
+    ASSERT_NE(value->datum.p, nullptr);
+    STR_TO_VARSTR(value->datum.p, name);
+    SLogicConditionNode *condition = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, reinterpret_cast<SNode **>(&condition)), 0);
+    condition->condType = LOGIC_COND_TYPE_AND;
+    condition->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    condition->node.resType.bytes = sizeof(bool);
+    nodesListMakeStrictAppend(&condition->pParameterList,
+                             makeEqualCond(reinterpret_cast<SNode *>(tbname), reinterpret_cast<SNode *>(value)));
+    nodesListMakeStrictAppend(&condition->pParameterList,
+                             makeEqualCond(makeTagColumn(3, TSDB_DATA_TYPE_INT, sizeof(int32_t)), makeIntValue(7)));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> ownedCondition(reinterpret_cast<SNode *>(condition),
+                                                                    nodesDestroyNode);
+    std::unique_ptr<STableListInfo, decltype(&tableListDestroy)> list(tableListCreate(), tableListDestroy);
+    ASSERT_NE(list, nullptr);
+    SScanPhysiNode scan = {};
+    scan.node.type = QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN;
+    scan.suid = scan.uid = 42;
+    scan.tableType = TSDB_SUPER_TABLE;
+    SReadHandle handle = {};
+    handle.vnode = this;
+    ASSERT_EQ(createScanTableListInfo(&scan, nullptr, false, &handle, list.get(), ownedCondition.get(),
+                                      nullptr, &task, nullptr), TSDB_CODE_SUCCESS);
+    const bool selected = strcmp(name, "vt_selected") == 0;
+    EXPECT_EQ(taosArrayGetSize(list->pTableList), selected ? 1 : 0);
+    if (selected) EXPECT_STREQ(tableListGetTbname(list.get(), 2), name);
+  }
+  EXPECT_EQ(lookupCalls, 2);
+}
+
 TEST(VirtualDirectBlockSchemaTest, RejectsReorderedSlotsAndAcceptsWiderVariableSource) {
   SSDataBlock *source = nullptr;
   SSDataBlock *expected = nullptr;

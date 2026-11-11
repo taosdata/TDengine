@@ -2091,6 +2091,20 @@ static void setVtableScanPrecisions(STableScanInfo* pInfo, const SOrgTbInfo* pOr
   pInfo->outputTsPrecision = pOrgTbInfo->dstPrecision;
 }
 
+static bool vtableScanNeedsColumn(const SOperatorInfo* pOperator, col_id_t colId) {
+  const STableScanInfo* pInfo = pOperator->info;
+  // Only batch virtual-stable scans save the template columns in orgCond.
+  // Stream readers and ordinary virtual tables keep their existing mappings.
+  if (!pInfo->virtualStableScan || pOperator->pTaskInfo->execModel != OPTR_EXEC_MODEL_BATCH ||
+      pOperator->pTaskInfo->pStreamRuntimeInfo != NULL) {
+    return true;
+  }
+  for (int32_t i = 0; i < pInfo->base.orgCond.numOfCols; ++i) {
+    if (pInfo->base.orgCond.colList[i].colId == colId) return true;
+  }
+  return false;
+}
+
 static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
   int32_t                  code = 0;
   int32_t                  lino = 0;
@@ -2199,6 +2213,7 @@ static int32_t createVTableScanInfoFromBatchParam(SOperatorInfo* pOperator) {
 
     for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
       SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
+      if (!vtableScanNeedsColumn(pOperator, kv->colId)) continue;
       for (int32_t j = 0; j < schema->nCols; j++) {
         if (strcmp(kv->colName, schema->pSchema[j].name) == 0) {
           SDataType refType = {0};
@@ -2536,6 +2551,9 @@ static int32_t createVTableScanInfoFromParam(SOperatorInfo* pOperator) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pOrgTbInfo->colMap); ++i) {
     SColIdNameKV* kv = taosArrayGet(pOrgTbInfo->colMap, i);
+    // All refs can be needed to enumerate timestamp sources while the scan
+    // template requests only ts. Do not add unused payload columns to reader.
+    if (!vtableScanNeedsColumn(pOperator, kv->colId)) continue;
     // Resolve referenced tag values from source child-table metadata first.
     if ((orgTable.me.type == TSDB_CHILD_TABLE || orgTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) && superTable.me.stbEntry.schemaTag.pSchema &&
         orgTable.me.ctbEntry.pTags) {
@@ -5277,7 +5295,13 @@ static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SM
     } else {  // it is a tag value
       STagVal val = {0};
       val.cid = pExprInfo[j].base.pParam[0].pCol->colId;
-      const char* p = pAPI->metaFn.extractTagVal((*mr).me.ctbEntry.pTags, pDst->info.type, &val);
+      const STag* pTags = (const STag*)(*mr).me.ctbEntry.pTags;
+      if (pInfo->isVirtualStable && pInfo->aUidTags != NULL) {
+        STUidTagInfo* pTag = taosArrayGet(pInfo->aUidTags, pInfo->curPos - pInfo->virtualTagBatchStart);
+        QUERY_CHECK_NULL(pTag, code, lino, _end, terrno);
+        pTags = pTag->pTagVal;
+      }
+      const char* p = pAPI->metaFn.extractTagVal(pTags, pDst->info.type, &val);
 
       char* data = NULL;
       if (pDst->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
@@ -5687,6 +5711,30 @@ static int32_t createTagScanTableListInfoFromParam(SOperatorInfo* pOperator) {
   return code;
 }
 
+static int32_t tagScanResolveVirtualBatch(SOperatorInfo* pOperator, int32_t size) {
+  STagScanInfo*  pInfo = pOperator->info;
+  SStorageAPI*   pAPI = &pOperator->pTaskInfo->storageAPI;
+  int32_t        code = TSDB_CODE_SUCCESS;
+  int32_t        lino = 0;
+  int32_t        end = TMIN(size, pInfo->curPos + pOperator->resultInfo.capacity);
+
+  taosArrayClearEx(pInfo->aUidTags, tagScanFreeUidTag);
+  pInfo->virtualTagBatchStart = pInfo->curPos;
+  if (taosArrayGetSize(pInfo->pVirtualTagCols) == 0) return TSDB_CODE_SUCCESS;
+  for (int32_t i = pInfo->curPos; i < end; ++i) {
+    STableKeyInfo* pTable = tableListGetInfo(pInfo->pTableListInfo, i);
+    QUERY_CHECK_NULL(pTable, code, lino, _end, terrno);
+    STUidTagInfo tag = {.uid = pTable->uid};
+    QUERY_CHECK_NULL(taosArrayPush(pInfo->aUidTags, &tag), code, lino, _end, terrno);
+  }
+  code = pAPI->metaFn.getTableTagsByUidVersion(pInfo->readHandle.vnode, pInfo->suid, pInfo->aUidTags, -1);
+  QUERY_CHECK_CODE(code, lino, _end);
+  code = resolveQueryVirtualTags(pInfo->pVirtualTagCtx, pInfo->aUidTags, pInfo->pVirtualTagCols);
+_end:
+  if (code != TSDB_CODE_SUCCESS) qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
 static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
@@ -5725,25 +5773,40 @@ static int32_t doTagScanFromMetaEntryNext(SOperatorInfo* pOperator, SSDataBlock*
     return code;
   }
 
-  SMetaReader mr = {0};
-  pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
   pRes->info.rows = 0;
-
-  while (pInfo->curPos < size && pRes->info.rows < pOperator->resultInfo.capacity) {
-    code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
-    if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
-        code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
-      // ignore other error
-      code = TSDB_CODE_SUCCESS;
+  do {
+    // Resolve before taking the metadata reader lock: chain resolution can take
+    // nested metadata locks and issue RPCs to source vnodes.
+    int32_t batchEnd = size;
+    if (pInfo->isVirtualStable) {
+      code = tagScanResolveVirtualBatch(pOperator, size);
+      QUERY_CHECK_CODE(code, lino, _end);
+      batchEnd = TMIN(size, pInfo->curPos + pOperator->resultInfo.capacity);
     }
-    QUERY_CHECK_CODE(code, lino, _end);
 
-    if (++pInfo->curPos >= size) {
-      setOperatorCompleted(pOperator);
+    SMetaReader mr = {0};
+    pAPI->metaReaderFn.initReader(&mr, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
+    while (pInfo->curPos < batchEnd && pRes->info.rows < pOperator->resultInfo.capacity) {
+      code = doTagScanOneTable(pOperator, pRes, &mr, &pTaskInfo->storageAPI);
+      if (code != TSDB_CODE_OUT_OF_MEMORY && code != TSDB_CODE_QRY_REACH_QMEM_THRESHOLD &&
+          code != TSDB_CODE_QRY_QUERY_MEM_EXHAUSTED) {
+        // ignore other error
+        code = TSDB_CODE_SUCCESS;
+      }
+      if (code != TSDB_CODE_SUCCESS) {
+        pAPI->metaReaderFn.clearReader(&mr);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      if (++pInfo->curPos >= size) {
+        setOperatorCompleted(pOperator);
+      }
     }
-  }
+    pAPI->metaReaderFn.clearReader(&mr);
+    // Missing children must not advance beyond the resolved batch or make an
+    // empty intermediate block look like the end of the entire scan.
+  } while (pRes->info.rows == 0 && pInfo->curPos < size);
 
-  pAPI->metaReaderFn.clearReader(&mr);
   bool bLimitReached = applyLimitOffset(&pInfo->limitInfo, pRes, pTaskInfo);
   if (bLimitReached) {
     setOperatorCompleted(pOperator);
@@ -5773,6 +5836,11 @@ static void destroyTagScanOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->filterCtx.cInfoList);
   taosArrayDestroy(pInfo->aFilterIdxs);
   taosArrayDestroyEx(pInfo->aUidTags, tagScanFreeUidTag);
+  taosArrayDestroy(pInfo->pVirtualTagCols);
+  if (pInfo->pVirtualTagCtx != NULL) {
+    clearQueryTagRefContext(pInfo->pVirtualTagCtx);
+    taosMemoryFree(pInfo->pVirtualTagCtx);
+  }
 
   blockDataDestroy(pInfo->pRes);
   taosArrayDestroy(pInfo->matchInfo.pList);
@@ -5789,6 +5857,12 @@ static int32_t resetTagScanOperatorState(SOperatorInfo* pOper) {
 
   pOper->status = OP_NOT_OPENED;
   STagScanPhysiNode* pTagScanNode = (STagScanPhysiNode*)pOper->pPhyNode;
+  if (pInfo->pVirtualTagCtx != NULL) {
+    clearQueryTagRefContext(pInfo->pVirtualTagCtx);
+    code = initQueryTagRefContext(pInfo->pVirtualTagCtx, &pInfo->readHandle, pOper->pTaskInfo,
+                                  pTagScanNode->scan.tableName.acctId, &pInfo->virtualTagEpSet);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
   if (pTagScanNode->onlyMetaCtbIdx) {
       SExecTaskInfo* pTaskInfo = pOper->pTaskInfo;
       SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
@@ -5850,6 +5924,36 @@ int32_t createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysiNode* p
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   code = blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   QUERY_CHECK_CODE(code, lino, _error);
+
+  if (pReadHandle->vnode != NULL && pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
+      pTaskInfo->pStreamRuntimeInfo == NULL &&
+      pTaskInfo->storageAPI.metaFn.isVirtualSuperTable != NULL) {
+    pInfo->isVirtualStable = pTaskInfo->storageAPI.metaFn.isVirtualSuperTable(
+        pReadHandle->vnode, pInfo->suid, pReadHandle->txnId);
+  }
+  if (pInfo->isVirtualStable) {
+    pInfo->aUidTags = taosArrayInit(pOperator->resultInfo.capacity, sizeof(STUidTagInfo));
+    QUERY_CHECK_NULL(pInfo->aUidTags, code, lino, _error, terrno);
+    pInfo->pVirtualTagCtx = taosMemoryCalloc(1, sizeof(SRefChainCtx));
+    QUERY_CHECK_NULL(pInfo->pVirtualTagCtx, code, lino, _error, terrno);
+    code = initQueryTagRefContext(pInfo->pVirtualTagCtx, pReadHandle, pTaskInfo, pPhyNode->tableName.acctId,
+                                  &pInfo->virtualTagEpSet);
+    QUERY_CHECK_CODE(code, lino, _error);
+    pInfo->pVirtualTagCols = taosArrayInit(numOfExprs, sizeof(SColumnInfo));
+    QUERY_CHECK_NULL(pInfo->pVirtualTagCols, code, lino, _error, terrno);
+    for (int32_t i = 0; i < numOfExprs; ++i) {
+      if (pExprInfo[i].pExpr->nodeType == QUERY_NODE_COLUMN) {
+        col_id_t colId = pExprInfo[i].base.pParam[0].pCol->colId;
+        if (colId >= 0) {
+          SColumnInfoData* pCol = taosArrayGet(pInfo->pRes->pDataBlock, pExprInfo[i].base.resSchema.slotId);
+          QUERY_CHECK_NULL(pCol, code, lino, _error, terrno);
+          SColumnInfo info = pCol->info;
+          info.colId = colId;
+          QUERY_CHECK_NULL(taosArrayPush(pInfo->pVirtualTagCols, &info), code, lino, _error, terrno);
+        }
+      }
+    }
+  }
 
   if (pTagScanNode->onlyMetaCtbIdx) {
     pInfo->aUidTags = taosArrayInit(pOperator->resultInfo.capacity, sizeof(STUidTagInfo));

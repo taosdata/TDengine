@@ -639,6 +639,9 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/02-Tag/test_vtable_tag_ref_alter.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/02-Tag/test_vtable_tag_ref_alter.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/03-TagRef/test_vtable_tag_ref_ins_tags.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vstable_tag_ref_filter.py
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vstable_tag_ref_filter.py -Q 2
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/07-Performance/test_vstable_tag_ref_filter.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/03-TagRef/test_vtable_tag_ref_ins_tags.py -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/03-TagRef/test_vtable_tag_ref_ins_tags.py -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/06-Meta/03-TagRef/test_vtable_tag_ref_multihop.py
