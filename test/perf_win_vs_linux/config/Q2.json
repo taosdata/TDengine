@@ -1,0 +1,21 @@
+{
+  "filetype": "query",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "continue_if_fail": "no",
+  "databases": "perfdb",
+  "query_times": 20,
+  "query_mode": "taosc",
+  "specified_table_query": {
+    "threads": 1,
+    "query_interval": 0,
+    "sqls": [
+      {
+        "sql": "select count(*) from meters"
+      }
+    ]
+  }
+}
