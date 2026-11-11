@@ -22613,12 +22613,24 @@ int32_t tDecodeSMqRebVgReq(SDecoder *pCoder, SMqRebVgReq *pReq) {
          pReq->vgId, pReq->subType, pReq->withMeta);
 
   if (pReq->subType == TOPIC_SUB_TYPE__COLUMN) {
-    TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->qmsg));
+    uint32_t qmsgWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(pCoder, (uint8_t **)&pReq->qmsg, &qmsgWireLen));
+    if (qmsgWireLen == 0) {
+      pReq->qmsg = NULL;
+    } else if (pReq->qmsg[qmsgWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
     TAOS_CHECK_EXIT(tDecodeSSchemaWrapper(pCoder, &pReq->schema));
   } else if (pReq->subType == TOPIC_SUB_TYPE__TABLE) {
     TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pReq->suid));
     if (!tDecodeIsEnd(pCoder)) {
-      TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pReq->qmsg));
+      uint32_t qmsgWireLen = 0;
+      TAOS_CHECK_EXIT(tDecodeBinary(pCoder, (uint8_t **)&pReq->qmsg, &qmsgWireLen));
+      if (qmsgWireLen == 0) {
+        pReq->qmsg = NULL;
+      } else if (pReq->qmsg[qmsgWireLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
     }
   }
 
