@@ -618,6 +618,11 @@ typedef struct STagScanInfo {
   STagScanFilterContext filterCtx;
   SArray*               aUidTags;     // SArray<STUidTagInfo>
   SArray*               aFilterIdxs;  // SArray<int32_t>
+  SArray*               pVirtualTagCols;
+  struct SRefChainCtx*  pVirtualTagCtx;
+  SEpSet                virtualTagEpSet;
+  int32_t               virtualTagBatchStart;
+  bool                  isVirtualStable;
   SStorageAPI*          pStorageAPI;
   SLimitInfo            limitInfo;
 } STagScanInfo;
@@ -1007,6 +1012,10 @@ void sysTagsRefCachesInit(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
 // Destroy the cache pair from sysTagsRefCachesInit (vg entries freeVgInfo'd, cfg entries
 // released via the registered freeFp) and reset both pointers to NULL.
 void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache);
+// Optional, bounded terminal-value cache. Outputs from resolveTagRefChain
+// remain caller-owned even when this cache supplies the value.
+void sysTagsRefValueCacheInit(SHashObj** ppCache);
+void sysTagsRefValueCacheClear(SHashObj** ppCache);
 
 // Context for resolving a tag-ref to its terminal value across vntb tag-ref chains.
 // Each hop first tries a local meta read (short-lived LOCK reader, never held across RPC);
@@ -1042,6 +1051,7 @@ typedef struct SRefChainCtx {
   SHashObj*       pRefTableCfgCache;  // "refDbName.refTableName" -> per-source table-cfg cache
                                       // entry (opaque here: the entry type is file-local to
                                       // sysscanoperator.c); NULL -> uncached
+  SHashObj*       pQueryTagValueCache; // optional terminal values; caller-owned, cleared between scans
 } SRefChainCtx;
 
 // Resolve refDb.refTable.refCol to its terminal tag value following vntb tag-ref chains.
@@ -1067,17 +1077,24 @@ typedef struct SRefChainCtx {
 // TSDB_MAX_VTABLE_REF_DEPTH return hard errors (TSDB_CODE_VTABLE_CIRCULAR_REF /
 // TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED).
 // MUTATION / THREADING CONTRACT: pCtx is deliberately NON-const -- remote hops write cache
-// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache (shared per-scan state, the
-// RPC-storm guard from !2045). Do not place the ctx in read-only/shared memory; callers may
+// entries into pCtx->pRefTableCfgCache / pCtx->pRefDbVgInfoCache / pCtx->pQueryTagValueCache
+// (shared per-scan state). Do not place the ctx in read-only/shared memory; callers may
 // pass NULL caches to run fully uncached.
-// THREADING SCOPE: (1) pRefDbVgInfoCache / pRefTableCfgCache are HASH_NO_LOCK (put may
-// rehash), so these two hashes -- and any ctx pointing at them -- must be driven by ONE
+// THREADING SCOPE: (1) all three caches are HASH_NO_LOCK (put may
+// rehash), so these hashes -- and any ctx pointing at them -- must be driven by ONE
 // thread at a time; sharing them across concurrently-resolving scans is a race. (2) The
 // other fields are NOT thread-private: clientRpc/pTaskInfo are task-level shared objects,
 // and pMnodeEpSet is a non-const pointer the RPC layer may rewrite (mnode switchover
 // refresh) -- expect concurrent access to it when a plan/operator runs in parallel.
 int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
                            const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved);
+// Query-local caches are owned by the context; release with clearQueryTagRefContext.
+// pEpSet must outlive the context. Tag batches own their rebuilt pTagVal blobs.
+int32_t initQueryTagRefContext(SRefChainCtx* pCtx, const SReadHandle* pHandle, SExecTaskInfo* pTask,
+                              int32_t accountId, SEpSet* pEpSet);
+void clearQueryTagRefContext(SRefChainCtx* pCtx);
+// Missing children keep their batch slots with uid=0; filters must omit those rows.
+int32_t resolveQueryVirtualTags(SRefChainCtx* pCtx, SArray* pTags, const SArray* pCols);
 int32_t setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
                             int32_t* rowEntryInfoOffset);
 void    clearResultRowInitFlag(SqlFunctionCtx* pCtx, int32_t numOfOutput);

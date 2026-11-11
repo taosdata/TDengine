@@ -522,6 +522,14 @@ int32_t createOperator(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHand
       code = createTableCountScanOperatorInfo(pHandle, pTblCountScanNode, pTaskInfo, &pOperator);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pTagScanPhyNode = (STagScanPhysiNode*)pPhyNode;
+      if (pHandle->vnode != NULL && pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
+          pTaskInfo->pStreamRuntimeInfo == NULL &&
+          pTaskInfo->storageAPI.metaFn.isVirtualSuperTable != NULL &&
+          pTaskInfo->storageAPI.metaFn.isVirtualSuperTable(pHandle->vnode, pTagScanPhyNode->scan.suid,
+                                                        pHandle->txnId)) {
+        // The ctb index only contains stored tags, not resolved tag-ref values.
+        pTagScanPhyNode->onlyMetaCtbIdx = false;
+      }
       STableListInfo*    pTableListInfo = tableListCreate();
       if (!pTableListInfo) {
         pTaskInfo->code = terrno;

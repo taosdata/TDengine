@@ -140,6 +140,7 @@ typedef struct SSysTableScanInfo {
   // tag-ref children into tens of millions of sequential blocking RPCs
   SHashObj* pRefDbVgInfoCache;   // refDbName -> SDBVgInfo* (hash-owned)
   SHashObj* pRefTableCfgCache;   // "refDbName.refTableName" -> SRefTableCfgCacheEntry
+  SHashObj* pRefTagValueCache;   // qualified source tag -> terminal value (including NULL)
 
   // tag_name equality pre-filter, extracted from pCondition per scan call (same
   // helper as the db_name/stable_name pre-filter): the tag name is known from
@@ -1544,16 +1545,8 @@ _end:
 }
 
 static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_t tableUid) {
-  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
-    tb_uid_t* childUid = taosArrayGet(pTableListInfo->pTableList, i);
-    if (childUid == NULL) {
-      return false;
-    }
-    if (*childUid == tableUid) {
-      return true;
-    }
-  }
-  return false;
+  return pTableListInfo != NULL &&
+         taosHashGet(pTableListInfo->map, &tableUid, sizeof(tableUid)) != NULL;
 }
 
 static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
@@ -1582,6 +1575,17 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   if (pInfo->pVtbRefReqs != NULL) {
     blockDataDestroy(pDataBlock);
     return sysTableScanUserVcColsByReqs(pOperator);
+  }
+
+  SSystemTableScanPhysiNode* pScanNode = (SSystemTableScanPhysiNode*)pOperator->pPhyNode;
+  // An empty child list only proves emptiness for a batch virtual-stable scan.
+  // Normal virtual tables and stream readers resolve their sources separately.
+  if (pScanNode->scan.virtualStableScan && pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
+      pTaskInfo->pStreamRuntimeInfo == NULL && pInfo->pSubTableListInfo != NULL &&
+      taosArrayGetSize(pInfo->pSubTableListInfo->pTableList) == 0) {
+    blockDataDestroy(pDataBlock);
+    setOperatorCompleted(pOperator);
+    return NULL;
   }
 
   code = doExtractDbName(dbname, pInfo, pAPI);
@@ -2740,6 +2744,49 @@ typedef struct SRefTableCfgCacheEntry {
 // Bound on distinct source tables cached per scan; past the cap fetches pass
 // through uncached instead of growing memory without limit
 #define SYS_TAGS_REF_CFG_CACHE_MAX_NUM 100000
+#define SYS_TAGS_REF_VALUE_CACHE_MAX_VALUE_BYTES 1024
+
+typedef struct {
+  char db[TSDB_DB_NAME_LEN];
+  char table[TSDB_TABLE_NAME_LEN];
+  char column[TSDB_COL_NAME_LEN];
+} SRefTagValueKey;
+
+typedef struct {
+  char*    data;
+  uint32_t len;
+  bool     resolved;
+} SRefTagValueCacheEntry;
+
+static void sysTagsRefValueCacheEntryFree(void* pEntry) {
+  taosMemoryFree(((SRefTagValueCacheEntry*)pEntry)->data);
+}
+
+void sysTagsRefValueCacheInit(SHashObj** ppCache) {
+  if (*ppCache != NULL) return;
+  *ppCache = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (*ppCache != NULL) taosHashSetFreeFp(*ppCache, sysTagsRefValueCacheEntryFree);
+}
+
+void sysTagsRefValueCacheClear(SHashObj** ppCache) {
+  taosHashCleanup(*ppCache);
+  *ppCache = NULL;
+}
+
+static void sysTagsCacheRefValue(SHashObj* pCache, const SRefTagValueKey* pKey,
+                                const char* data, uint32_t len, bool resolved) {
+  if (pCache == NULL || len > SYS_TAGS_REF_VALUE_CACHE_MAX_VALUE_BYTES ||
+      taosHashGetSize(pCache) >= SYS_TAGS_REF_CFG_CACHE_MAX_NUM) return;
+  SRefTagValueCacheEntry entry = {.len = len, .resolved = resolved};
+  if (len > 0) {
+    entry.data = taosMemoryMalloc(len);
+    if (entry.data == NULL) return;  // Cache allocation is best effort.
+    memcpy(entry.data, data, len);
+  }
+  if (taosHashPut(pCache, pKey, sizeof(*pKey), &entry, sizeof(entry)) != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(entry.data);
+  }
+}
 
 static void sysTagsRefCfgCacheEntryFree(void* p) {
   SRefTableCfgCacheEntry* pEntry = (SRefTableCfgCacheEntry*)p;
@@ -2797,6 +2844,7 @@ void sysTagsRefCachesClear(SHashObj** ppVgInfoCache, SHashObj** ppCfgCache) {
 static void sysTagsEnsureRefCaches(const SSysTableScanInfo* pInfo) {
   SSysTableScanInfo* pMutable = (SSysTableScanInfo*)pInfo;
   sysTagsRefCachesInit(&pMutable->pRefDbVgInfoCache, &pMutable->pRefTableCfgCache);
+  sysTagsRefValueCacheInit(&pMutable->pRefTagValueCache);
 }
 
 // Extract one tag value (by schema cid) from an STag container into a freshly malloc'd
@@ -3193,7 +3241,7 @@ static int32_t resolveTagRefLocalHop(SRefChainCtx* pCtx, char* curDb, char* curT
   return code;
 }
 
-int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
+static int32_t resolveTagRefChainImpl(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
                            const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved) {
   // NOTE no destination-type parameter on purpose: the DDL type-match gate already
   // keeps source and destination tag types identical, and the value width always comes
@@ -3326,6 +3374,35 @@ int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* re
   return TSDB_CODE_VTABLE_REF_DEPTH_EXCEEDED;
 }
 
+int32_t resolveTagRefChain(SRefChainCtx* pCtx, const char* refDb, const char* refTable,
+                           const char* refCol, char** ppData, uint32_t* pLen, bool* pResolved) {
+  *ppData = NULL;
+  *pLen = 0;
+  *pResolved = false;
+  if (pCtx == NULL || refDb == NULL || refTable == NULL || refCol == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pCtx->pQueryTagValueCache == NULL) {
+    return resolveTagRefChainImpl(pCtx, refDb, refTable, refCol, ppData, pLen, pResolved);
+  }
+  SRefTagValueKey key = {0};
+  tstrncpy(key.db, refDb, sizeof(key.db));
+  tstrncpy(key.table, refTable, sizeof(key.table));
+  tstrncpy(key.column, refCol, sizeof(key.column));
+  SRefTagValueCacheEntry* pCached = taosHashGet(pCtx->pQueryTagValueCache, &key, sizeof(key));
+  if (pCached != NULL) {
+    if (pCached->len > 0) {
+      *ppData = taosMemoryMalloc(pCached->len);
+      if (*ppData == NULL) return terrno;
+      memcpy(*ppData, pCached->data, pCached->len);
+    }
+    *pLen = pCached->len;
+    *pResolved = pCached->resolved;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t code = resolveTagRefChainImpl(pCtx, refDb, refTable, refCol, ppData, pLen, pResolved);
+  if (code == TSDB_CODE_SUCCESS) sysTagsCacheRefValue(pCtx->pQueryTagValueCache, &key, *ppData, *pLen, *pResolved);
+  return code;
+}
+
 static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SColRef* pRef,
                                        char** ppTagData, uint32_t* pTagLen,
                                        bool* pResolved, uint64_t reqId, SExecTaskInfo* pTaskInfo) {
@@ -3345,7 +3422,8 @@ static int32_t sysTagsResolveRefTagVal(const SSysTableScanInfo* pInfo, const SCo
                       .reqId = reqId,
                       .pTaskInfo = pTaskInfo,
                       .pRefDbVgInfoCache = pInfo->pRefDbVgInfoCache,
-                      .pRefTableCfgCache = pInfo->pRefTableCfgCache};
+                      .pRefTableCfgCache = pInfo->pRefTableCfgCache,
+                      .pQueryTagValueCache = pInfo->pRefTagValueCache};
   return resolveTagRefChain(&ctx, pRef->refDbName, pRef->refTableName, pRef->refColName,
                             ppTagData, pTagLen, pResolved);
 }
@@ -8572,6 +8650,10 @@ static SSDataBlock* sysTableScanFromMNode(SOperatorInfo* pOperator, SSysTableSca
 static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   SSysTableScanInfo* pInfo = pOper->info;
 
+  // A rescan must not reuse terminal values from the previous scan.
+  sysTagsRefValueCacheClear(&pInfo->pRefTagValueCache);
+  sysTagsRefCachesClear(&pInfo->pRefDbVgInfoCache, &pInfo->pRefTableCfgCache);
+
   SSystemTableScanPhysiNode* pScanPhyNode = (SSystemTableScanPhysiNode*)pOper->pPhyNode;
   pOper->status = OP_NOT_OPENED;
   blockDataEmpty(pInfo->pRes);
@@ -8837,6 +8919,7 @@ static void doDestroySysTableScanInfo(void* param) {
     pInfo->pExtSchema = NULL;
   }
   sysTagsRefCachesClear(&pInfo->pRefDbVgInfoCache, &pInfo->pRefTableCfgCache);
+  sysTagsRefValueCacheClear(&pInfo->pRefTagValueCache);
   destroySysTableScanVtbRefReqs(pInfo);
   tableListDestroy(pInfo->pSubTableListInfo);
 

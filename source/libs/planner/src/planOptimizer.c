@@ -1170,11 +1170,9 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   int32_t code = TSDB_CODE_SUCCESS;
   bool    hasExternalScan = false;
 
-  // For virtual super tables, ref-tag values store NULL in vnode meta,
-  // so ref-tag predicates cannot be pushed to SystemScan's tag filter.
-  // However, tbname and local-tag predicates CAN be pushed to SystemScan
-  // (they have real values). Use hasTagRef from VirtualScan to decide:
-  // if no tag refs exist, all tag conditions are safe for SystemScan.
+  // Stored ref tags are NULL in vnode metadata. Separate their index
+  // conditions from literal tags: they need chain resolution and cannot use
+  // the virtual stable's local tag index.
   SNode* pSysTagCond = NULL;
   SNode* pRefTagCond = NULL;
   SNode* pSysTagIdxCond = NULL;
@@ -1256,15 +1254,20 @@ static int32_t pdcDealVirtualSuperTableScan(SOptimizeContext* pCxt, SDynQueryCtr
   }
 
 
-  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond, pVscan->hasTagRef));
-  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond, pVscan->hasTagRef));
+  bool hasRefTags = pVscan->hasTagRef || pVscan->hasConstRefTag;
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagCond, &pSysTagCond, &pRefTagCond, hasRefTags));
+  PLAN_ERR_JRET(pdcSplitTagCondForVstb(&pTagIndexCond, &pSysTagIdxCond, &pRefTagIdxCond, hasRefTags));
 
-  // Ref-tag conditions (or conditions we can't verify) stay on VirtualScan
+  // The vnode tag filter resolves virtual TAG chains before evaluating them.
+  // Filter the child UID list there, before ins_virtual_child_columns expands
+  // every child's column references. Ref tags must not use the local tag index.
+  bool pushRefTags = !pVscan->hasConstRefTag && !pCxt->pPlanCxt->topicQuery &&
+                     !inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt);
   if (pRefTagCond) {
-    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagCond));
+    PLAN_ERR_JRET(nodesMergeNode(pushRefTags ? &pSysTagCond : &pOtherCond, &pRefTagCond));
   }
   if (pRefTagIdxCond) {
-    PLAN_ERR_JRET(nodesMergeNode(&pOtherCond, &pRefTagIdxCond));
+    PLAN_ERR_JRET(nodesMergeNode(pushRefTags ? &pSysTagCond : &pOtherCond, &pRefTagIdxCond));
   }
 
   // tbname conditions go to SystemScan (original behavior)

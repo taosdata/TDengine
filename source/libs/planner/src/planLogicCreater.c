@@ -6222,6 +6222,136 @@ static int32_t compareScanColsByColId(SNode* pNode1, SNode* pNode2) {
   return (a > b) - (a < b);
 }
 
+static bool virtualTagSelector(const SFunctionNode* pFunc) {
+  if (pFunc->funcType != FUNCTION_TYPE_FIRST && pFunc->funcType != FUNCTION_TYPE_LAST &&
+      pFunc->funcType != FUNCTION_TYPE_LAST_ROW) {
+    return false;
+  }
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  return pArg != NULL && nodeType(pArg) == QUERY_NODE_COLUMN && ((SColumnNode*)pArg)->colType == COLUMN_TYPE_TAG;
+}
+
+static bool virtualMetadataTagScanSupported(const SVirtualTableNode* pTable) {
+  const SSchema* pSchema = pTable->pMeta->schema + pTable->pMeta->tableInfo.numOfColumns;
+  for (int32_t i = 0; i < pTable->pMeta->tableInfo.numOfTags; ++i) {
+    if (pSchema[i].type != TSDB_DATA_TYPE_JSON) continue;
+    // JSON refs retain the existing virtual scan path; the query resolver
+    // rebuilds only CID-addressable tags.
+    for (int32_t j = 0; j < pTable->pMeta->numOfTagRefs; ++j) {
+      const SColRef* pRef = &pTable->pMeta->tagRef[j];
+      if (pRef->hasRef && pRef->id == pSchema[i].colId) return false;
+    }
+  }
+  SNode* pRef = NULL;
+  FOREACH(pRef, pTable->refTables) {
+    if (nodeType(pRef) == QUERY_NODE_REAL_TABLE) {
+      int8_t type = ((SRealTableNode*)pRef)->pMeta->tableType;
+      if (type == TSDB_NORMAL_TABLE || type == TSDB_VIRTUAL_NORMAL_TABLE) return false;
+    }
+  }
+  return true;
+}
+
+static EDealRes virtualMetadataExprCheck(SNode* pNode, void* pContext) {
+  if ((nodeType(pNode) == QUERY_NODE_FUNCTION && !fmIsCanonicalTbnameFunction(pNode)) ||
+      nodeType(pNode) == QUERY_NODE_SELECT_STMT || nodeType(pNode) == QUERY_NODE_SET_OPERATOR) {
+    *(bool*)pContext = false;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool virtualMetadataQuerySafe(SSelectStmt* pSelect) {
+  bool safe = true;
+  // A volatile expression can produce different values for different data
+  // rows of the same child, so DISTINCT alone does not permit a tag scan.
+  nodesWalkExprs(pSelect->pProjectionList, virtualMetadataExprCheck, &safe);
+  nodesWalkExpr(pSelect->pWhere, virtualMetadataExprCheck, &safe);
+  nodesWalkExprs(pSelect->pOrderByList, virtualMetadataExprCheck, &safe);
+  return safe;
+}
+
+typedef struct {
+  bool    supported;
+  int32_t code;
+} SVirtualTagHavingCtx;
+
+static EDealRes virtualTagHavingRewrite(SNode** ppNode, void* pContext) {
+  SVirtualTagHavingCtx* pCtx = pContext;
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)*ppNode;
+    if (!virtualTagSelector(pFunc)) {
+      pCtx->supported = false;
+      return DEAL_RES_END;
+    }
+    SNode* pTag = NULL;
+    pCtx->code = nodesCloneNode(nodesListGetNode(pFunc->pParameterList, 0), &pTag);
+    if (pCtx->code != TSDB_CODE_SUCCESS) {
+      return DEAL_RES_ERROR;
+    }
+    nodesDestroyNode(*ppNode);
+    *ppNode = pTag;
+  } else if (nodeType(*ppNode) == QUERY_NODE_COLUMN && ((SColumnNode*)*ppNode)->colType != COLUMN_TYPE_TAG) {
+    pCtx->supported = false;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes virtualTagAggCheck(SNode* pNode, void* pContext) {
+  if (nodeType(pNode) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (fmIsAggFunc(pFunc->funcId) && !virtualTagSelector(pFunc)) {
+      *(bool*)pContext = false;
+      return DEAL_RES_END;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool virtualGroupByTbname(SNodeList* pGroups) {
+  if (LIST_LENGTH(pGroups) != 1) return false;
+  SGroupingSetNode* pSet = (SGroupingSetNode*)nodesListGetNode(pGroups, 0);
+  if (LIST_LENGTH(pSet->pParameterList) != 1) return false;
+  SNode* pKey = nodesListGetNode(pSet->pParameterList, 0);
+  return fmIsCanonicalTbnameFunction(pKey) ||
+         (nodeType(pKey) == QUERY_NODE_COLUMN && ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME);
+}
+
+static bool virtualDistinctByTbname(const SSelectStmt* pSelect) {
+  if (!pSelect->isDistinct) return false;
+  SNode* pKey = NULL;
+  FOREACH(pKey, pSelect->pProjectionList) {
+    if (fmIsCanonicalTbnameFunction(pKey) ||
+        (nodeType(pKey) == QUERY_NODE_COLUMN && ((SColumnNode*)pKey)->colType == COLUMN_TYPE_TBNAME)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static int32_t pushVirtualTagHaving(SSelectStmt* pSelect) {
+  if (pSelect->pHaving == NULL || !virtualGroupByTbname(pSelect->pGroupByList)) return TSDB_CODE_SUCCESS;
+  bool supported = true;
+  nodesWalkExprs(pSelect->pProjectionList, virtualTagAggCheck, &supported);
+  nodesWalkExprs(pSelect->pOrderByList, virtualTagAggCheck, &supported);
+  if (!supported) return TSDB_CODE_SUCCESS;
+
+  SNode* pCond = NULL;
+  int32_t code = nodesCloneNode(pSelect->pHaving, &pCond);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SVirtualTagHavingCtx ctx = {.supported = true};
+  nodesRewriteExpr(&pCond, virtualTagHavingRewrite, &ctx);
+  code = ctx.code;
+  if (code == TSDB_CODE_SUCCESS && ctx.supported) {
+    // Keep the original aggregate and HAVING: scanning candidate timestamps
+    // still excludes empty children, preserving last(tag)'s row semantics.
+    code = nodesMergeNode(&pSelect->pWhere, &pCond);
+  }
+  nodesDestroyNode(pCond);
+  return code;
+}
+
 static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
                                                 SVirtualTableNode* pVirtualTable, SVirtualScanLogicNode* pVtableScan,
                                                 SLogicNode** pLogicNode) {
@@ -6238,11 +6368,25 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
   bool                    insScanAttached = false;
   bool                    realScanAttached = false;
 
+  if (!inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt) &&
+      !pCxt->pPlanCxt->topicQuery &&
+      pSelect->pFromTable == (SNode*)pVirtualTable) {
+    PLAN_ERR_JRET(pushVirtualTagHaving(pSelect));
+  }
+
   if (LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) == 0) {
     scanAllCols = false;
   }
-  if (pSelect->tagScan && LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0 &&
-      !hasVirtualTagRefPseudoCol(pVirtualTable, pVtableScan)) {
+  bool metadataOnly = (pSelect->tagScan && !hasVirtualTagRefPseudoCol(pVirtualTable, pVtableScan)) ||
+                      ((virtualDistinctByTbname(pSelect) || virtualGroupByTbname(pSelect->pGroupByList)) &&
+                       pVirtualTable->pAlignCols == NULL &&
+                       !pSelect->hasAggFuncs && pSelect->pWindow == NULL &&
+                       pSelect->pPartitionByList == NULL && pSelect->pFromTable == (SNode*)pVirtualTable &&
+                       virtualMetadataQuerySafe(pSelect));
+  if (metadataOnly && virtualMetadataTagScanSupported(pVirtualTable) &&
+      !inStreamCalcClause(pCxt->pPlanCxt) && !inStreamTriggerClause(pCxt->pPlanCxt) &&
+      !pCxt->pPlanCxt->topicQuery &&
+      LIST_LENGTH(pVtableScan->pScanCols) == 0 && LIST_LENGTH(pVtableScan->pScanPseudoCols) > 0) {
     PLAN_ERR_JRET(createTagScanLogicNode(pCxt, pSelect, pVtableScan, (SLogicNode**)&pTagScan));
     nodesDestroyNode((SNode*)pVtableScan);
     *pLogicNode = (SLogicNode*)pTagScan;
@@ -6296,15 +6440,15 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
     // Keep scanAllCols unchanged for the align case: the merge must materialize the
     // source columns into the block (alignAllCols only widens the scan column lists).
     pVtableScan->scanAllCols = scanAllCols;
-    for (int32_t i = 0; i < pVirtualTable->pMeta->tableInfo.numOfColumns; i++) {
-      if (pVirtualTable->pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        continue;
-      } else {
-        const SSchemaExt* pVtbSchemaExt =
-            (pVirtualTable->pMeta->schemaExt && i < pVirtualTable->pMeta->tableInfo.numOfColumns)
-                ? pVirtualTable->pMeta->schemaExt + i
-                : NULL;
-        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i], pVtbSchemaExt, pVirtualTable->pMeta->schema[i].colId, NULL, false));
+    // Enumerate every referenced source to preserve the union of timestamps,
+    // while ordinary tag-only queries read just the primary timestamp.
+    // Time alignment, streams and topics retain their full column layout.
+    if (alignAllCols || inStreamCalcClause(pCxt->pPlanCxt) || inStreamTriggerClause(pCxt->pPlanCxt) ||
+        pCxt->pPlanCxt->topicQuery) {
+      for (int32_t i = 1; i < pVirtualTable->pMeta->tableInfo.numOfColumns; ++i) {
+        const SSchemaExt* pExt = pVirtualTable->pMeta->schemaExt != NULL ? pVirtualTable->pMeta->schemaExt + i : NULL;
+        PLAN_ERR_JRET(scanAddCol(pRealTableScan, NULL, &pVirtualTable->table, &pVirtualTable->pMeta->schema[i],
+                                 pExt, pVirtualTable->pMeta->schema[i].colId, NULL, false));
       }
     }
     if (alignAllCols) {
