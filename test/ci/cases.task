@@ -468,7 +468,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_last_time_range.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_order_limit.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_timerange.py
-100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ts_subquery.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_agg_optimize.py
@@ -1971,5 +1971,8 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_resilience.py::TestVtableQueryExtSourceResilience::test_vstable_query_fails_when_one_child_backend_down_and_recovers
 100,,y,.,env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_runtime_libs.py
 ,,y,.,env FQ_REQUIRED_SERVICES=influx env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/21-MetaData/test_meta_batch_txn_series.py
+100,,y,.,env FQ_REQUIRED_SERVICES=influx env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_24_influx18_pushdown.py
+
+## WorkloadReplay
 100,,n,.,./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py
 100,,n,.,CASE_TIMEOUT=3600 env WLR_REPLAY_SCENARIO=idmp-e2e env WLR_REPLAY_TIMEOUT_SEC=3300 ./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py

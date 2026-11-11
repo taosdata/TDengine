@@ -2854,6 +2854,34 @@ _return:
   return code;
 }
 
+static uint32_t fqInflux18PushdownFlags(const SLogicNode* pRoot) {
+  uint32_t flags = 0;
+  for (const SLogicNode* pNode = pRoot; pNode != NULL;
+       pNode = (const SLogicNode*)nodesListGetNode(pNode->pChildren, 0)) {
+    if (pNode->pConditions != NULL) flags |= FQ_PUSHDOWN_FILTER;
+    if (pNode->pLimit != NULL) flags |= FQ_PUSHDOWN_LIMIT;
+    switch (nodeType(pNode)) {
+      case QUERY_NODE_LOGIC_PLAN_SCAN:
+        if (((const SScanLogicNode*)pNode)->pPrimaryCond != NULL) {
+          flags |= FQ_PUSHDOWN_FILTER;
+        }
+        break;
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        flags |= FQ_PUSHDOWN_PROJECTION;
+        break;
+      case QUERY_NODE_LOGIC_PLAN_AGG:
+        flags |= FQ_PUSHDOWN_AGG;
+        break;
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        flags |= FQ_PUSHDOWN_ORDER;
+        break;
+      default:
+        break;
+    }
+  }
+  return flags;
+}
+
 // createFederatedScanPhysiNode: builds SFederatedScanPhysiNode from a logic
 // node whose scanType == SCAN_TYPE_EXTERNAL.
 // ---------------------------------------------------------------------------
@@ -2865,6 +2893,8 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   SNodeList*                  pReordered = NULL;
   SNodeList*                  pReserveSlotCols = NULL;
   SNode*                      pRemoteRoot = NULL;
+  SNodesRemoteSelectOutputs   influxOutputs = {0};
+  bool                        influxAggregate = false;
 
   if (NULL == pScanLogicNode->pExtTableNode) {
     planError("createFederatedScanPhysiNode: pExtTableNode is NULL");
@@ -3057,6 +3087,19 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
       ++outputIdx;
     }
 
+    if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect && useRemoteResultSchema) {
+      PLAN_ERR_JRET(nodesCollectRemoteQuerySelectOutputs((SLogicNode*)pScanLogicNode->pRemoteLogicPlan,
+                                                         &influxOutputs));
+      if (LIST_LENGTH(influxOutputs.pSelectExprs) != numCols || LIST_LENGTH(influxOutputs.pRefExprs) != numCols) {
+        PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
+      }
+      for (const SLogicNode* pNode = (const SLogicNode*)pScanLogicNode->pRemoteLogicPlan;
+           NULL != pNode; pNode = LIST_LENGTH(pNode->pChildren) == 1 ?
+                                 (const SLogicNode*)nodesListGetNode(pNode->pChildren, 0) : NULL) {
+        if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) influxAggregate = true;
+      }
+    }
+
     planDebug("FQ-ColMappings: source=%s outputLen=%d mappingCols=%d",
               pOutputColsSource, pOutputCols ? LIST_LENGTH(pOutputCols) : 0, numCols);
     if (numCols > 0) {
@@ -3094,13 +3137,40 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
               (tsPrec == TSDB_TIME_PRECISION_NANO) ? TSDB_TIME_PRECISION_NANO : TSDB_TIME_PRECISION_MICRO;
         }
         const char* pOutputName = fqResolveRemoteOutputName(pExprNode);
+        SNode* pSourceExpr = pExpr;
+        if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect) {
+          if (NULL != influxOutputs.pSelectExprs) {
+            pSourceExpr = fqResolveRemoteMappingExpr(nodesListGetNode(influxOutputs.pSelectExprs, outputIdx));
+          }
+          // A WHERE wrapper can replace a passthrough target's source name
+          // with its slot alias. Raw InfluxQL still returns measurement keys.
+          if (!influxAggregate && NULL != pSourceExpr && QUERY_NODE_COLUMN == nodeType(pSourceExpr)) {
+            const SColumnNode* pSourceCol = (const SColumnNode*)pSourceExpr;
+            SNode* pScanCol = NULL;
+            FOREACH(pScanCol, pScanLogicNode->pScanCols) {
+              if (QUERY_NODE_COLUMN == nodeType(pScanCol) && pSourceCol->colId != 0 &&
+                  ((SColumnNode*)pScanCol)->colId == pSourceCol->colId) {
+                pSourceExpr = pScanCol;
+                break;
+              }
+            }
+          }
+          SNode* pNameExpr = influxAggregate && NULL != influxOutputs.pRefExprs ?
+                            fqResolveRemoteMappingExpr(nodesListGetNode(influxOutputs.pRefExprs, outputIdx)) :
+                            pSourceExpr;
+          if (NULL == pNameExpr || NULL == pSourceExpr) PLAN_ERR_JRET(TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN);
+          // Raw results retain source column names. Aggregate results expose
+          // the same internal slot aliases used by the InfluxQL renderer.
+          pOutputName = QUERY_NODE_COLUMN == nodeType(pNameExpr) ? ((SColumnNode*)pNameExpr)->colName :
+                        ((SExprNode*)pNameExpr)->aliasName;
+        }
         if (NULL != pOutputName && '\0' != pOutputName[0]) {
           tstrncpy(pScan->pColTypeMappings[colIdx].colName, pOutputName,
                    sizeof(pScan->pColTypeMappings[colIdx].colName));
         }
-        if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8 &&
-            nodeType(pExpr) == QUERY_NODE_COLUMN && pExtNode->pExtMeta != NULL) {
-          const char* pRawName = ((SColumnNode*)pExpr)->colName;
+        if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8 && !influxAggregate &&
+            nodeType(pSourceExpr) == QUERY_NODE_COLUMN && pExtNode->pExtMeta != NULL) {
+          const char* pRawName = ((SColumnNode*)pSourceExpr)->colName;
           for (int32_t i = 0; i < pExtNode->pExtMeta->numOfCols; ++i) {
             const SExtColumnDef* pCol = &pExtNode->pExtMeta->pCols[i];
             if (strcmp(pCol->colName, pRawName) != 0) continue;
@@ -3294,6 +3364,10 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pRemoteRoot));
     SScanLogicNode* pLeaf = (SScanLogicNode*)pRemoteRoot;
     pLeaf->scanType = SCAN_TYPE_EXTERNAL;
+    if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect) {
+      pLeaf->scanRange = pScanLogicNode->scanRange;
+      pLeaf->node.precision = pScanLogicNode->node.precision;
+    }
     // FROM: clone the external table node (table identity for SQL generation).
     PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pExtTableNode, &pLeaf->pExtTableNode));
     // SELECT: clone the de-duplicated column set the optimizer collected.
@@ -3324,6 +3398,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   if (pRemoteRoot != NULL) {
     code = fqAttachRequiredScanConditions((SLogicNode*)pRemoteRoot, &pScan->pushdownFlags);
     QUERY_CHECK_CODE(code, lino, _return);
+    if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect) {
+      pScan->pushdownFlags |= fqInflux18PushdownFlags((SLogicNode*)pRemoteRoot);
+    }
     PLAN_ERR_JRET(fqRefreshRemoteOutputTargets(pRemoteRoot));
 
     SLogicNode* pRemoteLogicRoot = (SLogicNode*)pRemoteRoot;
@@ -3357,6 +3434,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
   pScan = NULL;
 
 _return:
+  nodesDestroyRemoteSelectOutputs(&influxOutputs);
   nodesDestroyList(pReordered);
   nodesDestroyList(pReserveSlotCols);
   nodesDestroyNode(pRemoteRoot);

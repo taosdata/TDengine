@@ -26,6 +26,8 @@
 #include "tdatablock.h"
 #include "systable.h"
 #include "functionMgt.h"
+#include "extConnector.h"
+#include "influxql.h"
 #include "tmsg.h"
 #include "ttime.h"
 #include "tutil.h"
@@ -37,6 +39,61 @@ char *gJoinTypeStr[JOIN_TYPE_MAX_VALUE][JOIN_STYPE_MAX_VALUE] = {
 /*RIGHT*/  {"Right Join",         "Right Join",          "Right Semi Join",    "Right Anti Join",     "Right ASOF Join",     "Right Window Join"},
 /*FULL*/   {"Full Join",          "Full Join",           NULL,                 NULL,                  NULL,                  NULL},
 };
+
+static int32_t qExplainInflux18SQL(const SFederatedScanPhysiNode *scan,
+                                  char **out) {
+  *out = NULL;
+  const SExtTableNode *table = (const SExtTableNode *)scan->pExtTable;
+  if (table == NULL) return TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN;
+  SInfluxQLRender *render = NULL;
+  int32_t code = nodesRemotePlanToInfluxQL((const SLogicNode *)scan->pRemotePlan, &render);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  SExtTableMeta schema = {0};
+  const SExtTableMeta *meta = table->pExtMeta;
+  if (meta == NULL) {
+    schema.numOfCols = LIST_LENGTH(table->pInfluxSchema);
+    if (schema.numOfCols <= 0) {
+      nodesDestroyInfluxQLRender(render);
+      return TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN;
+    }
+    schema.pCols = taosMemoryCalloc(schema.numOfCols, sizeof(*schema.pCols));
+    if (schema.pCols == NULL) {
+      nodesDestroyInfluxQLRender(render);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    int32_t index = 0;
+    SNode *node = NULL;
+    FOREACH(node, table->pInfluxSchema) {
+      const SColumnNode *column = (const SColumnNode *)node;
+      SExtColumnDef *def = &schema.pCols[index++];
+      tstrncpy(def->colName, column->colName, sizeof(def->colName));
+      def->isTag = column->colType == COLUMN_TYPE_TAG;
+      def->isPrimaryKey = column->isPrimTs;
+    }
+    tstrncpy(schema.remoteTableName, table->remoteTableName[0] != '\0' ?
+             table->remoteTableName : table->table.tableName, sizeof(schema.remoteTableName));
+    meta = &schema;
+  }
+  SExtInfluxScanSpec spec = {0};
+  spec.pTable = table;
+  spec.pRender = render;
+  spec.pColMappings = scan->pColTypeMappings;
+  spec.numColMappings = scan->numColTypeMappings;
+  spec.virtualScan = scan->underVTableScan || table->pSeriesCondition != NULL;
+  spec.hasSeriesBinding = table->pSeriesCondition != NULL;
+  spec.pSeriesCondition = table->pSeriesCondition;
+  spec.timeAscending = spec.virtualScan && !render->aggregate;
+  spec.scanRange = scan->scanRange;
+  spec.rangePrecision = scan->node.pOutputDataBlockDesc != NULL ?
+                          scan->node.pOutputDataBlockDesc->precision : TSDB_TIME_PRECISION_NANO;
+  const char *database = table->table.dbName[0] != '\0' ? table->table.dbName : table->srcDatabase;
+  const char *rp = table->influxRp[0] != '\0' ? table->influxRp : "(runtime)";
+  code = extConnectorRenderInfluxV1SQL(&spec, meta, database, rp, NULL, out);
+  taosMemoryFree(schema.pCols);
+  nodesDestroyInfluxQLRender(render);
+  return code;
+}
 
 static int32_t qExplainGenerateResNode(SSubplan *plan, SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pResNode);
 static int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t *level, bool singleChannel);
@@ -1182,8 +1239,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
           }
         }
 
-        if (!emittedRuntimeRemoteSql && pFedScanNode->pRemotePlan != NULL &&
-            !influx18) {
+        if (!emittedRuntimeRemoteSql && pFedScanNode->pRemotePlan != NULL) {
           char*   remoteSql = NULL;
           SNodesRemoteSQLCtx sqlCtx = {
               .pTimestampTypeHints = pFedScanNode->pTimestampTypeHints,
@@ -1196,7 +1252,7 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
                       ? (int8_t)pFedScanNode->node.pOutputDataBlockDesc->precision
                       : 0,
           };
-          int32_t sqlCode   = nodesRemotePlanToSQL(
+          int32_t sqlCode = influx18 ? qExplainInflux18SQL(pFedScanNode, &remoteSql) : nodesRemotePlanToSQL(
               (const SLogicNode*)pFedScanNode->pRemotePlan, pFedScanNode->sourceType,
               &sqlCtx, &remoteSql);  // EXPLAIN has no subquery resolve context
           if (sqlCode == TSDB_CODE_SUCCESS && remoteSql != NULL) {

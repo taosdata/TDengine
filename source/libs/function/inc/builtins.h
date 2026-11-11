@@ -69,9 +69,9 @@ typedef struct SBuiltinFuncDefinition {
   const char*          name;
   EFunctionType        type;
   uint64_t             classification;
-  uint16_t             fqPushCap;    // FQ push-down capability bitmap (FQ_CAP_* flags)
+  uint32_t             fqPushCap;    // FQ push-down capability bitmap (FQ_CAP_* flags)
   bool                 fqArg0NcharPushCapSet;  // arg0==NCHAR uses fqArg0NcharPushCap when true
-  uint16_t             fqArg0NcharPushCap;     // optional arg0==NCHAR push-down capability bitmap
+  uint32_t             fqArg0NcharPushCap;     // optional arg0==NCHAR push-down capability bitmap
   SFunctionParaInfo    parameters;
   FTranslateFunc       translateFunc;
   FFuncDataRequired    dataRequiredFunc;

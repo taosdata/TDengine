@@ -23,6 +23,7 @@
 #include "extTypeMap.h"
 #include "filter.h"
 #include "functionMgt.h"
+#include "influxql.h"
 #include "nodes.h"
 #include "osMemPool.h"
 #include "parser.h"
@@ -18850,6 +18851,234 @@ static bool fqCharKeyIsExact(const SNode* pExpr, const SScanLogicNode* pScan,
                              const SExtSourceCapability* pCap);
 static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot);
 
+// InfluxQL 1.8 has a separate expression grammar from DataFusion SQL.
+// Column roles come from the source metadata, never from TDengine's column id.
+static const SExtColumnDef* fqInflux18Column(const SNode* pExpr, const SScanLogicNode* pScan) {
+  if (NULL == pExpr || QUERY_NODE_COLUMN != nodeType(pExpr) || NULL == pScan ||
+      NULL == pScan->pExtTableNode) return NULL;
+  const SExtTableMeta* pMeta = ((const SExtTableNode*)pScan->pExtTableNode)->pExtMeta;
+  if (NULL == pMeta) return NULL;
+  const SColumnNode* pCol = (const SColumnNode*)pExpr;
+  for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
+    if (0 == strcmp(pMeta->pCols[i].colName, pCol->colName)) return &pMeta->pCols[i];
+  }
+  return NULL;
+}
+
+static bool fqInflux18TagKey(SNode* pExpr, const SScanLogicNode* pScan) {
+  if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType(pExpr)) {
+    SGroupingSetNode* pSet = (SGroupingSetNode*)pExpr;
+    if (LIST_LENGTH(pSet->pParameterList) != 1) return false;
+    pExpr = nodesListGetNode(pSet->pParameterList, 0);
+  }
+  if (NULL != pExpr && QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (FUNCTION_TYPE_GROUP_KEY != pFunc->funcType || LIST_LENGTH(pFunc->pParameterList) != 1) return false;
+    pExpr = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+  return NULL != pCol && pCol->isTag;
+}
+
+static bool fqInflux18NumericType(int32_t type) {
+  return TSDB_DATA_TYPE_BIGINT == type || TSDB_DATA_TYPE_DOUBLE == type;
+}
+
+static bool fqInflux18Literal(const SNode* pExpr) {
+  return NULL != pExpr && QUERY_NODE_VALUE == nodeType(pExpr) &&
+         !((const SValueNode*)pExpr)->isNull &&
+         !IS_RAW_SQL_FRAG(((const SValueNode*)pExpr)->flag);
+}
+
+static bool fqInflux18CompareLiteral(const SNode* pExpr, const SNode* pValue,
+                                     const SScanLogicNode* pScan, bool equality) {
+  if (!fqInflux18Literal(pValue)) return false;
+  int32_t exprType = ((const SExprNode*)pExpr)->resType.type;
+  int32_t valueType = ((const SExprNode*)pValue)->resType.type;
+  const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+  if (NULL != pCol && pCol->isTag) {
+    char* text = NULL;
+    int32_t code = nodesInfluxQLValueString((const SValueNode*)pValue, &text);
+    bool pushable = equality && TSDB_CODE_SUCCESS == code && text[0] != '\0';
+    taosMemoryFree(text);
+    return pushable;
+  }
+  if (fqInflux18NumericType(exprType)) {
+    return IS_SIGNED_NUMERIC_TYPE(valueType) || TSDB_DATA_TYPE_DOUBLE == valueType ||
+           TSDB_DATA_TYPE_FLOAT == valueType;
+  }
+  if (NULL == pCol) return false;
+  if (pCol->isPrimaryKey) {
+    return TSDB_DATA_TYPE_TIMESTAMP == valueType || IS_SIGNED_NUMERIC_TYPE(valueType);
+  }
+  return equality && ((IS_STR_DATA_TYPE(exprType) && IS_STR_DATA_TYPE(valueType)) ||
+                      (TSDB_DATA_TYPE_BOOL == exprType && TSDB_DATA_TYPE_BOOL == valueType));
+}
+
+static bool fqInflux18Arithmetic(SNode* pExpr, SScanLogicNode* pScan,
+                                  const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay) {
+  if (NULL == pExpr) return false;
+  int8_t exprType = ((SExprNode*)pExpr)->resType.type;
+  if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &exprType)) return false;
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+    return NULL != pCol && !pCol->isTag && !pCol->isPrimaryKey &&
+           fqInflux18NumericType(((SExprNode*)pExpr)->resType.type);
+  }
+  if (fqInflux18Literal(pExpr)) {
+    int32_t type = ((SExprNode*)pExpr)->resType.type;
+    return IS_SIGNED_NUMERIC_TYPE(type) || TSDB_DATA_TYPE_DOUBLE == type || TSDB_DATA_TYPE_FLOAT == type;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pExpr)) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pExpr;
+  if (!fqOpIsPushable(pOp->opType, pCap->dialect, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_OP, &pOp->opType)) return false;
+  if (!fqInflux18Arithmetic(pOp->pLeft, pScan, pCap, pOverlay)) return false;
+  bool leftDouble = TSDB_DATA_TYPE_DOUBLE == ((SExprNode*)pOp->pLeft)->resType.type;
+  if (OP_TYPE_MINUS == pOp->opType) return leftDouble;
+  if (!fqInflux18Arithmetic(pOp->pRight, pScan, pCap, pOverlay)) return false;
+  if (OP_TYPE_DIV == pOp->opType) {
+    if (!fqInflux18Literal(pOp->pRight)) return false;
+    SValueNode* pValue = (SValueNode*)pOp->pRight;
+    int32_t type = pValue->node.resType.type;
+    return (IS_FLOAT_TYPE(type) ? pValue->datum.d != 0.0 : pValue->datum.i != 0);
+  }
+  return (OP_TYPE_ADD == pOp->opType || OP_TYPE_SUB == pOp->opType || OP_TYPE_MULTI == pOp->opType) &&
+         (leftDouble || TSDB_DATA_TYPE_DOUBLE == ((SExprNode*)pOp->pRight)->resType.type);
+}
+
+// Role bits reject time under OR and Tag/Field mixed disjunctions.
+static bool fqInflux18Predicate(SNode* pExpr, SScanLogicNode* pScan,
+                                 const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay,
+                                 bool inOr, uint8_t* pRoles) {
+  if (NULL == pExpr) return true;
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pExpr)) {
+    SLogicConditionNode* pLogic = (SLogicConditionNode*)pExpr;
+    bool isOr = LOGIC_COND_TYPE_OR == pLogic->condType;
+    if (!isOr && LOGIC_COND_TYPE_AND != pLogic->condType) return false;
+    uint8_t roles = 0;
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (!fqInflux18Predicate(pChild, pScan, pCap, pOverlay, inOr || isOr, &roles)) return false;
+    }
+    if (isOr && (roles & 4 || (roles & 3) == 3)) return false;
+    *pRoles |= roles;
+    return true;
+  }
+  if (QUERY_NODE_OPERATOR != nodeType(pExpr)) return false;
+  SOperatorNode* pOp = (SOperatorNode*)pExpr;
+  if (!fqOpIsPushable(pOp->opType, pCap->dialect, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_OP, &pOp->opType)) return false;
+  SNode* pLeft = pOp->pLeft;
+  SNode* pRight = pOp->pRight;
+  if (NULL == pLeft) return false;
+  int8_t leftType = ((SExprNode*)pLeft)->resType.type;
+  if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &leftType)) return false;
+  if (NULL != pRight && QUERY_NODE_NODE_LIST != nodeType(pRight)) {
+    int8_t rightType = ((SExprNode*)pRight)->resType.type;
+    if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &rightType)) return false;
+  }
+  // InfluxQL accepts a literal on either side of a comparison.
+  if (fqInflux18Literal(pLeft) && NULL != pRight &&
+      (QUERY_NODE_COLUMN == nodeType(pRight) || QUERY_NODE_OPERATOR == nodeType(pRight))) {
+    pLeft = pOp->pRight;
+    pRight = pOp->pLeft;
+  }
+  const SExtColumnDef* pCol = fqInflux18Column(pLeft, pScan);
+  uint8_t role = NULL == pCol ? 2 : pCol->isPrimaryKey ? 4 : pCol->isTag ? 1 : 2;
+  if (inOr && role == 4) return false;
+  *pRoles |= role;
+  if (OP_TYPE_IS_NULL == pOp->opType || OP_TYPE_IS_NOT_NULL == pOp->opType) {
+    return NULL != pCol && pCol->isTag;
+  }
+  if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    if (NULL == pCol || pCol->isPrimaryKey || NULL == pRight ||
+        QUERY_NODE_NODE_LIST != nodeType(pRight)) return false;
+    SNodeList* pList = ((SNodeListNode*)pRight)->pNodeList;
+    if (LIST_LENGTH(pList) == 0 || LIST_LENGTH(pList) > 64) return false;
+    SNode* pValue = NULL;
+    FOREACH(pValue, pList) {
+      if (!fqInflux18CompareLiteral(pLeft, pValue, pScan, true)) return false;
+    }
+    return true;
+  }
+  if (OP_TYPE_LIKE == pOp->opType || OP_TYPE_NOT_LIKE == pOp->opType) {
+    return NULL != pCol && !pCol->isPrimaryKey && IS_STR_DATA_TYPE(((SExprNode*)pLeft)->resType.type) &&
+           fqInflux18Literal(pRight) && IS_STR_DATA_TYPE(((SExprNode*)pRight)->resType.type);
+  }
+  bool equality = OP_TYPE_EQUAL == pOp->opType || OP_TYPE_NOT_EQUAL == pOp->opType;
+  bool comparison = equality || OP_TYPE_GREATER_THAN == pOp->opType || OP_TYPE_GREATER_EQUAL == pOp->opType ||
+                    OP_TYPE_LOWER_THAN == pOp->opType || OP_TYPE_LOWER_EQUAL == pOp->opType;
+  if (!comparison || (role == 4 && OP_TYPE_NOT_EQUAL == pOp->opType)) return false;
+  if (NULL == pCol && !fqInflux18Arithmetic(pLeft, pScan, pCap, pOverlay)) return false;
+  return fqInflux18CompareLiteral(pLeft, pRight, pScan, equality);
+}
+
+static bool fqInflux18Aggregate(const SFunctionNode* pFunc, SScanLogicNode* pScan,
+                                 const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay) {
+  if (pFunc->isDistinct || LIST_LENGTH(pFunc->pParameterList) != 1 ||
+      !fqFuncIsPushable(pFunc->funcId, pCap->dialect, pOverlay) ||
+      capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_FUNC, pFunc->functionName)) return false;
+  SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  const SExtColumnDef* pCol = fqInflux18Column(pArg, pScan);
+  if (NULL == pCol || pCol->isTag || pCol->isPrimaryKey) return false;
+  int8_t type = ((SExprNode*)pArg)->resType.type;
+  if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &type)) return false;
+  if (FUNCTION_TYPE_COUNT == pFunc->funcType) return true;
+  // InfluxDB 1.8 integer MEAN can overflow its int64 sum before dividing.
+  if (FUNCTION_TYPE_AVG == pFunc->funcType && TSDB_DATA_TYPE_BIGINT == type) return false;
+  if (FUNCTION_TYPE_SPREAD == pFunc->funcType && TSDB_DATA_TYPE_DOUBLE != type) return false;
+  return fqInflux18NumericType(type);
+}
+
+bool planFqInflux18ExprIsPushable(SNode* pExpr, SScanLogicNode* pScan,
+                                     const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay) {
+  if (NULL == pExpr) return true;
+  if (NULL == pCap || EXT_SQL_DIALECT_INFLUXDB_1_8 != pCap->dialect) return false;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN:
+      return true;  // Output references may name aggregate slots.
+    case QUERY_NODE_FUNCTION:
+      return fqInflux18Aggregate((const SFunctionNode*)pExpr, pScan, pCap, pOverlay);
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION: {
+      uint8_t roles = 0;
+      return fqInflux18Predicate(pExpr, pScan, pCap, pOverlay, false, &roles);
+    }
+    default:
+      return false;
+  }
+}
+
+static bool fqConditionIsPushable(SNode* pExpr, SScanLogicNode* pScan,
+                                   const SExtSourceCapability* pCap,
+                                   const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt) {
+  if (NULL == pExpr) return true;
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) {
+    uint8_t roles = 0;
+    return fqInflux18Predicate(pExpr, pScan, pCap, pOverlay, false, &roles);
+  }
+  return fqExprIsPushable(pExpr, pScan, pCap, pOverlay, pPlanCxt);
+}
+
+static bool fqInflux18ChainHasTags(const SLogicNode* pRoot) {
+  for (const SLogicNode* pNode = pRoot; NULL != pNode; pNode = fqFirstChild(pNode)) {
+    if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) return true;
+    if (QUERY_NODE_LOGIC_PLAN_AGG == nodeType(pNode)) {
+      SNode* pKey = NULL;
+      FOREACH(pKey, ((const SAggLogicNode*)pNode)->pGroupKeys) {
+        SNode* pExpr = pKey;
+        if (QUERY_NODE_GROUPING_SET == nodeType(pExpr)) {
+          pExpr = nodesListGetNode(((SGroupingSetNode*)pExpr)->pParameterList, 0);
+        }
+        if (NULL == pExpr || QUERY_NODE_FUNCTION != nodeType(pExpr) ||
+            strcmp(((SFunctionNode*)pExpr)->functionName, "_fq_time_bucket") != 0) return true;
+      }
+    }
+  }
+  return false;
+}
+
 static bool fqNodeIsSingleChildSetOpPassthrough(const SLogicNode* pNode) {
   if (NULL == pNode || NULL == pNode->pChildren || LIST_LENGTH(pNode->pChildren) != 1) {
     return false;
@@ -18925,7 +19154,7 @@ static bool fqSetOpBranchFullyPushable(SLogicNode* pBranch, SScanLogicNode* pBra
         return false;
       }
       if (pScan->node.pConditions != NULL &&
-          !fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+          !fqConditionIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
         return false;
       }
       return true;
@@ -18943,7 +19172,7 @@ static bool fqSetOpBranchFullyPushable(SLogicNode* pBranch, SScanLogicNode* pBra
       return false;
     }
     if (pCur->pConditions != NULL && nodeType((SNode*)pCur) != QUERY_NODE_LOGIC_PLAN_AGG &&
-        !fqExprIsPushable(pCur->pConditions, pBranchScan, pCap, pOverlay, pPlanCxt)) {
+        !fqConditionIsPushable(pCur->pConditions, pBranchScan, pCap, pOverlay, pPlanCxt)) {
       return false;
     }
     pCur = (SLogicNode*)nodesListGetNode(pCur->pChildren, 0);
@@ -18956,13 +19185,26 @@ static bool fqProjectIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pSc
                                      const SExtCapSessionOverlay* pOverlay,
                                      const SPlanContext* pPlanCxt) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_PROJECT) return true;
-  if (1 == LIST_LENGTH(pNode->pChildren) &&
+  bool influx18 = NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect;
+  if (!influx18 && 1 == LIST_LENGTH(pNode->pChildren) &&
       NULL != nodesGetRemoteQueryOutputSort(fqFirstChild(pNode)) &&
       NULL == nodesGetRemoteQueryOutputSort(pNode)) {
     // Keep the projection local when it would hide the child's final ORDER BY.
     return false;
   }
   const SProjectLogicNode* pProj = (const SProjectLogicNode*)pNode;
+  if (influx18) {
+    // The flat InfluxQL statement retains its time ORDER BY even when the
+    // transport output projection omits time. Only pass-through outputs fit.
+    if (pProj->isSetOpProj) return false;
+    SNode* pExpr = NULL;
+    SNodeList* pOutputs = pProj->pProjections ? pProj->pProjections : pNode->pTargets;
+    FOREACH(pExpr, pOutputs) {
+      SNode* pInner = QUERY_NODE_TARGET == nodeType(pExpr) ? ((STargetNode*)pExpr)->pExpr : pExpr;
+      if (NULL == pInner || QUERY_NODE_COLUMN != nodeType(pInner)) return false;
+    }
+  }
+
   if (fqDiagEnabled()) {
     fprintf(stderr,
             "[FQ-DIAG] project-pushable-enter project=%p isSetOpProj=%d parentType=%d childCnt=%d scan=%p table=%s\n",
@@ -19070,6 +19312,7 @@ static bool fqProjectCanPartiallyPushdown(const SProjectLogicNode* pProj, SScanL
                                           const SExtCapSessionOverlay* pOverlay,
                                           const SPlanContext* pPlanCxt, int32_t* pPushableCnt,
                                           int32_t* pLocalCnt) {
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) return false;
   if (NULL != pPushableCnt) {
     *pPushableCnt = 0;
   }
@@ -19157,6 +19400,17 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &orderClause)) {
     planDebug("FQ-push: Sort NOT pushable - ORDER clause disabled by capability");
     return false;
+  }
+
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) {
+    const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
+    if (LIST_LENGTH(pSort->pSortKeys) != 1 || fqInflux18ChainHasTags(pNode)) return false;
+    SNode* pKey = nodesListGetNode(pSort->pSortKeys, 0);
+    if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pKey)) pKey = ((SOrderByExprNode*)pKey)->pExpr;
+    if (NULL == pKey || QUERY_NODE_COLUMN != nodeType(pKey)) return false;
+    const SExtColumnDef* pCol = fqInflux18Column(pKey, pScan);
+    return aboveAgg ? COLUMN_TYPE_WINDOW_START == ((SColumnNode*)pKey)->colType :
+                     (NULL != pCol && pCol->isPrimaryKey);
   }
 
   const SSortLogicNode* pSort = (const SSortLogicNode*)pNode;
@@ -19282,6 +19536,8 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
       pExpr = nodesListGetNode(((SGroupingSetNode*)pExpr)->pParameterList, 0);
     }
     if (pExpr == NULL) { kidx++; continue; }
+    if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect &&
+        !fqInflux18TagKey(pExpr, pScan)) return false;
     bool ok = fqExprIsPushable(pExpr, pScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-push: AGG groupKey[%d] nodeType=%d pushable=%d", kidx, (int)nodeType(pExpr), (int)ok);
     if (!ok) {
@@ -19306,6 +19562,8 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     // when judging pushability (same treatment as window pseudo-columns).
     if (nodeType(pFunc) == QUERY_NODE_FUNCTION &&
         fmIsGroupKeyFunc(((SFunctionNode*)pFunc)->funcId)) {
+      if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect &&
+          !fqInflux18TagKey(pFunc, pScan)) return false;
       fidx++;
       continue;
     }
@@ -19331,7 +19589,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
       planDebug("FQ-push: AGG NOT pushable - HAVING clause disabled by capability");
       return false;
     }
-    bool ok = fqExprIsPushable(pAgg->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
+    bool ok = fqConditionIsPushable(pAgg->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-push: AGG HAVING nodeType=%d pushable=%d", (int)nodeType(pAgg->node.pConditions), (int)ok);
     if (!ok) {
       planDebug("FQ-push: AGG NOT pushable - HAVING expr blocked");
@@ -19352,7 +19610,7 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
     bool whereClauseEnabled = fqClauseIsPushable(whereClause, pCap ? pCap->dialect : -1, pOverlay) &&
                               !capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &whereClause);
     bool whereExprPushable = whereClauseEnabled &&
-                             fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
+                             fqConditionIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-push: AGG guard scanWhere nodeType=%d whereClauseEnabled=%d whereExprPushable=%d",
               (int)nodeType(pScan->node.pConditions), (int)whereClauseEnabled, (int)whereExprPushable);
     if (!whereExprPushable) {
@@ -20845,6 +21103,11 @@ static bool fqShouldKeepAnalyzeInfluxScalarAggLocal(const SFunctionNode* pFunc, 
 static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSourceCapability* pCap,
                              const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt) {
   if (pExpr == NULL) return true;
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) {
+    int8_t type = ((SExprNode*)pExpr)->resType.type;
+    if (type > 0 && capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &type)) return false;
+    return planFqInflux18ExprIsPushable(pExpr, pScan, pCap, pOverlay);
+  }
 
   switch (nodeType(pExpr)) {
     case QUERY_NODE_COLUMN:
@@ -21708,7 +21971,7 @@ static bool fqExprIsPushable(SNode* pExpr, SScanLogicNode* pScan, const SExtSour
 // ---------------------------------------------------------------------------
 // fqFoldNowTodayInExpr / fqFoldNowTodayForInflux
 //
-// For InfluxDB (EXT_SQL_DIALECT_INFLUXQL), NOW() and TODAY() cannot be
+// For InfluxDB 1.8 (EXT_SQL_DIALECT_INFLUXDB_1_8), NOW() and TODAY() cannot be
 // rendered as InfluxQL syntax.  Instead, we constant-fold them into a
 // TSDB_DATA_TYPE_TIMESTAMP literal using the external source's time
 // precision (pExtMeta->tsPrecision) before the pushdown harvest step.
@@ -21737,6 +22000,7 @@ static int32_t fqFoldNowTodayInExpr(SNode** ppNode, int32_t prec, timezone_t tz)
         SNode* pVal = NULL;
         int32_t code = nodesMakeValueNodeFromTimestamp(ts, &pVal);
         if (TSDB_CODE_SUCCESS != code) return code;
+        ((SValueNode*)pVal)->node.resType.precision = prec;
         nodesDestroyNode(pNode);
         *ppNode = pVal;
         planDebug("FQ-fold: folded %s() -> %" PRId64 " (prec=%d)",
@@ -22474,7 +22738,7 @@ static int32_t fqHarvestParentJoinWhereForRemoteSubtree(SLogicNode* pBoundaryRoo
 
   if (NULL != pChosen) {
     bool pushable = fqClauseGateOpen(EXT_CLAUSE_FILTER, pCap, pOverlay) &&
-                    fqExprIsPushable(pChosen, pBoundaryScan, pCap, pOverlay, pPlanCxt);
+                    fqConditionIsPushable(pChosen, pBoundaryScan, pCap, pOverlay, pPlanCxt);
     planDebug("FQ-joinWhereHarvest: parentJoin=%p boundary=%p leg=%s chosenPushable=%d remoteRootHasCondBefore=%d",
               pJoin, pBoundaryRoot, isLeftLeg ? "left" : "right", (int)pushable,
               NULL != pRemoteSubtree->pConditions);
@@ -22723,6 +22987,9 @@ static int32_t fqBuildIntervalAgg(SScanLogicNode* pScan, SWindowLogicNode* pWin,
   }
   pBucketFunc->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
   pBucketFunc->node.resType.bytes = (int32_t)sizeof(int64_t);
+  if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect) {
+    pBucketFunc->node.resType.precision = srcPrecision;
+  }
 
   code = nodesMakeList(&pBucketFunc->pParameterList);
   if (TSDB_CODE_SUCCESS != code) { nodesDestroyNode((SNode*)pBucketFunc); return code; }
@@ -22734,6 +23001,9 @@ static int32_t fqBuildIntervalAgg(SScanLogicNode* pScan, SWindowLogicNode* pWin,
   tstrncpy(pTsCol->colName, pkColName, TSDB_COL_NAME_LEN);
   pTsCol->node.resType.type  = TSDB_DATA_TYPE_TIMESTAMP;
   pTsCol->node.resType.bytes = (int32_t)sizeof(int64_t);
+  if (EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect) {
+    pTsCol->node.resType.precision = srcPrecision;
+  }
 
   code = nodesListStrictAppend(pBucketFunc->pParameterList, (SNode*)pTsCol);
   if (TSDB_CODE_SUCCESS != code) {
@@ -22809,15 +23079,18 @@ static int32_t fqBuildIntervalAgg(SScanLogicNode* pScan, SWindowLogicNode* pWin,
   }
   pBucketFunc = NULL;  // owned by pGroupKeys
 
-  // pAggFuncs = clone of pWin->pFuncs, excluding window pseudo-column functions.
-  // _wstart/_wend/_wduration are computed locally from the time-bucket result,
-  // not pushed to the remote source.
+  // InfluxDB 1.8 descriptors synthesize _wend/_wduration from the bucket.
+  // Carry their output identities through the remote aggregate so local
+  // projections (including CAST) can bind them. _wstart is the group key.
+  // Other dialects retain the established pseudo-column handling.
   if (pWin->pFuncs != NULL && LIST_LENGTH(pWin->pFuncs) > 0) {
     SNode* pWinFunc = NULL;
     FOREACH(pWinFunc, pWin->pFuncs) {
       if (nodeType(pWinFunc) != QUERY_NODE_FUNCTION) continue;
       const SFunctionNode* pF = (const SFunctionNode*)pWinFunc;
-      if (fmIsWindowPseudoColumnFunc(pF->funcId) || fmIsPseudoColumnFunc(pF->funcId)) continue;
+      bool influxWindowOutput = EXT_SQL_DIALECT_INFLUXDB_1_8 == pExtNode->capability.dialect &&
+                                (FUNCTION_TYPE_WEND == pF->funcType || FUNCTION_TYPE_WDURATION == pF->funcType);
+      if (!influxWindowOutput && (fmIsWindowPseudoColumnFunc(pF->funcId) || fmIsPseudoColumnFunc(pF->funcId))) continue;
       if (fmIsGroupKeyFunc(pF->funcId)) {
         planDebug("FQ-buildIntervalAgg: skip window group-key func name=%s alias=%s",
                   pF->functionName, pF->node.aliasName);
@@ -23940,13 +24213,13 @@ static int32_t fqSplitStoredFilterForLocal(SScanLogicNode* pScan, const SExtSour
   if (NULL != pConjuncts) {
     SNode* pChild = NULL;
     FOREACH(pChild, pConjuncts) {
-      if (!fqExprIsPushable(pChild, pScan, pCap, pOverlay, pPlanCxt)) {
+      if (!fqConditionIsPushable(pChild, pScan, pCap, pOverlay, pPlanCxt)) {
         anyLocal = true;
         break;
       }
     }
   } else {
-    anyLocal = !fqExprIsPushable(pOld, pScan, pCap, pOverlay, pPlanCxt);
+    anyLocal = !fqConditionIsPushable(pOld, pScan, pCap, pOverlay, pPlanCxt);
   }
   if (!anyLocal) {
     return TSDB_CODE_SUCCESS;
@@ -23964,7 +24237,7 @@ static int32_t fqSplitStoredFilterForLocal(SScanLogicNode* pScan, const SExtSour
       if (TSDB_CODE_SUCCESS != code) {
         goto _error;
       }
-      if (fqExprIsPushable(pChild, pScan, pCap, pOverlay, pPlanCxt)) {
+      if (fqConditionIsPushable(pChild, pScan, pCap, pOverlay, pPlanCxt)) {
         code = nodesMergeNode(&pNewPushed, &pClone);
       } else {
         code = nodesMergeNode(&pLocal, &pClone);
@@ -24497,6 +24770,34 @@ static bool fqWindowIntervalIsPushable(const SWindowLogicNode* pWin, SScanLogicN
                                        const SPlanContext* pPlanCxt) {
   if (pWin == NULL || pWin->winType != WINDOW_TYPE_INTERVAL) return false;
 
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) {
+    if (AUTO_DURATION_VALUE == pWin->offset) return false;
+    switch (pWin->intervalUnit) {
+      case 'b': case 'u': case 'a': case 's': case 'm': case 'h':
+        break;
+      case 'd': {
+        const char* pZone = pWin->timezoneName;
+        if (pZone[0] == '\0' && NULL != pPlanCxt) pZone = pPlanCxt->timezoneName;
+        // An offset sampled at now() cannot prove historical DST alignment.
+        if (strcmp(pZone, "UTC") != 0 && strcmp(pZone, "Etc/UTC") != 0 &&
+            strcmp(pZone, "GMT") != 0 && strcmp(pZone, "Etc/GMT") != 0 &&
+            strcmp(pZone, "UTC0") != 0 && strcmp(pZone, "GMT0") != 0) return false;
+        break;
+      }
+      default:
+        return false;
+    }
+    SNode* pFuncNode = NULL;
+    FOREACH(pFuncNode, pWin->pFuncs) {
+      if (QUERY_NODE_FUNCTION != nodeType(pFuncNode)) return false;
+      SFunctionNode* pFunc = (SFunctionNode*)pFuncNode;
+      if (fmIsWindowPseudoColumnFunc(pFunc->funcId)) continue;
+      if (fmIsGroupKeyFunc(pFunc->funcId)) {
+        if (!fqInflux18TagKey(pFuncNode, pScan)) return false;
+      } else if (!fqInflux18Aggregate(pFunc, pScan, pCap, pOverlay)) return false;
+    }
+  }
+
   if (pPlanCxt != NULL && pPlanCxt->subqueryIndex >= 0 &&
       planIsExternalWindowSubquery(pPlanCxt, pPlanCxt->subqueryIndex)) {
     planDebug("FqWindowIntervalIsPushable: no - subQIdx=%d is EXTERNAL_WINDOW subquery, keep INTERVAL local",
@@ -24815,7 +25116,7 @@ static bool fqJoinConditionIsPushable(SNode* pCond, SScanLogicNode* pScan,
     return false;
   }
 
-  return fqExprIsPushable(pCond, pScan, pCap, pOverlay, pPlanCxt);
+  return fqConditionIsPushable(pCond, pScan, pCap, pOverlay, pPlanCxt);
 }
 
 static bool fqJoinConditionListIsPushable(const SNodeList* pConds, SScanLogicNode* pScan,
@@ -25018,6 +25319,9 @@ static bool fqPartitionIsPushable(SLogicNode* pNode, SScanLogicNode* pScan,
       }
     }
     if (pExpr == NULL) return false;
+    if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect &&
+        !fqInflux18TagKey(pExpr, pScan)) return false;
+
     if (!fqExprIsPushable(pExpr, (SScanLogicNode*)pScan, pCap, pOverlay, pPlanCxt)) {
       planDebug("FqPartitionIsPushable: no - partition key not renderable (nodeType=%d)", (int)nodeType(pExpr));
       return false;
@@ -25195,6 +25499,16 @@ static bool fqChainHasDistinctOnlyAgg(const SLogicNode* pNode) {
 
 static bool fqLayerLimitPushable(const SLogicNode* pNode, const SExtSourceCapability* pCap,
                                  const SExtCapSessionOverlay* pOverlay) {
+  if (NULL != pNode && NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect) {
+    if (NULL != pNode->pSlimit) return false;
+    if (NULL != pNode->pLimit) {
+      const SLimitNode* pLimit = (const SLimitNode*)pNode->pLimit;
+      if (NULL == pLimit->limit || pLimit->limit->datum.i <= 0 || fqInflux18ChainHasTags(pNode)) return false;
+      if (NULL != pLimit->offset && pLimit->offset->datum.i > 0 &&
+          (!fqClauseIsPushable(EXT_CLAUSE_OFFSET, pCap->dialect, pOverlay) ||
+           capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_CLAUSE, &(EExtClauseKind){EXT_CLAUSE_OFFSET}))) return false;
+    }
+  }
   if (pNode == NULL || pNode->pLimit == NULL) {
     return true;
   }
@@ -25284,11 +25598,13 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
       planDebug("FQ-collect: scan WHERE stays local - FILTER clause disabled");
       return TSDB_CODE_SUCCESS;
     }
-    if (!fqExprIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+    if (!fqConditionIsPushable(pScan->node.pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
       planDebug("FQ-collect: scan WHERE not pushable - nothing pushes");
       return TSDB_CODE_SUCCESS;
     }
   }
+  if (NULL != pCap && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCap->dialect &&
+      !fqLayerLimitPushable((SLogicNode*)pScan, pCap, pOverlay)) return TSDB_CODE_SUCCESS;
   SLogicNode* pBoundary = (SLogicNode*)pScan;  // scan always in the subtree
   planDebug("FQ-collect: start scan=%p (scan is subtree leaf)", pScan);
 
@@ -25318,7 +25634,7 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
       // JOIN's own post-join WHERE must be pushable (renderJoinLegWhere emits it
       // into the JOIN's combined WHERE); else the filter would be lost.
       if (pParent->pConditions != NULL &&
-          !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
+          !fqConditionIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt)) {
         planDebug("FQ-collect: stop - JOIN own WHERE not pushable");
         break;
       }
@@ -25362,7 +25678,7 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
     // it into the remote SQL.
     if (pParent->pConditions != NULL && nodeType(pParent) != QUERY_NODE_LOGIC_PLAN_AGG &&
         (!fqClauseGateOpen(EXT_CLAUSE_FILTER, pCap, pOverlay) ||
-         !fqExprIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt))) {
+         !fqConditionIsPushable(pParent->pConditions, pScan, pCap, pOverlay, pPlanCxt))) {
       planDebug("FQ-collect: stop - layer type=%d WHERE not pushable", (int)nodeType(pParent));
       break;
     }
@@ -25379,6 +25695,54 @@ static int32_t fqCollectPushChain(SScanLogicNode* pScan, const SExtSourceCapabil
   *ppBoundary = pBoundary;
   planDebug("FQ-collect: done, boundary type=%d", (int)nodeType(pBoundary));
   return TSDB_CODE_SUCCESS;
+}
+
+// InfluxQL renders one SELECT. A limit below another operation or a second
+// aggregation would require a subquery and therefore ends the remote chain.
+static SLogicNode* fqInflux18TrimBoundary(SScanLogicNode* pScan, SLogicNode* pBoundary) {
+  if (NULL == pBoundary) return NULL;
+  SLogicNode* pAccepted = (SLogicNode*)pScan;
+  int32_t stage = 0;
+  bool hasAggregate = false;
+  while (pAccepted != pBoundary) {
+    if (NULL != pAccepted->pLimit) break;
+    SLogicNode* pNext = pAccepted->pParent;
+    if (NULL == pNext || LIST_LENGTH(pNext->pChildren) != 1) break;
+    // A predicate above aggregation is HAVING, even when another rewrite put
+    // it on a projection or sort. InfluxQL has no equivalent clause.
+    if (stage >= 2 && NULL != pNext->pConditions) break;
+    switch (nodeType(pNext)) {
+      case QUERY_NODE_LOGIC_PLAN_PARTITION:
+        if (stage > 0) goto _done;
+        stage = 1;
+        break;
+      case QUERY_NODE_LOGIC_PLAN_AGG:
+      case QUERY_NODE_LOGIC_PLAN_WINDOW:
+        if (stage > 1) goto _done;
+        stage = 2;
+        break;
+      case QUERY_NODE_LOGIC_PLAN_PROJECT:
+        // A pass-through projection above the final time sort can also own
+        // the statement's LIMIT. It preserves both rows and ordering.
+        if (stage < 3) stage = 3;
+        break;
+      case QUERY_NODE_LOGIC_PLAN_SORT:
+        if (stage > 3) goto _done;
+        stage = 4;
+        break;
+      default:
+        goto _done;
+    }
+    pAccepted = pNext;
+  }
+_done:
+  // A Partition must be absorbed by an aggregate in this same statement.
+  for (SLogicNode* pNode = pAccepted; pNode != (SLogicNode*)pScan; pNode = fqFirstChild(pNode)) {
+    ENodeType type = nodeType(pNode);
+    if (QUERY_NODE_LOGIC_PLAN_AGG == type || QUERY_NODE_LOGIC_PLAN_WINDOW == type) hasAggregate = true;
+    if (QUERY_NODE_LOGIC_PLAN_PARTITION == type && !hasAggregate) return (SLogicNode*)pScan;
+  }
+  return pAccepted;
 }
 
 typedef struct SFqMarkSubqueryCtx {
@@ -26611,6 +26975,23 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     pCxt->pExtCapability = &((SExtTableNode*)pScan->pExtTableNode)->capability;
   }
 
+  if (NULL != pCxt->pExtCapability && EXT_SQL_DIALECT_INFLUXDB_1_8 == pCxt->pExtCapability->dialect) {
+    const SExtTableNode* pExt = (const SExtTableNode*)pScan->pExtTableNode;
+    int32_t precision = NULL != pExt && NULL != pExt->pExtMeta ?
+                        pExt->pExtMeta->tsPrecision : TSDB_TIME_PRECISION_NANO;
+    for (SLogicNode* pNode = (SLogicNode*)pScan; NULL != pNode; pNode = pNode->pParent) {
+      ENodeType type = nodeType(pNode);
+      if (pNode != (SLogicNode*)pScan &&
+          (LIST_LENGTH(pNode->pChildren) != 1 ||
+           (QUERY_NODE_LOGIC_PLAN_PROJECT != type && QUERY_NODE_LOGIC_PLAN_SORT != type &&
+            QUERY_NODE_LOGIC_PLAN_AGG != type && QUERY_NODE_LOGIC_PLAN_WINDOW != type &&
+            QUERY_NODE_LOGIC_PLAN_PARTITION != type))) break;
+      int32_t foldCode = fqFoldNowTodayInExpr(&pNode->pConditions, precision,
+                                             (timezone_t)pCxt->pPlanCxt->timezone);
+      if (TSDB_CODE_SUCCESS != foldCode) return foldCode;
+    }
+  }
+
   // Restore 3.0 virtual-table semantics for direct external children under a
   // VirtualTableScan.  This path must not enter the generic FQ collect/commit
   // flow, otherwise local column routing and dynamic child resolution can drift
@@ -26627,7 +27008,7 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     }
     bool keepPushableScanWhere =
         (pScan->node.pConditions != NULL) &&
-        fqExprIsPushable(pScan->node.pConditions, pScan, pCxt->pExtCapability,
+        fqConditionIsPushable(pScan->node.pConditions, pScan, pCxt->pExtCapability,
                          pCxt->pSessionOverlay, pCxt->pPlanCxt);
     int32_t code = fqInjectPkOrderBy(pScan, keepPushableScanWhere);
     if (TSDB_CODE_SUCCESS != code) {
@@ -26716,6 +27097,10 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
     SLogicNode* pBoundary = NULL;
     code = fqCollectPushChain(pScan, pCxt->pExtCapability, pCxt->pSessionOverlay, pCxt->pPlanCxt, &pBoundary);
     if (TSDB_CODE_SUCCESS != code) goto _cleanup;
+
+    if (EXT_SQL_DIALECT_INFLUXDB_1_8 == dialect) {
+      pBoundary = fqInflux18TrimBoundary(pScan, pBoundary);
+    }
 
     // Track whether a Sort is in the pushable subtree (controls pk ORDER BY below).
     for (SLogicNode* pNd = pBoundary; pNd != NULL && pNd != (SLogicNode*)pScan;
@@ -26954,6 +27339,13 @@ static SScanLogicNode* fqGetWholePushBranchScan(SLogicNode* pNode) {
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
   if (pScan->scanType != SCAN_TYPE_EXTERNAL ||
       !OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN)) {
+    return NULL;
+  }
+
+  // InfluxQL renders a single SELECT. Keep set operations local even when
+  // every branch has independently pushed its projection and filter.
+  if (NULL != pScan->pExtTableNode &&
+      EXT_SQL_DIALECT_INFLUXDB_1_8 == ((SExtTableNode*)pScan->pExtTableNode)->capability.dialect) {
     return NULL;
   }
 

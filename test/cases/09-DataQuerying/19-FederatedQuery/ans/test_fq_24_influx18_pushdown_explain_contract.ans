@@ -1,0 +1,118 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+           i           |             d             |
+====================================================
+                     7 |                       5.5 |
+      9007199254740993 | NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" >= 3)) ORDER BY time DESC LIMIT 2 OFFSET 1 |
+
+taos> EXPLAIN ANALYZE VERBOSE TRUE SELECT i,d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time DESC LIMIT 2 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) ( width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" >= 3)) ORDER BY time DESC LIMIT 2 OFFSET 1 |
+       Remote rows=2, blocks=1, elapsed=<time> |
+ |
+ |
+
+taos> SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+        sum(i)         |
+========================
+      9007199254741013 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+
+taos> EXPLAIN ANALYZE VERBOSE TRUE SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) ( width=8) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=1 width=8 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("i") AS "expr_1", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+       Remote rows=1, blocks=1, elapsed=<time> |
+ |
+ |
+
+taos> SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               site                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |        sum(i)         |
+===========================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |                     7 |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |      9007199254741003 |
+ b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                     3 |
+ c                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+QUERY_PLAN |
+============
+ -> Sort input_order=unknown output_order=unknown  (columns=2 width=65527) |
+       Output: columns=2 width=65527 |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65527) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=65527 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("i") AS "expr_2", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" GROUP BY "site" fill(none) |
+
+taos> EXPLAIN ANALYZE VERBOSE TRUE SELECT site,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows PARTITION BY site ORDER BY site;
+QUERY_PLAN |
+============
+ -> Sort input_order=unknown output_order=unknown  ( columns=2 width=65527) |
+       Sort Key: site |
+       Output: columns=2 width=65527 |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) ( width=65527) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=65527 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT SUM("i") AS "expr_2", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" GROUP BY "site" fill(none) |
+          Remote rows=4, blocks=1, elapsed=<time> |
+ |
+ |
+
+taos> SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+            _wstart            |        sum(i)         |
+========================================================
+ 2023-11-14 22:13:20.000000000 |                     4 |
+ 2023-11-14 22:13:22.000000000 |      9007199254740993 |
+ 2023-11-14 22:13:24.000000000 |                     7 |
+ 2023-11-14 22:13:26.000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("i") AS "expr_2", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE time >= -9223372036854775806 AND time <= 9223372036854775806 AND (((time >= 1700000000000000000) AND (time <= 1700000006999999999))) GROUP BY time(2000000000ns) fill(none) |
+
+taos> EXPLAIN ANALYZE VERBOSE TRUE SELECT _wstart,sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000007000000000 INTERVAL(2s);
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) ( width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT SUM("i") AS "expr_2", COUNT("anchor") AS "__fq_sparse_0", COUNT("d") AS "__fq_sparse_1", COUNT("flag") AS "__fq_sparse_2", COUNT("label") AS "__fq_sparse_3" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE time >= -9223372036854775806 AND time <= 9223372036854775806 AND (((time >= 1700000000000000000) AND (time <= 1700000006999999999))) GROUP BY time(2000000000ns) fill(none) |
+       Remote rows=4, blocks=1, elapsed=<time> |
+ |
+ |

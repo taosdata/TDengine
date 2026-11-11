@@ -160,7 +160,7 @@ int32_t extLoadSourceDialectDefaults(int8_t sourceType, const char* options, SEx
 
 bool extDialectClauseMappable(int32_t dialect, EExtClauseKind clause) {
   if (dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
-    return false;
+    return fqClauseIsPushable(clause, dialect, NULL);
   }
   const EExtClauseKind* pCommon = NULL;
   int32_t               commonNum = 0;

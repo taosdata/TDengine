@@ -1899,7 +1899,9 @@ class TestFq14ResultParity(ParityTestBase):
                     assert len(remote_lines) == 2, (case_id, remote_lines)
                     assert "join" in local_plan.lower() and "filter" in local_plan.lower(), local_plan
                     for remote in remote_lines:
-                        assert not re.search(r"\b(where|join|order by|limit)\b|\(", remote, re.I), remote
+                        assert not re.search(r"\b(join|group by|limit|offset)\b|\b(?:sum|count|mean)\s*\(", remote, re.I), remote
+                        if " ORDER BY " in remote.upper():
+                            assert re.search(r"ORDER BY time ASC\s*$", remote, re.I), remote
                     continue
                 remote_sql = re.sub(r"\s+", " ", " ".join(remote_lines)).strip()
                 remote_sql = re.sub(r"^remote sql:\s*", "", remote_sql, flags=re.IGNORECASE)
@@ -2764,7 +2766,8 @@ class TestFq14ResultParity(ParityTestBase):
             assert "1.8" in plan and "RP=autogen" in plan, plan
             tdSql.query(f"EXPLAIN ANALYZE VERBOSE TRUE SELECT value FROM {table} WHERE value>1 LIMIT 1")
             remote = [str(row[0]) for row in tdSql.queryResult if "Remote SQL:" in str(row[0])]
-            assert remote and all("WHERE" not in row.upper() and "LIMIT" not in row.upper() for row in remote), remote
+            assert remote and all(" WHERE " in row.upper() and " LIMIT 1" in row.upper() for row in remote), remote
+            assert all('"value"' in row and '"other"' in row for row in remote), remote
         print("InfluxDB 1.8 raw_scans ................ [ passed ]")
 
     @influx_versions("1.8")
@@ -2772,7 +2775,7 @@ class TestFq14ResultParity(ParityTestBase):
         """Read sparse Fields, Tag-only/time-only projections and exact integers.
 
         1. Check sparse rows, Tag-only/time-only projection and integer precision.
-        2. Verify filtering, aggregation, sorting and limits execute locally.
+        2. Verify pushed filters and limits preserve all-Field sparse-row anchoring.
 
         Catalog:
             - FederatedQuery
@@ -2839,7 +2842,10 @@ class TestFq14ResultParity(ParityTestBase):
             assert remote and all(all(f'"{column}"' in row for column in ("a", "b", "value")) for row in remote), remote
             for row in remote:
                 assert not any(token in row.upper() for token in (
-                    "COUNT(", "SUM(", "GROUP BY", "WHERE", "LIMIT", "ORDER BY")), row
+                    "COUNT(", "SUM(", "GROUP BY", "LIMIT", "OFFSET")), row
+                assert " WHERE " in row.upper() and re.search(r'"value"\s*>\s*1', row), row
+                if " ORDER BY " in row.upper():
+                    assert re.search(r"ORDER BY time ASC\s*$", row, re.I), row
         print("InfluxDB 1.8 series_grouping ................ [ passed ]")
 
     @influx_versions("1.8")
@@ -2986,7 +2992,10 @@ class TestFq14ResultParity(ParityTestBase):
                                 finished.set()
 
                         state["body"] = blocked_response
-                        query = f"SELECT COUNT(*) AS cancel_probe FROM {table}" if cancel else f"SELECT value FROM {table} LIMIT 1"
+                        # Keep the final LIMIT local so this protocol fixture can
+                        # test early reader closure without evaluating InfluxQL.
+                        query = (f"SELECT COUNT(*) AS cancel_probe FROM {table}" if cancel else
+                                 f"SELECT value FROM {table} WHERE value IS NOT NULL LIMIT 1")
                         with ThreadPoolExecutor(max_workers=1) as pool:
                             future = pool.submit(worker, query)
                             try:
@@ -3015,7 +3024,8 @@ class TestFq14ResultParity(ParityTestBase):
                 finally:
                     self._cleanup_src(source)
         identifier = INFLUX18_QUOTED_IDENTIFIER
-        pattern = rf'SELECT\s+{identifier}(?:\s*,\s*{identifier})*\s+FROM\s+{identifier}\.{identifier}\.{identifier}'
+        pattern = (rf'SELECT\s+{identifier}(?:\s*,\s*{identifier})*\s+FROM\s+'
+                   rf'{identifier}\.{identifier}\.{identifier}(?:\s+ORDER BY time ASC)?')
         assert generated_sql and all(re.fullmatch(pattern, sql) for sql in generated_sql), generated_sql
         assert any('q\\"field' in sql and 'slash\\\\field' in sql for sql in generated_sql), generated_sql
         print("InfluxDB 1.8 HTTP rows, failures and cancellation ................ [ passed ]")
@@ -3051,10 +3061,10 @@ class TestFq14ResultParity(ParityTestBase):
         with self._influx_fixture(database, lines) as (_, source):
             table = f"{source}.{database}.rows"
             for sql, operators, expected in [
-                (f"SELECT value FROM {table} WHERE value>0", [r"Filter|Conditions"], [(1,), (2,)]),
-                (f"SELECT SUM(value) FROM {table}", [r"Aggregate"], [(3,)]),
+                (f"SELECT value FROM {table} WHERE ABS(value)>0", [r"Filter|Conditions"], [(1,), (2,)]),
+                (f"SELECT COUNT(*) FROM {table}", [r"Aggregate"], [(3,)]),
                 (f"SELECT value FROM {table} ORDER BY value DESC", [r"Sort"], [(2,), (1,), (0,)]),
-                (f"SELECT value FROM {table} LIMIT 1", [r"limit[=: ]+1"], [(0,)]),
+                (f"SELECT value FROM {table} WHERE value IS NOT NULL LIMIT 1", [r"limit[=: ]+1"], [(0,)]),
                 (f"SELECT a.value,b.value FROM {table} a JOIN {table} b ON a.time=b.time ORDER BY a.value",
                  [r"Join", r"Sort"], [(0, 0), (1, 1), (2, 2)]),
             ]:
@@ -3064,14 +3074,26 @@ class TestFq14ResultParity(ParityTestBase):
                 for operator in operators:
                     assert re.search(operator, local, re.I), (sql, operator, plan)
                 self._check_query_rows(sql, expected)
-        print("InfluxDB 1.8 local plan operators ................ [ passed ]")
+            for sql, remote_pattern, expected in [
+                (f"SELECT value FROM {table} WHERE value>0", r'"value"\s*>\s*0', [(1,), (2,)]),
+                (f"SELECT SUM(value) FROM {table}", r'SUM\("value"\)', [(3,)]),
+                (f"SELECT value FROM {table} ORDER BY time DESC LIMIT 1 OFFSET 1",
+                 r"ORDER BY time DESC\s+LIMIT 1\s+OFFSET 1", [(1,)]),
+            ]:
+                tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + sql)
+                plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+                remote = "\n".join(line for line in plan.splitlines() if "Remote SQL:" in line)
+                assert re.search(remote_pattern, remote, re.I), (sql, plan)
+                self._check_query_rows(sql, expected)
+        print("InfluxDB 1.8 pushdown and local plan operators ................ [ passed ]")
 
     @influx_versions("1.8")
     def test_influx18_local_plan(self):
         """Protect local operators independently of the remote raw SELECT contract.
 
-        1. Require local filter, aggregate, sort, limit and join plan evidence.
-        2. Compare the executed results against fixed expectations.
+        1. Require local filter, aggregate, sort, limit and join fallback plan evidence.
+        2. Check supported filters, SUM and time ordering with LIMIT/OFFSET reach InfluxQL.
+        3. Compare the executed results against fixed expectations.
 
         Catalog:
             - FederatedQuery
@@ -3084,6 +3106,7 @@ class TestFq14ResultParity(ParityTestBase):
 
         History:
             - 2026-11-02 Add native local-plan regression assertions
+            - 2026-11-04 Cover pushdown and retained local fallback boundaries
 
         """
         self.do_influx18_local_plan()

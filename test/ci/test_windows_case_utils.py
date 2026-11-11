@@ -20,6 +20,7 @@ import re
 import shlex
 import shutil
 import stat
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -30,15 +31,105 @@ from unittest.mock import Mock
 from windows_case_utils import (
     is_excluded_command, is_fq_command, is_related_command, parse_case_line,
     pytest_command_args, pytest_log_name, resume_task_manifest,
-    selection_contains_fq, FQ_SMOKE_CASES, windows_task_manifest,
+    selection_contains_fq, FQ_SMOKE_CASES, INFLUX18_CASES, windows_task_manifest,
     is_pytest_collection_skip,
     is_pytest_only_skip,
 )
 
 
+class TestWindowsInflux18Reset(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_strict_mode_empty_databases_and_query_errors(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        program = r'''
+param([string]$Source)
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+$names = @('Invoke-Influx18Query', 'Test-InfluxResponsive', 'Reset-InfluxEnv')
+$functions = $ast.FindAll({ param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -in $names
+}, $false)
+if ($functions.Count -ne 3) { throw 'Missing InfluxDB setup functions' }
+foreach ($definition in $functions) { Invoke-Expression $definition.Extent.Text }
+function Info { param($Message) }
+$script:Queries = @()
+$script:DropResponse = '{"results":[{"statement_id":0}]}'
+function Invoke-RestMethod {
+    param($Method, $Uri, $Body, $TimeoutSec, $ErrorAction)
+    if ($Method -ne 'POST' -or $TimeoutSec -ne 10 -or $ErrorAction -ne 'Stop') {
+        throw 'Query lost its method, timeout or error handling'
+    }
+    $script:Queries += $Body.q
+    if ($Body.q -eq 'SHOW DATABASES') { return ConvertFrom-Json $script:Response }
+    return ConvertFrom-Json $script:DropResponse
+}
+foreach ($response in @(
+    '{"results":[{"statement_id":0}]}',
+    '{"results":[{"statement_id":0,"series":[]}]}',
+    '{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"]}]}]}'
+)) {
+    $script:Response = $response
+    $script:Queries = @()
+    Reset-InfluxEnv '1.8' 18085
+    if ($script:Queries.Count -ne 1) { throw 'Empty catalog attempted a drop' }
+    if (-not (Test-InfluxResponsive '1.8' 18085)) { throw 'Empty catalog failed readiness' }
+}
+$script:Response = '{"results":[{"series":[{"values":[["_internal"],["test\"db\\name"],["fixture"]]}]}]}'
+$script:Queries = @()
+Reset-InfluxEnv '1.8' 18085
+if ($script:Queries.Count -ne 3 -or $script:Queries[1] -ne 'DROP DATABASE "test\"db\\name"' -or
+    $script:Queries[2] -ne 'DROP DATABASE "fixture"') { throw 'Database reset lost quoting or _internal exclusion' }
+foreach ($response in @(
+    '{"error":"top-level error"}', '{"results":[{"error":"statement error"}]}',
+    '{}', '{"results":[]}', '{"results":[null]}', 'null'
+)) {
+    $script:Response = $response
+    $script:Queries = @()
+    $failed = $false
+    try { Reset-InfluxEnv '1.8' 18085 } catch { $failed = $true }
+    if (-not $failed -or $script:Queries.Count -ne 1) { throw 'Invalid catalog response was accepted' }
+    if (Test-InfluxResponsive '1.8' 18085) { throw 'Invalid catalog passed readiness' }
+}
+$script:Response = '{"results":[{"series":[{"values":[["fixture"]]}]}]}'
+$script:DropResponse = '{"results":[{"error":"drop denied"}]}'
+$failed = $false
+try { Reset-InfluxEnv '1.8' 18085 } catch { $failed = $_.Exception.Message -like '*drop denied*' }
+if (-not $failed) { throw 'DROP DATABASE error was ignored' }
+Write-Output 'InfluxDB 1.8 reset regressions passed'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "test-influx18-reset.ps1"
+            script.write_text(program, encoding="utf-8")
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(script), str(source)],
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn("InfluxDB 1.8 reset regressions passed", result.stdout)
+
+
 class TestWindowsOracleParity(unittest.TestCase):
     fq_dir = (Path(__file__).parents[1] /
               "cases/09-DataQuerying/19-FederatedQuery")
+
+    def test_native_influx_vtable_selection_has_independent_fixtures(self):
+        path = (Path(__file__).parents[1] /
+                "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py")
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        methods = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+        native = methods["test_influx18_aggregate_and_limit"]
+        self.assertEqual([argument.arg for argument in native.args.args], ["self", "local_values"])
+        self.assertEqual([argument.arg for argument in methods["test_pushdown_agg_ext_source"].args.args],
+                         ["self", "all_sources"])
+        local_fixture = ast.unparse(methods["local_values"])
+        self.assertNotIn("all_sources", local_fixture)
+        self.assertNotIn("oracle", local_fixture)
+        self.assertNotIn("adapters", local_fixture)
 
     def test_provisioning_defaults_include_oracle(self):
         tree = ast.parse(Path(__file__).with_name("run_windows_ci.py").read_text(encoding="utf-8"))
@@ -843,17 +934,17 @@ class TestWindowsCaseUtils(unittest.TestCase):
                       if line.strip() and not line.lstrip().startswith("#")]
         smoke = windows_task_manifest(ci_dir)
         rows = [line for line in smoke.splitlines() if line.strip() and not line.startswith("#")]
-        self.assertEqual(len(rows), 22)
+        self.assertEqual(len(rows), 25)
         for line in rows:
             command, timeout = parse_case_line(line)
             self.assertTrue((ci_dir.parent / shlex.split(command)[1].split("::")[0]).is_file(), command)
-        # The Windows smoke gate no longer runs federated-query cases: every
-        # FQ row is commented out and a commented row never counts as FQ.
-        self.assertFalse(any(is_fq_command(line) for line in smoke.splitlines()))
+        # Native 1.8 selections are active, and the remaining FQ rows stay deferred.
+        for case in INFLUX18_CASES:
+            self.assertTrue(any(case in line for line in rows))
+            self.assertFalse(is_excluded_command("pytest " + case, exclusions, "smoke"))
         for case in FQ_SMOKE_CASES:
-            matches = [line for line in smoke.splitlines() if case in line]
-            self.assertTrue(matches, case)
-            self.assertTrue(all(line.lstrip().startswith("#") for line in matches), case)
+            if case not in INFLUX18_CASES:
+                self.assertFalse(any(case in line for line in rows))
         full = windows_task_manifest(ci_dir, "full")
         self.assertGreater(len(full.splitlines()), 1000)
         self.assertFalse(is_excluded_command(
@@ -883,7 +974,8 @@ class TestWindowsCaseUtils(unittest.TestCase):
                 (ci / "win_cases.task").write_text(
                     local + ",,n,.,pytest " + FQ_SMOKE_CASES[0] + ",7200\n"
                     + ",,n,.,env FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest "
-                    + FQ_SMOKE_CASES[0] + ",7200\n")
+                    + FQ_SMOKE_CASES[0] + ",7200\n"
+                    + "#,,n,.,env FQ_INFLUX_VERSIONS=3.5 ./ci/pytest.sh pytest cases/deferred.py\n")
                 provision, dependencies = Mock(), Mock()
                 execute = Mock(return_value=SimpleNamespace(returncode=0))
                 namespace = {"Path": Path, "os": SimpleNamespace(environ={}), "json": json, "re": re,
@@ -1589,6 +1681,37 @@ class TestWindowsForceStop(unittest.TestCase):
 
 
 class TestWindowsFinalization(unittest.TestCase):
+    def test_postgres_cleanup_tracks_restarted_instances(self):
+        import run_windows_ci as ci
+        from unittest.mock import patch
+
+        data_dir = Path("fq/pg/18.6/data")
+        original = (10, 1.0)
+        scenarios = (
+            ({data_dir: original}, {data_dir: original}, False),
+            ({}, {data_dir: original}, True),
+            ({data_dir: original}, {data_dir: (11, 2.0)}, True),
+            ({data_dir: original}, {data_dir: (10, 2.0)}, True),
+            ({data_dir: original}, {}, False),
+        )
+        for existing, current, should_stop in scenarios:
+            with self.subTest(existing=existing, current=current), \
+                 patch.object(ci, "running_fq_postgres", side_effect=[existing, current]), \
+                 patch.object(ci, "running_fq_mysql", return_value={}), \
+                 patch.object(ci, "running_fq_influx", return_value={}), \
+                 patch.object(ci, "stop_owned_fq_mysql"), \
+                 patch.object(ci, "stop_owned_fq_influx"), \
+                 patch.object(ci.subprocess, "run", return_value=Mock(returncode=0, stdout="", stderr="")) as run:
+                with ci.managed_fq_services(Path("source")):
+                    pass
+                if should_stop:
+                    run.assert_called_once_with(
+                        [str(data_dir.parent / "bin" / "pg_ctl.exe"), "-D", str(data_dir), "-m", "fast", "-w", "stop"],
+                        capture_output=True, text=True, errors="replace", timeout=60, check=False,
+                    )
+                else:
+                    run.assert_not_called()
+
     def test_taskkill_timeout_is_bounded_and_reported(self):
         import run_windows_ci as ci
         import subprocess

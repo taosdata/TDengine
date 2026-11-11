@@ -1367,9 +1367,10 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         assert remote_lines, f"plan has no remote SQL: sql={sql!r}, plan={lines!r}"
         remote_sql = "\n".join(remote_lines).lower()
         if native:
-            assert not re.search(r"\b(where|join|order by|limit)\b|\(", remote_sql), remote_lines
+            assert not re.search(r"\b(join|union|having)\b|\(\s*select\b", remote_sql), remote_lines
+            # Non-time ordering and its dependent LIMIT remain local.
             required_fragments = tuple(fragment for fragment in required_fragments
-                                       if fragment.lower() not in ("where", "order by", "limit"))
+                                       if fragment.lower() not in ("order by", "limit"))
         for fragment in required_fragments:
             assert fragment.lower() in remote_sql, (
                 f"remote SQL misses {fragment!r}: sql={sql!r}, remote={remote_lines!r}"

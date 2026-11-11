@@ -16,6 +16,7 @@
 # -*- coding: utf-8 -*-
 from new_test_framework.utils import tdCom, tdLog, tdSql
 import os
+import pytest
 import sys
 import time
 
@@ -42,10 +43,28 @@ _ORACLE_TABLE = "VT_PUSHDOWN_AGG_ORA_VALUES"
 
 
 class TestVTablePlanPushdownAggExtSource:
-    @classmethod
-    def setup_class(cls):
+    @pytest.fixture(scope="class")
+    def local_values(self):
         tdLog.debug(f"start to execute {__file__}")
         ExtSrcEnv.ensure_qnode()
+        tdSql.execute(f"drop database if exists {_LOCAL_DB}")
+        tdSql.execute(f"create database {_LOCAL_DB} precision 'ns' keep 36500")
+        tdSql.execute(f"use {_LOCAL_DB}")
+        tdSql.execute("create table local_values (ts timestamp, v int)")
+        tdSql.execute(
+            "insert into local_values values "
+            "('2024-01-01 00:00:00', 1), "
+            "('2024-01-01 00:00:01', 2), "
+            "('2024-01-01 00:00:02', 3)"
+        )
+        try:
+            yield
+        finally:
+            tdSql.execute(f"drop database if exists {_LOCAL_DB}")
+
+    @pytest.fixture(scope="class")
+    def all_sources(self, local_values, request):
+        cls = request.cls
         cls.adapters = {
             backend: VtableQueryUtil._EXT_SOURCE_ADAPTERS[backend]()
             for backend in _EXTERNAL_SOURCES
@@ -53,9 +72,13 @@ class TestVTablePlanPushdownAggExtSource:
         for adapter in cls.adapters.values():
             adapter.ensure_running()
 
-        cls.prepare_external_data()
-        cls.create_external_sources()
-        cls.create_virtual_tables()
+        try:
+            cls.prepare_external_data()
+            cls.create_external_sources()
+            cls.create_virtual_tables()
+            yield
+        finally:
+            cls.cleanup_all_sources()
 
     @classmethod
     def prepare_external_data(cls):
@@ -213,16 +236,6 @@ class TestVTablePlanPushdownAggExtSource:
             f"{_EXTERNAL_SOURCES['oracle']}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE}.v"
         )
 
-        tdSql.execute(f"drop database if exists {_LOCAL_DB}")
-        tdSql.execute(f"create database {_LOCAL_DB} precision 'ns'")
-        tdSql.execute(f"use {_LOCAL_DB}")
-        tdSql.execute("create table local_values (ts timestamp, v int)")
-        tdSql.execute(
-            "insert into local_values values "
-            "('2024-01-01 00:00:00', 1), "
-            "('2024-01-01 00:00:01', 2), "
-            "('2024-01-01 00:00:02', 3)"
-        )
         tdSql.execute(
             "create vtable vt_mysql (ts timestamp, "
             f"local_v int from local_values.v, remote_v int from {mysql_ref})"
@@ -274,7 +287,7 @@ class TestVTablePlanPushdownAggExtSource:
         )
 
     @classmethod
-    def teardown_class(cls):
+    def cleanup_all_sources(cls):
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
         for source in _EXTERNAL_SOURCES.values():
             tdSql.execute(f"drop external source if exists {source}")
@@ -285,27 +298,56 @@ class TestVTablePlanPushdownAggExtSource:
         ExtSrcEnv.oracle_drop_table_cfg(
             next(ExtSrcEnv.oracle_version_configs()), _ORACLE_TABLE)
 
-    @staticmethod
-    def check_row(sql, expected):
-        tdSql.query(sql)
-        tdSql.checkRows(1)
-        actual = tuple(tdSql.queryResult[0])
-        assert actual == expected, f"{sql}: expected {expected}, got {actual}"
-
     @classmethod
-    def do_oracle_aggregate(cls):
-        """Aggregate the Oracle-backed and all-source virtual tables.
-
-        Oracle is a step-1 (zero pushdown) source, so the remote SQL is a plain
-        base scan and only the merged aggregate values are checked here.  The
-        plan itself is not compared yet; see the TODO in the test docstring.
-        """
-        cls.check_row(
-            "select sum(local_v), sum(remote_v) from vt_oracle", (6, 600000))
-        cls.check_row(
-            "select sum(local_v), sum(mysql_v), sum(postgres_v), "
-            "sum(influx_v), sum(oracle_v) from vt_all_mixed_oracle",
-            (6, 60, 600, 6000, 600000))
+    def do_influx18_aggregate_and_limit(cls):
+        if "1.8" not in ExtSrcEnv.INFLUX_VERSIONS:
+            pytest.skip("InfluxDB 1.8 is not configured")
+        adapter = VtableQueryUtil._EXT_SOURCE_ADAPTERS["influx"]("1.8")
+        adapter.ensure_running()
+        cfg = adapter.config
+        source = "vt_pushdown_agg_influx18_src"
+        table = f"{_LOCAL_DB}.vt_influx18"
+        tdSql.query(f"select cast(ts as bigint) from {_LOCAL_DB}.local_values order by ts")
+        tdSql.checkRows(3)
+        timestamps = [row[0] for row in tdSql.queryResult]
+        ExtSrcEnv.influx_drop_db_cfg(cfg, _EXTERNAL_DB)
+        ExtSrcEnv.influx_create_db_cfg(cfg, _EXTERNAL_DB)
+        ExtSrcEnv.influx_write_cfg(cfg, _EXTERNAL_DB, [
+            f"remote_values v={value}i {timestamp}"
+            for timestamp, value in zip(timestamps, (1000, 2000, 3000))
+        ])
+        user, password = ExtSrcEnv.influx_source_credentials("1.8")
+        tdSql.execute(f"drop external source if exists {source}")
+        try:
+            tdSql.execute(
+                f"create external source {source} type='influxdb' "
+                f"host='{cfg.host}' port={cfg.port} user='{user}' password='{password}' "
+                f"database={_EXTERNAL_DB} options({ExtSrcEnv.influx_source_options('1.8')})")
+            tdSql.execute(f"drop table if exists {table}")
+            tdSql.execute(
+                f"create vtable {table} (ts timestamp, "
+                f"local_v int from {_LOCAL_DB}.local_values.v, "
+                f"remote_v bigint from {source}.{_EXTERNAL_DB}.remote_values.v)")
+            stable = f"{_LOCAL_DB}.vst_influx18"
+            tdSql.execute(f"drop table if exists {stable}")
+            tdSql.execute(f"create stable {stable} (ts timestamp,local_v int,remote_v bigint) tags (id int) virtual 1")
+            tdSql.execute(
+                f"create vtable {_LOCAL_DB}.vc_influx18 (local_v from {_LOCAL_DB}.local_values.v, "
+                f"remote_v from {source}.{_EXTERNAL_DB}.remote_values.v) using {stable} tags (1)")
+            case = "test_vtable_plan_pushdown_agg_ext_source_influx18"
+            directory = os.path.dirname(__file__)
+            tdCom.compare_testcase_result(
+                os.path.join(directory, "in", f"{case}.in"),
+                os.path.join(directory, "ans", f"{case}.ans"), case,
+                # Match the fixture's middle timestamp across client timezones.
+                result_transform=lambda text: ExtSrcEnv.influx18_plan_baseline(text).replace(
+                    str(timestamps[1]), "<middle_timestamp>"))
+        finally:
+            tdSql.execute(f"drop table if exists {_LOCAL_DB}.vst_influx18")
+            tdSql.execute(f"drop table if exists {table}")
+            tdSql.execute(f"drop external source if exists {source}")
+            ExtSrcEnv.influx_drop_db_cfg(cfg, _EXTERNAL_DB)
+        print("native InfluxDB aggregation and safe input limits ...... [ passed ]")
 
     @staticmethod
     def do_compare_pushdown_agg_plan():
@@ -317,15 +359,14 @@ class TestVTablePlanPushdownAggExtSource:
             os.path.dirname(__file__), "ans", f"{test_case}.ans"
         )
         VtableQueryUtil.compare_ext_source_plan_testcase_result(
-            input_file, answer_file, test_case,
+            input_file, answer_file, test_case, native_same_local_shape=True,
         )
         print("federated pushdownAgg plans ................ [ passed ]")
 
-    def test_pushdown_agg_ext_source(self):
+    def test_pushdown_agg_ext_source(self, all_sources):
         """Validate virtual-table aggregates across local and external scans.
 
-        1. Cover MySQL, PostgreSQL, InfluxDB 3.x and Oracle aggregate pushdown,
-           plus native InfluxDB 1.8 local aggregation.
+        1. Cover MySQL, PostgreSQL, InfluxDB 3.x and Oracle aggregate pushdown.
         2. Cover local-plus-external and mixed-external source plans,
            including the Oracle single-source and all-source virtual tables.
         3. Verify merged aggregate results and output-column order.
@@ -344,7 +385,29 @@ class TestVTablePlanPushdownAggExtSource:
             - 2026-07-15 Codex Added federated pushdownAgg plan coverage
             - 2026-10-26 Add Oracle aggregate value coverage
             - 2026-10-27 Record the Oracle plan blocks in the shared golden
+            - 2026-11-04 Cover native InfluxDB aggregate and input-limit branches
+            - 2026-11-09 Simon Dominic Move SQL results and plans to in/ans fixtures
 
         """
         self.do_compare_pushdown_agg_plan()
-        self.do_oracle_aggregate()
+
+    def test_influx18_aggregate_and_limit(self, local_values):
+        """Validate native InfluxDB 1.8 virtual-table pushdown.
+
+        1. Compare aggregate and residual-filter results with in/ans fixtures.
+        2. Verify LIMIT/OFFSET and static/runtime plans for ordinary and super virtual tables.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-11-10 Simon Dominic Separate native 1.8 coverage for Windows CI
+
+        """
+        self.do_influx18_aggregate_and_limit()

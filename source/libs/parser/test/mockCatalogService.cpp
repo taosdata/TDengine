@@ -622,6 +622,7 @@ class MockCatalogServiceImpl {
         if (0 == vgSet.count(vg.vgId)) {
           if (nullptr == taosArrayPush(*pVgList, &vg)) {
             taosArrayDestroy(*pVgList);
+            *pVgList = nullptr;
             return TSDB_CODE_OUT_OF_MEMORY;
           }
           (void)vgSet.insert(vg.vgId);
@@ -643,6 +644,7 @@ class MockCatalogServiceImpl {
           if (0 == vgSet.count(vg.vgId)) {
             if (nullptr == taosArrayPush(*pVgList, &vg)) {
               taosArrayDestroy(*pVgList);
+              *pVgList = nullptr;
               return TSDB_CODE_OUT_OF_MEMORY;
             }
             (void)vgSet.insert(vg.vgId);

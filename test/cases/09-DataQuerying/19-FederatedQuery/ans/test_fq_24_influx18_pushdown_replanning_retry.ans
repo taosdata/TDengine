@@ -1,0 +1,7 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT sum(i) FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows;
+        sum(i)         |
+========================
+      9007199254741013 |

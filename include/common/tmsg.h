@@ -513,91 +513,62 @@ typedef enum EExtSQLDialect {
 #define EXT_INFLUX_KEY_NCHAR_CHARS_TOO_LONG (TSDB_COL_NAME_LEN * TSDB_NCHAR_SIZE)
 
 // -- FQ push-down capability bitmap ------------------------------------------
-// uint16_t bitmap encoding:
-//   bits [2:0]  - default capability per dialect (0 = not pushable)
-//   bits [5:3]  - session-level override (1 = force-disable for that dialect)
-//
-// fqPushCap bitmap layout (uint16_t):
-//
-//   Low byte  (bits 0-7)  - static/global capability defaults
-//   High byte (bits 8-15) - session-level overrides (set to force-disable)
-//
-//   The high byte mirrors the low byte: each bit in the high byte disables the
-//   corresponding bit position in the low byte at session level.
-//
-//   Low-byte layout:
-//     bits 0-2 : main capability    (MySQL=bit0, PG=bit1, Influx=bit2)
-//     bits 3-5 : sub-cap 1: CAST(timestamp -> integer)
-//     bit  6   : main capability - SQL Server (appended; see the note below)
-//     bit  7   : main capability - Oracle (appended; the bitmap is now full)
-//
-//   High-byte layout (FQ_CAP_SESSION_SHIFT = 8):
-//     bits 8-10 : session override for main capability
-//     bits 11-13: session override for CAST(ts->int) sub-capability
-//     bit  14   : session override for SQL Server
-//     bit  15   : session override for Oracle
-//
-//   SQL Server placement note: the 4th main-capability bit sits at bit 6, not at
-//   bit 3, because bits 3-5 form the shift-derived CAST(ts->int) band shared by
-//   the first three dialects; `fqDialectBit(SQLSERVER) << FQ_CAP_CAST_TS_INT_SHIFT`
-//   (bit 9) would collide with the PG session-override bit.  SQL Server therefore
-//   does NOT take part in the shift-derived sub-capability band: code that derives
-//   a sub-capability bit must special-case it (SQL Server has no such sub-capability
-//   today; return FQ_CAP_NONE).
-//
-//   Oracle placement note: with Oracle at bit 7 (session override at bit 15) the
-//   uint16_t bitmap has no free slot left.  A future dialect must widen the
-//   bitmap (for example to uint32_t with one band per dialect) instead of
-//   inventing a new shift.  Oracle likewise has no CAST(ts->int) sub-capability
-//   (Oracle rejects CAST(timestamp AS NUMBER) with ORA-00932), so the
-//   sub-capability query function returns FQ_CAP_NONE for it.
+// uint32_t layout. Bits 0-15 contain static defaults and bits 16-31 mirror
+// them as session-disable flags. Existing dialect values remain unchanged.
+// Bits 0-2 identify MySQL, PostgreSQL and InfluxDB 3.x. Bits 3-5 are the
+// CAST(timestamp -> integer) sub-capability band for those three dialects.
+// SQL Server is bit 6, Oracle bit 7, and InfluxDB 1.8 bit 8. Those dialects
+// have no shift-derived CAST sub-capability.
 
-// Main capability bits (low byte, bits 0-2):
-#define FQ_CAP_MYSQL   ((uint16_t)(1u << 0))   // MySQL / MariaDB
-#define FQ_CAP_PG      ((uint16_t)(1u << 1))   // PostgreSQL
-#define FQ_CAP_INFLUX  ((uint16_t)(1u << 2))   // InfluxDB v3 (DataFusion)
-#define FQ_CAP_SQLSERVER ((uint16_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
-#define FQ_CAP_ORACLE  ((uint16_t)(1u << 7))   // Oracle Database (ODBC); appended, fills the bitmap
-#define FQ_CAP_ALL     ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
+// Main capability bits (low half, bits 0-2):
+#define FQ_CAP_MYSQL   ((uint32_t)(1u << 0))   // MySQL / MariaDB
+#define FQ_CAP_PG      ((uint32_t)(1u << 1))   // PostgreSQL
+#define FQ_CAP_INFLUX  ((uint32_t)(1u << 2))   // InfluxDB v3 (DataFusion)
+#define FQ_CAP_SQLSERVER ((uint32_t)(1u << 6)) // SQL Server (ODBC); appended, see layout note
+#define FQ_CAP_ORACLE  ((uint32_t)(1u << 7))   // Oracle Database (ODBC)
+#define FQ_CAP_INFLUX_1_8 ((uint32_t)(1u << 8)) // InfluxQL 1.8
+#define FQ_CAP_ALL     ((uint32_t)(FQ_CAP_MYSQL | FQ_CAP_PG | FQ_CAP_INFLUX))
 
-// Session-override band: high byte (shift = 8).
+// Session-override band: high half (shift = 16).
 // Set a bit here to force-disable the corresponding dialect at session level.
-#define FQ_CAP_SESSION_SHIFT      8
-#define FQ_CAP_SESSION_MYSQL      ((uint16_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_PG         ((uint16_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_INFLUX     ((uint16_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_SQLSERVER  ((uint16_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
-#define FQ_CAP_SESSION_ORACLE     ((uint16_t)(FQ_CAP_ORACLE << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SHIFT      16
+#define FQ_CAP_SESSION_MYSQL      ((uint32_t)(FQ_CAP_MYSQL  << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_PG         ((uint32_t)(FQ_CAP_PG     << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX     ((uint32_t)(FQ_CAP_INFLUX << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_SQLSERVER  ((uint32_t)(FQ_CAP_SQLSERVER << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_ORACLE     ((uint32_t)(FQ_CAP_ORACLE << FQ_CAP_SESSION_SHIFT))
+#define FQ_CAP_SESSION_INFLUX_1_8 ((uint32_t)(FQ_CAP_INFLUX_1_8 << FQ_CAP_SESSION_SHIFT))
 
 // Convenience: the dialect combinations used in the capability tables
-#define FQ_CAP_PG_INFLUX   ((uint16_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
-#define FQ_CAP_MYSQL_PG    ((uint16_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
-#define FQ_CAP_NONE        ((uint16_t)0)
+#define FQ_CAP_PG_INFLUX   ((uint32_t)(FQ_CAP_PG | FQ_CAP_INFLUX))
+#define FQ_CAP_MYSQL_PG    ((uint32_t)(FQ_CAP_MYSQL | FQ_CAP_PG))
+#define FQ_CAP_NONE        ((uint32_t)0)
 
 // Sub-capability 1: CAST(timestamp AS integer/bigint/uint/ubigint)
 //   default band   : bits 3-5  (FQ_CAP_CAST_TS_INT_SHIFT = 3)
-//   session band   : bits 11-13 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+8)
+//   session band   : bits 19-21 (= FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT = 3+16)
 //
 // Only PostgreSQL supports CAST(timestamp -> integer) natively.
 //   MySQL   : binary protocol returns MYSQL_TIME for TIMESTAMP; connector cannot safely
 //             reinterpret that as an integer epoch, so local conversion is required.
 //   InfluxDB: DataFusion does not support CAST(timestamp AS BIGINT).
 #define FQ_CAP_CAST_TS_INT_SHIFT  3
-#define FQ_CAP_CAST_TS_INT_PG     ((uint16_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
+#define FQ_CAP_CAST_TS_INT_PG     ((uint32_t)(FQ_CAP_PG << FQ_CAP_CAST_TS_INT_SHIFT))
 // Session-level overrides for the CAST(ts->int) sub-capability:
-#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint16_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
-#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint16_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
-#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint16_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_MYSQL   ((uint32_t)(FQ_CAP_MYSQL  << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_PG      ((uint32_t)(FQ_CAP_PG     << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
+#define FQ_CAP_CAST_TS_INT_SESSION_INFLUX  ((uint32_t)(FQ_CAP_INFLUX << (FQ_CAP_CAST_TS_INT_SHIFT + FQ_CAP_SESSION_SHIFT)))
 
 // Convert EExtSQLDialect to the corresponding FQ_CAP_* default bit.
 // Returns 0 for unknown dialects.
-static inline uint16_t fqDialectBit(int32_t dialect) {
+static inline uint32_t fqDialectBit(int32_t dialect) {
   switch ((EExtSQLDialect)dialect) {
     case EXT_SQL_DIALECT_MYSQL:    return FQ_CAP_MYSQL;
     case EXT_SQL_DIALECT_POSTGRES: return FQ_CAP_PG;
     case EXT_SQL_DIALECT_INFLUXQL: return FQ_CAP_INFLUX;
     case EXT_SQL_DIALECT_SQLSERVER: return FQ_CAP_SQLSERVER;
     case EXT_SQL_DIALECT_ORACLE:   return FQ_CAP_ORACLE;
+    case EXT_SQL_DIALECT_INFLUXDB_1_8: return FQ_CAP_INFLUX_1_8;
     default:                       return 0;
   }
 }
@@ -606,19 +577,19 @@ static inline uint16_t fqDialectBit(int32_t dialect) {
 // clause (by EExtClauseKind) is pushable for the given dialect, taking
 // session-level overrides into account.
 //
-// fqFuncCapBitmap  - returns the uint16_t bitmap; FQ_CAP_NONE for UDFs/unknown.
+// fqFuncCapBitmap  - returns the uint32_t bitmap; FQ_CAP_NONE for UDFs/unknown.
 // fqFuncArg0NcharCapBitmap - returns the arg0==NCHAR-specific bitmap when
 // configured, otherwise inherits fqFuncCapBitmap(funcId).
 // fqOpCapBitmap    - lookup in gFqOpCap[]; FQ_CAP_NONE for unmapped ops.
 // fqClauseCapBitmap - lookup in gFqClauseCap[]; FQ_CAP_NONE for unknown kinds.
-uint16_t fqFuncCapBitmap(int32_t funcId);
-uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId);
-uint16_t fqOpCapBitmap(EOperatorType opType);
-uint16_t fqClauseCapBitmap(EExtClauseKind clauseKind);
+uint32_t fqFuncCapBitmap(int32_t funcId);
+uint32_t fqFuncArg0NcharCapBitmap(int32_t funcId);
+uint32_t fqOpCapBitmap(EOperatorType opType);
+uint32_t fqClauseCapBitmap(EExtClauseKind clauseKind);
 // Transform-pushdown capability bitmap for a subquery clause.
 // Current DS/product semantics do not ship transform-only subquery pushdown;
 // all entries are reserved and default to unsupported.
-uint16_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
+uint32_t fqClauseTransformCapBitmap(EExtClauseKind clauseKind);
 
 // High-level pushability check: combines the static bitmap with any active
 // session-level override (pOverlay may be NULL).
@@ -637,9 +608,9 @@ bool fqClauseTransformIsPushable(EExtClauseKind clauseKind, int32_t dialect,
 
 // Sub-capability check: tests a specific sub-capability band within a function's
 // fqPushCap bitmap.  subCapShift is the bit offset of the sub-capability's default
-// band in the low byte (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
+// band in the low half (e.g. FQ_CAP_CAST_TS_INT_SHIFT = 3).  The session-override
 // band for the same sub-capability sits at (subCapShift + FQ_CAP_SESSION_SHIFT),
-// i.e. in the high byte at the same relative position.
+// i.e. in the high half at the same relative position.
 //
 // Returns true only when the default bit for `dialect` is set in the sub-cap band
 // AND the session-override bit is NOT set.

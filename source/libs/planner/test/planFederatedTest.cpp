@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "planInt.h"
+#include "functionMgt.h"
 
 namespace {
 
@@ -483,3 +484,177 @@ TEST(PlanFederatedJoinFallbackTest, DetectsParentWhereTargetingHiddenJoinLeg) {
     EXPECT_EQ((SNode*)pRemoteJoin, pNested->pRemoteLogicPlan);
   }
 }
+
+namespace {
+
+class Influx18PushdownTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    const char* names[] = {"time", "tag", "i", "f", "u", "s", "b"};
+    for (int32_t i = 0; i < 7; ++i) tstrncpy(columns_[i].colName, names[i], TSDB_COL_NAME_LEN);
+    columns_[0].isPrimaryKey = true;
+    columns_[1].isTag = true;
+    meta_.pCols = columns_;
+    meta_.numOfCols = 7;
+    table_.pExtMeta = &meta_;
+    scan_.pExtTableNode = (SNode*)&table_;
+    capability_.dialect = EXT_SQL_DIALECT_INFLUXDB_1_8;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  }
+
+  SNode* column(const char* name, int8_t type = TSDB_DATA_TYPE_BIGINT) {
+    SNode* pNode = makeTestColumn(name);
+    if (pNode != nullptr) ((SExprNode*)pNode)->resType.type = type;
+    return pNode;
+  }
+
+  SNode* integer(int64_t value) {
+    SNode* pNode = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt64(value, &pNode));
+    return pNode;
+  }
+
+  SNode* text(const char* value) {
+    SValueNode* pNode = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNode));
+    if (pNode == nullptr) return nullptr;
+    size_t len = strlen(value);
+    pNode->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    pNode->node.resType.bytes = len + VARSTR_HEADER_SIZE;
+    pNode->translate = true;
+    pNode->datum.p = (char*)taosMemoryCalloc(1, len + VARSTR_HEADER_SIZE);
+    if (pNode->datum.p != nullptr) {
+      varDataSetLen(pNode->datum.p, len);
+      memcpy(varDataVal(pNode->datum.p), value, len);
+    }
+    return (SNode*)pNode;
+  }
+
+  SNode* operation(EOperatorType type, SNode* pLeft, SNode* pRight = nullptr) {
+    SOperatorNode* pNode = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pNode));
+    if (pNode == nullptr) {
+      nodesDestroyNode(pLeft);
+      nodesDestroyNode(pRight);
+      return nullptr;
+    }
+    pNode->opType = type;
+    pNode->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    pNode->pLeft = pLeft;
+    pNode->pRight = pRight;
+    return (SNode*)pNode;
+  }
+
+  SNode* aggregate(const char* name, SNode* pArg, bool distinct = false) {
+    SFunctionNode* pNode = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pNode));
+    if (pNode == nullptr) {
+      nodesDestroyNode(pArg);
+      return nullptr;
+    }
+    tstrncpy(pNode->functionName, name, sizeof(pNode->functionName));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pNode->pParameterList, pArg));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(pNode, nullptr, 0));
+    pNode->isDistinct = distinct;
+    return (SNode*)pNode;
+  }
+
+  SNode* disjunction(SNode* pLeft, SNode* pRight) {
+    SLogicConditionNode* pNode = nullptr;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, (SNode**)&pNode));
+    if (pNode == nullptr) {
+      nodesDestroyNode(pLeft);
+      nodesDestroyNode(pRight);
+      return nullptr;
+    }
+    pNode->condType = LOGIC_COND_TYPE_OR;
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pNode->pParameterList, pLeft));
+    EXPECT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pNode->pParameterList, pRight));
+    return (SNode*)pNode;
+  }
+
+  bool pushable(SNode* pNode) {
+    EXPECT_NE(nullptr, pNode);
+    bool result = planFqInflux18ExprIsPushable(pNode, &scan_, &capability_, nullptr);
+    nodesDestroyNode(pNode);
+    return result;
+  }
+
+  SExtColumnDef columns_[7] = {};
+  SExtTableMeta meta_ = {};
+  SExtTableNode table_ = {};
+  SScanLogicNode scan_ = {};
+  SExtSourceCapability capability_ = {};
+};
+
+TEST_F(Influx18PushdownTest, FieldAndTagComparisonsRetainNullAndTypeSemantics) {
+  EXPECT_TRUE(pushable(operation(OP_TYPE_EQUAL, column("i"), integer(7))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_GREATER_THAN, column("f", TSDB_DATA_TYPE_DOUBLE), integer(7))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_EQUAL, column("u", TSDB_DATA_TYPE_UBIGINT), integer(7))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text("west"))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_NOT_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text("west"))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text(""))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_LOWER_THAN, column("tag", TSDB_DATA_TYPE_VARCHAR), text("z"))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_IS_NULL, column("tag", TSDB_DATA_TYPE_VARCHAR))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_IS_NULL, column("s", TSDB_DATA_TYPE_VARCHAR))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_IS_TRUE, column("b", TSDB_DATA_TYPE_BOOL))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_EQUAL, column("i"), column("f", TSDB_DATA_TYPE_DOUBLE))));
+}
+
+TEST_F(Influx18PushdownTest, OrRejectsTimeAndMixedColumnRoles) {
+  EXPECT_TRUE(pushable(disjunction(operation(OP_TYPE_EQUAL, column("i"), integer(1)),
+                                  operation(OP_TYPE_EQUAL, column("f", TSDB_DATA_TYPE_DOUBLE), integer(2)))));
+  EXPECT_TRUE(pushable(disjunction(operation(OP_TYPE_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text("a")),
+                                  operation(OP_TYPE_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text("b")))));
+  EXPECT_FALSE(pushable(disjunction(operation(OP_TYPE_EQUAL, column("i"), integer(1)),
+                                   operation(OP_TYPE_EQUAL, column("tag", TSDB_DATA_TYPE_VARCHAR), text("a")))));
+  EXPECT_FALSE(pushable(disjunction(operation(OP_TYPE_GREATER_THAN, column("time", TSDB_DATA_TYPE_TIMESTAMP), integer(1)),
+                                   operation(OP_TYPE_LOWER_THAN, column("time", TSDB_DATA_TYPE_TIMESTAMP), integer(10)))));
+}
+
+TEST_F(Influx18PushdownTest, ArithmeticRequiresFloatingOperandsAndNonzeroLiteralDivisor) {
+  EXPECT_FALSE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_ADD, column("i"), integer(1)), integer(3))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_ADD, column("f", TSDB_DATA_TYPE_DOUBLE), integer(1)), integer(3))));
+  EXPECT_TRUE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_DIV, column("i"), integer(2)), integer(3))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_DIV, column("i"), integer(0)), integer(3))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_DIV, column("i"), column("f", TSDB_DATA_TYPE_DOUBLE)), integer(3))));
+  EXPECT_FALSE(pushable(operation(OP_TYPE_GREATER_THAN,
+      operation(OP_TYPE_REM, column("i"), integer(2)), integer(3))));
+}
+
+TEST_F(Influx18PushdownTest, InListHasBoundedLengthAndLiteralOperands) {
+  for (int32_t size : {1, 64, 65}) {
+    SNodeListNode* pList = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&pList));
+    for (int32_t i = 0; i < size; ++i) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&pList->pNodeList, integer(i)));
+    }
+    EXPECT_EQ(size <= 64, pushable(operation(OP_TYPE_IN, column("i"), (SNode*)pList)));
+  }
+}
+
+TEST_F(Influx18PushdownTest, AggregateAllowlistChecksFieldTypesAndDistinct) {
+  for (const char* name : {"count", "sum", "min", "max", "stddev_samp"}) {
+    EXPECT_TRUE(pushable(aggregate(name, column("i")))) << name;
+    EXPECT_TRUE(pushable(aggregate(name, column("f", TSDB_DATA_TYPE_DOUBLE)))) << name;
+  }
+  EXPECT_FALSE(pushable(aggregate("avg", column("i"))));
+  EXPECT_TRUE(pushable(aggregate("avg", column("f", TSDB_DATA_TYPE_DOUBLE))));
+  EXPECT_TRUE(pushable(aggregate("count", column("s", TSDB_DATA_TYPE_VARCHAR))));
+  EXPECT_FALSE(pushable(aggregate("count", column("time", TSDB_DATA_TYPE_TIMESTAMP))));
+  EXPECT_FALSE(pushable(aggregate("count", column("tag", TSDB_DATA_TYPE_VARCHAR))));
+  EXPECT_FALSE(pushable(aggregate("count", column("i"), true)));
+  EXPECT_FALSE(pushable(aggregate("sum", column("u", TSDB_DATA_TYPE_UBIGINT))));
+  EXPECT_FALSE(pushable(aggregate("spread", column("i"))));
+  EXPECT_TRUE(pushable(aggregate("spread", column("f", TSDB_DATA_TYPE_DOUBLE))));
+  for (const char* name : {"stddev", "stddev_pop", "variance", "var_pop", "var_samp", "abs"}) {
+    EXPECT_FALSE(pushable(aggregate(name, column("f", TSDB_DATA_TYPE_DOUBLE)))) << name;
+  }
+}
+
+}  // namespace

@@ -2195,7 +2195,8 @@ class VtableQueryUtil:
                 tdLog.error(f"failed to restart {name} external backend: {exc}")
 
     @classmethod
-    def compare_ext_source_plan_testcase_result(cls, input_file, expected_file, test_case, result_check=None):
+    def compare_ext_source_plan_testcase_result(cls, input_file, expected_file, test_case, result_check=None,
+                                               native_same_local_shape=False):
         if ExtSrcEnv.INFLUX_VERSIONS[0] != "1.8":
             return tdCom.compare_testcase_result(
                 input_file, expected_file, test_case,
@@ -2238,6 +2239,18 @@ class VtableQueryUtil:
                 assert result_check is not None, ("Missing result oracle for native plan", query)
                 result_check(query)
             cls._check_influx18_virtual_plan(query, actual_block)
+            if native_same_local_shape:
+                def local_shape(block):
+                    lines = []
+                    for line in block.splitlines()[1:]:
+                        line = line.rstrip().rstrip("|").rstrip()
+                        if not line or "QUERY_PLAN" in line or set(line.strip()) == {"="}:
+                            continue
+                        if any(detail in line for detail in ("Source:", "Remote SQL:", "InfluxDB version=")):
+                            continue
+                        lines.append(line.replace("(influxdb-1.8)", "(influxdb)"))
+                    return lines
+                assert local_shape(expected_block) == local_shape(actual_block), (sql, expected_block, actual_block)
             native_plans += 1
             # Keep every result and every plan without Influx in the original
             # golden. Mixed plans change when native scans retain local work.
@@ -2255,12 +2268,10 @@ class VtableQueryUtil:
             expected_file, result_file, filtered_expected, filtered_actual)
         for path in (result_file, filtered_expected, filtered_actual):
             os.remove(path)
-        tdLog.info("Native plans satisfy the raw-scan contract; unchanged plans and all results match golden.")
+        tdLog.info("Native plans satisfy their pushdown contract; unchanged plans and all results match golden.")
 
     @staticmethod
     def _check_influx18_virtual_plan(query, plain_plan):
-        if re.search(r"\b(?:sum|count|avg|min|max|first|last)\s*\(", query, re.I):
-            assert re.search(r"Aggregate|Window", plain_plan, re.I), (query, plain_plan)
         tdSql.query("EXPLAIN ANALYZE VERBOSE TRUE " + query)
         rows = [str(row[0]) for row in (tdSql.queryResult or [])]
         assert any("InfluxDB version=1.8 RP=" in row and "(runtime)" not in row for row in rows), rows
@@ -2273,23 +2284,36 @@ class VtableQueryUtil:
                 remote_sqls.append(row.split("Remote SQL:", 1)[1].strip())
         assert remote_sqls, (query, rows)
         identifier = INFLUX18_QUOTED_IDENTIFIER
+        aggregate = rf"(?:COUNT|SUM|MIN|MAX|MEAN|SPREAD|STDDEV)\({identifier}\)\s+AS\s+{identifier}"
+        has_remote_aggregate = False
         for remote in remote_sqls:
             upper = remote.upper()
-            assert not any(word in upper for word in ("LIMIT", "OFFSET", "GROUP BY", "HAVING", "NULLS")), remote
+            # Virtual aggregation remains selected by the dedicated planner
+            # rewrite. Window/grouped virtual branches still consume raw rows.
+            assert not any(word in upper for word in ("OFFSET", "GROUP BY", "HAVING", "NULLS", " JOIN ")), remote
             projection, separator, source = remote.partition(" FROM ")
-            assert separator and re.fullmatch(
-                rf"SELECT\s+(?:\*|{identifier}(?:\s*,\s*{identifier})*)", projection), remote
+            assert separator, remote
+            aggregated = bool(re.fullmatch(rf"SELECT\s+{aggregate}(?:\s*,\s*{aggregate})*", projection, re.I))
+            has_remote_aggregate |= aggregated
+            if aggregated:
+                assert " ORDER BY " not in upper, remote
+            else:
+                assert re.fullmatch(rf"SELECT\s+(?:\*|{identifier}(?:\s*,\s*{identifier})*)", projection), remote
+                without_limit = re.sub(r"\s+LIMIT\s+[1-9]\d*\s*$", "", remote, flags=re.I)
+                if " ORDER BY " in upper:
+                    assert re.search(r"ORDER BY TIME ASC\s*$", without_limit, re.I), remote
             assert re.match(rf"^{identifier}\.{identifier}\.{identifier}(?:\s|$)", source), remote
-            # Independent aggregate inputs do not need virtual time merging.
-            # A scan that requests remote order may only request time ASC.
-            if " ORDER BY " in upper:
-                assert upper.endswith(" ORDER BY TIME ASC"), remote
+            if " LIMIT " in upper:
+                assert re.search(r"\blimit[=: ]+\d+", plain_plan, re.I), (query, plain_plan, remote)
             if " WHERE " in upper:
-                condition = remote.split(" WHERE ", 1)[1].rsplit(" ORDER BY ", 1)[0]
-                # These fixtures bind tagless measurements. Only the virtual
-                # scan's exact integer time bounds can cross the connector.
+                condition = re.split(r"\s+(?:ORDER BY|LIMIT)\s+", remote.split(" WHERE ", 1)[1], flags=re.I)[0]
+                # These plan fixtures bind tagless measurements. SERIES tests
+                # verify declared Tag identity through their shared entry point.
                 remaining = re.sub(r"\b(?:time|and|or)\b", "", condition, flags=re.I)
                 assert re.fullmatch(r"[\d\s()+<>=!\-]+", remaining), remote
+        if not has_remote_aggregate and re.search(r"\b(?:sum|count|avg|min|max|first|last)\s*\(", query, re.I):
+            assert re.search(r"Aggregate|Window", plain_plan, re.I), (query, plain_plan)
+
 
     @classmethod
     def compare_ext_source_testcase_result(cls, input_file, expected_file, test_case, float_tolerance=0.0,

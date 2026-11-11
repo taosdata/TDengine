@@ -1020,13 +1020,13 @@ Notes:
 
 Notes:
 
-- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB, SQL Server, and Oracle are supported.
+- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB 3.x, SQL Server, and Oracle are supported. InfluxDB 1.8 does not support stream processing.
 - Historical calculation does not yet support external sources.
 - External sources perform worse than local databases. Tune the workload for the specific scenario.
 - When an external source is the trigger, `EXPIRED_TIME`, `IGNORE_DISORDER`, and `DELETE_RECALC` are not supported.
 - Changes to an external source, such as dropping or altering a table or losing connectivity, can leave stream behavior undefined. Delete the stream and create it again before changing the external source.
 - `tbname` support:
   - MySQL and PostgreSQL external sources do not support `PARTITION BY tbname` in stream processing.
-  - InfluxDB external sources support `PARTITION BY tbname`. It is converted internally to `PARTITION BY` every tag. `PARTITION BY` a function of `tbname` is not supported.
-  - InfluxDB external sources can use `%%tbname`. It joins every tag into the table name. When the result exceeds the table-name length, the joined string is hashed.
-- For an InfluxDB external source, a tag name longer than 64 characters or a tag value longer than 256 characters returns an error. Correct the data and create the stream again.
+  - InfluxDB 3.x external sources support `PARTITION BY tbname`. It is converted internally to `PARTITION BY` every tag. `PARTITION BY` a function of `tbname` is not supported.
+  - InfluxDB 3.x external sources can use `%%tbname`. It joins every tag into the table name. When the result exceeds the table-name length, the joined string is hashed.
+- For an InfluxDB 3.x external source, a tag name longer than 64 characters or a tag value longer than 256 characters returns an error. Correct the data and create the stream again.

@@ -53,6 +53,17 @@ int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExt
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
+int32_t extConnectorRenderInfluxV1SQL(const SExtInfluxScanSpec *pSpec, const SExtTableMeta *pMeta,
+                                     const char *database, const char *rp, bool *pEmpty, char **ppSQL) {
+  (void)pSpec;
+  (void)pMeta;
+  (void)database;
+  (void)rp;
+  if (pEmpty != NULL) *pEmpty = false;
+  if (ppSQL != NULL) *ppSQL = NULL;
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
 int32_t extConnectorGetTableSchema(SExtConnectorHandle *pHandle, const SExtTableNode *pTable,
                                    SExtTableMeta **ppOut) {
   (void)pHandle;

@@ -863,7 +863,8 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
         """InfluxDB HTTP protocol end-to-end data query and parity with flight_sql.
 
         Verifies the HTTP query path returns the same rows as the Flight SQL
-        path for the configured InfluxDB version(s).
+        path for the configured InfluxDB version(s). For native 1.8, verify
+        the filtered aggregate result and its pushed execution plan.
 
         Since: v3.4.0.0
 
@@ -895,9 +896,20 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                         protocol="flight_sql", version="1.8"))
                     tdSql.query(query_sql.format(src_http, bucket))
                     assert tdSql.queryResult == [("north", 1.5, 10), ("south", 2.5, 20), ("east", 3.5, 30)]
-                    tdSql.query(f"explain analyze verbose true select sum(score) from {src_http}.{bucket}.meas where score>10")
-                    remote = [str(row[0]) for row in tdSql.queryResult if "Remote SQL:" in str(row[0])]
-                    assert remote and all("WHERE" not in sql.upper() and "SUM(" not in sql.upper() for sql in remote)
+                    aggregate_sql = f"select sum(score) from {src_http}.{bucket}.meas where score>10"
+                    tdSql.query(aggregate_sql)
+                    tdSql.checkRows(1)
+                    tdSql.checkData(0, 0, 50)
+                    tdSql.query(f"explain analyze verbose true {aggregate_sql}")
+                    plan = [str(row[0]) for row in tdSql.queryResult]
+                    remote = [line for line in plan if "Remote SQL:" in line]
+                    assert len(remote) == 1, plan
+                    remote_sql = "".join(remote[0].split()).upper()
+                    assert 'SUM("SCORE")' in remote_sql, remote
+                    assert "WHERE" in remote_sql and '"SCORE">10' in remote_sql, remote
+                    local_operators = [line for line in plan if "->" in line and "Remote SQL:" not in line]
+                    assert all("Aggregate" not in line and "Filter" not in line
+                               for line in local_operators), local_operators
                     continue
                 self._mk_influx_real_ver(
                     src_flight,

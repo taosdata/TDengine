@@ -744,6 +744,10 @@ def provision_federated_query_env(source_dir, environment):
     if not script.exists():
         print("[windows-ci] federated-query setup script not found; skipping provisioning", flush=True)
         return
+    test_dir = source_dir / "source" / "taos-community" / "test"
+    if run([sys.executable, "-m", "unittest", "test_windows_case_utils.TestWindowsInflux18Reset"],
+           cwd=test_dir / "ci", env=environment).returncode:
+        fail("InfluxDB 1.8 provisioning regression tests failed")
     environment = dict(environment)
     services = federated_query_services(environment)
     environment["FQ_SERVICES_TO_RESET"] = ",".join(sorted(services)) or "none"
@@ -943,7 +947,11 @@ def managed_fq_services(source_dir):
             stop_owned_fq_mysql(existing_mysql, source_dir)
         finally:
             try:
-                for data_dir in running_fq_postgres().keys() - existing.keys():
+                for data_dir, identity in running_fq_postgres().items():
+                    # Provisioning may restart an unresponsive instance in the
+                    # same directory. Its replacement belongs to this run.
+                    if existing.get(data_dir) == identity:
+                        continue
                     pg_ctl = data_dir.parent / "bin" / "pg_ctl.exe"
                     try:
                         result = subprocess.run(
@@ -984,7 +992,9 @@ def federated_query_influx_versions(task_text, environment):
     if not configured:
         return ''
     versions = configured.split(',')
-    for value in re.findall(r'\bFQ_INFLUX_VERSIONS=([^\s]+)', task_text):
+    active_tasks = '\n'.join(line for line in task_text.splitlines()
+                             if line.strip() and not line.lstrip().startswith('#'))
+    for value in re.findall(r'\bFQ_INFLUX_VERSIONS=([^\s]+)', active_tasks):
         versions.extend(value.strip("\"'").split(','))
     return ','.join(dict.fromkeys(version.strip() for version in versions if version.strip()))
 

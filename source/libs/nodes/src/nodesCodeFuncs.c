@@ -1197,6 +1197,9 @@ static const char* jkScanLogicPlanSmallDataTsSort = "SmallDataTsSort";
 static const char* jkScanLogicPlanExtTableNode = "ExtTableNode";
 static const char* jkScanLogicPlanRemoteLogicPlan = "RemoteLogicPlan";
 static const char* jkScanLogicPlanFastInterval = "FastInterval";
+static const char* jkScanLogicPlanRangeStart = "ScanRangeStart";
+static const char* jkScanLogicPlanRangeEnd = "ScanRangeEnd";
+static const char* jkScanLogicPlanRangePrecision = "ScanRangePrecision";
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -1275,6 +1278,18 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code && pNode->fastInterval) {
     code = tjsonAddBoolToObject(pJson, jkScanLogicPlanFastInterval, true);
   }
+  if (NULL != pNode->pExtTableNode &&
+      EXT_SQL_DIALECT_INFLUXDB_1_8 == ((const SExtTableNode*)pNode->pExtTableNode)->capability.dialect) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanRangeStart, pNode->scanRange.skey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanRangeEnd, pNode->scanRange.ekey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanRangePrecision, pNode->node.precision);
+    }
+  }
   return code;
 }
 
@@ -1284,6 +1299,7 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   int32_t objSize = 0;
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
   pNode->lastOnlyScan = false;
+  pNode->scanRange = TSWINDOW_INITIALIZER;
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkScanLogicPlanScanCols, &pNode->pScanCols);
   }
@@ -1361,6 +1377,15 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanFastInterval) != NULL) {
     code = tjsonGetBoolValue(pJson, jkScanLogicPlanFastInterval, &pNode->fastInterval);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanRangeStart) != NULL) {
+    code = tjsonGetBigIntValue(pJson, jkScanLogicPlanRangeStart, &pNode->scanRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanRangeEnd) != NULL) {
+    code = tjsonGetBigIntValue(pJson, jkScanLogicPlanRangeEnd, &pNode->scanRange.ekey);
+  }
+  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanRangePrecision) != NULL) {
+    code = tjsonGetUTinyIntValue(pJson, jkScanLogicPlanRangePrecision, &pNode->node.precision);
   }
   return code;
 }

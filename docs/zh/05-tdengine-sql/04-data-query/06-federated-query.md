@@ -38,7 +38,7 @@ Linux x64、Linux ARM64 和 Windows x64 上都可以查询 MySQL、PostgreSQL、
 | --- | --- |
 | MySQL | 客户端库 `libmariadb.dll` 放在 `taosd` 同目录。 |
 | PostgreSQL | 客户端库 `libpq.dll` 放在 `taosd` 同目录。 |
-| InfluxDB | 使用 HTTP，不依赖 Arrow Flight SQL。 |
+| InfluxDB | 1.8 使用内置于 `taosd` 的 HTTP 连接器，无需额外运行库。3.x 使用 `taos_ext_influx_arrow.dll`，仅支持 HTTP API，不支持 Arrow Flight SQL，也不需要 Arrow 运行库；未设置 `protocol` 或设置为 `flight_sql` 时自动改用 HTTP API。 |
 | SQL Server | 使用 ODBC。 |
 | Oracle | 使用 ODBC。Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。11g、12c 和 18c 使用 19c 客户端，19c 及以上使用 23ai 客户端。 |
 
@@ -46,7 +46,7 @@ SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令
 
 ### 流式计算
 
-流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB、SQL Server 和 Oracle 外部源。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
+流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 3.x、SQL Server 和 Oracle 外部源。InfluxDB 1.8 不支持流式计算。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
 
 ### 兼容性
 
@@ -63,9 +63,9 @@ SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令
 
 ### 联邦查询依赖库
 
-使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 在 Linux 上使用 Apache Arrow Flight SQL 运行库。SQL Server 在 Linux 上使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，在 Windows x64 上使用 ODBC。Oracle 在 Linux 上使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见 [版本和兼容性](#外部数据库版本)），在 Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。
+使用联邦查询前，应按外部源类型，在实际执行联邦查询的服务器上安装与 TDengine 版本匹配的联邦查询依赖库安装包。该安装包提供外部连接器所需的运行库：MySQL 使用 MariaDB Connector/C，PostgreSQL 使用 `libpq`，InfluxDB 3.x 在 Linux 上使用 `libtaos_ext_influx_arrow.so` 与 Apache Arrow Flight SQL 运行库，在 Windows x64 上使用 `taos_ext_influx_arrow.dll`（仅 HTTP API，不需要 Arrow 运行库）。SQL Server 在 Linux 上使用 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，在 Windows x64 上使用 ODBC。Oracle 在 Linux 上使用 unixODBC 与 Oracle Instant Client（19c / 23ai 两套客户端，安装时按服务端版本选择生效客户端，见 [版本和兼容性](#外部数据库版本)），在 Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。
 
-InfluxDB 1.8 支持随企业版 TDengine 提供，无需额外安装 InfluxDB 客户端库或 Arrow 运行库。
+InfluxDB 1.8 连接器内置于企业版 `taosd`。Linux x64、Linux ARM64 和 Windows x64 上均只使用 HTTP，无需安装联邦查询依赖库、Arrow 运行库或 InfluxDB 客户端库。
 
 **注意事项**：对于需要第三方运行库的数据源，未安装对应运行库时，无法创建或查询相应类型的外部数据源。升级 TDengine 时，应同时升级版本匹配的联邦查询依赖库安装包。
 
@@ -95,11 +95,11 @@ InfluxDB 1.8 支持随企业版 TDengine 提供，无需额外安装 InfluxDB �
 
 **说明**
 
-- `libmariadb.so`、`libpq.so`、Arrow/Parquet 相关库用于外部连接器运行时依赖。
+- `libmariadb.so`、`libpq.so` 分别用于 MySQL 和 PostgreSQL；`libtaos_ext_influx_arrow.so` 与 Arrow/Parquet 相关库用于 InfluxDB 3.x。InfluxDB 1.8 不依赖其中任何库。
 - SQL Server 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Microsoft ODBC Driver 18 for SQL Server，不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC。缺失时 `TYPE = 'sqlserver'` 的外部源创建与查询均返回外部源类型不支持的错误。
 - Oracle 在 Linux 上使用随联邦查询依赖包分发的 unixODBC 与 Oracle Instant Client（19c / 23ai），不需要在系统中单独安装或执行驱动注册。Windows x64 上使用 ODBC，Instant Client 与 ODBC 驱动的 DLL 放在 `taosd` 同目录。缺失时 `TYPE = 'oracle'` 的外部源创建与查询均返回外部源类型不支持的错误。
 - 安装后应确保动态链接库路径可被 `taosd` 与 `taosc` 进程加载。
-- Windows x64 上五种外部源都可以查询。MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 使用 HTTP，不依赖 Arrow Flight SQL。SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 也放在 `taosd` 同目录。Windows 插件包的安装步骤尚未在本文给出。
+- Windows x64 上五种外部源都可以查询。MySQL 和 PostgreSQL 的客户端库 `libmariadb.dll`、`libpq.dll` 放在 `taosd` 同目录。InfluxDB 1.8 使用内置的 HTTP 连接器，无需额外运行库；InfluxDB 3.x 使用 `taos_ext_influx_arrow.dll`，在 Windows 上仅支持 HTTP API，不支持 Arrow Flight SQL。SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 也放在 `taosd` 同目录。Windows 插件包的安装步骤尚未在本文给出。
 - 附录：当前内部下载地址（内网）为 `http://192.168.1.131/data/nas/TDengine/smoking/v3.4.2.4.0805/enterprise/tdengine-tsdb-enterprise-fq-runtime-3.4.2.4.0805-linux-x64.tar.gz`。
 - 该地址为内网临时地址，`v3.4.3.0` 发布后以下载中心提供的正式链接为准。
 - 详细安装与启动步骤将在后续补充。
@@ -210,7 +210,7 @@ InfluxDB 1.8 和 3.x 均使用 `TYPE = 'influxdb'`，通过 `version` 区分版�
 | 参数 | 取值 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `version` | `3` 或 `1.8` | `3` | 访问 InfluxDB 1.8 时必须显式设置为 `1.8`；省略时沿用 3.x 行为。 |
-| `protocol` | `flight_sql` 或 `http` | 3.x 为 `flight_sql`；1.8 为 `http` | 1.8 仅支持 HTTP；3.x 支持 Arrow Flight SQL（gRPC）和 HTTP API。 |
+| `protocol` | `flight_sql` 或 `http` | 3.x 为 `flight_sql`；1.8 为 `http` | 1.8 仅支持 HTTP。3.x 在 Linux 上支持 Arrow Flight SQL（gRPC）和 HTTP API；在 Windows x64 上仅支持 HTTP API，未设置或设置为 `flight_sql` 时自动改用 HTTP API。 |
 | `api_token` | 字符串 | 空 | 3.x 的认证 Token，设置后 `USER` 和 `PASSWORD` 可以为空，展示时脱敏；1.8 不接受非空值，使用 `USER` 和 `PASSWORD` 进行 HTTP Basic 认证。 |
 | `retention_policy` | 非空 RP 名称，区分大小写 | 目标 database 的默认 RP | 仅适用于 1.8，指定读取的保留策略（Retention Policy，RP）。3.x 不接受此选项。 |
 
@@ -1119,9 +1119,11 @@ FederatedScan on mysql_prod.power.sensor_data
 | ---------- | --- | --- | --- |
 | MySQL      | 5.7、8.x | 8.0 | 推荐使用 8.0 及以上。MariaDB 10.x 兼容，但不做专项测试。 |
 | PostgreSQL | 14 及以上 | 16、18.6 | 需要支持标准 SQL 特性集。 |
-| InfluxDB | 1.8.x（OSS）、3.x | 1.8.10、3.0 | 1.8 须显式配置 `version='1.8'`；其他 1.x、2.x，以及 1.8 的 Enterprise 和云兼容接口不在支持范围内。 |
+| InfluxDB | 1.8.x（OSS）、3.x | 1.8.10、3.0 | 1.8 须显式配置 `version='1.8'`；其他 1.x、2.x，以及 1.8 的 Enterprise 和云兼容接口不在支持范围内。1.8 的平台范围见下文。 |
 | SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
 | Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |
+
+**InfluxDB 1.8 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询，均只使用 HTTP，无需安装联邦查询依赖库。不支持流式计算。
 
 **SQL Server 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
 
@@ -1131,7 +1133,7 @@ FederatedScan on mysql_prod.power.sensor_data
 
 **说明**：使用需要第三方运行库的外部源时，除 TDengine 主安装包外，还必须安装与其版本匹配的联邦查询依赖库安装包（或下载中心提供的联邦查询插件包）。该包提供外部连接器的运行库。Linux 上，SQL Server 的 unixODBC 与 Microsoft ODBC Driver 18 随包分发，无需单独注册；Oracle 的 Instant Client 19c / 23ai 同样随包分发。Windows x64 上，SQL Server 和 Oracle 使用 ODBC，Oracle Instant Client 的 DLL 放在 `taosd` 同目录。依赖包应安装在实际执行联邦查询的服务器和 `taosc` 所在的机器上；升级时应与 TDengine 同步升级。
 
-使用 InfluxDB 1.8 时，参与解析和执行的 `taosc` 与 `taosd` 均需使用包含该功能的企业版；无需额外安装 Arrow 或 InfluxDB 客户端库。
+使用 InfluxDB 1.8 时，参与解析和执行的 `taosc` 与 `taosd` 均需使用包含该功能的企业版。Linux x64、Linux ARM64 和 Windows x64 均可查询；1.8 连接器内置于 `taosd`，无需额外安装联邦查询依赖库、Arrow 运行库或 InfluxDB 客户端库。
 
 建议按以下顺序检查：
 

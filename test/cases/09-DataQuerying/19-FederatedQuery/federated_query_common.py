@@ -782,6 +782,34 @@ class ExtSrcEnv:
         return mode
 
     @classmethod
+    def influx18_plan_baseline(cls, text):
+        """Keep native plan goldens independent of endpoint and runtime timing."""
+        text = cls.baseline_environment(text)
+        lines = []
+        in_plan = False
+        for line in text.splitlines():
+            if line.startswith("taos> "):
+                in_plan = line[6:].lower().startswith("explain ")
+            if in_plan:
+                line = re.sub(r"(Source: )\S+ user=\S+", r"\1<host>:<port> user=<user>", line)
+                # Runtime storage/network counters depend on scheduling and flushes.
+                if re.match(r"\s*(?:I/O cost:|check_rows=|Network:|Sort Method:)", line):
+                    continue
+                if "->" in line:
+                    line = re.sub(r"\brows=\d+(?:\.\d+)?(?:\(\d+\))?\s+", "", line)
+                line = re.sub(r", elapsed=\d+(?:\.\d+)?ms", ", elapsed=<time>", line)
+                line = re.sub(r" efficiency=\d+(?:\.\d+)?%", "", line)
+                line = re.sub(r"[ \t]+\|$", " |", line.rstrip())
+                if line.strip() == "QUERY_PLAN |":
+                    line = "QUERY_PLAN |"
+                elif lines and lines[-1] == "QUERY_PLAN |" and re.fullmatch(r"=+", line):
+                    line = "============"
+            if not line.strip() and (not lines or not lines[-1]):
+                continue
+            lines.append(line.rstrip())
+        return "\n".join(lines).rstrip("\n") + "\n"
+
+    @classmethod
     def baseline_environment(cls, text):
         """Canonicalize configured connection parameters, never query results.
 

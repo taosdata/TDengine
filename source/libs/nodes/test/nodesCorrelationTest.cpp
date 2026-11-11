@@ -1086,3 +1086,60 @@ TEST(CorrelationContractTest, PhysicalDagRejectsAmbiguousAndBrokenEdges) {
 }
 
 }  // namespace
+
+TEST(CorrelationContractTest, NativeInfluxScanPreservesInclusiveRangeAndPrecision) {
+  for (const STimeWindow range : {STimeWindow{INT64_MIN, INT64_MAX}, STimeWindow{0, 0},
+                                 STimeWindow{-1, 1700000000000000001LL}}) {
+    NodePtr scan = makeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
+    auto* pScan = reinterpret_cast<SScanLogicNode*>(scan.get());
+    pScan->scanType = SCAN_TYPE_EXTERNAL;
+    pScan->scanRange = range;
+    pScan->node.precision = TSDB_TIME_PRECISION_NANO;
+    NodePtr table = makeNode(QUERY_NODE_EXTERNAL_TABLE);
+    auto* pTable = reinterpret_cast<SExtTableNode*>(table.get());
+    pTable->sourceType = EXT_SOURCE_INFLUXDB;
+    pTable->capability.dialect = EXT_SQL_DIALECT_INFLUXDB_1_8;
+    pScan->pExtTableNode = table.release();
+    for (bool json : {true, false}) {
+      SNode* pDecoded = nullptr;
+      if (json) {
+        std::string encoded = saveJson(scan.get());
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded.c_str(), &pDecoded));
+      } else {
+        std::vector<char> encoded = saveMsg(scan.get());
+        ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(encoded.data(), encoded.size(), &pDecoded));
+      }
+      NodePtr decoded(pDecoded, nodesDestroyNode);
+      const auto* pBack = reinterpret_cast<const SScanLogicNode*>(decoded.get());
+      EXPECT_EQ(range.skey, pBack->scanRange.skey);
+      EXPECT_EQ(range.ekey, pBack->scanRange.ekey);
+      EXPECT_EQ(TSDB_TIME_PRECISION_NANO, pBack->node.precision);
+    }
+  }
+}
+
+TEST(CorrelationContractTest, LegacyLogicScanWithoutRangeDefaultsToFullDomain) {
+  NodePtr scan = makeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
+  auto* pScan = reinterpret_cast<SScanLogicNode*>(scan.get());
+  pScan->scanType = SCAN_TYPE_EXTERNAL;
+  NodePtr table = makeNode(QUERY_NODE_EXTERNAL_TABLE);
+  auto* pTable = reinterpret_cast<SExtTableNode*>(table.get());
+  pTable->sourceType = EXT_SOURCE_INFLUXDB;
+  pTable->capability.dialect = EXT_SQL_DIALECT_INFLUXQL;
+  pScan->pExtTableNode = table.release();
+  for (bool json : {true, false}) {
+    SNode* pDecoded = nullptr;
+    if (json) {
+      std::string encoded = saveJson(scan.get());
+      EXPECT_EQ(std::string::npos, encoded.find("ScanRangeStart"));
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded.c_str(), &pDecoded));
+    } else {
+      std::vector<char> encoded = saveMsg(scan.get());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(encoded.data(), encoded.size(), &pDecoded));
+    }
+    NodePtr decoded(pDecoded, nodesDestroyNode);
+    const auto* pBack = reinterpret_cast<const SScanLogicNode*>(decoded.get());
+    EXPECT_EQ(INT64_MIN, pBack->scanRange.skey);
+    EXPECT_EQ(INT64_MAX, pBack->scanRange.ekey);
+  }
+}

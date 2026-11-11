@@ -16603,10 +16603,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             src_info.get("src"), src_info.get("src2"))
 
     def _validate_influx18(self, case_id, mode, lines, case_def, src_info):
-        """Check the raw-scan contract for every existing Influx query case.
+        """Check the single-measurement InfluxQL contract for existing cases.
 
         3.x pushdown goldens describe a different plan. Keep those goldens
-        unchanged and validate the 1.8 scan boundary in all four modes;
+        unchanged and validate the 1.8 statement boundary in all four modes;
         ANALYZE also executes each query's local computation.
         """
         errors = []
@@ -16614,9 +16614,9 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         native_scans = 0
         remote_count = 0
         identifier = INFLUX18_QUOTED_IDENTIFIER
-        raw_select = re.compile(
-            rf'SELECT\s+{identifier}(?:\s*,\s*{identifier})*\s+FROM\s+'
-            rf'{identifier}\.{identifier}\.{identifier}\s*', re.I)
+        native_select = re.compile(
+            rf'SELECT\s+.+\s+FROM\s+{identifier}\.{identifier}\.{identifier}'
+            rf'(?:\s+(?:WHERE|GROUP BY|ORDER BY|LIMIT)\s+.+)?\s*', re.I)
         for line in lines:
             if "-> " in line:
                 native_scan = "Federated Scan on " + self._influx_source_name(_SRC_INFLUX) + "." in line
@@ -16627,8 +16627,10 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
             if native_scan and "Remote SQL:" in line:
                 remote_count += 1
                 remote = line.split("Remote SQL:", 1)[1].strip()
-                if not raw_select.fullmatch(remote):
-                    errors.append((case_id, "raw_scan", remote))
+                if not native_select.fullmatch(remote):
+                    errors.append((case_id, "native_select", remote))
+                if re.search(r"\b(JOIN|UNION|HAVING)\b|\(\s*SELECT\b", remote, re.I):
+                    errors.append((case_id, "statement_boundary", remote))
         if native_scans == 0:
             errors.append((case_id, "federated_scan", "InfluxDB 1.8 scan missing"))
         if mode in ANALYZE_MODES and mode in VERBOSE_MODES and native_scans and not remote_count:
@@ -17344,7 +17346,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
                         if self._iter_case_sqls(case_def, "pre_sql"):
                             self._reset_td_session()
 
-        # Native 1.8 blocks have been checked against the raw-scan contract.
+        # Native 1.8 blocks have been checked against the InfluxQL contract.
         # Compare every unaffected source against its existing 3.x-era golden.
         baseline_blocks = [block for block in blocks
                            if block.split("\n", 1)[0][4:].split(" ")[0] not in influx18_ids]

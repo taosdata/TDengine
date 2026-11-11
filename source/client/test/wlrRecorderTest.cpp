@@ -1199,6 +1199,11 @@ TEST_F(WlrRecorderTest, ManifestReportsIncompleteDrain) {
   ASSERT_EQ(wlrPublish(&wlrMgr, slot, /*waitAck=*/false), 0);
 
   wlrRecorderClose();
+  // Close may hand finalization to the reaper. Read the final manifest after OFF.
+  for (int attempt = 0; attempt < 20 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+  ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF) << "deferred recorder cleanup did not finish within 10s";
 
   std::string path = findManifest(dir_);
   ASSERT_FALSE(path.empty()) << "no manifest was written after an incomplete drain";

@@ -8388,6 +8388,9 @@ enum {
   LOGIC_SCAN_CODE_EXT_TABLE,
   LOGIC_SCAN_CODE_PUSHED_CONDITIONS,  // reserved (was pPushedConditions; field removed)
   LOGIC_SCAN_CODE_PUSHDOWN_FLAGS,     // reserved
+  LOGIC_SCAN_CODE_RANGE_START,
+  LOGIC_SCAN_CODE_RANGE_END,
+  LOGIC_SCAN_CODE_RANGE_PRECISION,
 };
 
 static int32_t logicScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8402,6 +8405,18 @@ static int32_t logicScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code && pNode->pExtTableNode != NULL) {
     code = tlvEncodeObj(pEncoder, LOGIC_SCAN_CODE_EXT_TABLE, nodeToMsg, pNode->pExtTableNode);
   }
+  if (NULL != pNode->pExtTableNode &&
+      EXT_SQL_DIALECT_INFLUXDB_1_8 == ((const SExtTableNode*)pNode->pExtTableNode)->capability.dialect) {
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI64(pEncoder, LOGIC_SCAN_CODE_RANGE_START, pNode->scanRange.skey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI64(pEncoder, LOGIC_SCAN_CODE_RANGE_END, pNode->scanRange.ekey);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeI8(pEncoder, LOGIC_SCAN_CODE_RANGE_PRECISION, pNode->node.precision);
+    }
+  }
   return code;
 }
 
@@ -8409,6 +8424,7 @@ static int32_t msgToLogicScanNode(STlvDecoder* pDecoder, void* pObj) {
   SScanLogicNode* pNode = (SScanLogicNode*)pObj;
   int32_t         code = TSDB_CODE_SUCCESS;
   STlv*           pTlv = NULL;
+  pNode->scanRange = TSWINDOW_INITIALIZER;
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case LOGIC_SCAN_CODE_BASE_NODE:
@@ -8422,6 +8438,15 @@ static int32_t msgToLogicScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_SCAN_CODE_EXT_TABLE:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pExtTableNode);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_START:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.skey);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_END:
+        code = tlvDecodeI64(pTlv, &pNode->scanRange.ekey);
+        break;
+      case LOGIC_SCAN_CODE_RANGE_PRECISION:
+        code = tlvDecodeI8(pTlv, (int8_t*)&pNode->node.precision);
         break;
       default:
         break;

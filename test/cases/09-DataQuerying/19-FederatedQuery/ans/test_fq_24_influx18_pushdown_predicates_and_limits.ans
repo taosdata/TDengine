@@ -1,0 +1,515 @@
+taos> set max_binary_display_width 1024;
+taos> alter local "timezone" "UTC";
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000001000000000 |                     3 |
+   1700000003000000000 |      9007199254740993 |
+   1700000004000000000 |                     7 |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i >= 3 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=16 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" >= 3)) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000003000000000 |      9007199254740993 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i = 9007199254740993 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=16 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 9007199254740993)) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d < 5.0 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+   1700000002000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE d < 5.0 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=24) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=24 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("d" < 5.0)) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE flag = true ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000002000000000 | NULL                  |
+   1700000004000000000 |                     7 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE flag = true ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=17) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=17 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("flag" = true)) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label <> 'alpha' ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000001000000000 |                     3 |
+   1700000002000000000 | NULL                  |
+   1700000004000000000 |                     7 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE label <> 'alpha' ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("label" != 'alpha')) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site <> 'a' ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000001000000000 |                     3 |
+   1700000006000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site <> 'a' ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("site" != 'a' AND "site" != '')) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NULL ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000002000000000 | NULL                  |
+   1700000004000000000 |                     7 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NULL ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE ("site" = '') ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NOT NULL ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+   1700000003000000000 |      9007199254740993 |
+   1700000006000000000 | NULL                  |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IS NOT NULL ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE ("site" != '') ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IN ('a','b') ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+   1700000003000000000 |      9007199254740993 |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site IN ('a','b') ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE ((("site" = 'a' OR "site" = 'b') AND "site" != '')) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site NOT IN ('a','b') ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000006000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site NOT IN ('a','b') ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=3 width=65535 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE ((("site" != 'a' AND "site" != 'b') AND "site" != '')) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IN (1,3,7) ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+   1700000004000000000 |                     7 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IN (1,3,7) ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=16 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 1 OR "i" = 3 OR "i" = 7)) ORDER BY time ASC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000002000000000 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE time >= 1700000000000000000 AND time < 1700000002000000000 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=16 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (((time >= 1700000000000000000) AND (time <= 1700000001999999999))) ORDER BY time ASC |
+
+taos> SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time ASC LIMIT 4 OFFSET 1;
+           i           |             d             |
+====================================================
+                     3 |                       2.5 |
+ NULL                  |                       3.5 |
+      9007199254740993 | NULL                      |
+                     7 |                       5.5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time ASC LIMIT 4 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" ORDER BY time ASC LIMIT 4 OFFSET 1 |
+
+taos> SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+           i           |             d             |
+====================================================
+ NULL                  | NULL                      |
+                     7 |                       5.5 |
+      9007199254740993 | NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT i, d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+       InfluxDB version=1.8 RP=autogen |
+       Output: columns=2 width=16 |
+       Source: <host>:<port> user=<user> |
+       Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" ORDER BY time DESC LIMIT 3 OFFSET 1 |
+
+taos> SELECT CAST(time AS BIGINT), d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+ cast(time as bigint)  |             d             |
+====================================================
+   1700000006000000000 | NULL                      |
+   1700000004000000000 |                       5.5 |
+   1700000003000000000 | NULL                      |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows ORDER BY time DESC LIMIT 3 OFFSET 1;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 limit=3 offset=1 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+          InfluxDB version=1.8 RP=autogen |
+          Output: columns=2 width=16 |
+          Source: <host>:<port> user=<user> |
+          Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" ORDER BY time DESC |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = '' ORDER BY time;
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE site = '' ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=2 width=16) |
+          Output: columns=2 width=16 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=3 width=65535 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=(`rows`.`site` = '') |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IS NULL ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000002000000000 | NULL                  |
+   1700000006000000000 | NULL                  |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i IS NULL ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=2 width=16) |
+          Output: columns=2 width=16 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=(`rows`.`i` IS NULL ) |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 OR site = 'a' ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000000000000000 |                     1 |
+   1700000001000000000 |                     3 |
+   1700000003000000000 |      9007199254740993 |
+   1700000004000000000 |                     7 |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 OR site = 'a' ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=2 width=16) |
+          Output: columns=2 width=16 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65535) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=3 width=65535 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=((`rows`.`i` > 2) OR (`rows`.`site` = 'a')) |
+
+taos> SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2 ORDER BY time;
+ cast(time as bigint)  |           i           |
+================================================
+   1700000001000000000 |                     3 |
+   1700000003000000000 |      9007199254740993 |
+   1700000004000000000 |                     7 |
+   4102444800000000000 |                     9 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT CAST(time AS BIGINT), i FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE abs(i) > 2 ORDER BY time;
+QUERY_PLAN |
+============
+ -> Projection (columns=2 width=16 input_order=unknown) |
+       Output: columns=2 width=16 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=2 width=16) |
+          Output: columns=2 width=16 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=2 width=16 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+             Filter: conditions=(abs(`rows`.`i`) > 2) |
+
+taos> SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT ASOF JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b ON a.time >= b.time WHERE a.i > 2 ORDER BY a.time,b.time;
+           i           |             d             |             d             |
+================================================================================
+                     3 |                       2.5 |                       2.5 |
+      9007199254740993 | NULL                      | NULL                      |
+                     7 |                       5.5 |                       5.5 |
+                     9 |                       7.5 |                       7.5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT ASOF JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b ON a.time >= b.time WHERE a.i > 2 ORDER BY a.time,b.time;
+QUERY_PLAN |
+============
+ -> Projection (columns=3 width=24 input_order=unknown) |
+       Output: columns=3 width=24 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=unknown output_order=asc  (columns=3 width=24) |
+          Output: columns=3 width=24 |
+       -> Left ASOF Join (columns=5 width=40 input_order=asc algo=Merge) |
+             Output: columns=5 width=40 |
+             Join Param: asof_op='>=' group_join=0 |
+             Left Time Key: `a`.`time` Order: asc |
+             Right Time Key: `b`.`time` Order: asc |
+             Filter: conditions=(`a`.`i` > 2) |
+             Join Prim Cond: (`a`.`time` >= `b`.`time`) |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=24) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=3 width=24 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 2)) ORDER BY time ASC |
+          -> Sort input_order=unknown output_order=unknown  (columns=2 width=16) |
+                Output: columns=2 width=16 |
+             -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+                   InfluxDB version=1.8 RP=autogen |
+                   Output: columns=2 width=16 |
+                   Source: <host>:<port> user=<user> |
+                   Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" ORDER BY time ASC |
+                   Filter: conditions=(`b`.`time` IS NOT NULL ) |
+
+taos> SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT WINDOW JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b WINDOW_OFFSET(-1s,1s) WHERE a.i = 3 ORDER BY a.time,b.time;
+           i           |             d             |             d             |
+================================================================================
+                     3 |                       2.5 |                       1.5 |
+                     3 |                       2.5 |                       2.5 |
+                     3 |                       2.5 |                       3.5 |
+
+taos> EXPLAIN VERBOSE TRUE SELECT a.i,a.d,b.d FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows a LEFT WINDOW JOIN fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows b WINDOW_OFFSET(-1s,1s) WHERE a.i = 3 ORDER BY a.time,b.time;
+QUERY_PLAN |
+============
+ -> Projection (columns=3 width=24 input_order=unknown) |
+       Output: columns=3 width=24 |
+       Output: Ignore Group Id: true |
+       Merge ResBlocks: True |
+    -> Sort input_order=asc output_order=asc  (columns=3 width=24) |
+          Output: columns=3 width=24 |
+       -> Left Window Join (columns=5 width=40 input_order=asc algo=Merge) |
+             Output: columns=5 width=40 |
+             Join Param: window_offset=(-1s, 1s) seq_win_grp=0 group_join=0 |
+             Left Time Key: `a`.`time` Order: asc |
+             Right Time Key: `b`.`time` Order: asc |
+             Filter: conditions=(`a`.`i` = 3) |
+             Join Prim Cond: (`a`.`time` = `b`.`time`) |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=24) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=3 width=24 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" = 3)) ORDER BY time ASC |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=16) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=2 width=16 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label" FROM "fq24_influx18_pushdown"."autogen"."rows" ORDER BY time ASC |
+
+taos> SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               site                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+===================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ c                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+taos> EXPLAIN VERBOSE TRUE SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+QUERY_PLAN |
+============
+ -> Sort input_order=unknown output_order=unknown  (columns=1 width=65519) |
+       Output: columns=1 width=65519 |
+    -> GroupAggregate (width=65519 groups=1 input_order=unknown) |
+          Output: columns=1 width=65519 blocking=1 |
+          Merge ResBlocks: True |
+       -> Data Exchange 2:1 (width=65519) |
+             Output: columns=1 width=65519 |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65519) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=1 width=65519 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+          -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65519) |
+                InfluxDB version=1.8 RP=autogen |
+                Output: columns=1 width=65519 |
+                Source: <host>:<port> user=<user> |
+                Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 2)) |
+
+taos> SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION ALL SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               site                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+===================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+ NULL                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ a                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ b                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+ c                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+
+taos> EXPLAIN VERBOSE TRUE SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows UNION ALL SELECT site FROM fq24_influx18_pushdown_gate.fq24_influx18_pushdown.rows WHERE i > 2 ORDER BY site;
+QUERY_PLAN |
+============
+ -> Sort input_order=unknown output_order=unknown  (columns=1 width=65519) |
+       Output: columns=1 width=65519 |
+    -> Data Exchange 2:1 (width=65519) |
+          Output: columns=1 width=65519 |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65519) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=1 width=65519 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" |
+       -> Federated Scan on fq24_influx18_pushdown_gate.rows (influxdb-1.8) (width=65519) |
+             InfluxDB version=1.8 RP=autogen |
+             Output: columns=1 width=65519 |
+             Source: <host>:<port> user=<user> |
+             Remote SQL: SELECT "time", "anchor", "d", "flag", "i", "label", "site" FROM "fq24_influx18_pushdown"."autogen"."rows" WHERE (("i" > 2)) |

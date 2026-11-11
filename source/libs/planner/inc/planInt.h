@@ -180,6 +180,8 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
 int32_t validateQueryPlan(SPlanContext* pCxt, SQueryPlan* pPlan);
 int32_t planCheckRequiredExtColumns(const SExtTableNode* pExtNode, const SNodeList* pScanCols);
 bool    planFqOuterJoinNeedsNestedFallback(const SJoinLogicNode* pJoin);
+bool    planFqInflux18ExprIsPushable(SNode* pExpr, SScanLogicNode* pScan,
+                                    const SExtSourceCapability* pCap, const SExtCapSessionOverlay* pOverlay);
 
 bool        getBatchScanOptionFromHint(SNodeList* pList);
 bool        getSortForGroupOptHint(SNodeList* pList);

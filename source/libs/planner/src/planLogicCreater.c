@@ -1421,8 +1421,16 @@ static int32_t rewriteInflux18TbnameGrouping(SSelectStmt* pSelect,
   int32_t code = rewriteInflux18TbnameKeyList(pSelect->pPartitionByList,
                                              pSelect, pTable);
   if (TSDB_CODE_SUCCESS == code) {
+    // TBNAME already contains every Tag. An explicitly repeated Tag must not
+    // create duplicate grouping outputs with ambiguous aggregate-slot aliases.
+    code = nodesListDeduplicate(&pSelect->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = rewriteInflux18TbnameKeyList(pSelect->pGroupByList,
                                        pSelect, pTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListDeduplicate(&pSelect->pGroupByList);
   }
   return code;
 }

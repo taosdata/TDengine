@@ -1443,17 +1443,32 @@ function Ensure-InfluxToken {
     Info "InfluxDB ${Ver}: admin token written to $tokenFile"
 }
 
-# True when the running server answers an authenticated catalog request.
-# A hung InfluxDB keeps the port open but never answers; without this check
-# Reset-InfluxEnv's Invoke-RestMethod would wait forever (observed: the first
-# FQ case sat in ensure_ext_env until the 7200s pytest watchdog fired).
+function Invoke-Influx18Query {
+    param([int]$Port, [string]$Query, [int]$TimeoutSec = 10)
+    $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
+        -Body @{q=$Query} -TimeoutSec $TimeoutSec -ErrorAction Stop
+    if ($null -eq $result) { throw 'InfluxDB 1.8 returned an empty response' }
+    $errorProperty = $result.PSObject.Properties['error']
+    if ($errorProperty -and $errorProperty.Value) { throw "InfluxDB 1.8: $($errorProperty.Value)" }
+    $resultsProperty = $result.PSObject.Properties['results']
+    if (-not $resultsProperty -or -not $resultsProperty.Value) {
+        throw 'InfluxDB 1.8 response is missing statement results'
+    }
+    foreach ($statement in $resultsProperty.Value) {
+        if ($null -eq $statement) { throw 'InfluxDB 1.8 returned an empty statement result' }
+        $errorProperty = $statement.PSObject.Properties['error']
+        if ($errorProperty -and $errorProperty.Value) { throw "InfluxDB 1.8: $($errorProperty.Value)" }
+    }
+    return $result
+}
+
+# A hung InfluxDB can keep its port open without answering catalog requests.
 function Test-InfluxResponsive {
     param([string]$Ver, [int]$Port, [int]$TimeoutSec = 10)
     if ($Ver -eq '1.8') {
         try {
-            $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
-                -Body @{q='SHOW DATABASES'} -TimeoutSec $TimeoutSec -ErrorAction Stop
-            return ($null -ne $result.results -and -not $result.error -and -not $result.results[0].error)
+            $null = Invoke-Influx18Query $Port 'SHOW DATABASES' $TimeoutSec
+            return $true
         } catch { return $false }
     }
     $headers = @{}
@@ -1476,19 +1491,24 @@ function Reset-InfluxEnv {
     param([string]$Ver, [int]$Port)
     Info "InfluxDB ${Ver} @ ${Port}: resetting test databases ..."
     if ($Ver -eq '1.8') {
-        $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
-            -Body @{q='SHOW DATABASES'} -TimeoutSec 10 -ErrorAction Stop
+        $result = Invoke-Influx18Query $Port 'SHOW DATABASES'
+        $dropped = @()
         foreach ($statement in $result.results) {
-            foreach ($series in $statement.series) {
-                foreach ($row in $series.values) {
+            $seriesProperty = $statement.PSObject.Properties['series']
+            if (-not $seriesProperty) { continue }
+            foreach ($series in $seriesProperty.Value) {
+                $valuesProperty = $series.PSObject.Properties['values']
+                if (-not $valuesProperty) { continue }
+                foreach ($row in $valuesProperty.Value) {
                     $database = $row[0]
                     if ($database -eq '_internal') { continue }
                     $quoted = $database.Replace('\', '\\').Replace('"', '\"')
-                    Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
-                        -Body @{q="DROP DATABASE `"$quoted`""} -TimeoutSec 10 -ErrorAction Stop | Out-Null
+                    $null = Invoke-Influx18Query $Port "DROP DATABASE `"$quoted`""
+                    $dropped += $database
                 }
             }
         }
+        Info "InfluxDB ${Ver} @ ${Port}: reset complete (dropped: $($dropped -join ', '))."
         return
     }
 

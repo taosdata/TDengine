@@ -3126,7 +3126,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_COUNT,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_COUNT_LIKE_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // FQ_CAP_ALL + SQL Server + Oracle
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server + Oracle
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3156,7 +3156,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_SUM,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // FQ_CAP_ALL + SQL Server + Oracle
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server + Oracle
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3186,7 +3186,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_MIN,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
                       FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // FQ_CAP_ALL + SQL Server + Oracle
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server + Oracle
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3215,7 +3215,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_MAX,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC |
                       FUNC_MGT_RSMA_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // FQ_CAP_ALL + SQL Server + Oracle
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server + Oracle
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3352,7 +3352,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_AVG,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_IGNORE_NULL_FUNC | FUNC_MGT_TSMA_FUNC | FUNC_MGT_RSMA_FUNC |
                       FUNC_MGT_SQL_WINDOW_AGG_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -3662,7 +3662,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "spread",
     .type = FUNCTION_TYPE_SPREAD,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE,  // FQ_CAP_ALL + SQL Server + Oracle
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_ORACLE | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server + Oracle
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,
@@ -7918,7 +7918,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "stddev_samp",
     .type = FUNCTION_TYPE_STDDEV_SAMP,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TSMA_FUNC,
-    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
+    .fqPushCap = 0x7 | FQ_CAP_SQLSERVER | FQ_CAP_INFLUX_1_8,  // FQ_CAP_ALL + SQL Server (phase-2 M2)
     .parameters = {.minParamNum = 1,
                    .maxParamNum = 1,
                    .paramInfoPattern = 1,

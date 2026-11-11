@@ -1505,16 +1505,16 @@ int32_t fmSetStreamPseudoFuncParamVal(int32_t funcId, SNodeList* pParamNodes, co
   return code;
 }
 // --- FQ push-down capability bitmap lookup ---
-// Returns the uint16_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
+// Returns the uint32_t bitmap from funcMgtBuiltins[funcId].fqPushCap.
 // UDFs (funcId > FUNC_UDF_ID_START) and out-of-range ids return FQ_CAP_NONE.
-uint16_t fqFuncCapBitmap(int32_t funcId) {
+uint32_t fqFuncCapBitmap(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return FQ_CAP_NONE;
   }
   return funcMgtBuiltins[funcId].fqPushCap;
 }
 
-uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
+uint32_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
   if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return FQ_CAP_NONE;
   }
@@ -1525,13 +1525,13 @@ uint16_t fqFuncArg0NcharCapBitmap(int32_t funcId) {
 
 bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
                       const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
-  // Session-level override: high byte (bits 8-15) disables the corresponding dialect.
+  // Session-level override: high half (bits 16-31) disables the corresponding dialect.
   if (pOverlay != NULL) {
-    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
     if (sessionDisable & bit) return false;
   }
 
@@ -1540,12 +1540,12 @@ bool fqFuncIsPushable(int32_t funcId, int32_t dialect,
 
 bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
                                const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncArg0NcharCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncArg0NcharCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
   if (pOverlay != NULL) {
-    uint16_t sessionDisable = (uint16_t)(cap >> FQ_CAP_SESSION_SHIFT);
+    uint32_t sessionDisable = (uint32_t)(cap >> FQ_CAP_SESSION_SHIFT);
     if (sessionDisable & bit) return false;
   }
 
@@ -1554,25 +1554,26 @@ bool fqFuncArg0NcharIsPushable(int32_t funcId, int32_t dialect,
 
 bool fqFuncSubCapIsPushable(int32_t funcId, int32_t subCapShift, int32_t dialect,
                              const SExtCapSessionOverlay* pOverlay) {
-  uint16_t cap = fqFuncCapBitmap(funcId);
-  uint16_t bit = fqDialectBit(dialect);
+  uint32_t cap = fqFuncCapBitmap(funcId);
+  uint32_t bit = fqDialectBit(dialect);
   if (bit == 0) return false;
 
-  /* The sub-capability band (bits 3-5, session band 11-13) is derived from the
-   * first three dialects only.  SQL Server (bit 6) and Oracle (bit 7) sit
+  /* The sub-capability band (bits 3-5, session band 19-21) is derived from the
+   * first three dialects only. SQL Server, Oracle and InfluxDB 1.8 sit
    * outside that band and have no shift-derived sub-capability; deriving one
-   * for them would read an unrelated dialect's bit. */
-  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE) {
+   * for them would read an unrelated capability bit. */
+  if (dialect == EXT_SQL_DIALECT_SQLSERVER || dialect == EXT_SQL_DIALECT_ORACLE ||
+      dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
     return false;
   }
 
-  // Default band for the sub-capability (low byte, bits subCapShift..subCapShift+2).
-  uint16_t subDefault = (uint16_t)(cap >> subCapShift);
+  // Default band for the sub-capability (low half, bits subCapShift..subCapShift+2).
+  uint32_t subDefault = (uint32_t)(cap >> subCapShift);
 
-  // Session-override band sits in the high byte at the same relative position:
+  // Session-override band sits in the high half at the same relative position:
   // (subCapShift + FQ_CAP_SESSION_SHIFT).
   if (pOverlay != NULL) {
-    uint16_t subSession = (uint16_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
+    uint32_t subSession = (uint32_t)(cap >> (subCapShift + FQ_CAP_SESSION_SHIFT));
     if (subSession & bit) return false;
   }
 

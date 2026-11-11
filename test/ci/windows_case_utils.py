@@ -39,11 +39,18 @@ def is_pytest_only_skip(return_code, output):
     ) is not None
 
 
+INFLUX18_CASES = (
+    "cases/09-DataQuerying/19-FederatedQuery/test_fq_24_influx18_pushdown.py",
+    "cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py::TestFq12Compatibility::test_fq_comp_s01_influx_http_protocol_query",
+    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py::TestVTablePlanPushdownAggExtSource::test_influx18_aggregate_and_limit",
+)
+
+
 FQ_SMOKE_CASES = (
     "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py",
     "cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py",
     "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
-)
+) + INFLUX18_CASES
 
 # The federated-query inventory: the FQ suite plus the external-source
 # virtual-table, auth and plan suites.  WIN_ONLY_FQ selects exactly these.

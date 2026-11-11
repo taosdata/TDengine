@@ -1672,8 +1672,9 @@ struct InterpMergeTempDirGuard {
   InterpMergeTempDirGuard() {
     tstrncpy(savedPath, tsTempDir, sizeof(savedPath));
     savedSpace = tsTempSpace;
-    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
-    code = osUpdate();
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+    code = taosMulMkDir(tsTempDir);
+    if (code == TSDB_CODE_SUCCESS) code = osUpdate();
   }
 
   ~InterpMergeTempDirGuard() {
@@ -7772,7 +7773,9 @@ struct ExternalWindowFactoryOwner {
     tstrncpy(previousTempDir, tsTempDir, sizeof(previousTempDir));
     previousTempSpace = tsTempSpace;
     tempEnvSaved = true;
-    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+    code = taosMulMkDir(tsTempDir);
+    if (code != TSDB_CODE_SUCCESS) return code;
     tsTempSpace.size.avail = 1024 * 1024;
 
     SStorageAPI storageApi = {0};
@@ -8277,7 +8280,9 @@ struct ExternalWindowRoundTripOwner {
     tstrncpy(previousTempDir, tsTempDir, sizeof(previousTempDir));
     previousTempSpace = tsTempSpace;
     tempEnvSaved = true;
-    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+    code = taosMulMkDir(tsTempDir);
+    if (code != TSDB_CODE_SUCCESS) return code;
     tsTempSpace.size.avail = 1024 * 1024;
     code = initRuntime(multiGroup);
     if (code != TSDB_CODE_SUCCESS) {
@@ -15231,7 +15236,8 @@ class ProjectMultiGroupOperatorTest : public ::testing::Test {
     tstrncpy(previousTempDir_, tsTempDir, sizeof(previousTempDir_));
     previousTempSpace_ = tsTempSpace;
     tempEnvSaved_ = true;
-    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
+    ASSERT_EQ(taosMulMkDir(tsTempDir), TSDB_CODE_SUCCESS);
     tsTempSpace.size.avail = 1024 * 1024;
     SStorageAPI storage = {};
     ASSERT_EQ(doCreateTask(1, 1, 1, OPTR_EXEC_MODEL_STREAM, &storage, &pTaskInfo_), TSDB_CODE_SUCCESS);

@@ -22,6 +22,7 @@
 #include <iostream>
 #include <queue>
 
+#include "osDir.h"
 #include "tglobal.h"
 #include "tssInt.h"
 
@@ -38,7 +39,7 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     tssMakeUniqueName(name, sizeof(name), "tss-test", "");
 
     char path[192];
-    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
+    snprintf(path, sizeof(path), "%s" TD_DIRSEP "shared-storage-instance-test-file", name);
 
     const char* smallData = "small data of the shared storage instance test file.";
 
@@ -133,17 +134,17 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     
     // upload/download file and delete file by prefix
     char prefix[192];
-    snprintf(prefix, sizeof(prefix), "%s/test/", name);
+    snprintf(prefix, sizeof(prefix), "%s" TD_DIRSEP "test" TD_DIRSEP, name);
     for(int i = 0; i < 10; i++) {
         char objPath[224];
         snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
-        code = tssUploadFile(ss, objPath, "/tmp/ss_test.txt", 0, 0);
+        code = tssUploadFile(ss, objPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
     char firstObjPath[224];
     snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
-    code = tssDownloadFile(ss, firstObjPath, "/tmp/ss_test.txt", 0, 0);
+    code = tssDownloadFile(ss, firstObjPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     code = tssDeleteFileByPrefix(ss, prefix);
@@ -152,7 +153,8 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
 
 
 TEST(TssTest, BasicTest) {
-    TdFilePtr f = taosOpenFile("/tmp/ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
+    ASSERT_EQ(taosMulMkDir(TD_TMP_DIR_PATH), TSDB_CODE_SUCCESS);
+    TdFilePtr f = taosOpenFile(TD_TMP_DIR_PATH "ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
     GTEST_ASSERT_NE(f, nullptr);
     int64_t written = taosWriteFile(f, "test data", 9);
     GTEST_ASSERT_EQ(written, 9);
@@ -169,7 +171,7 @@ TEST(TssTest, BasicTest) {
     GTEST_ASSERT_EQ(code, TSDB_CODE_NOT_FOUND);
 
     printf("test file system based shared storage\n");
-    as = "fs:baseDir=/tmp/ss";
+    as = "fs:baseDir=" TD_TMP_DIR_PATH "ss";
     code = tssCreateInstance(as, &ss);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     tssInstTest(ss, 256);
@@ -186,7 +188,7 @@ TEST(TssTest, BasicTest) {
 
     tssUninit();
 
-    taosRemoveFile("/tmp/ss_test.txt");
+    taosRemoveFile(TD_TMP_DIR_PATH "ss_test.txt");
 }
 
 
@@ -207,13 +209,14 @@ TEST(TssTest, CloseTest) {
 
 
 TEST(TssTest, DefaultInstanceTest) {
-    TdFilePtr f = taosOpenFile("/tmp/ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
+    ASSERT_EQ(taosMulMkDir(TD_TMP_DIR_PATH), TSDB_CODE_SUCCESS);
+    TdFilePtr f = taosOpenFile(TD_TMP_DIR_PATH "ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
     GTEST_ASSERT_NE(f, nullptr);
     int64_t written = taosWriteFile(f, "test data", 9);
     GTEST_ASSERT_EQ(written, 9);
     taosCloseFile(&f);
 
-    strcpy(tsSsAccessString, "fs:baseDir=/tmp/ss");
+    strcpy(tsSsAccessString, "fs:baseDir=" TD_TMP_DIR_PATH "ss");
 
     int32_t code = tssInit();
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
@@ -227,7 +230,7 @@ TEST(TssTest, DefaultInstanceTest) {
     tssMakeUniqueName(name, sizeof(name), "tss-test", "");
 
     char path[192];
-    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
+    snprintf(path, sizeof(path), "%s" TD_DIRSEP "shared-storage-instance-test-file", name);
 
     const char* smallData = "small data of the shared storage instance test file.";
 
@@ -319,17 +322,17 @@ TEST(TssTest, DefaultInstanceTest) {
     
     // upload/download file and delete file by prefix
     char prefix[192];
-    snprintf(prefix, sizeof(prefix), "%s/test/", name);
+    snprintf(prefix, sizeof(prefix), "%s" TD_DIRSEP "test" TD_DIRSEP, name);
     for(int i = 0; i < 10; i++) {
         char objPath[224];
         snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
-        code = tssUploadFileToDefault(objPath, "/tmp/ss_test.txt", 0, 0);
+        code = tssUploadFileToDefault(objPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
     char firstObjPath[224];
     snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
-    code = tssDownloadFileFromDefault(firstObjPath, "/tmp/ss_test.txt", 0, 0);
+    code = tssDownloadFileFromDefault(firstObjPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     code = tssDeleteFileByPrefixFromDefault(prefix);
@@ -345,5 +348,5 @@ TEST(TssTest, DefaultInstanceTest) {
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     tssUninit();
 
-    taosRemoveFile("/tmp/ss_test.txt");
+    taosRemoveFile(TD_TMP_DIR_PATH "ss_test.txt");
 }

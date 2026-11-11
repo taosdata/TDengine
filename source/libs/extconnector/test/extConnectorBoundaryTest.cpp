@@ -887,7 +887,7 @@ TEST(InfluxOptions, Version18DefaultsToHttpAndAcceptsRp) {
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             extConnectorValidateInfluxOptions(R"({"version":"1.8","retention_policy":"KeepThirtyDays"})", "", &dialect));
   EXPECT_EQ(EXT_SQL_DIALECT_INFLUXDB_1_8, dialect);
-  EXPECT_EQ(0, fqDialectBit(dialect));
+  EXPECT_EQ(FQ_CAP_INFLUX_1_8, fqDialectBit(dialect));
   EXPECT_EQ(FQ_CAP_INFLUX, fqDialectBit(EXT_SQL_DIALECT_INFLUXQL));
 }
 
@@ -945,7 +945,7 @@ TEST(InfluxOptions, SourceCapabilityTracksVersionChanges) {
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             extLoadSourceDialectDefaults(EXT_SOURCE_INFLUXDB, R"({"version":"1.8"})", &capability));
   EXPECT_EQ(EXT_SQL_DIALECT_INFLUXDB_1_8, capability.dialect);
-  EXPECT_EQ(0, fqDialectBit(capability.dialect));
+  EXPECT_EQ(FQ_CAP_INFLUX_1_8, fqDialectBit(capability.dialect));
   ASSERT_EQ(TSDB_CODE_SUCCESS,
             extLoadSourceDialectDefaults(EXT_SOURCE_INFLUXDB, "{}", &capability));
   EXPECT_EQ(EXT_SQL_DIALECT_INFLUXQL, capability.dialect);
@@ -1063,3 +1063,33 @@ TEST(InfluxV1Json, RejectsTruncationAndResourceLimit) {
   EXPECT_EQ(TSDB_CODE_EXT_RESOURCE_EXHAUSTED, influxV1JsonParse("{}", INFLUX_V1_JSON_LIMIT + 1, &root));
 }
 #endif  // TD_ENTERPRISE
+
+TEST(InfluxCapabilities, IndependentBitAndRestrictedGrammar) {
+  EXPECT_EQ(1U, FQ_CAP_MYSQL);
+  EXPECT_EQ(2U, FQ_CAP_PG);
+  EXPECT_EQ(4U, FQ_CAP_INFLUX);
+  EXPECT_EQ(64U, FQ_CAP_SQLSERVER);
+  EXPECT_EQ(128U, FQ_CAP_ORACLE);
+  EXPECT_EQ(256U, FQ_CAP_INFLUX_1_8);
+  EXPECT_EQ(16, FQ_CAP_SESSION_SHIFT);
+  const int32_t dialect = EXT_SQL_DIALECT_INFLUXDB_1_8;
+  const EOperatorType enabled[] = {
+      OP_TYPE_ADD, OP_TYPE_SUB, OP_TYPE_MULTI, OP_TYPE_DIV, OP_TYPE_MINUS,
+      OP_TYPE_EQUAL, OP_TYPE_NOT_EQUAL, OP_TYPE_GREATER_THAN, OP_TYPE_GREATER_EQUAL,
+      OP_TYPE_LOWER_THAN, OP_TYPE_LOWER_EQUAL, OP_TYPE_IN, OP_TYPE_NOT_IN,
+      OP_TYPE_LIKE, OP_TYPE_NOT_LIKE, OP_TYPE_IS_NULL, OP_TYPE_IS_NOT_NULL};
+  for (int32_t op = 0; op <= OP_TYPE_ASSIGN; ++op) {
+    bool expected = std::find(std::begin(enabled), std::end(enabled), (EOperatorType)op) != std::end(enabled);
+    EXPECT_EQ(expected, fqOpIsPushable((EOperatorType)op, dialect, nullptr)) << op;
+    EXPECT_EQ(expected ? FQ_CAP_INFLUX_1_8 : 0U, fqOpCapBitmap((EOperatorType)op) & FQ_CAP_INFLUX_1_8) << op;
+  }
+  const EExtClauseKind clauses[] = {EXT_CLAUSE_FILTER, EXT_CLAUSE_PROJECTION, EXT_CLAUSE_AGG,
+      EXT_CLAUSE_ORDER, EXT_CLAUSE_LIMIT, EXT_CLAUSE_OFFSET, EXT_CLAUSE_INTERVAL_TUMBLING,
+      EXT_CLAUSE_PARTITION_COLUMN};
+  for (int32_t clause = 0; clause < EXT_CLAUSE_MAX; ++clause) {
+    bool expected = std::find(std::begin(clauses), std::end(clauses), (EExtClauseKind)clause) != std::end(clauses);
+    EXPECT_EQ(expected, fqClauseIsPushable((EExtClauseKind)clause, dialect, nullptr)) << clause;
+    EXPECT_EQ(expected, extDialectClauseMappable(dialect, (EExtClauseKind)clause)) << clause;
+    EXPECT_EQ(0U, fqClauseTransformCapBitmap((EExtClauseKind)clause));
+  }
+}

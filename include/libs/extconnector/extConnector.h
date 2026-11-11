@@ -35,6 +35,7 @@ extern "C" {
 // ---------------------------------------------------------------------------
 typedef struct SExtTableNode         SExtTableNode;         // querynodes.h
 typedef struct SFederatedScanPhysiNode SFederatedScanPhysiNode;  // plannodes.h
+typedef struct SInfluxQLRender       SInfluxQLRender;
 typedef struct SExtColTypeMapping    SExtColTypeMapping;    // plannodes.h
 typedef struct SNode                 SNode;
 
@@ -106,10 +107,12 @@ typedef struct SExtSourceCfg {
 // pDialect is optional and receives the selected dialect only on success.
 int32_t extConnectorValidateInfluxOptions(const char *options, const char *schema, EExtSQLDialect *pDialect);
 
-// Borrowed inputs to a single raw 1.8 scan. Only virtual references may carry
-// SERIES positioning, scan bounds, or the order required by time merging.
+// Borrowed inputs to a single prepared 1.8 scan. SERIES positioning belongs
+// to virtual references. The render and its outputs are copied during prepare.
 typedef struct SExtInfluxScanSpec {
   const SExtTableNode      *pTable;
+  const SInfluxQLRender    *pRender; // optional, borrowed only during prepare
+  int64_t                  rowLimit; // auxiliary virtual input limit, never OFFSET
   const SExtTableMeta      *pCurrentMeta; // optional schema fetched during this execution attempt
   const SExtColTypeMapping *pColMappings;
   int32_t                  numColMappings;
@@ -126,6 +129,10 @@ typedef struct SExtInfluxScanSpec {
 } SExtInfluxScanSpec;
 
 int32_t extConnectorPrepareInfluxV1Scan(SExtConnectorHandle *pHandle, const SExtInfluxScanSpec *pSpec, char **ppSQL);
+
+// Render from known metadata without opening a connection. The caller owns the returned SQL.
+int32_t extConnectorRenderInfluxV1SQL(const SExtInfluxScanSpec *pSpec, const SExtTableMeta *pMeta,
+                                     const char *database, const char *rp, bool *pEmpty, char **ppSQL);
 
 // ---------------------------------------------------------------------------
 // SExtConnectorModuleCfg  [DS section 6.2.6.1]

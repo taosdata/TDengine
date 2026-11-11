@@ -2096,10 +2096,13 @@ static int64_t getLimitRowsFromPhysiNode(SPhysiNode* pNode) {
   }
 
   int64_t rows = pLimit->limit->datum.i;
+  if (rows <= 0) return -1;
   if (pLimit->offset != NULL && !pLimit->offset->isNull && pLimit->offset->datum.i > 0) {
-    rows += pLimit->offset->datum.i;
+    int64_t offset = pLimit->offset->datum.i;
+    if (rows > INT64_MAX - offset) return -1;
+    rows += offset;
   }
-  return rows > 0 ? rows : -1;
+  return rows;
 }
 
 static int64_t getVirtualScanRemoteRowLimit(SOperatorInfo* pDynOp, SOperatorInfo* pVtbScanOp) {

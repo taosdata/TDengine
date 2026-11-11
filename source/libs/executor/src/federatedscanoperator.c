@@ -31,6 +31,7 @@
 #include "extTypeMap.h"
 #include "extError.h"
 #include "filter.h"
+#include "influxql.h"
 #include "operator.h"
 #include "osTimezone.h"
 #include "query.h"
@@ -2614,6 +2615,57 @@ void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo) {
   pInfo->pFetchedBlock = NULL;
 }
 
+static bool fedScanHasStoredFilter(const SFederatedScanOperatorInfo* pInfo) {
+  return (pInfo->pFedScanNode->pushdownFlags & FQ_PUSHDOWN_REQUIRED_FILTER) != 0 ||
+         (pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->filterCondLen > 0);
+}
+
+// A selected remote computation can be retried only before this scan has
+// delivered input. The client rebuilds the complete plan from the original SQL.
+static int32_t fedScanInfluxV1PushdownError(const SFederatedScanOperatorInfo* pInfo,
+                                          int32_t code, SExtPushdownDiagnostic* pDiag) {
+  if (fedScanHasStoredFilter(pInfo)) {
+    switch (code) {
+      case TSDB_CODE_EXT_REMOTE_INTERNAL:
+      case TSDB_CODE_EXT_PUSHDOWN_FAILED:
+      case TSDB_CODE_EXT_SYNTAX_UNSUPPORTED:
+      case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_FUNC:
+      case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OP:
+      case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE:
+      case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_TYPE:
+      case TSDB_CODE_EXT_PUSHDOWN_DEMOTE_OVERLAY:
+        return TSDB_CODE_VTABLE_EXT_FILTER_SQL_FAILED;
+      default:
+        return code;
+    }
+  }
+  if (code != TSDB_CODE_EXT_SYNTAX_UNSUPPORTED || pInfo->fetchedRows > 0) return code;
+  uint32_t flags = pInfo->pFedScanNode->pushdownFlags;
+  EExtClauseKind clause;
+  if (flags & FQ_PUSHDOWN_AGG) clause = EXT_CLAUSE_AGG;
+  else if (flags & FQ_PUSHDOWN_FILTER) clause = EXT_CLAUSE_FILTER;
+  else if (flags & FQ_PUSHDOWN_ORDER) clause = EXT_CLAUSE_ORDER;
+  else if (flags & FQ_PUSHDOWN_LIMIT) clause = EXT_CLAUSE_LIMIT;
+  else return code;
+
+  // Resource limits and renderer rejections affect this request's overlay only.
+  pDiag->classifiedCode = TSDB_CODE_EXT_PUSHDOWN_DEMOTE_CLAUSE;
+  pDiag->reasonCode = EXT_DEMOTE_REASON_REMOTE_UNKNOWN;
+  pDiag->suggestedDemoteKind = EXT_DEMOTE_KIND_CLAUSE;
+  pDiag->detail.clauseKind = clause;
+  return pDiag->classifiedCode;
+}
+
+static void fedScanRememberDiagnostic(SFederatedScanOperatorInfo* pInfo, SExecTaskInfo* pTaskInfo,
+                                      const SExtPushdownDiagnostic* pDiag) {
+  pInfo->hasPrefetchDiag = true;
+  pInfo->prefetchDiag = *pDiag;
+  if (!pInfo->parallelPrefetch) {
+    pTaskInfo->hasExtPushdownDiag = true;
+    pTaskInfo->extPushdownDiag = *pDiag;
+  }
+}
+
 static int32_t fedScanInfluxV1CancelCode(void* context) {
   return atomic_load_32(&((SExecTaskInfo*)context)->code);
 }
@@ -2626,6 +2678,7 @@ static int32_t fedScanPrepareInfluxV1(SFederatedScanOperatorInfo* pInfo, SExecTa
   SExtTableMeta* meta = NULL;
   SExtColTypeMapping* mappings = NULL;
   SNode* series = NULL;
+  SInfluxQLRender* render = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
   SForeignScanOperatorParam* param = pInfo->pActiveVStbParam;
   spec.pColMappings = pNode->pColTypeMappings;
@@ -2691,6 +2744,19 @@ static int32_t fedScanPrepareInfluxV1(SFederatedScanOperatorInfo* pInfo, SExecTa
     table.pInfluxSchema = NULL;
     tstrncpy(table.influxRp, meta->retentionPolicy, sizeof(table.influxRp));
   }
+  if (pNode->pRemotePlan != NULL) {
+    code = nodesRemotePlanToInfluxQL((const SLogicNode*)pNode->pRemotePlan, &render);
+    if (code != TSDB_CODE_SUCCESS) goto _return;
+    spec.pRender = render;
+    if (render->hasTimeRange) {
+      spec.scanRange = render->scanRange;
+      spec.rangePrecision = render->rangePrecision;
+    }
+    if (render->aggregate) spec.timeAscending = false;
+  }
+  if (param != NULL && !pInfo->vstbLimitDemoted) {
+    spec.rowLimit = param->rowLimit;
+  }
   spec.pTable = &table;
   code = extConnectorPrepareInfluxV1Scan(pInfo->pConnHandle, &spec, ppSQL);
   if (code == TSDB_CODE_SUCCESS) {
@@ -2703,15 +2769,11 @@ static int32_t fedScanPrepareInfluxV1(SFederatedScanOperatorInfo* pInfo, SExecTa
     mappings = NULL;
   }
 _return:
+  nodesDestroyInfluxQLRender(render);
   nodesDestroyNode(series);
   extConnectorFreeTableSchema(meta);
   taosMemoryFree(mappings);
   return code;
-}
-
-static bool fedScanHasStoredFilter(const SFederatedScanOperatorInfo* pInfo) {
-  return (pInfo->pFedScanNode->pushdownFlags & FQ_PUSHDOWN_REQUIRED_FILTER) != 0 ||
-         (pInfo->pActiveVStbParam != NULL && pInfo->pActiveVStbParam->filterCondLen > 0);
 }
 
 /* The dynamic virtual-stable path carries its own pushdown state: a row limit,
@@ -2735,7 +2797,6 @@ static bool fedScanHasVStbPushdown(const SFederatedScanOperatorInfo* pInfo) {
  * still enforces the limit, so the scan retries once without the remote row
  * limit instead of surfacing the syntax error (DS 5.3.2.3). */
 static bool fedScanRetryWithoutRemoteLimit(SFederatedScanOperatorInfo* pInfo, int32_t code) {
-  if (pInfo->influxV1) return false;
   if (pInfo->vstbLimitDemoted || NULL == pInfo->pActiveVStbParam ||
       pInfo->pActiveVStbParam->rowLimit <= 0) {
     return false;
@@ -2763,8 +2824,8 @@ static bool fedScanRetryWithoutRemoteLimit(SFederatedScanOperatorInfo* pInfo, in
 }
 
 static int32_t fedScanMapQueryError(const SFederatedScanOperatorInfo* pInfo, int32_t code,
-                                    const SExtPushdownDiagnostic* pDiag) {
-  if (pInfo->influxV1) return code;
+                                    SExtPushdownDiagnostic* pDiag) {
+  if (pInfo->influxV1) return fedScanInfluxV1PushdownError(pInfo, code, pDiag);
   bool hasStoredFilter = fedScanHasStoredFilter(pInfo);
   if (pInfo->pFedScanNode->pRemotePlan == NULL && !hasStoredFilter &&
       !fedScanHasVStbPushdown(pInfo)) {
@@ -2875,6 +2936,9 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     if (influxV1) {
       code = fedScanPrepareInfluxV1(pInfo, pTaskInfo, &remoteSql);
       if (code != TSDB_CODE_SUCCESS) {
+        SExtPushdownDiagnostic diag = {0};
+        code = fedScanInfluxV1PushdownError(pInfo, code, &diag);
+        fedScanRememberDiagnostic(pInfo, pTaskInfo, &diag);
         extConnectorClose(pInfo->pConnHandle);
         pInfo->pConnHandle = NULL;
         QUERY_CHECK_CODE(code, lino, _return);
@@ -2978,12 +3042,6 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
     if (code) {
       SExtPushdownDiagnostic diag = {0};
       (void)extBuildPushdownDiagnostic(code, &extErr, remoteSql, &diag);
-      pInfo->hasPrefetchDiag = true;
-      pInfo->prefetchDiag = diag;
-      if (!pInfo->parallelPrefetch) {
-        pTaskInfo->hasExtPushdownDiag = true;
-        pTaskInfo->extPushdownDiag = diag;
-      }
       // Retry before mapping: a stored binding filter maps every error to
       // VTABLE_EXT_FILTER_SQL_FAILED, but dropping only the remote row limit
       // may be enough to make the statement run.
@@ -3002,6 +3060,7 @@ _restart:  // Entry point for phase-2 re-execution in twoPassMode
         goto _restart;
       }
       code = fedScanMapQueryError(pInfo, code, &diag);
+      fedScanRememberDiagnostic(pInfo, pTaskInfo, &diag);
       fedScanFormatError(pInfo, code, &extErr, &diag);
       if (!pInfo->parallelPrefetch) {
         tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
@@ -3054,13 +3113,8 @@ _fetchNext:
     if (code) {
       SExtPushdownDiagnostic diag = {0};
       (void)extBuildPushdownDiagnostic(code, &fetchErr, NULL, &diag);
-      pInfo->hasPrefetchDiag = true;
-      pInfo->prefetchDiag = diag;
-      if (!pInfo->parallelPrefetch) {
-        pTaskInfo->hasExtPushdownDiag = true;
-        pTaskInfo->extPushdownDiag = diag;
-      }
       code = fedScanMapQueryError(pInfo, code, &diag);
+      fedScanRememberDiagnostic(pInfo, pTaskInfo, &diag);
       fedScanFormatError(pInfo, code, &fetchErr, &diag);
       if (!pInfo->parallelPrefetch) {
         tstrncpy(pTaskInfo->extErrMsg, pInfo->extErrMsg, sizeof(pTaskInfo->extErrMsg));
