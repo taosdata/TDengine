@@ -315,6 +315,7 @@ typedef struct SAggLogicNode {
   bool       isGroupTb;
   bool       isPartTb;  // true if partition keys has tbname
   bool       hasGroup;
+  bool       concurrentLastScan;
   bool       hasMixedDistinct;    // optimizer set: child[0]=non-distinct, child[1]=distinct
   int32_t    numDistinctFuncs;    // number of distinct functions (trailing in pAggFuncs)
   SNodeList* pTsmaSubplans;

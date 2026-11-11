@@ -1858,6 +1858,61 @@ TEST_F(ParserSelectTest, intervalHints) {
       "WHERE ts >= '2022-04-01 00:00:00' AND ts < '2022-04-01 01:00:00' PARTITION BY TBNAME INTERVAL(10s)");
 }
 
+TEST_F(ParserSelectTest, noConcurrentLastScanHint) {
+  initKeywordsTableOnce();
+  for (std::string hint : {"/*+ NO_CONCURRENT_LAST_SCAN() */",
+                           "/*+ no_concurrent_last_scan() */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN ( ) */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN() "
+                           "NO_CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(LIST_LENGTH(result), 1);
+    EXPECT_EQ(((const SHintNode*)nodesListGetNode(result, 0))->option,
+              HINT_NO_CONCURRENT_LAST_SCAN);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
+
+  for (std::string hint : {"/*+ NO_CONCURRENT_LAST_SCAN */",
+                           "/*+ NO_CONCURRENT_LAST_SCAN(1) */",
+                           "/*+ CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
+
+  useDb("root", "test");
+  run("SELECT /*+ NO_CONCURRENT_LAST_SCAN() */ COUNT(*), LAST(c1) "
+      "FROM st1 PARTITION BY tbname");
+}
+
+TEST_F(ParserSelectTest, noConcurrentLastScanCombinesWithOtherHints) {
+  initKeywordsTableOnce();
+  for (std::string hint : {
+           "/*+ NO_CONCURRENT_LAST_SCAN() SKIP_TSMA() */",
+           "/*+ SKIP_TSMA() NO_CONCURRENT_LAST_SCAN() */"}) {
+    SCOPED_TRACE(hint);
+    SParseContext query = {};
+    SAstCreateContext context;
+    initAstCreateContext(&query, &context);
+    SNodeList* result = createHint(&context, hint);
+    ASSERT_NE(result, nullptr);
+    EXPECT_EQ(LIST_LENGTH(result), 2);
+    EXPECT_EQ(context.errCode, TSDB_CODE_SUCCESS);
+    nodesDestroyList(result);
+  }
+}
+
 TEST_F(ParserSelectTest, hintParameterListDoesNotHaveFixedCapacity) {
   constexpr int32_t kLargeHintParamCount = 64;
   char          message[TSDB_ERROR_MSG_LEN] = {0};

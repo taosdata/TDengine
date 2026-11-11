@@ -1222,6 +1222,7 @@ static int32_t logicAggCopy(const SAggLogicNode* pSrc, SAggLogicNode* pDst) {
   COPY_SCALAR_FIELD(isGroupTb);
   COPY_SCALAR_FIELD(isPartTb);
   COPY_SCALAR_FIELD(hasGroup);
+  COPY_SCALAR_FIELD(concurrentLastScan);
   return TSDB_CODE_SUCCESS;
 }
 
