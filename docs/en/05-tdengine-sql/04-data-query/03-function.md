@@ -2642,7 +2642,7 @@ AGG_FUNC(DISTINCT expr)
 - `COUNT(DISTINCT expr)` returns the number of distinct non-NULL values.
 - `SUM(DISTINCT expr)` computes the sum of distinct values.
 - Can be combined with `GROUP BY`, `PARTITION BY`, and window clauses.
-- Supports `INTERVAL` windows — deduplication is performed independently within each time window.
+- Supports `INTERVAL`, `SESSION`, `STATE_WINDOW`, `EVENT_WINDOW`, `COUNT_WINDOW`, and `EXTERNAL_WINDOW`. Deduplication is performed independently within each window.
 - A single query may mix DISTINCT and non-DISTINCT aggregates, for example:
 
   ```sql

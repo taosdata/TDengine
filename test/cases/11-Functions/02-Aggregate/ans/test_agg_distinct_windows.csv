@@ -1,0 +1,9 @@
+session,1,2,3,1.5,3,4
+session,2,2,2,1.0,3,4
+session,3,0,NULL,NULL,0,2
+state,1,2,3,1.5,3,4
+state,2,2,2,1.0,3,4
+state,3,0,NULL,NULL,0,2
+event,1,2,3,1.5,3,4
+event,2,2,2,1.0,3,4
+event,3,0,NULL,NULL,0,2

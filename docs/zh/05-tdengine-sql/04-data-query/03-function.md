@@ -2946,7 +2946,7 @@ AGG_FUNC(DISTINCT expr)
 - `COUNT(DISTINCT expr)` 返回去重后的非 NULL 值数量。
 - `SUM(DISTINCT expr)` 对去重后的值求和。
 - 支持与 `GROUP BY`、`PARTITION BY`、窗口子句组合使用。
-- 支持与 `INTERVAL` 窗口结合，在每个时间窗口内独立去重。
+- 支持 `INTERVAL`、`SESSION`、`STATE_WINDOW`、`EVENT_WINDOW`、`COUNT_WINDOW` 和 `EXTERNAL_WINDOW`，在每个窗口内独立去重。
 - 同一查询中可混合使用带 DISTINCT 和不带 DISTINCT 的聚合函数，例如：
 
   ```sql

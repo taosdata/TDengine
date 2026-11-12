@@ -20,6 +20,9 @@ Since: v3.4.2.0
 Labels: common, ci
 """
 
+import csv
+from pathlib import Path
+
 from new_test_framework.utils import tdLog, tdSql
 
 
@@ -80,6 +83,23 @@ class TestAggDistinct:
             "('2026-01-01 00:00:04', 2),"
             "('2026-01-01 00:00:05', 3),"
             "('2026-01-01 00:00:06', 4)"
+        )
+
+        tdSql.execute(
+            "create table t_distinct_windows ("
+            "ts timestamp, v int, state_key int, begin_flag int, end_flag int)"
+        )
+        tdSql.execute(
+            "insert into t_distinct_windows values "
+            "('2026-01-01 00:00:01', 1, 1, 1, 0)"
+            "('2026-01-01 00:00:02', 1, 1, 0, 0)"
+            "('2026-01-01 00:00:03', 2, 1, 0, 0)"
+            "('2026-01-01 00:00:04', NULL, 1, 0, 0)"
+            "('2026-01-01 00:00:05', 3, 1, 0, 1)"
+            "('2026-01-01 00:00:10', 1, 2, 1, 0)"
+            "('2026-01-01 00:00:11', 1, 2, 0, 0)"
+            "('2026-01-01 00:00:12', 2, 2, 0, 0)"
+            "('2026-01-01 00:00:13', 3, 2, 0, 1)"
         )
 
         # Insert data into supertable child tables
@@ -807,6 +827,53 @@ class TestAggDistinct:
         tdSql.checkData(1, 1, 3)
         tdSql.checkData(2, 1, 1)
 
+    def do_distinct_window_count_parameters(self):
+        clauses = (
+            "session(ts, 2s)",
+            "state_window(state_key)",
+            "event_window start with begin_flag=1 end with end_flag=1",
+        )
+        for clause in clauses:
+            tdSql.query(
+                "select _wstart, count(distinct 1), count(distinct tbname), "
+                "count(distinct NULL), count(1), count(tbname), count(distinct ts) "
+                f"from t_distinct_windows {clause} order by _wstart"
+            )
+            tdSql.checkRows(2)
+            for row, count in enumerate((5, 4)):
+                for col, expected in enumerate((1, 1, 0, count, count, count), 1):
+                    tdSql.checkData(row, col, expected)
+        # Supertable input must retain the number of child tables, not timestamps.
+        tdSql.query(
+            "select count(distinct tbname), count(distinct 1), count(tbname) "
+            "from meters session(ts, 2s)"
+        )
+        tdSql.checkRows(1)
+        for col, expected in enumerate((3, 1, 9)):
+            tdSql.checkData(0, col, expected)
+        print("distinct window COUNT parameters ................ [ passed ]")
+
+    def test_distinct_window_count_parameters(self):
+        """Keep constant and table-name DISTINCT arguments in windows.
+
+        Verify SESSION, STATE and EVENT windows count constants and table names
+        independently of timestamps, preserve NULL handling and ordinary COUNT,
+        and count child table names across supertable input.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-11 Added regression for DISTINCT COUNT argument rewrites.
+        """
+        self.do_distinct_window_count_parameters()
+
     def test_count_distinct_count_window(self):
         """COUNT(DISTINCT) with COUNT_WINDOW
 
@@ -833,6 +900,121 @@ class TestAggDistinct:
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 0, "2026-01-01 00:00:04.000")
         tdSql.checkData(1, 1, 3)
+
+    def test_distinct_count_window_overlap(self):
+        """Overlapping COUNT windows keep independent DISTINCT sets.
+
+        Verify COUNT, SUM, and AVG of distinct values in each overlapping
+        window, then check that LIMIT returns the first window's count.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added COUNT window DISTINCT acceptance.
+        """
+        tdSql.query(
+            "select _wstart, _wend, count(distinct v), sum(distinct v), avg(distinct v), count(v) "
+            "from t_count_window count_window(3, 1) order by _wstart"
+        )
+        tdSql.checkRows(6)
+        for row, expected in enumerate(((1, 1, 1, 3), (2, 3, 1.5, 3),
+                                        (3, 6, 2, 3), (3, 9, 3, 3),
+                                        (2, 7, 3.5, 2), (1, 4, 4, 1))):
+            for col, value in enumerate(expected):
+                tdSql.checkData(row, col + 2, value)
+        tdSql.query(
+            "select count(distinct v) from t_count_window "
+            "count_window(3, 1) order by _wstart limit 1"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+    def test_distinct_external_window(self):
+        """EXTERNAL windows reset DISTINCT between explicit boundaries.
+
+        Define two adjacent external windows and verify their distinct
+        aggregates independently, including a query with LIMIT.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added EXTERNAL window DISTINCT acceptance.
+        """
+        tdSql.execute("create table t_distinct_ext_bounds (ts timestamp, end_ts timestamp)")
+        tdSql.execute(
+            "insert into t_distinct_ext_bounds values "
+            "('2026-01-01 00:00:01', '2026-01-01 00:00:04'),"
+            "('2026-01-01 00:00:04', '2026-01-01 00:00:08')"
+        )
+        clause = "external_window((select ts,end_ts from t_distinct_ext_bounds) w)"
+        tdSql.query(
+            "select _wstart, _wend, count(distinct c_int), sum(distinct c_int), "
+            f"avg(distinct c_int), count(c_int) from t1 {clause} order by _wstart"
+        )
+        tdSql.checkRows(2)
+        for col, value in enumerate((3, 6, 2, 4)):
+            tdSql.checkData(0, col + 2, value)
+        for col, value in enumerate((4, 10, 2.5, 4)):
+            tdSql.checkData(1, col + 2, value)
+        tdSql.query(
+            f"select count(distinct c_int) from t1 {clause} order by _wstart limit 1"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+
+    def test_distinct_count_external_large_windows(self):
+        """COUNT and EXTERNAL windows handle cross-block spilled DISTINCT sets.
+
+        Insert 5,000 rows with repeated long strings and verify that both
+        window types count 2,500 distinct values across input blocks.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added large COUNT/EXTERNAL window acceptance.
+        """
+        base = 1767225600000
+        tdSql.execute("create table t_distinct_c_large (ts timestamp, v varchar(128))")
+        tdSql.execute("create table t_distinct_c_bounds (ts timestamp, end_ts timestamp)")
+        for first in range(0, 5000, 200):
+            values = []
+            for i in range(first, first + 200):
+                value = f"value_{i % 2500:04d}_{'x' * 80}"
+                values.append(f"({base + i}, '{value}')")
+            tdSql.execute("insert into t_distinct_c_large values " + ",".join(values))
+        tdSql.execute(
+            "insert into t_distinct_c_bounds values "
+            f"({base}, {base + 4999})"
+        )
+        for clause in (
+            "count_window(5000)",
+            "external_window((select ts,end_ts from t_distinct_c_bounds) w)",
+        ):
+            tdSql.query(f"select count(distinct v), count(v) from t_distinct_c_large {clause}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 2500)
+            tdSql.checkData(0, 1, 5000)
 
     # ===================================================================
     # WHERE clause
@@ -1028,15 +1210,15 @@ class TestAggDistinct:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 4)
 
-    def test_error_distinct_with_session_window(self):
-        """DISTINCT with SESSION window is not supported
+    def test_distinct_with_session_window(self):
+        """DISTINCT is isolated between SESSION windows
 
-        Verifies error distinct with session window.
+        Verifies duplicate and NULL values in adjacent sessions.
 
         Catalog:
             - Function:Aggregate:Distinct
 
-        Since: v3.4.2.0
+        Since: v3.4.3.0
 
         Labels: common, ci
 
@@ -1044,18 +1226,19 @@ class TestAggDistinct:
 
         History:
             - 2026-09-01 Jin Minglei Created
+            - 2026-11-03 Codex Added SESSION DISTINCT results and partition checks
         """
-        tdSql.error("select count(distinct c_int) from t1 session(ts, 2s)")
+        self.check_distinct_window_results("session(ts, 2s)")
 
-    def test_error_distinct_with_state_window(self):
-        """DISTINCT with STATE_WINDOW is not supported
+    def test_distinct_with_state_window(self):
+        """DISTINCT is isolated between STATE_WINDOW groups
 
-        Verifies error distinct with state window.
+        Verifies state changes reset the deduplication set.
 
         Catalog:
             - Function:Aggregate:Distinct
 
-        Since: v3.4.2.0
+        Since: v3.4.3.0
 
         Labels: common, ci
 
@@ -1063,18 +1246,19 @@ class TestAggDistinct:
 
         History:
             - 2026-09-01 Jin Minglei Created
+            - 2026-11-03 Codex Added STATE DISTINCT results and partition checks
         """
-        tdSql.error("select count(distinct c_int) from t1 state_window(c_bool)")
+        self.check_distinct_window_results("state_window(state_key)")
 
-    def test_error_distinct_with_event_window(self):
-        """DISTINCT with EVENT_WINDOW is not supported
+    def test_distinct_with_event_window(self):
+        """DISTINCT is isolated between EVENT_WINDOW groups
 
-        Verifies error distinct with event window.
+        Verifies reused result rows release the previous window's set.
 
         Catalog:
             - Function:Aggregate:Distinct
 
-        Since: v3.4.2.0
+        Since: v3.4.3.0
 
         Labels: common, ci
 
@@ -1082,11 +1266,304 @@ class TestAggDistinct:
 
         History:
             - 2026-09-01 Jin Minglei Created
+            - 2026-11-03 Codex Added EVENT DISTINCT results and cleanup checks
         """
-        tdSql.error(
-            "select count(distinct c_int) from t1 "
-            "event_window start with c_int > 1 end with c_int > 3"
+        self.check_distinct_window_results(
+            "event_window start with begin_flag = 1 end with end_flag = 1"
         )
+        # A window without an end condition keeps its set until operator teardown.
+        tdSql.execute(
+            "insert into t_distinct_windows values "
+            "('2026-01-01 00:00:30', 4, 3, 1, 0)"
+        )
+        self.check_distinct_window_results(
+            "event_window start with begin_flag = 1 end with end_flag = 1"
+        )
+
+    def test_distinct_translated_window_scalar_results(self):
+        """Translated SESSION, STATE and EVENT windows return exact DISTINCT results.
+
+        Scalar projections exercise the window's indefinite-row result path while
+        checking different per-window sets against fixed expected values.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-05 xsren Added translated-window result checks for MR review.
+        """
+        tdSql.execute(
+            "create table t_distinct_review (ts timestamp, v int, state_key int, "
+            "begin_flag int, end_flag int)"
+        )
+        tdSql.execute(
+            "insert into t_distinct_review values "
+            "('2026-01-01 00:00:01', 1, 1, 1, 0)"
+            "('2026-01-01 00:00:02', 1, 1, 0, 0)"
+            "('2026-01-01 00:00:03', NULL, 1, 0, 0)"
+            "('2026-01-01 00:00:04', 2, 1, 0, 1)"
+            "('2026-01-01 00:00:10', 2, 2, 1, 0)"
+            "('2026-01-01 00:00:11', 2, 2, 0, 0)"
+            "('2026-01-01 00:00:12', NULL, 2, 0, 0)"
+            "('2026-01-01 00:00:13', 4, 2, 0, 1)"
+        )
+        for clause in (
+            "session(ts, 2s)",
+            "state_window(state_key)",
+            "event_window start with begin_flag = 1 end with end_flag = 1",
+        ):
+            tdSql.query(
+                "select count(distinct v) + 1, sum(distinct v) + 1, "
+                "avg(distinct v) + 1, count(v) "
+                "from t_distinct_review "
+                f"{clause} order by _wstart"
+            )
+            tdSql.checkRows(2)
+            for row, expected in enumerate(((3, 4, 2.5, 3), (3, 7, 4.0, 3))):
+                for col, value in enumerate(expected):
+                    tdSql.checkData(row, col, value)
+
+    def test_distinct_window_expected_results(self):
+        """DISTINCT window aggregates match an independent result file.
+
+        Compare all result rows for SESSION, STATE, and EVENT windows with
+        duplicate values, negative values, and a NULL-only window.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-06 Codex Added expected-result comparison for window DISTINCT.
+        """
+        tdSql.execute(
+            "create table t_distinct_expected (ts timestamp, v int, state_key int, "
+            "begin_flag int, end_flag int)"
+        )
+        tdSql.execute(
+            "insert into t_distinct_expected values "
+            "('2026-01-01 00:00:01', 1, 1, 1, 0)"
+            "('2026-01-01 00:00:02', 1, 1, 0, 0)"
+            "('2026-01-01 00:00:03', NULL, 1, 0, 0)"
+            "('2026-01-01 00:00:04', 2, 1, 0, 1)"
+            "('2026-01-01 00:00:10', -2, 2, 1, 0)"
+            "('2026-01-01 00:00:11', -2, 2, 0, 0)"
+            "('2026-01-01 00:00:12', 4, 2, 0, 0)"
+            "('2026-01-01 00:00:13', NULL, 2, 0, 1)"
+            "('2026-01-01 00:00:20', NULL, 3, 1, 0)"
+            "('2026-01-01 00:00:21', NULL, 3, 0, 1)"
+        )
+        result_file = Path(__file__).parent / "ans" / "test_agg_distinct_windows.csv"
+        with result_file.open(newline="", encoding="utf-8") as file:
+            expected_rows = list(csv.reader(file))
+
+        windows = {
+            "session": "session(ts, 2s)",
+            "state": "state_window(state_key)",
+            "event": "event_window start with begin_flag = 1 end with end_flag = 1",
+        }
+        actual_rows = []
+        for name, clause in windows.items():
+            tdSql.query(
+                "select min(state_key), count(distinct v), sum(distinct v), "
+                "avg(distinct v), count(v), count(*) "
+                f"from t_distinct_expected {clause} order by _wstart"
+            )
+            for row in tdSql.queryResult:
+                actual_rows.append(
+                    [name] + ["NULL" if value is None else str(value) for value in row]
+                )
+        assert actual_rows == expected_rows, (
+            f"Window DISTINCT result mismatch: expected {expected_rows}, got {actual_rows}"
+        )
+
+    def test_distinct_large_windows(self):
+        """Window DISTINCT remains correct across input blocks and spill.
+
+        Insert 6,000 rows with repeated long strings and verify distinct
+        counts in session, state, and event windows spanning input blocks.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added cross-block and spill acceptance.
+        """
+        tdSql.execute("create table t_distinct_large (ts timestamp, v varchar(128), state_key int, begin_flag int, end_flag int)")
+        base = 1767225600000
+        for first in range(0, 6000, 200):
+            values = []
+            for i in range(first, first + 200):
+                value = f"value_{i % 3000:04d}_{'x' * 80}"
+                values.append(f"({base + i}, '{value}', 1, {int(i == 0)}, {int(i == 5999)})")
+            tdSql.execute("insert into t_distinct_large values " + ",".join(values))
+        for clause in (
+            "session(ts, 1s)",
+            "state_window(state_key)",
+            "event_window start with begin_flag = 1 end with end_flag = 1",
+        ):
+            tdSql.query(f"select count(distinct v), count(v) from t_distinct_large {clause}")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 3000)
+            tdSql.checkData(0, 1, 6000)
+
+    def test_distinct_state_event_options(self):
+        """DISTINCT observes state extension and event TRUE_FOR boundaries.
+
+        Check distinct counts for state windows with extension options and
+        event windows with a minimum TRUE_FOR duration.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added window option acceptance.
+        """
+        tdSql.query(
+            "select count(distinct v) from t_distinct_windows "
+            "where ts < '2026-01-01 00:00:20' "
+            "state_window(state_key) extend(0) zeroth_state(0) order by _wstart"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+        tdSql.query(
+            "select count(distinct v) from t_distinct_windows "
+            "where ts < '2026-01-01 00:00:20' "
+            "event_window start with begin_flag = 1 end with end_flag = 1 "
+            "true_for(2s) order by _wstart"
+        )
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 3)
+        tdSql.checkData(1, 0, 3)
+
+    def test_distinct_windows_across_vgroups(self):
+        """DISTINCT window state is isolated on child tables in separate VGroups.
+
+        Place child tables on two VGroups and verify per-table distinct
+        aggregates in session, state, event, COUNT, and EXTERNAL windows.
+
+        Catalog:
+            - Function:Aggregate:Distinct
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-04 Codex Added cross-VGroup window acceptance.
+        """
+        tdSql.execute(
+            "create stable st_distinct_vg (ts timestamp, v int, state_key int, "
+            "begin_flag int, end_flag int) tags (site int)"
+        )
+        chosen = {}
+        for i in range(20):
+            name = f"t_distinct_vg_{i}"
+            tdSql.execute(f"create table {name} using st_distinct_vg tags ({i})")
+            tdSql.query(
+                "select vgroup_id from information_schema.ins_tables "
+                f"where db_name = 'test_agg_distinct' and table_name = '{name}'"
+            )
+            tdSql.checkRows(1)
+            chosen.setdefault(tdSql.getData(0, 0), name)
+            if len(chosen) == 2:
+                break
+        assert len(chosen) == 2, f"expected child tables on two VGroups: {chosen}"
+
+        base = 1767225600000
+        for name in chosen.values():
+            tdSql.execute(
+                f"insert into {name} values "
+                f"({base}, 1, 1, 1, 0),"
+                f"({base + 1000}, 1, 1, 0, 0),"
+                f"({base + 2000}, 2, 1, 0, 1)"
+            )
+        for clause in (
+            "session(ts, 2s)",
+            "state_window(state_key)",
+            "event_window start with begin_flag = 1 end with end_flag = 1",
+        ):
+            tdSql.query(
+                "select tbname, count(distinct v), sum(distinct v) "
+                f"from st_distinct_vg partition by tbname {clause} order by tbname"
+            )
+            tdSql.checkRows(2)
+            for row in range(2):
+                tdSql.checkData(row, 1, 2)
+                tdSql.checkData(row, 2, 3)
+        tdSql.execute("create table t_distinct_vg_bounds (ts timestamp, end_ts timestamp)")
+        tdSql.execute(
+            "insert into t_distinct_vg_bounds values "
+            f"({base}, {base + 2000})"
+        )
+        for clause in (
+            "count_window(3)",
+            "external_window((select ts,end_ts from t_distinct_vg_bounds) w)",
+        ):
+            tdSql.query(
+                "select tbname, count(distinct v), sum(distinct v) "
+                f"from st_distinct_vg partition by tbname {clause} order by tbname"
+            )
+            tdSql.checkRows(2)
+            for row in range(2):
+                tdSql.checkData(row, 1, 2)
+                tdSql.checkData(row, 2, 3)
+
+    def check_distinct_window_results(self, window_clause):
+        tdSql.query(
+            "select count(distinct v), sum(distinct v), avg(distinct v), "
+            "count(v) from t_distinct_windows "
+            f"{window_clause} order by _wstart"
+        )
+        tdSql.checkRows(2)
+        for row, count in enumerate((4, 4)):
+            tdSql.checkData(row, 0, 3)
+            tdSql.checkData(row, 1, 6)
+            tdSql.checkData(row, 2, 2)
+            tdSql.checkData(row, 3, count)
+        # LIMIT can destroy the operator while later result rows still own sets.
+        tdSql.query(
+            "select count(distinct v) from t_distinct_windows "
+            f"{window_clause} order by _wstart limit 1"
+        )
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 3)
+        tdSql.query(
+            "select state_key, count(distinct v), sum(distinct v) "
+            "from t_distinct_windows partition by state_key "
+            f"{window_clause} order by state_key"
+        )
+        tdSql.checkRows(2)
+        for row, state_key in enumerate((1, 2)):
+            tdSql.checkData(row, 0, state_key)
+            tdSql.checkData(row, 1, 3)
+            tdSql.checkData(row, 2, 6)
 
     def test_error_distinct_with_anomaly_window(self):
         """DISTINCT with ANOMALY_WINDOW is not supported

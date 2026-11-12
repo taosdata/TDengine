@@ -75,12 +75,12 @@ SDmNotifyHandle dmNotifyHdl = {};
 #include "tmsg.h"
 #include "tglobal.h"
 #include "tmd5.h"
+#include "tpagedbuf.h"
 #include "tref.h"
 #include "trpc.h"
 #include "windowfunc.h"
 #ifdef USE_ANALYTICS
 #include "tanalytics.h"
-#include "tpagedbuf.h"
 #endif
 
 namespace {
@@ -1664,24 +1664,233 @@ void expectInterpStoreBlocksEqual(const SSDataBlock* pExpected,
   }
 }
 
-struct InterpMergeTempDirGuard {
+struct ExecutorTempDirGuard {
   char       savedPath[PATH_MAX] = {0};
-  SDiskSpace savedSpace = {};
+  SDiskSpace savedLogSpace = {};
+  SDiskSpace savedDataSpace = {};
+  SDiskSpace savedTempSpace = {};
   int32_t    code = TSDB_CODE_SUCCESS;
 
-  InterpMergeTempDirGuard() {
+  ExecutorTempDirGuard() {
     tstrncpy(savedPath, tsTempDir, sizeof(savedPath));
-    savedSpace = tsTempSpace;
+    savedLogSpace = tsLogSpace;
+    savedDataSpace = tsDataSpace;
+    savedTempSpace = tsTempSpace;
     tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
     code = taosMulMkDir(tsTempDir);
     if (code == TSDB_CODE_SUCCESS) code = osUpdate();
   }
 
-  ~InterpMergeTempDirGuard() {
+  ~ExecutorTempDirGuard() {
     tstrncpy(tsTempDir, savedPath, PATH_MAX);
-    tsTempSpace = savedSpace;
+    // osUpdate() only refreshes these three snapshots; restore their original values
+    // even if the constructor's update stopped after a partial failure.
+    tsLogSpace = savedLogSpace;
+    tsDataSpace = savedDataSpace;
+    tsTempSpace = savedTempSpace;
   }
 };
+
+TEST(execUtilTest, TerminalRowCleanupDoesNotRevisitEvictedBindings) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  constexpr int32_t pageCount = 8;
+  static constexpr int32_t rowCount = pageCount * 2;
+  constexpr int32_t pageSize = 512;
+  const int32_t rowSize = (sizeof(SResultRow) + sizeof(SResultRowEntryInfo) + sizeof(int64_t) + 7) & ~7;
+
+  for (bool ordered : {false, true}) {
+    SCOPED_TRACE(ordered ? "ordered rows" : "hash rows");
+    SExprSupp supp = {};
+    SAggSupporter agg = {};
+    SGroupResInfo groups = {};
+    SExecTaskInfo task = {};
+    std::array<int32_t, rowCount + 1> releases = {};
+    struct Releaser {
+      SExprSupp* supp;
+      SAggSupporter* agg;
+      SGroupResInfo* groups;
+      ~Releaser() {
+        cleanupExprSupp(supp);
+        cleanupAggSup(agg);
+        cleanupGroupResInfo(groups);
+      }
+    } releaser{&supp, &agg, &groups};
+    supp.pCtx = static_cast<SqlFunctionCtx*>(taosMemoryCalloc(1, sizeof(SqlFunctionCtx)));
+    ASSERT_NE(supp.pCtx, nullptr);
+    supp.numOfExprs = 1;
+    supp.rowEntryInfoOffset = static_cast<int32_t*>(taosMemoryCalloc(1, sizeof(int32_t)));
+    ASSERT_NE(supp.rowEntryInfoOffset, nullptr);
+    supp.pCtx[0].needCleanup = true;
+    supp.pCtx[0].pOutput = reinterpret_cast<char*>(releases.data());
+    // Model a row-owned handle with an ID: record releases without actually
+    // double-freeing, so a stale disk image produces a deterministic assertion.
+    supp.pCtx[0].fpSet.cleanup = [](SqlFunctionCtx* ctx) {
+      if (ctx->resultInfo == nullptr) return;
+      auto* state = static_cast<int64_t*>(GET_ROWCELL_INTERBUF(ctx->resultInfo));
+      int64_t id = 0;
+      memcpy(&id, state, sizeof(id));
+      if (id != 0) {
+        ASSERT_GT(id, 0);
+        ASSERT_LE(id, rowCount);
+        ++reinterpret_cast<int32_t*>(ctx->pOutput)[id];
+        memset(state, 0, sizeof(id));
+      }
+    };
+    ASSERT_EQ(createDiskbasedBuf(&agg.pResultBuf, pageSize, 2 * pageSize,
+                                "terminal-row-cleanup", tsTempDir), TSDB_CODE_SUCCESS);
+    std::array<int32_t, pageCount> pageIds = {};
+    for (int32_t page = 0; page < pageCount + 2; ++page) {
+      int32_t pageId = -1;
+      auto* data = static_cast<char*>(getNewBufPage(agg.pResultBuf, &pageId));
+      ASSERT_NE(data, nullptr);
+      memset(data, 0, pageSize);
+      if (page < pageCount) {
+        pageIds[page] = pageId;
+        for (int32_t slot = 0; slot < 2; ++slot) {
+          auto* row = reinterpret_cast<SResultRow*>(data + 8 + slot * rowSize);
+          auto* entry = getResultEntryInfo(row, 0, supp.rowEntryInfoOffset);
+          entry->initialized = true;
+          int64_t id = slot * pageCount + page + 1;
+          memcpy(GET_ROWCELL_INTERBUF(entry), &id, sizeof(id));
+        }
+      }
+      setBufPageDirty(data, true);
+      releaseBufPage(agg.pResultBuf, data);
+    }
+    // The two extra pages force all row images to disk before any cleanup.
+    agg.pResultRowHashTable = tSimpleHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+    ASSERT_NE(agg.pResultRowHashTable, nullptr);
+    groups.freeItem = true;
+    groups.pRows = taosArrayInit(rowCount + 1, POINTER_BYTES);
+    ASSERT_NE(groups.pRows, nullptr);
+    for (int32_t key = 0; key <= rowCount; ++key) {
+      SResultRowPosition pos = {};
+      ASSERT_EQ(tSimpleHashPut(agg.pResultRowHashTable, &key, sizeof(key), &pos, sizeof(pos)), 0);
+    }
+    // Assign positions in actual hash order, alternating pages across slots.
+    // Entry zero represents a result already consumed before cancellation.
+    void* data = nullptr;
+    int32_t iter = 0;
+    for (int32_t index = 0; index <= rowCount; ++index) {
+      data = tSimpleHashIterate(agg.pResultRowHashTable, data, &iter);
+      ASSERT_NE(data, nullptr);
+      auto* pos = static_cast<SResultRowPosition*>(data);
+      if (index == 0) {
+        groups.dataPos = data;
+        groups.iter = iter;
+      } else {
+        int32_t row = index - 1;
+        pos->pageId = pageIds[row % pageCount];
+        pos->offset = 8 + (row / pageCount) * rowSize;
+      }
+      auto* keyPos = static_cast<SResKeyPos*>(taosMemoryCalloc(1, sizeof(SResKeyPos)));
+      ASSERT_NE(keyPos, nullptr);
+      keyPos->pos = *pos;
+      if (taosArrayPush(groups.pRows, &keyPos) == nullptr) {
+        taosMemoryFree(keyPos);
+        FAIL() << "unable to append result position";
+      }
+    }
+    groups.index = 1;
+    auto* savedPage = static_cast<char*>(getBufPage(agg.pResultBuf, pageIds[pageCount - 1]));
+    ASSERT_NE(savedPage, nullptr);
+    auto* savedRow = reinterpret_cast<SResultRow*>(savedPage + 8);
+    supp.pCtx[0].resultInfo = getResultEntryInfo(savedRow, 0, supp.rowEntryInfoOffset);
+    cleanupResultInfo(&task, &supp, &groups, &agg, ordered);
+    EXPECT_EQ(supp.pCtx[0].resultInfo, nullptr);
+    EXPECT_GT(getDBufStatis(agg.pResultBuf).loadPages, pageCount);
+    // Run the same context destructor as operator teardown while pages exist.
+    cleanupExprSupp(&supp);
+    for (int32_t id = 1; id <= rowCount; ++id) {
+      EXPECT_EQ(releases[id], 1) << "row handle " << id;
+    }
+  }
+}
+
+TEST(execUtilTest, ResetAggSupPreservesWindowRoleAcrossReuse) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  SExprSupp      exprSupp = {};
+  SAggSupporter  aggSup = {};
+  SExecTaskInfo  task = {};
+  SNodeList*     funcs = nullptr;
+  SColumnNode*   column = nullptr;
+  SFunctionNode* function = nullptr;
+  STargetNode*   target = nullptr;
+  bool           functionManagerInitialized = false;
+  struct ResetAggSupReleaser {
+    SExprSupp*      exprSupp;
+    SAggSupporter*  aggSup;
+    SNodeList**     funcs;
+    SColumnNode**   column;
+    SFunctionNode** function;
+    STargetNode**   target;
+    bool*           functionManagerInitialized;
+    ResetAggSupReleaser(SExprSupp& exprSuppArg, SAggSupporter& aggSupArg, SNodeList*& funcsArg,
+                        SColumnNode*& columnArg, SFunctionNode*& functionArg, STargetNode*& targetArg,
+                        bool& functionManagerInitializedArg)
+        : exprSupp(&exprSuppArg),
+          aggSup(&aggSupArg),
+          funcs(&funcsArg),
+          column(&columnArg),
+          function(&functionArg),
+          target(&targetArg),
+          functionManagerInitialized(&functionManagerInitializedArg) {}
+    ResetAggSupReleaser(const ResetAggSupReleaser&) = delete;
+    ResetAggSupReleaser& operator=(const ResetAggSupReleaser&) = delete;
+    ~ResetAggSupReleaser() {
+      cleanupExprSuppWithoutFilter(exprSupp);
+      cleanupAggSup(aggSup);
+      nodesDestroyList(*funcs);
+      nodesDestroyNode(reinterpret_cast<SNode*>(*target));
+      nodesDestroyNode(reinterpret_cast<SNode*>(*function));
+      nodesDestroyNode(reinterpret_cast<SNode*>(*column));
+      if (*functionManagerInitialized) fmFuncMgtDestroy();
+    }
+  } releaser{exprSupp, aggSup, funcs, column, function, target, functionManagerInitialized};
+  ASSERT_EQ(fmFuncMgtInit(), TSDB_CODE_SUCCESS);
+  functionManagerInitialized = true;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode**>(&column)), TSDB_CODE_SUCCESS);
+  column->node.resType.type = TSDB_DATA_TYPE_INT;
+  column->node.resType.bytes = sizeof(int32_t);
+  column->dataBlockId = 1;
+  column->slotId = 0;
+  column->colId = 1;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode**>(&function)), TSDB_CODE_SUCCESS);
+  tstrncpy(function->functionName, "count", TSDB_FUNC_NAME_LEN);
+  SNode* ownedNode = reinterpret_cast<SNode*>(column);
+  column = nullptr;
+  ASSERT_EQ(nodesListMakeStrictAppend(&function->pParameterList, ownedNode), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(fmGetFuncInfo(function, nullptr, 0), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_TARGET, reinterpret_cast<SNode**>(&target)), TSDB_CODE_SUCCESS);
+  target->dataBlockId = 2;
+  target->slotId = 0;
+  target->pExpr = reinterpret_cast<SNode*>(function);
+  function = nullptr;
+  SNode* ownedTarget = reinterpret_cast<SNode*>(target);
+  target = nullptr;
+  ASSERT_EQ(nodesListMakeStrictAppend(&funcs, ownedTarget), TSDB_CODE_SUCCESS);
+  // Window operators set both flags before initAggSup(); resetAggSup() must preserve
+  // them when rebuilding the contexts for a later calculation.
+  exprSupp.hasWindowOrGroup = true;
+  exprSupp.hasWindow = true;
+
+  ASSERT_EQ(resetAggSup(&exprSupp, &aggSup, &task, funcs, nullptr, sizeof(int64_t),
+                        "resetAggSupWindowRole", nullptr, nullptr), TSDB_CODE_SUCCESS);
+  ASSERT_NE(exprSupp.pCtx, nullptr);
+  for (int32_t round = 0; round < 2; ++round) {
+    ASSERT_EQ(resetAggSup(&exprSupp, &aggSup, &task, funcs, nullptr, sizeof(int64_t),
+                          "resetAggSupWindowRole", nullptr, nullptr), TSDB_CODE_SUCCESS);
+    ASSERT_NE(aggSup.pResultRowHashTable, nullptr);
+    ASSERT_NE(aggSup.pResultBuf, nullptr);
+    EXPECT_TRUE(exprSupp.hasWindowOrGroup);
+    EXPECT_TRUE(exprSupp.hasWindow);
+    ASSERT_NE(exprSupp.pCtx, nullptr);
+    EXPECT_TRUE(exprSupp.pCtx[0].hasWindowOrGroup);
+    EXPECT_TRUE(exprSupp.pCtx[0].hasWindow);
+  }
+}
 
 struct InterpMergeFakeSource {
   std::vector<SSDataBlock*> blocks;
@@ -17907,7 +18116,7 @@ TEST_F(UnmaterializedSortColumnTest, KeepsNullOffsetsForPageSplitting) {
 }
 
 TEST_F(UnmaterializedSortColumnTest, PreservesNullsAcrossExternalSort) {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
   // Supplying the schema keeps the requested two-page sort buffer size.
   ASSERT_EQ(tsortCreateSortHandle(orders, SORT_SINGLESOURCE_SORT, 256, 2,
@@ -20002,7 +20211,7 @@ struct InterpMergeInput {
 };
 
 struct InterpMergeFixture {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   SExecTaskInfo task = {};
   std::vector<InterpMergeFakeSource> sources;
   std::vector<SOperatorInfo*> pendingDownstreams;
@@ -22099,7 +22308,7 @@ TEST_F(VirtualMappedBlockSchemaTest, RejectsDuplicateUnmappedTimestamp) {
 }
 
 TEST(execUtilTest, interpResultStorePagedRoundTripPreservesBlocks) {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
 
   SInterpResultStore* pStore = nullptr;
@@ -22168,7 +22377,7 @@ TEST(execUtilTest, interpResultStorePagedRoundTripPreservesBlocks) {
 
 TEST(execUtilTest,
      interpResultStoreSpillsWithinPagePayloadBudgetAndReusesPages) {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
 
   SInterpResultStore* pStore = nullptr;
@@ -22206,7 +22415,7 @@ TEST(execUtilTest,
 }
 
 TEST(execUtilTest, interpResultStoreRollsBackPagedAppendFailures) {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
 
   SInterpResultStore* pStore = nullptr;
@@ -22256,7 +22465,7 @@ TEST(execUtilTest, interpResultStoreRollsBackPagedAppendFailures) {
 }
 
 TEST(execUtilTest, interpResultStoreSpillWriteFailurePreservesGroup) {
-  InterpMergeTempDirGuard tempDir;
+  ExecutorTempDirGuard tempDir;
   ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
 
   SInterpResultStore* pStore = nullptr;

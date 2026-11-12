@@ -5481,7 +5481,7 @@ _return:
 }
 
 static bool isCountNotNullValue(SFunctionNode* pFunc) {
-  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+  if (pFunc->isDistinct || FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
     return false;
   }
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
@@ -5527,7 +5527,7 @@ _return:
 }
 
 static bool isCountTbname(SFunctionNode* pFunc) {
-  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+  if (pFunc->isDistinct || FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
     return false;
   }
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
@@ -7501,10 +7501,12 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
     return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
   }
   // DISTINCT aggregates keep their dedup set in the result row's inter-buffer, so a window operator
-  // may only be allowed once it releases that state as each window closes. INTERVAL does so through
-  // the shared result-fetch path (doCopyToSDataBlock), and COUNT_WINDOW and EXTERNAL_WINDOW call
-  // cleanupResultRowFunctionState() explicitly.
+  // may only be allowed once it releases that state as each window closes. The shared result-fetch
+  // path handles INTERVAL, SESSION and STATE; COUNT, EVENT and EXTERNAL also release reused or
+  // buffered result rows explicitly.
   //
+  // pWindow has passed translateWindow() before SELECT-list functions reach this check;
+  // window translation validates the node but keeps its QUERY_NODE_*_WINDOW type.
   // This is an allowlist on purpose. As a denylist it silently admitted ANOMALY_WINDOW, which only
   // calls clearResultRowInitFlag() between windows: the next functionSetup() then overwrites the set
   // pointer without freeing it, leaking one set per window. A new window type must be added here
@@ -7513,8 +7515,9 @@ static int32_t validateDistinctFunc(STranslateContext* pCxt, SFunctionNode* pFun
     SSelectStmt* pSelect = (SSelectStmt*)pCxt->pCurrStmt;
     if (pSelect->pWindow != NULL) {
       ENodeType winType = nodeType(pSelect->pWindow);
-      if (QUERY_NODE_INTERVAL_WINDOW != winType && QUERY_NODE_COUNT_WINDOW != winType &&
-          QUERY_NODE_EXTERNAL_WINDOW != winType) {
+      if (QUERY_NODE_INTERVAL_WINDOW != winType && QUERY_NODE_SESSION_WINDOW != winType &&
+          QUERY_NODE_STATE_WINDOW != winType && QUERY_NODE_EVENT_WINDOW != winType &&
+          QUERY_NODE_COUNT_WINDOW != winType && QUERY_NODE_EXTERNAL_WINDOW != winType) {
         return TSDB_CODE_PAR_FUNC_NOT_SUPPORT_DISTINCT;
       }
     }
