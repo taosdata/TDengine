@@ -2689,8 +2689,9 @@ static int32_t mndTransExecuteRedoActionGroup(SMnode *pMnode, STrans *pTrans, bo
     } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
       mInfo("trans:%d, group:%d/%d(%d) is executed and still in progress", pTrans->id, currentGroup, groupCount, *key);
     } else if (code == TSDB_CODE_MND_TRANS_GROUP_FINISHED) {
-      mInfo("trans:%d, group:%d/%d(%d) is finished, activeCount:%d", pTrans->id, currentGroup, groupCount, *key,
-            activeCount);
+      successCount++;
+      mInfo("trans:%d, group:%d/%d(%d) is finished, successCount:%d, activeCount:%d", pTrans->id, currentGroup,
+            groupCount, *key, successCount, activeCount);
       // if (parallelNum > 0 && activeCount > 0) activeCount--;
     } else if (code != 0) {
       mError("trans:%d, group:%d/%d(%d) failed to execute, code:%s", pTrans->id, currentGroup, groupCount, *key,

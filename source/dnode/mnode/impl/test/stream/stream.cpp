@@ -403,6 +403,137 @@ TEST_F(MndTransPrepareStatusTest, ProposalFailureStillMarksSyncAsStarted) {
   EXPECT_EQ(gPrepareProposalCalls, 1);
 }
 
+STrans *gGroupProgressTrans = nullptr;
+int32_t gGroupProgressSyncCalls = 0;
+int32_t gGroupProgressCommitCalls = 0;
+int32_t gGroupProgressSyncCode = TSDB_CODE_SUCCESS;
+
+bool groupProgressIsLeader(SMnode *) { return true; }
+
+int32_t captureGroupProgressProposal(SMnode *, SSdbRaw *, int32_t) {
+  EXPECT_NE(gGroupProgressTrans, nullptr);
+  if (gGroupProgressTrans == nullptr) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  if (gGroupProgressTrans->stage == TRN_STAGE_COMMIT) {
+    ++gGroupProgressCommitCalls;
+    return TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+  }
+  ++gGroupProgressSyncCalls;
+  return gGroupProgressSyncCode;
+}
+
+class MndTransGroupProgressTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    trans_ = createTestTrans();
+    ASSERT_NE(trans_, nullptr);
+    trans_->id = 1;
+    trans_->stage = TRN_STAGE_REDO_ACTION;
+    trans_->exec = TRN_EXEC_GROUP_PARALLEL;
+    trans_->policy = TRN_POLICY_RETRY;
+    trans_->actionPos = 1;
+    trans_->redoGroupActions = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    trans_->groupActionPos = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    ASSERT_NE(trans_->redoGroupActions, nullptr);
+    ASSERT_NE(trans_->groupActionPos, nullptr);
+
+    for (int32_t groupId : {2, 3}) {
+      STransAction action = {};
+      action.id = groupId - 2;
+      action.groupId = groupId;
+      action.stage = TRN_STAGE_REDO_ACTION;
+      action.actionType = TRANS_ACTION_MSG;
+      action.msgType = TDMT_VND_TXN_COMMIT;
+      action.msgSent = 1;
+      action.msgReceived = 1;
+      ASSERT_NE(taosArrayPush(trans_->redoActions, &action), nullptr);
+    }
+    for (int32_t groupId : {2, 3}) {
+      SArray *actions = taosArrayInit(1, sizeof(STransAction *));
+      ASSERT_NE(actions, nullptr);
+      ASSERT_EQ(taosHashPut(trans_->redoGroupActions, &groupId, sizeof(groupId), &actions, sizeof(actions)), 0);
+      auto *action = static_cast<STransAction *>(taosArrayGet(trans_->redoActions, groupId - 2));
+      ASSERT_NE(taosArrayPush(actions, &action), nullptr);
+      int32_t position = groupId == 2 ? 1 : 0;
+      ASSERT_EQ(taosHashPut(trans_->groupActionPos, &groupId, sizeof(groupId), &position, sizeof(position)), 0);
+    }
+
+    gGroupProgressTrans = trans_;
+    gGroupProgressSyncCalls = 0;
+    gGroupProgressCommitCalls = 0;
+    gGroupProgressSyncCode = TSDB_CODE_SUCCESS;
+    stub_.set(mndIsLeader, groupProgressIsLeader);
+    stub_.set(mndSyncPropose, captureGroupProgressProposal);
+  }
+
+  void TearDown() override {
+    stub_.clear();
+    gGroupProgressTrans = nullptr;
+    mndTransDrop(trans_);
+    terrno = savedErrno_;
+  }
+
+  STransAction *pendingAction() { return static_cast<STransAction *>(taosArrayGet(trans_->redoActions, 1)); }
+
+  SMnode node_ = {};
+  STrans *trans_ = nullptr;
+  int32_t savedErrno_ = 0;
+  Stub stub_;
+};
+
+TEST_F(MndTransGroupProgressTest, LastGroupAcknowledgementStartsCommitWithoutPullup) {
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 2);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_COMMIT);
+  EXPECT_EQ(gGroupProgressSyncCalls, 1);
+  EXPECT_EQ(gGroupProgressCommitCalls, 1);
+}
+
+TEST_F(MndTransGroupProgressTest, PendingAcknowledgementDoesNotStartCommit) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->msgReceived = 0;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressSyncCalls, 0);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, FailedAcknowledgementDoesNotStartCommit) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->errCode = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, FailedProgressPersistenceDoesNotStartCommit) {
+  gGroupProgressSyncCode = TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressSyncCalls, 1);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, UnsentNextActionStillWaitsForPullup) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->msgSent = 0;
+  action->msgReceived = 0;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(action->msgSent, 0);
+  EXPECT_EQ(gGroupProgressSyncCalls, 0);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
 STxnObj *gShadowRemovalTxn = nullptr;
 
 void *acquireShadowRemovalTxn(SSdb *, ESdbType type, const void *key) {
