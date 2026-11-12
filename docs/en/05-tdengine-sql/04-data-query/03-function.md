@@ -2174,10 +2174,10 @@ Supported Formats:
 | ------------------- | ----------------------------------------- | ------------------------- |
 | AM,am,PM,pm         | AM/PM without dots                        | 07:00:00am                |
 | A.M.,a.m.,P.M.,p.m. | AM/PM with dots                           | 07:00:00a.m.              |
-| YYYY,yyyy           | Year, 4 or more digits                    | 2023-10-10                |
-| YYY,yyy             | Year, last 3 digits                       | 023-10-10                 |
-| YY,yy               | Year, last 2 digits                       | 23-10-10                  |
-| Y,y                 | Year, last digit                          | 3-10-10                   |
+| YYYY,yyyy           | Year, 4 or more digits                    | 2023                      |
+| YYY,yyy             | Year, last 3 digits                       | 023                       |
+| YY,yy               | Year, last 2 digits                       | 23                        |
+| Y,y                 | Year, last digit                          | 3                         |
 | MONTH               | Month, uppercase                          | 2023-JANUARY-01           |
 | Month               | Month, first letter uppercase             | 2023-January-01           |
 | month               | Month, lowercase                          | 2023-january-01           |
@@ -2206,6 +2206,7 @@ Supported Formats:
 
 **Usage Instructions**:
 
+- In format strings, `MM` and `mm` represent months, and `MI` and `mi` represent minutes.
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.

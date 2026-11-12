@@ -96,7 +96,7 @@ Query OK, 1 row(s) in set (0.014238s)
 ROLLUP DATABASE db_name [start_opt] [end_opt]
 ROLLUP [db_name] VGROUPS IN (vgroup_ids) [start_opt] [end_opt]
 
-start_opt ::= START WITH timestamp_literal   -- 如 'YYYY-MM-DD HH:MM:SS'
+start_opt ::= START WITH timestamp_literal   -- 如 'YYYY-MM-DD HH24:MI:SS'
             | START WITH unix_timestamp      -- 如 1672531200
             | START WITH TIMESTAMP timestamp_literal
 

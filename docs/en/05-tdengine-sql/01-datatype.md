@@ -68,7 +68,9 @@ For full timezone and natural-unit semantics, see [Timezone and Natural Time Uni
 
 The timestamp is the primary key of time-series data in TDengine. Creating tables, writing data, and querying history usually require specifying a timestamp.
 
-- Time string format is `YYYY-MM-DD HH:mm:ss.MS`; default resolution is milliseconds, e.g. `2017-08-12 18:25:58.128`.
+The formats below use TDengine datetime format patterns. `HH24` represents the hour on a 24-hour clock, `MI` represents minutes, and `MM` represents months.
+
+- Time string format is `YYYY-MM-DD HH24:MI:SS.MS`; default resolution is milliseconds, e.g. `2017-08-12 18:25:58.128`.
 - `NOW` is the client current time. When writing, if the timestamp is `NOW`, the submitting client’s current time is used.
 - A timestamp may also be a long integer representing elapsed time since UTC `1970-01-01 00:00:00`. The unit of the integer follows database precision: milliseconds, microseconds, or nanoseconds.
 - Time expressions support addition and subtraction, e.g. `NOW - 2h` means 2 hours before now. See [Time Units](#time-units).
@@ -213,7 +215,7 @@ TDengine supports the following constant forms.
 - Floating-point literals: e.g. `123.45`, type `DOUBLE`.
 - Scientific-notation literals: e.g. `1.2E3`, type `DOUBLE`.
 - String literals: e.g. `'abc'` or `"abc"`, type `BINARY`, length is the actual character count. Use `\'` for single quotes and `\"` for double quotes inside the string.
-- Timestamp literals: e.g. `TIMESTAMP '2017-08-12 18:25:58.128'`, type `TIMESTAMP`. The string must match `YYYY-MM-DD HH:mm:ss.MS`; resolution follows the current database.
+- Timestamp literals: e.g. `TIMESTAMP '2017-08-12 18:25:58.128'`, type `TIMESTAMP`. The string must match `YYYY-MM-DD HH24:MI:SS.MS`; resolution follows the current database.
 - Boolean literals: `TRUE` or `FALSE`, type `BOOL`.
 - Null literals: empty string, tab, space, or `NULL`; usable for any type.
 
