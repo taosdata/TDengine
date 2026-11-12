@@ -241,6 +241,8 @@ You can also manually edit the CSV after downloading:
 - **Multi-column model**: Modify the `Filter` row
 - **Single-column model**: Delete unwanted point rows in the point mapping section
 
+For real-time tasks with **Auto Sync New Points** enabled, the initial CSV defines startup mappings, while the saved reusable filters discover objects added later. Automatic enrollment does not rewrite the initial CSV. Manually trimming the CSV does not change the scope of future discovery. Disable automatic sync when a strictly fixed point list is required; configure and save the filters when new matching objects should be enrolled. See [Real-time Data Sync Guide](./05-realtime-guide.md#auto-sync-new-points).
+
 ### Customize Supertable Names
 
 If the default UOM-based grouping naming does not meet your needs, you can directly modify the `SuperTable` row value and adjust the supertable references in the point mapping section.

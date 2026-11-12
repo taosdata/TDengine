@@ -79,6 +79,14 @@ In the current implementation:
   - In-flight data not yet flushed at crash time may be lost;
   - Late data older than the compensation window is not covered by this mechanism.
 
+### Recovery Boundaries for Auto Sync New Points
+
+Tasks with **Auto Sync New Points** enabled save discovery state on the taosX instance that executes them. Restarting the same task locally with its original task data directory restores models and subscriptions for enrolled objects, including objects added at runtime that are absent from the initial CSV. In taosX-Agent mode, discovery state resides on taosX; reconnecting or restarting taosX-Agent also reconciles subscriptions for the current collection process.
+
+Preserve the task data directory. Local recovery does not provide cross-Xnode state migration: shared-storage recovery and migration of discovery state to another Xnode are not guaranteed. Mixing different taosX, taosX-Agent, and connector versions for this feature is unsupported. Validate discovery scope and recovery behavior for your topology before relying on cross-node deployment.
+
+Initial discovery collects only real-time data produced after enrollment and does not trigger historical backfill. Recovery of data from a task interruption remains governed by restart compensation and backfill task settings.
+
 ## Handling Data in the Interruption Window
 
 Whether data produced or updated in the interruption window is written to TDengine depends on interruption length and restart compensation settings:

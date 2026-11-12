@@ -21,8 +21,8 @@ PI real-time tasks continuously subscribe to data changes in the PI system and w
 2. In the **Type** dropdown, select **PI**
 3. Configure connection information (see [PI](./index.md))
 4. Configure data model (single/multi-column, see [Model Configuration Reference](./03-csv-reference.md))
-5. Configure restart compensation time (see next section)
-6. Configure advanced options (see "Multi-column Model Advanced Features" below)
+5. Enable **Auto Sync New Points** as needed and ensure the saved filters include the objects to be added later (see below)
+6. Configure restart compensation time and other advanced options
 7. Submit the task
 
 ### Restart Compensation Time
@@ -55,6 +55,33 @@ PI real-time tasks continuously subscribe to data changes in the PI system and w
 - When a PI Point attribute value of an element changes, the corresponding column in the corresponding subtable is updated
 - Each AF element corresponds to one subtable
 
+## Auto Sync New Points
+
+For PI real-time tasks with saved point or AF filters that can be scanned again, enable **Auto Sync New Points** under **Advanced Options**. While the task runs, taosX periodically applies the original rules and adds new matching objects to collection. You do not need to download or upload the initial CSV again or restart the task.
+
+| Scenario | Automatic enrollment |
+| --- | --- |
+| PI Data Archive Only, filtered by Point name | A new Point whose name matches the saved wildcard is subscribed, with a corresponding target subtable |
+| New PI Point attributes on an existing AF template | New attributes are enrolled when the template is already in the task's collection scope; the multi-column model also adds the required columns to its supertable |
+| AF Element name or path filter without a template list | New matching elements and their PI Point attributes are enrolled |
+
+See [Dataset Filter Configuration](./07-dataset-filter.md) for filter syntax. Fixed Point lists and fixed CSV configurations without reusable discovery rules do not support automatic enrollment.
+
+### Configuration and Scope
+
+- New rule-based real-time tasks created in the UI keep this option disabled by default; enable it when needed. Editing or copying an existing task preserves its saved value; an older task without the field treats it as disabled. API clients must explicitly set `auto_sync_new_points=true`; omitting it means disabled.
+- PI scans every 60 seconds by default. Enrollment also requires schema, model, and subscription processing, so a new object is not enrolled immediately.
+- Only real-time data produced after a new object joins collection is collected. Its existing history is not backfilled automatically. Initial enrollment and restart compensation are separate behaviors; use [Historical Data Backfill Guide](./04-backfill-guide.md) when history is required.
+- Existing points continue collecting during enrollment. Repeated scans do not duplicate subscriptions or subtables. Objects that do not match the original rules are excluded.
+- This feature only adds collection objects. A type change or disappearance from scan results does not automatically alter the existing target schema, delete a subtable, or stop collection.
+- An object is not enrolled if its target schema is incompatible or a different point maps to the same write location. Check task logs and adjust the mapping.
+
+### Interaction with Existing Element Sync Options
+
+**Auto Sync New Points** is mutually exclusive with the existing **Sync New Elements** and **Sync Delete Elements** options. Enabling it turns off and disables both older options in the UI. An API request that enables conflicting options is rejected. Tasks that must delete target subtables when source elements are deleted should disable Auto Sync New Points and use the existing element sync options.
+
+Both local and taosX-Agent proxy modes support this feature. Use matching taosX, taosX-Agent, and PI connector versions. See [Failover](./08-failover.md) for the distinction between local restart recovery and migration to another node.
+
 ## Multi-column Model Advanced Features
 
 The following advanced options are only available when using **multi-column model real-time tasks**.
@@ -64,6 +91,8 @@ The following advanced options are only available when using **multi-column mode
 | Option | Default | Description |
 | ------ | ------- | ----------- |
 | Sync New Elements | Enabled | When enabled, the PI connector monitors newly added elements under templates and automatically syncs their data |
+
+This option belongs to the existing element listener mode and is available only when **Auto Sync New Points** is disabled.
 
 **Use case**: When new devices/assets are continuously being added under AF templates in the PI system, no need to manually restart the task or modify configuration.
 
@@ -147,9 +176,9 @@ If the real-time task interruption duration exceeds the restart compensation tim
 
 ### Do I need to restart the task after adding new points?
 
-- **Multi-column model**: If the **Sync New Elements** option is enabled, no restart is needed
-- **Single-column model**: You need to update the model configuration file (add the new point's mapping), then restart the task
-- Alternatively, after adding new points in the PI system, re-download the default configuration file and upload it
+- With **Auto Sync New Points** enabled, both models enroll new objects that match the saved rules while the task runs. No restart or initial CSV update is required. The multi-column model also adds columns for new PI Point attributes on an existing template.
+- Without this option, the existing **Sync New Elements** option handles only the template element additions supported by that mode.
+- Fixed lists, fixed CSV configurations, or objects outside the saved filters require a manual task configuration change. Automatic enrollment does not expand the filter scope.
 
 ### Multi-column model TAG values not updating?
 
