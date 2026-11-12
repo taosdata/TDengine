@@ -3240,10 +3240,24 @@ int32_t syncNodeCheckChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry) {
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
@@ -3591,10 +3605,24 @@ int32_t syncNodeChangeConfig(SSyncNode* ths, SSyncRaftEntry* pEntry, char* str) 
   }
 
   SMsgHead* head = (SMsgHead*)pEntry->data;
+  // The embedded SMsgHead is part of the entry payload and is fully controlled by the
+  // producer of the entry. A larger contLen makes the decoder read past the bytes the entry
+  // actually carries (heap OOB read); a smaller one breaks the producer invariant (decode
+  // truncation/failure), so the only valid value is the exact entry dataLen. pEntry->dataLen
+  // is itself attacker-controlled on the AppendEntries path, so anchor it to the real
+  // allocation first: syncEntryBuild() always allocates sizeof(SSyncRaftEntry) + dataLen and
+  // syncEntryBuildFromAppendEntries() verifies bytes == the size it allocated, hence
+  // legitimate entries always satisfy the equality below. Decode only the real body length
+  // (contLen - sizeof(SMsgHead)), not the header-inclusive contLen.
+  if ((uint64_t)pEntry->dataLen + (uint64_t)sizeof(SSyncRaftEntry) != (uint64_t)pEntry->bytes ||
+      pEntry->dataLen < (int32_t)sizeof(SMsgHead) || head->contLen < (int32_t)sizeof(SMsgHead) ||
+      (uint32_t)head->contLen != pEntry->dataLen) {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
   void*     pReq = POINTER_SHIFT(head, sizeof(SMsgHead));
 
   SAlterVnodeTypeReq req = {0};
-  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen, &req) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pReq, head->contLen - (int32_t)sizeof(SMsgHead), &req) != 0) {
     code = TSDB_CODE_INVALID_MSG;
     TAOS_RETURN(code);
   }
