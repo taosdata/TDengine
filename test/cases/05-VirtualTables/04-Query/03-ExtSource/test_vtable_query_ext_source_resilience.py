@@ -55,6 +55,7 @@ _ORACLE_SRC = "vq_resilience_oracle_src"
 # Oracle has one namespace level - the login schema - and no per-source
 # database, so its remote objects are qualified as source.schema.table.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_SCHEMA_REF = "`" + _ORACLE_SCHEMA + "`"
 # Oracle tables live in the shared login schema; prefixing their names keeps
 # them apart from the fixtures of the other ext-source test files.
 _ORACLE_TABLE_PREFIX = "vq_resilience_"
@@ -198,14 +199,14 @@ class TestVtableQueryExtSourceResilience:
             "USING vstb_ss_runtime TAGS ('sqlserver')")
         tdSql.execute(
             f"CREATE VTABLE v_oracle_normal (ts timestamp, "
-            f"v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA_REF}."
             f"{_ORACLE_TABLE_PREFIX}r_oracle.v)")
         tdSql.execute(
             "CREATE STABLE vstb_oracle_runtime (ts timestamp, v bigint) "
             "TAGS (backend nchar(16)) VIRTUAL 1")
         tdSql.execute(
             f"CREATE VTABLE vctb_oracle ("
-            f"v FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"v FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA_REF}."
             f"{_ORACLE_TABLE_PREFIX}r_oracle_child.v) "
             "USING vstb_oracle_runtime TAGS ('oracle')")
 

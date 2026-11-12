@@ -1940,8 +1940,10 @@ class TestFq19RuntimeLibs(FederatedQueryVersionedMixin):
             # Read through a one-shot CLI: the test process itself keeps a
             # client-side pool (idle TTL 600 s) that would hold an Oracle
             # session of its own and make V$SESSION say the engine leaked one.
+            # The fixture is unquoted DDL, so the dictionary spelling is upper
+            # case and every reference has to preserve it between backticks.
             values = self._query_ints_with_taos(
-                f"select val from {src}.{table.lower()} order by val")
+                f"select `VAL` from {src}.`{table}` order by `VAL`")
             assert values == [1, 2, 3, 4, 5], values
 
         try:

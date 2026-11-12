@@ -1108,6 +1108,76 @@ _ORACLE_INSERT_ALL_TYPES_2 = (
 )
 
 
+def _oracle_quote_col_defs(col_defs):
+    """Quote the leading identifier of each Oracle column definition."""
+    keyword_prefixes = ("primary", "unique", "constraint", "foreign", "check", "key")
+    out = []
+    depth = 0
+    start = 0
+    text = col_defs + ","
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            part = text[start:i].strip()
+            start = i + 1
+            if not part:
+                continue
+            name, sep, rest = part.partition(" ")
+            if name.startswith('"') or name.lower() in keyword_prefixes:
+                part = re.sub(
+                    r'([(,])(\s*)([A-Za-z_][A-Za-z0-9_$#]*)(?=\s*[,)])',
+                    lambda m: f'{m.group(1)}{m.group(2)}"{m.group(3).lower()}"', part)
+                out.append(part)
+            else:
+                out.append(f'"{name.lower()}"{sep}{rest}'.rstrip())
+    return ", ".join(out)
+
+
+def _oracle_quote_fixture_sqls(sqls):
+    """Store the Oracle fixture objects quoted lower-case.
+
+    The type-mapping steps reference the same names with TDengine's unquoted
+    (lower-cased) grammar, so the stored spelling must match exactly.
+    """
+    out = []
+    for sql in sqls:
+        m = re.match(r'^(CREATE TABLE)\s+([A-Za-z_][\w$#]*)\s*\((.*)\)\s*$', sql, re.I | re.S)
+        if m:
+            out.append(f'CREATE TABLE "{m.group(2).lower()}" '
+                       f'({_oracle_quote_col_defs(m.group(3))})')
+            continue
+        m = re.match(r'^(INSERT INTO)\s+([A-Za-z_][\w$#]*)(\s*\(([^)]*)\))?(\s+VALUES.*)$',
+                     sql, re.I | re.S)
+        if m:
+            collist = ""
+            if m.group(4) is not None:
+                cols = [c.strip().lower() for c in m.group(4).split(",")]
+                collist = " (" + ", ".join(f'"{c}"' for c in cols) + ")"
+            out.append(f'INSERT INTO "{m.group(2).lower()}"{collist}{m.group(5)}')
+            continue
+        m = re.match(r'^(DROP (?:TABLE|VIEW|SYNONYM))\s+([A-Za-z_][\w$#]*)(.*)$', sql, re.I | re.S)
+        if m:
+            out.append(f'{m.group(1)} "{m.group(2).lower()}"{m.group(3)}')
+            continue
+        m = re.match(r'^(CREATE OR REPLACE VIEW|CREATE VIEW)\s+([A-Za-z_][\w$#]*)\s+AS\s+'
+                     r'SELECT\s+(.*?)\s+FROM\s+([A-Za-z_][\w$#]*)(.*)$', sql, re.I | re.S)
+        if m:
+            cols = ", ".join(f'"{c.strip().lower()}"' for c in m.group(3).split(","))
+            out.append(f'{m.group(1)} "{m.group(2).lower()}" AS SELECT {cols} '
+                       f'FROM "{m.group(4).lower()}"{m.group(5)}')
+            continue
+        m = re.match(r'^(CREATE SYNONYM)\s+([A-Za-z_][\w$#]*)\s+FOR\s+([A-Za-z_][\w$#]*)$',
+                     sql, re.I | re.S)
+        if m:
+            out.append(f'{m.group(1)} "{m.group(2).lower()}" FOR "{m.group(3).lower()}"')
+            continue
+        out.append(sql)
+    return out
+
+
 def _oracle_setup_sqls():
     """Statements that build the Oracle type-mapping fixtures.
 
@@ -1218,7 +1288,7 @@ def _oracle_setup_sqls():
     sqls.append("DROP SYNONYM all_types_syn_ora")
     sqls.append(f"CREATE SYNONYM all_types_syn_ora FOR {_ORACLE_ALL_TYPES}")
     sqls.append("COMMIT")
-    return sqls
+    return _oracle_quote_fixture_sqls(sqls)
 
 
 def _oracle_case_steps():
@@ -1281,8 +1351,8 @@ def _oracle_case_steps():
                       TSDB_CODE_EXT_TYPE_NOT_MAPPABLE),
         # A mappable column in the same table still works (no whole-table block).
         f"select ts, c_v from {src}.unmappable_obj_ora order by ts",
-        # ── path forms: two-part, and three-part with the service name ──
-        f"select ts, c_num_dec from {src}.{_O_SERVICE}.{tbl} order by ts",
+        # ── path forms: two-part, and three-part with the exact schema ──
+        f"select ts, c_num_dec from {src}.`{_O_SCHEMA}`.{tbl} order by ts",
         _clear_source_step(),
     ]
     return steps

@@ -498,14 +498,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 "COMMIT",
             ])
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
-            tdSql.query(f"select count(*) from {src}.comp6_upg_t")
+            tdSql.query(f"select count(*) from {src}.`COMP6_UPG_T`")
             tdSql.checkData(0, 0, 2)
 
             self._restart_engine()
 
-            tdSql.query(f"select count(*) from {src}.comp6_upg_t")
+            tdSql.query(f"select count(*) from {src}.`COMP6_UPG_T`")
             tdSql.checkData(0, 0, 2)
-            tdSql.query(f"select id, f from {src}.comp6_upg_t order by id")
+            tdSql.query(f"select `ID`, `F` from {src}.`COMP6_UPG_T` order by `ID`")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(1, 0, 2)
@@ -601,14 +601,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 "COMMIT",
             ])
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
-            tdSql.query(f"select count(*) from {src}.comp8_upg_t")
+            tdSql.query(f"select count(*) from {src}.`COMP8_UPG_T`")
             tdSql.checkData(0, 0, 1)
 
             self._restart_engine()
 
             # The pre-existing source survived the catalog reopen and still
             # serves the federation data.
-            tdSql.query(f"select id, f from {src}.comp8_upg_t")
+            tdSql.query(f"select `ID`, `F` from {src}.`COMP8_UPG_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 1, 7)
             tdSql.query("show external sources")
@@ -619,7 +619,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             # recreate it, then read the data through the recreated source.
             self._cleanup(src)
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
-            tdSql.query(f"select count(*) from {src}.comp8_upg_t")
+            tdSql.query(f"select count(*) from {src}.`COMP8_UPG_T`")
             tdSql.checkData(0, 0, 1)
         finally:
             self._cleanup(src)
@@ -1093,9 +1093,9 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             # schema is the login user, the single namespace level.
             self._mk_oracle_real(src, database=cfg.service, schema=schema)
 
-            # Unquoted identifiers fold to upper case: the lower-case spelling
-            # below resolves against the upper-case Oracle object.
-            tdSql.query(f"select id, val, name from {src}.comp_o_t1 order by id")
+            # The backticked upper-case identifiers preserve their spelling
+            # and resolve exactly against the upper-case Oracle object.
+            tdSql.query(f"select `ID`, `VAL`, `NAME` from {src}.`COMP_O_T1` order by `ID`")
             tdSql.checkRows(3)
             tdSql.checkData(0, 1, 1.5)
             tdSql.checkData(0, 2, "alpha")
@@ -1108,14 +1108,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             result = [tuple(row) for row in tdSql.queryResult]
 
             # Timestamps keep their declared millisecond precision.
-            tdSql.query(f"select ts, id from {src}.comp_o_t1 order by ts")
+            tdSql.query(f"select `TS`, `ID` from {src}.`COMP_O_T1` order by `TS`")
             tdSql.checkRows(3)
             tdSql.checkData(0, 0, "2024-01-01 00:00:00.000")
             tdSql.checkData(2, 0, "2024-01-01 00:02:00.000")
 
             # Path resolution and the Oracle type map: NUMBER(10,0) is BIGINT
             # (never BOOL), BINARY_DOUBLE is DOUBLE, VARCHAR2 is VARCHAR.
-            tdSql.query(f"describe {src}.comp_o_t1")
+            tdSql.query(f"describe {src}.`COMP_O_T1`")
             tdSql.checkRows(4)
             assert [str(r[1]) for r in tdSql.queryResult] == [
                 "TIMESTAMP", "BIGINT", "DOUBLE", "VARCHAR"], tdSql.queryResult
@@ -1197,14 +1197,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._active_oracle_ver = cfg.version
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
 
-            tdSql.query(f"describe {src}.comp_o_bool_t")
+            tdSql.query(f"describe {src}.`COMP_O_BOOL_T`")
             tdSql.checkRows(3)
             assert [str(r[1]) for r in tdSql.queryResult] == [
                 "TIMESTAMP", "BIGINT", "BOOL"], (case_id, cfg.version, tdSql.queryResult)
             assert [int(r[2]) for r in tdSql.queryResult] == [
                 8, 8, 1], (case_id, cfg.version, tdSql.queryResult)
 
-            tdSql.query(f"select id, f from {src}.comp_o_bool_t order by id")
+            tdSql.query(f"select `ID`, `F` from {src}.`COMP_O_BOOL_T` order by `ID`")
             tdSql.checkRows(3)
             external = [row[1] for row in tdSql.queryResult]
             assert external == [True, False, None], (
@@ -1253,14 +1253,14 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._active_oracle_ver = cfg.version
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
 
-            tdSql.query(f"describe {src}.{table.lower()}")
+            tdSql.query(f"describe {src}.`{table}`")
             tdSql.checkRows(3)
             assert [str(r[1]) for r in tdSql.queryResult] == [
                 "TIMESTAMP", "BIGINT", "TINYINT"], (case_id, cfg.version, tdSql.queryResult)
             assert [int(r[2]) for r in tdSql.queryResult] == [
                 8, 8, 1], (case_id, cfg.version, tdSql.queryResult)
 
-            tdSql.query(f"select id, f from {src}.{table.lower()} order by id")
+            tdSql.query(f"select `ID`, `F` from {src}.`{table}` order by `ID`")
             tdSql.checkRows(3)
             assert [int(row[1]) for row in tdSql.queryResult] == [1, 0, 2], (
                 case_id, cfg.version, tdSql.queryResult)
@@ -1547,10 +1547,10 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 "COMMIT",
             ])
             self._mk_oracle_real(src, database=cfg.service, schema=cfg.user.upper())
-            tdSql.query(f"select count(*) from {src}.comp_o_t1")
+            tdSql.query(f"select count(*) from {src}.`COMP_O_T1`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)
-            tdSql.query(f"select id, val from {src}.comp_o_t1 order by id")
+            tdSql.query(f"select `ID`, `VAL` from {src}.`COMP_O_T1` order by `ID`")
             tdSql.checkRows(2)
             tdSql.checkData(0, 1, 1.5)
             tdSql.checkData(1, 1, 2.5)
@@ -1654,16 +1654,22 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
                 (p_src, f"{p_src}.comp006_t"),
                 *((name, f"{name}.comp006_t") for _, name in influx_sources),
                 (s_src, f"{s_src}.comp006_t"),
-                (o_src, f"{o_src}.comp006_t"),
+                (o_src, f"{o_src}.`COMP006_T`"),
             ]
+            # The Oracle fixture is unquoted DDL, so its column dictionary
+            # spelling is upper case and needs a backticked reference.
+            def _select_code(ref):
+                col = "`CODE`" if "COMP006_T" in ref else "code"
+                return f"select {col} from {ref}"
+
             for name, ref in refs:
-                tdSql.query(f"select code from {ref}")
+                tdSql.query(_select_code(ref))
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, markers[name])
 
             # One query includes every configured InfluxDB version alongside the other providers.
             union_sql = " union all ".join(
-                f"select code from {ref}" for _, ref in refs) + " order by code"
+                _select_code(ref) for _, ref in refs) + " order by code"
             tdSql.query(union_sql)
             tdSql.checkRows(len(markers))
             for row, expected in enumerate(sorted(markers.values())):
@@ -1785,7 +1791,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             # no wallet, no TNS alias, no client-side encryption request.
             self._mk_oracle_real(src, database=cfg.service,
                                  schema=cfg.user.upper())
-            tdSql.query(f"select sum(val) from {src}.comp_o_net_t")
+            tdSql.query(f"select sum(`VAL`) from {src}.`COMP_O_NET_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 42)
             direct = ExtSrcEnv.oracle_query_cfg(cfg, f"SELECT SUM(VAL) FROM {table}")
@@ -1804,7 +1810,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             # the data untouched, and can be cleared again.
             tdSql.execute(
                 f"alter external source {src} set options('tls_enabled'='false')")
-            tdSql.query(f"select sum(val) from {src}.comp_o_net_t")
+            tdSql.query(f"select sum(`VAL`) from {src}.`COMP_O_NET_T`")
             tdSql.checkData(0, 0, 42)
             tdSql.query(
                 "select `options` from information_schema.ins_ext_sources "
@@ -1818,7 +1824,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             stored = tdSql.queryResult[0][0]
             stored = "" if stored is None else str(stored)
             assert "tls_enabled" not in stored, stored
-            tdSql.query(f"select sum(val) from {src}.comp_o_net_t")
+            tdSql.query(f"select sum(`VAL`) from {src}.`COMP_O_NET_T`")
             tdSql.checkData(0, 0, 42)
         finally:
             self._cleanup(src, bad_src)
@@ -1872,7 +1878,7 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             self._active_oracle_ver = cfg.version
             self._mk_oracle_real(good_src, database=cfg.service,
                                  schema=cfg.user.upper())
-            tdSql.query(f"select sum(val) from {good_src}.comp_o_net_t")
+            tdSql.query(f"select sum(`VAL`) from {good_src}.`COMP_O_NET_T`")
             tdSql.checkData(0, 0, 42)
 
             tdSql.execute(
@@ -1897,9 +1903,9 @@ class TestFq12Compatibility(FederatedQueryTestMixin):
             tdSql.checkData(0, 2, cfg.service)
 
             # No proxy / no degrade: the healthy source is unchanged.
-            tdSql.query(f"select sum(val) from {good_src}.comp_o_net_t")
+            tdSql.query(f"select sum(`VAL`) from {good_src}.`COMP_O_NET_T`")
             tdSql.checkData(0, 0, 42)
-            tdSql.query(f"select count(*) from {good_src}.comp_o_net_t")
+            tdSql.query(f"select count(*) from {good_src}.`COMP_O_NET_T`")
             tdSql.checkData(0, 0, 1)
         finally:
             self._cleanup(good_src, bad_src)

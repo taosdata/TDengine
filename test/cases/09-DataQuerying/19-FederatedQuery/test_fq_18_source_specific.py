@@ -204,26 +204,43 @@ _SQLSERVER_VIEW_SQLS = [
 
 
 # ── Oracle identifier fixtures (oid group) ───────────────────────────────────
-# Five objects that pin down DS 5.3.6 R1 from the TDengine side:
-#   EMP          unquoted name; every unquoted TDengine spelling folds onto it
-#   "emp"        quoted name, a *different* object that only a quoted segment reaches
+# Objects that pin down DS 5.3.6 R1 from the TDengine side: TDengine resolves
+# an unquoted identifier to lower case and a backticked one to its literal
+# spelling, and Oracle metadata is matched byte for byte.
+#   "EMP"        upper-case object; only the backticked spelling reaches it
+#   "emp"        lower-case object; unquoted and `emp` both reach it
 #   "DATE"       reserved-word table name holding reserved-word column names
-#   "LC"         quoted table with a mixed-case column, reachable only by exact case
-#   "only_lower" quoted name that no folded reference can reach
+#   "LC"         quoted table with a mixed-case column, reachable only exactly
+#   "only_lower" lower-case object; unquoted only_lower reaches it
+#   "CC"         VAL and val coexist; exact matching selects each one
+#   "MIX"        quoted mixed-case column
+#   QT / BT      literal double-quote / backtick column names (version-gated)
 # Oracle has no DROP ... IF EXISTS, so the fixture is dropped through the
 # existing idempotent helper before it is rebuilt.
-_O_OID_TABLES = ("EMP", "emp", "DATE", "LC", "only_lower")
+_O_OID_TABLES = ("EMP", "emp", "DATE", "LC", "only_lower", "CC", "QT", "BT", "MIX")
 _O_OID_SQLS = [
-    "CREATE TABLE EMP (val NUMBER(10), name VARCHAR2(32))",
-    "INSERT INTO EMP VALUES (1, 'upper')",
-    'CREATE TABLE "emp" (val NUMBER(10), name VARCHAR2(32))',
-    "INSERT INTO \"emp\" VALUES (2, 'lower')",
-    'CREATE TABLE "DATE" (val NUMBER(10), "LEVEL" VARCHAR2(32), "NUMBER" NUMBER(10))',
-    "INSERT INTO \"DATE\" VALUES (3, 'reserved', 30)",
+    # Exact-case fixtures: every object and column is declared with double
+    # quotes so the stored spelling is the one written here.  TDengine resolves
+    # a reference with its native grammar (unquoted -> lower case, backtick ->
+    # literal), and Oracle matches the result byte for byte.
+    'CREATE TABLE "EMP" ("VAL" NUMBER(10), "NAME" VARCHAR2(32))',
+    'INSERT INTO "EMP" VALUES (1, \'upper\')',
+    'CREATE TABLE "emp" ("val" NUMBER(10), "name" VARCHAR2(32))',
+    'INSERT INTO "emp" VALUES (2, \'lower\')',
+    'CREATE TABLE "DATE" ("val" NUMBER(10), "LEVEL" VARCHAR2(32), "NUMBER" NUMBER(10))',
+    'INSERT INTO "DATE" VALUES (3, \'reserved\', 30)',
     'CREATE TABLE "LC" ("val" NUMBER(10), "MiXeDCol" VARCHAR2(32))',
-    "INSERT INTO \"LC\" VALUES (9, 'mix')",
-    'CREATE TABLE "only_lower" (val NUMBER(10))',
-    "INSERT INTO \"only_lower\" VALUES (4)",
+    'INSERT INTO "LC" VALUES (9, \'mix\')',
+    'CREATE TABLE "only_lower" ("val" NUMBER(10))',
+    'INSERT INTO "only_lower" VALUES (4)',
+    # VAL and quoted val coexist; the exact match makes the choice independent
+    # of the catalog column order (defect 7160564810, scenario 4).
+    'CREATE TABLE "CC" ("val" NUMBER(10), "VAL" NUMBER(10))',
+    'INSERT INTO "CC" VALUES (22, 11)',
+    # Mixed-case quoted column: reachable only with the exact backticked
+    # spelling, never from an unquoted reference.
+    'CREATE TABLE "MIX" ("Val" NUMBER(10))',
+    'INSERT INTO "MIX" VALUES (5)',
     "COMMIT",
 ]
 
@@ -242,7 +259,7 @@ _O_OID_SQLS = [
 #   {S_PUSH}    — SQL Server push_t source
 #   {S_VIEW}    — SQL Server view source
 #   {S_VIEW_DB} — SQL Server view database name
-#   {O_OID}     — Oracle identifier-folding source
+#   {O_OID}     — Oracle identifier-semantics source
 #   {O_OID_SCHEMA} — Oracle schema owning the identifier fixtures
 #
 # opts keys:
@@ -390,97 +407,108 @@ _CASES = [
      "SELECT usage_idle FROM {I_CPU}.cpu ORDER BY ts LIMIT 1",
      False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
 
-    # ── Oracle: identifier folding and quoting (oid group) ──────────────────
-    # Oracle folds an unquoted identifier to upper case and matches the data
-    # dictionary exactly (DS 5.3.6 R1), while a double-quoted one keeps its
-    # case and names a different object.  TDengine's own quoting character is
-    # the backtick, and the parser strips it before the path segment reaches
-    # the connector, so the double-quoted Oracle spelling is written
-    # ``src.`"emp"` ``: the backticks satisfy TDengine's identifier grammar and
-    # the inner quotes are what tells the provider the case is exact.
+    # ── Oracle: TDengine identifier grammar + exact Oracle metadata ─────────
+    # TDengine resolves the reference before Oracle sees it: an unquoted
+    # identifier is lower-cased by the client, a backticked one keeps its
+    # spelling, and a double quote starts a string literal.  Oracle metadata is
+    # matched byte for byte, with no upper-case folding (DS 5.3.6 R1).
     #
-    # FQOR-PATH-009: src.scott.emp → SCOTT.EMP.  Every unquoted spelling of the
-    # same table must return the same single row (1 | upper), including the
-    # backticked and upper-cased variants, because they all fold to EMP.
+    # Fixtures: "EMP" (1|upper), "emp" (2|lower), "DATE" (3|reserved|30),
+    # "LC" (9|mix), "only_lower" (4), "CC" (val=22, VAL=11), "MIX" (Val=5).
+    #
+    # FQOR-PATH-009: unquoted references are lower-cased and match the
+    # quoted-lower-case object exactly.
     ("oid-01",
-     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val",
+     "SELECT val, name FROM {O_OID}.emp ORDER BY val",
      True, None, {}),
     ("oid-02",
-     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.EMP ORDER BY val",
+     "SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val",
      True, None, {}),
+    # Writing EMP unquoted is still lower-cased to emp.
     ("oid-03",
-     "SELECT val, name FROM {O_OID}.emp ORDER BY val",
+     "SELECT val, name FROM {O_OID}.EMP ORDER BY val",
      True, None, {}),
     ("oid-04",
      "SELECT val, name FROM {O_OID}.`emp` ORDER BY val",
      True, None, {}),
-    # FQOR-PATH-010: the quoted object is a distinct table, and the quoted
-    # spelling reaches it - 2 | lower, not EMP's 1 | upper.  Both the two- and
-    # three-segment forms resolve through the same folded/exact split.
+    # FQOR-PATH-010: the upper-case object is a different one; backticks
+    # preserve the spelling and select it, and its columns are upper-case too.
     ("oid-05",
-     'SELECT val, name FROM {O_OID}.`"emp"` ORDER BY val',
+     "SELECT `VAL`, `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
      True, None, {}),
     ("oid-06",
-     'SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.`"emp"` ORDER BY val',
+     "SELECT `VAL`, `NAME` FROM {O_OID}.{O_OID_SCHEMA}.`EMP` ORDER BY `VAL`",
      True, None, {}),
-    # The upper-cased quoted spelling is the same object as the unquoted EMP:
-    # quoting "EMP" and writing EMP both name the upper-case entry, so the two
-    # cases must agree with oid-01.
     ("oid-07",
-     'SELECT val, name FROM {O_OID}.`"EMP"` ORDER BY val',
+     "SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
      True, None, {}),
-    # A quoted name that exists only in mixed case is reachable and distinct
-    # from the folded one: "LC" is not LC (LC folds to LC and does not exist).
+    # Mixed-case quoted column: exact spelling only.
     ("oid-08",
-     'SELECT val, `MiXeDCol` FROM {O_OID}.`"LC"`',
+     "SELECT `val`, `MiXeDCol` FROM {O_OID}.`LC`",
      True, None, {}),
-    # FQOR-PATH-011: reserved word as table name and as column names.  The
-    # renderer folds and then double-quotes them (DATE / LEVEL / NUMBER are all
-    # Oracle reserved words), so both the table and its columns are addressable.
+    # FQOR-PATH-011: reserved words are exact uppercase names; TDengine uses
+    # backticks and the Oracle renderer double-quotes them.
     ("oid-09",
-     "SELECT val, `LEVEL`, `NUMBER` FROM {O_OID}.DATE ORDER BY val",
+     "SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.`DATE` ORDER BY `val`",
      True, None, {}),
     ("oid-10",
-     "SELECT val, level, number FROM {O_OID}.date ORDER BY val",
+     "SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.{O_OID_SCHEMA}.`DATE` ORDER BY `val`",
      True, None, {}),
-    # A double-quoted column segment is a string literal, not a column: the
-    # result carries the literal text 'LEVEL' instead of the column value.
-    # This is TDengine's grammar (sql.y: '"' starts a string literal), and a
-    # local table answers the same way, so the behavior is consistent.
+    # A double-quoted identifier position is a TDengine string literal, not a
+    # column: the result carries the text LEVEL (same as a local table).
     ("oid-11",
-     'SELECT val, "LEVEL" FROM {O_OID}.DATE ORDER BY val',
+     'SELECT `val`, "LEVEL" FROM {O_OID}.`DATE` ORDER BY `val`',
      True, None, {}),
-    # FQOR-PATH-016: EMP and "emp" both exist, and the two spellings resolve
-    # deterministically to different objects - the unquoted form to EMP, the
-    # quoted form to "emp".  Neither is a guess: the fold decides.
+    # FQOR-PATH-016: EMP and emp are distinct, exactly addressable objects.
     ("oid-12",
      "SELECT name FROM {O_OID}.emp ORDER BY val",
      True, None, {}),
     ("oid-13",
-     'SELECT name FROM {O_OID}.`"emp"` ORDER BY val',
+     "SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`",
      True, None, {}),
-    # A mixed-case column is only reachable by its exact spelling, exactly as
-    # for a local table with a backticked mixed-case column: the unquoted
-    # reference folds to MIXEDCOL and names nothing on either side.
     ("oid-14",
-     "SELECT `MiXeDCol` FROM {O_OID}.`\"LC\"`",
+     "SELECT `MiXeDCol` FROM {O_OID}.`LC`",
      True, None, {}),
     ("oid-15",
-     "SELECT MiXeDCol FROM {O_OID}.`\"LC\"`",
+     "SELECT MiXeDCol FROM {O_OID}.`LC`",
      False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
-    # Reserved-word table name without TDengine quoting still parses (DATE is a
-    # non-reserved keyword in TDengine's grammar) and resolves remotely.
     ("oid-16",
-     "SELECT COUNT(*) FROM {O_OID}.DATE",
+     "SELECT COUNT(*) FROM {O_OID}.`DATE`",
      True, None, {}),
     ("oid-17",
      "SELECT COUNT(*) FROM {O_OID}.emp",
      True, None, {}),
-    # An object that exists only in the quoted spelling is unreachable from the
-    # folded path, and the failure names the object the fold asked for.
+    # A quoted-lower-case object is exactly reachable from the unquoted form;
+    # the all-upper-case backticked spelling is a different, absent object.
     ("oid-18",
-     "SELECT val FROM {O_OID}.{O_OID_SCHEMA}.only_lower",
+     "SELECT val FROM {O_OID}.only_lower",
+     True, None, {}),
+    ("oid-19",
+     "SELECT val FROM {O_OID}.`ONLY_LOWER`",
      False, TSDB_CODE_EXT_TABLE_NOT_EXIST, {}),
+    # The removed backtick-wrapped-double-quote convention now names a literal
+    # object containing quote characters, which does not exist.
+    ("oid-20",
+     'SELECT val FROM {O_OID}.`"emp"`',
+     False, TSDB_CODE_EXT_TABLE_NOT_EXIST, {}),
+    # VAL and quoted val coexist: unquoted val selects the lower-case column,
+    # backticked VAL selects the upper-case one, independent of column order.
+    ("oid-21",
+     "SELECT val FROM {O_OID}.`CC`",
+     True, None, {}),
+    ("oid-22",
+     "SELECT `VAL` FROM {O_OID}.`CC`",
+     True, None, {}),
+    ("oid-23",
+     "SELECT val, `VAL` FROM {O_OID}.`CC`",
+     True, None, {}),
+    # Quoted mixed-case column.
+    ("oid-24",
+     "SELECT `Val` FROM {O_OID}.`MIX`",
+     True, None, {}),
+    ("oid-25",
+     "SELECT Val FROM {O_OID}.`MIX`",
+     False, TSDB_CODE_PAR_INVALID_COLUMN, {}),
 ]
 
 
@@ -534,6 +562,11 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
     # ── One-time setup guard ─────────────────────────────────────────────────
     _class_setup_done = False
     _i18_available    = False   # set to True in setup_method when 1.8 found
+    # Literal quote/backtick fixtures are server-version dependent: 11g raises
+    # ORA-03001 for a double quote inside an identifier, 19c accepts it, and
+    # 23ai+ rejects it with ORA-25716.  Set during setup.
+    _o_quote_ident_supported    = False
+    _o_backtick_ident_supported = False
 
     # -----------------------------------------------------------------------
     # Setup / teardown
@@ -661,6 +694,27 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         for table in _O_OID_TABLES:
             ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
         ExtSrcEnv.oracle_exec_cfg(oracle_cfg, _O_OID_SQLS)
+        # Literal quote/backtick column names are gated on server support; the
+        # dedicated test method skips a leg the server cannot represent.
+        for table, col, row in (("QT", 'v"1', 7), ("BT", "v`1", 8)):
+            # Oracle doubles a quote inside a quoted identifier.
+            col_sql = col.replace('"', '""')
+            try:
+                ExtSrcEnv.oracle_exec_cfg(
+                    oracle_cfg,
+                    [f'CREATE TABLE "{table}" ("{col_sql}" NUMBER(10))',
+                     f'INSERT INTO "{table}" VALUES ({row})',
+                     "COMMIT"])
+                if table == "QT":
+                    TestFq18SourceSpecific._o_quote_ident_supported = True
+                else:
+                    TestFq18SourceSpecific._o_backtick_ident_supported = True
+            except RuntimeError as e:
+                if "ORA-03001" not in str(e) and "ORA-25716" not in str(e):
+                    raise
+                tdLog.info(
+                    f"[oid] server rejects identifier {table!r}: the literal "
+                    "quote/backtick leg is skipped on this version")
         self._mk_oracle_real(self._SRC_O_IDENT,
                              database=oracle_cfg.service,
                              schema=ExtSrcEnv.ORACLE_USER.upper())
@@ -712,7 +766,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
             S_VIEW_DB=_SQLSERVER_VIEW_DB,
             I18=self._SRC_I18,
             O_OID=self._SRC_O_IDENT,
-            O_OID_SCHEMA=ExtSrcEnv.ORACLE_USER.upper(),
+            # The schema segment is a TDengine identifier: the Oracle login
+            # user is upper-case, so it must be backticked or the client
+            # lower-cases it and the exact dictionary lookup fails.
+            O_OID_SCHEMA=f"`{ExtSrcEnv.ORACLE_USER.upper()}`",
         )
 
     # -----------------------------------------------------------------------
@@ -734,7 +791,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         failed: List[Tuple[str, str, str]] = []
         serialized_blocks: List[str] = []
 
+        case_filter = os.environ.get("FQ_CASE_FILTER", "")
         for case_id, sql_template, opts in cases:
+            if case_filter and case_filter not in case_id:
+                continue
             float_cols = opts.get("float_cols") or set()
             ordered    = opts.get("ordered", True)
             min_count  = opts.get("min_count")
@@ -849,7 +909,10 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
         Returns a list of ``(case_id, sql_template, detail)`` failure tuples.
         """
         failed: List[Tuple[str, str, str]] = []
+        case_filter = os.environ.get("FQ_CASE_FILTER", "")
         for case_id, sql_template, expected_errno in cases:
+            if case_filter and case_filter not in case_id:
+                continue
             # i18 cases are conditional on InfluxDB 1.8 availability
             if "{I18}" in sql_template and not self._i18_available:
                 tdLog.info(
@@ -907,12 +970,14 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
           vw-s-02   SQL Server v_users JOIN orders with grouped totals
           s-coll-01 SQL Server name = 'ALPHA' → no rows (binary-collated push)
           s-coll-02 SQL Server name = 'alpha' → 1 row
-          oid-01..04 Oracle unquoted/upper/backticked emp → all reach EMP
-          oid-05..07 Oracle `"emp"` / `"EMP"` quoted segments
+          oid-01..04 Oracle unquoted emp → lower-case exact match ("emp")
+          oid-05..07 Oracle `EMP` backticked upper-case object and columns
           oid-08    Oracle quoted table with a mixed-case column
           oid-09..11 Oracle reserved words as table and column names
-          oid-12..14 Oracle EMP vs "emp" split, mixed-case column
-          oid-16..17 Oracle COUNT(*) on a reserved-word table / EMP
+          oid-12..14 Oracle EMP vs emp split, mixed-case column
+          oid-16..17 Oracle COUNT(*) on a reserved-word table / emp
+          oid-18..20 Oracle only_lower exact match / absent upper-case name
+          oid-21..25 Oracle VAL vs val conflict matrix, quoted mixed case
 
         Catalog: - Query:FederatedSourceSpecific
 
@@ -940,6 +1005,46 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
                 f"{len(failed)} case(s) failed:\n{all_errors}"
             )
 
+    def test_fq_oracle_identifier_literals(self):
+        """Oracle literal double-quote / backtick column names.
+
+        TDengine writes a literal double quote inside a backticked identifier
+        as ``v"1`` and a literal backtick as ``v``1``.  The fixture is created
+        only when the server can represent the spelling: 11g raises ORA-03001
+        for a double quote inside an identifier and 23ai+ raises ORA-25716.
+        Projection and WHERE both exercise the renderer's quote doubling.
+
+        Catalog: - Query:FederatedSourceSpecific
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+        """
+        quote_ok    = TestFq18SourceSpecific._o_quote_ident_supported
+        backtick_ok = TestFq18SourceSpecific._o_backtick_ident_supported
+        if not (quote_ok or backtick_ok):
+            tdLog.info("[oid] server cannot represent literal quote/backtick "
+                       "identifiers; the literal-name legs are skipped")
+            return
+
+        src = self._SRC_O_IDENT
+        if quote_ok:
+            tdSql.query(f'SELECT `v"1` FROM {src}.`QT`')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 7)
+            tdSql.query(f'SELECT `v"1` FROM {src}.`QT` WHERE `v"1` = 7')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 7)
+            tdSql.error(f'SELECT `v"2` FROM {src}.`QT`',
+                        expectedErrno=TSDB_CODE_PAR_INVALID_COLUMN)
+        if backtick_ok:
+            tdSql.query(f'SELECT `v``1` FROM {src}.`BT`')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 8)
+            tdSql.query(f'SELECT `v``1` FROM {src}.`BT` WHERE `v``1` = 8')
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, 8)
+
     def test_fq_source_specific_errors(self):
         """Source-specific error cases.
 
@@ -957,8 +1062,12 @@ class TestFq18SourceSpecific(FederatedQueryVersionedMixin):
                    (skipped when "1.8" is not in FQ_INFLUX_VERSIONS)
           oid-15   Oracle mixed-case column referenced unquoted
                                               → TSDB_CODE_PAR_INVALID_COLUMN
-          oid-18   Oracle object that only exists quoted
+          oid-19   Oracle upper-case spelling of a lower-case object
                                               → TSDB_CODE_EXT_TABLE_NOT_EXIST
+          oid-20   Oracle old backtick-wrapped-double-quote spelling
+                                              → TSDB_CODE_EXT_TABLE_NOT_EXIST
+          oid-25   Oracle mixed-case column referenced unquoted
+                                              → TSDB_CODE_PAR_INVALID_COLUMN
 
         Catalog: - Query:FederatedSourceSpecific
 

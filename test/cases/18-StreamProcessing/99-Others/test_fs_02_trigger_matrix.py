@@ -183,7 +183,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             elif src_name.endswith("_s"):
                 mid = "dbo"
             elif src_name.endswith("_o"):
-                mid = ExtSrcEnv.ORACLE_USER.upper()
+                # TDengine lower-cases an unquoted identifier; the upper-case
+                # account name is spelled between backticks.
+                mid = "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}_nested"
@@ -296,7 +298,9 @@ class TestFsTriggerMatrix(FederatedQueryTestMixin):
             elif src_name.endswith("_o"):
                 # Oracle has a single namespace level - the login schema - so a
                 # per-test "<prefix>_odb" would name a schema that does not exist.
-                mid = ExtSrcEnv.ORACLE_USER.upper()
+                # The upper-case account name needs backticks: an unquoted
+                # identifier is lower-cased by TDengine.
+                mid = "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
             else:
                 mid = f"{prefix}_{src_name[-1]}db"
             stream = f"s_{src_name}"

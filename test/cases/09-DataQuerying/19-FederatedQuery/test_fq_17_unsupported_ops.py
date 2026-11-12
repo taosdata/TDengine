@@ -591,21 +591,24 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
 
         # -- Oracle ----------------------------------------------------------
-        # Same three-row `orders` shape; the table name is unquoted in the
-        # remote DDL so it lands upper-cased in the data dictionary.
+        # Same three-row `orders` shape.  The remote table and its columns
+        # are created with quoted lower-case names so the unquoted TDengine
+        # references below resolve to the exact spelling under the native
+        # identifier grammar.
         o_src = self._SRC_O
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         ExtSrcEnv.oracle_exec_cfg(o_cfg, [
-            "BEGIN EXECUTE IMMEDIATE 'DROP TABLE ORDERS'; "
+            "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"orders\"'; "
             "EXCEPTION WHEN OTHERS THEN NULL; END;",
-            "CREATE TABLE ORDERS ("
-            " TS TIMESTAMP(3) PRIMARY KEY, ID NUMBER(10,0), AMOUNT BINARY_DOUBLE)",
-            "INSERT INTO ORDERS VALUES "
+            'CREATE TABLE "orders" ('
+            ' "ts" TIMESTAMP(3) PRIMARY KEY, "id" NUMBER(10,0),'
+            ' "amount" BINARY_DOUBLE)',
+            'INSERT INTO "orders" VALUES '
             " (TIMESTAMP '2024-01-01 00:00:00.000', 1, 100.0)",
-            "INSERT INTO ORDERS VALUES "
+            'INSERT INTO "orders" VALUES '
             " (TIMESTAMP '2024-01-01 00:01:00.000', 2, 200.0)",
-            "INSERT INTO ORDERS VALUES "
+            'INSERT INTO "orders" VALUES '
             " (TIMESTAMP '2024-01-01 00:02:00.000', 3, 300.0)",
             "COMMIT",
         ])
@@ -700,8 +703,10 @@ class TestFq17UnsupportedOps(FederatedQueryVersionedMixin):
         src = self._SRC_O
 
         def remote_rows():
+            # The fixture stores the table quoted lower-case; an unquoted
+            # ORDERS would fold to upper case and miss the exact-name match.
             return ExtSrcEnv.oracle_query_cfg(
-                self._oracle_cfg(), "SELECT COUNT(*) FROM ORDERS").strip()
+                self._oracle_cfg(), 'SELECT COUNT(*) FROM "orders"').strip()
 
         before = remote_rows()
         assert before == "3", f"unexpected ORDERS row count: {before}"

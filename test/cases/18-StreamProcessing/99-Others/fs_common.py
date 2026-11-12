@@ -44,7 +44,7 @@ def dt_str(ms: int) -> str:
     return dt.strftime('%Y-%m-%d %H:%M:%S.') + f"{ms % 1000:03d}"
 
 
-def oracle_insert_all_sql(rows: list, render_ts, table: str = "SRC_T") -> str:
+def oracle_insert_all_sql(rows: list, render_ts, table: str = "src_t") -> str:
     """INSERT ALL statement for (ts, val, score, name, flag) rows.
 
     Oracle 11g has no multi-row VALUES list (23ai added one, 11g rejects it with
@@ -52,6 +52,10 @@ def oracle_insert_all_sql(rows: list, render_ts, table: str = "SRC_T") -> str:
     NLS_TIMESTAMP_FORMAT, so the format is pinned to the millisecond column.
     Every Oracle writer in the stream suite goes through this one builder: two
     copies of the literal form used to exist and would drift apart silently.
+
+    The table and columns are stored quoted lower-case (create_oracle_table),
+    so they are quoted here; an unquoted identifier would fold to upper case
+    and miss the exact-name match.
     """
     if not rows:
         # An empty batch would render "INSERT ALL  SELECT 1 FROM DUAL", which
@@ -61,7 +65,7 @@ def oracle_insert_all_sql(rows: list, render_ts, table: str = "SRC_T") -> str:
     return (
         "INSERT ALL "
         + " ".join(
-            f"INTO {table} (ts, val, score, name, flag) VALUES"
+            f'INTO "{table}" ("ts", "val", "score", "name", "flag") VALUES'
             f"(TO_TIMESTAMP('{render_ts(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
             f" {val}, {score}, '{name}', {flag})"
             for ts, val, score, name, flag in rows)
@@ -422,7 +426,7 @@ class FsSharedFixtureMixin:
             timestamp = dt_str(ts)
             ExtSrcEnv.oracle_exec_cfg(
                 self._oracle_cfg(),
-                [f"DELETE FROM SRC_T WHERE ts = "
+                [f'DELETE FROM "src_t" WHERE "ts" = '
                  f"TO_TIMESTAMP('{timestamp}', 'YYYY-MM-DD HH24:MI:SS.FF3')",
                  "COMMIT"]
             )
@@ -509,9 +513,14 @@ class FsSharedFixtureMixin:
             # The table may not exist yet (a first run, or a case that failed
             # before its setup): DROP TABLE would then abort the cleanup with
             # ORA-00942, so the drop runs inside a swallowed-exception block.
+            # The quoted lower-case name is the stored spelling; the unquoted
+            # SRC_T is dropped too so leftovers from before the exact-name
+            # fixture change do not survive across runs.
             ExtSrcEnv.oracle_exec_cfg(
                 self._oracle_cfg(),
-                ["BEGIN EXECUTE IMMEDIATE 'DROP TABLE SRC_T'; "
+                ["BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"src_t\"'; "
+                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
+                 "BEGIN EXECUTE IMMEDIATE 'DROP TABLE SRC_T'; "
                  "EXCEPTION WHEN OTHERS THEN NULL; END;"]
             )
             tdLog.info(f"[{label}] drop table Oracle")

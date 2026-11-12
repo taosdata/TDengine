@@ -56,6 +56,7 @@ _OR_SRC   = "vpers_or_src"
 # Oracle has one namespace level: the source carries the Easy Connect service
 # name and the schema is the upper-case login user.
 _OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 
@@ -161,7 +162,7 @@ class TestVtableDDLPersistence:
         # same object.  NUMBER(10,0) maps to BIGINT, hence the local bigint.
         tdSql.execute(
             "CREATE VTABLE v_persist_or (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r_persist.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r_persist.v)")
         tdSql.execute(
             "CREATE VTABLE v_persist_or3 (ts timestamp, "
             f"v bigint FROM {_OR_SRC}.r_persist.v)")

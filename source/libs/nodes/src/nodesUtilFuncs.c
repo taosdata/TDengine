@@ -4229,16 +4229,17 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
-  // The per-dialect rule (MySQL / SQL Server fold case, Oracle folds an
-  // unquoted reference to upper case then compares exactly, PostgreSQL /
-  // InfluxDB compare literally) is shared with the parser-side contract
-  // externalColumnNamesEqual() through extColumnNameEqual().
+  // The per-dialect rule (MySQL / SQL Server fold case; PostgreSQL, InfluxDB
+  // and Oracle compare literally) is shared with the parser-side contract
+  // externalColumnNamesEqual() through extColumnNameEqual().  TDengine applies
+  // its identifier grammar before the reference reaches here, so an Oracle
+  // name must match the resolved spelling exactly (DS 5.3.6 R1).
   //
-  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps a
-  // quoted "Device" apart from a folded DEVICE, and TDengine has already dropped
-  // the quoting by the time the reference gets here, so a single folding pass
-  // would map both spellings onto DEVICE and turn a filter that pins both
-  // columns into a duplicate-column error (DS 5.3.6 R1).
+  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps
+  // a quoted "Device" apart from a folded DEVICE, and TDengine has already
+  // applied its identifier grammar by the time the reference gets here, so a
+  // case-insensitive pass would map both spellings onto DEVICE and turn a
+  // filter that pins both columns into a duplicate-column error (DS 5.3.6 R1).
   return extFindColumnIndex(sourceType, pExtMeta, colName);
 }
 

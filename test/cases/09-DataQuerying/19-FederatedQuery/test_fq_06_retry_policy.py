@@ -242,18 +242,18 @@ def _alter_max_pool_size(value):
 # VALUES list is not accepted before 23ai.
 # ---------------------------------------------------------------------------
 _ORACLE_PUSH_T_SQLS = [
-    "CREATE TABLE PUSH_T "
-    "(VAL NUMBER(10,0), SCORE BINARY_DOUBLE, NAME VARCHAR2(32), "
-    "FLAG NUMBER(1), STATUS VARCHAR2(16))",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'CREATE TABLE "push_t" '
+    '("val" NUMBER(10,0), "score" BINARY_DOUBLE, "name" VARCHAR2(32), '
+    '"flag" NUMBER(1), "status" VARCHAR2(16))',
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (1,1.5,'alpha',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (2,2.5,'beta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (3,3.5,'gamma',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (4,4.5,'delta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (5,5.5,'epsilon',1,'active')",
     "COMMIT",
 ]
@@ -287,20 +287,20 @@ def _oracle_sleep_fixtures(cfg, table="PUSH_T"):
         *ExtSrcEnv.oracle_sleep_function_sql("FQ06_SLEEP10", 10),
     ])
     ExtSrcEnv._oracle_sql(cfg, [
-        f"CREATE OR REPLACE VIEW FQ06_SLOW_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_SLEEP AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_SLOW10_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_SLEEP10 AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
+        f'CREATE OR REPLACE VIEW "fq06_slow_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_SLEEP AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_slow10_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_SLEEP10 AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
     ])
 
 
 def _oracle_drop_sleep_fixtures(cfg):
     """Drop the sleep views (idempotent; the helpers may not exist)."""
-    for view in ("FQ06_SLOW_V", "FQ06_SLOW10_V"):
+    for view in ("fq06_slow_v", "fq06_slow10_v"):
         try:
-            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view}"')
         except Exception:
             pass
 
@@ -356,42 +356,42 @@ def _oracle_error_fixtures(cfg, table="PUSH_T"):
         "GRANT EXECUTE ON SYSTEM.FQ06_DENY_FN TO PUBLIC",
     ])
     ExtSrcEnv._oracle_sql(cfg, [
-        f"CREATE OR REPLACE VIEW FQ06_E904_V AS SELECT VAL, "
+        f'CREATE OR REPLACE VIEW "fq06_e904_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT NO_SUCH_COL_ZZ FROM DUAL') "
-        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E937_V AS SELECT VAL, "
+        f'AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e937_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT COUNT(*), DUMMY FROM DUAL') "
-        f"AS NUMBER(10,0)) AS BOOM FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E979_V AS SELECT VAL, "
+        f'AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e979_v" AS SELECT "val", '
         f"CAST(SYSTEM.FQ06_RAISE('SELECT DUMMY, COUNT(*) FROM DUAL "
-        f"GROUP BY SYSDATE') AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_E900_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_BOOM AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_DENY_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ06_DENY_FN AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ06_DIV0_V AS SELECT VAL, "
-        f"CAST(VAL / 0 AS NUMBER(10,0)) AS BOOM FROM {table}",
-        f"CREATE OR REPLACE VIEW FQ06_1722_V AS SELECT VAL, "
-        f"CAST(DUMMY + 1 AS NUMBER(10,0)) AS BOOM FROM {table}, DUAL",
-        f"CREATE OR REPLACE VIEW FQ06_1858_V AS SELECT VAL, "
-        f"TO_DATE('2024-' || NAME || '-01','YYYY-MM-DD') AS BOOM "
-        f"FROM {table}",
-        f"CREATE OR REPLACE VIEW FQ06_E1426_V AS SELECT VAL, "
-        f"CAST(POWER(10, VAL * 400) AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
+        f"GROUP BY SYSDATE') AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_e900_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_BOOM AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_deny_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ06_DENY_FN AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq06_div0_v" AS SELECT "val", '
+        f'CAST("val" / 0 AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}"',
+        f'CREATE OR REPLACE VIEW "fq06_1722_v" AS SELECT "val", '
+        f'CAST(DUMMY + 1 AS NUMBER(10,0)) AS "boom" FROM "{table.lower()}", DUAL',
+        f'CREATE OR REPLACE VIEW "fq06_1858_v" AS SELECT "val", '
+        f'TO_DATE(\'2024-\' || "name" || \'-01\',\'YYYY-MM-DD\') AS "boom" '
+        f'FROM "{table.lower()}"',
+        f'CREATE OR REPLACE VIEW "fq06_e1426_v" AS SELECT "val", '
+        f'CAST(POWER(10, "val" * 400) AS NUMBER(10,0)) AS "boom" '
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
     ])
 
 
 def _oracle_drop_error_fixtures(cfg):
     """Drop the error-injection views (idempotent)."""
-    for view in ("FQ06_E904_V", "FQ06_E937_V", "FQ06_E979_V", "FQ06_E900_V",
-                 "FQ06_DENY_V", "FQ06_DIV0_V", "FQ06_1722_V", "FQ06_1858_V",
-                 "FQ06_E1426_V"):
+    for view in ("fq06_e904_v", "fq06_e937_v", "fq06_e979_v", "fq06_e900_v",
+                 "fq06_deny_v", "fq06_div0_v", "fq06_1722_v", "fq06_1858_v",
+                 "fq06_e1426_v"):
         try:
-            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view}"')
         except Exception:
             pass
 
@@ -612,7 +612,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_ver = o_cfg.version
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             # connect_timeout_ms=500 keeps the unreachable-instance window short;
             # the value is a per-source OPTIONS entry only Oracle exposes.
@@ -653,7 +653,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -840,7 +840,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             # Dimension a/b) Wrong password → ORA-01017 → EXT_AUTH_FAILED.
             # The login error is raised by the driver before any statement runs,
@@ -873,7 +873,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -1204,7 +1204,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(o_cfg)
 
@@ -1275,7 +1275,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_sleep_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
             # Restore original pool size regardless of test outcome
@@ -1467,7 +1467,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_ver = o_cfg.version
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper(),
@@ -1510,7 +1510,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
         # Dimension d) After DROP: source removed from catalog
@@ -1701,7 +1701,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -1709,7 +1709,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
             # Drop the remote table directly — TDengine cache still has the schema
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             # Dimension c) EXT_TABLE_NOT_EXIST after REFRESH exhausted
             tdSql.error(f"select * from {o_src}.push_t limit 1",
                         expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
@@ -1726,7 +1726,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -1947,7 +1947,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -1971,7 +1971,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             # Source already dropped; just guard against partial cleanup
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2110,7 +2110,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
@@ -2140,7 +2140,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2288,7 +2288,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2309,7 +2309,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2365,7 +2365,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         self._cleanup_src(o_src)
         _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
 
             # --- FQOR-ERR-001: wrong password ---
@@ -2407,7 +2407,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
                 f'ALTER USER {_FQOR_LOCK_USER} IDENTIFIED BY '
                 f'"{_FQOR_LOCK_PASS}" ACCOUNT UNLOCK',
                 f"GRANT CREATE SESSION TO {_FQOR_LOCK_USER}",
-                f"GRANT SELECT ON TAOSDATA.PUSH_T TO {_FQOR_LOCK_USER}",
+                f'GRANT SELECT ON "{o_cfg.user.upper()}"."push_t" TO {_FQOR_LOCK_USER}',
             ])
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper(),
@@ -2464,7 +2464,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             _oracle_drop_user(o_cfg, _FQOR_LOCK_USER)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2489,7 +2489,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
 
             # --- FQOR-ERR-003: DATABASE names a service the listener does not
@@ -2538,7 +2538,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(o_src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2569,7 +2569,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2579,7 +2579,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.checkData(0, 0, 5)
 
             # --- FQOR-ERR-006: remote table gone → ORA-00942 ---
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             tdSql.error(f"select * from {o_src}.push_t limit 1",
                         expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
             tdSql.query(
@@ -2612,7 +2612,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2639,7 +2639,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2674,7 +2674,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2700,7 +2700,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
@@ -2733,7 +2733,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2757,7 +2757,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(o_cfg)
             self._mk_oracle_real(
@@ -2791,7 +2791,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_sleep_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2819,14 +2819,14 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
             # Baseline: COUNT is pushed down in this session
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
 
             # ORA-00937 → precise demotion, AGG clause
             tdSql.error(f"select * from {o_src}.fq06_e937_v limit 1",
@@ -2841,8 +2841,8 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             # Same session: the AGG clause is no longer pushed
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
             assert "Aggregate" in plan, plan
-            assert "COUNT(VAL)" not in plan, plan
-            assert "Remote SQL: SELECT VAL" in plan, plan
+            assert 'COUNT("val")' not in plan, plan
+            assert 'Remote SQL: SELECT "val"' in plan, plan
             tdSql.query(f"select count(*) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
             tdSql.query(f"select max(val) from {o_src}.push_t")
@@ -2865,7 +2865,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             fresh_plan = "\n".join(
                 str(col) for row in rows for col in row if col is not None)
             assert "Aggregate" in fresh_plan, fresh_plan
-            assert "COUNT(VAL)" not in fresh_plan, fresh_plan
+            assert 'COUNT("val")' not in fresh_plan, fresh_plan
             rows, err = _fresh_execute(
                 f"select count(*), sum(val) from {o_src}.push_t")
             assert err is None, err
@@ -2876,7 +2876,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass
 
@@ -2906,13 +2906,13 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         o_cfg = self._oracle_cfg()
         self._cleanup_src(o_src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(o_cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_error_fixtures(o_cfg)
             self._mk_oracle_real(o_src, database=o_cfg.service,
                                  schema=o_cfg.user.upper())
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
 
             # ORA-00904 → vague demotion
             tdSql.error(f"select * from {o_src}.fq06_e904_v limit 1",
@@ -2925,7 +2925,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
 
             # (a) The same session's plan is unchanged: COUNT is still pushed.
             plan = _plan_text(f"select count(*) from {o_src}.push_t")
-            assert "COUNT(VAL)" in plan, plan
+            assert 'COUNT("val")' in plan, plan
             assert "Aggregate" not in plan, plan
             tdSql.query(f"select count(*), sum(val) from {o_src}.push_t")
             tdSql.checkData(0, 0, 5)
@@ -2947,7 +2947,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             assert err is None, err
             fresh_plan = "\n".join(
                 str(col) for row in rows for col in row if col is not None)
-            assert "COUNT(VAL)" in fresh_plan, fresh_plan
+            assert 'COUNT("val")' in fresh_plan, fresh_plan
             rows, err = _fresh_execute(f"select count(*) from {o_src}.push_t")
             assert err is None, err
             assert rows[0][0] == 5, rows
@@ -2957,6 +2957,6 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             self._cleanup_src(o_src)
             try:
                 _oracle_drop_error_fixtures(o_cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, "push_t")
             except Exception:
                 pass

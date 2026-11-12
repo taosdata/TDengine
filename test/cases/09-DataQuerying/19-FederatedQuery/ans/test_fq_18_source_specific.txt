@@ -73,77 +73,77 @@ RESULT
 1|alpha
 ---
 ### oid-01 POS
-SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val
-RESULT
-1|upper
----
-### oid-02 POS
-SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.EMP ORDER BY val
-RESULT
-1|upper
----
-### oid-03 POS
 SQL: SELECT val, name FROM {O_OID}.emp ORDER BY val
 RESULT
-1|upper
+2|lower
+---
+### oid-02 POS
+SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.emp ORDER BY val
+RESULT
+2|lower
+---
+### oid-03 POS
+SQL: SELECT val, name FROM {O_OID}.EMP ORDER BY val
+RESULT
+2|lower
 ---
 ### oid-04 POS
 SQL: SELECT val, name FROM {O_OID}.`emp` ORDER BY val
 RESULT
-1|upper
+2|lower
 ---
 ### oid-05 POS
-SQL: SELECT val, name FROM {O_OID}.`"emp"` ORDER BY val
-RESULT
-2|lower
----
-### oid-06 POS
-SQL: SELECT val, name FROM {O_OID}.{O_OID_SCHEMA}.`"emp"` ORDER BY val
-RESULT
-2|lower
----
-### oid-07 POS
-SQL: SELECT val, name FROM {O_OID}.`"EMP"` ORDER BY val
+SQL: SELECT `VAL`, `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`
 RESULT
 1|upper
 ---
+### oid-06 POS
+SQL: SELECT `VAL`, `NAME` FROM {O_OID}.{O_OID_SCHEMA}.`EMP` ORDER BY `VAL`
+RESULT
+1|upper
+---
+### oid-07 POS
+SQL: SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`
+RESULT
+upper
+---
 ### oid-08 POS
-SQL: SELECT val, `MiXeDCol` FROM {O_OID}.`"LC"`
+SQL: SELECT `val`, `MiXeDCol` FROM {O_OID}.`LC`
 RESULT
 9|mix
 ---
 ### oid-09 POS
-SQL: SELECT val, `LEVEL`, `NUMBER` FROM {O_OID}.DATE ORDER BY val
+SQL: SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.`DATE` ORDER BY `val`
 RESULT
 3|reserved|30
 ---
 ### oid-10 POS
-SQL: SELECT val, level, number FROM {O_OID}.date ORDER BY val
+SQL: SELECT `val`, `LEVEL`, `NUMBER` FROM {O_OID}.{O_OID_SCHEMA}.`DATE` ORDER BY `val`
 RESULT
 3|reserved|30
 ---
 ### oid-11 POS
-SQL: SELECT val, "LEVEL" FROM {O_OID}.DATE ORDER BY val
+SQL: SELECT `val`, "LEVEL" FROM {O_OID}.`DATE` ORDER BY `val`
 RESULT
 3|LEVEL
 ---
 ### oid-12 POS
 SQL: SELECT name FROM {O_OID}.emp ORDER BY val
 RESULT
-upper
----
-### oid-13 POS
-SQL: SELECT name FROM {O_OID}.`"emp"` ORDER BY val
-RESULT
 lower
 ---
+### oid-13 POS
+SQL: SELECT `NAME` FROM {O_OID}.`EMP` ORDER BY `VAL`
+RESULT
+upper
+---
 ### oid-14 POS
-SQL: SELECT `MiXeDCol` FROM {O_OID}.`"LC"`
+SQL: SELECT `MiXeDCol` FROM {O_OID}.`LC`
 RESULT
 mix
 ---
 ### oid-16 POS
-SQL: SELECT COUNT(*) FROM {O_OID}.DATE
+SQL: SELECT COUNT(*) FROM {O_OID}.`DATE`
 RESULT
 1
 ---
@@ -151,4 +151,29 @@ RESULT
 SQL: SELECT COUNT(*) FROM {O_OID}.emp
 RESULT
 1
+---
+### oid-18 POS
+SQL: SELECT val FROM {O_OID}.only_lower
+RESULT
+4
+---
+### oid-21 POS
+SQL: SELECT val FROM {O_OID}.`CC`
+RESULT
+22
+---
+### oid-22 POS
+SQL: SELECT `VAL` FROM {O_OID}.`CC`
+RESULT
+11
+---
+### oid-23 POS
+SQL: SELECT val, `VAL` FROM {O_OID}.`CC`
+RESULT
+22|11
+---
+### oid-24 POS
+SQL: SELECT `Val` FROM {O_OID}.`MIX`
+RESULT
+5
 ---

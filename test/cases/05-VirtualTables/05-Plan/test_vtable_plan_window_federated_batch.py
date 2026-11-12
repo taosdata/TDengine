@@ -43,8 +43,8 @@ _EXTERNAL_SOURCES = (
 # table names carry the file prefix because every Oracle fixture of this suite
 # lives in the same shared schema.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
-_ORACLE_PRIMARY = "VT_WINDOW_BATCH_ORA_PRIMARY"
-_ORACLE_AUX = "VT_WINDOW_BATCH_ORA_AUX"
+_ORACLE_PRIMARY = "vt_window_batch_ora_primary"
+_ORACLE_AUX = "vt_window_batch_ora_aux"
 
 
 class TestVTablePlanWindowFederatedBatch:
@@ -137,29 +137,29 @@ class TestVTablePlanWindowFederatedBatch:
         ExtSrcEnv._oracle_sql(
             cfg,
             [
-                f"CREATE TABLE {_ORACLE_PRIMARY} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
-                "state_col NUMBER(10,0), v NUMBER(10,0))",
+                f'CREATE TABLE "{_ORACLE_PRIMARY}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, '
+                '"state_col" NUMBER(10,0), "v" NUMBER(10,0))',
                 f"INSERT ALL "
-                f"INTO {_ORACLE_PRIMARY} VALUES "
+                f'INTO "{_ORACLE_PRIMARY}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 100000) "
-                f"INTO {_ORACLE_PRIMARY} VALUES "
+                f'INTO "{_ORACLE_PRIMARY}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:01.000', 1, 200000) "
-                f"INTO {_ORACLE_PRIMARY} VALUES "
+                f'INTO "{_ORACLE_PRIMARY}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:02.000', 2, 300000) "
-                f"INTO {_ORACLE_PRIMARY} VALUES "
+                f'INTO "{_ORACLE_PRIMARY}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:03.000', 2, 400000) "
                 "SELECT 1 FROM dual",
-                f"CREATE TABLE {_ORACLE_AUX} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                f'CREATE TABLE "{_ORACLE_AUX}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, "v" NUMBER(10,0))',
                 f"INSERT ALL "
-                f"INTO {_ORACLE_AUX} VALUES "
+                f'INTO "{_ORACLE_AUX}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:00.000', 1000000) "
-                f"INTO {_ORACLE_AUX} VALUES "
+                f'INTO "{_ORACLE_AUX}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:01.000', 2000000) "
-                f"INTO {_ORACLE_AUX} VALUES "
+                f'INTO "{_ORACLE_AUX}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:02.000', 3000000) "
-                f"INTO {_ORACLE_AUX} VALUES "
+                f'INTO "{_ORACLE_AUX}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:03.000', 4000000) "
                 "SELECT 1 FROM dual",
                 "COMMIT",
@@ -202,7 +202,7 @@ class TestVTablePlanWindowFederatedBatch:
             f"create external source {_ORACLE_SOURCE} type='oracle' "
             f"host='{oracle.host}' port={oracle.port} "
             f"user='{oracle.user}' password='{oracle.password}' "
-            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+            f"database='{ExtSrcEnv.ORACLE_SERVICE}' schema='{_ORACLE_SCHEMA}'"
         )
 
     @classmethod
@@ -227,8 +227,8 @@ class TestVTablePlanWindowFederatedBatch:
         )
         # Oracle: one namespace level only, so the middle segment is the
         # schema and the service name never appears in a path.
-        oracle_primary = f"{_ORACLE_SOURCE}.{_ORACLE_SCHEMA}.{_ORACLE_PRIMARY}"
-        oracle_aux = f"{_ORACLE_SOURCE}.{_ORACLE_SCHEMA}.{_ORACLE_AUX}"
+        oracle_primary = f"{_ORACLE_SOURCE}.`{_ORACLE_SCHEMA}`.{_ORACLE_PRIMARY}"
+        oracle_aux = f"{_ORACLE_SOURCE}.`{_ORACLE_SCHEMA}`.{_ORACLE_AUX}"
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")
         tdSql.execute(f"create database {_LOCAL_DB} precision 'ns'")

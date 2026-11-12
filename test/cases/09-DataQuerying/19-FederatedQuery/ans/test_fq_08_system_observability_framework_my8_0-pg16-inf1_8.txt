@@ -1885,12 +1885,12 @@ source_name|type|host|port|user|password|database|schema|options
 fq08_s002_o|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-sys002o[ORA] STEP-004 ASSERT
-SQL: explain select val from fq08_s002_o.TAOSDATA.fq08_s002_t order by val
+SQL: explain select val from fq08_s002_o.`TAOSDATA`.fq08_s002_t order by val
 RESULT:
 -> Federated Scan on fq08_s002_o.TAOSDATA.fq08_s002_t (oracle) (width=8)
 ---
 ### CASE-sys002o[ORA] STEP-005 ASSERT
-SQL: select val from fq08_s002_o.TAOSDATA.fq08_s002_t order by val
+SQL: select val from fq08_s002_o.`TAOSDATA`.fq08_s002_t order by val
 RESULT:
 10
 20
@@ -1972,7 +1972,7 @@ RESULT:
 -> Federated Scan on fq08_s003_o.TAOSDATA.fq08_s003_t (oracle) (width=8)
 ---
 ### CASE-sys003o[ORA] STEP-008 EXEC
-SQL: use fq08_s003_o.FQ_ALT_SCHEMA
+SQL: use fq08_s003_o.`FQ_ALT_SCHEMA`
 RESULT:
 OK
 ---
@@ -2069,7 +2069,7 @@ RESULT:
 ERROR_OK; TEXT-OK
 ---
 ### CASE-sys004o[ORA] STEP-008 LOG-ASSERT
-SQL: -- scan taosd and client logs under /local/tsdb/sim/dnode1/log
+SQL: -- scan taosd and client logs under <DNODE_LOG>
 RESULT:
 LOG-OK
 ---
@@ -2129,7 +2129,7 @@ RESULT:
 ERROR_OK; TEXT-OK
 ---
 ### CASE-sys005o[ORA] STEP-005 ERROR
-SQL: select count(*) from fq08_s005_o.TAOSDATA.FQ08_S005_MISSING
+SQL: select count(*) from fq08_s005_o.`TAOSDATA`.fq08_s005_missing
 RESULT:
 ERROR_OK; TEXT-OK
 ---

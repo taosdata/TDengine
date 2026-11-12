@@ -59,6 +59,7 @@ _OR_SRC   = "vseries_or_src"
 # Oracle has one namespace level: the source carries the Easy Connect service
 # name and the schema is the upper-case login user.
 _OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 # Nanosecond timestamps (InfluxDB line protocol precision = ns).
@@ -480,7 +481,7 @@ class TestVtableSeriesExtSource:
         tag sets; the reference uses the source.schema.table form)."""
         tdSql.error(
             "CREATE VTABLE v_e1c (ts timestamp, v bigint FROM s1.v) "
-            f"SERIES s1 AS {_OR_SRC}.{_OR_SCHEMA}.r (v='1')")
+            f"SERIES s1 AS {_OR_SRC}.{_OR_SCHEMA_REF}.r (v='1')")
 
         """E2: m2 has tags host+region; pinning only host is rejected."""
         tdSql.error(

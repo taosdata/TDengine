@@ -95,18 +95,18 @@ _SQLSERVER_PUSH_T_SQLS = [
 # time because a multi-row VALUES list is not accepted before 23ai.
 # ---------------------------------------------------------------------------
 _ORACLE_PUSH_T_SQLS = [
-    "CREATE TABLE PUSH_T "
-    "(VAL NUMBER(10,0), SCORE BINARY_DOUBLE, NAME VARCHAR2(32), "
-    "FLAG NUMBER(1), STATUS VARCHAR2(16))",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'CREATE TABLE "push_t" '
+    '("val" NUMBER(10,0), "score" BINARY_DOUBLE, "name" VARCHAR2(32), '
+    '"flag" NUMBER(1), "status" VARCHAR2(16))',
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (1,1.5,'alpha',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (2,2.5,'beta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (3,3.5,'gamma',1,'active')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (4,4.5,'delta',0,'idle')",
-    "INSERT INTO PUSH_T (VAL, SCORE, NAME, FLAG, STATUS) "
+    'INSERT INTO "push_t" ("val", "score", "name", "flag", "status") '
     "VALUES (5,5.5,'epsilon',1,'active')",
     "COMMIT",
 ]
@@ -259,8 +259,8 @@ def _oracle_sleep_fixtures(cfg, table="PUSH_T"):
     to slow a federated base scan deterministically — the same shape as the
     MySQL ``SLEEP()`` view and the SQL Server ``TABLOCKX`` window.
 
-    ``FQ05_SLOW_V`` sleeps 2 s per evaluation (long enough to exceed a 1 s
-    query timeout); ``FQ05_SLOW10_V`` sleeps 10 s, which outlasts the ~5 s
+    ``"fq05_slow_v"`` sleeps 2 s per evaluation (long enough to exceed a 1 s
+    query timeout); ``"fq05_slow10_v"`` sleeps 10 s, which outlasts the ~5 s
     pool-acquire wait so the pool-exhaustion case deterministically sees
     EXT_RESOURCE_EXHAUSTED instead of queueing for the single slot.
 
@@ -272,20 +272,20 @@ def _oracle_sleep_fixtures(cfg, table="PUSH_T"):
         *ExtSrcEnv.oracle_sleep_function_sql("FQ05_SLEEP10", 10),
     ])
     ExtSrcEnv._oracle_sql(cfg, [
-        f"CREATE OR REPLACE VIEW FQ05_SLOW_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ05_SLEEP AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
-        f"CREATE OR REPLACE VIEW FQ05_SLOW10_V AS SELECT VAL, "
-        f"CAST(SYSTEM.FQ05_SLEEP10 AS NUMBER(10,0)) AS BOOM "
-        f"FROM {table} WHERE ROWNUM <= 1",
+        f'CREATE OR REPLACE VIEW "fq05_slow_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ05_SLEEP AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
+        f'CREATE OR REPLACE VIEW "fq05_slow10_v" AS SELECT "val", '
+        f"CAST(SYSTEM.FQ05_SLEEP10 AS NUMBER(10,0)) AS \"boom\" "
+        f'FROM "{table.lower()}" WHERE ROWNUM <= 1',
     ])
 
 
 def _oracle_drop_slow_fixtures(cfg):
     """Drop the slow-scan views (idempotent; the helpers may not exist)."""
-    for view in ("FQ05_SLOW_V", "FQ05_SLOW10_V"):
+    for view in ("fq05_slow_v", "fq05_slow10_v"):
         try:
-            ExtSrcEnv._oracle_sql(cfg, f"DROP VIEW {view}")
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view}"')
         except Exception:
             pass
 
@@ -2441,7 +2441,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src, src2)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # -- Positive: enable=1, query succeeds --
@@ -2502,7 +2502,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                 pass
             self._cleanup_src(src, src2)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -2513,7 +2513,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # -- Positive: default timeout, reachable source → query succeeds --
@@ -2574,7 +2574,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                 pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -2600,7 +2600,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src, src_opt)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(cfg)
 
@@ -2672,7 +2672,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._cleanup_src(src, src_opt)
             try:
                 _oracle_drop_slow_fixtures(cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -2691,7 +2691,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(cfg)
 
@@ -2770,7 +2770,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 _oracle_drop_slow_fixtures(cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -2798,7 +2798,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             return value
 
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # -- Positive: TTL=86400 → sessions survive 5s idle --
@@ -2913,7 +2913,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                 pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -2934,7 +2934,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # -- Positive: ALTER LOCAL default timeout, reachable → query OK --
@@ -2986,7 +2986,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                     pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -3006,7 +3006,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
             _oracle_sleep_fixtures(cfg)
 
@@ -3052,7 +3052,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 _oracle_drop_slow_fixtures(cfg)
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -3070,7 +3070,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
         cfg = self._oracle_cfg()
         self._cleanup_src(src)
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # -- Positive: pool=1, serial queries work --
@@ -3119,7 +3119,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                     pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass
 
@@ -3152,7 +3152,7 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
             return value
 
         try:
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             ExtSrcEnv.oracle_exec_cfg(cfg, _ORACLE_PUSH_T_SQLS)
 
             # ---- Phase 1: server TTL=86400, client TTL=1 ----
@@ -3268,6 +3268,6 @@ class TestFq05ConfigEffectiveness(FederatedQueryVersionedMixin):
                     pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "PUSH_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "push_t")
             except Exception:
                 pass

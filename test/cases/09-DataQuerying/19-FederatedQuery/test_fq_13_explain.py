@@ -276,13 +276,13 @@ _PG_ASCII_SETUP_SQLS = [
     "('2024-01-01 00:01:00+00','south','south',2)",
 ]
 
-# Oracle fixture.  Oracle folds unquoted identifiers to upper case, so the
-# objects are created with quoted upper-case names: an unquoted reference such
-# as `sensor."time"` then resolves to SENSOR."TIME" instead of failing with
-# ORA-00904.  Every row is the same as the MySQL/PostgreSQL fixtures; the
-# timestamp literal is pinned with TO_TIMESTAMP because a bare string would be
-# parsed with the session's NLS_TIMESTAMP_FORMAT, which differs between the
-# test client and the server (same convention as test_fq_02).
+# Oracle fixture.  The objects are created with quoted lower-case names so
+# the unquoted TDengine references in the shared matrix (sensor, voltage, ...)
+# resolve to the exact remote spelling under TDengine's identifier grammar.
+# Every row is the same as the MySQL/PostgreSQL fixtures; the timestamp
+# literal is pinned with TO_TIMESTAMP because a bare string would be parsed
+# with the session's NLS_TIMESTAMP_FORMAT, which differs between the test
+# client and the server (same convention as test_fq_02).
 _ORACLE_SENSOR_ROWS = [
     ("2024-01-01 00:00:00.000", 220.5, 1.2, "north", "2024-01-01", '{"k":1}',
      "aGVsbG8=", "POINT(0 0)"),
@@ -319,13 +319,13 @@ def _oracle_setup_sqls():
     # One INSERT per row: the multi-row VALUES constructor is 23ai-only and
     # 11g rejects it with ORA-00933.
     sensor_inserts = [
-        'INSERT INTO "SENSOR" ("TIME", "VOLTAGE", "CURRENT", "REGION", '
-        '"DATE_STR", "JSON_STR", "B64_STR", "GEOM_WKT") VALUES '
+        'INSERT INTO "sensor" ("time", "voltage", "current", "region", '
+        '"date_str", "json_str", "b64_str", "geom_wkt") VALUES '
         "(" + ", ".join([ts(r[0])] + [q(v) for v in r[1:]]) + ")"
         for r in _ORACLE_SENSOR_ROWS
     ]
     region_inserts = [
-        'INSERT INTO "REGION_INFO" ("TIME", "REGION", "AREA") VALUES '
+        'INSERT INTO "region_info" ("time", "region", "area") VALUES '
         "(" + ", ".join([ts(r[0]), q(r[1]), q(r[2])]) + ")"
         for r in _ORACLE_REGION_ROWS
     ]
@@ -336,25 +336,25 @@ def _oracle_setup_sqls():
         # nvarchar, and all three map to TSDB_DATA_TYPE_NCHAR, which is what
         # the shared matrix's expectations assume (LENGTH renders as
         # LENGTH(x) * 4, LIKE prefixes the pattern with N).  The blank-padded
-        # Oracle CHAR column that FQOR-PUSH-008 needs lives in SENSOR_CHAR.
-        'CREATE TABLE "SENSOR" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"VOLTAGE" BINARY_DOUBLE, "CURRENT" BINARY_FLOAT, '
-        '"REGION" NVARCHAR2(32), "DATE_STR" NVARCHAR2(32), '
-        '"JSON_STR" NVARCHAR2(64), "B64_STR" NVARCHAR2(32), '
-        '"GEOM_WKT" NVARCHAR2(64))',
+        # Oracle CHAR column that FQOR-PUSH-008 needs lives in "sensor_char".
+        'CREATE TABLE "sensor" ("time" TIMESTAMP(3) NOT NULL, '
+        '"voltage" BINARY_DOUBLE, "current" BINARY_FLOAT, '
+        '"region" NVARCHAR2(32), "date_str" NVARCHAR2(32), '
+        '"json_str" NVARCHAR2(64), "b64_str" NVARCHAR2(32), '
+        '"geom_wkt" NVARCHAR2(64))',
         *sensor_inserts,
-        'CREATE TABLE "REGION_INFO" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"REGION" NVARCHAR2(32), "AREA" NUMBER(10))',
+        'CREATE TABLE "region_info" ("time" TIMESTAMP(3) NOT NULL, '
+        '"region" NVARCHAR2(32), "area" NUMBER(10))',
         *region_inserts,
         # Blank-padded CHAR column (FQOR-PUSH-008).  Oracle compares CHAR with
         # blank padding while TDengine compares the exact text, so every string
         # operation on this column has to stay in the local plan.  It is an
         # Oracle-only table: the other sources have no CHAR type to mirror it.
-        'CREATE TABLE "SENSOR_CHAR" ("TIME" TIMESTAMP(3) NOT NULL, '
-        '"VOLTAGE" BINARY_DOUBLE, "REGION_CHAR" CHAR(32))',
-        'INSERT INTO "SENSOR_CHAR" ("TIME", "VOLTAGE", "REGION_CHAR") VALUES '
+        'CREATE TABLE "sensor_char" ("time" TIMESTAMP(3) NOT NULL, '
+        '"voltage" BINARY_DOUBLE, "region_char" CHAR(32))',
+        'INSERT INTO "sensor_char" ("time", "voltage", "region_char") VALUES '
         "(" + ts("2024-01-01 00:00:00.000") + ", 220.5, 'north')",
-        'INSERT INTO "SENSOR_CHAR" ("TIME", "VOLTAGE", "REGION_CHAR") VALUES '
+        'INSERT INTO "sensor_char" ("time", "voltage", "region_char") VALUES '
         "(" + ts("2024-01-01 00:01:00.000") + ", 221.0, 'south')",
         "COMMIT",
     ]
@@ -5411,12 +5411,11 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                  'local_not_has': {'mysql': ['InitPlan 1'], 'pg': ['InitPlan 1'], 'sqlserver': ['InitPlan 1'], 'oracle': ['InitPlan 1']}},
   'pre_sql': 'use {SRC}'},
  # The USE-context (unqualified) variants resolve the inner table against the
- # current source.  The plan-level render (EXPLAIN VERBOSE) pushes the
- # EXISTS/NOT EXISTS into the remote statement, while the executed plan
- # (EXPLAIN ANALYZE) keeps it as a local InitPlan subquery and still fetches
- # the outer scan remotely.  Both forms return the same rows, so the checks
- # record each form instead of requiring the runtime plan to match the
- # plan-level one.
+ # current source.  Both the plan-level render (EXPLAIN VERBOSE) and the
+ # executed plan (EXPLAIN ANALYZE) push EXISTS/NOT EXISTS into the remote
+ # statement: the namespace is injected from USE, so the raw subquery text is
+ # not namespace-complete and Oracle/SQL Server re-render it from the inner
+ # plan instead of inlining it verbatim.
  {'id': 'EXP-subq_exists_nocorr_direct-01',
   'sql': 'select * from sensor s where exists (select 1 from sensor r where r.voltage > 220)',
   'sources': 'single',
@@ -5432,7 +5431,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['EXISTS'], 'pg': ['EXISTS'], 'sqlserver': ['EXISTS'], 'oracle': []},
                  'verbose_remote_has': {'oracle': ['EXISTS']},
-                 'analyze_local_has': {'oracle': ['InitPlan 1']},
+                 'analyze_local_has': {'oracle': []},
                  'remote_not_has': {'influx': ['EXISTS'], 'oracle': []},
                  'min_scans': {'mysql': 1, 'pg': 1, 'influx': 2, 'sqlserver': 1, 'oracle': 1},
                  'local_has': {'influx': ['InitPlan 1', 'Projection'], 'oracle': []},
@@ -5453,7 +5452,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['NOT', 'EXISTS'], 'pg': ['NOT', 'EXISTS'], 'sqlserver': ['NOT', 'EXISTS'], 'oracle': []},
                  'verbose_remote_has': {'oracle': ['NOT', 'EXISTS']},
-                 'analyze_local_has': {'oracle': ['InitPlan 1']},
+                 'analyze_local_has': {'oracle': []},
                  'remote_not_has': {'influx': ['NOT EXISTS'], 'oracle': []},
                  'min_scans': {'mysql': 1, 'pg': 1, 'influx': 2, 'sqlserver': 1, 'oracle': 1},
                  'local_has': {'influx': ['InitPlan 1', 'Projection'], 'oracle': []},
@@ -6402,7 +6401,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
                                 # select list with internal aliases
                                 # (TIME AS "time"), so only the column and
                                 # ORDER BY terms are asserted for Oracle.
-                                'oracle': ['SELECT TIME', 'REGION', 'ORDER BY TIME ASC']},
+                                'oracle': ['SELECT "time"', '"region"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['COUNT(', 'GROUP BY', 'FILL', 'INTERVAL('],
                  'local_has': ['Fill', 'Interval', 'Partition']}},
  {'id': 'EXP-combo_S_PP_outer_pushP_inner_pushP-01',
@@ -6752,7 +6751,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_has', 'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['LTRIM'], 'pg': ['LTRIM'], 'influx': ['LTRIM'],
                                 'sqlserver': ['LTRIM'],
-                                'oracle': ['LTRIM(REGION', 'CHR(9)']},
+                                'oracle': ['LTRIM("region"', 'CHR(9)']},
                  'local_not_has': ['Projection']}},
  # PG TEXT and Influx tags map to the maximum field length; keep REPEAT within that limit.
  {'id': 'EXP-ds_string-07',
@@ -6771,7 +6770,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'checks': ['federated_scan', 'analyze_metrics', 'remote_has', 'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['RTRIM'], 'pg': ['RTRIM'], 'influx': ['RTRIM'],
                                 'sqlserver': ['RTRIM'],
-                                'oracle': ['RTRIM(REGION', 'CHR(9)']},
+                                'oracle': ['RTRIM("region"', 'CHR(9)']},
                  'local_not_has': ['Projection']}},
  {'id': 'EXP-ds_string-10',
   'sql': 'select TRIM(region) from {SRC}.sensor',
@@ -15014,7 +15013,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['SESSION('],
                  'local_has': ['Session'],
                  'local_not_has': ['Sort']}},
@@ -15036,7 +15035,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['COUNT_WINDOW'],
                  'local_has': ['Count'],
                  'local_not_has': ['Sort']}},
@@ -15059,7 +15058,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
              'local_not_has'],
   'check_args': {'remote_has': {'mysql': ['SELECT `time`, `voltage`', 'ORDER BY `time` ASC'],
                                 'pg': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'],
-                                'influx': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME], [VOLTAGE]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT TIME, VOLTAGE', 'ORDER BY TIME ASC']},
+                                'influx': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC'], 'sqlserver': ['SELECT [TIME], [VOLTAGE]', 'ORDER BY [TIME] ASC'], 'oracle': ['SELECT "time", "voltage"', 'ORDER BY "time" ASC']},
                  'remote_not_has': ['EVENT_WINDOW'],
                  'local_has': ['Event'],
                  'local_not_has': ['Sort']}},
@@ -15358,12 +15357,13 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
  # already carries an "oracle" key in every per-source expectation dict; these
  # rows add the contracts that have no cross-dialect counterpart.
  #
- #   001  R1 fold-once: the path reaches the source in its catalog spelling
- #        and a bare-identifiable name is emitted without quotes.
+ #   001  R1 exact spelling: the path reaches the source verbatim and a
+ #        lower-case name is double-quoted ("sensor", "voltage"), because an
+ #        unquoted lower-case name would fold to upper case at the source.
  #   002  R1 quoting: a backtick-quoted TDengine reference never leaks the
  #        backtick form into Oracle SQL.
- #   003  R1 reserved words: a column that folds onto a reserved word is
- #        double-quoted ("CURRENT"), an unquoted CURRENT would be the keyword.
+ #   003  R1 reserved words: a lower-case column named current is
+ #        double-quoted ("current"), an unquoted CURRENT would be the keyword.
  #   004  Alias form: "table alias" with no AS keyword on either join leg.
  #   005  Booleans: value context renders as CASE WHEN, never TRUE/FALSE.
  #   006  Character equality pushes when the column is not blank-padded, the
@@ -15451,19 +15451,19 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['SELECT VOLTAGE', '.SENSOR'], 'remote_not_has': ['"SENSOR"', '"VOLTAGE"'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['SELECT "voltage"', '."sensor"'], 'remote_not_has': ['SELECT VOLTAGE', '.SENSOR'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-002',
   'sql': 'select `time`, `voltage` from {SRC}.sensor',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['TIME', 'VOLTAGE'], 'remote_not_has': ['`'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['"time"', '"voltage"'], 'remote_not_has': ['`'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-003',
   'sql': 'select `current` from {SRC}.sensor',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['"CURRENT"'], 'remote_not_has': ['SELECT CURRENT'], 'local_not_has': ['Projection']}},
+  'check_args': {'remote_has': ['"current"'], 'remote_not_has': ['SELECT CURRENT'], 'local_not_has': ['Projection']}},
  {'id': 'FQOR-PUSH-004',
   'sql': 'select s.voltage, r.area from {SRC}.sensor s join {SRC}.region_info r on s.time = r.time',
   'sources': 'custom',
@@ -15481,7 +15481,7 @@ _EXPLAIN_CASES = [{'id': 'EXP-op_arith-01',
   'sources': 'custom',
   'source_infos': _ORACLE_ONLY_SOURCES,
   'checks': ['federated_scan', 'analyze_metrics', 'remote_sql', 'remote_has', 'remote_not_has', 'local_not_has'],
-  'check_args': {'remote_has': ['WHERE', "REGION = 'north'"], 'local_not_has': ['Filter:']}},
+  'check_args': {'remote_has': ['WHERE', '"region" = \'north\''], 'local_not_has': ['Filter:']}},
  {'id': 'FQOR-PUSH-007',
   'sql': "select voltage from {SRC}.sensor where region = ''",
   'sources': 'custom',
@@ -17524,7 +17524,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
         scan node prints as ``<src>.<schema>.<table>``.
         """
         cfg = self._oracle_cfg()
-        for table in ("SENSOR", "REGION_INFO", "SENSOR_CHAR"):
+        for table in ("sensor", "region_info", "sensor_char"):
             ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
         ExtSrcEnv.oracle_exec_cfg(cfg, _oracle_setup_sqls())
         self._cleanup_src(self._O_SRC)
@@ -17533,7 +17533,7 @@ class TestFq13Explain(FederatedQueryVersionedMixin):
 
     def _drop_oracle_explain_fixture(self):
         cfg = self._oracle_cfg()
-        for table in ("SENSOR", "REGION_INFO", "SENSOR_CHAR"):
+        for table in ("sensor", "region_info", "sensor_char"):
             try:
                 ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
             except Exception:

@@ -149,14 +149,20 @@ static const SDataBlockDescNode* getFederatedDataBlockDesc(const SLoadNextCtx* p
   return pFedInfo->pFedScanNode->node.pOutputDataBlockDesc;
 }
 
-static bool federatedOutputNameMatchesTarget(const char* pOutputName, const SColumnNode* pCol) {
+static bool federatedOutputNameMatchesTarget(const char* pOutputName, const SColumnNode* pCol,
+                                             int8_t srcType) {
   if (pOutputName == NULL || pOutputName[0] == '\0' || pCol == NULL) {
     return false;
   }
 
+  // refColName / colName carry the remote catalog spelling, so they follow the
+  // source's own matching rule (exact for Oracle/PostgreSQL/InfluxDB).  Aliases
+  // are TDengine-local names and keep the historical case-insensitive match.
   const char* pRefName = pCol->hasRef && pCol->refColName[0] != '\0' ? pCol->refColName : pCol->colName;
-  return (pRefName[0] != '\0' && strcasecmp(pOutputName, pRefName) == 0) ||
-         (pCol->colName[0] != '\0' && strcasecmp(pOutputName, pCol->colName) == 0) ||
+  return (pRefName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pRefName)) ||
+         (pCol->colName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pCol->colName)) ||
          (pCol->node.aliasName[0] != '\0' && strcasecmp(pOutputName, pCol->node.aliasName) == 0) ||
          (pCol->node.userAlias[0] != '\0' && strcasecmp(pOutputName, pCol->node.userAlias) == 0);
 }
@@ -168,15 +174,16 @@ static const SColumnNode* getFederatedOutputColumn(const SNode* pNode) {
   return pNode != NULL && QUERY_NODE_COLUMN == nodeType(pNode) ? (const SColumnNode*)pNode : NULL;
 }
 
-static bool federatedOutputColumnMatchesTarget(const SColumnNode* pOutputCol, const SColumnNode* pTargetCol) {
+static bool federatedOutputColumnMatchesTarget(const SColumnNode* pOutputCol, const SColumnNode* pTargetCol,
+                                               int8_t srcType) {
   if (pOutputCol == NULL || pTargetCol == NULL || pOutputCol->node.resType.type != pTargetCol->node.resType.type) {
     return false;
   }
 
-  return federatedOutputNameMatchesTarget(pOutputCol->refColName, pTargetCol) ||
-         federatedOutputNameMatchesTarget(pOutputCol->colName, pTargetCol) ||
-         federatedOutputNameMatchesTarget(pOutputCol->node.aliasName, pTargetCol) ||
-         federatedOutputNameMatchesTarget(pOutputCol->node.userAlias, pTargetCol);
+  return federatedOutputNameMatchesTarget(pOutputCol->refColName, pTargetCol, srcType) ||
+         federatedOutputNameMatchesTarget(pOutputCol->colName, pTargetCol, srcType) ||
+         federatedOutputNameMatchesTarget(pOutputCol->node.aliasName, pTargetCol, srcType) ||
+         federatedOutputNameMatchesTarget(pOutputCol->node.userAlias, pTargetCol, srcType);
 }
 
 static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, const SColumnNode* pCol) {
@@ -194,7 +201,8 @@ static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, con
       const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[i];
       SSlotDescNode* pSlot = (SSlotDescNode*)(NULL != pSlotCell ? pSlotCell->pNode : NULL);
       if (pMapping->tdType.type == pCol->node.resType.type &&
-          federatedOutputNameMatchesTarget(pMapping->colName, pCol) && pSlot != NULL && pSlot->output &&
+          federatedOutputNameMatchesTarget(pMapping->colName, pCol, pScan->sourceType) && pSlot != NULL &&
+          pSlot->output &&
           !pSlot->reserve) {
         return pSlot->slotId;
       }
@@ -219,7 +227,7 @@ static int16_t findFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, con
         pOutputCell = pOutputCell->pNext;
       }
       if (pSlot != NULL && pSlot->output && !pSlot->reserve &&
-          federatedOutputColumnMatchesTarget(pOutputCol, pCol)) {
+          federatedOutputColumnMatchesTarget(pOutputCol, pCol, pScan->sourceType)) {
         return pSlot->slotId;
       }
     }

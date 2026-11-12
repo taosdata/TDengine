@@ -5939,12 +5939,16 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   if ('\0' == dbName[0] && EXT_SOURCE_SQLSERVER == (EExtSourceType)pScan->sourceType) {
     dbName = pScan->srcDatabase;
   }
+  // The cache key keeps the exact spellings.  Lower-casing it would merge
+  // Oracle tables or columns that differ only in case (EMP vs emp, VAL vs val)
+  // and hand the second caller the first table's metadata; extColumnNameEqual()
+  // applies each source's own matching rule when a bind is resolved.
   char key[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN] = {0};
-  strntolower(key, table.sourceName, strlen(table.sourceName));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN, dbName, strlen(dbName));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, schema, strlen(schema));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN, tableName,
-              strlen(tableName));
+  tstrncpy(key, table.sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN, dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, schema, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN, tableName,
+           TSDB_TABLE_NAME_LEN);
 
   if (NULL == pVtbScan->extTableMetaCache) {
     pVtbScan->extTableMetaCache =
@@ -6052,7 +6056,7 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
 
   const SExtColumnDef* pExtCol = NULL;
   for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
-    if (0 == strcasecmp(pMeta->pCols[i].colName, colName)) {
+    if (extColumnNameEqual(sourceType, pMeta->pCols[i].colName, colName)) {
       pExtCol = &pMeta->pCols[i];
       break;
     }

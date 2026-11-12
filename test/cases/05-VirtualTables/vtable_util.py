@@ -433,6 +433,44 @@ ORACLE_TABLE_COLUMNS = (
     'groupid NUMBER(10,0)', 'location VARCHAR2(64)',
 )
 
+
+def _oracle_quoted_col_defs(col_defs):
+    """Quote the leading identifier of each column definition.
+
+    Fixtures store quoted lower-case names so the TDengine-side references
+    (unquoted -> lower case) match exactly.  Constraint clauses are skipped.
+    """
+    keyword_prefixes = ("primary", "unique", "constraint", "foreign", "check", "key")
+    out = []
+    depth = 0
+    start = 0
+    text = ", ".join(col_defs) + ","
+    for i, ch in enumerate(text):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            part = text[start:i].strip()
+            start = i + 1
+            if not part:
+                continue
+            name, sep, rest = part.partition(" ")
+            if name.startswith('"') or name.lower() in keyword_prefixes:
+                # Quote the identifiers inside a constraint column list, e.g.
+                # PRIMARY KEY (ts, device) -> PRIMARY KEY ("ts", "device").
+                part = re.sub(r'([(,])(\s*)([A-Za-z_][A-Za-z0-9_$#]*)(?=\s*[,)])',
+                              lambda m: f'{m.group(1)}{m.group(2)}"{m.group(3).lower()}"',
+                              part)
+                out.append(part)
+            else:
+                out.append(f'"{name.lower()}"{sep}{rest}'.rstrip())
+    return ", ".join(out)
+
+
+def _oracle_quoted_list(cols):
+    return ", ".join(f'"{c}"' for c in cols)
+
 # InfluxDB field columns: every vtable data column is a field — the 11 numeric
 # columns plus the 4 string columns (binary_*/nchar_*). Strings are Utf8 fields
 # and map to nchar in the vtable.
@@ -1221,8 +1259,10 @@ class _OracleAdapter:
     def ref(self, table, col, idx):
         # Oracle references are 4-segment: source.schema.table.column.  The
         # service name is a connection property and never part of a path.
+        # The login schema is upper-case, so that segment must be backticked;
+        # the fixture table/column names are stored quoted lower-case.
         s = self.SOURCE_NAMES[idx % 2]
-        return f"{s}.{self.SCHEMA_NAME}.{table}.{col}"
+        return f"{s}.`{self.SCHEMA_NAME}`.{table}.{col}"
 
     def ref_short(self, table, col, idx):
         # Child vtables keep the schema-qualified form: the schema is Oracle's
@@ -1239,7 +1279,7 @@ class _OracleAdapter:
                 f"CREATE EXTERNAL SOURCE IF NOT EXISTS {src} TYPE='oracle' "
                 f"HOST='{self.host}' PORT={self.port} "
                 f"USER='{self.user}' PASSWORD='{self.password}' "
-                f"DATABASE={self.SERVICE} SCHEMA={self.SCHEMA_NAME}")
+                f"DATABASE='{self.SERVICE}' SCHEMA='{self.SCHEMA_NAME}'")
 
     @classmethod
     def _value_literal(cls, column, value):
@@ -1273,8 +1313,9 @@ class _OracleAdapter:
         # multi-kilobyte line: a 200-row INSERT ALL on one line makes it
         # split the statement and fail.  One row per line keeps every line
         # short while the statement still spans lines until its semicolon.
-        into_rows = "\n".join(f"INTO {table_name} ({col_str}) VALUES {row}"
-                              for row in batch)
+        into_rows = "\n".join(
+            f'INTO "{table_name.lower()}" ({col_str}) VALUES {row}'
+            for row in batch)
         return f"INSERT ALL\n{into_rows}\nSELECT 1 FROM dual"
 
     def _load_csv(self, table_name, csv_path):
@@ -1285,7 +1326,7 @@ class _OracleAdapter:
         as the other adapters' CSV loaders.
         """
         import csv
-        col_str = ", ".join(PG_COPY_COLUMN_LIST)
+        col_str = _oracle_quoted_list(PG_COPY_COLUMN_LIST)
         with open(csv_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             batch = []
@@ -1308,22 +1349,22 @@ class _OracleAdapter:
         tdLog.info(
             f"prepare Oracle origin tables in schema {self.SCHEMA_NAME}.")
         cfg = self.cfg
-        cols_sql = ", ".join(ORACLE_TABLE_COLUMNS)
+        cols_sql = _oracle_quoted_col_defs(ORACLE_TABLE_COLUMNS)
         for i in range(18):
-            ExtSrcEnv.oracle_drop_table_cfg(cfg, f"VTB_ORG_TB_{i}")
+            ExtSrcEnv.oracle_drop_table_cfg(cfg, f"vtb_org_tb_{i}")
         ExtSrcEnv._oracle_sql(
-            cfg, [f"CREATE TABLE VTB_ORG_TB_{i} ({cols_sql})"
+            cfg, [f'CREATE TABLE "vtb_org_tb_{i}" ({cols_sql})'
                   for i in range(18)])
         for i in range(9):
             datafile = etool.getFilePath(__file__, "data", f"data{i+1}.csv")
-            self._load_csv(f"VTB_ORG_TB_{i}", datafile)
-        insert_cols = ", ".join(PG_COPY_COLUMN_LIST)
-        select_cols = ", ".join(PG_COPY_COLUMN_LIST[1:])
+            self._load_csv(f"vtb_org_tb_{i}", datafile)
+        insert_cols = _oracle_quoted_list(PG_COPY_COLUMN_LIST)
+        select_cols = _oracle_quoted_list(PG_COPY_COLUMN_LIST[1:])
         # Tables 9..17 = 0..8 shifted +3 days; INTERVAL keeps the ms scale.
         offset_stmts = [
-            f"INSERT INTO VTB_ORG_TB_{i} ({insert_cols}) "
-            f"SELECT ts + INTERVAL '3' DAY, {select_cols} "
-            f"FROM VTB_ORG_TB_{i-9}"
+            f'INSERT INTO "vtb_org_tb_{i}" ({insert_cols}) '
+            f'SELECT "ts" + INTERVAL \'3\' DAY, {select_cols} '
+            f'FROM "vtb_org_tb_{i-9}"'
             for i in range(9, 18)]
         ExtSrcEnv._oracle_sql(cfg, offset_stmts + ["COMMIT"])
 

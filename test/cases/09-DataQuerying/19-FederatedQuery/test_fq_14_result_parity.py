@@ -1300,11 +1300,12 @@ _LOCAL_US_SETUP = [
 # (DS 5.3.2), so every fixture is a table in ORACLE_USER's own schema.  The
 # names carry this file's own prefix so the fixtures never collide with the
 # identifiers other FQ files create on the same instance.
-_ORACLE_TABLE      = "PARITY14_T"
-_ORACLE_SEM_TABLE  = "PARITY14_SEM"
-_ORACLE_BULK_TABLE = "PARITY14_BULK"
-_ORACLE_VIEW_SUM   = "PARITY14_V_SUM"
-_ORACLE_VIEW_FILT  = "PARITY14_V_FILT"
+_ORACLE_TABLE      = "parity14_t"
+_ORACLE_SEM_TABLE  = "parity14_sem"
+_ORACLE_BULK_TABLE = "parity14_bulk"
+_ORACLE_VIEW_SUM   = "parity14_v_sum"
+_ORACLE_VIEW_FILT  = "parity14_v_filt"
+_ORACLE_MC_TABLE   = "parity14_mc"   # mixed-case identifier fixture
 
 # Types are picked so the TDengine mapping matches the other providers:
 #   NUMBER(10,0)  -> BIGINT        (id / val / Mapped_Val / nullable_val)
@@ -1315,11 +1316,11 @@ _ORACLE_VIEW_FILT  = "PARITY14_V_FILT"
 #   TIMESTAMP(3)  -> TIMESTAMP with MICRO transport precision (DS 5.3.7: no
 #                                   TIMESTAMP(7-9) column in the table)
 _ORACLE_COLUMNS = (
-    '"TIME" TIMESTAMP(3) PRIMARY KEY,'
-    ' "ID" NUMBER(10,0), "VAL" NUMBER(10,0), "MAPPED_VAL" NUMBER(10,0),'
-    ' "SCORE" BINARY_DOUBLE, "LABEL" NVARCHAR2(32), "NULLABLE_VAL" NUMBER(10,0),'
-    ' "LAT" BINARY_DOUBLE, "LON" BINARY_DOUBLE,'
-    ' "WKT_POINT" NVARCHAR2(64), "WKT_POLY" NVARCHAR2(256), "TS_STR" NVARCHAR2(32)'
+    '"time" TIMESTAMP(3) PRIMARY KEY,'
+    ' "id" NUMBER(10,0), "val" NUMBER(10,0), "mapped_val" NUMBER(10,0),'
+    ' "score" BINARY_DOUBLE, "label" NVARCHAR2(32), "nullable_val" NUMBER(10,0),'
+    ' "lat" BINARY_DOUBLE, "lon" BINARY_DOUBLE,'
+    ' "wkt_point" NVARCHAR2(64), "wkt_poly" NVARCHAR2(256), "ts_str" NVARCHAR2(32)'
 )
 
 
@@ -1361,6 +1362,12 @@ def _oracle_insert_all(table, rows_dt):
 _ORACLE_SETUP = [
     f'CREATE TABLE "{_ORACLE_TABLE}" ({_ORACLE_COLUMNS})',
     _oracle_insert_all(_ORACLE_TABLE, _ROWS_DT),
+    # Dedicated mixed-case identifier fixture: the stored spelling is upper
+    # case, so only a backticked `MAPPED_VAL` reaches it.
+    f'CREATE TABLE "{_ORACLE_MC_TABLE}" ('
+    f' "ID" NUMBER(10,0), "MAPPED_VAL" NUMBER(10,0))',
+    f'INSERT INTO "{_ORACLE_MC_TABLE}" VALUES (4, 104)',
+    f'INSERT INTO "{_ORACLE_MC_TABLE}" VALUES (5, 105)',
     "COMMIT",
 ]
 
@@ -1377,8 +1384,8 @@ _ORACLE_SEM_ROWS = [
 ]
 _ORACLE_SEM_SETUP = [
     f'CREATE TABLE "{_ORACLE_SEM_TABLE}" ('
-    f' "D_DATE" DATE, "D_DEC" NUMBER(10,2), "D_NUM1" NUMBER(1,0),'
-    f' "D_STR" NVARCHAR2(16))',
+    f' "d_date" DATE, "d_dec" NUMBER(10,2), "d_num1" NUMBER(1,0),'
+    f' "d_str" NVARCHAR2(16))',
 ] + [
     # DATE is a second-precision timestamp in Oracle; the ANSI DATE literal
     # only takes YYYY-MM-DD and raises ORA-01861 for a time component, so
@@ -1409,11 +1416,11 @@ _ORACLE_VIEWS = [
     # map rejects (DS 5.3.2.1: 未声明精度的 NUMBER 不支持), so the view casts
     # its aggregate columns to the precision the values really need.
     f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_SUM}" AS '
-    f'SELECT "LABEL", CAST(COUNT(*) AS NUMBER(18,0)) AS "CNT", '
-    f'CAST(SUM("VAL") AS NUMBER(19,0)) AS "SV" '
-    f'FROM "{_ORACLE_TABLE}" GROUP BY "LABEL"',
+    f'SELECT "label", CAST(COUNT(*) AS NUMBER(18,0)) AS "cnt", '
+    f'CAST(SUM("val") AS NUMBER(19,0)) AS "sv" '
+    f'FROM "{_ORACLE_TABLE}" GROUP BY "label"',
     f'CREATE OR REPLACE VIEW "{_ORACLE_VIEW_FILT}" AS '
-    f'SELECT "ID", "VAL" FROM "{_ORACLE_TABLE}" WHERE "VAL" > 20',
+    f'SELECT "id", "val" FROM "{_ORACLE_TABLE}" WHERE "val" > 20',
 ]
 
 # Large result set (FQOR-LOCAL-013): one row per second, K = 1..5000, V = 2*K.
@@ -1421,8 +1428,8 @@ _ORACLE_VIEWS = [
 _ORACLE_BULK_ROWS = 5000
 _ORACLE_BULK_SETUP = [
     f'CREATE TABLE "{_ORACLE_BULK_TABLE}" ('
-    f' "TS" TIMESTAMP(3) PRIMARY KEY, "K" NUMBER(10,0), "V" NUMBER(10,0))',
-    f'INSERT INTO "{_ORACLE_BULK_TABLE}" ("TS", "K", "V") '
+    f' "ts" TIMESTAMP(3) PRIMARY KEY, "k" NUMBER(10,0), "v" NUMBER(10,0))',
+    f'INSERT INTO "{_ORACLE_BULK_TABLE}" ("ts", "k", "v") '
     f"SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(LEVEL - 1, 'SECOND'),"
     f" LEVEL, LEVEL * 2 FROM DUAL CONNECT BY LEVEL <= {_ORACLE_BULK_ROWS}",
     "COMMIT",
@@ -1434,6 +1441,7 @@ _ORACLE_DROP_OBJECTS = (
     ("TABLE", _ORACLE_BULK_TABLE),
     ("TABLE", _ORACLE_SEM_TABLE),
     ("TABLE", _ORACLE_TABLE),
+    ("TABLE", _ORACLE_MC_TABLE),
 )
 
 
@@ -1493,8 +1501,8 @@ class TestFq14ResultParity(ParityTestBase):
             ("PG",        f"{self._SRC_PG}.parity_t"),
             ("InfluxDB",  f"{self._SRC_INFLUX}.parity_t"),
             ("SQLServer", f"{self._SRC_SQLSERVER}.parity_t"),
-            # Oracle folds unquoted identifiers to upper case, so the lowercase
-            # reference resolves to PARITY14_T.
+            # Oracle fixtures store quoted lower-case names, so the plain
+            # lower-case reference matches exactly.
             ("Oracle",    f"{self._SRC_ORACLE}.parity14_t"),
         ]
         return self._expand_influx_source_list(sources)
@@ -2039,9 +2047,10 @@ class TestFq14ResultParity(ParityTestBase):
         original case, so unquoted mapped_val is rejected and quoted
         Mapped_Val is required for metadata and binding. SQL Server keeps the
         stored case but matches names case-insensitively, like MySQL. Oracle
-        folds the unquoted declaration to upper case, so the stored column is
-        MAPPED_VAL; an unquoted or all-lowercase reference folds onto it, while
-        a quoted reference is matched exactly (DS 5.3.6 R1).
+        follows TDengine's identifier grammar: an unquoted reference is
+        lower-cased and matched exactly, while a backticked reference keeps its
+        spelling and is matched exactly (DS 5.3.6 R1).  A dedicated fixture
+        pins the mixed-case MAPPED_VAL spelling.
 
         Catalog: - Query:FederatedResultParity
 
@@ -2052,7 +2061,8 @@ class TestFq14ResultParity(ParityTestBase):
         History:
             - 2026-09-01 xsren Mixed-case identifier parity for MySQL/PG/InfluxDB
             - 2026-10-16 wpan Add the SQL Server identifier leg
-            - 2026-10-26 wpan Add the Oracle identifier-folding leg
+            - 2026-10-26 wpan Add the Oracle identifier leg
+            - 2026-11-09 wpan Align Oracle with TDengine's identifier grammar
         """
         tables = dict(self._ext_sources())
 
@@ -2087,16 +2097,13 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
 
-        # Oracle folds the unquoted column declaration to upper case (DS
-        # 5.3.6 R1): the metadata reports MAPPED_VAL.  An unquoted reference
-        # is lower-cased by TDengine and then folds onto it, and the quoted
-        # all-lower-case form is indistinguishable from an unquoted one, so
-        # all of those spellings resolve.
+        # Oracle follows TDengine's identifier grammar (DS 5.3.6 R1): the
+        # catalog stores quoted lower-case names, and every unquoted spelling
+        # is lower-cased to mapped_val and matches exactly.
         tdSql.query(f"DESC {tables['Oracle']}")
         oracle_fields = [str(row[0]) for row in tdSql.queryResult]
-        assert "MAPPED_VAL" in oracle_fields and "Mapped_Val" not in oracle_fields
-        for name in ("MAPPED_VAL", "mapped_val", "Mapped_Val",
-                     "`MAPPED_VAL`", "`mapped_val`"):
+        assert "mapped_val" in oracle_fields and "MAPPED_VAL" not in oracle_fields
+        for name in ("mapped_val", "MAPPED_VAL", "Mapped_Val", "`mapped_val`"):
             tdSql.query(
                 f"SELECT id, {name} FROM {tables['Oracle']} "
                 f"WHERE {name} > 103 ORDER BY id")
@@ -2106,10 +2113,23 @@ class TestFq14ResultParity(ParityTestBase):
             tdSql.checkData(1, 0, 5)
             tdSql.checkData(1, 1, 105)
 
-        # A quoted reference keeps its spelling and is matched exactly, so the
-        # quoted mixed-case form names a column that does not exist: the
-        # table declares MAPPED_VAL, not "Mapped_Val".
+        # A backticked mixed-case spelling stays mixed-case and names nothing.
         tdSql.error(f"SELECT id, `Mapped_Val` FROM {tables['Oracle']}")
+
+        # Dedicated mixed-case fixture: the stored column is MAPPED_VAL, so
+        # only the exact backticked spelling reaches it.
+        mc_ref = f"{self._SRC_ORACLE}.{_ORACLE_MC_TABLE}"
+        tdSql.query(f"DESC {mc_ref}")
+        mc_fields = [str(row[0]) for row in tdSql.queryResult]
+        assert "MAPPED_VAL" in mc_fields and "mapped_val" not in mc_fields
+        tdSql.query(f"SELECT `ID`, `MAPPED_VAL` FROM {mc_ref} WHERE `MAPPED_VAL` > 103 ORDER BY `ID`")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 4)
+        tdSql.checkData(0, 1, 104)
+        tdSql.checkData(1, 0, 5)
+        tdSql.checkData(1, 1, 105)
+        for name in ("MAPPED_VAL", "mapped_val", "Mapped_Val", "`mapped_val`"):
+            tdSql.error(f"SELECT `ID`, {name} FROM {mc_ref}")
 
     def do_preserved_case_identifier(self, table):
         tdSql.query(f"DESC {table}")

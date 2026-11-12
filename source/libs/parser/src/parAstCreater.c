@@ -5394,12 +5394,20 @@ SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs
   SUseExtSourceStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  // Every component is a TDengine identifier: an unquoted token was already
+  // lower-cased by the client, a backticked one keeps its spelling and the
+  // backticks themselves are syntax.  trimEscape() removes them (and decodes a
+  // doubled backtick) before the namespace is stored in the connection state,
+  // otherwise "USE src.`SCHEMA`" would look up a schema named `SCHEMA`.
+  trimEscape(pCxt, pSrc, true);
   COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pSrc);
+  trimEscape(pCxt, pNs1, true);
+  trimEscape(pCxt, pNs2, true);
   if (pNs1 && pNs1->n > 0) {
-    strncpy(pStmt->ns1, pNs1->z, TMIN((int32_t)pNs1->n, (int32_t)sizeof(pStmt->ns1) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns1, pNs1);
   }
   if (pNs2 && pNs2->n > 0) {
-    strncpy(pStmt->ns2, pNs2->z, TMIN((int32_t)pNs2->n, (int32_t)sizeof(pStmt->ns2) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns2, pNs2);
   }
   return (SNode*)pStmt;
 _err:

@@ -24556,14 +24556,13 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
   }
 
   // Match the parser's column-name contract through the shared helper: MySQL /
-  // SQL Server fold case, Oracle folds an unquoted reference to upper case,
-  // PostgreSQL / InfluxDB are case sensitive (`device` and `Device` are
-  // distinct columns).
+  // SQL Server fold case, while PostgreSQL, InfluxDB and Oracle are byte-exact
+  // (`device` and `Device` are distinct columns).  TDengine has already applied
+  // its identifier grammar to both names before they reach the planner.
   //
-  // The exact spelling wins: Oracle keeps a quoted "Device" apart from a
-  // folded DEVICE, so a folded hit must not hide the fact that the exact
-  // column is missing from the list (DS 5.3.6 R1).
-  bool foldedMatch = false;
+  // The exact spelling wins, so a case-insensitive hit must not hide the fact
+  // that the exact column is missing from the list (DS 5.3.6 R1).
+  bool ciMatch = false;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     const SNode* pInner = pNode;
@@ -24578,14 +24577,14 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
       if (0 == strcmp(pExist->colName, pCol->colName)) {
         return true;
       }
-      if (!foldedMatch && extColumnNameEqual(sourceType, pExist->colName, pCol->colName)) {
-        foldedMatch = true;
+      if (!ciMatch && extColumnNameEqual(sourceType, pExist->colName, pCol->colName)) {
+        ciMatch = true;
       }
     } else if (0 != pCol->colId && pExist->colId == pCol->colId) {
       return true;
     }
   }
-  return foldedMatch;
+  return ciMatch;
 }
 
 static int32_t fqAppendLocalFilterCols(SScanLogicNode* pScan, SNode* pLocalCond) {

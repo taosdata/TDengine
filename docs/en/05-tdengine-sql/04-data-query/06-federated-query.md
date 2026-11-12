@@ -338,8 +338,8 @@ HOST = 'oracle.example.com'
 PORT = 1521
 USER = 'td_reader'
 PASSWORD = 'your_password'
-DATABASE = ORCLPDB1
-SCHEMA = TELEMETRY
+DATABASE = 'ORCLPDB1'
+SCHEMA = 'TELEMETRY'
 OPTIONS (
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
@@ -536,7 +536,7 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 
 Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and triggers in PostgreSQL, and synonyms, stored procedures, triggers, indexes, constraints, and SQL Server Agent objects in SQL Server, do not participate in federated query. For InfluxDB 1.8, the RP determines which data is read: `retention_policy` on the external source selects it explicitly, or the target database's default RP is used when the option is omitted. InfluxDB 3.x is accessed by database and Measurement, with data retention managed by InfluxDB; this option does not apply. Neither version adds a separate RP segment to federated query paths. Oracle synonyms, sequences, PL/SQL packages/procedures/functions, triggers, indexes, constraints, and scheduler objects do not participate in federated query; a synonym in a path is treated as a missing object.
 
-**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names; Oracle folds unquoted identifiers to upper case and preserves the original case when double quotes are used.
+**Note**: Identifier case follows external database rules: MySQL is case-insensitive by default; PostgreSQL folds to lowercase by default and preserves original case when quoted; InfluxDB is case-sensitive; SQL Server follows the collation of the database containing the object, which may differ across databases, and identifiers quoted with brackets or double quotes preserve their original names; Oracle is case-sensitive and matches exact spelling: objects created unquoted are stored in upper case in Oracle, so reference them with backticks to preserve the original spelling.
 
 ### Timestamp Primary Key Requirements
 
@@ -573,7 +573,7 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 SELECT * FROM sqlserver_prod.dbo.device_info;
 
 -- Oracle dimension table without a timestamp primary key
-SELECT * FROM oracle_prod.TELEMETRY.device_info;
+SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
 External tables without a timeline cannot be used with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, Window JOIN, or virtual table column references. In the current version, external regular tables with non-timestamp primary keys may pass virtual table DDL validation, but that path does not have tested time-merge semantics and should not be used in production. To associate external dimension data with TDengine time-series data, first provide join results with a timestamp primary key in the external system, or synchronize dimension data into TDengine before joining.
@@ -669,7 +669,7 @@ SELECT * FROM sqlserver_prod.sensor_data;
 SELECT * FROM sqlserver_prod.telemetry.sensor_data;
 SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
 SELECT * FROM oracle_prod.sensor_data;
-SELECT * FROM oracle_prod.TELEMETRY.sensor_data;
+SELECT * FROM oracle_prod.`TELEMETRY`.sensor_data;
 
 -- Reference external columns in virtual table DDL
 current FLOAT FROM mysql_prod.meters.current
@@ -684,7 +684,7 @@ value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
 -- Oracle three-part (source requires a default schema)
 value FLOAT FROM oracle_prod.sensor_data.value
 -- Oracle four-part (explicit schema)
-value FLOAT FROM oracle_prod.TELEMETRY.sensor_data.value
+value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 ```
 
 ### Using USE to Switch External Namespaces
@@ -741,7 +741,7 @@ USE oracle_prod;
 SELECT * FROM sensor_data LIMIT 10;
 
 -- Explicitly select an Oracle schema
-USE oracle_prod.TELEMETRY;
+USE oracle_prod.`TELEMETRY`;
 SELECT * FROM sensor_data LIMIT 10;
 
 -- Switch back to a local database and clear external context
@@ -780,7 +780,7 @@ ORDER BY ts;
 
 -- Oracle external table range query
 SELECT ts, value
-FROM oracle_prod.TELEMETRY.sensor_data
+FROM oracle_prod.`TELEMETRY`.sensor_data
 WHERE ts ≥ '2026-01-01 00:00:00'
   AND ts < '2026-01-02 00:00:00'
 ORDER BY ts;

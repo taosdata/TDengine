@@ -442,8 +442,8 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             # the version configs are taken directly instead of through the
             # instance helper _oracle_cfg().
             for cfg_o in ExtSrcEnv.oracle_version_configs():
-                for table in ("SVC_S01_T", "SVC_S02_T", "SVC_S03_T",
-                              "SVC_S04_T", "SVC_S05_T", "SVC_S07_T"):
+                for table in ("svc_s01_t", "svc_s02_t", "svc_s03_t",
+                              "svc_s04_t", "svc_s05_t", "svc_s07_t"):
                     try:
                         ExtSrcEnv.oracle_drop_table_cfg(cfg_o, table)
                     except Exception:
@@ -566,23 +566,23 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
         Oracle has no database level and no per-scenario database to isolate
         the fixtures, so each scenario passes its own table name instead.
         The table carries a TIMESTAMP column, which every external table
-        needs as its time key, and is created unquoted so the name folds to
-        upper case exactly like the paths the tests use.
+        needs as its time key.  Names are quoted lower-case so the unquoted
+        TDengine paths the tests use resolve to the exact spelling.
         """
         cfg = self._oracle_cfg()
         ExtSrcEnv.oracle_drop_table_cfg(cfg, table)
         ExtSrcEnv.oracle_exec_cfg(cfg, [
-            f"CREATE TABLE {table} (TS TIMESTAMP(3), ID NUMBER(10) NOT NULL, "
-            "VAL NUMBER(10), NAME VARCHAR2(32))",
-            f"INSERT INTO {table} VALUES "
+            f'CREATE TABLE "{table}" ("ts" TIMESTAMP(3), '
+            '"id" NUMBER(10) NOT NULL, "val" NUMBER(10), "name" VARCHAR2(32))', 
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 'alpha')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:01:00.000', 2, 20, 'beta')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:02:00.000', 3, 30, 'gamma')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:03:00.000', 4, 40, 'delta')",
-            f"INSERT INTO {table} VALUES "
+            f'INSERT INTO "{table}" VALUES '
             "(TIMESTAMP '2024-01-01 00:04:00.000', 5, 50, 'epsilon')",
             "COMMIT",
         ])
@@ -2136,7 +2136,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s01_or", "SVC_S01_T"
+        src, table = "svc_s01_or", "svc_s01_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2189,7 +2189,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s02_or", "SVC_S02_T"
+        src, table = "svc_s02_or", "svc_s02_t"
         ver = self._oracle_ver()
 
         self._cleanup_src(src)
@@ -2247,7 +2247,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s03_or", "SVC_S03_T"
+        src, table = "svc_s03_or", "svc_s03_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2318,7 +2318,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
         """
         N = 5
-        src, table = "svc_s04_or", "SVC_S04_T"
+        src, table = "svc_s04_or", "svc_s04_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2369,7 +2369,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
             - 2026-10-26 wpan Add Oracle to the per-provider matrix
 
         """
-        src, table = "svc_s05_or", "SVC_S05_T"
+        src, table = "svc_s05_or", "svc_s05_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:
@@ -2416,7 +2416,7 @@ class TestFq15ServiceDisruption(FederatedQueryVersionedMixin):
 
         """
         CYCLES = 3
-        src, table = "svc_s07_or", "SVC_S07_T"
+        src, table = "svc_s07_or", "svc_s07_t"
         ver = self._oracle_ver()
         self._cleanup_src(src)
         try:

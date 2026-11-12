@@ -1378,6 +1378,8 @@ enum {
 static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteValueListNode* pNode = (const SRemoteValueListNode*)pObj;
 
+  qDebug("FQ-MSG: encode remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_VALUELIST_CODE_EXPR, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_FLAG, pNode->flag);
@@ -1428,6 +1430,8 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
         break;
     }
   }
+  qDebug("FQ-MSG: decoded remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
 
   return code;
 }

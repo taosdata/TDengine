@@ -39,7 +39,7 @@ _EXTERNAL_SOURCES = {
 # table name carries the file prefix because every Oracle fixture of this suite
 # lives in the same shared schema.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
-_ORACLE_TABLE = "VT_WINDOW_PLAN_ORA_VALUES"
+_ORACLE_TABLE = "vt_window_plan_ora_values"
 
 
 class TestVTablePlanWindowExtSource:
@@ -138,19 +138,19 @@ class TestVTablePlanWindowExtSource:
         ExtSrcEnv._oracle_sql(
             cfg,
             [
-                f"CREATE TABLE {_ORACLE_TABLE} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, "
-                "state_col NUMBER(10,0), v NUMBER(10,0))",
+                f'CREATE TABLE "{_ORACLE_TABLE}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, '
+                '"state_col" NUMBER(10,0), "v" NUMBER(10,0))',
                 # Oracle has no multi-row VALUES clause and a bare string date
                 # would go through NLS_TIMESTAMP_FORMAT (ORA-01861).
                 f"INSERT ALL "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:00.000', 1, 100000) "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:01.000', 1, 200000) "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:02.000', 2, 300000) "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:03.000', 2, 400000) "
                 "SELECT 1 FROM dual",
                 "COMMIT",
@@ -201,7 +201,7 @@ class TestVTablePlanWindowExtSource:
             f"create external source {_EXTERNAL_SOURCES['oracle']} "
             f"type='oracle' host='{oracle.host}' port={oracle.port} "
             f"user='{oracle.user}' password='{oracle.password}' "
-            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+            f"database='{ExtSrcEnv.ORACLE_SERVICE}' schema='{_ORACLE_SCHEMA}'"
         )
 
     @classmethod
@@ -229,7 +229,7 @@ class TestVTablePlanWindowExtSource:
         # schema and the service name never appears in a path.
         oracle_prefix = (
             f"{_EXTERNAL_SOURCES['oracle']}."
-            f"{_ORACLE_SCHEMA}.{_ORACLE_TABLE}"
+            f"`{_ORACLE_SCHEMA}`.{_ORACLE_TABLE}"
         )
 
         tdSql.execute(f"drop database if exists {_LOCAL_DB}")

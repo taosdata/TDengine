@@ -338,8 +338,8 @@ HOST = 'oracle.example.com'
 PORT = 1521
 USER = 'td_reader'
 PASSWORD = 'your_password'
-DATABASE = ORCLPDB1
-SCHEMA = TELEMETRY
+DATABASE = 'ORCLPDB1'
+SCHEMA = 'TELEMETRY'
 OPTIONS (
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
@@ -536,7 +536,7 @@ DROP EXTERNAL SOURCE IF EXISTS mysql_prod;
 
 MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触发器，以及 SQL Server 的同义词、存储过程、触发器、索引、约束和 SQL Server Agent 对象不参与联邦查询。InfluxDB 1.8 的 RP 决定读取的数据范围，由外部源的 `retention_policy` 指定，省略时使用目标 database 的默认 RP；3.x 按 database 和 Measurement 访问，数据保留期限由 InfluxDB 管理，不使用该选项。两个版本均不在联邦查询路径中增加独立的 RP 层级。Oracle 的同义词、序列、PL/SQL 包/过程/函数、触发器、索引、约束和调度对象不参与联邦查询，同义词出现在路径中时按对象不存在处理。
 
-**说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写；SQL Server 由对象所在 database 的排序规则决定，跨 database 时可能不同，使用方括号或双引号引用的标识符保留原始名称；Oracle 未加引号的标识符折叠为大写，使用双引号时保留原始大小写。
+**说明**：标识符大小写遵循外部数据库规则：MySQL 默认不区分大小写；PostgreSQL 默认折叠为小写，使用引号时保留原始大小写；InfluxDB 区分大小写；SQL Server 由对象所在 database 的排序规则决定，跨 database 时可能不同，使用方括号或双引号引用的标识符保留原始名称；Oracle 区分大小写、按精确拼写匹配：未加引号创建的对象在 Oracle 中存储为大写，引用时需用反引号保留原始拼写。
 
 ### 时间戳主键要求
 
@@ -573,7 +573,7 @@ SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
 SELECT * FROM sqlserver_prod.dbo.device_info;
 
 -- Oracle 无时间戳主键的外部维度表
-SELECT * FROM oracle_prod.TELEMETRY.device_info;
+SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
 无时间线外部表不能用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN、Window JOIN 或虚拟表列引用。当前版本中，含非时间戳主键的外部普通表可能通过虚拟表 DDL 校验，但该路径不具备受测试保障的时间归并语义，不应在生产中使用。若需将外部维度数据与 TDengine 时序数据关联，应先在外部系统中提供具有时间戳主键的关联结果，或将维度数据同步到 TDengine 后再关联。
@@ -669,7 +669,7 @@ SELECT * FROM sqlserver_prod.sensor_data;
 SELECT * FROM sqlserver_prod.telemetry.sensor_data;
 SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
 SELECT * FROM oracle_prod.sensor_data;
-SELECT * FROM oracle_prod.TELEMETRY.sensor_data;
+SELECT * FROM oracle_prod.`TELEMETRY`.sensor_data;
 
 -- 虚拟表 DDL 中引用外部列
 current FLOAT FROM mysql_prod.meters.current
@@ -684,7 +684,7 @@ value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
 -- Oracle 三段式（源需配置默认 schema）
 value FLOAT FROM oracle_prod.sensor_data.value
 -- Oracle 四段式（显式 schema）
-value FLOAT FROM oracle_prod.TELEMETRY.sensor_data.value
+value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 ```
 
 ### 使用 USE 切换外部命名空间
@@ -741,7 +741,7 @@ USE oracle_prod;
 SELECT * FROM sensor_data LIMIT 10;
 
 -- 显式选择 Oracle schema
-USE oracle_prod.TELEMETRY;
+USE oracle_prod.`TELEMETRY`;
 SELECT * FROM sensor_data LIMIT 10;
 
 -- 切回本地数据库并清除外部上下文
@@ -780,7 +780,7 @@ ORDER BY ts;
 
 -- Oracle 外部表范围查询
 SELECT ts, value
-FROM oracle_prod.TELEMETRY.sensor_data
+FROM oracle_prod.`TELEMETRY`.sensor_data
 WHERE ts >= '2026-01-01 00:00:00'
   AND ts < '2026-01-02 00:00:00'
 ORDER BY ts;

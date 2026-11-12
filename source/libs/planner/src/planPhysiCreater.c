@@ -5392,14 +5392,20 @@ static const SColumnNode* getFederatedScanColumn(const SNode* pNode) {
   return (pNode != NULL && QUERY_NODE_COLUMN == nodeType(pNode)) ? (const SColumnNode*)pNode : NULL;
 }
 
-static bool federatedOutputNameMatchesScanColumn(const char* pOutputName, const SColumnNode* pCol) {
+static bool federatedOutputNameMatchesScanColumn(const char* pOutputName, const SColumnNode* pCol,
+                                                 int8_t srcType) {
   if (pOutputName == NULL || pOutputName[0] == '\0' || pCol == NULL) {
     return false;
   }
 
+  // The external-derived names follow the source's own matching rule (exact
+  // for Oracle/PostgreSQL/InfluxDB); TDengine-local aliases keep the
+  // case-insensitive match.
   const char* pRefName = pCol->hasRef && pCol->refColName[0] != '\0' ? pCol->refColName : pCol->colName;
-  return (pRefName[0] != '\0' && strcasecmp(pOutputName, pRefName) == 0) ||
-         (pCol->colName[0] != '\0' && strcasecmp(pOutputName, pCol->colName) == 0) ||
+  return (pRefName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pRefName)) ||
+         (pCol->colName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pCol->colName)) ||
          (pCol->node.aliasName[0] != '\0' && strcasecmp(pOutputName, pCol->node.aliasName) == 0) ||
          (pCol->node.userAlias[0] != '\0' && strcasecmp(pOutputName, pCol->node.userAlias) == 0);
 }
@@ -5416,7 +5422,8 @@ static int16_t getFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, cons
   const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[outputIdx];
   SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
   if (pMapping->tdType.type != pCol->node.resType.type ||
-      !federatedOutputNameMatchesScanColumn(pMapping->colName, pCol) || pSlot == NULL || !pSlot->output ||
+      !federatedOutputNameMatchesScanColumn(pMapping->colName, pCol, pScan->sourceType) || pSlot == NULL ||
+      !pSlot->output ||
       pSlot->reserve) {
     return -1;
   }

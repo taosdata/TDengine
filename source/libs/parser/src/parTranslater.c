@@ -3022,9 +3022,11 @@ static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode
 static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
-  // stored case; PostgreSQL compares quoted/identifier names literally, and
-  // Oracle folds an unquoted reference to upper case before comparing exactly
-  // (DS 5.3.6 R1).  The rule is shared with the executor and mnode through
+  // stored case; PostgreSQL, InfluxDB and Oracle compare names literally.
+  // TDengine has already applied its own identifier grammar to queryName
+  // (unquoted text lower-cased by the client, backticked text preserved), so
+  // the external name must match that resolved spelling exactly (DS 5.3.6 R1).
+  // The rule is shared with the executor and mnode through
   // extColumnNameEqual() so the three resolution points cannot drift.
   return extColumnNameEqual((EExtSourceType)sourceType, schemaName, queryName);
 }
@@ -3181,37 +3183,56 @@ static bool preferExplicitAliasOverImplicitFunction(SExprNode** ppFoundExpr, SEx
   return true;
 }
 
-// True when a subquery's FROM clause reads an external source, directly or
-// through a join.  External tables keep the source's folded column names
-// (Oracle: upper case), and unquoted references resolve case-insensitively
-// against them; that tolerance must survive one level of derived table
-// ("SELECT * FROM src.t" as a JOIN leg), where the projections carry the
-// remote spelling.
-static bool tableNodeReadsExternal(const SNode* pTable) {
+// Source type of the external table(s) a subquery's FROM clause reads,
+// directly or through a join.
+//   >= 0 : exactly one external source type
+//   -1   : no external source
+//   -2   : several external source types (the caller uses exact comparison)
+//
+// A derived table ("SELECT * FROM src.t" as a JOIN leg) carries the source's
+// column spellings in its projections, so an outer reference must be compared
+// with the same rule the source uses: extColumnNameEqual() for a single type,
+// byte-exact comparison when the legs disagree.
+static int8_t tableNodeExternalSourceType(const SNode* pTable) {
   if (NULL == pTable) {
-    return false;
+    return -1;
   }
   switch (nodeType(pTable)) {
-    case QUERY_NODE_REAL_TABLE:
-      return ((const SRealTableNode*)pTable)->pExtTableNode != NULL;
-    case QUERY_NODE_JOIN_TABLE:
-      return tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pLeft) ||
-             tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pRight);
+    case QUERY_NODE_REAL_TABLE: {
+      const SRealTableNode* pReal = (const SRealTableNode*)pTable;
+      if (NULL == pReal->pExtTableNode) {
+        return -1;
+      }
+      return ((const SExtTableNode*)pReal->pExtTableNode)->sourceType;
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      int8_t left = tableNodeExternalSourceType(((const SJoinTableNode*)pTable)->pLeft);
+      int8_t right = tableNodeExternalSourceType(((const SJoinTableNode*)pTable)->pRight);
+      if (left < 0) {
+        return right;
+      }
+      if (right < 0) {
+        return left;
+      }
+      return (left == right) ? left : -2;
+    }
     case QUERY_NODE_TEMP_TABLE: {
       const SNode* pSub = ((const STempTableNode*)pTable)->pSubquery;
-      return (NULL != pSub && QUERY_NODE_SELECT_STMT == nodeType(pSub) &&
-              tableNodeReadsExternal(((const SSelectStmt*)pSub)->pFromTable));
+      if (NULL == pSub || QUERY_NODE_SELECT_STMT != nodeType(pSub)) {
+        return -1;
+      }
+      return tableNodeExternalSourceType(((const SSelectStmt*)pSub)->pFromTable);
     }
     default:
-      return false;
+      return -1;
   }
 }
 
-static bool tempTableSubqueryReadsExternal(const SNode* pSubquery) {
+static int8_t tempTableSubqueryExternalSourceType(const SNode* pSubquery) {
   if (NULL == pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pSubquery)) {
-    return false;
+    return -1;
   }
-  return tableNodeReadsExternal(((const SSelectStmt*)pSubquery)->pFromTable);
+  return tableNodeExternalSourceType(((const SSelectStmt*)pSubquery)->pFromTable);
 }
 
 static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
@@ -3248,17 +3269,24 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       pFirstTsExpr = pExpr;
     }
   }
-  // External-source projections carry the source's folded column names, so an
-  // unquoted reference (folded to lower case by the parser) must still match
-  // them - the same tolerance translateExternalTableImpl gives a direct
-  // reference.  Two columns differing only in case stay ambiguous.
-  if (!*pFound && tempTableSubqueryReadsExternal(pTempTable->pSubquery)) {
+  // External-source projections carry the source's column spellings, so an
+  // outer reference must be compared with that source's identifier rule - the
+  // same rule translateExternalTableImpl gives a direct reference.  A single
+  // external type goes through extColumnNameEqual() (MySQL / SQL Server fold
+  // case; PostgreSQL, InfluxDB and Oracle are byte-exact); a mixed-source
+  // derived table falls back to exact comparison instead of guessing.
+  int8_t extSourceType = tempTableSubqueryExternalSourceType(pTempTable->pSubquery);
+  if (!*pFound && extSourceType != -1) {
     SExprNode* pCiMatch = NULL;
     int32_t    ciMatches = 0;
     SNode*     pCiNode = NULL;
     FOREACH(pCiNode, pProjectList) {
       SExprNode* pCiExpr = (SExprNode*)pCiNode;
-      if (0 == strcasecmp(pCol->colName, pCiExpr->aliasName)) {
+      bool       match = (extSourceType >= 0)
+                             ? extColumnNameEqual((EExtSourceType)extSourceType, pCol->colName,
+                                                  pCiExpr->aliasName)
+                             : (0 == strcmp(pCol->colName, pCiExpr->aliasName));
+      if (match) {
         pCiMatch = pCiExpr;
         ++ciMatches;
       }
@@ -11544,12 +11572,12 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
                                     dbName, schemaName, pColRef->refTableName, false, &pExtMeta));
   ownsExtMeta = (NULL != pExtMeta);
 
-  // Oracle resolves a path segment by folding it (DS 5.3.6 R1), and the folded
-  // spelling is what the data dictionary was searched with.  The rendered
-  // statement has to use that same spelling (DS 9.5), so the resolved schema -
-  // not the raw reference text - is what the external node carries.  Without
-  // this, `src.taosdata.emp` would be looked up as TAOSDATA and then queried as
-  // "taosdata"."EMP", which names nothing.
+  // Oracle resolves a path segment exactly (DS 5.3.6 R1): the connector binds
+  // the TDengine-resolved spelling to the data dictionary, so the resolved
+  // schema echoed back by the connector is what the external node and the
+  // rendered statement must carry (DS 9.5).  Under exact matching this is the
+  // same text the reference supplied; keeping the echo also covers the
+  // connector's canonical spelling.
   if (isOracle && NULL != pExtMeta && '\0' != pExtMeta->schemaName[0]) {
     schemaName = pExtMeta->schemaName;
   }
@@ -32190,12 +32218,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
       parserDebug("buildExtSpecs: trigger source=%s precision=%d",
                   sourceName, (int)pSpec->precision);
       if (trigExtTable != NULL) {
-        const char *tableName = trigExtTable;
-        if (pSpec->sourceType == EXT_SOURCE_ORACLE) {
-          extCopyRemoteTableSpelling(tableName, pSpec->extTable, sizeof(pSpec->extTable));
-        } else {
-          tstrncpy(pSpec->extTable, tableName, sizeof(pSpec->extTable));
-        }
+        /* The trigger table name is already the exact remote spelling resolved
+         * by the parser; copy it verbatim into the spec. */
+        extCopyRemoteTableSpelling(trigExtTable, pSpec->extTable, sizeof(pSpec->extTable));
       }
       if (trigTsColumn   != NULL) tstrncpy(pSpec->tsColumn,  trigTsColumn,   sizeof(pSpec->tsColumn));
       /* Override extSchema from the ext-table node so that PostgreSQL uses
@@ -38356,21 +38381,16 @@ static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char
     // the source's configured default schema, and an unset default stays empty
     // so resolution reports EXT_DEFAULT_NS_MISSING instead of inventing one.
     //
-    // Oracle folds an unquoted identifier to upper case before it looks it up,
-    // and TDengine's parser lower-cases the raw path text on the way in.  The
-    // stored reference must carry the folded spelling: it is what the
-    // connector resolved against the data dictionary and what the external
-    // table node built at query time carries, so a lower-case spelling would
-    // name a different (non-existent) schema.
-    char        folded[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
-    const char* src = (refDbName[0] != '\0') ? refDbName : pInfo->schema_name;
-    int32_t     i = 0;
-    for (; src[i] != '\0' && i < (int32_t)sizeof(folded) - 1; ++i) {
-      char c = src[i];
-      folded[i] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
+    // The schema is kept exactly as TDengine resolved it: an unquoted segment
+    // was lower-cased by the client, a backticked one keeps its spelling, and
+    // the connector matches the stored name byte for byte against the Oracle
+    // data dictionary.  Folding it here would name a different schema.
+    if (refDbName[0] == '\0') {
+      // A relative reference takes the source's default schema.  Copying the
+      // schema over a non-empty middle segment would self-copy the same buffer
+      // (strncpy has undefined behaviour for overlapping ranges).
+      tstrncpy(refDbName, pInfo->schema_name, dbCap);
     }
-    folded[i] = '\0';
-    tstrncpy(refDbName, folded, dbCap);
     refSchemaName[0] = '\0';
     freeExtSourceInfo(pInfo);
     return TSDB_CODE_SUCCESS;
@@ -40705,13 +40725,11 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
   pCxt->pParseCxt->async = savedAsync;
 
   int32_t extColIdx = -1;
-  // Same fold contract as checkExternalColRef(): the reference spelling is
-  // resolved by extColumnNameEqual(), not by a raw strcmp.  For the series
-  // sources in use today the two agree, but a source whose identifiers fold
-  // (Oracle) or compare case-insensitively (MySQL / SQL Server) would
-  // otherwise resolve a different column here than on the path that actually
-  // renders the remote SQL.  The exact spelling wins over the folded one so a
-  // quoted "Device" never resolves onto a separate DEVICE column (DS 5.3.6 R1).
+  // Same contract as checkExternalColRef(): try the exact spelling first, then
+  // the source's identifier rule through extColumnNameEqual() (MySQL / SQL
+  // Server fold case; PostgreSQL, InfluxDB and Oracle are byte-exact).  The
+  // reference and the metadata spelling are both produced by TDengine's
+  // grammar, so the exact pass is the normal path for Oracle (DS 5.3.6 R1).
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
     if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {
       extColIdx = i;
@@ -40872,8 +40890,9 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                                           "external table '%s.%s' not found", sourceName, refTable));
   }
 
-  // (4) External column must exist.  The exact spelling wins over the folded
-  // one so a quoted "Device" never resolves onto a separate DEVICE column.
+  // (4) External column must exist.  Try the exact spelling first, then the
+  // source's identifier rule: MySQL / SQL Server fold case, while PostgreSQL,
+  // InfluxDB and Oracle require a byte-exact match (DS 5.3.6 R1).
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
     if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {

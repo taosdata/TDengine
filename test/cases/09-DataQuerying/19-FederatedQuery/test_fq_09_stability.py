@@ -1777,17 +1777,17 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         self._cleanup_src(src)
         try:
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_T'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_t\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_O_T ("
-                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO STAB_O_T VALUES "
+                'CREATE TABLE "stab_o_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:00.000', 10)",
-                "INSERT INTO STAB_O_T VALUES "
+                'INSERT INTO "stab_o_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:01.000', 20)",
-                "INSERT INTO STAB_O_T VALUES "
+                'INSERT INTO "stab_o_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:02.000', 30)",
-                "INSERT INTO STAB_O_T VALUES "
+                'INSERT INTO "stab_o_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:03.000', 40)",
                 "COMMIT",
             ])
@@ -1820,7 +1820,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_t")
             except Exception:
                 pass
 
@@ -1857,13 +1857,13 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         self._cleanup_src(src)
         try:
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_R'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_r\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_O_R ("
-                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO STAB_O_R VALUES "
+                'CREATE TABLE "stab_o_r" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_r" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:00.000', 9)",
-                "INSERT INTO STAB_O_R VALUES "
+                'INSERT INTO "stab_o_r" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:01.000', 99)",
                 "COMMIT",
             ])
@@ -1921,7 +1921,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_R")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_r")
             except Exception:
                 pass
 
@@ -1933,8 +1933,8 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         """FQOR-STAB-002: concurrent sessions do not cross schema boundaries
 
         One Oracle source exposes the same table name in two schemas
-        (TAOSDATA.STAB_NS_T and the alternate account's STAB_NS_T) holding
-        different data.  Two logical sessions alternate between the two
+        (the main account's "stab_ns_t" and the alternate account's
+        "stab_ns_t") holding different data.  Two logical sessions alternate between the two
         3-segment paths; every query must return its own schema's rows.
 
         Catalog: - Query:FederatedStability
@@ -1963,30 +1963,30 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         results_lock = threading.Lock()
         try:
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_NS_T ("
-                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO STAB_NS_T VALUES "
+                'CREATE TABLE "stab_ns_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:00.000', 1)",
-                "INSERT INTO STAB_NS_T VALUES "
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:01.000', 2)",
-                "INSERT INTO STAB_NS_T VALUES "
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:02.000', 3)",
                 "COMMIT",
             ])
             # The alternate namespace is a separate account, so its table is
             # created while logged in as that account.
             ExtSrcEnv._oracle_sql(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_NS_T ("
-                " TS TIMESTAMP(3) PRIMARY KEY, VAL NUMBER(10,0))",
-                "INSERT INTO STAB_NS_T VALUES "
+                'CREATE TABLE "stab_ns_t" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:00.000', 101)",
-                "INSERT INTO STAB_NS_T VALUES "
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:01.000', 102)",
-                "INSERT INTO STAB_NS_T VALUES "
+                'INSERT INTO "stab_ns_t" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:02.000', 103)",
                 "COMMIT",
             ], user=ExtSrcEnv.ORACLE_ALT_USER,
@@ -1995,7 +1995,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             # search_path, and the test account has no privilege on the
             # alternate account's objects by default.
             ExtSrcEnv.oracle_admin_exec_cfg(cfg, [
-                f'GRANT SELECT ON "{alt_schema}"."STAB_NS_T" TO "{main_schema}"',
+                f'GRANT SELECT ON "{alt_schema}"."stab_ns_t" TO "{main_schema}"',
             ])
             self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
 
@@ -2008,7 +2008,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                         # tdSql is a single connection: serialize the query.
                         with lock:
                             tdSql.query(
-                                f"select min(val) from {src}.{schema}.stab_ns_t")
+                                f"select min(val) from {src}.`{schema}`.stab_ns_t")
                             got = tdSql.queryResult[0][0]
                         with results_lock:
                             results.append((schema, got))
@@ -2045,13 +2045,13 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_NS_T")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_ns_t")
             except Exception:
                 pass
             try:
                 ExtSrcEnv._oracle_sql(
                     cfg,
-                    "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_NS_T'; "
+                    "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_ns_t\"'; "
                     "EXCEPTION WHEN OTHERS THEN NULL; END;",
                     user=ExtSrcEnv.ORACLE_ALT_USER,
                     password=ExtSrcEnv.ORACLE_ALT_PASS)
@@ -2088,11 +2088,11 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         self._cleanup_src(src_o, src_p)
         try:
             ExtSrcEnv.oracle_exec_cfg(cfg_o, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_P'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_p\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_O_P (ID NUMBER(10,0) PRIMARY KEY, "
-                "VAL NUMBER(10,0))",
-                "INSERT INTO STAB_O_P VALUES (1, 333)",
+                'CREATE TABLE "stab_o_p" ("id" NUMBER(10,0) PRIMARY KEY, '
+                '"val" NUMBER(10,0))',
+                'INSERT INTO "stab_o_p" VALUES (1, 333)',
                 "COMMIT",
             ])
             self._mk_oracle_real(src_o, database=cfg_o.service,
@@ -2145,7 +2145,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
         finally:
             self._cleanup_src(src_o, src_p)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg_o, "STAB_O_P")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg_o, "stab_o_p")
             except Exception:
                 pass
             try:
@@ -2198,16 +2198,16 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             tdSql.connect("root", "taosdata")
             tdSql.execute('ALTER LOCAL "timezone" "UTC"')
             ExtSrcEnv.oracle_exec_cfg(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE STAB_O_MIX'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"stab_o_mix\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                "CREATE TABLE STAB_O_MIX ("
-                " TS TIMESTAMP(3) PRIMARY KEY, ID NUMBER(10,0),"
-                " VAL NUMBER(10,0), SCORE BINARY_DOUBLE)",
-                "INSERT INTO STAB_O_MIX VALUES "
+                'CREATE TABLE "stab_o_mix" ('
+                ' "ts" TIMESTAMP(3) PRIMARY KEY, "id" NUMBER(10,0),'
+                ' "val" NUMBER(10,0), "score" BINARY_DOUBLE)',
+                'INSERT INTO "stab_o_mix" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:00.000', 1, 10, 1.5)",
-                "INSERT INTO STAB_O_MIX VALUES "
+                'INSERT INTO "stab_o_mix" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:01.000', 2, 20, 2.5)",
-                "INSERT INTO STAB_O_MIX VALUES "
+                'INSERT INTO "stab_o_mix" VALUES '
                 " (TIMESTAMP '2024-01-01 00:00:02.000', 3, 30, 3.5)",
                 "COMMIT",
             ])
@@ -2231,8 +2231,8 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             tdSql.execute(
                 f"create vtable stab_o_vt ("
                 f"ts timestamp, "
-                f"v_val bigint from {src}.{schema}.STAB_O_MIX.VAL, "
-                f"v_score double from {src}.{schema}.STAB_O_MIX.SCORE)")
+                f"v_val bigint from {src}.`{schema}`.stab_o_mix.val, "
+                f"v_score double from {src}.`{schema}`.stab_o_mix.score)")
 
             for i in range(iters):
                 # Plain remote scan: both the row count and the ordering.
@@ -2257,7 +2257,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                 # Timestamp join between the remote table and a local table.
                 tdSql.query(
                     f"select count(*), sum(o.val * d.weight) "
-                    f"from {src}.{schema}.stab_o_mix o, {db}.stab_o_dim d "
+                    f"from {src}.`{schema}`.stab_o_mix o, {db}.stab_o_dim d "
                     f"where o.ts = d.ts")
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 0, 2)
@@ -2287,7 +2287,7 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                 pass
             self._cleanup_src(src)
             try:
-                ExtSrcEnv.oracle_drop_table_cfg(cfg, "STAB_O_MIX")
+                ExtSrcEnv.oracle_drop_table_cfg(cfg, "stab_o_mix")
             except Exception:
                 pass
 
@@ -2338,17 +2338,17 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
                     "FQ09_STAB_SLEEP", hold_s),
             ])
             ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
-                "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_SLOW_V'; "
+                "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_slow_v\"'; "
                 "EXCEPTION WHEN OTHERS THEN NULL; END;",
                 # A cheap view lets the warm-up create the pool without
                 # spending the slot on the slow query.
-                "CREATE OR REPLACE VIEW FQ_STAB_O_ONE_V AS "
-                "SELECT CAST(1 AS NUMBER(10,0)) AS ONE FROM DUAL",
+                'CREATE OR REPLACE VIEW "fq_stab_o_one_v" AS '
+                'SELECT CAST(1 AS NUMBER(10,0)) AS "one" FROM DUAL',
                 # A bare NUMBER return has no precision and would be rejected
                 # as unmappable, so the sleep result is cast like the fixture
                 # in test_fq_05.
-                "CREATE OR REPLACE VIEW FQ_STAB_O_SLOW_V AS "
-                "SELECT CAST(SYSTEM.FQ09_STAB_SLEEP AS NUMBER(10,0)) AS HOLD "
+                'CREATE OR REPLACE VIEW "fq_stab_o_slow_v" AS '
+                'SELECT CAST(SYSTEM.FQ09_STAB_SLEEP AS NUMBER(10,0)) AS "hold" '
                 "FROM DUAL",
             ])
             # Cap the pool before the source is created: the pool is built on
@@ -2450,9 +2450,9 @@ class TestFq09Stability(FederatedQueryVersionedMixin):
             self._cleanup_src(src)
             try:
                 ExtSrcEnv.oracle_exec_as_pool_user(cfg, [
-                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_SLOW_V'; "
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_slow_v\"'; "
                     "EXCEPTION WHEN OTHERS THEN NULL; END;",
-                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW FQ_STAB_O_ONE_V'; "
+                    "BEGIN EXECUTE IMMEDIATE 'DROP VIEW \"fq_stab_o_one_v\"'; "
                     "EXCEPTION WHEN OTHERS THEN NULL; END;",
                 ])
             except Exception:

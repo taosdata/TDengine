@@ -67,11 +67,12 @@ def _mid_segment(prefix: str, src_name: str) -> str:
         # the database comes from the source default (DS §5.3.3).
         return "dbo"
     if suffix == "o":
-        # Oracle exposes a single namespace level: the login schema, folded to
-        # upper case like every unquoted Oracle identifier.  There is no
-        # per-test database - the source's default service is the connection
+        # Oracle exposes a single namespace level: the login schema.  TDengine
+        # lower-cases an unquoted identifier, so the upper-case account name is
+        # spelled between backticks.  There is no per-test database - the
+        # source's default service is the connection
         # target (DS §5.3.3).
-        return ExtSrcEnv.ORACLE_USER.upper()
+        return "`%s`" % ExtSrcEnv.ORACLE_USER.upper()
     return f"{prefix}_{suffix}db"
 
 

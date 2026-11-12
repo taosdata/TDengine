@@ -38,8 +38,8 @@ from ext_source_helpers import (  # noqa: E402
 
 _SOURCE = "vt_oracle_timestamp_pushdown_src"
 _SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
-_TABLE_NAIVE_PK = "VT_ORA_TS_NAIVE_PK"
-_TABLE_NAIVE_PK_MS = "VT_ORA_TS_NAIVE_PK_MS"
+_TABLE_NAIVE_PK = "vt_ora_ts_naive_pk"
+_TABLE_NAIVE_PK_MS = "vt_ora_ts_naive_pk_ms"
 _VSTABLE_NAIVE = "vst_naive"
 _VCHILD_NAIVE = "vct_naive"
 _LOCAL_DBS = {
@@ -156,7 +156,7 @@ class TestVtableQueryExtSourceOracleTimestampPushdown:
     def prepare_vtables():
         for precision, database in _LOCAL_DBS.items():
             naive_table = _TABLE_NAIVE_PK_MS if precision == "ms" else _TABLE_NAIVE_PK
-            naive_ref = f"{_SOURCE}.{_SCHEMA}.{naive_table}"
+            naive_ref = f"{_SOURCE}.`{_SCHEMA}`.{naive_table}"
             tdSql.execute(f"DROP DATABASE IF EXISTS {database}")
             tdSql.execute(f"CREATE DATABASE {database} PRECISION '{precision}'")
             tdSql.execute(

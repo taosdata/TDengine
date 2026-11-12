@@ -3927,21 +3927,9 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   if (SCAN_TYPE_EXTERNAL == pLogicScan->scanType) {
     SExtTableNode* pExtTable = (SExtTableNode*)pLogicScan->pExtTableNode;
     tstrncpy(pRefTableScanCol->tableAlias, pExtTable->table.tableAlias, sizeof(pRefTableScanCol->tableAlias));
-    // Oracle stores an unquoted name in upper case while TDengine lower-cases
-    // the reference, and the renderer quotes every Oracle identifier.  Record
-    // the spelling the remote catalog reported so the rendered statement names
-    // the column that exists (the renderer prefers refColName when it differs
-    // from colName); the plan-time slot key keeps the original name.
-    if (EXT_SOURCE_ORACLE == pExtTable->sourceType && pExtTable->pExtMeta != NULL &&
-        pExtTable->pExtMeta->pCols != NULL) {
-      for (int32_t i = 0; i < pExtTable->pExtMeta->numOfCols; ++i) {
-        const char* pRemote = pExtTable->pExtMeta->pCols[i].colName;
-        if (pRemote[0] != '\0' && 0 == strcasecmp(pRemote, pRefTableScanCol->colName)) {
-          tstrncpy(pRefTableScanCol->refColName, pRemote, sizeof(pRefTableScanCol->refColName));
-          break;
-        }
-      }
-    }
+    // The scan column already carries the exact remote spelling: the parser
+    // resolved it against the catalog with extColumnNameEqual(), which is
+    // byte-exact for Oracle as well as PostgreSQL / InfluxDB (DS 5.3.6 R1).
   }
 
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {

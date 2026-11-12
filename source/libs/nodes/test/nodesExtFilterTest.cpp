@@ -413,6 +413,35 @@ TEST_P(ExternalFilterTest, PreservesInvalidParameterError) {
             TSDB_CODE_INVALID_PARA);
 }
 
+TEST(ExternalFilterOracleTest, RendersResolvedIdentifiersLiterally) {
+  auto render = [](const char* column) -> std::string {
+    auto filter = makeComparison(column, "1");
+    if (!filter) {
+      return "<null>";
+    }
+    char    sql[256] = {};
+    int32_t length = 0;
+    if (nodesExprToExtSQL(filter.get(), EXT_SQL_DIALECT_ORACLE, sql, sizeof(sql), &length) !=
+        TSDB_CODE_SUCCESS) {
+      return "<error>";
+    }
+    return std::string(sql);
+  };
+
+  // A resolved uppercase spelling is a legal bare Oracle identifier.
+  EXPECT_NE(render("EMP").find("EMP"), std::string::npos);
+  EXPECT_EQ(render("EMP").find("\"EMP\""), std::string::npos);
+  // Lower-case and mixed-case spellings must be quoted to survive Oracle's
+  // upper-case folding of unquoted names.
+  EXPECT_NE(render("emp").find("\"emp\""), std::string::npos);
+  EXPECT_NE(render("MiXeDCol").find("\"MiXeDCol\""), std::string::npos);
+  // A reserved word is always quoted.
+  EXPECT_NE(render("DATE").find("\"DATE\""), std::string::npos);
+  // A literal double quote in the name is doubled, never treated as syntax.
+  EXPECT_NE(render("a\"b").find("\"a\"\"b\""), std::string::npos);
+  EXPECT_NE(render("\"emp\"").find("\"\"\"emp\"\"\""), std::string::npos);
+}
+
 INSTANTIATE_TEST_SUITE_P(RelationalSources, ExternalFilterTest,
                          testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL));
 

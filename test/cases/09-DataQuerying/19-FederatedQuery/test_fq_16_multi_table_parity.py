@@ -902,8 +902,8 @@ def _build_sqlserver_disorder():
 #   NVARCHAR2     -> NCHAR    (label; VARCHAR2 would map to VARCHAR)
 #   TIMESTAMP(3)  -> TIMESTAMP with MICRO transport precision (DS 5.3.7: no
 #                               TIMESTAMP(7-9) column in the tables)
-_ORACLE_TABLE_TA = "TA"
-_ORACLE_TABLE_TB = "TB"
+_ORACLE_TABLE_TA = "ta"
+_ORACLE_TABLE_TB = "tb"
 
 
 def _oracle_ts_literal(dt_str):
@@ -929,11 +929,11 @@ def _oracle_insert_all(table, rows_dt):
 def _build_oracle_setup():
     return [
         (f'CREATE TABLE "{_ORACLE_TABLE_TA}" ('
-         '"TIME" TIMESTAMP(3) PRIMARY KEY, "ID" NUMBER(10,0),'
-         ' "VAL" NUMBER(10,0), "LABEL" NVARCHAR2(16))'),
+         '"time" TIMESTAMP(3) PRIMARY KEY, "id" NUMBER(10,0),'
+         ' "val" NUMBER(10,0), "label" NVARCHAR2(16))'),
         (f'CREATE TABLE "{_ORACLE_TABLE_TB}" ('
-         '"TIME" TIMESTAMP(3) PRIMARY KEY, "BID" NUMBER(10,0),'
-         ' "REF_ID" NUMBER(10,0), "VAL2" NUMBER(10,0), "FLAG" NUMBER(10,0))'),
+         '"time" TIMESTAMP(3) PRIMARY KEY, "bid" NUMBER(10,0),'
+         ' "ref_id" NUMBER(10,0), "val2" NUMBER(10,0), "flag" NUMBER(10,0))'),
         _oracle_insert_all(_ORACLE_TABLE_TA, _TA_ROWS_DT),
         _oracle_insert_all(_ORACLE_TABLE_TB, _TB_ROWS_DT),
         "COMMIT",

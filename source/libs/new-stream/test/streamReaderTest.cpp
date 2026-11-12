@@ -639,9 +639,9 @@ TEST_F(ExternalCalcReaderDeployTest, ResolvesCaseSiblingTimestampHintByExactSpel
 /* The CALC reader overrides its table identity with the name carried in the
  * deploy message.  MySQL reports the raw INFORMATION_SCHEMA name there, which may
  * legitimately contain literal double quotes - a table named "metrics" is
- * created with backticks around the whole name - so the Oracle-only unquoting
- * rule must not reach it: stripping those quotes silently addresses another
- * table (or fails with "not found"), because the reader re-quotes whatever the
+ * created with backticks around the whole name - and every source now keeps the
+ * spelling verbatim: stripping those quotes would silently address another
+ * table (or fail with "not found"), because the reader re-quotes whatever the
  * spec holds. */
 TEST_F(ExternalCalcReaderDeployTest, KeepsMysqlCalcTableSpellingVerbatim) {
   spec.sourceType = EXT_SOURCE_MYSQL;
@@ -650,14 +650,15 @@ TEST_F(ExternalCalcReaderDeployTest, KeepsMysqlCalcTableSpellingVerbatim) {
   EXPECT_STREQ(spec.extTable, "\"metrics\"");
 }
 
-/* Oracle is the provider that reports a quoted identifier together with its
- * representation quotes; the reader adds its own quoting when it renders the
- * table reference, so the spec has to hold the bare exact spelling. */
-TEST_F(ExternalCalcReaderDeployTest, UnquotesOracleCalcTableSpelling) {
+/* The deploy message carries the exact remote spelling resolved by the parser;
+ * Oracle is no longer special-cased and a literal double quote that is part of
+ * the name must survive verbatim - the renderer doubles it when it quotes the
+ * identifier. */
+TEST_F(ExternalCalcReaderDeployTest, KeepsOracleCalcTableSpellingVerbatim) {
   spec.sourceType = EXT_SOURCE_ORACLE;
-  tstrncpy(message.msg.calc.extTable, "\"same_a\"", sizeof(message.msg.calc.extTable));
+  tstrncpy(message.msg.calc.extTable, "a\"b", sizeof(message.msg.calc.extTable));
   ASSERT_EQ(stReaderTaskDeploy(&task, &message), TSDB_CODE_SUCCESS);
-  EXPECT_STREQ(spec.extTable, "same_a");
+  EXPECT_STREQ(spec.extTable, "a\"b");
 }
 
 /* The calc column mappings must keep the SOURCE transport precision carried by
@@ -921,40 +922,39 @@ TEST(StreamReaderTest, FoldsExternalColumnNamesPerSourceSemantics) {
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "Ts", "ts"));
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "Ts", "ts"));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "ts", "ts"));
-  // Oracle folds an unquoted (all lower-case) reference to upper case before
-  // comparing, but a quoted mixed-case reference stays literal.
-  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "val"));
+  // Oracle matches the resolved spelling literally: TDengine lower-cases an
+  // unquoted identifier and keeps a backticked one verbatim, so the catalog
+  // name must match those bytes exactly.
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "val"));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "VAL"));
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "VAL", "Val"));
-  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "\"val\""));
-  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "\"val\""));
-  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "val"));
-  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "val"));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "val"));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "val"));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "VAL", "VAL"));
+  EXPECT_FALSE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, "val", "\"val\""));
   std::string longTable(80, 'a');
   longTable.back() = 'b';
-  EXPECT_TRUE(extColumnNameEqualReference(
-      EXT_SOURCE_ORACLE, longTable.c_str(), ("\"" + longTable + "\"").c_str()));
+  EXPECT_TRUE(extColumnNameEqualReference(EXT_SOURCE_ORACLE, longTable.c_str(), longTable.c_str()));
   // The helper stays total for optional metadata: a NULL name never matches a
   // real one, and two NULLs compare equal.
   EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_MYSQL, "ts", nullptr));
   EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, nullptr, nullptr));
 }
 
-/* The connector reports a quoted identifier with its representation quotes and
- * doubles any embedded quote, while the spec must hold the bare exact spelling
- * (the reader adds its own quoting).  A name that does not fit is truncated
- * rather than overrunning the destination, and the result is always
- * NUL-terminated, so the caller never renders bytes past the buffer. */
+/* The connector reports the exact spelling, which must be kept byte for byte
+ * (the stream reader adds its own quoting when it renders the reference).  A
+ * name that does not fit is truncated rather than overrunning the destination,
+ * and the result is always NUL-terminated. */
 TEST(StreamReaderTest, CopiesRemoteTableSpellingWithinCapacity) {
   char out[16] = {0};
-  extCopyRemoteTableSpelling("\"same_a\"", out, sizeof(out));
+  extCopyRemoteTableSpelling("same_a", out, sizeof(out));
   EXPECT_STREQ("same_a", out);
 
-  extCopyRemoteTableSpelling("\"sa\"\"me\"", out, sizeof(out));
+  extCopyRemoteTableSpelling("sa\"me", out, sizeof(out));
   EXPECT_STREQ("sa\"me", out);
 
   char tight[4] = {0};
-  extCopyRemoteTableSpelling("\"sa\"\"me\"", tight, sizeof(tight));
+  extCopyRemoteTableSpelling("sa\"me", tight, sizeof(tight));
   EXPECT_STREQ("sa\"", tight);
 
   std::string longIn(199, 'a');

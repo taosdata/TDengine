@@ -26185,22 +26185,14 @@ Execution Time: <TIME> ms
 ### EXP-subq_exists_nocorr_direct-01_oracle POS
 SQL: select * from sensor s where exists (select 1 from sensor r where r.voltage > 220)
 RESULT
--> Projection (cost=<COST> rows=5 columns=8 width=926 input_order=unknown)
-   -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=926)
-   InitPlan 1
-      -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=8)
+-> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=926)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-subq_not_exists_nocorr_direct-01_oracle POS
 SQL: select * from sensor s where not exists (select 1 from sensor r where r.voltage > 220)
 RESULT
--> Projection (cost=<COST> rows=0 columns=8 width=926 input_order=unknown)
-   -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=0 width=926)
-   InitPlan 1
-      -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=8)
+-> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=0 width=926)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -26280,7 +26272,7 @@ SQL: select `time`, voltage from fq_exp_oracle.sensor order by `time` limit 2 of
 RESULT
 -> Projection (cost=<COST> rows=2 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
@@ -26339,7 +26331,7 @@ SQL: select `time`, voltage from (select `time`, voltage from fq_exp_oracle.sens
 RESULT
 -> Projection (cost=<COST> rows=2 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=2 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Data Exchange 2:1 (cost=<COST> rows=2 width=16)
          -> Projection (cost=<COST> rows=1 columns=2 width=16 input_order=unknown)
@@ -26352,13 +26344,7 @@ Execution Time: <TIME> ms
 ### EXP-union_all_both_groupby-01_oracle POS
 SQL: select region, count(*) from fq_exp_oracle.sensor where voltage > 221.0 group by region union all select region, count(*) from fq_exp_oracle.sensor where voltage < 220.0 group by region
 RESULT
--> Data Exchange 2:1 (cost=<COST> rows=2 width=138)
-   -> Projection (cost=<COST> rows=1 columns=2 width=138 input_order=unknown)
-      -> GroupAggregate (cost=<COST> rows=1 functions=1 width=138 groups=1 input_order=unknown)
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=1 width=146)
-   -> Projection (cost=<COST> rows=1 columns=2 width=138 input_order=unknown)
-      -> GroupAggregate (cost=<COST> rows=1 functions=1 width=138 groups=1 input_order=unknown)
-         -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=1 width=146)
+-> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=138)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -26471,7 +26457,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
 RESULT
 -> Fill (cost=<COST> rows=1441 mode=value width=16 input_order=asc)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26517,7 +26503,7 @@ SQL: select `time`, voltage from fq_exp_oracle.sensor where `time` > '2024-01-01
 RESULT
 -> Projection (cost=<COST> rows=4 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=4 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=4 width=16)
 Planning Time: <TIME> ms
@@ -26584,7 +26570,7 @@ SQL: select `time`, voltage from fq_exp_oracle.sensor where voltage > 220.0 orde
 RESULT
 -> Projection (cost=<COST> rows=3 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=16)
 Planning Time: <TIME> ms
@@ -26595,7 +26581,7 @@ SQL: select `time`, voltage from fq_exp_oracle.sensor where `time` >= '2024-01-0
 RESULT
 -> Projection (cost=<COST> rows=3 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
@@ -26728,7 +26714,7 @@ Execution Time: <TIME> ms
 ### EXP-combo_FW_PP_pushfunc_intervalwin-01_oracle POS
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26736,7 +26722,7 @@ Execution Time: <TIME> ms
 ### EXP-combo_FW_LP_localfunc_intervalwin-01_oracle POS
 SQL: select csum(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (cost=<COST> rows=5 functions=1 width=8 input_order=unknown output_order=asc)
+-> Interval on Column time (cost=<COST> rows=5 functions=1 width=8 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26762,7 +26748,7 @@ SQL: select abs(voltage - 220.0) av from fq_exp_oracle.sensor where voltage > 21
 RESULT
 -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=1 width=8)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
@@ -26788,7 +26774,7 @@ Execution Time: <TIME> ms
 SQL: select csum(voltage) from fq_exp_oracle.sensor where voltage > 220.0 order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=3 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=16)
@@ -26823,7 +26809,7 @@ Execution Time: <TIME> ms
 ### EXP-combo_OW_PP_op_intervalwin-01_oracle POS
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where region = 'north' and `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m)
 RESULT
--> Interval on Column TIME (cost=<COST> rows=3 functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (cost=<COST> rows=3 functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=146)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26849,7 +26835,7 @@ SQL: select * from fq_exp_oracle.sensor where voltage in (220.0, 221.0) order by
 RESULT
 -> Projection (cost=<COST> rows=2 columns=8 width=926 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=2 columns=8 width=926)
-         Sort Key: TIME 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=926)
 Planning Time: <TIME> ms
@@ -26882,7 +26868,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
 RESULT
 -> Projection (cost=<COST> rows=5 columns=2 width=16 input_order=asc)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26891,7 +26877,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, avg(voltage) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) fill(value, 0)
 RESULT
 -> Fill (cost=<COST> rows=1441 mode=value width=16 input_order=asc)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26900,11 +26886,11 @@ Execution Time: <TIME> ms
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(null) order by _wstart
 RESULT
 -> Projection (cost=<COST> rows=10 columns=3 width=24 input_order=asc)
-   -> External on Column TIME (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=10 mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26913,11 +26899,11 @@ Execution Time: <TIME> ms
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(value, 0, 0) order by _wstart
 RESULT
 -> Projection (cost=<COST> rows=10 columns=3 width=24 input_order=asc)
-   -> External on Column TIME (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=10 mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26926,11 +26912,11 @@ Execution Time: <TIME> ms
 SQL: select _wstart, count(*), sum(voltage) from fq_exp_oracle.sensor external_window((select _wstart, _wend from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` < '2024-01-01 00:05:00' interval(30s) fill(null)) w) fill(prev) order by _wstart
 RESULT
 -> Projection (cost=<COST> rows=10 columns=3 width=24 input_order=asc)
-   -> External on Column TIME (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
+   -> External on Column time (cost=<COST> rows=20 functions=3 width=24 input_order=asc output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
    InitPlan 1
       -> Fill (cost=<COST> rows=10 mode=null width=16 input_order=asc)
-         -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+         -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -26939,7 +26925,7 @@ Execution Time: <TIME> ms
 SQL: select count(*), region from fq_exp_oracle.sensor state_window(region) order by region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=5 columns=2 width=138)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> StateWindow on Columns region (cost=<COST> rows=5 functions=2 width=138)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=138)
@@ -26961,7 +26947,7 @@ SQL: select distinct region from fq_exp_oracle.sensor order by region limit 3
 RESULT
 -> Projection (cost=<COST> rows=2 columns=1 width=130 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=130)
-         Sort Key: region 
+         Sort Key: region
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> GroupAggregate (cost=<COST> rows=2 width=130 groups=1 input_order=unknown)
          -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=130)
@@ -26973,7 +26959,7 @@ SQL: select region, count(*) cnt from fq_exp_oracle.sensor group by region havin
 RESULT
 -> Projection (cost=<COST> rows=2 columns=2 width=138 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=2 width=138)
-         Sort Key: count(*) 
+         Sort Key: count(*)
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> GroupAggregate (cost=<COST> rows=2 functions=1 width=138 groups=1 input_order=unknown)
          -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=138)
@@ -26984,7 +26970,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select `time`, voltage from fq_exp_oracle.sensor where voltage > 221.0 union all select `time`, voltage from fq_exp_oracle.sensor where voltage < 220.0) t order by voltage
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=2 width=16)
-      Sort Key: voltage 
+      Sort Key: voltage
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
 Planning Time: <TIME> ms
@@ -27003,7 +26989,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, region, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' partition by region interval(1m) fill(null)
 RESULT
 -> Fill (cost=<COST> rows=2882 mode=null width=146 input_order=asc)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=3 width=146 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=3 width=146 input_order=unknown output_order=asc)
       -> Partition on Column region (cost=<COST> rows=5 width=138)
          -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=138)
 Planning Time: <TIME> ms
@@ -27014,7 +27000,7 @@ SQL: select * from (select abs(voltage - 220.0) av from fq_exp_oracle.sensor whe
 RESULT
 -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=3 columns=1 width=8)
-         Sort Key: av 
+         Sort Key: av
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
@@ -27025,7 +27011,7 @@ SQL: select * from (select csum(voltage) v from fq_exp_oracle.sensor) t order by
 RESULT
 -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=3 columns=1 width=8)
-         Sort Key: v 
+         Sort Key: v
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Projection (cost=<COST> rows=5 columns=1 width=8 input_order=unknown)
          -> Indefinite Rows Function (cost=<COST> rows=5 functions=1 width=8)
@@ -27058,7 +27044,7 @@ SQL: select abs(voltage - 220.0) av from fq_exp_oracle.sensor where voltage betw
 RESULT
 -> Projection (cost=<COST> rows=3 columns=1 width=8 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=3 columns=1 width=8)
-         Sort Key: av 
+         Sort Key: av
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
@@ -27068,7 +27054,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, avg(abs(voltage - 220.0)) av from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) order by _wstart limit 5
 RESULT
 -> Projection (cost=<COST> rows=5 columns=2 width=16 input_order=asc)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -27077,7 +27063,7 @@ Execution Time: <TIME> ms
 SQL: select csum(voltage) from fq_exp_oracle.sensor where voltage > 219.0 state_window(region) order by voltage
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=5 columns=1 width=8)
-      Sort Key: voltage 
+      Sort Key: voltage
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> StateWindow on Columns region (cost=<COST> rows=5 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=146)
@@ -27088,7 +27074,7 @@ Execution Time: <TIME> ms
 SQL: select diff(voltage) from fq_exp_oracle.sensor where region = 'north' and voltage > 219.0 order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=2 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=2 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=3 width=146)
@@ -27100,7 +27086,7 @@ SQL: select csum(voltage) from fq_exp_oracle.sensor where (cast(voltage as bigin
 RESULT
 -> Projection (cost=<COST> rows=2 columns=1 width=8 input_order=asc)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=2 columns=1 width=8)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Indefinite Rows Function (cost=<COST> rows=2 functions=2 width=16)
          -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
@@ -27122,9 +27108,9 @@ SQL: select _wstart, region, avg(abs(voltage - 220.0)) av from fq_exp_oracle.sen
 RESULT
 -> Projection (cost=<COST> rows=5 columns=3 width=146 input_order=asc)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=5 columns=3 width=146)
-         Sort Key: _wstart 
+         Sort Key: _wstart
          Sort Method: merge sort  Buffers:1 b  loops:0
-      -> Interval on Column TIME (cost=<COST> rows=5 functions=3 width=146 input_order=unknown output_order=asc)
+      -> Interval on Column time (cost=<COST> rows=5 functions=3 width=146 input_order=unknown output_order=asc)
          -> Partition on Column region (cost=<COST> rows=5 width=154)
             -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=146)
 Planning Time: <TIME> ms
@@ -27956,7 +27942,7 @@ SQL: select TAIL(voltage, 1) from fq_exp_oracle.sensor
 RESULT
 -> Projection (cost=<COST> rows=1 columns=1 width=8 input_order=unknown)
    -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=1 columns=2 width=16)
-         Sort Key: TIME 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms
@@ -28360,7 +28346,7 @@ Execution Time: <TIME> ms
 ### EXP-ds_window-04_oracle POS
 SQL: select _wstart, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(2m) sliding(1m)
 RESULT
--> Interval on Column TIME (cost=<COST> rows=6 functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (cost=<COST> rows=6 functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -28813,7 +28799,7 @@ Execution Time: <TIME> ms
 ### EXP-ds_subquery-49_oracle POS
 SQL: select _wstart, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' and voltage > (select avg(voltage) from fq_exp_oracle.sensor) interval(1m)
 RESULT
--> Interval on Column TIME (cost=<COST> rows=2 functions=2 width=16 input_order=unknown output_order=asc)
+-> Interval on Column time (cost=<COST> rows=2 functions=2 width=16 input_order=unknown output_order=asc)
    -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
    InitPlan 1
       -> Aggregate (cost=<COST> rows=1 functions=1 width=8 input_order=unknown)
@@ -28868,7 +28854,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select mask_none(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=136)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=136 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=136 input_order=unknown)
@@ -28986,7 +28972,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select mask_none(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=136)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=136 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=136 input_order=unknown)
@@ -29104,7 +29090,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select lower(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=134)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
@@ -29222,7 +29208,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select lower(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=134)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
@@ -29340,7 +29326,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select trim(region_l2) as region_l1 from (select mask_none(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=530)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=530 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=530 input_order=unknown)
@@ -29458,7 +29444,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select trim(region_l2) as region_l1 from (select mask_none(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=530)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=530 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=530 input_order=unknown)
@@ -29576,7 +29562,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select trim(region_l2) as region_l1 from (select lower(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=522)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=522 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=522 input_order=unknown)
@@ -29694,7 +29680,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select mask_full(region_l1, '*') as region_l0 from (select trim(region_l2) as region_l1 from (select lower(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=522)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=522 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=522 input_order=unknown)
@@ -29812,7 +29798,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select mask_none(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=134)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
@@ -29930,7 +29916,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select mask_none(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=134)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=134 input_order=unknown)
@@ -30048,7 +30034,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select lower(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=132)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=132 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=132 input_order=unknown)
@@ -30166,7 +30152,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select mask_partial(region_l2, 1, 1, '#') as region_l1 from (select lower(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=132)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=132 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=132 input_order=unknown)
@@ -30284,7 +30270,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select trim(region_l2) as region_l1 from (select mask_none(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=528)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=528 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=528 input_order=unknown)
@@ -30402,7 +30388,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select trim(region_l2) as region_l1 from (select mask_none(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=528)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=528 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=528 input_order=unknown)
@@ -30520,7 +30506,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select trim(region_l2) as region_l1 from (select lower(region) as region_l2 from region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=520)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=520 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=520 input_order=unknown)
@@ -30638,7 +30624,7 @@ Execution Time: <TIME> ms
 SQL: select * from (select region_l0 as region from (select substring(region_l1, 1, length(region_l1)) as region_l0 from (select trim(region_l2) as region_l1 from (select lower(region) as region_l2 from fq_exp_oracle.region_info where area >= 1 and region is not null) rr2 where region_l2 is not null) rr1 where region_l1 is not null) fq0 where region_l0 is not null) fq1 order by fq1.region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=2 columns=1 width=520)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Projection (cost=<COST> rows=2 columns=1 width=520 input_order=unknown)
       -> Projection (cost=<COST> rows=2 columns=1 width=520 input_order=unknown)
@@ -32568,7 +32554,7 @@ Execution Time: <TIME> ms
 SQL: select _wstart, count(*) from fq_exp_oracle.sensor where `time` >= '2024-01-01' and `time` <= '2024-01-02' interval(1m) limit 5
 RESULT
 -> Projection (cost=<COST> rows=5 columns=2 width=16 input_order=unknown)
-   -> Interval on Column TIME (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
+   -> Interval on Column time (cost=<COST> rows=5 functions=2 width=16 input_order=unknown output_order=asc)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=8)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
@@ -32577,7 +32563,7 @@ Execution Time: <TIME> ms
 SQL: select count(*), region from fq_exp_oracle.sensor state_window(region) order by region
 RESULT
 -> Sort input_order=unknown output_order=unknown  (cost=<COST> rows=5 columns=2 width=138)
-      Sort Key: region 
+      Sort Key: region
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> StateWindow on Columns region (cost=<COST> rows=5 functions=2 width=138)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=138)
@@ -32765,7 +32751,7 @@ Execution Time: <TIME> ms
 SQL: select csum(voltage) from fq_exp_oracle.sensor where voltage between 219 and 222 order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=5 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=5 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
@@ -32776,7 +32762,7 @@ Execution Time: <TIME> ms
 SQL: select csum(voltage) from fq_exp_oracle.sensor where voltage in (220, 221) order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=2 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=2 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
@@ -32787,7 +32773,7 @@ Execution Time: <TIME> ms
 SQL: select diff(voltage) from fq_exp_oracle.sensor where voltage between 219 and 222 order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=4 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=4 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
@@ -32798,7 +32784,7 @@ Execution Time: <TIME> ms
 SQL: select diff(voltage) from fq_exp_oracle.sensor where voltage in (220, 221) order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=1 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=1 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
@@ -32809,7 +32795,7 @@ Execution Time: <TIME> ms
 SQL: select derivative(voltage, 1s, 0) from fq_exp_oracle.sensor where voltage between 219 and 222 order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=4 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=4 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
@@ -32820,7 +32806,7 @@ Execution Time: <TIME> ms
 SQL: select derivative(voltage, 1s, 0) from fq_exp_oracle.sensor where voltage in (220, 221) order by `time`
 RESULT
 -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=1 columns=1 width=8)
-      Sort Key: time 
+      Sort Key: time
       Sort Method: quicksort  Buffers:4.00 Mb  loops:1
    -> Indefinite Rows Function (cost=<COST> rows=1 functions=2 width=16)
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=16)
@@ -33080,7 +33066,7 @@ SQL: select time, voltage from fq_exp_oracle.sensor order by time limit 2 offset
 RESULT
 -> Projection (cost=<COST> rows=2 columns=2 width=16 input_order=unknown)
    -> Sort input_order=unknown output_order=asc  (cost=<COST> rows=3 columns=2 width=16)
-         Sort Key: time 
+         Sort Key: time
          Sort Method: merge sort  Buffers:1 b  loops:0
       -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=5 width=16)
 Planning Time: <TIME> ms

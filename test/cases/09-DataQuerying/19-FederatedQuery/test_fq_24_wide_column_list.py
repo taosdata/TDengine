@@ -45,7 +45,7 @@ from federated_query_common import ExtSrcEnv, FederatedQueryTestMixin
 
 
 class TestFq24WideColumnList(FederatedQueryTestMixin):
-    TABLE = "FQ24_WIDE_COL_FIXTURE"
+    TABLE = "fq24_wide_col_fixture"
     SOURCE = "fq24_wide_cols_src"
     ROW_KEY = "FQ-WIDE-0001"
     ATTR_COUNT = 20
@@ -73,15 +73,18 @@ class TestFq24WideColumnList(FederatedQueryTestMixin):
         return f"attr-value-{idx:04d}"
 
     def _fixture_sqls(self):
-        attr_names = [self._attr_name(i) for i in range(1, self.ATTR_COUNT + 1)]
-        columns = ",\n  ".join(f"{name} VARCHAR2(64)" for name in attr_names)
-        names = ", ".join(attr_names)
+        # Quoted lower-case names keep the exact spelling the unquoted
+        # TDengine references below resolve to.
+        attr_names = [self._attr_name(i).lower()
+                      for i in range(1, self.ATTR_COUNT + 1)]
+        columns = ",\n  ".join(f'"{name}" VARCHAR2(64)' for name in attr_names)
+        names = ", ".join(f'"{name}"' for name in attr_names)
         values = ", ".join(f"'{self._attr_value(i)}'"
                            for i in range(1, self.ATTR_COUNT + 1))
-        ddl = (f"CREATE TABLE {self.TABLE} (\n"
-               f"  ROW_KEY VARCHAR2(64) NOT NULL,\n"
+        ddl = (f'CREATE TABLE "{self.TABLE}" (\n'
+               f'  "row_key" VARCHAR2(64) NOT NULL,\n'
                f"  {columns}\n)")
-        insert = (f"INSERT INTO {self.TABLE} (ROW_KEY, {names}) "
+        insert = (f'INSERT INTO "{self.TABLE}" ("row_key", {names}) '
                   f"VALUES ('{self.ROW_KEY}', {values})")
         return [ddl, insert]
 
