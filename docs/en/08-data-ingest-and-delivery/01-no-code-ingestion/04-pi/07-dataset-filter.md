@@ -12,6 +12,8 @@ When creating a PI or PI backfill task in taosExplorer, you can fill in the **Da
 - To sync all points or all template elements, use the default configuration.
 - To sync only points, elements, or templates whose names match specific patterns, fill in the Dataset Filter before clicking **Download Default Configuration**.
 
+For PI real-time tasks with **Auto Sync New Points** enabled, the saved filters also discover new objects while the task runs. This behavior does not apply to PI backfill tasks. See [Real-time Data Sync Guide](./05-realtime-guide.md#auto-sync-new-points) for configuration.
+
 ## Relationship Among System Configuration, Data Model, and Dataset Filter
 
 The available Dataset Filter options depend on the **System Configuration** (connection mode) and **Data Model**.
@@ -107,10 +109,14 @@ Applicable when **System Configuration = PI Data Archive + AF Server**, filterin
 
 ## Relationship Between Dataset Filter and CSV Configuration File
 
-Dataset Filter only affects the range of points or elements generated when you click **Download Default Configuration**. After downloading, the CSV model configuration file contains:
+Dataset Filter determines the initial range of points or elements generated when you click **Download Default Configuration**. After downloading, the CSV model configuration file contains:
 
 - **Multi-column model**: the `Filter` row stores the Dataset Filter value.
 - **Single-column model**: specific PI Points are listed in the point mapping section; you can manually delete unwanted Point rows for further trimming.
+
+With **Auto Sync New Points** enabled, the task continues scanning with its saved reusable filters, without rewriting the initial CSV. A Point name wildcard enrolls new matching Points; existing templates enroll new PI Point attributes; Element/path rules without a template list enroll new matching elements. Editing point rows in the initial CSV does not change the runtime filters. To restrict future automatic enrollment, change the task's saved filter criteria.
+
+Objects outside the filters are excluded, and disappearance from the source does not delete an enrolled subtable. Repeated scans do not duplicate subscriptions or subtables. Fixed lists and fixed CSV configurations without reusable rules do not automatically expand the collection scope.
 
 ## Common Misconceptions
 

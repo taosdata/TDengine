@@ -12,6 +12,8 @@ sidebar_label: Dataset Filter 配置
 - 若希望同步全部点位或全部模板元素，使用默认配置即可。
 - 若只需要同步命名符合特定规则的点位、元素或模板，可在点击 **下载默认配置** 前先填写 Dataset Filter。
 
+对于开启 **自动同步新增点位** 的 PI 实时任务，保存的筛选规则还用于运行期间发现新对象。此行为不适用于 PI backfill 任务。配置方法见 [实时数据同步](./05-realtime-guide.md#自动同步新增点位)。
+
 ## System Configuration、Data Model 与 Dataset Filter 的关系
 
 Dataset Filter 的可用选项取决于 **System Configuration**（连接方式）和 **Data Model**（数据模型）。
@@ -107,10 +109,14 @@ Dataset Filter 的可用选项取决于 **System Configuration**（连接方式�
 
 ## Dataset Filter 与 CSV 配置文件的关系
 
-Dataset Filter 只影响点击 **下载默认配置** 时生成的点位或元素范围。下载后的 CSV 模型配置文件中：
+Dataset Filter 决定点击 **下载默认配置** 时生成的初始点位或元素范围。下载后的 CSV 模型配置文件中：
 
 - **多列模型**：`Filter` 行保存的是 Dataset Filter 的值。
 - **单列模型**：具体的 PI Point 会列在点位映射部分；如需进一步裁剪，可手动删除不需要的 Point 行。
+
+开启 **自动同步新增点位** 后，任务按保存的可重放筛选规则继续扫描，初始 CSV 不会因自动接入而被改写。Point 名称匹配通配符时接入新点；已有模板新增 PI Point 属性时接入新属性；未限定模板列表的 Element／Path 规则会接入新匹配元素。仅修改初始 CSV 的点位行，不等于修改运行期的筛选规则；需要限制后续自动接入范围时，应调整任务保存的筛选条件。
+
+自动同步不会接入不匹配的对象，也不会因源对象消失而删除已接入的子表。重复扫描不会重复订阅或建表。固定列表或无可重放规则的固定 CSV 不会自动扩大采集范围。
 
 ## 常见误区
 
