@@ -100,7 +100,7 @@ In a database, one to many supertables can be included, but each supertable can 
 
 Timestamps play a crucial role in time-series data processing, especially when applications need to access the database from multiple time zones. Before delving into how TDengine handles timestamps and time zones, here are a few basic concepts.
 
-- Local date and time: The local time of a specific region, usually expressed as a string in the format `yyyy-MM-dd hh:mm:ss.SSS`, without time zone information, such as `2021-07-21 12:00:00.000`.
+- Local date and time: The local time of a specific region, usually expressed as a string in the format `YYYY-MM-DD HH24:MI:SS.MS`, without time zone information, such as `2021-07-21 12:00:00.000`.
 - Time zone: Standard time for different geographic locations. Coordinated Universal Time (UTC) or Greenwich Mean Time is the international time standard; other time zones are usually expressed as an offset from UTC, such as `UTC+8` for UTC+08:00.
 - UTC timestamp: The number of milliseconds since the UNIX epoch (UTC 1970-01-01 00:00:00). For example, `1700000000000` corresponds to `2023-11-14 22:13:20 (UTC+0)`.
 
