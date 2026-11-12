@@ -779,6 +779,13 @@ static int32_t buildSuperTableInfo(SVCreateStbReq* req, void** pBuf, int32_t* co
 }
 
 int32_t setForSnapShot(SSnapContext* ctx, int64_t uid) {
+  // Restore the meta phase on snapshot reposition. queryMeta is cleared once the
+  // handle finishes the meta scan; if the client retries with the original
+  // SNAPSHOT_META position after a consumer rebalance (epoch bump), resetting
+  // only the scan index without restoring queryMeta would make the executor skip
+  // create-table meta delivery and the destination lose child tables.
+  ctx->queryMeta = ctx->withMeta;
+
   if (uid == 0) {
     ctx->index = 0;
     return 0;
@@ -818,6 +825,12 @@ int32_t getTableInfoFromSnapshot(SSnapContext* ctx, void** pBuf, int32_t* contLe
 
   metaRLock(ctx->pMeta);
   while (1) {
+    // Skip create-table meta once the meta phase is finished (queryMeta == 0),
+    // consistent with the if (!queryMeta) check in scanoperator.c.
+    if (!ctx->queryMeta) {
+      goto END;
+    }
+
     if (ctx->index >= taosArrayGetSize(ctx->idList)) {
       metaDebug("tmqsnap get meta end");
       ctx->index = 0;
