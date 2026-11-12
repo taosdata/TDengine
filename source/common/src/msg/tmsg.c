@@ -15349,9 +15349,13 @@ int32_t tDeserializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
   // dbFName (backward-compatible: only present in newer clients)
   pReq->dbFName[0] = '\0';
   if (!tDecodeIsEnd(&decoder)) {
-    char *pStr = NULL;
-    TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &pStr));
-    if (pStr != NULL) {
+    char    *pStr = NULL;
+    uint32_t wireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&pStr, &wireLen));
+    if (wireLen > 0) {
+      if (pStr[wireLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
       tstrncpy(pReq->dbFName, pStr, TSDB_DB_FNAME_LEN);
     }
   }
