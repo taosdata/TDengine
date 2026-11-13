@@ -778,6 +778,19 @@ TEST(VnodeStreamVTableHelpers, tagValueEqual_ZeroLenEqual) {
   EXPECT_TRUE(tagValueEqual(&a, &b));
 }
 
+TEST(VnodeStreamVTableHelpers, tagValueEqual_EmptyStringDiffersFromNull) {
+  char      empty = 0;
+  STagValue a{};
+  a.type = TSDB_DATA_TYPE_BINARY;
+  a.pData = &empty;
+  STagValue b{};
+  b.type = TSDB_DATA_TYPE_BINARY;
+  EXPECT_FALSE(tagValueEqual(&a, &b));
+  EXPECT_FALSE(tagValueEqual(&b, &a));
+  b.pData = &empty;
+  EXPECT_TRUE(tagValueEqual(&a, &b));
+}
+
 TEST(VnodeStreamVTableHelpers, tagValueEqual_NullDataPointerCompare) {
   STagValue a{}; a.type = 1; a.nLen = 4; a.pData = nullptr;
   STagValue b{}; b.type = 1; b.nLen = 4; b.pData = nullptr;
@@ -884,6 +897,21 @@ TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_WithTagData) {
   taosMemoryFree(dst.tagData);
 }
 
+TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_EmptyString) {
+  char                     empty = 0;
+  SVTableRefResolveRspItem src{};
+  src.terminated = true;
+  src.nextRef.kind = STREAM_VREF_KIND_TAG;
+  src.tagType = TSDB_DATA_TYPE_NCHAR;
+  src.tagData = &empty;
+  SVTableRefResolveRspItem dst{};
+  ASSERT_EQ(0, streamWriteRspItemDeepCopy(&src, &dst));
+  EXPECT_NE(dst.tagData, nullptr);
+  EXPECT_NE(dst.tagData, src.tagData);
+  EXPECT_EQ(dst.tagLen, 0);
+  taosMemoryFree(dst.tagData);
+}
+
 TEST(VnodeStreamVTableHelpers, streamWriteRspItemDeepCopy_NullDataNonZeroLenSkipsCopy) {
   SVTableRefResolveRspItem src{};
   src.tagLen  = 8;
@@ -982,6 +1010,30 @@ TEST(VnodeStreamVTableHelpers, streamTblRefCache_InsertDeepCopiesTagData) {
   EXPECT_EQ((unsigned char)got->tagData[0], 9);
   EXPECT_EQ((unsigned char)got->tagData[4], 5);
   freeCache(pCache);
+}
+
+TEST(VnodeStreamVTableHelpers, streamTblRefCache_PreservesEmptyStringAndNull) {
+  SStreamVTableInfoCache *cache = makeEmptyCache();
+  ASSERT_NE(cache, nullptr);
+  char                     empty = 0;
+  SVTableRefResolveRspItem item{};
+  item.terminated = true;
+  item.nextRef.kind = STREAM_VREF_KIND_TAG;
+  item.tagType = TSDB_DATA_TYPE_BINARY;
+  item.tagData = &empty;
+  streamTblRefCacheInsert(cache, "db", "t", "empty", STREAM_VREF_KIND_TAG, &item);
+  item.tagData = nullptr;
+  streamTblRefCacheInsert(cache, "db", "t", "null", STREAM_VREF_KIND_TAG, &item);
+  auto *emptyValue = streamTblRefCacheLookup(cache, "db", "t", "empty", STREAM_VREF_KIND_TAG);
+  auto *nullValue = streamTblRefCacheLookup(cache, "db", "t", "null", STREAM_VREF_KIND_TAG);
+  ASSERT_NE(emptyValue, nullptr);
+  ASSERT_NE(nullValue, nullptr);
+  EXPECT_EQ(emptyValue->tagLen, 0);
+  EXPECT_NE(emptyValue->tagData, nullptr);
+  EXPECT_NE(emptyValue->tagData, &empty);
+  EXPECT_EQ(nullValue->tagLen, 0);
+  EXPECT_EQ(nullValue->tagData, nullptr);
+  freeCache(cache);
 }
 
 TEST(VnodeStreamVTableHelpers, streamTblRefCache_TagAndColShareKey_FirstWriterWins) {
@@ -2309,6 +2361,10 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
       item.tagType = TSDB_DATA_TYPE_INT;
       item.tagLen = self->nullTag_ ? 0 : sizeof(value);
       item.tagData = self->nullTag_ ? nullptr : reinterpret_cast<char *>(&value);
+      if (self->emptyTag_) {
+        item.tagType = TSDB_DATA_TYPE_BINARY;
+        item.tagLen = 0;
+      }
       taosArrayPush(reply.items, &item);
       response.len = tSerializeSVTableRefResolveRsp(nullptr, 0, &reply);
       response.pData = taosMemoryMalloc(response.len);
@@ -2445,6 +2501,7 @@ class VnodeSparseRefResolveTest : public ::testing::Test {
   int32_t rpcError_ = TSDB_CODE_SUCCESS;
   int32_t itemError_ = TSDB_CODE_SUCCESS;
   bool nullTag_ = false;
+  bool                   emptyTag_ = false;
   tb_uid_t extraRemoteUid_ = 0;
   tb_uid_t metaMissingUid_ = 0;
 };
@@ -2528,6 +2585,92 @@ TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsResolvedValue) {
   int32_t rebuilt = 0;
   memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
   EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsEmptyString) {
+  prepareTagChain();
+  schema_.type = TSDB_DATA_TYPE_BINARY;
+  schema_.bytes = 16;
+  emptyTag_ = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  ASSERT_NE(nullptr, entry->pTagVal);
+  STagVal value = {};
+  value.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  EXPECT_EQ(TSDB_DATA_TYPE_BINARY, value.type);
+  EXPECT_EQ(0, value.nData);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainPreservesUnrequestedOwnedLiterals) {
+  prepareTagChain();
+  SArray *values = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tTagToValArray(literal_, &values));
+  STagVal owned = {};
+  owned.cid = 30833;
+  owned.type = TSDB_DATA_TYPE_INT;
+  owned.i64 = 77;
+  ASSERT_NE(nullptr, taosArrayPush(values, &owned));
+  STagVal empty = {};
+  empty.cid = 30834;
+  empty.type = TSDB_DATA_TYPE_BINARY;
+  uint8_t emptyData = 0;
+  empty.pData = &emptyData;
+  ASSERT_NE(nullptr, taosArrayPush(values, &empty));
+  STag   *original = nullptr;
+  int32_t code = tTagNew(values, 1, false, &original);
+  taosArrayDestroy(values);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  entry->pTagVal = original;
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  const auto *rebuilt = static_cast<const STag *>(entry->pTagVal);
+  ASSERT_NE(nullptr, rebuilt);
+  EXPECT_EQ(3, rebuilt->nTag);
+  ASSERT_TRUE(tTagGet(rebuilt, &owned));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, owned.type);
+  int32_t rebuiltValue = 0;
+  memcpy(&rebuiltValue, &owned.i64, sizeof(rebuiltValue));
+  EXPECT_EQ(77, rebuiltValue);
+  ASSERT_TRUE(tTagGet(rebuilt, &empty));
+  EXPECT_EQ(0, empty.nData);
+  STagVal inherited = {};
+  inherited.cid = kTagCid;
+  ASSERT_TRUE(tTagGet(rebuilt, &inherited));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, inherited.type);
+  memcpy(&rebuiltValue, &inherited.i64, sizeof(rebuiltValue));
+  EXPECT_EQ(42, rebuiltValue);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainRebuildsOwnedReferenceWithoutInheritedRequest) {
+  prepareTagChain();
+  col_id_t ownedCid = 30833;
+  ref_.id = ownedCid;
+  taosArrayClear(tags_);
+  ASSERT_NE(nullptr, taosArrayPush(tags_, &ownedCid));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  auto   *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  STagVal value = {};
+  value.cid = ownedCid;
+  ASSERT_TRUE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
+  ASSERT_EQ(TSDB_DATA_TYPE_INT, value.type);
+  int32_t rebuilt = 0;
+  memcpy(&rebuilt, &value.i64, sizeof(rebuilt));
+  EXPECT_EQ(42, rebuilt);
+}
+
+TEST_F(VnodeSparseRefResolveTest, TagChainResolvedNullReplacesStaleLiteral) {
+  prepareTagChain();
+  auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(uidTags_, 0));
+  entry->pTagVal = taosMemoryMalloc(literal_->len);
+  ASSERT_NE(nullptr, entry->pTagVal);
+  memcpy(entry->pTagVal, literal_, literal_->len);
+  nullTag_ = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, vnodeResolveVTableTagChain(&vnode_, kStableUid, uidTags_, tags_, 0));
+  STagVal value = {};
+  value.cid = kTagCid;
+  EXPECT_FALSE(tTagGet(static_cast<const STag *>(entry->pTagVal), &value));
 }
 
 TEST_F(VnodeSparseRefResolveTest, TagChainKeepsRebuildingAfterEarlierUidFails) {
