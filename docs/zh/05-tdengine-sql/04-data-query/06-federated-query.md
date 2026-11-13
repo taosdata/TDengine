@@ -46,7 +46,7 @@ SQL Server 仍不支持 Windows 集成认证，只支持 SQL Server 账号口令
 
 ### 流式计算
 
-流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 3.x、SQL Server 和 Oracle 外部源。InfluxDB 1.8 不支持流式计算。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
+流式计算的触发和计算可以使用 MySQL、PostgreSQL、InfluxDB 3.x、InfluxDB 1.8、SQL Server 和 Oracle 外部源。InfluxDB 1.8 的限制见 [使用 InfluxDB 1.8 作为触发源](../../07-stream-processing/01-syntax.md#使用-influxdb-18-作为触发源)。历史计算暂不支持外部源。分组、选项和 Tag 的限制见 [流式计算里使用外部源](../../07-stream-processing/01-syntax.md#流式计算里使用外部源类似联邦查询)。
 
 ### 兼容性
 
@@ -1125,7 +1125,7 @@ FederatedScan on mysql_prod.power.sensor_data
 | SQL Server | 2019（15.x）、2022（16.x） | 2022 | 需要 Microsoft ODBC Driver 18 for SQL Server；仅支持本地部署或 IaaS 自建实例。 |
 | Oracle     | 11.2.0.3 / 11.2.0.4、12c、18c、19c、21c、23ai、26ai | 11.2.0.4、26ai | 依赖包同时提供 Instant Client 19c 与 23ai 两套客户端，安装时按服务端版本选择生效客户端；同一部署同一时间只有一套客户端生效。 |
 
-**InfluxDB 1.8 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询，均只使用 HTTP，无需安装联邦查询依赖库。不支持流式计算。
+**InfluxDB 1.8 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询，均只使用 HTTP，无需安装联邦查询依赖库。从 `v3.4.3.12` 起支持流式计算，限制见 [使用 InfluxDB 1.8 作为触发源](../../07-stream-processing/01-syntax.md#使用-influxdb-18-作为触发源)。
 
 **SQL Server 支持范围**：Linux x64、Linux ARM64 和 Windows x64 均可查询。仅支持 SQL Server Authentication；不支持 Windows 集成认证、Kerberos、NTLM 和 Microsoft Entra ID。Azure SQL Database、Azure SQL Managed Instance、Azure Synapse Analytics、SQL Server Analysis Services，以及 SQL Server 2017 及更早版本、SQL Server Compact 和 SQL Server 2025 不在本版本支持范围内。在云主机上自行安装的 SQL Server（IaaS）按本地部署对待。使用命名实例时需为该实例配置固定端口并填入 `PORT`，不通过 SQL Browser 自动发现。
 
