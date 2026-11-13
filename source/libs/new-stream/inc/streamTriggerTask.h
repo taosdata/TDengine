@@ -310,7 +310,7 @@ typedef struct SSTriggerRealtimeGroup {
       // streak state (start/end, always scalar  -  sub-event + start/end is rejected at parse time)
       int32_t startCondCount;
       TSKEY   startCondFirstTs;
-      int32_t endCondCount;
+      int64_t endCondCount;
       TSKEY   endCondFirstTs;
       SArray *activePath;       // SArray<int32_t>, envelope..leaf
       SArray *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
@@ -375,7 +375,9 @@ typedef struct SSTriggerHistoryGroup {
       SSTriggerNotifyWindow parentWindow;
       int32_t               numSubWindows;
       int32_t               conditionIdx;
-      int32_t               endCondCount;
+      int64_t               startCondCount;
+      TSKEY                 startCondFirstTs;
+      int64_t               endCondCount;
       TSKEY                 endCondFirstTs;
       SArray               *activePath;       // SArray<int32_t>, envelope..leaf
       SArray               *openNodeWindows;  // SArray<SSTriggerNotifyWindow>, same order as activePath
