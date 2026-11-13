@@ -52,7 +52,7 @@ typedef struct SColResolveItem {
 typedef struct STagValue {
   int8_t   type;
   int32_t  nLen;
-  char    *pData;       // owned, freed by destroy helper
+  char*    pData;  // owned; NULL means SQL NULL, non-NULL with nLen=0 means empty string
 } STagValue;
 
 typedef struct SVTableResolveResult {

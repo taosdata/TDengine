@@ -5536,6 +5536,49 @@ TEST(td_msg_test, clone_mixed_stream_management_request_failure_keeps_source_own
   tFreeSStreamMgmtReq(&source);
 }
 
+TEST(tmsgTest, vtable_resolve_response_preserves_empty_strings_and_nulls) {
+  SVTableRefResolveRsp source = {};
+  source.items = taosArrayInit(6, sizeof(SVTableRefResolveRspItem));
+  ASSERT_NE(source.items, nullptr);
+  for (int8_t type : {TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR}) {
+    SVTableRefResolveRspItem item = {};
+    item.terminated = true;
+    item.nextRef.kind = STREAM_VREF_KIND_TAG;
+    item.tagType = type;
+    item.tagData = taosStrdup("");
+    ASSERT_NE(item.tagData, nullptr);
+    ASSERT_NE(taosArrayPush(source.items, &item), nullptr);
+    item.tagData = nullptr;
+    ASSERT_NE(taosArrayPush(source.items, &item), nullptr);
+    const char value[4] = {'x', 0, 0, 0};
+    item.tagLen = type == TSDB_DATA_TYPE_BINARY ? 1 : 4;
+    item.tagData = static_cast<char*>(taosMemoryMalloc(item.tagLen));
+    ASSERT_NE(item.tagData, nullptr);
+    memcpy(item.tagData, value, item.tagLen);
+    ASSERT_NE(taosArrayPush(source.items, &item), nullptr);
+  }
+  int32_t size = tSerializeSVTableRefResolveRsp(nullptr, 0, &source);
+  ASSERT_GT(size, 0);
+  vector<uint8_t> bytes(size);
+  ASSERT_EQ(tSerializeSVTableRefResolveRsp(bytes.data(), size, &source), size);
+  SVTableRefResolveRsp decoded = {};
+  ASSERT_EQ(tDeserializeSVTableRefResolveRsp(bytes.data(), size, &decoded), 0);
+  ASSERT_EQ(taosArrayGetSize(decoded.items), 6);
+  for (int32_t i = 0; i < 6; ++i) {
+    auto* item = static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, i));
+    EXPECT_EQ(item->tagType, i < 3 ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_NCHAR);
+    EXPECT_EQ(item->tagLen, i % 3 == 2 ? (i < 3 ? 1 : 4) : 0);
+    if (i % 3 != 1) {
+      EXPECT_NE(item->tagData, nullptr);
+      if (i % 3 == 2 && item->tagData != nullptr) EXPECT_EQ(item->tagData[0], 'x');
+    } else {
+      EXPECT_EQ(item->tagData, nullptr);
+    }
+  }
+  tFreeSVTableRefResolveRsp(&decoded);
+  tFreeSVTableRefResolveRsp(&source);
+}
+
 TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
   // Decoder tolerance test for the optional tagCond tail: rebuild a frame with the SAME item
   // layout but without the extension tail, and verify the decoder accepts it. This is NOT a
@@ -5599,12 +5642,44 @@ TEST(tmsgTest, vtable_resolve_response_strips_optional_tagcond_tail) {
   vector<uint8_t> legacy(sizeof(int32_t) + prefixSize);
   memcpy(legacy.data(), &prefixSize, sizeof(prefixSize));
   memcpy(legacy.data() + sizeof(int32_t), decoder.data, prefixSize);
+
+  // An old reader consumes the first extension and skips the new empty-tag
+  // tail at tEndDecode. Keep that exact prefix as an old-writer fixture too.
+  int8_t extensionVersion = 0;
+  ASSERT_EQ(tDecodeI8(&decoder, &extensionVersion), 0);
+  ASSERT_EQ(extensionVersion, 1);
+  for (int32_t i = 0; i < count; ++i) {
+    int32_t length = 0;
+    ASSERT_EQ(tDecodeI32(&decoder, &length), 0);
+    if (length > 0) {
+      uint8_t* value = nullptr;
+      uint32_t valueLen = 0;
+      ASSERT_EQ(tDecodeBinary(&decoder, &value, &valueLen), 0);
+      ASSERT_EQ(valueLen, length);
+    }
+  }
+  int32_t         oldSize = decoder.pos;
+  vector<uint8_t> oldFrame(sizeof(int32_t) + oldSize);
+  memcpy(oldFrame.data(), &oldSize, sizeof(oldSize));
+  memcpy(oldFrame.data() + sizeof(int32_t), decoder.data, oldSize);
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   ASSERT_EQ(tDeserializeSVTableRefResolveRsp(legacy.data(), legacy.size(), &decoded), 0);
   EXPECT_EQ(taosArrayGetSize(decoded.items), 2);
   EXPECT_EQ(static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 0))->nextRef.tagCondLen, 0);
   tFreeSVTableRefResolveRsp(&decoded);
+
+  ASSERT_EQ(tDeserializeSVTableRefResolveRsp(oldFrame.data(), oldFrame.size(), &decoded), 0);
+  EXPECT_STREQ(static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 0))->nextRef.tagCondJson,
+               "{\"device\":\"one\"}");
+  EXPECT_EQ(static_cast<SVTableRefResolveRspItem*>(taosArrayGet(decoded.items, 1))->tagData, nullptr);
+  tFreeSVTableRefResolveRsp(&decoded);
+
+  // An empty-tag flag on a column response is invalid and must not allocate a tag.
+  bytes.back() = 1;
+  EXPECT_LT(tDeserializeSVTableRefResolveRsp(bytes.data(), bytes.size(), &decoded), 0);
+  EXPECT_EQ(decoded.items, nullptr);
+  bytes.back() = 0;
 
   // A truncated extension must fail and release all partially decoded items.
   bytes.pop_back();
