@@ -504,6 +504,7 @@ static int32_t handleStreamFetchData(SSnode* pSnode, void *pWorkerCb, SRpcMsg* p
   calcReq.runnerEogBatch = req.runnerEogBatch;
   if (req.pStRtFuncInfo) {
     calcReq.sessionId = req.pStRtFuncInfo->sessionId;
+    calcReq.derivativeLogEpoch = req.pStRtFuncInfo->derivativeLogEpoch;
     calcReq.triggerType = req.pStRtFuncInfo->triggerType;
     calcReq.isWindowTrigger = req.pStRtFuncInfo->isWindowTrigger;
     calcReq.precision = req.pStRtFuncInfo->precision;

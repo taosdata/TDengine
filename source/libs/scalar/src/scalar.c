@@ -1801,6 +1801,9 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
       goto _return;
     }
 
+    if (node->funcType == FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR) {
+      params[0].param = (void*)ctx->stream.pStreamRuntimeFuncInfo;
+    }
     code = (*ffpSet.process)(params, paramNum, output);
     if (code) {
       sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));

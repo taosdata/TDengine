@@ -597,6 +597,17 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
     return code;
   }
 
+  // Allocate diagnostics before taking ownership of other deployment resources.
+  // Later deployment failures must release this added state explicitly.
+  if (BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_DERIVATIVE_TAG)) {
+    code = scalarCreateStreamDerivativeLogState(&pTask->pDerivativeLogState);
+    if (code != TSDB_CODE_SUCCESS) {
+      streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
+      pTask->task.status = STREAM_STATUS_FAILED;
+      return code;
+    }
+  }
+
   TSWAP(pTask->pPlan, pMsg->pPlan);
   TSWAP(pTask->notification.pNotifyAddrUrls, pMsg->pNotifyAddrUrls);
   TSWAP(pTask->forceOutCols, pMsg->forceOutCols);
@@ -610,6 +621,8 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   code = stRunnerInitTaskExecMgr(pTask, pMsg);
   if (code != 0) {
     ST_TASK_ELOG("failed to init task exec mgr code:%s", tstrerror(code));
+    scalarDestroyStreamDerivativeLogState(pTask->pDerivativeLogState);
+    pTask->pDerivativeLogState = NULL;
     streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     pTask->task.status = STREAM_STATUS_FAILED;
     return code;
@@ -621,6 +634,8 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   if (code != 0) {
     ST_TASK_ELOG("failed to convert tag value expr to node err: %s expr: %s", strerror(code),
                  (char*)pMsg->tagValueExpr);
+    scalarDestroyStreamDerivativeLogState(pTask->pDerivativeLogState);
+    pTask->pDerivativeLogState = NULL;
     streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     pTask->task.status = STREAM_STATUS_FAILED;
     return code;
@@ -630,6 +645,8 @@ int32_t stRunnerTaskDeploy(SStreamRunnerTask* pTask, SStreamRunnerDeployMsg* pMs
   code = nodesStringToNode(pMsg->subTblNameExpr, (SNode**)&pTask->pSubTableExpr);
   if (code != 0) {
     ST_TASK_ELOG("failed to deserialize sub table expr: %s", tstrerror(code));
+    scalarDestroyStreamDerivativeLogState(pTask->pDerivativeLogState);
+    pTask->pDerivativeLogState = NULL;
     streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     pTask->task.status = STREAM_STATUS_FAILED;
     return code;
@@ -667,6 +684,8 @@ int32_t stRunnerTaskUndeployImpl(SStreamRunnerTask** ppTask, const SStreamUndepl
   taosArrayDestroyEx(pTask->forceOutCols, destroySStreamOutCols);
   taosArrayDestroyP(pTask->notification.pNotifyAddrUrls, taosMemFree);
   taosMemoryFreeClear(pTask->streamName);
+  scalarDestroyStreamDerivativeLogState(pTask->pDerivativeLogState);
+  pTask->pDerivativeLogState = NULL;
   taosArrayDestroy(pTask->output.colCids);
   taosArrayDestroy(pTask->output.tagCids);
   streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_UNDEPLOYED);
@@ -2207,12 +2226,14 @@ int32_t stRunnerTaskExecute(SStreamRunnerTask* pTask, SSTriggerCalcRequest* pReq
   pExec->runtimeInfo.pForceOutputCols = pTask->forceOutCols;
   if (pReq->brandNew || !pReq->isMultiGroupCalc) {
     pExec->runtimeInfo.funcInfo.sessionId = pReq->sessionId;
+    pExec->runtimeInfo.funcInfo.derivativeLogEpoch = pReq->derivativeLogEpoch;
     pExec->runtimeInfo.funcInfo.triggerType = pReq->triggerType;
     pExec->runtimeInfo.funcInfo.isWindowTrigger = pReq->isWindowTrigger;
     pExec->runtimeInfo.funcInfo.precision = pReq->precision;
   }
   if (!pReq->isMultiGroupCalc) pExec->runtimeInfo.funcInfo.rollupTbCount = pReq->rollupTbCount;
   pExec->runtimeInfo.funcInfo.addOptions = pTask->addOptions;
+  pExec->runtimeInfo.funcInfo.pDerivativeLogState = pTask->pDerivativeLogState;
 
   STREAM_CHECK_CONDITION_GOTO(winNum > STREAM_CALC_REQ_MAX_WIN_NUM, TSDB_CODE_STREAM_TASK_IVLD_STATUS);
 

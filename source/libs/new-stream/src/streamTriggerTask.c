@@ -6998,6 +6998,10 @@ static int32_t stTriggerTaskAcquireRequests(SStreamTriggerTask *pTask, int64_t s
   pReq->gid = pReservations[0].gid;
   pReq->isMultiGroupCalc = pTask->multiGroupBatch;
   pReq->stbPartByTbname = pTask->stbPartByTbname;
+  pReq->derivativeLogEpoch =
+      sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pTask->pHistoryContext != NULL
+          ? pTask->pHistoryContext->derivativeLogEpoch
+          : 0;
   pReq->rollupTbCount = 0;
   if (pReq->params == NULL) {
     pReq->params = taosArrayInit(0, sizeof(SSTriggerCalcParam));
@@ -7238,6 +7242,7 @@ static int32_t stTriggerTaskFinalizeCalcRequest(SSTriggerCalcRequest *pReq) {
     pReq->gid = *pGid;
     pReq->createTable = pSingleGroup->createTable;
     pReq->rollupTbCount = pSingleGroup->rollupTbCount;
+    if (pSingleGroup->derivativeLogEpoch != 0) pReq->derivativeLogEpoch = pSingleGroup->derivativeLogEpoch;
     pReq->isMultiGroupCalc = false;
     tSimpleHashClear(pReq->pGroupCalcInfos);
     tSimpleHashClear(pReq->pGroupReadInfos);
@@ -12151,9 +12156,12 @@ static int32_t stRealtimeContextCacheGroupInfos(SSTriggerRealtimeContext *pConte
       if (pContext->pGroups != NULL) {
         SSTriggerRealtimeGroup **ppGroup = tSimpleHashGet(pContext->pGroups, &pInfo->gid, sizeof(int64_t));
         if (ppGroup != NULL && *ppGroup != NULL) {
-          code = stRealtimeGroupRefreshDurationTags(pContext, *ppGroup, nowNs);
-          if (code != TSDB_CODE_SUCCESS) {
-            return code;
+          bool derivativeTag = BIT_FLAG_TEST_MASK(pContext->pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
+          if (derivativeTag) (*ppGroup)->derivativeLogEpoch = tGenIdPI64();
+          // DERIVATIVE-only updates preserve the trigger's duration scheduling.
+          if (!derivativeTag || stTriggerTaskNeedsDurationTags(pContext->pTask)) {
+            code = stRealtimeGroupRefreshDurationTags(pContext, *ppGroup, nowNs);
+            if (code != TSDB_CODE_SUCCESS) return code;
           }
         }
       }
@@ -18752,7 +18760,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CONDITION(pProgress->pendingPulls == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerWalMetaNewRequest *pReq = &pProgress->pullReq.walMetaNewReq;
       pReq->lastVer = pProgress->lastScanVer;
-      pReq->withGroupColVals = stTriggerTaskNeedsDurationTags(pTask);
+      pReq->withGroupColVals = stTriggerTaskNeedsDurationTags(pTask) ||
+                               BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
       pReq->requestId = pReq->withGroupColVals ? (uint64_t)tGenIdPI64() : 0;
       if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
         pReq->ctime = pContext->periodWindow.ekey;
@@ -18828,7 +18837,8 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerWalMetaDataNewRequest *pReq = &pProgress->pullReq.walMetaDataNewReq;
       pReq->lastVer = pProgress->lastScanVer;
       pReq->endVer = 0;
-      pReq->withGroupColVals = stTriggerTaskNeedsDurationTags(pTask);
+      pReq->withGroupColVals = stTriggerTaskNeedsDurationTags(pTask) ||
+                               BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
       pReq->requestId = pReq->withGroupColVals ? (uint64_t)tGenIdPI64() : 0;
       break;
     }
@@ -20323,6 +20333,7 @@ static int32_t stRealtimeGroupAppendPendingNestedCalc(SSTriggerRealtimeGroup *pG
       if (code != TSDB_CODE_SUCCESS) return code;
       taosArrayDestroyEx(pGroupCalc->pGroupColVals, tDestroySStreamGroupValue);
       pGroupCalc->pGroupColVals = pValues;
+      pGroupCalc->derivativeLogEpoch = pGroup->derivativeLogEpoch;
     }
     if (pTask->isRollup) {
       int32_t *pCount = tSimpleHashGet(pContext->pRollupTbCount, &pGroup->gid, sizeof(pGroup->gid));
@@ -20850,6 +20861,7 @@ static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, 
     }
     taosArrayDestroyEx(pGroupCalc->pGroupColVals, tDestroySStreamGroupValue);
     pGroupCalc->pGroupColVals = pValues;
+    pGroupCalc->derivativeLogEpoch = pGroup->derivativeLogEpoch;
     if (pTask->isRollup) {
       int32_t *pCount = tSimpleHashGet(pContext->pRollupTbCount, &pGroup->gid, sizeof(pGroup->gid));
       pGroupCalc->rollupTbCount = pCount == NULL ? 0 : *pCount;
@@ -20965,6 +20977,7 @@ static int32_t stRealtimeContextSendCalcReq(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
         goto _end;
       }
+      pCalcReq->derivativeLogEpoch = pGroup->derivativeLogEpoch;
       for (int32_t i = 0; i < taosArrayGetSize(pGroupColVals); i++) {
         SStreamGroupValue *pValue = TARRAY_GET_ELEM(pGroupColVals, i);
         SStreamGroupValue *pDst = taosArrayPush(pCalcReq->groupColVals, pValue);
@@ -25860,6 +25873,8 @@ static bool stHistoryContextMetadataReady(const SStreamTriggerTask *pTask) {
 static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTriggerTask *pTask) {
   pContext->pTask = pTask;
   pContext->sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
+  pContext->derivativeLogEpoch =
+      BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG) ? tGenIdPI64() : 0;
   pContext->status = STRIGGER_CONTEXT_WAIT_RECALC_REQ;
   TD_DLIST_INIT(&pContext->pendingNestedLeafEffects);
   TD_DLIST_INIT(&pContext->groupsToCheck);
@@ -25887,6 +25902,10 @@ static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContex
   SStreamTriggerTask *pTask = pContext->pTask;
   SSDataBlock        *pVirDataBlock = NULL;
   SFilterInfo        *pVirDataFilter = NULL;
+
+  if (pContext->derivativeLogEpoch == 0 && BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG)) {
+    pContext->derivativeLogEpoch = tGenIdPI64();
+  }
 
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     pContext->needTsdbMeta = true;
@@ -27203,8 +27222,9 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerHistoryGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
-    if (stTriggerTaskNeedNotifyTableName(pTask) && !pTask->isVirtualTable &&
-        (!pContext->isHistory || pTask->notifyHistory) &&
+    if ((BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG) ||
+         (stTriggerTaskNeedNotifyTableName(pTask) && !pTask->isVirtualTable &&
+          (!pContext->isHistory || pTask->notifyHistory))) &&
         tSimpleHashGet(pContext->pGroupColVals, &pGroup->gid, sizeof(pGroup->gid)) == NULL) {
       pContext->notifyGroupColValuePending = true;
       pContext->notifyGroupColValueGid = pGroup->gid;
@@ -28587,6 +28607,9 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   pGroup->pContext = pContext;
   pGroup->pWindowChain = NULL;
   pGroup->gid = gid;
+  if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG)) {
+    pGroup->derivativeLogEpoch = tGenIdPI64();
+  }
   bool repairHistoryPredecessor =
       pTask->fillHistory &&
       (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0 &&
