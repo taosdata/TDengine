@@ -533,12 +533,13 @@ int32_t tqMetaGetHandle(STQ* pTq, const char* key, STqHandle** pHandle) {
   void* data = taosHashGet(pTq->pHandle, key, strlen(key));
   if (data == NULL) {
     int vLen = 0;
-    if (tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &data, &vLen) < 0) {
+    int32_t code = tdbTbGet(pTq->pExecStore, key, (int)strlen(key), &data, &vLen);
+    if (code != TSDB_CODE_SUCCESS) {
       tdbFree(data);
-      return TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
+      return code == TSDB_CODE_NOT_FOUND ? TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST : code;
     }
     STqHandle handle = {0};
-    int32_t code = tqMetaRestoreHandle(pTq, data, vLen >= 0 ? vLen : 0, &handle);
+    code = tqMetaRestoreHandle(pTq, data, vLen >= 0 ? vLen : 0, &handle);
     if (code != 0) {
       tdbFree(data);
       tqDestroySTqHandle(&handle);
