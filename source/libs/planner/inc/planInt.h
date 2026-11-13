@@ -228,7 +228,7 @@ bool        partitionKeysAreOrdinaryColumns(SNodeList* pKeys);
 bool        keysHasTbname(SNodeList* pKeys);
 bool        planAggFuncsHasFirst(SNodeList* pFuncs);
 bool        projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject);
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol);
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr);
 int32_t getTimeRangeFromNode(SNode** pPrimaryKeyCond, STimeWindow* pTimeRange, bool* pIsStrict);
 int32_t tagScanSetExecutionMode(SScanLogicNode* pScan);
 

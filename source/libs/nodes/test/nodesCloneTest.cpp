@@ -1644,6 +1644,49 @@ TEST_F(NodesCloneTest, sqlWindowSpec) {
   run(srcNode.get());
 }
 
+TEST(NodesCodeTest, auxiliaryFunctionRowCountRoundTrip) {
+  SNode* pNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_FUNCTION, &pNode));
+  std::unique_ptr<SNode, void (*)(SNode*)> source(pNode, nodesDestroyNode);
+  auto*                                    function = reinterpret_cast<SFunctionNode*>(pNode);
+  tstrncpy(function->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
+
+  for (bool ignore : {false, true}) {
+    SCOPED_TRACE(ignore);
+    function->ignoreResultRowCount = ignore;
+    SNode* pCopy = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(pNode, &pCopy));
+    std::unique_ptr<SNode, void (*)(SNode*)> copy(pCopy, nodesDestroyNode);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pCopy)->ignoreResultRowCount);
+    EXPECT_TRUE(nodesEqualNode(pNode, pCopy));
+    reinterpret_cast<SFunctionNode*>(pCopy)->ignoreResultRowCount = !ignore;
+    EXPECT_FALSE(nodesEqualNode(pNode, pCopy));
+
+    char* pBuffer = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(pNode, false, &pBuffer, nullptr));
+    std::unique_ptr<char, void (*)(char*)> json(pBuffer, freeTestBuffer);
+    SNode*                                 pDecoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.get(), &pDecoded));
+    std::unique_ptr<SNode, void (*)(SNode*)> decoded(pDecoded, nodesDestroyNode);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(pNode, &pBuffer, &length));
+    std::unique_ptr<char, void (*)(char*)> message(pBuffer, freeTestBuffer);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(message.get(), length, &pDecoded));
+    decoded.reset(pDecoded);
+    EXPECT_EQ(ignore, reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+
+    if (ignore) {
+      std::string legacy(json.get());
+      eraseJsonField(&legacy, "IgnoreResultRowCount");
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(legacy.c_str(), &pDecoded));
+      decoded.reset(pDecoded);
+      EXPECT_FALSE(reinterpret_cast<SFunctionNode*>(pDecoded)->ignoreResultRowCount);
+    }
+  }
+}
+
 TEST_F(NodesCloneTest, functionWithOverSpec) {
   registerCheckFunc([](const SNode* pSrc, const SNode* pDst) {
     ASSERT_EQ(nodeType(pSrc), nodeType(pDst));

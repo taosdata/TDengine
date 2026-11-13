@@ -9433,7 +9433,11 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
-  if (isVectorFunc(*pNode) && !isSqlWindowFunctionNode((SFunctionNode*)*pNode) && !isDistinctOrderBy(pCxt)) {
+  // Scalar time windows retain input rows, so OVER may read their raw columns.
+  bool scalarWindow =
+      NULL != pSelect->pWindow && pSelect->windowScalarMode && !pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc;
+  if (isVectorFunc(*pNode) && (!isSqlWindowFunctionNode((SFunctionNode*)*pNode) || scalarWindow) &&
+      !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);

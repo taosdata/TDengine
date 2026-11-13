@@ -1725,6 +1725,7 @@ enum {
   FUNCTION_CODE_OVER,
   FUNCTION_CODE_TZ_NAME,
   FUNCTION_CODE_CHARSET_NAME,
+  FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT,
 };
 
 static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -1769,6 +1770,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IS_DISTINCT, pNode->isDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->ignoreResultRowCount) {
+    code = tlvEncodeBool(pEncoder, FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT, pNode->ignoreResultRowCount);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
     code = tlvEncodeCStr(pEncoder, FUNCTION_CODE_TZ_NAME, pNode->tzName);
@@ -1829,6 +1833,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case FUNCTION_CODE_IS_DISTINCT:
         code = tlvDecodeBool(pTlv, &pNode->isDistinct);
+        break;
+      case FUNCTION_CODE_IGNORE_RESULT_ROW_COUNT:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreResultRowCount);
         break;
       case FUNCTION_CODE_TZ_NAME:
         code = tlvDecodeCStr(pTlv, pNode->tzName, sizeof(pNode->tzName));

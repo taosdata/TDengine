@@ -27,11 +27,24 @@ window_spec:
     [ frame_clause ]
 ```
 
-- **PARTITION BY**: splits the input result set into independent **partitions** by one or more expressions; each partition is computed independently. When omitted, the entire result set is treated as a single partition.
+- **PARTITION BY**: splits the input result set into independent **partitions** by one or more expressions; each partition is computed independently. When omitted, the input within the current query-level partition is treated as a single window partition; without query-level partitioning, this means the entire result set.
 - **ORDER BY**: orders rows within a partition by one or more expressions, supporting `ASC`/`DESC` (default `ASC`) and `NULLS FIRST`/`NULLS LAST`. The ordering determines order-sensitive semantics such as row numbers, neighboring values, and cumulative ranges.
 - **frame_clause**: the window frame, which further bounds the range of rows participating in the computation for the current row within the ordered partition. See [Window Frame](#window-frame).
 
 Window functions may only appear in the `SELECT` list and `ORDER BY` of a query block. They are not allowed in `WHERE`, `GROUP BY`, `HAVING`, `PARTITION BY`, or frame boundary expressions. To filter or aggregate on window results, write the window query as a subquery and reference its output columns in the outer query.
+
+### Query-Level Partitioning
+
+The query-level `PARTITION BY` clause establishes an outer boundary for every window function in the same query block. `OVER ()` computes independently within each query partition. An `OVER (PARTITION BY ...)` clause further partitions rows within that boundary: equal window keys in different query partitions never combine.
+
+```sql
+SELECT dev, v,
+       rank() OVER (ORDER BY v DESC) AS r,
+       sum(v) OVER () AS s
+FROM t PARTITION BY dev;
+```
+
+If `t` contains one row for each of two devices, with values `100` and `10`, both ranks are `1` and the sums are `100` and `10`, respectively. Adding `PARTITION BY grp` inside `OVER` computes separately for each `(dev, grp)` combination. Without the query-level `PARTITION BY dev`, the example ranks all rows together and returns `110` for both sums.
 
 ## Window Frame
 

@@ -2159,7 +2159,7 @@ static int32_t copyPrevGroupKey(SExprSupp* pExprSup, SArray* pGroupKeys, SSDataB
       // representative for the group key columns.
       if (colDataIsNull_s(pSrc, 0)) {
         pGroupKey->isNull = true;
-        break;
+        continue;
       }
 
       code = copyColDataValGrow(pGroupKey, colDataGetData(pSrc, 0));

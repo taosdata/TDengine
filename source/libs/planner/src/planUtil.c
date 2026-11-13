@@ -1481,15 +1481,15 @@ bool planAggFuncsHasFirst(SNodeList* pFuncs) {
   return false;
 }
 
-SFunctionNode* createGroupKeyAggFunc(SColumnNode* pGroupCol) {
+SFunctionNode* createGroupKeyAggFunc(SExprNode* pGroupExpr) {
   SFunctionNode* pFunc = NULL;
   int32_t code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
   if (pFunc) {
     tstrncpy(pFunc->functionName, "_group_key", TSDB_FUNC_NAME_LEN);
-    tstrncpy(pFunc->node.aliasName, pGroupCol->node.aliasName, TSDB_COL_NAME_LEN);
-    tstrncpy(pFunc->node.userAlias, pGroupCol->node.userAlias, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.aliasName, pGroupExpr->aliasName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pGroupExpr->userAlias, TSDB_COL_NAME_LEN);
     SNode* pNew = NULL;
-    code = nodesCloneNode((SNode*)pGroupCol, &pNew);
+    code = nodesCloneNode((SNode*)pGroupExpr, &pNew);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNew);
     }

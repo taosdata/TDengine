@@ -1588,7 +1588,7 @@ static int32_t stbSplAggNodeCreateMerge(SSplitContext* pCtx, SStableSplitInfo* p
       // We only need newly added nodes in pSort.node.pTargets when stbSplCreateMergeKeys
       FOREACH(node, pSort->node.pTargets) {
         if (idx++ < originalLen) continue;
-        SFunctionNode* pGroupKeyFunc = createGroupKeyAggFunc((SColumnNode*)node);
+        SFunctionNode* pGroupKeyFunc = createGroupKeyAggFunc((SExprNode*)node);
         if (!pGroupKeyFunc) {
           code = terrno;
           break;

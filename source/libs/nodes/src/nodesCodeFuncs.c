@@ -9016,6 +9016,7 @@ static const char* jkFunctionMergeFuncOf = "MergeFuncOf";
 static const char* jkFunctionTrimType = "TrimType";
 static const char* jkFunctionSrcFuncInputDT = "SrcFuncInputDataType";
 static const char* jkFunctionIsDistinct = "IsDistinct";
+static const char* jkFunctionIgnoreResultRowCount = "IgnoreResultRowCount";
 static const char* jkFunctionTzName = "TzName";
 static const char* jkFunctionCharsetName = "CharsetName";
 
@@ -9061,6 +9062,9 @@ static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkFunctionIsDistinct, pNode->isDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->ignoreResultRowCount) {
+    code = tjsonAddBoolToObject(pJson, jkFunctionIgnoreResultRowCount, pNode->ignoreResultRowCount);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->tzName[0] != '\0') {
     code = tjsonAddStringToObject(pJson, jkFunctionTzName, pNode->tzName);
@@ -9113,6 +9117,9 @@ static int32_t jsonToFunctionNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkFunctionIsDistinct, &pNode->isDistinct);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkFunctionIgnoreResultRowCount, &pNode->ignoreResultRowCount);
   }
   // tzName is optional (absent for non-timezone functions or old plans)
   if (TSDB_CODE_SUCCESS == code) {

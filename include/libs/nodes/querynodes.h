@@ -454,6 +454,7 @@ typedef struct SFunctionNode {
   bool       hasPk;
   int32_t    pkBytes;
   bool       hasOriginalFunc;
+  bool                        ignoreResultRowCount;  // Synthesized keys carry values without producing aggregate rows.
   int32_t    originalFuncId;
   ETrimType  trimType;
   bool       dual; // whether select stmt without from stmt, true for without.
