@@ -46,7 +46,7 @@ Installation steps for the Windows plugin package are not yet described in this 
 
 ### Stream Processing
 
-Stream processing can use MySQL, PostgreSQL, InfluxDB 3.x, SQL Server, and Oracle external sources in triggers and calculations. InfluxDB 1.8 does not support stream processing. Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
+Stream processing can use MySQL, PostgreSQL, InfluxDB 3.x, InfluxDB 1.8, SQL Server, and Oracle external sources in triggers and calculations. Limits for InfluxDB 1.8 are described in [Use InfluxDB 1.8 as a Trigger Source](../../07-stream-processing/01-syntax.md#use-influxdb-18-as-a-trigger-source). Historical calculation does not yet support external sources. Limits on grouping, options, and tags are described in [External Sources in Stream Processing](../../07-stream-processing/01-syntax.md#external-sources-in-stream-processing).
 
 ### Compatibility
 
@@ -1125,7 +1125,7 @@ Supported and tested external database versions are as follows:
 | SQL Server | 2019 (15.x), 2022 (16.x) | 2022 | Requires Microsoft ODBC Driver 18 for SQL Server; only on-premises deployments and self-managed IaaS instances are supported. |
 | Oracle     | 11.2.0.3 / 11.2.0.4, 12c, 18c, 19c, 21c, 23ai, 26ai | 11.2.0.4, 26ai | The runtime package ships both Instant Client 19c and 23ai; the installer selects the active client for the server version, and only one client is active per deployment at a time. |
 
-**InfluxDB 1.8 support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. All of them use HTTP only and do not require the Federated Query runtime package. Stream processing is not supported.
+**InfluxDB 1.8 support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. All of them use HTTP only and do not require the Federated Query runtime package. Stream processing is supported starting in `v3.4.3.12`. Limits are described in [Use InfluxDB 1.8 as a Trigger Source](../../07-stream-processing/01-syntax.md#use-influxdb-18-as-a-trigger-source).
 
 **SQL Server support scope**: Queries are supported on Linux x64, Linux ARM64, and Windows x64. Only SQL Server Authentication is supported; Windows integrated authentication, Kerberos, NTLM, and Microsoft Entra ID are not supported. Azure SQL Database, Azure SQL Managed Instance, Azure Synapse Analytics, SQL Server Analysis Services, SQL Server 2017 and earlier, SQL Server Compact, and SQL Server 2025 are outside the support scope of this version. SQL Server installed on a cloud virtual machine (IaaS) is treated as an on-premises deployment. When using a named instance, configure a fixed port for that instance and specify it in `PORT`; SQL Browser discovery is not used.
 

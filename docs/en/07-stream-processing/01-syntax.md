@@ -1034,7 +1034,7 @@ Notes:
 
 ### Use InfluxDB 1.8 as a Trigger Source
 
-Starting in `v3.5.0.0`, stream processing supports InfluxDB OSS 1.8 external sources. When you create the external source, explicitly set `version = '1.8'` in `OPTIONS`, use HTTP, and optionally set the retention policy. See [InfluxDB external sources](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-parameters) for the external-source syntax and parameters.
+Starting in `v3.4.3.12`, stream processing supports InfluxDB OSS 1.8 external sources. When you create the external source, explicitly set `version = '1.8'` in `OPTIONS`, use HTTP, and optionally set the retention policy. See [InfluxDB external sources](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-parameters) for the external-source syntax and parameters.
 
 Use `<external_source>.<database>.<measurement>` in the stream `FROM` clause. Do not include the retention policy:
 

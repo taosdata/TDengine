@@ -1036,7 +1036,7 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
 
 ### 使用 InfluxDB 1.8 作为触发源
 
-从 `v3.5.0.0` 开始，流式计算支持 InfluxDB OSS 1.8 外部源。创建外部源时需在 `OPTIONS` 中显式配置 `version = '1.8'`，并使用 HTTP 协议和可选 retention policy。外部源创建方式及参数示例请参阅 [InfluxDB 外部源](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-参数)。
+从 `v3.4.3.12` 开始，流式计算支持 InfluxDB OSS 1.8 外部源。创建外部源时需在 `OPTIONS` 中显式配置 `version = '1.8'`，并使用 HTTP 协议和可选 retention policy。外部源创建方式及参数示例请参阅 [InfluxDB 外部源](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-参数)。
 
 流式计算的 `FROM` 子句使用 `<external_source>.<database>.<measurement>`，不需要写入 retention policy：
 
