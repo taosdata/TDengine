@@ -99,6 +99,70 @@ class TestVTablePlanAggOptimize:
         tdSql.checkRows(0)
         print("partitioned aggregate iteration [ passed ]")
 
+    def do_last_dynamic_prune_precision(self):
+        source_db = VtableQueryUtil.VTABLE_DB_NAME
+        base_ts = 1750046400000
+        for index in range(6):
+            tdSql.execute(
+                f"create table {source_db}.prune_source_{index} "
+                "(ts timestamp, v int, sparse int)"
+            )
+            tdSql.execute(
+                f"insert into {source_db}.prune_source_{index} values "
+                f"({base_ts + index * 1000}, {index}, {index + 100}) "
+                f"({base_ts + index * 1000 + 1}, {index + 10}, null)"
+            )
+
+        for precision in ("ms", "us", "ns"):
+            target_db = f"vtb_prune_{precision}"
+            tdSql.execute(f"drop database if exists {target_db}")
+            tdSql.execute(f"create database {target_db} precision '{precision}' vgroups 1")
+            try:
+                tdSql.execute(
+                    f"create stable {target_db}.vstb (ts timestamp, v int, sparse int) "
+                    "tags(g int) virtual 1"
+                )
+                for index in range(6):
+                    tdSql.execute(
+                        f"create vtable {target_db}.child_{index} "
+                        f"(v from {source_db}.prune_source_{index}.v, "
+                        f"sparse from {source_db}.prune_source_{index}.sparse) "
+                        f"using {target_db}.vstb tags({index})"
+                    )
+                for flushed in (False, True):
+                    if flushed:
+                        tdSql.execute(f"flush database {source_db}")
+                    for function, expected in (("last", (15, 105)), ("first", (0, 100))):
+                        tdSql.query(
+                            f"select {function}(v), {function}(sparse) from {target_db}.vstb"
+                        )
+                        tdSql.checkRows(1)
+                        tdSql.checkData(0, 0, expected[0])
+                        tdSql.checkData(0, 1, expected[1])
+            finally:
+                tdSql.execute(f"drop database {target_db}")
+        print("LAST dynamic prune precision [ passed ]")
+
+    def test_last_dynamic_prune_precision(self):
+        """Query: virtual aggregate pruning across timestamp precisions
+
+        1. Check FIRST and LAST across six source tables with sparse values.
+        2. Cover ms, us and ns virtual databases before and after flushing sources.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-13 Joey Sima Created
+        """
+        self.do_last_dynamic_prune_precision()
+
     def test_partitioned_aggregate_iteration(self):
         """Query: virtual aggregate group iterator lifetime
 
