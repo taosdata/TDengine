@@ -25755,6 +25755,9 @@ static int32_t translateDropXnodeTask(STranslateContext* pCxt, SDropXnodeTaskStm
 }
 
 static int32_t translateUpdateXnodeTask(STranslateContext* pCxt, SUpdateXnodeTaskStmt* pStmt) {
+  if (getXnodeTaskOptionByName(pStmt->options, "type") != NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, "Option type can not be altered");
+  }
   SMUpdateXnodeTaskReq updateReq = {0};
   updateReq.tid = pStmt->tid;
 

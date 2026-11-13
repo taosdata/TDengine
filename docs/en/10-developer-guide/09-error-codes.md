@@ -891,6 +891,9 @@ Below are the business error codes for each module.
 | 0x80008026 | Xnode DSN protection failed                           | Xnode DSN protection check failed                           | Check the DSN configuration and data source protection policy, then retry |
 | 0x80008027 | Connection info changed, please re-enter the password and other sensitive values | Connection info changed, please re-enter the password and other sensitive values | Re-enter the password and other sensitive values after changing connection fields such as the address, then save again |
 | 0x80008028 | Xnode is already owned by another cluster             | taosx is already managed by another TDengine cluster        | Run DROP XNODE in the owner cluster and retry |
+| 0x80008029 | Invalid xnode task type                               | `TYPE` is not `replica` (case-insensitive) when creating a task | Use `WITH TYPE 'replica'` for an active-active task, or omit `TYPE` for a normal task |
+| 0x8000802A | Option not supported by replica xnode task            | When creating or modifying an active-active task, `FROM DATABASE`, `FROM TOPIC`, `TO DATABASE`, `PARSER`, or `VIA` is used | Specify source and target DSNs through `FROM` and `TO`, and remove unsupported options |
+| 0x8000802B | DSN parameter %s is reserved for replica xnode task   | When creating or modifying a normal task, the source DSN contains the reserved parameter `replica` or `msg.consume.excluded` | Remove reserved parameters from the normal task's source DSN; use `WITH TYPE 'replica'` when creating an active-active task |
 
 #### backup/restore
 

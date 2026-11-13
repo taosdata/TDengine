@@ -250,4 +250,3 @@ check_transactions || exit 1
 reset_cache || exit 1
 python3 tmq_websocket_example.py
 
-

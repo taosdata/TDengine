@@ -63,10 +63,9 @@ CwIDAQAB
 
 
 class _MockXnodedHandler(BaseHTTPRequestHandler):
-    """Answers every xnoded connector call with an empty success object."""
+    """Answers xnoded connector calls with the success response they require."""
 
-    def _ok(self):
-        body = b"{}"
+    def _ok(self, body: bytes = b"{}"):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -83,7 +82,10 @@ class _MockXnodedHandler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         if length > 0:
             self.rfile.read(length)
-        self._ok()
+        if self.path.startswith("/task/drop/"):
+            self._ok(b'{"cleanup_required":true}')
+        else:
+            self._ok()
 
     def log_message(self, *args):
         pass

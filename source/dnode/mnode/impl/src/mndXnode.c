@@ -135,6 +135,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq);
 static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq);
 static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq);
 static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq);
+static int32_t mndDropXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SXnodeTaskObj *pTask);
 static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextXnodeTask(SMnode *pMnode, void *pIter);
 
@@ -1701,7 +1702,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   int32_t totalStrLen = pObj->nameLen + pObj->sourceDsnLen + pObj->sinkDsnLen + pObj->parserLen + pObj->reasonLen +
                         pObj->statusLen + pObj->createdByLen + pObj->labelsLen;
   int32_t rawDataLen = sizeof(SXnodeTaskObj) + TSDB_XNODE_RESERVE_SIZE + totalStrLen +
-                       sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t);
+                       sizeof(int64_t) + sizeof(int32_t) + sizeof(int8_t) * 2;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_XNODE_TASK, TSDB_XNODE_VER_NUMBER, rawDataLen);
   if (pRaw == NULL) goto _OVER;
@@ -1735,6 +1736,7 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj) {
   SDB_SET_INT64(pRaw, dataPos, pObj->ownerId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pObj->acctId, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pObj->desiredState, _OVER)
+  SDB_SET_INT8(pRaw, dataPos, pObj->type, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -1855,6 +1857,9 @@ SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw) {
   if (pObj->desiredState == XNODE_TASK_DESIRED_STATE_UNKNOWN) {
     pObj->desiredState = mndXnodeDesiredStateFromStatus(pObj->status);
   }
+  if (dataPos + sizeof(int8_t) <= pRaw->dataLen) {
+    SDB_GET_INT8(pRaw, dataPos, &pObj->type, _OVER)
+  }
 
   terrno = 0;
 
@@ -1897,6 +1902,7 @@ int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj 
   pOld->sourceType = pNew->sourceType;
   pOld->sinkType = pNew->sinkType;
   pOld->desiredState = pNew->desiredState;
+  pOld->type = pNew->type;
   if (pOld->ownerId == 0 && pNew->ownerId > 0) {
     pOld->ownerId = pNew->ownerId;
   }
@@ -1971,6 +1977,63 @@ static const char *getXTaskOptionByName(xTaskOptions *pOptions, const char *name
   return NULL;
 }
 
+static const char *mndXnodeTaskTypeName(int8_t type) {
+  return type == XNODE_TASK_TYPE_REPLICA ? "replica" : "normal";
+}
+
+int32_t mndXnodeCheckTaskType(SMCreateXnodeTaskReq *pCreate, int8_t *type, const char **reservedParam) {
+  if (pCreate == NULL || type == NULL) return TSDB_CODE_INVALID_PARA;
+  const char *name = getXTaskOptionByName(&pCreate->options, "type");
+  *type = XNODE_TASK_TYPE_NORMAL;
+  if (name != NULL) {
+    if (strcasecmp(name, "replica") != 0) return TSDB_CODE_MND_XNODE_INVALID_TASK_TYPE;
+    *type = XNODE_TASK_TYPE_REPLICA;
+  }
+  if (*type == XNODE_TASK_TYPE_REPLICA) {
+    if (pCreate->source.type != XNODE_TASK_SOURCE_DSN || pCreate->sink.type != XNODE_TASK_SINK_DSN ||
+        pCreate->options.parser.ptr != NULL || pCreate->options.via > 0) {
+      return TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  return mndXnodeCheckReservedReplicaParam(pCreate->source.cstr.ptr, pCreate->source.cstr.len, reservedParam);
+}
+
+static int32_t mndXnodeSetErrorResponse(SRpcMsg *pReq, int32_t code, const char *reason) {
+  if (reason == NULL || pReq == NULL) return code;
+  int32_t contLen = strlen(reason) + strlen(tstrerror(code)) + 32;
+  void *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) return terrno;
+  pReq->info.rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  if (code == TSDB_CODE_MND_XNODE_REPLICA_PARAM_RESERVED) {
+    snprintf(pRsp, contLen, "DSN parameter %s is reserved for replica xnode task", reason);
+  } else {
+    snprintf(pRsp, contLen, "%s, since: %s", tstrerror(code), reason);
+  }
+  return code;
+}
+
+static bool mndXnodeTaskDeleting(const SXnodeTaskObj *pObj) {
+  return pObj->status != NULL &&
+         (strcmp(pObj->status, "deleting") == 0 || strcmp(pObj->status, "delete_failed") == 0);
+}
+
+bool mndXnodeTaskControllerRequest(SMnode *pMnode, const SRpcMsg *pReq) {
+  if (pReq == NULL) return false;
+  SXnodeUserPassObj *pUserPass = mndAcquireFirstXnodeUserPass(pMnode);
+  bool allowed = false;
+  if (pUserPass != NULL) {
+    if (pUserPass->token != NULL && pUserPass->token[0] != '\0') {
+      allowed = pReq->info.conn.isToken && strcmp(pReq->info.conn.identifier, pUserPass->token) == 0;
+    } else {
+      allowed = pUserPass->user != NULL && strcmp(pReq->info.conn.user, pUserPass->user) == 0;
+    }
+  }
+  if (pUserPass != NULL) mndReleaseXnodeUserPass(pMnode, pUserPass);
+  return allowed;
+}
+
 static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreate) {
   int32_t code = -1;
   STrans *pTrans = NULL;
@@ -1980,6 +2043,7 @@ static int32_t mndCreateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, SMCreateXnodeTa
   // Six-star write-queue authority: reject control markers before the final
   // object exists and before any commit log is encoded.
   TAOS_CHECK_GOTO(mndXnodeCheckCreateTaskSixStar(pCreate), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndXnodeCheckTaskType(pCreate, &xnodeObj.type, NULL), NULL, _OVER);
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, pReq->info.conn.user, &pOperUser), NULL, _OVER);
   xnodeObj.id = sdbGetMaxId(pMnode->pSdb, SDB_XNODE_TASK);
@@ -2075,13 +2139,16 @@ _OVER:
 }
 
 // Helper function to parse and validate the request
-static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq) {
+static int32_t mndValidateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq *pCreateReq, int8_t type,
+                                      const SXnodeTaskObj *pOld) {
   int32_t code = 0;
   SJson  *pJson = NULL;
   SJson  *postContent = NULL;
   char   *srcDsn = NULL;
   char   *sinkDsn = NULL;
   char   *pContStr = NULL;
+  char   *oldFrom = NULL;
+  char   *oldTo = NULL;
 
   // from, to check
   char xnodeUrl[TSDB_XNODE_URL_LEN] = {0};
@@ -2104,6 +2171,18 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
   TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&srcDsn, &sinkDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "from", srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "to", sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "type", mndXnodeTaskTypeName(type)), NULL, _OVER);
+  if (pOld != NULL) {
+    oldFrom = taosStrndupi(pOld->sourceDsn, pOld->sourceDsnLen - 1);
+    oldTo = taosStrndupi(pOld->sinkDsn, pOld->sinkDsnLen - 1);
+    if (oldFrom == NULL || oldTo == NULL) {
+      code = terrno;
+      goto _OVER;
+    }
+    TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&oldFrom, &oldTo), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "old_from", oldFrom), NULL, _OVER);
+    TAOS_CHECK_GOTO(tjsonAddStringToObject(postContent, "old_to", oldTo), NULL, _OVER);
+  }
 
   if (pCreateReq->xnodeId > 0) {
     TAOS_CHECK_GOTO(tjsonAddDoubleToObject(postContent, "xnode_id", (double)pCreateReq->xnodeId), NULL, _OVER);
@@ -2139,15 +2218,7 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
       mError("should not failed to get __inner_error message, task name:%s", pCreateReq->name.ptr);
       goto _OVER;
     }
-    //handle response
-    int32_t contLen = strlen(pValueString) + strlen(tstrerror(code)) + 32;
-    void *pRsp = rpcMallocCont(contLen);
-    if (pRsp == NULL) {
-      TAOS_CHECK_GOTO(terrno, NULL, _OVER);
-    }
-    pReq->info.rspLen = contLen;
-    pReq->info.rsp = pRsp;
-    snprintf(pReq->info.rsp, contLen, "%s, since: %s", tstrerror(code), pValueString);
+    code = mndXnodeSetErrorResponse(pReq, code, pValueString);
     goto _OVER;
   }
 
@@ -2158,6 +2229,8 @@ static int32_t mndValidateCreateXnodeTaskReq(SRpcMsg *pReq, SMCreateXnodeTaskReq
 _OVER:
   if (srcDsn != NULL) taosMemoryFreeClear(srcDsn);
   if (sinkDsn != NULL) taosMemoryFreeClear(sinkDsn);
+  taosMemoryFree(oldFrom);
+  taosMemoryFree(oldTo);
   if (pContStr != NULL) taosMemoryFreeClear(pContStr);
   if (postContent != NULL) tjsonDelete(postContent);
   if (pJson != NULL) tjsonDelete(pJson);
@@ -2189,7 +2262,9 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   SMnode              *pMnode = pReq->info.node;
   int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
-  SUserObj            *pOwner = NULL;
+  int8_t      type = XNODE_TASK_TYPE_NORMAL;
+  const char *reservedParam = NULL;
+  SUserObj   *pOwner = NULL;
 
   // Step 1: Validate permissions
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_TASK);
@@ -2211,12 +2286,17 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   // xnoded /task/check connector; mndCreateXnodeTask repeats the same check at
   // the write-queue boundary.
   TAOS_CHECK_GOTO(mndXnodeCheckCreateTaskSixStar(&createReq), NULL, _OVER);
+  code = mndXnodeCheckTaskType(&createReq, &type, &reservedParam);
+  if (code != TSDB_CODE_SUCCESS) {
+    code = mndXnodeSetErrorResponse(pReq, code, reservedParam);
+    goto _OVER;
+  }
 
   TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOwner), NULL, _OVER);
   TAOS_CHECK_GOTO(mndXnodeNormalizeDatabaseSink(pMnode, pReq, pOwner, &createReq.sink), NULL, _OVER);
 
   // Step 3: Parse and validate request
-  TAOS_CHECK_GOTO(mndValidateCreateXnodeTaskReq(pReq, &createReq), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndValidateXnodeTaskReq(pReq, &createReq, type, NULL), NULL, _OVER);
 
   // Step 4: Create the xnode task
   TAOS_CHECK_GOTO(mndCreateXnodeTask(pMnode, pReq, &createReq), NULL, _OVER);
@@ -2235,7 +2315,7 @@ _OVER:
 // Builds the POST body for starting pObj. Local failures (allocation, JSON,
 // DSN envelope encryption) are deterministic and fail-closed: the caller must
 // surface them before committing the desired-state transaction.
-static int32_t httpBuildStartXnodeTaskBody(const SXnodeTaskObj *pObj, char **ppContStr) {
+int32_t mndXnodeBuildHttpTaskBody(const SXnodeTaskObj *pObj, char **ppContStr) {
   int32_t code = 0;
   struct {
     SJson *postContent;
@@ -2262,6 +2342,7 @@ static int32_t httpBuildStartXnodeTaskBody(const SXnodeTaskObj *pObj, char **ppC
   TAOS_CHECK_GOTO(mndXnodeProtectHttpTaskDsns(&req.srcDsn, &req.sinkDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "from", req.srcDsn), NULL, _OVER);
   TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "to", req.sinkDsn), NULL, _OVER);
+  TAOS_CHECK_GOTO(tjsonAddStringToObject(req.postContent, "type", mndXnodeTaskTypeName(pObj->type)), NULL, _OVER);
 
   if (pObj->parserLen > 0) {
     req.parser = taosStrndupi(pObj->parser, (int64_t)pObj->parserLen);
@@ -2362,6 +2443,10 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  if (mndXnodeTaskDeleting(pObj)) {
+    code = mndXnodeSetErrorResponse(pReq, TSDB_CODE_MND_XNODE_INVALID_MSG, "Cannot start a deleting xnode task");
+    goto _OVER;
+  }
   pStartObj = pObj;
   pBaseObj = pObj;
   if (mndXnodeIsLegacyDatabaseSink(pObj)) {
@@ -2377,7 +2462,7 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   // desired-state transaction: local build failures (allocation, JSON, DSN
   // envelope encryption) are deterministic and must reach the client without
   // leaving a committed running intent behind.
-  code = httpBuildStartXnodeTaskBody(pStartObj, &pStartBody);
+  code = mndXnodeBuildHttpTaskBody(pStartObj, &pStartBody);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
   code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pBaseObj, &updateReq, XNODE_TASK_DESIRED_STATE_RUNNING);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
@@ -2452,6 +2537,42 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+int32_t mndXnodeValidateTaskUpdate(const SXnodeTaskObj *pOld, const SMUpdateXnodeTaskReq *pUpdate,
+                                   bool controllerRequest) {
+  if (pOld == NULL || pUpdate == NULL) return TSDB_CODE_INVALID_PARA;
+  bool configUpdate = pUpdate->source.cstr.ptr != NULL || pUpdate->sink.cstr.ptr != NULL ||
+                      pUpdate->parser.ptr != NULL || pUpdate->via > 0 || pUpdate->xnodeId > 0 ||
+                      pUpdate->updateName.ptr != NULL || pUpdate->desiredState.ptr != NULL ||
+                      pUpdate->labels.ptr != NULL;
+  if (pUpdate->status.ptr != NULL && strcmp(pUpdate->status.ptr, "cleanup_done") == 0) {
+    if (pOld->status == NULL ||
+        strcmp(pOld->status, "deleting") != 0 || !controllerRequest || configUpdate) {
+      return TSDB_CODE_MND_XNODE_INVALID_MSG;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+  if (mndXnodeTaskDeleting(pOld)) {
+    if ((pUpdate->status.ptr != NULL && strcmp(pUpdate->status.ptr, "delete_failed") != 0) ||
+        (pUpdate->desiredState.ptr != NULL && strcasecmp(pUpdate->desiredState.ptr, "stopped") != 0)) {
+      return TSDB_CODE_MND_XNODE_INVALID_MSG;
+    }
+  }
+  if (pUpdate->status.ptr != NULL &&
+      (strcmp(pUpdate->status.ptr, "deleting") == 0 || strcmp(pUpdate->status.ptr, "delete_failed") == 0)) {
+    if (strcmp(pUpdate->status.ptr, "deleting") == 0 || pOld->status == NULL ||
+        (strcmp(pOld->status, "deleting") != 0 && strcmp(pOld->status, "delete_failed") != 0) ||
+        pOld->type != XNODE_TASK_TYPE_REPLICA || !controllerRequest || configUpdate) {
+      return TSDB_CODE_MND_XNODE_INVALID_MSG;
+    }
+  }
+  if (pOld->type == XNODE_TASK_TYPE_REPLICA && (pUpdate->parser.ptr != NULL || pUpdate->via > 0 ||
+      (pUpdate->source.cstr.ptr != NULL && pUpdate->source.type != XNODE_TASK_SOURCE_DSN) ||
+      (pUpdate->sink.cstr.ptr != NULL && pUpdate->sink.type != XNODE_TASK_SINK_DSN))) {
+    return TSDB_CODE_MND_XNODE_REPLICA_TASK_OPTION;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pOld,
                                   SMUpdateXnodeTaskReq *pUpdate) {
   mDebug("xnode task:%d, start to update", pUpdate->tid);
@@ -2471,6 +2592,16 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
   char   *mergedSink = NULL;
   int32_t mergedSourceLen = 0;
   int32_t mergedSinkLen = 0;
+
+  bool internalStatus = pUpdate->status.ptr != NULL &&
+                        (strcmp(pUpdate->status.ptr, "cleanup_done") == 0 ||
+                         strcmp(pUpdate->status.ptr, "delete_failed") == 0);
+  code = mndXnodeValidateTaskUpdate(pOld, pUpdate, internalStatus && mndXnodeTaskControllerRequest(pMnode, pReq));
+  if (code != TSDB_CODE_SUCCESS) return code;
+  if (pUpdate->status.ptr != NULL && strcmp(pUpdate->status.ptr, "cleanup_done") == 0) {
+    return mndDropXnodeTask(pMnode, pReq, (SXnodeTaskObj *)pOld);
+  }
+  if (mndXnodeTaskDeleting(pOld)) taskObj.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
 
   // Six-star KEEP/REPLACE merge against the committed object, before the final
   // object is assembled and the commit log is encoded.
@@ -2576,6 +2707,25 @@ static int32_t mndUpdateXnodeTask(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTas
     isChange.labels = true;
   }
   taskObj.updateTime = taosGetTimestampMs();
+
+  if (taskObj.type == XNODE_TASK_TYPE_REPLICA && (isChange.source || isChange.sink)) {
+    SMCreateXnodeTaskReq checkReq = {0};
+    checkReq.name = xCreateCowStr(taskObj.nameLen - 1, taskObj.name, false);
+    checkReq.source = xCreateTaskSource(XNODE_TASK_SOURCE_DSN, taskObj.sourceDsnLen - 1, taskObj.sourceDsn);
+    checkReq.sink = xCreateTaskSink(XNODE_TASK_SINK_DSN, taskObj.sinkDsnLen - 1, taskObj.sinkDsn);
+    checkReq.xnodeId = taskObj.xnodeId;
+    checkReq.options.via = taskObj.via;
+    code = mndValidateXnodeTaskReq(pReq, &checkReq, taskObj.type, pOld);
+    tFreeSMCreateXnodeTaskReq(&checkReq);
+    if (code != TSDB_CODE_SUCCESS) goto _OVER;
+  } else if (taskObj.type == XNODE_TASK_TYPE_NORMAL && isChange.source) {
+    const char *reservedParam = NULL;
+    code = mndXnodeCheckReservedReplicaParam(taskObj.sourceDsn, taskObj.sourceDsnLen - 1, &reservedParam);
+    if (code != TSDB_CODE_SUCCESS) {
+      code = mndXnodeSetErrorResponse(pReq, code, reservedParam);
+      goto _OVER;
+    }
+  }
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-xnode-task");
   if (pTrans == NULL) {
@@ -2752,12 +2902,38 @@ _OVER:
   TAOS_RETURN(code);
 }
 
+int32_t mndXnodePersistDeletionStatus(SMnode *pMnode, const SXnodeTaskObj *pObj, const char *status,
+                                       const char *reason) {
+  SXnodeTaskObj updated = *pObj;
+  updated.status = (char *)status;
+  updated.statusLen = strlen(status) + 1;
+  updated.reason = (char *)reason;
+  updated.reasonLen = strlen(reason) + 1;
+  updated.desiredState = XNODE_TASK_DESIRED_STATE_STOPPED;
+  updated.updateTime = TMAX(taosGetTimestampMs(), pObj->updateTime + 1);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, NULL, "delete-xnode-task-state");
+  if (pTrans == NULL) return terrno;
+  int32_t code = mndSetCreateXnodeTaskCommitLogs(pTrans, &updated);
+  if (code == TSDB_CODE_SUCCESS) code = mndTransPrepare(pMnode, pTrans);
+  if (code == TSDB_CODE_SUCCESS) {
+    taosRLockLatch((SRWLatch *)&pObj->lock);
+    bool committed = pObj->updateTime == updated.updateTime && pObj->desiredState == updated.desiredState &&
+                     pObj->status != NULL && strcmp(pObj->status, status) == 0 && pObj->reason != NULL &&
+                     strcmp(pObj->reason, reason) == 0;
+    taosRUnLockLatch((SRWLatch *)&pObj->lock);
+    if (!committed) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
+  }
+  mndTransDrop(pTrans);
+  return code;
+}
+
 static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
   SMnode            *pMnode = pReq->info.node;
   int32_t            code = -1;
   SXnodeTaskObj     *pObj = NULL;
   SMDropXnodeTaskReq dropReq = {0};
   SJson             *pJson = NULL;
+  char              *pDropBody = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_DROP_XNODE_TASK);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2787,23 +2963,42 @@ static int32_t mndProcessDropXnodeTaskReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  // send request to drop xnode task
   char xnodeUrl[TSDB_XNODE_URL_LEN + 1] = {0};
   snprintf(xnodeUrl, TSDB_XNODE_URL_LEN + 1, "%s/task/drop/%d", XNODED_PIPE_SOCKET_URL, pObj->id);
-  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
 
-  code = mndDropXnodeTask(pMnode, pReq, pObj);
-  if (code == 0) {
-    code = TSDB_CODE_ACTION_IN_PROGRESS;
+  if (pObj->type != XNODE_TASK_TYPE_REPLICA) {
+    // Normal tasks only own local jobs, so DROP stays synchronous: the task is
+    // gone from SHOW XNODE TASKS once the statement returns. xnoded stops the
+    // jobs in the background on a best-effort basis. Only replica tasks need
+    // the persisted deleting/delete_failed states, for remote source cleanup.
+    pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_DELETE, defaultTimeout, NULL, 0);
+    code = mndDropXnodeTask(pMnode, pReq, pObj);
+    if (code == 0) {
+      code = TSDB_CODE_ACTION_IN_PROGRESS;
+    }
+    goto _OVER;
   }
 
+  TAOS_CHECK_GOTO(mndXnodeBuildHttpTaskBody(pObj, &pDropBody), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndXnodePersistDeletionStatus(pMnode, pObj, "deleting", ""), NULL, _OVER);
+  pJson = mndSendReqRetJson(xnodeUrl, HTTP_TYPE_POST, defaultTimeout, pDropBody, strlen(pDropBody));
+  TAOS_CHECK_GOTO(mndCheckXnodedResponse(pReq, pJson), NULL, _OVER);
+  cJSON *cleanup = (cJSON *)tjsonGetObjectItem(pJson, "cleanup_required");
+  if (!cJSON_IsTrue(cleanup)) {
+    code = TSDB_CODE_MND_XNODE_HTTP_CODE_ERROR;
+    goto _OVER;
+  }
+  code = TSDB_CODE_SUCCESS;
+
 _OVER:
+  // Delivery failures leave the committed deleting intent for controller reconciliation.
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode task:%d, failed to drop since %s", dropReq.id, tstrerror(code));
   }
   if (pJson != NULL) {
     tjsonDelete(pJson);
   }
+  taosMemoryFree(pDropBody);
   mndReleaseXnodeTask(pMnode, pObj);
   tFreeSMDropXnodeTaskReq(&dropReq);
   TAOS_RETURN(code);
@@ -4038,6 +4233,59 @@ static int32_t mndXnodeSixStarDriver(const char *dsn, int32_t len, char *driver,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t mndXnodeReplicaQueryStart(const char *dsn, int32_t len) {
+  int32_t start = 0;
+  while (start < len && dsn[start] != ':') ++start;
+  if (start + 2 < len && dsn[start + 1] == '/' && dsn[start + 2] == '/') {
+    start += 3;
+    int32_t authorityEnd = start;
+    while (authorityEnd < len && dsn[authorityEnd] != '/') ++authorityEnd;
+    if (authorityEnd < len) {
+      start = authorityEnd;
+    } else {
+      for (int32_t i = start; i < len; ++i) {
+        if (dsn[i] == '@') start = i + 1;
+      }
+    }
+  } else {
+    start = 0;
+  }
+  // A URL subject cannot contain '?'. Keep later '?' characters in query
+  // values, and leave '?' in credentials alone. xnoded also validates the
+  // parameters using the runtime DSN parser.
+  while (start < len && dsn[start] != '?') ++start;
+  return start;
+}
+
+int32_t mndXnodeCheckReservedReplicaParam(const char *dsn, int32_t len, const char **reservedParam) {
+  if (reservedParam != NULL) *reservedParam = NULL;
+  if (dsn == NULL || len <= 0) return TSDB_CODE_SUCCESS;
+  char driver[32] = {0};
+  if (mndXnodeSixStarDriver(dsn, len, driver, sizeof(driver)) != TSDB_CODE_SUCCESS) return TSDB_CODE_SUCCESS;
+  if (strcasecmp(driver, "tmq") != 0 && strcasecmp(driver, "sync") != 0) return TSDB_CODE_SUCCESS;
+  int32_t queryStart = mndXnodeReplicaQueryStart(dsn, len);
+  if (queryStart >= len) return TSDB_CODE_SUCCESS;
+  int32_t pos = queryStart + 1;
+  while (pos < len) {
+    int32_t end = pos;
+    while (end < len && dsn[end] != '&') ++end;
+    int32_t equal = pos;
+    while (equal < end && dsn[equal] != '=') ++equal;
+    char *key = NULL;
+    int32_t keyLen = 0;
+    int32_t code = mndXnodePercentDecode(dsn + pos, equal - pos, &key, &keyLen);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    bool reserved = (keyLen == (int32_t)strlen("replica") && memcmp(key, "replica", keyLen) == 0) ||
+                    (keyLen == (int32_t)strlen("msg.consume.excluded") &&
+                     memcmp(key, "msg.consume.excluded", keyLen) == 0);
+    if (reserved && reservedParam != NULL) *reservedParam = (keyLen == 7) ? "replica" : "msg.consume.excluded";
+    taosMemoryFree(key);
+    if (reserved) return TSDB_CODE_MND_XNODE_REPLICA_PARAM_RESERVED;
+    pos = end + 1;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef struct {
   char   *key;
   int32_t keyLen;
@@ -5158,6 +5406,12 @@ static int32_t mndRetrieveXnodeTasks(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     buf[0] = 0;
     STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeDesiredStateName(pObj->desiredState),
                                pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
+    if (code != 0) goto _end;
+
+    buf[0] = 0;
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, mndXnodeTaskTypeName(pObj->type), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, numOfRows, (const char *)buf, false);
     if (code != 0) goto _end;

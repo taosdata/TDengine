@@ -165,6 +165,7 @@ modified_tables:
   - created_by
   - labels
   - desired_state
+  - type
   changed_type:
   - col: from
     before: VARCHAR(1024)

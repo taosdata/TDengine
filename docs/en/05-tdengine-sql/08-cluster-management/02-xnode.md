@@ -2,7 +2,7 @@
 sidebar_label: Data Ingestion (Xnode)
 title: Data Ingestion (Xnode)
 description: "Xnode distributed node and task management instructions"
-toc_max_heading_level: 3
+toc_max_heading_level: 4
 ---
 
 Xnode is a distributed execution node in the TDengine data ingestion service. It runs data synchronization tasks and writes data from external data sources into TDengine in real time or in batches. This document describes the SQL commands used to manage data ingestion, including Xnode nodes, data ingestion tasks, Job shards, and Agents.
@@ -163,6 +163,15 @@ Tasks define the source, destination, and data parsing rules for data synchroniz
 
 ### Create Task
 
+There are two types of tasks:
+
+- **Normal tasks**: write data from external data sources such as MQTT and Kafka into TDengine.
+- **Active-active tasks**: available from v3.4.3.11, replicate data from a source database to a target database and can be used to build an active-active configuration.
+
+Use `CREATE XNODE TASK` to create either type. Specify `WITH TYPE 'replica'` for an active-active task; omit it for a normal task.
+
+#### Normal Tasks
+
 **Syntax**
 
 ```sql
@@ -172,6 +181,7 @@ CREATE XNODE TASK 'name'
   [ WITH task_options ]
 
 task_options:
+  [ TYPE 'replica' ]
   [ PARSER 'parser' ]
   [ STATUS 'status' ]
   [ VIA viaId ]
@@ -197,12 +207,105 @@ Syntax note: All task_options can be used simultaneously, separated by spaces, o
 | **viaId**    | The agent ID where the task resides                |
 | **reason**   | Reason for recent task execution failure           |
 | **labels**   | Task labels, stored as a JSON string               |
+| `TYPE` | Available from v3.4.3.11. Accepts only `replica`, case-insensitively; omission creates a normal task. Immutable after creation. |
 
 **Example**
 
 ```sql
 taos> CREATE XNODE TASK "t4" FROM 'kafka://localhost:9092?topics=abc&group=abcgroup' TO 'taos+ws://localhost:6041/test' WITH parser '{"model":{"name":"cc_abc","using":"cc","tags":["g"],"columns":["ts","b"]},"mutate":[{"map":{"ts":{"cast":"ts","as":"TIMESTAMP(ms)"},"b":{"cast":"a","as":"VARCHAR"},"g":{"value":"1","as":"INT"}}}]}';
 Create OK, 0 row(s) affected (0.038959s)
+```
+
+#### Active-Active Tasks
+
+From v3.4.3.11, `WITH TYPE 'replica'` creates active-active tasks scheduled by xnoded. Each task copies data from a source database to a target database. Create a reverse task in the other cluster to build an active-active configuration.
+
+**Prerequisites**
+
+- The management cluster, xnoded, and taosX have been upgraded to a version supporting this syntax.
+- Both endpoints run v3.4.0.0 or later.
+- Both databases exist with matching precision, and the source database has `wal_retention_period > 0`.
+- Both endpoints meet the active-active license requirements.
+
+**DSN Parameters**
+
+Specify the DSNs in `FROM` and `TO` when creating a task, and use `ALTER XNODE TASK` to update them. Active-active tasks accept only the connection information and parameters listed below. Unrecognized parameters are rejected.
+
+**Connection Information**
+
+The following connection information applies to both `FROM` and `TO`. The driver, protocol, address list, ports, and database name are immutable after creation; changes to the other items take effect on the next task start.
+
+| Parameter | Description |
+| --- | --- |
+| Driver, protocol, address list, ports, and database | Must meet the source and target requirements on creation; immutable after creation |
+| Username and password | Optional on creation; can be modified, and changes take effect on the next start |
+| `token`, `bearer_token`, `td.connect.token` | Optional on creation; can be modified, and changes take effect on the next start |
+| `tls_mode`, `tls_version`, `tls_ca`, `conn_mode` | Optional on creation; can be modified, and changes take effect on the next start |
+
+**Subscription Start Parameters**
+
+The following parameters apply only to `FROM` and can be set only when creating a task. When modifying the DSN, keep any supplied parameters and their original values. Do not add previously omitted parameters, even if their values match the defaults.
+
+| Parameter | Description |
+| --- | --- |
+| `auto.offset.reset` | Initial position of the consumer group subscription, defaulting to `earliest`. Accepts `earliest` or `latest`, effective only when no committed position exists; otherwise consumption resumes from the committed position |
+| `experimental.snapshot.enable` | Defaults to `true`. `true` reads persisted TSDB data before WAL; `false` reads only WAL |
+| `msg.consume.start.ts` | Subscription sync start time, defaulting to `0`. Copies only data records whose primary timestamp `ts` is no earlier than this value. Accepts a nonnegative integer Unix timestamp in milliseconds; `0` disables the filter |
+
+**Runtime Parameters**
+
+The following parameters apply only to `FROM`. You can set them when creating a task or change them when modifying the DSN. Changes take effect the next time the task starts. Parameter values and combination restrictions are checked during both creation and modification. For detailed definitions, see [Managing Consumers](../../10-developer-guide/07-subscription-api.md#creation-parameters).
+
+| Parameter | Description |
+| --- | --- |
+| `write_concurrency` | Write concurrency tuning |
+| `num.of.writers` | Write concurrency tuning |
+| `commit.chunk.size` | taosX position commit tuning |
+| `commit.interval.ms` | taosX position commit tuning; adjusts the commit interval |
+| `max.polling.timeout` | Consumption polling tuning |
+| `enable.concurrent.polling` | Consumption polling tuning |
+| `refresh.progress.interval` | Progress refresh tuning |
+| `enable.auto.commit` | Whether to enable automatic offset commit. Accepts only `false`; taosX commits positions after successful target writes |
+| `auto.commit.interval.ms` | Time interval for automatic offset commits. Forwarded, but has no effect because auto-commit is disabled |
+| `enable.replay` | Whether to enable the data replay function. Accepts only `false`; timed WAL replay does not support database replication and resume |
+| `msg.consume.rawdata` | Pulls raw WAL binary payloads when consuming data. Defaults to `0` for decoded data; nonzero values require `msg.consume.start.ts` to be omitted or set to `0` |
+| `msg.with.table.name` | Whether to allow parsing the table name from the message. Forwarded |
+| `msg.enable.batchmeta` | Whether the server may combine multiple metadata records into a batch metadata response. Forwarded |
+| `session.timeout.ms` | Timeout after consumer heartbeat is lost. Forwarded |
+| `max.poll.interval.ms` | The longest time interval for consumer poll data fetching. Forwarded |
+| `fetch.max.wait.ms` | The maximum time it takes for the server to return data once. Forwarded |
+| `min.poll.rows` | The minimum number of data returned by the server once. Forwarded |
+
+**System-Reserved Parameters**
+
+The system sets or generates these parameters. They cannot be supplied manually in either `FROM` or `TO`, on creation or modification.
+
+| Parameter | Description |
+| --- | --- |
+| `replica`, `msg.consume.excluded` | Set by the system |
+| `timeout`, `prefer`, `enable.wal.marker` | Set by the system |
+| `group.id`, `use.topic.name`, `client.id` | Generated by the system |
+
+Parameter names are URL-decoded before validation, so `%72eplica` is reserved too. Normal tasks also reject `replica` and `msg.consume.excluded` in the source DSN on creation and modification.
+
+**Usage Notes**
+
+`FROM` must be a `tmq` DSN and `TO` a `taos` DSN, with database names in their paths. `FROM DATABASE`, `FROM TOPIC`, `TO DATABASE`, `PARSER` (including transformations), and `VIA` are unsupported. A newly created task is stopped.
+
+Within one management cluster, each mapping from a source address and database to a target address and database can have only one active-active task. Stopped tasks and tasks in `deleting` or `delete_failed` state still reserve their mapping. A duplicate `CREATE XNODE TASK` fails without creating another record. Reverse mappings, different target databases, and different target clusters can have separate tasks. The uniqueness check treats Native and WebSocket drivers as equivalent for the same address. Administrators must also avoid creating duplicate tasks through address aliases or in separate management clusters.
+
+Each task owns a separate topic and consumer group, both named `__replica__<management_cluster_id>_<task_id>`. `group.id`, `use.topic.name`, and `client.id` are generated automatically and cannot be supplied. Different mappings must not share a consumer group: sharing distributes source vgroups across tasks and leaves each target with only part of the data.
+
+See [Error Codes](../../10-developer-guide/09-error-codes.md#xnode) for related error codes, causes, and recommended actions. See [Active-Active Configuration](../../12-operations-and-tooling/02-operations/12-ha/03-dual.md) for progress queries, WAL limits, monitoring, and migration from v3.3.
+
+**Example**
+
+```sql
+CREATE XNODE TASK 'aa_power_a_b'
+  FROM 'tmq+ws://root:taosdata@td1:6041/power'
+  TO 'taos+ws://root:taosdata@td2:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_a_b';
 ```
 
 ### View Tasks
@@ -212,6 +315,8 @@ Create OK, 0 row(s) affected (0.038959s)
 ```sql
 SHOW XNODE TASKS [WHERE condition]
 ```
+
+From v3.4.3.11, the final `type` column contains `normal` for normal tasks or `replica` for active-active tasks; `information_schema.ins_xnode_tasks` provides the same column. Use `SHOW XNODE TASKS WHERE type = 'replica';` to query active-active tasks. The `desired_state` column indicates the state requested by the user, while the `status` and `reason` columns indicate the actual execution state of the task and the most recent failure reason.
 
 The `parser` column uses BLOB to return the complete task configuration. In a `WHERE` condition, `parser` supports relational comparisons, `IS NULL`, `IS NOT NULL`, `LIKE`, `NOT LIKE`, `MATCH`/`REGEXP`, `NMATCH`, `IN`, `NOT IN`, `BETWEEN`, and `NOT BETWEEN`, including logical combinations. String functions, JSON operators, arithmetic, and bitwise operators are not supported for this column. Operators for other columns depend on their respective data types.
 
@@ -256,6 +361,8 @@ START XNODE TASK id | 'name'
 
 Before running this command, ensure the corresponding Xnode is online and reachable.
 
+If xnoded finds an invalid DSN for an active-active task during startup or reconnection, it saves `status=failed` and `desired_state=stopped` and records the failure in `reason`. The task and its jobs do not resume automatically. Run `SHOW XNODE TASKS` to check the status and reason. After correcting the DSN, explicitly run `START XNODE TASK` to resume the task.
+
 **Example**
 
 ```sql
@@ -269,6 +376,8 @@ taos> START XNODE TASK 1;
 ```sql
 STOP XNODE TASK id | 'name'
 ```
+
+**Active-Active Task Note**: Stopping an active-active task commits the offsets of data that has been written to the target successfully; starting the task again resumes replication from those offsets.
 
 **Example**
 
@@ -298,6 +407,14 @@ alter_options:
 
 Syntax note: The meaning of task_options is the same as when creating a task
 
+**Active-Active Task Notes**
+
+Task type is immutable after creation. When modifying an active-active task's DSNs, follow these rules:
+
+- The driver, protocol, address list, ports, and database are immutable. Hostnames are compared case-insensitively, and ports are compared as supplied without inserting defaults. Switching between Native and WebSocket also changes the connection target.
+- Keep all supplied subscription start parameters and their original values. Do not add previously omitted parameters, even if their values match the defaults.
+- Credentials and allowed runtime parameters can be changed. Changes take effect on the next task start. For a running task, run `STOP XNODE TASK` followed by `START XNODE TASK` to apply the changes.
+
 **Example**
 
 ```sql
@@ -312,6 +429,28 @@ Query OK, 0 row(s) affected (0.036077s)
 ```sql
 DROP XNODE TASK id | 'name'
 ```
+
+**Deletion Behavior**
+
+Normal tasks are deleted synchronously, and active-active tasks are deleted asynchronously. Running tasks can be dropped directly.
+
+**Normal Task Notes**
+
+When `DROP XNODE TASK` succeeds, the task record has been removed and no longer appears in `SHOW XNODE TASKS`. xnoded then stops the task and removes its jobs in the background. If the node running the task is temporarily unavailable, xnoded stops the leftover task processes after the node reconnects. Normal tasks never enter the `deleting` or `delete_failed` state.
+
+**Active-Active Task Notes**
+
+For an active-active task, in addition to stopping the task and removing its jobs, xnoded must clean up the source topic, consumer group, and positions. Because the source may be temporarily unreachable, active-active tasks are deleted asynchronously.
+
+A successful `DROP XNODE TASK` means the deletion request has been accepted. mnode first saves `desired_state=stopped` and `status=deleting`, and removes the task record only after xnoded completes the cleanup and reports it. The task still appears in `SHOW XNODE TASKS` during cleanup.
+
+If the request cannot be delivered to xnoded, `DROP XNODE TASK` may return an error even though the task has already entered the `deleting` state. Once xnoded is available again, it checks the task state and continues the pending deletion. You can run `SHOW XNODE TASKS` to check the status and run `DROP XNODE TASK` again to retry. Tasks in `deleting` or `delete_failed` cannot be started.
+
+If no other consumer group uses the topic, cleanup uses `DROP TOPIC IF EXISTS FORCE`; otherwise it uses `DROP CONSUMER GROUP IF EXISTS FORCE` to remove only this task's group. Cleanup also succeeds if the resources no longer exist.
+
+xnoded retries temporary connection failures with backoff and resumes cleanup from mnode after a restart. Permanent errors, such as permission or credential failures, put the task in `delete_failed` state. This state and the `reason` are persisted, and restarting does not resume cleanup. Fix the problem and run `DROP XNODE TASK` again.
+
+The same active-active mapping cannot be recreated until cleanup completes. Recreating a task after cleanup generates new identifiers and positions without inheriting old progress.
 
 **Example**
 

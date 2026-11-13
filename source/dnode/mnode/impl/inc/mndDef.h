@@ -489,6 +489,7 @@ typedef struct {
   SRWLatch lock;
   // SArray** labels;
   // int32_t  numOfLabels;
+  int8_t   type;
 } SXnodeTaskObj;
 
 typedef struct {
