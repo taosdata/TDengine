@@ -52,7 +52,15 @@ int32_t mndGetUserTokenStatuses(const char* user, SHashObj** pHash);
 
 int32_t mndBuildSMCreateTokenResp(STrans *pTrans, void **ppResp, int32_t *pRespLen);
 
+// Token names with this prefix are reserved for tokens the mnode issues on behalf of xnode.
+#define MND_TOKEN_RESERVED_PREFIX "__xnode_"
+
 int32_t mndProcessCreateTokenReq(SRpcMsg *pReq);
+
+// Same as mndProcessCreateTokenReq, but the token may use a reserved name.
+int32_t mndCreateInternalToken(SRpcMsg *pReq);
+
+int32_t mndXnodeEnsureUserTaskToken(SMnode *pMnode, SRpcMsg *pReq, const SUserObj *pOwner, char **ppToken);
 
 #ifdef __cplusplus
 }

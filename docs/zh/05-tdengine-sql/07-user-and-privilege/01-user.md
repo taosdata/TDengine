@@ -275,7 +275,7 @@ Drop OK, 0 row(s) affected (0.002295s)
 CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value];
 ```
 
-令牌名称最长 31 个字节。
+令牌名称最长 31 个字节。自 `v3.5.0.0` 起，以 `__xnode_` 开头的名称由系统保留，使用该前缀创建令牌会返回 `Invalid token name` 错误。
 
 - `ENABLE`：是否启用该令牌。`1` 表示启用，`0` 表示未启用；未启用的令牌不能用于登录。缺省值为 `1`。
 - `TTL`：令牌有效时长，单位为天，从创建时起算。默认 `0`，表示永久有效。

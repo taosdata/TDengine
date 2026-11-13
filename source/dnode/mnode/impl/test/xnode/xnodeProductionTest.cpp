@@ -28,6 +28,7 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 extern "C" {
 #include "mndDef.h"
@@ -45,6 +46,10 @@ SSdbRow* mndXnodeActionDecode(SSdbRaw* pRaw);
 
 SSdbRaw* mndXnodeTaskActionEncode(SXnodeTaskObj* pObj);
 SSdbRow* mndXnodeTaskActionDecode(SSdbRaw* pRaw);
+int32_t mndXnodeTaskActionUpdate(SSdb* pSdb, SXnodeTaskObj* pOld, SXnodeTaskObj* pNew);
+bool    mndXnodeIsLegacyDatabaseSink(const SXnodeTaskObj* pTask);
+int32_t mndXnodeEncodedDsnPartLen(const char* value, int32_t valueLen, int32_t* pEncodedLen);
+void    mndXnodeEncodeDsnPart(char* dst, int32_t* pOffset, const char* value, int32_t valueLen);
 
 SSdbRaw* mndXnodeJobActionEncode(SXnodeJobObj* pObj);
 SSdbRow* mndXnodeJobActionDecode(SSdbRaw* pRaw);
@@ -474,6 +479,110 @@ TEST_F(XnodeProductionTest, XnodeTaskObj_RealEncodeDecode_MaxParser) {
   freeXnodeTaskObj(pDecoded);
   taosMemoryFree(pRow);
   sdbFreeRaw(pRaw);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_UpdatePropagatesSinkTypeAndLegacyOwner) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.sourceType = XNODE_TASK_SOURCE_DSN;
+  oldObj.sinkType = XNODE_TASK_SINK_DATABASE;
+  oldObj.sinkDsnLen = strlen("target") + 1;
+  oldObj.sinkDsn = (char*)taosMemoryCalloc(oldObj.sinkDsnLen, 1);
+  ASSERT_NE(oldObj.sinkDsn, nullptr);
+  strcpy(oldObj.sinkDsn, "target");
+
+  SXnodeTaskObj newObj = {0};
+  newObj.sourceType = XNODE_TASK_SOURCE_TOPIC;
+  newObj.sinkType = XNODE_TASK_SINK_DSN;
+  newObj.ownerId = 123456;
+  newObj.acctId = 42;
+  newObj.sinkDsnLen = strlen("taos:///target?bearer_token=token") + 1;
+  newObj.sinkDsn = (char*)taosMemoryCalloc(newObj.sinkDsnLen, 1);
+  ASSERT_NE(newObj.sinkDsn, nullptr);
+  strcpy(newObj.sinkDsn, "taos:///target?bearer_token=token");
+
+  ASSERT_EQ(mndXnodeTaskActionUpdate(nullptr, &oldObj, &newObj), 0);
+  EXPECT_EQ(oldObj.sourceType, XNODE_TASK_SOURCE_TOPIC);
+  EXPECT_EQ(oldObj.sinkType, XNODE_TASK_SINK_DSN);
+  EXPECT_EQ(oldObj.ownerId, 123456);
+  EXPECT_EQ(oldObj.acctId, 42);
+  EXPECT_STREQ(oldObj.sinkDsn, "taos:///target?bearer_token=token");
+
+  freeXnodeTaskObj(&oldObj);
+  freeXnodeTaskObj(&newObj);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_LegacyDatabaseSinkIsDetectedByContent) {
+  struct {
+    int32_t     sinkType;
+    const char* sink;
+    bool        legacy;
+  } cases[] = {
+      {XNODE_TASK_SINK_DATABASE, "target", true},
+      // Stale sinkType next to a bare database name.
+      {XNODE_TASK_SINK_DSN, "target", true},
+      // Stale sinkType next to a complete DSN: must never be rewritten as a database name.
+      {XNODE_TASK_SINK_DATABASE, "taos://root:taosdata@localhost:6030/target", false},
+      {XNODE_TASK_SINK_DATABASE, "local:/tmp/backup", false},
+      {XNODE_TASK_SINK_DSN, "taos:///target?bearer_token=token&subject_encoded=true", false},
+      {XNODE_TASK_SINK_DATABASE, "", false},
+  };
+
+  for (const auto& c : cases) {
+    SXnodeTaskObj obj = {0};
+    obj.sinkType = c.sinkType;
+    obj.sinkDsn = const_cast<char*>(c.sink);
+    obj.sinkDsnLen = strlen(c.sink) + 1;
+    EXPECT_EQ(mndXnodeIsLegacyDatabaseSink(&obj), c.legacy) << c.sink;
+  }
+
+  SXnodeTaskObj empty = {0};
+  EXPECT_FALSE(mndXnodeIsLegacyDatabaseSink(&empty));
+}
+
+// The encoded forms are the ones the taosX subject decoder is tested against in
+// taos-xservice/crates/utils/src/dsn.rs, so both sides stay inverse to each other.
+TEST_F(XnodeProductionTest, XnodeTaskObj_DsnPartEncodingMatchesTaosxDecoder) {
+  struct {
+    const char* raw;
+    const char* encoded;
+  } cases[] = {
+      {"target_db", "target_db"},
+      {"Az09-._~", "Az09-._~"},
+      {"db-中文?part/100%#", "db-%E4%B8%AD%E6%96%87%3Fpart%2F100%25%23"},
+      {"db%41", "db%2541"},
+      {"a b&c=d:e@f+g", "a%20b%26c%3Dd%3Ae%40f%2Bg"},
+  };
+
+  for (const auto& c : cases) {
+    int32_t rawLen = strlen(c.raw);
+    int32_t encodedLen = 0;
+    ASSERT_EQ(mndXnodeEncodedDsnPartLen(c.raw, rawLen, &encodedLen), 0) << c.raw;
+    ASSERT_EQ(encodedLen, (int32_t)strlen(c.encoded)) << c.raw;
+
+    char    encoded[128] = {0};
+    int32_t offset = 0;
+    mndXnodeEncodeDsnPart(encoded, &offset, c.raw, rawLen);
+    EXPECT_EQ(offset, encodedLen) << c.raw;
+    EXPECT_STREQ(encoded, c.encoded) << c.raw;
+  }
+
+  int32_t encodedLen = 0;
+  EXPECT_EQ(mndXnodeEncodedDsnPartLen("", 0, &encodedLen), TSDB_CODE_INVALID_PARA);
+  std::string tooLong(TSDB_XNODE_TASK_SINK_LEN + 1, 'a');
+  EXPECT_EQ(mndXnodeEncodedDsnPartLen(tooLong.c_str(), tooLong.size(), &encodedLen), TSDB_CODE_PAR_VALUE_TOO_LONG);
+}
+
+TEST_F(XnodeProductionTest, XnodeTaskObj_UpdatePreservesExistingOwner) {
+  SXnodeTaskObj oldObj = {0};
+  oldObj.ownerId = 123456;
+  oldObj.acctId = 42;
+  SXnodeTaskObj newObj = {0};
+  newObj.ownerId = 654321;
+  newObj.acctId = 24;
+
+  ASSERT_EQ(mndXnodeTaskActionUpdate(nullptr, &oldObj, &newObj), 0);
+  EXPECT_EQ(oldObj.ownerId, 123456);
+  EXPECT_EQ(oldObj.acctId, 42);
 }
 
 // ========== SXnodeJobObj Production Tests ==========
