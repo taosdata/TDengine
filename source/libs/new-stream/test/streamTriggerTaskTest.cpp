@@ -103,6 +103,10 @@ int32_t stTestRealtimeCalcReqMovePendingForTrigger(SArray* pParams, SObjList* pP
                                                    int64_t maxWendExclusive, int32_t triggerType,
                                                    int32_t calcEventType, int32_t* pMoved, int32_t* pDupSkipped);
 int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pContext, SSHashObj* pGroupMaxEnds);
+int32_t stRealtimeContextCollectUserRecalcGids(SSTriggerRealtimeContext* pContext, SArray** ppGids);
+int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext* pContext);
+int32_t stTestRealtimeGroupAddMeta(SSTriggerRealtimeGroup* pGroup, int32_t vgId,
+                                   const SSTriggerReaderDataKey* pReaderKey, SSTriggerMetaData* pMeta, int64_t nowNs);
 }
 
 static void destroyPoolDropRequest(SSTriggerDropRequest** ppRequest) {
@@ -11087,6 +11091,26 @@ static void installUserRecalcConversionProbe(UserRecalcConversionProbe* pProbe) 
 
 UserRecalcConversionProbe::~UserRecalcConversionProbe() {
   if (gUserRecalcConversionProbe == this) gUserRecalcConversionProbe = nullptr;
+}
+
+struct NoDataGroupsPrepareProbe {
+  Stub    stub;
+  int32_t callCount = 0;
+
+  ~NoDataGroupsPrepareProbe();
+};
+
+static NoDataGroupsPrepareProbe* gNoDataGroupsPrepareProbe = nullptr;
+
+static int32_t failNoDataGroupsPrepare(SStreamRecalcTracker*, int64_t, SStreamProgressRange, const SArray*,
+                                       SStreamRecalcNoDataGroups** ppGroups) {
+  ++gNoDataGroupsPrepareProbe->callCount;
+  *ppGroups = nullptr;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
+
+NoDataGroupsPrepareProbe::~NoDataGroupsPrepareProbe() {
+  if (gNoDataGroupsPrepareProbe == this) gNoDataGroupsPrepareProbe = nullptr;
 }
 
 struct ReplayRecalcProbe {
@@ -43147,4 +43171,417 @@ TEST_F(StreamPeriodPipelineTest, MultiGroupCalculationPreservesEachScheduledInpu
   ASSERT_TRUE(harness_.feedPeriodInput({{42, 1001, {1002}, {30}, 3}}, 4));
   ASSERT_TRUE(Advance(28801));
   EXPECT_EQ(harness_.pendingPullCount(STRIGGER_PULL_WAL_META_NEW), 1);
+}
+
+// Frees a realtime group created through stRealtimeContextCollectUserRecalcGids.
+// The helper only creates SESSION/PERIOD groups without nested state, so the
+// resources are limited to the WAL meta hash and the four object lists.
+static void destroyCollectedRecalcGroup(void* ptr) {
+  SSTriggerRealtimeGroup** ppGroup = static_cast<SSTriggerRealtimeGroup**>(ptr);
+  if (ppGroup == nullptr || *ppGroup == nullptr) return;
+  SSTriggerRealtimeGroup* pGroup = *ppGroup;
+  if (pGroup->pWalMetas != nullptr) {
+    tSimpleHashCleanup(pGroup->pWalMetas);
+    pGroup->pWalMetas = nullptr;
+  }
+  taosObjListClear(&pGroup->tableUids);
+  taosObjListClear(&pGroup->windows);
+  taosObjListClear(&pGroup->pPendingParWinCalcParams);
+  taosObjListClear(&pGroup->pPendingCalcParams);
+  taosMemoryFree(*ppGroup);
+  *ppGroup = nullptr;
+}
+
+TEST(StreamTriggerManualRecalcGidsTest, CollectsVirtualTableGroupsWhenNoLiveGroup) {
+  SStreamTriggerTask task = {};
+  task.isVirtualTable = true;
+  task.fillHistory = true;
+  task.fillHistoryStartTime = 1793462400000LL;
+  task.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  task.pVirtTableInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pHistoryCutoffTime, nullptr);
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+
+  const int64_t uid = 1001;
+  const int64_t gid = 42;
+  const int32_t vgId = 7;
+  SSTriggerVirtTableInfo info = {};
+  info.tbUid = uid;
+  info.vgId = vgId;
+  info.tbGids = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(info.tbGids, nullptr);
+  ASSERT_NE(taosArrayPush(info.tbGids, &gid), nullptr);
+  ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+  context.triggerType = STREAM_TRIGGER_SESSION;
+  context.pGroups = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pGroups, nullptr);
+  tSimpleHashSetFreeFp(context.pGroups, destroyCollectedRecalcGroup);
+
+  SArray* gids = nullptr;
+  EXPECT_EQ(stRealtimeContextCollectUserRecalcGids(&context, &gids), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gids, nullptr);
+  EXPECT_EQ(taosArrayGetSize(gids), 1);
+  EXPECT_EQ(*(int64_t*)TARRAY_GET_ELEM(gids, 0), gid);
+
+  // The realtime group must be created lazily for the virtual-table gid.
+  EXPECT_EQ(tSimpleHashGetSize(context.pGroups), 1);
+  auto** ppGroup = static_cast<SSTriggerRealtimeGroup**>(tSimpleHashGet(context.pGroups, &gid, sizeof(gid)));
+  ASSERT_NE(ppGroup, nullptr);
+  ASSERT_NE(*ppGroup, nullptr);
+  EXPECT_EQ((*ppGroup)->gid, gid);
+  EXPECT_EQ((*ppGroup)->vgId, vgId);
+
+  taosArrayDestroy(gids);
+  auto* storedInfo = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(storedInfo, nullptr);
+  taosArrayDestroy(storedInfo->tbGids);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+  tSimpleHashCleanup(task.pHistoryCutoffTime);
+  tSimpleHashCleanup(context.pGroups);
+}
+
+TEST(StreamTriggerManualRecalcGidsTest, DeduplicatesSharedVirtualTableGroups) {
+  SStreamTriggerTask task = {};
+  task.isVirtualTable = true;
+  task.fillHistory = true;
+  task.fillHistoryStartTime = 1793462400000LL;
+  task.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  task.pVirtTableInfos = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pHistoryCutoffTime, nullptr);
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+
+  const int64_t sharedGid = 42;
+  const int32_t vgId = 7;
+  SArray* ownedTbGids[2] = {nullptr, nullptr};
+  for (int64_t uid : {INT64_C(1001), INT64_C(1002)}) {
+    SSTriggerVirtTableInfo info = {};
+    info.tbUid = uid;
+    info.vgId = vgId;
+    info.tbGids = taosArrayInit(1, sizeof(int64_t));
+    ASSERT_NE(info.tbGids, nullptr);
+    ASSERT_NE(taosArrayPush(info.tbGids, &sharedGid), nullptr);
+    ownedTbGids[uid == 1001 ? 0 : 1] = info.tbGids;
+    ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+  }
+
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+  context.triggerType = STREAM_TRIGGER_SESSION;
+  context.pGroups = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pGroups, nullptr);
+  tSimpleHashSetFreeFp(context.pGroups, destroyCollectedRecalcGroup);
+
+  SArray* gids = nullptr;
+  EXPECT_EQ(stRealtimeContextCollectUserRecalcGids(&context, &gids), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gids, nullptr);
+  EXPECT_EQ(taosArrayGetSize(gids), 1);
+  EXPECT_EQ(*(int64_t*)TARRAY_GET_ELEM(gids, 0), sharedGid);
+  EXPECT_EQ(tSimpleHashGetSize(context.pGroups), 1);
+
+  taosArrayDestroy(gids);
+  for (SArray* tbGids : ownedTbGids) taosArrayDestroy(tbGids);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+  tSimpleHashCleanup(task.pHistoryCutoffTime);
+  tSimpleHashCleanup(context.pGroups);
+}
+
+TEST(StreamTriggerManualRecalcGidsTest, CollectingManualRecalcGidsKeepsRealtimeThreshold) {
+  SStreamTriggerTask task = {};
+  task.isVirtualTable = true;
+  task.fillHistory = false;
+  task.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  task.pVirtTableInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pHistoryCutoffTime, nullptr);
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+
+  const int64_t          uid = 1001;
+  const int64_t          gid = 42;
+  const int64_t          lastTs = 1793462400123LL;
+  SSTriggerVirtTableInfo info = {};
+  info.tbUid = uid;
+  info.vgId = 7;
+  info.tbGids = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(info.tbGids, nullptr);
+  ASSERT_NE(taosArrayPush(info.tbGids, &gid), nullptr);
+  ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+  ASSERT_EQ(tSimpleHashPut(task.pHistoryCutoffTime, &gid, sizeof(gid), &lastTs, sizeof(lastTs)), 0);
+
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+  context.pGroups = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pGroups, nullptr);
+  tSimpleHashSetFreeFp(context.pGroups, destroyCollectedRecalcGroup);
+
+  SArray* gids = nullptr;
+  ASSERT_EQ(stRealtimeContextCollectUserRecalcGids(&context, &gids), TSDB_CODE_SUCCESS);
+  ASSERT_NE(gids, nullptr);
+  auto** ppGroup = static_cast<SSTriggerRealtimeGroup**>(tSimpleHashGet(context.pGroups, &gid, sizeof(gid)));
+  ASSERT_NE(ppGroup, nullptr);
+  ASSERT_NE(*ppGroup, nullptr);
+  EXPECT_EQ((*ppGroup)->oldThreshold, INT64_MIN);
+  EXPECT_EQ((*ppGroup)->newThreshold, INT64_MIN);
+
+  taosArrayDestroy(gids);
+  auto* storedInfo = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(storedInfo, nullptr);
+  taosArrayDestroy(storedInfo->tbGids);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+  tSimpleHashCleanup(task.pHistoryCutoffTime);
+  tSimpleHashCleanup(context.pGroups);
+}
+
+TEST(StreamTriggerManualRecalcGidsTest, FinishesNoDataGroupWithoutLiveGroup) {
+  SStreamTriggerTask task = {};
+  task.isVirtualTable = true;
+  task.fillHistory = false;
+  task.triggerType = STREAM_TRIGGER_SESSION;
+  task.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  task.pVirtTableInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  task.pUserRecalcRequests = taosArrayInit(1, sizeof(SStreamRecalcReq));
+  task.pRecalcRequestMap = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(task.pHistoryCutoffTime, nullptr);
+  ASSERT_NE(task.pVirtTableInfos, nullptr);
+  ASSERT_NE(task.pUserRecalcRequests, nullptr);
+  ASSERT_NE(task.pRecalcRequestMap, nullptr);
+  ASSERT_EQ(stRecalcTrackerCreate(&task.pRecalcTracker), TSDB_CODE_SUCCESS);
+  taosInitRWLatch(&task.userRecalcRequestLock);
+  taosInitRWLatch(&task.recalcRequestLock);
+
+  const int64_t          uid = 1001;
+  const int64_t          gid = 42;
+  SSTriggerVirtTableInfo info = {};
+  info.tbUid = uid;
+  info.vgId = 7;
+  info.tbGids = taosArrayInit(1, sizeof(int64_t));
+  ASSERT_NE(info.tbGids, nullptr);
+  ASSERT_NE(taosArrayPush(info.tbGids, &gid), nullptr);
+  ASSERT_EQ(tSimpleHashPut(task.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+
+  SStreamRecalcReq recalc = {};
+  recalc.recalcId = 9001;
+  recalc.start = 100;
+  recalc.end = TSKEY_MAX;
+  ASSERT_NE(taosArrayPush(task.pUserRecalcRequests, &recalc), nullptr);
+
+  SSTriggerRealtimeContext context = {};
+  context.pTask = &task;
+  context.pGroups = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(context.pGroups, nullptr);
+  tSimpleHashSetFreeFp(context.pGroups, destroyCollectedRecalcGroup);
+
+  ASSERT_EQ(stRealtimeContextAddUserRecalcTransactional(&context), TSDB_CODE_SUCCESS);
+  SStreamRecalcSnapshot snapshot = CopyRecalcSnapshot(task.pRecalcTracker, recalc.recalcId);
+  EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_FINISHED);
+  EXPECT_EQ(snapshot.progressPct, 100);
+
+  auto* storedInfo = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashGet(task.pVirtTableInfos, &uid, sizeof(uid)));
+  ASSERT_NE(storedInfo, nullptr);
+  taosArrayDestroy(storedInfo->tbGids);
+  tSimpleHashCleanup(task.pVirtTableInfos);
+  tSimpleHashCleanup(task.pHistoryCutoffTime);
+  tSimpleHashCleanup(task.pRecalcRequestMap);
+  taosArrayDestroy(task.pUserRecalcRequests);
+  stRecalcTrackerDestroy(&task.pRecalcTracker);
+  tSimpleHashCleanup(context.pGroups);
+}
+
+class StreamTriggerManualRecalcTransactionTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    task_.isVirtualTable = true;
+    task_.fillHistory = false;
+    task_.triggerType = STREAM_TRIGGER_SESSION;
+    task_.pHistoryCutoffTime = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pVirtTableInfos = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pUserRecalcRequests = taosArrayInit(1, sizeof(SStreamRecalcReq));
+    task_.pRecalcRequests = tdListNew(POINTER_BYTES);
+    task_.pRecalcRequestMap = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    task_.pGroupPendingRecalcs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    TD_DLIST_INIT(&task_.backoffRecalcRequests);
+    ASSERT_NE(task_.pHistoryCutoffTime, nullptr);
+    ASSERT_NE(task_.pVirtTableInfos, nullptr);
+    ASSERT_NE(task_.pUserRecalcRequests, nullptr);
+    ASSERT_NE(task_.pRecalcRequests, nullptr);
+    ASSERT_NE(task_.pRecalcRequestMap, nullptr);
+    ASSERT_NE(task_.pGroupPendingRecalcs, nullptr);
+    ASSERT_EQ(stRecalcTrackerCreate(&task_.pRecalcTracker), TSDB_CODE_SUCCESS);
+    taosInitRWLatch(&task_.userRecalcRequestLock);
+    taosInitRWLatch(&task_.recalcRequestLock);
+
+    context_.pTask = &task_;
+    context_.pGroups = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    ASSERT_NE(context_.pGroups, nullptr);
+    tSimpleHashSetFreeFp(context_.pGroups, destroyCollectedRecalcGroup);
+    ASSERT_EQ(taosObjPoolInit(&context_.metaPool, 1, sizeof(SSTriggerMetaData)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjPoolInit(&context_.tableUidPool, 1, sizeof(SSTriggerVirtualTableSliceRef)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjPoolInit(&context_.windowPool, 1, sizeof(SSTriggerWindow)), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taosObjPoolInit(&context_.calcParamPool, 1, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override {
+    int32_t iter = 0;
+    auto* storedInfo = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashIterate(task_.pVirtTableInfos, nullptr, &iter));
+    while (storedInfo != nullptr) {
+      taosArrayDestroy(storedInfo->tbGids);
+      storedInfo = static_cast<SSTriggerVirtTableInfo*>(tSimpleHashIterate(task_.pVirtTableInfos, storedInfo, &iter));
+    }
+    tSimpleHashCleanup(task_.pVirtTableInfos);
+    tSimpleHashCleanup(task_.pHistoryCutoffTime);
+    tSimpleHashCleanup(task_.pRecalcRequestMap);
+    tSimpleHashCleanup(task_.pGroupPendingRecalcs);
+    taosArrayDestroy(task_.pUserRecalcRequests);
+    SListIter  requestIter = {};
+    SListNode* pNode = nullptr;
+    tdListInitIter(task_.pRecalcRequests, &requestIter, TD_LIST_FORWARD);
+    while ((pNode = tdListNext(&requestIter)) != nullptr) {
+      auto* pReq = *reinterpret_cast<SSTriggerRecalcRequest**>(pNode->data);
+      stTriggerTaskDestroyRecalcRequest(&pReq);
+    }
+    task_.pRecalcRequests = static_cast<SList*>(tdListFree(task_.pRecalcRequests));
+    stRecalcTrackerDestroy(&task_.pRecalcTracker);
+    tSimpleHashCleanup(context_.pGroups);
+    taosObjPoolDestroy(&context_.metaPool);
+    taosObjPoolDestroy(&context_.tableUidPool);
+    taosObjPoolDestroy(&context_.windowPool);
+    taosObjPoolDestroy(&context_.calcParamPool);
+  }
+
+  void AddVirtualTable() { AddVirtualTable(uid_, gid_); }
+
+  void AddVirtualTable(int64_t uid, int64_t gid) {
+    SSTriggerVirtTableInfo info = {};
+    info.tbUid = uid;
+    info.vgId = 7;
+    info.tbGids = taosArrayInit(1, sizeof(int64_t));
+    ASSERT_NE(info.tbGids, nullptr);
+    ASSERT_NE(taosArrayPush(info.tbGids, &gid), nullptr);
+    ASSERT_EQ(tSimpleHashPut(task_.pVirtTableInfos, &uid, sizeof(uid), &info, sizeof(info)), 0);
+  }
+
+  void SetCutoff(int64_t cutoff) { SetCutoff(gid_, cutoff); }
+
+  void SetCutoff(int64_t gid, int64_t cutoff) {
+    ASSERT_EQ(tSimpleHashPut(task_.pHistoryCutoffTime, &gid, sizeof(gid), &cutoff, sizeof(cutoff)), 0);
+  }
+
+  void QueueRecalc(int64_t recalcId, TSKEY start, TSKEY end) {
+    SStreamRecalcReq recalc = {};
+    recalc.recalcId = recalcId;
+    recalc.start = start;
+    recalc.end = end;
+    ASSERT_NE(taosArrayPush(task_.pUserRecalcRequests, &recalc), nullptr);
+  }
+
+  void RunRecalc(int64_t recalcId) {
+    ASSERT_EQ(stRealtimeContextAddUserRecalcTransactional(&context_), TSDB_CODE_SUCCESS);
+    SStreamRecalcSnapshot snapshot = CopyRecalcSnapshot(task_.pRecalcTracker, recalcId);
+    EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_FINISHED);
+    EXPECT_EQ(snapshot.progressPct, 100);
+  }
+
+  SStreamTriggerTask        task_ = {};
+  SSTriggerRealtimeContext  context_ = {};
+  const int64_t             uid_ = 1001;
+  const int64_t             gid_ = 42;
+};
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, ConsecutiveEmptyRequestsFinish) {
+  AddVirtualTable();
+  QueueRecalc(9001, 100, TSKEY_MAX);
+  RunRecalc(9001);
+  QueueRecalc(9002, 100, TSKEY_MAX);
+  RunRecalc(9002);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, FromBeyondCutoffFinishes) {
+  AddVirtualTable();
+  SetCutoff(100);
+  QueueRecalc(9001, 200, TSKEY_MAX);
+  RunRecalc(9001);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, EmptyManualScanKeepsRealtimeThreshold) {
+  AddVirtualTable();
+  SetCutoff(100);
+  QueueRecalc(9001, 200, TSKEY_MAX);
+  RunRecalc(9001);
+
+  auto** ppGroup = static_cast<SSTriggerRealtimeGroup**>(tSimpleHashGet(context_.pGroups, &gid_, sizeof(gid_)));
+  ASSERT_NE(ppGroup, nullptr);
+  ASSERT_NE(*ppGroup, nullptr);
+  EXPECT_EQ((*ppGroup)->oldThreshold, INT64_MIN);
+  EXPECT_EQ((*ppGroup)->newThreshold, INT64_MIN);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, EmptyManualScanAcceptsEarlierRealtimeWrite) {
+  AddVirtualTable();
+  SetCutoff(100);
+  QueueRecalc(9001, 200, TSKEY_MAX);
+  RunRecalc(9001);
+
+  auto** ppGroup = static_cast<SSTriggerRealtimeGroup**>(tSimpleHashGet(context_.pGroups, &gid_, sizeof(gid_)));
+  ASSERT_NE(ppGroup, nullptr);
+  ASSERT_NE(*ppGroup, nullptr);
+  SSTriggerReaderDataKey readerKey = {};
+  readerKey.readerKind = STRIGGER_READER_KIND_INTERNAL;
+  readerKey.stableReaderId = 11;
+  readerKey.logicalUid = uid_;
+  SSTriggerMetaData meta = {};
+  meta.skey = 50;
+  meta.ekey = 50;
+  meta.ver = 1;
+  ASSERT_EQ(stTestRealtimeGroupAddMeta(*ppGroup, 7, &readerKey, &meta, 0), TSDB_CODE_SUCCESS);
+
+  auto* pMetas = static_cast<SObjList*>(tSimpleHashGet((*ppGroup)->pWalMetas, &readerKey, sizeof(readerKey)));
+  ASSERT_NE(pMetas, nullptr);
+  const auto* stored = static_cast<const SSTriggerMetaData*>(taosObjListGetHead(pMetas));
+  ASSERT_NE(stored, nullptr);
+  EXPECT_EQ(stored->skey, 50);
+  EXPECT_EQ(stored->ekey, 50);
+  EXPECT_EQ((*ppGroup)->newThreshold, 50);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, CountRangeBeyondCutoffFinishes) {
+  task_.triggerType = STREAM_TRIGGER_COUNT;
+  AddVirtualTable();
+  SetCutoff(100);
+  QueueRecalc(9001, 200, 300);
+  RunRecalc(9001);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, MixedNoDataAndScanGroupsStartAtZeroProgress) {
+  AddVirtualTable(1001, 42);
+  AddVirtualTable(1002, 43);
+  SetCutoff(43, 150);
+  QueueRecalc(9001, 100, TSKEY_MAX);
+
+  ASSERT_EQ(stRealtimeContextAddUserRecalcTransactional(&context_), TSDB_CODE_SUCCESS);
+  SStreamRecalcSnapshot snapshot = CopyRecalcSnapshot(task_.pRecalcTracker, 9001);
+  EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_RUNNING);
+  EXPECT_EQ(snapshot.progressPct, 0);
+}
+
+TEST_F(StreamTriggerManualRecalcTransactionTest, NoDataPrepareFailurePrecedesAttemptActivation) {
+  AddVirtualTable(1001, 42);
+  AddVirtualTable(1002, 43);
+  SetCutoff(43, 150);
+  QueueRecalc(9001, 100, TSKEY_MAX);
+
+  NoDataGroupsPrepareProbe probe;
+  gNoDataGroupsPrepareProbe = &probe;
+  probe.stub.set(stRecalcTrackerPrepareNoDataGroups, failNoDataGroupsPrepare);
+
+  EXPECT_EQ(stRealtimeContextAddUserRecalcTransactional(&context_), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(probe.callCount, 1);
+  SStreamRecalcSnapshot snapshot = CopyRecalcSnapshot(task_.pRecalcTracker, 9001);
+  EXPECT_EQ(snapshot.status, STREAM_RECALC_STATUS_FAILED);
+  int64_t activeJobs = -1;
+  bool    historyValid = false;
+  int32_t historyProgress = 0;
+  ASSERT_EQ(stRecalcTrackerGetDebugGauges(task_.pRecalcTracker, &activeJobs, &historyValid, &historyProgress),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(activeJobs, 0);
 }

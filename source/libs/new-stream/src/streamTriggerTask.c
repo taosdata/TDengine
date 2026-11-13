@@ -8256,7 +8256,8 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
                                                  STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc,
                                                  bool isDetermined, int64_t recalcId, bool requestsLocked,
                                                  SArray *pMutations, bool repairCountDisorder,
-                                                 SSTriggerRecalcRequest **ppPreparedReq) {
+                                                 SSTriggerRecalcRequest **ppPreparedReq,
+                                                 SArray *pNoDataGids) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   bool                         ready = false;
@@ -8352,15 +8353,19 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
     QUERY_CHECK_NULL(pGroup, code, lino, _end, TSDB_CODE_INVALID_PARA);
     QUERY_CHECK_NULL(pCalcRange, code, lino, _end, TSDB_CODE_INVALID_PARA);
     pReq->gid = pGroup->gid;
+    void *pHistoryCutoff = tSimpleHashGet(pTask->pHistoryCutoffTime, &pReq->gid, sizeof(int64_t));
     if (pTask->fillHistory) {
       pReq->scanRange.skey = pTask->fillHistoryStartTime;
     } else if (nestedPlan) {
       pReq->scanRange.skey = INT64_MIN;
     } else {
-      void *px = tSimpleHashGet(pTask->pHistoryCutoffTime, &pReq->gid, sizeof(int64_t));
-      pReq->scanRange.skey = ((px == NULL) ? INT64_MIN : *(int64_t *)px) + 1;
+      pReq->scanRange.skey = ((pHistoryCutoff == NULL) ? INT64_MIN : *(int64_t *)pHistoryCutoff) + 1;
     }
-    pReq->scanRange.ekey = pGroup->newThreshold;
+    TSKEY scanUpper = pGroup->newThreshold;
+    if (isUserRecalc && pHistoryCutoff != NULL) {
+      scanUpper = TMAX(scanUpper, *(TSKEY *)pHistoryCutoff);
+    }
+    pReq->scanRange.ekey = scanUpper;
     const TSKEY predecessorScanStart = pReq->scanRange.skey;
     // FROM without TO becomes the closed upper bound TSKEY_MAX - 1 and still ends at the current stream progress.
     bool openEndedUserRecalc = !nestedPlan && isUserRecalc && pCalcRange->ekey == TSKEY_MAX - 1;
@@ -8368,7 +8373,7 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
       if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
         pReq->scanRange = *pCalcRange;
         if (openEndedUserRecalc) {
-          pReq->scanRange.ekey = pGroup->newThreshold;
+          pReq->scanRange.ekey = scanUpper;
         }
       } else if (pTask->triggerType == STREAM_TRIGGER_COUNT) {
         pReq->scanRange.skey = pCalcRange->skey;
@@ -8423,6 +8428,10 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
   }
 
   if ((pReq->scanRange.skey > pReq->scanRange.ekey) || (pReq->calcRange.skey > pReq->calcRange.ekey)) {
+    if (isUserRecalc && pNoDataGids != NULL) {
+      void *px = taosArrayPush(pNoDataGids, &pReq->gid);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+    }
     if (pReq->isHistory) {
       code = stRecalcTrackerCommitHistoryThrough(pTask->pRecalcTracker, pTask->historyOriginalRange.end, true);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -8539,12 +8548,13 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
                                       STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined,
                                       int64_t recalcId) {
   return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, isHistory, isUserRecalc, isDetermined, recalcId,
-                                           false, NULL, false, NULL);
+                                           false, NULL, false, NULL, NULL);
 }
 
 static int32_t stTriggerTaskAddDisorderRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
                                                      STimeWindow *pCalcRange) {
-  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, true, NULL);
+  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, true, NULL,
+                                           NULL);
 }
 
 static int32_t stTriggerTaskAddOpenWindowRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
@@ -8558,7 +8568,7 @@ static int32_t stTriggerTaskAddOpenWindowRecalcRequest(SStreamTriggerTask *pTask
   int32_t code = stTriggerTaskHoldOpenRepair(pTask, pReq);
   if (code == TSDB_CODE_SUCCESS) {
     code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &openRange, false, false, true, 0,
-                                             false, NULL, false, &pReq);
+                                             false, NULL, false, &pReq, NULL);
   }
   stTriggerTaskDestroyRecalcRequest(&pReq);
   return code;
@@ -22383,7 +22393,66 @@ static void stTriggerTaskFailUserRecalcForExternalSource(SStreamTriggerTask *pTa
   }
 }
 
-static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext *pContext) {
+int32_t stRealtimeContextCollectUserRecalcGids(SSTriggerRealtimeContext *pContext, SArray **ppGids) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pContext->pTask;
+
+  *ppGids = taosArrayInit(8, sizeof(int64_t));
+  QUERY_CHECK_NULL(*ppGids, code, lino, _end, terrno);
+
+  if (pTask->isVirtualTable) {
+    // Manual recalculation must cover every virtual-table group, including groups
+    // whose realtime session has already closed (and therefore no longer live in
+    // pContext->pGroups). Enumerate the gids from the discovered virtual-table
+    // registry and lazily create the realtime group so the history context can
+    // rescan the requested range.
+    int32_t                  iter = 0;
+    SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    while (ppGroup != NULL) {
+      void *px = taosArrayPush(*ppGids, &(*ppGroup)->gid);
+      QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      ppGroup = tSimpleHashIterate(pContext->pGroups, ppGroup, &iter);
+    }
+
+    iter = 0;
+    SSTriggerVirtTableInfo *pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, NULL, &iter);
+    while (pInfo != NULL) {
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->tbGids); ++i) {
+        int64_t gid = *(int64_t *)TARRAY_GET_ELEM(pInfo->tbGids, i);
+        if (tSimpleHashGet(pContext->pGroups, &gid, sizeof(gid)) != NULL) {
+          continue;
+        }
+
+        SSTriggerRealtimeGroup *pGroup = NULL;
+        code = stRealtimeContextGetOrCreateGroup(pContext, gid, pInfo->vgId, &pGroup);
+        QUERY_CHECK_CODE(code, lino, _end);
+        void *px = taosArrayPush(*ppGids, &gid);
+        QUERY_CHECK_NULL(px, code, lino, _end, terrno);
+      }
+      pInfo = tSimpleHashIterate(pTask->pVirtTableInfos, pInfo, &iter);
+    }
+    ST_TASK_DLOG("manual recalc virtual groups collected, groupCount:%zu", taosArrayGetSize(*ppGids));
+  } else {
+    int32_t iter = 0;
+    void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
+    while (px != NULL) {
+      SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
+      void *pushed = taosArrayPush(*ppGids, &pGroup->gid);
+      QUERY_CHECK_NULL(pushed, code, lino, _end, terrno);
+      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
+    }
+  }
+
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(*ppGids);
+    *ppGids = NULL;
+  }
+  return code;
+}
+
+int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -22394,29 +22463,27 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
 
   SArray *pRecalcList = pTask->pUserRecalcRequests;
   int32_t nUserRecalcs = taosArrayGetSize(pRecalcList);
+  SArray *pGroupIds = NULL;
+  int32_t groupCount = 0;
+  if (nUserRecalcs > 0) {
+    code = stRealtimeContextCollectUserRecalcGids(pContext, &pGroupIds);
+    QUERY_CHECK_CODE(code, lino, _end);
+    groupCount = taosArrayGetSize(pGroupIds);
+  }
   for (int32_t i = 0; i < nUserRecalcs; i++) {
-    SStreamRecalcReq *pReq = TARRAY_GET_ELEM(pTask->pUserRecalcRequests, i);
-    SArray           *pGroupIds = taosArrayInit(tSimpleHashGetSize(pContext->pGroups), sizeof(int64_t));
-    SArray *pMutations = taosArrayInit(tSimpleHashGetSize(pContext->pGroups), sizeof(SSTriggerRecalcMutation));
-    SArray *pPreparedReqs = taosArrayInit_s(sizeof(SSTriggerRecalcRequest *), tSimpleHashGetSize(pContext->pGroups));
-    if (pGroupIds == NULL || pMutations == NULL || pPreparedReqs == NULL) {
+    SStreamRecalcReq          *pReq = TARRAY_GET_ELEM(pTask->pUserRecalcRequests, i);
+    SArray                    *pMutations = taosArrayInit(groupCount, sizeof(SSTriggerRecalcMutation));
+    SArray                    *pPreparedReqs = taosArrayInit_s(sizeof(SSTriggerRecalcRequest *), groupCount);
+    SArray                    *pNoDataGids = taosArrayInit(0, sizeof(int64_t));
+    SStreamRecalcNoDataGroups *pNoDataGroups = NULL;
+    if (pMutations == NULL || pPreparedReqs == NULL || pNoDataGids == NULL) {
       code = terrno;
-      taosArrayDestroy(pGroupIds);
       taosArrayDestroy(pMutations);
       taosArrayDestroy(pPreparedReqs);
+      taosArrayDestroy(pNoDataGids);
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
-    int32_t iter = 0;
-    void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
-    while (px != NULL) {
-      SSTriggerRealtimeGroup *pGroup = *(SSTriggerRealtimeGroup **)px;
-      if (taosArrayPush(pGroupIds, &pGroup->gid) == NULL) {
-        code = terrno;
-        break;
-      }
-      px = tSimpleHashIterate(pContext->pGroups, px, &iter);
-    }
     taosWLockLatch(&pTask->recalcRequestLock);
     for (int32_t j = 0; code == TSDB_CODE_SUCCESS && j < TARRAY_SIZE(pPreparedReqs); ++j) {
       int64_t    *pGid = TARRAY_GET_ELEM(pGroupIds, j);
@@ -22434,7 +22501,7 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
       }
       taosArrayDestroy(pPreparedReqs);
       taosArrayDestroy(pMutations);
-      taosArrayDestroy(pGroupIds);
+      taosArrayDestroy(pNoDataGids);
       taosWUnLockLatch(&pTask->recalcRequestLock);
       QUERY_CHECK_CODE(code, lino, _end);
     }
@@ -22483,8 +22550,17 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
         STimeWindow              range = {.skey = pReq->start, .ekey = pReq->end - 1};
         SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
         code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
-                                                 pMutations, false, ppPrepared);
+                                                 pMutations, false, ppPrepared, pNoDataGids);
         if (code != TSDB_CODE_SUCCESS) break;
+      }
+    }
+    if (code == TSDB_CODE_SUCCESS && !extHistoryUnsupported) {
+      code = stRecalcTrackerPrepareNoDataGroups(pTask->pRecalcTracker, pReq->recalcId,
+                                                (SStreamProgressRange){pReq->start, pReq->end}, pNoDataGids,
+                                                &pNoDataGroups);
+      if (code == TSDB_CODE_SUCCESS) {
+        ST_TASK_DLOG("prepared manual recalc no-data groups, id:%" PRId64 ", groupCount:%zu", pReq->recalcId,
+                     taosArrayGetSize(pNoDataGids));
       }
     }
     if (code == TSDB_CODE_SUCCESS && !existing && !extHistoryUnsupported) {
@@ -22500,6 +22576,14 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
         pManualReq->frozen = true;
       }
     }
+    if (code == TSDB_CODE_SUCCESS && !extHistoryUnsupported) {
+      code = stRecalcTrackerCommitNoDataGroups(pTask->pRecalcTracker, pNoDataGroups);
+      if (code == TSDB_CODE_SUCCESS) {
+        ST_TASK_DLOG("committed manual recalc no-data groups, id:%" PRId64 ", groupCount:%zu", pReq->recalcId,
+                     taosArrayGetSize(pNoDataGids));
+      }
+    }
+    stRecalcTrackerDestroyNoDataGroups(&pNoDataGroups);
     stTriggerTaskFinishRecalcMutations(pTask, pMutations, code != TSDB_CODE_SUCCESS);
     if (code != TSDB_CODE_SUCCESS && newJob) {
       int32_t originalCode = code;
@@ -22517,12 +22601,13 @@ static int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeCont
     }
     taosArrayDestroy(pPreparedReqs);
     taosArrayDestroy(pMutations);
-    taosArrayDestroy(pGroupIds);
+    taosArrayDestroy(pNoDataGids);
     QUERY_CHECK_CODE(code, lino, _end);
   }
   taosArrayClear(pRecalcList);
 
 _end:
+  taosArrayDestroy(pGroupIds);
   if (needUnlock) {
     taosWUnLockLatch(&pTask->userRecalcRequestLock);
   }
@@ -22624,7 +22709,7 @@ static int32_t stRealtimeContextAddUserRecalc(SSTriggerRealtimeContext *pContext
       code = stTriggerTaskPrepareManualRecalcRequest(pTask, *pGid, range, &pPrepared);
       if (code == TSDB_CODE_SUCCESS) {
         code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
-                                                 pMutations, false, &pPrepared);
+                                                 pMutations, false, &pPrepared, NULL);
       }
       if (code == TSDB_CODE_SUCCESS) {
         if (TARRAY_SIZE(pMutations) != 1) {
@@ -30097,6 +30182,13 @@ _end:
   }
   return code;
 }
+
+#ifdef BUILD_TEST_SEAM
+int32_t stTestRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
+                                   const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta, int64_t nowNs) {
+  return stRealtimeGroupAddMeta(pGroup, vgId, pReaderKey, pMeta, nowNs);
+}
+#endif
 
 static int32_t stRealtimeGroupAddVirtualExtCalcMeta(SSTriggerRealtimeGroup *pGroup,
                                                     const SSTriggerReaderDataKey *pReaderKey,

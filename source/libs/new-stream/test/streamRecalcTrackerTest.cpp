@@ -74,6 +74,15 @@ ArrayPtr MakeContributors(SStreamRecalcTracker *tracker, std::initializer_list<S
   return ArrayPtr{contributors};
 }
 
+void ConfirmNoDataGroups(SStreamRecalcTracker *tracker, int64_t recalcId, SStreamProgressRange requestedRange,
+                         const SArray *groupIds) {
+  SStreamRecalcNoDataGroups *groups = nullptr;
+  ASSERT_EQ(stRecalcTrackerPrepareNoDataGroups(tracker, recalcId, requestedRange, groupIds, &groups),
+            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(stRecalcTrackerCommitNoDataGroups(tracker, groups), TSDB_CODE_SUCCESS);
+  stRecalcTrackerDestroyNoDataGroups(&groups);
+}
+
 ArrayPtr CopySnapshots(SStreamRecalcTracker *tracker, bool *historyValid = nullptr, int32_t *historyPct = nullptr) {
   bool    localHistoryValid = false;
   int32_t localHistoryPct = 0;
@@ -260,6 +269,52 @@ TEST(StreamRecalcTrackerTest, ConfirmedNoDataGroupFinishesWithoutStep) {
   ASSERT_NE(finished, nullptr);
   EXPECT_EQ(finished->progressPct, 100);
   EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
+}
+
+TEST(StreamRecalcTrackerTest, BatchConfirmedNoDataGroupsRefreshProgressOnce) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10, 20});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 702, {100, 200}, groups.get()), TSDB_CODE_SUCCESS);
+
+  auto firstBatch = MakeGroups({10});
+  ASSERT_NE(firstBatch, nullptr);
+  ConfirmNoDataGroups(tracker.get(), 702, {100, 200}, firstBatch.get());
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *partial = FindSnapshot(snapshots.get(), 702);
+  ASSERT_NE(partial, nullptr);
+  EXPECT_EQ(partial->progressPct, 0);
+  EXPECT_EQ(partial->status, STREAM_RECALC_STATUS_RUNNING);
+
+  auto secondBatch = MakeGroups({20});
+  ASSERT_NE(secondBatch, nullptr);
+  ConfirmNoDataGroups(tracker.get(), 702, {100, 200}, secondBatch.get());
+  snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *finished = FindSnapshot(snapshots.get(), 702);
+  ASSERT_NE(finished, nullptr);
+  EXPECT_EQ(finished->progressPct, 100);
+  EXPECT_EQ(finished->status, STREAM_RECALC_STATUS_FINISHED);
+}
+
+TEST(StreamRecalcTrackerTest, OpenEndedNoDataGroupAddsNoProgressWork) {
+  auto tracker = MakeTracker();
+  ASSERT_NE(tracker, nullptr);
+  auto groups = MakeGroups({10, 20});
+  ASSERT_NE(groups, nullptr);
+  ASSERT_EQ(stRecalcTrackerRegisterJob(tracker.get(), 703, {100, TSKEY_MAX}, groups.get()), TSDB_CODE_SUCCESS);
+
+  auto emptyGroups = MakeGroups({20});
+  ASSERT_NE(emptyGroups, nullptr);
+  ConfirmNoDataGroups(tracker.get(), 703, {100, TSKEY_MAX}, emptyGroups.get());
+  auto snapshots = CopySnapshots(tracker.get());
+  ASSERT_NE(snapshots, nullptr);
+  const auto *snapshot = FindSnapshot(snapshots.get(), 703);
+  ASSERT_NE(snapshot, nullptr);
+  EXPECT_EQ(snapshot->progressPct, 0);
+  EXPECT_EQ(snapshot->status, STREAM_RECALC_STATUS_RUNNING);
 }
 
 TEST(StreamRecalcTrackerTest, EmptyGroupSnapshotFinishesImmediately) {
