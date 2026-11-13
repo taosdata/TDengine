@@ -8234,6 +8234,11 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
         }
         pReq->scanRange.ekey = isUserRecalc ? win.ekey : TMIN(pReq->scanRange.ekey, win.ekey);
       }
+      if (isDetermined && !isUserRecalc && pTask->interval.interval > 0) {
+        // Boundary repairs may be queued before the interval closes. Keep its
+        // full range; the pending queue waits for realtime output to catch up.
+        pReq->scanRange.ekey = TMAX(pReq->scanRange.ekey, pCalcRange->ekey);
+      }
     } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN &&
                (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) == 0) {
       pReq->scanRange.skey = TMAX(pReq->scanRange.skey, pCalcRange->skey - pTask->historyStep);

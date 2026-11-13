@@ -39525,6 +39525,52 @@ TEST(StreamTriggerTaskRecalcTest, NonNestedSlidingKeepsLegacyWindowAlignment) {
   tzfree(timezone);
 }
 
+TEST(StreamTriggerTaskRecalcTest, DeferredIntervalBoundaryRepairScansTheCompleteWindow) {
+  for (int64_t sliding : {INT64_C(2000), INT64_C(1000)}) {
+    SCOPED_TRACE(sliding);
+    CountRecalcFixture fixture;
+    timezone_t         timezone = tzalloc("UTC");
+    ASSERT_NE(timezone, nullptr);
+    fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+    fixture.task_.fillHistory = true;
+    fixture.task_.fillHistoryStartTime = INT64_MIN;
+    fixture.task_.interval.timezone = timezone;
+    fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+    fixture.task_.interval.firstDayOfWeek = 1;
+    fixture.task_.interval.interval = 2000;
+    fixture.task_.interval.sliding = sliding;
+    fixture.group_.oldThreshold = 6000;
+    fixture.group_.newThreshold = 7000;
+    fixture.group_.recalcNextWindow = true;
+
+    const STimeWindow window = {6000, 7999};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &window));
+    EXPECT_FALSE(fixture.group_.recalcNextWindow);
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+    EXPECT_EQ(nullptr, request);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    // Later WAL input closes the boundary window; the queued repair must
+    // still cover its end rather than the threshold at enqueue time.
+    fixture.group_.oldThreshold = 9000;
+    fixture.group_.newThreshold = 9000;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+    ASSERT_NE(nullptr, request);
+    EXPECT_LE(request->scanRange.skey, 6000);
+    EXPECT_EQ(7999, request->scanRange.ekey);
+    EXPECT_EQ(6000, request->calcRange.skey);
+    EXPECT_EQ(7999, request->calcRange.ekey);
+    stTriggerTaskDestroyRecalcRequest(&request);
+    tzfree(timezone);
+  }
+}
+
 TEST(StreamTriggerTaskRecalcTest, IntervalPreviousWindowReplayIsBoundedToOnePredecessor) {
   CountRecalcFixture fixture;
   timezone_t         timezone = tzalloc("UTC");
