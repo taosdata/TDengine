@@ -2486,6 +2486,14 @@ expression_list(A) ::= expression_list(B) NK_COMMA expr_or_subquery(C).         
 
 column_reference(A) ::= column_name(B).                                           { A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
+column_reference(A) ::= NK_PH(B) TBNAME NK_DOT column_name(C).                    {
+                                                                                    SToken qualifier = {sizeof("%%tbname") - 1, TK_NK_ID, "%%tbname"};
+                                                                                    SNode* column = createColumnNode(pCxt, &qualifier, &C);
+                                                                                    if (NULL != column) {
+                                                                                      ((SColumnNode*)column)->isTbnamePlaceholder = true;
+                                                                                    }
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &C, column);
+                                                                                }
 column_reference(A) ::= table_name(B) NK_DOT TWSTART(C).                          { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWEND(C).                            { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 column_reference(A) ::= table_name(B) NK_DOT TWDURATION(C).                       { A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }

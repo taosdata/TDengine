@@ -9308,6 +9308,7 @@ static const char* jkVirtuaTableVgroupsInfoSize = "VgroupsInfoSize";
 static const char* jkVirtuaTableVgroupsInfo = "VgroupsInfo";
 static const char* jkVirtuaTableRefTables = "RefTables";
 static const char* jkVirtualTableHasFilterCond = "HasFilterCond";
+static const char* jkVirtualTablePlaceholderType = "PlaceHolderType";
 
 static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
   const SVirtualTableNode* pNode = (const SVirtualTableNode*)pObj;
@@ -9330,6 +9331,9 @@ static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableHasFilterCond, pNode->hasFilterCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && SP_NONE != pNode->placeholderType) {
+    code = tjsonAddIntegerToObject(pJson, jkVirtualTablePlaceholderType, pNode->placeholderType);
   }
 
   return code;
@@ -9359,6 +9363,9 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableHasFilterCond, &pNode->hasFilterCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkVirtualTablePlaceholderType)) {
+    tjsonGetNumberValue(pJson, jkVirtualTablePlaceholderType, pNode->placeholderType, code);
   }
 
   return code;
@@ -9904,7 +9911,7 @@ static int32_t anomalyWindowNodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddObject(pJson, jkAnomalyWindowTsPrimaryKey, nodeToJson, pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, jkAnomalyWindowExpr, nodeToJson, pNode->pExpr);
+    code = nodeListToJson(pJson, jkAnomalyWindowExpr, pNode->pExpr);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkAnomalyWindowOption, pNode->anomalyOpt);
@@ -9917,7 +9924,7 @@ static int32_t jsonToAnomalyWindowNode(const SJson* pJson, void* pObj) {
 
   int32_t code = jsonToNodeObject(pJson, jkAnomalyWindowTsPrimaryKey, &pNode->pCol);
   if (TSDB_CODE_SUCCESS == code) {
-    code = jsonToNodeObject(pJson, jkAnomalyWindowExpr, (SNode**)&pNode->pExpr);
+    code = jsonToNodeList(pJson, jkAnomalyWindowExpr, &pNode->pExpr);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetStringValue1(pJson, jkAnomalyWindowOption, pNode->anomalyOpt, sizeof(pNode->anomalyOpt));

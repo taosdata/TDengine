@@ -111,7 +111,8 @@ typedef struct SColumnNode {
       uint8_t isAlignOut : 1;    // TIME_ALIGN output column (planner-side marker)
       uint8_t alignMethod : 2;   // EAlignMethod; valid when isAlignOut
       uint8_t alignHasSpan : 1;  // TIME_ALIGN optional time-range parameter present
-      uint8_t reserve : 2;
+      uint8_t isTbnamePlaceholder : 1;  // Unresolved %%tbname.column qualifier.
+      uint8_t reserve : 1;
     };
   };
   int64_t alignSpanValue;  // TIME_ALIGN duration count; q is folded into months
@@ -599,6 +600,7 @@ typedef struct SVirtualTableNode {
   // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
   SArray*            pAlignCols;     // SArray<SAlignOutCol>; method is PREV or NEXT
   bool               outputRaw;      // output_raw argument
+  EStreamPlaceholder placeholderType;
 } SVirtualTableNode;
 
 typedef struct SViewNode {

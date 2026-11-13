@@ -287,6 +287,53 @@ TEST_F(NodesCloneTest, sortPreservesGroupKeyPrefix) {
   EXPECT_EQ(((SSortLogicNode*)pClone)->numOfGroupKeys, 2);
 }
 
+TEST_F(NodesCloneTest, anomalyWindowOwnsClonedExpressionList) {
+  for (int32_t numOfColumns : {0, 1, 2}) {
+    SCOPED_TRACE(numOfColumns);
+    const int64_t allocations = nodesTestGetLiveAllocations();
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_WINDOW, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> source(pNode, nodesDestroyNode);
+    auto* window = reinterpret_cast<SWindowLogicNode*>(pNode);
+    window->winType = WINDOW_TYPE_ANOMALY;
+    tstrncpy(window->anomalyOpt, "algo=lof", sizeof(window->anomalyOpt));
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* column = nullptr;
+      ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &column), TSDB_CODE_SUCCESS);
+      reinterpret_cast<SColumnNode*>(column)->colId = i + 1;
+      ASSERT_EQ(nodesListMakeStrictAppend(&window->pAnomalyExpr, column), TSDB_CODE_SUCCESS);
+    }
+
+    SNode* pClone = nullptr;
+    ASSERT_EQ(nodesCloneNode(pNode, &pClone), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> clone(pClone, nodesDestroyNode);
+    auto* copy = reinterpret_cast<SWindowLogicNode*>(pClone);
+    EXPECT_EQ(copy->winType, WINDOW_TYPE_ANOMALY);
+    EXPECT_STREQ(copy->anomalyOpt, "algo=lof");
+    ASSERT_EQ(LIST_LENGTH(copy->pAnomalyExpr), numOfColumns);
+    if (numOfColumns > 0) {
+      ASSERT_NE(copy->pAnomalyExpr, window->pAnomalyExpr);
+      ASSERT_NE(copy->pAnomalyExpr->pHead, window->pAnomalyExpr->pHead);
+      ASSERT_NE(copy->pAnomalyExpr->pTail, window->pAnomalyExpr->pTail);
+    }
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* original = nodesListGetNode(window->pAnomalyExpr, i);
+      SNode* copied = nodesListGetNode(copy->pAnomalyExpr, i);
+      ASSERT_NE(copied, original);
+      EXPECT_TRUE(nodesEqualNode(original, copied));
+    }
+
+    source.reset();
+    for (int32_t i = 0; i < numOfColumns; ++i) {
+      SNode* column = nodesListGetNode(copy->pAnomalyExpr, i);
+      ASSERT_EQ(nodeType(column), QUERY_NODE_COLUMN);
+      EXPECT_EQ(reinterpret_cast<SColumnNode*>(column)->colId, i + 1);
+    }
+    clone.reset();
+    EXPECT_EQ(nodesTestGetLiveAllocations(), allocations);
+  }
+}
+
 TEST(NodesCodeTest, sortGroupKeyPrefixRoundTrip) {
   for (int32_t numOfGroupKeys : {0, 1, 2}) {
     SCOPED_TRACE(numOfGroupKeys);
