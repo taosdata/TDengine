@@ -162,6 +162,8 @@ typedef struct SMTbCursor {
   SMetaReader mr;
   int8_t      paused;
   int64_t     txnId;  // batch meta txn: same-txn visibility bypass
+  int32_t     typeMask;  // 0 = no pre-filter; bit(ETableType) keeps wanted types, others are
+                         // skipped via a cheap header-only decode in metaTbCursorNext
 } SMTbCursor;
 
 typedef struct SMCtbCursor {
@@ -448,6 +450,9 @@ typedef struct SStoreMeta {
   int32_t (*storeGetTableList)(void* pVnode, int8_t type, SArray* pList);
   int32_t (*getTableSchema)(void* pVnode, int64_t uid, STSchema** pSchema, int64_t* suid, SSchemaWrapper** pTagSchema);
   int32_t (*getNumOfChildTables)(void* pVnode, int64_t uid, int64_t* numOfTables, int32_t* numOfCols, int8_t* flags);
+  // vnode-wide virtual-table metadata generation counter, bumped on every virtual
+  // table entry create/update/drop. Used by the vc_cols scan cache to detect staleness.
+  int64_t (*getVtableGen)(void* pVnode);
   void (*getBasicInfo)(void* pVnode, const char** dbname, int32_t* vgId, SVnodeTableNums* pNums);
   // true when this vnode's [hashBegin, hashEnd] can own tbName under the
   // table-placement hash; false means the meta name lookup can be skipped

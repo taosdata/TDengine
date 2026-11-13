@@ -284,6 +284,10 @@ int32_t seamVnodeAsync(int64_t async, EVAPriority priority, int32_t (*execute)(v
 void seamMetaRLock(SMeta* pMeta) { (void)pMeta; }
 void seamMetaULock(SMeta* pMeta) { (void)pMeta; }
 
+// Mock metaBumpVtableGen: the vtable-generation bump is a plain function and
+// the dummy pMeta pointer (0x1) must never be dereferenced.
+void seamMetaBumpVtableGen(SMeta* pMeta) { (void)pMeta; }
+
 }  // extern "C"
 
 namespace {
@@ -305,6 +309,7 @@ struct SeamInstaller {
     *seamSlot(gTdSeam_metaTxnMetaGet, "gTdSeam_metaTxnMetaGet") = reinterpret_cast<void*>(&seamMetaTxnMetaGet);
     *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = reinterpret_cast<void*>(&seamMetaTxnMetaUpsert);
     *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = reinterpret_cast<void*>(&seamMetaMarkTableTxnStatus);
+    *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = reinterpret_cast<void*>(&seamMetaBumpVtableGen);
     *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = reinterpret_cast<void*>(&seamMetaRLock);
     *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = reinterpret_cast<void*>(&seamMetaULock);
     *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = reinterpret_cast<void*>(&seamVnodeAsync);
@@ -323,6 +328,7 @@ struct SeamInstaller {
     *seamSlot(gTdSeam_metaTxnMetaGet, "gTdSeam_metaTxnMetaGet") = nullptr;
     *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = nullptr;
     *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = nullptr;
+    *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = nullptr;
     *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = nullptr;
     *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = nullptr;
     *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = nullptr;

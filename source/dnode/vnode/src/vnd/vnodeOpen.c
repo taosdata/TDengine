@@ -19,6 +19,7 @@
 #include "tss.h"
 #include "tq.h"
 #include "tsdb.h"
+#include "streamReader.h"
 #include "vnd.h"
 
 void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
@@ -705,6 +706,10 @@ void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vInfo("start to close vnode");
     atomic_store_8(&pVnode->closing, 1);
+    // Release vc_cols caches pinned for this vnode: once it is closing (drop db
+    // / migrate away) no further scan re-serves them and their blocks/budget
+    // would otherwise leak until process exit.
+    stStreamVcColsCacheCleanupVg(pVnode->config.vgId);
     vnodeAWait(&pVnode->commitTask2);
     vnodeAWait(&pVnode->commitTask);
 

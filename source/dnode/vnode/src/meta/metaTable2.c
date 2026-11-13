@@ -1579,6 +1579,13 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
     return code;
   }
 
+  // A visibility transition on a virtual-table entry changes what
+  // ins_virtual_child_columns scans. Bump the generation in the same meta write
+  // lock as the status write; otherwise a reader could cache the post-alter
+  // (not yet marked) entry in the window between the ALTER write and this mark.
+  bool bumpVtableGen = (entry.type == TSDB_VIRTUAL_NORMAL_TABLE || entry.type == TSDB_VIRTUAL_CHILD_TABLE ||
+                        (entry.type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(entry.flags)));
+
   // Update txn fields
   entry.txnId = txnId;
   entry.txnStatus = txnStatus;
@@ -1625,6 +1632,9 @@ int32_t metaMarkTableTxnStatus(SMeta *pMeta, int64_t uid, int64_t txnId, int8_t 
 
   code = tdbTbUpsert(pMeta->pTbDb, &key, sizeof(key), newValue, encodeSize, pMeta->txn);
   taosMemoryFree(newValue);
+  if (code == TSDB_CODE_SUCCESS && bumpVtableGen) {
+    metaBumpVtableGen(pMeta);
+  }
   metaULock(pMeta);
   if (code) {
     metaError("vgId:%d, mark txn status: write back failed for uid %" PRId64, TD_VID(pMeta->pVnode), uid);

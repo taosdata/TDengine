@@ -5112,9 +5112,21 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
                                            const SReadHandle* readHandle, SArray* colArray) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t numOfMappedCols = 0;
+  int32_t numOfSkippedCols = 0;
+  int32_t numOfCandidates = (int32_t)taosArrayGetSize(colArray);
+
+  // colArray carries every column mapped by the dynamic scan parameter, which can be a
+  // superset of the columns this operator's own plan requests (pOrgCond). Only the
+  // requested subset is read; the remaining slots of the output block stay NULL and are
+  // rebuilt from the vtable template by the caller.
+  if (numOfCandidates <= 0) {
+    qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(TSDB_CODE_NOT_FOUND));
+    return TSDB_CODE_NOT_FOUND;
+  }
 
   pCond->order = TSDB_ORDER_ASC;
-  pCond->numOfCols = (int32_t)taosArrayGetSize(colArray);
+  pCond->numOfCols = numOfCandidates;
 
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   QUERY_CHECK_NULL(pCond->colList, code, lino, _return, terrno);
@@ -5130,39 +5142,76 @@ int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTab
   pCond->skipRollup = true;
   pCond->notLoadData = false;
 
-  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfCandidates; ++i) {
     SColIdPair* pColPair = taosArrayGet(colArray, i);
     QUERY_CHECK_NULL(pColPair, code, lino, _return, terrno);
 
     bool find = false;
     for (int32_t j = 0; j < pOrgCond->numOfCols; ++j) {
       if (pOrgCond->colList[j].colId == pColPair->vtbColId) {
-        pCond->colList[i].type = pOrgCond->colList[j].type;
+        pCond->colList[numOfMappedCols].type = pOrgCond->colList[j].type;
         // For variable-length types (nchar/binary/varchar/varbinary), use the source table's bytes
         // to avoid tsdb reader doCopyColVal length check failure when source data is longer
         // than the virtual table's defined length.
         if (IS_VAR_DATA_TYPE(pOrgCond->colList[j].type) && pColPair->type.bytes > 0) {
-          pCond->colList[i].bytes = TMAX(pOrgCond->colList[j].bytes, pColPair->type.bytes);
+          pCond->colList[numOfMappedCols].bytes = TMAX(pOrgCond->colList[j].bytes, pColPair->type.bytes);
         } else {
-          pCond->colList[i].bytes = pOrgCond->colList[j].bytes;
+          pCond->colList[numOfMappedCols].bytes = pOrgCond->colList[j].bytes;
         }
-        pCond->colList[i].colId = pColPair->orgColId;
-        pCond->colList[i].pk = pOrgCond->colList[j].pk;
-        pCond->pSlotList[i] = i;
+        pCond->colList[numOfMappedCols].colId = pColPair->orgColId;
+        pCond->colList[numOfMappedCols].pk = pOrgCond->colList[j].pk;
+        pCond->pSlotList[numOfMappedCols] = numOfMappedCols;
         find = true;
         qDebug("%s mapped vtb colId:%d to org colId:%d, type:%d, bytes:%d", __func__, pColPair->vtbColId,
-               pColPair->orgColId, pCond->colList[i].type, pCond->colList[i].bytes);
+               pColPair->orgColId, pCond->colList[numOfMappedCols].type, pCond->colList[numOfMappedCols].bytes);
         break;
       }
     }
-    QUERY_CHECK_CONDITION(find, code, lino, _return, TSDB_CODE_NOT_FOUND);
+
+    if (!find) {
+      if (pColPair->vtbColId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        // The primary timestamp is mandatory for a time-series reader; keep it even when the
+        // plan-level column list was pruned. Type information comes from the parameter itself.
+        // Both callers push the timestamp pair first, so this mapping always lands in slot 0.
+        SColumnInfo* pCol = &pCond->colList[numOfMappedCols];
+        pCol->type = TSDB_DATA_TYPE_TIMESTAMP;
+        pCol->bytes = (int32_t)sizeof(int64_t);
+        pCol->colId = pColPair->orgColId;
+        pCol->pk = true;
+        pCond->pSlotList[numOfMappedCols] = numOfMappedCols;
+        numOfMappedCols += 1;
+        continue;
+      }
+
+      // Not requested by this scan's own plan, so it does not need to be read. Failing here
+      // used to mark the whole stream task as failed when scanAllCols pushed every mapped
+      // column while the plan only referenced the primary timestamp.
+      numOfSkippedCols += 1;
+      continue;
+    }
+
+    numOfMappedCols += 1;
+  }
+
+  pCond->numOfCols = numOfMappedCols;
+  if (numOfMappedCols <= 0) {
+    // Nothing can be read for this origin table: keep failing instead of handing a
+    // zero-column condition to the reader.
+    code = TSDB_CODE_NOT_FOUND;
+    lino = __LINE__;
+    goto _return;
+  }
+  if (numOfSkippedCols > 0) {
+    qDebug("%s read %d of %d mapped columns, %d not requested by the scan plan", __func__, numOfMappedCols,
+           numOfCandidates, numOfSkippedCols);
   }
 
   return code;
 _return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(terrno));
+  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   taosMemoryFreeClear(pCond->colList);
   taosMemoryFreeClear(pCond->pSlotList);
+  pCond->numOfCols = 0;
   return code;
 }
 
@@ -6187,6 +6236,67 @@ static int32_t createCurrentGroupReadFromCalc(SStreamRuntimeFuncInfo* pStream) {
   return TSDB_CODE_SUCCESS;
 }
 
+// splitmix64 finalizer: cheap avalanche mixer that turns a weakly-random 64-bit
+// value into a well-mixed one. Raw table uids are NOT uniformly random (see
+// tGenIdPI64: process prefix + 256ms time slice + a low 20-bit serial), so the
+// fingerprint must not combine them with linear ops only.
+static uint64_t mixUidForFingerprint(uint64_t x) {
+  x ^= x >> 30;
+  x *= 0xbf58476d1ce4e5b9ULL;
+  x ^= x >> 27;
+  x *= 0x94d049bb133111ebULL;
+  x ^= x >> 31;
+  return x;
+}
+
+// Compute an order-independent 128-bit fingerprint of the qualified child-table
+// uids. The fingerprint is built over pTableListInfo->map (the de-duplicated uid
+// set actually used for filtering), NOT over pTableList: multi-group scans append
+// one entry per gid for the same table, so pTableList can hold duplicate uids
+// whose XOR contributions cancel out pairwise and would make every single-table
+// group fingerprint (0,0). Two scans that qualify different child-table sets get
+// different fingerprints, so they must not share a vc_cols cache entry even when
+// they read the same virtual super table. XOR is commutative and associative,
+// so the same uid set maps to the same fingerprint regardless of the order the
+// table list was built in.
+static void computeTableListFingerprint(STableListInfo* pTableListInfo) {
+  uint64_t h1 = 0;
+  uint64_t h2 = 0;
+  if (pTableListInfo->map != NULL) {
+    void *pIter = taosHashIterate(pTableListInfo->map, NULL);
+    while (pIter != NULL) {
+      size_t keyLen = 0;
+      void  *pKey = taosHashGetKey(pIter, &keyLen);
+      if (pKey != NULL && keyLen == sizeof(uint64_t)) {
+        uint64_t uid = *(uint64_t *)pKey;
+        // Mix each uid before accumulation: consecutive uids differ only in the
+        // low bits (tGenIdPI64 serial), so raw XOR over them collides
+        // deterministically. The second lane feeds the mixed value through a
+        // different constant so the two lanes stay decorrelated.
+        h1 ^= mixUidForFingerprint(uid);
+        h2 ^= mixUidForFingerprint(uid ^ 0x9e3779b97f4a7c15ULL);
+      }
+      pIter = taosHashIterate(pTableListInfo->map, pIter);
+    }
+  } else {
+    int32_t n = taosArrayGetSize(pTableListInfo->pTableList);
+    for (int32_t i = 0; i < n; ++i) {
+      STableKeyInfo* pKey = taosArrayGet(pTableListInfo->pTableList, i);
+      uint64_t       uid = pKey->uid;
+      h1 ^= mixUidForFingerprint(uid);
+      h2 ^= mixUidForFingerprint(uid ^ 0x9e3779b97f4a7c15ULL);
+    }
+  }
+  pTableListInfo->mapFingerprint[0] = h1;
+  pTableListInfo->mapFingerprint[1] = h2;
+}
+
+#if defined(BUILD_TEST)
+void execTestComputeTableListFingerprint(STableListInfo* pTableListInfo) {
+  computeTableListFingerprint(pTableListInfo);
+}
+#endif
+
 int32_t createPreparedScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort,
                                         SReadHandle* pHandle, STableListInfo* pTableListInfo, SNode* pTagCond,
                                         SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo, SHashObj* groupIdMap,
@@ -6217,6 +6327,7 @@ int32_t createPreparedScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pG
     }
   }
 
+  computeTableListFingerprint(pTableListInfo);
   return TSDB_CODE_SUCCESS;
 }
 

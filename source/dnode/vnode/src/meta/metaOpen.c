@@ -177,6 +177,13 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
     TSDB_CHECK_CODE(code = terrno, lino, _exit);
   }
 
+  // Seed the vtable metadata generation with a non-zero value. A reopened vnode
+  // gets a fresh (calloc-zeroed) SMeta, but the process-wide vc_cols cache
+  // registry survives across close/reopen of the same vgId; if both sides
+  // started from 0, a stale cached result could be treated as still valid. The
+  // seed is monotonic wall time so it differs across reopen cycles.
+  pMeta->vtableGen = taosGetTimestampNs();
+
   metaInitLock(pMeta);
 
   pMeta->path = (char *)&pMeta[1];
