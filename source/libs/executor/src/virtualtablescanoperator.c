@@ -35,6 +35,17 @@ typedef struct SVirtualTableScanInfo {
   uint64_t       alignUid;
   int8_t         alignPhase;
   bool           alignUidValid;
+  // NEXT deferred-output host: accumulate aligned rows in pAlignHold until no
+  // NEXT column has a pending position, then publish the block.  pAlignStash
+  // carries a tag-filled input block across a series-boundary publication.
+  SSDataBlock*   pAlignHold;
+  SSDataBlock*   pAlignStash;
+  uint64_t       alignHoldUid;
+  int8_t         alignHoldPhase;
+  bool           alignHoldUidValid;
+  bool           alignHasNext;
+  bool           alignHoldPublished;
+  bool           alignHoldUnpublished;  // rows accumulated but not yet returned
   SArray*        pSortInfo;
   SSortHandle*   pSortHandle;
   int32_t        bufPageSize;
@@ -97,9 +108,12 @@ typedef struct SLoadNextCtx {
 } SLoadNextCtx;
 
 static void    resetTimeAlignState(SVirtualTableScanInfo* pInfo);
+static bool    timeAlignAnyPending(SVirtualTableScanInfo* pInfo);
+static int32_t applyTimeAlignNext(SVirtualTableScanInfo* pInfo, SOperatorInfo* pOperator, SSDataBlock* pIn);
 static int32_t applyTimeAlign(SVirtualTableScanInfo* pInfo, SOperatorInfo* pOperator, SSDataBlock* pBlock);
 static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* pScanCols,
-                                       SNodeList* pAlignCols, SNodeList* pOutTargets, SExecTaskInfo* pTaskInfo);
+                                       SNodeList* pAlignCols, SNodeList* pOutTargets, int32_t tsSlotId,
+                                       const char* tzName, int8_t order, SExecTaskInfo* pTaskInfo);
 
 static SLoadNextCtx* findLoadNextCtx(const SVirtualTableScanInfo* pInfo, int32_t blockId) {
   if (pInfo == NULL || pInfo->pSortCtxList == NULL) {
@@ -2467,34 +2481,96 @@ int32_t virtualTableGetNext(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   VTS_ERR_JRET(ensureRefTagsResolved(pOperator));
 
   while (1) {
-    VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
-    if (*pResBlock == NULL) {
-      setOperatorCompleted(pOperator);
-      break;
-    }
+    bool fromStash = false;
+    bool holdReady = false;
 
-    if (pOperator->pOperatorGetParam) {
-      uint64_t uid = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->uid;
-      (*pResBlock)->info.id.uid = uid;
-      qTrace("vtable scan uid:%" PRIu64, (*pResBlock)->info.id.uid);
+    if (pVirtualScanInfo->alignHasNext && pVirtualScanInfo->pAlignStash != NULL) {
+      *pResBlock = pVirtualScanInfo->pAlignStash;
+      pVirtualScanInfo->pAlignStash = NULL;
+      fromStash = true;
     } else {
-      (*pResBlock)->info.id.uid = pInfo->virtualScanInfo.vtableUid;
-      qTrace("vtable scan vtb uid:%" PRIu64, (*pResBlock)->info.id.uid);
+      VTS_ERR_JRET(doVirtualTableMerge(pOperator, pResBlock));
+      if (*pResBlock == NULL) {
+        if (pVirtualScanInfo->alignHasNext && pVirtualScanInfo->pAlignHold != NULL &&
+            pVirtualScanInfo->alignHoldUnpublished) {
+          // End of the current series: unresolved NEXT positions keep their
+          // temporary NULLs and the held rows are published now.
+          *pResBlock = pVirtualScanInfo->pAlignHold;
+          pVirtualScanInfo->alignHoldPublished = true;
+          pVirtualScanInfo->alignHoldUnpublished = false;
+          pVirtualScanInfo->alignHoldUidValid = false;
+          resetTimeAlignState(pVirtualScanInfo);
+          holdReady = true;
+        } else {
+          setOperatorCompleted(pOperator);
+          break;
+        }
+      }
     }
 
-    // Dynamic vtable scans may need local metadata fill (resolved tags/tbname) even without a saved tag block.
-    bool tagAllNull = isSingleRowTagBlockAllNull(pInfo->pSavedTagBlock);
-    bool needMetadataFill =
-        (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
-        pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
-        pOperator->pOperatorGetParam != NULL ||
-        pVirtualScanInfo->pOwnedResolvedTags != NULL ||
-        pVirtualScanInfo->pConstRefResolvedTags != NULL;
-    if (needMetadataFill) {
-      VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
-                                      (*pResBlock)->info.rows));
+    if (!holdReady) {
+      if (!fromStash) {
+        if (pOperator->pOperatorGetParam) {
+          uint64_t uid = ((SVTableScanOperatorParam*)pOperator->pOperatorGetParam->value)->uid;
+          (*pResBlock)->info.id.uid = uid;
+          qTrace("vtable scan uid:%" PRIu64, (*pResBlock)->info.id.uid);
+        } else {
+          (*pResBlock)->info.id.uid = pInfo->virtualScanInfo.vtableUid;
+          qTrace("vtable scan vtb uid:%" PRIu64, (*pResBlock)->info.id.uid);
+        }
+
+        // Dynamic vtable scans may need local metadata fill (resolved tags/tbname) even without a saved tag block.
+        bool tagAllNull = isSingleRowTagBlockAllNull(pInfo->pSavedTagBlock);
+        bool needMetadataFill =
+            (pInfo->pSavedTagBlock != NULL && !tagAllNull) ||
+            pVirtualScanInfo->pSavedTagRefBlocks != NULL ||
+            pOperator->pOperatorGetParam != NULL ||
+            pVirtualScanInfo->pOwnedResolvedTags != NULL ||
+            pVirtualScanInfo->pConstRefResolvedTags != NULL;
+        if (needMetadataFill) {
+          VTS_ERR_JRET(doSetTagColumnData(pOperator, pVirtualScanInfo, pInfo->pSavedTagBlock, (*pResBlock),
+                                          (*pResBlock)->info.rows));
+        }
+      }
+
+      if (!pVirtualScanInfo->alignHasNext) {
+        VTS_ERR_JRET(applyTimeAlign(pVirtualScanInfo, pOperator, *pResBlock));
+      } else {
+        uint64_t uid = (*pResBlock)->info.id.uid;
+        int8_t   phase = (*pResBlock)->info.scanFlag;
+        if (!fromStash && pVirtualScanInfo->pAlignHold != NULL && pVirtualScanInfo->alignHoldUnpublished &&
+            pVirtualScanInfo->alignHoldUidValid &&
+            (uid != pVirtualScanInfo->alignHoldUid || phase != pVirtualScanInfo->alignHoldPhase)) {
+          // Series boundary: publish the old series and keep this tag-filled
+          // block for the next call (the merge block is reused by the merge).
+          VTS_ERR_JRET(createOneDataBlock(*pResBlock, true, &pVirtualScanInfo->pAlignStash));
+          *pResBlock = pVirtualScanInfo->pAlignHold;
+          pVirtualScanInfo->alignHoldPublished = true;
+          pVirtualScanInfo->alignHoldUnpublished = false;
+          pVirtualScanInfo->alignHoldUidValid = false;
+          resetTimeAlignState(pVirtualScanInfo);
+          holdReady = true;
+        } else {
+          if (!pVirtualScanInfo->alignHoldUidValid) {
+            pVirtualScanInfo->alignHoldUid = uid;
+            pVirtualScanInfo->alignHoldPhase = phase;
+            pVirtualScanInfo->alignHoldUidValid = true;
+          }
+          VTS_ERR_JRET(applyTimeAlignNext(pVirtualScanInfo, pOperator, *pResBlock));
+          if (timeAlignAnyPending(pVirtualScanInfo)) {
+            // The held block has rows whose successor is still unknown; fetch
+            // another merged block before publishing anything.
+            *pResBlock = NULL;
+            continue;
+          }
+          *pResBlock = pVirtualScanInfo->pAlignHold;
+          pVirtualScanInfo->alignHoldPublished = true;
+          pVirtualScanInfo->alignHoldUnpublished = false;
+          holdReady = true;
+        }
+      }
     }
-    VTS_ERR_JRET(applyTimeAlign(pVirtualScanInfo, pOperator, *pResBlock));
+
     if (pOperator->exprSupp.pFilterInfo != NULL) {
       const char* filterTbName = NULL;
       if (pOperator->pOperatorGetParam != NULL) {
@@ -2559,6 +2635,11 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   SVirtualTableScanInfo*         pInfo = &pOperatorInfo->virtualScanInfo;
   blockDataDestroy(pOperatorInfo->binfo.pRes);
   pOperatorInfo->binfo.pRes = NULL;
+
+  blockDataDestroy(pInfo->pAlignHold);
+  pInfo->pAlignHold = NULL;
+  blockDataDestroy(pInfo->pAlignStash);
+  pInfo->pAlignStash = NULL;
 
   tsortDestroySortHandle(pInfo->pSortHandle);
   pInfo->pSortHandle = NULL;
@@ -2671,6 +2752,13 @@ int32_t resetVirtualTableMergeOperState(SOperatorInfo* pOper) {
   pOper->status = OP_NOT_OPENED;
   resetBasicOperatorState(&pMergeInfo->binfo);
   resetTimeAlignState(pInfo);
+  blockDataDestroy(pInfo->pAlignHold);
+  pInfo->pAlignHold = NULL;
+  blockDataDestroy(pInfo->pAlignStash);
+  pInfo->pAlignStash = NULL;
+  pInfo->alignHoldUidValid = false;
+  pInfo->alignHoldPublished = false;
+  pInfo->alignHoldUnpublished = false;
   pMergeInfo->phase1Done = false;  // twoPassMode: restart from phase-1 on operator reset/retry
   pMergeInfo->twoPassErr = 0;
 
@@ -2770,10 +2858,93 @@ static void resetTimeAlignState(SVirtualTableScanInfo* pInfo) {
   pInfo->alignUidValid = false;
 }
 
+static SNode* makeTimeAlignTinyIntValue(int8_t value) {
+  SValueNode* pVal = NULL;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal)) {
+    return NULL;
+  }
+  pVal->node.resType =
+      (SDataType){.type = TSDB_DATA_TYPE_TINYINT, .bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes};
+  if (TSDB_CODE_SUCCESS != nodesSetValueNodeValue(pVal, &value)) {
+    nodesDestroyNode((SNode*)pVal);
+    return NULL;
+  }
+  pVal->translate = true;
+  pVal->isNull = false;
+  return (SNode*)pVal;
+}
+
+// Append the optional time-range arguments of one align column:
+// (ts, spanValue, spanUnit, tzName, orderFlag).  orderFlag bit 0 marks
+// monotonic delivery and bit 1 descending timestamp order.
+static int32_t appendTimeAlignRangeParams(SFunctionNode* pFunc, const SColumnNode* pOut, int32_t tsSlotId,
+                                          const char* tzName, bool desc) {
+  if (!pOut->alignHasSpan) return TSDB_CODE_SUCCESS;
+  if (tsSlotId < 0) {
+    qError("TIME_ALIGN: no timestamp slot for the time range of column '%s'", pOut->colName);
+    return TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;
+  }
+
+  SColumnNode* pTs = NULL;
+  int32_t      code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pTs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pTs->node.resType = (SDataType){.type = TSDB_DATA_TYPE_TIMESTAMP,
+                                  .bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes,
+                                  .precision = TSDB_TIME_PRECISION_MILLI};
+  pTs->slotId = tsSlotId;
+  pTs->colId = 0;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTs);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pTs);
+    return code;
+  }
+
+  SNode* pNode = NULL;
+  code = nodesMakeValueNodeFromInt64(pOut->alignSpanValue, &pNode);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+
+  pNode = makeTimeAlignTinyIntValue(pOut->alignSpanUnit);
+  if (pNode == NULL) return terrno;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+
+  char tzBuf[TD_TIMEZONE_LEN] = {0};
+  if (tzName != NULL) tstrncpy(tzBuf, tzName, sizeof(tzBuf));
+  SValueNode* pTz = NULL;
+  code = nodesMakeValueNodeFromString(tzBuf, &pTz);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTz);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode((SNode*)pTz);
+    return code;
+  }
+
+  // Merged vtable blocks are monotonic per series; the descending bit tells
+  // the fill function to measure the range along the delivery direction.
+  pNode = makeTimeAlignTinyIntValue((int8_t)(0x1 | (desc ? 0x2 : 0)));
+  if (pNode == NULL) return terrno;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* pScanCols,
-                                       SNodeList* pAlignCols, SNodeList* pOutTargets, SExecTaskInfo* pTaskInfo) {
+                                       SNodeList* pAlignCols, SNodeList* pOutTargets, int32_t tsSlotId,
+                                       const char* tzName, int8_t order, SExecTaskInfo* pTaskInfo) {
   if (pAlignCols == NULL || LIST_LENGTH(pAlignCols) == 0) return TSDB_CODE_SUCCESS;
 
+  bool       desc = (order == TSDB_ORDER_DESC);
   SNodeList* pTargets = NULL;
   int32_t    code = nodesMakeList(&pTargets);
   if (code != TSDB_CODE_SUCCESS) return code;
@@ -2782,6 +2953,15 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
   FOREACH(pNode, pAlignCols) {
     if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
     SColumnNode* pOut = (SColumnNode*)pNode;
+    // In a descending stream PREV maps to fill_next (pending rows resolve to
+    // the next smaller timestamp) and NEXT maps to fill_forward.
+    int8_t method = pOut->alignMethod;
+    if (desc) {
+      method = (method == ALIGN_METHOD_NEXT) ? ALIGN_METHOD_PREV : ALIGN_METHOD_NEXT;
+    }
+    if (method == ALIGN_METHOD_NEXT) {
+      pInfo->alignHasNext = true;
+    }
 
     SColumnNode* pSrc = findTimeAlignScanCol(pScanCols, pOut->colId);
     int32_t      srcSlotId = findTimeAlignSrcSlot(pOutTargets, pOut->colId);
@@ -2808,7 +2988,8 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
 
     code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
     if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pParam); goto _return; }
-    tstrncpy(pFunc->functionName, "fill_forward", TSDB_FUNC_NAME_LEN);
+    tstrncpy(pFunc->functionName, (method == ALIGN_METHOD_NEXT) ? "fill_next" : "fill_forward",
+             TSDB_FUNC_NAME_LEN);
     if (nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam) != TSDB_CODE_SUCCESS) {
       nodesDestroyNode((SNode*)pParam);
       nodesDestroyNode((SNode*)pFunc);
@@ -2816,6 +2997,11 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
       goto _return;
     }
     pParam = NULL;
+    code = appendTimeAlignRangeParams(pFunc, pOut, tsSlotId, tzName, desc);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode((SNode*)pFunc);
+      goto _return;
+    }
     pFunc->node.resType = pOut->node.resType;
     tstrncpy(pFunc->node.aliasName, pOut->colName, TSDB_COL_NAME_LEN);
     code = fmGetFuncInfo(pFunc, NULL, 0);
@@ -2889,6 +3075,87 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
 
 _return:
   nodesDestroyList(pTargets);
+  return code;
+}
+
+static bool timeAlignAnyPending(SVirtualTableScanInfo* pInfo) {
+  if (!pInfo->alignHasNext || pInfo->alignSup.pCtx == NULL) return false;
+  for (int32_t i = 0; i < pInfo->alignSup.numOfExprs; ++i) {
+    SqlFunctionCtx* pCtx = &pInfo->alignSup.pCtx[i];
+    if (pCtx->fpSet.hasPending != NULL && pCtx->fpSet.hasPending(pCtx)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Append every column of pIn to the held block.  The held block's row count is
+// deliberately left at the pre-append value: projectApplyFunctions() uses
+// pResult->info.rows as the output offset and advances it by the input rows.
+static int32_t appendBlockToAlignHold(SVirtualTableScanInfo* pInfo, SSDataBlock* pIn) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInfo->pAlignHold == NULL) {
+    code = createOneDataBlock(pIn, false, &pInfo->pAlignHold);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else if (pInfo->alignHoldPublished) {
+    blockDataCleanup(pInfo->pAlignHold);
+    pInfo->alignHoldPublished = false;
+  }
+
+  int32_t rowsBefore = pInfo->pAlignHold->info.rows;
+  code = blockDataEnsureCapacity(pInfo->pAlignHold, rowsBefore + pIn->info.rows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // The held block is published in place of the merged blocks, so it must carry
+  // the current series identity and scan phase (PRE_SCAN/MAIN_SCAN).  Two-pass
+  // consumers such as percentile dispatch on info.scanFlag.
+  pInfo->pAlignHold->info.id = pIn->info.id;
+  pInfo->pAlignHold->info.scanFlag = pIn->info.scanFlag;
+
+  int32_t capacity = (int32_t)pInfo->pAlignHold->info.capacity;
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->pAlignHold->pDataBlock); ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pInfo->pAlignHold->pDataBlock, i);
+    SColumnInfoData* pSrc = taosArrayGet(pIn->pDataBlock, i);
+    if (pDst == NULL || pSrc == NULL) {
+      return TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;
+    }
+    code = colDataMergeCol(pDst, rowsBefore, &capacity, pSrc, pIn->info.rows);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+  pInfo->alignHoldUnpublished = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+// NEXT path: append the tag-filled merged block to the held block and run the
+// align stage with pResult=hold, pSrc=merged block.  The function contexts keep
+// their pending queues across calls; publishing is decided by the caller.
+static int32_t applyTimeAlignNext(SVirtualTableScanInfo* pInfo, SOperatorInfo* pOperator, SSDataBlock* pIn) {
+  int32_t code = appendBlockToAlignHold(pInfo, pIn);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  SVirtualScanMergeOperatorInfo* pMergeInfo = (SVirtualScanMergeOperatorInfo*)pOperator->info;
+  int32_t order = (pMergeInfo != NULL) ? pMergeInfo->binfo.inputTsOrder : TSDB_ORDER_ASC;
+  code = setInputDataBlock(&pInfo->alignSup, pIn, order, pIn->info.scanFlag, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  for (int32_t i = 0; i < pInfo->alignSup.numOfExprs; ++i) {
+    pInfo->alignSup.pCtx[i].pOutput = NULL;
+  }
+  code = projectApplyFunctions(pInfo->alignSup.pExprInfo, pInfo->pAlignHold, pIn, pInfo->alignSup.pCtx,
+                               pInfo->alignSup.numOfExprs, NULL, NULL, pOperator->pTaskInfo);
+  if (code == TSDB_CODE_SUCCESS && pInfo->tsSlotId >= 0) {
+    code = blockDataUpdateTsWindow(pInfo->pAlignHold, pInfo->tsSlotId);
+  }
   return code;
 }
 
@@ -3002,10 +3269,13 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
   pVirtualScanInfo->sortBufSize = (uint64_t)pVirtualScanInfo->bufPageSize *
                                   (uint64_t)(numOfDownstream + 1);  // one additional is reserved for merged result.
   VTS_ERR_JRET(normalizeFederatedOutputTargets(pVirtualScanPhyNode->pTargets, pDownstream, numOfDownstream));
-  VTS_ERR_JRET(createTimeAlignExprSupp(pVirtualScanInfo, pVirtualScanPhyNode->scan.pScanCols,
-                                       pVirtualScanPhyNode->pAlignCols, pVirtualScanPhyNode->pTargets, pTaskInfo));
   VTS_ERR_JRET(extractColMap(pVirtualScanPhyNode->pTargets, &pVirtualScanInfo->dataSlotMap, &pVirtualScanInfo->tsSlotId,
                              &pVirtualScanInfo->tagBlockId, &pVirtualScanInfo->useOrgTsCol));
+  VTS_ERR_JRET(createTimeAlignExprSupp(
+      pVirtualScanInfo, pVirtualScanPhyNode->scan.pScanCols, pVirtualScanPhyNode->pAlignCols,
+      pVirtualScanPhyNode->pTargets, pVirtualScanInfo->tsSlotId, pVirtualScanPhyNode->timezoneName,
+      (pVirtualScanPhyNode->scan.node.inputTsOrder == ORDER_DESC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC,
+      pTaskInfo));
 
   if (!pVirtualScanPhyNode->scan.node.dynamicOp) {
     VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));

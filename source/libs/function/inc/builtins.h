@@ -90,6 +90,7 @@ typedef struct SBuiltinFuncDefinition {
   FCreateMergeFuncParameters createMergeParaFuc;
   FEstimateReturnRows        estimateReturnRowsFunc;
   processFuncByRow           processFuncByRow;
+  FExecHasPending            hasPending;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];

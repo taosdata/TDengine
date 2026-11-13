@@ -20,7 +20,7 @@ On top of standard SQL, TDengine extends querying for time-series and IoT scenar
   Arithmetic, comparison, logical, bitwise, JSON, and set operators. See [Operators](../05-tdengine-sql/04-data-query/02-operators.md).
 
 - **Aggregation and functions**
-  Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
+  Statistical aggregates such as `COUNT` / `AVG` / `MAX`, plus selection, math, time, and time-series–specific built-ins, as well as table functions. See [Functions](../05-tdengine-sql/04-data-query/03-function.md).
 
 - **Tags and partitioning**
   Filter by tags; use `GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` to aggregate and limit by device or tag. See [Data Querying](../05-tdengine-sql/04-data-query/01-query.md).

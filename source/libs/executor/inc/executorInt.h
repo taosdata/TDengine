@@ -461,6 +461,8 @@ int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, i
                                 const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened);
 int32_t closeTableScanReader(STableScanBase* pBase);
 
+typedef struct SAlignStage SAlignStage;
+
 typedef struct STableScanInfo {
   STableScanBase  base;
   SScanInfo       scanInfo;
@@ -514,6 +516,10 @@ typedef struct STableScanInfo {
   int8_t          currentPhase;  // EScanPhase for MAIN_FIRST groupSort
   bool            groupSort;  // scan table groups sequentially
   bool            groupDone;  // early-stop the current MAIN_FIRST group
+  SAlignStage*    pAlignStage;  // TIME_ALIGN stage for non-virtual table inputs
+  SSDataBlock*    pAlignPendingIn;  // input block waiting for a phase-switch flush
+  int8_t          alignPhase;
+  bool            alignPhaseValid;
 } STableScanInfo;
 
 typedef enum ESubTableInputType {
@@ -595,6 +601,12 @@ typedef struct STableMergeScanInfo {
   bool            bSortRowId;
 
   STmsSubTablesMergeInfo* pSubTablesMergeInfo;
+
+  // TIME_ALIGN over a super table: the stage runs on each per-table block
+  // before the block enters the ts merge, so PREV/NEXT state is keyed by the
+  // block uid and rows of different tables never mix in one fill series.
+  SAlignStage* pAlignStage;
+  bool         alignSourceDone;  // source exhausted; publish the remaining held blocks
 } STableMergeScanInfo;
 
 typedef struct STagScanFilterContext {

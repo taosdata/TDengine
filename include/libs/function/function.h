@@ -66,6 +66,9 @@ typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunct
 typedef int32_t (*FExecDecode)(struct SqlFunctionCtx *pCtx, const char *buf,
                                struct SResultRowEntryInfo *pResultCellInfo, int32_t version);
 typedef int32_t (*processFuncByRow)(SArray *pCtx);  // array of SqlFunctionCtx
+// Deferred-output functions (e.g. fill_next) keep rows before publishing the
+// host's result block: the host must not emit a block while this returns true.
+typedef bool (*FExecHasPending)(struct SqlFunctionCtx *pCtx);
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv        getEnv;
@@ -81,6 +84,7 @@ typedef struct SFuncExecFuncs {
   FExecCleanUp     cleanup;
   FExecDecode      decode;
   processFuncByRow processFuncByRow;
+  FExecHasPending  hasPending;
 } SFuncExecFuncs;
 
 #define MAX_INTERVAL_TIME_WINDOW 10000000  // maximum allowed time windows in final results

@@ -119,6 +119,21 @@ typedef struct SMinmaxResInfo {
   int16_t   type;
 } SMinmaxResInfo;
 
+// TIME_ALIGN optional time-range parameter state.  Fixed units are converted
+// to ticks of the input time axis precision with getDuration(); calendar units
+// (n/y) keep the period count and advance timestamps with taosTimeAdd().
+typedef struct SFillSpanInfo {
+  bool       hasSpan;
+  bool       spanReady;   // spanTicks/tz resolved against the input ts column
+  int64_t    spanValue;
+  int8_t     spanUnit;
+  int64_t    spanTicks;   // b/u/a/s/m/h/d/w converted with the ts precision
+  timezone_t tz;          // calendar units only; owned by the function state
+  int8_t     precision;   // time axis precision
+  bool       mono;        // input timestamps are monotonic in the delivery direction
+  bool       desc;        // rows are delivered in descending timestamp order
+} SFillSpanInfo;
+
 typedef struct SFillforwardInfo {
   union {
     struct {
@@ -131,7 +146,27 @@ typedef struct SFillforwardInfo {
   };
 
   bool nonnull;
+  SFillSpanInfo span;
+  int64_t       lastTs;  // timestamp of the most recent non-NULL value
+  bool          tsValid;
 } SFillforwardInfo;
+
+// One output position whose successor value is not known yet, together with
+// the row timestamp used by the optional time-range parameter.
+typedef struct SFillNextPending {
+  int32_t pos;    // absolute output position in the host result block
+  int64_t rowTs;  // timestamp of the pending row
+} SFillNextPending;
+
+// NEXT keeps the output positions whose successor is not known yet.  The
+// positions are absolute row indexes in the host result block (the block that
+// accumulates rows across input blocks, see projectApplyFunctions), so a value
+// found in a later input block can be written back in place.
+typedef struct SFillNextInfo {
+  SArray* pPending;     // SArray<SFillNextPending>, ascending output positions
+  int32_t pendingHead;  // first unresolved entry (monotonic inputs only)
+  SFillSpanInfo span;
+} SFillNextInfo;
 
 typedef struct SOldMinMaxResInfo {
   bool      assign;  // assign the first value or not

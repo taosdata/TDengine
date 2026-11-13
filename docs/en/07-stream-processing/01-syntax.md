@@ -584,10 +584,11 @@ Details are as follows:
 [AS subquery]
 ```
 
-A computation task is the calculation executed by the stream after an event is triggered. It can be any type of query statement, and can operate on the trigger table or on other databases and tables. Computation tasks are highly flexible and should be carefully designed before creating the stream. Notes:
+A computation task is the calculation executed by the stream after an event is triggered. It can be a common query statement (table functions `TABLE(...)` are not supported), and can operate on the trigger table or on other databases and tables. Computation tasks are highly flexible and should be carefully designed before creating the stream. Notes:
 
 - The first column in the query output will serve as the primary key column of the output table: The first column in the query output must be a valid primary key value (TIMESTAMP). If the column type does not match, an error will occur when creating the stream. If a NULL value appears during execution, the corresponding computation result will be discarded.
 - Each trigger group’s computation results are written into the same output table (subtable or regular table) for that group: If the query also contains a GROUP BY clause, records with the same primary key in the grouped results will overwrite each other. If grouping is required, it is recommended to define a composite primary key for the output table.
+- **Table functions are not supported in computation tasks**: A `TABLE(...)` table function cannot be used in the `FROM` clause of a computation task.
 
 #### Placeholders
 

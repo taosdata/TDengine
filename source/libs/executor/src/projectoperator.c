@@ -15,6 +15,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "alignstage.h"
 #include "executorInt.h"
 #include "filter.h"
 #include "functionMgt.h"
@@ -22,6 +23,11 @@
 #include "querytask.h"
 #include "taoserror.h"
 #include "tdatablock.h"
+
+typedef struct SAlignCopyCol {
+  int32_t srcSlot;
+  int32_t dstSlot;
+} SAlignCopyCol;
 
 typedef struct SProjectProcessByRowState {
   SqlFunctionCtx* pCtx;
@@ -47,6 +53,15 @@ typedef struct SProjectOperatorInfo {
   bool                    drainingZeroRows;
   uint64_t                drainGroupId;
   uint64_t                bufferedGroupId;
+  // TIME_ALIGN projection host (views / external tables).
+  bool                    alignMode;
+  bool                    alignOutputOrder;  // view: follow the view's output row order
+  SAlignStage*            pAlignStage;
+  SArray*                 pAlignPassThrough;  // SAlignCopyCol: input slot -> output slot
+  SSDataBlock*            pAlignStaging;      // output-schema block fed to the align stage
+  SSDataBlock*            pAlignPendingIn;    // downstream block waiting for a phase flush
+  int8_t                  alignPhase;
+  bool                    alignPhaseValid;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -60,6 +75,9 @@ typedef struct SIndefOperatorInfo {
 
 static int32_t      doGenerateSourceData(SOperatorInfo* pOperator);
 static int32_t      doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t      doAlignProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
+static int32_t      createProjectAlignHost(SProjectOperatorInfo* pInfo, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                           SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo);
 static int32_t      doApplyIndefinitFunction(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 static int32_t      resetProcessByRowCtx(SqlFunctionCtx* pCtx);
 static int32_t      projectResetProcessByRowStates(SProjectOperatorInfo* pInfo);
@@ -459,6 +477,12 @@ static void destroyProjectOperatorInfo(void* param) {
   taosArrayDestroy(pInfo->pProcessByRowStates);
 
   blockDataDestroy(pInfo->pFinalRes);
+  alignStageDestroy(pInfo->pAlignStage);
+  pInfo->pAlignStage = NULL;
+  blockDataDestroy(pInfo->pAlignStaging);
+  pInfo->pAlignStaging = NULL;
+  taosArrayDestroy(pInfo->pAlignPassThrough);
+  pInfo->pAlignPassThrough = NULL;
   taosMemoryFreeClear(param);
 }
 
@@ -803,6 +827,11 @@ static int32_t resetProjectOperState(SOperatorInfo* pOper) {
   pProject->pendingEogGroupId = 0;
   projectClearZeroRowDrain(pProject);
   pProject->bufferedGroupId = 0;
+  if (pProject->pAlignStage != NULL) {
+    alignStageReset(pProject->pAlignStage);
+    pProject->pAlignPendingIn = NULL;
+    pProject->alignPhaseValid = false;
+  }
   if (pProject->pPublishedStream != NULL && (pProject->pPublishedStream->pStreamBlkWinIdx == pProject->pInputWinIdx ||
                                              pProject->pPublishedStream->pStreamBlkWinIdx == pProject->pOutputWinIdx)) {
     pProject->pPublishedStream->pStreamBlkWinIdx = NULL;
@@ -882,6 +911,10 @@ int32_t createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* 
   SExprInfo* pExprInfo = NULL;
   code = createExprInfo(pProjPhyNode->pProjections, NULL, &pExprInfo, &numOfCols);
   TSDB_CHECK_CODE(code, lino, _error);
+  if (pProjPhyNode->timeAlignProject) {
+    code = createProjectAlignHost(pInfo, pExprInfo, numOfCols, pProjPhyNode, pTaskInfo);
+    TSDB_CHECK_CODE(code, lino, _error);
+  }
   code = initAggSup(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str,
                     NULL, &pTaskInfo->storageAPI.functionStore);
   TSDB_CHECK_CODE(code, lino, _error);
@@ -996,10 +1029,321 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   return PROJECT_RETRIEVE_DONE;
 }
 
+static bool projectExprIsFillFunc(const SExprInfo* pExpr) {
+  if (pExpr == NULL || pExpr->pExpr == NULL || QUERY_NODE_FUNCTION != pExpr->pExpr->nodeType) return false;
+  const char* name = pExpr->pExpr->_function.functionName;
+  return strcmp(name, "fill_forward") == 0 || strcmp(name, "fill_next") == 0;
+}
+
+// TIME_ALIGN projection host: all non-fill projections are pass-through
+// columns, every fill function is fed by one of them.  The align stage keeps
+// the deferred-output state; the Project only builds the staging block and
+// evaluates WHERE on the published result.
+static int32_t createProjectAlignHost(SProjectOperatorInfo* pInfo, SExprInfo* pExprInfo, int32_t numOfExprs,
+                                      SProjectPhysiNode* pProjPhyNode, SExecTaskInfo* pTaskInfo) {
+  int32_t             numOfAlign = 0;
+  SDataBlockDescNode* pDescNode = pProjPhyNode->node.pOutputDataBlockDesc;
+  SArray*             pPass = taosArrayInit(4, sizeof(SAlignCopyCol));
+  if (pPass == NULL) return terrno;
+
+  SAlignStageCol* pCols = taosMemoryCalloc(numOfExprs, sizeof(SAlignStageCol));
+  if (pCols == NULL) {
+    taosArrayDestroy(pPass);
+    return terrno;
+  }
+
+  int32_t tsSlotId = -1;
+  int32_t firstTsOutSlot = -1;
+  // Pass 1: pass-through columns.  The staging block is laid out in the
+  // project's output order, so every input slot is remapped to its output slot.
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprInfo[i];
+    if (projectExprIsFillFunc(pExpr) || pExpr->pExpr->nodeType != QUERY_NODE_COLUMN) continue;
+    int32_t        outSlot = pExpr->base.resSchema.slotId;
+    SAlignCopyCol copy = {.srcSlot = pExpr->base.pParam[0].pCol->slotId, .dstSlot = outSlot};
+    if (NULL == taosArrayPush(pPass, &copy)) {
+      taosMemoryFree(pCols);
+      taosArrayDestroy(pPass);
+      return terrno;
+    }
+    if (TSDB_DATA_TYPE_TIMESTAMP == pExpr->base.resSchema.type) {
+      if (firstTsOutSlot < 0) firstTsOutSlot = outSlot;
+      if (!pProjPhyNode->timeAlignOutputOrder && tsSlotId < 0) tsSlotId = outSlot;
+    }
+  }
+
+  // Pass 2: fill functions read their source value from the staging slot that
+  // carries the corresponding pass-through column.  Projection pruning may
+  // remove a source pass-through that only the fill function needs, so fall
+  // back to copying the downstream column straight into the fill output slot.
+  int32_t spanTsSlotId = -1;
+  char    tzName[TD_TIMEZONE_LEN] = {0};
+  bool    mono = true;
+  bool    spanFound = false;
+  int32_t numOfPass = (int32_t)taosArrayGetSize(pPass);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprInfo[i];
+    if (!projectExprIsFillFunc(pExpr)) continue;
+    int32_t inputSlot = pExpr->base.numOfParams > 0 ? pExpr->base.pParam[0].pCol->slotId : -1;
+    if (inputSlot < 0) {
+      taosMemoryFree(pCols);
+      taosArrayDestroy(pPass);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    int32_t stagingSlot = -1;
+    for (int32_t k = 0; k < numOfPass; ++k) {
+      SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+      if (pCopy->srcSlot == inputSlot) {
+        stagingSlot = pCopy->dstSlot;
+        break;
+      }
+    }
+    if (stagingSlot < 0) {
+      stagingSlot = pExpr->base.resSchema.slotId;
+      SAlignCopyCol copy = {.srcSlot = inputSlot, .dstSlot = stagingSlot};
+      if (NULL == taosArrayPush(pPass, &copy)) {
+        taosMemoryFree(pCols);
+        taosArrayDestroy(pPass);
+        return terrno;
+      }
+    }
+
+    SAlignStageCol* pCol = &pCols[numOfAlign++];
+    pCol->srcSlotId = stagingSlot;
+    pCol->outSlotId = pExpr->base.resSchema.slotId;
+    pCol->type.type = pExpr->base.resSchema.type;
+    pCol->type.bytes = pExpr->base.resSchema.bytes;
+    pCol->type.precision = pExpr->base.resSchema.precision;
+    pCol->type.scale = pExpr->base.resSchema.scale;
+    pCol->method = (strcmp(pExpr->pExpr->_function.functionName, "fill_next") == 0) ? ALIGN_METHOD_NEXT
+                                                                                   : ALIGN_METHOD_PREV;
+    tstrncpy(pCol->name, pExpr->base.resSchema.name, TSDB_COL_NAME_LEN);
+
+    // Optional time-range parameter: the planner appended
+    // (ts, spanValue, spanUnit, tzName, mono) to the fill expression.
+    if (pExpr->base.numOfParams == 6 && pExpr->base.pParam[1].type == FUNC_PARAM_TYPE_COLUMN &&
+        pExpr->base.pParam[1].pCol != NULL && pExpr->base.pParam[2].type == FUNC_PARAM_TYPE_VALUE &&
+        pExpr->base.pParam[3].type == FUNC_PARAM_TYPE_VALUE) {
+      pCol->hasSpan = true;
+      pCol->spanValue = pExpr->base.pParam[2].param.i;
+      pCol->spanUnit = (int8_t)pExpr->base.pParam[3].param.i;
+
+      if (!spanFound) {
+        spanFound = true;
+        int32_t tsInSlot = pExpr->base.pParam[1].pCol->slotId;
+        for (int32_t k = 0; k < numOfPass; ++k) {
+          SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+          if (pCopy->srcSlot == tsInSlot) {
+            spanTsSlotId = pCopy->dstSlot;
+            break;
+          }
+        }
+        if (spanTsSlotId < 0) {
+          // External/federated plans can report the time-axis projection under
+          // a different input slot than the one the fill parameter carries.
+          // Re-point that pass-through to the fill parameter's slot, which the
+          // planner selected as the time axis.
+          int32_t tsOutSlot = (tsSlotId >= 0) ? tsSlotId : firstTsOutSlot;
+          if (tsOutSlot >= 0) {
+            bool replaced = false;
+            for (int32_t k = 0; k < numOfPass; ++k) {
+              SAlignCopyCol* pCopy = taosArrayGet(pPass, k);
+              if (pCopy->dstSlot == tsOutSlot) {
+                pCopy->srcSlot = tsInSlot;
+                replaced = true;
+                break;
+              }
+            }
+            if (!replaced) {
+              SAlignCopyCol copy = {.srcSlot = tsInSlot, .dstSlot = tsOutSlot};
+              if (NULL == taosArrayPush(pPass, &copy)) {
+                taosMemoryFree(pCols);
+                taosArrayDestroy(pPass);
+                return terrno;
+              }
+              ++numOfPass;
+            }
+            spanTsSlotId = tsOutSlot;
+          }
+        }
+        if (pExpr->base.pParam[4].type == FUNC_PARAM_TYPE_VALUE &&
+            pExpr->base.pParam[4].param.pz != NULL) {
+          const char* name = varDataVal(pExpr->base.pParam[4].param.pz);
+          if (name != NULL) tstrncpy(tzName, name, sizeof(tzName));
+        }
+        if (pExpr->base.pParam[5].type == FUNC_PARAM_TYPE_VALUE) {
+          mono = (pExpr->base.pParam[5].param.i != 0);
+        }
+      }
+    }
+  }
+
+  if (numOfAlign == 0) {
+    taosMemoryFree(pCols);
+    taosArrayDestroy(pPass);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (spanFound && spanTsSlotId < 0) {
+    qError("TIME_ALIGN: time-axis column is missing from the align projection input");
+    taosMemoryFree(pCols);
+    taosArrayDestroy(pPass);
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+  // Table input compensates a descending sort pushed below the align Projection
+  // so the filled values stay identical to ascending timestamp order.  View
+  // input follows its own output row order, so PREV/NEXT always mean the
+  // previous/next output row and no direction compensation is applied.
+  int8_t order = (!pProjPhyNode->timeAlignOutputOrder &&
+                  pProjPhyNode->node.inputTsOrder == TSDB_ORDER_DESC)
+                     ? TSDB_ORDER_DESC
+                     : TSDB_ORDER_ASC;
+  int32_t code = alignStageCreate(&pInfo->pAlignStage, pCols, numOfAlign, tsSlotId, spanTsSlotId, tzName, mono,
+                                  order, pTaskInfo);
+  taosMemoryFree(pCols);
+  if (TSDB_CODE_SUCCESS != code) {
+    taosArrayDestroy(pPass);
+    return code;
+  }
+  pInfo->pAlignPassThrough = pPass;
+  pInfo->alignMode = true;
+  pInfo->alignOutputOrder = pProjPhyNode->timeAlignOutputOrder;
+  pInfo->pAlignStaging = createDataBlockFromDescNode(pDescNode);
+  if (pInfo->pAlignStaging == NULL) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doAlignProjectFilter(SOperatorInfo* pOperator, SProjectOperatorInfo* pInfo, SSDataBlock* pBlock,
+                                    bool* pEmpty) {
+  *pEmpty = false;
+  if (pBlock == NULL) return TSDB_CODE_SUCCESS;
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    int32_t code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, NULL, NULL,
+                                               pOperator->pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pBlock->info.rows == 0) {
+    *pEmpty = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  bool limitReached = applyLimitOffset(&pInfo->limitInfo, pBlock, pOperator->pTaskInfo);
+  if (limitReached) {
+    setOperatorCompleted(pOperator);
+  }
+  if (pBlock->info.rows == 0) {
+    *pEmpty = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t doAlignProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
+  SProjectOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
+  int32_t               code = TSDB_CODE_SUCCESS;
+
+  *pResBlock = NULL;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return TSDB_CODE_SUCCESS;
+  }
+  while (1) {
+    SSDataBlock* pIn = pInfo->pAlignPendingIn;
+    pInfo->pAlignPendingIn = NULL;
+    if (pIn == NULL) {
+      pIn = getNextBlockFromDownstream(pOperator, 0);
+    }
+
+    if (pIn == NULL) {
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady == NULL) {
+        setOperatorCompleted(pOperator);
+        return TSDB_CODE_SUCCESS;
+      }
+      bool empty = false;
+      code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (empty) continue;
+      *pResBlock = pReady;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int8_t phase = pIn->info.scanFlag;
+    if (pInfo->alignPhaseValid && phase != pInfo->alignPhase) {
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady != NULL) {
+        pInfo->pAlignPendingIn = pIn;
+        bool empty = false;
+        code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        if (empty) continue;
+        *pResBlock = pReady;
+        return TSDB_CODE_SUCCESS;
+      }
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    } else if (!pInfo->alignPhaseValid) {
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    }
+
+    // Build the staging block in the project's output schema: pass-through
+    // columns are copied, align outputs stay empty for the fill functions.
+    blockDataCleanup(pInfo->pAlignStaging);
+    code = blockDataEnsureCapacity(pInfo->pAlignStaging, pIn->info.rows);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    int32_t capacity = (int32_t)pInfo->pAlignStaging->info.capacity;
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pInfo->pAlignPassThrough); ++i) {
+      SAlignCopyCol*   pCopy = taosArrayGet(pInfo->pAlignPassThrough, i);
+      SColumnInfoData* pDst = taosArrayGet(pInfo->pAlignStaging->pDataBlock, pCopy->dstSlot);
+      SColumnInfoData* pSrc = taosArrayGet(pIn->pDataBlock, pCopy->srcSlot);
+      if (pDst == NULL || pSrc == NULL) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      code = colDataMergeCol(pDst, 0, &capacity, pSrc, pIn->info.rows);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+    // Preserve the staging block's own capacity: only the identity/phase/row
+    // metadata follows the downstream block.
+    pInfo->pAlignStaging->info.rows = pIn->info.rows;
+    pInfo->pAlignStaging->info.id = pIn->info.id;
+    pInfo->pAlignStaging->info.scanFlag = pIn->info.scanFlag;
+    if (pIn->info.parTbName[0] != '\0') {
+      tstrncpy(pInfo->pAlignStaging->info.parTbName, pIn->info.parTbName, TSDB_TABLE_NAME_LEN);
+    }
+
+    // Views follow their output order: a reliable block groupId keeps its
+    // series separate, while DISTINCT/ordered projections with no grouping
+    // share one sequence keyed 0.
+    uint64_t key = pInfo->alignOutputOrder
+                       ? pIn->info.id.groupId
+                       : ((pIn->info.id.groupId != 0) ? pIn->info.id.groupId : pIn->info.id.uid);
+    SSDataBlock* pReady = NULL;
+    code = alignStageFeed(pInfo->pAlignStage, key, phase, pInfo->pAlignStaging, &pReady);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (pReady == NULL) {
+      continue;
+    }
+    bool empty = false;
+    code = doAlignProjectFilter(pOperator, pInfo, pReady, &empty);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (empty) continue;
+    *pResBlock = pReady;
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
 int32_t doProjectOperation(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
   QRY_PARAM_CHECK(pResBlock);
 
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
+  if (pProjectInfo->alignMode) {
+    return doAlignProjectOperation(pOperator, pResBlock);
+  }
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
   SExprSupp*            pSup = &pOperator->exprSupp;
   SSDataBlock*          pRes = pInfo->pRes;

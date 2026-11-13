@@ -58,6 +58,7 @@ table_expr: {
   | ( subquery )
   | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
   | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+  | TABLE(table_function_call)
 }
 
 column_list:
@@ -135,11 +136,11 @@ limit_expr: {
 ### 部分字段说明
 
 - select_expr: 选择列表达式，可以为常量、列、运算、函数以及它们的混合运算，不支持聚合函数的嵌套。
-- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图，也支持多表关联查询。
+- from_clause: 指定查询的数据源，可以是单个表（超级表、子表、普通表、虚拟表），也可以是视图或表函数结果，也支持多表关联查询。
 - table_reference: 指定单个表（含视图）的名称，可选指定表的别名。
-- table_expr: 指定查询数据源，可以为表名、视图名、子查询，或内联数据源（`TEXT` 或 `FILE`）。详见 [TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
+- table_expr: 指定查询数据源，可以为表名、视图名、子查询、表函数结果（`TABLE(...)`），或内联数据源（`TEXT` 或 `FILE`）。详见 [TABLE 表函数数据源](#table-表函数数据源)、[TEXT 内联数据源](#text-内联数据源) 和 [FILE CSV 文件数据源](#file-csv-文件数据源)。
 - column_list: `TEXT` 和 `FILE` 共用的列定义语法，每项为 `col_name type_name`。支持 JSON、GEOMETRY、BLOB 之外的其他类型。
-- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
+- join_clause: 连接查询。普通 JOIN 支持子表、普通表、超级表、虚拟表、表函数结果和子查询。WINDOW JOIN 必须指定 `WINDOW_OFFSET(start_offset, end_offset)`，设置窗口边界相对驱动表主键时间戳的偏移；时间单位见 [时间单位](../01-datatype.md#时间单位)（不支持月/季/年）。`JLIMIT` 限制每行最多匹配的行数，取值范围为 `[0, 1024]`；省略时，ASOF JOIN 默认最多匹配 1 行，WINDOW JOIN 匹配窗口内的全部行。ASOF/WINDOW 的输入限制和详细语法见 [关联查询](05-join.md)。
 - window_clause: 指定数据按照窗口进行切分并进行聚合，是时序数据库特色查询。详见 [特色查询](04-distinguished.md)。
   - SESSION: 会话窗口，ts_col 指定时间戳主键列，tol_val 指定时间间隔，正值，时间单位参见 [时间单位](../01-datatype.md#时间单位)（仅支持毫秒至周），如 SESSION(ts, 12s)。
   - STATE_WINDOW: 状态窗口，使用一个或多个状态键划分窗口（从 `v3.4.2.0` 版本开始支持多个状态键）。可以配置 `EXTEND` 参数指定窗口边界扩展策略，配置 `ZEROTH_STATE` 参数指定零状态过滤，配置 `TRUE_FOR` 参数指定窗口过滤条件。
@@ -449,7 +450,7 @@ SELECT _irowts_origin, interp(current) FROM meters RANGE('2020-01-01 10:00:00', 
 
 ## FROM 子句
 
-`FROM` 关键字后可以是一个或多个表（含超级表）引用、子查询结果，或 `TEXT` / `FILE` 内联数据源（见下文）。
+`FROM` 关键字后可以是一个或多个表（含超级表）引用、子查询结果、`TABLE` 表函数结果，或 `TEXT` / `FILE` 内联数据源（见下文）。
 如果未指定当前数据库，可以在表名前加数据库名做跨库引用，例如 `power.d1001`。
 
 TDengine 支持基于时间戳主键的 `INNER JOIN`，规则如下：
@@ -638,6 +639,24 @@ FROM FILE('./meter_readings.csv',
           'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
 INTERVAL(1h);
 ```
+
+## TABLE(...) 表函数数据源
+
+`TABLE` 将表函数的计算结果作为查询表源。表函数返回一个行集，其参数由具体函数定义；具体函数列表、参数和输出列见 [内置函数](03-function.md#表函数)。
+
+### 语法
+
+```sql
+TABLE(table_function_call)
+```
+
+### 说明
+
+- `TABLE(...)` 是表函数数据源的固定写法；括号内的表函数调用（函数名、参数个数、参数类型和写法）由具体表函数定义，详见 [内置函数](03-function.md#表函数)。
+- 可以为表函数结果指定表别名，用于 `JOIN` 或子查询中引用列，例如在 `TABLE(...)` 后写别名 `a`，再用 `a.column` 引用列。
+- `TABLE(...)` 只能出现在 `FROM` 子句中，可以用于 `FROM` 表源、`JOIN` 的一侧、子查询的 `FROM` 和 `UNION` 的一侧。
+- 表函数返回的行集可以继续参与 `WHERE`、`GROUP BY`、聚合函数、窗口、`ORDER BY`、`LIMIT` 等查询操作。
+- 表函数结果不是持久化表，不支持写入、`ALTER`、删除、订阅、流式计算，也不能直接作为 `CREATE VTABLE` 的列引用或 `CREATE TABLE ... AS` 的数据源。
 
 ## INTERP 子句
 

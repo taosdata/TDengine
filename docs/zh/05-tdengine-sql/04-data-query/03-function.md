@@ -7,15 +7,31 @@ toc_max_heading_level: 4
 
 ## 分类说明
 
-### 三类函数：标量、聚合、集合
+### 表达式函数的三类：标量、聚合、集合
 
-函数按 **输入→输出行数关系** 分为三类，这是函数分类的主维度：
+表达式函数按 **输入→输出行数关系** 分为三类，这是表达式函数分类的主维度：
 
 1. **标量函数（Scalar）**：每行输入产生一行输出（1 → 1）。每行计算仅依赖当前行的输入值。
 
 2. **聚合函数（Aggregate）**：多行输入产出单一结果值（N → 1）。需要看到全部输入行后才能产出结果。
 
 3. **集合函数（Set）**：多行输入产出一行或多行结果（N → M，其中 M ≥ 1）。输出行数由函数语义、参数或数据决定；M=1 是退化情形（如 `TOP(col,1)`）。与聚合函数的区别是：聚合函数输出行数固定为 1，集合函数的 M 可以大于 1。与标量函数的区别是：集合函数每行结果可能依赖多行输入（如相邻行上下文），标量函数每行仅依赖当前行。
+
+### 表函数（Table Function）
+
+除上述三类用于表达式的函数外，函数还包含 **表函数**。表函数返回一个行集，作为查询表源使用；其参数（包括是否接收表）由具体函数定义，与标量、聚合、集合函数按行数关系的分类相互独立。
+
+| 函数类型 | 输出 | 使用位置 | 代表函数 |
+| --- | --- | --- | --- |
+| 表函数 | 行集 | `FROM` 子句中的 `TABLE(...)` | `TIME_ALIGN` |
+
+表函数具有以下特点：
+
+- 只能在 `FROM` 子句中通过 `TABLE(...)` 调用，不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等表达式中，也不能作为标量、聚合或集合函数的参数。
+- 返回的行集可以像表一样参与 `JOIN`、子查询、`UNION`、聚合、窗口、排序和 `LIMIT` 等查询。
+- 表函数不适用下文的函数嵌套规则和并列共存规则。
+
+表函数的列表、参数和输出列见 [表函数](#表函数)。
 
 ### 管道函数（Pipeline Function）说明
 
@@ -86,9 +102,11 @@ SELECT abs(voltage), CSUM(current), LAG(voltage, 1) FROM meters;
 
 ## 函数使用规则
 
+以下嵌套规则和并列共存规则适用于在表达式中使用的标量、聚合和集合函数，不适用于表函数。
+
 ### 嵌套规则
 
-1. **标量可与任何类型函数嵌套**：只要满足参数要求即可：
+1. **标量可与任何表达式函数嵌套**：只要满足参数要求即可：
    - 标量可以作为聚合、集合或其他标量函数的参数（标量为内层）：`SUM(abs(voltage))`
    - 聚合、集合或其他标量函数的结果可以作为标量函数的参数（标量为外层）：`abs(SUM(voltage))`、`ROUND(AVG(voltage), 2)`、`abs(TOP(voltage, 1))`
 2. **聚合与集合之间不可嵌套**：聚合函数与集合函数之间互相不能直接或间接嵌套，没有例外。
@@ -4091,6 +4109,261 @@ ignore_null_values: {
 - 当有效时间线为退化时间线时，`NULL` 时间行会被跳过，改用非 `NULL` 时间行插值。时间线乱序时 `INTERP` 仍可执行，但因相邻点时间不连续，线性插值结果可能无物理意义。应在子查询中通过 `ORDER BY` 保证时间线有序。
 - 仅在 `FILL PREV` / `NEXT` / `NEAR` 模式下可使用伪列 `_irowts_origin`，用于返回插值所用原始数据的时间戳；范围内无值时返回 `NULL`。`_irowts_origin` 自 `v3.3.4.9` 起支持。
 - 对带复合主键的表，若存在相同时间戳的数据，仅复合主键最小的那一行参与运算。
+
+## 表函数
+
+表函数返回一个行集，在 `FROM` 子句中通过 `TABLE(...)` 调用。表函数结果可以像表一样参与 `JOIN`、子查询、聚合、窗口、排序和 `LIMIT` 等查询。
+
+表函数不是表达式函数：不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等位置，也不能作为标量、聚合或集合函数的参数。表函数结果不支持写入、`ALTER`、删除、订阅和流式计算。
+
+### TIME_ALIGN
+
+函数参数形式为 `TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list'])`；在查询中通过 `FROM` 子句的 `TABLE(...)` 调用。
+
+```sql
+TABLE(TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list']))
+
+output_raw: {
+    TRUE
+  | FALSE
+}
+
+column_list:
+    column_def [';' column_def ...]
+
+column_def:
+    column_name [':' [method]] [':' suffix]
+
+method:
+    (PREV | NEXT) ['(' duration ')']
+
+duration:
+    non_negative_integer time_unit
+
+time_unit:
+    b | u | a | s | m | h | d | w | n | q | y
+```
+
+**函数分类**：表函数。
+
+**功能说明**：`TIME_ALIGN` 是一个表函数，用于对输入表（虚拟表、非虚拟表、视图）中指定的单个、多个或所有列进行空值填充，目前支持前向与后向填充，可选是否输出原始列，可选增加填值列名字后缀，可选限定插值原始值的时间距离范围。
+
+**版本**：`v3.5.0.0`。
+
+**返回结果类型**：行集。
+
+**嵌套子查询支持**：可以作为子查询的 `FROM` 表源。
+
+**适用于**：普通表、子表、超级表、虚拟表、虚拟子表、虚拟超级表、外部表和视图。
+
+#### 参数说明
+
+| 参数 | 必选 | 类型 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `table_name` | 是 | `[db_name.]table_name` | 无 | 输入表，直接写表名，可带数据库名或外部表引用路径。 |
+| `output_raw` | 否 | `TRUE` / `FALSE` | `FALSE` | 是否输出原始数据列。 |
+| `column_list` | 否 | 字符串 | `*:PREV:` | 列定义列表，多个列定义用 `;` 分隔。 |
+
+- 参数顺序固定为 `output_raw`、`column_list`。
+- 省略 `output_raw` 时，列定义字符串可以直接作为第二个实参；一旦给出第三个实参，第二个实参必须是 `output_raw`，且只能是 `TRUE` 或 `FALSE`。
+- 省略 `output_raw` 和 `column_list` 时等价于 `TIME_ALIGN(t, FALSE, '*:PREV:')`。
+- `output_raw=TRUE` 且省略列定义时，默认列定义后缀为空，会与原始列重名；此时必须显式给出带非空后缀的列定义。
+
+示例：
+
+```sql
+TIME_ALIGN(t)
+TIME_ALIGN(t, FALSE)
+TIME_ALIGN(t, 'v:PREV:_p')
+TIME_ALIGN(t, TRUE, 'v:PREV:_p')
+TIME_ALIGN(power.t, FALSE, '*::_a')
+```
+
+#### 列定义
+
+列定义写在字符串参数中，多个列定义用 `;` 分隔，至少提供一个。
+
+```sql
+column_def:
+    column_name [':' [method]] [':' suffix]
+```
+
+| 写法 | 方法 | 后缀 | 等价写法 |
+| --- | --- | --- | --- |
+| `col` | `PREV` | 空 | `col:PREV:` |
+| `col:` | `PREV` | 空 | `col:PREV:` |
+| `col::` | `PREV` | 空 | `col:PREV:` |
+| `col:METHOD` | `METHOD` | 空 | `col:METHOD:` |
+| `col::suffix` | `PREV` | `suffix` | `col:PREV:suffix` |
+| `col:METHOD:suffix` | `METHOD` | `suffix` | 同左 |
+| `col:PREV(duration)` | `PREV`，带时间范围 | 空 | `col:PREV(duration):` |
+| `col:METHOD(duration):suffix` | `METHOD`，带时间范围 | `suffix` | 同左 |
+
+- `METHOD` 只能是 `PREV` 或 `NEXT`，不区分大小写。
+- 省略方法时默认为 `PREV`，省略后缀时后缀为空。
+- 只想指定后缀时必须写 `::`，例如 `*::_a`；`*:_a` 会把 `_a` 当作方法名并报错。
+- `col` 可以是列名或 `*`。表输入中 `*` 展开全部数据列，不包含主键时间戳列和标签列；视图输入中 `*` 展开视图的全部输出列，包括时间戳列和标签列；外部表没有主键时按视图输入处理，`*` 展开外部表的全部输出列。`*` 可以重复出现，也可以与其他列定义并存。
+- 列名支持反引号引用的标识符；分隔符扫描忽略反引号内的 `:` 和 `;`。后缀不能包含 `:` 或 `;`。
+- 列定义中列名、方法和后缀两侧的空白会被忽略；方法名与左括号之间、括号内两侧的空白也会被忽略。
+- 列定义最多三段，第 4 段及以后报错。
+- 同一源列可以定义多次，但每个定义产生的输出列名必须唯一。
+- 表输入中，主键时间戳列和标签列不能作为插值列；视图输入中，所有输出列都可以作为插值列；外部表没有主键时按视图输入处理，所有输出列都可以作为插值列。
+- 表输入的输出列名不能与原始列（`output_raw=TRUE` 时）、标签列或主键时间戳列重名；视图输入和没有主键的外部表，输出列名不能与原始输出列重名（`output_raw=TRUE` 时）。
+
+#### 输出列
+
+表输入的输出列顺序如下：
+
+1. 主键时间戳列：始终输出且只输出一次，位于第一列；列名和类型与输入表一致，不参与插值，不加后缀。
+2. 原始列：`output_raw=TRUE` 时输出输入表的全部数据列，顺序与输入表一致；未在列定义中出现的列也输出，不改名、不加后缀。
+3. 插值列：按列定义顺序输出；`*` 按输入表列顺序展开；同一源列可以产生多个插值列。
+4. 标签列：`output_raw=TRUE` 且输入为超级表时，在末尾输出标签列；输入为子表时不输出标签列。
+
+外部表没有主键时按视图输入处理：不强制输出时间戳列；`output_raw=TRUE` 时先输出外部表的全部列，再输出插值列；`output_raw=FALSE` 时只输出插值列。具体规则见下文“视图输入”。
+
+表输入中的标签列不参与插值，也不能被列定义引用。无论 `output_raw` 取值如何，标签列都可以在表函数结果上按列名查询、过滤和分组；`output_raw=FALSE` 时 `SELECT *` 不包含表输入的标签列。超级表的 `tbname` 伪列可以用于分组（例如 `PARTITION BY tbname`）。
+
+#### 插值规则
+
+表输入对每个输出行（设时间戳为 t）的每个插值列：
+
+- `PREV`：取同序列中输入时间戳小于等于 t 且时间戳最大的非 `NULL` 值；没有候选时输出 `NULL`。
+- `NEXT`：取同序列中输入时间戳大于等于 t 且时间戳最小的非 `NULL` 值；没有候选时输出 `NULL`。
+- 当前行该列本身有非 `NULL` 值时，直接输出该值，不进行插值。
+- 源列的 `NULL` 视为无值并跳过；`NULL` 行仍保留在输出行集中。
+- 插值按序列独立进行，不跨序列传播值。超级表按子表划分序列，虚拟超级表按虚拟子表划分序列，带标签的普通表按标签组合划分序列。
+- 同一个源列可以定义多个插值列，每个插值列按自己的方法和时间范围独立计算。
+
+#### 时间范围参数
+
+方法后可以带一个可选的时间范围参数，写法为 `PREV(duration)` 或 `NEXT(duration)`。表输入按以下规则生效；视图输入和没有主键的外部表不生效，规则见下文“视图输入”。
+
+- `duration` 为非负整数加时间单位。单位支持 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（时）、`d`（天）、`w`（周）、`n`（月）、`q`（季）、`y`（年），不区分大小写。
+- 不支持负数、小数、复合时长和省略单位；例如 `PREV(8)`、`PREV(-8s)`、`PREV(1.5s)`、`PREV(8x)`、`PREV()`、`PREV(8s,1h)` 都报错。
+- `PREV(0s)` 和 `NEXT(0s)` 合法，只接受同一时间戳上的候选值。
+- 省略括号表示不限制时间距离。
+- 时间范围只对需要插值的 `NULL` 行生效；当前行有非 `NULL` 值时直接输出该值。
+- 距离按闭区间判断：距离等于 `duration` 时仍使用该候选值。
+- 只考虑最近的候选值：如果最近候选超出范围，输出 `NULL`，不使用更远的候选值。
+- 固定单位 `b`、`u`、`a`、`s`、`m`、`h`、`d`、`w` 按输入时间轴的精度换算；单位小于时间轴精度时按精度取整，可能为 0。
+- 日历单位 `n`、`q`、`y` 按日历推进，`q` 按 3 个月计算；`PREV` 以候选值的时间戳为基准，`NEXT` 以当前行的时间戳为基准。
+- 每个列定义独立携带自己的时间范围；同一源列可以同时定义不同的方向和时间范围。
+
+#### 行集
+
+表输入的输出行集由引用的源列决定；视图输入直接使用视图输出的全部行；外部表没有主键时按视图输入处理。外层 `SELECT` 只投影部分列时，行集和插值结果不变。
+
+表输入：
+
+| 配置 | 参与行集的列 |
+| --- | --- |
+| `output_raw=TRUE` | 全部数据列；对虚拟表，是全部原始数据列对应源表时间戳的并集 |
+| `output_raw=FALSE` | 列定义引用的源列；同一源列重复定义只计一次 |
+| `output_raw=FALSE` 且列定义包含 `*` | 全部数据列，即输入表的完整行集 |
+
+- 普通表的所有数据列共享同一时间轴，`output_raw` 不改变行集。
+- 虚拟表的时间轴是所引用列的并集，`output_raw` 或列定义不同可能得到不同行数。
+- 列定义引用的列在输入表中没有数据时，输出为空集。
+- 默认参数下 `*` 覆盖全部数据列，因此默认输出完整行集。
+- 输出行顺序不保证按时间戳有序；需要稳定顺序时，使用 `ORDER BY`。
+
+#### 视图输入
+
+视图不区分列类型，所有输出列都可以作为插值列，包括 `TIMESTAMP` 列和标签列。`TIME_ALIGN` 按视图输出行序插值，不按时间戳或主键列重新排序。
+
+外部表没有主键时与视图输入规则相同：不要求存在 `TIMESTAMP` 列，按外部扫描的输出行序插值，时间范围参数被忽略。
+
+- `PREV` 取当前输出行的前一行（跳过 `NULL`），`NEXT` 取后一行（跳过 `NULL`）。视图输出为时间戳降序时，也按该降序行序计算，不做方向补偿。
+- `output_raw=TRUE` 时，先按视图输出顺序输出视图的全部列（含标签列），再输出插值列。
+- `output_raw=FALSE` 时，只输出列定义产生的插值列。`*` 展开视图的全部输出列（含时间戳列和标签列）；显式列定义只输出被引用的列。
+- 视图自身的过滤、`LIMIT`、`ORDER BY`、聚合和窗口先执行，`TIME_ALIGN` 在视图输出行上执行；视图的 `LIMIT` 会限制参与插值的行。
+- 视图声明了 `PARTITION BY` 或 `GROUP BY`，且视图自身没有 `ORDER BY` 或 `DISTINCT` 时，每个分组是独立的序列，`PREV` 和 `NEXT` 不跨分组取值。
+- 视图自身有 `ORDER BY` 或 `DISTINCT` 时，整个视图输出作为一个序列处理。
+- 没有分组的视图，整个输出作为一个序列处理。
+- 时间范围参数在视图输入上无效（忽略）。
+
+#### 与查询子句的关系
+
+- `TIME_ALIGN` 先于外层 `WHERE` 求值；`WHERE` 只过滤输出行，不改变参与插值的输入行，也不改变插值结果。
+- 外层 `GROUP BY`、聚合函数、窗口、`ORDER BY` 和 `LIMIT` 作用于表函数输出的行集。
+- `COUNT(*)` 统计表函数输出的行数；`COUNT(col)` 统计插值后非 `NULL` 的行数。
+- `LIMIT` 作用于表函数输出行，不会截断插值输入。
+- 如需限制插值使用的数据范围，应通过带过滤条件的输入视图限制；外层 `WHERE` 不改变插值输入。
+- `TIME_ALIGN` 结果可以作为 `JOIN` 的一侧、子查询的 `FROM` 表源、`UNION` 的一侧，也可以封装为视图后再次作为 `TIME_ALIGN` 的输入。
+- `TIME_ALIGN` 不能直接嵌套在另一个 `TIME_ALIGN` 的表参数中；需要嵌套时先创建视图。
+
+#### 降序与复合主键
+
+- 表输入按时间戳降序查询时（例如 `ORDER BY ts DESC`），`PREV` 和 `NEXT` 的取值与升序查询一致，只有输出行顺序不同。
+- 表输入有复合主键时，升序扫描按“时间戳、复合主键”升序排列。对同一时间戳的多行，`PREV` 使用主键顺序更靠前的行，`NEXT` 使用更靠后的行；降序扫描时该顺序随之翻转，但仍保持上述时间语义。
+- 复合主键表的虚拟表引用受引擎限制，不能引用复合主键源。
+
+#### 支持范围与限制
+
+支持的输入：
+
+- 普通表、子表、超级表。
+- 虚拟表、虚拟子表、虚拟超级表。
+- 外部表。
+- 视图。
+
+限制：
+
+- 除按视图输入处理的外部表外，表输入必须有且只有一个主键时间戳列（使用复合主键时，主键中只能有一个时间戳列）。
+- 外部表没有主键时按视图输入处理：不要求存在 `TIMESTAMP` 列，按输出行序插值，时间范围参数被忽略；外部表有主键时按表输入处理。
+- 视图输入不区分列类型，也不要求存在 `TIMESTAMP` 列；时间范围参数被忽略。
+- 系统表、流、主题不能作为输入。
+- 表输入中，标签列和主键时间戳列不能作为插值列；视图输入和没有主键的外部表中，所有输出列都可以作为插值列。
+- 虚拟表不能引用复合主键源，因此该类源只能通过普通表或超级表使用时间对齐。
+- 不支持在 `INSERT INTO ... SELECT`、`CREATE STREAM`、`CREATE TOPIC`、`CREATE VTABLE`、`ALTER VTABLE` 的列引用、`DELETE`、`CREATE TABLE ... AS` 等位置使用。
+- 默认列定义 `*:PREV:` 引用的列较多；需要减少扫描列时，应显式给出只包含所需列的列定义。
+
+#### 权限
+
+执行 `TIME_ALIGN` 需要对输入表或视图具有 `SELECT` 权限；权限模型与直接查询该表或视图一致，不提升权限。
+
+#### 示例
+
+```sql
+-- 输入表：meters(ts TIMESTAMP, voltage INT, current FLOAT)
+-- 默认参数：输出时间戳和全部数据列的 PREV 插值列
+SELECT * FROM TABLE(TIME_ALIGN(meters)) ORDER BY ts;
+
+-- 同时输出原始列，并为不同列指定不同方法和后缀
+SELECT ts, voltage, current, voltage_p, current_n
+FROM TABLE(TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
+ORDER BY ts;
+
+-- 时间范围：只使用距离不超过 5 秒的候选值
+SELECT ts, voltage_p, voltage_n
+FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
+ORDER BY ts;
+
+-- 超级表 meters_st(ts TIMESTAMP, voltage INT, current FLOAT) TAGS(site INT)：
+-- 按子表独立插值，并使用标签分组
+SELECT site, ts, voltage_p
+FROM TABLE(TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
+PARTITION BY site
+ORDER BY site, ts;
+
+-- 视图：视图自身的过滤先执行，外层 WHERE 不影响插值输入
+CREATE VIEW v_meters AS SELECT ts, voltage FROM meters WHERE voltage IS NOT NULL;
+SELECT ts, voltage_p
+FROM TABLE(TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
+ORDER BY ts;
+
+-- 视图所有输出列都可插值，包括 TAG 列；时间范围参数被忽略
+CREATE VIEW v_meters_tag AS SELECT site, ts, voltage FROM meters_st;
+SELECT site_p, ts_tp, voltage_p
+FROM TABLE(TIME_ALIGN(v_meters_tag,
+                      'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
+ORDER BY ts_tp;
+
+-- 降序输出：插值结果与升序一致，仅输出顺序不同
+SELECT ts, voltage_p
+FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV:_p')) t
+ORDER BY ts DESC;
+```
 
 ## 系统与元信息函数
 

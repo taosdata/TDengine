@@ -2026,6 +2026,8 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       nodesDestroyNode(pReal->pExtTableNode);
+      taosArrayDestroy(pReal->pAlignCols);
+      pReal->pAlignCols = NULL;
       break;
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
@@ -2039,9 +2041,13 @@ void nodesDestroyNode(SNode* pNode) {
       pVirtual->pAlignCols = NULL;
       break;
     }
-    case QUERY_NODE_TEMP_TABLE:
-      nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTemp = (STempTableNode*)pNode;
+      nodesDestroyNode(pTemp->pSubquery);
+      taosArrayDestroy(pTemp->pAlignCols);
+      pTemp->pAlignCols = NULL;
       break;
+    }
     case QUERY_NODE_TEXT_TABLE: {
       STextTableNode* pText = (STextTableNode*)pNode;
       nodesDestroyList(pText->pColDefs);
@@ -2066,6 +2072,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TIME_ALIGN_TABLE: {
       STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
       taosMemoryFreeClear(pAlign->columnList);
+      nodesDestroyNode(pAlign->pRealTableNode);
+      pAlign->pRealTableNode = NULL;
       break;
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
@@ -2954,6 +2962,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
+      nodesDestroyList(pLogicNode->pAlignCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pDynamicScanFuncs);
       nodesDestroyNode(pLogicNode->pTagCond);
@@ -3293,6 +3302,7 @@ void nodesDestroyNode(SNode* pNode) {
         tzfree(pPhyNode->timezone);
       }
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pAlignCols);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);

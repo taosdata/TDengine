@@ -129,9 +129,11 @@ bool canCoexistIndefiniteRowsFunc(int32_t funcId1, int32_t funcId2) {
   // MAVG outputs N-K+1 rows and is handled by the translator's MAVG-specific K check,
   // so it must not be added to this N-row coexistence whitelist.
   bool isNRow1 = (type1 == FUNCTION_TYPE_CSUM || type1 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type1 == FUNCTION_TYPE_FILL_NEXT ||
                   type1 == FUNCTION_TYPE_STATE_COUNT || type1 == FUNCTION_TYPE_STATE_DURATION ||
                   type1 == FUNCTION_TYPE_LAG || type1 == FUNCTION_TYPE_LEAD);
   bool isNRow2 = (type2 == FUNCTION_TYPE_CSUM || type2 == FUNCTION_TYPE_FILL_FORWARD ||
+                  type2 == FUNCTION_TYPE_FILL_NEXT ||
                   type2 == FUNCTION_TYPE_STATE_COUNT || type2 == FUNCTION_TYPE_STATE_DURATION ||
                   type2 == FUNCTION_TYPE_LAG || type2 == FUNCTION_TYPE_LEAD);
   if (isNRow1 && isNRow2) {
@@ -208,6 +210,7 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
   pFpSet->combine = funcMgtBuiltins[funcId].combineFunc;
   pFpSet->processFuncByRow = funcMgtBuiltins[funcId].processFuncByRow;
+  pFpSet->hasPending = funcMgtBuiltins[funcId].hasPending;
   pFpSet->cleanup = funcMgtBuiltins[funcId].cleanupFunc;
   return TSDB_CODE_SUCCESS;
 }

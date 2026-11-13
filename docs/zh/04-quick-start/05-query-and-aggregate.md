@@ -20,7 +20,7 @@ TDengine 在标准 SQL 之上，针对时序与物联网场景扩展了标签过
   算术、比较、逻辑、位运算、JSON 与集合运算等。详见 [运算符](../05-tdengine-sql/04-data-query/02-operators.md)。
 
 - **聚合与函数**
-  `COUNT` / `AVG` / `MAX` 等统计聚合，以及选择、数学、时间、时序专用等内置函数。详见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md)。
+  `COUNT` / `AVG` / `MAX` 等统计聚合，选择、数学、时间、时序专用等内置函数，以及表函数。详见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md)。
 
 - **标签与分片**
   按标签过滤；`GROUP BY` / `PARTITION BY` / `tbname` / `SLIMIT` 按设备或标签聚合与限流。详见 [基础查询](../05-tdengine-sql/04-data-query/01-query.md)。
