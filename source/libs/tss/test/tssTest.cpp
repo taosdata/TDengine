@@ -25,6 +25,40 @@
 #include "osDir.h"
 #include "tglobal.h"
 #include "tssInt.h"
+#include "../../test/scopedTempDir.h"
+
+class ScopedTssRuntime {
+ public:
+    ScopedTssRuntime() : code(tssInit()) {}
+    ~ScopedTssRuntime() {
+        if (code == TSDB_CODE_SUCCESS) EXPECT_EQ(tssUninit(), TSDB_CODE_SUCCESS);
+    }
+    ScopedTssRuntime(const ScopedTssRuntime&) = delete;
+    ScopedTssRuntime& operator=(const ScopedTssRuntime&) = delete;
+    const int32_t code;
+};
+
+class ScopedTssInstance {
+ public:
+    ~ScopedTssInstance() {
+        if (value != nullptr) EXPECT_EQ(tssCloseInstance(value), TSDB_CODE_SUCCESS);
+    }
+    ScopedTssInstance() = default;
+    ScopedTssInstance(const ScopedTssInstance&) = delete;
+    ScopedTssInstance& operator=(const ScopedTssInstance&) = delete;
+    SSharedStorage* value = nullptr;
+};
+
+class ScopedTssDefaultInstance {
+ public:
+    ScopedTssDefaultInstance() : code(tssCreateDefaultInstance()) {}
+    ~ScopedTssDefaultInstance() {
+        if (code == TSDB_CODE_SUCCESS) EXPECT_EQ(tssCloseDefaultInstance(), TSDB_CODE_SUCCESS);
+    }
+    ScopedTssDefaultInstance(const ScopedTssDefaultInstance&) = delete;
+    ScopedTssDefaultInstance& operator=(const ScopedTssDefaultInstance&) = delete;
+    const int32_t code;
+};
 
 // Builds a name that is unique for every test run. Multiple tssTest processes may
 // run in parallel (e.g. in CI) and share the same remote storage, so each run must
@@ -34,12 +68,12 @@ static void tssMakeUniqueName(char* buf, int32_t size, const char* prefix, const
     snprintf(buf, size, "%s-%d-%u%s", prefix, taosGetPId(), taosSafeRand(), fileExt == NULL ? "" : fileExt);
 }
 
-static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
+static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB, const char* localFile) {
     char name[64];
     tssMakeUniqueName(name, sizeof(name), "tss-test", "");
 
     char path[192];
-    snprintf(path, sizeof(path), "%s" TD_DIRSEP "shared-storage-instance-test-file", name);
+    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
 
     const char* smallData = "small data of the shared storage instance test file.";
 
@@ -134,17 +168,17 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
     
     // upload/download file and delete file by prefix
     char prefix[192];
-    snprintf(prefix, sizeof(prefix), "%s" TD_DIRSEP "test" TD_DIRSEP, name);
+    snprintf(prefix, sizeof(prefix), "%s/test/", name);
     for(int i = 0; i < 10; i++) {
         char objPath[224];
         snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
-        code = tssUploadFile(ss, objPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
+        code = tssUploadFile(ss, objPath, localFile, 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
     char firstObjPath[224];
     snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
-    code = tssDownloadFile(ss, firstObjPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
+    code = tssDownloadFile(ss, firstObjPath, localFile, 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     code = tssDeleteFileByPrefix(ss, prefix);
@@ -153,42 +187,44 @@ static void tssInstTest(SSharedStorage* ss, uint32_t largeFileSizeInMB) {
 
 
 TEST(TssTest, BasicTest) {
-    ASSERT_EQ(taosMulMkDir(TD_TMP_DIR_PATH), TSDB_CODE_SUCCESS);
-    TdFilePtr f = taosOpenFile(TD_TMP_DIR_PATH "ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
+    ScopedTestTempDir directory;
+    ASSERT_EQ(directory.code, TSDB_CODE_SUCCESS);
+    const std::string localFile = directory.child("ss_test.txt");
+    const std::string accessString = "fs:baseDir=" + directory.child("ss");
+    TdFilePtr f = taosOpenFile(localFile.c_str(), TD_FILE_CREATE | TD_FILE_WRITE);
     GTEST_ASSERT_NE(f, nullptr);
     int64_t written = taosWriteFile(f, "test data", 9);
-    GTEST_ASSERT_EQ(written, 9);
     taosCloseFile(&f);
+    GTEST_ASSERT_EQ(written, 9);
 
-    SSharedStorage* ss = NULL;
-
-    int32_t code = tssInit();
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ScopedTssRuntime runtime;
+    GTEST_ASSERT_EQ(runtime.code, TSDB_CODE_SUCCESS);
+    ScopedTssInstance invalidInstance;
 
     // an invalid access string
     const char* as = "notexist:a=10;b=11;c=12";
-    code = tssCreateInstance(as, &ss);
+    int32_t code = tssCreateInstance(as, &invalidInstance.value);
     GTEST_ASSERT_EQ(code, TSDB_CODE_NOT_FOUND);
 
     printf("test file system based shared storage\n");
-    as = "fs:baseDir=" TD_TMP_DIR_PATH "ss";
-    code = tssCreateInstance(as, &ss);
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    tssInstTest(ss, 256);
-    tssCloseInstance(ss);
+    as = accessString.c_str();
+    {
+        ScopedTssInstance instance;
+        code = tssCreateInstance(as, &instance.value);
+        GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+        ASSERT_NO_FATAL_FAILURE(tssInstTest(instance.value, 256, localFile.c_str()));
+    }
 
 #ifdef USE_S3
     printf("test libs3 based shared storage\n");
     as = "s3:endpoint=s3.tdengine.net:9000;bucket=test-bucket;uriStyle=path;protocol=http;accessKeyId=mkJO481qGlWR9hpkRweR;secretAccessKey=2KBJOZ2DXrvjAhIB1Qr64IGzUPxUl566GKWv4Sak;chunkSize=64;maxChunks=10000;maxRetry=5";
-    code = tssCreateInstance(as, &ss);
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    tssInstTest(ss, 256);
-    tssCloseInstance(ss);
+    {
+        ScopedTssInstance instance;
+        code = tssCreateInstance(as, &instance.value);
+        GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+        ASSERT_NO_FATAL_FAILURE(tssInstTest(instance.value, 256, localFile.c_str()));
+    }
 #endif
-
-    tssUninit();
-
-    taosRemoveFile(TD_TMP_DIR_PATH "ss_test.txt");
 }
 
 
@@ -209,20 +245,28 @@ TEST(TssTest, CloseTest) {
 
 
 TEST(TssTest, DefaultInstanceTest) {
-    ASSERT_EQ(taosMulMkDir(TD_TMP_DIR_PATH), TSDB_CODE_SUCCESS);
-    TdFilePtr f = taosOpenFile(TD_TMP_DIR_PATH "ss_test.txt", TD_FILE_CREATE | TD_FILE_WRITE);
+    ScopedTestTempDir directory;
+    ASSERT_EQ(directory.code, TSDB_CODE_SUCCESS);
+    const std::string localFile = directory.child("ss_test.txt");
+    const std::string accessString = "fs:baseDir=" + directory.child("ss");
+    TdFilePtr f = taosOpenFile(localFile.c_str(), TD_FILE_CREATE | TD_FILE_WRITE);
     GTEST_ASSERT_NE(f, nullptr);
     int64_t written = taosWriteFile(f, "test data", 9);
-    GTEST_ASSERT_EQ(written, 9);
     taosCloseFile(&f);
+    GTEST_ASSERT_EQ(written, 9);
 
-    strcpy(tsSsAccessString, "fs:baseDir=" TD_TMP_DIR_PATH "ss");
+    const std::string savedAccessString = tsSsAccessString;
+    struct RestoreAccessString {
+        const std::string& saved;
+        ~RestoreAccessString() { strcpy(tsSsAccessString, saved.c_str()); }
+    } restoreAccessString{savedAccessString};
+    ASSERT_LT(accessString.size(), 1024U);
+    strcpy(tsSsAccessString, accessString.c_str());
 
-    int32_t code = tssInit();
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-
-    code = tssCreateDefaultInstance();
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ScopedTssRuntime runtime;
+    GTEST_ASSERT_EQ(runtime.code, TSDB_CODE_SUCCESS);
+    ScopedTssDefaultInstance instance;
+    GTEST_ASSERT_EQ(instance.code, TSDB_CODE_SUCCESS);
 
     tssPrintDefaultConfig();
 
@@ -230,7 +274,7 @@ TEST(TssTest, DefaultInstanceTest) {
     tssMakeUniqueName(name, sizeof(name), "tss-test", "");
 
     char path[192];
-    snprintf(path, sizeof(path), "%s" TD_DIRSEP "shared-storage-instance-test-file", name);
+    snprintf(path, sizeof(path), "%s/shared-storage-instance-test-file", name);
 
     const char* smallData = "small data of the shared storage instance test file.";
 
@@ -241,7 +285,7 @@ TEST(TssTest, DefaultInstanceTest) {
     int64_t fileSize = 0, largeFileSizeInMB = 256;
 
     // upload a small file
-    code = tssUploadToDefault(path, uploadData, dataSize);
+    int32_t code = tssUploadToDefault(path, uploadData, dataSize);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     // get the file size
@@ -322,17 +366,17 @@ TEST(TssTest, DefaultInstanceTest) {
     
     // upload/download file and delete file by prefix
     char prefix[192];
-    snprintf(prefix, sizeof(prefix), "%s" TD_DIRSEP "test" TD_DIRSEP, name);
+    snprintf(prefix, sizeof(prefix), "%s/test/", name);
     for(int i = 0; i < 10; i++) {
         char objPath[224];
         snprintf(objPath, sizeof(objPath), "%stest%d.txt", prefix, i);
-        code = tssUploadFileToDefault(objPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
+        code = tssUploadFileToDefault(objPath, localFile.c_str(), 0, 0);
         GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
     }
 
     char firstObjPath[224];
     snprintf(firstObjPath, sizeof(firstObjPath), "%stest0.txt", prefix);
-    code = tssDownloadFileFromDefault(firstObjPath, TD_TMP_DIR_PATH "ss_test.txt", 0, 0);
+    code = tssDownloadFileFromDefault(firstObjPath, localFile.c_str(), 0, 0);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
     code = tssDeleteFileByPrefixFromDefault(prefix);
@@ -344,9 +388,4 @@ TEST(TssTest, DefaultInstanceTest) {
     code = tssCheckDefaultInstance(128);
     GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
 
-    code = tssCloseDefaultInstance();
-    GTEST_ASSERT_EQ(code, TSDB_CODE_SUCCESS);
-    tssUninit();
-
-    taosRemoveFile(TD_TMP_DIR_PATH "ss_test.txt");
 }
