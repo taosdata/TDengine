@@ -3557,6 +3557,432 @@ static void scltMakeRawStringRows(SScalarParam *pParam, int32_t type,
   pParam->numOfRows = rows;
 }
 
+TEST(ScalarFunctionTest, streamDerivativeDurationUnits) {
+  for (int32_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    for (int32_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+      for (const char *text : {"1s",          "2s",
+                               "1m",          "1h",
+                               "1d",          "1w",
+                               "1000a",       "1000000u",
+                               "1000000000b", "",
+                               "1000",        "0s",
+                               "-1s",         "999a",
+                               "1n",          "1y",
+                               "1S",          "1sX",
+                               "1.5s",        "9223372036854775807w",
+                               "1000000001b", "9223372036854775000000b"}) {
+        SCOPED_TRACE(::testing::Message() << precision << ":" << type << ":" << text);
+        SScalarParam          input[3] = {};
+        std::vector<uint32_t> wide;
+        const char           *data = text;
+        int32_t               len = static_cast<int32_t>(strlen(text));
+        if (type == TSDB_DATA_TYPE_NCHAR) {
+          for (const char *ch = text; *ch != '\0'; ++ch) wide.push_back(static_cast<uint32_t>(*ch));
+          data = reinterpret_cast<const char *>(wide.data());
+          len *= TSDB_NCHAR_SIZE;
+        }
+        scltMakeRawStringParam(&input[0], type, data, len);
+        SScalarParam *precisionParam = nullptr;
+        SScalarParam *output = nullptr;
+        SScalarParam *rate = nullptr;
+        double        one = 1;
+        double        zero = 0;
+        ASSERT_EQ(0, scltMakeDataBlock(&precisionParam, TSDB_DATA_TYPE_INT, &precision, 1, true));
+        ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+        ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+        input[1] = *precisionParam;
+        input[2] = *rate;
+        ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+        double expected = 0;
+        if (strcmp(text, "1s") == 0 || strcmp(text, "1000a") == 0 || strcmp(text, "1000000u") == 0 ||
+            strcmp(text, "1000000000b") == 0)
+          expected = 1;
+        if (strcmp(text, "2s") == 0) expected = 2;
+        if (strcmp(text, "1m") == 0) expected = 60;
+        if (strcmp(text, "1h") == 0) expected = 3600;
+        if (strcmp(text, "1d") == 0) expected = 86400;
+        if (strcmp(text, "1w") == 0) expected = 604800;
+        if (strcmp(text, "1000000001b") == 0 && precision == TSDB_TIME_PRECISION_NANO) expected = 1.000000001;
+        if (strcmp(text, "9223372036854775000000b") == 0 && precision != TSDB_TIME_PRECISION_NANO) {
+          expected = 9223372036854.775;
+        }
+        EXPECT_EQ(expected == 0, colDataIsNull_s(output->columnData, 0));
+        if (expected != 0) EXPECT_DOUBLE_EQ(expected, *reinterpret_cast<double *>(output->columnData->pData));
+        if (strcmp(text, "1m") == 0) {
+          double largeRate = 1e308;
+          ASSERT_EQ(0, colDataSetVal(rate->columnData, 0, reinterpret_cast<const char *>(&largeRate), false));
+          ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+          EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+        }
+        colDataDestroy(input[0].columnData);
+        taosMemoryFree(input[0].columnData);
+        scltDestroyDataBlock(precisionParam);
+        scltDestroyDataBlock(output);
+        scltDestroyDataBlock(rate);
+      }
+    }
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativeBroadcastDuration) {
+  for (int32_t type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    SCOPED_TRACE(type);
+    // Long but valid durations must also broadcast over every rate in a batch.
+    std::string text(type == TSDB_DATA_TYPE_NCHAR ? 2046 : 8190, '0');
+    text += "2s";
+    std::vector<uint32_t> wide(text.begin(), text.end());
+    const void* data = type == TSDB_DATA_TYPE_NCHAR ? static_cast<const void*>(wide.data()) : text.data();
+    SScalarParam input[3] = {};
+    scltMakeRawStringParam(&input[0], type, data, 8192);
+    int32_t ms = TSDB_TIME_PRECISION_MILLI;
+    std::vector<double> values(512), zeros(512, 0);
+    for (size_t i = 0; i < values.size(); ++i) values[i] = static_cast<double>(i) - 256;
+    SScalarParam *precision = nullptr, *rates = nullptr, *output = nullptr;
+    ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+    ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, values.data(), 512, true));
+    ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, zeros.data(), 512, true));
+    for (int32_t i = 0; i < 512; ++i) {
+      ASSERT_EQ(0, colDataSetVal(rates->columnData, i, reinterpret_cast<const char*>(&values[i]), false));
+    }
+    colDataSetNULL(rates->columnData, 3);
+    input[1] = *precision;
+    input[2] = *rates;
+    ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+    EXPECT_EQ(512, output->numOfRows);
+    for (int32_t i = 0; i < 512; ++i) {
+      EXPECT_EQ(i == 3, colDataIsNull_s(output->columnData, i));
+      if (i != 3) EXPECT_DOUBLE_EQ(values[i] * 2, *reinterpret_cast<double*>(colDataGetData(output->columnData, i)));
+    }
+    colDataSetNULL(input[0].columnData, 0);
+    ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+    for (int32_t i = 0; i < 512; ++i) EXPECT_TRUE(colDataIsNull_s(output->columnData, i));
+    colDataDestroy(input[0].columnData);
+    taosMemoryFree(input[0].columnData);
+    scltDestroyDataBlock(precision);
+    scltDestroyDataBlock(rates);
+    scltDestroyDataBlock(output);
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativePerRowDuration) {
+  SScalarParam input[3] = {};
+  const char* units[] = {"2s", "1s", "999a", "1m", "", "3s"};
+  int32_t lengths[] = {2, 2, 4, 2, 0, 2};
+  scltMakeRawStringRows(&input[0], TSDB_DATA_TYPE_VARCHAR, units, lengths, 6);
+  colDataSetNULL(input[0].columnData, 4);
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double values[] = {1, 2, 3, 4, 5, 6}, zeros[6] = {};
+  SScalarParam *precision = nullptr, *rates = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, values, 6, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, zeros, 6, true));
+  for (int32_t i = 0; i < 6; ++i) {
+    ASSERT_EQ(0, colDataSetVal(rates->columnData, i, reinterpret_cast<const char*>(&values[i]), false));
+  }
+  input[1] = *precision;
+  input[2] = *rates;
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+  EXPECT_EQ(6, output->numOfRows);
+  double expected[] = {2, 2, 0, 240, 0, 18};
+  for (int32_t i = 0; i < 6; ++i) {
+    EXPECT_EQ(i == 2 || i == 4, colDataIsNull_s(output->columnData, i));
+    if (i != 2 && i != 4) EXPECT_DOUBLE_EQ(expected[i], *reinterpret_cast<double*>(colDataGetData(output->columnData, i)));
+  }
+  colDataDestroy(input[0].columnData);
+  taosMemoryFree(input[0].columnData);
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rates);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeSessionDiagnostics) {
+  static std::vector<std::string> messages;
+  messages.clear();
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char* text) { messages.emplace_back(text); };
+  qDebugFlag |= DEBUG_ERROR;
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+
+  auto evaluate = [&](int64_t sessionId, const char* unit, int64_t epoch = 100, bool grouped = false) {
+    SFunctionNode* func = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_FUNCTION, reinterpret_cast<SNode**>(&func)));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> nodeGuard(reinterpret_cast<SNode*>(func), nodesDestroyNode);
+    func->funcId = fmGetFuncId("_stream_derivative_factor");
+    ASSERT_GE(func->funcId, 0);
+    func->funcType = fmGetFuncTypeFromId(func->funcId);
+    func->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    func->node.resType.bytes = sizeof(double);
+    const char* text[] = {unit, nullptr, nullptr, "unit_text", "db.rate_stream", "d1"};
+    int32_t ms = TSDB_TIME_PRECISION_MILLI;
+    double one = 1, zero = 0;
+    for (int32_t i = 0; i < 6; ++i) {
+      SNode* param = nullptr;
+      if (i == 1) {
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_INT, &ms));
+      } else if (i == 2) {
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_DOUBLE, &one));
+      } else {
+        char buffer[128] = {};
+        varDataSetLen(buffer, strlen(text[i]));
+        memcpy(varDataVal(buffer), text[i], strlen(text[i]));
+        ASSERT_EQ(0, scltMakeValueNode(&param, TSDB_DATA_TYPE_VARCHAR, buffer));
+      }
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&func->pParameterList, param));
+    }
+    SStreamRuntimeFuncInfo runtime = {};
+    runtime.sessionId = sessionId;
+    SSTriggerGroupCalcInfo group = {};
+    group.derivativeLogEpoch = epoch;
+    runtime.derivativeLogEpoch = grouped ? 0 : epoch;
+    runtime.isMultiGroupCalc = grouped;
+    runtime.curGrpCalc = grouped ? &group : nullptr;
+    runtime.pDerivativeLogState = state;
+    SScalarExtraInfo extra = {};
+    extra.isStream = true;
+    extra.pStreamInfo = &runtime;
+    SScalarParam* output = nullptr;
+    ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+    std::unique_ptr<SScalarParam, decltype(&scltDestroyDataBlock)> outputGuard(output, scltDestroyDataBlock);
+    ASSERT_EQ(0, scalarCalculate(reinterpret_cast<SNode*>(func), nullptr, output, &extra));
+    EXPECT_EQ(strcmp(unit, "1s") != 0, colDataIsNull_s(output->columnData, 0));
+    if (strcmp(unit, "1s") == 0) EXPECT_DOUBLE_EQ(1, *reinterpret_cast<double*>(output->columnData->pData));
+  };
+  // The trigger uses session 1 for realtime and session 2 for history/recalculation.
+  evaluate(2, "999a");
+  ASSERT_EQ(1U, messages.size());
+  evaluate(1, "1s");
+  evaluate(2, "999a");
+  EXPECT_EQ(1U, messages.size());
+  evaluate(1, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(2, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(1, "1s");
+  evaluate(2, "999a");
+  EXPECT_EQ(2U, messages.size());
+  evaluate(1, "999a");
+  EXPECT_EQ(3U, messages.size());
+  // A completed history round must not suppress a later manual recalculation.
+  evaluate(1, "1s");
+  evaluate(2, "999a", 200);
+  EXPECT_EQ(4U, messages.size());
+  evaluate(2, "999a", 200);
+  EXPECT_EQ(4U, messages.size());
+  for (bool grouped : {false, true}) {
+    messages.clear();
+    int64_t first = grouped ? 401 : 301;
+    // A remains in flight while B restores the unit and C becomes invalid.
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "1s", first + 1, grouped);
+    evaluate(1, "999a", first, grouped);
+    EXPECT_EQ(1U, messages.size());
+    evaluate(1, "999a", first + 2, grouped);
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "1s", first + 1, grouped);
+    evaluate(1, "999a", first + 2, grouped);
+    EXPECT_EQ(2U, messages.size());
+    evaluate(1, "oops", first + 3, grouped);
+    evaluate(1, "999a", first, grouped);
+    evaluate(1, "999a", first + 2, grouped);
+    evaluate(1, "oops", first + 3, grouped);
+    EXPECT_EQ(3U, messages.size());
+  }
+}
+
+TEST(ScalarFunctionTest, streamDerivativePreScaledRates) {
+  SScalarParam input[7] = {};
+  scltMakeRawStringParam(&input[0], TSDB_DATA_TYPE_VARCHAR, "10s", 3);
+  int32_t precision = TSDB_TIME_PRECISION_MILLI;
+  int32_t preScaled = 1;
+  double rate = -std::numeric_limits<double>::denorm_min();
+  double zero = 0;
+  SScalarParam *unitPrecision = nullptr, *rates = nullptr, *flag = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&unitPrecision, TSDB_DATA_TYPE_INT, &precision, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rates, TSDB_DATA_TYPE_DOUBLE, &rate, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&flag, TSDB_DATA_TYPE_INT, &preScaled, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *unitPrecision;
+  input[2] = *rates;
+  input[6] = *flag;
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 7, output));
+  EXPECT_EQ(rate, *reinterpret_cast<double*>(output->columnData->pData));
+  // Stored three/six-argument plans keep their original per-second conversion.
+  ASSERT_EQ(0, streamDerivativeFactorFunction(input, 3, output));
+  EXPECT_EQ(rate * 10, *reinterpret_cast<double*>(output->columnData->pData));
+  colDataDestroy(input[0].columnData);
+  taosMemoryFree(input[0].columnData);
+  scltDestroyDataBlock(unitPrecision);
+  scltDestroyDataBlock(rates);
+  scltDestroyDataBlock(flag);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeDiagnosticCacheIsBounded) {
+  static int32_t errors;
+  errors = 0;
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char*) { ++errors; };
+  qDebugFlag |= DEBUG_ERROR;
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = 1;
+  runtime.pDerivativeLogState = state;
+  SScalarParam input[6] = {};
+  std::string unit(8190, '0');
+  unit += "0s";
+  const char* strings[] = {unit.c_str(), "unit_text", "db.rate_stream", "point"};
+  for (int32_t i = 0; i < 4; ++i) {
+    scltMakeRawStringParam(&input[i == 0 ? 0 : i + 2], TSDB_DATA_TYPE_VARCHAR, strings[i], strlen(strings[i]));
+  }
+  input[0].param = &runtime;
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double one = 1, zero = 0;
+  SScalarParam *precision = nullptr, *rate = nullptr, *output = nullptr;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *precision;
+  input[2] = *rate;
+  // Simulate distinct invalid points being created and retired without recovery.
+  for (int32_t pass = 0; pass < 2; ++pass) {
+    int32_t before = errors;
+    for (int32_t point = 0; point < 1025; ++point) {
+      char name[64] = {};
+      int32_t len = snprintf(varDataVal(name), sizeof(name) - VARSTR_HEADER_SIZE, "point_%d", point);
+      varDataSetLen(name, len);
+      ASSERT_EQ(0, colDataSetVal(input[5].columnData, 0, name, false));
+      ASSERT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+      EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+    }
+    // A bounded cache must have evicted at least one old point by the second pass.
+    EXPECT_GT(errors, before);
+  }
+  for (int32_t i : {0, 3, 4, 5}) {
+    colDataDestroy(input[i].columnData);
+    taosMemoryFree(input[i].columnData);
+  }
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rate);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeDiagnosticContext) {
+  static std::vector<std::string> messages;
+  messages.clear();
+  struct LogRestore {
+    LogFp oldCallback = tsLogFp;
+    int32_t oldFlags = qDebugFlag;
+    ~LogRestore() { tsLogFp = oldCallback; qDebugFlag = oldFlags; }
+  } restore;
+  tsLogFp = [](int64_t, ELogLevel, const char* text) { messages.emplace_back(text); };
+  qDebugFlag |= DEBUG_ERROR;
+  SScalarParam input[6] = {};
+  SStreamDerivativeLogState* state = nullptr;
+  ASSERT_EQ(0, scalarCreateStreamDerivativeLogState(&state));
+  std::unique_ptr<SStreamDerivativeLogState, decltype(&scalarDestroyStreamDerivativeLogState)>
+      stateGuard(state, scalarDestroyStreamDerivativeLogState);
+  SStreamRuntimeFuncInfo runtime = {};
+  runtime.sessionId = 1;
+  runtime.pDerivativeLogState = state;
+  input[0].param = &runtime;
+  const char* text[] = {"999a", "unit_text", "db.rate_stream", "d1"};
+  for (int32_t i = 0; i < 4; ++i) {
+    scltMakeRawStringParam(&input[i == 0 ? 0 : i + 2], TSDB_DATA_TYPE_VARCHAR,
+                           text[i], static_cast<int32_t>(strlen(text[i])));
+  }
+  SScalarParam *precision = nullptr, *rate = nullptr, *output = nullptr;
+  int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  double one = 1, zero = 0;
+  ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+  ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+  input[1] = *precision;
+  input[2] = *rate;
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+  ASSERT_EQ(1U, messages.size());
+  for (const char* expected : {"stream:db.rate_stream", "point:d1", "tag:unit_text", "value:999a",
+                                "reason:duration is less than one second"}) {
+    EXPECT_NE(std::string::npos, messages[0].find(expected));
+  }
+  messages.clear();
+  for (int i = 0; i < 10; ++i) {
+    EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+    EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+  }
+  EXPECT_TRUE(messages.empty());
+  colDataSetNULL(input[0].columnData, 0);
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  ASSERT_EQ(1U, messages.size());
+  EXPECT_NE(std::string::npos, messages[0].find("value:NULL, reason:NULL duration tag"));
+  messages.clear();
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_TRUE(messages.empty());
+  char valid[VARSTR_HEADER_SIZE + 2] = {};
+  varDataSetLen(valid, 2);
+  memcpy(varDataVal(valid), "1s", 2);
+  ASSERT_EQ(0, colDataSetVal(input[0].columnData, 0, valid, false));
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_DOUBLE_EQ(1.0, *reinterpret_cast<double*>(output->columnData->pData));
+  EXPECT_TRUE(messages.empty());
+  colDataSetNULL(input[0].columnData, 0);
+  EXPECT_EQ(0, streamDerivativeFactorFunction(input, 6, output));
+  EXPECT_EQ(1U, messages.size());
+  for (int32_t i : {0, 3, 4, 5}) {
+    colDataDestroy(input[i].columnData);
+    taosMemoryFree(input[i].columnData);
+  }
+  scltDestroyDataBlock(precision);
+  scltDestroyDataBlock(rate);
+  scltDestroyDataBlock(output);
+}
+
+TEST(ScalarFunctionTest, streamDerivativeIntegerTicks) {
+  for (int32_t type : {TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT}) {
+    for (int64_t value : {INT64_C(-1), INT64_C(0), INT64_C(999), INT64_C(1000), INT64_C(2000), INT64_MAX}) {
+      SScalarParam *ticks = nullptr;
+      SScalarParam *precision = nullptr;
+      SScalarParam *output = nullptr;
+      SScalarParam *rate = nullptr;
+      double        one = 1;
+      int32_t       ms = TSDB_TIME_PRECISION_MILLI;
+      double        zero = 0;
+      ASSERT_EQ(0, scltMakeDataBlock(&ticks, TSDB_DATA_TYPE_BIGINT, &value, 1, true));
+      ticks->columnData->info.type = type;
+      ASSERT_EQ(0, scltMakeDataBlock(&precision, TSDB_DATA_TYPE_INT, &ms, 1, true));
+      ASSERT_EQ(0, scltMakeDataBlock(&output, TSDB_DATA_TYPE_DOUBLE, &zero, 1, true));
+      ASSERT_EQ(0, scltMakeDataBlock(&rate, TSDB_DATA_TYPE_DOUBLE, &one, 1, true));
+      SScalarParam input[] = {*ticks, *precision, *rate};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+      EXPECT_EQ(value < 1000, colDataIsNull_s(output->columnData, 0));
+      if (value >= 1000) {
+        EXPECT_DOUBLE_EQ(static_cast<double>(value) / 1000, *reinterpret_cast<double *>(output->columnData->pData));
+      }
+      colDataSetNULL(ticks->columnData, 0);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, streamDerivativeFactorFunction(input, 3, output));
+      EXPECT_TRUE(colDataIsNull_s(output->columnData, 0));
+      scltDestroyDataBlock(ticks);
+      scltDestroyDataBlock(precision);
+      scltDestroyDataBlock(output);
+      scltDestroyDataBlock(rate);
+    }
+  }
+}
+
 TEST(ScalarFunctionTest, repeatActualLength) {
   for (int type : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
     for (uint64_t count : {uint64_t(0), uint64_t(1), uint64_t(2), uint64_t(INT32_MAX),

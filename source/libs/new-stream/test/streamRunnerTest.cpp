@@ -37,6 +37,7 @@
 #include "dynqueryctrl.h"
 #include "operator.h"
 #include "querytask.h"
+#include "scalar.h"
 #include "snode.h"
 #include "stream.h"
 #include "streamInt.h"
@@ -1809,8 +1810,75 @@ class StreamRunnerContextForwardingTest : public StreamRunnerTest {
   }
 };
 
+TEST(StreamRunnerDeployTest, FailedDerivativeStateDoesNotAcquireExecutionResources) {
+  Stub stub;
+  stub.set(scalarCreateStreamDerivativeLogState,
+           +[](SStreamDerivativeLogState**) -> int32_t { return TSDB_CODE_OUT_OF_MEMORY; });
+  SStreamRunnerTask runner = {};
+  runner.task.type = STREAM_RUNNER_TASK;
+  SStreamRunnerDeployMsg msg = {};
+  char streamName[] = "derivative_state_failure";
+  msg.streamName = streamName;
+  msg.execReplica = 1;
+  msg.addOptions = STREAM_OPTION_DERIVATIVE_TAG;
+  SArray* outputCols = taosArrayInit(1, sizeof(SFieldWithOptions));
+  ASSERT_NE(nullptr, outputCols);
+  msg.outCols = outputCols;
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, stRunnerTaskDeploy(&runner, &msg));
+  EXPECT_EQ(STREAM_STATUS_FAILED, runner.task.status);
+  EXPECT_EQ(nullptr, runner.pDerivativeLogState);
+  EXPECT_FALSE(runner.execMgr.lockInited);
+  EXPECT_FALSE(runner.execMgr.stateLockInited);
+  EXPECT_EQ(nullptr, runner.execMgr.pFreeExecs);
+  EXPECT_EQ(nullptr, runner.execMgr.pRunningExecs);
+  EXPECT_EQ(outputCols, msg.outCols);
+  EXPECT_EQ(nullptr, runner.output.outCols);
+
+  // Clean both layouts so this regression also runs safely against the old code.
+  if (runner.execMgr.lockInited) {
+    SStreamRunnerTask* task = &runner;
+    runner.task.undeployCb = [](void*) {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskUndeploy(&task, true));
+  } else {
+    taosMemoryFree(runner.streamName);
+  }
+  taosArrayDestroy(msg.outCols);
+}
+
+TEST(StreamRunnerDeployTest, FailedExpressionsLeaveNoDerivativeLogState) {
+  for (bool failTagExpr : {true, false}) {
+    SStreamRunnerTask runner = {};
+    runner.task.type = STREAM_RUNNER_TASK;
+    SStreamRunnerDeployMsg msg = {};
+    char streamName[] = "derivative_deploy_failure";
+    char invalidExpr[] = "{";
+    char emptyTags[] = "[]";
+    msg.streamName = streamName;
+    msg.execReplica = 1;
+    msg.addOptions = STREAM_OPTION_DERIVATIVE_TAG;
+    msg.tagValueExpr = failTagExpr ? invalidExpr : emptyTags;
+    msg.subTblNameExpr = invalidExpr;
+
+    EXPECT_NE(TSDB_CODE_SUCCESS, stRunnerTaskDeploy(&runner, &msg));
+    EXPECT_EQ(STREAM_STATUS_FAILED, runner.task.status);
+    // Failed deployments are discarded directly by management, without undeploy.
+    EXPECT_EQ(nullptr, runner.pDerivativeLogState);
+
+    // Release the pre-existing deployment resources owned by this test fixture.
+    SStreamRunnerTask* task = &runner;
+    runner.task.undeployCb = [](void*) {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskUndeploy(&task, true));
+  }
+}
+
 TEST_F(StreamRunnerContextForwardingTest, DecodedRequestTransfersOwnerThroughDataEogAndEof) {
   ASSERT_TRUE(Prepare(&request_));
+  request_.derivativeLogEpoch = 123;
+  const int64_t gid = 101;
+  auto* config = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(request_.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  config->derivativeLogEpoch = 567;
   OwnedTriggerCalcRequest decoded;
   ASSERT_EQ(Decode(request_, &decoded.value), TSDB_CODE_SUCCESS);
   auto *frames = decoded.value.pContextFrames;
@@ -1819,9 +1887,16 @@ TEST_F(StreamRunnerContextForwardingTest, DecodedRequestTransfersOwnerThroughDat
   ASSERT_EQ(stRunnerTaskExecute(&task_, &decoded.value, 1000), TSDB_CODE_SUCCESS);
   EXPECT_EQ(decoded.value.pContextFrames, nullptr);
   EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames, frames);
+  EXPECT_EQ(123, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  config = static_cast<SSTriggerGroupCalcInfo*>(
+      tSimpleHashGet(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  EXPECT_EQ(567, config->derivativeLogEpoch);
   ExpectOwners(1);
   ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
   EXPECT_EQ(gCalls.pRuntimeInfo->pContextFrames, frames);
+  EXPECT_EQ(123, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  EXPECT_EQ(567, config->derivativeLogEpoch);
   ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
   ExpectOwners(1);
   ASSERT_EQ(Continue(), TSDB_CODE_SUCCESS);
@@ -1886,11 +1961,16 @@ TEST_F(StreamRunnerContextForwardingTest, PublicFetchRetainsFramesUntilTerminalR
   DataThenEof();
   SStreamRuntimeFuncInfo runtime = {};
   runtime.sessionId = 1;
+  runtime.derivativeLogEpoch = 456;
   runtime.triggerType = request_.triggerType;
   runtime.isWindowTrigger = true;
   runtime.isMultiGroupCalc = true;
   runtime.addOptions = task_.addOptions;
   runtime.pGroupCalcInfos = request_.pGroupCalcInfos;
+  const int64_t gid = 101;
+  auto* config = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  config->derivativeLogEpoch = 789;
   runtime.pGroupReadInfos = request_.pGroupReadInfos;
   runtime.pContextPolicy = request_.pContextPolicy;
   runtime.pAncestorContext = request_.pAncestorContext;
@@ -1901,6 +1981,11 @@ TEST_F(StreamRunnerContextForwardingTest, PublicFetchRetainsFramesUntilTerminalR
   fetch.execId = -1;
   fetch.pStRtFuncInfo = &runtime;
   ASSERT_EQ(processRunnerFetch(&fetch), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(456, gCalls.pRuntimeInfo->funcInfo.derivativeLogEpoch);
+  config = static_cast<SSTriggerGroupCalcInfo*>(
+      tSimpleHashGet(gCalls.pRuntimeInfo->funcInfo.pGroupCalcInfos, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, config);
+  EXPECT_EQ(789, config->derivativeLogEpoch);
   EXPECT_EQ(gRunnerFetchResponseCompleted, 0);
   ExpectOwners(1);
   fetch.reset = false;

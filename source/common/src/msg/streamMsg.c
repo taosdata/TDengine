@@ -4978,6 +4978,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->triggerCols);
   taosMemoryFreeClear(pReq->partitionCols);
   taosMemoryFreeClear(pReq->durationTagCols);
+  taosMemoryFreeClear(pReq->derivativeTagCols);
   taosMemoryFreeClear(pReq->rollupTagCols);
 
   taosArrayDestroy(pReq->outTags);
@@ -5100,6 +5101,10 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   if (pSrc->durationTagCols) {
     pDst->durationTagCols = COPY_STR(pSrc->durationTagCols);
     TSDB_CHECK_NULL(pDst->durationTagCols, code, lino, _exit, terrno);
+  }
+  if (pSrc->derivativeTagCols) {
+    pDst->derivativeTagCols = COPY_STR(pSrc->derivativeTagCols);
+    TSDB_CHECK_NULL(pDst->derivativeTagCols, code, lino, _exit, terrno);
   }
 
   if (pSrc->rollupTagCols) {
@@ -6789,6 +6794,58 @@ int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tEncodeStreamDerivativeLogFrame(SEncoder* pEncoder, int64_t epoch, SSHashObj* pGroups) {
+  int32_t count = 0;
+  int32_t iter = 0;
+  SSTriggerGroupCalcInfo* pGroup = tSimpleHashIterate(pGroups, NULL, &iter);
+  while (pGroup != NULL) {
+    if (pGroup->derivativeLogEpoch != 0) ++count;
+    pGroup = tSimpleHashIterate(pGroups, pGroup, &iter);
+  }
+  if (epoch == 0 && count == 0) return TSDB_CODE_SUCCESS;
+  uint16_t version = count == 0 ? STREAM_DERIVATIVE_LOG_FRAME_VERSION : STREAM_DERIVATIVE_CONFIG_FRAME_VERSION;
+  TAOS_CHECK_RETURN(tStartEncodeStreamTailFrame(pEncoder, STREAM_DERIVATIVE_LOG_FRAME_MAGIC, version, 0));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, epoch));
+  if (count != 0) {
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, count));
+    iter = 0;
+    pGroup = tSimpleHashIterate(pGroups, NULL, &iter);
+    while (pGroup != NULL) {
+      if (pGroup->derivativeLogEpoch != 0) {
+        int64_t* pGid = tSimpleHashGetKey(pGroup, NULL);
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, *pGid));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pGroup->derivativeLogEpoch));
+      }
+      pGroup = tSimpleHashIterate(pGroups, pGroup, &iter);
+    }
+  }
+  tEndEncodeStreamTailFrame(pEncoder);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDecodeStreamDerivativeLogFrame(SStreamTailFrameDecoder* pFrame, int64_t* pEpoch, SSHashObj* pGroups) {
+  if (pFrame->flags != 0 || (pFrame->version != STREAM_DERIVATIVE_LOG_FRAME_VERSION &&
+                            pFrame->version != STREAM_DERIVATIVE_CONFIG_FRAME_VERSION)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SDecoder* pDecoder = &pFrame->payloadDecoder;
+  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, pEpoch));
+  if (pFrame->version == STREAM_DERIVATIVE_CONFIG_FRAME_VERSION) {
+    int32_t count = 0;
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &count));
+    if (count <= 0 || count > tSimpleHashGetSize(pGroups)) return TSDB_CODE_INVALID_MSG;
+    for (int32_t i = 0; i < count; ++i) {
+      int64_t gid = 0, epoch = 0;
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &gid));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &epoch));
+      SSTriggerGroupCalcInfo* pGroup = tSimpleHashGet(pGroups, &gid, sizeof(gid));
+      if (pGroup == NULL || pGroup->derivativeLogEpoch != 0 || epoch == 0) return TSDB_CODE_INVALID_MSG;
+      pGroup->derivativeLogEpoch = epoch;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tSerializeSSTriggerGroupCalcInfo(SEncoder* pEncoder, SSTriggerGroupCalcInfo* pInfo) {
@@ -9751,6 +9808,9 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   const SStreamPrevWindowCodecView prevWindowView = tMakeCalcPrevWindowView(pCodecReq);
   TAOS_CHECK_EXIT(tEncodeStreamPrevWindowFrame(&encoder, &prevWindowView));
 
+  TAOS_CHECK_EXIT(tEncodeStreamDerivativeLogFrame(&encoder, pCodecReq->derivativeLogEpoch,
+                                                    pCodecReq->isMultiGroupCalc ? pCodecReq->pGroupCalcInfos : NULL));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -9914,10 +9974,27 @@ static int32_t tDeserializeSTriggerCalcRequestImpl(void* buf, int32_t bufLen, SS
   bool policySeen = false;
   bool ancestorSeen = false;
   bool prevWindowSeen = false;
+  bool derivativeLogSeen = false;
+  pReq->derivativeLogEpoch = 0;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     const int32_t           frameStart = decoder.pos;
     TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
+    if (frame.magic == STREAM_DERIVATIVE_LOG_FRAME_MAGIC) {
+      if (derivativeLogSeen) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      derivativeLogSeen = true;
+      code = tDecodeStreamDerivativeLogFrame(&frame, &pReq->derivativeLogEpoch, pReq->pGroupCalcInfos);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
     if (frame.magic == STREAM_CONTEXT_POLICY_FRAME_MAGIC) {
       if (policySeen || ancestorSeen || frame.version != STREAM_CONTEXT_POLICY_FRAME_VERSION || frame.flags != 0) {
         code = TSDB_CODE_INVALID_MSG;

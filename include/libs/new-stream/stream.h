@@ -216,6 +216,7 @@ typedef struct SStreamRunnerTask {
   char                         *streamName;
   int32_t                       addOptions;
   int64_t                       mgmtReqId;
+  struct SStreamDerivativeLogState* pDerivativeLogState;
 } SStreamRunnerTask;
 
 typedef struct SStreamCacheReadInfo {

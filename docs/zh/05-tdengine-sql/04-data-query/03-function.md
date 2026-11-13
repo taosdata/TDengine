@@ -3565,6 +3565,9 @@ ignore_negative: {
 - 可以与选择相关联的列一起使用。例如 `select \_rowts, DERIVATIVE(col1, 1s, 1) from tb1`。
 - 当有效时间线为退化时间线时，遇到重复时间戳行输出 NULL（避免除以零），不更新前值；遇到 NULL 时间行也输出 NULL。输出行数始终保持 N-1。
 - 当有效时间线乱序时，derivative 仍可执行，但由于时间差正负交替，斜率结果无物理意义。用户应通过 `ORDER BY` 保证时间线有序。
+- 在 `CREATE STREAM ... AS SELECT` 中，`time_interval` 可以直接引用原生测点的 Tag，例如 `DERIVATIVE(current, rate_interval, 0)`。超级表触发须按 `tbname` 分区；固定子表触发可省略分区。支持 `%%tbname`、`%%trows` 及原样透传 Tag 的单源子查询，普通 `SELECT` 不支持 Tag 参数。第二参数不接受普通列或 Tag 计算表达式，`ignore_negative` 仍须为字面量 `0` 或 `1`。
+- 字符串 Tag（`VARCHAR`、`BINARY`、`NCHAR`）使用带单位的正整数时长，支持 `b`、`u`、`a`、`s`、`m`、`h`、`d`、`w`；整型 Tag 使用源数据库精度下的时间刻度。时长须至少为 1 秒，能以源精度准确表示，且换算后不超过 `INT64_MAX`。时间单位不改变窗口宽度：相同输入使用 `'2s'` 的结果为使用 `'1s'` 时的两倍。
+- Tag 参数适用于单层 `INTERVAL`、`SESSION`、`COUNT_WINDOW`、`STATE_WINDOW` 和 `EVENT_WINDOW`，不适用于父子窗口、多个 START 条件、`PERIOD` 或纯 `SLIDING`。非法 Tag 值使引用它的变化率结果为 NULL，其他合法结果列和测点继续计算。未显式作为分区键的时间间隔 Tag 可通过 `SET TAG` 修改，后续计算采用生效后的值；修改本身不主动重算历史结果。活跃流引用的时间间隔 Tag 不能直接删除。
 
 ### DIFF
 

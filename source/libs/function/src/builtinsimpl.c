@@ -24,6 +24,7 @@
 #include "geosWrapper.h"
 #include "query.h"
 #include "querynodes.h"
+#include "scalar.h"
 #include "tanalytics.h"
 #include "tarray.h"
 #include "tcompare.h"
@@ -10661,6 +10662,46 @@ int32_t derivativeFunctionByRow(SArray* pCtxArray) {
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// The frozen unit is constant for this point's calculation. Reuse the native
+// arithmetic and row selection with that unit, including subnormal doubles.
+int32_t streamDerivativeFunctionByRow(SArray* pCtxArray) {
+  for (int32_t i = 0; i < taosArrayGetSize(pCtxArray); ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    SDerivInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+    int32_t precision = pCtx->param[3].param.i;
+    int64_t ticks = TSDB_TICK_PER_SECOND(precision);
+    const char* data = NULL;
+    int8_t type = TSDB_DATA_TYPE_NULL;
+    // Placeholder replacement can fold the frozen Tag into a literal. Its
+    // variant already owns a varstr for string types and an INT64 for integers.
+    SFunctParam* pParam = &pCtx->param[1];
+    if (pParam->type == FUNC_PARAM_TYPE_VALUE) {
+      type = pParam->param.nType;
+      if (IS_INTEGER_TYPE(type)) {
+        type = IS_UNSIGNED_NUMERIC_TYPE(type) ? TSDB_DATA_TYPE_UBIGINT : TSDB_DATA_TYPE_BIGINT;
+        data = (const char*)&pParam->param.i;
+      } else if (type != TSDB_DATA_TYPE_NULL) {
+        data = pParam->param.pz;
+      }
+    } else if (pCtx->input.numOfRows > 0) {
+      SColumnInfoData* pUnit = pCtx->input.pData[1];
+      if (pUnit == NULL) return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      type = pUnit->info.type;
+      int32_t row = pCtx->input.startRowIndex;
+      if (!colDataIsNull_s(pUnit, row)) data = colDataGetData(pUnit, row);
+    }
+    // Invalid units are reported and converted to NULL by the outer scalar.
+    // Retain the legacy one-second row selection for those configurations.
+    if (data != NULL && scalarStreamDerivativeDuration(data, type, precision, &ticks) != NULL) {
+      ticks = TSDB_TICK_PER_SECOND(precision);
+    }
+    pInfo->tsWindow = ticks;
+    int32_t code = DoDerivativeFunction(pCtx);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
   return TSDB_CODE_SUCCESS;
 }

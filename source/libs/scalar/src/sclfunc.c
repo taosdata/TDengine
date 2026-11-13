@@ -21,15 +21,18 @@
 #include "decimal.h"
 #include "filter.h"
 #include "function.h"
+#include "osThread.h"
 #include "scalar.h"
 #include "sclInt.h"
 #include "sclvector.h"
+#include "streamMsg.h"
 #include "tbase64.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "tjson.h"
 #include "tglobal.h"
+#include "thash.h"
 #include "totp.h"
 #include "ttime.h"
 
@@ -43,6 +46,306 @@ typedef int32_t (*_trim_fn)(char *, char *, char *, int32_t, int32_t, void *);
 typedef int32_t (*_len_fn)(char *, int32_t, void *);
 
 enum { SCALAR_HISTOGRAM_MAX_BINS_NUM = 1000 };
+
+static uint32_t streamDerivativeDurationChar(const char *data, int32_t width, int32_t index) {
+  if (width == 1) return (uint8_t)varDataVal(data)[index];
+  uint32_t ch = 0;
+  memcpy(&ch, varDataVal(data) + index * width, width);
+  return ch;
+}
+
+// Return source-precision ticks without truncation, calendar units or overflow.
+const char* scalarStreamDerivativeDuration(const char *data, int8_t type, int32_t precision, int64_t *ticks) {
+  if (IS_INTEGER_TYPE(type)) {
+    if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t value = 0;
+      GET_TYPED_DATA(value, uint64_t, type, data, 0);
+      if (value > INT64_MAX) return "duration overflows INT64 ticks";
+      *ticks = (int64_t)value;
+    } else {
+      GET_TYPED_DATA(*ticks, int64_t, type, data, 0);
+    }
+    return *ticks >= TSDB_TICK_PER_SECOND(precision) ? NULL : "duration is less than one second";
+  }
+
+  int32_t width = type == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : 1;
+  int32_t bytes = varDataLen(data);
+  int32_t length = bytes / width;
+  if (bytes % width != 0 || length < 2) return "expected a positive integer and fixed duration unit";
+  int64_t nanos = 0;
+  switch (streamDerivativeDurationChar(data, width, length - 1)) {
+    case 'b':
+      nanos = 1;
+      break;
+    case 'u':
+      nanos = 1000;
+      break;
+    case 'a':
+      nanos = 1000000;
+      break;
+    case 's':
+      nanos = 1000000000;
+      break;
+    case 'm':
+      nanos = INT64_C(60) * 1000000000;
+      break;
+    case 'h':
+      nanos = INT64_C(3600) * 1000000000;
+      break;
+    case 'd':
+      nanos = INT64_C(86400) * 1000000000;
+      break;
+    case 'w':
+      nanos = INT64_C(604800) * 1000000000;
+      break;
+    default:
+      return "unsupported duration unit";
+  }
+  int64_t nanosPerTick = INT64_C(1000000000) / TSDB_TICK_PER_SECOND(precision);
+  int32_t digits = length - 1;
+  // Discard only exact trailing zeroes when the unit is finer than the DB.
+  // This also accepts large decimal nanosecond strings whose final ticks fit.
+  for (int64_t divisor = nanosPerTick / nanos; divisor > 1; divisor /= 10) {
+    if (digits == 0 || streamDerivativeDurationChar(data, width, digits - 1) != '0') {
+      return "duration is not exactly representable at source precision";
+    }
+    --digits;
+  }
+  int64_t multiplier = TMAX(INT64_C(1), nanos / nanosPerTick);
+  int64_t value = 0;
+  for (int32_t i = 0; i < digits; ++i) {
+    uint32_t ch = streamDerivativeDurationChar(data, width, i);
+    if (ch < '0' || ch > '9') return "expected a positive integer before the unit";
+    if (value > (INT64_MAX / multiplier - (ch - '0')) / 10) return "duration overflows INT64 ticks";
+    value = value * 10 + ch - '0';
+  }
+  *ticks = value * multiplier;
+  return *ticks >= TSDB_TICK_PER_SECOND(precision) ? NULL : "duration is less than one second";
+}
+
+// Escape the source value so malformed tags cannot inject extra log lines.
+static void streamDerivativeValueText(SColumnInfoData* pCol, int32_t row, char* buf, int32_t size) {
+  if (colDataIsNull_s(pCol, row)) {
+    tstrncpy(buf, "NULL", size);
+    return;
+  }
+  const char* data = colDataGetData(pCol, row);
+  int8_t type = pCol->info.type;
+  if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t value = 0;
+    GET_TYPED_DATA(value, uint64_t, type, data, 0);
+    (void)snprintf(buf, size, "%" PRIu64, value);
+  } else if (IS_INTEGER_TYPE(type)) {
+    int64_t value = 0;
+    GET_TYPED_DATA(value, int64_t, type, data, 0);
+    (void)snprintf(buf, size, "%" PRId64, value);
+  } else {
+    int32_t width = type == TSDB_DATA_TYPE_NCHAR ? TSDB_NCHAR_SIZE : 1;
+    int32_t count = varDataLen(data) / width;
+    int32_t offset = 0;
+    for (int32_t i = 0; i < count && offset + 12 < size; ++i) {
+      uint32_t ch = streamDerivativeDurationChar(data, width, i);
+      if (ch >= ' ' && ch <= '~' && ch != '\\') {
+        buf[offset++] = (char)ch;
+      } else {
+        int32_t written = snprintf(buf + offset, size - offset, "\\u%04x", ch);
+        if (written < 0 || written >= size - offset) break;
+        offset += written;
+      }
+      if (i + 1 < count && offset + 12 >= size) {
+        tstrncpy(buf + offset, "...", size - offset);
+        return;
+      }
+    }
+    buf[offset] = 0;
+  }
+}
+
+static void logStreamDerivativeTag(SScalarParam* pInput, int32_t inputNum, int32_t row, const char* reason) {
+  char value[256] = {0};
+  streamDerivativeValueText(pInput[0].columnData, row, value, sizeof(value));
+  if (inputNum >= 6) {
+    const char* tag = colDataGetData(pInput[3].columnData, 0);
+    const char* stream = colDataGetData(pInput[4].columnData, 0);
+    const char* point = colDataGetData(pInput[5].columnData, pInput[5].numOfRows == 1 ? 0 : row);
+    sclError("stream DERIVATIVE invalid time_interval, stream:%.*s, point:%.*s, tag:%.*s, value:%s, reason:%s; returning NULL",
+             (int)varDataLen(stream), varDataVal(stream), (int)varDataLen(point), varDataVal(point),
+             (int)varDataLen(tag), varDataVal(tag), value, reason);
+  } else {
+    // Retain execution compatibility with plans created before diagnostic arguments.
+    sclError("stream DERIVATIVE invalid time_interval, value:%s, reason:%s; returning NULL", value, reason);
+  }
+}
+
+struct SStreamDerivativeLogState {
+  TdThreadMutex lock;
+  SHashObj*     pInvalidTags;
+};
+
+enum { STREAM_DERIVATIVE_LOG_MAX_ENTRIES = 1024 };
+
+int32_t scalarCreateStreamDerivativeLogState(SStreamDerivativeLogState** ppState) {
+  SStreamDerivativeLogState* pState = taosMemoryCalloc(1, sizeof(*pState));
+  if (pState == NULL) return terrno;
+  pState->pInvalidTags = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (pState->pInvalidTags == NULL) {
+    taosMemoryFree(pState);
+    return terrno;
+  }
+  int32_t code = taosThreadMutexInit(&pState->lock, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup(pState->pInvalidTags);
+    taosMemoryFree(pState);
+    return code;
+  }
+  *ppState = pState;
+  return TSDB_CODE_SUCCESS;
+}
+
+void scalarDestroyStreamDerivativeLogState(SStreamDerivativeLogState* pState) {
+  if (pState == NULL) return;
+  taosHashCleanup(pState->pInvalidTags);
+  (void)taosThreadMutexDestroy(&pState->lock);
+  taosMemoryFree(pState);
+}
+
+// Bound diagnostic retention when points retire without a subsequent valid
+// calculation. Evicted configurations can report again if encountered later.
+// History rounds and realtime snapshots have independent keys; execution slots
+// share the lock and neither values nor keys are borrowed.
+static bool streamDerivativeShouldLog(SScalarParam* pInput, int32_t inputNum, int32_t row, bool invalid) {
+  const SStreamRuntimeFuncInfo* pRuntime = pInput[0].param;
+  if (inputNum < 6 || pRuntime == NULL || pRuntime->pDerivativeLogState == NULL) return invalid;
+  SStreamDerivativeLogState* pState = pRuntime->pDerivativeLogState;
+  struct {
+    char sessionId[sizeof(pRuntime->sessionId)];
+    char epoch[sizeof(pRuntime->derivativeLogEpoch)];
+    char point[TSDB_TABLE_NAME_LEN];
+    char tag[TSDB_COL_NAME_LEN];
+  } key = {0};
+  memcpy(key.sessionId, &pRuntime->sessionId, sizeof(key.sessionId));
+  int64_t epoch = tStreamDerivativeLogEpoch(pRuntime);
+  memcpy(key.epoch, &epoch, sizeof(key.epoch));
+  const char* tag = colDataGetData(pInput[3].columnData, 0);
+  const char* point = colDataGetData(pInput[5].columnData, pInput[5].numOfRows == 1 ? 0 : row);
+  if (tag == NULL || point == NULL || varDataLen(tag) >= sizeof(key.tag) || varDataLen(point) >= sizeof(key.point)) {
+    return invalid;
+  }
+  memcpy(key.tag, varDataVal(tag), varDataLen(tag));
+  memcpy(key.point, varDataVal(point), varDataLen(point));
+  if (taosThreadMutexLock(&pState->lock) != TSDB_CODE_SUCCESS) return invalid;
+  char* pOld = taosHashGet(pState->pInvalidTags, &key, sizeof(key));
+  bool report = invalid;
+  if (!invalid) {
+    if (pOld != NULL) {
+      int32_t code = taosHashRemove(pState->pInvalidTags, &key, sizeof(key));
+      if (code != TSDB_CODE_SUCCESS) {
+        sclError("failed to remove stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+      }
+    }
+  } else {
+    SColumnInfoData* pCol = pInput[0].columnData;
+    bool isNull = colDataIsNull_s(pCol, row);
+    const char* data = isNull ? NULL : colDataGetData(pCol, row);
+    int32_t bytes = isNull ? 0 : (IS_VAR_DATA_TYPE(pCol->info.type) ? varDataTLen(data) : pCol->info.bytes);
+    if (pOld != NULL && taosHashGetValueSize(pOld) == bytes + 2 && pOld[0] == pCol->info.type &&
+        pOld[1] == isNull && (bytes == 0 || memcmp(pOld + 2, data, bytes) == 0)) {
+      report = false;
+    } else {
+      char* pValue = taosMemoryMalloc(bytes + 2);
+      if (pValue != NULL) {
+        pValue[0] = pCol->info.type;
+        pValue[1] = isNull;
+        if (bytes > 0) memcpy(pValue + 2, data, bytes);
+        int32_t code = TSDB_CODE_SUCCESS;
+        if (pOld == NULL && taosHashGetSize(pState->pInvalidTags) >= STREAM_DERIVATIVE_LOG_MAX_ENTRIES) {
+          void* pVictim = taosHashIterate(pState->pInvalidTags, NULL);
+          if (pVictim != NULL) {
+            char victimKey[sizeof(key)];
+            memcpy(victimKey, taosHashGetKey(pVictim, NULL), sizeof(victimKey));
+            taosHashCancelIterate(pState->pInvalidTags, pVictim);
+            code = taosHashRemove(pState->pInvalidTags, victimKey, sizeof(victimKey));
+            if (code != TSDB_CODE_SUCCESS) {
+              sclError("failed to evict stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+            }
+          }
+        }
+        // Cache admission failures are diagnostic-only; the SQL result does
+        // not depend on retaining this configuration.
+        if (code == TSDB_CODE_SUCCESS) {
+          code = taosHashPut(pState->pInvalidTags, &key, sizeof(key), pValue, bytes + 2);
+          if (code != TSDB_CODE_SUCCESS) {
+            sclError("failed to cache stream DERIVATIVE diagnostic, code:%s", tstrerror(code));
+          }
+        }
+        taosMemoryFree(pValue);
+      }
+    }
+  }
+  (void)taosThreadMutexUnlock(&pState->lock);
+  return report;
+}
+
+// Only generated for stream DERIVATIVE tag arguments. Ordinary DERIVATIVE is unchanged.
+int32_t streamDerivativeFactorFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  if (pInput[2].numOfRows == 0) {
+    pOutput->numOfRows = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t precision = 0;
+  GET_TYPED_DATA(precision, int32_t, pInput[1].columnData->info.type, pInput[1].columnData->pData, 0);
+  if (precision < TSDB_TIME_PRECISION_MILLI || precision > TSDB_TIME_PRECISION_NANO) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+  }
+  bool preScaled = false;
+  if (inputNum == 7) {
+    int32_t flag = 0;
+    GET_TYPED_DATA(flag, int32_t, pInput[6].columnData->info.type, pInput[6].columnData->pData, 0);
+    preScaled = flag != 0;
+  }
+  SColumnInfoData *input = pInput[0].columnData;
+  SColumnInfoData *rates = pInput[2].columnData;
+  int32_t          rows = TMAX(pInput[0].numOfRows, pInput[2].numOfRows);
+  bool             reported = false;
+  int64_t          ticks = 0;
+  const char*      reason = NULL;
+  for (int32_t i = 0; i < rows; ++i) {
+    int32_t tagRow = pInput[0].numOfRows == 1 ? 0 : i;
+    int32_t rateRow = pInput[2].numOfRows == 1 ? 0 : i;
+    bool report = false;
+    // A single-row tag is broadcast over the rate vector; parse it only once.
+    if (i == 0 || pInput[0].numOfRows != 1) {
+      ticks = 0;
+      reason = colDataIsNull_s(input, tagRow)
+                   ? "NULL duration tag"
+                   : scalarStreamDerivativeDuration(colDataGetData(input, tagRow), input->info.type, precision, &ticks);
+      report = streamDerivativeShouldLog(pInput, inputNum, tagRow, reason != NULL);
+    }
+    if (reason != NULL) {
+      colDataSetNULL(pOutput->columnData, i);
+      if (!reported && report) {
+        logStreamDerivativeTag(pInput, inputNum, tagRow, reason);
+        reported = true;
+      }
+    } else if (colDataIsNull_s(rates, rateRow)) {
+      colDataSetNULL(pOutput->columnData, i);
+    } else {
+      double rate = 0;
+      GET_TYPED_DATA(rate, double, rates->info.type, colDataGetData(rates, rateRow), 0);
+      // Older stored plans supply a per-second rate. New plans apply the
+      // frozen unit inside DERIVATIVE, before rounding and negative filtering.
+      if (!preScaled) rate *= (double)ticks / TSDB_TICK_PER_SECOND(precision);
+      if (isinf(rate) || isnan(rate)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
+      int32_t code = colDataSetVal(pOutput->columnData, i, (const char *)&rate, false);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+  }
+  pOutput->numOfRows = rows;
+  return TSDB_CODE_SUCCESS;
+}
 
 /** Math functions **/
 static double tlog(double v) { return log(v); }

@@ -1896,6 +1896,8 @@ static void initStreamInfo(SParseStreamInfo* pInfo) {
   pInfo->extLeftEq = false;
   pInfo->extRightEq = false;
   pInfo->triggerPartitionList = NULL;
+  pInfo->derivativeTagCols = NULL;
+  pInfo->derivativeInjectedCols = NULL;
   pInfo->triggerTbl = NULL;
   pInfo->extSourceNames = NULL;
   pInfo->rollupTagList = NULL;
@@ -2003,6 +2005,8 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pTables);
   taosHashCleanup(pCxt->pTargetTables);
   taosHashCleanup(pCxt->streamInfo.extSourceNames);
+  nodesDestroyList(pCxt->streamInfo.derivativeTagCols);
+  nodesDestroyList(pCxt->streamInfo.derivativeInjectedCols);
   nodesDestroyList(pCxt->pSubQueries);
 }
 
@@ -8080,7 +8084,148 @@ _return:
   return code;
 }
 
+static bool streamPartitionHasTbname(SNodeList* pPartitionByList);
+
+static SRealTableNode* streamDerivativeSource(SSelectStmt* pSelect) {
+  SNode* pTable = pSelect->pFromTable;
+  while (pTable != NULL && nodeType(pTable) == QUERY_NODE_TEMP_TABLE) {
+    SNode* pQuery = ((STempTableNode*)pTable)->pSubquery;
+    if (nodeType(pQuery) != QUERY_NODE_SELECT_STMT) return NULL;
+    SSelectStmt* pSub = (SSelectStmt*)pQuery;
+    if (pSub->hasAggFuncs || pSub->hasIndefiniteRowsFunc || pSub->pGroupByList || pSub->pWindow || pSub->isDistinct) {
+      return NULL;
+    }
+    pTable = pSub->pFromTable;
+  }
+  return pTable != NULL && nodeType(pTable) == QUERY_NODE_REAL_TABLE ? (SRealTableNode*)pTable : NULL;
+}
+
+static const SColumnNode* streamDerivativeTagOrigin(SSelectStmt* pSelect, const SColumnNode* pCol) {
+  SNode* pTable = pSelect->pFromTable;
+  if (nodeType(pTable) != QUERY_NODE_TEMP_TABLE) return pCol;
+  SNode* pQuery = ((STempTableNode*)pTable)->pSubquery;
+  if (nodeType(pQuery) != QUERY_NODE_SELECT_STMT) return NULL;
+  SSelectStmt* pSub = (SSelectStmt*)pQuery;
+  SNode*       pExpr = NULL;
+  FOREACH(pExpr, pSub->pProjectionList) {
+    if (nodeType(pExpr) == QUERY_NODE_COLUMN && strcmp(((SExprNode*)pExpr)->aliasName, pCol->colName) == 0) {
+      return streamDerivativeTagOrigin(pSub, (SColumnNode*)pExpr);
+    }
+  }
+  return NULL;
+}
+
+// Validate using the public DERIVATIVE contract, then bind an internal entry
+// that applies the frozen Tag unit before arithmetic and row selection.
+static EDealRes rewriteStreamDerivativeTag(STranslateContext* pCxt, SNode** ppNode) {
+  SFunctionNode*  pFunc = (SFunctionNode*)*ppNode;
+  SNode*          pTag = nodesListGetNode(pFunc->pParameterList, 1);
+  SRealTableNode* pTrigger = (SRealTableNode*)getStreamTriggerTable(pCxt);
+  SRealTableNode* pSource =
+      isSelectStmt(pCxt->pCurrStmt) ? streamDerivativeSource((SSelectStmt*)pCxt->pCurrStmt) : NULL;
+  if (!inStreamCalcClause(pCxt) || pTag == NULL || nodeType(pTag) != QUERY_NODE_COLUMN ||
+      ((SColumnNode*)pTag)->colType != COLUMN_TYPE_TAG || pTrigger == NULL || pTrigger->pMeta == NULL ||
+      (pTrigger->pMeta->tableType != TSDB_SUPER_TABLE && pTrigger->pMeta->tableType != TSDB_CHILD_TABLE) ||
+      pTrigger->pMeta->virtualStb || pTrigger->pExtTableNode || pSource == NULL ||
+      (pSource->placeholderType != SP_PARTITION_TBNAME && pSource->placeholderType != SP_PARTITION_ROWS) ||
+      (pTrigger->pMeta->tableType == TSDB_SUPER_TABLE && !streamPartitionHasTbname(getStreamTriggerPartition(pCxt))) ||
+      pFunc->pOver != NULL) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                  "DERIVATIVE time_interval tag requires a single native stream point partition");
+  }
+  int8_t type = ((SExprNode*)pTag)->resType.type;
+  if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_VARCHAR && type != TSDB_DATA_TYPE_NCHAR) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "derivative");
+  }
+
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            precision = pTrigger->pMeta->tableInfo.precision;
+  const SColumnNode* pOrigin = streamDerivativeTagOrigin((SSelectStmt*)pCxt->pCurrStmt, (SColumnNode*)pTag);
+  SNode*             pUnit = NULL;
+  SNode*             pPrecision = NULL;
+  SNodeList*         pParams = NULL;
+  SFunctionNode*     pFactor = NULL;
+  SListCell*         pRateCell = NULL;
+  if (pOrigin == NULL || pOrigin->colType != COLUMN_TYPE_TAG || pOrigin->colId == 0) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "derivative");
+  }
+  SNode* pRef = NULL;
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pOrigin, &pRef));
+  code = nodesListMakeStrictAppend(&pCxt->streamInfo.derivativeTagCols, pRef);
+  PAR_ERR_JRET(code);
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt64(TSDB_TICK_PER_SECOND(precision), &pUnit));
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt32(precision, &pPrecision));
+  // Only the tag is needed by the scalar conversion; preserve its original type.
+  SNode* pTagCopy = NULL;
+  PAR_ERR_JRET(nodesCloneNode(pTag, &pTagCopy));
+  code = nodesListMakeStrictAppend(&pParams, pTagCopy);
+  PAR_ERR_JRET(code);
+  code = nodesListMakeStrictAppend(&pParams, pPrecision);
+  pPrecision = NULL;
+  PAR_ERR_JRET(code);
+  SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 1);
+  nodesDestroyNode(pCell->pNode);
+  pCell->pNode = pUnit;
+  pUnit = NULL;
+  if (translateFunction(pCxt, (SFunctionNode**)ppNode) == DEAL_RES_ERROR) {
+    code = pCxt->errCode;
+    goto _return;
+  }
+  // Restore the translated Tag for the internal calculation. Snapshot rewriting
+  // below freezes both this unit and the diagnostic scalar's copy together.
+  PAR_ERR_JRET(nodesCloneNode(nodesListGetNode(pParams, 0), &pUnit));
+  SOperatorNode* pAssign = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pAssign));
+  pAssign->node.resType = ((SExprNode*)pUnit)->resType;
+  pAssign->opType = OP_TYPE_ASSIGN;
+  pAssign->pRight = pUnit;
+  pUnit = (SNode*)pAssign;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_LEFT_VALUE, &pAssign->pLeft));
+  // Materialize the pseudo-column through the existing precalculation path.
+  // Vector functions receive physical columns or literals as their inputs.
+  nodesDestroyNode(pCell->pNode);
+  pCell->pNode = pUnit;
+  pUnit = NULL;
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt32(precision, &pPrecision));
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrecision);
+  pPrecision = NULL;
+  PAR_ERR_JRET(code);
+  tstrncpy(pFunc->functionName, "_stream_derivative", sizeof(pFunc->functionName));
+  PAR_ERR_JRET(getFuncInfo(pCxt, pFunc));
+  PAR_ERR_JRET(nodesListMakeAppend(&pParams, (SNode*)pFunc));
+  pRateCell = nodesListGetCell(pParams, 2);
+  SValueNode* pTagName = NULL;
+  PAR_ERR_JRET(nodesMakeValueNodeFromString(((SColumnNode*)pRef)->colName, &pTagName));
+  PAR_ERR_JRET(nodesListMakeStrictAppend(&pParams, (SNode*)pTagName));
+  PAR_ERR_JRET(createFunction("_stream_derivative_factor", pParams, &pFactor));
+  pParams = NULL;
+  pFactor->node = pFunc->node;
+  pFunc->node.pAssociation = NULL;
+  snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "__stream_rate_%p", (void*)pFunc);
+  *ppNode = (SNode*)pFactor;
+  return DEAL_RES_CONTINUE;
+
+_return:
+  nodesDestroyNode(pUnit);
+  nodesDestroyNode(pPrecision);
+  // The original function is still owned by the AST on construction failure.
+  if (pRateCell != NULL) pRateCell->pNode = NULL;
+  nodesDestroyList(pParams);
+  nodesDestroyNode((SNode*)pFactor);
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
+  if (0 == strcasecmp((*pFunc)->functionName, "_stream_derivative_factor") ||
+      0 == strcasecmp((*pFunc)->functionName, "_stream_derivative")) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, (*pFunc)->functionName);
+  }
+  if (inStreamCalcClause(pCxt) && 0 == strcasecmp((*pFunc)->functionName, "derivative") &&
+      LIST_LENGTH((*pFunc)->pParameterList) == 3 &&
+      nodeType(nodesListGetNode((*pFunc)->pParameterList, 1)) != QUERY_NODE_VALUE) {
+    return rewriteStreamDerivativeTag(pCxt, (SNode**)pFunc);
+  }
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
     pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
@@ -28641,6 +28786,10 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   (void)snprintf(pReq->outDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->targetDbName);
 
   bool outStable = LIST_LENGTH(pTrigger->pPartitionList) > 0 || LIST_LENGTH(pTrigger->pRollupTagList) > 0;
+  if (pCxt->streamInfo.derivativeTagCols != NULL && pStmt->pTags == NULL) {
+    // An internal snapshot partition must not change a fixed child's output schema.
+    outStable = false;
+  }
   code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
     if (outStable) {
@@ -30869,8 +31018,34 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
 
   // Default output TAGS must be derived from the user-facing PARTITION BY (e.g. tbname
   // only) before duration/count tags are injected for runtime group-col fetch.
-  PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
+  if (pCxt->streamInfo.derivativeTagCols == NULL) {
+    PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
+  }
   PAR_ERR_JRET(injectStreamDurationTagsIntoPartition(pStmt, pReq));
+  if (pCxt->streamInfo.derivativeInjectedCols != NULL) {
+    SNodeList* pSettable = NULL;
+    if (pReq->durationTagCols != NULL) {
+      code = nodesStringToList(pReq->durationTagCols, &pSettable);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pSettable);
+        PAR_ERR_JRET(code);
+      }
+    }
+    SNode* pCol = NULL;
+    FOREACH(pCol, pCxt->streamInfo.derivativeInjectedCols) {
+      SNode* pCopy = NULL;
+      code = nodesCloneNode(pCol, &pCopy);
+      if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pSettable, pCopy);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      int32_t length = 0;
+      taosMemoryFreeClear(pReq->durationTagCols);
+      code = nodesListToString(pSettable, false, (char**)&pReq->durationTagCols, &length);
+    }
+    nodesDestroyList(pSettable);
+    PAR_ERR_JRET(code);
+  }
   pTriggerPartition = pTrigger->pPartitionList;
 
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
@@ -31453,6 +31628,196 @@ static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
   }
 }
 
+// Only DERIVATIVE unit references use the immutable group values carried by a
+// calculation request. The history context owns a separate copy from realtime.
+typedef struct SStreamDerivativeSnapshotCxt {
+  STranslateContext* pTrans;
+  SSelectStmt*       pSelect;
+  const char*        streamName;
+  int32_t            tbnameIndex;
+  int32_t            code;
+} SStreamDerivativeSnapshotCxt;
+
+static int32_t makeStreamDerivativePlaceholder(int32_t index, SDataType type, SFunctionNode** ppFunc) {
+  SNodeList* pParams = NULL;
+  SValueNode* pValue = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pValue->node.resType = type;
+  pValue->isNull = true;
+  pValue->notReserved = true;
+  code = nodesListMakeStrictAppend(&pParams, (SNode*)pValue);
+  if (code == TSDB_CODE_SUCCESS) code = nodesMakeValueNodeFromInt64(index, (SNode**)&pValue);
+  if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pParams, (SNode*)pValue);
+  if (code == TSDB_CODE_SUCCESS) code = createFunction("_placeholder_column", pParams, ppFunc);
+  if (code != TSDB_CODE_SUCCESS) nodesDestroyList(pParams);
+  else (*ppFunc)->node.resType = type;
+  return code;
+}
+
+static EDealRes rewriteStreamDerivativeSnapshot(SNode** ppNode, void* pContext) {
+  SStreamDerivativeSnapshotCxt* pCxt = pContext;
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION &&
+      ((SFunctionNode*)*ppNode)->funcType == FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR) {
+    SFunctionNode* pFunc = (SFunctionNode*)*ppNode;
+    SValueNode* pName = NULL;
+    pCxt->code = nodesMakeValueNodeFromString((char*)pCxt->streamName, &pName);
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pName);
+    }
+    SFunctionNode* pPoint = NULL;
+    SDataType type = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE};
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = makeStreamDerivativePlaceholder(pCxt->tbnameIndex, type, &pPoint);
+    }
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pPoint);
+    }
+    SNode* pPreScaled = NULL;
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesMakeValueNodeFromInt32(1, &pPreScaled);
+    }
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPreScaled);
+    }
+    if (pCxt->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+  }
+  SNode* pColumn = *ppNode;
+  if (nodeType(pColumn) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pColumn;
+    if (pFunc->funcType != FUNCTION_TYPE_GROUP_KEY && pFunc->funcType != FUNCTION_TYPE_SELECT_VALUE &&
+        pFunc->funcType != FUNCTION_TYPE_GROUP_CONST_VALUE) {
+      return DEAL_RES_CONTINUE;
+    }
+    // Selection companions require a physical column. A frozen unit is already
+    // constant for the calculation, so replace the wrapper as well as its Tag.
+    pColumn = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  if (nodeType(pColumn) != QUERY_NODE_COLUMN || ((SColumnNode*)pColumn)->colType != COLUMN_TYPE_TAG) {
+    return DEAL_RES_CONTINUE;
+  }
+  const SColumnNode* pOrigin = streamDerivativeTagOrigin(pCxt->pSelect, (SColumnNode*)pColumn);
+  if (pOrigin == NULL) return DEAL_RES_CONTINUE;
+  bool referenced = false;
+  SNode* pRef = NULL;
+  FOREACH(pRef, pCxt->pTrans->streamInfo.derivativeTagCols) {
+    if (((SColumnNode*)pRef)->colId == pOrigin->colId) referenced = true;
+  }
+  if (!referenced) return DEAL_RES_CONTINUE;
+  int32_t index = 0;
+  FOREACH(pRef, pCxt->pTrans->streamInfo.triggerPartitionList) {
+    if (nodeType(pRef) == QUERY_NODE_VALUE) continue;
+    ++index;
+    if (nodeType(pRef) != QUERY_NODE_COLUMN || ((SColumnNode*)pRef)->colId != pOrigin->colId) continue;
+    SFunctionNode* pFunc = NULL;
+    pCxt->code = makeStreamDerivativePlaceholder(index, ((SExprNode*)*ppNode)->resType, &pFunc);
+    if (pCxt->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+    pFunc->node = *(SExprNode*)*ppNode;
+    pFunc->node.type = QUERY_NODE_FUNCTION;
+    ((SExprNode*)*ppNode)->pAssociation = NULL;
+    nodesDestroyNode(*ppNode);
+    *ppNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  pCxt->code = TSDB_CODE_INTERNAL_ERROR;
+  return DEAL_RES_ERROR;
+}
+
+static int32_t rewriteStreamDerivativeSelect(SStreamDerivativeSnapshotCxt* pCxt, SSelectStmt* pSelect) {
+  pCxt->pSelect = pSelect;
+  // Rewrite the outer aliases before touching the subquery projections needed
+  // to resolve their original Tag identities.
+  nodesRewriteExpr(&pSelect->pWhere, rewriteStreamDerivativeSnapshot, pCxt);
+  PAR_ERR_RET(pCxt->code);
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_WHERE, rewriteStreamDerivativeSnapshot, pCxt);
+  PAR_ERR_RET(pCxt->code);
+  if (nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (nodeType(pSubquery) == QUERY_NODE_SELECT_STMT) {
+      return rewriteStreamDerivativeSelect(pCxt, (SSelectStmt*)pSubquery);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t prepareStreamDerivativeSnapshot(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
+                                                SSelectStmt* pTriggerSelect, SCMCreateStreamReq* pReq) {
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  PAR_ERR_RET(createStreamReqSetDefaultTag(pCxt, pStmt, pTrigger->pPartitionList, pTrigger->pRollupTagList, pReq));
+  if (!streamPartitionHasTbname(pTrigger->pPartitionList)) {
+    SFunctionNode* pTbname = NULL;
+    PAR_ERR_RET(createTbnameFunction(&pTbname));
+    PAR_ERR_RET(nodesListMakeStrictAppend(&pTrigger->pPartitionList, (SNode*)pTbname));
+  }
+  SNode* pRef = NULL;
+  FOREACH(pRef, pCxt->streamInfo.derivativeTagCols) {
+    int32_t oldLength = LIST_LENGTH(pTrigger->pPartitionList);
+    PAR_ERR_RET(appendDurationTagColToPartition(&pTrigger->pPartitionList, pRef,
+                                               (SRealTableNode*)pTrigger->pTrigerTable));
+    if (oldLength != LIST_LENGTH(pTrigger->pPartitionList)) {
+      // Calculation input aliases may differ from the trigger table. Bind the
+      // injected column to the trigger scan and give it a physical scan slot.
+      SColumnNode* pInjected = (SColumnNode*)pTrigger->pPartitionList->pTail->pNode;
+      SRealTableNode* pTable = (SRealTableNode*)pTriggerSelect->pFromTable;
+      tstrncpy(pInjected->tableAlias, pTable->table.tableAlias, sizeof(pInjected->tableAlias));
+      pInjected->tableId = pTable->pMeta->uid;
+      pInjected->tableType = pTable->pMeta->tableType;
+      PAR_ERR_RET(nodesCollectColumnsFromNode((SNode*)pInjected, NULL, COLLECT_COL_TYPE_TAG,
+                                               &pTriggerSelect->pProjectionList));
+      SNode* pCopy = NULL;
+      PAR_ERR_RET(nodesCloneNode(pRef, &pCopy));
+      PAR_ERR_RET(nodesListMakeStrictAppend(&pCxt->streamInfo.derivativeInjectedCols, pCopy));
+    }
+  }
+  pCxt->streamInfo.triggerPartitionList = pTrigger->pPartitionList;
+  int32_t index = 0;
+  FOREACH(pRef, pTrigger->pPartitionList) {
+    if (nodeType(pRef) == QUERY_NODE_VALUE) continue;
+    ++index;
+    if (nodeType(pRef) == QUERY_NODE_FUNCTION && ((SFunctionNode*)pRef)->funcType == FUNCTION_TYPE_TBNAME) break;
+  }
+  SStreamDerivativeSnapshotCxt cxt = {.pTrans = pCxt, .streamName = pReq->name, .tbnameIndex = index};
+  PAR_ERR_RET(rewriteStreamDerivativeSelect(&cxt, (SSelectStmt*)pStmt->pQuery));
+  BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
+  BIT_FLAG_SET_MASK(pReq->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkStreamDerivativeWindow(STranslateContext* pCxt, const SCreateStreamStmt* pStmt) {
+  if (pCxt->streamInfo.derivativeTagCols == NULL) return TSDB_CODE_SUCCESS;
+  // Snapshot rewriting follows one SELECT/source chain. Validate the whole
+  // calculation, including parents of the SELECT containing DERIVATIVE.
+  const SNode* pQuery = pStmt->pQuery;
+  if (streamQueryHasExprSubqueryRef(pStmt->pQuery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a single-source calculation");
+  }
+  while (pQuery != NULL && nodeType(pQuery) == QUERY_NODE_SELECT_STMT) {
+    const SNode* pSource = ((const SSelectStmt*)pQuery)->pFromTable;
+    if (pSource != NULL && nodeType(pSource) == QUERY_NODE_REAL_TABLE) break;
+    if (pSource == NULL || nodeType(pSource) != QUERY_NODE_TEMP_TABLE) {
+      pQuery = NULL;
+      break;
+    }
+    pQuery = ((const STempTableNode*)pSource)->pSubquery;
+  }
+  if (pQuery == NULL || nodeType(pQuery) != QUERY_NODE_SELECT_STMT) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a single-source calculation");
+  }
+  const SNode* pWindow = ((SStreamTriggerNode*)pStmt->pTrigger)->pTriggerWindow;
+  bool supported = nodeType(pWindow) == QUERY_NODE_COUNT_WINDOW || nodeType(pWindow) == QUERY_NODE_SESSION_WINDOW ||
+                   nodeType(pWindow) == QUERY_NODE_STATE_WINDOW ||
+                   (nodeType(pWindow) == QUERY_NODE_INTERVAL_WINDOW && ((SIntervalWindowNode*)pWindow)->pInterval) ||
+                   (nodeType(pWindow) == QUERY_NODE_EVENT_WINDOW &&
+                    nodeType(((SEventWindowNode*)pWindow)->pStartCond) != QUERY_NODE_NODE_LIST);
+  if (!supported) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a supported single-level stream window");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
                                         SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode** ppNotifyCond,
@@ -31479,6 +31844,14 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   pCxt->streamInfo.calcDbs = pDbs;
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery,
                                         ppNotifyCond, pTriggerWindow));
+  PAR_ERR_JRET(checkStreamDerivativeWindow(pCxt, pStmt));
+  if (pCxt->streamInfo.derivativeTagCols != NULL) {
+    PAR_ERR_JRET(prepareStreamDerivativeSnapshot(pCxt, pStmt, pTriggerSelect, pReq));
+    pTriggerPartition = ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList;
+    int32_t length = 0;
+    PAR_ERR_JRET(
+        nodesListToString(pCxt->streamInfo.derivativeTagCols, false, (char**)&pReq->derivativeTagCols, &length));
+  }
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
