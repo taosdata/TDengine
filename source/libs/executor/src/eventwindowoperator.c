@@ -31,6 +31,16 @@ static void    destroyEWindowOperatorInfo(void* param);
 static int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo, SSDataBlock* pBlock);
 void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperatorInfo* pInfo);
 
+static void cleanupEventWindowRowState(void* param) {
+  SEventWindowOperatorInfo* pInfo = (SEventWindowOperatorInfo*)param;
+  if (pInfo != NULL && pInfo->pOperator != NULL) {
+    // Open indefinite-row windows must release function state before destroyOperator()
+    // clears the expression contexts. Their blocks are no longer needed on teardown.
+    dropAllIndefRowsWindowStates(pInfo->pOperator, &pInfo->indefRows);
+    cleanupResultRowFunctionState(&pInfo->pOperator->exprSupp, pInfo->pRow);
+  }
+}
+
 static int32_t trimNullTimelineRows(SSDataBlock* pBlock, int32_t tsSlotId) {
   if (pBlock == NULL || pBlock->info.rows <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -73,7 +83,6 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
 
   resetBasicOperatorState(&pEvent->binfo);
   cleanupResultInfoInEventWindow(pOper, pEvent);
-  taosMemoryFreeClear(pEvent->pRow);
 
   pEvent->groupId = 0;
   pEvent->pPreDataBlock = NULL;
@@ -92,6 +101,8 @@ static int32_t resetEventWindowOperState(SOperatorInfo* pOper) {
     code = resetAggSup(&pOper->exprSupp, &pEvent->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
                        sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
                        &pTaskInfo->storageAPI.functionStore);
+    // The old function contexts can still point into pRow until resetAggSup() destroys them.
+    taosMemoryFreeClear(pEvent->pRow);
   }
   if (code == 0) {
     code = resetExprSupp(&pEvent->scalarSup, pTaskInfo, pPhynode->window.pExprs, NULL,
@@ -203,6 +214,7 @@ int32_t createEventwindowOperatorInfo(SOperatorInfo* downstream, SPhysiNode* phy
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
 
   setOperatorResetStateFn(pOperator, resetEventWindowOperState);
+  setOperatorRowStateCleanupFn(pOperator, cleanupEventWindowRowState);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -225,13 +237,7 @@ void cleanupResultInfoInEventWindow(SOperatorInfo* pOperator, SEventWindowOperat
   if (pInfo == NULL || pInfo->pRow == NULL || pOperator == NULL) {
     return;
   }
-  SExprSupp*       pSup = &pOperator->exprSupp;
-  for (int32_t j = 0; j < pSup->numOfExprs; ++j) {
-    pSup->pCtx[j].resultInfo = getResultEntryInfo(pInfo->pRow, j, pSup->rowEntryInfoOffset);
-    if (pSup->pCtx[j].fpSet.cleanup) {
-      pSup->pCtx[j].fpSet.cleanup(&pSup->pCtx[j]);
-    }
-  }
+  cleanupResultRowFunctionState(&pOperator->exprSupp, pInfo->pRow);
 }
 
 void destroyEWindowOperatorInfo(void* param) {
@@ -475,6 +481,7 @@ static int32_t emitOrDropEventWindowResult(SOperatorInfo* pOperator, SEventWindo
     pRes->info.rows += pInfo->pRow->numOfRows;
   }
 
+  cleanupResultRowFunctionState(pSup, pInfo->pRow);
   pInfo->pRow->numOfRows = 0;
   pInfo->pRow->nOrigRows = 0;
   return TSDB_CODE_SUCCESS;
@@ -589,6 +596,8 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
     // this is a new group, reset the info
     if (pInfo->indefRowsMode) {
       dropAllIndefRowsWindowStates(pOperator, &pInfo->indefRows);
+    } else {
+      cleanupResultRowFunctionState(pSup, pInfo->pRow);
     }
     pInfo->inWindow = false;
     pInfo->groupId = gid;
@@ -684,6 +693,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
             pRowSup->win.skey = pInfo->startCondFirstTs;
             if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
               // pRow already exists from a previous window: reset its agg state.
+              cleanupResultRowFunctionState(pSup, pInfo->pRow);
               clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
               pInfo->pRow->nOrigRows = 0;
             }
@@ -711,6 +721,7 @@ int32_t eventWindowAggImpl(SOperatorInfo* pOperator, SEventWindowOperatorInfo* p
           // Start condition interrupted: reset streak and discard tentative agg.
           if (pInfo->startCondCount > 0) {
             if (!pInfo->indefRowsMode && pInfo->pRow != NULL) {
+              cleanupResultRowFunctionState(pSup, pInfo->pRow);
               clearResultRowInitFlag(pSup->pCtx, pSup->numOfExprs);
               pInfo->pRow->nOrigRows = 0;
             } else if (pInfo->indefRowsMode) {

@@ -20,7 +20,7 @@ The IANA (Internet Assigned Numbers Authority) time zone database, also known as
 
 IANA uses the "Region/City" format (e.g., Europe/Berlin) to clearly identify time zones.
 
-TDengine supports the use of IANA time zones in different components (except for the time zone settings in Windows taos.cfg).
+Windows, Linux, and macOS support IANA names in `taos.cfg` and connection timezone settings, applying historical and DST rules at the target instant. See [Windows Support](./01-timezone.md#windows-support).
 
 ### Standard Time and Local Time
 
@@ -94,6 +94,10 @@ Undefined behavior refers to specific code or operations that do not have a clea
 ## Writing and Querying DST in TDengine
 
 We use the following table to show the impact of DST on writing and querying.
+
+:::note
+The following examples use the timestamps shown below or a subset of them, with millisecond precision and `Europe/Berlin` as the default connection timezone. `t1` and `tz1.t1` refer to the same example table; the sample values in `v1` are specified by each example's INSERT statement.
+:::
 
 ![DST Table](../../assets/dst-02.webp)
 
@@ -244,44 +248,78 @@ To avoid unnecessary impacts of DST on querying and writing in TDengine, it is r
   | 1729994399000 | 2024-10-27T01:59:59.000Z | 2024-10-27T02:59:59.000+01:00 | 2024-10-27 02:59:59 |
 
   ```sql
-  taos> insert into t1 values ('2024-10-27T02:00:00.000+02:00', 1)
-                              ('2024-10-27T02:59:59.000+02:00', 2)
-                              ('2024-10-27T02:00:00.000+01:00', 3)
-                              ('2024-10-27T02:59:59.000+01:00', 4);
-  Insert OK, 4 row(s) affected (0.001514s)
-
-  taos> SELECT *,
-               to_iso8601(ts,'Z'),
-               to_char(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1
-        WHERE ts >= '2024-10-27T02:00:00.000+02:00'
-          AND ts <= '2024-10-27T02:59:59.000+01:00';
-         ts      |     v1  |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
-  =====================================================================================================
-   1729987200000 |       1 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |
-   1729990799000 |       2 | 2024-10-27T00:59:59.000Z       | 2024-10-27 02:59:59                |
-   1729990800000 |       3 | 2024-10-27T01:00:00.000Z       | 2024-10-27 02:00:00                |
-   1729994399000 |       4 | 2024-10-27T01:59:59.000Z       | 2024-10-27 02:59:59                |
-  Query OK, 4 row(s) in set (0.004275s)
-
-  taos> SELECT *,
-               to_iso8601(ts,'Z'),
-               to_char(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1
-        WHERE ts >= '2024-10-27T02:00:00.000+02:00'
-          AND ts <= '2024-10-27T02:59:59.000+02:00';
-         ts      |     v1  |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
-  =====================================================================================================
-   1729987200000 |       1 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |
-   1729990799000 |       2 | 2024-10-27T00:59:59.000Z       | 2024-10-27 02:59:59                |
-  Query OK, 2 row(s) in set (0.004275s)
+  INSERT INTO t1 VALUES
+    ('2024-10-27T02:00:00.000+02:00', 1)
+    ('2024-10-27T02:59:59.000+02:00', 2)
+    ('2024-10-27T02:00:00.000+01:00', 3)
+    ('2024-10-27T02:59:59.000+01:00', 4);
   ```
 
-- Pay Attention to Time Zone Settings When Querying: When querying and displaying, if local time is needed, be sure to consider the impact of DST.
-  - taosAdapter: When using the REST API, it supports setting the IANA time zone, and the result is returned in RFC3339 format.
+  Query both occurrences of the repeated hour:
+
+  ```sql
+  SELECT *,
+    TO_ISO8601(ts, 'Z') AS utc_time,
+    TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') AS local_time
+  FROM t1
+  WHERE ts >= '2024-10-27T02:00:00.000+02:00'
+    AND ts <= '2024-10-27T02:59:59.000+01:00';
+  ```
+
+  | `ts`          | `v1` | `utc_time`               | `local_time`        |
+  | ------------- | ---- | ------------------------ | ------------------- |
+  | 1729987200000 | 1    | 2024-10-27T00:00:00.000Z | 2024-10-27 02:00:00 |
+  | 1729990799000 | 2    | 2024-10-27T00:59:59.000Z | 2024-10-27 02:59:59 |
+  | 1729990800000 | 3    | 2024-10-27T01:00:00.000Z | 2024-10-27 02:00:00 |
+  | 1729994399000 | 4    | 2024-10-27T01:59:59.000Z | 2024-10-27 02:59:59 |
+
+  Query only the first occurrence, before DST ends:
+
+  ```sql
+  SELECT *,
+    TO_ISO8601(ts, 'Z') AS utc_time,
+    TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') AS local_time
+  FROM t1
+  WHERE ts >= '2024-10-27T02:00:00.000+02:00'
+    AND ts <= '2024-10-27T02:59:59.000+02:00';
+  ```
+
+  | `ts`          | `v1` | `utc_time`               | `local_time`        |
+  | ------------- | ---- | ------------------------ | ------------------- |
+  | 1729987200000 | 1    | 2024-10-27T00:00:00.000Z | 2024-10-27 02:00:00 |
+  | 1729990799000 | 2    | 2024-10-27T00:59:59.000Z | 2024-10-27 02:59:59 |
+
+- When querying and displaying local time, use an IANA timezone to apply DST rules and use UTC offsets to distinguish repeated local times.
+  - taosAdapter [REST API](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx#http-request-format): Use `conn_tz=Europe/Berlin` to parse local times, calculate calendar boundaries, and display results using Berlin's DST rules.
+
+    The following example ([original t1 data](#writing-and-querying-dst-in-tdengine)) uses `tz=Europe/Berlin` to display query results. The 02:00 hour is skipped in spring and repeated in autumn; the `+02:00` and `+01:00` offsets distinguish the repeated autumn times.
 
     ```shell
-    $ curl -uroot:taosdata 'localhost:6041/rest/sql?tz=Europe/Berlin'\
-      -d "select ts from tz1.t1"
-    {"code":0,"column_meta":[["ts","TIMESTAMP",8]],"data":[["1970-01-01T00:59:59.000+01:00"],["2024-03-31T01:00:00.000+01:00"],["2024-03-31T01:59:59.000+01:00"],["2024-03-31T03:00:00.000+02:00"],["2024-03-31T03:00:01.000+02:00"],["2024-10-27T02:00:00.000+02:00"],["2024-10-27T02:59:59.000+02:00"],["2024-10-27T02:00:00.000+01:00"],["2024-10-27T02:59:59.000+01:00"],["2024-10-27T03:00:00.000+01:00"]],"rows":10}
+    curl -u root:taosdata \
+      'http://localhost:6041/rest/sql/tz1?tz=Europe/Berlin' \
+      -d 'select ts from t1'
+    ```
+
+    Response:
+
+    ```json
+    {
+      "code": 0,
+      "column_meta": [["ts", "TIMESTAMP", 8]],
+      "data": [
+        ["1970-01-01T00:59:59.000+01:00"],
+        ["2024-03-31T01:00:00.000+01:00"],
+        ["2024-03-31T01:59:59.000+01:00"],
+        ["2024-03-31T03:00:00.000+02:00"],
+        ["2024-03-31T03:00:01.000+02:00"],
+        ["2024-10-27T02:00:00.000+02:00"],
+        ["2024-10-27T02:59:59.000+02:00"],
+        ["2024-10-27T02:00:00.000+01:00"],
+        ["2024-10-27T02:59:59.000+01:00"],
+        ["2024-10-27T03:00:00.000+01:00"]
+      ],
+      "rows": 10
+    }
     ```
 
   - Explorer: When using the Explorer page for SQL queries, users can configure the client time zone to display in RFC3339 format.

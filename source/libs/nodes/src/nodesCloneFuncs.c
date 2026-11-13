@@ -695,7 +695,7 @@ static int32_t countWindowNodeCopy(const SCountWindowNode* pSrc, SCountWindowNod
 
 static int32_t anomalyWindowNodeCopy(const SAnomalyWindowNode* pSrc, SAnomalyWindowNode* pDst) {
   CLONE_NODE_FIELD(pCol);
-  CLONE_NODE_FIELD(pExpr);
+  CLONE_NODE_LIST_FIELD(pExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   return TSDB_CODE_SUCCESS;
 }
@@ -914,6 +914,7 @@ static int32_t sqlNamedWindowCopy(const SNamedWindowNode* pSrc, SNamedWindowNode
 
 static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTableNode* pDst) {
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
+  COPY_SCALAR_FIELD(placeholderType);
   COPY_SCALAR_FIELD(hasFilterCond);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
@@ -1355,7 +1356,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
   COPY_SCALAR_FIELD(windowCount);
   COPY_SCALAR_FIELD(windowSliding);
   COPY_SCALAR_FIELD(indefRowsFunc);
-  CLONE_NODE_FIELD(pAnomalyExpr);
+  CLONE_NODE_LIST_FIELD(pAnomalyExpr);
   COPY_CHAR_ARRAY_FIELD(anomalyOpt);
   CLONE_NODE_LIST_FIELD(pProjs);
   COPY_SCALAR_FIELD(isSingleTable);

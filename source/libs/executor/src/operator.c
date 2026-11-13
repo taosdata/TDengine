@@ -1344,7 +1344,9 @@ int32_t resetAggSup(SExprSupp* pExprSupp, SAggSupporter* pSup, SExecTaskInfo* pT
                     SFunctionStateStore* pStore) {
   int32_t    code = 0, lino = 0, num = 0;
   SExprInfo* pExprInfo = NULL;
+  bool       hasWindowOrGroup = pExprSupp->hasWindowOrGroup;
   cleanupExprSuppWithoutFilter(pExprSupp);
+  pExprSupp->hasWindowOrGroup = hasWindowOrGroup;
   cleanupAggSup(pSup);
   code = createExprInfo(pNodeList, pGroupKeys, &pExprInfo, &num);
   QUERY_CHECK_CODE(code, lino, _error);

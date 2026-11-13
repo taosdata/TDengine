@@ -298,6 +298,14 @@ static int32_t nodesGetCachedTimezone(const char* pTimezoneName, timezone_t* pTz
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t nodesValidateTimezoneName(const char* pTimezoneName) {
+  timezone_t tz = NULL;
+  bool owned = false;
+  int32_t code = nodesGetCachedTimezone(pTimezoneName, &tz, &owned);
+  if (owned) tzfree(tz);
+  return code;
+}
+
 // Release every cached timezone handle. Call only at process cleanup, after all plans/nodes
 // that may borrow a cached handle are destroyed and no thread decodes plans any more.
 void nodesCleanupTimezoneCache() {
@@ -3067,6 +3075,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pLogicNode->pTimeRange);
       nodesDestroyNode(pLogicNode->pTsEnd);
       nodesDestroyList(pLogicNode->pStateExprs);
+      nodesDestroyList(pLogicNode->pAnomalyExpr);
       nodesDestroyNode(pLogicNode->pStartCond);
       nodesDestroyNode(pLogicNode->pEndCond);
       nodesDestroyList(pLogicNode->pColList);

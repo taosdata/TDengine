@@ -118,6 +118,8 @@ void    nodesDestroyAllocatorSet();
 // Release the timezone handles cached by plan decode/clone. Process cleanup only, after all
 // plans/nodes are destroyed.
 void    nodesCleanupTimezoneCache();
+// Validate a nonempty name using the bounded cache shared with plan decoding.
+int32_t nodesValidateTimezoneName(const char* pTimezoneName);
 int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
 int32_t nodesSimAcquireAllocator(int64_t allocatorId);
 int32_t nodesSimReleaseAllocator(int64_t allocatorId);

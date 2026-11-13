@@ -935,20 +935,17 @@ _PARITY_GROUPS: Dict[str, list] = {
         ("SELECT SM4_DECRYPT(SM4_ENCRYPT(CAST(label AS VARCHAR(32)), 'mykeystring12345'), 'mykeystring12345') FROM {tbl} WHERE id = 1",),
         ("SELECT CRC32(CAST(label AS VARCHAR(32))) FROM {tbl} WHERE id = 1", dict(ordered=False)),
     ],
-    # ── dtf: 日期函数（DATE / DAYOFWEEK / WEEK / WEEKDAY）
-    # 2024-01-01 is a Monday: DAYOFWEEK=2, WEEK=0, WEEKDAY=0
-    # YEAR/HOUR/MINUTE are not TDengine functions → error on all sources
+    # ── dtf: date and time functions
+    # 2024-01-01 00:00 UTC: DAYOFWEEK=2, WEEK=0, WEEKDAY=0,
+    # YEAR=2024, HOUR=0, MINUTE=0.
     "dtf": [
         ("SELECT DATE(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT DAYOFWEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT WEEK(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
         ("SELECT WEEKDAY(time) FROM {tbl} WHERE id = 1 ORDER BY time",),
-        ("SELECT YEAR(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="YEAR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
-        ("SELECT HOUR(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="HOUR() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
-        ("SELECT MINUTE(time) FROM {tbl} LIMIT 1",
-         dict(positive=False, reason="MINUTE() is not a TDengine function (TSDB_CODE_MND_FUNC_NOT_EXIST)")),
+        ("SELECT YEAR(time) FROM {tbl} WHERE id = 1",),
+        ("SELECT HOUR(time) FROM {tbl} WHERE id = 1",),
+        ("SELECT MINUTE(time) FROM {tbl} WHERE id = 1",),
     ],
     # ── tochar: TO_CHAR / TO_TIMESTAMP / TO_UNIXTIMESTAMP
     "tochar": [

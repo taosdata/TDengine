@@ -3659,17 +3659,20 @@ SQL: SELECT WEEKDAY(time) FROM {tbl} WHERE id = 1 ORDER BY time
 RESULT
 0
 ---
-### dtf-05 NEG
-SQL: SELECT YEAR(time) FROM {tbl} LIMIT 1
-ERROR -0x7ffffc8c: function 'year' is not defined
+### dtf-05 POS
+SQL: SELECT YEAR(time) FROM {tbl} WHERE id = 1
+RESULT
+2024
 ---
-### dtf-06 NEG
-SQL: SELECT HOUR(time) FROM {tbl} LIMIT 1
-ERROR -0x7ffffc8c: function 'hour' is not defined
+### dtf-06 POS
+SQL: SELECT HOUR(time) FROM {tbl} WHERE id = 1
+RESULT
+0
 ---
-### dtf-07 NEG
-SQL: SELECT MINUTE(time) FROM {tbl} LIMIT 1
-ERROR -0x7ffffc8c: function 'minute' is not defined
+### dtf-07 POS
+SQL: SELECT MINUTE(time) FROM {tbl} WHERE id = 1
+RESULT
+0
 ---
 ### tochar-01 POS
 SQL: SELECT TO_CHAR(time, 'yyyy-MM-dd') FROM {tbl} WHERE id = 1 ORDER BY time

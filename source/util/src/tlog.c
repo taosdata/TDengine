@@ -787,8 +787,10 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   time_t curTime = timeSecs.tv_sec;
   ptm = taosLocalTime(&curTime, &Tm, NULL, 0, NULL);
   if (ptm == NULL) {
-    uError("%s failed to get local time, code:%d", __FUNCTION__, ERRNO);
-    return 0;
+    // Logging timezone lookup failures must not re-enter the logger.
+    return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE,
+                    "%08" PRId64 " %s %s", taosGetSelfPthreadId(),
+                    LOG_EDITION_FLG, flags);
   }
   return snprintf(buffer, LOG_MAX_STACK_LINE_BUFFER_SIZE, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s %s",
                   ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec,

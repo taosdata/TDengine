@@ -68,6 +68,7 @@ If the return value is as follows, it indicates verification passed:
 
 ```text
 http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
+http://<fqdn>:<port>/rest/sql/[db_name]?conn_tz=America/New_York
 ```
 
 Parameter explanation:
@@ -76,8 +77,11 @@ Parameter explanation:
 - port: Configured in the httpPort configuration item, default is 6041.
 - db_name: Optional parameter, specifies the default database name for the SQL statement being executed.
 - tz: Optional parameter, specifies the time zone for the returned time, following the IANA Time Zone rules, such as `America/New_York`.
+- conn_tz: Optional parameter that sets the request's connection timezone for time parsing, computation, and result formatting. Supports IANA names such as `America/New_York` or `UTC`. Takes precedence when `tz` is also specified.
 - req_id: Optional parameter, specifies the request id, which can be used for tracing.
 - row_with_meta: Optional parameter, specifies whether each row of data carries column names, default is false. (Supported from version 3.3.2.0)
+
+On Windows, `conn_tz` requires taosAdapter to load a TDengine `v3.5.0` or later native client library.
 
 For example: `http://h1.taos.com:6041/rest/sql/test` points to the URL at `h1.taos.com:6041` and sets the default database name to `test`.
 

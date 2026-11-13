@@ -980,8 +980,10 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_math.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_string.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_mysql_datetime_functions.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_crypto.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_config_display.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_timezone_dst_refresh.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_scalar_functions.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_abs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_acos.py
@@ -1442,6 +1444,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_scalar.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_external_window_trigger_types.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_window_no_output.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_windows.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_stream_distinct_external_window.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_1.py
 100,,n,.,pytest cases/18-StreamProcessing/07-SubQuery/test_subquery_count_2.py
@@ -1718,6 +1721,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/02-KeyUpdate/test_key_update.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/03-KeyBackupRestore/test_key_backup_restore.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_transparent_encryption.py
+,,y,.,./ci/pytest.sh pytest cases/31-Security/04-TransparentEncryption/test_custom_encrypt_algorithm.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/06-EncryptionStatus/test_encryption_status.py
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/07-EncryptionMultiLevel/test_encryption_mlevel.py -L 3 -D 2
 ,,y,.,./ci/pytest.sh pytest cases/31-Security/13-QuerySpillEncryption/test_query_spill_encrypt.py
@@ -1859,6 +1863,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 
 ## 02-Taos
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_timezone_websocket.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py

@@ -4174,6 +4174,16 @@ static void destroyStateWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+// destroyOperator() calls this while both the expression contexts and all result rows are alive.
+// Rows left unread by LIMIT or cancellation still own their DISTINCT sets at this point.
+static void cleanupStateWindowRowState(void* param) {
+  SStateWindowOperatorInfo* pInfo = (SStateWindowOperatorInfo*)param;
+  if (pInfo != NULL && pInfo->pOperator != NULL) {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo,
+                      &pInfo->aggSup, pInfo->cleanGroupResInfo);
+  }
+}
+
 static void freeItem(void* param) {
   SGroupKeys* pKey = (SGroupKeys*)param;
   taosMemoryFree(pKey->pData);
@@ -4901,12 +4911,14 @@ static int32_t resetStatewindowOperState(SOperatorInfo* pOper) {
   cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
                     pInfo->cleanGroupResInfo);
 
+  // Retire the old contexts, hash and result pages before any fallible rebuild.
+  // A failed reset must not leave already-cleaned rows reachable by teardown.
+  int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
+                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
+                             &pTaskInfo->storageAPI.functionStore);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  int32_t code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   if (code == 0) {
-    code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
-                       &pTaskInfo->storageAPI.functionStore);
+    code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   }
   if (code == 0) {
     code = resetExprSupp(&pInfo->scalarSup, pTaskInfo, pPhynode->window.pExprs, NULL,
@@ -5042,6 +5054,7 @@ int32_t createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWindowPhy
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAggNext, NULL, destroyStateWindowOperatorInfo,
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetStatewindowOperState);
+  setOperatorRowStateCleanupFn(pOperator, cleanupStateWindowRowState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5083,6 +5096,14 @@ void destroySWindowOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
+static void cleanupSessionWindowRowState(void* param) {
+  SSessionAggOperatorInfo* pInfo = (SSessionAggOperatorInfo*)param;
+  if (pInfo != NULL && pInfo->pOperator != NULL) {
+    cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo,
+                      &pInfo->aggSup, pInfo->cleanGroupResInfo);
+  }
+}
+
 static int32_t resetSessionAggOperState(SOperatorInfo* pOper) {
   SSessionAggOperatorInfo* pInfo = pOper->info;
   SExecTaskInfo*           pTaskInfo = pOper->pTaskInfo;
@@ -5093,12 +5114,14 @@ static int32_t resetSessionAggOperState(SOperatorInfo* pOper) {
   cleanupResultInfo(pInfo->pOperator->pTaskInfo, &pInfo->pOperator->exprSupp, &pInfo->groupResInfo, &pInfo->aggSup,
                     pInfo->cleanGroupResInfo);
 
+  // Retire the old contexts, hash and result pages before any fallible rebuild.
+  // A failed reset must not leave already-cleaned rows reachable by teardown.
+  int32_t code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
+                             sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
+                             &pTaskInfo->storageAPI.functionStore);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
-  int32_t code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   if (code == 0) {
-    code = resetAggSup(&pOper->exprSupp, &pInfo->aggSup, pTaskInfo, pPhynode->window.pFuncs, NULL,
-                       sizeof(int64_t) * 2 + POINTER_BYTES, pTaskInfo->id.str, NULL,
-                       &pTaskInfo->storageAPI.functionStore);
+    code = initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
   }
   if (code == 0) {
     code = resetExprSupp(&pInfo->scalarSupp, pTaskInfo, pPhynode->window.pExprs, NULL,
@@ -5190,6 +5213,7 @@ int32_t createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPh
                                          optrDefaultBufFn, NULL, optrDefaultGetNextExtFn, NULL);
   pOperator->pTaskInfo = pTaskInfo;
   setOperatorResetStateFn(pOperator, resetSessionAggOperState);
+  setOperatorRowStateCleanupFn(pOperator, cleanupSessionWindowRowState);
 
   code = appendDownstream(pOperator, &downstream, 1);
   QUERY_CHECK_CODE(code, lino, _error);
