@@ -81,7 +81,7 @@ Usage: taosdump [OPTION...] dbname [tbname ...] -o outpath
 | `-v, --stmt-version=VER` | 恢复时使用的 STMT API 版本：`2`（默认，TAOS_STMT2，速度更快，需 TDengine v3.3+）或 `1`（兼容旧版 TAOS_STMT API）。仅恢复操作生效 |
 | `-W, --rename=RENAME-LIST` | 恢复时对数据库进行重命名，格式为 `"db1->newdb1\|db2->newdb2"`，表示将 `db1` 重命名为 `newdb1`，`db2` 重命名为 `newdb2`，仅恢复操作生效 |
 | `-C, --checkpoint` | 断点续传开关参数，默认关闭，加此参数时才开启，跳过已备份的表或已恢复过的文件，备份/恢复操作均生效，适用于大数据量备份/恢复场景|
-| `-k, --retry-count=VALUE` | 连接或查询失败后的重试次数，默认值为 3 |
+| `-k, --retry-count=VALUE` | 连接或查询失败后的重试次数，不含首次尝试，默认值为 10；`0` 表示只尝试一次 |
 | `-z, --retry-sleep-ms=VALUE` | 每次重试之间的等待时间，单位为毫秒，默认值为 1000 |
 | `-X, --dsn=DSN` | 连接云服务的 DSN，格式如 `https://host?token=<TOKEN>`。也可通过环境变量 `TDENGINE_CLOUD_DSN` 设置，命令行参数优先级更高 |
 | `-Z, --driver=DRIVER` | 指定连接驱动，可选值为 `Native`（端口 6030，速度更快，也可写 `0`，默认）或 `WebSocket`（端口 6041，无需安装客户端驱动，兼容性更好，也可写 `1`）。当设置了 DSN 时，默认切换为 WebSocket |
@@ -243,6 +243,15 @@ taosdump --content=ext-meta -i /root/backup/
 
 :::tip
 若发现失败数量不为零，可添加 `-g` 参数开启调试输出，查看详细错误信息，或检查 TDengine 服务端日志进行排查。
+:::
+
+:::note
+备份是否完整以 **Result** 为准：只有所有计划内的子表/普通表都成功导出，才会输出 `SUCCESS`。
+
+- 连接中断、服务重启等瞬时错误会按 `-k` 自动重试；中间失败次数仍会计入 `Data Files` 的 `failed`，但只要重试后补齐，最终仍为 `SUCCESS`，因此不能只看 `failed` 是否为 0。
+- 重试后仍无法完整导出时，输出 `FAILED (BACKUP, ...)` 并以非 0 退出码结束，不会再出现“缺表却报成功”。
+- 备份期间如有子表或普通表被删除（或与开始时的统计不一致），同样会以 `backup data is incomplete` 失败，需要在数据不再变动时重新执行备份。已有 `.dat` 文件不会被破坏，可配合 `-C` 断点续传。
+
 :::
 
 ## 日志文件
@@ -479,5 +488,6 @@ taosdump -u root -p -D test -o /root/backup/
 - 备份/恢复内容选择（`-M/--content`），支持仅备份/恢复基础数据或扩展元数据
 - 支持订阅（Topic）的备份与恢复
 - 恢复分两阶段执行，修复跨库虚拟表因数据库恢复顺序导致的失败
+- 备份完整性校验：连接中断等瞬时错误按 `-k` 自动重试，无法补齐时明确输出 `FAILED` 并以非 0 退出码结束，不再把缺表的备份报告为成功
 
 新版本支持绝大部分老版本命令行参数（个别参数除外）。

@@ -140,7 +140,8 @@ static void printUsage(const char *prog) {
     printf("                             Default is 8.\n");
     printf("  -m, --tag-thread-num=THREAD_NUM\n");
     printf("                             Number of threads for tag backup.Default is 2.\n");
-    printf("  -k, --retry-count=VALUE    Number of retry attempts. Default is 10.\n");
+    printf("  -k, --retry-count=VALUE    Number of retries after the first attempt.\n");
+    printf("                             Default is 10; 0 means a single attempt.\n");
     printf("  -z, --retry-sleep-ms=VALUE Sleep between retries in ms. Default is 1000.\n");
     printf("  -W, --rename=RENAME-LIST   Rename database during restore.\n");
     printf("                             RENAME-LIST example:\n");
