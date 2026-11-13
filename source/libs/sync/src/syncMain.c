@@ -3799,7 +3799,8 @@ int32_t syncNodeAppend(SSyncNode* ths, SSyncRaftEntry* pEntry, SRpcMsg* pMsg) {
 
   // append to log buffer
   if ((code = syncLogBufferAppend(ths->pLogBuf, ths, pEntry)) < 0) {
-    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer", ths->vgId, pEntry->index);
+    sError("vgId:%d, index:%" PRId64 ", failed to enqueue sync log buffer since %s", ths->vgId, pEntry->index,
+           tstrerror(code));
     int32_t ret = 0;
     if ((ret = syncFsmExecute(ths, ths->pFsm, ths->state, raftStoreGetTerm(ths), pEntry, terrno, false)) != 0) {
       sError("vgId:%d, index:%" PRId64 ", failed to execute fsm since %s", ths->vgId, pEntry->index, tstrerror(ret));

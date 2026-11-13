@@ -17,6 +17,7 @@
 Tests for ModelService class
 """
 
+import copy
 import os
 from types import SimpleNamespace
 
@@ -192,6 +193,83 @@ class TestModelService:
 
         assert model_service.start("tdtsfm") is True
         assert popen.call_args.kwargs["env"]["TDGPT_MODEL_DIR"] == mock_config.tsfm_model_dir
+
+    @pytest.mark.parametrize("model_name", [
+        "tdtsfm", "timemoe", "moirai", "chronos", "timesfm", "moment",
+    ])
+    @pytest.mark.parametrize("legacy", [False, True])
+    def test_start_model_script_names(
+        self, model_service, mock_config, mocker, model_name, legacy
+    ):
+        """Retained legacy config starts the installed worker without being changed."""
+        model_dir = os.path.join(mock_config.tsfm_model_dir, model_name)
+        os.makedirs(model_dir, exist_ok=True)
+        service_dir = os.path.join(mock_config.install_dir, "lib", "tsfm", "service")
+        os.makedirs(service_dir, exist_ok=True)
+        script_path = os.path.join(service_dir, f"{model_name}_server.py")
+        with open(script_path, "w", encoding="utf-8") as script:
+            script.write("# installed worker")
+        if legacy:
+            mock_config.models[model_name]["script"] = f"{model_name}-server.py"
+        original_models = copy.deepcopy(mock_config.models)
+        with open(mock_config.config_path, "w", encoding="utf-8") as config:
+            config.write(f"models = {original_models!r}")
+        with open(mock_config.config_path, "rb") as config:
+            original_config = config.read()
+
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(model_service.process_mgr, "wait_for_tcp_port", return_value=True)
+        mocker.patch.object(model_service.process_mgr, "read_pid", return_value=5678)
+        mocker.patch.object(model_service.process_mgr, "write_pid")
+        mocker.patch.object(
+            model_service, "_resolve_dynamic_model",
+            return_value=(model_dir, "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+
+        assert model_service.start(model_name) is True
+        assert popen.call_args.args[0][:2] == ["/shared/venv/bin/python3", script_path]
+        assert popen.call_args.kwargs["cwd"] == service_dir
+        assert mock_config.models == original_models
+        with open(mock_config.config_path, "rb") as config:
+            assert config.read() == original_config
+
+    @pytest.mark.parametrize("script", [
+        "moirai-server.py", "my-custom-server.py",
+    ])
+    def test_existing_configured_script_has_priority(
+        self, model_service, mock_config, tmp_path, script
+    ):
+        mock_config.models["moirai"]["script"] = script
+        (tmp_path / script).touch()
+        (tmp_path / "moirai_server.py").touch()
+        assert model_service._resolve_model_script("moirai", str(tmp_path)) == str(tmp_path / script)
+
+    @pytest.mark.parametrize("script", [
+        "my-custom-server.py", "chronos-server.py", "./moirai-server.py",
+    ])
+    def test_missing_custom_script_is_not_rewritten(
+        self, model_service, mock_config, tmp_path, script
+    ):
+        mock_config.models["moirai"]["script"] = script
+        (tmp_path / "moirai_server.py").touch()
+        (tmp_path / script.replace("-", "_")).touch()
+        assert model_service._resolve_model_script("moirai", str(tmp_path)) == os.path.join(str(tmp_path), script)
+
+    def test_missing_legacy_script_target_fails_start(
+        self, model_service, mock_config, mocker, tmp_path
+    ):
+        mock_config.models["moirai"]["script"] = "moirai-server.py"
+        mocker.patch.object(model_service.process_mgr, "is_running", return_value=False)
+        mocker.patch.object(
+            model_service, "_resolve_dynamic_model",
+            return_value=(str(tmp_path), "/shared/venv/bin/python3"),
+        )
+        popen = mocker.patch("subprocess.Popen")
+        error = mocker.patch.object(model_service.logger, "error")
+        assert model_service.start("moirai") is False
+        popen.assert_not_called()
+        assert "moirai-server.py" in error.call_args.args[0]
 
     def test_stop_unknown_model(self, model_service):
         """Test stopping unknown model"""

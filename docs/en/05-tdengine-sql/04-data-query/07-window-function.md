@@ -176,6 +176,8 @@ Parameter notes for `lag`/`lead`:
 
 - Window functions may only appear in the `SELECT` list and `ORDER BY` of a query block. They return an error when they appear in `WHERE`, `GROUP BY`, `HAVING`, `PARTITION BY`, frame boundary expressions, or as an argument to a scalar function or another window function's specification.
 - Window functions cannot be nested; a window function's arguments or window specification cannot contain another window function.
+- The `ORDER BY` of an inline `OVER (...)` supports ordinary aggregate expressions such as `SUM(current)`, `AVG(current)`, or `SUM(current) + 1`. Aggregation runs before the window function. These aggregates need not also appear in the `SELECT` list; other columns must satisfy grouping rules. Multi-row functions and aggregates in window `PARTITION BY`, frame boundaries, or named window definitions remain unsupported.
+- When a window function appears in the `SELECT` list, expressions inside its `OVER` cannot reference aliases defined by the same `SELECT`. Numeric ordering expressions are constants, not `SELECT` column positions. Repeat the aggregate expression or compute the alias in a subquery.
 - Order-sensitive window functions (ranking, distribution, and value classes) return an error when `ORDER BY` is not specified.
 - The current version supports batch queries only; window functions are not supported in stream processing.
 - In ordering, `NULL` is treated as the lowest value by default. The output order of peer rows is determined by `ORDER BY`; add explicit ordering keys when a stable row-by-row order is required.
@@ -196,6 +198,15 @@ OFFSET 9;
 ## Examples
 
 The following examples are based on the smart meter data model used throughout the TDengine documentation (supertable `meters`, with columns `ts`, `current`, `voltage`, `phase` and tags `location`, `groupid`).
+
+**Ranking grouped results**: compute each group's total current, then rank the totals in descending order.
+
+```sql
+SELECT groupid, SUM(current) AS total,
+       RANK() OVER (ORDER BY SUM(current) DESC) AS rn
+FROM meters
+GROUP BY groupid;
+```
 
 **Moving average**: compute the average voltage of the last 10 samples for each meter.
 

@@ -38,6 +38,88 @@ class TestVTablePlanAggOptimize:
         self.run_normal_query(test_case)
         print(f"{test_case} [ passed ]")
 
+    def do_partitioned_aggregate_iteration(self):
+        db = VtableQueryUtil.VTABLE_DB_NAME
+        full_counts = []
+        for index in range(3):
+            tdSql.query(
+                f"select count(int_col) from {db}.vtb_virtual_ctb_full_{index}"
+            )
+            full_counts.append(tdSql.getData(0, 0))
+
+        selected = []
+        for kind, tag in (("full", 0), ("half_full", 1)):
+            table = f"vtb_virtual_ctb_{kind}_1"
+            tdSql.query(f"select count(int_col) from {db}.{table}")
+            selected.append((tdSql.getData(0, 0), tag, table))
+
+        for _ in range(2):
+            # Batch dispatch advances through groups without aggregate tag arguments.
+            tdSql.query(
+                f"select count(int_col) from {db}.vtb_virtual_stb "
+                "where int_tag = 0 partition by tbname order by 1"
+            )
+            tdSql.checkRows(3)
+            for row, expected in enumerate(sorted(full_counts)):
+                tdSql.checkData(row, 0, expected)
+
+            # Single-child dispatch skips tag groups excluded by the source map.
+            tdSql.query(
+                f"select count(int_col), last(int_tag), last(tbname) "
+                f"from {db}.vtb_virtual_stb where binary_32_tag = 'child1' "
+                "partition by tbname order by 3"
+            )
+            tdSql.checkRows(2)
+            for row, expected in enumerate(sorted(selected, key=lambda item: item[2])):
+                for column, value in enumerate(expected):
+                    tdSql.checkData(row, column, value)
+
+            # One group retains its iterator while consuming multiple virtual children.
+            tdSql.query(
+                f"select count(int_col), last(int_tag) "
+                f"from {db}.vtb_virtual_stb where int_tag = 0 "
+                "partition by nchar_32_tag"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, sum(full_counts))
+            tdSql.checkData(0, 1, 0)
+
+            tdSql.query(
+                f"select count(int_col), last(int_tag) "
+                f"from {db}.vtb_virtual_stb where int_tag = 0 "
+                "partition by tbname slimit 1"
+            )
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 1, 0)
+
+        tdSql.query(
+            f"select count(int_col), last(int_tag) "
+            f"from {db}.vtb_virtual_stb where int_tag = 2 partition by tbname"
+        )
+        tdSql.checkRows(0)
+        print("partitioned aggregate iteration [ passed ]")
+
+    def test_partitioned_aggregate_iteration(self):
+        """Query: virtual aggregate group iterator lifetime
+
+        1. Check batch and single-child dispatch with filtered tag groups.
+        2. Consume multiple children in one group and stop after a limited group.
+        3. Repeat queries and cover empty virtual children.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-13 Joey Sima Created
+        """
+        self.do_partitioned_aggregate_iteration()
+
     def test_select_function_pushdown_result(self):
         """Query: independent selection aggregates on multi-source virtual tables.
 

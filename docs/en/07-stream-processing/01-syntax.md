@@ -1021,7 +1021,7 @@ Notes:
 
 Notes:
 
-- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB 3.x, SQL Server, and Oracle are supported. InfluxDB 1.8 does not support stream processing.
+- Stream processing can use external sources in triggers and calculations. MySQL, PostgreSQL, InfluxDB 3.x, InfluxDB 1.8, SQL Server, and Oracle are supported. InfluxDB 1.8 works through a native InfluxQL provider and has its own restrictions; see [Use InfluxDB 1.8 as a Trigger Source](#use-influxdb-18-as-a-trigger-source).
 - Historical calculation does not yet support external sources.
 - External sources perform worse than local databases. Tune the workload for the specific scenario.
 - When an external source is the trigger, `EXPIRED_TIME`, `IGNORE_DISORDER`, and `DELETE_RECALC` are not supported.
@@ -1031,3 +1031,24 @@ Notes:
   - InfluxDB 3.x external sources support `PARTITION BY tbname`. It is converted internally to `PARTITION BY` every tag. `PARTITION BY` a function of `tbname` is not supported.
   - InfluxDB 3.x external sources can use `%%tbname`. It joins every tag into the table name. When the result exceeds the table-name length, the joined string is hashed.
 - For an InfluxDB 3.x external source, a tag name longer than 64 characters or a tag value longer than 256 characters returns an error. Correct the data and create the stream again.
+
+### Use InfluxDB 1.8 as a Trigger Source
+
+Starting in `v3.5.0.0`, stream processing supports InfluxDB OSS 1.8 external sources. When you create the external source, explicitly set `version = '1.8'` in `OPTIONS`, use HTTP, and optionally set the retention policy. See [InfluxDB external sources](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-parameters) for the external-source syntax and parameters.
+
+Use `<external_source>.<database>.<measurement>` in the stream `FROM` clause. Do not include the retention policy:
+
+```sql
+CREATE STREAM stream_db.influx18_high_voltage
+  INTERVAL(1m) SLIDING(1m)
+  FROM influx18_prod.telegraf.meters
+  STREAM_OPTIONS(PRE_FILTER(voltage > 220))
+  INTO stream_db.influx18_result
+  AS
+  SELECT _twstart AS ts, COUNT(*) AS cnt, AVG(voltage) AS avg_voltage
+  FROM %%trows;
+```
+
+Each InfluxDB 1.8 series has its own subtable identity. `PARTITION BY` determines the trigger groups: without it, one measurement uses one group; with `PARTITION BY tbname`, each series uses its own group; you can also group by measurement tags or a tag subset. To bind a stream to a specific series, create an InfluxDB SERIES virtual table and create the stream from that table. See [InfluxDB SERIES column references](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-column-references).
+
+`PRE_FILTER` supports `=`, `!=`, `>`, `>=`, `<`, `<=`, and combinations with `AND` and `OR`; other expressions are rejected by `CREATE STREAM`. It filters only trigger-side rows and does not affect the `WHERE` clause of an explicit external calculation table. The InfluxDB 1.8 path refreshes series identity when a new tag key appears, but does not support `FILL_HISTORY`. Several shapes are also rejected for an InfluxDB 1.8 source: a time bound may not use `!=`, and no time condition may appear in an `OR` branch, because the provider intersects the time range of every branch and such a filter would silently return nothing. Tag columns support only `=` and `!=`, and only against string constants (`host = 1` is a type error on the remote server, so every read would fail); the time column may only be compared with a constant, not with another column; and a comparison between two columns is accepted only when both sides are plain fields, because a tag on either side has different NULL semantics on the remote server (`host != zone` would keep the series that lack `zone`).

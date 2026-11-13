@@ -1023,7 +1023,7 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
 
 说明：
 
-- 流式计算支持在触发和计算中使用外部源。可以使用 MySQL、PostgreSQL、InfluxDB 3.x、SQL Server 和 Oracle。InfluxDB 1.8 不支持流式计算。
+- 流式计算支持在触发和计算中使用外部源。可以使用 MySQL、PostgreSQL、InfluxDB 3.x、InfluxDB 1.8、SQL Server 和 Oracle。InfluxDB 1.8 通过原生 InfluxQL 提供者接入，有自己的限制，详见 [使用 InfluxDB 1.8 作为触发源](#使用-influxdb-18-作为触发源)。
 - 历史计算暂不支持。
 - 使用外部源性能没有本地库性能好，需根据具体使用场景具体优化。
 - 外部源触发，不支持的流计算选项：EXPIRED_TIME/IGNORE_DISORDER/DELETE_RECALC。
@@ -1033,3 +1033,27 @@ STOP STREAM [IF EXISTS] [db_name.]stream_name;
   - 对于 InfluxDB 3.x 外部源，支持 partition by tbname 语法，内部会转换为 partition by 所有的 tag。不支持 partition by function(tbname)。
   - 对于 InfluxDB 3.x 外部源，可以使用 %%tbname(将所有 tag 拼接起来作为 tbname，如果超过表名长度，则用拼接的字符串获取 hash 值标识)。
 - InfluxDB 3.x 外部源，tag 名超过 64 个字符或者 tag 值超过 256 个字符，会报错。需要修改数据后，重新建流。
+
+### 使用 InfluxDB 1.8 作为触发源
+
+从 `v3.5.0.0` 开始，流式计算支持 InfluxDB OSS 1.8 外部源。创建外部源时需在 `OPTIONS` 中显式配置 `version = '1.8'`，并使用 HTTP 协议和可选 retention policy。外部源创建方式及参数示例请参阅 [InfluxDB 外部源](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-参数)。
+
+流式计算的 `FROM` 子句使用 `<external_source>.<database>.<measurement>`，不需要写入 retention policy：
+
+```sql
+CREATE STREAM stream_db.influx18_high_voltage
+  INTERVAL(1m) SLIDING(1m)
+  FROM influx18_prod.telegraf.meters
+  STREAM_OPTIONS(PRE_FILTER(voltage > 220))
+  INTO stream_db.influx18_result
+  AS
+  SELECT _twstart AS ts, COUNT(*) AS cnt, AVG(voltage) AS avg_voltage
+  FROM %%trows;
+```
+
+InfluxDB 1.8 的每个 series 会作为独立子表身份参与流式计算。`PARTITION BY` 决定触发分组：未指定时，同一 measurement 使用一个分组；`PARTITION BY tbname` 时，每个 series 独立分组；也可以按 measurement tag 或 tag 子集分组。需要固定到具体 series 时，可以创建 InfluxDB SERIES 虚拟表并从该虚拟表建流，详见 [InfluxDB SERIES 列引用](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-列引用)。
+
+`PRE_FILTER` 支持 `=`、`!=`、`>`、`>=`、`<`、`<=` 以及 `AND`、`OR` 组合；其他表达式会在 `CREATE STREAM` 时被拒绝。该条件只过滤触发侧数据，不影响显式外部计算表的 `WHERE` 条件。InfluxDB 1.8 路径还支持根据新增 tag key 刷新 series 身份，但不支持 `FILL_HISTORY`。针对 InfluxDB 1.8 外部源，以下几类写法同样会被拒绝：时间条件不能使用 `!=`；任何时间条件都不能出现在 `OR` 分支中——provider 会对各分支的时间范围取交集，这类下推会静默返回空结果。tag 列仅支持 `=` 和 `!=`，且只能与字符串常量比
+较（`host = 1` 在远端是类型错误，每次读取都会失败）；time 列只能与常量比较，不能与
+其他列比较；列与列比较仅在两侧都是普通 field 时可用，任一侧是 tag 都会被拒绝，因为
+远端对 tag 的 NULL 语义不同（`host != zone` 会保留缺失 `zone` 的 series）。

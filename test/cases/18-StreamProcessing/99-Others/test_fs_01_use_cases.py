@@ -77,6 +77,10 @@ def _mid_segment(prefix: str, src_name: str) -> str:
     return f"{prefix}_{suffix}db"
 
 
+# (host, region) order of the shared PARTITION BY fixtures.
+_UC_KEYS = (("a", "x"), ("a", "y"), ("b", "x"), ("b", "y"))
+
+
 class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
     """FS §9 — Use cases (FS-UC-001..004)."""
 
@@ -325,19 +329,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')]),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')]),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')]),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%tbname`", expected_by_subtable, window_starts_ms
@@ -400,19 +403,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')]),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')]),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')]),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%1`", expected_by_subtable, window_starts_ms
@@ -474,19 +476,18 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # with the OUTPUT_SUBTABLE-computed name (proves the resolved bare
             # tbname reference is both present and correctly formed, not just
             # that some 4 groups exist).
-            self._assert_distinct_tbnames(
-                sink_stb, ['h_src_t_a_x_tname', 'h_src_t_a_y_tname', 'h_src_t_b_x_tname', 'h_src_t_b_y_tname']
-            )
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"h_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows (08:00..08:03), in order, with the exact per-series
             # aggregate value and %%tbname -- not just an unordered bag.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "h_src_t_a_x_tname": (1, 1.0, "src_t_a_x_tname", "src_t_a_x_tname", "tname"),
-                "h_src_t_a_y_tname": (1, 3.0, "src_t_a_y_tname", "src_t_a_y_tname", "tname"),
-                "h_src_t_b_x_tname": (1, 2.0, "src_t_b_x_tname", "src_t_b_x_tname", "tname"),
-                "h_src_t_b_y_tname": (1, 4.0, "src_t_b_y_tname", "src_t_b_y_tname", "tname"),
+                f"h_{tb[('a', 'x')]}": (1, 1.0, tb[('a', 'x')], tb[('a', 'x')], "tname"),
+                f"h_{tb[('a', 'y')]}": (1, 3.0, tb[('a', 'y')], tb[('a', 'y')], "tname"),
+                f"h_{tb[('b', 'x')]}": (1, 2.0, tb[('b', 'x')], tb[('b', 'x')], "tname"),
+                f"h_{tb[('b', 'y')]}": (1, 4.0, tb[('b', 'y')], tb[('b', 'y')], "tname"),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, `%%1`, `%%tbname`, `cast(%%2 as varchar(64))`", expected_by_subtable, window_starts_ms
@@ -570,7 +571,10 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
                 # directly as an output column, which alone blows past
                 # TSDB_MAX_BYTES_PER_ROW. CAST to a bounded VARCHAR so %%1/%%2/
                 # %%3 can be projected as real sink-table columns.
-                f"CAST(%%1 AS VARCHAR(32)) as t1, CAST(%%2 AS VARCHAR(32)) as t2, "
+                # %%2 / %%tbname carry the composed sub-table identity, which 1.8
+                # name-qualifies, so they need more than the 32 bytes the tag
+                # values themselves require.
+                f"CAST(%%1 AS VARCHAR(32)) as t1, CAST(%%2 AS VARCHAR(64)) as t2, "
                 f"CAST(%%3 AS VARCHAR(32)) as t3, %%tbname as tname "
                 f"FROM %%trows"
             )
@@ -589,13 +593,15 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # Confirm exactly the 4 expected subtables were auto-created with
             # the OUTPUT_SUBTABLE-computed name (CONCAT('hm_', tbname), where
             # tbname is the reader's synthesized "<measurement>_<tagVal>..."
-            # identity -- e.g. "src_t_a_x" -- built from ALL of this uid's tag
+            # identity -- e.g. "src_t_host_a_region_x_tbname_tname" on 1.8 -- built
+            # from ALL of this uid's tag
             # values, not just the ones in PARTITION BY). This proves bare
             # tbname resolves in OUTPUT_SUBTABLE even though it is mixed with
-            # explicit tag columns in PARTITION BY.
-            self._assert_distinct_tbnames(sink_stb, [
-                'hm_src_t_a_x_tname', 'hm_src_t_a_y_tname', 'hm_src_t_b_x_tname', 'hm_src_t_b_y_tname',
-            ])
+            # explicit tag columns in PARTITION BY.  The composed identity is
+            # version dependent (1.8 qualifies every component with its tag
+            # name), so the expected names come from _partition_tbnames().
+            tb = self._partition_tbnames("src_t")
+            self._assert_distinct_tbnames(sink_stb, [f"hm_{tb[hr]}" for hr in _UC_KEYS])
 
             # Then verify every row of each subtable individually: 4 closed
             # windows, in order, with the exact per-series aggregate value,
@@ -612,10 +618,10 @@ class TestFsUseCases(FsSharedFixtureMixin, FederatedQueryTestMixin):
             # sentinel) and fills it with the same string used for %%tbname.
             window_starts_ms = [self._BASE_MS + k * 60_000 for k in range(4)]
             expected_by_subtable = {
-                "hm_src_t_a_x_tname": (1, 1.0, "a", "src_t_a_x_tname", "x", "src_t_a_x_tname"),
-                "hm_src_t_a_y_tname": (1, 3.0, "a", "src_t_a_y_tname", "y", "src_t_a_y_tname"),
-                "hm_src_t_b_x_tname": (1, 2.0, "b", "src_t_b_x_tname", "x", "src_t_b_x_tname"),
-                "hm_src_t_b_y_tname": (1, 4.0, "b", "src_t_b_y_tname", "y", "src_t_b_y_tname"),
+                f"hm_{tb[('a', 'x')]}": (1, 1.0, "a", tb[('a', 'x')], "x", tb[('a', 'x')]),
+                f"hm_{tb[('a', 'y')]}": (1, 3.0, "a", tb[('a', 'y')], "y", tb[('a', 'y')]),
+                f"hm_{tb[('b', 'x')]}": (1, 2.0, "b", tb[('b', 'x')], "x", tb[('b', 'x')]),
+                f"hm_{tb[('b', 'y')]}": (1, 4.0, "b", tb[('b', 'y')], "y", tb[('b', 'y')]),
             }
             self._assert_windows_per_subtable(
                 "cnt, avg_val, t1, t2, t3, tname", expected_by_subtable, window_starts_ms

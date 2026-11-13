@@ -107,6 +107,17 @@ int32_t stRecalcContributorsAdd(SStreamRecalcTracker *pTracker, SArray **ppContr
 int32_t stRecalcContributorsMerge(SArray **ppDst, const SArray *pSrc);
 int32_t stRecalcTrackerConfirmGroupPrefix(SStreamRecalcTracker *pTracker, int64_t gid, TSKEY confirmedThrough,
                                           const SArray *pContributors);
+typedef struct SStreamRecalcNoDataGroups SStreamRecalcNoDataGroups;
+/*
+ * Preparation allocates the confirmation state and normalizes empty groups to
+ * zero work before execution requests are activated. Commit performs no
+ * allocation, so it cannot fail after attempt ownership transfers to tracker.
+ */
+int32_t stRecalcTrackerPrepareNoDataGroups(SStreamRecalcTracker *pTracker, int64_t recalcId,
+                                           SStreamProgressRange requestedRange, const SArray *pGroupIds,
+                                           SStreamRecalcNoDataGroups **ppGroups);
+int32_t stRecalcTrackerCommitNoDataGroups(SStreamRecalcTracker *pTracker, const SStreamRecalcNoDataGroups *pGroups);
+void    stRecalcTrackerDestroyNoDataGroups(SStreamRecalcNoDataGroups **ppGroups);
 int32_t stRecalcAttemptCreate(size_t contributorCapacity, SStreamRecalcAttemptState **ppAttempt);
 void    stRecalcAttemptDestroy(SStreamRecalcAttemptState **ppAttempt);
 /*

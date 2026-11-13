@@ -4348,6 +4348,8 @@ TEST(td_msg_test, stream_create_ext_spec_precision_roundtrip) {
       SStreamExtTriggerSpec spec = {};
       spec.precision = precision;
       tstrncpy(spec.sourceName, "mysql_a", sizeof(spec.sourceName));
+      spec.triggerPrefilterAst = taosStrdup("{\"nodeType\":\"logic\"}");
+      ASSERT_NE(spec.triggerPrefilterAst, nullptr);
       SStreamExtTriggerSpec* pSpec = &spec;
       req.extSpecs = taosArrayInit(1, POINTER_BYTES);
       ASSERT_NE(req.extSpecs, nullptr);
@@ -4357,6 +4359,8 @@ TEST(td_msg_test, stream_create_ext_spec_precision_roundtrip) {
       char* json = nullptr;
       int32_t jsonLen = 0;
       int32_t code = scmCreateStreamReqToJson(&req, false, &json, &jsonLen);
+      taosMemoryFree(spec.triggerPrefilterAst);
+      spec.triggerPrefilterAst = nullptr;
       taosArrayDestroy(req.extSpecs);
       ASSERT_EQ(code, 0);
       SJson* parsed = tjsonParse(json);
@@ -4366,6 +4370,7 @@ TEST(td_msg_test, stream_create_ext_spec_precision_roundtrip) {
         SJson* item = tjsonGetArrayItem(tjsonGetObjectItem(parsed, "extSpecs"), 0);
         ASSERT_NE(item, nullptr);
         tjsonDeleteItemFromObject(item, "precision");
+        tjsonDeleteItemFromObject(item, "triggerPrefilterAst");
       }
 
       SCMCreateStreamReq decoded = {};
@@ -4376,6 +4381,11 @@ TEST(td_msg_test, stream_create_ext_spec_precision_roundtrip) {
       if (code == 0 && taosArrayGetSize(decoded.extSpecs) == 1) {
         auto* actual = *(SStreamExtTriggerSpec**)taosArrayGet(decoded.extSpecs, 0);
         EXPECT_EQ(actual->precision, legacy ? req.triggerPrec : precision);
+        if (legacy) {
+          EXPECT_EQ(actual->triggerPrefilterAst, nullptr);
+        } else {
+          EXPECT_STREQ(actual->triggerPrefilterAst, "{\"nodeType\":\"logic\"}");
+        }
       }
       tFreeSCMCreateStreamReq(&decoded);
     }
@@ -4551,6 +4561,200 @@ TEST(td_msg_test, stream_reader_deploy_ext_spec_column_mapping_roundtrip) {
 
   tFreeSStreamReaderDeployMsg(&decoded);
   tFreeSStreamReaderDeployMsg(&msg);
+}
+
+// The reader deploy messages nested in the heartbeat response have no length frame, so the
+// PRE_FILTER AST must not live inside the spec: a trailing spec field would shift every
+// following reader and heartbeat section for a peer that predates it.  Encoding therefore
+// has to be byte-identical whether the AST is present or not, and the reader-level decoder
+// never sees it.
+TEST(td_msg_test, stream_reader_deploy_layout_ignores_prefilter_ast) {
+  SStreamReaderDeployMsg msg = {};
+  msg.triggerReader = 1;
+  msg.pExtSpec = (SStreamExtTriggerSpec*)taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+  ASSERT_NE(msg.pExtSpec, nullptr);
+
+  SStreamExtTriggerSpec* spec = msg.pExtSpec;
+  tstrncpy(spec->sourceName, "influx_18", sizeof(spec->sourceName));
+  spec->sourceType = 1;
+  tstrncpy(spec->extTable, "metrics", sizeof(spec->extTable));
+  tstrncpy(spec->tsColumn, "time", sizeof(spec->tsColumn));
+  spec->triggerPrefilterAst = taosStrdup("{\"nodeType\":\"logic\"}");
+  ASSERT_NE(spec->triggerPrefilterAst, nullptr);
+
+  auto encodeInto = [](SStreamReaderDeployMsg* pMsg, std::vector<uint8_t>* pOut) -> int32_t {
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, NULL, 0);
+    if (tEncodeSStreamReaderDeployMsg(&encoder, pMsg) != 0) {
+      tEncoderClear(&encoder);
+      return -1;
+    }
+    int32_t len = encoder.pos;
+    tEncoderClear(&encoder);
+    pOut->assign(len, 0);
+    tEncoderInit(&encoder, pOut->data(), len);
+    int32_t code = tEncodeSStreamReaderDeployMsg(&encoder, pMsg);
+    tEncoderClear(&encoder);
+    return code == 0 ? len : -1;
+  };
+
+  std::vector<uint8_t> withAst;
+  std::vector<uint8_t> withoutAst;
+  ASSERT_GT(encodeInto(&msg, &withAst), 0);
+  char* savedAst = spec->triggerPrefilterAst;
+  spec->triggerPrefilterAst = nullptr;
+  ASSERT_GT(encodeInto(&msg, &withoutAst), 0);
+  spec->triggerPrefilterAst = savedAst;
+  ASSERT_EQ(withAst.size(), withoutAst.size());
+  ASSERT_EQ(std::memcmp(withAst.data(), withoutAst.data(), withAst.size()), 0);
+
+  /* Both encodings decode into the spec the reader knows, with no AST: it arrives in the
+   * heartbeat tail frame instead. */
+  SStreamReaderDeployMsg decoded = {};
+  SDecoder                decoder = {};
+  tDecoderInit(&decoder, withAst.data(), (uint32_t)withAst.size());
+  ASSERT_EQ(tDecodeSStreamReaderDeployMsg(&decoder, &decoded), 0);
+  tDecoderClear(&decoder);
+  ASSERT_NE(decoded.pExtSpec, nullptr);
+  EXPECT_EQ(decoded.pExtSpec->triggerPrefilterAst, nullptr);
+  EXPECT_STREQ(decoded.pExtSpec->extTable, "metrics");
+  tFreeSStreamReaderDeployMsg(&decoded);
+
+  tFreeSStreamReaderDeployMsg(&msg);
+}
+
+namespace {
+
+struct StreamHbReaderSpec {
+  int64_t     taskId;
+  const char* extTable;
+  const char* ast;  // nullptr for a source whose PRE_FILTER is rendered as SQL
+};
+
+// One stream holding the given ext readers by value; the caller owns the deploy list.
+SArray* streamHbDeployList(int64_t streamId, const std::vector<StreamHbReaderSpec>& readers) {
+  SArray* pStreams = taosArrayInit_s(sizeof(SStmStreamDeploy), 1);
+  if (pStreams == nullptr) return nullptr;
+  SStmStreamDeploy* pStream = (SStmStreamDeploy*)taosArrayGet(pStreams, 0);
+  pStream->streamId = streamId;
+  pStream->readerTasks = taosArrayInit_s(sizeof(SStmTaskDeploy), readers.size());
+  if (pStream->readerTasks == nullptr) {
+    taosArrayDestroy(pStreams);
+    return nullptr;
+  }
+  for (size_t i = 0; i < readers.size(); ++i) {
+    SStmTaskDeploy* pTask = (SStmTaskDeploy*)taosArrayGet(pStream->readerTasks, (int32_t)i);
+    pTask->task.type = STREAM_READER_TASK;
+    pTask->task.taskId = readers[i].taskId;
+    pTask->msg.reader.triggerReader = 1;
+    pTask->msg.reader.pExtSpec = (SStreamExtTriggerSpec*)taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec));
+    if (pTask->msg.reader.pExtSpec == nullptr) return nullptr;
+    SStreamExtTriggerSpec* pSpec = pTask->msg.reader.pExtSpec;
+    tstrncpy(pSpec->sourceName, "ext_src", sizeof(pSpec->sourceName));
+    pSpec->sourceType = 1;
+    tstrncpy(pSpec->extTable, readers[i].extTable, sizeof(pSpec->extTable));
+    tstrncpy(pSpec->tsColumn, "time", sizeof(pSpec->tsColumn));
+    if (readers[i].ast != nullptr) {
+      pSpec->triggerPrefilterAst = taosStrdup(readers[i].ast);
+      if (pSpec->triggerPrefilterAst == nullptr) return nullptr;
+    }
+  }
+  return pStreams;
+}
+
+// Release a deploy list the test built by hand (the decoder's copy is freed by
+// tDeepFreeSMStreamHbRspMsg).
+void freeStreamHbDeployList(SArray* pStreams) {
+  for (int32_t i = 0; i < taosArrayGetSize(pStreams); ++i) {
+    SStmStreamDeploy* pStream = (SStmStreamDeploy*)taosArrayGet(pStreams, i);
+    for (int32_t j = 0; j < taosArrayGetSize(pStream->readerTasks); ++j) {
+      SStmTaskDeploy* pTask = (SStmTaskDeploy*)taosArrayGet(pStream->readerTasks, j);
+      tFreeSStreamExtTriggerSpec(pTask->msg.reader.pExtSpec);
+    }
+    taosArrayDestroy(pStream->readerTasks);
+  }
+  taosArrayDestroy(pStreams);
+}
+
+int32_t encodeStreamHbRsp(SMStreamHbRspMsg* pRsp, std::vector<uint8_t>* pOut) {
+  SEncoder sizer = {};
+  tEncoderInit(&sizer, nullptr, 0);
+  int32_t code = tEncodeStreamHbRsp(&sizer, pRsp);
+  int32_t len = sizer.pos;
+  tEncoderClear(&sizer);
+  if (code != 0 || len <= 0) return code != 0 ? code : TSDB_CODE_INVALID_MSG;
+
+  pOut->assign(len, 0);
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, pOut->data(), len);
+  code = tEncodeStreamHbRsp(&encoder, pRsp);
+  tEncoderClear(&encoder);
+  return code;
+}
+
+int32_t decodeStreamHbRsp(std::vector<uint8_t>* pBuf, SMStreamHbRspMsg* pRsp) {
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, pBuf->data(), (uint32_t)pBuf->size());
+  int32_t code = tDecodeStreamHbRsp(&decoder, pRsp);
+  tDecoderClear(&decoder);
+  return code;
+}
+
+}  // namespace
+
+// The 1.8 reader picks its PRE_FILTER AST up from a versioned tail frame, so a mixed-version
+// deployment keeps the deploy layout intact in both directions: a peer that predates the
+// frame skips it, and a heartbeat produced before it decodes with no AST.
+TEST(td_msg_test, stream_heartbeat_carries_ext_prefilter_ast_in_a_tail_frame) {
+  std::vector<StreamHbReaderSpec> readers = {
+      {200, "metrics", "{\"nodeType\":\"logic\"}"},
+      {201, "mysql_t", nullptr},
+  };
+  SMStreamHbRspMsg rsp = {};
+  rsp.deploy.streamList = streamHbDeployList(100, readers);
+  ASSERT_NE(rsp.deploy.streamList, nullptr);
+
+  std::vector<uint8_t> buf;
+  ASSERT_EQ(encodeStreamHbRsp(&rsp, &buf), 0);
+
+  SMStreamHbRspMsg decoded = {};
+  ASSERT_EQ(decodeStreamHbRsp(&buf, &decoded), 0);
+  ASSERT_EQ((int32_t)taosArrayGetSize(decoded.deploy.streamList), 1);
+  auto* pStream = (SStmStreamDeploy*)taosArrayGet(decoded.deploy.streamList, 0);
+  ASSERT_NE(pStream, nullptr);
+  EXPECT_EQ(pStream->streamId, 100);
+  ASSERT_EQ((int32_t)taosArrayGetSize(pStream->readerTasks), 2);
+  auto* pFirst = (SStmTaskDeploy*)taosArrayGet(pStream->readerTasks, 0);
+  auto* pSecond = (SStmTaskDeploy*)taosArrayGet(pStream->readerTasks, 1);
+  ASSERT_NE(pFirst->msg.reader.pExtSpec, nullptr);
+  EXPECT_EQ(pFirst->task.taskId, 200);
+  EXPECT_STREQ(pFirst->msg.reader.pExtSpec->extTable, "metrics");
+  EXPECT_STREQ(pFirst->msg.reader.pExtSpec->triggerPrefilterAst, "{\"nodeType\":\"logic\"}");
+  ASSERT_NE(pSecond->msg.reader.pExtSpec, nullptr);
+  EXPECT_EQ(pSecond->task.taskId, 201);
+  EXPECT_STREQ(pSecond->msg.reader.pExtSpec->extTable, "mysql_t");
+  EXPECT_EQ(pSecond->msg.reader.pExtSpec->triggerPrefilterAst, nullptr);
+  tDeepFreeSMStreamHbRspMsg(&decoded);
+
+  /* A heartbeat produced before the frame existed carries no AST and must still decode, with
+   * both readers and every spec field intact. */
+  auto* pOwnStream = (SStmStreamDeploy*)taosArrayGet(rsp.deploy.streamList, 0);
+  SStmTaskDeploy* pOwnReader = (SStmTaskDeploy*)taosArrayGet(pOwnStream->readerTasks, 0);
+  taosMemoryFreeClear(pOwnReader->msg.reader.pExtSpec->triggerPrefilterAst);
+  buf.clear();
+  ASSERT_EQ(encodeStreamHbRsp(&rsp, &buf), 0);
+  SMStreamHbRspMsg legacy = {};
+  ASSERT_EQ(decodeStreamHbRsp(&buf, &legacy), 0);
+  ASSERT_EQ((int32_t)taosArrayGetSize(legacy.deploy.streamList), 1);
+  auto* pLegacyStream = (SStmStreamDeploy*)taosArrayGet(legacy.deploy.streamList, 0);
+  ASSERT_EQ((int32_t)taosArrayGetSize(pLegacyStream->readerTasks), 2);
+  auto* pLegacyReader = (SStmTaskDeploy*)taosArrayGet(pLegacyStream->readerTasks, 0);
+  ASSERT_NE(pLegacyReader->msg.reader.pExtSpec, nullptr);
+  EXPECT_STREQ(pLegacyReader->msg.reader.pExtSpec->extTable, "metrics");
+  EXPECT_EQ(pLegacyReader->msg.reader.pExtSpec->triggerPrefilterAst, nullptr);
+  tDeepFreeSMStreamHbRspMsg(&legacy);
+
+  freeStreamHbDeployList(rsp.deploy.streamList);
 }
 
 TEST(td_msg_test, federated_scan_batch_op_param_codec) {

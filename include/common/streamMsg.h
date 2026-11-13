@@ -92,6 +92,8 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
 #define STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC UINT32_C(0x4e574550)
+#define STREAM_EXT_PREFILTER_AST_FRAME_MAGIC  UINT32_C(0x4e574541)
+#define STREAM_EXT_PREFILTER_AST_FRAME_VERSION 1
 #define STREAM_DERIVATIVE_LOG_FRAME_MAGIC       UINT32_C(0x4e57444c)
 #define STREAM_DERIVATIVE_LOG_FRAME_VERSION     1
 #define STREAM_DERIVATIVE_CONFIG_FRAME_VERSION  2
@@ -664,6 +666,11 @@ typedef struct SStreamExtTriggerSpec {
   // path).  NULL/empty means no pre-filter for the trigger reader.
   // Null-terminated C string; its length is self-describing via strlen.
   char*       triggerPrefilter;
+  // Serialized AST of the same PRE_FILTER (nodesNodeToString).  InfluxDB 1.8 has
+  // no SQL endpoint, so its reader cannot reuse the rendered triggerPrefilter
+  // fragment; the AST is rendered to InfluxQL by the 1.8 provider instead.
+  // NULL when the stream has no PRE_FILTER.
+  char*       triggerPrefilterAst;
   int32_t     tagCondLen;
   char*       tagCondJson;
   // --- Connection snapshot (sized via the SCreateExtSourceReq / SGetExtSourceRsp

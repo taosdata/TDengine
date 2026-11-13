@@ -775,8 +775,8 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  mInfo("start to write sdb file, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
-        " term:%" PRId64 " config:%" PRId64 ", file:%s",
+  mInfo("vgId:1, trans:0, start to write sdb file, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64
+        ", commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", file:%s",
         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
         curfile);
 

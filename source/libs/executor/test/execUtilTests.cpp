@@ -35,6 +35,7 @@
 #include <tuple>
 #include <vector>
 
+#include "../../test/scopedTempDir.h"
 #include "dataSinkMgt.h"
 #include "executil.h"
 #include "executor.h"
@@ -1665,6 +1666,7 @@ void expectInterpStoreBlocksEqual(const SSDataBlock* pExpected,
 }
 
 struct ExecutorTempDirGuard {
+  ScopedTestTempDir directory;
   char       savedPath[PATH_MAX] = {0};
   SDiskSpace savedLogSpace = {};
   SDiskSpace savedDataSpace = {};
@@ -1676,9 +1678,11 @@ struct ExecutorTempDirGuard {
     savedLogSpace = tsLogSpace;
     savedDataSpace = tsDataSpace;
     savedTempSpace = tsTempSpace;
-    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
-    code = taosMulMkDir(tsTempDir);
-    if (code == TSDB_CODE_SUCCESS) code = osUpdate();
+    code = directory.code;
+    if (code == TSDB_CODE_SUCCESS) {
+      tstrncpy(tsTempDir, directory.path, PATH_MAX);
+      code = osUpdate();
+    }
   }
 
   ~ExecutorTempDirGuard() {
@@ -1890,6 +1894,40 @@ TEST(execUtilTest, ResetAggSupPreservesWindowRoleAcrossReuse) {
     EXPECT_TRUE(exprSupp.pCtx[0].hasWindowOrGroup);
     EXPECT_TRUE(exprSupp.pCtx[0].hasWindow);
   }
+}
+
+TEST(ScopedTestTempDirTest, KeepsConcurrentOwnersSeparate) {
+  ScopedTestTempDir first;
+  ASSERT_EQ(first.code, TSDB_CODE_SUCCESS);
+  std::string secondPath;
+  {
+    ScopedTestTempDir second;
+    ASSERT_EQ(second.code, TSDB_CODE_SUCCESS);
+    EXPECT_STRNE(first.path, second.path);
+    secondPath = second.path;
+    EXPECT_TRUE(taosDirExist(second.path));
+  }
+  EXPECT_FALSE(taosDirExist(secondPath.c_str()));
+  EXPECT_TRUE(taosDirExist(first.path));
+}
+
+TEST(ScopedTestTempDirTest, CleansFilesAfterEarlyReturn) {
+  std::string ownedPath;
+  auto createAndReturn = [&]() {
+    ScopedTestTempDir directory;
+    ASSERT_EQ(directory.code, TSDB_CODE_SUCCESS);
+    ownedPath = directory.path;
+    const std::string nested = directory.child("nested");
+    ASSERT_EQ(taosMkDir(nested.c_str()), TSDB_CODE_SUCCESS);
+    const std::string filename = nested + TD_DIRSEP + "owned.txt";
+    TdFilePtr file = taosOpenFile(filename.c_str(), TD_FILE_CREATE | TD_FILE_WRITE);
+    ASSERT_NE(file, nullptr);
+    taosCloseFile(&file);
+    return;
+  };
+  ASSERT_NO_FATAL_FAILURE(createAndReturn());
+  ASSERT_FALSE(ownedPath.empty());
+  EXPECT_FALSE(taosDirExist(ownedPath.c_str()));
 }
 
 struct InterpMergeFakeSource {
@@ -7906,6 +7944,7 @@ int32_t externalWindowTwoLeafParentReset(SOperatorInfo *pOperator) {
 void destroyExternalWindowTwoLeafParent(void *pInfo) { taosMemoryFree(pInfo); }
 
 struct ExternalWindowFactoryOwner {
+  ScopedTestTempDir directory;
   SExecTaskInfo            *pTaskInfo = nullptr;
   SExternalWindowPhysiNode *pNode = nullptr;
   SProjectPhysiNode        *pProjectNode = nullptr;
@@ -7982,9 +8021,8 @@ struct ExternalWindowFactoryOwner {
     tstrncpy(previousTempDir, tsTempDir, sizeof(previousTempDir));
     previousTempSpace = tsTempSpace;
     tempEnvSaved = true;
-    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
-    code = taosMulMkDir(tsTempDir);
-    if (code != TSDB_CODE_SUCCESS) return code;
+    if (directory.code != TSDB_CODE_SUCCESS) return directory.code;
+    tstrncpy(tsTempDir, directory.path, PATH_MAX);
     tsTempSpace.size.avail = 1024 * 1024;
 
     SStorageAPI storageApi = {0};
@@ -8345,6 +8383,7 @@ int32_t makeRoundTripRowsetNode(SRowsetSourcePhysiNode **ppNode) {
 }
 
 struct ExternalWindowRoundTripOwner {
+  ScopedTestTempDir directory;
   SExecTaskInfo     *pTaskInfo = nullptr;
   SStreamRuntimeInfo runtime = {};
   bool               functionMgtInitialized = false;
@@ -8489,9 +8528,8 @@ struct ExternalWindowRoundTripOwner {
     tstrncpy(previousTempDir, tsTempDir, sizeof(previousTempDir));
     previousTempSpace = tsTempSpace;
     tempEnvSaved = true;
-    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
-    code = taosMulMkDir(tsTempDir);
-    if (code != TSDB_CODE_SUCCESS) return code;
+    if (directory.code != TSDB_CODE_SUCCESS) return directory.code;
+    tstrncpy(tsTempDir, directory.path, PATH_MAX);
     tsTempSpace.size.avail = 1024 * 1024;
     code = initRuntime(multiGroup);
     if (code != TSDB_CODE_SUCCESS) {
@@ -15439,14 +15477,15 @@ enum class ProjectProcessByRowKind {
 
 class ProjectMultiGroupOperatorTest : public ::testing::Test {
  protected:
+  ScopedTestTempDir directory;
   void SetUp() override {
     ASSERT_EQ(fmFuncMgtInit(), TSDB_CODE_SUCCESS);
     functionMgtInitialized_ = true;
     tstrncpy(previousTempDir_, tsTempDir, sizeof(previousTempDir_));
     previousTempSpace_ = tsTempSpace;
     tempEnvSaved_ = true;
-    tstrncpy(tsTempDir, TD_TMP_DIR_PATH, PATH_MAX);
-    ASSERT_EQ(taosMulMkDir(tsTempDir), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(directory.code, TSDB_CODE_SUCCESS);
+    tstrncpy(tsTempDir, directory.path, PATH_MAX);
     tsTempSpace.size.avail = 1024 * 1024;
     SStorageAPI storage = {};
     ASSERT_EQ(doCreateTask(1, 1, 1, OPTR_EXEC_MODEL_STREAM, &storage, &pTaskInfo_), TSDB_CODE_SUCCESS);
@@ -29379,11 +29418,13 @@ void anomalyResetFunctionCleanup(SqlFunctionCtx *ctx) {
 
 class AnomalyWindowResetTest : public testing::TestWithParam<bool> {
  protected:
+  ScopedTestTempDir directory;
   void SetUp() override {
     savedTempSpace = tsTempSpace;
     tstrncpy(savedTempDir, tsTempDir, sizeof(savedTempDir));
     tsTempSpace.size.avail = 1024 * 1024;
-    tstrncpy(tsTempDir, "/tmp", PATH_MAX);
+    ASSERT_EQ(directory.code, TSDB_CODE_SUCCESS);
+    tstrncpy(tsTempDir, directory.path, PATH_MAX);
     ASSERT_EQ(fmFuncMgtInit(), TSDB_CODE_SUCCESS);
     stub.set(taosAnalyGetAlgoUrl, anomalyResetAlgoUrl);
     anomalyResetCleanupCalls = 0;

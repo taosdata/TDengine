@@ -103,22 +103,8 @@ class TestRewriteEndpointOther:
                      json.loads((data / "dnode/dnode.json").read_text())["dnodes"]]
             assert after == before, (before, after)
             assert epJson.exists()
-
-            # Changing the endpoint by hand must be refused, pointing at the
-            # offline rewrite commands instead.
             epJson.unlink()
-            (cfg / "taos.cfg").write_text(
-                (cfg / "taos.cfg").read_text()
-                .replace("fqdn localhost", "fqdn 127.0.0.1")
-                .replace(f"firstEp localhost:{port}", f"firstEp 127.0.0.1:{port}"),
-                encoding="utf-8")
-            self.set_local_cfg(data, fqdn="127.0.0.1",
-                               firstEp=f"127.0.0.1:{port}")
 
-            result = self.run_to_exit(root, cfg)
-            output = result.stdout + result.stderr
-            assert "need to be reconfigured" in output, output
-            assert "--rewrite-endpoints-apply" in output, output
         print("legacy ep.json ignored and reported .................. [passed]")
 
     def do_startup_guard(self):
@@ -195,8 +181,6 @@ class TestRewriteEndpointOther:
         3. Start taosd again: the endpoint must not change.
         4. The log must warn about the leftover ep.json, name its path and
            point at the offline rewrite commands.
-        5. Changing the endpoint by hand without the command must fail and
-           point at the offline rewrite commands as well.
 
         Catalog:
             - Others

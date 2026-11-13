@@ -386,6 +386,8 @@ static void destroyVtbScanDynCtrlInfo(SVtbScanDynCtrlInfo* pVtbScan) {
     taosHashCleanup(pVtbScan->vtbUidTagListMap);
   }
   if (pVtbScan->vtbGroupIdTagListMap) {
+    taosHashCancelIterate(pVtbScan->vtbGroupIdTagListMap, pVtbScan->pAggGroupIter);
+    pVtbScan->pAggGroupIter = NULL;
     taosHashSetFreeFp(pVtbScan->vtbGroupIdTagListMap, destroyVtbUidTagListMap);
     taosHashCleanup(pVtbScan->vtbGroupIdTagListMap);
   }
@@ -8343,6 +8345,8 @@ static int32_t resetDynQueryCtrlOperState(SOperatorInfo* pOper) {
         pVtbScan->vtbUidTagListMap = NULL;
       }
       if (pVtbScan->vtbGroupIdTagListMap) {
+        taosHashCancelIterate(pVtbScan->vtbGroupIdTagListMap, pVtbScan->pAggGroupIter);
+        pVtbScan->pAggGroupIter = NULL;
         taosHashSetFreeFp(pVtbScan->vtbGroupIdTagListMap, destroyVtbUidTagListMap);
         taosHashCleanup(pVtbScan->vtbGroupIdTagListMap);
         pVtbScan->vtbGroupIdTagListMap = NULL;
@@ -8399,7 +8403,11 @@ int32_t virtualTableAggGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
       if (!pVtbScan->hasPartition && pVtbScan->batchProcessChild) {
         scope.allChildren = true;
       } else if (pVtbScan->hasPartition) {
-        void* pGroupIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, NULL);
+        // Retain the iterator across pulls so removed groups are passed only once.
+        if (NULL == pVtbScan->pAggGroupIter) {
+          pVtbScan->pAggGroupIter = taosHashIterate(pVtbScan->vtbGroupIdTagListMap, NULL);
+        }
+        void* pGroupIter = pVtbScan->pAggGroupIter;
         if (NULL == pGroupIter) {
           setOperatorCompleted(pOperator);
           break;
@@ -8411,6 +8419,8 @@ int32_t virtualTableAggGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
           SHashObj* pUidMap = *(SHashObj**)pGroupIter;
           void* pUidIter = vtbAggFindMaxUidValue(pUidMap, &scope.uid);
           if (NULL == pUidIter) {
+            pVtbScan->pAggGroupIter =
+                taosHashIterate(pVtbScan->vtbGroupIdTagListMap, pVtbScan->pAggGroupIter);
             code = taosHashRemove(pVtbScan->vtbGroupIdTagListMap,
                                   &scope.groupId, sizeof(scope.groupId));
             QUERY_CHECK_CODE(code, line, _return);
@@ -8467,12 +8477,16 @@ int32_t virtualTableAggGetNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
         code = taosHashRemove(*ppUidMap, &completed.uid, sizeof(completed.uid));
         QUERY_CHECK_CODE(code, line, _return);
         if (0 == taosHashGetSize(*ppUidMap)) {
+          pVtbScan->pAggGroupIter =
+              taosHashIterate(pVtbScan->vtbGroupIdTagListMap, pVtbScan->pAggGroupIter);
           code = taosHashRemove(pVtbScan->vtbGroupIdTagListMap,
                                 &completed.groupId, sizeof(completed.groupId));
           QUERY_CHECK_CODE(code, line, _return);
         }
       }
     } else if (completed.hasGroup) {
+      pVtbScan->pAggGroupIter =
+          taosHashIterate(pVtbScan->vtbGroupIdTagListMap, pVtbScan->pAggGroupIter);
       code = taosHashRemove(pVtbScan->vtbGroupIdTagListMap,
                             &completed.groupId, sizeof(completed.groupId));
       QUERY_CHECK_CODE(code, line, _return);

@@ -45,6 +45,9 @@ struct SSharedStorage {
 
 
 // SSharedStorageType defines the interface of a shared storage.
+//
+// NOTE for Windows: input paths can use either '/' or '\\' as the path separator,
+// while output paths will always use '/' as the path separator to ensure consistency.
 struct SSharedStorageType {
      // the name of the shared storage type.
     const char* name;

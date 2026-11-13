@@ -177,6 +177,8 @@ ORDER BY ts;
 
 - 窗口函数只能出现在查询块的 `SELECT` 列表和 `ORDER BY` 中。出现在 `WHERE`、`GROUP BY`、`HAVING`、`PARTITION BY`、窗口帧边界表达式，或作为标量函数参数、另一个窗口函数的窗口规范时，均返回错误。
 - 不允许窗口函数嵌套，即一个窗口函数的参数或窗口规范中不能再出现窗口函数。
+- 内联 `OVER (...)` 的 `ORDER BY` 支持普通聚合表达式，例如 `SUM(current)`、`AVG(current)` 或 `SUM(current) + 1`，聚合先于窗口函数计算。聚合表达式不必同时出现在 `SELECT` 列表中；其他列仍须满足分组规则。多行函数、窗口 `PARTITION BY` 和帧边界中的聚合，以及命名窗口定义中的聚合，仍不支持。
+- 窗口函数出现在 `SELECT` 列表时，其 `OVER` 内不能引用同层 `SELECT` 定义的别名；数字排序表达式按常量处理，不代表 `SELECT` 列序号。可以重复聚合表达式，或先在子查询中计算别名。
 - 顺序敏感的窗口函数（序号类、分布类、取值类）未指定 `ORDER BY` 时返回错误。
 - 当前仅支持批查询，不支持在流式计算中使用窗口函数。
 - 排序中 `NULL` 默认按最低值处理；同值行的输出顺序由 `ORDER BY` 决定，需要稳定逐行顺序时应显式补充排序键。
@@ -197,6 +199,17 @@ OFFSET 9;
 ## 示例
 
 以下示例基于文档统一使用的智能电表数据模型（超级表 `meters`，包含 `ts`、`current`、`voltage`、`phase` 列和 `location`、`groupid` 标签）。
+
+### 分组后排名
+
+以下查询先计算每组电流总和，再按总和从高到低排名：
+
+```sql
+SELECT groupid, SUM(current) AS total,
+       RANK() OVER (ORDER BY SUM(current) DESC) AS rn
+FROM meters
+GROUP BY groupid;
+```
 
 **移动平均**：计算每个电表最近 10 次采样的平均电压。
 

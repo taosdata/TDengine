@@ -1826,6 +1826,34 @@ TEST_F(ParserSelectTest, sqlWindowAllowsPercentileAggregate) {
   run("SELECT percentile(c1, 50) OVER (ORDER BY ts ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) FROM t1");
 }
 
+TEST_F(ParserSelectTest, sqlWindowOrderByAggregate) {
+  useDb("root", "test");
+  run("SELECT c2, sum(c1), rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY abs(sum(c1)) + 1 DESC) FROM t1 GROUP BY c2");
+  run("SELECT c2, rank() OVER (ORDER BY avg(c1), count(*), min(c1), max(c1), first(c1), last(c1)) "
+      "FROM t1 GROUP BY c2");
+  run("SELECT rank() OVER (ORDER BY sum(c1)) FROM t1");
+  run("SELECT c2, count(c2) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+}
+
+TEST_F(ParserSelectTest, sqlWindowOrderByAggregateRejectsUngroupedColumns) {
+  useDb("root", "test");
+  run("SELECT rank() OVER (ORDER BY sum(c1) + c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT count(c2) OVER (ORDER BY sum(c1) + c1) FROM t1 GROUP BY c2", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+      PARSER_STAGE_TRANSLATE);
+  run("SELECT rank() OVER (ORDER BY sum(c1) + c1) FROM t1", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, sqlWindowCountGroupedRows) {
+  useDb("root", "test");
+  run("SELECT c2, count(*) OVER (ORDER BY sum(c1)) FROM t1 GROUP BY c2");
+  run("SELECT c2, count(1) OVER (ORDER BY sum(c1)) FROM t1 GROUP BY c2");
+  run("SELECT count(*) OVER (ORDER BY sum(c1)) FROM t1");
+  run("SELECT count(1) OVER (ORDER BY sum(c1)) FROM t1");
+}
+
 TEST_F(ParserSelectTest, sqlWindowNamedValidation) {
   useDb("root", "test");
   run("SELECT avg(c1) OVER missing FROM t1", TSDB_CODE_PAR_WINDOW_NOT_DEFINED, PARSER_STAGE_TRANSLATE);

@@ -5732,9 +5732,9 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   SArray*      pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t       nums = taosArrayGetSize(pTables);
   int32_t      code = 0;
-  // No-from (dual) query: convert count(*) to count(1); no table is available
-  // to resolve the '*' column, and the namespace is always empty here.
-  if (pCxt->dual) {
+  // Window COUNT(*) counts input rows, which may already be grouped and no
+  // longer contain the source timestamp. Keep qualified stars table-specific.
+  if (pCxt->dual || (NULL != pCount->pOver && '\0' == pCol->tableAlias[0])) {
     return rewriteCountStarAsCount1(pCxt, pCount);
   }
 
@@ -5769,10 +5769,8 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
-  // No-from (dual) query: keep count(1) as-is, scalar execution handles it.
-  // Use pCxt->dual (set by translateSelectWithoutFrom) for consistency with
-  // validateDualQueryFunc rather than checking pFromTable directly.
-  if (pCxt->dual) {
+  // Window COUNT(constant) must not depend on a pre-aggregation timestamp.
+  if (pCxt->dual || NULL != pCount->pOver) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -9064,6 +9062,17 @@ static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes checkIllegalSqlWindowOrderFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (NULL == pFunc->pOver && fmIsAggFunc(pFunc->funcId) && !fmIsMultiRowsFunc(pFunc->funcId)) {
+      // Aggregate arguments have already passed ordinary nesting validation.
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  return checkIllegalSqlWindowSpecFunc(pNode, pContext);
+}
+
 static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
   bool hasWindowFunc = false;
   nodesWalkExpr(pNode, checkSqlWindowFuncExist, &hasWindowFunc);
@@ -9074,8 +9083,11 @@ static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
 }
 
 static int32_t validateSqlWindowSpecExpr(STranslateContext* pCxt, SNode* pNode) {
+  SWindowSpecNode* pSpec = (SWindowSpecNode*)pNode;
   bool hasIllegalFunc = false;
-  nodesWalkExpr(pNode, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
+  nodesWalkExprs(pSpec->pPartitionByList, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
+  nodesWalkExprs(pSpec->pOrderByList, checkIllegalSqlWindowOrderFunc, &hasIllegalFunc);
+  nodesWalkExpr(pSpec->pFrame, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
   if (hasIllegalFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
   }
@@ -9491,7 +9503,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
-  if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
+  if (isVectorFunc(*pNode) && !isSqlWindowFunctionNode((SFunctionNode*)*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
@@ -9692,7 +9704,7 @@ static const char* getExistColName(SNode* pNode) {
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (isVectorFunc(*pNode)) {
+  if (isVectorFunc(*pNode) && !isSqlWindowFunctionNode((SFunctionNode*)*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isColsFunctionResult(*pNode)) {
@@ -33154,6 +33166,191 @@ static EDealRes translateExtPreFilterValue(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+/* InfluxDB 1.8 renders PRE_FILTER itself and accepts a much narrower expression
+ * set than renderExtWhereNode(): AND/OR of comparisons whose operands are one
+ * COLUMN and one VALUE (influxV1AppendFilter in extConnectorInfluxV1.c), and a
+ * constant compared with the primary time column must already be an integer or
+ * TIMESTAMP value.  Anything else makes every read fail with
+ * TSDB_CODE_EXT_SYNTAX_UNSUPPORTED only after CREATE STREAM succeeded, leaving a
+ * stream that can never process data.  Validate the same rules at CREATE time and
+ * normalize the string time literal the provider's timestamp branch rejects. */
+static bool influxV18PfOpSupported(EOperatorType op) {
+  switch (op) {
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/* Index of colName in the remote schema, or -1. */
+static int32_t influxV18PfFindColumn(const SExtTableNode* pExt, const char* colName) {
+  if (pExt == NULL || pExt->pExtMeta == NULL || pExt->pExtMeta->pCols == NULL || colName == NULL) {
+    return -1;
+  }
+  for (int32_t i = 0; i < pExt->pExtMeta->numOfCols; ++i) {
+    if (strcmp(pExt->pExtMeta->pCols[i].colName, colName) == 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+static bool influxV18PfIsTimeColumn(const SExtTableNode* pExt, const char* colName) {
+  int32_t idx = influxV18PfFindColumn(pExt, colName);
+  return idx >= 0 && pExt->pExtMeta->pCols[idx].isPrimaryKey;
+}
+
+static bool influxV18PfIsTagColumn(const SExtTableNode* pExt, const char* colName) {
+  int32_t idx = influxV18PfFindColumn(pExt, colName);
+  return idx >= 0 && pExt->pExtMeta->pCols[idx].isTag && !pExt->pExtMeta->pCols[idx].isPrimaryKey;
+}
+
+/* Rewrite a string constant compared with the primary time column as a TIMESTAMP
+ * value in nanoseconds, the unit the 1.8 provider emits.  The wall clock is parsed
+ * in the stream timezone, the same basis renderExtValueNode uses for the SQL
+ * fragment. */
+static int32_t influxV18PfNormalizeTimeValue(SValueNode* pVal, timezone_t tz) {
+  if (pVal == NULL) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  if (IS_STR_DATA_TYPE(pVal->node.resType.type)) {
+    if (pVal->literal == NULL) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    int64_t ts = 0;
+    if (taosParseTime(pVal->literal, &ts, (int32_t)strlen(pVal->literal),
+                      TSDB_TIME_PRECISION_NANO, tz) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+    }
+    /* nodesCloneNode() gives a translated var-length value its own datum.p, and
+     * nodesClearValueNode() only releases that pointer while the node keeps a
+     * var-length type.  Overwriting the union with the timestamp below would
+     * therefore leak the cloned string: release it first. */
+    if (IS_VAR_DATA_TYPE(pVal->node.resType.type) && pVal->datum.p != NULL) {
+      taosMemoryFreeClear(pVal->datum.p);
+    }
+    pVal->translate                  = true;
+    pVal->datum.i                    = ts;
+    pVal->node.resType.type          = TSDB_DATA_TYPE_TIMESTAMP;
+    pVal->node.resType.bytes         = sizeof(int64_t);
+    pVal->node.resType.precision     = TSDB_TIME_PRECISION_NANO;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (IS_INTEGER_TYPE(pVal->node.resType.type) || IS_TIMESTAMP_TYPE(pVal->node.resType.type)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+}
+
+/* A comparison operand of a 1.8 PRE_FILTER: a column of the trigger table or a
+ * constant.  comparedWithTime marks a constant the provider renders through its
+ * timestamp branch. */
+static int32_t influxV18PfCheckOperand(SNode* pNode, const SExtTableNode* pExt, timezone_t tz,
+                                       bool comparedWithTime) {
+  if (pNode == NULL) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+      if (pExt == NULL || pExt->pExtMeta == NULL || pExt->pExtMeta->pCols == NULL) {
+        /* Remote schema unknown at create time: leave the name to the reader. */
+        return TSDB_CODE_SUCCESS;
+      }
+      return influxV18PfFindColumn(pExt, ((SColumnNode*)pNode)->colName) >= 0
+                 ? TSDB_CODE_SUCCESS
+                 : TSDB_CODE_EXT_SCHEMA_CHANGED;
+    case QUERY_NODE_VALUE: {
+      SValueNode* pVal = (SValueNode*)pNode;
+      if (pVal->isNull) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      return comparedWithTime ? influxV18PfNormalizeTimeValue(pVal, tz) : TSDB_CODE_SUCCESS;
+    }
+    default:
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+}
+
+/* Validate the persisted PRE_FILTER against what the InfluxDB 1.8 provider can render.
+ *
+ * inDisjunction marks a comparison sitting under an OR.  InfluxDB 1.8 extracts the time range of
+ * every branch with the same intersection rule regardless of AND/OR (influxql conditionExpr /
+ * getTimeRange), so `time < T1 OR time >= T2` (T1 < T2) becomes an empty range and the matching
+ * rows disappear silently - the 1.8 trigger reader has no local filter to compensate.  A time
+ * comparison with `!=` is rejected as well: getTimeRange only accepts >, >=, <, <= and =, so the
+ * server fails every subsequent read. */
+static int32_t validateInfluxV18PrefilterNode(SNode* pNode, const SExtTableNode* pExt, timezone_t tz,
+                                             int32_t depth, bool inDisjunction) {
+  if (pNode == NULL) return TSDB_CODE_SUCCESS;
+  if (depth > 32) return TSDB_CODE_EXT_RESOURCE_EXHAUSTED;
+
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_CONDITION: {
+      SLogicConditionNode* pLogic = (SLogicConditionNode*)pNode;
+      if (pLogic->condType != LOGIC_COND_TYPE_AND && pLogic->condType != LOGIC_COND_TYPE_OR) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      bool    childDisjunction = inDisjunction || pLogic->condType == LOGIC_COND_TYPE_OR;
+      SNode*  pChild = NULL;
+      int32_t code   = TSDB_CODE_SUCCESS;
+      FOREACH(pChild, pLogic->pParameterList) {
+        code = validateInfluxV18PrefilterNode(pChild, pExt, tz, depth + 1, childDisjunction);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOp = (SOperatorNode*)pNode;
+      if (!influxV18PfOpSupported(pOp->opType)) return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      bool leftIsTime = nodeType(pOp->pLeft) == QUERY_NODE_COLUMN &&
+                        influxV18PfIsTimeColumn(pExt, ((SColumnNode*)pOp->pLeft)->colName);
+      bool rightIsTime = nodeType(pOp->pRight) == QUERY_NODE_COLUMN &&
+                         influxV18PfIsTimeColumn(pExt, ((SColumnNode*)pOp->pRight)->colName);
+      if ((leftIsTime || rightIsTime) &&
+          (inDisjunction || pOp->opType == OP_TYPE_NOT_EQUAL)) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      /* InfluxDB 1.8 compares tag strings with = and != only; a range comparison on a tag
+       * matches no series at all (inmem idsForExpr returns an empty set), so pushing it down
+       * would silently drop every row the user asked for.  A tag is also never compared with
+       * a number or a boolean on the remote side: `host = 1` renders as `"host" = 1` and
+       * every read fails with a type error.  Both shapes are rejected here so CREATE STREAM
+       * cannot produce a stream whose reads always fail. */
+      bool leftIsColumn = nodeType(pOp->pLeft) == QUERY_NODE_COLUMN;
+      bool rightIsColumn = nodeType(pOp->pRight) == QUERY_NODE_COLUMN;
+      bool leftIsTag = leftIsColumn && influxV18PfIsTagColumn(pExt, ((SColumnNode*)pOp->pLeft)->colName);
+      bool rightIsTag = rightIsColumn && influxV18PfIsTagColumn(pExt, ((SColumnNode*)pOp->pRight)->colName);
+      if (pOp->opType != OP_TYPE_EQUAL && pOp->opType != OP_TYPE_NOT_EQUAL && (leftIsTag || rightIsTag)) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      if ((leftIsTag && nodeType(pOp->pRight) == QUERY_NODE_VALUE &&
+           !IS_STR_DATA_TYPE(((SValueNode*)pOp->pRight)->node.resType.type)) ||
+          (rightIsTag && nodeType(pOp->pLeft) == QUERY_NODE_VALUE &&
+           !IS_STR_DATA_TYPE(((SValueNode*)pOp->pLeft)->node.resType.type))) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      /* influxql resolves the time range of a condition against a constant on the other side
+       * of the time column (conditionExpr/getTimeRange only accept an evaluable time or
+       * numeric literal).  A column there, PRE_FILTER(time > val), makes the remote reject
+       * every read, so the stream never obtains an initial watermark. */
+      if ((leftIsTime || rightIsTime) && leftIsColumn && rightIsColumn) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      /* A column-to-column comparison is only safe when both sides are plain fields.  With a
+       * tag on either side the local and remote NULL semantics diverge: InfluxDB resolves
+       * `tag1 != tag2` over the series index alone, so a series that lacks the second tag
+       * still matches, and the provider can only pair the inequality with an existence test
+       * for one side.  Reject it instead of pushing a wider condition. */
+      if (leftIsColumn && rightIsColumn && (leftIsTag || rightIsTag)) {
+        return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+      }
+      int32_t code = influxV18PfCheckOperand(pOp->pLeft, pExt, tz, rightIsTime);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      return influxV18PfCheckOperand(pOp->pRight, pExt, tz, leftIsTime);
+    }
+    default:
+      return TSDB_CODE_EXT_SYNTAX_UNSUPPORTED;
+  }
+}
+
 /* Free the current spec and release the active hash iterator on build errors. */
 static void freeExtSpecOnBuildError(SHashObj* pHash, void* pIter, SStreamExtTriggerSpec* pSpec) {
   tFreeSStreamExtTriggerSpec(pSpec);
@@ -33498,6 +33695,52 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
         if (pSpec->triggerPrefilter == NULL) {
           freeExtSpecOnBuildError(pHash, pIter, pSpec);
           PAR_ERR_JRET(terrno);
+        }
+        /* InfluxDB 1.8 readers cannot execute the rendered SQL fragment;
+         * keep the AST so the 1.8 provider can render InfluxQL itself.  The
+         * provider accepts a narrower shape than renderExtWhereNode(), so
+         * validate the persisted AST against those rules first: otherwise the
+         * stream is created and then fails on its first read. */
+        if (pSpec->sourceType == EXT_SOURCE_INFLUXDB) {
+          int32_t astLen     = 0;
+          bool    influx18   = (trigExtNode != NULL &&
+                              trigExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8);
+          SNode*  pPersisted = NULL;
+          code = nodesCloneNode(pTrigPreFilter, &pPersisted);
+          if (code != TSDB_CODE_SUCCESS || pPersisted == NULL) {
+            freeExtSpecOnBuildError(pHash, pIter, pSpec);
+            PAR_ERR_JRET(code != TSDB_CODE_SUCCESS ? code : terrno);
+          }
+          if (influx18) {
+            code = validateInfluxV18PrefilterNode(pPersisted, trigExtNode,
+                                                  pCxt->streamTimezone, 0, false);
+            if (code != TSDB_CODE_SUCCESS) {
+              parserError("buildExtSpecs: InfluxDB 1.8 cannot evaluate PRE_FILTER for source=%s, code=%d",
+                          sourceName, code);
+              nodesDestroyNode(pPersisted);
+              freeExtSpecOnBuildError(pHash, pIter, pSpec);
+              /* A column the remote schema does not have is not a syntax problem, and
+               * reporting it as one sends users looking for the wrong bug. */
+              PAR_ERR_JRET(code == TSDB_CODE_EXT_SCHEMA_CHANGED
+                               ? generateSyntaxErrMsgExt(
+                                     &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PRE_FILTER,
+                                     "PRE_FILTER of an InfluxDB 1.8 source references a column that the "
+                                     "external table does not have")
+                               : generateSyntaxErrMsgExt(
+                                     &pCxt->msgBuf, TSDB_CODE_STREAM_INVALID_PRE_FILTER,
+                                     "PRE_FILTER of an InfluxDB 1.8 source only supports AND/OR of "
+                                     "comparisons between a column and a constant; a time bound "
+                                     "cannot use != or appear in an OR branch, and tag columns "
+                                     "only support = and !="));
+            }
+          }
+          if (nodesNodeToString(pPersisted, false, &pSpec->triggerPrefilterAst, &astLen) != 0 ||
+              pSpec->triggerPrefilterAst == NULL) {
+            nodesDestroyNode(pPersisted);
+            freeExtSpecOnBuildError(pHash, pIter, pSpec);
+            PAR_ERR_JRET(terrno);
+          }
+          nodesDestroyNode(pPersisted);
         }
         parserDebug("buildExtSpecs: triggerPrefilter=\"%.120s\" len=%d for source=%s",
                     pSpec->triggerPrefilter, pfOff, sourceName);
