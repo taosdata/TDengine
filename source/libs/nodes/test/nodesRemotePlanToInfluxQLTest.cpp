@@ -171,9 +171,11 @@ TEST(InfluxQLRender, FoldedNcharDoesNotRequireLiteralText) {
         reinterpret_cast<SNode *>(column("host", TSDB_DATA_TYPE_BINARY)), reinterpret_cast<SNode *>(value)));
     auto result = render(&leaf->node);
     ASSERT_NE(nullptr, result);
-    EXPECT_STREQ(op == OP_TYPE_EQUAL ? "(\"host\" = '中文')" :
-                 op == OP_TYPE_NOT_EQUAL ? "(\"host\" != '中文' AND \"host\" != '')" :
-                 "(\"host\" =~ /(?s)^中文$/ AND \"host\" != '')", result->pWhere);
+    // "中文" (U+4E2D U+6587) 的 UTF-8 字节.
+    // Byte escapes preserve UTF-8 regardless of the Windows code page.
+    EXPECT_STREQ(op == OP_TYPE_EQUAL ? "(\"host\" = '\xE4\xB8\xAD\xE6\x96\x87')" :
+                 op == OP_TYPE_NOT_EQUAL ? "(\"host\" != '\xE4\xB8\xAD\xE6\x96\x87' AND \"host\" != '')" :
+                 "(\"host\" =~ /(?s)^\xE4\xB8\xAD\xE6\x96\x87$/ AND \"host\" != '')", result->pWhere);
   }
 }
 
@@ -206,12 +208,15 @@ TEST(InfluxQLRender, InListAndNotInList) {
 TEST(InfluxQLRender, LikeConvertsWildcardsAndEscapesRegex) {
   auto *leaf = scan();
   NodePtr owner(reinterpret_cast<SNode *>(leaf), nodesDestroyNode);
+  // "中" (U+4E2D) 的 UTF-8 字节为 E4 B8 AD.
+  // Use the same UTF-8 byte escapes in the input and expected regex,
+  // regardless of the Windows code page.
   leaf->node.pConditions = reinterpret_cast<SNode *>(operation(OP_TYPE_LIKE,
       reinterpret_cast<SNode *>(column("host", TSDB_DATA_TYPE_BINARY)),
-      reinterpret_cast<SNode *>(string("a%_\\%.[x]/\n中"))));
+      reinterpret_cast<SNode *>(string("a%_\\%.[x]/\n\xE4\xB8\xAD"))));
   auto result = render(&leaf->node);
   ASSERT_NE(nullptr, result);
-  EXPECT_STREQ("(\"host\" =~ /(?s)^a.*.%\\.\\[x\\]\\/\\n中$/ AND \"host\" != '')", result->pWhere);
+  EXPECT_STREQ("(\"host\" =~ /(?s)^a.*.%\\.\\[x\\]\\/\\n\xE4\xB8\xAD$/ AND \"host\" != '')", result->pWhere);
 }
 
 TEST(InfluxQLRender, DivisionRendersFloatingLiteral) {

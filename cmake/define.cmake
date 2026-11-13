@@ -197,7 +197,6 @@ IF(TD_WINDOWS)
 
     # ref: https://learn.microsoft.com/en-us/cpp/error-messages/compiler-warnings/compiler-warning-level-1-c4819?view=msvc-170
     set(_c_cxx_flags_list
-        /utf-8       # source and execution charset: the repository is UTF-8
         /WX
         /wd4311      # 'variable' : pointer truncation from 'type' to 'type'
         /wd4312      # 'operation' : conversion from 'type1' to 'type2' of greater size
