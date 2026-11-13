@@ -176,7 +176,7 @@ The basic API is used to establish database connections and provide a runtime en
     - `0`: success.
     - `others`: fail.
   - **notice**:
-    - The character set and time zone default to the current settings of the operating system, and Windows does not support connection level time zone settings.
+    - The character set and time zone default to the current settings of the operating system. Windows supports connection timezones starting with TDengine `v3.5.0`.
     - When arg is NULL, it means resetting the option.
     - This interface is only valid for the current connection and will not affect other connections.
     - If the same parameter is called multiple times, the latter shall prevail and can be used as a modification method.

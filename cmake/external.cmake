@@ -565,7 +565,7 @@ if(BUILD_WCWIDTH)        # {
 endif()                     # }
 
 # wingetopt
-if(BUILD_WINGETOPT)      # {
+if(BUILD_WINGETOPT OR TD_WINDOWS)      # {
     if(TD_WINDOWS)
         set(ext_wingetopt_static wingetopt.lib)
     endif()
@@ -957,7 +957,7 @@ endif()     # }
 if(NOT TD_WINDOWS)       # {
     if(TD_LINUX)
         set(ext_tz_static libtz.a)
-        set(_c_flags_list -fPIC -DTHREAD_SAFE=1)
+        set(_c_flags_list -fPIC -DTHREAD_SAFE=1 -pthread)
     elseif(TD_DARWIN)
         set(ext_tz_static libtz.a)
         set(_c_flags_list -fPIC -DHAVE_GETTEXT=0 -DTHREAD_SAFE=1) # TODO: brew install gettext?
@@ -990,12 +990,13 @@ if(NOT TD_WINDOWS)       # {
     )
     string(JOIN " " _c_flags ${_c_flags_list})
     get_from_local_if_exists(
-        "https://github.com/eggert/tz/archive/refs/tags/2025a.tar.gz"
-        "tz-2025a.tar.gz"
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
     )
     ExternalProject_Add(ext_tz
         URL ${_url}
-        URL_HASH SHA256=d0f35d0a3b5ca1bb25539b159c1338135a4f59b0d423381ecafa31d0449caea5
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
         PREFIX "${_base}"
         BUILD_IN_SOURCE TRUE
         CMAKE_ARGS -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
@@ -1013,6 +1014,37 @@ if(NOT TD_WINDOWS)       # {
         VERBATIM
     )
     add_dependencies(build_externals ext_tz)     # this is for github workflow in cache-miss step.
+else()
+    INIT_EXT(ext_tz INC_DIR include LIB lib/tz.lib)
+    get_from_local_if_exists(
+        "https://github.com/eggert/tz/archive/refs/tags/2026f.tar.gz"
+        "tz-2026f.tar.gz"
+    )
+    set(_tz_adapter "${TD_SUPPORT_DIR}/in/tz-windows")
+    ExternalProject_Add(ext_tz
+        URL ${_url}
+        URL_HASH
+        SHA256=2fe4b4f27f75beea17970dfdd242ffb7f099fad9447950a39d0fe8eae522d8e2
+        PREFIX "${_base}"
+        SOURCE_SUBDIR "td-windows"
+        PATCH_COMMAND
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                "${_tz_adapter}" "<SOURCE_DIR>/td-windows"
+        CMAKE_ARGS
+            -DTZ_SOURCE:PATH=<SOURCE_DIR>
+            -DWINGETOPT_ROOT:PATH=${ext_wingetopt_install}
+            -DCMAKE_BUILD_TYPE:STRING=${TD_CONFIG_NAME}
+            -DCMAKE_INSTALL_PREFIX:PATH=${_ins}
+            -DCMAKE_INSTALL_LIBDIR:PATH=lib
+        BUILD_COMMAND
+            "${CMAKE_COMMAND}" --build . --config "${TD_CONFIG_NAME}"
+        INSTALL_COMMAND
+            "${CMAKE_COMMAND}" --install . --config "${TD_CONFIG_NAME}"
+        DEPENDS ext_wingetopt
+        EXCLUDE_FROM_ALL TRUE
+        VERBATIM
+    )
+    add_dependencies(build_externals ext_tz)
 endif()    # }
 
 # jemalloc

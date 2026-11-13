@@ -28,6 +28,7 @@
 #include "functionResInfoInt.h"
 #include "nodes.h"
 #include "osEnv.h"
+#include "osTimezone.h"
 #include "tdatablock.h"
 #include "tudf.h"
 #include "tudfInt.h"
@@ -93,6 +94,18 @@ class ScopedTimezoneDisplay {
 
  private:
   char original_[TD_TIMEZONE_LEN] = {0};
+};
+
+class ScopedMissingTimezoneNameMap {
+ public:
+  ScopedMissingTimezoneNameMap() : original_(pTimezoneNameMap) {
+    pTimezoneNameMap = nullptr;
+  }
+
+  ~ScopedMissingTimezoneNameMap() { pTimezoneNameMap = original_; }
+
+ private:
+  void* original_;
 };
 
 SFunctionNode* createFunctionNode(const char* functionName,
@@ -943,17 +956,63 @@ TEST(FunctionMgtTest, injectsPosixTimezoneOffsetForToCharFallback) {
   }
 }
 
+TEST(FunctionMgtTest, keepsSessionTimezoneForToCharWithoutNameMap) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  ScopedMissingTimezoneNameMap missingNameMap;
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  struct {
+    const char* sessionName;
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"America/New_York", "System (UTC, +0800)", "America/New_York"},
+      {"UTC-8", "System (UTC, +0000)", "UTC-8"},
+      {"UTC+5:30", "System (UTC, +0000)", "UTC+5:30"},
+      {"+08:00", "System (UTC, -0800)", "+0800"},
+      {"-05", "System (UTC, +0500)", "-0500"},
+      {"Z", "System (UTC, +0000)", "Z"},
+      {"z", "System (UTC, +0000)", "z"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.sessionName);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode* pFunc =
+        createFunctionNode("to_char", parameterTypes, 2);
+    ASSERT_NE(nullptr, pFunc);
+    auto functionGuard =
+        std::unique_ptr<SNode, decltype(&nodesDestroyNode)>((SNode*)pFunc,
+                                                            nodesDestroyNode);
+    tstrncpy(pFunc->tzName, testCase.sessionName, sizeof(pFunc->tzName));
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(3, LIST_LENGTH(pFunc->pParameterList));
+    SValueNode* pTimezone =
+        (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+  }
+}
+
 TEST(FunctionMgtTest, keepsIsoTimezoneOffsetForToIso8601Fallback) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  ScopedMissingTimezoneNameMap missingNameMap;
 
   const int8_t parameterTypes[] = {TSDB_DATA_TYPE_TIMESTAMP};
   struct {
     const char* display;
+    const char* sessionName;
     const char* expected;
   } testCases[] = {
-      {"System (UTC, +0800)", "+0800"},
-      {"System (UTC, -0500)", "-0500"},
-      {"System (UTC, +0000)", "+0000"},
+      {"System (UTC, +0800)", "UTC-8", "+0800"},
+      {"System (UTC, -0500)", "UTC+5", "-0500"},
+      {"System (UTC, +0000)", "Z", "+0000"},
   };
 
   for (const auto& testCase : testCases) {
@@ -962,6 +1021,7 @@ TEST(FunctionMgtTest, keepsIsoTimezoneOffsetForToIso8601Fallback) {
     SFunctionNode* pFunc =
         createFunctionNode("to_iso8601", parameterTypes, 1);
     ASSERT_NE(nullptr, pFunc);
+    tstrncpy(pFunc->tzName, testCase.sessionName, sizeof(pFunc->tzName));
 
     char message[128] = {0};
     ASSERT_EQ(TSDB_CODE_SUCCESS,
@@ -1041,6 +1101,80 @@ TEST(FunctionMgtTest, fallsBackToTimezoneNameWhenOffsetIsMissing) {
 
     SValueNode* pTimezone =
         (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
+}
+
+// An IANA default is injected by name so each row resolves its own offset;
+// the display offset is only the one in effect when it was formatted.
+TEST(FunctionMgtTest, injectsRuleNameForIanaTimezoneFallback) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  ScopedTimezoneDisplay timezoneDisplay("America/New_York (EDT, -0400)");
+  struct {
+    SFunctionNode* pFunc;
+    int32_t        parameterCount;
+    int32_t        timezoneIndex;
+  } testCases[] = {
+      {createFunctionNode("to_iso8601", parameterTypes, 1), 2, 1},
+      {createFunctionNode("to_char", parameterTypes, 2), 3, 2},
+      // ts, unit, use_curr_tz, precision, tz_name, fdow, unitCh.
+      {createTimeTruncateNode(), 7, 4},
+  };
+
+  for (const auto& testCase : testCases) {
+    ASSERT_NE(nullptr, testCase.pFunc);
+    SCOPED_TRACE(testCase.pFunc->functionName);
+    char message[128] = {0};
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(testCase.pFunc, message, sizeof(message)));
+    EXPECT_EQ(testCase.parameterCount,
+              LIST_LENGTH(testCase.pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(
+        testCase.pFunc->pParameterList, testCase.timezoneIndex);
+    EXPECT_NE(nullptr, pTimezone);
+    if (pTimezone != nullptr) {
+      EXPECT_STREQ("America/New_York", pTimezone->literal);
+    }
+    nodesDestroyNode((SNode*)testCase.pFunc);
+  }
+}
+
+// Unloadable names keep the fixed-offset fallback.
+TEST(FunctionMgtTest, keepsOffsetFallbackForUnloadableTimezoneName) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {TSDB_DATA_TYPE_TIMESTAMP};
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"n/a (UTC, +0000)", "+0000"},
+      {"Not/A_Zone (XST, +0530)", "+0530"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode* pFunc =
+        createFunctionNode("to_iso8601", parameterTypes, 1);
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(2, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone =
+        (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
     ASSERT_NE(nullptr, pTimezone);
     EXPECT_STREQ(testCase.expected, pTimezone->literal);
 

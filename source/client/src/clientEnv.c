@@ -595,7 +595,13 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
 
   TSC_ERR_RET(taosThreadMutexInit(&(*pObj)->mutex, NULL));
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t code = tscInitSessionTimezone(*pObj);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosHashCleanup((*pObj)->pRequests);
+    TAOS_UNUSED(taosThreadMutexDestroy(&(*pObj)->mutex));
+    taosMemoryFreeClear(*pObj);
+    return code;
+  }
 
   (*pObj)->id = taosAddRef(clientConnRefPool, *pObj);
   if ((*pObj)->id < 0) {
@@ -606,11 +612,6 @@ int32_t createTscObj(const char *user, const char *auth, const char *db, int32_t
   }
 
   (void)atomic_add_fetch_64(&(*pObj)->pAppInfo->numOfConns, 1);
-
-  /* Snapshot the current client timezone into the session timezone. ALTER LOCAL
-   * timezone is synchronized back to this connection after the local command
-   * succeeds. */
-  (void)tscInitSessionTimezone(*pObj);
 
   updateConnAccessInfo(&(*pObj)->sessInfo);
   tscInfo("conn:0x%" PRIx64 ", created, p:%p", (*pObj)->id, *pObj);

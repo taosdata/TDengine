@@ -124,7 +124,7 @@ DSN 描述字符串基本结构如下：
 - **database**：指定默认连接的数据库名，可选参数。
 - **params**：
   - `token`：用于 TDengine 云服务的身份验证。
-  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。
+  - `timezone`：时区设置，格式为 IANA 时区名称（如 `Asia/Shanghai`），默认为本地时区。Windows 的连接级时区支持要求 TDengine 原生客户端库为 `v3.5.0` 或更高版本。
   - `compression`：是否启用数据压缩，默认为 `false`。
   - `conn_retries`：连接失败时的最大重试次数，默认为 5 次。
   - `retry_backoff_ms`：连接失败时的初始等待时间（毫秒），默认为 200。此值会随着连续失败而指数增长，直到达到最大等待时间。

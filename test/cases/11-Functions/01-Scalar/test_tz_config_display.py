@@ -29,6 +29,8 @@ Covers:
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, etool
+from new_test_framework.utils.sql import TDSql
+from contextlib import ExitStack
 import datetime
 import os
 import pytest
@@ -104,7 +106,15 @@ class _SetTimezoneMixin:
             ('+05:30', ['-05:30']),
         ]
         for tz, expected_any in valid_offsets:
-            tdSql.execute(f"SET TIMEZONE '{tz}'")
+            if tz == 'Z' and not self.restful:
+                # Test the native SQL alias without the connector's separate
+                # pytz synchronization, which does not recognize Z yet.
+                from taos.cinterface import taos_free_result, taos_query
+
+                result = taos_query(tdSql.cursor._connection._conn, f"SET TIMEZONE '{tz}'")
+                taos_free_result(result)
+            else:
+                tdSql.execute(f"SET TIMEZONE '{tz}'")
             tdSql.query(f'select to_iso8601(ts) from {self.ntbname}')
             result = tdSql.queryResult[0][0]
             assert any(e in result for e in expected_any), \
@@ -136,6 +146,22 @@ class _SetTimezoneMixin:
         for tz in invalid:
             tdSql.error(f"SET TIMEZONE '{tz}'", expectedErrno=ERR_INVALID_TIMEZONE)
 
+    def check_set_timezone_unsupported_posix_inputs(self):
+        tdSql.execute("SET TIMEZONE 'UTC'")
+        tdSql.query("select timezone()")
+        tdSql.checkRows(1)
+        original_timezone = tdSql.getData(0, 0)
+        for tz in ['EST5EDT,M3.2.0,M11.1.0', 'est5edt']:
+            error = tdSql.error(
+                f"SET TIMEZONE '{tz}'", expectedErrno=ERR_INVALID_TIMEZONE
+            )
+            assert f"Invalid or unsupported timezone: {tz}" in error, (
+                f"SET TIMEZONE '{tz}': unexpected error detail: {error}"
+            )
+            tdSql.query("select timezone()")
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, original_timezone)
+
     def check_set_timezone_affects_subsequent_queries(self):
         """Multiple SET TIMEZONE changes on same connection should all take effect."""
         self._prepare_set_timezone_data()
@@ -157,7 +183,7 @@ class _SetTimezoneMixin:
         tdSql.query(f'select to_iso8601(ts) from {self.ntbname}')
         session_result = tdSql.queryResult[0][0]
 
-        tdSql.connect()
+        tdSql.connect(host=self.host, port=self.port)
         tdSql.query(f'select to_iso8601(ts) from {self.ntbname}')
         new_conn_result = tdSql.queryResult[0][0]
 
@@ -170,6 +196,8 @@ class _SetTimezoneMixin:
         """summary: SET TIMEZONE '<timezone_string>' syntax tests.
 
         description: SET TIMEZONE '<timezone_string>' syntax tests.
+        Reject unsupported POSIX DST rules and aliases without changing the
+        connection timezone on Linux, Windows, and macOS.
 
         Since: v3.4.2.0
 
@@ -189,6 +217,7 @@ class _SetTimezoneMixin:
         self.check_set_timezone_valid_fixed_offsets()
         self.check_set_timezone_empty_string_degrades_to_utc()
         self.check_set_timezone_invalid_inputs()
+        self.check_set_timezone_unsupported_posix_inputs()
         self.check_set_timezone_affects_subsequent_queries()
         self.check_set_timezone_connection_isolation()
 
@@ -274,14 +303,14 @@ class _SetFirstDayOfWeekMixin:
             )
 
             # A new connection created after ALTER LOCAL must inherit the new L3 value.
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             assert _get_global_fdow() == target, (
                 f"New connection should see the updated process-global firstDayOfWeek: "
                 f"expected {target}, got {_get_global_fdow()}"
             )
         finally:
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{initial}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def check_fdow_alter_local_does_not_affect_existing_connection_timetruncate(self):
         """Existing connection must keep its L3 snapshot; ALTER LOCAL must only
@@ -300,7 +329,7 @@ class _SetFirstDayOfWeekMixin:
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '4'")
 
         # conn1 snapshots L3=4 at creation time.
-        conn1 = _taos.connect()
+        conn1 = _taos.connect(host=self.host, port=self.port)
         cur1 = conn1.cursor()
 
         try:
@@ -308,7 +337,7 @@ class _SetFirstDayOfWeekMixin:
             tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
 
             # conn2 snapshots L3=1.
-            conn2 = _taos.connect()
+            conn2 = _taos.connect(host=self.host, port=self.port)
             cur2 = conn2.cursor()
 
             try:
@@ -330,7 +359,7 @@ class _SetFirstDayOfWeekMixin:
         finally:
             conn1.close()
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '4'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def test_set_first_day_of_week(self):
         """summary: SET FIRST_DAY_OF_WEEK <0..6> syntax and server config tests.
@@ -387,7 +416,7 @@ class _TimezoneFuncMixin:
         """Without SET TIMEZONE, TIMEZONE() should follow connection snapshot (L3->L5)."""
         self._prepare_timezone_func_data()
 
-        tdSql.connect()
+        tdSql.connect(host=self.host, port=self.port)
         tdSql.query("select timezone()")
         baseline = tdSql.queryResult[0][0]
 
@@ -401,52 +430,60 @@ class _TimezoneFuncMixin:
         assert target.split('/')[-1] in session_val or target == session_val, \
             f"SET TIMEZONE should affect current session TIMEZONE(): target={target}, val={session_val}"
 
-        tdSql.connect()
+        tdSql.connect(host=self.host, port=self.port)
         tdSql.query("select timezone()")
         reconnect_val = tdSql.queryResult[0][0]
         assert reconnect_val == baseline, \
             f"TIMEZONE() without SET should fallback to connection snapshot: baseline={baseline}, reconnect={reconnect_val}"
 
-    def check_alter_local_timezone_changes_new_connections_only(self):
-        """ALTER LOCAL timezone should affect new connections only."""
-        self._prepare_timezone_func_data()
+    def check_alter_local_timezone_updates_current_and_new_connections(self):
+        """Native ALTER LOCAL updates its connection and future defaults."""
+        def _get_global_timezone(sql):
+            sql.query("SHOW LOCAL VARIABLES LIKE 'timezone'")
+            sql.checkRows(1)
+            sql.checkData(0, 0, 'timezone')
+            return str(sql.getData(0, 1)).split(' (')[0]
 
-        def _get_global_timezone():
-            tdSql.query("SHOW LOCAL VARIABLES LIKE 'timezone'")
-            for row in tdSql.queryResult:
-                if row[0] == 'timezone':
-                    return str(row[1])
-            raise AssertionError("timezone not found in SHOW LOCAL VARIABLES")
+        def _check_timezone(sql, expected):
+            sql.query("select timezone()")
+            sql.checkRows(1)
+            sql.checkData(0, 0, expected)
 
-        tdSql.connect()
-        tdSql.query("select timezone()")
-        baseline = tdSql.queryResult[0][0]
+        with ExitStack() as cleanup:
+            def _connect():
+                connection = tdCom.newcon(host=self.host, port=self.port)
+                cleanup.callback(connection.close)
+                sql = TDSql()
+                sql.init(connection.cursor())
+                cleanup.callback(sql.close)
+                return sql
 
-        target = 'Asia/Shanghai'
-        if 'Shanghai' in baseline or '+08' in baseline:
-            target = 'UTC'
+            sql_a = _connect()
+            original_global = _get_global_timezone(sql_a)
+            target = 'Asia/Shanghai'
+            utc_display = 'UTC (UTC, +0000)'
+            target_display = 'Asia/Shanghai (CST, +0800)'
 
-        tdSql.execute(f"SET TIMEZONE '{target}'")
-        tdSql.query("select timezone()")
-        original = tdSql.queryResult[0][0]
-        original_global = _get_global_timezone().split(' (')[0]
+            try:
+                sql_a.execute("ALTER LOCAL 'timezone' 'UTC'")
+                sql_a.execute("SET TIMEZONE 'UTC'")
+                sql_b = _connect()
+                _check_timezone(sql_a, utc_display)
+                _check_timezone(sql_b, utc_display)
 
-        try:
-            tdSql.execute(f"alter local 'timezone {target}'")
+                sql_a.execute(f"ALTER LOCAL 'timezone' '{target}'")
+                assert _get_global_timezone(sql_a) == target, (
+                    "ALTER LOCAL must update the client default"
+                )
+                _check_timezone(sql_a, target_display)
+                _check_timezone(sql_b, utc_display)
 
-            tdSql.query("select timezone()")
-            same_conn = tdSql.queryResult[0][0]
-            assert same_conn == original, \
-                f"ALTER LOCAL should not affect existing connection: before={original}, after={same_conn}"
-
-            tdSql.connect()
-            tdSql.query("select timezone()")
-            new_conn = tdSql.queryResult[0][0]
-            assert target in new_conn or target.split('/')[-1] in new_conn, \
-                f"ALTER LOCAL should affect new connection: target={target}, actual={new_conn}"
-        finally:
-            tdSql.execute(f"alter local 'timezone {original_global}'")
-            tdSql.connect()
+                sql_c = _connect()
+                _check_timezone(sql_c, target_display)
+            finally:
+                sql_a.execute(
+                    f"ALTER LOCAL 'timezone' '{original_global}'"
+                )
 
     def check_timezone_invalid_params(self):
         """TIMEZONE() should reject any parameter under no-arg grammar."""
@@ -482,7 +519,7 @@ class _TimezoneFuncMixin:
         self._setup_timezone_func_case()
         self.check_timezone_returns_session_tz_after_set()
         self.check_timezone_no_set_fallback_l3_l5()
-        self.check_alter_local_timezone_changes_new_connections_only()
+        self.check_alter_local_timezone_updates_current_and_new_connections()
         self.check_timezone_invalid_params()
         self.check_timezone_from_table()
 
@@ -517,7 +554,7 @@ class _DisplayTimezoneMixin:
                 f"select ts from {self.ntbname};"
             )
             result = subprocess.run(
-                [taos_bin, "-c", cfg_path, "-s", sql],
+                [taos_bin, "-c", cfg_path, "-h", self.host, "-P", str(self.port), "-s", sql],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
@@ -653,7 +690,7 @@ class _WhereCastJoinTzMixin:
 
     def check_where_no_set_timezone_fallback(self):
         """Without SET TIMEZONE, WHERE should use L3 -> L5 (current behavior)."""
-        tdSql.connect()  # reset connection to system default timezone
+        tdSql.connect(host=self.host, port=self.port)  # reset connection to system default timezone
         self._prepare_where_cast_join_tz_data()
         tdSql.query(f"select c1 from {self.ntbname} where ts >= '2026-01-15 00:00:00'")
         assert tdSql.queryRows > 0

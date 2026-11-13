@@ -48,6 +48,20 @@ add_test(
     COMMAND dataformatTest
 )
 
+add_executable(timezoneTest "timezoneTest.cpp")
+DEP_ext_gtest(timezoneTest)
+target_link_libraries(timezoneTest PRIVATE common)
+target_include_directories(timezoneTest PRIVATE
+    "${TD_SOURCE_DIR}/source/os/inc")
+add_test(NAME timezoneTest COMMAND timezoneTest)
+if(TD_WINDOWS)
+    foreach(_dll timezoneTestA timezoneTestB)
+        add_library(${_dll} SHARED "timezoneTestDll.c")
+        target_link_libraries(${_dll} PRIVATE common)
+        add_dependencies(timezoneTest ${_dll})
+    endforeach()
+endif()
+
 # ttimeNaturalUnitsTest.cpp
 add_executable(ttimeNaturalUnitsTest "ttimeNaturalUnitsTest.cpp")
 DEP_ext_gtest(ttimeNaturalUnitsTest)

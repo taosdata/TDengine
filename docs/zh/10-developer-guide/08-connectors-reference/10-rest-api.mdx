@@ -71,6 +71,7 @@ curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
 
 ```text
 http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_meta=true]]
+http://<fqdn>:<port>/rest/sql/[db_name]?conn_tz=America/New_York
 ```
 
 参数说明：
@@ -79,8 +80,11 @@ http://<fqdn>:<port>/rest/sql/[db_name][?tz=timezone[&req_id=req_id][&row_with_m
 - port：配置文件中 httpPort 配置项，缺省为 6041。
 - db_name：可选参数，指定本次所执行的 SQL 语句的默认数据库库名。
 - tz：可选参数，指定返回时间的时区，遵照 IANA Time Zone 规则，如 `America/New_York`。
+- conn_tz：可选参数，指定本次请求的连接级时区，用于时间解析、计算和返回时间的展示，支持 IANA 时区名称（如 `America/New_York`）或 `UTC`。与 `tz` 同时指定时，以 `conn_tz` 为准。
 - req_id：可选参数，指定请求 id，可以用于 tracing。
 - row_with_meta：可选参数，指定是否每行数据都携带列名，缺省为 false。（自 `v3.3.2.0` 起支持）
+
+Windows 上使用 `conn_tz` 需由 taosAdapter 加载 TDengine `v3.5.0` 或更高版本的原生客户端库。
 
 例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 

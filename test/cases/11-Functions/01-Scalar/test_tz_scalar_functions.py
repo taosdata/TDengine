@@ -42,12 +42,6 @@ ERR_INVALID_TIMEZONE = 0x26B2
 ERR_INVALID_FIRST_DAY_OF_WEEK = 0x26B3
 ERR_INVALID_FUNCTION_PARAM = 0x2803
 
-IS_WINDOWS = sys.platform.startswith("win")
-SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
-    IS_WINDOWS,
-    reason="Windows does not support SET TIMEZONE cases in this suite",
-)
-
 
 def _check_invalid_timezone_detail(sql, tz):
     """Assert the error names the rejected timezone instead of a placeholder.
@@ -60,7 +54,7 @@ def _check_invalid_timezone_detail(sql, tz):
         expectedErrno=ERR_INVALID_TIMEZONE,
         fullMatched=False,
     )
-    assert f"Invalid timezone: {tz}" in err, (
+    assert f"Invalid or unsupported timezone: {tz}" in err, (
         f"sql:{sql}, expected rejected timezone '{tz}' in error info: {err}"
     )
     assert "%s" not in err, f"sql:{sql}, raw placeholder leaked: {err}"
@@ -2327,7 +2321,6 @@ class _WeekFamilyTzMixin:
         self.check_week_weekofyear_fixed_instant_uses_l2()
 
 
-@SKIP_WINDOWS_SET_TIMEZONE
 class TestTimezoneScalarFunctions(
     _ToIso8601IanaMixin,
     _ToCharTimezoneMixin,

@@ -5235,6 +5235,20 @@ static bool truncateDayUnit(int64_t *pTimeVal, int64_t timePrec, timezone_t tz) 
   return true;
 }
 
+static bool truncateTimeWithOffset(int64_t *pTimeVal, int64_t timeUnit,
+                                   int64_t offset) {
+  // Reduce before shifting so boundary timestamps cannot overflow.
+  int64_t rem = *pTimeVal % timeUnit;
+  int64_t offsetRem = offset % timeUnit;
+  if (rem < 0) rem += timeUnit;
+  if (offsetRem < 0) offsetRem += timeUnit;
+  int64_t distance = timeUnit - offsetRem;
+  rem = rem >= distance ? rem - distance : rem + offsetRem;
+  if (*pTimeVal < INT64_MIN + rem) return false;
+  *pTimeVal -= rem;
+  return true;
+}
+
 /*
  * Unified 7-parameter layout (always inputNum == 7):
  *   [0] ts, [1] unit, [2] use_curr_tz, [3] precision,
@@ -5372,7 +5386,10 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
         colDataSetNULL(pOutput->columnData, i);
         continue;
       }
-      timeVal = timeVal - (timeVal + tzOffset) % timeUnit;
+      if (!truncateTimeWithOffset(&timeVal, timeUnit, tzOffset)) {
+        colDataSetNULL(pOutput->columnData, i);
+        continue;
+      }
     } else if (useCurrentTz && seconds == 604800) {
       /* week truncation using connection-level timezone */
       timezone_t weekTz = pInput->tz;
@@ -5407,7 +5424,12 @@ int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarPara
       } else {
         char tzOffsetStr[TD_TIMEZONE_LEN] = {0};
         tstrncpy(tzOffsetStr, timezoneStr, sizeof(tzOffsetStr));
-        timeVal = timeVal - (timeVal + offsetFromTz(tzOffsetStr, TSDB_TICK_PER_SECOND(timePrec))) % timeUnit;
+        int64_t offset = offsetFromTz(tzOffsetStr,
+                                      TSDB_TICK_PER_SECOND(timePrec));
+        if (!truncateTimeWithOffset(&timeVal, timeUnit, offset)) {
+          colDataSetNULL(pOutput->columnData, i);
+          continue;
+        }
       }
     } else if (seconds == 604800) {
       /* Week truncation without timezone: align to UTC week boundary honoring firstDayOfWeek.
@@ -5531,11 +5553,19 @@ int32_t todayFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   char  output[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {0};
   char *tmp = NULL;
+  // Stored displays carry the abbreviation and offset of when they were
+  // formatted; re-render them so they follow DST transitions.
   if (pInput->tz == NULL) {
-    (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+    if (taosRefreshTimezoneStr(tsTimezoneStr, NULL, varDataVal(output)) != TSDB_CODE_SUCCESS) {
+      (void)memcpy(varDataVal(output), tsTimezoneStr, TD_TIMEZONE_LEN);
+    }
   } else {
     char *tzName = (char *)taosHashGet(pTimezoneNameMap, &pInput->tz, sizeof(timezone_t));
-    if (tzName == NULL) {
+    if (tzName != NULL) {
+      if (taosRefreshTimezoneStr(tzName, pInput->tz, varDataVal(output)) != TSDB_CODE_SUCCESS) {
+        tstrncpy(varDataVal(output), tzName, TD_TIMEZONE_LEN);
+      }
+    } else {
       // pTimezoneNameMap is only populated on the client side; on taosd, fall back to
       // rebuilding the formatted string from the IANA name carried in pInput->tzName.
       if (pInput->tzName[0] != '\0') {
@@ -5551,12 +5581,17 @@ int32_t timezoneFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         tzName = TZ_UNKNOWN;
         tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
       }
-    } else {
-      tstrncpy(varDataVal(output), tzName, strlen(tzName) + 1);
     }
   }
 
-  varDataSetLen(output, strlen(varDataVal(output)));
+  int32_t outLen = (int32_t)strlen(varDataVal(output));
+  // The column width was sized at translation; a DST transition in between
+  // can change the abbreviation length.
+  int32_t maxLen = pOutput->columnData->info.bytes - VARSTR_HEADER_SIZE;
+  if (maxLen > 0 && outLen > maxLen) {
+    outLen = maxLen;
+  }
+  varDataSetLen(output, outLen);
   for (int32_t i = 0; i < pInput->numOfRows; ++i) {
     SCL_ERR_RET(colDataSetVal(pOutput->columnData, i, output, false));
   }

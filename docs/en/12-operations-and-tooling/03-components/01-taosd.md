@@ -415,7 +415,7 @@ The following parameters control server-side federated query behavior. Parameter
 
 1. To address the issue of data writing and querying across multiple time zones, TDengine uses Unix Timestamps to record and store timestamps. The nature of Unix Timestamps ensures that the timestamps generated are consistent at any given moment across any time zone. It is important to note that the conversion to Unix Timestamps is done on the client side. To ensure that other forms of time on the client are correctly converted to Unix Timestamps, it is necessary to set the correct time zone.
 
-On Linux/macOS, the client automatically reads the time zone information set by the system. Users can also set the time zone in the configuration file in various ways. For example:
+The client reads the system timezone at initialization when no timezone is configured. New connections capture the client default. Windows supports IANA names and historical / DST rules from `v3.5.0`. You can also configure the timezone explicitly, for example:
 
 ```text
 timezone UTC-8
@@ -424,7 +424,7 @@ timezone Asia/Shanghai
 
 Both are valid settings for the east-8 (Beijing) time zone. Note that under the POSIX sign convention, `UTC-8` means 8 hours east of UTC — the sign is counterintuitive. When in doubt, use an IANA name such as `Asia/Shanghai` to avoid confusion. For the full list of accepted timezone formats, see [Supported Timezone Formats](../../05-tdengine-sql/10-time/01-timezone.md#supported-timezone-formats).
 
-The setting of the time zone affects the querying and writing of SQL statements involving non-Unix timestamp content (timestamp strings, interpretation of the keyword now). For example:
+The connection timezone affects parsing of strings without an explicit offset and local calendar boundaries. It does not change the absolute timestamp returned by `NOW()`. For example:
 
 ```sql
 SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';

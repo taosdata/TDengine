@@ -230,7 +230,8 @@ TEST(osTimeTests, taosLocalTime) {
 
   time_t neg_timep3 = -78115158887;
   local_time = taosLocalTime(&neg_timep3, &result, NULL, 0, NULL);
-  ASSERT_EQ(local_time, nullptr);
+  ASSERT_NE(local_time, nullptr);
+  EXPECT_EQ(taosMktime(&result, NULL), neg_timep3);
 #endif
 }
 
@@ -264,6 +265,50 @@ TEST(osTimeTests, taosMktime) {
 }
 
 #ifdef WINDOWS
+extern "C" long timezone;
+
+class WindowsTimezoneGuard {
+ public:
+  WindowsTimezoneGuard()
+      : host_(saveEnvironment("TZ")),
+        internal_(saveEnvironment(TAOS_INTERNAL_TZ_ENV)),
+        offset_(timezone) {
+    memcpy(display_, tsTimezoneStr, sizeof(display_));
+  }
+
+  ~WindowsTimezoneGuard() {
+    const char *host = host_.empty() ? nullptr : host_.data();
+    const char *internal = internal_.empty() ? nullptr : internal_.data();
+    EXPECT_TRUE(SetEnvironmentVariableA("TZ", host));
+    EXPECT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, internal));
+    cleanupTimezoneInfo();
+    memcpy(tsTimezoneStr, display_, sizeof(display_));
+    timezone = offset_;
+  }
+
+ private:
+  static std::vector<char> saveEnvironment(const char *name) {
+    DWORD size = GetEnvironmentVariableA(name, nullptr, 0);
+    std::vector<char> value(size);
+    if (size != 0) {
+      EXPECT_EQ(GetEnvironmentVariableA(name, value.data(), size), size - 1);
+    }
+    return value;
+  }
+
+  std::vector<char> host_;
+  std::vector<char> internal_;
+  long offset_;
+  char display_[TD_TIMEZONE_LEN] = {0};
+};
+
+static void checkWindowsTimezoneOffset(int64_t expected) {
+  int32_t code = TSDB_CODE_TIME_ERROR;
+  int32_t offset = taosGetTZOffsetSeconds(NULL, &code);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  EXPECT_EQ(offset, expected);
+}
+
 static void checkWindowsTimezoneDisplay() {
   char name[TD_TIMEZONE_LEN] = {0};
   tstrncpy(name, tsTimezoneStr, sizeof(name));
@@ -286,30 +331,29 @@ static void checkWindowsTimezoneDisplay() {
   ASSERT_LT(minutes, 60);
   int64_t displayOffset = (hours * 60 + minutes) * 60;
   if (sign == '-') displayOffset = -displayOffset;
-  EXPECT_EQ(displayOffset, -getWindowsTimezoneOffset());
+  checkWindowsTimezoneOffset(displayOffset);
 }
 
 TEST(osTimeTests, windowsGlobalTimezoneOffset) {
+  WindowsTimezoneGuard guard;
   ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
-  ASSERT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+  checkWindowsTimezoneOffset(TdEastZone8);
   int32_t code = 0;
   ASSERT_EQ(taosGetLocalTimezoneOffset(&code), TdEastZone8);
 
   ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
-  ASSERT_EQ(getWindowsTimezoneOffset(), 0);
+  checkWindowsTimezoneOffset(0);
   ASSERT_EQ(taosGetLocalTimezoneOffset(&code), 0);
-
-  // Restore the default expected by existing Windows time tests.
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
 
 TEST(osTimeTests, windowsInitTimezoneKeepsConfiguredTZ) {
+  WindowsTimezoneGuard guard;
   // Simulate user config timezone = UTC before initTimezoneInfo() runs.
   ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
-  ASSERT_EQ(getWindowsTimezoneOffset(), 0);
+  checkWindowsTimezoneOffset(0);
 
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(getWindowsTimezoneOffset(), 0);
+  checkWindowsTimezoneOffset(0);
   int32_t code = 0;
   ASSERT_EQ(taosGetLocalTimezoneOffset(&code), 0);
 
@@ -323,26 +367,18 @@ TEST(osTimeTests, windowsInitTimezoneKeepsConfiguredTZ) {
   ASSERT_EQ(tmVal.tm_hour, 16);
   ASSERT_EQ(tmVal.tm_min, 0);
   ASSERT_EQ(tmVal.tm_sec, 0);
-
-  // Restore the default expected by existing Windows time tests.
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
 
 TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
-  // Simulate user not configuring timezone: clear TZ env var and call initTimezoneInfo().
-  // This tests that initTimezoneInfo correctly reads from Windows system timezone
-  // using GetTimeZoneInformation and sets TZ environment variable.
-  
-  // Clear any pre-existing TZ
-  SetEnvironmentVariableA("TZ", NULL);
+  WindowsTimezoneGuard guard;
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
 
   // Match startup: osDefaultInit resolves the name before config takes a copy.
   ASSERT_EQ(taosGetSystemTimezone(tsTimezoneStr), TSDB_CODE_SUCCESS);
   ASSERT_NE(tsTimezoneStr[0], '\0');
   char systemTimezone[TD_TIMEZONE_LEN] = {0};
   tstrncpy(systemTimezone, tsTimezoneStr, sizeof(systemTimezone));
-  
-  // Call initTimezoneInfo() - should read system timezone and set TZ env var
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
   truncateTimezoneString(systemTimezone);
   char resolvedName[TD_TIMEZONE_LEN] = {0};
@@ -350,44 +386,48 @@ TEST(osTimeTests, windowsInitTimezoneFromSystemZone) {
   truncateTimezoneString(resolvedName);
   EXPECT_STREQ(resolvedName, systemTimezone);
   checkWindowsTimezoneDisplay();
-  
-  // Verify TZ is now set after initTimezoneInfo
-  char tzEnv[128] = {0};
-  DWORD len = GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv));
-  ASSERT_GT(len, 0);  // TZ should be non-empty
-  
-  // Verify that getWindowsTimezoneOffset returns a valid value
-  int64_t offset = getWindowsTimezoneOffset();
-  uInfo("[test] System timezone offset = %lld seconds", offset);
-  
-  // Verify taosGetLocalTimezoneOffset is consistent
+
+  char env[TD_TIMEZONE_LEN * 2] = {0};
+  EXPECT_EQ(GetEnvironmentVariableA("TZ", env, sizeof(env)), 0u);
+  ASSERT_GT(GetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, env, sizeof(env)),
+             0u);
+  timezone_t snapshot = tzalloc(env);
+  ASSERT_NE(snapshot, nullptr);
+  time_t stamp = 678369600;
+  struct tm cached = {}, explicitZone = {};
+  ASSERT_NE(taosLocalTime(&stamp, &cached, NULL, 0, NULL), nullptr);
+  ASSERT_NE(taosLocalTime(&stamp, &explicitZone, NULL, 0, snapshot), nullptr);
+  EXPECT_EQ(cached.tm_hour, explicitZone.tm_hour);
+  tzfree(snapshot);
   int32_t code = 0;
-  int32_t tz_offset = taosGetLocalTimezoneOffset(&code);
-  uInfo("[test] taosGetLocalTimezoneOffset = %d seconds, code = %d", tz_offset, code);
-  
-  // Restore to a known state
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  int32_t offset = taosGetLocalTimezoneOffset(&code);
+  EXPECT_EQ(code, 0);
+  checkWindowsTimezoneOffset(offset);
 }
 
 TEST(osTimeTests, windowsInitTimezoneWithoutResolvedName) {
+  WindowsTimezoneGuard guard;
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
   ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
   tsTimezoneStr[0] = '\0';
 
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
 
-  char tzEnv[128] = {0};
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
+  char env[TD_TIMEZONE_LEN * 2] = {0};
+  EXPECT_EQ(GetEnvironmentVariableA("TZ", env, sizeof(env)), 0u);
+  ASSERT_GT(GetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, env, sizeof(env)),
+            0u);
   char resolvedName[TD_TIMEZONE_LEN] = {0};
   tstrncpy(resolvedName, tsTimezoneStr, sizeof(resolvedName));
   truncateTimezoneString(resolvedName);
-  EXPECT_STREQ(resolvedName, tzEnv);
+  EXPECT_STREQ(resolvedName, env);
   checkWindowsTimezoneDisplay();
-
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
 
 TEST(osTimeTests, windowsInitTimezoneRefreshesDisplayOffset) {
+  WindowsTimezoneGuard guard;
   ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
+  ASSERT_EQ(taosSetGlobalTimezone("America/New_York"), 0);
   // Model the stale registry Display suffix. Deliberately use an offset
   // outside current Windows system zones to exercise refresh on every host.
   tstrncpy(tsTimezoneStr, "America/New_York (UTC, -2359)", TD_TIMEZONE_LEN);
@@ -397,12 +437,13 @@ TEST(osTimeTests, windowsInitTimezoneRefreshesDisplayOffset) {
   truncateTimezoneString(resolvedName);
   EXPECT_STREQ(resolvedName, "America/New_York");
   checkWindowsTimezoneDisplay();
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
 }
 
 TEST(osTimeTests, windowsOffsetFallbackWhenTZUnset) {
-  // Simulate early call path: time conversion happens before explicit init.
-  SetEnvironmentVariableA("TZ", NULL);
+  WindowsTimezoneGuard guard;
+  // Simulate conversion before explicit initialization.
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
 
   TIME_ZONE_INFORMATION tzi = {0};
   DWORD tzType = GetTimeZoneInformation(&tzi);
@@ -415,102 +456,63 @@ TEST(osTimeTests, windowsOffsetFallbackWhenTZUnset) {
     minute_offset += tzi.StandardBias;
   }
 
-  int64_t expected = (int64_t)minute_offset * 60;
-  ASSERT_EQ(getWindowsTimezoneOffset(), expected);
+  int64_t expected = -(int64_t)minute_offset * 60;
+  checkWindowsTimezoneOffset(expected);
 }
 
-/* Regression: taosSetGlobalTimezone must write POSIX UTC±h:mm to TZ env var.
- * POSIX sign convention: east '-' (UTC-8:00 = UTC+8), west '+' (UTC+5:00 = UTC-5). */
-TEST(osTimeTests, windowsTZEnvVarFormatIsPOSIX) {
-  char tzEnv[64] = {0};
-
-  /* POSIX "UTC-8" = East 8 (UTC+8) → "UTC-08:00" */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC-08:00");
-
-  /* "UTC" → "UTC+00:00" */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC+00:00");
-
-  /* POSIX "UTC+5" = West 5 (UTC-5) → "UTC+05:00" */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC+5"), 0);
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC+05:00");
-
-  /* Sub-hour: POSIX "UTC-5:30" = East 5h30m (UTC+5:30) → "UTC-05:30" */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-5:30"), 0);
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-  EXPECT_STREQ(tzEnv, "UTC-05:30");
-
-  /* Restore */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+// Keep rule names intact so DST and history remain available in every DLL.
+TEST(osTimeTests, windowsTZEnvKeepsRuleName) {
+  WindowsTimezoneGuard guard;
+  const char *names[] = {"UTC-8", "UTC", "UTC+5", "UTC-5:30",
+                         "America/New_York", "Asia/Shanghai"};
+  for (const char *name : names) {
+    ASSERT_EQ(taosSetGlobalTimezone(name), 0);
+    char env[TD_TIMEZONE_LEN] = {0};
+    ASSERT_GT(GetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, env, sizeof(env)),
+               0u);
+    EXPECT_STREQ(env, name);
+  }
 }
 
-/* Regression: getWindowsTimezoneOffset must parse primary POSIX UTC±h:mm format.
- * Returns east-negative: UTC+8 → -28800, UTC-5 → +18000. */
+// POSIX TZ signs are reversed relative to UTC offsets.
 TEST(osTimeTests, windowsGetOffsetParsePOSIX) {
-  /* "UTC-8:00" POSIX (East 8) → east-negative: -28800 */
-  SetEnvironmentVariableA("TZ", "UTC-8:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+  WindowsTimezoneGuard guard;
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "UTC-8:00"));
+  checkWindowsTimezoneOffset(TdEastZone8);
 
-  /* "UTC+0:00" → 0 */
-  SetEnvironmentVariableA("TZ", "UTC+0:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), 0LL);
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "UTC+0:00"));
+  checkWindowsTimezoneOffset(0);
 
-  /* "UTC+5:00" POSIX (West 5) → east-negative: +18000 */
-  SetEnvironmentVariableA("TZ", "UTC+5:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), (int64_t)5 * 3600);
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "UTC+5:00"));
+  checkWindowsTimezoneOffset(-5 * 3600);
 
-  /* Sub-hour: "UTC-5:30" POSIX (East 5.5h = UTC+5:30) → -19800 */
-  SetEnvironmentVariableA("TZ", "UTC-5:30");
-  EXPECT_EQ(getWindowsTimezoneOffset(), -(int64_t)(5 * 3600 + 30 * 60));
-
-  /* Restore */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "UTC-5:30"));
+  checkWindowsTimezoneOffset(5 * 3600 + 30 * 60);
 }
 
-/* Backward compat: getWindowsTimezoneOffset must also parse bare ISO 8601 ±hh:mm
- * that may have been written by a prior version of this code. */
+// Older clients may leave an ISO 8601 offset in the TZ variable.
 TEST(osTimeTests, windowsGetOffsetISO8601Compat) {
-  /* "+08:00" = UTC+8 (east) → east-negative: -28800 */
-  SetEnvironmentVariableA("TZ", "+08:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), -TdEastZone8);
+  WindowsTimezoneGuard guard;
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "+08:00"));
+  checkWindowsTimezoneOffset(TdEastZone8);
 
-  /* "+00:00" → 0 */
-  SetEnvironmentVariableA("TZ", "+00:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), 0LL);
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "+00:00"));
+  checkWindowsTimezoneOffset(0);
 
-  /* "-05:00" = UTC-5 (west) → east-negative: +18000 */
-  SetEnvironmentVariableA("TZ", "-05:00");
-  EXPECT_EQ(getWindowsTimezoneOffset(), (int64_t)5 * 3600);
-
-  /* Restore */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", "-05:00"));
+  checkWindowsTimezoneOffset(-5 * 3600);
 }
 
-/* Regression: initTimezoneInfo must set TZ in POSIX UTC±h:mm format.
- * Bare ISO 8601 ±hh:mm (no prefix) is not parseable by _tzset(). */
-TEST(osTimeTests, windowsInitTimezoneFormatIsPOSIX) {
-  /* Clear TZ so initTimezoneInfo reads and writes the system timezone. */
-  SetEnvironmentVariableA("TZ", NULL);
+TEST(osTimeTests, windowsInitTimezoneKeepsSystemRules) {
+  WindowsTimezoneGuard guard;
+  ASSERT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, NULL));
+  ASSERT_TRUE(SetEnvironmentVariableA("TZ", NULL));
   ASSERT_EQ(initTimezoneInfo(), TSDB_CODE_SUCCESS);
-
-  char tzEnv[64] = {0};
-  ASSERT_GT(GetEnvironmentVariableA("TZ", tzEnv, sizeof(tzEnv)), 0u);
-
-  /* Must start with alphabetic prefix (POSIX), not bare '+'/'-' (ISO 8601). */
-  EXPECT_TRUE((tzEnv[0] >= 'A' && tzEnv[0] <= 'Z') ||
-              (tzEnv[0] >= 'a' && tzEnv[0] <= 'z'))
-      << "TZ missing POSIX alpha prefix: " << tzEnv;
-  EXPECT_EQ(strncmp(tzEnv, "UTC", 3), 0) << "TZ does not start with UTC: " << tzEnv;
-
-  /* 4th char must be the sign. */
-  EXPECT_TRUE(tzEnv[3] == '+' || tzEnv[3] == '-') << "TZ missing sign at pos 3: " << tzEnv;
-
-  /* Restore */
-  ASSERT_EQ(taosSetGlobalTimezone("UTC-8"), 0);
+  time_t stamp = 1721044800;
+  struct tm local = {};
+  EXPECT_NE(taosLocalTime(&stamp, &local, NULL, 0, NULL), nullptr);
 }
 #endif
 

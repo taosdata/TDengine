@@ -1,13 +1,13 @@
 ---
 sidebar_label: Timezone and Natural Time Units
 title: Timezone and Natural Time Units
-description: TDengine timezone semantics and natural time unit behavior
+description: Timezone semantics, natural time units, and related SQL and stream configuration
 toc_max_heading_level: 4
 ---
 
 ## Timezone Overview
 
-TDengine stores all time data internally as UTC timestamps (`int64`). Timezones only affect conversions between time strings and UTC: on writes, local time strings are converted to UTC; on reads, UTC is formatted back to local time strings for display.
+TDengine stores all time data internally as UTC timestamps (`int64`). The connection timezone controls parsing of strings without an explicit offset, local calendar boundaries, and result formatting. It does not change the absolute instant represented by the raw timestamp.
 
 ### Supported Timezone Formats
 
@@ -46,9 +46,11 @@ UTC offset
 two digits, and the minutes, if present, must contain two digits. The plus sign
 for a westward offset can be omitted: `UTC8` is equivalent to `UTC+8`, and
 `UTC8:30` is equivalent to `UTC+8:30`. Without the `UTC` prefix, the sign is
-required; the accepted forms are `±HH`, `±HHMM`, and `±HH:MM`. Offsets have
+required, and the hour must contain two digits; the accepted forms are `±HH`,
+`±HHMM`, and `±HH:MM`. Forms such as `+8` and `-4` are rejected. When the hour
+is 14, the minutes must be 00. Offsets have
 minute-level precision. The `UTC` prefix is case-insensitive, so `utc+8` and
-`UTC+8` are equivalent. The special value `Z` is equivalent to `+00:00`.
+`UTC+8` are equivalent. The special values `Z` and `z` represent UTC.
 
 **POSIX sign convention**: The POSIX standard defines the relationship between local time and UTC as:
 
@@ -74,19 +76,24 @@ sign cannot be omitted.
 
 **Difference from IANA timezones**: POSIX fixed offsets contain no DST information and use a constant offset year-round. If the target region observes DST (e.g., US, Europe), use an IANA name for correct automatic DST transitions.
 
+### Windows Support
+
+Starting with `v3.5.0`, Windows supports connection timezones through `SET TIMEZONE` and the C API, as Linux and macOS do. It accepts IANA names, Windows standard names such as `China Standard Time` (mapped to `Asia/Shanghai`), and the fixed-offset formats above. Historical and DST rules are evaluated at the target instant.
+
+On Windows, an inherited `TZ` must use a supported timezone format. Inputs such as `EST5EDT,M3.2.0,M11.1.0`, `EST5EDT`, and `est5edt` are unsupported. Creating a connection or clearing its connection timezone with such an input returns an `Invalid or unsupported timezone` error. A failed clear preserves the previous connection timezone. Supported IANA names and the Windows system default timezone retain historical and DST rules evaluated at the target instant.
+
 ### Timezone Priority
 
-TDengine uses a five-level timezone priority model, where higher levels override lower levels:
+For ordinary SQL, an explicit function timezone parameter takes precedence; otherwise, SQL uses the connection timezone:
 
 | Priority | Level | How to set | Description |
 | --- | --- | --- | --- |
 | Highest | SQL level | Function timezone parameters (e.g., `TO_ISO8601(ts, '+09:00')`); stream `STREAM_OPTIONS(CONFIG(...))` | Function parameters affect only the current SQL statement; stream `CONFIG` is written into that stream's definition at creation and applies only to that stream |
 | High | Connection level | C API `taos_options_connection`; `SET TIMEZONE` | Affects all SQL statements on the current connection |
-| Medium | Client global | `timezone` in client-side `taos.cfg` | Affects only client-side local time formatting |
-| Low | Server global | `timezone` in server-side `taos.cfg` | Fallback for server-side calculations when the connection timezone is unset |
-| Lowest | System default | Automatically detected from the operating system | Final fallback |
+| Default source | Client default | Client-side `taos.cfg timezone`, `taos_options(TSDB_OPTION_TIMEZONE)`, or `ALTER LOCAL` | Captured when creating a connection or resetting its timezone |
+| When unconfigured | System default | Detected at client initialization | Used when no client timezone is configured |
 
-**Important**: The client global timezone only affects client-side display (e.g., `SELECT ts` output formatting), not server-side calculations. Connections without a connection-level timezone fall back to the server global timezone for server-side calculations.
+New connections capture the client default even without `SET TIMEZONE`, for parsing, computation, and display. SQL parsing and planning use the current connection timezone; existing query results retain their original timezone for display when connection options change. The server global timezone does not override the connection timezone carried by SQL.
 
 ## Set Timezone
 
@@ -125,7 +132,7 @@ SET TIMEZONE 'Asia/Shanghai';
 SELECT TIMEZONE();
 ```
 
-Returns the single effective timezone string for the current connection. The fallback chain is: connection-level `SET TIMEZONE` / C API value → client-global timezone snapshotted when the connection was created → system default timezone.
+Returns the effective connection timezone as `Name (Abbreviation, ±HHMM)`, for example `America/New_York (EST, -0500)`. Each query refreshes the abbreviation and offset for the current instant, so DST transitions require no reconnect.
 
 ### Configuration File
 
@@ -145,15 +152,25 @@ one or two digits and the `UTC` prefix is case-insensitive. `GMT` / `GMT±...`
 is not supported. If not configured, the timezone is detected from the
 operating system.
 
-- **Server-side** `taos.cfg`: used as the fallback for server-side calculations when the connection timezone is not set through `SET TIMEZONE`.
-- **Client-side** `taos.cfg`: affects only client-side local time formatting (e.g., `SELECT ts` output), not server-side calculations.
+- **Client-side** `taos.cfg`: supplies the default captured when creating a connection or resetting its timezone, for parsing, computation, and display.
+- **Server-side** `taos.cfg`: supplies a default when server-side processing has no explicit timezone context. It does not override the connection timezone carried by a request.
 
 **Note**: Fixed-offset strings follow the POSIX sign convention (see "POSIX Fixed-Offset Format Details"). The sign meaning is consistent across all entry points (`SET TIMEZONE`, `ALTER LOCAL`, `taos.cfg`). Use IANA names to avoid confusion.
 
-Differences between `ALTER LOCAL 'timezone ...'` and `SET TIMEZONE ...`:
+Differences between `ALTER LOCAL 'timezone' '<value>'` and `SET TIMEZONE '<value>'`:
 
-- `SET TIMEZONE` only affects the current connection. It is lost on reconnect.
-- `ALTER LOCAL 'timezone ...'` modifies the global config of the current client process. It only affects connections created after the change; existing connections are not affected.
+- `SET TIMEZONE` changes only the current connection. A new connection starts with the default, and a connector can then reapply its connection parameters.
+- `ALTER LOCAL 'timezone' 'Asia/Shanghai'` updates both the client default and the connection executing it. Other existing connections keep their timezone; new connections and timezone resets use the new default.
+
+### REST and WebSocket
+
+- REST uses `conn_tz` to set the connection timezone for the current request; use an IANA name or `UTC`. The setting applies only to that request. Requests without `conn_tz` use the taosAdapter client default timezone. The older `tz` parameter controls response formatting only. See [REST API](../../10-developer-guide/08-connectors-reference/10-rest-api.mdx#http-request-format).
+- WebSocket keeps the connection timezone set through connector parameters or `SET TIMEZONE` for subsequent SQL until it is explicitly changed, cleared, or the connection is reopened.
+- JDBC WebSocket also validates IANA names in the driver and does not accept every Native C API format. See [Java Connector](../../10-developer-guide/08-connectors-reference/02-java.mdx#set-time-zone).
+
+Windows connection timezone support depends on the platform and version of the native client library loaded by taosAdapter, rather than the operating system of the application sending HTTP or WebSocket requests.
+
+For local times skipped or repeated by DST, use integer timestamps or strings with explicit offsets. See [DST Usage](./02-dst.md).
 
 ## First Day of Week
 
@@ -186,7 +203,7 @@ Configure in client-side `taos.cfg`:
 firstDayOfWeek 4
 ```
 
-Can also be changed dynamically within the current client process with `ALTER LOCAL 'firstDayOfWeek' '<0..6>'`. This only affects connections created after the change; existing connections keep their snapshot values.
+Can also be changed dynamically within the current client process with `ALTER LOCAL 'firstDayOfWeek' '<0..6>'`. This only affects connections created after the change; existing connections keep the values set when they were created.
 
 The default value is `4` (Thursday), for backward compatibility with the historical Unix epoch modulo week alignment. If not explicitly configured, the client attempts to read the OS first-day-of-week setting at startup; if that fails, it falls back to `4`.
 
@@ -274,11 +291,7 @@ SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
 SELECT TIMEZONE();
 ```
 
-Returns the single timezone string currently in use by the connection.
-
-- If `SET TIMEZONE` has been executed, returns the connection-level timezone.
-- Otherwise, returns the client-global timezone snapshotted when the connection was created; if not configured, falls back to the system default.
-- `ALTER LOCAL 'timezone'` only affects connections created afterward; it does not change the `TIMEZONE()` result of existing connections.
+Returns the connection timezone name, current abbreviation, and offset as `Name (Abbreviation, ±HHMM)`. Without an explicit setting, it uses the client default captured when the connection was created or its timezone was reset.
 
 To verify whether `SET TIMEZONE` has taken effect:
 
@@ -289,9 +302,9 @@ SELECT TO_ISO8601(NOW());
 
 Examples:
 
-- After `SET TIMEZONE 'Asia/Shanghai'`, `TIMEZONE()` returns `Asia/Shanghai`.
-- Without `SET TIMEZONE`, returns the client-global timezone snapshotted at connection creation.
-- After `ALTER LOCAL 'timezone Asia/Shanghai'`, existing connections are unaffected; only new connections use the new config.
+- After `SET TIMEZONE 'Asia/Shanghai'`, `TIMEZONE()` returns `Asia/Shanghai (CST, +0800)`.
+- After `ALTER LOCAL 'timezone' 'Asia/Shanghai'`, the current connection and new connections use Shanghai time; other existing connections keep their values.
+- A connection using `America/New_York` returns `EST, -0500` in winter and `EDT, -0400` in summer. Historical timestamp formatting still uses the rules for that timestamp.
 
 ## INTERVAL Queries
 
@@ -329,7 +342,7 @@ INTERVAL(3n)   -- quarterly window (equivalent to 1q): Jan/Apr/Jul/Oct
 INTERVAL(2w)   -- bi-weekly window
 ```
 
-**DST handling**: Windows always align to local wall-clock time. On DST transition days, the actual duration of a window may change (for example, a `1d` window on a spring-forward day may be only 23 hours). This is expected. For write and query caveats around DST gaps and overlaps, see [DST Usage](./02-dst.md).
+**DST handling**: Window boundaries always align to local wall-clock time. On DST transition days, the actual duration of a window may change (for example, a `1d` window on a spring-forward day may be only 23 hours). This is expected. For write and query caveats around DST gaps and overlaps, see [DST Usage](./02-dst.md).
 
 **Leap year / variable-length months**: Window widths automatically adapt to actual day counts (e.g., a February window is 28 or 29 days). `FILL` boundaries advance month-by-month / quarter-by-quarter.
 
@@ -383,7 +396,7 @@ In the stream query, `TIMEZONE()` and `FIRST_DAY_OF_WEEK()` use the values saved
 - `SLIDING` without `INTERVAL` fires on a sliding interval of event time.
 - For the week unit `w`, the first day of the week comes from the `firstDayOfWeek` saved on that stream.
 
-So even if both are written as `1n` or `1w`, the trigger times of `PERIOD`, `SLIDING`, and `INTERVAL` are not necessarily the same.
+Even if all use `1n` or `1w`, the trigger times of `PERIOD`, `SLIDING`, and `INTERVAL` are not necessarily the same.
 
 `q` (quarter) is treated as 3 months. For example, `2q` equals `6n`.
 
@@ -460,7 +473,7 @@ A stream stores the timezone name, not the timezone rules from the time of creat
 - After node timezone data is updated, later triggers may follow the new rules. Fixed UTC offsets are not affected by IANA rule updates.
 - Full IANA and DST behavior is available on Linux and macOS. Windows does not gain equivalent capability from this feature.
 
-If a node cannot load the timezone saved on the stream, the stream enters a failed state. It does not switch to the server timezone, OS timezone, or UTC. After the node's timezone data is repaired, wait for the existing retry or redeploy mechanism. Do not try to keep it running by changing the global timezone.
+If a node cannot load the timezone saved on the stream, the stream enters a failed state. It does not switch to the server timezone, OS timezone, or UTC. After the node's timezone data is repaired, wait for the stream to be redeployed through the existing mechanism. Do not try to keep it running by changing the global timezone.
 
 ### Streams Created Before Upgrade, TSMA, and Version Requirements
 
@@ -493,12 +506,12 @@ FROM information_schema.ins_streams;
 
 | Scenario | Timezone source | Notes |
 | --- | --- | --- |
-| Write `INSERT` | Connection → Server global → OS | Converts time strings to UTC |
-| Read `SELECT ts` | Connection → Client global → OS | Formats UTC as local time |
-| Functions (`TO_ISO8601` and similar) | SQL parameter → Connection → Server global → OS | Can specify a fixed offset or an IANA timezone |
-| `TIMETRUNCATE` | SQL parameter → Connection → Server global → OS | Supports `d`/`w`/`n`/`q`/`y`; timezone can be specified |
-| `INTERVAL` query windows | Connection → Server global → OS | Supports `d`/`w`/`n`/`q`/`y` |
-| `SHOW` / `EXPLAIN` | Connection → Client global → OS | Displayed in the current connection timezone |
+| Write `INSERT` | Connection timezone; an explicit input offset takes precedence | Converts time strings to UTC |
+| Read `SELECT ts` | Connection timezone saved with the result | Formats UTC as local time |
+| Functions (`TO_ISO8601` and similar) | SQL parameter → Connection timezone | Parameter formats follow each function's contract |
+| `TIMETRUNCATE` | SQL parameter → Connection timezone | Supports `d`/`w`/`n`/`q`/`y`; timezone can be specified |
+| `INTERVAL` query windows | Connection timezone | Supports `d`/`w`/`n`/`q`/`y` |
+| `SHOW` / `EXPLAIN` | Connection timezone | Time values use the timezone saved with the result |
 | Stream trigger and computation | Stream `CONFIG`; omitted items use the current connection at creation | After creation, the stream uses the values saved in its definition; streams without `CONFIG` may still follow the environment |
 
 ## Configuration Parameters
@@ -512,33 +525,36 @@ FROM information_schema.ins_streams;
 
 | Error scenario | Error message |
 | --- | --- |
-| Invalid timezone string | `[0x26B2] Invalid timezone: '<value>'` |
+| Invalid or unsupported timezone string | `[0x26B2] Invalid or unsupported timezone: '<value>'` |
 | firstDayOfWeek out of range | `[0x26B3] Invalid firstDayOfWeek: <value>, must be 0-6` |
 
 ## Version Support Matrix
 
-| Feature | Before v3.4.2 | v3.4.2 | v3.4.3 |
-| --- | --- | --- | --- |
-| `timezone` config file (server/client) | ✅ | ✅ | ✅ |
-| `TO_ISO8601` fixed-offset parameter | ✅ | ✅ | ✅ |
-| `TIMETRUNCATE` `d`/`w` truncation | ✅ | ✅ | ✅ |
-| `INTERVAL` query `d` window | ✅ | ✅ | ✅ |
-| `TIMEZONE()` function | ✅ | ✅ (enhanced) | ✅ |
-| PERIOD trigger `a`/`s`/`m`/`h`/`d`/`w`/`n`/`y` | ✅ | ✅ | ✅ |
-| SLIDING trigger `a`/`s`/`m`/`h`/`d`/`w` | ✅ | ✅ | ✅ |
-| INTERVAL window trigger `a`/`s`/`m`/`h` | ✅ | ✅ | ✅ |
-| `SET TIMEZONE` | ❌ | ✅ | ✅ |
-| `SET FIRST_DAY_OF_WEEK` | ❌ | ✅ | ✅ |
-| `firstDayOfWeek` config parameter | ❌ | ✅ | ✅ |
-| `TO_ISO8601` IANA timezone parameter | ❌ | ✅ | ✅ |
-| `TIMETRUNCATE` timezone string parameter | ❌ | ✅ | ✅ |
-| `TIMETRUNCATE` `n`/`q`/`y` truncation | ❌ | ✅ | ✅ |
-| `INTERVAL` query `w`/`n`/`q`/`y` windows | ❌ | ✅ | ✅ |
-| Plain column reads use connection timezone | ❌ | ✅ | ✅ |
-| SHOW/EXPLAIN use connection timezone | ❌ | ✅ | ✅ |
-| Stream `STREAM_OPTIONS(CONFIG(...))` | ❌ | ❌ | ✅ |
-| Stream timezone/firstDayOfWeek freezing | ❌ | ❌ | ✅ |
-| PERIOD trigger `q` quarter | ❌ | ❌ | ✅ |
-| SLIDING trigger `n`/`q`/`y` | ❌ | ❌ | ✅ |
-| INTERVAL window trigger `d`/`w`/`n`/`q`/`y` | ❌ | ❌ | ✅ |
-| `ins_streams` timezone/first_day_of_week columns | ❌ | ❌ | ✅ |
+The table lists when features were introduced. Windows connection timezones, historical rules, and DST are supported from `v3.5.0`; see [Windows Support](#windows-support).
+
+| Feature | Before v3.4.2 | v3.4.2 | v3.4.3 | `v3.5.0` |
+| --- | --- | --- | --- | --- |
+| `timezone` config file (server/client) | ✅ | ✅ | ✅ | ✅ |
+| `TO_ISO8601` fixed-offset parameter | ✅ | ✅ | ✅ | ✅ |
+| `TIMETRUNCATE` `d`/`w` truncation | ✅ | ✅ | ✅ | ✅ |
+| `INTERVAL` query `d` window | ✅ | ✅ | ✅ | ✅ |
+| `TIMEZONE()` function | ✅ | ✅ (enhanced) | ✅ | ✅ |
+| PERIOD trigger `a`/`s`/`m`/`h`/`d`/`w`/`n`/`y` | ✅ | ✅ | ✅ | ✅ |
+| SLIDING trigger `a`/`s`/`m`/`h`/`d`/`w` | ✅ | ✅ | ✅ | ✅ |
+| INTERVAL window trigger `a`/`s`/`m`/`h` | ✅ | ✅ | ✅ | ✅ |
+| `SET TIMEZONE` | ❌ | ✅ | ✅ | ✅ |
+| `SET FIRST_DAY_OF_WEEK` | ❌ | ✅ | ✅ | ✅ |
+| `firstDayOfWeek` config parameter | ❌ | ✅ | ✅ | ✅ |
+| `TO_ISO8601` IANA timezone parameter | ❌ | ✅ | ✅ | ✅ |
+| `TIMETRUNCATE` timezone string parameter | ❌ | ✅ | ✅ | ✅ |
+| `TIMETRUNCATE` `n`/`q`/`y` truncation | ❌ | ✅ | ✅ | ✅ |
+| `INTERVAL` query `w`/`n`/`q`/`y` windows | ❌ | ✅ | ✅ | ✅ |
+| Plain column reads use connection timezone | ❌ | ✅ | ✅ | ✅ |
+| SHOW/EXPLAIN use connection timezone | ❌ | ✅ | ✅ | ✅ |
+| Stream `STREAM_OPTIONS(CONFIG(...))` | ❌ | ❌ | ✅ | ✅ |
+| Stream timezone/firstDayOfWeek saved in the stream definition | ❌ | ❌ | ✅ | ✅ |
+| PERIOD trigger `q` quarter | ❌ | ❌ | ✅ | ✅ |
+| SLIDING trigger `n`/`q`/`y` | ❌ | ❌ | ✅ | ✅ |
+| INTERVAL window trigger `d`/`w`/`n`/`q`/`y` | ❌ | ❌ | ✅ | ✅ |
+| `ins_streams` timezone/first_day_of_week columns | ❌ | ❌ | ✅ | ✅ |
+| Windows connection timezones and IANA historical / DST rules | ❌ | ❌ | ❌ | ✅ |

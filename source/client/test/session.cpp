@@ -300,7 +300,6 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
 
-#ifndef WINDOWS
   // test timezone
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
   ASSERT(code == 0);
@@ -309,7 +308,7 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, NULL);
   ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC");
@@ -324,7 +323,6 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
   ASSERT(code != 0);  // invalid timezone is not allowed anymore
-#endif
 
   // test user APP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
@@ -435,10 +433,8 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
 
-#ifndef WINDOWS
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
-#endif
 
   CHECK_TAOS_OPTION_APP(pConn, userApp, "");
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);
