@@ -4469,7 +4469,7 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     return code;
   }
   if (pInfo->pAlignStage != NULL) {
-    pInfo->base.cond.twindows = (STimeWindow)TSWINDOW_INITIALIZER;
+    pInfo->base.cond.twindows = TSWINDOW_INITIALIZER;
     pInfo->base.cond.type = TIMEWINDOW_RANGE_CONTAINED;
     pInfo->base.cond.notLoadData = false;
   }
@@ -4578,7 +4578,7 @@ static int32_t createScanAlignStage(SAlignStage** ppStage, STableScanBase* pBase
   // are needed as PREV/NEXT sources.
   pNode->scan.node.pLimit = NULL;
   pNode->scan.node.pSlimit = NULL;
-  pBase->cond.twindows = (STimeWindow)TSWINDOW_INITIALIZER;
+  pBase->cond.twindows = TSWINDOW_INITIALIZER;
   pBase->cond.type = TIMEWINDOW_RANGE_CONTAINED;
   pBase->cond.notLoadData = false;
 
