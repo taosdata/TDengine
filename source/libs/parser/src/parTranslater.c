@@ -2141,6 +2141,20 @@ static bool belongTable(const SColumnNode* pCol, const STableNode* pTable) {
   return (0 == cmp);
 }
 
+static bool columnMatchesTable(const SColumnNode* pCol, const STableNode* pTable) {
+  if (!pCol->isTbnamePlaceholder) {
+    return belongTable(pCol, pTable);
+  }
+  switch (nodeType(pTable)) {
+    case QUERY_NODE_REAL_TABLE:
+      return SP_PARTITION_TBNAME == ((const SRealTableNode*)pTable)->placeholderType;
+    case QUERY_NODE_VIRTUAL_TABLE:
+      return SP_PARTITION_TBNAME == ((const SVirtualTableNode*)pTable)->placeholderType;
+    default:
+      return false;
+  }
+}
+
 static SNodeList* getProjectList(const SNode* pNode) {
   if (QUERY_NODE_SELECT_STMT == nodeType(pNode)) {
     return ((SSelectStmt*)pNode)->pProjectionList;
@@ -3802,30 +3816,41 @@ _return:
 }
 
 static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode** pCol) {
+  bool    placeholder = (*pCol)->isTbnamePlaceholder;
   int32_t currLevel = pCxt->currLevel;
   while (currLevel >= 0) {
     SArray* pTables = currLevel < (int32_t)taosArrayGetSize(pCxt->pNsLevel)
                           ? taosArrayGetP(pCxt->pNsLevel, currLevel)
                           : NULL;
     size_t  nums = NULL == pTables ? 0 : taosArrayGetSize(pTables);
-    bool    foundTable = false;
+    STableNode* pMatchedTable = NULL;
     for (size_t i = 0; i < nums; ++i) {
       STableNode* pTable = taosArrayGetP(pTables, i);
-      if (belongTable((*pCol), pTable)) {
-        foundTable = true;
-        bool foundCol = false;
-        pCxt->errCode = findAndSetColumn(pCxt, pCol, pTable, &foundCol, false);
-        if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-          return DEAL_RES_ERROR;
+      if (columnMatchesTable(*pCol, pTable)) {
+        if (NULL != pMatchedTable) {
+          return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, (*pCol)->colName);
         }
-        if (foundCol) {
-          return bindOuterColumn(pCxt, pCol, currLevel, pTable);
-        }
-        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+        pMatchedTable = pTable;
+        if (!placeholder) break;
       }
     }
 
-    if (!foundTable) {
+    if (NULL != pMatchedTable) {
+      bool foundCol = false;
+      pCxt->errCode = findAndSetColumn(pCxt, pCol, pMatchedTable, &foundCol, false);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        return DEAL_RES_ERROR;
+      }
+      if (foundCol) {
+        if (placeholder) {
+          (*pCol)->isTbnamePlaceholder = false;
+        }
+        return bindOuterColumn(pCxt, pCol, currLevel, pMatchedTable);
+      }
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, (*pCol)->colName);
+    }
+
+    if (NULL == pMatchedTable) {
       if (pCxt->isExprSubQ) {
         currLevel--;
         continue;
@@ -6848,7 +6873,7 @@ static EDealRes bindStreamLayerPlaceholderImpl(SNode** ppNode, void* pContext) {
   if (nodeType(*ppNode) != QUERY_NODE_COLUMN) return DEAL_RES_CONTINUE;
 
   SColumnNode* pCol = (SColumnNode*)*ppNode;
-  if (pCol->tableAlias[0] == '\0') return DEAL_RES_CONTINUE;
+  if (pCol->isTbnamePlaceholder || pCol->tableAlias[0] == '\0') return DEAL_RES_CONTINUE;
   const int32_t layerIndex = streamNestedLayerIndex(pBind->pNested->pPlanAst, pCol->tableAlias);
   if (layerIndex < 0) return DEAL_RES_CONTINUE;
 
@@ -6940,7 +6965,8 @@ typedef struct {
 
 static EDealRes checkStreamLayerPlaceholderOutsideCalc(SNode* pNode, void* pContext) {
   SStreamLayerOutsideContext* pOutside = pContext;
-  if (nodeType(pNode) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode)->tableAlias[0] != '\0' &&
+  if (nodeType(pNode) == QUERY_NODE_COLUMN && !((SColumnNode*)pNode)->isTbnamePlaceholder &&
+      ((SColumnNode*)pNode)->tableAlias[0] != '\0' &&
       streamNestedLayerIndex(pOutside->pPlan, ((SColumnNode*)pNode)->tableAlias) >= 0) {
     pOutside->code = TSDB_CODE_STREAM_INVALID_PLACE_HOLDER;
     return DEAL_RES_ERROR;
@@ -10581,7 +10607,7 @@ static void setJoinInputFromMeta(SJoinTimeInput* pInput,
 static bool joinInputContainsColumn(SNode* pTable,
                                     const SColumnNode* pColumn) {
   if (QUERY_NODE_JOIN_TABLE != nodeType(pTable)) {
-    return belongTable(pColumn, (STableNode*)pTable);
+    return columnMatchesTable(pColumn, (STableNode*)pTable);
   }
   SJoinTableNode* pJoin = (SJoinTableNode*)pTable;
   return joinInputContainsColumn(pJoin->pLeft, pColumn) ||
@@ -10601,7 +10627,7 @@ static int32_t findJoinTimeColumn(STranslateContext* pCxt, SNode* pTable,
   }
 
   SColumnNode* pColumn = (SColumnNode*)*ppColumn;
-  if (qualified && !belongTable(pColumn, (STableNode*)pTable)) {
+  if (qualified && !columnMatchesTable(pColumn, (STableNode*)pTable)) {
     return TSDB_CODE_SUCCESS;
   }
   bool found = false;
@@ -10646,6 +10672,7 @@ static int32_t resolveJoinTimeColumn(STranslateContext* pCxt, SNode* pTable,
         &pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
         "WINDOW_TIME requires TIMESTAMP columns");
   }
+  pColumn->isTbnamePlaceholder = false;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -12734,6 +12761,7 @@ static int32_t translateVirtualTable(STranslateContext* pCxt, SNode** pTable, SN
   tstrncpy(pVTable->table.dbName, pRealTable->table.dbName, sizeof(pVTable->table.dbName));
   tstrncpy(pVTable->table.tableName, pRealTable->table.tableName, sizeof(pVTable->table.tableName));
   tstrncpy(pVTable->table.tableAlias, pRealTable->table.tableAlias, sizeof(pVTable->table.tableAlias));
+  pVTable->placeholderType = pRealTable->placeholderType;
 
   pVTable->table.precision = pRealTable->pMeta->tableInfo.precision;
   pVTable->table.singleTable = false;
@@ -16625,7 +16653,7 @@ static EDealRes replaceExternalWindowPlace(SNode** pNode, void* pContext) {
   if (nodeType(*pNode) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)(*pNode);
 
-    if ('\0' != pCol->tableAlias[0] &&
+    if (!pCol->isTbnamePlaceholder && '\0' != pCol->tableAlias[0] &&
         (0 == strncmp(pCol->tableAlias, pCxt->subQueryAliasName, TSDB_COL_NAME_LEN))) {
       int32_t colIndex = -1;
       SNode* pExpr = NULL;

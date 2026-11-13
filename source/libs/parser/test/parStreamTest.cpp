@@ -34,11 +34,135 @@
 #include "planner.h"
 #include "plannodes.h"
 #include "stub.h"
+#include "systable.h"
 
 using namespace std;
 
 namespace ParserTest {
 class ParserStreamTest : public ParserDdlTest {};
+
+TEST_F(ParserStreamTest, AnomalyWindowPlaceholderQualifiedColumn) {
+  useDb("0", "stream_triggerdb");
+  runParseOnly("CREATE STREAM sm2 INTERVAL(1h) SLIDING(1h) FROM meters PARTITION BY tbname "
+               "STREAM_OPTIONS(FILL_HISTORY) INTO td2 AS SELECT _twstart AS ts, count(*) AS ab "
+               "FROM %%tbname WHERE _c0 >= _twstart AND _c0 <= _twend "
+               "ANOMALY_WINDOW(%%tbname.voltage, 'algo=ksigma,k=1')");
+
+  const std::string prefix =
+      "create stream stream_streamdb.s_anomaly interval(1h) sliding(1h) "
+      "from stream_triggerdb.meters partition by tbname stream_options(fill_history) "
+      "into stream_outdb.stream_out as select _twstart as ts, count(*) as ab ";
+  for (const auto& source : {"%%tbname", "%%tbname m"}) {
+    const std::string sql = prefix + "from " + source +
+        " where _c0 >= _twstart and _c0 <= _twend "
+        "anomaly_window(%%tbname.c1, 'algo=ksigma,k=1')";
+    run(sql);
+    runClonedAst(sql);
+  }
+  run(prefix + "from %%tbname m anomaly_window(m.c1, 'algo=ksigma,k=1')");
+  run(prefix + "from %%tbname anomaly_window(%%tbname.c1 + %%tbname.c2, 'algo=ksigma,k=1')");
+  runClonedAst(prefix + "from %%tbname anomaly_window(%%tbname.c1, %%tbname.c2, 'algo=lof')");
+  run(prefix + "from %%tbname anomaly_window(%%tbname.missing, 'algo=ksigma,k=1')",
+      TSDB_CODE_PAR_INVALID_COLUMN);
+  run(prefix + "from %%tbname anomaly_window(%%tbname.location, 'algo=ksigma,k=1')",
+      TSDB_CODE_PAR_INVALID_ANOMALY_WIN_TYPE);
+  run(prefix + "from stream_triggerdb.meters anomaly_window(%%tbname.c1, 'algo=ksigma,k=1')",
+      TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run(prefix + "from %%trows anomaly_window(%%tbname.c1, 'algo=ksigma,k=1')",
+      TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run(prefix + "from %%tbname a join %%tbname b on a.ts = b.ts "
+      "anomaly_window(%%tbname.c1, 'algo=ksigma,k=1')", TSDB_CODE_PAR_AMBIGUOUS_COLUMN);
+  run("select count(*) from stream_triggerdb.meters anomaly_window(%%tbname.c1, 'algo=ksigma,k=1')",
+      TSDB_CODE_PAR_TABLE_NOT_EXIST);
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierDoesNotCaptureQuotedAlias) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_quoted interval(1h) "
+      "from stream_triggerdb.meters partition by tbname "
+      "into stream_outdb.stream_out as select _twstart as ts, ";
+  const std::string joined =
+      " from %%tbname q join stream_querydb.stream_t2 as `%%tbname` "
+      "on q.ts = `%%tbname`.ts";
+  for (const auto& projection : {"sum(q.c1)", "sum(`%%tbname`.c1)",
+                                 "sum(%%tbname.c1), sum(`%%tbname`.c1)"}) {
+    const std::string sql = prefix + projection + joined;
+    run(sql);
+    runClonedAst(sql);
+  }
+  run(prefix + "count(*)" + joined +
+      " anomaly_window(%%tbname.c1 + `%%tbname`.c1, 'algo=ksigma,k=1')");
+  run(prefix + "sum(%%tbname.c1) from stream_querydb.stream_t2 as `%%tbname`",
+      TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  run("select sum(`%%tbname`.c1) from stream_querydb.stream_t2 as `%%tbname`");
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierDoesNotCaptureWindowLayerAlias) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_layer_alias window ("
+      "interval(1h) as `%%tbname`, count_window(10) as leaf) "
+      "from stream_triggerdb.meters partition by tbname into stream_outdb.stream_out as ";
+  for (const char* key : {"q.c1", "%%tbname.c1"}) {
+    const std::string sql = prefix + "select `%%tbname`._twstart as ts, sum(" + key +
+        ") as n from %%tbname q";
+    run(sql);
+    runClonedAst(sql);
+    const std::string anomalySql = prefix + "select _wstart as ts, count(*) as n from %%tbname q "
+        "anomaly_window(" + key + ", 'algo=ksigma,k=1')";
+    run(anomalySql);
+    runClonedAst(anomalySql);
+  }
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierDoesNotCaptureOuterAliasInExists) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_exists_alias interval(1h) "
+      "from stream_triggerdb.meters partition by tbname into stream_outdb.stream_out as "
+      "select _twstart as ts, sum(`%%tbname`.c1) as n "
+      "from stream_querydb.stream_t2 as `%%tbname` where ";
+  for (const char* key : {"q.c1", "%%tbname.c1"}) {
+    for (const char* op : {"exists", "not exists"}) {
+      const std::string sql = prefix + op + " (select 1 from %%tbname q where " + key + " > 0)";
+      runAsyncOnly(sql);
+      runClonedAst(sql);
+    }
+  }
+  runClonedAst(prefix + "exists (select 1 from %%tbname q where `%%tbname`.c1 > 0)",
+               TSDB_CODE_PAR_INVALID_EXPR_SUBQ);
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierDoesNotCaptureExternalWindowAlias) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_external_alias interval(1h) "
+      "from stream_triggerdb.meters partition by tbname into stream_outdb.stream_out as ";
+  for (const char* alias : {"w", "`%%tbname`"}) {
+    for (const auto& keys : {std::make_pair("q.c1", "q.c1"), std::make_pair("%%tbname.c1", "q.c1"),
+                             std::make_pair("q.c1", "%%tbname.c1")}) {
+      const std::string sql = prefix + "select _twstart as ts, e.n, e.win_count from ("
+          "select _wstart as ts, sum(" + keys.first + ") as n, " + alias +
+          ".win_count from %%tbname q external_window((select _wstart, _wend, count(*) as win_count "
+          "from stream_querydb.stream_t2 interval(1h)) " + alias + ") order by sum(" + keys.second + ")) e";
+      run(sql);
+      runClonedAst(sql);
+    }
+  }
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierDoesNotCaptureLayerAliasInNotify) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_layer_notify window ("
+      "interval(1h) as `%%tbname`, count_window(10) as leaf) "
+      "from stream_triggerdb.meters partition by tbname "
+      "notify('ws://localhost:8080/notify') on (window_close) where ";
+  for (const char* key : {"q.c1", "%%tbname.c1"}) {
+    const std::string sql = prefix + "sum(" + key + ") > 0 into stream_outdb.stream_out as "
+        "select _twstart as ts, sum(" + key + ") as n from %%tbname q";
+    run(sql);
+    runClonedAst(sql);
+  }
+  run(prefix + "`%%tbname`._twstart > 0 into stream_outdb.stream_out as "
+      "select _twstart as ts, sum(q.c1) as n from %%tbname q", TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+}
 
 TEST_F(ParserStreamTest, PreviousWindowPlaceholdersSupportOpenAndClose) {
   const std::vector<std::string> windows = {
@@ -212,6 +336,92 @@ class RowConditionMergeFailureGuard {
 };
 
 }  // namespace
+
+TEST_F(ParserStreamTest, PlaceholderQualifierBindsVirtualInputs) {
+  AsyncFlagGuard asyncGuard(false);
+  const SSysTableMeta* metadata = getSysTableMeta(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VC_COLS);
+  ASSERT_NE(nullptr, metadata);
+  auto& metadataBuilder = g_mockCatalogService->createTableBuilder(
+      TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VC_COLS, TSDB_SYSTEM_TABLE, metadata->colNum);
+  for (int32_t i = 0; i < metadata->colNum; ++i) {
+    metadataBuilder.addColumn(metadata->schema[i].name, metadata->schema[i].type, metadata->schema[i].bytes);
+  }
+  metadataBuilder.done();
+  for (const auto& input : {std::make_pair(TSDB_VIRTUAL_NORMAL_TABLE, "placeholder_vnormal"),
+                            std::make_pair(TSDB_VIRTUAL_CHILD_TABLE, "placeholder_vchild")}) {
+    g_mockCatalogService->createTableBuilder("stream_triggerdb", input.second, input.first, 2)
+        .setVgid(2)
+        .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+        .addColumn("voltage", TSDB_DATA_TYPE_DOUBLE)
+        .done();
+    const std::string prefix =
+        "create stream stream_streamdb.s_virtual interval(1h) from stream_triggerdb." +
+        std::string(input.second) + " partition by tbname into stream_outdb.stream_out as "
+        "select _wstart as ts, count(*) as n from %%tbname ";
+    run(prefix + "q anomaly_window(q.voltage, 'algo=ksigma,k=1')");
+    for (const char* alias : {"", "q"}) {
+      const std::string sql = prefix + alias +
+          " anomaly_window(%%tbname.voltage, 'algo=ksigma,k=1')";
+      run(sql);
+      runClonedAst(sql);
+    }
+    run(prefix + "q anomaly_window(%%tbname.missing, 'algo=ksigma,k=1')", TSDB_CODE_PAR_INVALID_COLUMN);
+    run("create stream stream_streamdb.s_virtual interval(1h) from stream_triggerdb." +
+        std::string(input.second) + " partition by tbname into stream_outdb.stream_out as "
+        "select _wstart as ts, count(*) from %%trows "
+        "anomaly_window(%%tbname.voltage, 'algo=ksigma,k=1')", TSDB_CODE_PAR_TABLE_NOT_EXIST);
+  }
+}
+
+TEST_F(ParserStreamTest, VirtualPlaceholderOriginSurvivesAstLifecycle) {
+  for (const auto type : {SP_NONE, SP_PARTITION_TBNAME, SP_PARTITION_ROWS}) {
+    SNode* node = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VIRTUAL_TABLE, &node));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> original(node, nodesDestroyNode);
+    auto* table = (SVirtualTableNode*)node;
+    table->placeholderType = type;
+
+    SNode* copy = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(node, &copy));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> clone(copy, nodesDestroyNode);
+    EXPECT_EQ(type, ((const SVirtualTableNode*)copy)->placeholderType);
+
+    char* encoded = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(node, false, &encoded, &len));
+    const auto freeBuffer = [](char* buffer) { taosMemoryFree(buffer); };
+    unique_ptr<char, decltype(freeBuffer)> json(encoded, freeBuffer);
+    copy = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded, &copy));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> decoded(copy, nodesDestroyNode);
+    EXPECT_EQ(type, ((const SVirtualTableNode*)copy)->placeholderType);
+  }
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierBindsWindowTimeInputs) {
+  const std::string prefix =
+      "create stream stream_streamdb.s_window_time interval(1h) "
+      "from stream_triggerdb.meters partition by tbname into stream_outdb.stream_out as ";
+  for (const char* alias : {"", "q"}) {
+    const std::string sql = prefix +
+        "select _twstart as ts, r.c1 from %%tbname " + alias +
+        " left window join stream_querydb.stream_t2 r "
+        "window_time(%%tbname.ts, r.ts) window_offset(-1s, 1s)";
+    run(sql);
+    runClonedAst(sql);
+  }
+  run(prefix + "select _twstart as ts, r.c1 from %%tbname q "
+      "left window join stream_querydb.stream_t2 r "
+      "window_time(q.ts, r.ts) window_offset(-1s, 1s)");
+  run(prefix + "select _twstart as ts, `%%tbname`.c1 from %%tbname q "
+      "left window join stream_querydb.stream_t2 as `%%tbname` "
+      "window_time(%%tbname.ts, `%%tbname`.ts) window_offset(-1s, 1s)");
+  run(prefix + "select _twstart as ts, r.c1 from stream_querydb.stream_t2 l "
+      "left window join %%tbname r window_time(l.ts, %%tbname.ts) window_offset(-1s, 1s)");
+  run(prefix + "select _twstart as ts, r.c1 from %%tbname q "
+      "left window join stream_querydb.stream_t2 r "
+      "window_time(r.ts, %%tbname.ts) window_offset(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+}
 
 static void setCreateStreamString(char** ppDst, const char* pSrc) {
   taosMemoryFreeClear(*ppDst);
@@ -651,6 +861,54 @@ static void pstExpectStreamParseCode(const char* pSql, int32_t expectedCode) {
   SQuery* pQuery = nullptr;
   EXPECT_EQ(expectedCode, parse(&cxt, &pQuery)) << msgBuf.data();
   qDestroyQuery(pQuery);
+}
+
+TEST_F(ParserStreamTest, PlaceholderQualifierOriginSurvivesAstLifecycle) {
+  pstParseStreamOnly(
+      "create stream stream_streamdb.s_origin interval(1h) from stream_triggerdb.meters "
+      "partition by tbname into stream_outdb.stream_out as select _twstart as ts, "
+      "%%tbname.c1 as placeholder_value, `%%tbname`.c1 as quoted_value "
+      "from %%tbname q join stream_querydb.stream_t2 as `%%tbname` "
+      "on q.ts = `%%tbname`.ts",
+      [&](const SQuery* pQuery, ParserStage stage) {
+        ASSERT_EQ(PARSER_STAGE_PARSE, stage);
+        const auto* stmt = (const SCreateStreamStmt*)pQuery->pRoot;
+        const auto* select = (const SSelectStmt*)stmt->pQuery;
+        const SNode* placeholder = nodesListGetNode(select->pProjectionList, 1);
+        const SNode* quoted = nodesListGetNode(select->pProjectionList, 2);
+        ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(placeholder));
+        ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(quoted));
+        EXPECT_FALSE(nodesEqualNode(placeholder, quoted));
+
+        const auto freeBuffer = [](char* buffer) { taosMemoryFree(buffer); };
+        for (const SNode* column : {placeholder, quoted}) {
+          const bool expected = column == placeholder;
+          EXPECT_EQ(expected, ((const SColumnNode*)column)->isTbnamePlaceholder);
+          SNode* copy = nullptr;
+          ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(column, &copy));
+          unique_ptr<SNode, decltype(&nodesDestroyNode)> clone(copy, nodesDestroyNode);
+          EXPECT_EQ(expected, ((const SColumnNode*)copy)->isTbnamePlaceholder);
+          EXPECT_TRUE(nodesEqualNode(column, copy));
+
+          char* encoded = nullptr;
+          int32_t len = 0;
+          ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToString(column, false, &encoded, &len));
+          unique_ptr<char, decltype(freeBuffer)> json(encoded, freeBuffer);
+          copy = nullptr;
+          ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(encoded, &copy));
+          unique_ptr<SNode, decltype(&nodesDestroyNode)> decodedJson(copy, nodesDestroyNode);
+          EXPECT_EQ(expected, ((const SColumnNode*)copy)->isTbnamePlaceholder);
+          EXPECT_TRUE(nodesEqualNode(column, copy));
+
+          ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(column, &encoded, &len));
+          unique_ptr<char, decltype(freeBuffer)> message(encoded, freeBuffer);
+          copy = nullptr;
+          ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMsgToNode(encoded, len, &copy));
+          unique_ptr<SNode, decltype(&nodesDestroyNode)> decodedMessage(copy, nodesDestroyNode);
+          EXPECT_EQ(expected, ((const SColumnNode*)copy)->isTbnamePlaceholder);
+          EXPECT_TRUE(nodesEqualNode(column, copy));
+        }
+      });
 }
 
 TEST_F(ParserStreamTest, NestedWindowParsesRootToLeafAndRoundTrips) {
