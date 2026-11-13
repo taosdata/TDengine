@@ -14,6 +14,10 @@ The Oracle database system is a popular relational database management system wo
 
 TDengine can efficiently read data from Oracle and write it to TDengine, enabling historical data migration or real-time data synchronization.
 
+taosX also supports scheduled window synchronization triggered by a fixed interval or a Cron expression. If an application loads Oracle in batches every few hours, schedule synchronization after each batch completes to reduce queries during idle periods.
+
+Each scheduled run reads SQL windows from the last successfully saved checkpoint up to a safe watermark calculated as the current time minus the delay. Maximum Windows per Run limits Oracle queries in each run. If a long outage leaves more windows than one run can process, subsequent triggers continue from the checkpoint.
+
 ## Procedure
 
 ### Add a Data Source
@@ -48,21 +52,44 @@ Then click the **Check Connectivity** button, where users can click this button 
 **SQL Template** is the SQL statement template used for querying, which must include time range conditions, and the start and end times must appear in pairs. The time range defined in the SQL statement template consists of a column representing time in the source database and the placeholders defined below.
 > Different placeholders represent different time format requirements in SQL, specifically including the following placeholder formats:
 >
-> 1. `${start}`, `${end}`: Represents RFC3339 format timestamps, e.g., 2024-03-14T08:00:00+0800
-> 2. `${start_no_tz}`, `${end_no_tz}`: Represents RFC3339 strings without timezone: 2024-03-14T08:00:00
-> 3. `${start_date}`, `${end_date}`: Represents date only, but since there is no pure date type in Oracle, it will include zero hour, zero minute, and zero second, e.g., 2024-03-14 00:00:00, so be careful when using `date <= ${end_date}` as it does not include data of the day 2024-03-14
+> 1. `${start}`, `${end}`: Generate Oracle expressions such as `TO_DATE('2024-03-14 08:00:00','YYYY-MM-DD HH24:MI:SS')` using the task's time configuration
+> 2. `${start_no_tz}`, `${end_no_tz}`: Also generate Oracle `TO_DATE` expressions without timezone information
+> 3. `${start_date}`, `${end_date}`: Represents date only, but since there is no pure date type in Oracle, it will include zero hour, zero minute, and zero second, e.g., 2024-03-14 00:00:00, so be careful when using `date <= ${end_date}` as it does not include data of the day 2024-03-14. In scheduled window mode these placeholders have date precision only: windows within the same day have identical bounds and return no rows, and the window that crosses midnight reads the whole previous day, so use them only with a one-day Query Interval
 >
 > To solve the problem of data migration disorder, a sorting condition should be added to the query statement, such as `order by ts asc`.
 
 **Start Time** The start time for migrating data, this field is required.
 
-**End Time** The end time for migrating data, which can be left blank. If set, the migration task will stop automatically after reaching the end time; if left blank, it will continuously synchronize real-time data and the task will not stop automatically.
+**End Time** The end time for migrating data, which can be left blank. A continuous task stops automatically after reaching this time; if left blank, it continues synchronizing real-time data and does not stop automatically. A scheduled window task does not query beyond the end time. Once its checkpoint reaches the end time, the task completes automatically and its schedule is removed.
 
 **Query Interval** The time interval for querying data in segments, default is 1 day. To avoid querying too much data at once, a data synchronization sub-task will use the query interval to segment the data retrieval.
 
-**Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
+**Delay Duration** In continuous synchronization, each synchronization task reads data only after the delay duration has elapsed to avoid missing delayed writes. In scheduled window synchronization, it determines the safe watermark: the current time minus the delay. Set it based on the time between the timestamp used in the SQL filter and the point at which the corresponding Oracle row becomes queryable. It does not change scheduled trigger times or recover historical rows inserted after the checkpoint has passed their timestamp.
+
+**Schedule** Choose continuous synchronization or scheduled windows. Scheduled mode accepts a first scheduled time and a fixed period in minutes, or a five-field, minute-level Cron expression. The day-of-month and day-of-week fields cannot both be restricted. Scheduling uses the current Explorer page timezone, and Next Six Triggers is displayed in that timezone. The schedule determines when a run starts, Query Interval sets the length of each SQL window, and Maximum Windows per Run limits how many windows a trigger reads. A completed window advances the checkpoint; any remaining backlog waits for the next scheduled trigger. If a run fails, the task shows as failed and keeps its schedule, and the next scheduled trigger retries from the unconfirmed window. You can stop or restart the task while it is in the failed state.
 
 ![Configure data collection](../../assets/oracle-03.webp)
+
+### Scheduled Window Example
+
+Suppose an application starts loading Oracle at 00:00, 04:00, 08:00, 12:00, 16:00, and 20:00 each day, and each batch takes up to 2.5 hours. Set the Explorer page timezone to `Asia/Shanghai`. Set First Scheduled Time to the next 03:00 and Schedule Period to `240` minutes, or use the Cron expression `0 3,7,11,15,19,23 * * *`. Both schedules trigger about three hours after each batch starts, six times per day. Adjust the times to match when committed rows actually become queryable.
+
+Use a reliable ingestion timestamp for the SQL cursor and preserve the original business timestamp for TDengine. For example, `INGEST_TS` is the Oracle ingestion time and `READING_TS` is when a meter recorded a reading:
+
+```sql
+SELECT ID, METER_ID, READING_TS, INGEST_TS, READING_VALUE
+FROM METER_READINGS
+WHERE INGEST_TS >= ${start} AND INGEST_TS < ${end}
+ORDER BY INGEST_TS, ID
+```
+
+Start with a Query Interval of `1` hour and Maximum Windows per Run of `4`, then adjust these values to the Oracle capacity. A long outage can require several triggers to clear the backlog; if each run cannot catch up with new data, increase the window limit as capacity allows. Set Delay Duration to cover the maximum gap between the ingestion timestamp and commit visibility. A batch beyond the safe watermark is read on a later trigger. Scheduled synchronization does not automatically revisit old ingestion timestamps after their checkpoint has passed. A retry can reread a window whose checkpoint was not saved, so design the target mapping for idempotent writes.
+
+The following screenshots show fixed interval and Cron settings. Both trigger previews use the Explorer page timezone:
+
+![Oracle fixed interval schedule](../../assets/oracle-schedule-interval.webp)
+
+![Oracle Cron schedule](../../assets/oracle-schedule-cron.webp)
 
 ### Configure Data Mapping
 
