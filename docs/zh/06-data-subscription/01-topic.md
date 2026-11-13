@@ -19,7 +19,7 @@ TDengine 使用 SQL 创建的主题共有 3 种类型，下面分别介绍。一
 CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery
 ```
 
-该 SQL 通过 `SELECT` 语句订阅数据，包括 `SELECT *`，或 `SELECT ts, c1` 等指定列查询。查询主题可以带条件过滤和标量函数计算，但不支持聚合函数、时间窗口聚合，也不支持 `DISTINCT`、`GROUP BY`、`ORDER BY`、`PARTITION BY`、`LIMIT`/`SLIMIT` 等。需要注意的是：
+该 SQL 通过 `SELECT` 语句订阅数据，包括 `SELECT *`，或 `SELECT ts, c1` 等指定列查询。查询主题可以带条件过滤和标量函数计算，但不支持聚合函数、时间窗口聚合、表函数（`TABLE(...)`），也不支持 `DISTINCT`、`GROUP BY`、`ORDER BY`、`PARTITION BY`、`LIMIT`/`SLIMIT` 等。需要注意的是：
 
 1. 该类型 topic 一旦创建，订阅数据的结构即确定。
 2. 被订阅或用于计算的列或标签不可被删除（`ALTER TABLE DROP`）或修改（`ALTER TABLE MODIFY`）。从 `v3.4.0.0` 开始，可以修改、删除、增加这些列或标签，但需要执行 `RELOAD TOPIC` 使变更生效。

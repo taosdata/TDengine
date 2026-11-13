@@ -39,7 +39,7 @@ _EXTERNAL_SOURCES = {
 # table name carries the file prefix because every Oracle fixture of this suite
 # lives in the same shared schema.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
-_ORACLE_TABLE = "VT_PUSHDOWN_AGG_ORA_VALUES"
+_ORACLE_TABLE = "vt_pushdown_agg_ora_values"
 
 
 class TestVTablePlanPushdownAggExtSource:
@@ -150,16 +150,16 @@ class TestVTablePlanPushdownAggExtSource:
         ExtSrcEnv._oracle_sql(
             cfg,
             [
-                f"CREATE TABLE {_ORACLE_TABLE} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                f'CREATE TABLE "{_ORACLE_TABLE}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, "v" NUMBER(10,0))',
                 # Oracle has no multi-row VALUES clause and a bare string date
                 # would go through NLS_TIMESTAMP_FORMAT (ORA-01861).
                 f"INSERT ALL "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:00.000', 100000) "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:01.000', 200000) "
-                f"INTO {_ORACLE_TABLE} VALUES "
+                f'INTO "{_ORACLE_TABLE}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:02.000', 300000) "
                 "SELECT 1 FROM dual",
                 "COMMIT",
@@ -210,7 +210,7 @@ class TestVTablePlanPushdownAggExtSource:
             f"create external source {_EXTERNAL_SOURCES['oracle']} "
             f"type='oracle' host='{oracle.host}' port={oracle.port} "
             f"user='{oracle.user}' password='{oracle.password}' "
-            f"database={ExtSrcEnv.ORACLE_SERVICE} schema={_ORACLE_SCHEMA}"
+            f"database='{ExtSrcEnv.ORACLE_SERVICE}' schema='{_ORACLE_SCHEMA}'"
         )
 
     @classmethod
@@ -233,7 +233,7 @@ class TestVTablePlanPushdownAggExtSource:
         # Oracle: one namespace level only, so the middle segment is the
         # schema and the service name never appears in a path.
         oracle_ref = (
-            f"{_EXTERNAL_SOURCES['oracle']}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE}.v"
+            f"{_EXTERNAL_SOURCES['oracle']}.`{_ORACLE_SCHEMA}`.{_ORACLE_TABLE}.v"
         )
 
         tdSql.execute(

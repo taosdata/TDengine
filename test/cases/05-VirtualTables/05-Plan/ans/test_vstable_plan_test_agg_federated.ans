@@ -1210,7 +1210,7 @@ taos> explain verbose true select sum(local_v), sum(mysql_v), sum(postgres_v), s
           -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                         |
                 Output: columns=4 width=32 blocking=1                                                                                                                                 |
                 Merge ResBlocks: False                                                                                                                                                |
-             -> Federated Scan on vt_window_batch_oracle.taosdata. (oracle) (width=28)                                                                                                |
+             -> Federated Scan on vt_window_batch_oracle.TAOSDATA. (oracle) (width=28)                                                                                                |
                    Output: columns=5 width=28                                                                                                                                         |
                    Source: 127.0.0.1:18322 user=taosdata                                                                                                                              |
           -> Aggregate (functions=4 width=32 input_order=asc)                                                                                                                         |
@@ -1260,7 +1260,7 @@ taos> explain verbose true select max(scenario), sum(mysql_v), sum(oracle_v) fro
              -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                  |
                    Output: columns=3 width=20 blocking=1                                                                                                                              |
                    Merge ResBlocks: False                                                                                                                                             |
-                -> Federated Scan on vt_window_batch_oracle.taosdata. (oracle) (width=32)                                                                                             |
+                -> Federated Scan on vt_window_batch_oracle.TAOSDATA. (oracle) (width=32)                                                                                             |
                       Output: columns=5 width=32                                                                                                                                      |
                       Source: 127.0.0.1:18322 user=taosdata                                                                                                                           |
              -> Aggregate (functions=3 width=20 input_order=unknown)                                                                                                                  |

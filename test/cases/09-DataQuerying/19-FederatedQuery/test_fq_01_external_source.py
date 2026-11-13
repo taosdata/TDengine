@@ -3298,7 +3298,7 @@ _CASES = [
             "drop external source if exists fq01_or001",
             f"create external source fq01_or001 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
             "select source_name, `type`, `host`, `port`, `user`, `database`, `schema`, `options` from information_schema.ins_ext_sources where source_name='fq01_or001'",
-            f"describe fq01_or001.{_O_SCHEMA}.{_FW_TABLE}",
+            f"describe fq01_or001.`{_O_SCHEMA}`.{_FW_TABLE}",
             _q_count_step(),
             _clear_source_step(),
     ]],
@@ -3308,7 +3308,7 @@ _CASES = [
             "drop external source if exists fq01_or002",
             f"create external source fq01_or002 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}'",
             f"select count(*) from fq01_or002.{_FW_TABLE}",
-            f"select count(*) from fq01_or002.{_O_SCHEMA}.{_FW_TABLE}",
+            f"select count(*) from fq01_or002.`{_O_SCHEMA}`.{_FW_TABLE}",
             _clear_source_step(),
     ]],
 
@@ -3373,7 +3373,7 @@ _CASES = [
     ["OREXT009", [_oracle], ["fq01_or009"], "FQOR-EXT-009 DESCRIBE shows the definition with the masked password", [
             "drop external source if exists fq01_or009",
             f"create external source fq01_or009 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
-            f"describe fq01_or009.{_O_SCHEMA}.{_FW_TABLE}",
+            f"describe fq01_or009.`{_O_SCHEMA}`.{_FW_TABLE}",
             "describe external source fq01_or009",
             _clear_source_step(),
     ]],
@@ -3421,15 +3421,17 @@ _CASES = [
             f"create external source fq01_or013 type='oracle' host='{_O_HOST}' port={_O_PORT} user='{_O_USER}' password='{_O_PASS}' database='{_O_SERVICE}' schema='{_O_SCHEMA}'",
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             _oracle_exec_step([
-                f"ALTER TABLE {_FW_TABLE.upper()} ADD extra_col NUMBER(10)",
-                f"UPDATE {_FW_TABLE.upper()} SET extra_col = 7 WHERE val = 1",
+                # The fixture stores quoted lower-case names; Oracle matches
+                # exact spelling, so DDL/DML must quote them too.
+                f'ALTER TABLE "{_FW_TABLE}" ADD "extra_col" NUMBER(10)',
+                f'UPDATE "{_FW_TABLE}" SET "extra_col" = 7 WHERE "val" = 1',
                 "COMMIT",
             ]),
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             "refresh external source fq01_or013",
             f"select * from fq01_or013.{_FW_TABLE} where val=1",
             _oracle_exec_step([
-                f"ALTER TABLE {_FW_TABLE.upper()} DROP COLUMN extra_col",
+                f'ALTER TABLE "{_FW_TABLE}" DROP COLUMN "extra_col"',
             ]),
             "refresh external source fq01_or013",
             f"select extra_col from fq01_or013.{_FW_TABLE} where val=1",
@@ -3585,16 +3587,16 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
             # One INSERT per row: the multi-row VALUES constructor is
             # 23ai-only and 11g rejects it with ORA-00933.
             oracle_inserts = [
-                f"INSERT INTO {_FW_TABLE.upper()} (ts, val, score, name, flag) VALUES "
+                f'INSERT INTO "{_FW_TABLE}" ("ts", "val", "score", "name", "flag") VALUES '
                 f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}', {flag})"
                 for ts, val, score, name, flag in _FW_ROWS_DT
             ]
-            ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE.upper())
+            ExtSrcEnv.oracle_drop_table_cfg(self._oracle_cfg(), _FW_TABLE)
             ExtSrcEnv.oracle_exec_cfg(self._oracle_cfg(), [
                 (
-                    f"CREATE TABLE {_FW_TABLE.upper()} ("
-                    "ts TIMESTAMP(3), val NUMBER(10), score BINARY_DOUBLE, "
-                    "name VARCHAR2(32), flag NUMBER(1))"
+                    f'CREATE TABLE "{_FW_TABLE}" ('
+                    '"ts" TIMESTAMP(3), "val" NUMBER(10), "score" BINARY_DOUBLE, '
+                    '"name" VARCHAR2(32), "flag" NUMBER(1))'
                 ),
                 *oracle_inserts,
                 "COMMIT",
@@ -3614,7 +3616,7 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
         elif src_type == _sqlserver:
             return f"{src_name}.{_S_SCHEMA}.{_FW_TABLE}"
         elif src_type == _oracle:
-            return f"{src_name}.{_O_SCHEMA}.{_FW_TABLE}"
+            return f"{src_name}.`{_O_SCHEMA}`.{_FW_TABLE}"
         else:  # influxdb
             return f"{src_name}.{_FW_TABLE}"
 

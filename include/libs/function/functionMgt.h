@@ -253,6 +253,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TABLE_COUNT,
   FUNCTION_TYPE_GROUP_CONST_VALUE,
   FUNCTION_TYPE_HAS_NULL,
+  FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -328,6 +329,8 @@ typedef enum EFunctionType {
   //   PG:       DATE_BIN('N unit', ts, '1970-01-01 00:00:00')
   //   InfluxDB: DATE_BIN(INTERVAL 'N unit', time, '1970-01-01T00:00:00Z')
   FUNCTION_TYPE_FQ_TIME_BUCKET = 4500,
+  // TIME_ALIGN forward fill (NEXT); not user-facing, injected by the planner.
+  FUNCTION_TYPE_FILL_NEXT = 4600,
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;

@@ -187,7 +187,12 @@ class SourceSpec:
 
     @property
     def explicit_table(self) -> str:
-        return f"{self.source}.{self.namespace}.boundary_t"
+        # TDengine lower-cases an unquoted path segment, so an upper-case
+        # namespace (Oracle's account schema) has to be backticked.
+        namespace = self.namespace
+        if namespace != namespace.lower():
+            namespace = "`" + namespace.replace("`", "``") + "`"
+        return f"{self.source}.{namespace}.boundary_t"
 
 
 @dataclass(frozen=True)
@@ -686,7 +691,7 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         """
         oracle_cfg = self._oracle_cfg()
         for table in _ORACLE_FIXTURE_TABLES:
-            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
 
     def _cleanup_runtime_data(self):
         for cfg, spec in self._source_spec_variants():
@@ -996,31 +1001,34 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         # A schema is a login user (DS 5.3.2): the fixtures live in the login
         # schema and the source's SCHEMA default names it.  Oracle stores '' as
         # NULL, so the shared data set's empty strings are inserted as '' and
-        # read back as NULL - the row overrides state that explicitly.
+        # read back as NULL - the row overrides state that explicitly.  The
+        # names are quoted lower-case: TDengine's unquoted identifiers are
+        # lower-cased, so the shared SQL below resolves to these exact names.
         oracle_cfg = self._oracle_cfg()
         for table in _ORACLE_FIXTURE_TABLES:
-            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table.upper())
+            ExtSrcEnv.oracle_drop_table_cfg(oracle_cfg, table)
         ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
             (
-                "CREATE TABLE boundary_t ("
-                "ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0), "
-                "score BINARY_DOUBLE, name VARCHAR2(32), category VARCHAR2(8), "
-                "note VARCHAR2(32), dec_ok NUMBER(18,4), flag NUMBER(1,0))"
+                'CREATE TABLE "boundary_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), "val" NUMBER(10,0), '
+                '"score" BINARY_DOUBLE, "name" VARCHAR2(32), '
+                '"category" VARCHAR2(8), "note" VARCHAR2(32), '
+                '"dec_ok" NUMBER(18,4), "flag" NUMBER(1,0))'
             ),
             # 11g has no multi-row VALUES clause: INSERT ALL is the portable
             # form for the three boundary rows.
             (
                 "INSERT ALL "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 1, 10, 1.5, 'alpha', 'a', '', 123.4567, 1) "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 2, 20, 2.5, 'beta', 'b', '中文', -1.0000, 0) "
-                "INTO boundary_t (ts, id, val, score, name, category, note, "
-                "dec_ok, flag) VALUES "
+                'INTO "boundary_t" ("ts", "id", "val", "score", "name", '
+                '"category", "note", "dec_ok", "flag") VALUES '
                 f"(TO_TIMESTAMP('{third_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 " 3, NULL, NULL, '', 'a', 'emoji🙂', NULL, NULL) "
                 "SELECT 1 FROM dual"
@@ -1029,50 +1037,63 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
             # mappable (DS 5.3.2.1), so one here would make the whole table
             # undescribable.  The unmappable family is exercised by unknown_t.
             (
-                "CREATE TABLE schema_t ("
-                "ts TIMESTAMP(3), c_char CHAR(4), c_varchar VARCHAR2(8), "
-                "c_bin RAW(8), c_clob CLOB, c_dec NUMBER(18,4))"
+                'CREATE TABLE "schema_t" ('
+                '"ts" TIMESTAMP(3), "c_char" CHAR(4), "c_varchar" VARCHAR2(8), '
+                '"c_bin" RAW(8), "c_clob" CLOB, "c_dec" NUMBER(18,4))'
             ),
             (
-                "INSERT INTO schema_t VALUES ("
+                'INSERT INTO "schema_t" VALUES ('
                 "TIMESTAMP '2024-01-01 00:00:00.000', 'ab', 'text', "
                 "HEXTORAW('00FF'), '{\"k\":1}', 123.4567)"
             ),
             (
-                "CREATE TABLE unknown_t ("
-                "ts TIMESTAMP(3), id NUMBER(10,0), shape INTERVAL DAY TO SECOND)"
+                'CREATE TABLE "unknown_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), '
+                '"shape" INTERVAL DAY TO SECOND)'
             ),
             (
-                "INSERT INTO unknown_t VALUES ("
+                'INSERT INTO "unknown_t" VALUES ('
                 "TIMESTAMP '2024-01-01 00:00:00.000', 1, "
                 "INTERVAL '1 02:03:04' DAY TO SECOND)"
             ),
-            "CREATE TABLE value_t (id NUMBER(10,0), note CLOB)",
-            "CREATE TABLE quoted_t (ts TIMESTAMP(3), \"SELECT\" NUMBER(10,0))",
+            'CREATE TABLE "value_t" ("id" NUMBER(10,0), "note" CLOB)',
+            'CREATE TABLE "quoted_t" ("ts" TIMESTAMP(3), "select" NUMBER(10,0))',
             (
                 "INSERT ALL "
-                "INTO quoted_t VALUES "
+                'INTO "quoted_t" VALUES '
                 f"(TO_TIMESTAMP('{first_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 10) "
-                "INTO quoted_t VALUES "
+                'INTO "quoted_t" VALUES '
                 f"(TO_TIMESTAMP('{second_dt}', 'YYYY-MM-DD HH24:MI:SS.FF3'), 20) "
                 "SELECT 1 FROM dual"
             ),
-            "CREATE TABLE interp_t (ts TIMESTAMP(3), val NUMBER(10,0))",
+            (
+                'CREATE TABLE "interp_t" ('
+                '"ts" TIMESTAMP(3), "val" NUMBER(10,0))'
+            ),
             (
                 "INSERT ALL "
-                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 10) "
-                "INTO interp_t VALUES (TIMESTAMP '2024-01-01 00:02:00.000', 30) "
+                'INTO "interp_t" VALUES '
+                "(TIMESTAMP '2024-01-01 00:00:00.000', 10) "
+                'INTO "interp_t" VALUES '
+                "(TIMESTAMP '2024-01-01 00:02:00.000', 30) "
                 "SELECT 1 FROM dual"
             ),
-            "CREATE TABLE fetch_t (ts TIMESTAMP(3), id NUMBER(10,0), val NUMBER(10,0))",
             (
-                "INSERT INTO fetch_t (ts, id, val) "
-                "SELECT TIMESTAMP '2024-02-01 00:00:00' + NUMTODSINTERVAL(level - 1, 'SECOND'), "
+                'CREATE TABLE "fetch_t" ('
+                '"ts" TIMESTAMP(3), "id" NUMBER(10,0), "val" NUMBER(10,0))'
+            ),
+            (
+                'INSERT INTO "fetch_t" ("ts", "id", "val") '
+                "SELECT TIMESTAMP '2024-02-01 00:00:00' + "
+                "NUMTODSINTERVAL(level - 1, 'SECOND'), "
                 f"level, level * 3 FROM dual CONNECT BY level <= {_FETCH_BOUNDARY_ROWS}"
             ),
-            "CREATE TABLE structured_t (id NUMBER(10,0), doc VARCHAR2(4000))",
             (
-                "INSERT INTO structured_t VALUES "
+                'CREATE TABLE "structured_t" ('
+                '"id" NUMBER(10,0), "doc" VARCHAR2(4000))'
+            ),
+            (
+                'INSERT INTO "structured_t" VALUES '
                 "(1, '{\"a\": [1, 2], \"flag\": true, \"name\": \"v\"}')"
             ),
             "COMMIT",
@@ -1081,22 +1102,23 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
         # so the NCHAR boundary values are built as CLOBs: RPAD over a CLOB
         # returns a CLOB and is not subject to the VARCHAR2 limit.
         ExtSrcEnv.oracle_exec_cfg(oracle_cfg, [
-            "INSERT INTO value_t (id, note) SELECT 1, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 1, '
             f"RPAD(TO_CLOB('x'), {_NCHAR_LIMIT_CHARS - 1}, TO_CLOB('x')) FROM dual",
-            "INSERT INTO value_t (id, note) SELECT 2, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 2, '
             f"RPAD(TO_CLOB('y'), {_NCHAR_LIMIT_CHARS}, TO_CLOB('y')) FROM dual",
-            "INSERT INTO value_t (id, note) SELECT 3, "
+            'INSERT INTO "value_t" ("id", "note") SELECT 3, '
             f"RPAD(TO_CLOB('z'), {_NCHAR_LIMIT_CHARS + 1}, TO_CLOB('z')) FROM dual",
         ])
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM boundary_t") == "3"
+            oracle_cfg, 'SELECT COUNT(*) FROM "boundary_t"') == "3"
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM fetch_t") == str(_FETCH_BOUNDARY_ROWS)
+            oracle_cfg, 'SELECT COUNT(*) FROM "fetch_t"'
+        ) == str(_FETCH_BOUNDARY_ROWS)
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT MAX(LENGTH(note)) FROM value_t"
+            oracle_cfg, 'SELECT MAX(LENGTH("note")) FROM "value_t"'
         ) == str(_NCHAR_LIMIT_CHARS + 1)
         assert ExtSrcEnv.oracle_query_cfg(
-            oracle_cfg, "SELECT COUNT(*) FROM value_t WHERE LENGTH(note) IN "
+            oracle_cfg, 'SELECT COUNT(*) FROM "value_t" WHERE LENGTH("note") IN '
             f"({_NCHAR_LIMIT_CHARS - 1}, {_NCHAR_LIMIT_CHARS})"
         ) == "2"
 
@@ -1321,9 +1343,14 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
                         f"use {self._source_ref(spec.source)}.{self._source_ref(spec.database)}")
                 else:
                     # For Oracle the second segment is the schema, exactly as in a
-                    # three-segment path (DS 5.3.4).
-                    tdSql.execute(
-                        f"use {self._source_ref(spec.source)}.{self._source_ref(spec.namespace)}")
+                    # three-segment path (DS 5.3.4).  An upper-case schema needs
+                    # backticks: TDengine lower-cases an unquoted identifier.
+                    ns = spec.namespace
+                    if ns != ns.lower():
+                        ns = "`" + ns.replace("`", "``") + "`"
+                    else:
+                        ns = self._source_ref(ns)
+                    tdSql.execute(f"use {self._source_ref(spec.source)}.{ns}")
                 self._assert_rows(
                     "select id, name from boundary_t order by id", expected
                 )
@@ -1692,11 +1719,12 @@ class TestFq07BoundaryContracts(FederatedQueryVersionedMixin):
             ),
             _ORACLE: (
                 # Oracle reports object names exactly as stored in the data
-                # dictionary (upper case for unquoted DDL), and VARCHAR2/CHAR
-                # map to VARCHAR while CLOB maps to NCHAR (DS 5.3.2.1).
-                ("TS", "TIMESTAMP", 8, ""), ("C_CHAR", "VARCHAR", 4, ""),
-                ("C_VARCHAR", "VARCHAR", 8, ""), ("C_BIN", "VARBINARY", 8, ""),
-                ("C_CLOB", "NCHAR", 16379, ""), ("C_DEC", "DECIMAL(18, 4)", 8, ""),
+                # dictionary; this fixture uses quoted lower-case names, and
+                # VARCHAR2/CHAR map to VARCHAR while CLOB maps to NCHAR
+                # (DS 5.3.2.1).
+                ("ts", "TIMESTAMP", 8, ""), ("c_char", "VARCHAR", 4, ""),
+                ("c_varchar", "VARCHAR", 8, ""), ("c_bin", "VARBINARY", 8, ""),
+                ("c_clob", "NCHAR", 16379, ""), ("c_dec", "DECIMAL(18, 4)", 8, ""),
             ),
             _INFLUX: (
                 ("time", "TIMESTAMP", 8, ""), ("c_float", "DOUBLE", 8, ""),

@@ -5,15 +5,31 @@ toc_max_heading_level: 4
 
 ## Function Classification
 
-### Three Types of Functions: Scalar, Aggregate, and Set
+### Three Types of Expression Functions: Scalar, Aggregate, and Set
 
-Functions are divided into three categories based on the **input-to-output row relationship**, which is the primary classification dimension:
+Expression functions are divided into three categories based on the **input-to-output row relationship**, which is the primary classification dimension:
 
 1. **Scalar Functions**: Each input row produces one output row (1 → 1). Each row's calculation depends only on the current row's input values.
 
 2. **Aggregate Functions**: Multiple input rows produce a single result value (N → 1). The result can only be produced after seeing all input rows.
 
 3. **Set Functions**: Multiple input rows produce one or more result rows (N → M, where M ≥ 1). The number of output rows is determined by the function semantics, parameters, or data. M=1 is a degenerate case (e.g., `TOP(col,1)`); the difference from aggregate functions is that aggregate functions always output exactly 1 row while set functions may output more than 1. The difference from scalar functions is that each output row of a set function may depend on multiple input rows (e.g., neighboring row context), whereas scalar functions depend only on the current row.
+
+### Table Function Classification
+
+In addition to the three expression function types above, functions also include **table functions**. A table function returns a row set and is used as a query table source; its parameters (including whether it accepts a table) are defined by the specific function. It is independent of the scalar, aggregate, and set classification based on the input-to-output row relationship.
+
+| Function Type | Output | Usage Position | Representative Function |
+| --- | --- | --- | --- |
+| Table function | Row set | `TABLE(...)` in the `FROM` clause | `TIME_ALIGN` |
+
+Table functions have the following characteristics:
+
+- They can be called only in the `FROM` clause through `TABLE(...)`. They cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as parameters of scalar, aggregate, or set functions.
+- The returned row set can participate in `JOIN`, subqueries, `UNION`, aggregation, windows, sorting, `LIMIT`, and other query operations like a table.
+- The nesting rules and co-location rules below do not apply to table functions.
+
+For the list, parameters, and output columns of table functions, see [Table Functions](#table-functions).
 
 ### Pipeline Function Description
 
@@ -84,9 +100,11 @@ Assume 4 input rows:
 
 ## Function Usage Rules
 
+The nesting and co-location rules below apply to scalar, aggregate, and set functions used in expressions, not to table functions.
+
 ### Nesting Rules
 
-1. **Scalar functions can nest with any type of function** as long as parameter requirements are satisfied:
+1. **Scalar functions can nest with any expression function** as long as parameter requirements are satisfied:
    - Scalar functions can be used as arguments to aggregate, set, or other scalar functions (scalar as inner layer): `SUM(abs(voltage))`
    - Results of aggregate, set, or other scalar functions can be used as arguments to scalar functions (scalar as outer layer): `abs(SUM(voltage))`, `ROUND(AVG(voltage), 2)`, `abs(TOP(voltage, 1))`
 2. **Aggregate and set functions cannot nest with each other**: Aggregate functions and set functions cannot be directly or indirectly nested with each other, with no exceptions.
@@ -2174,10 +2192,10 @@ Supported Formats:
 | ------------------- | ----------------------------------------- | ------------------------- |
 | AM,am,PM,pm         | AM/PM without dots                        | 07:00:00am                |
 | A.M.,a.m.,P.M.,p.m. | AM/PM with dots                           | 07:00:00a.m.              |
-| YYYY,yyyy           | Year, 4 or more digits                    | 2023-10-10                |
-| YYY,yyy             | Year, last 3 digits                       | 023-10-10                 |
-| YY,yy               | Year, last 2 digits                       | 23-10-10                  |
-| Y,y                 | Year, last digit                          | 3-10-10                   |
+| YYYY,yyyy           | Year, 4 or more digits                    | 2023                      |
+| YYY,yyy             | Year, last 3 digits                       | 023                       |
+| YY,yy               | Year, last 2 digits                       | 23                        |
+| Y,y                 | Year, last digit                          | 3                         |
 | MONTH               | Month, uppercase                          | 2023-JANUARY-01           |
 | Month               | Month, first letter uppercase             | 2023-January-01           |
 | month               | Month, lowercase                          | 2023-january-01           |
@@ -2206,6 +2224,7 @@ Supported Formats:
 
 **Usage Instructions**:
 
+- In format strings, `MM` and `mm` represent months, and `MI` and `mi` represent minutes.
 - The output format for `Month`, `Day`, etc., is left-aligned with spaces added to the right, such as `2023-OCTOBER  -01`, `2023-SEPTEMBER-01`. September has the longest number of letters among the months, so there is no space for September. Weeks are similar.
 - When using `ms`, `us`, `ns`, the output of the above three formats only differs in precision, for example, if ts is `1697182085123`, the output for `ms` is `123`, for `us` is `123000`, and for `ns` is `123000000`.
 - Content in the time format that does not match the rules will be output directly. If you want to specify parts of the format string that can match rules not to be converted, you can use double quotes, like `to_char(ts, 'yyyy-mm-dd "is formatted by yyyy-mm-dd"')`. If you want to output double quotes, then add a backslash before the double quotes, like `to_char(ts, '\"yyyy-mm-dd\"')` will output `"2023-10-10"`.
@@ -3512,6 +3531,9 @@ ignore_negative: {
 - Can be used with the columns associated with the selection. For example: select _rowts, DERIVATIVE(col1, 1s, 1) from tb1.
 - With a degraded timeline, duplicate timestamp rows output NULL (avoiding division by zero) without updating the previous value; NULL time rows also output NULL. Output row count is always N-1.
 - With a disordered degraded timeline, derivative can still execute but time differences alternate between positive and negative, producing physically meaningless slope values. Use `ORDER BY` in the subquery to ensure ordering.
+- In `CREATE STREAM ... AS SELECT`, `time_interval` can directly reference a native point's tag, for example `DERIVATIVE(current, rate_interval, 0)`. A supertable trigger requires `PARTITION BY tbname`; a fixed child table can omit partitioning. Supported inputs are `%%tbname`, `%%trows`, and single-source subqueries that project the tag unchanged. Ordinary `SELECT` does not support tag arguments. Ordinary columns and expressions over tags are not accepted as the second argument; `ignore_negative` remains a literal `0` or `1`.
+- String tags (`VARCHAR`, `BINARY`, `NCHAR`) contain a positive integer duration with a fixed unit: `b`, `u`, `a`, `s`, `m`, `h`, `d`, or `w`. Integer tags contain ticks at the source database precision. The duration must be at least one second, exactly representable at that precision, and no greater than `INT64_MAX` ticks. This unit does not change the window width: the same input produces twice the numerical rate with `'2s'` as with `'1s'`.
+- Tag arguments support single-level `INTERVAL`, `SESSION`, `COUNT_WINDOW`, `STATE_WINDOW`, and `EVENT_WINDOW` triggers. Nested windows, multiple START conditions, `PERIOD`, and standalone `SLIDING` are excluded. An invalid tag value produces NULL rates for that call while other valid result columns and points continue computing. A unit tag that is not an explicit partition key can be changed with `SET TAG`; subsequent calculations use the effective value. The update alone does not recalculate historical results. A unit tag referenced by an active stream cannot be dropped.
 
 ### DIFF
 
@@ -4057,6 +4079,261 @@ Usage Instructions:
 - INTERP can only use the pseudocolumn `_irowts_origin` when using FILL PREV/NEXT/NEAR modes. `_irowts_origin` is supported from version 3.3.4.9.
 - For queries on tables with composite primary keys, if there are data with the same timestamp, only the data with the smallest composite primary key participates in the calculation.
 - With a degraded timeline, NULL time rows are skipped; interpolation uses non-NULL time rows only. With a disordered degraded timeline, interp can still execute but adjacent points have non-contiguous time values, making linear interpolation results physically meaningless. Use `ORDER BY` in the subquery to ensure ordering.
+
+## Table Functions
+
+A table function returns a row set. It is called through `TABLE(...)` in the `FROM` clause. The result of a table function can participate in `JOIN`, subqueries, aggregation, windows, sorting, `LIMIT`, and other queries like a table.
+
+A table function is not an expression function: it cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as a parameter of a scalar, aggregate, or set function. Table function results do not support writes, `ALTER`, deletion, subscriptions, or stream processing.
+
+### TIME_ALIGN
+
+The function parameter form is `TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list'])`; in a query, call it through `TABLE(...)` in the `FROM` clause.
+
+```sql
+TABLE(TIME_ALIGN([db_name.]table_name [, output_raw] [, 'column_list']))
+
+output_raw: {
+    TRUE
+  | FALSE
+}
+
+column_list:
+    column_def [';' column_def ...]
+
+column_def:
+    column_name [':' [method]] [':' suffix]
+
+method:
+    (PREV | NEXT) ['(' duration ')']
+
+duration:
+    non_negative_integer time_unit
+
+time_unit:
+    b | u | a | s | m | h | d | w | n | q | y
+```
+
+**Function Classification**: Table function.
+
+**Function Description**: `TIME_ALIGN` is a table function that fills NULL values for one, several, or all columns of an input table (virtual tables, non-virtual tables, and views). It currently supports forward and backward filling, optionally outputs the original columns, optionally adds a suffix to the filled column names, and optionally limits the time distance to the source value used for interpolation.
+
+**Version**: `v3.5.0.0`.
+
+**Return Data Type**: Row set.
+
+**Nested Subquery Support**: Can be used as the `FROM` table source of a subquery.
+
+**Applicable to**: Basic tables, subtables, supertables, virtual tables, virtual subtables, virtual supertables, external tables, and views.
+
+#### Parameters
+
+| Parameter | Required | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `table_name` | Yes | `[db_name.]table_name` | None | Input table. Write the table name directly, optionally qualified by a database name or an external table reference path. |
+| `output_raw` | No | `TRUE` / `FALSE` | `FALSE` | Whether to output the original data columns. |
+| `column_list` | No | String | `*:PREV:` | Column definition list. Multiple definitions are separated by `;`. |
+
+- Parameter order is fixed: `output_raw`, then `column_list`.
+- If `output_raw` is omitted, the column definition string can be passed directly as the second argument. When a third argument is present, the second argument must be `output_raw` and must be `TRUE` or `FALSE`.
+- Omitting both `output_raw` and `column_list` is equivalent to `TIME_ALIGN(t, FALSE, '*:PREV:')`.
+- With `output_raw=TRUE` and an omitted column definition, the default definition has empty suffixes and conflicts with the original columns. Provide explicit definitions with non-empty suffixes in that case.
+
+Examples:
+
+```sql
+TIME_ALIGN(t)
+TIME_ALIGN(t, FALSE)
+TIME_ALIGN(t, 'v:PREV:_p')
+TIME_ALIGN(t, TRUE, 'v:PREV:_p')
+TIME_ALIGN(power.t, FALSE, '*::_a')
+```
+
+#### Column Definitions
+
+Column definitions are written in the string argument. Multiple definitions are separated by `;`, and at least one is required.
+
+```sql
+column_def:
+    column_name [':' [method]] [':' suffix]
+```
+
+| Form | Method | Suffix | Equivalent Form |
+| --- | --- | --- | --- |
+| `col` | `PREV` | Empty | `col:PREV:` |
+| `col:` | `PREV` | Empty | `col:PREV:` |
+| `col::` | `PREV` | Empty | `col:PREV:` |
+| `col:METHOD` | `METHOD` | Empty | `col:METHOD:` |
+| `col::suffix` | `PREV` | `suffix` | `col:PREV:suffix` |
+| `col:METHOD:suffix` | `METHOD` | `suffix` | Same as left |
+| `col:PREV(duration)` | `PREV`, with time range | Empty | `col:PREV(duration):` |
+| `col:METHOD(duration):suffix` | `METHOD`, with time range | `suffix` | Same as left |
+
+- `METHOD` can be only `PREV` or `NEXT`, case-insensitive.
+- An omitted method defaults to `PREV`; an omitted suffix is empty.
+- To specify only a suffix, use `::`, for example `*::_a`. Writing `*:_a` treats `_a` as the method name and reports an error.
+- `col` can be a column name or `*`. For table input, `*` expands to all data columns and excludes the primary timestamp column and tag columns. For view input, `*` expands to all view output columns, including timestamp and tag columns. An external table without a primary key is treated as view input, so `*` expands to all of its output columns. `*` can appear multiple times and can coexist with other column definitions.
+- Column names support backtick-quoted identifiers. Separator scanning ignores `:` and `;` inside backticks. A suffix cannot contain `:` or `;`.
+- Whitespace around the column name, method, and suffix in a column definition is ignored. Whitespace between the method name and the opening parenthesis, and inside the parentheses, is also ignored.
+- A column definition has at most three segments; a fourth segment or later reports an error.
+- The same source column can be defined multiple times, but every output column name must be unique.
+- For table input, the primary timestamp column and tag columns cannot be used as aligned columns. For view input, every output column can be used as an aligned column. An external table without a primary key is treated as view input, so every output column can be used.
+- For table input, output column names cannot conflict with original columns (when `output_raw=TRUE`), tag columns, or the primary timestamp column. For view input and an external table without a primary key, output column names cannot conflict with the original output columns (when `output_raw=TRUE`).
+
+#### Output Columns
+
+For table input, the output columns are ordered as follows:
+
+1. Primary timestamp column: always output exactly once, as the first column. Its name and type match the input table. It is not aligned or suffixed.
+2. Original columns: when `output_raw=TRUE`, all data columns of the input table are output in input-table order. Columns not named in the column definitions are also output, without renaming or suffixing.
+3. Aligned columns: output in column-definition order. `*` expands in input-table column order. The same source column can produce multiple aligned columns.
+4. Tag columns: when `output_raw=TRUE` and the input is a supertable, tag columns are output at the end. When the input is a subtable, tag columns are not output.
+
+An external table without a primary key is treated as view input: no timestamp column is forced; `output_raw=TRUE` outputs all external columns followed by the aligned columns, and `output_raw=FALSE` outputs only the aligned columns. See "View Input" below.
+
+Tag columns in table input are not aligned and cannot be referenced by column definitions. Regardless of `output_raw`, table-input tag columns can be queried, filtered, and grouped by name on the table function result. When `output_raw=FALSE`, `SELECT *` does not include table-input tag columns. The `tbname` pseudocolumn of a supertable can be used for grouping (for example, `PARTITION BY tbname`).
+
+#### Alignment Rules
+
+For table input, for each output row (let its timestamp be t) and each aligned column:
+
+- `PREV`: returns the non-`NULL` value with the largest timestamp less than or equal to t in the same series. If there is no candidate, returns `NULL`.
+- `NEXT`: returns the non-`NULL` value with the smallest timestamp greater than or equal to t in the same series. If there is no candidate, returns `NULL`.
+- If the current row has a non-`NULL` value for the column, that value is returned directly without alignment.
+- A source `NULL` is treated as no value and skipped. The row itself remains in the output row set.
+- Alignment is performed independently per series and never propagates values across series. A supertable is divided into series by subtable, a virtual supertable by virtual subtable, and a tagged basic table by tag combination.
+- The same source column can define multiple aligned columns. Each aligned column is computed independently with its own method and time range.
+
+#### Time Range Parameter
+
+The method can carry an optional time range parameter, written as `PREV(duration)` or `NEXT(duration)`. It takes effect for table input as described below; it does not take effect for view input or an external table without a primary key, as described in "View Input".
+
+- `duration` is a non-negative integer followed by a time unit. Supported units are `b` (nanosecond), `u` (microsecond), `a` (millisecond), `s` (second), `m` (minute), `h` (hour), `d` (day), `w` (week), `n` (month), `q` (quarter), and `y` (year), case-insensitive.
+- Negative values, fractions, compound durations, and omitted units are not supported. For example, `PREV(8)`, `PREV(-8s)`, `PREV(1.5s)`, `PREV(8x)`, `PREV()`, and `PREV(8s,1h)` all report errors.
+- `PREV(0s)` and `NEXT(0s)` are valid and accept only candidates at the same timestamp.
+- Omitting the parentheses means the time distance is unlimited.
+- The time range applies only to `NULL` rows that need alignment. A row with a non-`NULL` value returns that value directly.
+- The distance is checked as a closed interval: a candidate whose distance equals `duration` is still used.
+- Only the nearest candidate is considered. If the nearest candidate is outside the range, `NULL` is returned and farther candidates are not used.
+- Fixed units `b`, `u`, `a`, `s`, `m`, `h`, `d`, and `w` are converted using the precision of the input timeline. If a unit is smaller than the timeline precision, the converted value is rounded at that precision and may become 0.
+- Calendar units `n`, `q`, and `y` advance by calendar rules, with `q` treated as 3 months. `PREV` uses the candidate value's timestamp as the base, and `NEXT` uses the current row's timestamp as the base.
+- Each column definition carries its own time range. The same source column can define different directions and ranges at the same time.
+
+#### Row Set
+
+For table input, the output row set is determined by the referenced source columns; for view input, all view output rows are used; an external table without a primary key follows view input. Projecting only some columns in the outer `SELECT` does not change the row set or the alignment results.
+
+Table input:
+
+| Configuration | Columns That Contribute to the Row Set |
+| --- | --- |
+| `output_raw=TRUE` | All data columns; for a virtual table, the union of the source timestamps of all original data columns |
+| `output_raw=FALSE` | Source columns referenced by column definitions; repeated definitions of the same source column count once |
+| `output_raw=FALSE` with `*` in the column definitions | All data columns, that is, the complete input row set |
+
+- For a basic table, all data columns share the same timeline, so `output_raw` does not change the row set.
+- For a virtual table, the timeline is the union of referenced columns, so different `output_raw` values or column definitions may produce different row counts.
+- If a column referenced by a column definition has no data in the input table, the output is an empty set.
+- With the default arguments, `*` covers all data columns, so the complete input row set is output.
+- Output row order is not guaranteed to follow timestamp order. Use `ORDER BY` when a stable order is required.
+
+#### View Input
+
+A view does not distinguish column types. Every output column can be used as an aligned column, including `TIMESTAMP` and tag columns. `TIME_ALIGN` interpolates in the view output row order and does not reorder by timestamp or primary-key columns.
+
+An external table without a primary key follows the same rules as view input: a `TIMESTAMP` column is not required, interpolation follows the external scan output row order, and the time range parameter is ignored.
+
+- `PREV` uses the previous output row (skipping `NULL`), and `NEXT` uses the next output row (skipping `NULL`). A timestamp-descending view output is also processed in that descending row order, with no direction compensation.
+- When `output_raw=TRUE`, all view output columns (including tag columns) are output first in view output order, followed by the aligned columns.
+- When `output_raw=FALSE`, only the aligned columns produced by the column definitions are output. `*` expands to all view output columns (including timestamp and tag columns); explicit definitions expose only the referenced columns.
+- The view's own filtering, `LIMIT`, `ORDER BY`, aggregation, and windows execute first. `TIME_ALIGN` runs on the view output rows, and a view `LIMIT` limits the rows that participate in alignment.
+- If the view declares `PARTITION BY` or `GROUP BY` and the view itself has no `ORDER BY` or `DISTINCT`, each group is an independent series, and `PREV` and `NEXT` do not take values across groups.
+- If the view itself has `ORDER BY` or `DISTINCT`, the entire view output is treated as one series.
+- If the view has no grouping, the entire output is treated as one series.
+- The time range parameter has no effect for view input (ignored).
+
+#### Interaction with Query Clauses
+
+- `TIME_ALIGN` is evaluated before the outer `WHERE`. The `WHERE` clause only filters output rows; it does not change the input rows used for alignment or the alignment results.
+- Outer `GROUP BY`, aggregate functions, windows, `ORDER BY`, and `LIMIT` operate on the table function output row set.
+- `COUNT(*)` counts the number of table function output rows. `COUNT(col)` counts the non-`NULL` rows after alignment.
+- `LIMIT` applies to table function output rows and does not truncate the alignment input.
+- To limit the data used for alignment, use an input view with a filter condition. The outer `WHERE` does not change the alignment input.
+- A `TIME_ALIGN` result can be used as one side of a `JOIN`, the `FROM` table source of a subquery, or one side of a `UNION`, and can be wrapped in a view and used again as the input of `TIME_ALIGN`.
+- `TIME_ALIGN` cannot be nested directly as the table argument of another `TIME_ALIGN`. Create a view first when nesting is required.
+
+#### Descending Order and Composite Primary Keys
+
+- For table input, when a query outputs rows in descending timestamp order (for example, `ORDER BY ts DESC`), the `PREV` and `NEXT` values are the same as in the ascending query; only the output row order differs.
+- For table input with a composite primary key, ascending scans are ordered by timestamp and then by the composite primary key. For multiple rows at the same timestamp, `PREV` uses the row earlier in primary-key order and `NEXT` uses the row later in primary-key order. In descending scans this order is reversed together with the timestamp, while the timestamp semantics above are preserved.
+- A virtual table reference to a composite-primary-key source is restricted by the engine and cannot reference such a source.
+
+#### Supported Inputs and Limitations
+
+Supported inputs:
+
+- Basic tables, subtables, and supertables.
+- Virtual tables, virtual subtables, and virtual supertables.
+- External tables.
+- Views.
+
+Limitations:
+
+- Except for an external table without a primary key, table input must have exactly one primary timestamp column (when a composite primary key is used, only one primary-key column can be a timestamp).
+- An external table without a primary key follows view input: a `TIMESTAMP` column is not required, interpolation follows output row order, and the time range parameter is ignored. An external table with a primary key follows table input.
+- View input does not distinguish column types and does not require a `TIMESTAMP` column. The time range parameter is ignored.
+- System tables, streams, and topics cannot be used as input.
+- For table input, tag columns and the primary timestamp column cannot be used as aligned columns. For view input and an external table without a primary key, every output column can be used as an aligned column.
+- A virtual table cannot reference a composite-primary-key source, so such a source can use time alignment only through a basic table or supertable.
+- The following positions are not supported: `INSERT INTO ... SELECT`, `CREATE STREAM`, `CREATE TOPIC`, column references in `CREATE VTABLE` or `ALTER VTABLE`, `DELETE`, and `CREATE TABLE ... AS`.
+- The default column definition `*:PREV:` references many columns. To reduce scanned columns, explicitly provide column definitions containing only the required columns.
+
+#### Privileges
+
+Executing `TIME_ALIGN` requires `SELECT` privilege on the input table or view. The privilege model is the same as querying that table or view directly, with no privilege escalation.
+
+#### Examples
+
+```sql
+-- Input table: meters(ts TIMESTAMP, voltage INT, current FLOAT)
+-- Default arguments: output the timestamp and PREV-aligned columns for all data columns
+SELECT * FROM TABLE(TIME_ALIGN(meters)) ORDER BY ts;
+
+-- Output original columns and use different methods and suffixes for different columns
+SELECT ts, voltage, current, voltage_p, current_n
+FROM TABLE(TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
+ORDER BY ts;
+
+-- Time range: use only candidates within 5 seconds
+SELECT ts, voltage_p, voltage_n
+FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
+ORDER BY ts;
+
+-- Supertable meters_st(ts TIMESTAMP, voltage INT, current FLOAT) TAGS(site INT):
+-- align each subtable independently and group by tag
+SELECT site, ts, voltage_p
+FROM TABLE(TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
+PARTITION BY site
+ORDER BY site, ts;
+
+-- View: the view filter runs first, and the outer WHERE does not affect the alignment input
+CREATE VIEW v_meters AS SELECT ts, voltage FROM meters WHERE voltage IS NOT NULL;
+SELECT ts, voltage_p
+FROM TABLE(TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
+ORDER BY ts;
+
+-- Every view output column can be aligned, including tag columns; the time range is ignored
+CREATE VIEW v_meters_tag AS SELECT site, ts, voltage FROM meters_st;
+SELECT site_p, ts_tp, voltage_p
+FROM TABLE(TIME_ALIGN(v_meters_tag,
+                      'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
+ORDER BY ts_tp;
+
+-- Descending output: alignment values match ascending order; only the output order differs
+SELECT ts, voltage_p
+FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV:_p')) t
+ORDER BY ts DESC;
+```
 
 ## System and Metadata Functions
 

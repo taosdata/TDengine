@@ -78,6 +78,11 @@ typedef struct SLogicNode {
   EOrder             outputTsOrder;
   bool               forceCreateNonBlockingOptr;  // true if the operator can use non-blocking(pipeline) mode
   bool               splitDone;
+  // Keep the block groupId through this operator: used for a PARTITION BY
+  // view without ORDER BY feeding TIME_ALIGN, so the fill Projection can split
+  // PREV/NEXT state per partition.  Windows disable result-block merging,
+  // projects and merges stop clearing the id.
+  bool               preserveGroupId;
 } SLogicNode;
 
 typedef enum EScanType {
@@ -120,6 +125,9 @@ typedef struct SScanLogicNode {
   SLogicNode         node;
   SNodeList*         pScanCols;
   SNodeList*         pScanPseudoCols;
+  // TIME_ALIGN output columns read from this scan: SColumnNode entries with
+  // colId = source column id, colName = output name, alignMethod set.
+  SNodeList*         pAlignCols;
   int8_t             tableType;
   uint64_t           tableId;
   uint64_t           stableId;
@@ -329,6 +337,13 @@ typedef struct SProjectLogicNode {
   bool       inputIgnoreGroup;
   bool       isSetOpProj;
   bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  // TIME_ALIGN projection: the executor runs the align stage instead of the
+  // regular indefinite-rows projection path.
+  bool       timeAlignProject;
+  // View input: PREV/NEXT follow the view's output row order (no primary
+  // timestamp).  Each input block's groupId selects the align sequence; a
+  // block without a group id continues the current single sequence.
+  bool       timeAlignOutputOrder;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -770,6 +785,10 @@ typedef struct STagRefSourcePhysiNode {
 typedef struct SVirtualScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pAlignCols;  // SColumnNode: colId = source column id, colName = output name
+  // Client timezone name, carried only when an align column has a time-range
+  // parameter with calendar units (n/q/y); the executor uses it to advance the
+  // candidate timestamp with taosTimeAdd().
+  char           timezoneName[TD_TIMEZONE_LEN];
   SNodeList*     pGroupTags;
   bool           groupSort;
   bool           scanAllCols;
@@ -853,6 +872,8 @@ typedef struct SSystemTableScanPhysiNode {
 
 typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
+  // TIME_ALIGN output columns (see SScanLogicNode.pAlignCols).
+  SNodeList*     pAlignCols;
   uint8_t        scanSeq[2];  // first is scan count, and second is reverse scan count
   STimeWindow    scanRange;
   STimeWindow*   pExtScanRange;
@@ -1009,6 +1030,8 @@ typedef struct SProjectPhysiNode {
   bool       ignoreGroupId;
   bool       inputIgnoreGroup;
   bool       isUnionDedup;  // DS section5.3.8.6: true -> emit UNION (dedup), false -> UNION ALL
+  bool       timeAlignProject;  // see SProjectLogicNode.timeAlignProject
+  bool       timeAlignOutputOrder;  // see SProjectLogicNode.timeAlignOutputOrder
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -1229,6 +1252,10 @@ typedef struct SWindowPhysiNode {
   int8_t     unusedParam4;
   int8_t     indefRowsFunc; // [external window] identify whether the window has infinite rows
   bool       mergeDataBlock;// [interval window]
+  // Keep the block groupId through this window (TIME_ALIGN over a grouped
+  // view); the external window then keeps the partition id instead of only
+  // the trigger-group id.
+  bool       preserveGroupId;
   int64_t    unusedParam5; // useless
 } SWindowPhysiNode;
 

@@ -5939,12 +5939,16 @@ static int32_t dynGetForeignTableMeta(SVtbScanDynCtrlInfo* pVtbScan, const SFede
   if ('\0' == dbName[0] && EXT_SOURCE_SQLSERVER == (EExtSourceType)pScan->sourceType) {
     dbName = pScan->srcDatabase;
   }
+  // The cache key keeps the exact spellings.  Lower-casing it would merge
+  // Oracle tables or columns that differ only in case (EMP vs emp, VAL vs val)
+  // and hand the second caller the first table's metadata; extColumnNameEqual()
+  // applies each source's own matching rule when a bind is resolved.
   char key[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN] = {0};
-  strntolower(key, table.sourceName, strlen(table.sourceName));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN, dbName, strlen(dbName));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, schema, strlen(schema));
-  strntolower(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN, tableName,
-              strlen(tableName));
+  tstrncpy(key, table.sourceName, TSDB_EXT_SOURCE_NAME_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN, dbName, TSDB_DB_NAME_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN, schema, TSDB_EXT_SOURCE_SCHEMA_LEN);
+  tstrncpy(key + TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN, tableName,
+           TSDB_TABLE_NAME_LEN);
 
   if (NULL == pVtbScan->extTableMetaCache) {
     pVtbScan->extTableMetaCache =
@@ -6052,7 +6056,7 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
 
   const SExtColumnDef* pExtCol = NULL;
   for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
-    if (0 == strcasecmp(pMeta->pCols[i].colName, colName)) {
+    if (extColumnNameEqual(sourceType, pMeta->pCols[i].colName, colName)) {
       pExtCol = &pMeta->pCols[i];
       break;
     }
@@ -6354,6 +6358,11 @@ static int32_t getTagBlockAndProcess(SOperatorInfo* pOperator, bool hasPartition
       if (!colDataIsNull_s(pUidCol, i)) {
         GET_TYPED_DATA(uid, int64_t, TSDB_DATA_TYPE_BIGINT, colDataGetNumData(pUidCol, i), 0);
         QUERY_CHECK_CODE(code, line, _return);
+      }
+
+      // Keep tag dispatch aligned with the current child's source maps.
+      if (pVtbScan->dynTbUid != 0 && uid != pVtbScan->dynTbUid) {
+        continue;
       }
 
       code = generateTagArrayByTagBlockAndSave(
@@ -6667,7 +6676,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
             continue;
           }
 
-          if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
+          if (pInfo->qType == DYN_QTYPE_VTB_SCAN || pInfo->qType == DYN_QTYPE_VTB_AGG) {
             if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
               qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
                      pInfo->vtbScan.dynTbUid);
@@ -8486,14 +8495,20 @@ _return:
 }
 
 int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    line = 0;
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       line = 0;
+  SDynQueryCtrlOperatorInfo*    pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*          pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SDynQueryCtrlPhysiNode const* pPhyciNode = pOperator->pPhyNode;
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
+  }
+
+  // Runner binds the current group after resetting a reused executor.
+  if (!OPTR_IS_OPENED(pOperator) && pPhyciNode->dynTbname) {
+    updateDynTbUidIfNeeded(pVtbScan, pOperator->pTaskInfo->pStreamRuntimeInfo);
   }
 
   pVtbScan->clientId = pOperator->pTaskInfo->id.taskId;

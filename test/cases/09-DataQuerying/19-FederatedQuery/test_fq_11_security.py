@@ -336,7 +336,11 @@ class TestFq11Security(FederatedQueryVersionedMixin):
                 namespace = str(source_row[6])
             conn, sql = self._normal_user_sql(user)
             try:
-                paths = [f"{src}.{namespace}.src_t", f"{src}.src_t"]
+                # TDengine lower-cases an unquoted segment; an upper-case
+                # namespace (Oracle's account schema) needs backticks.
+                ns_ref = (f"`{namespace}`" if namespace != namespace.lower()
+                          else namespace)
+                paths = [f"{src}.{ns_ref}.src_t", f"{src}.src_t"]
                 for path in paths:
                     sql.query(f"select val,name from {path} order by val")
                     sql.checkRows(5)
@@ -437,13 +441,16 @@ class TestFq11Security(FederatedQueryVersionedMixin):
                 self._oracle_admin_ddl(
                     cfg, f'GRANT CREATE SESSION, CREATE TABLE, UNLIMITED TABLESPACE '
                          f'TO "{oracle_alt_user}"')
+                # Store quoted lower-case names: the shared TDengine references
+                # (sec029_o.src_t, val) are folded to lower case and matched
+                # exactly against the Oracle catalog.
                 ExtSrcEnv._oracle_sql(cfg, [
-                    'CREATE TABLE "SRC_T" ("TS" TIMESTAMP(3) PRIMARY KEY, "VAL" NUMBER(10,0))',
-                    "INSERT INTO \"SRC_T\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 77)",
+                    'CREATE TABLE "src_t" ("ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10,0))',
+                    "INSERT INTO \"src_t\" VALUES (TIMESTAMP '2024-01-01 00:00:00.000', 77)",
                     "COMMIT",
                 ], user=oracle_alt_user, password=oracle_alt_pass)
                 self._oracle_admin_ddl(
-                    cfg, f'GRANT SELECT ON "{oracle_alt_user}"."SRC_T" TO "{cfg.user.upper()}"')
+                    cfg, f'GRANT SELECT ON "{oracle_alt_user}"."src_t" TO "{cfg.user.upper()}"')
                 return oracle_alt_user
             cfg = self._pg_cfg()
             database = "sec029_pdb"
@@ -4166,19 +4173,19 @@ finally:
                                  extra_options="'connect_timeout_ms'='3000'")
 
             # Granted object → normal read with the expected values.
-            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_granted_t")
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_GRANTED_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 3)
             tdSql.checkData(0, 1, 6)
 
             # Same schema, no grant → the object is outside the visible range.
-            tdSql.error(f"select count(*) from {src}.sec_o_denied_t",
+            tdSql.error(f"select count(*) from {src}.`SEC_O_DENIED_T`",
                         expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # The source survives the denied query and keeps answering.
             assert self._find_row(src) >= 0, \
                 "source should stay registered after a permission error"
-            tdSql.query(f"select sum(val) from {src}.sec_o_granted_t")
+            tdSql.query(f"select sum(`VAL`) from {src}.`SEC_O_GRANTED_T`")
             tdSql.checkData(0, 0, 6)
         finally:
             self._cleanup(*names)
@@ -4263,28 +4270,28 @@ finally:
             self._mk_oracle_real(src, database=cfg.service, schema=main_schema)
 
             # Default schema of the source (2-segment path).
-            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_main_t")
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_MAIN_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 2)
             tdSql.checkData(0, 1, 3)
 
             # Cross-schema read through the 3-segment path.
             tdSql.query(
-                f"select count(*), sum(val) from {src}.{alt_schema}.sec_o_alt_t")
+                f"select count(*), sum(`VAL`) from {src}.`{alt_schema}`.`SEC_O_ALT_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 3)
             tdSql.checkData(0, 1, 306)
 
             # Ungranted object in the same schema → outside the visible range.
             tdSql.error(
-                f"select count(*) from {src}.{alt_schema}.sec_o_alt_denied_t",
+                f"select count(*) from {src}.`{alt_schema}`.`SEC_O_ALT_DENIED_T`",
                 expectedErrno=TSDB_CODE_EXT_TABLE_NOT_EXIST)
 
             # Negative: the granted paths still answer.
-            tdSql.query(f"select min(val) from {src}.sec_o_main_t")
+            tdSql.query(f"select min(`VAL`) from {src}.`SEC_O_MAIN_T`")
             tdSql.checkData(0, 0, 1)
             tdSql.query(
-                f"select min(val) from {src}.{alt_schema}.sec_o_alt_t")
+                f"select min(`VAL`) from {src}.`{alt_schema}`.`SEC_O_ALT_T`")
             tdSql.checkData(0, 0, 101)
         finally:
             self._cleanup(*names)
@@ -4300,10 +4307,10 @@ finally:
         quotes, semicolons or comment markers are double-quoted when rendered
         and cannot escape; no additional statement runs.
 
-        Oracle quoting is semantic (DS 5.3.6 R1): an unquoted segment folds to
-        upper case, a double-quoted one keeps its case.  A path segment written
-        inside TDengine backticks with surrounding double quotes is carried
-        through as an exact-case identifier and re-escaped when emitted.
+        Oracle identifiers follow TDengine's grammar (DS 5.3.6 R1): an unquoted
+        segment is lower-cased by the client, and a backticked segment carries
+        its literal spelling.  A double quote is a character in the name, not
+        syntax; the renderer doubles it when Oracle output requires quoting.
 
         Coverage:
         1. Local source-name injection attempts → syntax error, and an unrelated
@@ -4407,16 +4414,16 @@ finally:
             # 2/3. A quote-bearing table and column name resolve as literal
             # identifiers (skipped when the server cannot hold such names).
             if quote_identifier_supported:
-                tdSql.query(f'select count(*) from {src}.`"{brk_tbl}"`')
+                tdSql.query(f'select count(*) from {src}.`{brk_tbl}`')
                 assert int(tdSql.queryResult[0][0]) == 1, \
                     "table name containing a double quote was not resolved as a literal identifier"
 
-                tdSql.query(f'select * from {src}.`"{brk_tbl}"`')
+                tdSql.query(f'select * from {src}.`{brk_tbl}`')
                 tdSql.checkRows(1)
                 tdSql.checkData(0, 1, 7)
 
             # 4. Injection-shaped table name stays a literal identifier.
-            tdSql.query(f'select count(*) from {src}.`"{inj_tbl}"`')
+            tdSql.query(f'select count(*) from {src}.`{inj_tbl}`')
             assert int(tdSql.queryResult[0][0]) == 2, \
                 "injection-shaped table name was not treated as a literal identifier"
 
@@ -4539,7 +4546,7 @@ finally:
             # 2. Easy Connect alone is enough — no options, no tnsnames.ora.
             self._mk_oracle_real(src, database=cfg.service,
                                  schema=ExtSrcEnv.ORACLE_USER.upper())
-            tdSql.query(f"select count(*), sum(val) from {src}.sec_o_netcfg_t")
+            tdSql.query(f"select count(*), sum(`VAL`) from {src}.`SEC_O_NETCFG_T`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
             tdSql.checkData(0, 1, 42)
@@ -4560,7 +4567,7 @@ finally:
             #    failure itself, so both are accepted — the wording is the check.
             tdSql.execute(f"alter external source {src} set database='NOSUCHSERVICE'")
             tdSql.error(
-                f"select count(*) from {src}.sec_o_netcfg_t",
+                f"select count(*) from {src}.`SEC_O_NETCFG_T`",
                 expectedErrno=[TSDB_CODE_EXT_DB_NOT_EXIST,
                                TSDB_CODE_EXT_CONNECT_FAILED],
             )
@@ -4568,7 +4575,7 @@ finally:
                 "the connector resolved the service name through a TNS alias: "
                 f"{tdSql.error_info}")
             tdSql.execute(f"alter external source {src} set database='{cfg.service}'")
-            tdSql.query(f"select sum(val) from {src}.sec_o_netcfg_t")
+            tdSql.query(f"select sum(`VAL`) from {src}.`SEC_O_NETCFG_T`")
             tdSql.checkData(0, 0, 42)
 
             # 5. The connector did not invent TNS_ADMIN in taosd's environment.

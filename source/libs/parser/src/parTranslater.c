@@ -52,6 +52,8 @@
 #include "osTimezone.h"
 #include "tutil.h"
 
+static void setTimeAlignOutSpan(SColumnNode* pCol, const SAlignOutCol* pOut);
+
 #define generateDealNodeErrMsg(pCxt, code, ...) \
   (pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, code, ##__VA_ARGS__), DEAL_RES_ERROR)
 
@@ -1894,6 +1896,8 @@ static void initStreamInfo(SParseStreamInfo* pInfo) {
   pInfo->extLeftEq = false;
   pInfo->extRightEq = false;
   pInfo->triggerPartitionList = NULL;
+  pInfo->derivativeTagCols = NULL;
+  pInfo->derivativeInjectedCols = NULL;
   pInfo->triggerTbl = NULL;
   pInfo->extSourceNames = NULL;
   pInfo->rollupTagList = NULL;
@@ -2001,6 +2005,8 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pTables);
   taosHashCleanup(pCxt->pTargetTables);
   taosHashCleanup(pCxt->streamInfo.extSourceNames);
+  nodesDestroyList(pCxt->streamInfo.derivativeTagCols);
+  nodesDestroyList(pCxt->streamInfo.derivativeInjectedCols);
   nodesDestroyList(pCxt->pSubQueries);
 }
 
@@ -2672,12 +2678,145 @@ static int32_t getStreamRollupTagColumn(STranslateContext* pCxt, int64_t index, 
 
 static SNode* getStreamTriggerTable(STranslateContext* pCxt) { return pCxt->streamInfo.triggerTbl; }
 
+static bool            timeAlignIsPrimTsSchema(const SSchema* pSchema);
+static const SSchema*  findTimeAlignPrimTs(const STableMeta* pMeta);
+
+static const SSchema* findRealAlignSchema(const SRealTableNode* pTable, col_id_t colId, int32_t* pIdx) {
+  for (int32_t i = 0; i < pTable->pMeta->tableInfo.numOfColumns; ++i) {
+    if (pTable->pMeta->schema[i].colId == colId) {
+      if (pIdx != NULL) *pIdx = i;
+      return &pTable->pMeta->schema[i];
+    }
+  }
+  return NULL;
+}
+
+static int32_t createColumnsByRealTimeAlignTable(STranslateContext* pCxt, const SRealTableNode* pTable, bool igTags,
+                                                 SNodeList* pList) {
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SColumnNode*      pCol = NULL;
+  const STableMeta* pMeta = pTable->pMeta;
+
+  // External table without a remote primary key: view-like output.  There is
+  // no forced primary timestamp column; output_raw=TRUE exposes the input
+  // columns in schema order, followed by the aligned columns.
+  if (pTable->timeAlignRowOrder) {
+    if (pTable->outputRaw) {
+      for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+        const SSchemaExt* pExt = (pMeta->schemaExt != NULL) ? &pMeta->schemaExt[i] : NULL;
+        PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+        setColumnInfoBySchema(pTable, &pMeta->schema[i], -1, pCol, pExt);
+        pCol->colType = COLUMN_TYPE_COLUMN;
+        pCol->isPrimTs = false;
+        pCol->isPk = false;
+        pCol->tableHasPk = false;
+        pCol->numOfPKs = 0;
+        PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+        pCol = NULL;
+      }
+    }
+
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+      const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+      int32_t             srcIdx = -1;
+      const SSchema*      pSrc = findRealAlignSchema(pTable, pOut->srcColId, &srcIdx);
+      if (pSrc == NULL) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+      }
+      const SSchemaExt* pExt = (pMeta->schemaExt != NULL && srcIdx >= 0) ? &pMeta->schemaExt[srcIdx] : NULL;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      setColumnInfoBySchema(pTable, pSrc, -1, pCol, pExt);
+      tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+      tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+      tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+      pCol->hasRef = false;
+      pCol->colType = COLUMN_TYPE_COLUMN;
+      pCol->isPrimTs = false;
+      pCol->isPk = false;
+      pCol->tableHasPk = false;
+      pCol->numOfPKs = 0;
+      pCol->isAlignOut = true;
+      pCol->alignMethod = pOut->method;
+      setTimeAlignOutSpan(pCol, pOut);
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+    return code;
+  }
+
+  // 1. primary timestamp
+  const SSchema* pPrimTs = findTimeAlignPrimTs(pMeta);
+  if (pPrimTs == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "TIME_ALIGN: table has no primary timestamp column");
+  }
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+  setColumnInfoBySchema(pTable, pPrimTs, -1, pCol, NULL);
+  setColumnPrimTs(pCxt, pCol, &pTable->table);
+  PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+  pCol = NULL;
+
+  // 2. raw data columns
+  if (pTable->outputRaw) {
+    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+      if (timeAlignIsPrimTsSchema(&pMeta->schema[i])) continue;
+      const SSchemaExt* pExt = (pMeta->schemaExt != NULL) ? &pMeta->schemaExt[i] : NULL;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      setColumnInfoBySchema(pTable, &pMeta->schema[i], -1, pCol, pExt);
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+  }
+
+  // 3. aligned columns
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+    int32_t             srcIdx = -1;
+    const SSchema*      pSrc = findRealAlignSchema(pTable, pOut->srcColId, &srcIdx);
+    if (pSrc == NULL) {
+      PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+    }
+    const SSchemaExt* pExt =
+        (pMeta->schemaExt != NULL && srcIdx >= 0) ? &pMeta->schemaExt[srcIdx] : NULL;
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+    setColumnInfoBySchema(pTable, pSrc, -1, pCol, pExt);
+    tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+    tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+    tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+    pCol->hasRef = false;
+    pCol->isAlignOut = true;
+    pCol->alignMethod = pOut->method;
+    setTimeAlignOutSpan(pCol, pOut);
+    PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+    pCol = NULL;
+  }
+
+  // 4. tags (super table only, when raw output is requested)
+  if (pTable->outputRaw && !igTags && TSDB_SUPER_TABLE == pMeta->tableType) {
+    for (int32_t i = pMeta->tableInfo.numOfColumns;
+         i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags; ++i) {
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      setColumnInfoBySchema(pTable, &pMeta->schema[i], i - pMeta->tableInfo.numOfColumns, pCol, NULL);
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+  }
+  return code;
+
+_return:
+  nodesDestroyNode((SNode*)pCol);
+  return code;
+}
+
 static int32_t createColumnByRealTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags,
                                        SNodeList* pList) {
   int32_t           code = TSDB_CODE_SUCCESS;
   SColumnNode*      pCol = NULL;
   SRealTableNode* pRealTable = (SRealTableNode*)pTable;
   const STableMeta* pMeta = pRealTable->pMeta;
+  if (pRealTable->pAlignCols != NULL) {
+    return createColumnsByRealTimeAlignTable(pCxt, pRealTable, igTags, pList);
+  }
   if (pMeta->extSrcSynthetic && NULL != pRealTable->pExtTableNode) {
     const SExtTableNode* pExtNode = (const SExtTableNode*)pRealTable->pExtTableNode;
     const SExtTableMeta* pExtMeta = pExtNode->pExtMeta;
@@ -2744,12 +2883,18 @@ _return:
   return code;
 }
 
+static int32_t createColumnsByTempTimeAlignTable(STranslateContext* pCxt, const STempTableNode* pTable,
+                                                 SNodeList* pList);
+
 static int32_t createColumnsByTempTable(STranslateContext* pCxt, const STableNode* pTable, bool igTags,
                                         SNodeList* pList, bool skipProjRef) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   SColumnNode*    pCol = NULL;
   STempTableNode* pTempTable = (STempTableNode*)pTable;
+  if (pTempTable->pAlignCols != NULL) {
+    return createColumnsByTempTimeAlignTable(pCxt, pTempTable, pList);
+  }
   SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
   SNode*          pNode;
   bool            freeCol = false;
@@ -3022,9 +3167,11 @@ static int32_t findAndSetFileTableColumn(SFileTableNode* pFileTable, SColumnNode
 static bool externalColumnNamesEqual(int8_t sourceType, const char* schemaName, const char* queryName) {
   // MySQL and SQL Server expose case-insensitive catalogs by default, so name
   // variants fold onto the stored column and the resolved column echoes the
-  // stored case; PostgreSQL compares quoted/identifier names literally, and
-  // Oracle folds an unquoted reference to upper case before comparing exactly
-  // (DS 5.3.6 R1).  The rule is shared with the executor and mnode through
+  // stored case; PostgreSQL, InfluxDB and Oracle compare names literally.
+  // TDengine has already applied its own identifier grammar to queryName
+  // (unquoted text lower-cased by the client, backticked text preserved), so
+  // the external name must match that resolved spelling exactly (DS 5.3.6 R1).
+  // The rule is shared with the executor and mnode through
   // extColumnNameEqual() so the three resolution points cannot drift.
   return extColumnNameEqual((EExtSourceType)sourceType, schemaName, queryName);
 }
@@ -3045,8 +3192,9 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
   SColumnNode* pCol = *pColRef;
   *pFound = false;
 
-  const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
-  if (isInternalPrimaryKey(pCol)) {
+  SRealTableNode*   pRealTable = (SRealTableNode*)pTable;
+  const STableMeta* pMeta = pRealTable->pMeta;
+  if (isInternalPrimaryKey(pCol) && !pRealTable->timeAlignRowOrder) {
     if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
     }
@@ -3073,6 +3221,30 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
     }
   }
 
+  if (pRealTable->pAlignCols != NULL) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pRealTable->pAlignCols); ++i) {
+      const SAlignOutCol* pOut = taosArrayGet(pRealTable->pAlignCols, i);
+      if (0 != strcasecmp(pCol->colName, pOut->outName)) continue;
+
+      int32_t        srcIdx = -1;
+      const SSchema* pSrc = findRealAlignSchema(pRealTable, pOut->srcColId, &srcIdx);
+      if (pSrc == NULL) {
+        return TSDB_CODE_PAR_INVALID_COLUMN;
+      }
+      const SSchemaExt* pExt = (pMeta->schemaExt != NULL && srcIdx >= 0) ? &pMeta->schemaExt[srcIdx] : NULL;
+      setColumnInfoBySchema(pRealTable, pSrc, -1, pCol, pExt);
+      tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+      tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+      tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+      pCol->hasRef = false;
+      pCol->isAlignOut = true;
+      pCol->alignMethod = pOut->method;
+      setTimeAlignOutSpan(pCol, pOut);
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
   for (int32_t i = 0; i < nums; ++i) {
     if (externalTableColumnNameEqual((SRealTableNode*)pTable, pMeta->schema[i].name, pCol->colName)) {
@@ -3084,11 +3256,24 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
       if (invisibleColumn(pCxt->pParseCxt->enableSysInfo, pMeta->tableType, pMeta->schema[i].flags)) {
         return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COL_PERMISSION_DENIED, pCol->colName);
       }
+      // TIME_ALIGN output_raw=FALSE exposes only ts + the aligned columns (and
+      // tags for filtering).  Row-order input has no forced ts, so every data
+      // column outside the alignment is rejected.  A data column must not fall
+      // back to the unaligned source value.
+      bool rawNotExposed =
+          pRealTable->timeAlignRowOrder
+              ? (i < pMeta->tableInfo.numOfColumns)
+              : (i < pMeta->tableInfo.numOfColumns && !timeAlignIsPrimTsSchema(&pMeta->schema[i]));
+      if (pRealTable->pAlignCols != NULL && !pRealTable->outputRaw && rawNotExposed) {
+        return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+      }
       SSchemaExt* pSchemaExt =
           pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
       setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns), pCol,
                             pSchemaExt);
-      setColumnPrimTs(pCxt, pCol, pTable);
+      if (!pRealTable->timeAlignRowOrder) {
+        setColumnPrimTs(pCxt, pCol, pTable);
+      }
       *pFound = true;
       break;
     }
@@ -3124,7 +3309,9 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
                 pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
             setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i,
                                   (i - pMeta->tableInfo.numOfColumns), pCol, pSchemaExt);
-            setColumnPrimTs(pCxt, pCol, pTable);
+            if (!pRealTable->timeAlignRowOrder) {
+              setColumnPrimTs(pCxt, pCol, pTable);
+            }
             *pFound = true;
             break;
           }
@@ -3155,7 +3342,9 @@ static int32_t findAndSetRealTableColumn(STranslateContext* pCxt, SColumnNode** 
                 pMeta->schemaExt ? (i >= pMeta->tableInfo.numOfColumns ? NULL : (pMeta->schemaExt + i)) : NULL;
             setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i - pMeta->tableInfo.numOfColumns),
                                   pCol, pSchemaExt);
-            setColumnPrimTs(pCxt, pCol, pTable);
+            if (!pRealTable->timeAlignRowOrder) {
+              setColumnPrimTs(pCxt, pCol, pTable);
+            }
             *pFound = true;
             break;
           }
@@ -3181,37 +3370,56 @@ static bool preferExplicitAliasOverImplicitFunction(SExprNode** ppFoundExpr, SEx
   return true;
 }
 
-// True when a subquery's FROM clause reads an external source, directly or
-// through a join.  External tables keep the source's folded column names
-// (Oracle: upper case), and unquoted references resolve case-insensitively
-// against them; that tolerance must survive one level of derived table
-// ("SELECT * FROM src.t" as a JOIN leg), where the projections carry the
-// remote spelling.
-static bool tableNodeReadsExternal(const SNode* pTable) {
+// Source type of the external table(s) a subquery's FROM clause reads,
+// directly or through a join.
+//   >= 0 : exactly one external source type
+//   -1   : no external source
+//   -2   : several external source types (the caller uses exact comparison)
+//
+// A derived table ("SELECT * FROM src.t" as a JOIN leg) carries the source's
+// column spellings in its projections, so an outer reference must be compared
+// with the same rule the source uses: extColumnNameEqual() for a single type,
+// byte-exact comparison when the legs disagree.
+static int8_t tableNodeExternalSourceType(const SNode* pTable) {
   if (NULL == pTable) {
-    return false;
+    return -1;
   }
   switch (nodeType(pTable)) {
-    case QUERY_NODE_REAL_TABLE:
-      return ((const SRealTableNode*)pTable)->pExtTableNode != NULL;
-    case QUERY_NODE_JOIN_TABLE:
-      return tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pLeft) ||
-             tableNodeReadsExternal(((const SJoinTableNode*)pTable)->pRight);
+    case QUERY_NODE_REAL_TABLE: {
+      const SRealTableNode* pReal = (const SRealTableNode*)pTable;
+      if (NULL == pReal->pExtTableNode) {
+        return -1;
+      }
+      return ((const SExtTableNode*)pReal->pExtTableNode)->sourceType;
+    }
+    case QUERY_NODE_JOIN_TABLE: {
+      int8_t left = tableNodeExternalSourceType(((const SJoinTableNode*)pTable)->pLeft);
+      int8_t right = tableNodeExternalSourceType(((const SJoinTableNode*)pTable)->pRight);
+      if (left < 0) {
+        return right;
+      }
+      if (right < 0) {
+        return left;
+      }
+      return (left == right) ? left : -2;
+    }
     case QUERY_NODE_TEMP_TABLE: {
       const SNode* pSub = ((const STempTableNode*)pTable)->pSubquery;
-      return (NULL != pSub && QUERY_NODE_SELECT_STMT == nodeType(pSub) &&
-              tableNodeReadsExternal(((const SSelectStmt*)pSub)->pFromTable));
+      if (NULL == pSub || QUERY_NODE_SELECT_STMT != nodeType(pSub)) {
+        return -1;
+      }
+      return tableNodeExternalSourceType(((const SSelectStmt*)pSub)->pFromTable);
     }
     default:
-      return false;
+      return -1;
   }
 }
 
-static bool tempTableSubqueryReadsExternal(const SNode* pSubquery) {
+static int8_t tempTableSubqueryExternalSourceType(const SNode* pSubquery) {
   if (NULL == pSubquery || QUERY_NODE_SELECT_STMT != nodeType(pSubquery)) {
-    return false;
+    return -1;
   }
-  return tableNodeReadsExternal(((const SSelectStmt*)pSubquery)->pFromTable);
+  return tableNodeExternalSourceType(((const SSelectStmt*)pSubquery)->pFromTable);
 }
 
 static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** pColRef, STableNode* pTable,
@@ -3224,6 +3432,36 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
   SExprNode*      pFoundExpr = NULL;
   SExprNode*      pFirstTsExpr = NULL;
   bool            foundPrimTs = false;
+
+  if (pTempTable->pAlignCols != NULL) {
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTempTable->pAlignCols); ++i) {
+      const SAlignOutCol* pOut = taosArrayGet(pTempTable->pAlignCols, i);
+      if (0 != strcasecmp(pCol->colName, pOut->outName)) continue;
+
+      SExprNode* pSrcExpr = NULL;
+      FOREACH(pNode, pProjectList) {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        if (0 == strcasecmp(pExpr->aliasName, pOut->srcName)) {
+          pSrcExpr = pExpr;
+          break;
+        }
+      }
+      if (pSrcExpr == NULL) {
+        return TSDB_CODE_PAR_INVALID_COLUMN;
+      }
+      code = setColumnInfoByExpr(pTempTable, pSrcExpr, pColRef, SQL_CLAUSE_FROM != pCxt->currClause);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+      tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+      tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+      pCol->isAlignOut = true;
+      pCol->alignMethod = pOut->method;
+      setTimeAlignOutSpan(pCol, pOut);
+      *pFound = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
   FOREACH(pNode, pProjectList) {
     SExprNode* pExpr = (SExprNode*)pNode;
     if (0 == strcmp(pCol->colName, pExpr->aliasName)) {
@@ -3248,17 +3486,24 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
       pFirstTsExpr = pExpr;
     }
   }
-  // External-source projections carry the source's folded column names, so an
-  // unquoted reference (folded to lower case by the parser) must still match
-  // them - the same tolerance translateExternalTableImpl gives a direct
-  // reference.  Two columns differing only in case stay ambiguous.
-  if (!*pFound && tempTableSubqueryReadsExternal(pTempTable->pSubquery)) {
+  // External-source projections carry the source's column spellings, so an
+  // outer reference must be compared with that source's identifier rule - the
+  // same rule translateExternalTableImpl gives a direct reference.  A single
+  // external type goes through extColumnNameEqual() (MySQL / SQL Server fold
+  // case; PostgreSQL, InfluxDB and Oracle are byte-exact); a mixed-source
+  // derived table falls back to exact comparison instead of guessing.
+  int8_t extSourceType = tempTableSubqueryExternalSourceType(pTempTable->pSubquery);
+  if (!*pFound && extSourceType != -1) {
     SExprNode* pCiMatch = NULL;
     int32_t    ciMatches = 0;
     SNode*     pCiNode = NULL;
     FOREACH(pCiNode, pProjectList) {
       SExprNode* pCiExpr = (SExprNode*)pCiNode;
-      if (0 == strcasecmp(pCol->colName, pCiExpr->aliasName)) {
+      bool       match = (extSourceType >= 0)
+                             ? extColumnNameEqual((EExtSourceType)extSourceType, pCol->colName,
+                                                  pCiExpr->aliasName)
+                             : (0 == strcmp(pCol->colName, pCiExpr->aliasName));
+      if (match) {
         pCiMatch = pCiExpr;
         ++ciMatches;
       }
@@ -3297,6 +3542,15 @@ static int32_t findAndSetTempTableColumn(STranslateContext* pCxt, SColumnNode** 
     }
   }
   if (pFoundExpr) {
+    // TIME_ALIGN on a view has no primary timestamp column: with
+    // output_raw=FALSE only the aligned columns are exposed; tag columns stay
+    // available for grouping and filtering, matching the direct super-table
+    // rules.  Every other view column must be named by a column definition.
+    bool foundIsTag = QUERY_NODE_COLUMN == nodeType((SNode*)pFoundExpr) &&
+                      COLUMN_TYPE_TAG == ((SColumnNode*)pFoundExpr)->colType;
+    if (pTempTable->pAlignCols != NULL && !pTempTable->outputRaw && !foundIsTag) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
+    }
     code = setColumnInfoByExpr(pTempTable, pFoundExpr, pColRef, SQL_CLAUSE_FROM != pCxt->currClause);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
@@ -7841,7 +8095,148 @@ _return:
   return code;
 }
 
+static bool streamPartitionHasTbname(SNodeList* pPartitionByList);
+
+static SRealTableNode* streamDerivativeSource(SSelectStmt* pSelect) {
+  SNode* pTable = pSelect->pFromTable;
+  while (pTable != NULL && nodeType(pTable) == QUERY_NODE_TEMP_TABLE) {
+    SNode* pQuery = ((STempTableNode*)pTable)->pSubquery;
+    if (nodeType(pQuery) != QUERY_NODE_SELECT_STMT) return NULL;
+    SSelectStmt* pSub = (SSelectStmt*)pQuery;
+    if (pSub->hasAggFuncs || pSub->hasIndefiniteRowsFunc || pSub->pGroupByList || pSub->pWindow || pSub->isDistinct) {
+      return NULL;
+    }
+    pTable = pSub->pFromTable;
+  }
+  return pTable != NULL && nodeType(pTable) == QUERY_NODE_REAL_TABLE ? (SRealTableNode*)pTable : NULL;
+}
+
+static const SColumnNode* streamDerivativeTagOrigin(SSelectStmt* pSelect, const SColumnNode* pCol) {
+  SNode* pTable = pSelect->pFromTable;
+  if (nodeType(pTable) != QUERY_NODE_TEMP_TABLE) return pCol;
+  SNode* pQuery = ((STempTableNode*)pTable)->pSubquery;
+  if (nodeType(pQuery) != QUERY_NODE_SELECT_STMT) return NULL;
+  SSelectStmt* pSub = (SSelectStmt*)pQuery;
+  SNode*       pExpr = NULL;
+  FOREACH(pExpr, pSub->pProjectionList) {
+    if (nodeType(pExpr) == QUERY_NODE_COLUMN && strcmp(((SExprNode*)pExpr)->aliasName, pCol->colName) == 0) {
+      return streamDerivativeTagOrigin(pSub, (SColumnNode*)pExpr);
+    }
+  }
+  return NULL;
+}
+
+// Validate using the public DERIVATIVE contract, then bind an internal entry
+// that applies the frozen Tag unit before arithmetic and row selection.
+static EDealRes rewriteStreamDerivativeTag(STranslateContext* pCxt, SNode** ppNode) {
+  SFunctionNode*  pFunc = (SFunctionNode*)*ppNode;
+  SNode*          pTag = nodesListGetNode(pFunc->pParameterList, 1);
+  SRealTableNode* pTrigger = (SRealTableNode*)getStreamTriggerTable(pCxt);
+  SRealTableNode* pSource =
+      isSelectStmt(pCxt->pCurrStmt) ? streamDerivativeSource((SSelectStmt*)pCxt->pCurrStmt) : NULL;
+  if (!inStreamCalcClause(pCxt) || pTag == NULL || nodeType(pTag) != QUERY_NODE_COLUMN ||
+      ((SColumnNode*)pTag)->colType != COLUMN_TYPE_TAG || pTrigger == NULL || pTrigger->pMeta == NULL ||
+      (pTrigger->pMeta->tableType != TSDB_SUPER_TABLE && pTrigger->pMeta->tableType != TSDB_CHILD_TABLE) ||
+      pTrigger->pMeta->virtualStb || pTrigger->pExtTableNode || pSource == NULL ||
+      (pSource->placeholderType != SP_PARTITION_TBNAME && pSource->placeholderType != SP_PARTITION_ROWS) ||
+      (pTrigger->pMeta->tableType == TSDB_SUPER_TABLE && !streamPartitionHasTbname(getStreamTriggerPartition(pCxt))) ||
+      pFunc->pOver != NULL) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                  "DERIVATIVE time_interval tag requires a single native stream point partition");
+  }
+  int8_t type = ((SExprNode*)pTag)->resType.type;
+  if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_VARCHAR && type != TSDB_DATA_TYPE_NCHAR) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "derivative");
+  }
+
+  int32_t            code = TSDB_CODE_SUCCESS;
+  int32_t            precision = pTrigger->pMeta->tableInfo.precision;
+  const SColumnNode* pOrigin = streamDerivativeTagOrigin((SSelectStmt*)pCxt->pCurrStmt, (SColumnNode*)pTag);
+  SNode*             pUnit = NULL;
+  SNode*             pPrecision = NULL;
+  SNodeList*         pParams = NULL;
+  SFunctionNode*     pFactor = NULL;
+  SListCell*         pRateCell = NULL;
+  if (pOrigin == NULL || pOrigin->colType != COLUMN_TYPE_TAG || pOrigin->colId == 0) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_FUNC_FUNTION_PARA_TYPE, "derivative");
+  }
+  SNode* pRef = NULL;
+  PAR_ERR_JRET(nodesCloneNode((SNode*)pOrigin, &pRef));
+  code = nodesListMakeStrictAppend(&pCxt->streamInfo.derivativeTagCols, pRef);
+  PAR_ERR_JRET(code);
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt64(TSDB_TICK_PER_SECOND(precision), &pUnit));
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt32(precision, &pPrecision));
+  // Only the tag is needed by the scalar conversion; preserve its original type.
+  SNode* pTagCopy = NULL;
+  PAR_ERR_JRET(nodesCloneNode(pTag, &pTagCopy));
+  code = nodesListMakeStrictAppend(&pParams, pTagCopy);
+  PAR_ERR_JRET(code);
+  code = nodesListMakeStrictAppend(&pParams, pPrecision);
+  pPrecision = NULL;
+  PAR_ERR_JRET(code);
+  SListCell* pCell = nodesListGetCell(pFunc->pParameterList, 1);
+  nodesDestroyNode(pCell->pNode);
+  pCell->pNode = pUnit;
+  pUnit = NULL;
+  if (translateFunction(pCxt, (SFunctionNode**)ppNode) == DEAL_RES_ERROR) {
+    code = pCxt->errCode;
+    goto _return;
+  }
+  // Restore the translated Tag for the internal calculation. Snapshot rewriting
+  // below freezes both this unit and the diagnostic scalar's copy together.
+  PAR_ERR_JRET(nodesCloneNode(nodesListGetNode(pParams, 0), &pUnit));
+  SOperatorNode* pAssign = NULL;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pAssign));
+  pAssign->node.resType = ((SExprNode*)pUnit)->resType;
+  pAssign->opType = OP_TYPE_ASSIGN;
+  pAssign->pRight = pUnit;
+  pUnit = (SNode*)pAssign;
+  PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_LEFT_VALUE, &pAssign->pLeft));
+  // Materialize the pseudo-column through the existing precalculation path.
+  // Vector functions receive physical columns or literals as their inputs.
+  nodesDestroyNode(pCell->pNode);
+  pCell->pNode = pUnit;
+  pUnit = NULL;
+  PAR_ERR_JRET(nodesMakeValueNodeFromInt32(precision, &pPrecision));
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrecision);
+  pPrecision = NULL;
+  PAR_ERR_JRET(code);
+  tstrncpy(pFunc->functionName, "_stream_derivative", sizeof(pFunc->functionName));
+  PAR_ERR_JRET(getFuncInfo(pCxt, pFunc));
+  PAR_ERR_JRET(nodesListMakeAppend(&pParams, (SNode*)pFunc));
+  pRateCell = nodesListGetCell(pParams, 2);
+  SValueNode* pTagName = NULL;
+  PAR_ERR_JRET(nodesMakeValueNodeFromString(((SColumnNode*)pRef)->colName, &pTagName));
+  PAR_ERR_JRET(nodesListMakeStrictAppend(&pParams, (SNode*)pTagName));
+  PAR_ERR_JRET(createFunction("_stream_derivative_factor", pParams, &pFactor));
+  pParams = NULL;
+  pFactor->node = pFunc->node;
+  pFunc->node.pAssociation = NULL;
+  snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "__stream_rate_%p", (void*)pFunc);
+  *ppNode = (SNode*)pFactor;
+  return DEAL_RES_CONTINUE;
+
+_return:
+  nodesDestroyNode(pUnit);
+  nodesDestroyNode(pPrecision);
+  // The original function is still owned by the AST on construction failure.
+  if (pRateCell != NULL) pRateCell->pNode = NULL;
+  nodesDestroyList(pParams);
+  nodesDestroyNode((SNode*)pFactor);
+  pCxt->errCode = code;
+  return DEAL_RES_ERROR;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode** pFunc) {
+  if (0 == strcasecmp((*pFunc)->functionName, "_stream_derivative_factor") ||
+      0 == strcasecmp((*pFunc)->functionName, "_stream_derivative")) {
+    return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, (*pFunc)->functionName);
+  }
+  if (inStreamCalcClause(pCxt) && 0 == strcasecmp((*pFunc)->functionName, "derivative") &&
+      LIST_LENGTH((*pFunc)->pParameterList) == 3 &&
+      nodeType(nodesListGetNode((*pFunc)->pParameterList, 1)) != QUERY_NODE_VALUE) {
+    return rewriteStreamDerivativeTag(pCxt, (SNode**)pFunc);
+  }
   SNode* pParam = NULL;
   if (strcmp((*pFunc)->functionName, "tbname") == 0 && (*pFunc)->pParameterList != NULL) {
     pParam = nodesListGetNode((*pFunc)->pParameterList, 0);
@@ -11555,12 +11950,12 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
                                     dbName, schemaName, pColRef->refTableName, false, &pExtMeta));
   ownsExtMeta = (NULL != pExtMeta);
 
-  // Oracle resolves a path segment by folding it (DS 5.3.6 R1), and the folded
-  // spelling is what the data dictionary was searched with.  The rendered
-  // statement has to use that same spelling (DS 9.5), so the resolved schema -
-  // not the raw reference text - is what the external node carries.  Without
-  // this, `src.taosdata.emp` would be looked up as TAOSDATA and then queried as
-  // "taosdata"."EMP", which names nothing.
+  // Oracle resolves a path segment exactly (DS 5.3.6 R1): the connector binds
+  // the TDengine-resolved spelling to the data dictionary, so the resolved
+  // schema echoed back by the connector is what the external node and the
+  // rendered statement must carry (DS 9.5).  Under exact matching this is the
+  // same text the reference supplied; keeping the echo also covers the
+  // connector's canonical spelling.
   if (isOracle && NULL != pExtMeta && '\0' != pExtMeta->schemaName[0]) {
     schemaName = pExtMeta->schemaName;
   }
@@ -14216,14 +14611,188 @@ _return:
   return code;
 }
 
+static bool timeAlignIsPrimTsSchema(const SSchema* pSchema) {
+  return pSchema->colId == PRIMARYKEY_TIMESTAMP_COL_ID;
+}
+
+static void setTimeAlignOutSpan(SColumnNode* pCol, const SAlignOutCol* pOut) {
+  pCol->alignHasSpan = pOut->hasSpan;
+  pCol->alignSpanValue = pOut->spanValue;
+  pCol->alignSpanUnit = pOut->spanUnit;
+}
+
+// Parsed PREV/NEXT method segment: the method name plus its optional time-range
+// parameter (FS 4.2 note 11).  spanUnit is normalized to lower case; q is
+// folded into 3 months so the executor only handles n/y as calendar units.
+typedef struct STimeAlignMethod {
+  int8_t  method;
+  bool    hasSpan;
+  int64_t spanValue;
+  char    spanUnit;
+} STimeAlignMethod;
+
+static bool timeAlignIsDurationUnit(char unit) {
+  switch (unit) {
+    case 'b': case 'B':
+    case 'u': case 'U':
+    case 'a': case 'A':
+    case 's': case 'S':
+    case 'm': case 'M':
+    case 'h': case 'H':
+    case 'd': case 'D':
+    case 'w': case 'W':
+    case 'n': case 'N':
+    case 'q': case 'Q':
+    case 'y': case 'Y':
+      return true;
+    default:
+      return false;
+  }
+}
+
+// Strict duration literal: optional blanks, one or more decimal digits, exactly
+// one unit character, optional blanks.  Negative values, fractions, compound
+// durations and a missing unit are rejected (FS 4.2 note 11).
+static int32_t parseTimeAlignDuration(STranslateContext* pCxt, const char* pStart, const char* pEnd,
+                                      const char* methodText, int64_t* pValue, char* pUnit) {
+  while (pStart < pEnd && (*pStart == ' ' || *pStart == '\t')) ++pStart;
+  while (pEnd > pStart && (pEnd[-1] == ' ' || pEnd[-1] == '\t')) --pEnd;
+  if (pStart >= pEnd) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "TIME_ALIGN: invalid time range in method '%s'", methodText);
+  }
+
+  int64_t value = 0;
+  bool    hasDigit = false;
+  const char* p = pStart;
+  while (p < pEnd && *p >= '0' && *p <= '9') {
+    int32_t digit = *p - '0';
+    if (value > (INT64_MAX - digit) / 10) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: time range in method '%s' is out of range", methodText);
+    }
+    value = value * 10 + digit;
+    hasDigit = true;
+    ++p;
+  }
+  if (!hasDigit || p >= pEnd || !timeAlignIsDurationUnit(*p)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "TIME_ALIGN: invalid time range in method '%s'", methodText);
+  }
+
+  char unit = (char)tolower((unsigned char)*p);
+  ++p;
+  while (p < pEnd && (*p == ' ' || *p == '\t')) ++p;
+  if (p != pEnd) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "TIME_ALIGN: invalid time range in method '%s'", methodText);
+  }
+
+  if (unit == 'q') {
+    // A quarter is three months; keep the same encoding as parseNatualDuration().
+    if (value > INT64_MAX / 3) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: time range in method '%s' is out of range", methodText);
+    }
+    value *= 3;
+    unit = 'n';
+  }
+
+  *pValue = value;
+  *pUnit = unit;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Parse one method segment.  Accepted forms: empty (default PREV), PREV, NEXT,
+// PREV(duration), NEXT(duration).  The parentheses are part of the method
+// segment and do not add a column-definition segment.
+static int32_t parseTimeAlignMethod(STranslateContext* pCxt, const char* token, STimeAlignMethod* pResult) {
+  pResult->method = ALIGN_METHOD_PREV;
+  pResult->hasSpan = false;
+  pResult->spanValue = 0;
+  pResult->spanUnit = 0;
+
+  if (token == NULL || token[0] == '\0') {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t      len = strlen(token);
+  const char* pOpen = strchr(token, '(');
+  const char* pNameEnd = NULL;
+  if (pOpen == NULL) {
+    if (strchr(token, ')') != NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: unknown method '%s'", token);
+    }
+    pNameEnd = token + len;
+  } else {
+    if (pOpen == token || token[len - 1] != ')' || pOpen == token + len - 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: invalid time range in method '%s'", token);
+    }
+    // Exactly one pair of parentheses.
+    if (strchr(pOpen + 1, '(') != NULL || strchr(pOpen + 1, ')') != token + len - 1) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: invalid time range in method '%s'", token);
+    }
+    pNameEnd = pOpen;
+    while (pNameEnd > token && (pNameEnd[-1] == ' ' || pNameEnd[-1] == '\t')) --pNameEnd;
+    if (pNameEnd == token) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "TIME_ALIGN: invalid time range in method '%s'", token);
+    }
+  }
+
+  size_t nameLen = (size_t)(pNameEnd - token);
+  if (nameLen == 4 && 0 == strncasecmp(token, "PREV", 4)) {
+    pResult->method = ALIGN_METHOD_PREV;
+  } else if (nameLen == 4 && 0 == strncasecmp(token, "NEXT", 4)) {
+    pResult->method = ALIGN_METHOD_NEXT;
+  } else {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "TIME_ALIGN: unknown method '%s'", token);
+  }
+
+  if (pOpen != NULL) {
+    int32_t code = parseTimeAlignDuration(pCxt, pOpen + 1, token + len - 1, token, &pResult->spanValue,
+                                          &pResult->spanUnit);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pResult->hasSpan = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static const SSchema* findTimeAlignDataCol(const STableMeta* pMeta, const char* name, int32_t* pIdx) {
-  for (int32_t i = 1; i < pMeta->tableInfo.numOfColumns; ++i) {
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    if (timeAlignIsPrimTsSchema(&pMeta->schema[i])) continue;
     if (0 == strcasecmp(pMeta->schema[i].name, name)) {
       *pIdx = i;
       return &pMeta->schema[i];
     }
   }
   return NULL;
+}
+
+static const SSchema* findTimeAlignPrimTs(const STableMeta* pMeta) {
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    if (timeAlignIsPrimTsSchema(&pMeta->schema[i])) return &pMeta->schema[i];
+  }
+  return NULL;
+}
+
+// A synthetic external STableMeta always promotes a TIMESTAMP column to the
+// synthetic primary key, even when the remote table declares no primary key.
+// TIME_ALIGN on such an input follows view semantics (output row order, no
+// implicit time axis); only a real remote primary key keeps table semantics.
+static bool externalTimeAlignRowOrder(const SRealTableNode* pTable) {
+  if (pTable->pExtTableNode == NULL) return false;
+  const SExtTableNode* pExt = (const SExtTableNode*)pTable->pExtTableNode;
+  const SExtTableMeta* pExtMeta = pExt->pExtMeta;
+  if (pExtMeta == NULL || pExtMeta->pCols == NULL) return false;
+  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+    if (pExtMeta->pCols[i].isRemotePrimaryKey) return false;
+  }
+  return true;
 }
 
 static const char* trimTimeAlignToken(const char* pStart, const char* pEnd, char* pBuf, size_t bufLen) {
@@ -14301,46 +14870,62 @@ static bool timeAlignNameIsTag(const STableMeta* pMeta, const char* name) {
   return false;
 }
 
-static int32_t appendTimeAlignCol(STranslateContext* pCxt, SVirtualTableNode* pVTable, const SSchema* pSchema,
-                                  const char* suffix) {
+static int32_t appendTimeAlignCol(STranslateContext* pCxt, const STableMeta* pMeta, SArray* pAlignCols,
+                                  bool outputRaw, bool rowOrder, const SSchema* pSchema, const char* suffix,
+                                  const STimeAlignMethod* pMethod) {
   char          outName[TSDB_COL_NAME_LEN];
   int32_t       n = snprintf(outName, sizeof(outName), "%s%s", pSchema->name, suffix);
   if (n < 0 || n >= (int32_t)sizeof(outName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
                                    "TIME_ALIGN: output column name is too long");
   }
-  if (timeAlignOutNameExists(pVTable->pAlignCols, outName)) {
+  if (timeAlignOutNameExists(pAlignCols, outName)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
                                    "TIME_ALIGN: duplicate output column '%s'", outName);
   }
   // FS 4.4.3: the final aligned name must not collide with any tag, with a
   // raw data column when raw output is requested, or with the always-output
-  // primary timestamp column.
-  if (timeAlignNameIsTag(pVTable->pMeta, outName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
-                                   "TIME_ALIGN: output column '%s' conflicts with a tag column", outName);
-  }
-  if (pVTable->outputRaw && timeAlignNameIsDataCol(pVTable->pMeta, outName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
-                                   "TIME_ALIGN: output column '%s' conflicts with an original column", outName);
-  }
-  if (pVTable->pMeta->tableInfo.numOfColumns > 0 &&
-      0 == strcasecmp(pVTable->pMeta->schema[0].name, outName)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
-                                   "TIME_ALIGN: output column '%s' conflicts with the primary timestamp column",
-                                   outName);
+  // primary timestamp column.  Row-order input has no forced timestamp and
+  // follows the view rules: only raw output columns can collide.
+  if (rowOrder) {
+    if (outputRaw && timeAlignNameIsDataCol(pMeta, outName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                     "TIME_ALIGN: output column '%s' conflicts with an original column", outName);
+    }
+  } else {
+    if (timeAlignNameIsTag(pMeta, outName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                     "TIME_ALIGN: output column '%s' conflicts with a tag column", outName);
+    }
+    if (outputRaw && timeAlignNameIsDataCol(pMeta, outName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                     "TIME_ALIGN: output column '%s' conflicts with an original column", outName);
+    }
+    const SSchema* pPrimTs = findTimeAlignPrimTs(pMeta);
+    if (pPrimTs != NULL && 0 == strcasecmp(pPrimTs->name, outName)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                     "TIME_ALIGN: output column '%s' conflicts with the primary timestamp column",
+                                     outName);
+    }
   }
   SAlignOutCol col = {0};
   col.srcColId = pSchema->colId;
+  col.method = pMethod->method;
+  // Row-order input has no time axis for a range parameter: accepted
+  // syntactically, but has no effect (same as view input).
+  col.hasSpan = rowOrder ? false : pMethod->hasSpan;
+  col.spanValue = rowOrder ? 0 : pMethod->spanValue;
+  col.spanUnit = rowOrder ? 0 : pMethod->spanUnit;
+  tstrncpy(col.srcName, pSchema->name, sizeof(col.srcName));
   tstrncpy(col.outName, outName, sizeof(col.outName));
-  if (NULL == taosArrayPush(pVTable->pAlignCols, &col)) {
+  if (NULL == taosArrayPush(pAlignCols, &col)) {
     return terrno;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildTimeAlignCols(STranslateContext* pCxt, SVirtualTableNode* pVTable, bool outputRaw,
-                                  const char* pColumnList) {
+static int32_t buildTimeAlignCols(STranslateContext* pCxt, const STableMeta* pMeta, SArray** ppAlignCols,
+                                  bool* pOutputRaw, bool outputRaw, const char* pColumnList, bool rowOrder) {
   int32_t code = TSDB_CODE_SUCCESS;
   // FS 4.2 note 6: an explicitly supplied empty string is invalid; only an
   // omitted column definition defaults to '*:PREV:'.
@@ -14353,9 +14938,9 @@ static int32_t buildTimeAlignCols(STranslateContext* pCxt, SVirtualTableNode* pV
   const char* pCur = pList;
   const char* pListEnd = pList + listLen;
 
-  pVTable->pAlignCols = taosArrayInit(4, sizeof(SAlignOutCol));
-  if (pVTable->pAlignCols == NULL) return terrno;
-  pVTable->outputRaw = outputRaw;
+  *ppAlignCols = taosArrayInit(4, sizeof(SAlignOutCol));
+  if (*ppAlignCols == NULL) return terrno;
+  *pOutputRaw = outputRaw;
 
   while (pCur < pListEnd) {
     bool        badQuote = false;
@@ -14406,48 +14991,59 @@ static int32_t buildTimeAlignCols(STranslateContext* pCxt, SVirtualTableNode* pV
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "TIME_ALIGN: missing column name");
     }
-    if (method[0] != '\0' && 0 != strcasecmp(method, "PREV")) {
-      if (0 == strcasecmp(method, "NEXT")) {
-        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                       "TIME_ALIGN: method NEXT is not supported yet");
-      }
-      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
-                                     "TIME_ALIGN: unknown method '%s'", method);
-    }
+    STimeAlignMethod alignMethod = {0};
+    PAR_ERR_JRET(parseTimeAlignMethod(pCxt, method, &alignMethod));
     if (strchr(suffix, ':') != NULL || strchr(suffix, ';') != NULL) {
       return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                      "TIME_ALIGN: suffix must not contain ':' or ';'");
     }
 
     if (0 == strcmp(colName, "*")) {
-      for (int32_t i = 1; i < pVTable->pMeta->tableInfo.numOfColumns; ++i) {
-        PAR_ERR_JRET(appendTimeAlignCol(pCxt, pVTable, &pVTable->pMeta->schema[i], suffix));
+      for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+        if (!rowOrder && timeAlignIsPrimTsSchema(&pMeta->schema[i])) continue;
+        PAR_ERR_JRET(appendTimeAlignCol(pCxt, pMeta, *ppAlignCols, *pOutputRaw, rowOrder, &pMeta->schema[i], suffix,
+                                        &alignMethod));
       }
     } else {
       int32_t         idx = -1;
-      const SSchema* pSchema = findTimeAlignDataCol(pVTable->pMeta, colName, &idx);
-      if (pSchema == NULL) {
-        for (int32_t i = pVTable->pMeta->tableInfo.numOfColumns;
-             i < pVTable->pMeta->tableInfo.numOfColumns + pVTable->pMeta->tableInfo.numOfTags; ++i) {
-          if (0 == strcasecmp(pVTable->pMeta->schema[i].name, colName)) {
-            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                           "TIME_ALIGN: tag column '%s' cannot be interpolated", colName);
+      const SSchema* pSchema = NULL;
+      if (rowOrder) {
+        for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+          if (0 == strcasecmp(pMeta->schema[i].name, colName)) {
+            pSchema = &pMeta->schema[i];
+            break;
           }
         }
-        if (0 == strcasecmp(pVTable->pMeta->schema[0].name, colName)) {
-          return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
-                                         "TIME_ALIGN: primary timestamp column '%s' cannot be interpolated", colName);
+      } else {
+        pSchema = findTimeAlignDataCol(pMeta, colName, &idx);
+      }
+      if (pSchema == NULL) {
+        if (!rowOrder) {
+          for (int32_t i = pMeta->tableInfo.numOfColumns;
+               i < pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags; ++i) {
+            if (0 == strcasecmp(pMeta->schema[i].name, colName)) {
+              return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                             "TIME_ALIGN: tag column '%s' cannot be interpolated", colName);
+            }
+          }
+          const SSchema* pPrimTs = findTimeAlignPrimTs(pMeta);
+          if (pPrimTs != NULL && 0 == strcasecmp(pPrimTs->name, colName)) {
+            return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                           "TIME_ALIGN: primary timestamp column '%s' cannot be interpolated",
+                                           colName);
+          }
         }
         return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
                                        "TIME_ALIGN: column '%s' does not exist", colName);
       }
-      PAR_ERR_JRET(appendTimeAlignCol(pCxt, pVTable, pSchema, suffix));
+      PAR_ERR_JRET(appendTimeAlignCol(pCxt, pMeta, *ppAlignCols, *pOutputRaw, rowOrder, pSchema, suffix,
+                                      &alignMethod));
     }
 
     pCur = (pSemi != NULL) ? pSemi + 1 : pListEnd;
   }
 
-  if (taosArrayGetSize(pVTable->pAlignCols) == 0) {
+  if (taosArrayGetSize(*ppAlignCols) == 0) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
                                    "TIME_ALIGN: column list is empty");
   }
@@ -14455,6 +15051,226 @@ static int32_t buildTimeAlignCols(STranslateContext* pCxt, SVirtualTableNode* pV
 
 _return:
   return code;
+}
+
+static SExprNode* findTempAlignProjection(SNodeList* pProjectList, const char* name) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pProjectList) {
+    SExprNode* pExpr = (SExprNode*)pNode;
+    if (0 == strcasecmp(pExpr->aliasName, name)) return pExpr;
+  }
+  return NULL;
+}
+
+static bool tempAlignOutNameIsProjection(SNodeList* pProjectList, const char* name) {
+  return findTempAlignProjection(pProjectList, name) != NULL;
+}
+
+static int32_t appendTempTimeAlignCol(STranslateContext* pCxt, SNodeList* pProjectList, SArray* pAlignCols,
+                                      bool outputRaw, SExprNode* pSrc, int32_t srcIdx, const char* suffix,
+                                      const STimeAlignMethod* pMethod) {
+  char    outName[TSDB_COL_NAME_LEN];
+  int32_t n = snprintf(outName, sizeof(outName), "%s%s", pSrc->aliasName, suffix);
+  if (n < 0 || n >= (int32_t)sizeof(outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                   "TIME_ALIGN: output column name is too long");
+  }
+  if (timeAlignOutNameExists(pAlignCols, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: duplicate output column '%s'", outName);
+  }
+  if (outputRaw && tempAlignOutNameIsProjection(pProjectList, outName)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN,
+                                   "TIME_ALIGN: output column '%s' conflicts with an original column", outName);
+  }
+  SAlignOutCol col = {0};
+  col.srcColId = srcIdx + 1;
+  col.method = pMethod->method;
+  // View input interpolates by output row order and has no time axis for a
+  // range parameter: accepted syntactically, but has no effect.
+  col.hasSpan = false;
+  col.spanValue = 0;
+  col.spanUnit = 0;
+  tstrncpy(col.srcName, pSrc->aliasName, sizeof(col.srcName));
+  tstrncpy(col.outName, outName, sizeof(col.outName));
+  if (NULL == taosArrayPush(pAlignCols, &col)) {
+    return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildTimeAlignColsForTempTable(STranslateContext* pCxt, SNodeList* pProjectList, SArray** ppAlignCols,
+                                              bool* pOutputRaw, bool outputRaw, const char* pColumnList) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pColumnList != NULL && pColumnList[0] == '\0') {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "TIME_ALIGN: empty column definition");
+  }
+  const char* pList = (pColumnList == NULL) ? "*:PREV:" : pColumnList;
+  const char* pCur = pList;
+  const char* pListEnd = pList + strlen(pList);
+
+  *ppAlignCols = taosArrayInit(4, sizeof(SAlignOutCol));
+  if (*ppAlignCols == NULL) return terrno;
+  *pOutputRaw = outputRaw;
+
+  while (pCur < pListEnd) {
+    bool        badQuote = false;
+    const char* pSemi = timeAlignScanSep(pCur, pListEnd, ';', &badQuote);
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+    const char* pEnd = (pSemi != NULL) ? pSemi : pListEnd;
+    if (pEnd == pCur || (pSemi != NULL && pSemi + 1 == pListEnd)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: empty column definition");
+    }
+    const char* pColon1 = timeAlignScanSep(pCur, pEnd, ':', &badQuote);
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+    const char* pColon2 = NULL;
+    if (pColon1 != NULL) {
+      pColon2 = timeAlignScanSep(pColon1 + 1, pEnd, ':', &badQuote);
+      if (badQuote) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                       "TIME_ALIGN: unterminated quoted identifier");
+      }
+    }
+    if (pColon2 != NULL && timeAlignScanSep(pColon2 + 1, pEnd, ':', &badQuote) != NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: suffix must not contain ':'");
+    }
+    if (badQuote) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: unterminated quoted identifier");
+    }
+
+    char colName[TSDB_COL_NAME_LEN] = {0};
+    char method[TSDB_COL_NAME_LEN] = {0};
+    char suffix[TSDB_COL_NAME_LEN] = {0};
+    trimTimeAlignToken(pCur, pColon1 != NULL ? pColon1 : pEnd, colName, sizeof(colName));
+    if (pColon1 != NULL) {
+      trimTimeAlignToken(pColon1 + 1, pColon2 != NULL ? pColon2 : pEnd, method, sizeof(method));
+    }
+    if (pColon2 != NULL) {
+      trimTimeAlignToken(pColon2 + 1, pEnd, suffix, sizeof(suffix));
+    }
+    if (colName[0] == '\0') {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: missing column name");
+    }
+    STimeAlignMethod alignMethod = {0};
+    PAR_ERR_JRET(parseTimeAlignMethod(pCxt, method, &alignMethod));
+    if (strchr(suffix, ':') != NULL || strchr(suffix, ';') != NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                     "TIME_ALIGN: suffix must not contain ':' or ';'");
+    }
+
+    if (0 == strcmp(colName, "*")) {
+      int32_t idx = 0;
+      SNode*  pNode = NULL;
+      FOREACH(pNode, pProjectList) {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        PAR_ERR_JRET(appendTempTimeAlignCol(pCxt, pProjectList, *ppAlignCols, *pOutputRaw, pExpr, idx, suffix,
+                                            &alignMethod));
+        ++idx;
+      }
+    } else {
+      int32_t idx = 0;
+      SExprNode* pSrc = NULL;
+      SNode* pNode = NULL;
+      FOREACH(pNode, pProjectList) {
+        SExprNode* pExpr = (SExprNode*)pNode;
+        if (0 == strcasecmp(pExpr->aliasName, colName)) {
+          pSrc = pExpr;
+          break;
+        }
+        ++idx;
+      }
+      if (pSrc == NULL) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN,
+                                       "TIME_ALIGN: column '%s' does not exist", colName);
+      }
+      PAR_ERR_JRET(appendTempTimeAlignCol(pCxt, pProjectList, *ppAlignCols, *pOutputRaw, pSrc, idx, suffix,
+                                          &alignMethod));
+    }
+
+    pCur = (pSemi != NULL) ? pSemi + 1 : pListEnd;
+  }
+
+  if (taosArrayGetSize(*ppAlignCols) == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                   "TIME_ALIGN: column list is empty");
+  }
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  return code;
+}
+
+static int32_t createColumnsByTempTimeAlignTable(STranslateContext* pCxt, const STempTableNode* pTable,
+                                                 SNodeList* pList) {
+  int32_t    code = TSDB_CODE_SUCCESS;
+  SColumnNode* pCol = NULL;
+  SNodeList* pProjectList = getProjectList(pTable->pSubquery);
+
+  // Views follow output order: there is no primary timestamp column and no
+  // forced ts output.  output_raw=TRUE exposes the view's output columns in
+  // view order, followed by the aligned columns.
+  if (pTable->outputRaw) {
+    SNode* pNode = NULL;
+    FOREACH(pNode, pProjectList) {
+      SExprNode* pExpr = (SExprNode*)pNode;
+      PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+      PAR_ERR_JRET(setColumnInfoByExpr((STempTableNode*)pTable, pExpr, &pCol, true));
+      pCol->projRefIdx = pExpr->projIdx;
+      PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+      pCol = NULL;
+    }
+  }
+
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+    SExprNode*          pSrc = findTempAlignProjection(pProjectList, pOut->srcName);
+    if (pSrc == NULL) {
+      PAR_ERR_JRET(TSDB_CODE_PAR_INVALID_COLUMN);
+    }
+    PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol));
+    PAR_ERR_JRET(setColumnInfoByExpr((STempTableNode*)pTable, pSrc, &pCol, true));
+    tstrncpy(pCol->colName, pOut->outName, sizeof(pCol->colName));
+    tstrncpy(pCol->node.aliasName, pOut->outName, sizeof(pCol->node.aliasName));
+    tstrncpy(pCol->node.userAlias, pOut->outName, sizeof(pCol->node.userAlias));
+    pCol->colType = COLUMN_TYPE_COLUMN;
+    pCol->isAlignOut = true;
+    pCol->isPrimTs = false;
+    pCol->isPk = false;
+    pCol->tableHasPk = false;
+    pCol->numOfPKs = 0;
+    pCol->alignMethod = pOut->method;
+    setTimeAlignOutSpan(pCol, pOut);
+    PAR_ERR_JRET(nodesListStrictAppend(pList, (SNode*)pCol));
+    pCol = NULL;
+  }
+  return code;
+
+_return:
+  nodesDestroyNode((SNode*)pCol);
+  return code;
+}
+
+static void markTempAlignKeepProjections(SNode* pStmt) {
+  if (pStmt == NULL) return;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    ((SSelectStmt*)pStmt)->keepAllProjections = true;
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pStmt)) {
+    SSetOperator* pSet = (SSetOperator*)pStmt;
+    for (int32_t i = 0; i < setOperatorChildCount(pSet); ++i) {
+      markTempAlignKeepProjections(setOperatorChildAt(pSet, i));
+    }
+  }
 }
 
 static int32_t translateTimeAlignTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
@@ -14474,12 +15290,19 @@ static int32_t translateTimeAlignTable(STranslateContext* pCxt, SNode** pTable, 
                                 "TIME_ALIGN is not supported in CREATE STREAM");
   }
 
-  code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal);
-  if (code != TSDB_CODE_SUCCESS) return code;
-  tstrncpy(pReal->table.dbName, pAlign->dbName, sizeof(pReal->table.dbName));
-  tstrncpy(pReal->table.tableName, pAlign->tbName, sizeof(pReal->table.tableName));
-  tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
-  pReal->numPathSegments = (pAlign->dbName[0] != '\0') ? 2 : 1;
+  if (pAlign->pRealTableNode != NULL) {
+    // Multi-segment external-source path parsed by the grammar.
+    pReal = (SRealTableNode*)pAlign->pRealTableNode;
+    pAlign->pRealTableNode = NULL;
+    tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
+  } else {
+    code = nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    tstrncpy(pReal->table.dbName, pAlign->dbName, sizeof(pReal->table.dbName));
+    tstrncpy(pReal->table.tableName, pAlign->tbName, sizeof(pReal->table.tableName));
+    tstrncpy(pReal->table.tableAlias, pAlign->table.tableAlias, sizeof(pReal->table.tableAlias));
+    pReal->numPathSegments = (pAlign->dbName[0] != '\0') ? 2 : 1;
+  }
 
   SNode* pInner = (SNode*)pReal;
   code = translateRealTable(pCxt, &pInner, inJoin);
@@ -14487,14 +15310,44 @@ static int32_t translateTimeAlignTable(STranslateContext* pCxt, SNode** pTable, 
     nodesDestroyNode(pInner);
     return code;
   }
-  if (nodeType(pInner) != QUERY_NODE_VIRTUAL_TABLE) {
+  if (nodeType(pInner) == QUERY_NODE_VIRTUAL_TABLE) {
+    SVirtualTableNode* pVTable = (SVirtualTableNode*)pInner;
+    code = buildTimeAlignCols(pCxt, pVTable->pMeta, &pVTable->pAlignCols, &pVTable->outputRaw, pAlign->outputRaw,
+                              pAlign->columnList, false);
+  } else if (nodeType(pInner) == QUERY_NODE_REAL_TABLE) {
+    SRealTableNode* pRealTable = (SRealTableNode*)pInner;
+    if (pRealTable->pMeta == NULL || TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+      nodesDestroyNode(pInner);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
+                                  "TIME_ALIGN does not support system tables");
+    }
+    bool rowOrder = externalTimeAlignRowOrder(pRealTable);
+    code = buildTimeAlignCols(pCxt, pRealTable->pMeta, &pRealTable->pAlignCols, &pRealTable->outputRaw,
+                              pAlign->outputRaw, pAlign->columnList, rowOrder);
+    if (TSDB_CODE_SUCCESS == code) {
+      pRealTable->timeAlignRowOrder = rowOrder;
+    }
+  } else if (nodeType(pInner) == QUERY_NODE_TEMP_TABLE) {
+    STempTableNode* pTempTable = (STempTableNode*)pInner;
+    SNodeList*      pProjectList = getProjectList(pTempTable->pSubquery);
+    if (pProjectList == NULL) {
+      nodesDestroyNode(pInner);
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
+                                  "TIME_ALIGN: view has no output columns");
+    }
+    code = buildTimeAlignColsForTempTable(pCxt, pProjectList, &pTempTable->pAlignCols, &pTempTable->outputRaw,
+                                          pAlign->outputRaw, pAlign->columnList);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Constant folding prunes unused subquery projections; keep the view's
+      // full output so the alignment Projection still sees its timestamp and
+      // source columns.
+      markTempAlignKeepProjections(pTempTable->pSubquery);
+    }
+  } else {
     nodesDestroyNode(pInner);
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TABLE_TYPE,
-                                "TIME_ALIGN only supports virtual tables in phase 1");
+                                "TIME_ALIGN does not support this table type");
   }
-
-  SVirtualTableNode* pVTable = (SVirtualTableNode*)pInner;
-  code = buildTimeAlignCols(pCxt, pVTable, pAlign->outputRaw, pAlign->columnList);
   if (code != TSDB_CODE_SUCCESS) {
     nodesDestroyNode(pInner);
     return code;
@@ -27944,6 +28797,10 @@ static int32_t createStreamReqBuildOutTable(STranslateContext* pCxt, SCreateStre
   (void)snprintf(pReq->outDB, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pParseCxt->acctId, pStmt->targetDbName);
 
   bool outStable = LIST_LENGTH(pTrigger->pPartitionList) > 0 || LIST_LENGTH(pTrigger->pRollupTagList) > 0;
+  if (pCxt->streamInfo.derivativeTagCols != NULL && pStmt->pTags == NULL) {
+    // An internal snapshot partition must not change a fixed child's output schema.
+    outStable = false;
+  }
   code = getTableMeta(pCxt, pStmt->targetDbName, pStmt->targetTabName, &pMeta);
   if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_PAR_INTERNAL_ERROR == code) {
     if (outStable) {
@@ -30172,8 +31029,34 @@ static int32_t createStreamReqBuildTriggerPlan(STranslateContext* pCxt, SCreateS
 
   // Default output TAGS must be derived from the user-facing PARTITION BY (e.g. tbname
   // only) before duration/count tags are injected for runtime group-col fetch.
-  PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
+  if (pCxt->streamInfo.derivativeTagCols == NULL) {
+    PAR_ERR_JRET(createStreamReqSetDefaultTag(pCxt, pStmt, pTriggerPartition, pTrigger->pRollupTagList, pReq));
+  }
   PAR_ERR_JRET(injectStreamDurationTagsIntoPartition(pStmt, pReq));
+  if (pCxt->streamInfo.derivativeInjectedCols != NULL) {
+    SNodeList* pSettable = NULL;
+    if (pReq->durationTagCols != NULL) {
+      code = nodesStringToList(pReq->durationTagCols, &pSettable);
+      if (code != TSDB_CODE_SUCCESS) {
+        nodesDestroyList(pSettable);
+        PAR_ERR_JRET(code);
+      }
+    }
+    SNode* pCol = NULL;
+    FOREACH(pCol, pCxt->streamInfo.derivativeInjectedCols) {
+      SNode* pCopy = NULL;
+      code = nodesCloneNode(pCol, &pCopy);
+      if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pSettable, pCopy);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      int32_t length = 0;
+      taosMemoryFreeClear(pReq->durationTagCols);
+      code = nodesListToString(pSettable, false, (char**)&pReq->durationTagCols, &length);
+    }
+    nodesDestroyList(pSettable);
+    PAR_ERR_JRET(code);
+  }
   pTriggerPartition = pTrigger->pPartitionList;
 
   PAR_ERR_JRET(createStreamReqBuildTriggerBuildPlan(pCxt, *pTriggerSelect, pReq, pTriggerSlotHash, pTriggerWindow,
@@ -30756,6 +31639,196 @@ static bool streamTableTreeHasExprSubqueryRef(SNode* pTable) {
   }
 }
 
+// Only DERIVATIVE unit references use the immutable group values carried by a
+// calculation request. The history context owns a separate copy from realtime.
+typedef struct SStreamDerivativeSnapshotCxt {
+  STranslateContext* pTrans;
+  SSelectStmt*       pSelect;
+  const char*        streamName;
+  int32_t            tbnameIndex;
+  int32_t            code;
+} SStreamDerivativeSnapshotCxt;
+
+static int32_t makeStreamDerivativePlaceholder(int32_t index, SDataType type, SFunctionNode** ppFunc) {
+  SNodeList* pParams = NULL;
+  SValueNode* pValue = NULL;
+  int32_t code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pValue);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  pValue->node.resType = type;
+  pValue->isNull = true;
+  pValue->notReserved = true;
+  code = nodesListMakeStrictAppend(&pParams, (SNode*)pValue);
+  if (code == TSDB_CODE_SUCCESS) code = nodesMakeValueNodeFromInt64(index, (SNode**)&pValue);
+  if (code == TSDB_CODE_SUCCESS) code = nodesListMakeStrictAppend(&pParams, (SNode*)pValue);
+  if (code == TSDB_CODE_SUCCESS) code = createFunction("_placeholder_column", pParams, ppFunc);
+  if (code != TSDB_CODE_SUCCESS) nodesDestroyList(pParams);
+  else (*ppFunc)->node.resType = type;
+  return code;
+}
+
+static EDealRes rewriteStreamDerivativeSnapshot(SNode** ppNode, void* pContext) {
+  SStreamDerivativeSnapshotCxt* pCxt = pContext;
+  if (nodeType(*ppNode) == QUERY_NODE_FUNCTION &&
+      ((SFunctionNode*)*ppNode)->funcType == FUNCTION_TYPE_STREAM_DERIVATIVE_FACTOR) {
+    SFunctionNode* pFunc = (SFunctionNode*)*ppNode;
+    SValueNode* pName = NULL;
+    pCxt->code = nodesMakeValueNodeFromString((char*)pCxt->streamName, &pName);
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pName);
+    }
+    SFunctionNode* pPoint = NULL;
+    SDataType type = {.type = TSDB_DATA_TYPE_VARCHAR, .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE};
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = makeStreamDerivativePlaceholder(pCxt->tbnameIndex, type, &pPoint);
+    }
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pPoint);
+    }
+    SNode* pPreScaled = NULL;
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesMakeValueNodeFromInt32(1, &pPreScaled);
+    }
+    if (pCxt->code == TSDB_CODE_SUCCESS) {
+      pCxt->code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPreScaled);
+    }
+    if (pCxt->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+  }
+  SNode* pColumn = *ppNode;
+  if (nodeType(pColumn) == QUERY_NODE_FUNCTION) {
+    SFunctionNode* pFunc = (SFunctionNode*)pColumn;
+    if (pFunc->funcType != FUNCTION_TYPE_GROUP_KEY && pFunc->funcType != FUNCTION_TYPE_SELECT_VALUE &&
+        pFunc->funcType != FUNCTION_TYPE_GROUP_CONST_VALUE) {
+      return DEAL_RES_CONTINUE;
+    }
+    // Selection companions require a physical column. A frozen unit is already
+    // constant for the calculation, so replace the wrapper as well as its Tag.
+    pColumn = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  if (nodeType(pColumn) != QUERY_NODE_COLUMN || ((SColumnNode*)pColumn)->colType != COLUMN_TYPE_TAG) {
+    return DEAL_RES_CONTINUE;
+  }
+  const SColumnNode* pOrigin = streamDerivativeTagOrigin(pCxt->pSelect, (SColumnNode*)pColumn);
+  if (pOrigin == NULL) return DEAL_RES_CONTINUE;
+  bool referenced = false;
+  SNode* pRef = NULL;
+  FOREACH(pRef, pCxt->pTrans->streamInfo.derivativeTagCols) {
+    if (((SColumnNode*)pRef)->colId == pOrigin->colId) referenced = true;
+  }
+  if (!referenced) return DEAL_RES_CONTINUE;
+  int32_t index = 0;
+  FOREACH(pRef, pCxt->pTrans->streamInfo.triggerPartitionList) {
+    if (nodeType(pRef) == QUERY_NODE_VALUE) continue;
+    ++index;
+    if (nodeType(pRef) != QUERY_NODE_COLUMN || ((SColumnNode*)pRef)->colId != pOrigin->colId) continue;
+    SFunctionNode* pFunc = NULL;
+    pCxt->code = makeStreamDerivativePlaceholder(index, ((SExprNode*)*ppNode)->resType, &pFunc);
+    if (pCxt->code != TSDB_CODE_SUCCESS) return DEAL_RES_ERROR;
+    pFunc->node = *(SExprNode*)*ppNode;
+    pFunc->node.type = QUERY_NODE_FUNCTION;
+    ((SExprNode*)*ppNode)->pAssociation = NULL;
+    nodesDestroyNode(*ppNode);
+    *ppNode = (SNode*)pFunc;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  pCxt->code = TSDB_CODE_INTERNAL_ERROR;
+  return DEAL_RES_ERROR;
+}
+
+static int32_t rewriteStreamDerivativeSelect(SStreamDerivativeSnapshotCxt* pCxt, SSelectStmt* pSelect) {
+  pCxt->pSelect = pSelect;
+  // Rewrite the outer aliases before touching the subquery projections needed
+  // to resolve their original Tag identities.
+  nodesRewriteExpr(&pSelect->pWhere, rewriteStreamDerivativeSnapshot, pCxt);
+  PAR_ERR_RET(pCxt->code);
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_WHERE, rewriteStreamDerivativeSnapshot, pCxt);
+  PAR_ERR_RET(pCxt->code);
+  if (nodeType(pSelect->pFromTable) == QUERY_NODE_TEMP_TABLE) {
+    SNode* pSubquery = ((STempTableNode*)pSelect->pFromTable)->pSubquery;
+    if (nodeType(pSubquery) == QUERY_NODE_SELECT_STMT) {
+      return rewriteStreamDerivativeSelect(pCxt, (SSelectStmt*)pSubquery);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t prepareStreamDerivativeSnapshot(STranslateContext* pCxt, SCreateStreamStmt* pStmt,
+                                                SSelectStmt* pTriggerSelect, SCMCreateStreamReq* pReq) {
+  SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
+  PAR_ERR_RET(createStreamReqSetDefaultTag(pCxt, pStmt, pTrigger->pPartitionList, pTrigger->pRollupTagList, pReq));
+  if (!streamPartitionHasTbname(pTrigger->pPartitionList)) {
+    SFunctionNode* pTbname = NULL;
+    PAR_ERR_RET(createTbnameFunction(&pTbname));
+    PAR_ERR_RET(nodesListMakeStrictAppend(&pTrigger->pPartitionList, (SNode*)pTbname));
+  }
+  SNode* pRef = NULL;
+  FOREACH(pRef, pCxt->streamInfo.derivativeTagCols) {
+    int32_t oldLength = LIST_LENGTH(pTrigger->pPartitionList);
+    PAR_ERR_RET(appendDurationTagColToPartition(&pTrigger->pPartitionList, pRef,
+                                               (SRealTableNode*)pTrigger->pTrigerTable));
+    if (oldLength != LIST_LENGTH(pTrigger->pPartitionList)) {
+      // Calculation input aliases may differ from the trigger table. Bind the
+      // injected column to the trigger scan and give it a physical scan slot.
+      SColumnNode* pInjected = (SColumnNode*)pTrigger->pPartitionList->pTail->pNode;
+      SRealTableNode* pTable = (SRealTableNode*)pTriggerSelect->pFromTable;
+      tstrncpy(pInjected->tableAlias, pTable->table.tableAlias, sizeof(pInjected->tableAlias));
+      pInjected->tableId = pTable->pMeta->uid;
+      pInjected->tableType = pTable->pMeta->tableType;
+      PAR_ERR_RET(nodesCollectColumnsFromNode((SNode*)pInjected, NULL, COLLECT_COL_TYPE_TAG,
+                                               &pTriggerSelect->pProjectionList));
+      SNode* pCopy = NULL;
+      PAR_ERR_RET(nodesCloneNode(pRef, &pCopy));
+      PAR_ERR_RET(nodesListMakeStrictAppend(&pCxt->streamInfo.derivativeInjectedCols, pCopy));
+    }
+  }
+  pCxt->streamInfo.triggerPartitionList = pTrigger->pPartitionList;
+  int32_t index = 0;
+  FOREACH(pRef, pTrigger->pPartitionList) {
+    if (nodeType(pRef) == QUERY_NODE_VALUE) continue;
+    ++index;
+    if (nodeType(pRef) == QUERY_NODE_FUNCTION && ((SFunctionNode*)pRef)->funcType == FUNCTION_TYPE_TBNAME) break;
+  }
+  SStreamDerivativeSnapshotCxt cxt = {.pTrans = pCxt, .streamName = pReq->name, .tbnameIndex = index};
+  PAR_ERR_RET(rewriteStreamDerivativeSelect(&cxt, (SSelectStmt*)pStmt->pQuery));
+  BIT_FLAG_SET_MASK(pCxt->streamInfo.placeHolderBitmap, PLACE_HOLDER_PARTITION_IDX);
+  BIT_FLAG_SET_MASK(pReq->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkStreamDerivativeWindow(STranslateContext* pCxt, const SCreateStreamStmt* pStmt) {
+  if (pCxt->streamInfo.derivativeTagCols == NULL) return TSDB_CODE_SUCCESS;
+  // Snapshot rewriting follows one SELECT/source chain. Validate the whole
+  // calculation, including parents of the SELECT containing DERIVATIVE.
+  const SNode* pQuery = pStmt->pQuery;
+  if (streamQueryHasExprSubqueryRef(pStmt->pQuery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a single-source calculation");
+  }
+  while (pQuery != NULL && nodeType(pQuery) == QUERY_NODE_SELECT_STMT) {
+    const SNode* pSource = ((const SSelectStmt*)pQuery)->pFromTable;
+    if (pSource != NULL && nodeType(pSource) == QUERY_NODE_REAL_TABLE) break;
+    if (pSource == NULL || nodeType(pSource) != QUERY_NODE_TEMP_TABLE) {
+      pQuery = NULL;
+      break;
+    }
+    pQuery = ((const STempTableNode*)pSource)->pSubquery;
+  }
+  if (pQuery == NULL || nodeType(pQuery) != QUERY_NODE_SELECT_STMT) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a single-source calculation");
+  }
+  const SNode* pWindow = ((SStreamTriggerNode*)pStmt->pTrigger)->pTriggerWindow;
+  bool supported = nodeType(pWindow) == QUERY_NODE_COUNT_WINDOW || nodeType(pWindow) == QUERY_NODE_SESSION_WINDOW ||
+                   nodeType(pWindow) == QUERY_NODE_STATE_WINDOW ||
+                   (nodeType(pWindow) == QUERY_NODE_INTERVAL_WINDOW && ((SIntervalWindowNode*)pWindow)->pInterval) ||
+                   (nodeType(pWindow) == QUERY_NODE_EVENT_WINDOW &&
+                    nodeType(((SEventWindowNode*)pWindow)->pStartCond) != QUERY_NODE_NODE_LIST);
+  if (!supported) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                   "DERIVATIVE time_interval tag requires a supported single-level stream window");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // Build calculate part in create stream request
 static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SNodeList* pTriggerPartition,
                                         SSelectStmt* pTriggerSelect, SNode* pTriggerWindow, SNode** ppNotifyCond,
@@ -30782,6 +31855,14 @@ static int32_t createStreamReqBuildCalc(STranslateContext* pCxt, SCreateStreamSt
   pCxt->streamInfo.calcDbs = pDbs;
   PAR_ERR_JRET(translateStreamCalcQuery(pCxt, pTriggerSelect ? pTriggerSelect->pFromTable : NULL, pStmt->pQuery,
                                         ppNotifyCond, pTriggerWindow));
+  PAR_ERR_JRET(checkStreamDerivativeWindow(pCxt, pStmt));
+  if (pCxt->streamInfo.derivativeTagCols != NULL) {
+    PAR_ERR_JRET(prepareStreamDerivativeSnapshot(pCxt, pStmt, pTriggerSelect, pReq));
+    pTriggerPartition = ((SStreamTriggerNode*)pStmt->pTrigger)->pPartitionList;
+    int32_t length = 0;
+    PAR_ERR_JRET(
+        nodesListToString(pCxt->streamInfo.derivativeTagCols, false, (char**)&pReq->derivativeTagCols, &length));
+  }
 
   pReq->placeHolderBitmap = pCxt->streamInfo.placeHolderBitmap;
   if (BIT_FLAG_TEST_MASK(pReq->placeHolderBitmap, PLACE_HOLDER_PARTITION_ROWS) &&
@@ -32201,12 +33282,9 @@ static int32_t createStreamReqBuildExtSpecs(STranslateContext* pCxt,
       parserDebug("buildExtSpecs: trigger source=%s precision=%d",
                   sourceName, (int)pSpec->precision);
       if (trigExtTable != NULL) {
-        const char *tableName = trigExtTable;
-        if (pSpec->sourceType == EXT_SOURCE_ORACLE) {
-          extCopyRemoteTableSpelling(tableName, pSpec->extTable, sizeof(pSpec->extTable));
-        } else {
-          tstrncpy(pSpec->extTable, tableName, sizeof(pSpec->extTable));
-        }
+        /* The trigger table name is already the exact remote spelling resolved
+         * by the parser; copy it verbatim into the spec. */
+        extCopyRemoteTableSpelling(trigExtTable, pSpec->extTable, sizeof(pSpec->extTable));
       }
       if (trigTsColumn   != NULL) tstrncpy(pSpec->tsColumn,  trigTsColumn,   sizeof(pSpec->tsColumn));
       /* Override extSchema from the ext-table node so that PostgreSQL uses
@@ -38367,21 +39445,16 @@ static int32_t normalizeExternalRefNamespace(STranslateContext* pCxt, const char
     // the source's configured default schema, and an unset default stays empty
     // so resolution reports EXT_DEFAULT_NS_MISSING instead of inventing one.
     //
-    // Oracle folds an unquoted identifier to upper case before it looks it up,
-    // and TDengine's parser lower-cases the raw path text on the way in.  The
-    // stored reference must carry the folded spelling: it is what the
-    // connector resolved against the data dictionary and what the external
-    // table node built at query time carries, so a lower-case spelling would
-    // name a different (non-existent) schema.
-    char        folded[TSDB_EXT_SOURCE_SCHEMA_LEN] = {0};
-    const char* src = (refDbName[0] != '\0') ? refDbName : pInfo->schema_name;
-    int32_t     i = 0;
-    for (; src[i] != '\0' && i < (int32_t)sizeof(folded) - 1; ++i) {
-      char c = src[i];
-      folded[i] = (c >= 'a' && c <= 'z') ? (char)(c - 'a' + 'A') : c;
+    // The schema is kept exactly as TDengine resolved it: an unquoted segment
+    // was lower-cased by the client, a backticked one keeps its spelling, and
+    // the connector matches the stored name byte for byte against the Oracle
+    // data dictionary.  Folding it here would name a different schema.
+    if (refDbName[0] == '\0') {
+      // A relative reference takes the source's default schema.  Copying the
+      // schema over a non-empty middle segment would self-copy the same buffer
+      // (strncpy has undefined behaviour for overlapping ranges).
+      tstrncpy(refDbName, pInfo->schema_name, dbCap);
     }
-    folded[i] = '\0';
-    tstrncpy(refDbName, folded, dbCap);
     refSchemaName[0] = '\0';
     freeExtSourceInfo(pInfo);
     return TSDB_CODE_SUCCESS;
@@ -40716,13 +41789,11 @@ static int32_t checkSeriesExtColRef(STranslateContext* pCxt, const char* sourceN
   pCxt->pParseCxt->async = savedAsync;
 
   int32_t extColIdx = -1;
-  // Same fold contract as checkExternalColRef(): the reference spelling is
-  // resolved by extColumnNameEqual(), not by a raw strcmp.  For the series
-  // sources in use today the two agree, but a source whose identifiers fold
-  // (Oracle) or compare case-insensitively (MySQL / SQL Server) would
-  // otherwise resolve a different column here than on the path that actually
-  // renders the remote SQL.  The exact spelling wins over the folded one so a
-  // quoted "Device" never resolves onto a separate DEVICE column (DS 5.3.6 R1).
+  // Same contract as checkExternalColRef(): try the exact spelling first, then
+  // the source's identifier rule through extColumnNameEqual() (MySQL / SQL
+  // Server fold case; PostgreSQL, InfluxDB and Oracle are byte-exact).  The
+  // reference and the metadata spelling are both produced by TDengine's
+  // grammar, so the exact pass is the normal path for Oracle (DS 5.3.6 R1).
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
     if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {
       extColIdx = i;
@@ -40883,8 +41954,9 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
                                           "external table '%s.%s' not found", sourceName, refTable));
   }
 
-  // (4) External column must exist.  The exact spelling wins over the folded
-  // one so a quoted "Device" never resolves onto a separate DEVICE column.
+  // (4) External column must exist.  Try the exact spelling first, then the
+  // source's identifier rule: MySQL / SQL Server fold case, while PostgreSQL,
+  // InfluxDB and Oracle require a byte-exact match (DS 5.3.6 R1).
   int32_t extColIdx = -1;
   for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
     if (0 == strcmp(pExtMeta->pCols[i].colName, refCol)) {

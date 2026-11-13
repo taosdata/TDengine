@@ -18,6 +18,7 @@
 // C++ standard headers first: os.h turns nanosleep() into a forbidden symbol, which breaks std::this_thread
 #include <atomic>
 #include <iostream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -175,6 +176,22 @@ TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
   snapshotBlock = nullptr;
 }
 
+TEST(testCase, setForSnapShotRestoresQueryMeta) {
+  SSnapContext ctx = {0};
+  ctx.withMeta = WITH_META;
+  ctx.queryMeta = 0;  // simulate a completed snapshot meta scan
+  ctx.index = 42;
+
+  // uid == 0: reposition the snapshot cursor to the earliest entry.
+  setForSnapShot(&ctx, 0);
+
+  EXPECT_EQ(ctx.index, 0);
+  // Regression: repositioning must restore the meta phase, otherwise a retried
+  // SNAPSHOT_META request after a consumer-group rebalance skips create-table
+  // metadata delivery and the destination loses child tables.
+  EXPECT_EQ(ctx.queryMeta, WITH_META);
+}
+
 #pragma GCC diagnostic pop
 
 namespace {
@@ -218,6 +235,55 @@ void tqTestPutVarKeyOffset(STQ* pTq, const char* subKey, const char* pk) {
   ASSERT_EQ(0, taosHashPut(pTq->pOffset, subKey, strlen(subKey), &offset, sizeof(STqOffset)));
 }
 
+class TqMetaTestEnv {
+ public:
+  TqMetaTestEnv() {
+    env_ = tqTestEnvCreate();
+    env_.pVnode->config.vgId = 2;
+
+    const testing::TestInfo* testInfo = testing::UnitTest::GetInstance()->current_test_info();
+    path_ = "/tmp/tdengine-tq-metadata-";
+    path_ += std::to_string(taosGetPId());
+    path_ += "-";
+    path_ += testInfo == nullptr ? "unknown" : testInfo->name();
+    taosRemoveDir(path_.c_str());
+    env_.pTq->path = const_cast<char*>(path_.c_str());
+  }
+
+  ~TqMetaTestEnv() {
+    if (env_.pTq->pExecStore != nullptr) {
+      tdbTbClose(env_.pTq->pExecStore);
+      env_.pTq->pExecStore = nullptr;
+    }
+    if (env_.pTq->pMetaDB != nullptr) {
+      tdbClose(env_.pTq->pMetaDB);
+      env_.pTq->pMetaDB = nullptr;
+    }
+    taosRemoveDir(path_.c_str());
+    tqTestEnvDestroy(&env_);
+  }
+
+  TqMetaTestEnv(const TqMetaTestEnv&) = delete;
+  TqMetaTestEnv& operator=(const TqMetaTestEnv&) = delete;
+
+  int32_t Open() {
+    int32_t code = tdbOpen(env_.pTq->path, 16 * 1024, 1, &env_.pTq->pMetaDB, 0, NULL);
+    if (code != TDB_CODE_SUCCESS) {
+      return code;
+    }
+    return tdbTbOpen("tq.db", -1, -1, NULL, env_.pTq->pMetaDB, &env_.pTq->pExecStore, 0);
+  }
+
+  const char* Path() const { return path_.c_str(); }
+  STQ*        pTq() { return env_.pTq; }
+
+ private:
+  TqTestEnv   env_;
+  std::string path_;
+};
+
+int32_t failTqHandleRead(TTB*, const void*, int, void**, int*) { return TSDB_CODE_OUT_OF_MEMORY; }
+
 }  // namespace
 
 TEST(testCase, tqProcessDeleteSubReqRejectsShortMsg) {
@@ -231,6 +297,98 @@ TEST(testCase, tqProcessDeleteSubReqRejectsShortMsg) {
   EXPECT_EQ(TSDB_CODE_INVALID_MSG, tqProcessDeleteSubReq(env.pTq, 0, almost.data(), (int32_t)almost.size() - 1));
 
   tqTestEnvDestroy(&env);
+}
+
+TEST(testCase, tqProcessSubscribeReqTreatsMissingHandleRemovalAsIdempotent) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, "group:topic", sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
+}
+
+TEST(testCase, tqProcessSubscribeReqPropagatesHandleRestoreFailure) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  const char* subKey = "group:topic";
+  uint8_t     corruptHandle[] = {0xff};
+  ASSERT_EQ(TDB_CODE_SUCCESS, tqMetaSaveInfo(env.pTq(), env.pTq()->pExecStore, subKey, strlen(subKey), corruptHandle,
+                                             sizeof(corruptHandle)));
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, subKey, sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  EXPECT_NE(TSDB_CODE_SUCCESS, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
+}
+
+TEST(testCase, tqProcessSubscribeReqPropagatesHandleReadFailure) {
+  TqMetaTestEnv env;
+  ASSERT_EQ(0, taosMkDir(env.Path()));
+  ASSERT_EQ(TDB_CODE_SUCCESS, env.Open());
+
+  SMqRebVgReq request = {};
+  request.leftForVer = SMQ_REB_VG_REQ_VERSION;
+  request.vgId = 2;
+  request.oldConsumerId = 42;
+  request.newConsumerId = -1;
+  request.subType = TOPIC_SUB_TYPE__DB;
+  tstrncpy(request.subKey, "group:topic", sizeof(request.subKey));
+
+  int32_t tlen = 0;
+  int32_t code = 0;
+  tEncodeSize(tEncodeSMqRebVgReq, &request, tlen, code);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+
+  std::vector<char> msg(tlen);
+  SEncoder          encoder = {};
+  tEncoderInit(&encoder, reinterpret_cast<uint8_t*>(msg.data()), tlen);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSMqRebVgReq(&encoder, &request));
+  tEncoderClear(&encoder);
+
+  Stub stub;
+  stub.set(tdbTbGet, failTqHandleRead);
+
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, tqProcessSubscribeReq(env.pTq(), 0, msg.data(), tlen));
+  EXPECT_EQ(0, taosHashGetSize(env.pTq()->pHandle));
 }
 
 TEST(testCase, tqProcessDeleteSubReqRejectsNonTerminatedSubKey) {

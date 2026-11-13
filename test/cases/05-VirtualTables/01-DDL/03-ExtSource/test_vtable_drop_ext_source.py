@@ -46,6 +46,7 @@ _OR_SRC   = "vdrop_or_src"
 # Oracle has one namespace level: the source carries the Easy Connect service
 # name and the schema is the upper-case login user.
 _OR_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_OR_SCHEMA_REF = "`" + _OR_SCHEMA + "`"
 _OR_SVC    = ExtSrcEnv.ORACLE_SERVICE
 
 
@@ -261,7 +262,7 @@ class TestVtableDropExtSource:
         """
         tdSql.execute(
             "CREATE VTABLE v_drop_or (ts timestamp, "
-            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA}.r.v)")
+            f"v bigint FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r.v)")
         tdSql.query("SELECT count(*) FROM v_drop_or")
         tdSql.checkData(0, 0, 1)
         tdSql.execute("DROP VTABLE v_drop_or")
@@ -276,7 +277,7 @@ class TestVtableDropExtSource:
             "TAGS (s nchar(8)) VIRTUAL 1")
         tdSql.execute(
             "CREATE VTABLE vctb_drop_or ("
-            f"v FROM {_OR_SRC}.{_OR_SCHEMA}.r.v) USING stb_drop_or TAGS ('a')")
+            f"v FROM {_OR_SRC}.{_OR_SCHEMA_REF}.r.v) USING stb_drop_or TAGS ('a')")
         tdSql.query("SELECT count(*) FROM vctb_drop_or")
         tdSql.checkData(0, 0, 1)
         tdSql.execute("DROP VTABLE vctb_drop_or")

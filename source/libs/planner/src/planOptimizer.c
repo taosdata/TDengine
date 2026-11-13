@@ -57,6 +57,13 @@ static bool virtualScanContainsAlign(const SVirtualScanLogicNode* pScan) {
   return pScan != NULL && pScan->pAlignCols != NULL && LIST_LENGTH(pScan->pAlignCols) > 0;
 }
 
+// A real-table scan that hosts the TIME_ALIGN stage.  Optimizations that read
+// rows before the stage (last/last_row cache, SMA prefilter, TSMA, tag-only
+// scans) would bypass the interpolation and must not run.
+static bool scanContainsAlign(const SScanLogicNode* pScan) {
+  return pScan != NULL && pScan->pAlignCols != NULL && LIST_LENGTH(pScan->pAlignCols) > 0;
+}
+
 typedef struct SOptimizeContext {
   SPlanContext*         pPlanCxt;
   SExtSourceCapability* pExtCapability;
@@ -758,15 +765,34 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     goto _return;
   }
 
-  scanPathOptSetScanWin(&info);
+  // TIME_ALIGN: the DESC scan order comes from a LAST() consumer above the
+  // aligned output; the align stage is direction aware, so that part is safe.
+  // The remaining scan-path rewrites change the row set the stage sees
+  // (interval pushdown, SMA/dynamic functions, LAST-only pruning), so they
+  // stay off for an align scan; the default ASC / two-pass BOTH orders are
+  // also left on the plain executor path so an earlier DESC pushdown is never
+  // overwritten.
+  bool alignScan = scanContainsAlign(info.pScan);
+  if (alignScan && info.scanOrder != SCAN_ORDER_DESC) {
+    goto _return;
+  }
+
+  if (!alignScan) {
+    scanPathOptSetScanWin(&info);
+  }
   scanPathOptSetScanOrder(info.scanOrder, info.pScan);
-  scanPathOptSetGroupOrderScan(info.pScan);
-  info.pScan->lastOnlyScan = scanPathOptCanUseLastOnlyScan(info.pScan);
 
-  if (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs) {
-    info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+  if (!alignScan) {
+    scanPathOptSetGroupOrderScan(info.pScan);
+    info.pScan->lastOnlyScan = scanPathOptCanUseLastOnlyScan(info.pScan);
 
-    info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
+    if (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs) {
+      info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
+
+      info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
+    }
+  } else {
+    info.pScan->lastOnlyScan = false;
   }
 
   if (nodeType(info.pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
@@ -987,6 +1013,13 @@ _exit:
 }
 
 static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  // TIME_ALIGN: every condition must be evaluated on the aligned output.  Any
+  // time-range extraction here would prune input rows that PREV/NEXT may still
+  // need (and remove the predicate from the post-align filter).
+  if (pScan->pAlignCols != NULL && LIST_LENGTH(pScan->pAlignCols) > 0) {
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
   // FQ guard: external scan conditions must stay intact for fqPushdownOptimize to harvest.
   // Splitting into primaryKeyCond/tagCond/otherCond would destroy the WHERE clause.
   if (SCAN_TYPE_EXTERNAL == pScan->scanType) {
@@ -4827,6 +4860,12 @@ static int32_t pdcDealProject(SOptimizeContext* pCxt, SProjectLogicNode* pProjec
       OPTIMIZE_FLAG_TEST_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE)) {
     return TSDB_CODE_SUCCESS;
   }
+  // TIME_ALIGN: the outer WHERE runs after interpolation; pushing it into the
+  // view/table input would remove rows that PREV/NEXT still need.
+  if (pProject->timeAlignProject) {
+    OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
   if (pdcShouldKeepNodeConditionsForExternalSubtree((SLogicNode*)pProject, "project")) {
     OPTIMIZE_FLAG_SET_MASK(pProject->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
     return TSDB_CODE_SUCCESS;
@@ -5666,7 +5705,7 @@ static bool sortPriKeyOptHasUnsupportedPkFunc(SLogicNode* pLogicNode, EOrder sor
 }
 
 static bool sortPriKeyOptCanOrderVirtualScan(SVirtualScanLogicNode* pScan) {
-  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren) || virtualScanContainsAlign(pScan)) {
+  if (pScan->twoPassMode || 0 == LIST_LENGTH(pScan->node.pChildren)) {
     return false;
   }
   SNode* pChild = NULL;
@@ -5780,6 +5819,16 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       }
       return sortPriKeyOptCollectVirtualScan(pScan, pSequencingNodes);
     }
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      // View input aligns by its own output row order.  An outer ORDER BY must
+      // stay above the align Projection so it cannot change the row order seen
+      // by PREV/NEXT.
+      if (((SProjectLogicNode*)pNode)->timeAlignProject &&
+          ((SProjectLogicNode*)pNode)->timeAlignOutputOrder) {
+        *pNotOptimize = true;
+        return TSDB_CODE_SUCCESS;
+      }
+      break;
     case QUERY_NODE_LOGIC_PLAN_AGG:
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
     case QUERY_NODE_LOGIC_PLAN_DYN_QUERY_CTRL:
@@ -5833,7 +5882,8 @@ static int32_t sortPriKeyOptApply(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
         TSWAP(pScan->scanSeq[0], pScan->scanSeq[1]);
       }
       pScan->node.outputTsOrder = order;
-      if (SCAN_TYPE_EXTERNAL != pScan->scanType && TSDB_SUPER_TABLE == pScan->tableType && !pScan->phTbnameScan) {
+      if (SCAN_TYPE_EXTERNAL != pScan->scanType && TSDB_SUPER_TABLE == pScan->tableType &&
+          !pScan->phTbnameScan) {
         planPromoteScanToTableMerge(pScan, DATA_ORDER_LEVEL_GLOBAL, DATA_ORDER_LEVEL_GLOBAL);
       }
       pScan->sortPrimaryKey = true;
@@ -6019,6 +6069,27 @@ static int32_t virtualTopNOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
 
 static bool virtualScanCanOrderSources(SVirtualScanLogicNode* pScan);
 
+// A source-scan LIMIT keeps only a prefix of the stream.  For an align scan the
+// prefix is safe only when the fill method only looks backwards in delivery
+// order (running state: PREV while ascending, NEXT while descending).  The
+// pending method needs a successor beyond the prefix, which the limit would
+// cut away.
+static bool virtualScanAlignAllowsSourceLimit(const SVirtualScanLogicNode* pScan) {
+  if (!virtualScanContainsAlign(pScan)) {
+    return true;
+  }
+  bool desc = (pScan->node.outputTsOrder == ORDER_DESC);
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pAlignCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
+    int8_t method = ((const SColumnNode*)pNode)->alignMethod;
+    if (desc ? (method != ALIGN_METHOD_NEXT) : (method != ALIGN_METHOD_PREV)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode) ||
       !limitHasFiniteRows(pNode->pLimit) || NULL != pNode->pConditions ||
@@ -6027,7 +6098,8 @@ static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SVirtualScanLogicNode* pScan = (SVirtualScanLogicNode*)pNode;
-  if (pScan->hasFilterCond || !virtualScanCanOrderSources(pScan)) {
+  if (pScan->hasFilterCond || !virtualScanCanOrderSources(pScan) ||
+      !virtualScanAlignAllowsSourceLimit(pScan)) {
     return false;
   }
   SNode* pChild = NULL;
@@ -7364,6 +7436,14 @@ static bool partTagsOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
+  // Fill happens before grouping: folding the partition into an align scan
+  // would drop the tag/tbname pseudo columns the grouping key needs (and
+  // change the block layout the align stage writes into).  Keep the
+  // Partition operator above the aligned output.
+  if (scanContainsAlign((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+
   if (partTagsOptIsPartitionFirst(pNode)) {
     return false;
   }
@@ -8005,6 +8085,12 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     if (pChild && OPTIMIZE_FLAG_TEST_MASK(pChild->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_VSCAN)) {
       return false;
     }
+    // TIME_ALIGN outputs share column names with their source columns; folding
+    // the projection into the scan by name would bind the output column to the
+    // unaligned source target.  Keep the Project so slots are resolved by key.
+    if (pChild != NULL && pChild->pAlignCols != NULL && LIST_LENGTH(pChild->pAlignCols) > 0) {
+      return false;
+    }
   }
 
   if (QUERY_NODE_LOGIC_PLAN_WINDOW == nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -8343,9 +8429,30 @@ static int32_t eliminateProjOptPushTargetsToSetOpChildren(SProjectLogicNode* pSe
   return code;
 }
 
+// TIME_ALIGN: with a time-range parameter the align host also consumes the
+// time-axis column, which is not part of the table function's output when
+// output_raw is FALSE.  Eliminating the outer Projection into the align host
+// would replace its target list and prune that pass-through, so keep the
+// Projection in place for such plans.
+static bool timeAlignProjHasSpan(SProjectLogicNode* pProject) {
+  if (pProject == NULL || !pProject->timeAlignProject) return false;
+  SNode* pExpr = NULL;
+  FOREACH(pExpr, pProject->pProjections) {
+    if (QUERY_NODE_FUNCTION != nodeType(pExpr)) continue;
+    if (LIST_LENGTH(((SFunctionNode*)pExpr)->pParameterList) > 1) return true;
+  }
+  return false;
+}
+
 static int32_t eliminateProjOptimizeImpl(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan,
                                          SProjectLogicNode* pProjectNode) {
   SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pProjectNode->node.pChildren, 0);
+  if (pChild != NULL && QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pChild) &&
+      timeAlignProjHasSpan((SProjectLogicNode*)pChild)) {
+    OPTIMIZE_FLAG_SET_MASK(pProjectNode->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_PROJ);
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
   int32_t     code = 0;
   int32_t     lino = 0;
   bool        isSetOpProj = false;
@@ -9268,6 +9375,11 @@ static bool lastSmaNotNullOptCanUseScan(const SScanLogicNode* pScan) {
     return false;
   }
 
+  // The added IS NOT NULL condition would drop rows the interpolation needs.
+  if (scanContainsAlign(pScan)) {
+    return false;
+  }
+
   switch (pScan->scanType) {
     case SCAN_TYPE_TABLE:
     case SCAN_TYPE_TABLE_MERGE:
@@ -9583,7 +9695,10 @@ static bool lastRowScanOptCheckLastCache(SAggLogicNode* pAgg, SScanLogicNode* pS
   if ((pAgg->hasLastRow == pAgg->hasLast && !pAgg->hasLastRow) || (!pAgg->hasLast && !pAgg->hasLastRow) ||
       NULL != pAgg->pGroupKeys || NULL != pScan->node.pConditions ||
       !hasSuitableCache(pScan->cacheLastMode, pAgg->hasLastRow, pAgg->hasLast) ||
-      IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
+      IS_TSWINDOW_SPECIFIED(pScan->scanRange) || scanContainsAlign(pScan)) {
+    // TIME_ALIGN changes the last-row value (PREV fills a trailing NULL and
+    // NEXT resolves against later rows), so the last/last_row cache cannot
+    // answer the aligned column.
     return false;
   }
 
@@ -10624,6 +10739,12 @@ static bool mergeProjectsMayBeOptimized(SLogicNode* pNode, void* pCtx) {
       NULL != pChild->pConditions || NULL != pChild->pLimit || NULL != pChild->pSlimit || LIST_LENGTH(pChild->pChildren) <= 0) {
     return false;
   }
+  // TIME_ALIGN projections hold fill_forward/fill_next expressions and must
+  // not be merged into (or absorb) a plain projection: the align stage owns
+  // the slot layout it reads.
+  if (((SProjectLogicNode*)pNode)->timeAlignProject || ((SProjectLogicNode*)pChild)->timeAlignProject) {
+    return false;
+  }
 
   if (nodesExprsHasCorrelation(((SProjectLogicNode*)pNode)->pProjections) ||
       nodesExprsHasCorrelation(((SProjectLogicNode*)pChild)->pProjections)) {
@@ -10703,6 +10824,10 @@ static bool tagScanOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+  // A tag scan would read no data column, so it cannot produce align outputs.
+  if (scanContainsAlign(pScan)) {
+    return false;
+  }
   if (nodesExprHasCorrelation(pScan->node.pConditions) || nodesExprHasCorrelation(pScan->pPrimaryCond)) {
     return false;
   }
@@ -11046,6 +11171,11 @@ static int32_t pushDownLimitTo(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLimi
       if (SCAN_TYPE_EXTERNAL == ((SScanLogicNode*)pNodeLimitPushTo)->scanType) {
         break;
       }
+      // TIME_ALIGN: LIMIT applies to the aligned output; the scan discards a
+      // pushed limit before running the align stage.
+      if (scanContainsAlign((SScanLogicNode*)pNodeLimitPushTo)) {
+        break;
+      }
       if (nodeType(pNodeWithLimit) == QUERY_NODE_LOGIC_PLAN_PROJECT && limitHasFiniteRows(pNodeWithLimit->pLimit)) {
         if (((SProjectLogicNode*)pNodeWithLimit)->inputIgnoreGroup) {
           code = cloneLimit(pNodeWithLimit, pNodeLimitPushTo, CLONE_LIMIT, &cloned);
@@ -11107,6 +11237,13 @@ static int32_t pushDownLimitHow(SLogicNode* pNodeWithLimit, SLogicNode* pNodeLim
   }
   switch (nodeType(pNodeWithLimit)) {
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      // TIME_ALIGN: LIMIT applies to the interpolated output; pushing it below
+      // the align projection would truncate the interpolation input.
+      if (((SProjectLogicNode*)pNodeWithLimit)->timeAlignProject) {
+        *pPushed = false;
+        return TSDB_CODE_SUCCESS;
+      }
+      return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo, pPushed);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return pushDownLimitTo(pNodeWithLimit, pNodeLimitPushTo, pPushed);
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -13054,6 +13191,8 @@ static bool tsmaOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     SNode*          pConds = pScan->node.pConditions;
 
     if (pScan->scanType != SCAN_TYPE_TABLE || !pParent || pConds) return false;
+    // Precomputed TSMA rows are taken from the raw column, not the aligned one.
+    if (scanContainsAlign(pScan)) return false;
     if (!pScan->pTsmas || pScan->pTsmas->size <= 0) {
       return false;
     }
@@ -24556,14 +24695,13 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
   }
 
   // Match the parser's column-name contract through the shared helper: MySQL /
-  // SQL Server fold case, Oracle folds an unquoted reference to upper case,
-  // PostgreSQL / InfluxDB are case sensitive (`device` and `Device` are
-  // distinct columns).
+  // SQL Server fold case, while PostgreSQL, InfluxDB and Oracle are byte-exact
+  // (`device` and `Device` are distinct columns).  TDengine has already applied
+  // its identifier grammar to both names before they reach the planner.
   //
-  // The exact spelling wins: Oracle keeps a quoted "Device" apart from a
-  // folded DEVICE, so a folded hit must not hide the fact that the exact
-  // column is missing from the list (DS 5.3.6 R1).
-  bool foldedMatch = false;
+  // The exact spelling wins, so a case-insensitive hit must not hide the fact
+  // that the exact column is missing from the list (DS 5.3.6 R1).
+  bool ciMatch = false;
   SNode* pNode = NULL;
   FOREACH(pNode, pList) {
     const SNode* pInner = pNode;
@@ -24578,14 +24716,14 @@ static bool fqScanListHasColumn(SNodeList* pList, const SColumnNode* pCol, EExtS
       if (0 == strcmp(pExist->colName, pCol->colName)) {
         return true;
       }
-      if (!foldedMatch && extColumnNameEqual(sourceType, pExist->colName, pCol->colName)) {
-        foldedMatch = true;
+      if (!ciMatch && extColumnNameEqual(sourceType, pExist->colName, pCol->colName)) {
+        ciMatch = true;
       }
     } else if (0 != pCol->colId && pExist->colId == pCol->colId) {
       return true;
     }
   }
-  return foldedMatch;
+  return ciMatch;
 }
 
 static int32_t fqAppendLocalFilterCols(SScanLogicNode* pScan, SNode* pLocalCond) {

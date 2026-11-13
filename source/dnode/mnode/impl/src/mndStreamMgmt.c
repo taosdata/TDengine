@@ -1249,9 +1249,12 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan* plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
+  const int64_t openCloseEvents = EVENT_WINDOW_OPEN | EVENT_WINDOW_CLOSE;
+  // OPEN and CLOSE calculations share the window's starting row.
   if ((WINDOW_TYPE_INTERVAL == pStream->pCreate->triggerType && pStream->pCreate->trigger.sliding.overlap) ||
       (WINDOW_TYPE_COUNT == pStream->pCreate->triggerType &&
-       pStream->pCreate->trigger.count.sliding < pStream->pCreate->trigger.count.countVal)) {
+       pStream->pCreate->trigger.count.sliding < pStream->pCreate->trigger.count.countVal) ||
+      (pStream->pCreate->eventTypes & openCloseEvents) == openCloseEvents) {
     pMsg->addOptions |= CALC_SLIDING_OVERLAP;
   }
   pMsg->outCols = pInfo->pCreate->outCols;
@@ -1706,19 +1709,12 @@ static SStreamExtTriggerSpec* msmGetTrigExtSpec(SStreamObj* pStream) {
   for (int32_t si = 0; si < nSpecs; ++si) {
     SStreamExtTriggerSpec* pSpec = *(SStreamExtTriggerSpec**)taosArrayGet(pStream->pCreate->extSpecs, si);
     if (pSpec == NULL) continue;
-    /* Oracle folds every unquoted identifier to upper case, so the remote table
-     * name the spec carries ("SRC_T", as the data dictionary spelled it) never
-     * matches the spelling used in the statement ("src_t").  A quoted reference
-     * reaches the spec stripped of its outer quotes while triggerTblName still
-     * keeps them, so both sides are normalised the same way the parser does
-     * before comparing.  The trigger-reader deploy is not user visible, so a
-     * mismatch would silently leave the stream without a trigger reader and its
-     * task stuck below Running.
-     *
-     * A quoted reference is compared exactly while an unquoted reference is
-     * folded to upper case.  An Oracle schema can hold both "SAME_A" and
-     * "same_a"; a plain case-insensitive comparison would hand the unquoted
-     * table the quoted lower-case table's spec. */
+    /* Both sides carry the exact remote spelling: the parser resolved the
+     * reference with TDengine's identifier grammar and the connector echoed
+     * the catalog spelling, so the comparison is byte for byte.  The
+     * trigger-reader deploy is not user visible, so a mismatch would silently
+     * leave the stream without a trigger reader and its task stuck below
+     * Running. */
     bool matched = false;
     if (EXT_SOURCE_ORACLE == (EExtSourceType)pSpec->sourceType) {
       matched = extColumnNameEqualReference(EXT_SOURCE_ORACLE, pSpec->extTable,
@@ -6462,7 +6458,7 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   pSpec = taosMemoryCalloc(1, sizeof(*pSpec));
   if (pSpec == NULL) return terrno;
   // The source object is authoritative for the provider type: the same value selects the
-  // connector namespace, the type mapper and the identifier case-folding rule below, while
+  // connector namespace, the type mapper and the identifier matching rule below, while
   // pReq->sourceType is only the identity echoed back to the trigger.  Keep one source of
   // truth so a stale identity cannot make the checks disagree with the deployed spec.
   const int8_t sourceType = pSource->type;

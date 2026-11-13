@@ -30,6 +30,7 @@ Run with FQ_REQUIRED_SERVICES=pg (the CI task does); otherwise it skips.
 
 import os
 import sys
+from datetime import datetime
 
 import pytest
 
@@ -41,7 +42,10 @@ sys.path.insert(0, os.path.join(_TEST_DIR, "cases", "09-DataQuerying", "19-Feder
 
 from federated_query_common import ExtSrcEnv  # noqa: E402
 
+PAR_SYNTAX_ERROR = 0x80002600
 PAR_INVALID_COLUMN = 0x80002602
+PAR_DUPLICATED_COLUMN = 0x8000263C
+PAR_NOT_ALLOWED_FUNC = 0x8000264F
 
 
 class TestTimeAlignExtSource:
@@ -63,12 +67,13 @@ class TestTimeAlignExtSource:
             "DROP TABLE IF EXISTS t_ext",
             "CREATE TABLE t_ext ("
             "ts timestamp(3) PRIMARY KEY, voltage double precision, "
-            "current double precision, status integer)",
+            "current double precision, status integer, "
+            "metric numeric(10,2), note varchar(16))",
             "INSERT INTO t_ext VALUES "
-            "('2024-01-01 00:00:00', 1, 10, 1),"
-            "('2024-01-01 00:00:01', NULL, 20, NULL),"
-            "('2024-01-01 00:00:02', 3, NULL, 3),"
-            "('2024-01-01 00:00:04', 5, 50, 4)",
+            "('2024-01-01 00:00:00', 1, 10, 1, 10.50, 'aa'),"
+            "('2024-01-01 00:00:01', NULL, 20, NULL, NULL, NULL),"
+            "('2024-01-01 00:00:02', 3, NULL, 3, 20.50, ''),"
+            "('2024-01-01 00:00:04', 5, 50, 4, NULL, 'bb')",
         ])
 
         tdSql.execute(f"drop database if exists {cls.VTABLE_DB}")
@@ -124,6 +129,166 @@ class TestTimeAlignExtSource:
     def _window_start(cls, value, interval_ms=2000):
         return cls._ts_ms(value) // interval_ms * interval_ms
 
+    def test_real_external_table(self):
+        """TIME_ALIGN applies to a directly-qualified external table.
+
+        The external table is projected above FederatedScan; WHERE on the
+        aligned output runs after interpolation and does not truncate the
+        remote input.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, ext_source, phase2, ci
+        """
+        qualified = f"{self.SOURCE}.public.t_ext"
+        tdSql.execute(f"use {self.VTABLE_DB}")
+
+        tdSql.query(f"select ts, voltage from {qualified} order by ts")
+        raw = [list(row) for row in tdSql.queryResult]
+        values = [row[1] for row in raw]
+
+        def prev(items):
+            out, last = [], None
+            for item in items:
+                if item is not None:
+                    last = item
+                out.append(last)
+            return out
+
+        def nxt(items):
+            out, following = [None] * len(items), None
+            for i in range(len(items) - 1, -1, -1):
+                if items[i] is not None:
+                    following = items[i]
+                out[i] = following
+            return out
+
+        expected = [[raw[i][0], prev(values)[i], nxt(values)[i]] for i in range(len(raw))]
+        tdSql.query(
+            f"select ts, voltage_p, voltage_n from table(time_align(table {qualified}, "
+            f"'voltage:PREV:_p;voltage:NEXT:_n')) order by ts")
+        tdSql.checkRows(len(expected))
+        for row_index, row in enumerate(expected):
+            for col_index, value in enumerate(row):
+                tdSql.checkData(row_index, col_index, value)
+
+        tdSql.query(
+            f"select ts, voltage_n from table(time_align(table {qualified}, 'voltage:NEXT:_n')) "
+            f"where voltage_n = 3 order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 3)
+        tdSql.checkData(1, 1, 3)
+
+        # The align barrier keeps an explicit Projection above FederatedScan.
+        tdSql.query(f"explain select ts, voltage_n from "
+                    f"table(time_align(table {qualified}, 'voltage:NEXT:_n'))")
+        plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+        assert "Projection" in plan and "Federated Scan" in plan, plan
+
+    def test_external_types_view_and_negatives(self):
+        """Remote types, an external-table view, the 4-part path and errors.
+
+        PG numeric maps to DECIMAL and varchar to a variable-length column;
+        both interpolate in the Projection above FederatedScan.  A view over
+        the external table aligns on its output, a fourth path segment is
+        rejected for this source, and definition errors are reported.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, ext_source, phase2, negative, ci
+        """
+        qualified = f"{self.SOURCE}.public.t_ext"
+        tdSql.execute(f"use {self.VTABLE_DB}")
+
+        tdSql.query(f"select * from {qualified} order by ts")
+        raw = [list(row) for row in tdSql.queryResult]
+        tdSql.checkRows(4)
+        assert tdSql.queryCols == 6, f"expected ts + 5 remote columns, got {tdSql.queryCols}"
+        voltages = [row[1] for row in raw]
+        currents = [row[2] for row in raw]
+        statuses = [row[3] for row in raw]
+        ratios = [row[4] for row in raw]
+        notes = [row[5] for row in raw]
+
+        def prev(items):
+            out, last = [], None
+            for item in items:
+                if item is not None:
+                    last = item
+                out.append(last)
+            return out
+
+        def nxt(items):
+            out, following = [None] * len(items), None
+            for i in range(len(items) - 1, -1, -1):
+                if items[i] is not None:
+                    following = items[i]
+                out[i] = following
+            return out
+
+        # DECIMAL and VARCHAR aligned together with DOUBLE; raw rows stay
+        # available through the same Projection.
+        expected = [[raw[i][0], nxt(voltages)[i], prev(ratios)[i], nxt(notes)[i]]
+                    for i in range(4)]
+        tdSql.query(
+            f"select ts, voltage_n, metric_p, note_n from table(time_align(table {qualified}, "
+            f"'voltage:NEXT:_n;metric:PREV:_p;note:NEXT:_n')) order by ts")
+        tdSql.checkRows(4)
+        for row_index, row in enumerate(expected):
+            for col_index, value in enumerate(row):
+                tdSql.checkData(row_index, col_index, value)
+
+        # output_raw=TRUE: ts + all remote columns + one aligned column each.
+        tdSql.query(
+            f"select * from table(time_align(table {qualified}, TRUE, '*::_a')) order by ts")
+        tdSql.checkRows(4)
+        assert tdSql.queryCols == 1 + 5 * 2, (
+            f"expected {1 + 5 * 2} columns, got {tdSql.queryCols}")
+        aligned_columns = [prev(voltages), prev(currents), prev(statuses), prev(ratios), prev(notes)]
+        for row_index in range(4):
+            for col_index in range(5):
+                tdSql.checkData(row_index, 1 + col_index, raw[row_index][1 + col_index])
+                tdSql.checkData(row_index, 1 + 5 + col_index,
+                                aligned_columns[col_index][row_index])
+
+        # View over the external table, aligned on the view's output.
+        tdSql.execute(f"drop view if exists v_ext")
+        tdSql.execute(f"create view v_ext as select ts, voltage, metric, note from {qualified}")
+        expected = [[raw[i][0], nxt(voltages)[i], prev(ratios)[i]] for i in range(4)]
+        tdSql.query("select ts, voltage_n, metric_p from "
+                    "table(time_align(table v_ext, TRUE, 'voltage:NEXT:_n;metric:PREV:_p')) "
+                    "order by ts")
+        tdSql.checkRows(4)
+        for row_index, row in enumerate(expected):
+            for col_index, value in enumerate(row):
+                tdSql.checkData(row_index, col_index, value)
+        tdSql.execute("drop view if exists v_ext")
+
+        # This source binds the database: at most three path segments are
+        # accepted, so the four-segment form is a syntax error.
+        tdSql.error(
+            f"select * from table(time_align(table {self.SOURCE}.{self.REMOTE_DB}.public.t_ext, "
+            f"'voltage:PREV:_p'))",
+            PAR_SYNTAX_ERROR)
+
+        # Definition and visibility errors on the external Projection.
+        tdSql.error(f"select * from table(time_align(table {qualified}, 'voltage:LINEAR:_x'))",
+                    PAR_NOT_ALLOWED_FUNC)
+        tdSql.error(f"select * from table(time_align(table {qualified}, 'nocol:PREV:_x'))",
+                    PAR_INVALID_COLUMN)
+        tdSql.error(f"select * from table(time_align(table {qualified}, TRUE))",
+                    PAR_DUPLICATED_COLUMN)
+        tdSql.error(f"select current from table(time_align(table {qualified}, 'voltage:PREV:_p'))",
+                    PAR_INVALID_COLUMN)
+        tdSql.error(f"select ts from table(time_align(table {qualified}, 'voltage:PREV:_p')) "
+                    f"where current > 1", PAR_INVALID_COLUMN)
+
     def test_default_alignment(self):
         """PREV aligns remote columns exactly like local sources.
 
@@ -172,6 +337,43 @@ class TestTimeAlignExtSource:
             for col_index in range(3):
                 tdSql.checkData(row_index, 1 + col_index, raw[row_index][1 + col_index])
                 tdSql.checkData(row_index, 4 + col_index, aligned[row_index][1 + col_index])
+
+        # '*' combinations on the external input: NEXT fills, repeated '*'
+        # (NEXT then PREV) and the raw+aligned form share one expansion.
+        def nxt(items):
+            out, following = [None] * len(items), None
+            for i in range(len(items) - 1, -1, -1):
+                if items[i] is not None:
+                    following = items[i]
+                out[i] = following
+            return out
+
+        def prev(items):
+            out, last = [], None
+            for item in items:
+                if item is not None:
+                    last = item
+                out.append(last)
+            return out
+
+        voltages = [row[1] for row in raw]
+        currents = [row[2] for row in raw]
+        statuses = [row[3] for row in raw]
+
+        tdSql.query("select * from table(time_align(table vt_ext, '*:NEXT:_n')) order by ts")
+        assert tdSql.queryCols == 4, f"unexpected column count: {tdSql.queryCols}"
+        expected_cols = [nxt(voltages), nxt(currents), nxt(statuses)]
+        for row_index in range(4):
+            for col_index in range(3):
+                tdSql.checkData(row_index, 1 + col_index,
+                                expected_cols[col_index][row_index])
+
+        tdSql.query("select * from table(time_align(table vt_ext, "
+                    "'*:NEXT:_a;*:PREV:_b')) order by ts")
+        assert tdSql.queryCols == 7, f"unexpected column count: {tdSql.queryCols}"
+        for row_index in range(4):
+            tdSql.checkData(row_index, 1, nxt(voltages)[row_index])
+            tdSql.checkData(row_index, 4, prev(voltages)[row_index])
 
         # Raw vs aligned aggregates in the same SELECT.
         raw_voltage = [row[1] for row in raw if row[1] is not None]
@@ -320,3 +522,195 @@ class TestTimeAlignExtSource:
         tdSql.error(
             "select voltage from table(time_align(table vt_ext, 'voltage:PREV:_a'))",
             PAR_INVALID_COLUMN)
+    def test_external_time_range(self):
+        """The optional time range works on external tables and their vtables.
+
+        The time axis is the external table's primary timestamp; the range is
+        measured in the Projection above FederatedScan exactly like a local
+        table.  The row at 2s has a NULL current whose successor is 2s away, so
+        NEXT(2s) fills it (closed interval) while NEXT(1s) does not.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, ext_source, time_range, ci
+        """
+        qualified = f"{self.SOURCE}.public.t_ext"
+        tdSql.execute(f"use {self.VTABLE_DB}")
+
+        tdSql.query(
+            f"select ts, current_n from table(time_align(table {qualified}, 'current:NEXT(2s):_n')) "
+            f"order by ts")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([10, 20, 50, 50]):
+            tdSql.checkData(row_index, 1, value)
+
+        tdSql.query(
+            f"select ts, current_n from table(time_align(table {qualified}, 'current:NEXT(1s):_n')) "
+            f"order by ts")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([10, 20, None, 50]):
+            tdSql.checkData(row_index, 1, value)
+
+        tdSql.query(
+            "select ts, current_p from table(time_align(table vt_ext, 'current:PREV(1s):_p')) "
+            "order by ts")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([10, 20, 20, 50]):
+            tdSql.checkData(row_index, 1, value)
+
+        tdSql.query(
+            "select ts, current_p from table(time_align(table vt_ext, 'current:PREV(0s):_p')) "
+            "order by ts")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([10, 20, None, 50]):
+            tdSql.checkData(row_index, 1, value)
+
+        # Descending output sorts above the align Projection: the values match
+        # the ascending result and only the row order changes.
+        tdSql.query(
+            f"select ts, current_n from table(time_align(table {qualified}, 'current:NEXT(2s):_n')) "
+            f"order by ts desc")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([50, 50, 20, 10]):
+            tdSql.checkData(row_index, 1, value)
+        tdSql.query(
+            "select ts, current_p from table(time_align(table vt_ext, 'current:PREV(1s):_p')) "
+            "order by ts desc")
+        tdSql.checkRows(4)
+        for row_index, value in enumerate([50, 20, 20, 10]):
+            tdSql.checkData(row_index, 1, value)
+        # DESC + LIMIT: limit applies to the aligned output, not to the input.
+        tdSql.query(
+            f"select ts, current_n from table(time_align(table {qualified}, 'current:NEXT(2s):_n')) "
+            f"order by ts desc limit 2")
+        tdSql.checkRows(2)
+        for row_index, value in enumerate([50, 50]):
+            tdSql.checkData(row_index, 1, value)
+
+    def test_external_no_primary_key(self):
+        """External tables without a primary key follow view semantics.
+
+        A remote table without a primary key cannot back a vtable, and TIME_ALIGN
+        does not synthesize a timeline for the direct external reference: the
+        input is aligned in output row order, no timestamp column is forced,
+        and a range parameter is ignored.  This also covers a table with no
+        TIMESTAMP column at all.  The positive control uses a primary-key table
+        whose key is not part of the aligned output.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, ext_source, negative, ci
+        """
+        ExtSrcEnv.pg_exec(self.REMOTE_DB, [
+            "DROP TABLE IF EXISTS t_nopk",
+            "CREATE TABLE t_nopk (ts timestamp(3), voltage double precision, note varchar(16))",
+            "INSERT INTO t_nopk VALUES ('2024-01-01 00:00:00', 1, 'a'), "
+            "('2024-01-01 00:00:02', NULL, NULL)",
+        ])
+        tdSql.execute(f"use {self.VTABLE_DB}")
+        tdSql.error(
+            f"create vtable vt_nopk (ts timestamp, voltage double from "
+            f"{self.SOURCE}.{self.REMOTE_DB}.t_nopk.voltage)",
+            0x6406)
+        # No primary key: view-like output, so the default output is only the
+        # aligned columns.  The timestamp column is an ordinary source column,
+        # not an implicit time axis.
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_nopk, "
+            f"'voltage:PREV:_a;voltage:NEXT:_n'))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 2, f"expected aligned voltage columns only, got {tdSql.queryCols}"
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(1, 1, None)  # no successor after the last value
+        # The default *:PREV: alignment exposes only aligned columns; `*`
+        # includes the TIMESTAMP column, which is an ordinary align source.
+        tdSql.query(f"select * from table(time_align(table {self.SOURCE}.public.t_nopk))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 3, f"expected 3 aligned columns, got {tdSql.queryCols}"
+        tdSql.checkData(0, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:00')))
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 'a')
+        tdSql.checkData(1, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:02')))
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, 'a')
+        # output_raw=TRUE exposes the input columns in schema order, followed
+        # by the aligned columns.
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_nopk, TRUE, "
+            f"'voltage:PREV:_a'))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 4, f"expected raw columns + aligned voltage, got {tdSql.queryCols}"
+        tdSql.checkData(0, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:00')))
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 'a')
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:02')))
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, None)
+        tdSql.checkData(1, 3, 1)
+        # Explicit projection of the raw TIMESTAMP column uses the same
+        # view-like resolution (it is not a primary timestamp).
+        tdSql.query(
+            f"select ts, voltage, note, voltage_a from table(time_align("
+            f"table {self.SOURCE}.public.t_nopk, TRUE, 'voltage:PREV:_a'))")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:00')))
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(1, 0, self._ts_ms(datetime.fromisoformat('2024-01-01 00:00:02')))
+        tdSql.checkData(1, 3, 1)
+
+        # A table without any TIMESTAMP column is also valid: row order is the
+        # only alignment order, and a range parameter is ignored.
+        ExtSrcEnv.pg_exec(self.REMOTE_DB, [
+            "DROP TABLE IF EXISTS t_nots",
+            "CREATE TABLE t_nots (voltage double precision, note varchar(16))",
+            "INSERT INTO t_nots VALUES (1, 'a'), (NULL, NULL)",
+        ])
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_nots, "
+            f"'voltage:PREV:_a'))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 1, f"expected aligned voltage only, got {tdSql.queryCols}"
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_nots, "
+            f"'voltage:PREV(2s):_a'))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 1, f"range must be ignored, got {tdSql.queryCols} columns"
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(1, 0, 1)
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_nots, TRUE, "
+            f"'voltage:PREV:_a'))")
+        tdSql.checkRows(2)
+        assert tdSql.queryCols == 3, f"expected raw columns + aligned voltage, got {tdSql.queryCols}"
+        tdSql.checkData(0, 0, 1)
+        tdSql.checkData(0, 1, 'a')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 0, None)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(1, 2, 1)
+        tdSql.error(
+            f"create vtable vt_nots (ts timestamp, voltage double from "
+            f"{self.SOURCE}.{self.REMOTE_DB}.t_nots.voltage)", 0x6406)
+        # Positive control: the primary key is not named by the definition and
+        # is not part of the aligned output, yet the row timeline still comes
+        # from it.
+        tdSql.query(
+            f"select * from table(time_align(table {self.SOURCE}.public.t_ext, "
+            f"'voltage:PREV:_a'))")
+        tdSql.checkRows(4)
+        assert tdSql.queryCols == 2, f"expected ts + aligned voltage, got {tdSql.queryCols}"
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(2, 1, 3)
+        tdSql.checkData(3, 1, 5)

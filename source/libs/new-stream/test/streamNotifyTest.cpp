@@ -51,6 +51,8 @@
 #include "cmdnodes.h"
 #include "streamInt.h"
 #include "stub.h"
+#include "tconv.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 
 extern "C" {
@@ -598,6 +600,79 @@ struct ArrayDeleter {
 struct JsonDeleter {
   void operator()(cJSON* json) const { cJSON_Delete(json); }
 };
+
+class StreamNotifyContentTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    originalCharset_ = tsCharsetCxt;
+    tsCharsetCxt = taosConvInit("GBK");
+    ASSERT_NE(tsCharsetCxt, nullptr);
+  }
+
+  void TearDown() override { tsCharsetCxt = originalCharset_; }
+
+ private:
+  void* originalCharset_ = nullptr;
+};
+
+TEST_F(StreamNotifyContentTest, ResultStringsPreserveNcharAsUtf8) {
+  const std::u32string wideValues[] = {U"PLK-202612345", U"配料卡-\U0001F600", U"A\"\\\nB", U""};
+  const char*          values[] = {"PLK-202612345", u8"配料卡-\U0001F600", "A\"\\\nB", ""};
+  const int32_t        rows = 5;
+  SSDataBlock*         rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> block(rawBlock, blockDataDestroy);
+  ASSERT_NE(block, nullptr);
+  std::unique_ptr<SArray, ArrayDeleter> fields(taosArrayInit(2, sizeof(SFieldWithOptions)));
+  ASSERT_NE(fields, nullptr);
+
+  for (int8_t type : {TSDB_DATA_TYPE_NCHAR, TSDB_DATA_TYPE_VARCHAR}) {
+    SColumnInfoData column = createColumnInfoData(type, 128, type);
+    ASSERT_EQ(blockDataAppendColInfo(block.get(), &column), TSDB_CODE_SUCCESS);
+    SFieldWithOptions field = {};
+    tstrncpy(field.name, type == TSDB_DATA_TYPE_NCHAR ? u8"配料卡" : "varchar", sizeof(field.name));
+    ASSERT_NE(taosArrayPush(fields.get(), &field), nullptr);
+  }
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), rows), TSDB_CODE_SUCCESS);
+  block->info.rows = rows;
+
+  for (int32_t colIdx = 0; colIdx < 2; ++colIdx) {
+    auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, colIdx));
+    for (int32_t row = 0; row < rows - 1; ++row) {
+      const char* data = colIdx == 0 ? reinterpret_cast<const char*>(wideValues[row].data()) : values[row];
+      int32_t len = static_cast<int32_t>(colIdx == 0 ? wideValues[row].size() * sizeof(TdUcs4) : strlen(values[row]));
+      std::vector<char> cell(VARSTR_HEADER_SIZE + len);
+      varDataSetLen(cell.data(), len);
+      memcpy(varDataVal(cell.data()), data, len);
+      ASSERT_EQ(colDataSetVal(column, row, cell.data(), false), TSDB_CODE_SUCCESS);
+    }
+    ASSERT_EQ(colDataSetVal(column, rows - 1, nullptr, true), TSDB_CODE_SUCCESS);
+  }
+
+  SStreamRunnerTask task = {};
+  char*             content = nullptr;
+  bool              hasRows = false;
+  int32_t code = streamBuildBlockResultNotifyContent(&task, block.get(), &content, fields.get(), 0, rows - 1, &hasRows);
+  std::unique_ptr<char, decltype(&cJSON_free)> ownedContent(content, cJSON_free);
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(hasRows);
+  ASSERT_NE(content, nullptr);
+  std::unique_ptr<cJSON, JsonDeleter> root(cJSON_Parse(content));
+  ASSERT_NE(root, nullptr);
+  cJSON* result = cJSON_GetObjectItemCaseSensitive(root.get(), "result");
+  cJSON* data = cJSON_GetObjectItemCaseSensitive(result, "data");
+  ASSERT_EQ(cJSON_GetArraySize(data), rows);
+  for (int32_t row = 0; row < rows; ++row) {
+    for (const char* name : {u8"配料卡", "varchar"}) {
+      cJSON* value = cJSON_GetObjectItemCaseSensitive(cJSON_GetArrayItem(data, row), name);
+      if (row == rows - 1) {
+        EXPECT_TRUE(cJSON_IsNull(value));
+      } else {
+        EXPECT_STREQ(cJSON_GetStringValue(value), values[row]);
+      }
+    }
+  }
+}
 
 class StreamNotifyTest : public ::testing::Test {
  protected:

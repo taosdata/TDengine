@@ -42,7 +42,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
     DB = "fs_ts9"
     STREAM = "s_ts9"
     SINK = "sink"
-    TABLE = "SRC_T9"
+    TABLE = "src_t9"
     SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
 
     @classmethod
@@ -134,15 +134,15 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
         oracle_setup = [
             # A re-run without an environment reset still has the table from the
             # previous attempt, and CREATE TABLE would then fail with ORA-00955.
-            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE {self.TABLE}'; "
+            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"{self.TABLE}\"'; "
             f"EXCEPTION WHEN OTHERS THEN NULL; END;",
-            f"CREATE TABLE {self.TABLE} (ts TIMESTAMP(9) PRIMARY KEY, val NUMBER(10))",
+            f'CREATE TABLE "{self.TABLE}" ("ts" TIMESTAMP(9) PRIMARY KEY, "val" NUMBER(10))',
         ]
 
         def body(src_name, db_type):
             stream = f"{self.DB}.{self.STREAM}"
             sink = f"{self.DB}.{self.SINK}"
-            ref = f"{src_name}.{self.SCHEMA}.{self.TABLE}"
+            ref = f"{src_name}.`{self.SCHEMA}`.{self.TABLE}"
             tdSql.execute(f"USE {self.DB}")
             tdSql.execute(f"DROP STREAM IF EXISTS {stream}")
             tdSql.execute(f"DROP TABLE IF EXISTS {sink}")
@@ -163,7 +163,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
                 canary_ns = base_ns - (10 - attempt) * 1000000000
                 ExtSrcEnv.oracle_exec_cfg(
                     self._oracle_cfg(),
-                    [f"INSERT INTO {self.TABLE} VALUES "
+                    [f'INSERT INTO "{self.TABLE}" VALUES '
                      f"(TIMESTAMP '{self._literal(canary_ns)}', 0)", "COMMIT"],
                 )
                 if self._wait_sink_value(canary_ns, 0, timeout=20):
@@ -176,7 +176,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
 
             ExtSrcEnv.oracle_exec_cfg(
                 self._oracle_cfg(),
-                [f"INSERT INTO {self.TABLE} VALUES "
+                [f'INSERT INTO "{self.TABLE}" VALUES '
                  f"(TIMESTAMP '{self._literal(tested_ns)}', 1)", "COMMIT"],
             )
             assert self._wait_sink_value(tested_ns, 1, timeout=120), (
@@ -225,7 +225,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
             - 2026-11-05 Wang Mingming Cover non-key TIMESTAMP(9) projection
               through a nanosecond virtual table.
         """
-        table = "SRC_SIDE_T9"
+        table = "src_side_t9"
         vtable = "vt_side_t9"
         vstable = "vstb_side_t9"
         # 2026-01-01T00:00:00Z in nanoseconds.  The measured row sits at
@@ -237,16 +237,16 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
         oracle_setup = [
             # An explicit NUMBER(10,0) keeps the column unambiguously BIGINT, which is
             # what the virtual table below declares.
-            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE {table}'; "
+            f"BEGIN EXECUTE IMMEDIATE 'DROP TABLE \"{table}\"'; "
             f"EXCEPTION WHEN OTHERS THEN NULL; END;",
-            f"CREATE TABLE {table} (ts TIMESTAMP(9) PRIMARY KEY, "
-            f"event_ts TIMESTAMP(9), val NUMBER(10,0))",
+            f'CREATE TABLE "{table}" ("ts" TIMESTAMP(9) PRIMARY KEY, '
+            f'"event_ts" TIMESTAMP(9), "val" NUMBER(10,0))',
         ]
 
         def body(src_name, db_type):
             stream = f"{self.DB}.{self.STREAM}"
             sink = f"{self.DB}.{self.SINK}"
-            remote = f"{src_name}.{self.SCHEMA}.{table}"
+            remote = f"{src_name}.`{self.SCHEMA}`.{table}"
             vt = f"{self.DB}.{vtable}"
             vstb = f"{self.DB}.{vstable}"
             tdSql.execute(f"USE {self.DB}")
@@ -264,8 +264,8 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
             )
             tdSql.execute(
                 f"CREATE VTABLE {vt} ("
-                f"event_ts FROM {remote}.EVENT_TS, "
-                f"val FROM {remote}.VAL) USING {vstb} TAGS(1)"
+                f"event_ts FROM {remote}.event_ts, "
+                f"val FROM {remote}.val) USING {vstb} TAGS(1)"
             )
             tdSql.execute(
                 f"CREATE STREAM {stream} COUNT_WINDOW(1) FROM {vstb} "
@@ -284,7 +284,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
                 canary_ns = base_ns - (10 - attempt) * 1000000000
                 ExtSrcEnv.oracle_exec_cfg(
                     self._oracle_cfg(),
-                    [f"INSERT INTO {table} VALUES "
+                    [f'INSERT INTO "{table}" VALUES '
                      f"(TIMESTAMP '{self._literal(canary_ns)}', "
                      f"TIMESTAMP '{self._literal(canary_ns)}', 0)", "COMMIT"],
                 )
@@ -299,7 +299,7 @@ class TestFsOracleTs9Trigger(FederatedQueryTestMixin):
 
             ExtSrcEnv.oracle_exec_cfg(
                 self._oracle_cfg(),
-                [f"INSERT INTO {table} VALUES "
+                [f'INSERT INTO "{table}" VALUES '
                  f"(TIMESTAMP '{self._literal(tested_ns)}', "
                  f"TIMESTAMP '{self._literal(side_ns)}', 7)", "COMMIT"],
             )

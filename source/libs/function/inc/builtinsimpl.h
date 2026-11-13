@@ -207,6 +207,13 @@ int32_t fillforwardFunction(SqlFunctionCtx* pCtx);
 int32_t fillforwardFunctionByRow(SArray* pCtx);
 void    fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx);
 
+bool    getFillnextFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t fillnextFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
+int32_t fillnextFunction(SqlFunctionCtx* pCtx);
+int32_t fillnextFunctionByRow(SArray* pCtx);
+void    fillnextFunctionCleanupExt(SqlFunctionCtx* pCtx);
+bool    fillnextHasPending(SqlFunctionCtx* pCtx);
+
 bool    getForecastConfEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 bool    getCorrFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t corrFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
@@ -222,6 +229,7 @@ bool    getDerivativeFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t derivativeFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);
 int32_t derivativeFunction(SqlFunctionCtx* pCtx);
 int32_t derivativeFunctionByRow(SArray* pCtxArray);
+int32_t streamDerivativeFunctionByRow(SArray* pCtxArray);
 
 bool    getIrateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo);

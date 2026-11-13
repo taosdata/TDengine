@@ -481,6 +481,7 @@ static int32_t authTimeAlignTable(SAuthCxt* pCxt, SSelectStmt* pSelect, STimeAli
   tstrncpy(table.tableName, pAlign->tbName, sizeof(table.tableName));
   tstrncpy(table.tableAlias, pAlign->table.tableAlias, sizeof(table.tableAlias));
 
+  bool isView = false;
 #ifdef TD_ENTERPRISE
   // Mirror the REAL_TABLE path: MAC level check and the owner shortcut.  Both
   // use the table meta already reserved by collectMetaKey for this statement.
@@ -498,9 +499,22 @@ static int32_t authTimeAlignTable(SAuthCxt* pCxt, SSelectStmt* pSelect, STimeAli
       queryFreeTableMeta(pTableMeta);
       return TSDB_CODE_SUCCESS;
     }
+    if (TSDB_VIEW_TABLE == pTableMeta->tableType) {
+      isView = true;
+    }
   }
   queryFreeTableMeta(pTableMeta);
 #endif
+
+  if (isView) {
+    // The input is a view: require the view SELECT privilege, exactly like a
+    // direct query on the view, instead of the table privilege.
+    code = checkViewAuth(pCxt, table.dbName, table.tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
+    if (TSDB_CODE_SUCCESS != code && NULL != pCxt->pParseCxt->pEffectiveUser) {
+      code = checkViewEffectiveAuth(pCxt, table.dbName, table.tableName, PRIV_VIEW_SELECT, PRIV_OBJ_VIEW, NULL);
+    }
+    return code;
+  }
 
   SNode* pTagCond = NULL;
   code = checkAuth(pCxt, table.dbName, table.tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL, &pTagCond, NULL);

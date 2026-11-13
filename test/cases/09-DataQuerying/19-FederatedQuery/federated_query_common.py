@@ -4138,7 +4138,7 @@ class FederatedQueryTestMixin:
         oracle_insert_sql = (
             "INSERT ALL "
             + " ".join(
-                f"INTO {table.upper()} (ts, val, score, name, flag) VALUES"
+                f'INTO "{table}" ("ts", "val", "score", "name", "flag") VALUES'
                 f"(TO_TIMESTAMP('{_ms_to_dt(ts)}', 'YYYY-MM-DD HH24:MI:SS.FF3'),"
                 f" {val}, {score}, '{name}', {flag})"
                 for ts, val, score, name, flag in _STD_ROWS)
@@ -4235,14 +4235,19 @@ class FederatedQueryTestMixin:
             self._cleanup_src(o_src)
             o_cfg = self._oracle_cfg()
             try:
-                # Unquoted identifiers fold to upper case (Oracle R1), so the
-                # table is created and referenced without quotes.  There is no
-                # per-test database: the login schema is the namespace.
-                ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
+                # The fixture stores quoted lower-case names so the shared
+                # lower-case references match exactly under TDengine's
+                # identifier grammar (unquoted -> lower case, exact catalog
+                # match).  The login schema is the only namespace.
+                for stale in (table, table.upper()):
+                    try:
+                        ExtSrcEnv.oracle_drop_table_cfg(o_cfg, stale)
+                    except Exception:
+                        pass
                 ExtSrcEnv.oracle_exec_cfg(o_cfg, [
-                    f"CREATE TABLE {table.upper()} ("
-                    f"  ts TIMESTAMP(3) PRIMARY KEY, val NUMBER(10),"
-                    f"  score BINARY_DOUBLE, name VARCHAR2(32), flag NUMBER(1))",
+                    f'CREATE TABLE "{table}" ('
+                    f'  "ts" TIMESTAMP(3) PRIMARY KEY, "val" NUMBER(10),'
+                    f'  "score" BINARY_DOUBLE, "name" VARCHAR2(32), "flag" NUMBER(1))',
                     oracle_insert_sql,
                     "COMMIT",
                 ])
@@ -4251,10 +4256,11 @@ class FederatedQueryTestMixin:
                 body_fn(o_src)
             finally:
                 self._cleanup_src(o_src)
-                try:
-                    ExtSrcEnv.oracle_drop_table_cfg(o_cfg, table.upper())
-                except Exception:
-                    pass
+                for stale in (table, table.upper()):
+                    try:
+                        ExtSrcEnv.oracle_drop_table_cfg(o_cfg, stale)
+                    except Exception:
+                        pass
 
     def _with_custom_sources(self, prefix, body_fn, *,
                              mysql_setup=None, pg_setup=None, influx_lines=None,

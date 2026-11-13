@@ -175,9 +175,9 @@ def _oracle_insert_rows(rows) -> list:
     bare string would be parsed with the session's NLS_TIMESTAMP_FORMAT and
     that differs between the test client and the server.
     """
-    table = _FW_TABLE.upper()
+    table = _FW_TABLE.lower()
     return [
-        f'INSERT INTO "{table}" ("TS", "VAL", "SCORE", "NAME") VALUES '
+        f'INSERT INTO "{table}" ("ts", "val", "score", "name") VALUES '
         f"(TO_TIMESTAMP('{ts}', 'YYYY-MM-DD HH24:MI:SS.FF3'), {val}, {score}, '{name}')"
         for ts, val, score, name in rows
     ]
@@ -185,15 +185,15 @@ def _oracle_insert_rows(rows) -> list:
 
 def _oracle_fixture_ddl(rows) -> list:
     """DDL/DML rebuilding the path fixture in one Oracle schema."""
-    table = _FW_TABLE.upper()
+    table = _FW_TABLE.lower()
     return [
         (
-            f'CREATE TABLE "{table}" ("TS" TIMESTAMP(3), "VAL" NUMBER(10), '
-            f'"SCORE" BINARY_DOUBLE, "NAME" VARCHAR2(32))'
+            f'CREATE TABLE "{table}" ("ts" TIMESTAMP(3), "val" NUMBER(10), '
+            f'"score" BINARY_DOUBLE, "name" VARCHAR2(32))'
         ),
         *_oracle_insert_rows(rows),
-        f'CREATE VIEW "V_{table}" AS SELECT * FROM "{table}" WHERE "VAL" > 0',
-        f'CREATE VIEW "V_NO_TS" AS SELECT "VAL", "NAME" FROM "{table}"',
+        f'CREATE VIEW "v_{table}" AS SELECT * FROM "{table}" WHERE "val" > 0',
+        f'CREATE VIEW "v_no_ts" AS SELECT "val", "name" FROM "{table}"',
         "COMMIT",
     ]
 
@@ -205,8 +205,14 @@ def _oracle_drop_fixture(cfg, rows_owner=None, password=None) -> None:
     every object.  The drops run as the owning account, which is the only one
     that may drop them without extra privileges.
     """
-    table = _FW_TABLE.upper()
-    for kind, name in (("VIEW", f"V_{table}"), ("VIEW", "V_NO_TS"), ("TABLE", table)):
+    table = _FW_TABLE.lower()
+    # Drop both spellings: an instance that still carries the upper-case
+    # objects of an older fixture would shadow the exact-spelling assertions
+    # (a backticked `PATH_T` must resolve nothing).
+    names = ((f"v_{table}", "VIEW"), ("v_no_ts", "VIEW"), (table, "TABLE"),
+             (f"V_{table.upper()}", "VIEW"), ("V_NO_TS", "VIEW"),
+             (table.upper(), "TABLE"))
+    for name, kind in names:
         try:
             ExtSrcEnv._oracle_sql(cfg, f'DROP {kind} "{name}"', user=rows_owner,
                                   password=password)
@@ -258,8 +264,11 @@ def _paths_for_source(src_name: str, ns: str, table: str,
     paths.append((1, table))
     # 2-seg: source.table
     paths.append((2, f"{src_name}.{table}"))
-    # 3-seg: source.ns.table   (SQL Server: ns is the schema)
-    paths.append((3, f"{src_name}.{ns}.{table}"))
+    # 3-seg: source.ns.table   (SQL Server: ns is the schema).  Oracle's
+    # schema segment is an upper-case account name, so it is backticked to
+    # survive TDengine's lower-casing of unquoted identifiers.
+    ns_seg = f"`{ns}`" if src_type == _oracle else ns
+    paths.append((3, f"{src_name}.{ns_seg}.{table}"))
     if src_type == _sqlserver:
         # 4-seg: source.database.schema.table is valid for SQL Server
         paths.append((4, f"{src_name}.{_S_DB}.{ns}.{table}"))
@@ -267,9 +276,9 @@ def _paths_for_source(src_name: str, ns: str, table: str,
         paths.append((5, f"{src_name}.{_S_DB}.{ns}.{table}.extra"))
     else:
         # 4-seg: too many segments
-        paths.append((4, f"{src_name}.{ns}.{table}.extra"))
+        paths.append((4, f"{src_name}.{ns_seg}.{table}.extra"))
         # 5-seg: too many segments
-        paths.append((5, f"{src_name}.{ns}.{table}.extra.more"))
+        paths.append((5, f"{src_name}.{ns_seg}.{table}.extra.more"))
     return paths
 
 
@@ -287,18 +296,21 @@ def _use_paths_for_source(src_name: str, ns: str,
     paths.append((0, "use "))
     # 1-seg: USE source_name
     paths.append((1, f"use {src_name}"))
-    # 2-seg: USE source.ns   (SQL Server: ns is the database)
-    paths.append((2, f"use {src_name}.{_S_DB if src_type == _sqlserver else ns}"))
+    # 2-seg: USE source.ns   (SQL Server: ns is the database).  Oracle's
+    # upper-case schema segment is backticked for the same reason as in
+    # _paths_for_source.
+    ns_seg = f"`{ns}`" if src_type == _oracle else ns
+    paths.append((2, f"use {src_name}.{_S_DB if src_type == _sqlserver else ns_seg}"))
     if src_type == _sqlserver:
         # 3-seg: USE source.db.schema is valid for SQL Server
         paths.append((3, f"use {src_name}.{_S_DB}.{ns}"))
     else:
         # 3-seg: USE source.ns.extra (should fail)
-        paths.append((3, f"use {src_name}.{ns}.extra"))
+        paths.append((3, f"use {src_name}.{ns_seg}.extra"))
     # 4-seg: USE a.b.c.d (should fail)
-    paths.append((4, f"use {src_name}.{ns}.extra.more"))
+    paths.append((4, f"use {src_name}.{ns_seg}.extra.more"))
     # 5-seg: USE a.b.c.d.e (should fail)
-    paths.append((5, f"use {src_name}.{ns}.extra.more.deep"))
+    paths.append((5, f"use {src_name}.{ns_seg}.extra.more.deep"))
     return paths
 
 
@@ -437,13 +449,14 @@ def _dim02_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
     steps = _build_path_test_steps(src, ns, table, src_type)
     steps.append("-- [USE segment tests in DIM-02]")
     steps.extend(_build_use_test_steps(src, ns, table, has_default_ns=False, src_type=src_type))
     # After USE source.ns, 2-seg source.table should succeed
     # (USE sets the namespace context; 2-seg falls back to USE ns when source matches)
     steps.append(f"-- [2-seg after USE source.ns] should succeed — USE provides the ns")
-    steps.append(f"use {src}.{ns}")
+    steps.append(f"use {src}.{ns_path}")
     steps.append(f"select * from {src}.{table} order by val limit 1")
     return steps
 
@@ -493,7 +506,8 @@ def _dim04_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
-    steps = [f"use {src}.{ns}"]
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    steps = [f"use {src}.{ns_path}"]
     steps.extend(_build_path_test_steps(src, ns, table, src_type))
     # 1-seg after USE source.ns should resolve
     steps.append(f"-- [1-seg after USE source.ns] table={table}")
@@ -558,6 +572,7 @@ def _dim06_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
     steps = [
         # Create local db with same name as source
         f"drop database if exists {src}",
@@ -567,7 +582,7 @@ def _dim06_steps(src_type: str) -> list:
         f"insert into {table} values ('2024-06-01 00:00:00.000', 999, 99.9, 'local')",
         # 3-seg: source_name.ns.table → external (source takes priority)
         f"-- [3-seg disambiguation] source_name.ns.table → external",
-        f"select * from {src}.{ns}.{table} order by val limit 5",
+        f"select * from {src}.{ns_path}.{table} order by val limit 5",
         # 2-seg: src.table → depends on context
         f"-- [2-seg disambiguation] src.table",
         f"select * from {src}.{table} order by val limit 5",
@@ -633,28 +648,31 @@ def _dim07_steps(src_type: str) -> list:
             f"select * from {table} limit 1",
         ]
     elif src_type == _oracle:
-        # Oracle folds every unquoted path segment to upper case (DS 5.3.6 R1);
-        # the schema is a login user, so its stored spelling is already upper
-        # case.  Backticks are TDengine's own identifier quoting and are not an
-        # Oracle quoting form, so they do not change the folding - only double
-        # quotes written inside the path text would, and TDengine cannot carry
-        # them through to the remote object name.
+        # Oracle follows TDengine's identifier grammar: an unquoted segment is
+        # lower-cased by the client, a backticked one keeps its spelling, and
+        # the catalog is matched exactly (DS 5.3.6 R1).  The fixture stores
+        # quoted lower-case names, so unquoted lower-case references resolve;
+        # the schema segment is the upper-case account name and needs
+        # backticks in a three-part path.
         ns, table = _O_SCHEMA, _FW_TABLE
         steps = [
-            f"-- Oracle fold: unquoted segments are upper-cased before matching",
+            f"-- Oracle: unquoted lower-case names resolve exactly",
+            f"select * from {src}.{table} limit 1",
+            f"select * from `{src}`.`{table}` limit 1",
+            f"-- Oracle: the upper-case spelling is a different (absent) object",
+            f"select * from {src}.{table.upper()} limit 1",
+            f"select * from {src}.`{table.upper()}` limit 1",
+            f"-- Oracle: three-part path needs the upper-case schema backticked",
             f"select * from {src}.{ns}.{table} limit 1",
-            f"select * from {src.upper()}.{ns}.{table.upper()} limit 1",
-            f"-- Oracle: TDengine backticks are not an Oracle quoting form, so the fold still applies",
-            f"select * from `{src}`.`{ns}`.`{table}` limit 1",
-            f"-- Oracle: a lower-case unquoted table folds to upper, so it resolves",
-            f"select * from {src}.{table.lower()} limit 1",
-            f"select * from {src}.`{table.lower()}` limit 1",
-            f"select * from {src}.{ns}.`{table.lower()}` limit 1",
-            f"-- Oracle USE with case variants",
-            f"use {src.upper()}",
-            f"select * from {table} limit 1",
-            f"use {src.upper()}.{ns}",
-            f"select * from {table} limit 1",
+            f"select * from {src}.`{ns}`.{table} limit 1",
+            f"select * from {src}.`{ns}`.`{table.upper()}` limit 1",
+            f"-- Oracle USE: the bare schema is lower-cased; backticks keep it",
+            f"use {src}",
+            f"select * from `{table}` limit 1",
+            f"use {src}.{ns}",
+            f"select * from `{table}` limit 1",
+            f"use {src}.`{ns}`",
+            f"select * from `{table}` limit 1",
         ]
     else:
         ns, table = _I_DB, _FW_TABLE
@@ -724,32 +742,42 @@ def _dim08_steps(src_type: str) -> list:
     # ── Special identifiers: reserved words as table name ─────────────
     steps.append("-- [Special: SQL reserved word as table name (backtick required)]")
     steps.append(f"select * from {src}.`select` limit 1")
-    steps.append(f"select * from {src}.{ns}.`select` limit 1")
+    steps.append(f"select * from {src}.`{ns}`.`select` limit 1")
 
     # ── Special identifiers: Chinese characters ───────────────────────
     steps.append("-- [Special: Chinese characters in table name]")
     steps.append(f"select * from {src}.`\u6d4b\u8bd5\u8868` limit 1")
-    steps.append(f"select * from {src}.{ns}.`\u6d4b\u8bd5\u8868` limit 1")
+    steps.append(f"select * from {src}.`{ns}`.`\u6d4b\u8bd5\u8868` limit 1")
 
     # ── Special identifiers: numeric-prefix identifier ────────────────
     steps.append("-- [Special: numeric prefix identifier]")
     steps.append(f"select * from {src}.`123table` limit 1")
-    steps.append(f"select * from {src}.{ns}.`123table` limit 1")
+    steps.append(f"select * from {src}.`{ns}`.`123table` limit 1")
 
     # ── Special identifiers: identifier containing dot ────────────────
     steps.append("-- [Special: identifier containing dot (must be backticked)]")
     steps.append(f"select * from {src}.`a.b` limit 1")
-    steps.append(f"select * from {src}.{ns}.`a.b` limit 1")
+    steps.append(f"select * from {src}.`{ns}`.`a.b` limit 1")
 
     # ── Special identifiers: identifier containing space ──────────────
     steps.append("-- [Special: identifier containing space]")
     steps.append(f"select * from {src}.`my table` limit 1")
-    steps.append(f"select * from {src}.{ns}.`my table` limit 1")
+    steps.append(f"select * from {src}.`{ns}`.`my table` limit 1")
 
     # ── USE with special source name (backtick) ───────────────────────
     steps.append("-- [USE with special identifiers]")
     steps.append(f"use `{src}`")
     steps.append(f"select * from `{table}` limit 1")
+
+    if src_type == _oracle:
+        # The fixture stores the quoted lower-case names, so the backticked
+        # lower-case spelling resolves and the upper-case one does not.
+        steps.append("-- [Oracle exact spelling: quoted lower-case names match]")
+        steps.append(f"select * from {src}.`{ns}`.`{table}` limit 1")
+        steps.append(f"select * from {src}.`{ns}`.`{table.upper()}` limit 1")
+        steps.append(f"use {src}.`{ns}`")
+        steps.append(f"select * from `{table}` limit 1")
+        steps.append(f"select * from `{table.upper()}` limit 1")
 
     return steps
 
@@ -780,6 +808,8 @@ def _dim09_steps(src_type: str) -> list:
         alter_sql = f"alter external source {src} set database='{ns2}'"
         restore_sql = f"alter external source {src} set database='{ns}'"
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ns2_path = f"`{ns2}`" if src_type == _oracle else ns2
     steps = [
         f"-- Before ALTER: 2-seg resolves to ns={ns}",
         f"select * from {src}.{table} order by val limit 5",
@@ -788,12 +818,12 @@ def _dim09_steps(src_type: str) -> list:
         f"-- After ALTER: 2-seg now resolves to ns={ns2}",
         f"select * from {src}.{table} order by val limit 5",
         f"-- 3-seg explicit still works for original ns",
-        f"select * from {src}.{ns}.{table} order by val limit 5",
+        f"select * from {src}.{ns_path}.{table} order by val limit 5",
         f"-- USE after ALTER: USE source → uses new default ns",
         f"use {src}",
         f"select * from {table} limit 3",
         f"-- USE source.ns with old ns still explicit",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select * from {table} limit 3",
         f"-- Restore",
         restore_sql,
@@ -819,7 +849,8 @@ def _dim10_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
-    ext_path = f"{src}.{ns}.{table}"
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ext_path = f"{src}.{ns_path}.{table}"
     steps = [
         "drop database if exists fq02_join_db",
         "create database fq02_join_db",
@@ -928,6 +959,8 @@ def _dim11_steps(src_type: str) -> list:
             f"host='{_I_HOST}' port={_I_PORT} user='admin' "
             f"database='{ns2}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql')")
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ns2_path = f"`{ns2}`" if src_type == _oracle else ns2
     steps = [
         "drop database if exists fq02_switch_db",
         "create database fq02_switch_db",
@@ -944,7 +977,7 @@ def _dim11_steps(src_type: str) -> list:
         f"-- 2-seg still reaches external from local context",
         f"select * from {src}.{table} order by val limit 3",
         f"-- Switch to external with explicit ns (2-seg USE)",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select * from {table} order by val limit 3",
         f"-- Switch to local again",
         "use fq02_switch_db",
@@ -958,7 +991,7 @@ def _dim11_steps(src_type: str) -> list:
         "select count(*) from local_t",
         f"-- [Rule 4] ext context cleared during rapid alternation",
         f"select count(*) from {table}",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select count(*) from {table}",
         # ── Cross-ext-source switching ──
         f"-- [Cross-ext switch] Create secondary source",
@@ -997,11 +1030,12 @@ def _dim12_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
     steps = [
         f"-- Attempt to create local db with same name as external source → should fail",
         f"create database {src}",
         f"-- Verify source still works after conflict attempt",
-        f"select * from {src}.{ns}.{table} order by val limit 1",
+        f"select * from {src}.{ns_path}.{table} order by val limit 1",
         f"-- USE the source (not the db)",
         f"use {src}",
         f"select * from {table} limit 1",
@@ -1044,7 +1078,8 @@ def _dim13_steps(src_type: str) -> list:
     else:
         ns, table = _I_DB, _FW_TABLE
 
-    path_3seg = f"{src}.{ns}.{table}"
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    path_3seg = f"{src}.{ns_path}.{table}"
     path_2seg = f"{src}.{table}"
     steps = [
         f"-- INSERT into external (3-seg) → should fail",
@@ -1086,7 +1121,7 @@ def _dim13_steps(src_type: str) -> list:
         f"-- REFRESH source → should succeed",
         f"refresh external source {src}",
         f"-- SHOW tables in external ns",
-        f"show {src}.{ns}.tables",
+        f"show {src}.{ns_path}.tables",
         f"-- [Non-existent source] SELECT → should return EXT_SOURCE_NOT_FOUND",
         f"select * from nonexist_source_xyz.some_ns.{table} limit 1",
         f"select * from nonexist_source_xyz.{table} limit 1",
@@ -1100,7 +1135,7 @@ def _dim13_steps(src_type: str) -> list:
         f"show tables",
         f"describe {table}",
         f"-- [EXT-011] USE source.ns then SHOW/DESCRIBE",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"show tables",
         f"describe {table}",
     ]
@@ -1126,6 +1161,8 @@ def _dim14_steps(src_type: str) -> list:
         ns, ns2 = _I_DB, _I_DB2
         table = _FW_TABLE
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ns2_path = f"`{ns2}`" if src_type == _oracle else ns2
     steps = []
     # Test USE with 0 through 5 segments
     use_paths = _use_paths_for_source(src, ns, src_type)
@@ -1157,10 +1194,10 @@ def _dim14_steps(src_type: str) -> list:
         f"use {src}",
         f"select * from {table} order by val limit 1",
         f"-- USE source.ns then 1-seg query → explicit default namespace row should return",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select * from {table} order by val limit 1",
         f"-- [USE override/reset] USE source.ns2 overrides to alt namespace row",
-        f"use {src}.{ns2}",
+        f"use {src}.{ns2_path}",
         f"select * from {table} order by val limit 1",
         f"-- [USE override/reset] USE source (1-seg) resets to default namespace row",
         f"use {src}",
@@ -1171,7 +1208,7 @@ def _dim14_steps(src_type: str) -> list:
         f"-- [EXT-013] USE with trailing dot → should fail",
         f"use {src}.",
         f"-- [EXT-013] USE with double dot → should fail",
-        f"use {src}..{ns}",
+        f"use {src}..{ns_path}",
     ])
     return steps
 
@@ -1190,6 +1227,8 @@ def _dim19_steps(src_type: str) -> list:
     else:
         ns, ns2 = _I_DB, _I_DB2
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ns2_path = f"`{ns2}`" if src_type == _oracle else ns2
     steps = []
     steps.extend(_local_ctx_setup_steps(_LOCAL_USE_DB_NO_DEFAULT))
     steps.extend([
@@ -1200,10 +1239,10 @@ def _dim19_steps(src_type: str) -> list:
         f"use {src}",
         f"select * from {_FW_TABLE} order by val limit 1",
         f"-- USE source.ns should switch to explicit namespace row",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select * from {_FW_TABLE} order by val limit 1",
         f"-- USE source.ns2 should switch to alternate namespace row",
-        f"use {src}.{ns2}",
+        f"use {src}.{ns2_path}",
         f"select * from {_FW_TABLE} order by val limit 1",
         f"-- Switching back to local db should restore the local row",
         f"use {_LOCAL_USE_DB_NO_DEFAULT}",
@@ -1289,24 +1328,25 @@ def _dim16_steps(src_type: str) -> list:
     else:
         ns = _P_SCHEMA
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
     steps = [
         f"-- [EXT-004] View with ts PK: 2-seg path",
         f"select * from {src}.v_{_FW_TABLE} order by val limit 5",
         f"-- [EXT-004] View with ts PK: 3-seg path",
-        f"select * from {src}.{ns}.v_{_FW_TABLE} order by val limit 5",
+        f"select * from {src}.{ns_path}.v_{_FW_TABLE} order by val limit 5",
         f"-- [EXT-004] View without ts PK (no_ts): 2-seg",
         f"select * from {src}.v_no_ts limit 5",
         f"-- [EXT-004] View without ts PK (no_ts): 3-seg",
-        f"select * from {src}.{ns}.v_no_ts limit 5",
+        f"select * from {src}.{ns_path}.v_no_ts limit 5",
         f"-- [EXT-004] DESCRIBE view: 2-seg",
         f"describe {src}.v_{_FW_TABLE}",
         f"-- [EXT-004] DESCRIBE view: 3-seg",
-        f"describe {src}.{ns}.v_{_FW_TABLE}",
+        f"describe {src}.{ns_path}.v_{_FW_TABLE}",
         f"-- [EXT-004] USE source then 1-seg view query",
         f"use {src}",
         f"select * from v_{_FW_TABLE} order by val limit 3",
         f"-- [EXT-004] USE source.ns then 1-seg view query",
-        f"use {src}.{ns}",
+        f"use {src}.{ns_path}",
         f"select * from v_{_FW_TABLE} order by val limit 3",
     ]
     return steps
@@ -1372,6 +1412,8 @@ def _dim18_steps(src_type: str) -> list:
         ns, ns2, table = _I_DB, _I_DB2, _FW_TABLE
         alter_sql = f"alter external source {src} set database='{ns2}'"
 
+    ns_path = f"`{ns}`" if src_type == _oracle else ns
+    ns2_path = f"`{ns2}`" if src_type == _oracle else ns2
     steps = [
         f"-- [EXT-015] USE source then query (should succeed from ns={ns})",
         f"use {src}",
@@ -1381,7 +1423,7 @@ def _dim18_steps(src_type: str) -> list:
         f"-- [EXT-015] 1-seg query after ALTER → should use new ns={ns2}",
         f"select * from {table} order by val limit 1",
         f"-- [EXT-015] Explicit 3-seg with old ns still works",
-        f"select * from {src}.{ns}.{table} order by val limit 1",
+        f"select * from {src}.{ns_path}.{table} order by val limit 1",
     ]
     return steps
 
@@ -1854,9 +1896,9 @@ class TestFq02PathResolution(FederatedQueryVersionedMixin):
                               password=ExtSrcEnv.ORACLE_ALT_PASS)
         table = _FW_TABLE.upper()
         ExtSrcEnv.oracle_admin_exec_cfg(oracle_cfg, [
-            f'GRANT SELECT ON "{_O_SCHEMA2}"."{table}" TO "{_O_SCHEMA}"',
-            f'GRANT SELECT ON "{_O_SCHEMA2}"."V_{table}" TO "{_O_SCHEMA}"',
-            f'GRANT SELECT ON "{_O_SCHEMA2}"."V_NO_TS" TO "{_O_SCHEMA}"',
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."{table.lower()}" TO "{_O_SCHEMA}"',
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."v_{table.lower()}" TO "{_O_SCHEMA}"',
+            f'GRANT SELECT ON "{_O_SCHEMA2}"."v_no_ts" TO "{_O_SCHEMA}"',
         ])
 
     # ──────────────────────────────────────────────────────────────────────

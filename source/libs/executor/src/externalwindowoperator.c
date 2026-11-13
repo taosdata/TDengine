@@ -2688,7 +2688,14 @@ static void mergeAlignExtWinDo(SOperatorInfo* pOperator) {
     TAOS_CHECK_EXIT(extWinSwitchInitCtxs(pOperator, pExtW, &pBlock->info.id));
 
     pRes->info.scanFlag = pBlock->info.scanFlag;
-    pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
+    if (((SExternalWindowPhysiNode*)pOperator->pPhyNode)->window.preserveGroupId &&
+        pExtW->calcWithPartition && pTaskInfo->execModel != OPTR_EXEC_MODEL_STREAM) {
+      // TIME_ALIGN over a partitioned view: keep the partition (calc group)
+      // id so the fill Projection can align each partition independently.
+      pRes->info.id.groupId = pBlock->info.id.groupId;
+    } else {
+      pRes->info.id.groupId = pBlock->info.id.baseGId;  // only keep TGroup ID
+    }
     pRes->info.id.baseGId = 0;
 
     code = setInputDataBlock(pSup, pBlock, pExtW->binfo.inputTsOrder, pBlock->info.scanFlag, true);

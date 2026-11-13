@@ -4478,13 +4478,16 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
 
   TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->streamId));
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->name, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->sql, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->outDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->streamDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerDB, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerTblName, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->outTblName, NULL));
+  // The old serializer (3.3.7 and earlier) encoded these strings as strlen(...) + 1 bytes, i.e.
+  // always including the terminating '\0'. Refuse a payload whose last byte is not the
+  // terminator so they cannot be read past the message buffer downstream (tstrncpy / %s).
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->name, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->sql, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->outDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->streamDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerDB, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerTblName, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->outTblName, NULL));
 
   int32_t calcDbSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &calcDbSize));
@@ -4493,14 +4496,20 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
     TAOS_CHECK_EXIT(terrno);
   }
   for (int32_t i = 0; i < calcDbSize; ++i) {
-    char *calcDb = NULL;
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &calcDb));
-    calcDb = taosStrndup(calcDb, TSDB_DB_FNAME_LEN);
-    if (calcDb == NULL) {
+    uint8_t *calcDb = NULL;
+    uint32_t calcDbLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &calcDb, &calcDbLen));
+    // The wire length only bounds the bytes; taosStrndup below treats the payload as a C string,
+    // so the terminator has to be inside the declared range.
+    if (calcDbLen == 0 || calcDb[calcDbLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    char *calcDbName = taosStrndup((char*)calcDb, TSDB_DB_FNAME_LEN);
+    if (calcDbName == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    if (taosArrayPush(pReq->calcDB, &calcDb) == NULL) {
-      taosMemoryFree(calcDb);
+    if (taosArrayPush(pReq->calcDB, &calcDbName) == NULL) {
+      taosMemoryFree(calcDbName);
       TAOS_CHECK_EXIT(terrno);
     }
   }
@@ -4525,14 +4534,19 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
     }
   }
   for (int32_t i = 0; i < addrSize; ++i) {
-    char *url = NULL;
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &url));
-    url = taosStrndup(url, TSDB_STREAM_NOTIFY_URL_LEN);
-    if (url == NULL) {
+    uint8_t *url = NULL;
+    uint32_t urlLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(pDecoder, &url, &urlLen));
+    // Same as calcDb above: taosStrndup reads the payload as a C string.
+    if (urlLen == 0 || url[urlLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    char *urlName = taosStrndup((char*)url, TSDB_STREAM_NOTIFY_URL_LEN);
+    if (urlName == NULL) {
       TAOS_CHECK_EXIT(terrno);
     }
-    if (taosArrayPush(pReq->pNotifyAddrUrls, &url) == NULL) {
-      taosMemoryFree(url);
+    if (taosArrayPush(pReq->pNotifyAddrUrls, &urlName) == NULL) {
+      taosMemoryFree(urlName);
       TAOS_CHECK_EXIT(terrno);
     }
   }
@@ -4540,9 +4554,11 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->addOptions));
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->notifyHistory));
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerFilterCols, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerCols, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->partitionCols, NULL));
+  // Same root cause as name/sql/... above: tCloneStreamCreateDeployPointers and the deploy
+  // encoders read these as C strings (taosStrdup / strlen / nodesStringToList).
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerFilterCols, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerCols, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->partitionCols, NULL));
 
   int32_t outColSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &outColSize));
@@ -4618,15 +4634,15 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
       }
       case WINDOW_TYPE_EVENT: {
         // event trigger
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.startCond, NULL));
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.event.endCond, NULL));
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->trigger.event.startCond, NULL));
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->trigger.event.endCond, NULL));
         pReq->trigger.event.trueForType = 0;
         pReq->trigger.event.trueForCount = 0;
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.event.trueForDuration));
         break;
       }
       case WINDOW_TYPE_COUNT: {
-        TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.count.condCols, NULL));
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->trigger.count.condCols, NULL));
 
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.countVal));
         TAOS_CHECK_EXIT(tDecodeI64(pDecoder, &pReq->trigger.count.sliding));
@@ -4663,10 +4679,10 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->triggerTblVgId));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->outTblVgId));
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerScanPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerScanPlan, NULL));
 
   TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->triggerHasPF));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->triggerPrevFilter, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->triggerPrevFilter, NULL));
 
   int32_t calcScanPlanListSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &calcScanPlanListSize));
@@ -4693,7 +4709,7 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
         }
       }
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &calcScan.readFromCache));
-      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&calcScan.scanPlan, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&calcScan.scanPlan, NULL));
       if (taosArrayPush(pReq->calcScanPlanList, &calcScan) == NULL) {
         TAOS_CHECK_EXIT(terrno);
       }
@@ -4701,9 +4717,9 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
   }
 
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->numOfCalcSubplan));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->calcPlan, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->subTblNameExpr, NULL));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->tagValueExpr, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->calcPlan, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->subTblNameExpr, NULL));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->tagValueExpr, NULL));
 
   int32_t forceOutColsSize = 0;
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &forceOutColsSize));
@@ -4714,8 +4730,7 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
     }
     for (int32_t i = 0; i < forceOutColsSize; ++i) {
       SStreamOutCol outCol = {0};
-      int64_t       exprLen = 0;
-      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&outCol.expr, &exprLen));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&outCol.expr, NULL));
       TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &outCol.type.type));
       TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &outCol.type.precision));
       TAOS_CHECK_EXIT(tDecodeU8(pDecoder, &outCol.type.scale));
@@ -4734,7 +4749,7 @@ int32_t tDeserializeSCMCreateStreamReqImplOld(SDecoder *pDecoder, SCMCreateStrea
       case WINDOW_TYPE_STATE: {
         // state trigger
         if (!tDecodeIsEnd(pDecoder)) {
-          TAOS_CHECK_EXIT(tDecodeBinaryAlloc(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
+          TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&pReq->trigger.stateWin.expr, NULL));
         }
         if (!tDecodeIsEnd(pDecoder)) {
           TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pReq->trigger.stateWin.extend));
@@ -4771,7 +4786,10 @@ int32_t tDeserializeSCMCreateStreamReqImpl(SDecoder *pDecoder, SCMCreateStreamRe
 
   char* json = NULL;
   SJson* pJson = NULL;
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &json));
+  // tDecodeBinaryAlloc below allocates exactly the declared wire length and appends no '\0',
+  // while tjsonParse -> cJSON_Parse reads the payload with strlen. Require the terminator to be
+  // part of the payload (tEncodeCStrWithLen always writes strlen + 1 bytes).
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void**)&json, NULL));
   pJson = tjsonParse(json);
   if (pJson == NULL) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INVALID_JSON);
@@ -4804,6 +4822,26 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
     tDecoderInit(&decoder, buf, bufLen);
     TAOS_CHECK_EXIT(tStartDecode(&decoder));
     TAOS_CHECK_EXIT(tDeserializeSCMCreateStreamReqImplOld(&decoder, pReq, 0));
+  } else if (TSDB_CODE_INVALID_MSG == code) {
+    // The new-format decoder rejects a length-prefixed string that is not NUL-terminated. A
+    // legacy (stream version <= 7) request can trip the same check: its first field is a
+    // random i64 streamId, which the JSON decoder reads as a length prefix followed by bytes
+    // that usually do not end in '\0'. Retry the legacy decoder so old clients keep working;
+    // keep the new-format INVALID_MSG when the payload is not a valid legacy request either.
+    int32_t newFormatCode = code;
+    // Drop fields a partially successful JSON conversion may have populated, so the legacy
+    // retry starts from the same clean state as a freshly calloc'ed request.
+    tFreeSCMCreateStreamReq(pReq);
+    memset(pReq, 0, sizeof(*pReq));
+    tDecoderClear(&decoder);
+    tDecoderInit(&decoder, buf, bufLen);
+    code = tStartDecode(&decoder);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = tDeserializeSCMCreateStreamReqImplOld(&decoder, pReq, 0);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      TAOS_CHECK_EXIT(newFormatCode);
+    }
   }
 
   // batch-meta-txn (stream phase 2): absent from older clients, which correctly
@@ -4940,6 +4978,7 @@ void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
   taosMemoryFreeClear(pReq->triggerCols);
   taosMemoryFreeClear(pReq->partitionCols);
   taosMemoryFreeClear(pReq->durationTagCols);
+  taosMemoryFreeClear(pReq->derivativeTagCols);
   taosMemoryFreeClear(pReq->rollupTagCols);
 
   taosArrayDestroy(pReq->outTags);
@@ -5062,6 +5101,10 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
   if (pSrc->durationTagCols) {
     pDst->durationTagCols = COPY_STR(pSrc->durationTagCols);
     TSDB_CHECK_NULL(pDst->durationTagCols, code, lino, _exit, terrno);
+  }
+  if (pSrc->derivativeTagCols) {
+    pDst->derivativeTagCols = COPY_STR(pSrc->derivativeTagCols);
+    TSDB_CHECK_NULL(pDst->derivativeTagCols, code, lino, _exit, terrno);
   }
 
   if (pSrc->rollupTagCols) {
@@ -6751,6 +6794,58 @@ int32_t tDeserializeSStreamGroupInfo(void* buf, int32_t bufLen, SStreamGroupInfo
 _exit:
   tDecoderClear(&decoder);
   return code;
+}
+
+int32_t tEncodeStreamDerivativeLogFrame(SEncoder* pEncoder, int64_t epoch, SSHashObj* pGroups) {
+  int32_t count = 0;
+  int32_t iter = 0;
+  SSTriggerGroupCalcInfo* pGroup = tSimpleHashIterate(pGroups, NULL, &iter);
+  while (pGroup != NULL) {
+    if (pGroup->derivativeLogEpoch != 0) ++count;
+    pGroup = tSimpleHashIterate(pGroups, pGroup, &iter);
+  }
+  if (epoch == 0 && count == 0) return TSDB_CODE_SUCCESS;
+  uint16_t version = count == 0 ? STREAM_DERIVATIVE_LOG_FRAME_VERSION : STREAM_DERIVATIVE_CONFIG_FRAME_VERSION;
+  TAOS_CHECK_RETURN(tStartEncodeStreamTailFrame(pEncoder, STREAM_DERIVATIVE_LOG_FRAME_MAGIC, version, 0));
+  TAOS_CHECK_RETURN(tEncodeI64(pEncoder, epoch));
+  if (count != 0) {
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, count));
+    iter = 0;
+    pGroup = tSimpleHashIterate(pGroups, NULL, &iter);
+    while (pGroup != NULL) {
+      if (pGroup->derivativeLogEpoch != 0) {
+        int64_t* pGid = tSimpleHashGetKey(pGroup, NULL);
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, *pGid));
+        TAOS_CHECK_RETURN(tEncodeI64(pEncoder, pGroup->derivativeLogEpoch));
+      }
+      pGroup = tSimpleHashIterate(pGroups, pGroup, &iter);
+    }
+  }
+  tEndEncodeStreamTailFrame(pEncoder);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDecodeStreamDerivativeLogFrame(SStreamTailFrameDecoder* pFrame, int64_t* pEpoch, SSHashObj* pGroups) {
+  if (pFrame->flags != 0 || (pFrame->version != STREAM_DERIVATIVE_LOG_FRAME_VERSION &&
+                            pFrame->version != STREAM_DERIVATIVE_CONFIG_FRAME_VERSION)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  SDecoder* pDecoder = &pFrame->payloadDecoder;
+  TAOS_CHECK_RETURN(tDecodeI64(pDecoder, pEpoch));
+  if (pFrame->version == STREAM_DERIVATIVE_CONFIG_FRAME_VERSION) {
+    int32_t count = 0;
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &count));
+    if (count <= 0 || count > tSimpleHashGetSize(pGroups)) return TSDB_CODE_INVALID_MSG;
+    for (int32_t i = 0; i < count; ++i) {
+      int64_t gid = 0, epoch = 0;
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &gid));
+      TAOS_CHECK_RETURN(tDecodeI64(pDecoder, &epoch));
+      SSTriggerGroupCalcInfo* pGroup = tSimpleHashGet(pGroups, &gid, sizeof(gid));
+      if (pGroup == NULL || pGroup->derivativeLogEpoch != 0 || epoch == 0) return TSDB_CODE_INVALID_MSG;
+      pGroup->derivativeLogEpoch = epoch;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t tSerializeSSTriggerGroupCalcInfo(SEncoder* pEncoder, SSTriggerGroupCalcInfo* pInfo) {
@@ -9713,6 +9808,9 @@ int32_t tSerializeSTriggerCalcRequest(void* buf, int32_t bufLen, const SSTrigger
   const SStreamPrevWindowCodecView prevWindowView = tMakeCalcPrevWindowView(pCodecReq);
   TAOS_CHECK_EXIT(tEncodeStreamPrevWindowFrame(&encoder, &prevWindowView));
 
+  TAOS_CHECK_EXIT(tEncodeStreamDerivativeLogFrame(&encoder, pCodecReq->derivativeLogEpoch,
+                                                    pCodecReq->isMultiGroupCalc ? pCodecReq->pGroupCalcInfos : NULL));
+
   tEndEncode(&encoder);
 
 _exit:
@@ -9876,10 +9974,27 @@ static int32_t tDeserializeSTriggerCalcRequestImpl(void* buf, int32_t bufLen, SS
   bool policySeen = false;
   bool ancestorSeen = false;
   bool prevWindowSeen = false;
+  bool derivativeLogSeen = false;
+  pReq->derivativeLogEpoch = 0;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     const int32_t           frameStart = decoder.pos;
     TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
+    if (frame.magic == STREAM_DERIVATIVE_LOG_FRAME_MAGIC) {
+      if (derivativeLogSeen) {
+        code = TSDB_CODE_INVALID_MSG;
+        tFinishDecodeStreamTailFrame(&frame, false);
+        goto _exit;
+      }
+      derivativeLogSeen = true;
+      code = tDecodeStreamDerivativeLogFrame(&frame, &pReq->derivativeLogEpoch, pReq->pGroupCalcInfos);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
     if (frame.magic == STREAM_CONTEXT_POLICY_FRAME_MAGIC) {
       if (policySeen || ancestorSeen || frame.version != STREAM_CONTEXT_POLICY_FRAME_VERSION || frame.flags != 0) {
         code = TSDB_CODE_INVALID_MSG;

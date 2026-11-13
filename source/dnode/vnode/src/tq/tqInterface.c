@@ -446,19 +446,27 @@ int32_t tqProcessSubscribeReq(STQ* pTq, int64_t sversion, char* msg, int32_t msg
   taosRLockLatch(&pTq->lock);  
   STqHandle* pHandle = NULL;
   int32_t code = tqMetaGetHandle(pTq, req.subKey, &pHandle);
-  if (code != 0){
-    tqInfo("vgId:%d, tmq subscribe req:%s, no such handle, create new one, msg:%s", pTq->pVnode->config.vgId, req.subKey, tstrerror(code));
+  if (code == TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST) {
+    tqInfo("vgId:%d, tmq subscribe req:%s, no local handle, msg:%s", pTq->pVnode->config.vgId, req.subKey,
+           tstrerror(code));
+  } else if (code != 0) {
+    tqError("vgId:%d, tmq subscribe req:%s, failed to get handle since %s", pTq->pVnode->config.vgId, req.subKey,
+            tstrerror(code));
   }
   taosRUnLockLatch(&pTq->lock);
   if (pHandle == NULL) {
+    if (code != TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST) {
+      ret = code == TSDB_CODE_SUCCESS ? TSDB_CODE_INTERNAL_ERROR : code;
+      goto end;
+    }
+    if (req.newConsumerId == -1) {
+      tqDebug("vgId:%d, tmq subscribe req:%s has no local handle, removal is already complete", req.vgId,
+             req.subKey);
+      goto end;
+    }
     if (req.oldConsumerId != -1) {
       tqError("vgId:%d, build new consumer handle %s for consumer:0x%" PRIx64 ", but old consumerId:0x%" PRIx64,
               req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
-    }
-    if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64, req.vgId, req.newConsumerId);
-      ret = TSDB_CODE_INVALID_PARA;
-      goto end;
     }
     STqHandle handle = {0};
     ret = tqMetaCreateHandle(pTq, &req, &handle);

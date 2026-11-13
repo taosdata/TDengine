@@ -128,6 +128,42 @@ TEST(ExternalTypeMapTest, NormalizesBoundaryDeclarationsForAllProviders) {
   EXPECT_EQ(DECIMAL128_BYTES, type.bytes);
 }
 
+TEST(ExternalTypeMapTest, OracleColumnNamesCompareExactly) {
+  // TDengine applies its identifier grammar before the reference reaches this
+  // helper: unquoted text is lower-cased by the client and backticked text
+  // keeps its spelling.  Oracle therefore matches the resolved spelling byte
+  // for byte, exactly like PostgreSQL and InfluxDB (DS 5.3.6 R1).
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "EMP", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", "EMP"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "mixedcol", "MiXeDCol"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "MiXeDCol", "MIXEDCOL"));
+
+  // A literal double quote or backtick is part of the name and must not be
+  // interpreted as quoting syntax.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "a\"b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a\"b", "ab"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "a`b"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "a`b", "ab"));
+
+  // MySQL / SQL Server keep their catalog's case-insensitive matching.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_MYSQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_SQLSERVER, "EMP", "emp"));
+
+  // PostgreSQL / InfluxDB are case-sensitive as before.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_POSTGRESQL, "EMP", "emp"));
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "emp", "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_INFLUXDB, "EMP", "emp"));
+
+  // NULL handling: identical NULLs compare equal, one NULL never does.
+  EXPECT_TRUE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, NULL));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, NULL, "emp"));
+  EXPECT_FALSE(extColumnNameEqual(EXT_SOURCE_ORACLE, "emp", NULL));
+}
+
 TEST(ExternalTypeMapTest, DecimalBoundariesRemainLegalAndUnknownTypesFail) {
   SDataType type = {0};
 

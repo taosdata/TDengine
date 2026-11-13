@@ -59,6 +59,7 @@ PAR_INVALID_COLUMN = 0x80002602
 PAR_PERMISSION_DENIED = 0x80002644
 PAR_DUPLICATED_COLUMN = 0x8000263C
 PAR_NOT_ALLOWED_FUNC = 0x8000264F
+PAR_INVALID_COLUMNS_NUM = 0x8000263F
 PAR_INVALID_TABLE_TYPE = 0x8000268E
 PAR_INVALID_OPTR_USAGE = 0x80002667
 PAR_FUNC_NOT_EXIST_ORDERBY = 0x800026AA
@@ -1235,8 +1236,8 @@ class TestTimeAlign:
         )
 
         # 5. A view over TIME_ALIGN is allowed (FS 4.8.3.3) and keeps the
-        # aligned values; the view itself then cannot be a TIME_ALIGN input
-        # in phase 1 (covered by test_non_virtual_table_rejected).
+        # aligned values; phase 2 additionally allows using that view as a
+        # TIME_ALIGN input (see test_time_align_phase2.py).
         tdSql.execute(
             "create view v_align as select * from table(time_align(table vt_gaps))")
         expected = [
@@ -1845,8 +1846,9 @@ class TestTimeAlign:
     def test_table_function_positions(self):
         """Invalid TABLE(...) contents and TIME_ALIGN outside table positions.
 
-        `TABLE(...)` only accepts `TIME_ALIGN(TABLE [db.]table [, args])`;
-        anything else (another function, raw values, missing TABLE keyword or
+        `TABLE(...)` only accepts `TIME_ALIGN([db.]table [, args])` (the
+        legacy `TIME_ALIGN(TABLE [db.]table [, args])` form is also accepted);
+        anything else (another function, raw values, a missing table name or
         malformed argument lists) is a syntax error.
 
         Using `time_align` as a scalar function reports function-not-defined,
@@ -1873,11 +1875,19 @@ class TestTimeAlign:
             "select * from table(123)",
             "select * from table('abc')",
             "select * from table(nosuchfunc())",
-            "select * from table(time_align(vt_gaps))",
             "select * from table(time_align(table vt_gaps, 1.5))",
             "select * from table(time_align(table vt_gaps, true, true))",
             "select * from table(time_align(table vt_gaps, true, 'a', true))",
+            "select * from table(time_align(table vt_gaps, TRUE, 'voltage:PREV:_p', 'x'))",
             "select * from time_align(table vt_gaps)",
+            # Only a table name may follow TABLE; other functions are rejected
+            # by the grammar or by the explicit "unsupported table function"
+            # check.
+            "select * from table(csum(ts))",
+            "select * from table(avg(voltage))",
+            "select * from table(count(voltage))",
+            "select * from table(sum(table vt_gaps))",
+            "select * from table(time_align(table (select ts, voltage from vt_gaps), 'voltage:PREV:_p'))",
             # FS 4.8.3.5: the TIME_ALIGN result cannot be a TIME_ALIGN input;
             # the TABLE(...) argument is not a table source.
             "select * from table(time_align(table table(time_align(table vt_gaps))))",
@@ -1885,11 +1895,28 @@ class TestTimeAlign:
         for sql in invalid_calls:
             tdSql.error(sql, PAR_SYNTAX_ERROR)
 
-        # 2. time_align as a scalar function outside FROM.
+        # 2. The TABLE(...) form is only valid in the FROM clause.  In any
+        #    other clause the TABLE keyword makes the statement a syntax error.
+        for sql in (
+            "select time_align(table vt_gaps) from vt_gaps",
+            "select ts from vt_gaps where time_align(table vt_gaps) is not null",
+            "select ts from vt_gaps group by time_align(table vt_gaps)",
+            "select ts from vt_gaps having time_align(table vt_gaps) is not null",
+            "select ts from vt_gaps order by time_align(table vt_gaps)",
+            "select ts from vt_gaps partition by time_align(table vt_gaps)",
+            "select 1 from t_gaps a join t_gaps b on time_align(table t_gaps) is not null",
+        ):
+            tdSql.error(sql, PAR_SYNTAX_ERROR)
+
+        # 3. time_align as a scalar function outside FROM.
         for sql in (
             "select time_align(1)",
             "select time_align(ts) from t_gaps",
             "select * from t_gaps where time_align(ts) > 0",
+            "select ts from t_gaps having time_align(ts) > 0",
+            "select ts from t_gaps partition by time_align(ts)",
+            "select 1 from t_gaps a join t_gaps b on time_align(a.ts) > 0",
+            "select * from table(time_align(table t_gaps)) where time_align(ts) > 0",
         ):
             tdSql.error(sql, MND_FUNC_NOT_EXIST)
         tdSql.error("select time_align(ts) from t_gaps group by time_align(ts)",
@@ -1939,10 +1966,8 @@ class TestTimeAlign:
 
         Labels: virtual, time_align, negative, ci
         """
-        # Phase 1 only implements PREV.
-        tdSql.error(
-            "select * from table(time_align(table vt_gaps, 'voltage:NEXT:_a'))",
-            PAR_NOT_ALLOWED_FUNC)
+        # NEXT is implemented by phase 2; its positive/negative coverage lives
+        # in test_time_align_next.py.
         # The primary timestamp and tags cannot be interpolated; both the
         # vstable tag and the owned tag of a virtual normal table are covered.
         tdSql.error(
@@ -2067,12 +2092,12 @@ class TestTimeAlign:
             "select * from table(time_align(table vt_gaps, 'TRUE'))",
             PAR_INVALID_COLUMN)
 
-    def test_non_virtual_table_rejected(self):
-        """TIME_ALIGN only accepts virtual tables.
+    def test_system_table_rejected(self):
+        """System tables and missing tables stay rejected in phase 2.
 
-        Rejects ordinary/child/super tables, views, system tables and missing
-        tables; the missing-table path keeps the existing virtual-table source
-        error (FS 4.10, DS 6.12).
+        Ordinary/child/super tables and views are supported by phase 2 and are
+        covered by test_time_align_phase2.py; system tables and nonexistent
+        tables keep their existing errors (FS 4.10, DS 6.12).
 
         Catalog:
             - VirtualTable
@@ -2082,23 +2107,18 @@ class TestTimeAlign:
         Labels: virtual, time_align, negative, ci
         """
         tdSql.error(
-            "select * from table(time_align(table t_gaps))",
-            PAR_INVALID_TABLE_TYPE)
-        tdSql.error(
-            "select * from table(time_align(table d1))",
-            PAR_INVALID_TABLE_TYPE)
-        tdSql.error(
-            f"select * from table(time_align(table {STABLE_NAME}))",
-            PAR_INVALID_TABLE_TYPE)
-        tdSql.error(
-            "select * from table(time_align(table v_vt_gaps))",
-            PAR_INVALID_TABLE_TYPE)
-        tdSql.error(
             "select * from table(time_align(table information_schema.ins_databases))",
+            PAR_INVALID_TABLE_TYPE)
+        tdSql.error(
+            "select * from table(time_align(table information_schema.ins_tables))",
             PAR_INVALID_TABLE_TYPE)
         tdSql.error(
             "select * from table(time_align(table performance_schema.perf_trans))",
             PAR_INVALID_TABLE_TYPE)
+        # The column-definition form is rejected by the same table-type check.
+        tdSql.error(
+            "select * from table(time_align(table information_schema.ins_tables, "
+            "'table_name:PREV:_a'))", PAR_INVALID_TABLE_TYPE)
         tdSql.error(
             "select * from table(time_align(table ta_align_no_such_table))",
             PAR_TABLE_NOT_EXIST)
@@ -2205,3 +2225,229 @@ class TestTimeAlign:
         finally:
             conn.close()
             tdSql.execute(f"drop user if exists {user}")
+    def test_time_range_prev(self):
+        """PREV(duration) bounds how far the predecessor value may be.
+
+        Only NULL rows are interpolated; a row that has its own value is never
+        replaced.  The distance is a closed interval, fixed units are converted
+        with the input time-axis precision, calendar units (n/q/y) advance with
+        TDengine's calendar rules, and an omitted duration keeps the unlimited
+        behaviour.  The same semantics apply to virtual tables, views (time axis
+        = first TIMESTAMP data column) and real tables.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, time_range, ci
+        """
+        import datetime
+
+        def utc_ms(year, month, day):
+            return int(datetime.datetime(year, month, day, 12, tzinfo=datetime.timezone.utc).timestamp() * 1000)
+
+        def expect_second_col(sql, expected):
+            tdSql.query(sql)
+            tdSql.checkRows(len(expected))
+            for i, value in enumerate(expected):
+                tdSql.checkData(i, 1, value)
+
+        def insert_rows(table, offsets, values):
+            cells = " ".join(
+                f"({offset}, {'NULL' if value is None else value})" for offset, value in zip(offsets, values))
+            tdSql.execute(f"insert into {table} values {cells}")
+
+        # Value at 0s, a gap, a value at 4s and a gap to 9s.  Rows 1..3 are
+        # 1s/2s/3s away from the first value, so the 2s closed interval keeps
+        # only the first two; row 3 keeps its own value at any distance.
+        offsets = [0, 1000, 2000, 3000, 4000, 5000, 9000]
+        values = [1, None, None, None, 9, None, None]
+        tdSql.execute("create table tr_prev(ts timestamp, v int)")
+        insert_rows("tr_prev", [ts(o) for o in offsets], values)
+
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(2s):_p')) order by ts",
+            [1, 1, 1, None, 9, 9, None])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(1s):_p')) order by ts",
+            [1, 1, None, None, 9, 9, None])
+        # Closed interval: a distance of exactly 3s still uses the value.
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(3s):_p')) order by ts",
+            [1, 1, 1, 1, 9, 9, None])
+        # PREV(0s) only accepts a candidate on the same timestamp.
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(0s):_p')) order by ts",
+            [1, None, None, None, 9, None, None])
+        # Omitted duration keeps the unlimited behaviour.
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV:_p')) order by ts",
+            [1, 1, 1, 1, 9, 9, 9])
+
+        # '*' expansion applies the same range to every data column.
+        expect_second_col(
+            "select ts, v_s from table(time_align(table tr_prev, '*:PREV(2s):_s')) order by ts",
+            [1, 1, 1, None, 9, 9, None])
+
+        # Independent ranges for the same source column.
+        tdSql.query("select ts, v_1, v_5 from table(time_align(table tr_prev, "
+                    "'v:PREV(1s):_1;v:PREV(5s):_5')) order by ts")
+        tdSql.checkRows(7)
+        expect_1s = [1, 1, None, None, 9, 9, None]
+        expect_5s = [1, 1, 1, 1, 9, 9, 9]
+        for i in range(7):
+            tdSql.checkData(i, 1, expect_1s[i])
+            tdSql.checkData(i, 2, expect_5s[i])
+
+        # The outer WHERE runs after interpolation; filtered-out rows still
+        # feed the predecessor and never shorten the range.
+        tdSql.query("select ts, v_p from table(time_align(table tr_prev, 'v:PREV(2s):_p')) "
+                    f"where ts >= {ts(3000)} order by ts")
+        tdSql.checkRows(4)
+        for i, value in enumerate([None, 9, 9, None]):
+            tdSql.checkData(i, 1, value)
+
+        # Case-insensitive unit and blanks around the duration.
+        for method in ("v:PREV(2S):_p", "v:PREV( 2s ):_p", "v:PREV (2s):_p"):
+            expect_second_col(
+                f"select ts, v_p from table(time_align(table tr_prev, '{method}')) order by ts",
+                [1, 1, 1, None, 9, 9, None])
+
+        # Fixed units: the same shape measured in each unit.
+        for unit, step in (("a", 1), ("s", 1000), ("m", 60000), ("h", 3600000),
+                           ("d", 86400000), ("w", 604800000)):
+            table = f"tr_u_{unit}"
+            tdSql.execute(f"create table {table}(ts timestamp, v int)")
+            insert_rows(table, [ts(i * step) for i in (0, 1, 2, 3, 4, 5, 8)], values)
+            expect_second_col(
+                f"select ts, v_p from table(time_align(table {table}, 'v:PREV(2{unit}):_p')) order by ts",
+                [1, 1, 1, None, 9, 9, None])
+
+        # Units below the input precision convert to 0 ticks: only a candidate
+        # on the same timestamp would qualify, and all timestamps differ here.
+        tdSql.execute("create table tr_u_sub(ts timestamp, v int)")
+        insert_rows("tr_u_sub", [ts(i) for i in (0, 1, 2, 3, 4, 5, 8)], values)
+        for unit in ("b", "u"):
+            expect_second_col(
+                f"select ts, v_p from table(time_align(table tr_u_sub, 'v:PREV(2{unit}):_p')) order by ts",
+                [1, None, None, None, 9, None, None])
+
+        # Calendar units advance with taosTimeAdd(): q is three months and the
+        # boundary is far enough from the sampled rows for any session timezone.
+        tdSql.execute("create table tr_cal(ts timestamp, v int)")
+        cal_rows = [
+            (utc_ms(2023, 3, 15), 7),
+            (utc_ms(2023, 4, 12), None),
+            (utc_ms(2023, 4, 18), None),
+            (utc_ms(2023, 6, 12), None),
+            (utc_ms(2023, 6, 18), None),
+            (utc_ms(2023, 9, 14), 8),
+            (utc_ms(2023, 12, 11), None),
+            (utc_ms(2023, 12, 18), None),
+        ]
+        insert_rows("tr_cal", [r[0] for r in cal_rows], [r[1] for r in cal_rows])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_cal, 'v:PREV(1n):_p')) order by ts",
+            [7, 7, None, None, None, 8, None, None])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_cal, 'v:PREV(3n):_p')) order by ts",
+            [7, 7, 7, 7, None, 8, 8, None])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_cal, 'v:PREV(1q):_p')) order by ts",
+            [7, 7, 7, 7, None, 8, 8, None])
+
+        tdSql.execute("create table tr_caly(ts timestamp, v int)")
+        year_rows = [
+            (utc_ms(2023, 1, 10), 5),
+            (utc_ms(2024, 1, 7), None),
+            (utc_ms(2024, 1, 13), None),
+        ]
+        insert_rows("tr_caly", [r[0] for r in year_rows], [r[1] for r in year_rows])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_caly, 'v:PREV(1y):_p')) order by ts",
+            [5, 5, None])
+
+        # Virtual table input: the align stage lives in the virtual table scan.
+        tdSql.execute("create vtable tr_vt(ts timestamp, v int from tr_prev.v)")
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_vt, 'v:PREV(2s):_p')) order by ts",
+            [1, 1, 1, None, 9, 9, None])
+        tdSql.execute("create vtable tr_vcal(ts timestamp, v int from tr_cal.v)")
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_vcal, 'v:PREV(1q):_p')) order by ts",
+            [7, 7, 7, 7, None, 8, 8, None])
+
+        # Descending output keeps the scan ascending: the Sort stays above the
+        # align stage, so the values equal the ascending result and only the
+        # row order changes.
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(2s):_p')) order by ts desc",
+            [None, 9, 9, None, 1, 1, 1])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_prev, 'v:PREV(2s):_p')) "
+            "order by ts desc limit 3",
+            [None, 9, 9])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_vt, 'v:PREV(2s):_p')) order by ts desc",
+            [None, 9, 9, None, 1, 1, 1])
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_vt, 'v:PREV(2s):_p')) "
+            "order by ts desc limit 3",
+            [None, 9, 9])
+        # DESC is pushed into the scan (no Sort above the align stage).
+        for sql in (
+            "explain select ts, v_p from table(time_align(table tr_prev, 'v:PREV(2s):_p')) "
+            "order by ts desc",
+            "explain select ts, v_p from table(time_align(table tr_vt, 'v:PREV(2s):_p')) "
+            "order by ts desc",
+        ):
+            tdSql.query(sql)
+            plan = "\n".join(str(row[0]) for row in tdSql.queryResult)
+            assert "Sort" not in plan, plan
+        # Virtual super table: the range stays per child, DESC only reorders.
+        expect_second_col(
+            "select ts, voltage_p from table(time_align(table vst_disjoint, 'voltage:PREV(0s):_p')) "
+            "order by ts",
+            [10, None, 20, 30])
+        expect_second_col(
+            "select ts, voltage_p from table(time_align(table vst_disjoint, 'voltage:PREV(0s):_p')) "
+            "order by ts desc",
+            [30, 20, None, 10])
+
+        # View input ignores the time range and interpolates in view output
+        # row order.  The timestamp does not have to be part of the output.
+        tdSql.execute("create view tr_vw as select ts, v from tr_prev")
+        tdSql.query("select v_p from table(time_align(table tr_vw, 'v:PREV(2s):_p'))")
+        tdSql.checkRows(7)
+        for i, value in enumerate([1, 1, 1, 1, 9, 9, 9]):
+            tdSql.checkData(i, 0, value)
+        expect_second_col(
+            "select ts, v_p from table(time_align(table tr_vw, TRUE, 'v:PREV(2s):_p')) order by ts",
+            [1, 1, 1, 1, 9, 9, 9])
+
+        # A view without a TIMESTAMP data column also accepts the range
+        # syntax; the range is ignored.
+        tdSql.execute("create view tr_vnt as select cast(ts as bigint) as t, v from tr_prev")
+        tdSql.query("select v_p from table(time_align(table tr_vnt, 'v:PREV(2s):_p'))")
+        tdSql.checkRows(7)
+        for i, value in enumerate([1, 1, 1, 1, 9, 9, 9]):
+            tdSql.checkData(i, 0, value)
+
+        # Invalid duration literals are method/parameter errors.
+        for method in (
+            "v:PREV(8):_p",
+            "v:PREV(-8s):_p",
+            "v:PREV(1.5s):_p",
+            "v:PREV(8x):_p",
+            "v:PREV():_p",
+            "v:PREV(8s,1h):_p",
+            "v:PREV((8s)):_p",
+            "v:PREV(8s:_p",
+            "v:PREV(8s)):_p",
+            "v:(8s):_p",
+            "v:PREV(d):_p",
+        ):
+            tdSql.error(
+                f"select * from table(time_align(table tr_prev, '{method}'))",
+                PAR_NOT_ALLOWED_FUNC)

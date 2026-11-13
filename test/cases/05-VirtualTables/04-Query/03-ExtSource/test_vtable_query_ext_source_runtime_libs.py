@@ -65,6 +65,7 @@ _ORACLE_SRC = "vt_runtime_libs_oracle_src"
 # Oracle has one namespace level - the login schema - and no per-source
 # database, so its remote objects are qualified as source.schema.table.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_SCHEMA_REF = "`" + _ORACLE_SCHEMA + "`"
 # Oracle tables live in the shared login schema; prefixing their names keeps
 # them apart from the fixtures of the other ext-source test files.
 _ORACLE_TABLE_PREFIX = "vt_runtime_libs_"
@@ -463,7 +464,7 @@ class TestVtableQueryExtSourceRuntimeLibs:
         )
         tdSql.execute(
             "CREATE VTABLE v_oracle "
-            f"(ts timestamp, v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA}."
+            f"(ts timestamp, v bigint FROM {_ORACLE_SRC}.{_ORACLE_SCHEMA_REF}."
             f"{_ORACLE_TABLE_PREFIX}r_oracle.v)"
         )
 

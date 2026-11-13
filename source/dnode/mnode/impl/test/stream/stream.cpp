@@ -404,6 +404,137 @@ TEST_F(MndTransPrepareStatusTest, ProposalFailureStillMarksSyncAsStarted) {
   EXPECT_EQ(gPrepareProposalCalls, 1);
 }
 
+STrans *gGroupProgressTrans = nullptr;
+int32_t gGroupProgressSyncCalls = 0;
+int32_t gGroupProgressCommitCalls = 0;
+int32_t gGroupProgressSyncCode = TSDB_CODE_SUCCESS;
+
+bool groupProgressIsLeader(SMnode *) { return true; }
+
+int32_t captureGroupProgressProposal(SMnode *, SSdbRaw *, int32_t) {
+  EXPECT_NE(gGroupProgressTrans, nullptr);
+  if (gGroupProgressTrans == nullptr) {
+    return TSDB_CODE_INTERNAL_ERROR;
+  }
+  if (gGroupProgressTrans->stage == TRN_STAGE_COMMIT) {
+    ++gGroupProgressCommitCalls;
+    return TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+  }
+  ++gGroupProgressSyncCalls;
+  return gGroupProgressSyncCode;
+}
+
+class MndTransGroupProgressTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    trans_ = createTestTrans();
+    ASSERT_NE(trans_, nullptr);
+    trans_->id = 1;
+    trans_->stage = TRN_STAGE_REDO_ACTION;
+    trans_->exec = TRN_EXEC_GROUP_PARALLEL;
+    trans_->policy = TRN_POLICY_RETRY;
+    trans_->actionPos = 1;
+    trans_->redoGroupActions = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    trans_->groupActionPos = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    ASSERT_NE(trans_->redoGroupActions, nullptr);
+    ASSERT_NE(trans_->groupActionPos, nullptr);
+
+    for (int32_t groupId : {2, 3}) {
+      STransAction action = {};
+      action.id = groupId - 2;
+      action.groupId = groupId;
+      action.stage = TRN_STAGE_REDO_ACTION;
+      action.actionType = TRANS_ACTION_MSG;
+      action.msgType = TDMT_VND_TXN_COMMIT;
+      action.msgSent = 1;
+      action.msgReceived = 1;
+      ASSERT_NE(taosArrayPush(trans_->redoActions, &action), nullptr);
+    }
+    for (int32_t groupId : {2, 3}) {
+      SArray *actions = taosArrayInit(1, sizeof(STransAction *));
+      ASSERT_NE(actions, nullptr);
+      ASSERT_EQ(taosHashPut(trans_->redoGroupActions, &groupId, sizeof(groupId), &actions, sizeof(actions)), 0);
+      auto *action = static_cast<STransAction *>(taosArrayGet(trans_->redoActions, groupId - 2));
+      ASSERT_NE(taosArrayPush(actions, &action), nullptr);
+      int32_t position = groupId == 2 ? 1 : 0;
+      ASSERT_EQ(taosHashPut(trans_->groupActionPos, &groupId, sizeof(groupId), &position, sizeof(position)), 0);
+    }
+
+    gGroupProgressTrans = trans_;
+    gGroupProgressSyncCalls = 0;
+    gGroupProgressCommitCalls = 0;
+    gGroupProgressSyncCode = TSDB_CODE_SUCCESS;
+    stub_.set(mndIsLeader, groupProgressIsLeader);
+    stub_.set(mndSyncPropose, captureGroupProgressProposal);
+  }
+
+  void TearDown() override {
+    stub_.clear();
+    gGroupProgressTrans = nullptr;
+    mndTransDrop(trans_);
+    terrno = savedErrno_;
+  }
+
+  STransAction *pendingAction() { return static_cast<STransAction *>(taosArrayGet(trans_->redoActions, 1)); }
+
+  SMnode node_ = {};
+  STrans *trans_ = nullptr;
+  int32_t savedErrno_ = 0;
+  Stub stub_;
+};
+
+TEST_F(MndTransGroupProgressTest, LastGroupAcknowledgementStartsCommitWithoutPullup) {
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 2);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_COMMIT);
+  EXPECT_EQ(gGroupProgressSyncCalls, 1);
+  EXPECT_EQ(gGroupProgressCommitCalls, 1);
+}
+
+TEST_F(MndTransGroupProgressTest, PendingAcknowledgementDoesNotStartCommit) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->msgReceived = 0;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressSyncCalls, 0);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, FailedAcknowledgementDoesNotStartCommit) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->errCode = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, FailedProgressPersistenceDoesNotStartCommit) {
+  gGroupProgressSyncCode = TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(gGroupProgressSyncCalls, 1);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
+TEST_F(MndTransGroupProgressTest, UnsentNextActionStillWaitsForPullup) {
+  STransAction *action = pendingAction();
+  ASSERT_NE(action, nullptr);
+  action->msgSent = 0;
+  action->msgReceived = 0;
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(trans_->actionPos, 1);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_REDO_ACTION);
+  EXPECT_EQ(action->msgSent, 0);
+  EXPECT_EQ(gGroupProgressSyncCalls, 0);
+  EXPECT_EQ(gGroupProgressCommitCalls, 0);
+}
+
 STxnObj *gShadowRemovalTxn = nullptr;
 
 void *acquireShadowRemovalTxn(SSdb *, ESdbType type, const void *key) {
@@ -10474,7 +10605,7 @@ TEST_F(MndStreamExtReaderSchemaTest, ResolvesOracleSchemaOnlyNamespace) {
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
   // "int" is not an Oracle type: every numeric column there is a NUMBER, and
   // NUMBER(10,0) maps to BIGINT, so the virtual column must declare BIGINT too.
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10517,7 +10648,7 @@ TEST_F(MndStreamExtReaderSchemaTest, AcceptsOraclePathSchemaWithoutSourceDefault
   req_.identity.schemaName[0] = '\0';
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10540,7 +10671,7 @@ TEST_F(MndStreamExtReaderSchemaTest, UsesOracleDictionaryTableSpelling) {
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
   tstrncpy(meta_.remoteTableName, "SAME_A", sizeof(meta_.remoteTableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10550,11 +10681,11 @@ TEST_F(MndStreamExtReaderSchemaTest, UsesOracleDictionaryTableSpelling) {
   EXPECT_STREQ("SAME_A", spec_->extTable);
 }
 
-TEST_F(MndStreamExtReaderSchemaTest, StripsOracleQuotedDictionaryTableSpelling) {
-  // A quoted Oracle identifier keeps its exact spelling and the connector reports
-  // it with the surrounding quotes still in place.  The stream reader adds its own
-  // quoting when it renders the table reference, so the spec must store the bare
-  // exact spelling here; otherwise "same_a" becomes """same_a""" on the remote side.
+TEST_F(MndStreamExtReaderSchemaTest, KeepsOracleDictionaryTableSpellingVerbatim) {
+  // The connector reports the exact remote spelling.  Quote characters in it are
+  // part of the name and are never stripped or reinterpreted; the reader emits its
+  // own quoting when it renders the table reference, so the spec stores the bytes
+  // unchanged.
   source_.type = EXT_SOURCE_ORACLE;
   req_.sourceType = EXT_SOURCE_ORACLE;
   tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
@@ -10562,28 +10693,28 @@ TEST_F(MndStreamExtReaderSchemaTest, StripsOracleQuotedDictionaryTableSpelling) 
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
   tstrncpy(meta_.remoteTableName, "\"same_a\"", sizeof(meta_.remoteTableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
 
   ASSERT_EQ(TSDB_CODE_SUCCESS, build());
   ASSERT_NE(nullptr, spec_);
-  EXPECT_STREQ("same_a", spec_->extTable);
+  EXPECT_STREQ("\"same_a\"", spec_->extTable);
 }
 
-TEST_F(MndStreamExtReaderSchemaTest, UnescapesOracleQuotedDictionaryTableSpelling) {
-  // An embedded quote inside a quoted Oracle identifier is doubled in the raw
-  // path segment.  The spec stores the bare spelling and the reader re-escapes
-  // it once when rendering, so a single stored quote is the correct form.
+TEST_F(MndStreamExtReaderSchemaTest, KeepsOracleEmbeddedQuoteSpellingVerbatim) {
+  // An embedded double quote is a literal character of the exact remote name and
+  // must survive the copy unchanged; the renderer doubles it when it quotes the
+  // identifier.
   source_.type = EXT_SOURCE_ORACLE;
   req_.sourceType = EXT_SOURCE_ORACLE;
   tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));
   tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
-  tstrncpy(meta_.remoteTableName, "\"sa\"\"me\"", sizeof(meta_.remoteTableName));
+  tstrncpy(meta_.remoteTableName, "sa\"me", sizeof(meta_.remoteTableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10602,7 +10733,7 @@ TEST_F(MndStreamExtReaderSchemaTest, FallsBackToReferenceSpellingWithoutDictiona
   tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10638,7 +10769,7 @@ TEST_F(MndStreamExtReaderSchemaTest, FillsSourceTimestampPrecisionForSideTimesta
   tstrncpy(source_.defaultSchema, "TAOSDATA", sizeof(source_.defaultSchema));
   tstrncpy(req_.identity.tableName, "same_a", sizeof(req_.identity.tableName));
   tstrncpy(columns_[1].extTypeName, "TIMESTAMP(6)", sizeof(columns_[1].extTypeName));
-  tstrncpy(columns_[2].colName, "VALUE", sizeof(columns_[2].colName));
+  tstrncpy(columns_[2].colName, "value", sizeof(columns_[2].colName));
   tstrncpy(columns_[2].extTypeName, "NUMBER(10,0)", sizeof(columns_[2].extTypeName));
   static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req_.bindings, 0))->expectedType =
       TSDB_DATA_TYPE_BIGINT;
@@ -10698,12 +10829,10 @@ TEST_F(MndStreamExtReaderSchemaTest, RejectsQuotedBindingLikeMain) {
   EXPECT_EQ(nullptr, spec_);
 }
 
-// The reader binding resolves a reference exactly as the DDL and the stored filter do: an exact
-// spelling anywhere in the catalog wins over the provider fold.  VAL is listed before "val", so a
-// folding-first lookup bound VAL while the DDL had already accepted the reference for the
-// lower-case column - the reader then fetched a different column of the same type, which no type
-// check can detect.
-TEST_F(MndStreamExtReaderSchemaTest, BindsExactSpellingOverFoldedSibling) {
+// The same table with the plain spelling binds the exactly-named column: the
+// comparison is byte-exact, so catalog order does not matter and "val" cannot be
+// merged into VAL.  The mapping dedup uses the same resolution.
+TEST_F(MndStreamExtReaderSchemaTest, BindsPlainSpellingExactly) {
   source_.type = EXT_SOURCE_ORACLE;
   req_.sourceType = EXT_SOURCE_ORACLE;
   tstrncpy(source_.defaultDatabase, "ORCL", sizeof(source_.defaultDatabase));

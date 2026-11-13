@@ -13,6 +13,69 @@ class TestStreamVtableTagAggregate:
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
 
+    def test_period_tag_aggregate_isolates_virtual_children(self):
+        """Periodic tag aggregates calculate every virtual-child partition.
+
+        Two virtual children share one source and the same non-NULL stored tag.
+        Aggregate without a residual filter or calculation grouping, and check
+        both children after successive writes. An ordinary stable aggregate
+        must still include both children.
+
+        Catalog:
+            - Streams:VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,stream,vtable
+
+        Feishu: https://project.feishu.cn/taosdata_td/issue/detail/7150292758
+
+        History:
+            - 2026-11-13 Cover tag dispatch isolation for dynamic aggregates.
+        """
+        db = "stream_vtag_period"
+        tdCom.create_snode_if_not_exists()
+        try:
+            tdSql.execute(f"create database {db} vgroups 1")
+            tdSql.execute(f"create table {db}.raw (ts timestamp, val int)")
+            tdSql.execute(
+                f"create stable {db}.vst (ts timestamp, x int) "
+                "tags (device int) virtual 1"
+            )
+            for child in ("v1", "v2"):
+                tdSql.execute(
+                    f"create vtable {db}.{child} (x from {db}.raw.val) "
+                    f"using {db}.vst tags (7)"
+                )
+            tdSql.execute(f"insert into {db}.raw values (now - 1m, 1)")
+            tdSql.checkResultsByArray(
+                f"select count(*), sum(x), last(device) from {db}.vst",
+                [(2, 2, 7)],
+            )
+            tdSql.execute(
+                f"create stream {db}.s_vtag_period period(1s) "
+                f"from {db}.vst partition by tbname "
+                "stream_options(ignore_disorder|ignore_nodata_trigger) "
+                f"into {db}.out_calc nodelay_create_subtable "
+                "output_subtable(concat('out_', tbname)) as "
+                "select cast(_tlocaltime / 1000000 as timestamp) as ts, "
+                "last(x) as last_x, last(device) as device from %%tbname",
+                queryTimes=1,
+            )
+            tdStream.checkStreamStatus("s_vtag_period")
+            for value in (10, 20):
+                tdSql.execute(f"insert into {db}.raw values (now, {value})")
+                for child in ("v1", "v2"):
+                    tdSql.checkResultsByArray(
+                        f"select last_x, device from {db}.out_{child} "
+                        "order by ts desc limit 1",
+                        [(value, 7)],
+                        retry=60,
+                    )
+            tdStream.checkStreamStatus("s_vtag_period")
+        finally:
+            tdSql.execute(f"drop database if exists {db} force")
+
     @pytest.mark.parametrize("fill_history", [False, True])
     @pytest.mark.parametrize("aggregate_tags", [True, False])
     def test_aggregate_preserves_source_and_window(self, fill_history, aggregate_tags):

@@ -95,26 +95,25 @@ int8_t extTimestampTypePrecision(EExtSourceType srcType, const char *extTypeName
  *
  * MySQL and SQL Server fold unquoted identifiers case-insensitively, so a
  * reference written in a different case still binds to the stored column;
- * Oracle folds an unquoted reference to upper case and then compares exactly;
- * PostgreSQL and InfluxDB compare identifiers literally.  This is the single
- * source of truth for resolved names: parser expression binding, mnode reader
- * mappings, and stream timestamp hints all use it.  Raw SQL references that
- * still carry representation quotes call extColumnNameEqualReference(), which
- * applies the same rule without losing the quoted/unquoted distinction.
+ * PostgreSQL, InfluxDB and Oracle compare identifiers literally.  TDengine
+ * applies its own identifier grammar before a reference reaches this helper:
+ * an unquoted identifier is lower-cased by the client and a backticked one
+ * keeps the spelling the user wrote, so the external name must match that
+ * resolved spelling exactly.  This is the single source of truth for that
+ * rule: the parser accepts an external column reference with it, mnode binds
+ * the reader column mappings with it, and the stream reader looks up the
+ * planner's timestamp-class hint with it.  Keeping one implementation stops
+ * the three from drifting apart, which would make a reference that DDL
+ * accepted unresolvable at reader deploy time.
  */
 bool extColumnNameEqual(EExtSourceType srcType, const char *lhs, const char *rhs);
 
 /**
- * Compare an external identifier with a reference as written in SQL.
- *
- * Unlike extColumnNameEqual(), the reference may retain representation quotes
- * from the parser AST.  For Oracle, a quoted lower-case name is therefore
- * distinct from the upper-case name of the same spelling produced by folding an
- * unquoted identifier.  Other providers follow extColumnNameEqual().
- *
- * Column binding (parser) and the DDL paths use extColumnNameEqual(); this
- * helper is only used where a name still carries its raw spelling - the stream
- * trigger table-name match in mndStreamMgmt.c.
+ * Compare an external identifier with a reference that reached the stream
+ * layer.  The reference has already passed through TDengine's identifier
+ * grammar, so the bytes are the exact remote spelling; this is an alias of
+ * extColumnNameEqual() and keeps the stream trigger table-name match
+ * (mndStreamMgmt.c) on the same rule as the parser and reader paths.
  */
 bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
                                  const char *referenceName);
@@ -122,15 +121,15 @@ bool extColumnNameEqualReference(EExtSourceType srcType, const char *storedName,
 /**
  * Index of the external column a reference binds to, -1 when none matches.
  *
- * The exact spelling wins over the provider fold across the whole catalog, and
- * only a catalog without an exact match falls back to extColumnNameEqual().
- * Oracle keeps a quoted "val" apart from the folded VAL, while TDengine has
- * already dropped the quoting by the time a resolved reference reaches these
- * paths, so a single folding pass in catalog order would bind whichever case
- * variant happens to be stored first.  Every consumer that turns a reference
- * into a column - DDL validation, the stored filter, the trigger prefilter and
- * the mnode reader binding - resolves through this rule, so they cannot pick
- * different columns for the same reference.
+ * The exact spelling wins across the whole catalog; only a catalog without an
+ * exact match falls back to extColumnNameEqual() (MySQL / SQL Server fold
+ * case; PostgreSQL, InfluxDB and Oracle are byte-exact).  TDengine has already
+ * applied its identifier grammar by the time a resolved reference reaches
+ * these paths, so this pass must never merge two columns the catalog holds
+ * separately.  Every consumer that turns a reference into a column - DDL
+ * validation, the stored filter, the trigger prefilter and the mnode reader
+ * binding - resolves through this rule, so they cannot pick different columns
+ * for the same reference.
  *
  * The caller keeps ownership of nothing: pMeta is only read.
  */
@@ -138,16 +137,14 @@ int32_t extFindColumnIndex(EExtSourceType srcType, const SExtTableMeta *pMeta,
                            const char *colName);
 
 /**
- * Unquote an external table spelling as reported by the connector.
+ * Copy an external table spelling as reported by the connector.
  *
- * The connectors keep the surrounding double quotes for a quoted identifier
- * (e.g. Oracle `"same_a"`) and double any embedded quote (`"sa""me"`).
- * Both the mnode reader-spec builder and the parser trigger-spec builder store
- * the bare exact spelling, because the stream reader adds its own quoting when
- * it renders the reference and copying the quoted form would nest quotes.  This
- * is the single copy of that rule so the two spec builders cannot drift apart.
+ * The connectors report the exact remote spelling (DS 5.3.6 R1); the bytes are
+ * copied verbatim (truncated to the destination capacity) so the mnode reader
+ * spec, the parser trigger spec and the stream reader all keep the one spelling
+ * the remote catalog matched.
  *
- * @param spelling  The connector-reported spelling; must not be NULL.
+ * @param spelling  The connector-reported spelling; may be NULL.
  * @param out       Destination buffer.
  * @param outLen    Destination capacity in bytes.
  */

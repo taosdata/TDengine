@@ -1483,32 +1483,32 @@ ts|c_ts_tz|c_ts_ltz
 SQL: describe fq03_src_o.all_types_ora
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-C_NUM_DEC|DECIMAL(10, 2)|8|
-C_NUM_BIGINT|BIGINT|8|
-C_NUM_WIDE|DECIMAL(20, 0)|16|
-C_NUM_ONE|TINYINT|1|
-C_INTEGER|DECIMAL(38, 0)|16|
-C_BIN_FLOAT|FLOAT|4|
-C_BIN_DOUBLE|DOUBLE|8|
-C_FLOAT24|FLOAT|4|
-C_FLOAT53|DOUBLE|8|
-C_CHAR|VARCHAR|20|
-C_VARCHAR2|VARCHAR|100|
-C_NCHAR|NCHAR|20|
-C_NVARCHAR2|NCHAR|100|
-C_CLOB|NCHAR|16379|
-C_NCLOB|NCHAR|16379|
-C_LONG|NCHAR|16379|
-C_RAW|VARBINARY|16|
-C_BLOB|BLOB|16777220|
-C_ROWID|VARCHAR|40|
-C_XMLTYPE|NCHAR|16379|
-C_DATE|TIMESTAMP|8|
-C_TS6|TIMESTAMP|8|
-C_TS9|TIMESTAMP|8|
-C_TS_TZ|TIMESTAMP|8|
-C_TS_LTZ|TIMESTAMP|8|
+ts|TIMESTAMP|8|
+c_num_dec|DECIMAL(10, 2)|8|
+c_num_bigint|BIGINT|8|
+c_num_wide|DECIMAL(20, 0)|16|
+c_num_one|TINYINT|1|
+c_integer|DECIMAL(38, 0)|16|
+c_bin_float|FLOAT|4|
+c_bin_double|DOUBLE|8|
+c_float24|FLOAT|4|
+c_float53|DOUBLE|8|
+c_char|VARCHAR|20|
+c_varchar2|VARCHAR|100|
+c_nchar|NCHAR|20|
+c_nvarchar2|NCHAR|100|
+c_clob|NCHAR|16379|
+c_nclob|NCHAR|16379|
+c_long|NCHAR|16379|
+c_raw|VARBINARY|16|
+c_blob|BLOB|16777220|
+c_rowid|VARCHAR|40|
+c_xmltype|NCHAR|16379|
+c_date|TIMESTAMP|8|
+c_ts6|TIMESTAMP|8|
+c_ts9|TIMESTAMP|8|
+c_ts_tz|TIMESTAMP|8|
+c_ts_ltz|TIMESTAMP|8|
 ---
 ### CASE-01o[ORA] STEP-024 QUERY
 SQL: select ts, c_char10, c_varchar10 from fq03_src_o.char_pad_ora order by ts
@@ -1575,9 +1575,11 @@ ts|c_v
 2024-01-01 00:00:00+00:00|1
 ---
 ### CASE-01o[ORA] STEP-036 QUERY
-SQL: select ts, c_num_dec from fq03_src_o.FREEPDB1.all_types_ora order by ts
+SQL: select ts, c_num_dec from fq03_src_o.`TAOSDATA`.all_types_ora order by ts
 RESULT:
-ERROR: query failed
+ts|c_num_dec
+2024-01-01 00:00:00.123456+00:00|12345.67
+2024-01-01 00:01:00+00:00|-99999999.99
 ---
 ### CASE-01o[ORA] STEP-037 CLEANUP
 SQL: drop external source if exists fq03_src_o

@@ -547,21 +547,17 @@ TEST_F(ParserSelectDdlTest, mysqlColumnNameWithLiteralQuotesBindsExactColumn) {
 #endif
 }
 
-// Column binding for a federated query keeps the rule of the main branch:
-// extColumnNameEqual() is applied candidate by candidate in catalog order, and
-// for Oracle that is oracleIdentMatches() - an exact spelling beats a folded one
-// only within the same candidate, and only an all-lower-case reference folds.
-// Representation quotes are never interpreted, so a reference that keeps them
-// resolves nothing (also main behaviour).
+// Column binding for a federated query follows TDengine's identifier grammar:
+// the harness (like the client) lower-cases an unquoted reference, and Oracle
+// metadata is then compared exactly - extColumnNameEqual() applies strcmp for
+// Oracle, exactly as it does for PostgreSQL and InfluxDB.  Catalog order does
+// not matter: only the byte-identical spelling binds, so an upper-case column is
+// a different object that a backticked reference would address.
 //
-// Dropping the per-candidate rule is what broke the shipped federated query: a
-// fold-only comparison loses a lower-case column and a mixed-case column reached
-// through backticks (test_fq_18 oid-08 / oid-14).
-//
-// The harness lower-cases the whole statement (setParseContext()), so a
-// mixed-case reference cannot be expressed here; test_fq_18 oid-14 covers that
-// spelling end to end.
-TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsMainRules) {
+// The harness lower-cases the whole statement outside double-quoted spans
+// (setParseContext()), so a mixed-case backticked reference cannot be expressed
+// here; test_fq_18 oid-14 covers that spelling end to end.
+TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsExactRules) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
 #else
@@ -594,9 +590,8 @@ TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsMainRules) {
   runAsyncOnly("SELECT `\"val\"` FROM ext_oracle_case.metrics_case",
                TSDB_CODE_PAR_INVALID_COLUMN);
 
-  // Catalog order decides between two candidates that both match: with VAL
-  // listed first the plain reference folds onto it, which is what main also
-  // does.  There is deliberately no exact-match pass across candidates.
+  // Catalog order does not matter: the exactly-named lower-case column binds
+  // even when the upper-case VAL is listed first.
   std::vector<MockCatalogService::MockExtColDef> upperFirst = {
       {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
       {"VAL", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
@@ -604,35 +599,28 @@ TEST_F(ParserSelectDdlTest, oracleQueryBindingKeepsMainRules) {
   };
   g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper_first", upperFirst,
                                        TSDB_TIME_PRECISION_MICRO);
-  expectedType = TSDB_DATA_TYPE_BIGINT;
+  expectedType = TSDB_DATA_TYPE_VARCHAR;
   runAsyncOnly("SELECT val FROM ext_oracle_case.metrics_upper_first");
 
-  // The folding rule still applies when only the upper-case column exists.
+  // An upper-case remote column needs a backticked reference; the plain spelling
+  // is lower-cased and resolves nothing.
   std::vector<MockCatalogService::MockExtColDef> upperOnly = {
       {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
       {"UPPER", TSDB_DATA_TYPE_BIGINT, false, true, false, "NUMBER(10,0)"},
   };
   g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_upper", upperOnly,
                                        TSDB_TIME_PRECISION_MICRO);
-  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
-    if (PARSER_STAGE_TRANSLATE != stage) return;
-    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
-    ASSERT_EQ(QUERY_NODE_SELECT_STMT, nodeType((const SNode*)select));
-    const SNode* expr = nodesListGetNode(select->pProjectionList, 0);
-    ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(expr));
-    const SColumnNode* col = reinterpret_cast<const SColumnNode*>(expr);
-    EXPECT_EQ(TSDB_DATA_TYPE_BIGINT, col->node.resType.type);
-  });
-  runAsyncOnly("SELECT upper FROM ext_oracle_case.metrics_upper");
+  runAsyncOnly("SELECT upper FROM ext_oracle_case.metrics_upper",
+               TSDB_CODE_PAR_INVALID_COLUMN);
 #endif
 }
 
-// Vtable column references resolve exactly like a query column and like the
-// main branch: the exact spelling wins over the folded one, representation
-// quotes are not interpreted, and Oracle folds only an all-lower-case reference.
-// A quoted reference therefore resolves nothing, while the plain spelling binds
-// the lower-case column instead of folding onto VAL.
-TEST_F(ParserSelectDdlTest, oracleVtableBindingKeepsMainRules) {
+// Vtable column references resolve exactly like a query column: TDengine
+// lower-cases the unquoted reference and Oracle metadata is compared exactly,
+// with no folding and no interpretation of quote characters.  A reference whose
+// literal name keeps quotes therefore resolves nothing, while the plain spelling
+// binds the exactly-named lower-case column.
+TEST_F(ParserSelectDdlTest, oracleVtableBindingKeepsExactRules) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
 #else
@@ -667,8 +655,8 @@ TEST_F(ParserSelectDdlTest, oracleVtableBindingKeepsMainRules) {
   // a TIMESTAMP(9) side column is bound into this microsecond virtual table
   // without an error.  That gap is inherited from main and tracked separately.
   std::vector<MockCatalogService::MockExtColDef> sideColumns = {
-      {"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
-      {"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"},
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"},
+      {"event_ts", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"},
   };
   g_mockCatalogService->createExtTable("ext_oracle_case", "", "", "metrics_side", sideColumns,
                                        TSDB_TIME_PRECISION_NANO);

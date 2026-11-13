@@ -1085,6 +1085,34 @@ TEST(StreamWindowPlanTest, createRequestJsonRoundTripDeepOwnsWindowPlan) {
   expectPlanEquals(expected.get(), decoded.pWindowPlan);
 }
 
+TEST(StreamWindowPlanTest, createRequestOwnsDerivativeTagDependencies) {
+  SCMCreateStreamReq source = makeLegacyCountRequest();
+  RequestPtr         sourceGuard(&source);
+  source.derivativeTagCols = taosStrdup("[{\"unitTag\":7}]");
+  ASSERT_NE(nullptr, source.derivativeTagCols);
+
+  SCMCreateStreamReq* cloned = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tCloneStreamCreateDeployPointers(&source, &cloned));
+  ASSERT_NE(nullptr, cloned);
+  auto destroyClone = [](SCMCreateStreamReq* request) {
+    tFreeSCMCreateStreamReq(request);
+    taosMemoryFree(request);
+  };
+  std::unique_ptr<SCMCreateStreamReq, decltype(destroyClone)> cloneGuard(cloned, destroyClone);
+  EXPECT_NE(source.derivativeTagCols, cloned->derivativeTagCols);
+  EXPECT_STREQ(static_cast<const char*>(source.derivativeTagCols), static_cast<const char*>(cloned->derivativeTagCols));
+
+  std::string                                    encoded = encodeCreateStreamRequestJson(&source);
+  std::unique_ptr<SJson, decltype(&tjsonDelete)> json(tjsonParse(encoded.c_str()), tjsonDelete);
+  ASSERT_NE(nullptr, json);
+  SCMCreateStreamReq decoded = {};
+  RequestPtr         decodedGuard(&decoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, jsonToSCMCreateStreamReq(json.get(), &decoded));
+  tFreeSCMCreateStreamReq(&source);
+  EXPECT_STREQ("[{\"unitTag\":7}]", static_cast<const char*>(decoded.derivativeTagCols));
+  EXPECT_STREQ("[{\"unitTag\":7}]", static_cast<const char*>(cloned->derivativeTagCols));
+}
+
 TEST(StreamWindowPlanTest, createRequestJsonRoundTripsNullAndEmptyConditionSlotIds) {
   SCMCreateStreamReq source = makeLegacyCountRequest();
   RequestPtr         sourceGuard(&source);
@@ -3270,6 +3298,22 @@ TEST(StreamCalcRequestAdmissionTest, OrdinaryMultiGroupRoundTripsWithoutNestedCo
   EXPECT_EQ(nullptr, decoded.pAncestorContext);
   EXPECT_EQ(2, tSimpleHashGetSize(decoded.pGroupCalcInfos));
   tDestroySTriggerCalcRequest(&decoded);
+}
+
+TEST(StreamCalcRequestAdmissionTest, DerivativeLogEpochRoundTripsAndDefaultsForOldRequests) {
+  for (bool multi : {false, true}) {
+    for (int64_t epoch : {INT64_C(0), INT64_C(123456789)}) {
+      SSTriggerCalcRequest source = multi ? makeMultiGroupCalcRequest() : makeSingleGroupCalcRequest();
+      source.derivativeLogEpoch = epoch;
+      auto bytes = serializeCalcRequest(source);
+      tDestroySTriggerCalcRequest(&source);
+      SSTriggerCalcRequest decoded = {};
+      decoded.derivativeLogEpoch = -1;
+      ASSERT_EQ(0, tDeserializeSTriggerCalcRequestWithContextFrames(bytes.data(), bytes.size(), &decoded));
+      EXPECT_EQ(epoch, decoded.derivativeLogEpoch);
+      tDestroySTriggerCalcRequest(&decoded);
+    }
+  }
 }
 
 TEST(StreamCalcRequestAdmissionTest, NestedMultiGroupRoundTripsEveryGidAndParamIndex) {
@@ -7291,6 +7335,104 @@ TEST(StreamRuntimeCodecTest, CanonicalOrderIsLocalOnly) {
   EXPECT_EQ(nullptr, decoded.pGroupCalcOrder);
   tDestroyStRtFuncInfo(&decoded);
   tDestroyStRtFuncInfo(&source);
+}
+
+TEST(StreamRuntimeCodecTest, DerivativeLogEpochSurvivesFetchAndRejectsMalformedFrames) {
+  for (int64_t epoch : {INT64_C(0), INT64_C(123456789)}) {
+    SStreamRuntimeFuncInfo runtime = makeSingleGroupFetchRuntime();
+    runtime.derivativeLogEpoch = epoch;
+    SResFetchReq source = {};
+    source.pStRtFuncInfo = &runtime;
+    auto bytes = serializeFetchRequest(source, true, false);
+    tDestroyStRtFuncInfo(&runtime);
+    SResFetchReq decoded = {};
+    ASSERT_EQ(0, tDeserializeSResFetchReqWithContextFrames(bytes.data(), bytes.size(), &decoded));
+    ASSERT_NE(nullptr, decoded.pStRtFuncInfo);
+    EXPECT_EQ(epoch, decoded.pStRtFuncInfo->derivativeLogEpoch);
+    tDestroySResFetchReq(&decoded);
+    if (epoch != 0) {
+      const size_t offset = frameOffset(bytes, STREAM_DERIVATIVE_LOG_FRAME_MAGIC);
+      ASSERT_LT(offset, bytes.size());
+      auto version = bytes;
+      writeU16(&version, offset + sizeof(uint32_t), STREAM_DERIVATIVE_CONFIG_FRAME_VERSION + 1);
+      expectFetchDecodeFailure(version);
+      auto duplicate = bytes;
+      duplicate.insert(duplicate.end(), bytes.begin() + offset, bytes.end());
+      rewriteFetchRequestLengths(&duplicate);
+      expectFetchDecodeFailure(duplicate);
+    }
+  }
+}
+
+TEST(StreamRuntimeCodecTest, DerivativePointGenerationsSurviveCalcAndFetch) {
+  SStreamRuntimeFuncInfo runtime = makeFullMultiGroupFetchRuntime();
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    group->derivativeLogEpoch = gid + 1000;
+  }
+  SSTriggerCalcRequest calc = makeMultiGroupCalcRequest();
+  TSWAP(calc.pGroupCalcInfos, runtime.pGroupCalcInfos);
+  auto calcBytes = serializeCalcRequest(calc);
+  tDestroySTriggerCalcRequest(&calc);
+  SSTriggerCalcRequest decodedCalc = {};
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequest(calcBytes.data(), calcBytes.size(), &decodedCalc));
+  TSWAP(runtime.pGroupCalcInfos, decodedCalc.pGroupCalcInfos);
+  tDestroySTriggerCalcRequest(&decodedCalc);
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  auto bytes = serializeFetchRequest(source, true, false);
+  SResFetchReq decoded = {};
+  ASSERT_EQ(0, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(
+        tSimpleHashGet(decoded.pStRtFuncInfo->pGroupCalcInfos, &gid, sizeof(gid)));
+    ASSERT_NE(nullptr, group);
+    EXPECT_EQ(gid + 1000, group->derivativeLogEpoch);
+    decoded.pStRtFuncInfo->curGrpCalc = group;
+    EXPECT_EQ(gid + 1000, tStreamDerivativeLogEpoch(decoded.pStRtFuncInfo));
+  }
+  tDestroySResFetchReq(&decoded);
+  // A fetch projection without the group map still carries its selected point.
+  int64_t gid = 202;
+  runtime.curGrpCalc = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+  // A data-only projection carries no ancestor policies or complete group map.
+  SStreamRuntimeFuncInfo projection = {};
+  projection.isMultiGroupCalc = true;
+  projection.curGrpCalc = runtime.curGrpCalc;
+  source.pStRtFuncInfo = &projection;
+  bytes = serializeFetchRequest(source, false, false);
+  decoded = {};
+  ASSERT_EQ(0, tDeserializeSResFetchReq(bytes.data(), bytes.size(), &decoded));
+  EXPECT_EQ(1202, decoded.pStRtFuncInfo->derivativeLogEpoch);
+  tDestroySResFetchReq(&decoded);
+  runtime.curGrpCalc = nullptr;
+  tDestroyStRtFuncInfo(&runtime);
+}
+
+TEST(StreamRuntimeCodecTest, DerivativePointGenerationFrameRejectsMissingOrDuplicateGroups) {
+  SStreamRuntimeFuncInfo runtime = makeFullMultiGroupFetchRuntime();
+  for (int64_t gid : {INT64_C(101), INT64_C(202)}) {
+    auto* group = static_cast<SSTriggerGroupCalcInfo*>(tSimpleHashGet(runtime.pGroupCalcInfos, &gid, sizeof(gid)));
+    group->derivativeLogEpoch = gid + 1000;
+  }
+  SResFetchReq source = {};
+  source.pStRtFuncInfo = &runtime;
+  auto bytes = serializeFetchRequest(source, true, false);
+  tDestroyStRtFuncInfo(&runtime);
+  size_t offset = frameOffset(bytes, STREAM_DERIVATIVE_LOG_FRAME_MAGIC);
+  ASSERT_LT(offset, bytes.size());
+  // Frame header is magic/u16 version/u16 flags/u32 length, followed by epoch/count.
+  size_t firstGid = offset + 12 + sizeof(int64_t) + sizeof(int32_t);
+  auto unknown = bytes;
+  writeI64(&unknown, firstGid, 999);
+  expectFetchDecodeFailure(unknown);
+  auto duplicate = bytes;
+  memcpy(duplicate.data() + firstGid + 2 * sizeof(int64_t), bytes.data() + firstGid, sizeof(int64_t));
+  expectFetchDecodeFailure(duplicate);
+  auto zero = bytes;
+  writeI64(&zero, firstGid + sizeof(int64_t), 0);
+  expectFetchDecodeFailure(zero);
 }
 
 TEST(StreamRuntimeCodecTest, ExternalWindowPrevFlagIsFetchOnly) {

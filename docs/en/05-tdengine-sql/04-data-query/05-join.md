@@ -16,6 +16,8 @@ Use explicit `CROSS JOIN` or comma syntax for an unconditional join; both return
 
 JOIN conditions must be evaluable as Boolean expressions. Whole `JSON` values, `BLOB`, and `MEDIUMBLOB` cannot be used as equality match keys. Aggregate and window functions cannot be written directly in `ON`, but columns computed by a subquery can participate in a join.
 
+A table function result (a `TABLE(...)` source in the `FROM` clause) can be used as one side of a JOIN. Its row set and output columns follow the rules in [Table Functions](./03-function.md#table-functions).
+
 ASOF JOIN's main condition is based on primary timestamps and supports the specified comparison operators or `TIMETRUNCATE` expressions. Tags and ordinary columns can only be used as equality grouping conditions. See [Left/Right ASOF Join](#leftright-asof-join) for details. WINDOW JOIN specifies its time range through `WINDOW_OFFSET`; see its section for other condition restrictions.
 
 ### Grouping Conditions

@@ -16,6 +16,7 @@
  */
 
 #include "executor.h"
+#include "alignstage.h"
 #include "tdTestSeam.h"
 #include "executorInt.h"
 #include "filter.h"
@@ -672,6 +673,14 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   bool           virtualStableScan =
       pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN &&
       ((STableScanInfo*)pOperator->info)->virtualStableScan;
+  // TIME_ALIGN must see every row: no block pruning/SMA/filter/limit may run
+  // before the align stage.  They are applied to the published block instead.
+  bool alignActive = false;
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    alignActive = ((STableScanInfo*)pOperator->info)->pAlignStage != NULL;
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+    alignActive = ((STableMergeScanInfo*)pOperator->info)->pAlignStage != NULL;
+  }
 
   SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
@@ -681,7 +690,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     *status = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
-  if (pOperator->exprSupp.pFilterInfo != NULL) {
+  if (alignActive) {
+    (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
+  } else if (pOperator->exprSupp.pFilterInfo != NULL) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
     int  ret =
@@ -762,7 +773,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   }
 
   // try to filter data block according to sma info
-  if (!virtualStableScan && pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
+  if (!virtualStableScan && !alignActive && pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
     ETsdReaderBlockSmaMode blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
     if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
       blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY;
@@ -819,7 +830,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if (aggDynamicPrune && !virtualStableScan && !maxInterval) {
+  if (aggDynamicPrune && !virtualStableScan && !maxInterval && !alignActive) {
     code = doDynamicPruneDataBlock(pOperator, pBlock, status);
   }
   pBlock->pBlockAgg = NULL;
@@ -857,7 +868,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pOperator->exprSupp.pFilterInfo != NULL) {
+  if (pOperator->exprSupp.pFilterInfo != NULL && !alignActive) {
     int64_t st = taosGetTimestampUs();
     code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo, NULL,
                                        pTaskInfo);
@@ -874,7 +885,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  bool limitReached = applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo);
+  bool limitReached = alignActive ? false : applyLimitOffset(&pTableScanInfo->limitInfo, pBlock, pTaskInfo);
   if (limitReached) {  // set operator flag is done
     setOperatorCompleted(pOperator);
   }
@@ -3837,7 +3848,7 @@ _end:
   return code;
 }
 
-int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+static int32_t doTableScanNextRaw(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         lino = 0;
   STableScanInfo* pInfo = pOperator->info;
@@ -3972,6 +3983,21 @@ _end:
   return code;
 }
 
+static int32_t tableScanAlignApplyFilter(SOperatorInfo* pOperator, STableScanInfo* pInfo, SSDataBlock* pBlock,
+                                         bool* pEmpty) {
+  *pEmpty = false;
+  if (pBlock == NULL) return TSDB_CODE_SUCCESS;
+  if (pOperator->exprSupp.pFilterInfo != NULL) {
+    int32_t code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->base.matchInfo, NULL,
+                                               pOperator->pTaskInfo);
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  if (pBlock->info.rows == 0) {
+    *pEmpty = true;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t doTableScanNextWithConstGroupKey(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t code = doTableScanNext(pOperator, ppRes);
   if (code != TSDB_CODE_SUCCESS || *ppRes == NULL || (*ppRes)->pConstTagCols == NULL ||
@@ -4001,6 +4027,89 @@ static int32_t doTableScanNextWithConstGroupKey(SOperatorInfo* pOperator, SSData
     T_LONG_JMP(pOperator->pTaskInfo->env, code);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+// TIME_ALIGN host for TableScan: pull raw (unfiltered, unlimited) scan blocks,
+// run the align stage over them, and publish the held block only when no NEXT
+// column is still pending.  WHERE is evaluated on the published block, i.e.
+// after interpolation, as required by the table-function semantics.
+static int32_t doTableScanAlignNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  STableScanInfo* pInfo = pOperator->info;
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  int32_t         code = TSDB_CODE_SUCCESS;
+
+  *ppRes = NULL;
+  while (1) {
+    SSDataBlock* pIn = pInfo->pAlignPendingIn;
+    pInfo->pAlignPendingIn = NULL;
+    if (pIn == NULL) {
+      code = doTableScanNextRaw(pOperator, &pIn);
+      if (TSDB_CODE_SUCCESS != code) return code;
+    }
+
+    if (pIn == NULL) {
+      // End of input: publish every remaining held block (unresolved NEXT
+      // positions keep their temporary NULLs).
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady == NULL) {
+        setOperatorCompleted(pOperator);
+        return TSDB_CODE_SUCCESS;
+      }
+      bool empty = false;
+      code = tableScanAlignApplyFilter(pOperator, pInfo, pReady, &empty);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (empty) continue;
+      *ppRes = pReady;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int8_t phase = pIn->info.scanFlag;
+    if (pInfo->alignPhaseValid && phase != pInfo->alignPhase) {
+      // Two-pass scan restarted: drain the previous phase before consuming the
+      // first block of the new one.  Keep the input block for the next call.
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (pReady != NULL) {
+        pInfo->pAlignPendingIn = pIn;
+        bool empty = false;
+        code = tableScanAlignApplyFilter(pOperator, pInfo, pReady, &empty);
+        if (TSDB_CODE_SUCCESS != code) return code;
+        if (empty) continue;
+        *ppRes = pReady;
+        return TSDB_CODE_SUCCESS;
+      }
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    } else if (!pInfo->alignPhaseValid) {
+      pInfo->alignPhase = phase;
+      pInfo->alignPhaseValid = true;
+    }
+
+    SSDataBlock* pReady = NULL;
+    code = alignStageFeed(pInfo->pAlignStage, pIn->info.id.uid, phase, pIn, &pReady);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (pReady == NULL) {
+      continue;  // successor not known yet; keep pulling blocks
+    }
+
+    bool empty = false;
+    code = tableScanAlignApplyFilter(pOperator, pInfo, pReady, &empty);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (empty) continue;
+    *ppRes = pReady;
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t doTableScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
+  STableScanInfo* pInfo = pOperator->info;
+  if (pInfo->pAlignStage == NULL) {
+    return doTableScanNextRaw(pOperator, ppRes);
+  }
+  return doTableScanAlignNext(pOperator, ppRes);
 }
 
 static void captureReaderCost(const STableScanBase* pBase, SFileBlockLoadRecorder* pCurrent) {
@@ -4247,6 +4356,8 @@ static void destroyTableScanOperatorInfo(void* param) {
     taosHashCleanup(pTableScanInfo->readerCache);
   }
   destroyTableScanBase(&pTableScanInfo->base);
+  alignStageDestroy(pTableScanInfo->pAlignStage);
+  pTableScanInfo->pAlignStage = NULL;
   taosArrayDestroy(pTableScanInfo->pBlockColMap);
   tSimpleHashCleanup(pTableScanInfo->pVstbSchemaSlots);
   taosMemoryFreeClear(param);
@@ -4298,6 +4409,11 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
   pInfo->groupDone = false;
   pInfo->countState = 0;
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
+  if (pInfo->pAlignStage != NULL) {
+    alignStageReset(pInfo->pAlignStage);
+    pInfo->pAlignPendingIn = NULL;
+    pInfo->alignPhaseValid = false;
+  }
 
   code = resetTableScanReader(pInfo, pTaskInfo->reuseReaderOnReset);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4352,6 +4468,11 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
     qError("%s failed to initQueryTableDataCond, code:%s", __func__, tstrerror(code));
     return code;
   }
+  if (pInfo->pAlignStage != NULL) {
+    pInfo->base.cond.twindows = (STimeWindow)TSWINDOW_INITIALIZER;
+    pInfo->base.cond.type = TIMEWINDOW_RANGE_CONTAINED;
+    pInfo->base.cond.notLoadData = false;
+  }
   if (pTableScanNode->scan.node.dynamicOp && pTableScanNode->scan.virtualStableScan) {
     cleanupQueryTableDataCond(&pInfo->base.orgCond);
     memcpy(&pInfo->base.orgCond, &pInfo->base.cond, sizeof(SQueryTableDataCond));
@@ -4371,6 +4492,100 @@ static int32_t resetTableScanOperatorState(SOperatorInfo* pOper) {
 #if defined(BUILD_TEST)
 int32_t scanTestResetTableScanOperatorState(SOperatorInfo* pOper) { return resetTableScanOperatorState(pOper); }
 #endif
+
+static SColumnNode* tableScanAlignTargetExpr(SNode* pNode, int16_t* pSlotId) {
+  SNode* pExpr = pNode;
+  *pSlotId = -1;
+  if (QUERY_NODE_TARGET == nodeType(pNode)) {
+    STargetNode* pTarget = (STargetNode*)pNode;
+    pExpr = pTarget->pExpr;
+    *pSlotId = pTarget->slotId;
+  }
+  if (QUERY_NODE_COLUMN != nodeType(pExpr)) return NULL;
+  return (SColumnNode*)pExpr;
+}
+
+// Build the TIME_ALIGN stage for a non-virtual table input.  The stage is
+// hosted by the plain table scan, or by the table merge scan on each per-table
+// block before the ts merge.  The scan reads the source columns in their own
+// slots and the align outputs occupy extra slots of the same output block.
+static int32_t createScanAlignStage(SAlignStage** ppStage, STableScanBase* pBase, STableScanPhysiNode* pNode,
+                                    SExecTaskInfo* pTaskInfo) {
+  *ppStage = NULL;
+  if (pNode->pAlignCols == NULL || LIST_LENGTH(pNode->pAlignCols) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t numOfCols = LIST_LENGTH(pNode->pAlignCols);
+  SAlignStageCol* pCols = taosMemoryCalloc(numOfCols, sizeof(SAlignStageCol));
+  if (pCols == NULL) return terrno;
+
+  int32_t tsSlotId = -1;
+  SNode*  pScanNode = NULL;
+  FOREACH(pScanNode, pNode->scan.pScanCols) {
+    int16_t      slotId = -1;
+    SColumnNode* pCol = tableScanAlignTargetExpr(pScanNode, &slotId);
+    if (pCol != NULL && pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      tsSlotId = slotId;
+      break;
+    }
+  }
+
+  int32_t         numOfOut = 0;
+  int32_t         code = TSDB_CODE_SUCCESS;
+  SNode*          pNodeIt = NULL;
+  FOREACH(pNodeIt, pNode->pAlignCols) {
+    if (QUERY_NODE_COLUMN != nodeType(pNodeIt)) continue;
+    SColumnNode* pOut = (SColumnNode*)pNodeIt;
+
+    int32_t srcSlotId = -1;
+    FOREACH(pScanNode, pNode->scan.pScanCols) {
+      int16_t      slotId = -1;
+      SColumnNode* pCol = tableScanAlignTargetExpr(pScanNode, &slotId);
+      if (pCol != NULL && pCol->colId == pOut->colId) {
+        srcSlotId = slotId;
+        break;
+      }
+    }
+    if (srcSlotId < 0 || pOut->slotId < 0) {
+      qError("TIME_ALIGN: source/output slot not found for %s (colId=%d srcSlot=%d outSlot=%d)", pOut->colName,
+             pOut->colId, srcSlotId, pOut->slotId);
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _return;
+    }
+
+    SAlignStageCol* pCol = &pCols[numOfOut++];
+    pCol->srcSlotId = srcSlotId;
+    pCol->outSlotId = pOut->slotId;
+    pCol->method = pOut->alignMethod;
+    pCol->type = pOut->node.resType;
+    pCol->hasSpan = pOut->alignHasSpan;
+    pCol->spanValue = pOut->alignSpanValue;
+    pCol->spanUnit = pOut->alignSpanUnit;
+    tstrncpy(pCol->name, pOut->colName, TSDB_COL_NAME_LEN);
+  }
+
+  if (numOfOut == 0) goto _return;
+
+  // The sort optimizer may flip scanSeq to DESC; the align stage then runs
+  // direction aware over the descending rows.
+  int8_t order = (pNode->scanSeq[1] > 0 && pNode->scanSeq[0] == 0) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+  code = alignStageCreate(ppStage, pCols, numOfOut, tsSlotId, tsSlotId, pNode->timezoneName, true, order,
+                          pTaskInfo);
+  if (TSDB_CODE_SUCCESS != code) goto _return;
+
+  // The align stage runs before WHERE and LIMIT; neither may be pushed into the
+  // scan.  Also read the full time range so block pruning cannot drop rows that
+  // are needed as PREV/NEXT sources.
+  pNode->scan.node.pLimit = NULL;
+  pNode->scan.node.pSlimit = NULL;
+  pBase->cond.twindows = (STimeWindow)TSWINDOW_INITIALIZER;
+  pBase->cond.type = TIMEWINDOW_RANGE_CONTAINED;
+  pBase->cond.notLoadData = false;
+
+_return:
+  taosMemoryFree(pCols);
+  return code;
+}
 
 int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                     STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo,
@@ -4417,6 +4632,9 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
   pInfo->base.scanFlag = (pInfo->scanInfo.numOfAsc > 1) ? PRE_SCAN : MAIN_SCAN;
+
+  code = createScanAlignStage(&pInfo->pAlignStage, &pInfo->base, pTableScanNode, pTaskInfo);
+  QUERY_CHECK_CODE(code, lino, _error);
 
   pInfo->base.pdInfo.interval = extractIntervalInfo(pTableScanNode);
   pInfo->intervalLimit = pTableScanNode->intervalLimit;
@@ -6118,6 +6336,22 @@ void scanTestResetTableMergeReader(STableMergeScanInfo* pInfo, bool reuseReader)
 }
 #endif
 
+// Copy the rows of the aligned block into the reader-owned block of one
+// sub-table input.  The reader keeps writing into that block, so it must not be
+// replaced by the stage's buffer.
+static int32_t copyAlignedBlockToReaderBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
+  blockDataCleanup(pDst);
+  int32_t code = blockDataMerge(pDst, pSrc);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  pDst->info.id = pSrc->info.id;
+  pDst->info.window = pSrc->info.window;
+  pDst->info.scanFlag = pSrc->info.scanFlag;
+  pDst->info.dataLoad = pSrc->info.dataLoad;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSubTableInput* pInput,
                                                 bool* pSubTableHasBlock) {
   int32_t code = 0;
@@ -6154,6 +6388,21 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
+      if (pInfo->pAlignStage != NULL) {
+        // This table's input is over; publish the rows its NEXT still held so
+        // the merge tree can consume the tail.
+        QUERY_CHECK_NULL(pInput->pKeyInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+        SSDataBlock* pReady = NULL;
+        code = alignStageFlushSeries(pInfo->pAlignStage, pInput->pKeyInfo->uid, &pReady);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pReady != NULL) {
+          code = copyAlignedBlockToReaderBlock(pInput->pReaderBlock, pReady);
+          QUERY_CHECK_CODE(code, lino, _end);
+          *pSubTableHasBlock = true;
+          break;
+        }
+      }
+
       *pSubTableHasBlock = false;
       break;
     }
@@ -6177,6 +6426,24 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     }
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pInput->pReaderBlock->info.rows == 0) {
       continue;
+    }
+
+    if (pInfo->pAlignStage != NULL) {
+      // Fill this per-table block before the merge tree interleaves its rows
+      // with the other tables.
+      QUERY_CHECK_NULL(pInput->pKeyInfo, code, lino, _end, TSDB_CODE_INVALID_PARA);
+      pInput->pReaderBlock->info.id.groupId = pInput->pKeyInfo->groupId;
+      pInput->pReaderBlock->info.id.baseGId = pInput->pKeyInfo->baseGId;
+      pInput->pReaderBlock->info.scanFlag = (uint8_t)pInfo->base.scanFlag;
+      SSDataBlock* pReady = NULL;
+      code = alignStageFeed(pInfo->pAlignStage, pInput->pKeyInfo->uid, (int8_t)pInfo->base.scanFlag,
+                            pInput->pReaderBlock, &pReady);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pReady == NULL) {
+        continue;  // successor unknown yet; keep reading this table's blocks
+      }
+      code = copyAlignedBlockToReaderBlock(pInput->pReaderBlock, pReady);
+      QUERY_CHECK_CODE(code, lino, _end);
     }
 
     *pSubTableHasBlock = true;
@@ -6659,6 +6926,11 @@ static int32_t createVTableMergeScanInfoFromBatchParam(SOperatorInfo* pOperator)
   cleanupTableMergeDurationState(pInfo);
   taosHashCleanup(pInfo->mSkipTables);
   pInfo->mSkipTables = NULL;
+  pInfo->alignSourceDone = false;
+  if (pInfo->pAlignStage != NULL) {
+    code = alignStageReset(pInfo->pAlignStage);
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   if (pInfo->base.orgCond.colList && pInfo->base.orgCond.numOfCols > 0) {
     cleanupQueryTableDataCond(&pInfo->base.cond);
@@ -6801,6 +7073,15 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
     }
 
     if (pBlock != NULL) {
+      if (pInfo->pAlignStage != NULL && pOperator->exprSupp.pFilterInfo != NULL) {
+        // The WHERE clause runs on the aligned, merged output.
+        code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->base.matchInfo, NULL,
+                                           pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pBlock->info.rows == 0) {
+          continue;
+        }
+      }
       pBlock->info.id.groupId = pInfo->groupId;
       pInfo->bGroupProcessed = true;
       break;
@@ -6928,6 +7209,16 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
   int64_t              st = taosGetTimestampUs();
 
   while (true) {
+    if (pInfo->pAlignStage != NULL && pInfo->alignSourceDone) {
+      // Raw input is exhausted: publish the blocks still held by series whose
+      // NEXT successor never appeared.  One block per call; NULL ends the source.
+      SSDataBlock* pReady = NULL;
+      code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+      QUERY_CHECK_CODE(code, lino, _end);
+      *ppBlock = pReady;
+      return code;
+    }
+
     if (pInfo->rtnNextDurationBlocks) {
       qDebug("%s table merge scan return already fetched new duration blocks. index %d num of blocks %d",
              GET_TASKID(pTaskInfo), pInfo->nextDurationBlocksIdx, pInfo->numNextDurationBlocks);
@@ -6958,6 +7249,14 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
              GET_TASKID(pTaskInfo), bFinished, bSkipped, pInfo->bNextDurationBlockEvent, pInfo->bNewFilesetEvent);
       if (bFinished) {
         pInfo->bNewFilesetEvent = false;
+        if (pInfo->pAlignStage != NULL) {
+          pInfo->alignSourceDone = true;
+          SSDataBlock* pReady = NULL;
+          code = alignStageFlushNext(pInfo->pAlignStage, &pReady);
+          QUERY_CHECK_CODE(code, lino, _end);
+          *ppBlock = pReady;
+          return code;
+        }
         break;
       }
 
@@ -6994,6 +7293,20 @@ static int32_t getBlockForTableMergeScan(void* param, SSDataBlock** ppBlock) {
 
     pBlock->info.id.groupId = pInfo->groupId;
     pBlock->info.id.baseGId = pInfo->baseGroupId;
+
+    if (pInfo->pAlignStage != NULL) {
+      // Fill this per-table block before it enters the ts merge; the merge
+      // output loses the per-block uid.
+      pBlock->info.scanFlag = (uint8_t)pInfo->base.scanFlag;
+      SSDataBlock* pReady = NULL;
+      code = alignStageFeed(pInfo->pAlignStage, pBlock->info.id.uid, (int8_t)pInfo->base.scanFlag, pBlock, &pReady);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (pReady == NULL) {
+        continue;  // successor not known yet; keep pulling this series
+      }
+      *ppBlock = pReady;
+      return code;
+    }
 
     /*
      * Do NOT add to resultInfo.totalRows here: this is a block fed INTO the
@@ -7131,6 +7444,9 @@ int32_t startDurationForGroupTableMergeScan(SOperatorInfo* pOperator) {
   qDebug("%s table merge scan start duration ", GET_TASKID(pTaskInfo));
   pInfo->bNewFilesetEvent = false;
   pInfo->bNextDurationBlockEvent = false;
+  // A new duration/group starts a new raw source; the end-of-source flush of
+  // the previous one must not suppress reading here.
+  pInfo->alignSourceDone = false;
 
   pInfo->sortBufSize = 2048 * pInfo->bufPageSize;
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
@@ -7605,6 +7921,16 @@ int32_t doTableMergeScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
                                     pInfo->pResBlock, tbInfo);
     }
     if (pBlock != NULL) {
+      if (pInfo->pAlignStage != NULL && pOperator->exprSupp.pFilterInfo != NULL) {
+        // The WHERE clause is evaluated on the aligned, merged output, not on
+        // the raw per-table blocks fed into the sort.
+        code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->base.matchInfo, NULL,
+                                           pTaskInfo);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pBlock->info.rows == 0) {
+          continue;
+        }
+      }
       pBlock->info.id.groupId = pInfo->groupId;
       pBlock->info.id.baseGId = pInfo->baseGroupId;
       pBlock->info.scanPhase = pInfo->currentPhase;
@@ -7679,6 +8005,9 @@ void destroyTableMergeScanOperatorInfo(void* param) {
   pTableScanInfo->pReaderBlock = NULL;
   taosArrayDestroy(pTableScanInfo->pSortInfo);
 
+  alignStageDestroy(pTableScanInfo->pAlignStage);
+  pTableScanInfo->pAlignStage = NULL;
+
   stopSubTablesTableMergeScan(pTableScanInfo);
 
   taosMemoryFreeClear(param);
@@ -7752,6 +8081,13 @@ static int32_t resetTableMergeScanOperatorState(SOperatorInfo* pOper) {
     return code;
   }
   pInfo->base.scanFlag = MAIN_SCAN;
+  pInfo->alignSourceDone = false;
+  if (pInfo->pAlignStage != NULL) {
+    code = alignStageReset(pInfo->pAlignStage);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
 
   pInfo->base.limitInfo = (SLimitInfo){0};
   pInfo->base.limitInfo.limit.limit = -1;
@@ -7840,6 +8176,12 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   QUERY_CHECK_CODE(code, lino, _error);
   initTableMergeScanPhaseState(pInfo);
 
+  // TIME_ALIGN runs on every per-table block before it enters the ts merge, so
+  // state is keyed by the block uid.  It must also finish before the scan
+  // limit/filter would drop rows the interpolation still needs.
+  code = createScanAlignStage(&pInfo->pAlignStage, &pInfo->base, pTableScanNode, pTaskInfo);
+  QUERY_CHECK_CODE(code, lino, _error);
+
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
     SExprSupp* pSup = &pInfo->base.pseudoSup;
     code = createExprInfo(pTableScanNode->scan.pScanPseudoCols, NULL, &pSup->pExprInfo, &pSup->numOfExprs);
@@ -7925,7 +8267,9 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
   code = createOneDataBlock(pInfo->pResBlock, false, &pInfo->pSortInputBlock);
   QUERY_CHECK_CODE(code, lino, _error);
 
-  if (!tsExperimental) {
+  if (!tsExperimental || pInfo->pAlignStage != NULL) {
+    // The fileset-delimited prefetch path caches raw blocks and returns them on
+    // a later pass; those blocks would bypass the align stage.
     pInfo->filesetDelimited = false;
   } else {
     pInfo->filesetDelimited = pTableScanNode->filesetDelimited;

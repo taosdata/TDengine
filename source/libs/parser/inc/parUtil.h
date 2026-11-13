@@ -111,6 +111,8 @@ typedef struct SParseStreamInfo {
   SNode*           triggerTbl;
   SNodeList*       rollupTagList;
   SNodeList*       triggerPartitionList;
+  SNodeList*       derivativeTagCols;
+  SNodeList*       derivativeInjectedCols;
   SHashObj*        calcDbs;
   // SHashObj<sourceName(cstr) -> empty>, populated by collectExtSourceRefs in parTranslater.c (pt-a1).
   // Iterated by pt-a4 to build SStreamExtTriggerSpec per unique source.

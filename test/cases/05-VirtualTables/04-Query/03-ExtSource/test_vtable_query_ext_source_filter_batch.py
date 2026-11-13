@@ -55,6 +55,7 @@ _DEVICE_ROWS = {"d1": 8193, "d2": 10241}
 # Oracle has one namespace level - the login schema - and no per-source
 # database, so its remote objects are qualified as source.schema.table.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
+_ORACLE_SCHEMA_REF = "`" + _ORACLE_SCHEMA + "`"
 # Oracle tables live in the shared login schema; prefixing their names keeps
 # them apart from the fixtures of the other ext-source test files.
 _ORACLE_TABLE_PREFIX = "oracle_"
@@ -193,7 +194,7 @@ class TestVTableQueryExtSourceFilterBatch:
                 # input line past ~5000 characters (SP2-0027) and would load
                 # only part of the batch.
                 into = "\n".join(
-                    f"INTO {_ORACLE_TABLE_PREFIX}readings VALUES {row}"
+                    f'INTO "{_ORACLE_TABLE_PREFIX}readings" VALUES {row}'
                     for row in batch)
                 ExtSrcEnv._oracle_sql(
                     cfg, f"INSERT ALL\n{into}\nSELECT 1 FROM dual")
@@ -220,7 +221,7 @@ class TestVTableQueryExtSourceFilterBatch:
         if backend == "sqlserver":
             return f"{source}.{_REMOTE_DB}.dbo.{table}"
         if backend == "oracle":
-            return f"{source}.{_ORACLE_SCHEMA}.{_ORACLE_TABLE_PREFIX}{table}"
+            return f"{source}.{_ORACLE_SCHEMA_REF}.{_ORACLE_TABLE_PREFIX}{table}"
         return f"{source}.{_REMOTE_DB}.{table}"
 
     @classmethod

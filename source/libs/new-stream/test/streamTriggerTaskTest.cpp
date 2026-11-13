@@ -4888,6 +4888,39 @@ class RealtimePipelineHarness {
     return processGroupWal(dataIndex, groups) == TSDB_CODE_SUCCESS;
   }
 
+  bool feedUnitMetadata(int64_t gid, int64_t ticks, int64_t version) {
+    int32_t index = findPull(STRIGGER_PULL_WAL_META_DATA_NEW);
+    if (index < 0) index = findPull(STRIGGER_PULL_WAL_DATA_NEW);
+    if (index < 0) index = findPull(STRIGGER_PULL_WAL_META_NEW);
+    if (index < 0) return false;
+    SArray* values = taosArrayInit(1, sizeof(SStreamGroupValue));
+    SArray* infos = taosArrayInit(1, sizeof(SStreamGroupInfoWithId));
+    SStreamGroupValue value = {};
+    value.data.type = TSDB_DATA_TYPE_BIGINT;
+    value.data.val = ticks;
+    SStreamGroupInfoWithId info = {.gid = gid, .gInfo = values};
+    int32_t actual = TSDB_CODE_OUT_OF_MEMORY;
+    void* payload = nullptr;
+    int32_t len = 0;
+    if (values != nullptr && infos != nullptr && taosArrayPush(values, &value) != nullptr &&
+        taosArrayPush(infos, &info) != nullptr) {
+      SSTriggerWalNewRsp response = {};
+      response.ver = version;
+      response.verTime = version * 1000;
+      response.groupInfos = infos;
+      len = tSerializeSStreamWalDataResponse(nullptr, 0, &response);
+      payload = len > 0 ? rpcMallocCont(len) : nullptr;
+      if (payload != nullptr) actual = tSerializeSStreamWalDataResponse(payload, len, &response);
+    }
+    taosArrayDestroy(values);
+    taosArrayDestroy(infos);
+    if (actual != len || len <= 0) {
+      rpcFreeCont(payload);
+      return false;
+    }
+    return processPull(index, TDMT_STREAM_TRIGGER_PULL_RSP, TSDB_CODE_SUCCESS, payload, len) == TSDB_CODE_SUCCESS;
+  }
+
   bool copyPendingPullHandle(ESTriggerPullType type, SSTriggerAHandle* handle) {
     int32_t index = findPull(type);
     if (index < 0 || handle == nullptr) return false;
@@ -17238,6 +17271,118 @@ TEST_F(StreamHistoryBatchTest, HistoryTraversalEndFlushesPartialRequest) {
   EXPECT_EQ(NestedHistoryHarness::kScanStart, pFirstParam->wstart);
   EXPECT_EQ(NestedHistoryHarness::kScanStart + 10, pFirstParam->wend);
   EXPECT_EQ(10, pFirstParam->wduration);
+}
+
+TEST_F(StreamTriggerTaskTest, DerivativeRealtimeSnapshotsKeepConfigurationGeneration) {
+  for (bool multi : {false, true}) {
+    SCOPED_TRACE(multi);
+    gRealtimePipelineClockNs = NANOSECOND_PER_MSEC;
+    RealtimePipelineHarness harness;
+    ASSERT_TRUE(harness.init(RealtimePipelinePlan::LegacySession, false, STRIGGER_EVENT_WINDOW_CLOSE,
+                             STRIGGER_EVENT_WINDOW_NONE, 0, 3, true, 0, multi, 1, true));
+    harness.task()->addOptions |= STREAM_OPTION_DERIVATIVE_TAG;
+    harness.task()->placeHolderBitmap |= PLACE_HOLDER_PARTITION_IDX;
+    Stub clockStub;
+    clockStub.set(taosClockGetTime, captureRealtimePipelineClock);
+    harness.retainCalcAttempts();
+    ASSERT_TRUE(harness.start());
+    ASSERT_TRUE(harness.feedRows({1000, 1015}, {1, 2}));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchGroupColValue(42, 999));
+    ASSERT_EQ(1, harness.calcAttemptCount());
+    const int64_t firstEpoch = harness.group()->derivativeLogEpoch;
+    ASSERT_NE(0, firstEpoch);
+    auto frozenEpoch = [&harness](int32_t index) {
+      const auto& req = harness.calcAttempt(index)->decoded;
+      const auto* group = historyGroupCalcInfo(&req, 42);
+      return req.isMultiGroupCalc ? group->derivativeLogEpoch : req.derivativeLogEpoch;
+    };
+    EXPECT_EQ(firstEpoch, frozenEpoch(0));
+    ASSERT_TRUE(harness.feedUnitMetadata(42, 999, 3));
+    EXPECT_EQ(firstEpoch, harness.group()->derivativeLogEpoch);
+    ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+    ASSERT_TRUE(harness.feedUnitMetadata(42, 1000, 4));
+    const int64_t secondEpoch = harness.group()->derivativeLogEpoch;
+    EXPECT_NE(0, secondEpoch);
+    EXPECT_NE(firstEpoch, secondEpoch);
+    ASSERT_TRUE(harness.dispatchSerializedRealtimeStart());
+    ++gRealtimePipelineClockNs;
+    ASSERT_TRUE(harness.feedRows({1040, 1055}, {3, 4}));
+    ASSERT_EQ(2, harness.calcAttemptCount());
+    EXPECT_EQ(firstEpoch, frozenEpoch(0));
+    EXPECT_EQ(secondEpoch, frozenEpoch(1));
+    ASSERT_TRUE(harness.feedUnitMetadata(42, 999, 6));
+    EXPECT_NE(firstEpoch, harness.group()->derivativeLogEpoch);
+    EXPECT_NE(secondEpoch, harness.group()->derivativeLogEpoch);
+    EXPECT_EQ(firstEpoch, frozenEpoch(0));
+    EXPECT_EQ(secondEpoch, frozenEpoch(1));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(1, TSDB_CODE_SUCCESS));
+    harness.cleanupCalcAttemptTransport(1);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchCalcAttempt(0, TSDB_CODE_SUCCESS));
+    harness.cleanupCalcAttemptTransport(0);
+  }
+}
+
+TEST_F(StreamHistoryBatchTest, DerivativeTagSnapshotSurvivesLiveUpdate) {
+  NestedHistoryHarness harness;
+  ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionUnitCount, 0,
+                             NestedHistoryHarness::kScanStart + NestedHistoryHarness::kHistoryStep, false, 0, true,
+                             false, 2, false, false, false));
+  harness.task()->multiGroupBatch = true;
+  harness.task()->addOptions |= STREAM_OPTION_DERIVATIVE_TAG;
+  harness.task()->placeHolderBitmap |= PLACE_HOLDER_PARTITION_IDX;
+  ASSERT_TRUE(harness.setHistoryEffectPolicy(STRIGGER_EVENT_WINDOW_CLOSE, STRIGGER_EVENT_WINDOW_NONE, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+
+  const int64_t epoch = harness.historyContext()->derivativeLogEpoch;
+  ASSERT_NE(0, epoch);
+
+  // Occupy the history session's runner allowance: history can acquire its Tag snapshot, but
+  // cannot consume either window until this test explicitly releases the slot.
+  SSTriggerCalcRequest* blocker = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            stTriggerTaskAcquireRequest(harness.task(), NestedHistoryHarness::kHistorySession,
+                                        NestedHistoryHarness::kGid, &blocker));
+  ASSERT_NE(nullptr, blocker);
+  EXPECT_EQ(epoch, blocker->derivativeLogEpoch);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondTriggerGroupRows({{NestedHistoryHarness::kGid, 2}}));
+  auto* pull = harness.findPull(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession);
+  ASSERT_NE(nullptr, pull);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondGroupColValue(*pull, 1000));
+  ASSERT_EQ(0, harness.calcAttemptCount());
+  ASSERT_EQ(0, atomic_load_8(&harness.task()->historyFinished));
+  const int64_t gid = NestedHistoryHarness::kGid;
+  auto** frozen = static_cast<SArray**>(
+      tSimpleHashGet(harness.historyContext()->pGroupColVals, &gid, sizeof(gid)));
+  ASSERT_NE(nullptr, frozen);
+  ASSERT_NE(nullptr, *frozen);
+
+  // Model the independently delivered realtime SET TAG metadata update while
+  // history is paused. The history cache and subsequent requests must retain 1s.
+  ASSERT_NE(nullptr, harness.task()->pRealtimeContext);
+  SStreamGroupValue updated = {};
+  updated.data.type = TSDB_DATA_TYPE_BIGINT;
+  updated.data.val = 5000;
+  SArray* live = taosArrayInit(1, sizeof(updated));
+  ASSERT_NE(nullptr, live);
+  ASSERT_NE(nullptr, taosArrayPush(live, &updated));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(harness.task()->pRealtimeContext->pGroupColVals, &gid, sizeof(gid), &live, sizeof(live)));
+  EXPECT_EQ(1000, static_cast<SStreamGroupValue*>(taosArrayGet(*frozen, 0))->data.val);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReleaseRequest(harness.task(), &blocker, false));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.dispatchSerializedHistoryStart());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  EXPECT_EQ(epoch, harness.calcAttempt(0)->decoded.derivativeLogEpoch);
+  const auto* group = historyGroupCalcInfo(&harness.calcAttempt(0)->decoded, gid);
+  ASSERT_NE(nullptr, group);
+  EXPECT_EQ(2, taosArrayGetSize(group->pParams));
+  ASSERT_EQ(1, taosArrayGetSize(group->pGroupColVals));
+  EXPECT_EQ(1000, static_cast<SStreamGroupValue*>(taosArrayGet(group->pGroupColVals, 0))->data.val);
+  EXPECT_EQ(5000, static_cast<SStreamGroupValue*>(taosArrayGet(live, 0))->data.val);
+  EXPECT_EQ(1, harness.pullAttemptCount(STRIGGER_PULL_GROUP_COL_VALUE, NestedHistoryHarness::kHistorySession));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0));
 }
 
 TEST_F(StreamHistoryBatchTest, MissingGroupColumnPausesAtCurrentHeadWithLiveRequest) {
@@ -36200,6 +36345,8 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, ReaderTimeoutDrainsAndRetrie
 }
 
 TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FourFailedAttemptsFailOnlyDependentJobs) {
+  task_.addOptions |= STREAM_OPTION_DERIVATIVE_TAG;
+  context_.derivativeLogEpoch = 123;
   constexpr int64_t       mergedJobA = 311;
   constexpr int64_t       mergedJobB = 312;
   constexpr int64_t       unrelatedJob = 313;
@@ -36224,6 +36371,7 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FourFailedAttemptsFailOnlyDe
   ASSERT_FALSE(unrelatedDetailBefore);
 
   constexpr uint32_t maxAttemptOrdinal = 3;
+  int64_t lastEpoch = 0;
   for (uint32_t ordinal = 0; ordinal <= maxAttemptOrdinal; ++ordinal) {
     ASSERT_NE(gRecalcBarrierSendState.pullAhandle, nullptr);
     auto* retryAhandle = static_cast<SSTriggerAHandle*>(gRecalcBarrierSendState.pullAhandle->param);
@@ -36235,6 +36383,8 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FourFailedAttemptsFailOnlyDe
     EXPECT_TRUE(request->frozen);
     EXPECT_EQ(request->noMerge, ordinal > 0);
     EXPECT_EQ(request->attempt.executionOrdinal, ordinal);
+    lastEpoch = task_.pHistoryContext->derivativeLogEpoch;
+    ASSERT_NE(0, lastEpoch);
     SListNode* retryWaitNode = request->pRetryWaitNode;
     ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
     if (ordinal < maxAttemptOrdinal) {
@@ -36254,6 +36404,16 @@ TEST_F(StreamTriggerTaskManualRetryIntegrationTest, FourFailedAttemptsFailOnlyDe
   EXPECT_EQ(HasRecalcDetail(unrelatedJob), unrelatedDetailBefore);
   EXPECT_EQ(gManualTriggerStartCalls, 3);
   EXPECT_EQ(gManualStreamErrorCalls, 0);
+  // Exhaustion retains the context. A new independent request must get a fresh
+  // diagnostic identity before any of its calculation requests are acquired.
+  SSTriggerHistoryContext* exhaustedContext = task_.pHistoryContext;
+  ASSERT_EQ(0, exhaustedContext->derivativeLogEpoch);
+  ASSERT_EQ(QueueManualRecalc(314), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(ProcessHistoryStart(), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(task_.pHistoryContext, exhaustedContext);
+  EXPECT_NE(0, exhaustedContext->derivativeLogEpoch);
+  EXPECT_NE(lastEpoch, exhaustedContext->derivativeLogEpoch);
+  ASSERT_EQ(ProcessCapturedPullResponse(TSDB_CODE_RPC_TIMEOUT), TSDB_CODE_SUCCESS);
   SSTriggerHistoryContext* retryContext = task_.pHistoryContext;
   task_.pHistoryContext = &context_;
   DestroyTimerHistoryContext(retryContext);
@@ -39523,6 +39683,52 @@ TEST(StreamTriggerTaskRecalcTest, NonNestedSlidingKeepsLegacyWindowAlignment) {
   EXPECT_EQ(110, request->scanRange.ekey);
   stTriggerTaskDestroyRecalcRequest(&request);
   tzfree(timezone);
+}
+
+TEST(StreamTriggerTaskRecalcTest, DeferredIntervalBoundaryRepairScansTheCompleteWindow) {
+  for (int64_t sliding : {INT64_C(2000), INT64_C(1000)}) {
+    SCOPED_TRACE(sliding);
+    CountRecalcFixture fixture;
+    timezone_t         timezone = tzalloc("UTC");
+    ASSERT_NE(timezone, nullptr);
+    fixture.task_.triggerType = STREAM_TRIGGER_SLIDING;
+    fixture.task_.fillHistory = true;
+    fixture.task_.fillHistoryStartTime = INT64_MIN;
+    fixture.task_.interval.timezone = timezone;
+    fixture.task_.interval.intervalUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.slidingUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.offsetUnit = TIME_UNIT_MILLISECOND;
+    fixture.task_.interval.precision = TSDB_TIME_PRECISION_MILLI;
+    fixture.task_.interval.firstDayOfWeek = 1;
+    fixture.task_.interval.interval = 2000;
+    fixture.task_.interval.sliding = sliding;
+    fixture.group_.oldThreshold = 6000;
+    fixture.group_.newThreshold = 7000;
+    fixture.group_.recalcNextWindow = true;
+
+    const STimeWindow window = {6000, 7999};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskTryAddNextWindowRecalc(&fixture.task_, &fixture.group_, &window));
+    EXPECT_FALSE(fixture.group_.recalcNextWindow);
+    SSTriggerRecalcRequest* request = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+    EXPECT_EQ(nullptr, request);
+    stTriggerTaskDestroyRecalcRequest(&request);
+
+    // Later WAL input closes the boundary window; the queued repair must
+    // still cover its end rather than the threshold at enqueue time.
+    fixture.group_.oldThreshold = 9000;
+    fixture.group_.newThreshold = 9000;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskReadyRecalcRequest(&fixture.task_, &fixture.group_));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, stTriggerTaskFetchRecalcRequest(&fixture.task_, &request));
+    ASSERT_NE(nullptr, request);
+    EXPECT_LE(request->scanRange.skey, 6000);
+    EXPECT_EQ(7999, request->scanRange.ekey);
+    EXPECT_EQ(6000, request->calcRange.skey);
+    EXPECT_EQ(7999, request->calcRange.ekey);
+    stTriggerTaskDestroyRecalcRequest(&request);
+    tzfree(timezone);
+  }
 }
 
 TEST(StreamTriggerTaskRecalcTest, IntervalPreviousWindowReplayIsBoundedToOnePredecessor) {

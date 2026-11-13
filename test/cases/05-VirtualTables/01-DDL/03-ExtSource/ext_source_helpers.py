@@ -20,6 +20,7 @@ create EXTERNAL SOURCE objects, avoiding duplication across test files.
 """
 
 import os
+import re
 import sys
 
 from new_test_framework.utils import tdLog, tdSql
@@ -103,7 +104,7 @@ def create_ext_source(name, src_type, database, schema="public",
             f"CREATE EXTERNAL SOURCE {name} TYPE='{src_type}' "
             f"HOST='{ExtSrcEnv.ORACLE_HOST}' PORT={ExtSrcEnv.ORACLE_PORT} "
             f"USER='{oracle_user}' PASSWORD='{oracle_pass}' "
-            f"DATABASE={database} SCHEMA={oracle_schema}")
+            f"DATABASE='{database}' SCHEMA='{oracle_schema}'")
     else:
         raise ValueError(f"Unknown source type: {src_type}")
 
@@ -152,7 +153,7 @@ def create_pg_table(database, table, col_defs, rows=None):
                   ["('2024-01-01', 1, 10)", "('2024-01-02', 2, 20)"]
     """
     stmts = [
-        f"DROP TABLE IF EXISTS {table}",
+        f"DROP TABLE IF EXISTS {table} CASCADE",
         f"CREATE TABLE {table} ({col_defs})",
     ]
     if rows:
@@ -172,7 +173,7 @@ def create_mysql_table(database, table, col_defs, rows=None):
                   ["('2024-01-01', 100)"]
     """
     stmts = [
-        f"DROP TABLE IF EXISTS {table}",
+        f"DROP TABLE IF EXISTS {table} CASCADE",
         f"CREATE TABLE {table} ({col_defs})",
     ]
     if rows:
@@ -207,6 +208,43 @@ def create_sqlserver_table(database, table, col_defs, rows=None, schema="dbo"):
     ExtSrcEnv.sqlserver_exec(database, stmts)
 
 
+def _quote_oracle_col_defs(col_defs):
+    """Quote the leading identifier of every column definition.
+
+    The fixture helpers pass definitions such as
+    ``"ts TIMESTAMP(3) PRIMARY KEY, v NUMBER(10,0)"``; the table and column
+    names are stored quoted lower-case so TDengine's lower-case references
+    match them exactly.  Constraint clauses (PRIMARY KEY etc.) are left
+    untouched.
+    """
+    keyword_prefixes = ("primary", "unique", "constraint", "foreign", "check",
+                        "key")
+    parts = []
+    depth = 0
+    start = 0
+    for i, ch in enumerate(col_defs + ","):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            part = col_defs[start:i].strip()
+            start = i + 1
+            if not part:
+                continue
+            name, sep, rest = part.partition(" ")
+            if name.startswith('"') or name.lower() in keyword_prefixes:
+                # Quote the identifiers inside a constraint column list, e.g.
+                # PRIMARY KEY (ts, device) -> PRIMARY KEY ("ts", "device").
+                part = re.sub(r'([(,])(\s*)([A-Za-z_][A-Za-z0-9_$#]*)(?=\s*[,)])',
+                              lambda m: f'{m.group(1)}{m.group(2)}"{m.group(3).lower()}"',
+                              part)
+                parts.append(part)
+            else:
+                parts.append(f'"{name.lower()}"{sep}{rest}'.rstrip())
+    return ", ".join(parts)
+
+
 def create_oracle_table(table, col_defs, rows=None, schema=None,
                         user=None, password=None):
     """Create (or replace) an Oracle table and optionally insert rows.
@@ -215,7 +253,7 @@ def create_oracle_table(table, col_defs, rows=None, schema=None,
     an existing object is dropped first (ORA-00942 means there was none).
 
     Args:
-        table:    table name (unquoted, so Oracle folds it to upper case)
+        table:    table name (stored quoted lower-case)
         col_defs: column definition string, e.g.
                   "ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0)"
         rows:     optional list of row value strings, e.g.
@@ -233,21 +271,23 @@ def create_oracle_table(table, col_defs, rows=None, schema=None,
             "the fixture accounts own no cross-schema grants")
     _user = user if user is not None else cfg.user
     _pass = password if password is not None else cfg.password
-    try:
-        ExtSrcEnv._oracle_sql(
-            cfg, f'DROP TABLE "{table.upper()}" CASCADE CONSTRAINTS PURGE',
-            user=_user, password=_pass)
-    except RuntimeError as e:
-        if "ORA-00942" not in str(e):
-            raise
-    stmts = [f"CREATE TABLE {table} ({col_defs})"]
+    for stale in (table.lower(), table.upper()):
+        try:
+            ExtSrcEnv._oracle_sql(
+                cfg, f'DROP TABLE "{stale}" CASCADE CONSTRAINTS PURGE',
+                user=_user, password=_pass)
+        except RuntimeError as e:
+            if "ORA-00942" not in str(e):
+                raise
+    quoted_defs = _quote_oracle_col_defs(col_defs)
+    stmts = [f'CREATE TABLE "{table.lower()}" ({quoted_defs})']
     if rows:
         if len(rows) == 1:
-            stmts.append(f"INSERT INTO {table} VALUES {rows[0]}")
+            stmts.append(f'INSERT INTO "{table.lower()}" VALUES {rows[0]}')
         else:
             # Oracle has no multi-row VALUES clause; INSERT ALL is the
             # supported form for inserting several rows in one statement.
-            into = " ".join(f"INTO {table} VALUES {row}" for row in rows)
+            into = " ".join(f'INTO "{table.lower()}" VALUES {row}' for row in rows)
             stmts.append(f"INSERT ALL {into} SELECT 1 FROM dual")
     stmts.append("COMMIT")
     ExtSrcEnv._oracle_sql(cfg, stmts, user=_user, password=_pass)
@@ -258,8 +298,9 @@ def create_oracle_view(view, select_sql, schema=None,
     """Create (or replace) an Oracle view.
 
     Args:
-        view:       view name (unquoted, so it folds to upper case)
-        select_sql: the view body, fully qualified if it reads another schema
+        view:       view name (stored quoted lower-case)
+        select_sql: the view body; base tables must use their exact quoted
+                    spelling because Oracle matching is exact
         schema/user/password: as for create_oracle_table
     """
     cfg = next(ExtSrcEnv.oracle_version_configs())
@@ -270,13 +311,14 @@ def create_oracle_view(view, select_sql, schema=None,
             "the fixture accounts own no cross-schema grants")
     _user = user if user is not None else cfg.user
     _pass = password if password is not None else cfg.password
-    try:
-        ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{view.upper()}"',
-                              user=_user, password=_pass)
-    except RuntimeError as e:
-        if "ORA-00942" not in str(e):
-            raise
-    ExtSrcEnv._oracle_sql(cfg, f"CREATE VIEW {view} AS {select_sql}",
+    for stale in (view.lower(), view.upper()):
+        try:
+            ExtSrcEnv._oracle_sql(cfg, f'DROP VIEW "{stale}"',
+                                  user=_user, password=_pass)
+        except RuntimeError as e:
+            if "ORA-00942" not in str(e):
+                raise
+    ExtSrcEnv._oracle_sql(cfg, f'CREATE VIEW "{view.lower()}" AS {select_sql}',
                           user=_user, password=_pass)
 
 
@@ -289,13 +331,14 @@ def create_oracle_materialized_view(view, select_sql, schema=None):
     it like any other object of its own schema.
 
     Args:
-        view:       materialized view name (unquoted, folds to upper case)
-        select_sql: the materialized view body
+        view:       materialized view name (stored quoted lower-case)
+        select_sql: the materialized view body; base tables must use their
+                    exact quoted spelling
         schema:     owning schema (defaults to the test user)
     """
     cfg = next(ExtSrcEnv.oracle_version_configs())
     owner = (schema or ExtSrcEnv.ORACLE_USER).upper()
-    qualified = f'"{owner}"."{view.upper()}"'
+    qualified = f'"{owner}"."{view.lower()}"'
     try:
         ExtSrcEnv._oracle_sql(cfg, f"DROP MATERIALIZED VIEW {qualified}")
     except RuntimeError as e:

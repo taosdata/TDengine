@@ -567,6 +567,52 @@ static int32_t fedScanCondSqlAppendQuotedIdent(SVStbPushedCondSql* pSql, const c
   return fedScanCondSqlAppendChar(pSql, pSql->q.close);
 }
 
+// Append a literal SQL fragment (keywords, separators) to a plain SQL buffer.
+// Keeps the buffer NUL-terminated; returns OUT_OF_RANGE when it would not fit.
+static int32_t fedScanAppendSqlLiteral(char* buf, int32_t cap, int32_t* pOffset, const char* text) {
+  if (buf == NULL || pOffset == NULL || text == NULL || cap < 0 || *pOffset < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int64_t len = (int64_t)strlen(text);
+  if ((int64_t)*pOffset + len >= cap) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  memcpy(buf + *pOffset, text, (size_t)len);
+  *pOffset += (int32_t)len;
+  buf[*pOffset] = '\0';
+  return TSDB_CODE_SUCCESS;
+}
+
+// Append one dialect-quoted identifier to a plain SQL buffer, doubling the
+// closing quote character when the name itself contains it.  The hand-built
+// VStb statement must use the same escaping as the shared renderer: an Oracle
+// name may contain a literal double quote (e.g. the column a"b is emitted as
+// "a""b"), and interpolating it with snprintf("%c%s%c") would produce invalid
+// remote SQL.
+static int32_t fedScanAppendQuotedIdentBuf(char* buf, int32_t cap, int32_t* pOffset, SFedScanQuote q,
+                                           const char* name) {
+  if (buf == NULL || pOffset == NULL || name == NULL || cap < 0 || *pOffset < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int64_t need = 2;  // opening and closing quote
+  for (const char* p = name; *p != '\0'; ++p) {
+    need += (*p == q.close) ? 2 : 1;
+  }
+  if ((int64_t)*pOffset + need >= cap) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  buf[(*pOffset)++] = q.open;
+  for (const char* p = name; *p != '\0'; ++p) {
+    buf[(*pOffset)++] = *p;
+    if (*p == q.close) {
+      buf[(*pOffset)++] = *p;
+    }
+  }
+  buf[(*pOffset)++] = q.close;
+  buf[*pOffset] = '\0';
+  return TSDB_CODE_SUCCESS;
+}
+
 static const char* fedScanFindRemoteCondColName(const SVStbPushedCondSql* pSql, col_id_t colId) {
   if (pSql == NULL || pSql->pFsParam == NULL || pSql->pFsParam->colMap == NULL || pSql->pMeta == NULL) {
     return NULL;
@@ -581,7 +627,9 @@ static const char* fedScanFindRemoteCondColName(const SVStbPushedCondSql* pSql, 
 
     for (int32_t j = 0; j < pSql->pMeta->numOfCols; ++j) {
       SExtColumnDef* pCol = &pSql->pMeta->pCols[j];
-      if (strncasecmp(pCol->colName, pKV->colName, TSDB_COL_NAME_LEN) == 0) {
+      // colMap carries the exact remote spelling that the parser bound; the
+      // metadata reports the same catalog spelling, so compare byte for byte.
+      if (0 == strcmp(pCol->colName, pKV->colName)) {
         return pCol->colName;
       }
     }
@@ -1120,9 +1168,9 @@ static const SNode* fedScanUnwrapExpr(const SNode* pExprNode) {
   return pExpr;
 }
 
-static bool fedScanNonEmptyNameEquals(const char* pLeft, const char* pRight) {
+static bool fedScanNonEmptyNameEquals(const char* pLeft, const char* pRight, int8_t srcType) {
   return NULL != pLeft && NULL != pRight && '\0' != pLeft[0] && '\0' != pRight[0] &&
-         0 == strcasecmp(pLeft, pRight);
+         extColumnNameEqual((EExtSourceType)srcType, pLeft, pRight);
 }
 
 static int32_t fedScanBuildHashedSlotKey(char* pBuf, int32_t cap, const char* pPrefix, const char* pName) {
@@ -1346,7 +1394,8 @@ static int32_t fedScanFillConstExprValue(SColumnInfoData* pCol, int32_t rows, co
   return TSDB_CODE_SUCCESS;
 }
 
-static bool fedScanBasicReserveColMatchesOutputExpr(const SNode* pReserveExprNode, const SNode* pOutputExprNode) {
+static bool fedScanBasicReserveColMatchesOutputExpr(const SNode* pReserveExprNode, const SNode* pOutputExprNode,
+                                                    int8_t srcType) {
   const SNode* pReserveExpr = fedScanUnwrapExpr(pReserveExprNode);
   const SNode* pOutputExpr = fedScanUnwrapExpr(pOutputExprNode);
   if (NULL == pReserveExpr || NULL == pOutputExpr || !nodesIsExprNode((SNode*)pReserveExpr) ||
@@ -1378,8 +1427,8 @@ static bool fedScanBasicReserveColMatchesOutputExpr(const SNode* pReserveExprNod
 
   if (QUERY_NODE_COLUMN == nodeType((SNode*)pReserveExpr)) {
     const SColumnNode* pReserveCol = (const SColumnNode*)pReserveExpr;
-    if (fedScanNonEmptyNameEquals(pReserveCol->colName, ((const SExprNode*)pOutputExpr)->aliasName) ||
-        fedScanNonEmptyNameEquals(pReserveCol->colName, ((const SExprNode*)pOutputExpr)->userAlias)) {
+    if (fedScanNonEmptyNameEquals(pReserveCol->colName, ((const SExprNode*)pOutputExpr)->aliasName, srcType) ||
+        fedScanNonEmptyNameEquals(pReserveCol->colName, ((const SExprNode*)pOutputExpr)->userAlias, srcType)) {
       return true;
     }
   }
@@ -1388,29 +1437,30 @@ static bool fedScanBasicReserveColMatchesOutputExpr(const SNode* pReserveExprNod
     const SColumnNode* pOutputCol = (const SColumnNode*)pOutputExpr;
     if (QUERY_NODE_COLUMN == nodeType((SNode*)pReserveExpr)) {
       const SColumnNode* pReserveCol = (const SColumnNode*)pReserveExpr;
-      if (fedScanNonEmptyNameEquals(pReserveCol->colName, pOutputCol->colName) ||
-          fedScanNonEmptyNameEquals(pReserveCol->colName, pOutputCol->node.aliasName) ||
-          fedScanNonEmptyNameEquals(pReserveCol->node.aliasName, pOutputCol->colName) ||
-          fedScanNonEmptyNameEquals(pReserveCol->node.aliasName, pOutputCol->node.aliasName) ||
-          fedScanNonEmptyNameEquals(pReserveCol->node.userAlias, pOutputCol->node.userAlias)) {
+      if (fedScanNonEmptyNameEquals(pReserveCol->colName, pOutputCol->colName, srcType) ||
+          fedScanNonEmptyNameEquals(pReserveCol->colName, pOutputCol->node.aliasName, srcType) ||
+          fedScanNonEmptyNameEquals(pReserveCol->node.aliasName, pOutputCol->colName, srcType) ||
+          fedScanNonEmptyNameEquals(pReserveCol->node.aliasName, pOutputCol->node.aliasName, srcType) ||
+          fedScanNonEmptyNameEquals(pReserveCol->node.userAlias, pOutputCol->node.userAlias, srcType)) {
         return true;
       }
     }
 
-    if (fedScanNonEmptyNameEquals(pOutputCol->colName, pReserveResExpr->aliasName) ||
-        fedScanNonEmptyNameEquals(pOutputCol->colName, pReserveResExpr->userAlias)) {
+    if (fedScanNonEmptyNameEquals(pOutputCol->colName, pReserveResExpr->aliasName, srcType) ||
+        fedScanNonEmptyNameEquals(pOutputCol->colName, pReserveResExpr->userAlias, srcType)) {
       return true;
     }
   }
 
-  return fedScanNonEmptyNameEquals(pReserveResExpr->aliasName, pOutputResExpr->aliasName) ||
-         fedScanNonEmptyNameEquals(pReserveResExpr->aliasName, pOutputResExpr->userAlias) ||
-         fedScanNonEmptyNameEquals(pReserveResExpr->userAlias, pOutputResExpr->aliasName) ||
-         fedScanNonEmptyNameEquals(pReserveResExpr->userAlias, pOutputResExpr->userAlias);
+  return fedScanNonEmptyNameEquals(pReserveResExpr->aliasName, pOutputResExpr->aliasName, srcType) ||
+         fedScanNonEmptyNameEquals(pReserveResExpr->aliasName, pOutputResExpr->userAlias, srcType) ||
+         fedScanNonEmptyNameEquals(pReserveResExpr->userAlias, pOutputResExpr->aliasName, srcType) ||
+         fedScanNonEmptyNameEquals(pReserveResExpr->userAlias, pOutputResExpr->userAlias, srcType);
 }
 
-static bool fedScanReserveColMatchesOutputExpr(const SNode* pReserveExprNode, const SNode* pOutputExprNode) {
-  if (fedScanBasicReserveColMatchesOutputExpr(pReserveExprNode, pOutputExprNode)) {
+static bool fedScanReserveColMatchesOutputExpr(const SNode* pReserveExprNode, const SNode* pOutputExprNode,
+                                               int8_t srcType) {
+  if (fedScanBasicReserveColMatchesOutputExpr(pReserveExprNode, pOutputExprNode, srcType)) {
     return true;
   }
 
@@ -1429,7 +1479,7 @@ static bool fedScanReserveColMatchesOutputExpr(const SNode* pReserveExprNode, co
   bool matched = false;
   SNode* pColNode = NULL;
   FOREACH(pColNode, pReserveCols) {
-    if (fedScanBasicReserveColMatchesOutputExpr(pColNode, pOutputExprNode)) {
+    if (fedScanBasicReserveColMatchesOutputExpr(pColNode, pOutputExprNode, srcType)) {
       matched = true;
       break;
     }
@@ -1509,7 +1559,7 @@ static int32_t fedScanFillMirroredReserveSlot(const SFederatedScanPhysiNode* pFe
       pOutputExpr = fedScanGetOutputExprBySlot(pFedScan, pOutputSlot->slotId);
     }
 
-    if (fedScanReserveColMatchesOutputExpr(pReserveExpr, pOutputExpr)) {
+    if (fedScanReserveColMatchesOutputExpr(pReserveExpr, pOutputExpr, pFedScan->sourceType)) {
       srcIdx = outputOrdinal;
       break;
     }
@@ -1786,12 +1836,24 @@ static bool fedScanHasNaiveTimestampHint(
 
 static int32_t fedScanAppendXmlTypeProjection(char* sql, int32_t sqlCapacity, int32_t* pOffset,
                                               SFedScanQuote q, const char* colName) {
-  int32_t written = snprintf(sql + *pOffset, sqlCapacity - *pOffset, "XMLSERIALIZE(CONTENT %c%s%c AS CLOB)",
-                             q.open, colName, q.close);
-  if (written < 0 || written >= sqlCapacity - *pOffset) {
+  static const char kPrefix[] = "XMLSERIALIZE(CONTENT ";
+  static const char kSuffix[] = " AS CLOB)";
+  int32_t           prefixLen = (int32_t)strlen(kPrefix);
+  int32_t           suffixLen = (int32_t)strlen(kSuffix);
+  if (*pOffset < 0 || sqlCapacity - *pOffset <= prefixLen + suffixLen) {
     return TSDB_CODE_OUT_OF_RANGE;
   }
-  *pOffset += written;
+  memcpy(sql + *pOffset, kPrefix, prefixLen);
+  *pOffset += prefixLen;
+  int32_t code = fedScanAppendQuotedIdentBuf(sql, sqlCapacity, pOffset, q, colName);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  if (sqlCapacity - *pOffset <= suffixLen) {
+    return TSDB_CODE_OUT_OF_RANGE;
+  }
+  memcpy(sql + *pOffset, kSuffix, suffixLen);
+  *pOffset += suffixLen;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2198,13 +2260,13 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   int32_t projectionBytes = TSDB_COL_NAME_LEN + 4;
   if (srcType == EXT_SOURCE_MYSQL || srcType == EXT_SOURCE_POSTGRESQL) {
     projectionBytes = TSDB_COL_NAME_LEN * 2 + TD_TIMEZONE_LEN + 192;
-  } else if (srcType == EXT_SOURCE_ORACLE) {
-    // An XMLTYPE column is projected as XMLSERIALIZE(CONTENT "name" AS CLOB),
-    // which is longer than the bare quoted name by the wrapper's 29 bytes.
-    projectionBytes = TSDB_COL_NAME_LEN + 64;
+  } else if (srcType == EXT_SOURCE_ORACLE || srcType == EXT_SOURCE_SQLSERVER) {
+    // A quoted identifier can be twice as long when every byte is the closing
+    // quote; Oracle also wraps XMLTYPE columns in XMLSERIALIZE(... AS CLOB).
+    projectionBytes = TSDB_COL_NAME_LEN * 2 + 64;
   }
   int32_t sqlBufLen = 1024 + totalCols * projectionBytes + tagCondSqlLen +
-                      pushedCondSqlLen + 96;
+                      pushedCondSqlLen + 160;
   sqlBuf = taosMemoryCalloc(1, sqlBufLen);
   QUERY_CHECK_NULL(sqlBuf, code, lino, _return, terrno);
 
@@ -2255,14 +2317,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
           pTsCol->extTypeName, remoteTimezone,
           timezoneConversionSupported);
     } else {
-      int32_t written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                                 "%c%s%c", q.open, pTsCol->colName, q.close);
-      code = written < 0 || written >= sqlBufLen - offset
-                 ? TSDB_CODE_OUT_OF_RANGE
-                 : TSDB_CODE_SUCCESS;
-      if (code == TSDB_CODE_SUCCESS) {
-        offset += written;
-      }
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, pTsCol->colName);
     }
     if (code != TSDB_CODE_SUCCESS) {
       qError("FederatedScan VStb: timestamp projection exceeds SQL buffer");
@@ -2278,7 +2333,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     bool found = false;
     for (int32_t j = 0; j < pMeta->numOfCols; j++) {
       SExtColumnDef* pCol = &pMeta->pCols[j];
-      if (0 == strcasecmp(pCol->colName, pKV->colName)) {
+      if (extColumnNameEqual(srcType, pCol->colName, pKV->colName)) {
         const char* remoteName = pCol->colName;
         int32_t   mIdx = 1 + i;
         SDataType remoteType = {0};
@@ -2345,13 +2400,7 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
             // path has the metadata in hand and can test the type directly.
             code = fedScanAppendXmlTypeProjection(sqlBuf, sqlBufLen, &offset, q, pCol->colName);
           } else {
-            written = snprintf(sqlBuf + offset, sqlBufLen - offset,
-                               "%c%s%c", q.open, pCol->colName, q.close);
-            if (written < 0 || written >= sqlBufLen - offset) {
-              code = TSDB_CODE_OUT_OF_RANGE;
-            } else {
-              offset += written;
-            }
+            code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, pCol->colName);
           }
         }
         if (code != TSDB_CODE_SUCCESS) {
@@ -2373,23 +2422,36 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     }
   }
 
-  // Build FROM clause  -  source-type-specific table path
+  // Build FROM clause  -  source-type-specific table path.  Every identifier
+  // goes through fedScanAppendQuotedIdentBuf so a name containing the dialect's
+  // closing quote (an Oracle column/table named a"b, a SQL Server name with ])
+  // is escaped instead of breaking the statement.
   const char* remoteTable = pMeta->remoteTableName[0] ? pMeta->remoteTableName : pFsParam->tableName;
+  code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " FROM ");
+  QUERY_CHECK_CODE(code, lino, _return);
   switch (srcType) {
     case EXT_SOURCE_MYSQL: {
       // MySQL: `database`.`table`
       const char* db = pFedNode->srcDatabase[0] ? pFedNode->srcDatabase : NULL;
       if (db) {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM `%s`.`%s`", db, remoteTable);
-      } else {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM `%s`", remoteTable);
+        code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, db);
+        QUERY_CHECK_CODE(code, lino, _return);
+        code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
+        QUERY_CHECK_CODE(code, lino, _return);
       }
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, remoteTable);
+      QUERY_CHECK_CODE(code, lino, _return);
       break;
     }
     case EXT_SOURCE_POSTGRESQL: {
       // PG: "schema"."table"
       const char* schema = pFedNode->srcSchema[0] ? pFedNode->srcSchema : "public";
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\".\"%s\"", schema, remoteTable);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, schema);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, remoteTable);
+      QUERY_CHECK_CODE(code, lino, _return);
       break;
     }
     case EXT_SOURCE_SQLSERVER: {
@@ -2404,13 +2466,20 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       const char* schema = pFsParam->schemaName[0]
                                ? pFsParam->schemaName
                                : (pFedNode->srcSchema[0] ? pFedNode->srcSchema : NULL);
-      if (db != NULL && schema != NULL) {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s].[%s].[%s]", db, schema, remoteTable);
-      } else if (schema != NULL) {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s].[%s]", schema, remoteTable);
-      } else {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM [%s]", remoteTable);
+      if (db != NULL) {
+        code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, db);
+        QUERY_CHECK_CODE(code, lino, _return);
+        code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
+        QUERY_CHECK_CODE(code, lino, _return);
       }
+      if (schema != NULL) {
+        code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, schema);
+        QUERY_CHECK_CODE(code, lino, _return);
+        code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, remoteTable);
+      QUERY_CHECK_CODE(code, lino, _return);
       break;
     }
     case EXT_SOURCE_ORACLE: {
@@ -2422,16 +2491,20 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
                                ? pFsParam->schemaName
                                : (pFedNode->srcSchema[0] ? pFedNode->srcSchema : NULL);
       if (schema != NULL) {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\".\"%s\"", schema, remoteTable);
-      } else {
-        offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\"", remoteTable);
+        code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, schema);
+        QUERY_CHECK_CODE(code, lino, _return);
+        code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
+        QUERY_CHECK_CODE(code, lino, _return);
       }
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, remoteTable);
+      QUERY_CHECK_CODE(code, lino, _return);
       break;
     }
     case EXT_SOURCE_INFLUXDB:
     default: {
       // InfluxDB / others: "measurement"
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " FROM \"%s\"", remoteTable);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, remoteTable);
+      QUERY_CHECK_CODE(code, lino, _return);
       break;
     }
   }
@@ -2506,8 +2579,16 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       else
         pFormatted = formatTimestampTz(skeyBuf, sizeof(skeyBuf), skey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c >= %s%s'", q.open, tsRemoteNameBuf, q.close,
-                         fedScanTsLiteralPrefix(srcType), skeyBuf);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, tsRemoteNameBuf);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " >= ");
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, fedScanTsLiteralPrefix(srcType));
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, skeyBuf);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, "'");
+      QUERY_CHECK_CODE(code, lino, _return);
     }
     if (hasSkey && hasEkey) {
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " AND ");
@@ -2520,8 +2601,16 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       else
         pFormatted = formatTimestampTz(ekeyBuf, sizeof(ekeyBuf), ekey, sourcePrecision, timezone);
       QUERY_CHECK_NULL(pFormatted, code, lino, _return, TSDB_CODE_EXT_SQL_RENDER_ERROR);
-      offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%c%s%c <= %s%s'", q.open, tsRemoteNameBuf, q.close,
-                         fedScanTsLiteralPrefix(srcType), ekeyBuf);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, tsRemoteNameBuf);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " <= ");
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, fedScanTsLiteralPrefix(srcType));
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ekeyBuf);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, "'");
+      QUERY_CHECK_CODE(code, lino, _return);
     }
   }
 
@@ -2549,7 +2638,12 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   // ORDER BY ts ASC is required: the vstable sort-merge dedup assumes each
   // external source returns rows in ascending timestamp order.
-  offset += snprintf(sqlBuf + offset, sqlBufLen - offset, " ORDER BY %c%s%c ASC", q.open, tsRemoteNameBuf, q.close);
+  code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " ORDER BY ");
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, tsRemoteNameBuf);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " ASC");
+  QUERY_CHECK_CODE(code, lino, _return);
   if (!pInfo->vstbLimitDemoted && pFsParam->rowLimit > 0 &&
       (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
     if (EXT_SOURCE_SQLSERVER == srcType) {

@@ -41,9 +41,9 @@ _SQLSERVER_AGG_TABLE = (
 # column path is source.schema.table.column and the table name carries the
 # file prefix because every Oracle fixture lives in the same shared schema.
 _ORACLE_SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
-_ORACLE_AGG_TABLE_NAME = "VT_AGG_FED_ORA_VALUES"
+_ORACLE_AGG_TABLE_NAME = "vt_agg_fed_ora_values"
 _ORACLE_AGG_TABLE = (
-    f"vt_window_batch_oracle.{_ORACLE_SCHEMA}.{_ORACLE_AGG_TABLE_NAME}"
+    f"vt_window_batch_oracle.`{_ORACLE_SCHEMA}`.{_ORACLE_AGG_TABLE_NAME}"
 )
 
 
@@ -128,16 +128,16 @@ class TestVTablePlanAggFederated:
         ExtSrcEnv._oracle_sql(
             oracle_cfg,
             [
-                f"CREATE TABLE {_ORACLE_AGG_TABLE_NAME} "
-                "(ts TIMESTAMP(3) NOT NULL PRIMARY KEY, v NUMBER(10,0))",
+                f'CREATE TABLE "{_ORACLE_AGG_TABLE_NAME}" '
+                '("ts" TIMESTAMP(3) NOT NULL PRIMARY KEY, "v" NUMBER(10,0))',
                 f"INSERT ALL "
-                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                f'INTO "{_ORACLE_AGG_TABLE_NAME}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:00.000', 1000000) "
-                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                f'INTO "{_ORACLE_AGG_TABLE_NAME}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:01.000', 2000000) "
-                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                f'INTO "{_ORACLE_AGG_TABLE_NAME}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:02.000', 3000000) "
-                f"INTO {_ORACLE_AGG_TABLE_NAME} VALUES "
+                f'INTO "{_ORACLE_AGG_TABLE_NAME}" VALUES '
                 "(TIMESTAMP '2024-01-01 00:00:03.000', 4000000) "
                 "SELECT 1 FROM dual",
                 "COMMIT",

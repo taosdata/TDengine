@@ -14866,17 +14866,17 @@ source_name|type|host|port|user|database|schema|options
 fq01_or001|oracle|127.0.0.1|18322|taosdata|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT001[ORA] STEP-004 QUERY
-SQL: describe fq01_or001.TAOSDATA.src_t
+SQL: describe fq01_or001.`TAOSDATA`.src_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
-FLAG|TINYINT|1|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
+flag|TINYINT|1|
 ---
 ### CASE-OREXT001[ORA] STEP-005 COUNT
-SQL: select count(*) from fq01_or001.TAOSDATA.src_t
+SQL: select count(*) from fq01_or001.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -14922,7 +14922,7 @@ RESULT:
 ERROR: query failed
 ---
 ### CASE-OREXT002[ORA] STEP-004 QUERY
-SQL: select count(*) from fq01_or002.TAOSDATA.src_t
+SQL: select count(*) from fq01_or002.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15068,7 +15068,7 @@ source_name|options
 fq01_or005|{"connect_timeout_ms":"5000","read_timeout_ms":"7000"}
 ---
 ### CASE-OREXT005[ORA] STEP-007 COUNT
-SQL: select count(*) from fq01_or005.TAOSDATA.src_t
+SQL: select count(*) from fq01_or005.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15209,7 +15209,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or007|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{"tls_enabled":"false"}
 ---
 ### CASE-OREXT007[ORA] STEP-008 COUNT
-SQL: select count(*) from fq01_or007.TAOSDATA.src_t
+SQL: select count(*) from fq01_or007.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15291,14 +15291,14 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or009|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT009[ORA] STEP-003 QUERY
-SQL: describe fq01_or009.TAOSDATA.src_t
+SQL: describe fq01_or009.`TAOSDATA`.src_t
 RESULT:
 field|type|length|note
-TS|TIMESTAMP|8|
-VAL|BIGINT|8|
-SCORE|DOUBLE|8|
-NAME|VARCHAR|32|
-FLAG|TINYINT|1|
+ts|TIMESTAMP|8|
+val|BIGINT|8|
+score|DOUBLE|8|
+name|VARCHAR|32|
+flag|TINYINT|1|
 ---
 ### CASE-OREXT009[ORA] STEP-004 QUERY
 SQL: describe external source fq01_or009
@@ -15342,7 +15342,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or010|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT010[ORA] STEP-003 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15353,7 +15353,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT010[ORA] STEP-005 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 ERROR: count query failed (expected in negative case)
 ---
@@ -15363,7 +15363,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT010[ORA] STEP-007 COUNT
-SQL: select count(*) from fq01_or010.TAOSDATA.src_t
+SQL: select count(*) from fq01_or010.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15466,7 +15466,7 @@ source_name|type|host|port|user|password|database|schema|options
 fq01_or012|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ---
 ### CASE-OREXT012[ORA] STEP-003 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15483,7 +15483,7 @@ source_name|type|host|port
 fq01_or012|oracle|127.0.0.1|18330
 ---
 ### CASE-OREXT012[ORA] STEP-006 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 ERROR: count query failed (expected in negative case)
 ---
@@ -15493,7 +15493,7 @@ RESULT:
 OK
 ---
 ### CASE-OREXT012[ORA] STEP-008 COUNT
-SQL: select count(*) from fq01_or012.TAOSDATA.src_t
+SQL: select count(*) from fq01_or012.`TAOSDATA`.src_t
 RESULT:
 count(*)
 5
@@ -15536,7 +15536,7 @@ fq01_or013|oracle|127.0.0.1|18322|taosdata|******|FREEPDB1|TAOSDATA|{}
 ### CASE-OREXT013[ORA] STEP-003 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-004 QUERY
@@ -15548,7 +15548,7 @@ RESULT:
 ### CASE-OREXT013[ORA] STEP-005 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-006 EXEC
@@ -15559,7 +15559,7 @@ OK
 ### CASE-OREXT013[ORA] STEP-007 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG|EXTRA_COL
+ts|val|score|name|flag|extra_col
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1|7
 ---
 ### CASE-OREXT013[ORA] STEP-008 QUERY
@@ -15581,7 +15581,7 @@ ERROR: query failed
 ### CASE-OREXT013[ORA] STEP-011 QUERY
 SQL: select * from fq01_or013.src_t where val=1
 RESULT:
-TS|VAL|SCORE|NAME|FLAG
+ts|val|score|name|flag
 2024-01-01 00:00:00+08:00|1|1.5|alpha|1
 ---
 ### CASE-OREXT013[ORA] STEP-012 CLEANUP

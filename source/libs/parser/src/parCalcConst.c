@@ -476,7 +476,7 @@ static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelec
     bool keepTime = pCxt->keepTemporalCandidates &&
                     TSDB_DATA_TYPE_TIMESTAMP ==
                         ((SExprNode*)pProj)->resType.type;
-    if (subquery && !keepTime && !pSelect->isDistinct && !pSelect->tagScan &&
+    if (subquery && !keepTime && !pSelect->isDistinct && !pSelect->tagScan && !pSelect->keepAllProjections &&
         isUselessCol((SExprNode*)pProj) && pSelect->pFromTable &&
         QUERY_NODE_VIRTUAL_TABLE != nodeType(pSelect->pFromTable)) {
       ERASE_NODE(pSelect->pProjectionList);

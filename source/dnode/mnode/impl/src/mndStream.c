@@ -2102,6 +2102,26 @@ static bool mndStreamCreateUsesDurationTagColId(SCMCreateStreamReq *pCreate, col
   if (pCreate == NULL || colId == 0) {
     return false;
   }
+  // DERIVATIVE references protect the schema without marking SET-able tags as
+  // partition keys. The optional JSON field is absent on existing streams.
+  if (pCreate->derivativeTagCols != NULL) {
+    SNodeList *pRefs = NULL;
+    int32_t    code = nodesStringToList((const char *)pCreate->derivativeTagCols, &pRefs);
+    if (code != TSDB_CODE_SUCCESS) {
+      nodesDestroyList(pRefs);
+      return true;
+    }
+    SNode *pRef = NULL;
+    bool   found = false;
+    FOREACH(pRef, pRefs) {
+      if (nodeType(pRef) == QUERY_NODE_COLUMN && ((SColumnNode *)pRef)->colId == colId) {
+        found = true;
+        break;
+      }
+    }
+    nodesDestroyList(pRefs);
+    if (found) return true;
+  }
   if (pCreate->maxDelayTagColId == colId) {
     return true;
   }

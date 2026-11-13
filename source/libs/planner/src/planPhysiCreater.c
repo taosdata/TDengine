@@ -1617,6 +1617,11 @@ static int32_t appendConditionColsToPhysiScan(SScanPhysiNode* pScanPhysiNode, SN
     }
 
     SColumnNode* pCol = (SColumnNode*)pNode;
+    if (pCol->isAlignOut) {
+      // TIME_ALIGN outputs are computed by the scan's align stage, not stored
+      // columns; their slots come from the scan output targets.
+      continue;
+    }
     if (COLUMN_TYPE_TAG == pCol->colType) {
       code = appendPhysiScanColumn(&pScanPhysiNode->pScanPseudoCols, pCol);
     } else if (COLUMN_TYPE_TBNAME == pCol->colType) {
@@ -1843,6 +1848,19 @@ static int32_t createTableCountScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
 
+// TIME_ALIGN: a time-range parameter with calendar units (n/q/y) needs the
+// client timezone in the executor to advance timestamps with taosTimeAdd().
+static bool alignColsHaveSpan(SNodeList* pAlignCols) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pAlignCols) {
+    if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+      const SColumnNode* pCol = (const SColumnNode*)pNode;
+      if (pCol->isAlignOut && pCol->alignHasSpan) return true;
+    }
+  }
+  return false;
+}
+
 static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                         SPhysiNode** pPhyNode) {
   STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pScanLogicNode,
@@ -1852,6 +1870,13 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   }
 
   memcpy(pTableScan->scanSeq, pScanLogicNode->scanSeq, sizeof(pScanLogicNode->scanSeq));
+  if (pScanLogicNode->pAlignCols != NULL) {
+    int32_t alignCode = nodesCloneList(pScanLogicNode->pAlignCols, &pTableScan->pAlignCols);
+    if (TSDB_CODE_SUCCESS != alignCode) {
+      nodesDestroyNode((SNode*)pTableScan);
+      return alignCode;
+    }
+  }
   pTableScan->twoPassRescanSource = pScanLogicNode->twoPassRescanSource;
   pTableScan->scanRange = pScanLogicNode->scanRange;
   TSWAP(pTableScan->pExtScanRange, pScanLogicNode->pExtScanRange);
@@ -1899,6 +1924,10 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->firstDayOfWeek = pScanLogicNode->firstDayOfWeek;
   pTableScan->timezone = pScanLogicNode->timezone;
   tstrncpy(pTableScan->timezoneName, pScanLogicNode->timezoneName, sizeof(pTableScan->timezoneName));
+  if (pTableScan->timezoneName[0] == '\0' && alignColsHaveSpan(pTableScan->pAlignCols) &&
+      pCxt->pPlanCxt != NULL) {
+    tstrncpy(pTableScan->timezoneName, pCxt->pPlanCxt->timezoneName, sizeof(pTableScan->timezoneName));
+  }
   pTableScan->triggerType = pScanLogicNode->triggerType;
   pTableScan->watermark = pScanLogicNode->watermark;
   pTableScan->igExpired = pScanLogicNode->igExpired;
@@ -5392,14 +5421,20 @@ static const SColumnNode* getFederatedScanColumn(const SNode* pNode) {
   return (pNode != NULL && QUERY_NODE_COLUMN == nodeType(pNode)) ? (const SColumnNode*)pNode : NULL;
 }
 
-static bool federatedOutputNameMatchesScanColumn(const char* pOutputName, const SColumnNode* pCol) {
+static bool federatedOutputNameMatchesScanColumn(const char* pOutputName, const SColumnNode* pCol,
+                                                 int8_t srcType) {
   if (pOutputName == NULL || pOutputName[0] == '\0' || pCol == NULL) {
     return false;
   }
 
+  // The external-derived names follow the source's own matching rule (exact
+  // for Oracle/PostgreSQL/InfluxDB); TDengine-local aliases keep the
+  // case-insensitive match.
   const char* pRefName = pCol->hasRef && pCol->refColName[0] != '\0' ? pCol->refColName : pCol->colName;
-  return (pRefName[0] != '\0' && strcasecmp(pOutputName, pRefName) == 0) ||
-         (pCol->colName[0] != '\0' && strcasecmp(pOutputName, pCol->colName) == 0) ||
+  return (pRefName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pRefName)) ||
+         (pCol->colName[0] != '\0' &&
+          extColumnNameEqual((EExtSourceType)srcType, pOutputName, pCol->colName)) ||
          (pCol->node.aliasName[0] != '\0' && strcasecmp(pOutputName, pCol->node.aliasName) == 0) ||
          (pCol->node.userAlias[0] != '\0' && strcasecmp(pOutputName, pCol->node.userAlias) == 0);
 }
@@ -5416,7 +5451,8 @@ static int16_t getFederatedOutputSlot(const SFederatedScanPhysiNode* pScan, cons
   const SExtColTypeMapping* pMapping = &pScan->pColTypeMappings[outputIdx];
   SSlotDescNode* pSlot = (SSlotDescNode*)nodesListGetNode(pScan->node.pOutputDataBlockDesc->pSlots, outputIdx);
   if (pMapping->tdType.type != pCol->node.resType.type ||
-      !federatedOutputNameMatchesScanColumn(pMapping->colName, pCol) || pSlot == NULL || !pSlot->output ||
+      !federatedOutputNameMatchesScanColumn(pMapping->colName, pCol, pScan->sourceType) || pSlot == NULL ||
+      !pSlot->output ||
       pSlot->reserve) {
     return -1;
   }
@@ -5568,6 +5604,9 @@ static int32_t createVirtualTableScanPhysiNodeFinalize(SPhysiPlanContext* pCxt,
   PLAN_ERR_JRET(createVirtualScanCols(pCxt, pScanPhysiNode, pScanLogicNode->pScanCols));
   if (pScanLogicNode->pAlignCols != NULL) {
     PLAN_ERR_JRET(nodesCloneList(pScanLogicNode->pAlignCols, &pScanPhysiNode->pAlignCols));
+  }
+  if (alignColsHaveSpan(pScanPhysiNode->pAlignCols) && pCxt->pPlanCxt != NULL) {
+    tstrncpy(pScanPhysiNode->timezoneName, pCxt->pPlanCxt->timezoneName, sizeof(pScanPhysiNode->timezoneName));
   }
   PLAN_ERR_JRET(addDataBlockSlots(pCxt, pScanPhysiNode->scan.pScanCols, pScanPhysiNode->scan.node.pOutputDataBlockDesc));
   if (NULL != pScanLogicNode->pScanPseudoCols) {
@@ -6334,7 +6373,8 @@ static int32_t createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
   }
 
   pAgg->mergeDataBlock =
-      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ? false : true);
+      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pAggLogicNode->node.groupAction ||
+       pAggLogicNode->node.preserveGroupId ? false : true);
   pAgg->groupKeyOptimized = pAggLogicNode->hasGroupKeyOptimized;
   pAgg->hasMixedDistinct = pAggLogicNode->hasMixedDistinct;
   pAgg->numDistinctFuncs = pAggLogicNode->numDistinctFuncs;
@@ -6759,8 +6799,10 @@ static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
 
   pProject->mergeDataBlock =
       (forceNoMergeDataBlock(pCxt) ? false : projectCanMergeDataBlock(pProjectLogicNode, (0 == pSubplan->level)));
-  pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId;
+  pProject->ignoreGroupId = pProjectLogicNode->ignoreGroupId && !pProjectLogicNode->node.preserveGroupId;
   pProject->inputIgnoreGroup = pProjectLogicNode->inputIgnoreGroup;
+  pProject->timeAlignProject = pProjectLogicNode->timeAlignProject;
+  pProject->timeAlignOutputOrder = pProjectLogicNode->timeAlignOutputOrder;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (0 == LIST_LENGTH(pChildren)) {
@@ -6820,7 +6862,9 @@ static int32_t createWindowPhysiNodeFinalize(SPhysiPlanContext* pCxt, SNodeList*
                                              SWindowLogicNode* pWindowLogicNode) {
   pWindow->indefRowsFunc = pWindowLogicNode->indefRowsFunc;
   pWindow->mergeDataBlock =
-      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ? false : true);
+      (forceNoMergeDataBlock(pCxt) || GROUP_ACTION_KEEP == pWindowLogicNode->node.groupAction ||
+       pWindowLogicNode->node.preserveGroupId ? false : true);
+  pWindow->preserveGroupId = pWindowLogicNode->node.preserveGroupId;
   pWindow->node.inputTsOrder = pWindowLogicNode->node.inputTsOrder;
   pWindow->node.outputTsOrder = pWindowLogicNode->node.outputTsOrder;
   if (nodeType(pWindow) == QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL) {
@@ -7743,7 +7787,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
   pMerge->srcGroupId = pMergeLogicNode->srcGroupId;
   pMerge->srcEndGroupId = pMergeLogicNode->srcEndGroupId;
   pMerge->groupSort = pMergeLogicNode->groupSort;
-  pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId;
+  pMerge->ignoreGroupId = pMergeLogicNode->ignoreGroupId && !pMergeLogicNode->node.preserveGroupId;
   pMerge->inputWithGroupId = pMergeLogicNode->inputWithGroupId;
   pMerge->outerGroupPhaseMode = pMergeLogicNode->outerGroupPhaseMode;
 

@@ -54,6 +54,9 @@ bool        uidAppendFailed = false;
 int32_t     cursorNextBeforeFailure = -1;
 bool        failCursorSeek = false;
 bool        failCursorAdjust = false;
+bool        forceSuccessorResume = false;
+bool        forcedSuccessorResume = false;
+uint64_t    successorResumeUid = 0;
 
 // Clears the seam for the duration of the call so the replacement can reach the
 // real implementation.
@@ -91,7 +94,20 @@ extern "C" int32_t seamTdbTbcMoveTo(TBC* cursor, const void* key, int32_t keyLen
     failCursorSeek = false;
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  return bypassSeam(gTdSeam_tdbTbcMoveTo, [&] { return tdbTbcMoveTo(cursor, key, keyLen, comparison); });
+  int32_t code =
+      bypassSeam(gTdSeam_tdbTbcMoveTo, [&] { return tdbTbcMoveTo(cursor, key, keyLen, comparison); });
+  if (code == TSDB_CODE_SUCCESS && forceSuccessorResume && keyLen == sizeof(SCtbIdxKey)) {
+    const auto* ctbKey = static_cast<const SCtbIdxKey*>(key);
+    if (ctbKey->uid == successorResumeUid) {
+      forceSuccessorResume = false;
+      code = bypassSeam(gTdSeam_tdbTbcMoveToNext, [&] { return tdbTbcMoveToNext(cursor); });
+      if (code == TSDB_CODE_SUCCESS) {
+        *comparison = -1;
+        forcedSuccessorResume = true;
+      }
+    }
+  }
+  return code;
 }
 
 extern "C" int32_t seamTdbTbcMoveToNext(TBC* cursor) {
@@ -224,6 +240,9 @@ class MetaTagFilterCacheTest : public ::testing::Test {
     cursorNextBeforeFailure = -1;
     failCursorSeek = false;
     failCursorAdjust = false;
+    forceSuccessorResume = false;
+    forcedSuccessorResume = false;
+    successorResumeUid = 0;
     stub_.reset(metaULock);
     vnodeTxnCleanup(&vnode_);
     metaClose(&vnode_.pMeta);
@@ -665,6 +684,17 @@ TEST_F(MetaTagFilterCacheTest, WarmupAdmitsMappingLargerThanOrdinaryTagCacheLimi
   expectHit(600, {});
 }
 
+TEST_F(MetaTagFilterCacheTest, WarmupRebuildsAcrossBatchBoundary) {
+  constexpr int64_t kBatchTables = 8192;
+  for (int64_t i = 0; i < kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  expectHit(0, {800000}, true);
+  expectHit(kBatchTables - 1, {800000 + static_cast<uint64_t>(kBatchTables) - 1});
+  expectHit(kBatchTables, {});
+}
+
 TEST_F(MetaTagFilterCacheTest, WarmupAcceptsTwoMiBAndFallsBackAboveTheLimit) {
   constexpr int64_t limit = 2 * 1024 * 1024;
   constexpr int64_t entryBytes = 16 + sizeof(SArray) + sizeof(int32_t) + sizeof(uint64_t);
@@ -688,6 +718,70 @@ TEST_F(MetaTagFilterCacheTest, WarmupAcceptsTwoMiBAndFallsBackAboveTheLimit) {
   EXPECT_FALSE(missing.acquired);
   EXPECT_FALSE(missing.needWarmup);
   EXPECT_EQ(ordinaryLimit, tsTagFilterResCacheSize);
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupReleasesMetaLockBetweenBatches) {
+  constexpr int64_t kBatchTables = 8192;
+  constexpr uint64_t kInsertedUid = 800100;
+  for (int64_t i = 0; i <= kBatchTables; ++i) {
+    uint64_t uid = 800000 + i;
+    if (uid == kInsertedUid) {
+      continue;
+    }
+    ASSERT_EQ(0, putChild(uid, i));
+  }
+
+  bool insertedDuringWarmup = false;
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, putChild(kInsertedUid, 999999));
+    insertedDuringWarmup = true;
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+
+  expectHit(0, {800000}, true);
+  ASSERT_TRUE(insertedDuringWarmup);
+
+  // The writer ran after the cursor passed kInsertedUid. The published map is
+  // allowed to be stale and therefore reports the missing tag family as empty.
+  expectHit(999999, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupResumeAfterBoundaryDropAvoidsDuplicatePredecessor) {
+  constexpr int64_t kBatchTables = 8192;
+  for (int64_t i = 0; i <= kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, dropChild(800000 + kBatchTables - 1));
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+  forceSuccessorResume = true;
+  successorResumeUid = 800000 + kBatchTables - 1;
+
+  expectHit(0, {800000}, true);
+  ASSERT_TRUE(forcedSuccessorResume);
+  // The deleted boundary UID must not cause the predecessor to be emitted again.
+  expectHit(kBatchTables - 2, {800000 + static_cast<uint64_t>(kBatchTables) - 2});
+  expectHit(kBatchTables, {800000 + static_cast<uint64_t>(kBatchTables)});
+}
+
+TEST_F(MetaTagFilterCacheTest, WarmupAbortsWhenPendingTransactionAppearsBetweenBatches) {
+  constexpr int64_t kBatchTables = 8192;
+  constexpr uint64_t kPendingUid = 800000 + kBatchTables;
+  for (int64_t i = 0; i < kBatchTables; ++i) {
+    ASSERT_EQ(0, putChild(800000 + i, i));
+  }
+
+  onMetaUnlock = [&] {
+    ASSERT_EQ(0, putPendingChild(kPendingUid, 999999));
+  };
+  stub_.set(metaULock, unlockMetaThenMutate);
+
+  const auto pending = lookup(0, true);
+  EXPECT_EQ(0, pending.code);
+  EXPECT_FALSE(pending.acquired);
+  EXPECT_FALSE(lookup(999999).acquired);
 }
 
 TEST_F(MetaTagFilterCacheTest, MetadataInsertAtUnlockCannotBeOverwrittenByWarmupPublication) {

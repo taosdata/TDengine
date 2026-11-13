@@ -516,7 +516,17 @@ class _OracleBackend(Backend):
         return "ns" if any(t.rank == "ns" for t in types) else "us"
 
     def table_ref(self, table):
-        return "%s.%s.%s" % (self.source, self.schema, table)
+        # The schema segment is an identifier: TDengine lower-cases it, so the
+        # upper-case Oracle account must be spelled between backticks.
+        return "%s.`%s`.%s" % (self.source, self.schema, table)
+
+    def _col_def_list(self, pk_type, extra_types):
+        # The fixture stores quoted lower-case names; the shared lower-case
+        # references then match the Oracle dictionary byte for byte.
+        defs = ['"ts" %s NOT NULL PRIMARY KEY' % pk_type.decl]
+        defs += ['"%s" %s' % (t.col, t.decl) for t in extra_types]
+        defs.append('"v" %s' % self.v_remote_decl)
+        return defs
 
     def value_literal(self, ts_type, row):
         if ts_type.label == "date":
@@ -535,15 +545,15 @@ class _OracleBackend(Backend):
         # be spread over several lines.  One column (value) per line keeps
         # every line far below the limit.
         cfg = next(ExtSrcEnv.oracle_version_configs())
-        stmts = ["CREATE TABLE %s (\n  %s\n)" % (
+        stmts = ['CREATE TABLE "%s" (\n  %s\n)' % (
             table, ",\n  ".join(self._col_def_list(pk_type, extra_types)))]
         for row in ROWS:
-            stmts.append("INSERT INTO %s VALUES (\n  %s\n)" % (
+            stmts.append('INSERT INTO "%s" VALUES (\n  %s\n)' % (
                 table, ",\n  ".join(self._row_values(pk_type, extra_types, row))))
         stmts.append("COMMIT")
         try:
             ExtSrcEnv._oracle_sql(
-                cfg, 'DROP TABLE "%s" CASCADE CONSTRAINTS PURGE' % table.upper(),
+                cfg, 'DROP TABLE "%s" CASCADE CONSTRAINTS PURGE' % table,
                 user=cfg.user, password=cfg.password)
         except RuntimeError as exc:
             if "ORA-00942" not in str(exc):

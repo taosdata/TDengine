@@ -2617,28 +2617,33 @@ class TestFq04TimezonePrecision(FederatedQueryVersionedMixin):
             # The table carries TIMESTAMP(9), so every timestamp column comes
             # back at nanosecond precision.
             tdSql.query(
-                f"SELECT CAST(C_TS6 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+                f"SELECT CAST(`C_TS6` AS BIGINT) FROM {self._O_SRC}.`TS_TYPES` "
+                f"ORDER BY `ID`")
             tdSql.checkData(0, 0, base_ns + 123_000_000)    # .123 s
 
             # TIMESTAMP(3) truncates to milliseconds on the source side.
             tdSql.query(
-                f"SELECT CAST(C_TS3 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+                f"SELECT CAST(`C_TS3` AS BIGINT) FROM {self._O_SRC}.`TS_TYPES` "
+                f"ORDER BY `ID`")
             tdSql.checkData(0, 0, base_ns + 123_000_000)
 
             # TIMESTAMP(9) keeps the full nanosecond fraction.
             tdSql.query(
-                f"SELECT CAST(C_TS9 AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+                f"SELECT CAST(`C_TS9` AS BIGINT) FROM {self._O_SRC}.`TS_TYPES` "
+                f"ORDER BY `ID`")
             tdSql.checkData(0, 0, base_ns + 123_456_789)
 
             # A zoned column resolves to the same instant regardless of the
             # session timezone: the +08:00 offset matches the wall clock.
             tdSql.query(
-                f"SELECT CAST(C_TS_TZ AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+                f"SELECT CAST(`C_TS_TZ` AS BIGINT) FROM {self._O_SRC}.`TS_TYPES` "
+                f"ORDER BY `ID`")
             tdSql.checkData(0, 0, base_ns + 123_000_000)
 
             # DATE has no fractional part; it is midnight of the wall clock day.
             tdSql.query(
-                f"SELECT CAST(C_DATE AS BIGINT) FROM {self._O_SRC}.TS_TYPES ORDER BY ID")
+                f"SELECT CAST(`C_DATE` AS BIGINT) FROM {self._O_SRC}.`TS_TYPES` "
+                f"ORDER BY `ID`")
             tdSql.checkData(0, 0, day_utc_ms * 1_000_000)
 
             # Precision alignment: a nanosecond local reference matches the
@@ -2653,7 +2658,8 @@ class TestFq04TimezonePrecision(FederatedQueryVersionedMixin):
                 f"({base_ns}, 11), ({base_ns + day_ns}, 12)")
             tdSql.query(
                 f"SELECT r.val FROM {self._O_REF_DB}.ref_dt r "
-                f"INNER JOIN {self._O_SRC}.PK_DT e ON e.ts = r.ts ORDER BY r.val")
+                f"INNER JOIN {self._O_SRC}.`PK_DT` e ON e.`TS` = r.ts "
+                f"ORDER BY r.val")
             tdSql.checkRows(2)
             tdSql.checkData(0, 0, 11)
             tdSql.checkData(1, 0, 12)
@@ -2661,13 +2667,15 @@ class TestFq04TimezonePrecision(FederatedQueryVersionedMixin):
             # Time-range predicates on the external primary timestamp select
             # the same row whether written as a literal or as an epoch.
             tdSql.query(
-                f"SELECT VAL FROM {self._O_SRC}.PK_DT "
-                "WHERE ts >= '2024-01-01' AND ts < '2024-01-02' ORDER BY ts")
+                f"SELECT `VAL` FROM {self._O_SRC}.`PK_DT` "
+                "WHERE `TS` >= '2024-01-01' AND `TS` < '2024-01-02' "
+                "ORDER BY `TS`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
             tdSql.query(
-                f"SELECT VAL FROM {self._O_SRC}.PK_DT "
-                f"WHERE ts >= {base_us} AND ts < {base_us + 86400000000} ORDER BY ts")
+                f"SELECT `VAL` FROM {self._O_SRC}.`PK_DT` "
+                f"WHERE `TS` >= {base_us} AND `TS` < {base_us + 86400000000} "
+                f"ORDER BY `TS`")
             tdSql.checkRows(1)
             tdSql.checkData(0, 0, 1)
         finally:

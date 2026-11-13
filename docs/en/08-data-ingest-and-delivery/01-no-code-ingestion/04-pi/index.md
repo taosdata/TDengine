@@ -162,6 +162,12 @@ For detailed best practices on backfill tasks, see [Historical Data Backfill Gui
 | Write Queue Length | Write queue length for TDengine, default 1000 |
 | Write Error Threshold | Triggers an alert after consecutive write errors reach this threshold, default 10 |
 
+#### Auto Sync New Points
+
+Enable **Auto Sync New Points** under **Advanced Options** for a PI real-time task. With saved filters that can be scanned again, both single-column and multi-column tasks periodically enroll new matching Points, new PI Point attributes on existing AF templates, and new elements matching an Element name or path filter. No task restart or initial CSV update is required. The multi-column model expands the corresponding supertable when needed.
+
+New rule-based tasks created in the UI keep this option disabled by default; enable it when needed. Editing or copying an existing task preserves its saved value; older tasks without the field keep it disabled. It collects only real-time data produced after enrollment, does not trigger historical backfill, and does not automatically delete existing subtables. Fixed lists and fixed CSV configurations without reusable rules do not support automatic enrollment. See [Real-time Data Sync Guide](./05-realtime-guide.md#auto-sync-new-points) for configuration and limitations.
+
 #### Multi-column Model Real-time Task Specific Options
 
 When the task type is **PI** (real-time) and uses **multi-column model**, the following toggles are available:
@@ -173,6 +179,8 @@ When the task type is **PI** (real-time) and uses **multi-column model**, the fo
 | Sync Delete Elements | When enabled, the PI connector monitors element deletion events under templates and deletes the corresponding TDengine subtables |
 | Sync Delete Historical Data | When enabled, when data at a specific timestamp is deleted in PI, the corresponding column values in TDengine are set to null |
 | Sync Modify Historical Data | When enabled, when historical data is modified in PI, the corresponding data in TDengine is also updated |
+
+**Sync New Elements** and **Sync Delete Elements** are mutually exclusive with **Auto Sync New Points**. Enabling Auto Sync New Points turns off and disables those two older options in the UI. The other options remain effective according to their own settings.
 
 ![Advanced Options](../../../assets/pi-06.webp)
 

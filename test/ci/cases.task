@@ -678,6 +678,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_tag_ref_vntb_src.py
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/test_vtable_select_tag_matrix.py
 100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align.py
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align_next.py
+100,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align_phase2.py
 100,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/08-TimeAlign/test_time_align_ext_source.py
 
 # 06-DataIngestion
@@ -1306,6 +1308,7 @@
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_t1.py
 ,,n,.,pytest cases/17-DataSubscription/02-Consume/test_tmq_cons2_v4_tn.py
 ,,n,.,CASE_TIMEOUT=1800 pytest cases/17-DataSubscription/02-Consume/test_tmq_params.py --timeout=1800
+,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/02-Consume/test_tmq_rebalance_snapshot_meta.py
 ## 03-MQTT
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_smoking.py
 ,,y,.,./ci/pytest.sh pytest cases/17-DataSubscription/03-MQTT/test_mqtt_bnodes.py -N 2
@@ -1335,6 +1338,7 @@
 ## 02-Stream
 #,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_observability_runtime.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_derivative_tag.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_expression_pipeline.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_anomaly_request.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_vtable_interleaved_col_scatter.py
@@ -1462,6 +1466,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recalc_matrix.py::TestNestedWindowRecalcMatrix
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recalc_matrix.py::TestNestedWindowRecalcMatrixLineage
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_manual_recalc_reliability.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_state_open_close_recalc.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/recalc_bug_13.py
 

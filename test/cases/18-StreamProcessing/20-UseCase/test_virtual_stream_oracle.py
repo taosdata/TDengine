@@ -74,7 +74,8 @@ class TestVirtualStreamOracle:
 
     # Oracle has one namespace level - the schema - and the fixture accounts own
     # no cross-schema grants, so the remote tables live in the login user's own
-    # schema (folded to upper case, like every unquoted Oracle identifier).
+    # schema.  An unquoted identifier is lower-cased by TDengine, so every path
+    # spells the upper-case account name between backticks.
     SCHEMA = ExtSrcEnv.ORACLE_USER.upper()
     TABLE_A = "SAME_A"
     TABLE_B = "SAME_B"
@@ -336,8 +337,12 @@ class TestVirtualStreamOracle:
         cfg = next(ExtSrcEnv.oracle_version_configs())
         # Oracle has no multi-row VALUES and SQL*Plus does not commit on exit, so
         # the INSERT and COMMIT share one sqlplus session via a batch.
+        # create_oracle_table stores quoted lower-case names, and Oracle
+        # matches exact spelling, so the INSERT must quote the lower-case
+        # table name instead of relying on unquoted upper-case folding.
         ExtSrcEnv._oracle_sql(
-            cfg, [f"INSERT INTO {table} VALUES (TIMESTAMP '{stamp}', {value})", "COMMIT"]
+            cfg, [f'INSERT INTO "{table.lower()}" VALUES '
+                  f"(TIMESTAMP '{stamp}', {value})", "COMMIT"]
         )
 
     @classmethod
@@ -406,8 +411,11 @@ class TestVirtualStreamOracle:
             # table's database, so the lookup becomes source.<local_db>.table and fails
             # (Defect 7160732905).  The default-schema form can be added back here once
             # that defect is fixed.
-            ref_a = f"{self.SOURCE}.{self.SCHEMA}.{self.TABLE_A}"
-            ref_b = f"{self.SOURCE}.{self.SCHEMA}.{self.TABLE_B}"
+            # TDengine lower-cases an unquoted identifier, so the upper-case
+            # account name in the schema segment is spelled between backticks;
+            # the fixture stores the quoted lower-case table names.
+            ref_a = f"{self.SOURCE}.`{self.SCHEMA}`.{self.TABLE_A}"
+            ref_b = f"{self.SOURCE}.`{self.SCHEMA}`.{self.TABLE_B}"
             local_ref = f", local_value FROM {self.DB}.local_t.v" if mixed else ""
             tdSql.execute(
                 f"CREATE VTABLE {self.DB}.vt ("

@@ -797,6 +797,8 @@ enum {
   COLUMN_CODE_REF_SOURCE_NAME,
   COLUMN_CODE_REF_SCHEMA_NAME,   // appended: SQL Server schema segment on external column refs
   COLUMN_CODE_FLAGS,             // appended: column flag bits (e.g. TIME_ALIGN output marker)
+  COLUMN_CODE_ALIGN_SPAN_VALUE,  // appended: TIME_ALIGN time-range duration count
+  COLUMN_CODE_ALIGN_SPAN_UNIT,   // appended: TIME_ALIGN time-range duration unit
 };
 
 static int32_t columnNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -890,6 +892,12 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeU8(pEncoder, COLUMN_CODE_FLAGS, pNode->flags);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isAlignOut && pNode->alignHasSpan) {
+    code = tlvEncodeI64(pEncoder, COLUMN_CODE_ALIGN_SPAN_VALUE, pNode->alignSpanValue);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isAlignOut && pNode->alignHasSpan) {
+    code = tlvEncodeI8(pEncoder, COLUMN_CODE_ALIGN_SPAN_UNIT, pNode->alignSpanUnit);
   }
 
   return code;
@@ -992,6 +1000,12 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_FLAGS:
         code = tlvDecodeU8(pTlv, &pNode->flags);
+        break;
+      case COLUMN_CODE_ALIGN_SPAN_VALUE:
+        code = tlvDecodeI64(pTlv, &pNode->alignSpanValue);
+        break;
+      case COLUMN_CODE_ALIGN_SPAN_UNIT:
+        code = tlvDecodeI8(pTlv, &pNode->alignSpanUnit);
         break;
       default:
         break;
@@ -1378,6 +1392,8 @@ enum {
 static int32_t remoteValueListNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SRemoteValueListNode* pNode = (const SRemoteValueListNode*)pObj;
 
+  qDebug("FQ-MSG: encode remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
   int32_t code = tlvEncodeObj(pEncoder, REMOTE_VALUELIST_CODE_EXPR, exprNodeToMsg, pNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, REMOTE_VALUELIST_CODE_FLAG, pNode->flag);
@@ -1428,6 +1444,8 @@ static int32_t msgToRemoteValueListNode(STlvDecoder* pDecoder, void* pObj) {
         break;
     }
   }
+  qDebug("FQ-MSG: decoded remote value list subQIdx=%d renderMode=%d hasOrigSql=%d remotePlan=%p",
+         pNode->subQIdx, (int)pNode->renderMode, NULL != pNode->inSubquerySql, pNode->pRemotePlan);
 
   return code;
 }
@@ -3161,6 +3179,8 @@ enum {
   PHY_VIRTUAL_TABLE_SCAN_CODE_TWO_PASS_MODE,
   // TIME_ALIGN output columns (SColumnNode: colId = source column id, colName = output name).
   PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS,
+  // Client timezone name for calendar-unit TIME_ALIGN time ranges.
+  PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME,
 };
 
 static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3232,6 +3252,9 @@ static int32_t physiVirtualTableScanNodeToMsg(const void* pObj, STlvEncoder* pEn
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS, nodeListToMsg, pNode->pAlignCols);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->timezoneName[0] != '\0') {
+    code = tlvEncodeCStr(pEncoder, PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME, pNode->timezoneName);
+  }
 
   return code;
 }
@@ -3302,6 +3325,9 @@ static int32_t msgToPhysiVirtualTableScanNode(STlvDecoder* pDecoder, void* pObj)
         break;
       case PHY_VIRTUAL_TABLE_SCAN_CODE_ALIGN_COLS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAlignCols);
+        break;
+      case PHY_VIRTUAL_TABLE_SCAN_CODE_TIMEZONE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->timezoneName, sizeof(pNode->timezoneName));
         break;
       default:
         break;
@@ -3917,6 +3943,7 @@ enum {
   PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE,
   PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
   PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
+  PHY_TABLE_SCAN_CODE_ALIGN_COLS,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4045,6 +4072,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
     code = tlvEncodeI64(pEncoder, PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
                          pNode->intervalLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->pAlignCols != NULL) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_ALIGN_COLS, nodeListToMsg, pNode->pAlignCols);
   }
 
   return code;
@@ -4200,6 +4230,9 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT:
         code = tlvDecodeI64(pTlv, &pNode->intervalLimit);
         break;
+      case PHY_TABLE_SCAN_CODE_ALIGN_COLS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pAlignCols);
+        break;
       default:
         break;
     }
@@ -4298,7 +4331,9 @@ enum {
   PHY_PROJECT_CODE_PROJECTIONS,
   PHY_PROJECT_CODE_MERGE_DATA_BLOCK,
   PHY_PROJECT_CODE_IGNORE_GROUP_ID,
-  PHY_PROJECT_CODE_INPUT_IGNORE_GROUP
+  PHY_PROJECT_CODE_INPUT_IGNORE_GROUP,
+  PHY_PROJECT_CODE_TIME_ALIGN_PROJECT,
+  PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER
 };
 
 static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4316,6 +4351,12 @@ static int32_t physiProjectNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_INPUT_IGNORE_GROUP, pNode->inputIgnoreGroup);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timeAlignProject) {
+    code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_TIME_ALIGN_PROJECT, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->timeAlignOutputOrder) {
+    code = tlvEncodeBool(pEncoder, PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER, true);
   }
 
   return code;
@@ -4342,6 +4383,12 @@ static int32_t msgToPhysiProjectNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_PROJECT_CODE_INPUT_IGNORE_GROUP:
         code = tlvDecodeBool(pTlv, &pNode->inputIgnoreGroup);
+        break;
+      case PHY_PROJECT_CODE_TIME_ALIGN_PROJECT:
+        code = tlvDecodeBool(pTlv, &pNode->timeAlignProject);
+        break;
+      case PHY_PROJECT_CODE_TIME_ALIGN_OUTPUT_ORDER:
+        code = tlvDecodeBool(pTlv, &pNode->timeAlignOutputOrder);
         break;
       default:
         break;
@@ -5275,6 +5322,7 @@ enum {
   PHY_WINDOW_CODE_OUTPUT_TS_ORDER,
   PHY_WINDOW_CODE_MERGE_DATA_BLOCK,
   PHY_WINDOW_CODE_PROJS,
+  PHY_WINDOW_CODE_PRESERVE_GROUP_ID,
 };
 
 static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5313,6 +5361,9 @@ static int32_t physiWindowNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_WINDOW_CODE_PROJS, nodeListToMsg, pNode->pProjs);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->preserveGroupId) {
+    code = tlvEncodeBool(pEncoder, PHY_WINDOW_CODE_PRESERVE_GROUP_ID, true);
   }
 
   return code;
@@ -5354,6 +5405,9 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_CODE_MERGE_DATA_BLOCK:
         code = tlvDecodeBool(pTlv, &pNode->mergeDataBlock);
+        break;
+      case PHY_WINDOW_CODE_PRESERVE_GROUP_ID:
+        code = tlvDecodeBool(pTlv, &pNode->preserveGroupId);
         break;
       case PHY_WINDOW_CODE_INDEF_ROWS_FUNC:
         code = tlvDecodeI8(pTlv, &pNode->indefRowsFunc);

@@ -2054,12 +2054,13 @@ static int32_t stExtOverrideNamespaceFromPlan(SStreamReaderTask *pTask, SStreamE
  * timezone as the decode, so the reader needs the class of the ts column.
  * The hint is resolved with the rule the parser and mnode use for the same
  * reference: the exact spelling wins across the whole hint list, and only a
- * column without an exact hint falls back to the provider fold
- * (extColumnNameEqual()).  The hints keep the catalog order, so folding first
- * would take the class of a case-sibling column stored earlier - a table
- * holding TS and a quoted "ts" would render the naive primary column's bounds in
- * the aware column's UTC basis.  A column referenced in a different case still
- * finds its hint through the fallback pass.
+ * column without an exact hint falls back to extColumnNameEqual() (MySQL /
+ * SQL Server fold case; PostgreSQL, InfluxDB and Oracle are byte-exact).  The
+ * hints keep the catalog order, so folding first would take the class of a
+ * case-sibling column stored earlier - a table holding TS and a quoted "ts"
+ * would render the naive primary column's bounds in the aware column's UTC
+ * basis.  A reference that does not match falls back to the spec lookup
+ * instead of silently picking another column.
  * Returns EXT_TIMESTAMP_TZ_CLASS_UNKNOWN when the plan carries no hint.
  * --------------------------------------------------------------------------- */
 static int8_t stExtResolveTsTzClass(const SFederatedScanPhysiNode *pFedScan,
@@ -2637,14 +2638,10 @@ int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMs
        * connection.  Override the per-scan table identity delivered in the
        * deploy msg so streamReaderExtFetchData targets the correct table/ts col.
        *
-       * Only the Oracle connector reports a name with representation quotes
-       * around a quoted identifier ("same_a"); the reader adds its own quoting
-       * when it renders the table reference, so that layer has to be removed
-       * first or the table is dialled as """same_a""" (ORA-00942).  Every other
-       * provider reports the raw catalog name, which may itself contain double
-       * quotes (a MySQL table named "metrics" is created with backticks around
-       * the whole name), so their bytes must be copied verbatim - unquoting
-       * them would silently address a different table. */
+       * The connectors report the exact remote spelling (DS 5.3.6 R1); the
+       * reader adds its own quoting when it renders the table reference, so the
+       * bytes are copied verbatim for every provider.  A name may itself
+       * contain a literal double quote, which must not be stripped. */
       if (pMsg->msg.calc.extTable[0] != '\0') {
         if ((EExtSourceType)pMsg->pExtSpec->sourceType == EXT_SOURCE_ORACLE) {
           extCopyRemoteTableSpelling(pMsg->msg.calc.extTable, pMsg->pExtSpec->extTable,

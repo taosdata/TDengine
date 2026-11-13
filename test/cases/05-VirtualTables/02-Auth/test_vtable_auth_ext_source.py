@@ -55,9 +55,13 @@ class TestVtableAuthExtSource(FederatedQueryVersionedMixin):
             # Connect 服务名），命名空间是 schema。
             source_type = str(row[1]).lower()
             namespace = row[7] if source_type == "oracle" else row[6]
+            # TDengine lower-cases an unquoted path segment; Oracle's account
+            # schema is upper case, so that segment has to be backticked.
+            ns_ref = (f"`{namespace}`" if namespace != namespace.lower()
+                      else namespace)
             # Oracle NUMBER(10) 映射为 BIGINT，虚拟表列类型必须与之匹配。
             val_type = "bigint" if source_type == "oracle" else "int"
-            ref = f"{src}.{namespace}.src_t"
+            ref = f"{src}.{ns_ref}.src_t"
             tdSql.execute(f"create vtable {db}.root_v(ts timestamp, val {val_type} from {ref}.val)")
             tdSql.execute(f"create stable {db}.vst(ts timestamp, val {val_type}) tags(group_id int) virtual 1")
             tdSql.execute(f"create vtable {db}.root_child({ref}.val) using {db}.vst tags(1)")

@@ -26,6 +26,7 @@
 // here (a single predictable NULL check per record) lets the regression test reproduce the exact
 // race the fix closes without any production behavior change.
 void (*tsSdbWriteRecordHook)(void) = NULL;
+#include "osTime.h"
 #include "sync.h"
 #include "tchecksum.h"
 #include "tencrypt.h"
@@ -242,8 +243,8 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return terrno;
   }
 
-  mInfo("vgId:1, write sdb file with sdb applyIndex:%" PRId64 " term:%" PRId64 " config:%" PRId64, pSdb->applyIndex,
-        pSdb->applyTerm, pSdb->applyConfig);
+  mInfo("vgId:1, write sdb head file with sdb applyIndex:%" PRId64 " term:%" PRId64 " config:%" PRId64,
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig);
   if (taosWriteFile(pFile, &pSdb->applyIndex, sizeof(int64_t)) != sizeof(int64_t)) {
     return terrno;
   }
@@ -857,7 +858,15 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     mInfo("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
     SHashObj *hash = pSdb->hashObjs[i];
+    // Monotonic timestamps bracket the lock acquisition so the log can separate the time spent
+    // waiting for the write lock (readers may hold it back-to-back, e.g. stream traversal) from the
+    // time spent actually encoding/writing rows while holding the lock.
+    int64_t lockWaitStartMs = taosGetMonoTimestampMs();
     sdbWriteLock(pSdb, i);
+    int64_t lockWaitMs = taosGetMonoTimestampMs() - lockWaitStartMs;
+    if (lockWaitMs >= 100) {
+      mInfo("sdb table:%s acquired write lock, waited %" PRId64 " ms", sdbTableName(i), lockWaitMs);
+    }
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
@@ -957,7 +966,12 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
       sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
+    int64_t lockHoldMs = taosGetMonoTimestampMs() - lockWaitStartMs;
     sdbUnLock(pSdb, i);
+    if (lockHoldMs >= 100) {
+      mInfo("sdb table:%s released write lock, held %" PRId64 " ms (incl. waiting %" PRId64 " ms)", sdbTableName(i),
+            lockHoldMs, lockWaitMs);
+    }
   }
 
   if (code == 0) {
@@ -985,7 +999,7 @@ int32_t sdbWriteFileImp(SSdb *pSdb, int32_t skip_type) {
     pSdb->commitIndex = pSdb->applyIndex;
     pSdb->commitTerm = pSdb->applyTerm;
     pSdb->commitConfig = pSdb->applyConfig;
-    mInfo("vgId:1, trans:0, write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
+    mInfo("vgId:1, trans:0, end to write sdb file, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
           " file:%s",
           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
 

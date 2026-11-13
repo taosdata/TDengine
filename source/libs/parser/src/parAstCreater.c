@@ -5394,12 +5394,20 @@ SNode* createUseExtSourceStmt(SAstCreateContext* pCxt, SToken* pSrc, SToken* pNs
   SUseExtSourceStmt* pStmt = NULL;
   pCxt->errCode = nodesMakeNode(QUERY_NODE_USE_EXT_SOURCE_STMT, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
+  // Every component is a TDengine identifier: an unquoted token was already
+  // lower-cased by the client, a backticked one keeps its spelling and the
+  // backticks themselves are syntax.  trimEscape() removes them (and decodes a
+  // doubled backtick) before the namespace is stored in the connection state,
+  // otherwise "USE src.`SCHEMA`" would look up a schema named `SCHEMA`.
+  trimEscape(pCxt, pSrc, true);
   COPY_STRING_FORM_ID_TOKEN(pStmt->sourceName, pSrc);
+  trimEscape(pCxt, pNs1, true);
+  trimEscape(pCxt, pNs2, true);
   if (pNs1 && pNs1->n > 0) {
-    strncpy(pStmt->ns1, pNs1->z, TMIN((int32_t)pNs1->n, (int32_t)sizeof(pStmt->ns1) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns1, pNs1);
   }
   if (pNs2 && pNs2->n > 0) {
-    strncpy(pStmt->ns2, pNs2->z, TMIN((int32_t)pNs2->n, (int32_t)sizeof(pStmt->ns2) - 1));
+    COPY_STRING_FORM_ID_TOKEN(pStmt->ns2, pNs2);
   }
   return (SNode*)pStmt;
 _err:
@@ -10701,6 +10709,57 @@ SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, STok
 _err:
   nodesDestroyNode((SNode*)pNode);
   return NULL;
+}
+
+SNode* createTimeAlignTableNodeWithTable(SAstCreateContext* pCxt, SToken* pFuncName, SNode* pTable,
+                                         const STimeAlignArgs* pArgs, SToken* pTableAlias) {
+  if (pTable == NULL || TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+  if (pFuncName == NULL || pFuncName->n != 10 || strncasecmp(pFuncName->z, "time_align", 10) != 0) {
+    nodesDestroyNode(pTable);
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR,
+                                         "unsupported table function in TABLE(...)");
+    return NULL;
+  }
+  if (!checkTableName(pCxt, pTableAlias)) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+
+  STimeAlignTableNode* pNode = NULL;
+  pCxt->errCode = nodesMakeNode(QUERY_NODE_TIME_ALIGN_TABLE, (SNode**)&pNode);
+  if (pNode == NULL) {
+    nodesDestroyNode(pTable);
+    return NULL;
+  }
+  pNode->pRealTableNode = pTable;
+  tstrncpy(pNode->dbName, ((STableNode*)pTable)->dbName, sizeof(pNode->dbName));
+  tstrncpy(pNode->tbName, ((STableNode*)pTable)->tableName, sizeof(pNode->tbName));
+
+  pNode->outputRaw = (pArgs != NULL && pArgs->outputRaw == 1);
+  if (pArgs != NULL && TK_NK_NIL != pArgs->columnList.type && pArgs->columnList.n >= 2) {
+    uint32_t len = pArgs->columnList.n - 2;
+    pNode->columnList = taosMemoryMalloc(len + 1);
+    if (pNode->columnList == NULL) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      nodesDestroyNode((SNode*)pNode);
+      return NULL;
+    }
+    if (len > 0) {
+      tstrncpy(pNode->columnList, pArgs->columnList.z + 1, len + 1);
+    } else {
+      pNode->columnList[0] = '\0';
+    }
+  }
+
+  if (pTableAlias != NULL && TK_NK_NIL != pTableAlias->type) {
+    COPY_STRING_FORM_ID_TOKEN(pNode->table.tableAlias, pTableAlias);
+  } else {
+    tstrncpy(pNode->table.tableAlias, ((STableNode*)pTable)->tableAlias, sizeof(pNode->table.tableAlias));
+  }
+  return (SNode*)pNode;
 }
 
 SNode* createRealTableNodeExt3(SAstCreateContext* pCxt,

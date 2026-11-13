@@ -21,6 +21,7 @@
 #include "decimal.h"
 #include "osMemPool.h"
 #include "streamInt.h"
+#include "tconv.h"
 #include "tcurl.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -593,7 +594,15 @@ static int32_t jsonCreateColumnValue(const SColumnInfo* colInfo, bool isNull, co
       int32_t     len = varDataLen(pData);
       temp = cJSON_malloc(len + 1);
       QUERY_CHECK_NULL(temp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
-      memcpy(temp, src, len);
+      if (type == TSDB_DATA_TYPE_NCHAR) {
+        // Notification JSON uses UTF-8 independently of the server/client charset.
+        void* utf8 = taosConvInit("UTF-8");
+        QUERY_CHECK_NULL(utf8, code, lino, _end, terrno);
+        len = taosUcs4ToMbs((TdUcs4*)src, len, temp, utf8);
+        QUERY_CHECK_CONDITION(len >= 0, code, lino, _end, len);
+      } else {
+        memcpy(temp, src, len);
+      }
       temp[len] = '\0';
 
       *ppItem = cJSON_CreateStringReference(temp);

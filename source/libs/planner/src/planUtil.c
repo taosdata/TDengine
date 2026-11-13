@@ -569,6 +569,9 @@ static int32_t adjustScanDataRequirement(SScanLogicNode* pScan, EDataOrderLevel 
       pScan->groupSort = true;
     }
   } else if (TSDB_SUPER_TABLE == pScan->tableType) {
+    // TIME_ALIGN over a super table also uses the table merge scan: the align
+    // stage runs inside it on each per-table block before the ts merge, where
+    // the block still carries its own uid.
     if (pScan->smallDataScanSort) {
       if (planScanHasSortAncestor(pScan)) {
         // ORDER BY case: a Sort already orders the scan output (Task 1 behavior).
@@ -815,6 +818,15 @@ static int32_t adjustAggDataRequirement(SAggLogicNode* pAgg, EDataOrderLevel req
 }
 
 static int32_t adjustProjectDataRequirement(SProjectLogicNode* pProject, EDataOrderLevel requirement) {
+  if (pProject->timeAlignProject) {
+    // The align host keeps per-series state and needs each series to arrive in
+    // ts order, but it must not force a global order requirement into the view
+    // subtree: that promotes a stable scan to a table merge scan, whose blocks
+    // no longer carry a single series id and leak values across devices.
+    pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+    pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
   pProject->node.resultDataOrder = requirement;
   pProject->node.requireDataOrder = requirement;
   return TSDB_CODE_SUCCESS;

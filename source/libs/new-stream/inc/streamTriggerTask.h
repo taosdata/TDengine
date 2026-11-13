@@ -259,6 +259,7 @@ typedef struct SSTriggerGroupDurationState {
 } SSTriggerGroupDurationState;
 
 typedef struct SSTriggerRealtimeGroup {
+  int64_t                          derivativeLogEpoch;  // changes with this point's cached Tag snapshot
   struct SSTriggerRealtimeContext *pContext;
   SWindowChainState               *pWindowChain;
   SStreamTriggerPeerMerger        *pPeerMerger;
@@ -929,6 +930,7 @@ typedef struct SSTriggerHistoryContext {
   bool                 pendingToFinish;
   SArray              *pContributors;  // SArray<SStreamRecalcContributor>
   struct SSTriggerRecalcRequest *pManualRecalcRequest;
+  int64_t              derivativeLogEpoch;
   uint64_t             progressStepId;
   uint64_t             nextProgressRequestToken;
   SStreamProgressRange historyProgressStepRange;

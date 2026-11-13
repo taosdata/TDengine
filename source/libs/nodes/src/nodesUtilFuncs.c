@@ -2034,6 +2034,8 @@ void nodesDestroyNode(SNode* pNode) {
       taosArrayDestroyP(pReal->tsmaTargetTbVgInfo, NULL);
       taosArrayDestroy(pReal->tsmaTargetTbInfo);
       nodesDestroyNode(pReal->pExtTableNode);
+      taosArrayDestroy(pReal->pAlignCols);
+      pReal->pAlignCols = NULL;
       break;
     }
     case QUERY_NODE_VIRTUAL_TABLE: {
@@ -2047,9 +2049,13 @@ void nodesDestroyNode(SNode* pNode) {
       pVirtual->pAlignCols = NULL;
       break;
     }
-    case QUERY_NODE_TEMP_TABLE:
-      nodesDestroyNode(((STempTableNode*)pNode)->pSubquery);
+    case QUERY_NODE_TEMP_TABLE: {
+      STempTableNode* pTemp = (STempTableNode*)pNode;
+      nodesDestroyNode(pTemp->pSubquery);
+      taosArrayDestroy(pTemp->pAlignCols);
+      pTemp->pAlignCols = NULL;
       break;
+    }
     case QUERY_NODE_TEXT_TABLE: {
       STextTableNode* pText = (STextTableNode*)pNode;
       nodesDestroyList(pText->pColDefs);
@@ -2074,6 +2080,8 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_TIME_ALIGN_TABLE: {
       STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
       taosMemoryFreeClear(pAlign->columnList);
+      nodesDestroyNode(pAlign->pRealTableNode);
+      pAlign->pRealTableNode = NULL;
       break;
     }
     case QUERY_NODE_PLACE_HOLDER_TABLE: {
@@ -2962,6 +2970,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pScanCols);
       nodesDestroyList(pLogicNode->pScanPseudoCols);
+      nodesDestroyList(pLogicNode->pAlignCols);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pDynamicScanFuncs);
       nodesDestroyNode(pLogicNode->pTagCond);
@@ -3301,6 +3310,7 @@ void nodesDestroyNode(SNode* pNode) {
         tzfree(pPhyNode->timezone);
       }
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      nodesDestroyList(pPhyNode->pAlignCols);
       nodesDestroyList(pPhyNode->pDynamicScanFuncs);
       nodesDestroyList(pPhyNode->pGroupTags);
       nodesDestroyList(pPhyNode->pTags);
@@ -4237,16 +4247,17 @@ static bool isExternalFilterStringLiteral(const SValueNode* pValue) {
 }
 
 static int32_t findExternalFilterColumn(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, const char* colName) {
-  // The per-dialect rule (MySQL / SQL Server fold case, Oracle folds an
-  // unquoted reference to upper case then compares exactly, PostgreSQL /
-  // InfluxDB compare literally) is shared with the parser-side contract
-  // externalColumnNamesEqual() through extColumnNameEqual().
+  // The per-dialect rule (MySQL / SQL Server fold case; PostgreSQL, InfluxDB
+  // and Oracle compare literally) is shared with the parser-side contract
+  // externalColumnNamesEqual() through extColumnNameEqual().  TDengine applies
+  // its identifier grammar before the reference reaches here, so an Oracle
+  // name must match the resolved spelling exactly (DS 5.3.6 R1).
   //
-  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps a
-  // quoted "Device" apart from a folded DEVICE, and TDengine has already dropped
-  // the quoting by the time the reference gets here, so a single folding pass
-  // would map both spellings onto DEVICE and turn a filter that pins both
-  // columns into a duplicate-column error (DS 5.3.6 R1).
+  // extFindColumnIndex() also owns the exact-before-folded order: Oracle keeps
+  // a quoted "Device" apart from a folded DEVICE, and TDengine has already
+  // applied its identifier grammar by the time the reference gets here, so a
+  // case-insensitive pass would map both spellings onto DEVICE and turn a
+  // filter that pins both columns into a duplicate-column error (DS 5.3.6 R1).
   return extFindColumnIndex(sourceType, pExtMeta, colName);
 }
 

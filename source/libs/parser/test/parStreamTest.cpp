@@ -14422,8 +14422,8 @@ void registerExtOracleMetrics(const char* tsType = "TIMESTAMP(6)",
   // every column must carry a valid remote type name (unlike the MySQL/PG mocks,
   // whose maps tolerate an empty extTypeName).
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, tsType});
-  cols.push_back({"V",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, tsType});
+  cols.push_back({"v",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics", cols, tsPrec);
@@ -14744,9 +14744,9 @@ TEST_F(ParserStreamTest, OracleCalcPrefilterRendersAnsiTimestampLiteral) {
       // quoted string.  The wall-clock component is timezone-dependent (it is
       // rendered in the session timezone, and the reader-level test pins the
       // exact UTC spelling), so only the prefix is asserted here.
-      EXPECT_NE(std::string(spec->prefilter).find("\"TS\" >= TIMESTAMP '"), std::string::npos)
+      EXPECT_NE(std::string(spec->prefilter).find("\"ts\" >= TIMESTAMP '"), std::string::npos)
           << spec->prefilter;
-      EXPECT_EQ(std::string(spec->prefilter).find("\"TS\" >= '"), std::string::npos)
+      EXPECT_EQ(std::string(spec->prefilter).find("\"ts\" >= '"), std::string::npos)
           << spec->prefilter;
     }
     tFreeSCMCreateStreamReq(&request);
@@ -14911,7 +14911,7 @@ TEST_F(ParserStreamTest, ExtPrefilterBindsExactColumnOverFoldedSibling) {
   // Catalog (physical) order: the aware sibling first, the naive primary second.
   cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, false, false, false, "TIMESTAMP(6) WITH TIME ZONE"});
   cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
                                         "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "case_siblings", cols,
@@ -14942,14 +14942,11 @@ TEST_F(ParserStreamTest, ExtPrefilterBindsExactColumnOverFoldedSibling) {
 }
 
 // The rendered trigger PRE_FILTER must name the column the validated predicate
-// bound.  The renderer used to prefer an exact spelling anywhere in the catalog,
-// which is not the rule findAndSetRealTableColumn() applies while the CREATE
-// STREAM is validated: among candidates the provider comparison folds onto the
-// reference it takes the first one in catalog order.  A table holding both VAL
-// and a quoted "val" therefore validated an unquoted `val` reference as VAL while
-// the pushed predicate named "val" - two independently valued columns, so the
-// remote fetch dropped exactly the rows the validated expression keeps, and a
-// direct external trigger has no local PRE_FILTER to recover them.
+// bound.  Under TDengine's identifier grammar an unquoted `val` reference is
+// lower-cased and matches the quoted lower-case column exactly, while the upper-
+// case VAL is a different object that needs a backticked reference.  The pushed
+// predicate and the validated expression must therefore agree on "val"; picking
+// the folded sibling VAL would drop exactly the rows the statement keeps.
 TEST_F(ParserStreamTest, ExtPrefilterRendersValidatedColumnIdentity) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
@@ -14960,10 +14957,10 @@ TEST_F(ParserStreamTest, ExtPrefilterRendersValidatedColumnIdentity) {
   std::vector<MockCatalogService::MockExtColDef> cols;
   // Catalog order: primary timestamp, then VAL, its quoted lower-case sibling
   // and V.  An unquoted `val` folds onto the first candidate, VAL.
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
   cols.push_back({"VAL", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   cols.push_back({"val", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
                                         "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "sibling_case", cols,
@@ -14977,9 +14974,9 @@ TEST_F(ParserStreamTest, ExtPrefilterRendersValidatedColumnIdentity) {
     ASSERT_NE(spec->triggerPrefilter, nullptr);
     if (spec->triggerPrefilter != nullptr) {
       std::string rendered(spec->triggerPrefilter);
-      // The bound columns, not the exact-spelling siblings.
-      EXPECT_NE(rendered.find("(\"VAL\" > \"V\")"), std::string::npos) << rendered;
-      EXPECT_EQ(rendered.find("\"val\""), std::string::npos) << rendered;
+      // The exact columns, not the folded upper-case sibling.
+      EXPECT_NE(rendered.find("(\"val\" > \"v\")"), std::string::npos) << rendered;
+      EXPECT_EQ(rendered.find("\"VAL\""), std::string::npos) << rendered;
     }
     tFreeSCMCreateStreamReq(&request);
   });
@@ -15281,8 +15278,8 @@ TEST_F(ParserStreamTest, OraclePrefilterRendersBoolAsNumber) {
   useDb("root", "stream_streamdb");
   FederatedFlagGuard guard(true);
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"FLAG", TSDB_DATA_TYPE_TINYINT, false, true, false, "NUMBER(1,0)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"flag", TSDB_DATA_TYPE_TINYINT, false, true, false, "NUMBER(1,0)"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE, "127.0.0.1", 1521, "taosdata",
                                         "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "flag_tbl", cols,
@@ -15308,11 +15305,11 @@ TEST_F(ParserStreamTest, OraclePrefilterRendersBoolAsNumber) {
 #endif
 }
 
-// A quoted Oracle table reaches the parser with the double quotes still inside
-// the remote table name.  The stream reader quotes identifiers itself, so the
-// built trigger spec must carry the bare exact spelling instead of the quoted
-// form; otherwise the rendered reference contains nested quotes.
-TEST_F(ParserStreamTest, OracleQuotedTableSpecKeepsBareSpelling) {
+// A backticked table reference resolves against the exact remote spelling and
+// the trigger spec carries that spelling unchanged.  The stream reader emits its
+// own quoting when it renders the table reference, so the spec must hold the bare
+// name and never a quoted form.
+TEST_F(ParserStreamTest, OracleBacktickedTableSpecKeepsExactSpelling) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
 #else
@@ -15320,11 +15317,11 @@ TEST_F(ParserStreamTest, OracleQuotedTableSpecKeepsBareSpelling) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("UTC");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
-  g_mockCatalogService->createExtTable("ext_oracle", "", "", "\"emp\"", cols,
+  g_mockCatalogService->createExtTable("ext_oracle", "", "", "emp", cols,
                                        TSDB_TIME_PRECISION_MICRO);
 
   std::string specTable;
@@ -15338,8 +15335,8 @@ TEST_F(ParserStreamTest, OracleQuotedTableSpecKeepsBareSpelling) {
     tFreeSCMCreateStreamReq(&request);
   });
   runAsyncOnly("create stream stream_streamdb.s_oracle_quoted_tbl interval(1s) sliding(1s) "
-               "from ext_oracle.`\"emp\"` into stream_outdb.stream_out as "
-               "select ts, v from ext_oracle.`\"emp\"`");
+               "from ext_oracle.`emp` into stream_outdb.stream_out as "
+               "select ts, v from ext_oracle.`emp`");
   EXPECT_STREQ("emp", specTable.c_str());
 #endif
 }
@@ -15357,8 +15354,8 @@ TEST_F(ParserStreamTest, OracleCalcPrefilterFollowsItsOwnTable) {
   ProcessTimezoneGuard tzGuard("Asia/Shanghai");
   registerExtOracleMetrics("TIMESTAMP(6)", TSDB_TIME_PRECISION_MICRO);
   std::vector<MockCatalogService::MockExtColDef> tzCols;
-  tzCols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, "TIMESTAMP(9) WITH TIME ZONE"});
-  tzCols.push_back({"V",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
+  tzCols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true,  false, false, "TIMESTAMP(9) WITH TIME ZONE"});
+  tzCols.push_back({"v",  TSDB_DATA_TYPE_DOUBLE,    false, true,  false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_tz", tzCols,
                                        TSDB_TIME_PRECISION_NANO);
   setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
@@ -15473,10 +15470,10 @@ TEST_F(ParserStreamTest, OracleMixedColumnPrefilterUsesComparedColumnClass) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("Asia/Shanghai");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"event_ts", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
                   "TIMESTAMP(6) WITH TIME ZONE"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_mixed", cols,
@@ -15505,11 +15502,11 @@ TEST_F(ParserStreamTest, OracleMixedColumnPrefilterUsesComparedColumnClass) {
                "select ts, v from ext_oracle.metrics_mixed where ts >= 1767225600000000");
 
   ASSERT_EQ(prefilters.size(), 2);
-  EXPECT_NE(prefilters[0].find("\"EVENT_TS\" >= TIMESTAMP '2026-01-01 00:00:00.000000'"),
+  EXPECT_NE(prefilters[0].find("\"event_ts\" >= TIMESTAMP '2026-01-01 00:00:00.000000'"),
             std::string::npos)
       << prefilters[0];
   EXPECT_EQ(prefilters[0].find("08:00:00"), std::string::npos) << prefilters[0];
-  EXPECT_NE(prefilters[1].find("\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
+  EXPECT_NE(prefilters[1].find("\"ts\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
             std::string::npos)
       << prefilters[1];
 #endif
@@ -15783,9 +15780,9 @@ TEST_F(ParserStreamTest, OracleMicroTransportPreservesSubMilliConstant) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("Asia/Shanghai");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(3)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"event_ts", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(3)"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_micro", cols,
@@ -15807,7 +15804,7 @@ TEST_F(ParserStreamTest, OracleMicroTransportPreservesSubMilliConstant) {
                "into stream_outdb.stream_out as "
                "select ts, v from ext_oracle.metrics_micro "
                "where event_ts < '2026-01-01 00:00:00.000001'");
-  EXPECT_NE(pf.find("\"EVENT_TS\" < TIMESTAMP '2026-01-01 00:00:00.000001'"), std::string::npos) << pf;
+  EXPECT_NE(pf.find("\"event_ts\" < TIMESTAMP '2026-01-01 00:00:00.000001'"), std::string::npos) << pf;
   EXPECT_EQ(pf.find(".000000'"), std::string::npos) << pf;
 #endif
 }
@@ -15823,10 +15820,10 @@ TEST_F(ParserStreamTest, OracleNanoTransportRendersEveryColumnAtNano) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("Asia/Shanghai");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"EVENT_TS", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"event_ts", TSDB_DATA_TYPE_TIMESTAMP, false, true, false,
                   "TIMESTAMP(9) WITH TIME ZONE"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_nano", cols,
@@ -15863,15 +15860,15 @@ TEST_F(ParserStreamTest, OracleNanoTransportRendersEveryColumnAtNano) {
                "select ts, v from ext_oracle.metrics_nano where ts >= '2026-01-01 00:00:00'");
 
   ASSERT_EQ(pf.size(), 4);
-  EXPECT_NE(pf[0].find("\"EVENT_TS\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+  EXPECT_NE(pf[0].find("\"event_ts\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
             std::string::npos)
       << pf[0];
-  EXPECT_NE(pf[1].find("\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000000'"), std::string::npos)
+  EXPECT_NE(pf[1].find("\"ts\" >= TIMESTAMP '2026-01-01 08:00:00.000000000'"), std::string::npos)
       << pf[1];
-  EXPECT_NE(pf[2].find("\"EVENT_TS\" >= TIMESTAMP '2025-12-31 16:00:00.000000000'"),
+  EXPECT_NE(pf[2].find("\"event_ts\" >= TIMESTAMP '2025-12-31 16:00:00.000000000'"),
             std::string::npos)
       << pf[2];
-  EXPECT_NE(pf[3].find("\"TS\" >= TIMESTAMP '2026-01-01 00:00:00.000000000'"), std::string::npos)
+  EXPECT_NE(pf[3].find("\"ts\" >= TIMESTAMP '2026-01-01 00:00:00.000000000'"), std::string::npos)
       << pf[3];
 #endif
 }
@@ -15897,10 +15894,10 @@ TEST_F(ParserStreamTest, OraclePreFilterTimestampConstantRendersLiteral) {
     ASSERT_NE(spec->triggerPrefilter, nullptr);
     if (spec->triggerPrefilter != nullptr) {
       EXPECT_NE(std::string(spec->triggerPrefilter).find(
-                    "\"TS\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
+                    "\"ts\" >= TIMESTAMP '2026-01-01 08:00:00.000000'"),
                 std::string::npos)
           << spec->triggerPrefilter;
-      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"TS\" >= 1767225600000000"),
+      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"ts\" >= 1767225600000000"),
                 std::string::npos)
           << spec->triggerPrefilter;
     }
@@ -15914,12 +15911,12 @@ TEST_F(ParserStreamTest, OraclePreFilterTimestampConstantRendersLiteral) {
 #endif
 }
 
-// A reference that keeps its Oracle representation quotes is not resolved by the
-// column binding: the provider rule never interprets those quotes.  A trigger
-// PRE_FILTER that names a remote column that way is therefore rejected, as it is
-// in a SELECT.  Reaching a mixed-case remote column needs TDengine backticks,
-// whose case this harness cannot preserve - it lower-cases the whole statement
-// outside string and double-quoted literals.
+// A reference whose literal name keeps double quotes does not resolve: quote
+// characters are part of the name and Oracle metadata is compared exactly, with
+// no reinterpretation.  A trigger PRE_FILTER that names a remote column that way
+// is therefore rejected, as it is in a SELECT.  Reaching a mixed-case remote
+// column needs TDengine backticks, whose case this harness cannot preserve - it
+// lower-cases the whole statement outside double-quoted literals.
 TEST_F(ParserStreamTest, OraclePrefilterQuotedReferenceIsRejected) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
@@ -15928,9 +15925,9 @@ TEST_F(ParserStreamTest, OraclePrefilterQuotedReferenceIsRejected) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("UTC");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
   cols.push_back({"EventTs", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_quoted", cols,
@@ -15949,18 +15946,13 @@ TEST_F(ParserStreamTest, OraclePrefilterQuotedReferenceIsRejected) {
 #endif
 }
 
-// Oracle can hold both VAL and a quoted "val" in one table.  The trigger
-// PRE_FILTER has to render the column the CREATE STREAM actually bound, and that
-// binding is findAndSetRealTableColumn(): the first catalog entry the provider
-// comparison folds onto the reference - the same rule a plain `SELECT val` uses
-// (ParserSelectDdlTest.oracleQueryBindingKeepsMainRules), not the whole-catalog
-// exact-spelling pass of the already-bound calc WHERE or the DDL column refs.
-// This fixture stores VAL first, so an unquoted `val` reference validates as VAL
-// (Oracle would fold it there too, while an exact-name pass would pick the
-// separate lower-case column); rendering "val" there pushed the trigger rows
-// through a column the validated statement never compared.  A reference that
-// keeps its Oracle quotes resolves nothing, exactly as before.
-TEST_F(ParserStreamTest, OraclePrefilterBindsValidatedColumnRule) {
+// Oracle can hold both VAL and val in one table.  TDengine lower-cases an
+// unquoted reference before the source comparison, so the trigger PRE_FILTER
+// binds the exactly-named lower-case column regardless of catalog order; the
+// upper-case VAL is a different object that needs a backticked reference, whose
+// case this harness cannot preserve.  A reference whose literal name keeps quote
+// characters resolves nothing.
+TEST_F(ParserStreamTest, OraclePrefilterBindsExactSpelling) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
 #else
@@ -15968,10 +15960,10 @@ TEST_F(ParserStreamTest, OraclePrefilterBindsValidatedColumnRule) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("UTC");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
   cols.push_back({"VAL", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(6)"});
   cols.push_back({"val", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_case", cols,
@@ -15999,22 +15991,17 @@ TEST_F(ParserStreamTest, OraclePrefilterBindsValidatedColumnRule) {
                TSDB_CODE_PAR_INVALID_COLUMN);
 
   ASSERT_EQ(prefilters.size(), 1U);
-  // The reference validates as VAL (the first folded candidate), so the pushed
-  // predicate names VAL; the lower-case sibling the exact-spelling pass would
-  // have picked is a different column the statement never reads.  The literal
-  // keeps nine fractional digits because the table transport precision is NANO,
-  // not because of the bound column's own declared type (DS 5.3.7).
+  // val is TIMESTAMP(9), so the bound is rendered at the table transport
+  // precision, set to NANO by that column of this fixture (DS 5.3.7).
   EXPECT_NE(prefilters[0].find(
-                "\"VAL\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
+                "\"val\" >= TIMESTAMP '2026-01-01 00:00:00.123456789'"),
             std::string::npos)
       << prefilters[0];
-  EXPECT_EQ(prefilters[0].find("\"val\""), std::string::npos) << prefilters[0];
 #endif
 }
 
 // The calc prefilter resolves through the same column binding as a plain query,
-// so a WHERE clause that names a remote column with its Oracle quotes is
-// rejected as well (main branch rule).
+// so a WHERE clause whose literal name keeps double quotes is rejected as well.
 TEST_F(ParserStreamTest, OracleCalcPrefilterQuotedReferenceIsRejected) {
 #ifndef TD_ENTERPRISE
   GTEST_SKIP() << "Federated query parse path is gated by TD_ENTERPRISE";
@@ -16023,9 +16010,9 @@ TEST_F(ParserStreamTest, OracleCalcPrefilterQuotedReferenceIsRejected) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("UTC");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
   cols.push_back({"EventTs", TSDB_DATA_TYPE_TIMESTAMP, false, true, false, "TIMESTAMP(9)"});
-  cols.push_back({"V", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
+  cols.push_back({"v", TSDB_DATA_TYPE_DOUBLE, false, true, false, "BINARY_DOUBLE"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_quoted", cols,
@@ -16066,10 +16053,10 @@ TEST_F(ParserStreamTest, OraclePreFilterStringTimestampConstantRendersLiteral) {
     ASSERT_NE(spec->triggerPrefilter, nullptr);
     if (spec->triggerPrefilter != nullptr) {
       EXPECT_NE(std::string(spec->triggerPrefilter).find(
-                    "\"TS\" >= TIMESTAMP '2026-01-01 00:00:00.000001'"),
+                    "\"ts\" >= TIMESTAMP '2026-01-01 00:00:00.000001'"),
                 std::string::npos)
           << spec->triggerPrefilter;
-      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"TS\" >= '2026-01-01 00:00:00.000001'"),
+      EXPECT_EQ(std::string(spec->triggerPrefilter).find("\"ts\" >= '2026-01-01 00:00:00.000001'"),
                 std::string::npos)
           << spec->triggerPrefilter;
     }
@@ -16091,8 +16078,8 @@ TEST_F(ParserStreamTest, OraclePreFilterEscapesStringLiteral) {
   FederatedFlagGuard guard(true);
   ProcessTimezoneGuard tzGuard("UTC");
   std::vector<MockCatalogService::MockExtColDef> cols;
-  cols.push_back({"TS", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
-  cols.push_back({"NAME", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"});
+  cols.push_back({"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "TIMESTAMP(6)"});
+  cols.push_back({"name", TSDB_DATA_TYPE_VARCHAR, false, true, false, "VARCHAR2(32)"});
   g_mockCatalogService->createExtSource("ext_oracle", EXT_SOURCE_ORACLE,
                                         "127.0.0.1", 1521, "taosdata", "ORCL", "TAOSDATA");
   g_mockCatalogService->createExtTable("ext_oracle", "", "", "metrics_string", cols,
@@ -16104,7 +16091,7 @@ TEST_F(ParserStreamTest, OraclePreFilterEscapesStringLiteral) {
     ASSERT_EQ(tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &request), 0);
     auto* spec = static_cast<SStreamExtTriggerSpec*>(taosArrayGetP(request.extSpecs, 0));
     ASSERT_NE(spec->triggerPrefilter, nullptr);
-    EXPECT_NE(std::string(spec->triggerPrefilter).find("\"NAME\" = 'O''Reilly'"),
+    EXPECT_NE(std::string(spec->triggerPrefilter).find("\"name\" = 'O''Reilly'"),
               std::string::npos)
         << spec->triggerPrefilter;
     tFreeSCMCreateStreamReq(&request);

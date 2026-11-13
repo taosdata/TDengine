@@ -92,9 +92,13 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_READER_DIMENSION_BATCH_FRAME_MAGIC   UINT32_C(0x4e574442)
 #define STREAM_RUNNER_EOG_BATCH_FRAME_MAGIC    UINT32_C(0x4e575242)
 #define STREAM_EXTERNAL_WINDOW_PREV_FRAME_MAGIC UINT32_C(0x4e574550)
+#define STREAM_DERIVATIVE_LOG_FRAME_MAGIC       UINT32_C(0x4e57444c)
+#define STREAM_DERIVATIVE_LOG_FRAME_VERSION     1
+#define STREAM_DERIVATIVE_CONFIG_FRAME_VERSION  2
 #define STREAM_OPTION_FLUSH_ON_OUTER_CLOSE BIT_FLAG_MASK(4)
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
+#define STREAM_OPTION_DERIVATIVE_TAG          BIT_FLAG_MASK(7)
 
 typedef enum EStreamRunnerFetchType {
   STREAM_RUNNER_FETCH_LEGACY = 0,
@@ -455,6 +459,7 @@ typedef struct {
   void*          triggerCols;           // nodelist of SColumnNode
   void*          partitionCols;         // nodelist of SColumnNode (user PARTITION BY + injected duration tags for fetch)
   void*          durationTagCols;       // duration/count tags injected for fetch only (not user PARTITION BY)
+  void*          derivativeTagCols;     // referenced DERIVATIVE unit tags; schema dependency only
   void*          rollupTagCols;         // serialized SNodeList* of SColumnNode; NULL = not rollup
   SArray*        outCols;               // array of SFieldWithOptions
   SArray*        outStbFullCols;        // full out stb columns when outStbExists
@@ -1810,6 +1815,7 @@ typedef struct SSTriggerGroupCalcInfo {
   int8_t  createTable;
   int32_t rollupTbCount;
   void*   pRunnerGrpCtx; // reserved for runner
+  int64_t derivativeLogEpoch;  // frozen realtime point-configuration generation
 } SSTriggerGroupCalcInfo;
 
 typedef struct SSTriggerGroupReadInfo {
@@ -1845,6 +1851,7 @@ typedef struct SSTriggerCalcRequest {
   SStreamContextPolicy*   pContextPolicy;
   SStreamAncestorContext* pAncestorContext;
   SStreamContextFrames*   pContextFrames;  // optional owned validated frame copy
+  int64_t derivativeLogEpoch;  // frozen single-point configuration or history-round identity
 
   // The following fields are not serialized
   int32_t assembledParamCount;  // only used by the trigger task
@@ -1949,6 +1956,9 @@ typedef struct SStreamRuntimeFuncInfo {
   SStreamAncestorContext* pAncestorContext;
   int8_t* createTable;
   char*   outNormalTable;
+  // Borrowed from the local runner; never serialized with calculation requests.
+  struct SStreamDerivativeLogState* pDerivativeLogState;
+  int64_t derivativeLogEpoch;
 } SStreamRuntimeFuncInfo;
 
 /** Borrowed members require the source to outlive this view. After prepare, keep
@@ -1963,6 +1973,16 @@ typedef struct SStreamReaderFetchView {
 
 int32_t tSerializeStRtFuncInfo(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo, bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDeserializeStRtFuncInfo(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);
+// Grouped calculations retain each point's frozen configuration generation.
+static inline int64_t tStreamDerivativeLogEpoch(const SStreamRuntimeFuncInfo* pInfo) {
+  if (pInfo->isMultiGroupCalc && pInfo->curGrpCalc != NULL && pInfo->curGrpCalc->derivativeLogEpoch != 0) {
+    return pInfo->curGrpCalc->derivativeLogEpoch;
+  }
+  return pInfo->derivativeLogEpoch;
+}
+
+int32_t tEncodeStreamDerivativeLogFrame(SEncoder* pEncoder, int64_t epoch, SSHashObj* pGroups);
+int32_t tDecodeStreamDerivativeLogFrame(SStreamTailFrameDecoder* pFrame, int64_t* pEpoch, SSHashObj* pGroups);
 int32_t tEncodeStreamRuntimePrevWindowFrame(SEncoder* pEncoder, const SStreamRuntimeFuncInfo* pInfo,
                                              bool needStreamRtInfo, bool needStreamGrpInfo);
 int32_t tDecodeStreamRuntimePrevWindowFrame(SDecoder* pDecoder, SStreamRuntimeFuncInfo* pInfo);

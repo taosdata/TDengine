@@ -15349,9 +15349,13 @@ int32_t tDeserializeSMTransReq(void *buf, int32_t bufLen, SMTransReq *pReq) {
   // dbFName (backward-compatible: only present in newer clients)
   pReq->dbFName[0] = '\0';
   if (!tDecodeIsEnd(&decoder)) {
-    char *pStr = NULL;
-    TAOS_CHECK_EXIT(tDecodeCStr(&decoder, &pStr));
-    if (pStr != NULL) {
+    char    *pStr = NULL;
+    uint32_t wireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&pStr, &wireLen));
+    if (wireLen > 0) {
+      if (pStr[wireLen - 1] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
       tstrncpy(pReq->dbFName, pStr, TSDB_DB_FNAME_LEN);
     }
   }
@@ -18886,6 +18890,12 @@ static int32_t tEncodeSResFetchReq(void *buf, int32_t bufLen, SResFetchReq *pReq
 
   TAOS_CHECK_EXIT(tEncodeStreamRuntimePrevWindowFrame(&encoder, pReq->pStRtFuncInfo, needStreamRtInfo,
                                                        effectiveNeedStreamGrpInfo));
+  if (pReq->pStRtFuncInfo != NULL) {
+    const SStreamRuntimeFuncInfo* pInfo = pReq->pStRtFuncInfo;
+    SSHashObj* pGroups = pInfo->isMultiGroupCalc && needStreamRtInfo ? pInfo->pGroupCalcInfos : NULL;
+    int64_t epoch = pGroups == NULL ? tStreamDerivativeLogEpoch(pInfo) : pInfo->derivativeLogEpoch;
+    TAOS_CHECK_EXIT(tEncodeStreamDerivativeLogFrame(&encoder, epoch, pGroups));
+  }
 
   tEndEncode(&encoder);
 
@@ -19014,10 +19024,26 @@ static int32_t tDeserializeSResFetchReqImpl(void *buf, int32_t bufLen, SResFetch
     pReq->pStRtFuncInfo->externalWindowNeedsPrevRow = false;
   }
   bool followerReadSeen = false;
+  bool derivativeLogSeen = false;
   while (!tDecodeIsEnd(&decoder)) {
     SStreamTailFrameDecoder frame = {0};
     const int32_t           frameStart = decoder.pos;
     TAOS_CHECK_EXIT(tDecodeNextStreamTailFrame(&decoder, &frame));
+    if (frame.magic == STREAM_DERIVATIVE_LOG_FRAME_MAGIC) {
+      if (derivativeLogSeen || pReq->pStRtFuncInfo == NULL) {
+        tFinishDecodeStreamTailFrame(&frame, false);
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      derivativeLogSeen = true;
+      code = tDecodeStreamDerivativeLogFrame(&frame, &pReq->pStRtFuncInfo->derivativeLogEpoch,
+                                             pReq->pStRtFuncInfo->pGroupCalcInfos);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
+      continue;
+    }
     if (frame.magic == STREAM_READER_FETCH_ID_FRAME_MAGIC) {
       if (pReq->readerFetchId != 0 || frame.version != STREAM_READER_FETCH_ID_FRAME_VERSION || frame.flags != 0) {
         tFinishDecodeStreamTailFrame(&frame, false);
