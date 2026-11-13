@@ -5844,6 +5844,39 @@ static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
   if (!IS_DECIMAL_TYPE(pFunc->node.resType.type))
     pFunc->node.resType.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, TSDB_TIME_PRECISION_MILLI);
   int32_t code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (code == TSDB_CODE_SUCCESS && pFunc->funcType >= FUNCTION_TYPE_MYSQL_CURDATE &&
+      pFunc->funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    bool currentTimeFunc = pFunc->funcType == FUNCTION_TYPE_MYSQL_CURDATE ||
+                           pFunc->funcType == FUNCTION_TYPE_MYSQL_CURRENT_DATE ||
+                           pFunc->funcType == FUNCTION_TYPE_MYSQL_CURTIME ||
+                           pFunc->funcType == FUNCTION_TYPE_MYSQL_CURRENT_TIME ||
+                           pFunc->funcType == FUNCTION_TYPE_MYSQL_CURRENT_TIMESTAMP ||
+                           (pFunc->funcType == FUNCTION_TYPE_MYSQL_UNIX_TIMESTAMP &&
+                            LIST_LENGTH(pFunc->pParameterList) == 2);
+    if (currentTimeFunc && inStreamCalcClause(pCxt)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC,
+                                     "%s is not supported in stream calc query", pFunc->functionName);
+    }
+    // All other MySQL time functions may read the connection timezone, even with constant arguments.
+    pCxt->hasMySqlContextFunc |= pFunc->funcType != FUNCTION_TYPE_MYSQL_FROM_DAYS &&
+                                pFunc->funcType != FUNCTION_TYPE_MYSQL_STR_TO_DATE;
+    if (!pCxt->statementTimeSet) {
+      pCxt->statementTimeNs = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+      pCxt->statementTimeSet = true;
+    }
+    SValueNode* statementTime = NULL;
+    code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&statementTime);
+    if (code == TSDB_CODE_SUCCESS) {
+      statementTime->translate = true;
+      statementTime->notReserved = true;
+      statementTime->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      statementTime->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      statementTime->datum.i = pCxt->statementTimeNs / 1000;
+      statementTime->typeData = statementTime->datum.i;
+      code = nodesListMakeAppend(&pFunc->pParameterList, (SNode*)statementTime);
+      if (code != TSDB_CODE_SUCCESS) nodesDestroyNode((SNode*)statementTime);
+    }
+  }
   if (TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION == code) {
     code = getUdfInfo(pCxt, pFunc);
   }
@@ -13679,6 +13712,34 @@ static int32_t checkTextTableRows(STranslateContext* pCxt, STextTableNode* pText
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateTextTableCell(STranslateContext* pCxt, SNode** pCell, SDataType targetDt) {
+  if (QUERY_NODE_VALUE == nodeType(*pCell)) {
+    return DEAL_RES_ERROR == translateValueImpl(pCxt, (SValueNode*)*pCell, targetDt, false)
+               ? pCxt->errCode : TSDB_CODE_SUCCESS;
+  }
+  if (QUERY_NODE_FUNCTION != nodeType(*pCell)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "TEXT values must be constants");
+  }
+  PAR_ERR_RET(translateExpr(pCxt, pCell));
+  if (!IS_DECIMAL_TYPE(targetDt.type)) {
+    targetDt.precision = getPrecisionFromCurrStmt(pCxt->pCurrStmt, targetDt.precision);
+  }
+  SNode* pCast = NULL;
+  PAR_ERR_RET(createCastFunc(pCxt, *pCell, targetDt, &pCast));
+  *pCell = pCast;
+  SFunctionNode* pFunc = (SFunctionNode*)pCast;
+  pFunc->tz = pCxt->pParseCxt->timezone;
+  tstrncpy(pFunc->tzName, pCxt->pParseCxt->timezoneName, TD_TIMEZONE_LEN);
+  pFunc->charsetCxt = pCxt->pParseCxt->charsetCxt;
+  PAR_ERR_RET(scalarCalculateConstants(*pCell, pCell));
+  if (QUERY_NODE_VALUE != nodeType(*pCell)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "TEXT values must be constants");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // Build SSDataBlock binary from pColDefs + pRows. On success, writes pBlockBuf/blockBufLen/numBlocks
 // and frees pRows (sets to NULL). Returns TSDB_CODE.
 static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* pTextTable) {
@@ -13717,18 +13778,18 @@ static int32_t buildTextTableBlockBuf(STranslateContext* pCxt, STextTableNode* p
     SNode*     pCellNode = NULL;
 
     FOREACH(pCellNode, pCells) {
-      SValueNode*      pVal     = (SValueNode*)pCellNode;
       SColumnDefNode*  pDef     = (SColumnDefNode*)pColDefCell->pNode;
       SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, colIdx);
+      code = translateTextTableCell(pCxt, &cell->pNode, pDef->dataType);
+      if (TSDB_CODE_SUCCESS != code) {
+        blockDataDestroy(pBlock);
+        return code;
+      }
+      SValueNode* pVal = (SValueNode*)cell->pNode;
 
-      if (QUERY_NODE_VALUE == nodeType(pCellNode) &&
-          (pVal->isNull || TSDB_DATA_TYPE_NULL == pVal->node.resType.type)) {
+      if (pVal->isNull || TSDB_DATA_TYPE_NULL == pVal->node.resType.type) {
         colDataSetNULL(pColData, rowIdx);
       } else {
-        if (DEAL_RES_ERROR == translateValueImpl(pCxt, pVal, pDef->dataType, false)) {
-          blockDataDestroy(pBlock);
-          return pCxt->errCode;
-        }
         if (IS_VAR_DATA_TYPE(pDef->dataType.type) || pDef->dataType.type == TSDB_DATA_TYPE_DECIMAL) {
           code = colDataSetVal(pColData, rowIdx, pVal->datum.p, false);
         } else {
@@ -37364,6 +37425,7 @@ static int32_t setCurrLevelNsFromParent(STranslateContext* pSrc, STranslateConte
 
 void updateContextFromSubQ(STranslateContext* pCxt, SNode* pNode, STranslateContext* pChild) {
   if (pChild) {
+    pCxt->hasMySqlContextFunc |= pChild->hasMySqlContextFunc;
     if (!pCxt->statementTimeSet && pChild->statementTimeSet) {
       pCxt->statementTimeSet = true;
       pCxt->statementTimeNs = pChild->statementTimeNs;
@@ -46526,6 +46588,7 @@ int32_t translate(SParseContext* pParseCxt, SQuery* pQuery, SParseMetaCache* pMe
   }
   int32_t tmpCode = setRefreshMeta(&cxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) code = tmpCode;
+  pQuery->hasMySqlContextFunc = cxt.hasMySqlContextFunc;
   destroyTranslateContext(&cxt);
   return code;
 }

@@ -255,6 +255,30 @@ TEST(osTimeTests, taosTimeGm) {
   ASSERT_EQ(seconds, 1617559800);
 }
 
+TEST(osTimeTests, gregorianCalendarRangeRoundTrips) {
+  struct ZoneGuard {
+    timezone_t zone;
+    ~ZoneGuard() { tzfree(zone); }
+  } utc{tzalloc("UTC")};
+  ASSERT_NE(nullptr, utc.zone);
+  const int64_t seconds[] = {-62167219200LL, -62162121600LL, -1, 0, 32535216000LL,
+                             64060588800LL, 253402300799LL};
+  for (int64_t value : seconds) {
+    SCOPED_TRACE(value);
+    time_t epoch = static_cast<time_t>(value);
+    struct tm calendar = {};
+    ASSERT_NE(nullptr, taosLocalTime(&epoch, &calendar, nullptr, 0, utc.zone));
+    EXPECT_EQ(epoch, taosTimeGm(&calendar));
+  }
+  struct tm normalized = {};
+  normalized.tm_year = 3999 - 1900;
+  normalized.tm_mon = 12;
+  normalized.tm_mday = 1;
+  EXPECT_EQ(64060588800LL, taosTimeGm(&normalized));
+  EXPECT_EQ(4000 - 1900, normalized.tm_year);
+  EXPECT_EQ(0, normalized.tm_mon);
+}
+
 TEST(osTimeTests, taosMktime) {
   char *timestr= "2021-04-04T18:10:00";
   struct tm tm = {0};

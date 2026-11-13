@@ -546,6 +546,7 @@ int32_t taos_connect_by_auth(const char* ip, const char* user, const char* auth,
                               uint16_t port, int connType, STscObj** pObj);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
+void    stmtRestoreCurrentQueryContext(SQuery* pQuery, STscObj* pTscObj, SReqResultInfo* pResInfo);
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList);
 int32_t sqlSecurityCheckStringLevel(SRequestObj* pRequest, const char* sql, int32_t sqlLen);

@@ -2273,6 +2273,41 @@ Time and date functions operate on timestamp types.
 
 All functions that return the current time, such as NOW, TODAY, and TIMEZONE, are calculated only once in a SQL statement, no matter how many times they appear.
 
+### MySQL-Compatible Date and Time Functions
+
+The following scalar functions provide MySQL 8.0-style date and time calculations starting with `v3.4.4.0`. Format strings use MySQL tokens such as `%Y-%m-%d`; the existing `TO_CHAR` and `TO_TIMESTAMP` format syntax is unchanged. Date and time arguments accept text or `TIMESTAMP`. `HOUR`, `MINUTE`, `SECOND`, and `MICROSECOND` also accept `[-]HH:MM:SS[.ffffff]` text.
+
+| Function | Result | Return type |
+| --- | --- | --- |
+| `CURDATE()`, `CURRENT_DATE()`, `CURRENT_DATE` | Date in the connection timezone | `VARCHAR` |
+| `CURTIME([fsp])`, `CURRENT_TIME([fsp])`, `CURRENT_TIME` | Time in the connection timezone | `VARCHAR` |
+| `CURRENT_TIMESTAMP([fsp])`, `CURRENT_TIMESTAMP` | Current timestamp | `TIMESTAMP` |
+| `DATEDIFF(expr1, expr2)` | Difference between local calendar dates in days | `BIGINT` |
+| `DATE_FORMAT(date, format)` | Format using MySQL tokens | `VARCHAR` |
+| `DAY(date)`, `DAYOFMONTH(date)` | Day of month | `BIGINT` |
+| `DAYNAME(date)` | Full English weekday name | `VARCHAR` |
+| `DAYOFYEAR(date)` | Day of year | `BIGINT` |
+| `EXTRACT(unit FROM date)` | Extract one field or a composite | `BIGINT` |
+| `FROM_DAYS(N)` | Day number to date | `VARCHAR` |
+| `FROM_UNIXTIME(unix_timestamp[, format])` | Unix seconds to local date and time | `VARCHAR` |
+| `HOUR(time)`, `MINUTE(time)`, `SECOND(time)`, `MICROSECOND(expr)` | Extract time fields | `BIGINT` |
+| `MONTH(date)`, `QUARTER(date)`, `YEAR(date)` | Extract calendar fields | `BIGINT` |
+| `MONTHNAME(date)` | Full English month name | `VARCHAR` |
+| `STR_TO_DATE(str, format)` | Parse text using MySQL tokens | `VARCHAR` |
+| `TO_DAYS(date)`, `TO_SECONDS(expr)` | Day or second number since year zero | `BIGINT` |
+| `UNIX_TIMESTAMP([date])` | Unix seconds; text and fractional input return `DECIMAL(17,6)` | `BIGINT` or `DECIMAL(17,6)` |
+| `YEARWEEK(date[, mode])` | Week year times 100 plus week number; mode 0–7 | `BIGINT` |
+
+`fsp` is the number of fractional second digits. It must be a constant integer from `0` through `6` and defaults to `0`. `EXTRACT` supports `MICROSECOND`, `SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`, `MONTH`, `QUARTER`, `YEAR`, and the composites `SECOND_MICROSECOND`, `MINUTE_MICROSECOND`, `MINUTE_SECOND`, `HOUR_MICROSECOND`, `HOUR_SECOND`, `HOUR_MINUTE`, `DAY_MICROSECOND`, `DAY_SECOND`, `DAY_MINUTE`, `DAY_HOUR`, and `YEAR_MONTH`. `DATE_FORMAT` and `STR_TO_DATE` support `%a`, `%b`, `%c`, `%D`, `%d`, `%e`, `%f`, `%H`, `%h`, `%I`, `%i`, `%j`, `%k`, `%l`, `%M`, `%m`, `%p`, `%r`, `%S`, `%s`, `%T`, `%U`, `%u`, `%V`, `%v`, `%W`, `%w`, `%X`, `%x`, `%Y`, and `%y`. `%%` emits a literal `%` only in output formats; `STR_TO_DATE` returns `NULL` if parsing reaches `%%`. If the input ends with only `%p` left in the format, `%p` does not add a time component. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` returns `2024-02-29`.
+
+Valid TIME text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign and zero microseconds. For example, `MINUTE('839:00:00')` returns `59`; invalid minute or second fields still return `NULL`. Invalid date and time text returns `NULL`; `STR_TO_DATE` also returns `NULL` for an invalid fully specified date. TDengine has no separate `DATE`, `TIME`, or `DATETIME` types, so some results are text and their numeric context and client type differ from MySQL. Weekday and month names are always English. MySQL `sql_mode`, row warnings, and `lc_time_names` do not apply. Date-only text retains its calendar meaning, with hours, minutes, seconds, and microseconds defaulting to `0`. For example, `MINUTE('2024-02-29')`, `SECOND('2024-02-29')`, and `EXTRACT(HOUR_MINUTE FROM '2024-02-29')` all return `0`; TDengine does not apply MySQL's permissive conversion of the numeric prefix `2024` to `00:20:24`. Text with `Z` or an explicit offset is converted to the connection timezone as an absolute instant, which can differ from MySQL's permissive text conversion in some functions. `TIMESTAMP` range and precision depend on database precision. A dynamic text column passed to `UNIX_TIMESTAMP` always returns `DECIMAL(17,6)`.
+
+```sql
+SELECT DATEDIFF('2024-03-01', '2024-02-29'), YEARWEEK('2000-01-01');
+SELECT EXTRACT(YEAR_MONTH FROM '2019-07-02'), DATE_FORMAT('2024-02-29', '%W %M %d');
+SELECT STR_TO_DATE('May 1, 2013', '%M %d, %Y'), FROM_UNIXTIME(1.123456);
+```
+
 ### NOW
 
 ```sql

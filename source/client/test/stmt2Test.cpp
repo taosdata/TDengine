@@ -5609,6 +5609,8 @@ TEST(stmt2Case, query_refresh_error_matches_retained_result) {
   stmt.sql.type = STMT_TYPE_QUERY;
   stmt.sql.status = STMT_BIND;
   stmt.sql.siInfo.tableColsReady = true;
+  SQuery query = {};
+  stmt.sql.pQuery = &query;
   ASSERT_EQ(taosThreadMutexInit(&stmt.asyncBindParam.mutex, nullptr), 0);
   STscObj connection = {};
   SRequestObj request = {};
@@ -9842,6 +9844,350 @@ TEST(stmt2Case, query_timezone_with_timestamp_params) {
   taos_close(taos);
 }
 
+TEST(stmt2Case, mysql_datetime_execute_refreshes_result_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists mysql_result_tz");
+  do_query(taos, "create database mysql_result_tz precision 'ms'");
+  do_query(taos, "create table mysql_result_tz.t (ts timestamp, v int)");
+  do_query(taos, "insert into mysql_result_tz.t values (1704067200000, 1)");
+  const char* boundSql = "select ts,date_format(ts,'%H') from mysql_result_tz.t where v=?";
+  const char* literalSql = "select ts,date_format(ts,'%H') from mysql_result_tz.t where v=1";
+
+  for (int32_t mode = 0; mode < 3; ++mode) {
+    SCOPED_TRACE(mode);  // Legacy STMT, bound STMT2, literal STMT2.
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+    std::unique_ptr<TAOS_STMT, decltype(&taos_stmt_close)> legacy(nullptr, taos_stmt_close);
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt2(nullptr, taos_stmt2_close);
+    int32_t value = 1;
+    int32_t length = sizeof(value);
+    TAOS_MULTI_BIND legacyParam = {};
+    TAOS_STMT2_BIND param = {TSDB_DATA_TYPE_INT, &value, &length, nullptr, 1};
+    TAOS_STMT2_BIND* params[] = {&param};
+    TAOS_STMT2_BINDV bindv = {1, nullptr, nullptr, params};
+    if (mode == 0) {
+      legacy.reset(taos_stmt_init(taos));
+      ASSERT_NE(legacy.get(), nullptr);
+      ASSERT_EQ(taos_stmt_prepare(legacy.get(), boundSql, 0), TSDB_CODE_SUCCESS);
+      legacyParam.buffer_type = TSDB_DATA_TYPE_INT;
+      legacyParam.buffer = &value;
+      legacyParam.buffer_length = sizeof(value);
+      legacyParam.length = &length;
+      legacyParam.num = 1;
+      ASSERT_EQ(taos_stmt_bind_param(legacy.get(), &legacyParam), TSDB_CODE_SUCCESS);
+    } else {
+      TAOS_STMT2_OPTION option = {};
+      stmt2.reset(taos_stmt2_init(taos, &option));
+      ASSERT_NE(stmt2.get(), nullptr);
+      ASSERT_EQ(taos_stmt2_prepare(stmt2.get(), mode == 1 ? boundSql : literalSql, 0), TSDB_CODE_SUCCESS);
+      if (mode == 1) {
+        ASSERT_EQ(taos_stmt2_bind_param(stmt2.get(), &bindv, -1), TSDB_CODE_SUCCESS);
+      }
+    }
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mode == 0 ? taos_stmt_execute(legacy.get()) : taos_stmt2_exec(stmt2.get(), nullptr), TSDB_CODE_SUCCESS);
+    TAOS_RES* result = mode == 0 ? taos_stmt_use_result(legacy.get()) : taos_stmt2_result(stmt2.get());
+    ASSERT_NE(result, nullptr);
+    // The result must retain the execute-time snapshot after the session changes again.
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+    timezone_t zone = static_cast<timezone_t>(taos_get_result_tz(result));
+    ASSERT_NE(zone, nullptr);
+    int64_t offset = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1704067200, zone, &offset), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(offset, 8 * 3600);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    ASSERT_NE(row[1], nullptr);
+    EXPECT_EQ(*static_cast<int64_t*>(row[0]), 1704067200000LL);
+    int* lengths = taos_fetch_lengths(result);
+    ASSERT_NE(lengths, nullptr);
+    EXPECT_EQ(std::string(static_cast<const char*>(row[1]), lengths[1]), "08");
+    EXPECT_EQ(taos_fetch_row(result), nullptr);
+    EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  }
+  do_query(taos, "drop database mysql_result_tz");
+}
+
+TEST(stmt2Case, mysql_datetime_text_values_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  const char* literalSql =
+      "select tm,current_time from TEXT(ts TIMESTAMP,tm VARCHAR(8)) "
+      "VALUES(CURRENT_TIMESTAMP,CURRENT_TIME) v";
+  std::string boundSql = std::string(literalSql) + " where ?=1";
+  for (int32_t mode = 0; mode < 3; ++mode) {
+    SCOPED_TRACE(mode);  // Legacy STMT, bound STMT2, literal STMT2.
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+    std::unique_ptr<TAOS_STMT, decltype(&taos_stmt_close)> legacy(nullptr, taos_stmt_close);
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt2(nullptr, taos_stmt2_close);
+    int32_t value = 1;
+    int32_t length = sizeof(value);
+    TAOS_MULTI_BIND legacyParam = {};
+    TAOS_STMT2_BIND param = {TSDB_DATA_TYPE_INT, &value, &length, nullptr, 1};
+    TAOS_STMT2_BIND* params[] = {&param};
+    TAOS_STMT2_BINDV bindv = {1, nullptr, nullptr, params};
+    if (mode == 0) {
+      legacy.reset(taos_stmt_init(taos));
+      ASSERT_NE(legacy.get(), nullptr);
+      ASSERT_EQ(taos_stmt_prepare(legacy.get(), boundSql.c_str(), 0), TSDB_CODE_SUCCESS);
+      legacyParam.buffer_type = TSDB_DATA_TYPE_INT;
+      legacyParam.buffer = &value;
+      legacyParam.buffer_length = sizeof(value);
+      legacyParam.length = &length;
+      legacyParam.num = 1;
+      ASSERT_EQ(taos_stmt_bind_param(legacy.get(), &legacyParam), TSDB_CODE_SUCCESS);
+    } else {
+      TAOS_STMT2_OPTION option = {};
+      stmt2.reset(taos_stmt2_init(taos, &option));
+      ASSERT_NE(stmt2.get(), nullptr);
+      ASSERT_EQ(taos_stmt2_prepare(stmt2.get(), mode == 1 ? boundSql.c_str() : literalSql, 0), TSDB_CODE_SUCCESS);
+      if (mode == 1) {
+        ASSERT_EQ(taos_stmt2_bind_param(stmt2.get(), &bindv, -1), TSDB_CODE_SUCCESS);
+      }
+    }
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(mode == 0 ? taos_stmt_execute(legacy.get()) : taos_stmt2_exec(stmt2.get(), nullptr), TSDB_CODE_SUCCESS);
+    TAOS_RES* result = mode == 0 ? taos_stmt_use_result(legacy.get()) : taos_stmt2_result(stmt2.get());
+    ASSERT_NE(result, nullptr);
+    TAOS_ROW row = taos_fetch_row(result);
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    ASSERT_NE(row[1], nullptr);
+    int* lengths = taos_fetch_lengths(result);
+    ASSERT_NE(lengths, nullptr);
+    EXPECT_EQ(std::string(static_cast<const char*>(row[0]), lengths[0]),
+              std::string(static_cast<const char*>(row[1]), lengths[1]));
+    EXPECT_EQ(taos_fetch_row(result), nullptr);
+    EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  }
+}
+
+TEST(stmt2Case, mysql_datetime_literal_insert_select_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists mysql_insert_tz");
+  do_query(taos, "create database mysql_insert_tz precision 'ms'");
+  do_query(taos, "create table mysql_insert_tz.src (ts timestamp, v int)");
+  do_query(taos, "create table mysql_insert_tz.dst (ts timestamp, h bigint)");
+  do_query(taos, "insert into mysql_insert_tz.src values (1704067200000, 1)");
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  TAOS_STMT2_OPTION option = {};
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt(taos_stmt2_init(taos, &option), taos_stmt2_close);
+  ASSERT_NE(stmt.get(), nullptr);
+  const char* sql = "insert into mysql_insert_tz.dst select ts,hour(ts) from mysql_insert_tz.src";
+  ASSERT_EQ(taos_stmt2_prepare(stmt.get(), sql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taos_stmt2_exec(stmt.get(), nullptr), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  stmt.reset();
+  std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+      taos_query(taos, "select h from mysql_insert_tz.dst"), taos_free_result);
+  ASSERT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS) << taos_errstr(result.get());
+  TAOS_ROW row = taos_fetch_row(result.get());
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  EXPECT_EQ(*static_cast<int64_t*>(row[0]), 8);
+  EXPECT_EQ(taos_fetch_row(result.get()), nullptr);
+  EXPECT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS);
+  result.reset();
+  do_query(taos, "drop database mysql_insert_tz");
+}
+
+TEST(stmt2Case, mysql_datetime_literal_delete_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists mysql_delete_tz");
+  do_query(taos, "create database mysql_delete_tz precision 'ms'");
+  do_query(taos, "create table mysql_delete_tz.t (ts timestamp, v int)");
+  do_query(taos, "insert into mysql_delete_tz.t values "
+                 "(1704038399000, 1) (1704052800000, 2) (1704067200000, 3)");
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  TAOS_STMT2_OPTION option = {};
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt(taos_stmt2_init(taos, &option), taos_stmt2_close);
+  ASSERT_NE(stmt.get(), nullptr);
+  const char* sql = "delete from mysql_delete_tz.t where ts < "
+                    "cast(cast(unix_timestamp('2024-01-01 00:00:00') as bigint) * 1000 as timestamp)";
+  ASSERT_EQ(taos_stmt2_prepare(stmt.get(), sql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  int affectedRows = 0;
+  ASSERT_EQ(taos_stmt2_exec(stmt.get(), &affectedRows), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  EXPECT_EQ(affectedRows, 1);
+  stmt.reset();
+  std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+      taos_query(taos, "select ts,v from mysql_delete_tz.t order by ts"), taos_free_result);
+  ASSERT_NE(result.get(), nullptr);
+  ASSERT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS) << taos_errstr(result.get());
+  const int64_t expectedTs[] = {1704052800000LL, 1704067200000LL};
+  for (int32_t i = 0; i < 2; ++i) {
+    TAOS_ROW row = taos_fetch_row(result.get());
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    ASSERT_NE(row[1], nullptr);
+    EXPECT_EQ(*static_cast<int64_t*>(row[0]), expectedTs[i]);
+    EXPECT_EQ(*static_cast<int32_t*>(row[1]), i + 2);
+  }
+  EXPECT_EQ(taos_fetch_row(result.get()), nullptr);
+  EXPECT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS);
+  result.reset();
+  do_query(taos, "drop database mysql_delete_tz");
+}
+
+TEST(stmt2Case, mysql_datetime_literal_interp_range_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists mysql_range_tz");
+  do_query(taos, "create database mysql_range_tz precision 'ms'");
+  do_query(taos, "create table mysql_range_tz.t (ts timestamp, v int)");
+  do_query(taos, "insert into mysql_range_tz.t values (1704067199000, 10) (1704069000000, 20)");
+  const char* start = "cast(cast(unix_timestamp('2024-01-01 08:00:00') as bigint) * 1000 as timestamp)";
+  const char* end = "cast(cast(unix_timestamp('2024-01-01 09:00:00') as bigint) * 1000 as timestamp)";
+  const std::string ranges[] = {
+      std::string("range(") + start + ")",
+      std::string("range(") + start + "," + end + ") every(1h)",
+      std::string("range(") + start + ",9h)",
+      std::string("range(") + start + "," + end + ",9h) every(1h)",
+  };
+  for (int32_t mode = 0; mode < 4; ++mode) {
+    SCOPED_TRACE(ranges[mode]);
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+    TAOS_STMT2_OPTION option = {};
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt(taos_stmt2_init(taos, &option), taos_stmt2_close);
+    ASSERT_NE(stmt.get(), nullptr);
+    const char* fill = mode >= 2 ? " fill(prev,0)" : " fill(prev)";
+    const std::string sql = "select _irowts,interp(v) from mysql_range_tz.t " + ranges[mode] + fill;
+    ASSERT_EQ(taos_stmt2_prepare(stmt.get(), sql.c_str(), 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+    ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+    ASSERT_EQ(taos_stmt2_exec(stmt.get(), nullptr), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+    TAOS_RES* result = taos_stmt2_result(stmt.get());
+    ASSERT_NE(result, nullptr);
+    ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS) << taos_errstr(result);
+    const int32_t expectedRows = mode % 2 == 0 ? 1 : 2;
+    for (int32_t i = 0; i < expectedRows; ++i) {
+      TAOS_ROW row = taos_fetch_row(result);
+      ASSERT_NE(row, nullptr);
+      ASSERT_NE(row[0], nullptr);
+      ASSERT_NE(row[1], nullptr);
+      EXPECT_EQ(*static_cast<int64_t*>(row[0]), 1704067200000LL + i * 3600000LL);
+      EXPECT_EQ(*static_cast<int32_t*>(row[1]), (i + 1) * 10);
+    }
+    EXPECT_EQ(taos_fetch_row(result), nullptr);
+    EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  }
+  do_query(taos, "drop database mysql_range_tz");
+}
+
+TEST(stmt2Case, mysql_datetime_literal_topic_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop topic if exists mysql_topic_tz");
+  do_query(taos, "drop database if exists mysql_topic_tz");
+  do_query(taos, "create database mysql_topic_tz precision 'ms' vgroups 1");
+  do_query(taos, "create table mysql_topic_tz.t (ts timestamp, v int)");
+  do_query(taos, "insert into mysql_topic_tz.t values (1704067200000, 1)");
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  TAOS_STMT2_OPTION option = {};
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt(taos_stmt2_init(taos, &option), taos_stmt2_close);
+  ASSERT_NE(stmt.get(), nullptr);
+  const char* sql = "create topic mysql_topic_tz as select ts,hour(ts) as h from mysql_topic_tz.t";
+  ASSERT_EQ(taos_stmt2_prepare(stmt.get(), sql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taos_stmt2_exec(stmt.get(), nullptr), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  stmt.reset();
+
+  std::unique_ptr<tmq_conf_t, decltype(&tmq_conf_destroy)> conf(tmq_conf_new(), tmq_conf_destroy);
+  ASSERT_NE(conf.get(), nullptr);
+  ASSERT_EQ(tmq_conf_set(conf.get(), "group.id", "mysql_topic_tz_group"), TMQ_CONF_OK);
+  ASSERT_EQ(tmq_conf_set(conf.get(), "td.connect.user", "root"), TMQ_CONF_OK);
+  ASSERT_EQ(tmq_conf_set(conf.get(), "td.connect.pass", "taosdata"), TMQ_CONF_OK);
+  ASSERT_EQ(tmq_conf_set(conf.get(), "auto.offset.reset", "earliest"), TMQ_CONF_OK);
+  ASSERT_EQ(tmq_conf_set(conf.get(), "experimental.snapshot.enable", "true"), TMQ_CONF_OK);
+  auto closeConsumer = [](tmq_t* consumer) {
+    (void)tmq_unsubscribe(consumer);
+    (void)tmq_consumer_close(consumer);
+  };
+  char error[256] = {};
+  std::unique_ptr<tmq_t, decltype(closeConsumer)> consumer(
+      tmq_consumer_new(conf.get(), error, sizeof(error)), closeConsumer);
+  ASSERT_NE(consumer.get(), nullptr) << error;
+  std::unique_ptr<tmq_list_t, decltype(&tmq_list_destroy)> topics(tmq_list_new(), tmq_list_destroy);
+  ASSERT_NE(topics.get(), nullptr);
+  ASSERT_EQ(tmq_list_append(topics.get(), "mysql_topic_tz"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(tmq_subscribe(consumer.get(), topics.get()), TSDB_CODE_SUCCESS);
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+  int32_t rows = 0;
+  while (rows == 0 && std::chrono::steady_clock::now() < deadline) {
+    std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+        tmq_consumer_poll(consumer.get(), 1000), taos_free_result);
+    if (result == nullptr) continue;
+    ASSERT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS) << taos_errstr(result.get());
+    const tmq_res_t resultType = tmq_get_res_type(result.get());
+    if (resultType == TMQ_RES_TABLE_META) continue;
+    ASSERT_TRUE(resultType == TMQ_RES_DATA || resultType == TMQ_RES_METADATA);
+    TAOS_ROW row = nullptr;
+    // TMQ initializes column metadata when fetching the first data block.
+    while ((row = taos_fetch_row(result.get())) != nullptr) {
+      ASSERT_EQ(taos_field_count(result.get()), 2);
+      ASSERT_NE(row[0], nullptr);
+      ASSERT_NE(row[1], nullptr);
+      EXPECT_EQ(*static_cast<int64_t*>(row[0]), 1704067200000LL);
+      EXPECT_EQ(*static_cast<int64_t*>(row[1]), 8);
+      ++rows;
+    }
+    ASSERT_EQ(taos_errno(result.get()), TSDB_CODE_SUCCESS) << taos_errstr(result.get());
+  }
+  EXPECT_EQ(rows, 1);
+  consumer.reset();
+  do_query(taos, "drop topic mysql_topic_tz");
+  do_query(taos, "drop database mysql_topic_tz");
+}
+
+TEST(stmt2Case, mysql_datetime_literal_external_fill_refreshes_timezone) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> connection(
+      taos_connect("localhost", "root", "taosdata", "", 0), taos_close);
+  TAOS* taos = connection.get();
+  ASSERT_NE(taos, nullptr);
+  do_query(taos, "drop database if exists mysql_external_fill_tz");
+  do_query(taos, "create database mysql_external_fill_tz precision 'ms'");
+  do_query(taos, "create table mysql_external_fill_tz.src (ts timestamp, v int)");
+  do_query(taos, "create table mysql_external_fill_tz.win (ts timestamp, te timestamp)");
+  do_query(taos, "insert into mysql_external_fill_tz.win values (1704067200000, 1704067201000)");
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+  TAOS_STMT2_OPTION option = {};
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmt(taos_stmt2_init(taos, &option), taos_stmt2_close);
+  ASSERT_NE(stmt.get(), nullptr);
+  const char* sql = "select cast(_wstart as bigint),sum(v) from mysql_external_fill_tz.src "
+                    "external_window((select ts,te from mysql_external_fill_tz.win) w) "
+                    "fill(value_f,hour(cast(1704067200000 as timestamp)))";
+  ASSERT_EQ(taos_stmt2_prepare(stmt.get(), sql, 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "Asia/Shanghai"), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(taos_stmt2_exec(stmt.get(), nullptr), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt.get());
+  TAOS_RES* result = taos_stmt2_result(stmt.get());
+  ASSERT_NE(result, nullptr);
+  ASSERT_EQ(taos_errno(result), TSDB_CODE_SUCCESS) << taos_errstr(result);
+  TAOS_ROW row = taos_fetch_row(result);
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  ASSERT_NE(row[1], nullptr);
+  EXPECT_EQ(*static_cast<int64_t*>(row[0]), 1704067200000LL);
+  EXPECT_EQ(*static_cast<int64_t*>(row[1]), 8);
+  EXPECT_EQ(taos_fetch_row(result), nullptr);
+  EXPECT_EQ(taos_errno(result), TSDB_CODE_SUCCESS);
+  stmt.reset();
+  do_query(taos, "drop database mysql_external_fill_tz");
+}
+
 TEST(stmt2Case, query_result_timezone_matches_execution_session) {
   TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 0);
   ASSERT_NE(taos, nullptr);
@@ -11570,6 +11916,167 @@ TEST(stmt2Case, select_decimal_trailing_zeros) {
     ASSERT_EQ(timestamp, testCase.timestamp);
   }
   do_query(taos, "drop database stmt2_decimal_zeros");
+}
+
+TEST(stmt2Case, mysql_datetime_functions_bound_params) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr) << taos_errstr(NULL);
+  std::unique_ptr<TAOS, decltype(&taos_close)> taosGuard(taos, taos_close);
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+
+  do_query(taos, "drop database if exists stmt2_mysql_datetime");
+  do_query(taos, "create database stmt2_mysql_datetime precision 'us'");
+  do_query(taos, "create table stmt2_mysql_datetime.t (ts timestamp, v int)");
+  do_query(taos, "insert into stmt2_mysql_datetime.t values ('2024-02-29 12:34:56.123456', 1)");
+
+  struct Case {
+    const char* name;
+    const char* boundExpression;
+    const char* literalExpression;
+    int         bindType;
+    const char* textValue;
+    int64_t     numberValue;
+    bool        bindPredicate;
+  } cases[] = {
+      {"CURDATE", "case when curdate() = current_date() then 1 else 0 end",
+       "case when 1 = 1 then 1 else 0 end", TSDB_DATA_TYPE_INT, NULL, 1, true},
+      {"CURRENT_DATE", "case when current_date() = curdate() then 1 else 0 end",
+       "case when 1 = 1 then 1 else 0 end", TSDB_DATA_TYPE_INT, NULL, 1, true},
+      {"CURTIME", "case when curtime(3) = current_time(3) then 1 else 0 end",
+       "case when 1 = 1 then 1 else 0 end", TSDB_DATA_TYPE_INT, NULL, 1, true},
+      {"CURRENT_TIME", "case when current_time(3) = curtime(3) then 1 else 0 end",
+       "case when 1 = 1 then 1 else 0 end", TSDB_DATA_TYPE_INT, NULL, 1, true},
+      {"CURRENT_TIMESTAMP", "case when current_timestamp(6) = now() then 1 else 0 end",
+       "case when 1 = 1 then 1 else 0 end", TSDB_DATA_TYPE_INT, NULL, 1, true},
+      {"DATEDIFF", "datediff(?, '2024-02-28')", "datediff('2024-03-01', '2024-02-28')",
+       TSDB_DATA_TYPE_VARCHAR, "2024-03-01", 0, false},
+      {"DATE_FORMAT", "date_format(?, '%Y-%m-%d')", "date_format('2024-02-29', '%Y-%m-%d')",
+       TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"DAY", "day(?)", "day('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"DAYNAME", "dayname(?)", "dayname('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"DAYOFMONTH", "dayofmonth(?)", "dayofmonth('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0,
+       false},
+      {"DAYOFYEAR", "dayofyear(?)", "dayofyear('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"EXTRACT", "extract(YEAR_MONTH from ?)", "extract(YEAR_MONTH from '2024-02-29')", TSDB_DATA_TYPE_VARCHAR,
+       "2024-02-29", 0, false},
+      {"FROM_DAYS", "from_days(?)", "from_days(719528)", TSDB_DATA_TYPE_BIGINT, NULL, 719528, false},
+      {"FROM_UNIXTIME", "from_unixtime(?)", "from_unixtime(1)", TSDB_DATA_TYPE_BIGINT, NULL, 1, false},
+      {"HOUR", "hour(?)", "hour('12:34:56')", TSDB_DATA_TYPE_VARCHAR, "12:34:56", 0, false},
+      {"MICROSECOND", "microsecond(?)", "microsecond('12:34:56.012345')", TSDB_DATA_TYPE_VARCHAR,
+       "12:34:56.012345", 0, false},
+      {"MINUTE", "minute(?)", "minute('12:34:56')", TSDB_DATA_TYPE_VARCHAR, "12:34:56", 0, false},
+      {"MONTH", "month(?)", "month('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"MONTHNAME", "monthname(?)", "monthname('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"QUARTER", "quarter(?)", "quarter('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"SECOND", "second(?)", "second('12:34:56')", TSDB_DATA_TYPE_VARCHAR, "12:34:56", 0, false},
+      {"STR_TO_DATE", "str_to_date(?, '%Y-%m-%d')", "str_to_date('2024-02-29', '%Y-%m-%d')",
+       TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"TO_DAYS", "to_days(?)", "to_days('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"TO_SECONDS", "to_seconds(?)", "to_seconds('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0,
+       false},
+      {"UNIX_TIMESTAMP", "unix_timestamp(?)", "unix_timestamp('2024-02-29 12:34:56.123456')",
+       TSDB_DATA_TYPE_VARCHAR, "2024-02-29 12:34:56.123456", 0, false},
+      {"UNIX_TIMESTAMP_TIMESTAMP", "unix_timestamp(?)", "unix_timestamp(ts)",
+       TSDB_DATA_TYPE_TIMESTAMP, NULL, 1709210096123456LL, false},
+      {"YEAR", "year(?)", "year('2024-02-29')", TSDB_DATA_TYPE_VARCHAR, "2024-02-29", 0, false},
+      {"YEARWEEK", "yearweek(?, 0)", "yearweek('2000-01-01', 0)", TSDB_DATA_TYPE_VARCHAR, "2000-01-01", 0,
+       false},
+  };
+
+  for (const auto& testCase : cases) {
+    SCOPED_TRACE(testCase.name);
+    std::string stmtSql = std::string("select ") + testCase.boundExpression + " from stmt2_mysql_datetime.t where v = " +
+                          (testCase.bindPredicate ? "?" : "1");
+    std::string refSql = std::string("select ") + testCase.literalExpression +
+                         " from stmt2_mysql_datetime.t where v = 1";
+    Stmt2ResultSnapshot expected = {0};
+    ASSERT_TRUE(snapshotTaosQuery(taos, refSql.c_str(), &expected));
+    ASSERT_EQ(expected.rows, 1);
+    ASSERT_EQ(expected.cols, 1);
+    ASSERT_FALSE(expected.cells[0][0].isNull);
+
+    TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+    TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+    ASSERT_NE(stmt, nullptr);
+    std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmtGuard(stmt, taos_stmt2_close);
+    ASSERT_EQ(taos_stmt2_prepare(stmt, stmtSql.c_str(), 0), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+    int32_t         intValue = (int32_t)testCase.numberValue;
+    int64_t         bigintValue = testCase.numberValue;
+    int32_t         length = testCase.bindType == TSDB_DATA_TYPE_VARCHAR
+                                 ? (int32_t)strlen(testCase.textValue)
+                                 : (testCase.bindType == TSDB_DATA_TYPE_INT ? (int32_t)sizeof(intValue)
+                                                                             : (int32_t)sizeof(bigintValue));
+    void*           buffer = testCase.bindType == TSDB_DATA_TYPE_VARCHAR
+                                 ? (void*)const_cast<char*>(testCase.textValue)
+                                 : (testCase.bindType == TSDB_DATA_TYPE_INT ? (void*)&intValue : (void*)&bigintValue);
+    TAOS_STMT2_BIND param = {testCase.bindType, buffer, &length, NULL, 1};
+    TAOS_STMT2_BIND* cols = &param;
+    TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols};
+    Stmt2ResultSnapshot actual = {0};
+    ASSERT_TRUE(snapshotStmt2Query(stmt, &bindv, &actual));
+    expectSnapshotsEqual(expected, actual, testCase.name);
+  }
+
+  do_query(taos, "drop database stmt2_mysql_datetime");
+}
+
+TEST(stmt2Case, mysql_datetime_current_time_at_execute) {
+  TAOS* taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr) << taos_errstr(NULL);
+  std::unique_ptr<TAOS, decltype(&taos_close)> taosGuard(taos, taos_close);
+  ASSERT_EQ(taos_options_connection(taos, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC"), TSDB_CODE_SUCCESS);
+
+  do_query(taos, "drop database if exists stmt2_mysql_clock");
+  do_query(taos, "create database stmt2_mysql_clock precision 'us'");
+  do_query(taos, "create table stmt2_mysql_clock.t (ts timestamp, v int)");
+  do_query(taos, "insert into stmt2_mysql_clock.t values ('2024-02-29 12:34:56', 1)");
+
+  TAOS_STMT2_OPTION option = {0, false, false, NULL, NULL};
+  TAOS_STMT2*       stmt = taos_stmt2_init(taos, &option);
+  ASSERT_NE(stmt, nullptr);
+  std::unique_ptr<TAOS_STMT2, decltype(&taos_stmt2_close)> stmtGuard(stmt, taos_stmt2_close);
+  ASSERT_EQ(taos_stmt2_prepare(stmt,
+                               "select unix_timestamp(), cast(current_timestamp(6) as bigint) "
+                               "from stmt2_mysql_clock.t where v = ?", 0),
+            TSDB_CODE_SUCCESS)
+      << taos_stmt2_error(stmt);
+
+  int32_t         value = 1;
+  int32_t         length = sizeof(value);
+  TAOS_STMT2_BIND param = {TSDB_DATA_TYPE_INT, &value, &length, NULL, 1};
+  TAOS_STMT2_BIND* cols = &param;
+  TAOS_STMT2_BINDV bindv = {1, NULL, NULL, &cols};
+  ASSERT_EQ(taos_stmt2_bind_param(stmt, &bindv, -1), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+
+  Stmt2ResultSnapshot before = {0};
+  ASSERT_TRUE(snapshotTaosQuery(taos, "select unix_timestamp(), cast(current_timestamp(6) as bigint) "
+                                    "from stmt2_mysql_clock.t", &before));
+  taosMsleep(1200);
+  ASSERT_EQ(taos_stmt2_exec(stmt, NULL), TSDB_CODE_SUCCESS) << taos_stmt2_error(stmt);
+  Stmt2ResultSnapshot actual = {0};
+  ASSERT_TRUE(snapshotResult(taos_stmt2_result(stmt), &actual));
+  Stmt2ResultSnapshot after = {0};
+  ASSERT_TRUE(snapshotTaosQuery(taos, "select unix_timestamp(), cast(current_timestamp(6) as bigint) "
+                                    "from stmt2_mysql_clock.t", &after));
+  ASSERT_EQ(actual.rows, 1);
+  ASSERT_EQ(actual.cols, 2);
+  for (int32_t col = 0; col < 2; ++col) {
+    int64_t beforeValue = 0;
+    int64_t actualValue = 0;
+    int64_t afterValue = 0;
+    ASSERT_EQ(before.cells[0][col].length, sizeof(int64_t));
+    ASSERT_EQ(actual.cells[0][col].length, sizeof(int64_t));
+    ASSERT_EQ(after.cells[0][col].length, sizeof(int64_t));
+    memcpy(&beforeValue, before.cells[0][col].data, sizeof(int64_t));
+    memcpy(&actualValue, actual.cells[0][col].data, sizeof(int64_t));
+    memcpy(&afterValue, after.cells[0][col].data, sizeof(int64_t));
+    ASSERT_LT(beforeValue, actualValue);
+    ASSERT_LE(actualValue, afterValue);
+  }
+
+  stmtGuard.reset();
+  do_query(taos, "drop database stmt2_mysql_clock");
 }
 
 #pragma GCC diagnostic pop

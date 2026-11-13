@@ -2277,6 +2277,41 @@ return_timestamp: {
 
 所有返回当前时间的函数，如 NOW、TODAY 和 TIMEZONE，在一条 SQL 语句中不论出现多少次都只会被计算一次。
 
+### MySQL 兼容日期时间函数
+
+以下标量函数从 `v3.4.4.0` 起提供 MySQL 8.0 风格的日期时间计算。格式字符串使用 `%Y-%m-%d` 等 MySQL 格式符；现有 `TO_CHAR` 和 `TO_TIMESTAMP` 的格式规则不变。`date` / `time` 参数接受日期时间文本或 `TIMESTAMP`；`HOUR`、`MINUTE`、`SECOND` 和 `MICROSECOND` 也接受 `[-]HH:MM:SS[.ffffff]` 文本。
+
+| 函数 | 结果 | 返回类型 |
+| --- | --- | --- |
+| `CURDATE()`、`CURRENT_DATE()`、`CURRENT_DATE` | 当前连接时区的日期 | `VARCHAR` |
+| `CURTIME([fsp])`、`CURRENT_TIME([fsp])`、`CURRENT_TIME` | 当前连接时区的时间 | `VARCHAR` |
+| `CURRENT_TIMESTAMP([fsp])`、`CURRENT_TIMESTAMP` | 当前时间戳 | `TIMESTAMP` |
+| `DATEDIFF(expr1, expr2)` | 两个本地日历日期之差，单位为天 | `BIGINT` |
+| `DATE_FORMAT(date, format)` | 按 MySQL 格式符格式化 | `VARCHAR` |
+| `DAY(date)`、`DAYOFMONTH(date)` | 月内日 | `BIGINT` |
+| `DAYNAME(date)` | 英文星期全名 | `VARCHAR` |
+| `DAYOFYEAR(date)` | 年内日 | `BIGINT` |
+| `EXTRACT(unit FROM date)` | 提取单项或组合时间字段 | `BIGINT` |
+| `FROM_DAYS(N)` | 日序号转日期 | `VARCHAR` |
+| `FROM_UNIXTIME(unix_timestamp[, format])` | Unix 秒转连接时区日期时间 | `VARCHAR` |
+| `HOUR(time)`、`MINUTE(time)`、`SECOND(time)`、`MICROSECOND(expr)` | 提取时间字段 | `BIGINT` |
+| `MONTH(date)`、`QUARTER(date)`、`YEAR(date)` | 提取日历字段 | `BIGINT` |
+| `MONTHNAME(date)` | 英文月份全名 | `VARCHAR` |
+| `STR_TO_DATE(str, format)` | 按 MySQL 格式符解析文本 | `VARCHAR` |
+| `TO_DAYS(date)`、`TO_SECONDS(expr)` | 年 0 起的日序号或秒序号 | `BIGINT` |
+| `UNIX_TIMESTAMP([date])` | Unix 秒；文本或带小数输入返回 `DECIMAL(17,6)` | `BIGINT` 或 `DECIMAL(17,6)` |
+| `YEARWEEK(date[, mode])` | 周所属年乘以 100 加周号，`mode` 为 0～7 | `BIGINT` |
+
+`fsp` 是小数秒位数，必须是常量整数 `0`～`6`，默认 `0`。`EXTRACT` 支持 `MICROSECOND`、`SECOND`、`MINUTE`、`HOUR`、`DAY`、`WEEK`、`MONTH`、`QUARTER`、`YEAR`，以及 `SECOND_MICROSECOND`、`MINUTE_MICROSECOND`、`MINUTE_SECOND`、`HOUR_MICROSECOND`、`HOUR_SECOND`、`HOUR_MINUTE`、`DAY_MICROSECOND`、`DAY_SECOND`、`DAY_MINUTE`、`DAY_HOUR`、`YEAR_MONTH`。`DATE_FORMAT` 和 `STR_TO_DATE` 支持 `%a`、`%b`、`%c`、`%D`、`%d`、`%e`、`%f`、`%H`、`%h`、`%I`、`%i`、`%j`、`%k`、`%l`、`%M`、`%m`、`%p`、`%r`、`%S`、`%s`、`%T`、`%U`、`%u`、`%V`、`%v`、`%W`、`%w`、`%X`、`%x`、`%Y` 和 `%y`。`%%` 仅用于输出格式，表示字面 `%`；`STR_TO_DATE` 实际解析到 `%%` 时返回 `NULL`。输入已结束而仅剩 `%p` 时，它不单独增加时间字段，例如 `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` 返回 `2024-02-29`。
+
+合法 TIME 文本超出 `-838:59:59`～`838:59:59` 时截断到同符号边界并清零微秒，例如 `MINUTE('839:00:00')` 返回 `59`；非法分钟或秒仍返回 `NULL`。无效日期时间文本返回 `NULL`；`STR_TO_DATE` 已解析出无效完整日期时也返回 `NULL`。TDengine 尚无独立的 `DATE`、`TIME` 和 `DATETIME` 类型，因此部分结果为文本，数值上下文和客户端类型与 MySQL 不完全一致。星期和月份名称固定为英语；MySQL 的 `sql_mode`、逐行 warning 和 `lc_time_names` 不适用。纯日期文本按日历字段处理，缺省时分秒和微秒为 `0`；例如 `MINUTE('2024-02-29')`、`SECOND('2024-02-29')` 和 `EXTRACT(HOUR_MINUTE FROM '2024-02-29')` 均返回 `0`，不采用 MySQL 将数字前缀 `2024` 解释为 `00:20:24` 的宽松转换。带 `Z` 或偏移的文本按绝对时刻换算到连接时区，与 MySQL 某些函数的宽松文本转换可能不同。`TIMESTAMP` 输入的可表示范围与精度受数据库精度限制；`UNIX_TIMESTAMP` 的动态文本列固定返回 `DECIMAL(17,6)`。
+
+```sql
+SELECT DATEDIFF('2024-03-01', '2024-02-29'), YEARWEEK('2000-01-01');
+SELECT EXTRACT(YEAR_MONTH FROM '2019-07-02'), DATE_FORMAT('2024-02-29', '%W %M %d');
+SELECT STR_TO_DATE('May 1, 2013', '%M %d, %Y'), FROM_UNIXTIME(1.123456);
+```
+
 ### DATE
 
 ```sql

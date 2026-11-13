@@ -3312,6 +3312,17 @@ void doAsyncQuery(SRequestObj *pRequest, EClientMetaRefreshScope refreshScope) {
 
 void taosAsyncExecLiteral(TAOS_STMT2 *stmt) {
   STscStmt2* pStmt = (STscStmt2*)stmt;
+  if (pStmt->ctx.code == TSDB_CODE_SUCCESS) {
+    // Literal prepare retains a syntax tree and parse context until execute.
+    SRequestObj*          pRequest = pStmt->exec.pRequest;
+    SSqlCallbackWrapper*  pWrapper = pRequest->pWrapper;
+    SParseContext*        pParseCtx = pWrapper->pParseCtx;
+    pParseCtx->timezone = pStmt->taos->optionInfo.timezone;
+    pParseCtx->charsetCxt = taosResolveCharsetCxt(pStmt->taos->optionInfo.charsetCxt);
+    pParseCtx->firstDayOfWeek = pStmt->taos->optionInfo.firstDayOfWeek;
+    tstrncpy(pParseCtx->timezoneName, pStmt->taos->optionInfo.timezoneName, sizeof(pParseCtx->timezoneName));
+    stmtRestoreCurrentQueryContext(pRequest->pQuery, pStmt->taos, &pRequest->body.resInfo);
+  }
   doAsyncExec(pStmt->exec.pRequest, pStmt->ctx.code);
 }
 

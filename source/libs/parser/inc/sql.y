@@ -2369,6 +2369,9 @@ column_name(A) ::= REFRESH(B).                                                  
 %type function_name                                                               { SToken }
 %destructor function_name                                                         { }
 function_name(A) ::= NK_ID(B).                                                    { A = B; }
+function_name(A) ::= CURRENT_DATE(B).                                             { A = B; }
+function_name(A) ::= CURRENT_TIME(B).                                             { A = B; }
+function_name(A) ::= CURRENT_TIMESTAMP(B).                                        { A = B; }
 
 %type view_name                                                                   { SToken }
 %destructor view_name                                                             { }
@@ -2540,6 +2543,7 @@ pseudo_column(A) ::= TIDLEEND(B).                                               
 
 function_expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= function_name(B) NK_LP NK_RP(C).                                           { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
+function_expression(A) ::= function_name(B) NK_LP NK_ID(C) FROM expr_or_subquery(D) NK_RP(E).      { A = createRawExprNodeExt(pCxt, &B, &E, createFunctionNode(pCxt, &B, addNodeToList(pCxt, createNodeList(pCxt, createIdentifierValueNode(pCxt, &C)), releaseRawExprNode(pCxt, D)))); }
 function_expression(A) ::= function_name(B) NK_LP DISTINCT expression_list(C) NK_RP(D).              { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP star_func_para_list(C) NK_RP(D).                        { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 function_expression(A) ::= star_func(B) NK_LP DISTINCT star_func_para_list(C) NK_RP(D).               { A = createRawExprNodeExt(pCxt, &B, &D, createDistinctFunctionNode(pCxt, &B, C)); }
@@ -2626,6 +2630,9 @@ sql_window_frame_bound(A) ::= UNBOUNDED FOLLOWING.                              
 literal_func(A) ::= noarg_func(B) NK_LP NK_RP(C).                                 { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= NOW(B).                                                       { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 literal_func(A) ::= TODAY(B).                                                     { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_DATE(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_TIME(B).                                              { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+literal_func(A) ::= CURRENT_TIMESTAMP(B).                                         { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 
 rand_func(A) ::= RAND(B) NK_LP NK_RP(C).                                          { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &B, NULL)); }
 rand_func(A) ::= RAND(B) NK_LP expression_list(C) NK_RP(D).                       { A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
@@ -3532,7 +3539,7 @@ ext_alter_clause(A) ::= SCHEMA NK_EQ NK_ID(B).                                  
 ext_alter_clause(A) ::= OPTIONS NK_LP NK_RP.                                       { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, NULL, NULL); }
 ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                   { A = createAlterExtClause(pCxt, EXT_ALTER_OPTIONS, B, NULL); }
 
-%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT
+%fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP
   FOLLOWING OPEN OVER PRECEDING ROWS UNBOUNDED HOST META VALUE
   EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL

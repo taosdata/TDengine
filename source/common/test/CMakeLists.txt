@@ -15,6 +15,14 @@
 
 MESSAGE(STATUS "build parser unit test")
 
+add_executable(tmysqltimeTest "tmysqltimeTest.c" "../src/tmysqltime.c")
+target_include_directories(
+    tmysqltimeTest PRIVATE
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/os"
+)
+add_test(NAME tmysqltimeTest COMMAND tmysqltimeTest)
+
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 

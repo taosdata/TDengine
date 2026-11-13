@@ -1388,41 +1388,37 @@ int32_t setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32
     return TSDB_CODE_INVALID_PARA;
   }
 
-  pResInfo->numOfCols = numOfCols;
-  if (pResInfo->fields != NULL) {
-    taosMemoryFree(pResInfo->fields);
-  }
-  if (pResInfo->userFields != NULL) {
-    taosMemoryFree(pResInfo->userFields);
-  }
-  pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD_E));
-  if (NULL == pResInfo->fields) return terrno;
-  pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
-  if (NULL == pResInfo->userFields) {
-    taosMemoryFree(pResInfo->fields);
-    return terrno;
-  }
-  if (numOfCols != pResInfo->numOfCols) {
-    tscError("numOfCols:%d != pResInfo->numOfCols:%d", numOfCols, pResInfo->numOfCols);
-    return TSDB_CODE_FAILED;
+  // Preserve the current schema until both replacement arrays are ready.
+  TAOS_FIELD_E* pFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD_E));
+  if (NULL == pFields) return terrno;
+  TAOS_FIELD* pUserFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  if (NULL == pUserFields) {
+    int32_t code = terrno;
+    taosMemoryFree(pFields);
+    return code;
   }
 
-  for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-    pResInfo->fields[i].type = pSchema[i].type;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    pFields[i].type = pSchema[i].type;
 
-    pResInfo->userFields[i].type = pSchema[i].type;
+    pUserFields[i].type = pSchema[i].type;
     // userFields must convert to type bytes, no matter isStmt or not
-    pResInfo->userFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, false);
-    pResInfo->fields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, isStmt);
+    pUserFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, false);
+    pFields[i].bytes = calcTypeBytesFromSchemaBytes(pSchema[i].type, pSchema[i].bytes, isStmt);
     if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP && pExtSchema && pExtSchema[i].typeMod != 0) {
-      pResInfo->fields[i].precision = (uint8_t)(pExtSchema[i].typeMod);
+      pFields[i].precision = (uint8_t)(pExtSchema[i].typeMod);
     } else if (IS_DECIMAL_TYPE(pSchema[i].type) && pExtSchema) {
-      decimalFromTypeMod(pExtSchema[i].typeMod, &pResInfo->fields[i].precision, &pResInfo->fields[i].scale);
+      decimalFromTypeMod(pExtSchema[i].typeMod, &pFields[i].precision, &pFields[i].scale);
     }
 
-    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
-    tstrncpy(pResInfo->userFields[i].name, pSchema[i].name, tListLen(pResInfo->userFields[i].name));
+    tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
+    tstrncpy(pUserFields[i].name, pSchema[i].name, tListLen(pUserFields[i].name));
   }
+  taosMemoryFree(pResInfo->fields);
+  taosMemoryFree(pResInfo->userFields);
+  pResInfo->fields = pFields;
+  pResInfo->userFields = pUserFields;
+  pResInfo->numOfCols = numOfCols;
   return TSDB_CODE_SUCCESS;
 }
 

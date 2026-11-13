@@ -1314,6 +1314,7 @@ typedef struct SQuery {
   int32_t         placeholderNum;
   int8_t          precision;
   bool            haveResultSet;
+  bool            hasMySqlContextFunc;  // Requires the execution-time statement clock or connection timezone.
   bool            showRewrite;
   int8_t          xnodeDsnOutputMode;
   bool            stableQuery;

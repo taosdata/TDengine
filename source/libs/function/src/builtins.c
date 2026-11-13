@@ -31,6 +31,7 @@
 #include "tbase64.h"
 #include "tcompare.h"
 #include "tglobal.h"
+#include "tmysqltime.h"
 #include "ttime.h"
 #include "ttypes.h"
 
@@ -3128,6 +3129,129 @@ static int32_t translateDate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = bytes, .type = TSDB_DATA_TYPE_VARCHAR};
   return TSDB_CODE_SUCCESS;
 }
+
+static bool mysqlTimeStringType(int8_t type) {
+  return type == TSDB_DATA_TYPE_VARCHAR || type == TSDB_DATA_TYPE_BINARY ||
+         type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_NULL;
+}
+
+static bool mysqlTimeUnitValid(const char* unit) {
+  static const char* const units[] = {
+      "MICROSECOND", "SECOND", "MINUTE", "HOUR", "DAY", "WEEK", "MONTH", "QUARTER", "YEAR",
+      "SECOND_MICROSECOND", "MINUTE_MICROSECOND", "MINUTE_SECOND", "HOUR_MICROSECOND",
+      "HOUR_SECOND", "HOUR_MINUTE", "DAY_MICROSECOND", "DAY_SECOND", "DAY_MINUTE",
+      "DAY_HOUR", "YEAR_MONTH"};
+  if (unit == NULL) return false;
+  for (int32_t i = 0; i < (int32_t)(sizeof(units) / sizeof(units[0])); ++i) {
+    if (strcasecmp(unit, units[i]) == 0) return true;
+  }
+  return false;
+}
+
+static int32_t mysqlTimeFormatBytes(SNode* format) {
+  if (nodeType(format) != QUERY_NODE_VALUE) return MYSQL_TIME_MAX_FORMAT_RESULT_BYTES;
+  SValueNode* value = (SValueNode*)format;
+  // A bound format may change on the next execution of a prepared statement.
+  if (value->placeholderNo > 0) return MYSQL_TIME_MAX_FORMAT_RESULT_BYTES;
+  if (value->isNull || value->node.resType.type == TSDB_DATA_TYPE_NULL) return 1;
+  if (value->datum.p == NULL) return MYSQL_TIME_MAX_FORMAT_RESULT_BYTES;
+
+  // Each two format bytes expand to at most eleven result bytes (%r).
+  // NCHAR's UCS-4 storage length also bounds the converted format byte length.
+  int32_t bytes = TMIN(varDataLen(value->datum.p), MYSQL_TIME_MAX_TEXT_BYTES);
+  return TMAX(1, (bytes / 2) * 11 + bytes % 2);
+}
+
+static int32_t translateMySqlTime(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t op = pFunc->funcType - FUNCTION_TYPE_MYSQL_CURDATE;
+  int32_t count = LIST_LENGTH(pFunc->pParameterList);
+  // Share the declared type/arity contract with deserialized-plan validation.
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  for (int32_t i = 0; i < count; ++i) {
+    SNode* arg = nodesListGetNode(pFunc->pParameterList, i);
+    bool valid = true;
+    if (pFunc->funcType == FUNCTION_TYPE_MYSQL_CURTIME ||
+        pFunc->funcType == FUNCTION_TYPE_MYSQL_CURRENT_TIME ||
+        pFunc->funcType == FUNCTION_TYPE_MYSQL_CURRENT_TIMESTAMP) {
+      valid = nodeType(arg) == QUERY_NODE_VALUE &&
+              ((SValueNode*)arg)->datum.i >= 0 && ((SValueNode*)arg)->datum.i <= 6;
+    } else if (pFunc->funcType == FUNCTION_TYPE_MYSQL_EXTRACT && i == 0) {
+      valid = nodeType(arg) == QUERY_NODE_VALUE &&
+              mysqlTimeUnitValid(((SValueNode*)arg)->literal);
+    }
+    if (!valid) return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  int16_t resultType = TSDB_DATA_TYPE_BIGINT;
+  // Maximum content bytes; the variable-length header is added below.
+  int32_t textBytes = 0;
+  switch (pFunc->funcType) {
+    case FUNCTION_TYPE_MYSQL_CURDATE:
+    case FUNCTION_TYPE_MYSQL_CURRENT_DATE:
+    case FUNCTION_TYPE_MYSQL_FROM_DAYS:
+      textBytes = sizeof("YYYY-MM-DD") - 1;
+      break;
+    case FUNCTION_TYPE_MYSQL_CURTIME:
+    case FUNCTION_TYPE_MYSQL_CURRENT_TIME:
+      textBytes = sizeof("HH:MM:SS.ffffff") - 1;
+      break;
+    case FUNCTION_TYPE_MYSQL_DAYNAME:
+    case FUNCTION_TYPE_MYSQL_MONTHNAME:
+      textBytes = sizeof("September") - 1;  // Wednesday has the same maximum length.
+      break;
+    case FUNCTION_TYPE_MYSQL_STR_TO_DATE:
+      textBytes = sizeof("YYYY-MM-DD HH:MM:SS.ffffff") - 1;
+      break;
+    case FUNCTION_TYPE_MYSQL_FROM_UNIXTIME:
+      textBytes = count == 2 ? mysqlTimeFormatBytes(nodesListGetNode(pFunc->pParameterList, 1))
+                             : (int32_t)sizeof("YYYY-MM-DD HH:MM:SS.ffffff") - 1;
+      break;
+    case FUNCTION_TYPE_MYSQL_DATE_FORMAT:
+      textBytes = mysqlTimeFormatBytes(nodesListGetNode(pFunc->pParameterList, 1));
+      break;
+    case FUNCTION_TYPE_MYSQL_CURRENT_TIMESTAMP:
+      resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      break;
+    case FUNCTION_TYPE_MYSQL_UNIX_TIMESTAMP:
+      if (count > 0) {
+        int8_t type = getSDataTypeFromNode(nodesListGetNode(pFunc->pParameterList, 0))->type;
+        if (mysqlTimeStringType(type) || type == TSDB_DATA_TYPE_TIMESTAMP || IS_DECIMAL_TYPE(type)) {
+          resultType = TSDB_DATA_TYPE_DECIMAL;
+        }
+      }
+      break;
+    default:
+      break;
+  }
+  if (textBytes > 0) resultType = TSDB_DATA_TYPE_VARCHAR;
+  uint8_t precision = pFunc->node.resType.precision;
+  FUNC_ERR_RET(addUint8Param(&pFunc->pParameterList, precision));
+  FUNC_ERR_RET(addUint8Param(&pFunc->pParameterList, (uint8_t)op));
+  pFunc->node.resType = (SDataType){.type = resultType,
+                                    .bytes = resultType == TSDB_DATA_TYPE_VARCHAR
+                                                 ? textBytes + VARSTR_HEADER_SIZE
+                                                 : tDataTypes[resultType].bytes,
+                                    .precision = resultType == TSDB_DATA_TYPE_DECIMAL ? 17 : precision,
+                                    .scale = resultType == TSDB_DATA_TYPE_DECIMAL ? 6 : 0};
+  return TSDB_CODE_SUCCESS;
+}
+
+#define MYSQL_TIME_STRING_TYPES \
+  (FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE)
+#define MYSQL_TIME_DATE_TYPES (MYSQL_TIME_STRING_TYPES | FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE)
+#define MYSQL_TIME_NUMBER_TYPES \
+  (FUNC_PARAM_SUPPORT_NUMERIC_TYPE | FUNC_PARAM_SUPPORT_DECIMAL_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE)
+#define MYSQL_TIME_MODE_TYPES (FUNC_PARAM_SUPPORT_INTEGER_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE)
+#define MYSQL_TIME_BUILTIN(funcName, funcType, minArgs, maxArgs, firstTypes, secondTypes) \
+  { .name = funcName, .type = funcType, .classification = FUNC_MGT_SCALAR_FUNC, \
+    .fqPushCap = FQ_CAP_NONE, \
+    .parameters = {.minParamNum = minArgs, .maxParamNum = maxArgs, .paramInfoPattern = 1, \
+                   .inputParaInfo = {{{.startParam = 1, .endParam = 1, .validDataType = firstTypes, \
+                                       .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE}, \
+                                      {.isLastParam = true, .startParam = 2, .endParam = 2, \
+                                       .validDataType = secondTypes, \
+                                       .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE}}}}, \
+    .translateFunc = translateMySqlTime, .sprocessFunc = mysqlTimeFunction }
 
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
@@ -9394,7 +9518,67 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .estimateReturnRowsFunc = derivativeEstReturnRows,
     .processFuncByRow  = streamDerivativeFunctionByRow,
   },
+  // Append new functions: persisted plans store the registry index as funcId.
+  MYSQL_TIME_BUILTIN("curdate", FUNCTION_TYPE_MYSQL_CURDATE, 0, 0,
+                     0, 0),
+  MYSQL_TIME_BUILTIN("current_date", FUNCTION_TYPE_MYSQL_CURRENT_DATE, 0, 0,
+                     0, 0),
+  MYSQL_TIME_BUILTIN("curtime", FUNCTION_TYPE_MYSQL_CURTIME, 0, 1,
+                     FUNC_PARAM_SUPPORT_INTEGER_TYPE, 0),
+  MYSQL_TIME_BUILTIN("current_time", FUNCTION_TYPE_MYSQL_CURRENT_TIME, 0, 1,
+                     FUNC_PARAM_SUPPORT_INTEGER_TYPE, 0),
+  MYSQL_TIME_BUILTIN("current_timestamp", FUNCTION_TYPE_MYSQL_CURRENT_TIMESTAMP, 0, 1,
+                     FUNC_PARAM_SUPPORT_INTEGER_TYPE, 0),
+  MYSQL_TIME_BUILTIN("datediff", FUNCTION_TYPE_MYSQL_DATEDIFF, 2, 2,
+                     MYSQL_TIME_DATE_TYPES, MYSQL_TIME_DATE_TYPES),
+  MYSQL_TIME_BUILTIN("date_format", FUNCTION_TYPE_MYSQL_DATE_FORMAT, 2, 2,
+                     MYSQL_TIME_DATE_TYPES, MYSQL_TIME_STRING_TYPES),
+  MYSQL_TIME_BUILTIN("day", FUNCTION_TYPE_MYSQL_DAY, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("dayname", FUNCTION_TYPE_MYSQL_DAYNAME, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("dayofmonth", FUNCTION_TYPE_MYSQL_DAYOFMONTH, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("dayofyear", FUNCTION_TYPE_MYSQL_DAYOFYEAR, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("extract", FUNCTION_TYPE_MYSQL_EXTRACT, 2, 2,
+                     MYSQL_TIME_STRING_TYPES, MYSQL_TIME_DATE_TYPES),
+  MYSQL_TIME_BUILTIN("from_days", FUNCTION_TYPE_MYSQL_FROM_DAYS, 1, 1,
+                     MYSQL_TIME_NUMBER_TYPES, 0),
+  MYSQL_TIME_BUILTIN("from_unixtime", FUNCTION_TYPE_MYSQL_FROM_UNIXTIME, 1, 2,
+                     MYSQL_TIME_NUMBER_TYPES, MYSQL_TIME_STRING_TYPES),
+  MYSQL_TIME_BUILTIN("hour", FUNCTION_TYPE_MYSQL_HOUR, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("microsecond", FUNCTION_TYPE_MYSQL_MICROSECOND, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("minute", FUNCTION_TYPE_MYSQL_MINUTE, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("month", FUNCTION_TYPE_MYSQL_MONTH, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("monthname", FUNCTION_TYPE_MYSQL_MONTHNAME, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("quarter", FUNCTION_TYPE_MYSQL_QUARTER, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("second", FUNCTION_TYPE_MYSQL_SECOND, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("str_to_date", FUNCTION_TYPE_MYSQL_STR_TO_DATE, 2, 2,
+                     MYSQL_TIME_STRING_TYPES, MYSQL_TIME_STRING_TYPES),
+  MYSQL_TIME_BUILTIN("to_days", FUNCTION_TYPE_MYSQL_TO_DAYS, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("to_seconds", FUNCTION_TYPE_MYSQL_TO_SECONDS, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("unix_timestamp", FUNCTION_TYPE_MYSQL_UNIX_TIMESTAMP, 0, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("year", FUNCTION_TYPE_MYSQL_YEAR, 1, 1,
+                     MYSQL_TIME_DATE_TYPES, 0),
+  MYSQL_TIME_BUILTIN("yearweek", FUNCTION_TYPE_MYSQL_YEARWEEK, 1, 2,
+                     MYSQL_TIME_DATE_TYPES, MYSQL_TIME_MODE_TYPES),
 };
 // clang-format on
+#undef MYSQL_TIME_BUILTIN
+#undef MYSQL_TIME_STRING_TYPES
+#undef MYSQL_TIME_DATE_TYPES
+#undef MYSQL_TIME_NUMBER_TYPES
+#undef MYSQL_TIME_MODE_TYPES
 
 const int32_t funcMgtBuiltinsNum = (sizeof(funcMgtBuiltins) / sizeof(SBuiltinFuncDefinition));

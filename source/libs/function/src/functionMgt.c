@@ -239,6 +239,26 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateMySqlTimeRuntimeContext(const SFunctionNode* pFunc) {
+  int32_t count = LIST_LENGTH(pFunc->pParameterList);
+  if (count < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  const int8_t types[] = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  for (int32_t i = 0; i < 3; ++i) {
+    SNode* node = nodesListGetNode(pFunc->pParameterList, count - 3 + i);
+    if (node == NULL || nodeType(node) != QUERY_NODE_VALUE) return TSDB_CODE_QRY_INVALID_INPUT;
+    SValueNode* value = (SValueNode*)node;
+    if (value->node.resType.type != types[i] || value->isNull) return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    if (i == 0 && (value->datum.i < TSDB_TIME_PRECISION_MILLI || value->datum.i > TSDB_TIME_PRECISION_NANO)) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+    // The shared callback dispatches on this value, so it must match the validated function ID.
+    if (i == 1 && value->datum.i != funcMgtBuiltins[pFunc->funcId].type - FUNCTION_TYPE_MYSQL_CURDATE) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_VALUE;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pFunc != NULL && fmIsUserDefinedFunc(pFunc->funcId)) {
     return TSDB_CODE_SUCCESS;
@@ -257,6 +277,10 @@ int32_t fmValidateFuncNode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
                            pFunc == NULL ? -1 : pFunc->funcId, name));
     }
     return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  int32_t funcType = funcMgtBuiltins[pFunc->funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    return validateMySqlTimeRuntimeContext(pFunc);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -284,7 +308,18 @@ int32_t fmValidateFuncInputTypes(int32_t funcId, const int8_t* pTypes, int32_t n
     return TSDB_CODE_SUCCESS;
   }
 
-  switch (funcMgtBuiltins[funcId].type) {
+  int32_t funcType = funcMgtBuiltins[funcId].type;
+  if (funcType >= FUNCTION_TYPE_MYSQL_CURDATE && funcType <= FUNCTION_TYPE_MYSQL_YEARWEEK) {
+    if (numOfParams < 3) return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+    if (pTypes[numOfParams - 3] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 2] != TSDB_DATA_TYPE_TINYINT ||
+        pTypes[numOfParams - 1] != TSDB_DATA_TYPE_BIGINT) {
+      return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+    }
+    return validateBuiltinFuncInputTypes(funcId, pTypes, numOfParams - 3);
+  }
+
+  switch (funcType) {
     case FUNCTION_TYPE_CAST:
     case FUNCTION_TYPE_IRATE:
     case FUNCTION_TYPE_IRATE_MERGE:
