@@ -283,6 +283,7 @@ The configuration parameters in properties are as follows:
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]:
   - Native connections: Client time zone, default value is the current system time zone. Effective globally. Due to historical reasons, we only support part of the POSIX standard, such as UTC-8 (representing Shanghai, China), GMT-8, Asia/Shanghai.
   - WebSocket connections: Client time zone, default value is the current system time zone. Effective on the connection. Only IANA time zones are supported, such as Asia/Shanghai. It is recommended not to set this parameter, as using the system time zone provides better performance. After the connection is established, the time zone can also be changed at runtime via the `setTimezone` interface; see `Set Time Zone` below.
+  - Connection timezones on Windows require a TDengine `v3.5.0` or later native client library.
 
 ---
 

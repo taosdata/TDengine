@@ -237,7 +237,7 @@ class TestAlterConfig:
             tdSql.error(
                 sql,
                 expectedErrno=0x26B2,
-                expectErrInfo="Invalid timezone: UTF-8",
+                expectErrInfo="Invalid or unsupported timezone: UTF-8",
                 fullMatched=False,
             )
 

@@ -32,6 +32,7 @@ Labels: common
 """
 
 import time
+from taos.tmq import Consumer
 
 from new_test_framework.utils import tdLog, tdSql, tdStream
 
@@ -57,6 +58,7 @@ class TestStreamDistinctExternalWindow:
 
     @classmethod
     def teardown_class(cls):
+        tdSql.execute("drop topic if exists sdw_distinct_topic")
         for s in ("sdw_count", "sdw_multi"):
             tdSql.execute(f"drop stream if exists sdw_src.{s}")
         tdSql.execute("drop database if exists sdw_src")
@@ -194,9 +196,9 @@ class TestStreamDistinctExternalWindow:
             f"stream distinct disagrees with batch: stream={got}, batch={expected}"
 
     def test_stream_multiple_distinct_aggregates(self):
-        """Two DISTINCT aggregates on different columns in one stream window
+        """COUNT, SUM and AVG DISTINCT on one column in a stream window
 
-        Verifies stream multiple distinct aggregates.
+        Verifies multiple DISTINCT aggregates, NULL exclusion and plain COUNT.
 
         Catalog:
             - Stream:SubQuery:Distinct
@@ -210,21 +212,23 @@ class TestStreamDistinctExternalWindow:
         History:
             - 2026-09-01 Jin Minglei Created
         """
-        tdLog.info("stream count(distinct) + sum(distinct) in the same window")
+        tdLog.info("stream count/sum/avg(distinct) in the same window")
 
         # Each window holds one set per DISTINCT aggregate per result row, so this is the shape that
         # multiplied the leak. Values {1,1,2}: count(distinct)=2, sum(distinct)=3.
         b = self.BASE + 100000
         tdSql.execute(
             f"insert into sdw_src.t1 values "
-            f"({b}, 'V1', 1),({b + 1000}, 'V1', 1),({b + 2000}, 'V2', 2)"
+            f"({b}, 'V1', 1),({b + 1000}, 'V1', 1),"
+            f"({b + 2000}, 'V2', 2),({b + 3000}, 'VN', NULL)"
         )
 
         tdSql.execute(
             "create stream sdw_src.sdw_multi interval(10s) sliding(2s) "
             "from sdw_src.stb partition by tbname into sdw_out.r_multi as "
-            "select ts, cnt, total, plain from ("
+            "select ts, cnt, total, mean, plain from ("
             "  select _twstart as ts, count(distinct v) as cnt, sum(distinct v) as total, "
+            "         avg(distinct v) as mean, "
             "         count(*) as plain "
             "  from %%tbname where _c0 >= _twstart and _c0 < _twend"
             ")"
@@ -242,16 +246,53 @@ class TestStreamDistinctExternalWindow:
         # Derive the expectation from the equivalent batch query for the same range rather than
         # hardcoding it -- the window covers whichever rows fall in [b+2000, b+12000).
         tdSql.query(
-            "select count(*), count(distinct v), sum(distinct v) from sdw_src.t1 "
+            "select count(*), count(distinct v), sum(distinct v), avg(distinct v) from sdw_src.t1 "
             f"where ts >= {b + 2000} and ts < {b + 12000}"
         )
-        exp_plain, exp_cnt, exp_total = tdSql.queryResult[0]
+        exp_plain, exp_cnt, exp_total, exp_mean = tdSql.queryResult[0]
+        assert (exp_plain, exp_cnt, exp_total, float(exp_mean)) == (4, 2, 11, 5.5), \
+            (exp_plain, exp_cnt, exp_total, exp_mean)
 
-        rows = self._wait_window_row("sdw_out.r_multi", b + 2000, "t1", "cnt, total, plain")
+        rows = self._wait_window_row("sdw_out.r_multi", b + 2000, "t1", "cnt, total, mean, plain")
         assert len(rows) == 1, f"expected one row for the closed window, got {len(rows)}"
-        cnt, total, plain = rows[0]
+        cnt, total, mean, plain = rows[0]
         # count(*) must still see every row -- the DISTINCT sets must not filter the shared input.
         assert plain == exp_plain, f"count(*): stream={plain}, batch={exp_plain}"
         assert cnt == exp_cnt, f"count(distinct v): stream={cnt}, batch={exp_cnt}"
         assert float(total) == float(exp_total), \
             f"sum(distinct v): stream={total}, batch={exp_total}"
+        assert float(mean) == float(exp_mean), \
+            f"avg(distinct v): stream={mean}, batch={exp_mean}"
+
+        tdSql.execute(
+            "create topic sdw_distinct_topic as "
+            "select ts, cnt, total, mean, plain from sdw_out.r_multi"
+        )
+        consumer = Consumer({
+            "group.id": "sdw_distinct_external_snapshot",
+            "td.connect.user": "root",
+            "td.connect.pass": "taosdata",
+            "auto.offset.reset": "earliest",
+            "experimental.snapshot.enable": "true",
+        })
+        try:
+            consumer.subscribe(["sdw_distinct_topic"])
+            found = False
+            deadline = time.monotonic() + 30
+            while time.monotonic() < deadline and not found:
+                msg = consumer.poll(1)
+                if msg is None:
+                    continue
+                assert msg.error() is None, msg.error()
+                blocks = msg.value()
+                if blocks:
+                    for block in blocks:
+                        found = found or any(
+                            row[1] == exp_cnt and row[2] == exp_total
+                            and float(row[3]) == float(exp_mean)
+                            and row[4] == exp_plain for row in block.fetchall()
+                        )
+            assert found, "EXTERNAL stream DISTINCT result missing from topic snapshot"
+        finally:
+            consumer.close()
+            tdSql.execute("drop topic if exists sdw_distinct_topic")

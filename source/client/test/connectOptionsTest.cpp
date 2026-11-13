@@ -16,10 +16,18 @@
  */
 
 #include <gtest/gtest.h>
+#include <cstdlib>
+#include <cstdio>
 #include <iostream>
+#include <thread>
+#include <vector>
+#include "os.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
+#include "ttime.h"
+#include "tref.h"
+#include "tlog.h"
 #include <time.h>
 #include <osSleep.h> 
 
@@ -36,26 +44,368 @@
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
 
-  // Line-buffer stdout so every diagnostic printf below is flushed immediately.
+  // Disable buffering so every diagnostic printf below is flushed immediately.
   // Without this, stdout is fully block-buffered when redirected to a log file;
   // a failed ASSERT aborts the process via SIGABRT before the buffer is flushed,
   // losing the very printf that identifies which SQL/assertion failed.
-  setvbuf(stdout, nullptr, _IOLBF, 0);
+  setvbuf(stdout, nullptr, _IONBF, 0);
+
+  const char* testConfigDir = std::getenv("TAOS_TEST_CONFIG_DIR");
+  if (testConfigDir != nullptr && testConfigDir[0] != '\0') {
+    taos_options(TSDB_OPTION_CONFIGDIR, testConfigDir);
+  }
 
   return RUN_ALL_TESTS();
 }
 
-TAOS* getConnWithGlobalOption(const char *tz){
+#ifndef TD_ASTRA
+class SessionTimezoneTest : public ::testing::Test {
+ protected:
+  std::string original;
+
+  void SetUp() override {
+    ASSERT_EQ(taos_init(), 0);
+    original.assign(tsTimezoneStr, strcspn(tsTimezoneStr, " "));
+    ASSERT_EQ(taos_options(TSDB_OPTION_TIMEZONE, "UTC"), 0);
+  }
+
+  void TearDown() override { EXPECT_EQ(taos_options(TSDB_OPTION_TIMEZONE, original.c_str()), 0); }
+};
+
+TEST_F(SessionTimezoneTest, DefaultSnapshotAndClear) {
+  STscObj first = {};
+  STscObj second = {};
+  ASSERT_EQ(tscInitSessionTimezone(&first), 0);
+  ASSERT_NE(first.optionInfo.timezone, nullptr);
+  EXPECT_FALSE(first.optionInfo.timezoneExplicit);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "UTC");
+  ASSERT_EQ(taos_options(TSDB_OPTION_TIMEZONE, "Asia/Shanghai"), 0);
+  ASSERT_EQ(tscInitSessionTimezone(&second), 0);
+  EXPECT_STREQ(second.optionInfo.timezoneName, "Asia/Shanghai");
+  EXPECT_NE(first.optionInfo.timezone, second.optionInfo.timezone);
+  int64_t offset = 1;
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, first.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, 0);
+  ASSERT_EQ(tscSetSessionTimezone(&first, "America/New_York", true), 0);
+  timezone_t previous = first.optionInfo.timezone;
+  EXPECT_NE(tscSetSessionTimezone(&first, "No/Such_Zone", true), 0);
+  EXPECT_EQ(first.optionInfo.timezone, previous);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "America/New_York");
+  EXPECT_TRUE(first.optionInfo.timezoneExplicit);
+  ASSERT_EQ(tscSetSessionTimezone(&first, nullptr, false), 0);
+  EXPECT_EQ(first.optionInfo.timezone, nullptr);
+  EXPECT_STREQ(first.optionInfo.timezoneName, "");
+  EXPECT_FALSE(first.optionInfo.timezoneExplicit);
+  // Old requests still borrow the previous rule after a switch or CLEAR.
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, previous, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+}
+
+TEST_F(SessionTimezoneTest, ConcurrentCacheKeepsRulesAndNames) {
+  std::vector<SPreparedTimezone> prepared(16);
+  std::vector<int32_t>           codes(16);
+  std::vector<std::thread>       threads;
+  for (size_t i = 0; i < prepared.size(); ++i) {
+    threads.emplace_back([&, i]() { codes[i] = tscPrepareSessionTimezone("America/Anchorage", true, &prepared[i]); });
+  }
+  for (auto& thread : threads) thread.join();
+  for (size_t i = 0; i < prepared.size(); ++i) {
+    ASSERT_EQ(codes[i], 0);
+    ASSERT_NE(prepared[i].timezone, nullptr);
+    EXPECT_EQ(prepared[i].timezone, prepared[0].timezone);
+    EXPECT_NE(taosHashGet(static_cast<SHashObj*>(pTimezoneNameMap), &prepared[i].timezone, sizeof(timezone_t)), nullptr);
+    int64_t offset = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1705320000, prepared[i].timezone, &offset), 0);
+    EXPECT_EQ(offset, -9 * 3600);
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1721044800, prepared[i].timezone, &offset), 0);
+    EXPECT_EQ(offset, -8 * 3600);
+  }
+}
+
+#ifdef WINDOWS
+static int checkUnsupportedTimezoneAtConnect(const char* rule) {
+  char temporary[MAX_PATH] = {0};
+  char directory[MAX_PATH] = {0};
+  DWORD size = GetTempPathA(sizeof(temporary), temporary);
+  if (size == 0 || size >= sizeof(temporary) ||
+      GetTempFileNameA(temporary, "tzc", 0, directory) == 0 ||
+      !DeleteFileA(directory) || !CreateDirectoryA(directory, nullptr)) {
+    return 1;
+  }
+  for (char* p = directory; *p != 0; ++p) {
+    if (*p == '\\') *p = '/';
+  }
+  std::string configPath = std::string(directory) + "/taos.cfg";
+  std::string config = std::string("logDir @") + directory +
+      "@\ntempDir @" + directory + "@\n";
+  TdFilePtr file = taosOpenFile(configPath.c_str(),
+                               TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (file == nullptr) {
+    taosRemoveDir(directory);
+    return 1;
+  }
+  int64_t written = taosWriteFile(file, config.data(), config.size());
+  (void)taosCloseFile(&file);
+  if (written != static_cast<int64_t>(config.size()) ||
+      taos_options(TSDB_OPTION_CONFIGDIR, directory) != 0 ||
+      !SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, nullptr) ||
+      !SetEnvironmentVariableA("TZ", rule)) {
+    taosRemoveDir(directory);
+    return 1;
+  }
+
+  // Windows death tests start a new process before client initialization.
+  TAOS* connection = taos_connect("127.0.0.1", "root", "taosdata", nullptr, 1);
+  int32_t code = taos_errno(nullptr);
+  std::string message = taos_errstr(nullptr);
+  std::string expected = "Invalid or unsupported timezone: '";
+  expected += rule;
+  expected += "'";
+  fprintf(stderr, "%s\n", message.c_str());
+  bool rejected = connection == nullptr &&
+      code == TSDB_CODE_PAR_INVALID_TIMEZONE && message == expected;
+  if (connection != nullptr) taos_close(connection);
+  taosCloseLog();
+  taosRemoveDir(directory);
+  return rejected ? 0 : 1;
+}
+
+TEST(SessionTimezoneDeathTest, RejectsInheritedPosixDstAtConnect) {
+  EXPECT_EXIT(std::_Exit(checkUnsupportedTimezoneAtConnect(
+                  "EST5EDT,M3.2.0,M11.1.0")),
+              ::testing::ExitedWithCode(0), "Invalid or unsupported timezone");
+}
+
+TEST(SessionTimezoneDeathTest, RejectsInheritedLowercaseAliasAtConnect) {
+  EXPECT_EXIT(std::_Exit(checkUnsupportedTimezoneAtConnect("est5edt")),
+              ::testing::ExitedWithCode(0), "Invalid or unsupported timezone");
+}
+
+class ScopedInheritedTimezone {
+ public:
+  ScopedInheritedTimezone() {
+    DWORD size = GetEnvironmentVariableA("TZ", nullptr, 0);
+    if (size > 0) {
+      original.resize(size);
+      DWORD length = GetEnvironmentVariableA("TZ", &original[0], size);
+      EXPECT_LT(length, size);
+      original.resize(length < size ? length : 0);
+    }
+  }
+
+  ~ScopedInheritedTimezone() {
+    EXPECT_TRUE(SetEnvironmentVariableA("TZ", original.empty() ? nullptr :
+                                             original.c_str()));
+  }
+
+  bool set(const char* rule) {
+    return SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, nullptr) &&
+           SetEnvironmentVariableA("TZ", rule);
+  }
+
+ private:
+  std::string original;
+};
+
+static const char* const unsupportedInheritedTimezones[] = {
+    "EST5EDT,M3.2.0,M11.1.0",
+    "EST5EDT,M3.2.0/2,M11.1.0/2",
+    "EST5EDT",
+    "est5edt",
+    "UTC8EDT",
+    "STD-0:00:30DST-0:00:30,M3.2.0,M11.1.0",
+    "STD-15DST-15,M3.2.0,M11.1.0",
+    "No/Such_Zone"};
+
+TEST_F(SessionTimezoneTest, UnsupportedInheritedDefaultRejected) {
+  ScopedInheritedTimezone environment;
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    STscObj connection = {};
+    taosClearErrMsg();
+    EXPECT_EQ(tscInitSessionTimezone(&connection),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+    EXPECT_EQ(connection.optionInfo.timezone, nullptr);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "");
+    EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+
+    SPreparedTimezone prepared = {};
+    EXPECT_EQ(tscPrepareSessionTimezone(rule, true, &prepared),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(prepared.timezone, nullptr);
+  }
+}
+
+TEST_F(SessionTimezoneTest, UnsupportedDefaultKeepsPreviousSnapshot) {
+  ScopedInheritedTimezone environment;
+  STscObj connection = {};
+  ASSERT_EQ(tscSetSessionTimezone(&connection, "America/New_York", true), 0);
+  timezone_t original = connection.optionInfo.timezone;
+  ASSERT_NE(original, nullptr);
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    EXPECT_EQ(tscInitSessionTimezone(&connection),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection.optionInfo.timezone, original);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "America/New_York");
+    EXPECT_TRUE(connection.optionInfo.timezoneExplicit);
+  }
+}
+
+TEST_F(SessionTimezoneTest, UnsupportedDefaultRejectsNewConnection) {
+  ScopedInheritedTimezone environment;
+  SAppHbMgr heartbeat = {};
+  SAppInstInfo app = {};
+  app.pAppHbMgr = &heartbeat;
+  char auth[TSDB_PASSWORD_LEN] = {0};
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    STscObj* connection = nullptr;
+    EXPECT_EQ(createTscObj("root", auth, nullptr, CONN_TYPE__QUERY, &app,
+                           &connection), TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection, nullptr);
+    EXPECT_EQ(app.numOfConns, 0);
+  }
+}
+
+TEST_F(SessionTimezoneTest, FailedClearPreservesConnectionOptions) {
+  struct RefPool {
+    int32_t original = clientConnRefPool;
+    int32_t temporary = taosOpenRef(8, [](void*) {});
+    ~RefPool() {
+      clientConnRefPool = original;
+      if (temporary > 0) taosCloseRef(temporary);
+    }
+  } pool;
+  ASSERT_GT(pool.temporary, 0);
+  clientConnRefPool = pool.temporary;
+  ScopedInheritedTimezone environment;
+  STscObj connection = {};
+  ASSERT_EQ(tscSetSessionTimezone(&connection, "America/New_York", true), 0);
+  connection.id = taosAddRef(pool.temporary, &connection);
+  ASSERT_GT(connection.id, 0);
+  timezone_t original = connection.optionInfo.timezone;
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+  connection.optionInfo.charsetCxt = &connection;
+#endif
+  tstrncpy(connection.optionInfo.userApp, "test-clear",
+           sizeof(connection.optionInfo.userApp));
+  for (const char* rule : unsupportedInheritedTimezones) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    EXPECT_EQ(taos_options_connection((TAOS*)&connection.id,
+                                      TSDB_OPTION_CONNECTION_CLEAR, nullptr),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    EXPECT_EQ(connection.optionInfo.timezone, original);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, "America/New_York");
+    EXPECT_TRUE(connection.optionInfo.timezoneExplicit);
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+    EXPECT_EQ(connection.optionInfo.charsetCxt, &connection);
+#endif
+    EXPECT_STREQ(connection.optionInfo.userApp, "test-clear");
+  }
+  ASSERT_TRUE(environment.set("UTC"));
+  ASSERT_EQ(taos_options_connection((TAOS*)&connection.id,
+                                    TSDB_OPTION_CONNECTION_CLEAR, nullptr), 0);
+  EXPECT_STREQ(connection.optionInfo.timezoneName, "UTC");
+  EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+  EXPECT_EQ(connection.optionInfo.charsetCxt, nullptr);
+#endif
+  EXPECT_STREQ(connection.optionInfo.userApp, "");
+}
+
+TEST_F(SessionTimezoneTest, InvalidInheritedDefaultRejectsInitialization) {
+  ScopedInheritedTimezone environment;
+  const char* rules[] = {"EST5EDT,M3.2.0,M11.1.0",
+                        "EST5EDT,M3.2.0/2,M11.1.0/2", "No/Such_Zone"};
+  for (const char* rule : rules) {
+    SCOPED_TRACE(rule);
+    ASSERT_TRUE(environment.set(rule));
+    taosClearErrMsg();
+    EXPECT_EQ(initTimezoneInfo(), TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+  }
+  std::string oversized(TD_TIMEZONE_LEN * 4, 'a');
+  ASSERT_TRUE(environment.set(oversized.c_str()));
+  EXPECT_EQ(initTimezoneInfo(), TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_STREQ(terrMsg, "Invalid or unsupported timezone: TZ is too long");
+  STscObj connection = {};
+  EXPECT_EQ(tscInitSessionTimezone(&connection),
+            TSDB_CODE_PAR_INVALID_TIMEZONE);
+  EXPECT_EQ(connection.optionInfo.timezone, nullptr);
+}
+
+TEST_F(SessionTimezoneTest, SupportedInheritedDefaultKeepsRules) {
+  ScopedInheritedTimezone environment;
+  struct Case {
+    const char* name;
+    int64_t winter;
+    int64_t summer;
+  } cases[] = {{"UTC", 0, 0},
+               {"UTC-5:30", 19800, 19800},
+               {"America/New_York", -18000, -14400}};
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.name);
+    ASSERT_TRUE(environment.set(test.name));
+    STscObj connection = {};
+    ASSERT_EQ(tscInitSessionTimezone(&connection), 0);
+    EXPECT_STREQ(connection.optionInfo.timezoneName, test.name);
+    EXPECT_FALSE(connection.optionInfo.timezoneExplicit);
+    int64_t offset = 0;
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(
+                  1705320000, connection.optionInfo.timezone, &offset), 0);
+    EXPECT_EQ(offset, test.winter);
+    ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(
+                  1721044800, connection.optionInfo.timezone, &offset), 0);
+    EXPECT_EQ(offset, test.summer);
+  }
+}
+
+TEST_F(SessionTimezoneTest, SnapshotUsesFullSystemRule) {
+  const char* rule = "STD5:00:00DST4:00:00,M3.2.0/02:00:00,M11.1.0/02:00:00";
+  ASSERT_EQ(taosSetGlobalTimezone(rule), 0);
+  STscObj connection = {};
+  ASSERT_EQ(tscInitSessionTimezone(&connection), 0);
+  EXPECT_STREQ(connection.optionInfo.timezoneName, rule);
+  EXPECT_NE(taosHashGet(static_cast<SHashObj*>(pTimezoneNameMap), &connection.optionInfo.timezone, sizeof(timezone_t)), nullptr);
+  ASSERT_EQ(taosSetGlobalTimezone("UTC"), 0);
+  int64_t offset = 0;
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710053999, connection.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, -5 * 3600);
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, connection.optionInfo.timezone, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+  // The name sent in plans must recreate the same full rules.
+  timezone_t decoded = nullptr;
+  ASSERT_EQ(taosValidateTimezone(connection.optionInfo.timezoneName, &decoded), 0);
+  ASSERT_EQ(taosGetTimezoneOffsetAtSeconds(1710054000, decoded, &offset), 0);
+  EXPECT_EQ(offset, -4 * 3600);
+  tzfree(decoded);
+}
+#endif
+#endif
+
+TAOS* getConnWithGlobalOption(const char* tz) {
   int code = taos_options(TSDB_OPTION_TIMEZONE, tz);
   if (code != 0) return nullptr;
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   return pConn;
 }
 
-TAOS* getConnWithOption(const char *tz){
+TAOS* getConnWithOption(const char* tz) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == nullptr) return nullptr;
-  if (tz != NULL){
+  if (tz != NULL) {
     int code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, tz);
     if (code != 0) {
       taos_close(pConn);
@@ -283,7 +633,6 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, false);
 
-#ifndef WINDOWS
   // test timezone
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "");
   ASSERT(code == 0);
@@ -292,7 +641,7 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, NULL);
   ASSERT(code == 0);
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "UTC");
@@ -307,7 +656,6 @@ TEST(connectionCase, setConnectionOption_Test) {
 
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_TIMEZONE, "adbc");
   ASSERT(code != 0);  // invalid timezone is not allowed anymore
-#endif
 
   // test user APP
   code = taos_options_connection(pConn, TSDB_OPTION_CONNECTION_USER_APP, "");
@@ -409,10 +757,8 @@ TEST(connectionCase, setConnectionOption_Test) {
   ASSERT(code == 0);
   CHECK_TAOS_OPTION_POINTER(pConn, charsetCxt, true);
 
-#ifndef WINDOWS
-  CHECK_TAOS_OPTION_POINTER(pConn, timezone, true);
+  CHECK_TAOS_OPTION_POINTER(pConn, timezone, false);
   check_sql_result(pConn, "select timezone()", "Asia/Shanghai (CST, +0800)");
-#endif
 
   CHECK_TAOS_OPTION_APP(pConn, userApp, "");
   CHECK_TAOS_OPTION_IP_ERROR(pConn, userIp, INADDR_NONE);

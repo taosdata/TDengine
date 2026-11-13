@@ -17,20 +17,25 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstring>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "builtins.h"
 #include "builtinsimpl.h"
+#include "decimal.h"
 #include "functionMgt.h"
 #include "functionMgtInt.h"
 #include "functionResInfoInt.h"
 #include "nodes.h"
 #include "osEnv.h"
+#include "osTimezone.h"
 #include "tdatablock.h"
 #include "tudf.h"
 #include "tudfInt.h"
+#include "tvariant.h"
 #ifndef _WIN32
 #include "stub.h"
 #endif
@@ -93,6 +98,18 @@ class ScopedTimezoneDisplay {
 
  private:
   char original_[TD_TIMEZONE_LEN] = {0};
+};
+
+class ScopedMissingTimezoneNameMap {
+ public:
+  ScopedMissingTimezoneNameMap() : original_(pTimezoneNameMap) {
+    pTimezoneNameMap = nullptr;
+  }
+
+  ~ScopedMissingTimezoneNameMap() { pTimezoneNameMap = original_; }
+
+ private:
+  void* original_;
 };
 
 SFunctionNode* createFunctionNode(const char* functionName,
@@ -943,17 +960,63 @@ TEST(FunctionMgtTest, injectsPosixTimezoneOffsetForToCharFallback) {
   }
 }
 
+TEST(FunctionMgtTest, keepsSessionTimezoneForToCharWithoutNameMap) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  ScopedMissingTimezoneNameMap missingNameMap;
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  struct {
+    const char* sessionName;
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"America/New_York", "System (UTC, +0800)", "America/New_York"},
+      {"UTC-8", "System (UTC, +0000)", "UTC-8"},
+      {"UTC+5:30", "System (UTC, +0000)", "UTC+5:30"},
+      {"+08:00", "System (UTC, -0800)", "+0800"},
+      {"-05", "System (UTC, +0500)", "-0500"},
+      {"Z", "System (UTC, +0000)", "Z"},
+      {"z", "System (UTC, +0000)", "z"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.sessionName);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode* pFunc =
+        createFunctionNode("to_char", parameterTypes, 2);
+    ASSERT_NE(nullptr, pFunc);
+    auto functionGuard =
+        std::unique_ptr<SNode, decltype(&nodesDestroyNode)>((SNode*)pFunc,
+                                                            nodesDestroyNode);
+    tstrncpy(pFunc->tzName, testCase.sessionName, sizeof(pFunc->tzName));
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(3, LIST_LENGTH(pFunc->pParameterList));
+    SValueNode* pTimezone =
+        (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+  }
+}
+
 TEST(FunctionMgtTest, keepsIsoTimezoneOffsetForToIso8601Fallback) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  ScopedMissingTimezoneNameMap missingNameMap;
 
   const int8_t parameterTypes[] = {TSDB_DATA_TYPE_TIMESTAMP};
   struct {
     const char* display;
+    const char* sessionName;
     const char* expected;
   } testCases[] = {
-      {"System (UTC, +0800)", "+0800"},
-      {"System (UTC, -0500)", "-0500"},
-      {"System (UTC, +0000)", "+0000"},
+      {"System (UTC, +0800)", "UTC-8", "+0800"},
+      {"System (UTC, -0500)", "UTC+5", "-0500"},
+      {"System (UTC, +0000)", "Z", "+0000"},
   };
 
   for (const auto& testCase : testCases) {
@@ -962,6 +1025,7 @@ TEST(FunctionMgtTest, keepsIsoTimezoneOffsetForToIso8601Fallback) {
     SFunctionNode* pFunc =
         createFunctionNode("to_iso8601", parameterTypes, 1);
     ASSERT_NE(nullptr, pFunc);
+    tstrncpy(pFunc->tzName, testCase.sessionName, sizeof(pFunc->tzName));
 
     char message[128] = {0};
     ASSERT_EQ(TSDB_CODE_SUCCESS,
@@ -1041,6 +1105,80 @@ TEST(FunctionMgtTest, fallsBackToTimezoneNameWhenOffsetIsMissing) {
 
     SValueNode* pTimezone =
         (SValueNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    ASSERT_NE(nullptr, pTimezone);
+    EXPECT_STREQ(testCase.expected, pTimezone->literal);
+
+    nodesDestroyNode((SNode*)pFunc);
+  }
+}
+
+// An IANA default is injected by name so each row resolves its own offset;
+// the display offset is only the one in effect when it was formatted.
+TEST(FunctionMgtTest, injectsRuleNameForIanaTimezoneFallback) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {
+      TSDB_DATA_TYPE_TIMESTAMP,
+      TSDB_DATA_TYPE_BINARY,
+  };
+  ScopedTimezoneDisplay timezoneDisplay("America/New_York (EDT, -0400)");
+  struct {
+    SFunctionNode* pFunc;
+    int32_t        parameterCount;
+    int32_t        timezoneIndex;
+  } testCases[] = {
+      {createFunctionNode("to_iso8601", parameterTypes, 1), 2, 1},
+      {createFunctionNode("to_char", parameterTypes, 2), 3, 2},
+      // ts, unit, use_curr_tz, precision, tz_name, fdow, unitCh.
+      {createTimeTruncateNode(), 7, 4},
+  };
+
+  for (const auto& testCase : testCases) {
+    ASSERT_NE(nullptr, testCase.pFunc);
+    SCOPED_TRACE(testCase.pFunc->functionName);
+    char message[128] = {0};
+    EXPECT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(testCase.pFunc, message, sizeof(message)));
+    EXPECT_EQ(testCase.parameterCount,
+              LIST_LENGTH(testCase.pFunc->pParameterList));
+
+    SValueNode* pTimezone = (SValueNode*)nodesListGetNode(
+        testCase.pFunc->pParameterList, testCase.timezoneIndex);
+    EXPECT_NE(nullptr, pTimezone);
+    if (pTimezone != nullptr) {
+      EXPECT_STREQ("America/New_York", pTimezone->literal);
+    }
+    nodesDestroyNode((SNode*)testCase.pFunc);
+  }
+}
+
+// Unloadable names keep the fixed-offset fallback.
+TEST(FunctionMgtTest, keepsOffsetFallbackForUnloadableTimezoneName) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+
+  const int8_t parameterTypes[] = {TSDB_DATA_TYPE_TIMESTAMP};
+  struct {
+    const char* display;
+    const char* expected;
+  } testCases[] = {
+      {"n/a (UTC, +0000)", "+0000"},
+      {"Not/A_Zone (XST, +0530)", "+0530"},
+  };
+
+  for (const auto& testCase : testCases) {
+    SCOPED_TRACE(testCase.display);
+    ScopedTimezoneDisplay timezoneDisplay(testCase.display);
+    SFunctionNode* pFunc =
+        createFunctionNode("to_iso8601", parameterTypes, 1);
+    ASSERT_NE(nullptr, pFunc);
+
+    char message[128] = {0};
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              fmGetFuncInfo(pFunc, message, sizeof(message)));
+    ASSERT_EQ(2, LIST_LENGTH(pFunc->pParameterList));
+
+    SValueNode* pTimezone =
+        (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
     ASSERT_NE(nullptr, pTimezone);
     EXPECT_STREQ(testCase.expected, pTimezone->literal);
 
@@ -1223,6 +1361,621 @@ TEST(FunctionMgtTest, validatesActualScalarInputTypesAndArity) {
               fmValidateFuncInputTypes(functionId, layout.parameterTypes.data(),
                                        static_cast<int32_t>(layout.parameterTypes.size())));
   }
+}
+
+TEST(FunctionMgtTest, preservesPreMySqlBitDurationPlanId) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  // Before the MySQL additions, bit_duration immediately followed bit_changes.
+  const int32_t legacyId = fmGetFuncId("bit_changes") + 1;
+  ASSERT_GT(legacyId, 0);
+  EXPECT_EQ(legacyId, fmGetFuncId("bit_duration"));
+  EXPECT_GT(fmGetFuncId("curdate"), legacyId);
+  const int8_t types[] = {TSDB_DATA_TYPE_INT};
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(
+      reinterpret_cast<SNode*>(createFunctionNode("bit_duration", types, 1)), nodesDestroyNode);
+  ASSERT_NE(nullptr, node.get());
+  auto* function = reinterpret_cast<SFunctionNode*>(node.get());
+  function->funcId = legacyId;
+  function->funcType = FUNCTION_TYPE_BIT_DURATION;
+  function->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  function->node.resType.bytes = sizeof(int64_t);
+
+  // Persisted stream plans use JSON; distributed plans also carry the ID in TLV.
+  for (bool json : {true, false}) {
+    SCOPED_TRACE(json ? "JSON" : "TLV");
+    char* encoded = nullptr;
+    int32_t length = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, json ? nodesNodeToString(node.get(), false, &encoded, &length)
+                                     : nodesNodeToMsg(node.get(), &encoded, &length));
+    SNode* decoded = nullptr;
+    int32_t code = json ? nodesStringToNode(encoded, &decoded) : nodesMsgToNode(encoded, length, &decoded);
+    taosMemoryFree(encoded);
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> restored(decoded, nodesDestroyNode);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    ASSERT_NE(nullptr, restored.get());
+    auto* restoredFunction = reinterpret_cast<SFunctionNode*>(restored.get());
+    EXPECT_EQ(legacyId, restoredFunction->funcId);
+    char error[256] = {};
+    EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncNode(restoredFunction, error, sizeof(error))) << error;
+    EXPECT_EQ(FUNCTION_TYPE_BIT_DURATION, fmGetFuncTypeFromId(restoredFunction->funcId));
+  }
+}
+
+TEST(FunctionMgtTest, preservesMySqlDecimalConstantProjection) {
+  const int64_t micros = 1709210096123456LL;
+  Decimal128 decimal = DEFINE_DECIMAL128(micros, 0);
+  for (int8_t type : {TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL}) {
+    SCOPED_TRACE(static_cast<int32_t>(type));
+    SValueNode node = {};
+    node.node.resType.type = type;
+    node.node.resType.bytes = tDataTypes[type].bytes;
+    node.node.resType.precision = 17;
+    node.node.resType.scale = 6;
+    if (type == TSDB_DATA_TYPE_DECIMAL64) {
+      memcpy(&node.datum.d, &micros, sizeof(micros));
+    } else {
+      node.datum.p = reinterpret_cast<char*>(&decimal);
+    }
+    SVariant variant = {};
+    std::unique_ptr<SVariant, decltype(&taosVariantDestroy)> variantGuard(&variant, taosVariantDestroy);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValueNodeToVariant(&node, &variant));
+    const char* value = taosVariantGet(&variant, type);
+    ASSERT_NE(nullptr, value);
+
+    SSDataBlock* rawBlock = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&rawBlock));
+    ScopedDataBlock block(rawBlock, blockDataDestroy);
+    SColumnInfoData column = createColumnInfoData(type, tDataTypes[type].bytes, 0);
+    column.info.precision = 17;
+    column.info.scale = 6;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(block.get(), &column));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(block.get(), 3));
+    auto* output = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+    const void* expected = type == TSDB_DATA_TYPE_DECIMAL64 ? static_cast<const void*>(&micros)
+                                                          : static_cast<const void*>(&decimal);
+    for (int32_t row = 0; row < 3; ++row) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(output, row, value, false));
+      EXPECT_FALSE(colDataIsNull_s(output, row));
+      EXPECT_EQ(0, memcmp(expected, colDataGetData(output, row), tDataTypes[type].bytes));
+    }
+  }
+}
+
+class MySqlTimeScalarTest : public ::testing::Test {
+ protected:
+  void initialize(const char* name, std::vector<int8_t> types, int8_t resultType, int32_t rows) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+    const int32_t arguments = static_cast<int32_t>(types.size());
+    types.insert(types.end(), {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT,
+                               TSDB_DATA_TYPE_BIGINT, resultType});
+    SSDataBlock* block = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&block));
+    block_.reset(block);
+    for (int32_t i = 0; i < static_cast<int32_t>(types.size()); ++i) {
+      SColumnInfoData column = createColumnInfoData(
+          types[i], types[i] == TSDB_DATA_TYPE_VARCHAR ? 128 : tDataTypes[types[i]].bytes, i);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(block_.get(), &column));
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataEnsureCapacity(block_.get(), rows));
+    input_.resize(arguments + 3);
+    for (int32_t i = 0; i < arguments + 3; ++i) {
+      input_[i].columnData = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, i));
+      input_[i].numOfRows = i < arguments ? rows : 1;
+    }
+    output_.columnData = static_cast<SColumnInfoData*>(taosArrayGet(block_->pDataBlock, arguments + 3));
+    output_.numOfRows = rows;
+    const int8_t precision = TSDB_TIME_PRECISION_MICRO;
+    const int8_t operation = fmGetFuncType(name) - FUNCTION_TYPE_MYSQL_CURDATE;
+    const int64_t clock = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[arguments].columnData, 0, (const char*)&precision, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[arguments + 1].columnData, 0, (const char*)&operation, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[arguments + 2].columnData, 0, (const char*)&clock, false));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetScalarFuncExecFuncs(fmGetFuncId(name), &functions_));
+    ASSERT_NE(nullptr, functions_.process);
+  }
+
+  int32_t setText(int32_t argument, int32_t row, const char* text) {
+    char buffer[128] = {};
+    varDataSetLen(buffer, strlen(text));
+    memcpy(varDataVal(buffer), text, strlen(text));
+    return colDataSetVal(input_[argument].columnData, row, buffer, false);
+  }
+
+  int32_t execute() { return functions_.process(input_.data(), static_cast<int32_t>(input_.size()), &output_); }
+
+  ScopedDataBlock block_{nullptr, blockDataDestroy};
+  std::vector<SScalarParam> input_;
+  SScalarParam output_ = {};
+  SScalarFuncExecFuncs functions_ = {};
+};
+
+TEST_F(MySqlTimeScalarTest, EmptyUserInputDoesNotBroadcastHiddenConstants) {
+  ASSERT_NO_FATAL_FAILURE(initialize("year", {TSDB_DATA_TYPE_TIMESTAMP}, TSDB_DATA_TYPE_BIGINT, 1));
+  int64_t timestamp = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[0].columnData, 0, (const char*)&timestamp, false));
+  input_[0].numOfRows = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  ASSERT_EQ(0, output_.numOfRows);
+
+  for (int32_t emptyArgument : {0, 1}) {
+    ASSERT_NO_FATAL_FAILURE(initialize("date_format", {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARCHAR},
+                                      TSDB_DATA_TYPE_VARCHAR, 1));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 0, "2024-02-29"));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(1, 0, "%Y"));
+    SColumnInfoData empty = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, 128, 0);
+    input_[emptyArgument].columnData = &empty;
+    input_[emptyArgument].numOfRows = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    EXPECT_EQ(0, output_.numOfRows);
+    input_[1 - emptyArgument].numOfRows = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    EXPECT_EQ(0, output_.numOfRows);
+  }
+  ASSERT_NO_FATAL_FAILURE(initialize("unix_timestamp", {}, TSDB_DATA_TYPE_BIGINT, 1));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  EXPECT_EQ(1, output_.numOfRows);
+}
+
+TEST_F(MySqlTimeScalarTest, NativeTimestampRespectsCalendarYearRange) {
+  struct ZoneGuard {
+    timezone_t value;
+    ~ZoneGuard() { tzfree(value); }
+  } zone{tzalloc("UTC")};
+  ASSERT_NE(nullptr, zone.value);
+  const int64_t milliseconds[] = {-62167219200001LL, -62167219200000LL, 253402300799999LL, 253402300800000LL};
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO}) {
+    ASSERT_NO_FATAL_FAILURE(initialize("year", {TSDB_DATA_TYPE_TIMESTAMP}, TSDB_DATA_TYPE_BIGINT, 4));
+    input_[0].columnData->info.precision = precision;
+    input_[0].tz = zone.value;
+    for (int32_t row = 0; row < 4; ++row) {
+      int64_t ticks = milliseconds[row] * (precision == TSDB_TIME_PRECISION_MICRO ? 1000 : 1);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[0].columnData, row, (const char*)&ticks, false));
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    ASSERT_TRUE(colDataIsNull_s(output_.columnData, 0));
+    ASSERT_TRUE(colDataIsNull_s(output_.columnData, 3));
+    ASSERT_FALSE(colDataIsNull_s(output_.columnData, 1));
+    ASSERT_FALSE(colDataIsNull_s(output_.columnData, 2));
+    EXPECT_EQ(0, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, 1)));
+    EXPECT_EQ(9999, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, 2)));
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, ExplicitOffsetDoesNotNormalizeInvalidSeconds) {
+  const char* texts[] = {"2024-02-29T12:34:60Z", "2024-12-31T23:59:61Z",
+                         "2024-02-29T12:34:60+08:00", "2024-12-31T23:59:61-05:00",
+                         "2024-02-29T12:34:59Z", "2024-02-29T12:34:59+08:00"};
+  ASSERT_NO_FATAL_FAILURE(initialize("second", {TSDB_DATA_TYPE_VARCHAR}, TSDB_DATA_TYPE_BIGINT, 6));
+  for (int32_t row = 0; row < 6; ++row) ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, row, texts[row]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  for (int32_t row = 0; row < 6; ++row) {
+    SCOPED_TRACE(texts[row]);
+    ASSERT_EQ(row < 4, colDataIsNull_s(output_.columnData, row));
+    if (row >= 4) EXPECT_EQ(59, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, UnixTimestampDecimalCoefficientPreservesBoundaries) {
+  const int64_t micros[] = {0, 1, 999999, 1000000, 1709210096123456LL, 32536771199999999LL, 32536771200000000LL};
+  ASSERT_NO_FATAL_FAILURE(initialize("unix_timestamp", {TSDB_DATA_TYPE_TIMESTAMP}, TSDB_DATA_TYPE_DECIMAL, 7));
+  input_[0].columnData->info.precision = TSDB_TIME_PRECISION_MICRO;
+  output_.columnData->info.precision = 17;
+  output_.columnData->info.scale = 6;
+  for (int32_t row = 0; row < 7; ++row) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[0].columnData, row, (const char*)&micros[row], false));
+  }
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  for (int32_t row = 0; row < 7; ++row) {
+    ASSERT_EQ(row == 6, colDataIsNull_s(output_.columnData, row));
+    if (row == 6) continue;
+    const auto* value = reinterpret_cast<const Decimal128*>(colDataGetData(output_.columnData, row));
+    EXPECT_EQ(0, DECIMAL128_HIGH_WORD(value));
+    EXPECT_EQ(static_cast<uint64_t>(micros[row]), DECIMAL128_LOW_WORD(value));
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, ExplicitOffsetPreservesParsedCalendarFields) {
+  struct ZoneGuard {
+    timezone_t value;
+    ~ZoneGuard() { tzfree(value); }
+  } zone{tzalloc("UTC")};
+  ASSERT_NE(nullptr, zone.value);
+  const struct {
+    const char* input;
+    const char* expected;
+  } cases[] = {
+      {"24-02-29T12:34:56Z", "2024-02-29 12:34:56.000000"},
+      {"69-12-31T23:00:00+08:00", "2069-12-31 15:00:00.000000"},
+      {"70-01-01T00:00:00+00", "1970-01-01 00:00:00.000000"},
+      {"24/02/29T12^34*56+0800", "2024-02-29 04:34:56.000000"},
+      {"24-02-29T12-34-56Z", "2024-02-29 12:34:56.000000"},
+      {"24-02-29T12-34-56+08", "2024-02-29 04:34:56.000000"},
+      {"1969-12-31T23:59:59Z", "1969-12-31 23:59:59.000000"},
+      {"1969-12-31T23:59:59.123456Z", "1969-12-31 23:59:59.123456"},
+      {"1969-12-31T23:59:59+08:00", "1969-12-31 15:59:59.000000"},
+      {"0000-01-01T00:00:00Z", "0000-01-01 00:00:00.000000"},
+      {"0000-02-28T00:00:00Z", "0000-02-28 00:00:00.000000"},
+      {"0000-03-01T00:00:00Z", "0000-03-01 00:00:00.000000"},
+      {"9999-12-31T23:59:59.999999Z", "9999-12-31 23:59:59.999999"},
+      {"9999-12-31T23:59:59-01:00", nullptr},
+      {"0000-01-01T00:00:00+01:00", nullptr},
+      {"2024-02-29T12:34:56+15:00", nullptr},
+      {"2024-02-29T12:34:56+14:01", nullptr},
+      {"2024-02-29T12:34:56+0", nullptr},
+      {"2024-02-29T12:34:56+", nullptr},
+  };
+  int32_t rows = static_cast<int32_t>(sizeof(cases) / sizeof(cases[0]));
+  ASSERT_NO_FATAL_FAILURE(initialize("date_format", {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARCHAR},
+                                    TSDB_DATA_TYPE_VARCHAR, rows));
+  input_[0].tz = zone.value;
+  input_[1].numOfRows = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, setText(1, 0, "%Y-%m-%d %H:%i:%s.%f"));
+  for (int32_t row = 0; row < rows; ++row) ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, row, cases[row].input));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  for (int32_t row = 0; row < rows; ++row) {
+    SCOPED_TRACE(cases[row].input);
+    bool isNull = colDataIsNull_s(output_.columnData, row);
+    EXPECT_EQ(cases[row].expected == nullptr, isNull);
+    if (isNull) continue;
+    if (cases[row].expected == nullptr) continue;
+    const char* data = colDataGetData(output_.columnData, row);
+    EXPECT_EQ(cases[row].expected, std::string(varDataVal(data), varDataLen(data)));
+  }
+  const char embeddedNul[] = "2024-02-29T12:34:56+08\0:00";
+  char value[64] = {};
+  varDataSetLen(value, sizeof(embeddedNul) - 1);
+  memcpy(varDataVal(value), embeddedNul, sizeof(embeddedNul) - 1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[0].columnData, 0, value, false));
+  input_[0].numOfRows = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  EXPECT_TRUE(colDataIsNull_s(output_.columnData, 0));
+}
+
+TEST_F(MySqlTimeScalarTest, ExtractDistinguishesDateUnitsFromTimeUnits) {
+  const char* texts[] = {"12:34:56.123456", "-25:34:56.123456", "838:59:59", "2024-02-29",
+                         "2024-00-10", "0000-00-00", "2060-11-31"};
+  ASSERT_NO_FATAL_FAILURE(initialize("extract", {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_VARCHAR},
+                                    TSDB_DATA_TYPE_BIGINT, 7));
+  input_[0].numOfRows = 1;
+  for (int32_t row = 0; row < 7; ++row) ASSERT_EQ(TSDB_CODE_SUCCESS, setText(1, row, texts[row]));
+  struct DateUnit {
+    const char* unit;
+    int64_t complete;
+    int64_t incomplete;
+  };
+  for (const DateUnit& unit : {DateUnit{"YEAR", 2024, 2024}, {"YEAR_MONTH", 202402, 202400},
+                               {"QUARTER", 1, 0}, {"MONTH", 2, 0}, {"WEEK", 8, 613566753}, {"DAY", 29, 10}}) {
+    SCOPED_TRACE(unit.unit);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 0, unit.unit));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    ASSERT_EQ(7, output_.numOfRows);
+    for (int32_t row : {0, 1, 2, 6}) EXPECT_TRUE(colDataIsNull_s(output_.columnData, row)) << texts[row];
+    ASSERT_FALSE(colDataIsNull_s(output_.columnData, 3));
+    EXPECT_EQ(unit.complete, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, 3)));
+    for (int32_t row : {4, 5}) {
+      bool null = row == 5 && strcmp(unit.unit, "WEEK") == 0;
+      ASSERT_EQ(null, colDataIsNull_s(output_.columnData, row));
+      if (!null) {
+        EXPECT_EQ(row == 4 ? unit.incomplete : 0,
+                  *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+      }
+    }
+  }
+  for (const char* unit : {"HOUR", "HOUR_MINUTE"}) {
+    SCOPED_TRACE(unit);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 0, unit));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    const int64_t expected[] = {12, -25, 838};
+    for (int32_t row = 0; row < 3; ++row) {
+      ASSERT_FALSE(colDataIsNull_s(output_.columnData, row));
+      int64_t value = expected[row];
+      if (strcmp(unit, "HOUR_MINUTE") == 0) value = value * 100 + (row == 1 ? -34 : row == 0 ? 34 : 59);
+      EXPECT_EQ(value, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+    }
+    for (int32_t row : {3, 4, 5}) {
+      ASSERT_FALSE(colDataIsNull_s(output_.columnData, row));
+      EXPECT_EQ(0, *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+    }
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, StrToDateIgnoresLongTails) {
+  for (int8_t textType : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+    for (int8_t formatType : {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR}) {
+      SCOPED_TRACE(static_cast<int>(textType));
+      SCOPED_TRACE(static_cast<int>(formatType));
+      ASSERT_NO_FATAL_FAILURE(initialize("str_to_date", {textType, formatType}, TSDB_DATA_TYPE_VARCHAR, 6));
+      input_[1].numOfRows = 1;
+      auto setLongText = [&](int32_t argument, int32_t row, const std::string& text) {
+        bool nchar = input_[argument].columnData->info.type == TSDB_DATA_TYPE_NCHAR;
+        size_t bytes = text.size() * (nchar ? sizeof(TdUcs4) : 1);
+        std::vector<char> buffer(VARSTR_HEADER_SIZE + bytes);
+        varDataSetLen(buffer.data(), bytes);
+        if (nchar) {
+          for (size_t i = 0; i < text.size(); ++i) {
+            TdUcs4 character = static_cast<unsigned char>(text[i]);
+            memcpy(varDataVal(buffer.data()) + i * sizeof(character), &character, sizeof(character));
+          }
+        } else {
+          memcpy(varDataVal(buffer.data()), text.data(), bytes);
+        }
+        if (static_cast<size_t>(input_[argument].columnData->info.bytes) < buffer.size()) {
+          input_[argument].columnData->info.bytes = static_cast<int32_t>(buffer.size());
+        }
+        return colDataSetVal(input_[argument].columnData, row, buffer.data(), false);
+      };
+      // A long NCHAR format exercises conversion-buffer reuse after converting the input.
+      const std::string format = std::string("%Y-%m-%d") + std::string(1100, ' ');
+      ASSERT_EQ(TSDB_CODE_SUCCESS, setLongText(1, 0, format));
+      const int32_t lengths[] = {4095, 4096, 8192, 16000, 4096};
+      for (int32_t row = 0; row < 5; ++row) {
+        std::string text = row == 4 ? "2060-11-31" : "2024-02-29";
+        text.append(lengths[row] - text.size(), 'x');
+        ASSERT_EQ(TSDB_CODE_SUCCESS, setLongText(0, row, text));
+      }
+      colDataSetNULL(input_[0].columnData, 5);
+      ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+      EXPECT_EQ(6, output_.numOfRows);
+      for (int32_t row = 0; row < 4; ++row) {
+        ASSERT_FALSE(colDataIsNull_s(output_.columnData, row)) << lengths[row];
+        char* result = colDataGetData(output_.columnData, row);
+        EXPECT_EQ("2024-02-29", std::string(varDataVal(result), varDataLen(result)));
+      }
+      EXPECT_TRUE(colDataIsNull_s(output_.columnData, 4));
+      EXPECT_TRUE(colDataIsNull_s(output_.columnData, 5));
+    }
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, DateOnlyTextKeepsCalendarTimeFields) {
+  const char* names[] = {"hour", "minute", "second", "microsecond"};
+  const int64_t expected[] = {12, 34, 56, 123456};
+  for (int32_t i = 0; i < 4; ++i) {
+    SCOPED_TRACE(names[i]);
+    ASSERT_NO_FATAL_FAILURE(initialize(names[i], {TSDB_DATA_TYPE_VARCHAR}, TSDB_DATA_TYPE_BIGINT, 2));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 0, "2024-02-29"));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 1, "2024-02-29 12:34:56.123456"));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    for (int32_t row = 0; row < 2; ++row) {
+      ASSERT_FALSE(colDataIsNull_s(output_.columnData, row));
+      EXPECT_EQ(row == 0 ? 0 : expected[i],
+                *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+    }
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, UnixTimestampRejectsNegativeTicksBeforePrecisionConversion) {
+  const int64_t ticks[] = {-1000, -999, -1, 0, 1, 999, 1000};
+  for (int8_t precision : {TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO}) {
+    SCOPED_TRACE(static_cast<int32_t>(precision));
+    ASSERT_NO_FATAL_FAILURE(initialize("unix_timestamp", {TSDB_DATA_TYPE_TIMESTAMP}, TSDB_DATA_TYPE_DECIMAL, 7));
+    input_[0].columnData->info.precision = precision;
+    output_.columnData->info.precision = 17;
+    output_.columnData->info.scale = 6;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[1].columnData, 0, (const char*)&precision, false));
+    for (int32_t row = 0; row < 7; ++row) {
+      ASSERT_EQ(TSDB_CODE_SUCCESS, colDataSetVal(input_[0].columnData, row, (const char*)&ticks[row], false));
+    }
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    ASSERT_EQ(7, output_.numOfRows);
+    for (int32_t row = 0; row < 7; ++row) {
+      SCOPED_TRACE(ticks[row]);
+      ASSERT_EQ(ticks[row] < 0, colDataIsNull_s(output_.columnData, row));
+      if (ticks[row] < 0) continue;
+      const auto* value = reinterpret_cast<const Decimal128*>(colDataGetData(output_.columnData, row));
+      int64_t microseconds = precision == TSDB_TIME_PRECISION_MILLI ? ticks[row] * 1000 :
+                            precision == TSDB_TIME_PRECISION_MICRO ? ticks[row] : ticks[row] / 1000;
+      EXPECT_EQ(0, DECIMAL128_HIGH_WORD(value));
+      EXPECT_EQ(static_cast<uint64_t>(microseconds), DECIMAL128_LOW_WORD(value));
+    }
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, ParsesRelaxedDatesAndPreservesTimeOnlyInputs) {
+  const char* dates[] = {"2024/02/29", "24-02-29", "69@12@31", "70^01^01", "00/02/29", "23/02/29", "2060/11/31"};
+  const int64_t years[] = {2024, 2024, 2069, 1970, 2000};
+  ASSERT_NO_FATAL_FAILURE(initialize("year", {TSDB_DATA_TYPE_VARCHAR}, TSDB_DATA_TYPE_BIGINT, 7));
+  for (int32_t row = 0; row < 7; ++row) ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, row, dates[row]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  for (int32_t row = 0; row < 7; ++row) {
+    SCOPED_TRACE(dates[row]);
+    ASSERT_EQ(row >= 5, colDataIsNull_s(output_.columnData, row));
+    if (row < 5) EXPECT_EQ(years[row], *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+  }
+  const char* times[] = {"12:34:56", "-25:34:56", "2024/02/29 11*30*45", "24:02:29 13:34:56"};
+  const int64_t hours[] = {12, 25, 11, 13};
+  ASSERT_NO_FATAL_FAILURE(initialize("hour", {TSDB_DATA_TYPE_VARCHAR}, TSDB_DATA_TYPE_BIGINT, 4));
+  for (int32_t row = 0; row < 4; ++row) ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, row, times[row]));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+  for (int32_t row = 0; row < 4; ++row) {
+    SCOPED_TRACE(times[row]);
+    ASSERT_FALSE(colDataIsNull_s(output_.columnData, row));
+    EXPECT_EQ(hours[row], *reinterpret_cast<int64_t*>(colDataGetData(output_.columnData, row)));
+  }
+}
+
+TEST_F(MySqlTimeScalarTest, UnixTimestampMapsSpringGapsToFirstValidInstant) {
+  struct ZoneGuard {
+    timezone_t value;
+    ~ZoneGuard() { tzfree(value); }
+  };
+  const struct {
+    const char* zone;
+    const char* text;
+    int64_t micros;
+  } cases[] = {
+      {"America/New_York", "2024-03-10 01:59:59.999999", 1710053999999999LL},
+      {"America/New_York", "2024-03-10 02:00:00", 1710054000000000LL},
+      {"America/New_York", "2024-03-10 02:30:00.123456", 1710054000123456LL},
+      {"America/New_York", "2024-03-10 02:59:59.999999", 1710054000999999LL},
+      {"America/New_York", "2024-03-10 03:00:00", 1710054000000000LL},
+      {"America/New_York", "2024-03-10T02:30:00-05:00", 1710055800000000LL},
+      {"Australia/Lord_Howe", "2024-10-06 02:15:00.123456", 1728142200123456LL},
+      {"Pacific/Apia", "2011-12-29 23:59:59.999999", 1325239199999999LL},
+      {"Pacific/Apia", "2011-12-30 00:00:00", 1325239200000000LL},
+      {"Pacific/Apia", "2011-12-30 12:00:00.123456", 1325239200123456LL},
+      {"Pacific/Apia", "2011-12-31 00:00:00", 1325239200000000LL},
+      {"Pacific/Apia", "2011-12-31 12:00:00.123456", 1325282400123456LL},
+      {"UTC", "1970-01-01 00:00:00.123456", 123456},
+      {"UTC", "1969-12-31 23:59:59.999999", -1},
+      {"UTC", "2024-02-30 02:30:00", -1},
+  };
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.zone);
+    SCOPED_TRACE(test.text);
+    ZoneGuard zone{tzalloc(test.zone)};
+    ASSERT_NE(nullptr, zone.value);
+    ASSERT_NO_FATAL_FAILURE(initialize("unix_timestamp", {TSDB_DATA_TYPE_VARCHAR}, TSDB_DATA_TYPE_DECIMAL, 1));
+    input_[0].tz = zone.value;
+    output_.columnData->info.precision = 17;
+    output_.columnData->info.scale = 6;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, setText(0, 0, test.text));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, execute());
+    ASSERT_EQ(test.micros < 0, colDataIsNull_s(output_.columnData, 0));
+    if (test.micros < 0) continue;
+    const auto* value = reinterpret_cast<const Decimal128*>(colDataGetData(output_.columnData, 0));
+    EXPECT_EQ(0, DECIMAL128_HIGH_WORD(value));
+    EXPECT_EQ(static_cast<uint64_t>(test.micros), DECIMAL128_LOW_WORD(value));
+  }
+}
+
+TEST(FunctionMgtTest, validatesMySqlDateTimeRuntimeParameters) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  const int32_t curdateId = fmGetFuncId("curdate");
+  const int32_t yearId = fmGetFuncId("year");
+  ASSERT_GE(curdateId, 0);
+  ASSERT_GE(yearId, 0);
+
+  const int8_t clockOnly[] = {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncInputTypes(curdateId, clockOnly, 3));
+  EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_NUM, fmValidateFuncInputTypes(curdateId, clockOnly, 2));
+
+  const int8_t dateAndClock[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_TINYINT,
+                                TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncInputTypes(yearId, dateAndClock, 4));
+  EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_NUM, fmValidateFuncInputTypes(yearId, clockOnly, 3));
+  const int8_t invalidClock[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_TINYINT,
+                                 TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BIGINT};
+  EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_TYPE, fmValidateFuncInputTypes(yearId, invalidClock, 4));
+}
+
+TEST(FunctionMgtTest, validatesAllMySqlDateTimeUserInputTypes) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  const std::vector<int8_t> strings = {TSDB_DATA_TYPE_NULL, TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_NCHAR};
+  std::vector<int8_t> dates = strings;
+  dates.push_back(TSDB_DATA_TYPE_TIMESTAMP);
+  const std::vector<int8_t> integers = {
+      TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_BIGINT,
+      TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_UBIGINT};
+  std::vector<int8_t> modes = integers;
+  modes.push_back(TSDB_DATA_TYPE_NULL);
+  std::vector<int8_t> numbers = modes;
+  numbers.insert(numbers.end(), {TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE,
+                                 TSDB_DATA_TYPE_DECIMAL64, TSDB_DATA_TYPE_DECIMAL});
+  struct Signature {
+    const char* name;
+    int32_t minArgs;
+    std::vector<std::vector<int8_t>> types;
+  };
+  const Signature signatures[] = {
+      {"curdate", 0, {}}, {"current_date", 0, {}},
+      {"curtime", 0, {integers}}, {"current_time", 0, {integers}},
+      {"current_timestamp", 0, {integers}}, {"datediff", 2, {dates, dates}},
+      {"date_format", 2, {dates, strings}}, {"day", 1, {dates}},
+      {"dayname", 1, {dates}}, {"dayofmonth", 1, {dates}}, {"dayofyear", 1, {dates}},
+      {"extract", 2, {strings, dates}}, {"from_days", 1, {numbers}},
+      {"from_unixtime", 1, {numbers, strings}}, {"hour", 1, {dates}},
+      {"microsecond", 1, {dates}}, {"minute", 1, {dates}}, {"month", 1, {dates}},
+      {"monthname", 1, {dates}}, {"quarter", 1, {dates}}, {"second", 1, {dates}},
+      {"str_to_date", 2, {strings, strings}}, {"to_days", 1, {dates}},
+      {"to_seconds", 1, {dates}}, {"unix_timestamp", 0, {dates}},
+      {"year", 1, {dates}}, {"yearweek", 1, {dates, modes}},
+  };
+  for (const auto& signature : signatures) {
+    SCOPED_TRACE(signature.name);
+    const int32_t id = fmGetFuncId(signature.name);
+    ASSERT_GE(id, 0);
+    const int32_t maxArgs = static_cast<int32_t>(signature.types.size());
+    for (int32_t count = 0; count <= maxArgs + 1; ++count) {
+      std::vector<int8_t> types(count, TSDB_DATA_TYPE_VARCHAR);
+      for (int32_t arg = 0; arg < (std::min)(count, maxArgs); ++arg) {
+        types[arg] = signature.types[arg].back();
+      }
+      types.insert(types.end(), {TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT});
+      const int32_t expected = count >= signature.minArgs && count <= maxArgs
+                                   ? TSDB_CODE_SUCCESS : TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+      ASSERT_EQ(expected, fmValidateFuncInputTypes(id, types.data(), static_cast<int32_t>(types.size())));
+      if (expected != TSDB_CODE_SUCCESS) continue;
+
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> translated(
+          reinterpret_cast<SNode*>(createFunctionNode(signature.name, types.data(), count)), nodesDestroyNode);
+      ASSERT_NE(nullptr, translated.get());
+      auto* function = reinterpret_cast<SFunctionNode*>(translated.get());
+      if (std::strcmp(signature.name, "extract") == 0) {
+        auto* unit = reinterpret_cast<SValueNode*>(nodesListGetNode(function->pParameterList, 0));
+        unit->literal = taosStrdup("YEAR");
+        ASSERT_NE(nullptr, unit->literal);
+      }
+      char message[256] = {};
+      ASSERT_EQ(TSDB_CODE_SUCCESS, fmGetFuncInfo(function, message, sizeof(message))) << message;
+      ASSERT_EQ(count + 2, LIST_LENGTH(function->pParameterList));
+      // Translation appends precision/operation; the parser then appends the statement clock.
+      SNode* clock = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_VALUE, &clock));
+      reinterpret_cast<SValueNode*>(clock)->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListStrictAppend(function->pParameterList, clock));
+      EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncNode(function, message, sizeof(message)));
+
+      for (int32_t arg = 0; arg < count; ++arg) {
+        SCOPED_TRACE(arg);
+        const auto& accepted = signature.types[arg];
+        for (int8_t type = TSDB_DATA_TYPE_NULL; type < TSDB_DATA_TYPE_MAX; ++type) {
+          SCOPED_TRACE(static_cast<int32_t>(type));
+          types[arg] = type;
+          bool valid = std::find(accepted.begin(), accepted.end(), type) != accepted.end();
+          EXPECT_EQ(valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FUNC_FUNTION_PARA_TYPE,
+                    fmValidateFuncInputTypes(id, types.data(), static_cast<int32_t>(types.size())));
+        }
+        types[arg] = accepted.back();
+      }
+    }
+  }
+}
+
+TEST(FunctionMgtTest, rejectsInvalidMySqlDateTimeRuntimeContext) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fmFuncMgtInit());
+  const int8_t types[] = {TSDB_DATA_TYPE_VARCHAR, TSDB_DATA_TYPE_TINYINT,
+                          TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_BIGINT};
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> node(
+      reinterpret_cast<SNode*>(createFunctionNode("year", types, 4)), nodesDestroyNode);
+  ASSERT_NE(nullptr, node.get());
+  SFunctionNode* function = reinterpret_cast<SFunctionNode*>(node.get());
+  function->funcId = fmGetFuncId("year");
+  ASSERT_GE(function->funcId, 0);
+  auto* precision = reinterpret_cast<SValueNode*>(nodesListGetNode(function->pParameterList, 1));
+  auto* operation = reinterpret_cast<SValueNode*>(nodesListGetNode(function->pParameterList, 2));
+  operation->datum.i = FUNCTION_TYPE_MYSQL_YEAR - FUNCTION_TYPE_MYSQL_CURDATE;
+  char error[256] = {};
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncNode(function, error, sizeof(error)));
+  operation->datum.i = FUNCTION_TYPE_MYSQL_STR_TO_DATE - FUNCTION_TYPE_MYSQL_CURDATE;
+  EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_VALUE, fmValidateFuncNode(function, error, sizeof(error)));
+  operation->datum.i = FUNCTION_TYPE_MYSQL_YEAR - FUNCTION_TYPE_MYSQL_CURDATE;
+  precision->datum.i = TSDB_TIME_PRECISION_NANO + 1;
+  EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_VALUE, fmValidateFuncNode(function, error, sizeof(error)));
+  precision->datum.i = TSDB_TIME_PRECISION_MILLI;
+  for (int32_t i = 1; i < 4; ++i) {
+    auto* value = reinterpret_cast<SValueNode*>(nodesListGetNode(function->pParameterList, i));
+    value->isNull = true;
+    EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_TYPE, fmValidateFuncNode(function, error, sizeof(error)));
+    value->isNull = false;
+    value->node.resType.type = TSDB_DATA_TYPE_VARCHAR;
+    EXPECT_EQ(TSDB_CODE_FUNC_FUNTION_PARA_TYPE, fmValidateFuncNode(function, error, sizeof(error)));
+    value->node.resType.type = types[i];
+    value->node.type = QUERY_NODE_COLUMN;
+    EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, fmValidateFuncNode(function, error, sizeof(error)));
+    value->node.type = QUERY_NODE_VALUE;
+  }
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fmValidateFuncNode(function, error, sizeof(error)));
 }
 
 TEST(FunctionMgtTest, ValidatesFunctionNodeIdentityAndUdfIds) {

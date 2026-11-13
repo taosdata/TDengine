@@ -501,7 +501,7 @@ static EDealRes walkPhase1CorrelCheck(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN != nodeType(pNode)) return DEAL_RES_CONTINUE;
   SPhase1CorrelCxt* pCxt = (SPhase1CorrelCxt*)pContext;
   SColumnNode*      pCol = (SColumnNode*)pNode;
-  if ('\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
+  if (pCol->isTbnamePlaceholder || '\0' == pCol->tableAlias[0]) return DEAL_RES_CONTINUE;
   if (pCxt->pInnerAlias && pCxt->pInnerAlias[0] != '\0' &&
       0 == strcmp(pCxt->pInnerAlias, pCol->tableAlias))
     return DEAL_RES_CONTINUE;

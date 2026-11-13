@@ -169,6 +169,7 @@ static bool correlationTimeRangeInitNodeEqual(const SCorrelationTimeRangeInitNod
 }
 
 static bool columnNodeEqual(const SColumnNode* a, const SColumnNode* b) {
+  COMPARE_SCALAR_FIELD(isTbnamePlaceholder);
   COMPARE_STRING_FIELD(dbName);
   COMPARE_STRING_FIELD(tableName);
   COMPARE_STRING_FIELD(colName);

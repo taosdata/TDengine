@@ -40,6 +40,18 @@ TARGET_LINK_LIBRARIES(
         connectOptionsTest PRIVATE
         os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
 )
+add_test(
+        NAME clientTimezoneRulesTest
+        COMMAND connectOptionsTest --gtest_filter=SessionTimezone*Test.*
+)
+
+# Runs against the pytest-managed server; its clock override stays in this
+# statically linked test client and never enters the production libraries.
+ADD_EXECUTABLE(timezoneDstClient timezoneDstClient.cpp)
+TARGET_LINK_LIBRARIES(
+        timezoneDstClient PRIVATE
+        os util common transport parser catalog scheduler ${TAOS_NATIVE_LIB_STATIC} qcom executor function
+)
 
 ADD_EXECUTABLE(tmqTest tmqTest.cpp)
 DEP_ext_gtest(tmqTest)
@@ -393,6 +405,7 @@ TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE ${CMAKE_DL_LIBS})
 # The concurrency cases use std::thread, which needs the platform threads library
 # (pthread_create on Linux/macOS) to be on the link line.
 FIND_PACKAGE(Threads REQUIRED)
+TARGET_LINK_LIBRARIES(connectOptionsTest PRIVATE Threads::Threads)
 TARGET_LINK_LIBRARIES(liteConsistencyTest PRIVATE Threads::Threads)
 TARGET_COMPILE_DEFINITIONS(
         liteConsistencyTest PRIVATE

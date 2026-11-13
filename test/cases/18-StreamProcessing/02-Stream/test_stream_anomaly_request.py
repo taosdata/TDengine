@@ -246,6 +246,51 @@ class TestStreamAnomalyRequest:
         assert len(self.requests) == start, "insufficient primary input reached the anode"
         print("single-column models ignore NULL and non-finite extra keys [ passed ]")
 
+    def do_placeholder_qualified_keys(self):
+        tdSql.execute(f"create stable {self.db}.meters "
+                      "(ts timestamp,voltage double) tags(meter_id int)")
+        expected = []
+        for meter in range(2):
+            tdSql.execute(f"create table {self.db}.meter_{meter} "
+                          f"using {self.db}.meters tags({meter})")
+            timestamps = [self.BASE_TS + 100 + i * 400 for i in range(20 + meter)]
+            voltages = [float(1000 * meter + i) for i in range(20 + meter)]
+            values = " ".join(f"({ts},{voltage})" for ts, voltage in zip(timestamps, voltages))
+            tdSql.execute(f"insert into {self.db}.meter_{meter} values {values}", queryTimes=1)
+            expected.append((timestamps, voltages))
+
+        start = len(self.requests)
+        tdSql.execute(
+            f"create stream {self.db}.sm2 interval(1h) sliding(1h) from {self.db}.meters "
+            f"partition by tbname stream_options(fill_history) into {self.db}.td2 as "
+            "select _twstart as ts,count(*) as ab from %%tbname "
+            "where _c0 >= _twstart and _c0 <= _twend "
+            "anomaly_window(%%tbname.voltage,'algo=ksigma,k=1')", queryTimes=1)
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            self.query(f"select cast(ts as bigint),ab from {self.db}.td2 order by ab")
+            if tdSql.queryRows == 2:
+                break
+            time.sleep(0.2)
+        tdSql.checkRows(2)
+        for meter in range(2):
+            tdSql.checkData(meter, 0, self.BASE_TS)
+            tdSql.checkData(meter, 1, 20 + meter)
+        with self.lock:
+            assert not self.errors, self.errors
+            requests = self.requests[start:]
+        assert requests, "qualified anomaly_window did not send a request"
+        received = set()
+        for _, payload in requests:
+            assert payload["algo"].lower() == "ksigma", payload
+            data = payload["data"]
+            meter = int(data[1][0] // 1000)
+            assert meter in (0, 1), payload
+            assert data == [list(column) for column in expected[meter]], payload
+            received.add(meter)
+        assert received == {0, 1}, received
+        print("placeholder-qualified anomaly columns and per-subtable history [ passed ]")
+
     def do_anomaly_request(self):
         self.db = f"anomaly_req_{uuid.uuid4().hex[:8]}"
         self.algorithm = self.db
@@ -301,6 +346,7 @@ class TestStreamAnomalyRequest:
                           queryTimes=1)
             self.wait_output(3)
             self.check_requests(start)
+            self.do_placeholder_qualified_keys()
             print("anomaly expression, aligned finite input, history and restart [ passed ]")
         finally:
             try:
@@ -324,6 +370,7 @@ class TestStreamAnomalyRequest:
         4. Verify anomaly results persist through historical stream execution and restart.
         5. Verify ignored NULL/non-finite keys do not change single-column model input.
         6. Compare lowercase, uppercase and mixed-case names for all four single-column models.
+        7. Check placeholder-qualified anomaly columns with per-subtable historical interval triggers.
 
         Catalog:
             - Stream:AnomalyWindow
@@ -338,6 +385,7 @@ class TestStreamAnomalyRequest:
             - 2026-11-04 Peng Rongkun Add anomaly request regression with a local anode.
             - 2026-11-05 Peng Rongkun Cover ignored keys for single-column models.
             - 2026-11-05 Peng Rongkun Cover case-insensitive single-column algorithm names.
+            - 2026-11-12 Peng Rongkun Cover placeholder-qualified columns in anomaly windows.
 
         """
         self.do_anomaly_request()

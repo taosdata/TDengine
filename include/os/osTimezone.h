@@ -33,9 +33,14 @@ typedef void *timezone_t;
 // Add Windows version function declarations
 timezone_t tzalloc(char const *);
 void       tzfree(timezone_t);
-/* POSIX mktime_z equivalent: interpret the broken-down time in the given
- * fixed-offset timezone object and return the UTC epoch. */
+/* POSIX mktime_z equivalent: interpret the broken-down time using the given
+ * timezone rules and return the UTC epoch. */
 time_t     mktime_z(timezone_t, struct tm *);
+
+// Acquire a default-rule snapshot; the caller must release it with tzfree().
+timezone_t  taosAcquireDefaultTimezone(void);
+// tz must be non-NULL; the borrowed name remains valid until tzfree(tz).
+const char *taosTimezoneName(timezone_t tz);
 
 #else
 typedef struct state *timezone_t;
@@ -58,12 +63,20 @@ int32_t taosGetLocalTimezoneOffset(int32_t *code);
  * timestamp", use taosGetTimezoneOffsetAtSeconds() from ttime.h instead.
  *
  * Result convention is east-positive (tm_gmtoff style); tz == NULL uses the
- * global default timezone.
+ * global default timezone. On failure, return 0 and set terrno and *code
+ * (when supplied); callers must check the error status before using it.
  */
 int32_t taosGetTZOffsetSeconds(timezone_t tz, int32_t *code);
 int32_t taosGetSystemTimezone(char *outTimezone);
 int32_t taosSetGlobalTimezone(const char *tz);
 int32_t taosFormatTimezoneStr(time_t t, const char *tzStr, timezone_t sp, char *outTimezoneStr);
+/*
+ * Re-render "Name (ABBR, +hhmm)" display text at the current instant. The
+ * abbreviation and offset in stored display text are snapshots that go stale
+ * after a DST transition; only the leading rule name is reused. tz == NULL
+ * uses the global default timezone.
+ */
+int32_t taosRefreshTimezoneStr(const char *display, timezone_t tz, char *outTimezoneStr);
 int32_t initTimezoneInfo();
 void    cleanupTimezoneInfo();
 
@@ -83,7 +96,7 @@ const char *taosWindowsNameToIana(const char *winName);
 const char *taosIanaNameToWindows(const char *ianaName);
 
 #ifdef WINDOWS
-int64_t getWindowsTimezoneOffset(void);
+#define TAOS_INTERNAL_TZ_ENV "_TDENGINE_INTERNAL_TZ_RULE"
 #endif
 
 timezone_t getGlobalDefaultTZ();

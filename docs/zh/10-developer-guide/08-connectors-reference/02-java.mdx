@@ -285,6 +285,7 @@ properties 中的配置参数如下：
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE [`timezone`]：
   - 原生连接：客户端使用的时区，默认值为系统当前时区，全局生效。因为历史的原因，我们只支持 POSIX 标准的部分规范，如 UTC-8(代表中国上海), GMT-8，Asia/Shanghai 这几种形式。
   - WebSocket 连接：客户端使用的时区，连接上生效，默认值为系统时区。仅支持 IANA 时区，即 Asia/Shanghai 这种形式。推荐不设置，使用系统时区性能更好。建立连接后也可通过 `setTimezone` 接口在运行时修改时区，详见下文`设置时区`。
+  - Windows 的连接级时区支持要求 TDengine 原生客户端库为 `v3.5.0` 或更高版本。
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE [`batchErrorIgnore`]：true：在执行 Statement 的 executeBatch 时，如果中间有一条 SQL 执行失败，继续执行下面的 SQL。false：不再执行失败 SQL 后的任何语句。默认值为：false。
 
 ---

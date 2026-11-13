@@ -36,6 +36,42 @@
 
 using namespace std;
 
+#if defined(WINDOWS) && GTEST_HAS_DEATH_TEST
+TEST(LogTimezoneDeathTest, invalid_timezone_keeps_log_output) {
+  for (int invalid = 0; invalid < 3; ++invalid) {
+    SCOPED_TRACE(invalid);
+    EXPECT_EXIT(
+        ([&]() {
+          setvbuf(stdout, nullptr, _IONBF, 0);
+          char oversized[TD_TIMEZONE_LEN * 2 + 1];
+          memset(oversized, 'a', sizeof(oversized) - 1);
+          oversized[sizeof(oversized) - 1] = '\0';
+          EXPECT_TRUE(SetEnvironmentVariableA("TZ", oversized));
+          const char *rule = invalid == 0 ? nullptr :
+                             invalid == 1 ? "No/Such_Zone" : oversized;
+          EXPECT_TRUE(SetEnvironmentVariableA(TAOS_INTERNAL_TZ_ENV, rule));
+          const time_t stamp = 0;
+          struct tm local = {};
+          EXPECT_EQ(taosLocalTime(&stamp, &local, nullptr, 0, nullptr),
+                    nullptr);
+          if (::testing::Test::HasFailure()) _exit(1);
+
+          char output[] = "stderr";
+          tsLogOutput = output;
+          EXPECT_EQ(taosInitLogOutput(nullptr), 0);
+          uDebugFlag = DEBUG_ERROR | DEBUG_SCREEN;
+          taosPrintLog("UTL INFO  ", DEBUG_INFO, DEBUG_SCREEN,
+                       "timezone failure regression");
+          taosPrintLongString("UTL INFO  ", DEBUG_INFO, DEBUG_SCREEN,
+                              "timezone failure regression long log");
+          _exit(::testing::Test::HasFailure() ? 1 : 0);
+        }()),
+        ::testing::ExitedWithCode(0),
+        "UTL INFO.*timezone failure regression");
+  }
+}
+#endif
+
 #if defined(LINUX) && GTEST_HAS_DEATH_TEST
 class LogChmodDeathTest : public ::testing::TestWithParam<bool> {};
 

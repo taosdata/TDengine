@@ -78,7 +78,8 @@ TEST_F(ParserInitialATest, alterAccount) {
  */
 TEST_F(ParserInitialATest, alterDnodeTimezoneValidatedByServer) {
   // Error-code-only responses and logs must not expose format placeholders.
-  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE), "Invalid timezone");
+  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE),
+                "Invalid or unsupported timezone");
   struct TestCase {
     const char* sql;
     int32_t dnodeId;

@@ -52,6 +52,7 @@ typedef struct STranslateContext {
   bool                     hasNonLocalSubQ;
   bool                     hasLocalSubQ;
   bool                     statementTimeSet;
+  bool                     hasMySqlContextFunc;
   bool                     hasVolatileFunc;  // query/statement contains a volatile function (e.g. SLEEP)
   bool                     stableQuery;
   bool                     inInsertQuery;  // translating the SELECT of INSERT INTO ... SELECT

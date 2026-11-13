@@ -378,35 +378,44 @@ TEST(NodesTest, invalidTimezoneErrorContainsName) {
       timezoneName, &timezone, &ownsTimezone);
 
   EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
-  EXPECT_STREQ("Invalid timezone: 'UTC+2000'", terrMsg);
+  EXPECT_STREQ("Invalid or unsupported timezone: 'UTC+2000'", terrMsg);
   EXPECT_EQ(nullptr, timezone);
   EXPECT_FALSE(ownsTimezone);
 }
 
 TEST(NodesTest, invalidTimezoneRejectPathsReportName) {
   // Missing name: reported as an empty quoted name.
-  expectTimezoneRejected(nullptr, "Invalid timezone: ''");
-  expectTimezoneRejected("", "Invalid timezone: ''");
+  expectTimezoneRejected(nullptr, "Invalid or unsupported timezone: ''");
+  expectTimezoneRejected("", "Invalid or unsupported timezone: ''");
 
   // Ambiguous uppercase abbreviations.
-  expectTimezoneRejected("CST", "Invalid timezone: 'CST'");
-  expectTimezoneRejected("EST", "Invalid timezone: 'EST'");
+  expectTimezoneRejected("CST", "Invalid or unsupported timezone: 'CST'");
+  expectTimezoneRejected("EST", "Invalid or unsupported timezone: 'EST'");
+
+  expectTimezoneRejected("EST5EDT",
+                          "Invalid or unsupported timezone: 'EST5EDT'");
+  expectTimezoneRejected("est5edt",
+                          "Invalid or unsupported timezone: 'est5edt'");
+  expectTimezoneRejected(
+      "EST5EDT,M3.2.0,M11.1.0",
+      "Invalid or unsupported timezone: 'EST5EDT,M3.2.0,M11.1.0'");
 
   // GMT series, in either case, bare or with an offset.
-  expectTimezoneRejected("GMT", "Invalid timezone: 'GMT'");
-  expectTimezoneRejected("GMT+8", "Invalid timezone: 'GMT+8'");
-  expectTimezoneRejected("gmt-5", "Invalid timezone: 'gmt-5'");
+  expectTimezoneRejected("GMT", "Invalid or unsupported timezone: 'GMT'");
+  expectTimezoneRejected("GMT+8", "Invalid or unsupported timezone: 'GMT+8'");
+  expectTimezoneRejected("gmt-5", "Invalid or unsupported timezone: 'gmt-5'");
 
   // Unknown name carrying no slash.
-  expectTimezoneRejected("foobar", "Invalid timezone: 'foobar'");
+  expectTimezoneRejected("foobar", "Invalid or unsupported timezone: 'foobar'");
 
   // Offset hours out of range.
-  expectTimezoneRejected("UTC+2000", "Invalid timezone: 'UTC+2000'");
-  expectTimezoneRejected("+2000", "Invalid timezone: '+2000'");
+  expectTimezoneRejected("UTC+2000",
+                          "Invalid or unsupported timezone: 'UTC+2000'");
+  expectTimezoneRejected("+2000", "Invalid or unsupported timezone: '+2000'");
 
   // Offset hours that are not two digits.
-  expectTimezoneRejected("+8:00", "Invalid timezone: '+8:00'");
-  expectTimezoneRejected("+8", "Invalid timezone: '+8'");
+  expectTimezoneRejected("+8:00", "Invalid or unsupported timezone: '+8:00'");
+  expectTimezoneRejected("+8", "Invalid or unsupported timezone: '+8'");
 }
 
 TEST(NodesTest, timezoneNormalizeRejectsUndersizedBuffer) {
@@ -417,7 +426,26 @@ TEST(NodesTest, timezoneNormalizeRejectsUndersizedBuffer) {
       "UTC", normalized, sizeof(normalized), nullptr);
 
   EXPECT_EQ(TSDB_CODE_PAR_INVALID_TIMEZONE, code);
-  EXPECT_STREQ("Invalid timezone: 'UTC'", terrMsg);
+  EXPECT_STREQ("Invalid or unsupported timezone: 'UTC'", terrMsg);
+}
+
+TEST(NodesTest, timezoneNormalizeRejectsCustomDstRules) {
+  const char* rules[] = {"EST5EDT,M3.2.0,M11.1.0",
+                        "EST5EDT,M3.2.0/2,M11.1.0/2"};
+  for (const char* rule : rules) {
+    SCOPED_TRACE(rule);
+    char normalized[TD_TIMEZONE_LEN] = {0};
+    taosClearErrMsg();
+    EXPECT_EQ(taosValidateAndNormalizeTimezone(rule, normalized,
+                                              sizeof(normalized), nullptr),
+              TSDB_CODE_PAR_INVALID_TIMEZONE);
+    std::string expected = "Invalid or unsupported timezone: '";
+    expected += rule;
+    expected += "'";
+    EXPECT_STREQ(terrMsg, expected.c_str());
+  }
+  EXPECT_STREQ(tstrerror(TSDB_CODE_PAR_INVALID_TIMEZONE),
+               "Invalid or unsupported timezone");
 }
 
 TEST(NodesTest, validTimezonesAreStillAccepted) {
@@ -618,6 +646,7 @@ TEST(NodesTest, nonCanonicalTimezoneNamesAreNotCached) {
 TEST(NodesTest, timezoneCacheIsBounded) {
   nodesCleanupTimezoneCache();
   nodesTestSetTimezoneCacheMax(2);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
 
   void *pA = nullptr, *pB = nullptr, *pC = nullptr, *pAAgain = nullptr;
   bool  ownsA = true, ownsB = true, ownsC = false, ownsAAgain = true;
@@ -626,6 +655,7 @@ TEST(NodesTest, timezoneCacheIsBounded) {
   EXPECT_FALSE(ownsA);
   EXPECT_FALSE(ownsB);
 
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("America/New_York"));
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesDecodeTimezoneNameInPlace("America/New_York", &pC, &ownsC));
   ASSERT_NE(nullptr, pC);
   EXPECT_TRUE(ownsC) << "third distinct name exceeds the limit: handle must be owned by the caller";
@@ -673,6 +703,7 @@ TEST(NodesTest, fillLogicNodeTimezoneOwnership) {
 // Cleanup releases every cached handle; a later decode re-creates the cache and still works.
 // Run under ASan to check the cached handles are freed exactly once.
 TEST(NodesTest, timezoneCacheCleanupAndReuse) {
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
   void* pTz = nullptr;
   bool  owns = true;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesDecodeTimezoneNameInPlace("Asia/Shanghai", &pTz, &owns));
@@ -681,6 +712,8 @@ TEST(NodesTest, timezoneCacheCleanupAndReuse) {
 
   nodesCleanupTimezoneCache();
   nodesCleanupTimezoneCache();  // idempotent
+  EXPECT_NE(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Not/A_Zone"));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesValidateTimezoneName("Asia/Shanghai"));
 
   void* pAgain = nullptr;
   owns = true;

@@ -136,6 +136,9 @@ description: 保留关键字列表
 | `CREATE`                  | |
 | `CREATEDB`                | |
 | `CURRENT`                 | `v3.4.2.0`+ |
+| `CURRENT_DATE`            | `v3.4.4.0`+ |
+| `CURRENT_TIME`            | `v3.4.4.0`+ |
+| `CURRENT_TIMESTAMP`       | `v3.4.4.0`+ |
 | `CURRENT_USER`            | |
 
 ### D

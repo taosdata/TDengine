@@ -15,6 +15,14 @@
 
 MESSAGE(STATUS "build parser unit test")
 
+add_executable(tmysqltimeTest "tmysqltimeTest.c" "../src/tmysqltime.c")
+target_include_directories(
+    tmysqltimeTest PRIVATE
+    "${TD_SOURCE_DIR}/include/common"
+    "${TD_SOURCE_DIR}/include/os"
+)
+add_test(NAME tmysqltimeTest COMMAND tmysqltimeTest)
+
 # GoogleTest requires at least C++11
 SET(CMAKE_CXX_STANDARD 11)
 
@@ -47,6 +55,20 @@ add_test(
     NAME dataformatTest
     COMMAND dataformatTest
 )
+
+add_executable(timezoneTest "timezoneTest.cpp")
+DEP_ext_gtest(timezoneTest)
+target_link_libraries(timezoneTest PRIVATE common)
+target_include_directories(timezoneTest PRIVATE
+    "${TD_SOURCE_DIR}/source/os/inc")
+add_test(NAME timezoneTest COMMAND timezoneTest)
+if(TD_WINDOWS)
+    foreach(_dll timezoneTestA timezoneTestB)
+        add_library(${_dll} SHARED "timezoneTestDll.c")
+        target_link_libraries(${_dll} PRIVATE common)
+        add_dependencies(timezoneTest ${_dll})
+    endforeach()
+endif()
 
 # ttimeNaturalUnitsTest.cpp
 add_executable(ttimeNaturalUnitsTest "ttimeNaturalUnitsTest.cpp")

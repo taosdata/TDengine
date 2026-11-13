@@ -16,8 +16,12 @@
 from new_test_framework.utils import tdLog, tdSql
 
 import sys
+import os
 
 import pytest
+import requests
+import taosws
+from urllib.parse import quote
 
 
 pytestmark = pytest.mark.skipif(
@@ -51,6 +55,72 @@ class TestTzRestWindowsFallback:
         )
 
     # --- impl ---
+
+    def do_windows_ws_connection_isolation(self):
+        adapter_port = os.getenv("TAOS_ADAPTER_TEST_PORT", "6041")
+        base = f"taosws://root:taosdata@{self.host}:{adapter_port}/"
+        connections = []
+        sql = "select to_iso8601(cast(1705320000000 as timestamp))"
+        try:
+            for zone, expected in (
+                ("America/New_York", "2024-01-15T07:00:00.000-0500"),
+                ("Asia/Shanghai", "2024-01-15T20:00:00.000+0800"),
+                (None, "2024-01-15T20:00:00.000+0800"),
+            ):
+                dsn = base + ("?timezone=" + quote(zone, safe="") if zone else "")
+                connection = taosws.connect(dsn)
+                connections.append(connection)
+                cursor = connection.cursor()
+                cursor.execute(sql)
+                assert cursor.fetchone()[0] == expected
+                cursor.close()
+            cursor = connections[0].cursor()
+            cursor.execute("set timezone 'UTC'")
+            cursor.execute(sql)
+            assert cursor.fetchone()[0] in ("2024-01-15T12:00:00.000Z",
+                                            "2024-01-15T12:00:00.000+0000")
+            cursor.close()
+            cursor = connections[1].cursor()
+            cursor.execute(sql)
+            assert cursor.fetchone()[0] == "2024-01-15T20:00:00.000+0800"
+            cursor.close()
+        finally:
+            for connection in connections:
+                connection.close()
+        print("Windows WebSocket connection isolation ...... [ passed ]")
+
+    def do_windows_rest_connection_reuse(self):
+        adapter_port = os.getenv("TAOS_ADAPTER_TEST_PORT", "6041")
+        url = f"http://{self.host}:{adapter_port}/rest/sql"
+        sql = "select to_iso8601(cast(1705320000000 as timestamp))"
+        with requests.Session() as session:
+            session.auth = ("root", "taosdata")
+
+            def query(statement, zone=None):
+                params = {} if zone is None else {"conn_tz": zone}
+                response = session.post(url, params=params, data=statement.encode("utf-8"), timeout=30)
+                response.raise_for_status()
+                payload = response.json()
+                assert payload.get("code", 0) == 0, payload
+                return payload.get("data", [])
+
+            baseline = query(sql)[0][0]
+            cases = [
+                ("America/New_York", "2024-01-15T07:00:00.000-0500"),
+                (None, baseline),
+                ("Asia/Shanghai", "2024-01-15T20:00:00.000+0800"),
+                (None, baseline),
+                ("UTC", "2024-01-15T12:00:00.000Z"),
+                (None, baseline),
+            ]
+            for zone, expected in cases:
+                actual = query(sql, zone)[0][0]
+                # UTC may be rendered with either supported zero-offset suffix.
+                if zone == "UTC":
+                    assert actual in (expected, expected[:-1] + "+0000"), actual
+                else:
+                    assert actual == expected, (zone, actual, expected)
+        print("Windows REST connection reuse ............... [ passed ]")
 
     def do_windows_rest_timezone_fallback(self):
         self.prepare_data()
@@ -123,6 +193,8 @@ class TestTzRestWindowsFallback:
         3. Verify implicit TO_CHAR matches explicit POSIX -0800.
         4. Verify implicit TIMETRUNCATE matches explicit POSIX -0800.
         5. Verify TO_CHAR(_wend, '...TZH') prints local time plus +08.
+        6. Alternate REST timezones and verify pooled requests without a timezone.
+        7. Verify WebSocket connection parameters and SET TIMEZONE stay isolated.
 
         Catalog:
             - Function:timezone
@@ -140,3 +212,5 @@ class TestTzRestWindowsFallback:
         """
         self.do_windows_rest_timezone_fallback()
         self.do_windows_rest_to_char_tzh()
+        self.do_windows_rest_connection_reuse()
+        self.do_windows_ws_connection_isolation()
