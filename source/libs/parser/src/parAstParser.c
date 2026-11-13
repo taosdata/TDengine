@@ -562,7 +562,10 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
       return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pNode);
     case QUERY_NODE_TIME_ALIGN_TABLE: {
       STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
-      SRealTableNode*      pReal = NULL;
+      if (pAlign->pRealTableNode != NULL) {
+        return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pAlign->pRealTableNode);
+      }
+      SRealTableNode* pReal = NULL;
       if (nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal) != TSDB_CODE_SUCCESS) {
         pCxt->errCode = terrno;
         return DEAL_RES_ERROR;

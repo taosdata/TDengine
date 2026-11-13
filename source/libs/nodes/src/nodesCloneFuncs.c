@@ -237,6 +237,8 @@ static int32_t columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_SCALAR_FIELD(hasDep);
   COPY_SCALAR_FIELD(hasRef);
   COPY_SCALAR_FIELD(flags);
+  COPY_SCALAR_FIELD(alignSpanValue);
+  COPY_SCALAR_FIELD(alignSpanUnit);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
   COPY_CHAR_ARRAY_FIELD(refSchemaName);
   COPY_CHAR_ARRAY_FIELD(refDbName);
@@ -516,6 +518,12 @@ static int32_t realTableNodeCopy(const SRealTableNode* pSrc, SRealTableNode* pDs
   memcpy(pDst->extSeg, pSrc->extSeg, sizeof(pSrc->extSeg));
   CLONE_NODE_FIELD(pExtTableNode);
   COPY_SCALAR_FIELD(placeholderType);
+  if (pSrc->pAlignCols != NULL) {
+    pDst->pAlignCols = taosArrayDup(pSrc->pAlignCols, NULL);
+    if (NULL == pDst->pAlignCols) return terrno;
+  }
+  COPY_SCALAR_FIELD(outputRaw);
+  COPY_SCALAR_FIELD(timeAlignRowOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -523,6 +531,11 @@ static int32_t tempTableNodeCopy(const STempTableNode* pSrc, STempTableNode* pDs
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   CLONE_NODE_FIELD(pSubquery);
   COPY_SCALAR_FIELD(hasExplicitAlias);
+  if (pSrc->pAlignCols != NULL) {
+    pDst->pAlignCols = taosArrayDup(pSrc->pAlignCols, NULL);
+    if (NULL == pDst->pAlignCols) return terrno;
+  }
+  COPY_SCALAR_FIELD(outputRaw);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -591,6 +604,7 @@ static int32_t timeAlignTableNodeCopy(const STimeAlignTableNode* pSrc, STimeAlig
   COPY_CHAR_ARRAY_FIELD(tbName);
   COPY_SCALAR_FIELD(outputRaw);
   COPY_CHAR_POINT_FIELD(columnList);
+  CLONE_NODE_FIELD(pRealTableNode);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1057,6 +1071,7 @@ static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   COPY_SCALAR_FIELD(outputTsOrder);
   COPY_SCALAR_FIELD(dynamicOp);
   COPY_SCALAR_FIELD(forceCreateNonBlockingOptr);
+  COPY_SCALAR_FIELD(preserveGroupId);
   CLONE_NODE_LIST_FIELD(pHint);
   return TSDB_CODE_SUCCESS;
 }
@@ -1075,6 +1090,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
+  CLONE_NODE_LIST_FIELD(pAlignCols);
   COPY_SCALAR_FIELD(tableType);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(stableId);
@@ -1253,6 +1269,8 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   COPY_SCALAR_FIELD(inputIgnoreGroup);
   COPY_SCALAR_FIELD(isSetOpProj);
   COPY_SCALAR_FIELD(isUnionDedup);
+  COPY_SCALAR_FIELD(timeAlignProject);
+  COPY_SCALAR_FIELD(timeAlignOutputOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1577,6 +1595,7 @@ static int32_t physiScanCopy(const SScanPhysiNode* pSrc, SScanPhysiNode* pDst) {
 static int32_t physiVirtualTableScanCopy(const SVirtualScanPhysiNode* pSrc, SVirtualScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
   CLONE_NODE_LIST_FIELD(pAlignCols);
+  COPY_CHAR_ARRAY_FIELD(timezoneName);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
   COPY_SCALAR_FIELD(scanAllCols);
@@ -1748,6 +1767,7 @@ static int32_t physiLastRowScanCopy(const SLastRowScanPhysiNode* pSrc, SLastRowS
 
 static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(scan, physiScanCopy);
+  CLONE_NODE_LIST_FIELD(pAlignCols);
   COPY_OBJECT_FIELD(scanSeq[0], sizeof(uint8_t) * 2);
   COPY_OBJECT_FIELD(scanRange, sizeof(STimeWindow));
   CLONE_OBJECT_FIELD(pExtScanRange, timeWindowClone);
@@ -1835,6 +1855,8 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
   CLONE_NODE_FIELD(pTspk);
   CLONE_NODE_FIELD(pTsEnd);
   COPY_SCALAR_FIELD(indefRowsFunc);
+  COPY_SCALAR_FIELD(mergeDataBlock);
+  COPY_SCALAR_FIELD(preserveGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1967,6 +1989,8 @@ static int32_t physiProjectCopy(const SProjectPhysiNode* pSrc, SProjectPhysiNode
   COPY_SCALAR_FIELD(mergeDataBlock);
   COPY_SCALAR_FIELD(ignoreGroupId);
   COPY_SCALAR_FIELD(inputIgnoreGroup);
+  COPY_SCALAR_FIELD(timeAlignProject);
+  COPY_SCALAR_FIELD(timeAlignOutputOrder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2117,6 +2141,7 @@ static int32_t selectStmtCopy(const SSelectStmt* pSrc, SSelectStmt* pDst) {
   COPY_SCALAR_FIELD(hasNonLocalSubQ);
   COPY_SCALAR_FIELD(hasGenericAnalysisFunc);
   COPY_SCALAR_FIELD(isEmptyResult);
+  COPY_SCALAR_FIELD(keepAllProjections);
   COPY_SCALAR_FIELD(implicitPartitionHaving);
   COPY_SCALAR_FIELD(timeLineResMode);
   COPY_SCALAR_FIELD(timeLineFromOrderBy);

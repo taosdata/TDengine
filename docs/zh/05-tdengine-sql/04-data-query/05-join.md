@@ -18,6 +18,8 @@ description: 关联查询（JOIN）概念、类型、语法与限制
 
 JOIN 的连接条件须能作为布尔表达式求值。以下类型不能作为连接的等值匹配键：`JSON` 整体值、`BLOB` 和 `MEDIUMBLOB`。聚合和窗口函数不能直接写在 `ON` 中，但子查询已计算出的结果列可以参与连接。
 
+表函数结果（`FROM` 子句中的 `TABLE(...)`）可以作为 JOIN 的一侧，其行集和输出列按 [表函数](./03-function.md#表函数) 的规则确定。
+
 `ASOF JOIN` 的主连接条件基于主键时间戳，可使用支持的比较运算符或 `TIMETRUNCATE` 表达式；标签和普通列只能通过等值条件指定分组。具体限制见下文“Left/Right ASOF Join”。`WINDOW JOIN` 的时间范围通过 `WINDOW_OFFSET` 指定，其他条件限制见对应章节。
 
 ### 分组条件

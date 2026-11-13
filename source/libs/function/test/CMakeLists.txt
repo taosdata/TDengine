@@ -47,6 +47,11 @@ if(NOT TD_DARWIN)
     target_link_libraries(fillForwardTest PRIVATE os util common nodes function)
     add_test(NAME fillForwardTest COMMAND fillForwardTest)
 
+    add_executable(fillNextTest fillNextTest.cpp)
+    DEP_ext_gtest(fillNextTest)
+    target_link_libraries(fillNextTest PRIVATE os util common nodes function)
+    add_test(NAME fillNextTest COMMAND fillNextTest)
+
     add_executable(spillDistinctSetTest spillDistinctSetTest.cpp)
     DEP_ext_gtest(spillDistinctSetTest)
     target_link_libraries(

@@ -5627,6 +5627,131 @@ void lagLeadFunctionCleanupExt(SqlFunctionCtx* pCtx) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// TIME_ALIGN optional time-range parameter.
+// The 1-parameter form keeps the original unlimited behaviour.  The extended
+// form is fill_forward/fill_next(src, ts, spanValue, spanUnit, tzName, orderFlag):
+// ts is the time axis column, spanValue+spanUnit the duration, tzName the
+// session timezone (calendar units n/y only) and orderFlag bit 0 marks
+// monotonic delivery, bit 1 marks descending timestamp order.  In a descending
+// stream the host swaps PREV/NEXT before the call, so fill_forward implements
+// the time-successor and fill_next the time-predecessor there; the range and
+// early-resolution checks follow the delivery direction.
+// ---------------------------------------------------------------------------
+static int32_t fillSpanSetup(SqlFunctionCtx* pCtx, SFillSpanInfo* pInfo) {
+  pInfo->hasSpan = false;
+  pInfo->spanReady = false;
+  pInfo->spanValue = 0;
+  pInfo->spanUnit = 0;
+  pInfo->spanTicks = 0;
+  pInfo->tz = NULL;
+  pInfo->precision = 0;
+  pInfo->mono = false;
+  pInfo->desc = false;
+
+  if (pCtx->numOfParams <= 1) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // The select-clause machinery appends the primary timestamp as an extra
+  // trailing argument to indefinite-rows functions, plus the primary key
+  // column on composite-key tables.  Those appended arguments are columns, so
+  // a source column followed only by column parameters is the legacy form and
+  // has no range parameter.
+  if (pCtx->param != NULL) {
+    bool onlyColumns = true;
+    for (int32_t i = 1; i < pCtx->numOfParams; ++i) {
+      if (pCtx->param[i].type != FUNC_PARAM_TYPE_COLUMN) {
+        onlyColumns = false;
+        break;
+      }
+    }
+    if (onlyColumns) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  if (pCtx->numOfParams < 6 || pCtx->param == NULL ||
+      pCtx->param[2].type != FUNC_PARAM_TYPE_VALUE || pCtx->param[3].type != FUNC_PARAM_TYPE_VALUE ||
+      pCtx->param[4].type != FUNC_PARAM_TYPE_VALUE || pCtx->param[5].type != FUNC_PARAM_TYPE_VALUE) {
+    return TSDB_CODE_FUNC_FUNTION_PARA_NUM;
+  }
+
+  pInfo->hasSpan = true;
+  pInfo->spanValue = pCtx->param[2].param.i;
+  pInfo->spanUnit = (int8_t)pCtx->param[3].param.i;
+  // Bit 0: monotonic delivery, bit 1: descending timestamp order.
+  int8_t orderFlag = (int8_t)pCtx->param[5].param.i;
+  pInfo->mono = (orderFlag & 0x1) != 0;
+  pInfo->desc = (orderFlag & 0x2) != 0;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Resolve the precision-dependent parts against the actual time-axis column.
+// Called from the process-by-row entry points, after the input block is bound.
+static int32_t fillSpanPrepare(SqlFunctionCtx* pCtx, SFillSpanInfo* pInfo) {
+  if (!pInfo->hasSpan || pInfo->spanReady) {
+    return TSDB_CODE_SUCCESS;
+  }
+  SColumnInfoData* pTsCol = (pCtx->input.pData != NULL) ? pCtx->input.pData[1] : NULL;
+  if (pTsCol == NULL || TSDB_DATA_TYPE_TIMESTAMP != pTsCol->info.type) {
+    qError("fill function time-range parameter requires a TIMESTAMP column");
+    return TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+  }
+  pInfo->precision = pTsCol->info.precision;
+
+  if (IS_CALENDAR_TIME_DURATION(pInfo->spanUnit)) {
+    if (pCtx->param[4].param.pz != NULL) {
+      const char* tzName = varDataVal(pCtx->param[4].param.pz);
+      if (tzName != NULL && tzName[0] != '\0') {
+        int32_t code = taosValidateTimezone(tzName, &pInfo->tz);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("fill function cannot resolve timezone '%s'", tzName);
+          return code;
+        }
+      }
+    }
+  } else {
+    int64_t ticks = 0;
+    int32_t code = getDuration(pInfo->spanValue, (char)pInfo->spanUnit, &ticks, pInfo->precision);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("fill function time range %" PRId64 "%c is out of range", pInfo->spanValue, pInfo->spanUnit);
+      return code;
+    }
+    pInfo->spanTicks = ticks;
+  }
+  pInfo->spanReady = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+static void fillSpanCleanup(SFillSpanInfo* pInfo) {
+  if (pInfo->tz != NULL) {
+    tzfree(pInfo->tz);
+    pInfo->tz = NULL;
+  }
+  pInfo->spanReady = false;
+}
+
+// Closed-interval check: is curTs at most duration away from baseTs along the
+// direction of the method (FS 4.6)?  Fixed units compare ticks; calendar
+// units advance baseTs with taosTimeAdd().
+static bool fillSpanContains(const SFillSpanInfo* pInfo, int64_t baseTs, int64_t curTs) {
+  if (!pInfo->hasSpan) {
+    return true;
+  }
+  if (IS_CALENDAR_TIME_DURATION(pInfo->spanUnit)) {
+    int64_t deadline = taosTimeAdd(baseTs, pInfo->spanValue, pInfo->spanUnit, pInfo->precision, pInfo->tz);
+    return curTs <= deadline;
+  }
+  return curTs - baseTs <= pInfo->spanTicks;
+}
+
+static int64_t fillRowTs(SqlFunctionCtx* pCtx, const SFuncInputRow* pRow) {
+  SColumnInfoData* pTsCol = (pCtx->input.pData != NULL) ? pCtx->input.pData[1] : NULL;
+  if (pTsCol == NULL || pRow->rowIndex < 0) {
+    return 0;
+  }
+  return *(int64_t*)colDataGetData(pTsCol, pRow->rowIndex);
+}
+
 bool getFillforwardFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SFillforwardInfo);
   return true;
@@ -5642,6 +5767,12 @@ int32_t fillforwardFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRes
   SFillforwardInfo* pFillforwardInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pFillforwardInfo->str = NULL;
   pFillforwardInfo->nonnull = false;
+  pFillforwardInfo->lastTs = 0;
+  pFillforwardInfo->tsValid = false;
+  int32_t code = fillSpanSetup(pCtx, &pFillforwardInfo->span);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -5668,9 +5799,11 @@ static int32_t doHandleFillforward(SFillforwardInfo* pFillforwardInfo, int32_t t
     case TSDB_DATA_TYPE_TIMESTAMP:
       return colDataSetVal(pOutput, pos, (const char*)&pFillforwardInfo->v, false);
     case TSDB_DATA_TYPE_FLOAT:
+      if (pOutput->nullbitmap != NULL) colDataClearNull_f(pOutput->nullbitmap, pos);
       colDataSetFloat(pOutput, pos, &pFillforwardInfo->fv);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
+      if (pOutput->nullbitmap != NULL) colDataClearNull_f(pOutput->nullbitmap, pos);
       colDataSetDouble(pOutput, pos, &pFillforwardInfo->dv);
       break;
     case TSDB_DATA_TYPE_DECIMAL64:
@@ -5714,6 +5847,20 @@ static int32_t setFillforwardResult(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, i
     }
   }
 
+  return TSDB_CODE_SUCCESS;
+}
+
+// Output a NULL for this row (no in-range predecessor) while keeping the
+// implicit-timestamp subsidiary columns in sync.
+static int32_t setFillforwardNull(SqlFunctionCtx* pCtx, SFuncInputRow* pRow, int32_t pos) {
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+  if (pOutput == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  colDataSetNULL(pOutput, pos);
+  if (pCtx->subsidiaries.num > 0) {
+    return appendSelectivityCols(pCtx, pRow->block, pRow->rowIndex, pos);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5784,9 +5931,16 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
         goto _exit;
       }
 
-      if (!colDataIsNull_s(pCtx->input.pData[0], pCtx->rowIter.rowIndex - 1)) {
-        SResultRowEntryInfo*  pResInfo = GET_RES_INFO(pCtx);
-        SFillforwardInfo*             pFillforwardInfo = GET_ROWCELL_INTERBUF(pResInfo);
+      SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+      SFillforwardInfo*    pFillforwardInfo = GET_ROWCELL_INTERBUF(pResInfo);
+      code = fillSpanPrepare(pCtx, &pFillforwardInfo->span);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _exit;
+      }
+      bool    srcNull = colDataIsNull_s(pCtx->input.pData[0], pCtx->rowIter.rowIndex - 1);
+      int64_t rowTs = pFillforwardInfo->span.hasSpan ? fillRowTs(pCtx, pRow) : 0;
+
+      if (!srcNull) {
         SInputColumnInfoData* pInput = &pCtx->input;
         SColumnInfoData*      pInputCol = pInput->pData[0];
         int8_t                inputType = pInputCol->info.type;
@@ -5861,9 +6015,25 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
         if (!pFillforwardInfo->nonnull) {
           pFillforwardInfo->nonnull = true;
         }
+        pFillforwardInfo->lastTs = rowTs;
+        pFillforwardInfo->tsValid = true;
       }
 
-      code = setFillforwardResult(pCtx, pRow, pos);
+      bool fillable = pFillforwardInfo->nonnull;
+      if (fillable && pFillforwardInfo->span.hasSpan) {
+        // Ascending: the stored value precedes the row in time.  Descending:
+        // the stream-previous value is the row's time-successor, so measure
+        // the distance from the row to that value instead.
+        fillable = pFillforwardInfo->tsValid &&
+                   (pFillforwardInfo->span.desc
+                        ? fillSpanContains(&pFillforwardInfo->span, rowTs, pFillforwardInfo->lastTs)
+                        : fillSpanContains(&pFillforwardInfo->span, pFillforwardInfo->lastTs, rowTs));
+      }
+      if (fillable) {
+        code = setFillforwardResult(pCtx, pRow, pos);
+      } else {
+        code = setFillforwardNull(pCtx, pRow, pos);
+      }
       if (code) {
         goto _exit;
       }
@@ -5905,6 +6075,254 @@ void fillforwardFunctionCleanupExt(SqlFunctionCtx* pCtx) {
     taosMemoryFreeClear(pInfo->str);
   }
   pInfo->nonnull = false;
+  pInfo->tsValid = false;
+  fillSpanCleanup(&pInfo->span);
+}
+
+bool getFillnextFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SFillNextInfo);
+  return true;
+}
+
+int32_t fillnextFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (pResInfo->initialized) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_CODE_SUCCESS != functionSetup(pCtx, pResInfo)) {
+    return TSDB_CODE_FUNC_SETUP_ERROR;
+  }
+  SFillNextInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->pPending = NULL;
+  pInfo->pendingHead = 0;
+  int32_t code = fillSpanSetup(pCtx, &pInfo->span);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fillnextFunction(SqlFunctionCtx* UNUSED_PARAM(pCtx)) { return TSDB_CODE_SUCCESS; }
+
+void fillnextFunctionCleanupExt(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return;
+  }
+  SFillNextInfo* pInfo = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  if (pInfo == NULL) {
+    return;
+  }
+  if (pInfo->pPending != NULL) {
+    taosArrayDestroy(pInfo->pPending);
+    pInfo->pPending = NULL;
+  }
+  pInfo->pendingHead = 0;
+  fillSpanCleanup(&pInfo->span);
+}
+
+bool fillnextHasPending(SqlFunctionCtx* pCtx) {
+  if (pCtx == NULL || pCtx->resultInfo == NULL) {
+    return false;
+  }
+  SFillNextInfo* pInfo = GET_ROWCELL_INTERBUF(pCtx->resultInfo);
+  return pInfo != NULL && pInfo->pPending != NULL &&
+         taosArrayGetSize(pInfo->pPending) > pInfo->pendingHead;
+}
+
+static int32_t fillNextWriteValue(SqlFunctionCtx* pCtx, const char* pData, int32_t pos) {
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+  if (pOutput == NULL) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  if (pData == NULL) {
+    colDataSetNULL(pOutput, pos);
+    return TSDB_CODE_SUCCESS;
+  }
+  return colDataSetVal(pOutput, pos, pData, false);
+}
+
+// NEXT is a forward-looking fill: a row whose source is NULL is written as a
+// temporary NULL and its output position is queued in pPending.  The first
+// non-NULL value seen later (in this or a later input block) fills every queued
+// position.  The host result block retains earlier rows, so positions stay
+// valid across input blocks (the same contract as LEAD's deferred output).
+int32_t fillnextFunctionByRow(SArray* pCtxArray) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t colNum = taosArrayGetSize(pCtxArray);
+  if (colNum == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SArray* pRows = taosArrayInit_s(sizeof(SFuncInputRow), colNum);
+  if (NULL == pRows) {
+    return terrno;
+  }
+
+  for (int32_t i = 0; i < colNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (NULL == pCtx) {
+      code = terrno;
+      goto _exit;
+    }
+    funcInputUpdate(pCtx);
+  }
+
+  SqlFunctionCtx* pCtx0 = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, 0);
+  SFuncInputRow*  pRow0 = (SFuncInputRow*)taosArrayGet(pRows, 0);
+  if (NULL == pCtx0 || NULL == pRow0) {
+    code = terrno;
+    goto _exit;
+  }
+
+  int32_t startOffset = pCtx0->offset;
+  int32_t numOfElems = 0;
+  bool    result = false;
+  while (1) {
+    code = funcInputGetNextRow(pCtx0, pRow0, &result);
+    if (TSDB_CODE_SUCCESS != code) {
+      goto _exit;
+    }
+    if (!result) {
+      break;
+    }
+
+    for (int32_t i = 1; i < colNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = terrno;
+        goto _exit;
+      }
+      code = funcInputGetNextRow(pCtx, pRow, &result);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _exit;
+      }
+      if (!result) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+    }
+
+    int32_t pos = startOffset + numOfElems;
+    for (int32_t i = 0; i < colNum; ++i) {
+      SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+      SFuncInputRow*  pRow = (SFuncInputRow*)taosArrayGet(pRows, i);
+      if (NULL == pCtx || NULL == pRow) {
+        code = terrno;
+        goto _exit;
+      }
+
+      SFillNextInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+      if (NULL == pInfo) {
+        code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+        goto _exit;
+      }
+      code = fillSpanPrepare(pCtx, &pInfo->span);
+      if (TSDB_CODE_SUCCESS != code) {
+        goto _exit;
+      }
+
+      bool    isNull = colDataIsNull_s(pCtx->input.pData[0], pCtx->rowIter.rowIndex - 1);
+      int64_t rowTs = pInfo->span.hasSpan ? fillRowTs(pCtx, pRow) : 0;
+
+      // Monotonic input timestamps: a pending position whose deadline is
+      // already behind the current row can never be filled (FS 4.10 item 8).
+      // Ascending measures the pending row against later values; descending
+      // (PREV in a descending stream) measures the later value against the
+      // pending row, so the current row is the closest remaining candidate.
+      if (pInfo->span.hasSpan && pInfo->span.mono && pInfo->pPending != NULL) {
+        int32_t nPending = taosArrayGetSize(pInfo->pPending);
+        while (pInfo->pendingHead < nPending) {
+          SFillNextPending* pPending = (SFillNextPending*)taosArrayGet(pInfo->pPending, pInfo->pendingHead);
+          if (pPending == NULL) break;
+          bool reachable = pInfo->span.desc
+                               ? fillSpanContains(&pInfo->span, rowTs, pPending->rowTs)
+                               : fillSpanContains(&pInfo->span, pPending->rowTs, rowTs);
+          if (reachable) break;
+          ++pInfo->pendingHead;
+        }
+        if (pInfo->pendingHead >= nPending) {
+          taosArrayClear(pInfo->pPending);
+          pInfo->pendingHead = 0;
+        }
+      }
+
+      if (!isNull) {
+        if (pInfo->pPending != NULL) {
+          int32_t nPending = taosArrayGetSize(pInfo->pPending);
+          for (int32_t k = pInfo->pendingHead; k < nPending; ++k) {
+            SFillNextPending* pPending = (SFillNextPending*)taosArrayGet(pInfo->pPending, k);
+            if (pPending == NULL) {
+              code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+              goto _exit;
+            }
+            // Out-of-range rows stay NULL; a later candidate must not replace
+            // them.  Descending streams fill a time-predecessor: the arriving
+            // value is the smaller timestamp and the pending row the larger.
+            bool inRange = pInfo->span.desc
+                               ? fillSpanContains(&pInfo->span, rowTs, pPending->rowTs)
+                               : fillSpanContains(&pInfo->span, pPending->rowTs, rowTs);
+            if (!inRange) continue;
+            code = fillNextWriteValue(pCtx, pRow->pData, pPending->pos);
+            if (TSDB_CODE_SUCCESS != code) {
+              goto _exit;
+            }
+          }
+          taosArrayClear(pInfo->pPending);
+          pInfo->pendingHead = 0;
+        }
+        code = fillNextWriteValue(pCtx, pRow->pData, pos);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _exit;
+        }
+      } else {
+        code = fillNextWriteValue(pCtx, NULL, pos);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _exit;
+        }
+        if (pInfo->pPending == NULL) {
+          pInfo->pPending = taosArrayInit(4, sizeof(SFillNextPending));
+          if (NULL == pInfo->pPending) {
+            code = terrno;
+            goto _exit;
+          }
+        }
+        SFillNextPending pending = {.pos = pos, .rowTs = rowTs};
+        if (NULL == taosArrayPush(pInfo->pPending, &pending)) {
+          code = terrno;
+          goto _exit;
+        }
+      }
+
+      // Keep the implicit-timestamp output (the '_select_value' subsidiary) in
+      // sync for every row.  Pending rows keep the timestamp written on their
+      // first pass; resolving them later only fills the value.
+      if (pCtx->subsidiaries.num > 0) {
+        code = appendSelectivityCols(pCtx, pRow->block, pRow->rowIndex, pos);
+        if (TSDB_CODE_SUCCESS != code) {
+          goto _exit;
+        }
+      }
+    }
+
+    ++numOfElems;
+  }
+
+_exit:
+  for (int32_t i = 0; i < colNum; ++i) {
+    SqlFunctionCtx* pCtx = *(SqlFunctionCtx**)taosArrayGet(pCtxArray, i);
+    if (!pCtx) {
+      break;
+    }
+    if (!code) {
+      pCtx->resultInfo->numOfRes = numOfElems;
+    }
+  }
+
+  if (pRows) {
+    taosArrayDestroy(pRows);
+    pRows = NULL;
+  }
+  return code;
 }
 
 int32_t getTopBotInfoSize(int64_t numOfItems) {

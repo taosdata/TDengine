@@ -257,6 +257,8 @@ typedef struct STimeAlignArgs {
 
 SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, SToken* pDbName,
                                 SToken* pTableName, const STimeAlignArgs* pArgs, SToken* pTableAlias);
+SNode* createTimeAlignTableNodeWithTable(SAstCreateContext* pCxt, SToken* pFuncName, SNode* pTable,
+                                         const STimeAlignArgs* pArgs, SToken* pTableAlias);
 SNode*     createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, SToken* pTableAlias);
 SNode*     createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, EJoinSubType stype, SNode* pLeft, SNode* pRight,
                                SNode* pJoinCond);

@@ -108,10 +108,14 @@ typedef struct SColumnNode {
     struct {
       uint8_t hasMask : 1;
       uint8_t appendByPrivCond : 1;
-      uint8_t isAlignOut : 1;  // TIME_ALIGN output column (planner-side marker)
-      uint8_t reserve : 5;
+      uint8_t isAlignOut : 1;    // TIME_ALIGN output column (planner-side marker)
+      uint8_t alignMethod : 2;   // EAlignMethod; valid when isAlignOut
+      uint8_t alignHasSpan : 1;  // TIME_ALIGN optional time-range parameter present
+      uint8_t reserve : 2;
     };
   };
+  int64_t alignSpanValue;  // TIME_ALIGN duration count; q is folded into months
+  int8_t  alignSpanUnit;   // b/u/a/s/m/h/d/w/n/y; 0 when alignHasSpan is false
   char refSourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];   // external schema (SQL Server); empty otherwise
   char refDbName[TSDB_DB_NAME_LEN];
@@ -499,6 +503,12 @@ typedef struct SRealTableNode {
   SArray*            tsmaTargetTbInfo;    // SArray<STsmaTargetTbInfo>, used for child table or normal table only
   EStreamPlaceholder placeholderType;
   bool               asSingleTable; // only used in stream calc query
+  // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>
+  bool               outputRaw;
+  // External table without a remote primary key: align in output row order,
+  // with view-like output columns (no implicit timestamp axis).
+  bool               timeAlignRowOrder;
   // External table path fields (3-segment or 4-segment path)
   SNode*             pExtTableNode;                      // translated external table node (enterprise only)
   int8_t             numPathSegments;                    // 0/1 = default; 2 = db.tbl; 3 = src.mid0.tbl; 4 = src.mid0.mid1.tbl
@@ -509,6 +519,9 @@ typedef struct STempTableNode {
   STableNode table;  // QUERY_NODE_TEMP_TABLE
   SNode*     pSubquery;
   bool       hasExplicitAlias;
+  // TIME_ALIGN over a view/derived table.
+  SArray*    pAlignCols;  // SArray<SAlignOutCol>
+  bool       outputRaw;
 } STempTableNode;
 
 typedef struct STextTableNode {
@@ -550,6 +563,8 @@ typedef struct STimeAlignTableNode {
   char       tbName[TSDB_TABLE_NAME_LEN];
   bool       outputRaw;    // 2nd argument; default false
   char*      columnList;   // raw column-def string (quotes stripped); NULL = default '*:PREV:'
+  // Pre-built input table for multi-segment (external source) paths.
+  SNode*     pRealTableNode;
 } STimeAlignTableNode;
 
 typedef struct SPlaceHolderTableNode {
@@ -559,9 +574,19 @@ typedef struct SPlaceHolderTableNode {
   EStreamPlaceholder placeholderType;
 } SPlaceHolderTableNode;
 
+typedef enum EAlignMethod {
+  ALIGN_METHOD_PREV = 1,
+  ALIGN_METHOD_NEXT = 2,
+} EAlignMethod;
+
 typedef struct SAlignOutCol {
   col_id_t srcColId;                     // source data column id in the vtable
   char     outName[TSDB_COL_NAME_LEN];   // output column name = source name + suffix
+  char     srcName[TSDB_COL_NAME_LEN];   // source column name (views/Projection host)
+  int8_t   method;                       // EAlignMethod
+  bool     hasSpan;                      // optional time-range parameter present
+  int64_t  spanValue;                    // duration count; q is folded into months
+  char     spanUnit;                     // b/u/a/s/m/h/d/w/n/y; 0 when !hasSpan
 } SAlignOutCol;
 
 typedef struct SVirtualTableNode {
@@ -572,7 +597,7 @@ typedef struct SVirtualTableNode {
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
   bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
   // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
-  SArray*            pAlignCols;     // SArray<SAlignOutCol>; PREV only in phase 1
+  SArray*            pAlignCols;     // SArray<SAlignOutCol>; method is PREV or NEXT
   bool               outputRaw;      // output_raw argument
 } SVirtualTableNode;
 
@@ -1038,6 +1063,9 @@ typedef struct SSelectStmt {
   bool            hasNonLocalSubQ;
   int32_t         timeLineFromOrderBy;
   bool            isEmptyResult;
+  // TIME_ALIGN over a view: keep the view's whole projection list so the
+  // alignment Projection can still find the timestamp and source columns.
+  bool            keepAllProjections;
   bool            isSubquery;
   bool            implicitPartitionHaving;
   bool            hasAggFuncs;

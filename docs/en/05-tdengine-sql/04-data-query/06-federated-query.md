@@ -560,6 +560,8 @@ Refers to regular tables in MySQL / PostgreSQL / SQL Server / Oracle that lack a
 | Used in virtual tables | **Not a supported usage** | Virtual tables with external column references sort by the external table's primary time column and merge by timestamp; external regular tables must have a primary key time column mappable to `TIMESTAMP`; external views cannot be referenced as virtual table columns |
 | `JOIN` with timeline tables | **Not supported** | `ON` conditions for external table `JOIN` must include the primary timestamp column; external tables without a timeline have no usable primary timestamp column and cannot be joined on business keys alone |
 
+When an external table without a primary key is used as input to [TIME_ALIGN](./03-function.md#time_align), it follows view input: interpolation uses the output row order, a `TIMESTAMP` column is not required, and the time range parameter has no effect. An external table with a primary key follows table input.
+
 Examples of **queries that do not depend on a timeline**:
 
 ```sql

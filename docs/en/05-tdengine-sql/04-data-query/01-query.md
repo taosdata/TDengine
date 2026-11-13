@@ -56,6 +56,7 @@ table_expr: {
   | ( subquery )
   | TEXT(column_list) VALUES (val [, ...]) [(...)] ...
   | FILE('file_path', 'column_list' [, header=true] [, delimiter='char'])
+  | TABLE(table_function_call)
 }
 
 column_list:
@@ -133,11 +134,11 @@ limit_expr: {
 ### Partial Field Description
 
 - select_expr: Select list expressions that can be constants, columns, operations, functions, and their mixed operations, and not support nested aggregate functions.
-- from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view, support multiple table association queries.
+- from_clause: Specify the data source for the query, which can be a single table (super table, sub table, regular table, virtual table), a view or a table function result, support multiple table association queries.
 - table_reference: Specify the name of a single table (including views), and optionally specify an alias for the table.
-- table_expr: Specify the query data source, which can be a table name, view name, subquery, or an inline data source (`TEXT` or `FILE`). See [TEXT Inline Data Source](#text-inline-data-source) and [FILE CSV Data Source](#file-csv-data-source) for details.
+- table_expr: Specify the query data source, which can be a table name, view name, subquery, table function result (`TABLE(...)`), or an inline data source (`TEXT` or `FILE`). See [TABLE Table Function Data Source](#table-table-function-data-source), [TEXT Inline Data Source](#text-inline-data-source), and [FILE CSV Data Source](#file-csv-data-source) for details.
 - column_list: Column definition list shared by `TEXT` and `FILE`. Each entry is `col_name type_name`. All types except JSON, GEOMETRY, and BLOB are supported.
-- join_clause: Join query. Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, and subqueries. For the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of matching rows, with a value range of [0, 1024]. ASOF JOIN defaults to one matching row; WINDOW JOIN returns all matching rows in the window when JLIMIT is omitted. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
+- join_clause: Join query. Starting with `v3.4.3.0`, ordinary joins support equality and general Boolean conditions between subtables, regular tables, supertables, virtual tables, table function results, and subqueries. For the applicable scope of ASOF JOIN and WINDOW JOIN, see the join query chapter. In window join, WINDOW_OFFSET uses start_offset and end_offset to specify the offset of the left and right boundaries of the window relative to the primary keys of the left and right tables. There is no size correlation between the two, this is a required field. Precision options are listed in [Time Units](../01-datatype.md#time-units) (months/quarters/years not supported), such as window_offset (-1a, 1a). JLIMIT limits the maximum number of matching rows, with a value range of [0, 1024]. ASOF JOIN defaults to one matching row; WINDOW JOIN returns all matching rows in the window when JLIMIT is omitted. For detailed information, please refer to the join query chapter [TDengine Join Queries](./05-join.md).
 - window_clause: Specifies data to be split and aggregated according to the window, it is a distinctive query of time-series databases. For detailed information, please refer to the distinctive query chapter [TDengine Distinctive Queries](./04-distinguished.md).
   - SESSION: Session window, ts_col specifies the timestamp primary key column, tol_val specifies the time interval, positive value. Supported time units are listed in [Time Units](../01-datatype.md#time-units) (milliseconds through weeks only), such as SESSION (ts, 12s).
   - STATE_WINDOW: State window, using one or more state keys to divide windows. Multiple state keys are supported from v3.4.2.0. `EXTEND(extend_val)` specifies the boundary extension strategy. `ZEROTH_STATE(...)` specifies the zero state. TRUE_FOR specifies the filtering condition for windows.
@@ -452,7 +453,7 @@ select _irowts_origin, interp(current) from meters range('2020-01-01 10:00:00', 
 
 ## Query Objects
 
-The FROM keyword can be followed by a list of tables (supertables), the result of a subquery, or a TEXT or FILE inline data source (see below).
+The FROM keyword can be followed by a list of tables (supertables), the result of a subquery, a TABLE table function result, or a TEXT or FILE inline data source (see below).
 If the user's current database is not specified, the database name can be used before the table name to specify the database to which the table belongs. For example, using `power.d1001` to cross-database use tables.
 
 TDengine supports INNER JOIN based on the timestamp primary key, with the following rules:
@@ -609,6 +610,24 @@ FROM FILE('./meter_readings.csv',
           'ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT') f
 INTERVAL(1h);
 ```
+
+## TABLE(...) Table Function Data Source
+
+`TABLE` uses the result of a table function as a query table source. A table function returns a row set; its parameters are defined by the specific function. For the available functions, their parameters, and output columns, see [Functions](./03-function.md#table-functions).
+
+### Syntax
+
+```sql
+TABLE(table_function_call)
+```
+
+### Description
+
+- `TABLE(...)` is the fixed form of a table function data source. The table function call inside the parentheses (function name, parameter count, parameter types, and syntax) is defined by the specific table function. See [Functions](./03-function.md#table-functions).
+- The table function result can be given a table alias for referencing its columns in a `JOIN` or subquery. For example, write an alias `a` after `TABLE(...)` and reference columns as `a.column`.
+- `TABLE(...)` can appear only in the `FROM` clause. It can be used as a `FROM` table source, one side of a `JOIN`, the `FROM` of a subquery, and one side of a `UNION`.
+- The row set returned by a table function can participate in `WHERE`, `GROUP BY`, aggregate functions, windows, `ORDER BY`, `LIMIT`, and other query operations.
+- A table function result is not a persistent table. It does not support writes, `ALTER`, deletion, subscriptions, or stream processing, and cannot be used directly as a column reference in `CREATE VTABLE` or as the data source of `CREATE TABLE ... AS`.
 
 ## INTERP
 

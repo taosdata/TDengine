@@ -2877,6 +2877,18 @@ table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE table_name(B) time_align_a
                                                                                   { A = createTimeAlignTableNode(pCxt, &F, NULL, &B, &C, &D); }
 table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT table_name(C) time_align_args_opt(D) NK_RP NK_RP alias_opt(E).
                                                                                   { A = createTimeAlignTableNode(pCxt, &F, &B, &C, &D, &E); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) time_align_args_opt(E) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt3(pCxt, &B, &C, &D, NULL), &E, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) time_align_args_opt(F2) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL), &F2, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP table_name(B) time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, NULL, &B, &C, &D); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT table_name(C) time_align_args_opt(D) NK_RP NK_RP alias_opt(E).
+                                                                                  { A = createTimeAlignTableNode(pCxt, &F, &B, &C, &D, &E); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT db_name(C) NK_DOT table_name(D) time_align_args_opt(E) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt3(pCxt, &B, &C, &D, NULL), &E, &G); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP db_name(B) NK_DOT db_name(C) NK_DOT db_name(D) NK_DOT table_name(E) time_align_args_opt(F2) NK_RP NK_RP alias_opt(G).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createRealTableNodeExt4(pCxt, &B, &C, &D, &E, NULL), &F2, &G); }
 
 %type time_align_args_opt                                                         { STimeAlignArgs }
 %destructor time_align_args_opt                                                   { }

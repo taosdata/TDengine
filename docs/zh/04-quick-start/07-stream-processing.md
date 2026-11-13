@@ -21,7 +21,7 @@ toc_max_heading_level: 4
   支持定时（`PERIOD`）、滑动（`SLIDING`）、时间窗口（`INTERVAL`）、会话 / 状态 / 事件 / 计数窗口等多种触发；可分组触发，并可对触发数据做预过滤。详见 [建流语法](../07-stream-processing/01-syntax.md)。
 
 - **计算与结果输出**  
-  计算可为任意查询语句；结果可写入输出表（`INTO`）、发送通知（`NOTIFY`），或两者同时使用。详见 [建流语法](../07-stream-processing/01-syntax.md)。
+  计算支持常用查询语句，不支持表函数（`TABLE(...)`）；结果可写入输出表（`INTO`）、发送通知（`NOTIFY`），或两者同时使用。详见 [建流语法](../07-stream-processing/01-syntax.md)。
 
 - **控制选项**  
   通过 `STREAM_OPTIONS` 配置历史回放、乱序水位、最大延迟、低延迟计算等，在结果时效性与资源负载之间做平衡。详见 [建流语法](../07-stream-processing/01-syntax.md)。

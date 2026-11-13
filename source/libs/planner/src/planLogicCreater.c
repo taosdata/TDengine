@@ -596,19 +596,23 @@ static SNode* createVtbDataCol(SVirtualTableNode* pTable, const SSchema* pSchema
   return (SNode*)pCol;
 }
 
-static SNode* createVtbAlignOutCol(SVirtualTableNode* pTable, const SSchema* pSchema, const char* outName) {
+static SNode* createVtbAlignOutCol(SVirtualTableNode* pTable, const SSchema* pSchema, const SAlignOutCol* pOut) {
   SNode*      pNode = createVtbDataCol(pTable, pSchema);
   if (NULL == pNode) return NULL;
   SColumnNode* pCol = (SColumnNode*)pNode;
   pCol->colType = COLUMN_TYPE_COLUMN;
   pCol->isAlignOut = true;
+  pCol->alignMethod = pOut->method;
+  pCol->alignHasSpan = pOut->hasSpan;
+  pCol->alignSpanValue = pOut->spanValue;
+  pCol->alignSpanUnit = pOut->spanUnit;
   pCol->hasRef = false;
   pCol->refDbName[0] = '\0';
   pCol->refTableName[0] = '\0';
   pCol->refColName[0] = '\0';
-  tstrncpy(pCol->colName, outName, TSDB_COL_NAME_LEN);
-  tstrncpy(pCol->node.aliasName, outName, TSDB_COL_NAME_LEN);
-  tstrncpy(pCol->node.userAlias, outName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->colName, pOut->outName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pOut->outName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pOut->outName, TSDB_COL_NAME_LEN);
   return pNode;
 }
 
@@ -692,7 +696,7 @@ static int32_t prepareTimeAlignScanCols(SVirtualTableNode* pTable, SNodeList** p
       if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
     }
     if (!timeAlignOutNameExists(*ppAlignCols, pOut->outName)) {
-      SNode* pCol = createVtbAlignOutCol(pTable, pSrc, pOut->outName);
+      SNode* pCol = createVtbAlignOutCol(pTable, pSrc, pOut);
       if (pCol == NULL) return terrno;
       int32_t code = nodesListStrictAppend(*ppAlignCols, pCol);
       if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
@@ -806,12 +810,538 @@ static int32_t appendTimeAlignTargets(SVirtualTableNode* pTable, SNodeList** ppT
       }
     }
     if (pSrc == NULL) return TSDB_CODE_PAR_INVALID_COLUMN;
-    SNode* pCol = createVtbAlignOutCol(pTable, pSrc, pOut->outName);
+    SNode* pCol = createVtbAlignOutCol(pTable, pSrc, pOut);
     if (pCol == NULL) return terrno;
     int32_t code = nodesListStrictAppend(*ppTargets, pCol);
     if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static SNode* createRealTableDataCol(SRealTableNode* pTable, const SSchema* pSchema) {
+  SColumnNode* pCol = NULL;
+  terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
+  if (NULL == pCol) return NULL;
+  pCol->node.resType.type = pSchema->type;
+  pCol->node.resType.bytes = pSchema->bytes;
+  if (IS_DECIMAL_TYPE(pSchema->type) && hasDecimalBytesTypeInfo(pSchema->bytes)) {
+    extractDecimalTypeInfoFromBytes(&pCol->node.resType.bytes, &pCol->node.resType.precision,
+                                    &pCol->node.resType.scale);
+  }
+  if (pTable->pMeta->schemaExt && IS_DECIMAL_TYPE(pSchema->type)) {
+    int32_t colIdx = (int32_t)(pSchema - pTable->pMeta->schema);
+    if (colIdx >= 0 && colIdx < pTable->pMeta->tableInfo.numOfColumns) {
+      fillTypeFromTypeMod(&pCol->node.resType, pTable->pMeta->schemaExt[colIdx].typeMod);
+    }
+  }
+  if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
+    pCol->node.resType.precision = pTable->pMeta->tableInfo.precision;
+  }
+  pCol->tableId = pTable->pMeta->uid;
+  pCol->tableType = pTable->pMeta->tableType;
+  pCol->colId = pSchema->colId;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->isPk = pSchema->flags & COL_IS_KEY;
+  pCol->tableHasPk = hasPkInTable(pTable->pMeta);
+  pCol->numOfPKs = pTable->pMeta->tableInfo.numOfPKs;
+  tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pCol->colName, pSchema->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pSchema->name, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pSchema->name, TSDB_COL_NAME_LEN);
+  return (SNode*)pCol;
+}
+
+static SNode* createRealAlignOutCol(SRealTableNode* pTable, const SSchema* pSchema, const SAlignOutCol* pOut) {
+  SNode*      pNode = createRealTableDataCol(pTable, pSchema);
+  if (NULL == pNode) return NULL;
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  pCol->isAlignOut = true;
+  pCol->alignMethod = pOut->method;
+  pCol->alignHasSpan = pOut->hasSpan;
+  pCol->alignSpanValue = pOut->spanValue;
+  pCol->alignSpanUnit = pOut->spanUnit;
+  pCol->hasRef = false;
+  pCol->refDbName[0] = '\0';
+  pCol->refTableName[0] = '\0';
+  pCol->refColName[0] = '\0';
+  tstrncpy(pCol->colName, pOut->outName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.aliasName, pOut->outName, TSDB_COL_NAME_LEN);
+  tstrncpy(pCol->node.userAlias, pOut->outName, TSDB_COL_NAME_LEN);
+  return pNode;
+}
+
+static const SSchema* findRealAlignSrcSchema(const STableMeta* pMeta, col_id_t colId) {
+  for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+    if (pMeta->schema[i].colId == colId) return &pMeta->schema[i];
+  }
+  return NULL;
+}
+
+// The scan reads only real table columns.  Align outputs are recorded in
+// pAlignCols and appended to the scan's output targets later.
+static int32_t prepareRealTimeAlignScanCols(SRealTableNode* pTable, SNodeList** ppScanCols,
+                                            SNodeList** ppAlignCols) {
+  if (pTable->pAlignCols == NULL || pTable->pMeta == NULL) return TSDB_CODE_SUCCESS;
+  if (*ppScanCols == NULL) {
+    int32_t code = nodesMakeList(ppScanCols);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  if (*ppAlignCols == NULL) {
+    int32_t code = nodesMakeList(ppAlignCols);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+
+  // Align outputs may have been collected into the scan column list by the
+  // generic column walker.  They are not stored columns: drop them first.
+  filterTimeAlignNodes(*ppScanCols);
+
+  const STableMeta* pMeta = pTable->pMeta;
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+    const SSchema*      pSrc = findRealAlignSrcSchema(pMeta, pOut->srcColId);
+    if (pSrc == NULL) return TSDB_CODE_PAR_INVALID_COLUMN;
+
+    if (!timeAlignScanColExists(*ppScanCols, pOut->srcColId)) {
+      SNode* pCol = createRealTableDataCol(pTable, pSrc);
+      if (pCol == NULL) return terrno;
+      int32_t code = nodesListStrictAppend(*ppScanCols, pCol);
+      if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
+    }
+    if (!timeAlignOutNameExists(*ppAlignCols, pOut->outName)) {
+      SNode* pCol = createRealAlignOutCol(pTable, pSrc, pOut);
+      if (pCol == NULL) return terrno;
+      int32_t code = nodesListStrictAppend(*ppAlignCols, pCol);
+      if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t appendRealTimeAlignTargets(SRealTableNode* pTable, SNodeList** ppTargets) {
+  if (pTable->pAlignCols == NULL || pTable->pMeta == NULL) return TSDB_CODE_SUCCESS;
+  if (*ppTargets == NULL) {
+    int32_t code = nodesMakeList(ppTargets);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  const STableMeta* pMeta = pTable->pMeta;
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+    const SSchema*      pSrc = findRealAlignSrcSchema(pMeta, pOut->srcColId);
+    if (pSrc == NULL) return TSDB_CODE_PAR_INVALID_COLUMN;
+    SNode* pCol = createRealAlignOutCol(pTable, pSrc, pOut);
+    if (pCol == NULL) return terrno;
+    int32_t code = nodesListStrictAppend(*ppTargets, pCol);
+    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode(pCol); return code; }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Record the output slot of every align column and break the slot-key collision
+// between an align output and its same-named source column (see
+// finalizeTimeAlignOutSlots for the virtual-table variant).
+static int32_t finalizeRealTimeAlignOutSlots(SNodeList* pAlignCols, SNodeList* pScanCols, SNodeList* pTargets) {
+  if (pAlignCols == NULL || pTargets == NULL) return TSDB_CODE_SUCCESS;
+  int32_t numTargets = LIST_LENGTH(pTargets);
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pAlignCols) {
+    SColumnNode* pAlignCol = (SColumnNode*)pNode;
+    int32_t      slot = -1;
+    // The query's original target list may already contain the align outputs,
+    // so the appendRealTimeAlignTargets copies are not necessarily last.  Pick
+    // the align target explicitly: choosing a same-named source target would
+    // make the executor fill the source slot and leave the output column empty.
+    for (int32_t j = numTargets - 1; j >= 0; --j) {
+      SNode* pT = nodesListGetNode(pTargets, j);
+      SNode* pE = (QUERY_NODE_TARGET == nodeType(pT)) ? ((STargetNode*)pT)->pExpr : pT;
+      if (QUERY_NODE_COLUMN != nodeType(pE)) continue;
+      SColumnNode* pC = (SColumnNode*)pE;
+      if (pC->isAlignOut && pC->colId == pAlignCol->colId &&
+          0 == strcasecmp(pC->colName, pAlignCol->colName)) {
+        slot = j;
+        break;
+      }
+    }
+    if (slot < 0) {
+      // Older plans may not carry the isAlignOut marker on the target copy;
+      // fall back to the last same-named column.
+      for (int32_t j = numTargets - 1; j >= 0; --j) {
+        SNode* pT = nodesListGetNode(pTargets, j);
+        SNode* pE = (QUERY_NODE_TARGET == nodeType(pT)) ? ((STargetNode*)pT)->pExpr : pT;
+        if (QUERY_NODE_COLUMN != nodeType(pE)) continue;
+        SColumnNode* pC = (SColumnNode*)pE;
+        if (pC->colId == pAlignCol->colId && 0 == strcasecmp(pC->colName, pAlignCol->colName)) {
+          slot = j;
+          break;
+        }
+      }
+    }
+    if (slot < 0) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    pAlignCol->slotId = slot;
+
+    for (int32_t j = 0; j < slot; ++j) {
+      SNode* pT = nodesListGetNode(pTargets, j);
+      SNode* pE = (QUERY_NODE_TARGET == nodeType(pT)) ? ((STargetNode*)pT)->pExpr : pT;
+      if (QUERY_NODE_COLUMN != nodeType(pE)) continue;
+      SColumnNode* pC = (SColumnNode*)pE;
+      if (pC->colId == pAlignCol->colId && 0 == strcasecmp(pC->colName, pAlignCol->colName)) {
+        pC->tableAlias[0] = '\x01';
+        pC->tableAlias[1] = '\0';
+      }
+    }
+
+    // The physical scan columns are cloned from pScanCols, separately from the
+    // target list rewritten above.  Mark the same-named source scan column too:
+    // otherwise its slot key still collides with the align output and the
+    // executor resolves the source slot to the output slot (leaving the real
+    // output column empty).
+    if (pScanCols != NULL) {
+      SNode* pScanNode = NULL;
+      FOREACH(pScanNode, pScanCols) {
+        SNode* pE = (QUERY_NODE_TARGET == nodeType(pScanNode)) ? ((STargetNode*)pScanNode)->pExpr : pScanNode;
+        if (QUERY_NODE_COLUMN != nodeType(pE)) continue;
+        SColumnNode* pC = (SColumnNode*)pE;
+        if (!pC->isAlignOut && pC->colId == pAlignCol->colId &&
+            0 == strcasecmp(pC->colName, pAlignCol->colName)) {
+          pC->tableAlias[0] = '\x01';
+          pC->tableAlias[1] = '\0';
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SNode* unwrapAlignTargetExpr(SNode* pNode);
+
+static bool alignScanColExists(SNodeList* pCols, col_id_t colId) {
+  if (pCols == NULL) return false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCols) {
+    SNode* pExpr = unwrapAlignTargetExpr(pNode);
+    if (pExpr != NULL && QUERY_NODE_COLUMN == nodeType(pExpr) && ((SColumnNode*)pExpr)->colId == colId) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Ensure the external scan reads the primary timestamp and every align source
+// column.  The scan's normal column collection only walks the outer SELECT,
+// which references the align outputs, not their sources.  Row-order input
+// (external table without a remote primary key) has no forced timestamp.
+static int32_t appendExternalTimeAlignSourceCols(SRealTableNode* pTable, SScanLogicNode* pScan, bool rowOrder) {
+  const STableMeta* pMeta = pTable->pMeta;
+  if (!rowOrder) {
+    SNode* pPrimTsCol = NULL;
+    for (int32_t i = 0; i < pMeta->tableInfo.numOfColumns; ++i) {
+      if (pMeta->schema[i].colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+        pPrimTsCol = createRealTableDataCol(pTable, &pMeta->schema[i]);
+        break;
+      }
+    }
+    if (pPrimTsCol == NULL) {
+      return TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
+    }
+    if (!alignScanColExists(pScan->pScanCols, PRIMARYKEY_TIMESTAMP_COL_ID)) {
+      if (nodesListStrictAppend(pScan->pScanCols, pPrimTsCol) != TSDB_CODE_SUCCESS) {
+        nodesDestroyNode(pPrimTsCol);
+        return terrno;
+      }
+    } else {
+      nodesDestroyNode(pPrimTsCol);
+    }
+  }
+
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pTable->pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet(pTable->pAlignCols, i);
+    const SSchema*      pSrc = findRealAlignSrcSchema(pMeta, pOut->srcColId);
+    if (pSrc == NULL) {
+      return TSDB_CODE_PAR_INVALID_COLUMN;
+    }
+    if (alignScanColExists(pScan->pScanCols, pOut->srcColId)) continue;
+    SNode* pCol = createRealTableDataCol(pTable, pSrc);
+    if (pCol == NULL) {
+      return terrno;
+    }
+    if (nodesListStrictAppend(pScan->pScanCols, pCol) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pCol);
+      return terrno;
+    }
+  }
+
+  // Rebuild the scan output targets from the widened column list so the new
+  // columns have slots the align Projection can reference.
+  SNodeList* pTargets = NULL;
+  int32_t    code = createColumnByRewriteExprs(pScan->pScanCols, &pTargets);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  if (pScan->pScanPseudoCols != NULL) {
+    code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pTargets);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesDestroyList(pTargets);
+      return code;
+    }
+  }
+  nodesDestroyList(pScan->node.pTargets);
+  pScan->node.pTargets = pTargets;
+  return TSDB_CODE_SUCCESS;
+}
+
+static SNode* unwrapAlignTargetExpr(SNode* pNode) {
+  if (pNode != NULL && QUERY_NODE_TARGET == nodeType(pNode)) {
+    return ((STargetNode*)pNode)->pExpr;
+  }
+  return pNode;
+}
+
+static SNode* findAlignInputTarget(SNodeList* pTargets, const char* name) {
+  if (pTargets == NULL || name == NULL) return NULL;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    SNode* pExpr = unwrapAlignTargetExpr(pNode);
+    if (QUERY_NODE_COLUMN != nodeType(pExpr)) continue;
+    if (0 == strcasecmp(((SColumnNode*)pExpr)->colName, name)) return pExpr;
+  }
+  return NULL;
+}
+
+static SNode* findAlignInputPrimTs(SNodeList* pTargets) {
+  if (pTargets == NULL) return NULL;
+  SNode*  pNode = NULL;
+  SNode*  pFirstTs = NULL;
+  FOREACH(pNode, pTargets) {
+    SNode* pExpr = unwrapAlignTargetExpr(pNode);
+    if (pExpr == NULL || QUERY_NODE_VALUE == nodeType(pExpr)) continue;
+    if (QUERY_NODE_COLUMN == nodeType(pExpr) && ((SColumnNode*)pExpr)->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+      return pExpr;
+    }
+    if (pFirstTs == NULL && TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pExpr)->resType.type) {
+      pFirstTs = pExpr;
+    }
+  }
+  return pFirstTs;
+}
+
+// Views have no primary timestamp: the time axis of a time-range parameter is
+// the first TIMESTAMP data column in view output order (FS 4.6).  Tag columns
+// and constant projections are not data columns.
+static SNode* findAlignInputFirstTs(SNodeList* pTargets) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pTargets) {
+    SNode* pExpr = unwrapAlignTargetExpr(pNode);
+    if (pExpr == NULL || QUERY_NODE_COLUMN != nodeType(pExpr)) continue;
+    if (((SColumnNode*)pExpr)->colType == COLUMN_TYPE_TAG) continue;
+    if (TSDB_DATA_TYPE_TIMESTAMP == ((SExprNode*)pExpr)->resType.type) return pExpr;
+  }
+  return NULL;
+}
+
+static SNode* makeAlignTinyIntValue(int8_t value) {
+  SValueNode* pVal = NULL;
+  if (TSDB_CODE_SUCCESS != nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pVal)) {
+    return NULL;
+  }
+  pVal->node.resType = (SDataType){.type = TSDB_DATA_TYPE_TINYINT,
+                                   .bytes = tDataTypes[TSDB_DATA_TYPE_TINYINT].bytes};
+  if (TSDB_CODE_SUCCESS != nodesSetValueNodeValue(pVal, &value)) {
+    nodesDestroyNode((SNode*)pVal);
+    return NULL;
+  }
+  pVal->translate = true;
+  pVal->isNull = false;
+  return (SNode*)pVal;
+}
+
+// Append the optional time-range arguments of one align column:
+//   fill_forward(src, ts, spanValue, spanUnit, tzName, mono)
+// spanUnit and the monotonic flag are TINYINT values; tzName is the session
+// timezone name (only used by calendar units n/y); mono tells fill_next that
+// the input timestamps are non-decreasing, enabling early range resolution.
+static int32_t appendAlignSpanParams(SFunctionNode* pFunc, SNode* pTimeAxis, const SAlignOutCol* pOut,
+                                     const char* tzName, bool mono) {
+  if (pOut == NULL || !pOut->hasSpan) return TSDB_CODE_SUCCESS;
+  if (pTimeAxis == NULL) return TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
+
+  SNode*  pNode = NULL;
+  int32_t code = nodesCloneNode(pTimeAxis, &pNode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+
+  code = nodesMakeValueNodeFromInt64(pOut->spanValue, &pNode);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+
+  pNode = makeAlignTinyIntValue((int8_t)pOut->spanUnit);
+  if (pNode == NULL) return terrno;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+
+  char tzBuf[TD_TIMEZONE_LEN] = {0};
+  if (tzName != NULL) {
+    tstrncpy(tzBuf, tzName, sizeof(tzBuf));
+  }
+  SValueNode* pTz = NULL;
+  code = nodesMakeValueNodeFromString(tzBuf, &pTz);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTz);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pTz);
+    return code;
+  }
+
+  pNode = makeAlignTinyIntValue(mono ? 1 : 0);
+  if (pNode == NULL) return terrno;
+  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+    return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Build the TIME_ALIGN Projection used for view and external-table inputs.
+// Projections: every input column passthrough + one fill_forward/fill_next
+// expression per align output.  External tables with a remote primary key
+// additionally emit the primary timestamp first (FS table semantics).  Views,
+// and external tables without a remote primary key, follow output row order
+// and have no primary timestamp column.  The executor recognizes
+// timeAlignProject and runs the shared align stage over these expressions.
+static int32_t createTimeAlignProjectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode* pInput,
+                                               const SArray* pAlignCols, const char* stmtName, bool viewInput,
+                                               SLogicNode** ppProject) {
+  *ppProject = NULL;
+  int32_t            code = TSDB_CODE_SUCCESS;
+  SProjectLogicNode* pProject = NULL;
+  PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT, (SNode**)&pProject));
+  PLAN_ERR_JRET(nodesMakeList(&pProject->pProjections));
+  PLAN_ERR_JRET(nodesListMakeStrictAppend(&pProject->node.pChildren, (SNode*)pInput));
+  pInput->pParent = (SLogicNode*)pProject;
+
+  pProject->ignoreGroupId = true;
+  pProject->node.groupAction = GROUP_ACTION_CLEAR;
+  pProject->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
+  pProject->node.precision = pSelect->precision;
+  pProject->timeAlignProject = true;
+  pProject->timeAlignOutputOrder = viewInput;
+  tstrncpy(pProject->stmtName, stmtName, TSDB_TABLE_NAME_LEN);
+
+  SNode* pPrimTs = NULL;
+  if (!viewInput) {
+    pPrimTs = findAlignInputPrimTs(pInput->pTargets);
+    if (pPrimTs == NULL) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                     "TIME_ALIGN: input has no TIMESTAMP column");
+    }
+
+    // Primary timestamp first.
+    SNode* pTsClone = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pPrimTs, &pTsClone));
+    ((SExprNode*)pTsClone)->aliasName[0] = '\0';
+    tstrncpy(((SExprNode*)pTsClone)->aliasName, ((SColumnNode*)pPrimTs)->colName, TSDB_COL_NAME_LEN);
+    tstrncpy(((SExprNode*)pTsClone)->userAlias, ((SColumnNode*)pPrimTs)->colName, TSDB_COL_NAME_LEN);
+    PLAN_ERR_JRET(nodesListStrictAppend(pProject->pProjections, pTsClone));
+  }
+
+  // The optional time-range parameter needs a time axis for table input.
+  // View input interpolates by output row order, so the range is ignored.
+  bool   needTimeAxis = false;
+  SNode* pTimeAxis = pPrimTs;
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize((SArray*)pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet((SArray*)pAlignCols, i);
+    if (!viewInput && pOut->hasSpan) {
+      needTimeAxis = true;
+      break;
+    }
+  }
+  if (needTimeAxis && pTimeAxis == NULL) {
+    pTimeAxis = findAlignInputFirstTs(pInput->pTargets);
+  }
+  if (needTimeAxis && pTimeAxis == NULL) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM,
+                                   "TIME_ALIGN: input has no TIMESTAMP column for the time range");
+  }
+
+  // Input columns as passthrough (the align source values).  When the align
+  // output reuses the source name (default empty suffix, output_raw FALSE),
+  // the passthrough is internal only and gets a private alias; a Sort/Project
+  // above would otherwise bind to the raw passthrough instead of the filled
+  // column.  With output_raw TRUE the name is user-visible and the parser
+  // already guarantees it does not collide, so keep it.
+  SNode* pNode = NULL;
+  FOREACH(pNode, pInput->pTargets) {
+    SNode* pExpr = unwrapAlignTargetExpr(pNode);
+    if (pExpr == NULL || pExpr == pPrimTs) continue;
+    if (QUERY_NODE_COLUMN != nodeType(pExpr)) continue;
+    SNode* pClone = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pExpr, &pClone));
+    const char* srcName = ((SColumnNode*)pExpr)->colName;
+    bool        collides = false;
+    for (int32_t i = 0; i < (int32_t)taosArrayGetSize((SArray*)pAlignCols); ++i) {
+      const SAlignOutCol* pOut = taosArrayGet((SArray*)pAlignCols, i);
+      if (0 == strcasecmp(pOut->outName, srcName)) {
+        collides = true;
+        break;
+      }
+    }
+    char outAlias[TSDB_COL_NAME_LEN];
+    if (collides) {
+      snprintf(outAlias, sizeof(outAlias), "\x01%s", srcName);
+    } else {
+      tstrncpy(outAlias, srcName, sizeof(outAlias));
+    }
+    ((SExprNode*)pClone)->aliasName[0] = '\0';
+    tstrncpy(((SExprNode*)pClone)->aliasName, outAlias, TSDB_COL_NAME_LEN);
+    tstrncpy(((SExprNode*)pClone)->userAlias, outAlias, TSDB_COL_NAME_LEN);
+    PLAN_ERR_JRET(nodesListStrictAppend(pProject->pProjections, pClone));
+  }
+
+  // Aligned outputs.
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize((SArray*)pAlignCols); ++i) {
+    const SAlignOutCol* pOut = taosArrayGet((SArray*)pAlignCols, i);
+    SNode*              pSrc = findAlignInputTarget(pInput->pTargets, pOut->srcName);
+    if (pSrc == NULL) {
+      return TSDB_CODE_PAR_INVALID_COLUMN;
+    }
+
+    SNode* pParamNode = NULL;
+    PLAN_ERR_JRET(nodesCloneNode(pSrc, &pParamNode));
+    SColumnNode* pParam = (SColumnNode*)pParamNode;
+
+    SFunctionNode* pFunc = NULL;
+    PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc));
+    tstrncpy(pFunc->functionName,
+             (pOut->method == ALIGN_METHOD_NEXT) ? "fill_next" : "fill_forward", TSDB_FUNC_NAME_LEN);
+    PLAN_ERR_JRET(nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam));
+    PLAN_ERR_JRET(appendAlignSpanParams(pFunc, pTimeAxis, viewInput ? NULL : pOut, pCxt->pPlanCxt->timezoneName,
+                                        false));
+    pFunc->node.resType = ((SColumnNode*)pSrc)->node.resType;
+    tstrncpy(pFunc->node.aliasName, pOut->outName, TSDB_COL_NAME_LEN);
+    tstrncpy(pFunc->node.userAlias, pOut->outName, TSDB_COL_NAME_LEN);
+    PLAN_ERR_JRET(fmGetFuncInfo(pFunc, NULL, 0));
+    PLAN_ERR_JRET(nodesListStrictAppend(pProject->pProjections, (SNode*)pFunc));
+  }
+
+  PLAN_ERR_JRET(createColumnByProjections(pCxt, stmtName, pProject->pProjections, &pProject->node.pTargets));
+
+  *ppProject = (SLogicNode*)pProject;
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  nodesDestroyNode((SNode*)pProject);
+  return code;
 }
 
 static int32_t addVtbPrimaryTsCol(SLogicPlanContext* pCxt, SVirtualTableNode* pTable, SNodeList** pCols) {
@@ -1508,6 +2038,13 @@ static int32_t createExternalScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
                                         &pScan->pScanCols);
   }
 
+  // TIME_ALIGN outputs are computed by the align Projection above this scan;
+  // they are not remote columns and must not reach the external column
+  // validation or the remote SELECT list.
+  if (TSDB_CODE_SUCCESS == code) {
+    filterTimeAlignNodes(pScan->pScanCols);
+  }
+
   // Keep external tags in pseudo columns just like local super-table scans.
   // Project elimination uses this distinction to retain _TAGS projections.
   if (TSDB_CODE_SUCCESS == code) {
@@ -1743,7 +2280,27 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
   // External table: bypass the normal TDengine scan path entirely
   if (NULL != pRealTable->pExtTableNode) {
-    return createExternalScanLogicNode(pCxt, pSelect, pRealTable, pLogicNode);
+    SLogicNode* pExtScan = NULL;
+    int32_t     extCode = createExternalScanLogicNode(pCxt, pSelect, pRealTable, &pExtScan);
+    if (TSDB_CODE_SUCCESS != extCode) return extCode;
+    if (pRealTable->pAlignCols == NULL) {
+      *pLogicNode = pExtScan;
+      return TSDB_CODE_SUCCESS;
+    }
+
+    extCode = appendExternalTimeAlignSourceCols(pRealTable, (SScanLogicNode*)pExtScan,
+                                                pRealTable->timeAlignRowOrder);
+    if (TSDB_CODE_SUCCESS != extCode) {
+      nodesDestroyNode((SNode*)pExtScan);
+      return extCode;
+    }
+    extCode = createTimeAlignProjectLogicNode(pCxt, pSelect, pExtScan, pRealTable->pAlignCols,
+                                              pRealTable->table.tableAlias, pRealTable->timeAlignRowOrder,
+                                              pLogicNode);
+    if (TSDB_CODE_SUCCESS != extCode) {
+      nodesDestroyNode((SNode*)pExtScan);
+    }
+    return extCode;
   }
 
   SScanLogicNode* pScan = NULL;
@@ -1804,6 +2361,10 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   if (TSDB_CODE_SUCCESS == code) {
+    code = prepareRealTimeAlignScanCols(pRealTable, &pScan->pScanCols, &pScan->pAlignCols);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = updateScanNoPseudoRefAfterGrp(pSelect, pScan, pRealTable);
   }
 
@@ -1854,6 +2415,12 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createColumnByRewriteExprs(pScan->pScanPseudoCols, &pScan->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = appendRealTimeAlignTargets(pRealTable, &pScan->node.pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = finalizeRealTimeAlignOutSlots(pScan->pAlignCols, pScan->pScanCols, pScan->node.pTargets);
   }
 
   if (pScan->scanType == SCAN_TYPE_TAG) {
@@ -1917,9 +2484,67 @@ static int32_t createRefScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSel
   return code;
 }
 
+
+
+// A view keeps one block per group only when it declares a grouping
+// (PARTITION BY or GROUP BY) and its own output is neither sorted nor
+// deduplicated: ORDER BY/DISTINCT collapse the grouping, so those views are
+// aligned as a single sequence.
+static bool viewPreservesGrouping(SSelectStmt* pViewSelect) {
+  if (pViewSelect == NULL || pViewSelect->pOrderByList != NULL || pViewSelect->isDistinct) {
+    return false;
+  }
+  bool partitioned = pViewSelect->pPartitionByList != NULL && LIST_LENGTH(pViewSelect->pPartitionByList) > 0;
+  bool grouped = pViewSelect->pGroupByList != NULL && LIST_LENGTH(pViewSelect->pGroupByList) > 0;
+  return partitioned || grouped;
+}
+
+// Mark the view's grouped operator and every operator above it to keep the
+// block groupId: windows stop merging result blocks and projects/merges stop
+// clearing the id.  The fill Projection above the view then splits PREV/NEXT
+// state by the incoming block groupId.
+static void markViewPreserveGroupId(SLogicNode* pNode) {
+  if (pNode == NULL) return;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+      pNode->preserveGroupId = true;
+      break;
+    default:
+      break;
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    markViewPreserveGroupId((SLogicNode*)pChild);
+  }
+}
+
 static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable,
                                        SLogicNode** pLogicNode) {
-  return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
+  if (pTable->pAlignCols == NULL) {
+    return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
+  }
+
+  SLogicNode* pRoot = NULL;
+  PLAN_ERR_RET(createQueryLogicNode(pCxt, pTable->pSubquery, &pRoot));
+  // Only a PARTITION BY view without ORDER BY/DISTINCT keeps partition
+  // grouping; preserve the block groupId through the view's plan so the fill
+  // Projection can align each partition independently.  Other views emit no
+  // group id and are aligned as one sequence by the same fill logic.
+  if (pTable->pSubquery != NULL && QUERY_NODE_SELECT_STMT == nodeType(pTable->pSubquery) &&
+      viewPreservesGrouping((SSelectStmt*)pTable->pSubquery)) {
+    markViewPreserveGroupId(pRoot);
+  }
+  int32_t code = createTimeAlignProjectLogicNode(pCxt, pSelect, pRoot, pTable->pAlignCols,
+                                                 pTable->table.tableAlias, true, pLogicNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pRoot);
+  }
+  return code;
 }
 
 // addPrimEqCondColsToExtScan: ensure primary key columns referenced in

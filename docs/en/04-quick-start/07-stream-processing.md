@@ -21,7 +21,7 @@ Compared with traditional stream processing, TDengine separates **trigger** from
   Supports periodic (`PERIOD`), sliding (`SLIDING`), time-window (`INTERVAL`), session / state / event / count windows, and more. Triggers can be partitioned, and trigger data can be pre-filtered. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
 - **Compute and result output**
-  Compute can be any query. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
+  Compute supports common query statements; table functions (`TABLE(...)`) are not supported. Results can be written to an output table (`INTO`), sent as notifications (`NOTIFY`), or both. See [Stream Syntax](../07-stream-processing/01-syntax.md).
 
 - **Control options**
   Use `STREAM_OPTIONS` for history replay, out-of-order watermarks, max delay, low-latency compute, and more, balancing result freshness against resource load. See [Stream Syntax](../07-stream-processing/01-syntax.md).
