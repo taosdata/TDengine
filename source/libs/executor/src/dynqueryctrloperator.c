@@ -6360,6 +6360,11 @@ static int32_t getTagBlockAndProcess(SOperatorInfo* pOperator, bool hasPartition
         QUERY_CHECK_CODE(code, line, _return);
       }
 
+      // Keep tag dispatch aligned with the current child's source maps.
+      if (pVtbScan->dynTbUid != 0 && uid != pVtbScan->dynTbUid) {
+        continue;
+      }
+
       code = generateTagArrayByTagBlockAndSave(
           vtbUidTagListMap, uid, pTagVal, i,
           DYN_QTYPE_VTB_AGG == pInfo->qType ? pVtbScan->aggTagColIds : NULL);
@@ -6671,7 +6676,7 @@ int32_t buildVirtualSuperTableScanChildTableMap(SOperatorInfo* pOperator) {
             continue;
           }
 
-          if (pInfo->qType == DYN_QTYPE_VTB_SCAN) {
+          if (pInfo->qType == DYN_QTYPE_VTB_SCAN || pInfo->qType == DYN_QTYPE_VTB_AGG) {
             if (pInfo->vtbScan.dynTbUid != 0 && info.uid != pInfo->vtbScan.dynTbUid) {
               qTrace("dynQueryCtrl tb uid filter, info uid:%" PRIu64 ", dyn tb uid:%" PRIu64, info.uid,
                      pInfo->vtbScan.dynTbUid);
@@ -8490,14 +8495,20 @@ _return:
 }
 
 int32_t vtbAggNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
-  int32_t                    code = TSDB_CODE_SUCCESS;
-  int32_t                    line = 0;
-  SDynQueryCtrlOperatorInfo* pInfo = pOperator->info;
-  SVtbScanDynCtrlInfo*       pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  int32_t                       code = TSDB_CODE_SUCCESS;
+  int32_t                       line = 0;
+  SDynQueryCtrlOperatorInfo*    pInfo = pOperator->info;
+  SVtbScanDynCtrlInfo*          pVtbScan = (SVtbScanDynCtrlInfo*)&pInfo->vtbScan;
+  SDynQueryCtrlPhysiNode const* pPhyciNode = pOperator->pPhyNode;
 
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE) {
     return code;
+  }
+
+  // Runner binds the current group after resetting a reused executor.
+  if (!OPTR_IS_OPENED(pOperator) && pPhyciNode->dynTbname) {
+    updateDynTbUidIfNeeded(pVtbScan, pOperator->pTaskInfo->pStreamRuntimeInfo);
   }
 
   pVtbScan->clientId = pOperator->pTaskInfo->id.taskId;
