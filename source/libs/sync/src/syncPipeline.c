@@ -50,6 +50,7 @@ int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf) {
 
 int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry) {
   int32_t code = 0;
+  int32_t lino = 0;
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   (void)taosThreadMutexLock(&pBuf->mutex);
   SyncIndex index = pEntry->index;
@@ -57,14 +58,14 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (index - pBuf->startIndex >= pBuf->size) {
     code = TSDB_CODE_SYN_BUFFER_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64, pNode->vgId, tstrerror(code), index);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   if (pNode->restoreFinish && index - pBuf->commitIndex >= tsSyncNegotiationWin) {
     code = TSDB_CODE_SYN_NEGOTIATION_WIN_FULL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64, pNode->vgId, tstrerror(code),
            index, pBuf->commitIndex);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   SyncIndex appliedIndex = pNode->pFsm->FpAppliedIndexCb(pNode->pFsm);
@@ -72,18 +73,18 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
     code = TSDB_CODE_SYN_WRITE_STALL;
     sError("vgId:%d, failed to append since %s, index:%" PRId64 ", commit-index:%" PRId64 ", applied-index:%" PRId64,
            pNode->vgId, tstrerror(code), index, pBuf->commitIndex, appliedIndex);
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   if (index != pBuf->endIndex) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   };
 
   SSyncRaftEntry* pExist = pBuf->entries[index % pBuf->size].pItem;
   if (pExist != NULL) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   // initial log buffer with at least one item, e.g, commitIndex
@@ -91,15 +92,17 @@ int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEnt
   if (pMatch == NULL) {
     sError("vgId:%d, no matched log entry", pNode->vgId);
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
   if (pMatch->index + 1 != index) {
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
   if (!(pMatch->term <= pEntry->term)) {
+    sError("vgId:%d, no matched term, match term:%" PRId64 ", entry term:%" PRId64, pNode->vgId, pMatch->term,
+           pEntry->term);
     code = TSDB_CODE_SYN_INTERNAL_ERROR;
-    goto _err;
+    TAOS_CHECK_GOTO(code, &lino, _err);
   }
 
   SSyncLogBufEntry tmp = {.pItem = pEntry, .prevLogIndex = pMatch->index, .prevLogTerm = pMatch->term};
@@ -118,6 +121,7 @@ _err:
   (void)taosThreadMutexUnlock(&pBuf->mutex);
   TAOS_CHECK_RETURN(syncLogBufferValidate(pBuf));
   taosMsleep(1);
+  sError("vgId:%d, failed to syncLogBufferAppend at %d since %s", pNode->vgId, lino, tstrerror(code));
   TAOS_RETURN(code);
 }
 
