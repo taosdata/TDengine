@@ -5707,9 +5707,9 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   SArray*      pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t       nums = taosArrayGetSize(pTables);
   int32_t      code = 0;
-  // No-from (dual) query: convert count(*) to count(1); no table is available
-  // to resolve the '*' column, and the namespace is always empty here.
-  if (pCxt->dual) {
+  // Window COUNT(*) counts input rows, which may already be grouped and no
+  // longer contain the source timestamp. Keep qualified stars table-specific.
+  if (pCxt->dual || (NULL != pCount->pOver && '\0' == pCol->tableAlias[0])) {
     return rewriteCountStarAsCount1(pCxt, pCount);
   }
 
@@ -5744,10 +5744,8 @@ static bool isCountNotNullValue(SFunctionNode* pFunc) {
 
 // count(1) is rewritten as count(ts) for scannning optimization
 static int32_t rewriteCountNotNullValue(STranslateContext* pCxt, SFunctionNode* pCount) {
-  // No-from (dual) query: keep count(1) as-is, scalar execution handles it.
-  // Use pCxt->dual (set by translateSelectWithoutFrom) for consistency with
-  // validateDualQueryFunc rather than checking pFromTable directly.
-  if (pCxt->dual) {
+  // Window COUNT(constant) must not depend on a pre-aggregation timestamp.
+  if (pCxt->dual || NULL != pCount->pOver) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -8994,6 +8992,17 @@ static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static EDealRes checkIllegalSqlWindowOrderFunc(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (NULL == pFunc->pOver && fmIsAggFunc(pFunc->funcId) && !fmIsMultiRowsFunc(pFunc->funcId)) {
+      // Aggregate arguments have already passed ordinary nesting validation.
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  return checkIllegalSqlWindowSpecFunc(pNode, pContext);
+}
+
 static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
   bool hasWindowFunc = false;
   nodesWalkExpr(pNode, checkSqlWindowFuncExist, &hasWindowFunc);
@@ -9004,8 +9013,11 @@ static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
 }
 
 static int32_t validateSqlWindowSpecExpr(STranslateContext* pCxt, SNode* pNode) {
+  SWindowSpecNode* pSpec = (SWindowSpecNode*)pNode;
   bool hasIllegalFunc = false;
-  nodesWalkExpr(pNode, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
+  nodesWalkExprs(pSpec->pPartitionByList, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
+  nodesWalkExprs(pSpec->pOrderByList, checkIllegalSqlWindowOrderFunc, &hasIllegalFunc);
+  nodesWalkExpr(pSpec->pFrame, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
   if (hasIllegalFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
   }
@@ -9421,7 +9433,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
   if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
-  if (isVectorFunc(*pNode) && !isDistinctOrderBy(pCxt)) {
+  if (isVectorFunc(*pNode) && !isSqlWindowFunctionNode((SFunctionNode*)*pNode) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   bool   isSingleTable = fromSingleTable(((SSelectStmt*)pCxt->pCurrStmt)->pFromTable);
@@ -9622,7 +9634,7 @@ static const char* getExistColName(SNode* pNode) {
 
 static EDealRes doCheckAggColCoexist(SNode** pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (isVectorFunc(*pNode)) {
+  if (isVectorFunc(*pNode) && !isSqlWindowFunctionNode((SFunctionNode*)*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isColsFunctionResult(*pNode)) {

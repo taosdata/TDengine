@@ -58,3 +58,15 @@ TEST_F(PlanTest, sqlWindowStaysAboveExchange) {
   ASSERT_FALSE(exchangeSubplansContain("WindowFunc"));
   ASSERT_FALSE(exchangeSubplansContain("Sort"));
 }
+
+TEST_F(PlanTest, sqlWindowOrderByAggregate) {
+  useDb("root", "test");
+  run("SELECT c2, rank() OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT c2, count(c2) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT c2, count(*) OVER (ORDER BY sum(c1) DESC) FROM t1 GROUP BY c2");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+  run("SELECT count(1) OVER (ORDER BY sum(c1) DESC) FROM t1");
+  ASSERT_TRUE(planNodeAppearsAbove("WindowFunc", "Agg"));
+}
