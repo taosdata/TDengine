@@ -2744,7 +2744,8 @@ static int32_t projectApplyFunctionsWithLineage(SExprInfo* pExpr, SSDataBlock* p
       taosArrayDestroy(pGroupedCtxArray);
       pGroupedCtxArray = NULL;
 
-      void* px = taosArrayPush(pProcessedFuncIds, &(*ppCurrCtx)->functionId);
+      int32_t functionId = (*ppCurrCtx)->functionId;
+      void*   px = taosArrayPush(pProcessedFuncIds, &functionId);
       TSDB_CHECK_NULL(px, code, lino, _exit, terrno);
 
       numOfRows = expectedProcessByRowRows;

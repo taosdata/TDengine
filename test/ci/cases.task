@@ -1098,6 +1098,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_fun_win_keep_order.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_window_over_function.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_window_group_order.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/08-Window/test_window_query_partition.py
 
 ## 09-NoFrom
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/09-NoFrom/test_fun_no_from_all.py

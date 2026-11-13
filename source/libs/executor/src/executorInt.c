@@ -928,6 +928,9 @@ int32_t extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnIn
 void doUpdateNumOfRows(SqlFunctionCtx* pCtx, SResultRow* pRow, int32_t numOfExprs, const int32_t* rowEntryOffset) {
   bool returnNotNull = false;
   for (int32_t j = 0; j < numOfExprs; ++j) {
+    if (pCtx[j].ignoreResultRowCount) {
+      continue;
+    }
     if (pCtx[j].isNotNullFunc) {
       returnNotNull = true;
     }

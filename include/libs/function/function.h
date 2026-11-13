@@ -277,6 +277,7 @@ typedef struct SqlFunctionCtx {
   uint32_t             order;          // data block scanner order: asc|desc
   uint8_t              isPseudoFunc;   // denote current function is pseudo function or not [added for perf reason]
   uint8_t              isNotNullFunc;  // not return null value.
+  bool                 ignoreResultRowCount;
   bool                 isDistinctFunc;  // DISTINCT variant; cached at ctx creation because the
                                         // cleanup path runs after the plan node may be freed
   uint8_t              scanFlag;       // record current running step, default: 0

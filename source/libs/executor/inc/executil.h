@@ -379,6 +379,11 @@ int32_t doDropStreamTable(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* p
 int32_t doDropStreamTableByTbName(SMsgCb* pMsgCb, void* pOutput, SSTriggerDropRequest* pReq, char* tbName);
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId);
+/** Cache one group's keys in an owned, output-shaped block; callers destroy *ppKeys. */
+int32_t cacheAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pInput, SSDataBlock* pOutput,
+                               SSDataBlock** ppKeys);
+/** Copy cached keys to every analysis result row after the output capacity is ensured. */
+int32_t fillAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pKeys, SSDataBlock* pOutput);
 /* Structural provenance only; the common builder performs fallible validation. */
 bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const SStreamRuntimeFuncInfo* pInfo,
                                       int32_t msgType, bool reset);

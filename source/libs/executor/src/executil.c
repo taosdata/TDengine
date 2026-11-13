@@ -3902,6 +3902,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
       pCtx->functionId = pExpr->pExpr->_function.pFunctNode->funcId;
       pCtx->isPseudoFunc = fmIsWindowPseudoColumnFunc(pCtx->functionId) || fmIsPlaceHolderFunc(pCtx->functionId);
       pCtx->isNotNullFunc = fmIsNotNullOutputFunc(pCtx->functionId);
+      pCtx->ignoreResultRowCount = pExpr->pExpr->_function.pFunctNode->ignoreResultRowCount;
       // Cache the DISTINCT flag now, while the plan node is still alive. The cleanup path must not
       // reach back into pFunctNode: some operators (e.g. tdRollupCtxCleanup) destroy the target
       // node list before calling cleanupExprSupp, so reading it there is a use-after-free.
@@ -6543,6 +6544,59 @@ _end:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+int32_t cacheAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pInput, SSDataBlock* pOutput,
+                               SSDataBlock** ppKeys) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (*ppKeys != NULL) {
+    blockDataCleanup(*ppKeys);
+  }
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprs[i];
+    if (pExpr->pExpr->nodeType != QUERY_NODE_FUNCTION ||
+        pExpr->pExpr->_function.functionType != FUNCTION_TYPE_GROUP_KEY) {
+      continue;
+    }
+    if (*ppKeys == NULL) {
+      code = createOneDataBlock(pOutput, false, ppKeys);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      code = blockDataEnsureCapacity(*ppKeys, 1);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    SColumnInfoData* pSrc = taosArrayGet(pInput->pDataBlock, pExpr->base.pParam[0].pCol->slotId);
+    SColumnInfoData* pDst = taosArrayGet((*ppKeys)->pDataBlock, pExpr->base.resSchema.slotId);
+    bool             isNull = colDataIsNull_s(pSrc, 0);
+    code = colDataSetVal(pDst, 0, isNull ? NULL : colDataGetData(pSrc, 0), isNull);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  if (*ppKeys != NULL) {
+    (*ppKeys)->info.rows = 1;
+  }
+  return code;
+}
+
+int32_t fillAnalysisGroupKeys(SExprInfo* pExprs, int32_t numOfExprs, SSDataBlock* pKeys, SSDataBlock* pOutput) {
+  if (pKeys == NULL || pOutput->info.rows == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = &pExprs[i];
+    if (pExpr->pExpr->nodeType != QUERY_NODE_FUNCTION ||
+        pExpr->pExpr->_function.functionType != FUNCTION_TYPE_GROUP_KEY) {
+      continue;
+    }
+    int32_t          slot = pExpr->base.resSchema.slotId;
+    SColumnInfoData* pSrc = taosArrayGet(pKeys->pDataBlock, slot);
+    SColumnInfoData* pDst = taosArrayGet(pOutput->pDataBlock, slot);
+    if (colDataIsNull_s(pSrc, 0)) {
+      colDataSetNItemsNull(pDst, 0, pOutput->info.rows);
+    } else {
+      int32_t code = colDataSetNItems(pDst, 0, colDataGetData(pSrc, 0), pOutput->info.rows, 1, false);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t parseErrorMsgFromAnalyticServer(SJson* pJson, const char* typeStr, const char* pId) {

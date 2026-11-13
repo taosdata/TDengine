@@ -231,6 +231,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_STRING_FIELD(functionName);
   COMPARE_SCALAR_FIELD(isDistinct);
+  COMPARE_SCALAR_FIELD(ignoreResultRowCount);
   COMPARE_NODE_LIST_FIELD(pParameterList);
   COMPARE_NODE_FIELD(pOver);
   if (a->funcType == FUNCTION_TYPE_SELECT_VALUE) {

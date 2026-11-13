@@ -1530,6 +1530,8 @@ static bool needScanDefaultCol(EScanType scanType) {
   return scanType != SCAN_TYPE_TABLE_COUNT && scanType != SCAN_TYPE_SYSTEM_TABLE && scanType != SCAN_TYPE_TAG;
 }
 
+static bool streamSelectHasWindowFunc(SSelectStmt* pSelect);
+
 static int32_t updateScanNoPseudoRefAfterGrp(SSelectStmt* pSelect, SScanLogicNode* pScan, SRealTableNode* pRealTable) {
   if (NULL == pScan->pScanPseudoCols || pScan->pScanPseudoCols->length <= 0) {
     return TSDB_CODE_SUCCESS;
@@ -1554,11 +1556,11 @@ static int32_t updateScanNoPseudoRefAfterGrp(SSelectStmt* pSelect, SScanLogicNod
     goto _return;    
   }
 
-  code = nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, pRealTable->table.tableAlias, COLLECT_COL_TYPE_TAG,
-                             &pList);
+  // OVER also consumes outer partition tags after grouping; keep them in Scan.
+  ESqlClause clause = streamSelectHasWindowFunc(pSelect) ? SQL_CLAUSE_WHERE : SQL_CLAUSE_PARTITION_BY;
+  code = nodesCollectColumns(pSelect, clause, pRealTable->table.tableAlias, COLLECT_COL_TYPE_TAG, &pList);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_PARTITION_BY, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc,
-                             &pList);
+    code = nodesCollectFuncs(pSelect, clause, pRealTable->table.tableAlias, fmIsScanPseudoColumnFunc, &pList);
   }
   
   if (TSDB_CODE_SUCCESS == code && (NULL == pList || pList->length <= 0)) {
@@ -8303,7 +8305,7 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   pCol->node.resType.bytes = pColSchema->bytes;
   pCol->node.resType.precision = pProbeTable->pMeta->tableInfo.precision;
 
-  SNode* pFunc = (SNode*)createGroupKeyAggFunc(pCol);
+  SNode* pFunc = (SNode*)createGroupKeyAggFunc(&pCol->node);
   if (!pFunc) {
     nodesDestroyList(pTargets);
     return terrno;
@@ -8382,6 +8384,31 @@ static int32_t collectNonWindowAggFuncs(SSelectStmt* pSelect, ESqlClause clause,
 
 static int32_t appendLiftedCorrelationAggregates(const SSelectStmt* pSelect, SNodeList** ppExprs);
 
+static int32_t appendSqlWindowPartitionKeys(SSelectStmt* pSelect, SNodeList** pFuncs) {
+  if (!streamSelectHasWindowFunc(pSelect)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Carry outer partition keys to OVER without producing extra aggregate rows.
+  SNode* pKey = NULL;
+  FOREACH(pKey, pSelect->pPartitionByList) {
+    SFunctionNode* pFunc = createGroupKeyAggFunc((SExprNode*)pKey);
+    if (NULL == pFunc) {
+      return terrno;
+    }
+    pFunc->ignoreResultRowCount = true;
+    PLAN_ERR_RET(nodesListMakeStrictAppend(pFuncs, (SNode*)pFunc));
+    SColumnNode* pCol = createColumnByExpr(NULL, &pFunc->node);
+    if (NULL == pCol) {
+      return terrno;
+    }
+    pCol->colType = COLUMN_TYPE_GROUP_KEY;
+    nodesDestroyNode(pKey);
+    REPLACE_NODE(pCol);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   SNodeList* pAggFuncs = NULL;
   int32_t    code = collectNonWindowAggFuncs(pSelect, SQL_CLAUSE_GROUP_BY, &pAggFuncs);
@@ -8427,6 +8454,9 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
 
   if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow) {
     code = appendLiftedCorrelationAggregates(pSelect, &pAgg->pAggFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL == pSelect->pWindow) {
+    code = appendSqlWindowPartitionKeys(pSelect, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses
@@ -8776,10 +8806,31 @@ static int32_t createSqlWindowFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
     WHERE_EACH(pWinNode, pWindows) {
       SWindowFuncLogicNode* pWindow = (SWindowFuncLogicNode*)pWinNode;
       SLogicNode*           pSort = NULL;
+      // Query partitions are the outer boundary of every OVER partition. Add
+      // them after grouping functions so shared window specifications still match.
+      SNodeList* pPartitionKeys = NULL;
+      PLAN_ERR_JRET(nodesCloneList(pSelect->pPartitionByList, &pPartitionKeys));
+      if (NULL != pPartitionKeys) {
+        if (NULL != pWindow->pPartitionKeys) {
+          code = nodesListAppendList(pPartitionKeys, pWindow->pPartitionKeys);
+          if (TSDB_CODE_SUCCESS != code) {
+            nodesDestroyList(pPartitionKeys);
+            goto _return;
+          }
+        }
+        pWindow->pPartitionKeys = pPartitionKeys;
+      }
       PLAN_ERR_JRET(createSqlWindowSortLogicNode(pWindow, *pRoot, &pSort));
       pSort->precision = pSelect->precision;
       PLAN_ERR_JRET(pushLogicNode(pCxt, pRoot, pSort));
 
+      // Sort materializes partition expressions; the window compares its output columns.
+      if (NULL != pSelect->pPartitionByList) {
+        pPartitionKeys = NULL;
+        PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pPartitionKeys, &pPartitionKeys));
+        nodesDestroyList(pWindow->pPartitionKeys);
+        pWindow->pPartitionKeys = pPartitionKeys;
+      }
       pWindow->node.precision = pSelect->precision;
       PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));
       PLAN_ERR_JRET(rewriteSqlWindowFuncsForSelect(pSelect));
@@ -8880,6 +8931,7 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
 
   // interp functions and _group_key functions
   PLAN_ERR_JRET(nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isInterpFunc, &pInterpFunc->pFuncs));
+  PLAN_ERR_JRET(appendSqlWindowPartitionKeys(pSelect, &pInterpFunc->pFuncs));
 
   PLAN_ERR_JRET(rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));
 
@@ -8960,6 +9012,9 @@ static int32_t createForecastFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt*
   // interp functions and _group_key functions
   code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isForecastFunc, &pForecastFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
+    code = appendSqlWindowPartitionKeys(pSelect, &pForecastFunc->pFuncs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pForecastFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
 
@@ -8999,6 +9054,9 @@ static int32_t createGenericAnalysisLogicNode(SLogicPlanContext* pCxt, SSelectSt
 
   // interp functions and _group_key functions
   code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, NULL, isGenericAnalysisFunc, &pFunc->pFuncs);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = appendSqlWindowPartitionKeys(pSelect, &pFunc->pFuncs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL);
   }
@@ -9151,6 +9209,20 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
     // the window operator still produces output rows.
     PLAN_ERR_JRET(createWindowLogicNodeHandleSubquery(pCxt, pSelect, pWindow));
     PLAN_ERR_JRET(appendLiftedCorrelationAggregates(pSelect, &pWindow->pProjs));
+    if (streamSelectHasWindowFunc(pSelect)) {
+      // Scalar windows carry partition expressions as projections, not aggregates.
+      SNode* pKey = NULL;
+      FOREACH(pKey, pSelect->pPartitionByList) {
+        SNode* pClone = NULL;
+        PLAN_ERR_JRET(nodesCloneNode(pKey, &pClone));
+        PLAN_ERR_JRET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+      }
+      PLAN_ERR_JRET(rewriteExprs(pWindow->pProjs, pSelect->pPartitionByList));
+      FOREACH(pKey, pSelect->pPartitionByList) {
+        // FILL must preserve the materialized key on generated rows.
+        ((SColumnNode*)pKey)->colType = COLUMN_TYPE_GROUP_KEY;
+      }
+    }
 
     // Ensure columns referenced in HAVING are in pProjs BEFORE rewrite/targets
     // creation so they go through rewriteExprsForSelect and appear in pTargets.
@@ -9165,6 +9237,7 @@ static int32_t createWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SSelectStm
   } else {
     // Existing function-collection path
     PLAN_ERR_JRET(appendLiftedCorrelationAggregates(pSelect, &pWindow->pFuncs));
+    PLAN_ERR_JRET(appendSqlWindowPartitionKeys(pSelect, &pWindow->pFuncs));
     PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_WINDOW, NULL));
     PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pFuncs, &pWindow->node.pTargets));
   }
@@ -9315,7 +9388,7 @@ static int32_t extWindowAddOutputPartitionKeys(SSelectStmt* pSelect, SWindowLogi
         code = TSDB_CODE_PLAN_INTERNAL_ERROR;
         break;
       }
-      SFunctionNode* pGroupKey = createGroupKeyAggFunc((SColumnNode*)pKey);
+      SFunctionNode* pGroupKey = createGroupKeyAggFunc((SExprNode*)pKey);
       if (pGroupKey == NULL) {
         code = terrno;
         break;
@@ -9371,6 +9444,16 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         pWindow->node.requireDataOrder = DATA_ORDER_LEVEL_NONE;
         pWindow->node.resultDataOrder = DATA_ORDER_LEVEL_NONE;
         PLAN_ERR_RET(nodesCloneList(pSelect->pProjectionList, &pWindow->pProjs));
+        if (streamSelectHasWindowFunc(pSelect)) {
+          // Scalar output must also expose hidden query keys to the later OVER sort.
+          SNode* pKey = NULL;
+          FOREACH(pKey, pSelect->pPartitionByList) {
+            SNode* pClone = NULL;
+            PLAN_ERR_RET(nodesCloneNode(pKey, &pClone));
+            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+          }
+          PLAN_ERR_RET(rewriteExprs(pWindow->pProjs, pSelect->pPartitionByList));
+        }
         PLAN_ERR_RET(rewriteExprsForSelect(pWindow->pProjs, pSelect, SQL_CLAUSE_EXT_WINDOW, NULL));
 
         // Supplement projection with ORDER BY simple columns (COLUMN) as hidden columns,
@@ -9466,8 +9549,19 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
       }
 
       PLAN_ERR_RET(extWindowAddOutputPartitionKeys(pSelect, pWindow));
+      PLAN_ERR_RET(appendSqlWindowPartitionKeys(pSelect, &pWindow->pFuncs));
 
       if (needProjOutputsForFill) {
+        // Wrapped fill exposes only projection targets. Keep the auxiliary
+        // keys available to a later OVER sort without filling their values.
+        if (streamSelectHasWindowFunc(pSelect)) {
+          SNode* pKey = NULL;
+          FOREACH(pKey, pSelect->pPartitionByList) {
+            SNode* pClone = NULL;
+            PLAN_ERR_RET(nodesCloneNode(pKey, &pClone));
+            PLAN_ERR_RET(nodesListMakeStrictAppend(&pWindow->pProjs, pClone));
+          }
+        }
         PLAN_ERR_RET(createColumnByRewriteExprs(pWindow->pProjs, &pWindow->node.pTargets));
       } else {
         // Keep logic targets aligned with the physical external-window output order:
@@ -9480,7 +9574,7 @@ static int32_t createExternalWindowLogicNodeFinalize(SLogicPlanContext* pCxt, SS
         PLAN_ERR_RET(createColumnByRewriteExprs(pProjTargets, &pWindow->node.pTargets));
         nodesDestroyList(pProjTargets);
       }
-      
+
       pSelect->hasAggFuncs = false;
     }
   }
@@ -11073,6 +11167,13 @@ static int32_t collectFillExprs(SSelectStmt* pSelect, SNodeList** pFillExprs, SN
       if (code != TSDB_CODE_SUCCESS) break;
     }
   }
+  if (code == TSDB_CODE_SUCCESS && streamSelectHasWindowFunc(pSelect)) {
+    // Hidden OVER partition keys must pass through FILL without being filled.
+    FOREACH(pNode, pSelect->pPartitionByList) {
+      code = collectFillExpr(pNode, &collectFillCtx);
+      if (code != TSDB_CODE_SUCCESS) break;
+    }
+  }
   if (code == TSDB_CODE_SUCCESS) {
     void* pIter = taosHashIterate(collectFillCtx.pPseudoCols, 0);
     while (pIter) {
@@ -11461,7 +11562,9 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
       pSelect->pLimit == NULL && pSelect->pSlimit == NULL &&
       !getOptHint(pSelect->pHint, HINT_NO_EXTWIN_PARTITION_BATCH);
 
-  PLAN_ERR_JRET(nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets));
+  // OVER also consumes query partition keys that are absent from the SELECT list.
+  ESqlClause targetClause = streamSelectHasWindowFunc(pSelect) ? SQL_CLAUSE_WHERE : SQL_CLAUSE_PARTITION_BY;
+  PLAN_ERR_JRET(nodesCollectColumns(pSelect, targetClause, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets));
 
   if (NULL == pPartition->node.pTargets) {
     SNode* pNew = NULL;
