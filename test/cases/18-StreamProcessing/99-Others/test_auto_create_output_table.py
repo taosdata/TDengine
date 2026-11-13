@@ -188,7 +188,9 @@ class TestStreamAutoCreateOutputTable:
 
         Two virtual children reference the same two physical source tables.
         Keep NODELAY_CREATE_SUBTABLE enabled, verify both result children exist,
-        then write new source data and check both groups produce results.
+        then write source rows at distinct timestamps in both time orders.
+        Serialize requests to force executor reuse across groups and check
+        last(x) as well as the sum so selecting the other child cannot pass.
 
         Catalog:
             - StreamProcessing:Others
@@ -197,10 +199,12 @@ class TestStreamAutoCreateOutputTable:
 
         Labels: common,ci,regression
 
-        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7149665856
+        Feishu: https://project.feishu.cn/taosdata_td/issue/detail/7150292758
 
         History:
             - 2026-10-29 Added regression for overlapping nodelay responses.
+            - 2026-11-13 Cover aggregate isolation with staggered source timestamps.
+            - 2026-11-13 Force cross-group reuse with distinct column expectations.
         """
         tdStream.ensureSnode()
         tdSql.executes(
@@ -219,15 +223,33 @@ class TestStreamAutoCreateOutputTable:
                 "using nodelay_shared.vst tags (2);",
                 "insert into nodelay_shared.a values (now - 1m, 1) "
                 "nodelay_shared.b values (now - 1m, 2);",
+            ]
+        )
+        runner_settings = {}
+        # The scheduler reserves one slot; two allow one active request.
+        runner_limits = (("numOfStreamRunnerDeploys", 1), ("numOfStreamRunnerReplicas", 2))
+        for name, _ in runner_limits:
+            tdSql.query(f"show dnode 1 variables like '{name}'")
+            tdSql.checkRows(1)
+            runner_settings[name] = tdSql.getData(0, 2)
+        try:
+            for name, limit in runner_limits:
+                tdSql.execute(f"alter dnode 1 '{name}' '{limit}'")
+                tdSql.query(f"show dnode 1 variables like '{name}'")
+                tdSql.checkData(0, 2, str(limit))
+            tdSql.execute(
                 "create stream nodelay_shared.shared_period period(1s) "
                 "from nodelay_shared.vst partition by tbname "
                 "stream_options(ignore_disorder|ignore_nodata_trigger) "
                 "into nodelay_shared.out nodelay_create_subtable "
                 "output_subtable(concat('out_', tbname)) "
                 "as select cast(_tlocaltime / 1000000 as timestamp) as ts, "
-                "last(x) + last(y) as total from %%tbname;",
-            ]
-        )
+                "last(x) + last(y) as total, last(x) as last_x from %%tbname"
+            )
+            tdStream.checkStreamStatus("shared_period")
+        finally:
+            for name, value in runner_settings.items():
+                tdSql.execute(f"alter dnode 1 '{name}' '{value}'")
         tdSql.checkResultsByFunc(
             sql="select tags tbname from nodelay_shared.out order by tbname",
             func=lambda: tdSql.getRows() == 2
@@ -235,16 +257,23 @@ class TestStreamAutoCreateOutputTable:
             and tdSql.compareData(1, 0, "out_v2"),
             retry=60,
         )
-        tdSql.execute(
-            "insert into nodelay_shared.a values (now, 10) "
-            "nodelay_shared.b values (now, 20)"
-        )
-        for table in ("out_v1", "out_v2"):
-            tdSql.checkResultsByFunc(
-                sql=f"select total from nodelay_shared.{table} order by ts desc limit 1",
-                func=lambda: tdSql.getRows() == 1 and tdSql.compareData(0, 0, 30),
-                retry=60,
+        for a_value, b_value, a_offset, b_offset, expected in (
+            (10, 20, 0, 1, 30),
+            (40, 30, 1, 0, 70),
+        ):
+            ts = int(time.time() * 1000)
+            tdSql.execute(
+                f"insert into nodelay_shared.a values ({ts + a_offset}, {a_value}) "
+                f"nodelay_shared.b values ({ts + b_offset}, {b_value})"
             )
+            for table, last_x in (("out_v1", a_value), ("out_v2", b_value)):
+                tdSql.checkResultsByFunc(
+                    sql=f"select total, last_x from nodelay_shared.{table} order by ts desc limit 1",
+                    func=lambda: tdSql.getRows() == 1
+                    and tdSql.compareData(0, 0, expected)
+                    and tdSql.compareData(0, 1, last_x),
+                    retry=60,
+                )
         tdStream.checkStreamStatus("shared_period")
 
     def prepareData(self):
