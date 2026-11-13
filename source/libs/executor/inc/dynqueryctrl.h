@@ -114,6 +114,7 @@ typedef struct SVtbScanDynCtrlInfo {
   bool             genNewParam;
   bool                 activeScopeValid;
   SVtbAggDispatchScope activeAggScope;
+  void*                pAggGroupIter;
   char*            dbName;
   char*            tbName;
   tsem_t           ready;
