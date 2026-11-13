@@ -8319,18 +8319,30 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
 
 static bool isTailFuncById(int32_t funcId) { return fmGetFuncTypeFromId(funcId) == FUNCTION_TYPE_TAIL; }
 
-static bool isNonWindowAggFunc(int32_t funcId) { return fmIsAggFunc(funcId); }
+typedef struct SCollectNonWindowAggFuncsCxt {
+  int32_t    errCode;
+  SNodeList* pFuncs;
+} SCollectNonWindowAggFuncsCxt;
 
-static int32_t pruneOverFuncs(SNodeList* pFuncs) {
-  SNode* pNode = NULL;
-  WHERE_EACH(pNode, pFuncs) {
-    if (QUERY_NODE_FUNCTION == nodeType(pNode) && NULL != ((SFunctionNode*)pNode)->pOver) {
-      ERASE_NODE(pFuncs);
-      continue;
-    }
-    WHERE_NEXT;
+static EDealRes collectNonWindowAggFunc(SNode* pNode, void* pContext) {
+  SCollectNonWindowAggFuncsCxt* pCxt = (SCollectNonWindowAggFuncsCxt*)pContext;
+  if (QUERY_NODE_FUNCTION != nodeType(pNode) || NULL != ((SFunctionNode*)pNode)->pOver ||
+      !fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+    // Window aggregates must be traversed so their ORDER BY aggregates are collected.
+    return DEAL_RES_CONTINUE;
   }
-  return TSDB_CODE_SUCCESS;
+  SNode* pFunc = NULL;
+  FOREACH(pFunc, pCxt->pFuncs) {
+    if (nodesEqualNode(pFunc, pNode)) {
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  SNode* pNew = NULL;
+  pCxt->errCode = nodesCloneNode(pNode, &pNew);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = nodesListMakeStrictAppend(&pCxt->pFuncs, pNew);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
 }
 
 static int32_t prunePassthroughFuncs(SNodeList* pFuncs) {
@@ -8348,9 +8360,14 @@ static int32_t prunePassthroughFuncs(SNodeList* pFuncs) {
 }
 
 static int32_t collectNonWindowAggFuncs(SSelectStmt* pSelect, ESqlClause clause, SNodeList** pFuncs) {
-  PLAN_ERR_RET(nodesCollectFuncs(pSelect, clause, NULL, isNonWindowAggFunc, pFuncs));
+  SCollectNonWindowAggFuncsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pFuncs = *pFuncs};
+  nodesWalkSelectStmt(pSelect, clause, collectNonWindowAggFunc, &cxt);
+  *pFuncs = cxt.pFuncs;
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    NODES_DESTORY_LIST(*pFuncs);
+    return cxt.errCode;
+  }
   if (NULL != *pFuncs) {
-    PLAN_ERR_RET(pruneOverFuncs(*pFuncs));
     if (pSelect->hasIndefiniteRowsFunc || pSelect->hasInterpFunc || pSelect->hasForecastFunc ||
         pSelect->hasGenericAnalysisFunc) {
       PLAN_ERR_RET(prunePassthroughFuncs(*pFuncs));
