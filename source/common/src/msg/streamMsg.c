@@ -425,6 +425,7 @@ void tCleanupSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec) {
   taosMemoryFree(pSpec->pCalcMappings);
   taosMemoryFree(pSpec->prefilter);
   taosMemoryFree(pSpec->triggerPrefilter);
+  taosMemoryFree(pSpec->triggerPrefilterAst);
   taosMemoryFree(pSpec->tagCondJson);
   taosArrayDestroy(pSpec->partitionTagCols);
   taosArrayDestroyP(pSpec->partitionTagExprs, NULL);
@@ -434,6 +435,7 @@ void tCleanupSStreamExtTriggerSpec(SStreamExtTriggerSpec* pSpec) {
   pSpec->pCalcMappings = NULL;
   pSpec->prefilter = NULL;
   pSpec->triggerPrefilter = NULL;
+  pSpec->triggerPrefilterAst = NULL;
   pSpec->tagCondJson = NULL;
   pSpec->tagCondLen = 0;
   pSpec->partitionTagCols = NULL;
@@ -1115,6 +1117,14 @@ int32_t tDecodeSStreamExtOrigTblReaderRsp(SDecoder* pDecoder, SStreamExtOrigTblR
   const uint32_t minResultSize = 3 * sizeof(int64_t) + 3 * sizeof(int32_t) + 5 * sizeof(int8_t) + 2;
   TAOS_CHECK_RETURN(tValidateStreamExtOrigTblReaderWireCount(pDecoder, count, minResultSize));
   if (count == 0) {
+    // Zero bindings is a valid SERIES-bound reader (the stream projection may
+    // reference no external column, e.g. COUNT(*) over %%trows).  Keep the
+    // decoded results non-NULL to mirror the encoder, which always serialises
+    // a (possibly empty) results array; the trigger validates results != NULL.
+    pRsp->results = taosArrayInit(0, sizeof(SStreamExtOrigTblReaderResult));
+    if (pRsp->results == NULL) {
+      return terrno;
+    }
     return TSDB_CODE_SUCCESS;
   }
   pRsp->results = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderResult), count);
@@ -2410,6 +2420,11 @@ int32_t tEncodeSStreamReaderDeployMsg(SEncoder* pEncoder, const SStreamReaderDep
     for (int32_t j = 0; j < numPartExprs; ++j) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, (char*)taosArrayGetP(pSpec->partitionTagExprs, j)));
     }
+    /* The rendered SQL fragment is dialect-specific; the InfluxDB 1.8 reader needs the
+     * PRE_FILTER AST so the provider can render InfluxQL itself.  The AST is *not* part of
+     * this spec: a reader deploy message nested in the heartbeat response has no length
+     * frame, so a trailing field here would be decoded as the next reader/action by a peer
+     * that predates it.  It travels in STREAM_EXT_PREFILTER_AST_FRAME_MAGIC instead. */
   }
 
 _exit:
@@ -3083,6 +3098,55 @@ static int32_t tEncodeStreamHbWindowPlanFrame(SEncoder* pEncoder, const SMStream
   return code;
 }
 
+/* Locate the PRE_FILTER AST a reader task in this heartbeat carries, if any. */
+static const char* tStreamHbReaderExtPrefilterAst(const SStmTaskDeploy* pTask) {
+  const SStreamExtTriggerSpec* pSpec = pTask->msg.reader.pExtSpec;
+  if (pSpec == NULL || pSpec->triggerPrefilterAst == NULL || pSpec->triggerPrefilterAst[0] == '\0') {
+    return NULL;
+  }
+  return pSpec->triggerPrefilterAst;
+}
+
+/* Carry the PRE_FILTER AST of every ext trigger reader in a versioned tail frame.
+ *
+ * The reader deploy messages nested in this response have no length frame, so appending the
+ * AST to SStreamExtTriggerSpec would shift every following reader, the trigger flag, the
+ * runner list and the rest of the heartbeat for a peer that predates the field; the peer
+ * would then decode garbage or fail the whole deploy.  A tail frame is skipped by such a
+ * peer (unknown magic) and leaves the deploy layout untouched, which matters because the
+ * transport version check does not exclude maintenance versions. */
+static int32_t tEncodeStreamHbExtPrefilterAstFrame(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
+  int32_t       astNum = 0;
+  const int32_t deployNum = taosArrayGetSize(pRsp->deploy.streamList);
+  for (int32_t i = 0; i < deployNum; ++i) {
+    const SStmStreamDeploy* pStream = taosArrayGet(pRsp->deploy.streamList, i);
+    const int32_t           readerNum = taosArrayGetSize(pStream->readerTasks);
+    for (int32_t j = 0; j < readerNum; ++j) {
+      const SStmTaskDeploy* pTask = taosArrayGet(pStream->readerTasks, j);
+      if (tStreamHbReaderExtPrefilterAst(pTask) != NULL) ++astNum;
+    }
+  }
+  if (astNum == 0) return TSDB_CODE_SUCCESS;
+
+  int32_t code = tStartEncodeStreamTailFrame(pEncoder, STREAM_EXT_PREFILTER_AST_FRAME_MAGIC,
+                                             STREAM_EXT_PREFILTER_AST_FRAME_VERSION, 0);
+  if (code == TSDB_CODE_SUCCESS) code = tEncodeU32(pEncoder, (uint32_t)astNum);
+  for (int32_t i = 0; code == TSDB_CODE_SUCCESS && i < deployNum; ++i) {
+    const SStmStreamDeploy* pStream = taosArrayGet(pRsp->deploy.streamList, i);
+    const int32_t           readerNum = taosArrayGetSize(pStream->readerTasks);
+    for (int32_t j = 0; code == TSDB_CODE_SUCCESS && j < readerNum; ++j) {
+      const SStmTaskDeploy* pTask = taosArrayGet(pStream->readerTasks, j);
+      const char*           pAst = tStreamHbReaderExtPrefilterAst(pTask);
+      if (pAst == NULL) continue;
+      code = tEncodeI64(pEncoder, pStream->streamId);
+      if (code == TSDB_CODE_SUCCESS) code = tEncodeI64(pEncoder, pTask->task.taskId);
+      if (code == TSDB_CODE_SUCCESS) code = tEncodeCStr(pEncoder, pAst);
+    }
+  }
+  tEndEncodeStreamTailFrame(pEncoder);
+  return code;
+}
+
 int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
   int32_t lino;
@@ -3120,6 +3184,7 @@ int32_t tEncodeStreamHbRsp(SEncoder* pEncoder, const SMStreamHbRspMsg* pRsp) {
     TAOS_CHECK_EXIT(tEncodeSStreamMgmtRsp(pEncoder, pMgmtRsp));
   }
   TAOS_CHECK_EXIT(tEncodeStreamHbWindowPlanFrame(pEncoder, pRsp));
+  TAOS_CHECK_EXIT(tEncodeStreamHbExtPrefilterAstFrame(pEncoder, pRsp));
 
 _exit:
 
@@ -3261,6 +3326,8 @@ int32_t tDecodeSStreamReaderDeployMsg(SDecoder* pDecoder, SStreamReaderDeployMsg
         TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, pExpr));
       }
     }
+    /* pSpec->triggerPrefilterAst is not on the wire here; tDecodeStreamHbRsp binds it from
+     * STREAM_EXT_PREFILTER_AST_FRAME_MAGIC after the deploy sections. */
   } else {
     pMsg->pExtSpec = NULL;
   }
@@ -4283,11 +4350,100 @@ static int32_t tBindStreamHbWindowPlans(SMStreamHbRspMsg* pRsp, SArray* pEntries
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct {
+  int64_t streamId;
+  int64_t readerTaskId;
+  char*   pAst;
+} SStreamHbExtPrefilterAstEntry;
+
+static void tFreeStreamHbExtPrefilterAstEntry(void* pParam) {
+  SStreamHbExtPrefilterAstEntry* pEntry = pParam;
+  taosMemoryFreeClear(pEntry->pAst);
+}
+
+static SStreamReaderDeployMsg* tFindStreamHbReaderDeploy(SMStreamHbRspMsg* pRsp, int64_t streamId,
+                                                         int64_t readerTaskId) {
+  const int32_t deployNum = taosArrayGetSize(pRsp->deploy.streamList);
+  for (int32_t i = 0; i < deployNum; ++i) {
+    SStmStreamDeploy* pStream = taosArrayGet(pRsp->deploy.streamList, i);
+    if (pStream->streamId != streamId) continue;
+    const int32_t readerNum = taosArrayGetSize(pStream->readerTasks);
+    for (int32_t j = 0; j < readerNum; ++j) {
+      SStmTaskDeploy* pTask = taosArrayGet(pStream->readerTasks, j);
+      if (pTask->task.taskId == readerTaskId) return &pTask->msg.reader;
+    }
+  }
+  return NULL;
+}
+
+static int32_t tDecodeStreamHbExtPrefilterAstFrame(SStreamTailFrameDecoder* pFrame, SMStreamHbRspMsg* pRsp,
+                                                   SArray** ppEntries) {
+  uint32_t      entryNum = 0;
+  int32_t       code = tDecodeU32(&pFrame->payloadDecoder, &entryNum);
+  int32_t       readerTotal = 0;
+  const int32_t deployNum = taosArrayGetSize(pRsp->deploy.streamList);
+  for (int32_t i = 0; i < deployNum; ++i) {
+    const SStmStreamDeploy* pStream = taosArrayGet(pRsp->deploy.streamList, i);
+    readerTotal += (int32_t)taosArrayGetSize(pStream->readerTasks);
+  }
+  if (code != TSDB_CODE_SUCCESS || entryNum > (uint32_t)readerTotal) {
+    return code == TSDB_CODE_SUCCESS ? TSDB_CODE_INVALID_MSG : code;
+  }
+
+  SArray* pEntries = taosArrayInit(entryNum, sizeof(SStreamHbExtPrefilterAstEntry));
+  if (pEntries == NULL) return terrno;
+  for (uint32_t i = 0; i < entryNum; ++i) {
+    SStreamHbExtPrefilterAstEntry entry = {0};
+    code = tDecodeI64(&pFrame->payloadDecoder, &entry.streamId);
+    if (code == TSDB_CODE_SUCCESS) code = tDecodeI64(&pFrame->payloadDecoder, &entry.readerTaskId);
+    for (int32_t j = 0; code == TSDB_CODE_SUCCESS && j < taosArrayGetSize(pEntries); ++j) {
+      const SStreamHbExtPrefilterAstEntry* pPrior = taosArrayGet(pEntries, j);
+      if (pPrior->streamId == entry.streamId && pPrior->readerTaskId == entry.readerTaskId) {
+        code = TSDB_CODE_INVALID_MSG;
+      }
+    }
+    SStreamReaderDeployMsg* pTarget =
+        code == TSDB_CODE_SUCCESS ? tFindStreamHbReaderDeploy(pRsp, entry.streamId, entry.readerTaskId) : NULL;
+    if (code == TSDB_CODE_SUCCESS && (pTarget == NULL || pTarget->pExtSpec == NULL)) {
+      code = TSDB_CODE_INVALID_MSG;
+    }
+    if (code == TSDB_CODE_SUCCESS) code = tDecodeCStrAlloc(&pFrame->payloadDecoder, &entry.pAst);
+    if (code == TSDB_CODE_SUCCESS && (entry.pAst == NULL || entry.pAst[0] == '\0')) {
+      code = TSDB_CODE_INVALID_MSG;
+    }
+    if (code == TSDB_CODE_SUCCESS && taosArrayPush(pEntries, &entry) == NULL) code = terrno;
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFreeClear(entry.pAst);
+      taosArrayDestroyEx(pEntries, tFreeStreamHbExtPrefilterAstEntry);
+      return code;
+    }
+  }
+  *ppEntries = pEntries;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Hand every decoded AST to the reader task it belongs to.  The frame is produced only for
+ * readers that have an ext spec, so a mismatch means the frame and the deploy disagree. */
+static int32_t tBindStreamHbExtPrefilterAsts(SMStreamHbRspMsg* pRsp, SArray* pEntries) {
+  for (int32_t i = 0; i < taosArrayGetSize(pEntries); ++i) {
+    SStreamHbExtPrefilterAstEntry* pEntry = taosArrayGet(pEntries, i);
+    SStreamReaderDeployMsg*        pTarget =
+        tFindStreamHbReaderDeploy(pRsp, pEntry->streamId, pEntry->readerTaskId);
+    if (pTarget == NULL || pTarget->pExtSpec == NULL) return TSDB_CODE_INVALID_MSG;
+    taosMemoryFreeClear(pTarget->pExtSpec->triggerPrefilterAst);
+    pTarget->pExtSpec->triggerPrefilterAst = pEntry->pAst;
+    pEntry->pAst = NULL;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
   int32_t code = 0;
   int32_t lino;
   bool    windowPlanFrameSeen = false;
+  bool    extPrefilterAstFrameSeen = false;
   SArray* pWindowPlanEntries = NULL;
+  SArray* pExtPrefilterAstEntries = NULL;
 
   TAOS_CHECK_EXIT(tStartDecode(pDecoder));
   TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRsp->streamGId));
@@ -4353,16 +4509,31 @@ int32_t tDecodeStreamHbRsp(SDecoder* pDecoder, SMStreamHbRspMsg* pRsp) {
       else
         tFinishDecodeStreamTailFrame(&frame, false);
       TAOS_CHECK_EXIT(code);
+    } else if (frame.magic == STREAM_EXT_PREFILTER_AST_FRAME_MAGIC) {
+      if (extPrefilterAstFrameSeen || frame.version != STREAM_EXT_PREFILTER_AST_FRAME_VERSION ||
+          frame.flags != 0) {
+        tFinishDecodeStreamTailFrame(&frame, false);
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      extPrefilterAstFrameSeen = true;
+      code = tDecodeStreamHbExtPrefilterAstFrame(&frame, pRsp, &pExtPrefilterAstEntries);
+      if (code == TSDB_CODE_SUCCESS)
+        code = tFinishDecodeStreamTailFrame(&frame, true);
+      else
+        tFinishDecodeStreamTailFrame(&frame, false);
+      TAOS_CHECK_EXIT(code);
     } else {
       TAOS_CHECK_EXIT(tFinishDecodeStreamTailFrame(&frame, false));
     }
   }
   TAOS_CHECK_EXIT(tBindStreamHbWindowPlans(pRsp, pWindowPlanEntries));
+  TAOS_CHECK_EXIT(tBindStreamHbExtPrefilterAsts(pRsp, pExtPrefilterAstEntries));
 
   tEndDecode(pDecoder);
 
 _exit:
   taosArrayDestroyEx(pWindowPlanEntries, tFreeStreamHbWindowPlanEntry);
+  taosArrayDestroyEx(pExtPrefilterAstEntries, tFreeStreamHbExtPrefilterAstEntry);
   return code;
 }
 

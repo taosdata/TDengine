@@ -714,10 +714,18 @@ typedef struct SSTriggerExtOrigTableRef {
   char   *tagCondJson;
   char   *canonicalKey;
   SArray *bindings;  // SArray<SSTriggerExtOrigTableBinding>
+  // Virtual-table UIDs that reference this external identity even when they
+  // contribute no bound column (for example COUNT(*) over %%trows).
+  SArray *vtableUids;  // SArray<int64_t>
   // virtualGid -> SArray<SSTriggerExtOrigTableBinding*>: lazily built index over bindings so a
   // per-group lookup is O(1) instead of rescanning every binding. Cleared on destroy and when
   // bindings are appended (patch merge), then rebuilt on next use.
   SSHashObj *pGidToBindings;
+  // Lazily built membership index over bindings (TRIGGER peer pairs and virtual tables that own a
+  // CALC binding).  Shared by every response that fans this ref out instead of being rebuilt per
+  // response, and invalidated together with pGidToBindings whenever bindings or the virtual target
+  // list change.  Opaque here: the layout lives in streamTriggerTask.c.
+  struct STriggerExtBindingIndex *pBindingIndex;
 } SSTriggerExtOrigTableRef;
 
 typedef struct SSTriggerVTablePatchContext {
@@ -1202,6 +1210,7 @@ typedef struct SStreamTriggerTask {
   col_id_t     trigTsSlotId;
   col_id_t     calcTsSlotId;
   bool         virScanTsOnly;  // whether the trigger and calc data only contains timestamp column
+  bool         calcScanTsOnly;  // whether the calc data only contains timestamp column (pure COUNT(*))
   SSDataBlock *pNestedCalcCacheBlock;
   SArray      *pNestedCalcCacheProjection;  // SArray<SStreamDataCacheColumnProjection>
   SRWLatch     virTableInfoLock;
@@ -1334,6 +1343,8 @@ void stTriggerTestPeriodPendingStats(SSTriggerRealtimeContext *pContext, int32_t
  * them. */
 int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext);
 int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code);
+bool stTriggerTestExtRegistryBindingsEqual(const SSTriggerExtOrigTableRef *pLeft,
+                                           const SSTriggerExtOrigTableRef *pRight);
 int32_t stTriggerTestProcWalMeta(SSTriggerRealtimeContext *pContext, SSTriggerWalProgress *pProgress,
                                  int64_t nowNs);
 #endif

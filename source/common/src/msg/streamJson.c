@@ -672,6 +672,7 @@ static const char* jkExtSpecConnCfgVersion              = "connCfgVersion";
 static const char* jkExtSpecOptions                     = "options";
 static const char* jkExtSpecPrefilter                   = "prefilter";
 static const char* jkExtSpecTriggerPrefilter             = "triggerPrefilter";
+static const char* jkExtSpecTriggerPrefilterAst          = "triggerPrefilterAst";
 static const char* jkExtSpecPartitionByTag               = "partitionByTag";
 static const char* jkExtSpecPartitionByTbname             = "partitionByTbname";
 static const char* jkExtSpecPartitionTagCols             = "partitionTagCols";
@@ -731,6 +732,10 @@ static int32_t extTriggerSpecToJson(const void* pObj, SJson* pJson) {
   /* triggerPrefilter: optional WHERE clause fragment for trigger reader queries (PRE_FILTER). */
   if (pSpec->triggerPrefilter != NULL && pSpec->triggerPrefilter[0] != '\0') {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilter, pSpec->triggerPrefilter));
+  }
+  /* triggerPrefilterAst: serialized PRE_FILTER AST for the InfluxDB 1.8 reader. */
+  if (pSpec->triggerPrefilterAst != NULL && pSpec->triggerPrefilterAst[0] != '\0') {
+    TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, jkExtSpecTriggerPrefilterAst, pSpec->triggerPrefilterAst));
   }
   /* partitionByTag / partitionTagCols: PARTITION BY groupId derivation (see
    * streamReaderExt.c). Must cross the wire here  -  unlike calcColumns
@@ -835,6 +840,11 @@ static int32_t jsonToExtTriggerSpec(const SJson* pJson, void* pObj, int8_t defau
       pSpec->triggerPrefilter    = tstrdup(pfBuf);
       if (pSpec->triggerPrefilter == NULL) { code = terrno; goto _err; }
     }
+  }
+  /* triggerPrefilterAst: optional PRE_FILTER AST (InfluxDB 1.8 reader). */
+  if ((code = tjsonDupStringValue(pJson, jkExtSpecTriggerPrefilterAst,
+                                  &pSpec->triggerPrefilterAst)) != 0) {
+    goto _err;
   }
   /* partitionByTag: absent on streams created by older taosc; defaults to 0
    * (calloc'd) when the key is missing, matching "no PARTITION BY". */

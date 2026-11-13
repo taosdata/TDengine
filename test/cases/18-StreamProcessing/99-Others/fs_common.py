@@ -73,9 +73,9 @@ def oracle_insert_all_sql(rows: list, render_ts, table: str = "src_t") -> str:
 
 
 def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str,
-                     since_ms: int = None) -> None:
+                     cols: str = "ts, cnt, avg_val", since_ms: int = None) -> None:
     """Wait for `sink` to close all `expected` windows, then assert the exact
-    (ts, cnt, avg_val) rows in order.
+    rows (columns `cols`) in order.
 
     `since_ms` restricts the comparison to the measured windows.  It is used by
     cases that established the reader bootstrap with a canary window placed
@@ -85,7 +85,7 @@ def verify_sink_rows(db: str, stream: str, sink: str, expected: list, label: str
     where = "" if since_ms is None else f" WHERE ts >= '{dt_str(since_ms)}'"
     wait_stream_window_closed(stream, db, sink,
                               expected_rows=len(expected), timeout=120, where=where)
-    res = tdSql.getResult(f"SELECT ts, cnt, avg_val FROM {db}.{sink}{where} ORDER BY ts")
+    res = tdSql.getResult(f"SELECT {cols} FROM {db}.{sink}{where} ORDER BY ts")
     tdSql.checkEqual(res, expected)
     tdLog.info(f"[{label}] verified {len(expected)} sink rows OK")
 
@@ -272,39 +272,117 @@ def wait_ext_reader_bootstrap(stream_name: str,
     )
 
 
-def get_ext_last_ts(stream_name: str) -> int:
-    """Return current ext_last_ts (ms) for the stream's EXT reader task, 0 if none."""
-    tdSql.query(
-        "SELECT ext_last_ts FROM information_schema.ins_stream_tasks "
-        f"WHERE stream_name='{stream_name}' AND task_type IN "
-        "('EXT_TRIG_READER','EXT_CALC_READER') ORDER BY ext_last_ts DESC LIMIT 1"
-    )
-    rows = tdSql.queryResult
-    if not rows or rows[0][0] is None:
-        return 0
-    val = rows[0][0]
-    return int(val.timestamp() * 1000) if hasattr(val, "timestamp") else int(val)
+# A deployed EXT trigger reader, as the catalog reports it.  The task kind is
+# `type` and the reader flavour is `extra_info`; there is no `task_type` column.
+# `extra_info` is also a lexer keyword (`CREATE TOKEN ... WITH EXTRA_INFO`), so it
+# has to be escaped like `ttl` is elsewhere in this catalog.  A reader reports
+# `Idle` once it is deployed and has nothing in flight, so `Idle`/`Running` are
+# both accepted (`Running` only shows while a pull is being served).
+EXT_TRIGGER_READER_DEPLOYED_SQL = (
+    "SELECT COUNT(*) FROM information_schema.ins_stream_tasks "
+    "WHERE stream_name='{}' AND type='Reader' "
+    "AND `extra_info`='trigReader' AND status IN ('Idle', 'Running')"
+)
+EXT_TRIGGER_READER_REPORTED_SQL = (
+    "SELECT COUNT(*) FROM information_schema.ins_stream_tasks "
+    "WHERE stream_name='{}' AND type='Reader' "
+    "AND `extra_info`='trigReader' AND status IN ('Idle', 'Running') "
+    "AND last_update > '{}'"
+)
 
 
-def wait_ext_last_ts_advance(stream_name: str,
-                             prev_ts: int,
-                             timeout: float = 20.0,
-                             poll: float = 0.5) -> int:
-    """Block until ext_last_ts strictly advances past prev_ts; return new value."""
+def wait_ext_trigger_reader_running(stream_name: str, timeout: float = 90.0,
+                                    poll: float = 0.5) -> None:
+    """Wait until the stream's external trigger reader task is deployed.
+
+    `information_schema.ins_stream_tasks` is the only catalog that reports stream
+    tasks, and it publishes the task kind as `type` ("Reader"/"Trigger"/"Runner")
+    plus `extra_info` ("trigReader"/"calcReader") for readers.  It has no
+    `task_type` and no `ext_last_ts` column, and the reader's external watermark
+    is not published anywhere, so task deployment is the strongest readiness
+    signal the catalog can give.  A deployed reader reports `Idle` in its steady
+    state and only shows `Running` while a pull is in flight, so both count.
+
+    `tdStream.checkStreamStatus()` only waits for the *Trigger* task, and mnode
+    builds and deploys the readers that trigger asked for afterwards, so this
+    wait covers exactly the part `checkStreamStatus()` leaves open.
+    """
+    sql = EXT_TRIGGER_READER_DEPLOYED_SQL.format(stream_name)
     deadline = time.time() + timeout
     while time.time() < deadline:
-        cur = get_ext_last_ts(stream_name)
-        if cur > prev_ts:
+        tdSql.query(sql, queryTimes=30)
+        if (tdSql.getData(0, 0) or 0) > 0:
             tdLog.info(
-                f"stream {stream_name} ext_last_ts advanced "
-                f"{prev_ts} -> {cur}"
+                f"stream {stream_name}: the EXT trigger reader is deployed"
             )
-            return cur
+            return
         time.sleep(poll)
     raise TimeoutError(
-        f"stream {stream_name} ext_last_ts did not advance past {prev_ts} "
-        f"in {timeout}s (still {get_ext_last_ts(stream_name)})"
-    )
+        f"stream {stream_name}: the EXT trigger reader was not deployed in "
+        f"{timeout}s")
+
+
+def wait_ext_trigger_reader_report(stream_name: str, after_ms: int,
+                                   timeout: float = 30.0,
+                                   poll: float = 0.5) -> bool:
+    """Wait for one reader status report newer than `after_ms`.
+
+    A reader task reports its status on every snode/vnode heartbeat (about every
+    6s in practice), so a report stamped after the probe write proves the reader
+    has gone round at least one loop with that row in the source.  Returns False
+    when no newer report showed up, so the caller can decide how strict to be.
+    """
+    sql = EXT_TRIGGER_READER_REPORTED_SQL.format(stream_name, dt_str(after_ms))
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        tdSql.query(sql, queryTimes=30)
+        if (tdSql.getData(0, 0) or 0) > 0:
+            tdLog.info(
+                f"stream {stream_name}: the EXT trigger reader reported after "
+                f"{dt_str(after_ms)}")
+            return True
+        time.sleep(poll)
+    return False
+
+
+def wait_influx18_reader_bootstrap(stream: str, before_ms: int, write_probe,
+                                   timeout: float = 90.0, poll: float = 0.5) -> int:
+    """Prove the InfluxDB 1.8 EXT reader already sampled its history cutoff.
+
+    `checkStreamStatus()` only proves the START request was queued: the ext
+    trigger reader pulls its initial watermark (`MAX(ts)`) afterwards, and a row
+    written before that pull is consumed as history - the later META pulls only
+    ask for `ts > maxTs`, so it is lost for good and no sink timeout recovers it.
+
+    InfluxDB has no delete path in this harness, so the canary window pattern of
+    `wait_ext_reader_bootstrap` cannot undo its probe here.  The probe is
+    therefore a `val = 0` point placed five minutes before the measured batch: it
+    matches no `PRE_FILTER(val > ...)`, it is not a window boundary, and it sits
+    outside every measured window, so it changes no assertion.
+
+    The barrier waits for the stream's EXT trigger reader task to be deployed and
+    then for a reader status report stamped after the probe write
+    (`wait_ext_trigger_reader_running`, `wait_ext_trigger_reader_report`).  The
+    catalog does not publish the reader's external watermark, so the probe itself
+    cannot be read back; a reader report newer than the probe is the strongest
+    evidence available that the reader already went round a loop with it.
+
+    `write_probe` receives the probe timestamp in nanoseconds and must write the
+    point into the trigger measurement.  Returns the probe timestamp in
+    milliseconds.
+    """
+    probe_ms = before_ms - 300_000
+    probe_written_ms = int(time.time() * 1000)
+    write_probe(probe_ms * 1_000_000)
+    wait_ext_trigger_reader_running(stream, timeout=timeout, poll=poll)
+    if not wait_ext_trigger_reader_report(stream, probe_written_ms, poll=poll):
+        tdLog.info(
+            f"stream {stream}: no reader status report after the probe within "
+            f"the budget, relying on the deployment barrier")
+    tdLog.info(
+        f"stream {stream}: EXT trigger reader deployed, history cutoff past "
+        f"{probe_ms} sampled")
+    return probe_ms
 
 
 def verify_sink_data(stream_name: str,
@@ -611,6 +689,32 @@ class FsSharedFixtureMixin:
                     f'val={value_map[(host, region)]}i,score=1.0,name="x",flag=0i {ts_ns}'
                 )
         return lines
+
+    # Tag order of the line protocol written by _build_influx_lines.
+    _UC_TAGS = ("host", "region", "tbname")
+    _UC_TAG_VALUES = {"tbname": "tname"}
+
+    def _partition_tbname(self, measurement: str, host: str, region: str) -> str:
+        """Sub-table identity the reader composes for one _UC_SERIES point.
+
+        InfluxDB 1.8 qualifies every component with its tag name and escapes '_'
+        as '~_' ('~' itself becomes '~~'): a tag the series does not carry is
+        absent from its identity, so a value-only name would let a sparse tagset
+        collide with a complete one, and an unescaped separator would let two
+        different tag tuples compose the same name.  InfluxDB 2.x receives
+        complete tagsets and keeps the compact value-only form."""
+
+        def _escape(text: str) -> str:
+            return text.replace("~", "~~").replace("_", "~_")
+
+        values = dict(self._UC_TAG_VALUES, host=host, region=region)
+        if self._influx_cfg().version == "1.8":
+            return measurement + "".join(f"_{_escape(n)}_{_escape(values[n])}" for n in self._UC_TAGS)
+        return measurement + "".join(f"_{values[n]}" for n in self._UC_TAGS)
+
+    def _partition_tbnames(self, measurement: str) -> dict:
+        """Composed sub-table name per _UC_SERIES entry, keyed by (host, region)."""
+        return {(h, r): self._partition_tbname(measurement, h, r) for h, r, _ in self._UC_SERIES}
 
     def _prep_partition_influx(self, src: str, i_db: str):
         """Common PARTITION BY-family setup: fresh ext source + Influx DB, then

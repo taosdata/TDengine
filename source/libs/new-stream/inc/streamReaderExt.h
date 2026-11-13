@@ -50,10 +50,19 @@ extern "C" {
  * PARTITION BY tuple evaluated during DISTINCT block initialization so
  * GROUP_COL_VALUE_PULL does not evaluate the same expressions again.
  * Empty string/NULL respectively for MySQL/PG.
+ *
+ * The key is stored in its ESCAPED form, and escaping spends one extra byte for
+ * every '=', '|' and backslash in the tagset, so the storage has to cover the
+ * worst case (2x) of the historical unescaped budget.  Sizing it to the
+ * unescaped budget would silently drop any series whose tags are rich in those
+ * separators.
  */
+#define EXT_TAGSET_KEY_RAW_MAX 1024
+#define EXT_TAGSET_KEY_MAX     (EXT_TAGSET_KEY_RAW_MAX * 2 + 1)
+
 typedef struct SUidIndexEntry {
   uint64_t groupId;
-  char     tagsetKey[1024]; /* "col1=val1|col2=val2|..."; empty for MySQL/PG */
+  char     tagsetKey[EXT_TAGSET_KEY_MAX]; /* escaped "col1=val1|col2=val2|..."; empty for MySQL/PG */
   SArray  *partitionValues; /* SArray<SStreamGroupValue>; owned */
 } SUidIndexEntry;
 
@@ -108,8 +117,62 @@ typedef struct SStreamExtReaderInfo {
    * Reset to 0 after all uids have been covered in a batch round. */
   int32_t influxBatchOffset;
 
+  /* 1 = this reader's InfluxDB source is configured for 1.8 (OPTIONS.version).
+   * 1.8 has no SQL endpoint the reader could query directly: series
+   * enumeration, watermarks and data fetches all go through the provider's
+   * restricted raw-scan / series-snapshot API instead. */
+  bool influxV1;
+
+  /* InfluxDB 1.8: minimal external-table descriptor handed to the connector
+   * (owned; built on first use from the deploy spec) and the cached remote
+   * schema (owned; freed and refetched when the remote reports a schema
+   * change).  Ignored for every other source. */
+  SExtTableNode *pInflux18Table;
+  SExtTableMeta *pInflux18Meta;
+
+  /* InfluxDB 1.8: last end-timestamp this reader reported to the trigger for a
+   * uid (hash<uint64_t uid, int64_t ekey>).  When the trigger's watermark for a
+   * uid still differs from it, the trigger has not consumed the previous META
+   * row yet and the exact first timestamp of the new rows must be queried so
+   * the first window starts at real data instead of at watermark+1. */
+  SSHashObj *pInflux18MetaEkey;
+
+  /* InfluxDB 1.8: series snapshot reused by the continuation pages of one META
+   * enumeration (owned; NULL when no enumeration is in progress).  A snapshot
+   * costs one HTTP request per INFLUX_V1_SERIES_PAGE_SIZE series, so a META
+   * response that pages at STREAM_RETURN_ROWS_NUM must not re-read the whole
+   * measurement for every page.  The latest-point snapshot and, when the round
+   * has new series, the history-head snapshot are both kept while
+   * influxBatchOffset > 0 and dropped when the enumeration completes or is
+   * abandoned, so the next enumeration observes the remote's current series
+   * set.  A failed page keeps both the snapshot and the cursor: the retry must
+   * walk the same series in the same order. */
+  SSDataBlock *pInflux18MetaSnap;
+  SSDataBlock *pInflux18MetaFirstSnap;
+
+  /* Derived from the two snapshots above (owned; always released together with
+   * them).  Building the uid -> last/first point maps costs one tagset-key
+   * build per series, so rebuilding them for every page of one enumeration is
+   * O(N^2 / STREAM_RETURN_ROWS_NUM) for an N-series measurement.  They depend
+   * only on the snapshot, so they are built once per enumeration. */
+  SSHashObj *pInflux18MetaUidTs;       /* hash<uint64_t uid, int64_t ts> */
+  SArray    *pInflux18MetaUidOrder;    /* SArray<SExtInflux18UidTs> */
+  SSHashObj *pInflux18MetaFirstUidTs;  /* hash<uint64_t uid, int64_t ts> */
+  /* Set once the running enumeration has fetched the history-head snapshot (or
+   * tried to); reset together with the cache.  Keeps the per-page decision from
+   * rescanning the whole uid map. */
+  bool influx18MetaFirstTried;
+  /* Common lower bound of the history-head snapshot, derived from the series
+   * that still need a FIRST alignment.  Deriving it walks the whole uid map, and
+   * a steady-state enumeration (every series already reported at its watermark)
+   * never asks for the snapshot at all, so the walk is deferred until the first
+   * row that actually needs it and then cached for the rest of the enumeration. */
+  int64_t influx18MetaFirstLower;
+  bool    influx18MetaFirstLowerValid;
+
   /* InfluxDB tag column names (SArray<char[TSDB_COL_NAME_LEN]>).
-   * Populated once by extInitInfluxTagPartition; NULL for MySQL/PG.
+   * Populated by InfluxDB table-list enumeration and refreshed when an empty
+   * series set is re-enumerated; NULL for MySQL/PG.
    * Used to build the tagset string from returned rows and to look up uid. */
   SArray *pInfluxTagCols;   /* SArray<char[TSDB_COL_NAME_LEN]>; InfluxDB only */
 
@@ -137,6 +200,18 @@ typedef struct SStreamExtReaderInfo {
    * for table scans - instead of trusting the raw merged [wstart, wend]
    * range.  NULL when the plan has no time range (full scan). */
   SNode *pCalcTimeRange;
+
+  /* PRE_FILTER AST (owned), parsed from spec.triggerPrefilterAst at open.
+   * InfluxDB 1.8 cannot execute the rendered triggerPrefilter SQL; the 1.8
+   * provider renders this AST to InfluxQL for every trigger-side fetch.
+   * NULL when the stream has no PRE_FILTER or the source is not 1.8. */
+  SNode *pTriggerPrefilter;
+
+  /* SERIES identity condition (owned), parsed from spec.tagCondJson at open.
+   * It constrains which series belong to a virtual-table source and is kept
+   * separate from the trigger PRE_FILTER. */
+  SNode *pInfluxSeriesFilter;
+
   /* InfluxDB empty-SERIES-match enumeration cache: timestamp (ms) of the last
    * DISTINCT enumeration that matched no tag combinations. Repeated idle pulls
    * skip the information_schema + DISTINCT round-trips within the re-check

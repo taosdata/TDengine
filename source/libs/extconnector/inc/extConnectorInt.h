@@ -314,6 +314,17 @@ bool influxProviderIsV1(const SExtProvider *provider, const void *connection);
 bool influxProviderVersionAvailable(const char *options);
 int32_t influxProviderPrepareV1(void *connection, const SExtInfluxScanSpec *spec, struct SInfluxV1Scan **out);
 int32_t influxProviderExecV1(void *connection, struct SInfluxV1Scan *scan, void **out);
+int32_t influxProviderSeriesSnapshot(void *connection, const SExtTableNode *table,
+                                     const SExtTableMeta *meta, const char *const *tagNames,
+                                     int32_t numTags, const SNode *seriesFilter,
+                                     const SNode *rowFilter, bool first, int8_t precision,
+                                     SSDataBlock **out);
+int32_t influxProviderSeriesSnapshotAfter(void *connection, const SExtTableNode *table,
+                                          const SExtTableMeta *meta,
+                                          const char *const *tagNames, int32_t numTags,
+                                          const SNode *seriesFilter, const SNode *rowFilter,
+                                          bool first, int8_t precision, int64_t timeLower,
+                                          SSDataBlock **out);
 const char *influxV1ScanSQL(const struct SInfluxV1Scan *scan);
 void influxV1FreeScan(struct SInfluxV1Scan *scan);
 void *extConnectorLoadRuntimeLibrary(const char *const *names, int32_t numNames, const char **pLoadedName);
