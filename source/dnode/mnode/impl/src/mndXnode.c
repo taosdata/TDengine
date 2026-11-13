@@ -36,6 +36,7 @@
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
+#include "mndToken.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndXnode.h"
@@ -124,6 +125,9 @@ SSdbRaw *mndXnodeTaskActionEncode(SXnodeTaskObj *pObj);
 SSdbRow *mndXnodeTaskActionDecode(SSdbRaw *pRaw);
 int32_t  mndXnodeTaskActionInsert(SSdb *pSdb, SXnodeTaskObj *pObj);
 int32_t  mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj *pNew);
+bool     mndXnodeIsLegacyDatabaseSink(const SXnodeTaskObj *pTask);
+int32_t  mndXnodeEncodedDsnPartLen(const char *value, int32_t valueLen, int32_t *pEncodedLen);
+void     mndXnodeEncodeDsnPart(char *dst, int32_t *pOffset, const char *value, int32_t valueLen);
 int32_t  mndXnodeTaskActionDelete(SSdb *pSdb, SXnodeTaskObj *pObj);
 
 static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq);
@@ -718,7 +722,145 @@ int32_t mndXnodeCreateDefaultToken(SRpcMsg* pReq, char** ppToken) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
+int32_t mndXnodeEnsureUserTaskToken(SMnode *pMnode, SRpcMsg *pReq, const SUserObj *pOwner, char **ppToken) {
+  mError("failed to create xnode task token since %s", tstrerror(TSDB_CODE_OPS_NOT_SUPPORT));
+  return TSDB_CODE_OPS_NOT_SUPPORT;
+}
+
 #endif
+
+static bool mndXnodeIsDsnUnreserved(unsigned char ch) {
+  return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '-' ||
+         ch == '.' || ch == '_' || ch == '~';
+}
+
+int32_t mndXnodeEncodedDsnPartLen(const char *value, int32_t valueLen, int32_t *pEncodedLen) {
+  if (value == NULL || valueLen <= 0 || pEncodedLen == NULL) return TSDB_CODE_INVALID_PARA;
+  int32_t encodedLen = 0;
+  for (int32_t i = 0; i < valueLen; ++i) {
+    encodedLen += mndXnodeIsDsnUnreserved((unsigned char)value[i]) ? 1 : 3;
+    if (encodedLen > TSDB_XNODE_TASK_SINK_LEN) return TSDB_CODE_PAR_VALUE_TOO_LONG;
+  }
+  *pEncodedLen = encodedLen;
+  return TSDB_CODE_SUCCESS;
+}
+
+void mndXnodeEncodeDsnPart(char *dst, int32_t *pOffset, const char *value, int32_t valueLen) {
+  static const char hex[] = "0123456789ABCDEF";
+  int32_t           offset = *pOffset;
+  for (int32_t i = 0; i < valueLen; ++i) {
+    unsigned char ch = (unsigned char)value[i];
+    if (mndXnodeIsDsnUnreserved(ch)) {
+      dst[offset++] = (char)ch;
+    } else {
+      dst[offset++] = '%';
+      dst[offset++] = hex[ch >> 4];
+      dst[offset++] = hex[ch & 0x0F];
+    }
+  }
+  *pOffset = offset;
+}
+
+static int32_t mndXnodeNormalizeDatabaseSink(SMnode *pMnode, SRpcMsg *pReq, const SUserObj *pOwner,
+                                             xTaskSink *pSink) {
+  int32_t code = 0;
+  char   *token = NULL;
+  char   *dsn = NULL;
+
+  if (pSink == NULL || pSink->type != XNODE_TASK_SINK_DATABASE) return TSDB_CODE_SUCCESS;
+  if (pSink->cstr.ptr == NULL || pSink->cstr.len <= 0) return TSDB_CODE_MND_XNODE_INVALID_MSG;
+
+  // Checked before the token is created, so a rejected database name leaves no token behind.
+  int32_t databaseEncodedLen = 0;
+  TAOS_CHECK_GOTO(mndXnodeEncodedDsnPartLen(pSink->cstr.ptr, pSink->cstr.len, &databaseEncodedLen), NULL, _OVER);
+
+  TAOS_CHECK_GOTO(mndXnodeEnsureUserTaskToken(pMnode, pReq, pOwner, &token), NULL, _OVER);
+  int32_t tokenLen = strlen(token);
+  int32_t tokenEncodedLen = 0;
+  TAOS_CHECK_GOTO(mndXnodeEncodedDsnPartLen(token, tokenLen, &tokenEncodedLen), NULL, _OVER);
+
+  const char prefix[] = "taos:///";
+  const char query[] = "?bearer_token=";
+  // taosX decodes the subject only when this marker is present; explicit DSNs keep their subject verbatim.
+  const char marker[] = "&subject_encoded=true";
+  int32_t dsnLen = (int32_t)(sizeof(prefix) - 1 + sizeof(query) - 1 + sizeof(marker) - 1) + databaseEncodedLen +
+                   tokenEncodedLen;
+  if (dsnLen > TSDB_XNODE_TASK_SINK_LEN) {
+    code = TSDB_CODE_PAR_VALUE_TOO_LONG;
+    goto _OVER;
+  }
+  dsn = taosMemoryCalloc(1, dsnLen + 1);
+  if (dsn == NULL) {
+    code = terrno;
+    goto _OVER;
+  }
+
+  int32_t offset = 0;
+  (void)memcpy(dsn + offset, prefix, sizeof(prefix) - 1);
+  offset += sizeof(prefix) - 1;
+  mndXnodeEncodeDsnPart(dsn, &offset, pSink->cstr.ptr, pSink->cstr.len);
+  (void)memcpy(dsn + offset, query, sizeof(query) - 1);
+  offset += sizeof(query) - 1;
+  mndXnodeEncodeDsnPart(dsn, &offset, token, tokenLen);
+  (void)memcpy(dsn + offset, marker, sizeof(marker) - 1);
+
+  CowStr normalized = xCreateCowStr(dsnLen, dsn, true);
+  if (normalized.ptr == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+  xFreeTaskSink(pSink);
+  pSink->type = XNODE_TASK_SINK_DSN;
+  pSink->cstr = normalized;
+
+_OVER:
+  taosMemoryFreeClear(token);
+  taosMemoryFreeClear(dsn);
+  TAOS_RETURN(code);
+}
+
+static int32_t mndXnodeResolveTaskOwner(SMnode *pMnode, const SXnodeTaskObj *pTask, SUserObj **ppOwner) {
+  int32_t code = 0;
+  *ppOwner = NULL;
+  if (pTask->ownerId > 0) {
+    TAOS_CHECK_GOTO(mndAcquireUserById(pMnode, pTask->ownerId, ppOwner), NULL, _OVER);
+  } else if (pTask->createdBy != NULL && pTask->createdBy[0] != '\0') {
+    code = mndAcquireUser(pMnode, pTask->createdBy, ppOwner);
+  } else {
+    code = TSDB_CODE_MND_USER_NOT_EXIST;
+  }
+
+_OVER:
+  TAOS_RETURN(code);
+}
+
+// sinkType is not a reliable marker: before mndXnodeTaskActionUpdate synced it, an ALTER could
+// persist a stale type next to the new sink text. A bare database name is therefore recognised
+// by content, since every DSN carries a scheme separator.
+bool mndXnodeIsLegacyDatabaseSink(const SXnodeTaskObj *pTask) {
+  return pTask->sinkDsn != NULL && pTask->sinkDsnLen > 1 && strchr(pTask->sinkDsn, ':') == NULL;
+}
+
+static int32_t mndXnodeBuildLegacyTaskSink(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pTask,
+                                           xTaskSink *pSink, SXnodeTaskObj *pTaskBase) {
+  int32_t   code = 0;
+  SUserObj *pOwner = NULL;
+
+  TAOS_CHECK_GOTO(mndXnodeResolveTaskOwner(pMnode, pTask, &pOwner), NULL, _OVER);
+  pSink->type = XNODE_TASK_SINK_DATABASE;
+  pSink->cstr.ptr = pTask->sinkDsn;
+  pSink->cstr.len = pTask->sinkDsnLen - 1;
+  pSink->cstr.shouldFree = false;
+  TAOS_CHECK_GOTO(mndXnodeNormalizeDatabaseSink(pMnode, pReq, pOwner, pSink), NULL, _OVER);
+
+  *pTaskBase = *pTask;
+  if (pTaskBase->ownerId == 0) pTaskBase->ownerId = pOwner->uid;
+  if (pTaskBase->acctId == 0) pTaskBase->acctId = pOwner->acctId;
+
+_OVER:
+  mndReleaseUser(pMnode, pOwner);
+  TAOS_RETURN(code);
+}
 
 static int32_t httpCreateXnode(SRpcMsg *pReq, SXnodeObj *pObj, int64_t deadlineMs) {
   int32_t code = 0;
@@ -1752,7 +1894,15 @@ int32_t mndXnodeTaskActionUpdate(SSdb *pSdb, SXnodeTaskObj *pOld, SXnodeTaskObj 
   taosWLockLatch(&pOld->lock);
   pOld->via = pNew->via;
   pOld->xnodeId = pNew->xnodeId;
+  pOld->sourceType = pNew->sourceType;
+  pOld->sinkType = pNew->sinkType;
   pOld->desiredState = pNew->desiredState;
+  if (pOld->ownerId == 0 && pNew->ownerId > 0) {
+    pOld->ownerId = pNew->ownerId;
+  }
+  if (pOld->acctId == 0 && pNew->acctId > 0) {
+    pOld->acctId = pNew->acctId;
+  }
   swapFields(&pNew->statusLen, &pNew->status, &pOld->statusLen, &pOld->status);
   swapFields(&pNew->nameLen, &pNew->name, &pOld->nameLen, &pOld->name);
   swapFields(&pNew->sourceDsnLen, &pNew->sourceDsn, &pOld->sourceDsnLen, &pOld->sourceDsn);
@@ -2039,6 +2189,7 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   SMnode              *pMnode = pReq->info.node;
   int32_t              code = 0;
   SMCreateXnodeTaskReq createReq = {0};
+  SUserObj            *pOwner = NULL;
 
   // Step 1: Validate permissions
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_CREATE_XNODE_TASK);
@@ -2061,6 +2212,9 @@ static int32_t mndProcessCreateXnodeTaskReq(SRpcMsg *pReq) {
   // the write-queue boundary.
   TAOS_CHECK_GOTO(mndXnodeCheckCreateTaskSixStar(&createReq), NULL, _OVER);
 
+  TAOS_CHECK_GOTO(mndAcquireUser(pMnode, RPC_MSG_USER(pReq), &pOwner), NULL, _OVER);
+  TAOS_CHECK_GOTO(mndXnodeNormalizeDatabaseSink(pMnode, pReq, pOwner, &createReq.sink), NULL, _OVER);
+
   // Step 3: Parse and validate request
   TAOS_CHECK_GOTO(mndValidateCreateXnodeTaskReq(pReq, &createReq), NULL, _OVER);
 
@@ -2073,6 +2227,7 @@ _OVER:
     mError("xnode task:%s, failed to create since %s", createReq.name.ptr ? createReq.name.ptr : "unknown",
            tstrerror(code));
   }
+  mndReleaseUser(pMnode, pOwner);
   tFreeSMCreateXnodeTaskReq(&createReq);
   TAOS_RETURN(code);
 }
@@ -2159,15 +2314,13 @@ static void httpStartXnodeTask(const SXnodeTaskObj *pObj, const char *pContStr) 
   if (pJson != NULL) tjsonDelete(pJson);
 }
 
+// pUpdate may already carry other changes that must commit together with the desired state.
 static int32_t mndUpdateXnodeTaskDesiredState(SMnode *pMnode, SRpcMsg *pReq, const SXnodeTaskObj *pObj,
-                                             int8_t desiredState) {
-  SMUpdateXnodeTaskReq updateReq = {0};
-  updateReq.tid = pObj->id;
+                                             SMUpdateXnodeTaskReq *pUpdate, int8_t desiredState) {
   const char *desiredStateName = mndXnodeDesiredStateName(desiredState);
-  updateReq.desiredState = xCreateCowStr((int32_t)strlen(desiredStateName), desiredStateName, false);
-  int32_t code = mndUpdateXnodeTask(pMnode, pReq, pObj, &updateReq);
-  tFreeSMUpdateXnodeTaskReq(&updateReq);
-  return code;
+  pUpdate->tid = pObj->id;
+  pUpdate->desiredState = xCreateCowStr((int32_t)strlen(desiredStateName), desiredStateName, false);
+  return mndUpdateXnodeTask(pMnode, pReq, pObj, pUpdate);
 }
 
 static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
@@ -2175,7 +2328,11 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
   int32_t             code = 0;
   SXnodeTaskObj      *pObj = NULL;
   SMStartXnodeTaskReq startReq = {0};
-  SXnodeTaskObj      *pObjClone = NULL;
+  SMUpdateXnodeTaskReq updateReq = {0};
+  SXnodeTaskObj        taskBase = {0};
+  SXnodeTaskObj        taskForStart = {0};
+  const SXnodeTaskObj *pStartObj = NULL;
+  const SXnodeTaskObj *pBaseObj = NULL;
   char               *pStartBody = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_START_XNODE_TASK);
@@ -2205,28 +2362,36 @@ static int32_t mndProcessStartXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
+  pStartObj = pObj;
+  pBaseObj = pObj;
+  if (mndXnodeIsLegacyDatabaseSink(pObj)) {
+    TAOS_CHECK_GOTO(mndXnodeBuildLegacyTaskSink(pMnode, pReq, pObj, &updateReq.sink, &taskBase), NULL, _OVER);
+    taskForStart = taskBase;
+    taskForStart.sinkType = updateReq.sink.type;
+    taskForStart.sinkDsn = (char *)updateReq.sink.cstr.ptr;
+    taskForStart.sinkDsnLen = updateReq.sink.cstr.len + 1;
+    pStartObj = &taskForStart;
+    pBaseObj = &taskBase;
+  }
   // Build the (possibly envelope-encrypted) start body before committing the
   // desired-state transaction: local build failures (allocation, JSON, DSN
   // envelope encryption) are deterministic and must reach the client without
   // leaving a committed running intent behind.
-  code = httpBuildStartXnodeTaskBody(pObj, &pStartBody);
+  code = httpBuildStartXnodeTaskBody(pStartObj, &pStartBody);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
-  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_RUNNING);
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pBaseObj, &updateReq, XNODE_TASK_DESIRED_STATE_RUNNING);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
-  httpStartXnodeTask(pObj, pStartBody);
+  httpStartXnodeTask(pStartObj, pStartBody);
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("xnode task:%d, failed to start since %s", startReq.tid, tstrerror(code));
   }
   if (pStartBody != NULL) taosMemoryFreeClear(pStartBody);
+  tFreeSMUpdateXnodeTaskReq(&updateReq);
   tFreeSMStartXnodeTaskReq(&startReq);
   if (pObj != NULL) {
     mndReleaseXnodeTask(pMnode, pObj);
-  }
-  if (pObjClone != NULL) {
-    mndFreeXnodeTask(pObjClone);
-    taosMemFree(pObjClone);
   }
   TAOS_RETURN(code);
 }
@@ -2236,6 +2401,7 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
   int32_t            code = -1;
   SXnodeTaskObj     *pObj = NULL;
   SMStopXnodeTaskReq stopReq = {0};
+  SMUpdateXnodeTaskReq updateReq = {0};
   SJson             *pJson = NULL;
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_STOP_XNODE_TASK);
@@ -2265,7 +2431,7 @@ static int32_t mndProcessStopXnodeTaskReq(SRpcMsg *pReq) {
     mError("user:%s has no privilege on xnode task:%d", pReq->info.conn.user, pObj->id);
     goto _OVER;
   }
-  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, XNODE_TASK_DESIRED_STATE_STOPPED);
+  code = mndUpdateXnodeTaskDesiredState(pMnode, pReq, pObj, &updateReq, XNODE_TASK_DESIRED_STATE_STOPPED);
   if (code != TSDB_CODE_SUCCESS) goto _OVER;
 
   // send request
@@ -2281,6 +2447,7 @@ _OVER:
     tjsonDelete(pJson);
   }
   mndReleaseXnodeTask(pMnode, pObj);
+  tFreeSMUpdateXnodeTaskReq(&updateReq);
   tFreeSMStopXnodeTaskReq(&stopReq);
   TAOS_RETURN(code);
 }
@@ -2454,6 +2621,8 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
   SMnode             *pMnode = pReq->info.node;
   int32_t             code = -1;
   SXnodeTaskObj       *pObj = NULL;
+  SUserObj            *pOwner = NULL;
+  SXnodeTaskObj        taskBase = {0};
   SMUpdateXnodeTaskReq updateReq = {0};
 
   code = mndValidateXnodePermissions(pMnode, pReq, MND_OPER_UPDATE_XNODE_TASK);
@@ -2488,7 +2657,15 @@ static int32_t mndProcessUpdateXnodeTaskReq(SRpcMsg *pReq) {
     }
   }
 
-  code = mndUpdateXnodeTask(pMnode, pReq, pObj, &updateReq);
+  taskBase = *pObj;
+  if (updateReq.sink.type == XNODE_TASK_SINK_DATABASE) {
+    TAOS_CHECK_GOTO(mndXnodeResolveTaskOwner(pMnode, pObj, &pOwner), NULL, _OVER);
+    TAOS_CHECK_GOTO(mndXnodeNormalizeDatabaseSink(pMnode, pReq, pOwner, &updateReq.sink), NULL, _OVER);
+    if (taskBase.ownerId == 0) taskBase.ownerId = pOwner->uid;
+    if (taskBase.acctId == 0) taskBase.acctId = pOwner->acctId;
+  }
+
+  code = mndUpdateXnodeTask(pMnode, pReq, &taskBase, &updateReq);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
@@ -2496,6 +2673,7 @@ _OVER:
     mError("xnode task:%d, failed to update since %s", updateReq.tid, tstrerror(code));
   }
 
+  mndReleaseUser(pMnode, pOwner);
   mndReleaseXnodeTask(pMnode, pObj);
   tFreeSMUpdateXnodeTaskReq(&updateReq);
   TAOS_RETURN(code);

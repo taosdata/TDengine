@@ -297,9 +297,42 @@ class TestXnode:
             f"CREATE XNODE TASK '{t_export}' FROM TOPIC {topic} TO 'kafka://broker:9092' "
              "WITH group_id 'g1' AND client_id 'c1'",
         ]
-        for sql in task_sqls:
+        task_created = {}
+        for task_name, sql in zip(
+            (t_ingest_1, t_ingest_2, t_ingest_3, t_export), task_sqls
+        ):
             tdLog.debug(f"exec: {sql}")
-            self.no_syntax_fail_execute(sql)
+            task_created[task_name] = self.no_syntax_fail_execute(sql)
+
+        database_tasks = []
+        for task_name in (t_ingest_1, t_ingest_2):
+            if not task_created[task_name]:
+                continue
+            rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{task_name}'", row_tag=True
+            )
+            assert len(rows) == 1
+            assert rows[0][3].startswith(f"taos:///{dbname}?bearer_token=")
+            database_tasks.append(rows[0][3])
+        if self.is_local:
+            assert len(database_tasks) == 2
+        if len(database_tasks) == 2:
+            # Comparing the sinks is not enough: they are equal whenever the token is masked.
+            token_rows = tdSql.query(
+                "SELECT name FROM information_schema.ins_tokens "
+                "WHERE `user` = 'root' AND name LIKE '__xnode_%__'",
+                row_tag=True,
+            )
+            assert len(token_rows) == 1
+            assert database_tasks[0] == database_tasks[1]
+
+        if task_created[t_ingest_3]:
+            explicit_rows = tdSql.query(
+                f"SHOW XNODE TASKS WHERE name = '{t_ingest_3}'", row_tag=True
+            )
+            assert len(explicit_rows) == 1
+            assert explicit_rows[0][3] == f"taos://localhost:6030/{dbname}"
+
         rs = tdSql.query(f"SHOW XNODE TASKS", row_tag=True)
         if self.is_local:
             assert len(rs) == 4

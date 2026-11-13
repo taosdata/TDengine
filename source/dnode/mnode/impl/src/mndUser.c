@@ -3005,14 +3005,20 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
 
 int32_t mndAcquireUserById(SMnode *pMnode, int64_t userId, SUserObj **ppUser) {
   void     *pIter = NULL;
-  SUserObj *pObj;
+  SUserObj *pObj = NULL;
   SSdb     *pSdb = pMnode->pSdb;
+  *ppUser = NULL;
   while ((pIter = sdbFetch(pSdb, SDB_USER, pIter, (void **)&pObj))) {
     if (pObj->uid == userId) {
-      return mndAcquireUser(pMnode, pObj->user, ppUser);
+      char user[TSDB_USER_LEN] = {0};
+      tstrncpy(user, pObj->user, sizeof(user));
+      sdbRelease(pSdb, pObj);
+      sdbCancelFetch(pSdb, pIter);
+      return mndAcquireUser(pMnode, user, ppUser);
     }
+    sdbRelease(pSdb, pObj);
   }
-  return 0;
+  return TSDB_CODE_MND_USER_NOT_EXIST;
 }
 
 int32_t mndBuildUidNamesHash(SMnode *pMnode, SSHashObj **ppHash) {

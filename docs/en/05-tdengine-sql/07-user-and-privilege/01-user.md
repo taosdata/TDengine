@@ -277,7 +277,7 @@ Token management is a feature of TDengine TSDB Enterprise Edition, support in ve
 CREATE TOKEN [IF NOT EXISTS] token_name FROM USER user_name [ENABLE {1|0}] [TTL value] [PROVIDER value] [EXTRA_INFO value]
 ```
 
-The token_name can be up to 31 bytes long.
+The token_name can be up to 31 bytes long. Starting from `v3.5.0.0`, names that begin with `__xnode_` are reserved by the system, and creating a token with this prefix returns an `Invalid token name` error.
 
 - `ENABLE` indicates whether the token is enabled, `1` means enabled, `0` means disabled. A disabled token cannot be used to connect the database. The default value is `1`.
 - `TTL` validity period in days, counted from creation time. Default `0` means always valid.
