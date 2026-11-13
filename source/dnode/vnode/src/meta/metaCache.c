@@ -57,6 +57,8 @@ typedef struct STagCondFilterEntry {
 } STagCondFilterEntry;
 
 #define STABLE_TAG_FILTER_WARMUP_MAX_BYTES (2 * 1024 * 1024)
+// Yield the vnode meta read lock periodically while rebuilding large maps.
+#define STABLE_TAG_FILTER_WARMUP_BATCH_TABLES (8 * 1024)
 
 typedef struct STagConds {
   SHashObj* set;       // SHashObj<tagColIdStr, STagCondFilterEntry>
@@ -1025,6 +1027,8 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   SMetaReader  mr = {0};
   SMCtbCursor* pCur = NULL;
   SHashObj*    pDigestUidMap = NULL;
+  SMeta*       pMeta = ((SVnode*)pVnode)->pMeta;
+  int32_t      batchTables = 0;
 
   TSDB_CHECK_NULL(pTagColIds, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -1032,7 +1036,7 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
   TSDB_CHECK_NULL(pDigestUidMap, code, lino, _end, terrno);
   taosHashSetFreeFp(pDigestUidMap, freeSArrayPtr);
 
-  // The caller holds the metadata read lock through publication of this snapshot.
+  // The caller holds the metadata read lock when entering this function.
   _metaReaderInit(&mr, pVnode, META_READER_NOLOCK, NULL, 0);
   code = metaReaderGetTableEntryByUid(&mr, suid);
   TSDB_CHECK_CODE(code, lino, _end);
@@ -1047,11 +1051,31 @@ static int32_t rebuildTagDigestUidMap(void* pVnode, uint64_t suid, const SArray*
     if (uid == 0) {
       break;
     }
+    ++batchTables;
 
     T_MD5_CTX context = {0};
     bool      hasNull = false;
     code = buildTagDataEntryKey(pTagColIds, (STag*)pCur->pVal, &mr.me.stbEntry.schemaTag, &context, &hasNull);
     TSDB_CHECK_CODE(code, lino, _end);
+
+    // The resulting map may mix batches. This stale snapshot is accepted in exchange for bounded lock hold time.
+    if (batchTables >= STABLE_TAG_FILTER_WARMUP_BATCH_TABLES) {
+      metaPauseCtbCursor(pCur);
+      metaULock(pMeta);
+      metaRLock(pMeta);
+      if (metaHasPendingTxnEntries(pMeta)) {
+        metaDebug("vgId:%d, suid:%" PRIu64
+                  " abort stable tag filter cache warmup because pending transaction appeared",
+                  TD_VID(pMeta->pVnode), suid);
+        goto _end;
+      }
+      code = metaResumeCtbCursor(pCur, 0);
+      TSDB_CHECK_CODE(code, lino, _end);
+      batchTables = 0;
+      metaDebug("vgId:%d, suid:%" PRIu64 " stable tag filter cache warmup yielded meta read lock",
+                TD_VID(pMeta->pVnode), suid);
+    }
+
     if (hasNull) {
       continue;
     }
@@ -1147,6 +1171,9 @@ _end_unlock:
 
   code = rebuildTagDigestUidMap(pVnode, suid, pTagColIds, &pDigestUidMap);
   TSDB_CHECK_CODE(code, lino, _end);
+  if (pDigestUidMap == NULL) {
+    goto _end;
+  }
 
   int64_t payloadLen = 0;
   code = calcDigestUidMapPayloadLen(pDigestUidMap, &payloadLen);

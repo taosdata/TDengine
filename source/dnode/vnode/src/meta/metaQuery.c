@@ -1529,7 +1529,12 @@ int32_t metaResumeCtbCursor(SMCtbCursor *pCtbCur, int8_t first) {
         return ret;
       }
       if (c < 0) {
-        ret = tdbTbcMoveToPrev(pCtbCur->pCur);
+        // MoveTo already positioned the cursor at the first key greater than the
+        // missing target. Advancing again would skip it, while moving back would
+        // emit the already-consumed predecessor twice.
+        metaDebug("vgId:%d, resume ctb cursor after missing key, suid:%" PRIu64 " uid:%" PRIu64,
+                  TD_VID(pCtbCur->pMeta->pVnode), pCtbCur->suid, ((SCtbIdxKey*)pCtbCur->pKey)->uid);
+        ret = 0;
       } else {
         ret = tdbTbcMoveToNext(pCtbCur->pCur);
       }
