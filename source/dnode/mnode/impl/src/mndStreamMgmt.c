@@ -7206,13 +7206,10 @@ static bool msmCheckStreamAssign(SMnode *pMnode, void *pObj, void *p1, void *p2,
   SSnodeObj* pSnode = p1;
   SArray** ppRes = p2;
 
+  // The caller creates *ppRes before sdbTraverse. Do not call sdbGetSize(SDB_STREAM) here:
+  // this callback already runs under that table's read lock, and the lock is not recursive.
   if (pStream->mainSnodeId == pSnode->id) {
-    if (NULL == *ppRes) {
-      int32_t streamNum = sdbGetSize(pMnode->pSdb, SDB_STREAM);
-      *ppRes = taosArrayInit(streamNum, POINTER_BYTES);
-      TSDB_CHECK_NULL(*ppRes, code, lino, _exit, terrno);
-    }
-
+    TSDB_CHECK_NULL(*ppRes, code, lino, _exit, TSDB_CODE_INVALID_PARA);
     TSDB_CHECK_NULL(taosArrayPush(*ppRes, &pStream), code, lino, _exit, terrno);
   }
 
@@ -7233,7 +7230,12 @@ _exit:
 int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  
+
+  // Initial capacity is only a hint. Querying the live size inside the traverse callback
+  // deadlocks on the non-recursive SDB_STREAM read lock.
+  *ppRes = taosArrayInit(MND_STREAM_DEFAULT_NUM, POINTER_BYTES);
+  TSDB_CHECK_NULL(*ppRes, code, lino, _exit, terrno);
+
   sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckStreamAssign, pSnode, ppRes, &code);
   TAOS_CHECK_EXIT(code);
 
@@ -7248,8 +7250,12 @@ int32_t msmCheckSnodeReassign(SMnode *pMnode, SSnodeObj* pSnode, SArray** ppRes)
 _exit:
 
   if (code) {
+    // The array is created before the traverse now, so a failure must not hand a
+    // half-built list back to the caller. The caller only destroys it on success.
+    taosArrayDestroy(*ppRes);
+    *ppRes = NULL;
     mstError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  }  
+  }
 
   return code;
 }
@@ -7352,6 +7358,47 @@ void msmCheckLoopStreamMap(SMnode *pMnode) {
   }
 }
 
+// Walk SDB_STREAM one row at a time. sdbFetch holds the table read lock only while it
+// advances the iterator and bumps the row refcount, then unlocks before returning.
+// Map lookup, stream removal and deploy enqueue therefore no longer sit in front of
+// the snapshot writer's write lock. The row stays alive until sdbRelease.
+static void msmCheckLoopStreamSdbUnlocked(SMnode* pMnode, SStmCheckStatusCtx* pCtx) {
+  void*   pIter = NULL;
+  int32_t checked = 0;
+  int64_t loopStartMs = taosGetMonoTimestampMs();
+
+  while (1) {
+    SStreamObj* pStream = NULL;
+    int64_t     fetchStartMs = taosGetMonoTimestampMs();
+    pIter = sdbFetch(pMnode->pSdb, SDB_STREAM, pIter, (void**)&pStream);
+    int64_t fetchWaitMs = taosGetMonoTimestampMs() - fetchStartMs;
+    if (fetchWaitMs >= 100) {
+      mstInfo("stream health check waited %" PRId64 " ms to fetch the next stream, checked:%d", fetchWaitMs, checked);
+    }
+    if (pIter == NULL) {
+      break;
+    }
+
+    // The callback always continues. Keep the return value so an early stop still
+    // releases the hash iterator instead of leaking its node refcount.
+    bool cont = msmCheckLoopStreamSdb(pMnode, pStream, pCtx, NULL, NULL);
+    sdbRelease(pMnode->pSdb, pStream);
+    checked++;
+    if (!cont) {
+      sdbCancelFetch(pMnode->pSdb, pIter);
+      mstInfo("stream health check stopped early after checking %d streams", checked);
+      break;
+    }
+  }
+
+  int64_t elapsedMs = taosGetMonoTimestampMs() - loopStartMs;
+  if (elapsedMs >= 100) {
+    mstInfo("stream health check finished, checked:%d, elapsed:%" PRId64 " ms", checked, elapsedMs);
+  } else {
+    mstDebug("stream health check finished, checked:%d, elapsed:%" PRId64 " ms", checked, elapsedMs);
+  }
+}
+
 void msmCheckStreamsStatus(SMnode *pMnode) {
   SStmCheckStatusCtx ctx = {0};
 
@@ -7359,7 +7406,7 @@ void msmCheckStreamsStatus(SMnode *pMnode) {
   
   if (MST_READY_FOR_SDB_LOOP()) {
     mstDebug("ready to check sdb loop, lastLoopSdbTs:%" PRId64, mStreamMgmt.lastTs[STM_EVENT_LOOP_SDB].ts);
-    sdbTraverse(pMnode->pSdb, SDB_STREAM, msmCheckLoopStreamSdb, &ctx, NULL, NULL);
+    msmCheckLoopStreamSdbUnlocked(pMnode, &ctx);
     MND_STREAM_SET_LAST_TS(STM_EVENT_LOOP_SDB, mStreamMgmt.hCtx.currentTs);
   }
 
