@@ -488,6 +488,13 @@ char    tsStableTagFilterCache = 0;
 int64_t tsMetaEntryCacheSize = TSDB_DEFAULT_MECACHE_SIZE;
 char    tsMetaEntryCache = 0;
 
+// Upper bound (bytes) of the shared vc_cols full-scan result cache used by
+// virtual-table stream readers, across the whole dnode. 0 disables caching.
+int64_t tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+// Master switch of the vc_cols full-scan result cache. false disables caching
+// entirely (serve and commit both fall back to a full scan).
+bool    tsStreamVcColsCache = true;
+
 int32_t tsBypassFlag = 0;
 
 
@@ -1026,6 +1033,10 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "metaEntryCacheSize", tsMetaEntryCacheSize, TSDB_MIN_MECACHE_SIZE,
                                 TSDB_MAX_MECACHE_SIZE, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL,
                                 CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddBool(pCfg, "streamVcColsCache", tsStreamVcColsCache, CFG_SCOPE_SERVER,
+                               CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "streamVcColsCacheSize", tsStreamVcColsCacheSize, 0, INT64_MAX,
+                                CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
 
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, CFG_SCOPE_BOTH, CFG_DYN_NONE,
                                 CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
@@ -2335,6 +2346,12 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMetaEntryCache = (bool)pItem->bval;
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "metaEntryCacheSize");
   tsMetaEntryCacheSize = pItem->i64;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVcColsCache");
+  tsStreamVcColsCache = pItem->bval;
+
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "streamVcColsCacheSize");
+  tsStreamVcColsCacheSize = pItem->i64;
 
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "slowLogExceptDb");
   TAOS_CHECK_RETURN(taosCheckCfgStrValueLen(pItem->name, pItem->str, TSDB_DB_NAME_LEN));
@@ -3755,6 +3772,8 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
 
                                          {"logKeepDays", &tsLogKeepDays},
                                          {"metaEntryCacheSize", &tsMetaEntryCacheSize},
+                                         {"streamVcColsCache", &tsStreamVcColsCache},
+                                         {"streamVcColsCacheSize", &tsStreamVcColsCacheSize},
                                          {"mqRebalanceInterval", &tsMqRebalanceInterval},
                                          {"numOfLogLines", &tsNumOfLogLines},
                                          {"queryRspPolicy", &tsQueryRspPolicy},

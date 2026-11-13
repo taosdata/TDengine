@@ -52,6 +52,10 @@ int metaDecodeEntryImpl(SDecoder* pCoder, SMetaEntry* pME, bool headerOnly);
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
 
+// Exposed to the executor via SStoreMeta.getVtableGen: returns the vnode-wide
+// virtual-table metadata generation counter (see SMeta.vtableGen).
+int64_t metaGetVtableGenFromVnode(void* pVnode);
+
 // metaIdx ==================
 int  metaOpenIdx(SMeta* pMeta);
 void metaCloseIdx(SMeta* pMeta);
@@ -170,9 +174,22 @@ struct SMeta {
 
   SMetaCache* pCache;
 
+  // vc_cols scan result cache invalidation: bumped on every virtual-table
+  // (VIRTUAL_NORMAL/VIRTUAL_CHILD) entry create/update/drop so calc-side
+  // readers can detect a stale cached scan with a single atomic load.
+  int64_t vtableGen;
+
   SHashObj* uidSuidHash;
   SHashObj* uidNameHash;
 };
+
+// vtable metadata generation: bumped whenever a virtual-table entry changes, so
+// readers that cached an ins_virtual_child_columns full scan can cheaply detect
+// staleness. Read with metaGetVtableGen, bump with metaBumpVtableGen.
+static FORCE_INLINE int64_t metaGetVtableGen(SMeta* pMeta) { return atomic_load_64(&pMeta->vtableGen); }
+// Bump is a real function (not inline) so the vnode txn unit test can seam it
+// out with a dummy SMeta pointer instead of dereferencing it.
+void metaBumpVtableGen(SMeta* pMeta);
 
 typedef struct {
   int64_t  version;

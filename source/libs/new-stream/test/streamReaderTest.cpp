@@ -2840,3 +2840,308 @@ TEST(StreamReaderDimensionBatchTest, BindsAllWindowsAndClearsBorrowerBeforeOwner
   stReaderClearDimensionBatch(&calc);
   EXPECT_EQ(1, dimensionOwnerDestroyCalls);
 }
+
+namespace {
+
+// One-column (INT) block used by the vc_cols cache tests.
+SSDataBlock *makeVcColsTestBlock(int32_t rows, int32_t firstValue) {
+  SSDataBlock *pBlock = nullptr;
+  if (createDataBlock(&pBlock) != TSDB_CODE_SUCCESS) return nullptr;
+  SColumnInfoData column = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+  if (blockDataAppendColInfo(pBlock, &column) != TSDB_CODE_SUCCESS ||
+      blockDataEnsureCapacity(pBlock, rows) != TSDB_CODE_SUCCESS) {
+    blockDataDestroy(pBlock);
+    return nullptr;
+  }
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pBlock->pDataBlock, 0));
+  for (int32_t row = 0; row < rows; ++row) {
+    int32_t value = firstValue + row;
+    if (colDataSetVal(pCol, row, reinterpret_cast<const char *>(&value), false) != TSDB_CODE_SUCCESS) {
+      blockDataDestroy(pBlock);
+      return nullptr;
+    }
+  }
+  pBlock->info.rows = rows;
+  return pBlock;
+}
+
+void freeVcColsTestBlocks(SArray *pBlocks) {
+  if (pBlocks == nullptr) return;
+  for (int32_t i = 0; i < taosArrayGetSize(pBlocks); ++i) {
+    blockDataDestroy(*static_cast<SSDataBlock **>(taosArrayGet(pBlocks, i)));
+  }
+  taosArrayDestroy(pBlocks);
+}
+
+// Reserve `bytes` and install a one-block accumulator, mirroring the operator path.
+bool installVcColsTestBlocks(SStreamVcColsCache *pCache, int32_t numOfBlocks) {
+  SArray *pBlocks = taosArrayInit(numOfBlocks, POINTER_BYTES);
+  if (pBlocks == nullptr) return false;
+  int64_t bytes = 0;
+  for (int32_t i = 0; i < numOfBlocks; ++i) {
+    SSDataBlock *pCopy = nullptr;
+    SSDataBlock *pSrc = makeVcColsTestBlock(2, 10 * (i + 1));
+    if (pSrc == nullptr) {
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    int64_t blockBytes = static_cast<int64_t>(blockDataGetMemorySize(pSrc));
+    if (!stStreamVcColsCacheTryReserve(blockBytes)) {
+      blockDataDestroy(pSrc);
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    int32_t code = createOneDataBlock(pSrc, true, &pCopy);
+    blockDataDestroy(pSrc);
+    if (code != TSDB_CODE_SUCCESS || pCopy == nullptr || taosArrayPush(pBlocks, &pCopy) == nullptr) {
+      blockDataDestroy(pCopy);
+      stStreamVcColsCacheRelease(blockBytes);
+      freeVcColsTestBlocks(pBlocks);
+      return false;
+    }
+    bytes += blockBytes;
+  }
+  uint64_t generation = stStreamVcColsCacheGetGeneration(pCache);
+  stStreamVcColsCacheCommit(pCache, pBlocks, generation, bytes);
+  return true;
+}
+
+}  // namespace
+
+TEST(StreamVcColsCacheTest, SharesOneEntryPerVnodeSuidAndFingerprint) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+
+  const uint64_t fp[2] = {0x123456789abcdef0ULL, 0x0fedcba987654321ULL};
+  const uint64_t fp2[2] = {0xaaaaaaaaaaaaaaaaULL, 0xbbbbbbbbbbbbbbbbULL};
+
+  // Same (vgId, suid, fingerprint) reuses one entry.
+  SStreamVcColsCache *pFirst = stStreamVcColsCacheAcquire(101, 1001, fp, 1);
+  ASSERT_NE(pFirst, nullptr);
+  SStreamVcColsCache *pSecond = stStreamVcColsCacheAcquire(101, 1001, fp, 1);
+  EXPECT_EQ(pFirst, pSecond);
+  stStreamVcColsCacheUnref(pSecond);
+
+  // A different suid under the same vnode gets a different entry.
+  SStreamVcColsCache *pOtherKey = stStreamVcColsCacheAcquire(101, 1002, fp, 1);
+  ASSERT_NE(pOtherKey, nullptr);
+  EXPECT_NE(pOtherKey, pFirst);
+  stStreamVcColsCacheUnref(pOtherKey);
+
+  // A different tag-filter fingerprint under the same suid gets a different entry.
+  SStreamVcColsCache *pOtherFp = stStreamVcColsCacheAcquire(101, 1001, fp2, 1);
+  ASSERT_NE(pOtherFp, nullptr);
+  EXPECT_NE(pOtherFp, pFirst);
+  stStreamVcColsCacheUnref(pOtherFp);
+
+  // A stale vtableGen drops the entry (and any others for this vgId) and
+  // recreates an empty one under the new generation. The old object survives
+  // only via this test's own reference until it is released below.
+  ASSERT_TRUE(installVcColsTestBlocks(pFirst, 1));
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pFirst));
+  SStreamVcColsCache *pStale = stStreamVcColsCacheAcquire(101, 1001, fp, 2);
+  ASSERT_NE(pStale, nullptr);
+  EXPECT_NE(pStale, pFirst);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pStale));
+  stStreamVcColsCacheUnref(pStale);
+
+  stStreamVcColsCacheUnref(pFirst);
+
+  // 0 disables the cache completely.
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(101, 1003, fp, 1), nullptr);
+
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, ServesInstalledBlocksAndReportsEof) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x1111111111111111ULL, 0x2222222222222222ULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(102, 2001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 2));
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), baseBytes);
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t generation = 0;
+  bool finished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &generation, &finished));
+  EXPECT_FALSE(finished);
+  EXPECT_EQ(2, pDst->info.rows);
+  SColumnInfoData *pCol = static_cast<SColumnInfoData *>(taosArrayGet(pDst->pDataBlock, 0));
+  int32_t *pValue = reinterpret_cast<int32_t *>(colDataGetData(pCol, 0));
+  ASSERT_NE(pValue, nullptr);
+  EXPECT_EQ(10, *pValue);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 1, pDst, &generation, &finished));
+  EXPECT_FALSE(finished);
+  pValue = reinterpret_cast<int32_t *>(colDataGetData(pCol, 0));
+  ASSERT_NE(pValue, nullptr);
+  EXPECT_EQ(20, *pValue);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 2, pDst, &generation, &finished));
+  EXPECT_TRUE(finished);
+
+  // A different destination schema cannot be served from this cache.
+  SSDataBlock *pOther = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, createDataBlock(&pOther));
+  SColumnInfoData tsColumn = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, blockDataAppendColInfo(pOther, &tsColumn));
+  uint64_t otherGeneration = 0;
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND,
+            stStreamVcColsCacheReadBlock(pCache, 0, pOther, &otherGeneration, &finished));
+
+  // A second committer is discarded and its reservation released.
+  int64_t bytesBeforeSecondCommit = stStreamVcColsCacheGetTotalBytes();
+  SArray *pLosing = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pLosing, nullptr);
+  SSDataBlock *pLosingBlock = makeVcColsTestBlock(1, 99);
+  ASSERT_NE(pLosingBlock, nullptr);
+  int64_t losingBytes = static_cast<int64_t>(blockDataGetMemorySize(pLosingBlock));
+  ASSERT_TRUE(stStreamVcColsCacheTryReserve(losingBytes));
+  ASSERT_NE(nullptr, taosArrayPush(pLosing, &pLosingBlock));
+  stStreamVcColsCacheCommit(pCache, pLosing, stStreamVcColsCacheGetGeneration(pCache), losingBytes);
+  EXPECT_EQ(bytesBeforeSecondCommit, stStreamVcColsCacheGetTotalBytes());
+
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  uint64_t clearedGeneration = 0;
+  EXPECT_EQ(TSDB_CODE_NOT_FOUND,
+            stStreamVcColsCacheReadBlock(pCache, 0, pDst, &clearedGeneration, &finished));
+
+  // Clearing returns the installed blocks to the budget; the empty shell stays.
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 1));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), baseBytes);
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pCache);
+  pCache = nullptr;
+
+  blockDataDestroy(pDst);
+  blockDataDestroy(pOther);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, CachesEmptyResultAsEof) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  const uint64_t fp[2] = {0x9999999999999999ULL, 0xaaaaaaaaaaaaaaaaULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(106, 6001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  SArray *pEmpty = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pEmpty, nullptr);
+  stStreamVcColsCacheCommit(pCache, pEmpty, stStreamVcColsCacheGetGeneration(pCache), 0);
+  EXPECT_TRUE(stStreamVcColsCacheIsValid(pCache));
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t generation = 0;
+  bool finished = false;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &generation, &finished));
+  EXPECT_TRUE(finished);
+
+  blockDataDestroy(pDst);
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, ClearRejectsPinnedServeRoundAndStaleCommit) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x3333333333333333ULL, 0x4444444444444444ULL};
+
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(103, 3001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 2));
+
+  SSDataBlock *pDst = makeVcColsTestBlock(0, 0);
+  ASSERT_NE(pDst, nullptr);
+  uint64_t pinnedGeneration = 0;
+  bool finished = false;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stStreamVcColsCacheReadBlock(pCache, 0, pDst, &pinnedGeneration, &finished));
+
+  // Invalidate mid-serve: the pinned round must not silently continue.
+  stStreamVcColsCacheClear(pCache);
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR,
+            stStreamVcColsCacheReadBlock(pCache, 1, pDst, &pinnedGeneration, &finished));
+
+  // A scan that started before the invalidation must not reinstall its result.
+  SArray *pStale = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(pStale, nullptr);
+  SSDataBlock *pStaleBlock = makeVcColsTestBlock(1, 7);
+  ASSERT_NE(pStaleBlock, nullptr);
+  int64_t staleBytes = static_cast<int64_t>(blockDataGetMemorySize(pStaleBlock));
+  ASSERT_TRUE(stStreamVcColsCacheTryReserve(staleBytes));
+  ASSERT_NE(nullptr, taosArrayPush(pStale, &pStaleBlock));
+  stStreamVcColsCacheCommit(pCache, pStale, pinnedGeneration, staleBytes);
+  EXPECT_FALSE(stStreamVcColsCacheIsValid(pCache));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  blockDataDestroy(pDst);
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, BudgetBoundsInstalledAndInFlightBytes) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  int64_t baseBytes = stStreamVcColsCacheGetTotalBytes();
+  const uint64_t fp[2] = {0x5555555555555555ULL, 0x6666666666666666ULL};
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(104, 4001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+
+  // A budget smaller than one block rejects the build reservation.
+  tsStreamVcColsCacheSize = baseBytes + 16;
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(64));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+  EXPECT_TRUE(stStreamVcColsCacheTryReserve(16));
+  EXPECT_EQ(baseBytes + 16, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheRelease(16);
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  // 0 disables reservation entirely.
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(16));
+  EXPECT_EQ(baseBytes, stStreamVcColsCacheGetTotalBytes());
+
+  stStreamVcColsCacheUnref(pCache);
+  tsStreamVcColsCacheSize = savedSize;
+}
+
+TEST(StreamVcColsCacheTest, MasterSwitchDisablesCaching) {
+  int64_t savedSize = tsStreamVcColsCacheSize;
+  bool    savedSwitch = tsStreamVcColsCache;
+  tsStreamVcColsCacheSize = 2LL * 1024 * 1024 * 1024;
+  const uint64_t fp[2] = {0x7777777777777777ULL, 0x8888888888888888ULL};
+
+  // Disabling the master switch turns off acquire/reserve and releases blocks
+  // already installed in the registry.
+  SStreamVcColsCache *pInstalled = stStreamVcColsCacheAcquire(105, 5000, fp, 1);
+  ASSERT_NE(pInstalled, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pInstalled, 1));
+  EXPECT_GT(stStreamVcColsCacheGetTotalBytes(), 0);
+  tsStreamVcColsCache = false;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(105, 5001, fp, 1), nullptr);
+  EXPECT_FALSE(stStreamVcColsCacheTryReserve(64));
+  EXPECT_EQ(0, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pInstalled);
+
+  // Re-enabling restores caching.
+  tsStreamVcColsCache = true;
+  SStreamVcColsCache *pCache = stStreamVcColsCacheAcquire(105, 5001, fp, 1);
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_TRUE(installVcColsTestBlocks(pCache, 1));
+  tsStreamVcColsCacheSize = 0;
+  EXPECT_EQ(stStreamVcColsCacheAcquire(105, 5002, fp, 1), nullptr);
+  EXPECT_EQ(0, stStreamVcColsCacheGetTotalBytes());
+  stStreamVcColsCacheUnref(pCache);
+
+  tsStreamVcColsCache = savedSwitch;
+  tsStreamVcColsCacheSize = savedSize;
+}

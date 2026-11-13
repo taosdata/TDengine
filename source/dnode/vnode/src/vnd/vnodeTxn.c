@@ -815,6 +815,15 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         // Promote: clear txnId/txnStatus  ->  NORMAL
         code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
         if (code == 0) {
+          // The commit makes the new version visible to other sessions. The
+          // earlier ALTER/CREATE already bumped vtableGen, but a concurrent
+          // reader can have cached the pre-commit (txnOrigVer) columns under
+          // that bumped generation. Bump again so calc-side vc_cols caches
+          // cannot keep serving the stale snapshot after the commit.
+          if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE ||
+              (pME->type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pME->flags))) {
+            metaBumpVtableGen(pVnode->pMeta);
+          }
           vInfo("vgId:%d, commit: promoted uid %" PRId64 " (status %d -> NORMAL)", TD_VID(pVnode), uid, pME->txnStatus);
         } else {
           vError("vgId:%d, commit: failed to promote uid %" PRId64 ", code:0x%x", TD_VID(pVnode), uid, code);
@@ -964,6 +973,11 @@ static int32_t vnodeTxnUndoPreAlter(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_u
              code);
       return code;
     }
+    if (pME != NULL &&
+        (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE ||
+         (pME->type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pME->flags)))) {
+      metaBumpVtableGen(pVnode->pMeta);
+    }
     vWarn("vgId:%d, rollback: ALTER uid %" PRId64 " old version not found, cleared status (snapshot degraded)",
           TD_VID(pVnode), uid);
     return 0;
@@ -976,6 +990,15 @@ static int32_t vnodeTxnUndoPreAlter(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_u
     return code;
   }
   vInfo("vgId:%d, rollback: restored ALTER uid %" PRId64 " to version %" PRId64, TD_VID(pVnode), uid, prevVersion);
+
+  // The rollback restores the pre-ALTER metadata, changing what other sessions
+  // see. A calc-side vc_cols cache may have been filled with the now rolled-back
+  // version, so bump the vtable generation to invalidate it.
+  if (pME != NULL &&
+      (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE ||
+       (pME->type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pME->flags)))) {
+    metaBumpVtableGen(pVnode->pMeta);
+  }
 
   // Chained undo: If the restored entry is a PRE_CREATE from this same txn, the CREATE
   // must be undone as well (CREATE->ALTER->ROLLBACK).
@@ -1209,6 +1232,14 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
     atomic_fetch_add_32(&pVnode->txnPendingCount, 1);
   }
 
+  // The finalized status is now visible to query threads through pTxnMetaCache:
+  // a COMMIT promotes PRE_ALTER/PRE_CREATE entries to NORMAL (new version
+  // visible) and a ROLLBACK restores the old version, but neither path re-runs
+  // metaHandleEntry2 here (vacuum applies the B+ tree change later). Bump the
+  // vtable generation so a calc-side vc_cols cache filled with the pre-finalize
+  // columns is invalidated immediately, without waiting for vacuum.
+  metaBumpVtableGen(pVnode->pMeta);
+
   // 3. Prepare vacuum array for deferred cleanup
   code = vnodeTxnPrepareVacuumArray(pEntry);
   if (code != 0) {
@@ -1416,6 +1447,13 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
         case META_TXN_PRE_ALTER:
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           if (code == 0) {
+            // Promote makes the committed version visible to other sessions;
+            // bump the vtable generation so a calc-side vc_cols cache that was
+            // filled with the pre-commit (txnOrigVer) columns gets invalidated.
+            if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE ||
+                (pME->type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pME->flags))) {
+              metaBumpVtableGen(pVnode->pMeta);
+            }
             vDebug("vgId:%d, vacuum-commit: promoted uid %" PRId64 " (status %d -> NORMAL)", TD_VID(pVnode), uid,
                    pME->txnStatus);
           }

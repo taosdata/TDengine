@@ -1388,6 +1388,568 @@ void streamTblRefCacheItemFree(void *param) {
   }
 }
 
+// Total bytes (installed + in-flight accumulators) of the vc_cols cache on this
+// dnode, bounded by tsStreamVcColsCacheSize. Updated with 64-bit atomics.
+static int64_t gVcColsCacheTotalBytes = 0;
+// Monotonic incarnation seed: every generation transition (new object or
+// Clear) takes the next value, so a generation captured by an in-flight scan
+// round is never reused by a later object even when the old one was dropped and
+// recreated.
+static int64_t gVcColsCacheGeneration = 0;
+
+// Capacity eviction: drop idle entries (only the registry reference, i.e. no
+// in-flight serve) so their budget becomes available again when the cap is hit
+// by a growing set of no-longer-visited fingerprint keys. Defined after
+// SVcColsCacheKey; TryReserve uses this forward declaration.
+static int64_t stStreamVcColsCacheEvictIdle(void);
+
+bool stStreamVcColsCacheTryReserve(int64_t bytes) {
+  // Return false when caching is disabled or nothing is to reserve: the caller
+  // must not build a copy it would later Release() without a matching charge.
+  // A single block larger than the whole cap can never fit: reject it before
+  // evicting, so an unsatisfiable reserve does not clear other vnodes' live
+  // caches for nothing.
+  if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0 || bytes <= 0 || bytes > tsStreamVcColsCacheSize) {
+    return false;
+  }
+  for (;;) {
+    int64_t total = atomic_load_64(&gVcColsCacheTotalBytes);
+    if (total + bytes <= tsStreamVcColsCacheSize) {
+      // Publish the reserve with a CAS only when it fits, so a failed reserve
+      // never exposes a transient over-budget total that Acquire would misread
+      // as a capacity shrink.
+      if (atomic_val_compare_exchange_64(&gVcColsCacheTotalBytes, total, total + bytes) == total) {
+        return true;
+      }
+      continue;
+    }
+    // Budget exhausted: evict idle entries once and retry; with no budget freed,
+    // fall back to a full scan (the caller must not build an unbilled copy).
+    if (stStreamVcColsCacheEvictIdle() <= 0) {
+      return false;
+    }
+  }
+}
+
+void stStreamVcColsCacheRelease(int64_t bytes) {
+  if (bytes <= 0) {
+    return;
+  }
+  atomic_sub_fetch_64(&gVcColsCacheTotalBytes, bytes);
+}
+
+int64_t stStreamVcColsCacheGetTotalBytes(void) { return atomic_load_64(&gVcColsCacheTotalBytes); }
+
+static void stStreamVcColsCacheFreeBlocks(SStreamVcColsCache *pCache) {
+  if (pCache->pBlocks == NULL) {
+    return;
+  }
+  int32_t n = taosArrayGetSize(pCache->pBlocks);
+  for (int32_t i = 0; i < n; ++i) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, i);
+    blockDataDestroy(pBlock);
+  }
+  taosArrayDestroy(pCache->pBlocks);
+  stStreamVcColsCacheRelease(pCache->bytes);
+  pCache->bytes = 0;
+  pCache->pBlocks = NULL;
+}
+
+// Destroy a block array that has not been installed into the cache yet (used
+// for losing committers, where taosArrayDestroy alone would leak the blocks).
+// Uninstalled blocks were never accounted in gVcColsCacheTotalBytes.
+static void stStreamVcColsCacheFreeBlocksArray(SArray *pBlocks) {
+  if (pBlocks == NULL) {
+    return;
+  }
+  int32_t n = taosArrayGetSize(pBlocks);
+  for (int32_t i = 0; i < n; ++i) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pBlocks, i);
+    blockDataDestroy(pBlock);
+  }
+  taosArrayDestroy(pBlocks);
+}
+
+void stStreamVcColsCacheInit(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  taosThreadMutexInit(&pCache->lock, NULL);
+  pCache->pBlocks = NULL;
+  pCache->valid = false;
+  pCache->generation = 0;
+  pCache->refCount = 0;
+  pCache->vtableGen = 0;
+  pCache->bytes = 0;
+}
+
+// Free the cache object once the last reference is gone. No other thread can
+// be touching it at this point.
+static void stStreamVcColsCacheReleaseLast(SStreamVcColsCache *pCache) {
+  stStreamVcColsCacheFreeBlocks(pCache);
+  taosThreadMutexDestroy(&pCache->lock);
+  taosMemoryFree(pCache);
+}
+
+void stStreamVcColsCacheClear(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  stStreamVcColsCacheFreeBlocks(pCache);
+  pCache->valid = false;
+  // Use a globally monotonic token, not a local increment: a local value could
+  // collide with a later recreated object's generation (which also starts from
+  // the global counter) after the cache was disabled and re-enabled.
+  pCache->generation = atomic_add_fetch_64(&gVcColsCacheGeneration, 1);
+  taosThreadMutexUnlock(&pCache->lock);
+}
+
+typedef struct {
+  int32_t  vgId;
+  int64_t  suid;            // virtual super table uid (calc-side identity)
+  uint64_t fingerprint[2];  // 128-bit tag-filter map fingerprint
+} SVcColsCacheKey;
+
+static SHashObj      *gVcColsCacheMap = NULL;
+static TdThreadMutex  gVcColsCacheMapLock;
+static TdThreadOnce   gVcColsCacheMapLockOnce = PTHREAD_ONCE_INIT;
+static bool           gVcColsCacheMapLockReady = false;
+
+// Per-vgId vtable generation, consulted before the key lookup so a key miss
+// (fingerprint changed) still reaps stale entries for that vnode.
+static SHashObj *gVcColsVgGenMap = NULL;
+
+// The registry lock cannot be statically initialized (a zero-initialized
+// CRITICAL_SECTION is not usable on Windows), so initialize it on first use.
+static void stStreamVcColsCacheMapLockInit(void) {
+  gVcColsCacheMapLockReady = taosThreadMutexInit(&gVcColsCacheMapLock, NULL) == TSDB_CODE_SUCCESS;
+}
+
+static bool stStreamVcColsCacheMapLockAcquire(void) {
+  if (taosThreadOnce(&gVcColsCacheMapLockOnce, stStreamVcColsCacheMapLockInit) != TSDB_CODE_SUCCESS ||
+      !gVcColsCacheMapLockReady) {
+    return false;
+  }
+  return taosThreadMutexLock(&gVcColsCacheMapLock) == TSDB_CODE_SUCCESS;
+}
+
+static void stStreamVcColsCacheMapInit(void) {
+  if (gVcColsCacheMap == NULL) {
+    gVcColsCacheMap = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+}
+
+static void stStreamVcColsCacheVgGenMapInit(void) {
+  if (gVcColsVgGenMap == NULL) {
+    gVcColsVgGenMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+}
+
+// Called with gVcColsCacheMapLock held: remove and free every registry entry
+// whose key carries vgId. The vtable metadata generation is per-vnode, so once
+// one entry for this vgId is seen stale, all of them are stale (including keys
+// no reader visits anymore). Dropping them releases their installed blocks and
+// budget instead of pinning them until the vnode is reopened.
+static bool stStreamVcColsCacheCleanupVgLocked(int32_t vgId) {
+  if (gVcColsCacheMap == NULL) {
+    return true;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    qError("failed to allocate vc_cols cache cleanup keys for vgId:%d", vgId);
+    return false;
+  }
+  bool ok = true;
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey) && ((SVcColsCacheKey *)pKey)->vgId == vgId) {
+      if (taosArrayPush(pKeys, pKey) == NULL) {
+        qError("failed to record vc_cols cache cleanup key for vgId:%d", vgId);
+        ok = false;
+        break;
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  if (!ok) {
+    if (pIter != NULL) {
+      taosHashCancelIterate(gVcColsCacheMap, pIter);
+    }
+    taosArrayDestroy(pKeys);
+    return false;
+  }
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    // Free installed blocks and their budget, then drop the registry entry and
+    // its permanent reference. In-flight serves still hold their own reference,
+    // so the shell survives until they Unref.
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to remove stale vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid,
+             code);
+      ok = false;
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  return ok;
+}
+
+// Public eviction entry point for vnode close/remove: release every installed
+// cache and its budget for one vgId. Without it, a dropped or migrated vnode
+// keeps its vc_cols caches pinned until process exit.
+void stStreamVcColsCacheCleanupVg(int32_t vgId) {
+  if (stStreamVcColsCacheMapLockAcquire()) {
+    if (stStreamVcColsCacheCleanupVgLocked(vgId)) {
+      // Drop the per-vgId generation index entry too, otherwise repeated vnode
+      // create/drop/migrate leaves one stale (unbilled) hash node per vgId.
+      if (gVcColsVgGenMap != NULL) {
+        int32_t code = taosHashRemove(gVcColsVgGenMap, &vgId, sizeof(vgId));
+        if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_NOT_FOUND) {
+          qError("failed to remove vc_cols vgId gen index vgId:%d, code:%d", vgId, code);
+        }
+      }
+    }
+    taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  }
+}
+
+// Evict idle cache entries (refCount == 1: only the registry reference, no
+// in-flight serve), releasing their installed blocks and budget. Called with
+// the registry lock held; returns the number of bytes released.
+static int64_t stStreamVcColsCacheEvictIdleLocked(void) {
+  if (gVcColsCacheMap == NULL) {
+    return 0;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    return 0;
+  }
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey)) {
+      SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(SVcColsCacheKey));
+      if (ppCache != NULL && *ppCache != NULL && atomic_load_32(&(*ppCache)->refCount) == 1 &&
+          (*ppCache)->bytes > 0) {
+        if (taosArrayPush(pKeys, pKey) == NULL) {
+          taosHashCancelIterate(gVcColsCacheMap, pIter);
+          taosArrayDestroy(pKeys);
+          return 0;
+        }
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  int64_t released = 0;
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL || *ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    if (atomic_load_32(&pCache->refCount) != 1) {
+      // A serve grabbed a reference between collection and eviction; keep it.
+      continue;
+    }
+    released += pCache->bytes;
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to evict vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid, code);
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  return released;
+}
+
+static int64_t stStreamVcColsCacheEvictIdle(void) {
+  if (!stStreamVcColsCacheMapLockAcquire()) {
+    return 0;
+  }
+  int64_t released = stStreamVcColsCacheEvictIdleLocked();
+  taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  return released;
+}
+
+// Called with gVcColsCacheMapLock held: release every installed cache and clear
+// the per-vgId generation index. In-flight callers keep their own references.
+static bool stStreamVcColsCacheCleanupAllLocked(void) {
+  if (gVcColsCacheMap == NULL || taosHashGetSize(gVcColsCacheMap) == 0) {
+    if (gVcColsVgGenMap != NULL) {
+      taosHashClear(gVcColsVgGenMap);
+    }
+    return true;
+  }
+  SArray *pKeys = taosArrayInit(8, sizeof(SVcColsCacheKey));
+  if (pKeys == NULL) {
+    qError("failed to allocate vc_cols cache cleanup keys");
+    return false;
+  }
+  bool ok = true;
+  void *pIter = taosHashIterate(gVcColsCacheMap, NULL);
+  while (pIter != NULL) {
+    size_t keyLen = 0;
+    void  *pKey = taosHashGetKey(pIter, &keyLen);
+    if (pKey != NULL && keyLen == sizeof(SVcColsCacheKey)) {
+      if (taosArrayPush(pKeys, pKey) == NULL) {
+        qError("failed to record vc_cols cache cleanup key");
+        ok = false;
+        break;
+      }
+    }
+    pIter = taosHashIterate(gVcColsCacheMap, pIter);
+  }
+  if (!ok) {
+    if (pIter != NULL) {
+      taosHashCancelIterate(gVcColsCacheMap, pIter);
+    }
+    taosArrayDestroy(pKeys);
+    return false;
+  }
+  for (int32_t i = 0; i < (int32_t)taosArrayGetSize(pKeys); ++i) {
+    SVcColsCacheKey     *pKey = (SVcColsCacheKey *)taosArrayGet(pKeys, i);
+    SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (ppCache == NULL) {
+      continue;
+    }
+    SStreamVcColsCache *pCache = *ppCache;
+    stStreamVcColsCacheClear(pCache);
+    int32_t code = taosHashRemove(gVcColsCacheMap, pKey, sizeof(*pKey));
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to remove disabled vc_cols cache vgId:%d suid:%" PRId64 ", code:%d", pKey->vgId, pKey->suid,
+             code);
+      ok = false;
+      continue;
+    }
+    stStreamVcColsCacheUnref(pCache);
+  }
+  taosArrayDestroy(pKeys);
+  if (ok && gVcColsVgGenMap != NULL) {
+    taosHashClear(gVcColsVgGenMap);
+  }
+  return ok;
+}
+
+// Calc-side get-or-create: looks up the shared cache under
+// (vgId, suid, fingerprint[2]) and takes a reference. Before the key lookup, the
+// per-vgId vtable generation is checked so that a moved generation drops every
+// entry for that vnode (including keys no reader visits anymore), releasing
+// stale blocks and budget; then the requested key is created empty if needed.
+// Newly created objects take a globally monotonic generation, so a generation
+// captured by an in-flight scan round is never mistaken for the generation of a
+// later recreated object. Returns NULL on alloc/insert failure.
+SStreamVcColsCache *stStreamVcColsCacheAcquire(int32_t vgId, int64_t suid, const uint64_t fingerprint[2],
+                                               int64_t vtableGen) {
+  bool cleanupAll = false;
+  if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0) {
+    cleanupAll = true;  // caching disabled
+  } else if (atomic_load_64(&gVcColsCacheTotalBytes) > tsStreamVcColsCacheSize) {
+    // The cap was lowered below what is already installed: release everything
+    // so the existing occupancy converges to the new limit instead of staying
+    // pinned until the metadata generation moves.
+    cleanupAll = true;
+  }
+  if (cleanupAll) {
+    // Disabling the cache is also a lifecycle boundary: release any installed
+    // blocks immediately so a dynamic disable actually returns their budget.
+    if (stStreamVcColsCacheMapLockAcquire()) {
+      stStreamVcColsCacheCleanupAllLocked();
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+    }
+    if (!tsStreamVcColsCache || tsStreamVcColsCacheSize <= 0) {
+      return NULL;
+    }
+  }
+  SStreamVcColsCache *pCache = NULL;
+  if (!stStreamVcColsCacheMapLockAcquire()) {
+    return NULL;
+  }
+  stStreamVcColsCacheMapInit();
+  stStreamVcColsCacheVgGenMapInit();
+  if (gVcColsCacheMap == NULL || gVcColsVgGenMap == NULL) {
+    taosThreadMutexUnlock(&gVcColsCacheMapLock);
+    return NULL;
+  }
+
+  // vnode-wide generation check: when it moved, every entry for this vgId is
+  // stale (including keys with an old fingerprint that no reader visits). Drop
+  // them all before the key lookup so a key miss also reclaims their blocks and
+  // budget instead of pinning them until the vnode is reopened.
+  int64_t *pVgGen = taosHashGet(gVcColsVgGenMap, &vgId, sizeof(vgId));
+  if (pVgGen == NULL) {
+    int64_t gen = vtableGen;
+    if (taosHashPut(gVcColsVgGenMap, &vgId, sizeof(vgId), &gen, sizeof(gen)) != TSDB_CODE_SUCCESS) {
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+      return NULL;
+    }
+  } else if (*pVgGen != vtableGen) {
+    if (!stStreamVcColsCacheCleanupVgLocked(vgId)) {
+      taosThreadMutexUnlock(&gVcColsCacheMapLock);
+      return NULL;
+    }
+    *pVgGen = vtableGen;
+  }
+
+  SVcColsCacheKey key;
+  memset(&key, 0, sizeof(key));
+  key.vgId = vgId;
+  key.suid = suid;
+  if (fingerprint != NULL) {
+    key.fingerprint[0] = fingerprint[0];
+    key.fingerprint[1] = fingerprint[1];
+  }
+  SStreamVcColsCache **ppCache = taosHashGet(gVcColsCacheMap, &key, sizeof(key));
+  if (ppCache != NULL) {
+    pCache = *ppCache;
+    if (pCache->vtableGen != vtableGen) {
+      // Defensive: the vg-level check above should have dropped this entry, but
+      // keep the shell alive and clear it so the caller re-scans.
+      pCache->vtableGen = vtableGen;
+      stStreamVcColsCacheClear(pCache);
+    }
+  } else {
+    pCache = taosMemoryCalloc(1, sizeof(SStreamVcColsCache));
+    if (pCache != NULL) {
+      stStreamVcColsCacheInit(pCache);
+      pCache->vtableGen = vtableGen;
+      pCache->refCount = 1;  // permanent registry reference (empty shell)
+      // Take a fresh, never-reused generation so an in-flight scan round that
+      // captured an older object's generation cannot commit into this object.
+      pCache->generation = atomic_add_fetch_64(&gVcColsCacheGeneration, 1);
+      if (taosHashPut(gVcColsCacheMap, &key, sizeof(key), &pCache, POINTER_BYTES) != TSDB_CODE_SUCCESS) {
+        // Insert failed: the object is not in the registry, so the phantom
+        // registry reference must not survive. Tear it down and fail.
+        stStreamVcColsCacheReleaseLast(pCache);
+        pCache = NULL;
+      }
+    }
+  }
+  if (pCache != NULL) {
+    // Hold a reference for the caller; Unref() releases it.
+    atomic_add_fetch_32(&pCache->refCount, 1);
+  }
+  taosThreadMutexUnlock(&gVcColsCacheMapLock);
+  return pCache;
+}
+
+void stStreamVcColsCacheUnref(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return;
+  }
+  if (atomic_sub_fetch_32(&pCache->refCount, 1) == 0) {
+    stStreamVcColsCacheReleaseLast(pCache);
+  }
+}
+
+bool stStreamVcColsCacheIsValid(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return false;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  bool valid = pCache->valid;
+  taosThreadMutexUnlock(&pCache->lock);
+  return valid;
+}
+
+int32_t stStreamVcColsCacheReadBlock(SStreamVcColsCache *pCache, int32_t idx, SSDataBlock *pDst,
+                                     uint64_t *pGeneration, bool *pFinished) {
+  if (pCache == NULL || pDst == NULL || pGeneration == NULL || pFinished == NULL || idx < 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  *pFinished = false;
+  taosThreadMutexLock(&pCache->lock);
+  int32_t n = pCache->pBlocks != NULL ? taosArrayGetSize(pCache->pBlocks) : 0;
+  if (!pCache->valid || (idx > 0 && *pGeneration != pCache->generation)) {
+    code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    goto end;
+  }
+  if (n == 0) {
+    if (idx == 0) {
+      *pGeneration = pCache->generation;
+    }
+    *pFinished = true;
+    goto end;
+  }
+
+  SSDataBlock *pFirst = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, 0);
+  size_t nCols = blockDataGetNumOfCols(pFirst);
+  if (nCols != blockDataGetNumOfCols(pDst)) {
+    code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+    goto end;
+  }
+  for (size_t i = 0; i < nCols; ++i) {
+    SColumnInfoData *pA = taosArrayGet(pFirst->pDataBlock, (int32_t)i);
+    SColumnInfoData *pB = taosArrayGet(pDst->pDataBlock, (int32_t)i);
+    if (pA->info.colId != pB->info.colId || pA->info.type != pB->info.type) {
+      code = idx == 0 ? TSDB_CODE_NOT_FOUND : TSDB_CODE_STREAM_INTERNAL_ERROR;
+      goto end;
+    }
+  }
+  if (idx == 0) {
+    *pGeneration = pCache->generation;
+  }
+  if (idx < n) {
+    SSDataBlock *pBlock = *(SSDataBlock **)taosArrayGet(pCache->pBlocks, idx);
+    code = copyDataBlock(pDst, pBlock);
+  } else {
+    *pFinished = true;
+  }
+
+end:
+  taosThreadMutexUnlock(&pCache->lock);
+  return code;
+}
+
+uint64_t stStreamVcColsCacheGetGeneration(SStreamVcColsCache *pCache) {
+  if (pCache == NULL) {
+    return 0;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  uint64_t generation = pCache->generation;
+  taosThreadMutexUnlock(&pCache->lock);
+  return generation;
+}
+
+// Install the first completed scan result; later committers are discarded. A
+// committer whose scan began before a Clear() (generation mismatch) also
+// discards its stale blocks. `bytes` was already reserved by the caller via
+// TryReserve() and is transferred to the cache here, not re-added.
+void stStreamVcColsCacheCommit(SStreamVcColsCache *pCache, SArray *pBlocks, uint64_t expectedGeneration,
+                               int64_t bytes) {
+  if (pCache == NULL || pBlocks == NULL) {
+    stStreamVcColsCacheFreeBlocksArray(pBlocks);
+    stStreamVcColsCacheRelease(bytes);
+    return;
+  }
+  taosThreadMutexLock(&pCache->lock);
+  if (pCache->valid || expectedGeneration != pCache->generation) {
+    taosThreadMutexUnlock(&pCache->lock);
+    stStreamVcColsCacheFreeBlocksArray(pBlocks);
+    stStreamVcColsCacheRelease(bytes);
+    return;
+  }
+  pCache->pBlocks = pBlocks;
+  pCache->bytes = bytes;
+  pCache->valid = true;
+  taosThreadMutexUnlock(&pCache->lock);
+}
+
 int32_t streamVTableInfoCacheInit(SStreamVTableInfoCache *pCache) {
   if (pCache == NULL) return TSDB_CODE_INVALID_PARA;
   taosInitRWLatch(&pCache->lock);

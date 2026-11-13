@@ -50,6 +50,7 @@ void *gTdSeam_metaTxnMetaDelete = NULL;
 void *gTdSeam_metaTxnMetaGet = NULL;
 void *gTdSeam_metaTxnMetaUpsert = NULL;
 void *gTdSeam_metaMarkTableTxnStatus = NULL;
+void *gTdSeam_metaBumpVtableGen = NULL;
 void *gTdSeam_metaRLock = NULL;
 void *gTdSeam_metaULock = NULL;
 
