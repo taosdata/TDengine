@@ -1900,6 +1900,25 @@ class ModelService:
         if detail:
             self.logger.error(f"Last model output:\n{detail}")
 
+    def _resolve_model_script(self, model_name: str, service_dir: str) -> str:
+        """Honor configured entrypoints, with aliases for legacy built-in names."""
+        script = self.config.models[model_name]["script"]
+        script_path = os.path.join(service_dir, script)
+        if os.path.exists(script_path):
+            return script_path
+
+        # Only historical built-in basenames are aliases. Never rewrite custom
+        # entrypoints, explicit paths, or names belonging to another model.
+        if model_name in DEFAULT_MODEL_ORDER and script == f"{model_name}-server.py":
+            current_path = os.path.join(service_dir, f"{model_name}_server.py")
+            if os.path.isfile(current_path):
+                self.logger.info(
+                    f"Using compatible model entrypoint for {model_name}: "
+                    f"{script} -> {os.path.basename(current_path)}"
+                )
+                return current_path
+        return script_path
+
     def start(self, model_name: str, timeout: Optional[int] = None) -> bool:
         """Start model service"""
         if model_name == "all":
@@ -1955,7 +1974,7 @@ class ModelService:
         service_dir = os.path.join(
             self.config.install_dir, "lib", "tsfm", "service"
         )
-        script_path = os.path.join(service_dir, model_config["script"])
+        script_path = self._resolve_model_script(model_name, service_dir)
 
         if not os.path.exists(script_path):
             self.logger.error(f"Script not found: {script_path}")
