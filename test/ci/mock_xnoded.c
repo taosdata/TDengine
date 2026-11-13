@@ -137,6 +137,9 @@ static void serve_client(int client, int syntax_mode) {
   }
 
   const char *body = owner_conflict ? "Xnode is already owned by another cluster" : "{}";
+  if (strcmp(method, "POST") == 0 && strncmp(path, "/task/drop/", 11) == 0) {
+    body = "{\"cleanup_required\":true}";
+  }
   char state_body[128];
   if (strcmp(method, "GET") == 0 && strcmp(path, "/mock/state") == 0) {
     snprintf(state_body, sizeof(state_body),

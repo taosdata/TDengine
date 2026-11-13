@@ -112,6 +112,7 @@ add_test(
 # Production code tests - uses REAL encode/decode functions from mndXnode.c
 add_executable(xnodeProductionTest "xnodeProductionTest.cpp")
 DEP_ext_gtest(xnodeProductionTest)
+DEP_ext_cppstub(xnodeProductionTest)
 target_include_directories(
   xnodeProductionTest
   PUBLIC

@@ -4,27 +4,36 @@ sidebar_label: 双活方案
 toc_max_heading_level: 4
 ---
 
-部分用户因为部署环境的特殊性只能部署两台服务器，同时希望实现一定的服务高可用和数据高可靠。本文主要描述基于数据复制和客户端 Failover 两项关键技术的 TDengine 双活系统的产品行为，包括双活系统的架构、配置、运维等。TDengine 双活既可以用于前面所述资源受限的环境，也可用于在两套 TDengine 集群（不限资源）之间的灾备场景。双活是 TDengine TSDB Enterprise 特有功能，在 3.3.0.0 版本中第一次发布，建议使用最新版本。**目前，3.4.x 版本暂不支持双活功能。**
+部分用户受部署环境限制，只能部署两台服务器，同时希望提高服务可用性和数据可靠性。TDengine 双活方案通过数据复制和客户端 Failover 满足这类需求，也可用于两套 TDengine 集群之间的灾备，集群规模不受两台服务器的限制。本文介绍双活系统的架构、配置和运维。
 
-双活系统的定义是：业务系统中有且仅有两台服务器，其上分别部署一套服务，在业务层看来这两台机器和两套服务是一个完整的系统，对其中的细节业务层不需要感知。双活中的两个节点通常被称为 Master-Slave，意为”主从“或”主备“，本文档中可能会出现混用的情况。
+双活是 TDengine TSDB Enterprise 特有功能，首次发布于 v3.3.0.0。从 v3.4.3.11 起，双活任务改为通过 SQL 管理，v3.3.x 使用的 `taosx replica` 命令行也已删除。建议使用最新版本。
 
-TDengine 双活系统的部署架构图如下，其中涉及到三个关键点：
+双活系统由两台服务器组成，每台分别部署一套服务。对业务层而言，两台服务器及其服务构成一个完整的系统，无需感知内部细节。两个节点通常称为 Master-Slave，即“主从”或“主备”，本文中可能混用这些称呼。
 
-1. 由 Client Driver 实现对双系统的 Failover，即主节点宕机时的主从切换
-2. 由 taosX 从（当前的）主节点到从节点实现数据复制
-3. 由数据订阅的写接口在写入复制过来的数据时在 WAL 中加入特殊标记，由数据订阅的读接口在读取数据时自动过滤掉带有该特殊标记的数据，避免重复复制形成 infinite loop
+TDengine 双活系统的部署架构如下，主要依靠三个机制：
 
-注：下图中仅以一个单机版 TDengine 作为示例，但在实际部署中图中的一个 Host 也可以被任意节点数量的 TDengine 集群代替。
+1. Client Driver 负责 Failover，在主节点宕机时切换到从节点
+2. taosX 负责将数据从当前主节点复制到从节点，双活任务由 xnoded 统一调度
+3. 数据订阅的写接口在写入复制的数据时，向 WAL 添加特殊标记；读接口自动过滤带有该标记的数据，避免循环复制
 
-![Active-Standby.webp](../../../assets/dual-01.webp)
+注：下图以单机版 TDengine 为例，实际部署时，每个 Host 均可替换为任意节点数量的 TDengine 集群。
+
+![双活部署架构](../../../assets/dual-01.webp)
 
 ## 集群配置
 
-双活对 TDengine 集群本身的配置没有任何要求，但对要在双活系统之间同步的数据库的 WAL 保留时长有一定要求，WAL 保留时长越大双活系统的容错率越高；如果备节点宕机时长超过主节点上的 WAL 保留时长，必定会导致备节点上有数据缺失；如果备节点宕机时长虽未超过主节点上的 WAL 保留时长，也有一定概率丢失数据，取决于接近的程度以及数据同步的速度。
+部署双活需要满足以下前提条件：
+
+- 版本：执行 `CREATE XNODE TASK` 的管理集群须升级到 v3.4.3.11 或更高版本；源端和目标端均不低于 v3.4.0.0，两端版本可以不同；taosX 与 taosd 使用相同版本。
+- 数据库：源库和目标库均已预先创建且精度相同，源库的 `wal_retention_period` 大于 0。双活任务按库创建，不支持自动同步新增数据库。
+- 授权：源端和目标端均具有 `active_active` 授权（云服务实例除外），目标端另须具有 `td3.0` 授权。
+- 部署：管理集群已部署 taosX 并注册 xnode，且 xnode 能连通两端集群。注册方法见 [数据接入（Xnode）](../../../05-tdengine-sql/08-cluster-management/02-xnode.md)。建议由源集群兼任管理集群，并使用超级用户连接源端，以便管理订阅资源和 WAL 保留标记。
+
+WAL 保留时长影响双活系统的容错能力。如果备节点的宕机时长超过主节点的 WAL 保留时长，备节点必定会缺失数据。即使未超过，也可能丢失数据，具体取决于宕机时长与 WAL 保留时长的接近程度，以及数据同步速度。详见 [异常情况](#异常情况)。
 
 ## 客户端配置
 
-目前只有 Java 连接器在 WebSocket 连接模式下支持双活，其配置示例如下
+目前只有 Java 连接器在 WebSocket 连接模式下支持双活，配置示例如下：
 
 ```java
 url = "jdbc:TAOS-WS://" + host + ":6041/?user=root&password=taosdata&varcharAsString=true";
@@ -37,7 +46,7 @@ properties.setProperty(TSDBDriver.PROPERTY_KEY_RECONNECT_RETRY_COUNT, "3");
 connection = DriverManager.getConnection(url, properties);
 ```
 
-其中的配置属性及含义如下表
+各配置属性的含义如下：
 
 | 属性名                              | 含义 |
 | ---------------------------------- | --- |
@@ -49,138 +58,92 @@ connection = DriverManager.getConnection(url, properties);
 
 ## 约束条件
 
-1. 应用程序不能使用订阅接口，如果配置了双活参数会导致创建消费者失败
-2. 不建议应用程序使用参数绑定的写入和查询方式，如果使用应用需要自己解决连接切换后的相关对象失效问题
-3. 在双活场景下，不建议用户应用程序显示调用 use database，应该在连接参数中指定 database
-4. 双活的两端集群必须同构（即数据库的命名和所有配置参数以及用户名密码和权限设置等完全相同）
-5. 只支持 WebSocket 连接模式
+1. 应用程序不能使用订阅接口；配置双活参数后，创建消费者会失败
+2. 不建议应用程序通过参数绑定写入或查询数据；如需使用，应用必须自行处理连接切换后相关对象失效的问题
+3. 双活场景下，不建议应用程序显式执行 `USE` 语句，应在连接参数中指定数据库
+4. 使用同一客户端连接在两端切换时，该客户端使用的数据库命名、配置以及用户名、密码和权限需要在两端保持一致；双活任务本身可以将源库映射到不同名称的目标库
+5. 上述客户端切换只支持 WebSocket 连接模式，双活任务支持 Native 和 WebSocket 两种连接方式
+6. 一个双活任务只复制一个数据库，不支持自动同步新增的数据库；每个任务独占一个 topic，集群的 topic 数量受 `tmqMaxTopicNum` 限制
 
-## 运维命令
+## 运维管理
 
-TDengine 双活系统提供了一些运维工具能够自动化 taosX 的配置、一键启动、重启和停止（单机环境上的）所有双活组件。
+### 任务管理
 
-### 启动双活任务
+双活任务通过 SQL 创建、查看、启动、停止、修改和删除。完整语法、参数规则和删除行为见 [数据接入（Xnode）](../../../05-tdengine-sql/08-cluster-management/02-xnode.md#双活任务)。
 
-```shell
-taosx replica start
+使用 `CREATE XNODE TASK ... WITH TYPE 'replica'` 创建任务。一个任务将源集群的一个库单向复制到目标集群的一个库；如需双向复制，则在两端分别创建一个任务。以下示例在 td1 和 td2 之间双向复制数据库 `power`：
+
+```sql
+-- 在 td1 上执行：td1 -> td2
+CREATE XNODE TASK 'aa_power_td1_td2'
+  FROM 'tmq+ws://root:taosdata@td1:6041/power'
+  TO 'taos+ws://root:taosdata@td2:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td1_td2';
+
+-- 在 td2 上执行：td2 -> td1
+CREATE XNODE TASK 'aa_power_td2_td1'
+  FROM 'tmq+ws://root:taosdata@td2:6041/power'
+  TO 'taos+ws://root:taosdata@td1:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td2_td1';
 ```
 
-该命令用于启动双活中的数据复制任务，其所指定的两台主机上的 taosd 和 taosX 均为在线状态。
+任务创建后处于停止状态，需执行 `START XNODE TASK` 启动。创建时，可在 `FROM` 中通过 `auto.offset.reset`、`experimental.snapshot.enable`、`msg.consume.start.ts` 等订阅起点参数控制复制的起始位置。这些参数创建后不能修改，如需调整，须删除任务后重建。重建的任务不继承旧任务进度。
 
-1. 方法一
-
-```shell
-taosx replica start -f source_endpoint -t sink_endpoint [database...] 
-```
-
-在本机器所在的 taosx 服务中建立从 source_endpoint 到 sink_endpoint 的同步任务。运行该命令成功后，将打印 replica ID 到控制台（后续记为 id）。
-其中输入参数 source_endpoint 和 sink_endpoiint 为必须，形如 td2:6030，示例如下
-
-```shell
-taosx replica start -f td1:6030 -t td2:6030 
-```
-
-该示例命令会自动创建除 information_schema、performance_schema、log、audit 库之外的同步任务，并持续监听新增的数据库，当 td1 和 td2 中新增同名数据库时可自动启动新增数据库的数据复制任务。需要说明的是：
-
-- 可以使用 `http://td2:6041` 指定该 endpoint 使用 websocket 接口（默认是原生接口）。
-- 可以使用 `--new-database-checking-interval <SECONDS>` 指定新增数据库的检查间隔，默认为 30 分钟。
-- 可以使用 `--no-new-databases` 禁用监听行为。
-- 也可以指定数据库同步：taosx replica start -f td1:6030 -t td2:6030 db1 仅创建指定的数据库同步任务。此时相当于配置了 `--no-new-databases`，不会开启新增数据库自动同步。
-
-2. 方法二
-
-```shell
-taosx replica start -i id [database...]
-```
-
-使用上面已经创建的 Replica ID (id) 以在该同步任务中增加其它数据库。
-
-注意：
-
-1. 多次使用该命令，不会创建重复任务，仅将所指定的数据库增加到相应任务中。
-2. replica id 在一个 taosX 实例内是全局唯一的，与 source/sink 的组合无关
-3. 为便于记忆，replica id 为一个随机常用单词，系统自动将 source/sink 组合对应到一个词库中取得一个唯一可用单词。
-
-### 查看任务状态
-
-```shell
-taosx replica status [id...]
-```
-
-返回当前机器上创建的双活同步任务列表和状态。可以指定一个或多个 replica id 获取其任务列表和状态。输出示例如下：
-
-```shell
-+---------+----------+----------+----------+------+-------------+----------------+
-| replica | task | source   | sink     | database | status      | note           |
-+---------+----------+----------+----------+------+-------------+----------------+
-| a       | 2    | td1:6030 | td2:6030 | opc      | running     |                |
-| a       | 3    | td2:6030 | td2:6030 | test     | interrupted | Error reason |
-```
-
-### 停止双活任务
-
-```shell
-taosx replica stop id [db...]
-```
-
-该命令作用如下：
-
-1. 停止指定 Replica ID 下所有或指定数据库的双副本同步任务。
-2. 使用 `taosx replica stop id1 db1` 表示停止 id1 replica 下 db1 的同步任务。
-3. `--no-new-databases` 选项启用时，不停止新增数据库监听任务，仅停止当前同步中的数据库。
-
-### 重启双活任务
-
-```shell
-taosx replica restart id [db...]
-```
-
-该命令作用如下：
-
-1. 重启指定 Replica ID 下所有或指定数据库的双副本同步任务。
-2. 使用 `taosx replica start id1 db1` 仅重启指定数据库 db1 的同步任务。
+与普通任务不同，双活任务采用异步删除。`DROP XNODE TASK` 返回成功只表示删除请求已受理，任务先进入 `deleting` 状态，待源端的 topic、消费组及位点清理完成后才从 `SHOW XNODE TASKS` 中消失。清理遇到权限或凭据等永久错误时，任务进入 `delete_failed` 状态，修复后需重新执行 `DROP XNODE TASK`。清理完成前不能重建相同映射的任务。
 
 ### 查看同步进度
 
-```shell
-taosx replica diff id [db....]
+先在管理集群查询集群 ID，再到源集群按系统生成的 topic 和消费组名查询各 vgroup 的消费位置：
+
+```sql
+-- 在管理集群执行（ins_cluster 为特权表，需要 SYSINFO 权限）
+SELECT id FROM information_schema.ins_cluster;
+
+-- 在源集群执行，将 <管理集群 ID> 和 <任务 ID> 替换为实际值
+SELECT topic_name, vgroup_id, consumer_id, `offset`, `rows`
+  FROM information_schema.ins_subscriptions
+  WHERE topic_name = '__replica__<管理集群 ID>_<任务 ID>'
+    AND consumer_group = '__replica__<管理集群 ID>_<任务 ID>';
 ```
 
-该命令能够输出当前双副本同步任务中订阅的 Offset  与最新 WAL 的差值（不代表行数），例如：
-
-```shell
-+---------+----------+----------+----------+-----------+---------+---------+------+
-| replica | database | source   | sink     | vgroup_id | current | latest  | diff |
-+---------+----------+----------+----------+-----------+---------+---------+------+
-| a       | opc      | td1:6030 | td2:6030 | 2         | 17600   | 17600   | 0    |
-| a       | opc      | td2:6030 | td2:6030 | 3         | 17600   | 17600   | 0    |
-```
-
-### 删除双活任务
-
-```shell
-taosx replica remove id [--force]
-```
-
-删除当前所有双活同步任务。正常情况下要想删除同步任务，需要先 stop 该任务；但当 --force 启用时，会强制停止并清除任务。
-
-`--no-new-databases` 选项启用时，不会删除新增数据库同步任务，仅删除当前数据库的同步任务。当 taosx 重启后，如果删除的数据库任务对应的数据库仍然存在，则会继续创建同步任务；不重启 taosx 或者不更新双活监听任务时，也不会再新建这些数据库的同步任务。
-
-### 更新双活新增数据库检查间隔
-
-```shell
-taosx replica update id --new-database-checking-interval <SECONDS>
-```
-
-更新双活新增数据库的检查间隔，单位为秒。
-
-### 推荐使用步骤
-
-1. 假定在机器 A 上运行，需要首先使用 taosx replica start 来配置 taosX，其输入参数是待同步的源端和目标端服务器地址，在完成配置后会自动启动同步服务和任务。此处假定 taosx 服务使用标准端口，同步任务使用原生连接。
-2. 在机器 B 上的步骤相同
-3. 在完成对两台机器的服务启动后，双活系统即可提供服务
-4. 在已经完成配置后，如果想要再次启动双活系统，请使用 restart 子命
+- 快照复制阶段，`offset` 以 `tsdb:` 开头；进入 WAL 复制阶段后，显示为 `wal:<已消费版本>/<最新版本>`。两个版本之差是该 vgroup 的 WAL 版本差，可近似反映积压量，与 v3.3 版本 `taosx replica diff` 的含义相同。该位置由消费者心跳上报，可能超前于已提交位点。
+- `rows` 是当前消费者进程累计消费的行数，任务重启后重新计数，不代表目标端成功写入的行数。
+- `consumer_id` 为空表示该 vgroup 当前没有消费者，例如任务已停止。
 
 ## 异常情况
 
-如果宕机恢复时间超出了 WAL 的保存时长，可能会出现丢数据的情况。此时双活系统中自带的 taosX 服务的自动数据同步无法处理。需要人工判断出哪些数据丢失，然后启动额外的 taosX 任务来复制丢失的数据。
+双活任务停止或目标端发生故障后，如果从停止同步到恢复并追平数据的总耗时超过源库的 WAL 保留时长（`wal_retention_period`），对应的 WAL 可能已被清理，导致目标端缺少尚未同步的数据。现有双活任务无法自动补齐这部分数据，需要人工核对两端数据，确定缺失的表和时间范围。消费位点追平并不代表两端数据一致。
+
+如果源端仍保留相应的历史数据，可删除该复制方向的双活任务，等待清理完成后重新创建并启动。重建时，应启用历史数据快照（`auto.offset.reset=earliest`、`experimental.snapshot.enable=true`），并通过 `msg.consume.start.ts` 设置同步开始时间。该时间不能晚于最早缺失数据的时间戳，以便重新复制缺失数据。订阅起点参数只能在创建任务时设置，具体规则见 [数据接入（Xnode）](../../../05-tdengine-sql/08-cluster-management/02-xnode.md#双活任务)。
+
+## 升级与迁移
+
+### 版本升级与降级
+
+- 滚动升级期间不要创建双活任务。所有 taosd 升级完成前，旧版本 mnode 可能忽略 `TYPE` 选项且不报错，将其创建为普通任务，导致任务无法防止循环复制。创建后，应通过 `SHOW XNODE TASKS` 确认 `type` 列为 `replica`。taosX 应与 taosd 同时升级。
+- 降级到 v3.4.3.11 之前的版本前，必须删除所有双活任务：旧版本 mnode 不识别任务类型，可能将双活任务作为普通任务运行，并永久丢失类型标记。
+
+### 从 v3.3 迁移
+
+v3.3 的双活任务不会自动迁移，升级后必须重建，并通过 `msg.consume.start.ts` 指定新的同步开始时间。新任务不复用旧任务的 topic、消费组和已提交位点。从 v3.4.3.11 起，`taosx replica` 命令行已删除，因此必须在升级前停止旧任务。每个复制方向均需执行以下步骤：
+
+1. 升级前，根据旧任务已确认的同步进度确定开始时间，记录为 Unix 毫秒时间戳。该时间不能晚于最早可能尚未同步的数据的时间戳；无法确认进度时，可以选择 `0`，重放所有仍可读取的数据。不要直接使用升级完成时间。
+2. 调大两端源库的 `wal_retention_period`，使其覆盖停机、升级和重新追平的总时长。
+3. 在旧版本上，对每个方向执行 `taosx replica stop <id>` 并等待任务停止。记录旧任务的库映射、连接地址、凭据和调优参数，然后停止旧 taosX 服务，避免其自动为新数据库创建任务。
+4. 按发布说明完成升级，确认两端满足版本、数据库和授权要求，部署并注册 xnode。
+5. 为每个映射创建并启动新任务，在 `FROM` 中通过 `msg.consume.start.ts` 指定第 1 步确定的开始时间。
+6. 通过 `SHOW XNODE TASKS` 确认新任务的 `type` 为 `replica`，再按 [运维管理](#运维管理) 中的方法查询进度，确认订阅标识为 `__replica__<管理集群 ID>_<任务 ID>`。所有方向追平后，将 WAL 保留时长恢复原值。确认旧任务全部停止、旧 topic 不再被其他业务使用后，再按 v3.3 的运维方式另行清理旧资源。
+
+第 5 步的创建语句示例如下：
+
+```sql
+CREATE XNODE TASK 'aa_power_td1_td2'
+  FROM 'tmq+ws://root:taosdata@td1:6041/power?msg.consume.start.ts=1700000000000'
+  TO 'taos+ws://root:taosdata@td2:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td1_td2';
+```
+
+开始时间之后，旧任务已复制的数据可能再次复制。重复写入相同时间戳的数据时会覆盖原有数据，元数据操作也会幂等重放，可避免产生重复行。v3.3 导出的双活任务不能通过 Explorer 的普通任务导入路径恢复，须按上述步骤使用 SQL 重建。

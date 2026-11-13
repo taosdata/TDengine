@@ -181,6 +181,12 @@ TEST_F(ParserXnodeTest, alterTaskParseErrorsReleaseInputs) {
   run("ALTER XNODE TASK 1 FROM 'source' TO '" + sink + "'", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }
 
+TEST_F(ParserXnodeTest, alterTaskRejectsImmutableType) {
+  login("root");
+  useDb("root", "test");
+  run("ALTER XNODE TASK 1 WITH TYPE 'replica'", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserXnodeTest, incompleteCreateReleasesSource) {
   login("root");
   useDb("root", "test");

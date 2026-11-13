@@ -867,6 +867,7 @@ static const SSysDbTableSchema xnodeTasksSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "update_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = false},
     {.name = "desired_state", .bytes = TSDB_XNODE_STATUS_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "type", .bytes = 16 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 /** For xnode task slices, one task may have multiple slices. */
 /** NOTE: "task_id" is column 2 (TSDB_INS_XNODE_JOBS_TASKID_COLID) and the executor recognizes

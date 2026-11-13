@@ -84,6 +84,8 @@ class XnodedMockHandler(http.server.BaseHTTPRequestHandler):
             return
         if self.path == "/xnode" and b"mock-owner-conflict" in body:
             self._send_json(b"Xnode is already owned by another cluster", 409, False)
+        elif self.path.startswith("/task/drop/"):
+            self._send_json(b'{"cleanup_required":true}', read_body=False)
         else:
             self._send_json(b"{}", read_body=False)
 
@@ -3104,7 +3106,10 @@ class TestXnodePriv:
         """
         self._create_test_user()
         self._cleanup_xnode_resources()
-        tdSql.execute("CREATE XNODE 'localhost:6055'", queryTimes=1)
+        tdSql.execute(
+            "CREATE XNODE 'localhost:6055' USER root PASS 'taosdata'",
+            queryTimes=1,
+        )
 
         test_db = f"test_{self.suffix}"
         zgc_db = f"zgc_{self.suffix}"

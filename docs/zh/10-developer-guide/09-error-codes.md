@@ -892,6 +892,9 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80008026 | Xnode DSN protection failed                           | Xnode DSN 保护校验失败                                | 检查 DSN 配置及数据源保护策略后重试              |
 | 0x80008027 | Connection info changed, please re-enter the password and other sensitive values | 连接信息已变更，请重新输入密码等敏感信息 | 修改连接地址等字段后重新输入密码等敏感信息再保存 |
 | 0x80008028 | Xnode is already owned by another cluster             | taosx 已被其他 TDengine 集群纳管                        | 在原集群执行 DROP XNODE 后再注册              |
+| 0x80008029 | Invalid xnode task type                               | 创建任务时，`TYPE` 的值不是 `replica`（不区分大小写）               | 创建双活任务时使用 `WITH TYPE 'replica'`，创建普通任务时省略 `TYPE` |
+| 0x8000802A | Option not supported by replica xnode task            | 创建或修改双活任务时，使用了 `FROM DATABASE`、`FROM TOPIC`、`TO DATABASE`、`PARSER` 或 `VIA` | 通过 `FROM` 和 `TO` 指定源端和目标端 DSN，并移除不支持的选项      |
+| 0x8000802B | DSN parameter %s is reserved for replica xnode task   | 创建或修改普通任务时，源端 DSN 包含保留参数 `replica` 或 `msg.consume.excluded` | 移除普通任务源端 DSN 中的保留参数；需要双活任务时，使用 `WITH TYPE 'replica'` 创建 |
 
 #### 备份/恢复
 

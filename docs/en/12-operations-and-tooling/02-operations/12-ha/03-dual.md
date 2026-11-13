@@ -8,29 +8,32 @@ import { Enterprise } from '../../resources/_resources.mdx';
 
 <Enterprise/>
 
-You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode is also used in disaster recovery strategies to maintain offsite replicas of the database.
+You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode also supports disaster recovery by maintaining offsite replicas of the database. It uses data replication and client failover. This document covers the architecture, configuration, and maintenance of an active-active deployment.
 
-**Active-active mode is not currently supported in TDengine 3.4.x.**
+Active-active mode is available only in TDengine TSDB Enterprise and was first released in v3.3.0.0. From v3.4.3.11, active-active tasks are managed through SQL. The management cluster's mnode stores task records, xnoded schedules the tasks, and taosX executes them on xnodes. The `taosx replica` command line used in v3.3.x was removed in v3.4.3.11. We recommend using the latest version.
 
-In active-active mode, you create two separate TDengine deployments, one acting as the primary node and the other as the secondary node. Data is replicated in real time between the primary and secondary nodes via taosX. Note that each node in an active-active deployment can be a single TDengine instance or a cluster.
+An active-active system consists of exactly two servers, each running a separate TDengine deployment. From the perspective of the business layer, the two servers and their services form a single complete system, and the internal details are transparent. The two nodes in an active-active deployment are often referred to as Master-Slave, meaning "primary" and "secondary"; these terms may be used interchangeably in this document.
 
-In the event that the primary node cannot provide service, the client driver fails over to the secondary node. This failover is automatic and transparent to the business layer.
+The deployment architecture of the TDengine active-active system is shown below. It involves three key mechanisms:
 
-The deployment architecture of the TDengine TSDB active-active system is shown below. It is built around three key mechanisms:
-
-In the event that the primary node cannot provide service, the client driver fails over to the secondary node. This failover is automatic and transparent to the business layer.
-
-Replicated data is specially marked to avoid infinite loops. The architecture of an active-active deployment is described in the following figure.
+1. The client driver implements failover between the two systems, switching from the primary node to the secondary node when the primary node is down.
+1. taosX replicates data from the (current) primary node to the secondary node; active-active tasks are scheduled by xnoded.
+1. When replicated data is written, the data subscription write interface adds a special marker to the WAL; the data subscription read interface automatically filters out data carrying this marker, preventing infinite replication loops.
 
 ![Active-Active architecture](../../../assets/dual-01.webp)
 
-Note that this diagram uses a single-node TDengine TSDB cluster as an example. In practice, each host in the diagram can represent a TDengine TSDB cluster of any size.
+Note that this diagram uses a single-node TDengine cluster as an example. In practice, each host in the diagram can represent a TDengine cluster of any size.
 
 ## Cluster Configuration
 
-It is not necessary to configure your cluster specifically for active-active mode. However, note that the WAL retention period affects the fault tolerance of an active-active deployment. This is because data loss will occur if the secondary node is unreachable for a period of time exceeding the configured WAL retention period. Data lost in this manner can only be recovered manually.
+The following prerequisites must be met before you deploy an active-active system:
 
-If the secondary node is unreachable for a period of time not exceeding configured WAL retention period, there is still a possibility of data loss depending on how close the downtime duration is to the retention period and on the data synchronization speed.
+- Version: The management cluster on which you run `CREATE XNODE TASK` must be upgraded to v3.4.3.11 or later. Both the source and target clusters must run v3.4.0.0 or later, and their versions can differ. taosX must use the same version as taosd.
+- Database: The source and target databases must be created in advance with the same precision, and the source database must have `wal_retention_period` greater than 0. Active-active tasks are created per database; newly created databases are not replicated automatically.
+- License: Both the source and target clusters must have the `active_active` license (except for cloud service instances), and the target cluster must also have the `td3.0` license.
+- Deployment: Deploy taosX for the management cluster and register an xnode that can connect to both clusters. For registration instructions, see [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md). We recommend using the source cluster as the management cluster and connecting to the source as the root user to manage subscription resources and WAL retention markers.
+
+The WAL retention period affects the fault tolerance of an active-active deployment. Data loss will occur if the secondary node remains unreachable longer than the configured WAL retention period. Even shorter downtime can result in data loss, depending on how close it is to the retention period and how quickly data is synchronized. For more information, see [Troubleshooting](#troubleshooting).
 
 ## Client Configuration
 
@@ -60,137 +63,93 @@ These parameters are described as follows:
 
 ## Limitations
 
-1. You cannot use the data subscription APIs when active-active mode is enabled.
-1. You cannot use the parameter binding interface while active-active mode is enabled.
-1. You cannot use the `USE <database>` statement to set a context. Instead, specify the database in the connection parameters.
-1. The primary and secondary nodes must be identical. Database names, all configuration parameters, usernames, passwords, and permission settings must be exactly the same.
-1. Only WebSocket connection mode is supported.
+1. You cannot use the data subscription APIs when active-active mode is enabled; creating a consumer fails if active-active parameters are configured.
+1. We do not recommend using the parameter binding interface for writes or queries. If you use it, your application must handle related objects becoming invalid after a connection switch.
+1. In an active-active deployment, we do not recommend explicitly running `USE <database>` in your application. Specify the database in the connection parameters instead.
+1. When the same client connection fails over between the two clusters, the database names and configurations, as well as the usernames, passwords, and permissions used by that client, must be consistent on both sides. The active-active task itself can map the source database to a target database with a different name.
+1. The client failover described above supports only WebSocket connection mode; active-active tasks support both Native and WebSocket connections.
+1. Each active-active task replicates one database; newly created databases are not synchronized automatically. Each task has its own topic, and the number of topics in a cluster is limited by `tmqMaxTopicNum`.
+1. Replication is at-least-once: the last batch of data may be replayed after a failure recovery. Writes with the same timestamp overwrite each other and metadata operations are replayed idempotently, so no duplicate rows are produced. In a bidirectional deployment, concurrent writes of different values to the same table at the same timestamp on both sides may diverge permanently without converging; assign the write ownership of each table (or primary key range) to a single cluster.
 
-## Maintenance Commands
+## Maintenance
 
-You can manage your active-active deployment with the following commands.
+### Task Management
 
-### Start Active-Active Mode
+Use SQL to create, view, start, stop, modify, and drop active-active tasks. For the complete syntax, parameter rules, and deletion behavior, see [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md#active-active-tasks).
 
-```shell
-taosx replica start
+Create a task with `CREATE XNODE TASK ... WITH TYPE 'replica'`. Each task replicates one database from the source cluster to one database in the target cluster. For bidirectional replication, create a separate task on each side. The following example replicates the `power` database in both directions between td1 and td2:
+
+```sql
+-- Run on td1: td1 -> td2
+CREATE XNODE TASK 'aa_power_td1_td2'
+  FROM 'tmq+ws://root:taosdata@td1:6041/power'
+  TO 'taos+ws://root:taosdata@td2:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td1_td2';
+
+-- Run on td2: td2 -> td1
+CREATE XNODE TASK 'aa_power_td2_td1'
+  FROM 'tmq+ws://root:taosdata@td2:6041/power'
+  TO 'taos+ws://root:taosdata@td1:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td2_td1';
 ```
 
-This command is used to start the data replication task in an active-active setup. Both taosd and taosX must be running on the two hosts.
+A newly created task is stopped; run `START XNODE TASK` to start it. When creating a task, you can set subscription start parameters in `FROM`, such as `auto.offset.reset`, `experimental.snapshot.enable`, and `msg.consume.start.ts`, to control where replication starts. These parameters cannot be changed later. To change them, drop and recreate the task. The new task does not inherit the old task's progress.
 
-1. Method 1:
-
-   ```shell
-   taosx replica start -f source_endpoint -t sink_endpoint [database...] 
-   ```
-
-   In the local taosx service, this command creates a synchronization task from `source_endpoint` to `sink_endpoint`. If the command runs successfully, it prints the replica ID to the console (referred to as id below).
-
-   The input parameters `source_endpoint` and `sink_endpoint` are required, and must be in the format `td2:6030`. For example:
-
-   ```shell
-   taosx replica start -f td1:6030 -t td2:6030 
-   ```
-
-   This example command automatically creates synchronization tasks for all databases except `information_schema`, `performance_schema`, `log`, and `audit`. It also continuously monitors for new databases. When the same database name is created on both td1 and td2, a new replication task for that database will be started automatically. Notes:
-
-   - You can specify that an endpoint use the WebSocket interface (default is the native interface) with `http://td2:6041`.
-   - You can configure the interval for checking new databases with:
-`--new-database-checking-interval <SECONDS>` (default: 30 minutes).
-   - You can disable monitoring for new databases with `--no-new-databases`.
-   - You can also specify replication for particular databases. For example, `taosx replica start -f td1:6030 -t td2:6030 db1` creates a replication task only for the specified database. In this case, it is equivalent to using `--no-new-databases`, and automatic replication of newly created databases will not be enabled.
-
-1. Method 2:
-
-   ```shell
-   taosx replica start -i id [database...]
-   ```
-
-   Use an existing replica ID to add databases to a replication task:
-
-:::note
-
-1. Running this command multiple times will not create duplicate tasks; it only adds the specified databases to the existing task.
-1. The replica ID is globally unique within a single taosX instance and is independent of the source/sink combination.
-1. For easier recall, the replica ID is generated as a common random word. The system automatically maps each source/sink combination to a word list to assign a unique, available word.
-
-:::
-
-### View Task Status
-
-```shell
-taosx replica status [id...]
-```
-
-Returns the list and status of active-active replication tasks created on the current machine. You can specify one or more replica IDs to retrieve their corresponding task details and status. Example output:
-
-```shell
-+---------+----------+----------+----------+------+-------------+----------------+
-| replica | task | source   | sink     | database | status      | note           |
-+---------+----------+----------+----------+------+-------------+----------------+
-| a       | 2    | td1:6030 | td2:6030 | opc      | running     |                |
-| a       | 3    | td2:6030 | td2:6030 | test     | interrupted | Error reason |
-```
-
-### Stop Active-Active Mode
-
-```shell
-taosx replica stop id [db...]
-```
-
-This command stops all active-active replication tasks, or only the specified databases, under the given replica ID. For example, `taosx replica stop id1 db1` stops the replication task for `db1` under replica `id1`.
-
-If the `--no-new-databases` option is enabled, the monitoring task for new databases is not stopped. Only the currently running database replications are stopped.
-
-### Restart Active-Active Mode
-
-```shell
-taosx replica restart id [db...]
-```
-
-This command restarts all active-active replication tasks, or only the specified databases, under the given replica ID. For example, `taosx replica restart id1 db1` restarts the replication task for `db1` under replica `id1`.
+Unlike normal tasks, active-active tasks are deleted asynchronously. A successful `DROP XNODE TASK` only means the deletion request has been accepted. The task first enters the `deleting` state and disappears from `SHOW XNODE TASKS` only after the source topic, consumer group, and positions have been cleaned up. If cleanup hits a permanent error, such as a permission or credential failure, the task enters the `delete_failed` state; fix the problem and run `DROP XNODE TASK` again. A task with the same mapping cannot be recreated until cleanup completes.
 
 ### View Synchronization Progress
 
-```shell
-taosx replica diff id [db....]
+First, query the cluster ID on the management cluster. Then use the system-generated topic and consumer group names to query each vgroup's consumption position on the source cluster:
+
+```sql
+-- Run on the management cluster (ins_cluster is a privileged table and requires SYSINFO)
+SELECT id FROM information_schema.ins_cluster;
+
+-- Run on the source cluster, replacing <management_cluster_id> and <task_id> with actual values
+SELECT topic_name, vgroup_id, consumer_id, `offset`, `rows`
+  FROM information_schema.ins_subscriptions
+  WHERE topic_name = '__replica__<management_cluster_id>_<task_id>'
+    AND consumer_group = '__replica__<management_cluster_id>_<task_id>';
 ```
 
-This command outputs the difference between the subscribed offset and the latest WAL in the current synchronization task. Note that this does not represent the number of rows. For example:
-
-```shell
-+---------+----------+----------+----------+-----------+---------+---------+------+
-| replica | database | source   | sink     | vgroup_id | current | latest  | diff |
-+---------+----------+----------+----------+-----------+---------+---------+------+
-| a       | opc      | td1:6030 | td2:6030 | 2         | 17600   | 17600   | 0    |
-| a       | opc      | td2:6030 | td2:6030 | 3         | 17600   | 17600   | 0    |
-```
-
-### Delete a Synchronization Task
-
-```shell
-taosx replica remove id [--force]
-```
-
-This command deletes all current active-active replication tasks. Normally, you must stop a task before deleting it. However, when the `--force` option is used, the tasks are forcibly stopped and cleared.
-
-If the `--no-new-databases` option is enabled, newly created database replication tasks are not deleted. Only the currently running database replications are removed. After taosX restarts, if the deleted databases still exist, the corresponding replication tasks will be recreated. If taosX is not restarted or the active-active monitoring task is not updated, these replication tasks will not be created again.
-
-### Update New Databases Checking Interval
-
-```shell
-taosx replica update id --new-database-checking-interval <SECONDS>
-```
-
-This command updates the interval (in seconds) for checking newly created databases in an active-active setup.
-
-### Recommended Usage
-
-1. On Machine A, run `taosx replica start` to configure taosX. The input parameters are the source and target server addresses for synchronization. Once configured, the synchronization service and tasks are started automatically. In this example, the taosX service uses the standard port and the replication task uses the native connection.
-1. Repeat the same steps on Machine B.
-1. After starting the services on both machines, the active-active system is ready to provide service.
-1. If the system has already been configured and you want to start it again, use the restart subcommand.
+- During snapshot replication, `offset` starts with `tsdb:`; after entering WAL replication it is displayed as `wal:<consumed version>/<latest version>`. The difference between the two versions is the WAL version lag of the vgroup, which approximates the backlog and has the same meaning as `taosx replica diff` in v3.3. This position is reported by the consumer heartbeat and can be ahead of the committed offset.
+- `rows` is the number of rows consumed cumulatively by the current consumer process. It restarts from zero when the task restarts and does not represent the number of rows written to the target successfully.
+- An empty `consumer_id` means that no consumer is currently assigned to the vgroup, for example when the task is stopped.
 
 ## Troubleshooting
 
-If the downtime recovery period exceeds the WAL retention period, data loss may occur. In this case, the automatic data synchronization provided by the built-in taosX service in the active-active system cannot resolve the issue. Manual intervention is required to identify which data has been lost, and then an additional taosX task must be started to replicate the missing data.
+After an active-active task stops or the target cluster fails, replication may take longer than the source database's WAL retention period (`wal_retention_period`) to resume and catch up. In that case, the corresponding WAL may have been deleted, leaving unreplicated data missing from the target. The existing task cannot automatically recover this data. Compare the data in both clusters to identify the affected tables and time ranges. Catching up to the latest consumption position does not prove that the data in the two clusters is consistent.
+
+If the source still retains the required historical data, delete the active-active task for the affected replication direction, wait for cleanup to complete, and then recreate and start it. When recreating the task, enable historical data snapshots (`auto.offset.reset=earliest` and `experimental.snapshot.enable=true`) and set the replication start time through `msg.consume.start.ts`. Choose a time no later than the timestamp of the earliest missing data so that it can be replicated again. Subscription start parameters can be set only when the task is created. For the parameter rules, see [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md#active-active-tasks).
+
+## Upgrade and Migration
+
+### Version Upgrade and Downgrade
+
+- Do not create active-active tasks during a rolling upgrade: before all taosd nodes are upgraded, an mnode of an earlier version can silently ignore the `TYPE` option and create the task as a standard task, losing loop prevention. After creation, verify through `SHOW XNODE TASKS` that the `type` column is `replica`. Upgrade taosX together with taosd.
+- Before downgrading to a version earlier than v3.4.3.11, you must delete all active-active tasks: an mnode of an earlier version does not recognize the task type, can run active-active tasks as standard tasks, and permanently loses the type marker.
+
+### Migrate from v3.3
+
+Active-active tasks from v3.3 are not migrated automatically. Recreate them after upgrading and use `msg.consume.start.ts` to specify the new synchronization start time. New tasks do not reuse the old tasks' topics, consumer groups, or committed offsets. The `taosx replica` command line was removed in v3.4.3.11, so you must stop old tasks before upgrading. Perform the following steps for each replication direction:
+
+1. Before upgrading, determine the start time from the old task's verified synchronization progress and record it as a Unix timestamp in milliseconds. It must be no later than the timestamp of the earliest data that may not have been synchronized. If you cannot confirm the progress, you can choose `0` to replay all data that remains readable. Do not use the upgrade completion time as the start time.
+1. Increase the `wal_retention_period` of the source databases on both sides so that it covers the total duration of the shutdown, upgrade, and subsequent catch-up.
+1. On the old version, run `taosx replica stop <id>` for each direction and wait for the tasks to stop. Record the database mappings, connection addresses, credentials, and tuning parameters of the old tasks, and then stop the old taosX services so that they do not automatically create tasks for new databases.
+1. Complete the upgrade according to the release notes, confirm that both sides meet the version, database, and license requirements, and deploy and register xnodes.
+1. Create and start a new task for each mapping, specifying the start timestamp determined in step 1 through `msg.consume.start.ts` in `FROM`.
+1. Use `SHOW XNODE TASKS` to verify that the `type` of each new task is `replica`. Use the progress queries in [Maintenance](#maintenance) to confirm that the tasks use subscription identifiers in the form `__replica__<management_cluster_id>_<task_id>`. After replication has caught up in all directions, restore the original WAL retention period. Once you have confirmed that all old tasks are stopped and no other applications use the old topics, clean up the old resources separately following the v3.3 maintenance procedure.
+
+The following is an example of the creation statement in step 5:
+
+```sql
+CREATE XNODE TASK 'aa_power_td1_td2'
+  FROM 'tmq+ws://root:taosdata@td1:6041/power?msg.consume.start.ts=1700000000000'
+  TO 'taos+ws://root:taosdata@td2:6041/power'
+  WITH TYPE 'replica';
+START XNODE TASK 'aa_power_td1_td2';
+```
+
+Data that has already been replicated by the old task at or after the start timestamp may be replicated again; timestamp overwriting and idempotent metadata replay prevent duplicate rows. Active-active tasks exported from v3.3 cannot be restored through the standard task import path of Explorer; recreate them with SQL as described above.
