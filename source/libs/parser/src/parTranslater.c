@@ -7028,7 +7028,15 @@ static int8_t getEffectiveFirstDayOfWeek(const STranslateContext* pCxt) {
 }
 
 static int32_t rewriteTimezoneFunc(STranslateContext* pCxt, SNode** pNode) {
-  char* pTzName = taosStrdup(getEffectiveTimezoneName(pCxt));
+  const char* pDisplay = getEffectiveTimezoneName(pCxt);
+  char        refreshed[TD_TIMEZONE_LEN] = {0};
+  // Session/default display text holds an abbreviation and offset captured
+  // when it was built; re-render it so they match the current instant.
+  if (pCxt->pStreamTimeConfig == NULL &&
+      taosRefreshTimezoneStr(pDisplay, getEffectiveTimezone(pCxt), refreshed) == TSDB_CODE_SUCCESS) {
+    pDisplay = refreshed;
+  }
+  char* pTzName = taosStrdup(pDisplay);
   if (pTzName == NULL) {
     return terrno;
   }

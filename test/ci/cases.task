@@ -979,6 +979,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_time.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_scalar_crypto.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_config_display.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_timezone_dst_refresh.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_tz_scalar_functions.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_abs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/01-Scalar/test_fun_sca_acos.py
@@ -1823,6 +1824,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/01-Check/test_check_systb_inspect.py
 
 ## 02-Taos
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_timezone_websocket.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_cli.py -B
 ,,n,.,pytest cases/81-Tools/02-Taos/test_tool_cmdline.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell.py

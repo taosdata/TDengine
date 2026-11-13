@@ -866,9 +866,10 @@ static int32_t  mndProcessConfigDnodeReq(SRpcMsg *pReq) {
     code = cfgCheckRangeForDynUpdate(taosGetCfg(), dcfgReq.config,
                                      dcfgReq.value, true, alterType);
     if (code == TSDB_CODE_PAR_INVALID_TIMEZONE) {
-      char detail[TSDB_DNODE_VALUE_LEN + sizeof("Invalid timezone: ''")] = {0};
-      (void)snprintf(detail, sizeof(detail), "Invalid timezone: '%s'",
-                     dcfgReq.value);
+      char detail[TSDB_DNODE_VALUE_LEN +
+                  sizeof("Invalid or unsupported timezone: ''")] = {0};
+      (void)snprintf(detail, sizeof(detail),
+                     "Invalid or unsupported timezone: '%s'", dcfgReq.value);
       int32_t detailLen = strlen(detail) + 1;
       void   *pRsp = rpcMallocCont(detailLen);
       if (pRsp != NULL) {

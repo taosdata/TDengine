@@ -22,6 +22,7 @@
 #include "functionMgt.h"
 #include "functionMgtInt.h"
 #include "geomFunc.h"
+#include "nodes.h"
 #include "querynodes.h"
 #include "scalar.h"
 #include "taes.h"
@@ -263,29 +264,50 @@ static bool isUtcZeroOffsetName(const char *name) {
          strcasecmp(name, "Zulu") == 0;
 }
 
-/*
- * Inject the timezone string as a parameter.
- *
- * useISOOffset controls the format for non-IANA timezones:
- *  - true:  extract ISO 8601 offset ("+0800") from display string.
- *          Used by TO_ISO8601 which parses offset with ISO sign convention.
- *  - false: keep the POSIX leading token ("UTC-8") or prepend "UTC" to
- *          bare offsets.  Used by TIMETRUNCATE / TO_CHAR / joins which
- *          create timezone handles via taosValidateTimezone() (POSIX).
- *
- * Falls back to the system timezone string if tz is NULL or the name
- * lookup fails.
- */
+// Return the full token length so callers can reject truncated rule names.
+static int32_t copyTimezoneNameFromDisplay(const char *display, char *out,
+                                           int32_t outLen) {
+  if (display == NULL || out == NULL || outLen <= 0) {
+    return 0;
+  }
+  const char *space = strchr(display, ' ');
+  int32_t nameLen = space ? (int32_t)(space - display) :
+                           (int32_t)strlen(display);
+  int32_t copyLen = TMIN(nameLen, outLen - 1);
+  (void)memcpy(out, display, copyLen);
+  out[copyLen] = '\0';
+  return nameLen;
+}
+
+// Preserve each row's historical/DST rules instead of the display's offset.
+static bool extractRuleNameFromTzDisplay(const char *display, char *out,
+                                         int32_t outLen) {
+  if (display == NULL || out == NULL || outLen <= 0) {
+    return false;
+  }
+  int32_t nameLen = copyTimezoneNameFromDisplay(display, out, outLen);
+  if (nameLen <= 0 || nameLen >= outLen) {
+    out[0] = '\0';
+    return false;
+  }
+  if (!isIANATimezoneName(out) ||
+      nodesValidateTimezoneName(out) != TSDB_CODE_SUCCESS) {
+    out[0] = '\0';
+    return false;
+  }
+  return true;
+}
+
+// Inject the timezone string as a parameter. For non-IANA timezones,
+// useISOOffset selects ISO signs for TO_ISO8601 or POSIX signs for consumers
+// that load rules through taosValidateTimezone(). If the display mapping is
+// unavailable, prefer a non-ISO session name before the process default.
 static int32_t addTimezoneNameParamEx(SNodeList* pList, timezone_t tz,
                                       bool useISOOffset,
                                       const char* sessionTzName) {
   char    buf[TD_TIMEZONE_LEN] = {0};
   char    origTzName[TD_TIMEZONE_LEN] = {0};
   int32_t code = TSDB_CODE_SUCCESS;
-
-#ifndef WINDOWS
-  (void)sessionTzName;  /* only consumed by the Windows fallback below */
-#endif
 
   /*
    * Preferred path: use connection/session timezone name map so downstream
@@ -294,12 +316,7 @@ static int32_t addTimezoneNameParamEx(SNodeList* pList, timezone_t tz,
   if (tz != NULL && pTimezoneNameMap != NULL) {
     char *tzName = (char *)taosHashGet(pTimezoneNameMap, &tz, sizeof(timezone_t));
     if (tzName != NULL) {
-      /* extract original name before " (" from formatted "Asia/Shanghai (CST, +0800)" */
-      const char *paren = strchr(tzName, ' ');
-      int32_t nameLen = paren ? (int32_t)(paren - tzName) : (int32_t)strlen(tzName);
-      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
-      (void)memcpy(buf, tzName, cpLen);
-      buf[cpLen] = '\0';
+      (void)copyTimezoneNameFromDisplay(tzName, buf, sizeof(buf));
 
       if (!isIANATimezoneName(buf)) {
         if (useISOOffset) {
@@ -359,48 +376,35 @@ static int32_t addTimezoneNameParamEx(SNodeList* pList, timezone_t tz,
     }
   }
 
-#ifdef WINDOWS
-  /*
-   * Windows never populates pTimezoneNameMap (tzInit() skips it there), so the
-   * preferred branch above is dead and the display fallback below would inject
-   * a fixed offset ("+0800") instead of the session zone name.  The function
-   * node carries the session zone name verbatim (SFuncNode.tzName, copied from
-   * the parse context), and the plan context carries the same string, so prefer
-   * it when it names a zone rather than a bare offset.  Bare offsets keep the
-   * legacy fallback because taosValidateTimezone() expects POSIX/IANA spelling.
-   */
-  if (buf[0] == '\0' && sessionTzName != NULL && sessionTzName[0] != '\0' &&
+  // ISO injection still needs the display's offset and format conversion.
+  if (!useISOOffset && buf[0] == '\0' && sessionTzName != NULL &&
+      sessionTzName[0] != '\0' &&
       sessionTzName[0] != '+' && sessionTzName[0] != '-') {
     tstrncpy(buf, sessionTzName, sizeof(buf));
   }
-#endif
 
   if (buf[0] == '\0') {
     /*
-     * Fallback path when session timezone handle is unavailable.
+     * Fallback when the session timezone handle or its display mapping is
+     * unavailable, e.g. when the default snapshot failed.
      *
-     * First try to extract a fixed offset from global display text so
-     * scalar offset parser can still compute local boundary correctly.
-     * On Windows, e.g. "America/New_York (UTC, -0400)", the suffix
-     * carries the effective startup offset including DST. Taking only
-     * the name would lose that offset on the fixed-offset fallback path.
+     * Prefer the default rule name, e.g. "America/New_York" from
+     * "America/New_York (EDT, -0400)": the offset in the display is the one
+     * in effect when it was formatted, and applying it to every row breaks
+     * the other DST season and historical dates.
      *
-     * If offset extraction fails, keep legacy behavior and use leading token
-     * as a best-effort fallback.
-     *
-     * Prefer fixed offset extracted from "...(UTC, +0800)" so scalar
-     * offsetFromTz() can parse it on platforms where session tz handle is NULL.
+     * Non-IANA defaults ("UTC-8", "System (UTC, +0800)") have a fixed offset,
+     * so extract it from the display for scalar offsetFromTz().  If that also
+     * fails, keep legacy behavior and use the leading token.
      */
-    if (extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+    if (extractRuleNameFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
+      // The scalar layer loads the rules and resolves each row's offset.
+    } else if (extractUtcOffsetFromTzDisplay(tsTimezoneStr, buf, sizeof(buf))) {
       if (!useISOOffset) {
         flipTimezoneOffsetSign(buf);
       }
     } else {
-      const char *paren = strchr(tsTimezoneStr, ' ');
-      int32_t nameLen = paren ? (int32_t)(paren - tsTimezoneStr) : (int32_t)strlen(tsTimezoneStr);
-      int32_t cpLen = TMIN(nameLen, TD_TIMEZONE_LEN - 1);
-      (void)memcpy(buf, tsTimezoneStr, cpLen);
-      buf[cpLen] = '\0';
+      (void)copyTimezoneNameFromDisplay(tsTimezoneStr, buf, sizeof(buf));
     }
   }
 
@@ -479,7 +483,7 @@ static int32_t addTimezoneNameParam(SNodeList* pList, timezone_t tz, bool useISO
 static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf, int32_t len) {
   if (TSDB_DATA_TYPE_BINARY != pValue->node.resType.type) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_PAR_INVALID_TIMEZONE,
-                           "Invalid timezone format");
+                           "Invalid or unsupported timezone format");
   }
 
   char*   tz = varDataVal(pValue->datum.p);
@@ -494,8 +498,9 @@ static int32_t validateTimezoneValueNode(const SValueNode* pValue, char* pErrBuf
     // Only a rejected name is the user's fault; a tzalloc() system failure
     // such as EMFILE keeps its own code and message.
     bool isInvalidTzName = (code == TSDB_CODE_PAR_INVALID_TIMEZONE);
-    return buildFuncErrMsg(pErrBuf, len, code,
-                           isInvalidTzName ? "Invalid timezone: '%s'" : "%s",
+    const char* format = isInvalidTzName ?
+        "Invalid or unsupported timezone: '%s'" : "%s";
+    return buildFuncErrMsg(pErrBuf, len, code, format,
                            isInvalidTzName ? tzBuf : tstrerror(code));
   }
   return TSDB_CODE_SUCCESS;
@@ -2831,10 +2836,7 @@ static int32_t translateToChar(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
       return code;
     }
   } else {
-    /* inject connection timezone as POSIX form for taosValidateTimezone();
-     * pass the session zone name (SFuncNode.tzName) so Windows, which has no
-     * client-side timezone name map, injects the same name the plan context
-     * carries instead of a display-derived fixed offset. */
+    // Keep the session name if its display mapping is unavailable.
     int32_t code = addTimezoneNameParamEx(pFunc->pParameterList,
                                           pFunc->tz, false, pFunc->tzName);
     if (code != TSDB_CODE_SUCCESS) {
@@ -2923,15 +2925,21 @@ static int32_t translateOutVarchar(SFunctionNode* pFunc, char* pErrBuf, int32_t 
       bytes = TSDB_TABLE_FNAME_LEN - 1 + VARSTR_HEADER_SIZE;
       break;
     case FUNCTION_TYPE_TIMEZONE: {
-      if (pFunc->tz == NULL) {
-        bytes = VARSTR_HEADER_SIZE + strlen(tsTimezoneStr);
-      } else {
-        char* tzName = (char*)taosHashGet(pTimezoneNameMap, &pFunc->tz, sizeof(timezone_t));
+      // Match timezoneFunction(), which re-renders the display at the current instant.
+      const char* tzName = tsTimezoneStr;
+      bool        known = true;
+      if (pFunc->tz != NULL) {
+        tzName = (char*)taosHashGet(pTimezoneNameMap, &pFunc->tz, sizeof(timezone_t));
         if (tzName == NULL) {
           tzName = TZ_UNKNOWN;
+          known = false;
         }
-        bytes = strlen(tzName) + VARSTR_HEADER_SIZE;
       }
+      char refreshed[TD_TIMEZONE_LEN] = {0};
+      if (known && taosRefreshTimezoneStr(tzName, pFunc->tz, refreshed) == TSDB_CODE_SUCCESS) {
+        tzName = refreshed;
+      }
+      bytes = strlen(tzName) + VARSTR_HEADER_SIZE;
       break;
     }
     case FUNCTION_TYPE_IRATE_PARTIAL:

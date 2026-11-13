@@ -435,7 +435,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       .pTxnTableMeta = pTscObj->pTxnTableMeta,
       .pTxnSuidMap = pTscObj->pTxnSuidMap,
   };
-  tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
+  tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName,
+           sizeof(cxt.timezoneName));
 
   // Inject active external source context so 1-seg table refs can be resolved
   (void)taosThreadMutexLock(&pTscObj->mutex);
@@ -448,7 +449,6 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
   tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
   tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
-  tstrncpy(cxt.timezoneName,     pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -817,7 +817,8 @@ static int32_t execSetTimezone(SRequestObj* pRequest, SSetTimezoneStmt* pStmt) {
   int64_t rid = pRequest->pTscObj->id;
   int32_t code = taos_options_connection((TAOS*)&rid, TSDB_OPTION_CONNECTION_TIMEZONE, pStmt->timezone);
   if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL && pRequest->msgBufLen > 0) {
-    (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->timezone);
+    (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen,
+                   "Invalid or unsupported timezone: '%s'", pStmt->timezone);
   }
   return code;
 }
@@ -860,7 +861,8 @@ static int32_t prepareAlterLocalTimezone(SRequestObj* pRequest, SNode* pRoot,
     int32_t code = tscPrepareSessionTimezone(pStmt->value, true, pTimezone);
     if (code == TSDB_CODE_PAR_INVALID_TIMEZONE && pRequest->msgBuf != NULL &&
         pRequest->msgBufLen > 0) {
-      (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen, "Invalid timezone: '%s'", pStmt->value);
+      (void)snprintf(pRequest->msgBuf, pRequest->msgBufLen,
+                     "Invalid or unsupported timezone: '%s'", pStmt->value);
     }
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -1364,7 +1366,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pExtSessionOverlay = &pRequest->extSessionOverlay,
                       .pExtPushdownAttempt = &pRequest->extPushdownAttemptCount,
                       .timezone = pRequest->pTscObj->optionInfo.timezone,
-                      .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                      .timezoneExplicit =
+                          pRequest->pTscObj->optionInfo.timezoneExplicit,
                       .charsetCxt = charsetCxt,
                       .sysInfo = pRequest->pTscObj->sysInfo,
                       .userAppId = pRequest->pTscObj->optionInfo.userAppId,
@@ -1372,9 +1375,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .minSecLevel = pRequest->pTscObj->minSecLevel,
                       .maxSecLevel = pRequest->pTscObj->maxSecLevel,
                       .macMode = pAppInfo->serverCfg.macActive};
-  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
-
-  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
+  tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+           sizeof(cxt.timezoneName));
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
@@ -3496,11 +3498,13 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .sysInfo = pRequest->pTscObj->sysInfo,
                         .userAppId = pRequest->pTscObj->optionInfo.userAppId,
                         .timezone = pRequest->pTscObj->optionInfo.timezone,
-                        .timezoneExplicit = pRequest->pTscObj->optionInfo.timezoneExplicit,
+                        .timezoneExplicit =
+                            pRequest->pTscObj->optionInfo.timezoneExplicit,
                         .charsetCxt = charsetCxt,
                         .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
-    tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName, sizeof(cxt.timezoneName));
+    tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
+             sizeof(cxt.timezoneName));
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }

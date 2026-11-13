@@ -279,7 +279,8 @@ class TestAggFunction:
         tdSql.error("select * from (select to_iso8601(ts, timezone()), timezone() from ts_4893.meters \
             order by ts desc) limit 1000;",
             # the message quotes the rejected timezone, which varies per host
-            expectErrInfo="Invalid timezone", fullMatched=False) # TS-5340
+            expectErrInfo="Invalid or unsupported timezone",
+            fullMatched=False) # TS-5340
         tdSql.error("select * from ts_4893.meters where ts between(timetruncate(now, 1h) - 10y) and timetruncate(now(), 10y) partition by voltage;",
                     expectErrInfo="Invalid time unit : timetruncate") #
 

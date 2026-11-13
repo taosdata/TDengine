@@ -7191,6 +7191,93 @@ TEST(ScalarValidationTest, AcceptsReservedFixedWidthAndRejectsUndersizedWidth) {
   EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, sclCreateColumnInfoData(&reserved, 1, nullptr));
 }
 
+extern "C" int32_t timeTruncateFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+// Named-zone and day-fallback truncation must floor pre-epoch instants.
+TEST(ScalarFunctionTest, timeTruncateNamedZoneFloorsNegative) {
+  struct Case {
+    const char *zone;
+    int64_t     input;
+    int64_t     expected;
+    char        unit;
+    int32_t     precision;
+  };
+  const int32_t ms = TSDB_TIME_PRECISION_MILLI;
+  const int32_t us = TSDB_TIME_PRECISION_MICRO;
+  const int32_t ns = TSDB_TIME_PRECISION_NANO;
+  const Case cases[] = {
+      {"+0500", -1, -3600000, 'h', ms},
+      {"America/New_York", -1, -3600000, 'h', ms},
+      {"America/New_York", -3599999, -3600000, 'h', ms},
+      {"America/New_York", -3600000, -3600000, 'h', ms},
+      {"America/New_York", 1, 0, 'h', ms},
+      {"America/St_Johns", -1, -1800000, 'h', ms},
+      {"America/New_York", -1, -1000000, 's', us},
+      {"America/New_York", -1, -60000000000LL, 'm', ns},
+      // A legacy display token without a rule exercises the day fallback.
+      {"System", -1, -86400000, 'd', ms},
+      {"System", -86400000, -86400000, 'd', ms},
+      {"System", -86400001, -172800000, 'd', ms},
+      {"System", -1, -86400000000LL, 'd', us},
+      // INT64_MIN is reserved for NULL timestamps.
+      {"UTC", INT64_MIN + 1, INT64_MIN, 's', ns},
+      {"UTC", -9223372036000000001LL, INT64_MIN, 's', ns},
+      {"UTC", -9223372036000000000LL, -9223372036000000000LL, 's', ns},
+      {"UTC", INT64_MIN + 1, INT64_MIN, 'm', ns},
+      {"UTC", -9223372020000000000LL, -9223372020000000000LL, 'm', ns},
+      {"UTC", INT64_MIN + 1, INT64_MIN, 'h', ns},
+      {"UTC", -9223369200000000000LL, -9223369200000000000LL, 'h', ns},
+      {"UTC+8", INT64_MIN + 1, INT64_MIN, 'h', ns},
+      {"UTC-8", INT64_MAX, 9223369200000000000LL, 'h', ns},
+      {"System", INT64_MIN + 1, INT64_MIN, 'd', ns},
+      {"System", -9223286400000000000LL, -9223286400000000000LL, 'd', ns},
+  };
+
+  for (const Case &c : cases) {
+    SCOPED_TRACE(::testing::Message() << c.zone << ":" << c.input << ":"
+                                    << c.unit << ":" << c.precision);
+    int64_t prec = c.precision, fdow = 1, unitCh = c.unit;
+    int64_t seconds = c.unit == 'd' ? 86400 : c.unit == 'h' ? 3600 :
+                      c.unit == 'm' ? 60 : 1;
+    int64_t unit = seconds * TSDB_TICK_PER_SECOND(prec);
+    bool    useCurrentTz = true;
+
+    SScalarParam *pTs = nullptr, *pUnit = nullptr, *pUseTz = nullptr, *pPrec = nullptr;
+    SScalarParam *pFdow = nullptr, *pUnitCh = nullptr, *pOut = nullptr;
+    ASSERT_EQ(scltMakeDataBlock(&pTs, TSDB_DATA_TYPE_BIGINT, (void *)&c.input, 1, true), 0);
+    pTs->columnData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
+    ASSERT_EQ(scltMakeDataBlock(&pUnit, TSDB_DATA_TYPE_BIGINT, &unit, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pUseTz, TSDB_DATA_TYPE_TINYINT, &useCurrentTz, 1, true), 0);
+    pUseTz->columnData->info.type = TSDB_DATA_TYPE_BOOL;
+    ASSERT_EQ(scltMakeDataBlock(&pPrec, TSDB_DATA_TYPE_BIGINT, &prec, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pFdow, TSDB_DATA_TYPE_BIGINT, &fdow, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pUnitCh, TSDB_DATA_TYPE_BIGINT, &unitCh, 1, true), 0);
+    ASSERT_EQ(scltMakeDataBlock(&pOut, TSDB_DATA_TYPE_BIGINT, nullptr, 1, false), 0);
+    pOut->columnData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
+
+    SScalarParam input[7] = {};
+    input[0] = *pTs;
+    input[1] = *pUnit;
+    input[2] = *pUseTz;
+    input[3] = *pPrec;
+    scltMakeRawStringParam(&input[4], TSDB_DATA_TYPE_VARCHAR, c.zone, (int32_t)strlen(c.zone));
+    input[5] = *pFdow;
+    input[6] = *pUnitCh;
+
+    ASSERT_EQ(timeTruncateFunction(input, 7, pOut), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(colDataIsNull_s(pOut->columnData, 0), c.expected == INT64_MIN);
+    if (c.expected != INT64_MIN) {
+      EXPECT_EQ(c.expected, *(int64_t *)colDataGetData(pOut->columnData, 0));
+    }
+
+    colDataDestroy(input[4].columnData);
+    taosMemoryFree(input[4].columnData);
+    for (SScalarParam *p : {pTs, pUnit, pUseTz, pPrec, pFdow, pUnitCh, pOut}) {
+      scltDestroyDataBlock(p);
+    }
+  }
+}
+
 int main(int argc, char **argv) {
   taosSeedRand(taosGetTimestampSec());
   testing::InitGoogleTest(&argc, argv);

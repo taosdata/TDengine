@@ -237,6 +237,35 @@ TEST_F(ParserSelectDdlTest, constantTimeRangeDurationReference) {
   run("SELECT _qduration FROM st1s1 h WHERE h.ts >= 1000 AND h.ts < 101000 LIMIT 1");
 }
 
+TEST_F(ParserSelectDdlTest, timezoneFuncRefreshesStaleDisplay) {
+  struct TimezoneStringGuard {
+    char saved[TD_TIMEZONE_LEN] = {0};
+    TimezoneStringGuard() { tstrncpy(saved, tsTimezoneStr, sizeof(saved)); }
+    ~TimezoneStringGuard() { tstrncpy(tsTimezoneStr, saved, sizeof(saved)); }
+  } guard;
+  // Only the rule name of the display is reused; the abbreviation and offset
+  // are a snapshot, so plant one no zone produces and expect it re-rendered.
+  const char* stale = "America/New_York (XXX, +1234)";
+  tstrncpy(tsTimezoneStr, stale, TD_TIMEZONE_LEN);
+
+  char expected[TD_TIMEZONE_LEN] = {0};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosRefreshTimezoneStr(stale, nullptr, expected));
+  ASSERT_STRNE(stale, expected);
+
+  useDb("root", "test");
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) {
+      return;
+    }
+    const SSelectStmt* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    const SValueNode*  value = reinterpret_cast<const SValueNode*>(nodesListGetNode(select->pProjectionList, 0));
+    ASSERT_NE(nullptr, value);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType((const SNode*)value));
+    EXPECT_STREQ(expected, value->literal);
+  });
+  run("SELECT timezone()");
+}
+
 TEST_F(ParserSelectDdlTest, emptyTimeRangeDurationReference) {
   useDb("root", "test");
   setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {

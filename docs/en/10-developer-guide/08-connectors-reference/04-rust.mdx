@@ -119,7 +119,7 @@ The meanings of each part are as follows:
 - **database**: Specifies the default database name to connect to, optional parameter.
 - **params**:
   - `token`: Authentication for the TDengine TSDB cloud service.
-  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone.
+  - `timezone`: Time zone setting, in the format of an IANA time zone name (e.g., `Asia/Shanghai`). The default is the local time zone. Connection timezones on Windows require a TDengine `v3.5.0` or later native client library.
   - `compression`: Whether to enable data compression. The default is `false`.
   - `conn_retries`: Maximum number of retries upon connection failure. The default is 5.
   - `retry_backoff_ms`: Initial wait time (in milliseconds) upon connection failure. The default is 200. This value increases exponentially with consecutive failures until the maximum wait time is reached.

@@ -29,14 +29,6 @@ from new_test_framework.utils.interval_hints import (
 import pytest
 import sys
 
-IS_WINDOWS = sys.platform.startswith('win')
-SKIP_WINDOWS_SET_TIMEZONE = pytest.mark.skipif(
-    IS_WINDOWS,
-    reason='Windows does not support SET TIMEZONE cases in this suite',
-)
-
-pytestmark = [SKIP_WINDOWS_SET_TIMEZONE]
-
 def _config_timezone_name(value):
     return str(value).split(' ')[0]
 
@@ -101,7 +93,7 @@ class _IntervalNaturalMixin:
 
         try:
             tdSql.execute(f"alter local 'timezone {target_local}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             tdSql.execute(f"SET TIMEZONE '{session_tz}'")
             tdSql.query(
                 f"select _wstart, count(*) from {self.ctbname} "
@@ -114,7 +106,7 @@ class _IntervalNaturalMixin:
             )
         finally:
             tdSql.execute(f"alter local 'timezone {original_local}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def check_interval_1d_uses_session_timezone_not_client_or_server(self):
         """INTERVAL should keep using L2 session timezone even if L3/L4 are different."""
@@ -129,7 +121,7 @@ class _IntervalNaturalMixin:
         try:
             tdSql.execute("alter local 'timezone UTC'")
             tdSql.execute("alter all dnodes 'timezone UTC'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             tdSql.execute("SET TIMEZONE 'Asia/Shanghai'")
             tdSql.query(
                 f"select _wstart, count(*) from {self.ctbname} "
@@ -144,7 +136,7 @@ class _IntervalNaturalMixin:
         finally:
             tdSql.execute(f"alter local 'timezone {original_local}'")
             tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def check_interval_1d_uses_fixed_offset_session_timezone(self):
         """INTERVAL should preserve fixed-offset session timezones through plan transport.
@@ -163,7 +155,7 @@ class _IntervalNaturalMixin:
         try:
             tdSql.execute("alter local 'timezone UTC'")
             tdSql.execute("alter all dnodes 'timezone UTC'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             tdSql.execute("SET TIMEZONE '+08:00'")
             tdSql.query(
                 f"select _wstart, count(*) from {self.ctbname} "
@@ -177,7 +169,7 @@ class _IntervalNaturalMixin:
         finally:
             tdSql.execute(f"alter local 'timezone {original_local}'")
             tdSql.execute(f"alter all dnodes 'timezone {original_server}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def check_interval_1n_dst_no_drift(self):
         """INTERVAL(1n) with DST timezone should still produce 12 months.
@@ -374,13 +366,13 @@ class _IntervalWeekMixin:
         tdSql.execute("SET TIMEZONE 'UTC'")
 
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '0'")
-        tdSql.connect()
+        tdSql.connect(host=self.host, port=self.port)
         tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
         starts_0 = [row[0] for row in tdSql.queryResult]
 
         tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
-        tdSql.connect()
+        tdSql.connect(host=self.host, port=self.port)
         tdSql.execute("SET TIMEZONE 'UTC'")
         tdSql.query(f"select _wstart, count(*) from {self.ctbname} interval(1w)")
         starts_1 = [row[0] for row in tdSql.queryResult]
@@ -424,7 +416,7 @@ class _IntervalWeekMixin:
 
         try:
             tdSql.execute("ALTER LOCAL 'firstDayOfWeek' '1'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             tdSql.execute("SET TIMEZONE 'UTC'")
             tdSql.query(f"select _wstart from {self.ctbname} interval(1w) limit 1")
             start_l3_monday = str(tdSql.queryResult[0][0])
@@ -438,7 +430,7 @@ class _IntervalWeekMixin:
                 f"monday={start_l3_monday!r}, wednesday={start_l2_wednesday!r}"
             )
 
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
             tdSql.execute("SET TIMEZONE 'UTC'")
             tdSql.query(f"select _wstart from {self.ctbname} interval(1w) limit 1")
             start_after_reconnect = str(tdSql.queryResult[0][0])
@@ -449,7 +441,7 @@ class _IntervalWeekMixin:
             )
         finally:
             tdSql.execute(f"ALTER LOCAL 'firstDayOfWeek' '{original_fdow}'")
-            tdSql.connect()
+            tdSql.connect(host=self.host, port=self.port)
 
     def test_interval_week(self):
         """summary: INTERVAL(1w) aligned by firstDayOfWeek (high-risk change).

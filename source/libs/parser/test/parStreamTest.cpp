@@ -3536,7 +3536,8 @@ TEST_F(ParserStreamTest, CreateStreamRejectsInvalidFinalTimeContextBeforeCommand
       {"create stream stream_streamdb.s_bad_timezone interval(1s) sliding(1s) "
        "from stream_triggerdb.stream_t1 stream_options(config(timezone='Bad/Zone')) "
        "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
-       TSDB_CODE_PAR_INVALID_TIMEZONE, "Invalid timezone: 'Bad/Zone'"},
+       TSDB_CODE_PAR_INVALID_TIMEZONE,
+       "Invalid or unsupported timezone: 'Bad/Zone'"},
       {"create stream stream_streamdb.s_bad_fdow interval(1s) sliding(1s) "
        "from stream_triggerdb.stream_t1 stream_options(config(firstDayOfWeek=7)) "
        "into stream_outdb.stream_out as select _twstart, avg(c1) from stream_querydb.stream_t2",
