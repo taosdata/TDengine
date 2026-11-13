@@ -67,6 +67,13 @@ typedef struct {
   EMetaTableOp op;
 } SMetaTableOp;
 
+// Bump the vnode-wide virtual-table metadata generation. Declared in meta.h as
+// a real function (not inline) so the vnode txn unit test can seam it out.
+void metaBumpVtableGen(SMeta *pMeta) {
+  TD_SEAM_VOID(metaBumpVtableGen, void (*)(SMeta *), (pMeta));
+  (void)atomic_add_fetch_64(&pMeta->vtableGen, 1);
+}
+
 int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
   TD_SEAM_RET(metaFetchEntryByUid, int32_t (*)(SMeta *, int64_t, SMetaEntry **), (pMeta, uid, ppEntry));
 
@@ -3285,6 +3292,13 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
+  // Dropping a virtual super table invalidates every vc_cols cache entry for
+  // this vnode, but the drop entry carries flags == 0 so the bump in
+  // metaHandleEntry2 cannot see the virtual flag. Bump here from the old entry.
+  if (TABLE_IS_VIRTUAL(pOldEntry->flags)) {
+    metaBumpVtableGen(pMeta);
+  }
+
   // do other stuff
   pMeta->pVnode->config.vndStats.numOfSTables--;
 
@@ -3388,6 +3402,16 @@ int32_t metaHandleEntry2(SMeta *pMeta, const SMetaEntry *pEntry) {
 
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->changed = true;
+    // Any create/update/drop of a virtual table entry changes the ins_virtual_child_columns
+    // scan result (children, own columns/tags, column references, or tag values). A virtual
+    // super table schema change (ALTER ... ADD/DROP/MODIFY COLUMN/TAG) changes the vc_cols
+    // output too, because vchild rows are rendered from the parent schema
+    // (sysTableUserColsFillOneVirtualTableCols), so bump for it as well. Bump the generation
+    // counter so calc-side vc_cols caches are invalidated on the next serve.
+    if (type == TSDB_VIRTUAL_NORMAL_TABLE || type == TSDB_VIRTUAL_CHILD_TABLE ||
+        (type == TSDB_SUPER_TABLE && TABLE_IS_VIRTUAL(pEntry->flags))) {
+      metaBumpVtableGen(pMeta);
+    }
     metaDebug("vgId:%d, index:%" PRId64 ", handle meta entry success, type:%d tb:%s uid:%" PRId64, vgId,
               pEntry->version, pEntry->type, pEntry->type > 0 ? pEntry->name : "", pEntry->uid);
   } else {

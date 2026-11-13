@@ -29400,6 +29400,224 @@ TEST(SortSpillSecurityTest, RowIdFileRoundTripAcrossReadBlocks) {
   EXPECT_EQ(tuple, nullptr);
 }
 
+namespace {
+
+SColIdPair makeVtbColPair(col_id_t vtbColId, col_id_t orgColId, int8_t type, int32_t bytes) {
+  SColIdPair pair = {};
+  pair.vtbColId = vtbColId;
+  pair.orgColId = orgColId;
+  pair.type.type = type;
+  pair.type.bytes = bytes;
+  return pair;
+}
+
+}  // namespace
+
+// A dynamic vtable scan parameter maps every column of the origin table, which can be a
+// superset of the columns requested by the reader's own plan (scanAllCols pushes all mapped
+// columns while the plan only references the primary timestamp). Reading the requested subset
+// must succeed; failing here used to abort the whole stream task with TSDB_CODE_NOT_FOUND.
+TEST(VtbColArrayCondTest, SkipsColumnsNotRequestedByScanPlan) {
+  SColumnInfo   orgCols[1] = {};
+  orgCols[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  orgCols[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  orgCols[0].bytes = static_cast<int32_t>(sizeof(int64_t));
+  orgCols[0].pk = 1;
+
+  SQueryTableDataCond orgCond = {};
+  orgCond.colList = orgCols;
+  orgCond.numOfCols = 1;
+  orgCond.order = TSDB_ORDER_ASC;
+  orgCond.twindows.skey = 1000;
+  orgCond.twindows.ekey = 2000;
+
+  SArray* colArray = taosArrayInit(3, sizeof(SColIdPair));
+  ASSERT_NE(colArray, nullptr);
+  SColIdPair tsPair = makeVtbColPair(PRIMARYKEY_TIMESTAMP_COL_ID, 1, TSDB_DATA_TYPE_TIMESTAMP,
+                                     static_cast<int32_t>(sizeof(int64_t)));
+  ASSERT_NE(taosArrayPush(colArray, &tsPair), nullptr);
+  for (col_id_t i = 0; i < 2; ++i) {
+    SColIdPair extra = makeVtbColPair(static_cast<col_id_t>(100 + i), static_cast<col_id_t>(100 + i),
+                                      TSDB_DATA_TYPE_INT, static_cast<int32_t>(sizeof(int32_t)));
+    ASSERT_NE(taosArrayPush(colArray, &extra), nullptr);
+  }
+
+  SQueryTableDataCond cond = {};
+  int32_t            rc = initQueryTableDataCondWithColArray(&cond, &orgCond, nullptr, colArray);
+  EXPECT_EQ(rc, TSDB_CODE_SUCCESS);
+  if (rc == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(cond.numOfCols, 1);
+    EXPECT_EQ(cond.colList[0].colId, 1);
+    EXPECT_EQ(cond.colList[0].type, TSDB_DATA_TYPE_TIMESTAMP);
+    EXPECT_EQ(cond.colList[0].bytes, static_cast<int32_t>(sizeof(int64_t)));
+    EXPECT_EQ(cond.pSlotList[0], 0);
+    EXPECT_EQ(cond.twindows.skey, 1000);
+    EXPECT_EQ(cond.twindows.ekey, 2000);
+    cleanupQueryTableDataCond(&cond);
+  }
+
+  taosArrayDestroy(colArray);
+}
+
+// The primary timestamp of the origin table is always mapped in the parameter, but a pruned
+// plan column list may no longer contain it. The reader still needs it to be opened.
+TEST(VtbColArrayCondTest, KeepsPrimaryTimestampWhenPlanPrunedIt) {
+  SColumnInfo   orgCols[1] = {};
+  orgCols[0].colId = 101;
+  orgCols[0].type = TSDB_DATA_TYPE_INT;
+  orgCols[0].bytes = static_cast<int32_t>(sizeof(int32_t));
+
+  SQueryTableDataCond orgCond = {};
+  orgCond.colList = orgCols;
+  orgCond.numOfCols = 1;
+  orgCond.order = TSDB_ORDER_ASC;
+
+  SArray* colArray = taosArrayInit(2, sizeof(SColIdPair));
+  ASSERT_NE(colArray, nullptr);
+  SColIdPair tsPair = makeVtbColPair(PRIMARYKEY_TIMESTAMP_COL_ID, 1, TSDB_DATA_TYPE_TIMESTAMP,
+                                     static_cast<int32_t>(sizeof(int64_t)));
+  ASSERT_NE(taosArrayPush(colArray, &tsPair), nullptr);
+  SColIdPair dataPair = makeVtbColPair(101, 101, TSDB_DATA_TYPE_INT, static_cast<int32_t>(sizeof(int32_t)));
+  ASSERT_NE(taosArrayPush(colArray, &dataPair), nullptr);
+
+  SQueryTableDataCond cond = {};
+  int32_t            rc = initQueryTableDataCondWithColArray(&cond, &orgCond, nullptr, colArray);
+  EXPECT_EQ(rc, TSDB_CODE_SUCCESS);
+  if (rc == TSDB_CODE_SUCCESS) {
+    EXPECT_EQ(cond.numOfCols, 2);
+    EXPECT_EQ(cond.colList[0].colId, 1);
+    EXPECT_EQ(cond.colList[0].type, TSDB_DATA_TYPE_TIMESTAMP);
+    EXPECT_NE(cond.colList[0].pk, 0);
+    EXPECT_EQ(cond.colList[1].colId, 101);
+    EXPECT_EQ(cond.colList[1].type, TSDB_DATA_TYPE_INT);
+    cleanupQueryTableDataCond(&cond);
+  }
+
+  taosArrayDestroy(colArray);
+}
+
+// A condition with no readable column cannot drive a time-series reader; the historical
+// failure code must be kept instead of returning an empty column list.
+TEST(VtbColArrayCondTest, FailsWhenNoMappedColumnIsRequested) {
+  SColumnInfo   orgCols[1] = {};
+  orgCols[0].colId = 101;
+  orgCols[0].type = TSDB_DATA_TYPE_INT;
+  orgCols[0].bytes = static_cast<int32_t>(sizeof(int32_t));
+
+  SQueryTableDataCond orgCond = {};
+  orgCond.colList = orgCols;
+  orgCond.numOfCols = 1;
+
+  SArray* colArray = taosArrayInit(1, sizeof(SColIdPair));
+  ASSERT_NE(colArray, nullptr);
+  SColIdPair unmapped = makeVtbColPair(202, 202, TSDB_DATA_TYPE_INT, static_cast<int32_t>(sizeof(int32_t)));
+  ASSERT_NE(taosArrayPush(colArray, &unmapped), nullptr);
+
+  SQueryTableDataCond cond = {};
+  EXPECT_EQ(initQueryTableDataCondWithColArray(&cond, &orgCond, nullptr, colArray), TSDB_CODE_NOT_FOUND);
+  EXPECT_EQ(cond.numOfCols, 0);
+  EXPECT_EQ(cond.colList, nullptr);
+  EXPECT_EQ(cond.pSlotList, nullptr);
+
+  taosArrayDestroy(colArray);
+}
+
+// An empty parameter carries nothing to read for this origin table.
+TEST(VtbColArrayCondTest, RejectsEmptyColArray) {
+  SColumnInfo   orgCols[1] = {};
+  orgCols[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  orgCols[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  orgCols[0].bytes = static_cast<int32_t>(sizeof(int64_t));
+
+  SQueryTableDataCond orgCond = {};
+  orgCond.colList = orgCols;
+  orgCond.numOfCols = 1;
+
+  SArray* colArray = taosArrayInit(1, sizeof(SColIdPair));
+  ASSERT_NE(colArray, nullptr);
+
+  SQueryTableDataCond cond = {};
+  EXPECT_EQ(initQueryTableDataCondWithColArray(&cond, &orgCond, nullptr, colArray), TSDB_CODE_NOT_FOUND);
+  EXPECT_EQ(cond.colList, nullptr);
+
+  taosArrayDestroy(colArray);
+}
+
+namespace {
+
+void appendFingerprintUid(SArray* pTableList, tb_uid_t uid) {
+  STableKeyInfo key = {};
+  key.uid = uid;
+  ASSERT_NE(taosArrayPush(pTableList, &key), nullptr);
+}
+
+void putFingerprintUid(SHashObj* pMap, tb_uid_t uid) {
+  int8_t value = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, taosHashPut(pMap, &uid, sizeof(uid), &value, sizeof(value)));
+}
+
+SHashObj* makeFingerprintMap(void) {
+  return taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+}
+
+}  // namespace
+
+TEST(VtbTableListFingerprintTest, UsesDeduplicatedMapInsteadOfMultiGroupList) {
+  SArray* pCanonicalList = taosArrayInit(2, sizeof(STableKeyInfo));
+  ASSERT_NE(pCanonicalList, nullptr);
+  appendFingerprintUid(pCanonicalList, 101);
+  appendFingerprintUid(pCanonicalList, 202);
+
+  STableListInfo canonical = {};
+  canonical.pTableList = pCanonicalList;
+  execTestComputeTableListFingerprint(&canonical);
+
+  SArray* pMultiGroupList = taosArrayInit(4, sizeof(STableKeyInfo));
+  ASSERT_NE(pMultiGroupList, nullptr);
+  appendFingerprintUid(pMultiGroupList, 101);
+  appendFingerprintUid(pMultiGroupList, 101);
+  appendFingerprintUid(pMultiGroupList, 202);
+  appendFingerprintUid(pMultiGroupList, 202);
+
+  SHashObj* pMap = makeFingerprintMap();
+  ASSERT_NE(pMap, nullptr);
+  putFingerprintUid(pMap, 101);
+  putFingerprintUid(pMap, 202);
+
+  STableListInfo multiGroup = {};
+  multiGroup.pTableList = pMultiGroupList;
+  multiGroup.map = pMap;
+  execTestComputeTableListFingerprint(&multiGroup);
+
+  EXPECT_EQ(canonical.mapFingerprint[0], multiGroup.mapFingerprint[0]);
+  EXPECT_EQ(canonical.mapFingerprint[1], multiGroup.mapFingerprint[1]);
+
+  taosHashCleanup(pMap);
+  taosArrayDestroy(pMultiGroupList);
+  taosArrayDestroy(pCanonicalList);
+}
+
+TEST(VtbTableListFingerprintTest, DistinguishesDifferentMapSets) {
+  SHashObj* pFirstMap = makeFingerprintMap();
+  SHashObj* pSecondMap = makeFingerprintMap();
+  ASSERT_NE(pFirstMap, nullptr);
+  ASSERT_NE(pSecondMap, nullptr);
+  putFingerprintUid(pFirstMap, 303);
+  putFingerprintUid(pSecondMap, 404);
+
+  STableListInfo first = {};
+  STableListInfo second = {};
+  first.map = pFirstMap;
+  second.map = pSecondMap;
+  execTestComputeTableListFingerprint(&first);
+  execTestComputeTableListFingerprint(&second);
+
+  EXPECT_NE(first.mapFingerprint[0], second.mapFingerprint[0]);
+  EXPECT_NE(first.mapFingerprint[1], second.mapFingerprint[1]);
+
+  taosHashCleanup(pFirstMap);
+  taosHashCleanup(pSecondMap);
+}
 #ifdef USE_ANALYTICS
 namespace {
 int32_t anomalyResetCleanupCalls = 0;

@@ -50,6 +50,8 @@ toc_max_heading_level: 4
 | countAlwaysReturnValue | both | count/hyperloglog 函数在输入数据为空或者 NULL 的情况下是否返回值 |
 | tagFilterCache | taosd | 是否缓存标签过滤结果 |
 | stableTagFilterCache | taosd | 流计算中，是否缓存标签等值条件的过滤结果，不会因为增删子表、更新标签值或修改超级表标签而失效 |
+| streamVcColsCache | taosd | 是否缓存虚拟超级表流式计算读取的列引用扫描结果 |
+| streamVcColsCacheSize | taosd | 虚拟超级表流式计算列引用扫描结果缓存的内存上限 |
 | queryRspPolicy | taosd | 查询响应策略 |
 | queryUseMemoryPool | taosd | 查询是否使用内存池管理内存 |
 | minReservedMemorySize | taosd | 内存池开启时，最小预留的系统可用内存数量 |

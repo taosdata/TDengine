@@ -52,7 +52,7 @@ typedef struct SColResolveItem {
 typedef struct STagValue {
   int8_t   type;
   int32_t  nLen;
-  char    *pData;       // owned, freed by destroy helper
+  char*    pData;  // owned; NULL means SQL NULL, non-NULL with nLen=0 means empty string
 } STagValue;
 
 typedef struct SVTableResolveResult {
@@ -90,6 +90,73 @@ void    streamVTableResolveResultDestroy(void *pRes);
 // Release one tblRefCache entry (tagData + nextRef.tagCondJson). Single
 // definition shared by the reader cache and the call-private resolver cache.
 void    streamTblRefCacheItemFree(void *param);
+
+// Cached full result of the ins_virtual_child_columns (vc_cols) sys scan for a
+// virtual-table stream reader. The scan walks the whole vnode meta B-tree, so
+// re-running it on every fetch saturates the page cache; instead the produced
+// blocks are deep-copied here and re-served until the vnode's virtual-table
+// metadata generation changes (see SMeta.vtableGen).
+//
+// The cache is keyed by (vgId, virtual super table suid, tag-filter map
+// fingerprint): readers that scan the same virtual super table on the same
+// vnode under the same WHERE tag condition reuse one copy, while different
+// tag conditions keep separate copies. Total memory is bounded by
+// tsStreamVcColsCacheSize. Transaction-scoped scans are not cached because
+// their metadata visibility depends on SReadHandle.txnId.
+typedef struct SStreamVcColsCache {
+  TdThreadMutex lock;
+  SArray       *pBlocks;    // SArray<SSDataBlock*>: owned deep copies of the scan result
+  bool          valid;
+  uint64_t      generation; // bumped by Clear(); in-flight scans commit only if unchanged
+  int32_t       refCount;   // total references: registry entry + in-flight serves
+  int64_t       vtableGen;  // vnode vtableGen at scan commit; stale when != current
+  int64_t       bytes;      // accounted bytes of pBlocks (against the global cap)
+} SStreamVcColsCache;
+
+void stStreamVcColsCacheInit(SStreamVcColsCache *pCache);
+void stStreamVcColsCacheClear(SStreamVcColsCache *pCache);
+// Evict every installed cache entry for a vgId (vnode close/remove), releasing
+// its blocks and budget and dropping the per-vgId generation index entry.
+void stStreamVcColsCacheCleanupVg(int32_t vgId);
+
+// Calc-side get-or-create: looks up the shared cache under
+// (vgId, suid, fingerprint[2]) and takes a reference. A cache whose vtableGen
+// does not match the current value is cleared first (stale), so the caller's
+// next ReadBlock() is a miss and it re-scans. The returned cache stays valid
+// until Unref(). fingerprint is a 128-bit tag-filter map fingerprint that keeps
+// scans under different WHERE tag conditions from sharing one entry.
+SStreamVcColsCache *stStreamVcColsCacheAcquire(int32_t vgId, int64_t suid, const uint64_t fingerprint[2],
+                                               int64_t vtableGen);
+// Drop a reference; the cache (mutex + blocks) is freed when the last one goes.
+// The registry itself keeps one permanent reference so an entry's empty shell
+// (no blocks) outlives individual scans and is reused by later ones.
+void                stStreamVcColsCacheUnref(SStreamVcColsCache *pCache);
+
+// Executor-facing serve/populate API. Callers hold a cache reference, not its lock.
+// Commit installs the first completed scan and drops later ones.
+bool        stStreamVcColsCacheIsValid(SStreamVcColsCache *pCache);
+// Validate schema/generation and copy a block under one lock. At idx == 0,
+// capture the generation; later calls must pass that same generation.
+// SUCCESS with finished == true means EOF for that valid generation only.
+// NOT_FOUND means a cache miss at round start; other errors abort the round.
+int32_t     stStreamVcColsCacheReadBlock(SStreamVcColsCache *pCache, int32_t idx, SSDataBlock *pDst,
+                                        uint64_t *pGeneration, bool *pFinished);
+uint64_t    stStreamVcColsCacheGetGeneration(SStreamVcColsCache *pCache);
+// Reserve `bytes` of the shared cache budget before building a block copy.
+// Returns false (and reserves nothing) when it would exceed the cap. Installed
+// blocks and in-flight accumulators share the same budget so the build phase
+// cannot blow past the limit either.
+bool        stStreamVcColsCacheTryReserve(int64_t bytes);
+// Release previously reserved bytes (an aborted accumulator or freed blocks).
+void        stStreamVcColsCacheRelease(int64_t bytes);
+// Total bytes currently charged against the shared cache budget (installed
+// blocks + in-flight accumulators), for observability.
+int64_t     stStreamVcColsCacheGetTotalBytes(void);
+// Install the accumulated blocks unless the cache is already valid or was
+// cleared since expectedGeneration was captured. `bytes` must equal what the
+// caller already reserved via TryReserve(); it is transferred, not re-added.
+void        stStreamVcColsCacheCommit(SStreamVcColsCache *pCache, SArray *pBlocks, uint64_t expectedGeneration,
+                                      int64_t bytes);
 
 typedef struct SStreamTableKeyInfo {
   int64_t uid;

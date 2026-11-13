@@ -55,16 +55,11 @@ void metaReaderClear(SMetaReader *pReader) {
   pReader->pBuf = NULL;
 }
 
-int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
-  int32_t  code = 0;
-  SMeta   *pMeta = pReader->pMeta;
-  STbDbKey tbDbKey = {.version = version, .uid = uid};
-
-  // query table.db
-  if ((code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf)) < 0) {
-    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
-  }
-
+// Decode the table.db entry already loaded into pReader->pBuf (by a previous
+// tdbTbGet) into pReader->me. Shared by metaGetTableEntryByVersion and the
+// typeMask pre-filter path in metaTbCursorNext, so a matched record is decoded
+// exactly once.
+static int32_t metaDecodeLoadedTableEntry(SMetaReader *pReader) {
   // decode the entry
   tFreeSSeriesWrapper(&pReader->me.series);
   // The bit-5 tag trailer is optional: a record without it must leave the tag fields
@@ -77,7 +72,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   tDecoderClear(&pReader->coder);
   tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
-  code = metaDecodeEntry(&pReader->coder, &pReader->me);
+  int32_t code = metaDecodeEntry(&pReader->coder, &pReader->me);
   if (code) {
     tDecoderClear(&pReader->coder);
     return code;
@@ -85,6 +80,49 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   // taosMemoryFreeClear(pReader->me.colCmpr.pColCmpr);
 
   return 0;
+}
+
+int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t uid) {
+  int32_t  code = 0;
+  SMeta   *pMeta = pReader->pMeta;
+  STbDbKey tbDbKey = {.version = version, .uid = uid};
+
+  // query table.db
+  if ((code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf)) < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
+  }
+
+  return metaDecodeLoadedTableEntry(pReader);
+}
+
+/*
+ * Cheap header-only type peek for cursor pre-filtering: load the table.db entry
+ * into the reader's reusable buffer (pReader->pBuf) and decode only
+ * {version, type, uid} without materializing schemas/refs/tags. On a match the
+ * caller keeps the buffer and full-decodes it with metaDecodeLoadedTableEntry,
+ * avoiding a second B-tree lookup; on a mismatch the caller frees the buffer.
+ * Mirrors metaRebuildVTableStats in metaOpen.c.
+ */
+static int32_t metaPeekTableEntryType(SMetaReader *pReader, int64_t version, tb_uid_t uid, ETableType *pType) {
+  SMeta   *pMeta = pReader->pMeta;
+  STbDbKey tbDbKey = {.version = version, .uid = uid};
+  SDecoder dc = {0};
+  SMetaEntry me = {0};
+  int32_t  code = 0;
+
+  code = tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf);
+  if (code < 0) {
+    return terrno = (TSDB_CODE_NOT_FOUND == code ? TSDB_CODE_PAR_TABLE_NOT_EXIST : code);
+  }
+
+  tDecoderInit(&dc, (uint8_t *)pReader->pBuf, pReader->szBuf);
+  code = metaDecodeEntryImpl(&dc, &me, true);
+  tDecoderClear(&dc);
+
+  if (code == TSDB_CODE_SUCCESS) {
+    *pType = (ETableType)me.type;
+  }
+  return code;
 }
 
 bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
@@ -855,8 +893,35 @@ int32_t metaTbCursorNext(SMTbCursor *pTbCur, ETableType jumpTableType) {
 
     tDecoderClear(&pTbCur->mr.coder);
 
-    ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
-    if (ret) return ret;
+    // Cheap header-only pre-filter: skip tables whose type the caller does not
+    // want before paying the full decode. Only the vc_cols scan
+    // (sysTableScanUserVcCols) sets typeMask; it stays 0 elsewhere. The peek
+    // loads the record into the reusable reader buffer, so a wanted type is
+    // then full-decoded in place without a second B-tree lookup.
+    if (pTbCur->typeMask != 0) {
+      ETableType peekType = TSDB_TABLE_MAX;
+      ret = metaPeekTableEntryType(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey,
+                                   &peekType);
+      if (ret) return ret;
+      if (peekType <= 0 || peekType >= TSDB_TABLE_MAX) {
+        metaError("vgId:%d, invalid table type:%d while applying cursor type mask", TD_VID(pMeta->pVnode),
+                  peekType);
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if ((pTbCur->typeMask & (1 << peekType)) == 0) {
+        // Not a wanted type: drop the buffered record and move on.
+        tdbFree(pTbCur->mr.pBuf);
+        pTbCur->mr.pBuf = NULL;
+        pTbCur->mr.szBuf = 0;
+        continue;
+      }
+      // Wanted type: full-decode the record already loaded by the peek.
+      ret = metaDecodeLoadedTableEntry(&pTbCur->mr);
+      if (ret) return ret;
+    } else {
+      ret = metaGetTableEntryByVersion(&pTbCur->mr, ((SUidIdxVal *)pTbCur->pVal)[0].version, *(tb_uid_t *)pTbCur->pKey);
+      if (ret) return ret;
+    }
 
     if (pTbCur->mr.me.type == jumpTableType) {
       continue;
@@ -3021,6 +3086,11 @@ int32_t metaGetStbStats(void *pVnode, int64_t uid, int64_t *numOfTables, int32_t
 
 _exit:
   return code;
+}
+
+int64_t metaGetVtableGenFromVnode(void* pVnode) {
+  SVnode* pVnodeObj = pVnode;
+  return metaGetVtableGen(pVnodeObj->pMeta);
 }
 
 void metaUpdateStbStats(SMeta *pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep) {

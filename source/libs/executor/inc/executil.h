@@ -194,6 +194,11 @@ typedef struct STableListInfo {
   SHashObj*        pTbnameMap;    // key: uid, value: an owned name resolved from a tbname condition
   SHashObj*        remainGroups;  // remaining group has not yet processed the empty group
   STableListIdInfo idInfo;        // this maybe the super table or ordinary table
+  // 128-bit fingerprint of the qualified child-table set (the de-duplicated map
+  // uids), computed after the table list is built. Scans over the same virtual stable
+  // under different tag conditions produce different sets and therefore must not
+  // share a vc_cols cache entry.
+  uint64_t         mapFingerprint[2];
 } STableListInfo;
 typedef struct SDBVgInfoReq {
   tsem_t     ready;
@@ -328,6 +333,10 @@ void    interpPruneExtWindows(int8_t interpFillMode, STimeWindow* extTwindows);
 const char* interpNotifyTargetOpName(int32_t operatorType);
 int32_t initQueryTableDataCondWithColArray(SQueryTableDataCond* pCond, SQueryTableDataCond* pOrgCond,
                                      const SReadHandle* readHandle, SArray* colArray);
+
+#if defined(BUILD_TEST)
+void execTestComputeTableListFingerprint(STableListInfo* pTableListInfo);
+#endif
 
 int32_t convertFillType(int32_t mode);
 int32_t resultrowComparAsc(const void* p1, const void* p2);

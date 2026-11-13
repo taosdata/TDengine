@@ -11254,6 +11254,16 @@ int32_t tSerializeSVTableRefResolveRsp(void *buf, int32_t bufLen, const SVTableR
     }
   }
 
+  // Keep the legacy item and tagCond layouts intact. Older readers skip this
+  // optional tail; a response without it retains the legacy zero-length NULL.
+  TAOS_CHECK_EXIT(tEncodeI8(&encoder, 1));
+  for (int32_t i = 0; i < n; ++i) {
+    SVTableRefResolveRspItem* p = taosArrayGet(pRsp->items, i);
+    bool emptyTag = p->terminated && p->nextRef.kind == STREAM_VREF_KIND_TAG && IS_VAR_DATA_TYPE(p->tagType) &&
+                    p->tagLen == 0 && p->tagData != NULL;
+    TAOS_CHECK_EXIT(tEncodeBool(&encoder, emptyTag));
+  }
+
   tEndEncode(&encoder);
 
 _exit:
@@ -11352,6 +11362,24 @@ int32_t tDeserializeSVTableRefResolveRsp(void *buf, int32_t bufLen, SVTableRefRe
         QUERY_CHECK_NULL(p->nextRef.tagCondJson, code, lino, _exit, terrno);
         memcpy(p->nextRef.tagCondJson, data, dataLen);
         p->nextRef.tagCondJson[dataLen] = '\0';
+      }
+    }
+  }
+
+  if (!tDecodeIsEnd(&decoder)) {
+    int8_t extensionVersion = 0;
+    TAOS_CHECK_EXIT(tDecodeI8(&decoder, &extensionVersion));
+    QUERY_CHECK_CONDITION(extensionVersion == 1, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+    for (int32_t i = 0; i < n; ++i) {
+      SVTableRefResolveRspItem* p = taosArrayGet(pRsp->items, i);
+      bool                      emptyTag = false;
+      TAOS_CHECK_EXIT(tDecodeBool(&decoder, &emptyTag));
+      if (emptyTag) {
+        QUERY_CHECK_CONDITION(
+            p->terminated && p->nextRef.kind == STREAM_VREF_KIND_TAG && IS_VAR_DATA_TYPE(p->tagType) && p->tagLen == 0,
+            code, lino, _exit, TSDB_CODE_INVALID_MSG);
+        p->tagData = taosMemoryCalloc(1, 1);
+        QUERY_CHECK_NULL(p->tagData, code, lino, _exit, terrno);
       }
     }
   }

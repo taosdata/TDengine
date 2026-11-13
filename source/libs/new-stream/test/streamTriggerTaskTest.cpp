@@ -13865,6 +13865,7 @@ class NestedHistoryHarness {
 
   int32_t respondRawTriggerData(const std::vector<char>& bytes) {
     CapturedPullAttempt* pAttempt = findPull(STRIGGER_PULL_TSDB_TRIGGER_DATA, kHistorySession);
+    if (pAttempt == nullptr) pAttempt = findPull(STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT, kHistorySession);
     if (pAttempt == nullptr || bytes.empty()) return TSDB_CODE_INVALID_PARA;
     OwnedRpcPayload payload = OwnedRpcPayload::allocate(bytes.size());
     if (payload.get() == nullptr) return TSDB_CODE_OUT_OF_MEMORY;
@@ -16678,6 +16679,190 @@ static int32_t driveBlockedNestedHistoryGroups(NestedHistoryHarness& harness, in
 }
 
 class StreamHistoryBatchTest : public ::testing::Test {};
+
+static void respondOrdinaryHistoryEventRows(NestedHistoryHarness& harness, const std::vector<PipelineRow>& rows) {
+  SSDataBlock* pBlock = makePipelineBlock(rows, std::vector<int64_t>(rows.size(), 1));
+  ASSERT_NE(nullptr, pBlock);
+  pBlock->info.id.groupId = NestedHistoryHarness::kGid;
+  const int32_t     blockLen = blockGetEncodeSize(pBlock);
+  const int32_t     blockCount = 1;
+  std::vector<char> payload(sizeof(blockCount) + blockLen);
+  memcpy(payload.data(), &blockCount, sizeof(blockCount));
+  const int32_t encoded =
+      blockEncode(pBlock, payload.data() + sizeof(blockCount), blockLen, blockDataGetNumOfCols(pBlock));
+  blockDataDestroy(pBlock);
+  ASSERT_EQ(blockLen, encoded);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondRawTriggerData(payload));
+}
+
+TEST_F(StreamHistoryBatchTest, EventStartDurationPreservesRowsBeyondInt32Max) {
+  NestedHistoryHarness harness;
+  const TSKEY          firstTs = NestedHistoryHarness::kScanStart;
+  const int64_t        maxCount = INT32_MAX;
+  ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionEvent, 0, firstTs + 40 * MILLISECOND_PER_DAY, false, 0, true,
+                             false, 2, false, false, false));
+  SStreamTriggerTask* pTask = harness.task();
+  ASSERT_EQ(nullptr, pTask->pHistEventTree);
+  ASSERT_EQ(QUERY_NODE_NODE_LIST, nodeType(pTask->histStartCond));
+  SNode* pSingleStart = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(pTask->histStartCond)->pNodeList, 0),
+                           &pSingleStart));
+  nodesDestroyNode(pTask->histStartCond);
+  pTask->histStartCond = pSingleStart;
+  pTask->historyStep = 40 * MILLISECOND_PER_DAY;
+  pTask->startTrueForInfo = {};
+  pTask->startTrueForInfo.trueForType = TRUE_FOR_DURATION_ONLY;
+  pTask->startTrueForInfo.duration = maxCount + 1;
+  pTask->eventTrueForInfo = {};
+  pTask->eventTrueForInfo.trueForType = TRUE_FOR_COUNT_ONLY;
+  pTask->eventTrueForInfo.count = 1;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+
+  respondOrdinaryHistoryEventRows(harness, {{firstTs, false, 0, 1, 0}});
+  ASSERT_FALSE(HasFatalFailure());
+  SSTriggerHistoryGroup* pGroup = harness.historyGroup();
+  ASSERT_NE(nullptr, pGroup);
+  ASSERT_EQ(1, pGroup->startCondCount);
+  ASSERT_EQ(firstTs, pGroup->startCondFirstTs);
+
+  // Resume a continuous one-row-per-millisecond streak just before the 32-bit limit.
+  pGroup->startCondCount = INT32_MAX - 1;
+  respondOrdinaryHistoryEventRows(harness,
+                                  {{firstTs + maxCount - 1, false, 0, 1, 0}, {firstTs + maxCount, false, 0, 1, 0}});
+  ASSERT_FALSE(HasFatalFailure());
+  ASSERT_EQ(maxCount + 1, pGroup->startCondCount);
+  EXPECT_EQ(firstTs, pGroup->startCondFirstTs);
+  EXPECT_EQ(0, TRINGBUF_SIZE(&pGroup->winBuf));
+  EXPECT_EQ(0, harness.calcAttemptCount());
+
+  respondOrdinaryHistoryEventRows(harness, {{firstTs + maxCount + 1, false, 0, 1, 0}});
+  ASSERT_FALSE(HasFatalFailure());
+  ASSERT_EQ(1, TRINGBUF_SIZE(&pGroup->winBuf));
+  EXPECT_EQ(firstTs, TRINGBUF_HEAD(&pGroup->winBuf)->range.skey);
+  EXPECT_EQ(maxCount + 2, TRINGBUF_HEAD(&pGroup->winBuf)->wrownum);
+  EXPECT_EQ(0, pGroup->startCondCount);
+  EXPECT_EQ(INT64_MIN, pGroup->startCondFirstTs);
+
+  respondOrdinaryHistoryEventRows(harness, {{firstTs + maxCount + 2, false, 0, 0, 1}});
+  ASSERT_FALSE(HasFatalFailure());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+  ASSERT_EQ(1, harness.calcAttemptCount());
+  const auto& request = harness.calcAttempt(0)->decoded;
+  ASSERT_EQ(1, taosArrayGetSize(request.params));
+  const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(request.params, 0));
+  EXPECT_EQ(firstTs, param->wstart);
+  EXPECT_EQ(firstTs + maxCount + 2, param->wend);
+  EXPECT_EQ(maxCount + 3, param->wrownum);
+}
+
+TEST_F(StreamHistoryBatchTest, EventEndDurationPreservesRowsBeyondInt32Max) {
+  for (bool withCount : {false, true}) {
+    for (int32_t windowCount : {2, 3}) {
+      for (bool interrupt : {false, true}) {
+        SCOPED_TRACE(::testing::Message()
+                     << "withCount=" << withCount << ", windowCount=" << windowCount << ", interrupt=" << interrupt);
+        NestedHistoryHarness harness;
+        const TSKEY          firstTs = NestedHistoryHarness::kScanStart;
+        const TSKEY          firstEndTs = firstTs + 1;
+        const int64_t        maxCount = INT32_MAX;
+        ASSERT_TRUE(harness.deploy(NestedHistoryPlan::SessionEvent, 0, firstTs + 90 * MILLISECOND_PER_DAY, false, 0,
+                                   true, false, 2, false, false, false));
+        SStreamTriggerTask* pTask = harness.task();
+        ASSERT_EQ(nullptr, pTask->pHistEventTree);
+        ASSERT_EQ(QUERY_NODE_NODE_LIST, nodeType(pTask->histStartCond));
+        SNode* pSingleStart = nullptr;
+        ASSERT_EQ(TSDB_CODE_SUCCESS,
+                  nodesCloneNode(nodesListGetNode(reinterpret_cast<SNodeListNode*>(pTask->histStartCond)->pNodeList, 0),
+                                 &pSingleStart));
+        nodesDestroyNode(pTask->histStartCond);
+        pTask->histStartCond = pSingleStart;
+        pTask->historyStep = 90 * MILLISECOND_PER_DAY;
+        pTask->endTrueForInfo = {};
+        pTask->endTrueForInfo.trueForType = withCount ? TRUE_FOR_AND : TRUE_FOR_DURATION_ONLY;
+        pTask->endTrueForInfo.duration = maxCount + 1;
+        pTask->endTrueForInfo.count = withCount ? 2 : 0;
+        pTask->eventTrueForInfo = {};
+        pTask->eventTrueForInfo.trueForType = TRUE_FOR_COUNT_ONLY;
+        pTask->eventTrueForInfo.count = windowCount;
+        if (windowCount == 3) {
+          pTask->calcEventType = static_cast<ESTriggerEventType>(pTask->calcEventType | STRIGGER_EVENT_WINDOW_OPEN);
+        }
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startAndCreateHistory());
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.startHistoryRequest());
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondFirstTs());
+        respondOrdinaryHistoryEventRows(harness, {{firstTs, false, 0, 1, 0}, {firstEndTs, false, 0, 0, 1}});
+        ASSERT_FALSE(HasFatalFailure());
+        SSTriggerHistoryGroup* pGroup = harness.historyGroup();
+        ASSERT_NE(nullptr, pGroup);
+        ASSERT_EQ(1, pGroup->endCondCount);
+        ASSERT_EQ(firstEndTs, pGroup->endCondFirstTs);
+        ASSERT_EQ(1, TRINGBUF_SIZE(&pGroup->winBuf));
+
+        // Seed all rows belonging to a continuous END streak just below the 32-bit limit.
+        pGroup->endCondCount = INT32_MAX - 1;
+        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = maxCount;
+        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = firstEndTs + maxCount - 2;
+        respondOrdinaryHistoryEventRows(
+            harness, {{firstEndTs + maxCount - 1, false, 0, 0, 1}, {firstEndTs + maxCount, false, 0, 0, 1}});
+        ASSERT_FALSE(HasFatalFailure());
+        EXPECT_EQ(maxCount + 1, pGroup->endCondCount);
+        EXPECT_EQ(maxCount + 2, TRINGBUF_HEAD(&pGroup->winBuf)->wrownum);
+        EXPECT_EQ(firstEndTs, pGroup->endCondFirstTs);
+        EXPECT_EQ(windowCount == 3, pGroup->pendingWinOpen);
+        EXPECT_EQ(0, harness.calcAttemptCount());
+
+        TSKEY   closeTs = firstEndTs;
+        int64_t closedRows = 2;
+        if (interrupt) {
+          const TSKEY breakTs = firstEndTs + maxCount + 1;
+          respondOrdinaryHistoryEventRows(harness, {{breakTs, false, 0, 0, 0}});
+          ASSERT_FALSE(HasFatalFailure());
+          EXPECT_EQ(0, pGroup->endCondCount);
+          EXPECT_EQ(INT64_MIN, pGroup->endCondFirstTs);
+          EXPECT_FALSE(pGroup->pendingWinOpen);
+          EXPECT_EQ(maxCount + 3, TRINGBUF_HEAD(&pGroup->winBuf)->wrownum);
+          if (windowCount == 3) {
+            ASSERT_EQ(1, harness.calcAttemptCount());
+            ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondCalcAttempt(0));
+          }
+          closeTs = breakTs + 1;
+          closedRows = maxCount + 4;
+          respondOrdinaryHistoryEventRows(harness,
+                                          {{closeTs, false, 0, 0, 1}, {closeTs + maxCount + 1, false, 0, 0, 1}});
+        } else {
+          respondOrdinaryHistoryEventRows(harness, {{firstEndTs + maxCount + 1, false, 0, 0, 1}});
+        }
+        ASSERT_FALSE(HasFatalFailure());
+        EXPECT_EQ(0, pGroup->endCondCount);
+        EXPECT_EQ(INT64_MIN, pGroup->endCondFirstTs);
+        EXPECT_EQ(0, TRINGBUF_SIZE(&pGroup->winBuf));
+        EXPECT_FALSE(pGroup->pendingWinOpen);
+        ASSERT_EQ(TSDB_CODE_SUCCESS, harness.respondPendingEmptyMetas());
+        int32_t closes = 0;
+        int32_t opens = 0;
+        for (int32_t i = 0; i < harness.calcAttemptCount(); ++i) {
+          const auto& request = harness.calcAttempt(i)->decoded;
+          for (int32_t j = 0; j < taosArrayGetSize(request.params); ++j) {
+            const auto* param = static_cast<const SSTriggerCalcParam*>(taosArrayGet(request.params, j));
+            EXPECT_EQ(firstTs, param->wstart);
+            if (param->wend == firstTs) {
+              ++opens;
+            } else {
+              ++closes;
+              EXPECT_EQ(closeTs, param->wend);
+              EXPECT_EQ(closedRows, param->wrownum);
+            }
+          }
+        }
+        EXPECT_EQ(interrupt || windowCount == 2 ? 1 : 0, closes);
+        EXPECT_EQ(interrupt && windowCount == 3 ? 1 : 0, opens);
+      }
+    }
+  }
+}
 
 static int32_t historyCalcRequestParamCount(const SSTriggerCalcRequest* pRequest) {
   if (pRequest == nullptr) return 0;

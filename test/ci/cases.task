@@ -203,6 +203,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_compact_meta.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/07-SubQuery/test_external_window_multigroup.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_event_window_tree.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/03-TriggerMode/test_event_history_true_for.py
 ,,y,.,./ci/pytest.sh pytest cases/21-MetaData/test_meta_information_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/01-Create/test_db_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/08-SubQuery/test_quantified_sub1.py
@@ -1347,6 +1348,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_rebind_redeploy.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_unused_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_owned_columns.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_owned_tags.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_drop_table.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_partitionby.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_place_holder_column.py
@@ -1383,6 +1385,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_ref_refresh.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_aggregate.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_ts_only_calc.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_vtable_chain_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_calc_range_extra_ts_cond.py

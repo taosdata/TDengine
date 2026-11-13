@@ -951,7 +951,7 @@ static int32_t stEventTreeAdvanceOpenNodeWindows(SArray *pOpenNodeWindows, TSKEY
   return TSDB_CODE_SUCCESS;
 }
 
-static void stEventTreeResetEndStreak(int32_t *pCount, TSKEY *pFirstTs) {
+static void stEventTreeResetEndStreak(int64_t *pCount, TSKEY *pFirstTs) {
   if (pCount != NULL) {
     *pCount = 0;
   }
@@ -960,7 +960,7 @@ static void stEventTreeResetEndStreak(int32_t *pCount, TSKEY *pFirstTs) {
   }
 }
 
-static bool stEventTreeEndTrueForSatisfied(const STrueForInfo *pTrueForInfo, bool endMatched, TSKEY ts, int32_t *pCount,
+static bool stEventTreeEndTrueForSatisfied(const STrueForInfo *pTrueForInfo, bool endMatched, TSKEY ts, int64_t *pCount,
                                            TSKEY *pFirstTs, TSKEY *pCloseTs) {
   if (!endMatched) {
     stEventTreeResetEndStreak(pCount, pFirstTs);
@@ -34347,6 +34347,8 @@ static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistor
     pGroup->ds.firstDeferredPartialNullTs = INT64_MIN;
     pGroup->ds.lastDeferredPartialNullTs = INT64_MIN;
   } else if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+    pGroup->startCondCount = 0;
+    pGroup->startCondFirstTs = INT64_MIN;
     pGroup->endCondCount = 0;
     pGroup->endCondFirstTs = INT64_MIN;
     pGroup->activeLeaf = -1;
@@ -34489,6 +34491,10 @@ static void stHistoryGroupClearMetadatas(SSTriggerHistoryGroup *pGroup) {
       threshold = TMIN(threshold, pGroup->parentWindow.range.skey - 1);
     }
     if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
+      // A pending START can open a window in an earlier history step.
+      if (pGroup->startCondCount > 0 && pGroup->startCondFirstTs != INT64_MIN) {
+        threshold = TMIN(threshold, pGroup->startCondFirstTs - 1);
+      }
       TSKEY openNodeWindowTs = stEventTreeEarliestOpenNodeWindowTs(pGroup->openNodeWindows);
       if (openNodeWindowTs != TSKEY_MIN) {
         threshold = TMIN(threshold, openNodeWindowTs - 1);
@@ -36853,6 +36859,26 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         }
         continue;
       }
+      TSKEY   openTs = pTsData[r];
+      int64_t startRows = 1;
+      if (!checkSubEvent && !IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+        if (psValue) {
+          STrueForInfo startTrueFor = stDurationStateStartTrueForInfo(pTask, &pGroup->dur);
+          if (stTrueForInfoConfigured(&startTrueFor)) {
+            if (pGroup->startCondCount == 0) {
+              pGroup->startCondFirstTs = pTsData[r];
+            }
+            ++pGroup->startCondCount;
+            if (!isTrueForSatisfied(&startTrueFor, pGroup->startCondFirstTs, pTsData[r], pGroup->startCondCount)) {
+              continue;
+            }
+            openTs = pGroup->startCondFirstTs;
+            startRows = pGroup->startCondCount;
+          }
+        }
+        pGroup->startCondCount = 0;
+        pGroup->startCondFirstTs = INT64_MIN;
+      }
       bool implicitClose = singleWithoutEnd && !psValue;
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
         if (checkSubEvent && psValue && psValue != pGroup->conditionIdx) {
@@ -36906,13 +36932,29 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
           stTriggerTaskFormatFlatConditionPath(checkSubEvent ? psValue - 1 : 0, conditionPath, sizeof(conditionPath));
           code = stBuildEventNotifyContent(pDataBlock, pTask->histStartCondCols, r, conditionPath,
                                            stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                           pGroup->gid, pTsData[r], parentWindowStart, &pExtraNotifyContent);
+                                           pGroup->gid, openTs, parentWindowStart, &pExtraNotifyContent);
           QUERY_CHECK_CODE(code, lino, _end);
         }
-        code = stHistoryGroupOpenWindow(pGroup, pTsData[r], &pExtraNotifyContent, false, true, false, deferOpen);
+        code = stHistoryGroupOpenWindow(pGroup, openTs, &pExtraNotifyContent, false, true, false, deferOpen);
         QUERY_CHECK_CODE(code, lino, _end);
+        TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = pTsData[r];
+        TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = startRows;
       }
-      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && (pe[r] || implicitClose || (checkSubEvent && !psValue))) {
+      bool closeNow = implicitClose || (checkSubEvent && (pe[r] || !psValue));
+      if (!checkSubEvent && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+        STrueForInfo endTrueFor = stHistoryGroupEndTrueForInfo(pTask, pGroup);
+        TSKEY        closeTs = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey;
+        int64_t      endRows = pGroup->endCondCount + 1;
+        if (stEventTreeEndTrueForSatisfied(&endTrueFor, pe[r] != 0, pTsData[r], &pGroup->endCondCount,
+                                           &pGroup->endCondFirstTs, &closeTs)) {
+          TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = closeTs;
+          // Later END rows confirm closure but fall outside the window.
+          TRINGBUF_HEAD(&pGroup->winBuf)->wrownum -= endRows - 1;
+          closeNow = true;
+        }
+      }
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && closeNow) {
+        stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
         if (checkSubEvent && pGroup->numSubWindows == 1) {
           // The single leaf is the envelope's duplicate, not a separate output.
           pGroup->prevWindow = TRINGBUF_HEAD(&pGroup->winBuf)->range;
@@ -36970,8 +37012,15 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
     } else if (!checkSubEvent && pGroup->pendingWinOpen && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
       SSTriggerWindow *pCurWindow = TRINGBUF_HEAD(&pGroup->winBuf);
       STrueForInfo     trueForInfo = stHistoryGroupEventTrueForInfo(pTask, pGroup);
-      if (isTrueForSatisfied(&trueForInfo, pCurWindow->range.skey, pCurWindow->range.ekey,
-                             pCurWindow->wrownum)) {
+      TSKEY            endTs = pCurWindow->range.ekey;
+      int64_t          numRows = pCurWindow->wrownum;
+      if (pGroup->endCondCount > 0) {
+        // Pending END rows may fall outside the window. Keep them in the stored
+        // window in case the streak breaks, but exclude them when releasing OPEN.
+        endTs = pGroup->endCondFirstTs;
+        numRows -= pGroup->endCondCount - 1;
+      }
+      if (isTrueForSatisfied(&trueForInfo, pCurWindow->range.skey, endTs, numRows)) {
         if (pTask->calcEventType & STRIGGER_EVENT_WINDOW_OPEN) {
           code = stHistoryGroupAddCalcParam(pGroup, &pGroup->pendingWinParam, false, true);
           QUERY_CHECK_CODE(code, lino, _end);

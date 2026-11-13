@@ -114,6 +114,8 @@ extern int32_t tsTagFilterResCacheSize;
 extern int32_t tsBypassFlag;
 extern int64_t tsMetaEntryCacheSize;
 extern char    tsMetaEntryCache;
+extern int64_t tsStreamVcColsCacheSize;  // bytes; 0 disables the vc_cols result cache
+extern bool    tsStreamVcColsCache;      // master switch; false disables the vc_cols result cache
 
 // queue & threads
 extern int32_t tsQueryMinConcurrentTaskNum;

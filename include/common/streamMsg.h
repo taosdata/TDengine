@@ -1637,7 +1637,7 @@ typedef struct SVTableRefResolveRspItem {
   // tag value carried separately to keep encoding straightforward:
   int8_t   tagType;
   int32_t  tagLen;
-  char    *tagData;                              // owned by recv side
+  char*    tagData;  // owned; NULL is SQL NULL, non-NULL with tagLen=0 is empty
 } SVTableRefResolveRspItem;
 
 typedef struct SVTableRefResolveRsp {

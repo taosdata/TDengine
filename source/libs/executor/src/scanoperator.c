@@ -463,7 +463,16 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pB
   int32_t         blockerExprIdx = -1;
   int32_t         blockerFuncId = -1;
   int32_t         blockerReqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
-  SDataBlockInfo* pBlockInfo = &pBlock->info;
+  SDataBlockInfo  blockInfo = pBlock->info;
+  SDataBlockInfo* pBlockInfo = &blockInfo;
+
+  // Aggregate timestamps use virtual-table precision while reader bounds use source precision.
+  if (pTableScanInfo->virtualStableScan && pTableScanInfo->srcPrecision != pTableScanInfo->vtablePrecision) {
+    pBlockInfo->window.skey =
+        convertTimePrecision(pBlockInfo->window.skey, pTableScanInfo->srcPrecision, pTableScanInfo->vtablePrecision);
+    pBlockInfo->window.ekey =
+        convertTimePrecision(pBlockInfo->window.ekey, pTableScanInfo->srcPrecision, pTableScanInfo->vtablePrecision);
+  }
 
   if (pTableScanInfo->base.pdInfo.pExprSup == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -830,7 +839,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     }
   }
 
-  if (aggDynamicPrune && !virtualStableScan && !maxInterval && !alignActive) {
+  // Virtual scans can prune by timestamp after LAST has a result for each source column.
+  if (aggDynamicPrune && !maxInterval && !alignActive) {
     code = doDynamicPruneDataBlock(pOperator, pBlock, status);
   }
   pBlock->pBlockAgg = NULL;

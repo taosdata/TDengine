@@ -22,6 +22,7 @@
 #include "nodes.h"
 #include "osMemPool.h"
 #include "querynodes.h"
+#include "streamReader.h"
 #include "systable.h"
 #include "tcommon.h"
 #include "tdef.h"
@@ -133,6 +134,25 @@ typedef struct SSysTableScanInfo {
   STableListInfo* pSubTableListInfo;
   SArray*         pVtbRefReqs;   // SArray<SSysTableScanVtbRefReq> used by layered vc-cols lookup
   int32_t         vtbRefReqIdx;  // next request index in pVtbRefReqs
+
+  // vc_cols full-scan result cache (stream virtual-table readers): the produced
+  // blocks are deep-copied into pVcColsAccum and committed to the shared reader
+  // cache at scan completion; on cache hits, vcColsServeIdx walks the cached
+  // blocks. vcColsScanGen snapshots the cache generation when a scan round
+  // begins so a Clear() mid-scan rejects the final commit. vcColsAccumFailed
+  // persists any deep-copy failure across the multi-call scan so a partial
+  // round is never committed; it is also set when the cache was unavailable at
+  // scan start (no captured generation), so the round stays uncacheable even if
+  // the cache is re-enabled before commit. vcColsAccumBytes tracks the cache
+  // budget reserved for the accumulated blocks. All are reset by
+  // resetSysTableScanOperState.
+  SArray    *pVcColsAccum;       // SArray<SSDataBlock*>, owned deep copies
+  int32_t    vcColsServeIdx;     // next cached block to serve
+  uint64_t   vcColsServeGen;     // cache generation pinned for the current serve round
+  uint64_t   vcColsScanGen;      // cache generation captured at the start of the scan round
+  bool       vcColsAccumFailed;  // a block copy failed, or the cache was unavailable at scan start
+  int64_t    vcColsAccumBytes;   // cache budget reserved for pVcColsAccum
+  SStreamVcColsCache *pVcColsServeCache;  // cache object pinned across the serve round
 
   // task-level caches for ins_tags ref-tag resolution (sysTagsFetchRemoteCfg):
   // without them every ref tag of every child table costs one GET_DB_INFO plus
@@ -1549,6 +1569,299 @@ static bool virtualChildTableNeedCollect(STableListInfo* pTableListInfo, tb_uid_
          taosHashGet(pTableListInfo->map, &tableUid, sizeof(tableUid)) != NULL;
 }
 
+// Discard an in-progress vc_cols accumulator (deep copies + reserved budget).
+// The scan itself continues and returns its rows; only the shared-cache build
+// is abandoned.
+static void sysTableScanDiscardVcColsAccum(SSysTableScanInfo* pInfo) {
+  if (pInfo == NULL || pInfo->pVcColsAccum == NULL) {
+    return;
+  }
+  int32_t nAccum = taosArrayGetSize(pInfo->pVcColsAccum);
+  for (int32_t i = 0; i < nAccum; ++i) {
+    blockDataDestroy(*(SSDataBlock **)taosArrayGet(pInfo->pVcColsAccum, i));
+  }
+  taosArrayDestroy(pInfo->pVcColsAccum);
+  pInfo->pVcColsAccum = NULL;
+  stStreamVcColsCacheRelease(pInfo->vcColsAccumBytes);
+  pInfo->vcColsAccumBytes = 0;
+}
+
+// Try to serve one cached vc_cols block for a stream reader, instead of
+// re-walking the vnode meta B-tree on every fetch. Only the full-scan path is
+// cached; the layered ByReqs lookup keeps its own targeted path. The cache is
+// shared per (vgId, virtual super table suid, tag-filter fingerprint) and only
+// consulted for stream fetches (streamRtInfo != NULL).
+//
+// The read source is pinned for the whole round: a scan is only entered when no
+// scan is in progress (pCur == NULL && pVcColsAccum == NULL), and once serving
+// starts (vcColsServeIdx > 0) the round keeps serving the pinned generation. A
+// mid-serve invalidation would re-emit already-returned blocks on a re-scan, so
+// it signals TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY to re-run the calc fetch
+// from scratch instead.
+//
+// Returns the served block on a hit, NULL on a miss/ineligible case (caller
+// falls through to a full scan), or NULL with *pFinished=true when the cache is
+// exhausted. A hard error is reported through *pCode/*pLino (caller unwinds via
+// its _end label).
+static SSDataBlock* sysTableScanUserVcColsTryServeFromCache(SOperatorInfo* pOperator, SSysTableScanInfo* pInfo,
+                                                            SExecTaskInfo* pTaskInfo, SStorageAPI* pAPI,
+                                                            bool* pFinished, int32_t* pCode, int32_t* pLino) {
+  *pFinished = false;
+
+  int64_t vcColsSuid = pInfo->pSubTableListInfo != NULL ? (int64_t)pInfo->pSubTableListInfo->idInfo.suid : 0;
+  if (!(pInfo->pVtbRefReqs == NULL && pInfo->pCur == NULL && pInfo->pVcColsAccum == NULL &&
+        pInfo->req.filterTb[0] == 0 && pInfo->readHandle.streamRtInfo != NULL && pInfo->readHandle.vnode != NULL &&
+        pInfo->readHandle.txnId == 0 && pAPI->metaFn.getVtableGen != NULL && vcColsSuid != 0)) {
+    return NULL;  // ineligible (table-name filter, layered ByReqs, or mid-scan)
+  }
+
+  bool midServe = pInfo->vcColsServeIdx > 0;
+  int64_t vtableGen = pAPI->metaFn.getVtableGen(pInfo->readHandle.vnode);
+
+  SStreamVcColsCache *pVcColsCache = NULL;
+  bool keepPinned = false;  // pVcColsCache is the round pin already held in pInfo
+  if (midServe && pInfo->pVcColsServeCache != NULL) {
+    // A serve round is already pinned: reuse the pinned object instead of
+    // re-Acquiring so an idle eviction (refCount == 1) can never drop the cache
+    // between two blocks of the same round.
+    pVcColsCache = pInfo->pVcColsServeCache;
+    keepPinned = true;
+  } else {
+    pVcColsCache = stStreamVcColsCacheAcquire(
+        pTaskInfo->id.vgId, vcColsSuid, pInfo->pSubTableListInfo->mapFingerprint, vtableGen);
+    if (pVcColsCache == NULL) {
+      if (midServe) {
+        // The shared cache vanished mid-serve (dynamic disable or reader drop):
+        // earlier blocks were already emitted, so re-scanning would re-emit them.
+        *pCode = TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
+        *pLino = __LINE__;
+        qError("%s vc_cols cache became unavailable during serving, suid:%" PRId64
+               ", block:%d, generation:%" PRIu64, GET_TASKID(pTaskInfo), vcColsSuid, pInfo->vcColsServeIdx,
+               pInfo->vcColsServeGen);
+      } else {
+        // The cache was unavailable when the scan round started (dynamic disable
+        // or size 0), so no scan-start generation is captured. If the cache is
+        // re-enabled before CommitCache, a fresh entry (generation 0) would be
+        // created and the default vcColsScanGen 0 would let the just-scanned
+        // (possibly stale) blocks be installed as valid. Mark the round as not
+        // cacheable so no partial/stale result is ever committed.
+        pInfo->vcColsAccumFailed = true;
+        qDebug("%s vc_cols cache unavailable at scan start, suid:%" PRId64 ", scanning uncached",
+               GET_TASKID(pTaskInfo), vcColsSuid);
+      }
+      return NULL;
+    }
+  }
+
+  bool finished = false;
+  int32_t code = stStreamVcColsCacheReadBlock(pVcColsCache, pInfo->vcColsServeIdx, pInfo->pRes,
+                                              &pInfo->vcColsServeGen, &finished);
+  if (code == TSDB_CODE_NOT_FOUND && !midServe) {
+    // No rows have been emitted: a fresh scan is safe on a cache miss. This
+    // path never holds a pin (midServe is false), so release the temporary
+    // Acquire reference before scanning.
+    pInfo->vcColsScanGen = stStreamVcColsCacheGetGeneration(pVcColsCache);
+    stStreamVcColsCacheUnref(pVcColsCache);
+    // Create the accumulator before the scan even when it produces no rows, so
+    // an empty result can be committed as a valid EOF cache entry.
+    pInfo->pVcColsAccum = taosArrayInit(16, POINTER_BYTES);
+    if (pInfo->pVcColsAccum == NULL) {
+      pInfo->vcColsAccumFailed = true;
+    }
+    qDebug("%s vc_cols cache miss, scanning suid:%" PRId64 ", generation:%" PRIu64 ", cacheBytes:%" PRId64 "/%" PRId64,
+           GET_TASKID(pTaskInfo), (int64_t)pInfo->pSubTableListInfo->idInfo.suid, pInfo->vcColsScanGen,
+           stStreamVcColsCacheGetTotalBytes(), tsStreamVcColsCacheSize);
+    return NULL;
+  }
+
+  if (code != TSDB_CODE_SUCCESS) {
+    // Release the pin (or the temporary reference) before signalling.
+    if (keepPinned) {
+      pInfo->pVcColsServeCache = NULL;
+    }
+    stStreamVcColsCacheUnref(pVcColsCache);
+    // A generation mismatch mid-serve means the cache was invalidated while this
+    // round was serving (vtable set changed): signal a redeploy instead of
+    // failing the stream task.
+    if (midServe && code == TSDB_CODE_STREAM_INTERNAL_ERROR) {
+      code = TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY;
+    }
+    *pCode = code;
+    *pLino = __LINE__;
+    qError("%s vc_cols cache read failed, suid:%" PRId64 ", block:%d, generation:%" PRIu64
+           ", code:%d (%s)", GET_TASKID(pTaskInfo), (int64_t)pInfo->pSubTableListInfo->idInfo.suid,
+           pInfo->vcColsServeIdx, pInfo->vcColsServeGen, code, tstrerror(code));
+    return NULL;
+  }
+  if (finished) {
+    // EOF: release the pin and complete the round.
+    if (keepPinned) {
+      pInfo->pVcColsServeCache = NULL;
+    }
+    stStreamVcColsCacheUnref(pVcColsCache);
+    setOperatorCompleted(pOperator);
+    *pFinished = true;
+    return NULL;
+  }
+  if (!keepPinned) {
+    // A block was served: keep the Acquire reference pinned for the rest of the
+    // round so idle eviction (refCount == 1) never drops the cache between
+    // blocks.
+    pInfo->pVcColsServeCache = pVcColsCache;
+  }
+  if (!midServe) {
+    qDebug("%s vc_cols cache serving started, suid:%" PRId64 ", generation:%" PRIu64
+           ", cacheBytes:%" PRId64 "/%" PRId64,
+           GET_TASKID(pTaskInfo), (int64_t)pInfo->pSubTableListInfo->idInfo.suid, pInfo->vcColsServeGen,
+           stStreamVcColsCacheGetTotalBytes(), tsStreamVcColsCacheSize);
+  }
+  pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+  pInfo->vcColsServeIdx++;
+  return pInfo->pRes;
+}
+
+// Resolve the super-table schema and name for one virtual child table. Served
+// from the per-scan pSchema cache when present, otherwise cloned and installed.
+// Returns SUCCESS with *pSkip=false and *ppSchemaRow set on success, SUCCESS
+// with *pSkip=true when the super table is concurrently gone (caller skips the
+// child), or an error code (caller unwinds via its _end label).
+static int32_t sysTableScanUserVcColsResolveVChildSchema(SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
+                                                         SStorageAPI* pAPI, int64_t suid, char* stableName,
+                                                         SSchemaWrapper** ppSchemaRow, bool* pSkip) {
+  *pSkip = false;
+
+  void* schema = taosHashGet(pInfo->pSchema, &suid, sizeof(int64_t));
+
+  SMetaReader smrSuperTable = {0};
+  pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn,
+                                pInfo->readHandle.txnId);
+  smrSuperTable.txnId = pInfo->readHandle.txnId;
+  int32_t code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+  if (code != TSDB_CODE_SUCCESS) {
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
+      qDebug("sysTableScanUserVcCols skip child whose super table suid:%" PRId64 " disappeared, %s", suid,
+             GET_TASKID(pTaskInfo));
+      *pSkip = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
+           GET_TASKID(pTaskInfo));
+    return code;
+  }
+
+  STR_TO_VARSTR(stableName, smrSuperTable.me.name);
+  if (schema != NULL) {
+    *ppSchemaRow = *(SSchemaWrapper**)schema;
+    pAPI->metaReaderFn.clearReader(&smrSuperTable);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
+  bool hasSchema = smrSuperTable.me.stbEntry.schemaRow.pSchema != NULL;
+  pAPI->metaReaderFn.clearReader(&smrSuperTable);
+  if (hasSchema && schemaWrapper == NULL) {
+    return terrno;
+  }
+  code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
+  if (code == TSDB_CODE_DUP_KEY) {
+    code = TSDB_CODE_SUCCESS;
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    // Insert failed: the hash does not own the clone, free it instead of
+    // leaking it on the caller's error unwind.
+    tDeleteSchemaWrapper(schemaWrapper);
+    return code;
+  }
+  *ppSchemaRow = schemaWrapper;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Populate the shared reader cache with the produced blocks (deep-copied into
+// the operator-local accumulator) at scan completion. A failed copy, a
+// concurrent install, or a generation mismatch discards the round instead of
+// installing a partial/stale result. The scan itself keeps returning rows.
+static void sysTableScanUserVcColsCommitCache(SSysTableScanInfo* pInfo, SExecTaskInfo* pTaskInfo,
+                                              SStorageAPI* pAPI, int32_t ret) {
+  if (!(pInfo->pVtbRefReqs == NULL && pInfo->req.filterTb[0] == 0 && pInfo->readHandle.streamRtInfo != NULL &&
+        pInfo->readHandle.vnode != NULL && pInfo->readHandle.txnId == 0 && pAPI->metaFn.getVtableGen != NULL &&
+        pInfo->pSubTableListInfo != NULL && pInfo->pSubTableListInfo->idInfo.suid != 0)) {
+    return;
+  }
+
+  int64_t vtableGen = pAPI->metaFn.getVtableGen(pInfo->readHandle.vnode);
+  SStreamVcColsCache *pVcColsCache = stStreamVcColsCacheAcquire(
+      pTaskInfo->id.vgId, (int64_t)pInfo->pSubTableListInfo->idInfo.suid,
+      pInfo->pSubTableListInfo->mapFingerprint, vtableGen);
+  if (pVcColsCache == NULL) {
+    // The shared cache became unavailable during this scan round (dynamic
+    // disable or reader drop): a partially accumulated result would install a
+    // cache with a hole, so abandon the round and never commit it.
+    pInfo->vcColsAccumFailed = true;
+    sysTableScanDiscardVcColsAccum(pInfo);
+    return;
+  }
+  if (stStreamVcColsCacheIsValid(pVcColsCache)) {
+    // Another reader installed a result while this round was scanning: the
+    // accumulator is useless, so drop it (and its budget) right away instead of
+    // holding it until the operator is reset.
+    sysTableScanDiscardVcColsAccum(pInfo);
+    pInfo->vcColsAccumFailed = false;
+    stStreamVcColsCacheUnref(pVcColsCache);
+    return;
+  }
+
+  if (!pInfo->vcColsAccumFailed && pInfo->pRes->info.rows > 0) {
+    // Reserve the source block footprint as a conservative upper bound, then
+    // charge the actual deep-copy size and refund the difference so small
+    // tables do not permanently hold the full scan-buffer budget.
+    int64_t reserveBytes = (int64_t)blockDataGetMemorySize(pInfo->pRes);
+    if (stStreamVcColsCacheTryReserve(reserveBytes)) {
+      SSDataBlock *pCopy = NULL;
+      if (createOneDataBlock(pInfo->pRes, true, &pCopy) == TSDB_CODE_SUCCESS && pCopy != NULL) {
+        int64_t copyBytes = (int64_t)blockDataGetMemorySize(pCopy);
+        if (copyBytes > reserveBytes) {
+          // Defensive: a deep copy must never exceed the source footprint.
+          blockDataDestroy(pCopy);
+          stStreamVcColsCacheRelease(reserveBytes);
+          pInfo->vcColsAccumFailed = true;
+        } else {
+          if (copyBytes < reserveBytes) {
+            stStreamVcColsCacheRelease(reserveBytes - copyBytes);
+          }
+          if (pInfo->pVcColsAccum == NULL) {
+            pInfo->pVcColsAccum = taosArrayInit(16, POINTER_BYTES);
+          }
+          if (pInfo->pVcColsAccum == NULL || taosArrayPush(pInfo->pVcColsAccum, &pCopy) == NULL) {
+            blockDataDestroy(pCopy);
+            stStreamVcColsCacheRelease(copyBytes);
+            pInfo->vcColsAccumFailed = true;
+          } else {
+            pInfo->vcColsAccumBytes += copyBytes;
+          }
+        }
+      } else {
+        stStreamVcColsCacheRelease(reserveBytes);
+        pInfo->vcColsAccumFailed = true;
+      }
+    } else {
+      // Budget exhausted: stop caching this round.
+      pInfo->vcColsAccumFailed = true;
+    }
+  }
+  // A failed/aborted round must not keep partial copies or their reservation
+  // around; the scan itself continues and returns rows.
+  if (pInfo->vcColsAccumFailed) {
+    sysTableScanDiscardVcColsAccum(pInfo);
+  }
+  if (ret != 0 && pInfo->pVcColsAccum != NULL && !pInfo->vcColsAccumFailed) {
+    stStreamVcColsCacheCommit(pVcColsCache, pInfo->pVcColsAccum, pInfo->vcColsScanGen, pInfo->vcColsAccumBytes);
+    pInfo->pVcColsAccum = NULL;
+    pInfo->vcColsAccumBytes = 0;
+  }
+  stStreamVcColsCacheUnref(pVcColsCache);
+}
+
 static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
@@ -1565,6 +1878,21 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   }
 
   blockDataCleanup(pInfo->pRes);
+
+  {
+    bool        cacheFinished = false;
+    SSDataBlock* pCached = sysTableScanUserVcColsTryServeFromCache(pOperator, pInfo, pTaskInfo, pAPI,
+                                                                   &cacheFinished, &code, &lino);
+    if (pCached != NULL) {
+      return pCached;
+    }
+    if (cacheFinished) {
+      return NULL;
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+  }
 
   pDataBlock = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_VC_COLS);
   QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
@@ -1600,7 +1928,13 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
 
   if (pInfo->pCur == NULL) {
     pInfo->pCur = pAPI->metaFn.openTableMetaCursor(pInfo->readHandle.vnode);
-    if (pInfo->pCur) pInfo->pCur->txnId = pInfo->readHandle.txnId;
+    if (pInfo->pCur) {
+      pInfo->pCur->txnId = pInfo->readHandle.txnId;
+      // Only virtual tables are materialized into ins_virtual_child_columns;
+      // pre-filter every other type in metaTbCursorNext via a cheap header-only
+      // decode instead of paying the full decode for every table in the vnode.
+      pInfo->pCur->typeMask = (1 << TSDB_VIRTUAL_NORMAL_TABLE) | (1 << TSDB_VIRTUAL_CHILD_TABLE);
+    }
   } else {
     code = pAPI->metaFn.resumeTableMetaCursor(pInfo->pCur, 0, 0);
     if (code != 0) {
@@ -1657,59 +1991,15 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         continue;
       }
       colRef = &pInfo->pCur->mr.me.colRef;
-      int64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-      void*   schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.ctbEntry.suid, sizeof(int64_t));
-      if (schema != NULL) {
-        schemaRow = *(SSchemaWrapper**)schema;
-        SMetaReader smrSuperTable = {0};
-        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-        smrSuperTable.txnId = pInfo->readHandle.txnId;
-        code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
-        if (code != TSDB_CODE_SUCCESS) {
-          // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
-                 GET_TASKID(pTaskInfo));
-
-          pAPI->metaReaderFn.clearReader(&smrSuperTable);
-          blockDataDestroy(pDataBlock);
-          pInfo->loadInfo.totalRows = 0;
-          return NULL;
-        }
-        STR_TO_VARSTR(stableName, smrSuperTable.me.name);
-        pAPI->metaReaderFn.clearReader(&smrSuperTable);
-      } else {
-        SMetaReader smrSuperTable = {0};
-        pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
-        smrSuperTable.txnId = pInfo->readHandle.txnId;
-        code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
-        if (code != TSDB_CODE_SUCCESS) {
-          // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
-          qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
-                 GET_TASKID(pTaskInfo));
-
-          pAPI->metaReaderFn.clearReader(&smrSuperTable);
-          blockDataDestroy(pDataBlock);
-          pInfo->loadInfo.totalRows = 0;
-          return NULL;
-        }
-        STR_TO_VARSTR(stableName, smrSuperTable.me.name);
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
-          if (schemaWrapper == NULL) {
-            code = terrno;
-            lino = __LINE__;
-            pAPI->metaReaderFn.clearReader(&smrSuperTable);
-            goto _end;
-          }
-        }
-        code = taosHashPut(pInfo->pSchema, &suid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
-        if (code == TSDB_CODE_DUP_KEY) {
-          code = TSDB_CODE_SUCCESS;
-        }
-        schemaRow = schemaWrapper;
-        pAPI->metaReaderFn.clearReader(&smrSuperTable);
-        QUERY_CHECK_CODE(code, lino, _end);
+      bool skip = false;
+      code = sysTableScanUserVcColsResolveVChildSchema(pInfo, pTaskInfo, pAPI, pInfo->pCur->mr.me.ctbEntry.suid,
+                                                       stableName, &schemaRow, &skip);
+      if (skip) {
+        // The super table is concurrently gone: skip only this child and keep
+        // walking the cursor so unrelated tables can still contribute rows.
+        continue;
       }
+      QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("sysTableScanUserVcCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
       continue;
@@ -1745,10 +2035,28 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
   blockDataDestroy(pDataBlock);
   pDataBlock = NULL;
   if (ret != 0) {
-    pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
-    pInfo->pCur = NULL;
-    setOperatorCompleted(pOperator);
+    if (ret == TSDB_CODE_FAILED) {
+      // Normal EOF: complete the scan so the accumulated blocks can be cached.
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      setOperatorCompleted(pOperator);
+    } else {
+      // Real cursor error (meta lookup/decode/alloc failure): the scan is
+      // truncated, so discard the partial accumulator and never cache it. Close
+      // the cursor and unwind through the error path below.
+      pInfo->vcColsAccumFailed = true;
+      sysTableScanDiscardVcColsAccum(pInfo);
+      pAPI->metaFn.closeTableMetaCursor(pInfo->pCur);
+      pInfo->pCur = NULL;
+      code = ret;
+      lino = __LINE__;
+    }
   }
+
+  // Populate the shared reader cache with the produced blocks (deep-copied into
+  // the operator-local accumulator). A failed copy, a concurrent install, or a
+  // generation mismatch discards the round; the scan itself keeps returning rows.
+  sysTableScanUserVcColsCommitCache(pInfo, pTaskInfo, pAPI, ret);
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   qDebug("get cols success, rows:%" PRIu64 " %s", pInfo->loadInfo.totalRows, GET_TASKID(pTaskInfo));
@@ -8658,6 +8966,16 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   pOper->status = OP_NOT_OPENED;
   blockDataEmpty(pInfo->pRes);
 
+  // A mid-serve vc_cols cache invalidation aborts the scan with
+  // TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY and longjmps after publishing the
+  // error into the task code. The redeploy resets the operator here, but the
+  // stale task code would make the next qExecTaskOpt bail out at isTaskKilled
+  // before the scan can re-run. Clear the recoverable error so the re-deployed
+  // reader starts clean.
+  if (pOper->pTaskInfo != NULL && pOper->pTaskInfo->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
+    pOper->pTaskInfo->code = TSDB_CODE_SUCCESS;
+  }
+
   if (pInfo->name.type == TSDB_TABLE_NAME_T) {
     const char* name = tNameGetTableName(&pInfo->name);
     if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
@@ -8718,6 +9036,18 @@ static int32_t resetSysTableScanOperState(SOperatorInfo* pOper) {
   }
   pInfo->readHandle.mnd = NULL;
   destroySysTableScanVtbRefReqs(pInfo);
+
+  // Reset the vc_cols cache walk: the next full scan starts from block 0 and
+  // re-accumulates a fresh copy; any partial accumulator is discarded.
+  pInfo->vcColsServeIdx = 0;
+  pInfo->vcColsServeGen = 0;
+  pInfo->vcColsScanGen = 0;
+  pInfo->vcColsAccumFailed = false;
+  if (pInfo->pVcColsServeCache != NULL) {
+    stStreamVcColsCacheUnref(pInfo->pVcColsServeCache);
+    pInfo->pVcColsServeCache = NULL;
+  }
+  sysTableScanDiscardVcColsAccum(pInfo);
 
   return 0;
 }
@@ -8922,6 +9252,12 @@ static void doDestroySysTableScanInfo(void* param) {
   sysTagsRefValueCacheClear(&pInfo->pRefTagValueCache);
   destroySysTableScanVtbRefReqs(pInfo);
   tableListDestroy(pInfo->pSubTableListInfo);
+
+  if (pInfo->pVcColsServeCache != NULL) {
+    stStreamVcColsCacheUnref(pInfo->pVcColsServeCache);
+    pInfo->pVcColsServeCache = NULL;
+  }
+  sysTableScanDiscardVcColsAccum(pInfo);
 
   taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(pInfo->pUser);
