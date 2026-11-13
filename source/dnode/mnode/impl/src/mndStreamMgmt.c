@@ -588,6 +588,7 @@ static int32_t msmCopyExtSpecForDeploy(SStmTaskDeploy* pDeploy, SStmTaskToDeploy
   pDst->pCalcMappings = NULL;
   pDst->prefilter = NULL;
   pDst->triggerPrefilter = NULL;
+  pDst->triggerPrefilterAst = NULL;
   pDst->tagCondJson = NULL;
   pDst->partitionTagCols = NULL;
   pDst->partitionTagExprs = NULL;
@@ -603,6 +604,14 @@ static int32_t msmCopyExtSpecForDeploy(SStmTaskDeploy* pDeploy, SStmTaskToDeploy
   if (pSrc->triggerPrefilter != NULL) {
     pDst->triggerPrefilter = taosStrdup(pSrc->triggerPrefilter);
     if (pDst->triggerPrefilter == NULL) {
+      msmFreeCopiedExtSpec(pDst);
+      return terrno;
+    }
+  }
+
+  if (pSrc->triggerPrefilterAst != NULL) {
+    pDst->triggerPrefilterAst = taosStrdup(pSrc->triggerPrefilterAst);
+    if (pDst->triggerPrefilterAst == NULL) {
       msmFreeCopiedExtSpec(pDst);
       return terrno;
     }
@@ -6163,7 +6172,14 @@ int32_t msmDeployExtOrigTblReaderFromMeta(SStmGrpCtx *pCtx, SStmStatus *pStatus,
   }
   msmInitExtOrigTblReaderRsp(pReq, pRsp);
   bool patchRequested = (pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0;
-  if (patchRequested && (pReq->bindings == NULL || TARRAY_SIZE(pReq->bindings) == 0)) {
+  /* Only a patch that carries no CREATE/START request is a cleanup.  A SERIES virtual table that
+   * contributes no bound column (for example COUNT(*) over %%trows) legitimately sends an empty
+   * binding list for a valid upsert, and treating it as a cleanup would tear down a reader that
+   * another virtual table sharing the registry still references. */
+  bool upsertRequested = (pReq->capabilities & (STREAM_EXT_ORIGTBL_READER_CAP_CREATE |
+                                                STREAM_EXT_ORIGTBL_READER_CAP_START)) != 0;
+  if (patchRequested && !upsertRequested &&
+      (pReq->bindings == NULL || TARRAY_SIZE(pReq->bindings) == 0)) {
     return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
   }
   if (pReq->sourceConfigVersion != 0 && pReq->sourceConfigVersion != pSource->metaVersion) {
@@ -6375,7 +6391,10 @@ static int32_t msmDeployExtOrigTblReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, 
     return pRsp->code;
   }
   deployTimes = pStatus->deployTimes;
-  if ((pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0 &&
+  bool patchRequested = (pReq->capabilities & STREAM_EXT_ORIGTBL_READER_CAP_PATCH) != 0;
+  bool upsertRequested = (pReq->capabilities & (STREAM_EXT_ORIGTBL_READER_CAP_CREATE |
+                                                STREAM_EXT_ORIGTBL_READER_CAP_START)) != 0;
+  if (patchRequested && !upsertRequested &&
       (pReq->bindings == NULL || TARRAY_SIZE(pReq->bindings) == 0)) {
     return msmCleanupExtOrigTblReader(pCtx, pStatus, pStream, pReq, pRsp);
   }
@@ -6451,8 +6470,12 @@ int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
   SStreamExtTriggerSpec *pSpec = NULL;
   int32_t bindingNum = pReq == NULL || pReq->bindings == NULL ? 0 : taosArrayGetSize(pReq->bindings);
 
+  // A SERIES-bound virtual table legitimately produces zero bindings when the stream
+  // projection references no external column (for example COUNT(*) over %%trows): the
+  // reader still needs the external timestamp column to advance the watermark and emit
+  // rows, and the pre-filled timestamp mapping below covers that case.
   if (ppSpec == NULL || pRsp == NULL || pSource == NULL || pReq == NULL || pMeta == NULL ||
-      pMeta->pCols == NULL || pMeta->numOfCols <= 0 || bindingNum <= 0) {
+      pMeta->pCols == NULL || pMeta->numOfCols <= 0) {
     return TSDB_CODE_INVALID_PARA;
   }
   pSpec = taosMemoryCalloc(1, sizeof(*pSpec));

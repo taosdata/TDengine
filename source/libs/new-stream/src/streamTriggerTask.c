@@ -4116,7 +4116,13 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
 #define STREAM_TRIGGER_CHECKPOINT_ADD_EXT_PREV_REPAIR_VERSION     12
 // v13 extends the existing event snapshot section beyond overlapping COUNT windows.
 #define STREAM_TRIGGER_CHECKPOINT_ADD_PREV_IDENTITY_VERSION       14
-#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                  14
+// v15 stores the registry identity that owns every EXT binding record. A virtual table can be
+// referenced through more than one external registry entry (its columns may come from different
+// sources), and a zero-binding target's synthetic TRIGGER binding carries no column identity of
+// its own, so (virtualUid, virtualGid, kind) could only be resolved to the FIRST reference that
+// lists the virtual table: the recovered cutoff then landed on the wrong reader.
+#define STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION 15
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                  15
 
 static SSTriggerExtProgress *stTriggerTaskGetExtProgressByRef(SSHashObj *pExtProgress,
                                                               const SSTriggerExtOrigTableRef *pRef) {
@@ -4149,6 +4155,40 @@ static SSTriggerExtOrigTableRef *stTriggerTaskFindExtRefByBinding(SArray *pRefs,
     for (int32_t j = 0; j < TARRAY_SIZE(pRef->bindings); ++j) {
       SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, j);
       if (stTriggerTaskExtBindingMatches(pBinding, virtualUid, virtualGid, kind, virtualSlot, virtualColId)) {
+        return pRef;
+      }
+    }
+  }
+  return NULL;
+}
+
+/* v15 and later name the owning registry entry explicitly, so a binding record is
+ * resolved by identity instead of by guessing from the virtual target. */
+static SSTriggerExtOrigTableRef *stTriggerTaskFindExtRefByRegistryEntryId(SArray *pRefs,
+                                                                         int64_t registryEntryId) {
+  if (pRefs == NULL || registryEntryId == 0) return NULL;
+  for (int32_t i = 0; i < TARRAY_SIZE(pRefs); ++i) {
+    SSTriggerExtOrigTableRef *pRef = TARRAY_GET_ELEM(pRefs, i);
+    if (pRef != NULL && pRef->registryEntryId == registryEntryId) return pRef;
+  }
+  return NULL;
+}
+
+/* A virtual target with no TRIGGER column of its own is represented only by a
+ * synthetic TRIGGER binding, so its checkpoint entry matches no permanent binding.
+ * v14 and earlier checkpoints carry no registry identity and can only be resolved
+ * through the target's virtual table.  That lookup is ambiguous when several
+ * registry entries reference the same virtual table, so it is kept as a
+ * compatibility fallback for those checkpoints only. */
+static SSTriggerExtOrigTableRef *stTriggerTaskFindExtRefByVtableUid(SArray *pRefs, int64_t virtualUid) {
+  if (pRefs == NULL) return NULL;
+  for (int32_t i = 0; i < TARRAY_SIZE(pRefs); ++i) {
+    SSTriggerExtOrigTableRef *pRef = TARRAY_GET_ELEM(pRefs, i);
+    if (pRef == NULL || pRef->registryEntryId == 0 || pRef->vtableUids == NULL) {
+      continue;
+    }
+    for (int32_t v = 0; v < TARRAY_SIZE(pRef->vtableUids); ++v) {
+      if (*(int64_t *)TARRAY_GET_ELEM(pRef->vtableUids, v) == virtualUid) {
         return pRef;
       }
     }
@@ -4546,28 +4586,83 @@ static bool stTriggerTaskGetExtBindingCompletedMaxTs(const SSTriggerExtOrigTable
   return stTriggerTaskGetExtBindingMaxTs(pRef, pBinding, pExtProg, precision, pMaxTs);
 }
 
-static int32_t stTriggerTaskCountExtBindingCheckpoints(SStreamTriggerTask *pTask, SSHashObj *pExtProgress) {
-  int32_t nBindings = 0;
+/* Defined next to the response fanout (see stTriggerTaskCollectExtUidGroups);
+ * declared here because the checkpoint and the completed-cutoff index must use
+ * the same binding ownership set. */
+static int32_t stTriggerTaskEnsureExtBindingIndex(SSTriggerExtOrigTableRef            *pRef,
+                                                  const SStreamTriggerTask            *pTask,
+                                                  const struct STriggerExtBindingIndex **ppIndex);
+static int32_t stTriggerTaskBuildExtSyntheticTriggerBindings(const SSTriggerExtOrigTableRef       *pRef,
+                                                             const SStreamTriggerTask             *pTask,
+                                                             const struct STriggerExtBindingIndex *pIndex,
+                                                             SArray                              **ppOut);
 
+/* The bindings that own a gid on the trigger side: the permanent bindings plus the
+ * synthetic TRIGGER binding of a virtual target that carries no TRIGGER column of
+ * its own (e.g. COUNT(*) over %%trows).  The response fanout, the completed-cutoff
+ * tracking and the checkpoint must agree on this set - when only the fanout used
+ * it, such a group never got a persisted cutoff, so after a restart plus a shared
+ * reader rewind the replayed rows re-entered window state that had already been
+ * committed.  Returns TSDB_CODE_SUCCESS with *ppOwned == NULL when the ref needs no
+ * synthetic peer, in which case the caller uses pRef->bindings. */
+static int32_t stTriggerTaskBuildExtOwnedBindings(SSTriggerExtOrigTableRef *pRef,
+                                                  const SStreamTriggerTask *pTask, SArray **ppOwned) {
+  *ppOwned = NULL;
+  /* pRef->bindings is NULL until the first column binding is registered, which is
+   * exactly the zero-binding target this set exists for, so it must not bail out. */
+  if (pRef == NULL || pTask == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  const struct STriggerExtBindingIndex *pIndex = NULL;
+  int32_t code = stTriggerTaskEnsureExtBindingIndex(pRef, pTask, &pIndex);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  return stTriggerTaskBuildExtSyntheticTriggerBindings(pRef, pTask, pIndex, ppOwned);
+}
+
+static int32_t stTriggerTaskCountExtBindingCheckpoints(SStreamTriggerTask *pTask, SSHashObj *pExtProgress,
+                                                       int32_t *pCount) {
+  int32_t  nBindings = 0;
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  SArray  *pOwned = NULL;
+
+  if (pCount == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  *pCount = 0;
   if (!pTask->isVirtualTable || pTask->pExtOrigTableRefs == NULL || pExtProgress == NULL) {
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   for (int32_t i = 0; i < TARRAY_SIZE(pTask->pExtOrigTableRefs); ++i) {
     SSTriggerExtOrigTableRef *pRef = TARRAY_GET_ELEM(pTask->pExtOrigTableRefs, i);
     SSTriggerExtProgress     *pExtProg = stTriggerTaskGetExtProgressByRef(pExtProgress, pRef);
-    if (pRef->bindings == NULL) continue;
-    for (int32_t j = 0; j < TARRAY_SIZE(pRef->bindings); ++j) {
-      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, j);
+    code = stTriggerTaskBuildExtOwnedBindings(pRef, pTask, &pOwned);
+    QUERY_CHECK_CODE(code, lino, _end);
+    SArray *pBindings = pOwned != NULL ? pOwned : pRef->bindings;
+    int32_t nOwnedBindings = pBindings != NULL ? (int32_t)TARRAY_SIZE(pBindings) : 0;
+    for (int32_t j = 0; j < nOwnedBindings; ++j) {
+      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pBindings, j);
       int64_t maxTs = 0;
       if (pBinding != NULL &&
           stTriggerTaskGetExtBindingCompletedMaxTs(pRef, pBinding, pExtProg, pTask->precision, &maxTs)) {
         nBindings++;
       }
     }
+    taosArrayDestroy(pOwned);
+    pOwned = NULL;
   }
 
-  return nBindings;
+  *pCount = nBindings;
+
+_end:
+  taosArrayDestroy(pOwned);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 static int32_t stTriggerTaskPrepareNestedPseudoAttempt(SStreamTriggerTask *pTask, SSTriggerNestedRecovery *pRecovery,
                                                        int32_t readerIndex, const SStreamNestedInputRoute *pRoute,
@@ -5315,6 +5410,18 @@ static int64_t stTriggerTaskExtReplayFloorForGid(SStreamTriggerTask *pTask, int6
 /* Collects the groups an EXT uid is merged into. A virtual-table reader feeds every group that has a
  * TRIGGER binding for it, because the uid is not part of the virtual group identity; a plain EXT
  * reader partitions its groups by its own gid (reported by META and kept in pUidToGid). */
+/* The trigger fanout of an external ref is resolved on demand (see
+ * stTriggerTaskBuildExtSyntheticTriggerBindings); the checkpoint needs the same set so that a
+ * zero-column trigger target is persisted to the replay groups as well. */
+struct STriggerExtBindingIndex;
+static int32_t stTriggerTaskEnsureExtBindingIndex(SSTriggerExtOrigTableRef                    *pRef,
+                                                  const SStreamTriggerTask                    *pTask,
+                                                  const struct STriggerExtBindingIndex       **ppIndex);
+static int32_t stTriggerTaskBuildExtSyntheticTriggerBindings(const SSTriggerExtOrigTableRef            *pRef,
+                                                            const SStreamTriggerTask                  *pTask,
+                                                            const struct STriggerExtBindingIndex      *pIndex,
+                                                            SArray                                   **ppOut);
+
 static int32_t stTriggerTaskCollectExtUidGroups(SStreamTriggerTask *pTask, SSTriggerExtProgress *pExtProg,
                                                 int64_t uid, SArray *pGids) {
   SArray *pRefs = pTask->pExtOrigTableRefs;
@@ -5325,15 +5432,29 @@ static int32_t stTriggerTaskCollectExtUidGroups(SStreamTriggerTask *pTask, SSTri
           pRef->readerTaskAddr.taskId != pExtProg->pTaskAddr->taskId) {
         continue;
       }
-      for (int32_t j = 0; j < TARRAY_SIZE(pRef->bindings); ++j) {
-        SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, j);
+      /* A virtual target without any TRIGGER column binding (a timestamp-only trigger source,
+       * e.g. COUNT(*) over %%trows) only receives a synthetic TRIGGER binding at response time.
+       * Collecting this ref's permanent bindings alone therefore drops that target from the
+       * replay groups, and after a restart its accumulated rows can no longer be matched to
+       * the window they were consumed in.  Use the same set the response fanout uses. */
+      const struct STriggerExtBindingIndex *pIndex = NULL;
+      int32_t code = stTriggerTaskEnsureExtBindingIndex(pRef, pTask, &pIndex);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      SArray  *pSynthetic = NULL;
+      code = stTriggerTaskBuildExtSyntheticTriggerBindings(pRef, pTask, pIndex, &pSynthetic);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      SArray *pTriggerBindings = pSynthetic != NULL ? pSynthetic : pRef->bindings;
+      for (int32_t j = 0; j < TARRAY_SIZE(pTriggerBindings); ++j) {
+        SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pTriggerBindings, j);
         if (pBinding == NULL || pBinding->kind != STRIGGER_EXT_BINDING_TRIGGER) {
           continue;
         }
         if (taosArrayPush(pGids, &pBinding->virtualGid) == NULL) {
+          taosArrayDestroy(pSynthetic);
           return terrno;
         }
       }
+      taosArrayDestroy(pSynthetic);
     }
     return TSDB_CODE_SUCCESS;
   }
@@ -5463,6 +5584,10 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   SEncoder encoder = {0};
+  /* Synthetic TRIGGER bindings of the current reference (see
+   * stTriggerTaskBuildExtOwnedBindings); freed at function exit so the inner
+   * loops can keep using continue. */
+  SArray *pOwnedBindings = NULL;
 
   if (stTriggerTaskHasUnfinishedExtCalc(pTask)) {
     *pLen = 0;
@@ -5688,16 +5813,23 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
                      : "empty");
   }
 
-  int32_t nExtBindings = stTriggerTaskCountExtBindingCheckpoints(pTask, pExtProgress);
+  int32_t nExtBindings = 0;
+  code = stTriggerTaskCountExtBindingCheckpoints(pTask, pExtProgress, &nExtBindings);
+  QUERY_CHECK_CODE(code, lino, _end);
   code = tEncodeI32(&encoder, nExtBindings);
   QUERY_CHECK_CODE(code, lino, _end);
   ST_TASK_DLOG("[checkpoint] encoding virtual EXT binding section, entries:%d", nExtBindings);
   for (int32_t i = 0; hasExtRegistryRefs && i < nExtRegistries; ++i) {
     SSTriggerExtOrigTableRef *pRef = TARRAY_GET_ELEM(pTask->pExtOrigTableRefs, i);
     SSTriggerExtProgress     *pExtProg = stTriggerTaskGetExtProgressByRef(pExtProgress, pRef);
-    if (pRef->bindings == NULL) continue;
-    for (int32_t j = 0; j < TARRAY_SIZE(pRef->bindings); ++j) {
-      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, j);
+    taosArrayDestroy(pOwnedBindings);
+    pOwnedBindings = NULL;
+    code = stTriggerTaskBuildExtOwnedBindings(pRef, pTask, &pOwnedBindings);
+    QUERY_CHECK_CODE(code, lino, _end);
+    SArray *pBindings = pOwnedBindings != NULL ? pOwnedBindings : pRef->bindings;
+    int32_t nOwnedBindings = pBindings != NULL ? (int32_t)TARRAY_SIZE(pBindings) : 0;
+    for (int32_t j = 0; j < nOwnedBindings; ++j) {
+      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pBindings, j);
       QUERY_CHECK_NULL(pBinding, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       int64_t maxTs = 0;
       if (!stTriggerTaskGetExtBindingCompletedMaxTs(pRef, pBinding, pExtProg, pTask->precision, &maxTs)) {
@@ -5732,6 +5864,10 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
       // longer be truncated away by a microsecond round-trip).
       int64_t maxTsNano = convertTimePrecision(maxTs, pTask->precision, TSDB_TIME_PRECISION_NANO);
       code = tEncodeI64(&encoder, maxTsNano);
+      QUERY_CHECK_CODE(code, lino, _end);
+      // v15: carry the owning registry identity so the recovery side does not have to guess it
+      // from the virtual target (see STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION).
+      code = tEncodeI64(&encoder, pRef->registryEntryId);
       QUERY_CHECK_CODE(code, lino, _end);
       int64_t readerMaxTs = INT64_MIN;
       bool    hasReaderMaxTs = stRealtimeExtProgressGetKnownMaxTs(pExtProg, pRef->registryEntryId, &readerMaxTs);
@@ -5807,6 +5943,7 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   *pLen = encoder.pos;
 
 _end:
+  taosArrayDestroy(pOwnedBindings);
   taosWUnLockLatch(&pTask->prevWindowUpdateLock);
   tEncoderClear(&encoder);
   if (code != TSDB_CODE_SUCCESS) {
@@ -6244,9 +6381,35 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
       code = tDecodeI64(&decoder, &maxTs);
       QUERY_CHECK_CODE(code, lino, _end);
 
-      SSTriggerExtOrigTableRef *pMatchedRef =
-          stTriggerTaskFindExtRefByBinding(pTask->pExtOrigTableRefs, virtualUid, virtualGid, kind, virtualSlot,
-                                           virtualColId);
+      int64_t bindingRegistryId = 0;
+      if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION) {
+        code = tDecodeI64(&decoder, &bindingRegistryId);
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
+
+      SSTriggerExtOrigTableRef *pMatchedRef = NULL;
+      if (bindingRegistryId != 0) {
+        /* v15 record: the owning registry entry is known. When it no longer exists the cutoff
+         * belongs to nobody -- guessing another reference from the virtual target is exactly the
+         * misattribution this record field was added to remove, so the entry is dropped and the
+         * reader falls back to the watermark restored by the registry section. */
+        pMatchedRef = stTriggerTaskFindExtRefByRegistryEntryId(pTask->pExtOrigTableRefs, bindingRegistryId);
+        if (pMatchedRef == NULL) {
+          ST_TASK_DLOG("[checkpoint] dropped virtual EXT binding of unknown registry entry, registryEntryId:%" PRId64
+                       ", virtualUid:%" PRId64 ", virtualGid:%" PRId64 ", kind:%d",
+                       bindingRegistryId, virtualUid, virtualGid, kind);
+        }
+      } else {
+        pMatchedRef = stTriggerTaskFindExtRefByBinding(pTask->pExtOrigTableRefs, virtualUid, virtualGid, kind,
+                                                       virtualSlot, virtualColId);
+        if (pMatchedRef == NULL && virtualSlot < 0) {
+          /* Negative slot marks the synthetic TRIGGER binding of a zero-binding
+           * virtual target (see stTriggerTaskBuildExtSyntheticTriggerBindings). A
+           * pre-v15 checkpoint names no registry entry, so the target's virtual table
+           * is the only available hint. */
+          pMatchedRef = stTriggerTaskFindExtRefByVtableUid(pTask->pExtOrigTableRefs, virtualUid);
+        }
+      }
       SSTriggerExtProgress *pExtProg = stTriggerTaskGetExtProgressByRef(pExtProgress, pMatchedRef);
       if (pMatchedRef == NULL || pExtProg == NULL || pExtProg->triggerSideUidMaxTs == NULL ||
           pExtProg->recoveryCheckpointMaxTs == NULL) {
@@ -8661,12 +8824,31 @@ int32_t stTriggerTaskGetExtRefBindingsForGid(SSTriggerExtOrigTableRef *pRef, int
   return TSDB_CODE_SUCCESS;
 }
 
-/* Drop the lazily built binding index after bindings were appended so the next lookup rebuilds.
- * Exposed non-static for unit-test coverage. */
+/* Releases the cached membership index of a ref (see STriggerExtBindingIndex).  Defined
+ * next to the index type; declared here so invalidation stays in one place. */
+static void stTriggerTaskDestroyExtBindingIndexCache(SSTriggerExtOrigTableRef *pRef);
+
+/* Drop the lazily built binding indexes after bindings were appended so the next lookup
+ * rebuilds. Exposed non-static for unit-test coverage. */
 void stTriggerTaskInvalidateExtRefBindingIndex(SSTriggerExtOrigTableRef *pRef) {
-  if (pRef != NULL && pRef->pGidToBindings != NULL) {
-    tSimpleHashCleanup(pRef->pGidToBindings);
-    pRef->pGidToBindings = NULL;
+  if (pRef != NULL) {
+    stTriggerTaskDestroyExtBindingIndexCache(pRef);
+    if (pRef->pGidToBindings != NULL) {
+      tSimpleHashCleanup(pRef->pGidToBindings);
+      pRef->pGidToBindings = NULL;
+    }
+  }
+}
+
+/* Invalidate the cached indexes of every ref of one list.  The membership index also
+ * snapshots the gids of the virtual tables it was built from (pZeroCalcByGid), so a
+ * gather round that adds a gid to pVirtTableInfos makes it stale even though no binding
+ * or vtableUid changed: a later group of the same virtual table would then be treated as
+ * having no calc target and its trigger rows/windows would be dropped. */
+static void stTriggerTaskInvalidateExtRefBindingIndexes(SArray *pRefs) {
+  if (pRefs == NULL) return;
+  for (int32_t i = 0; i < TARRAY_SIZE(pRefs); ++i) {
+    stTriggerTaskInvalidateExtRefBindingIndex(TARRAY_GET_ELEM(pRefs, i));
   }
 }
 
@@ -8679,6 +8861,9 @@ static void stTriggerTaskDestroyExtOrigTableRef(void *ptr) {
   pRef->pReaderCleanupAddrs = NULL;
   taosArrayDestroy(pRef->bindings);
   pRef->bindings = NULL;
+  taosArrayDestroy(pRef->vtableUids);
+  pRef->vtableUids = NULL;
+  stTriggerTaskDestroyExtBindingIndexCache(pRef);
   if (pRef->pGidToBindings != NULL) {
     tSimpleHashCleanup(pRef->pGidToBindings);
     pRef->pGidToBindings = NULL;
@@ -8933,6 +9118,428 @@ bool stTriggerTaskHasExternalRefsForHistory(const SStreamTriggerTask *pTask) {
   return STREAM_IS_REF_EXT_SOURCE(pTask->task.flags);
 }
 
+static bool stTriggerTaskMatchVirtTableInfo(const SSTriggerVirtTableInfo *pInfo, int64_t gid);
+
+static int32_t stTriggerTaskAssociateExtRefVtable(SSTriggerExtOrigTableRef *pRef, int64_t vtbUid) {
+  if (pRef == NULL) return TSDB_CODE_INVALID_PARA;
+  if (pRef->vtableUids == NULL) {
+    pRef->vtableUids = taosArrayInit(1, sizeof(int64_t));
+    if (pRef->vtableUids == NULL) return terrno;
+  }
+  for (int32_t i = 0; i < TARRAY_SIZE(pRef->vtableUids); ++i) {
+    if (*(int64_t *)TARRAY_GET_ELEM(pRef->vtableUids, i) == vtbUid) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  if (taosArrayPush(pRef->vtableUids, &vtbUid) == NULL) return terrno;
+  /* A new virtual target changes the zero-CAL-binding answer of the membership index. */
+  stTriggerTaskInvalidateExtRefBindingIndex(pRef);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stTriggerTaskExtRefHasBindingForVtable(const SSTriggerExtOrigTableRef *pRef, int64_t vtbUid,
+                                                   int8_t kind) {
+  for (int32_t i = 0;
+       pRef != NULL && pRef->bindings != NULL && i < TARRAY_SIZE(pRef->bindings); ++i) {
+    const SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, i);
+    if (pBinding->virtualUid == vtbUid && pBinding->kind == kind) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/* Membership index over one external ref's bindings.
+ *
+ * The trigger fanout asks, for every candidate target, whether a (virtualUid,
+ * virtualGid) pair has a TRIGGER binding and whether a virtual table has any CALC
+ * binding.  Answering each question with a linear scan of the whole bindings array
+ * makes the per-uid fanout quadratic in the number of virtual tables, because a
+ * normally bound virtual table contributes TRIGGER and CALC bindings for every
+ * column reference.  Both sets are therefore built once per response. */
+typedef struct STriggerExtBindingIndex {
+  SSHashObj *pTriggerPeers;   // key: { virtualUid, virtualGid } that own a TRIGGER binding
+  SSHashObj *pTrigVtables;    // key: virtualUid that owns at least one TRIGGER binding
+  SSHashObj *pCalcVtables;    // key: virtualUid that owns at least one CALC binding
+  SSHashObj *pZeroCalcByGid;  // key: gid -> SArray<SSTriggerVirtTableInfo*> without a CALC binding
+} STriggerExtBindingIndex;
+
+static void stTriggerTaskDestroyExtBindingIndex(STriggerExtBindingIndex *pIndex) {
+  if (pIndex == NULL) return;
+  if (pIndex->pTriggerPeers != NULL) {
+    tSimpleHashCleanup(pIndex->pTriggerPeers);
+    pIndex->pTriggerPeers = NULL;
+  }
+  if (pIndex->pTrigVtables != NULL) {
+    tSimpleHashCleanup(pIndex->pTrigVtables);
+    pIndex->pTrigVtables = NULL;
+  }
+  if (pIndex->pCalcVtables != NULL) {
+    tSimpleHashCleanup(pIndex->pCalcVtables);
+    pIndex->pCalcVtables = NULL;
+  }
+  if (pIndex->pZeroCalcByGid != NULL) {
+    int32_t iter = 0;
+    void   *pVal = NULL;
+    while ((pVal = tSimpleHashIterate(pIndex->pZeroCalcByGid, pVal, &iter)) != NULL) {
+      taosArrayDestroy(*(SArray **)pVal);
+    }
+    tSimpleHashCleanup(pIndex->pZeroCalcByGid);
+    pIndex->pZeroCalcByGid = NULL;
+  }
+}
+
+static void stTriggerTaskDestroyExtBindingIndexCache(SSTriggerExtOrigTableRef *pRef) {
+  if (pRef == NULL || pRef->pBindingIndex == NULL) return;
+  stTriggerTaskDestroyExtBindingIndex(pRef->pBindingIndex);
+  taosMemoryFree(pRef->pBindingIndex);
+  pRef->pBindingIndex = NULL;
+}
+
+static bool stTriggerTaskExtBindingIndexHasVtable(const STriggerExtBindingIndex *pIndex, int64_t vtbUid);
+static bool stTriggerTaskExtBindingIndexHasTrigVtable(const STriggerExtBindingIndex *pIndex, int64_t vtbUid);
+static bool stTriggerTaskExtRefIsTrigOnlyTarget(const SStreamTriggerTask         *pTask,
+                                               const STriggerExtBindingIndex  *pIndex,
+                                               const SSTriggerVirtTableInfo   *pVInfo);
+
+static int32_t stTriggerTaskBuildExtBindingIndex(const SSTriggerExtOrigTableRef *pRef,
+                                                 const SStreamTriggerTask         *pTask,
+                                                 STriggerExtBindingIndex         *pIndex) {
+  memset(pIndex, 0, sizeof(*pIndex));
+  int32_t nBindings = (pRef != NULL && pRef->bindings != NULL) ? (int32_t)TARRAY_SIZE(pRef->bindings) : 0;
+  int32_t nVtables  = (pRef != NULL && pRef->vtableUids != NULL) ? (int32_t)TARRAY_SIZE(pRef->vtableUids) : 0;
+  if (nBindings <= 0 && nVtables <= 0) return TSDB_CODE_SUCCESS;
+  pIndex->pTriggerPeers = tSimpleHashInit(nBindings > 0 ? nBindings : 1,
+                                          taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  pIndex->pTrigVtables = tSimpleHashInit(nBindings > 0 ? nBindings : 1,
+                                         taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  pIndex->pCalcVtables = tSimpleHashInit(nBindings > 0 ? nBindings : 1,
+                                         taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (pIndex->pTriggerPeers == NULL || pIndex->pTrigVtables == NULL || pIndex->pCalcVtables == NULL) {
+    stTriggerTaskDestroyExtBindingIndex(pIndex);
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int8_t present = 1;
+  for (int32_t i = 0; i < nBindings; ++i) {
+    const SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, i);
+    int32_t                            code = TSDB_CODE_SUCCESS;
+    if (pBinding->kind == STRIGGER_EXT_BINDING_TRIGGER) {
+      int64_t peerKey[2] = {pBinding->virtualUid, pBinding->virtualGid};
+      code = tSimpleHashPut(pIndex->pTriggerPeers, peerKey, sizeof(peerKey), &present, sizeof(present));
+      if (code == TSDB_CODE_SUCCESS) {
+        code = tSimpleHashPut(pIndex->pTrigVtables, &pBinding->virtualUid, sizeof(pBinding->virtualUid), &present,
+                              sizeof(present));
+      }
+    } else if (pBinding->kind == STRIGGER_EXT_BINDING_CALC) {
+      code = tSimpleHashPut(pIndex->pCalcVtables, &pBinding->virtualUid, sizeof(pBinding->virtualUid), &present,
+                            sizeof(present));
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      stTriggerTaskDestroyExtBindingIndex(pIndex);
+      return code;
+    }
+  }
+
+  /* Index the group members that own no CALC binding once, by gid.  A CALC response
+   * is per group and every group needs exactly this list, so answering it from the
+   * index turns the per-response walk over all virtual tables into one lookup. */
+  if (pTask != NULL && pTask->pVirtTableInfos != NULL && nVtables > 0) {
+    pIndex->pZeroCalcByGid = tSimpleHashInit(nVtables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (pIndex->pZeroCalcByGid == NULL) {
+      stTriggerTaskDestroyExtBindingIndex(pIndex);
+      return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    }
+    for (int32_t v = 0; v < nVtables; ++v) {
+      int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pRef->vtableUids, v);
+      SSTriggerVirtTableInfo *pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(vtbUid));
+      if (pInfo == NULL) continue;
+      if (stTriggerTaskExtBindingIndexHasVtable(pIndex, vtbUid)) continue;
+      /* A table this reference only feeds the TRIGGER with is not a zero-column calculation
+       * target: promoting it would count its timestamps as extra calculation rows (see
+       * stTriggerTaskExtRefIsTrigOnlyTarget). */
+      if (stTriggerTaskExtRefIsTrigOnlyTarget(pTask, pIndex, pInfo)) continue;
+      int32_t nGids = (pInfo->tbGids != NULL && TARRAY_SIZE(pInfo->tbGids) > 0)
+                          ? (int32_t)TARRAY_SIZE(pInfo->tbGids)
+                          : 1;
+      for (int32_t g = 0; g < nGids; ++g) {
+        int64_t gid = (pInfo->tbGids != NULL && TARRAY_SIZE(pInfo->tbGids) > 0)
+                          ? *(int64_t *)TARRAY_GET_ELEM(pInfo->tbGids, g)
+                          : 0;
+        SArray **ppList = (SArray **)tSimpleHashGet(pIndex->pZeroCalcByGid, &gid, sizeof(gid));
+        if (ppList == NULL) {
+          SArray *pList = taosArrayInit(1, POINTER_BYTES);
+          if (pList == NULL) {
+            stTriggerTaskDestroyExtBindingIndex(pIndex);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          int32_t code = tSimpleHashPut(pIndex->pZeroCalcByGid, &gid, sizeof(gid), &pList, POINTER_BYTES);
+          if (code != TSDB_CODE_SUCCESS) {
+            taosArrayDestroy(pList);
+            stTriggerTaskDestroyExtBindingIndex(pIndex);
+            return code;
+          }
+          ppList = (SArray **)tSimpleHashGet(pIndex->pZeroCalcByGid, &gid, sizeof(gid));
+          if (ppList == NULL) {
+            stTriggerTaskDestroyExtBindingIndex(pIndex);
+            return TSDB_CODE_INTERNAL_ERROR;
+          }
+        }
+        if (taosArrayPush(*ppList, &pInfo) == NULL) {
+          stTriggerTaskDestroyExtBindingIndex(pIndex);
+          return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        }
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stTriggerTaskExtBindingIndexHasPeer(const STriggerExtBindingIndex *pIndex, int64_t vtbUid,
+                                                int64_t gid) {
+  if (pIndex == NULL || pIndex->pTriggerPeers == NULL) return false;
+  int64_t peerKey[2] = {vtbUid, gid};
+  return tSimpleHashGet(pIndex->pTriggerPeers, peerKey, sizeof(peerKey)) != NULL;
+}
+
+static bool stTriggerTaskExtBindingIndexHasVtable(const STriggerExtBindingIndex *pIndex, int64_t vtbUid) {
+  if (pIndex == NULL || pIndex->pCalcVtables == NULL) return false;
+  return tSimpleHashGet(pIndex->pCalcVtables, &vtbUid, sizeof(vtbUid)) != NULL;
+}
+
+/* Does this reference feed the trigger projection of the virtual table? The role of a virtual
+ * table has to be answered per reference: one table can take its trigger columns from one
+ * external source and its calculation columns from another, so a table-level flag cannot say
+ * whether THIS reference belongs to the trigger side. */
+static bool stTriggerTaskExtBindingIndexHasTrigVtable(const STriggerExtBindingIndex *pIndex, int64_t vtbUid) {
+  if (pIndex == NULL || pIndex->pTrigVtables == NULL) return false;
+  return tSimpleHashGet(pIndex->pTrigVtables, &vtbUid, sizeof(vtbUid)) != NULL;
+}
+
+/* A virtual target is a TRIGGER-only target for ONE reference when that reference feeds the
+ * trigger projection of the table and owns no calculation binding there.  Such a reader must
+ * stay out of the calculation fanout: its timestamps would become extra calculation rows, so
+ * COUNT(*) overcounts and LAST_ROW(col) can end on their NULL.  A target that owns no binding of
+ * this reference at all (e.g. a COUNT(*) stream over %%trows, where the table is only counted)
+ * remains a legitimate zero-column calculation target. */
+static bool stTriggerTaskExtRefIsTrigOnlyTarget(const SStreamTriggerTask *pTask,
+                                               const STriggerExtBindingIndex *pIndex,
+                                               const SSTriggerVirtTableInfo *pVInfo) {
+  if (pTask == NULL || pVInfo == NULL) return false;
+  // A calculation that reads nothing but timestamps (EVENT/STATE window plus COUNT(*)) is fed by
+  // every referenced table, so excluding these targets would drop genuinely sourced rows.
+  if (pTask->calcScanTsOnly) return false;
+  if (!stTriggerTaskExtBindingIndexHasTrigVtable(pIndex, pVInfo->tbUid)) return false;
+  return !stTriggerTaskExtBindingIndexHasVtable(pIndex, pVInfo->tbUid);
+}
+
+/* Zero-CALC-binding virtual targets of one group, or NULL when the group has none. */
+static SArray *stTriggerTaskExtRefZeroCalcVtablesForGid(const STriggerExtBindingIndex *pIndex, int64_t gid) {
+  if (pIndex == NULL || pIndex->pZeroCalcByGid == NULL) return NULL;
+  SArray **ppList = (SArray **)tSimpleHashGet(pIndex->pZeroCalcByGid, &gid, sizeof(gid));
+  return ppList != NULL ? *ppList : NULL;
+}
+
+/* Build (once per ref) and return the membership index of pRef.  A ref is fanned out
+ * once per CALC group response, so rebuilding the hashes for every response costs
+ * O(groups * bindings); they are cached on the ref and dropped by
+ * stTriggerTaskInvalidateExtRefBindingIndex whenever bindings or vtableUids change. */
+static int32_t stTriggerTaskEnsureExtBindingIndex(SSTriggerExtOrigTableRef        *pRef,
+                                                  const SStreamTriggerTask         *pTask,
+                                                  const STriggerExtBindingIndex **ppIndex) {
+  *ppIndex = NULL;
+  if (pRef == NULL) return TSDB_CODE_SUCCESS;
+  if (pRef->pBindingIndex == NULL) {
+    STriggerExtBindingIndex *pIndex = taosMemoryCalloc(1, sizeof(*pIndex));
+    if (pIndex == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    int32_t code = stTriggerTaskBuildExtBindingIndex(pRef, pTask, pIndex);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(pIndex);
+      return code;
+    }
+    pRef->pBindingIndex = pIndex;
+  }
+  *ppIndex = pRef->pBindingIndex;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Build the trigger-binding list a response fans out to: the ref's own bindings,
+ * plus synthetic TRIGGER bindings for virtual targets that have none (zero-binding
+ * virtual tables still need their trigger rows).  The result depends only on the
+ * ref and the task, so it is built once per response instead of once per uid. */
+/* A virtual target is a calculation-only target for ONE reference when every external column
+ * reference that reference owns lands in the calculation projection and none of them feeds the
+ * trigger projection.  Such a target belongs to %%trows only for that reader, so the reader must
+ * not be promoted into a trigger timestamp source.
+ * The answer is per reference, not per virtual table: a table can take its trigger columns from
+ * one external source (`a FROM R.a`) and its calculation columns from another (`b FROM S.b`), so
+ * a table-level "this table feeds the trigger" flag made the calculation-only reader S look like
+ * a trigger participant and pushed S's timestamps into the trigger input, where they opened
+ * windows the trigger never asked for.
+ * Two cases deliberately stay trigger participants: a timestamp-only virtual scan
+ * (virScanTsOnly) unions every child, and a target that owns no binding of this reference at all
+ * (e.g. a COUNT(*) stream over the vtable) carries no evidence of being calculation-only. */
+static bool stTriggerTaskExtRefIsCalcOnlyTarget(const SStreamTriggerTask         *pTask,
+                                               const STriggerExtBindingIndex  *pIndex,
+                                               const SSTriggerVirtTableInfo   *pVInfo) {
+  if (pTask == NULL || pVInfo == NULL) return false;
+  if (pTask->virScanTsOnly) return false;
+  if (stTriggerTaskExtBindingIndexHasTrigVtable(pIndex, pVInfo->tbUid)) return false;
+  // Only a target that owns calculation bindings of this reference can be a calculation-only target.
+  return stTriggerTaskExtBindingIndexHasVtable(pIndex, pVInfo->tbUid);
+}
+
+static int32_t stTriggerTaskBuildExtSyntheticTriggerBindings(const SSTriggerExtOrigTableRef *pRef,
+                                                             const SStreamTriggerTask        *pTask,
+                                                             const STriggerExtBindingIndex   *pIndex,
+                                                             SArray                         **ppOut) {
+  *ppOut = NULL;
+  if (pRef == NULL || pTask == NULL || pTask->pVirtTableInfos == NULL || pRef->vtableUids == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t nVtables = (int32_t)TARRAY_SIZE(pRef->vtableUids);
+  if (nVtables <= 0) return TSDB_CODE_SUCCESS;
+
+  int32_t nMissing = 0;
+  int32_t nSkipped = 0;
+  for (int32_t v = 0; v < nVtables; ++v) {
+    int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pRef->vtableUids, v);
+    SSTriggerVirtTableInfo *pVInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(vtbUid));
+    if (pVInfo == NULL) continue;
+    if (stTriggerTaskExtRefIsCalcOnlyTarget(pTask, pIndex, pVInfo)) {
+      ++nSkipped;
+      continue;
+    }
+    int32_t nGids = (pVInfo->tbGids != NULL && TARRAY_SIZE(pVInfo->tbGids) > 0)
+                        ? (int32_t)TARRAY_SIZE(pVInfo->tbGids)
+                        : 1;
+    for (int32_t g = 0; g < nGids; ++g) {
+      int64_t gid = (pVInfo->tbGids != NULL && TARRAY_SIZE(pVInfo->tbGids) > 0)
+                        ? *(int64_t *)TARRAY_GET_ELEM(pVInfo->tbGids, g)
+                        : 0;
+      if (!stTriggerTaskExtBindingIndexHasPeer(pIndex, vtbUid, gid)) ++nMissing;
+    }
+  }
+  if (nSkipped > 0) {
+    ST_TASK_DLOG("ext: %d calculation-only virtual target(s) kept out of the trigger fanout", nSkipped);
+  }
+  if (nMissing == 0) return TSDB_CODE_SUCCESS;
+
+  int32_t nBindings = pRef->bindings != NULL ? (int32_t)TARRAY_SIZE(pRef->bindings) : 0;
+  SArray *pSynth = taosArrayInit((size_t)nBindings + (size_t)nMissing, sizeof(SSTriggerExtOrigTableBinding));
+  if (pSynth == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < nBindings; ++i) {
+    if (taosArrayPush(pSynth, TARRAY_GET_ELEM(pRef->bindings, i)) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      break;
+    }
+  }
+  for (int32_t v = 0; code == TSDB_CODE_SUCCESS && v < nVtables; ++v) {
+    int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pRef->vtableUids, v);
+    SSTriggerVirtTableInfo *pVInfo = tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(vtbUid));
+    if (pVInfo == NULL) continue;
+    if (stTriggerTaskExtRefIsCalcOnlyTarget(pTask, pIndex, pVInfo)) continue;
+    int32_t nGids = (pVInfo->tbGids != NULL && TARRAY_SIZE(pVInfo->tbGids) > 0)
+                        ? (int32_t)TARRAY_SIZE(pVInfo->tbGids)
+                        : 1;
+    for (int32_t g = 0; g < nGids; ++g) {
+      int64_t gid = (pVInfo->tbGids != NULL && TARRAY_SIZE(pVInfo->tbGids) > 0)
+                        ? *(int64_t *)TARRAY_GET_ELEM(pVInfo->tbGids, g)
+                        : 0;
+      if (stTriggerTaskExtBindingIndexHasPeer(pIndex, vtbUid, gid)) continue;
+      SSTriggerExtOrigTableBinding synth = {
+          .kind = STRIGGER_EXT_BINDING_TRIGGER,
+          .virtualUid = pVInfo->tbUid,
+          .virtualSlot = -1,
+          .virtualColId = -1,
+      };
+      synth.virtualGid = gid;
+      if (taosArrayPush(pSynth, &synth) == NULL) {
+        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pSynth);
+    return code;
+  }
+  *ppOut = pSynth;
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool stTriggerTaskBindingBelongsToPatch(const SSHashObj *pPatchItems,
+                                               const SSTriggerExtOrigTableBinding *pBinding);
+
+/* Resolve everything one CALC_DATA_EXT response fans out to, once per response:
+ *   *ppBindings    - borrowed CALC bindings of the current group, in binding order,
+ *   *ppZeroVtables - virtual tables of the group that own no CALC binding (zero-binding
+ *                    targets still need a calc slice ref so %%trows receives their rows).
+ * A CALC response is per group, so both answers are identical for every external uid
+ * entry in it; walking the ref's vtable list and bindings per uid entry instead made a
+ * round of N single-uid groups do N full scans and N^2 vtable checks. */
+static int32_t stTriggerTaskBuildExtCalcGroupTargets(SSTriggerExtOrigTableRef        *pRef,
+                                                    const SStreamTriggerTask        *pTask,
+                                                    const STriggerExtBindingIndex   *pBindingIndex,
+                                                    int64_t                          gid,
+                                                    const SSHashObj                 *pPatchItems,
+                                                    bool                             filterPatch,
+                                                    SArray                         **ppBindings,
+                                                    SArray                         **ppZeroVtables) {
+  *ppBindings    = NULL;
+  *ppZeroVtables = NULL;
+
+  SArray *pGroupBindings = NULL;
+  int32_t code = stTriggerTaskGetExtRefBindingsForGid(pRef, gid, &pGroupBindings);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  int32_t nBindings = pGroupBindings != NULL ? (int32_t)TARRAY_SIZE(pGroupBindings) : 0;
+  SArray *pCalc = taosArrayInit(nBindings > 0 ? (size_t)nBindings : 1, POINTER_BYTES);
+  if (pCalc == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  for (int32_t i = 0; i < nBindings; ++i) {
+    SSTriggerExtOrigTableBinding *pBinding =
+        *(SSTriggerExtOrigTableBinding **)TARRAY_GET_ELEM(pGroupBindings, i);
+    if (pBinding->kind != STRIGGER_EXT_BINDING_CALC) continue;
+    if (filterPatch && stTriggerTaskBindingBelongsToPatch(pPatchItems, pBinding)) {
+      ST_TASK_DLOG("ext: skip patched calc binding from previous in-flight reader response, "
+                   "virtualUid:%" PRId64 ", virtualGid:%" PRId64,
+                   pBinding->virtualUid, pBinding->virtualGid);
+      continue;
+    }
+    if (taosArrayPush(pCalc, &pBinding) == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
+  }
+
+  SArray *pZero = NULL;
+  SArray *pCachedZero = stTriggerTaskExtRefZeroCalcVtablesForGid(pBindingIndex, gid);
+  if (pCachedZero != NULL && TARRAY_SIZE(pCachedZero) > 0) {
+    pZero = taosArrayInit((size_t)TARRAY_SIZE(pCachedZero), POINTER_BYTES);
+    if (pZero == NULL) {
+      code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _end;
+    }
+    for (int32_t v = 0; v < TARRAY_SIZE(pCachedZero); ++v) {
+      SSTriggerVirtTableInfo *pInfo = *(SSTriggerVirtTableInfo **)TARRAY_GET_ELEM(pCachedZero, v);
+      if (taosArrayPush(pZero, &pInfo) == NULL) {
+        code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+        goto _end;
+      }
+    }
+  }
+
+  *ppBindings    = pCalc;
+  *ppZeroVtables = pZero;
+  return TSDB_CODE_SUCCESS;
+
+_end:
+  taosArrayDestroy(pCalc);
+  taosArrayDestroy(pZero);
+  return code;
+}
+
 static int32_t stTriggerTaskAddExtOrigTableRef(SStreamTriggerTask *pTask, SArray *pRefs, const VTableInfo *pInfo,
                                                const SColRef *pColRef) {
   if (pTask == NULL || pRefs == NULL || pInfo == NULL || pColRef == NULL ||
@@ -8992,14 +9599,21 @@ static int32_t stTriggerTaskAddExtOrigTableRef(SStreamTriggerTask *pTask, SArray
       stTriggerTaskDestroyExtOrigTableRef(&entry);
       return terrno;
     }
+    entry.vtableUids = taosArrayInit(1, sizeof(int64_t));
+    if (entry.vtableUids == NULL) {
+      stTriggerTaskDestroyExtOrigTableRef(&entry);
+      return terrno;
+    }
     if (taosArrayPush(pRefs, &entry) == NULL) {
       stTriggerTaskDestroyExtOrigTableRef(&entry);
       return terrno;
     }
     pEntry = TARRAY_GET_ELEM(pRefs, TARRAY_SIZE(pRefs) - 1);
   }
-  int32_t code = stTriggerTaskAddExtOrigTableBinding(pEntry, pInfo, pColRef, pTask->pVirtTrigBlock,
-                                                      STRIGGER_EXT_BINDING_TRIGGER);
+  int32_t code = stTriggerTaskAssociateExtRefVtable(pEntry, pInfo->uid);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = stTriggerTaskAddExtOrigTableBinding(pEntry, pInfo, pColRef, pTask->pVirtTrigBlock,
+                                             STRIGGER_EXT_BINDING_TRIGGER);
   if (code != TSDB_CODE_SUCCESS) return code;
   return stTriggerTaskAddExtOrigTableBinding(pEntry, pInfo, pColRef, pTask->pVirtCalcBlock, STRIGGER_EXT_BINDING_CALC);
 }
@@ -9194,7 +9808,79 @@ static int32_t stTriggerTaskAddExtVtableColRefs(SStreamTriggerTask *pTask, SSTri
   }
   SSTriggerReaderDataKey readerKey = {0};
 
-  for (int32_t i = 0; i < TARRAY_SIZE(pExtRef->bindings); ++i) {
+  // A virtual table associated with this external identity may legitimately
+  // contribute no bound column (for example COUNT(*) over %%trows). It still
+  // needs a ts-match col ref for each missing pull kind.
+  int32_t nVtables = pExtRef->vtableUids != NULL ? TARRAY_SIZE(pExtRef->vtableUids) : 0;
+  for (int32_t i = 0; i < nVtables; ++i) {
+    int64_t                 vtbUid = *(int64_t *)TARRAY_GET_ELEM(pExtRef->vtableUids, i);
+    SSTriggerVirtTableInfo *pInfo =
+        tSimpleHashGet(pTask->pVirtTableInfos, &vtbUid, sizeof(vtbUid));
+    if (pInfo == NULL) {
+      continue;
+    }
+    // A target that is referenced only by calculation columns must not be given a trigger
+    // ts-match col ref either: that would make the reader supply its timestamps to the
+    // trigger side, where they open windows the trigger never asked for.  The role is per
+    // reference: another source may carry this table's trigger columns, which says nothing
+    // about the columns of this reference (see stTriggerTaskExtRefIsCalcOnlyTarget).
+    bool hasTrigBinding = stTriggerTaskExtRefHasBindingForVtable(pExtRef, vtbUid, STRIGGER_EXT_BINDING_TRIGGER);
+    bool hasCalcBinding = stTriggerTaskExtRefHasBindingForVtable(pExtRef, vtbUid, STRIGGER_EXT_BINDING_CALC);
+    bool calcOnlyTarget = !pTask->virScanTsOnly && hasCalcBinding && !hasTrigBinding;
+    // Mirror image on the calculation side: a trigger-only target must not receive a calc
+    // ts-match col ref, or its rows enter %%trows as zero-column calculation rows.  A calculation
+    // that reads nothing but timestamps still needs those rows, so it keeps every target.
+    bool trigOnlyTarget = !pTask->calcScanTsOnly && hasTrigBinding && !hasCalcBinding;
+    for (int32_t kind = STRIGGER_EXT_BINDING_TRIGGER; kind <= STRIGGER_EXT_BINDING_CALC; ++kind) {
+      if (kind == STRIGGER_EXT_BINDING_TRIGGER && calcOnlyTarget) {
+        continue;
+      }
+      if (kind == STRIGGER_EXT_BINDING_CALC && trigOnlyTarget) {
+        continue;
+      }
+      if (stTriggerTaskExtRefHasBindingForVtable(pExtRef, vtbUid, (int8_t)kind)) {
+        continue;
+      }
+      readerKey = stTriggerReaderDataKey(
+          kind == STRIGGER_EXT_BINDING_TRIGGER ? STRIGGER_READER_KIND_EXTERNAL
+                                               : STRIGGER_READER_KIND_EXTERNAL_CALC,
+          (uint64_t)pExtRef->registryEntryId, 0);
+      SArray **ppColRefs =
+          kind == STRIGGER_EXT_BINDING_TRIGGER ? &pInfo->pTrigColRefs : &pInfo->pCalcColRefs;
+      if (*ppColRefs == NULL) {
+        *ppColRefs = taosArrayInit(0, sizeof(SSTriggerTableColRef));
+        QUERY_CHECK_NULL(*ppColRefs, code, lino, _end, terrno);
+      }
+      SSTriggerTableColRef *pColRef = NULL;
+      for (int32_t j = 0; j < TARRAY_SIZE(*ppColRefs); ++j) {
+        SSTriggerTableColRef *pCandidate = TARRAY_GET_ELEM(*ppColRefs, j);
+        if (pCandidate->readerKey.readerKind == readerKey.readerKind &&
+            pCandidate->readerKey.stableReaderId == readerKey.stableReaderId) {
+          pColRef = pCandidate;
+          break;
+        }
+      }
+      if (pColRef == NULL) {
+        pColRef = taosArrayReserve(*ppColRefs, 1);
+        QUERY_CHECK_NULL(pColRef, code, lino, _end, terrno);
+        pColRef->readerKey = readerKey;
+        pColRef->pColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pColRef->pColMatches, code, lino, _end, terrno);
+        pColRef->pNewColMatches = taosArrayInit(1, sizeof(SSTriggerColMatch));
+        QUERY_CHECK_NULL(pColRef->pNewColMatches, code, lino, _end, terrno);
+        int32_t tsSlotId =
+            kind == STRIGGER_EXT_BINDING_TRIGGER ? pTask->trigTsIndex : pTask->calcTsIndex;
+        SSTriggerColMatch tsMatch = {.otbSlotId = 0, .vtbSlotId = tsSlotId};
+        QUERY_CHECK_NULL(taosArrayPush(pColRef->pNewColMatches, &tsMatch), code, lino, _end, terrno);
+      }
+    }
+  }
+
+  // pExtRef->bindings may still be unallocated for a target that carries no bound
+  // column (the same zero-binding case the loop above exists for), so it needs the
+  // same NULL guard as pExtRef->vtableUids: TARRAY_SIZE(NULL) dereferences NULL.
+  int32_t nBindings = pExtRef->bindings != NULL ? TARRAY_SIZE(pExtRef->bindings) : 0;
+  for (int32_t i = 0; i < nBindings; ++i) {
     SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pExtRef->bindings, i);
     SSTriggerVirtTableInfo *pInfo =
         tSimpleHashGet(pTask->pVirtTableInfos, &pBinding->virtualUid, sizeof(pBinding->virtualUid));
@@ -10578,6 +11264,10 @@ static int32_t stTriggerTaskNewParseVirtScan(SStreamTriggerTask *pTask, void *tr
   QUERY_CHECK_CODE(code, lino, _end);
 
   pTask->virScanTsOnly = (pTrigSlots != NULL) || (pCalcSlots != NULL);
+  // Track the calculation side on its own: a trigger window may need a value column while the
+  // calculation reads nothing but timestamps (EVENT_WINDOW(val) + COUNT(*)), and then every
+  // referenced table still has to contribute its rows to the calculation.
+  pTask->calcScanTsOnly = (pCalcSlots != NULL);
   code = createDataBlock(&pTask->pVirtTrigBlock);
   QUERY_CHECK_CODE(code, lino, _end);
   i = 0;
@@ -10610,6 +11300,7 @@ static int32_t stTriggerTaskNewParseVirtScan(SStreamTriggerTask *pTask, void *tr
       pTask->calcTsSlotId = i;
     } else if (!*(bool *)TARRAY_GET_ELEM(pTask->pCalcIsPseudoCol, i)) {
       pTask->virScanTsOnly = false;
+      pTask->calcScanTsOnly = false;
     }
     i++;
     SColumnInfoData col = createColumnInfoData(pn->dataType.type, pn->dataType.bytes, id);
@@ -11730,7 +12421,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
             lino = __LINE__;
             goto _end;
           }
-          pRef->acceptedBindingCount = TARRAY_SIZE(pRef->bindings);
+          pRef->acceptedBindingCount = pRef->bindings != NULL ? TARRAY_SIZE(pRef->bindings) : 0;
           stTriggerTaskRemoveExtReaderCleanupAddr(pRef, &pExtRsp->readerTaskAddr);
           ST_TASK_DLOG("confirm external reader, registryEntryId:%" PRId64 ", readerTaskId:%" PRId64
                        ", nodeId:%d, bindings:%d",
@@ -12188,6 +12879,15 @@ static int32_t stTriggerTaskAttributeChildFailure(int32_t code, bool *pFailureRe
   return code;
 }
 
+/* Meta windows accumulated by earlier pages of one META enumeration and not yet
+ * fetched.  A zero-row META page ends the enumeration, so these must be dispatched
+ * instead of idling: the reader has no page left to report, and the trigger has
+ * already adopted every watermark it was given. */
+static bool stRealtimeContextHasPendingExtMetaWindows(const SSTriggerExtProgress *pProgress) {
+  return pProgress != NULL && pProgress->pUidWindow != NULL &&
+         tSimpleHashGetSize(pProgress->pUidWindow) > 0;
+}
+
 static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContext, SRpcMsg *pRsp,
                                                SSTriggerExtProgress *pProgress, ESTriggerPullType requestType,
                                                int64_t nowNs, bool *pFailureRecordedByChild) {
@@ -12261,6 +12961,16 @@ static int32_t stRealtimeContextProcExtPullRsp(SSTriggerRealtimeContext *pContex
       }
       code = stTriggerTaskAttributeChildFailure(stRealtimeContextCheckForTurn(pContext, nowNs),
                                                 pFailureRecordedByChild);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else if (requestType == STRIGGER_PULL_META_EXT &&
+               stRealtimeContextHasPendingExtMetaWindows(pProgress)) {
+      /* The META enumeration ended on a zero-row page while the windows of its
+       * earlier pages are still pending: that page boundary landed exactly on the
+       * reader's row limit, so this NO_DATA does not mean "nothing to do".  Fetch
+       * those windows now; a plain re-poll can only repeat the empty response. */
+      ST_TASK_DLOG("ext: META paging ended with pending windows, issuing DATA_EXT reader task:%" PRIx64,
+                   pProgress->pTaskAddr->taskId);
+      code = stRealtimeContextSendExtPullReq(pContext, pProgress, STRIGGER_PULL_DATA_EXT, 0);
       QUERY_CHECK_CODE(code, lino, _end);
     } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD && !pTask->ignoreNoDataTrigger &&
                pContext->status == STRIGGER_CONTEXT_FETCH_META) {
@@ -16442,13 +17152,33 @@ static SSTriggerExtProgress *stRealtimeContextFindExtProgress(SSTriggerRealtimeC
 
 static bool stTriggerTaskExtRegistryBindingsEqual(const SSTriggerExtOrigTableRef *pLeft,
                                                   const SSTriggerExtOrigTableRef *pRight) {
-  if (pLeft == NULL || pRight == NULL || TARRAY_SIZE(pLeft->bindings) != TARRAY_SIZE(pRight->bindings)) {
+  int32_t nLeftVtables =
+      pLeft != NULL && pLeft->vtableUids != NULL ? TARRAY_SIZE(pLeft->vtableUids) : 0;
+  int32_t nRightVtables =
+      pRight != NULL && pRight->vtableUids != NULL ? TARRAY_SIZE(pRight->vtableUids) : 0;
+  int32_t nLeftBindings =
+      pLeft != NULL && pLeft->bindings != NULL ? TARRAY_SIZE(pLeft->bindings) : 0;
+  int32_t nRightBindings =
+      pRight != NULL && pRight->bindings != NULL ? TARRAY_SIZE(pRight->bindings) : 0;
+  if (pLeft == NULL || pRight == NULL || nLeftBindings != nRightBindings ||
+      nLeftVtables != nRightVtables) {
     return false;
   }
-  for (int32_t i = 0; i < TARRAY_SIZE(pLeft->bindings); ++i) {
+  for (int32_t i = 0; i < nLeftVtables; ++i) {
+    int64_t vtbUid = *(int64_t *)TARRAY_GET_ELEM(pLeft->vtableUids, i);
+    bool    matched = false;
+    for (int32_t j = 0; j < nRightVtables; ++j) {
+      if (*(int64_t *)TARRAY_GET_ELEM(pRight->vtableUids, j) == vtbUid) {
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) return false;
+  }
+  for (int32_t i = 0; i < nLeftBindings; ++i) {
     const SSTriggerExtOrigTableBinding *pLeftBinding = TARRAY_GET_ELEM(pLeft->bindings, i);
     bool matched = false;
-    for (int32_t j = 0; j < TARRAY_SIZE(pRight->bindings); ++j) {
+    for (int32_t j = 0; j < nRightBindings; ++j) {
       const SSTriggerExtOrigTableBinding *pRightBinding = TARRAY_GET_ELEM(pRight->bindings, j);
       if (pLeftBinding->bindingId == pRightBinding->bindingId &&
           pLeftBinding->virtualUid == pRightBinding->virtualUid &&
@@ -17068,6 +17798,13 @@ static int32_t stRealtimeContextPrepareVtablePatch(SSTriggerRealtimeContext *pCo
 
   taosWLockLatch(&pTask->virTableInfoLock);
   stTriggerTaskInvalidateInternalGroupIndex(pTask);
+  /* The ext membership index caches raw SSTriggerVirtTableInfo pointers of the hash removed
+   * below (pZeroCalcByGid) and the gids of those tables, while tSimpleHashRemove frees the
+   * inline vtable info. An index built before this point therefore holds dangling pointers for
+   * the rest of the patch, so drop it here exactly like the gid-append path in the VTABLE_INFO
+   * handler does. */
+  stTriggerTaskInvalidateExtRefBindingIndexes(pTask->pExtOrigTableRefs);
+  stTriggerTaskInvalidateExtRefBindingIndexes(pContext->patchContext.pExtOrigTableRefs);
   QUERY_CHECK_NULL(pTask->pVirtTableInfos, code, lino, _end, TSDB_CODE_STREAM_INTERNAL_ERROR);
   int32_t                   iter = 0;
   SSTriggerVTablePatchItem *pItem = tSimpleHashIterate(pPatch->pPatchItems, NULL, &iter);
@@ -17152,6 +17889,11 @@ int32_t stTriggerTestPrepareVtablePatch(SSTriggerRealtimeContext *pContext) {
 int32_t stTriggerTestHandleVtablePatchPrepareFailure(SSTriggerRealtimeContext *pContext, int32_t code) {
   return stRealtimeContextHandleVtablePatchPrepareFailure(pContext, code);
 }
+
+bool stTriggerTestExtRegistryBindingsEqual(const SSTriggerExtOrigTableRef *pLeft,
+                                           const SSTriggerExtOrigTableRef *pRight) {
+  return stTriggerTaskExtRegistryBindingsEqual(pLeft, pRight);
+}
 #endif
 
 static bool stTriggerTaskBindingBelongsToPatch(const SSHashObj *pPatchItems,
@@ -17169,8 +17911,10 @@ static int32_t stTriggerTaskCloneExtOrigTableRef(const SSTriggerExtOrigTableRef 
   pTarget->canonicalKey = NULL;
   pTarget->pReaderCleanupAddrs = NULL;
   pTarget->bindings = NULL;
-  // The binding index belongs to the source ref; the clone gets its own lazily built one.
+  pTarget->vtableUids = NULL;
+  // The binding indexes belong to the source ref; the clone gets its own lazily built ones.
   pTarget->pGidToBindings = NULL;
+  pTarget->pBindingIndex  = NULL;
 
   if (pSource->tagCondJson != NULL) {
     pTarget->tagCondJson = taosStrdup(pSource->tagCondJson);
@@ -17183,6 +17927,14 @@ static int32_t stTriggerTaskCloneExtOrigTableRef(const SSTriggerExtOrigTableRef 
   if (pSource->pReaderCleanupAddrs != NULL) {
     pTarget->pReaderCleanupAddrs = taosArrayDup(pSource->pReaderCleanupAddrs, NULL);
     if (pTarget->pReaderCleanupAddrs == NULL) goto _error;
+  }
+  int32_t nSourceVtables = pSource->vtableUids != NULL ? TARRAY_SIZE(pSource->vtableUids) : 0;
+  for (int32_t i = 0; i < nSourceVtables; ++i) {
+    int64_t vtbUid = *(int64_t *)TARRAY_GET_ELEM(pSource->vtableUids, i);
+    if (pPatchItems != NULL && tSimpleHashGet((SSHashObj *)pPatchItems, &vtbUid, sizeof(vtbUid)) != NULL) {
+      continue;
+    }
+    if (stTriggerTaskAssociateExtRefVtable(pTarget, vtbUid) != TSDB_CODE_SUCCESS) goto _error;
   }
   pTarget->bindings = taosArrayInit(TMAX(1, TARRAY_SIZE(pSource->bindings)),
                                     sizeof(SSTriggerExtOrigTableBinding));
@@ -17212,6 +17964,16 @@ static SSTriggerExtOrigTableRef *stTriggerTaskFindExtRegistryRef(SArray *pRefs,
 
 static int32_t stTriggerTaskMergeExtRegistryBindings(SSTriggerExtOrigTableRef *pTarget,
                                                      const SSTriggerExtOrigTableRef *pPatch) {
+  int32_t nPatchVtables = pPatch->vtableUids != NULL ? TARRAY_SIZE(pPatch->vtableUids) : 0;
+  if (nPatchVtables > 0 && pTarget->vtableUids == NULL) {
+    pTarget->vtableUids = taosArrayInit(nPatchVtables, sizeof(int64_t));
+    if (pTarget->vtableUids == NULL) return terrno;
+  }
+  for (int32_t i = 0; i < nPatchVtables; ++i) {
+    int32_t code = stTriggerTaskAssociateExtRefVtable(
+        pTarget, *(int64_t *)TARRAY_GET_ELEM(pPatch->vtableUids, i));
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
   for (int32_t i = 0; i < TARRAY_SIZE(pPatch->bindings); ++i) {
     SSTriggerExtOrigTableBinding *pPatchBinding = TARRAY_GET_ELEM(pPatch->bindings, i);
     for (int32_t j = 0; j < TARRAY_SIZE(pTarget->bindings); ++j) {
@@ -17278,15 +18040,23 @@ int32_t stTriggerTaskPrepareExtRegistryPatch(SSTriggerRealtimeContext *pContext)
         break;
       }
     }
+    int32_t nSourceVtables = pSource->vtableUids != NULL ? TARRAY_SIZE(pSource->vtableUids) : 0;
+    for (int32_t j = 0; !affected && j < nSourceVtables; ++j) {
+      int64_t vtbUid = *(int64_t *)TARRAY_GET_ELEM(pSource->vtableUids, j);
+      affected =
+          tSimpleHashGet(pPatch->pPatchItems, &vtbUid, sizeof(vtbUid)) != NULL;
+    }
     code = stTriggerTaskCloneExtOrigTableRef(pSource, pPatch->pPatchItems, &cloned);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (TARRAY_SIZE(cloned.bindings) == 0) {
+    if (TARRAY_SIZE(cloned.bindings) == 0 &&
+        (cloned.vtableUids == NULL || TARRAY_SIZE(cloned.vtableUids) == 0)) {
       stTriggerTaskDestroyExtOrigTableRef(&cloned);
       if (affected && pSource->readerTaskAddr.taskId != 0) {
         SSTriggerExtOrigTableRef cleanup = {0};
         code = stTriggerTaskCloneExtOrigTableRef(pSource, NULL, &cleanup);
         QUERY_CHECK_CODE(code, lino, _end);
         taosArrayClear(cleanup.bindings);
+        taosArrayClear(cleanup.vtableUids);
         cleanup.acceptedBindingCount = 0;
         if (taosArrayPush(pCleanupRefs, &cleanup) == NULL) {
           code = terrno;
@@ -25003,6 +25773,12 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
       taosWLockLatch(&pTask->virTableInfoLock);
       stTriggerTaskInvalidateInternalGroupIndex(pTask);
+      /* This round may add a gid to a virtual table below, which changes the
+       * gid -> zero-CALC-target answer the ext membership index caches. */
+      stTriggerTaskInvalidateExtRefBindingIndexes(pTask->pExtOrigTableRefs);
+      if (IS_PATCHING_VITRUAL_TABLE(pContext)) {
+        stTriggerTaskInvalidateExtRefBindingIndexes(pContext->patchContext.pExtOrigTableRefs);
+      }
       for (int32_t i = 0; i < nVirTables; i++) {
         VTableInfo             *pInfo = TARRAY_GET_ELEM(vtableInfo.infos, i);
         SSTriggerVirtTableInfo *pNewInfo = tSimpleHashGet(pTask->pVirtTableInfos, &pInfo->uid, sizeof(int64_t));
@@ -25365,13 +26141,23 @@ static int32_t stRealtimeContextEnsureExtRefIndex(SSTriggerRealtimeContext *pCon
     return terrno;
   }
   tSimpleHashSetFreeFp(pIndex, stRealtimeContextDestroyExtRefIndexElem);
+  SArray *pOwned = NULL;
   for (int32_t i = 0; i < TARRAY_SIZE(pTask->pExtOrigTableRefs); ++i) {
     SSTriggerExtOrigTableRef *pRef = TARRAY_GET_ELEM(pTask->pExtOrigTableRefs, i);
     if (pRef == NULL || pRef->registryEntryId == 0) {
       continue;
     }
-    for (int32_t j = 0; j < TARRAY_SIZE(pRef->bindings); ++j) {
-      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pRef->bindings, j);
+    /* Owned set: a zero-binding virtual target (COUNT(*) over %%trows) owns its
+     * group through a synthetic TRIGGER binding, and its completed cutoff has to
+     * be recorded exactly like a permanent one. */
+    taosArrayDestroy(pOwned);
+    pOwned = NULL;
+    code = stTriggerTaskBuildExtOwnedBindings(pRef, pTask, &pOwned);
+    QUERY_CHECK_CODE(code, lino, _end);
+    SArray *pBindings = pOwned != NULL ? pOwned : pRef->bindings;
+    int32_t nOwnedBindings = pBindings != NULL ? (int32_t)TARRAY_SIZE(pBindings) : 0;
+    for (int32_t j = 0; j < nOwnedBindings; ++j) {
+      SSTriggerExtOrigTableBinding *pBinding = TARRAY_GET_ELEM(pBindings, j);
       if (pBinding == NULL) {
         continue;
       }
@@ -25395,12 +26181,15 @@ static int32_t stRealtimeContextEnsureExtRefIndex(SSTriggerRealtimeContext *pCon
         goto _end;
       }
     }
+    taosArrayDestroy(pOwned);
+    pOwned = NULL;
   }
   pContext->pGidToExtRefs = pIndex;
   *ppIndex = pIndex;
   pIndex = NULL;
 
 _end:
+  taosArrayDestroy(pOwned);
   tSimpleHashCleanup(pIndex);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
@@ -29418,15 +30207,24 @@ static int32_t stRealtimeContextExtUidBelongsToVirtualGroup(const SSTriggerRealt
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-    if (pBindings == NULL) {
-      continue;
-    }
-    for (int32_t j = 0; j < TARRAY_SIZE(pBindings); ++j) {
+    for (int32_t j = 0; pBindings != NULL && j < TARRAY_SIZE(pBindings); ++j) {
       SSTriggerExtOrigTableBinding *pBinding = *(SSTriggerExtOrigTableBinding **)TARRAY_GET_ELEM(pBindings, j);
       if (pBinding != NULL && pBinding->kind == STRIGGER_EXT_BINDING_CALC) {
         *pBelongsTo = true;
         return TSDB_CODE_SUCCESS;
       }
+    }
+    // A zero-binding virtual table still contributes trigger rows to %%trows.  The
+    // per-gid index already lists those targets, so this costs one lookup instead of
+    // walking every virtual table of the registry.
+    const STriggerExtBindingIndex *pIndex = NULL;
+    code = stTriggerTaskEnsureExtBindingIndex(pRef, pContext->pTask, &pIndex);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (stTriggerTaskExtRefZeroCalcVtablesForGid(pIndex, gid) != NULL) {
+      *pBelongsTo = true;
+      return TSDB_CODE_SUCCESS;
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -29539,7 +30337,14 @@ static int32_t stRealtimeContextEnsureVirtualExtCalcUidWindow(SSTriggerRealtimeC
         break;
       }
     }
-    if (!hasCalcBindingForGroup) {
+    // A zero-binding virtual table has no calc binding, but %%trows still needs
+    // the trigger's DATA_EXT rows, so build the CALC_DATA_EXT window anyway.
+    // The per-gid index already resolves those targets; keep one lookup per group.
+    const STriggerExtBindingIndex *pZeroIndex = NULL;
+    code = stTriggerTaskEnsureExtBindingIndex(pRef, pTask, &pZeroIndex);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!hasCalcBindingForGroup &&
+        stTriggerTaskExtRefZeroCalcVtablesForGid(pZeroIndex, pGroup->gid) == NULL) {
       continue;
     }
 
@@ -29875,6 +30680,13 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
   SStreamTriggerTask *pTask = pContext->pTask;
   SSHashObj          *pSeenTriggerTargets = NULL;
   SSHashObj          *pSeenGroupMetas = NULL;
+  SArray             *pSyntheticBindings = NULL;
+  /* Per-response CALC targets of the current group.  A CALC_DATA_EXT response is
+   * per group, and every uid entry in it belongs to that group, so resolving the
+   * group's bindings and its zero-CAL-binding virtual tables inside the uid loop
+   * repeats the same walk once per uid (O(N^2) vtable checks for N sub-tables). */
+  SArray             *pCalcGroupBindings = NULL;
+  SArray             *pZeroCalcVtables = NULL;
 
   QUERY_CHECK_NULL(pExtRsp, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
@@ -29888,6 +30700,7 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
   SSTriggerRealtimeGroup  *pCurGroup = NULL;
   SSTriggerExtOrigTableRef *pExtRef = NULL;
   bool                      refFromPreviousPatchRefs = false;
+  const STriggerExtBindingIndex *pBindingIndex = NULL;
   if (forCalc) {
     pCurGroup = stRealtimeContextGetCurrentGroup(pContext);
     QUERY_CHECK_NULL(pCurGroup, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -29900,6 +30713,26 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
     pExtRef = stRealtimeContextFindExtRefForRsp(pContext, pProgress->pTaskAddr->taskId, &refFromPreviousPatchRefs);
     QUERY_CHECK_NULL(pExtRef, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     QUERY_CHECK_CONDITION(pExtRef->registryEntryId != 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    // Both the calc target list and the trigger target list are derived from this ref only:
+    // resolve its cached membership index and, for a trigger-data response, the synthetic
+    // trigger bindings once per response instead of rescanning the bindings array for every
+    // external uid below.
+    code = stTriggerTaskEnsureExtBindingIndex(pExtRef, pTask, &pBindingIndex);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (!forCalc) {
+      // The calc branch never fans out to trigger targets, so only the trigger-data
+      // response pays for the synthetic list.
+      code = stTriggerTaskBuildExtSyntheticTriggerBindings(pExtRef, pTask, pBindingIndex, &pSyntheticBindings);
+      QUERY_CHECK_CODE(code, lino, _end);
+    } else {
+      // A CALC response belongs to exactly one group, so its bindings and its
+      // zero-CAL-binding virtual targets are the same for every uid entry below.
+      code = stTriggerTaskBuildExtCalcGroupTargets(pExtRef, pTask, pBindingIndex, pCurGroup->gid,
+                                                   pContext->patchContext.pPatchItems,
+                                                   refFromPreviousPatchRefs, &pCalcGroupBindings,
+                                                   &pZeroCalcVtables);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
   }
 
   if (forCalc) {
@@ -29975,25 +30808,24 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
         stRealtimeContextExtendVirtualExtCalcRange(pContext, pCurGroup->gid, &calcMetaRange);
         code = stRealtimeGroupAddVirtualExtCalcMeta(pCurGroup, &readerKey, &calcMetaRange);
         QUERY_CHECK_CODE(code, lino, _end);
-        // Per-ref gid index: the calc response is per-group, so only the bindings of this group
-        // can match; scanning the whole bindings array per uid entry would cost O(groups*bindings).
-        // A failed index build is a hard error: continuing without the slice refs would drop this
-        // group's external columns from the calc input.
-        SArray *pGroupCalcBindings = NULL;
-        code = stTriggerTaskGetExtRefBindingsForGid(pExtRef, pCurGroup->gid, &pGroupCalcBindings);
-        QUERY_CHECK_CODE(code, lino, _end);
-        for (int32_t i = 0; i < TARRAY_SIZE(pGroupCalcBindings); ++i) {
-          SSTriggerExtOrigTableBinding *pBinding = *(SSTriggerExtOrigTableBinding **)TARRAY_GET_ELEM(pGroupCalcBindings, i);
-          if (refFromPreviousPatchRefs &&
-              stTriggerTaskBindingBelongsToPatch(pContext->patchContext.pPatchItems, pBinding)) {
-            ST_TASK_DLOG("ext: skip patched calc binding from previous in-flight reader response, "
-                         "readerTaskId:%" PRId64 ", virtualUid:%" PRId64 ", virtualGid:%" PRId64,
-                         pProgress->pTaskAddr->taskId, pBinding->virtualUid, pBinding->virtualGid);
-            continue;
-          }
-          if (pBinding->kind != STRIGGER_EXT_BINDING_CALC) {
-            continue;
-          }
+        // Per-ref gid index built once per response (stTriggerTaskBuildExtCalcGroupTargets):
+        // the response is per-group, so only this group's bindings and its zero-binding virtual
+        // tables can match, and every uid entry below reuses that resolved target list.
+        // A failed index build is a hard error: continuing without the slice refs would drop
+        // this group's external columns from the calc input.
+        // Zero-binding virtual tables synthesize a calc slice ref so %%trows receives their
+        // trigger rows; the ref itself is per external uid, so it is appended inside this loop.
+        for (int32_t v = 0; pZeroCalcVtables != NULL && v < TARRAY_SIZE(pZeroCalcVtables); ++v) {
+          SSTriggerVirtTableInfo *pVInfo =
+              *(SSTriggerVirtTableInfo **)TARRAY_GET_ELEM(pZeroCalcVtables, v);
+          code = stRealtimeContextAppendVirtualSliceRef(&pContext->pAllCalcTableUids,
+                                                        &pContext->pSeenCalcTableUids, pVInfo->tbUid,
+                                                        pCurGroup->gid, &readerKey);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        for (int32_t i = 0; pCalcGroupBindings != NULL && i < TARRAY_SIZE(pCalcGroupBindings); ++i) {
+          SSTriggerExtOrigTableBinding *pBinding =
+              *(SSTriggerExtOrigTableBinding **)TARRAY_GET_ELEM(pCalcGroupBindings, i);
           code = stRealtimeContextAppendVirtualSliceRef(&pContext->pAllCalcTableUids,
                                                         &pContext->pSeenCalcTableUids, pBinding->virtualUid,
                                                         pBinding->virtualGid, &readerKey);
@@ -30022,7 +30854,17 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
       // "ekey - watermark" step to derive newThreshold, so feeding it an
       // already-adjusted ekey would subtract the watermark twice and newThreshold
       // would never advance past oldThreshold.
+      //
+      // Only a virtual-table task resolves an external ref; a stream that reads a
+      // plain external table as its trigger source reaches this branch with pExtRef
+      // still NULL and fans out to the single uid-derived group below.
+      SArray *pTriggerBindings = pTask->isVirtualTable ? pExtRef->bindings : NULL;
       int32_t nTargets = pTask->isVirtualTable ? TARRAY_SIZE(pExtRef->bindings) : 1;
+      if (pSyntheticBindings != NULL) {
+        // Prepared once per response by stTriggerTaskBuildExtSyntheticTriggerBindings.
+        pTriggerBindings = pSyntheticBindings;
+        nTargets = (int32_t)TARRAY_SIZE(pSyntheticBindings);
+      }
       // Large virtual targets dedup through a reusable hash instead of the
       // quadratic rescan below; the hash is cleared once per uid entry.
       const int32_t dedupHashThreshold = 64;
@@ -30038,7 +30880,7 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
       }
       for (int32_t i = 0; i < nTargets; ++i) {
         SSTriggerExtOrigTableBinding *pBinding =
-            pTask->isVirtualTable ? TARRAY_GET_ELEM(pExtRef->bindings, i) : NULL;
+            pTask->isVirtualTable ? TARRAY_GET_ELEM(pTriggerBindings, i) : NULL;
         if (pBinding != NULL && pBinding->kind != STRIGGER_EXT_BINDING_TRIGGER) {
           continue;
         }
@@ -30059,7 +30901,7 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
           }
         } else {
           for (int32_t j = 0; pBinding != NULL && j < i; ++j) {
-            SSTriggerExtOrigTableBinding *pPrevious = TARRAY_GET_ELEM(pExtRef->bindings, j);
+            SSTriggerExtOrigTableBinding *pPrevious = TARRAY_GET_ELEM(pTriggerBindings, j);
             if (pPrevious->kind == STRIGGER_EXT_BINDING_TRIGGER &&
                 pPrevious->virtualUid == pBinding->virtualUid && pPrevious->virtualGid == pBinding->virtualGid) {
               firstTargetBinding = false;
@@ -30166,6 +31008,14 @@ _end:
     tSimpleHashCleanup(pSeenTriggerTargets);
     pSeenTriggerTargets = NULL;
   }
+  if (pSyntheticBindings != NULL) {
+    taosArrayDestroy(pSyntheticBindings);
+    pSyntheticBindings = NULL;
+  }
+  taosArrayDestroy(pCalcGroupBindings);
+  pCalcGroupBindings = NULL;
+  taosArrayDestroy(pZeroCalcVtables);
+  pZeroCalcVtables = NULL;
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }

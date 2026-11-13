@@ -21,8 +21,9 @@
 // unit with streamReader.h.
 
 #include <gtest/gtest.h>
-#include <thread>
+#include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 #include "stub.h"
 
@@ -31,6 +32,8 @@
 #include "querynodes.h"
 #include "streamReaderExt.h"
 #include "tarray.h"
+#include "tdatablock.h"
+#include "tdataformat.h"
 #include "tsimplehash.h"
 
 namespace {
@@ -431,6 +434,1973 @@ TEST(StreamReaderExtConnectionTest, DatabaseScopedProvidersKeepTheirConnectionDa
   // extQuoteIdent always quotes identifiers: PostgreSQL/InfluxDB use double quotes.
   EXPECT_NE(fetchedSql[0].find("FROM \"public\".\"metrics\" "), std::string::npos);
   EXPECT_NE(fetchedSql[1].find("FROM \"metrics\" "), std::string::npos);
+}
+
+const SNode *gPreparedScanExtraFilter = nullptr;
+std::vector<std::pair<std::string, std::string>> gPreparedTagBindings;
+
+int32_t capturePreparedScan(SExtConnectorHandle *, const SExtInfluxScanSpec *spec, char **sql) {
+  gPreparedScanExtraFilter = spec != nullptr ? spec->pExtraFilter : nullptr;
+  if (sql != nullptr) *sql = nullptr;
+  return TSDB_CODE_EXT_REMOTE_INTERNAL;
+}
+
+SExtTableMeta *makeTimeOnlySchemaForTest(void) {
+  auto *meta = static_cast<SExtTableMeta *>(taosMemoryCalloc(1, sizeof(SExtTableMeta)));
+  auto *columns = static_cast<SExtColumnDef *>(taosMemoryCalloc(1, sizeof(SExtColumnDef)));
+  if (meta == nullptr || columns == nullptr) {
+    taosMemoryFree(meta);
+    taosMemoryFree(columns);
+    return nullptr;
+  }
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  meta->pCols = columns;
+  meta->numOfCols = 1;
+  return meta;
+}
+
+void freeTimeOnlySchemaForTest(SExtTableMeta *meta) {
+  if (meta == nullptr) return;
+  taosMemoryFree(meta->pCols);
+  taosMemoryFree(meta);
+}
+
+int32_t returnTimeOnlySchema(SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **meta) {
+  *meta = makeTimeOnlySchemaForTest();
+  return *meta != nullptr ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
+}
+
+TEST(StreamReaderExtFilterTest, Influx18CalcFetchDoesNotApplyTriggerPrefilter) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorPrepareInfluxV1Scan, capturePreparedScan);
+  stub.set(extConnectorGetTableSchema, returnTimeOnlySchema);
+  stub.set(extConnectorFreeTableSchema, freeTimeOnlySchemaForTest);
+  returnedConnections = 0;
+  gPreparedScanExtraFilter = nullptr;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.borrowConn = true;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_MYSQL;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+
+  // A calculation fetch refreshes the remote schema, so the cached one has to be heap allocated
+  // and freed through the connector, exactly like the real reader's.
+  reader.pInflux18Meta = makeTimeOnlySchemaForTest();
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+
+  SNode *triggerFilter = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &triggerFilter), TSDB_CODE_SUCCESS);
+  reader.pTriggerPrefilter = triggerFilter;
+
+  SSDataBlock *block = nullptr;
+  EXPECT_EQ(streamReaderExtFetchData(&reader, INT64_MIN, INT64_MAX, &block),
+            TSDB_CODE_EXT_REMOTE_INTERNAL);
+  EXPECT_EQ(block, nullptr);
+  EXPECT_EQ(gPreparedScanExtraFilter, nullptr);
+  EXPECT_EQ(returnedConnections, 1);
+
+  nodesDestroyNode(triggerFilter);
+  reader.pTriggerPrefilter = nullptr;
+  freeTimeOnlySchemaForTest(reader.pInflux18Meta);
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+int32_t capturePreparedTags(SExtConnectorHandle *, const SExtInfluxScanSpec *spec, char **sql) {
+  gPreparedTagBindings.clear();
+  if (spec != nullptr) {
+    for (int32_t i = 0; i < spec->numTagBindings; ++i) {
+      const SExtInfluxTagValue *binding = &spec->pTagBindings[i];
+      gPreparedTagBindings.emplace_back(binding->pName != nullptr ? binding->pName : "",
+                                        binding->pValue != nullptr ? binding->pValue : "");
+    }
+  }
+  if (sql != nullptr) *sql = nullptr;
+  return TSDB_CODE_EXT_REMOTE_INTERNAL;
+}
+
+TEST(StreamReaderExtFilterTest, Influx18TagsetRoundTripsEscapedAndEmptyIdentity) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorPrepareInfluxV1Scan, capturePreparedTags);
+  returnedConnections = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_MYSQL;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pInfluxTagCols = taosArrayInit(2, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char siteTag[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  char zoneTag[EXT_INFLUX_KEY_NCHAR_CHARS] = "zone";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, siteTag), nullptr);
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, zoneTag), nullptr);
+
+  SExtColumnDef columns[3] = {};
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "site", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "Utf8", sizeof(columns[1].extTypeName));
+  columns[1].isTag = true;
+  tstrncpy(columns[2].colName, "zone", sizeof(columns[2].colName));
+  tstrncpy(columns[2].extTypeName, "Utf8", sizeof(columns[2].extTypeName));
+  columns[2].isTag = true;
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 3;
+  reader.pInflux18Meta = &meta;
+
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  uint64_t uid = 42;
+  SUidIndexEntry entry = {};
+  tstrncpy(entry.tagsetKey, "site=a\\|b|zone=c", sizeof(entry.tagsetKey));
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)),
+            TSDB_CODE_SUCCESS);
+
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtUidWindow window = {.skey = 100, .ekey = 200};
+  ASSERT_EQ(tSimpleHashPut(request.pUidWindow, &uid, sizeof(uid), &window, sizeof(window)),
+            TSDB_CODE_SUCCESS);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_EXT_REMOTE_INTERNAL);
+  ASSERT_EQ(gPreparedTagBindings.size(), 2u);
+  EXPECT_EQ(gPreparedTagBindings[0], std::make_pair(std::string("site"), std::string("a|b")));
+  EXPECT_EQ(gPreparedTagBindings[1], std::make_pair(std::string("zone"), std::string("c")));
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+
+  // An untagged series in a tagged measurement has an empty sparse identity.
+  // The scan must still bind every known tag to empty so it cannot read peer
+  // series from the same measurement.
+  tSimpleHashClear(reader.pUidIndex);
+  SUidIndexEntry emptyEntry = {};
+  ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &emptyEntry, sizeof(emptyEntry)),
+            TSDB_CODE_SUCCESS);
+  response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_EXT_REMOTE_INTERNAL);
+  ASSERT_EQ(gPreparedTagBindings.size(), 2u);
+  EXPECT_EQ(gPreparedTagBindings[0], std::make_pair(std::string("site"), std::string("")));
+  EXPECT_EQ(gPreparedTagBindings[1], std::make_pair(std::string("zone"), std::string("")));
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  tSimpleHashCleanup(request.pUidWindow);
+  tSimpleHashCleanup(reader.pUidIndex);
+  taosArrayDestroy(reader.pInfluxTagCols);
+  reader.pInfluxTagCols = nullptr;
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+int32_t failSeriesSnapshot(SExtConnectorHandle *, const SExtTableNode *, const SExtTableMeta *,
+                           const char *const *, int32_t, const SNode *, const SNode *, bool,
+                           int8_t, SSDataBlock **block) {
+  if (block != nullptr) *block = nullptr;
+  return TSDB_CODE_EXT_FETCH_FAILED;
+}
+
+TEST(StreamReaderExtFilterTest, Influx18InitDoesNotAdoptTagColumnsBeforeSnapshotSucceeds) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, failSeriesSnapshot);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "site", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "Utf8", sizeof(columns[1].extTypeName));
+  columns[1].isTag = true;
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+  reader.pInflux18Meta = &meta;
+
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  reader.pGroupIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  reader.pTagsetIndex = tSimpleHashInit(1, MurmurHash3_32);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+
+  SSTriggerExtPullReq request = {};
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_LAST_TS_EXT, &request, &response),
+            TSDB_CODE_EXT_FETCH_FAILED);
+  EXPECT_EQ(reader.pInfluxTagCols, nullptr);
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  tSimpleHashCleanup(reader.pUidIndex);
+  tSimpleHashCleanup(reader.pGroupIndex);
+  tSimpleHashCleanup(reader.pTagsetIndex);
+  taosArrayDestroy(reader.pInfluxTagCols);
+  reader.pInfluxTagCols = nullptr;
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+int32_t gPrepareSchemaCalls = 0;
+int32_t gGetSchemaCalls = 0;
+
+SExtTableMeta *makeInflux18TestMeta() {
+  auto *meta = static_cast<SExtTableMeta *>(taosMemoryCalloc(1, sizeof(SExtTableMeta)));
+  auto *columns = static_cast<SExtColumnDef *>(taosMemoryCalloc(1, sizeof(SExtColumnDef)));
+  if (meta == nullptr || columns == nullptr) {
+    taosMemoryFree(meta);
+    taosMemoryFree(columns);
+    return nullptr;
+  }
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  meta->pCols = columns;
+  meta->numOfCols = 1;
+  return meta;
+}
+
+int32_t retryPreparedScan(SExtConnectorHandle *, const SExtInfluxScanSpec *, char **sql) {
+  ++gPrepareSchemaCalls;
+  if (sql != nullptr) *sql = nullptr;
+  return gPrepareSchemaCalls == 1 ? TSDB_CODE_EXT_SCHEMA_CHANGED : TSDB_CODE_EXT_REMOTE_INTERNAL;
+}
+
+int32_t returnFreshSchema(SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **meta) {
+  ++gGetSchemaCalls;
+  *meta = makeInflux18TestMeta();
+  return *meta != nullptr ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
+}
+
+void freeInflux18TestSchema(SExtTableMeta *meta) {
+  if (meta == nullptr) return;
+  taosMemoryFree(meta->pCols);
+  taosMemoryFree(meta);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18SchemaChangeRefreshesMetadataAndRetriesOnce) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorGetTableSchema, returnFreshSchema);
+  stub.set(extConnectorFreeTableSchema, freeInflux18TestSchema);
+  stub.set(extConnectorPrepareInfluxV1Scan, retryPreparedScan);
+  returnedConnections = 0;
+  gPrepareSchemaCalls = 0;
+  gGetSchemaCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.borrowConn = true;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_MYSQL;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pInflux18Meta = makeInflux18TestMeta();
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+
+  SSDataBlock *block = nullptr;
+  EXPECT_EQ(streamReaderExtFetchData(&reader, INT64_MIN, INT64_MAX, &block),
+            TSDB_CODE_EXT_REMOTE_INTERNAL);
+  EXPECT_EQ(block, nullptr);
+  EXPECT_EQ(gPrepareSchemaCalls, 2);
+  // One probe for the calculation refresh plus the retry after the reported schema change.
+  EXPECT_EQ(gGetSchemaCalls, 2);
+  EXPECT_NE(reader.pInflux18Meta, nullptr);
+
+  freeInflux18TestSchema(reader.pInflux18Meta);
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+int32_t gFirstTsPrepareCalls = 0;
+int32_t gSeriesTimestampCalls = 0;
+const SNode *gFirstTsExtraFilter = nullptr;
+
+int32_t countFirstTsPrepare(SExtConnectorHandle *, const SExtInfluxScanSpec *spec, char **sql) {
+  ++gFirstTsPrepareCalls;
+  gFirstTsExtraFilter = spec != nullptr ? spec->pExtraFilter : nullptr;
+  if (sql != nullptr) *sql = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t failFirstTsExec(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *,
+                        const char *, SExtQueryHandle **, SExtConnectorError *) {
+  return TSDB_CODE_EXT_REMOTE_INTERNAL;
+}
+
+int32_t returnSeriesTimestamps(SExtConnectorHandle *, const SExtTableNode *, const SExtTableMeta *,
+                               const char *const *, int32_t, const SNode *, const SNode *, bool,
+                               int8_t, SSDataBlock **block) {
+  ++gSeriesTimestampCalls;
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 2);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  const char *tagValues[] = {"a", "b"};
+  int64_t timestamps[] = {100, 200};
+  for (int32_t row = 0; row < 2; ++row) {
+    char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+    varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+    *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) =
+        static_cast<unsigned char>(tagValues[row][0]);
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&timestamps[row]), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t returnSeriesTimestampsAfter(SExtConnectorHandle *handle, const SExtTableNode *table,
+                                    const SExtTableMeta *meta, const char *const *tagNames,
+                                    int32_t numTags, const SNode *seriesFilter,
+                                    const SNode *rowFilter, bool first, int8_t precision,
+                                    int64_t timeLower, SSDataBlock **block) {
+  (void)timeLower;
+  return returnSeriesTimestamps(handle, table, meta, tagNames, numTags, seriesFilter, rowFilter,
+                                first, precision, block);
+}
+
+SExtTableMeta *makeInflux18Schema(int32_t numTags) {
+  auto *meta = static_cast<SExtTableMeta *>(taosMemoryCalloc(1, sizeof(SExtTableMeta)));
+  auto *columns =
+      static_cast<SExtColumnDef *>(taosMemoryCalloc(1 + numTags, sizeof(SExtColumnDef)));
+  if (meta == nullptr || columns == nullptr) {
+    taosMemoryFree(meta);
+    taosMemoryFree(columns);
+    return nullptr;
+  }
+  const char *names[] = {"time", "site", "zone"};
+  tstrncpy(columns[0].colName, names[0], sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)",
+           sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  for (int32_t i = 0; i < numTags; ++i) {
+    tstrncpy(columns[i + 1].colName, names[i + 1], sizeof(columns[i + 1].colName));
+    tstrncpy(columns[i + 1].extTypeName, "Utf8", sizeof(columns[i + 1].extTypeName));
+    columns[i + 1].isTag = true;
+  }
+  meta->pCols = columns;
+  meta->numOfCols = 1 + numTags;
+  return meta;
+}
+
+int32_t returnTwoTagSchema(SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **meta) {
+  *meta = makeInflux18Schema(2);
+  return *meta != nullptr ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
+}
+
+int32_t makeSeriesSnapshotBlock(const char *const *tagNames, int32_t numTags,
+                                SSDataBlock **block) {
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t i = 0; i < numTags; ++i) {
+    SColumnInfoData tag =
+        createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, (int16_t)(i + 1));
+    code = blockDataAppendColInfo(*block, &tag);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  SColumnInfoData time =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), (int16_t)(numTags + 1));
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &time);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  int32_t rows = numTags == 1 ? 2 : 1;
+  code = blockDataEnsureCapacity(*block, rows);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t row = 0; row < rows; ++row) {
+    for (int32_t tag = 0; tag < numTags; ++tag) {
+      char value[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+      varDataSetLen(value, TSDB_NCHAR_SIZE);
+      *reinterpret_cast<unsigned char *>(varDataVal(value)) =
+          static_cast<unsigned char>(tag == 0 ? 'a' + row : 'b');
+      auto *column = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, tag));
+      code = colDataSetVal(column, row, value, false);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    int64_t timestamp = 100 + row * 100;
+    auto *timeColumn =
+        static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, numTags));
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&timestamp), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = rows;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t gSchemaChangeSnapshotCalls = 0;
+
+int32_t schemaChangeThenSnapshot(SExtConnectorHandle *, const SExtTableNode *,
+                                 const SExtTableMeta *, const char *const *tagNames,
+                                 int32_t numTags, const SNode *, const SNode *, bool,
+                                 int8_t, SSDataBlock **block) {
+  if (gSchemaChangeSnapshotCalls++ == 0) {
+    *block = nullptr;
+    return TSDB_CODE_EXT_SCHEMA_CHANGED;
+  }
+  return makeSeriesSnapshotBlock(tagNames, numTags, block);
+}
+
+int32_t snapshotWithTwoTags(SExtConnectorHandle *, const SExtTableNode *, const SExtTableMeta *,
+                            const char *const *tagNames, int32_t numTags, const SNode *,
+                            const SNode *, bool, int8_t, SSDataBlock **block) {
+  return makeSeriesSnapshotBlock(tagNames, numTags, block);
+}
+
+int32_t gDataPrepareCalls = 0;
+
+int32_t prepareAlwaysChangesSchema(SExtConnectorHandle *, const SExtInfluxScanSpec *, char **sql) {
+  ++gDataPrepareCalls;
+  if (sql != nullptr) *sql = nullptr;
+  return TSDB_CODE_EXT_SCHEMA_CHANGED;
+}
+
+void freeInflux18TestGroupIndexValue(void *value) {
+  auto **uids = static_cast<SArray **>(value);
+  taosArrayDestroy(*uids);
+}
+
+void cleanupInflux18Reader(SStreamExtReaderInfo *reader) {
+  if (reader->pGroupIndex != nullptr) {
+    tSimpleHashSetFreeFp(reader->pGroupIndex, freeInflux18TestGroupIndexValue);
+  }
+  tSimpleHashCleanup(reader->pUidIndex);
+  tSimpleHashCleanup(reader->pGroupIndex);
+  tSimpleHashCleanup(reader->pTagsetIndex);
+  tSimpleHashCleanup(reader->pInflux18MetaEkey);
+  taosArrayDestroy(reader->pInfluxTagCols);
+  if (reader->pInflux18Meta != nullptr) {
+    freeInflux18TestSchema(reader->pInflux18Meta);
+  }
+  taosMemoryFree(reader->pInflux18Table);
+  reader->pUidIndex = nullptr;
+  reader->pGroupIndex = nullptr;
+  reader->pTagsetIndex = nullptr;
+  reader->pInflux18MetaEkey = nullptr;
+  reader->pInfluxTagCols = nullptr;
+  reader->pInflux18Meta = nullptr;
+  reader->pInflux18Table = nullptr;
+}
+
+TEST(StreamReaderExtFilterTest, Influx18BootstrapFetchesFirstTimestampsInOneSnapshot) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnSeriesTimestamps);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  stub.set(extConnectorExecQuery, failFirstTsExec);
+  gFirstTsPrepareCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "site", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "Utf8", sizeof(columns[1].extTypeName));
+  columns[1].isTag = true;
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+  reader.pInflux18Meta = &meta;
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  const char *keys[] = {"site=a", "site=b"};
+  uint64_t uids[2];
+  for (int32_t i = 0; i < 2; ++i) {
+    SUidIndexEntry entry = {};
+    entry.groupId = (uint64_t)(i + 1);
+    tstrncpy(entry.tagsetKey, keys[i], sizeof(entry.tagsetKey));
+    uids[i] = MurmurHash3_64(keys[i], (int32_t)strlen(keys[i])) | 1ULL;
+    ASSERT_EQ(tSimpleHashPut(reader.pUidIndex, &uids[i], sizeof(uids[i]), &entry, sizeof(entry)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  int64_t noWatermark = INT64_MIN;
+  for (uint64_t uid : uids) {
+    ASSERT_EQ(tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &noWatermark, sizeof(noWatermark)),
+              TSDB_CODE_SUCCESS);
+  }
+
+  void *response = nullptr;
+  int32_t code = streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response);
+  EXPECT_EQ(gFirstTsPrepareCalls, 0);
+  EXPECT_EQ(code, TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 2);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  tSimpleHashCleanup(reader.pUidIndex);
+  taosArrayDestroy(reader.pInfluxTagCols);
+  reader.pInfluxTagCols = nullptr;
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18MetaRegistersSeriesDiscoveredAfterInitialEnumeration) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnSeriesTimestamps);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  stub.set(extConnectorExecQuery, failFirstTsExec);
+  gFirstTsPrepareCalls = 0;
+  gSeriesTimestampCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  const char *initialKey = "site=a";
+  uint64_t initialUid = MurmurHash3_64(initialKey, (int32_t)strlen(initialKey)) | 1ULL;
+  SUidIndexEntry initialEntry = {};
+  initialEntry.groupId = initialUid;
+  tstrncpy(initialEntry.tagsetKey, initialKey, sizeof(initialEntry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &initialUid, sizeof(initialUid), &initialEntry,
+                           sizeof(initialEntry)));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pTagsetIndex, initialKey, (int32_t)strlen(initialKey), &initialUid,
+                           sizeof(initialUid)));
+
+  SSTriggerExtPullReq request = {};
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  const char *newKey = "site=b";
+  uint64_t newUid = MurmurHash3_64(newKey, (int32_t)strlen(newKey)) | 1ULL;
+  EXPECT_EQ(tSimpleHashGetSize(reader.pUidIndex), 2);
+  EXPECT_NE(tSimpleHashGet(reader.pUidIndex, &newUid, sizeof(newUid)), nullptr);
+  EXPECT_NE(tSimpleHashGet(reader.pTagsetIndex, newKey, (int32_t)strlen(newKey)), nullptr);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 2);
+  EXPECT_EQ(gFirstTsPrepareCalls, 0);
+  EXPECT_EQ(gSeriesTimestampCalls, 2);
+
+  streamExtPullRspFree(rsp);
+  cleanupInflux18Reader(&reader);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18RestartUsesOneSnapshotForFirstTimestamps) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnSeriesTimestamps);
+  stub.set(extConnectorInfluxV1SeriesSnapshotAfter, returnSeriesTimestampsAfter);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  stub.set(extConnectorExecQuery, failFirstTsExec);
+  gFirstTsPrepareCalls = 0;
+  gSeriesTimestampCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  const char *keys[] = {"site=a", "site=b"};
+  uint64_t uids[2];
+  for (int32_t i = 0; i < 2; ++i) {
+    SUidIndexEntry entry = {};
+    entry.groupId = (uint64_t)(i + 1);
+    tstrncpy(entry.tagsetKey, keys[i], sizeof(entry.tagsetKey));
+    uids[i] = MurmurHash3_64(keys[i], (int32_t)strlen(keys[i])) | 1ULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(reader.pUidIndex, &uids[i], sizeof(uids[i]), &entry, sizeof(entry)));
+  }
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  int64_t restartWatermark = 50;
+  for (uint64_t uid : uids) {
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &restartWatermark,
+                             sizeof(restartWatermark)));
+  }
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gFirstTsPrepareCalls, 0);
+  EXPECT_EQ(gSeriesTimestampCalls, 2);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 2);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+/* A 1.8 series leaves the tags it does not carry out of its identity, so "site=a" and
+ * "zone=a" are two series whose tagset keys differ only by the tag name.  Their
+ * sub-table names must differ as well, otherwise both groups write into one table. */
+TEST(StreamReaderExtFilterTest, Influx18SparseTagsetKeepsDistinctTbnames) {
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.spec.partitionByTbname = true;
+  reader.spec.partitionTagCols = taosArrayInit(1, TSDB_COL_NAME_LEN);
+  ASSERT_NE(reader.spec.partitionTagCols, nullptr);
+  char tbnameCol[TSDB_COL_NAME_LEN] = INFLUXDB_PARTITION_BY_TBNAME;
+  ASSERT_NE(taosArrayPush(reader.spec.partitionTagCols, tbnameCol), nullptr);
+
+  reader.pInflux18Meta = makeInflux18Schema(2);  // time, site, zone
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(2, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  const char *tagNames[] = {"site", "zone"};
+  for (int32_t i = 0; i < 2; ++i) {
+    char nameBuf[EXT_INFLUX_KEY_NCHAR_CHARS] = {0};
+    tstrncpy(nameBuf, tagNames[i], sizeof(nameBuf));
+    ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, nameBuf), nullptr);
+  }
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+
+  /* "site=a" (sparse) and "site=site|zone=a" (complete) must not compose the same
+   * name: with a value-only form for complete tagsets both would be "metrics_site_a".
+   * The last four entries pin the escape rule: '_' is escaped as "~_" and '~' as
+   * "~~", so a component never ends with the separator and every tuple has exactly
+   * one name, including the leading/trailing-underscore case the doubled '_' form
+   * still merged. */
+  const int32_t numCases = 7;
+  const char *keys[] = {"site=a",
+                        "zone=a",
+                        "site=site|zone=a",
+                        "site=web|zone=cn_north",
+                        "site=web_zone_cn_north",
+                        "a_=b",
+                        "a=_b"};
+  const char *expected[] = {"metrics_site_a",
+                            "metrics_zone_a",
+                            "metrics_site_site_zone_a",
+                            "metrics_site_web_zone_cn~_north",
+                            "metrics_site_web~_zone~_cn~_north",
+                            "metrics_a~__b",
+                            "metrics_a_~_b"};
+  for (int32_t i = 0; i < numCases; ++i) {
+    uint64_t gid = (uint64_t)(i + 1);
+    SUidIndexEntry entry = {};
+    entry.groupId = gid;
+    tstrncpy(entry.tagsetKey, keys[i], sizeof(entry.tagsetKey));
+    entry.partitionValues = taosArrayInit(1, sizeof(SStreamGroupValue));
+    ASSERT_NE(entry.partitionValues, nullptr);
+    SStreamGroupValue cachedSlot = {.isNull = true};
+    ASSERT_NE(taosArrayPush(entry.partitionValues, &cachedSlot), nullptr);
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(reader.pUidIndex, &gid, sizeof(gid), &entry, sizeof(entry)));
+
+    SSTriggerExtPullReq request = {};
+    request.gid = (int64_t)gid;
+    void *response = nullptr;
+    EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_GROUP_COL_VALUE_EXT, &request,
+                                        &response),
+              TSDB_CODE_SUCCESS);
+    auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+    ASSERT_NE(rsp, nullptr);
+    ASSERT_NE(rsp->pGroupColVals, nullptr);
+    ASSERT_EQ(taosArrayGetSize(rsp->pGroupColVals), 1u);
+    auto *tbname = static_cast<SStreamGroupValue *>(taosArrayGet(rsp->pGroupColVals, 0));
+    ASSERT_NE(tbname, nullptr);
+    EXPECT_EQ(tbname->data.type, TSDB_DATA_TYPE_VARCHAR);
+    EXPECT_EQ(std::string(reinterpret_cast<const char *>(tbname->data.pData),
+                          static_cast<size_t>(tbname->data.nData)),
+              std::string(expected[i]));
+    streamExtPullRspFree(rsp);
+  }
+
+  for (int32_t i = 0; i < numCases; ++i) {
+    uint64_t gid = (uint64_t)(i + 1);
+    auto *entry = static_cast<SUidIndexEntry *>(tSimpleHashGet(reader.pUidIndex, &gid, sizeof(gid)));
+    if (entry != nullptr) {
+      taosArrayDestroy(entry->partitionValues);
+      entry->partitionValues = nullptr;
+    }
+  }
+  taosArrayDestroy(reader.spec.partitionTagCols);
+  reader.spec.partitionTagCols = nullptr;
+  reader.spec.partitionByTbname = false;
+  cleanupInflux18Reader(&reader);
+}
+
+int32_t gPagingSnapshotRows = 0;
+int32_t gPagingSnapshotCalls = 0;
+
+/* One snapshot describing gPagingSnapshotRows series ("site=v00000" ..), each with a
+ * distinct latest point so every row becomes a META candidate. */
+int32_t returnManySeriesSnapshot(SExtConnectorHandle *, const SExtTableNode *, const SExtTableMeta *,
+                                 const char *const *, int32_t, const SNode *, const SNode *, bool,
+                                 int8_t, SSDataBlock **block) {
+  ++gPagingSnapshotCalls;
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 2);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, (uint32_t)gPagingSnapshotRows);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  for (int32_t row = 0; row < gPagingSnapshotRows; ++row) {
+    char text[32] = {0};
+    int32_t len = snprintf(text, sizeof(text), "v%05d", row);
+    char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+    varDataSetLen(tagValue, len * TSDB_NCHAR_SIZE);
+    for (int32_t c = 0; c < len; ++c) {
+      reinterpret_cast<unsigned char *>(varDataVal(tagValue))[c * TSDB_NCHAR_SIZE] =
+          static_cast<unsigned char>(text[c]);
+    }
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    int64_t ts = 1000 + row;
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&ts), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = gPagingSnapshotRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* The trigger treats metaRows >= STREAM_RETURN_ROWS_NUM as "more pages" and re-pulls
+ * META after adopting every reported watermark.  A reader that answers every pull with
+ * the whole snapshot makes that follow-up pull empty, so the windows of the first
+ * response are never fetched.  The reader must page instead. */
+TEST(StreamReaderExtFilterTest, Influx18MetaPagesAtTheTriggerRowLimit) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnManySeriesSnapshot);
+  gPagingSnapshotRows = STREAM_RETURN_ROWS_NUM + 904;
+  gPagingSnapshotCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(gPagingSnapshotRows, MurmurHash3_32);
+  reader.pInflux18MetaEkey = tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  for (int32_t i = 0; i < gPagingSnapshotRows; ++i) {
+    char key[64] = {0};
+    snprintf(key, sizeof(key), "site=v%05d", i);
+    SUidIndexEntry entry = {};
+    entry.groupId = (uint64_t)(i + 1);
+    tstrncpy(entry.tagsetKey, key, sizeof(entry.tagsetKey));
+    uint64_t uid = MurmurHash3_64(key, (int32_t)strlen(key)) | 1ULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+  }
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, STREAM_RETURN_ROWS_NUM);
+  // The follow-up pull continues where this page stopped instead of re-reading the snapshot.
+  EXPECT_EQ(reader.influxBatchOffset, STREAM_RETURN_ROWS_NUM);
+  streamExtPullRspFree(rsp);
+
+  response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 904);
+  // Below the limit the enumeration is finished, so the next pull starts over.
+  EXPECT_EQ(reader.influxBatchOffset, 0);
+  streamExtPullRspFree(rsp);
+
+  // Both pages came from one snapshot pair: one latest-point snapshot plus, because
+  // every series is new here, one history-head snapshot.  Re-reading the
+  // measurement per page would multiply the remote I/O by the page count.
+  EXPECT_EQ(gPagingSnapshotCalls, 2);
+  EXPECT_EQ(reader.pInflux18MetaSnap, nullptr);
+  EXPECT_EQ(reader.pInflux18MetaFirstSnap, nullptr);
+
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+/* Snapshot stub of a series that a multi-shard enumeration reports twice with a
+ * different point of its own history: the merged response carries the later
+ * point (200) and the earlier one (50) under the same tagset.  The FIRST
+ * snapshot must keep 50, the LATEST snapshot 200. */
+int32_t returnDuplicatedSeriesSnapshot(SExtConnectorHandle *, const SExtTableNode *,
+                                       const SExtTableMeta *, const char *const *,
+                                       int32_t, const SNode *, const SNode *, bool first, int8_t,
+                                       SSDataBlock **block) {
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 2);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  char  tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+  varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+  *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) = static_cast<unsigned char>('a');
+  int32_t nRows = first ? 2 : 1;
+  for (int32_t row = 0; row < nRows; ++row) {
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    // FIRST: later point first, then the real history head, like two shards that
+    // report the series at different pages.  LATEST: only the newest point.
+    int64_t ts = first ? (row == 0 ? 200 : 50) : 250;
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&ts), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = nRows;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* First META row of a series (watermark INT64_MIN): the trigger aligns its first
+ * window at the reported skey, so a FIRST snapshot that kept the maximum of two
+ * reported points would start the stream after data that is never fetched. */
+TEST(StreamReaderExtFilterTest, Influx18FirstSnapshotKeepsEarliestPoint) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnDuplicatedSeriesSnapshot);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  gFirstTsPrepareCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  const char *key = "site=a";
+  uint64_t    uid = MurmurHash3_64(key, (int32_t)strlen(key)) | 1ULL;
+  SUidIndexEntry entry = {};
+  entry.groupId = 3;
+  tstrncpy(entry.tagsetKey, key, sizeof(entry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  ASSERT_EQ(rsp->pMetaBlock->info.rows, 1);
+
+  // meta block column 1 is skey (0=groupId, 1=skey, 2=ekey, 3=uid, 4=rows).
+  SColumnInfoData *pSkey = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+  ASSERT_NE(pSkey, nullptr);
+  EXPECT_EQ(*(int64_t *)colDataGetData(pSkey, 0), 50);
+  // The batched history head was usable, so no per-uid first-point query is made.
+  EXPECT_EQ(gFirstTsPrepareCalls, 0);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+int32_t gLatestVsFirstSnapshotCalls = 0;
+int32_t gFirstTsFetchCalls = 0;
+const SNode *gLatestSnapshotSeriesFilter = nullptr;
+const SNode *gLatestSnapshotRowFilter = nullptr;
+const SNode *gFirstSnapshotSeriesFilter = nullptr;
+const SNode *gFirstSnapshotRowFilter = nullptr;
+
+/* Series snapshot stub where the latest point (200) is newer than the
+ * watermark (100) but the history head (50) is older.  This is exactly the
+ * shape of a stream whose pre-CREATE-STREAM stale batch predates the watermark:
+ * the batched first snapshot must not be trusted as the first new timestamp. */
+int32_t returnLatestVsFirstTimestamp(SExtConnectorHandle *, const SExtTableNode *,
+                                     const SExtTableMeta *, const char *const *,
+                                     int32_t, const SNode *seriesFilter, const SNode *rowFilter,
+                                     bool first, int8_t,
+                                     SSDataBlock **block) {
+  ++gLatestVsFirstSnapshotCalls;
+  if (first) {
+    gFirstSnapshotSeriesFilter = seriesFilter;
+    gFirstSnapshotRowFilter = rowFilter;
+  } else {
+    gLatestSnapshotSeriesFilter = seriesFilter;
+    gLatestSnapshotRowFilter = rowFilter;
+  }
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 1);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+  varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+  *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) = static_cast<unsigned char>('a');
+  code = colDataSetVal(tagColumn, 0, tagValue, false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  int64_t ts = first ? 50 : 200;
+  code = colDataSetVal(timeColumn, 0, reinterpret_cast<const char *>(&ts), false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  (*block)->info.rows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t returnFirstAfterWatermark(SExtConnectorHandle *handle, const SExtTableNode *table,
+                                  const SExtTableMeta *meta, const char *const *tagNames,
+                                  int32_t numTags, const SNode *seriesFilter,
+                                  const SNode *rowFilter, bool first, int8_t precision,
+                                  int64_t timeLower, SSDataBlock **block) {
+  (void)timeLower;
+  return returnLatestVsFirstTimestamp(handle, table, meta, tagNames, numTags, seriesFilter,
+                                      rowFilter, first, precision, block);
+}
+
+int32_t succeedFirstTsExec(SExtConnectorHandle *, const SFederatedScanPhysiNode *, const char *,
+                           const char *, SExtQueryHandle **handle, SExtConnectorError *) {
+  *handle = reinterpret_cast<SExtQueryHandle *>(0x1);
+  return TSDB_CODE_SUCCESS;
+}
+
+/* Return the real first point newer than the watermark (150 > 100). */
+int32_t returnFirstTsBlock(SExtQueryHandle *, const SExtColTypeMapping *, int32_t,
+                           SSDataBlock **block, SExtConnectorError *) {
+  ++gFirstTsFetchCalls;
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 1);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  int64_t ts = 150;
+  code = colDataSetVal(timeColumn, 0, reinterpret_cast<const char *>(&ts), false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  (*block)->info.rows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+void noopCloseQuery(SExtQueryHandle *) {}
+
+TEST(StreamReaderExtFilterTest, Influx18MetaSkipsHistoryHeadWhenWatermarkSet) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnLatestVsFirstTimestamp);
+  stub.set(extConnectorInfluxV1SeriesSnapshotAfter, returnFirstAfterWatermark);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  stub.set(extConnectorExecQuery, succeedFirstTsExec);
+  stub.set(extConnectorFetchBlock, returnFirstTsBlock);
+  stub.set(extConnectorCloseQuery, noopCloseQuery);
+  gFirstTsPrepareCalls = 0;
+  gFirstTsFetchCalls = 0;
+  gLatestVsFirstSnapshotCalls = 0;
+  gLatestSnapshotSeriesFilter = nullptr;
+  gLatestSnapshotRowFilter = nullptr;
+  gFirstSnapshotSeriesFilter = nullptr;
+  gFirstSnapshotRowFilter = nullptr;
+  gFirstTsExtraFilter = nullptr;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+  SNode *triggerFilter = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &triggerFilter), TSDB_CODE_SUCCESS);
+  reader.pTriggerPrefilter = triggerFilter;
+
+  const char *key = "site=a";
+  uint64_t uid = MurmurHash3_64(key, (int32_t)strlen(key)) | 1ULL;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  tstrncpy(entry.tagsetKey, key, sizeof(entry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  int64_t watermark = 100;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark, sizeof(watermark)));
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  ASSERT_EQ(rsp->pMetaBlock->info.rows, 1);
+
+  // The batched first snapshot reports the history head (50), which is older
+  // than the watermark (100).  The reader must fall back to the per-uid first
+  // timestamp query (150) instead of synthesizing wm+1 (101), which would open
+  // an extra empty window before the data.
+  EXPECT_GE(gLatestVsFirstSnapshotCalls, 2);  // latest snapshot + first snapshot
+  EXPECT_EQ(gLatestSnapshotRowFilter, triggerFilter);
+  EXPECT_EQ(gFirstSnapshotRowFilter, triggerFilter);
+  EXPECT_EQ(gFirstTsExtraFilter, triggerFilter);
+  EXPECT_EQ(gFirstTsPrepareCalls, 1);
+  EXPECT_EQ(gFirstTsFetchCalls, 1);
+  // meta block column 1 is skey (0=groupId, 1=skey, 2=ekey, 3=uid, 4=rows).
+  SColumnInfoData *pSkey =
+      static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+  ASSERT_NE(pSkey, nullptr);
+  int64_t skey = *(int64_t *)colDataGetData(pSkey, 0);
+  EXPECT_EQ(skey, 150);
+
+  streamExtPullRspFree(rsp);
+  nodesDestroyNode(triggerFilter);
+  reader.pTriggerPrefilter = nullptr;
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+int32_t gRestartLatestCalls = 0;
+int32_t gRestartFirstAfterCalls = 0;
+int64_t gRestartFirstAfterLower = INT64_MIN;
+
+static int32_t makeTwoSeriesTimeBlock(int64_t timestamp, SSDataBlock **block) {
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 2);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  const char *values[] = {"a", "b"};
+  for (int32_t row = 0; row < 2; ++row) {
+    char tagValue[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+    varDataSetLen(tagValue, TSDB_NCHAR_SIZE);
+    *reinterpret_cast<unsigned char *>(varDataVal(tagValue)) =
+        static_cast<unsigned char>(values[row][0]);
+    code = colDataSetVal(tagColumn, row, tagValue, false);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&timestamp), false);
+    }
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t returnTwoSeriesLatest(SExtConnectorHandle *, const SExtTableNode *,
+                              const SExtTableMeta *, const char *const *, int32_t,
+                              const SNode *, const SNode *, bool, int8_t, SSDataBlock **block) {
+  ++gRestartLatestCalls;
+  return makeTwoSeriesTimeBlock(200, block);
+}
+
+int32_t returnTwoSeriesFirstAfter(SExtConnectorHandle *, const SExtTableNode *,
+                                  const SExtTableMeta *, const char *const *, int32_t,
+                                  const SNode *, const SNode *, bool, int8_t, int64_t timeLower,
+                                  SSDataBlock **block) {
+  ++gRestartFirstAfterCalls;
+  gRestartFirstAfterLower = timeLower;
+  return makeTwoSeriesTimeBlock(150, block);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18RestartBatchesFirstPointProbesAtCommonWatermark) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnTwoSeriesLatest);
+  stub.set(extConnectorInfluxV1SeriesSnapshotAfter, returnTwoSeriesFirstAfter);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  gRestartLatestCalls = 0;
+  gRestartFirstAfterCalls = 0;
+  gRestartFirstAfterLower = INT64_MIN;
+  gFirstTsPrepareCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+  for (const char *value : {"a", "b"}) {
+    char key[32] = {0};
+    snprintf(key, sizeof(key), "site=%s", value);
+    uint64_t uid = MurmurHash3_64(key, (int32_t)strlen(key)) | 1ULL;
+    SUidIndexEntry entry = {};
+    entry.groupId = uid;
+    tstrncpy(entry.tagsetKey, key, sizeof(entry.tagsetKey));
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+    int64_t watermark = 100;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(request.pUidMaxTs, &uid, sizeof(uid), &watermark,
+                             sizeof(watermark)));
+  }
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 2);
+  EXPECT_EQ(gRestartLatestCalls, 1);
+  EXPECT_EQ(gRestartFirstAfterCalls, 1);
+  EXPECT_EQ(gRestartFirstAfterLower, 101);
+  EXPECT_EQ(gFirstTsPrepareCalls, 0);
+  auto *pSkey = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 1));
+  ASSERT_NE(pSkey, nullptr);
+  EXPECT_EQ(*(int64_t *)colDataGetData(pSkey, 0), 150);
+  EXPECT_EQ(*(int64_t *)colDataGetData(pSkey, 1), 150);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18SchemaChangeRebuildsSeriesIdentityBeforeRetry) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, schemaChangeThenSnapshot);
+  stub.set(extConnectorGetTableSchema, returnTwoTagSchema);
+  stub.set(extConnectorFreeTableSchema, freeInflux18TestSchema);
+  gSchemaChangeSnapshotCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char oldTag[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, oldTag), nullptr);
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(1, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  const char *oldKey = "site=a";
+  uint64_t oldUid = MurmurHash3_64(oldKey, (int32_t)strlen(oldKey)) | 1ULL;
+  SUidIndexEntry oldEntry = {};
+  oldEntry.groupId = oldUid;
+  tstrncpy(oldEntry.tagsetKey, oldKey, sizeof(oldEntry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &oldUid, sizeof(oldUid), &oldEntry,
+                           sizeof(oldEntry)));
+
+  SSTriggerExtPullReq request = {};
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_LAST_TS_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  EXPECT_EQ(taosArrayGetSize(reader.pInfluxTagCols), 2);
+  EXPECT_EQ(tSimpleHashGetSize(reader.pUidIndex), 1);
+  const char *newKey = "site=a|zone=b";
+  uint64_t newUid = MurmurHash3_64(newKey, (int32_t)strlen(newKey)) | 1ULL;
+  EXPECT_NE(tSimpleHashGet(reader.pUidIndex, &newUid, sizeof(newUid)), nullptr);
+  EXPECT_EQ(tSimpleHashGet(reader.pUidIndex, &oldUid, sizeof(oldUid)), nullptr);
+  EXPECT_EQ(gSchemaChangeSnapshotCalls, 3);
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  cleanupInflux18Reader(&reader);
+}
+
+TEST(StreamReaderExtFilterTest, Influx18DataSchemaChangeDoesNotReuseStaleUid) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, snapshotWithTwoTags);
+  stub.set(extConnectorGetTableSchema, returnTwoTagSchema);
+  stub.set(extConnectorFreeTableSchema, freeInflux18TestSchema);
+  stub.set(extConnectorPrepareInfluxV1Scan, prepareAlwaysChangesSchema);
+  gDataPrepareCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char oldTag[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, oldTag), nullptr);
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(1, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  const char *oldKey = "site=a";
+  uint64_t oldUid = MurmurHash3_64(oldKey, (int32_t)strlen(oldKey)) | 1ULL;
+  SUidIndexEntry oldEntry = {};
+  oldEntry.groupId = oldUid;
+  tstrncpy(oldEntry.tagsetKey, oldKey, sizeof(oldEntry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &oldUid, sizeof(oldUid), &oldEntry,
+                           sizeof(oldEntry)));
+
+  SSTriggerExtPullReq request = {};
+  request.pUidWindow = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidWindow, nullptr);
+  SExtUidWindow window = {.skey = 100, .ekey = 200};
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(request.pUidWindow, &oldUid, sizeof(oldUid), &window, sizeof(window)));
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_DATA_EXT, &request, &response),
+            TSDB_CODE_EXT_SCHEMA_CHANGED);
+  EXPECT_EQ(response, nullptr);
+  EXPECT_EQ(gDataPrepareCalls, 1);
+  EXPECT_EQ(tSimpleHashGetSize(reader.pUidIndex), 0);
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  tSimpleHashCleanup(request.pUidWindow);
+  cleanupInflux18Reader(&reader);
+}
+
+const SNode *gEnumerationSeriesFilter = nullptr;
+const SNode *gEnumerationRowFilter = nullptr;
+bool        gEnumerationFirst = false;
+int32_t     gEnumerationSnapshotCalls = 0;
+
+int32_t captureEnumerationSnapshot(SExtConnectorHandle *, const SExtTableNode *,
+                                   const SExtTableMeta *, const char *const *, int32_t,
+                                   const SNode *seriesFilter, const SNode *rowFilter, bool first,
+                                   int8_t, SSDataBlock **block) {
+  if (gEnumerationSnapshotCalls++ == 0) {
+    gEnumerationSeriesFilter = seriesFilter;
+    gEnumerationRowFilter = rowFilter;
+    gEnumerationFirst = first;
+  }
+  if (block != nullptr) *block = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+TEST(StreamReaderExtFilterTest, Influx18SeriesEnumerationUsesOnlySeriesIdentityFilter) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, captureEnumerationSnapshot);
+  gEnumerationSeriesFilter = nullptr;
+  gEnumerationRowFilter = nullptr;
+  gEnumerationFirst = true;
+  gEnumerationSnapshotCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+
+  SExtColumnDef columns[2] = {};
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  tstrncpy(columns[1].colName, "site", sizeof(columns[1].colName));
+  tstrncpy(columns[1].extTypeName, "Utf8", sizeof(columns[1].extTypeName));
+  columns[1].isTag = true;
+  SExtTableMeta meta = {};
+  meta.pCols = columns;
+  meta.numOfCols = 2;
+  reader.pInflux18Meta = &meta;
+
+  SNode *seriesFilter = nullptr;
+  SNode *triggerFilter = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &seriesFilter), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &triggerFilter), TSDB_CODE_SUCCESS);
+  reader.pInfluxSeriesFilter = seriesFilter;
+  reader.pTriggerPrefilter = triggerFilter;
+  reader.pUidIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  reader.pGroupIndex = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  reader.pTagsetIndex = tSimpleHashInit(1, MurmurHash3_32);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+
+  SSTriggerExtPullReq request = {};
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_LAST_TS_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  EXPECT_GE(gEnumerationSnapshotCalls, 1);
+  EXPECT_EQ(gEnumerationSeriesFilter, seriesFilter);
+  EXPECT_EQ(gEnumerationRowFilter, nullptr);
+  EXPECT_FALSE(gEnumerationFirst);
+  EXPECT_EQ(tSimpleHashGetSize(reader.pUidIndex), 0);
+  EXPECT_NE(reader.influxEmptyEnumTsMs, 0);
+
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  nodesDestroyNode(seriesFilter);
+  nodesDestroyNode(triggerFilter);
+  reader.pInfluxSeriesFilter = nullptr;
+  reader.pTriggerPrefilter = nullptr;
+  tSimpleHashCleanup(reader.pUidIndex);
+  tSimpleHashCleanup(reader.pGroupIndex);
+  tSimpleHashCleanup(reader.pTagsetIndex);
+  taosArrayDestroy(reader.pInfluxTagCols);
+  reader.pInfluxTagCols = nullptr;
+  reader.pInflux18Meta = nullptr;
+  taosMemoryFree(reader.pInflux18Table);
+}
+
+TEST(StreamReaderExtFilterTest, OpenParsesInflux18SeriesIdentityAst) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  returnedConnections = 0;
+
+  SNode *condition = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &condition), TSDB_CODE_SUCCESS);
+  char *conditionJson = nullptr;
+  ASSERT_EQ(nodesNodeToString(condition, false, &conditionJson, nullptr), TSDB_CODE_SUCCESS);
+  nodesDestroyNode(condition);
+
+  SStreamReaderTask task = {};
+  task.triggerReader = 1;
+  SStreamExtTriggerSpec spec = {};
+  spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(spec.sourceName, "influx18", sizeof(spec.sourceName));
+  tstrncpy(spec.options, "{\"version\":\"1.8\"}", sizeof(spec.options));
+  spec.tagCondJson = conditionJson;
+  SStreamExtReaderInfo *reader = nullptr;
+  ASSERT_EQ(streamReaderExtOpen(&spec, &task.task, nullptr, "", EXT_TIMESTAMP_TZ_CLASS_UNKNOWN, &reader),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_NE(reader->pInfluxSeriesFilter, nullptr);
+  streamReaderExtClose(reader);
+  taosMemoryFree(conditionJson);
+}
+
+TEST(StreamReaderExtFilterTest, CalcReaderDoesNotInheritTriggerSeriesIdentityAst) {
+  SNode *condition = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, &condition), TSDB_CODE_SUCCESS);
+  char *conditionJson = nullptr;
+  ASSERT_EQ(nodesNodeToString(condition, false, &conditionJson, nullptr), TSDB_CODE_SUCCESS);
+  nodesDestroyNode(condition);
+
+  SStreamReaderTask task = {};
+  task.triggerReader = 0;
+  SStreamExtTriggerSpec spec = {};
+  spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(spec.sourceName, "influx18", sizeof(spec.sourceName));
+  tstrncpy(spec.options, "{\"version\":\"1.8\"}", sizeof(spec.options));
+  spec.tagCondJson = conditionJson;
+  spec.triggerPrefilter = taosStrdup("(voltage > 220)");
+  ASSERT_NE(spec.triggerPrefilter, nullptr);
+  SStreamExtReaderInfo *reader = nullptr;
+  ASSERT_EQ(streamReaderExtOpen(&spec, &task.task, nullptr, "", EXT_TIMESTAMP_TZ_CLASS_UNKNOWN, &reader),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->pInfluxSeriesFilter, nullptr);
+  EXPECT_EQ(reader->pTriggerPrefilter, nullptr);
+  streamReaderExtClose(reader);
+  taosMemoryFree(conditionJson);
+  taosMemoryFree(spec.triggerPrefilter);
+}
+
+TEST(StreamReaderExtFilterTest, OpenRejectsInflux18PrefilterWithoutAst) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  returnedConnections = 0;
+
+  SStreamReaderTask task = {};
+  task.triggerReader = 1;
+  SStreamExtTriggerSpec spec = {};
+  spec.sourceType = EXT_SOURCE_INFLUXDB;
+  tstrncpy(spec.sourceName, "influx18", sizeof(spec.sourceName));
+  tstrncpy(spec.options, "{\"version\":\"1.8\"}", sizeof(spec.options));
+  spec.triggerPrefilter = taosStrdup("(voltage > 220)");
+  ASSERT_NE(spec.triggerPrefilter, nullptr);
+
+  SStreamExtReaderInfo *reader = nullptr;
+  EXPECT_EQ(streamReaderExtOpen(&spec, &task.task, nullptr, "", EXT_TIMESTAMP_TZ_CLASS_UNKNOWN, &reader),
+            TSDB_CODE_EXT_SYNTAX_UNSUPPORTED);
+  EXPECT_EQ(reader, nullptr);
+  EXPECT_EQ(returnedConnections, 0);
+  taosMemoryFree(spec.triggerPrefilter);
+}
+
+/* Fill one NCHAR cell with `chars` copies of one ASCII code point.  A tag value
+ * that exactly fills the column (257 characters) is the boundary the reader's
+ * conversion buffer has to accept. */
+int32_t setNcharTagValue(SColumnInfoData *column, int32_t row, int32_t chars, uint32_t codePoint) {
+  char value[EXT_INFLUX_TAG_NCHAR_CHARS] = {0};
+  varDataSetLen(value, chars * TSDB_NCHAR_SIZE);
+  for (int32_t i = 0; i < chars; ++i) {
+    memcpy(varDataVal(value) + (size_t)i * TSDB_NCHAR_SIZE, &codePoint, TSDB_NCHAR_SIZE);
+  }
+  return colDataSetVal(column, row, value, false);
+}
+
+/* Schema with `numTags` tag columns named t0..t{numTags-1}: makeInflux18Schema
+ * only knows the two fixed names site/zone. */
+SExtTableMeta *makeInflux18SchemaWithTagNames(int32_t numTags) {
+  auto *meta = static_cast<SExtTableMeta *>(taosMemoryCalloc(1, sizeof(SExtTableMeta)));
+  auto *columns =
+      static_cast<SExtColumnDef *>(taosMemoryCalloc((size_t)(1 + numTags), sizeof(SExtColumnDef)));
+  if (meta == nullptr || columns == nullptr) {
+    taosMemoryFree(meta);
+    taosMemoryFree(columns);
+    return nullptr;
+  }
+  tstrncpy(columns[0].colName, "time", sizeof(columns[0].colName));
+  tstrncpy(columns[0].extTypeName, "Timestamp(Nanosecond, None)", sizeof(columns[0].extTypeName));
+  columns[0].isPrimaryKey = true;
+  for (int32_t i = 0; i < numTags; ++i) {
+    char name[16] = {0};
+    snprintf(name, sizeof(name), "t%d", i);
+    tstrncpy(columns[i + 1].colName, name, sizeof(columns[i + 1].colName));
+    tstrncpy(columns[i + 1].extTypeName, "Utf8", sizeof(columns[i + 1].extTypeName));
+    columns[i + 1].isTag = true;
+  }
+  meta->pCols = columns;
+  meta->numOfCols = 1 + numTags;
+  return meta;
+}
+
+/* Snapshot of one series whose tag value exactly fills the tag column. */
+int32_t returnFullWidthTagSnapshot(SExtConnectorHandle *, const SExtTableNode *, const SExtTableMeta *,
+                                  const char *const *, int32_t, const SNode *, const SNode *, bool,
+                                  int8_t, SSDataBlock **block) {
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  SColumnInfoData tag = createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, 1);
+  SColumnInfoData time = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 2);
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &tag);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataAppendColInfo(*block, &time);
+  if (code == TSDB_CODE_SUCCESS) code = blockDataEnsureCapacity(*block, 1);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  auto *tagColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 0));
+  auto *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, 1));
+  code = setNcharTagValue(tagColumn, 0, 257, 'a');
+  if (code != TSDB_CODE_SUCCESS) return code;
+  int64_t ts = 100;
+  code = colDataSetVal(timeColumn, 0, reinterpret_cast<const char *>(&ts), false);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  (*block)->info.rows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* A tag value that exactly fills the NCHAR column must be readable.  The reader
+ * used to reserve only the column width minus the varstr header for the UCS-4 ->
+ * MBS conversion, so the widest value the schema can hold was rejected and every
+ * META pull of that measurement failed (the trigger turns that into a recovery
+ * loop). */
+TEST(StreamReaderExtFilterTest, Influx18ReadsTagValueThatFillsTheColumn) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnFullWidthTagSnapshot);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(2, MurmurHash3_32);
+  reader.pInflux18MetaEkey = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  std::string key = "site=" + std::string(257, 'a');
+  uint64_t    uid = MurmurHash3_64(key.c_str(), (int32_t)key.size()) | 1ULL;
+  SUidIndexEntry entry = {};
+  entry.groupId = 3;
+  tstrncpy(entry.tagsetKey, key.c_str(), sizeof(entry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, 1);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+/* Snapshot of two series: row 0 fills every tag with 257 characters, so its
+ * composed tagset key exceeds EXT_TAGSET_KEY_MAX, while row 1 is an ordinary
+ * series. */
+int32_t returnOverlongTagsetKeySnapshot(SExtConnectorHandle *, const SExtTableNode *,
+                                        const SExtTableMeta *, const char *const *, int32_t,
+                                        const SNode *, const SNode *, bool, int8_t,
+                                        SSDataBlock **block) {
+  constexpr int32_t kTags = 8;
+  *block = nullptr;
+  int32_t code = createDataBlock(block);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t i = 0; i < kTags; ++i) {
+    SColumnInfoData tag =
+        createColumnInfoData(TSDB_DATA_TYPE_NCHAR, EXT_INFLUX_TAG_NCHAR_CHARS, (int16_t)(i + 1));
+    code = blockDataAppendColInfo(*block, &tag);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  SColumnInfoData time =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), (int16_t)(kTags + 1));
+  time.info.precision = TSDB_TIME_PRECISION_NANO;
+  code = blockDataAppendColInfo(*block, &time);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = blockDataEnsureCapacity(*block, 2);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  for (int32_t row = 0; row < 2; ++row) {
+    for (int32_t tag = 0; tag < kTags; ++tag) {
+      auto *column = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, tag));
+      code = row == 0 ? setNcharTagValue(column, row, 257, 'a')
+                      : setNcharTagValue(column, row, 1, (uint32_t)('a' + tag));
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    int64_t ts = 100 + row * 100;
+    auto   *timeColumn = static_cast<SColumnInfoData *>(taosArrayGet((*block)->pDataBlock, kTags));
+    code = colDataSetVal(timeColumn, row, reinterpret_cast<const char *>(&ts), false);
+    if (code != TSDB_CODE_SUCCESS) return code;
+  }
+  (*block)->info.rows = 2;
+  return TSDB_CODE_SUCCESS;
+}
+
+/* A single series whose tags do not fit the tagset-key budget must be skipped
+ * like the enumeration does, not fail the whole META pull. */
+TEST(StreamReaderExtFilterTest, Influx18SkipsSeriesWhoseTagsetKeyOverflows) {
+  constexpr int32_t kTags = 8;
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnOverlongTagsetKeySnapshot);
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18SchemaWithTagNames(kTags);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(kTags, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  for (int32_t i = 0; i < kTags; ++i) {
+    char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = {0};
+    snprintf(tagName, sizeof(tagName), "t%d", i);
+    ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+  }
+
+  reader.pUidIndex = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(4, MurmurHash3_32);
+  reader.pInflux18MetaEkey = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  // Only the ordinary series (row 1) is enumerable; the oversized one never made it into the
+  // UID index because the enumeration skips it for the same reason.
+  std::string key;
+  for (int32_t i = 0; i < kTags; ++i) {
+    if (i > 0) key += "|";
+    key += "t" + std::to_string(i) + "=" + std::string(1, (char)('a' + i));
+  }
+  uint64_t uid = MurmurHash3_64(key.c_str(), (int32_t)key.size()) | 1ULL;
+  SUidIndexEntry entry = {};
+  entry.groupId = 7;
+  tstrncpy(entry.tagsetKey, key.c_str(), sizeof(entry.tagsetKey));
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  ASSERT_EQ(rsp->pMetaBlock->info.rows, 1);
+  // meta block layout: 0=groupId, 1=skey, 2=ekey, 3=uid, 4=rows.
+  SColumnInfoData *pUid = static_cast<SColumnInfoData *>(taosArrayGet(rsp->pMetaBlock->pDataBlock, 3));
+  ASSERT_NE(pUid, nullptr);
+  EXPECT_EQ(*(int64_t *)colDataGetData(pUid, 0), (int64_t)uid);
+
+  streamExtPullRspFree(rsp);
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+/* A page that is exactly full AND exhausts the snapshot must not restart the enumeration.  The
+ * trigger re-pulls META whenever the response holds metaRows >= STREAM_RETURN_ROWS_NUM, so under
+ * continuous writes a fresh snapshot could again be exactly full every time and the stream would
+ * never request DATA_EXT.  Keeping the exhausted cursor makes that follow-up pull return the
+ * terminating empty page from the same snapshot instead. */
+TEST(StreamReaderExtFilterTest, Influx18FullPageEndingKeepsTheExhaustedCursor) {
+  Stub stub;
+  stub.set(extConnectorInfluxV1SeriesSnapshot, returnManySeriesSnapshot);
+  gPagingSnapshotRows = STREAM_RETURN_ROWS_NUM;
+  gPagingSnapshotCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "metrics", sizeof(reader.spec.extTable));
+  reader.pConn = reinterpret_cast<SExtConnectorHandle *>(0x1);
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+  reader.pInfluxTagCols = taosArrayInit(1, EXT_INFLUX_KEY_NCHAR_CHARS);
+  ASSERT_NE(reader.pInfluxTagCols, nullptr);
+  char tagName[EXT_INFLUX_KEY_NCHAR_CHARS] = "site";
+  ASSERT_NE(taosArrayPush(reader.pInfluxTagCols, tagName), nullptr);
+
+  reader.pUidIndex = tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pGroupIndex = tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  reader.pTagsetIndex = tSimpleHashInit(gPagingSnapshotRows, MurmurHash3_32);
+  reader.pInflux18MetaEkey =
+      tSimpleHashInit(gPagingSnapshotRows, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(reader.pUidIndex, nullptr);
+  ASSERT_NE(reader.pGroupIndex, nullptr);
+  ASSERT_NE(reader.pTagsetIndex, nullptr);
+  ASSERT_NE(reader.pInflux18MetaEkey, nullptr);
+
+  for (int32_t i = 0; i < gPagingSnapshotRows; ++i) {
+    char key[64] = {0};
+    snprintf(key, sizeof(key), "site=v%05d", i);
+    SUidIndexEntry entry = {};
+    entry.groupId = (uint64_t)(i + 1);
+    tstrncpy(entry.tagsetKey, key, sizeof(entry.tagsetKey));
+    uint64_t uid = MurmurHash3_64(key, (int32_t)strlen(key)) | 1ULL;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              tSimpleHashPut(reader.pUidIndex, &uid, sizeof(uid), &entry, sizeof(entry)));
+  }
+
+  SSTriggerExtPullReq request = {};
+  request.pUidMaxTs = tSimpleHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  ASSERT_NE(request.pUidMaxTs, nullptr);
+
+  void *response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_SUCCESS);
+  auto *rsp = static_cast<SSTriggerExtPullRsp *>(response);
+  ASSERT_NE(rsp, nullptr);
+  ASSERT_NE(rsp->pMetaBlock, nullptr);
+  EXPECT_EQ(rsp->pMetaBlock->info.rows, STREAM_RETURN_ROWS_NUM);
+  // The cursor stays at the end of the exhausted snapshot instead of restarting the enumeration.
+  EXPECT_EQ(reader.influxBatchOffset, gPagingSnapshotRows);
+  streamExtPullRspFree(rsp);
+
+  int32_t snapshotCalls = gPagingSnapshotCalls;
+  response = nullptr;
+  EXPECT_EQ(streamReaderExtHandlePull(&reader, STRIGGER_PULL_META_EXT, &request, &response),
+            TSDB_CODE_STREAM_NO_DATA);
+  streamExtPullRspFree(static_cast<SSTriggerExtPullRsp *>(response));
+  // No third snapshot: the follow-up pull answered from the cached enumeration.
+  EXPECT_EQ(gPagingSnapshotCalls, snapshotCalls);
+  EXPECT_EQ(reader.influxBatchOffset, 0);
+  EXPECT_EQ(reader.pInflux18MetaSnap, nullptr);
+
+  tSimpleHashCleanup(request.pUidMaxTs);
+  cleanupInflux18Reader(&reader);
+}
+
+int32_t gCalcSchemaCalls = 0;
+
+int32_t countCalcSchema(SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **meta) {
+  ++gCalcSchemaCalls;
+  *meta = makeInflux18Schema(1);
+  return *meta != nullptr ? TSDB_CODE_SUCCESS : TSDB_CODE_OUT_OF_MEMORY;
+}
+
+/* An external calculation reader is created independently of the trigger reader and never runs the
+ * trigger-side field probe, so it must not keep a schema cached forever: a field added after the
+ * first fetch would stay outside the projection and a point carrying only that field would yield
+ * no row (COUNT(*) undercounts). */
+TEST(StreamReaderExtFilterTest, Influx18CalcReaderRefreshesSchemaPerFetch) {
+  Stub stub;
+  stub.set(extConnectorOpen, captureReaderConnection);
+  stub.set(extConnectorClose, returnReaderConnection);
+  stub.set(extConnectorGetTableSchema, countCalcSchema);
+  stub.set(extConnectorFreeTableSchema, freeInflux18TestSchema);
+  stub.set(extConnectorPrepareInfluxV1Scan, countFirstTsPrepare);
+  stub.set(extConnectorExecQuery, failFirstTsExec);
+  gCalcSchemaCalls = 0;
+
+  SStreamTask task = {};
+  SStreamExtReaderInfo reader = {};
+  reader.pTask = &task;
+  reader.influxV1 = true;
+  reader.borrowConn = true;
+  reader.spec.sourceType = EXT_SOURCE_INFLUXDB;
+  reader.spec.precision = TSDB_TIME_PRECISION_NANO;
+  tstrncpy(reader.spec.extDb, "db", sizeof(reader.spec.extDb));
+  tstrncpy(reader.spec.extTable, "calc_metrics", sizeof(reader.spec.extTable));
+  reader.pInflux18Meta = makeInflux18Schema(1);
+  ASSERT_NE(reader.pInflux18Meta, nullptr);
+
+  SSDataBlock *block = nullptr;
+  EXPECT_NE(streamReaderExtFetchData(&reader, 0, 100, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(block, nullptr);
+  EXPECT_EQ(gCalcSchemaCalls, 1);
+
+  // The second window must probe the remote schema again; a cached one would keep the call count
+  // at 1 and silently drop field-only points written in between.
+  EXPECT_NE(streamReaderExtFetchData(&reader, 100, 200, &block), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(gCalcSchemaCalls, 2);
+
+  cleanupInflux18Reader(&reader);
 }
 
 // ---------------------------------------------------------------------------
