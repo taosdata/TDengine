@@ -2275,7 +2275,7 @@ All functions that return the current time, such as NOW, TODAY, and TIMEZONE, ar
 
 ### MySQL-Compatible Date and Time Functions
 
-The following scalar functions provide MySQL 8.0-style date and time calculations starting with `v3.4.4.0`. Format strings use MySQL tokens such as `%Y-%m-%d`; the existing `TO_CHAR` and `TO_TIMESTAMP` format syntax is unchanged. Date and time arguments accept text or `TIMESTAMP`. `HOUR`, `MINUTE`, `SECOND`, and `MICROSECOND` also accept `[-]HH:MM:SS[.ffffff]` text.
+The following scalar functions provide MySQL 8.0-style date and time calculations starting with `v3.4.3.12`. Format strings use MySQL tokens such as `%Y-%m-%d`; the existing `TO_CHAR` and `TO_TIMESTAMP` format syntax is unchanged. Date and time arguments accept text or `TIMESTAMP`. `HOUR`, `MINUTE`, `SECOND`, and `MICROSECOND` also accept `[-]HH:MM:SS[.ffffff]` text.
 
 | Function | Result | Return type |
 | --- | --- | --- |
@@ -4153,7 +4153,7 @@ time_unit:
 
 **Function Description**: `TIME_ALIGN` is a table function that fills NULL values for one, several, or all columns of an input table (virtual tables, non-virtual tables, and views). It currently supports forward and backward filling, optionally outputs the original columns, optionally adds a suffix to the filled column names, and optionally limits the time distance to the source value used for interpolation.
 
-**Version**: `v3.5.0.0`.
+**Version**: `v3.4.3.12`.
 
 **Return Data Type**: Row set.
 

@@ -138,9 +138,9 @@ The reserved keywords are listed below:
 | `CREATE`                  | |
 | `CREATEDB`                | |
 | `CURRENT`                 | `v3.4.2.0`+ |
-| `CURRENT_DATE`            | `v3.4.4.0`+ |
-| `CURRENT_TIME`            | `v3.4.4.0`+ |
-| `CURRENT_TIMESTAMP`       | `v3.4.4.0`+ |
+| `CURRENT_DATE`            | `v3.4.3.12`+ |
+| `CURRENT_TIME`            | `v3.4.3.12`+ |
+| `CURRENT_TIMESTAMP`       | `v3.4.3.12`+ |
 | `CURRENT_USER`            | |
 
 ### D

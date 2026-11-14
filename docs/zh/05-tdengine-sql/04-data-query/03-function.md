@@ -2279,7 +2279,7 @@ return_timestamp: {
 
 ### MySQL 兼容日期时间函数
 
-以下标量函数从 `v3.4.4.0` 起提供 MySQL 8.0 风格的日期时间计算。格式字符串使用 `%Y-%m-%d` 等 MySQL 格式符；现有 `TO_CHAR` 和 `TO_TIMESTAMP` 的格式规则不变。`date` / `time` 参数接受日期时间文本或 `TIMESTAMP`；`HOUR`、`MINUTE`、`SECOND` 和 `MICROSECOND` 也接受 `[-]HH:MM:SS[.ffffff]` 文本。
+以下标量函数从 `v3.4.3.12` 起提供 MySQL 8.0 风格的日期时间计算。格式字符串使用 `%Y-%m-%d` 等 MySQL 格式符；现有 `TO_CHAR` 和 `TO_TIMESTAMP` 的格式规则不变。`date` / `time` 参数接受日期时间文本或 `TIMESTAMP`；`HOUR`、`MINUTE`、`SECOND` 和 `MICROSECOND` 也接受 `[-]HH:MM:SS[.ffffff]` 文本。
 
 | 函数 | 结果 | 返回类型 |
 | --- | --- | --- |
@@ -4186,7 +4186,7 @@ time_unit:
 
 **功能说明**：`TIME_ALIGN` 是一个表函数，用于对输入表（虚拟表、非虚拟表、视图）中指定的单个、多个或所有列进行空值填充，目前支持前向与后向填充，可选是否输出原始列，可选增加填值列名字后缀，可选限定插值原始值的时间距离范围。
 
-**版本**：`v3.5.0.0`。
+**版本**：`v3.4.3.12`。
 
 **返回结果类型**：行集。
 

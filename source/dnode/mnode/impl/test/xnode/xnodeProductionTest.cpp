@@ -25,11 +25,19 @@
  * Tests cover all four Xnode object types with real SDB operations.
  */
 
+#if defined(_WIN32)
+// Installed cpp-stub includes windows.h, which pulls in winsock.h.
+// mndInt.h later includes winsock2.h, so winsock2.h must come first.
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <winsock2.h>
+#endif
+#include "stub.h"
 #include <gtest/gtest.h>
 #include <cstdint>
 #include <cstring>
 #include <string>
-#include "stub.h"
 
 extern "C" {
 #include "mndDef.h"

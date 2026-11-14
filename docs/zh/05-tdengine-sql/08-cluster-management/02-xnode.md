@@ -152,7 +152,7 @@ DROP XNODE 'localhost:6055';
 数据接入任务分为两类：
 
 - **普通任务**：将 MQTT、Kafka 等外部数据源的数据写入 TDengine。
-- **双活任务**：从 v3.4.3.11 起支持，将源数据库的数据复制到目标数据库，可用于构建双活方案。
+- **双活任务**：从 v3.4.3.12 起支持，将源数据库的数据复制到目标数据库，可用于构建双活方案。
 
 两类任务均通过 `CREATE XNODE TASK` 创建。创建双活任务时需指定 `WITH TYPE 'replica'`，省略该选项则创建普通任务。
 
@@ -195,7 +195,7 @@ task_options:
 | `viaId`    | 任务所在的 Agent ID |
 | `reason`   | 任务最近执行失败原因 |
 | `labels`   | 任务标签，JSON 字符串 |
-| `TYPE`     | 从 v3.4.3.11 起支持。只接受 `replica`（不区分大小写），省略时创建普通任务；创建后不能修改 |
+| `TYPE`     | 从 v3.4.3.12 起支持。只接受 `replica`（不区分大小写），省略时创建普通任务；创建后不能修改 |
 
 **示例**
 
@@ -208,7 +208,7 @@ CREATE XNODE TASK 't4'
 
 #### 双活任务
 
-从 v3.4.3.11 起，可通过 `WITH TYPE 'replica'` 创建双活任务，由 xnoded 调度。每个任务将源数据库的数据复制到目标数据库；在另一集群创建反向任务，可构建双活方案。
+从 v3.4.3.12 起，可通过 `WITH TYPE 'replica'` 创建双活任务，由 xnoded 调度。每个任务将源数据库的数据复制到目标数据库；在另一集群创建反向任务，可构建双活方案。
 
 **前置条件**
 
@@ -306,7 +306,7 @@ START XNODE TASK 'aa_power_a_b';
 SHOW XNODE TASKS [WHERE condition]
 ```
 
-从 v3.4.3.11 起，结果末尾包含 `type` 列，取值为 `normal`（普通任务）或 `replica`（双活任务）；`information_schema.ins_xnode_tasks` 同样提供该列。可通过 `SHOW XNODE TASKS WHERE type = 'replica';` 查询双活任务。`desired_state` 列表示用户期望的任务状态，`status` 和 `reason` 列分别表示任务的实际执行状态和最近一次失败原因。
+从 v3.4.3.12 起，结果末尾包含 `type` 列，取值为 `normal`（普通任务）或 `replica`（双活任务）；`information_schema.ins_xnode_tasks` 同样提供该列。可通过 `SHOW XNODE TASKS WHERE type = 'replica';` 查询双活任务。`desired_state` 列表示用户期望的任务状态，`status` 和 `reason` 列分别表示任务的实际执行状态和最近一次失败原因。
 
 `parser` 列使用 BLOB 返回完整任务配置。在 `WHERE` 条件中，`parser` 支持关系比较、`IS NULL`、`IS NOT NULL`、`LIKE`、`NOT LIKE`、`MATCH`/`REGEXP`、`NMATCH`、`IN`、`NOT IN`、`BETWEEN`、`NOT BETWEEN` 及其逻辑组合；不支持字符串函数、JSON 运算、算术和位运算。其他列支持的运算由各自的数据类型决定。
 

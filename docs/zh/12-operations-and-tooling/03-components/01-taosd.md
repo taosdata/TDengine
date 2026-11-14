@@ -267,7 +267,7 @@ mnode 的元数据（SDB，包括 dnode、vgroup、数据库、用户、全局�
 | `cluster` | `name` | |
 | `config` | `value` | 仅对 `dtype` 为布尔、整数或浮点类型的配置生效；字符串类型的配置无法通过 `fields` 修改。修改后必须同时递增 `tsmmConfigVersion`，见下文 |
 | `compact` | `compactId`、`startTime`、`dbname` | 嵌套的 `compactDetail` 数组仅供查看 |
-| `arb_group` | 见 [仲裁组字段](#仲裁组字段) | 从 `v3.5.0.0` 开始支持 |
+| `arb_group` | 见 [仲裁组字段](#仲裁组字段) | 从 `v3.4.3.12` 开始支持 |
 
 其他类型（包括 `mnode`、`user`、`trans` 等）的 `fields` 仅供查看，导入时只能原样保留或整条删除。
 
@@ -777,7 +777,7 @@ mnode 的元数据（SDB，包括 dnode、vgroup、数据库、用户、全局�
 - 最大值：1
 - 参数类型：局部配置参数
 - 动态修改：支持通过 SQL 修改，立即生效。
-- 支持版本：从 `v3.5.0.0` 版本开始引入
+- 支持版本：从 `v3.4.3.12` 版本开始引入
 
 #### streamVcColsCacheSize
 
@@ -789,7 +789,7 @@ mnode 的元数据（SDB，包括 dnode、vgroup、数据库、用户、全局�
 - 最大值：9223372036854775807
 - 参数类型：局部配置参数
 - 动态修改：支持通过 SQL 修改，立即生效。
-- 支持版本：从 `v3.5.0.0` 版本开始引入
+- 支持版本：从 `v3.4.3.12` 版本开始引入
 
 #### metaEntryCache
 

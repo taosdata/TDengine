@@ -166,7 +166,7 @@ Tasks define the source, destination, and data parsing rules for data synchroniz
 There are two types of tasks:
 
 - **Normal tasks**: write data from external data sources such as MQTT and Kafka into TDengine.
-- **Active-active tasks**: available from v3.4.3.11, replicate data from a source database to a target database and can be used to build an active-active configuration.
+- **Active-active tasks**: available from v3.4.3.12, replicate data from a source database to a target database and can be used to build an active-active configuration.
 
 Use `CREATE XNODE TASK` to create either type. Specify `WITH TYPE 'replica'` for an active-active task; omit it for a normal task.
 
@@ -207,7 +207,7 @@ Syntax note: All task_options can be used simultaneously, separated by spaces, o
 | **viaId**    | The agent ID where the task resides                |
 | **reason**   | Reason for recent task execution failure           |
 | **labels**   | Task labels, stored as a JSON string               |
-| `TYPE` | Available from v3.4.3.11. Accepts only `replica`, case-insensitively; omission creates a normal task. Immutable after creation. |
+| `TYPE` | Available from v3.4.3.12. Accepts only `replica`, case-insensitively; omission creates a normal task. Immutable after creation. |
 
 **Example**
 
@@ -218,7 +218,7 @@ Create OK, 0 row(s) affected (0.038959s)
 
 #### Active-Active Tasks
 
-From v3.4.3.11, `WITH TYPE 'replica'` creates active-active tasks scheduled by xnoded. Each task copies data from a source database to a target database. Create a reverse task in the other cluster to build an active-active configuration.
+From v3.4.3.12, `WITH TYPE 'replica'` creates active-active tasks scheduled by xnoded. Each task copies data from a source database to a target database. Create a reverse task in the other cluster to build an active-active configuration.
 
 **Prerequisites**
 
@@ -316,7 +316,7 @@ START XNODE TASK 'aa_power_a_b';
 SHOW XNODE TASKS [WHERE condition]
 ```
 
-From v3.4.3.11, the final `type` column contains `normal` for normal tasks or `replica` for active-active tasks; `information_schema.ins_xnode_tasks` provides the same column. Use `SHOW XNODE TASKS WHERE type = 'replica';` to query active-active tasks. The `desired_state` column indicates the state requested by the user, while the `status` and `reason` columns indicate the actual execution state of the task and the most recent failure reason.
+From v3.4.3.12, the final `type` column contains `normal` for normal tasks or `replica` for active-active tasks; `information_schema.ins_xnode_tasks` provides the same column. Use `SHOW XNODE TASKS WHERE type = 'replica';` to query active-active tasks. The `desired_state` column indicates the state requested by the user, while the `status` and `reason` columns indicate the actual execution state of the task and the most recent failure reason.
 
 The `parser` column uses BLOB to return the complete task configuration. In a `WHERE` condition, `parser` supports relational comparisons, `IS NULL`, `IS NOT NULL`, `LIKE`, `NOT LIKE`, `MATCH`/`REGEXP`, `NMATCH`, `IN`, `NOT IN`, `BETWEEN`, and `NOT BETWEEN`, including logical combinations. String functions, JSON operators, arithmetic, and bitwise operators are not supported for this column. Operators for other columns depend on their respective data types.
 

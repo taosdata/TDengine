@@ -264,7 +264,7 @@ Record types and fields that can be changed through `fields`:
 | `cluster` | `name` | |
 | `config` | `value` | Applies only when `dtype` is Boolean, integer, or floating point. A string configuration cannot be changed through `fields`. After the change, also increase `tsmmConfigVersion`. See below. |
 | `compact` | `compactId`, `startTime`, `dbname` | The nested `compactDetail` array is for inspection only |
-| `arb_group` | See [Arbitration Group Fields](#arbitration-group-fields) | Supported starting from `v3.5.0.0` |
+| `arb_group` | See [Arbitration Group Fields](#arbitration-group-fields) | Supported starting from `v3.4.3.12` |
 
 For every other type, including `mnode`, `user`, and `trans`, `fields` is for inspection only. On import you can keep the record unchanged or delete the whole record.
 
@@ -365,8 +365,8 @@ Additional Notes:
 | countAlwaysReturnValue   |                   | Supported, effective immediately   | Whether count/hyperloglog functions return a value when input data is empty or NULL; 0: return empty row, 1: return; default value 1; When this parameter is set to 1, if the query contains an INTERVAL clause or the query uses TSMA, and the corresponding group or window has empty or NULL data, the corresponding group or window will not return a query result; Note that this parameter should be consistent between client and server |
 | tagFilterCache           |                   | Supported, effective immediately   | Whether to cache tag filter results                          |
 | stableTagFilterCache     | since 3.3.8.6     | Supported, effective immediately   | In stream computing, whether to cache filter results of equal condition of tags. It will not become invalid due to adding or deleting child tables or updating the tag values or modifying super table tags. |
-| streamVcColsCache        | since v3.5.0.0    | Supported, effective immediately   | Whether to cache the full `ins_virtual_child_columns` scan result used by virtual super table stream calculations; 0: disable, 1: enable; default value 1 |
-| streamVcColsCacheSize    | since v3.5.0.0    | Supported, effective immediately   | Process-wide memory limit per dnode for cached `ins_virtual_child_columns` scan results used by virtual super table stream calculations, in bytes; range 0-9223372036854775807, default value 2147483648; 0 disables the cache and releases cached blocks |
+| streamVcColsCache        | since v3.4.3.12   | Supported, effective immediately   | Whether to cache the full `ins_virtual_child_columns` scan result used by virtual super table stream calculations; 0: disable, 1: enable; default value 1 |
+| streamVcColsCacheSize    | since v3.4.3.12   | Supported, effective immediately   | Process-wide memory limit per dnode for cached `ins_virtual_child_columns` scan results used by virtual super table stream calculations, in bytes; range 0-9223372036854775807, default value 2147483648; 0 disables the cache and releases cached blocks |
 | metaEntryCacheSize       | since  3.3.6.35   | Supported, effective immediately   | The reserved memory size to cache meta tags                  |
 | queryRspPolicy           |                   | Supported, effective immediately   | Query response strategy                                      |
 | queryUseMemoryPool       |                   | Supported, effective after restart | Whether query will use memory pool to manage memory, default value: 1 (on); 0: off, 1: on |

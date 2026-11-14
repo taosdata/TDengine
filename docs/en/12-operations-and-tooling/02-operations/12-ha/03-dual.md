@@ -10,7 +10,7 @@ import { Enterprise } from '../../resources/_resources.mdx';
 
 You can deploy TDengine in active-active mode to achieve high availability and reliability with limited resources. Active-active mode also supports disaster recovery by maintaining offsite replicas of the database. It uses data replication and client failover. This document covers the architecture, configuration, and maintenance of an active-active deployment.
 
-Active-active mode is available only in TDengine TSDB Enterprise and was first released in v3.3.0.0. From v3.4.3.11, active-active tasks are managed through SQL. The management cluster's mnode stores task records, xnoded schedules the tasks, and taosX executes them on xnodes. The `taosx replica` command line used in v3.3.x was removed in v3.4.3.11. We recommend using the latest version.
+Active-active mode is available only in TDengine TSDB Enterprise and was first released in v3.3.0.0. From v3.4.3.12, active-active tasks are managed through SQL. The management cluster's mnode stores task records, xnoded schedules the tasks, and taosX executes them on xnodes. The `taosx replica` command line used in v3.3.x was removed in v3.4.3.12. We recommend using the latest version.
 
 An active-active system consists of exactly two servers, each running a separate TDengine deployment. From the perspective of the business layer, the two servers and their services form a single complete system, and the internal details are transparent. The two nodes in an active-active deployment are often referred to as Master-Slave, meaning "primary" and "secondary"; these terms may be used interchangeably in this document.
 
@@ -28,7 +28,7 @@ Note that this diagram uses a single-node TDengine cluster as an example. In pra
 
 The following prerequisites must be met before you deploy an active-active system:
 
-- Version: The management cluster on which you run `CREATE XNODE TASK` must be upgraded to v3.4.3.11 or later. Both the source and target clusters must run v3.4.0.0 or later, and their versions can differ. taosX must use the same version as taosd.
+- Version: The management cluster on which you run `CREATE XNODE TASK` must be upgraded to v3.4.3.12 or later. Both the source and target clusters must run v3.4.0.0 or later, and their versions can differ. taosX must use the same version as taosd.
 - Database: The source and target databases must be created in advance with the same precision, and the source database must have `wal_retention_period` greater than 0. Active-active tasks are created per database; newly created databases are not replicated automatically.
 - License: Both the source and target clusters must have the `active_active` license (except for cloud service instances), and the target cluster must also have the `td3.0` license.
 - Deployment: Deploy taosX for the management cluster and register an xnode that can connect to both clusters. For registration instructions, see [Data Ingestion (Xnode)](../../../05-tdengine-sql/08-cluster-management/02-xnode.md). We recommend using the source cluster as the management cluster and connecting to the source as the root user to manage subscription resources and WAL retention markers.
@@ -129,11 +129,11 @@ If the source still retains the required historical data, delete the active-acti
 ### Version Upgrade and Downgrade
 
 - Do not create active-active tasks during a rolling upgrade: before all taosd nodes are upgraded, an mnode of an earlier version can silently ignore the `TYPE` option and create the task as a standard task, losing loop prevention. After creation, verify through `SHOW XNODE TASKS` that the `type` column is `replica`. Upgrade taosX together with taosd.
-- Before downgrading to a version earlier than v3.4.3.11, you must delete all active-active tasks: an mnode of an earlier version does not recognize the task type, can run active-active tasks as standard tasks, and permanently loses the type marker.
+- Before downgrading to a version earlier than v3.4.3.12, you must delete all active-active tasks: an mnode of an earlier version does not recognize the task type, can run active-active tasks as standard tasks, and permanently loses the type marker.
 
 ### Migrate from v3.3
 
-Active-active tasks from v3.3 are not migrated automatically. Recreate them after upgrading and use `msg.consume.start.ts` to specify the new synchronization start time. New tasks do not reuse the old tasks' topics, consumer groups, or committed offsets. The `taosx replica` command line was removed in v3.4.3.11, so you must stop old tasks before upgrading. Perform the following steps for each replication direction:
+Active-active tasks from v3.3 are not migrated automatically. Recreate them after upgrading and use `msg.consume.start.ts` to specify the new synchronization start time. New tasks do not reuse the old tasks' topics, consumer groups, or committed offsets. The `taosx replica` command line was removed in v3.4.3.12, so you must stop old tasks before upgrading. Perform the following steps for each replication direction:
 
 1. Before upgrading, determine the start time from the old task's verified synchronization progress and record it as a Unix timestamp in milliseconds. It must be no later than the timestamp of the earliest data that may not have been synchronized. If you cannot confirm the progress, you can choose `0` to replay all data that remains readable. Do not use the upgrade completion time as the start time.
 1. Increase the `wal_retention_period` of the source databases on both sides so that it covers the total duration of the shutdown, upgrade, and subsequent catch-up.

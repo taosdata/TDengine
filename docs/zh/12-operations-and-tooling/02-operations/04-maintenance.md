@@ -213,7 +213,7 @@ systemctl start taosd
 - **清理残留事务**：执行 `taosd -dTxn` 删除全部事务；只删除个别事务时，在 `sdb.json` 中删除对应的 `trans` 记录后导入。
 - **清理卡住的 compact 任务**：在 `sdb.json` 中删除对应的 `compact` 记录后导入。
 - **删除多余的 mnode**：在 `sdb.json` 中删除多余的 `mnode` 记录后导入。
-- **修正双副本仲裁组**：修改 `type` 为 `arb_group` 的记录，例如将 `fields.isSync` 改为 `"1"`、在 dnode 替换后修正 `fields.member0.dnodeId` 或 `fields.assignedLeader.assignedDnodeId`，从 `v3.5.0.0` 开始支持。重启后可通过 `SHOW ARBGROUPS` 确认结果。
+- **修正双副本仲裁组**：修改 `type` 为 `arb_group` 的记录，例如将 `fields.isSync` 改为 `"1"`、在 dnode 替换后修正 `fields.member0.dnodeId` 或 `fields.assignedLeader.assignedDnodeId`，从 `v3.4.3.12` 开始支持。重启后可通过 `SHOW ARBGROUPS` 确认结果。
 
 例如，将 dnode 1 的端口改为 6031，只需修改 `fields` 中的 `port`，其他内容保持不变：
 

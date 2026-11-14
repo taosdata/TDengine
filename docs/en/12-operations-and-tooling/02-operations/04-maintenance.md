@@ -211,7 +211,7 @@ systemctl start taosd
 - **Remove leftover transactions**: Run `taosd -dTxn` to delete every transaction. To delete one transaction, remove its `trans` record from `sdb.json` and import the file.
 - **Remove a stuck compact task**: Remove its `compact` record from `sdb.json` and import the file.
 - **Remove an extra mnode**: Remove its `mnode` record from `sdb.json` and import the file.
-- **Correct a two-replica arbitration group**: Edit the record whose `type` is `arb_group`. For example, set `fields.isSync` to `"1"`, or, after a dnode is replaced, correct `fields.member0.dnodeId` or `fields.assignedLeader.assignedDnodeId`. This is supported starting from `v3.5.0.0`. After restart, check the result with `SHOW ARBGROUPS`.
+- **Correct a two-replica arbitration group**: Edit the record whose `type` is `arb_group`. For example, set `fields.isSync` to `"1"`, or, after a dnode is replaced, correct `fields.member0.dnodeId` or `fields.assignedLeader.assignedDnodeId`. This is supported starting from `v3.4.3.12`. After restart, check the result with `SHOW ARBGROUPS`.
 
 To change the port of dnode 1 to 6031, change only `port` in `fields` and leave the rest unchanged:
 
