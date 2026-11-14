@@ -369,7 +369,11 @@ class MndTransPrepareStatusTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    stub_.clear();
+    // Older cppstub clear() leaves null entries that its destructor visits again.
+    stub_.reset(sdbAllocRaw);
+    stub_.reset(mndSyncPropose);
+    stub_.reset(sdbUnLock);
+    stub_.reset(sdbWriteLock);
     gPrepareSyncStarted = nullptr;
     mndTransDrop(trans_);
     terrno = savedErrno_;
@@ -470,7 +474,8 @@ class MndTransGroupProgressTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    stub_.clear();
+    stub_.reset(mndSyncPropose);
+    stub_.reset(mndIsLeader);
     gGroupProgressTrans = nullptr;
     mndTransDrop(trans_);
     terrno = savedErrno_;
@@ -559,7 +564,8 @@ class MndStreamShadowRemovalTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    stub_.clear();
+    stub_.reset(sdbRelease);
+    stub_.reset(sdbAcquire);
     gShadowRemovalTxn = nullptr;
     taosArrayDestroy(txn_.pShadowOps);
     taosHashCleanup(node_.txnMgmt.pStbConflictMap);
@@ -757,7 +763,9 @@ class MndTxnDeferredSchemaTest : public MndTxnPendingStreamCreateTest {
   }
 
   void TearDown() override {
-    stub_.clear();
+    stub_.reset(mndTransPrepare);
+    stub_.reset(mndReleaseUser);
+    stub_.reset(mndAcquireUser);
     MndTxnPendingStreamCreateTest::TearDown();
   }
 
