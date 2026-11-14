@@ -340,6 +340,7 @@ static void analysisDestroyOperatorInfo(void* param) {
   cleanupBasicInfo(&pInfo->binfo);
   cleanupExprSupp(&pInfo->scalarSup);
   blockDataDestroy(pInfo->pGroupKeys);
+  taosMemoryFreeClear(pInfo->options);
 
   SArray* pBlocks = NULL;
   if (pInfo->analysisType == FUNCTION_TYPE_IMPUTATION) {
