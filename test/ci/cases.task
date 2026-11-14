@@ -1874,6 +1874,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/02-Taos/test_tool_taos_shell_subscribe.py
 
 ## 03-Benchmark
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_chinese_locations.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_bugs.py -B
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_datatypes.py
 ,,y,.,./ci/pytest.sh pytest cases/81-Tools/03-Benchmark/test_benchmark_mix.py
