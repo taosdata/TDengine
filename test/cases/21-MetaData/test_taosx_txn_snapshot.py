@@ -60,6 +60,8 @@ def _find_binary():
         os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
     ]
     for p in search_paths:
+        if os.name == "nt":
+            p += ".exe"
         if os.path.isfile(p) and os.access(p, os.X_OK):
             TMQ_TAOSX_TXN_BIN = p
             return p
@@ -80,7 +82,7 @@ def _find_binary():
     ]
     compile_env = os.environ.copy()
     compile_env["ASAN_OPTIONS"] = compile_env.get("ASAN_OPTIONS", "").replace("detect_leaks=1", "") + ":detect_leaks=0"
-    ret = subprocess.run(cmd, capture_output=True, text=True, env=compile_env)
+    ret = subprocess.run(cmd, capture_output=True, text=True, errors="backslashreplace", env=compile_env)
     if ret.returncode != 0 and not os.path.isfile(dst):
         raise RuntimeError("Failed to compile tmq_taosx_txn: %s" % ret.stderr)
     TMQ_TAOSX_TXN_BIN = dst
@@ -101,7 +103,7 @@ def _run_scenario(scenario, expect_pass=True):
         env.pop("LD_PRELOAD", None)
     ret = subprocess.run(
         [binary, str(scenario)],
-        capture_output=True, text=True, timeout=180,
+        capture_output=True, text=True, errors="backslashreplace", timeout=180,
         env=env
     )
     tdLog.info("stdout: %s" % ret.stdout)

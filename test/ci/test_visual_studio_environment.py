@@ -38,6 +38,7 @@ class TestVisualStudioEnvironment(unittest.TestCase):
             vcvars.touch()
             namespace = {"Path": lambda value: vcvars if str(value).startswith("C:\\Program Files") else Path(value), "os": SimpleNamespace(environ={}),
                          "sys": SimpleNamespace(executable="python.exe"), "tempfile": tempfile,
+                         "find_visual_studio_vcvars": lambda: vcvars,
                          "json": json, "subprocess": SimpleNamespace(run=Mock(return_value=result), PIPE=-1, STDOUT=-2),
                          "fail": Mock(side_effect=RuntimeError("missing environment"))}
             exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), "exec"), namespace)

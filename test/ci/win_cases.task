@@ -2,11 +2,6 @@
 #NA,NA,y or n,.,./ci/pytest.sh pytest cases/01-DataTypes/test_datatype_bigint.py
 
 
-## Native InfluxDB 1.8 pushdown and virtual-table in/ans regressions.
-,,n,.,env FQ_REQUIRED_SERVICES=influx FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_24_influx18_pushdown.py,3600
-,,n,.,env FQ_REQUIRED_SERVICES=influx FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py::TestVTablePlanPushdownAggExtSource::test_influx18_aggregate_and_limit,3600
-,,n,.,env FQ_REQUIRED_SERVICES=influx FQ_INFLUX_VERSIONS=1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py::TestFq12Compatibility::test_fq_comp_s01_influx_http_protocol_query,3600
-
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/04-Query/test_db_show_create_db.py
 ,,y,.,./ci/pytest.sh pytest cases/10-Operators/04-Set/test_union_basic.py
 ,,y,.,./ci/pytest.sh pytest cases/13-TimeSeriesExt/07-CountWindow/test_count.py
@@ -43,13 +38,10 @@
 ## The Windows selection script is exercised against a fake installed tree.
 #,,n,.,env FQ_REQUIRED_SERVICES=none ./ci/pytest.sh pytest ../packaging/test_fq_oracle_install_windows.py,600
 
-## Full federated-query matrix (alignment with cases.task; stream suites are
-## intentionally excluded).  Oracle defaults to 11g (11.2.0.4) exactly as on
-## Linux; set FQ_ORACLE_VERSIONS=26ai (or "11g,26ai") for the optional
-## generation.  The first case may provision every external engine, so it
-## keeps the 7200s budget.  Both InfluxDB generations are provisioned on the
-## first case so the shared 3.x/1.8 federation paths stay covered.
-#,,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200
+## FQ entries below remain disabled in smoke, as on main. The full suite
+## reads cases.task with Windows version filtering: InfluxDB 3.0 and Oracle
+## 26ai only. Oracle 11g has no downloadable Windows server package.
+#,,n,.,env FQ_INFLUX_VERSIONS=3.0 FQ_ORACLE_VERSIONS=26ai ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py,7200
 #,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_02_path_resolution.py,3600
 #,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_03_type_mapping.py,3600
 #,,n,.,./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_04_timezone_precision.py,3600
@@ -100,8 +92,7 @@
 #,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlStbBasic,3600
 #,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgStbBasic,3600
 #,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverStbBasic,3600
-## The Oracle stb classes are Linux-only: the Windows runner has no Oracle
-## server (the service list omits oracle), so those entries cannot run here.
+## Oracle stb classes are included through cases.task in the full suite.
 #,,n,.,env FQ_REQUIRED_SERVICES=influx ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceInfluxMixedStbBasic,3600
 #,,n,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceMysqlMixedStbBasic,3600
 #,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbBasic,3600
@@ -116,8 +107,7 @@
 #,,n,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourcePgMixedStbAgg,3600
 #,,n,.,env FQ_REQUIRED_SERVICES=sqlserver ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceSqlserverMixedStbAgg,3600
 #,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg,3600
-## Federated plan cases from the 11g matrix (aligns the Windows FQ inventory
-## with the Linux cases.task entries).
+## Federated plan cases use the Windows-supported server versions.
 #,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py,3600
 #,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_ext_source_ts_precision.py,3600
 #,,n,.,./ci/pytest.sh pytest cases/05-VirtualTables/05-Plan/test_vtable_plan_window_ext_source.py,3600

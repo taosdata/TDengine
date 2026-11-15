@@ -607,7 +607,8 @@ def process_pytest_file(
                 result_str = f"Skip\t{pytest_cmd}\t\t\t{execution_time:.2f}s\tall pytest tests skipped\n"
             elif return_code == 0:
                 success_cases += 1
-                os.remove(log_file)
+                if os.environ.get("WIN_KEEP_SUCCESS_LOGS", "").lower() not in {"1", "true", "yes"}:
+                    os.remove(log_file)
                 logger.info(
                     f"Case {pytest_cmd}: Success. Time cost: {execution_time:.2f}s"
                 )

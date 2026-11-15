@@ -15,11 +15,13 @@
 
 import hashlib
 import json
+import math
 import os
 import re
 import shlex
 import sys
 from fnmatch import fnmatchcase
+from pathlib import Path
 
 
 def is_pytest_collection_skip(return_code, output):
@@ -39,18 +41,17 @@ def is_pytest_only_skip(return_code, output):
     ) is not None
 
 
-INFLUX18_CASES = (
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_24_influx18_pushdown.py",
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py::TestFq12Compatibility::test_fq_comp_s01_influx_http_protocol_query",
-    "cases/05-VirtualTables/05-Plan/test_vtable_plan_pushdown_agg_ext_source.py::TestVTablePlanPushdownAggExtSource::test_influx18_aggregate_and_limit",
+FQ_CASE_PATTERNS = (
+    "cases/09-DataQuerying/19-FederatedQuery/*",
+    "cases/05-VirtualTables/*/03-ExtSource/*",
+    "cases/05-VirtualTables/02-Auth/*ext_source*.py",
+    "cases/05-VirtualTables/05-Plan/*ext_source*.py",
+    "cases/05-VirtualTables/05-Plan/*federated*.py",
+    "cases/05-VirtualTables/06-Meta/02-Series/*",
+    "cases/18-StreamProcessing/*/*mixed_external*.py",
+    "cases/18-StreamProcessing/99-Others/test_fs_*.py",
+    "cases/21-MetaData/test_meta_batch_txn_series.py",
 )
-
-
-FQ_SMOKE_CASES = (
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_01_external_source.py",
-    "cases/09-DataQuerying/19-FederatedQuery/test_fq_20_sqlserver_semantics.py",
-    "cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_filter.py",
-) + INFLUX18_CASES
 
 # The federated-query inventory: the FQ suite plus the external-source
 # virtual-table, auth and plan suites.  WIN_ONLY_FQ selects exactly these.
@@ -106,14 +107,83 @@ def selection_contains_fq(contents):
     return any(is_fq_command(line) for line in contents.splitlines())
 
 
-def windows_task_manifest(ci_dir, suite="smoke"):
+def is_federated_query_command(command):
+    """Detect external-engine dependencies, including stream and virtual tables."""
+    for argument in shlex.split(command):
+        if argument.startswith("FQ_REQUIRED_SERVICES="):
+            return argument != "FQ_REQUIRED_SERVICES=none"
+        path = re.sub(r",[0-9]+$", "", argument).replace("\\", "/").split("::", 1)[0]
+        if any(fnmatchcase(path, pattern) for pattern in FQ_CASE_PATTERNS):
+            return True
+    return False
+
+
+def registered_windows_fq_cases(task_text):
+    """Derive FQ allowlisting from active Windows registrations only."""
+    cases = []
+    for line in task_text.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = line.split(",", 4)
+        if len(fields) != 5:
+            continue
+        for argument in shlex.split(fields[4]):
+            path = re.sub(r",[0-9]+$", "", argument).split("::", 1)[0]
+            if path.endswith(".py") and (
+                path.startswith("cases/09-DataQuerying/19-FederatedQuery/")
+                or "/03-ExtSource/" in path
+            ):
+                cases.append(path)
+    return tuple(dict.fromkeys(cases))
+
+
+FQ_SMOKE_CASES = registered_windows_fq_cases(
+    Path(__file__).with_name("win_cases.task").read_text(encoding="utf-8")
+)
+
+
+def windows_task_manifest(ci_dir, suite="smoke", task_file=""):
     """Keep the small default gate separate from the full Windows inventory."""
+    if suite not in ("smoke", "full"):
+        raise ValueError(f"Unknown Windows test suite: {suite}")
+    if task_file:
+        selected = (ci_dir / task_file).resolve()
+        if selected.parent != ci_dir.resolve() or selected.suffix != ".task":
+            raise ValueError("WIN_TASK_FILE must name a .task file in test/ci")
+        return selected.read_text(encoding="utf-8")
     smoke = (ci_dir / "win_cases.task").read_text(encoding="utf-8")
     if suite == "smoke":
         return smoke
     if suite == "full":
-        return (ci_dir / "cases.task").read_text(encoding="utf-8") + "\n" + smoke
+        return ((ci_dir / "cases.task").read_text(encoding="utf-8") + "\n" + smoke
+                + "\n" + (ci_dir / "win_full_cases.task").read_text(encoding="utf-8"))
     raise ValueError(f"Unknown Windows test suite: {suite}")
+
+
+def windows_fq_task_manifest(contents):
+    """Restrict shared task selections to provisionable Windows CI servers."""
+    supported = {"FQ_INFLUX_VERSIONS": "3.0", "FQ_ORACLE_VERSIONS": "26ai"}
+    rows = []
+    for line in contents.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            rows.append(line)
+            continue
+        original = line
+        unavailable = []
+        for variable, version in supported.items():
+            pattern = rf"\b{variable}=(\"[^\"]*\"|'[^']*'|[^\s]+)"
+            def restrict(match):
+                selected = match.group(1).strip("\"'")
+                if selected and version not in {item.strip() for item in selected.split(",")}:
+                    unavailable.append(f"{variable}={selected}")
+                return f"{variable}={version}" if selected else match.group(0)
+            line = re.sub(pattern, restrict, line)
+        if unavailable:
+            rows.append("# Windows CI unavailable: " + "; ".join(unavailable))
+            rows.append("# " + original)
+        else:
+            rows.append(line)
+    return "\n".join(rows) + "\n"
 
 
 def is_excluded_command(command, exclusion_list, suite="full"):
@@ -150,11 +220,26 @@ def parse_case_line(line):
     # across multiple consumers. Windows can keep making progress past 30 min.
     if "cases/81-Tools/03-Benchmark/test_benchmark_query_rest.py" in shlex.split(pytest_cmd):
         timeout = 7200
+    explicit_case_timeout = legacy_timeout is not None
     if legacy_timeout:
         timeout = int(legacy_timeout.group(1))
     for argument in shlex.split(command):
         if argument.startswith("CASE_TIMEOUT="):
             timeout = int(argument.split("=", 1)[1])
+            explicit_case_timeout = True
+    # A per-method pytest deadline must not exceed the default process deadline.
+    # An explicit whole-command CASE_TIMEOUT still takes precedence.
+    if not explicit_case_timeout:
+        arguments = shlex.split(pytest_cmd)
+        pytest_timeout = 0
+        for index, argument in enumerate(arguments):
+            if argument == "--timeout":
+                pytest_timeout = float(arguments[index + 1])
+            elif argument.startswith("--timeout="):
+                pytest_timeout = float(argument.split("=", 1)[1])
+        if not math.isfinite(pytest_timeout) or pytest_timeout < 0:
+            raise ValueError(f"Invalid pytest timeout: {pytest_timeout}")
+        timeout = max(timeout, pytest_timeout)
     return pytest_cmd, timeout
 
 

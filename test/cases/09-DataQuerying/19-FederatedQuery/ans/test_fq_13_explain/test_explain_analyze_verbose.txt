@@ -46437,7 +46437,7 @@ RESULT
          Output: columns=5 width=280
          Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
          Left Equal Cond: `m`.`region`
-         Right Equal Cond: `p`.`region`
+         Right Equal Cond: `p`.`REGION`
          Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
       -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)

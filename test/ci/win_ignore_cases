@@ -30,15 +30,7 @@ cases/81-Tools/05-Valgrind/test_valgrind_udf.py
 # copy-mode repair not supported in Windows
 cases/50-Others/02-Repair/test_copy_repair.py
 
-# Xnode is unavailable on Windows.  Federated queries ARE supported: the
-# external engines are provisioned by ensure_ext_env.ps1 (Oracle 11g runs from
-# the Linux container on the runner), so the FQ suites run on Windows like on
-# Linux and must not be listed here.
+# Xnode and the following suites are unavailable on Windows.
+# Supported FQ providers are provisioned locally: InfluxDB 3.0 and Oracle 26ai.
 # Patterns also match pytest node IDs (file.py::Class::test).
 cases/42-Xnode/
-cases/05-VirtualTables/06-Meta/02-Series/
-cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py
-cases/18-StreamProcessing/20-UseCase/test_virtual_stream_ext_recovery.py
-cases/18-StreamProcessing/22-Performance/test_virtual_stream_mixed_external_perf.py
-cases/18-StreamProcessing/99-Others/test_fs_*.py
-cases/21-MetaData/test_meta_batch_txn_series.py

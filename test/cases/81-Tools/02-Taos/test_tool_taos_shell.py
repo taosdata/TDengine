@@ -23,9 +23,7 @@ import socket
 import os
 import platform
 import re
-if platform.system().lower() == 'windows':
-    import wexpect as taosExpect
-else:
+if platform.system().lower() != 'windows':
     import pexpect as taosExpect
 
 
@@ -66,6 +64,61 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
 
     tdLog.info ("taos cmd: %s" % taosCmd)
     logPrint("Spawning taos process...")
+
+    if platform.system().lower() == 'windows':
+        try:
+            command = [os.path.join(buildPath, "build", "bin", "taos.exe")]
+            if len(cfgDir) != 0:
+                command.extend(['-c', cfgDir])
+            if key == 'p':
+                command.append('-p' + value)
+            else:
+                command.append('-' + key)
+                if len(value) != 0:
+                    command.append(value[1:-1] if value.startswith('"') and value.endswith('"') else value)
+            if len(key1) != 0:
+                if key1 == 'p':
+                    command.append('-p' + value1)
+                else:
+                    command.append('-' + key1)
+                    if len(value1) != 0:
+                        command.append(value1)
+            child = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+            )
+            input_text = (sqlString + "\n" if len(sqlString) != 0 else '') + "quit\n"
+            output, _ = child.communicate(input=input_text, timeout=120)
+        except subprocess.TimeoutExpired:
+            child.kill()
+            output, _ = child.communicate()
+            logPrint("ERROR: TIMEOUT - taos process did not exit in 120 seconds")
+            return "TAOS_FAIL"
+        except OSError as error:
+            logPrint("ERROR: unable to start taos process: %s" % error)
+            return "TAOS_FAIL"
+
+        logPrint("taos process exited with code %s" % child.returncode)
+        print(output)
+        if len(expectString) != 0 and expectString not in output:
+            logPrint("ERROR: expected output not found: %s" % expectString)
+            if not (key == 'A' or key1 == 'A' or key == 'C' or key1 == 'C' or key == 'V' or key1 == 'V'):
+                return "TAOS_FAIL"
+        if len(sqlString) != 0:
+            logPrint("DEBUG: SQL command sent: %s" % sqlString)
+            logPrint("DEBUG: SQL response:\n%s" % output)
+            if child.returncode == 0 and any(marker in output for marker in ("Query OK", "Create OK", "Insert OK", "Drop OK")):
+                return "TAOS_OK"
+            logPrint("ERROR: SQL execution failed")
+            return "TAOS_FAIL"
+        if key == 'A' or key1 == 'A' or key == 'C' or key1 == 'C' or key == 'V' or key1 == 'V':
+            return "TAOS_OK", output.strip() if key == 'A' or key1 == 'A' else output
+        return "TAOS_OK" if child.returncode == 0 else "TAOS_FAIL"
 
     child = taosExpect.spawn(taosCmd, timeout=120)
     #output = child.readline()
@@ -164,7 +217,20 @@ class TestTaosShell:
         count = 0
         while count < 2:
             # print(f"count: {count}")
-            value = subprocess.getoutput(f"nohup {commands} &")
+            if platform.system().lower() == 'windows':
+                try:
+                    result = subprocess.run(
+                        commands, input="quit\n", stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                        errors="replace", timeout=120,
+                    )
+                    value = result.stdout
+                    if result.returncode != 0:
+                        value += f"\ncrash: taos -k exited with {result.returncode}"
+                except (OSError, subprocess.TimeoutExpired) as error:
+                    value = f"crash: unable to complete taos -k: {error}"
+            else:
+                value = subprocess.getoutput(f"nohup {commands} &")
             # print(f"value: {value}")
             self.taos_output.append(value)
             count += 1
@@ -219,8 +285,7 @@ class TestTaosShell:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         if platform.system().lower() == 'windows':
-            cfgPath = buildPath + "\..\sim\psim\cfg"
-            cfgPath = cfgPath.replace('\\','\\\\')
+            cfgPath = tdDnodes.sim.cfgDir
         else:
             cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
@@ -523,7 +588,11 @@ class TestTaosShell:
 
         tdSql.query('drop database %s'%newDbName)
 
-        commands = f"{buildPath}/taos -k -c {cfgPath}"
+        if platform.system().lower() == 'windows':
+            commands = [os.path.join(buildPath, "build", "bin", "taos.exe"),
+                        "-k", "-c", cfgPath]
+        else:
+            commands = f"{buildPath}/taos -k -c {cfgPath}"
         output = self.run_command(commands)
         os.sys
         self.taos_thread_repeat_k(self.run_command, commands, 100, output)

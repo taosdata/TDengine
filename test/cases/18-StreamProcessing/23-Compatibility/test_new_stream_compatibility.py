@@ -362,7 +362,21 @@ class TestNewStreamCompatibility:
         )
 
     def old_stream_states(self):
-        output = self.run_old_taos("select stream_name, status from information_schema.ins_streams", timeout=10)
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                output = self.run_old_taos(
+                    "select stream_name, status from information_schema.ins_streams",
+                    timeout=min(10, max(0.1, deadline - time.monotonic())),
+                )
+                break
+            except RuntimeError as error:
+                if (os.name != "nt" or
+                        not isinstance(error.__cause__, subprocess.TimeoutExpired) or
+                        time.monotonic() >= deadline):
+                    raise
+                tdLog.info(f"Old Windows client stream-status poll timed out; retrying: {error}")
+                time.sleep(min(1, max(0, deadline - time.monotonic())))
         states = {}
         for line in output.splitlines():
             fields = [field.strip() for field in line.split("|")]

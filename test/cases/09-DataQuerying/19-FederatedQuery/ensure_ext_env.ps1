@@ -81,7 +81,7 @@
       FQ_MYSQL_TARBALL_<VV>  full URL override (VV = 57/80/84)
       FQ_PG_TARBALL_<VV>     full URL override (VV = 14/15/16/17/186)
       FQ_INFLUX_TARBALL_<VV> full URL override (VV = 30/35)
-      FQ_ORACLE_VERSIONS     comma list          default "11g" (26ai optional)
+      FQ_ORACLE_VERSIONS     comma list          default "26ai"
       FQ_ORACLE_HOST         engine host         default 127.0.0.1
       FQ_ORACLE_PORT_11G     listener port       default 18320
       FQ_ORACLE_SERVICE_11G  service name        default ORCL
@@ -238,11 +238,28 @@ function Wait-Port {
 
 # ── 3. Download helper ────────────────────────────────────────────────────────
 
+function Test-DownloadCache {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    if ((Get-Item -LiteralPath $Path).Length -le 1MB) { return $false }
+    if ([IO.Path]::GetExtension($Path) -ine '.zip') { return $true }
+    $archive = $null
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $archive = [IO.Compression.ZipFile]::OpenRead($Path)
+        return ($archive.Entries.Count -gt 0)
+    } catch {
+        Warn "Invalid ZIP cache ${Path}: $($_.Exception.Message)"
+        return $false
+    } finally {
+        if ($null -ne $archive) { $archive.Dispose() }
+    }
+}
+
 function Invoke-Download {
     param([string]$Url, [string]$Dest, [int]$Retries = 3)
     if (Test-Path $Dest) {
-        $size = (Get-Item $Dest).Length
-        if ($size -gt 1MB) {
+        if (Test-DownloadCache $Dest) {
             Info "Using cached $Dest"
             return
         }
@@ -256,13 +273,21 @@ function Invoke-Download {
     $curlFirst = Get-Command curl.exe -ErrorAction SilentlyContinue
     if ($curlFirst) {
         for ($i = 1; $i -le 3; $i++) {
-            & $curlFirst.Source -L --fail --retry 5 --retry-delay 5 `
-                --connect-timeout 30 --speed-time 120 --speed-limit 2048 `
-                -C - -o $Dest $Url
-            if ($LASTEXITCODE -eq 0 -and (Test-Path $Dest) -and
-                    (Get-Item $Dest).Length -gt 1MB) {
+            # PowerShell 5.1 turns native stderr (even curl's progress meter)
+            # into terminating errors under Stop. Inspect curl's exit code.
+            $savedPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                & $curlFirst.Source -L --fail --silent --show-error --retry 5 --retry-delay 5 `
+                    --connect-timeout 30 --speed-time 120 --speed-limit 2048 `
+                    -C - -o $Dest $Url
+            } finally {
+                $ErrorActionPreference = $savedPreference
+            }
+            if ($LASTEXITCODE -eq 0 -and (Test-DownloadCache $Dest)) {
                 return
             }
+            if ($LASTEXITCODE -eq 0) { Remove-Item $Dest -Force -ErrorAction SilentlyContinue }
             Warn "curl attempt $i failed for $Url"
             Start-Sleep -Seconds 5
         }
@@ -279,6 +304,10 @@ function Invoke-Download {
                 $wc.DownloadFile($Url, $Dest)
                 $wc.Dispose()
             }
+            if (-not (Test-DownloadCache $Dest)) {
+                Remove-Item $Dest -Force -ErrorAction SilentlyContinue
+                throw "Downloaded file is incomplete: $Dest"
+            }
             return
         } catch {
             Warn "Download attempt $attempt failed: $_"
@@ -291,9 +320,14 @@ function Invoke-Download {
     $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
     if ($curl) {
         Warn "Falling back to curl.exe for $Url"
-        & $curl.Source -L --fail --retry 3 --connect-timeout 30 -o $Dest $Url
-        if ($LASTEXITCODE -eq 0 -and (Test-Path $Dest) -and
-                (Get-Item $Dest).Length -gt 1MB) {
+        $savedPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $curl.Source -L --fail --silent --show-error --retry 3 --connect-timeout 30 -o $Dest $Url
+        } finally {
+            $ErrorActionPreference = $savedPreference
+        }
+        if ($LASTEXITCODE -eq 0 -and (Test-DownloadCache $Dest)) {
             return
         }
         Remove-Item $Dest -Force -ErrorAction SilentlyContinue
@@ -418,8 +452,16 @@ function Stop-ByPidFile {
     if (-not $killed) {
         $proc = Get-Process -Id $procId -ErrorAction SilentlyContinue
         if ($proc) {
-            $proc.Kill()
-            $proc.WaitForExit($WaitSec * 1000) | Out-Null
+            try {
+                $proc.Kill()
+            } catch {
+                # The process can exit after Get-Process, before Kill().
+                # Preserve permission and other failures while it is alive.
+                if (-not $proc.HasExited) { throw }
+            }
+            if (-not $proc.WaitForExit($WaitSec * 1000)) {
+                throw "Process $procId did not exit within ${WaitSec}s"
+            }
         }
     }
     Remove-Item $PidFile -Force -ErrorAction SilentlyContinue
@@ -447,6 +489,55 @@ function Get-PgPort {
         '18.6' { return [int](Get-EnvOr 'FQ_PG_PORT_186' 15437) }
         default { throw "Unknown PG version: $Ver" }
     }
+}
+
+function Get-ListeningInstallBase {
+    param([int]$Port, [string]$ProcessName)
+    try {
+        $owners = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction Stop |
+            Select-Object -ExpandProperty OwningProcess -Unique)
+        foreach ($owner in $owners) {
+            if (-not $owner -or $owner -eq 0) { continue }
+            $proc = Get-CimInstance Win32_Process -Filter ("ProcessId={0}" -f [int]$owner) `
+                -ErrorAction SilentlyContinue
+            if (-not $proc -or [string]::IsNullOrEmpty($proc.ExecutablePath)) { continue }
+            if ($proc.Name -ne $ProcessName) { continue }
+            $binDir = Split-Path $proc.ExecutablePath -Parent
+            if ((Split-Path $binDir -Leaf) -eq 'bin') {
+                return ((Split-Path $binDir -Parent).Trim())
+            }
+        }
+    } catch { }
+    return $null
+}
+
+function Get-OwnedListeningInstallBase {
+    param([int]$Port, [string]$ProcessName, [string]$Engine, [string]$Ver)
+    $base = Get-ListeningInstallBase $Port $ProcessName
+    if (-not $base) {
+        throw "Cannot identify the test $Engine listener on port $Port; refusing to reset or restart it"
+    }
+    $roots = @($FqBase)
+    if ($env:PROGRAMDATA) { $roots += Join-Path $env:PROGRAMDATA 'taostest\fq' }
+    if ($env:LOCALAPPDATA) { $roots += Join-Path $env:LOCALAPPDATA 'taostest\fq' }
+    if ($env:SystemDrive) { $roots += Join-Path ($env:SystemDrive + '\') 'ci-tools\windows-ci-runtime\fq' }
+    $actual = [IO.Path]::GetFullPath($base).TrimEnd('\', '/').Replace('/', '\')
+    $owned = $false
+    foreach ($root in $roots) {
+        $expected = [IO.Path]::GetFullPath((Join-Path $root "$Engine\$Ver")).TrimEnd('\', '/').Replace('/', '\')
+        if ($actual -ieq $expected) { $owned = $true; break }
+    }
+    if (-not $owned) {
+        throw "Listener on port $Port uses unapproved $Engine directory $base; refusing to reset or restart it"
+    }
+    $required = if ($Engine -eq 'mysql') { @('bin\mysqld.exe', 'bin\mysql.exe', 'my.ini') }
+                else { @('bin\postgres.exe', 'bin\psql.exe', 'bin\pg_ctl.exe', 'data\PG_VERSION') }
+    foreach ($file in $required) {
+        if (-not (Test-Path -LiteralPath (Join-Path $base $file) -PathType Leaf)) {
+            throw "Test $Engine installation $base is incomplete ($file); refusing to reset or restart it"
+        }
+    }
+    return $base
 }
 
 function Get-InfluxPort {
@@ -834,6 +925,8 @@ function Ensure-Mysql {
 
     # Already running → reset and return
     if (Test-PortOpen $port) {
+        $base = Get-OwnedListeningInstallBase $port 'mysqld.exe' 'mysql' $Ver
+        Info "MySQL ${Ver}: adopting test installation at $base."
         Info "MySQL ${Ver}: port $port open — already running, resetting test env."
         Reset-MysqlEnv $Ver $port $base
         Install-MysqlTimeZones $Ver $port $base
@@ -928,13 +1021,41 @@ function Initialize-Pg {
     Set-Content -Path $pwFile -Value $PgPass -Encoding ascii -NoNewline
     $logFile = Join-Path $logDir 'initdb.log'
     Info "PostgreSQL ${Ver}: running initdb ..."
-    $proc = Start-Process -FilePath $initdb `
-        -ArgumentList "-D `"$dataDir`"", "-U $PgUser", "--pwfile=`"$pwFile`"", '--encoding=UTF8', '--locale=C' `
-        -NoNewWindow -Wait -PassThru `
-        -RedirectStandardError $logFile
-    Remove-Item $pwFile -Force -ErrorAction SilentlyContinue
-    if ($proc.ExitCode -ne 0) {
-        throw "PostgreSQL $Ver initdb failed (exit $($proc.ExitCode)); see $logFile"
+    $outFile = Join-Path $logDir 'initdb.out'
+    try {
+        $proc = Start-Process -FilePath $initdb `
+            -ArgumentList "-D `"$dataDir`"", "-U $PgUser", "--pwfile=`"$pwFile`"", '--encoding=UTF8', '--locale=C' `
+            -NoNewWindow -PassThru `
+            -RedirectStandardOutput $outFile -RedirectStandardError $logFile
+        # Retain the handle before waiting: PowerShell 5.1 otherwise returns
+        # a null ExitCode even after WaitForExit reports success.
+        $null = $proc.Handle
+        if (-not $proc.WaitForExit(180000)) {
+            # initdb can leave a bootstrap postgres child behind. Stop only
+            # this invocation's tree, never every PostgreSQL instance.
+            $savedPreference = $ErrorActionPreference
+            $killExitCode = $null
+            $killOutput = ''
+            try {
+                $ErrorActionPreference = 'Continue'
+                $killOutput = (& taskkill.exe /f /t /pid $proc.Id 2>&1 | Out-String).Trim()
+                $killExitCode = $LASTEXITCODE
+            } catch {
+                $killOutput = $_.Exception.Message
+            } finally {
+                $ErrorActionPreference = $savedPreference
+            }
+            $timeoutMessage = "PostgreSQL $Ver initdb timed out after 180s; taskkill exit=${killExitCode}: $killOutput; see $outFile and $logFile"
+            if (-not $proc.WaitForExit(10000)) {
+                throw "$timeoutMessage; process did not stop"
+            }
+            throw $timeoutMessage
+        }
+        if ($proc.ExitCode -ne 0) {
+            throw "PostgreSQL $Ver initdb failed (exit $($proc.ExitCode)); see $outFile and $logFile"
+        }
+    } finally {
+        Remove-Item $pwFile -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -951,13 +1072,22 @@ function Start-Pg {
     # would otherwise keep the caller's stdout pipe open (a wrapper using
     # `... | Tee-Object` then waits forever for EOF).  Do NOT use -Wait:
     # PowerShell waits for descendants too, which would also block forever.
+    $serverLog = Join-Path $logDir ("pg-{0}.log" -f [guid]::NewGuid().ToString('N'))
+    Info "PostgreSQL ${Ver}: server log $serverLog"
     $proc = Start-Process -FilePath $pgCtl `
-        -ArgumentList 'start', "-D `"$dataDir`"", "-l `"$(Join-Path $logDir 'pg.log')`"", "-o `"-p $Port`"" `
+        -ArgumentList 'start', "-D `"$dataDir`"", "-l `"$serverLog`"", "-o `"-p $Port`"" `
         -NoNewWindow -PassThru `
         -RedirectStandardOutput (Join-Path $logDir 'pg_ctl.out') `
         -RedirectStandardError  (Join-Path $logDir 'pg_ctl.err')
+    $null = $proc.Handle
     if (-not $proc.WaitForExit(60000)) {
         Info "PostgreSQL ${Ver}: pg_ctl did not return within 60s; continuing (port probe follows)"
+    } elseif ($proc.ExitCode -ne 0) {
+        Warn "PostgreSQL ${Ver}: pg_ctl exited $($proc.ExitCode); server log $serverLog"
+        foreach ($file in @('pg_ctl.out', 'pg_ctl.err')) {
+            Get-Content (Join-Path $logDir $file) -Tail 20 -ErrorAction SilentlyContinue |
+                ForEach-Object { Warn ([string]$_) }
+        }
     }
     # pg_ctl returns 0 even if postmaster hasn't fully started; wait_port handles that
 }
@@ -1137,6 +1267,22 @@ function Wait-PgReady {
     return (Test-PgReady $Port $Base)
 }
 
+function Test-PgProcessBase {
+    param($Process, [string]$Base)
+    $expected = ($Base.TrimEnd('\', '/') + '/bin/postgres.exe').Replace('\', '/')
+    if ($Process.ExecutablePath) {
+        return ($Process.ExecutablePath.Replace('\', '/') -ieq $expected)
+    }
+    # A surviving io_worker can have a null image path after its postmaster
+    # exits. WMI still exposes its command line; match the exact executable,
+    # not a substring that could belong to another installation.
+    if ($Process.CommandLine) {
+        $command = $Process.CommandLine.Replace('\', '/')
+        return ($command -imatch ('^"?' + [Regex]::Escape($expected) + '(?:"|\s|$)'))
+    }
+    return $false
+}
+
 function Stop-Pg {
     param([string]$Ver, [int]$Port, [string]$Base)
     $pgCtl   = Join-Path $Base 'bin\pg_ctl.exe'
@@ -1151,9 +1297,8 @@ function Stop-Pg {
             $null = & $pgCtl -D $dataDir stop -m immediate -t 30 2>&1
         } catch { }
     }
-    $escaped = [Regex]::Escape($Base)
     Get-CimInstance Win32_Process -Filter "Name='postgres.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.ExecutablePath -and $_.ExecutablePath -match "^$escaped\\" } |
+        Where-Object { Test-PgProcessBase $_ $Base } |
         ForEach-Object {
             try { Stop-Process -Id $_.ProcessId -Force -ErrorAction Stop } catch { }
         }
@@ -1188,10 +1333,17 @@ function Stop-Pg {
             Start-Sleep -Seconds 1
         }
     }
+    $remaining = @(Get-CimInstance Win32_Process -Filter "Name='postgres.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { Test-PgProcessBase $_ $Base })
+    if ((Test-PortOpen $Port) -or $remaining.Count) {
+        Warn "PostgreSQL ${Ver}: processes or listener remain; refusing to rebuild the data directory."
+        return $false
+    }
     # The killed postmaster leaves its pid file behind; pg_ctl start refuses to
     # run while a (now dead) record is present.
     $pm = Join-Path $dataDir 'postmaster.pid'
     if (Test-Path $pm) { Remove-Item $pm -Force -ErrorAction SilentlyContinue }
+    return $true
 }
 
 function Clear-PgDataDir {
@@ -1222,6 +1374,11 @@ function Ensure-Pg {
     $base  = Join-Path $FqBase "pg\$Ver"
     $pgCtl = Join-Path $base 'bin\pg_ctl.exe'
     Info "PostgreSQL ${Ver}: port=$port, base=$base"
+    if (Test-PortOpen $port) {
+        $base = Get-OwnedListeningInstallBase $port 'postgres.exe' 'pg' $Ver
+        $pgCtl = Join-Path $base 'bin\pg_ctl.exe'
+        Info "PostgreSQL ${Ver}: adopting test installation at $base."
+    }
     Install-Postgis $Ver $base
 
     if (Test-PortOpen $port) {
@@ -1241,7 +1398,10 @@ function Ensure-Pg {
                 }
             Warn "PostgreSQL ${Ver}: port $port listener owned by: $(@($owners) -join ', ')"
         } catch { }
-        Stop-Pg $Ver $port $base
+        if (-not (Stop-Pg $Ver $port $base)) {
+            $script:OverallOk = $false
+            return
+        }
     }
 
     if (Test-Path $pgCtl) {
@@ -1254,12 +1414,11 @@ function Ensure-Pg {
         }
         Warn "PostgreSQL ${Ver}: failed to start; reinitializing data dir."
         $dataDir = Join-Path $base 'data'
-        # Kill via postmaster.pid before wiping
-        $pm = Join-Path $dataDir 'postmaster.pid'
-        if (Test-Path $pm) {
-            $stPid = [int](Get-Content $pm -Raw -ErrorAction SilentlyContinue).Split("`n")[0].Trim()
-            $stProc = Get-Process -Id $stPid -ErrorAction SilentlyContinue
-            if ($stProc) { $stProc.Kill(); Start-Sleep 1 }
+        # A failed start can leave workers even when its postmaster is gone.
+        # Verify the owned process tree is stopped before removing its data.
+        if (-not (Stop-Pg $Ver $port $base)) {
+            $script:OverallOk = $false
+            return
         }
         if (-not (Clear-PgDataDir $Ver $dataDir)) {
             Err "PostgreSQL ${Ver}: cannot clear the data directory; the instance is not usable."
@@ -1467,7 +1626,15 @@ function Test-InfluxResponsive {
     param([string]$Ver, [int]$Port, [int]$TimeoutSec = 10)
     if ($Ver -eq '1.8') {
         try {
-            $null = Invoke-Influx18Query $Port 'SHOW DATABASES' $TimeoutSec
+            $result = Invoke-RestMethod -Method POST -Uri "http://127.0.0.1:$Port/query" `
+                -Body @{q='SHOW DATABASES'} -TimeoutSec $TimeoutSec -ErrorAction Stop
+            $results = $result.PSObject.Properties['results']
+            $errorProperty = $result.PSObject.Properties['error']
+            if (!$results -or !$results.Value -or ($errorProperty -and $errorProperty.Value)) { return $false }
+            foreach ($statement in $results.Value) {
+                $errorProperty = $statement.PSObject.Properties['error']
+                if ($errorProperty -and $errorProperty.Value) { return $false }
+            }
             return $true
         } catch { return $false }
     }
@@ -1494,11 +1661,14 @@ function Reset-InfluxEnv {
         $result = Invoke-Influx18Query $Port 'SHOW DATABASES'
         $dropped = @()
         foreach ($statement in $result.results) {
+            $errorProperty = $statement.PSObject.Properties['error']
+            if ($errorProperty -and $errorProperty.Value) { throw "InfluxDB catalog query failed: $($errorProperty.Value)" }
             $seriesProperty = $statement.PSObject.Properties['series']
-            if (-not $seriesProperty) { continue }
+            if (!$seriesProperty) { continue }
             foreach ($series in $seriesProperty.Value) {
+                # SHOW DATABASES omits values when a fresh server has no databases.
                 $valuesProperty = $series.PSObject.Properties['values']
-                if (-not $valuesProperty) { continue }
+                if (!$valuesProperty) { continue }
                 foreach ($row in $valuesProperty.Value) {
                     $database = $row[0]
                     if ($database -eq '_internal') { continue }
@@ -2286,7 +2456,7 @@ function Ensure-SqlServer {
 # file:/// or a plain path).  The pinned SHA256 is always verified before
 # setup.exe runs, so a truncated or substituted download is never installed.
 
-$OracleVersions    = Get-EnvList 'FQ_ORACLE_VERSIONS' '11g'
+$OracleVersions    = Get-EnvList 'FQ_ORACLE_VERSIONS' '26ai'
 $OracleHost        = Get-EnvOr 'FQ_ORACLE_HOST' '127.0.0.1'
 $OracleAdminUser   = Get-EnvOr 'FQ_ORACLE_ADMIN_USER' 'system'
 $OracleAdminPass   = Get-EnvOr 'FQ_ORACLE_ADMIN_PASS' 'Tdengine_123'
@@ -2892,7 +3062,9 @@ function Install-OracleFree {
     $log = Join-Path $BaseDir 'setup.log'
     Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
     Info "Oracle ${Ver}: running setup.exe silently (this takes 20-60 minutes) ..."
-    $setupArgs = '/s /v"RSP_FILE=' + $rsp + '" /v"/L*v ' + $log + '" /v"/qn"'
+    # InstallShield forwards one /v payload to MSI; repeated /v options lose
+    # the response-file/log arguments and can exit after prerequisite setup.
+    $setupArgs = '/s /v"RSP_FILE=' + $rsp + ' /L*v ' + $log + ' /qn"'
     $started = Get-Date
     $proc = Start-Process -FilePath $setup -WorkingDirectory $media `
         -ArgumentList $setupArgs -PassThru
@@ -2905,9 +3077,19 @@ function Install-OracleFree {
         Start-Sleep -Seconds 10
         if (Test-Path $log) {
             $tail = Read-OracleLogTail $log
-            if ($tail -match 'Installation success or error status:\s*(-?\d+)') {
+            # MSI localizes the product-completion sentence on Chinese hosts.
+            # Match the numeric main-engine result after the launcher exits too.
+            if ($tail -match 'Installation success or error status:\s*(-?\d+)' -or
+                ($proc.HasExited -and $tail -match 'MSI \(s\).*MainEngineThread is returning (-?\d+)')) {
                 $status = [int]$Matches[1]
                 break
+            }
+            if ($tail -match 'MainEngineThread is returning ([1-9]\d*)') {
+                $status = [int]$Matches[1]
+                if ($status -notin @(1641, 3010)) {
+                    break
+                }
+                $status = -1
             }
         }
         if ($proc.HasExited -and $proc.ExitCode -ne 0) {
@@ -3682,7 +3864,7 @@ function Ensure-Oracle {
     # Only the 11g generation runs from the Linux container; 26ai keeps the
     # native Windows Free installation, exactly as before.  The container is
     # local, so this check comes before the host split.
-    if ((Get-OracleDockerCommand) -and $Ver -eq '11g') {
+    if ($Ver -eq '11g' -and (Get-OracleDockerCommand)) {
         if (-not (Register-OracleOdbcDriver $Ver)) {
             $script:OverallOk = $false
             return

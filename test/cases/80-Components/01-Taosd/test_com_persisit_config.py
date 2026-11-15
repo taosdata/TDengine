@@ -20,6 +20,22 @@ import time
 import shutil
 import os
 
+
+def remove_config_dir(path, retries=10, delay=1):
+    if os.name != "nt":
+        shutil.rmtree(path)
+        return
+    for attempt in range(retries):
+        try:
+            shutil.rmtree(path)
+            return
+        except (FileNotFoundError, PermissionError):
+            if not os.path.exists(path):
+                return
+            if attempt == retries - 1:
+                raise
+            time.sleep(delay)
+
 class TestPersisitConfig:
     updatecfgDict = {
         "supportVnodes":"1000",
@@ -72,13 +88,14 @@ class TestPersisitConfig:
         else:
             tdLog.info("taosd found in %s" % buildPath)
 
-        cfgPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "cfg")
+        workDir = os.environ.get("WORK_DIR") or tdDnodes.getDnodesRootDir()
+        cfgPath = os.path.join(workDir, f"dnode{self.index}", "cfg")
         self.cfgPath = cfgPath
 
-        dataPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "data")
+        dataPath = os.path.join(workDir, f"dnode{self.index}", "data")
         self.dataPath = dataPath
 
-        logPath = os.path.join(os.path.dirname(buildPath), "sim", f"dnode{self.index}", "log")
+        logPath = os.path.join(workDir, f"dnode{self.index}", "log")
         self.logPath = logPath
 
         tdLog.info("start to check cfg value load from cfg file {0}".format(cfgPath))
@@ -90,8 +107,7 @@ class TestPersisitConfig:
 
         # Windows keeps the console log open in cfg while taosd is running.
         tdDnodes.stop(1)
-        time.sleep(1)
-        shutil.rmtree(cfgPath)
+        remove_config_dir(cfgPath)
         os.mkdir(cfgPath)
 
         tdLog.info("rebuilt cfg file {0}".format(cfgPath))
