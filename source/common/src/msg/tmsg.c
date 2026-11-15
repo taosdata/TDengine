@@ -1495,32 +1495,32 @@ int32_t tDeserializeSMCreateSmaReq(void *buf, int32_t bufLen, SMCreateSmaReq *pR
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->sqlLen));
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pReq->astLen));
   if (pReq->exprLen > 0) {
-    pReq->expr = taosMemoryMalloc(pReq->exprLen);
-    if (pReq->expr == NULL) {
-      TAOS_CHECK_EXIT(terrno);
+    uint64_t exprSize = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->expr, &exprSize));
+    if (exprSize != (uint64_t)pReq->exprLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }
-    TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->expr, pReq->exprLen));
   }
   if (pReq->tagsFilterLen > 0) {
-    pReq->tagsFilter = taosMemoryMalloc(pReq->tagsFilterLen);
-    if (pReq->tagsFilter == NULL) {
-      TAOS_CHECK_EXIT(terrno);
+    uint64_t tagsFilterSize = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->tagsFilter, &tagsFilterSize));
+    if (tagsFilterSize != (uint64_t)pReq->tagsFilterLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }
-    TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->tagsFilter, pReq->tagsFilterLen));
   }
   if (pReq->sqlLen > 0) {
-    pReq->sql = taosMemoryMalloc(pReq->sqlLen);
-    if (pReq->sql == NULL) {
-      TAOS_CHECK_EXIT(terrno);
+    uint64_t sqlSize = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->sql, &sqlSize));
+    if (sqlSize != (uint64_t)pReq->sqlLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }
-    TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->sql, pReq->sqlLen));
   }
   if (pReq->astLen > 0) {
-    pReq->ast = taosMemoryMalloc(pReq->astLen);
-    if (pReq->ast == NULL) {
-      TAOS_CHECK_EXIT(terrno);
+    uint64_t astSize = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->ast, &astSize));
+    if (astSize != (uint64_t)pReq->astLen) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
     }
-    TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->ast, pReq->astLen));
   }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->deleteMark));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->lastTs));
