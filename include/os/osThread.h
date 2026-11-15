@@ -49,13 +49,31 @@ typedef pthread_t          TdThread;           // pthread api
 typedef pthread_spinlock_t TdThreadSpinlock;   // pthread api
 typedef CRITICAL_SECTION   TdThreadMutex;      // windows api
 typedef HANDLE             TdThreadMutexAttr;  // windows api
+/* Reader-prefer rwlock. The public SRWLOCK blocks new shared acquirers once an
+ * exclusive waiter is queued, which is the opposite of glibc's default
+ * PTHREAD_RWLOCK_PREFER_READER_NP. state packs the holders:
+ *   bits  0..30  reader count
+ *   bit      31  writer holds the lock
+ * nWriterWait is separate so "readers still inside" cannot be confused with
+ * "lock is idle". preferWriter is glibc
+ * PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP. Default 0 matches Linux
+ * pthread_rwlock_init(attr=NULL).
+ * gate/readerCv/writerCv must stay all-zero-valid (SRWLOCK_INIT and
+ * CONDITION_VARIABLE_INIT). Callers such as sessMgt zero the lock and never
+ * call Init; Destroy stays a no-op for the same reason. */
+#define TD_WIN_RWLOCK_READER_MASK 0x7fffffffu
+#define TD_WIN_RWLOCK_WRITER_BIT  0x80000000u
 typedef struct {
-  SRWLOCK lock;
-  int8_t  excl;
+  SRWLOCK            gate;
+  CONDITION_VARIABLE readerCv;
+  CONDITION_VARIABLE writerCv;
+  uint32_t state;
+  int32_t nWriterWait;
+  int32_t preferWriter;
 } TdThreadRwlock;                               // windows api
 typedef pthread_attr_t     TdThreadAttr;        // pthread api
 typedef pthread_once_t     TdThreadOnce;        // pthread api
-typedef HANDLE             TdThreadRwlockAttr;  // windows api
+typedef int32_t            TdThreadRwlockAttr;  // kind: 0 reader-prefer, else writer-prefer
 typedef CONDITION_VARIABLE TdThreadCond;        // windows api
 typedef HANDLE             TdThreadCondAttr;    // windows api
 typedef pthread_key_t      TdThreadKey;         // pthread api
@@ -97,7 +115,26 @@ typedef pthread_key_t        TdThreadKey;
 #endif
 #endif
 #else  // WINDOWS
-#define taosThreadRwlockAttrSetKindNP(A, B) ((void)0)
+/* glibc nptl/pthread.h values. Windows pthread headers do not declare these,
+ * and SetKindNP used to be a no-op macro so the names were never parsed.
+ * kind 0 is reader-prefer (Linux default); any other kind is writer-prefer. */
+#ifndef PTHREAD_RWLOCK_PREFER_READER_NP
+#define PTHREAD_RWLOCK_PREFER_READER_NP 0
+#endif
+#ifndef PTHREAD_RWLOCK_PREFER_WRITER_NP
+#define PTHREAD_RWLOCK_PREFER_WRITER_NP 1
+#endif
+#ifndef PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP
+#define PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP 2
+#endif
+#ifndef PTHREAD_RWLOCK_DEFAULT_NP
+#define PTHREAD_RWLOCK_DEFAULT_NP PTHREAD_RWLOCK_PREFER_READER_NP
+#endif
+/* Implemented in osThread.c. PTHREAD_RWLOCK_PREFER_READER_NP lets new readers
+ * pass a queued writer; meta/wal/bse pass
+ * PTHREAD_RWLOCK_PREFER_WRITER_NONRECURSIVE_NP and block them. */
+int32_t taosWinThreadRwlockAttrSetKindNP(TdThreadRwlockAttr *attr, int32_t kind);
+#define taosThreadRwlockAttrSetKindNP(A, B) taosWinThreadRwlockAttrSetKindNP(A, B)
 #endif
 
 #if defined(WINDOWS) && !defined(__USE_PTHREAD)
