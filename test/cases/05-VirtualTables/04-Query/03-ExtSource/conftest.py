@@ -10,14 +10,15 @@
 # timeout.  A timeout used to throw the completed work away and the next run
 # started from the first source matrix again.
 #
-# This conftest records every passed test of that file in a small JSON journal
+# When explicitly enabled, this conftest records passed tests in a JSON journal
 # and deselects those items on the next run, so an interrupted run resumes at
-# the first test it had not finished.  The journal is keyed by the Oracle
-# version list and the required-services set, because a different server matrix
+# the first test it had not finished when explicitly enabled. The journal is
+# keyed by the CI commit and all server version lists/required services: a new matrix
 # invalidates the vtables the earlier run prepared.
 #
 # Environment:
-#   FQ_STB_RESUME=0             force a full run (progress is still recorded)
+#   FQ_STB_RESUME=1             explicitly resume and record progress
+#                               (default: full execution, no journal reuse)
 #   FQ_STB_PROGRESS_FILE=<path> override the journal location (CI can keep it
 #                               in a cache directory between jobs)
 
@@ -34,6 +35,11 @@ def _journal_path():
     if explicit:
         return explicit
     key = "|".join((
+        os.environ.get("CI_COMMIT_SHA", "local"),
+        os.environ.get("FQ_MYSQL_VERSIONS", "default"),
+        os.environ.get("FQ_PG_VERSIONS", "default"),
+        os.environ.get("FQ_INFLUX_VERSIONS", "default"),
+        os.environ.get("FQ_SQLSERVER_VERSIONS", "default"),
         os.environ.get("FQ_ORACLE_VERSIONS", "default"),
         os.environ.get("FQ_REQUIRED_SERVICES", "all"),
     ))
@@ -65,7 +71,7 @@ def _is_resumable(item):
 
 
 def pytest_collection_modifyitems(config, items):
-    if os.environ.get("FQ_STB_RESUME", "1") == "0":
+    if os.environ.get("FQ_STB_RESUME", "0") != "1":
         return
     resumable = [item for item in items if _is_resumable(item)]
     if not resumable:
@@ -92,6 +98,8 @@ def pytest_collection_modifyitems(config, items):
 
 
 def pytest_runtest_logreport(report):
+    if os.environ.get("FQ_STB_RESUME", "0") != "1":
+        return
     if report.when != "call" or not report.passed:
         return
     if not report.nodeid.split("::", 1)[0].replace("\\", "/").endswith(

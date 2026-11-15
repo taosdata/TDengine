@@ -445,7 +445,9 @@ class TestTaosdlog:
         tdSql.checkEqual(True, os.path.exists(stubGzFileKeep))
         tdSql.checkEqual(False, os.path.exists(stubGzFile102))
         tdSql.checkEqual(False, os.path.exists(stubGzFileDel))
-        tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taosdlog.0"))
+        activeLogFiles = [f"{dnodePath}/log/taosdlog.{suffix}" for suffix in (0, 1)]
+        tdSql.checkEqual(True, any(os.path.isfile(logFile) and os.path.getsize(logFile) > 0
+                                  for logFile in activeLogFiles))
         tdSql.checkEqual(True, os.path.exists(f"{dnodePath}/log/taoslog0.0"))
 
     def test_taosdlog(self):

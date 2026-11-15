@@ -36,7 +36,9 @@ class SourceSyncTest(unittest.TestCase):
         return result.stdout.strip()
 
     def test_changing_shallow_runner_and_broken_workspace(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory() as temporary, \
+             patch.object(ci, "stop_build_processes"), patch.object(ci, "stop_processes"), \
+             patch.object(ci, "stop_processes_under"):
             base = Path(temporary)
             upstream, runner, workspace = (base / name for name in ("upstream", "runner", "workspace"))
             upstream.mkdir()
@@ -111,6 +113,8 @@ class SourceSyncTest(unittest.TestCase):
         with patch.object(sys, "argv", ["run_windows_ci.py"]), \
              patch.dict(os.environ, WIN_SKIP_BUILD="false", WIN_SKIP_CTEST="false", WIN_SKIP_PYTEST="false"), \
              patch.object(ci, "print_host_identity"), patch.object(ci, "build"), \
+             patch.object(ci, "visual_studio_environment", return_value={"PATH": "tools"}), \
+             patch.object(ci, "require_command"), \
              patch.object(ci, "run", return_value=subprocess.CompletedProcess([], 0)), \
              patch.object(ci, "run_ctest", return_value=(1, [])), \
              patch.object(ci, "run_pytest", return_value=0) as pytest, \

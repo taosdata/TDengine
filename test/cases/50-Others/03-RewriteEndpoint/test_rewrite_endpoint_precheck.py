@@ -307,7 +307,7 @@ class TestRewriteEndpointPrecheck:
                 if name == "unflushed":
                     errors = [error for error in report["errors"]
                               if error["check"] == "snapshot/WAL boundaries"]
-                    assert errors and errors[0]["file"].endswith("/wal")
+                    assert errors and Path(errors[0]["file"]).name == "wal"
                     assert "S=" in errors[0]["message"] and "C=" in errors[0]["message"]
                 if name == "missing-config":
                     assert any(error["file"] == str(vnode / "vnode.json")

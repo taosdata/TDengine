@@ -435,6 +435,88 @@ def _fq_base_dir() -> str:
     return "/opt/taostest/fq"
 
 
+def _windows_service_process(port: int, names):
+    """Find the Windows external-service process bound to a test port."""
+    if sys.platform != "win32":
+        return None
+    import psutil
+    wanted = {name.lower() for name in names}
+    for conn in psutil.net_connections(kind="tcp"):
+        if conn.status != psutil.CONN_LISTEN or not conn.laddr or conn.laddr.port != port:
+            continue
+        if not conn.pid:
+            raise RuntimeError(f"Cannot identify the listener on PostgreSQL test port {port}")
+        proc = psutil.Process(conn.pid)
+        if proc.name().lower() not in wanted:
+            raise RuntimeError(f"Unexpected listener on PostgreSQL test port {port}")
+        return proc
+    return None
+
+
+def _windows_process_base(proc):
+    if proc is None:
+        return None
+    try:
+        import psutil
+    except ImportError:
+        return None
+    try:
+        executable = proc.exe()
+    except (OSError, psutil.Error):
+        return None
+    bin_dir = os.path.dirname(executable)
+    if os.path.basename(bin_dir).lower() == "bin":
+        return os.path.dirname(bin_dir)
+    return None
+
+
+def _windows_owned_pg_instance(cfg, cached_base=None):
+    """Resolve a test postmaster without adopting an arbitrary port owner."""
+    import ntpath
+    import psutil
+    if cfg.host not in ("localhost", "127.0.0.1", "::1"):
+        raise RuntimeError("PostgreSQL local lifecycle requires a loopback host")
+    listener = _windows_service_process(cfg.port, ("postgres.exe", "postgres"))
+    base = _windows_process_base(listener) if listener is not None else (
+        cached_base or os.path.join(_fq_base_dir(), "pg", cfg.version))
+    system_drive = os.environ.get("SystemDrive", "C:")
+    roots = [_fq_base_dir(), ntpath.join(system_drive + "\\", "ci-tools", "windows-ci-runtime", "fq")]
+    for variable in ("PROGRAMDATA", "LOCALAPPDATA"):
+        if os.environ.get(variable):
+            roots.append(ntpath.join(os.environ[variable], "taostest", "fq"))
+    normalize = lambda value: ntpath.normcase(ntpath.abspath(value))
+    expected = {normalize(ntpath.join(root, "pg", cfg.version)) for root in roots}
+    if not base or normalize(base) not in expected:
+        raise RuntimeError(f"PostgreSQL lifecycle refuses unapproved installation: {base}")
+    for relative in ("bin/postgres.exe", "bin/pg_ctl.exe", "bin/psql.exe", "data/PG_VERSION"):
+        if not os.path.isfile(os.path.join(base, relative)):
+            raise RuntimeError(f"PostgreSQL test installation is incomplete: {base}/{relative}")
+    pidfile = os.path.join(base, "data", "postmaster.pid")
+    try:
+        with open(pidfile, encoding="utf-8") as stream:
+            lines = stream.read().splitlines()
+    except FileNotFoundError:
+        if listener is not None:
+            raise RuntimeError("PostgreSQL listener has no test postmaster.pid")
+        return base, None
+    if len(lines) < 3 or normalize(lines[1]) != normalize(ntpath.join(base, "data")):
+        raise RuntimeError("PostgreSQL PID file does not identify the test data directory")
+    try:
+        master = psutil.Process(int(lines[0]))
+        if normalize(master.exe()) != normalize(ntpath.join(base, "bin", "postgres.exe")):
+            raise RuntimeError("PostgreSQL PID file belongs to another executable")
+        if abs(master.create_time() - int(lines[2])) > 3:
+            raise RuntimeError("PostgreSQL PID file belongs to a different process lifetime")
+        if listener is not None and listener.pid != master.pid:
+            if master.pid not in [parent.pid for parent in listener.parents()]:
+                raise RuntimeError("PostgreSQL listener does not belong to the test postmaster")
+        return base, master
+    except psutil.NoSuchProcess:
+        if listener is not None:
+            raise RuntimeError("PostgreSQL listener does not match the stale test PID file")
+        return base, None
+
+
 def _influx_windows_processes(cfg, data_dir):
     """Live InfluxDB server processes belonging to one test instance.
 
@@ -443,20 +525,37 @@ def _influx_windows_processes(cfg, data_dir):
     address or data directory, so an engine from another version is never
     signalled by mistake.
     """
+    import ntpath
     import psutil
     procs = []
     bind_arg = f"--http-bind {cfg.host}:{cfg.port}"
+    config_path = ntpath.normcase(ntpath.normpath(
+        ntpath.join(ntpath.dirname(data_dir), "influxdb.conf")))
     for proc in psutil.process_iter(["pid", "name", "cmdline"]):
         try:
             name = (proc.info.get("name") or "").lower()
             if name not in ("influxdb3.exe", "influxd.exe", "influxdb3", "influxd"):
                 continue
-            args = " ".join(proc.info.get("cmdline") or [])
+            argv = proc.info.get("cmdline") or []
+            args = " ".join(argv)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             continue
         if not args:
             continue
-        if bind_arg in args or data_dir in args or f":{cfg.port}" in args:
+        # InfluxDB 1.8 receives its bind address and data directory through
+        # this file, so neither appears in the server's command line.
+        owns_config = False
+        for index, argument in enumerate(argv):
+            option, separator, value = argument.partition("=")
+            if option not in ("-config", "--config"):
+                continue
+            if not separator:
+                value = argv[index + 1] if index + 1 < len(argv) else ""
+            if value and ntpath.normcase(ntpath.normpath(value)) == config_path:
+                owns_config = True
+                break
+        if (owns_config or bind_arg in args or data_dir in args
+                or f":{cfg.port}" in args):
             procs.append(proc)
     return procs
 
@@ -631,9 +730,8 @@ class ExtSrcEnv:
                           if v.strip()]
     # Oracle version axis ("11g" / "19c" / "26ai").  Like SQL Server it is not
     # merged into _version_combos(); Oracle scenarios select their version
-    # explicitly.  Both platforms default to 11g (11.2.0.4) and treat 26ai as
-    # the optional second generation (FQ_ORACLE_VERSIONS=26ai).
-    _DEFAULT_ORACLE_VERSION = "11g"
+    # explicitly. Windows defaults to 26ai; Linux defaults to 11g (11.2.0.4).
+    _DEFAULT_ORACLE_VERSION = "26ai" if os.name == "nt" else "11g"
     ORACLE_VERSIONS = [v.strip() for v in
                        os.getenv("FQ_ORACLE_VERSIONS", _DEFAULT_ORACLE_VERSION).split(",")
                        if v.strip()]
@@ -993,9 +1091,7 @@ class ExtSrcEnv:
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
         # of them, so a provider missing from this list would only be detected
         # later, as an unreachable host inside a case (Oracle TS 5.5).
-        # Oracle is part of the Windows default too: 11g has no Windows server
-        # media, so ensure_ext_env.ps1 runs the Linux 11.2.0.4 image in a local
-        # container. Explicit service selections still apply to custom runs.
+        # Windows CI uses native Oracle 26ai; Linux keeps its own version matrix.
         default = "mysql,pg,influx,sqlserver,oracle"
         value = os.getenv("FQ_REQUIRED_SERVICES", default)
         services = set() if value == "none" else set(value.split(","))
@@ -1824,13 +1920,43 @@ class ExtSrcEnv:
         os.kill(pid, signal.SIGKILL)
 
     @classmethod
+    def _mysql_lifecycle_paths(cls, ver, discover=False):
+        """Keep stop/start on the same local Windows instance, including reused ones."""
+        base = os.path.join(_fq_base_dir(), "mysql", ver)
+        default = (base, os.path.join(base, "run", "mysqld.pid"))
+        if sys.platform != "win32":
+            return default
+        paths = cls.__dict__.get("_mysql_runtime_paths")
+        if paths is None:
+            paths = {}
+            cls._mysql_runtime_paths = paths
+        if discover:
+            cfg = next(c for c in cls.mysql_version_configs() if c.version == ver)
+            if cfg.host not in ("localhost", "127.0.0.1", "::1"):
+                raise RuntimeError("MySQL local lifecycle requires a loopback host")
+            try:
+                base = cls.mysql_query_cfg(cfg, None, "SELECT @@basedir")
+                pidfile = cls.mysql_query_cfg(cfg, None, "SELECT @@pid_file")
+            except pymysql.err.OperationalError as error:
+                tdLog.info(f"[FQ env] MySQL {ver} lifecycle discovery unavailable; "
+                           f"using cached or configured paths: {error}")
+                return paths.get(ver, default)
+            if not base or not pidfile:
+                raise RuntimeError("MySQL did not report its installation and PID paths")
+            base = os.path.normpath(base)
+            if not (os.path.isfile(os.path.join(base, "bin", "mysqld.exe"))
+                    and os.path.isfile(os.path.join(base, "my.ini"))):
+                raise RuntimeError(f"MySQL lifecycle cannot restart the instance at {base}")
+            paths[ver] = (base, pidfile)
+        return paths.get(ver, default)
+
+    @classmethod
     def kill_mysql_instance(cls, ver):
         """Send SIGKILL to the MySQL process."""
         if cls._external_service_action("kill", "mysql", ver):
             return
 
-        fq_base = _fq_base_dir()
-        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        _, pidfile = cls._mysql_lifecycle_paths(ver, discover=True)
         cls._kill_process_sigkill(pidfile)
 
     @classmethod
@@ -1839,6 +1965,18 @@ class ExtSrcEnv:
         if cls._external_service_action("kill", "pg", ver):
             return
 
+        if sys.platform == "win32":
+            import psutil
+            cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+            base, proc = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
+            os.environ[f"FQ_PG_BASE_{ver.replace('.', '')}"] = base
+            if proc is not None:
+                try:
+                    proc.kill()
+                except psutil.NoSuchProcess:
+                    pass
+            return
         # postmaster.pid: first line is PID
         fq_base = _fq_base_dir()
         pidfile = os.path.join(fq_base, "pg", ver, "data", "postmaster.pid")
@@ -1864,8 +2002,7 @@ class ExtSrcEnv:
         if cls._external_service_action("stop", "mysql", ver):
             return
 
-        fq_base = _fq_base_dir()
-        pidfile = os.path.join(fq_base, "mysql", ver, "run", "mysqld.pid")
+        _, pidfile = cls._mysql_lifecycle_paths(ver, discover=True)
         cls._kill_process_by_pidfile(pidfile)
 
     @classmethod
@@ -1879,9 +2016,10 @@ class ExtSrcEnv:
                               "ensure_ext_env.sh")
         env = _fq_subprocess_env()
         fq_base = _fq_base_dir()
-        mysql_base = os.path.join(fq_base, "mysql", ver)
+        mysql_base, mysql_pidfile = cls._mysql_lifecycle_paths(ver)
+        mysqld_name = "mysqld.exe" if sys.platform == "win32" else "mysqld"
         has_mysql_install = os.path.isfile(
-            os.path.join(mysql_base, "bin", "mysqld"))
+            os.path.join(mysql_base, "bin", mysqld_name))
         has_mysql_data = (
             os.path.isdir(os.path.join(mysql_base, "data", "mysql"))
             or os.path.isfile(os.path.join(mysql_base, "data", "ibdata1"))
@@ -1912,7 +2050,7 @@ class ExtSrcEnv:
                     stderr=subprocess.STDOUT,
                     creationflags=(subprocess.CREATE_NEW_PROCESS_GROUP
                                    | subprocess.DETACHED_PROCESS))
-            with open(os.path.join(run_dir, "mysqld.pid"), "w") as fh:
+            with open(mysql_pidfile, "w") as fh:
                 fh.write(str(proc.pid))
         else:
             env["FQ_SERVICES_TO_RESET"] = "mysql"
@@ -1957,15 +2095,22 @@ class ExtSrcEnv:
         fq_base = _fq_base_dir()
         datadir = os.path.join(fq_base, "pg", ver, "data")
         if sys.platform == "win32":
+            cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+            base, proc = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
+            os.environ[f"FQ_PG_BASE_{ver.replace('.', '')}"] = base
+            if proc is None:
+                return
+            datadir = os.path.join(base, "data")
+            pg_ctl_exe = os.path.join(base, "bin", "pg_ctl.exe")
             # The Windows distribution ships pg_ctl.exe; the Unix owner check
             # (pwd/runuser) does not apply because the instance runs as the
             # current user.
-            pg_ctl_exe = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl.exe")
             # DEVNULL instead of pipes: the postmaster inherits the handles,
             # and a pipe would keep communicate() waiting for EOF.
             subprocess.run([pg_ctl_exe, "stop", "-D", datadir, "-m", "fast"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                           timeout=60)
+                           timeout=60, check=True)
             return
         pg_ctl_bin = os.path.join(fq_base, "pg", ver, "bin", "pg_ctl")
         import pwd as _pwd
@@ -1995,6 +2140,9 @@ class ExtSrcEnv:
         fq_base = _fq_base_dir()
         pg_base = os.path.join(fq_base, "pg", ver)
         cfg = next(c for c in cls.pg_version_configs() if c.version == ver)
+        if sys.platform == "win32":
+            pg_base, _ = _windows_owned_pg_instance(
+                cfg, os.environ.get(f"FQ_PG_BASE_{ver.replace('.', '')}"))
         script_error = None
         if sys.platform == "win32":
             # Start in place with pg_ctl.exe.  The setup script is not used
@@ -2396,9 +2544,15 @@ class ExtSrcEnv:
             # still be there once the instance is back.
             env["FQ_ORACLE_QUICK_RESTART"] = "1"
             if sys.platform == "win32":
-                subprocess.run(cls._ext_env_script_cmd(), env=env,
-                               capture_output=True, encoding="utf-8",
-                               errors="replace", timeout=900)
+                proc = subprocess.run(cls._ext_env_script_cmd(), env=env,
+                                      capture_output=True, encoding="utf-8",
+                                      errors="replace", timeout=900)
+                if proc.returncode != 0:
+                    output = "\n".join(
+                        ((proc.stdout or "") + "\n" + (proc.stderr or "")).splitlines()[-80:])
+                    raise RuntimeError(
+                        f"Oracle {ver} startup failed (exit={proc.returncode})."
+                        f"\n---- ensure_ext_env.ps1 output (tail) ----\n{output}")
             else:
                 subprocess.run(["bash", cls._fq_env_script()], env=env,
                                capture_output=True, text=True, timeout=900)

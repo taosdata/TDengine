@@ -399,7 +399,7 @@ class TestFunRegexpExtract:
             expected_digit_escape = '5'
         else:
             expected_digit_escape = None
-        tdSql.query("SELECT REGEXP_EXTRACT('5', '\\d', 0)")
+        tdSql.query("SELECT REGEXP_EXTRACT('5', '\\\\d', 0)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, expected_digit_escape)
 

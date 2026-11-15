@@ -288,13 +288,13 @@ class TestTaosBackupChinese:
         self.makeDir(tmpdir)
 
         # ── backup ──
-        self.exec(f"{bin_} -D \"{db}\" -o {tmpdir} -T 1")
+        self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
 
         # ── drop and restore ──
         tdSql.execute(f"drop database `{db}`")
         assert not self.dbFound(db), f"db `{db}` should be gone before restore"
 
-        self.exec(f"{bin_} -i {tmpdir} -T 1")
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
 
         assert self.dbFound(db), f"db `{db}` not found after restore"
 
@@ -374,12 +374,12 @@ class TestTaosBackupChinese:
         self.makeDir(tmpdir)
 
         # backup with parquet format
-        self.exec(f"{bin_} -F parquet -D \"{db}\" -o {tmpdir} -T 1")
+        self.execArgs([bin_, "-F", "parquet", "-D", db, "-o", tmpdir, "-T", "1"])
 
         tdSql.execute(f"drop database `{db}`")
         assert not self.dbFound(db)
 
-        self.exec(f"{bin_} -i {tmpdir} -T 1")
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
 
         assert self.dbFound(db), f"db `{db}` not found after parquet restore"
 
@@ -462,12 +462,12 @@ class TestTaosBackupChinese:
         bin_ = self.binPath()
         self.makeDir(tmpdir)
 
-        self.exec(f"{bin_} -D \"{db}\" -o {tmpdir} -T 1")
+        self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
 
         tdSql.execute(f"drop database `{db}`")
         assert not self.dbFound(db)
 
-        self.exec(f"{bin_} -i {tmpdir} -T 1")
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
 
         assert self.dbFound(db), f"db `{db}` not found after restore"
 
@@ -578,7 +578,7 @@ class TestTaosBackupChinese:
 
         # ── Backup all three databases ──
         for db in (db_at, db_sym, db_sp):
-            self.exec(f"{bin_} -D \"{db}\" -o {tmpdir} -T 1")
+            self.execArgs([bin_, "-D", db, "-o", tmpdir, "-T", "1"])
 
         # On Windows, assert the directory names are created correctly.
         # Chars @  #  (  )  space are all legal Windows path characters.
@@ -594,7 +594,7 @@ class TestTaosBackupChinese:
         for db in (db_at, db_sym, db_sp):
             assert not self.dbFound(db), f"`{db}` should be gone before restore"
 
-        self.exec(f"{bin_} -i {tmpdir} -T 1")
+        self.execArgs([bin_, "-i", tmpdir, "-T", "1"])
 
         for db in (db_at, db_sym, db_sp):
             assert self.dbFound(db), f"db `{db}` not found after restore"

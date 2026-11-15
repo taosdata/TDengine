@@ -17,6 +17,7 @@
 
 from new_test_framework.utils import tdLog, tdSql, etool
 import os
+import shutil
 
 
 class TestTaosBackupSchemaChange:
@@ -33,7 +34,11 @@ class TestTaosBackupSchemaChange:
             self.clearPath(path)
 
     def clearPath(self, path):
-        os.system("rm -rf %s/*" % path)
+        for entry in os.scandir(path):
+            if entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path)
+            else:
+                os.remove(entry.path)
 
     def taosbackup(self, cmd, show=True):
         """Run taosBackup with the given arguments and return the output lines."""
@@ -267,7 +272,7 @@ class TestTaosBackupSchemaChange:
         """
         tmpdir = "./taosbackuptest/tmpdir_tag_only"
         if os.path.exists(tmpdir):
-            os.system("rm -rf %s" % tmpdir)
+            shutil.rmtree(tmpdir)
         os.makedirs(tmpdir)
 
         src_db = "tagonly_src"
@@ -358,7 +363,7 @@ class TestTaosBackupSchemaChange:
         )
         tdLog.info("  server-only tags are NULL ................... [passed]")
 
-        os.system("rm -rf %s" % tmpdir)
+        shutil.rmtree(tmpdir)
         tdLog.info("do_tag_only_change ........................... [passed]")
 
     # -----------------------------------------------------------------------

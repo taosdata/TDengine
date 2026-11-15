@@ -32,9 +32,16 @@ import platform
 import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+
+pytestmark = pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Oracle Linux packaging uses Bash executables, POSIX symlinks, and ELF libraries",
+)
+
 
 COMMUNITY = Path(__file__).resolve().parents[1]
 INSTALLER = COMMUNITY / "packaging/tools/install.sh"

@@ -28,17 +28,19 @@ import tempfile
 import time
 import urllib.request
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from xml.etree import ElementTree
 
 from windows_case_utils import (
     case_log_prefix,
+    is_federated_query_command,
     is_fq_command,
     is_related_command,
     pytest_log_name,
     resume_task_manifest,
     selection_contains_fq,
     windows_task_manifest,
+    windows_fq_task_manifest,
 )
 
 
@@ -94,6 +96,12 @@ def print_host_identity():
 
 
 def run(command, *, cwd=None, env=None, stdout=None, stderr=None):
+    # Windows CreateProcess does not search the child's env PATH. Tools added
+    # by vcvarsall (notably VS-bundled CMake) need an explicit executable path.
+    if os.name == "nt" and env is not None:
+        executable = shutil.which(str(command[0]), path=env.get("PATH"))
+        if executable:
+            command = [executable, *command[1:]]
     print("+ " + " ".join(str(part) for part in command), flush=True)
     return subprocess.run(command, cwd=cwd, env=env, stdout=stdout, stderr=stderr, check=False)
 
@@ -322,10 +330,7 @@ def sync_source(source_dir):
 
 
 def visual_studio_environment():
-    vcvars = Path(os.environ.get(
-        "WIN_VCVARS",
-        r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat",
-    ))
+    vcvars = find_visual_studio_vcvars()
     if not vcvars.exists():
         fail(f"Visual Studio environment script not found: {vcvars}")
     with tempfile.NamedTemporaryFile(mode="w", suffix=".cmd", delete=False, encoding="utf-8", newline="\r\n") as command_file:
@@ -357,13 +362,68 @@ def visual_studio_environment():
             path_key = next((key for key in environment if key.upper() == "PATH"), None)
             if path_key and path_key != "PATH":
                 environment["PATH"] = environment.pop(path_key)
+            original_path = os.environ.get("PATH")
+            if original_path:
+                environment["PATH"] = environment.get("PATH", "") + os.pathsep + original_path
             return environment
     fail("Visual Studio environment JSON was not returned")
 
 
+def find_visual_studio_vcvars():
+    configured = os.environ.get("WIN_VCVARS")
+    candidates = [Path(configured)] if configured else []
+    installation = os.environ.get("VSINSTALLDIR")
+    if installation:
+        candidates.append(Path(installation) / "VC" / "Auxiliary" / "Build" / "vcvarsall.bat")
+    for root in filter(None, (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)"))):
+        root_path = Path(root)
+        installer = root_path / "Microsoft Visual Studio" / "Installer" / "vswhere.exe"
+        if installer.exists():
+            result = subprocess.run(
+                [str(installer), "-latest", "-products", "*", "-requires", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "-property", "installationPath"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                check=False,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                candidates.append(Path(result.stdout.strip()) / "VC" / "Auxiliary" / "Build" / "vcvarsall.bat")
+        for edition in ("BuildTools", "Community", "Professional", "Enterprise", "Preview"):
+            candidates.append(root_path / "Microsoft Visual Studio" / "2022" / edition / "VC" / "Auxiliary" / "Build" / "vcvarsall.bat")
+    for candidate in candidates:
+        if candidate.exists():
+            print(f"[windows-ci] using Visual Studio environment: {candidate}", flush=True)
+            return candidate
+    fallback = candidates[0] if candidates else Path(r"C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvarsall.bat")
+    return fallback
+
+
 def require_command(name, environment):
-    if not shutil.which(name, path=environment["PATH"]):
-        fail(f"{name} is not available after loading Visual Studio environment")
+    if shutil.which(name, path=environment["PATH"]):
+        return
+    if name == "jom":
+        configured = os.environ.get("WIN_JOM")
+        candidates = [Path(configured)] if configured else []
+        candidates.append(Path(r"C:\Qt\Tools\QtCreator\bin\jom.exe"))
+        candidates.extend(Path(r"C:\Qt").glob("**/jom.exe"))
+        for candidate in candidates:
+            if candidate.exists():
+                environment["PATH"] = str(candidate.parent) + os.pathsep + environment["PATH"]
+                print(f"[windows-ci] using jom: {candidate}", flush=True)
+                return
+    if name == "gcc":
+        configured = os.environ.get("WIN_GCC")
+        candidates = [Path(configured)] if configured else []
+        candidates.extend((
+            Path(r"C:\ci-tools\windows-ci-runtime\mingw64\bin\gcc.exe"),
+            Path(r"C:\mingw64\bin\gcc.exe"),
+        ))
+        for candidate in candidates:
+            if candidate.exists():
+                environment["PATH"] = str(candidate.parent) + os.pathsep + environment["PATH"]
+                print(f"[windows-ci] using gcc: {candidate}", flush=True)
+                return
+    fail(f"{name} is not available after loading Visual Studio environment")
 
 
 def rust_shared_library_path(debug_dir, build_type=WINDOWS_CMAKE_BUILD_TYPE):
@@ -397,14 +457,74 @@ def install_go_toolchain(source_dir, environment):
     environment["GODEBUG"] = "http2client=0"
 
 
+def ensure_rust_toolchain(environment):
+    configured = environment.get("WIN_CARGO_HOME") or os.environ.get("WIN_CARGO_HOME")
+    candidates = [Path(configured)] if configured else []
+    candidates.extend((Path(r"C:\ci-tools\cargo"), Path.home() / ".cargo"))
+    for root in candidates:
+        if not root:
+            continue
+        cargo_dir = root / "bin"
+        if (cargo_dir / "cargo.exe").exists() and (cargo_dir / "rustc.exe").exists():
+            environment["CARGO_HOME"] = str(root)
+            rustup_home = Path(environment.get("RUSTUP_HOME", root.parent / "rustup"))
+            if rustup_home.is_dir():
+                environment["RUSTUP_HOME"] = str(rustup_home)
+            environment["PATH"] = str(cargo_dir) + os.pathsep + environment["PATH"]
+            print(f"[windows-ci] using Rust toolchain: {cargo_dir}", flush=True)
+            return
+    print("[windows-ci] Rust toolchain will be resolved from the runner PATH", flush=True)
+
+
 def federated_query_base_dir():
     override = os.environ.get("FQ_BASE_DIR")
     if override:
         return Path(override)
+    if os.name == "nt":
+        # GitLab Runner services normally run as LocalSystem, whose
+        # LOCALAPPDATA resolves to systemprofile.  Keep provider packages and
+        # the setup environment in a stable machine-local directory instead
+        # of making the pytest process depend on the account that launched it.
+        return Path(os.environ.get("WIN_FQ_BASE_DIR", r"C:\ci-tools\windows-ci-runtime\fq"))
     local_app_data = os.environ.get("LOCALAPPDATA")
     if local_app_data:
         return Path(local_app_data) / "taostest" / "fq"
     return Path.home() / "AppData" / "Local" / "taostest" / "fq"
+
+
+def extract_libpq_runtime(archive, target):
+    """Extract only the PostgreSQL client directories needed by the build.
+
+    EnterpriseDB's ZIP also contains the pgAdmin web application, whose
+    deeply nested paths exceed the Windows MAX_PATH limit.  Extracting the
+    complete archive therefore fails before the libpq files are available.
+    """
+    selected = []
+    root_name = None
+    with zipfile.ZipFile(archive) as bundle:
+        for info in bundle.infolist():
+            parts = PurePosixPath(info.filename.replace("\\", "/")).parts
+            if len(parts) < 2 or parts[0] in ("", ".", ".."):
+                continue
+            if parts[1] not in {"bin", "include", "lib", "share"}:
+                continue
+            if any(part in ("", ".", "..") for part in parts):
+                continue
+            if root_name is None:
+                root_name = parts[0]
+            if parts[0] != root_name:
+                continue
+            selected.append((info, PurePosixPath(*parts[1:])))
+        if not selected:
+            fail("PostgreSQL ZIP had no libpq client directories")
+        for info, relative in selected:
+            destination = target.joinpath(*relative.parts)
+            if info.is_dir():
+                destination.mkdir(parents=True, exist_ok=True)
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with bundle.open(info) as source, destination.open("wb") as output:
+                shutil.copyfileobj(source, output)
 
 
 def ensure_libpq_runtime(environment):
@@ -418,15 +538,22 @@ def ensure_libpq_runtime(environment):
     absent, download and extract the same pinned ZIP here so the build is
     self-contained.
     """
+    required = ("include/libpq-fe.h", "bin/libpq.dll", "bin/pg_ctl.exe", "share/postgres.bki")
     root = environment.get("EXT_LIBPQ_ROOT")
-    if root and (Path(root) / "include" / "libpq-fe.h").exists():
+    if root and all((Path(root) / relative).is_file() for relative in required):
         print(f"[windows-ci] EXT_LIBPQ_ROOT={root}", flush=True)
         return
 
     versions = [item.strip() for item in (environment.get("FQ_PG_VERSIONS") or "18.6").split(",") if item.strip()]
     version = versions[0] if versions else "18.6"
-    target = federated_query_base_dir() / "pg" / version
-    if (target / "include" / "libpq-fe.h").exists():
+    server_target = federated_query_base_dir() / "pg" / version
+    # A server-only installation may lack headers. Stage the build client
+    # separately instead of replacing DLLs held open by a running PostgreSQL.
+    # VS can ship a 32-bit CMake: System32 is then redirected to SysWOW64,
+    # hiding the service account's PostgreSQL files even though Python sees them.
+    client_cache = Path(environment.get("WIN_LIBPQ_CLIENT_CACHE", r"C:\ci-tools\windows-ci-runtime\pg-client"))
+    target = client_cache / version
+    if all((target / relative).is_file() for relative in required):
         environment["EXT_LIBPQ_ROOT"] = str(target)
         print(f"[windows-ci] EXT_LIBPQ_ROOT={target} (existing federated-query runtime)", flush=True)
         return
@@ -445,28 +572,16 @@ def ensure_libpq_runtime(environment):
         url = f"{mirror}/postgresql-{package}-windows-x64-binaries.zip"
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    archive = target.parent / f"postgresql-{version}-binaries.zip"
+    archive = server_target.parent / f"postgresql-{version}-binaries.zip"
+    archive.parent.mkdir(parents=True, exist_ok=True)
     print(f"[windows-ci] downloading PostgreSQL client runtime: {url}", flush=True)
-    urllib.request.urlretrieve(url, archive)
+    if not archive.is_file() or not zipfile.is_zipfile(archive):
+        urllib.request.urlretrieve(url, archive)
     print(f"[windows-ci] extracting PostgreSQL client runtime into {target}", flush=True)
-    extract_root = target.parent / f"postgresql-{version}-extract"
-    shutil.rmtree(extract_root, ignore_errors=True)
-    with zipfile.ZipFile(archive) as bundle:
-        bundle.extractall(extract_root)
-    entries = [entry for entry in extract_root.iterdir() if entry.is_dir()]
-    if not entries:
-        fail("PostgreSQL ZIP had no top-level directory")
     target.mkdir(parents=True, exist_ok=True)
-    for child in entries[0].iterdir():
-        destination = target / child.name
-        if child.is_dir():
-            shutil.copytree(child, destination, dirs_exist_ok=True)
-        else:
-            shutil.copy2(child, destination)
-    archive.unlink(missing_ok=True)
-    shutil.rmtree(extract_root, ignore_errors=True)
-    if not (target / "include" / "libpq-fe.h").exists():
-        fail(f"libpq-fe.h not found in the extracted runtime: {target}")
+    extract_libpq_runtime(archive, target)
+    if not all((target / relative).is_file() for relative in required):
+        fail(f"PostgreSQL runtime is incomplete after extraction: {target}")
     environment["EXT_LIBPQ_ROOT"] = str(target)
     print(f"[windows-ci] EXT_LIBPQ_ROOT={target}", flush=True)
 
@@ -514,9 +629,15 @@ def build(source_dir, debug_dir):
         fail(f"unable to remove previous build directory: {debug_dir}")
     debug_dir.mkdir(parents=True)
     environment = visual_studio_environment()
-    for command in ("cl", "cmake", "jom", "go", "gcc"):
+    cmake_name = environment.get("WIN_CMAKE_EXECUTABLE", "cmake")
+    for command in ("cl", cmake_name, "jom"):
         require_command(command, environment)
+    cmake = shutil.which(cmake_name, path=environment["PATH"])
+    jom = shutil.which("jom", path=environment["PATH"])
     install_go_toolchain(source_dir, environment)
+    require_command("go", environment)
+    ensure_rust_toolchain(environment)
+    require_command("gcc", environment)
     ensure_libpq_runtime(environment)
 
     # Avoid Release inlining/LTO when unit tests patch function entries with cppstub.
@@ -525,19 +646,22 @@ def build(source_dir, debug_dir):
     # provider plugin; on Windows it is built with the HTTP transport only (no
     # Arrow/gRPC runtime is linked or built), so this adds no Arrow dependency.
     configure = [
-        "cmake", "..", "-G", "NMake Makefiles JOM", "-DCMAKE_MAKE_PROGRAM=jom",
+        cmake, "..", "-G", "NMake Makefiles JOM", f"-DCMAKE_MAKE_PROGRAM={jom}",
         f"-DCMAKE_BUILD_TYPE={WINDOWS_CMAKE_BUILD_TYPE}",
         "-DBUILD_ENTERPRISE=ON", "-DBUILD_TEST=ON", "-DBUILD_TOOLS=ON", "-DBUILD_ADAPTER=ON", "-DBUILD_KEEPER=ON",
         "-DBUILD_RUST=ON", "-DBUILD_WITH_MARIADB=ON", "-DBUILD_WITH_LIBPQ=ON", "-DBUILD_WITH_ODBC=ON",
         "-DINSTALL_FQ_RUNTIME_LIBS=ON", "-DBUILD_WITH_ARROW=ON", "-DBUILD_ROCKSDB=ON",
         "-DBUILD_CONTRIB=ON", "-DBUILD_ASSERT_NOT_CORE=ON", "-DCPUTYPE=x64", "-DOSTYPE=Windows",
     ]
+    if environment.get("EXT_LIBPQ_ROOT"):
+        libpq_root = environment["EXT_LIBPQ_ROOT"].replace("\\", "/")
+        configure.append(f"-DEXT_LIBPQ_ROOT={libpq_root}")
     environment["VSLANG"] = "1033"
     if run(configure, cwd=debug_dir, env=environment).returncode:
         fail("cmake failed")
     build_log = debug_dir / "build.log"
     with build_log.open("w", encoding="utf-8") as log_file:
-        build_result = run(["jom", "-j8"], cwd=debug_dir, env=environment, stdout=log_file, stderr=subprocess.STDOUT)
+        build_result = run([jom, "-j8"], cwd=debug_dir, env=environment, stdout=log_file, stderr=subprocess.STDOUT)
     if build_result.returncode:
         tail(build_log, 300)
         fail(f"jom build failed with exit code {build_result.returncode}")
@@ -551,7 +675,7 @@ def build(source_dir, debug_dir):
         fail("taosadapter.exe cannot start after build")
     taosws = rust_shared_library_path(debug_dir)
     if not taosws.exists():
-        run(["jom", "taos_connector_rust"], cwd=debug_dir, env=environment)
+        run([jom, "taos_connector_rust"], cwd=debug_dir, env=environment)
         fail("taosws.dll is missing from build output")
     ensure_oracle_client(source_dir, debug_dir)
 
@@ -716,13 +840,8 @@ def federated_query_services(environment):
     engine is required by default, ``none`` disables all of them, and anything
     else narrows the set.  The setup script reads the per-engine version lists,
     where an empty value means "do not provision this engine"; forwarding the
-    selection that way keeps the script's own defaults (Oracle 11g by default,
-    like Linux) from installing engines this run never uses.
+    selection that way avoids installing engines this run never uses.
     """
-    # Same default as the test framework: all five providers, Oracle included.
-    # 11g has no Windows server media, so ensure_ext_env.ps1 runs the Linux
-    # 11.2.0.4 image in a container on the runner (FQ_ORACLE_DOCKER=1, or
-    # FQ_ORACLE_DOCKER_WSL=<distro> when the engine lives inside WSL2).
     value = environment.get("FQ_REQUIRED_SERVICES", "mysql,pg,influx,sqlserver,oracle")
     services = set() if value == "none" else set(value.split(","))
     unknown = services - set(FQ_ENGINE_VERSION_VARS)
@@ -757,7 +876,8 @@ def provision_federated_query_env(source_dir, environment):
     print(f"[windows-ci] provisioning federated-query external engines: {script.name}", flush=True)
     print("[windows-ci] federated-query engines requested: "
           f"{', '.join(sorted(services)) or 'none'}", flush=True)
-    base = environment.get("FQ_BASE_DIR") or str(Path(environment.get("LOCALAPPDATA", "")) / "taostest" / "fq")
+    base = environment.get("FQ_BASE_DIR") or str(federated_query_base_dir())
+    environment["FQ_BASE_DIR"] = base
     setup_log = Path(base) / "setup.log"
     command = ["powershell.exe", "-ExecutionPolicy", "Bypass", "-NoProfile", "-File", str(script)]
     # Windows PowerShell 5.1 can terminate while the setup script starts MySQL
@@ -917,7 +1037,7 @@ def stop_owned_fq_influx(existing):
     import psutil
 
     for (pid, created), executable in running_fq_influx().items():
-        if (pid, created) in existing or executable in existing.values():
+        if (pid, created) in existing:
             continue
         try:
             process = psutil.Process(pid)
@@ -982,35 +1102,57 @@ def run_pytest(source_dir, debug_dir, log_dir, only_fq=False, case_filter="", su
     log_dir.mkdir(parents=True, exist_ok=True)
     environment = os.environ.copy()
     environment["PATH"] = f"{bin_dir}{os.pathsep}{environment['PATH']}"
+    require_command("gcc", environment)
     environment["WIN_TEST_SUITE"] = suite
     with managed_fq_services(source_dir):
         return run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite)
 
 
 def federated_query_influx_versions(task_text, environment):
-    configured = environment.get('FQ_INFLUX_VERSIONS', '3.0')
-    if not configured:
-        return ''
-    versions = configured.split(',')
-    active_tasks = '\n'.join(line for line in task_text.splitlines()
-                             if line.strip() and not line.lstrip().startswith('#'))
-    for value in re.findall(r'\bFQ_INFLUX_VERSIONS=([^\s]+)', active_tasks):
-        versions.extend(value.strip("\"'").split(','))
-    return ','.join(dict.fromkeys(version.strip() for version in versions if version.strip()))
+    return '3.0' if environment.get('FQ_INFLUX_VERSIONS', '3.0') else ''
+
+
+def selected_federated_query_services(contents, environment):
+    """Prepare the union declared by the commands that will actually run."""
+    import shlex
+    services = set()
+    for line in contents.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        fields = line.split(",", 4)
+        if len(fields) != 5:
+            continue
+        command = fields[4]
+        declarations = [argument.split("=", 1)[1]
+                        for argument in shlex.split(command)
+                        if argument.startswith("FQ_REQUIRED_SERVICES=")]
+        if declarations:
+            services.update(federated_query_services(
+                {"FQ_REQUIRED_SERVICES": declarations[-1]}))
+        elif is_federated_query_command(command):
+            services.update(federated_query_services(environment))
+    return services
 
 
 def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, suite="smoke"):
     test_dir = source_dir / "source" / "taos-community" / "test"
     task_file = log_dir / "windows-cases.task"
-    contents = windows_task_manifest(test_dir / "ci", suite)
+    contents = windows_task_manifest(test_dir / "ci", suite, os.environ.get("WIN_TASK_FILE", ""))
+    contents = windows_fq_task_manifest(contents)
+    environment = dict(environment)
+    # The PERIOD boundary regression uses one-second windows. InfluxDB 3's
+    # default one-second WAL flush can make newly written rows visible only
+    # after that window closes; keep CI writes visible within the window.
+    environment.setdefault("INFLUXDB3_WAL_FLUSH_INTERVAL", "100ms")
+    environment["FQ_BASE_DIR"] = environment.get("FQ_BASE_DIR") or str(federated_query_base_dir())
+    environment["FQ_INFLUX_VERSIONS"] = federated_query_influx_versions(contents, environment)
+    environment["FQ_ORACLE_VERSIONS"] = "26ai" if environment.get("FQ_ORACLE_VERSIONS", "26ai") else ""
+    if os.environ.get("WIN_TASK_FILE"):
+        print(f"[windows-ci] selected task file: {os.environ['WIN_TASK_FILE']}", flush=True)
     if only_fq:
         # Federated-query coverage only: Windows CI does not run the rest of
         # the inventory, so drop every non-FQ line before anything is queued.
         contents = "\n".join(line for line in contents.splitlines() if is_fq_command(line)) + "\n"
-    # Provisioning covers the whole selected inventory, not just the subset
-    # that runs this round, so an uncovered round still starts both InfluxDB
-    # generations instead of silently narrowing to the default 3.0.
-    inventory = contents
     subset = os.environ.get("WIN_CASE_SUBSET", "").strip().lower()
     if subset == "related":
         # Focused verification: only the cases that exercise the local changes.
@@ -1029,11 +1171,6 @@ def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, sui
     # them, so provision the engines whenever the selection contains one (the
     # full suite includes them too; only the smoke subset used to be exempt
     # from win_ignore_cases).
-    if selection_contains_fq(contents):
-        ensure_fq_pytest_dependencies(environment)
-        provision_environment = dict(environment)
-        provision_environment['FQ_INFLUX_VERSIONS'] = federated_query_influx_versions(inventory, environment)
-        provision_federated_query_env(source_dir, provision_environment)
     print(f"[windows-ci] selected test suite: {suite}", flush=True)
     prior_failures = 0
     resume_file = os.environ.get("WIN_PYTEST_RESUME_FILE")
@@ -1045,6 +1182,12 @@ def run_pytest_cases(source_dir, environment, log_dir, only_fq, case_filter, sui
         (log_dir / "resume-checkpoint.json").write_text(json.dumps(checkpoint, indent=2), encoding="utf-8")
         prior_failures = sum(record["status"] == "Failed" for record in checkpoint["completed"])
         print(f"[windows-ci] resume job {checkpoint['source_job']}: skipping {skipped} completed commands; retaining {prior_failures} prior failures", flush=True)
+    services = selected_federated_query_services(contents, environment)
+    if services:
+        ensure_fq_pytest_dependencies(environment)
+        provision_environment = dict(environment)
+        provision_environment["FQ_REQUIRED_SERVICES"] = ",".join(sorted(services))
+        provision_federated_query_env(source_dir, provision_environment)
     task_file.write_text(contents, encoding="utf-8")
     result = run([sys.executable, "ci/run_win_cases.py", str(task_file), str(log_dir)], cwd=test_dir, env=environment).returncode
     if prior_failures:
@@ -1322,8 +1465,13 @@ def main():
         tests_started = True
         stage = "packaging"
         packaging_test = arguments.source_dir / "source/taos-internal/packaging/tests/test_windows_mimalloc.py"
-        packaging_env = dict(os.environ, TD_ALLOCATOR_BIN=str(arguments.debug_dir / "build/bin"),
-                             TD_ALLOCATOR_CACHE=str(arguments.debug_dir / "CMakeCache.txt"))
+        packaging_env = visual_studio_environment()
+        require_command("cmake", packaging_env)
+        require_command("jom", packaging_env)
+        packaging_env.update(
+            TD_ALLOCATOR_BIN=str(arguments.debug_dir / "build/bin"),
+            TD_ALLOCATOR_CACHE=str(arguments.debug_dir / "CMakeCache.txt"),
+        )
         if run([sys.executable, str(packaging_test), "-v"], cwd=arguments.source_dir,
                env=packaging_env).returncode:
             fail("Windows mimalloc packaging checks failed")

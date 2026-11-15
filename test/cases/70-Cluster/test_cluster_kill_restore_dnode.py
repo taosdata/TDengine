@@ -48,6 +48,7 @@ class TestClusterKillRestoreDnode:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -97,13 +98,18 @@ class TestClusterKillRestoreDnode:
             return False
 
     def restoreDnodeThread(self, p, newTdSql):
-        time.sleep(1)
-        count = 0
-        while count < 100:
+        deadline = time.time() + 60
+        while time.time() < deadline:
             newTdSql.query('show dnodes')
-            if newTdSql.queryResult[1][4] == "ready":
-               break
-            count+=1
+            dnode_status = next(
+                (row[4] for row in newTdSql.queryResult if str(row[0]) == "2"),
+                None,
+            )
+            if dnode_status == "ready":
+                break
+            time.sleep(0.2)
+        else:
+            tdLog.exit("dnode 2 did not become ready before restore")
 
         sql = f"restore dnode 2"
         tdLog.info(sql)
@@ -131,6 +137,7 @@ class TestClusterKillRestoreDnode:
         Since: v3.0.0.0
 
         Labels: common,ci,ignore,integration,functional
+
         Jira: None
 
         """

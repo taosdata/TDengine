@@ -4374,6 +4374,13 @@ class TestFq01ExternalSource(FederatedQueryVersionedMixin):
 
     def do_influx_version_round_trip(self):
         import json
+        configured_versions = set(ExtSrcEnv.INFLUX_VERSIONS)
+        required_versions = {"3.0", "1.8"}
+        if not required_versions.issubset(configured_versions):
+            pytest.skip(
+                "InfluxDB version round-trip requires 3.0 and 1.8; "
+                f"configured: {sorted(configured_versions)}"
+            )
         database = "fq01_version_round_trip"
         source = database + "_src"
         configs = [ExtSrcEnv.influx_config(version) for version in ("3.0", "1.8")]

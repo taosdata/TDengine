@@ -1134,8 +1134,15 @@ class TestFq19RuntimeLibs(FederatedQueryVersionedMixin):
         mount flag instead of relying on os.access().  Windows has no
         statvfs; a writability probe is the only portable signal there.
         """
-        if sys.platform == "win32":
-            return not os.access(path, os.W_OK)
+        if os.name == "nt":
+            # Windows has no statvfs; probe this directory's actual create/delete
+            # permission without touching any provider library.
+            try:
+                with tempfile.TemporaryFile(dir=path):
+                    pass
+            except OSError:
+                return True
+            return False
         try:
             flags = os.statvfs(path).f_flag
         except (OSError, AttributeError):

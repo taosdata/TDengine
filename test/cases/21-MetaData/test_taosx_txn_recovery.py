@@ -42,13 +42,15 @@ def _find_binary():
 
     # Search common locations; derive root from this file's location
     # __file__ is .../community/test/cases/21-MetaData/test_taosx_txn_recovery.py
-    # 4 levels up reaches the TDinternal repo root
-    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../"))
+    # 5 levels up reaches the TDinternal repo root
+    _root = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../../../"))
     search_paths = [
         os.path.join(_root, "debug/build/bin/tmq_taosx_txn"),
         os.path.join(os.environ.get("TDENGINE_DIR", ""), "debug/build/bin/tmq_taosx_txn"),
     ]
     for p in search_paths:
+        if os.name == "nt":
+            p += ".exe"
         if os.path.isfile(p) and os.access(p, os.X_OK):
             TMQ_TAOSX_TXN_BIN = p
             return p
@@ -69,7 +71,7 @@ def _find_binary():
     ]
     compile_env = os.environ.copy()
     compile_env["ASAN_OPTIONS"] = compile_env.get("ASAN_OPTIONS", "").replace("detect_leaks=1", "") + ":detect_leaks=0"
-    ret = subprocess.run(cmd, capture_output=True, text=True, env=compile_env)
+    ret = subprocess.run(cmd, capture_output=True, text=True, errors="backslashreplace", env=compile_env)
     if ret.returncode != 0 and not os.path.isfile(dst):
         raise RuntimeError("Failed to compile tmq_taosx_txn: %s" % ret.stderr)
     TMQ_TAOSX_TXN_BIN = dst
@@ -82,7 +84,7 @@ def _run_scenario(scenario, expect_pass=True):
     tdLog.info("Running tmq_taosx_txn scenario %d (%s)" % (scenario, binary))
     ret = subprocess.run(
         [binary, str(scenario)],
-        capture_output=True, text=True, timeout=120,
+        capture_output=True, text=True, errors="backslashreplace", timeout=120,
         env={**os.environ, "LD_LIBRARY_PATH": "/usr/lib:/usr/local/taos/driver"}
     )
     tdLog.info("stdout: %s" % ret.stdout)

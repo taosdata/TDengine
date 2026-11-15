@@ -312,8 +312,16 @@ _ALL_SOURCE_CYCLE = (
 )
 
 
+# Windows has no supported InfluxDB 1.8 server package. Derive both column
+# mappings and their declared types from the remaining supported sources.
+if sys.platform == "win32":
+    _ALL_SOURCE_CYCLE = tuple(
+        source for source in _ALL_SOURCE_CYCLE if source[0] != "influx18"
+    )
+
+
 def _build_all_column_buckets():
-    """Return {col_name: (backend, src_idx)} using 13-way positional cycle."""
+    """Return {col_name: (backend, src_idx)} using the platform source cycle."""
     buckets = {}
     data_idx = 0
     for col, _ in VTABLE_COLUMN_TYPES:
@@ -2736,21 +2744,23 @@ class VtableQueryUtil:
         """Shared body for prepare_all_ext_source_vtables.
 
         Builds a single TDengine database that hosts both internal origin
-        tables AND virtual tables whose columns are split 13-ways across:
+        tables AND virtual tables whose columns are split across:
         internal + 2*PG + 2*MySQL + 2*Influx 3.x + 2*Influx 1.8 + 2*SQL Server
         + 2*Oracle. All six external backends plus a 2-source-per-backend EXTERNAL SOURCE
-        setup are created.
+        setup are created. Windows omits InfluxDB 1.8 and uses 11 buckets.
         """
         influx_version = next((ver for ver in ExtSrcEnv.INFLUX_VERSIONS if ver.startswith("3.")), "3.0")
         pg        = _PgAdapter()
         mysql     = _MysqlAdapter()
         influx    = _InfluxAdapter(influx_version)
-        influx18  = _InfluxAdapter("1.8", ("influx18_test_1", "influx18_test_2"))
         sqlserver = _SqlserverAdapter()
         oracle    = _OracleAdapter()
-        adapters = (pg, mysql, influx, influx18, sqlserver, oracle)
-        adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx, 'influx18': influx18,
+        adapters_by_backend = {'pg': pg, 'mysql': mysql, 'influx': influx,
                                'sqlserver': sqlserver, 'oracle': oracle}
+        if any(backend == "influx18" for backend, _ in _ALL_SOURCE_CYCLE):
+            adapters_by_backend["influx18"] = _InfluxAdapter(
+                "1.8", ("influx18_test_1", "influx18_test_2"))
+        adapters = tuple(adapters_by_backend.values())
 
         for a in adapters:
             a.ensure_running()

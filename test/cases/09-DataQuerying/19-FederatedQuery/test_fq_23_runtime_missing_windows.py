@@ -145,23 +145,33 @@ def _without_registered_oracle_driver():
 
     registrations = _oracle_driver_registrations()
     assert registrations, "no Oracle Instant Client driver is registered"
-    for key_path, _, _, kind in registrations:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
-                            winreg.KEY_SET_VALUE) as key:
-            winreg.SetValueEx(key, "Driver", 0, kind, _MISSING_ORACLE_DRIVER_PATH)
+    changed = []
     try:
-        yield
-    finally:
-        for key_path, _, value, kind in registrations:
+        for key_path, name, value, kind in registrations:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
                                 winreg.KEY_SET_VALUE) as key:
-                winreg.SetValueEx(key, "Driver", 0, kind, value)
-        for key_path, name, value, _ in registrations:
-            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
-                                winreg.KEY_READ) as key:
-                restored, _ = winreg.QueryValueEx(key, "Driver")
-            assert restored == value, (
-                f"failed to restore the Oracle driver registration {name}: {restored!r}")
+                # Include the current entry even if SetValueEx raises after
+                # changing it; partial setup must also restore earlier entries.
+                changed.append((key_path, name, value, kind))
+                winreg.SetValueEx(key, "Driver", 0, kind, _MISSING_ORACLE_DRIVER_PATH)
+        yield
+    finally:
+        errors = []
+        for key_path, name, value, kind in reversed(changed):
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
+                                    winreg.KEY_SET_VALUE) as key:
+                    winreg.SetValueEx(key, "Driver", 0, kind, value)
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0,
+                                    winreg.KEY_READ) as key:
+                    restored, _ = winreg.QueryValueEx(key, "Driver")
+                assert restored == value, (
+                    f"failed to restore the Oracle driver registration {name}: {restored!r}")
+            except Exception as exc:
+                # Attempt every restoration even when one entry is denied.
+                errors.append(f"{name}: {exc}")
+        if errors:
+            raise RuntimeError("Oracle driver restoration failed: " + "; ".join(errors))
 
 
 def _bin_dir():
