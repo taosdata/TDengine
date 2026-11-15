@@ -550,10 +550,14 @@ static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue, int32_t size) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue) {
+static int32_t tlvDecodeValueCStr(STlvDecoder* pDecoder, char* pValue, int32_t size) {
   int16_t len = 0;
   int32_t code = tlvDecodeValueI16(pDecoder, &len);
   if (TSDB_CODE_SUCCESS == code) {
+    // the length comes from the wire, so never let it exceed the fixed-size destination buffer
+    if (len < 0 || len >= size) {
+      return TSDB_CODE_INVALID_MSG;
+    }
     code = tlvDecodeValueImpl(pDecoder, pValue, len);
   }
   return code;
@@ -926,16 +930,16 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueEnum(pDecoder, &pNode->colType, sizeof(pNode->colType));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->dbName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->dbName, sizeof(pNode->dbName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->tableName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->tableName, sizeof(pNode->tableName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->tableAlias);
+    code = tlvDecodeValueCStr(pDecoder, pNode->tableAlias, sizeof(pNode->tableAlias));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->colName, sizeof(pNode->colName));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI64(pDecoder, &pNode->dataBlockId);
@@ -962,13 +966,13 @@ static int32_t msgToColumnNodeInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueBool(pDecoder, &pNode->hasRef);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refDbName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refDbName, sizeof(pNode->refDbName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refTableName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refTableName, sizeof(pNode->refTableName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->refColName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->refColName, sizeof(pNode->refColName));
   }
   return code;
 }
@@ -2341,10 +2345,10 @@ static int32_t msgToTagRefColumnInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueI16(pDecoder, &pNode->sourceColId);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->colName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->colName, sizeof(pNode->colName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->sourceColName, sizeof(pNode->sourceColName));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueI32(pDecoder, &pNode->bytes);
@@ -2401,7 +2405,7 @@ static int32_t epToMsg(const void* pObj, STlvEncoder* pEncoder) {
 static int32_t msgToEpInline(STlvDecoder* pDecoder, void* pObj) {
   SEp* pNode = (SEp*)pObj;
 
-  int32_t code = tlvDecodeValueCStr(pDecoder, pNode->fqdn);
+  int32_t code = tlvDecodeValueCStr(pDecoder, pNode->fqdn, sizeof(pNode->fqdn));
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvDecodeValueU16(pDecoder, &pNode->port);
   }
@@ -7342,10 +7346,10 @@ static int32_t msgToSubplanInline(STlvDecoder* pDecoder, void* pObj) {
     code = tlvDecodeValueI32(pDecoder, &pNode->level);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->dbFName);
+    code = tlvDecodeValueCStr(pDecoder, pNode->dbFName, sizeof(pNode->dbFName));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvDecodeValueCStr(pDecoder, pNode->user);
+    code = tlvDecodeValueCStr(pDecoder, pNode->user, sizeof(pNode->user));
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = msgToQueryNodeAddrInline(pDecoder, &pNode->execNode);
