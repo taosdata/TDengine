@@ -1019,6 +1019,12 @@ int32_t tDeserializeSMCreateStbReq(void *buf, int32_t bufLen, SMCreateStbReq *pR
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->pComment, pReq->commentLen + 1));
+    // tDecodeCStrToN() accepts a wire string whose declared length equals the destination size
+    // without requiring a terminating NUL, but mndCheckStbComment() later trusts commentLen and
+    // calls strlen() on it. Reject any frame whose comment is not terminated inside the allocation.
+    if (memchr(pReq->pComment, '\0', (size_t)pReq->commentLen + 1) == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
 
   if (pReq->ast1Len > 0) {
@@ -1286,6 +1292,11 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->comment, pReq->commentLen + 1));
+    // Same as tDeserializeSMCreateStbReq(): the shared mndCheckStbComment() calls strlen() on
+    // this allocation, so the comment must be NUL terminated within the decoded bytes.
+    if (memchr(pReq->comment, '\0', (size_t)pReq->commentLen + 1) == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->keep));
