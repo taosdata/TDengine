@@ -17459,7 +17459,11 @@ int32_t tDeserializeSSubQueryMsg(void *buf, int32_t bufLen, SSubQueryMsg *pReq) 
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->compress));
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->sqlLen));
   if (pReq->sqlLen > 0) {
-    TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &pReq->sql));
+    uint64_t sqlBinLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&pReq->sql, &sqlBinLen));
+    if (sqlBinLen != (uint64_t)pReq->sqlLen + 1) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
   TAOS_CHECK_EXIT(tDecodeU32(&decoder, &pReq->msgLen));
   uint64_t msgBinLen = 0;
