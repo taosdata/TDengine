@@ -23,6 +23,8 @@ import time
 from pathlib import Path
 from xml.etree import ElementTree
 
+from macos_core_dumps import prepare as prepare_core_dumps
+
 
 # Match Linux unit-test: sessionTest is compiled but not executed in CI.
 # Linux puts it in CTEST_EXCLUDE and does not re-run it after parallel ctest.
@@ -286,6 +288,10 @@ def main():
     debug_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "debug").resolve()
     artifact_dir = Path(sys.argv[2] if len(sys.argv) > 2 else "macos-ci-artifacts").resolve()
     artifact_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        prepare_core_dumps(debug_dir, artifact_dir)
+    except Exception as error:
+        print(f"[macos-ci] WARNING: core dump setup skipped: {error}", flush=True)
     cleanup_taosd()
     server, taosd_log, environment = start_taosd(debug_dir, artifact_dir)
     try:
