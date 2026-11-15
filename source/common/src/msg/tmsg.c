@@ -16132,7 +16132,7 @@ int32_t tDeserializeSVAuditRecordReq(void *buf, int32_t bufLen, SVAuditRecordReq
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_EXIT(tDecodeCStrAlloc(&decoder, &(pReq->data)));
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void **)&(pReq->data), NULL));
 
   tEndDecode(&decoder);
 
