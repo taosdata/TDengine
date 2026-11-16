@@ -35,6 +35,7 @@
  */
 
 #include <cstring>
+#include <vector>
 
 #include "gtest/gtest.h"
 
@@ -453,4 +454,154 @@ TEST(metaColRefIdempotentTest, repeatedExternalRebindResolvesToTheSameDecision) 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
+}
+
+namespace {
+
+struct PersistedReferenceFixture {
+  SSchema schemas[2] = {};
+  SColRef columns[2] = {};
+  SReferenceEntry reference = {};
+  SVtableBindingLink binding = {};
+  SVtableDeclOrder order[2] = {};
+  SSeriesEntry series = {};
+  SMetaEntry entry = {};
+
+  PersistedReferenceFixture() {
+    schemas[0].colId = 1;
+    schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    schemas[0].bytes = sizeof(int64_t);
+    tstrncpy(schemas[0].name, "ts", sizeof(schemas[0].name));
+    schemas[1].colId = 2;
+    schemas[1].type = TSDB_DATA_TYPE_DOUBLE;
+    schemas[1].bytes = sizeof(double);
+    tstrncpy(schemas[1].name, "reading", sizeof(schemas[1].name));
+    columns[0].id = 1;
+    columns[1].id = 2;
+    columns[1].hasRef = true;
+    columns[1].refType = 1;
+    tstrncpy(columns[1].refSourceName, "sqlsrc", sizeof(columns[1].refSourceName));
+    tstrncpy(columns[1].refDbName, "telemetry", sizeof(columns[1].refDbName));
+    tstrncpy(columns[1].refTableName, "samples", sizeof(columns[1].refTableName));
+    tstrncpy(columns[1].refColName, "reading", sizeof(columns[1].refColName));
+    tstrncpy(reference.alias, "r1", sizeof(reference.alias));
+    reference.sourceType = EXT_SOURCE_MYSQL;
+    tstrncpy(reference.sourceName, "sqlsrc", sizeof(reference.sourceName));
+    tstrncpy(reference.dbName, "telemetry", sizeof(reference.dbName));
+    tstrncpy(reference.objectName, "samples", sizeof(reference.objectName));
+    tstrncpy(reference.timeColumn, "EventTime", sizeof(reference.timeColumn));
+    binding.colId = 2;
+    binding.bindingKind = VTABLE_BINDING_REFERENCE;
+    tstrncpy(binding.alias, "r1", sizeof(binding.alias));
+    order[0].bindingKind = VTABLE_BINDING_REFERENCE;
+    tstrncpy(order[0].alias, "r1", sizeof(order[0].alias));
+    order[1].bindingKind = VTABLE_BINDING_SERIES;
+    tstrncpy(order[1].alias, "s1", sizeof(order[1].alias));
+    tstrncpy(series.alias, "s1", sizeof(series.alias));
+    tstrncpy(series.sourceName, "influx", sizeof(series.sourceName));
+    tstrncpy(series.dbName, "metrics", sizeof(series.dbName));
+    tstrncpy(series.measurementName, "cpu", sizeof(series.measurementName));
+    entry.version = 10;
+    entry.uid = 100;
+    entry.type = TSDB_VIRTUAL_NORMAL_TABLE;
+    entry.name = const_cast<char*>("v_ref");
+    entry.ntbEntry.schemaRow.nCols = 2;
+    entry.ntbEntry.schemaRow.version = 1;
+    entry.ntbEntry.schemaRow.pSchema = schemas;
+    entry.colRef.nCols = 2;
+    entry.colRef.version = 1;
+    entry.colRef.pColRef = columns;
+    entry.referenceExt.nReferences = 1;
+    entry.referenceExt.pReferences = &reference;
+    entry.referenceExt.nBindings = 1;
+    entry.referenceExt.pBindings = &binding;
+    entry.referenceExt.nDeclarations = 1;
+    entry.referenceExt.pDeclarations = order;
+  }
+
+  int32_t decode() {
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, nullptr, 0);
+    int32_t code = metaEncodeEntry(&encoder, &entry);
+    int32_t length = encoder.pos;
+    tEncoderClear(&encoder);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    std::vector<uint8_t> frame(length);
+    tEncoderInit(&encoder, frame.data(), length);
+    code = metaEncodeEntry(&encoder, &entry);
+    tEncoderClear(&encoder);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    SMetaEntry decoded = {};
+    SDecoder decoder = {};
+    tDecoderInit(&decoder, frame.data(), length);
+    code = metaDecodeEntry(&decoder, &decoded);
+    tFreeSSeriesWrapper(&decoded.series);
+    tFreeVtableReferenceExt(&decoded.referenceExt);
+    tDecoderClear(&decoder);
+    return code;
+  }
+};
+
+}  // namespace
+
+TEST(metaColRefIdempotentTest, persistedReferenceRejectsPlaceholderAndMissingColumnIds) {
+  PersistedReferenceFixture fixture;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, fixture.decode());
+  for (col_id_t colId : {0, 9, TSDB_VCHILD_OWN_COL_ID_BASE}) {
+    fixture.binding.colId = colId;
+    EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode()) << colId;
+  }
+}
+
+TEST(metaColRefIdempotentTest, persistedReferenceRejectsUnboundColumns) {
+  PersistedReferenceFixture fixture;
+  fixture.columns[1].hasRef = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode());
+}
+
+TEST(metaColRefIdempotentTest, persistedReferenceChecksOwnedColumnsByActualId) {
+  PersistedReferenceFixture fixture;
+  SSchema ownSchema = fixture.schemas[1];
+  ownSchema.colId = TSDB_VCHILD_OWN_COL_ID_BASE;
+  SColRef ownReference = fixture.columns[1];
+  ownReference.id = ownSchema.colId;
+  STag emptyTag = {};
+  emptyTag.len = sizeof(STag);
+  fixture.entry.type = TSDB_VIRTUAL_CHILD_TABLE;
+  fixture.entry.ctbEntry = {};
+  fixture.entry.ctbEntry.suid = 99;
+  fixture.entry.ctbEntry.pTags = reinterpret_cast<uint8_t*>(&emptyTag);
+  fixture.entry.own.nOwnCols = 1;
+  fixture.entry.own.pOwnColSchemas = &ownSchema;
+  fixture.entry.own.pOwnColRefs = &ownReference;
+  fixture.binding.colId = ownSchema.colId;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fixture.decode());
+  ownReference.hasRef = false;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode());
+}
+
+TEST(metaColRefIdempotentTest, persistedReferenceOrderRequiresExistingSeries) {
+  PersistedReferenceFixture fixture;
+  fixture.entry.referenceExt.nDeclarations = 2;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode());
+  fixture.entry.series.nSeries = 1;
+  fixture.entry.series.pSeries = &fixture.series;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fixture.decode());
+  tstrncpy(fixture.series.alias, "other", sizeof(fixture.series.alias));
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode());
+}
+
+TEST(metaColRefIdempotentTest, persistedReferenceOrderIncludesEverySavedSeries) {
+  PersistedReferenceFixture fixture;
+  fixture.entry.series.nSeries = 1;
+  fixture.entry.series.pSeries = &fixture.series;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, fixture.decode());
+}
+
+TEST(metaColRefIdempotentTest, legacySeriesAcceptsEmptyReferenceExtension) {
+  PersistedReferenceFixture fixture;
+  fixture.entry.referenceExt = {};
+  fixture.entry.series.nSeries = 1;
+  fixture.entry.series.pSeries = &fixture.series;
+  EXPECT_EQ(TSDB_CODE_SUCCESS, fixture.decode());
 }

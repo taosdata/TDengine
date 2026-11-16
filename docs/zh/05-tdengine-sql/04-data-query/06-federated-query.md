@@ -540,7 +540,7 @@ MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触
 
 ### 时间戳主键要求
 
-参与联邦查询并执行**依赖时间线**的操作时，外部表（Table / Measurement）须具备可映射为 TDengine `TIMESTAMP` 的主键时间列。该列用于时间范围过滤、排序、窗口与时序函数。
+直接对外部表（Table / Measurement）执行联邦查询并使用**依赖时间线**的操作时，外部表须具备可映射为 TDengine `TIMESTAMP` 的主键时间列。该列用于时间范围过滤、排序、窗口与时序函数。虚拟表通过 `REFERENCE` 显式指定时间列时，按该声明建立时间轴。
 
 - MySQL 的时间戳主键列须为 `DATETIME` 或 `TIMESTAMP` 类型。
 - PostgreSQL 的时间戳主键列须为 `TIMESTAMP` 或 `TIMESTAMPTZ` 类型。
@@ -557,7 +557,7 @@ MySQL 的索引、存储过程和触发器，PostgreSQL 的索引、序列和触
 | 场景 | 是否支持 | 说明 |
 | --- | --- | --- |
 | 单表查询 | **部分支持** | 支持 `COUNT` 等不依赖时间线的查询；外部视图可直接作为查询对象 |
-| 放入虚拟表 | **不作为受支持用法** | 外部列引用的虚拟表执行路径按外部表主时间列排序、按时间戳归并；外部普通表必须有可映射为 `TIMESTAMP` 的主键时间列，外部视图不能作为虚拟表列引用 |
+| 放入虚拟表 | **支持显式选择时间列** | 源对象含可映射为 `TIMESTAMP` 的列时，可通过 [`REFERENCE`](../02-ddl/04-virtualtable.md#显式指定外部时间列) 为外部表或视图指定时间列。直接外部列路径沿用主键时间列要求 |
 | 与带时间线表 `JOIN` | **不支持** | 外部表 `JOIN` 的 `ON` 条件必须包含主时间戳列；无时间线外部表没有可用的主时间戳列，不能只按业务键关联 |
 
 无主键外部表作为 [TIME_ALIGN](03-function.md#time_align) 的输入时按视图输入处理：按输出行序插值，不要求存在 `TIMESTAMP` 列，时间范围参数无效；有主键的外部表按表输入处理。
@@ -578,7 +578,7 @@ SELECT * FROM sqlserver_prod.dbo.device_info;
 SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
-无时间线外部表不能用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN、Window JOIN 或虚拟表列引用。当前版本中，含非时间戳主键的外部普通表可能通过虚拟表 DDL 校验，但该路径不具备受测试保障的时间归并语义，不应在生产中使用。若需将外部维度数据与 TDengine 时序数据关联，应先在外部系统中提供具有时间戳主键的关联结果，或将维度数据同步到 TDengine 后再关联。
+无时间线外部表不能直接用于 `INTERVAL`、状态/会话/事件/计数窗口、`FILL`、`INTERP`、时序差分/积分类函数、ASOF JOIN 或 Window JOIN。源对象具有合适时间列时，可以先通过 `REFERENCE` 建立虚拟表时间轴，再查询虚拟表。直接外部列路径仍使用源主键时间列及其列过滤校验规则。
 
 ### 类型映射
 
@@ -604,7 +604,7 @@ SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 - Oracle `TIMESTAMP(n) WITH TIME ZONE` 与 `TIMESTAMP(n) WITH LOCAL TIME ZONE` 属于带时区类型，按其自带的偏移或绝对时刻解释。
 - 单库查询中，TDengine 数据库使用其 `PRECISION`；MySQL、PostgreSQL 和 SQL Server 使用微秒精度，InfluxDB 使用纳秒精度，Oracle 按表内时间列的最大精度使用微秒或纳秒精度（存在 `TIMESTAMP(7-9)` 时为纳秒，`DATE` 的秒精度按毫秒补零）。
 - 多库查询中，结果时间戳采用参与数据库的最高精度，低精度值补零扩展。例如 TDengine 毫秒库与 MySQL 联合查询得到微秒精度；与 InfluxDB 联合查询得到纳秒精度。
-- SQL Server 外部时间戳为微秒精度。创建引用 SQL Server 外部列的虚拟表时，虚拟表所在数据库的精度不得低于微秒（例如使用 `CREATE DATABASE ... PRECISION 'us'`）。
+- 创建引用 SQL Server 外部列的虚拟表时，按所用时间列的类型声明检查目标数据库精度。`date`、`smalldatetime`、`datetime2(0-3)` 和 `datetimeoffset(0-3)` 可以用于毫秒库。`datetime`、更细精度或省略精度的 `datetime2` / `datetimeoffset` 要求微秒或更高精度。`REFERENCE` 使用其显式选择的时间列执行此检查。
 - Oracle `DATE` 为秒精度（按毫秒补零），`TIMESTAMP` 默认 `TIMESTAMP(6)`。创建引用 Oracle 外部列的虚拟表时，虚拟表所在数据库的精度不得低于该时间戳列的声明精度：`DATE` 与 `TIMESTAMP(0-3)` 为毫秒，`TIMESTAMP(4-6)` 为微秒，`TIMESTAMP(7-9)` 为纳秒；不满足时返回 `TSDB_CODE_EXT_SCHEMA_CHANGED`。
 
 ## 外部路径和 USE
@@ -867,9 +867,9 @@ MySQL、PostgreSQL、SQL Server 和 Oracle 外部表不支持 `SELECT TAGS ...`�
 
 ### 使用说明
 
-虚拟表的列引用可指向外部数据源中的表列。虚拟表本身必须创建在 TDengine 内部数据库中，即使其所有数据列均来自外部源，也必须先创建或 `USE` 一个本地数据库。
+虚拟表的列引用可指向外部数据源中的表或视图列。虚拟表本身必须创建在 TDengine 内部数据库中，即使其所有数据列均来自外部源，也必须先创建或 `USE` 一个本地数据库。
 
-查询包含外部引用的虚拟表时，系统读取外部列并与本地列按时间戳归并为统一结果。外部表必须具有可映射为 `TIMESTAMP` 的主键时间列；外部视图不能作为虚拟表列引用。
+查询包含外部引用的虚拟表时，系统读取外部列并与本地列按时间戳归并为统一结果。直接外部列路径要求来源为具有时间戳主键的表。使用 `REFERENCE` 时，可为 SQL Server、MySQL、PostgreSQL 和 Oracle 的表或视图显式指定可映射为 `TIMESTAMP` 的时间列。
 
 ### 创建虚拟普通表
 
@@ -1014,10 +1014,11 @@ CREATE VTABLE v_d1001 (
 虚拟表按时间戳归并内部和外部数据：
 
 - 虚拟表自身须声明 `TIMESTAMP` 列（如 `ts TIMESTAMP`）；该列不能使用 `FROM` 直接引用外部列。
-- 引用的 **外部时序表** 须满足[时间戳主键要求](#时间戳主键要求)。
-- 外部视图和无时间戳主键的外部维度/台账表不能作为虚拟表列引用。
+- 通过完整外部列路径直接引用的 **外部时序表** 须满足[时间戳主键要求](#时间戳主键要求)，该直接引用方式要求来源为表。
+- 使用 `REFERENCE` 引用 SQL Server、MySQL、PostgreSQL 或 Oracle 的表和视图时，通过 `TIMESTAMP time_column` 显式选择时间列。所选列须能映射为 TDengine `TIMESTAMP`，可以是源对象的普通时间列，源对象可以没有时间戳主键。
+- `REFERENCE` 查询按所选时间列对齐数据，并在实际读取范围内校验转换后的时间戳。遇到 `NULL`、重复或逆序时间戳时返回错误。
 
-若虚拟表缺少有效的主时间列，或引用的外部表不满足时间戳主键要求，将无法与 TDengine 时序数据正确对齐。
+虚拟表自身的主时间列以及各来源绑定选定的时间列共同决定数据的时间对齐。直接外部列路径沿用时间戳主键及业务主键过滤覆盖规则，`REFERENCE` 使用显式时间列及各列保存的过滤条件。
 
 ### 查询行为
 

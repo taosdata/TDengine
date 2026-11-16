@@ -209,6 +209,15 @@ typedef struct SScanLogicNode {
   // query pushdown. Physical planning moves them into the remote leaf's pConditions
   // before serialization; they must never become local scan conditions.
   SNode*      pPushedConditions;
+  int8_t      bindingKind;
+  char        referenceAlias[TSDB_COL_NAME_LEN];
+  char        timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t    referenceUid;
+  int32_t     expectedRversion;
+  int32_t     referenceVgId;
+  SEpSet      referenceEpSet;
+  char        referenceDbFName[TSDB_DB_FNAME_LEN];
+  SNode*      pReferenceFilter;
   bool        twoPassRescanSource;  // vtable two-pass: origin keeps reader alive for phase-2 rescan
   // --- table count scan extension (valid only when scanType == SCAN_TYPE_TABLE_COUNT) ---
   // ins_tables row type filter (TSDB_* table entry type); 0 = no filter.
@@ -284,6 +293,7 @@ typedef struct SVirtualScanLogicNode {
   bool          hasTagRef;        // true if has tag references
   bool          hasLocalTag;      // true if has local tags
   bool          twoPassMode;      // PERCENTILE/repeat-scan: drive two passes (PRE_SCAN then MAIN_SCAN)
+  bool          hasReferenceBinding;
   bool          hasFilterCond;    // saved external filters require virtual-row merging before agg/window
   bool          hasConstRefTag;   // true if has const-ref tags (vntb/ntb source)
 } SVirtualScanLogicNode;
@@ -1021,6 +1031,15 @@ typedef struct SFederatedScanPhysiNode {
   // same way vnodeStream.c processCalaTimeRange does for table scans - to bound
   // the remote query.  NULL otherwise.
   SNode*              pTimeRange;
+  int8_t      bindingKind;
+  char        referenceAlias[TSDB_COL_NAME_LEN];
+  char        timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t    referenceUid;
+  int32_t     expectedRversion;
+  int32_t     referenceVgId;
+  SEpSet      referenceEpSet;
+  char        referenceDbFName[TSDB_DB_FNAME_LEN];
+  SNode*      pReferenceFilter;
 } SFederatedScanPhysiNode;
 
 typedef struct SProjectPhysiNode {

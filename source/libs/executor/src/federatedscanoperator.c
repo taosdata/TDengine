@@ -41,6 +41,7 @@
 #include "tcompare.h"
 #include "tglobal.h"
 #include "ttime.h"
+#include "trpc.h"
 #include "nodes.h"
 
 // ---------------------------------------------------------------------------
@@ -105,18 +106,25 @@ static const char* fedScanSourceTypeName(int8_t srcType) {
 
 static int32_t fedScanFindVstbOutputIndex(const SFederatedScanPhysiNode* pScan, col_id_t colId,
                                           bool primaryTs) {
+  if (VTABLE_BINDING_REFERENCE == pScan->bindingKind && !primaryTs && colId < 0) {
+    return -(int32_t)colId - 1;
+  }
   int32_t index = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pScan->pScanCols) {
     const SNode* pExpr = pNode;
+    int32_t outputIndex = index;
     if (QUERY_NODE_TARGET == nodeType((SNode*)pExpr)) {
+      if (VTABLE_BINDING_REFERENCE == pScan->bindingKind) {
+        outputIndex = ((const STargetNode*)pExpr)->slotId;
+      }
       pExpr = ((STargetNode*)pExpr)->pExpr;
     }
     if (NULL != pExpr && QUERY_NODE_COLUMN == nodeType((SNode*)pExpr)) {
       const SColumnNode* pCol = (const SColumnNode*)pExpr;
       if ((primaryTs && (pCol->isPrimTs || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId)) ||
           (!primaryTs && pCol->colId == colId)) {
-        return index;
+        return outputIndex;
       }
     } else if (!primaryTs && 0 == colId && NULL != pExpr &&
                QUERY_NODE_FUNCTION == nodeType((SNode*)pExpr) &&
@@ -406,6 +414,9 @@ static void fedScanRememberRemoteSql(SFederatedScanOperatorInfo* pInfo, const ch
   }
 
   if (NULL == remoteSql || '\0' == remoteSql[0]) {
+    pInfo->hasPreviousTimestamp = false;
+    pInfo->referenceRowsConsumed = 0;
+    pInfo->referenceBlockPos = 0;
     pInfo->remoteSql[0] = '\0';
     qDebug("FederatedScan: runtime remote SQL is empty, source=%s",
            sourceName ? sourceName : "<unknown>");
@@ -610,6 +621,25 @@ static int32_t fedScanAppendQuotedIdentBuf(char* buf, int32_t cap, int32_t* pOff
   }
   buf[(*pOffset)++] = q.close;
   buf[*pOffset] = '\0';
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fedScanAppendTimestampOrder(char* sql, int32_t capacity, int32_t* pOffset,
+                                    EExtSourceType sourceType, int8_t bindingKind, const char* timeColumn) {
+  TAOS_CHECK_RETURN(fedScanAppendSqlLiteral(sql, capacity, pOffset, " ORDER BY "));
+  if (VTABLE_BINDING_REFERENCE == bindingKind) {
+    // The axis is always the first projection. A data column may project that
+    // same source column again, making its name ambiguous in ORDER BY.
+    TAOS_CHECK_RETURN(fedScanAppendSqlLiteral(sql, capacity, pOffset, "1"));
+  } else {
+    TAOS_CHECK_RETURN(fedScanAppendQuotedIdentBuf(sql, capacity, pOffset,
+                                                fedScanQuoteFor(sourceType), timeColumn));
+  }
+  TAOS_CHECK_RETURN(fedScanAppendSqlLiteral(sql, capacity, pOffset, " ASC"));
+  if (VTABLE_BINDING_REFERENCE == bindingKind &&
+      (EXT_SOURCE_POSTGRESQL == sourceType || EXT_SOURCE_ORACLE == sourceType)) {
+    TAOS_CHECK_RETURN(fedScanAppendSqlLiteral(sql, capacity, pOffset, " NULLS FIRST"));
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2057,9 +2087,10 @@ static int32_t fedScanValidateVStbCurrentMeta(SFederatedScanOperatorInfo*      p
     QUERY_CHECK_NULL(timezone, code, lino, _return, terrno);
   }
 
-  code =
-      nodesValidateExternalFilterCurrentMeta((EExtSourceType)pFedNode->sourceType, pMeta, pFsParam->filterCondJson,
-                                             pFsParam->filterCondLen, timezone, NULL, reason, sizeof(reason), pTsIdx);
+  SExternalBindingContext binding = {pFsParam->bindingKind, pFsParam->timeColumn};
+  code = nodesValidateExternalFilterCurrentMetaEx((EExtSourceType)pFedNode->sourceType, pMeta,
+                                                  pFsParam->filterCondJson, pFsParam->filterCondLen,
+                                                  timezone, NULL, reason, sizeof(reason), pTsIdx, &binding);
   QUERY_CHECK_CODE(code, lino, _return);
 
 _return:
@@ -2114,11 +2145,15 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   // For SQL Server: the runtime reference carries the exact database/schema of
   // the bound table (DS 5.3.6); prefer them over the plan-time defaults.
   if (srcType == EXT_SOURCE_POSTGRESQL) {
-    if (pFedNode->srcSchema[0] != '\0') {
+    if (VTABLE_BINDING_REFERENCE == pFsParam->bindingKind && pFsParam->schemaName[0] != '\0') {
+      tstrncpy(tempExtTable.schemaName, pFsParam->schemaName, sizeof(tempExtTable.schemaName));
+    } else if (pFedNode->srcSchema[0] != '\0') {
       tstrncpy(tempExtTable.schemaName, pFedNode->srcSchema, sizeof(tempExtTable.schemaName));
     }
   } else if (srcType == EXT_SOURCE_MYSQL) {
-    if (pFedNode->srcDatabase[0] != '\0') {
+    if (VTABLE_BINDING_REFERENCE == pFsParam->bindingKind && pFsParam->dbName[0] != '\0') {
+      tstrncpy(tempExtTable.table.dbName, pFsParam->dbName, sizeof(tempExtTable.table.dbName));
+    } else if (pFedNode->srcDatabase[0] != '\0') {
       tstrncpy(tempExtTable.table.dbName, pFedNode->srcDatabase, sizeof(tempExtTable.table.dbName));
     }
   } else if (srcType == EXT_SOURCE_SQLSERVER) {
@@ -2175,7 +2210,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   int32_t numDataCols = (int32_t)taosArrayGetSize(pFsParam->colMap);
 
-  if (EXT_SOURCE_MYSQL != srcType && EXT_SOURCE_POSTGRESQL != srcType) {
+  if (VTABLE_BINDING_REFERENCE != pFsParam->bindingKind &&
+      EXT_SOURCE_MYSQL != srcType && EXT_SOURCE_POSTGRESQL != srcType) {
     // Non-relational connectors retain their existing selected timestamp key.
     for (int32_t j = 0; j < pMeta->numOfCols; j++) {
       SExtColumnDef* pCol = &pMeta->pCols[j];
@@ -2192,7 +2228,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   QUERY_CHECK_CONDITION(tsIdx >= 0 && tsIdx < pMeta->numOfCols, code, lino, _return,
                         TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
-  if ((EXT_SOURCE_MYSQL == srcType || EXT_SOURCE_POSTGRESQL == srcType) &&
+  if ((VTABLE_BINDING_REFERENCE == pFsParam->bindingKind ||
+       EXT_SOURCE_MYSQL == srcType || EXT_SOURCE_POSTGRESQL == srcType) &&
       fedScanValidTimePrecision(pFsParam->dstPrecision) &&
       fedScanGetCondPrecision(srcType, pMeta, tsIdx) > pFsParam->dstPrecision) {
     snprintf(pInfo->extErrMsg, sizeof(pInfo->extErrMsg),
@@ -2250,9 +2287,13 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   EExtSQLDialect pushedCondDialect = EXT_SQL_DIALECT_MYSQL;
   code = fedScanDialectFor(srcType, &pushedCondDialect);
   QUERY_CHECK_CODE(code, lino, _return);
-  code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, pushedCondDialect, &pushedCondSql,
-                                       &pushedCondSqlLen, &pushedCondFullyRendered);
-  QUERY_CHECK_CODE(code, lino, _return);
+  if (VTABLE_BINDING_REFERENCE != pFsParam->bindingKind) {
+    code = fedScanBuildVStbPushedCondSql(pFsParam, pMeta, q, pushedCondDialect, &pushedCondSql,
+                                         &pushedCondSqlLen, &pushedCondFullyRendered);
+    QUERY_CHECK_CODE(code, lino, _return);
+  } else {
+    pushedCondFullyRendered = pFsParam->pPushedCond == NULL;
+  }
 
   mappings = taosMemoryCalloc(totalCols, sizeof(SExtColTypeMapping));
   QUERY_CHECK_NULL(mappings, code, lino, _return, terrno);
@@ -2432,7 +2473,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
   switch (srcType) {
     case EXT_SOURCE_MYSQL: {
       // MySQL: `database`.`table`
-      const char* db = pFedNode->srcDatabase[0] ? pFedNode->srcDatabase : NULL;
+      const char* db = VTABLE_BINDING_REFERENCE == pFsParam->bindingKind && pFsParam->dbName[0]
+                           ? pFsParam->dbName : (pFedNode->srcDatabase[0] ? pFedNode->srcDatabase : NULL);
       if (db) {
         code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, db);
         QUERY_CHECK_CODE(code, lino, _return);
@@ -2445,7 +2487,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
     }
     case EXT_SOURCE_POSTGRESQL: {
       // PG: "schema"."table"
-      const char* schema = pFedNode->srcSchema[0] ? pFedNode->srcSchema : "public";
+      const char* schema = VTABLE_BINDING_REFERENCE == pFsParam->bindingKind && pFsParam->schemaName[0]
+                               ? pFsParam->schemaName : (pFedNode->srcSchema[0] ? pFedNode->srcSchema : "public");
       code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, schema);
       QUERY_CHECK_CODE(code, lino, _return);
       code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, ".");
@@ -2566,6 +2609,10 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
     offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "%s", hasWhere ? " AND " : " WHERE ");
     hasWhere = true;
+    if (VTABLE_BINDING_REFERENCE == pFsParam->bindingKind) {
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, "(");
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
     if (emptyTimeRange || (hasSkey && hasEkey && skey > ekey)) {
       offset += snprintf(sqlBuf + offset, sqlBufLen - offset, "1 = 0");
       hasSkey = false;
@@ -2612,10 +2659,19 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
       code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, "'");
       QUERY_CHECK_CODE(code, lino, _return);
     }
+    if (VTABLE_BINDING_REFERENCE == pFsParam->bindingKind) {
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " OR ");
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, tsRemoteNameBuf);
+      QUERY_CHECK_CODE(code, lino, _return);
+      code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " IS NULL)");
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
   }
 
   // Append VStb data filter fragments that are safe for this foreign source.
-  bool hasPushedDataCond = (pushedCondSql != NULL && pushedCondSqlLen > 0);
+  bool hasPushedDataCond = VTABLE_BINDING_REFERENCE != pFsParam->bindingKind &&
+                          (pushedCondSql != NULL && pushedCondSqlLen > 0);
   if (hasPushedDataCond) {
     int32_t written =
         snprintf(sqlBuf + offset, sqlBufLen - offset, "%s(%s)", hasWhere ? " AND " : " WHERE ", pushedCondSql);
@@ -2638,11 +2694,8 @@ static int32_t fedScanBuildVStbQueryAndMappings(SFederatedScanOperatorInfo* pInf
 
   // ORDER BY ts ASC is required: the vstable sort-merge dedup assumes each
   // external source returns rows in ascending timestamp order.
-  code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " ORDER BY ");
-  QUERY_CHECK_CODE(code, lino, _return);
-  code = fedScanAppendQuotedIdentBuf(sqlBuf, sqlBufLen, &offset, q, tsRemoteNameBuf);
-  QUERY_CHECK_CODE(code, lino, _return);
-  code = fedScanAppendSqlLiteral(sqlBuf, sqlBufLen, &offset, " ASC");
+  code = fedScanAppendTimestampOrder(sqlBuf, sqlBufLen, &offset, srcType,
+                                     pFsParam->bindingKind, tsRemoteNameBuf);
   QUERY_CHECK_CODE(code, lino, _return);
   if (!pInfo->vstbLimitDemoted && pFsParam->rowLimit > 0 &&
       (pFsParam->pPushedCond == NULL || pushedCondFullyRendered)) {
@@ -2697,6 +2750,9 @@ void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo) {
     return;
   }
 
+  blockDataDestroy(pInfo->pReferenceRow);
+  pInfo->pReferenceRow = NULL;
+  pInfo->referenceBlockPos = 0;
   if (pInfo->prefetchReady && pInfo->pPrefetchedBlock == pInfo->pFetchedBlock) {
     pInfo->pPrefetchParam = NULL;
     pInfo->pPrefetchedBlock = NULL;
@@ -2946,6 +3002,194 @@ static int32_t fedScanMapQueryError(const SFederatedScanOperatorInfo* pInfo, int
   return code;
 }
 
+static bool fedScanIsReference(const SFederatedScanOperatorInfo* pInfo) {
+  return NULL != pInfo->pActiveVStbParam &&
+         VTABLE_BINDING_REFERENCE == pInfo->pActiveVStbParam->bindingKind;
+}
+
+static int32_t fedScanCheckStaticReferenceVersion(SOperatorInfo* pOperator) {
+  SFederatedScanOperatorInfo* pInfo = pOperator->info;
+  const SFederatedScanPhysiNode* pNode = pInfo->pFedScanNode;
+  SExecTaskInfo* pTask = pOperator->pTaskInfo;
+  if (VTABLE_BINDING_REFERENCE != pNode->bindingKind || pInfo->referenceVersionChecked) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL == pTask->pMsgCb || NULL == pTask->pMsgCb->clientRpc ||
+      pNode->referenceVgId <= 0 || pNode->referenceEpSet.numOfEps <= 0 ||
+      pNode->referenceUid == 0 || '\0' == pNode->referenceDbFName[0]) {
+    return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+  }
+  SVTagCondReq req = {0};
+  req.header.vgId = pNode->referenceVgId;
+  req.uid = pNode->referenceUid;
+  tstrncpy(req.dbFName, pNode->referenceDbFName, sizeof(req.dbFName));
+  int32_t length = tSerializeSVTagCondReq(NULL, 0, &req);
+  if (length < 0) return length;
+  void* pBuffer = rpcMallocCont(length);
+  if (NULL == pBuffer) return terrno;
+  int32_t code = tSerializeSVTagCondReq(pBuffer, length, &req);
+  if (code < 0) {
+    rpcFreeCont(pBuffer);
+    return code;
+  }
+  SRpcMsg message = {.msgType = TDMT_VND_VTB_TAG_COND, .pCont = pBuffer, .contLen = length,
+                     .info.ahandle = pInfo, .info.notFreeAhandle = 1};
+  SRpcMsg response = {0};
+  SEpSet endpoints = pNode->referenceEpSet;
+  code = rpcSendRecv(pTask->pMsgCb->clientRpc, &endpoints, &message, &response);
+  if (TSDB_CODE_SUCCESS != code) {
+    rpcFreeCont(response.pCont);
+    return code;
+  }
+  SVTagCondRsp current = {0};
+  if (TSDB_CODE_SUCCESS != response.code) {
+    code = (TSDB_CODE_PAR_TABLE_NOT_EXIST == response.code ||
+            TSDB_CODE_TDB_TABLE_NOT_EXIST == response.code)
+               ? TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER : response.code;
+  } else if (NULL == response.pCont || response.contLen <= 0) {
+    code = TSDB_CODE_INVALID_MSG;
+  } else {
+    code = tDeserializeSVTagCondRsp(response.pCont, response.contLen, &current);
+    if (TSDB_CODE_SUCCESS == code && current.rversion != pNode->expectedRversion) {
+      code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    }
+  }
+  rpcFreeCont(response.pCont);
+  tDestroySVTagCondRsp(&current);
+  if (TSDB_CODE_SUCCESS == code) pInfo->referenceVersionChecked = true;
+  return code;
+}
+
+static int32_t fedScanInitStaticReference(SFederatedScanOperatorInfo* pInfo) {
+  const SFederatedScanPhysiNode* pNode = pInfo->pFedScanNode;
+  if (VTABLE_BINDING_REFERENCE != pNode->bindingKind) return TSDB_CODE_SUCCESS;
+  if (NULL != pInfo->pStaticReferenceParam) {
+    pInfo->pActiveVStbParam = pInfo->pStaticReferenceParam;
+    return TSDB_CODE_SUCCESS;
+  }
+  SForeignScanOperatorParam* pParam = taosMemoryCalloc(1, sizeof(*pParam));
+  if (NULL == pParam) return terrno;
+  pInfo->pStaticReferenceParam = pParam;
+  const SExtTableNode* pTable = (const SExtTableNode*)pNode->pExtTable;
+  pParam->bindingKind = pNode->bindingKind;
+  pParam->referenceUid = pNode->referenceUid;
+  pParam->expectedRversion = pNode->expectedRversion;
+  pParam->virtualChildUid = pNode->referenceUid;
+  pParam->window = pNode->scanRange;
+  pParam->dstPrecision = pNode->node.pOutputDataBlockDesc->precision;
+  if (NULL != pNode->node.pLimit && NULL == pNode->node.pConditions) {
+    const SLimitNode* pLimit = (const SLimitNode*)pNode->node.pLimit;
+    int64_t offset = NULL != pLimit->offset ? pLimit->offset->datum.i : 0;
+    if (NULL != pLimit->limit && pLimit->limit->datum.i > 0 && offset >= 0 &&
+        pLimit->limit->datum.i <= INT64_MAX - offset) {
+      pParam->rowLimit = pLimit->limit->datum.i + offset;
+    }
+  }
+  tstrncpy(pParam->sourceName, pTable->sourceName, sizeof(pParam->sourceName));
+  tstrncpy(pParam->dbName, pTable->table.dbName, sizeof(pParam->dbName));
+  tstrncpy(pParam->schemaName, pTable->schemaName, sizeof(pParam->schemaName));
+  tstrncpy(pParam->tableName, pTable->table.tableName, sizeof(pParam->tableName));
+  tstrncpy(pParam->referenceAlias, pNode->referenceAlias, sizeof(pParam->referenceAlias));
+  tstrncpy(pParam->timeColumn, pNode->timeColumn, sizeof(pParam->timeColumn));
+  pParam->colMap = taosArrayInit(LIST_LENGTH(pNode->pScanCols), sizeof(SColIdNameKV));
+  if (NULL == pParam->colMap) return terrno;
+  SNode* pColNode = NULL;
+  int32_t columnIndex = -1;
+  FOREACH(pColNode, pNode->pScanCols) {
+    ++columnIndex;
+    const SNode* pExpression = pColNode;
+    if (QUERY_NODE_TARGET == nodeType(pExpression)) pExpression = ((const STargetNode*)pExpression)->pExpr;
+    if (QUERY_NODE_COLUMN != nodeType(pExpression)) return TSDB_CODE_PLAN_INVALID_FEDERATED_SCAN;
+    const SColumnNode* pCol = (const SColumnNode*)pExpression;
+    if (pCol->isPrimTs || PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId) continue;
+    int32_t outputSlot = QUERY_NODE_TARGET == nodeType(pColNode)
+                             ? ((const STargetNode*)pColNode)->slotId : columnIndex;
+    SColIdNameKV entry = {.colId = -(outputSlot + 1)};
+    tstrncpy(entry.colName, pCol->colName, sizeof(entry.colName));
+    if (NULL == taosArrayPush(pParam->colMap, &entry)) return terrno;
+  }
+  if (NULL != pNode->pReferenceFilter) {
+    TAOS_CHECK_RETURN(nodesNodeToString(pNode->pReferenceFilter, false,
+                                       &pParam->filterCondJson, &pParam->filterCondLen));
+    pParam->filterCondLen = strlen(pParam->filterCondJson);
+  }
+  pInfo->pActiveVStbParam = pParam;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fedScanValidateReferenceTimestamp(SFederatedScanOperatorInfo* pInfo,
+                                          const SColumnInfoData* pTs, int32_t row) {
+  if (NULL == pInfo || NULL == pTs || row < 0 ||
+      TSDB_DATA_TYPE_TIMESTAMP != pTs->info.type) return TSDB_CODE_INVALID_PARA;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (colDataIsNull_s(pTs, row)) {
+    code = TSDB_CODE_VTABLE_REFERENCE_NULL_TIMESTAMP;
+  } else {
+    int64_t timestamp = *(int64_t*)colDataGetNumData(pTs, row);
+    if (pInfo->hasPreviousTimestamp && timestamp <= pInfo->previousTimestamp) {
+      code = timestamp == pInfo->previousTimestamp ? TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP
+                                                   : TSDB_CODE_VTABLE_REFERENCE_TIMESTAMP_OUT_OF_ORDER;
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      pInfo->previousTimestamp = timestamp;
+      pInfo->hasPreviousTimestamp = true;
+      ++pInfo->referenceRowsConsumed;
+    }
+  }
+  return code;
+}
+
+bool fedScanReferenceLimitReached(const SFederatedScanOperatorInfo* pInfo) {
+  const SForeignScanOperatorParam* pBinding = pInfo->pActiveVStbParam;
+  return NULL != pBinding && VTABLE_BINDING_REFERENCE == pBinding->bindingKind &&
+         pBinding->rowLimit > 0 && NULL == pBinding->pPushedCond &&
+         NULL == pInfo->pFedScanNode->node.pConditions &&
+         pInfo->referenceRowsConsumed >= pBinding->rowLimit;
+}
+
+static int32_t fedScanConsumeReferenceRow(SOperatorInfo* pOperator, SSDataBlock** ppRow) {
+  SFederatedScanOperatorInfo* pInfo = pOperator->info;
+  SForeignScanOperatorParam* pBinding = pInfo->pActiveVStbParam;
+  int32_t timestampSlot = fedScanFindVstbOutputIndex(pInfo->pFedScanNode,
+                                                     PRIMARYKEY_TIMESTAMP_COL_ID, true);
+  if (timestampSlot < 0) timestampSlot = 0;
+  SColumnInfoData* pTs = taosArrayGet(pInfo->pFetchedBlock->pDataBlock, timestampSlot);
+  int32_t row = pInfo->referenceBlockPos;
+  int32_t code = fedScanValidateReferenceTimestamp(pInfo, pTs, row);
+  if (TSDB_CODE_SUCCESS != code) {
+    char columns[TSDB_COL_NAME_LEN * 3] = {0};
+    int32_t used = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(pBinding->colMap); ++i) {
+      const SColIdNameKV* pColumn = taosArrayGet(pBinding->colMap, i);
+      int32_t length = snprintf(columns + used, sizeof(columns) - used,
+                                "%s%s", used > 0 ? "," : "", pColumn->colName);
+      if (length < 0 || length >= sizeof(columns) - used) break;
+      used += length;
+    }
+    snprintf(pInfo->extErrMsg, sizeof(pInfo->extErrMsg),
+             "reference timestamp invalid [uid=%" PRIu64 ", alias=%s, columns=%s, object=%s.%s.%s.%s, time=%s]: %s",
+             pBinding->referenceUid, pBinding->referenceAlias, columns, pBinding->sourceName,
+             pBinding->dbName, pBinding->schemaName, pBinding->tableName,
+             pBinding->timeColumn, tstrerror(code));
+    tstrncpy(pOperator->pTaskInfo->extErrMsg, pInfo->extErrMsg,
+             sizeof(pOperator->pTaskInfo->extErrMsg));
+    return code;
+  }
+  if (pInfo->pReferenceRow == NULL) {
+    TAOS_CHECK_RETURN(createOneDataBlock(pInfo->pFetchedBlock, false, &pInfo->pReferenceRow));
+    TAOS_CHECK_RETURN(blockDataEnsureCapacity(pInfo->pReferenceRow, 1));
+  }
+  blockDataEmpty(pInfo->pReferenceRow);
+  int32_t capacity = pInfo->pReferenceRow->info.capacity;
+  pInfo->pReferenceRow->info = pInfo->pFetchedBlock->info;
+  pInfo->pReferenceRow->info.capacity = capacity;
+  pInfo->pReferenceRow->info.rows = 0;
+  TAOS_CHECK_RETURN(blockDataMergeNRows(pInfo->pReferenceRow, pInfo->pFetchedBlock, row, 1));
+  ++pInfo->referenceBlockPos;
+  *ppRow = pInfo->pReferenceRow;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t federatedScanGetNextSingle(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   QRY_PARAM_CHECK(ppRes);
 
@@ -2955,6 +3199,10 @@ static int32_t federatedScanGetNextSingle(SOperatorInfo* pOperator, SSDataBlock*
   int32_t                     lino      = 0;
 
   *ppRes = NULL;
+  code = fedScanCheckStaticReferenceVersion(pOperator);
+  QUERY_CHECK_CODE(code, lino, _return);
+  code = fedScanInitStaticReference(pInfo);
+  QUERY_CHECK_CODE(code, lino, _return);
 
   if (pInfo->queryFinished) {
     setOperatorCompleted(pOperator);
@@ -3189,6 +3437,18 @@ _fetchNext:
     SExtConnectorError  fetchErr = {0};
     int64_t             startTs  = taosGetTimestampUs();
 
+    if (fedScanReferenceLimitReached(pInfo)) {
+      // Retain the safe candidate cap when a provider demotes remote LIMIT.
+      // VirtualScan may request lookahead after the upstream limit is reached.
+      fedScanReleaseFetchedBlock(pInfo);
+      pInfo->queryFinished = true;
+      setOperatorCompleted(pOperator);
+      return TSDB_CODE_SUCCESS;
+    }
+    if (fedScanIsReference(pInfo) && NULL != pInfo->pFetchedBlock &&
+        pInfo->referenceBlockPos < pInfo->pFetchedBlock->info.rows) {
+      goto _consumeReference;
+    }
     fedScanReleaseFetchedBlock(pInfo);
 
     // Use dynamic col mappings (VStb) if available, otherwise static from physi node
@@ -3442,6 +3702,12 @@ _fetchNext:
       QUERY_CHECK_CODE(code, lino, _return);
     }
 
+_consumeReference:
+    if (fedScanIsReference(pInfo)) {
+      code = fedScanConsumeReferenceRow(pOperator, &pBlock);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+
     // Apply local filter for conditions that could not be pushed down
     // to the remote source (e.g., like_in_set, regexp_in_set).
     if (pOperator->exprSupp.pFilterInfo != NULL) {
@@ -3528,6 +3794,11 @@ static int32_t fedScanBuildTableKey(const SForeignScanOperatorParam* pFsParam, c
                  pFsParam->hasVtbGroupId ? pFsParam->vtbGroupId : (uint64_t)(uint32_t)pFsParam->groupId,
                  pFsParam->window.skey, pFsParam->window.ekey, pFsParam->virtualChildUid);
   QUERY_CHECK_CONDITION(len >= 0 && len < bufLen, code, lino, _return, TSDB_CODE_OUT_OF_RANGE);
+  int32_t extra = snprintf(buf + len, bufLen - len, ".%d.%s.%" PRIu64 ".%d",
+                            pFsParam->bindingKind, pFsParam->timeColumn,
+                            pFsParam->referenceUid, pFsParam->expectedRversion);
+  QUERY_CHECK_CONDITION(extra >= 0 && extra < bufLen - len, code, lino, _return, TSDB_CODE_OUT_OF_RANGE);
+
 
 _return:
   taosMemoryFree(pCondStr);
@@ -3544,6 +3815,8 @@ static void fedScanCloseTableCtx(SFedScanTableCtx* pCtx) {
     return;
   }
 
+  blockDataDestroy(pCtx->pReferenceRow);
+  pCtx->pReferenceRow = NULL;
   if (pCtx->pFetchedBlock) {
     blockDataDestroy(pCtx->pFetchedBlock);
     pCtx->pFetchedBlock = NULL;
@@ -3822,6 +4095,11 @@ int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo) {
       .pDynColMappings = pInfo->pDynColMappings,
       .numDynColMappings = pInfo->numDynColMappings,
       .pFetchedBlock = pInfo->pFetchedBlock,
+      .pReferenceRow = pInfo->pReferenceRow,
+      .hasPreviousTimestamp = pInfo->hasPreviousTimestamp,
+      .previousTimestamp = pInfo->previousTimestamp,
+      .referenceRowsConsumed = pInfo->referenceRowsConsumed,
+      .referenceBlockPos = pInfo->referenceBlockPos,
       .influxV1 = pInfo->influxV1,
   };
   tstrncpy(ctx.influxRp, pInfo->influxRp, sizeof(ctx.influxRp));
@@ -3853,11 +4131,12 @@ int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo) {
   pInfo->pDynColMappings = NULL;
   pInfo->numDynColMappings = 0;
   pInfo->pFetchedBlock = NULL;
+  pInfo->pReferenceRow = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
 // Restore a table context into the operator state.
-static void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tableKey) {
+void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tableKey) {
   if (pInfo->pTableCtxMap == NULL) return;
   SFedScanTableCtx* pCtx = taosHashGet(pInfo->pTableCtxMap, tableKey, strlen(tableKey));
   if (pCtx != NULL) {
@@ -3869,6 +4148,11 @@ static void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tab
     pInfo->pDynColMappings  = pCtx->pDynColMappings;
     pInfo->numDynColMappings = pCtx->numDynColMappings;
     pInfo->pFetchedBlock = pCtx->pFetchedBlock;
+    pInfo->pReferenceRow = pCtx->pReferenceRow;
+    pInfo->hasPreviousTimestamp = pCtx->hasPreviousTimestamp;
+    pInfo->previousTimestamp = pCtx->previousTimestamp;
+    pInfo->referenceRowsConsumed = pCtx->referenceRowsConsumed;
+    pInfo->referenceBlockPos = pCtx->referenceBlockPos;
     pInfo->influxV1 = pCtx->influxV1;
     tstrncpy(pInfo->influxRp, pCtx->influxRp, sizeof(pInfo->influxRp));
   } else {
@@ -3882,6 +4166,11 @@ static void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tab
     pInfo->pDynColMappings  = NULL;
     pInfo->numDynColMappings = 0;
     pInfo->pFetchedBlock = NULL;
+    pInfo->pReferenceRow = NULL;
+    pInfo->hasPreviousTimestamp = false;
+    pInfo->previousTimestamp = 0;
+    pInfo->referenceRowsConsumed = 0;
+    pInfo->referenceBlockPos = 0;
   }
   tstrncpy(pInfo->activeTableKey, tableKey, sizeof(pInfo->activeTableKey));
 }
@@ -3955,6 +4244,11 @@ static SForeignScanOperatorParam* fedScanBuildBatchTableViewImpl(
   pView->scanParamId = pTable->scanParamId;
   pView->filterCondLen = pTable->filterCondLen;
   pView->filterCondJson = pTable->filterCondJson;
+  pView->bindingKind = pTable->bindingKind;
+  pView->expectedRversion = pTable->expectedRversion;
+  pView->referenceUid = pTable->referenceUid;
+  tstrncpy(pView->referenceAlias, pTable->referenceAlias, sizeof(pView->referenceAlias));
+  tstrncpy(pView->timeColumn, pTable->timeColumn, sizeof(pView->timeColumn));
   pView->rowLimit = pTable->rowLimit;
   pView->pPushedCond = pTable->pPushedCond;
   pView->groupId = pBatch->groupId;
@@ -4571,7 +4865,9 @@ void federatedScanResetForNewChild(SOperatorInfo* pOperator) {
 
   // Reset remaining state after cached and active handles have been closed.
   pInfo->queryStarted = false;
+  pInfo->referenceVersionChecked = false;
   pInfo->queryFinished = false;
+  pInfo->referenceRowsConsumed = 0;
   pInfo->activeTableKey[0] = '\0';
   pInfo->pActiveVStbParam = NULL;
   fedScanDestroyBatchParam(pInfo->pActiveBatchParam);
@@ -4620,6 +4916,11 @@ static void federatedScanClose(void* param) {
   }
   fedScanDestroyBatchParam(pInfo->pActiveBatchParam);
   pInfo->pActiveBatchParam = NULL;
+  if (NULL != pInfo->pStaticReferenceParam) {
+    taosArrayDestroy(pInfo->pStaticReferenceParam->colMap);
+    taosMemoryFree(pInfo->pStaticReferenceParam->filterCondJson);
+    taosMemoryFreeClear(pInfo->pStaticReferenceParam);
+  }
   pInfo->pBatchInputIdentity = NULL;
   qDebug("FederatedScan closed: rows=%" PRId64 ", blocks=%" PRId64 ", elapsed=%" PRId64 "us",
          pInfo->fetchedRows, pInfo->fetchBlockCount, pInfo->elapsedTimeUs);

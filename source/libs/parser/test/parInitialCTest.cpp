@@ -29,6 +29,7 @@
 #include "parTestUtil.h"
 #include "parAst.h"
 #include "parInt.h"
+#include "parUtil.h"
 
 #include "nodes.h"
 
@@ -122,6 +123,131 @@ QueryGuard parseInitialSql(const char* pSql) {
 }  // namespace
 
 class ParserInitialCTest : public ParserDdlTest {};
+
+TEST_F(ParserInitialCTest, referenceMetadataDupOwnsExtension) {
+  using MetaGuard = unique_ptr<STableMeta, decltype(&queryFreeTableMeta)>;
+  MetaGuard source((STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta) + 2 * sizeof(SSchema)), queryFreeTableMeta);
+  ASSERT_NE(source, nullptr);
+  source->tableType = TSDB_VIRTUAL_NORMAL_TABLE;
+  source->tableInfo.numOfColumns = 2;
+  SVtableReferenceExt* pExt = &source->referenceExt;
+  pExt->pReferences = (SReferenceEntry*)taosMemoryCalloc(1, sizeof(SReferenceEntry));
+  pExt->pBindings = (SVtableBindingLink*)taosMemoryCalloc(1, sizeof(SVtableBindingLink));
+  pExt->pDeclarations = (SVtableDeclOrder*)taosMemoryCalloc(1, sizeof(SVtableDeclOrder));
+  ASSERT_NE(pExt->pReferences, nullptr);
+  ASSERT_NE(pExt->pBindings, nullptr);
+  ASSERT_NE(pExt->pDeclarations, nullptr);
+  pExt->nReferences = pExt->nBindings = pExt->nDeclarations = 1;
+  tstrncpy(pExt->pReferences[0].alias, "r", TSDB_COL_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].sourceName, "src", TSDB_TABLE_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].objectName, "samples", TSDB_TABLE_NAME_LEN);
+  tstrncpy(pExt->pReferences[0].timeColumn, "event_time", TSDB_COL_NAME_LEN);
+  pExt->pBindings[0].colId = 2;
+  pExt->pBindings[0].bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(pExt->pBindings[0].alias, "r", TSDB_COL_NAME_LEN);
+  pExt->pDeclarations[0].bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(pExt->pDeclarations[0].alias, "r", TSDB_COL_NAME_LEN);
+
+  MetaGuard copy(tableMetaDup(source.get()), queryFreeTableMeta);
+  ASSERT_NE(copy, nullptr);
+  EXPECT_NE(copy->referenceExt.pReferences, pExt->pReferences);
+  EXPECT_NE(copy->referenceExt.pBindings, pExt->pBindings);
+  EXPECT_NE(copy->referenceExt.pDeclarations, pExt->pDeclarations);
+  EXPECT_STREQ(copy->referenceExt.pReferences[0].timeColumn, "event_time");
+  copy.reset();
+  EXPECT_STREQ(pExt->pReferences[0].timeColumn, "event_time");
+  EXPECT_STREQ(pExt->pBindings[0].alias, "r");
+}
+
+TEST_F(ParserInitialCTest, referenceDeclarationAst) {
+  QueryGuard query = parseInitialSql(
+      "CREATE VTABLE v_reference (ts TIMESTAMP, value DOUBLE FROM r.value, "
+      "local_value DOUBLE FROM test.r.value) "
+      "REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP EventTime "
+      "SERIES s AS influx.db.cpu (site='beijing')");
+  ASSERT_NE(query, nullptr);
+  const SCreateVTableStmt* pStmt = (const SCreateVTableStmt*)query->pRoot;
+  ASSERT_EQ(nodeType(pStmt), QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT);
+  ASSERT_EQ(LIST_LENGTH(pStmt->pSeriesList), 2);
+  const SReferenceDeclNode* pDecl = (const SReferenceDeclNode*)nodesListGetNode(pStmt->pSeriesList, 0);
+  ASSERT_EQ(nodeType(pDecl), QUERY_NODE_REFERENCE_DECL);
+  EXPECT_STREQ(pDecl->entry.alias, "r");
+  EXPECT_STREQ(pDecl->entry.sourceName, "sqlsrc");
+  EXPECT_STREQ(pDecl->entry.dbName, "telemetry");
+  EXPECT_STREQ(pDecl->entry.schemaName, "dbo");
+  EXPECT_STREQ(pDecl->entry.objectName, "samples");
+  EXPECT_STREQ(pDecl->entry.timeColumn, "EventTime");
+  const SColumnOptions* pAlias = (const SColumnOptions*)((SColumnDefNode*)nodesListGetNode(pStmt->pCols, 1))->pOptions;
+  const SColumnOptions* pLocal = (const SColumnOptions*)((SColumnDefNode*)nodesListGetNode(pStmt->pCols, 2))->pOptions;
+  EXPECT_EQ(pAlias->refPathParts, 2);
+  EXPECT_EQ(pLocal->refPathParts, 3);
+  SNode* pClone = nullptr;
+  ASSERT_EQ(nodesCloneNode((const SNode*)pDecl, &pClone), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pClone));
+  nodesDestroyNode(pClone);
+  char* json = nullptr;
+  int32_t length = 0;
+  ASSERT_EQ(nodesNodeToString((const SNode*)pDecl, false, &json, &length), TSDB_CODE_SUCCESS);
+  SNode* pRestored = nullptr;
+  ASSERT_EQ(nodesStringToNode(json, &pRestored), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pRestored));
+  nodesDestroyNode(pRestored);
+  taosMemoryFree(json);
+  char* message = nullptr;
+  int32_t messageLength = 0;
+  ASSERT_EQ(nodesNodeToMsg((const SNode*)pDecl, &message, &messageLength), TSDB_CODE_SUCCESS);
+  pRestored = nullptr;
+  ASSERT_EQ(nodesMsgToNode(message, messageLength, &pRestored), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(nodesEqualNode((const SNode*)pDecl, pRestored));
+  nodesDestroyNode(pRestored);
+  taosMemoryFree(message);
+}
+
+TEST_F(ParserInitialCTest, referenceMixedQuotedSeriesIdentifiers) {
+  char sql[] =
+      "CREATE VTABLE v_mixed (ts TIMESTAMP, value DOUBLE FROM r.value) "
+      "SERIES `S1` AS `influx``source`.`Metrics`.`cpu.load` (site='beijing') "
+      "REFERENCE r AS sqlsrc.telemetry.samples TIMESTAMP event_time";
+  QueryGuard query = parseInitialSql(sql);
+  ASSERT_NE(query, nullptr);
+  const auto* statement = reinterpret_cast<const SCreateVTableStmt*>(query->pRoot);
+  ASSERT_EQ(LIST_LENGTH(statement->pSeriesList), 2);
+  const auto* series = reinterpret_cast<const SSeriesDeclNode*>(nodesListGetNode(statement->pSeriesList, 0));
+  ASSERT_EQ(nodeType(series), QUERY_NODE_SERIES_DECL);
+  EXPECT_STREQ(series->alias, "S1");
+  EXPECT_STREQ(series->sourceName, "influx`source");
+  EXPECT_STREQ(series->dbName, "Metrics");
+  EXPECT_STREQ(series->measurementName, "cpu.load");
+}
+
+TEST_F(ParserInitialCTest, referenceAlterSyntax) {
+  const char* statements[] = {
+      "ALTER VTABLE v ADD REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP `EventTime`",
+      "ALTER VTABLE v MODIFY REFERENCE r AS sqlsrc.telemetry.dbo.samples TIMESTAMP `CollectedAt`",
+      "ALTER VTABLE v REMOVE REFERENCE r"};
+  const int8_t actions[] = {TSDB_ALTER_TABLE_ADD_REFERENCE, TSDB_ALTER_TABLE_MODIFY_REFERENCE,
+                            TSDB_ALTER_TABLE_REMOVE_REFERENCE};
+  for (size_t i = 0; i < sizeof(actions) / sizeof(actions[0]); ++i) {
+    QueryGuard query = parseInitialSql(statements[i]);
+    ASSERT_NE(query, nullptr);
+    const SAlterTableStmt* pStmt = (const SAlterTableStmt*)query->pRoot;
+    EXPECT_EQ(pStmt->alterType, actions[i]);
+  }
+  {
+    QueryGuard query = parseInitialSql(
+        "CREATE VTABLE v (ts TIMESTAMP) REFERENCE `RefA` AS `src`.`db`.`schema`.`T` TIMESTAMP `EventTime`");
+    ASSERT_NE(query, nullptr);
+    const SCreateVTableStmt* pStmt = (const SCreateVTableStmt*)query->pRoot;
+    const SReferenceDeclNode* pDecl = (const SReferenceDeclNode*)nodesListGetNode(pStmt->pSeriesList, 0);
+    EXPECT_STREQ(pDecl->entry.alias, "RefA");
+    EXPECT_STREQ(pDecl->entry.objectName, "T");
+    EXPECT_STREQ(pDecl->entry.timeColumn, "EventTime");
+  }
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.t", TSDB_CODE_PAR_INCOMPLETE_SQL);
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.t TIMESTAMP now()", TSDB_CODE_PAR_SYNTAX_ERROR);
+  runParseOnly("CREATE VTABLE v (ts TIMESTAMP) REFERENCE r AS src.db.schema.t.extra.column TIMESTAMP ts",
+               TSDB_CODE_PAR_SYNTAX_ERROR);
+}
 
 TEST_F(ParserInitialCTest, createVSubTableBatchAst) {
   {

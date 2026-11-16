@@ -34,3 +34,5 @@ cases/50-Others/02-Repair/test_copy_repair.py
 # Supported FQ providers are provisioned locally: InfluxDB 3.0 and Oracle 26ai.
 # Patterns also match pytest node IDs (file.py::Class::test).
 cases/42-Xnode/
+# The four-backend REFERENCE suite has pending Windows validation.
+cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_reference_ext_source.py

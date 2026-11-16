@@ -3188,7 +3188,7 @@ EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code) {
   }
 
   if (NEED_CLIENT_RM_TBLMETA_ERROR(code) || TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER == code ||
-      TSDB_CODE_MND_INVALID_SCHEMA_VER == code) {
+      TSDB_CODE_MND_INVALID_SCHEMA_VER == code || TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT == code) {
     return CLIENT_META_REFRESH_TABLE;
   }
 

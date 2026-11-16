@@ -1196,6 +1196,13 @@ alter_table_clause(A) ::=
 
 alter_table_clause(A) ::=
   full_table_name(B) REMOVE SERIES NK_ID(C).                                      { A = createAlterTableRemoveSeries(pCxt, B, &C); }
+alter_table_clause(A) ::= full_table_name(B) ADD reference_decl(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_ADD_REFERENCE, C, NULL); }
+alter_table_clause(A) ::= full_table_name(B) MODIFY reference_decl(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_MODIFY_REFERENCE, C, NULL); }
+alter_table_clause(A) ::= full_table_name(B) REMOVE REFERENCE NK_ID(C).
+  { A = createAlterTableReference(pCxt, B, TSDB_ALTER_TABLE_REMOVE_REFERENCE, NULL, &C); }
+
 
 /* update multi table tag values */
 %type column_tag_value_list                                                          { SNodeList* }
@@ -3549,7 +3556,7 @@ ext_alter_clause(A) ::= OPTIONS NK_LP ext_option_list(B) NK_RP.                 
 
 %fallback NK_ID FROM_BASE64 TO_BASE64 MD5 SHA SHA1 SHA2 AES_ENCRYPT AES_DECRYPT SM4_ENCRYPT SM4_DECRYPT CLOSE CURRENT CURRENT_DATE CURRENT_TIME CURRENT_TIMESTAMP
   FOLLOWING OPEN OVER PRECEDING ROWS UNBOUNDED HOST META VALUE
-  EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD.
+  EXTERNAL SOURCE SOURCES REFRESH OPTIONS SCHEMA TYPE PASSWORD REFERENCE.
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY MODULES NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE RESTRICT ROW SEMI STAR STATEMENT
   STRICT STRING TIMES VALUES VARIABLE VIEW WAL.
@@ -3569,7 +3576,7 @@ external_col_filter_opt(A) ::= .                                                
 external_col_filter_opt(A) ::= WHERE search_condition(B).                           { A = B; }
 
 %type column_name_triplet                                                            { STokenTriplet* }
-%destructor column_name_triplet                                                      { }
+%destructor column_name_triplet                                                      { taosMemoryFree($$); }
 column_name_triplet(A) ::= NK_ID(B).                                                 { A = createTokenTriplet(pCxt, B); }
 column_name_triplet(A) ::= column_name_triplet(B) NK_DOT NK_ID(C).                   { A = setColumnName(pCxt, B, C); }
 
@@ -3577,12 +3584,18 @@ column_name_triplet(A) ::= column_name_triplet(B) NK_DOT NK_ID(C).              
 %type series_clause_opt                                                              { SNodeList* }
 %destructor series_clause_opt                                                        { nodesDestroyList($$); }
 series_clause_opt(A) ::= .                                                           { A = NULL; }
+series_clause_opt(A) ::= series_clause_opt(B) reference_decl(C).                    { A = (B == NULL ? createNodeList(pCxt, C) : addNodeToList(pCxt, B, C)); }
 series_clause_opt(A) ::= series_clause_opt(B) series_decl(C).                        { A = (B == NULL ? createNodeList(pCxt, C) : addNodeToList(pCxt, B, C)); }
 
 %type series_decl                                                                    { SNode* }
 %destructor series_decl                                                              { nodesDestroyNode($$); }
 series_decl(A) ::= SERIES NK_ID(B) AS column_name_triplet(C)
   NK_LP series_tag_list(D) NK_RP.                                                    { A = createSeriesDeclNode(pCxt, &B, C, D); }
+
+%type reference_decl { SNode* }
+%destructor reference_decl { nodesDestroyNode($$); }
+reference_decl(A) ::= REFERENCE NK_ID(B) AS column_name_triplet(C) TIMESTAMP NK_ID(D).
+  { A = createReferenceDeclNode(pCxt, &B, C, &D); }
 
 %type series_tag_list                                                                { SNode* }
 %destructor series_tag_list                                                          { nodesDestroyNode($$); }

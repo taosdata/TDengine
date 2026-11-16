@@ -540,7 +540,7 @@ Indexes, stored procedures, and triggers in MySQL, indexes, sequences, and trigg
 
 ### Timestamp Primary Key Requirements
 
-When participating in federated query and performing **timeline-dependent** operations, external tables (Table / Measurement) must have a primary key time column mappable to TDengine `TIMESTAMP`. This column is used for time range filtering, sorting, windows, and time-series functions.
+When querying external tables (Table / Measurement) directly through federated query and performing **timeline-dependent** operations, the external tables must have a primary key time column mappable to TDengine `TIMESTAMP`. This column is used for time range filtering, sorting, windows, and time-series functions. Virtual tables that explicitly select a time column through `REFERENCE` establish their timeline from that declaration.
 
 - MySQL timestamp primary key columns must be of type `DATETIME` or `TIMESTAMP`.
 - PostgreSQL timestamp primary key columns must be of type `TIMESTAMP` or `TIMESTAMPTZ`.
@@ -557,7 +557,7 @@ Refers to regular tables in MySQL / PostgreSQL / SQL Server / Oracle that lack a
 | Scenario | Supported | Description |
 | -------- | --------- | ----------- |
 | Single-table query | **Partially supported** | Supports queries that do not depend on a timeline, such as `COUNT`; external views can be queried directly |
-| Used in virtual tables | **Not a supported usage** | Virtual tables with external column references sort by the external table's primary time column and merge by timestamp; external regular tables must have a primary key time column mappable to `TIMESTAMP`; external views cannot be referenced as virtual table columns |
+| Used in virtual tables | **Supports explicit time selection** | When a source object has a column mapped to `TIMESTAMP`, use [`REFERENCE`](../02-ddl/04-virtualtable.md#select-an-external-time-column) to select a time column from an external table or view. Direct external column paths retain the primary-key time column requirement |
 | `JOIN` with timeline tables | **Not supported** | `ON` conditions for external table `JOIN` must include the primary timestamp column; external tables without a timeline have no usable primary timestamp column and cannot be joined on business keys alone |
 
 When an external table without a primary key is used as input to [TIME_ALIGN](./03-function.md#time_align), it follows view input: interpolation uses the output row order, a `TIMESTAMP` column is not required, and the time range parameter has no effect. An external table with a primary key follows table input.
@@ -578,7 +578,7 @@ SELECT * FROM sqlserver_prod.dbo.device_info;
 SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
-External tables without a timeline cannot be used with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, Window JOIN, or virtual table column references. In the current version, external regular tables with non-timestamp primary keys may pass virtual table DDL validation, but that path does not have tested time-merge semantics and should not be used in production. To associate external dimension data with TDengine time-series data, first provide join results with a timestamp primary key in the external system, or synchronize dimension data into TDengine before joining.
+External tables without a timeline cannot be used directly with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, or Window JOIN. When an object has a suitable time column, `REFERENCE` can first establish a virtual-table timeline for queries. Direct external column paths retain their source primary-key time column and filter validation rules.
 
 ### Type Mapping
 
@@ -604,7 +604,7 @@ Timezone and precision rules for external timestamp columns are as follows:
 - Oracle `TIMESTAMP(n) WITH TIME ZONE` and `TIMESTAMP(n) WITH LOCAL TIME ZONE` are timezone-aware and are interpreted by their own offset or absolute instant.
 - In single-database queries, TDengine databases use their `PRECISION`; MySQL, PostgreSQL, and SQL Server use microsecond precision; InfluxDB uses nanosecond precision; Oracle uses microsecond or nanosecond precision according to the maximum precision of the time columns in the table (nanosecond when a `TIMESTAMP(7-9)` column exists; the second precision of `DATE` is zero-padded to milliseconds).
 - In multi-database queries, result timestamps use the highest precision among participating databases; lower-precision values are zero-padded. For example, a TDengine millisecond database joined with MySQL yields microsecond precision; joined with InfluxDB, nanosecond precision.
-- SQL Server external timestamps have microsecond precision. When creating a virtual table that references SQL Server external columns, the virtual table's database precision must not be lower than microseconds (for example, `CREATE DATABASE ... PRECISION 'us'`).
+- When creating a virtual table that references SQL Server external columns, the required database precision follows the type declaration of the time column used. `date`, `smalldatetime`, `datetime2(0-3)`, and `datetimeoffset(0-3)` can use millisecond databases. `datetime` and `datetime2` / `datetimeoffset` with finer or omitted precision require microsecond or higher precision. `REFERENCE` applies this check to its explicitly selected time column.
 - Oracle `DATE` has second precision (zero-padded to milliseconds) and `TIMESTAMP` defaults to `TIMESTAMP(6)`. When creating a virtual table that references Oracle external columns, the virtual table's database precision must not be lower than the declared precision of that timestamp column: `DATE` and `TIMESTAMP(0-3)` are milliseconds, `TIMESTAMP(4-6)` is microseconds, and `TIMESTAMP(7-9)` is nanoseconds; otherwise the statement returns `TSDB_CODE_EXT_SCHEMA_CHANGED`.
 
 ## External Paths and USE
@@ -867,9 +867,9 @@ The following queries are supported but may read more raw data and compute local
 
 ### Usage
 
-Virtual table column references can point to table columns in external data sources. Virtual tables themselves must be created in TDengine internal databases; even when all data columns come from external sources, you must first create or `USE` a local database.
+Virtual table column references can point to table or view columns in external data sources. Virtual tables themselves must be created in TDengine internal databases. Even when all data columns come from external sources, you must first create or `USE` a local database.
 
-When querying a virtual table with external references, the system reads external columns and merges them with local columns by timestamp into a unified result. External tables must have a primary key time column mappable to `TIMESTAMP`; external views cannot be referenced as virtual table columns.
+When querying a virtual table with external references, the system reads external columns and merges them with local columns by timestamp into a unified result. Direct external column paths require a source table with a timestamp primary key. With `REFERENCE`, you can explicitly select a time column mappable to `TIMESTAMP` from a SQL Server, MySQL, PostgreSQL, or Oracle table or view.
 
 ### Creating Virtual Regular Tables
 
@@ -1014,10 +1014,11 @@ CREATE VTABLE v_d1001 (
 Virtual tables merge internal and external data by timestamp:
 
 - The virtual table itself must declare a `TIMESTAMP` column (for example, `ts TIMESTAMP`); this column cannot directly reference an external column using `FROM`.
-- Referenced **external time-series tables** must satisfy the [Timestamp Primary Key Requirements](#timestamp-primary-key-requirements).
-- External views and external dimension/registry tables without a timestamp primary key cannot be referenced as virtual table columns.
+- **External time-series tables** referenced directly through fully qualified external column paths must satisfy the [Timestamp Primary Key Requirements](#timestamp-primary-key-requirements). This direct reference form requires a source table.
+- When using `REFERENCE` with SQL Server, MySQL, PostgreSQL, or Oracle tables and views, select the time column explicitly with `TIMESTAMP time_column`. The selected column must map to TDengine `TIMESTAMP` and can be an ordinary time column. The source object can have no timestamp primary key.
+- `REFERENCE` queries align data using the selected time column and validate converted timestamps within the input actually consumed. A `NULL`, duplicate, or decreasing timestamp causes an error.
 
-If a virtual table lacks a valid primary time column, or referenced external tables do not satisfy timestamp primary key requirements, data cannot be correctly aligned with TDengine time-series data.
+The virtual table's primary time column and the time column selected by each source binding determine timestamp alignment. Direct external column paths follow the timestamp primary key and business-primary-key filter coverage rules. `REFERENCE` uses the explicitly selected time column and each column's saved filter.
 
 ### Query Behavior
 

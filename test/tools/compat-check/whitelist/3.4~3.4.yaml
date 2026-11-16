@@ -22,6 +22,11 @@ added_tables:
 - INS_BACKUPS
 - INS_LAST_CACHE_STATS
 modified_tables:
+- table: INS_VIRTUAL_TABLES_REFERENCING
+  added_columns:
+  - reference_alias
+  - reference_object
+  - reference_time_column
 - table: INS_DATABASES
   added_columns:
   - cacheshardbits

@@ -791,6 +791,11 @@ Below are the business error codes for each module.
 | 0x80006215 | Invalid external column filter expression | The external column filter has an invalid structure, or its saved expression cannot be decoded. | Compare unqualified column names with literals and combine comparisons with `AND`. Use string literals for dates and times. |
 | 0x80006216 | Duplicate column in external column filter | A column occurs more than once in the external column filter. Column names are compared case-insensitively. | Use each filter column only once. |
 | 0x80006217 | External column filter must constrain every business primary key column with an equality literal | The saved external column filter does not constrain every business primary key column with an equality literal. | Specify one `=` literal condition for each non-timestamp primary key column in the column reference filter. A query's `WHERE` clause cannot replace these conditions. |
+| 0x80006218 | Ambiguous virtual table reference name | The virtual table reference matches different declaration candidates. | Use an unambiguous reference alias or a fully qualified path. |
+| 0x80006219 | Virtual table reference contains a null timestamp | The consumed reference sequence contains a null timestamp. | Check the selected time column and saved column filter. |
+| 0x8000621A | Virtual table reference contains duplicate timestamps | The consumed reference sequence contains equal timestamps after conversion. | Check converted values of the selected time column and the saved column filter. |
+| 0x8000621B | Virtual table reference timestamps are out of order | Converted timestamps in the consumed reference sequence are out of order. | Check time-column conversion and remote read ordering. |
+| 0x8000621C | Virtual table reference version conflict | The virtual table binding definition changed concurrently. | Refetch and validate the table definition before retrying. |
 
 #### federated query
 

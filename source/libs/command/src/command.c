@@ -358,6 +358,12 @@ static int32_t setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock,
             nodesDestroyNode(pTagCond);
           }
         }
+        const SReferenceEntry *pReference =
+            tVtableReferenceForColumn(&pMeta->referenceExt, pRef->id);
+        if (pReference != NULL) {
+          QRY_ERR_RET(nodesFormatReferenceSource(pRef, pReference, refColName,
+                                                DESCRIBE_RESULT_COL_REF_LEN - VARSTR_HEADER_SIZE + 1));
+        }
         STR_TO_VARSTR(buf, refColName);
       }
 
@@ -846,6 +852,13 @@ static int32_t appendColumnFields(char* buf, int32_t bufSize, int32_t* len, STab
     }
 
     if (hasColRef(pCfg->tableType) && pRef && pRef->hasRef) {
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&pCfg->referenceExt, pRef->id);
+      if (pLink != NULL && (pLink->bindingKind == VTABLE_BINDING_REFERENCE ||
+                            pLink->bindingKind == VTABLE_BINDING_SERIES)) {
+        if (appendFmt(type, LTYPE_LEN, &typeLen, " FROM `%s`.", expandIdentifier(pLink->alias, expandName)) != TSDB_CODE_SUCCESS ||
+            appendFmt(type, LTYPE_LEN, &typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS)
+          return TSDB_CODE_OUT_OF_BUFFER;
+      } else {
       if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
         /* Render the schema explicitly when the reference carries one: a
          * four-part SQL Server display form is re-parsed with the middle
@@ -861,6 +874,7 @@ static int32_t appendColumnFields(char* buf, int32_t bufSize, int32_t* len, STab
         if (appendFmt(type, LTYPE_LEN, &typeLen, " FROM `%s`", pRef->refDbName) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
       }
       if (appendFmt(type, LTYPE_LEN, &typeLen, ".") != TSDB_CODE_SUCCESS || appendFmt(type, LTYPE_LEN, &typeLen, "`%s`", expandIdentifier(pRef->refTableName, expandName)) != TSDB_CODE_SUCCESS || appendFmt(type, LTYPE_LEN, &typeLen, ".") != TSDB_CODE_SUCCESS || appendFmt(type, LTYPE_LEN, &typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS) return TSDB_CODE_OUT_OF_BUFFER;
+      }
     }
 
     if (!(pSchema->flags & COL_IS_KEY)) {
@@ -927,7 +941,13 @@ static int32_t appendColRefFields(char* buf, int32_t bufSize, int32_t* len, STab
         code = appendFmt(type, sizeof(type), &typeLen, "%s ", ownType);
         if (code != TSDB_CODE_SUCCESS) return code;
       }
-      if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
+      const SVtableBindingLink *pLink = tVtableBindingForColumn(&pCfg->referenceExt, pRef->id);
+      if (pLink != NULL && (pLink->bindingKind == VTABLE_BINDING_REFERENCE ||
+                            pLink->bindingKind == VTABLE_BINDING_SERIES)) {
+        if (appendFmt(type, sizeof(type), &typeLen, "FROM `%s`.", expandIdentifier(pLink->alias, expandName)) != TSDB_CODE_SUCCESS ||
+            appendFmt(type, sizeof(type), &typeLen, "`%s`", expandIdentifier(pRef->refColName, expandName)) != TSDB_CODE_SUCCESS)
+          return TSDB_CODE_OUT_OF_BUFFER;
+      } else if (pRef->refType == 1 && pRef->refSourceName[0] != '\0') {
         // External ref: emit the full path source.[db.][schema.]table.col.
         // The schema is rendered when the reference carries one; dropping it
         // on replay would silently bind another namespace (same rule as
@@ -1459,6 +1479,70 @@ static int32_t setShowCreateDdlIntoResultBuf(char* buf2, int32_t len, bool useBl
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t appendBindingDeclaration(char *buf, int32_t cap, int32_t *len,
+                                         const STableCfg *pCfg, int8_t kind, const char *alias) {
+  char expanded[(TSDB_TABLE_NAME_LEN << 1) + 1];
+  if (kind == VTABLE_BINDING_REFERENCE) {
+    for (int32_t i = 0; i < pCfg->referenceExt.nReferences; ++i) {
+      const SReferenceEntry *p = &pCfg->referenceExt.pReferences[i];
+      if (strcmp(alias, p->alias) != 0) continue;
+      TAOS_CHECK_RETURN(appendFmt(buf, cap, len, " REFERENCE `%s` AS ", expandIdentifier(p->alias, expanded)));
+      const char *parts[] = {p->sourceName, p->dbName, p->schemaName, p->objectName};
+      bool first = true;
+      for (int32_t part = 0; part < 4; ++part) {
+        if (parts[part][0] == '\0') continue;
+        TAOS_CHECK_RETURN(appendFmt(buf, cap, len, "%s`%s`", first ? "" : ".",
+                                   expandIdentifier(parts[part], expanded)));
+        first = false;
+      }
+      return appendFmt(buf, cap, len, " TIMESTAMP `%s`", expandIdentifier(p->timeColumn, expanded));
+    }
+  } else if (kind == VTABLE_BINDING_SERIES) {
+    for (int32_t i = 0; i < pCfg->numOfSeries; ++i) {
+      const SSeriesEntry *p = &pCfg->pSeries[i];
+      if (strcmp(alias, p->alias) != 0) continue;
+      TAOS_CHECK_RETURN(appendFmt(buf, cap, len, " SERIES `%s` AS ", expandIdentifier(p->alias, expanded)));
+      const char *parts[] = {p->sourceName, p->dbName, p->measurementName};
+      for (int32_t part = 0; part < 3; ++part) {
+        TAOS_CHECK_RETURN(appendFmt(buf, cap, len, "%s`%s`", part == 0 ? "" : ".",
+                                   expandIdentifier(parts[part], expanded)));
+      }
+      if (p->tagCondJson != NULL && p->tagCondJson[0] != '\0') {
+        SNode *condition = NULL;
+        TAOS_CHECK_RETURN(nodesStringToNode(p->tagCondJson, &condition));
+        TSlice output = {.buf = buf + *len, .cap = cap - *len};
+        int32_t code = sliceAppend(&output, " (", 2);
+        if (code == TSDB_CODE_SUCCESS) code = tagCondToDisplayStr(condition, &output);
+        if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&output, ")", 1);
+        nodesDestroyNode(condition);
+        TAOS_CHECK_RETURN(code);
+        *len += output.len;
+      }
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_INVALID_MSG;
+}
+
+static int32_t appendBindingDeclarations(char *buf, int32_t cap, int32_t *len, const STableCfg *pCfg) {
+  if (pCfg->referenceExt.nDeclarations > 0) {
+    for (int32_t i = 0; i < pCfg->referenceExt.nDeclarations; ++i) {
+      const SVtableDeclOrder *p = &pCfg->referenceExt.pDeclarations[i];
+      TAOS_CHECK_RETURN(appendBindingDeclaration(buf, cap, len, pCfg, p->bindingKind, p->alias));
+    }
+  } else {
+    for (int32_t i = 0; i < pCfg->numOfSeries; ++i) {
+      TAOS_CHECK_RETURN(appendBindingDeclaration(buf, cap, len, pCfg, VTABLE_BINDING_SERIES,
+                                                pCfg->pSeries[i].alias));
+    }
+    for (int32_t i = 0; i < pCfg->referenceExt.nReferences; ++i) {
+      TAOS_CHECK_RETURN(appendBindingDeclaration(buf, cap, len, pCfg, VTABLE_BINDING_REFERENCE,
+                                                pCfg->referenceExt.pReferences[i].alias));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg,
                                               void* charsetCxt, bool useBlob) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1556,25 +1640,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     code = appendColumnFields(buf2, bufSize, &len, pCfg, pFilterSQL);
     QUERY_CHECK_CODE(code, lino, _return);
     APPEND_CREATE_SQL(")");
-    if (pCfg->numOfSeries > 0) {
-      for (int32_t i = 0; i < pCfg->numOfSeries; i++) {
-        SSeriesEntry* p = &pCfg->pSeries[i];
-        APPEND_CREATE_SQL(" SERIES `%s` AS %s.%s.%s", p->alias, p->sourceName, p->dbName, p->measurementName);
-        if (p->tagCondJson && p->tagCondJson[0]) {
-          SNode* pCond = NULL;
-          if (TSDB_CODE_SUCCESS == nodesStringToNode(p->tagCondJson, &pCond)) {
-            TSlice strBuf = {
-                .buf = buf2 + VARSTR_HEADER_SIZE + len, .cap = bufSize - (VARSTR_HEADER_SIZE + len), .len = 0};
-            code = sliceAppend(&strBuf, " (", 2);
-            if (code == TSDB_CODE_SUCCESS) code = tagCondToDisplayStr(pCond, &strBuf);
-            if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&strBuf, ")", 1);
-            len += strBuf.len;
-            nodesDestroyNode(pCond);
-            QUERY_CHECK_CODE(code, lino, _return);
-          }
-        }
-      }
-    }
+    code = appendBindingDeclarations(buf2 + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, &len, pCfg);
+    QUERY_CHECK_CODE(code, lino, _return);
     if (pCfg->numOfTags > 0) {
       APPEND_CREATE_SQL(" TAGS (");
       code = appendInlineTagFields(buf2, bufSize, &len, pCfg, charsetCxt);
@@ -1592,25 +1659,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     code = appendTagValues(buf2, bufSize, &len, pCfg, charsetCxt);
     QUERY_CHECK_CODE(code, lino, _return);
     APPEND_CREATE_SQL(")");
-    if (pCfg->numOfSeries > 0) {
-      for (int32_t i = 0; i < pCfg->numOfSeries; i++) {
-        SSeriesEntry* p = &pCfg->pSeries[i];
-        APPEND_CREATE_SQL(" SERIES `%s` AS %s.%s.%s", p->alias, p->sourceName, p->dbName, p->measurementName);
-        if (p->tagCondJson && p->tagCondJson[0]) {
-          SNode* pCond = NULL;
-          if (TSDB_CODE_SUCCESS == nodesStringToNode(p->tagCondJson, &pCond)) {
-            TSlice strBuf = {
-                .buf = buf2 + VARSTR_HEADER_SIZE + len, .cap = bufSize - (VARSTR_HEADER_SIZE + len), .len = 0};
-            code = sliceAppend(&strBuf, " (", 2);
-            if (code == TSDB_CODE_SUCCESS) code = tagCondToDisplayStr(pCond, &strBuf);
-            if (code == TSDB_CODE_SUCCESS) code = sliceAppend(&strBuf, ")", 1);
-            len += strBuf.len;
-            nodesDestroyNode(pCond);
-            QUERY_CHECK_CODE(code, lino, _return);
-          }
-        }
-      }
-    }
+    code = appendBindingDeclarations(buf2 + VARSTR_HEADER_SIZE, bufSize - VARSTR_HEADER_SIZE, &len, pCfg);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 #undef APPEND_CREATE_SQL
 
