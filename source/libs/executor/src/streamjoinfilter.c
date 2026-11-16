@@ -115,6 +115,10 @@ int32_t streamJoinFilterEncodeKey(const SStreamJoinFilterSpec* pSpec, const SSDa
     const char*                    pValue = NULL;
     int32_t                        valueLength = 0;
     TAOS_CHECK_EXIT(streamJoinFilterReadValue(pDesc, pBlock, row, build, &pCol, &pValue, &valueLength));
+    if (pValue == NULL) {
+      *pNull = true;
+      goto _exit;
+    }
     uint8_t type = pDesc->buildType.type;
     TAOS_MEMCPY(*ppScratch + offset, &type, sizeof(type));
     offset += sizeof(type);

@@ -575,11 +575,12 @@ static int32_t filterUnqualifiedTables(const STmqQueryScanInfo* pScanInfo, const
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int8_t  locked = 0;
+  SArray* tUid = NULL;
   SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
 
   QUERY_CHECK_NULL(qa, code, lino, _error, terrno);
 
-  SArray* tUid = taosArrayInit(4, sizeof(STqPair));
+  tUid = taosArrayInit(4, sizeof(STqPair));
   QUERY_CHECK_NULL(tUid, code, lino, _error, terrno);
 
   int32_t numOfUids = taosArrayGetSize(tableIdList);
@@ -1119,6 +1120,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   int64_t      current = 0;
   SSDataBlock* pRes = NULL;
   int64_t      st = taosGetTimestampUs();
+  uint64_t     el = 0;
   bool         directBlock = pLocal != NULL && pLocal->directBlock;
   bool         streamLocalBlock = directBlock && pLocal->putBlockFp != NULL;
 
@@ -1239,7 +1241,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   }
 
   *hasMore = (pRes != NULL);
-  uint64_t el = (taosGetTimestampUs() - st);
+  el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
   if (NULL == pRes) {

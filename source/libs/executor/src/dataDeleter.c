@@ -456,6 +456,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink
                           void* pParam) {
   SDataSinkNode* pDataSink = *ppDataSink;
   int32_t code = TSDB_CODE_SUCCESS;
+  SDataDeleterHandle* deleter = NULL;
   if (pParam == NULL) {
     code = TSDB_CODE_QRY_INVALID_INPUT;
     qError("invalid input param in creating data deleter, code%s", tstrerror(code));
@@ -464,7 +465,7 @@ int32_t createDataDeleter(SDataSinkManager* pManager, SDataSinkNode** ppDataSink
 
   SDeleterParam* pDeleterParam = (SDeleterParam*)pParam;
 
-  SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
+  deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
     code = terrno;
     taosArrayDestroy(pDeleterParam->pUidList);

@@ -9674,10 +9674,15 @@ static void captureRealtimePipelineTimerRelease(void*) { ++gRealtimePipelineTime
 
 static void ignoreRealtimePipelineTimerStart(TAOS_TMR_CALLBACK, int32_t, void*, void*, tmr_h*, const char*) {}
 
-static void captureRealtimePipelineWaitTimerStart(TAOS_TMR_CALLBACK callback, int32_t, void*, void*, tmr_h*,
-                                                  const char*) {
+static void captureTriggerEnvTimerStart(TAOS_TMR_CALLBACK callback, int32_t, void*, void*, tmr_h* pTmrId,
+                                        const char*) {
+  // The trigger environment timer drives the wait callbacks exercised below.
   gRealtimePipelineWaitTimerCallback = callback;
+  // Report an armed timer without creating a real timer in this test binary.
+  *pTmrId = reinterpret_cast<tmr_h>(1);
 }
+
+static void ignoreTriggerEnvTimerStop(tmr_h) {}
 
 static void invokeRealtimePipelineWaitTimer(TAOS_TMR_CALLBACK callback) {
   atomic_store_8(&gStreamMgmt.tmrStopped, 0);
@@ -40719,7 +40724,7 @@ int main(int argc, char** argv) {
   int32_t code = TSDB_CODE_SUCCESS;
   {
     Stub timerStub;
-    timerStub.set(streamTmrStart, captureRealtimePipelineWaitTimerStart);
+    timerStub.set(streamTmrStart, captureTriggerEnvTimerStart);
     code = stTriggerTaskEnvInit();
   }
   if (code != TSDB_CODE_SUCCESS) {
@@ -40729,7 +40734,11 @@ int main(int argc, char** argv) {
 
   testing::InitGoogleTest(&argc, argv);
   code = RUN_ALL_TESTS();
-  stTriggerTaskEnvCleanup();
+  {
+    Stub timerStopStub;
+    timerStopStub.set(streamTmrStop, ignoreTriggerEnvTimerStop);
+    stTriggerTaskEnvCleanup();
+  }
   taos_cleanup();
   return code;
 }

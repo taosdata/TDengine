@@ -6855,6 +6855,7 @@ static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
   const SStreamTask *pTask = pInfo->pTask;
   uint64_t           gid   = (uint64_t)pReq->gid;
   int32_t            code  = TSDB_CODE_SUCCESS;
+  SExtGroupColValueCtx ctx = {0};
 
   ST_TASK_DLOG("ext: handleGroupColValuePull enter gid=%" PRIu64, gid);
 
@@ -6864,7 +6865,6 @@ static int32_t handleGroupColValuePull(SStreamExtReaderInfo *pInfo,
     goto _exit;
   }
 
-  SExtGroupColValueCtx ctx = {0};
   code = extInitGroupColValueCtx(pInfo, gid, &ctx);
   if (code != TSDB_CODE_SUCCESS) {
     ST_TASK_ELOG("ext: handleGroupColValuePull init ctx failed gid=%" PRIu64 " code:%d",
