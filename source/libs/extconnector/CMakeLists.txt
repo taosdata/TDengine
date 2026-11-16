@@ -49,6 +49,8 @@ DEP_ext_cjson(extconnector)
 
 if(TD_ENTERPRISE AND UNIX AND NOT APPLE)
   target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToSQL")
+  # Static client tests can reach InfluxDB quoting helpers after the last nodes archive pass.
+  target_link_options(extconnector INTERFACE "LINKER:--undefined=nodesRemotePlanToInfluxQL")
 endif()
 # ──────────────────────────────────────────────────────────────────────────────
 # Enterprise: link external database client libraries (downloaded via CMake

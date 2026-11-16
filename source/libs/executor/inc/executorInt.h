@@ -319,7 +319,7 @@ typedef struct SExchangeInfo {
 #define FED_SCAN_TABLE_KEY_SUFFIX_LEN 256
 #define FED_SCAN_TABLE_KEY_LEN \
   (TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + \
-   TSDB_TABLE_NAME_LEN + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
+   TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN + 96 + FED_SCAN_TABLE_KEY_SUFFIX_LEN)
 
 // Per-table scan context for multi-table FederatedScan (VStb dynamic dispatch)
 typedef struct SFedScanTableCtx {
@@ -331,6 +331,11 @@ typedef struct SFedScanTableCtx {
   SExtColTypeMapping*   pDynColMappings;   // dynamically built column mappings (VStb)
   int32_t               numDynColMappings;
   SSDataBlock*          pFetchedBlock;      // last fetched block owned by this table context
+  SSDataBlock*          pReferenceRow;
+  bool                  hasPreviousTimestamp;
+  int64_t               previousTimestamp;
+  int64_t               referenceRowsConsumed;
+  int32_t               referenceBlockPos;
   bool                  influxV1;
   char                  influxRp[TSDB_EXT_INFLUX_RP_LEN];
 } SFedScanTableCtx;
@@ -375,6 +380,13 @@ typedef struct SFederatedScanOperatorInfo {
   // conversion to the consumer's declared precision so unrelated direct
   // external-table queries are unaffected.
   bool                      underVTableScan;
+  bool                      hasPreviousTimestamp;
+  int64_t                   previousTimestamp;
+  int64_t                   referenceRowsConsumed;
+  int32_t                   referenceBlockPos;
+  SSDataBlock*              pReferenceRow;
+  SForeignScanOperatorParam* pStaticReferenceParam;
+  bool                      referenceVersionChecked;
   STimeWindow               runtimeTimeRange;
   bool                      hasRuntimeTimeRange;
   const SOperatorParam*     pPrefetchParam;      // borrowed while the dynamic parameter remains owned upstream
@@ -388,8 +400,14 @@ typedef struct SFederatedScanOperatorInfo {
 
 struct SOperatorInfo;
 
+int32_t fedScanValidateReferenceTimestamp(SFederatedScanOperatorInfo* pInfo,
+                                          const SColumnInfoData* pTs, int32_t row);
+int32_t fedScanAppendTimestampOrder(char* sql, int32_t capacity, int32_t* pOffset,
+                                    EExtSourceType sourceType, int8_t bindingKind, const char* timeColumn);
+bool fedScanReferenceLimitReached(const SFederatedScanOperatorInfo* pInfo);
 void fedScanReleaseFetchedBlock(SFederatedScanOperatorInfo* pInfo);
 int32_t fedScanSaveActiveCtx(SFederatedScanOperatorInfo* pInfo);
+void fedScanRestoreCtx(SFederatedScanOperatorInfo* pInfo, const char* tableKey);
 int32_t federatedScanPrefetch(struct SOperatorInfo* pOperator, SOperatorParam* pParam);
 void federatedScanPropagatePrefetchError(struct SOperatorInfo* pOperator, int32_t code);
 typedef struct SScanInfo {

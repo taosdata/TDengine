@@ -207,6 +207,9 @@ void    nodesGetSubQType(SNode* pNode, int32_t* pType);
 struct SExtTableNode;
 int32_t nodesCaptureInfluxSchema(struct SExtTableNode* pTable);
 
+int32_t nodesFormatReferenceSource(const SColRef *pRef, const SReferenceEntry *pReference,
+                                   char *buffer, int32_t capacity);
+
 #ifdef __cplusplus
 }
 #endif

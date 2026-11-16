@@ -526,6 +526,56 @@ TEST(TableMetaTest, acceptsVirtualChildWithoutColumnReferences) {
   taosMemoryFree(meta);
 }
 
+TEST(TableMetaTest, referenceDeclarationsBelongToChildMetadata) {
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  schemas[0].colId = 1;
+  strcpy(schemas[0].name, "ts");
+  schemas[1].type = TSDB_DATA_TYPE_INT;
+  schemas[1].bytes = sizeof(int32_t);
+  schemas[1].colId = 2;
+  strcpy(schemas[1].name, "value");
+
+  SReferenceEntry reference = {};
+  strcpy(reference.alias, "r");
+  strcpy(reference.sourceName, "src");
+  strcpy(reference.objectName, "readings");
+  strcpy(reference.timeColumn, "event_time");
+  SVtableDeclOrder declaration = {};
+  declaration.bindingKind = VTABLE_BINDING_REFERENCE;
+  strcpy(declaration.alias, "r");
+
+  STableMetaRsp msg = {};
+  msg.tableType = TSDB_VIRTUAL_CHILD_TABLE;
+  msg.numOfColumns = 2;
+  msg.pSchemas = schemas;
+  msg.referenceExt.nReferences = 1;
+  msg.referenceExt.pReferences = &reference;
+  msg.referenceExt.nDeclarations = 1;
+  msg.referenceExt.pDeclarations = &declaration;
+
+  for (auto constructor : {queryCreateTableMetaFromMsg, queryCreateTableMetaExFromMsg}) {
+    for (bool isStb : {false, true}) {
+      STableMeta* meta = nullptr;
+      ASSERT_EQ(constructor(&msg, isStb, &meta), TSDB_CODE_SUCCESS);
+      ASSERT_NE(meta, nullptr);
+      EXPECT_EQ(meta->referenceExt.nReferences, isStb ? 0 : 1);
+      EXPECT_EQ(meta->referenceExt.nDeclarations, isStb ? 0 : 1);
+      EXPECT_NE(meta->referenceExt.pReferences, &reference);
+      queryFreeTableMeta(meta);
+    }
+  }
+
+  SVCTableMeta* child = nullptr;
+  ASSERT_EQ(queryCreateVCTableMetaFromMsg(&msg, &child), TSDB_CODE_SUCCESS);
+  ASSERT_NE(child, nullptr);
+  EXPECT_EQ(child->referenceExt.nReferences, 1);
+  EXPECT_EQ(child->referenceExt.nDeclarations, 1);
+  EXPECT_NE(child->referenceExt.pReferences, &reference);
+  queryFreeTableMeta(reinterpret_cast<STableMeta*>(child));
+}
+
 TEST(ExtTimestampTypePrecisionTest, rejectsSubMicrosecondFraction) {
   // SQL Server datetime2/datetimeoffset accept 7 fractional digits and default
   // to 7 when the modifier is omitted.  The connector transports microseconds,

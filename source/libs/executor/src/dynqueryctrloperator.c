@@ -56,6 +56,7 @@ typedef struct SDynResolvedColRef {
   tb_uid_t leafUid;
   int32_t  leafVgId;
   col_id_t leafColId;
+  int32_t  leafRversion;
 } SDynResolvedColRef;
 
 struct SDynVtbRefResolveCtx {
@@ -78,13 +79,14 @@ typedef struct SDynRefEdge {
   tb_uid_t   uid;
   int32_t    vgId;
   col_id_t   colId;
+  int32_t    rversion;
   bool       isNullRef;
 } SDynRefEdge;
 
 typedef struct SDynLeafVtbKey {
   tb_uid_t uid;
   int32_t  vgId;
-  int32_t  reserved;
+  int32_t  rversion;
 } SDynLeafVtbKey;
 
 typedef struct SDynLeafCondTarget {
@@ -1025,6 +1027,11 @@ static int32_t buildFederatedScanOperatorParam(SOperatorParam** ppRes, int32_t d
   QUERY_CHECK_NULL(pFsParam, code, lino, _return, terrno);
   pParam->value = pFsParam;
   pFsParam->paramType = FOREIGN_SCAN_PARAM_SINGLE;
+  pFsParam->bindingKind = pForeignInfo->bindingKind;
+  pFsParam->expectedRversion = pForeignInfo->expectedRversion;
+  pFsParam->referenceUid = pForeignInfo->referenceUid;
+  tstrncpy(pFsParam->referenceAlias, pForeignInfo->referenceAlias, sizeof(pFsParam->referenceAlias));
+  tstrncpy(pFsParam->timeColumn, pForeignInfo->timeColumn, sizeof(pFsParam->timeColumn));
 
   tstrncpy(pFsParam->sourceName, pForeignInfo->sourceName, sizeof(pFsParam->sourceName));
   tstrncpy(pFsParam->dbName, pForeignInfo->dbName, sizeof(pFsParam->dbName));
@@ -1044,7 +1051,7 @@ static int32_t buildFederatedScanOperatorParam(SOperatorParam** ppRes, int32_t d
                             pForeignInfo->filterCondJson, pForeignInfo->filterCondLen);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  if (pForeignInfo->pPushedCond != NULL) {
+  if (pForeignInfo->bindingKind != VTABLE_BINDING_REFERENCE && pForeignInfo->pPushedCond != NULL) {
     code = nodesCloneNode(pForeignInfo->pPushedCond, &pFsParam->pPushedCond);
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -1144,6 +1151,11 @@ static int32_t appendForeignTableInfo(SArray* pTables, const SForeignSourceInfo*
                               : cloneRequiredForeignColMap(pSource->colMap, pRequiredColIds);
   QUERY_CHECK_NULL(info.colMap, code, lino, _return, terrno);
   info.dstPrecision = dstPrecision;
+  info.bindingKind = pSource->bindingKind;
+  info.expectedRversion = pSource->expectedRversion;
+  info.referenceUid = pSource->referenceUid;
+  tstrncpy(info.referenceAlias, pSource->referenceAlias, sizeof(info.referenceAlias));
+  tstrncpy(info.timeColumn, pSource->timeColumn, sizeof(info.timeColumn));
   info.rowLimit = pSource->rowLimit;
   info.virtualChildUid = pSource->virtualChildUid;
   info.scanParamId = pSource->scanParamId;
@@ -1159,7 +1171,7 @@ static int32_t appendForeignTableInfo(SArray* pTables, const SForeignSourceInfo*
     QUERY_CHECK_NULL(info.tagCond, code, lino, _return, terrno)
     info.tagCondLen = pSource->tagCondLen;
   }
-  if (pSource->pPushedCond != NULL) {
+  if (pSource->bindingKind != VTABLE_BINDING_REFERENCE && pSource->pPushedCond != NULL) {
     code = nodesNodeToString(pSource->pPushedCond, false, &info.pPushedCondJson, NULL);
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -4257,6 +4269,7 @@ static int32_t dynPutResolvedColRef(SVtbScanDynCtrlInfo* pVtbScan, const char* r
     pResolved->leafUid = pLeafEdge->uid;
     pResolved->leafVgId = pLeafEdge->vgId;
     pResolved->leafColId = pLeafEdge->colId;
+    pResolved->leafRversion = pLeafEdge->rversion;
   } else if ('\0' != fullColRef[0]) {
     code = parseColRefNameView(fullColRef, &refView);
     QUERY_CHECK_CODE(code, line, _return);
@@ -4486,6 +4499,10 @@ static int32_t dynCollectSysScanNextRefs(SOperatorInfo* pTargetOp, SHashObj* pRe
       GET_TYPED_DATA(edge.uid, int64_t, TSDB_DATA_TYPE_BIGINT, colDataGetNumData(pUidCol, i), 0);
       GET_TYPED_DATA(edge.colId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pColIdCol, i), 0);
       GET_TYPED_DATA(edge.vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, i), 0);
+      SColumnInfoData* pVersionCol = taosArrayGet(pBlock->pDataBlock, VC_COL_REF_VERSION);
+      QUERY_CHECK_NULL(pVersionCol, code, line, _return, TSDB_CODE_INVALID_MSG);
+      QUERY_CHECK_CONDITION(!colDataIsNull_s(pVersionCol, i), code, line, _return, TSDB_CODE_INVALID_MSG);
+      GET_TYPED_DATA(edge.rversion, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVersionCol, i), 0);
 
       int32_t refLen = varDataLen(colDataGetData(pRefCol, i));
       if (refLen >= sizeof(edge.nextRef.colRef)) {
@@ -5100,6 +5117,7 @@ static int32_t dynGetLeafVtbKey(SOperatorInfo* pOperator, SColRefInfo* pColRef, 
 
   if (pColRef->extRefType == 1) {
     pKey->uid = pColRef->uid;
+    pKey->rversion = pColRef->rversion;
     pKey->vgId = pColRef->vgId;
     *pLeafColId = pColRef->colId;
   } else {
@@ -5109,6 +5127,7 @@ static int32_t dynGetLeafVtbKey(SOperatorInfo* pOperator, SColRefInfo* pColRef, 
       return code;
     }
     pKey->uid = pResolved->leafUid;
+    pKey->rversion = pResolved->leafRversion;
     pKey->vgId = pResolved->leafVgId;
     *pLeafColId = pResolved->leafColId;
   }
@@ -5183,6 +5202,8 @@ static int32_t dynBuildLeafCondGroups(SOperatorInfo* pOperator, SHashObj** ppGro
       }
 
       target.pColRef = pColRef;
+      pColRef->referenceUid = key.uid;
+      pColRef->expectedRversion = key.rversion;
       code = dynAddLeafCondTarget(pGroups, &key, &target);
       QUERY_CHECK_CODE(code, line, _return);
     }
@@ -5233,6 +5254,20 @@ static int32_t dynBackfillLeafConds(const SVTagCondRsp* pRsp, SArray* pTargets) 
 
   QUERY_CHECK_NULL(pRsp, code, line, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_NULL(pTargets, code, line, _return, TSDB_CODE_INVALID_PARA);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pRsp->pBindings); ++i) {
+    const SVtableRuntimeBinding* pBinding = taosArrayGet(pRsp->pBindings, i);
+    QUERY_CHECK_NULL(pBinding, code, line, _return, TSDB_CODE_INVALID_MSG);
+    for (int32_t j = 0; j < taosArrayGetSize(pTargets); ++j) {
+      SDynLeafCondTarget* pTarget = taosArrayGet(pTargets, j);
+      if (pTarget->leafColId != pBinding->colId) continue;
+      pTarget->pColRef->bindingKind = pBinding->bindingKind;
+      tstrncpy(pTarget->pColRef->referenceAlias, pBinding->referenceAlias,
+               sizeof(pTarget->pColRef->referenceAlias));
+      tstrncpy(pTarget->pColRef->timeColumn, pBinding->timeColumn,
+               sizeof(pTarget->pColRef->timeColumn));
+    }
+  }
 
   for (int32_t i = 0; i < taosArrayGetSize(pRsp->pEntries); ++i) {
     SVTagCondEntry* pEntry = taosArrayGet(pRsp->pEntries, i);
@@ -5327,6 +5362,8 @@ static int32_t fetchVtbCondGroup(SOperatorInfo* pOperator, const SDynLeafVtbKey*
   }
 
   QUERY_CHECK_NULL(pVtbScan->pTagCondRsp, code, line, _return, TSDB_CODE_INVALID_MSG);
+  QUERY_CHECK_CONDITION(pVtbScan->pTagCondRsp->rversion == pKey->rversion,
+                        code, line, _return, TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER);
   code = dynBackfillLeafConds(pVtbScan->pTagCondRsp, pTargets);
   QUERY_CHECK_CODE(code, line, _return);
 
@@ -5541,6 +5578,9 @@ int32_t getColRefInfo(SColRefInfo *pInfo, SArray* pDataBlock, int32_t index) {
   }
   if (!colDataIsNull_s(pVgIdCol, index)) {
     GET_TYPED_DATA(pInfo->vgId, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pVgIdCol, index), 0);
+  }
+  if (!colDataIsNull_s(pRefVerCol, index)) {
+    GET_TYPED_DATA(pInfo->rversion, int32_t, TSDB_DATA_TYPE_INT, colDataGetNumData(pRefVerCol, index), 0);
   }
   pInfo->refType = 0;
   if (pRefTypeCol != NULL && !colDataIsNull_s(pRefTypeCol, index)) {
@@ -5845,7 +5885,8 @@ static int32_t buildForeignSourceKey(const SColRefInfo* pColRef, const char* sou
   uint32_t dbNameLen = (uint32_t)strlen(dbName);
   uint32_t schemaNameLen = (uint32_t)strlen(schema);
   uint32_t tableNameLen = (uint32_t)strlen(tableName);
-  size_t keySize = sizeof(pColRef->uid) + sizeof(sourceNameLen) + sourceNameLen +
+  size_t keySize = sizeof(pColRef->uid) + sizeof(pColRef->expectedRversion) +
+                   sizeof(pColRef->referenceUid) + sizeof(pColRef->bindingKind) + sizeof(pColRef->timeColumn) + sizeof(sourceNameLen) + sourceNameLen +
                    sizeof(dbNameLen) + dbNameLen + sizeof(schemaNameLen) + schemaNameLen +
                    sizeof(tableNameLen) + tableNameLen +
                    sizeof(pColRef->filterCondLen) + (size_t)pColRef->filterCondLen +
@@ -5856,6 +5897,14 @@ static int32_t buildForeignSourceKey(const SColRefInfo* pColRef, const char* sou
   QUERY_CHECK_NULL(pKey, code, line, _return, terrno);
 
   size_t offset = 0;
+  TAOS_MEMCPY(pKey + offset, &pColRef->expectedRversion, sizeof(pColRef->expectedRversion));
+  offset += sizeof(pColRef->expectedRversion);
+  TAOS_MEMCPY(pKey + offset, &pColRef->referenceUid, sizeof(pColRef->referenceUid));
+  offset += sizeof(pColRef->referenceUid);
+  TAOS_MEMCPY(pKey + offset, &pColRef->bindingKind, sizeof(pColRef->bindingKind));
+  offset += sizeof(pColRef->bindingKind);
+  TAOS_MEMCPY(pKey + offset, pColRef->timeColumn, sizeof(pColRef->timeColumn));
+  offset += sizeof(pColRef->timeColumn);
   TAOS_MEMCPY(pKey + offset, &pColRef->uid, sizeof(pColRef->uid));
   offset += sizeof(pColRef->uid);
   TAOS_MEMCPY(pKey + offset, &sourceNameLen, sizeof(sourceNameLen));
@@ -6048,8 +6097,10 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
     timezone = tzalloc('\0' != pScan->timezone[0] ? pScan->timezone : NULL);
     QUERY_CHECK_NULL(timezone, code, lino, _return, terrno);
   }
-  code = nodesValidateExternalFilterCurrentMeta(sourceType, pMeta, pRef->filterCondJson, pRef->filterCondLen, timezone,
-                                                NULL, reason, sizeof(reason), &tsIdx);
+  SExternalBindingContext binding = {pRef->bindingKind, pRef->timeColumn};
+  code = nodesValidateExternalFilterCurrentMetaEx(sourceType, pMeta, pRef->filterCondJson,
+                                                  pRef->filterCondLen, timezone, NULL, reason,
+                                                  sizeof(reason), &tsIdx, &binding);
   QUERY_CHECK_CODE(code, lino, _return);
   QUERY_CHECK_CONDITION(tsIdx >= 0 && tsIdx < pMeta->numOfCols, code, lino, _return, TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
   QUERY_CHECK_CONDITION(extTimestampTypePrecision(sourceType, pMeta->pCols[tsIdx].extTypeName, pMeta->tsPrecision) <=
@@ -6137,6 +6188,11 @@ static int32_t addForeignSourceColRef(SOperatorInfo* pOperator, const SColRefInf
     tstrncpy(fsInfo.schemaName, useSchema, sizeof(fsInfo.schemaName));
     tstrncpy(fsInfo.tableName, refTbName, sizeof(fsInfo.tableName));
     fsInfo.virtualChildUid = pKV->uid;
+    fsInfo.bindingKind = pKV->bindingKind;
+    fsInfo.expectedRversion = pKV->expectedRversion;
+    fsInfo.referenceUid = pKV->referenceUid;
+    tstrncpy(fsInfo.referenceAlias, pKV->referenceAlias, sizeof(fsInfo.referenceAlias));
+    tstrncpy(fsInfo.timeColumn, pKV->timeColumn, sizeof(fsInfo.timeColumn));
     fsInfo.scanParamId = MurmurHash3_64((const char *)foreignKey, (uint32_t)keyLen);
     code = dynReplaceCondJson(&fsInfo.tagCond, &fsInfo.tagCondLen,
                               pKV->tagCondJson, pKV->tagCondLen);

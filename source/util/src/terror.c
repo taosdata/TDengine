@@ -1246,6 +1246,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_EXT_FILTER_SQL_FAILED, "Cannot generate or ex
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INVALID_EXT_FILTER,     "Invalid external column filter expression")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_DUPLICATE_EXT_FILTER_COLUMN, "Duplicate column in external column filter")
 TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_INCOMPLETE_EXT_PK_FILTER, "External column filter must constrain every business primary key column with an equality literal")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME, "Ambiguous virtual table reference name")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_NULL_TIMESTAMP, "Virtual table reference contains a null timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP, "Virtual table reference contains duplicate timestamps")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_TIMESTAMP_OUT_OF_ORDER, "Virtual table reference timestamps are out of order")
+TAOS_DEFINE_ERROR(TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT, "Virtual table reference version conflict")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_SEQ_NOT_FOUND, "Blob seq not found")
 TAOS_DEFINE_ERROR(TSDB_CODE_BLOB_NOT_SUPPORT_TAG, "Blob type is not supported on tag")

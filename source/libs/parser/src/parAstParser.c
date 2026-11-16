@@ -715,6 +715,13 @@ static int32_t collectMetaKeyFromSeriesList(SCollectMetaKeyCxt* pCxt, SNodeList*
   SNode*  pSeriesNode = NULL;
 
   FOREACH(pSeriesNode, pSeriesList) {
+    if (nodeType(pSeriesNode) == QUERY_NODE_REFERENCE_DECL) {
+      const SReferenceEntry* pEntry = &((SReferenceDeclNode*)pSeriesNode)->entry;
+      PAR_ERR_RET(reserveExtSourceInCache(pEntry->sourceName, pCxt->pMetaCache));
+      PAR_ERR_RET(reserveExtTableMetaInCache(pEntry->sourceName, pEntry->dbName, pEntry->schemaName,
+                                             pEntry->objectName, pCxt->pMetaCache));
+      continue;
+    }
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
     PAR_ERR_RET(reserveExtSourceInCache(pDecl->sourceName, pCxt->pMetaCache));
     PAR_ERR_RET(reserveExtTableMetaInCache(pDecl->sourceName, pDecl->dbName, "",
@@ -724,15 +731,17 @@ static int32_t collectMetaKeyFromSeriesList(SCollectMetaKeyCxt* pCxt, SNodeList*
   return code;
 }
 
-static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRefTable) {
+static bool isSeriesAliasInCreateVTable(SNodeList* pSeriesList, const char* pRefTable, int8_t parts) {
   if (NULL == pSeriesList || NULL == pRefTable) {
     return false;
   }
 
   SNode* pSNode = NULL;
   FOREACH(pSNode, pSeriesList) {
-    SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSNode;
-    if (0 == strcmp(pRefTable, pDecl->alias)) {
+    if (nodeType(pSNode) == QUERY_NODE_REFERENCE_DECL && parts != 2) continue;
+    const char* alias = nodeType(pSNode) == QUERY_NODE_REFERENCE_DECL
+                            ? ((SReferenceDeclNode*)pSNode)->entry.alias : ((SSeriesDeclNode*)pSNode)->alias;
+    if (0 == strcmp(pRefTable, alias)) {
       return true;
     }
   }
@@ -786,7 +795,7 @@ static int32_t collectMetaKeyFromCreateVTable(SCollectMetaKeyCxt* pCxt, SCreateV
       continue;
     }
 
-    if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+    if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable, pOptions->refPathParts)) {
       continue;
     }
 
@@ -890,7 +899,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
       }
 
       // Check if refTableName matches a SERIES alias - skip internal table lookup if so
-      if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName)) {
+      if (isSeriesAliasInCreateVTable(pStmt->pSeriesList, pColRef->refTableName, pColRef->refPathParts)) {
         continue;
       }
 
@@ -918,7 +927,7 @@ static int32_t collectMetaKeyFromCreateVSubTable(SCollectMetaKeyCxt* pCxt, SCrea
                                                pOptions->refSchema, pOptions->refTable, pCxt->pMetaCache));
         continue;
       }
-      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable)) {
+      if (pOptions && isSeriesAliasInCreateVTable(pStmt->pSeriesList, pOptions->refTable, pOptions->refPathParts)) {
         continue;
       }
       if (pOptions && pOptions->hasRef && pOptions->refSourceName[0] == '\0') {
@@ -1319,6 +1328,14 @@ static int32_t collectMetaKeyFromAlterStable(SCollectMetaKeyCxt* pCxt, SAlterTab
 
 static int32_t collectMetaKeyFromAlterVtable(SCollectMetaKeyCxt* pCxt, SAlterTableStmt* pStmt) {
   PAR_ERR_RET(collectMetaKeyFromAlterTable(pCxt, pStmt));
+
+  if ((pStmt->alterType == TSDB_ALTER_TABLE_ADD_REFERENCE ||
+       pStmt->alterType == TSDB_ALTER_TABLE_MODIFY_REFERENCE) && pStmt->pSeriesDecl) {
+    SReferenceEntry* pEntry = &((SReferenceDeclNode*)pStmt->pSeriesDecl)->entry;
+    PAR_ERR_RET(reserveExtSourceInCache(pEntry->sourceName, pCxt->pMetaCache));
+    PAR_ERR_RET(reserveExtTableMetaInCache(pEntry->sourceName, pEntry->dbName, pEntry->schemaName,
+                                           pEntry->objectName, pCxt->pMetaCache));
+  }
 
   if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_SERIES && pStmt->pSeriesDecl) {
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pStmt->pSeriesDecl;

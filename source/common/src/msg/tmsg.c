@@ -7371,6 +7371,9 @@ int32_t tSerializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeSColRefFilterConds(&encoder, pRsp->pColRefs, pRsp->numOfColumns));
   }
 
+  if (hasColRef(pRsp->tableType)) {
+    TAOS_CHECK_EXIT(tEncodeVtableReferenceExt(&encoder, &pRsp->referenceExt));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -7387,6 +7390,7 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  memset(&pRsp->referenceExt, 0, sizeof(pRsp->referenceExt));
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
@@ -7593,6 +7597,9 @@ int32_t tDeserializeSTableCfgRsp(void *buf, int32_t bufLen, STableCfgRsp *pRsp) 
     TAOS_CHECK_EXIT(tDecodeSColRefFilterConds(&decoder, pRsp->pColRefs, pRsp->numOfColumns));
   }
 
+  if (hasColRef(pRsp->tableType) && !tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeVtableReferenceExt(&decoder, &pRsp->referenceExt));
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -7620,6 +7627,7 @@ void tFreeSTableCfgRsp(STableCfgRsp *pRsp) {
     taosMemoryFreeClear(pRsp->pSeries);
   }
 
+  tFreeVtableReferenceExt(&pRsp->referenceExt);
   taosArrayDestroy(pRsp->pFuncs);
 }
 
@@ -8346,6 +8354,9 @@ void vctRefColToInfo(const SVCTableRefCols *pTb, const SRefColEntry *pEntry, SRe
   tstrncpy(pInfo->refColName, vctRefStr(pTb, pEntry->colOff), TSDB_COL_NAME_LEN);
   tstrncpy(pInfo->refSourceName, vctRefStr(pTb, pEntry->srcOff), TSDB_EXT_SOURCE_NAME_LEN);
   tstrncpy(pInfo->refSchemaName, vctRefStr(pTb, pEntry->schemaOff), TSDB_EXT_SOURCE_SCHEMA_LEN);
+  pInfo->bindingKind = pEntry->bindingKind;
+  tstrncpy(pInfo->referenceAlias, vctRefStr(pTb, pEntry->aliasOff), sizeof(pInfo->referenceAlias));
+  tstrncpy(pInfo->timeColumn, vctRefStr(pTb, pEntry->timeOff), sizeof(pInfo->timeColumn));
   pInfo->hasFilterCond = (pEntry->flags & VCT_REF_FLAG_HAS_FILTER_COND) != 0;
 }
 
@@ -8366,6 +8377,8 @@ static uint32_t vctRefColArenaBytes(const SRefColInfo *pRef) {
   if (pRef->refSchemaName[0] != '\0') {
     bytes += (uint32_t)strlen(pRef->refSchemaName) + 1;
   }
+  if (pRef->referenceAlias[0]) bytes += (uint32_t)strlen(pRef->referenceAlias) + 1;
+  if (pRef->timeColumn[0]) bytes += (uint32_t)strlen(pRef->timeColumn) + 1;
   return bytes;
 }
 
@@ -8378,6 +8391,9 @@ static void vctFillRefEntry(SVctRefContent *pContent, uint32_t *pArenaPos, SRefC
   pEntry->colOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refColName);
   pEntry->srcOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refSourceName);
   pEntry->schemaOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->refSchemaName);
+  pEntry->bindingKind = pRef->bindingKind;
+  pEntry->aliasOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->referenceAlias);
+  pEntry->timeOff = tVctRefContentPutStr(pContent, pArenaPos, pRef->timeColumn);
 }
 
 SVCTableRefCols *tVctRefRecordNew(uint64_t uid, int32_t numOfSrcTbls, int32_t numOfColRefs,
@@ -8534,6 +8550,20 @@ int32_t tSerializeSVSubTablesRspImpl(SEncoder *pEncoder, SVSubTablesRsp *pRsp) {
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->schemaOff)));
     }
   }
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, numOfTables));
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    const SVCTableRefCols* pTb = taosArrayGetP(pRsp->pTables, i);
+    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pTb->uid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->rversion));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pTb->numOfColRefs));
+    for (int32_t n = 0; n < pTb->numOfColRefs; ++n) {
+      const SRefColEntry* pEntry = vctColRefAt(pTb, n);
+      TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pEntry->colId));
+      TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pEntry->bindingKind));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->aliasOff)));
+      TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, vctRefStr(pTb, pEntry->timeOff)));
+    }
+  }
 _exit:
 
   return code;
@@ -8594,6 +8624,47 @@ static int32_t vctDecodeRefEntry(SDecoder *pDecoder, SVctRefContent *pContent, u
   pEntry->tbOff = tVctRefContentPutStr(pContent, pArenaPos, str);
   TAOS_CHECK_RETURN(tDecodeCStr(pDecoder, &str));
   pEntry->colOff = tVctRefContentPutStr(pContent, pArenaPos, str);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t vctDecodeReferenceTail(SDecoder* pDecoder, SVSubTablesRsp* pRsp,
+                                      SVctTblSizing* pSizing, uint32_t* pArenaPos,
+                                      SHashObj* pUidIdx, int32_t numOfTables, bool sizeOnly) {
+  int32_t numRecords = 0;
+  TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &numRecords));
+  if (numRecords != numOfTables) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < numRecords; ++i) {
+    uint64_t uid = 0;
+    int32_t version = 0;
+    int32_t numCols = 0;
+    TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &uid));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &version));
+    TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &numCols));
+    int32_t* pIdx = taosHashGet(pUidIdx, &uid, sizeof(uid));
+    if (pIdx == NULL || *pIdx != i || numCols != pSizing[i].numOfColRefs) return TSDB_CODE_INVALID_MSG;
+    SVCTableRefCols* pTb = sizeOnly ? NULL : taosArrayGetP(pRsp->pTables, i);
+    if (pTb != NULL) pTb->rversion = version;
+    for (int32_t n = 0; n < numCols; ++n) {
+      SVtableRuntimeBinding binding = {0};
+      TAOS_CHECK_RETURN(tDecodeI16(pDecoder, &binding.colId));
+      TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &binding.bindingKind));
+      TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, binding.referenceAlias, sizeof(binding.referenceAlias)));
+      TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, binding.timeColumn, sizeof(binding.timeColumn)));
+      if (binding.bindingKind < VTABLE_BINDING_LEGACY || binding.bindingKind > VTABLE_BINDING_SERIES) {
+        return TSDB_CODE_INVALID_MSG;
+      }
+      if (sizeOnly) {
+        if (binding.referenceAlias[0]) pSizing[i].arenaBytes += strlen(binding.referenceAlias) + 1;
+        if (binding.timeColumn[0]) pSizing[i].arenaBytes += strlen(binding.timeColumn) + 1;
+      } else {
+        SRefColEntry* pEntry = vctColRefAt(pTb, n);
+        if (pEntry->colId != binding.colId) return TSDB_CODE_INVALID_MSG;
+        pEntry->bindingKind = binding.bindingKind;
+        pEntry->aliasOff = tVctRefContentPutStr(pTb->pContent, &pArenaPos[i], binding.referenceAlias);
+        pEntry->timeOff = tVctRefContentPutStr(pTb->pContent, &pArenaPos[i], binding.timeColumn);
+      }
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -8722,6 +8793,10 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
         }
       }
     }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(vctDecodeReferenceTail(pDecoder, pRsp, pSizing, pArenaPos, pUidIdx, numOfTables, true));
   }
 
   // Pass 2: allocate each block exactly once, then fill entries and strings.
@@ -8883,6 +8958,10 @@ int32_t tDeserializeSVSubTablesRspImpl(SDecoder *pDecoder, SVSubTablesRsp *pRsp)
         }
       }
     }
+  }
+
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(vctDecodeReferenceTail(pDecoder, pRsp, pSizing, pArenaPos, pUidIdx, numOfTables, false));
   }
 
   if (numOfTables > 0) {
@@ -9077,6 +9156,19 @@ int32_t tSerializeSVStbRefDbsRspImpl(SEncoder *pEncoder, SVStbRefDbsRsp *pRsp) {
     TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->refSchemaName));
   }
 
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRsp->numOfColRefs));
+  for (int32_t i = 0; i < pRsp->numOfColRefs; ++i) {
+    const SRefColInfo* pRef = &pRsp->pColRefCols[i];
+    TAOS_CHECK_EXIT(tEncodeI16(pEncoder, pRef->colId));
+    TAOS_CHECK_EXIT(tEncodeI8(pEncoder, pRef->bindingKind));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->referenceAlias));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->timeColumn));
+    TAOS_CHECK_EXIT(tEncodeU64(pEncoder, pRef->referenceUid));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRef->expectedRversion));
+    TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pRef->referenceVgId));
+    TAOS_CHECK_EXIT(tEncodeSEpSet(pEncoder, &pRef->referenceEpSet));
+    TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pRef->referenceDbFName));
+  }
 _exit:
 
   return code;
@@ -9205,6 +9297,25 @@ int32_t tDeserializeSVStbRefDbsRspImpl(SDecoder *pDecoder, SVStbRefDbsRsp *pRsp)
     }
   }
 
+  if (!tDecodeIsEnd(pDecoder)) {
+    int32_t count = 0;
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &count));
+    if (count != pRsp->numOfColRefs) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    for (int32_t i = 0; i < count; ++i) {
+      SRefColInfo* pRef = &pRsp->pColRefCols[i];
+      col_id_t colId = 0;
+      TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &colId));
+      if (colId != pRef->colId) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRef->bindingKind));
+      TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->referenceAlias, sizeof(pRef->referenceAlias)));
+      TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->timeColumn, sizeof(pRef->timeColumn)));
+      TAOS_CHECK_EXIT(tDecodeU64(pDecoder, &pRef->referenceUid));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRef->expectedRversion));
+      TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pRef->referenceVgId));
+      TAOS_CHECK_EXIT(tDecodeSEpSet(pDecoder, &pRef->referenceEpSet));
+      TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->referenceDbFName, sizeof(pRef->referenceDbFName)));
+    }
+  }
 _exit:
 
   return code;
@@ -9335,6 +9446,16 @@ int32_t tSerializeSVTagCondRsp(void *buf, int32_t bufLen, SVTagCondRsp *pRsp) {
           tEncodeBinary(&encoder, (const uint8_t *)pCond->filterCondJson, pCond->filterCondLen));
     }
   }
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, pRsp->rversion));
+  num = taosArrayGetSize(pRsp->pBindings);
+  TAOS_CHECK_EXIT(tEncodeI32(&encoder, num));
+  for (int32_t i = 0; i < num; ++i) {
+    const SVtableRuntimeBinding* pBinding = taosArrayGet(pRsp->pBindings, i);
+    TAOS_CHECK_EXIT(tEncodeI16(&encoder, pBinding->colId));
+    TAOS_CHECK_EXIT(tEncodeI8(&encoder, pBinding->bindingKind));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pBinding->referenceAlias));
+    TAOS_CHECK_EXIT(tEncodeCStr(&encoder, pBinding->timeColumn));
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -9356,6 +9477,9 @@ int32_t tDeserializeSVTagCondRsp(void *buf, int32_t bufLen, SVTagCondRsp *pRsp) 
   int32_t  lino = 0;
   int32_t  num = 0;
 
+  pRsp->rversion = 0;
+  pRsp->numOfBindings = 0;
+  pRsp->pBindings = NULL;
   pRsp->numOfFilterConds = 0;
   pRsp->pFilterConds = NULL;
 
@@ -9434,6 +9558,26 @@ int32_t tDeserializeSVTagCondRsp(void *buf, int32_t bufLen, SVTagCondRsp *pRsp) 
       }
     }
   }
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->rversion));
+    TAOS_CHECK_EXIT(tDecodeI32(&decoder, &pRsp->numOfBindings));
+    if (pRsp->numOfBindings < 0 || pRsp->numOfBindings > TSDB_MAX_COLUMNS) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    pRsp->pBindings = taosArrayInit(pRsp->numOfBindings, sizeof(SVtableRuntimeBinding));
+    if (pRsp->pBindings == NULL) TAOS_CHECK_EXIT(terrno);
+    for (int32_t i = 0; i < pRsp->numOfBindings; ++i) {
+      SVtableRuntimeBinding binding = {0};
+      TAOS_CHECK_EXIT(tDecodeI16(&decoder, &binding.colId));
+      TAOS_CHECK_EXIT(tDecodeI8(&decoder, &binding.bindingKind));
+      TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, binding.referenceAlias, sizeof(binding.referenceAlias)));
+      TAOS_CHECK_EXIT(tDecodeCStrToFixed(&decoder, binding.timeColumn, sizeof(binding.timeColumn)));
+      if (binding.bindingKind < VTABLE_BINDING_LEGACY || binding.bindingKind > VTABLE_BINDING_SERIES) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      if (taosArrayPush(pRsp->pBindings, &binding) == NULL) TAOS_CHECK_EXIT(terrno);
+    }
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -9471,6 +9615,9 @@ void tDestroySVTagCondRsp(void *rsp) {
     taosArrayDestroy(pRsp->pFilterConds);
     pRsp->pFilterConds = NULL;
   }
+  taosArrayDestroy(pRsp->pBindings);
+  pRsp->pBindings = NULL;
+  pRsp->numOfBindings = 0;
   pRsp->numOfFilterConds = 0;
 }
 
@@ -12445,6 +12592,8 @@ _exit:
   return code;
 }
 
+enum { TMSG_TABLE_META_REFERENCE_MARKER = 0x52454631 };
+
 static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->tbName));
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRsp->stbName));
@@ -12528,6 +12677,10 @@ static int32_t tEncodeSTableMetaRsp(SEncoder *pEncoder, STableMetaRsp *pRsp) {
     TAOS_CHECK_RETURN(tEncodeSColRefFilterConds(pEncoder, pRsp->pColRefs, pRsp->numOfColRefs));
   }
 
+  if (hasColRef(pRsp->tableType)) {
+    TAOS_CHECK_RETURN(tEncodeI32(pEncoder, TMSG_TABLE_META_REFERENCE_MARKER));
+    TAOS_CHECK_RETURN(tEncodeVtableReferenceExt(pEncoder, &pRsp->referenceExt));
+  }
   return 0;
 }
 
@@ -12776,12 +12929,27 @@ static int32_t tableMetaScanFrame(const void *buf, int32_t bufLen) {
     }
   }
 
+  if (hasColRef((int8_t)*pTableType) && cursor.p != cursor.end) {
+    int32_t marker = 0;
+    TAOS_CHECK_RETURN(tableMetaScanI32(&cursor, &marker));
+    if (marker != TMSG_TABLE_META_REFERENCE_MARKER) return TSDB_CODE_INVALID_MSG;
+    SDecoder extensionDecoder = {0};
+    SVtableReferenceExt ext = {0};
+    tDecoderInit(&extensionDecoder, (uint8_t*)cursor.p, (int32_t)(cursor.end - cursor.p));
+    int32_t code = tDecodeVtableReferenceExt(&extensionDecoder, &ext);
+    bool complete = extensionDecoder.pos == extensionDecoder.size;
+    tFreeVtableReferenceExt(&ext);
+    tDecoderClear(&extensionDecoder);
+    TAOS_CHECK_RETURN(code);
+    return complete ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
+  }
   return cursor.p == cursor.end ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG;
 }
 
 // On failure, pRsp may contain allocated members. The caller must free them
 // with tFreeSTableMetaRsp; the decoder does not own these allocations.
 static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
+  memset(&pRsp->referenceExt, 0, sizeof(pRsp->referenceExt));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->tbName));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->stbName));
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pRsp->dbFName));
@@ -12948,6 +13116,18 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
     TAOS_CHECK_RETURN(tDecodeSColRefFilterConds(pDecoder, pRsp->pColRefs, pRsp->numOfColRefs));
   }
 
+  if (hasColRef(pRsp->tableType) && !tDecodeIsEnd(pDecoder)) {
+    // Metadata is also embedded without a separate frame in create/alter replies
+    // and heartbeat batches. Older replies can continue with an enclosing field.
+    int32_t marker = 0;
+    if (TD_CODER_REMAIN_CAPACITY(pDecoder) >= sizeof(marker)) {
+      memcpy(&marker, TD_CODER_CURRENT(pDecoder), sizeof(marker));
+    }
+    if (marker == TMSG_TABLE_META_REFERENCE_MARKER) {
+      TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &marker));
+      TAOS_CHECK_RETURN(tDecodeVtableReferenceExt(pDecoder, &pRsp->referenceExt));
+    }
+  }
   return 0;
 }
 
@@ -13114,6 +13294,7 @@ void tFreeSTableMetaRsp(void *pRsp) {
   }
 
   STableMetaRsp *p = (STableMetaRsp *)pRsp;
+  tFreeVtableReferenceExt(&p->referenceExt);
   taosMemoryFreeClear(p->pSchemas);
   taosMemoryFreeClear(p->pSchemaExt);
   tFreeSColRefArray(p->pColRefs, p->numOfColRefs);
@@ -17867,6 +18048,7 @@ enum {
   //        and rejects the message cleanly instead of misaligning the stream.
   TMSG_FEDERATED_SCAN_CODEC_V2_MARKER = TSDB_MAX_COLUMNS + 1,
   TMSG_FEDERATED_SCAN_CODEC_V3_MARKER = TSDB_MAX_COLUMNS + 2,
+  TMSG_FEDERATED_SCAN_CODEC_V4_MARKER = TSDB_MAX_COLUMNS + 3,
   TMSG_MIN_FOREIGN_TABLE_WIRE_BYTES = 40,
 };
 
@@ -18029,13 +18211,21 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
         }
       }
 
+      bool withReferences = pFsParam->bindingKind != VTABLE_BINDING_LEGACY;
+      for (int32_t i = 0; i < batchNum; ++i) {
+        const SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
+        if (NULL != pTable && pTable->bindingKind != VTABLE_BINDING_LEGACY) withReferences = true;
+      }
+      withSchema = withSchema || withReferences;
+
       if (pFsParam->paramType == FOREIGN_SCAN_PARAM_BATCH) {
         if (colNum != 0 || batchNum <= 0) {
           return TSDB_CODE_INVALID_PARA;
         }
         TAOS_CHECK_RETURN(tEncodeI32(
-            pEncoder, withSchema ? TMSG_FEDERATED_SCAN_CODEC_V3_MARKER
-                                 : TMSG_FEDERATED_SCAN_CODEC_V2_MARKER));
+            pEncoder, withReferences ? TMSG_FEDERATED_SCAN_CODEC_V4_MARKER
+                        : withSchema ? TMSG_FEDERATED_SCAN_CODEC_V3_MARKER
+                                     : TMSG_FEDERATED_SCAN_CODEC_V2_MARKER));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->paramType));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, batchNum));
@@ -18055,6 +18245,17 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
           }
           TAOS_CHECK_RETURN(tEncodeSForeignTableInfo(pEncoder, pTable, withSchema));
         }
+        if (withReferences) {
+          for (int32_t i = 0; i < batchNum; ++i) {
+            const SForeignTableInfo* pTable = taosArrayGet(pFsParam->pBatchTables, i);
+            TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pTable->bindingKind));
+            TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->referenceAlias));
+            TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pTable->timeColumn));
+            TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pTable->referenceUid));
+            TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pTable->expectedRversion));
+          }
+        }
+
         break;
       }
       if (pFsParam->paramType != FOREIGN_SCAN_PARAM_SINGLE || batchNum != 0) {
@@ -18062,7 +18263,8 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       }
 
       if (withSchema) {
-        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, TMSG_FEDERATED_SCAN_CODEC_V3_MARKER));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, withReferences ? TMSG_FEDERATED_SCAN_CODEC_V4_MARKER
+                                                             : TMSG_FEDERATED_SCAN_CODEC_V3_MARKER));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->paramType));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, colNum));
         TAOS_CHECK_RETURN(tEncodeI32(pEncoder, 0));  // batchNum
@@ -18090,6 +18292,13 @@ int32_t tSerializeSOperatorParam(SEncoder *pEncoder, SOperatorParam *pOpParam) {
       TAOS_CHECK_RETURN(tEncodeForeignScanFilter(pEncoder, pFsParam->scanParamId,
                                                  pFsParam->filterCondLen,
                                                  pFsParam->filterCondJson));
+      if (withReferences) {
+        TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pFsParam->bindingKind));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->referenceAlias));
+        TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pFsParam->timeColumn));
+        TAOS_CHECK_RETURN(tEncodeU64(pEncoder, pFsParam->referenceUid));
+        TAOS_CHECK_RETURN(tEncodeI32(pEncoder, pFsParam->expectedRversion));
+      }
       break;
     }
     default:
@@ -18324,10 +18533,13 @@ static int32_t tDeserializeSOperatorParamDepth(SDecoder *pDecoder, SOperatorPara
       int32_t colNum = 0;
       int32_t batchNum = 0;
       bool    withSchema = false;
+      bool    withReferences = false;
       TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &wireHeader));
       if (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V2_MARKER ||
-          wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER) {
-        withSchema = (wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER);
+          wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER ||
+          wireHeader == TMSG_FEDERATED_SCAN_CODEC_V4_MARKER) {
+        withReferences = wireHeader == TMSG_FEDERATED_SCAN_CODEC_V4_MARKER;
+        withSchema = withReferences || wireHeader == TMSG_FEDERATED_SCAN_CODEC_V3_MARKER;
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &paramType));
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &colNum));
         TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &batchNum));
@@ -18386,6 +18598,21 @@ static int32_t tDeserializeSOperatorParamDepth(SDecoder *pDecoder, SOperatorPara
           }
         }
         pFsParam->pBatchTables = pBatchTables;
+        if (withReferences) {
+          for (int32_t i = 0; i < batchNum; ++i) {
+            SForeignTableInfo* pTable = taosArrayGet(pBatchTables, i);
+            TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pTable->bindingKind));
+            TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pTable->referenceAlias, sizeof(pTable->referenceAlias)));
+            TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pTable->timeColumn, sizeof(pTable->timeColumn)));
+            TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pTable->referenceUid));
+            TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pTable->expectedRversion));
+            if (pTable->bindingKind < VTABLE_BINDING_LEGACY || pTable->bindingKind > VTABLE_BINDING_SERIES ||
+                (VTABLE_BINDING_REFERENCE == pTable->bindingKind &&
+                 ('\0' == pTable->referenceAlias[0] || '\0' == pTable->timeColumn[0] || pTable->referenceUid == 0))) {
+              return TSDB_CODE_INVALID_MSG;
+            }
+          }
+        }
         break;
       }
       pFsParam->colMap = taosArrayInit(colNum, sizeof(SColIdNameKV));
@@ -18413,6 +18640,18 @@ static int32_t tDeserializeSOperatorParamDepth(SDecoder *pDecoder, SOperatorPara
       TAOS_CHECK_RETURN(tDecodeForeignScanFilter(pDecoder, &pFsParam->scanParamId,
                                                  &pFsParam->filterCondLen,
                                                  &pFsParam->filterCondJson));
+      if (withReferences) {
+        TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pFsParam->bindingKind));
+        TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pFsParam->referenceAlias, sizeof(pFsParam->referenceAlias)));
+        TAOS_CHECK_RETURN(tDecodeCStrToFixed(pDecoder, pFsParam->timeColumn, sizeof(pFsParam->timeColumn)));
+        TAOS_CHECK_RETURN(tDecodeU64(pDecoder, &pFsParam->referenceUid));
+        TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pFsParam->expectedRversion));
+        if (pFsParam->bindingKind < VTABLE_BINDING_LEGACY || pFsParam->bindingKind > VTABLE_BINDING_SERIES ||
+            (VTABLE_BINDING_REFERENCE == pFsParam->bindingKind &&
+             ('\0' == pFsParam->referenceAlias[0] || '\0' == pFsParam->timeColumn[0] || pFsParam->referenceUid == 0))) {
+          return TSDB_CODE_INVALID_MSG;
+        }
+      }
       break;
     }
     default: {
@@ -20412,6 +20651,196 @@ void tFreeSColRefArray(SColRef* pColRef, int32_t nCols) {
   }
 }
 
+const SVtableBindingLink* tVtableBindingForColumn(const SVtableReferenceExt* pExt, col_id_t colId) {
+  if (pExt == NULL) return NULL;
+  for (int32_t i = 0; i < pExt->nBindings; ++i) {
+    if (pExt->pBindings[i].colId == colId) return &pExt->pBindings[i];
+  }
+  return NULL;
+}
+
+const SReferenceEntry* tVtableReferenceForColumn(const SVtableReferenceExt* pExt, col_id_t colId) {
+  const SVtableBindingLink* pLink = tVtableBindingForColumn(pExt, colId);
+  if (pLink == NULL || pLink->bindingKind != VTABLE_BINDING_REFERENCE) return NULL;
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    if (strcmp(pExt->pReferences[i].alias, pLink->alias) == 0) return &pExt->pReferences[i];
+  }
+  return NULL;
+}
+
+void tFreeVtableReferenceExt(SVtableReferenceExt* pExt) {
+  if (pExt == NULL) return;
+  taosMemoryFree(pExt->pReferences);
+  taosMemoryFree(pExt->pBindings);
+  taosMemoryFree(pExt->pDeclarations);
+  memset(pExt, 0, sizeof(*pExt));
+}
+
+static int32_t validateVtableReferenceExt(const SVtableReferenceExt* pExt) {
+  int32_t referenceDeclarations = 0;
+  if (pExt->nReferences < 0 || pExt->nReferences > TSDB_MAX_VTABLE_REFERENCES ||
+      pExt->nBindings < 0 || pExt->nBindings > TSDB_MAX_COLUMNS ||
+      pExt->nDeclarations < pExt->nReferences ||
+      pExt->nDeclarations > TSDB_MAX_COLUMNS + TSDB_MAX_VTABLE_REFERENCES ||
+      (pExt->nReferences && pExt->pReferences == NULL) ||
+      (pExt->nBindings && pExt->pBindings == NULL) ||
+      (pExt->nDeclarations && pExt->pDeclarations == NULL)) {
+    return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < pExt->nDeclarations; ++i) {
+    const SVtableDeclOrder* pDecl = &pExt->pDeclarations[i];
+    if (pDecl->alias[0] == 0 ||
+        (pDecl->bindingKind != VTABLE_BINDING_REFERENCE && pDecl->bindingKind != VTABLE_BINDING_SERIES)) {
+      return TSDB_CODE_INVALID_MSG;
+    }
+    if (pDecl->bindingKind == VTABLE_BINDING_REFERENCE) ++referenceDeclarations;
+    for (int32_t j = 0; j < i; ++j) {
+      if (strcmp(pDecl->alias, pExt->pDeclarations[j].alias) == 0) return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  if (referenceDeclarations != pExt->nReferences) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    const SReferenceEntry* pRef = &pExt->pReferences[i];
+    bool found = false;
+    if (pRef->alias[0] == 0 || pRef->sourceName[0] == 0 ||
+        pRef->objectName[0] == 0 || pRef->timeColumn[0] == 0) return TSDB_CODE_INVALID_MSG;
+    for (int32_t j = 0; j < i; ++j) {
+      if (strcmp(pRef->alias, pExt->pReferences[j].alias) == 0) return TSDB_CODE_INVALID_MSG;
+    }
+    for (int32_t j = 0; j < pExt->nDeclarations; ++j) {
+      const SVtableDeclOrder* pDecl = &pExt->pDeclarations[j];
+      if (pDecl->bindingKind == VTABLE_BINDING_REFERENCE && strcmp(pDecl->alias, pRef->alias) == 0) found = true;
+    }
+    if (!found) return TSDB_CODE_INVALID_MSG;
+  }
+  for (int32_t i = 0; i < pExt->nBindings; ++i) {
+    const SVtableBindingLink* pLink = &pExt->pBindings[i];
+    bool found = false;
+    if (pLink->colId < 0 || pLink->alias[0] == 0) return TSDB_CODE_INVALID_MSG;
+    for (int32_t j = 0; j < i; ++j) {
+      if (pLink->colId == pExt->pBindings[j].colId) return TSDB_CODE_INVALID_MSG;
+    }
+    for (int32_t j = 0; j < pExt->nDeclarations; ++j) {
+      const SVtableDeclOrder* pDecl = &pExt->pDeclarations[j];
+      if (pDecl->bindingKind == pLink->bindingKind && strcmp(pDecl->alias, pLink->alias) == 0) found = true;
+    }
+    if (!found || (pLink->bindingKind == VTABLE_BINDING_REFERENCE &&
+                   tVtableReferenceForColumn(pExt, pLink->colId) == NULL)) return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tCloneVtableReferenceExt(const SVtableReferenceExt* pSrc, SVtableReferenceExt* pDst) {
+  SVtableReferenceExt copy = {0};
+  TAOS_CHECK_RETURN(validateVtableReferenceExt(pSrc));
+  if (pSrc->nReferences) {
+    copy.pReferences = taosMemoryMalloc(pSrc->nReferences * sizeof(SReferenceEntry));
+    if (copy.pReferences == NULL) goto oom;
+    memcpy(copy.pReferences, pSrc->pReferences, pSrc->nReferences * sizeof(SReferenceEntry));
+  }
+  if (pSrc->nBindings) {
+    copy.pBindings = taosMemoryMalloc(pSrc->nBindings * sizeof(SVtableBindingLink));
+    if (copy.pBindings == NULL) goto oom;
+    memcpy(copy.pBindings, pSrc->pBindings, pSrc->nBindings * sizeof(SVtableBindingLink));
+  }
+  if (pSrc->nDeclarations) {
+    copy.pDeclarations = taosMemoryMalloc(pSrc->nDeclarations * sizeof(SVtableDeclOrder));
+    if (copy.pDeclarations == NULL) goto oom;
+    memcpy(copy.pDeclarations, pSrc->pDeclarations, pSrc->nDeclarations * sizeof(SVtableDeclOrder));
+  }
+  copy.nReferences = pSrc->nReferences;
+  copy.nBindings = pSrc->nBindings;
+  copy.nDeclarations = pSrc->nDeclarations;
+  *pDst = copy;
+  return TSDB_CODE_SUCCESS;
+oom:
+  tFreeVtableReferenceExt(&copy);
+  return terrno;
+}
+
+int32_t tEncodeVtableReferenceExt(SEncoder* pEncoder, const SVtableReferenceExt* pExt) {
+  TAOS_CHECK_RETURN(validateVtableReferenceExt(pExt));
+  TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pExt->nReferences));
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    const SReferenceEntry* pRef = &pExt->pReferences[i];
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->alias));
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pRef->sourceType));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->sourceName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->dbName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->schemaName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->objectName));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pRef->timeColumn));
+  }
+  TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pExt->nBindings));
+  for (int32_t i = 0; i < pExt->nBindings; ++i) {
+    const SVtableBindingLink* pLink = &pExt->pBindings[i];
+    TAOS_CHECK_RETURN(tEncodeI16(pEncoder, pLink->colId));
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pLink->bindingKind));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pLink->alias));
+  }
+  TAOS_CHECK_RETURN(tEncodeI32v(pEncoder, pExt->nDeclarations));
+  for (int32_t i = 0; i < pExt->nDeclarations; ++i) {
+    TAOS_CHECK_RETURN(tEncodeI8(pEncoder, pExt->pDeclarations[i].bindingKind));
+    TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pExt->pDeclarations[i].alias));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tDecodeVtableReferenceExt(SDecoder* pDecoder, SVtableReferenceExt* pExt) {
+  int32_t code = 0;
+  int32_t lino = 0;
+  SVtableReferenceExt result = {0};
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &result.nReferences));
+  if (result.nReferences < 0 || result.nReferences > TSDB_MAX_VTABLE_REFERENCES) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (result.nReferences) {
+    result.pReferences = taosMemoryCalloc(result.nReferences, sizeof(SReferenceEntry));
+    if (result.pReferences == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < result.nReferences; ++i) {
+    SReferenceEntry* pRef = &result.pReferences[i];
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->alias, sizeof(pRef->alias)));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pRef->sourceType));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->sourceName, sizeof(pRef->sourceName)));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->dbName, sizeof(pRef->dbName)));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->schemaName, sizeof(pRef->schemaName)));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->objectName, sizeof(pRef->objectName)));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pRef->timeColumn, sizeof(pRef->timeColumn)));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &result.nBindings));
+  if (result.nBindings < 0 || result.nBindings > TSDB_MAX_COLUMNS) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  if (result.nBindings) {
+    result.pBindings = taosMemoryCalloc(result.nBindings, sizeof(SVtableBindingLink));
+    if (result.pBindings == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < result.nBindings; ++i) {
+    SVtableBindingLink* pLink = &result.pBindings[i];
+    TAOS_CHECK_EXIT(tDecodeI16(pDecoder, &pLink->colId));
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pLink->bindingKind));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pLink->alias, sizeof(pLink->alias)));
+  }
+  TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &result.nDeclarations));
+  if (result.nDeclarations < 0 || result.nDeclarations > TSDB_MAX_COLUMNS + TSDB_MAX_VTABLE_REFERENCES) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  if (result.nDeclarations) {
+    result.pDeclarations = taosMemoryCalloc(result.nDeclarations, sizeof(SVtableDeclOrder));
+    if (result.pDeclarations == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+  for (int32_t i = 0; i < result.nDeclarations; ++i) {
+    SVtableDeclOrder* pDecl = &result.pDeclarations[i];
+    TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pDecl->bindingKind));
+    TAOS_CHECK_EXIT(tDecodeCStrToFixed(pDecoder, pDecl->alias, sizeof(pDecl->alias)));
+  }
+  TAOS_CHECK_EXIT(validateVtableReferenceExt(&result));
+  *pExt = result;
+  return TSDB_CODE_SUCCESS;
+_exit:
+  tFreeVtableReferenceExt(&result);
+  return code;
+}
+
 int32_t tEncodeSSeriesWrapper(SEncoder* pCoder, const SSeriesWrapper* pWrapper) {
   int32_t code = 0;
   int32_t lino;
@@ -21042,6 +21471,9 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     }
   }
 
+  if (hasColRef(pReq->type)) {
+    TAOS_CHECK_EXIT(tEncodeVtableReferenceExt(pCoder, &pReq->referenceExt));
+  }
   tEndEncode(pCoder);
 _exit:
   return code;
@@ -21051,6 +21483,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
   int32_t code = 0;
   int32_t lino;
 
+  memset(&pReq->referenceExt, 0, sizeof(pReq->referenceExt));
   TAOS_CHECK_EXIT(tStartDecode(pCoder));
 
   TAOS_CHECK_EXIT(tDecodeI32v(pCoder, &pReq->flags));
@@ -21263,6 +21696,9 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     }
   }
 
+  if (hasColRef(pReq->type) && !tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_EXIT(tDecodeVtableReferenceExt(pCoder, &pReq->referenceExt));
+  }
   tEndDecode(pCoder);
 _exit:
   if (code) {
@@ -21295,6 +21731,7 @@ void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   tFreeSColRefArray(req->colRef.pTagRef, req->colRef.nTagRefs);
   taosMemoryFreeClear(req->colRef.pColRef);
   taosMemoryFreeClear(req->colRef.pTagRef);
+  tFreeVtableReferenceExt(&req->referenceExt);
   tFreeSSeriesWrapper(&req->series);
   if (req->pOwnColDefs) {
     for (int32_t i = 0; i < req->nOwnColDefs; i++) {
@@ -21869,6 +22306,9 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
       }
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
+    case TSDB_ALTER_TABLE_ADD_REFERENCE:
+    case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
+    case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
       TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->seriesAlias));
       break;
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
@@ -21901,6 +22341,9 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   // empty (tDecodeIsEnd guard), which keeps the previous 4-part behaviour.
   TAOS_CHECK_EXIT(tEncodeCStr(pEncoder, pReq->refSchemaName ? pReq->refSchemaName : ""));
 
+  TAOS_CHECK_EXIT(tEncodeVtableReferenceExt(pEncoder, &pReq->referenceExt));
+  TAOS_CHECK_EXIT(tEncodeBool(pEncoder, pReq->hasExpectedRversion));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, pReq->expectedRversion));
   tEndEncode(pEncoder);
 _exit:
   return code;
@@ -22217,6 +22660,9 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       }
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
+    case TSDB_ALTER_TABLE_ADD_REFERENCE:
+    case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
+    case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
       break;
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
@@ -22247,6 +22693,7 @@ void destroyAlterTbReq(SVAlterTbReq* pReq) {
   taosMemoryFreeClear(pReq->seriesDbName);
   taosMemoryFreeClear(pReq->seriesMeasurementName);
   taosMemoryFreeClear(pReq->seriesTagCondJson);
+  tFreeVtableReferenceExt(&pReq->referenceExt);
   taosMemoryFreeClear(pReq->filterCondJson);
 }
 
@@ -22254,6 +22701,9 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   int32_t code = 0;
   int32_t lino;
 
+  memset(&pReq->referenceExt, 0, sizeof(pReq->referenceExt));
+  pReq->hasExpectedRversion = false;
+  pReq->expectedRversion = 0;
   TAOS_CHECK_EXIT(tStartDecode(pDecoder));
   TAOS_CHECK_EXIT(tDecodeSVAlterTbReqCommon(pDecoder, pReq));
 
@@ -22288,6 +22738,13 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
     TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refSchemaName));
   }
 
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeVtableReferenceExt(pDecoder, &pReq->referenceExt));
+  }
+  if (!tDecodeIsEnd(pDecoder)) {
+    TAOS_CHECK_EXIT(tDecodeBool(pDecoder, &pReq->hasExpectedRversion));
+    TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->expectedRversion));
+  }
   tEndDecode(pDecoder);
 _exit:
   return code;

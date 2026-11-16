@@ -112,6 +112,7 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
     metaError("vgId:%d, failed to decode entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
@@ -122,12 +123,15 @@ int32_t metaFetchEntryByUid(SMeta *pMeta, int64_t uid, SMetaEntry **ppEntry) {
     metaError("vgId:%d, failed to clone entry by uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), uid,
               tstrerror(code));
     tFreeSSeriesWrapper(&entry.series);
+    tFreeVtableReferenceExt(&entry.referenceExt);
     tDecoderClear(&decoder);
     tdbFreeClear(value);
     return code;
   }
 
   tFreeSSeriesWrapper(&entry.series);
+
+  tFreeVtableReferenceExt(&entry.referenceExt);
   tdbFreeClear(value);
   tDecoderClear(&decoder);
   return code;
@@ -911,6 +915,14 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
         return code;
       }
     } else {
+      for (int32_t binding = 0; binding < pChildEntry->referenceExt.nBindings; ++binding) {
+        SVtableBindingLink *link = &pChildEntry->referenceExt.pBindings[binding];
+        if (link->colId == pOldColumn->colId) {
+          memmove(link, link + 1, (pChildEntry->referenceExt.nBindings - binding - 1) * sizeof(*link));
+          --pChildEntry->referenceExt.nBindings;
+          break;
+        }
+      }
       code = updataTableColRef(&pChildEntry->colRef, pOldColumn, 0, NULL);
       if (code) {
         metaErr(TD_VID(pMeta->pVnode), code);
@@ -2778,10 +2790,22 @@ static int32_t metaHandleNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandlePa
   return code;
 }
 
+static int32_t metaCheckEntryReferenceVersion(SMeta *pMeta, const SMetaEntry *pEntry) {
+  if (!pEntry->hasExpectedRversion) return TSDB_CODE_SUCCESS;
+  SMetaEntry *current = NULL;
+  int32_t code = metaFetchEntryByUid(pMeta, pEntry->uid, &current);
+  if (code == TSDB_CODE_SUCCESS && current->colRef.version != pEntry->expectedRversion) {
+    code = TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT;
+  }
+  metaFetchEntryFree(&current);
+  return code;
+}
+
 static int32_t metaHandleVirtualNormalTableUpdateImpl(SMeta *pMeta, const SMetaHandleParam *pParam) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
+  TAOS_CHECK_RETURN(metaCheckEntryReferenceVersion(pMeta, pEntry));
 
   SMetaTableOp ops[] = {
       {META_ENTRY_TABLE, META_TABLE_OP_UPDATA},   //
@@ -2808,6 +2832,7 @@ static int32_t metaHandleVirtualChildTableUpdateImpl(SMeta *pMeta, const SMetaHa
   int32_t code = TSDB_CODE_SUCCESS;
 
   const SMetaEntry *pEntry = pParam->pEntry;
+  TAOS_CHECK_RETURN(metaCheckEntryReferenceVersion(pMeta, pEntry));
   const SMetaEntry *pOldEntry = pParam->pOldEntry;
   const SMetaEntry *pSuperEntry = pParam->pSuperEntry;
 

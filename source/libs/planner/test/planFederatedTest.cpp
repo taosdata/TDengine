@@ -389,6 +389,138 @@ TEST_P(PlanFederatedStoredFilterTest, DoesNotMarkAnUnfilteredScanAsRequired) {
   EXPECT_EQ(((SScanLogicNode*)physical_->pRemotePlan)->node.pConditions, nullptr);
 }
 
+TEST_P(PlanFederatedStoredFilterTest, ReferenceKeepsExplicitAxisSeparateFromTimestampValue) {
+  scan_->bindingKind = VTABLE_BINDING_REFERENCE;
+  scan_->referenceUid = 42;
+  scan_->expectedRversion = 3;
+  tstrncpy(scan_->referenceAlias, "r1", sizeof(scan_->referenceAlias));
+  tstrncpy(scan_->timeColumn, "event_time", sizeof(scan_->timeColumn));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(scan_->pPushedConditions, &scan_->pReferenceFilter));
+
+  auto* value = reinterpret_cast<SColumnNode*>(nodesListGetNode(scan_->pScanCols, 0));
+  tstrncpy(value->colName, "event_time", sizeof(value->colName));
+  value->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  value->node.resType.bytes = sizeof(int64_t);
+  SNode* axisNode = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(reinterpret_cast<SNode*>(value), &axisNode));
+  auto* axis = reinterpret_cast<SColumnNode*>(axisNode);
+  axis->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  axis->isPrimTs = true;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakePushFront(&scan_->pScanCols, axisNode));
+
+  // A projection can expose the ordinary timestamp while the merge still needs
+  // the axis as a dependency. Both slots must survive their shared source name.
+  nodesDestroyList(scan_->node.pTargets);
+  scan_->node.pTargets = nullptr;
+  SNode* valueTarget = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(reinterpret_cast<SNode*>(value), &valueTarget));
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&scan_->node.pTargets, valueTarget));
+  createPlan();
+  ASSERT_NE(physical_, nullptr);
+  EXPECT_EQ(physical_->pRemotePlan, nullptr);
+  EXPECT_EQ(physical_->bindingKind, VTABLE_BINDING_REFERENCE);
+  EXPECT_STREQ(physical_->timeColumn, "event_time");
+  EXPECT_NE(physical_->pReferenceFilter, nullptr);
+  ASSERT_EQ(LIST_LENGTH(physical_->pScanCols), 2);
+  auto* outputValueTarget = reinterpret_cast<STargetNode*>(nodesListGetNode(physical_->pScanCols, 0));
+  auto* outputAxisTarget = reinterpret_cast<STargetNode*>(nodesListGetNode(physical_->pScanCols, 1));
+  ASSERT_EQ(nodeType(outputValueTarget), QUERY_NODE_TARGET);
+  ASSERT_EQ(nodeType(outputAxisTarget), QUERY_NODE_TARGET);
+  auto* outputValue = reinterpret_cast<SColumnNode*>(outputValueTarget->pExpr);
+  auto* outputAxis = reinterpret_cast<SColumnNode*>(outputAxisTarget->pExpr);
+  // They read the same source value and share its physical output slot. Runtime
+  // mappings must use these slot IDs rather than their two scan-list positions.
+  ASSERT_EQ(LIST_LENGTH(physical_->node.pOutputDataBlockDesc->pSlots), 1);
+  EXPECT_EQ(outputValueTarget->slotId, outputAxisTarget->slotId);
+  EXPECT_EQ(outputValue->colId, 0);
+  EXPECT_FALSE(outputValue->isPrimTs);
+  EXPECT_EQ(outputAxis->colId, PRIMARYKEY_TIMESTAMP_COL_ID);
+  EXPECT_TRUE(outputAxis->isPrimTs);
+}
+
+TEST_P(PlanFederatedStoredFilterTest, ReferenceCandidateLimitKeepsOffsetAndRejectsUnsafeShapes) {
+  scan_->bindingKind = VTABLE_BINDING_REFERENCE;
+  scan_->scanSeq[0] = 1;
+  SVirtualScanLogicNode virtualScan = {};
+  virtualScan.node.type = QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN;
+  SProjectLogicNode project = {};
+  project.node.type = QUERY_NODE_LOGIC_PLAN_PROJECT;
+  ASSERT_EQ(nodesCloneList(scan_->node.pTargets, &project.pProjections), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeAppend(&virtualScan.node.pChildren, reinterpret_cast<SNode*>(scan_)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeAppend(&project.node.pChildren, reinterpret_cast<SNode*>(&virtualScan)), TSDB_CODE_SUCCESS);
+  scan_->node.pParent = &virtualScan.node;
+  virtualScan.node.pParent = &project.node;
+  SLogicSubplan subplan = {};
+  subplan.pNode = &project.node;
+  SLimitNode* limit = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_LIMIT, reinterpret_cast<SNode**>(&limit)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(1, reinterpret_cast<SNode**>(&limit->limit)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesMakeValueNodeFromInt64(0, reinterpret_cast<SNode**>(&limit->offset)), TSDB_CODE_SUCCESS);
+  project.node.pLimit = reinterpret_cast<SNode*>(limit);
+
+  bool optimized = false;
+  ASSERT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(optimized);
+  EXPECT_EQ(reinterpret_cast<SLimitNode*>(scan_->node.pLimit)->limit->datum.i, 1);
+  nodesDestroyNode(scan_->node.pLimit);
+  scan_->node.pLimit = nullptr;
+  limit->offset->datum.i = 1;
+  optimized = false;
+  ASSERT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(optimized);
+  EXPECT_EQ(reinterpret_cast<SLimitNode*>(scan_->node.pLimit)->limit->datum.i, 2);
+  EXPECT_EQ(reinterpret_cast<SLimitNode*>(scan_->node.pLimit)->offset->datum.i, 0);
+  EXPECT_EQ(limit->offset->datum.i, 1);
+  nodesDestroyNode(scan_->node.pLimit);
+  scan_->node.pLimit = nullptr;
+
+  project.node.pConditions = makeCondition("value");
+  optimized = false;
+  EXPECT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(optimized);
+  nodesDestroyNode(project.node.pConditions);
+  project.node.pConditions = nullptr;
+
+  SSortLogicNode sort = {};
+  sort.node.type = QUERY_NODE_LOGIC_PLAN_SORT;
+  SOrderByExprNode* order = nullptr;
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, reinterpret_cast<SNode**>(&order)), TSDB_CODE_SUCCESS);
+  order->pExpr = makeColumn("event_time");
+  reinterpret_cast<SColumnNode*>(order->pExpr)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  reinterpret_cast<SColumnNode*>(order->pExpr)->isPrimTs = true;
+  order->order = ORDER_ASC;
+  ASSERT_EQ(nodesListMakeAppend(&sort.pSortKeys, reinterpret_cast<SNode*>(order)), TSDB_CODE_SUCCESS);
+  nodesClearList(project.node.pChildren);
+  project.node.pChildren = nullptr;
+  ASSERT_EQ(nodesListMakeAppend(&project.node.pChildren, reinterpret_cast<SNode*>(&sort)), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(nodesListMakeAppend(&sort.node.pChildren, reinterpret_cast<SNode*>(&virtualScan)), TSDB_CODE_SUCCESS);
+  sort.node.pParent = &project.node;
+  virtualScan.node.pParent = &sort.node;
+  optimized = false;
+  ASSERT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(optimized);
+  nodesDestroyNode(scan_->node.pLimit);
+  scan_->node.pLimit = nullptr;
+  order->order = ORDER_DESC;
+  optimized = false;
+  EXPECT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(optimized);
+  order->order = ORDER_ASC;
+  SScanLogicNode secondSource = {};
+  ASSERT_EQ(nodesListAppend(virtualScan.node.pChildren, reinterpret_cast<SNode*>(&secondSource)), TSDB_CODE_SUCCESS);
+  optimized = false;
+  EXPECT_EQ(planPushDownReferenceLimit(&subplan, &optimized), TSDB_CODE_SUCCESS);
+  EXPECT_FALSE(optimized);
+
+  scan_->node.pParent = nullptr;
+  nodesDestroyNode(project.node.pLimit);
+  nodesDestroyList(project.pProjections);
+  nodesDestroyList(sort.pSortKeys);
+  nodesClearList(project.node.pChildren);
+  nodesClearList(sort.node.pChildren);
+  nodesClearList(virtualScan.node.pChildren);
+}
+
 INSTANTIATE_TEST_SUITE_P(MySqlAndPostgreSql, PlanFederatedStoredFilterTest,
                          testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL));
 

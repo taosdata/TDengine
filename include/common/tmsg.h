@@ -633,10 +633,13 @@ typedef struct SExtColumnDef {
   bool isRemotePrimaryKey;  // original remote primary-key column
 } SExtColumnDef;
 
+enum { EXT_OBJECT_TABLE = 0, EXT_OBJECT_VIEW = 1 };
+
 typedef struct SExtTableMeta {
   SExtColumnDef *pCols;
   int32_t        numOfCols;
   int8_t         tableType;
+  int8_t         objectKind;  // EXT_OBJECT_TABLE or EXT_OBJECT_VIEW
   int8_t         tsPrecision;  // source-level timestamp precision for the primary-key column
                                // (TSDB_TIME_PRECISION_MILLI/MICRO/NANO); 0 = unknown/not set
   SName          name;                              // dbname + tname
@@ -695,6 +698,9 @@ typedef enum {
 #define TSDB_ALTER_TABLE_ALTER_TAG_REF                  21 // set/change tag reference for virtual child table
 #define TSDB_ALTER_TABLE_ADD_SERIES                      22
 #define TSDB_ALTER_TABLE_REMOVE_SERIES                   23
+#define TSDB_ALTER_TABLE_ADD_REFERENCE                   27
+#define TSDB_ALTER_TABLE_MODIFY_REFERENCE                28
+#define TSDB_ALTER_TABLE_REMOVE_REFERENCE                29
 #define TSDB_ALTER_TABLE_ADD_BASE_ON                     24
 #define TSDB_ALTER_TABLE_DROP_BASE_ON                    25
 #define TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF           26 // add a tag reference to a virtual normal table
@@ -1192,6 +1198,7 @@ typedef enum ENodeType {
 
   // xnode restart (appended to preserve existing enum numeric values)
   QUERY_NODE_RESTART_XNODE_STMT,
+  QUERY_NODE_REFERENCE_DECL,
   // Correlation nodes use a separate range; existing wire IDs stay unchanged.
   QUERY_NODE_OUTER_REF = 1300,
   QUERY_NODE_CORRELATION_PARAM,
@@ -1248,6 +1255,12 @@ typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
 } SEp;
+
+typedef struct SEpSet {
+  int8_t inUse;
+  int8_t numOfEps;
+  SEp    eps[TSDB_MAX_REPLICA];
+} SEpSet;
 
 typedef struct {
   int32_t contLen;
@@ -1318,6 +1331,16 @@ typedef struct {
   int32_t  filterCondLen;
   char     *filterCondJson;  // serialized MySQL/PostgreSQL column filter, or NULL
   char     colName[TSDB_COL_NAME_LEN];     // for tmq get json
+  // Derived leaf identity for planning. Persisted bindings live in referenceExt.
+  // Keep these fields outside the legacy SColRef element wire format.
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t expectedRversion;
+  int32_t referenceVgId;
+  SEpSet referenceEpSet;
+  char referenceDbFName[TSDB_DB_FNAME_LEN];
 } SColRef;
 
 typedef struct {
@@ -1341,6 +1364,50 @@ typedef struct SSeriesEntry {
   char*   tagCondJson;
 } SSeriesEntry;
 
+enum {
+  VTABLE_BINDING_LEGACY = 0,
+  VTABLE_BINDING_REFERENCE = 1,
+  VTABLE_BINDING_SERIES = 2,
+  TSDB_MAX_VTABLE_REFERENCES = 128,
+};
+
+typedef struct SReferenceEntry {
+  char alias[TSDB_COL_NAME_LEN];
+  int8_t sourceType;
+  char sourceName[TSDB_EXT_SOURCE_NAME_LEN];
+  char dbName[TSDB_DB_NAME_LEN];
+  char schemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];
+  char objectName[TSDB_TABLE_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+} SReferenceEntry;
+
+typedef struct SVtableBindingLink {
+  col_id_t colId;
+  int8_t bindingKind;
+  char alias[TSDB_COL_NAME_LEN];
+} SVtableBindingLink;
+
+typedef struct SVtableDeclOrder {
+  int8_t bindingKind;
+  char alias[TSDB_COL_NAME_LEN];
+} SVtableDeclOrder;
+
+typedef struct SVtableReferenceExt {
+  int32_t nReferences;
+  SReferenceEntry* pReferences;
+  int32_t nBindings;
+  SVtableBindingLink* pBindings;
+  int32_t nDeclarations;
+  SVtableDeclOrder* pDeclarations;
+} SVtableReferenceExt;
+
+int32_t tEncodeVtableReferenceExt(SEncoder* pEncoder, const SVtableReferenceExt* pExt);
+int32_t tDecodeVtableReferenceExt(SDecoder* pDecoder, SVtableReferenceExt* pExt);
+int32_t tCloneVtableReferenceExt(const SVtableReferenceExt* pSrc, SVtableReferenceExt* pDst);
+void tFreeVtableReferenceExt(SVtableReferenceExt* pExt);
+const SVtableBindingLink* tVtableBindingForColumn(const SVtableReferenceExt* pExt, col_id_t colId);
+const SReferenceEntry* tVtableReferenceForColumn(const SVtableReferenceExt* pExt, col_id_t colId);
+
 typedef struct SSeriesWrapper {
   int32_t       nSeries;
   SSeriesEntry* pSeries;
@@ -1362,6 +1429,14 @@ typedef struct {
   char    refColName[TSDB_COL_NAME_LEN];
   char    refSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // external source name, empty for internal refs
   char    refSchemaName[TSDB_EXT_SOURCE_SCHEMA_LEN];  // external schema (SQL Server / PG), empty otherwise
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t expectedRversion;
+  int32_t referenceVgId;
+  SEpSet referenceEpSet;
+  char referenceDbFName[TSDB_DB_FNAME_LEN];
   bool    hasFilterCond;  // saved external-column filter, including resolved leaf refs
 } SRefColInfo;
 
@@ -1381,6 +1456,9 @@ typedef struct {
   uint32_t colOff;
   uint32_t srcOff;
   uint32_t schemaOff;
+  int8_t bindingKind;
+  uint32_t aliasOff;
+  uint32_t timeOff;
 } SRefColEntry;
 
 // The ref payload of one virtual child table, kept as one allocation:
@@ -1403,6 +1481,7 @@ typedef struct SVCTableRefCols {
   int32_t         numOfSrcTbls;
   int32_t         numOfColRefs;
   int32_t         numOfTagRefs;
+  int32_t         rversion;
 } SVCTableRefCols;
 
 static FORCE_INLINE SRefColEntry* vctContentColAt(const SVctRefContent* pContent, int32_t idx) {
@@ -1500,6 +1579,7 @@ typedef struct {
   SColRef*    pTagRefs;
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
+  SVtableReferenceExt referenceExt;
   int8_t        secureDelete;
   int8_t        hasInheritors;  // 1 if other VSTs inherit from this STB (non-leaf)
 } STableMetaRsp;
@@ -2046,11 +2126,7 @@ int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
 int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
 void    tFreeSMAltertbReq(SMAlterStbReq* pReq);
 
-typedef struct SEpSet {
-  int8_t inUse;
-  int8_t numOfEps;
-  SEp    eps[TSDB_MAX_REPLICA];
-} SEpSet;
+
 
 int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
 int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
@@ -2863,6 +2939,7 @@ typedef struct {
   SColRef* pTagRefs;
   int32_t       numOfSeries;
   SSeriesEntry* pSeries;
+  SVtableReferenceExt referenceExt;
   int8_t   secureDelete;
   int8_t   numParents;
   char     parentStbNames[TSDB_MAX_VST_PARENTS][TSDB_TABLE_NAME_LEN];
@@ -5719,11 +5796,21 @@ typedef struct SVTagCondReq {
   int64_t  uid;  // virtual sub-table uid
 } SVTagCondReq;
 
+typedef struct SVtableRuntimeBinding {
+  col_id_t colId;
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+} SVtableRuntimeBinding;
+
 typedef struct SVTagCondRsp {
   int32_t numOfRefs;
   SArray* pEntries;  // SArray<SVTagCondEntry>
   int32_t numOfFilterConds;
   SArray* pFilterConds;  // optional tail extension: SArray<SVtbColFilterCond>
+  int32_t rversion;
+  int32_t numOfBindings;
+  SArray* pBindings;  // SArray<SVtableRuntimeBinding>
 } SVTagCondRsp;
 
 int32_t tSerializeSVTagCondReq(void* buf, int32_t bufLen, SVTagCondReq* pReq);
@@ -5778,6 +5865,11 @@ typedef struct SForeignSourceInfo {
   int64_t rowLimit;  // optional per-stream top-N limit for VStb remote SQL; <=0 means unset
   SNode*  pPushedCond;  // heap, owned; VStb local filter fragment safe to push to this foreign source
   uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this remote table
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignSourceInfo;
 
 void destroySOrgTbInfo(void *info);
@@ -5867,6 +5959,11 @@ typedef struct SForeignTableInfo {
   SNode*  pPushedCond;      // runtime-only SNode, heap owned
   uint64_t virtualChildUid;  // virtual child whose row is reconstructed from this table
   SArray* pVtbTagList;       // runtime-only SArray<STagVal>, owned by the batch table
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignTableInfo;
 
 typedef struct SForeignScanOperatorParam {
@@ -5898,6 +5995,11 @@ typedef struct SForeignScanOperatorParam {
   SArray*   pVtbTagList;     // runtime-only borrowed tag payload for the active table view
   // Runtime-only: consumer accepts timestamp order changes between batch tables.
   bool allowUnorderedBatch;
+  int8_t bindingKind;
+  char referenceAlias[TSDB_COL_NAME_LEN];
+  char timeColumn[TSDB_COL_NAME_LEN];
+  int32_t expectedRversion;
+  uint64_t referenceUid;
 } SForeignScanOperatorParam;
 typedef struct SMergeOperatorParam {
   int32_t winNum;
@@ -6405,6 +6507,7 @@ typedef struct SVCreateTbReq {
   SVChildOwnColDef *pOwnColDefs;
   int32_t           nOwnTagDefs;
   SVChildOwnTagDef *pOwnTagDefs;
+  SVtableReferenceExt referenceExt;
 } SVCreateTbReq;
 
 int  tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
@@ -6574,6 +6677,9 @@ typedef struct SVAlterTbReq {
   // can afford and the vnode aborts its pre-scan once the match count exceeds it. 0 = no
   // limit (non-txn path). See metaPreScanChildTableTagUpdate.
   int32_t txnDdlQuota;
+  SVtableReferenceExt referenceExt;
+  bool hasExpectedRversion;
+  int32_t expectedRversion;
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);

@@ -816,12 +816,59 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     TAOS_CHECK_RETURN(metaEncodeColRefFilterCondTail(pCoder, &ownRefs));
   }
 
+  if (pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) {
+    TAOS_CHECK_RETURN(tEncodeVtableReferenceExt(pCoder, &pME->referenceExt));
+  }
+
   tEndEncode(pCoder);
   return 0;
 }
 
+static int32_t metaValidateReferenceBindings(const SMetaEntry *pME) {
+  const SVtableReferenceExt *extension = &pME->referenceExt;
+  if (extension->nDeclarations == 0 && extension->nBindings == 0 && extension->nReferences == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t seriesDeclarations = 0;
+  for (int32_t i = 0; i < extension->nDeclarations; ++i) {
+    const SVtableDeclOrder *declaration = &extension->pDeclarations[i];
+    if (declaration->bindingKind != VTABLE_BINDING_SERIES) continue;
+    ++seriesDeclarations;
+    bool found = false;
+    for (int32_t j = 0; j < pME->series.nSeries; ++j) {
+      if (strcmp(declaration->alias, pME->series.pSeries[j].alias) == 0) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return TSDB_CODE_INVALID_MSG;
+  }
+  if (seriesDeclarations != pME->series.nSeries) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < extension->nBindings; ++i) {
+    col_id_t colId = extension->pBindings[i].colId;
+    if (colId <= 0) return TSDB_CODE_INVALID_MSG;
+    bool found = false;
+    for (int32_t j = 0; j < pME->colRef.nCols; ++j) {
+      const SColRef *reference = &pME->colRef.pColRef[j];
+      if (reference->id == colId && reference->hasRef) {
+        found = true;
+        break;
+      }
+    }
+    for (int32_t j = 0; !found && j < pME->own.nOwnCols; ++j) {
+      const SColRef *reference = &pME->own.pOwnColRefs[j];
+      if (reference->id == colId && reference->hasRef) found = true;
+    }
+    if (!found) return TSDB_CODE_INVALID_MSG;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
   TAOS_CHECK_RETURN(tStartDecode(pCoder));
+  pME->referenceExt = (SVtableReferenceExt){0};
+  pME->hasExpectedRversion = false;
+  pME->expectedRversion = 0;
   // Reset the vchild own (extension) schema: pME may be reused across decodes (e.g. a
   // table-meta cursor) while its previous own pointers were already freed together with
   // the old decoder, so a stale nOwnCols would otherwise dangle on non-vchild entries or
@@ -1007,6 +1054,12 @@ int metaDecodeEntryImpl(SDecoder *pCoder, SMetaEntry *pME, bool headerOnly) {
     TAOS_CHECK_RETURN(metaDecodeColRefFilterCondTail(pCoder, &ownRefs));
   }
 
+  if ((pME->type == TSDB_VIRTUAL_NORMAL_TABLE || pME->type == TSDB_VIRTUAL_CHILD_TABLE) &&
+      !tDecodeIsEnd(pCoder)) {
+    TAOS_CHECK_RETURN(tDecodeVtableReferenceExt(pCoder, &pME->referenceExt));
+    TAOS_CHECK_RETURN(metaValidateReferenceBindings(pME));
+  }
+
   tEndDecode(pCoder);
   return 0;
 }
@@ -1112,6 +1165,7 @@ void metaCloneEntryFree(SMetaEntry **ppEntry) {
   metaCloneColRefFree(&(*ppEntry)->colRef);
   metaCloneVChildOwnSchemaFree(&(*ppEntry)->own);
   tFreeSSeriesWrapper(&(*ppEntry)->series);
+  tFreeVtableReferenceExt(&(*ppEntry)->referenceExt);
 
   taosMemoryFreeClear(*ppEntry);
   return;
@@ -1270,6 +1324,11 @@ int32_t metaCloneEntry(const SMetaEntry *pEntry, SMetaEntry **ppEntry) {
         metaCloneEntryFree(ppEntry);
         return code;
       }
+    }
+    code = tCloneVtableReferenceExt(&pEntry->referenceExt, &(*ppEntry)->referenceExt);
+    if (code) {
+      metaCloneEntryFree(ppEntry);
+      return code;
     }
     if (pEntry->series.nSeries > 0) {
       (*ppEntry)->series.nSeries = pEntry->series.nSeries;

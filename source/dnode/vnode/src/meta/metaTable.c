@@ -552,6 +552,9 @@ int32_t metaUpdateVtbMetaRsp(SMetaEntry *pEntry, char *tbName, const SSchemaWrap
     pMetaRsp->numOfTagRefs = 0;
   }
 
+  code = tCloneVtableReferenceExt(&pEntry->referenceExt, &pMetaRsp->referenceExt);
+  QUERY_CHECK_CODE(code, line, _return);
+
   // Populate series
   if (pEntry->series.nSeries > 0) {
     pMetaRsp->numOfSeries = pEntry->series.nSeries;
@@ -1219,7 +1222,11 @@ static int32_t metaAlterTableTagDispatch(SMeta *pMeta, int64_t version, SVAlterT
                 : metaAddTableTag(pMeta, version, pReq, pMetaRsp);
 }
 
+int32_t metaCheckReferenceVersion(SMeta *pMeta, const SVAlterTbReq *pReq);
+int32_t metaAlterTableReference(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pRsp);
+
 int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMetaRsp *pMetaRsp) {
+  TAOS_CHECK_RETURN(metaCheckReferenceVersion(pMeta, pReq));
   pMeta->changed = true;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
@@ -1254,6 +1261,10 @@ int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq, STableMeta
       return metaRemoveTableColumnRef(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       return metaAlterTagRef(pMeta, version, pReq, pMetaRsp);
+    case TSDB_ALTER_TABLE_ADD_REFERENCE:
+    case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
+    case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
+      return metaAlterTableReference(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_ADD_SERIES:
       return metaAddTableSeries(pMeta, version, pReq, pMetaRsp);
     case TSDB_ALTER_TABLE_REMOVE_SERIES:

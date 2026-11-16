@@ -502,23 +502,56 @@ static int32_t ctgSetResolvedVStbColRef(int32_t numOfColRefs, SRefColInfo* pColR
   return TSDB_CODE_CTG_INTERNAL_ERROR;
 }
 
+static int32_t ctgSetReferenceRouting(SCtgJob* pJob, const SName* pName, STableMeta* pMeta) {
+  if (pMeta->referenceExt.nReferences == 0) return TSDB_CODE_SUCCESS;
+  SVgroupInfo group = {0};
+  CTG_ERR_RET(catalogGetTableHashVgroup(pJob->pCtg, &pJob->conn, pName, &group));
+  for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+    SColRef* pRef = &pMeta->colRef[i];
+    if (tVtableReferenceForColumn(&pMeta->referenceExt, pRef->id) == NULL) continue;
+    pRef->referenceVgId = group.vgId;
+    pRef->referenceEpSet = group.epSet;
+    CTG_ERR_RET(tNameGetFullDbName(pName, pRef->referenceDbFName));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static void ctgSetResolvedReferenceBinding(SRefColInfo* pInfo, const STableMeta* pMeta,
+                                            col_id_t leafColId) {
+  const SVtableBindingLink* pBinding = tVtableBindingForColumn(&pMeta->referenceExt, leafColId);
+  if (pBinding == NULL) return;
+  pInfo->bindingKind = pBinding->bindingKind;
+  tstrncpy(pInfo->referenceAlias, pBinding->alias, sizeof(pInfo->referenceAlias));
+  const SReferenceEntry* pReference = tVtableReferenceForColumn(&pMeta->referenceExt, leafColId);
+  if (pReference != NULL) {
+    tstrncpy(pInfo->timeColumn, pReference->timeColumn, sizeof(pInfo->timeColumn));
+    pInfo->referenceUid = pMeta->uid;
+    pInfo->expectedRversion = pMeta->rversion;
+    for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+      const SColRef* pRef = &pMeta->colRef[i];
+      if (pRef->id != leafColId) continue;
+      pInfo->referenceVgId = pRef->referenceVgId;
+      pInfo->referenceEpSet = pRef->referenceEpSet;
+      tstrncpy(pInfo->referenceDbFName, pRef->referenceDbFName, sizeof(pInfo->referenceDbFName));
+      break;
+    }
+  }
+}
+
 static int32_t ctgSetResolvedVStbLeafColRef(int32_t numOfColRefs, SRefColInfo* pColRefCols, SColRef* pResolvedColRefs,
-                                            col_id_t rootColId, const SColRef* pLeafColRef) {
+                                            col_id_t rootColId, const SColRef* pLeafColRef, const STableMeta* pLeafMeta) {
   if (NULL == pLeafColRef || pLeafColRef->filterCondLen < 0 ||
       (pLeafColRef->filterCondLen > 0 && NULL == pLeafColRef->filterCondJson)) {
     CTG_ERR_RET(TSDB_CODE_INVALID_MSG);
   }
-  if (0 == pLeafColRef->filterCondLen) {
-    return TSDB_CODE_SUCCESS;
-  }
-
   for (int32_t i = 0; i < numOfColRefs; ++i) {
     if (pColRefCols[i].colId != rootColId) {
       continue;
     }
 
-    pColRefCols[i].hasFilterCond = true;
-    if (NULL == pResolvedColRefs) {
+    ctgSetResolvedReferenceBinding(&pColRefCols[i], pLeafMeta, pLeafColRef->id);
+    pColRefCols[i].hasFilterCond = pLeafColRef->filterCondLen > 0;
+    if (NULL == pResolvedColRefs || pLeafColRef->filterCondLen == 0) {
       return TSDB_CODE_SUCCESS;
     }
 
@@ -769,6 +802,7 @@ static int32_t ctgBuildVTableFirstLayerRefs(const STableMeta* pMeta, SArray** pp
         CTG_ERR_JRET(ctgSetResolvedVStbColRef(*pNumOfColRefs, *ppColRefCols, pColRef->id, pColRef->refDbName,
                                               pColRef->refTableName, pColRef->refColName,
                                               pColRef->refSourceName, pColRef->refSchemaName));
+        ctgSetResolvedReferenceBinding(&(*ppColRefCols)[i], pMeta, pColRef->id);
       }
     }
   }
@@ -1032,7 +1066,7 @@ static int32_t ctgCollectVStbFinalExtSource(SHashObj** ppRefExtSources, const ch
  * ppFinalDbs accumulates all referenced dbs, while ppNextLayerRefs receives next-hop refs.
  * Return success on success, otherwise an error code.
  */
-static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, SArray* pLayerReqs, SArray* pMetaRes,
+static int32_t ctgBuildVStbNextLayerReqs(SCtgJob* pJob, int32_t curLayer, SArray* pLayerRefs, SArray* pLayerReqs, SArray* pMetaRes,
                                          SHashObj** ppFinalDbs, SHashObj** ppFinalExtSources, int32_t numOfColRefs,
                                          SRefColInfo* pColRefCols, SColRef* pResolvedColRefs,
                                          int32_t numOfTagRefs, SRefColInfo* pTagRefCols, SArray** ppNextLayerRefs) {
@@ -1082,6 +1116,7 @@ static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, S
         CTG_ERR_JRET(TSDB_CODE_REF_NOT_EXIST);
       }
 
+      CTG_ERR_JRET(ctgSetReferenceRouting(pJob, pTbName, pMeta));
       tsnprintf(tbKey, sizeof(tbKey), "%s.%s", pTbName->dbname, pTbName->tname);
       CTG_ERR_JRET(taosHashPut(pMetaHash, tbKey, strlen(tbKey) + 1, &pMeta, POINTER_BYTES));
     }
@@ -1140,7 +1175,7 @@ static int32_t ctgBuildVStbNextLayerReqs(int32_t curLayer, SArray* pLayerRefs, S
                                                   pColRef->refTableName, pColRef->refColName,
                                                   pColRef->refSourceName, pColRef->refSchemaName));
             CTG_ERR_JRET(
-                ctgSetResolvedVStbLeafColRef(numOfColRefs, pColRefCols, pResolvedColRefs, pRef->rootColId, pColRef));
+                ctgSetResolvedVStbLeafColRef(numOfColRefs, pColRefCols, pResolvedColRefs, pRef->rootColId, pColRef, *ppMeta));
           }
         } else {
           // An unbound virtual column resolves to NULL, not to another table scan.
@@ -6208,6 +6243,7 @@ static int32_t ctgLaunchGetVStbRefDbsTaskByReq(SCtgTaskReq* pReq) {
 
   if (!pCtx->pMeta->virtualStb || pCtx->pMeta->tableType != TSDB_SUPER_TABLE) {
     if (NULL == pCtx->pLayerRefs && NULL == pCtx->pResList) {
+      CTG_ERR_RET(ctgSetReferenceRouting(pTask->pJob, pCtx->pNames, pCtx->pMeta));
       CTG_ERR_RET(ctgBuildVTableFirstLayerRefs(pCtx->pMeta, &pCtx->pLayerRefs, &pCtx->pFinalDbs,
                                                &pCtx->pFinalExtSources, &pCtx->numOfColRefs, &pCtx->pColRefCols,
                                                &pCtx->pResolvedColRefs, &pCtx->numOfTagRefs,
@@ -6401,7 +6437,7 @@ int32_t ctgGetVStbRefDbsCb(SCtgTaskReq* pReq) {
       SArray* pNextLayerRefs = NULL;
 
       CTG_ERR_JRET(
-          ctgBuildVStbNextLayerReqs(pCtx->refLayer, pCtx->pLayerRefs, pCtx->pLayerReqs, pMetaRes, &pCtx->pFinalDbs,
+          ctgBuildVStbNextLayerReqs(pTask->pJob, pCtx->refLayer, pCtx->pLayerRefs, pCtx->pLayerReqs, pMetaRes, &pCtx->pFinalDbs,
                                     &pCtx->pFinalExtSources, pCtx->numOfColRefs, pCtx->pColRefCols,
                                     pCtx->pResolvedColRefs, pCtx->numOfTagRefs, pCtx->pTagRefCols,
                                     &pNextLayerRefs));

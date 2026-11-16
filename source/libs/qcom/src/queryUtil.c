@@ -771,6 +771,7 @@ void queryFreeTableMeta(STableMeta* pMeta) {
     queryFreeColRefTagConds(pMeta->colRef, pMeta->numOfColRefs);
     queryFreeColRefTagConds(pMeta->tagRef, pMeta->numOfTagRefs);
     queryFreeSeriesEntries(pMeta->seriesEntries, pMeta->numOfSeries);
+    tFreeVtableReferenceExt(&pMeta->referenceExt);
   }
   taosMemoryFree(pMeta);
 }
@@ -861,6 +862,7 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
   memcpy(*pDst, pSrc, metaSize);
   tableMetaResetPointers(*pDst);
   (*pDst)->seriesEntries = NULL;
+  memset(&(*pDst)->referenceExt, 0, sizeof((*pDst)->referenceExt));
 
   int32_t code = queryCloneColRefTagConds(pSrc->colRef, pSrc->numOfColRefs, (*pDst)->colRef);
   if (TSDB_CODE_SUCCESS != code) {
@@ -877,6 +879,12 @@ int32_t cloneTableMeta(const STableMeta* pSrc, STableMeta** pDst) {
     return code;
   }
 
+  code = tCloneVtableReferenceExt(&pSrc->referenceExt, &(*pDst)->referenceExt);
+  if (code != TSDB_CODE_SUCCESS) {
+    queryFreeTableMeta(*pDst);
+    *pDst = NULL;
+    return code;
+  }
   code = queryCloneSeriesEntries(pSrc->seriesEntries, pSrc->numOfSeries, &(*pDst)->seriesEntries);
   if (TSDB_CODE_SUCCESS != code) {
     queryFreeTableMeta(*pDst);

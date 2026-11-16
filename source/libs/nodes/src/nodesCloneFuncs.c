@@ -275,6 +275,10 @@ static int32_t columnOptionsCopy(const SColumnOptions* pSrc, SColumnOptions* pDs
   COPY_SCALAR_FIELD(bPrimaryKey);
   COPY_SCALAR_FIELD(hasRef);
   COPY_SCALAR_FIELD(refType);
+  COPY_SCALAR_FIELD(refPathParts);
+  COPY_SCALAR_FIELD(bindingKind);
+  COPY_CHAR_ARRAY_FIELD(referenceAlias);
+  COPY_CHAR_ARRAY_FIELD(timeColumn);
   COPY_CHAR_ARRAY_FIELD(refSourceName);
   COPY_CHAR_ARRAY_FIELD(refSchema);
   COPY_CHAR_ARRAY_FIELD(refDb);
@@ -285,11 +289,51 @@ static int32_t columnOptionsCopy(const SColumnOptions* pSrc, SColumnOptions* pDs
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createVtableCopy(const SCreateVTableStmt* pSrc, SCreateVTableStmt* pDst) {
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_SCALAR_FIELD(ignoreExists);
+  CLONE_NODE_LIST_FIELD(pCols);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_LIST_FIELD(pSeriesList);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createVchildCopy(const SCreateVSubTableStmt* pSrc, SCreateVSubTableStmt* pDst) {
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(tableName);
+  COPY_CHAR_ARRAY_FIELD(useDbName);
+  COPY_CHAR_ARRAY_FIELD(useTableName);
+  COPY_SCALAR_FIELD(ignoreExists);
+  CLONE_NODE_LIST_FIELD(pSpecificTags);
+  CLONE_NODE_LIST_FIELD(pValsOfTags);
+  CLONE_NODE_LIST_FIELD(pSpecificColRefs);
+  CLONE_NODE_LIST_FIELD(pColRefs);
+  CLONE_NODE_LIST_FIELD(pSpecificTagRefs);
+  CLONE_NODE_LIST_FIELD(pTagRefs);
+  CLONE_NODE_LIST_FIELD(pSeriesList);
+  CLONE_NODE_LIST_FIELD(pColDefs);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t seriesDeclCopy(const SSeriesDeclNode* pSrc, SSeriesDeclNode* pDst) {
+  COPY_CHAR_ARRAY_FIELD(alias);
+  COPY_CHAR_ARRAY_FIELD(sourceName);
+  COPY_CHAR_ARRAY_FIELD(dbName);
+  COPY_CHAR_ARRAY_FIELD(measurementName);
+  CLONE_NODE_FIELD(pTagCond);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t columnReferenceCopy(const SColumnRefNode* pSrc, SColumnRefNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(colName);
   COPY_SCALAR_FIELD(hasDataType);
   COPY_OBJECT_FIELD(dataType, sizeof(SDataType));
   COPY_SCALAR_FIELD(refType);
+  COPY_SCALAR_FIELD(refPathParts);
+  COPY_SCALAR_FIELD(bindingKind);
+  COPY_CHAR_ARRAY_FIELD(referenceAlias);
+  COPY_CHAR_ARRAY_FIELD(timeColumn);
   COPY_CHAR_ARRAY_FIELD(refDbName);
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
@@ -917,6 +961,7 @@ static int32_t virtualTableNodeCopy(const SVirtualTableNode * pSrc, SVirtualTabl
   COPY_BASE_OBJECT_FIELD(table, tableNodeCopy);
   COPY_SCALAR_FIELD(placeholderType);
   COPY_SCALAR_FIELD(hasFilterCond);
+  COPY_SCALAR_FIELD(hasReferenceBinding);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(refTables);
@@ -1051,6 +1096,10 @@ static int32_t alterTableStmtCopy(const SAlterTableStmt* pSrc, SAlterTableStmt* 
   COPY_CHAR_ARRAY_FIELD(refTableName);
   COPY_CHAR_ARRAY_FIELD(refColName);
   COPY_SCALAR_FIELD(refType);
+  COPY_SCALAR_FIELD(refPathParts);
+  COPY_SCALAR_FIELD(bindingKind);
+  COPY_CHAR_ARRAY_FIELD(referenceAlias);
+  COPY_CHAR_ARRAY_FIELD(timeColumn);
   CLONE_NODE_FIELD(pWhere);
   CLONE_NODE_FIELD(pFilterCond);
   CLONE_NODE_FIELD(pSeriesDecl);
@@ -1160,6 +1209,15 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pFqJoinTables);
   CLONE_NODE_FIELD(pRemoteLogicPlan);
   CLONE_NODE_FIELD(pPushedConditions);
+  COPY_SCALAR_FIELD(bindingKind);
+  COPY_CHAR_ARRAY_FIELD(referenceAlias);
+  COPY_CHAR_ARRAY_FIELD(timeColumn);
+  COPY_SCALAR_FIELD(referenceUid);
+  COPY_SCALAR_FIELD(expectedRversion);
+  COPY_SCALAR_FIELD(referenceVgId);
+  COPY_SCALAR_FIELD(referenceEpSet);
+  COPY_CHAR_ARRAY_FIELD(referenceDbFName);
+  CLONE_NODE_FIELD(pReferenceFilter);
   // --- table count scan extension ---
   COPY_SCALAR_FIELD(tbCountType);
   return TSDB_CODE_SUCCESS;
@@ -1168,6 +1226,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtualScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(hasFilterCond);
+  COPY_SCALAR_FIELD(hasReferenceBinding);
   COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pScanCols);
   CLONE_NODE_LIST_FIELD(pScanPseudoCols);
@@ -1670,6 +1729,15 @@ static int32_t federatedScanPhysiNodeCopy(const SFederatedScanPhysiNode* pSrc, S
   COPY_CHAR_ARRAY_FIELD(timezone);
   COPY_SCALAR_FIELD(scanRange);
   COPY_SCALAR_FIELD(underVTableScan);
+  COPY_SCALAR_FIELD(bindingKind);
+  COPY_CHAR_ARRAY_FIELD(referenceAlias);
+  COPY_CHAR_ARRAY_FIELD(timeColumn);
+  COPY_SCALAR_FIELD(referenceUid);
+  COPY_SCALAR_FIELD(expectedRversion);
+  COPY_SCALAR_FIELD(referenceVgId);
+  COPY_SCALAR_FIELD(referenceEpSet);
+  COPY_CHAR_ARRAY_FIELD(referenceDbFName);
+  CLONE_NODE_FIELD(pReferenceFilter);
   // pColTypeMappings: deep copy if present
   if (pSrc->pColTypeMappings && pSrc->numColTypeMappings > 0) {
     pDst->pColTypeMappings = (SExtColTypeMapping*)taosMemoryMalloc(
@@ -2489,6 +2557,18 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
       break;
     case QUERY_NODE_COLUMN_OPTIONS:
       code = columnOptionsCopy((const SColumnOptions*)pNode, (SColumnOptions*)pDst);
+      break;
+    case QUERY_NODE_CREATE_VIRTUAL_TABLE_STMT:
+      code = createVtableCopy((const SCreateVTableStmt*)pNode, (SCreateVTableStmt*)pDst);
+      break;
+    case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
+      code = createVchildCopy((const SCreateVSubTableStmt*)pNode, (SCreateVSubTableStmt*)pDst);
+      break;
+    case QUERY_NODE_SERIES_DECL:
+      code = seriesDeclCopy((const SSeriesDeclNode*)pNode, (SSeriesDeclNode*)pDst);
+      break;
+    case QUERY_NODE_REFERENCE_DECL:
+      memcpy(pDst, pNode, sizeof(SReferenceDeclNode));
       break;
     case QUERY_NODE_COLUMN_REF:
       code = columnReferenceCopy((const SColumnRefNode*)pNode, (SColumnRefNode*)pDst);

@@ -171,6 +171,7 @@ const SJoinInputProps* planGetJoinInputProps(
 int32_t planPrepareAsofJoinTimeCondition(SJoinLogicNode* pJoin);
 int32_t planRetainJoinTimeKeyTarget(SLogicNode* pChild, SNode* pKey);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);
+int32_t planPushDownReferenceLimit(SLogicSubplan* pLogicSubplan, bool* pOptimized);
 int32_t planEliminateTemporalInputSort(SLogicSubplan* pSubplan,
                                        bool* pOptimized);
 int32_t splitLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);

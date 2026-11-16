@@ -15,6 +15,7 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_drop_ext_source.py
 100,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_ddl_persistence.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_filter_ext_source.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx,sqlserver,oracle FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_reference_ext_source.py
 100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_meta_ext_source.py
 100,,y,.,env FQ_REQUIRED_SERVICES=pg,influx,sqlserver,oracle ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_series_ext_source.py
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_last_ext_source.py

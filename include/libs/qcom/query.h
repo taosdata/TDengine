@@ -236,6 +236,7 @@ typedef struct SVCTableMeta {
   SColRef* tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
   // vchild own (extension) columns/tags, colId >= TSDB_VCHILD_OWN_COL_ID_BASE; packed
   // behind colRef/tagRef in the same memory block, own columns first then own tags.
   int32_t  numOfOwnCols;
@@ -265,6 +266,7 @@ typedef struct STableMeta {
   SColRef*      tagRef;
   int32_t       numOfSeries;
   SSeriesEntry* seriesEntries;
+  SVtableReferenceExt referenceExt;
   // Same layout as the tail of SVCTableMeta. For a merged per-child meta (vstb schema +
   // vchild own columns/tags) these stay 0/NULL: own columns/tags are inserted into
   // schema[] during the catalog merge, which keeps cloneTableMeta()/TABLE_META_FULL_SIZE()
@@ -686,6 +688,7 @@ void* getTaskPoolWorkerCb();
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code)                  \
   ((_code) == TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER ||           \
+   (_code) == TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT ||      \
    (_code) == TSDB_CODE_MND_INVALID_SCHEMA_VER ||                  \
    (_code) == TSDB_CODE_SCH_DATA_SRC_EP_MISS ||                    \
    (_code) == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS)

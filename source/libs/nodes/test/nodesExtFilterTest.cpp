@@ -442,6 +442,40 @@ TEST(ExternalFilterOracleTest, RendersResolvedIdentifiersLiterally) {
   EXPECT_NE(render("\"emp\"").find("\"\"\"emp\"\"\""), std::string::npos);
 }
 
+TEST_P(ExternalFilterTest, ReferenceAcceptsViewAndOrdinaryTimeWithoutPrimaryKey) {
+  for (auto& column : columns_) column.isRemotePrimaryKey = false;
+  meta_.objectKind = EXT_OBJECT_VIEW;
+  SExternalBindingContext binding = {VTABLE_BINDING_REFERENCE, "ts"};
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(tsIndex_, 0);
+  EXPECT_EQ(validate(nullptr), TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
+  auto filter = makeComparison("value", "3", OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_INT);
+  ASSERT_NE(filter, nullptr);
+  ASSERT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, filter.get(), nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_SUCCESS);
+  const auto json = save(filter.get());
+  EXPECT_EQ(nodesValidateExternalFilterCurrentMetaEx(GetParam(), &meta_, json.c_str(), json.size(),
+                                                     nullptr, nullptr, message_, sizeof(message_),
+                                                     &tsIndex_, &binding), TSDB_CODE_SUCCESS);
+}
+
+TEST_P(ExternalFilterTest, ReferenceValidatesSelectedTimeAndReportsSchemaChange) {
+  SExternalBindingContext binding = {VTABLE_BINDING_REFERENCE, "missing"};
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_EXT_COLUMN_NOT_EXIST);
+  EXPECT_EQ(nodesValidateExternalFilterCurrentMetaEx(GetParam(), &meta_, nullptr, 0, nullptr,
+                                                     nullptr, message_, sizeof(message_),
+                                                     &tsIndex_, &binding), TSDB_CODE_EXT_SCHEMA_CHANGED);
+  binding.timeColumn = "value";
+  EXPECT_EQ(nodesValidateExternalFilterEx(GetParam(), &meta_, nullptr, nullptr, nullptr,
+                                          message_, sizeof(message_), &tsIndex_, &binding),
+            TSDB_CODE_EXT_TYPE_NOT_MAPPABLE);
+}
+
 INSTANTIATE_TEST_SUITE_P(RelationalSources, ExternalFilterTest,
                          testing::Values(EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL));
 
