@@ -15881,6 +15881,12 @@ int32_t tDeserializeSVArbHeartBeatReq(void *buf, int32_t bufLen, SVArbHeartBeatR
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->arbToken, TSDB_ARB_TOKEN_SIZE));
+  // tDecodeCStrToN() accepts a wire string whose declared length equals the destination size
+  // without requiring a terminating NUL, but vmProcessArbHeartBeatReq() later calls strlen() on
+  // this allocation. Reject a token that is not terminated inside the allocation.
+  if (memchr(pReq->arbToken, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->arbTerm));
 
   if ((pReq->hbMembers = taosArrayInit(16, sizeof(SVArbHbReqMember))) == NULL) {
@@ -16017,15 +16023,26 @@ int32_t tDeserializeSVArbCheckSyncReq(void *buf, int32_t bufLen, SVArbCheckSyncR
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->arbToken, TSDB_ARB_TOKEN_SIZE));
+  // Same wire-decode contract as tDeserializeSVArbHeartBeatReq(): vnodeProcessArbCheckSyncReq()
+  // prints this token with %s, so it must be NUL terminated inside its allocation.
+  if (memchr(pReq->arbToken, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->arbTerm));
   if ((pReq->member0Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE)) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->member0Token, TSDB_ARB_TOKEN_SIZE));
+  if (memchr(pReq->member0Token, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if ((pReq->member1Token = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE)) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->member1Token, TSDB_ARB_TOKEN_SIZE));
+  if (memchr(pReq->member1Token, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
 
   tEndDecode(&decoder);
 
@@ -16195,11 +16212,19 @@ int32_t tDeserializeSVArbSetAssignedLeaderReq(void *buf, int32_t bufLen, SVArbSe
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->arbToken, TSDB_ARB_TOKEN_SIZE));
+  // Same wire-decode contract as tDeserializeSVArbHeartBeatReq(): arbToken/memberToken are
+  // printed with %s in syncBecomeAssignedLeader(), so both must be NUL terminated.
+  if (memchr(pReq->arbToken, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->arbTerm));
   if ((pReq->memberToken = taosMemoryMalloc(TSDB_ARB_TOKEN_SIZE)) == NULL) {
     TAOS_CHECK_EXIT(terrno);
   }
   TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->memberToken, TSDB_ARB_TOKEN_SIZE));
+  if (memchr(pReq->memberToken, '\0', TSDB_ARB_TOKEN_SIZE) == NULL) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->force));
   }
