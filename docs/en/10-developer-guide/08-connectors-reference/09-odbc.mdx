@@ -94,7 +94,7 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
     4.6 **Password**: Optional, for use in step 5 connection testing only, database user password, if not specified, TDengine defaults to taosdata
 
-    4.7 **Compatible Software**: Selects the application type that uses this data source. It adapts the driver for ADO and industrial software, including WellinTech KingCalculation, KingSuperScada, KingIOserver, and Kepware. In most cases, keep the default value General. The 32-bit driver lists General, ADO, KingSCADA, and Kepware. The 64-bit driver lists only General and ADO. See [Compatible Software Options](#compatible-software) for the behavior of each option and how to choose one.
+    4.7 **Compatible Software**: Provides compatibility adaptation for ADO and industrial software (WellinTech KingCalculation analytics platform, KingSuperScada industrial SCADA platform, KingIOserver data collection tool, Kepware, and others). In most cases, keep the default value General.
 
     4.8 **Enable Transport Compression**: Optional and available only for WebSocket connections. Checked is equivalent to `COMPRESSION=1`, unchecked is equivalent to `COMPRESSION=0`. This parameter controls whether WebSocket transmission compression is enabled.
 
@@ -128,7 +128,7 @@ TDengine ODBC supports two ways to connect to the TDengine database: WebSocket c
 
     4.6 **Password**: Optional, used only for testing the connection in step 5, database user password, if not specified, TDengine defaults to taosdata.
 
-    4.7 **Compatible Software**: Selects the application type that uses this data source. It adapts the driver for ADO and industrial software, including WellinTech KingCalculation, KingSuperScada, KingIOserver, and Kepware. In most cases, keep the default value General. The native connection provides only the 64-bit driver, and its list contains only General and ADO. See [Compatible Software Options](#compatible-software) for the behavior of each option and how to choose one.
+    4.7 **Compatible Software**: Provides compatibility adaptation for ADO and industrial software (WellinTech KingCalculation analytics platform, KingSuperScada industrial SCADA platform, KingIOserver data collection tool, Kepware, and others). In most cases, keep the default value General.
 
 5. Click **Test Connection** to test the connection status. If successful, a "Connection successful" message will appear.
 

@@ -94,7 +94,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
-    4.7【兼容软件】选择使用该数据源的应用类型，支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配。通常情况下，选择默认值 General 即可。32 位驱动的下拉框包含 General、ADO、KingSCADA、Kepware，64 位驱动只包含 General 和 ADO。各选项的行为和选择方法见 [兼容软件选项](#compatible-software)。
+    4.7【兼容软件】支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配，通常情况下，选择默认值 General 即可。
 
     4.8【启用传输压缩】仅 WebSocket 连接可用，选填。勾选后等价于设置 `COMPRESSION=1`，不勾选等价于 `COMPRESSION=0`。该参数用于控制 WebSocket 传输是否启用压缩。
 
@@ -128,7 +128,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
-    4.7【兼容软件】选择使用该数据源的应用类型，支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配。通常情况下，选择默认值 General 即可。原生连接仅支持 64 位驱动，下拉框只包含 General 和 ADO。各选项的行为和选择方法见 [兼容软件选项](#compatible-software)。
+    4.7【兼容软件】支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配，通常情况下，选择默认值 General 即可。
 
 5. 点【测试连接】测试连接情况，如果成功，提示"连接成功"
 
