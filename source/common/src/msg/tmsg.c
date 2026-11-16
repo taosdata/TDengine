@@ -13539,6 +13539,12 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
         TAOS_CHECK_EXIT(terrno);
       }
       TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->ast, astLen + 1));
+      // tDecodeCStrToN() accepts a wire string whose declared length fills the destination
+      // exactly without requiring a terminating NUL, but processAst() later parses ast as a
+      // C string. Reject any frame whose ast is not terminated inside the allocation.
+      if (memchr(pReq->ast, '\0', (size_t)astLen + 1) == NULL) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
     }
   }
   TAOS_CHECK_EXIT(tDecodeI32(&decoder, &sqlLen));
@@ -13548,6 +13554,13 @@ int32_t tDeserializeSCMCreateTopicReq(void *buf, int32_t bufLen, SCMCreateTopicR
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrToN(&decoder, pReq->sql, sqlLen + 1));
+    // tDecodeCStrToN() accepts a wire string whose declared length fills the destination
+    // exactly without requiring a terminating NUL, but mndProcessCreateTopicReq() and
+    // mndCreateTopic() hand sql to %s formatting and to strlen()/taosStrdup(). Reject any
+    // frame whose sql is not terminated inside the allocation.
+    if (memchr(pReq->sql, '\0', (size_t)sqlLen + 1) == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->reload));
