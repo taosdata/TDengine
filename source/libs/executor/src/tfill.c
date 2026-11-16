@@ -1001,12 +1001,13 @@ static SSDataBlock* createNewSavedBlock(struct SFillInfo* pFillInfo, SSDataBlock
 static int32_t trySaveNewBlock(struct SFillInfo* pFillInfo, SSDataBlock* pDstBlock, int32_t capacity,
                                SFillBlock** ppFillBlock) {
   int32_t      code = 0;
+  SArray*      pProgress = NULL;
   SSDataBlock* pBlock = createNewSavedBlock(pFillInfo, pDstBlock, capacity);
   if (!pBlock) {
     code = terrno;
     goto _end;
   }
-  SArray* pProgress = taosArrayInit(pFillInfo->numOfCols, sizeof(SBlockFillProgress));
+  pProgress = taosArrayInit(pFillInfo->numOfCols, sizeof(SBlockFillProgress));
   if (!pProgress) {
     code = terrno;
     goto _end;

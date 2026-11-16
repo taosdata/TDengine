@@ -90,6 +90,7 @@ struct SSortHandle {
   /* Cumulative time spent in fetchfp (raw-data pull from sources). */
   int64_t           fetchTotalUs;
   bool              opened;
+  int32_t           openCode;
   int8_t            closed;
   const char*       idStr;
   bool              inMemSort;
@@ -2974,14 +2975,15 @@ static int32_t tsortSingleTableMergeNextTuple(SSortHandle* pHandle, STupleHandle
 
 int32_t tsortOpen(SSortHandle* pHandle) {
   int32_t code = 0;
-  if (pHandle->opened) {
-    return code;
-  }
-
   if (pHandle == NULL || pHandle->fetchfp == NULL || pHandle->comparFn == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (pHandle->opened) {
+    return pHandle->openCode;
+  }
 
+  // A reentrant open must not observe the default success code.
+  pHandle->openCode = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   pHandle->opened = true;
   if (tsortIsPQSortApplicable(pHandle)) {
     code = tsortOpenForPQSort(pHandle);
@@ -2989,6 +2991,7 @@ int32_t tsortOpen(SSortHandle* pHandle) {
     code = tsortOpenForBufMergeSort(pHandle);
   }
 
+  pHandle->openCode = code;
   return code;
 }
 

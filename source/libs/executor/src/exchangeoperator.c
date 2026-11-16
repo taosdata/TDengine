@@ -1962,11 +1962,11 @@ int32_t buildTableScanOperatorParamNotify(SOperatorParam** ppRes,
   }
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  STableScanOperatorParam* pTsParam = NULL;
   *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
   QUERY_CHECK_NULL(*ppRes, code, lino, _return, terrno);
 
-  STableScanOperatorParam* pTsParam =
-    taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
+  pTsParam = taosMemoryCalloc(1, sizeof(STableScanOperatorParam));
   QUERY_CHECK_NULL(pTsParam, code, lino, _return, terrno);
 
   pTsParam->paramType = NOTIFY_TYPE_SCAN_PARAM;
@@ -2442,6 +2442,7 @@ static int32_t sendLocalBlockFetchDataRequest(SOperatorInfo* pOperator, int32_t 
 int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   int32_t          code = TSDB_CODE_SUCCESS;
   int32_t          lino = 0;
+  SFetchRspHandleWrapper* pWrapper = NULL;
   SSourceDataInfo* pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
   QUERY_CHECK_NULL(pDataInfo, code, lino, _end, terrno);
 
@@ -2468,7 +2469,7 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
-  SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
+  pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
   QUERY_CHECK_NULL(pWrapper, code, lino, _end, terrno);
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
@@ -3350,7 +3351,8 @@ int32_t doExtractResultBlocks(SExchangeInfo* pExchangeInfo, SSourceDataInfo* pDa
       blockDataCleanup(pb);
     } else {
       code = createOneDataBlock(pExchangeInfo->pDummyBlock, false, &pb);
-      QUERY_CHECK_NULL(pb, code, lino, _end, code);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(pb, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     }
 
     int32_t compLen = 0;

@@ -687,6 +687,7 @@ int32_t getOutputColCounts(SDataBlockDescNode* pInputDataBlockDesc) {
 int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataSink, DataSinkHandle* pHandle, bool processOneBlock) {
   int32_t code;
   SDataSinkNode* pDataSink = *ppDataSink;
+  SDataDispatchHandle* dispatcher = NULL;
   code = blockDescNodeCheck(pDataSink->pInputDataBlockDesc);
   if (code) {
     qError("failed to check input data block desc, code:%d", code);
@@ -694,7 +695,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, SDataSinkNode** ppDataS
   }
 
   SDataDispatcherNode* pDispatherNode = (SDataDispatcherNode*)pDataSink;
-  SDataDispatchHandle* dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
+  dispatcher = taosMemoryCalloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     goto _return;
   }

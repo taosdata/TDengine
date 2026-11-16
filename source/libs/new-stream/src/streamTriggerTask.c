@@ -3017,21 +3017,39 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
 static void stTriggerTaskEnvDoInit() {
   taosInitRWLatch(&gStreamTriggerWaitLatch);
   tdListInit(&gStreamTriggerWaitList, sizeof(StreamTriggerWaitInfo));
+  terrno = TSDB_CODE_SUCCESS;
   streamTmrStart(stTriggerTaskCheckWaitSession, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
                  &gStreamTriggerTimerId, "stream-trigger");
+  if (gStreamTriggerTimerId == NULL) {
+    atomic_store_32(&gStreamTriggerInitRes, terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_FAILED);
+  }
 }
 
 int32_t stTriggerTaskEnvInit() {
+  // The dnode lifecycle owner must serialize streamInit and streamCleanup;
+  // the trigger timer handle is not shared safely across concurrent init/cleanup.
   int32_t code = taosThreadOnce(&gStreamTriggerModuleInit, stTriggerTaskEnvDoInit);
   if (code != TSDB_CODE_SUCCESS) {
     stError("failed to init stream trigger module since %s", tstrerror(code));
     return code;
   }
-  return atomic_load_32(&gStreamTriggerInitRes);
+  code = atomic_load_32(&gStreamTriggerInitRes);
+  if (code == TSDB_CODE_SUCCESS && gStreamTriggerTimerId == NULL && gStreamMgmt.timer != NULL) {
+    terrno = TSDB_CODE_SUCCESS;
+    streamTmrStart(stTriggerTaskCheckWaitSession, STREAM_TRIGGER_CHECK_INTERVAL_MS, NULL, gStreamMgmt.timer,
+                   &gStreamTriggerTimerId, "stream-trigger");
+    if (gStreamTriggerTimerId == NULL) {
+      code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_FAILED;
+    }
+  }
+  return code;
 }
 
 void stTriggerTaskEnvCleanup() {
+  // The dnode lifecycle owner serializes this with stTriggerTaskEnvInit.
   streamTmrStop(gStreamTriggerTimerId);
+  gStreamTriggerTimerId = NULL;
+  atomic_store_32(&gStreamTriggerInitRes, TSDB_CODE_SUCCESS);
   taosWLockLatch(&gStreamTriggerWaitLatch);
   tdListEmpty(&gStreamTriggerWaitList);
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
@@ -31176,6 +31194,7 @@ _end:
 static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
+  SArray                  *pPreAllocStateCols = NULL;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   SSDataBlock              *pDataBlock = NULL;
@@ -31209,7 +31228,6 @@ static int32_t stRealtimeGroupDoStateCheck(SSTriggerRealtimeGroup *pGroup) {
   /* pre-allocate pStateCols for the slot-only fast path (no expr keys) */
   bool    slotOnlyPath = (stCountExprKeys(pTask->pStateSlotIds) == 0);
   int32_t preAllocKeyCnt = stGetStateKeyCount(pTask->pStateSlotIds, pTask->pStateExprs);
-  SArray *pPreAllocStateCols = NULL;
   if (slotOnlyPath && preAllocKeyCnt > 0) {
     pPreAllocStateCols = taosArrayInit(preAllocKeyCnt, POINTER_BYTES);
     QUERY_CHECK_NULL(pPreAllocStateCols, code, lino, _end, terrno);

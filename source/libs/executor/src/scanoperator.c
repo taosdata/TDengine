@@ -5263,7 +5263,8 @@ static int32_t doTagScanOneTable(SOperatorInfo* pOperator, SSDataBlock* pRes, SM
 
   STableKeyInfo* item = tableListGetInfo(pInfo->pTableListInfo, pInfo->curPos);
   if (!item) {
-    qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", item->uid, tstrerror(terrno),
+    code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    qError("failed to get table meta at position:%d, code:%s, %s", pInfo->curPos, tstrerror(code),
            GET_TASKID(pTaskInfo));
     tDecoderClear(&(*mr).coder);
     goto _end;
@@ -6735,6 +6736,7 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
   int32_t              code = TSDB_CODE_SUCCESS;
   int32_t              lino = 0;
   int32_t              tableListSize = 0;
+  SSDataBlock*         pBlock = NULL;
 
   SExecTaskInfo*       pTaskInfo = pOperator->pTaskInfo;
   STableMergeScanInfo* pInfo = pOperator->info;
@@ -6784,7 +6786,6 @@ int32_t doTableMergeScanParaSubTablesNext(SOperatorInfo* pOperator, SSDataBlock*
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
     if (isTaskKilled(pTaskInfo)) {
       break;

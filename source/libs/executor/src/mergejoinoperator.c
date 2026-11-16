@@ -1441,7 +1441,7 @@ int32_t mJoinGetRowBitmapOffset(SMJoinTableCtx* pTable, int32_t rowNum, int32_t*
     pTable->rowBitmapSize = newSize;
   }
 
-  TAOS_MEMSET(pTable->pRowBitmap + pTable->rowBitmapOffset, 0xFFFFFFFF, bitmapLen);
+  TAOS_MEMSET(pTable->pRowBitmap + pTable->rowBitmapOffset, 0xFF, bitmapLen);
 
   *rowBitmapOffset = pTable->rowBitmapOffset;
   pTable->rowBitmapOffset += bitmapLen;

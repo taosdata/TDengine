@@ -3062,7 +3062,7 @@ static int32_t extWinBuildFillMatchInfo(SColMatchInfo* pMatchInfo, SNodeList* pF
     if (nodeType(pFNode) == QUERY_NODE_TARGET) {
       STargetNode* pTarget = (STargetNode*)pFNode;
       dstSlot = pTarget->slotId;
-      if (nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
+      if (pTarget->pExpr != NULL && nodeType(pTarget->pExpr) == QUERY_NODE_COLUMN) {
         SColumnNode* pCol = (SColumnNode*)pTarget->pExpr;
         dtype = pCol->node.resType;
         colId = pCol->colId;
@@ -3123,11 +3123,11 @@ int32_t createMergeAlignedExternalWindowOperator(SOperatorInfo* pDownstream, SPh
   if (pTaskInfo->pStreamRuntimeInfo != NULL){
     pTaskInfo->pStreamRuntimeInfo->funcInfo.withExternalWindow = true;
   }
-  pOperator->pPhyNode = pNode;
   if (!pMAExtW || !pOperator) {
     code = terrno;
     goto _error;
   }
+  pOperator->pPhyNode = pNode;
   initOperatorCostInfo(pOperator);
 
   pMAExtW->pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
@@ -9022,12 +9022,12 @@ int32_t createExternalWindowOperator(SOperatorInfo* pDownstream, SPhysiNode* pNo
   STimeWindow              nonStreamExtWinRange = {.skey = INT64_MAX, .ekey = INT64_MIN};
   SExternalWindowOperator* pExtW = taosMemoryCalloc(1, sizeof(SExternalWindowOperator));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  pOperator->pPhyNode = pNode;
   if (!pExtW || !pOperator) {
     code = terrno;
     lino = __LINE__;
     goto _error;
   }
+  pOperator->pPhyNode = pNode;
   initOperatorCostInfo(pOperator);
   pExtW->needGroupSort = extWinNeedGroupSort(pPhynode, pTaskInfo);
   // In non-stream (batch) mode, temporarily disable calcWithPartition to tolerate

@@ -306,6 +306,8 @@ static void buildCountResult(SOperatorInfo* pOperator, SCountWindowOperatorInfo*
     if (!pInfo->indefRowsMode) {
       code = setCountWindowOutputBuff(pExprSup, pCountSup, &pResultRow, &pBuff);
       QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_NULL(pResultRow, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+      QUERY_CHECK_NULL(pBuff, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     } else {
       pBuff = getCountWinStateInfo(pCountSup);
       QUERY_CHECK_NULL(pBuff, code, lino, _end, terrno);

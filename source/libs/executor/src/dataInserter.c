@@ -387,6 +387,7 @@ static int32_t updateInsertGrpTableInfo(SStreamDataInserterInfo* pInserterInfo, 
     SInsertTableInfo* pNewInfo = NULL;
     code = createNewInsertTbInfo(pSubmitRes, *ppTbRes, &pNewInfo);
     QUERY_CHECK_CODE(code, lino, _exit);
+    QUERY_CHECK_NULL(pNewInfo, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
 
     code = taosHashRemove(gStreamGrpTableHash, key, sizeof(key));
     if (code != TSDB_CODE_SUCCESS) {
@@ -694,8 +695,11 @@ _return:
 }
 
 void freeUseDbOutput_tmp(void* ppOutput) {
-  SUseDbOutput* pOut = *(SUseDbOutput**)ppOutput;
   if (NULL == ppOutput) {
+    return;
+  }
+  SUseDbOutput* pOut = *(SUseDbOutput**)ppOutput;
+  if (pOut == NULL) {
     return;
   }
 
@@ -2418,21 +2422,28 @@ int32_t streamDataBlocksToSubmitReq(SStreamRunnerTask* pTask, SDataInserterHandl
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  QUERY_CHECK_NULL(pReq->aSubmitTbData, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   if (NULL == taosArrayPush(pReq->aSubmitTbData, &tbDataInfo.pTbData)) {
     code = terrno;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  // The request now owns tbDataInfo.pTbData's row array; only destroy the request on this path.
   code = submitReqToMsg(vgInfo->vgId, pReq, pMsg, msgLen);
   tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
   taosMemoryFree(pReq);
+  pReq = NULL;
   ST_TASK_DLOG("[data inserter], submit req, vgid:%d, GROUP:%" PRId64 " tbname:%s autoCreate:%d code:%d ", vgInfo->vgId,
                pInserterInfo->groupId, pInserterInfo->tbName, pInserterInfo->isAutoCreateTable, code);
+  return code;
 
 _end:
   if (code != 0) {
     tDestroySubmitTbData(&tbDataInfo.pTbData, TSDB_MSG_FLG_ENCODE);
-    tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+    if (pReq != NULL) {
+      tDestroySubmitReq(pReq, TSDB_MSG_FLG_ENCODE);
+    }
     taosMemoryFree(pReq);
   }
 
@@ -2446,7 +2457,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
       return terrno;
     }
     if (pInserter->isStbInserter) {
-      SArray* pMsgs = taosArrayInit(4, sizeof(POINTER_BYTES));
+      SArray* pMsgs = taosArrayInit(4, POINTER_BYTES);
       if (NULL == pMsgs) {
         return terrno;
       }
@@ -2545,7 +2556,8 @@ static int32_t putStreamDataBlock(SDataSinkHandle* pHandle, const SInputData* pI
   if (!pInserter->explain) {
     code = TSDB_CODE_SUCCESS;
     if (NULL == taosArrayPush(pInserter->pDataBlocks, &pInput->pData)) {
-      return terrno;
+      code = terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+      goto _return;
     }
     void*       pMsg = NULL;
     int32_t     msgLen = 0;
@@ -2805,11 +2817,12 @@ void dbVgInfoMgrInitOnce() {
 
 int32_t createStreamDataInserter(SDataSinkManager* pManager, DataSinkHandle* pHandle, void* pParam) {
   int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+  SDataInserterHandle* inserter = NULL;
 
   TAOS_UNUSED(taosThreadOnce(&g_dbVgInfoMgrInit, dbVgInfoMgrInitOnce));
   TSDB_CHECK_NULL(g_dbVgInfoMgr.dbVgInfoMap, code, lino, _exit, terrno);
 
-  SDataInserterHandle* inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
+  inserter = taosMemoryCalloc(1, sizeof(SDataInserterHandle));
   TSDB_CHECK_NULL(inserter, code, lino, _exit, terrno);
 
   inserter->sink.fPut = putStreamDataBlock;

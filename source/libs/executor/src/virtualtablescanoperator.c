@@ -780,9 +780,17 @@ static int32_t ensureRefTagsResolved(SOperatorInfo* pOperator) {
       // array. (The else branch already excludes var-len types; taosMemoryFree(NULL) is
       // safe  -  taosMemFree NULL-checks.)
       if (data == NULL || IS_INVALID_TYPE(val.type) || len != tDataTypes[val.type].bytes) {
+        if (IS_INVALID_TYPE(val.type)) {
+          qError("ensureRefTagsResolved: invalid fixed-width payload for %s, bytes:%u, invalid type:%d",
+                 pCol->colName, len, val.type);
+        } else if (data == NULL) {
+          qError("ensureRefTagsResolved: null fixed-width payload for %s, bytes:%u, type:%d",
+                 pCol->colName, len, val.type);
+        } else {
+          qError("ensureRefTagsResolved: fixed-width payload for %s has %u bytes, type %d needs %d",
+                 pCol->colName, len, val.type, tDataTypes[val.type].bytes);
+        }
         taosMemoryFree(data);
-        qError("ensureRefTagsResolved: fixed-width payload for %s has %u bytes, type %d needs %u",
-               pCol->colName, len, val.type, tDataTypes[val.type].bytes);
         TSDB_CHECK_NULL(NULL, code, lino, _return, TSDB_CODE_INVALID_PARA);
       }
       memcpy(&val.i64, data, len);

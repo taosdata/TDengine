@@ -421,9 +421,10 @@ static int32_t addBlkToDirtyBufList(SGroupCacheOperatorInfo* pGCache,
     freeGcBlkBufInfo(pBufInfo);
     return terrno;
   }
-  pBufInfo = taosHashGet(pCache->pDirtyBlk, &pBufInfo->basic.blkId, sizeof(pBufInfo->basic.blkId));
+  int64_t blkId = pBufInfo->basic.blkId;
+  pBufInfo = taosHashGet(pCache->pDirtyBlk, &blkId, sizeof(blkId));
   if (NULL == pBufInfo) {
-    qError("fail to get blk %" PRId64 " from pCache->pDirtyBlk", pBufInfo->basic.blkId);
+    qError("fail to get blk %" PRId64 " from pCache->pDirtyBlk", blkId);
     QRY_ERR_RET(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   }
   int32_t code = TSDB_CODE_SUCCESS;

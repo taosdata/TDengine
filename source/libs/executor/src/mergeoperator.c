@@ -1064,10 +1064,15 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
+  if (isVtableMerge && pColsMerge->sourceNum > 0) {
+    QUERY_CHECK_CONDITION(pOperator->pDownstreamGetParams != NULL, code, lino, _return,
+                          TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+  }
+
   for (int32_t i = 0; i < pColsMerge->sourceNum; ++i) {
     pBlock = NULL;
     if (isVtableMerge) {
-      if (pOperator->pDownstreamGetParams != NULL && pOperator->pDownstreamGetParams[i] == NULL) {
+      if (pOperator->pDownstreamGetParams[i] == NULL) {
         continue;
       }
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];

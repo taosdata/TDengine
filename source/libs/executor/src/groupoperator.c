@@ -322,6 +322,10 @@ static int32_t getPartitionPageRowCapacity(const SSDataBlock* pBlock, size_t pag
     }
   }
 
+  if (payloadRowSize <= 0) {
+    terrno = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    return -1;
+  }
   int32_t nRows = payloadSize / payloadRowSize;
   if (nRows < 1) {
     uError("rows %d in page is too small, payloadSize:%d, rowSize:%d", nRows, payloadSize, payloadRowSize);

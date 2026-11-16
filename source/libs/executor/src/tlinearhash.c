@@ -392,6 +392,10 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       pHashObj->bits = numOfBits;
     }
 
+    if (pHashObj->bits < 1) {
+      qError("linear hash failed at: %s:%d, invalid bits:%d", __func__, __LINE__, pHashObj->bits);
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
     int32_t splitBucketId = doGetRelatedSplitBucketId(newBucketId, pHashObj->bits);
 
     // load all data in this bucket and check if the data needs to relocated into the new bucket

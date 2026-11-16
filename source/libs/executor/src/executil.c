@@ -1693,9 +1693,10 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
   int32_t    lino = 0;
   int32_t    len = LIST_LENGTH(pList->pNodeList);
   SListCell* cell = pList->pNodeList->pHead;
+  SArray*    pNewList = NULL;
 
   SArray* pTbList = taosArrayInit(len, POINTER_BYTES);
-  QUERY_CHECK_NULL(pTbList, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(pTbList, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   for (int i = 0; i < pList->pNodeList->length; i++) {
     SValueNode* valueNode = (SValueNode*)cell->pNode;
@@ -1707,7 +1708,7 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
 
     char* name = varDataVal(valueNode->datum.p);
     void* tmp = taosArrayPush(pTbList, &name);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
     cell = cell->pNext;
   }
 
@@ -1717,28 +1718,30 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
   taosArraySort(pTbList, nameComparFn);
 
   // remove the duplicates
-  SArray* pNewList = taosArrayInit(taosArrayGetSize(pTbList), sizeof(void*));
-  QUERY_CHECK_NULL(pNewList, code, lino, _end, terrno);
+  pNewList = taosArrayInit(taosArrayGetSize(pTbList), sizeof(void*));
+  QUERY_CHECK_NULL(pNewList, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   void* tmpTbl = taosArrayGet(pTbList, 0);
-  QUERY_CHECK_NULL(tmpTbl, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(tmpTbl, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
   void* tmp = taosArrayPush(pNewList, tmpTbl);
-  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
 
   for (int32_t i = 1; i < numOfTables; ++i) {
     char** name = taosArrayGetLast(pNewList);
     char** nameInOldList = taosArrayGet(pTbList, i);
-    QUERY_CHECK_NULL(nameInOldList, code, lino, _end, terrno);
+    QUERY_CHECK_NULL(nameInOldList, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
     if (strcmp(*name, *nameInOldList) == 0) {
       continue;
     }
 
     tmp = taosArrayPush(pNewList, nameInOldList);
-    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    QUERY_CHECK_NULL(tmp, code, lino, _end, TSDB_CODE_OUT_OF_MEMORY);
   }
 
 _end:
   taosArrayDestroy(pTbList);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pNewList);
+    terrno = code;
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
     return NULL;
   }
@@ -2932,7 +2935,7 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
   bool                preparedKey = false;
   SStreamTagLookupKey key = {0};
   char*   pTagCondKey = NULL;
-  int32_t tagCondKeyLen;
+  int32_t tagCondKeyLen = 0;
   SArray* pTagColIds = NULL;
   char*   pPayload = NULL;
   SIdxFltStatus status = SFLT_NOT_INDEX;
@@ -5436,6 +5439,7 @@ int32_t tableListGetTableGroupId(const STableListInfo* pTableList, uint64_t tabl
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  int32_t slot = -1;
   if (pTableList->map == NULL) {
     pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
     QUERY_CHECK_NULL(pTableList->map, code, lino, _end, terrno);
@@ -5451,7 +5455,7 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
   void* tmp = taosArrayPush(pTableList->pTableList, &keyInfo);
   QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
-  int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
+  slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   code = taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
   if (code != TSDB_CODE_SUCCESS) {
     // we have checked the existence of uid in hash map above
@@ -5462,7 +5466,7 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
-  } else {
+  } else if (slot >= 0) {
     qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
   }
 

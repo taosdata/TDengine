@@ -251,8 +251,11 @@ void destroyColRefArray(void *info) {
 }
 
 void freeUseDbOutput(void* pOutput) {
-  SUseDbOutput *pOut = *(SUseDbOutput**)pOutput;
   if (NULL == pOutput) {
+    return;
+  }
+  SUseDbOutput *pOut = *(SUseDbOutput**)pOutput;
+  if (pOut == NULL) {
     return;
   }
 
@@ -260,6 +263,7 @@ void freeUseDbOutput(void* pOutput) {
     freeVgInfo(pOut->dbVgroup);
   }
   taosMemFree(pOut);
+  *(SUseDbOutput**)pOutput = NULL;
 }
 
 void destroyOtbInfoArray(void *info) {
@@ -644,7 +648,7 @@ _return:
 static int32_t buildBatchOrgTbInfoForExchangeBasicParam(SExchangeOperatorBasicParam* pBasic, SArray* pOrgTbInfoArray) {
   int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     lino = 0;
-  SOrgTbInfo  batchInfo;
+  SOrgTbInfo  batchInfo = {0};
 
   pBasic->batchOrgTbInfo = taosArrayInit(1, sizeof(SOrgTbInfo));
   QUERY_CHECK_NULL(pBasic->batchOrgTbInfo, code, lino, _return, terrno)
@@ -1759,8 +1763,9 @@ static int32_t buildMergeJoinNotifyOperatorParam(SOperatorParam** ppRes, SOperat
     freeOperatorParam(pChild1, OP_NOTIFY_PARAM);
     return code;
   }
+  (*ppRes)->opType = QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN;
   (*ppRes)->pChildren = taosArrayInit(2, POINTER_BYTES);
-  if (NULL == *ppRes) {
+  if (NULL == (*ppRes)->pChildren) {
     code = terrno;
     taosMemoryFreeClear(*ppRes);
     freeOperatorParam(pChild0, OP_NOTIFY_PARAM);
@@ -4903,7 +4908,7 @@ static int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **db
   return code;
 _return:
   qError("%s failed at line %d since %s", __func__, line, tstrerror(code));
-  freeUseDbOutput(output);
+  freeUseDbOutput(&output);
   return code;
 }
 
@@ -6014,6 +6019,8 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
   char                           reason[256] = {0};
   timezone_t                     timezone = NULL;
   SExtTableMeta*                 pMeta = NULL;
+  const char*                    useDb = dbName;
+  const char*                    useSchema = (NULL != schemaName) ? schemaName : "";
   SDynQueryCtrlOperatorInfo*     pInfo = pOperator->info;
   const SFederatedScanPhysiNode* pScan = dynFindForeignScan((const SPhysiNode*)pOperator->pPhyNode, sourceName);
   QUERY_CHECK_NULL(pScan, code, lino, _return, TSDB_CODE_EXT_SOURCE_NOT_FOUND);
@@ -6027,8 +6034,6 @@ static int32_t dynValidateForeignColRef(SOperatorInfo* pOperator, const SColRefI
   // the middle segment for SQL Server and Oracle (DS 5.3.4); SQL Server then
   // falls back to the source's configured database while Oracle has no
   // database layer at all, so there useDb stays empty.
-  const char* useDb = dbName;
-  const char* useSchema = (NULL != schemaName) ? schemaName : "";
   if (EXT_SOURCE_SQLSERVER == sourceType && '\0' == useSchema[0] && '\0' != dbName[0]) {
     useSchema = dbName;
     useDb = "";
@@ -7790,6 +7795,11 @@ int32_t vtbWindowOpen(SOperatorInfo* pOperator) {
       for (int32_t i = 0; i < LIST_LENGTH(pInfo->pTargets);
            ++i, pTargetCell = (NULL != pTargetCell ? pTargetCell->pNext : NULL)) {
         STargetNode* pNode = (STargetNode*)(NULL != pTargetCell ? pTargetCell->pNode : NULL);
+        if (pNode == NULL || pNode->pExpr == NULL) {
+          code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          lino = __LINE__;
+          goto _return;
+        }
         if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN && ((SColumnNode*)pNode->pExpr)->dataBlockId == pBlock->info.id.blockId) {
           if (((SColumnNode*)pNode->pExpr)->slotId == pDynInfo->vtbWindow.wstartSlotId) {
             pInfo->outputWstartSlotId = i;
