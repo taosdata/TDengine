@@ -38,6 +38,7 @@ extern "C" {
 
 // #include "clientSession.h"
 #include "tconfig.h"
+#include "clientWlr.h"
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512
 #define HEARTBEAT_INTERVAL         1500  // ms
@@ -378,6 +379,12 @@ typedef struct SRequestObj {
   // to the user and referenced by later fetch/free events. Not the address and not
   // requestId, since replay assigns its own (DS 6.11). Zero when not recording.
   uint64_t             wlrResultId;
+  // Workload recorder: the folded fetch session for this result. Every fetch call
+  // on the result is accounted here and recorded as ONE BEGIN/RETURN pair instead
+  // of one pair per row; zeroed (closed) for a request that is never fetched. Kept
+  // on the request rather than in thread-local storage so results consumed
+  // alternately on one thread keep independent sessions.
+  SWlrFetchFold        wlrFetchFold;
   // Call ID of the async API that created this request, so the completion callback
   // can name it as the parent of anything the user issues from inside the callback
   // (DS 6.8). Zero for synchronous requests.

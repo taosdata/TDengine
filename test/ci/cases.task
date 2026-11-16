@@ -2023,3 +2023,4 @@
 ## WorkloadReplay
 100,,n,.,./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py
 100,,n,.,CASE_TIMEOUT=3600 env WLR_REPLAY_SCENARIO=idmp-e2e env WLR_REPLAY_TIMEOUT_SEC=3300 ./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay.py
+,,y,.,./ci/pytest.sh pytest cases/81-Tools/07-WorkloadReplay/test_workload_replay_folded_fetch.py

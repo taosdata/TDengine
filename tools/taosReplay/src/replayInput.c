@@ -104,9 +104,8 @@ static int32_t replayReadFile(const char *path, SReplayBuffer *out) {
   return 0;
 }
 
-/* Per-event cost of the in-memory event array. The cap above is a memory budget, not a
- * coverage guarantee, so keep the two numbers from drifting apart silently. */
-typedef char replay_event_size_check[sizeof(SReplayEvent) == 368 ? 1 : -1];
+/* The per-event cost of the in-memory event array is checked against the cap in
+ * replayInt.h, where sizeof(SReplayEvent) is known. */
 
 /* Growing the event array can fail for two different reasons and the caller has to tell
  * them apart: hitting the cap is a property of the input, running out of memory is not. */
@@ -241,6 +240,14 @@ static bool replayFillEvent(SReplayEvent *ev, const SWlrTlv *tlvs, int32_t count
         if (replayTlvU64(&tlvs[i], &v)) {
           ev->fetchRows = replaySignedU64(v);
           ev->fetchRowsSet = true;
+        } else valid = false;
+        break;
+      case WLR_TAG_FETCH_CALLS:
+        /* Optional: absent means one call. Reject only values that cannot be a
+         * call count, so a corrupted tag is not silently turned into a loop. */
+        if (replayTlvU64(&tlvs[i], &v) && v > 0 && v <= (uint64_t)INT64_MAX) {
+          ev->fetchCalls = (int64_t)v;
+          ev->fetchCallsSet = true;
         } else valid = false;
         break;
       case WLR_TAG_SQL:
@@ -1289,6 +1296,9 @@ int32_t replayPrintExport(const SReplayOpts *opts, const SReplaySession *session
     int32_t n = 0;
     int64_t rows = e->fetchRowsSet ? e->fetchRows : -1;
     int64_t affected = e->affectedRowsSet ? e->affectedRows : -1;
+    /* -1 for events that carry no folded-call count, so a consumer can tell "not a
+     * folded fetch" from "one call" the same way it reads rows/affected. */
+    int64_t fetchCalls = e->fetchCallsSet ? e->fetchCalls : -1;
     if (csv) {
       n = snprintf(line, cap,
                    "%" PRIu64 ",%" PRId64 ",%" PRId64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64
@@ -1331,10 +1341,11 @@ int32_t replayPrintExport(const SReplayOpts *opts, const SReplaySession *session
                    "{\"seq\":%" PRIu64 ",\"t_ns\":%" PRId64 ",\"wall_ns\":%" PRId64
                    ",\"thread\":%" PRIu64 ",\"session\":%d,\"conn\":%" PRIu64 ",\"stmt\":%" PRIu64
                    ",\"result\":%" PRIu64 ",\"call\":%" PRIu64 ",\"api\":\"%s\",\"phase\":%u"
-                   ",\"ret\":%d,\"rows\":%" PRId64 ",\"affected\":%" PRId64 ",\"sql\":\"",
+                   ",\"ret\":%d,\"rows\":%" PRId64 ",\"fetch_calls\":%" PRId64
+                   ",\"affected\":%" PRId64 ",\"sql\":\"",
                    e->eventSeq, e->monoNs, e->wallNs, e->originTid, e->sessionIdx, e->connId,
                    e->stmtId, e->resultId, e->callId, replayApiName(e->apiType), (unsigned)e->phase,
-                   e->retCode, rows, affected);
+                   e->retCode, rows, fetchCalls, affected);
       if (n < 0 || (size_t)n >= cap) {
         taosMemoryFree(line);
         code = REPLAY_EXIT_INTERNAL;
