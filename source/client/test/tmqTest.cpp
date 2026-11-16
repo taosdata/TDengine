@@ -225,6 +225,52 @@ TEST(testCase, metadata_only_response_updates_begin_offset_Test) {
   ASSERT_EQ(atomic_load_32(&empty.vgStatus), TMQ_VG_STATUS__IDLE);
 }
 
+TEST(testCase, response_union_aliases_do_not_report_data_Test) {
+  SMqDataRsp rawDataRsp = {};
+  rawDataRsp.blockNum = 0;
+  rawDataRsp.len = 31;
+  ASSERT_EQ(tmqGetDataRspCreateTableNum(TMQ_MSG_TYPE__POLL_RAW_DATA_RSP, &rawDataRsp), 0);
+
+  SMqDataRsp replayDataRsp = {};
+  replayDataRsp.blockNum = 0;
+  replayDataRsp.sleepTime = 1000;
+  ASSERT_EQ(tmqGetDataRspCreateTableNum(TMQ_MSG_TYPE__POLL_DATA_RSP, &replayDataRsp), 0);
+
+  SMqDataRsp metadataRsp = {};
+  metadataRsp.blockNum = 0;
+  metadataRsp.createTableNum = 1;
+  ASSERT_EQ(tmqGetDataRspCreateTableNum(TMQ_MSG_TYPE__POLL_DATA_META_RSP, &metadataRsp), 1);
+}
+
+TEST(testCase, empty_rawdata_write_succeeds_Test) {
+  std::array<uint8_t, 64> raw = {};
+  SEncoder            encoder = {};
+  tEncoderInit(&encoder, raw.data(), raw.size());
+  ASSERT_EQ(tEncodeI8(&encoder, MQ_DATA_RSP_VERSION), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+
+  STqOffsetVal reqOffset = {};
+  STqOffsetVal rspOffset = {};
+  tqOffsetResetToLog(&reqOffset, 10);
+  tqOffsetResetToLog(&rspOffset, 11);
+  ASSERT_EQ(tEncodeSTqOffsetVal(&encoder, &reqOffset), 0);
+  ASSERT_EQ(tEncodeSTqOffsetVal(&encoder, &rspOffset), 0);
+  ASSERT_EQ(tEncodeI32(&encoder, 0), 0);
+  uint32_t rawLen = encoder.pos;
+  tEncoderClear(&encoder);
+
+  int64_t      fakeConnection = 0;
+  tmq_raw_data emptyRaw = {};
+  emptyRaw.raw = raw.data();
+  emptyRaw.raw_len = rawLen;
+  emptyRaw.raw_type = RES_TYPE__TMQ_RAWDATA;
+  int32_t previousDebugFlag = uDebugFlag;
+  uDebugFlag = DEBUG_FILE | DEBUG_TRACE | DEBUG_DEBUG | DEBUG_WARN | DEBUG_ERROR;
+  int32_t code = tmq_write_raw((TAOS*)&fakeConnection, emptyRaw);
+  uDebugFlag = previousDebugFlag;
+  ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+}
+
 TEST(testCase, create_topic_ctb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);

@@ -2066,10 +2066,15 @@ static int32_t tmqWriteRawRawDataImpl(TAOS* taos, void* data, uint32_t dataLen) 
   SCatalog*        pCatalog = NULL;
   SRequestConnInfo conn = {0};
 
-  RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
-  uDebug(LOG_ID_TAG " write raw rawdata, data:%p, dataLen:%d", LOG_ID_VALUE, data, dataLen);
+  uDebug("connId:0x%" PRIx64 ", task:%s, write raw rawdata, data:%p, dataLen:%d", *(int64_t*)taos, __func__, data,
+         dataLen);
   RAW_RETURN_CHECK(decodeRawData(&decoder, data, dataLen, tDecodeMqDataRsp, &rspObj));
+  if (rspObj.dataRsp.blockNum == 0) {
+    uDebug("connId:0x%" PRIx64 ", task:%s, skip empty raw rawdata response", *(int64_t*)taos, __func__);
+    goto end;
+  }
 
+  RAW_RETURN_CHECK(buildRawRequest(taos, &pRequest, &pCatalog, &conn));
   SHashObj* pVgHash = NULL;
   SHashObj* pNameHash = NULL;
   SHashObj* pMetaHash = NULL;

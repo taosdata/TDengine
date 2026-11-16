@@ -66,7 +66,7 @@ TARGET_LINK_LIBRARIES(
 # be compiled and never executed.
 add_test(
         NAME tmqRawDataTest
-        COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test
+        COMMAND tmqTest --gtest_filter=testCase.validate_raw_data_block_versions_Test:testCase.invalid_raw_data_response_returns_error_Test:testCase.rejected_poll_response_retains_offset_Test:testCase.empty_rawdata_write_succeeds_Test
 )
 add_test(
         NAME tmqStartTimestampTest
@@ -74,7 +74,7 @@ add_test(
 )
 add_test(
         NAME tmqPollResponseTest
-        COMMAND tmqTest --gtest_filter=testCase.metadata_only_response_updates_begin_offset_Test
+        COMMAND tmqTest --gtest_filter=testCase.metadata_only_response_updates_begin_offset_Test:testCase.response_union_aliases_do_not_report_data_Test
 )
 
 ADD_EXECUTABLE(smlTest smlTest.cpp)

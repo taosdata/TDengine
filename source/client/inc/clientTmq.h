@@ -230,6 +230,15 @@ typedef struct {
 void tmqUpdateVgInfo(SMqClientVg* pVg, STqOffsetVal* reqOffset, STqOffsetVal* rspOffset, int64_t sver, int64_t ever,
                      int64_t consumerId, bool hasData, bool accepted);
 
+static FORCE_INLINE int32_t tmqGetDataRspCreateTableNum(int8_t tmqRspType, const SMqDataRsp* pDataRsp) {
+  // createTableNum shares storage with rawData.len and replay sleepTime in other
+  // response types, so only the metadata response may expose it as a table count.
+  if (pDataRsp == NULL || tmqRspType != TMQ_MSG_TYPE__POLL_DATA_META_RSP) {
+    return 0;
+  }
+  return pDataRsp->createTableNum;
+}
+
 typedef struct {
   char           topicName[TSDB_TOPIC_FNAME_LEN];
   char           db[TSDB_DB_FNAME_LEN];
