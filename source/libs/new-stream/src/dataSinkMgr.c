@@ -670,10 +670,17 @@ int32_t initStreamDataCache(int64_t streamId, int64_t taskId, int64_t sessionId,
     return code;
   }
   SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
-  if (pRegistration != NULL) {
+  if (pRegistration != NULL && pRegistration->pCache != NULL) {
     *ppCache = pRegistration->pCache;
     taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
     return TSDB_CODE_SUCCESS;
+  }
+  if (pRegistration != NULL) {
+    code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, strlen(key));
+    if (code != TSDB_CODE_SUCCESS) {
+      taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
+      return code;
+    }
   }
 
   code = createDetachedStreamDataCache(streamId, taskId, sessionId, cleanMode, tsSlotId, ppCache);
@@ -718,7 +725,12 @@ void destroyStreamDataCache(void* pCache) {
     taosThreadMutexLock(&g_pDataSinkManager.registrationLock);
     SStreamDataCacheRegistration* pRegistration = taosHashGet(g_pDataSinkManager.dsStreamTaskList, key, keyLen);
     if (pRegistration != NULL && pRegistration->pCache == pCache) {
-      taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, keyLen);
+      // Clear the pointer before retiring the cache even if removal fails.
+      pRegistration->pCache = NULL;
+      int32_t code = taosHashRemove(g_pDataSinkManager.dsStreamTaskList, key, keyLen);
+      if (code != TSDB_CODE_SUCCESS) {
+        stError("failed to remove stream data cache registration, code:%s", tstrerror(code));
+      }
     }
     taosThreadMutexUnlock(&g_pDataSinkManager.registrationLock);
   }

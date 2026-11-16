@@ -18238,6 +18238,8 @@ TEST(SortTupleBoundaryTest, RejectsOverflowedSchemaLengthBeforeAllocatingTuple) 
   source->onlyRef = true;
   ASSERT_EQ(tsortAddSource(handle, source), TSDB_CODE_SUCCESS);
   EXPECT_EQ(tsortOpen(handle), TSDB_CODE_INVALID_MSG);
+  // A second open must return the cached error instead of reporting success.
+  EXPECT_EQ(tsortOpen(handle), TSDB_CODE_INVALID_MSG);
   tsortDestroySortHandle(handle);
   taosArrayDestroy(orders);
   blockDataDestroy(block);

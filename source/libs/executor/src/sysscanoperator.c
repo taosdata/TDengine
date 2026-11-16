@@ -2166,6 +2166,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
   int32_t            ret = 0;
   char               dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
   SSDataBlock*       pDataBlock = NULL;
+  SVirtualTableRefInfo* pVtableRefInfo = NULL;
 
   // skip mnd read
   if (pInfo->readHandle.mnd != NULL) {
@@ -2192,7 +2193,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
     return doOptimizeVTableNameFilter(pOperator, pDataBlock, dbname);
   }
 
-  SVirtualTableRefInfo* pVtableRefInfo = taosMemoryCalloc(1, sizeof(SVirtualTableRefInfo));
+  pVtableRefInfo = taosMemoryCalloc(1, sizeof(SVirtualTableRefInfo));
   if (pVtableRefInfo == NULL) {
     qError("%s failed at line %d since %s", __func__, __LINE__, terrstr());
     pTaskInfo->code = terrno;
@@ -2266,6 +2267,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
 
           pAPI->metaReaderFn.clearReader(&smrSuperTable);
           blockDataDestroy(pDataBlock);
+          taosMemoryFreeClear(pVtableRefInfo);
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
@@ -2283,6 +2285,7 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
 
           pAPI->metaReaderFn.clearReader(&smrSuperTable);
           blockDataDestroy(pDataBlock);
+          taosMemoryFreeClear(pVtableRefInfo);
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
@@ -10050,6 +10053,7 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t line = 0;
+  SArray* pIdList = NULL;
 
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*       pAPI = &pTaskInfo->storageAPI;
@@ -10074,7 +10078,7 @@ static int32_t vnodeEstimateRawDataSize(SOperatorInfo* pOperator, SDbSizeStatisI
     pInfo->pCur->txnId = pInfo->readHandle.txnId;
   }
 
-  SArray* pIdList = taosArrayInit(16, sizeof(STableId));
+  pIdList = taosArrayInit(16, sizeof(STableId));
   if (pIdList == NULL) {
     TAOS_CHECK_GOTO(terrno, &line, _exit);
   }

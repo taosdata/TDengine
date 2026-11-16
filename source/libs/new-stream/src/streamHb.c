@@ -29,11 +29,12 @@ static int32_t streamHbSendRequestMsg(SStreamHbMsg* pMsg, SEpSet* pEpset) {
   int32_t lino = 0;
   int32_t tlen = 0;
   SEncoder encoder = {0};
+  void* buf = NULL;
 
   tEncodeSize(tEncodeStreamHbMsg, pMsg, tlen, code);
   TAOS_CHECK_EXIT(code);
 
-  void* buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
+  buf = rpcMallocCont(tlen + sizeof(SStreamMsgGrpHeader));
   TSDB_CHECK_NULL(buf, code, lino, _exit, terrno);
 
   ((SStreamMsgGrpHeader *)buf)->streamGid = pMsg->streamGId;
@@ -150,8 +151,12 @@ int32_t streamHbInit(SStreamHbInfo* pHb) {
     return TSDB_CODE_SUCCESS;
   }
 
+  terrno = TSDB_CODE_SUCCESS;
   streamTmrStart(streamHbStart, STREAM_HB_INTERVAL_MS, NULL, gStreamMgmt.timer, &pHb->hbTmr, "stream-hb");
-  
+
+  if (pHb->hbTmr == NULL) {
+    return terrno != TSDB_CODE_SUCCESS ? terrno : TSDB_CODE_FAILED;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

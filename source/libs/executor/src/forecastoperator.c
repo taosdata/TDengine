@@ -702,7 +702,7 @@ static int32_t forecastParseInput(SForecastSupp* pSupp, SNodeList* pFuncs, const
           for (int32_t i = 1; i < numOfParam;
                ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
             SColumnNode* p = (SColumnNode*)(NULL != pParameterCell ? pParameterCell->pNode : NULL);
-            if ((nodeType(p) != QUERY_NODE_COLUMN) || (nodeType(p) == QUERY_NODE_COLUMN && p->isPrimTs)) {
+            if (p == NULL || nodeType(p) != QUERY_NODE_COLUMN || p->isPrimTs) {
               break;
             }
 
@@ -1197,6 +1197,7 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
 
   int32_t                code = 0;
   int32_t                lino = 0;
+  const char*             pId = pTaskInfo->id.str;
   SForecastOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SForecastOperatorInfo));
   SOperatorInfo*         pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL || pInfo == NULL) {
@@ -1206,7 +1207,6 @@ int32_t createForecastOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNo
   initOperatorCostInfo(pOperator);
   pOperator->pPhyNode = pPhyNode;
 
-  const char*             pId = pTaskInfo->id.str;
   SForecastSupp*          pSupp = &pInfo->forecastSupp;
   SForecastFuncPhysiNode* pForecastPhyNode = (SForecastFuncPhysiNode*)pPhyNode;
   SExprSupp*              pExprSup = &pOperator->exprSupp;
