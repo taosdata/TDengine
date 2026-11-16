@@ -10,7 +10,9 @@ This section describes how to create data migration tasks through the taosExplor
 
 ## Overview
 
-MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. TDengine TSDB Enterprise can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses.
+MySQL is one of the most popular relational databases. Many systems have used or are using MySQL databases to store data reported by IoT and industrial internet devices. However, as the number of devices in the access systems grows and the demand for real-time data feedback from users increases, MySQL can no longer meet business needs. TDengine TSDB Enterprise can efficiently read data from MySQL and write it into TDengine, achieving historical data migration or real-time data synchronization, and solving the technical pain points faced by businesses. The MySQL data source also supports scheduled window synchronization and data verification.
+
+For synchronization modes, field mapping, type conversion, transaction consistency, and data verification, see [Relational Database Integration](./23-rdb-integration.md).
 
 ## Procedure
 
@@ -73,7 +75,11 @@ Then click the **Check Connectivity** button, where users can click this button 
 
 **Query Interval** The time interval for querying data in segments, default is 1 day. To avoid querying a large amount of data at once, a data synchronization sub-task will use the query interval to segment the data retrieval.
 
-**Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task will read data from before the delay duration.
+**Delay Duration** In real-time data synchronization scenarios, to avoid losing data due to delayed writes, each synchronization task reads after the query interval plus the delay duration. For example, with a query interval of 3600 seconds and a delay of 60 seconds, the task at 09:01 reads source data from 08:00 to 09:00. In scheduled window synchronization, the delay sets the safe watermark: the current time minus the delay.
+
+**Schedule** Choose **Continuous Synchronization** or **Scheduled Window Synchronization**. In scheduled mode, set the first scheduled time and a fixed interval in minutes, or set a five-field minute-level Cron expression, and limit each trigger with **Maximum Windows per Run**. Scheduling uses the current time zone of the taosExplorer page. Completed windows save a checkpoint. Windows not finished in one run continue on the next trigger. After a failed run, the next trigger retries from the unconfirmed window. See [Oracle · Scheduled Window Example](./15-oracle.md#scheduled-window-example).
+
+The combination of start time, end time, and schedule selects the synchronization mode. An end time with continuous synchronization is a full migration. A blank end time with continuous synchronization is incremental synchronization. Scheduled window synchronization is scheduled synchronization. See [Synchronization Modes](./23-rdb-integration.md#synchronization-modes).
 
 ![Configure data collection](../../assets/mysql-04.webp)
 
@@ -100,6 +106,8 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 **Maximum Read Concurrency** The limit on the number of data source connections or reading threads, modify this parameter when the default parameters do not meet the needs or when adjusting resource usage.
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
+
+**Data Verification** checks each window against the data written to TDengine. Choose **Off**, **Row Count**, or **Row Count and Digest**. The default is Off. You can also set **Verification Failure Policy** and **Verification Retries**. See [Relational Database Integration · Data Verification](./23-rdb-integration.md#data-verification).
 
 ![Configure advanced options](../../assets/mysql-06.webp)
 

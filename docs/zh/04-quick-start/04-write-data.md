@@ -9,10 +9,13 @@ toc_max_heading_level: 4
 
 ## 写入能力一览
 
-TDengine 使用标准 SQL 的 `INSERT` / `DELETE` 管理时序数据，并支持写入时自动建表、从文件导入，以及按列配置编码与压缩。除 SQL 外，还可通过连接器做参数绑定高效写入，或按行协议做无模式写入。
+TDengine 使用标准 SQL 的 `INSERT` / `UPDATE` / `DELETE` 管理时序数据，并支持写入时自动建表、从文件导入，以及按列配置编码与压缩。除 SQL 外，还可通过连接器做参数绑定高效写入，或按行协议做无模式写入。
 
 - **数据写入**
   单条 / 多条 / 多表 `INSERT`，指定列写入，`USING` 自动建表，直接向超级表写入，以及从文件 / CSV 导入并自动建表。详见 [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)。
+
+- **数据更新**
+  使用 `UPDATE` 按条件修改已写入的数据列，或修改子表的标签值（点位信息）；也可以写入相同时间戳的数据覆盖旧值。详见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
 
 - **数据删除**
   使用 `DELETE` 按时间等条件删除普通表或超级表中的数据（不可恢复）。详见 [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)。
@@ -176,11 +179,40 @@ VALUES ("d1001", "2018-10-03 14:38:05", 10.2, 220, 0.23, "California.SanFrancisc
 
 ## 更新
 
-写入相同时间戳的数据时，新值会替换旧值。下面的 SQL 把 `d1001` 在 `2018-10-03 14:38:05` 的电流更新为 `22`。
+### 使用 UPDATE 更新数据
+
+使用 `UPDATE` 语句可以按条件修改已经写入的数据。下面的 SQL 把 `d1001` 在 `2018-10-03 14:38:05` 的电流更新为 `22`，其他列保持不变。
+
+```sql
+UPDATE d1001 SET current = 22 WHERE ts = "2018-10-03 14:38:05";
+```
+
+`UPDATE` 也可以作用于超级表，一次修正多个子表中的数据。下面的 SQL 把 `group_id` 为 2 的设备在指定时间段内超过 250V 的电压修正为 220V。
+
+```sql
+UPDATE meters SET voltage = 220
+WHERE group_id = 2
+  AND ts >= "2018-10-03 14:38:00" AND ts < "2018-10-03 14:39:00"
+  AND voltage > 250;
+```
+
+### 更新点位信息
+
+子表的标签记录了测点的位置、分组等点位信息。下面的 SQL 把测点 `d1001` 的位置改为 `California.SanJose`。
+
+```sql
+UPDATE meters SET location = "California.SanJose" WHERE tbname = "d1001";
+```
+
+### 写入相同时间戳覆盖旧值
+
+写入相同时间戳的数据时，新值会替换旧值。下面的 SQL 与第一个 `UPDATE` 示例效果相同。
 
 ```sql
 INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 ```
+
+两种方式的区别是：`UPDATE` 只修改已经存在的行，可以按条件一次修改多行，也可以基于原值计算；`INSERT` 在行不存在时会新增一行。详见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
 
 ## 删除
 
@@ -213,6 +245,7 @@ SHOW TABLE DISTRIBUTED d1001;
 本章只覆盖快速上手阶段最常用的写入、更新与删除方式。更完整的写入能力，请继续阅读以下文档：
 
 - [数据写入](../05-tdengine-sql/03-data-write/01-insert.md)：写入数据的详细语法
+- [数据更新](../05-tdengine-sql/03-data-write/04-update.md)：使用 `UPDATE` 修改数据和点位信息
 - [数据删除](../05-tdengine-sql/03-data-write/02-delete.md)：删除指定表或超级表中的数据
 - [压缩配置](../05-tdengine-sql/03-data-write/03-compress.md)：按列配置数据编码与压缩算法
 - [参数绑定](../10-developer-guide/03-stmt.md)：STMT / STMT2 高效写入

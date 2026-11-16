@@ -262,6 +262,7 @@ Child-table creation is also controlled by `auditCreateTable`: when it is `0`, c
 | insert | insert | db name | table name | SQL |
 | select | select | db name | table name | SQL |
 | delete | delete | db name | table name | SQL |
+| update | update | db name | table name | SQL |
 
 Data-level audit records are reported by the client after statements succeed. This can significantly increase write volume, so weigh compliance requirements against performance cost.
 

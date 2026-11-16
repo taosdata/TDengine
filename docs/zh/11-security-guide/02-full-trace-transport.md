@@ -323,7 +323,7 @@ taosAdapter 服务端默认接受客户端的 permessage-deflate 协商请求（
 
 > 压缩会增加 CPU 负载，建议仅在带宽受限场景（跨 WAN / 云连接）启用。
 
-#### 2.1.3 Nginx 反向代理 TLS 卸载
+#### 2.1.3 Nginx 反向代理 TLS 卸载 {#213-nginx-tls-offload}
 
 ```nginx
 server {
@@ -359,6 +359,7 @@ taosc 作为独立的原生客户端库，使用 TDengine **私有协议**（TCP
 |---------|-------------|------|
 | RSA | 2048 位 | 推荐 4096 位 |
 | ECC | 256 位 | 推荐 P-256 / P-384 |
+| SM2 | 256 位 | 国密证书，见 [国密 TLS](#gm-tls) |
 | CA | — | 仅支持 PEM 格式 |
 
 #### 2.2.2 双向 TLS（mTLS）
@@ -383,6 +384,52 @@ tlsCaPath   /etc/taos/certs/ca.pem
 # tlsCliCertPath /etc/taos/certs/client.pem
 # tlsCliKeyPath  /etc/taos/certs/client-key.pem
 ```
+
+#### 国密 TLS {#gm-tls}
+
+taosc 与 taosd 之间的 TLS 支持国密算法：使用 SM2 证书做身份认证与密钥交换，使用 SM4 加密传输数据，使用 SM3 做完整性校验。协议遵循 TLS 1.3 国密套件规范（RFC 8998），可用的密码套件为 `TLS_SM4_GCM_SM3` 和 `TLS_SM4_CCM_SM3`。
+
+配置方式与普通 TLS 相同，只需把证书和私钥换成 SM2 证书。服务端证书为 SM2 证书时，taosd 只与客户端协商国密套件；客户端须信任签发该证书的 SM2 CA，否则握手失败。
+
+**生成 SM2 证书**（需要支持国密的 OpenSSL 3.0 及以上版本）：
+
+```shell
+# CA
+openssl genpkey -algorithm SM2 -out ca-key.pem
+openssl req -new -x509 -key ca-key.pem -sm3 -days 3650 -subj "/CN=TDengine SM2 CA" -out ca.pem
+
+# 服务端证书
+openssl genpkey -algorithm SM2 -out server-key.pem
+openssl req -new -key server-key.pem -sm3 -subj "/CN=taosd.example.com" -out server.csr
+openssl x509 -req -in server.csr -CA ca.pem -CAkey ca-key.pem -CAcreateserial -sm3 -days 825 -out server.pem
+```
+
+**taosd 服务端**（`/etc/taos/taos.cfg`）：
+
+```ini
+enableTLS         1
+tlsCaPath         /etc/taos/certs/ca.pem
+tlsSvrCertPath    /etc/taos/certs/server.pem
+tlsSvrKeyPath     /etc/taos/certs/server-key.pem
+```
+
+**taosc 客户端**（`/etc/taos/taos.cfg`）：
+
+```ini
+enableTLS   1
+tlsCaPath   /etc/taos/certs/ca.pem
+# 双向认证时使用 SM2 客户端证书
+# tlsCliCertPath /etc/taos/certs/client.pem
+# tlsCliKeyPath  /etc/taos/certs/client-key.pem
+```
+
+**验证**：连接成功后，在 taosd 日志中可以看到协商结果，例如 `TLS handshake done, version:TLSv1.3, cipher:TLS_SM4_GCM_SM3`。
+
+**适用范围**
+
+- 适用于 taosc → taosd，以及 dnode 之间的集群内部通信。
+- taosAdapter 的 HTTPS / WSS 暂不支持国密证书。WebSocket 和 REST 连接需要国密传输时，可在 taosAdapter 前部署支持国密的反向代理（如国密版 Nginx）卸载 TLS，配置方式参见 [Nginx 反向代理 TLS 卸载](#213-nginx-tls-offload)。
+- 不同证书类型不能混用：同一集群内所有 dnode 应统一使用 SM2 证书或统一使用 RSA / ECC 证书。
 
 #### 2.2.3 SASL/SCRAM-SHA-256 加固
 

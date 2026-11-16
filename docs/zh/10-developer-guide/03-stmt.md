@@ -36,6 +36,16 @@ import TabItem from "@theme/TabItem";
    2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
 ```
 
+## 参数绑定更新
+
+STMT / STMT2 也支持预编译 `UPDATE` 语句，批量修正已写入的数据。`SET` 中的新值和 `WHERE` 中的全部主键（时间戳列，以及复合主键列）必须使用 `?` 占位符：
+
+```sql
+UPDATE meters SET current = ?, voltage = ? WHERE tbname = ? AND ts = ?
+```
+
+`WHERE` 中的其他条件与 SQL 中的 `UPDATE` 含义相同，只有满足全部条件的行才会被更新。参数绑定方式不支持更新标签列。完整的更新语义和限制见 [数据更新](../05-tdengine-sql/03-data-write/04-update.md)。
+
 ## 示例
 
 下面继续以智能电表为例，展示各语言连接器使用参数绑定高效写入：

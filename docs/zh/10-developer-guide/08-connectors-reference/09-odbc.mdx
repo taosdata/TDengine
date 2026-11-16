@@ -94,7 +94,7 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
-    4.7【兼容软件】支持对 ADO 和工业软件（KingSCADA、Kepware 等）的兼容性适配，通常情况下，选择默认值 General 即可
+    4.7【兼容软件】选择使用该数据源的应用类型，支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配。通常情况下，选择默认值 General 即可。32 位驱动的下拉框包含 General、ADO、KingSCADA、Kepware，64 位驱动只包含 General 和 ADO。各选项的行为和选择方法见 [兼容软件选项](#compatible-software)。
 
     4.8【启用传输压缩】仅 WebSocket 连接可用，选填。勾选后等价于设置 `COMPRESSION=1`，不勾选等价于 `COMPRESSION=0`。该参数用于控制 WebSocket 传输是否启用压缩。
 
@@ -128,13 +128,59 @@ TDengine ODBC 支持两种连接 TDengine 数据库方式：WebSocket 连接与 
 
     4.6【密码】仅供第 5 步测试连接使用，选填，数据库用户密码，如果不填，TDengine 默认 taosdata
 
-    4.7【兼容软件】支持对 ADO 和工业软件（KingSCADA、Kepware 等）的兼容性适配，通常情况下，选择默认值 General 即可
+    4.7【兼容软件】选择使用该数据源的应用类型，支持对 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具、Kepware 等）的兼容性适配。通常情况下，选择默认值 General 即可。原生连接仅支持 64 位驱动，下拉框只包含 General 和 ADO。各选项的行为和选择方法见 [兼容软件选项](#compatible-software)。
 
 5. 点【测试连接】测试连接情况，如果成功，提示"连接成功"
 
 6. 点【确定】，即可保存配置并退出
 
 7. 也可以在第 2 步选择已经配置好的数据源名通过【配置】按钮进入配置页面，修改已有配置
+
+### 兼容软件选项 {#compatible-software}
+
+不同应用调用 ODBC 接口的方式存在差异。例如，ADO 记录集可能请求加锁的并发模式，部分工业软件会在连接前设置登录超时。**兼容软件** 选项用于声明当前数据源由哪类应用使用，驱动据此调整少量 ODBC 行为，从而适配 ADO 和工业软件（亚控科技的 KingCalculation 计算分析平台、KingSuperScada 工控 SCADA 平台、KingIOserver 数据采集工具，以及 Kepware 等）。
+
+该选项只影响驱动在客户端的行为，不会发送到服务端，也不改变 SQL 语义以及写入和查询结果。
+
+#### 可选值与驱动行为
+
+| 选项 | 配置界面中可见 | 驱动行为 | 适用场景 |
+| --- | --- | --- | --- |
+| General | 32 位、64 位 | 默认值。语句并发模式为只读（`SQL_CONCUR_READ_ONLY`），结果集列描述为只读。应用设置非 0 的登录超时（`SQL_ATTR_LOGIN_TIMEOUT`）时，驱动按 0 处理，并返回 `01S02` 警告 | Power BI、Excel、自行开发的程序等一般 ODBC 应用 |
+| ADO | 32 位、64 位 | 语句默认并发模式为 `SQL_CONCUR_LOCK`，也可设为 `SQL_CONCUR_READ_ONLY`；结果集列描述标记为可写（`SQL_ATTR_WRITE`） | 通过 ADO 访问 TDengine，且使用记录集（Recordset）读写数据的应用 |
+| KingSCADA | 仅 32 位 | 保存应用通过 `SQL_ATTR_LOGIN_TIMEOUT` 设置的登录超时，并在应用读取该属性时原样返回；其他行为与 General 相同 | 亚控科技工业软件，且应用依赖驱动保留登录超时设置 |
+| Kepware | 仅 32 位 | 将数据源标识为供 Kepware 使用，当前不额外改变驱动行为，其他行为与 General 相同 | 通过 ODBC 访问 TDengine 的 Kepware |
+
+:::note
+
+- 32 位驱动仅企业版提供，且仅支持 WebSocket 连接。KingSCADA 和 Kepware 两项只出现在 32 位驱动的配置界面中。
+- 64 位驱动的配置界面不显示 KingSCADA 和 Kepware。如需在 64 位应用中使用这两项，可以通过连接字符串指定，见下文。
+
+:::
+
+#### 配置方式
+
+**通过数据源配置界面**
+
+在 TDengine ODBC 数据源配置页面的 **兼容软件** 下拉框中选择所需选项，点击【确定】保存。所选值保存为该 DSN 的 `CUSTOMPRODUCT` 配置项，使用该 DSN 建立的连接都会按此选项工作。修改选项后，需要重新建立连接才能生效。
+
+**通过连接字符串**
+
+使用 `SQLDriverConnect` 等接口以连接字符串连接时，可以用 `CUSTOMPRODUCT` 指定兼容软件。取值为 `general`、`ado`、`kingscada`、`kepware` 之一，不区分大小写，且必须放在花括号中。例如：
+
+```text
+DSN=TDengine_WS;CUSTOMPRODUCT={ado}
+```
+
+取值不在上述范围内时，驱动无法解析连接字符串，连接失败。
+
+#### 选择建议
+
+1. 一般 BI 工具、报表工具和自行开发的程序，保持默认值 General。
+2. 应用通过 ADO 访问 TDengine 时，选择 ADO，尤其是使用记录集（Recordset）并设置锁定方式的场景。
+3. 亚控科技的 KingCalculation、KingSuperScada、KingIOserver 等工业软件通过 ODBC 访问 TDengine 时，若应用在连接前设置登录超时，并在 General 下因 `01S02` 警告或超时设置不生效而报错，选择 KingSCADA；否则保持 General。
+4. Kepware 通过 ODBC 访问 TDengine 时，可以选择 Kepware 以便识别数据源用途；当前该选项与 General 的行为一致。
+5. 不确定应如何选择时，先使用 General 完成【测试连接】和业务验证；仅在应用出现上述兼容性问题时，再切换到对应选项。
 
 ## 支持的平台
 

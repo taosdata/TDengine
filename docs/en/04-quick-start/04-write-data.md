@@ -1,6 +1,6 @@
 ---
 sidebar_label: Data Ingestion
-title: Data Ingestion
+title: Data Ingestion and Update
 description: Use SQL to write, update, and delete time-series data
 toc_max_heading_level: 4
 ---
@@ -9,10 +9,13 @@ This chapter continues with the smart meter model from the previous chapter. You
 
 ## Write Capabilities at a Glance
 
-TDengine uses standard SQL `INSERT` / `DELETE` to manage time-series data, and also supports automatic table creation on write, import from files, and per-column encoding and compression. Besides SQL, connectors support parameter binding for high-throughput writes, and schemaless ingestion via line protocols.
+TDengine uses standard SQL `INSERT` / `UPDATE` / `DELETE` to manage time-series data, and also supports automatic table creation on write, import from files, and per-column encoding and compression. Besides SQL, connectors support parameter binding for high-throughput writes, and schemaless ingestion via line protocols.
 
 - **Data writing**
   Single-row / multi-row / multi-table `INSERT`, column-specified writes, `USING` for automatic table creation, writing directly to a supertable, and importing from a file / CSV with automatic table creation. See [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md).
+
+- **Data update**
+  Use `UPDATE` to change existing data columns by condition, or to change subtable tag values (point information). You can also overwrite old values by writing the same timestamp. See [Data Update](../05-tdengine-sql/03-data-write/04-update.md).
 
 - **Data deletion**
   Use `DELETE` with time and other predicates to delete data from normal tables or supertables (irreversible). See [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md).
@@ -176,11 +179,40 @@ Besides writing SQL in the shell, you can import data through third-party tools 
 
 ## Update
 
-Writing data with the same timestamp replaces the old values with the new ones. The following SQL updates the current of `d1001` at `2018-10-03 14:38:05` to `22`.
+### Update Data with UPDATE
+
+`UPDATE` changes data that has already been written. The following SQL sets the current of `d1001` at `2018-10-03 14:38:05` to `22` and leaves the other columns unchanged.
+
+```sql
+UPDATE d1001 SET current = 22 WHERE ts = "2018-10-03 14:38:05";
+```
+
+`UPDATE` can also target a supertable and correct data in multiple subtables at once. The following SQL sets voltage to 220V for devices whose `group_id` is 2, in the given time range, when the voltage is above 250V.
+
+```sql
+UPDATE meters SET voltage = 220
+WHERE group_id = 2
+  AND ts >= "2018-10-03 14:38:00" AND ts < "2018-10-03 14:39:00"
+  AND voltage > 250;
+```
+
+### Update Point Information
+
+Subtable tags store point information such as location and group. The following SQL changes the location of point `d1001` to `California.SanJose`.
+
+```sql
+UPDATE meters SET location = "California.SanJose" WHERE tbname = "d1001";
+```
+
+### Overwrite by Writing the Same Timestamp
+
+Writing a row with the same timestamp replaces the old values. The following SQL has the same effect as the first `UPDATE` example.
 
 ```sql
 INSERT INTO d1001 (ts, current) VALUES ("2018-10-03 14:38:05", 22);
 ```
+
+`UPDATE` changes only existing rows. It can change many rows in one statement and can compute new values from the current ones. `INSERT` creates a row when the timestamp does not exist. See [Data Update](../05-tdengine-sql/03-data-write/04-update.md).
 
 ## Delete
 
@@ -213,6 +245,7 @@ For more on disk usage and distribution, see [View DB Disk Usage](../05-tdengine
 This chapter covers only the most common write, update, and delete patterns for a quick start. For the full write capabilities, continue with:
 
 - [Data Writing](../05-tdengine-sql/03-data-write/01-insert.md): detailed write syntax
+- [Data Update](../05-tdengine-sql/03-data-write/04-update.md): use `UPDATE` to change data and point information
 - [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md): deleting data from specified tables or supertables
 - [Data Compression](../05-tdengine-sql/03-data-write/03-compress.md): configuring per-column encoding and compression algorithms
 - [Parameter Binding](../10-developer-guide/03-stmt.md): STMT / STMT2 high-throughput writes

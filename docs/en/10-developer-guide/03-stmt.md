@@ -31,6 +31,16 @@ INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VAL
 INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
 ```
 
+## Parameterized Update
+
+STMT / STMT2 can also prepare an `UPDATE` statement and correct written data in batches. New values in `SET`, and every primary key in `WHERE` (the timestamp column and any composite primary key column), must use `?` placeholders:
+
+```sql
+UPDATE meters SET current = ?, voltage = ? WHERE tbname = ? AND ts = ?
+```
+
+Other `WHERE` predicates have the same meaning as in SQL `UPDATE`: a row is updated only when it matches every condition. Parameter binding cannot update tag columns. For the full update semantics and limits, see [Data Update](../05-tdengine-sql/03-data-write/04-update.md).
+
 ## Example
 
 Next, we continue to use smart meters as an example to demonstrate the efficient writing functionality of parameter binding with various language connectors:

@@ -262,6 +262,7 @@ CREATE STABLE IF NOT EXISTS operations (
 | insert | insert | db name | table name | SQL |
 | select | select | db name | table name | SQL |
 | delete | delete | db name | table name | SQL |
+| update | update | db name | table name | SQL |
 
 数据级审计由客户端在语句成功后上报，写入量可能显著增加，请按合规要求与性能权衡。
 

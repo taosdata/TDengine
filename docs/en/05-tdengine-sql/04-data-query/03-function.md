@@ -1718,6 +1718,41 @@ sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
 Query OK, 1 row(s) in set (0.000569s)
 ```
 
+#### SM3
+
+```sql
+SM3(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Calculates a digest of `expr` with the SM3 hash algorithm (GB/T 32905-2016) and returns the 256-bit digest as a 64-character lowercase hexadecimal string.
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**:
+
+- `expr`: VARCHAR, NCHAR, VARBINARY.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**:
+
+- If `expr` is NULL, returns NULL.
+- An `NCHAR` value is encoded as UTF-8 before the digest is calculated.
+- Use it to compare data or check integrity, for example by calculating the digest of the same field in the source database and in TDengine.
+
+**Example**:
+
+```sql
+taos> select sm3('abc')\G;
+*************************** 1.row ***************************
+sm3('abc'): 66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
+Query OK, 1 row(s) in set (0.000412s)
+```
+
 #### CRC32
 
 ```sql

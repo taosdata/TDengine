@@ -18,6 +18,8 @@ taosX also supports scheduled window synchronization triggered by a fixed interv
 
 Each scheduled run reads SQL windows from the last successfully saved checkpoint up to a safe watermark calculated as the current time minus the delay. Maximum Windows per Run limits Oracle queries in each run. If a long outage leaves more windows than one run can process, subsequent triggers continue from the checkpoint.
 
+For synchronization modes, field mapping, type conversion, transaction consistency, and data verification, see [Relational Database Integration](./23-rdb-integration.md).
+
 ## Procedure
 
 ### Add a Data Source
@@ -114,6 +116,8 @@ The **Advanced Options** area is collapsed by default, click the `>` on the righ
 **Maximum Read Concurrency** Limit on the number of data source connections or reading threads, modify this parameter when the default parameters do not meet the needs or when adjusting resource usage.
 
 **Batch Size** The maximum number of messages or rows sent at once. The default is 10000.
+
+**Data Verification** checks each window against the data written to TDengine. Choose **Off**, **Row Count**, or **Row Count and Digest**. The default is Off. You can also set **Verification Failure Policy** and **Verification Retries**. See [Relational Database Integration · Data Verification](./23-rdb-integration.md#data-verification).
 
 ![Configure advanced options](../../assets/oracle-05.webp)
 

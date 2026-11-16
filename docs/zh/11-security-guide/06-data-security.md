@@ -27,6 +27,8 @@ toc_max_heading_level: 4
 
 TDengine 支持透明数据加密（Transparent Data Encryption，TDE）：对静态数据文件加密，降低攻击者绕过数据库、直接从文件系统读取敏感信息的风险。应用程序对加密无感知，无需修改业务代码。内置支持国密 SM4、AES 等对称算法（CBC 模式）。
 
+数据库可选的对称算法包括 `SM4-CBC`、`AES-128-CBC`、`AES-256-CBC` 和对称类型的自定义算法，全部内置算法及其用途见 [加密算法管理](#encrypt-algorithm-management)。
+
 密钥管理采用**机器码绑定**：密钥经机器码保护后保存在本地，而非第三方 KMS。数据文件拷贝到其他机器后，因机器码变化无法解出密钥，从而无法解读文件。加密范围覆盖预写日志、元数据与时序数据文件；加密后压缩率不变，写入与查询性能通常仅有轻微下降。
 
 :::note
@@ -90,8 +92,9 @@ taosk -c /etc/taos \
 |------|------|
 | `-c` | 配置文件目录，默认 `/etc/taos` |
 | `-d` | 数据目录（`dataDir`）；若 `-c` 对应配置已含正确 `dataDir` 可省略 |
-| `--set-cfg-algorithm` | 配置文件加密算法：`sm4` 或 `aes`，默认 `sm4` |
-| `--set-meta-algorithm` | 元数据加密算法：`sm4` 或 `aes`，默认 `sm4` |
+| `--set-cfg-algorithm` | 配置文件加密算法：`sm4`、`aes`（AES-128）或 `aes256`（AES-256），默认 `sm4` |
+| `--set-meta-algorithm` | 元数据加密算法：`sm4`、`aes`（AES-128）或 `aes256`（AES-256），默认 `sm4` |
+| `--set-digest-algorithm` | 加密文件完整性校验使用的摘要算法：`sm3` 或 `sha256`，默认 `sm3` |
 | `--encrypt-server` | 启用服务端主密钥；可指定 `SVR_KEY`，省略则自动生成 |
 | `--encrypt-database` | 启用数据库主密钥；可指定 `DB_KEY`，省略则自动生成 |
 | `--encrypt-config` | 启用配置文件加密，自动生成 `CFG_KEY` |
@@ -198,6 +201,34 @@ taosk -c /etc/taos \
   --svr-key your_svr_key
 ```
 
+备份文件不绑定机器码，拿到备份文件和 `SVR_KEY` 即可恢复密钥。可以在备份时再用 SM2 或 RSA 公钥加密备份文件，恢复时须同时持有对应的私钥，降低备份文件在传输和存放过程中泄露的风险：
+
+```shell
+# 使用 SM2 公钥加密备份文件
+taosk -c /etc/taos --backup --svr-key your_svr_key \
+  --backup-algorithm sm2 \
+  --public-key /path/to/sm2-public.pem
+
+# 使用对应私钥恢复
+taosk -c /etc/taos --restore \
+  --machine-code /path/to/backup_file \
+  --svr-key your_svr_key \
+  --private-key /path/to/sm2-private.pem
+```
+
+| 参数 | 说明 |
+|------|------|
+| `--backup-algorithm` | 备份文件的加密算法：`sm2` 或 `rsa`。省略时备份文件不做额外加密 |
+| `--public-key` | PEM 格式公钥文件。使用 `rsa` 时，密钥长度不得小于 2048 位 |
+| `--private-key` | 恢复时使用的 PEM 格式私钥文件，须与备份时的公钥配对 |
+
+SM2 密钥对可以用支持国密的 OpenSSL（3.0 及以上）生成：
+
+```shell
+openssl genpkey -algorithm SM2 -out sm2-private.pem
+openssl pkey -in sm2-private.pem -pubout -out sm2-public.pem
+```
+
 ### 1.8 密钥到期策略
 
 ```sql
@@ -238,7 +269,80 @@ ALTER SYSTEM SET KEY_EXPIRATION 90 DAYS STRATEGY 'ALARM';
 - 启用存储安全后，**不能回退**到不支持存储安全的历史版本。
 - `v3.3` 时代的 `CREATE ENCRYPT_KEY` / `taosd -y` 等单密钥流程仅作兼容理解；新部署请使用 `taosk`。
 
-### 1.12 加密算法管理
+### 1.12 加密算法管理 {#encrypt-algorithm-management}
+
+TDengine 企业版内置国密算法和国际标准算法，覆盖对称加密、摘要和非对称加密三类，并支持按需接入自定义算法。算法可以通过 taosExplorer 的可视化界面管理，也可以通过 SQL 管理。
+
+#### 1.12.1 内置算法
+
+| `id` | `algorithm_id` | 类型 | 遵循标准 | 密钥或摘要长度 | 主要用途 |
+|------|----------------|------|----------|----------------|----------|
+| 1 | `SM4-CBC` | 对称加密 | GB/T 32907-2016 | 128 位密钥 | 数据库、配置文件、元数据和用户口令加密 |
+| 2 | `AES-128-CBC` | 对称加密 | FIPS 197 | 128 位密钥 | 数据库、配置文件和元数据加密 |
+| 7 | `AES-256-CBC` | 对称加密 | FIPS 197 | 256 位密钥 | 数据库、配置文件和元数据加密 |
+| 3 | `SM3` | 摘要 | GB/T 32905-2016 | 256 位摘要 | 加密文件完整性校验、国密 TLS、SQL 函数 `SM3()` |
+| 4 | `SHA-256` | 摘要 | FIPS 180-4 | 256 位摘要 | 加密文件完整性校验、TLS、SQL 函数 `SHA2()` |
+| 5 | `SM2` | 非对称加密 | GB/T 32918-2016 | 256 位密钥 | 国密 TLS 证书、密钥备份文件加密 |
+| 6 | `RSA` | 非对称加密 | RFC 8017（PKCS #1） | 2048 位及以上 | TLS 证书、密钥备份文件加密 |
+
+说明：
+
+- RSA 密钥长度小于 2048 位时拒绝使用。
+- 内置算法由系统维护，不能修改或删除。
+
+#### 1.12.2 算法用途与配置
+
+| 用途 | 可选算法 | 配置方式 |
+|------|----------|----------|
+| 时序数据加密 | `SM4-CBC`、`AES-128-CBC`、`AES-256-CBC`，或对称类型的自定义算法 | 建库时指定 `ENCRYPT_ALGORITHM`，见下文 1.13 节 |
+| 配置文件、元数据加密 | `sm4`、`aes`、`aes256` | `taosk --set-cfg-algorithm`、`--set-meta-algorithm`，见 1.3 节 |
+| 用户口令加密存储 | `SM4` | 生成 `DATA_KEY` 后自动启用，见下文 1.14 节 |
+| 加密文件完整性校验 | `sm3`、`sha256` | `taosk --set-digest-algorithm`，见 1.3 节 |
+| 传输加密 | SM2 证书配合 SM4 / SM3 套件；RSA / ECC 证书配合 AES / SHA-256 套件 | `taos.cfg` 中的 TLS 参数，见 [全链路传输安全 · 国密 TLS](./02-full-trace-transport.md#gm-tls) |
+| 密钥备份文件加密 | `sm2`、`rsa` | `taosk --backup --backup-algorithm`，见 1.7 节 |
+| SQL 中的加解密与摘要 | SM4、AES、SM3、SHA-2 | `SM4_ENCRYPT`、`SM4_DECRYPT`、`AES_ENCRYPT`、`AES_DECRYPT`、`SM3`、`SHA2` 函数，见 [内置函数](../05-tdengine-sql/04-data-query/03-function.md) |
+
+**加密文件完整性校验**：`taosk` 加密配置文件、元数据和密钥文件时，会按 `--set-digest-algorithm` 指定的算法计算明文摘要，写入加密文件头。`taosd` 和 `taosk` 读取文件时先解密再校验摘要，摘要不一致说明文件被篡改或损坏，此时拒绝加载该文件，并在日志中输出 `encrypted file digest mismatch` 及文件路径。不含摘要的加密文件读取时跳过校验；更新密钥（见 1.6 节）后会补写摘要。
+
+#### 1.12.3 通过 taosExplorer 管理加密算法 {#encrypt-algorithm-explorer}
+
+taosExplorer 提供 **加密算法** 管理页面，可在浏览器中查看全部算法，添加和删除自定义算法，无需编写 SQL。
+
+**权限要求**
+
+- 查看算法列表：`SYSINFO` 属性为 `1` 的用户。
+- 添加、删除自定义算法：拥有 `SYSSEC` 角色的用户；未启用三权分立时为 `root`。
+
+**查看算法**
+
+1. 登录 taosExplorer，在左侧菜单中选择 **系统管理** > **安全** > **加密算法**。
+2. 页面以列表展示全部算法，列包括 **ID**、**算法标识**、**名称**、**类型**、**来源**、**OpenSSL 名称**、**描述** 和 **引用数**。**引用数** 表示当前使用该算法的数据库数量。
+3. 可以按 **类型**（对称加密、摘要、非对称加密）和 **来源**（内置、自定义）筛选，也可以在搜索框中按算法标识或名称搜索。
+4. 点击算法所在行，右侧显示算法详情，包括引用该算法的数据库列表。
+
+**添加自定义算法**
+
+1. 先将实现自定义算法的 OpenSSL provider 动态库放到 [`encryptExtDir`](../12-operations-and-tooling/03-components/01-taosd.md#encryptextdir) 指定的路径，并在所有 dnode 上重启 `taosd` 使其加载，详见下文 1.12.5 节。
+2. 在 **加密算法** 页面点击 **+ 添加算法**，填写表单：
+
+    | 表单项 | 是否必填 | 说明 | 对应 SQL 子句 |
+    |--------|----------|------|---------------|
+    | 算法标识 | 是 | 全局唯一，建库时在 `ENCRYPT_ALGORITHM` 中使用 | `CREATE ENCRYPT_ALGR 'id'` |
+    | 名称 | 是 | 算法名称 | `ALGR_NAME` |
+    | 类型 | 是 | 对称加密（CBC 模式）、摘要或非对称加密 | `ALGR_TYPE` |
+    | OpenSSL 名称 | 是 | provider 中注册的算法名 | `OSSL_ALGR_NAME` |
+    | 描述 | 否 | 便于识别的说明 | `DESC` |
+
+3. 点击 **检测**，taosExplorer 在各 dnode 上检查 provider 是否已加载、能否按 **OpenSSL 名称** 找到该算法，并对类型为对称加密的算法做一次加解密自检。全部 dnode 检测通过后，**提交** 按钮才可用。
+4. 点击 **提交**，算法出现在列表中，**来源** 为 **自定义**，即可在建库时使用。
+
+**删除自定义算法**
+
+在列表中找到该算法，点击 **删除** 并确认。**引用数** 大于 0 时不能删除，页面会列出引用该算法的数据库，需先删除这些数据库。内置算法不显示 **删除** 按钮。
+
+添加和删除操作会写入审计日志，操作名分别为 `createEncryptAlgr` 和 `dropEncryptAlgr`，见 [审计与合规](./07-audit-and-compliance.md)。
+
+#### 1.12.4 通过 SQL 管理加密算法
 
 查看内置与自定义算法：
 
@@ -250,9 +354,14 @@ SHOW ENCRYPT_ALGORITHMS;
 示例输出：
 
 ```text
-id | algorithm_id | name | desc                        | type                        | source   | ossl_algr_name |
-1  | SM4-CBC      | SM4  | SM4 symmetric encryption    | Symmetric Ciphers CBC mode  | build-in | SM4-CBC:SM4    |
-2  | AES-128-CBC  | AES  | AES symmetric encryption    | Symmetric Ciphers CBC mode  | build-in | AES-128-CBC    |
+id | algorithm_id | name    | desc                     | type                        | source   | ossl_algr_name |
+1  | SM4-CBC      | SM4     | SM4 symmetric encryption | Symmetric Ciphers CBC mode  | build-in | SM4-CBC:SM4    |
+2  | AES-128-CBC  | AES     | AES symmetric encryption | Symmetric Ciphers CBC mode  | build-in | AES-128-CBC    |
+3  | SM3          | SM3     | SM3 digests              | Digests                     | build-in | SM3            |
+4  | SHA-256      | SHA-256 | SHA2 digests             | Digests                     | build-in | SHA-256        |
+5  | SM2          | SM2     | SM2 Asymmetric Cipher    | Asymmetric Ciphers          | build-in | SM2            |
+6  | RSA          | RSA     | RSA Asymmetric Cipher    | Asymmetric Ciphers          | build-in | RSA            |
+7  | AES-256-CBC  | AES     | AES symmetric encryption | Symmetric Ciphers CBC mode  | build-in | AES-256-CBC    |
 ```
 
 | 字段 | 说明 |
@@ -264,6 +373,13 @@ id | algorithm_id | name | desc                        | type                   
 | `source` | `built-in` / `customized`（界面也可能显示 `build-in`，以查询结果为准） |
 | `ossl_algr_name` | OpenSSL / 自定义 provider 中的名称 |
 
+只查看某一类算法：
+
+```sql
+SELECT algorithm_id, name, `desc` FROM information_schema.ins_encrypt_algorithms
+WHERE type = 'Digests';
+```
+
 添加自定义算法：
 
 ```sql
@@ -271,7 +387,7 @@ CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr'
   ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
 ```
 
-自定义算法需按 OpenSSL provider 接口实现 so，由 `taosd` 启动时加载；`encryptExtDir` 指定 so 路径（当前仅支持加载单个文件）。同一 so 可包含多个算法，通过 `OSSL_ALGR_NAME` 对应。参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/)、[OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/)。
+`ALGR_TYPE` 的取值为 `Symmetric_Ciphers_CBC_mode`、`Digests` 或 `Asymmetric_Ciphers`。目前只有对称类型的自定义算法可以用于 `ENCRYPT_ALGORITHM` 建库。
 
 删除自定义算法（须先无引用，例如已 `DROP` 使用该算法的数据库）：
 
@@ -281,13 +397,27 @@ DROP ENCRYPT_ALGR 'vigenere';
 
 内置算法不允许删除。
 
+#### 1.12.5 接入自定义算法
+
+自定义算法需按 OpenSSL provider 接口实现动态库（Linux 上为 `.so`，Windows 上为 `.dll`），由 `taosd` 启动时加载。完整流程如下：
+
+1. 按 OpenSSL provider 接口实现算法，参考 [OpenSSL provider](https://docs.openssl.org/master/man7/provider/)、[OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/)。同一个动态库可以包含多个算法，各算法通过 `OSSL_ALGR_NAME` 区分。
+2. 将动态库复制到集群中所有 dnode 的同一路径下，并在每个 dnode 的 `taos.cfg` 中用 [`encryptExtDir`](../12-operations-and-tooling/03-components/01-taosd.md#encryptextdir) 指定该路径（当前仅支持加载单个文件）。
+3. 逐个重启 `taosd`，使其加载动态库。
+4. 通过 taosExplorer 或 `CREATE ENCRYPT_ALGR` 登记算法。
+5. 用该算法建库，写入并查询少量数据，确认加解密正常。
+
+:::warning
+使用自定义算法加密的数据库，在所有 dnode 上都依赖该动态库。删除、替换动态库或修改 `encryptExtDir` 前，须先确认没有数据库引用该算法，否则 `taosd` 无法读取这些数据库的数据。
+:::
+
 ### 1.13 创建加密数据库
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
 
 database_option: {
-  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC' | ...}
+  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC' | 'AES-256-CBC' | ...}
 }
 ```
 
@@ -298,7 +428,8 @@ database_option: {
 ```sql
 CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
 CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
-CREATE DATABASE db3;   -- 不加密
+CREATE DATABASE db3 ENCRYPT_ALGORITHM 'AES-256-CBC';
+CREATE DATABASE db4;   -- 不加密
 ```
 
 查看库级配置：
@@ -362,5 +493,6 @@ DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100' SECURE_DELETE;
 | 库 / 表 DDL | [数据库](../05-tdengine-sql/02-ddl/01-database.md)、[数据删除](../05-tdengine-sql/03-data-write/02-delete.md) |
 | SHOW / 系统表 | [SHOW](../05-tdengine-sql/09-system-info/03-show.md)、[元数据表](../05-tdengine-sql/09-system-info/01-meta.md) |
 | taosd 加密相关参数 | [taosd](../12-operations-and-tooling/03-components/01-taosd.md)（`encryptAlgorithm`、`encryptScope`、`encryptExtDir`、`encryptPassAlgorithm`、`secureEraseMode` 等） |
+| 国密 TLS 传输 | [全链路传输安全 · 国密 TLS](./02-full-trace-transport.md#gm-tls) |
 | 全链路中的落盘可靠 | [全链路高可靠 · TDE](./03-full-trace-reliability.md) |
 | 加固清单 | [安全加固建议](./08-security-hardening.md) |

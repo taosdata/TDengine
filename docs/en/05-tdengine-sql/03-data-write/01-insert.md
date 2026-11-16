@@ -289,7 +289,7 @@ INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
 
 Every inserted row must contain a timestamp, and the timestamp cannot be `NULL`.
 
-A table keeps one row for each primary key. Without a composite primary key, the timestamp alone identifies the row. With a composite primary key, the timestamp and the second key column identify the row together. See [Tables](../02-ddl/02-table.md#create-table) for the composite primary key.
+A table keeps one row for each primary key. Without a composite primary key, the timestamp alone identifies the row. With a composite primary key, the timestamp and the second key column identify the row together. See [Tables](../02-ddl/02-table.md#create-table) for the composite primary key. To change existing rows by condition, or to compute a new value from the current value, use `UPDATE` in [Data Update](./04-update.md).
 
 Timestamp formats are affected differently by the database time precision. A string timestamp is not affected by the precision of its database. A long-integer timestamp is. For example, the Unix seconds of `2021-07-13 16:16:48` are `1626164208`. Write `1626164208000` for millisecond precision, `1626164208000000` for microsecond precision, and `1626164208000000000` for nanosecond precision.
 

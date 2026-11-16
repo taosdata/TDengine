@@ -27,6 +27,8 @@ Use the latest Enterprise edition when possible. For database DDL options such a
 
 TDengine supports Transparent Data Encryption (TDE), which encrypts static data files and reduces the risk that an attacker can bypass the database and read sensitive information directly from the file system. Applications are unaware of encryption and do not need business-code changes. Built-in support includes symmetric algorithms such as SM4 and AES in CBC mode.
 
+A database can use `SM4-CBC`, `AES-128-CBC`, `AES-256-CBC`, or a custom symmetric algorithm. For the full built-in list and where each algorithm is used, see [Encryption Algorithm Management](#encrypt-algorithm-management).
+
 Key management uses **machine-code binding**: keys are protected with the machine code and stored locally, rather than in a third-party KMS. If data files are copied to another machine, the changed machine code prevents the keys from being decrypted and therefore prevents the files from being interpreted. Encryption covers write-ahead logs, metadata, and time-series data files. Compression ratio is unchanged after encryption, and write/query performance usually decreases only slightly.
 
 :::note
@@ -90,8 +92,9 @@ Main parameters:
 |---|---|
 | `-c` | Configuration directory; default `/etc/taos`. |
 | `-d` | Data directory (`dataDir`); can be omitted if the configuration referenced by `-c` already contains the correct `dataDir`. |
-| `--set-cfg-algorithm` | Configuration-file encryption algorithm: `sm4` or `aes`; default `sm4`. |
-| `--set-meta-algorithm` | Metadata encryption algorithm: `sm4` or `aes`; default `sm4`. |
+| `--set-cfg-algorithm` | Configuration-file encryption algorithm: `sm4`, `aes` (AES-128), or `aes256` (AES-256); default `sm4`. |
+| `--set-meta-algorithm` | Metadata encryption algorithm: `sm4`, `aes` (AES-128), or `aes256` (AES-256); default `sm4`. |
+| `--set-digest-algorithm` | Digest algorithm for encrypted-file integrity checks: `sm3` or `sha256`; default `sm3`. |
 | `--encrypt-server` | Enables the server master key; `SVR_KEY` can be specified, otherwise it is generated automatically. |
 | `--encrypt-database` | Enables the database master key; `DB_KEY` can be specified, otherwise it is generated automatically. |
 | `--encrypt-config` | Enables configuration-file encryption and generates `CFG_KEY`. |
@@ -198,6 +201,34 @@ taosk -c /etc/taos \
   --svr-key your_svr_key
 ```
 
+The backup file is not bound to the machine code. Anyone who has the backup file and `SVR_KEY` can restore the keys. You can encrypt the backup again with an SM2 or RSA public key. Restore then also requires the matching private key, which reduces the risk that the backup is exposed while it is transferred or stored:
+
+```shell
+# Encrypt the backup with an SM2 public key
+taosk -c /etc/taos --backup --svr-key your_svr_key \
+  --backup-algorithm sm2 \
+  --public-key /path/to/sm2-public.pem
+
+# Restore with the matching private key
+taosk -c /etc/taos --restore \
+  --machine-code /path/to/backup_file \
+  --svr-key your_svr_key \
+  --private-key /path/to/sm2-private.pem
+```
+
+| Parameter | Description |
+| --- | --- |
+| `--backup-algorithm` | Encryption algorithm for the backup file: `sm2` or `rsa`. If omitted, the backup is not encrypted further. |
+| `--public-key` | Public key file in PEM format. For `rsa`, the key must be at least 2048 bits. |
+| `--private-key` | Private key file in PEM format used during restore. It must match the public key used for the backup. |
+
+Generate an SM2 key pair with OpenSSL 3.0 or later that supports SM2:
+
+```shell
+openssl genpkey -algorithm SM2 -out sm2-private.pem
+openssl pkey -in sm2-private.pem -pubout -out sm2-public.pem
+```
+
 ### 1.8 Key Expiration Policy
 
 ```sql
@@ -238,7 +269,80 @@ The Enterprise parameters [encryptAlgorithm](../12-operations-and-tooling/03-com
 - After storage security is enabled, **do not roll back** to historical versions that do not support storage security.
 - The `v3.3`-era single-key flow such as `CREATE ENCRYPT_KEY` / `taosd -y` is retained only for compatibility understanding. New deployments should use `taosk`.
 
-### 1.12 Encryption Algorithm Management
+### 1.12 Encryption Algorithm Management {#encrypt-algorithm-management}
+
+TDengine Enterprise includes Chinese commercial cryptography algorithms and international standard algorithms, covering symmetric encryption, digests, and asymmetric encryption. You can also add custom algorithms. Manage them in the taosExplorer UI or with SQL.
+
+#### 1.12.1 Built-in Algorithms
+
+| `id` | `algorithm_id` | Type | Standard | Key or digest length | Primary use |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `SM4-CBC` | Symmetric encryption | GB/T 32907-2016 | 128-bit key | Database, configuration, metadata, and user-password encryption |
+| 2 | `AES-128-CBC` | Symmetric encryption | FIPS 197 | 128-bit key | Database, configuration, and metadata encryption |
+| 7 | `AES-256-CBC` | Symmetric encryption | FIPS 197 | 256-bit key | Database, configuration, and metadata encryption |
+| 3 | `SM3` | Digest | GB/T 32905-2016 | 256-bit digest | Encrypted-file integrity, SM2 TLS, and the SQL function `SM3()` |
+| 4 | `SHA-256` | Digest | FIPS 180-4 | 256-bit digest | Encrypted-file integrity, TLS, and the SQL function `SHA2()` |
+| 5 | `SM2` | Asymmetric encryption | GB/T 32918-2016 | 256-bit key | SM2 TLS certificates and key-backup encryption |
+| 6 | `RSA` | Asymmetric encryption | RFC 8017 (PKCS #1) | 2048 bits or more | TLS certificates and key-backup encryption |
+
+Notes:
+
+- An RSA key shorter than 2048 bits is rejected.
+- Built-in algorithms are maintained by the system and cannot be modified or deleted.
+
+#### 1.12.2 Uses and Configuration
+
+| Use | Algorithms | How to configure |
+| --- | --- | --- |
+| Time-series data encryption | `SM4-CBC`, `AES-128-CBC`, `AES-256-CBC`, or a custom symmetric algorithm | Set `ENCRYPT_ALGORITHM` when creating the database. See section 1.13 below. |
+| Configuration and metadata encryption | `sm4`, `aes`, `aes256` | `taosk --set-cfg-algorithm` and `--set-meta-algorithm`. See section 1.3. |
+| Encrypted storage of user passwords | `SM4` | Enabled automatically after `DATA_KEY` is generated. See section 1.14 below. |
+| Encrypted-file integrity | `sm3`, `sha256` | `taosk --set-digest-algorithm`. See section 1.3. |
+| Transport encryption | SM2 certificates with SM4 / SM3 suites; RSA / ECC certificates with AES / SHA-256 suites | TLS parameters in `taos.cfg`. See [Full-Trace Transport Security and Compression · SM2 TLS](./02-full-trace-transport.md#gm-tls). |
+| Key-backup encryption | `sm2`, `rsa` | `taosk --backup --backup-algorithm`. See section 1.7. |
+| Encryption and digests in SQL | SM4, AES, SM3, SHA-2 | `SM4_ENCRYPT`, `SM4_DECRYPT`, `AES_ENCRYPT`, `AES_DECRYPT`, `SM3`, and `SHA2`. See [Functions](../05-tdengine-sql/04-data-query/03-function.md). |
+
+**Encrypted-file integrity**: when `taosk` encrypts configuration, metadata, and key files, it calculates a digest of the plaintext with the algorithm given by `--set-digest-algorithm` and writes the digest into the encrypted file header. `taosd` and `taosk` decrypt the file and then check the digest. A mismatch means the file was altered or damaged. The file is not loaded, and the log records `encrypted file digest mismatch` together with the file path. An encrypted file that has no digest skips the check. Updating the keys (section 1.6) writes the digest.
+
+#### 1.12.3 Manage Algorithms in taosExplorer {#encrypt-algorithm-explorer}
+
+taosExplorer provides an **Encryption Algorithms** page. You can view every algorithm and add or delete custom algorithms in the browser, without writing SQL.
+
+**Privileges**
+
+- View the algorithm list: a user whose `SYSINFO` attribute is `1`.
+- Add or delete a custom algorithm: a user with the `SYSSEC` role. When separation of powers is not enabled, this is `root`.
+
+**View algorithms**
+
+1. Sign in to taosExplorer and open **System Management** > **Security** > **Encryption Algorithms**.
+2. The page lists every algorithm. Columns are **ID**, **Algorithm ID**, **Name**, **Type**, **Source**, **OpenSSL Name**, **Description**, and **References**. **References** is the number of databases that currently use the algorithm.
+3. Filter by **Type** (symmetric encryption, digest, or asymmetric encryption) and **Source** (built-in or custom), or search by algorithm ID or name.
+4. Click a row to show the algorithm details, including the databases that reference it.
+
+**Add a custom algorithm**
+
+1. Put the OpenSSL provider library that implements the algorithm in the path given by [`encryptExtDir`](../12-operations-and-tooling/03-components/01-taosd.md), and restart `taosd` on every dnode so that it loads the library. See section 1.12.5 below.
+2. On the **Encryption Algorithms** page, click **+ Add Algorithm** and fill in the form:
+
+    | Form field | Required | Description | SQL clause |
+    | --- | --- | --- | --- |
+    | Algorithm ID | Yes | Globally unique. Used in `ENCRYPT_ALGORITHM` when creating a database. | `CREATE ENCRYPT_ALGR 'id'` |
+    | Name | Yes | Algorithm name | `ALGR_NAME` |
+    | Type | Yes | Symmetric encryption (CBC mode), digest, or asymmetric encryption | `ALGR_TYPE` |
+    | OpenSSL name | Yes | Algorithm name registered in the provider | `OSSL_ALGR_NAME` |
+    | Description | No | Text that identifies the algorithm | `DESC` |
+
+3. Click **Test**. taosExplorer checks on every dnode that the provider is loaded, that the algorithm can be found by **OpenSSL name**, and, for a symmetric algorithm, that encryption and decryption succeed. **Submit** becomes available only after every dnode passes.
+4. Click **Submit**. The algorithm appears in the list with **Source** set to **Custom** and can be used when creating a database.
+
+**Delete a custom algorithm**
+
+Find the algorithm in the list, click **Delete**, and confirm. Deletion is blocked when **References** is greater than 0. The page lists the databases that use the algorithm; drop those databases first. Built-in algorithms do not show **Delete**.
+
+Adding and deleting are written to the audit log as `createEncryptAlgr` and `dropEncryptAlgr`. See [Audit and Compliance](./07-audit-and-compliance.md).
+
+#### 1.12.4 Manage Algorithms with SQL
 
 View built-in and custom algorithms:
 
@@ -250,19 +354,31 @@ SHOW ENCRYPT_ALGORITHMS;
 Example output:
 
 ```text
-id | algorithm_id | name | desc                        | type                        | source   | ossl_algr_name |
-1  | SM4-CBC      | SM4  | SM4 symmetric encryption    | Symmetric Ciphers CBC mode  | build-in | SM4-CBC:SM4    |
-2  | AES-128-CBC  | AES  | AES symmetric encryption    | Symmetric Ciphers CBC mode  | build-in | AES-128-CBC    |
+id | algorithm_id | name    | desc                     | type                        | source   | ossl_algr_name |
+1  | SM4-CBC      | SM4     | SM4 symmetric encryption | Symmetric Ciphers CBC mode  | build-in | SM4-CBC:SM4    |
+2  | AES-128-CBC  | AES     | AES symmetric encryption | Symmetric Ciphers CBC mode  | build-in | AES-128-CBC    |
+3  | SM3          | SM3     | SM3 digests              | Digests                     | build-in | SM3            |
+4  | SHA-256      | SHA-256 | SHA2 digests             | Digests                     | build-in | SHA-256        |
+5  | SM2          | SM2     | SM2 Asymmetric Cipher    | Asymmetric Ciphers          | build-in | SM2            |
+6  | RSA          | RSA     | RSA Asymmetric Cipher    | Asymmetric Ciphers          | build-in | RSA            |
+7  | AES-256-CBC  | AES     | AES symmetric encryption | Symmetric Ciphers CBC mode  | build-in | AES-256-CBC    |
 ```
 
 | Field | Description |
-|---|---|
-| `id` | Numeric identifier; built-in algorithms start from 1, custom algorithms from 101. |
-| `algorithm_id` | Globally unique identifier used when creating databases. |
+| --- | --- |
+| `id` | Numeric identifier. Built-in algorithms start at 1, and custom algorithms start at 101. |
+| `algorithm_id` | Globally unique identifier, used when creating a database. |
 | `name` / `desc` | Name and description. |
-| `type` | For example Symmetric Ciphers CBC mode, Asymmetric Ciphers, or Digests. |
-| `source` | `built-in` / `customized`; some output may display `build-in`, so use the actual query result. |
+| `type` | For example, Symmetric Ciphers CBC mode, Asymmetric Ciphers, or Digests. |
+| `source` | `built-in` or `customized`. Some output displays `build-in`; use the query result. |
 | `ossl_algr_name` | Name in OpenSSL or the custom provider. |
+
+View one class of algorithm:
+
+```sql
+SELECT algorithm_id, name, `desc` FROM information_schema.ins_encrypt_algorithms
+WHERE type = 'Digests';
+```
 
 Add a custom algorithm:
 
@@ -271,9 +387,9 @@ CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr'
   ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
 ```
 
-Custom algorithms must be implemented as SO files following the OpenSSL provider interface and are loaded when `taosd` starts. One SO can contain multiple algorithms, each mapped through `OSSL_ALGR_NAME`. See [OpenSSL provider](https://docs.openssl.org/master/man7/provider/) and [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/). `encryptExtDir` specifies the SO path; currently only one file can be loaded.
+`ALGR_TYPE` is `Symmetric_Ciphers_CBC_mode`, `Digests`, or `Asymmetric_Ciphers`. Only a custom algorithm of the symmetric type can be used in `ENCRYPT_ALGORITHM` when creating a database.
 
-Delete a custom algorithm after ensuring no database references it, for example by dropping databases that use it:
+Delete a custom algorithm after nothing references it, for example after you `DROP` every database that uses it:
 
 ```sql
 DROP ENCRYPT_ALGR 'vigenere';
@@ -281,13 +397,27 @@ DROP ENCRYPT_ALGR 'vigenere';
 
 Built-in algorithms cannot be deleted.
 
+#### 1.12.5 Add a Custom Algorithm
+
+Implement a custom algorithm as a dynamic library that follows the OpenSSL provider interface (`.so` on Linux, `.dll` on Windows). `taosd` loads it at startup. The full procedure is:
+
+1. Implement the algorithm with the OpenSSL provider interface. See [OpenSSL provider](https://docs.openssl.org/master/man7/provider/) and [OSSL_PROVIDER-default](https://docs.openssl.org/master/man7/OSSL_PROVIDER-default/). One library can contain several algorithms, distinguished by `OSSL_ALGR_NAME`.
+2. Copy the library to the same path on every dnode, and set [`encryptExtDir`](../12-operations-and-tooling/03-components/01-taosd.md) in each dnode's `taos.cfg` to that path. Only one file can be loaded.
+3. Restart `taosd` on each dnode so that it loads the library.
+4. Register the algorithm in taosExplorer or with `CREATE ENCRYPT_ALGR`.
+5. Create a database with the algorithm, write a small amount of data, and query it to confirm that encryption and decryption work.
+
+:::warning
+A database encrypted with a custom algorithm depends on that library on every dnode. Before you delete or replace the library, or change `encryptExtDir`, confirm that no database references the algorithm. Otherwise `taosd` cannot read the data in those databases.
+:::
+
 ### 1.13 Create an Encrypted Database {#create-encrypted-database}
 
 ```sql
 CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
 
 database_option: {
-  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC' | ...}
+  ENCRYPT_ALGORITHM {'none' | 'SM4-CBC' | 'AES-128-CBC' | 'AES-256-CBC' | ...}
 }
 ```
 
@@ -298,7 +428,8 @@ database_option: {
 ```sql
 CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
 CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
-CREATE DATABASE db3;   -- Not encrypted
+CREATE DATABASE db3 ENCRYPT_ALGORITHM 'AES-256-CBC';
+CREATE DATABASE db4;   -- Not encrypted
 ```
 
 View database-level configuration:
@@ -361,5 +492,6 @@ DELETE FROM meters WHERE ts < '2021-10-01 10:40:00.100' SECURE_DELETE;
 | Database / table DDL | [Databases](../05-tdengine-sql/02-ddl/01-database.md), [Data Deletion](../05-tdengine-sql/03-data-write/02-delete.md) |
 | SHOW / system tables | [SHOW](../05-tdengine-sql/09-system-info/03-show.md), [Metadata Tables](../05-tdengine-sql/09-system-info/01-meta.md) |
 | taosd encryption parameters | [taosd](../12-operations-and-tooling/03-components/01-taosd.md): `encryptAlgorithm`, `encryptScope`, `encryptExtDir`, `encryptPassAlgorithm`, `secureEraseMode`, and related parameters |
+| SM2 TLS | [Full-Trace Transport Security and Compression · SM2 TLS](./02-full-trace-transport.md#gm-tls) |
 | Data-at-rest reliability in the full trace | [Full-Trace Reliability · TDE](./03-full-trace-reliability.md) |
 | Hardening checklist | [Security Hardening](./08-security-hardening.md) |
