@@ -1936,7 +1936,7 @@ static int32_t metaHandleChildTableCreate(SMeta *pMeta, const SMetaEntry *pEntry
   if (TSDB_CODE_SUCCESS == code) {
     pMeta->pVnode->config.vndStats.numOfCTables++;
 
-    if (!metaTbInFilterCache(pMeta, pSuperEntry->name, 1)) {
+    if (!vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
       int32_t nCols = 0;
       int32_t ret = metaGetStbStats(pMeta->pVnode, pSuperEntry->uid, 0, &nCols, 0);
       if (ret < 0) {
@@ -2275,7 +2275,7 @@ static int32_t metaHandleChildTableDrop(SMeta *pMeta, const SMetaEntry *pEntry, 
   // do other stuff
   // Use pSuper's already-fetched schema directly  -  avoids a redundant
   // metaGetStbStats round-trip through the stats cache.
-  if (pSuper != NULL && !metaTbInFilterCache(pMeta, pSuper->name, 1)) {
+  if (pSuper != NULL && !vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
     int32_t nCols = pSuper->stbEntry.schemaRow.nCols;
     pMeta->pVnode->config.vndStats.numOfTimeSeries -= nCols - 1;
   }
@@ -3006,7 +3006,7 @@ static int32_t metaHandleSuperTableUpdate(SMeta *pMeta, const SMetaEntry *pEntry
   int     nCols = pEntry->stbEntry.schemaRow.nCols;
   int     onCols = pOldEntry->stbEntry.schemaRow.nCols;
   int32_t deltaCol = nCols - onCols;
-  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !metaTbInFilterCache(pMeta, pEntry->name, 1);
+  bool    updStat = deltaCol != 0 && !TABLE_IS_VIRTUAL(pEntry->flags) && !vnodeIsTimeSeriesExcluded(pMeta->pVnode);
 
   if (!TSDB_CACHE_NO(pMeta->pVnode->config)) {
     STsdb  *pTsdb = pMeta->pVnode->pTsdb;

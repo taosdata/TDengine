@@ -2022,6 +2022,9 @@ void metaUpdTimeSeriesNum(SMeta *pMeta) {
 static FORCE_INLINE int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+  if (vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
+    return 0;
+  }
   if (forceUpd || pStats->numOfTimeSeries <= 0) {
     metaUpdTimeSeriesNum(pMeta);
   }

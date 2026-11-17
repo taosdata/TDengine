@@ -43,7 +43,7 @@ int32_t metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SS
 
 int32_t    metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSchema *pSchema);
 static int metaUpdateChangeTime(SMeta *pMeta, tb_uid_t uid, int64_t changeTimeMs);
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl);
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, bool *pTsExcluded);
 void       metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
 // opt ins_tables query
 static int metaDeleteBtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
@@ -774,15 +774,15 @@ static int32_t metaDropTables(SMeta *pMeta, SArray *tbUids) {
   for (int i = 0; i < taosArrayGetSize(tbUids); ++i) {
     tb_uid_t uid = *(tb_uid_t *)taosArrayGet(tbUids, i);
     tb_uid_t suid = 0;
-    int8_t   sysTbl = 0;
+    bool     tsExcluded = false;
     int      type;
-    code = metaDropTableByUid(pMeta, uid, &type, &suid, &sysTbl);
+    code = metaDropTableByUid(pMeta, uid, &type, &suid, &tsExcluded);
     if (code) {
       metaULock(pMeta);
       tSimpleHashCleanup(suidHash);
       return code;
     }
-    if (!sysTbl && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
+    if (!tsExcluded && type == TSDB_CHILD_TABLE && suid != 0 && suidHash) {
       int64_t *pVal = tSimpleHashGet(suidHash, &suid, sizeof(tb_uid_t));
       if (pVal) {
         nCtbDropped = *pVal + 1;
@@ -966,7 +966,7 @@ static void metaDeleteTtl(SMeta *pMeta, const SMetaEntry *pME) {
   return;
 }
 
-static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, int8_t *pSysTbl) {
+static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *pSuid, bool *pTsExcluded) {
   void      *pData = NULL;
   int        nData = 0;
   int        rc = 0;
@@ -1015,7 +1015,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type, tb_uid_t *p
           return ret;
         }
 
-        if (pSysTbl) *pSysTbl = metaTbInFilterCache(pMeta, stbEntry.name, 1) ? 1 : 0;
+        if (pTsExcluded) *pTsExcluded = vnodeIsTimeSeriesExcluded(pMeta->pVnode);
         
         ret = metaStableTagFilterCacheUpdateUid(
           pMeta, &e, &stbEntry, STABLE_TAG_FILTER_CACHE_DROP_TABLE);

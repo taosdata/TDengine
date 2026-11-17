@@ -85,6 +85,7 @@ int32_t grantCheckEx(EGrantType grant, void *param);
 int32_t grantCheckExpire(EGrantType grant);
 int32_t tGetMachineId(char **result);
 bool    grantCheckDualReplicaDnodes(void *pMnode);
+bool    grantIsTimeSeriesExcluded(void *pVnode);
 
 /*
  * A machine code is a fixed-width base64 string whose first byte is the index of the
