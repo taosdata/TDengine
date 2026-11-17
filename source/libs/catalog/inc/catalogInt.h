@@ -48,6 +48,15 @@ extern "C" {
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
+// Minimum number of cached view versions carried by one heartbeat. When a rent slot
+// holds fewer views, the heartbeat keeps collecting subsequent slots until this
+// threshold is reached (or all slots have been visited).
+#define CTG_VIEW_HB_MIN_NUM 20
+
+// Safety timeout for the in-flight view heartbeat round. A response that takes longer
+// is treated as lost so the sweep can re-send the batch.
+#define CTG_VIEW_HB_RSP_TIMEOUT_MS 10000
+
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
 #define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_PAR_TABLE_NOT_EXIST
@@ -463,6 +472,34 @@ typedef struct SCtgRentMgmt {
   SCtgRentSlot* slots;
 } SCtgRentMgmt;
 
+/*
+ * View metadata heartbeat verification sweep.
+ *
+ * The client reports only a limited batch of cached view versions per heartbeat, so the
+ * global view version (dynViewVer) must not be committed when one batch has been checked:
+ * every rent slot must be validated against the same pending version first. The sweep
+ * keeps the pending version and the set of already validated slots until then.
+ *
+ * Threading: the heartbeat request thread and the heartbeat response callback access
+ * this state; lock protects it. Catalog writes do not need it: view metadata written
+ * to the cache always comes from mnode, so it is at least as fresh as the sweep.
+ */
+typedef struct SCtgViewSweep {
+  SRWLatch        lock;
+  SDynViewVersion pendingVer;      // global version the current sweep is validating
+  bool            hasPending;      // a sweep is in progress
+  bool            awaitingRsp;     // a request batch was sent and its response not applied yet
+  int64_t         sentMsec;        // send time of the pending request (timeout guard)
+  int64_t         sentReqId;       // request id of the pending batch (response association)
+  uint32_t        nextSlot;        // next rent slot to collect (round robin)
+  uint32_t        verifiedNum;     // number of rent slots already verified for pendingVer
+  uint8_t*        verifiedSlots;   // bitmap of verified rent slots (viewRent.slotNum bits)
+  uint32_t        verifiedCapacity;  // capacity of verifiedSlots in bytes
+  uint32_t        sentNum;         // slots carried by the pending request
+  uint32_t*       sentSlots;       // slot indices carried by the pending request
+  uint32_t        sentCapacity;    // capacity of sentSlots in entries
+} SCtgViewSweep;
+
 typedef struct SCtgUserAuth {
   SRWLatch        lock;
   SGetUserAuthRsp userAuth;
@@ -473,6 +510,7 @@ typedef struct SCatalog {
   int64_t         clusterId;
   bool            stopUpdate;
   SDynViewVersion dynViewVer;
+  SCtgViewSweep   viewSweep;  // view metadata version verification state
   SHashObj*       userCache;      // key:user, value:SCtgUserAuth
   SHashObj*       dbCache;        // key:dbname, value:SCtgDBCache
   SCtgRentMgmt    dbRent;
@@ -1226,7 +1264,17 @@ int32_t ctgMetaRentAdd(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size)
 int32_t ctgMetaRentUpdate(SCtgRentMgmt* mgmt, void* meta, int64_t id, int32_t size, __compar_fn_t sortCompare,
                           __compar_fn_t searchCompare);
 int32_t ctgMetaRentGet(SCtgRentMgmt* mgmt, void** res, uint32_t* num, int32_t size);
+int32_t ctgMetaRentGetSlotByIdx(SCtgRentMgmt* mgmt, int32_t slotIdx, void** res, uint32_t* num, int32_t size);
 int32_t ctgMetaRentRemove(SCtgRentMgmt* mgmt, int64_t id, __compar_fn_t sortCompare, __compar_fn_t searchCompare);
+
+// View metadata heartbeat sweep (see SCtgViewSweep).
+int32_t ctgGetViewsForHbCheck(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                              SDynViewVersion** dynViewVersion);
+int32_t ctgApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+int32_t ctgViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+int32_t ctgViewSweepTryCommit(SCatalog* pCtg);
+int32_t ctgViewSweepOnHbError(SCatalog* pCtg);
+void    ctgViewSweepFree(SCtgViewSweep* pSweep);
 void    ctgRemoveStbRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveViewRent(SCatalog* pCtg, SCtgDBCache* dbCache);
 void    ctgRemoveTSMARent(SCatalog* pCtg, SCtgDBCache* dbCache);

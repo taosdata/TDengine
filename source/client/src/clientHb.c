@@ -29,6 +29,7 @@ typedef struct {
     struct {
       SAppHbMgr *pAppHbMgr;
       int64_t    clusterId;
+      int64_t    reqId;  // request id of the current heartbeat batch
       int32_t    reqCnt;
       int8_t     connHbFlag;
     };
@@ -480,8 +481,10 @@ _return:
   return code;
 }
 
-static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  return catalogUpdateDynViewVer(pCatalog, (SDynViewVersion *)value);
+static int32_t hbProcessDynViewRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog, int64_t rspReqId) {
+  // Do not commit the version here: the catalog only advances dynViewVer once every
+  // view rent slot has been verified (see catalogViewSweepTryCommit).
+  return catalogApplyViewHbVersion(pCatalog, (SDynViewVersion *)value, rspReqId);
 }
 
 static void hbFreeSViewMetaInRsp(void *p) {
@@ -654,7 +657,8 @@ static void hbProcessQueryRspKvs(int32_t kvNum, SArray *pKvs, struct SCatalog *p
           tscError("invalid dyn view info, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
-        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog)) {
+        pAppHbMgr->viewDynVerSeen = true;
+        if (TSDB_CODE_SUCCESS != hbProcessDynViewRsp(kv->value, kv->valueLen, pCatalog, pAppHbMgr->curRspReqId)) {
           tscError("Process dyn view response failed, len:%d, value:%p", kv->valueLen, kv->value);
           break;
         }
@@ -896,6 +900,15 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   if (code != 0) {
     pInst->onlineDnodes = pInst->totalDnodes ? 0 : -1;
     tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), pInst->onlineDnodes, pInst->totalDnodes);
+#ifdef TD_ENTERPRISE
+    {
+      // The round never completed: let the view sweep re-send its batch.
+      SCatalog *pCatalog = NULL;
+      if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCatalog)) {
+        (void)catalogViewSweepOnHbError(pCatalog);
+      }
+    }
+#endif
     (void)taosThreadMutexUnlock(&clientHbMgr.lock);
     taosMemoryFree(pMsg->pData);
     taosMemoryFree(pMsg->pEpSet);
@@ -912,6 +925,10 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   pInst->serverCfg.sodInitial = pRsp.sodInitial;
   pInst->serverCfg.macActive = pRsp.macActive;
   tsEnableStrongPassword = pInst->serverCfg.enableStrongPass;
+
+  // Correlate the catalog view sweep with the heartbeat batch that produced this rsp.
+  pAppHbMgr->curRspReqId = pRsp.reqId;
+  pAppHbMgr->viewDynVerSeen = false;
 
   tscDebug("monitor paras from hb, clusterId:0x%" PRIx64 ", threshold:%d scope:%d", pInst->clusterId,
            pRsp.monitorParas.tsSlowLogThreshold, pRsp.monitorParas.tsSlowLogScope);
@@ -937,6 +954,19 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
       break;
     }
   }
+
+#ifdef TD_ENTERPRISE
+  {
+    // All rsps of this batch have been processed: finish the view metadata sweep
+    // bookkeeping (clear the outstanding round when the server reported no version
+    // change and commit the pending version once every slot has been verified).
+    SCatalog *pCatalog = NULL;
+    if (TSDB_CODE_SUCCESS == catalogGetHandle(pInst->clusterId, &pCatalog)) {
+      (void)catalogViewSweepOnHbRspDone(pCatalog, pRsp.reqId, pAppHbMgr->viewDynVerSeen);
+      (void)catalogViewSweepTryCommit(pCatalog);
+    }
+  }
+#endif
 
   (void)taosThreadMutexUnlock(&clientHbMgr.lock);
 
@@ -1284,13 +1314,14 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+int32_t hbGetExpiredViewInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req,
+                             int64_t reqId) {
   SViewVersion    *views = NULL;
   uint32_t         viewNum = 0;
   int32_t          code = 0;
   SDynViewVersion *pDynViewVer = NULL;
 
-  TSC_ERR_JRET(catalogGetExpiredViews(pCatalog, &views, &viewNum, &pDynViewVer));
+  TSC_ERR_JRET(catalogGetExpiredViews(pCatalog, reqId, &views, &viewNum, &pDynViewVer));
 
   if (viewNum <= 0) {
     taosMemoryFree(views);
@@ -1560,7 +1591,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
     }
 
 #ifdef TD_ENTERPRISE
-    code = hbGetExpiredViewInfo(connKey, pCatalog, req);
+    code = hbGetExpiredViewInfo(connKey, pCatalog, req, hbParam->reqId);
     if (TSDB_CODE_SUCCESS != code) {
       tscWarn("hbGetExpiredViewInfo failed, clusterId:0x%" PRIx64 ", error:%s", hbParam->clusterId, tstrerror(code));
       return code;
@@ -1620,6 +1651,12 @@ int32_t hbGatherAllInfo(SAppHbMgr *pAppHbMgr, SClientHbBatchReq **pBatchReq) {
   int64_t  maxIpWhiteVer = 0;
   void    *pIter = NULL;
   SHbParam param = {0};
+
+  // One request id per batch: heartbeat responses echo it, which lets the catalog map
+  // the view metadata sweep response to the batch that produced it.
+  (*pBatchReq)->reqId = generateRequestId();
+  param.reqId = (*pBatchReq)->reqId;
+
   while ((pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter))) {
     SClientHbReq *pOneReq = pIter;
     SClientHbKey *connKey = &pOneReq->connKey;

@@ -418,7 +418,30 @@ int32_t catalogGetDnodeList(SCatalog* pCatalog, SRequestConnInfo* pConn, SArray*
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableVersion** stables, uint32_t* num);
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion);
+/*
+ * Collect the cached view versions to report in one heartbeat round.
+ * reqId identifies the heartbeat batch (used to correlate the response).
+ * At most one round is outstanding at a time; a new batch is produced only after the
+ * previous response has been applied (or timed out).
+ */
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion);
+
+/*
+ * Apply the global view version returned by a heartbeat response and mark the slots
+ * carried by the corresponding request as verified. The committed dynViewVer is only
+ * advanced after every view rent slot has been verified (catalogViewSweepTryCommit).
+ */
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId);
+
+// Finish the sweep bookkeeping for one heartbeat batch response.
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer);
+
+// Commit the pending global view version when the whole rent has been verified.
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg);
+
+// Drop the outstanding view heartbeat round after a send/receive failure.
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg);
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbCacheInfo** dbs, uint32_t* num);
 

@@ -2501,9 +2501,28 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
     return TSDB_CODE_SUCCESS;
   }
 
+  uint64_t oldViewId = 0;
+  int32_t  oldVersion = 0;
+
   CTG_LOCK(CTG_WRITE, &pCache->viewLock);
 
   if (pCache->pMeta) {
+    oldViewId = pCache->pMeta->viewId;
+    oldVersion = pCache->pMeta->version;
+
+    // Reject stale updates: an older (or equal) version must not overwrite newer cached
+    // metadata. View versions are monotonic per view name (CREATE OR REPLACE bumps the
+    // version), so this also rejects an out-of-order response that still carries a
+    // replaced instance (old viewId). A genuinely recreated view is installed only
+    // after the old entry has been evicted (drop/heartbeat removal).
+    if (pMeta->version <= oldVersion) {
+      CTG_UNLOCK(CTG_WRITE, &pCache->viewLock);
+      ctgDebug("ignore stale view meta update, view:%s, cached id:%" PRIu64 ", ver:%d, incoming id:%" PRIu64
+               ", ver:%d",
+               viewName, oldViewId, oldVersion, pMeta->viewId, pMeta->version);
+      goto _return;
+    }
+
     (void)atomic_sub_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pCache->pMeta));
     ctgFreeSViewMeta(pCache->pMeta);
     taosMemoryFree(pCache->pMeta);
@@ -2514,8 +2533,17 @@ int32_t ctgWriteViewMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFN
 
   (void)atomic_add_fetch_64(&dbCache->dbCacheSize, ctgGetViewMetaCacheSize(pMeta));
 
-  ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s", 
+  ctgDebug("view meta updated to cache, view:%s, id:%" PRIu64 ", ver:%d, effectiveUser:%s, querySQL:%s",
     viewName, pMeta->viewId, pMeta->version, pMeta->createUser, pMeta->querySql);
+
+  // A replaced view has a new viewId; drop the rent entry of the old instance so it is
+  // no longer reported in heartbeats.
+  if (0 != oldViewId && oldViewId != pMeta->viewId) {
+    int32_t rmCode = ctgMetaRentRemove(&pCtg->viewRent, (int64_t)oldViewId, ctgViewVersionSortCompare,
+                                       ctgViewVersionSearchCompare);
+    ctgDebug("view:%s, old viewId removed from rent, oldId:%" PRIu64 ", newId:%" PRIu64 ", code:0x%x", viewName,
+             oldViewId, pMeta->viewId, rmCode);
+  }
 
   CTG_ERR_RET(ctgUpdateRentViewVersion(pCtg, dbFName, viewName, dbCache->dbId, pMeta->viewId, pCache));
 
