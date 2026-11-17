@@ -320,6 +320,7 @@ int32_t qRestoreExecTaskResultBlock(qTaskInfo_t tinfo, int32_t blockIndex, SSDat
 
 int32_t qExecutorInit(void);
 void    qResetTaskCode(qTaskInfo_t tinfo);
+bool    qStreamResetTaskForRetry(qTaskInfo_t tinfo);
 
 void qCleanExecTaskBlockBuf(qTaskInfo_t tinfo);
 
@@ -363,6 +364,8 @@ void qStreamSetParams(qTaskInfo_t tinfo, int8_t sourceExcluded, int32_t minPollR
 int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset);
 
 SMqBatchMetaRsp* qStreamExtractMetaMsg(qTaskInfo_t tinfo);
+int32_t qTmqAppendSnapshotMetaRsp(SMqBatchMetaRsp* pRsp, void* data, int32_t dataLen, int16_t type);
+int32_t qTmqGetSnapshotMetaTableInfo(SStorageAPI* pAPI, SSnapContext* pContext, SMetaTableInfo* pTableInfo);
 
 const SSchemaWrapper* qExtractSchemaFromTask(qTaskInfo_t tinfo);
 

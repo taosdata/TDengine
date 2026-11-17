@@ -1751,6 +1751,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   int32_t        code = TSDB_CODE_SUCCESS;
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
+  bool           forceReseek = pTaskInfo->tmqInfo.needReseek;
 
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   const char*    id = GET_TASKID(pTaskInfo);
@@ -1770,8 +1771,10 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   // threshold changed since the reader was prepared (e.g. another consumer in
   // the same group resumes with a lower/disabled msg.consume.start.ts), fall
   // through to re-prepare so the snapshot lower bound is recomputed instead of
-  // reusing the stale one.
-  if (tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset) &&
+  // reusing the stale one. A task that failed in a previous poll also has to
+  // re-position: the scan may already have consumed WAL messages that were never
+  // delivered, and continuing from the reader position would skip them.
+  if (!pTaskInfo->tmqInfo.needReseek && tOffsetEqual(pOffset, &pTaskInfo->tmqInfo.currentOffset) &&
       pTaskInfo->tmqInfo.startTs == pTaskInfo->tmqInfo.preparedStartTs) {
     return 0;
   }
@@ -1797,6 +1800,13 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       SStoreTqReader* pReaderAPI = &pTaskInfo->storageAPI.tqReaderFn;
       SWalReader*     pWalReader = pReaderAPI->tqReaderGetWalReader(pInfo->tqReader);
       walReaderVerifyOffset(pWalReader, pOffset);
+      if (forceReseek) {
+        // A failed read may have advanced the file cursor after the header while leaving curVersion
+        // unchanged. Close and reopen the reader files so the seek below cannot take the equal-version
+        // fast path and reuse that stale cursor.
+        qDebug("tmq retry resets wal reader before seeking to version:%" PRId64 ", %s", pOffset->version, id);
+        walReadReset(pWalReader);
+      }
       code = pReaderAPI->tqReaderSeek(pInfo->tqReader, pOffset->version, id);
       if (code < 0) {
         qError("tqReaderSeek failed ver:%" PRId64 ", %s", pOffset->version, id);
@@ -1998,6 +2008,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   }
 
 end:
+  pTaskInfo->tmqInfo.needReseek = false;
   tOffsetCopy(&pTaskInfo->tmqInfo.currentOffset, pOffset);
   pTaskInfo->tmqInfo.preparedStartTs = pTaskInfo->tmqInfo.startTs;
   return 0;
@@ -2263,10 +2274,33 @@ int32_t qStreamOperatorReloadState(qTaskInfo_t tInfo) {
 
 void qResetTaskCode(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo == NULL) {
+    return;
+  }
 
   int32_t code = pTaskInfo->code;
+  if (code == TSDB_CODE_SUCCESS) {
+    return;
+  }
+
   pTaskInfo->code = 0;
   qDebug("0x%" PRIx64 " reset task code to be success, prev:%s", pTaskInfo->id.taskId, tstrerror(code));
+}
+
+// A TMQ handle reuses one exec task for every poll. When a poll fails, the scan may already have consumed
+// WAL messages whose rows were never delivered (the column scan accumulates rows across messages until
+// minPollRows), so simply clearing the code and continuing from the reader position would silently skip
+// them. Clear the failure and force the next qStreamPrepareScan() to re-position from the offset requested
+// by the consumer.
+bool qStreamResetTaskForRetry(qTaskInfo_t tinfo) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  if (pTaskInfo == NULL || pTaskInfo->code == TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  qResetTaskCode(tinfo);
+  pTaskInfo->tmqInfo.needReseek = true;
+  return true;
 }
 
 int32_t collectExprsToReplaceForStream(SOperatorInfo* pOper, SArray* pExprs) {

@@ -472,6 +472,29 @@ TEST_F(WalKeepEnv, readHandleRead) {
   walCloseReader(pRead);
 }
 
+TEST_F(WalCleanEnv, readResetRestoresSameVersionAfterCursorAdvance) {
+  ASSERT_EQ(walAppendLog(pWal, 0, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL), 0);
+  ASSERT_EQ(walAppendLog(pWal, 1, 0, syncMeta, (void*)ranStr, ranStrLen, 0, NULL), 0);
+  ASSERT_EQ(walCommit(pWal, 1), 0);
+
+  SWalReader* pRead = walOpenReader(pWal, 0);
+  ASSERT_NE(pRead, nullptr);
+  ASSERT_EQ(walReadVer(pRead, 0), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 0);
+  ASSERT_EQ(pRead->curVersion, 1);
+
+  // Simulate a failed body read: the file cursor is already after V, but curVersion still names V.
+  pRead->curVersion = 0;
+  walReadReset(pRead);
+  ASSERT_EQ(pRead->curVersion, -1);
+
+  ASSERT_EQ(walReadVer(pRead, 0), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 0);
+  ASSERT_EQ(walReadVer(pRead, 1), 0);
+  ASSERT_EQ(pRead->pHead->head.version, 1);
+  walCloseReader(pRead);
+}
+
 TEST_F(WalKeepEnv, walLogExist) {
   walResetEnv();
   int         code;

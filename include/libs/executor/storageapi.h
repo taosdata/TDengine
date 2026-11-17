@@ -202,6 +202,7 @@ typedef struct SMetaTableInfo {
 static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
   if (mtInfo == NULL) return;
   tDeleteSchemaWrapper(mtInfo->schema);
+  mtInfo->schema = NULL;
   taosMemoryFreeClear(mtInfo->pExtSchemas);
 }
 

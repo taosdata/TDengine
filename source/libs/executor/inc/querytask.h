@@ -62,6 +62,7 @@ typedef struct STaskStopInfo {
 
 typedef struct {
   STqOffsetVal          currentOffset;  // for tmq
+  bool                  needReseek;     // a previous poll failed, re-position from the consumer offset
   SMqBatchMetaRsp       btMetaRsp;      // for tmq fetching meta
   int8_t                sourceExcluded;
   int32_t               minPollRows;

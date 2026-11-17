@@ -16,6 +16,7 @@
  */
 
 // C++ standard headers first: os.h turns nanosleep() into a forbidden symbol, which breaks std::this_thread
+#include <algorithm>
 #include <atomic>
 #include <iostream>
 #include <string>
@@ -96,9 +97,65 @@ int32_t snapshotReads = 0;
 int32_t snapshotResponses = 0;
 STqOffsetVal snapshotResponseOffset = {};
 SMqBatchMetaRsp snapshotMeta = {};
+SSDataBlock* replayReadBlocks[4] = {};
+int32_t replayReadCount = 0;
+int32_t replayFailRead = 0;
+int32_t replayOffsetCount = 0;
+int64_t replayOffsets[4] = {};
+int32_t replayResponses = 0;
+SSchemaWrapper* schemaReloadWrapper = nullptr;
+SExtSchema* schemaReloadExt = nullptr;
+int32_t schemaReloadCalls = 0;
+std::vector<void*> metaFreedPointers;
+SMetaTableInfo partialSnapshotMeta = {};
 
 int32_t prepareSnapshot(qTaskInfo_t, STqOffsetVal*, int8_t) { return TSDB_CODE_SUCCESS; }
 void setSnapshotParams(qTaskInfo_t, int8_t, int32_t, int64_t, int8_t, int64_t) {}
+int32_t setReplayTaskId(qTaskInfo_t, uint64_t, uint64_t) { return TSDB_CODE_SUCCESS; }
+void setReplayTaskOpen(qTaskInfo_t) {}
+int32_t getReplayTaskCode(void*) { return TSDB_CODE_SUCCESS; }
+
+SSchemaWrapper* readReloadSchema(SMeta*, tb_uid_t, int32_t, int, SExtSchema** extSchema, int8_t, bool) {
+  ++schemaReloadCalls;
+  if (extSchema != nullptr) {
+    *extSchema = schemaReloadExt;
+  }
+  return schemaReloadWrapper;
+}
+
+STSchema* failReloadSchema(SSchema*, int32_t, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+SArray* failMetaArrayInit(size_t, size_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void* failMetaCalloc(int64_t, int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void* failMetaArrayPush(SArray*, const void*, int32_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+void trackMetaFree(void* ptr) {
+  metaFreedPointers.push_back(ptr);
+}
+
+bool containsMetaFreedPointer(const void* ptr) {
+  return std::find(metaFreedPointers.begin(), metaFreedPointers.end(), ptr) != metaFreedPointers.end();
+}
+
+int32_t readPartialSnapshotMeta(SSnapContext*, SMetaTableInfo* pTableInfo) {
+  *pTableInfo = partialSnapshotMeta;
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return TSDB_CODE_OUT_OF_MEMORY;
+}
 
 int32_t readSnapshot(qTaskInfo_t, SSDataBlock** block, uint64_t*) {
   ++snapshotReads;
@@ -125,6 +182,58 @@ int32_t sendSnapshotResponse(STqHandle*, const SRpcMsg*, const SMqPollReq*, SMqD
   EXPECT_EQ(response->blockNum, 0);
   snapshotResponseOffset = response->rspOffset;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t readReplay(qTaskInfo_t, SSDataBlock** block, uint64_t*) {
+  ++replayReadCount;
+  if (replayReadCount == replayFailRead) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *block = replayReadBlocks[replayReadCount - 1];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t extractReplayOffset(qTaskInfo_t, STqOffsetVal* offset) {
+  offset->type = TMQ_OFFSET__LOG;
+  offset->version = replayOffsetCount + 1;
+  offset->ts = replayOffsets[replayOffsetCount++];
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sendReplayResponse(STqHandle*, const SRpcMsg*, const SMqPollReq*, SMqDataRsp*, int32_t, int32_t) {
+  ++replayResponses;
+  return TSDB_CODE_SUCCESS;
+}
+
+void initReplayBlock(SSDataBlock** block, int64_t timestamp) {
+  ASSERT_EQ(createDataBlock(block), TSDB_CODE_SUCCESS);
+  SColumnInfoData column =
+      createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), PRIMARYKEY_TIMESTAMP_COL_ID);
+  ASSERT_EQ(blockDataAppendColInfo(*block, &column), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(*block, 1), TSDB_CODE_SUCCESS);
+  auto* timestampColumn = static_cast<SColumnInfoData*>(taosArrayGet((*block)->pDataBlock, 0));
+  ASSERT_EQ(colDataSetVal(timestampColumn, 0, reinterpret_cast<const char*>(&timestamp), false),
+            TSDB_CODE_SUCCESS);
+  (*block)->info.rows = 1;
+}
+
+void resetReplayTestState() {
+  for (auto& block : replayReadBlocks) {
+    block = nullptr;
+  }
+  replayReadCount = 0;
+  replayFailRead = 0;
+  replayOffsetCount = 0;
+  for (auto& offset : replayOffsets) {
+    offset = 0;
+  }
+  replayResponses = 0;
+}
+
+void resetSchemaReloadTestState() {
+  schemaReloadWrapper = nullptr;
+  schemaReloadExt = nullptr;
+  schemaReloadCalls = 0;
 }
 
 }
@@ -174,6 +283,244 @@ TEST(testCase, filtered_snapshot_returns_progress_on_timeout) {
   EXPECT_EQ(snapshotResponseOffset.ts, 1000);
   blockDataDestroy(snapshotBlock);
   snapshotBlock = nullptr;
+}
+
+TEST(testCase, replay_failure_does_not_publish_partial_cursor) {
+  resetReplayTestState();
+  initReplayBlock(&replayReadBlocks[0], 1000);
+  replayOffsets[0] = 1000;
+  replayFailRead = 2;
+
+  Stub stub;
+  stub.set(qSetTaskId, setReplayTaskId);
+  stub.set(qStreamSetOpen, setReplayTaskOpen);
+  stub.set(getTaskCode, getReplayTaskCode);
+  stub.set(qStreamPrepareScan, prepareSnapshot);
+  stub.set(qStreamSetParams, setSnapshotParams);
+  stub.set(qExecTask, readReplay);
+  stub.set(qStreamExtractOffset, extractReplayOffset);
+  stub.set(tqSendDataRsp, sendReplayResponse);
+
+  SVnode vnode = {};
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  STQ queue = {};
+  queue.pVnode = &vnode;
+  STqHandle handle = {};
+  handle.execHandle.subType = TOPIC_SUB_TYPE__COLUMN;
+  handle.execHandle.task = reinterpret_cast<qTaskInfo_t>(1);
+  SMqPollReq request = {};
+  request.reqOffset.type = TMQ_OFFSET__LOG;
+  request.reqOffset.version = 1;
+  request.enableReplay = 1;
+  request.timeout = 100;
+  request.minPollRows = 4096;
+  SRpcMsg message = {};
+
+  EXPECT_EQ(tqExtractDataForMq(&queue, &handle, &request, &message), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(handle.block, nullptr);
+  EXPECT_EQ(handle.blockTime, 0);
+  EXPECT_EQ(replayResponses, 0);
+
+  blockDataDestroy(replayReadBlocks[0]);
+  resetReplayTestState();
+}
+
+TEST(testCase, replay_success_publishes_next_block_after_response_is_ready) {
+  resetReplayTestState();
+  initReplayBlock(&replayReadBlocks[0], 1000);
+  initReplayBlock(&replayReadBlocks[1], 2000);
+  replayOffsets[0] = 1000;
+  replayOffsets[1] = 2000;
+
+  Stub stub;
+  stub.set(qSetTaskId, setReplayTaskId);
+  stub.set(qStreamSetOpen, setReplayTaskOpen);
+  stub.set(getTaskCode, getReplayTaskCode);
+  stub.set(qStreamPrepareScan, prepareSnapshot);
+  stub.set(qStreamSetParams, setSnapshotParams);
+  stub.set(qExecTask, readReplay);
+  stub.set(qStreamExtractOffset, extractReplayOffset);
+  stub.set(tqSendDataRsp, sendReplayResponse);
+
+  SVnode vnode = {};
+  vnode.config.tsdbCfg.precision = TSDB_TIME_PRECISION_MILLI;
+  STQ queue = {};
+  queue.pVnode = &vnode;
+  STqHandle handle = {};
+  SSchema schema = {};
+  schema.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  schema.type = TSDB_DATA_TYPE_TIMESTAMP;
+  schema.bytes = sizeof(int64_t);
+  handle.execHandle.subType = TOPIC_SUB_TYPE__COLUMN;
+  handle.execHandle.task = reinterpret_cast<qTaskInfo_t>(1);
+  handle.execHandle.execCol.pSW.nCols = 1;
+  handle.execHandle.execCol.pSW.pSchema = &schema;
+  SMqPollReq request = {};
+  request.reqOffset.type = TMQ_OFFSET__LOG;
+  request.reqOffset.version = 1;
+  request.enableReplay = 1;
+  request.timeout = 100;
+  request.minPollRows = 4096;
+  SRpcMsg message = {};
+
+  EXPECT_EQ(tqExtractDataForMq(&queue, &handle, &request, &message), TSDB_CODE_SUCCESS);
+  EXPECT_NE(handle.block, nullptr);
+  EXPECT_EQ(handle.blockTime, 2000);
+  EXPECT_EQ(replayResponses, 1);
+
+  blockDataDestroy(handle.block);
+  handle.block = nullptr;
+  blockDataDestroy(replayReadBlocks[0]);
+  blockDataDestroy(replayReadBlocks[1]);
+  resetReplayTestState();
+}
+
+TEST(testCase, schema_reload_failure_keeps_previous_reader_cache) {
+  resetSchemaReloadTestState();
+  SWal wal = {};
+  SWalReader walReader = {};
+  walReader.pWal = &wal;
+  SVnode vnode = {};
+  STqReader reader = {};
+  reader.pWalReader = &walReader;
+  reader.pVnode = &vnode;
+  reader.pSchemaWrapper = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  reader.pTSchema = static_cast<STSchema*>(taosMemoryCalloc(1, sizeof(STSchema)));
+  reader.extSchema = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  reader.cachedSchemaUid = 10;
+  reader.cachedSchemaSuid = 20;
+  reader.cachedSchemaVer = 1;
+  SSchemaWrapper* previousWrapper = reader.pSchemaWrapper;
+  STSchema* previousTSchema = reader.pTSchema;
+  SExtSchema* previousExtSchema = reader.extSchema;
+
+  schemaReloadWrapper = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  schemaReloadExt = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  SSubmitTbData submit = {};
+  submit.uid = 10;
+  submit.suid = 20;
+  submit.sver = 2;
+  bool schemaChanged = false;
+
+  Stub stub;
+  stub.set(metaGetTableSchema, readReloadSchema);
+  stub.set(tBuildTSchema, failReloadSchema);
+
+  EXPECT_EQ(tqCheckSchema(&reader, &submit, &schemaChanged), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_TRUE(schemaChanged);
+  EXPECT_EQ(schemaReloadCalls, 1);
+  EXPECT_EQ(reader.pSchemaWrapper, previousWrapper);
+  EXPECT_EQ(reader.pTSchema, previousTSchema);
+  EXPECT_EQ(reader.extSchema, previousExtSchema);
+  EXPECT_EQ(reader.cachedSchemaUid, 10);
+  EXPECT_EQ(reader.cachedSchemaSuid, 20);
+  EXPECT_EQ(reader.cachedSchemaVer, 1);
+
+  tDeleteSchemaWrapper(reader.pSchemaWrapper);
+  taosMemoryFree(reader.pTSchema);
+  taosMemoryFree(reader.extSchema);
+  resetSchemaReloadTestState();
+}
+
+TEST(testCase, snapshot_meta_array_init_failure_releases_input) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+
+  {
+    Stub stub;
+    stub.set(taosArrayInit, failMetaArrayInit);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  taosMemoryFree(data);
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_meta_buffer_allocation_failure_releases_input) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+  response.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+  response.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+  ASSERT_NE(response.batchMetaReq, nullptr);
+  ASSERT_NE(response.batchMetaLen, nullptr);
+
+  {
+    Stub stub;
+    stub.set(taosMemCalloc, failMetaCalloc);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  taosMemoryFree(data);
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_meta_queue_failure_releases_unowned_buffers) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  void* data = taosMemoryCalloc(1, 16);
+  ASSERT_NE(data, nullptr);
+  SMqBatchMetaRsp response = {};
+  response.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+  response.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+  ASSERT_NE(response.batchMetaReq, nullptr);
+  ASSERT_NE(response.batchMetaLen, nullptr);
+
+  {
+    Stub stub;
+    stub.set(taosArrayAddBatch, failMetaArrayPush);
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqAppendSnapshotMetaRsp(&response, data, 16, 1), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_EQ(metaFreedPointers.size(), 2);
+  EXPECT_TRUE(containsMetaFreedPointer(data));
+  for (void* ptr : metaFreedPointers) {
+    taosMemoryFree(ptr);
+  }
+  tDeleteMqBatchMetaRsp(&response);
+}
+
+TEST(testCase, snapshot_table_info_failure_releases_partial_schema) {
+  terrno = 0;
+  metaFreedPointers.clear();
+  partialSnapshotMeta = {};
+  partialSnapshotMeta.schema = static_cast<SSchemaWrapper*>(taosMemoryCalloc(1, sizeof(SSchemaWrapper)));
+  ASSERT_NE(partialSnapshotMeta.schema, nullptr);
+  partialSnapshotMeta.schema->pSchema = static_cast<SSchema*>(taosMemoryCalloc(1, sizeof(SSchema)));
+  partialSnapshotMeta.schema->nCols = 1;
+  ASSERT_NE(partialSnapshotMeta.schema->pSchema, nullptr);
+  partialSnapshotMeta.pExtSchemas = static_cast<SExtSchema*>(taosMemoryCalloc(1, sizeof(SExtSchema)));
+  ASSERT_NE(partialSnapshotMeta.pExtSchemas, nullptr);
+
+  SStorageAPI api = {};
+  api.snapshotFn.getMetaTableInfoFromSnapshot = readPartialSnapshotMeta;
+  SSnapContext context = {};
+  SMetaTableInfo tableInfo = {};
+  {
+    Stub stub;
+    stub.set(taosMemFree, trackMetaFree);
+    EXPECT_EQ(qTmqGetSnapshotMetaTableInfo(&api, &context, &tableInfo), TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.schema->pSchema));
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.schema));
+  EXPECT_TRUE(containsMetaFreedPointer(partialSnapshotMeta.pExtSchemas));
+  EXPECT_EQ(tableInfo.schema, nullptr);
+  EXPECT_EQ(tableInfo.pExtSchemas, nullptr);
+  for (void* ptr : metaFreedPointers) {
+    taosMemoryFree(ptr);
+  }
+  partialSnapshotMeta = {};
 }
 
 TEST(testCase, setForSnapShotRestoresQueryMeta) {
