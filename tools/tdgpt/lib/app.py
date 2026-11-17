@@ -56,6 +56,7 @@ from lib.tsfm.mgmt.foundation_model import (
     get_model_info,
     init_models_db,
     list_all_tsfm,
+    resume_due_downloads,
     start_foundation_model,
     stop_foundation_model,
 )
@@ -288,6 +289,13 @@ def handle_delete_foundation_runtime_req():
 @app.route("/api/v1/foundation-models/<task_id>/status", methods=["GET"])
 def handle_get_operation_status_req(task_id):
     """Get status of async operation by task_id"""
+    # A client polling a task is the reliable signal that somebody still wants
+    # it, so this is where a queued download whose retry timer was lost gets
+    # re-armed. Best-effort: recovery must never break the status answer.
+    try:
+        resume_due_downloads()
+    except Exception as exc:
+        AppLogger.error("Failed to resume due model downloads: %s", exc)
     return get_operation_status(request, task_id)
 
 

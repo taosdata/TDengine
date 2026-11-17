@@ -558,6 +558,21 @@ class TestTaskStateReadFrequency:
         assert payloads, "the phase, retired, replay and close-out loops must all have run"
         assert read_states.call_count == 1
 
+    def test_a_missing_task_directory_is_not_a_warning(self, tmp_path):
+        """The directory is created by the first apply, so its absence is normal.
+
+        `_write_json` creates it lazily, and until something has been applied the
+        list endpoint (polled by the UI) and the SSE stream both read it on every
+        pass. Reporting that as a warning would log a fault on every request of an
+        idle host, for a state that is exactly what a fresh install looks like.
+        """
+        with patch.object(response_event, "get_resource_dir", return_value=tmp_path), patch.object(
+            response_event.AppLogger, "warning"
+        ) as warning:
+            assert response_event._read_resource_task_states() == []
+
+        warning.assert_not_called()
+
 
 class TestModelStartPhase:
     """The auto-start step of a download_start request is reported, not silent.

@@ -32,15 +32,20 @@ from lib.log import AppLogger
 #     shared with model start/stop, import and delete) and is refused with exit
 #     75 while anyone else holds it. That lock has no queue: it either runs the
 #     command or refuses it.
-#   * *When* a refused download gets to run is what the flock below decides.
+#   * *When* a refused download gets to run is the retry scheduler's to decide.
 #     Each gunicorn worker has its own download executor (1 worker), so a request
-#     submits its download into the local executor queue, and the runner waits on
-#     the shared flock before marking the op running. That wait is exactly what
-#     keeps a download arriving during another one `queued` in the shared
-#     async_operations table (visible via /status & SSE) and runs it once the
-#     turn is free, instead of letting it hit the CLI's refusal and fail. No
-#     scheduler thread is needed — the executor queue + flock ordering handle
-#     sequencing, and a restart simply drops queued tasks (startup cleanup).
+#     submits its download into the local executor queue; when the CLI refuses the
+#     apply, the runner defers instead of sleeping: the row stays `queued` in the
+#     shared async_operations table (visible via /status & SSE) and a retry
+#     scheduler re-arms the task, so the pool's single worker is free for the
+#     downloads queued behind it. Deferring is what keeps a download arriving
+#     during another one from failing on that refusal. A restart simply drops
+#     queued tasks (startup cleanup).
+#
+# The due time of a deferred download lives on its row (`retry_after`), not in
+# the timer: a timer is only an accelerator. Any request that finds a task due
+# may submit it (the claim is atomic), so losing a timer costs latency, not the
+# task.
 #
 # The shared TSFM runtime is downloaded through this very pool as one more
 # operation: a single queue for every download, served in submission order. A
@@ -80,9 +85,9 @@ def get_download_executor():
 
     A single worker keeps downloads serialized within this process. The heavy
     work runs in a taosanodectl subprocess, so a thread executor is enough here.
-    Serialization *across* processes is not this pool's job: permission comes
-    from the CLI's lifecycle lock and ordering from the flock the runner waits on
-    (see the module-level note on the download executor).
+    Serialization *across* processes is not this pool's job: the CLI's lifecycle
+    lock refuses a concurrent apply, and the refused task is deferred for the
+    retry scheduler (see the module-level note on the download executor).
     """
     global _DOWNLOAD_EXECUTOR
     # double-checked locking
@@ -218,11 +223,11 @@ def submit_download_task(worker_fn, args, task_id, model_name, operation:str, co
     """Submit one download-family task to the download thread executor.
 
     The executor's single worker acts as a local queue: downloads submitted to
-    this process run one at a time. Ordering across workers comes from the flock
-    the worker waits on before applying (see the module-level note on the
-    download executor), so a download that loses the race simply stays queued and
-    runs once the turn is free — it never fails because another worker is
-    downloading. Permission to apply still belongs to the CLI's lifecycle lock.
+    this process run one at a time. Ordering across processes comes from the CLI's
+    lifecycle lock (see the module-level note on the download executor): a
+    download it refuses returns a deferred result, the caller re-arms it behind a
+    timer, and it stays queued -- it never fails because another worker is
+    downloading. Permission to apply belongs to that same lock.
 
     Args:
         worker_fn: Worker function taking *args and returning a result dict
@@ -232,9 +237,9 @@ def submit_download_task(worker_fn, args, task_id, model_name, operation:str, co
         operation: Operation name (download, download_start)
         deferred_fn: Handler (status, result) for a deferred result. A worker that
             cannot defer leaves it out, and its status is then written as the
-            operation's outcome; the combined download_start passes one, because a
-            start the lifecycle lock refuses is deferred rather than finished (see
-            _run_download_and_start_task).
+            operation's outcome; both download families pass one, because a
+            refused apply re-arms the task instead of finishing it (see
+            _download_deferred_handler).
     """
     # One pool for every download, the shared TSFM runtime included: the pool's
     # single worker is the local queue, so downloads are served in submission
