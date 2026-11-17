@@ -1437,6 +1437,8 @@ static int32_t stTriggerTaskCalcRequestParamCount(const SSTriggerCalcRequest *pR
 static int32_t stTriggerTaskFinalizeCalcRequest(SSTriggerCalcRequest *pReq);
 static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, SSTriggerGroupCalcInfo *pGroupCalc,
                                                 int32_t limit, int32_t *pAppended);
+static int32_t stRealtimeCalcReqRememberWindow(SSHashObj *pSeen, const SSTriggerCalcParam *pParam, bool *pDuplicate);
+static bool    stRealtimeCalcReqDedupEnabled(const SStreamTriggerTask *pTask);
 static int32_t stRealtimeContextFlushCalcRequest(SSTriggerRealtimeContext *pContext);
 static int32_t stRealtimeGroupFillParam(SSTriggerRealtimeGroup *pGroup, SSTriggerCalcParam *pParam,
                                         SSTriggerNotifyWindow *pWindow);
@@ -21609,17 +21611,77 @@ static void stAmendOrdinaryCalcParam(SSTriggerRealtimeContext *pContext, SSTrigg
   }
 }
 
+/* stAmendOrdinaryCalcParam is applied to the copy stored in the request, while pending params still
+ * carry the window range as queued. Revert the amended identity fields on a scratch copy so a
+ * re-queued window matches the copy the request already holds. Only SLIDING amends the range:
+ * interval windows shift wend, pure sliding shifts prevTs (which aliases wstart). */
+static void stRealtimeCalcParamUndoAmend(const SStreamTriggerTask *pTask, SSTriggerCalcParam *pParam) {
+  if (pTask->triggerType != STREAM_TRIGGER_SLIDING) {
+    return;
+  }
+  if (pTask->interval.interval > 0) {
+    --pParam->wend;
+    --pParam->wduration;
+  } else {
+    ++pParam->prevTs;
+  }
+}
+
+/* Move pending calculation parameters into the group's parameter array of the request. When
+ * deduplication is enabled, skip any window identity the array already holds: the pending params of
+ * one group are compared against that group's own params only, so two partitions that share a time
+ * range stay distinct calculations. A mixed virtual table can queue the same window twice (an
+ * external source may deliver its rows after the local sources already closed the window), and
+ * calculating the repeated range twice would make the sink aggregate the same rows twice. The
+ * skipped entries are released and also removed from the pending list. Only params actually
+ * appended count as moved, so the caller's remaining capacity stays accurate. */
 static int32_t stRealtimeGroupMovePendingCalc(SSTriggerRealtimeGroup *pGroup, SObjList *pPending,
                                               SSTriggerGroupCalcInfo *pGroupCalc, int32_t limit, int64_t endExclusive,
-                                              int32_t *pMoved) {
+                                              bool deduplicate, int32_t *pMoved, int32_t *pDupSkipped) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  SSHashObj          *pSeen = NULL;
+  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
   *pMoved = 0;
+  *pDupSkipped = 0;
+  if (deduplicate) {
+    pSeen =
+        tSimpleHashInit(TMAX(taosArrayGetSize(pGroupCalc->pParams), 16), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (pSeen == NULL) {
+      code = terrno;
+      goto _end;
+    }
+    for (int32_t index = 0; index < taosArrayGetSize(pGroupCalc->pParams); ++index) {
+      SSTriggerCalcParam stored = *(SSTriggerCalcParam *)taosArrayGet(pGroupCalc->pParams, index);
+      stRealtimeCalcParamUndoAmend(pTask, &stored);
+      bool duplicate = false;
+      code = stRealtimeCalcReqRememberWindow(pSeen, &stored, &duplicate);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
+    }
+  }
   while (*pMoved < limit) {
     SSTriggerCalcParam *pSource = taosObjListGetHead(pPending);
     // A scheduled PERIOD is closed even though its event-time range has no upper bound.
     bool unboundedPeriod = pGroup->pContext->pPeriod != NULL && endExclusive == INT64_MAX;
     if (pSource == NULL || (!unboundedPeriod && pSource->wend >= endExclusive)) break;
+    bool duplicate = false;
+    if (deduplicate) {
+      code = stRealtimeCalcReqRememberWindow(pSeen, pSource, &duplicate);
+      if (code != TSDB_CODE_SUCCESS) goto _end;
+    }
+    if (duplicate) {
+      stTrace("drop duplicate pending calc window, wstart:%" PRId64 " wend:%" PRId64 " notifyType:%d path:%s",
+              pSource->wstart, pSource->wend, pSource->notifyType,
+              pSource->eventConditionPath != NULL ? pSource->eventConditionPath : "<none>");
+      tDestroySSTriggerCalcParam(pSource);
+      taosObjListPopHead(pPending);
+      ++*pDupSkipped;
+      continue;
+    }
     SSTriggerCalcParam *pTarget = taosArrayPush(pGroupCalc->pParams, pSource);
-    if (pTarget == NULL) return terrno;
+    if (pTarget == NULL) {
+      code = terrno;
+      goto _end;
+    }
     ++pGroup->pContext->pCalcReq->assembledParamCount;
     pSource->extraNotifyContent = NULL;
     pSource->resultNotifyContent = NULL;
@@ -21629,7 +21691,13 @@ static int32_t stRealtimeGroupMovePendingCalc(SSTriggerRealtimeGroup *pGroup, SO
     taosObjListPopHead(pPending);
     ++*pMoved;
   }
-  return TSDB_CODE_SUCCESS;
+_end:
+  tSimpleHashCleanup(pSeen);
+  if (code != TSDB_CODE_SUCCESS) {
+    stError("failed to move pending calc windows, moved:%d duplicates:%d error:%s", *pMoved, *pDupSkipped,
+            tstrerror(code));
+  }
+  return code;
 }
 
 static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, SSTriggerGroupCalcInfo *pGroupCalc,
@@ -21675,16 +21743,26 @@ static int32_t stRealtimeGroupAppendPendingCalc(SSTriggerRealtimeGroup *pGroup, 
   int64_t                   normalEnd = INT64_MAX;
   const SSTriggerCalcParam *pNormal = taosObjListGetHead(&pGroup->pPendingCalcParams);
   if (pNormal != NULL) normalEnd = pNormal->wend;
+  bool    deduplicate = stRealtimeCalcReqDedupEnabled(pTask);
   int32_t moved = 0;
-  code =
-      stRealtimeGroupMovePendingCalc(pGroup, &pGroup->pPendingParWinCalcParams, pGroupCalc, limit, normalEnd, &moved);
+  int32_t dupSkipped = 0;
+  code = stRealtimeGroupMovePendingCalc(pGroup, &pGroup->pPendingParWinCalcParams, pGroupCalc, limit, normalEnd,
+                                        deduplicate, &moved, &dupSkipped);
   if (code != TSDB_CODE_SUCCESS) return code;
   *pAppended += moved;
+  if (dupSkipped > 0) {
+    ST_TASK_DLOG("drop %d duplicated pending parwin calc param(s) of already requested windows, gid:%" PRId64,
+                 dupSkipped, pGroup->gid);
+  }
   if (moved == 0 && *pAppended < limit) {
     code = stRealtimeGroupMovePendingCalc(pGroup, &pGroup->pPendingCalcParams, pGroupCalc, limit - *pAppended,
-                                          INT64_MAX, &moved);
+                                          INT64_MAX, deduplicate, &moved, &dupSkipped);
     if (code != TSDB_CODE_SUCCESS) return code;
     *pAppended += moved;
+    if (dupSkipped > 0) {
+      ST_TASK_DLOG("drop %d duplicated pending calc param(s) of already requested windows, gid:%" PRId64, dupSkipped,
+                   pGroup->gid);
+    }
   }
 
   int64_t maxDelayNs = stGroupMaxDelayNs(pTask, pGroup);
@@ -34061,10 +34139,27 @@ static bool stRealtimeCalcReqRangeIdentifiesWindow(int32_t triggerType) {
 }
 
 /* Deduplication only runs for close-only streams, and only for the triggers whose window range
- * identifies the window (see stRealtimeCalcReqRangeIdentifiesWindow). */
+ * identifies the window (see stRealtimeCalcReqRangeIdentifiesWindow). A COUNT window of a virtual
+ * table without a primary key is identified by its range as well: the virtual-table merger
+ * collapses every source row of one timestamp into a single row, so two rows can never share a
+ * timestamp there and one range belongs to exactly one window. Such a mixed virtual table can
+ * queue the same window twice (an external source may deliver its rows after the local sources
+ * already closed the window), and calculating the repeated range twice would make the sink
+ * aggregate the same rows twice. */
+static bool stRealtimeCalcReqCanDedup(int32_t triggerType, int32_t calcEventType, bool isVirtualTable,
+                                      int32_t pkIndex) {
+  if (calcEventType != STRIGGER_EVENT_WINDOW_CLOSE) {
+    return false;
+  }
+  if (stRealtimeCalcReqRangeIdentifiesWindow(triggerType)) {
+    return true;
+  }
+  return triggerType == STREAM_TRIGGER_COUNT && isVirtualTable && pkIndex < 0;
+}
+
 static bool stRealtimeCalcReqDedupEnabled(const SStreamTriggerTask *pTask) {
-  return pTask->calcEventType == STRIGGER_EVENT_WINDOW_CLOSE &&
-         stRealtimeCalcReqRangeIdentifiesWindow(pTask->triggerType);
+  return stRealtimeCalcReqCanDedup(pTask->triggerType, (int32_t)pTask->calcEventType, pTask->isVirtualTable,
+                                   pTask->trigPkIndex);
 }
 
 /* Move pending calculation parameters into the given request parameter array, skipping any
@@ -34075,7 +34170,7 @@ static bool stRealtimeCalcReqDedupEnabled(const SStreamTriggerTask *pTask) {
  * here. The skipped entries are released and also removed from the pending list.
  * Deduplication is disabled for mixed calculation event types: notifyType can be NONE
  * for both OPEN and CLOSE and cannot distinguish those calculations. It is also disabled for
- * triggers whose window range does not identify the window, see stRealtimeCalcReqRangeIdentifiesWindow. */
+ * triggers whose window range does not identify the window, see stRealtimeCalcReqCanDedup. */
 static int32_t stRealtimeCalcReqMovePending(SArray *pParams, SObjList *pPending, int32_t maxParams,
                                             int64_t maxWendExclusive, bool hasEndLimit, bool deduplicate, int32_t *pMoved,
                                             int32_t *pDupSkipped) {
@@ -34152,11 +34247,34 @@ int32_t stTestRealtimeCalcReqMovePending(SArray *pParams, SObjList *pPending, in
  * replay the params of a trigger whose window range does not identify the window. */
 int32_t stTestRealtimeCalcReqMovePendingForTrigger(SArray *pParams, SObjList *pPending, int32_t maxParams,
                                                    int64_t maxWendExclusive, int32_t triggerType,
-                                                   int32_t calcEventType, int32_t *pMoved, int32_t *pDupSkipped) {
-  bool deduplicate = calcEventType == STRIGGER_EVENT_WINDOW_CLOSE &&
-                     stRealtimeCalcReqRangeIdentifiesWindow(triggerType);
+                                                   int32_t calcEventType, bool isVirtualTable, int32_t pkIndex,
+                                                   int32_t *pMoved, int32_t *pDupSkipped) {
+  bool deduplicate = stRealtimeCalcReqCanDedup(triggerType, calcEventType, isVirtualTable, pkIndex);
   return stRealtimeCalcReqMovePending(pParams, pPending, maxParams, maxWendExclusive, maxWendExclusive != INT64_MAX,
                                       deduplicate, pMoved, pDupSkipped);
+}
+
+/* Exported for unit tests: exercises the multi-group batch move step with the same deduplication
+ * decision the real dispatch uses, so a test can replay the group params of any trigger type. */
+int32_t stTestRealtimeGroupMovePendingCalc(SArray *pParams, SObjList *pPending, int32_t limit, int64_t endExclusive,
+                                           int32_t triggerType, int32_t calcEventType, bool isVirtualTable,
+                                           int32_t pkIndex, int64_t slidingInterval, int32_t *pMoved,
+                                           int32_t *pDupSkipped) {
+  SStreamTriggerTask task = {0};
+  task.triggerType = triggerType;
+  task.calcEventType = (ESTriggerEventType)calcEventType;
+  task.isVirtualTable = isVirtualTable;
+  task.trigPkIndex = pkIndex;
+  task.interval.interval = slidingInterval;
+  SSTriggerRealtimeContext context = {0};
+  context.pTask = &task;
+  SSTriggerCalcRequest calcReq = {0};
+  context.pCalcReq = &calcReq;
+  SSTriggerRealtimeGroup group = {0};
+  group.pContext = &context;
+  SSTriggerGroupCalcInfo groupCalc = {.pParams = pParams};
+  return stRealtimeGroupMovePendingCalc(&group, pPending, &groupCalc, limit, endExclusive,
+                                        stRealtimeCalcReqDedupEnabled(&task), pMoved, pDupSkipped);
 }
 
 static int32_t stRealtimeGroupRetrievePendingCalc(SSTriggerRealtimeGroup *pGroup) {
