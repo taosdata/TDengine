@@ -1925,8 +1925,14 @@ int stmtGetTagFields(TAOS_STMT* stmt, int* nums, TAOS_FIELD_E** fields) {
   STMT_ERRI_JRET(stmtFetchTagFields(stmt, nums, fields));
 
 _return:
-  // compatible with previous versions
-  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0) {
+  // compatible with previous versions: "table name not set" stays the result for
+  // the tbname-placeholder forms ("insert into ? ...", with or without USING),
+  // where the table name simply has not been bound yet. Only a statement that
+  // names a concrete table (and has no USING clause) can be reporting a real
+  // missing table, so let TSDB_CODE_PAR_TABLE_NOT_EXIST through for it.
+  if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST && (pStmt->bInfo.tbNameFlag & NO_DATA_USING_CLAUSE) == 0x0 &&
+      !(pStmt->exec.pRequest != NULL && (pStmt->exec.pRequest->stmtTbNameFlag & IS_FIXED_VALUE) != 0 &&
+        (pStmt->exec.pRequest->stmtTbNameFlag & USING_CLAUSE) == 0)) {
     code = TSDB_CODE_TSC_STMT_TBNAME_ERROR;
   }
 

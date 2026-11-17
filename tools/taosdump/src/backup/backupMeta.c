@@ -653,16 +653,26 @@ static void* backTagThread(void *arg) {
         argBuildInClause("tbname", inClause, sizeof(inClause));
         snprintf(whereClause, sizeof(whereClause), "WHERE %s ", inClause);
     }
-    snprintf(sql, TSDB_MAX_SQL_LEN, 
+    // The last thread takes every child table from its offset to the end (OFFSET
+    // without LIMIT). The split boundary comes from a server-side statistic that
+    // can under-report, and a bounded LIMIT would then silently drop the surplus
+    // child tables from the tag file: restore only recreates tables listed in the
+    // tag files, so those tables would be missing while their data files are
+    // still restored.
+    char pageClause[80] = "";
+    if (thread->unbounded) {
+        snprintf(pageClause, sizeof(pageClause), "OFFSET %d", thread->offset);
+    } else {
+        snprintf(pageClause, sizeof(pageClause), "LIMIT %d OFFSET %d", thread->limit, thread->offset);
+    }
+    snprintf(sql, TSDB_MAX_SQL_LEN,
              "SELECT DISTINCT tbname,%s FROM `%s`.`%s` "
-             "%sORDER BY tbname "
-             "LIMIT %d OFFSET %d;",
+             "%sORDER BY tbname %s;",
              thread->stbInfo->selectTags,
              thread->dbInfo->dbName,
              thread->stbInfo->stbName,
              whereClause,
-             thread->limit,
-             thread->offset);
+             pageClause);
     logDebug("backing up tags for thread %d: %s", thread->index, sql);         
     
     // sql result to file
@@ -720,15 +730,14 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
         logError("query table count failed(0x%08X): %s", *code, sql);
         return NULL;
     }
-    // zero
+    // Do not treat a zero count as "this STB has no child tables": the count is a
+    // server-side statistic (information_schema.ins_tables count, planned as a
+    // per-STB table count) and can under-report. Keep one unbounded pass so a
+    // wrong statistic can never drop every tag of a super table.
     if (tableCnt == 0) {
-        logDebug("no child table found for super table: %s.%s", dbName, stbName);
-        *code = TSDB_CODE_SUCCESS;
-        *outCount = 0;
-        return NULL;
-    }
-
-    if (tableCnt < threadCnt) {
+        logDebug("child table count of %s.%s is zero, verifying with one unbounded tag pass", dbName, stbName);
+        threadCnt = 1;
+    } else if (tableCnt < threadCnt) {
         threadCnt = tableCnt;
     }
 
@@ -763,6 +772,11 @@ TagThread * splitTaskTag(DBInfo *dbInfo, StbInfo *stbInfo, int *code, int *outCo
         }
         offset += threads[i].limit;
     }
+
+    // The thread with the largest offset takes everything beyond the reported
+    // count (see backTagThread), so an under-reported count cannot truncate the
+    // tag file and make restore skip child tables that still have data files.
+    threads[threadCnt - 1].unbounded = true;
 
     // succ
     *outCount = threadCnt;

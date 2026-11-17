@@ -183,6 +183,11 @@ typedef struct SParseContext {
   char        currentExtNs1[TSDB_EXT_SOURCE_DATABASE_LEN]; // active namespace (db/schema); empty if not set
   char        currentExtNs2[TSDB_EXT_SOURCE_SCHEMA_LEN];   // active schema (PG 3-seg only); empty otherwise
   int8_t      firstDayOfWeek;  /* 0-6; -1 = not set (use global tsFirstDayOfWeek) */
+  // How the insert-target table name was spelled, a bit mask of
+  // HAS_BIND_VALUE / IS_FIXED_VALUE / USING_CLAUSE. Filled by parseInsertSql() so
+  // that the client can keep the legacy TSDB_CODE_TSC_STMT_TBNAME_ERROR mapping
+  // only for statements without a concrete table name.
+  uint8_t     stmtTbNameFlag;
 } SParseContext;
 
 typedef struct SPureInsertParserCtx {
