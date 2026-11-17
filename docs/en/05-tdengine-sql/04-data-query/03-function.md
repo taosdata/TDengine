@@ -339,7 +339,7 @@ GREATEST(expr1, expr2[, expr]...)
 **Related configuration items**:
 
 - `compareAsStrInGreatest` (client configuration): `1` means that when both string types and numeric types are present they are uniformly compared as strings; `0` means they are uniformly compared as numeric values. The default is `1`.
-- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) keeps the MySQL-compatible behavior — any NULL argument makes the result NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
+- `ignoreNullInGreatest` (client configuration, available since ver-3.4.2.0): `0` (default) makes the result NULL when any argument is NULL. `1` skips NULL arguments and compares only the non-NULL values; if every argument is NULL, the result is still NULL. This option is orthogonal to `compareAsStrInGreatest`: it only controls NULL handling, the comparison rules above for non-NULL values are unchanged.
 
 ### LEAST
 
@@ -2304,43 +2304,859 @@ TO_TIMESTAMP(ts_str_literal, format_str_literal)
 
 ## Time and Date Functions
 
-Time and date functions operate on timestamp types.
+Time and date functions operate on timestamp types and are all **scalar functions**.
 
-All functions that return the current time, such as NOW, TODAY, and TIMEZONE, are calculated only once in a SQL statement, no matter how many times they appear.
+All functions that return the current time, such as NOW, TODAY, TIMEZONE, CURDATE, CURTIME, CURRENT_TIMESTAMP, and UNIX_TIMESTAMP without arguments, are calculated only once in a SQL statement, no matter how many times they appear.
 
-### MySQL-Compatible Date and Time Functions
-
-The following scalar functions provide MySQL 8.0-style date and time calculations starting with `v3.4.3.12`. Format strings use MySQL tokens such as `%Y-%m-%d`; the existing `TO_CHAR` and `TO_TIMESTAMP` format syntax is unchanged. Date and time arguments accept text or `TIMESTAMP`. `HOUR`, `MINUTE`, `SECOND`, and `MICROSECOND` also accept `[-]HH:MM:SS[.ffffff]` text.
-
-| Function | Result | Return type |
-| --- | --- | --- |
-| `CURDATE()`, `CURRENT_DATE()`, `CURRENT_DATE` | Date in the connection timezone | `VARCHAR` |
-| `CURTIME([fsp])`, `CURRENT_TIME([fsp])`, `CURRENT_TIME` | Time in the connection timezone | `VARCHAR` |
-| `CURRENT_TIMESTAMP([fsp])`, `CURRENT_TIMESTAMP` | Current timestamp | `TIMESTAMP` |
-| `DATEDIFF(expr1, expr2)` | Difference between local calendar dates in days | `BIGINT` |
-| `DATE_FORMAT(date, format)` | Format using MySQL tokens | `VARCHAR` |
-| `DAY(date)`, `DAYOFMONTH(date)` | Day of month | `BIGINT` |
-| `DAYNAME(date)` | Full English weekday name | `VARCHAR` |
-| `DAYOFYEAR(date)` | Day of year | `BIGINT` |
-| `EXTRACT(unit FROM date)` | Extract one field or a composite | `BIGINT` |
-| `FROM_DAYS(N)` | Day number to date | `VARCHAR` |
-| `FROM_UNIXTIME(unix_timestamp[, format])` | Unix seconds to local date and time | `VARCHAR` |
-| `HOUR(time)`, `MINUTE(time)`, `SECOND(time)`, `MICROSECOND(expr)` | Extract time fields | `BIGINT` |
-| `MONTH(date)`, `QUARTER(date)`, `YEAR(date)` | Extract calendar fields | `BIGINT` |
-| `MONTHNAME(date)` | Full English month name | `VARCHAR` |
-| `STR_TO_DATE(str, format)` | Parse text using MySQL tokens | `VARCHAR` |
-| `TO_DAYS(date)`, `TO_SECONDS(expr)` | Day or second number since year zero | `BIGINT` |
-| `UNIX_TIMESTAMP([date])` | Unix seconds; text and fractional input return `DECIMAL(17,6)` | `BIGINT` or `DECIMAL(17,6)` |
-| `YEARWEEK(date[, mode])` | Week year times 100 plus week number; mode 0–7 | `BIGINT` |
-
-`fsp` is the number of fractional second digits. It must be a constant integer from `0` through `6` and defaults to `0`. `EXTRACT` supports `MICROSECOND`, `SECOND`, `MINUTE`, `HOUR`, `DAY`, `WEEK`, `MONTH`, `QUARTER`, `YEAR`, and the composites `SECOND_MICROSECOND`, `MINUTE_MICROSECOND`, `MINUTE_SECOND`, `HOUR_MICROSECOND`, `HOUR_SECOND`, `HOUR_MINUTE`, `DAY_MICROSECOND`, `DAY_SECOND`, `DAY_MINUTE`, `DAY_HOUR`, and `YEAR_MONTH`. `DATE_FORMAT` and `STR_TO_DATE` support `%a`, `%b`, `%c`, `%D`, `%d`, `%e`, `%f`, `%H`, `%h`, `%I`, `%i`, `%j`, `%k`, `%l`, `%M`, `%m`, `%p`, `%r`, `%S`, `%s`, `%T`, `%U`, `%u`, `%V`, `%v`, `%W`, `%w`, `%X`, `%x`, `%Y`, and `%y`. `%%` emits a literal `%` only in output formats; `STR_TO_DATE` returns `NULL` if parsing reaches `%%`. If the input ends with only `%p` left in the format, `%p` does not add a time component. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` returns `2024-02-29`.
-
-Valid TIME text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign and zero microseconds. For example, `MINUTE('839:00:00')` returns `59`; invalid minute or second fields still return `NULL`. Invalid date and time text returns `NULL`; `STR_TO_DATE` also returns `NULL` for an invalid fully specified date. TDengine has no separate `DATE`, `TIME`, or `DATETIME` types, so some results are text and their numeric context and client type differ from MySQL. Weekday and month names are always English. MySQL `sql_mode`, row warnings, and `lc_time_names` do not apply. Date-only text retains its calendar meaning, with hours, minutes, seconds, and microseconds defaulting to `0`. For example, `MINUTE('2024-02-29')`, `SECOND('2024-02-29')`, and `EXTRACT(HOUR_MINUTE FROM '2024-02-29')` all return `0`; TDengine does not apply MySQL's permissive conversion of the numeric prefix `2024` to `00:20:24`. Text with `Z` or an explicit offset is converted to the connection timezone as an absolute instant, which can differ from MySQL's permissive text conversion in some functions. `TIMESTAMP` range and precision depend on database precision. A dynamic text column passed to `UNIX_TIMESTAMP` always returns `DECIMAL(17,6)`.
+### CURDATE
 
 ```sql
-SELECT DATEDIFF('2024-03-01', '2024-02-29'), YEARWEEK('2000-01-01');
-SELECT EXTRACT(YEAR_MONTH FROM '2019-07-02'), DATE_FORMAT('2024-02-29', '%W %M %d');
-SELECT STR_TO_DATE('May 1, 2013', '%M %d, %Y'), FROM_UNIXTIME(1.123456);
+CURDATE()
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the current date in the current connection timezone, in the `YYYY-MM-DD` format.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: No arguments.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- The current date is determined in the current connection timezone. See [TIMEZONE](#timezone) for the timezone setting.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone)
+
+```sql
+taos> select curdate();
+  curdate()   |
+===============
+ 2026-11-16   |
+```
+
+### CURRENT_DATE
+
+```sql
+CURRENT_DATE()
+CURRENT_DATE
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [CURDATE](#curdate), and the parentheses may be omitted. Supported since `v3.4.3.12`.
+
+### CURRENT_TIME
+
+```sql
+CURRENT_TIME([fsp])
+CURRENT_TIME
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [CURTIME](#curtime), and the parentheses may be omitted. Supported since `v3.4.3.12`.
+
+### CURRENT_TIMESTAMP
+
+```sql
+CURRENT_TIMESTAMP([fsp])
+CURRENT_TIMESTAMP
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the timestamp at the start of the statement, keeping `fsp` fractional-second digits.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `TIMESTAMP`.
+
+**Applicable Data Types**
+
+- `fsp`: number of fractional-second digits. It must be an integer constant from `0` through `6`, and the default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The parentheses may be omitted. `CURRENT_TIMESTAMP` is equivalent to `CURRENT_TIMESTAMP(0)`.
+- Digits beyond `fsp` are truncated. For example, when `fsp` is `0`, the result is precise to the second. This differs from [NOW](#now), which keeps the full precision.
+- The available fractional digits are limited by the database time precision. A millisecond-precision database keeps at most 3 digits. When no table is specified, the precision is milliseconds.
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- An `fsp` outside the range, or an `fsp` that is not a constant, raises an error.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone, and the precision is milliseconds)
+
+```sql
+taos> select current_timestamp, current_timestamp(3);
+    current_timestamp    |  current_timestamp(3)   |
+====================================================
+ 2026-11-16 18:30:15.000 | 2026-11-16 18:30:15.123 |
+```
+
+### CURTIME
+
+```sql
+CURTIME([fsp])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the current time in the current connection timezone, in the `HH:MM:SS[.fraction]` format, keeping `fsp` fractional-second digits.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `fsp`: number of fractional-second digits. It must be an integer constant from `0` through `6`, and the default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- When `fsp` is `0`, the decimal point and the fractional part are omitted.
+- No matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- The current time is determined in the current connection timezone.
+- An `fsp` outside the range, or an `fsp` that is not a constant, raises an error.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the output depends on the execution time and the connection timezone)
+
+```sql
+taos> select curtime(), curtime(3);
+     curtime()     |    curtime(3)     |
+========================================
+ 18:30:15          | 18:30:15.123      |
+```
+
+### DATE
+
+```sql
+DATE(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns date of the input time expression.
+
+**Version**: ver-3.3.8.0
+
+**Return Type**: VARCHAR.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The return value is of `yyyy-mm-dd` format.
+- If `expr` is NULL, returns NULL.
+- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
+
+**Example**:
+
+(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+
+```sql
+taos> select date(946656000000);
+       date(946656000000)       |
+=================================
+ 2000-01-01                     |
+
+taos> select date('2000-01-01 12:00:00.000');
+ date('2000-01-01 12:00:00.000') |
+==================================
+ 2000-01-01                      |
+```
+
+### DATE_FORMAT
+
+```sql
+DATE_FORMAT(date, format)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Formats the date and time `date` as text using `%` specifiers.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `format`: a VARCHAR or NCHAR format string.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `format` uses `%` specifiers, which are different from the `yyyy-mm-dd` format rules of [TO_CHAR](#to_char). The supported specifiers are:
+
+| Specifier | Meaning |
+| --- | --- |
+| `%a` | Abbreviated English weekday name (`Sun` through `Sat`) |
+| `%b` | Abbreviated English month name (`Jan` through `Dec`) |
+| `%c` | Month number, not zero-padded (`0` through `12`) |
+| `%D` | Day of the month with an English ordinal suffix (`0th`, `1st`, `2nd`, `3rd`, ...) |
+| `%d` | Day of the month, two digits (`00` through `31`) |
+| `%e` | Day of the month, not zero-padded (`0` through `31`) |
+| `%f` | Microseconds, six digits (`000000` through `999999`) |
+| `%H` | Hour in 24-hour form, two digits (`00` through `23`) |
+| `%h` | Hour in 12-hour form, two digits (`01` through `12`) |
+| `%I` | Hour in 12-hour form, two digits (`01` through `12`) |
+| `%i` | Minute, two digits (`00` through `59`) |
+| `%j` | Day of the year, three digits (`001` through `366`) |
+| `%k` | Hour in 24-hour form, not zero-padded (`0` through `23`) |
+| `%l` | Hour in 12-hour form, not zero-padded (`1` through `12`) |
+| `%M` | Full English month name (`January` through `December`) |
+| `%m` | Month, two digits (`00` through `12`) |
+| `%p` | `AM` or `PM` |
+| `%r` | Time in 12-hour form, `hh:mm:ss` followed by `AM` or `PM` |
+| `%S` | Second, two digits (`00` through `59`) |
+| `%s` | Second, two digits (`00` through `59`) |
+| `%T` | Time in 24-hour form, `hh:mm:ss` |
+| `%U` | Week number (`00` through `53`), Sunday as the first day, same as `WEEK` `mode` 0 |
+| `%u` | Week number (`00` through `53`), Monday as the first day, same as `WEEK` `mode` 1 |
+| `%V` | Week number (`01` through `53`), Sunday as the first day, same as `WEEK` `mode` 2; use with `%X` |
+| `%v` | Week number (`01` through `53`), Monday as the first day, same as `WEEK` `mode` 3; use with `%x` |
+| `%W` | Full English weekday name (`Sunday` through `Saturday`) |
+| `%w` | Weekday number (`0` is Sunday, `6` is Saturday) |
+| `%X` | Four-digit year of the week, Sunday as the first day; use with `%V` |
+| `%x` | Four-digit year of the week, Monday as the first day; use with `%v` |
+| `%Y` | Year, four digits |
+| `%y` | Year, two digits |
+| `%%` | A literal `%` |
+
+- When `%` is followed by a character that is not in the table above, that character is output as itself. For example, `%q` outputs `q`.
+- Weekday and month names are always English.
+- An empty `format` string returns NULL.
+- When the month is `0`, `%M` and `%b` return NULL. For a zero date such as `0000-00-00`, weekday specifiers such as `%W`, `%a`, and `%w` return NULL.
+- If `date` or `format` is NULL, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select date_format('2009-10-04 22:23:00', '%W %M %Y');
+ date_format('2009-10-04 22:23:00', '%W %M %Y') |
+=================================================
+ Sunday October 2009                            |
+
+taos> select date_format('2024-02-29 23:04:05', '%r');
+ date_format('2024-02-29 23:04:05', '%r') |
+===========================================
+ 11:04:05 PM                              |
+
+taos> select date_format('2024-02-29', '%D %j %%');
+ date_format('2024-02-29', '%D %j %%') |
+========================================
+ 29th 060 %                            |
+```
+
+### DATEDIFF
+
+```sql
+DATEDIFF(expr1, expr2)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the number of days between the dates `expr1` and `expr2` (`expr1` - `expr2`). The result may be negative.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `expr1`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `expr2`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Only the date part is compared. Hours, minutes, and seconds are ignored, so two instants that cross midnight but are less than 24 hours apart still differ by 1 day.
+- Unlike [TIMEDIFF](#timediff), `DATEDIFF` does not accept a time unit. The result is always in days.
+- If either argument is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select datediff('2007-12-31 23:59:59', '2007-12-30');
+ datediff('2007-12-31 23:59:59', '2007-12-30') |
+================================================
+                                             1 |
+
+taos> select datediff('2010-11-30 23:59:59', '2010-12-31');
+ datediff('2010-11-30 23:59:59', '2010-12-31') |
+================================================
+                                           -31 |
+```
+
+### DAY
+
+```sql
+DAY(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day of the month.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a valid date, the result is from `1` through `31`. A date whose day is `0`, such as `0000-00-00`, returns `0`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select day('2024-02-29');
+   day('2024-02-29')   |
+========================
+                    29 |
+```
+
+### DAYNAME
+
+```sql
+DAYNAME(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the full English weekday name of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is one of `Sunday` through `Saturday`, always in English.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select dayname('2024-02-29');
+ dayname('2024-02-29') |
+========================
+ Thursday              |
+```
+
+### DAYOFMONTH
+
+```sql
+DAYOFMONTH(date)
+```
+
+**Function Classification**: Scalar function.
+
+Behaves the same as [DAY](#day). Supported since `v3.4.3.12`.
+
+### DAYOFWEEK
+
+```sql
+DAYOFWEEK(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the weekday of the input date.
+
+**Version**: ver-3.3.3.0
+
+**Return Type**: BIGINT.
+
+**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
+- If `expr` is NULL, returns NULL.
+- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
+- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
+
+**Example**:
+
+```sql
+taos> select dayofweek('2000-01-01');
+ dayofweek('2000-01-01') |
+==========================
+                       7 |
+```
+
+### DAYOFYEAR
+
+```sql
+DAYOFYEAR(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day of the year.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `1` through `366`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select dayofyear('2024-02-29');
+ dayofyear('2024-02-29') |
+==========================
+                      60 |
+```
+
+### EXTRACT
+
+```sql
+EXTRACT(unit FROM date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Extracts one field, or a combination of fields, from a date and time according to `unit`.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `unit`: a time-unit keyword. See Usage for the values.
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` format is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `unit` is a keyword. Do not quote it, and it is not case-sensitive. The supported units are:
+
+| `unit` | Field extracted | Result for `'2019-07-02 01:02:03.123456'` |
+| --- | --- | --- |
+| `MICROSECOND` | Microseconds | `123456` |
+| `SECOND` | Seconds | `3` |
+| `MINUTE` | Minutes | `2` |
+| `HOUR` | Hours | `1` |
+| `DAY` | Day of the month | `2` |
+| `WEEK` | Week number, using the same rules as `WEEK(date, 0)` | `26` |
+| `MONTH` | Month | `7` |
+| `QUARTER` | Quarter | `3` |
+| `YEAR` | Year | `2019` |
+| `SECOND_MICROSECOND` | Seconds and microseconds | `3123456` |
+| `MINUTE_MICROSECOND` | Minutes, seconds, and microseconds | `203123456` |
+| `MINUTE_SECOND` | Minutes and seconds | `203` |
+| `HOUR_MICROSECOND` | Hours, minutes, seconds, and microseconds | `10203123456` |
+| `HOUR_SECOND` | Hours, minutes, and seconds | `10203` |
+| `HOUR_MINUTE` | Hours and minutes | `102` |
+| `DAY_MICROSECOND` | Day, hours, minutes, seconds, and microseconds | `2010203123456` |
+| `DAY_SECOND` | Day, hours, minutes, and seconds | `2010203` |
+| `DAY_MINUTE` | Day, hours, and minutes | `20102` |
+| `DAY_HOUR` | Day and hours | `201` |
+| `YEAR_MONTH` | Year and month | `201907` |
+
+- A composite unit concatenates the fields by their decimal widths. For example, the minutes in `HOUR_MINUTE` take two digits.
+- When `date` is date-only text, the hour, minute, second, and microsecond are treated as `0`. When it is time-only text, date units such as `DAY`, `WEEK`, `MONTH`, `QUARTER`, `YEAR`, and `YEAR_MONTH` return NULL.
+- Negative time text is concatenated as a negative value. For example, `EXTRACT(HOUR_MINUTE FROM '-25:34:56')` returns `-2534`. See [HOUR](#hour) for the range of time text.
+- A `unit` that is not in the table raises an error. If `date` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select extract(year_month from '2019-07-02 01:02:03');
+ extract(year_month from '2019-07-02 01:02:03') |
+=================================================
+                                         201907 |
+
+taos> select extract(day_minute from '2019-07-02 01:02:03');
+ extract(day_minute from '2019-07-02 01:02:03') |
+=================================================
+                                          20102 |
+```
+
+### FROM_DAYS
+
+```sql
+FROM_DAYS(N)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts the day number `N` to a date in the `YYYY-MM-DD` format. This is the inverse of [TO_DAYS](#to_days).
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: Numeric types: integers, floating-point numbers, and DECIMAL.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The day number is counted from year 0.
+- A fractional `N` is rounded to an integer.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+- When `N` is less than `366`, the function returns `0000-00-00`. `366` corresponds to `0001-01-01`. The largest supported value is `3652424` (`9999-12-31`); a larger value returns NULL.
+- If `N` is NULL, the function returns NULL.
+
+**Example**:
+
+```sql
+taos> select from_days(730669);
+ from_days(730669) |
+====================
+ 2000-07-03        |
+
+taos> select from_days(365);
+ from_days(365) |
+=================
+ 0000-00-00     |
+```
+
+### FROM_UNIXTIME
+
+```sql
+FROM_UNIXTIME(unix_timestamp [, format])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Converts a Unix timestamp in seconds to date and time text in the current connection timezone.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `unix_timestamp`: a numeric value (integer, floating-point number, or DECIMAL), in seconds. It may include a fraction.
+- `format`: a VARCHAR or NCHAR format string. The specifiers are the same as [DATE_FORMAT](#date_format).
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- When `format` is omitted, the result is `YYYY-MM-DD HH:MM:SS`. When `unix_timestamp` has a fraction, six fractional-second digits are appended.
+- The unit of `unix_timestamp` is always seconds. A 13-digit millisecond timestamp is not interpreted as milliseconds. Divide it by 1000 first.
+- A negative `unix_timestamp`, or one outside the supported range, returns NULL.
+- An empty `format` string returns NULL.
+- If either argument is NULL, the function returns NULL.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+
+**Example**:
+
+(note: the statements in this example are executed in the UTC timezone)
+
+```sql
+taos> select from_unixtime(0);
+       from_unixtime(0)       |
+===============================
+ 1970-01-01 00:00:00          |
+
+taos> select from_unixtime(1.123456);
+   from_unixtime(1.123456)    |
+===============================
+ 1970-01-01 00:00:01.123456   |
+
+taos> select from_unixtime(1, '%Y-%m-%d %H:%i:%s');
+ from_unixtime(1, '%Y-%m-%d %H:%i:%s') |
+========================================
+ 1970-01-01 00:00:01                   |
+```
+
+### HOUR
+
+```sql
+HOUR(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the hour part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a date and time input, the result is from `0` through `23`. The hour in time text may be greater than 23. For example, `HOUR('272:59:59')` returns `272`.
+- Negative time text returns the absolute value of the hour.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select hour('10:05:03');
+   hour('10:05:03')    |
+========================
+                    10 |
+
+taos> select hour('272:59:59');
+   hour('272:59:59')   |
+========================
+                   272 |
+
+taos> select hour('839:00:00');
+   hour('839:00:00')   |
+========================
+                   838 |
+```
+
+### MICROSECOND
+
+```sql
+MICROSECOND(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the microsecond part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `999999`.
+- The fractional seconds of a TIMESTAMP input are limited by the database precision. A millisecond-precision database returns a multiple of 1000. A nanosecond-precision database is truncated to microseconds.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `expr` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select microsecond('12:00:00.123456');
+ microsecond('12:00:00.123456') |
+=================================
+                         123456 |
+
+taos> select microsecond('2019-12-31 23:59:59.000010');
+ microsecond('2019-12-31 23:59:59.000010') |
+============================================
+                                        10 |
+```
+
+### MINUTE
+
+```sql
+MINUTE(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the minute part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `59`.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select minute('10:05:03');
+  minute('10:05:03')   |
+========================
+                     5 |
+
+taos> select minute('839:00:00');
+  minute('839:00:00')  |
+========================
+                    59 |
+```
+
+### MONTH
+
+```sql
+MONTH(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the month of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- For a valid date, the result is from `1` through `12`. A date whose month is `0`, such as `0000-00-00`, returns `0`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select month('2008-02-03');
+  month('2008-02-03')  |
+========================
+                     2 |
+```
+
+### MONTHNAME
+
+```sql
+MONTHNAME(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the full English month name of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is one of `January` through `December`, always in English.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select monthname('2008-02-03');
+ monthname('2008-02-03') |
+==========================
+ February                |
 ```
 
 ### NOW
@@ -2368,6 +3184,139 @@ NOW()
 - `NOW()` and `NOW` both follow the current connection timezone set by `SET TIMEZONE`.
 - When using fixed-offset values with `SET TIMEZONE`, the sign is counterintuitive: `SET TIMEZONE '+08:00'` displays time 8 hours **behind** UTC, not ahead. Use `SET TIMEZONE 'Asia/Shanghai'` to get Beijing time reliably.
 - To verify which timezone a connection is using, run `SELECT TIMEZONE()`. To see the current time with timezone offset, run `SELECT TO_ISO8601(NOW())`.
+
+### QUARTER
+
+```sql
+QUARTER(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the quarter of the date.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `1` through `4`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select quarter('2008-04-01');
+ quarter('2008-04-01') |
+========================
+                     2 |
+```
+
+### SECOND
+
+```sql
+SECOND(time)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the second part of the time.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format. Time text in the `[-]HH:MM:SS[.ffffff]` and `[-]D HH:MM:SS[.ffffff]` formats is also accepted.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The result is from `0` through `59`.
+- Legal time text outside `-838:59:59` through `838:59:59` is clipped to the boundary with the same sign, and the microseconds are set to `0`. For example, `839:00:00` is treated as `838:59:59`.
+- A minute or second greater than `59` is invalid and returns NULL. It is not clipped.
+- When the input is date-only text, the hour, minute, second, and microsecond are treated as `0`. For example, `MINUTE('2024-02-29')` returns `0`.
+- If `time` is NULL or invalid, the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select second('10:05:03');
+  second('10:05:03')   |
+========================
+                     3 |
+```
+
+### STR_TO_DATE
+
+```sql
+STR_TO_DATE(str, format)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Parses the text `str` into a date, a time, or a date and time using `%` specifiers. This is the inverse of [DATE_FORMAT](#date_format).
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `VARCHAR`.
+
+**Applicable Data Types**
+
+- `str`: VARCHAR or NCHAR.
+- `format`: a VARCHAR or NCHAR format string. The specifiers are the same as [DATE_FORMAT](#date_format).
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The form of the result depends on `format`. Date specifiers alone return `YYYY-MM-DD`. Time specifiers alone return `HH:MM:SS`. Both together return `YYYY-MM-DD HH:MM:SS`. When `format` contains `%f`, six fractional-second digits are appended.
+- `str` is parsed from left to right against `format`. The start of `str` must match `format`, or the function returns NULL. Characters left in `str` after `format` is consumed are ignored.
+- When `str` is consumed and `format` still has a remainder, the remaining format is ignored and unspecified fields are treated as `0`. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %H:%i:%s')` returns `2024-02-29 00:00:00`. A leftover `%p` does not add a time part. For example, `STR_TO_DATE('2024-02-29', '%Y-%m-%d %p')` returns `2024-02-29`.
+- Date fields that `format` does not include are treated as `0`. For example, `STR_TO_DATE('abc', 'abc')` returns `0000-00-00`.
+- `%%` is only for output in DATE_FORMAT. STR_TO_DATE returns NULL when parsing reaches `%%`.
+- An invalid fully parsed date returns NULL. For example, `STR_TO_DATE('2021-11-31', '%Y-%m-%d')` returns NULL.
+- TDengine has no separate date or time data type, so the result is returned as `VARCHAR` text. It cannot be used directly as a `TIMESTAMP`, but it can be passed to other functions as date and time text.
+- If either argument is NULL, the function returns NULL.
+
+**Example**:
+
+```sql
+taos> select str_to_date('May 1, 2013', '%M %d, %Y');
+ str_to_date('May 1, 2013', '%M %d, %Y') |
+==========================================
+ 2013-05-01                              |
+
+taos> select str_to_date('2024 060', '%Y %j');
+ str_to_date('2024 060', '%Y %j') |
+===================================
+ 2024-02-29                       |
+
+taos> select str_to_date('12:34:56.123456', '%T.%f');
+ str_to_date('12:34:56.123456', '%T.%f') |
+==========================================
+ 12:34:56.123456                         |
+
+taos> select str_to_date('2021-11-31', '%Y-%m-%d');
+ str_to_date('2021-11-31', '%Y-%m-%d') |
+========================================
+ NULL                                  |
+```
 
 ### TIMEDIFF
 
@@ -2460,6 +3409,91 @@ TIMEZONE()
 
 **Applicable to**: Tables and supertables.
 
+### TO_DAYS
+
+```sql
+TO_DAYS(date)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the day number of the date, counted from year 0.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The day number of `0000-01-01` is `1`, and the day number of `9999-12-31` is `3652424`.
+- Only the date part is used. Hours, minutes, and seconds are ignored.
+- Year 0 is not a leap year, so `0000-02-29` returns NULL. The zero date `0000-00-00` also returns NULL.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select to_days('1970-01-01');
+ to_days('1970-01-01') |
+========================
+                719528 |
+
+taos> select to_days('0000-01-01');
+ to_days('0000-01-01') |
+========================
+                     1 |
+```
+
+### TO_SECONDS
+
+```sql
+TO_SECONDS(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the second number of the date and time, counted from year 0.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- The second number of `0000-01-01 00:00:00` is `86400`, which is `TO_DAYS(expr) * 86400` plus the seconds elapsed on that day.
+- Fractional seconds are discarded.
+- If `expr` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select to_seconds('1970-01-01 00:00:01');
+ to_seconds('1970-01-01 00:00:01') |
+====================================
+                       62167219201 |
+
+taos> select to_seconds('0000-01-01');
+ to_seconds('0000-01-01') |
+===========================
+                    86400 |
+```
+
 ### TODAY
 
 ```sql
@@ -2481,6 +3515,58 @@ TODAY()
 - Supports time addition and subtraction operations, such as TODAY() + 1s. Supported time units are listed in [Time Units](../01-datatype.md#time-units) (milliseconds through weeks only).
 - The precision of the returned timestamp is consistent with the time precision set for the current DATABASE.
 - Timezone resolution uses the current connection timezone first; if not set, it uses the client timezone; if still unavailable, it falls back to the system default timezone.
+
+### UNIX_TIMESTAMP
+
+```sql
+UNIX_TIMESTAMP([date])
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: With no argument, returns the Unix timestamp of the current time. With `date`, returns the Unix timestamp of that date and time. The unit is seconds in both cases.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT` with no argument, and `DECIMAL(17,6)` when `date` is specified.
+
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- With no argument, no matter how many times it appears in one SQL statement, it uses the time when the statement starts.
+- When `date` is specified, the result keeps six decimal places, that is, microseconds. A TIMESTAMP value or a text column also returns `DECIMAL(17,6)`.
+- When the text falls in a local time that does not exist because daylight saving time springs forward, the function returns the Unix timestamp of the first valid instant after the gap and keeps the input microseconds.
+- A date and time earlier than `1970-01-01 00:00:00 UTC` returns NULL.
+- Unlike [TO_UNIXTIMESTAMP](#to_unixtimestamp), the unit of UNIX_TIMESTAMP is always seconds and does not follow the database precision.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+(note: the statements in this example are executed in the UTC timezone)
+
+```sql
+taos> select unix_timestamp('1970-01-01 00:00:01');
+  unix_timestamp('1970-01-01 00:00:01')   |
+===========================================
+                                 1.000000 |
+
+taos> select unix_timestamp('1970-01-01 00:00:01.123456');
+ unix_timestamp('1970-01-01 00:00:01.123456') |
+===============================================
+                                     1.123456 |
+
+taos> select unix_timestamp('2024-03-10T02:30:00-05:00');
+ unix_timestamp('2024-03-10T02:30:00-05:00') |
+==============================================
+                           1710055800.000000 |
+```
 
 ### WEEK
 
@@ -2554,42 +3640,6 @@ taos> select week('2000-01-01',3);
                     52 |
 ```
 
-### WEEKOFYEAR
-
-```sql
-WEEKOFYEAR(expr)
-```
-
-**Function Classification**: Scalar function.
-
-**Function Description**: Returns the week number of the input date.
-
-**Version**: ver-3.3.3.0
-
-**Return Type**: BIGINT.
-
-**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
-
-**Nested Subquery Support**: Applicable to both inner and outer queries.
-
-**Applicable to**: Tables and supertables.
-
-**Usage**:
-
-- Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
-- If `expr` is NULL, returns NULL.
-- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
-
-**Example**:
-
-```sql
-taos> select weekofyear('2000-01-01');
- weekofyear('2000-01-01') |
-===========================
-                       52 |
-```
-
 ### WEEKDAY
 
 ```sql
@@ -2626,15 +3676,15 @@ taos> select weekday('2000-01-01');
                      5 |
 ```
 
-### DAYOFWEEK
+### WEEKOFYEAR
 
 ```sql
-DAYOFWEEK(expr)
+WEEKOFYEAR(expr)
 ```
 
 **Function Classification**: Scalar function.
 
-**Function Description**: Returns the weekday of the input date.
+**Function Description**: Returns the week number of the input date.
 
 **Version**: ver-3.3.3.0
 
@@ -2648,7 +3698,7 @@ DAYOFWEEK(expr)
 
 **Usage**:
 
-- Return value 1 represents Sunday, 2 represents Monday ... 7 represents Saturday.
+- Equivalent to `WEEK(expr, 3)`, where the first day of the week is Monday, and the return value ranges from 1 to 53, with the first week containing four or more days being week 1.
 - If `expr` is NULL, returns NULL.
 - The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
 - For a BIGINT or TIMESTAMP input representing a fixed instant, the local calendar date is determined in the current connection timezone before computing; for a string input, a carried timezone only determines the corresponding absolute instant, while a timezone-less string is parsed in the connection timezone and the result is timezone-independent. Regardless of whether the input carries a timezone, the local calendar date is always determined in the connection-level timezone before computing.
@@ -2656,27 +3706,27 @@ DAYOFWEEK(expr)
 **Example**:
 
 ```sql
-taos> select dayofweek('2000-01-01');
- dayofweek('2000-01-01') |
-==========================
-                       7 |
+taos> select weekofyear('2000-01-01');
+ weekofyear('2000-01-01') |
+===========================
+                       52 |
 ```
 
-### DATE
+### YEAR
 
 ```sql
-DATE(expr)
+YEAR(date)
 ```
 
 **Function Classification**: Scalar function.
 
-**Function Description**: Returns date of the input time expression.
+**Function Description**: Returns the year of the date.
 
-**Version**: ver-3.3.8.0
+**Version**: `v3.4.3.12`
 
-**Return Type**: VARCHAR.
+**Return Type**: `BIGINT`.
 
-**Applicable Data Types**: BIGINT, TIMESTAMP types representing timestamps, or VARCHAR, NCHAR types in ISO8601/RFC3339 date-time format.
+**Applicable Data Types**: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
 
 **Nested Subquery Support**: Applicable to both inner and outer queries.
 
@@ -2684,26 +3734,63 @@ DATE(expr)
 
 **Usage**:
 
-- The return value is of `yyyy-mm-dd` format.
-- If `expr` is NULL, returns NULL.
-- If `expr` is of type VARCHAR or NCHAR but does not conform to the ISO8601/RFC3339 standard, returns NULL.
-- The precision of the input timestamp is determined by the precision of the table queried; if no table is specified, the precision is milliseconds.
-- If the input string carries a timezone, that timezone determines the corresponding absolute instant; otherwise it is parsed in the connection-level timezone. Regardless of whether the input carries a timezone, the returned date is always computed using the connection-level timezone.
+- The result is from `0` through `9999`.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
 
 **Example**:
 
-(note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
+```sql
+taos> select year('1987-01-01');
+  year('1987-01-01')   |
+========================
+                  1987 |
+```
+
+### YEARWEEK
 
 ```sql
-taos> select date(946656000000);
-       date(946656000000)       |
-=================================
- 2000-01-01                     |
+YEARWEEK(date [, mode])
+```
 
-taos> select date('2000-01-01 12:00:00.000');
- date('2000-01-01 12:00:00.000') |
-==================================
- 2000-01-01                      |
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the year of the week and the week number of the date. The result is `year of the week * 100 + week number`.
+
+**Version**: `v3.4.3.12`
+
+**Return Type**: `BIGINT`.
+
+**Applicable Data Types**
+
+- `date`: TIMESTAMP, or VARCHAR and NCHAR in a date and time format.
+- `mode`: an integer from `0` through `7`. The default is `0`.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage**:
+
+- `mode` has the same meaning as in [WEEK](#week). It specifies the first day of the week and how week 1 is determined.
+- The week number is always from `1` through `53`. A date at the start of the year that is not in week 1 of that year belongs to the last week of the previous year, so the year of the week can differ from the calendar year of the date.
+- If `date` is NULL, cannot be parsed, or is an invalid date (for example, `2023-02-29`), the function returns NULL.
+- Text arguments accept the `YYYY-MM-DD[ HH:MM:SS[.ffffff]]` format. Two-digit years are also accepted (`00` through `69` map to 2000 through 2069, and `70` through `99` map to 1970 through 1999), as are separators such as `/`, `^`, and `@`. Fractional seconds with more than six digits are rounded to microseconds.
+- Text without a timezone is parsed in the current connection timezone. Text with `Z` or an offset is resolved to an absolute instant first, and then calculated in the current connection timezone. A `TIMESTAMP` input uses the current connection timezone to determine the local date and time.
+
+**Example**:
+
+```sql
+taos> select yearweek('2000-01-01');
+ yearweek('2000-01-01') |
+=========================
+                 199952 |
+
+taos> select yearweek('2021-01-01', 1);
+ yearweek('2021-01-01', 1) |
+============================
+                    202053 |
 ```
 
 ## Statistical Aggregate Functions
@@ -4465,7 +5552,7 @@ SELECT SLEEP(seconds);
 
 **Function Classification**: Scalar function.
 
-**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row (MySQL-compatible); total wait time equals the sum of each row's duration.
+**Description**: Pauses execution for the specified number of seconds. When used in a table query, `SLEEP` is evaluated once per row; total wait time equals the sum of each row's duration.
 
 **Parameters**:
 
@@ -4488,7 +5575,7 @@ SELECT SLEEP(-1);
 -- NULL argument returns 0 immediately
 SELECT SLEEP(NULL);
 
--- Used with a table query: SLEEP is evaluated once per row (MySQL-compatible);
+-- Used with a table query: SLEEP is evaluated once per row;
 -- total wait time equals the sum of each row's duration
 SELECT SLEEP(1), col1 FROM table1;
 ```
