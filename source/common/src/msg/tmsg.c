@@ -22735,7 +22735,21 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   // External schema segment of the reference. Absent from pre-3.4.4 clients, which
   // leaves it empty = the previous 4-part resolution.
   if (!tDecodeIsEnd(pDecoder)) {
-    TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refSchemaName));
+    char    *schemaName = NULL;
+    uint32_t schemaNameLen = 0;
+    TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &schemaName, &schemaNameLen));
+    if (schemaNameLen == 0) {
+      // Empty payload: the decoder yields a pointer to the byte right after it, which is
+      // one-past-end when the field is the last one. Keep NULL so consumers see "no schema".
+      pReq->refSchemaName = NULL;
+    } else {
+      // Consumers treat the value as a C string and compare a TSDB_EXT_SOURCE_SCHEMA_LEN
+      // window, so the payload must be NUL terminated.
+      if (schemaName[schemaNameLen] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->refSchemaName = schemaName;
+    }
   }
 
   if (!tDecodeIsEnd(pDecoder)) {
