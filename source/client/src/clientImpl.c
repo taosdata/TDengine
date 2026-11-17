@@ -2850,12 +2850,23 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     tscDebug("req:0x%" PRIx64 ", client retry to handle the error, code:%s, tryCount:%d, QID:0x%" PRIx64,
              pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
     int32_t metaCode = TSDB_CODE_SUCCESS;
+    bool    isViewQuery = (NULL != pWrapper && NULL != pWrapper->pParseCtx && pWrapper->pParseCtx->isView);
     if (code == TSDB_CODE_VTABLE_DATA_SRC_EP_MISS) {
       // Virtual table sources are discovered indirectly. Drop every referenced DB cache so table metadata and
       // vgroup routes are refreshed together before rebuilding the plan.
       metaCode = removeQueryDbMeta(pTscObj, pRequest->dbList);
     } else {
       metaCode = removeMeta(pTscObj, pRequest->targetTableList, IS_VIEW_REQUEST(pRequest->type));
+      if (TSDB_CODE_SUCCESS == metaCode && isViewQuery && NULL != pRequest->tableList) {
+        // Tables referenced by the view body are collected in pTableList during translation
+        // but never appear in the outer statement's target list. Evict them explicitly so
+        // the retry re-resolves them by name instead of reusing a stale UID.
+        int32_t rmCode = removeMeta(pTscObj, pRequest->tableList, false);
+        if (TSDB_CODE_SUCCESS != rmCode) {
+          tscError("req:0x%" PRIx64 ", failed to remove view source table meta, code:%s, QID:0x%" PRIx64,
+                   pRequest->self, tstrerror(rmCode), pRequest->requestId);
+        }
+      }
     }
     if (metaCode != TSDB_CODE_SUCCESS) {
       tscError("req:0x%" PRIx64 ", remove meta failed, code:%s, QID:0x%" PRIx64, pRequest->self,

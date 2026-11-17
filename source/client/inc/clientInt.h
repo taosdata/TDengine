@@ -98,6 +98,8 @@ typedef struct {
   int8_t  connHbFlag;   // 0 init, 1 send req, 2 get resp
   int64_t reportBytes;  // not implemented
   int64_t startTime;
+  int64_t curRspReqId;      // request id of the batch response currently being processed
+  bool    viewDynVerSeen;   // current batch response carried HEARTBEAT_KEY_DYN_VIEW
   // ctl
   SRWLatch      lock;  // lock is used in serialization
   SAppInstInfo* pAppInstInfo;

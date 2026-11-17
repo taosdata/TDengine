@@ -31,6 +31,7 @@
 #include "mndTxn.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndView.h"
 #include "osTime.h"
 #include "tlogKeyOp.h"
 
@@ -1872,7 +1873,21 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
         if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen)) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
-      } else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE || pTrans->originRpcType == TDMT_MND_CREATE_DNODE) {
+      }
+#ifdef TD_ENTERPRISE
+      else if (pTrans->originRpcType == TDMT_MND_CREATE_VIEW) {
+        // Return the effective view metadata so the issuing client can update its
+        // catalog without evicting the entry and re-fetching it on the next query.
+        void   *pCont = NULL;
+        int32_t contLen = 0;
+        if (0 == mndBuildSCMCreateViewRsp(pMnode, pTrans->stbname, &pCont, &contLen)) {
+          mndTransSetRpcRsp(pTrans, pCont, contLen);
+        } else {
+          mError("trans:%d, failed to build create-view rsp for view:%s", pTrans->id, pTrans->stbname);
+        }
+      }
+#endif
+      else if (pTrans->originRpcType == TDMT_MND_DROP_DNODE || pTrans->originRpcType == TDMT_MND_CREATE_DNODE) {
         int32_t code = mndRefreshUserIpWhiteList(pMnode);
         if (code != 0) {
           // Log as error: if the whitelist refresh fails, the new dnode's intra-cluster RPC will be rejected

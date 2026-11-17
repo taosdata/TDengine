@@ -398,6 +398,7 @@ void ctgFreeInstUserCache(SHashObj* pUserCache) {
 }
 
 void ctgFreeHandleImpl(SCatalog* pCtg) {
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
@@ -429,6 +430,7 @@ void ctgFreeHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);
@@ -524,6 +526,7 @@ void ctgClearHandle(SCatalog* pCtg) {
 
   int64_t clusterId = pCtg->clusterId;
 
+  ctgViewSweepFree(&pCtg->viewSweep);
   ctgFreeMetaRent(&pCtg->dbRent);
   ctgFreeMetaRent(&pCtg->stbRent);
   ctgFreeMetaRent(&pCtg->viewRent);

@@ -8132,6 +8132,21 @@ typedef struct {
 int32_t tSerializeSViewMetaRsp(void* buf, int32_t bufLen, const SViewMetaRsp* pRsp);
 int32_t tDeserializeSViewMetaRsp(void* buf, int32_t bufLen, SViewMetaRsp* pRsp);
 void    tFreeSViewMetaRsp(SViewMetaRsp* pRsp);
+
+/*
+ * Response payload of CREATE/OR REPLACE VIEW.
+ * The effective view metadata is returned so that the issuing client can update its
+ * local catalog immediately instead of evicting the entry and re-fetching it later.
+ * Only attached by enterprise mnodes; community clients ignore the payload.
+ */
+typedef struct {
+  SViewMetaRsp* pMeta;
+} SMCreateViewRsp;
+
+int32_t tEncodeSMCreateViewRsp(SEncoder* pEncoder, const SMCreateViewRsp* pRsp);
+int32_t tDecodeSMCreateViewRsp(SDecoder* pDecoder, SMCreateViewRsp* pRsp);
+void    tFreeSMCreateViewRsp(SMCreateViewRsp* pRsp);
+
 typedef struct {
   char name[TSDB_TABLE_FNAME_LEN];  // table name or tsma name
   bool fetchingWithTsmaName;        // if we are fetching with tsma name

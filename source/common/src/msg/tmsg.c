@@ -24613,6 +24613,54 @@ void tFreeSViewMetaRsp(SViewMetaRsp *pRsp) {
   taosMemoryFree(pRsp->pSchema);
 }
 
+int32_t tEncodeSMCreateViewRsp(SEncoder *pEncoder, const SMCreateViewRsp *pRsp) {
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartEncode(pEncoder));
+  TAOS_CHECK_EXIT(tEncodeI32(pEncoder, NULL != pRsp->pMeta ? 1 : 0));
+  if (NULL != pRsp->pMeta) {
+    TAOS_CHECK_EXIT(tEncodeSViewMetaRsp(pEncoder, pRsp->pMeta));
+  }
+  tEndEncode(pEncoder);
+
+_exit:
+  return code;
+}
+
+int32_t tDecodeSMCreateViewRsp(SDecoder *pDecoder, SMCreateViewRsp *pRsp) {
+  int32_t hasMeta = 0;
+  int32_t code = 0;
+  int32_t lino;
+
+  TAOS_CHECK_EXIT(tStartDecode(pDecoder));
+  TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &hasMeta));
+  if (hasMeta) {
+    pRsp->pMeta = taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+    if (NULL == pRsp->pMeta) {
+      TAOS_CHECK_EXIT(terrno);
+    }
+    TAOS_CHECK_EXIT(tDecodeSViewMetaRsp(pDecoder, pRsp->pMeta));
+  }
+  tEndDecode(pDecoder);
+
+_exit:
+  if (code && NULL != pRsp->pMeta) {
+    tFreeSViewMetaRsp(pRsp->pMeta);
+    taosMemoryFreeClear(pRsp->pMeta);
+  }
+  return code;
+}
+
+void tFreeSMCreateViewRsp(SMCreateViewRsp *pRsp) {
+  if (NULL == pRsp || NULL == pRsp->pMeta) {
+    return;
+  }
+
+  tFreeSViewMetaRsp(pRsp->pMeta);
+  taosMemoryFreeClear(pRsp->pMeta);
+}
+
 int32_t tSerializeSViewHbRsp(void *buf, int32_t bufLen, SViewHbRsp *pRsp) {
   SEncoder encoder = {0};
   int32_t  code = 0;

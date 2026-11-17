@@ -1710,22 +1710,39 @@ int32_t catalogGetExpiredSTables(SCatalog* pCtg, SSTableVersion** stables, uint3
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->stbRent, (void**)stables, num, sizeof(SSTableVersion)));
 }
 
-int32_t catalogGetExpiredViews(SCatalog* pCtg, SViewVersion** views, uint32_t* num, SDynViewVersion** dynViewVersion) {
+int32_t catalogGetExpiredViews(SCatalog* pCtg, int64_t reqId, SViewVersion** views, uint32_t* num,
+                               SDynViewVersion** dynViewVersion) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == views || NULL == num) {
+  if (NULL == pCtg || NULL == views || NULL == num || NULL == dynViewVersion) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  *dynViewVersion = taosMemoryMalloc(sizeof(SDynViewVersion));
-  if (NULL == *dynViewVersion) {
-    CTG_API_LEAVE(terrno);
-  }
+  CTG_API_LEAVE(ctgGetViewsForHbCheck(pCtg, reqId, views, num, dynViewVersion));
+}
 
-  (*dynViewVersion)->svrBootTs = atomic_load_64(&pCtg->dynViewVer.svrBootTs);
-  (*dynViewVersion)->dynViewVer = atomic_load_64(&pCtg->dynViewVer.dynViewVer);
-  
-  CTG_API_LEAVE(ctgMetaRentGet(&pCtg->viewRent, (void**)views, num, sizeof(SViewVersion)));
+int32_t catalogApplyViewHbVersion(SCatalog* pCtg, const SDynViewVersion* pVer, int64_t rspReqId) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgApplyViewHbVersion(pCtg, pVer, rspReqId));
+}
+
+int32_t catalogViewSweepOnHbRspDone(SCatalog* pCtg, int64_t rspReqId, bool sawDynVer) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbRspDone(pCtg, rspReqId, sawDynVer));
+}
+
+int32_t catalogViewSweepTryCommit(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepTryCommit(pCtg));
+}
+
+int32_t catalogViewSweepOnHbError(SCatalog* pCtg) {
+  CTG_API_ENTER();
+
+  CTG_API_LEAVE(ctgViewSweepOnHbError(pCtg));
 }
 
 

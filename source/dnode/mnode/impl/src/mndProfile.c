@@ -1250,6 +1250,9 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   TAOS_CHECK_RETURN(mndCreateQnodeList(pMnode, &obj.pQnodeList, -1));
 
   SClientHbBatchRsp batchRsp = {0};
+  // Echo the client request id so the client can tell which heartbeat round a
+  // response belongs to (view metadata sweep bookkeeping).
+  batchRsp.reqId = batchReq.reqId;
   batchRsp.svrTimestamp = taosGetTimestampSec();
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
   if (batchRsp.rsps == NULL) {

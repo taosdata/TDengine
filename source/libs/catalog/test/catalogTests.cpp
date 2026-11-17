@@ -4226,6 +4226,270 @@ TEST(apiTest, ctgDropTSMAForTbEnqueueOwnershipTransfer_test) {
   taosHashCleanup(ctg.dbCache);
 }
 
+
+// ---------------------------------------------------------------------------
+// View metadata cache regression tests
+// ---------------------------------------------------------------------------
+
+static SViewMetaRsp *ctgTestBuildViewMetaRsp(const char *viewName, uint64_t viewId, int32_t version) {
+  SViewMetaRsp *pRsp = (SViewMetaRsp *)taosMemoryCalloc(1, sizeof(SViewMetaRsp));
+  if (NULL == pRsp) {
+    return NULL;
+  }
+
+  TAOS_STRCPY(pRsp->name, viewName);
+  TAOS_STRCPY(pRsp->dbFName, "1.db_view_test");
+  pRsp->dbId = 0x1234;
+  pRsp->viewId = viewId;
+  pRsp->version = version;
+  pRsp->precision = TSDB_TIME_PRECISION_MILLI;
+  pRsp->type = 1;
+  pRsp->numOfCols = 1;
+  pRsp->querySql = tstrdup("select ts from t");
+  pRsp->createUser = tstrdup("root");
+  pRsp->pSchema = (SSchema *)taosMemoryCalloc(1, sizeof(SSchema));
+  if (NULL == pRsp->querySql || NULL == pRsp->createUser || NULL == pRsp->pSchema) {
+    tFreeSViewMetaRsp(pRsp);
+    taosMemoryFree(pRsp);
+    return NULL;
+  }
+
+  TAOS_STRCPY(pRsp->pSchema[0].name, "ts");
+  pRsp->pSchema[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  pRsp->pSchema[0].bytes = sizeof(int64_t);
+  pRsp->pSchema[0].colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  return pRsp;
+}
+
+static int64_t ctgTestLoadDynViewVer(SCatalog *pCtg) {
+  return atomic_load_64((volatile int64_t *)&pCtg->dynViewVer.dynViewVer);
+}
+
+static SCtgViewCache *ctgTestGetViewCache(SCatalog *pCtg, const char *dbFName, const char *viewName) {
+  if (NULL == pCtg->dbCache || NULL == dbFName || NULL == viewName) {
+    return NULL;
+  }
+
+  SCtgDBCache *dbCache = (SCtgDBCache *)taosHashGet(pCtg->dbCache, dbFName, strlen(dbFName));
+  if (NULL == dbCache || NULL == dbCache->viewCache) {
+    return NULL;
+  }
+
+  return (SCtgViewCache *)taosHashGet(dbCache->viewCache, viewName, strlen(viewName));
+}
+
+// A stale view metadata update (older or equal version) must not overwrite a newer
+// cached instance. Newer versions, including a recreated instance, are accepted.
+TEST(viewMetaCache, rejectStaleVersion) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  SViewMetaRsp *pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1001, 2);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);  // consumed by the catalog
+
+  SCtgViewCache *pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1001u);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+
+  // Same instance, older version: rejected.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1001, 1);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+
+  // Out-of-order response from an older (replaced) instance: rejected.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x0999, 1);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 2);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1001u);
+
+  // A newer version from a recreated instance: accepted.
+  pRsp = ctgTestBuildViewMetaRsp("v_guard", 0x1002, 3);
+  ASSERT_NE(pRsp, nullptr);
+  ASSERT_EQ(catalogUpdateViewMeta(pCtg, pRsp), TSDB_CODE_SUCCESS);
+  pCache = ctgTestGetViewCache(pCtg, "1.db_view_test", "v_guard");
+  ASSERT_NE(pCache, nullptr);
+  ASSERT_NE(pCache->pMeta, nullptr);
+  ASSERT_EQ(pCache->pMeta->version, 3);
+  ASSERT_EQ(pCache->pMeta->viewId, 0x1002u);
+
+  catalogDestroy();
+}
+
+static void ctgTestAddViewRent(SCatalog *pCtg, int32_t idx, uint32_t slotNum) {
+  SViewVersion view = {0};
+  view.viewId = (uint64_t)idx * slotNum + (uint64_t)(idx % (int32_t)slotNum);
+  view.dbId = 0x55;
+  view.version = 1;
+  (void)snprintf(view.dbFName, sizeof(view.dbFName), "1.db_view_sweep");
+  (void)snprintf(view.viewName, sizeof(view.viewName), "v_sweep_%d", idx);
+  ASSERT_EQ(ctgMetaRentAdd(&pCtg->viewRent, &view, (int64_t)view.viewId, sizeof(SViewVersion)), TSDB_CODE_SUCCESS);
+}
+
+// One heartbeat batch must carry at least CTG_VIEW_HB_MIN_NUM view versions when
+// the cached views are spread over several rent slots, and the global version may
+// only be committed after every slot has been verified.
+TEST(viewSweep, batchAndCommitOnlyAfterAllSlots) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  uint32_t slotNum = pCtg->viewRent.slotNum;
+  ASSERT_GT(slotNum, 1u);
+
+  const int32_t viewNum = (int32_t)slotNum * 4 + 1;
+  for (int32_t i = 0; i < viewNum; ++i) {
+    ctgTestAddViewRent(pCtg, i, slotNum);
+  }
+
+  SDynViewVersion svrVer = {.svrBootTs = 123, .dynViewVer = 7};
+  uint32_t        collected = 0;
+  int32_t         round = 0;
+  int64_t         reqId = 100;
+
+  while (round < (int32_t)slotNum + 2) {
+    SViewVersion    *views = NULL;
+    uint32_t         num = 0;
+    SDynViewVersion *dynVer = NULL;
+
+    ASSERT_EQ(catalogGetExpiredViews(pCtg, reqId, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+    ASSERT_NE(dynVer, nullptr);
+    ASSERT_EQ(dynVer->dynViewVer, 0u);  // the client reports the committed version
+
+    if (round == 0 && num > 0) {
+      ASSERT_GE(num, CTG_VIEW_HB_MIN_NUM);
+      ASSERT_LT(num, (uint32_t)viewNum);
+    }
+
+    collected += num;
+    taosMemoryFree(views);
+    taosMemoryFree(dynVer);
+    dynVer = NULL;
+    views = NULL;
+
+    if (num > 0) {
+      ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, reqId), TSDB_CODE_SUCCESS);
+    }
+
+    // The committed version must stay untouched until the whole rent is verified.
+    if (ctgTestLoadDynViewVer(pCtg) != (int64_t)svrVer.dynViewVer) {
+      ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+    }
+
+    ASSERT_EQ(catalogViewSweepTryCommit(pCtg), TSDB_CODE_SUCCESS);
+
+    round++;
+    reqId++;
+
+    if (ctgTestLoadDynViewVer(pCtg) == (int64_t)svrVer.dynViewVer) {
+      break;
+    }
+  }
+
+  ASSERT_EQ(collected, (uint32_t)viewNum);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), (int64_t)svrVer.dynViewVer);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+
+  catalogDestroy();
+}
+
+// A response carrying a stale request id must not advance the sweep; a missing
+// response (timeout) and a send/receive failure must drop the outstanding round so the
+// batch can be re-sent; a response without a version change closes the idle round; slots
+// that only contain empty rent entries are verified locally and let the sweep commit.
+TEST(viewSweep, staleReqIdTimeoutAndHbError) {
+  struct SCatalog *pCtg = NULL;
+
+  ctgTestInitLogFile();
+  ASSERT_EQ(catalogInit(NULL), 0);
+  ASSERT_EQ(catalogGetHandle(ctgTestClusterId, &pCtg), 0);
+
+  uint32_t slotNum = pCtg->viewRent.slotNum;
+  ASSERT_GT(slotNum, 1u);
+
+  ctgTestAddViewRent(pCtg, 0, slotNum);
+
+  SDynViewVersion svrVer = {.svrBootTs = 321, .dynViewVer = 9};
+  SViewVersion    *views = NULL;
+  uint32_t         num = 0;
+  SDynViewVersion *dynVer = NULL;
+
+  // Idle probe with no version change: the server omits HEARTBEAT_KEY_DYN_VIEW and the
+  // outstanding round is closed without starting a sweep.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 200, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  ASSERT_TRUE(pCtg->viewSweep.awaitingRsp);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+  ASSERT_EQ(catalogViewSweepOnHbRspDone(pCtg, 200, false), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+
+  // A lost response is recovered by the timeout: the same view is sent again.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 201, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+  pCtg->viewSweep.sentMsec -= (CTG_VIEW_HB_RSP_TIMEOUT_MS + 1000);
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 202, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  ASSERT_EQ(pCtg->viewSweep.sentReqId, 202);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+
+  // A heartbeat failure drops the outstanding round; the batch is re-sent.
+  ASSERT_EQ(catalogViewSweepOnHbError(pCtg), TSDB_CODE_SUCCESS);
+  ASSERT_FALSE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 203, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 1u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  views = NULL;
+  dynVer = NULL;
+
+  // A response for another request id is ignored and does not verify anything.
+  ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, 204), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pCtg->viewSweep.awaitingRsp);
+  ASSERT_FALSE(pCtg->viewSweep.hasPending);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+
+  // The matching response starts the sweep; the version is not committed yet.
+  ASSERT_EQ(catalogApplyViewHbVersion(pCtg, &svrVer, 203), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(pCtg->viewSweep.hasPending);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), 0);
+
+  // The next round only visits the remaining empty slots; they are verified locally
+  // and the sweep commits without needing another response.
+  ASSERT_EQ(catalogGetExpiredViews(pCtg, 205, &views, &num, &dynVer), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(num, 0u);
+  taosMemoryFree(views);
+  taosMemoryFree(dynVer);
+  ASSERT_EQ(ctgTestLoadDynViewVer(pCtg), (int64_t)svrVer.dynViewVer);
+
+  catalogDestroy();
+}
+
 #ifdef INTEGRATION_TEST
 TEST(intTest, autoCreateTableTest) {
   struct SCatalog *pCtg = NULL;
