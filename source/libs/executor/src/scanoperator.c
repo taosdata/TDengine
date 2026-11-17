@@ -5065,6 +5065,77 @@ _end:
   return code;
 }
 
+int32_t qTmqAppendSnapshotMetaRsp(SMqBatchMetaRsp* pRsp, void* data, int32_t dataLen, int16_t type) {
+  int32_t  code = TSDB_CODE_SUCCESS;
+  int32_t  lino = 0;
+  void*    tBuf = NULL;
+  SEncoder encoder = {0};
+
+  if (pRsp == NULL) {
+    code = TSDB_CODE_INVALID_PARA;
+    lino = __LINE__;
+    goto _end;
+  }
+
+  SMqMetaRsp tmpMetaRsp = {0};
+  tmpMetaRsp.resMsgType = type;
+  tmpMetaRsp.metaRspLen = dataLen;
+  tmpMetaRsp.metaRsp = data;
+  if (!pRsp->batchMetaReq) {
+    pRsp->batchMetaReq = taosArrayInit(4, POINTER_BYTES);
+    QUERY_CHECK_NULL(pRsp->batchMetaReq, code, lino, _end, terrno);
+
+    pRsp->batchMetaLen = taosArrayInit(4, sizeof(int32_t));
+    QUERY_CHECK_NULL(pRsp->batchMetaLen, code, lino, _end, terrno);
+  }
+
+  uint32_t len = 0;
+  tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, code);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  int32_t tLen = sizeof(SMqRspHead) + len;
+  tBuf = taosMemoryCalloc(1, tLen);
+  QUERY_CHECK_NULL(tBuf, code, lino, _end, terrno);
+
+  void* metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
+  tEncoderInit(&encoder, metaBuff, len);
+  int32_t tempLen = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
+  tEncoderClear(&encoder);
+  QUERY_CHECK_CONDITION(tempLen >= 0, code, lino, _end, tempLen);
+
+  // The batch owns the encoded buffer after the request array accepts it. Until then,
+  // data and tBuf remain local and must be released on every error path.
+  taosMemoryFreeClear(data);
+  void* tmp = taosArrayPush(pRsp->batchMetaReq, &tBuf);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+  tBuf = NULL;
+
+  tmp = taosArrayPush(pRsp->batchMetaLen, &tLen);
+  QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+
+_end:
+  taosMemoryFreeClear(data);
+  taosMemoryFreeClear(tBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t qTmqGetSnapshotMetaTableInfo(SStorageAPI* pAPI, SSnapContext* pContext, SMetaTableInfo* pTableInfo) {
+  if (pAPI == NULL || pContext == NULL || pTableInfo == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t code = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pContext, pTableInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    // The snapshot provider transfers every successfully allocated field before returning an error.
+    // Release that partial table info here so a retry cannot accumulate schemas and extension arrays.
+    destroyMetaTableInfo(pTableInfo);
+  }
+  return code;
+}
+
 static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
@@ -5107,10 +5178,8 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
     }
 
     SMetaTableInfo mtInfo = {0};
-    code = pAPI->snapshotFn.getMetaTableInfoFromSnapshot(pInfo->sContext, &mtInfo);
-    QUERY_CHECK_CODE(code, lino, _end);
+    code = qTmqGetSnapshotMetaTableInfo(pAPI, pInfo->sContext, &mtInfo);
     if (code != 0) {
-      destroyMetaTableInfo(&mtInfo);
       QUERY_CHECK_CODE(code, lino, _end);
     }
     STqOffsetVal offset = {0};
@@ -5146,51 +5215,14 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
         SValue       val = {0};
         tqOffsetResetToData(&offset, 0, INT64_MIN, val);
         code = qStreamPrepareScan(pTaskInfo, &offset, pInfo->sContext->subType);
+        taosMemoryFreeClear(data);
         QUERY_CHECK_CODE(code, lino, _end);
         break;
       } else {
+        code = qTmqAppendSnapshotMetaRsp(&pTaskInfo->tmqInfo.btMetaRsp, data, dataLen, type);
+        data = NULL;
+        QUERY_CHECK_CODE(code, lino, _end);
         tqOffsetResetToMeta(&pTaskInfo->tmqInfo.currentOffset, uid);
-        SMqMetaRsp tmpMetaRsp = {0};
-        tmpMetaRsp.resMsgType = type;
-        tmpMetaRsp.metaRspLen = dataLen;
-        tmpMetaRsp.metaRsp = data;
-        if (!pTaskInfo->tmqInfo.btMetaRsp.batchMetaReq) {
-          pTaskInfo->tmqInfo.btMetaRsp.batchMetaReq = taosArrayInit(4, POINTER_BYTES);
-          QUERY_CHECK_NULL(pTaskInfo->tmqInfo.btMetaRsp.batchMetaReq, code, lino, _end, terrno);
-
-          pTaskInfo->tmqInfo.btMetaRsp.batchMetaLen = taosArrayInit(4, sizeof(int32_t));
-          QUERY_CHECK_NULL(pTaskInfo->tmqInfo.btMetaRsp.batchMetaLen, code, lino, _end, terrno);
-        }
-        int32_t  tempRes = TSDB_CODE_SUCCESS;
-        uint32_t len = 0;
-        tEncodeSize(tEncodeMqMetaRsp, &tmpMetaRsp, len, tempRes);
-        if (TSDB_CODE_SUCCESS != tempRes) {
-          qError("tmqsnap tEncodeMqMetaRsp error");
-          taosMemoryFreeClear(data);
-          break;
-        }
-
-        int32_t tLen = sizeof(SMqRspHead) + len;
-        void*   tBuf = taosMemoryCalloc(1, tLen);
-        QUERY_CHECK_NULL(tBuf, code, lino, _end, terrno);
-
-        void*    metaBuff = POINTER_SHIFT(tBuf, sizeof(SMqRspHead));
-        SEncoder encoder = {0};
-        tEncoderInit(&encoder, metaBuff, len);
-        int32_t tempLen = tEncodeMqMetaRsp(&encoder, &tmpMetaRsp);
-        if (tempLen < 0) {
-          qError("tmqsnap tEncodeMqMetaRsp error");
-          tEncoderClear(&encoder);
-          taosMemoryFreeClear(tBuf);
-          taosMemoryFreeClear(data);
-          break;
-        }
-        taosMemoryFreeClear(data);
-        void* tmp = taosArrayPush(pTaskInfo->tmqInfo.btMetaRsp.batchMetaReq, &tBuf);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
-
-        tmp = taosArrayPush(pTaskInfo->tmqInfo.btMetaRsp.batchMetaLen, &tLen);
-        QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
 
         int64_t elapsed = taosGetTimestampMs() - st;
         if (elapsed > pTaskInfo->tmqInfo.timeout || elapsed < 0) {
@@ -5199,13 +5231,15 @@ static int32_t doRawScanNext(SOperatorInfo* pOperator, SSDataBlock** ppRes) {
       }
     }
 
-    (*ppRes) = NULL;
-    return code;
+    goto _end;
   }
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    // The append helper releases inputs that were not queued. At this point the task owns
+    // only the successfully queued buffers, so release the whole partial batch before retry.
+    tDeleteMqBatchMetaRsp(&pTaskInfo->tmqInfo.btMetaRsp);
     pTaskInfo->code = code;
     T_LONG_JMP(pTaskInfo->env, code);
   }

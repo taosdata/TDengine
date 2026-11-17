@@ -60,6 +60,13 @@ typedef struct {
   int8_t      subType;
   STqReader*  pTqReader;
   qTaskInfo_t task;
+
+  // Failed-poll tracking for the recovery log: the first failure of an episode is logged as ERROR,
+  // later failures are rate limited so a handle that keeps failing cannot flood the log.
+  uint32_t failCnt;         // consecutive polls that failed, reset when a poll succeeds
+  uint32_t failLogSkipped;  // failed polls not logged because of the rate limit
+  int64_t  lastFailLogMs;   // last time the failed-poll log was emitted
+
   union {
     STqExecCol execCol;
     STqExecTb  execTb;
@@ -133,6 +140,7 @@ int32_t tqOffsetRestoreFromFile(STQ* pTq, char* name);
 
 // tqScan - main data extraction entry point (used in tq.c)
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg);
+int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged);
 
 // tqUtil - common response utilities (used across multiple tq source files)
 int32_t tqSendDataRsp(STqHandle* pHandle, const SRpcMsg* pMsg, const SMqPollReq* pReq, SMqDataRsp* pRsp,

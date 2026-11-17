@@ -709,6 +709,29 @@ END:
   return code;
 }
 
+// A submit block is not guaranteed to carry rows. Insert-from-select and stream insert mark the submit with
+// SUBMIT_REQ_ONLY_CREATE_TABLE when the last block has no valid row left (e.g. every row was skipped because its
+// primary timestamp is NULL), and the write path accepts such an empty submit as long as it carries the create-table
+// request. The subscription has nothing to deliver for those blocks, and feeding them to tqRetrieveCols() made
+// taosArrayGetP(aRowP, 0) fail with TSDB_CODE_OUT_OF_RANGE, which is then stored on the handle's exec task and fails
+// every following poll as well.
+static int32_t tqSubmitBlockRows(const SSubmitTbData* pSubmitTbData) {
+  if (pSubmitTbData == NULL) {
+    return 0;
+  }
+
+  if ((pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) != 0) {
+    if (taosArrayGetSize(pSubmitTbData->aCol) <= 0) {
+      return 0;
+    }
+    // all SColData of one column-format submit hold the same row count
+    SColData* pCol = taosArrayGet(pSubmitTbData->aCol, 0);
+    return pCol == NULL ? 0 : pCol->nVal;
+  }
+
+  return (int32_t)taosArrayGetSize(pSubmitTbData->aRowP);
+}
+
 int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2SlotId, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
                          int sourceExcluded, int32_t minPollRows, int64_t timeout, int8_t enableReplay) {
   int32_t code = 0;
@@ -747,6 +770,12 @@ int32_t tqNextBlockInWal(STqReader* pReader, SSDataBlock* pRes, SHashObj* pCol2S
         return terrno;
       }
       if ((pSubmitTbData->flags & sourceExcluded) != 0) {
+        pReader->nextBlk += 1;
+        continue;
+      }
+      if (tqSubmitBlockRows(pSubmitTbData) <= 0) {
+        tqDebug("tq reader skip submit block without rows, uid:%" PRId64 ", sver:%d, flags:0x%x", pSubmitTbData->uid,
+                pSubmitTbData->sver, pSubmitTbData->flags);
         pReader->nextBlk += 1;
         continue;
       }
@@ -1056,7 +1085,7 @@ static int32_t tqProcessSubmitCol(SArray*         pCols,
   return code;
 }
 
-static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged) {
+int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, bool* pSchemaChanged) {
   int32_t vgId = pReader->pWalReader->pWal->cfg.vgId;
   int32_t sversion = pSubmitTbData->sver;
   int64_t suid = pSubmitTbData->suid;
@@ -1065,21 +1094,35 @@ static int32_t tqCheckSchema(STqReader* pReader, SSubmitTbData* pSubmitTbData, b
   if ((suid != 0 && pReader->cachedSchemaSuid != suid) || (suid == 0 && pReader->cachedSchemaUid != uid) ||
       (pReader->cachedSchemaVer != sversion)) {
     *pSchemaChanged = true;
+    SSchemaWrapper* pSchemaWrapper = NULL;
+    SExtSchema*     pExtSchema = NULL;
+    STSchema*       pTSchema = NULL;
+
+    pSchemaWrapper = metaGetTableSchema(pReader->pVnode->pMeta, uid, sversion, 1, &pExtSchema, 0, true);
+    if (pSchemaWrapper == NULL) {
+      tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64 ",version %d, possibly dropped table",
+              vgId, suid, uid, sversion);
+      taosMemoryFree(pExtSchema);
+      return TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+    }
+    pTSchema = tBuildTSchema(pSchemaWrapper->pSchema, pSchemaWrapper->nCols, pSchemaWrapper->version);
+    if (pTSchema == NULL) {
+      int32_t code = terrno;
+      tqWarn("vgId:%d, cannot build schema for table: suid:%" PRId64 ", uid:%" PRId64 ",version %d",
+              vgId, suid, uid, sversion);
+      tDeleteSchemaWrapper(pSchemaWrapper);
+      taosMemoryFree(pExtSchema);
+      return code;
+    }
+
+    // Publish the new schema only after every allocation succeeds. A failed reload must leave the
+    // previous cache intact; otherwise a retry can hit the old cache key with a NULL pTSchema.
     tDeleteSchemaWrapper(pReader->pSchemaWrapper);
     taosMemoryFreeClear(pReader->extSchema);
     taosMemoryFreeClear(pReader->pTSchema);
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnode->pMeta, uid, sversion, 1, &pReader->extSchema, 0, true);
-    if (pReader->pSchemaWrapper == NULL) {
-      tqWarn("vgId:%d, cannot found schema wrapper for table: suid:%" PRId64 ", uid:%" PRId64 ",version %d, possibly dropped table",
-              vgId, suid, uid, pReader->cachedSchemaVer);
-      return TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
-    }
-    pReader->pTSchema = tBuildTSchema(pReader->pSchemaWrapper->pSchema, pReader->pSchemaWrapper->nCols, pReader->pSchemaWrapper->version);
-    if (pReader->pTSchema == NULL) {
-      tqWarn("vgId:%d, cannot build schema for table: suid:%" PRId64 ", uid:%" PRId64 ",version %d",
-              vgId, suid, uid, pReader->cachedSchemaVer);
-      return terrno;
-    }
+    pReader->pSchemaWrapper = pSchemaWrapper;
+    pReader->extSchema = pExtSchema;
+    pReader->pTSchema = pTSchema;
     pReader->cachedSchemaUid = uid;
     pReader->cachedSchemaSuid = suid;
     pReader->cachedSchemaVer = sversion;
@@ -1154,13 +1197,11 @@ static int32_t tqRetrieveCols(STqReader* pReader, SSDataBlock* pBlock, SHashObj*
   TSDB_CHECK_NULL(pSubmitTbData, code, line, END, terrno);
   pReader->lastTs = pSubmitTbData->ctimeMs;
 
-  int32_t numOfRows = 0;
-  if (pSubmitTbData->flags & SUBMIT_REQ_COLUMN_DATA_FORMAT) {
-    SColData* pCol = taosArrayGet(pSubmitTbData->aCol, 0);
-    TSDB_CHECK_NULL(pCol, code, line, END, terrno);
-    numOfRows = pCol->nVal;
-  } else {
-    numOfRows = taosArrayGetSize(pSubmitTbData->aRowP);
+  int32_t numOfRows = tqSubmitBlockRows(pSubmitTbData);
+  if (numOfRows <= 0) {
+    tqDebug("tq reader skip submit block without rows, uid:%" PRId64 ", sver:%d, flags:0x%x", pSubmitTbData->uid,
+            pSubmitTbData->sver, pSubmitTbData->flags);
+    return TSDB_CODE_SUCCESS;
   }
 
   bool schemaChanged = false;
@@ -1946,54 +1987,76 @@ int32_t tqGetDataBlock(qTaskInfo_t task, const STqHandle* pHandle, int32_t vgId,
 static int32_t tqProcessReplayRsp(STQ* pTq, STqHandle* pHandle, SMqDataRsp* pRsp, const SMqPollReq* pRequest, SSDataBlock* pDataBlock, qTaskInfo_t task){
   int32_t code = 0;
   int32_t lino = 0;
+  SSDataBlock* pCurrentBlock = NULL;
+  SSDataBlock* pNextBlock = NULL;
+  int64_t      currentBlockTime = pHandle->blockTime;
+  int64_t      nextBlockTime = currentBlockTime;
+  STqOffsetVal currentOffset = {0};
+  STqOffsetVal nextOffset = {0};
 
   if (IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type) && pHandle->block != NULL) {
     blockDataDestroy(pHandle->block);
     pHandle->block = NULL;
+    pHandle->blockTime = 0;
   }
   if (pHandle->block == NULL) {
     if (pDataBlock == NULL) {
       goto END;
     }
 
-    STqOffsetVal offset = {0};
-    code = qStreamExtractOffset(task, &offset);
+    code = qStreamExtractOffset(task, &currentOffset);
     TSDB_CHECK_CODE(code, lino, END);
 
-    pHandle->block = NULL;
-
-    code = createOneDataBlock(pDataBlock, true, &pHandle->block);
+    code = createOneDataBlock(pDataBlock, true, &pCurrentBlock);
     TSDB_CHECK_CODE(code, lino, END);
 
-    pHandle->blockTime = offset.ts;
-    tOffsetDestroy(&offset);
+    currentBlockTime = currentOffset.ts;
     int32_t vgId = TD_VID(pTq->pVnode);
     code = tqGetDataBlock(task, pHandle, vgId, &pDataBlock);
     TSDB_CHECK_CODE(code, lino, END);
+  } else {
+    pCurrentBlock = pHandle->block;
   }
 
   const STqExecHandle* pExec = &pHandle->execHandle;
-  code = tqAddBlockDataToRsp(pHandle->block, pRsp, &pExec->execCol.pSW, pTq->pVnode->config.tsdbCfg.precision);
+  code = tqAddBlockDataToRsp(pCurrentBlock, pRsp, &pExec->execCol.pSW, pTq->pVnode->config.tsdbCfg.precision);
   TSDB_CHECK_CODE(code, lino, END);
 
   pRsp->blockNum++;
   if (pDataBlock == NULL) {
-    blockDataDestroy(pHandle->block);
-    pHandle->block = NULL;
+    nextBlockTime = currentBlockTime;
   } else {
-    code = copyDataBlock(pHandle->block, pDataBlock);
+    code = createOneDataBlock(pDataBlock, true, &pNextBlock);
     TSDB_CHECK_CODE(code, lino, END);
 
-    STqOffsetVal offset = {0};
-    code = qStreamExtractOffset(task, &offset);
+    code = qStreamExtractOffset(task, &nextOffset);
     TSDB_CHECK_CODE(code, lino, END);
 
-    pRsp->sleepTime = offset.ts - pHandle->blockTime;
-    pHandle->blockTime = offset.ts;
-    tOffsetDestroy(&offset);
+    pRsp->sleepTime = nextOffset.ts - currentBlockTime;
+    nextBlockTime = nextOffset.ts;
   }
 
+  // Commit the replay cursor only after the response has been fully prepared. Until this point
+  // pHandle->block still names the block that the current poll is retrying.
+  SSDataBlock* pPreviousBlock = pHandle->block;
+  pHandle->block = pNextBlock;
+  pHandle->blockTime = nextBlockTime;
+  pNextBlock = NULL;
+  if (pPreviousBlock != pCurrentBlock) {
+    blockDataDestroy(pPreviousBlock);
+  }
+  blockDataDestroy(pCurrentBlock);
+  pCurrentBlock = NULL;
+
 END:
+  tOffsetDestroy(&currentOffset);
+  tOffsetDestroy(&nextOffset);
+  if (pNextBlock != NULL) {
+    blockDataDestroy(pNextBlock);
+  }
+  if (pCurrentBlock != NULL && pCurrentBlock != pHandle->block) {
+    blockDataDestroy(pCurrentBlock);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     tqError("%s failed at %d, failed to process replay response:%s", __FUNCTION__, lino, tstrerror(code));
   }
@@ -3041,6 +3104,76 @@ END:
   return code;
 }
 
+// The exec task belongs to one subscription handle: tqMetaInitHandle() creates it and every poll of that handle
+// reuses it, polls never rebuild it. An error code left by a previous poll keeps isTaskKilled() true (code != 0),
+// so that handle would return the error of the failed poll forever without doing any work. Clear the code and make
+// the next poll re-position from the offset requested by the consumer: the failed poll may have consumed WAL
+// messages whose rows were never delivered, so continuing from the reader position would skip them. Drop the
+// partially decoded submit as well so that the next decode does not leak it. A handle that keeps failing would
+// otherwise emit one ERROR per poll, so only the first failure of an episode is logged at ERROR level; later ones
+// are rate limited and summarized with a WARN.
+#define TMQ_FAILED_POLL_LOG_INTERVAL_MS (60 * 1000)
+
+static void tqResetTaskCodeAfterFailedPoll(const STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest) {
+  qTaskInfo_t task = pHandle->execHandle.task;
+  if (task == NULL) {
+    return;
+  }
+
+  STqExecHandle* pExec = &pHandle->execHandle;
+  int32_t        code = getTaskCode(task);
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pExec->failCnt > 0) {
+      tqDebug("consumer:0x%" PRIx64 " vgId:%d, subkey:%s, recovered after %u failed poll(s), %u failure(s) were "
+              "not logged",
+              pHandle->consumerId, TD_VID(pTq->pVnode), pHandle->subKey, pExec->failCnt, pExec->failLogSkipped);
+      pExec->failCnt = 0;
+      pExec->failLogSkipped = 0;
+      pExec->lastFailLogMs = 0;
+    }
+    return;
+  }
+
+  STqReader* pReader = pExec->pTqReader;
+  int64_t    curVer = -1;
+  if (pReader != NULL && pReader->pWalReader != NULL) {
+    curVer = pReader->pWalReader->curVersion;
+  }
+
+  char offsetStr[TSDB_OFFSET_LEN] = {0};
+  if (pRequest != NULL) {
+    (void)tFormatOffset(offsetStr, TSDB_OFFSET_LEN, &pRequest->reqOffset);
+  }
+
+  bool    firstFail = (pExec->failCnt == 0);
+  int64_t now = taosGetTimestampMs();
+  pExec->failCnt++;
+
+  if (firstFail) {
+    tqError("consumer:0x%" PRIx64 " vgId:%d, subkey:%s, exec task failed with 0x%x(%s) in a previous poll, "
+            "reset it and retry from the requested offset, wal curVer:%" PRId64 ", req offset:%s",
+            pHandle->consumerId, TD_VID(pTq->pVnode), pHandle->subKey, code, tstrerror(code), curVer,
+            offsetStr[0] != '\0' ? offsetStr : "none");
+    pExec->lastFailLogMs = now;
+    pExec->failLogSkipped = 0;
+  } else if (now - pExec->lastFailLogMs >= TMQ_FAILED_POLL_LOG_INTERVAL_MS) {
+    tqWarn("consumer:0x%" PRIx64 " vgId:%d, subkey:%s, exec task still failing with 0x%x(%s), failed polls:%u, "
+           "%u failure(s) not logged, reset it and retry from the requested offset, wal curVer:%" PRId64
+           ", req offset:%s",
+           pHandle->consumerId, TD_VID(pTq->pVnode), pHandle->subKey, code, tstrerror(code), pExec->failCnt,
+           pExec->failLogSkipped, curVer, offsetStr[0] != '\0' ? offsetStr : "none");
+    pExec->lastFailLogMs = now;
+    pExec->failLogSkipped = 0;
+  } else {
+    pExec->failLogSkipped++;
+  }
+
+  if (pReader != NULL) {
+    tqReaderClearSubmitMsg(pReader);
+  }
+  (void)qStreamResetTaskForRetry(task);
+}
+
 int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequest, SRpcMsg* pMsg) {
   if (pTq == NULL || pHandle == NULL || pRequest == NULL || pMsg == NULL) {
     return TSDB_CODE_TMQ_INVALID_MSG;
@@ -3048,6 +3181,8 @@ int32_t tqExtractDataForMq(STQ* pTq, STqHandle* pHandle, const SMqPollReq* pRequ
   int32_t      code = 0;
   STqOffsetVal reqOffset = {0};
   tOffsetCopy(&reqOffset, &pRequest->reqOffset);
+
+  tqResetTaskCodeAfterFailedPoll(pTq, pHandle, pRequest);
 
   // reset the offset if needed
   if (IS_OFFSET_RESET_TYPE(pRequest->reqOffset.type)) {
