@@ -558,5 +558,7 @@ class TestVirtualStreamOracle:
 
         History:
             - 2026-11-02 Wang Mingming Add mixed Oracle stream coverage.
+            - 2026-11-16 xiao-77 Stop duplicate publication of COUNT windows for mixed
+              local + external virtual streams (dedup repeated calc params, defect 7167064347).
         """
         self.do_oracle_virtual_stream(True)

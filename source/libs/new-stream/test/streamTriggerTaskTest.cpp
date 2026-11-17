@@ -101,7 +101,12 @@ int32_t stTestRealtimeCalcReqMovePending(SArray* pParams, SObjList* pPending, in
                                          int64_t maxWendExclusive, int32_t* pMoved, int32_t* pDupSkipped);
 int32_t stTestRealtimeCalcReqMovePendingForTrigger(SArray* pParams, SObjList* pPending, int32_t maxParams,
                                                    int64_t maxWendExclusive, int32_t triggerType,
-                                                   int32_t calcEventType, int32_t* pMoved, int32_t* pDupSkipped);
+                                                   int32_t calcEventType, bool isVirtualTable, int32_t pkIndex,
+                                                   int32_t* pMoved, int32_t* pDupSkipped);
+int32_t stTestRealtimeGroupMovePendingCalc(SArray* pParams, SObjList* pPending, int32_t limit, int64_t endExclusive,
+                                           int32_t triggerType, int32_t calcEventType, bool isVirtualTable,
+                                           int32_t pkIndex, int64_t slidingInterval, int32_t* pMoved,
+                                           int32_t* pDupSkipped);
 int32_t stRealtimeContextUpdateExtCompletedCutoffs(SSTriggerRealtimeContext* pContext, SSHashObj* pGroupMaxEnds);
 int32_t stRealtimeContextCollectUserRecalcGids(SSTriggerRealtimeContext* pContext, SArray** ppGids);
 int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext* pContext);
@@ -42030,8 +42035,9 @@ TEST(StreamTriggerPendingCalcDedupTest, KeepsOpenAndCloseOfSameRange) {
 
 /* Builds a pending list holding two closed [T,T] windows of COUNT_WINDOW(1) over two rows that share one
  * timestamp, and dispatches it the way the real path does for the given trigger type. */
-static int32_t dispatchTwoSingleRowWindows(int32_t triggerType, int32_t calcEventType, SArray** ppParams,
-                                           int32_t* pMoved, int32_t* pDupSkipped) {
+static int32_t dispatchTwoSingleRowWindows(int32_t triggerType, int32_t calcEventType, bool isVirtualTable,
+                                           int32_t pkIndex, SArray** ppParams, int32_t* pMoved,
+                                           int32_t* pDupSkipped) {
   *ppParams = nullptr;
   *pMoved = 0;
   *pDupSkipped = 0;
@@ -42058,7 +42064,8 @@ static int32_t dispatchTwoSingleRowWindows(int32_t triggerType, int32_t calcEven
     return code == TSDB_CODE_SUCCESS ? TSDB_CODE_OUT_OF_MEMORY : code;
   }
   code = stTestRealtimeCalcReqMovePendingForTrigger(pParams, &pending, STREAM_CALC_REQ_MAX_WIN_NUM, INT64_MAX,
-                                                    triggerType, calcEventType, pMoved, pDupSkipped);
+                                                    triggerType, calcEventType, isVirtualTable, pkIndex, pMoved,
+                                                    pDupSkipped);
   taosObjPoolDestroy(&pool);
   if (code != TSDB_CODE_SUCCESS) {
     taosArrayDestroy(pParams);
@@ -42075,8 +42082,8 @@ TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryCountWindowSharingOneRange) {
   SArray* pParams = nullptr;
   int32_t moved = 0;
   int32_t dupSkipped = 0;
-  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_COUNT, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
-                                        &dupSkipped),
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_COUNT, STRIGGER_EVENT_WINDOW_CLOSE, true, 0, &pParams,
+                                        &moved, &dupSkipped),
             TSDB_CODE_SUCCESS);
   ASSERT_NE(pParams, nullptr);
   EXPECT_EQ(moved, 2);
@@ -42091,6 +42098,51 @@ TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryCountWindowSharingOneRange) {
   taosArrayDestroy(pParams);
 }
 
+/* COUNT_WINDOW(1) over a plain (non-virtual) table without a primary key never queues the same range
+ * twice, but its rows from different child tables of a super table can still share a timestamp, so
+ * the repeated-range deduplication must stay disabled there. */
+TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryCountWindowSharingOneRangeOfPlainTable) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_COUNT, STRIGGER_EVENT_WINDOW_CLOSE, false, -1, &pParams,
+                                        &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2U);
+  for (int32_t i = 0; i < 2; ++i) {
+    const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, (size_t)i));
+    ASSERT_NE(pParam, nullptr);
+    EXPECT_EQ(pParam->wstart, 1767225600000);
+    EXPECT_EQ(pParam->wend, 1767225600000);
+  }
+  taosArrayDestroy(pParams);
+}
+
+/* A mixed virtual table can queue the same COUNT window twice: an external source may deliver its
+ * rows after the local sources already closed the window. Without a primary key the virtual-table
+ * merger collapses every source row of one timestamp into a single row, so the repeated range is
+ * the same calculation and must reach the request only once (defect 7167064347). */
+TEST(StreamTriggerPendingCalcDedupTest, DropsRepeatedCountWindowRangeOfVirtualTableWithoutPrimaryKey) {
+  SArray* pParams = nullptr;
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_COUNT, STRIGGER_EVENT_WINDOW_CLOSE, true, -1, &pParams,
+                                        &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  ASSERT_NE(pParams, nullptr);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 1);
+  ASSERT_EQ(taosArrayGetSize(pParams), 1U);
+  const auto* pParam = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, 0));
+  ASSERT_NE(pParam, nullptr);
+  EXPECT_EQ(pParam->wstart, 1767225600000);
+  EXPECT_EQ(pParam->wend, 1767225600000);
+  taosArrayDestroy(pParams);
+}
+
 /* EVENT windows are opened and closed by condition rows: two rows that share a timestamp and satisfy the same
  * condition close one [T,T] window each. Their deduplication keys are equal, but they are distinct
  * calculations, so both must reach the request. */
@@ -42098,8 +42150,8 @@ TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryEventWindowSharingOneRange) {
   SArray* pParams = nullptr;
   int32_t moved = 0;
   int32_t dupSkipped = 0;
-  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_EVENT, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
-                                        &dupSkipped),
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_EVENT, STRIGGER_EVENT_WINDOW_CLOSE, false, -1, &pParams,
+                                        &moved, &dupSkipped),
             TSDB_CODE_SUCCESS);
   ASSERT_NE(pParams, nullptr);
   EXPECT_EQ(moved, 2);
@@ -42121,8 +42173,8 @@ TEST(StreamTriggerPendingCalcDedupTest, KeepsEveryStateWindowSharingOneRange) {
   SArray* pParams = nullptr;
   int32_t moved = 0;
   int32_t dupSkipped = 0;
-  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_STATE, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
-                                        &dupSkipped),
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_STATE, STRIGGER_EVENT_WINDOW_CLOSE, false, -1, &pParams,
+                                        &moved, &dupSkipped),
             TSDB_CODE_SUCCESS);
   ASSERT_NE(pParams, nullptr);
   EXPECT_EQ(moved, 2);
@@ -42142,14 +42194,143 @@ TEST(StreamTriggerPendingCalcDedupTest, DropsRepeatedRangeOfTimeAlignedWindow) {
   SArray* pParams = nullptr;
   int32_t moved = 0;
   int32_t dupSkipped = 0;
-  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_SLIDING, STRIGGER_EVENT_WINDOW_CLOSE, &pParams, &moved,
-                                        &dupSkipped),
+  ASSERT_EQ(dispatchTwoSingleRowWindows(STREAM_TRIGGER_SLIDING, STRIGGER_EVENT_WINDOW_CLOSE, false, -1, &pParams,
+                                        &moved, &dupSkipped),
             TSDB_CODE_SUCCESS);
   ASSERT_NE(pParams, nullptr);
   EXPECT_EQ(moved, 2);
   EXPECT_EQ(dupSkipped, 1);
   ASSERT_EQ(taosArrayGetSize(pParams), 1U);
   taosArrayDestroy(pParams);
+}
+
+/* The multi-group batch dispatch moves a group's pending params into that group's own parameter
+ * array of the request. The group params below already hold [T,T] as if an earlier append round
+ * stored it while the request stayed open; a mixed virtual table then re-queues the same COUNT
+ * window twice (an external source delivers its rows after the local sources closed it), so both
+ * repeated entries must be dropped and only the distinct second window may be appended. */
+TEST(StreamTriggerPendingCalcDedupTest, GroupBatchDropsRepeatedCountWindowOfVirtualTableWithoutPrimaryKey) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winStart = 1767225600000;
+  const int64_t winNextStart = 1767225601000;
+  SSTriggerCalcParam param = {};
+  param.wstart = winStart;
+  param.wend = winStart;
+  param.wrownum = 1;
+  ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  param.wstart = winNextStart;
+  param.wend = winNextStart;
+  ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  param.wstart = winStart;
+  param.wend = winStart;
+  ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+  SSTriggerCalcParam stored = {};
+  stored.wstart = winStart;
+  stored.wend = winStart;
+  stored.wrownum = 1;
+  ASSERT_NE(taosArrayPush(pParams, &stored), nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeGroupMovePendingCalc(pParams, &pending, 10, INT64_MAX, STREAM_TRIGGER_COUNT,
+                                               STRIGGER_EVENT_WINDOW_CLOSE, true, -1, 0, &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 1);
+  EXPECT_EQ(dupSkipped, 2);
+  EXPECT_EQ(pending.neles, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 2U);
+  const auto* pLast = static_cast<const SSTriggerCalcParam*>(taosArrayGet(pParams, 1));
+  ASSERT_NE(pLast, nullptr);
+  EXPECT_EQ(pLast->wstart, winNextStart);
+  EXPECT_EQ(pLast->wend, winNextStart);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
+}
+
+/* The same multi-group batch dispatch of a plain (non-virtual) table: two rows of different child
+ * tables can share one timestamp and close two distinct COUNT windows, so the repeated-range
+ * deduplication must stay disabled and both pending windows must be appended. */
+TEST(StreamTriggerPendingCalcDedupTest, GroupBatchKeepsEveryCountWindowOfPlainTable) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winStart = 1767225600000;
+  for (int32_t i = 0; i < 2; ++i) {
+    SSTriggerCalcParam param = {};
+    param.wstart = winStart;
+    param.wend = winStart;
+    param.wrownum = 1;
+    ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+  }
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+  SSTriggerCalcParam stored = {};
+  stored.wstart = winStart;
+  stored.wend = winStart;
+  stored.wrownum = 1;
+  ASSERT_NE(taosArrayPush(pParams, &stored), nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeGroupMovePendingCalc(pParams, &pending, 10, INT64_MAX, STREAM_TRIGGER_COUNT,
+                                               STRIGGER_EVENT_WINDOW_CLOSE, false, -1, 0, &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 2);
+  EXPECT_EQ(dupSkipped, 0);
+  EXPECT_EQ(pending.neles, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 3U);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
+}
+
+/* The group params are stored amended: an interval SLIDING window shifted its wend. A re-queued
+ * copy of the same window still carries the unamended range, so the stored identity must be
+ * reverted before comparison, or the repeated window would be calculated twice. */
+TEST(StreamTriggerPendingCalcDedupTest, GroupBatchDropsRequeuedIntervalSlidingWindow) {
+  SObjPool pool = {};
+  ASSERT_EQ(taosObjPoolInit(&pool, 8, sizeof(SSTriggerCalcParam)), TSDB_CODE_SUCCESS);
+  SObjList pending = {};
+  ASSERT_EQ(taosObjListInit(&pending, &pool), TSDB_CODE_SUCCESS);
+
+  const int64_t winStart = 1767225600000;
+  const int64_t winEnd = 1767225601000;
+  SSTriggerCalcParam param = {};
+  param.wstart = winStart;
+  param.wend = winEnd;
+  ASSERT_EQ(taosObjListAppend(&pending, &param), TSDB_CODE_SUCCESS);
+
+  SArray* pParams = taosArrayInit(4, sizeof(SSTriggerCalcParam));
+  ASSERT_NE(pParams, nullptr);
+  SSTriggerCalcParam stored = {};
+  stored.wstart = winStart;
+  stored.wend = winEnd + 1;
+  stored.wduration = 1001;
+  ASSERT_NE(taosArrayPush(pParams, &stored), nullptr);
+
+  int32_t moved = 0;
+  int32_t dupSkipped = 0;
+  ASSERT_EQ(stTestRealtimeGroupMovePendingCalc(pParams, &pending, 10, INT64_MAX, STREAM_TRIGGER_SLIDING,
+                                               STRIGGER_EVENT_WINDOW_CLOSE, false, -1, 1, &moved, &dupSkipped),
+            TSDB_CODE_SUCCESS);
+  EXPECT_EQ(moved, 0);
+  EXPECT_EQ(dupSkipped, 1);
+  EXPECT_EQ(pending.neles, 0);
+  ASSERT_EQ(taosArrayGetSize(pParams), 1U);
+
+  taosArrayDestroy(pParams);
+  taosObjPoolDestroy(&pool);
 }
 
 TEST(StreamTriggerPendingCalcDedupTest, KeepsDistinctEventPathsAndDeduplicatesMatchingPaths) {
