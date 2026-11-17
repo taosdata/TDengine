@@ -17,13 +17,6 @@
 
 #include "meta.h"
 
-#ifdef TD_ENTERPRISE
-extern const char* tkLogStb[];
-extern const char* tkAuditStb[];
-extern const int   tkLogStbNum;
-extern const int   tkAuditStbNum;
-#endif
-
 #define TAG_FILTER_RES_KEY_LEN  32
 #define META_CACHE_BASE_BUCKET  1024
 #define META_CACHE_STATS_BUCKET 16
@@ -108,11 +101,6 @@ struct SMetaCache {
     SHashObj*     pTableEntry;
     SLRUCache*    pResCache;
   } STbGroupResCache;
-
-  struct STbFilterCache {
-    SHashObj* pStb;
-    SHashObj* pStbName;
-  } STbFilterCache;
 
   struct STbRefDbCache {
     TdThreadMutex lock;
@@ -256,19 +244,6 @@ int32_t metaCacheOpen(SMeta* pMeta) {
   taosHashSetFreeFp(pMeta->pCache->STbGroupResCache.pTableEntry, freeCacheEntryFp);
   (void)taosThreadMutexInit(&pMeta->pCache->STbGroupResCache.lock, NULL);
 
-  // open filter cache
-  pMeta->pCache->STbFilterCache.pStb =
-      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  if (pMeta->pCache->STbFilterCache.pStb == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
-  pMeta->pCache->STbFilterCache.pStbName =
-      taosHashInit(0, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), false, HASH_NO_LOCK);
-  if (pMeta->pCache->STbFilterCache.pStbName == NULL) {
-    TSDB_CHECK_CODE(code = terrno, lino, _exit);
-  }
-
   // open ref db cache
   pMeta->pCache->STbRefDbCache.pStbRefs =
       taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
@@ -311,9 +286,6 @@ void metaCacheClose(SMeta* pMeta) {
     taosLRUCacheCleanup(pMeta->pCache->STbGroupResCache.pResCache);
     (void)taosThreadMutexDestroy(&pMeta->pCache->STbGroupResCache.lock);
     taosHashCleanup(pMeta->pCache->STbGroupResCache.pTableEntry);
-
-    taosHashCleanup(pMeta->pCache->STbFilterCache.pStb);
-    taosHashCleanup(pMeta->pCache->STbFilterCache.pStbName);
 
     taosHashClear(pMeta->pCache->STbRefDbCache.pStbRefs);
     taosHashClear(pMeta->pCache->STbRefDbCache.pStbExtSources);
@@ -1831,61 +1803,6 @@ int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid) {
 
   metaDebug("vgId:%d suid:%" PRId64 " cached related tb group cleared", vgId, suid);
   return TSDB_CODE_SUCCESS;
-}
-
-bool metaTbInFilterCache(SMeta* pMeta, const void* key, int8_t type) {
-  if (type == 0 && taosHashGet(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t))) {
-    return true;
-  }
-
-  if (type == 1 && taosHashGet(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key))) {
-    return true;
-  }
-
-  return false;
-}
-
-int32_t metaPutTbToFilterCache(SMeta* pMeta, const void* key, int8_t type) {
-  if (type == 0) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStb, key, sizeof(tb_uid_t), NULL, 0);
-  }
-
-  if (type == 1) {
-    return taosHashPut(pMeta->pCache->STbFilterCache.pStbName, key, strlen(key), NULL, 0);
-  }
-
-  return 0;
-}
-
-int32_t metaSizeOfTbFilterCache(SMeta* pMeta, int8_t type) {
-  if (type == 0) {
-    return taosHashGetSize(pMeta->pCache->STbFilterCache.pStb);
-  }
-  return 0;
-}
-
-int32_t metaInitTbFilterCache(SMeta* pMeta) {
-#ifdef TD_ENTERPRISE
-  int32_t      tbNum = 0;
-  const char** pTbArr = NULL;
-  const char*  dbName = NULL;
-
-  if (!(dbName = strchr(pMeta->pVnode->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = tkLogStbNum;
-    pTbArr = (const char**)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pMeta->pVnode->config.isAudit) {
-    tbNum = tkAuditStbNum;
-    pTbArr = (const char**)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    for (int32_t i = 0; i < tbNum; ++i) {
-      TAOS_CHECK_RETURN(metaPutTbToFilterCache(pMeta, pTbArr[i], 1));
-    }
-  }
-#else
-#endif
-  return 0;
 }
 
 int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid) {

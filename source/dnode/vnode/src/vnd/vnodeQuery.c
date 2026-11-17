@@ -1890,142 +1890,25 @@ int32_t vnodeGetStbInfo(SVnode *pVnode, tb_uid_t suid, int64_t *keep, int8_t *fl
   return TSDB_CODE_SUCCESS;
 }
 
-#ifdef TD_ENTERPRISE
-const char *tkLogStb[] = {"cluster_info",
-                          "data_dir",
-                          "disk_free",
-                          "disk_total",
-                          "dnodes_info",
-                          "d_info",
-                          "explorer_sys",
-                          "grants_info",
-                          "keeper_monitor",
-                          "logs",
-                          "log_dir",
-                          "log_summary",
-                          "http_client_requests",
-                          "http_server_requests_idmp",
-                          "m_info",
-                          "taosadapter_restful_http_request_fail",
-                          "taosadapter_restful_http_request_in_flight",
-                          "taosadapter_restful_http_request_summary_milliseconds",
-                          "taosadapter_restful_http_request_total",
-                          "taosadapter_system_cpu_percent",
-                          "taosadapter_system_mem_percent",
-                          "temp_dir",
-                          "vgroups_info",
-                          "vnodes_role",
-                          "taosd_dnodes_status",
-                          "adapter_conn_pool",
-                          "taosd_vnodes_info",
-                          "taosd_dnodes_metrics",
-                          "taosd_vgroups_info",
-                          "taos_sql_req",
-                          "taosd_mnodes_info",
-                          "adapter_c_interface",
-                          "taosd_cluster_info",
-                          "taosd_sql_req",
-                          "taosd_dnodes_info",
-                          "adapter_requests",
-                          "taosd_write_metrics",
-                          "adapter_status",
-                          "taos_slow_sql",
-                          "taos_slow_sql_detail",
-                          "taosd_cluster_basic",
-                          "taosd_dnodes_data_dirs",
-                          "taosd_dnodes_log_dirs",
-                          "xnode_agent_activities",
-                          "xnode_task_activities",
-                          "xnode_task_metrics",
-                          "taosx_sys",
-                          "taosx_task_csv",
-                          "taosx_task_progress",
-                          "taosx_task_kinghist",
-                          "taosx_task_tdengine2",
-                          "taosx_task_tdengine3",
-                          "taosx_task_opc_da",
-                          "taosx_task_opc_ua",
-                          "taosx_task_kafka",
-                          "taosx_task_influxdb",
-                          "taosx_task_mqtt",
-                          "taosx_task_avevahistorian",
-                          "taosx_task_opentsdb",
-                          "taosx_task_mysql",
-                          "taosx_task_postgres",
-                          "taosx_task_oracle",
-                          "taosx_task_mssql",
-                          "taosx_task_mongodb",
-                          "taosx_task_sparkplugb",
-                          "taosx_task_orc",
-                          "taosx_task_pulsar",
-                          "taosx_task_pspace"};
-const char *tkAuditStb[] = {"operations"};
-const int   tkLogStbNum = ARRAY_SIZE(tkLogStb);
-const int   tkAuditStbNum = ARRAY_SIZE(tkAuditStb);
-
-// exclude stbs of taoskeeper log
-static int32_t vnodeGetTimeSeriesBlackList(SVnode *pVnode, int32_t *tbSize) {
-  int32_t      code = TSDB_CODE_SUCCESS;
-  int32_t      tbNum = 0;
-  const char **pTbArr = NULL;
-  const char  *dbName = NULL;
-  *tbSize = 0;
-
-  if (!(dbName = strchr(pVnode->config.dbname, '.'))) return 0;
-  if (0 == strncmp(++dbName, "log", TSDB_DB_NAME_LEN)) {
-    tbNum = tkLogStbNum;
-    pTbArr = (const char **)&tkLogStb;
-  } else if (0 == strncmp(dbName, "audit", TSDB_DB_NAME_LEN) || pVnode->config.isAudit) {
-    tbNum = tkAuditStbNum;
-    pTbArr = (const char **)&tkAuditStb;
-  }
-  if (tbNum && pTbArr) {
-    *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    if (*tbSize < tbNum) {
-      for (int32_t i = 0; i < tbNum; ++i) {
-        tb_uid_t suid = metaGetTableEntryUidByName(pVnode->pMeta, pTbArr[i]);
-        if (suid != 0) {
-          code = metaPutTbToFilterCache(pVnode->pMeta, &suid, 0);
-          if (TSDB_CODE_SUCCESS != code) {
-            return code;
-          }
-        }
-      }
-      *tbSize = metaSizeOfTbFilterCache(pVnode->pMeta, 0);
-    }
-  }
-
-  return code;
-}
-#endif
-
-static bool vnodeTimeSeriesFilter(void *arg1, void *arg2) {
-  SVnode *pVnode = (SVnode *)arg1;
-
-  if (metaTbInFilterCache(pVnode->pMeta, arg2, 0)) {
-    return true;
-  }
-  return false;
+bool vnodeIsTimeSeriesExcluded(SVnode *pVnode) {
+  return grantIsTimeSeriesExcluded(pVnode);
 }
 
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
   SArray *suidList = NULL;
 
+  if (vnodeIsTimeSeriesExcluded(pVnode)) {
+    *num = 0;
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
     return terrno;
   }
 
-  int32_t tbFilterSize = 0;
   int32_t code = TSDB_CODE_SUCCESS;
-#ifdef TD_ENTERPRISE
-  code = vnodeGetTimeSeriesBlackList(pVnode, &tbFilterSize);
-  if (TSDB_CODE_SUCCESS != code) {
-    goto _exit;
-  }
-#endif
 
-  if ((!tbFilterSize && vnodeGetStbIdList(pVnode, 0, suidList) < 0) ||
-      (tbFilterSize && vnodeGetStbIdListByFilter(pVnode, 0, suidList, vnodeTimeSeriesFilter, pVnode) < 0)) {
+  if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
     qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
     taosArrayDestroy(suidList);
     return terrno;

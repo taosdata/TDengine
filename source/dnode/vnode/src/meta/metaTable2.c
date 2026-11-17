@@ -623,7 +623,7 @@ _check_stb:
   metaFetchEntryFree(&pStbEntry);
 
   // check grant
-  if (!metaTbInFilterCache(pMeta, pReq->ctb.stbName, 1)) {
+  if (!vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
     code = grantCheck(TSDB_GRANT_TIMESERIES);
     if (TSDB_CODE_SUCCESS != code) {
       metaError("vgId:%d, %s failed at %s:%d since %s, version:%" PRId64 " name:%s", TD_VID(pMeta->pVnode), __func__,
@@ -1762,12 +1762,10 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // Capture before metaReaderClear  -  mr.me memory is decoder-managed.
   int8_t  statsType = -1;  // TSDB_SUPER_TABLE / TSDB_NORMAL_TABLE; -1 = skip
   int32_t newNcols = 0;
-  char    stbName[TSDB_TABLE_NAME_LEN] = {0};
   if (readCode == 0) {
     if (mr.me.type == TSDB_SUPER_TABLE && !TABLE_IS_VIRTUAL(mr.me.flags)) {
       statsType = TSDB_SUPER_TABLE;
       newNcols = mr.me.stbEntry.schemaRow.nCols;
-      tstrncpy(stbName, mr.me.name, TSDB_TABLE_NAME_LEN);
     } else if (mr.me.type == TSDB_NORMAL_TABLE) {
       statsType = TSDB_NORMAL_TABLE;
       newNcols = mr.me.ntbEntry.schemaRow.nCols;
@@ -1790,7 +1788,7 @@ int32_t metaRollbackAlterTable(SMeta *pMeta, int64_t uid, int64_t prevVersion) {
   // Fetch ctbNum BEFORE taking WLock below: metaGetStbStats acquires metaRLock
   // internally, calling it while holding metaWLock self-deadlocks (glibc rwlock
   // does not allow a wrlock owner to re-enter rdlock).
-  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !metaTbInFilterCache(pMeta, stbName, 1));
+  bool    needStbCtbStats = (statsType == TSDB_SUPER_TABLE && !vnodeIsTimeSeriesExcluded(pMeta->pVnode));
   int64_t stbCtbNum = 0;
   if (needStbCtbStats) {
     int32_t stRet = metaGetStbStats(pMeta->pVnode, uid, &stbCtbNum, 0, 0);
