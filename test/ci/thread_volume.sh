@@ -231,30 +231,65 @@ prepare_thread_volume() {
     fi
 }
 
+# 挂载点在 prefix 下面的 bind。findmnt -R 只在目录自身是挂载点时才向下列，
+# thread_volume 在主盘上不是挂载点，那条命令一个都看不到。
+# mountinfo 记的是解析后的路径。调用方传来的 workdir 可能是符号链接，先解析再比。
+# 挂载表读不到时返回 2。当成“没有挂载”会继续删额外盘，把仍被挂着的内容卸成 //deleted。
+_thread_volume_mountpoints_under() {
+    local dir="${1%/}"
+    local info="${THREAD_VOLUME_MOUNTINFO:-/proc/self/mountinfo}"
+    local prefix
+    [[ -n "${dir}" ]] || return 2
+    [[ -r "${info}" ]] || return 2
+    dir="$(realpath -m -- "${dir}" 2>/dev/null || printf '%s\n' "${dir}")"
+    dir="${dir%/}"
+    [[ -n "${dir}" && "${dir}" != "/" ]] || return 2
+    prefix="${dir}/"
+    awk -v p="${prefix}" 'index($5, p) == 1 { print $5 }' "${info}"
+}
+
 # 先卸掉 job 工作目录上的 bind，再删除第二块盘上的 job 目录。
 # 调用方在收完日志之后、删除 WORKDIR 之前调用。
+# 卸不掉，或额外盘目录删不掉，就停。继续 rm 会删掉额外盘上仍被挂着的内容。
 release_job_thread_volumes() {
     local workdir="${1%/}"
     local job_id=$2
-    local tvol="${workdir}/tmp/thread_volume"
-    local root dest mp
+    local root dest mp failed=0 points
 
     if [[ "${DRY_RUN:-0}" == "1" ]]; then
         echo "[thread-volume] DRY-RUN release ${workdir} job ${job_id}"
         return 0
     fi
-    if [[ -d "${tvol}" ]] && command -v findmnt >/dev/null 2>&1; then
-        while IFS= read -r mp; do
-            [[ -z "${mp}" || "${mp}" == "${tvol}" ]] && continue
-            umount "${mp}" 2>/dev/null || umount -l "${mp}" 2>/dev/null || true
-        done < <(findmnt -R -n -o TARGET -- "${tvol}" 2>/dev/null | sort -r)
-    fi
+    # 非法 id 不做卸载，也不拼进删除路径。
     [[ "${job_id}" =~ ^[0-9]+$ ]] || return 0
+    if [[ -d "${workdir}" ]]; then
+        if ! points="$(_thread_volume_mountpoints_under "${workdir}")"; then
+            echo "[thread-volume] cannot read mount table for ${workdir}; not deleting the extra volume" >&2
+            return 1
+        fi
+        while IFS= read -r mp; do
+            [[ -n "${mp}" ]] || continue
+            if ! umount "${mp}" 2>/dev/null; then
+                echo "[thread-volume] umount failed: ${mp}" >&2
+                failed=1
+            fi
+        done < <(printf '%s\n' "${points}" | sort -r)
+    fi
+    if [[ ${failed} -ne 0 ]]; then
+        echo "[thread-volume] job ${job_id} still has mounts; not deleting the extra volume" >&2
+        return 1
+    fi
     while IFS= read -r root; do
         [[ -n "${root}" ]] || continue
         dest="${root}/job-${job_id}"
-        if [[ -d "${dest}" ]]; then
-            rm -rf -- "${dest}"
+        if [[ -e "${dest}" ]]; then
+            chmod -R u+w -- "${dest}" 2>/dev/null || true
+            rm -rf --one-file-system -- "${dest}" 2>/dev/null || true
+            if [[ -e "${dest}" ]]; then
+                echo "[thread-volume] failed to remove ${dest}" >&2
+                failed=1
+            fi
         fi
     done < <(_thread_volume_extra_roots)
+    [[ ${failed} -eq 0 ]]
 }
