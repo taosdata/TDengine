@@ -20,12 +20,10 @@ ResourceManager for real downloads and taosanode_service for process management.
 """
 
 import json
-import os
 import subprocess
 import threading
 import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from lib.log import AppLogger
 
@@ -42,7 +40,6 @@ from lib.tsfm.mgmt.foundation_models_db import (
     AsyncOperation,
     FoundationModel,
     get_dao,
-    get_resource_dir,
 )
 from lib.tsfm.mgmt.model_state_machine import ModelStateManager, ModelStateTransitionError
 from lib.tsfm.mgmt.response_event import (
@@ -71,9 +68,7 @@ _SETTLED_STATES = frozenset({"missing", "downloading", "idle", "started"})
 
 # Operation statuses that still own a model's state: the work is queued, running,
 # or waiting for a retry, so nothing else may decide where the model is.
-_INFLIGHT_STATUSES = frozenset(
-    {TaskStatus.QUEUED.value, TaskStatus.RUNNING.value, "deferred"}
-)
+_INFLIGHT_STATUSES = frozenset( {TaskStatus.QUEUED.value, TaskStatus.RUNNING.value, "deferred"} )
 
 # How often a state write is retried when another process moves the state between
 # the read and the compare-and-set. Three attempts cover a burst of two requests;
@@ -533,70 +528,21 @@ def init_models_db():
     AppLogger.info("Models database initialization complete")
 
 
-def _download_lock_path() -> str:
-    """Return the lock file downloads take turns on before applying.
+def _download_task_is_queued(dao, task_id):
+    """Whether a download may still run: its row exists and is still queued.
 
-    It sequences this API's own downloads only. It is not the authority on
-    whether an apply may run -- that is the CLI's lifecycle lock (see the
-    module-level note on the download executor).
+    The read is strict (see FoundationModelsDAO.require_async_operation). The
+    error-swallowing getter answers None for a failed read as well as for a
+    missing row, and this caller reads None as "cancelled" -- so a single
+    transient database error would report a download that is merely waiting as
+    interrupted, which writes a terminal status over it. The caller defers on
+    the exception instead.
+
+    Raises:
+        Exception: The row could not be read, which is not evidence of anything.
     """
-    resource_dir = get_resource_dir()
-    root = Path(resource_dir)
-    root.mkdir(parents=True, exist_ok=True)
-    return str(root / ".tdgpt-download.lock")
-
-
-def _try_acquire_download_lock():
-    """Try to take this download's turn (non-blocking).
-
-    Holding this lock means "it is my turn to apply", not "applying is allowed":
-    the child that eventually applies can still be refused by the CLI's lifecycle
-    lock. Its job is ordering, so a download that arrives while another one runs
-    waits for its turn instead of failing outright.
-
-    Returns:
-        int: open fd holding the lock, or None if another download holds it.
-    """
-    path = _download_lock_path()
-    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
-    try:
-        if os.name == "nt":
-            # Windows: lock a single byte via msvcrt (advisory, cross-process).
-            import msvcrt
-            os.lseek(fd, 0, os.SEEK_SET)
-            if os.fstat(fd).st_size == 0:
-                os.write(fd, b"\x00")
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        return fd
-    except (OSError, ImportError):
-        os.close(fd)
-        return None
-
-
-def _release_download_lock(fd):
-    """Give up the download turn taken by _try_acquire_download_lock.
-
-    Handing the turn over promptly is what lets the next queued download start,
-    so every path that wins the lock releases it (including the ones that abort
-    before the child is spawned).
-    """
-    try:
-        if os.name == "nt":
-            import msvcrt
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        else:
-            import fcntl
-            fcntl.flock(fd, fcntl.LOCK_UN)
-    finally:
-        try:
-            os.close(fd)
-        except OSError:
-            pass
+    op = dao.require_async_operation(task_id)
+    return op is not None and op.status == TaskStatus.QUEUED.value
 
 
 def _reconcile_local_model_state(model_name, local_model):
@@ -819,6 +765,9 @@ def _complete_async_operation(task_id, model_name, operation, status, error=None
         "status": status,
         "completed_at": now,
         "error": error if error else None,
+        # The due time only means something while the task is queued for a retry;
+        # leaving it behind on a finished row would make it look claimable.
+        "retry_after": None,
     }
     # 100 only describes a successful finish. A failed operation keeps whatever
     # its last phase reported, which /status derives from the task file (see
@@ -851,72 +800,57 @@ def _complete_async_operation(task_id, model_name, operation, status, error=None
 def _run_download_task(task_id, model_name, release, resource_base_url, replace):
     """Worker function for the download executor: apply a model via taosanodectl.
 
-    Runs in an executor thread. The task first waits for its turn on the shared
-    download file lock (ordering between this API's downloads; see the
-    module-level note on the download executor), then marks the operation running
-    and drives a taosanodectl subprocess to completion. While it waits the op
-    stays `queued` in the shared async_operations table — it never races the
-    underlying resource-manager file lock, which would report an error.
+    Runs in an executor thread and drives a taosanodectl subprocess to completion.
+    Three things can keep a download from applying, and none of them is waited on
+    here:
 
-    Holding the lock does not admit the apply: the child can still be refused by
-    the CLI's lifecycle lock, which is shared with model start/stop, import and
-    delete. Such a refusal (exit 75) is reported as a failure here; see the note
-    on _CLI_EXIT_TEMPFAIL.
+    * the executor's single worker already serializes this process's downloads,
+      so a second one waits its turn in the local queue;
+    * `resource apply` takes the CLI's system-wide lifecycle lock (shared with
+      model start/stop, import and delete) and is refused with exit 75 while
+      another resource operation holds it;
+    * a model needs the shared TSFM runtime, which may still be installing when
+      this task starts.
+
+    The last two are answered with a deferred result: the row stays `queued`
+    (visible via /status & SSE), the retry scheduler re-arms the task behind a
+    timer, and this pool's single worker is free for the downloads queued behind
+    it. Same try-then-retry shape a service operation uses.
+
+    Any other non-zero exit is a permanent failure and is reported as one, with
+    the child's own explanation.
+
+    A runtime that is not ready is only a permanent failure once two probes
+    agree: the first decides whether to wait or to look closer, the second --
+    taken after no installation is left running -- decides the outcome.
     """
-    # Waiting for the download turn, not for permission to apply: the CLI decides
-    # whether the apply may run, and this flock only decides the order in which
-    # this API's downloads ask for it.
-
-    # There is deliberately no wall-clock wait timeout: a slow network can make
-    # a download (and thus the queue ahead of it) legitimately take hours, and
-    # only a user action cancels a download — the system never force-kills one.
-    # So while waiting for the lock the task is aborted only if it is no longer
-    # valid: the row was deleted or its status changed away from 'queued'
-    # (cancelled/cleaned up). The op stays `queued` in the shared table so the
-    # client can still observe it via /status & SSE.
-
     dao = get_dao()
-    lock_fd = None
 
-    # 若为持久性错误（非互斥占用）应立即失败，避免无限等待
-    while lock_fd is None:
-        op = dao.get_async_operation(task_id)
-        if op is None or op.status != TaskStatus.QUEUED.value:
-            AppLogger.info(
-                "Download task no longer active, aborting wait: task_id=%s, model=%s",
-                task_id,
-                model_name,
-            )
-            return {
-                "status": TaskStatus.INTERRUPTED.value,
-                "message": "Task no longer active (cancelled/removed); download aborted",
-            }
-
-        # Every download competes for the same lock, the runtime included: there
-        # is no priority queue here. Yielding to a runtime download would not
-        # even work any more -- the runtime runs on this same single-worker pool,
-        # so a model task spinning in this loop would be blocking the very task
-        # it is waiting for.
-        lock_fd = _try_acquire_download_lock()
-        if lock_fd is None:
-            AppLogger.info(
-                "Download queued behind another download (waiting for flock): task_id=%s, model=%s",
-                task_id,
-                model_name,
-            )
-            time.sleep(5)
-
-    # The task may have been cancelled in the window between the last validity
-    # check and actually winning the lock — re-check before running, and if it
-    # is gone hand the lock to the next waiter instead of downloading.
-    op = dao.get_async_operation(task_id)
-    if op is None or op.status != TaskStatus.QUEUED.value:
-        AppLogger.info(
-            "Download task cancelled after lock acquired, releasing lock: task_id=%s, model=%s",
+    # A task cancelled while it sat in the local queue must not apply. The read is
+    # strict: the error-swallowing getter answers None for a failed one too, and a
+    # connection held by another writer would then finish an alive task as
+    # `interrupted`, writing its terminal status and moving model_state to
+    # `missing` over work that is only waiting. This worker was claimed, so a
+    # state it cannot read is a wait for the retry scheduler, not a verdict.
+    try:
+        still_queued = _download_task_is_queued(dao, task_id)
+    except Exception as exc:
+        AppLogger.warning(
+            "Cannot read the download's state (%s); deferring: task_id=%s, model=%s",
+            exc,
             task_id,
             model_name,
         )
-        _release_download_lock(lock_fd)
+        return _defer_download(
+            dao, task_id, model_name, reason=f"cannot read the task state ({exc})"
+        )
+
+    if not still_queued:
+        AppLogger.info(
+            "Download task no longer active, aborting: task_id=%s, model=%s",
+            task_id,
+            model_name,
+        )
         return {
             "status": TaskStatus.INTERRUPTED.value,
             "message": "Task no longer active (cancelled/removed); download aborted",
@@ -924,25 +858,62 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
 
     try:
         # Re-check before applying: the runtime may have been destroyed while this
-        # task was queued behind another download. The runtime download itself is
-        # the bootstrap, so it is never gated on the runtime being ready.
+        # task sat in the queue. The runtime download itself is the bootstrap, so
+        # it is never gated on the runtime being ready.
         if model_name != RUNTIME_RESOURCE_NAME:
             blocker = _runtime_model_download_blocker()
             if blocker:
-                AppLogger.error(
-                    "Download aborted, shared TSFM runtime is not ready: task_id=%s, model=%s, reason=%s",
-                    task_id,
-                    model_name,
-                    blocker,
+                # A request is allowed to queue behind a runtime download (see
+                # _reject_download_without_runtime), so a runtime that is still
+                # being installed is a wait, not a failure. The retry scheduler
+                # is the only thing that can make this task wait for it: one
+                # refused child per attempt, which the CLI's lock turns away
+                # until the runtime apply is done.
+                runtime_apply_in_flight = bool(
+                    foundation_util.get_active_download_op(RUNTIME_RESOURCE_NAME)
+                    or RUNTIME_RESOURCE_NAME in _cli_inflight_downloads()
                 )
-                return {
-                    "status": "failed",
-                    "message": f"Shared TSFM runtime is not ready: {blocker}",
-                }
+                if runtime_apply_in_flight:
+                    return _defer_download(
+                        dao,
+                        task_id,
+                        model_name,
+                        reason=(
+                            "the shared TSFM runtime is still being installed "
+                            f"({blocker})"
+                        ),
+                    )
 
-        # Mark task as running only once the download lock is actually held. The
-        # first start time is kept (see mark_operation_running): the start phase
-        # of a download_start op runs on this same row.
+                # Nothing is installing now, but the probe above and this check
+                # look at two different moments: the installation may have
+                # finished in between, leaving a stale blocker. Only a second
+                # probe, taken with no installation left running, may fail this
+                # download for good. If an install starts right after it, the
+                # apply is refused by the CLI's lock and deferred as usual, so
+                # the remaining window costs a retry, not a failure.
+                blocker = _runtime_model_download_blocker()
+                if blocker is None:
+                    AppLogger.info(
+                        "Shared TSFM runtime became ready while this download checked; "
+                        "applying anyway: task_id=%s, model=%s",
+                        task_id,
+                        model_name,
+                    )
+                else:
+                    AppLogger.error(
+                        "Download aborted, shared TSFM runtime is not ready: task_id=%s, model=%s, reason=%s",
+                        task_id,
+                        model_name,
+                        blocker,
+                    )
+                    return {
+                        "status": "failed",
+                        "message": f"Shared TSFM runtime is not ready: {blocker}",
+                    }
+
+        # Mark task as running only once it is really going to apply. The first
+        # start time is kept (see mark_operation_running): the start phase of a
+        # download_start op runs on this same row.
         dao.mark_operation_running(task_id)
 
         taosanodectl = foundation_util.get_taosanodectl_cmd()
@@ -990,10 +961,17 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
         if proc.returncode == 0:
             AppLogger.info("Download completed for task_id: %s, model: %s", task_id, model_name)
             return {"status": "completed", "message": None}
-        else:
-            error_msg = stderr.decode(errors="replace") if stderr else "Download failed"
-            AppLogger.error("Download failed for task_id: %s, model: %s, error: %s", task_id, model_name, error_msg)
-            return {"status": "failed", "message": error_msg}
+
+        if proc.returncode == _CLI_EXIT_TEMPFAIL:
+            # Another resource operation holds the CLI's lifecycle lock. That is
+            # "try again", not a failure: hand the wait to the retry scheduler.
+            return _defer_download(
+                dao, task_id, model_name, reason=_cli_reason(stderr)
+            )
+
+        error_msg = stderr.decode(errors="replace") if stderr else "Download failed"
+        AppLogger.error("Download failed for task_id: %s, model: %s, error: %s", task_id, model_name, error_msg)
+        return {"status": "failed", "message": error_msg}
 
     except subprocess.TimeoutExpired:
         error_msg = "Download timeout (>1 hour)"
@@ -1008,20 +986,16 @@ def _run_download_task(task_id, model_name, release, resource_base_url, replace)
             error_msg,
         )
         return {"status": "failed", "message": error_msg}
-    finally:
-        # Release the download lock so the next queued download can proceed.
-        _release_download_lock(lock_fd)
 
 
 def _trigger_model_download_background(task_id, model_name, release, resource_base_url, replace):
     """Dispatch a download to the download thread executor.
 
     Executes: taosanodectl resource apply <model_name> ... inside the executor.
-    The worker waits for its turn on the shared download flock before applying,
-    so it never races the resource-manager file lock (which would report an
-    error); that wait is ordering between this API's downloads, not permission to
-    apply. Requests that arrive while another download runs simply stay queued in
-    the executor / async_operations table until the turn is free.
+    A download the CLI's lifecycle lock refuses (exit 75) hands its wait back to
+    the retry scheduler (see _defer_download) instead of failing or sleeping in
+    the worker. Requests that arrive while another download runs stay queued in
+    the executor / async_operations table until their turn is free.
 
     Args:
         task_id: Unique identifier for tracking this operation
@@ -1030,13 +1004,21 @@ def _trigger_model_download_background(task_id, model_name, release, resource_ba
         resource_base_url: Base URL for resource repository
         replace: Whether to replace existing model
     """
+    args = (task_id, model_name, release, resource_base_url, replace)
     submit_download_task(
         _run_download_task,
-        args=(task_id, model_name, release, resource_base_url, replace),
+        args=args,
         task_id=task_id,
         model_name=model_name,
         operation=OperationType.DOWNLOAD.value,
         complete_async_operation_fn=_complete_async_operation,
+        deferred_fn=_download_deferred_handler(
+            _run_download_task,
+            args,
+            task_id,
+            model_name,
+            OperationType.DOWNLOAD.value,
+        ),
     )
 
 
@@ -1147,6 +1129,138 @@ def _merge_local_resource_state(resources, exec_timeout):
     AppLogger.debug("Merged local service state into %d model entries", enriched)
 
 
+# Operation types the shared runtime can have: it is downloaded and deleted, but
+# never started or stopped -- there is no worker process behind it.
+_RUNTIME_OPERATIONS = frozenset({OperationType.DOWNLOAD.value, OperationType.DELETE.value})
+
+
+def _normalize_resource_state(value):
+    """Return `value` in the spelling the checks below compare against.
+
+    The CLI and a manifest need not agree on punctuation or case for the same
+    state, and a mismatch here would silently take the wrong branch, so the
+    value is normalized instead of trusting one spelling.
+    """
+    if not isinstance(value, str):
+        return ""
+
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _runtime_model_state(resource, latest_op, cli_inflight):
+    """Return the model_state a runtime entry reports, from the records that hold it.
+
+    The shared runtime has no row in the models table, so ``model_state`` cannot
+    be read from one -- doing that answered "missing" for a runtime that is
+    installed. Three records are asked instead, in order:
+
+    1. the operation row, when one is still in flight (the runtime's downloads
+       and deletes are recorded under ``tsfm_runtime``);
+    2. the CLI's own task files, for an apply started outside this API -- those
+       write no row here at all;
+    3. the resource's `state`.
+
+    Sources 2 and 3 both matter and neither subsumes the other: `resource check`
+    reports a task-file phase in `state` only for the digest it is checking, so
+    an apply for another release leaves `state` looking settled while the
+    runtime tree is being written, and the task files are the only witness then.
+
+    Only source 2 is age-checked, though, and it has to be: `check_release`
+    hands back a task file's phase without looking at its timestamp, so `state`
+    still says `importing` for an apply that was killed and left its file behind.
+    An apply that is genuinely running is what the caller's snapshot reports, so
+    a phase in `state` with no live task file behind it is residue and is read as
+    a copy on disk -- otherwise `downloading` (whose allowed actions are empty)
+    would pin the runtime until someone re-applied or deleted it from the CLI.
+
+    The settled values are translated into the closed set `model_state` uses,
+    because that set is what a client keys its allowed actions on: `installed` is
+    `idle` (present, nothing running), while `missing`, `failed` and `outdated`
+    are `missing` -- the last two mean "nothing usable is installed here", since
+    an `outdated` directory is not the current release (it failed validation or
+    its digest does not match). The CLI's own wording is not lost: `state` still
+    carries it, which is what tells a client to replace rather than simply
+    install. A value this version does not know is logged and read as `idle`, so
+    a client that acts on the entry keeps a way forward.
+
+    A delete is reported by the operation row above (``deleting``); the CLI
+    never writes that into `state`, because a delete has no task file.
+
+    Args:
+        resource: The runtime entry from `resource check`.
+        latest_op: Its most recent async operation, or None.
+        cli_inflight: Names of the resources the CLI is applying, from the
+            caller's single `_cli_inflight_downloads()` scan. Passed in rather
+            than probed here: a request that lists many resources must not walk
+            and parse the task directory once per entry.
+
+    Returns:
+        str: One of the states the action table is keyed by. "downloading" or
+            "deleting" from an in-flight operation row, "downloading" from a
+            live CLI task file, "idle" for a settled or unrecognized `state` and
+            for a phase no live task file backs, and "missing" for a resource
+            that is absent, failed or outdated.
+    """
+    if (
+        latest_op is not None
+        and latest_op.operation in _RUNTIME_OPERATIONS
+        and latest_op.status in _INFLIGHT_STATUSES
+    ):
+        in_flight = ModelStateManager.STATE_TRANSITIONS.get(
+            (latest_op.operation, latest_op.status)
+        )
+        if in_flight is not None:
+            return in_flight.value
+
+    # An apply the CLI started writes no operation row, so its task file is the
+    # only record of it -- and the caller's snapshot is the only trustworthy
+    # version of that file: it drops a file nobody has updated within the stale
+    # window (see _cli_inflight_downloads), which is exactly what a killed CLI
+    # apply leaves behind. This is the positive signal; nothing below re-admits
+    # an unchecked phase.
+    if resource.get("name") in cli_inflight:
+        return "downloading"
+
+    state = _normalize_resource_state(resource.get("state"))
+
+    if state in _CLI_INFLIGHT_STATUSES:
+        # `resource check` reports the phase without checking its age, and the
+        # snapshot found no live task file for this resource: the apply it
+        # describes is over (killed, out of memory, or the host restarted). The
+        # phase is history, so read it as `idle` -- present, with no apply
+        # running -- and say so: `downloading` permits no action, so mistaking
+        # this for a live apply would strand the entry.
+        AppLogger.info(
+            "Ignoring the stale %r phase of the shared runtime %r: no live task "
+            "file backs it; treating the resource as present",
+            resource.get("state"),
+            resource.get("name"),
+        )
+        return "idle"
+
+    # `failed` is a finished apply that left nothing usable, exactly like a
+    # failed model download. `outdated` is the same answer for a different
+    # reason: the directory exists but it is not the current release -- it failed
+    # validation or its digest does not match -- so nothing here is safe to act
+    # on. `state` keeps that distinction; `model_state` only says what can be
+    # done, which is to install the release.
+    if state in ("missing", "failed", "outdated"):
+        return "missing"
+
+    if state != "installed":
+        AppLogger.debug(
+            "Unrecognized state %r for the shared runtime %r; treating it as installed",
+            resource.get("state"),
+            resource.get("name"),
+        )
+
+    # `installed` -- and any value this version does not know, which is no reason
+    # to leave the entry un-actionable -- is "present, nothing running": that is
+    # `idle`, whose allowed actions (delete, download_start) are the ones a
+    # worker-less resource can use. `state` keeps the CLI's own wording.
+    return "idle"
+
+
 def list_all_tsfm(request):
     """Get list of available models from resource repository via taosanodectl.
 
@@ -1170,6 +1284,12 @@ def list_all_tsfm(request):
           not the repository. Absent when the model has no local record here.
         - deployed_at: install timestamp from the local state file; null when the
           model has a local record but no completed install.
+        - operation_status: the latest async operation's status, from this
+          service's own table.
+        - model_state: the state machine value. Models read it from the models
+          table; the shared runtime has no row there, so its value is derived
+          from its in-flight operation and from `state` (see
+          _runtime_model_state).
 
     This provides a real-time view of available resources from the repository,
     with the two local-only fields (service_status, deployed_at) merged in so a
@@ -1270,10 +1390,20 @@ def list_all_tsfm(request):
                 # local facts in before the operation status overlay.
                 _merge_local_resource_state(resources, exec_timeout)
 
+                # One scan per request: the CLI task files answer "is an apply
+                # running?" for every resource below, so the directory is walked
+                # and parsed once instead of once per entry.
+                cli_inflight = set(_cli_inflight_downloads())
+
                 # Overlay operation_status from SQLite (authoritative) over task file status
                 for resource in resources_data.get("resources", []):
                     if "task_status" in resource:
-                        del resource["task_status"]  # Remove transient task file status
+                        # The transient phase is this service's to report, not the
+                        # repository's. `state` carries the same value (resource
+                        # check copies it there), which is why the runtime's
+                        # model_state ignores a phase that no live task file
+                        # backs -- see _runtime_model_state.
+                        del resource["task_status"]
 
                     model_name = resource.get("name", "")
                     latest_op = dao.get_latest_operation(model_name)
@@ -1287,19 +1417,22 @@ def list_all_tsfm(request):
                     if resource.get("state") == "missing" and resource.get("operation_status") == TaskStatus.QUEUED.value:
                         resource["state"] = "downloading"
 
-                    db_model = dao.get_model(model_name)
-                    resource["model_state"] = db_model.model_state if db_model else "missing"
+                    # The shared runtime has no row in the models table, so
+                    # reading model_state from one would answer "missing" for a
+                    # runtime that is installed. Derive it from the records that
+                    # do describe the runtime instead.
+                    if resource.get("kind") == "runtime":
+                        resource["model_state"] = _runtime_model_state(resource, latest_op, cli_inflight)
+                    else:
+                        db_model = dao.get_model(model_name)
+                        resource["model_state"] = db_model.model_state if db_model else "missing"
 
                 return {
                     "status": "success",
                     "data": resources_data,
                 }, 200
             except json.JSONDecodeError as e:
-                AppLogger.error(
-                    "Failed to parse resource check output: %s, ip:%s",
-                    str(e),
-                    request.remote_addr,
-                )
+                AppLogger.error("Failed to parse resource check output: %s, ip:%s", str(e), request.remote_addr)
                 return {
                     "status": "error",
                     "message": f"Failed to parse resource check output: {e!s}",
@@ -1307,11 +1440,8 @@ def list_all_tsfm(request):
                 }, 500
         else:
             error_msg = result.stderr or "Resource check failed"
-            AppLogger.error(
-                "Resource check failed: %s, ip:%s",
-                error_msg,
-                request.remote_addr,
-            )
+            AppLogger.error("Resource check failed: %s, ip:%s", error_msg, request.remote_addr)
+
             return {
                 "status": "error",
                 "message": f"Resource check failed: {error_msg}",
@@ -1382,12 +1512,7 @@ def get_model_info(request, model_name):
                 "message": f"taosanodectl not found: {e!s}",
             }, 500
 
-        cmd = taosanodectl + [
-            "resource",
-            "list",
-            "--format",
-            "json",
-        ]
+        cmd = taosanodectl + ["resource", "list", "--format", "json"]
 
         AppLogger.info(
             "Executing resource list to get model info: %s, cmd: %s, ip:%s",
@@ -1435,10 +1560,7 @@ def get_model_info(request, model_name):
                 if latest_op:
                     model["operation_status"] = latest_op.status
 
-                return {
-                    "status": "success",
-                    "data": model,
-                }, 200
+                return { "status": "success", "data": model, }, 200
 
             except json.JSONDecodeError as e:
                 AppLogger.error(
@@ -1476,11 +1598,7 @@ def get_model_info(request, model_name):
             str(e),
             request.remote_addr,
         )
-        return {
-            "status": "error",
-            "message": f"Error retrieving model info: {e!s}",
-        }, 500
-
+        return { "status": "error", "message": f"Error retrieving model info: {e!s}", }, 500
 
 
 def _extract_model_status_in_repository(model_name, release, resource_base_url, kind="model"):
@@ -1582,6 +1700,29 @@ def _reuse_download_response(active_op, model_name):
     }, 200
 
 
+def _reuse_resumed_download(active_op, model_name):
+    """Reuse an in-flight download's task, re-arming it if its retry was lost.
+
+    "In flight" also covers a queued download nobody is running any more: its
+    timer can be lost to a failed callback, a cancelled process or a database
+    blip. This request is the proof that somebody still wants the task, so it is
+    also where the retry is re-armed -- otherwise the caller is answered "already
+    in progress" about a task that will only move if it later polls /status,
+    which a client reading the SSE stream never does.
+
+    The resume is aimed at this task: the global sweep claims the earliest due
+    download, which need not be the one being reused.
+    """
+    try:
+        resume_due_downloads(task_id=active_op.task_id)
+    except Exception as exc:
+        # Recovery is best-effort: the caller still gets its reuse answer.
+        AppLogger.error(
+            "Cannot resume the retry of download %s: %s", active_op.task_id, exc
+        )
+    return _reuse_download_response(active_op, model_name)
+
+
 def _claim_download_operation(dao, operation, model_name):
     """Queue a download, or hand back the one already in flight.
 
@@ -1607,7 +1748,10 @@ def _claim_download_operation(dao, operation, model_name):
         active_op = foundation_util.get_active_download_op(model_name)
 
     if active_op is not None:
-        return _reuse_download_response(active_op, model_name)
+        # The task is still in flight, but "in flight" also covers a queued
+        # download nobody is running any more: the helper re-arms exactly this
+        # task before handing it back as in progress.
+        return _reuse_resumed_download(active_op, model_name)
 
     return {
         "status": "error",
@@ -1674,15 +1818,12 @@ def download_foundation_runtime(request):
             error_msg,
             request.remote_addr,
         )
-        return {
-            "status": "error",
-            "message": error_msg,
-        }, 404
+        return { "status": "error", "message": error_msg, }, 404
 
     # Deduplicate against a runtime download that is already queued/running.
     active_op = foundation_util.get_active_download_op(RUNTIME_RESOURCE_NAME)
     if active_op:
-        return _reuse_download_response(active_op, RUNTIME_RESOURCE_NAME)
+        return _reuse_resumed_download(active_op, RUNTIME_RESOURCE_NAME)
 
     dao = get_dao()
     dao.cleanup_download_operations(RUNTIME_RESOURCE_NAME)
@@ -1810,10 +1951,7 @@ def download_foundation_model(request):
             error_msg,
             request.remote_addr,
         )
-        return {
-            "status": "error",
-            "message": error_msg,
-        }, 404
+        return { "status": "error", "message": error_msg, }, 404
 
     # Check if already downloaded
     dao = get_dao()
@@ -1835,10 +1973,10 @@ def download_foundation_model(request):
 
     # Deduplicate: if this model already has a download queued/running, return
     # the existing task instead of enqueuing another (only one download applies
-    # system-wide anyway).
+    # system-wide anyway). The helper re-arms that task's retry if it was lost.
     active_op = foundation_util.get_active_download_op(model_name)
     if active_op:
-        return _reuse_download_response(active_op, model_name)
+        return _reuse_resumed_download(active_op, model_name)
 
     # The flags below are also only written when an operation completes, so a
     # crashed worker leaves them describing a lifecycle that is over. Correct
@@ -1950,14 +2088,9 @@ def download_foundation_model(request):
 
 # Exit codes of the taosanode_service CLI (see script/taosanode_service.py).
 # Resource operations are serialized system-wide by that process's lifecycle
-# lock, so its refusals are classified instead of being reported as failures.
-#
-# Only the delete worker classifies 75 today. A download rarely meets it -- the
-# worker holds the download flock before applying, so no *download* is usually in
-# flight -- but the lifecycle lock is shared with model start/stop and import, so
-# an apply can still be refused. That case is reported as a failure verbatim (see
-# _run_download_task); teaching the download path to defer would be the fix, not
-# widening this note.
+# lock, so its refusals are classified instead of being reported as failures:
+# exit 75 means another resource operation (a download, a start, a stop, an
+# import or a delete) holds the lock, and the worker defers the task.
 _CLI_EXIT_TEMPFAIL = 75  # another resource operation holds the lifecycle lock
 _CLI_EXIT_CONFLICT = 3  # permanent: a live worker, an unsafe target, ...
 
@@ -1967,6 +2100,15 @@ _SHARED_RETRY_CONFIG = {
     "base_seconds": 5,
     "max_delay_seconds": 60,
     "max_wait_seconds": 3600,
+}
+
+# Backoff for a download the CLI's lifecycle lock refused. It has no wall-clock
+# budget on purpose: a download can legitimately wait behind a slow one for
+# hours, and only a user action cancels one (see _run_download_task), so only the
+# delay is bounded.
+_DOWNLOAD_RETRY_CONFIG = {
+    "base_seconds": 5,
+    "max_delay_seconds": 60,
 }
 
 
@@ -2029,9 +2171,7 @@ def _resubmit_service_task(worker_fn, args, task_id, model_name, operation):
     try:
         op = get_dao().get_async_operation(task_id)
     except Exception as exc:
-        AppLogger.error(
-            "Cannot re-check deferred %s task %s: %s", operation, task_id, exc
-        )
+        AppLogger.error( "Cannot re-check deferred %s task %s: %s", operation, task_id, exc )
         return
 
     if op is None or op.status != TaskStatus.QUEUED.value:
@@ -2052,6 +2192,601 @@ def _resubmit_service_task(worker_fn, args, task_id, model_name, operation):
         complete_async_operation_fn=_complete_async_operation,
         retry_scheduler_fn=_schedule_service_retry,
     )
+
+
+def _defer_download(dao, task_id, model_name, reason=None):
+    """Record a download that has to be retried, and return its deferred result.
+
+    The worker does not wait: what it returns here is what the retry scheduler
+    re-arms, the same shape a service operation returns when the same lock is
+    held. Three things arrive here -- an apply the CLI's lifecycle lock refused,
+    a runtime that is still being installed, and a task whose state could not be
+    read -- and all of them are "later", not "failed". The attempt count rides
+    in the operation's data (as it does for a deferred start/stop/delete), so the
+    backoff keeps growing across re-arms instead of restarting at every try.
+
+    The row goes back to ``queued`` in the same write: a refusal can arrive
+    after the worker marked the task ``running`` (the child is spawned, and only
+    then refused), and the resubmission only picks up tasks that are still
+    queued (see _resubmit_download_task). ``retry_after`` is written with it, so
+    the row -- not this process's timer -- records when the retry is due; a lost
+    timer is recovered by the next request that checks (see
+    resume_due_downloads). A write that cannot be made is reported as a failure
+    rather than answered with a deferral nobody would act on.
+
+    Args:
+        reason: The CLI's one-line explanation, when it gave one. Stored in the
+            row with the rest of the retry state and logged, so /status and the
+            logs say what the task is waiting for.
+
+    Returns:
+        dict: The deferred result, tagged with ``phase: "download"`` so a
+            download_start submission can tell this wait apart from a start phase
+            deferred on the service executor.
+    """
+    # The payload carries the parameters a recovery will run with -- release,
+    # resource_base_url, replace (see _resubmit_claimed_download). It is read
+    # strictly: the error-swallowing getter answers {} on a database failure, and
+    # writing that back would replace the real parameters with retry metadata
+    # only, so a status poll could later run the download with the defaults.
+    try:
+        op = dao.require_async_operation(task_id)
+        state = dict(op.data) if op is not None and isinstance(op.data, dict) else {}
+        parameters_read = True
+    except Exception as exc:
+        AppLogger.warning(
+            "Cannot read the download's retry state (%s); leaving its parameters "
+            "untouched: task_id=%s, model=%s",
+            exc,
+            task_id,
+            model_name,
+        )
+        state = {}
+        parameters_read = False
+
+    attempt = int(state.get("attempt") or 0) + 1
+    delay = min(
+        _DOWNLOAD_RETRY_CONFIG["base_seconds"] * (2 ** (attempt - 1)),
+        _DOWNLOAD_RETRY_CONFIG["max_delay_seconds"],
+    )
+    waiting_for = reason or "another resource operation holds the CLI lifecycle lock"
+
+    # `retry_after` is what makes the row, not this process's timer, the owner of
+    # the retry: a status poll or another worker process can pick the task up
+    # when the due time arrives (see resume_due_downloads). The write is checked
+    # because a deferred result whose row never went back to `queued` would be
+    # picked up by nobody, and the caller would still be told to wait.
+    retry_at = time.time() + delay
+    write_fields = {
+        "status": TaskStatus.QUEUED.value,
+        "progress": 0,
+        "error": None,
+        "retry_after": retry_at,
+    }
+    if parameters_read:
+        state.update( {"attempt": attempt, "retry_after": delay, "waiting_for": waiting_for} )
+        write_fields["data"] = state
+    # else: `data` is deliberately omitted. The column keeps what it holds, which
+    # is the parameters the next attempt needs; only the retry timing is recorded.
+
+    for write_attempt in range(1, _STATE_UPDATE_ATTEMPTS + 1):
+        if dao.update_async_operation(task_id, **write_fields):
+            break
+        AppLogger.warning(
+            "Cannot record the download retry (attempt %d/%d): task_id=%s, model=%s",
+            write_attempt,
+            _STATE_UPDATE_ATTEMPTS,
+            task_id,
+            model_name,
+        )
+    else:
+        AppLogger.error(
+            "Download retry could not be recorded, reporting failure: task_id=%s, model=%s",
+            task_id,
+            model_name,
+        )
+        return {
+            "status": TaskStatus.FAILED.value,
+            "message": (
+                "Cannot record the download retry after another resource operation "
+                "refused the apply; retry the download"
+            ),
+        }
+
+    AppLogger.info(
+        "Download deferred behind another resource operation: task_id=%s, "
+        "model=%s, attempt=%d, retry_in=%ds, held_by=%s",
+        task_id,
+        model_name,
+        attempt,
+        delay,
+        waiting_for,
+    )
+
+    return {
+        "status": "deferred",
+        "delay": delay,
+        "waiting_for": waiting_for,
+        "phase": "download",
+    }
+
+
+def _schedule_download_retry(worker_fn, args, task_id, model_name, operation, result, deferred_fn):
+    """Re-arm a deferred download after the delay it asked for.
+
+    A timer thread, not a sleeping worker: the download executor has a single
+    worker, so waiting inside it would keep every download queued behind this one
+    from even being picked up. The service operations wait for the CLI's lifecycle
+    lock the same way.
+
+    This timer is an accelerator, not the owner of the retry: the due time is on
+    the row (see _defer_download), so a lost timer only makes the task wait for a
+    status poll or another request instead of never running (see
+    resume_due_downloads).
+    """
+    delay = max(1, int(result.get("delay") or _DOWNLOAD_RETRY_CONFIG["base_seconds"]))
+    timer = threading.Timer(
+        delay,
+        _resubmit_download_task,
+        args=(worker_fn, args, task_id, model_name, operation, deferred_fn),
+    )
+    timer.daemon = True
+    timer.start()
+    AppLogger.info(
+        "Deferred download re-armed in %ss: task_id=%s, model=%s, waiting_for=%s",
+        delay,
+        task_id,
+        model_name,
+        result.get("waiting_for") or "unknown",
+    )
+
+
+def _release_download_claim(dao, task_id, reason, due_in=None):
+    """Put a claimed download's due time back after its submission failed.
+
+    A claim clears ``retry_after`` (see claim_due_download), so a submission that
+    raises would leave the row ``queued`` with no due time: unfindable by a
+    timer, by a status poll, and by every other recovery path. Writing the due
+    time back is what makes the claim recoverable rather than a one-way gate.
+
+    The restored delay is the base backoff: the failed attempt was not the task's
+    fault, so it does not count against its attempt budget.
+
+    Args:
+        dao: The operation store.
+        task_id: The claimed operation.
+        reason: Why the submission failed, for the log.
+        due_in: Seconds from now the task becomes due again. None means the base
+            backoff; 0 hands the task straight back to the claim path, for a
+            caller whose retries above already waited (see _retry_claim_release).
+
+    Returns:
+        bool: True when the due time was written. False does not end the task:
+            a null due time is invisible to every other recovery path, so the
+            caller has to keep retrying the write itself (see
+            _schedule_claim_release_retry).
+    """
+    AppLogger.error(
+        "Cannot submit claimed download %s (%s); restoring its due time", task_id, reason
+    )
+
+    delay = _DOWNLOAD_RETRY_CONFIG["base_seconds"] if due_in is None else due_in
+    try:
+        written = dao.update_async_operation(task_id, retry_after=time.time() + delay)
+    except Exception as exc:
+        # update_async_operation reports failures as False, but the retry must
+        # not be lost to a caller that raises either.
+        written = False
+        AppLogger.error("Cannot restore the due time of download %s: %s", task_id, exc)
+
+    if written:
+        return True
+
+    AppLogger.error(
+        "Cannot restore the due time of download %s; this process keeps retrying "
+        "the write",
+        task_id,
+    )
+    return False
+
+
+def _schedule_claim_release_retry(task_id, reason, attempt=1):
+    """Retry a claim-release write that failed, on a timer.
+
+    Until that write lands the row is queued with no due time, so re-arming the
+    ordinary claim timer cannot help: it would read the null due time as "another
+    caller already submitted it" (see _resubmit_download_task) and leave the task
+    queued for good. The write has to be retried itself, by a callback that knows
+    the task is still unreleased.
+
+    The ladder covers that write and nothing else. Once it lands the row can be
+    found again, so _retry_claim_release stops re-arming and leaves the task to
+    the claim path -- repeating the release would hand a due time to a task
+    another caller has already submitted.
+
+    Args:
+        task_id: The operation whose due time has to be restored.
+        reason: Why the submission failed, for the log.
+        attempt: How many release attempts have failed so far; escalates the
+            delay up to the configured ceiling.
+    """
+    delay = min(
+        _DOWNLOAD_RETRY_CONFIG["base_seconds"] * (2 ** (max(1, attempt) - 1)),
+        _DOWNLOAD_RETRY_CONFIG["max_delay_seconds"],
+    )
+    timer = threading.Timer(delay, _retry_claim_release, args=(task_id, reason, attempt))
+    timer.daemon = True
+    timer.start()
+    AppLogger.warning(
+        "Cannot restore the due time of a claimed download; retrying in %ss: "
+        "task_id=%s, attempt=%d",
+        delay,
+        task_id,
+        attempt,
+    )
+
+
+def _retry_claim_release(task_id, reason, attempt):
+    """Restore a claimed download's due time, then hand it back to the claim path.
+
+    Runs on the timer armed by _schedule_claim_release_retry. Once the write
+    lands the retry belongs to the row again: the task is made due immediately --
+    the failed attempts above already waited the backoff -- and submitted through
+    resume_due_downloads, the same path that recovers any other lost timer. A
+    submission that fails again releases the claim again, so this callback never
+    becomes the sole owner of the retry.
+
+    The *release* ladder ends once the write lands, whatever that claim attempt
+    reports: a restore that succeeded says nothing about who owns the task now,
+    and releasing again could write a due time onto a task another caller has
+    already submitted -- letting a second copy of the same task id start, whose
+    ``interrupted`` result would then overwrite the real outcome.
+
+    A claim that did not happen is not ownership either, though: the claim itself
+    can hit a database error, and a submission that fails again restores the due
+    time and reports nothing submitted. Both leave the row queued and due with
+    nothing left to run it, and a client watching only the SSE stream never
+    triggers the request-driven recovery -- so the ordinary claim path gets a
+    timer of its own (see _schedule_claim_retry).
+    """
+    dao = get_dao()
+
+    if not _release_download_claim(dao, task_id, reason, due_in=0):
+        _schedule_claim_release_retry(task_id, reason, attempt + 1)
+        return
+
+    try:
+        submitted = resume_due_downloads(limit=1, task_id=task_id)
+    except Exception as exc:
+        AppLogger.warning("Cannot resume download %s (%s)", task_id, exc)
+        submitted = 0
+
+    if submitted:
+        return
+
+    _schedule_claim_retry(task_id, 1)
+
+
+def _schedule_claim_retry(task_id, attempt=1):
+    """Re-attempt the claim of a download whose due time was just restored.
+
+    The release ladder ends once its write lands, but the task still needs its
+    attempt: a claim can fail on the database, and a submission that fails again
+    hands the due time back. Nothing else would run the task for a client that
+    never polls, so an ordinary claim timer is armed here.
+
+    Ordinary claim path, never a release: the callback does not write a due time
+    of its own. A null due time is read as another submitter's ownership and ends
+    the retries (see _resume_restored_download), which is what keeps this ladder
+    from turning a submitted task due a second time.
+
+    Args:
+        task_id: The operation to claim again.
+        attempt: How many claim retries have been made; escalates the delay up to
+            the configured ceiling.
+    """
+    delay = min(
+        _DOWNLOAD_RETRY_CONFIG["base_seconds"] * (2 ** (max(1, attempt) - 1)),
+        _DOWNLOAD_RETRY_CONFIG["max_delay_seconds"],
+    )
+    timer = threading.Timer(delay, _resume_restored_download, args=(task_id, attempt))
+    timer.daemon = True
+    timer.start()
+    AppLogger.info(
+        "Re-arming the claim of a restored download in %ss: task_id=%s, attempt=%d",
+        delay,
+        task_id,
+        attempt,
+    )
+
+
+def _resume_restored_download(task_id, attempt):
+    """Claim one restored download, or stop when somebody else owns it.
+
+    Runs on the timer armed by _schedule_claim_retry. The row is read only after
+    the claim found nothing, and the two readings are kept apart exactly as
+    _resubmit_download_task keeps them apart: a null due time means another
+    caller claimed and submitted the task, so this ladder is done; a non-null due
+    time means the task still needs an attempt, so it is retried.
+    """
+    dao = get_dao()
+
+    try:
+        submitted = resume_due_downloads(limit=1, task_id=task_id)
+    except Exception as exc:
+        AppLogger.warning("Cannot resume download %s (%s); re-arming", task_id, exc)
+        submitted = 0
+
+    if submitted:
+        return
+
+    try:
+        op = dao.require_async_operation(task_id)
+    except Exception as exc:
+        # An unreadable row is not evidence that the retry is somebody else's.
+        AppLogger.warning("Cannot re-check download %s (%s); re-arming", task_id, exc)
+        _schedule_claim_retry(task_id, attempt + 1)
+        return
+
+    if op is None:
+        AppLogger.info("Restored download is gone, dropping it: task_id=%s", task_id)
+        return
+
+    if op.status != TaskStatus.QUEUED.value:
+        AppLogger.info(
+            "Restored download is no longer queued, dropping it: task_id=%s, status=%s",
+            task_id,
+            op.status,
+        )
+        return
+
+    if op.retry_after is None:
+        # Claimed by another caller: the task is theirs, and a second submission
+        # would report `interrupted` over the copy they are running.
+        AppLogger.info(
+            "Restored download was claimed by another caller, leaving it: task_id=%s",
+            task_id,
+        )
+        return
+
+    _schedule_claim_retry(task_id, attempt + 1)
+
+
+def _resubmit_download_task(worker_fn, args, task_id, model_name, operation, deferred_fn):
+    """Resubmit a deferred download, but only after claiming it.
+
+    The claim is what makes this safe to run from more than one place: this
+    timer, a status poll and another worker process can all see the task as due,
+    but only the caller that clears ``retry_after`` submits it (see
+    claim_due_download). A read failure is not evidence that the task is gone, so
+    it re-arms the timer instead of dropping the task's only retry; a submission
+    failure hands the due time back (see _release_download_claim) so the next
+    attempt can still find the task.
+    """
+    dao = get_dao()
+
+    try:
+        claimed = dao.claim_due_download(task_id=task_id)
+    except Exception as exc:
+        # A transient database failure must not cost the retry: the row is still
+        # there as far as we know, and a status poll may miss it. Arm another
+        # timer at the ceiling; the next one can read the row again.
+        AppLogger.warning(
+            "Cannot claim deferred download %s (%s); re-arming", task_id, exc
+        )
+        _schedule_download_retry(
+            worker_fn,
+            args,
+            task_id,
+            model_name,
+            operation,
+            {"delay": _DOWNLOAD_RETRY_CONFIG["max_delay_seconds"]},
+            deferred_fn,
+        )
+        return
+
+    if claimed is not None:
+        try:
+            submit_download_task(
+                worker_fn,
+                args=args,
+                task_id=task_id,
+                model_name=model_name,
+                operation=operation,
+                complete_async_operation_fn=_complete_async_operation,
+                deferred_fn=deferred_fn,
+            )
+        except Exception as exc:
+            # The claim is already spent: without this write the task is queued
+            # with no due time, which no recovery path can find. The restored due
+            # time is then picked up by another timer -- request-driven recovery
+            # alone would never happen for a client watching the SSE stream.
+            if _release_download_claim(dao, task_id, exc):
+                _schedule_download_retry(
+                    worker_fn,
+                    args,
+                    task_id,
+                    model_name,
+                    operation,
+                    {"delay": _DOWNLOAD_RETRY_CONFIG["base_seconds"]},
+                    deferred_fn,
+                )
+            else:
+                # The write failed, so the due time is still null and the timer
+                # above would conclude "already scheduled". Retry the write
+                # itself instead.
+                _schedule_claim_release_retry(task_id, exc)
+        return
+
+    try:
+        op = dao.require_async_operation(task_id)
+    except Exception as exc:
+        AppLogger.warning(
+            "Cannot re-check deferred download %s (%s); re-arming", task_id, exc
+        )
+        _schedule_download_retry(
+            worker_fn,
+            args,
+            task_id,
+            model_name,
+            operation,
+            {"delay": _DOWNLOAD_RETRY_CONFIG["max_delay_seconds"]},
+            deferred_fn,
+        )
+        return
+
+    if op is None:
+        AppLogger.info(
+            "Deferred download is gone, dropping it: task_id=%s", task_id
+        )
+        return
+
+    if op.status != TaskStatus.QUEUED.value:
+        AppLogger.info(
+            "Deferred download is no longer queued, dropping it: task_id=%s, status=%s",
+            task_id,
+            op.status,
+        )
+        return
+
+    if op.retry_after is not None and op.retry_after > time.time():
+        # The timer fired early (whole-second rounding). Wait out what is left
+        # rather than dropping the task.
+        remaining = max(1, int(op.retry_after - time.time()))
+        AppLogger.info(
+            "Deferred download is not due yet, re-arming in %ss: task_id=%s",
+            remaining,
+            task_id,
+        )
+        _schedule_download_retry(
+            worker_fn,
+            args,
+            task_id,
+            model_name,
+            operation,
+            {"delay": remaining},
+            deferred_fn,
+        )
+        return
+
+    if op.retry_after is None:
+        # Queued with no due time: somebody else already claimed and submitted it.
+        AppLogger.info(
+            "Deferred download is already scheduled, leaving it: task_id=%s", task_id
+        )
+        return
+
+    # Due, but the claim did not take it. That is the claim failing (a database
+    # error swallowed before this callback ran) or another caller releasing a
+    # claim it could not submit: the row is recoverable, so re-arm instead of
+    # waiting for a request that may never come (an SSE client never polls).
+    AppLogger.info(
+        "Deferred download is due but unclaimed; re-arming: task_id=%s", task_id
+    )
+    _schedule_download_retry(
+        worker_fn,
+        args,
+        task_id,
+        model_name,
+        operation,
+        {"delay": _DOWNLOAD_RETRY_CONFIG["base_seconds"]},
+        deferred_fn,
+    )
+
+
+def _resubmit_claimed_download(operation):
+    """Submit one row claimed by claim_due_download, by its recorded parameters."""
+    data = operation.data if isinstance(operation.data, dict) else {}
+    release = data.get("release", "1.0.0")
+    resource_base_url = data.get("resource_base_url", "")
+    replace = bool(data.get("replace", False))
+
+    if operation.operation == OperationType.DOWNLOAD_START.value:
+        _trigger_model_download_start_background(
+            operation.task_id, operation.model_name, release, resource_base_url, replace
+        )
+    else:
+        _trigger_model_download_background(
+            operation.task_id, operation.model_name, release, resource_base_url, replace
+        )
+
+
+def resume_due_downloads(limit: int = 1, task_id=None) -> int:
+    """Submit due downloads whose in-process timer may have been lost.
+
+    A timer is only an accelerator: the due time lives on the row (see
+    ``retry_after``), so a queued download can be picked up by any caller that
+    finds it due. Requests call in here -- the status poll most of all, because
+    a client polling a task is the reliable signal that somebody still wants it
+    -- and that is what recovers a task whose timer was lost to a failed
+    callback, a cancelled process or a database blip.
+
+    Safe to call from every worker process: the claim is atomic, so at most one
+    caller submits a given task.
+
+    Args:
+        limit: Maximum number of tasks to submit in this call.
+        task_id: Resume this task only. Used by _retry_claim_release to hand one
+            download back once its due time could be restored.
+
+    Returns:
+        int: How many downloads this call submitted.
+    """
+    dao = get_dao()
+    submitted = 0
+
+    for _ in range(max(0, limit)):
+        try:
+            claimed = dao.claim_due_download(task_id=task_id)
+        except Exception as exc:
+            # Same reasoning as _resubmit_download_task: a failed claim is not
+            # evidence that nothing is due. The next request tries again, and the
+            # task's own timer keeps its retry alive meanwhile.
+            AppLogger.warning(
+                "Cannot claim a due download (%s); leaving recovery to the next check",
+                exc,
+            )
+            break
+
+        if claimed is None:
+            break
+
+        try:
+            _resubmit_claimed_download(claimed)
+        except Exception as exc:
+            # The claim is spent, so a failed release write would leave the row
+            # invisible to this sweep and to every timer: retry the write.
+            if not _release_download_claim(dao, claimed.task_id, exc):
+                _schedule_claim_release_retry(claimed.task_id, exc)
+            continue
+
+        submitted += 1
+
+    return submitted
+
+
+def _download_deferred_handler(
+    worker_fn, args, task_id, model_name, operation, on_other_deferred=None
+):
+    """Return the ``deferred_fn`` a download-family submission hands the executor.
+
+    A download has one reason to be deferred: the CLI's lifecycle lock was held,
+    and that wait is this handler's to re-arm. A download_start can also have its
+    *start* phase deferred, but that happens on the service executor, which arms
+    its own retry -- so a result not tagged with the download phase is passed to
+    `on_other_deferred`, which only records it.
+    """
+    def _on_deferred(status, result):
+        if not isinstance(result, dict) or result.get("phase") != "download":
+            if on_other_deferred is not None:
+                on_other_deferred(status, result)
+            return
+
+        _schedule_download_retry(
+            worker_fn, args, task_id, model_name, operation, result, _on_deferred
+        )
+
+    return _on_deferred
 
 
 def _trigger_model_start_background(task_id, model_name):
@@ -2190,11 +2925,7 @@ def _run_model_delete_task(task_id, model_name):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
-            AppLogger.info(
-                "Model delete completed for task_id: %s, model: %s",
-                task_id,
-                model_name,
-            )
+            AppLogger.info("Model delete completed for task_id: %s, model: %s", task_id, model_name)
             return {"status": "completed", "message": None}
 
         if result.returncode == _CLI_EXIT_TEMPFAIL:
@@ -2278,13 +3009,7 @@ def _run_model_start_task(task_id, model_name):
         taosanodectl = foundation_util.get_taosanodectl_cmd()
         start_timeout = foundation_util.resolve_model_start_timeout()
 
-        cmd = taosanodectl + [
-            "model",
-            "start",
-            model_name,
-            "--timeout",
-            str(start_timeout),
-        ]
+        cmd = taosanodectl + ["model", "start", model_name, "--timeout", str(start_timeout)]
 
         foundation_util.log_invocation(
             "model start",
@@ -2434,10 +3159,7 @@ def _create_async_operation_task(request, model_name, operation, operation_type,
         model, model_name, operation.capitalize(), request.remote_addr, live
     )
     if not is_valid:
-        return {
-            "status": "error",
-            "message": error_msg,
-        }, 400
+        return {"status": "error", "message": error_msg}, 400
 
     # Judge the transition here as well, with the table that will record it: a
     # state that cannot reach this operation's target is a client error, not an
@@ -2655,8 +3377,8 @@ def _run_download_and_start_task(task_id, model_name, release, resource_base_url
     """Worker function for the download executor: download then auto-start a model.
 
     This runs in an executor thread. It composes the existing download and start
-    workers: the model is downloaded first (waiting for its turn on the shared
-    download flock like any download) and, only on a successful download, the
+    workers: the model is downloaded first (its apply can be refused by the CLI's
+    lifecycle lock like any download) and, only on a successful download, the
     model service is started.
 
     Args:
@@ -2667,14 +3389,21 @@ def _run_download_and_start_task(task_id, model_name, release, resource_base_url
         replace: Whether to replace an existing (downloaded) model
 
     Returns:
-        dict: Result with {"status": "completed"|"failed", "message": ...}
+        dict: Result with {"status": "completed"|"failed", "message": ...}, or
+            the download phase's deferred result when the CLI's lifecycle lock
+            refused it -- the caller re-arms the whole task, download again.
     """
     # Phase 1: download the model
     download_result = _run_download_task(task_id, model_name, release, resource_base_url, replace)
     if not download_result or download_result.get("status") != TaskStatus.COMPLETED.value:
+        # A download the lifecycle lock refused is not a failure: pass its
+        # deferred result on so the retry scheduler runs this task again.
+        if download_result and download_result.get("status") == "deferred":
+            return download_result
+
         # If the whole download_start op was cancelled/removed while waiting for
-        # the download lock, keep the interrupted semantics instead of masking
-        # it as a generic download failure.
+        # its turn, keep the interrupted semantics instead of masking it as a
+        # generic download failure.
         if download_result and download_result.get("status") == TaskStatus.INTERRUPTED.value:
             return download_result
 
@@ -2721,13 +3450,15 @@ def _run_download_and_start_task(task_id, model_name, release, resource_base_url
 
 
 def _deferred_start_stays_queued(_status, result):
-    """Decline to write an outcome for a deferred download_start.
+    """Record a download_start deferral whose retry someone else already armed.
 
-    The refused start is not the operation's end: _defer_operation already put the
-    row back to `queued`, and the retry that will run the start phase again was
-    armed by the service submission that ran it (see _run_download_and_start_task).
-    Writing a status here would both fake an outcome and make _resubmit_service_task
-    drop the retry, because a resubmit only happens while the task is still queued.
+    The download phase's deferral is re-armed by the download retry scheduler
+    (see _download_deferred_handler), so it does not reach here. What can arrive
+    is a deferred start phase: `_defer_operation` already put the row back to
+    `queued`, and the service submission that ran it armed the retry that runs
+    that phase again (see _run_download_and_start_task). Writing a status here
+    would both fake an outcome and make _resubmit_service_task drop the retry,
+    because a resubmit only happens while the task is still queued.
     """
     AppLogger.info(
         "download_start deferred behind an in-flight resource operation: "
@@ -2741,9 +3472,9 @@ def _trigger_model_download_start_background(task_id, model_name, release, resou
     """Dispatch a combined download-then-start task to the download executor.
 
     Executes: taosanodectl resource apply <model_name> then model start, inside
-    the executor. The download phase waits for its turn on the shared download
-    flock like any plain download; the model is auto-started only after the
-    download succeeds.
+    the executor. The download phase can be refused by the CLI's lifecycle lock
+    like any plain download -- that refusal defers the whole task rather than
+    failing it -- and the model is auto-started only after the download succeeds.
 
     Args:
         task_id: Unique identifier for tracking this operation
@@ -2752,14 +3483,22 @@ def _trigger_model_download_start_background(task_id, model_name, release, resou
         resource_base_url: Base URL for resource repository
         replace: Whether to replace existing model
     """
+    args = (task_id, model_name, release, resource_base_url, replace)
     submit_download_task(
         _run_download_and_start_task,
-        args=(task_id, model_name, release, resource_base_url, replace),
+        args=args,
         task_id=task_id,
         model_name=model_name,
         operation=OperationType.DOWNLOAD_START.value,
         complete_async_operation_fn=_complete_async_operation,
-        deferred_fn=_deferred_start_stays_queued,
+        deferred_fn=_download_deferred_handler(
+            _run_download_and_start_task,
+            args,
+            task_id,
+            model_name,
+            OperationType.DOWNLOAD_START.value,
+            on_other_deferred=_deferred_start_stays_queued,
+        ),
     )
 
 
@@ -2835,8 +3574,9 @@ def _reject_download_without_runtime(model_name, ip):
     ready": the model task is allowed to queue behind it instead of being
     rejected, even though the runtime directory is still missing. That is what
     makes asking for the runtime and then for a model work back to back without
-    waiting for the first to finish -- the download lock serializes the two, and
-    the worker re-checks readiness before applying the model.
+    waiting for the first to finish -- the CLI's lifecycle lock serializes the
+    two applies, the model worker defers while the runtime apply holds it, and it
+    re-checks readiness before every attempt (see _run_download_task).
 
     Returns:
         tuple: (response_dict, 400) when the runtime is unusable, else None.
@@ -3027,10 +3767,11 @@ def download_and_start_foundation_model(request):
         AppLogger.info("Added new model to database from repository: %s", model_name)
 
     # Deduplicate: if this model already has a download-and-start queued/running,
-    # reuse that task instead of enqueuing a duplicate.
+    # reuse that task instead of enqueuing a duplicate. The helper re-arms that
+    # task's retry if it was lost.
     active_op = foundation_util.get_active_download_op(model_name)
     if active_op:
-        return _reuse_download_response(active_op, model_name)
+        return _reuse_resumed_download(active_op, model_name)
 
     dao.cleanup_download_operations(model_name)
 
@@ -3150,10 +3891,7 @@ def _runtime_delete_blocker(dao):
         | set(_cli_inflight_downloads())
     )
     if downloading:
-        return (
-            "Cannot delete shared TSFM runtime while a download is in flight: "
-            + ", ".join(downloading)
-        )
+        return ("Cannot delete shared TSFM runtime while a download is in flight: " + ", ".join(downloading) )
 
     # An interrupted download row means the API restarted while the CLI child was
     # running. The row is history (never reclaimed) but the child may still be
@@ -3242,18 +3980,13 @@ def delete_foundation_runtime(request):
         JSON response with task_id for async tracking (HTTP 202), or HTTP 400
         when a model worker is running, starting, or a download is in flight.
     """
-    AppLogger.debug(
-        "Received shared TSFM runtime delete request, ip:%s", request.remote_addr
-    )
+    AppLogger.debug("Received shared TSFM runtime delete request, ip:%s", request.remote_addr)
 
     dao = get_dao()
     blocker = _runtime_delete_blocker(dao)
     if blocker:
         AppLogger.error("%s, ip:%s", blocker, request.remote_addr)
-        return {
-            "status": "error",
-            "message": blocker,
-        }, 400
+        return { "status": "error", "message": blocker }, 400
 
     response, code = _start_delete_operation(
         RUNTIME_RESOURCE_NAME, "Shared TSFM runtime deletion initiated"
@@ -3388,11 +4121,7 @@ def _run_model_stop_task(task_id, model_name):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=exec_timeout)
 
         if result.returncode == 0:
-            AppLogger.info(
-                "Model stop completed for task_id: %s, model: %s",
-                task_id,
-                model_name,
-            )
+            AppLogger.info( "Model stop completed for task_id: %s, model: %s", task_id, model_name)
             return {"status": "completed", "message": None}
 
         if result.returncode == _CLI_EXIT_TEMPFAIL:

@@ -358,6 +358,13 @@ def _read_resource_task_states():
     directory does not exist yet, so the SSE stream degrades to model-only
     updates instead of failing.
 
+    The directory is created lazily, by the first task file written (see
+    ``_write_json`` in script/resource_manager.py), so a fresh install that has
+    never applied anything legitimately has none. That is a normal state, not a
+    fault: this is read once per poll by the SSE stream and once per request by
+    the list endpoint, so reporting it as a warning would fill the log of an
+    idle host.
+
     Each call opens and parses every file in the directory, so the SSE emitter
     reads it once per poll and passes that snapshot down to the payloads it
     builds (see _emit_operation_status_updates). Callers that build a single
@@ -367,7 +374,7 @@ def _read_resource_task_states():
 
     task_root = Path(resource_dir) / "state" / "tasks"
     if not task_root.is_dir():
-        AppLogger.warning("Failed to read task state, resource task directory does not exist: %s", task_root)
+        AppLogger.debug("No resource task directory yet, nothing to read: %s", task_root)
         return []
 
     states = []
