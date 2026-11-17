@@ -249,6 +249,7 @@
 ,,n,cases,bash 83-DocTest/jdbc.sh
 ,,n,cases,bash 83-DocTest/go.sh
 ,,n,cases,bash 83-DocTest/test_R.sh
+,,n,cases,bash 83-DocTest/taosx.sh
 
 # 01-DataTypes
 
