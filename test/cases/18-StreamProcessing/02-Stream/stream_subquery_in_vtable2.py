@@ -13,7 +13,6 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import time
 from new_test_framework.utils import (tdLog, tdSql, tdCom, tdStream, StreamCheckItem, waitForRows)
 
 
@@ -137,12 +136,16 @@ class TestStreamSubQueryInVtable2:
                 tdSql.execute(f"insert into {self.db}.{self.triggertb} values {values}")
 
         def check1(self):
-            for i in range(60):
-                tdSql.query(f"select * from {self.db}.{self.restb} order by ts")
-                if tdSql.queryRows > 0:
-                    break
-                time.sleep(1)
-            assert tdSql.queryRows > 0
+            tdSql.query(
+                f"select ts, id, val from {self.db}.{self.triggertb} "
+                f"where id in (select id from {self.db}.{self.vtb} where category = 1) order by ts"
+            )
+            tdSql.checkRows(68)
+            expected_rows = list(tdSql.queryResult)
+            waitForRows(f"select * from {self.db}.{self.restb} order by ts", 68)
+            for row_index, expected_row in enumerate(expected_rows):
+                for column_index, expected_value in enumerate(expected_row):
+                    tdSql.checkData(row_index, column_index, expected_value)
 
     class InSubqueryNestedVirtualTables(StreamCheckItem):
         """Test nested IN subqueries with multiple virtual tables"""
