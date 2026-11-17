@@ -50,9 +50,6 @@ extern "C" {
  * or loaded in pieces; bounding the recorder by event count as well is the real fix. */
 #define REPLAY_MAX_EVENTS 5000000
 
-/* The cap is a memory budget: keep the arithmetic honest if SReplayEvent ever grows. */
-typedef char replay_max_events_memory_check[
-    (REPLAY_MAX_EVENTS * 368ull <= (2ull << 30)) ? 1 : -1];
 
 static inline bool replayPhaseTerminatesCall(uint16_t apiType, bool stmt2Async, uint16_t phase) {
   if (phase == WLR_PHASE_DONE) return true;
@@ -148,8 +145,13 @@ typedef struct {
   int32_t  retCode;
   int64_t  affectedRows;
   int64_t  fetchRows;
+  /* How many original fetch calls one recorded fetch event pair stands for. The
+   * recorder folds all fetch calls on a result into one BEGIN/RETURN pair; a
+   * missing tag means one call, which is what a 1.1 recording always carries. */
+  int64_t  fetchCalls;
   bool     affectedRowsSet;
   bool     fetchRowsSet;
+  bool     fetchCallsSet;
   const char *sql;
   uint32_t    sqlLen;
   const char *tbname; /* STMT set-table-name calls */
@@ -193,6 +195,12 @@ typedef struct {
   uint32_t       smlTbnameKeyLen;
   bool           smlTbnameKeySet;
 } SReplayEvent;
+
+/* The cap is a memory budget: keep the arithmetic honest if SReplayEvent ever grows.
+ * Deriving it from sizeof instead of a per-event byte count keeps the two numbers from
+ * drifting apart silently, and keeps a field addition from breaking the build. */
+typedef char replay_max_events_memory_check[
+    (REPLAY_MAX_EVENTS * sizeof(SReplayEvent) <= (2ull << 30)) ? 1 : -1];
 
 typedef struct {
   uint8_t *buf; /* whole segment contents; events alias into this */

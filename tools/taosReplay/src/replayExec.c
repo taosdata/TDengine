@@ -505,6 +505,30 @@ static void replayCompareCount(SReplayShared *sh, int32_t selfIdx, uint16_t apiT
   }
 }
 
+/*
+ * How many fetch calls one recorded event pair stands for.
+ *
+ * The recorder folds every fetch on a result into a single BEGIN/RETURN pair and
+ * records the call count on the RETURN: the BEGIN is written before the first fetch,
+ * when the count is still unknown. Replay only executes BEGIN events, so the count
+ * has to be read from the terminal event keyed by this BEGIN -- reading it from the
+ * BEGIN itself always yields one call and makes a folded multi-row result replay as
+ * a single row.
+ *
+ * A BEGIN with no terminal RETURN is an unfinished session (the recorder stopped, or
+ * the result was never freed), so no call count was ever recorded. Returning 0 tells
+ * the caller to replay the fetch loop until the result is exhausted, which is what
+ * the original call-by-call recording would have done.
+ */
+static int64_t replayFetchCalls(const SReplayShared *sh, int32_t selfIdx) {
+  if (sh == NULL || sh->terminalByBegin == NULL || sh->session == NULL) return 0;
+  if (selfIdx < 0 || selfIdx >= sh->eventTotal) return 0;
+  int32_t terminalIdx = sh->terminalByBegin[selfIdx];
+  if (terminalIdx < 0) return 0;
+  const SReplayEvent *terminal = &sh->session->events[terminalIdx];
+  return (terminal->fetchCallsSet && terminal->fetchCalls > 1) ? terminal->fetchCalls : 1;
+}
+
 static void replayDropStmt2(SReplayShared *sh, const SReplayEvent *e, TAOS_STMT2 *stmt2) {
   replayLaneDropStmt(sh, e->sessionIdx, e->stmtId);
   (void)taos_stmt2_close(stmt2);
@@ -978,10 +1002,24 @@ static int32_t replayRunEvent(SReplayShared *sh, const SReplayEvent *e, int32_t 
           ++nSkip;
           break;
         }
-        TAOS_ROW row = taos_fetch_row(res);
-        int32_t code = taos_errno(res);
-        replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
-        replayCompareCount(sh, selfIdx, e->apiType, row != NULL ? 1 : 0, false, &nCountMis);
+        /* A folded pair stands for the whole fetch loop, including the call that
+         * returned NULL. Replaying it one row at a time is what reproduces the
+         * original number of round trips. A count of 0 means the session never
+         * recorded its terminal event, so the loop runs until the result ends. */
+        int64_t calls = replayFetchCalls(sh, selfIdx);
+        int64_t rows = 0;
+        /* The recorder stores the FIRST non-zero code of the session, so compare
+         * against the same value rather than the last call's. */
+        int32_t firstErr = 0;
+        for (int64_t i = 0; calls == 0 || i < calls; ++i) {
+          TAOS_ROW row = taos_fetch_row(res);
+          int32_t  callCode = taos_errno(res);
+          if (row != NULL) ++rows;
+          if (callCode != 0 && firstErr == 0) firstErr = callCode;
+          if (row == NULL || callCode != 0) break;
+        }
+        replayCompareOutcome(sh, selfIdx, e->apiType, firstErr, &nErr, &nMis);
+        replayCompareCount(sh, selfIdx, e->apiType, rows, false, &nCountMis);
         replayLaneReleaseResult(sh, e->sessionIdx, e->resultId, res);
         ++nExec;
         break;
@@ -995,16 +1033,24 @@ static int32_t replayRunEvent(SReplayShared *sh, const SReplayEvent *e, int32_t 
           ++nSkip;
           break;
         }
-        int32_t rows = 0;
-        if (e->apiType == WLR_API_FETCH_RAW_BLOCK) {
-          void *pData = NULL;
-          int32_t code = taos_fetch_raw_block(res, &rows, &pData);
-          replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
-        } else {
-          TAOS_ROW row = NULL;
-          int32_t code = taos_fetch_block_s(res, &rows, &row);
-          replayCompareOutcome(sh, selfIdx, e->apiType, code, &nErr, &nMis);
+        int64_t calls = replayFetchCalls(sh, selfIdx);
+        int64_t rows = 0;
+        int32_t firstErr = 0;
+        for (int64_t i = 0; calls == 0 || i < calls; ++i) {
+          int32_t blockRows = 0;
+          int32_t code = 0;
+          if (e->apiType == WLR_API_FETCH_RAW_BLOCK) {
+            void *pData = NULL;
+            code = taos_fetch_raw_block(res, &blockRows, &pData);
+          } else {
+            TAOS_ROW row = NULL;
+            code = taos_fetch_block_s(res, &blockRows, &row);
+          }
+          if (blockRows > 0) rows += blockRows;
+          if (code != 0 && firstErr == 0) firstErr = code;
+          if (code != 0 || blockRows == 0) break;
         }
+        replayCompareOutcome(sh, selfIdx, e->apiType, firstErr, &nErr, &nMis);
         replayCompareCount(sh, selfIdx, e->apiType, rows, false, &nCountMis);
         replayLaneReleaseResult(sh, e->sessionIdx, e->resultId, res);
         ++nExec;

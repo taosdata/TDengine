@@ -457,6 +457,7 @@ bool wlrTagIsKnown(uint16_t tag) {
     case WLR_TAG_AFFECTED_ROWS:
     case WLR_TAG_FETCH_ROWS:
     case WLR_TAG_DURATION_NS:
+    case WLR_TAG_FETCH_CALLS:
     /* chunking */
     case WLR_TAG_CHUNK_INDEX:
     case WLR_TAG_CHUNK_COUNT:

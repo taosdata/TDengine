@@ -30,6 +30,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
         ts_col_name timestamp,
         create_definition[ ,create_definition] ...
     )
+    [reference_definition | series_definition] ...
     [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
@@ -42,7 +43,15 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
     [db_name.]table_name.col_name
     | ext_source_name.db_name.table_name.col_name [WHERE filter_condition]
     | ext_source_name.db_name.schema_name.table_name.col_name [WHERE filter_condition]
+    | reference_alias.col_name [WHERE filter_condition]
     | series_alias.col_name
+
+  reference_definition:
+    REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+
+  series_definition:
+    SERIES series_alias AS ext_source_name.db_name.measurement_name
+        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
 
   vtag_def:
     tag_name type_name = const_value
@@ -50,7 +59,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 
 ```
 
-引用 TDengine 表或已有虚拟表时，`column_reference` 使用 `[db_name.]table_name.col_name`，因此列定义仍为 `type_name [FROM [db_name.]table_name.col_name]`。`ext_source_name` 表示已创建的外部数据源，`series_alias` 表示 InfluxDB 的 `SERIES` 声明别名；外部引用的可选 `WHERE filter_condition` 见 [外部列引用条件过滤](#外部列引用条件过滤)。SQL Server 外部列引用支持三种形式：三段式 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE` 和 `SCHEMA`）、四段式 `ext_source_name.schema.table_name.col_name`（需源配置默认 `DATABASE`）和五段式 `ext_source_name.database.schema.table_name.col_name`；相对形式在创建时会展开为五段式完整命名空间存储。
+引用 TDengine 表或已有虚拟表时，`column_reference` 使用 `[db_name.]table_name.col_name`，因此列定义仍为 `type_name [FROM [db_name.]table_name.col_name]`。`ext_source_name` 表示已创建的外部数据源，`series_alias` 表示 InfluxDB 的 `SERIES` 声明别名，`reference_alias` 表示指定外部时间列的 `REFERENCE` 声明别名。外部引用的可选 `WHERE filter_condition` 见 [外部列引用条件过滤](#外部列引用条件过滤)。SQL Server 外部列引用支持三种形式：三段式 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE` 和 `SCHEMA`）、四段式 `ext_source_name.schema.table_name.col_name`（需源配置默认 `DATABASE`）和五段式 `ext_source_name.database.schema.table_name.col_name`；相对形式在创建时会展开为五段式完整命名空间存储。
 
 InfluxDB 1.8 和 3.x 的列引用均使用 `ext_source_name.table_name.col_name`（需源配置默认 `DATABASE`）或 `ext_source_name.db_name.table_name.col_name`。1.8 的 RP 由外部源的 `retention_policy` 选择，不写入列路径；`SERIES` 目标仍为三段式。配置和示例见 [联邦查询的 InfluxDB SERIES 列引用](../04-data-query/06-federated-query.md#influxdb-series-列引用)。
 
@@ -66,8 +75,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
     USING [db_name.]stb_name
     [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
-    [SERIES series_alias AS ext_source_name.db_name.measurement_name
-        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
+    [reference_definition | series_definition] ...
 
   create_definition:
      [stb_col_name FROM] column_reference
@@ -83,7 +91,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
 
 #### 批量创建虚拟子表
 
-一条 `CREATE VTABLE` 语句可以包含多个虚拟子表建表子句。各子句之间不使用逗号分隔，每个子句都可以独立指定 `IF NOT EXISTS`、虚拟超级表、列引用、标签值、标签引用和 `SERIES`。
+一条 `CREATE VTABLE` 语句可以包含多个虚拟子表建表子句。各子句之间不使用逗号分隔，每个子句都可以独立指定 `IF NOT EXISTS`、虚拟超级表、列引用、标签值、标签引用、`REFERENCE` 和 `SERIES`。
 
 ```sql
 CREATE VTABLE
@@ -119,7 +127,7 @@ CREATE VTABLE
 
 虚拟子表可以拥有独立于虚拟超级表的成员。语法上靠是否携带显式类型区分：
 
-- `create_definition` 中**不带类型**的 `[stb_col_name FROM] table_name.col_name` 为对齐列（既有语义，按名或按位置对齐虚拟超级表列）；**带显式类型**的 `owned_col_name type_name [FROM table_name.col_name]` 声明**自有列**——列名不在虚拟超级表 schema 中。携带 `FROM` 时该列绑定数据源；省略 `FROM` 时声明为**未绑定**的自有列（自 `v3.4.3.10` 起支持），其状态与绑定后执行 `ALTER COLUMN ... SET NULL` 相同，之后可用 `ALTER COLUMN ... SET` 绑定。对虚拟超级表已有的列再声明类型会报错。
+- `create_definition` 中**不带类型**的 `[stb_col_name FROM] table_name.col_name` 为对齐列（既有语义，按名或按位置对齐虚拟超级表列）；**带显式类型**的 `owned_col_name type_name [FROM table_name.col_name]` 声明**自有列**——列名不在虚拟超级表 schema 中。携带 `FROM` 时该列绑定数据源；省略 `FROM` 时声明为**未绑定**的自有列（自 `v3.4.3.10` 起支持），其状态与绑定后执行 `ALTER COLUMN ... SET NULL` 相同，之后可用 `ALTER COLUMN ... SET` 绑定。未绑定列在已有时间轴上返回 `NULL`。对虚拟超级表已有的列再声明类型会报错。
 - `tag_definition` 中**不带类型**的 `tag_name` 为按名绑定虚拟超级表标签（既有语义）；**带显式类型**的 `owned_tag_name type_name` 声明**自有标签**，其值在 `TAGS(...)` 中按位置给出，可为字面量、`NULL` 或标签引用。位置式标签绑定（不写标签清单）不支持声明自有标签。
 
 **示例**
@@ -150,7 +158,7 @@ CREATE VTABLE v_d1 (
 6. 使用 `VARCHAR`、`NCHAR`、`GEOMETRY` 数据类型时，需指定其最长字节数。例如 `VARCHAR(20)` 表示最长 20 字节。
 7. 虚拟表不支持 `BLOB` 和 `MEDIUMBLOB` 数据类型。
 8. 创建虚拟表时使用 `FROM` 指定列的数据源，支持使用 `db_name` 跨库指定数据源。不指定 `db_name` 时默认使用当前数据库；若未使用数据库且未指定 `db_name`，则会报错。
-9. 创建虚拟表时不能显式指定 `ts` 列的数据源。`ts` 列的取值是查询虚拟表时，查询语句中包含的所有列对应的原始表主键时间戳的并集。
+9. 创建虚拟表时不能显式指定 `ts` 列的数据源。`ts` 列的取值是参与查询的列对应时间轴的并集。`REFERENCE` 绑定使用声明选定的时间列，其他绑定使用其既有时间轴。
 10. 虚拟超级表下只支持创建虚拟子表，虚拟子表也只能以虚拟超级表为模板创建。
 11. 创建虚拟表时需要保证虚拟表中的列、标签与指定的数据源列、标签的数据类型相同，否则会报错。
 12. 在同一个数据库内，虚拟表名称不允许重名，虚拟表名和表名也不允许重名。虚拟表名和视图名允许重名但不推荐；当视图与虚拟表重名时，写入、查询、授权、回收权限等操作优先使用同名表。
@@ -162,6 +170,49 @@ CREATE VTABLE v_d1 (
 18. 自有标签不支持 `JSON` 和 `DECIMAL` 类型；虚拟超级表仅有单个 `JSON` 标签时，不可再为虚拟子表声明自有标签。
 19. 列名与标签名共享同一个名字空间：自有列/自有标签的名称不得与虚拟超级表的列、标签及其他自有成员重名。此外，`ALTER STABLE` 为虚拟超级表引入的新列名/标签名若被任一虚拟子表的自有成员占用，该 `ALTER` 会失败。
 20. 虚拟普通表的列定义必须带类型（`name TYPE [FROM ...]`）；不带类型的 `name FROM ...` 形式仅用于虚拟子表的对齐列。
+
+### 显式指定外部时间列
+
+虚拟普通表和虚拟子表可以通过 `REFERENCE` 选择 MySQL、PostgreSQL、SQL Server 或 Oracle 外部表或视图中的时间列。源对象可以没有主键，选定的时间列也可以是普通数据列。该列的连接器映射类型必须为 `TIMESTAMP`，虚拟表所在数据库的 `PRECISION` 必须满足所选列的精度要求。时间值转换、时区解释和精度校验沿用联邦查询规则。
+
+`REFERENCE` 声明保存源对象和时间列，各数据列通过 `reference_alias.column_name` 绑定值列，并分别保存自己的可选 `WHERE` 条件。过滤条件沿用下节的表达式和类型规则，允许按业务需要过滤任意列，也允许仅过滤部分主键列。每次查询根据参与读取的列绑定生成时间轴，未被列使用的声明不产生时间戳。
+
+```sql
+CREATE VTABLE readings (
+    ts TIMESTAMP,
+    value DOUBLE FROM r1.value WHERE device = 'd1'
+)
+REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+
+CREATE STABLE readings_vst (ts TIMESTAMP, value DOUBLE) TAGS (device VARCHAR(16)) VIRTUAL 1;
+CREATE VTABLE readings_d1 (
+    value FROM r1.value WHERE device = 'd1',
+    extra_value DOUBLE
+) USING readings_vst TAGS ('d1')
+REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+```
+
+示例假设 SQL Server 视图 `readings_view` 的 `EventTime` 可映射为 `TIMESTAMP`，`value` 可映射为 `DOUBLE`。同一外部对象可以通过多个别名选择相同或不同的时间列。虚拟普通表的声明位于列列表之后、`TAGS` 之前，虚拟子表的声明位于 `TAGS` 之后。多个 `REFERENCE` 和 `SERIES` 可以交错声明，以空白分隔。
+
+未加反引号的别名转换为小写，加反引号的别名保留大小写。`REFERENCE` 和 `SERIES` 共享别名空间，并沿用既有重名检查。对于两段式 `alias.column`，依次尝试精确匹配的 `REFERENCE` 别名、同名本地表、按声明顺序忽略大小写匹配的 `REFERENCE` 别名，然后进入既有来源解析。混合声明同时产生不同的 `REFERENCE` 与 `SERIES` 候选时返回名称歧义错误。可使用 `db_name.table_name.column_name` 指定同名本地表。源对象和值列、时间列的大小写规则由对应外部源决定。
+
+每张虚拟普通表或虚拟子表最多保存 128 个 `REFERENCE` 声明，包含暂时没有依赖列的声明。声明保存创建或修改时展开的完整源对象身份，后续 `USE` 或源默认命名空间变更不改变已保存的绑定。
+
+已有虚拟普通表和虚拟子表也支持以下操作。
+
+```sql
+ALTER VTABLE readings ADD REFERENCE r2 AS sqlsrc.telemetry.dbo.readings_view
+    TIMESTAMP CollectedAt;
+ALTER VTABLE readings ALTER COLUMN value SET r2.value WHERE device = 'd1';
+ALTER VTABLE readings MODIFY REFERENCE r2 AS sqlsrc.telemetry.dbo.readings_view
+    TIMESTAMP EventTime;
+ALTER VTABLE readings ALTER COLUMN value SET NULL;
+ALTER VTABLE readings REMOVE REFERENCE r2;
+```
+
+`ADD REFERENCE` 保存新声明，已有列通过显式绑定变更使用它。`MODIFY REFERENCE` 必须完整指定源对象与时间列，校验全部依赖列的列名、类型和保存的过滤条件后统一生效。`MODIFY` 和 `REMOVE` 使用标识符处理后的保存别名精确查找。删除声明前，需要先解除或迁移全部依赖列。`SET NULL` 清除列绑定及其过滤条件，声明由 `REMOVE REFERENCE` 单独删除。删除虚拟表时，其引用声明一并删除。
+
+查询按选定时间列读取，经列级过滤后实际消费的原始记录在时间对齐之前进行检查。时间为 `NULL`、重复或逆序时，查询返回错误。检查跨取数批次持续进行，覆盖本次实际消费的输入。符合既有优化条件的 `LIMIT` 可以下推，`OFFSET` 在本地时间校验、对齐和查询过滤之后执行。查询成功表示本次消费的输入通过检查。
 
 ### 外部列引用条件过滤
 
@@ -178,10 +229,10 @@ comparison_operator: = | != | <> | < | <= | > | >=
 
 **过滤条件限制**
 
-- `WHERE` 仅支持直接引用 MySQL、PostgreSQL 或 SQL Server 外部表的数据列。引用 TDengine 表、其他虚拟表、标签列或 InfluxDB `SERIES` 时不能追加此条件。通过其他虚拟表间接引用时，底层已经保存的过滤条件仍然有效。
-- 外部表必须有主键，且主键中恰好有一个可映射为 TDengine `TIMESTAMP` 的列。若有其他主键列，必须在每个列引用的 `WHERE` 中用 `列名 = 字面量` 覆盖所有这些列，以保证过滤后每个时间戳至多一行。主键只有时间戳列时，可以省略 `WHERE`。
+- `WHERE` 支持直接引用 MySQL、PostgreSQL 或 SQL Server 外部表的数据列，以及 MySQL、PostgreSQL、SQL Server 或 Oracle 的 `REFERENCE` 数据列绑定。引用 TDengine 表、其他虚拟表、标签列或 InfluxDB `SERIES` 时不能追加此条件。通过其他虚拟表间接引用时，底层已经保存的过滤条件仍然有效。
+- 使用直接外部列路径时，外部表必须有主键，且主键中恰好有一个可映射为 TDengine `TIMESTAMP` 的列。若有其他主键列，必须在每个列引用的 `WHERE` 中用 `列名 = 字面量` 覆盖所有这些列，以保证过滤后每个时间戳至多一行。主键只有时间戳列时，可以省略 `WHERE`。
 - 比较式左侧必须是当前外部表中不带表名或数据库名前缀的列名，右侧必须是数字、字符串或布尔字面量。条件也可以使用未被引用的外部列；字面量必须能转换为该列的数据类型，时间戳值必须使用字符串字面量。
-- 同一过滤条件内，每个外部列只能出现一次。MySQL 和 SQL Server 列名匹配不区分大小写（SQL Server 由 database 排序规则决定）；PostgreSQL 列名匹配区分大小写，未加反引号的标识符会转为小写，引用包含大写字母的列名时须用反引号保留大小写。例如，PostgreSQL 中的 `device` 和 `Device` 是不同列，可以分别用于同一过滤条件。非时间戳主键列只允许 `=`；其他列可以使用上方列出的比较运算符。多个比较式只能用 `AND` 连接，允许括号。
+- 同一过滤条件内，每个外部列只能出现一次。MySQL 和 SQL Server 列名匹配不区分大小写（SQL Server 由 database 排序规则决定）；PostgreSQL 列名匹配区分大小写，未加反引号的标识符会转为小写，引用包含大写字母的列名时须用反引号保留大小写。例如，PostgreSQL 中的 `device` 和 `Device` 是不同列，可以分别用于同一过滤条件。直接外部列路径的非时间戳主键列只允许 `=`；其他列可以使用上方列出的比较运算符。多个比较式只能用 `AND` 连接，允许括号。
 - 不支持 `OR`、`NOT`、`IN`、`LIKE`、`IS NULL`、`NULL` 值、函数、算术表达式、子查询或参数占位符。`BETWEEN` 会展开为对同一列的两次比较，因此也不支持。
 - 查询语句中的 `WHERE` 不能代替列定义中必需的主键过滤条件。不同列可以引用同一外部表的不同过滤结果；各列独立过滤，时间戳取参与查询的引用列过滤结果的并集，缺失值填充为 `NULL`。
 
@@ -207,7 +258,7 @@ ALTER VTABLE filtered_readings ALTER COLUMN b SET NULL;
 SHOW CREATE VTABLE filtered_readings;
 ```
 
-`ALTER COLUMN ... SET` 会替换整个列引用及其条件，不能单独修改 `WHERE`。重新绑定时省略 `WHERE` 会清除旧条件，但新引用仍须满足主键要求；上例的复合主键不能省略 `device` 和 `tenant` 的等值条件。`SET NULL` 同时清除数据源引用和过滤条件。`SHOW CREATE VTABLE` 会输出保存的 `WHERE`，便于重建表定义。
+`ALTER COLUMN ... SET` 会替换整个列引用及其条件，不能单独修改 `WHERE`。使用直接外部列路径重新绑定时，省略 `WHERE` 会清除旧条件，该路径仍须满足主键要求。上例的复合主键不能省略 `device` 和 `tenant` 的等值条件。`SET NULL` 同时清除数据源引用和过滤条件。`SHOW CREATE VTABLE` 会输出保存的 `WHERE`，便于重建表定义。
 
 查询时会用当前外部元数据重新校验保存的条件。若过滤列被删除、字面量与新类型不兼容，或新的主键不再被条件完整覆盖，受影响的查询会报错；外部过滤执行失败也会报错，不会返回未过滤的数据。
 
@@ -558,6 +609,9 @@ alter_table_clause: {
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP TAG tag_name
   | RENAME TAG old_tag_name new_tag_name
+  | ADD REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | MODIFY REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | REMOVE REFERENCE reference_alias
 }
 ```
 
@@ -651,6 +705,9 @@ alter_table_clause: {
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP COLUMN owned_col_name
   | DROP TAG owned_tag_name
+  | ADD REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | MODIFY REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | REMOVE REFERENCE reference_alias
 }
 ```
 
@@ -799,6 +856,8 @@ SHOW CREATE VTABLE [db_name.]vtable_name;
 对于包含自有成员的虚拟子表，返回结果同样包含自有列（含其数据源引用）与自有标签（含其值或引用）的完整定义，`DECIMAL` 列输出精度标度 `DECIMAL(p,s)`；数据源已置空的自有列输出为不带 `FROM` 的 `name TYPE`，重放后保持未绑定状态；数据源为空的级联列由虚拟超级表提供 schema，不会出现在输出中。输出为单条完整可回放的 DDL。
 对于带标签的虚拟普通表，返回结果包含 `TAGS(...)` 子句：自有标签内联输出 `= value`（`NULL` 值输出 `= NULL`），标签引用输出 `FROM db_name.table_name.tag_name`，单条语句即可完整重建该虚拟表。
 
+`SHOW CREATE VTABLE` 保留 `REFERENCE` 别名绑定、列级过滤条件、完整源对象路径与所选时间列，并按原顺序输出混合的 `REFERENCE` 和 `SERIES` 声明，包含零依赖声明。
+
 ### 获取虚拟表结构信息
 
 ```sql
@@ -806,6 +865,8 @@ DESCRIBE [db_name.]vtb_name;
 ```
 
 `DESCRIBE` 会展示虚拟表的列与标签结构；对于标签引用和列引用，结果中会包含对应的引用来源信息。标签行带 `TAG` 标记（虚拟普通表的自有标签、虚拟子表的自有标签均是）；对于包含自有成员的虚拟子表，自有列显示为普通数据列，排在虚拟超级表列之后。
+
+对于 `REFERENCE` 绑定，`DESCRIBE` 和 `information_schema.ins_columns.col_source` 展示完整值列路径、`(TIMESTAMP time_column)` 及保存的 `WHERE` 条件。展示长度不足时保留有效字符边界，并追加 `... [truncated]`。`information_schema.ins_virtual_child_columns` 的来源字段继续使用纯列路径。
 
 ### 查看虚拟子表当前标签值
 
@@ -823,6 +884,8 @@ SHOW VTABLE VALIDATE FOR [db_name.]vtb_name;
 ```
 
 `SHOW VTABLE VALIDATE` 用于检查虚拟普通表或虚拟子表的列和标签引用关系，并返回与 `information_schema.ins_virtual_tables_referencing` 一致的校验结果（包括 `err_code`、`err_msg`）。
+
+`REFERENCE` 校验结果另含 `reference_alias`、`reference_object` 和 `reference_time_column`。零依赖声明以 `type = 2` 返回，`virtual_col_name` 和 `src_column_name` 为 `NULL`。校验检查当前外部对象、时间列、类型、精度和权限，时间值的有效性在实际查询读取时检查。
 
 ### 查看虚拟普通表和虚拟子表信息
 

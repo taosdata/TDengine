@@ -50,6 +50,7 @@ void metaReaderClear(SMetaReader *pReader) {
     metaULock(pReader->pMeta);
   }
   tFreeSSeriesWrapper(&pReader->me.series);
+  tFreeVtableReferenceExt(&pReader->me.referenceExt);
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
   pReader->pBuf = NULL;
@@ -62,6 +63,7 @@ void metaReaderClear(SMetaReader *pReader) {
 static int32_t metaDecodeLoadedTableEntry(SMetaReader *pReader) {
   // decode the entry
   tFreeSSeriesWrapper(&pReader->me.series);
+  tFreeVtableReferenceExt(&pReader->me.referenceExt);
   // The bit-5 tag trailer is optional: a record without it must leave the tag fields
   // zeroed. Otherwise the reader keeps stale decoder-pool pointers from the previously
   // decoded entry, and cursor reuse shows phantom tags on tag-less tables.
@@ -570,6 +572,8 @@ static int32_t metaDecodeTableBatchInfo(SMeta *pMeta, const STdbTbBatchGetArg *p
   }
 
   tFreeSSeriesWrapper(&entry.series);
+
+  tFreeVtableReferenceExt(&entry.referenceExt);
   tDecoderClear(&decoder);
   return code;
 }
@@ -682,6 +686,7 @@ int32_t metaGetTableInfosByNames(void *pVnode, const SArray *pTbNames, SArray *p
         pInfo->code = code;
       }
       tFreeSSeriesWrapper(&entry.series);
+      tFreeVtableReferenceExt(&entry.referenceExt);
       tDecoderClear(&decoder);
     }
   }
@@ -2017,6 +2022,9 @@ void metaUpdTimeSeriesNum(SMeta *pMeta) {
 static FORCE_INLINE int64_t metaGetTimeSeriesNumImpl(SMeta *pMeta, bool forceUpd) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
   SVnodeStats *pStats = &pMeta->pVnode->config.vndStats;
+  if (vnodeIsTimeSeriesExcluded(pMeta->pVnode)) {
+    return 0;
+  }
   if (forceUpd || pStats->numOfTimeSeries <= 0) {
     metaUpdTimeSeriesNum(pMeta);
   }

@@ -129,6 +129,10 @@ typedef struct SMetaEntry {
   SExtSchema*      pExtSchemas;
   SColRefWrapper   colRef;   // col reference for virtual table
   SSeriesWrapper   series;   // series declarations for virtual table
+  SVtableReferenceExt referenceExt;
+  // Write-side precondition, checked under the metadata write lock and never persisted.
+  bool hasExpectedRversion;
+  int32_t expectedRversion;
   SVChildOwnSchema own;      // vchild own (extension) columns/tags, TSDB_VIRTUAL_CHILD_TABLE only
 } SMetaEntry;
 
@@ -202,6 +206,7 @@ typedef struct SMetaTableInfo {
 static FORCE_INLINE void destroyMetaTableInfo(SMetaTableInfo* mtInfo){
   if (mtInfo == NULL) return;
   tDeleteSchemaWrapper(mtInfo->schema);
+  mtInfo->schema = NULL;
   taosMemoryFreeClear(mtInfo->pExtSchemas);
 }
 

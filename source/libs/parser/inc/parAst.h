@@ -374,6 +374,10 @@ SNode*         createColumnRefNodeFromTriplet(SAstCreateContext* pCxt, SToken* p
 SNode*         createColumnRefNodeFromPair(SAstCreateContext* pCxt, SToken* pTable, SToken* pCol);
 SNode*         createSeriesTagOperatorNode(SAstCreateContext* pCxt, const SToken* pTagName, const SToken* pTagValue);
 SNode*         createSeriesTagListNode(SAstCreateContext* pCxt, SNode* pList, SNode* pOperator);
+SNode* createReferenceDeclNode(SAstCreateContext* pCxt, const SToken* pAlias,
+                               STokenTriplet* pTarget, const SToken* pTimeColumn);
+SNode* createAlterTableReference(SAstCreateContext* pCxt, SNode* pRealTable,
+                                 int8_t alterType, SNode* pDecl, const SToken* pAlias);
 SNode*         createSeriesDeclNode(SAstCreateContext* pCxt, const SToken* pAlias, STokenTriplet* pTarget, SNode* pTagCond);
 SNode*         createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, SNode* pOptions);
 SNode*         createColumnDefNodeWithTagVal(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType,

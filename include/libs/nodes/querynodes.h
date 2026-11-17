@@ -126,6 +126,10 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
+  int8_t    refPathParts;
+  int8_t    bindingKind;
+  char      referenceAlias[TSDB_COL_NAME_LEN];
+  char      timeColumn[TSDB_COL_NAME_LEN];
   char      colName[TSDB_COL_NAME_LEN];
   int8_t    refType;                                      // 0=internal, 1=external (DS section 6.2.8)
   char      refDbName[TSDB_DB_NAME_LEN];
@@ -597,6 +601,7 @@ typedef struct SVirtualTableNode {
   SVgroupsInfo*      pVgroupList;
   SNodeList*         refTables;
   SArray*            pExtSourceNames;  // SArray<char*> external source names (super table path)
+  bool               hasReferenceBinding;
   bool               hasFilterCond;  // any child column or referenced leaf has a saved external filter
   // TIME_ALIGN: when pAlignCols != NULL the table is the output of TABLE(TIME_ALIGN(...)).
   SArray*            pAlignCols;     // SArray<SAlignOutCol>; method is PREV or NEXT
@@ -1370,6 +1375,21 @@ bool nodesExprHasColumn(SNode* pNode);
 bool nodesExprsHasColumn(SNodeList* pList);
 bool nodesExprHasCorrelation(SNode* pNode);
 bool nodesExprsHasCorrelation(SNodeList* pList);
+
+typedef struct SExternalBindingContext {
+  int8_t bindingKind;
+  const char* timeColumn;
+} SExternalBindingContext;
+
+int32_t nodesValidateExternalFilterEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                      SNode* pFilterCond, timezone_t timezone, void* charsetCxt,
+                                      char* pMsg, int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                      const SExternalBindingContext* pBinding);
+int32_t nodesValidateExternalFilterCurrentMetaEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                                 const char* pFilterCondJson, int32_t filterCondLen,
+                                                 timezone_t timezone, void* charsetCxt, char* pMsg,
+                                                 int32_t msgLen, int32_t* pTsPrimaryKeyIndex,
+                                                 const SExternalBindingContext* pBinding);
 
 // Validate and normalize a DDL filter in place, returning the timestamp primary-key column index.
 int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,

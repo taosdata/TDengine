@@ -776,6 +776,11 @@ TSDB 错误码包括 taosc 客户端和服务端，所有语言的连接器无�
 | 0x80006215 | Invalid external column filter expression | 外部列过滤条件结构非法，或保存的条件无法解析 | 仅使用未限定列名与字面量进行比较，并通过 `AND` 连接；日期和时间使用字符串字面量 |
 | 0x80006216 | Duplicate column in external column filter | 外部列过滤条件中重复使用同一列，列名比较不区分大小写 | 确保每个条件列只出现一次 |
 | 0x80006217 | External column filter must constrain every business primary key column with an equality literal | 保存的外部列条件未通过等值字面量约束全部业务主键列 | 在列引用的过滤条件中为每个非时间戳主键列指定一次 `=` 字面量条件；查询的 `WHERE` 不能替代该条件 |
+| 0x80006218 | Ambiguous virtual table reference name | 虚拟表引用名称存在歧义 | 使用可唯一解析的引用别名或完整限定路径 |
+| 0x80006219 | Virtual table reference contains a null timestamp | 引用序列读取到空时间戳 | 检查所选时间列及保存的列过滤条件 |
+| 0x8000621A | Virtual table reference contains duplicate timestamps | 引用序列读取到重复时间戳 | 检查所选时间列转换后的值及保存的列过滤条件 |
+| 0x8000621B | Virtual table reference timestamps are out of order | 引用序列转换后的时间戳逆序 | 检查所选时间列的转换及远端读取顺序 |
+| 0x8000621C | Virtual table reference version conflict | 虚拟表引用定义发生并发修改 | 重新获取表定义并校验后重试 |
 
 #### federated query
 

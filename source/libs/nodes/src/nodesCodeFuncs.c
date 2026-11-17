@@ -28,6 +28,8 @@
 #include "tmsg.h"
 
 static int32_t nodeToJson(const void* pObj, SJson* pJson);
+static int32_t epSetToJson(const void* pObj, SJson* pJson);
+static int32_t jsonToEpSet(const SJson* pJson, void* pObj);
 static int32_t jsonToNode(const SJson* pJson, void* pObj);
 static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode);
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
@@ -227,6 +229,8 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateVirtualtableStmt";
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       return "CreateVirtualsubtableStmt";
+    case QUERY_NODE_REFERENCE_DECL:
+      return "ReferenceDecl";
     case QUERY_NODE_SERIES_DECL:
       return "SeriesDecl";
     case QUERY_NODE_SERIES_TAG_ASSIGN:
@@ -1297,6 +1301,33 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
       code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanRangePrecision, pNode->node.precision);
     }
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceKind", pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceAlias", pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceTime", pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceUid", pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceVersion", pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "ReferenceFilter", nodeToJson, pNode->pReferenceFilter);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceVgroup", pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "ReferenceEndpoints", epSetToJson, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceDatabase", pNode->referenceDbFName);
+  }
   return code;
 }
 
@@ -1393,6 +1424,33 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanRangePrecision) != NULL) {
     code = tjsonGetUTinyIntValue(pJson, jkScanLogicPlanRangePrecision, &pNode->node.precision);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceKind")) {
+    code = tjsonGetTinyIntValue(pJson, "ReferenceKind", &pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceAlias")) {
+    code = tjsonGetStringValue(pJson, "ReferenceAlias", pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceTime")) {
+    code = tjsonGetStringValue(pJson, "ReferenceTime", pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceUid")) {
+    code = tjsonGetUBigIntValue(pJson, "ReferenceUid", &pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceVersion")) {
+    code = tjsonGetIntValue(pJson, "ReferenceVersion", &pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceFilter")) {
+    code = jsonToNodeObject(pJson, "ReferenceFilter", &pNode->pReferenceFilter);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceVgroup")) {
+    code = tjsonGetIntValue(pJson, "ReferenceVgroup", &pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceEndpoints")) {
+    code = tjsonToObject(pJson, "ReferenceEndpoints", jsonToEpSet, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceDatabase")) {
+    code = tjsonGetStringValue(pJson, "ReferenceDatabase", pNode->referenceDbFName);
   }
   return code;
 }
@@ -2822,6 +2880,9 @@ static int32_t logicVirtualTableScanNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasFilterCond, pNode->hasFilterCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "HasReferenceBinding", pNode->hasReferenceBinding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkVirtualTableScanLogicPlanHasConstRefTag, pNode->hasConstRefTag);
   }
   return code;
@@ -2873,6 +2934,9 @@ static int32_t jsonToLogicVirtualTableScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasFilterCond, &pNode->hasFilterCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "HasReferenceBinding")) {
+    code = tjsonGetBoolValue(pJson, "HasReferenceBinding", &pNode->hasReferenceBinding);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkVirtualTableScanLogicPlanHasConstRefTag, &pNode->hasConstRefTag);
@@ -3953,6 +4017,33 @@ static int32_t federatedScanPhysiNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, "UnderVTableScan", pNode->underVTableScan);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceKind", pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceAlias", pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceTime", pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceUid", pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceVersion", pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "ReferenceFilter", nodeToJson, pNode->pReferenceFilter);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, "ReferenceVgroup", pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, "ReferenceEndpoints", epSetToJson, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, "ReferenceDatabase", pNode->referenceDbFName);
+  }
   return code;
 }
 
@@ -4078,9 +4169,36 @@ static int32_t jsonToFederatedScanPhysiNode(const SJson* pJson, void* pObj) {
       code = TSDB_CODE_SUCCESS;
     }
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceKind")) {
+    code = tjsonGetTinyIntValue(pJson, "ReferenceKind", &pNode->bindingKind);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceAlias")) {
+    code = tjsonGetStringValue(pJson, "ReferenceAlias", pNode->referenceAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceTime")) {
+    code = tjsonGetStringValue(pJson, "ReferenceTime", pNode->timeColumn);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceUid")) {
+    code = tjsonGetUBigIntValue(pJson, "ReferenceUid", &pNode->referenceUid);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceVersion")) {
+    code = tjsonGetIntValue(pJson, "ReferenceVersion", &pNode->expectedRversion);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceFilter")) {
+    code = jsonToNodeObject(pJson, "ReferenceFilter", &pNode->pReferenceFilter);
+  }
   taosPrintLog("FQ-DIAG-DECODE ", DEBUG_ERROR, 255,
                "jsonToFederatedScanPhysiNode: decoded twoPassMode=%d code=%d",
                (int)pNode->twoPassMode, code);
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceVgroup")) {
+    code = tjsonGetIntValue(pJson, "ReferenceVgroup", &pNode->referenceVgId);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceEndpoints")) {
+    code = tjsonToObject(pJson, "ReferenceEndpoints", jsonToEpSet, &pNode->referenceEpSet);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "ReferenceDatabase")) {
+    code = tjsonGetStringValue(pJson, "ReferenceDatabase", pNode->referenceDbFName);
+  }
   return code;
 }
 
@@ -9342,6 +9460,9 @@ static int32_t virtualTableNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code && SP_NONE != pNode->placeholderType) {
     code = tjsonAddIntegerToObject(pJson, jkVirtualTablePlaceholderType, pNode->placeholderType);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddBoolToObject(pJson, "HasReferenceBinding", pNode->hasReferenceBinding);
+  }
 
   return code;
 }
@@ -9373,6 +9494,9 @@ static int32_t jsonToVirtualTableNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkVirtualTablePlaceholderType)) {
     tjsonGetNumberValue(pJson, jkVirtualTablePlaceholderType, pNode->placeholderType, code);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, "HasReferenceBinding")) {
+    code = tjsonGetBoolValue(pJson, "HasReferenceBinding", &pNode->hasReferenceBinding);
   }
 
   return code;
@@ -11735,6 +11859,30 @@ static int32_t jsonToCreateMultiTablesStmt(const SJson* pJson, void* pObj) {
   return jsonToNodeList(pJson, jkCreateMultiTablesStmtSubTables, &pNode->pSubTables);
 }
 
+static int32_t referenceDeclToJson(const void* pObj, SJson* pJson) {
+  const SReferenceEntry* pEntry = &((const SReferenceDeclNode*)pObj)->entry;
+  int32_t code = tjsonAddStringToObject(pJson, "Alias", pEntry->alias);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddIntegerToObject(pJson, "SourceType", pEntry->sourceType);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pJson, "SourceName", pEntry->sourceName);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pJson, "DbName", pEntry->dbName);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pJson, "SchemaName", pEntry->schemaName);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pJson, "ObjectName", pEntry->objectName);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonAddStringToObject(pJson, "TimeColumn", pEntry->timeColumn);
+  return code;
+}
+
+static int32_t jsonToReferenceDecl(const SJson* pJson, void* pObj) {
+  SReferenceEntry* pEntry = &((SReferenceDeclNode*)pObj)->entry;
+  int32_t code = tjsonGetStringValue1(pJson, "Alias", pEntry->alias, sizeof(pEntry->alias));
+  if (code == TSDB_CODE_SUCCESS) tjsonGetNumberValue(pJson, "SourceType", pEntry->sourceType, code);
+  if (code == TSDB_CODE_SUCCESS) code = tjsonGetStringValue1(pJson, "SourceName", pEntry->sourceName, sizeof(pEntry->sourceName));
+  if (code == TSDB_CODE_SUCCESS) code = tjsonGetStringValue1(pJson, "DbName", pEntry->dbName, sizeof(pEntry->dbName));
+  if (code == TSDB_CODE_SUCCESS) code = tjsonGetStringValue1(pJson, "SchemaName", pEntry->schemaName, sizeof(pEntry->schemaName));
+  if (code == TSDB_CODE_SUCCESS) code = tjsonGetStringValue1(pJson, "ObjectName", pEntry->objectName, sizeof(pEntry->objectName));
+  if (code == TSDB_CODE_SUCCESS) code = tjsonGetStringValue1(pJson, "TimeColumn", pEntry->timeColumn, sizeof(pEntry->timeColumn));
+  return code;
+}
+
 static const char* jkCreateVTableStmtDbName = "DbName";
 static const char* jkCreateVTableStmtTableName = "TableName";
 static const char* jkCreateVTableStmtIgnoreExists = "IgnoreExists";
@@ -11757,6 +11905,7 @@ static int32_t createVTableStmtToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVTableStmtTags, pNode->pTags);
   }
+  if (TSDB_CODE_SUCCESS == code) code = nodeListToJson(pJson, "BindingDeclarations", pNode->pSeriesList);
   return code;
 }
 
@@ -11776,6 +11925,7 @@ static int32_t jsonToCreateVTableStmt(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkCreateVTableStmtTags, &pNode->pTags);
   }
+  if (TSDB_CODE_SUCCESS == code) code = jsonToNodeList(pJson, "BindingDeclarations", &pNode->pSeriesList);
   return code;
 }
 
@@ -11825,6 +11975,7 @@ static int32_t createVSubTableStmtToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkCreateVSubTableStmtTagRefs, pNode->pTagRefs);
   }
+  if (TSDB_CODE_SUCCESS == code) code = nodeListToJson(pJson, "BindingDeclarations", pNode->pSeriesList);
   return code;
 }
 
@@ -11864,6 +12015,7 @@ static int32_t jsonToCreateVSubTableStmt(const SJson* pJson, void* pObj) {
     code = jsonToNodeList(pJson, jkCreateVSubTableStmtTagRefs, &pNode->pTagRefs);
   }
 
+  if (TSDB_CODE_SUCCESS == code) code = jsonToNodeList(pJson, "BindingDeclarations", &pNode->pSeriesList);
   return code;
 }
 
@@ -14781,6 +14933,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return createVTableStmtToJson(pObj, pJson);
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       return createVSubTableStmtToJson(pObj, pJson);
+    case QUERY_NODE_REFERENCE_DECL:
+      return referenceDeclToJson(pObj, pJson);
     case QUERY_NODE_SERIES_DECL:
     case QUERY_NODE_SERIES_TAG_ASSIGN:
       return TSDB_CODE_SUCCESS;
@@ -15357,6 +15511,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToCreateVTableStmt(pJson, pObj);
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       return jsonToCreateVSubTableStmt(pJson, pObj);
+    case QUERY_NODE_REFERENCE_DECL:
+      return jsonToReferenceDecl(pJson, pObj);
     case QUERY_NODE_SERIES_DECL:
     case QUERY_NODE_SERIES_TAG_ASSIGN:
       return TSDB_CODE_SUCCESS;

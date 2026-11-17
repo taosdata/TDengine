@@ -541,6 +541,7 @@ static SKeyword keywordTable[] = {
     {"EXTERNAL",             TK_EXTERNAL},
     {"SOURCE",               TK_SOURCE},
     {"SOURCES",              TK_SOURCES},
+    {"REFERENCE",            TK_REFERENCE},
     {"REFRESH",              TK_REFRESH},
     {"OPTIONS",              TK_OPTIONS},
     {"SCHEMA",               TK_SCHEMA},

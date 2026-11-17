@@ -1473,6 +1473,7 @@ static bool stTriggerTaskNeedsMaxDelayPrevSnapshot(const SStreamTriggerTask *pTa
 static bool stRealtimeCalcGroupIsRunning(SStreamTriggerTask *pTask, int64_t sessionId, int64_t gid);
 static void stRealtimeGroupApplyMaxDelayPrevSnapshot(SSTriggerRealtimeGroup *pGroup, SSTriggerCalcParam *pParam);
 static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup);
+static int32_t stHistoryGroupCloseEventTail(SSTriggerHistoryGroup *pGroup);
 static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool saveWindow, SSDataBlock **ppDataBlock,
                                           int32_t *pStartIdx, int32_t *pEndIdx, bool *pAllTableProcessed,
                                           bool *pNeedFetchData);
@@ -28349,15 +28350,17 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  bool forceClose = pContext->isHistory &&
-                    (pTask->triggerType == STREAM_TRIGGER_SLIDING || pTask->triggerType == STREAM_TRIGGER_SESSION ||
-                     pTask->triggerType == STREAM_TRIGGER_STATE);
+  bool forceCloseEvent =
+      pContext->isHistory && pTask->fillHistoryFirst && !nested && pTask->triggerType == STREAM_TRIGGER_EVENT;
+  bool forceClose = forceCloseEvent || (pContext->isHistory && (pTask->triggerType == STREAM_TRIGGER_SLIDING ||
+                                                                pTask->triggerType == STREAM_TRIGGER_SESSION ||
+                                                                pTask->triggerType == STREAM_TRIGGER_STATE));
   if (finishCheckTransition && forceClose) {
     int32_t iter = 0;
     void   *px = tSimpleHashIterate(pContext->pGroups, NULL, &iter);
     while (px != NULL) {
       SSTriggerHistoryGroup *pGroup = *(SSTriggerHistoryGroup **)px;
-      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+      if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) || (forceCloseEvent && taosArrayGetSize(pGroup->activePath) > 0)) {
         TD_DLIST_APPEND(&pContext->groupsForceClose, pGroup);
       }
       px = tSimpleHashIterate(pContext->pGroups, px, &iter);
@@ -28375,7 +28378,10 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       }
       case STRIGGER_CONTEXT_CHECK_CONDITION: {
         int64_t now = taosGetTimestampNs();
-        if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
+        if (forceCloseEvent) {
+          code = stHistoryGroupCloseEventTail(pGroup);
+          QUERY_CHECK_CODE(code, lino, _end);
+        } else if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           SSTriggerWindow *pHead = TRINGBUF_HEAD(&pGroup->winBuf);
           SSTriggerWindow *p = pHead;
           do {
@@ -34851,8 +34857,8 @@ static int32_t stHistoryGroupCloseTreeSuffix(SSTriggerHistoryGroup *pGroup, int3
     pWin->range.ekey = ekey;
     if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
       QUERY_CHECK_CODE(stEventTreeBuildNotifyContent(pTask->pHistEventTree, pGroup->activePath, pGroup->openNodeWindows,
-                                                     i, pDataBlock, pTask->histEndCondCols, rowIdx, pGroup->gid,
-                                                     &pWin->pWinCloseNotify),
+                                                     i, pDataBlock, pDataBlock != NULL ? pTask->histEndCondCols : NULL,
+                                                     rowIdx, pGroup->gid, &pWin->pWinCloseNotify),
                        lino, _end);
     }
     QUERY_CHECK_CODE(stHistoryGroupAddTreeCalcParam(pGroup, pWin, STRIGGER_EVENT_WINDOW_CLOSE, !pNode->isLeaf), lino,
@@ -35238,6 +35244,77 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+static int32_t stHistoryGroupCloseEventWindow(SSTriggerHistoryGroup *pGroup, const SSDataBlock *pDataBlock,
+                                              int32_t rowIdx) {
+  int32_t             code = TSDB_CODE_SUCCESS;
+  int32_t             lino = 0;
+  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+  bool                checkSubEvent = nodeType(pTask->histStartCond) == QUERY_NODE_NODE_LIST;
+  // History tail closure has no END-condition row to include in the notification.
+  const SNodeList *pEndCondCols = pDataBlock != NULL ? pTask->histEndCondCols : NULL;
+  char            *pExtraNotifyContent = NULL;
+
+  stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
+  if (checkSubEvent && pGroup->numSubWindows == 1) {
+    // The single leaf is the envelope's duplicate, not a separate output.
+    pGroup->prevWindow = TRINGBUF_HEAD(&pGroup->winBuf)->range;
+    TRINGBUF_DEQUEUE(&pGroup->winBuf);
+    pGroup->pendingWinOpen = false;
+    tDestroySSTriggerCalcParam(&pGroup->pendingWinParam);
+  } else {
+    if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+      int64_t          parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
+      SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
+      char             conditionPath[32] = {0};
+      stTriggerTaskFormatFlatConditionPath(checkSubEvent ? pGroup->conditionIdx - 1 : 0, conditionPath,
+                                           sizeof(conditionPath));
+      code = stBuildEventNotifyContent(pDataBlock, pEndCondCols, rowIdx, conditionPath,
+                                       stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows), pGroup->gid,
+                                       pCurWin->range.skey, parentWindowStart, &pExtraNotifyContent);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  if (checkSubEvent) {
+    if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
+      code = stBuildEventNotifyContent(pDataBlock, pEndCondCols, rowIdx, "", false, pGroup->gid,
+                                       pGroup->parentWindow.range.skey, 0, &pGroup->parentWindow.pWinCloseNotify);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    code = stHistoryGroupOpenWindow(pGroup, pGroup->parentWindow.range.skey, &pGroup->parentWindow.pWinOpenNotify,
+                                    false, true, true, false);
+    QUERY_CHECK_CODE(code, lino, _end);
+    TRINGBUF_HEAD(&pGroup->winBuf)->range = pGroup->parentWindow.range;
+    TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->parentWindow.wrownum;
+    code = stHistoryGroupCloseWindow(pGroup, &pGroup->parentWindow.pWinCloseNotify, false, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+    pGroup->parentWindow = (SSTriggerNotifyWindow){0};
+    pGroup->numSubWindows = 0;
+    pGroup->conditionIdx = 0;
+  }
+
+_end:
+  taosMemoryFreeClear(pExtraNotifyContent);
+  if (code != TSDB_CODE_SUCCESS) {
+    ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+static int32_t stHistoryGroupCloseEventTail(SSTriggerHistoryGroup *pGroup) {
+  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+  if (pTask->pHistEventTree != NULL) {
+    TSKEY end = stHistoryGroupTreeLastActiveTs(pGroup, TSKEY_MIN);
+    return stHistoryGroupSwitchTreePath(pGroup, -1, NULL, 0, end, end, 0, true);
+  }
+  if (nodeType(pTask->histStartCond) == QUERY_NODE_NODE_LIST) {
+    // A final-row START switch opens a child without advancing the parent end.
+    pGroup->parentWindow.range.ekey = TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey;
+  }
+  return stHistoryGroupCloseEventWindow(pGroup, NULL, 0);
 }
 
 static int32_t stHistoryGroupSaveInitWindow(SSTriggerHistoryGroup *pGroup, SArray *pInitWindows) {
@@ -36972,45 +37049,8 @@ static int32_t stHistoryGroupDoEventCheck(SSTriggerHistoryGroup *pGroup) {
         }
       }
       if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && closeNow) {
-        stEventTreeResetEndStreak(&pGroup->endCondCount, &pGroup->endCondFirstTs);
-        if (checkSubEvent && pGroup->numSubWindows == 1) {
-          // The single leaf is the envelope's duplicate, not a separate output.
-          pGroup->prevWindow = TRINGBUF_HEAD(&pGroup->winBuf)->range;
-          TRINGBUF_DEQUEUE(&pGroup->winBuf);
-          pGroup->pendingWinOpen = false;
-          tDestroySSTriggerCalcParam(&pGroup->pendingWinParam);
-        } else {
-          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-            int64_t          parentWindowStart = checkSubEvent ? pGroup->parentWindow.range.skey : 0;
-            SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
-            char             conditionPath[32] = {0};
-            stTriggerTaskFormatFlatConditionPath(checkSubEvent ? pGroup->conditionIdx - 1 : 0, conditionPath,
-                                                 sizeof(conditionPath));
-            code = stBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, conditionPath,
-                                             stEventNotifyChildHasParent(checkSubEvent, pGroup->numSubWindows),
-                                             pGroup->gid, pCurWin->range.skey, parentWindowStart, &pExtraNotifyContent);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          code = stHistoryGroupCloseWindow(pGroup, &pExtraNotifyContent, false, false);
-          QUERY_CHECK_CODE(code, lino, _end);
-        }
-        if (checkSubEvent) {
-          if (pTask->notifyHistory && (pTask->notifyEventType & STRIGGER_EVENT_WINDOW_CLOSE)) {
-            code = stBuildEventNotifyContent(pDataBlock, pTask->histEndCondCols, r, "", false, pGroup->gid,
-                                             pGroup->parentWindow.range.skey, 0, &pGroup->parentWindow.pWinCloseNotify);
-            QUERY_CHECK_CODE(code, lino, _end);
-          }
-          code = stHistoryGroupOpenWindow(pGroup, pGroup->parentWindow.range.skey,
-                                          &pGroup->parentWindow.pWinOpenNotify, false, true, true, false);
-          QUERY_CHECK_CODE(code, lino, _end);
-          TRINGBUF_HEAD(&pGroup->winBuf)->range = pGroup->parentWindow.range;
-          TRINGBUF_HEAD(&pGroup->winBuf)->wrownum = pGroup->parentWindow.wrownum;
-          code = stHistoryGroupCloseWindow(pGroup, &pGroup->parentWindow.pWinCloseNotify, false, true);
-          QUERY_CHECK_CODE(code, lino, _end);
-          pGroup->parentWindow = (SSTriggerNotifyWindow){0};
-          pGroup->numSubWindows = 0;
-          pGroup->conditionIdx = 0;
-        }
+        code = stHistoryGroupCloseEventWindow(pGroup, pDataBlock, r);
+        QUERY_CHECK_CODE(code, lino, _end);
       }
     }
     // A qualified open window must notify even when history has no closing row.

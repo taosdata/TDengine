@@ -272,9 +272,6 @@ int32_t metaOpenImpl(SVnode *pVnode, SMeta **ppMeta, const char *metaDir, int8_t
   code = metaCacheOpen(pMeta);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = metaInitTbFilterCache(pMeta);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
   pMeta->uidSuidHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   TSDB_CHECK_NULL(pMeta->uidSuidHash, code, lino, _exit, terrno);
 

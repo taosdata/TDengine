@@ -2705,6 +2705,130 @@ TEST(execUtilTest, longJmpClearsNestedOperatorExecDepth) {
   EXPECT_EQ(child.cost.execDepth, 0);
 }
 
+TEST(execUtilTest, referenceTimestampValidationFollowsConsumedRowsAcrossBlocks) {
+  SSDataBlock* rawBlock = nullptr;
+  ASSERT_EQ(createDataBlock(&rawBlock), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(rawBlock, blockDataDestroy);
+  SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &info), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 3), TSDB_CODE_SUCCESS);
+  auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  int64_t values[] = {100, 200, 200};
+  for (int32_t row = 0; row < 3; ++row) {
+    ASSERT_EQ(colDataSetVal(column, row, reinterpret_cast<const char*>(&values[row]), false),
+              TSDB_CODE_SUCCESS);
+  }
+  SFederatedScanOperatorInfo state = {};
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(state.previousTimestamp, 100);
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 1), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(state.previousTimestamp, 200);
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 2),
+            TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP);
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 0),
+            TSDB_CODE_VTABLE_REFERENCE_TIMESTAMP_OUT_OF_ORDER);
+  ASSERT_EQ(colDataSetVal(column, 0, nullptr, true), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 0),
+            TSDB_CODE_VTABLE_REFERENCE_NULL_TIMESTAMP);
+  state.hasPreviousTimestamp = false;
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(&state, column, 1), TSDB_CODE_SUCCESS);
+}
+
+TEST(execUtilTest, referenceTimestampOrderUsesFirstProjectionWithDuplicateNames) {
+  const EExtSourceType sources[] = {EXT_SOURCE_MYSQL, EXT_SOURCE_POSTGRESQL,
+                                    EXT_SOURCE_SQLSERVER, EXT_SOURCE_ORACLE};
+  const char* legacyOrders[] = {" ORDER BY `event_time` ASC", " ORDER BY \"event_time\" ASC",
+                                " ORDER BY [event_time] ASC", " ORDER BY \"event_time\" ASC"};
+  const char* projection = "SELECT event_time, event_time FROM readings";
+  for (int32_t i = 0; i < 4; ++i) {
+    char sql[256] = {};
+    tstrncpy(sql, projection, sizeof(sql));
+    int32_t offset = strlen(sql);
+    ASSERT_EQ(fedScanAppendTimestampOrder(sql, sizeof(sql), &offset, sources[i],
+                                           VTABLE_BINDING_REFERENCE, "event_time"), TSDB_CODE_SUCCESS);
+    std::string expected = std::string(projection) + " ORDER BY 1 ASC";
+    if (sources[i] == EXT_SOURCE_POSTGRESQL || sources[i] == EXT_SOURCE_ORACLE) {
+      expected += " NULLS FIRST";
+    }
+    EXPECT_EQ(sql, expected);
+    EXPECT_EQ(offset, expected.size());
+
+    for (int8_t binding : {VTABLE_BINDING_LEGACY, VTABLE_BINDING_SERIES}) {
+      sql[0] = '\0';
+      offset = 0;
+      ASSERT_EQ(fedScanAppendTimestampOrder(sql, sizeof(sql), &offset, sources[i], binding, "event_time"),
+                TSDB_CODE_SUCCESS);
+      EXPECT_STREQ(sql, legacyOrders[i]);
+    }
+  }
+}
+
+TEST(execUtilTest, referenceCandidateLimitSurvivesRemoteDemotionAndContextSwitches) {
+  SFederatedScanPhysiNode scan = {};
+  SExecTaskInfo task = {};
+  SOperatorInfo* op = nullptr;
+  ASSERT_EQ(createFederatedScanOperatorInfo(nullptr, &scan, &task, &op), TSDB_CODE_SUCCESS);
+  auto* state = reinterpret_cast<SFederatedScanOperatorInfo*>(op->info);
+  SForeignScanOperatorParam binding = {};
+  binding.bindingKind = VTABLE_BINDING_REFERENCE;
+  binding.rowLimit = 1;
+  state->pActiveVStbParam = &binding;
+  state->queryStarted = true;
+  state->vstbLimitDemoted = true;
+
+  SSDataBlock* raw = nullptr;
+  ASSERT_EQ(createDataBlock(&raw), TSDB_CODE_SUCCESS);
+  ScopedDataBlock block(raw, blockDataDestroy);
+  SColumnInfoData info = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ASSERT_EQ(blockDataAppendColInfo(block.get(), &info), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(blockDataEnsureCapacity(block.get(), 2), TSDB_CODE_SUCCESS);
+  auto* column = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+  int64_t timestamp = 100;
+  for (int32_t row = 0; row < 2; ++row) {
+    ASSERT_EQ(colDataSetVal(column, row, reinterpret_cast<const char*>(&timestamp), false), TSDB_CODE_SUCCESS);
+  }
+  EXPECT_FALSE(fedScanReferenceLimitReached(state));
+  ASSERT_EQ(fedScanValidateReferenceTimestamp(state, column, 0), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(state->referenceRowsConsumed, 1);
+  EXPECT_TRUE(fedScanReferenceLimitReached(state));
+  binding.rowLimit = 2;
+  EXPECT_FALSE(fedScanReferenceLimitReached(state));
+  EXPECT_EQ(fedScanValidateReferenceTimestamp(state, column, 1), TSDB_CODE_VTABLE_REFERENCE_DUPLICATE_TIMESTAMP);
+  EXPECT_EQ(state->referenceRowsConsumed, 1);
+  binding.rowLimit = 1;
+
+  SNode condition = {};
+  binding.pPushedCond = &condition;
+  EXPECT_FALSE(fedScanReferenceLimitReached(state));
+  binding.pPushedCond = nullptr;
+  scan.node.pConditions = &condition;
+  EXPECT_FALSE(fedScanReferenceLimitReached(state));
+  scan.node.pConditions = nullptr;
+  binding.bindingKind = VTABLE_BINDING_LEGACY;
+  EXPECT_FALSE(fedScanReferenceLimitReached(state));
+  binding.bindingKind = VTABLE_BINDING_REFERENCE;
+
+  state->pTableCtxMap = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  ASSERT_NE(state->pTableCtxMap, nullptr);
+  tstrncpy(state->activeTableKey, "leaf1", sizeof(state->activeTableKey));
+  ASSERT_EQ(fedScanSaveActiveCtx(state), TSDB_CODE_SUCCESS);
+  fedScanRestoreCtx(state, "leaf2");
+  EXPECT_EQ(state->referenceRowsConsumed, 0);
+  fedScanRestoreCtx(state, "leaf1");
+  EXPECT_EQ(state->referenceRowsConsumed, 1);
+  EXPECT_TRUE(fedScanReferenceLimitReached(state));
+
+  // The normal getNext entry must stop before fetching or validating lookahead.
+  SSDataBlock* result = nullptr;
+  EXPECT_EQ(op->fpSet.getNextFn(op, &result), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(result, nullptr);
+  EXPECT_TRUE(state->queryFinished);
+  EXPECT_EQ(state->referenceRowsConsumed, 1);
+  federatedScanResetForNewChild(op);
+  EXPECT_EQ(state->referenceRowsConsumed, 0);
+  destroyOperator(op);
+}
+
 TEST(execUtilTest, federatedScanInitializesResultBlockCapacity) {
   SFederatedScanPhysiNode scanNode = {};
   SExecTaskInfo           taskInfo = {};
@@ -2718,6 +2842,49 @@ TEST(execUtilTest, federatedScanInitializesResultBlockCapacity) {
   EXPECT_EQ(pOperator->resultInfo.threshold, 3072);
 
   destroyOperator(pOperator);
+}
+
+TEST(execUtilTest, referenceStaticMappingUsesPhysicalSlotsForTimestampValues) {
+  SFederatedScanPhysiNode scanNode = {};
+  SDataBlockDescNode      output = {};
+  SExtTableNode          external = {};
+  SExecTaskInfo          task = {};
+  scanNode.bindingKind = VTABLE_BINDING_REFERENCE;
+  scanNode.node.pOutputDataBlockDesc = &output;
+  scanNode.pExtTable = reinterpret_cast<SNode*>(&external);
+  tstrncpy(scanNode.timeColumn, "event_time", sizeof(scanNode.timeColumn));
+  const char* names[] = {"event_time", "event_time", "original_pk_time"};
+  const int16_t slots[] = {0, 0, 1};
+  for (int32_t i = 0; i < 3; ++i) {
+    STargetNode* target = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_TARGET, reinterpret_cast<SNode**>(&target)), TSDB_CODE_SUCCESS);
+    SColumnNode* column = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode**>(&column)), TSDB_CODE_SUCCESS);
+    target->pExpr = reinterpret_cast<SNode*>(column);
+    target->slotId = slots[i];
+    column->colId = i == 0 ? PRIMARYKEY_TIMESTAMP_COL_ID : 0;
+    column->isPrimTs = i == 0;
+    tstrncpy(column->colName, names[i], sizeof(column->colName));
+    ASSERT_EQ(nodesListMakeStrictAppend(&scanNode.pScanCols, reinterpret_cast<SNode*>(target)),
+              TSDB_CODE_SUCCESS);
+  }
+  SOperatorInfo* op = nullptr;
+  ASSERT_EQ(createFederatedScanOperatorInfo(nullptr, &scanNode, &task, &op), TSDB_CODE_SUCCESS);
+  auto* state = reinterpret_cast<SFederatedScanOperatorInfo*>(op->info);
+  state->referenceVersionChecked = true;
+  state->queryFinished = true;
+  SSDataBlock* result = nullptr;
+  EXPECT_EQ(op->fpSet.getNextFn(op, &result), TSDB_CODE_SUCCESS);
+  ASSERT_NE(state->pStaticReferenceParam, nullptr);
+  ASSERT_EQ(taosArrayGetSize(state->pStaticReferenceParam->colMap), 2);
+  auto* chosen = reinterpret_cast<SColIdNameKV*>(taosArrayGet(state->pStaticReferenceParam->colMap, 0));
+  auto* original = reinterpret_cast<SColIdNameKV*>(taosArrayGet(state->pStaticReferenceParam->colMap, 1));
+  EXPECT_EQ(chosen->colId, -1);
+  EXPECT_STREQ(chosen->colName, "event_time");
+  EXPECT_EQ(original->colId, -2);
+  EXPECT_STREQ(original->colName, "original_pk_time");
+  destroyOperator(op);
+  nodesDestroyList(scanNode.pScanCols);
 }
 
 class ScanReaderLifecycleTest : public ::testing::Test {

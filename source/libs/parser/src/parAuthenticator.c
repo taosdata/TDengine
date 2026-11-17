@@ -444,12 +444,56 @@ static int32_t authIsExternalTable(SAuthCxt* pCxt, SRealTableNode* pTable, bool*
   return TSDB_CODE_SUCCESS;
 }
 
+static bool authLocalRefExists(SAuthCxt* pCxt, const char* db, const char* table) {
+  if (db[0] == '\0') return false;
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, db, table, &name);
+  STableMeta* pMeta = NULL;
+  int32_t code = getTableMetaFromCache(pCxt->pMetaCache, &name, &pMeta);
+  bool found = code == TSDB_CODE_SUCCESS && pMeta != NULL;
+  queryFreeTableMeta(pMeta);
+  return found;
+}
+
+static bool authIsReferenceDecl(SAuthCxt* pCxt, SNodeList* pList, const char* db,
+                                 const char* table, int8_t parts) {
+  if (!tsFederatedQueryEnable || parts != 2) return false;
+  SNode* pNode = NULL;
+  bool fallback = false;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) != QUERY_NODE_REFERENCE_DECL) continue;
+    const char* alias = ((SReferenceDeclNode*)pNode)->entry.alias;
+    if (strcmp(alias, table) == 0) return true;
+    fallback |= strcasecmp(alias, table) == 0;
+  }
+  return fallback && !authLocalRefExists(pCxt, db, table);
+}
+
+static bool authIsAlterReference(SAuthCxt* pCxt, const SAlterTableStmt* pStmt) {
+  if (!tsFederatedQueryEnable || pStmt->refPathParts != 2) return false;
+  SName name = {0};
+  toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &name);
+  STableMeta* pMeta = NULL;
+  int32_t code = getTargetMetaImpl(pCxt->pParseCxt, pCxt->pMetaCache, &name, &pMeta, true);
+  if (code != TSDB_CODE_SUCCESS || pMeta == NULL) return false;
+  bool exact = false;
+  bool fallback = false;
+  for (int32_t i = 0; i < pMeta->referenceExt.nReferences; ++i) {
+    const char* alias = pMeta->referenceExt.pReferences[i].alias;
+    exact |= strcmp(alias, pStmt->refTableName) == 0;
+    fallback |= strcasecmp(alias, pStmt->refTableName) == 0;
+  }
+  queryFreeTableMeta(pMeta);
+  return exact || (fallback && !authLocalRefExists(pCxt, pStmt->refDbName, pStmt->refTableName));
+}
+
 static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) {
   if (!tsFederatedQueryEnable) {
     return false;
   }
   SNode* pNode = NULL;
   FOREACH(pNode, pSeriesList) {
+    if (nodeType(pNode) != QUERY_NODE_SERIES_DECL) continue;
     SSeriesDeclNode* pSeries = (SSeriesDeclNode*)pNode;
     if (pSeries->sourceName[0] != '\0' && strcasecmp(pSeries->alias, tableName) == 0) {
       return true;
@@ -755,7 +799,8 @@ static int32_t authColDefRefs(SAuthCxt* pCxt, SNodeList* pDefs, SNodeList* pSeri
     SColumnOptions* pOptions = (SColumnOptions*)pColDef->pOptions;
     if (pOptions && pOptions->hasRef) {
 #ifdef TD_ENTERPRISE
-      if (authIsExternalSeries(pSeriesList, pOptions->refTable)) {
+      if (authIsExternalSeries(pSeriesList, pOptions->refTable) ||
+          authIsReferenceDecl(pCxt, pSeriesList, pOptions->refDb, pOptions->refTable, pOptions->refPathParts)) {
         continue;
       }
       STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
@@ -776,7 +821,7 @@ static int32_t authCreateVTable(SAuthCxt* pCxt, SCreateVTableStmt* pStmt) {
   PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->dbName));
   PAR_ERR_RET(authObjPrivileges(pCxt, pStmt->dbName, NULL, PRIV_TBL_CREATE, PRIV_OBJ_DB));
   PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pCols, pStmt->pSeriesList));
-  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, pStmt->pSeriesList));
+  PAR_ERR_RET(authColDefRefs(pCxt, pStmt->pTags, NULL));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -802,7 +847,8 @@ static int32_t authCreateVSubTable(SAuthCxt* pCxt, SCreateVSubTableStmt* pStmt) 
         PAR_ERR_RET(TSDB_CODE_PAR_INVALID_COLUMN);
       }
 #ifdef TD_ENTERPRISE
-      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName)) {
+      if (authIsExternalSeries(pStmt->pSeriesList, pColRef->refTableName) ||
+          authIsReferenceDecl(pCxt, pStmt->pSeriesList, pColRef->refDbName, pColRef->refTableName, pColRef->refPathParts)) {
         continue;
       }
       STranslateContext cxt = {.pParseCxt = pCxt->pParseCxt, .pMetaCache = pCxt->pMetaCache};
@@ -1023,7 +1069,7 @@ static int32_t authAlterTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
          pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
 #ifdef TD_ENTERPRISE
-        && !(tsFederatedQueryEnable && pStmt->refType == 1)
+        && !(tsFederatedQueryEnable && (pStmt->refType == 1 || authIsAlterReference(pCxt, pStmt)))
 #endif
     ) {
       PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));
@@ -1066,7 +1112,7 @@ static int32_t authAlterVTable(SAuthCxt* pCxt, SAlterTableStmt* pStmt) {
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_TAG_REF)
 #ifdef TD_ENTERPRISE
-      && !(tsFederatedQueryEnable && pStmt->refType == 1)
+      && !(tsFederatedQueryEnable && (pStmt->refType == 1 || authIsAlterReference(pCxt, pStmt)))
 #endif
   ) {
     PAR_ERR_RET(checkDbUseAuth(pCxt, pStmt->refDbName));

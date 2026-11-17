@@ -458,6 +458,9 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   }
 
   code = qParseSql(&cxt, pQuery);
+  // Keep the insert tbname kind even when parsing failed: the statement layer uses
+  // it to distinguish a real "table does not exist" from an unbound tbname.
+  pRequest->stmtTbNameFlag = cxt.stmtTbNameFlag;
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
       code = setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols,

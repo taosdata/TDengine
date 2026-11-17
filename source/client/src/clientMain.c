@@ -1712,6 +1712,12 @@ void taos_free_result(TAOS_RES *res) {
     // is invalid. A zero ID means this result was never handed to the user (an
     // internal request being cleaned up), so there is nothing to record.
     uint64_t wlrResId = pRequest->wlrResultId;
+
+    // Close the folded fetch session first, so its RETURN is ordered before this
+    // free call's BEGIN. A session is normally already closed by the fetch that
+    // ended the result; this covers a caller that stops consuming early.
+    wlrFetchFoldFinish(&pRequest->wlrFetchFold);
+
     SWorkloadCallToken wlrTok = {0};
     if (wlrResId != 0) {
       SWorkloadBeginArgs wlrArgs = {0};
@@ -2330,26 +2336,49 @@ bool taos_is_update_query(TAOS_RES *res) { return taos_num_fields(res) == 0; }
  * it without producing an event: postSubQueryFetchCb runs on a driver completion
  * thread where TLS depth is 0, so the depth rule cannot suppress it and only an
  * internal entry point can (DS 6.6, TS RE014).
+ *
+ * Recording is folded per result, not per row: this call only increments counters
+ * on the request's open session, and the single BEGIN/RETURN pair is emitted when
+ * the result ends or is freed. Recording an event pair per row measured +10.8 us
+ * per row, because each BEGIN waits for its frame to reach the file.
  */
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
-  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
-  SWorkloadCallToken wlrTok = {0};
-  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_ROW, wlrResId);
+  SRequestObj *pReq = (res != NULL && TD_RES_QUERY(res)) ? (SRequestObj *)res : NULL;
+  const bool   record = (pReq != NULL && pReq->wlrResultId != 0);
+
+  /* BEGIN goes out before the real fetch on the first call of a result, so a
+   * fetch that hangs still leaves a record (DS 6.14). On every later row this is
+   * a single load and a branch. wlrFetchEnter keeps the internal taos_fetch_rows_a
+   * that doAsyncFetchRows issues from being recorded as a user call. */
+  if (record) {
+    wlrFetchFoldOpen(&pReq->wlrFetchFold, WLR_API_FETCH_ROW, pReq->wlrResultId);
+    wlrFetchEnter();
+  }
 
   TAOS_ROW row = taos_fetch_row_impl(res);
 
-  if (wlrTok.recorded) {
-    WLR_API_END_FETCH(&wlrTok, taos_errno(res), wlrResId, row != NULL ? 1 : 0);
-  } else {
-    wlrApiReturn(&wlrTok, NULL);
+  /* A non-NULL row means the request code is success: the impl returns NULL for an
+   * error, so the code is only needed on the terminal call. */
+  if (record) {
+    wlrFetchLeave();
+    int32_t code = (row == NULL) ? taos_errno(res) : 0;
+    wlrFetchFoldAccount(&pReq->wlrFetchFold, code, row != NULL ? 1 : 0, row == NULL);
   }
   return row;
 }
 
 int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
-  uint64_t           wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
-  SWorkloadCallToken wlrTok = {0};
-  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_BLOCK, wlrResId);
+  SRequestObj *pReq = (res != NULL && TD_RES_QUERY(res)) ? (SRequestObj *)res : NULL;
+  const bool   record = (pReq != NULL && pReq->wlrResultId != 0);
+
+  /* This function and taos_fetch_block_s both call taos_fetch_block_s_impl
+   * directly. Keep it that way: folding accounts rows per result, so a future
+   * change that made one call the other's PUBLIC entry would count the same rows
+   * twice -- the TLS depth rule is no longer what de-duplicates the fetch group. */
+  if (record) {
+    wlrFetchFoldOpen(&pReq->wlrFetchFold, WLR_API_FETCH_BLOCK, pReq->wlrResultId);
+    wlrFetchEnter();
+  }
 
   int32_t numOfRows = 0;
   int32_t wlrCode =
@@ -2357,10 +2386,10 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
           ? 0
           : taos_fetch_block_s_impl(res, &numOfRows, rows);
 
-  if (wlrTok.recorded) {
-    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows);
-  } else {
-    wlrApiReturn(&wlrTok, NULL);
+  if (record) {
+    wlrFetchLeave();
+    wlrFetchFoldAccount(&pReq->wlrFetchFold, wlrCode, numOfRows,
+                        numOfRows == 0 || wlrCode != 0);
   }
 
   /* Set last: this is the call's only error channel, and the recording path
@@ -2374,17 +2403,21 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     return 0;
   }
 
-  /* taos_fetch_block calls through here, so when the user entered via that symbol
-   * this begin sees depth > 0 and records nothing -- the outer call already did
-   * (FS 4.1). */
-  uint64_t wlrResId = TD_RES_QUERY(res) ? ((SRequestObj *)res)->wlrResultId : 0;
-  SWorkloadCallToken wlrTok = {0};
-  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_BLOCK_S, wlrResId);
+  SRequestObj *pReq = TD_RES_QUERY(res) ? (SRequestObj *)res : NULL;
+  const bool   record = (pReq != NULL && pReq->wlrResultId != 0);
+
+  if (record) {
+    wlrFetchFoldOpen(&pReq->wlrFetchFold, WLR_API_FETCH_BLOCK_S, pReq->wlrResultId);
+    wlrFetchEnter();
+  }
+
   int32_t wlrCode = taos_fetch_block_s_impl(res, numOfRows, rows);
-  if (wlrTok.recorded) {
-    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows != NULL ? *numOfRows : 0);
-  } else {
-    wlrApiReturn(&wlrTok, NULL);
+
+  if (record) {
+    wlrFetchLeave();
+    int32_t rowsFetched = (numOfRows != NULL) ? *numOfRows : 0;
+    wlrFetchFoldAccount(&pReq->wlrFetchFold, wlrCode, rowsFetched,
+                        rowsFetched == 0 || wlrCode != 0);
   }
   return wlrCode;
 }
@@ -2430,14 +2463,21 @@ static int taos_fetch_block_s_impl(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows
 }
 
 int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
-  uint64_t wlrResId = (res != NULL && TD_RES_QUERY(res)) ? ((SRequestObj *)res)->wlrResultId : 0;
-  SWorkloadCallToken wlrTok = {0};
-  WLR_API_BEGIN_FETCH(&wlrTok, WLR_API_FETCH_RAW_BLOCK, wlrResId);
+  SRequestObj *pReq = (res != NULL && TD_RES_QUERY(res)) ? (SRequestObj *)res : NULL;
+  const bool   record = (pReq != NULL && pReq->wlrResultId != 0);
+
+  if (record) {
+    wlrFetchFoldOpen(&pReq->wlrFetchFold, WLR_API_FETCH_RAW_BLOCK, pReq->wlrResultId);
+    wlrFetchEnter();
+  }
+
   int32_t wlrCode = taos_fetch_raw_block_impl(res, numOfRows, pData);
-  if (wlrTok.recorded) {
-    WLR_API_END_FETCH(&wlrTok, wlrCode, wlrResId, numOfRows != NULL ? *numOfRows : 0);
-  } else {
-    wlrApiReturn(&wlrTok, NULL);
+
+  if (record) {
+    wlrFetchLeave();
+    int32_t rowsFetched = (numOfRows != NULL) ? *numOfRows : 0;
+    wlrFetchFoldAccount(&pReq->wlrFetchFold, wlrCode, rowsFetched,
+                        rowsFetched == 0 || wlrCode != 0);
   }
   return wlrCode;
 }
@@ -3148,7 +3188,7 @@ EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code) {
   }
 
   if (NEED_CLIENT_RM_TBLMETA_ERROR(code) || TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER == code ||
-      TSDB_CODE_MND_INVALID_SCHEMA_VER == code) {
+      TSDB_CODE_MND_INVALID_SCHEMA_VER == code || TSDB_CODE_VTABLE_REFERENCE_VERSION_CONFLICT == code) {
     return CLIENT_META_REFRESH_TABLE;
   }
 

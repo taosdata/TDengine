@@ -11512,6 +11512,7 @@ static int32_t collectVStbExternalSourceList(STranslateContext* pCxt, SName* pNa
     }
     for (int32_t j = 0; j < pRsp->numOfColRefs; ++j) {
       pVTable->hasFilterCond |= pRsp->pColRefCols[j].hasFilterCond;
+      pVTable->hasReferenceBinding |= pRsp->pColRefCols[j].bindingKind == VTABLE_BINDING_REFERENCE;
     }
     if (NULL == pRsp->pExtSources) continue;
 
@@ -11981,7 +11982,8 @@ static void setTableNameByColRef(SRealTableNode* pTable, SColRef* pRef) {
   tstrncpy(pTable->table.tableAlias, pRef->refTableName, sizeof(pTable->table.tableAlias));
 }
 
-static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pColRef, SNode** ppNode) {
+static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pColRef,
+                                      bool explicitReference, SNode** ppNode) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SExtTableNode*  pExtNode = NULL;
   SExtSourceInfo* pExtInfo = NULL;
@@ -12006,7 +12008,7 @@ static int32_t createExtTableRefNode(STranslateContext* pCxt, const SColRef* pCo
   // PostgreSQL stores a single creation-time schema per source: a different ref
   // schema means the source's schema changed after the vtable was created.
   // SQL Server references may legitimately name other databases / schemas.
-  if (srcType != EXT_SOURCE_SQLSERVER && srcType != EXT_SOURCE_ORACLE && refSchema[0] != '\0' &&
+  if (!explicitReference && srcType != EXT_SOURCE_SQLSERVER && srcType != EXT_SOURCE_ORACLE && refSchema[0] != '\0' &&
       0 != strcmp(refSchema, pExtInfo->schema_name)) {
     qError("external ref schema mismatch, source:%s, db:%s, table:%s, refSchema:%s, sourceSchema:%s",
            pColRef->refSourceName, pColRef->refDbName, pColRef->refTableName,
@@ -12309,8 +12311,8 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
     bool         isNullRef = '\0' == pResolved->refDbName[0] && '\0' == pResolved->refTableName[0] &&
                             '\0' == pResolved->refColName[0] && '\0' == pResolved->refSourceName[0];
 
-    if (!isNullRef && ('\0' == pResolved->refDbName[0] || '\0' == pResolved->refTableName[0] ||
-                      '\0' == pResolved->refColName[0])) {
+    if (!isNullRef && (('\0' == pResolved->refSourceName[0] && '\0' == pResolved->refDbName[0]) ||
+                      '\0' == pResolved->refTableName[0] || '\0' == pResolved->refColName[0])) {
       continue;
     }
 
@@ -12327,6 +12329,15 @@ static int32_t patchVirtualTableResolvedColRefs(STranslateContext* pCxt, const S
     tstrncpy(pColRef->refColName, pResolved->refColName, sizeof(pColRef->refColName));
     tstrncpy(pColRef->refSourceName, pResolved->refSourceName, sizeof(pColRef->refSourceName));
     tstrncpy(pColRef->refSchemaName, pResolved->refSchemaName, sizeof(pColRef->refSchemaName));
+    pColRef->refType = pResolved->refSourceName[0] != '\0' ? 1 : 0;
+    pColRef->bindingKind = pResolved->bindingKind;
+    tstrncpy(pColRef->referenceAlias, pResolved->referenceAlias, sizeof(pColRef->referenceAlias));
+    tstrncpy(pColRef->timeColumn, pResolved->timeColumn, sizeof(pColRef->timeColumn));
+    pColRef->referenceUid = pResolved->referenceUid;
+    pColRef->expectedRversion = pResolved->expectedRversion;
+    pColRef->referenceVgId = pResolved->referenceVgId;
+    pColRef->referenceEpSet = pResolved->referenceEpSet;
+    tstrncpy(pColRef->referenceDbFName, pResolved->referenceDbFName, sizeof(pColRef->referenceDbFName));
     int32_t leafIndex = pIndex[pResolved->colId].leafIndex;
     if (leafIndex > 0) {
       PAR_ERR_JRET(patchResolvedColRefConds(pColRef, &pRsp->pResolvedColRefs[leafIndex - 1]));
@@ -12421,10 +12432,16 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
   }
 
   int32_t tsPrimaryKeyIndex = -1;
-  PAR_ERR_JRET(nodesValidateExternalFilterCurrentMeta(
+  const SReferenceEntry* pReference = tVtableReferenceForColumn(&pMeta->referenceExt, pColRef->id);
+  SExternalBindingContext binding = {
+      .bindingKind = pColRef->bindingKind == VTABLE_BINDING_REFERENCE || pReference != NULL
+                         ? VTABLE_BINDING_REFERENCE : VTABLE_BINDING_LEGACY,
+      .timeColumn = pColRef->bindingKind == VTABLE_BINDING_REFERENCE ? pColRef->timeColumn
+                                                                   : (pReference ? pReference->timeColumn : NULL)};
+  PAR_ERR_JRET(nodesValidateExternalFilterCurrentMetaEx(
       sourceType, pExtNode->pExtMeta, pColRef->filterCondJson, pColRef->filterCondLen, pCxt->pParseCxt->timezone,
-      pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len, &tsPrimaryKeyIndex));
-  if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType) {
+      pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len, &tsPrimaryKeyIndex, &binding));
+  if (isRelationalSource) {
     if (tsPrimaryKeyIndex < 0 || tsPrimaryKeyIndex >= pExtNode->pExtMeta->numOfCols) {
       PAR_ERR_JRET(TSDB_CODE_EXT_SCHEMA_CHANGED);
     }
@@ -12435,7 +12452,8 @@ static int32_t validateExternalColRefCurrentMeta(STranslateContext* pCxt, const 
           generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_EXT_SCHEMA_CHANGED,
                                   "virtual table precision cannot be lower than referenced external table precision"));
     }
-    pExtNode->tsPrimaryColIdx = tsPrimaryKeyIndex;
+    // The shared object node retains its catalog primary time column. Each
+    // REFERENCE scan selects its own time column after cloning this node.
   }
 
 _return:
@@ -12487,6 +12505,9 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
 
   TSWAP(pVTable->pMeta, pRealTable->pMeta);
   TSWAP(pVTable->pVgroupList, pRealTable->pVgroupList);
+  for (int32_t i = 0; i < pMeta->referenceExt.nBindings; ++i) {
+    pVTable->hasReferenceBinding |= pMeta->referenceExt.pBindings[i].bindingKind == VTABLE_BINDING_REFERENCE;
+  }
 
   PAR_ERR_JRET(patchVirtualTableResolvedColRefs(pCxt, pName, pMeta));
 
@@ -12500,6 +12521,7 @@ static int32_t translateVirtualNormalChildTable(STranslateContext* pCxt, SNode**
   for (int32_t i = 0; i < pMeta->numOfColRefs; i++) {
     if (pMeta->colRef[i].hasRef) {
       if (pMeta->colRef[i].refSourceName[0] != '\0') {
+        pVTable->hasReferenceBinding |= pMeta->colRef[i].bindingKind == VTABLE_BINDING_REFERENCE;
         // External metadata is loaded after expression binding, only for columns
         // that the resulting virtual scan will access.
         hasExternalRef = true;
@@ -12646,6 +12668,7 @@ static const SExtTableNode* findExternalRefTable(const SVirtualTableNode* pVTabl
     const SExtTableNode* pExtTable = (const SExtTableNode*)pRefTable;
     if (0 == strcmp(pExtTable->sourceName, pColRef->refSourceName) &&
         0 == strcmp(pExtTable->table.dbName, pColRef->refDbName) &&
+        (pColRef->refSchemaName[0] == '\0' || strcmp(pExtTable->schemaName, pColRef->refSchemaName) == 0) &&
         0 == strcmp(pExtTable->table.tableName, pColRef->refTableName)) {
       return pExtTable;
     }
@@ -12667,7 +12690,9 @@ static int32_t ensureExternalRefTable(STranslateContext* pCxt, SVirtualTableNode
 
   pCxt->pParseCxt->async = false;
   pCxt->refTable = true;
-  PAR_ERR_JRET(createExtTableRefNode(pCxt, pColRef, &pExtRefNode));
+  bool explicitReference = pColRef->bindingKind == VTABLE_BINDING_REFERENCE ||
+      tVtableReferenceForColumn(&pVTable->pMeta->referenceExt, pColRef->id) != NULL;
+  PAR_ERR_JRET(createExtTableRefNode(pCxt, pColRef, explicitReference, &pExtRefNode));
   PAR_ERR_JRET(nodesListMakeAppend(&pVTable->refTables, pExtRefNode));
   *ppExtTable = (SExtTableNode*)pExtRefNode;
   pExtRefNode = NULL;
@@ -39254,7 +39279,7 @@ static int32_t validateShowValidateMeta(STranslateContext* pCxt, SShowValidateVi
   pStmt->superTable = (tableType == TSDB_VIRTUAL_CHILD_TABLE || tableType == TSDB_VIRTUAL_NORMAL_TABLE) ? 0 : 1;
 
 _exit:
-  taosMemoryFreeClear(pTableMeta);
+  queryFreeTableMeta(pTableMeta);
   return code;
 }
 static int32_t rewriteShowValidateVtable(STranslateContext* pCxt, SQuery* pQuery) {
@@ -39440,6 +39465,7 @@ typedef struct SVgroupCreateTableBatch {
 } SVgroupCreateTableBatch;
 
 static int32_t setExternalRefSchemaName(STranslateContext* pCxt, SColRef* pColRef);
+static bool isCachedLocalRefTable(STranslateContext* pCxt, const char* pDbName, const char* pTableName);
 static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTableStmt* pStmt);
 static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt);
 static int32_t serializeFilterCond(SNode* pFilterCond, int32_t* pLen, char** ppJson);
@@ -39599,6 +39625,78 @@ static int32_t buildCreateTagsSTag(STranslateContext* pCxt, const SNodeList* pTa
   return code;
 }
 
+static int32_t addVtableBinding(SVtableReferenceExt* pExt, col_id_t colId, int8_t kind, const char* alias) {
+  for (int32_t i = 0; i < pExt->nBindings; ++i) {
+    if (pExt->pBindings[i].colId == colId) {
+      memmove(pExt->pBindings + i, pExt->pBindings + i + 1,
+              (pExt->nBindings - i - 1) * sizeof(SVtableBindingLink));
+      --pExt->nBindings;
+      break;
+    }
+  }
+  if (kind == VTABLE_BINDING_LEGACY) return TSDB_CODE_SUCCESS;
+  SVtableBindingLink* pLinks = taosMemoryRealloc(pExt->pBindings, (pExt->nBindings + 1) * sizeof(*pLinks));
+  if (pLinks == NULL) return terrno;
+  pExt->pBindings = pLinks;
+  SVtableBindingLink* pLink = &pLinks[pExt->nBindings++];
+  memset(pLink, 0, sizeof(*pLink));
+  pLink->colId = colId;
+  pLink->bindingKind = kind;
+  tstrncpy(pLink->alias, alias, sizeof(pLink->alias));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t normalizeReferenceEntry(STranslateContext* pCxt, SReferenceEntry* pEntry) {
+  SColRef ref = {.refType = 1};
+  tstrncpy(ref.refSourceName, pEntry->sourceName, sizeof(ref.refSourceName));
+  tstrncpy(ref.refDbName, pEntry->dbName, sizeof(ref.refDbName));
+  tstrncpy(ref.refSchemaName, pEntry->schemaName, sizeof(ref.refSchemaName));
+  bool savedAsync = pCxt->pParseCxt->async;
+  pCxt->pParseCxt->async = false;
+  int32_t code = setExternalRefSchemaName(pCxt, &ref);
+  pCxt->pParseCxt->async = savedAsync;
+  if (code != TSDB_CODE_SUCCESS) return code;
+  tstrncpy(pEntry->dbName, ref.refDbName, sizeof(pEntry->dbName));
+  tstrncpy(pEntry->schemaName, ref.refSchemaName, sizeof(pEntry->schemaName));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildVtableDeclarations(STranslateContext* pCxt, const SNodeList* pList,
+                                      SSeriesWrapper* pSeries, SVtableReferenceExt* pExt) {
+  int32_t count = LIST_LENGTH(pList);
+  if (count == 0) return TSDB_CODE_SUCCESS;
+  pSeries->pSeries = taosMemoryCalloc(count, sizeof(SSeriesEntry));
+  pExt->pReferences = taosMemoryCalloc(count, sizeof(SReferenceEntry));
+  pExt->pDeclarations = taosMemoryCalloc(count, sizeof(SVtableDeclOrder));
+  if (!pSeries->pSeries || !pExt->pReferences || !pExt->pDeclarations) return terrno;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    SVtableDeclOrder* pOrder = &pExt->pDeclarations[pExt->nDeclarations++];
+    if (nodeType(pNode) == QUERY_NODE_REFERENCE_DECL) {
+      SReferenceEntry* pEntry = &pExt->pReferences[pExt->nReferences++];
+      *pEntry = ((SReferenceDeclNode*)pNode)->entry;
+      int32_t code = normalizeReferenceEntry(pCxt, pEntry);
+      if (code != TSDB_CODE_SUCCESS) return code;
+      pOrder->bindingKind = VTABLE_BINDING_REFERENCE;
+      tstrncpy(pOrder->alias, pEntry->alias, sizeof(pOrder->alias));
+    } else {
+      SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pNode;
+      SSeriesEntry* pEntry = &pSeries->pSeries[pSeries->nSeries++];
+      tstrncpy(pEntry->alias, pDecl->alias, sizeof(pEntry->alias));
+      tstrncpy(pEntry->sourceName, pDecl->sourceName, sizeof(pEntry->sourceName));
+      tstrncpy(pEntry->dbName, pDecl->dbName, sizeof(pEntry->dbName));
+      tstrncpy(pEntry->measurementName, pDecl->measurementName, sizeof(pEntry->measurementName));
+      if (pDecl->pTagCond) {
+        int32_t code = nodesNodeToString(pDecl->pTagCond, false, &pEntry->tagCondJson, &pEntry->tagCondLen);
+        if (code != TSDB_CODE_SUCCESS) return code;
+      }
+      pOrder->bindingKind = VTABLE_BINDING_SERIES;
+      tstrncpy(pOrder->alias, pEntry->alias, sizeof(pOrder->alias));
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateVTableStmt* pStmt,
                                          const SVgroupInfo* pVgroupInfo, SVgroupCreateTableBatch* pBatch,
                                          uint8_t precision) {
@@ -39650,34 +39748,12 @@ static int32_t buildVirtualTableBatchReq(STranslateContext* pCxt, const SCreateV
       PAR_ERR_JRET(serializeFilterCond(pOpts->pFilterCond, &req.colRef.pColRef[index].filterCondLen,
                                        &req.colRef.pColRef[index].filterCondJson));
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[index]));
+      PAR_ERR_JRET(addVtableBinding(&req.referenceExt, index + 1, pOpts->bindingKind, pOpts->referenceAlias));
     }
     ++index;
   }
 
-  if (pStmt->pSeriesList) {
-    int32_t nSeries = LIST_LENGTH(pStmt->pSeriesList);
-    req.series.nSeries = nSeries;
-    req.series.pSeries = taosMemoryCalloc(nSeries, sizeof(SSeriesEntry));
-    if (!req.series.pSeries) {
-      PAR_ERR_JRET(terrno);
-    }
-    int32_t si = 0;
-    SNode*  pSeriesNode = NULL;
-    FOREACH(pSeriesNode, pStmt->pSeriesList) {
-      SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
-      SSeriesEntry*    pEntry = &req.series.pSeries[si];
-      tstrncpy(pEntry->alias, pDecl->alias, sizeof(pEntry->alias));
-      tstrncpy(pEntry->sourceName, pDecl->sourceName, sizeof(pEntry->sourceName));
-      tstrncpy(pEntry->dbName, pDecl->dbName, sizeof(pEntry->dbName));
-      tstrncpy(pEntry->measurementName, pDecl->measurementName, sizeof(pEntry->measurementName));
-      if (pDecl->pTagCond) {
-        int32_t len = 0;
-        PAR_ERR_JRET(nodesNodeToString(pDecl->pTagCond, false, &pEntry->tagCondJson, &len));
-        pEntry->tagCondLen = len;
-      }
-      si++;
-    }
-  }
+  PAR_ERR_JRET(buildVtableDeclarations(pCxt, pStmt->pSeriesList, &req.series, &req.referenceExt));
   // Virtual normal table tags: owned tags go into ntb.schemaTag + ntb.pTags (empty STag  -  values
   // are set later via SET TAG); tag-refs go into colRef.pTagRef (value follows source table).
   // All tags register in schemaTag (uniform schema for DESC/SHOW CREATE/projection), mirroring how
@@ -39994,6 +40070,8 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
         PAR_ERR_JRET(serializeFilterCond(pColRef->pFilterCond, &pDef->ref.filterCondLen,
                                          &pDef->ref.filterCondJson));
         PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &pDef->ref));
+        PAR_ERR_JRET(addVtableBinding(&req.referenceExt, TSDB_VCHILD_OWN_COL_ID_BASE + ownColIdx - 1,
+                                      pColRef->bindingKind, pColRef->referenceAlias));
         continue;
       }
       const SSchema* pSchema = pColSchemas + schemaIdx;
@@ -40010,6 +40088,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       PAR_ERR_JRET(serializeFilterCond(pColRef->pFilterCond, &req.colRef.pColRef[schemaIdx].filterCondLen,
                                        &req.colRef.pColRef[schemaIdx].filterCondJson));
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[schemaIdx]));
+      PAR_ERR_JRET(addVtableBinding(&req.referenceExt, pSchema->colId, pColRef->bindingKind, pColRef->referenceAlias));
     }
   } else if (pStmt->pColRefs) {
     col_id_t index = 1;  // start from second column, don't set column ref for ts column
@@ -40029,6 +40108,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       PAR_ERR_JRET(serializeFilterCond(pColRef->pFilterCond, &req.colRef.pColRef[index].filterCondLen,
                                        &req.colRef.pColRef[index].filterCondJson));
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[index]));
+      PAR_ERR_JRET(addVtableBinding(&req.referenceExt, pSchema->colId, pColRef->bindingKind, pColRef->referenceAlias));
       index++;
     }
   } else if (pStmt->pColDefs) {
@@ -40055,6 +40135,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
       PAR_ERR_JRET(serializeFilterCond(pOpts->pFilterCond, &req.colRef.pColRef[schemaIdx].filterCondLen,
                                        &req.colRef.pColRef[schemaIdx].filterCondJson));
       PAR_ERR_JRET(setExternalRefSchemaName(pCxt, &req.colRef.pColRef[schemaIdx]));
+      PAR_ERR_JRET(addVtableBinding(&req.referenceExt, pSchema->colId, pOpts->bindingKind, pOpts->referenceAlias));
     }
   } else {
     // no column reference.
@@ -40154,28 +40235,7 @@ static int32_t buildVirtualSubTableReq(STranslateContext* pCxt, const SCreateVSu
     }
   }
 
-  if (pStmt->pSeriesList) {
-    int32_t nSeries = LIST_LENGTH(pStmt->pSeriesList);
-    req.series.nSeries = nSeries;
-    req.series.pSeries = taosMemoryCalloc(nSeries, sizeof(SSeriesEntry));
-    if (!req.series.pSeries) {
-      PAR_ERR_JRET(terrno);
-    }
-    int32_t si = 0;
-    SNode*  pSeriesNode = NULL;
-    FOREACH(pSeriesNode, pStmt->pSeriesList) {
-      SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
-      SSeriesEntry*    pEntry = &req.series.pSeries[si];
-      tstrncpy(pEntry->alias, pDecl->alias, sizeof(pEntry->alias));
-      tstrncpy(pEntry->sourceName, pDecl->sourceName, sizeof(pEntry->sourceName));
-      tstrncpy(pEntry->dbName, pDecl->dbName, sizeof(pEntry->dbName));
-      tstrncpy(pEntry->measurementName, pDecl->measurementName, sizeof(pEntry->measurementName));
-      if (pDecl->pTagCond) {
-        PAR_ERR_JRET(nodesNodeToString(pDecl->pTagCond, false, &pEntry->tagCondJson, &pEntry->tagCondLen));
-      }
-      si++;
-    }
-  }
+  PAR_ERR_JRET(buildVtableDeclarations(pCxt, pStmt->pSeriesList, &req.series, &req.referenceExt));
 
   *pReq = req;
   return code;
@@ -40659,7 +40719,7 @@ static int32_t checkCreateSubTable(STranslateContext* pCxt, SCreateSubTableClaus
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkInfluxSeries(STranslateContext* pCxt, SNodeList* pSeriesList);
+static int32_t checkInfluxSeries(STranslateContext* pCxt, SNodeList* pSeriesList, const char* dbName);
 
 static int32_t checkCreateVSubTable(STranslateContext* pCxt, SCreateVSubTableStmt* pStmt) {
   if (0 != strcmp(pStmt->dbName, pStmt->useDbName)) {
@@ -40669,7 +40729,7 @@ static int32_t checkCreateVSubTable(STranslateContext* pCxt, SCreateVSubTableStm
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME,
                                    "The table name cannot contain '.'");
   }
-  return checkInfluxSeries(pCxt, pStmt->pSeriesList);
+  return checkInfluxSeries(pCxt, pStmt->pSeriesList, pStmt->dbName);
 }
 
 static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableClause* pStmt, SHashObj* pVgroupHashmap) {
@@ -42238,13 +42298,15 @@ static int32_t rejectUnsupportedExternalFilter(STranslateContext* pCxt, const SN
       "references");
 }
 
-static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceName, const char* refDb,
+static int32_t checkExternalColRefWithTime(STranslateContext* pCxt, const char* sourceName, const char* refDb,
                                    const char* refSchema, const char* refTable, const char* refCol,
                                    const char* colName,
-                                   SDataType declaredType, int8_t precision, SNode* pFilterCond) {
+                                   SDataType declaredType, int8_t precision, SNode* pFilterCond, const char* timeColumn) {
   int32_t         code = TSDB_CODE_SUCCESS;
   SExtTableMeta*  pExtMeta = NULL;
   SExtSourceInfo* pInfo = NULL;
+  bool savedAsync = pCxt->pParseCxt->async;
+  if (timeColumn != NULL && timeColumn[0]) pCxt->pParseCxt->async = false;
   // (1) External source must exist
   PAR_ERR_JRET(getExternalSourceInfo(pCxt, sourceName, &pInfo));
   EExtSourceType sourceType = (EExtSourceType)pInfo->type;
@@ -42292,6 +42354,10 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
     }
     PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, errCode,
                                           "external table '%s.%s' not found", sourceName, refTable));
+  }
+
+  if (pExtMeta->objectKind == EXT_OBJECT_VIEW && (timeColumn == NULL || timeColumn[0] == '\0')) {
+    PAR_ERR_JRET(TSDB_CODE_EXT_NO_TS_PRIMARY_KEY);
   }
 
   // (4) External column must exist.  Try the exact spelling first, then the
@@ -42348,9 +42414,12 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
   if (EXT_SOURCE_MYSQL == sourceType || EXT_SOURCE_POSTGRESQL == sourceType ||
       EXT_SOURCE_SQLSERVER == sourceType || EXT_SOURCE_ORACLE == sourceType) {
     int32_t tsPrimaryKeyIndex = -1;
-    PAR_ERR_JRET(nodesValidateExternalFilter(sourceType, pExtMeta, pFilterCond, pCxt->pParseCxt->timezone,
-                                             pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
-                                             &tsPrimaryKeyIndex));
+    SExternalBindingContext binding = {
+        .bindingKind = timeColumn != NULL && timeColumn[0] != '\0' ? VTABLE_BINDING_REFERENCE : VTABLE_BINDING_LEGACY,
+        .timeColumn = timeColumn};
+    PAR_ERR_JRET(nodesValidateExternalFilterEx(sourceType, pExtMeta, pFilterCond, pCxt->pParseCxt->timezone,
+                                               pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
+                                               &tsPrimaryKeyIndex, &binding));
     pTsPk = &pExtMeta->pCols[tsPrimaryKeyIndex];
   } else {
     for (int32_t i = 0; i < pExtMeta->numOfCols; i++) {
@@ -42389,10 +42458,12 @@ static int32_t checkExternalColRef(STranslateContext* pCxt, const char* sourceNa
         "virtual table precision cannot be lower than referenced external table precision"));
   }
 
+  pCxt->pParseCxt->async = savedAsync;
   extConnectorFreeTableSchema(pExtMeta);
   freeExtSourceInfo(pInfo);
   return TSDB_CODE_SUCCESS;
 _return:
+  pCxt->pParseCxt->async = savedAsync;
   extConnectorFreeTableSchema(pExtMeta);
   freeExtSourceInfo(pInfo);
   parserError("%s failed, code:%d, errMsg:%s", __func__, code, tstrerror(code));
@@ -42549,11 +42620,11 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     if (pStmt->refType == 1) {
       if (!expandedFromSeries) {
         // Explicit 4-seg external reference  -  validate via checkExternalColRef
-        PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
+        PAR_ERR_RET(checkExternalColRefWithTime(pCxt, pStmt->refSourceName, pStmt->refDbName,
                                          pStmt->refSchemaName, pStmt->refTableName,
                                          pStmt->refColName,
                                          pStmt->colName, colType, pTableMeta->tableInfo.precision,
-                                         pFilterCond));
+                                         pFilterCond, pStmt->timeColumn));
       } else {
         // Series-expanded ref: validate column exists via catalog global cache
         PAR_ERR_RET(checkSeriesExtColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
@@ -42889,6 +42960,7 @@ static int buildAlterTableColumnCompress(STranslateContext* pCxt, SAlterTableStm
 }
 
 static int32_t checkInfluxSeriesDecl(STranslateContext* pCxt, SSeriesDeclNode* pSeries);
+static int32_t checkReferenceDecl(STranslateContext* pCxt, SReferenceDeclNode* pDecl, int8_t precision);
 static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                     SVAlterTbReq* pReq) {
   if (!isVirtualTable(pTableMeta)) {
@@ -42919,7 +42991,7 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
 
   // Check if refTableName or refDbName matches a series alias
   SSeriesEntry* pMatchedSeries = NULL;
-  for (int32_t i = 0; i < pTableMeta->numOfSeries; i++) {
+  for (int32_t i = 0; pStmt->bindingKind != VTABLE_BINDING_REFERENCE && i < pTableMeta->numOfSeries; i++) {
     if (strcasecmp(pTableMeta->seriesEntries[i].alias, pStmt->refTableName) == 0 ||
         strcasecmp(pTableMeta->seriesEntries[i].alias, pStmt->refDbName) == 0) {
       pMatchedSeries = &pTableMeta->seriesEntries[i];
@@ -42940,10 +43012,10 @@ static int32_t buildAlterTableColumnRef(STranslateContext* pCxt, SAlterTableStmt
   }
 
   if (isDirectExternalRef) {
-    PAR_ERR_RET(checkExternalColRef(pCxt, pStmt->refSourceName, pStmt->refDbName,
+    PAR_ERR_RET(checkExternalColRefWithTime(pCxt, pStmt->refSourceName, pStmt->refDbName,
                                     pStmt->refSchemaName, pStmt->refTableName,
                                     pStmt->refColName, pStmt->colName, colType,
-                                    pTableMeta->tableInfo.precision, pStmt->pFilterCond));
+                                    pTableMeta->tableInfo.precision, pStmt->pFilterCond, pStmt->timeColumn));
     // Validation used the raw path segments (the async cache key); store the
     // explicit five-part namespace so planning keys stay stable.
     PAR_ERR_RET(expandAlterExternalRefNamespace(pCxt, pStmt));
@@ -43309,7 +43381,111 @@ static int32_t buildDropTagReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
+static int32_t buildAlterReference(STranslateContext* pCxt, SAlterTableStmt* pStmt,
+                                    STableMeta* pMeta, SVAlterTbReq* pReq) {
+  SVtableReferenceExt* pExt = &pReq->referenceExt;
+  bool remove = pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_REFERENCE;
+  SReferenceDeclNode* pDecl = (SReferenceDeclNode*)pStmt->pSeriesDecl;
+  const char* alias = remove ? pStmt->seriesAlias : pDecl->entry.alias;
+  int32_t index = -1;
+  for (int32_t i = 0; i < pExt->nReferences; ++i) {
+    if (strcmp(pExt->pReferences[i].alias, alias) == 0) index = i;
+  }
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_REFERENCE) {
+    if (index >= 0 || pExt->nReferences >= TSDB_MAX_VTABLE_REFERENCES) return TSDB_CODE_PAR_SYNTAX_ERROR;
+    for (int32_t i = 0; i < pMeta->numOfSeries; ++i) {
+      if (strcmp(pMeta->seriesEntries[i].alias, alias) == 0) return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+  } else if (index < 0) {
+    return TSDB_CODE_PAR_INVALID_COLUMN;
+  }
+  if (remove) {
+    for (int32_t i = 0; i < pExt->nBindings; ++i) {
+      if (pExt->pBindings[i].bindingKind == VTABLE_BINDING_REFERENCE && strcmp(pExt->pBindings[i].alias, alias) == 0) {
+        return TSDB_CODE_PAR_INVALID_ALTER_TABLE;
+      }
+    }
+    memmove(pExt->pReferences + index, pExt->pReferences + index + 1,
+            (pExt->nReferences - index - 1) * sizeof(SReferenceEntry));
+    --pExt->nReferences;
+    for (int32_t i = 0; i < pExt->nDeclarations; ++i) {
+      if (pExt->pDeclarations[i].bindingKind == VTABLE_BINDING_REFERENCE && strcmp(pExt->pDeclarations[i].alias, alias) == 0) {
+        memmove(pExt->pDeclarations + i, pExt->pDeclarations + i + 1,
+                (pExt->nDeclarations - i - 1) * sizeof(SVtableDeclOrder));
+        --pExt->nDeclarations;
+        break;
+      }
+    }
+  } else {
+    PAR_ERR_RET(checkReferenceDecl(pCxt, pDecl, pMeta->tableInfo.precision));
+    for (int32_t i = 0; i < pMeta->numOfColRefs; ++i) {
+      const SColRef* pRef = &pMeta->colRef[i];
+      const SVtableBindingLink* pLink = tVtableBindingForColumn(pExt, pRef->id);
+      if (pLink == NULL || pLink->bindingKind != VTABLE_BINDING_REFERENCE || strcmp(pLink->alias, alias) != 0) continue;
+      SNode* pFilter = NULL;
+      if (pRef->filterCondJson != NULL) PAR_ERR_RET(nodesStringToNode(pRef->filterCondJson, &pFilter));
+      const SSchema* pSchema = NULL;
+      int32_t schemaIndex = -1;
+      for (int32_t j = 0; j < pMeta->tableInfo.numOfColumns; ++j) {
+        if (pMeta->schema[j].colId == pRef->id) { pSchema = &pMeta->schema[j]; schemaIndex = j; break; }
+      }
+      SDataType dataType = {0};
+      if (pSchema == NULL) { nodesDestroyNode(pFilter); return TSDB_CODE_PAR_INVALID_COLUMN; }
+      schemaToRefDataType(pSchema, pMeta->schemaExt ? pMeta->schemaExt[schemaIndex].typeMod : 0, &dataType);
+      SReferenceEntry* pEntry = &pDecl->entry;
+      int32_t code = checkExternalColRefWithTime(pCxt, pEntry->sourceName, pEntry->dbName, pEntry->schemaName,
+                                                 pEntry->objectName, pRef->refColName, pSchema->name,
+                                                 dataType, pMeta->tableInfo.precision, pFilter, pEntry->timeColumn);
+      nodesDestroyNode(pFilter);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    PAR_ERR_RET(normalizeReferenceEntry(pCxt, &pDecl->entry));
+    if (index < 0) {
+      SReferenceEntry* pEntries = taosMemoryRealloc(pExt->pReferences, (pExt->nReferences + 1) * sizeof(*pEntries));
+      if (pEntries == NULL) return terrno;
+      pExt->pReferences = pEntries;
+      index = pExt->nReferences++;
+      SVtableDeclOrder* pOrder = taosMemoryRealloc(pExt->pDeclarations, (pExt->nDeclarations + 1) * sizeof(*pOrder));
+      if (pOrder == NULL) return terrno;
+      pExt->pDeclarations = pOrder;
+      pOrder = &pOrder[pExt->nDeclarations++];
+      memset(pOrder, 0, sizeof(*pOrder));
+      pOrder->bindingKind = VTABLE_BINDING_REFERENCE;
+      tstrncpy(pOrder->alias, alias, sizeof(pOrder->alias));
+    }
+    pExt->pReferences[index] = pDecl->entry;
+  }
+  pReq->seriesAlias = taosStrdup(alias);
+  return pReq->seriesAlias == NULL ? terrno : TSDB_CODE_SUCCESS;
+}
+
+static int32_t resolveAlterReference(STranslateContext* pCxt, SAlterTableStmt* pStmt, const STableMeta* pMeta) {
+  if (pStmt->refPathParts != 2 || pStmt->refType == 1) return TSDB_CODE_SUCCESS;
+  const SReferenceEntry* pMatch = NULL;
+  const SReferenceEntry* pFallback = NULL;
+  for (int32_t i = 0; i < pMeta->referenceExt.nReferences; ++i) {
+    const SReferenceEntry* pEntry = &pMeta->referenceExt.pReferences[i];
+    if (strcmp(pEntry->alias, pStmt->refTableName) == 0) { pMatch = pEntry; break; }
+    if (pFallback == NULL && strcasecmp(pEntry->alias, pStmt->refTableName) == 0) pFallback = pEntry;
+  }
+  if (pMatch == NULL && !isCachedLocalRefTable(pCxt, pStmt->refDbName, pStmt->refTableName)) pMatch = pFallback;
+  if (pMatch == NULL) return TSDB_CODE_SUCCESS;
+  for (int32_t i = 0; i < pMeta->numOfSeries; ++i) {
+    if (strcasecmp(pMeta->seriesEntries[i].alias, pStmt->refTableName) == 0 ||
+        strcasecmp(pMeta->seriesEntries[i].alias, pStmt->refDbName) == 0) return TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME;
+  }
+  pStmt->bindingKind = VTABLE_BINDING_REFERENCE;
+  pStmt->refType = 1;
+  tstrncpy(pStmt->referenceAlias, pMatch->alias, sizeof(pStmt->referenceAlias));
+  tstrncpy(pStmt->timeColumn, pMatch->timeColumn, sizeof(pStmt->timeColumn));
+  tstrncpy(pStmt->refSourceName, pMatch->sourceName, sizeof(pStmt->refSourceName));
+  tstrncpy(pStmt->refDbName, pMatch->dbName, sizeof(pStmt->refDbName));
+  tstrncpy(pStmt->refSchemaName, pMatch->schemaName, sizeof(pStmt->refSchemaName));
+  tstrncpy(pStmt->refTableName, pMatch->objectName, sizeof(pStmt->refTableName));
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildAlterTbReqImpl(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
   pReq->tbName = taosStrdup(pStmt->tableName);
   if (NULL == pReq->tbName) {
@@ -43377,6 +43553,10 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
       return buildRemoveTableColumnRef(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       return buildAlterTableTagRef(pCxt, pStmt, pTableMeta, pReq);
+    case TSDB_ALTER_TABLE_ADD_REFERENCE:
+    case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
+    case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
+      return buildAlterReference(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_ADD_SERIES:
       return buildAlterTableAddSeries(pCxt, pStmt, pTableMeta, pReq);
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
@@ -43386,6 +43566,71 @@ static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, 
   }
 
   return TSDB_CODE_FAILED;
+}
+
+static int32_t buildAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pMeta, SVAlterTbReq* pReq) {
+  bool tracked = isVirtualTable(pMeta) &&
+      (pStmt->alterType == TSDB_ALTER_TABLE_ADD_REFERENCE || pStmt->alterType == TSDB_ALTER_TABLE_MODIFY_REFERENCE ||
+       pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_REFERENCE || pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF ||
+       pStmt->alterType == TSDB_ALTER_TABLE_DROP_COLUMN || pStmt->alterType == TSDB_ALTER_TABLE_ADD_SERIES ||
+       pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_SERIES);
+  if (tracked) {
+    pReq->hasExpectedRversion = true;
+    pReq->expectedRversion = pMeta->rversion;
+    PAR_ERR_RET(tCloneVtableReferenceExt(&pMeta->referenceExt, &pReq->referenceExt));
+    if (pReq->referenceExt.nDeclarations == 0 && pMeta->numOfSeries > 0) {
+      pReq->referenceExt.pDeclarations = taosMemoryCalloc(pMeta->numOfSeries, sizeof(SVtableDeclOrder));
+      if (pReq->referenceExt.pDeclarations == NULL) return terrno;
+      pReq->referenceExt.nDeclarations = pMeta->numOfSeries;
+      for (int32_t i = 0; i < pMeta->numOfSeries; ++i) {
+        pReq->referenceExt.pDeclarations[i].bindingKind = VTABLE_BINDING_SERIES;
+        tstrncpy(pReq->referenceExt.pDeclarations[i].alias, pMeta->seriesEntries[i].alias, TSDB_COL_NAME_LEN);
+      }
+    }
+  }
+  if (pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF) {
+    PAR_ERR_RET(resolveAlterReference(pCxt, pStmt, pMeta));
+  }
+  PAR_ERR_RET(buildAlterTbReqImpl(pCxt, pStmt, pMeta, pReq));
+  if (tracked && (pStmt->alterType == TSDB_ALTER_TABLE_ALTER_COLUMN_REF ||
+                  pStmt->alterType == TSDB_ALTER_TABLE_ADD_COLUMN_WITH_COLUMN_REF ||
+                  pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_DROP_COLUMN)) {
+    const SSchema* pSchema = getColSchema(pMeta, pStmt->colName);
+    col_id_t colId = pSchema != NULL ? pSchema->colId : 0;
+    int8_t kind = pStmt->bindingKind;
+    const char* alias = pStmt->referenceAlias;
+    if (pReq->seriesAlias != NULL && kind != VTABLE_BINDING_REFERENCE) { kind = VTABLE_BINDING_SERIES; alias = pReq->seriesAlias; }
+    if (pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_COLUMN_REF || pStmt->alterType == TSDB_ALTER_TABLE_DROP_COLUMN) kind = VTABLE_BINDING_LEGACY;
+    PAR_ERR_RET(addVtableBinding(&pReq->referenceExt, colId, kind, alias));
+  }
+  if (tracked && pStmt->alterType == TSDB_ALTER_TABLE_ADD_SERIES) {
+    const char* alias = ((SSeriesDeclNode*)pStmt->pSeriesDecl)->alias;
+    for (int32_t i = 0; i < pReq->referenceExt.nReferences; ++i) {
+      if (strcmp(pReq->referenceExt.pReferences[i].alias, alias) == 0) return TSDB_CODE_PAR_SYNTAX_ERROR;
+    }
+    SVtableReferenceExt* pExt = &pReq->referenceExt;
+    SVtableDeclOrder* pOrders = taosMemoryRealloc(pExt->pDeclarations, (pExt->nDeclarations + 1) * sizeof(*pOrders));
+    if (pOrders == NULL) return terrno;
+    pExt->pDeclarations = pOrders;
+    SVtableDeclOrder* pOrder = &pOrders[pExt->nDeclarations++];
+    memset(pOrder, 0, sizeof(*pOrder));
+    pOrder->bindingKind = VTABLE_BINDING_SERIES;
+    tstrncpy(pOrder->alias, alias, sizeof(pOrder->alias));
+  }
+  if (tracked && pStmt->alterType == TSDB_ALTER_TABLE_REMOVE_SERIES) {
+    SVtableReferenceExt* pExt = &pReq->referenceExt;
+    for (int32_t i = 0; i < pExt->nDeclarations; ++i) {
+      if (pExt->pDeclarations[i].bindingKind == VTABLE_BINDING_SERIES &&
+          strcmp(pExt->pDeclarations[i].alias, pStmt->seriesAlias) == 0) {
+        memmove(pExt->pDeclarations + i, pExt->pDeclarations + i + 1,
+                (pExt->nDeclarations - i - 1) * sizeof(SVtableDeclOrder));
+        --pExt->nDeclarations;
+        break;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t serializeAlterTbReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, SVAlterTbReq* pReq,
@@ -43464,6 +43709,7 @@ static void destroyAlterTbReqInner(SVAlterTbReq* pReq) {
   taosMemoryFree(pReq->seriesDbName);
   taosMemoryFree(pReq->seriesMeasurementName);
   taosMemoryFree(pReq->seriesTagCondJson);
+  tFreeVtableReferenceExt(&pReq->referenceExt);
 
   for (int i = 0; i < taosArrayGetSize(pReq->pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pReq->pTagArray, i);
@@ -44297,6 +44543,50 @@ _return:
   return code;
 }
 
+static int32_t checkReferenceDecl(STranslateContext* pCxt, SReferenceDeclNode* pDecl, int8_t precision) {
+  SReferenceEntry* pEntry = &pDecl->entry;
+  SExtSourceInfo* pInfo = NULL;
+  SExtTableMeta* pMeta = NULL;
+  int32_t code = getExternalSourceInfo(pCxt, pEntry->sourceName, &pInfo);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  EExtSourceType sourceType = (EExtSourceType)pInfo->type;
+  if (sourceType != EXT_SOURCE_MYSQL && sourceType != EXT_SOURCE_POSTGRESQL &&
+      sourceType != EXT_SOURCE_SQLSERVER && sourceType != EXT_SOURCE_ORACLE) {
+    code = TSDB_CODE_EXT_SOURCE_NOT_FOUND;
+    goto _return;
+  }
+  const char* dbName = pEntry->dbName;
+  const char* schemaName = pEntry->schemaName;
+  if ((sourceType == EXT_SOURCE_SQLSERVER && schemaName[0] == '\0') || sourceType == EXT_SOURCE_ORACLE) {
+    schemaName = dbName[0] ? dbName : pInfo->schema_name;
+    dbName = "";
+  }
+  if (dbName[0] == '\0' && sourceType != EXT_SOURCE_ORACLE) dbName = pInfo->database;
+  if (schemaName[0] == '\0') schemaName = pInfo->schema_name;
+  PAR_ERR_JRET(getExternalTableMeta(pCxt, pInfo, pEntry->sourceName, pEntry->dbName,
+                                    pEntry->schemaName, dbName, schemaName, pEntry->objectName, false, &pMeta));
+  SExternalBindingContext binding = {.bindingKind = VTABLE_BINDING_REFERENCE, .timeColumn = pEntry->timeColumn};
+  int32_t tsIndex = -1;
+  PAR_ERR_JRET(nodesValidateExternalFilterEx(sourceType, pMeta, NULL, pCxt->pParseCxt->timezone,
+                                             pCxt->pParseCxt->charsetCxt, pCxt->msgBuf.buf, pCxt->msgBuf.len,
+                                             &tsIndex, &binding));
+  if (extTimestampTypePrecision(sourceType, pMeta->pCols[tsIndex].extTypeName, pMeta->tsPrecision) > precision) {
+    code = TSDB_CODE_PAR_INVALID_REF_COLUMN_TYPE;
+    goto _return;
+  }
+  pEntry->sourceType = sourceType;
+  tstrncpy(pEntry->timeColumn, pMeta->pCols[tsIndex].colName, sizeof(pEntry->timeColumn));
+_return:
+  extConnectorFreeTableSchema(pMeta);
+  freeExtSourceInfo(pInfo);
+  return code;
+}
+
+static const char* bindingDeclAlias(const SNode* pNode) {
+  return nodeType(pNode) == QUERY_NODE_REFERENCE_DECL ? ((const SReferenceDeclNode*)pNode)->entry.alias
+                                                     : ((const SSeriesDeclNode*)pNode)->alias;
+}
+
 static int32_t checkInfluxSeriesDecl(STranslateContext* pCxt, SSeriesDeclNode* pSeries) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -44328,7 +44618,7 @@ _return:
   return code;
 }
 
-static int32_t checkInfluxSeries(STranslateContext* pCxt, SNodeList* pSeriesList) {
+static int32_t checkInfluxSeries(STranslateContext* pCxt, SNodeList* pSeriesList, const char* dbName) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pNode = NULL;
 
@@ -44336,8 +44626,23 @@ static int32_t checkInfluxSeries(STranslateContext* pCxt, SNodeList* pSeriesList
     return code;
   }
 
+  SDbCfgInfo dbCfg = {0};
+  PAR_ERR_JRET(getDBCfg(pCxt, dbName, &dbCfg));
+  int32_t nReferences = 0;
   FOREACH(pNode, pSeriesList) {
-    PAR_ERR_JRET(checkInfluxSeriesDecl(pCxt, (SSeriesDeclNode*)pNode));
+    SNode* pOther = NULL;
+    FOREACH(pOther, pSeriesList) {
+      if (pOther == pNode) break;
+      if (strcmp(bindingDeclAlias(pOther), bindingDeclAlias(pNode)) == 0) {
+        PAR_ERR_JRET(TSDB_CODE_PAR_SYNTAX_ERROR);
+      }
+    }
+    if (nodeType(pNode) == QUERY_NODE_REFERENCE_DECL) {
+      if (++nReferences > TSDB_MAX_VTABLE_REFERENCES) PAR_ERR_JRET(TSDB_CODE_PAR_SYNTAX_ERROR);
+      PAR_ERR_JRET(checkReferenceDecl(pCxt, (SReferenceDeclNode*)pNode, dbCfg.precision));
+    } else {
+      PAR_ERR_JRET(checkInfluxSeriesDecl(pCxt, (SSeriesDeclNode*)pNode));
+    }
   }
   return code;
 _return:
@@ -44362,7 +44667,7 @@ static int32_t checkCreateVirtualTable(STranslateContext* pCxt, SCreateVTableStm
 
   PAR_ERR_RET(checkColumnType(pStmt->pCols, 1));
 
-  PAR_ERR_RET(checkInfluxSeries(pCxt, pStmt->pSeriesList));
+  PAR_ERR_RET(checkInfluxSeries(pCxt, pStmt->pSeriesList, pStmt->dbName));
 
   if (pCxt->pParseCxt->biMode != 0) {
     PAR_ERR_RET(biCheckCreateTableTbnameCol(pCxt, NULL, pStmt->pCols));
@@ -44515,6 +44820,7 @@ static int32_t disambiguateAlterExternalRef(STranslateContext* pCxt, SAlterTable
 // Persist the explicit five-part namespace of an external reference once the
 // reference has been validated (see normalizeExternalRefNamespace).
 static int32_t expandAlterExternalRefNamespace(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
+  if (pStmt->bindingKind == VTABLE_BINDING_REFERENCE) return TSDB_CODE_SUCCESS;
   if (pStmt->refType != 1 || pStmt->refSourceName[0] == '\0') {
     return TSDB_CODE_SUCCESS;
   }
@@ -44528,6 +44834,7 @@ static SSeriesDeclNode* findRefSeriesNode(STranslateContext* pCxt, char* refTabl
   SNode* pSeriesNode = NULL;
   SNode* pCaseInsensitiveMatch = NULL;
   FOREACH(pSeriesNode, pSeriesList) {
+    if (nodeType(pSeriesNode) != QUERY_NODE_SERIES_DECL) continue;
     SSeriesDeclNode* pDecl = (SSeriesDeclNode*)pSeriesNode;
     if (0 == strcmp(refTableName, pDecl->alias)) {
       return pDecl;
@@ -44569,6 +44876,20 @@ static int32_t translateExtSeriesTagCond(STranslateContext* pCxt, SNode* pTagCon
   return pCxt->errCode;
 }
 
+static SReferenceDeclNode* findReferenceDecl(STranslateContext* pCxt, SNodeList* pList,
+                                             const char* db, const char* table, int8_t parts) {
+  if (parts != 2) return NULL;
+  SReferenceDeclNode* pFallback = NULL;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    if (nodeType(pNode) != QUERY_NODE_REFERENCE_DECL) continue;
+    SReferenceDeclNode* pDecl = (SReferenceDeclNode*)pNode;
+    if (strcmp(table, pDecl->entry.alias) == 0) return pDecl;
+    if (pFallback == NULL && strcasecmp(table, pDecl->entry.alias) == 0) pFallback = pDecl;
+  }
+  return isCachedLocalRefTable(pCxt, db, table) ? NULL : pFallback;
+}
+
 static int32_t expandSeriesAliasInColOptions(STranslateContext* pCxt, SNodeList* pCols, SNodeList* pSeriesList) {
   int32_t code = TSDB_CODE_SUCCESS;
   SNode*  pColNode = NULL;
@@ -44587,7 +44908,23 @@ static int32_t expandSeriesAliasInColOptions(STranslateContext* pCxt, SNodeList*
     // for 2-seg refs like `FROM s1.cpu`, createColumnRefNodeByName auto-fills refDb with the current
     // USE'd database, so a non-empty refDb does not mean the user wrote a 3-seg ref.
     SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pOpts->refTable, pOpts->refDb, pSeriesList);
+    SReferenceDeclNode* pReference = findReferenceDecl(pCxt, pSeriesList, pOpts->refDb, pOpts->refTable, pOpts->refPathParts);
+    if (pReference != NULL) {
+      if (pSeries != NULL) PAR_ERR_JRET(TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME);
+      const SReferenceEntry* pEntry = &pReference->entry;
+      pOpts->refType = 1;
+      pOpts->bindingKind = VTABLE_BINDING_REFERENCE;
+      tstrncpy(pOpts->referenceAlias, pEntry->alias, sizeof(pOpts->referenceAlias));
+      tstrncpy(pOpts->timeColumn, pEntry->timeColumn, sizeof(pOpts->timeColumn));
+      tstrncpy(pOpts->refSourceName, pEntry->sourceName, sizeof(pOpts->refSourceName));
+      tstrncpy(pOpts->refDb, pEntry->dbName, sizeof(pOpts->refDb));
+      tstrncpy(pOpts->refSchema, pEntry->schemaName, sizeof(pOpts->refSchema));
+      tstrncpy(pOpts->refTable, pEntry->objectName, sizeof(pOpts->refTable));
+      continue;
+    }
     if (pSeries) {
+      pOpts->bindingKind = VTABLE_BINDING_SERIES;
+      tstrncpy(pOpts->referenceAlias, pSeries->alias, sizeof(pOpts->referenceAlias));
       parserDebug("matched series alias in column options, col:%s alias:%s source:%s db:%s table:%s",
                   pCol->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
                   pSeries->measurementName);
@@ -44626,7 +44963,23 @@ static int32_t expandSeriesAliasInColRefs(STranslateContext* pCxt, SNodeList* pC
     // Check if refTableName matches a series alias. Like expandSeriesAliasInColOptions, we do not
     // gate on refDbName being empty  -  2-seg refs auto-fill the current USE'd db.
     SSeriesDeclNode* pSeries = findRefSeriesNode(pCxt, pRef->refTableName, pRef->refDbName, pSeriesList);
+    SReferenceDeclNode* pReference = findReferenceDecl(pCxt, pSeriesList, pRef->refDbName, pRef->refTableName, pRef->refPathParts);
+    if (pReference != NULL) {
+      if (pSeries != NULL) PAR_ERR_JRET(TSDB_CODE_VTABLE_REFERENCE_AMBIGUOUS_NAME);
+      const SReferenceEntry* pEntry = &pReference->entry;
+      pRef->refType = 1;
+      pRef->bindingKind = VTABLE_BINDING_REFERENCE;
+      tstrncpy(pRef->referenceAlias, pEntry->alias, sizeof(pRef->referenceAlias));
+      tstrncpy(pRef->timeColumn, pEntry->timeColumn, sizeof(pRef->timeColumn));
+      tstrncpy(pRef->refSourceName, pEntry->sourceName, sizeof(pRef->refSourceName));
+      tstrncpy(pRef->refDbName, pEntry->dbName, sizeof(pRef->refDbName));
+      tstrncpy(pRef->refSchemaName, pEntry->schemaName, sizeof(pRef->refSchemaName));
+      tstrncpy(pRef->refTableName, pEntry->objectName, sizeof(pRef->refTableName));
+      continue;
+    }
     if (pSeries) {
+      pRef->bindingKind = VTABLE_BINDING_SERIES;
+      tstrncpy(pRef->referenceAlias, pSeries->alias, sizeof(pRef->referenceAlias));
       parserDebug("matched series alias in column ref, col:%s alias:%s source:%s db:%s table:%s",
                   pRef->colName, pSeries->alias, pSeries->sourceName, pSeries->dbName,
                   pSeries->measurementName);
@@ -44687,11 +45040,11 @@ static int32_t rewriteCreateVirtualTable(STranslateContext* pCxt, SQuery* pQuery
         PAR_ERR_JRET(rejectUnsupportedExternalFilter(pCxt, pColOptions->pFilterCond, EXT_SOURCE_TDENGINE));
       }
       if (pColOptions->refType == 1) {
-        PAR_ERR_JRET(checkExternalColRef(pCxt, pColOptions->refSourceName, pColOptions->refDb,
+        PAR_ERR_JRET(checkExternalColRefWithTime(pCxt, pColOptions->refSourceName, pColOptions->refDb,
                                          pColOptions->refSchema, pColOptions->refTable,
                                          pColOptions->refColumn,
                                          pColNode->colName, colType, dbCfg.precision,
-                                         pColOptions->pFilterCond));
+                                         pColOptions->pFilterCond, pColOptions->timeColumn));
       } else {
         PAR_ERR_JRET(checkColRef(
             pCxt, pStmt->dbName, pStmt->tableName, pColNode->colName, pColOptions->refDb, pColOptions->refTable, pColOptions->refColumn,
@@ -44809,10 +45162,10 @@ static int32_t checkCreateVChildOwnColRef(STranslateContext* pCxt, SCreateVSubTa
     PAR_ERR_RET(rejectUnsupportedExternalFilter(pCxt, pColRef->pFilterCond, EXT_SOURCE_TDENGINE));
   }
   if (pColRef->refType == 1) {
-    PAR_ERR_RET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
+    PAR_ERR_RET(checkExternalColRefWithTime(pCxt, pColRef->refSourceName, pColRef->refDbName,
                                     pColRef->refSchemaName, pColRef->refTableName,
                                     pColRef->refColName, pColRef->colName, colType,
-                                    pSuperTableMeta->tableInfo.precision, pColRef->pFilterCond));
+                                    pSuperTableMeta->tableInfo.precision, pColRef->pFilterCond, pColRef->timeColumn));
   } else {
     PAR_ERR_RET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName,
                             pColRef->refTableName, pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
@@ -45309,11 +45662,11 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
         PAR_ERR_JRET(rejectUnsupportedExternalFilter(pCxt, pColRef->pFilterCond, EXT_SOURCE_TDENGINE));
       }
       if (pColRef->refType == 1) {
-        PAR_ERR_JRET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
+        PAR_ERR_JRET(checkExternalColRefWithTime(pCxt, pColRef->refSourceName, pColRef->refDbName,
                                          pColRef->refSchemaName, pColRef->refTableName,
                                          pColRef->refColName,
                                          pColRef->colName, colType, pSuperTableMeta->tableInfo.precision,
-                                         pColRef->pFilterCond));
+                                         pColRef->pFilterCond, pColRef->timeColumn));
       } else {
         PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName, pColRef->refTableName,
                                  pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
@@ -45338,11 +45691,11 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
         PAR_ERR_JRET(rejectUnsupportedExternalFilter(pCxt, pColRef->pFilterCond, EXT_SOURCE_TDENGINE));
       }
       if (pColRef->refType == 1) {
-        PAR_ERR_JRET(checkExternalColRef(pCxt, pColRef->refSourceName, pColRef->refDbName,
+        PAR_ERR_JRET(checkExternalColRefWithTime(pCxt, pColRef->refSourceName, pColRef->refDbName,
                                          pColRef->refSchemaName, pColRef->refTableName,
                                          pColRef->refColName,
                                          pColRef->colName, colType, pSuperTableMeta->tableInfo.precision,
-                                         pColRef->pFilterCond));
+                                         pColRef->pFilterCond, pColRef->timeColumn));
       } else {
         PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColRef->colName, pColRef->refDbName, pColRef->refTableName,
                                  pColRef->refColName, colType, pSuperTableMeta->tableInfo.precision));
@@ -45372,11 +45725,11 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
         PAR_ERR_JRET(checkColRef(pCxt, pStmt->dbName, pStmt->tableName, pColDef->colName, pColOptions->refDb, pColOptions->refTable,
                                  pColOptions->refColumn, colType, pSuperTableMeta->tableInfo.precision));
       } else {
-        PAR_ERR_JRET(checkExternalColRef(pCxt, pColOptions->refSourceName, pColOptions->refDb,
+        PAR_ERR_JRET(checkExternalColRefWithTime(pCxt, pColOptions->refSourceName, pColOptions->refDb,
                                          pColOptions->refSchema, pColOptions->refTable,
                                          pColOptions->refColumn,
                                          pColDef->colName, colType, pSuperTableMeta->tableInfo.precision,
-                                         pColOptions->pFilterCond));
+                                         pColOptions->pFilterCond, pColOptions->timeColumn));
       }
     }
   } else {

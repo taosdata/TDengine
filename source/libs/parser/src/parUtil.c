@@ -504,6 +504,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   p->colRef = NULL;
   p->tagRef = NULL;
   p->seriesEntries = NULL;
+  memset(&p->referenceExt, 0, sizeof(p->referenceExt));
   if (hasSchemaExt) {
     p->schemaExt = (SSchemaExt*)(((char*)p) + baseSize);
     memcpy(p->schemaExt, pTableMeta->schemaExt, schemaExtSize);
@@ -525,6 +526,7 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
     p->tagRef = NULL;
     p->numOfTagRefs = 0;
   }
+  PAR_ERR_JRET(tCloneVtableReferenceExt(&pTableMeta->referenceExt, &p->referenceExt));
   PAR_ERR_JRET(queryCloneSeriesEntries(pTableMeta->seriesEntries, pTableMeta->numOfSeries, &p->seriesEntries));
   return p;
 

@@ -4414,22 +4414,25 @@ static const char* extRefKeyNamespace(const char* dbName, const char* schemaName
   return (schemaName != NULL) ? schemaName : "";
 }
 
-static void buildExtRefTableKey(char* buf, size_t bufSize, const char* sourceName, const char* dbName,
-                                const char* tableName) {
+static void buildExtRefTableKey(char* buf, size_t bufSize, EExtSourceType sourceType, const char* sourceName,
+                                const char* dbName, const char* schemaName, const char* tableName) {
+  const char* schema = EXT_SOURCE_POSTGRESQL == sourceType || EXT_SOURCE_SQLSERVER == sourceType
+                           ? schemaName : "";
   size_t srcLen = strnlen(sourceName, TSDB_EXT_SOURCE_NAME_LEN);
   size_t dbLen = strnlen(dbName, TSDB_DB_NAME_LEN);
+  size_t schemaLen = strnlen(schema, TSDB_EXT_SOURCE_SCHEMA_LEN);
   size_t tbLen = strnlen(tableName, TSDB_TABLE_NAME_LEN);
-  if (srcLen + 1 + dbLen + 1 + tbLen >= bufSize) {
+  if (srcLen + 1 + dbLen + 1 + schemaLen + 1 + tbLen >= bufSize) {
     buf[0] = '\0';
     return;
   }
-  if (snprintf(buf, bufSize, "%.*s.%.*s.%.*s", (int)srcLen, sourceName, (int)dbLen, dbName, (int)tbLen, tableName) >=
-      (int)bufSize) {
+  if (snprintf(buf, bufSize, "%.*s.%.*s.%.*s.%.*s", (int)srcLen, sourceName, (int)dbLen, dbName,
+               (int)schemaLen, schema, (int)tbLen, tableName) >= (int)bufSize) {
     buf[0] = '\0';
   }
 }
 
-static int32_t buildExtScanGroupKey(const SColRef* pColRef, uint8_t** ppKey, int32_t* pKeyLen) {
+static int32_t buildExtScanGroupKey(const SColRef* pColRef, const STableMeta* pMeta, uint8_t** ppKey, int32_t* pKeyLen) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
   uint8_t* pKey = NULL;
@@ -4454,7 +4457,20 @@ static int32_t buildExtScanGroupKey(const SColRef* pColRef, uint8_t** ppKey, int
                             tableNameLen > 0 && tableNameLen < sizeof(pColRef->refTableName),
                         code, lino, _return, TSDB_CODE_INVALID_PARA);
 
+  const SReferenceEntry* pReference = tVtableReferenceForColumn(&pMeta->referenceExt, pColRef->id);
+  const bool hasReference = VTABLE_BINDING_REFERENCE == pColRef->bindingKind || NULL != pReference;
+  char timeColumn[TSDB_COL_NAME_LEN] = {0};
+  if (VTABLE_BINDING_REFERENCE == pColRef->bindingKind) {
+    tstrncpy(timeColumn, pColRef->timeColumn, sizeof(timeColumn));
+  } else if (NULL != pReference) {
+    tstrncpy(timeColumn, pReference->timeColumn, sizeof(timeColumn));
+  }
   int64_t keySize = 0;
+  if (hasReference) {
+    keySize += sizeof(timeColumn) + sizeof(pMeta->uid) + sizeof(pMeta->rversion) +
+               sizeof(pColRef->refSchemaName) + sizeof(pColRef->referenceUid) +
+               sizeof(pColRef->expectedRversion) + sizeof(pColRef->bindingKind);
+  }
   keySize += sizeof(sourceNameLen) + sourceNameLen;
   keySize += sizeof(dbNameLen) + dbNameLen;
   keySize += sizeof(tableNameLen) + tableNameLen;
@@ -4465,6 +4481,24 @@ static int32_t buildExtScanGroupKey(const SColRef* pColRef, uint8_t** ppKey, int
   pKey = taosMemoryMalloc((size_t)keySize + 1);
   QUERY_CHECK_NULL(pKey, code, lino, _return, terrno);
   sliceInit(&key, (char*)pKey, (int32_t)keySize + 1);
+
+  // Keep legacy grouping independent of the virtual table's generated UID.
+  if (hasReference) {
+    code = sliceAppend(&key, (const char*)&pColRef->bindingKind, sizeof(pColRef->bindingKind));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, (const char*)&pColRef->referenceUid, sizeof(pColRef->referenceUid));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, (const char*)&pColRef->expectedRversion, sizeof(pColRef->expectedRversion));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, timeColumn, sizeof(timeColumn));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, (const char*)&pMeta->uid, sizeof(pMeta->uid));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, (const char*)&pMeta->rversion, sizeof(pMeta->rversion));
+    QUERY_CHECK_CODE(code, lino, _return);
+    code = sliceAppend(&key, pColRef->refSchemaName, sizeof(pColRef->refSchemaName));
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
 
   // Preserve quoted identifier case, matching buildExtRefTableKey.
   code = sliceAppend(&key, (const char*)&sourceNameLen, sizeof(sourceNameLen));
@@ -4945,12 +4979,24 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
   uint8_t*        pGroupKey = NULL;
   int32_t         groupKeyLen = 0;
 
-  char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
-  buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pColRef->refSourceName,
+  SExtTableNode* pSourceTable = NULL;
+  SNode* pRefNode = NULL;
+  FOREACH(pRefNode, pVirtualTable->refTables) {
+    if (QUERY_NODE_EXTERNAL_TABLE == nodeType(pRefNode) &&
+        0 == strcmp(((SExtTableNode*)pRefNode)->sourceName, pColRef->refSourceName)) {
+      pSourceTable = (SExtTableNode*)pRefNode;
+      break;
+    }
+  }
+  QUERY_CHECK_NULL(pSourceTable, code, lino, _return, TSDB_CODE_NOT_FOUND);
+  const char* schemaName = pColRef->refSchemaName[0] != '\0'
+                               ? pColRef->refSchemaName : pSourceTable->srcSchema;
+  char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
+  buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pSourceTable->sourceType, pColRef->refSourceName,
                       extRefKeyNamespace(pColRef->refDbName, pColRef->refSchemaName),
-                      pColRef->refTableName);
+                      schemaName, pColRef->refTableName);
   QUERY_CHECK_CONDITION(tableNameKey[0] != '\0', code, lino, _return, TSDB_CODE_INVALID_PARA);
-  code = buildExtScanGroupKey(pColRef, &pGroupKey, &groupKeyLen);
+  code = buildExtScanGroupKey(pColRef, pVirtualTable->pMeta, &pGroupKey, &groupKeyLen);
   QUERY_CHECK_CODE(code, lino, _return);
 
   const SSchemaExt* vtbSchemaExt =
@@ -4970,6 +5016,49 @@ static int32_t addExternalSubScanNodeByColRef(SLogicPlanContext* pCxt, SSelectSt
     code = makeExtScanLogicNode(pCxt, (SNode*)pExtTableNode, pColRef->refDbName, pColRef->refTableName, &pExtScan);
     QUERY_CHECK_CODE(code, lino, _return);
     created = true;
+    const SReferenceEntry* pReference =
+        tVtableReferenceForColumn(&pVirtualTable->pMeta->referenceExt, pColRef->id);
+    SReferenceEntry resolvedReference = {0};
+    if (VTABLE_BINDING_REFERENCE == pColRef->bindingKind) {
+      tstrncpy(resolvedReference.alias, pColRef->referenceAlias, sizeof(resolvedReference.alias));
+      tstrncpy(resolvedReference.timeColumn, pColRef->timeColumn, sizeof(resolvedReference.timeColumn));
+      pReference = &resolvedReference;
+    }
+    if (NULL != pReference) {
+      pExtScan->bindingKind = VTABLE_BINDING_REFERENCE;
+      pExtScan->referenceUid = pColRef->referenceUid != 0 ? pColRef->referenceUid : pVirtualTable->pMeta->uid;
+      pExtScan->expectedRversion = pColRef->referenceUid != 0 ? pColRef->expectedRversion
+                                                          : pVirtualTable->pMeta->rversion;
+      pExtScan->referenceVgId = pColRef->referenceVgId;
+      pExtScan->referenceEpSet = pColRef->referenceEpSet;
+      tstrncpy(pExtScan->referenceDbFName, pColRef->referenceDbFName, sizeof(pExtScan->referenceDbFName));
+      if (pExtScan->referenceVgId == 0) {
+        pExtScan->referenceVgId = pVirtualTable->pMeta->vgId;
+        if (NULL != pVirtualTable->pVgroupList) {
+          for (int32_t i = 0; i < pVirtualTable->pVgroupList->numOfVgroups; ++i) {
+            const SVgroupInfo* pVg = &pVirtualTable->pVgroupList->vgroups[i];
+            if (pVg->vgId == pExtScan->referenceVgId) pExtScan->referenceEpSet = pVg->epSet;
+          }
+        }
+        SName name = {0};
+        code = tNameSetDbName(&name, pCxt->pPlanCxt->acctId, pVirtualTable->table.dbName,
+                              strlen(pVirtualTable->table.dbName));
+        QUERY_CHECK_CODE(code, lino, _return);
+        code = tNameGetFullDbName(&name, pExtScan->referenceDbFName);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+      tstrncpy(pExtScan->referenceAlias, pReference->alias, sizeof(pExtScan->referenceAlias));
+      tstrncpy(pExtScan->timeColumn, pReference->timeColumn, sizeof(pExtScan->timeColumn));
+      SExtTableNode* pBoundTable = (SExtTableNode*)pExtScan->pExtTableNode;
+      pBoundTable->tsPrimaryColIdx = extFindColumnIndex(pBoundTable->sourceType,
+                                                      pBoundTable->pExtMeta, pReference->timeColumn);
+      QUERY_CHECK_CONDITION(pBoundTable->tsPrimaryColIdx >= 0, code, lino, _return,
+                            TSDB_CODE_EXT_SCHEMA_CHANGED);
+      if (pColRef->filterCondLen > 0) {
+        code = nodesStringToNode(pColRef->filterCondJson, &pExtScan->pReferenceFilter);
+        QUERY_CHECK_CODE(code, lino, _return);
+      }
+    }
     pExtScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
     pExtScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
     if (EXT_SOURCE_MYSQL == pExtTableNode->sourceType || EXT_SOURCE_POSTGRESQL == pExtTableNode->sourceType ||
@@ -5190,6 +5279,7 @@ static int32_t makeVirtualScanLogicNode(SLogicPlanContext* pCxt, SVirtualTableNo
   pScan->stableId = pVirtualTable->pMeta->suid;
   pScan->tableType = pVirtualTable->pMeta->tableType;
   pScan->hasFilterCond = pVirtualTable->hasFilterCond;
+  pScan->hasReferenceBinding = pVirtualTable->hasReferenceBinding;
   pScan->node.precision = pVirtualTable->pMeta->tableInfo.precision;
   pScan->tableName.type = TSDB_TABLE_NAME_T;
   pScan->tableName.acctId = pCxt->pPlanCxt->acctId;
@@ -5452,7 +5542,7 @@ static EDealRes syncVirtualTableColRefImpl(SNode* pNode, void* pContext) {
     widenVirtualColWidth(pCxt->pVirtualTable, pCol, pRef, colRefIndex < 0);
     if (NULL != pCxt->pRefTablesMap && '\0' != pRef->refSourceName[0] &&
         PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId && !pCol->isPrimTs) {
-      code = buildExtScanGroupKey(pRef, &pGroupKey, &groupKeyLen);
+      code = buildExtScanGroupKey(pRef, pCxt->pVirtualTable->pMeta, &pGroupKey, &groupKeyLen);
       QUERY_CHECK_CODE(code, lino, _return);
       SScanLogicNode** ppScan = taosHashGet(pCxt->pRefTablesMap, pGroupKey, groupKeyLen);
       QUERY_CHECK_NULL(ppScan, code, lino, _return, TSDB_CODE_PLAN_INTERNAL_ERROR);
@@ -7114,12 +7204,12 @@ static int32_t createVirtualSuperTableLogicNode(SLogicPlanContext* pCxt, SSelect
 
   SNode* pRefNode = NULL;
   FOREACH(pRefNode, pVirtualTable->refTables) {
-    char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
+    char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
     if (nodeType(pRefNode) == QUERY_NODE_EXTERNAL_TABLE) {
       SExtTableNode* pExtTable = (SExtTableNode*)pRefNode;
-      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName,
+      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceType, pExtTable->sourceName,
                           extRefKeyNamespace(pExtTable->table.dbName, pExtTable->schemaName),
-                          pExtTable->table.tableName);
+                          pExtTable->schemaName, pExtTable->table.tableName);
     } else {
       SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;
       buildRefTableKey(tableNameKey, sizeof(tableNameKey), pRefTable->table.dbName, pRefTable->table.tableName);
@@ -7544,12 +7634,12 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
 
   SNode* pRefNode = NULL;
   FOREACH(pRefNode, pVirtualTable->refTables) {
-    char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
+    char tableNameKey[TSDB_EXT_SOURCE_NAME_LEN + TSDB_DB_NAME_LEN + TSDB_EXT_SOURCE_SCHEMA_LEN + TSDB_TABLE_NAME_LEN + 4] = {0};
     if (nodeType(pRefNode) == QUERY_NODE_EXTERNAL_TABLE) {
       SExtTableNode* pExtTable = (SExtTableNode*)pRefNode;
-      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceName,
+      buildExtRefTableKey(tableNameKey, sizeof(tableNameKey), pExtTable->sourceType, pExtTable->sourceName,
                           extRefKeyNamespace(pExtTable->table.dbName, pExtTable->schemaName),
-                          pExtTable->table.tableName);
+                          pExtTable->schemaName, pExtTable->table.tableName);
     } else {
       SRealTableNode* pRefTable = (SRealTableNode*)pRefNode;
       buildRefTableKey(tableNameKey, sizeof(tableNameKey), pRefTable->table.dbName, pRefTable->table.tableName);

@@ -5008,12 +5008,19 @@ static int32_t pdcDealVirtualTable(SOptimizeContext* pCxt, SVirtualScanLogicNode
 
     if (pOrgScan->scanType == SCAN_TYPE_EXTERNAL) {
       if (IS_TSWINDOW_SPECIFIED(timeRange)) {
-        int8_t precision = TSDB_DEFAULT_PRECISION;
-        PLAN_ERR_JRET(pdcGetExternalCondPrecision(pOrgScan, &precision));
-        PLAN_ERR_JRET(pdcCreateVtableExternalPrimaryCondFromRange(
-            &timeRange, pOrgScan, pVScan->node.precision, precision, &pPushCond));
-        PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->node.pConditions, &pPushCond));
-        pPushCond = NULL;
+        if (VTABLE_BINDING_REFERENCE == pOrgScan->bindingKind) {
+          // REFERENCE renders the virtual-precision range with IS NULL before
+          // validating raw timestamps. A local condition would run afterwards.
+          pOrgScan->scanRange.skey = TMAX(pOrgScan->scanRange.skey, timeRange.skey);
+          pOrgScan->scanRange.ekey = TMIN(pOrgScan->scanRange.ekey, timeRange.ekey);
+        } else {
+          int8_t precision = TSDB_DEFAULT_PRECISION;
+          PLAN_ERR_JRET(pdcGetExternalCondPrecision(pOrgScan, &precision));
+          PLAN_ERR_JRET(pdcCreateVtableExternalPrimaryCondFromRange(
+              &timeRange, pOrgScan, pVScan->node.precision, precision, &pPushCond));
+          PLAN_ERR_JRET(nodesMergeNode(&pOrgScan->node.pConditions, &pPushCond));
+          pPushCond = NULL;
+        }
       }
       continue;
     }
@@ -6123,7 +6130,64 @@ static bool virtualSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   return true;
 }
 
+static bool referenceSourceLimitMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || NULL != pNode->pLimit ||
+      NULL != pNode->pConditions || pNode->dynamicOp) return false;
+  SScanLogicNode* pSource = (SScanLogicNode*)pNode;
+  if (SCAN_TYPE_EXTERNAL != pSource->scanType ||
+      VTABLE_BINDING_REFERENCE != pSource->bindingKind ||
+      pSource->scanSeq[0] != 1 || pSource->scanSeq[1] != 0 || NULL == pNode->pParent ||
+      QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN != nodeType(pNode->pParent)) return false;
+  SVirtualScanLogicNode* pVirtual = (SVirtualScanLogicNode*)pNode->pParent;
+  if (pVirtual->node.dynamicOp || pVirtual->twoPassMode || virtualScanContainsAlign(pVirtual) ||
+      LIST_LENGTH(pVirtual->node.pChildren) != 1 || NULL != pVirtual->node.pConditions ||
+      NULL != pVirtual->node.pSlimit) return false;
+
+  for (SLogicNode* pOwner = pVirtual->node.pParent; NULL != pOwner; pOwner = pOwner->pParent) {
+    if (NULL != pOwner->pConditions || NULL != pOwner->pSlimit ||
+        LIST_LENGTH(pOwner->pChildren) != 1) return false;
+    if (QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pOwner)) {
+      SNode* pProjection = NULL;
+      FOREACH(pProjection, ((SProjectLogicNode*)pOwner)->pProjections) {
+        if (QUERY_NODE_COLUMN != nodeType(pProjection)) return false;
+      }
+    } else if (QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pOwner)) {
+      SSortLogicNode* pSort = (SSortLogicNode*)pOwner;
+      if (pSort->groupSort || !sortPriKeyOptIsPriKeyOrderBy(pSort->pSortKeys) ||
+          ORDER_ASC != sortPriKeyOptGetPriKeyOrder(pSort)) return false;
+    } else {
+      return false;
+    }
+    if (limitHasFiniteRows(pOwner->pLimit)) {
+      const SLimitNode* pLimit = (const SLimitNode*)pOwner->pLimit;
+      int64_t offset = NULL == pLimit->offset ? 0 : pLimit->offset->datum.i;
+      if (offset < 0 || pLimit->limit->datum.i <= 0 ||
+          pLimit->limit->datum.i > INT64_MAX - offset) return false;
+      *(SLogicNode**)pCtx = pOwner;
+      return true;
+    }
+  }
+  return false;
+}
+
+int32_t planPushDownReferenceLimit(SLogicSubplan* pLogicSubplan, bool* pOptimized) {
+  SLogicNode* pOwner = NULL;
+  SLogicNode* pSource = optFindPossibleNode(pLogicSubplan->pNode,
+                                           referenceSourceLimitMayBeOptimized, &pOwner);
+  if (NULL == pSource) return TSDB_CODE_SUCCESS;
+  // A single ordered input needs no lookahead beyond the requested prefix.
+  // Saved column filters already execute remotely before this candidate cap.
+  return cloneLimit(pOwner, pSource, CLONE_LIMIT, pOptimized);
+}
+
 static int32_t virtualSourceLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  if (inStreamCalcClause(pCxt->pPlanCxt)) return TSDB_CODE_SUCCESS;
+  bool referenceOptimized = false;
+  PLAN_ERR_RET(planPushDownReferenceLimit(pLogicSubplan, &referenceOptimized));
+  if (referenceOptimized) {
+    pCxt->optimized = true;
+    return TSDB_CODE_SUCCESS;
+  }
   SLogicNode* pScan = optFindPossibleNode(pLogicSubplan->pNode,
                                         virtualSourceLimitMayBeOptimized, NULL);
   if (NULL == pScan || inStreamCalcClause(pCxt->pPlanCxt)) {
@@ -14462,6 +14526,7 @@ static bool pdaMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)nodesListGetNode(pNode->pChildren, 0);
+  if (pVScan->hasReferenceBinding) return false;
 
   // All VirtualScan children must be plain table-scan nodes.
   // TagRefSource children cannot participate in PDA restructuring.
@@ -15971,6 +16036,7 @@ static bool vstableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (NULL == pVirtualScan || nodeType(pVirtualScan) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN ||
       LIST_LENGTH(((SLogicNode*)pVirtualScan)->pChildren) < 1 ||
       ((SVirtualScanLogicNode*)pVirtualScan)->hasFilterCond ||
+      ((SVirtualScanLogicNode*)pVirtualScan)->hasReferenceBinding ||
       NULL != ((SVirtualScanLogicNode*)pVirtualScan)->node.pConditions) {
     return false;
   }
@@ -17976,7 +18042,7 @@ static bool vstableAggShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
       if (QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN == nodeType(pFirst)) {
         SVirtualScanLogicNode* pVscan = (SVirtualScanLogicNode*)pFirst;
         // Filter groups can overlap in time; aggregate only after VirtualScan reconstructs each row.
-        if (pVscan->hasFilterCond) {
+        if (pVscan->hasFilterCond || pVscan->hasReferenceBinding) {
           return false;
         }
         if ((pVscan->hasTagRef || isStreamCalc) && pFirst->pConditions) {
@@ -27530,6 +27596,13 @@ static int32_t fqPushdownOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicS
 
   SScanLogicNode* pScan = fqFindExternalScan(pLogicSubplan->pNode);
   if (NULL == pScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (VTABLE_BINDING_REFERENCE == pScan->bindingKind) {
+    // Raw records must reach timestamp validation before query filters and aggregates.
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_FQ_PUSHDOWN);
+    pCxt->optimized = true;
     return TSDB_CODE_SUCCESS;
   }
 

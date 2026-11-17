@@ -1004,6 +1004,9 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
       code = makeNode(type, sizeof(SCreateVSubTableStmt), &pNode);
       break;
+    case QUERY_NODE_REFERENCE_DECL:
+      code = makeNode(type, sizeof(SReferenceDeclNode), &pNode);
+      break;
     case QUERY_NODE_SERIES_DECL:
       code = makeNode(type, sizeof(SSeriesDeclNode), &pNode);
       break;
@@ -2523,6 +2526,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pStmt->pSpecificTagRefs);
       nodesDestroyList(pStmt->pTagRefs);
       nodesDestroyList(pStmt->pSeriesList);
+      nodesDestroyList(pStmt->pColDefs);
       break;
     }
     case QUERY_NODE_SERIES_DECL: {
@@ -2531,6 +2535,7 @@ void nodesDestroyNode(SNode* pNode) {
       pDecl->pTagCond = NULL;
       break;
     }
+    case QUERY_NODE_REFERENCE_DECL:
     case QUERY_NODE_SERIES_TAG_ASSIGN:
       break;
     case QUERY_NODE_CREATE_SUBTABLE_FROM_FILE_CLAUSE: {
@@ -2991,6 +2996,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pFqJoinTables);
       nodesDestroyNode(pLogicNode->pRemoteLogicPlan);
       nodesDestroyNode(pLogicNode->pPushedConditions);
+      nodesDestroyNode(pLogicNode->pReferenceFilter);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_JOIN: {
@@ -3243,6 +3249,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN: {
       SFederatedScanPhysiNode* pFedNode = (SFederatedScanPhysiNode*)pNode;
+      nodesDestroyNode(pFedNode->pReferenceFilter);
       destroyPhysiNode((SPhysiNode*)pFedNode);
       nodesDestroyNode(pFedNode->pExtTable);
       nodesDestroyList(pFedNode->pScanCols);
@@ -4210,6 +4217,7 @@ typedef struct SExternalFilterCxt {
   char*                    pMsg;
   int32_t                  msgLen;
   bool                     storedFilter;
+  const SExternalBindingContext* pBinding;
   int32_t                  code;
 } SExternalFilterCxt;
 
@@ -4385,7 +4393,7 @@ static int32_t validateExternalFilterOperator(SExternalFilterCxt* pCxt, SOperato
   }
 
   SValueNode* pValue = (SValueNode*)pOp->pRight;
-  if (pCxt->storedFilter) {
+  if (pCxt->storedFilter || pValue->translate) {
     code = resetStoredExternalFilterValue(pCxt, pValue);
     QUERY_CHECK_CODE(code, lino, _return);
   }
@@ -4511,12 +4519,14 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
   QUERY_CHECK_NULL(pExtMeta->pCols, code, lino, _return, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(pExtMeta->numOfCols > 0, code, lino, _return, TSDB_CODE_INVALID_PARA);
 
+  bool explicitTime = NULL != pCxt->pBinding &&
+                      VTABLE_BINDING_REFERENCE == pCxt->pBinding->bindingKind;
   if (EXT_SOURCE_MYSQL != pCxt->sourceType && EXT_SOURCE_POSTGRESQL != pCxt->sourceType &&
       EXT_SOURCE_SQLSERVER != pCxt->sourceType && EXT_SOURCE_ORACLE != pCxt->sourceType) {
     // Non-relational sources (InfluxDB) have no remote primary key, so a
     // declared filter cannot be bound; SQL Server and Oracle are relational
     // and follow the same primary-key coverage rules as MySQL / PostgreSQL.
-    if (NULL != pFilterCond) {
+    if (NULL != pFilterCond || explicitTime) {
       code =
           externalFilterError(pCxt, TSDB_CODE_VTABLE_EXT_FILTER_NOT_SUPPORTED,
                               "external column filters are supported only for direct MySQL, PostgreSQL, SQL Server or Oracle references");
@@ -4525,7 +4535,39 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
     goto _return;
   }
 
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+  if (!explicitTime && EXT_OBJECT_VIEW == pExtMeta->objectKind) {
+    code = externalFilterError(pCxt, TSDB_CODE_EXT_NO_TS_PRIMARY_KEY,
+                               "direct virtual column references require a source table");
+    QUERY_CHECK_CODE(code, lino, _return);
+  }
+  if (explicitTime) {
+    QUERY_CHECK_CONDITION(NULL != pCxt->pBinding->timeColumn &&
+                              '\0' != pCxt->pBinding->timeColumn[0],
+                          code, lino, _return, TSDB_CODE_INVALID_PARA);
+    tsPrimaryKeyIndex = extFindColumnIndex(pCxt->sourceType, pExtMeta,
+                                         pCxt->pBinding->timeColumn);
+    if (tsPrimaryKeyIndex < 0) {
+      code = externalFilterError(pCxt, TSDB_CODE_EXT_COLUMN_NOT_EXIST,
+                                 "reference time column '%s' does not exist",
+                                 pCxt->pBinding->timeColumn);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    const SExtColumnDef* pTime = &pExtMeta->pCols[tsPrimaryKeyIndex];
+    SDataType mappedType = {0};
+    code = extTypeNameToTDengineType(pCxt->sourceType, pTime->extTypeName,
+                                     pTime->extCharsetName, &mappedType);
+    QUERY_CHECK_CODE(code, lino, _return);
+    if (TSDB_DATA_TYPE_TIMESTAMP != mappedType.type) {
+      code = externalFilterError(pCxt, TSDB_CODE_EXT_TYPE_NOT_MAPPABLE,
+                                 "reference time column '%s' must map to TIMESTAMP",
+                                 pTime->colName);
+      QUERY_CHECK_CODE(code, lino, _return);
+    }
+    hasRemotePrimaryKey = true;
+    tsPrimaryKeyCount = 1;
+  }
+
+  for (int32_t i = 0; !explicitTime && i < pExtMeta->numOfCols; ++i) {
     const SExtColumnDef* pCol = &pExtMeta->pCols[i];
     if (!pCol->isRemotePrimaryKey) {
       continue;
@@ -4559,7 +4601,7 @@ static int32_t validateExternalFilterBinding(SExternalFilterCxt* pCxt, SNode* pF
     QUERY_CHECK_CODE(code, lino, _return);
   }
 
-  for (int32_t i = 0; i < pExtMeta->numOfCols; ++i) {
+  for (int32_t i = 0; !explicitTime && i < pExtMeta->numOfCols; ++i) {
     if (!pExtMeta->pCols[i].isRemotePrimaryKey || i == tsPrimaryKeyIndex) {
       continue;
     }
@@ -4586,10 +4628,11 @@ _return:
   return code;
 }
 
-int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
+int32_t nodesValidateExternalFilterEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta, SNode* pFilterCond,
                                     timezone_t timezone, void* charsetCxt, char* pMsg, int32_t msgLen,
-                                    int32_t* pTsPrimaryKeyIndex) {
+                                    int32_t* pTsPrimaryKeyIndex, const SExternalBindingContext* pBinding) {
   SExternalFilterCxt cxt = {
+      .pBinding = pBinding,
       .sourceType = sourceType,
       .pExtMeta = pExtMeta,
       .timezone = timezone,
@@ -4600,14 +4643,15 @@ int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMe
   return validateExternalFilterBinding(&cxt, pFilterCond, pTsPrimaryKeyIndex);
 }
 
-int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+int32_t nodesValidateExternalFilterCurrentMetaEx(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
                                                const char* pFilterCondJson, int32_t filterCondLen, timezone_t timezone,
                                                void* charsetCxt, char* pMsg, int32_t msgLen,
-                                               int32_t* pTsPrimaryKeyIndex) {
+                                               int32_t* pTsPrimaryKeyIndex, const SExternalBindingContext* pBinding) {
   int32_t            code = TSDB_CODE_SUCCESS;
   int32_t            lino = 0;
   SNode*             pFilterCond = NULL;
   SExternalFilterCxt cxt = {
+      .pBinding = pBinding,
       .sourceType = sourceType,
       .pExtMeta = pExtMeta,
       .timezone = timezone,
@@ -4655,6 +4699,22 @@ _return:
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+int32_t nodesValidateExternalFilter(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                    SNode* pFilterCond, timezone_t timezone, void* charsetCxt,
+                                    char* pMsg, int32_t msgLen, int32_t* pTsPrimaryKeyIndex) {
+  return nodesValidateExternalFilterEx(sourceType, pExtMeta, pFilterCond, timezone,
+                                      charsetCxt, pMsg, msgLen, pTsPrimaryKeyIndex, NULL);
+}
+
+int32_t nodesValidateExternalFilterCurrentMeta(EExtSourceType sourceType, const SExtTableMeta* pExtMeta,
+                                               const char* pFilterCondJson, int32_t filterCondLen,
+                                               timezone_t timezone, void* charsetCxt, char* pMsg,
+                                               int32_t msgLen, int32_t* pTsPrimaryKeyIndex) {
+  return nodesValidateExternalFilterCurrentMetaEx(sourceType, pExtMeta, pFilterCondJson,
+                                                 filterCondLen, timezone, charsetCxt, pMsg,
+                                                 msgLen, pTsPrimaryKeyIndex, NULL);
 }
 
 void* nodesGetValueFromNode(SValueNode* pNode) {
@@ -6289,4 +6349,63 @@ int32_t nodesCaptureInfluxSchema(SExtTableNode* pTable) {
     if (code != TSDB_CODE_SUCCESS) return code;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesFormatReferenceSource(const SColRef *pRef, const SReferenceEntry *pReference,
+                                   char *buffer, int32_t capacity) {
+  if (pRef == NULL || pReference == NULL || buffer == NULL || capacity <= 0) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t filterLen = 0;
+  SNode *pFilter = NULL;
+  char *filterSQL = NULL;
+  if (pRef->filterCondJson != NULL) {
+    code = nodesStringToNode(pRef->filterCondJson, &pFilter);
+    if (code == TSDB_CODE_SUCCESS) code = nodesRestoreExternalFilterLiterals(&pFilter, true);
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesExprToExtSQL(pFilter, EXT_SQL_DIALECT_MYSQL, NULL, 0, &filterLen);
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      filterSQL = taosMemoryMalloc((size_t)filterLen + 1);
+      if (filterSQL == NULL) code = terrno;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = nodesExprToExtSQL(pFilter, EXT_SQL_DIALECT_MYSQL, filterSQL, filterLen + 1, &filterLen);
+    }
+    nodesDestroyNode(pFilter);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosMemoryFree(filterSQL);
+      return code;
+    }
+  }
+  size_t fullCapacity = strlen(pRef->refSourceName) + strlen(pRef->refDbName) +
+      strlen(pRef->refSchemaName) + strlen(pRef->refTableName) + strlen(pRef->refColName) +
+      strlen(pReference->timeColumn) + filterLen + 48;
+  char *full = taosMemoryMalloc(fullCapacity);
+  if (full == NULL) {
+    taosMemoryFree(filterSQL);
+    return terrno;
+  }
+  int32_t length = tsnprintf(full, fullCapacity, "%s.%s%s%s%s%s.%s (TIMESTAMP %s)%s%s",
+                            pRef->refSourceName, pRef->refDbName, pRef->refDbName[0] ? "." : "",
+                            pRef->refSchemaName, pRef->refSchemaName[0] ? "." : "", pRef->refTableName,
+                            pRef->refColName, pReference->timeColumn,
+                            filterSQL ? " WHERE " : "", filterSQL ? filterSQL : "");
+  const char marker[] = "... [truncated]";
+  size_t markerLen = sizeof(marker) - 1;
+  if (length < capacity) {
+    memcpy(buffer, full, length + 1);
+  } else if ((size_t)capacity > markerLen) {
+    size_t prefix = capacity - markerLen - 1;
+    while (prefix > 0 && ((uint8_t)full[prefix] & 0xc0) == 0x80) --prefix;
+    memcpy(buffer, full, prefix);
+    memcpy(buffer + prefix, marker, markerLen + 1);
+  } else {
+    buffer[0] = '\0';
+    code = TSDB_CODE_OUT_OF_BUFFER;
+  }
+  taosMemoryFree(full);
+  taosMemoryFree(filterSQL);
+  return code;
 }

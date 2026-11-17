@@ -904,6 +904,13 @@ TableMetaFrameLayout describeProducerTableMetaFrame(const std::vector<uint8_t>& 
   }
   layout.optionalSections.push_back({layout.filterSectionOffset, cursor.pos()});
   layout.compatiblePrefixEnds.push_back(cursor.pos());
+  const size_t referenceExtensionStart = cursor.pos();
+  cursor.skip(sizeof(int32_t));  // REFERENCE metadata marker
+  EXPECT_EQ(0, cursor.readVar().value);  // reference declarations
+  EXPECT_EQ(0, cursor.readVar().value);  // binding links
+  EXPECT_EQ(0, cursor.readVar().value);  // declaration order
+  layout.optionalSections.push_back({referenceExtensionStart, cursor.pos()});
+  layout.compatiblePrefixEnds.push_back(cursor.pos());
   EXPECT_EQ(frame.size(), cursor.pos());
   return layout;
 }
@@ -4087,6 +4094,9 @@ TEST(td_msg_test, vtb_tag_cond_rsp_decodes_legacy_payload_without_filter_extensi
   ASSERT_EQ((int32_t)taosArrayGetSize(rsp.pEntries), 1);
   ASSERT_EQ(rsp.numOfFilterConds, 0);
   ASSERT_EQ(rsp.pFilterConds, nullptr);
+  EXPECT_EQ(0, rsp.rversion);
+  EXPECT_EQ(0, rsp.numOfBindings);
+  EXPECT_EQ(nullptr, rsp.pBindings);
   tDestroySVTagCondRsp(&rsp);
 }
 
@@ -7041,4 +7051,558 @@ TEST(td_msg_test, vsubtables_rsp_decoder_shares_identical_ref_patterns) {
 
   tDestroySVSubTablesRsp(&decoded);
   tDestroySVSubTablesRsp(&rsp);
+}
+
+namespace {
+
+struct ReferenceCodecFixture {
+  SReferenceEntry references[2] = {};
+  SVtableBindingLink bindings[2] = {};
+  SVtableDeclOrder declarations[3] = {};
+  SVtableReferenceExt extension = {};
+
+  ReferenceCodecFixture() {
+    const char* aliases[] = {"RefA", "unused"};
+    const char* times[] = {"EventTime", "CollectedAt"};
+    for (int32_t i = 0; i < 2; ++i) {
+      tstrncpy(references[i].alias, aliases[i], sizeof(references[i].alias));
+      references[i].sourceType = EXT_SOURCE_SQLSERVER;
+      tstrncpy(references[i].sourceName, "sqlsrc", sizeof(references[i].sourceName));
+      tstrncpy(references[i].dbName, "telemetry", sizeof(references[i].dbName));
+      tstrncpy(references[i].schemaName, "dbo", sizeof(references[i].schemaName));
+      tstrncpy(references[i].objectName, "samples_view", sizeof(references[i].objectName));
+      tstrncpy(references[i].timeColumn, times[i], sizeof(references[i].timeColumn));
+    }
+    bindings[0].colId = 2;
+    bindings[0].bindingKind = VTABLE_BINDING_REFERENCE;
+    tstrncpy(bindings[0].alias, "RefA", sizeof(bindings[0].alias));
+    bindings[1].colId = 7;
+    bindings[1].bindingKind = VTABLE_BINDING_SERIES;
+    tstrncpy(bindings[1].alias, "s1", sizeof(bindings[1].alias));
+    declarations[0].bindingKind = VTABLE_BINDING_REFERENCE;
+    tstrncpy(declarations[0].alias, "RefA", sizeof(declarations[0].alias));
+    declarations[1].bindingKind = VTABLE_BINDING_SERIES;
+    tstrncpy(declarations[1].alias, "s1", sizeof(declarations[1].alias));
+    declarations[2].bindingKind = VTABLE_BINDING_REFERENCE;
+    tstrncpy(declarations[2].alias, "unused", sizeof(declarations[2].alias));
+    extension.nReferences = 2;
+    extension.pReferences = references;
+    extension.nBindings = 2;
+    extension.pBindings = bindings;
+    extension.nDeclarations = 3;
+    extension.pDeclarations = declarations;
+  }
+};
+
+std::vector<uint8_t> encodeReferenceExtension(const SVtableReferenceExt& extension) {
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeVtableReferenceExt(&encoder, &extension));
+  int32_t length = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> frame(length);
+  tEncoderInit(&encoder, frame.data(), length);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeVtableReferenceExt(&encoder, &extension));
+  tEncoderClear(&encoder);
+  return frame;
+}
+
+void expectReferenceExtension(const SVtableReferenceExt& extension) {
+  ASSERT_EQ(2, extension.nReferences);
+  ASSERT_EQ(3, extension.nDeclarations);
+  ASSERT_NE(nullptr, extension.pReferences);
+  ASSERT_NE(nullptr, extension.pDeclarations);
+  EXPECT_STREQ("RefA", extension.pReferences[0].alias);
+  EXPECT_EQ(EXT_SOURCE_SQLSERVER, extension.pReferences[0].sourceType);
+  EXPECT_STREQ("sqlsrc", extension.pReferences[0].sourceName);
+  EXPECT_STREQ("telemetry", extension.pReferences[0].dbName);
+  EXPECT_STREQ("dbo", extension.pReferences[0].schemaName);
+  EXPECT_STREQ("samples_view", extension.pReferences[0].objectName);
+  EXPECT_STREQ("EventTime", extension.pReferences[0].timeColumn);
+  EXPECT_STREQ("unused", extension.pReferences[1].alias);
+  EXPECT_STREQ("CollectedAt", extension.pReferences[1].timeColumn);
+  EXPECT_EQ(VTABLE_BINDING_SERIES, extension.pDeclarations[1].bindingKind);
+  EXPECT_STREQ("s1", extension.pDeclarations[1].alias);
+  const SReferenceEntry* selected = tVtableReferenceForColumn(&extension, 2);
+  ASSERT_NE(nullptr, selected);
+  EXPECT_EQ(&extension.pReferences[0], selected);
+  EXPECT_EQ(nullptr, tVtableReferenceForColumn(&extension, 7));
+}
+
+std::vector<uint8_t> encodeEmbeddedVtableMetaReply(const SVtableReferenceExt* extension, int32_t trailingValue) {
+  auto metaFrame = makeProducerTableMetaFrame(false);
+  const auto layout = describeProducerTableMetaFrame(metaFrame);
+  const size_t referenceStart = layout.optionalSections.back().start;
+  metaFrame.resize(referenceStart + (extension != nullptr ? sizeof(int32_t) : 0));
+  if (extension != nullptr) {
+    // Retain the producer's marker and replace its empty REFERENCE payload.
+    const auto payload = encodeReferenceExtension(*extension);
+    metaFrame.insert(metaFrame.end(), payload.begin(), payload.end());
+  }
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeFixed(&encoder, metaFrame.data() + sizeof(int32_t),
+                                         metaFrame.size() - sizeof(int32_t)));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, trailingValue));
+  tEndEncode(&encoder);
+  const uint32_t length = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> frame(length);
+  tEncoderInit(&encoder, frame.data(), length);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tStartEncode(&encoder));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, TSDB_CODE_SUCCESS));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, 1));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeFixed(&encoder, metaFrame.data() + sizeof(int32_t),
+                                         metaFrame.size() - sizeof(int32_t)));
+  EXPECT_EQ(TSDB_CODE_SUCCESS, tEncodeI32(&encoder, trailingValue));
+  tEndEncode(&encoder);
+  tEncoderClear(&encoder);
+  return frame;
+}
+
+}  // namespace
+
+TEST(td_msg_test, create_vtable_rsp_keeps_index_after_legacy_and_reference_metadata) {
+  ReferenceCodecFixture fixture;
+  SVtableReferenceExt empty = {};
+  const SVtableReferenceExt* extensions[] = {nullptr, &empty, &fixture.extension};
+  for (const auto* extension : extensions) {
+    for (const int32_t index : {0, 7, 8192}) {
+      SCOPED_TRACE(index);
+      auto frame = encodeEmbeddedVtableMetaReply(extension, index);
+      SDecoder decoder = {};
+      SVCreateTbRsp output = {};
+      tDecoderInit(&decoder, frame.data(), frame.size());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeSVCreateTbRsp(&decoder, &output));
+      EXPECT_EQ(index, output.index);
+      ASSERT_NE(nullptr, output.pMeta);
+      EXPECT_STREQ("filter_a", output.pMeta->pColRefs[0].filterCondJson);
+      if (extension == &fixture.extension) {
+        expectReferenceExtension(output.pMeta->referenceExt);
+      } else {
+        EXPECT_EQ(0, output.pMeta->referenceExt.nReferences);
+      }
+      EXPECT_TRUE(tDecodeIsEnd(&decoder));
+      tFreeSVCreateTbRsp(&output);
+      tDecoderClear(&decoder);
+    }
+  }
+}
+
+TEST(td_msg_test, alter_vtable_rsp_keeps_touched_count_after_legacy_and_reference_metadata) {
+  ReferenceCodecFixture fixture;
+  SVtableReferenceExt empty = {};
+  const SVtableReferenceExt* extensions[] = {nullptr, &empty, &fixture.extension};
+  for (const auto* extension : extensions) {
+    for (const int32_t touched : {0, 5}) {
+      SCOPED_TRACE(touched);
+      auto frame = encodeEmbeddedVtableMetaReply(extension, touched);
+      SDecoder decoder = {};
+      SVAlterTbRsp output = {};
+      tDecoderInit(&decoder, frame.data(), frame.size());
+      ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeSVAlterTbRsp(&decoder, &output));
+      EXPECT_EQ(touched, output.numTouched);
+      ASSERT_NE(nullptr, output.pMeta);
+      if (extension == &fixture.extension) {
+        expectReferenceExtension(output.pMeta->referenceExt);
+      } else {
+        EXPECT_EQ(0, output.pMeta->referenceExt.nReferences);
+      }
+      EXPECT_TRUE(tDecodeIsEnd(&decoder));
+      tFreeSTableMetaRsp(output.pMeta);
+      taosMemoryFree(output.pMeta);
+      tDecoderClear(&decoder);
+    }
+  }
+}
+
+TEST(td_msg_test, vtable_reference_extension_roundtrip_and_deep_clone) {
+  ReferenceCodecFixture fixture;
+  std::vector<uint8_t> frame = encodeReferenceExtension(fixture.extension);
+  SVtableReferenceExt decoded = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, frame.data(), frame.size());
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeVtableReferenceExt(&decoder, &decoded));
+  EXPECT_EQ(frame.size(), decoder.pos);
+  tDecoderClear(&decoder);
+  expectReferenceExtension(decoded);
+  EXPECT_EQ(2, decoded.nBindings);
+  EXPECT_NE(fixture.references, decoded.pReferences);
+  EXPECT_NE(fixture.bindings, decoded.pBindings);
+  EXPECT_NE(fixture.declarations, decoded.pDeclarations);
+
+  SVtableReferenceExt cloned = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tCloneVtableReferenceExt(&decoded, &cloned));
+  EXPECT_NE(decoded.pReferences, cloned.pReferences);
+  EXPECT_NE(decoded.pBindings, cloned.pBindings);
+  EXPECT_NE(decoded.pDeclarations, cloned.pDeclarations);
+  tFreeVtableReferenceExt(&decoded);
+  expectReferenceExtension(cloned);
+  tFreeVtableReferenceExt(&cloned);
+  EXPECT_EQ(0, cloned.nReferences);
+  EXPECT_EQ(nullptr, cloned.pReferences);
+  EXPECT_EQ(nullptr, cloned.pBindings);
+  EXPECT_EQ(nullptr, cloned.pDeclarations);
+}
+
+TEST(td_msg_test, vtable_reference_extension_rejects_truncated_or_invalid_contents) {
+  ReferenceCodecFixture fixture;
+  std::vector<uint8_t> frame = encodeReferenceExtension(fixture.extension);
+  for (size_t length = 0; length < frame.size(); ++length) {
+    SDecoder decoder = {};
+    SVtableReferenceExt decoded = {};
+    tDecoderInit(&decoder, frame.data(), length);
+    EXPECT_NE(TSDB_CODE_SUCCESS, tDecodeVtableReferenceExt(&decoder, &decoded)) << length;
+    EXPECT_EQ(nullptr, decoded.pReferences);
+    EXPECT_EQ(nullptr, decoded.pBindings);
+    EXPECT_EQ(nullptr, decoded.pDeclarations);
+    tDecoderClear(&decoder);
+    tFreeVtableReferenceExt(&decoded);
+  }
+
+  SEncoder encoder = {};
+  fixture.bindings[1].colId = fixture.bindings[0].colId;
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tEncodeVtableReferenceExt(&encoder, &fixture.extension));
+  tEncoderClear(&encoder);
+  fixture.bindings[1].colId = 7;
+  tstrncpy(fixture.bindings[0].alias, "missing", sizeof(fixture.bindings[0].alias));
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tEncodeVtableReferenceExt(&encoder, &fixture.extension));
+  tEncoderClear(&encoder);
+  fixture.extension.nReferences = TSDB_MAX_VTABLE_REFERENCES + 1;
+  tEncoderInit(&encoder, nullptr, 0);
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tEncodeVtableReferenceExt(&encoder, &fixture.extension));
+  tEncoderClear(&encoder);
+}
+
+TEST(td_msg_test, create_vtable_preserves_reference_extension_after_existing_tails) {
+  ReferenceCodecFixture fixture;
+  fixture.extension.nBindings = 1;
+  SSchema schemas[2] = {};
+  schemas[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+  schemas[0].bytes = sizeof(int64_t);
+  schemas[0].colId = 1;
+  tstrncpy(schemas[0].name, "ts", sizeof(schemas[0].name));
+  schemas[1].type = TSDB_DATA_TYPE_DOUBLE;
+  schemas[1].bytes = sizeof(double);
+  schemas[1].colId = 2;
+  tstrncpy(schemas[1].name, "reading", sizeof(schemas[1].name));
+  SColRef refs[2] = {};
+  refs[0].id = 1;
+  refs[1].id = 2;
+  refs[1].hasRef = true;
+  refs[1].refType = 1;
+  tstrncpy(refs[1].refSourceName, "sqlsrc", sizeof(refs[1].refSourceName));
+  tstrncpy(refs[1].refDbName, "telemetry", sizeof(refs[1].refDbName));
+  tstrncpy(refs[1].refSchemaName, "dbo", sizeof(refs[1].refSchemaName));
+  tstrncpy(refs[1].refTableName, "samples_view", sizeof(refs[1].refTableName));
+  tstrncpy(refs[1].refColName, "reading", sizeof(refs[1].refColName));
+  refs[1].filterCondJson = const_cast<char*>("FILTER_JSON");
+  refs[1].filterCondLen = strlen(refs[1].filterCondJson);
+  SSeriesEntry series = {};
+  tstrncpy(series.alias, "s1", sizeof(series.alias));
+  tstrncpy(series.sourceName, "influx", sizeof(series.sourceName));
+  tstrncpy(series.dbName, "metrics", sizeof(series.dbName));
+  tstrncpy(series.measurementName, "cpu", sizeof(series.measurementName));
+  SVCreateTbReq input = {};
+  input.type = TSDB_VIRTUAL_NORMAL_TABLE;
+  input.name = const_cast<char*>("v_ref");
+  input.uid = 51;
+  input.ntb.schemaRow.nCols = 2;
+  input.ntb.schemaRow.version = 3;
+  input.ntb.schemaRow.pSchema = schemas;
+  input.colRef.nCols = 2;
+  input.colRef.version = 7;
+  input.colRef.pColRef = refs;
+  input.series.nSeries = 1;
+  input.series.pSeries = &series;
+  input.referenceExt = fixture.extension;
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSVCreateTbReq(&encoder, &input));
+  int32_t length = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> frame(length);
+  tEncoderInit(&encoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSVCreateTbReq(&encoder, &input));
+  tEncoderClear(&encoder);
+  SVCreateTbReq output = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeSVCreateTbReq(&decoder, &output));
+  expectReferenceExtension(output.referenceExt);
+  EXPECT_EQ(1, output.referenceExt.nBindings);
+  EXPECT_EQ(7, output.colRef.version);
+  EXPECT_EQ(2, output.ntb.schemaRow.nCols);
+  EXPECT_STREQ("FILTER_JSON", output.colRef.pColRef[1].filterCondJson);
+  EXPECT_STREQ("dbo", output.colRef.pColRef[1].refSchemaName);
+  EXPECT_EQ(1, output.series.nSeries);
+  EXPECT_STREQ("s1", output.series.pSeries[0].alias);
+  tdDestroySVCreateTbReq(&output);
+  tDecoderClear(&decoder);
+}
+
+TEST(td_msg_test, alter_vtable_reference_candidate_and_expected_version_roundtrip) {
+  ReferenceCodecFixture fixture;
+  const int8_t actions[] = {TSDB_ALTER_TABLE_ADD_REFERENCE, TSDB_ALTER_TABLE_MODIFY_REFERENCE,
+                            TSDB_ALTER_TABLE_REMOVE_REFERENCE, TSDB_ALTER_TABLE_ALTER_COLUMN_REF};
+  for (int8_t action : actions) {
+    SVAlterTbReq input = {};
+    input.tbName = const_cast<char*>("v_ref");
+    input.action = action;
+    input.seriesAlias = const_cast<char*>("RefA");
+    input.colName = const_cast<char*>("reading");
+    input.refType = 1;
+    input.refSourceName = const_cast<char*>("sqlsrc");
+    input.refDbName = const_cast<char*>("telemetry");
+    input.refSchemaName = const_cast<char*>("dbo");
+    input.refTbName = const_cast<char*>("samples_view");
+    input.refColName = const_cast<char*>("reading");
+    input.hasExpectedRversion = true;
+    input.expectedRversion = 123;
+    input.referenceExt = fixture.extension;
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, nullptr, 0);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSVAlterTbReq(&encoder, &input));
+    int32_t length = encoder.pos;
+    tEncoderClear(&encoder);
+    std::vector<uint8_t> frame(length);
+    tEncoderInit(&encoder, frame.data(), length);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tEncodeSVAlterTbReq(&encoder, &input));
+    tEncoderClear(&encoder);
+    SVAlterTbReq output = {};
+    SDecoder decoder = {};
+    tDecoderInit(&decoder, frame.data(), length);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDecodeSVAlterTbReq(&decoder, &output));
+    EXPECT_EQ(action, output.action);
+    if (action == TSDB_ALTER_TABLE_ADD_REFERENCE || action == TSDB_ALTER_TABLE_MODIFY_REFERENCE ||
+        action == TSDB_ALTER_TABLE_REMOVE_REFERENCE) {
+      EXPECT_STREQ("RefA", output.seriesAlias);
+    }
+    EXPECT_TRUE(output.hasExpectedRversion);
+    EXPECT_EQ(123, output.expectedRversion);
+    expectReferenceExtension(output.referenceExt);
+    destroyAlterTbReq(&output);
+    tDecoderClear(&decoder);
+  }
+}
+
+TEST(td_msg_test, vtagcond_rsp_roundtrips_reference_without_filters) {
+  SVTagCondRsp input = {};
+  input.rversion = 93;
+  input.pBindings = taosArrayInit(1, sizeof(SVtableRuntimeBinding));
+  ASSERT_NE(nullptr, input.pBindings);
+  SVtableRuntimeBinding binding = {};
+  binding.colId = TSDB_VCHILD_OWN_COL_ID_BASE;
+  binding.bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(binding.referenceAlias, "r1", sizeof(binding.referenceAlias));
+  tstrncpy(binding.timeColumn, "CollectedAt", sizeof(binding.timeColumn));
+  ASSERT_NE(nullptr, taosArrayPush(input.pBindings, &binding));
+  input.numOfBindings = 1;
+  int32_t length = tSerializeSVTagCondRsp(nullptr, 0, &input);
+  ASSERT_GT(length, 0);
+  std::vector<uint8_t> frame(length);
+  ASSERT_EQ(length, tSerializeSVTagCondRsp(frame.data(), length, &input));
+  SVTagCondRsp output = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVTagCondRsp(frame.data(), length, &output));
+  EXPECT_EQ(0, output.numOfRefs);
+  EXPECT_EQ(0, output.numOfFilterConds);
+  EXPECT_EQ(93, output.rversion);
+  ASSERT_EQ(1, output.numOfBindings);
+  auto* decoded = static_cast<SVtableRuntimeBinding*>(taosArrayGet(output.pBindings, 0));
+  ASSERT_NE(nullptr, decoded);
+  EXPECT_EQ(TSDB_VCHILD_OWN_COL_ID_BASE, decoded->colId);
+  EXPECT_EQ(VTABLE_BINDING_REFERENCE, decoded->bindingKind);
+  EXPECT_STREQ("r1", decoded->referenceAlias);
+  EXPECT_STREQ("CollectedAt", decoded->timeColumn);
+  tDestroySVTagCondRsp(&output);
+  tDestroySVTagCondRsp(&input);
+}
+
+TEST(td_msg_test, vsubtables_reference_metadata_preserves_version_and_distinct_time_axes) {
+  SRefColInfo reference = makeSubTableRef(2, "telemetry", "samples_view", "reading", "sqlsrc");
+  reference.bindingKind = VTABLE_BINDING_REFERENCE;
+  tstrncpy(reference.referenceAlias, "r1", sizeof(reference.referenceAlias));
+  tstrncpy(reference.timeColumn, "EventTime", sizeof(reference.timeColumn));
+  SVSubTablesRsp input = {};
+  input.vgId = 7;
+  input.pTables = taosArrayInit(3, POINTER_BYTES);
+  ASSERT_NE(nullptr, input.pTables);
+  for (int32_t i = 0; i < 3; ++i) {
+    if (i == 2) tstrncpy(reference.timeColumn, "CollectedAt", sizeof(reference.timeColumn));
+    SVCTableRefCols* table = tBuildSVCTableRefCols(100 + i, 1, &reference, 1, nullptr, 0);
+    ASSERT_NE(nullptr, table);
+    table->rversion = 20 + i;
+    ASSERT_NE(nullptr, taosArrayPush(input.pTables, &table));
+  }
+  int32_t length = tSerializeSVSubTablesRsp(nullptr, 0, &input);
+  ASSERT_GT(length, 0);
+  std::vector<uint8_t> frame(length);
+  ASSERT_EQ(length, tSerializeSVSubTablesRsp(frame.data(), length, &input));
+  SVSubTablesRsp output = {};
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSVSubTablesRsp(frame.data(), length, &output));
+  ASSERT_EQ(3, taosArrayGetSize(output.pTables));
+  auto* first = static_cast<SVCTableRefCols*>(taosArrayGetP(output.pTables, 0));
+  auto* same = static_cast<SVCTableRefCols*>(taosArrayGetP(output.pTables, 1));
+  auto* other = static_cast<SVCTableRefCols*>(taosArrayGetP(output.pTables, 2));
+  EXPECT_EQ(first->pContent, same->pContent);
+  EXPECT_NE(first->pContent, other->pContent);
+  for (int32_t i = 0; i < 3; ++i) {
+    auto* table = static_cast<SVCTableRefCols*>(taosArrayGetP(output.pTables, i));
+    EXPECT_EQ(20 + i, table->rversion);
+    SRefColInfo decoded = {};
+    vctRefColToInfo(table, vctColRefAt(table, 0), &decoded);
+    EXPECT_EQ(VTABLE_BINDING_REFERENCE, decoded.bindingKind);
+    EXPECT_STREQ("r1", decoded.referenceAlias);
+    EXPECT_STREQ(i == 2 ? "CollectedAt" : "EventTime", decoded.timeColumn);
+  }
+  tDestroySVSubTablesRsp(&output);
+  tDestroySVSubTablesRsp(&input);
+}
+
+TEST(td_msg_test, federated_reference_param_without_schema_preserves_recursive_child_alignment) {
+  SForeignScanOperatorParam foreign = {};
+  foreign.paramType = FOREIGN_SCAN_PARAM_SINGLE;
+  foreign.bindingKind = VTABLE_BINDING_REFERENCE;
+  foreign.referenceUid = 7001;
+  foreign.expectedRversion = 17;
+  foreign.dstPrecision = TSDB_TIME_PRECISION_MILLI;
+  tstrncpy(foreign.sourceName, "mysql", sizeof(foreign.sourceName));
+  tstrncpy(foreign.dbName, "telemetry", sizeof(foreign.dbName));
+  tstrncpy(foreign.tableName, "samples_view", sizeof(foreign.tableName));
+  tstrncpy(foreign.referenceAlias, "r1", sizeof(foreign.referenceAlias));
+  tstrncpy(foreign.timeColumn, "EventTime", sizeof(foreign.timeColumn));
+  STableScanOperatorParam notify = {};
+  notify.paramType = NOTIFY_TYPE_SCAN_PARAM;
+  notify.groupid = 42;
+  notify.notifyToProcess = true;
+  notify.notifyTs = 12345;
+  notify.notifyPhase = SCAN_PHASE_NEXT;
+  notify.notifyScanGroupId = 77;
+  SOperatorParam child = {};
+  child.opType = QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN;
+  child.downstreamIdx = 4;
+  child.value = &notify;
+  SOperatorParam input = {};
+  input.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  input.downstreamIdx = 3;
+  input.value = &foreign;
+  input.pChildren = taosArrayInit(1, POINTER_BYTES);
+  ASSERT_NE(nullptr, input.pChildren);
+  SOperatorParam* childPointer = &child;
+  ASSERT_NE(nullptr, taosArrayPush(input.pChildren, &childPointer));
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSOperatorParam(&encoder, &input));
+  int32_t length = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> frame(length);
+  tEncoderInit(&encoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSOperatorParam(&encoder, &input));
+  tEncoderClear(&encoder);
+  SOperatorParam output = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSOperatorParam(&decoder, &output));
+  EXPECT_EQ(length, decoder.pos);
+  tDecoderClear(&decoder);
+  auto* decoded = static_cast<SForeignScanOperatorParam*>(output.value);
+  ASSERT_NE(nullptr, decoded);
+  EXPECT_EQ(VTABLE_BINDING_REFERENCE, decoded->bindingKind);
+  EXPECT_EQ(7001, decoded->referenceUid);
+  EXPECT_EQ(17, decoded->expectedRversion);
+  EXPECT_STREQ("r1", decoded->referenceAlias);
+  EXPECT_STREQ("EventTime", decoded->timeColumn);
+  EXPECT_STREQ("", decoded->schemaName);
+  ASSERT_EQ(1, taosArrayGetSize(output.pChildren));
+  auto* decodedChild = static_cast<SOperatorParam*>(taosArrayGetP(output.pChildren, 0));
+  ASSERT_NE(nullptr, decodedChild);
+  EXPECT_EQ(QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN, decodedChild->opType);
+  EXPECT_EQ(4, decodedChild->downstreamIdx);
+  auto* decodedNotify = static_cast<STableScanOperatorParam*>(decodedChild->value);
+  ASSERT_NE(nullptr, decodedNotify);
+  EXPECT_EQ(42, decodedNotify->groupid);
+  EXPECT_EQ(12345, decodedNotify->notifyTs);
+  EXPECT_EQ(77, decodedNotify->notifyScanGroupId);
+  taosMemoryFree(decodedNotify);
+  taosArrayDestroy(decodedChild->pChildren);
+  taosMemoryFree(decodedChild);
+  taosArrayDestroy(output.pChildren);
+  taosArrayDestroy(input.pChildren);
+  taosArrayDestroy(decoded->colMap);
+  taosMemoryFree(decoded->tagCond);
+  taosMemoryFree(decoded->filterCondJson);
+  taosMemoryFree(decoded);
+}
+
+TEST(td_msg_test, federated_reference_batch_preserves_per_leaf_time_axis_and_versions) {
+  SForeignScanOperatorParam foreign = {};
+  foreign.paramType = FOREIGN_SCAN_PARAM_BATCH;
+  foreign.bindingKind = VTABLE_BINDING_LEGACY;
+  tstrncpy(foreign.sourceName, "mysql", sizeof(foreign.sourceName));
+  foreign.pBatchTables = taosArrayInit(2, sizeof(SForeignTableInfo));
+  ASSERT_NE(nullptr, foreign.pBatchTables);
+  const char* times[] = {"EventTime", "CollectedAt"};
+  for (int32_t i = 0; i < 2; ++i) {
+    SForeignTableInfo table = {};
+    tstrncpy(table.dbName, "telemetry", sizeof(table.dbName));
+    tstrncpy(table.tableName, "samples_view", sizeof(table.tableName));
+    table.bindingKind = VTABLE_BINDING_REFERENCE;
+    table.referenceUid = 1000 + i;
+    table.expectedRversion = 50 + i;
+    table.virtualChildUid = 2000 + i;
+    table.scanParamId = 3000 + i;
+    tstrncpy(table.referenceAlias, "r1", sizeof(table.referenceAlias));
+    tstrncpy(table.timeColumn, times[i], sizeof(table.timeColumn));
+    ASSERT_NE(nullptr, taosArrayPush(foreign.pBatchTables, &table));
+  }
+  SOperatorParam input = {};
+  input.opType = QUERY_NODE_PHYSICAL_PLAN_FEDERATED_SCAN;
+  input.value = &foreign;
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, nullptr, 0);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSOperatorParam(&encoder, &input));
+  int32_t length = encoder.pos;
+  tEncoderClear(&encoder);
+  std::vector<uint8_t> frame(length);
+  tEncoderInit(&encoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tSerializeSOperatorParam(&encoder, &input));
+  tEncoderClear(&encoder);
+  SOperatorParam output = {};
+  SDecoder decoder = {};
+  tDecoderInit(&decoder, frame.data(), length);
+  ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSOperatorParam(&decoder, &output));
+  EXPECT_EQ(length, decoder.pos);
+  tDecoderClear(&decoder);
+  auto* decoded = static_cast<SForeignScanOperatorParam*>(output.value);
+  ASSERT_NE(nullptr, decoded);
+  EXPECT_EQ(VTABLE_BINDING_LEGACY, decoded->bindingKind);
+  ASSERT_EQ(2, taosArrayGetSize(decoded->pBatchTables));
+  for (int32_t i = 0; i < 2; ++i) {
+    auto* table = static_cast<SForeignTableInfo*>(taosArrayGet(decoded->pBatchTables, i));
+    ASSERT_NE(nullptr, table);
+    EXPECT_EQ(VTABLE_BINDING_REFERENCE, table->bindingKind);
+    EXPECT_EQ(1000 + i, table->referenceUid);
+    EXPECT_EQ(50 + i, table->expectedRversion);
+    EXPECT_EQ(2000 + i, table->virtualChildUid);
+    EXPECT_EQ(3000 + i, table->scanParamId);
+    EXPECT_STREQ("r1", table->referenceAlias);
+    EXPECT_STREQ(times[i], table->timeColumn);
+    EXPECT_STREQ("", table->schemaName);
+    taosArrayDestroy(table->colMap);
+    taosMemoryFree(table->tagCond);
+    taosMemoryFree(table->filterCondJson);
+    taosMemoryFree(table->pPushedCondJson);
+  }
+  taosArrayDestroy(decoded->colMap);
+  taosArrayDestroy(decoded->pBatchTables);
+  taosMemoryFree(decoded->tagCond);
+  taosMemoryFree(decoded->filterCondJson);
+  taosMemoryFree(decoded);
+  taosArrayDestroy(output.pChildren);
+  taosArrayDestroy(foreign.pBatchTables);
 }

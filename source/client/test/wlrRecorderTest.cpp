@@ -2319,4 +2319,299 @@ TEST_F(WlrRecorderTest, SessionStopRotatesBeforeSegmentLimit) {
   EXPECT_TRUE(hasCleanSessionStop(dir_));
 }
 
+/* ------------------------------------------------- folded fetch sessions */
+
+namespace {
+
+struct FetchReturnInfo {
+  int32_t count = 0;
+  int64_t rows = -1;
+  int64_t calls = -1;
+};
+
+/* Read every fetch RETURN in the recording and the counters of the one that
+ * belongs to resultId. A missing FETCH_CALLS tag stays -1: that is how a 1.1
+ * recording (one event per call) is represented. */
+FetchReturnInfo readFetchReturns(const std::string& dir, uint64_t resultId) {
+  FetchReturnInfo info;
+  (void)visitDecodedFrames(dir, [&](const SWlrFrameHeader& frame, const uint8_t* payload) {
+    if (frame.type != WLR_FRAME_EVENT) return false;
+
+    int32_t count = 0;
+    if (wlrDecodeTlvs(payload, frame.payloadLength, nullptr, 0, &count) != WLR_DECODE_OK) {
+      return false;
+    }
+    std::vector<SWlrTlv> tlvs(static_cast<size_t>(count));
+    int32_t              decoded = 0;
+    if (wlrDecodeTlvs(payload, frame.payloadLength, tlvs.data(), count, &decoded) != WLR_DECODE_OK ||
+        decoded != count) {
+      return false;
+    }
+
+    uint64_t apiType = 0;
+    uint64_t phase = 0;
+    uint64_t rid = 0;
+    int64_t  rows = -1;
+    int64_t  calls = -1;
+    for (int32_t i = 0; i < decoded; ++i) {
+      if (tlvs[i].length != sizeof(uint64_t)) continue;
+      const uint16_t tag = WLR_TAG_BASE(tlvs[i].tag);
+      const uint64_t value = wlrGetU64(tlvs[i].value);
+      if (tag == WLR_TAG_API_TYPE) apiType = value;
+      else if (tag == WLR_TAG_EVENT_PHASE) phase = value;
+      else if (tag == WLR_TAG_RESULT_ID) rid = value;
+      else if (tag == WLR_TAG_FETCH_ROWS) rows = static_cast<int64_t>(value);
+      else if (tag == WLR_TAG_FETCH_CALLS) calls = static_cast<int64_t>(value);
+    }
+
+    if (apiType == WLR_API_FETCH_ROW && phase == WLR_PHASE_RETURN &&
+        (resultId == 0 || rid == resultId)) {
+      ++info.count;
+      info.rows = rows;
+      info.calls = calls;
+    }
+    return false;
+  });
+  return info;
+}
+
+}  // namespace
+
+/*
+ * The reason this feature exists: a projection query fetches one row per call, and
+ * recording each call cost a BEGIN ack round trip (measured +10.8 us per row).
+ * N row fetches plus the terminating NULL call must therefore produce exactly ONE
+ * BEGIN and ONE RETURN, with FETCH_CALLS telling replay how many calls the pair
+ * stands for.
+ */
+TEST_F(WlrRecorderTest, FetchCallsAreFoldedPerResult) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  constexpr int64_t kRows = 1000;
+  SWlrFetchFold     fold;
+  std::memset(&fold, 0, sizeof(fold));
+  for (int64_t i = 0; i < kRows; ++i) {
+    wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, /*resultId=*/7);
+    wlrFetchFoldAccount(&fold, 0, 1, false);
+  }
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 7);
+  wlrFetchFoldAccount(&fold, 0, 0, /*terminal=*/true);
+
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 2)
+      << "a folded result must record one BEGIN and one RETURN, not one pair per row";
+
+  wlrRecorderClose();
+
+  FetchReturnInfo info = readFetchReturns(dir_, 7);
+  ASSERT_EQ(info.count, 1) << "expected exactly one fetch RETURN";
+  EXPECT_EQ(info.rows, kRows) << "FETCH_ROWS must be the row total";
+  EXPECT_EQ(info.calls, kRows + 1)
+      << "FETCH_CALLS counts calls, so it includes the call that returned NULL";
+}
+
+/*
+ * A result the application stops consuming early must still close its session,
+ * or the call would sit in the active-call ring until the process exits.
+ */
+TEST_F(WlrRecorderTest, FetchFoldFinishesWhenResultIsFreedEarly) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 11);
+  for (int i = 0; i < 5; ++i) {
+    wlrFetchFoldAccount(&fold, 0, 1, false);
+  }
+  wlrFetchFoldFinish(&fold); /* taos_free_result before the result drained */
+  wlrFetchFoldFinish(&fold); /* idempotent: no second RETURN */
+
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 2);
+  wlrRecorderClose();
+
+  FetchReturnInfo info = readFetchReturns(dir_, 11);
+  ASSERT_EQ(info.count, 1);
+  EXPECT_EQ(info.rows, 5);
+  EXPECT_EQ(info.calls, 5) << "no terminating NULL call was made, so five calls were folded";
+
+  /* Asserted through the active-call list rather than the manifest: this property is
+   * "the session retired", and the manifest path also depends on session close
+   * bookkeeping that other suites cover. */
+  EXPECT_EQ(wlrTestActiveCallCount(), 0) << "an early finish must retire the call";
+}
+
+/*
+ * A request object reused by a later execution reports a different result ID. The
+ * previous session must be finished then, not dropped: dropping it would leak an
+ * active-call entry per execution until WLR_MAX_ACTIVE_CALLS overflows.
+ */
+TEST_F(WlrRecorderTest, FetchFoldRollsOverWhenResultIdChanges) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 21);
+  wlrFetchFoldAccount(&fold, 0, 1, false);
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 22);
+  wlrFetchFoldAccount(&fold, 0, 1, /*terminal=*/true);
+
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 4)
+      << "BEGIN/ RETURN for result 21, then BEGIN/ RETURN for result 22";
+  wlrRecorderClose();
+
+  FetchReturnInfo first = readFetchReturns(dir_, 21);
+  EXPECT_EQ(first.count, 1);
+  EXPECT_EQ(first.rows, 1);
+  FetchReturnInfo second = readFetchReturns(dir_, 22);
+  EXPECT_EQ(second.count, 1);
+  EXPECT_EQ(second.rows, 1);
+}
+
+/*
+ * The session keeps its call open across the whole result. If it also kept the
+ * thread's API depth, every unrelated public call the application makes while
+ * consuming rows would be suppressed by the nesting rule.
+ */
+TEST_F(WlrRecorderTest, FetchFoldReleasesThreadDepthBetweenFetches) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 31);
+  wlrFetchFoldAccount(&fold, 0, 1, false);
+
+  EXPECT_EQ(wlrTestCurrentDepth(), 0)
+      << "an open fetch session must not hold the calling thread's API depth";
+
+  ASSERT_EQ(recordCall(1, "select unrelated_while_consuming"), 0);
+  EXPECT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 3)
+      << "the unrelated query must still record its own BEGIN and RETURN";
+
+  wlrFetchFoldAccount(&fold, 0, 0, /*terminal=*/true);
+  wlrRecorderClose();
+}
+
+/*
+ * The fetch implementation issues the PUBLIC taos_fetch_rows_a when it needs
+ * another block (doAsyncFetchRows). Folding moved BEGIN outside the call, so the
+ * wrapper re-arms the depth guard around the impl; without it every block would
+ * add a phantom fetch_rows_a event pair. Modelled here by recording a public call
+ * while the guard is held.
+ */
+TEST_F(WlrRecorderTest, FetchEnterSuppressesInternalPublicCalls) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, /*resultId=*/71);
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 1) << "folded BEGIN";
+
+  wlrFetchEnter();
+  EXPECT_EQ(wlrTestCurrentDepth(), 1);
+  ASSERT_EQ(recordCall(1, "select internal_fetch"), 0);
+  EXPECT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 1)
+      << "a nested public call must not be recorded as a user call";
+  wlrFetchLeave();
+  EXPECT_EQ(wlrTestCurrentDepth(), 0);
+
+  wlrFetchFoldAccount(&fold, 0, 0, /*terminal=*/true);
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 2) << "folded RETURN";
+  wlrRecorderClose();
+}
+
+/* With the recorder off nothing is recorded and no state is left behind. */
+TEST_F(WlrRecorderTest, FetchFoldIsInertWhenRecorderOff) {
+  ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+
+  /* nextEventSeq is a session counter and is not reset while the recorder is off,
+   * so compare against a baseline rather than assuming zero. */
+  const int64_t baseline = atomic_load_64(&wlrMgr.nextEventSeq);
+
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  for (int i = 0; i < 10; ++i) {
+    wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 41);
+    wlrFetchFoldAccount(&fold, 0, 1, false);
+  }
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 41);
+  wlrFetchFoldAccount(&fold, 0, 0, true);
+  wlrFetchFoldFinish(&fold);
+
+  /* One failed BEGIN attempt per result, then DONE: no retry per row. */
+  EXPECT_EQ(atomic_load_32(&fold.state), WLR_FETCH_FOLD_DONE);
+  EXPECT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), baseline);
+}
+
+/*
+ * A result may be fetched from more than one thread (TS ORD004 covers the
+ * ordering of that shape). The folded counters must therefore not lose updates
+ * through a read-modify-write race: N threads x M rows must account N*M rows in
+ * exactly one BEGIN and one RETURN.
+ */
+TEST_F(WlrRecorderTest, FetchFoldCountsRowsAcrossThreads) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  constexpr int kThreads = 4;
+  constexpr int kRowsPerThread = 500;
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+  wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, /*resultId=*/51);
+
+  std::atomic<bool> go{false};
+  std::vector<std::thread> workers;
+  for (int t = 0; t < kThreads; ++t) {
+    workers.emplace_back([&] {
+      while (!go.load()) std::this_thread::yield();
+      for (int i = 0; i < kRowsPerThread; ++i) {
+        wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, 51); /* no-op while open */
+        wlrFetchFoldAccount(&fold, 0, 1, false);
+      }
+    });
+  }
+  go.store(true);
+  for (auto& w : workers) w.join();
+
+  wlrFetchFoldAccount(&fold, 0, 0, /*terminal=*/true);
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 2) << "still one BEGIN and one RETURN";
+  wlrRecorderClose();
+
+  FetchReturnInfo info = readFetchReturns(dir_, 51);
+  ASSERT_EQ(info.count, 1);
+  EXPECT_EQ(info.rows, kThreads * kRowsPerThread) << "every row must be counted exactly once";
+  EXPECT_EQ(info.calls, kThreads * kRowsPerThread + 1);
+}
+
+/*
+ * Concurrent first fetches on one result must not each emit a BEGIN: that would
+ * strand an active-call entry per loser. Exactly one session may exist, and it
+ * must retire cleanly.
+ */
+TEST_F(WlrRecorderTest, FetchFoldOpensOnceUnderConcurrentFirstFetch) {
+  ASSERT_EQ(startRecorder(1), 0);
+
+  constexpr int kThreads = 8;
+  SWlrFetchFold fold;
+  std::memset(&fold, 0, sizeof(fold));
+
+  std::atomic<bool> go{false};
+  std::vector<std::thread> workers;
+  for (int t = 0; t < kThreads; ++t) {
+    workers.emplace_back([&] {
+      while (!go.load()) std::this_thread::yield();
+      wlrFetchFoldOpen(&fold, WLR_API_FETCH_ROW, /*resultId=*/61);
+      wlrFetchFoldAccount(&fold, 0, 1, false);
+    });
+  }
+  go.store(true);
+  for (auto& w : workers) w.join();
+
+  wlrFetchFoldAccount(&fold, 0, 0, /*terminal=*/true);
+  ASSERT_EQ(atomic_load_64(&wlrMgr.nextEventSeq), 2)
+      << "concurrent opens must not produce a second BEGIN";
+  EXPECT_EQ(wlrTestActiveCallCount(), 0) << "the session must retire from the active list";
+  wlrRecorderClose();
+
+  FetchReturnInfo info = readFetchReturns(dir_, 61);
+  EXPECT_EQ(info.count, 1);
+}
+
 #endif  // WLR_HAVE_RECORDER

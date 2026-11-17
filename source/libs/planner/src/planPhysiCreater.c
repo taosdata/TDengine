@@ -2961,6 +2961,16 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
     PLAN_ERR_JRET(terrno);
   }
   PLAN_ERR_JRET(fqInitFederatedScanSource(pScan, pExtNode));
+  pScan->bindingKind = pScanLogicNode->bindingKind;
+  pScan->referenceUid = pScanLogicNode->referenceUid;
+  pScan->expectedRversion = pScanLogicNode->expectedRversion;
+  pScan->referenceVgId = pScanLogicNode->referenceVgId;
+  pScan->referenceEpSet = pScanLogicNode->referenceEpSet;
+  tstrncpy(pScan->referenceDbFName, pScanLogicNode->referenceDbFName, sizeof(pScan->referenceDbFName));
+  pScan->scanRange = pScanLogicNode->scanRange;
+  tstrncpy(pScan->referenceAlias, pScanLogicNode->referenceAlias, sizeof(pScan->referenceAlias));
+  tstrncpy(pScan->timeColumn, pScanLogicNode->timeColumn, sizeof(pScan->timeColumn));
+  PLAN_ERR_JRET(nodesCloneNode(pScanLogicNode->pReferenceFilter, &pScan->pReferenceFilter));
   if (pExtNode->capability.dialect == EXT_SQL_DIALECT_INFLUXDB_1_8) {
     pScan->scanRange = pScanLogicNode->scanRange;
   }
@@ -3019,7 +3029,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
         FOREACH(pScanCol, pScanLogicNode->pScanCols) {
           SColumnNode* pSCol = (SColumnNode*)pScanCol;
           if ((pSCol->colId != 0 && pSCol->colId == pTgtCol->colId) ||
-              (pSCol->colId == 0 && 0 == strcmp(pSCol->colName, pTgtCol->colName))) {
+              (pSCol->colId == 0 &&
+               (VTABLE_BINDING_REFERENCE != pScan->bindingKind || pTgtCol->colId == 0) &&
+               0 == strcmp(pSCol->colName, pTgtCol->colName))) {
             SNode* pClone = NULL;
             PLAN_ERR_JRET(nodesCloneNode(pScanCol, &pClone));
             PLAN_ERR_JRET(nodesListMakeStrictAppend(&pReordered, pClone));
@@ -3048,7 +3060,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
             if (QUERY_NODE_COLUMN != nodeType(pEx)) continue;
             SColumnNode* pExCol = (SColumnNode*)pEx;
             if ((pExCol->colId != 0 && pExCol->colId == pSCol->colId) ||
-                (pExCol->colId == 0 && strcmp(pExCol->colName, pSCol->colName) == 0 &&
+                (pExCol->colId == 0 &&
+                 (VTABLE_BINDING_REFERENCE != pScan->bindingKind || pSCol->colId == 0) &&
+                 strcmp(pExCol->colName, pSCol->colName) == 0 &&
                  strcmp(pExCol->tableAlias, pSCol->tableAlias) == 0)) {
               alreadyIn = true;
               break;
@@ -3389,7 +3403,7 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
                     ? ((SExtTableNode*)pRemoteLeaf->pExtTableNode)->table.tableName
                     : "(null)");
     }
-  } else {
+  } else if (VTABLE_BINDING_REFERENCE != pScan->bindingKind) {
     PLAN_ERR_JRET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &pRemoteRoot));
     SScanLogicNode* pLeaf = (SScanLogicNode*)pRemoteRoot;
     pLeaf->scanType = SCAN_TYPE_EXTERNAL;
@@ -3423,6 +3437,9 @@ static int32_t createFederatedScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* p
               pLeaf->node.pTargets ? LIST_LENGTH(pLeaf->node.pTargets) : 0,
               NULL != pLeaf->node.pConditions, NULL != pLeaf->node.pLimit);
   }
+
+  // REFERENCE reads use the runtime binding renderer, which adds the explicit
+  // time axis, null-preserving range and ascending timestamp order together.
 
   if (pRemoteRoot != NULL) {
     code = fqAttachRequiredScanConditions((SLogicNode*)pRemoteRoot, &pScan->pushdownFlags);

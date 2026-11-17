@@ -442,6 +442,13 @@ static bool createStreamStmtEqual(const SCreateStreamStmt* a, const SCreateStrea
          nodeNodeListEqual(a->pCols, b->pCols) && streamCreateTimeInfoEqual(a->pTimeInfo, b->pTimeInfo);
 }
 
+static bool referenceDeclEqual(const SReferenceDeclNode* a, const SReferenceDeclNode* b) {
+  return a->entry.sourceType == b->entry.sourceType && strcmp(a->entry.alias, b->entry.alias) == 0 &&
+      strcmp(a->entry.sourceName, b->entry.sourceName) == 0 && strcmp(a->entry.dbName, b->entry.dbName) == 0 &&
+      strcmp(a->entry.schemaName, b->entry.schemaName) == 0 && strcmp(a->entry.objectName, b->entry.objectName) == 0 &&
+      strcmp(a->entry.timeColumn, b->entry.timeColumn) == 0;
+}
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -456,6 +463,8 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
   }
 
   switch (nodeType(a)) {
+    case QUERY_NODE_REFERENCE_DECL:
+      return referenceDeclEqual((const SReferenceDeclNode*)a, (const SReferenceDeclNode*)b);
     case QUERY_NODE_LEFT_VALUE:
       return true;
     case QUERY_NODE_OUTER_REF:

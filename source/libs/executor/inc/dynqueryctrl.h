@@ -85,6 +85,11 @@ typedef struct {
   int32_t  vgId;
   int32_t  rversion;
   int8_t   refType;       // 0: column reference, 1: tag reference
+  int8_t   bindingKind;
+  char     referenceAlias[TSDB_COL_NAME_LEN];
+  char     timeColumn[TSDB_COL_NAME_LEN];
+  uint64_t referenceUid;
+  int32_t  expectedRversion;
   int8_t   extRefType;    // 0: internal reference, 1: external reference
   char*    tagCondJson;   // heap, owned; external ref series filter (may be NULL)
   int32_t  tagCondLen;

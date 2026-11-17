@@ -103,6 +103,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
         ts_col_name timestamp,
         create_definition[ ,create_definition] ...
     )
+    [reference_definition | series_definition] ...
     [TAGS (vtag_def [, vtag_def] ...)]
 
   create_definition:
@@ -115,14 +116,22 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     [db_name.]table_name.col_name
     | ext_source_name.db_name.table_name.col_name [WHERE filter_condition]
     | ext_source_name.database_name.schema_name.table_name.col_name [WHERE filter_condition]
+    | reference_alias.col_name [WHERE filter_condition]
     | series_alias.col_name
+
+  reference_definition:
+    REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+
+  series_definition:
+    SERIES series_alias AS ext_source_name.db_name.measurement_name
+        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
 
   vtag_def:
     tag_name type_name = const_value
     | tag_name type_name FROM [db_name.]table_name.tag_name
 ```
 
-For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source, and `series_alias` names an InfluxDB `SERIES` declaration. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters). SQL Server external column references support three forms: the three-part `ext_source_name.table_name.col_name` (requires default `DATABASE` and `SCHEMA` on the source), the four-part `ext_source_name.schema.table_name.col_name` (requires a default `DATABASE`), and the five-part `ext_source_name.database.schema.table_name.col_name`; relative forms are expanded to the full five-part namespace when stored.
+For a TDengine table or an existing virtual table, `column_reference` is `[db_name.]table_name.col_name`, so the column definition remains `type_name [FROM [db_name.]table_name.col_name]`. `ext_source_name` names an existing external data source. `series_alias` names an InfluxDB `SERIES` declaration, and `reference_alias` names a `REFERENCE` declaration that selects an external time column. For the optional `WHERE filter_condition` on external references, see [External Column Reference Filters](#external-column-reference-filters). SQL Server external column references support three forms: the three-part `ext_source_name.table_name.col_name` (requires default `DATABASE` and `SCHEMA` on the source), the four-part `ext_source_name.schema.table_name.col_name` (requires a default `DATABASE`), and the five-part `ext_source_name.database.schema.table_name.col_name`; relative forms are expanded to the full five-part namespace when stored.
 
 InfluxDB 1.8 and 3.x column references use `ext_source_name.table_name.col_name` (requires a default `DATABASE` on the source) or `ext_source_name.db_name.table_name.col_name`. For 1.8, `retention_policy` on the source selects the RP; it is not part of the column path, and the `SERIES` target remains three-part. See [InfluxDB SERIES Column References](../04-data-query/06-federated-query.md#influxdb-series-column-references) for configuration and examples.
 
@@ -138,8 +147,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
     USING [db_name.]stb_name
     [(tag_definition [, tag_definition] ...)]
     TAGS (tag_value [, tag_value] ...)
-    [SERIES series_alias AS ext_source_name.db_name.measurement_name
-        (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...) ...]
+    [reference_definition | series_definition] ...
 
   create_definition:
      [stb_col_name FROM] column_reference
@@ -156,7 +164,7 @@ CREATE VTABLE [IF NOT EXISTS] [db_name].vtb_name
 
 #### Batch Creation of Virtual Subtables
 
-A single `CREATE VTABLE` statement can contain multiple virtual-subtable clauses. Do not separate clauses with commas. Each clause can independently specify `IF NOT EXISTS`, a virtual supertable, column references, tag values, tag references, and `SERIES` declarations.
+A single `CREATE VTABLE` statement can contain multiple virtual-subtable clauses. Do not separate clauses with commas. Each clause can independently specify `IF NOT EXISTS`, a virtual supertable, column references, tag values, tag references, `REFERENCE`, and `SERIES` declarations.
 
 ```sql
 CREATE VTABLE
@@ -192,7 +200,7 @@ This is consistent with the column-reference form `[stb_col_name FROM] table_nam
 
 A virtual subtable can have members that are independent of the virtual supertable. Syntactically, the distinction is whether an explicit type is specified:
 
-- In `create_definition`, an entry **without a type** (`[stb_col_name FROM] table_name.col_name`) is an aligned column (existing semantics, aligned by name or position with the virtual supertable's columns); an entry **with an explicit type** (`owned_col_name type_name [FROM table_name.col_name]`) declares an **owned column** — the column name is not in the virtual supertable's schema. With `FROM`, the column is bound to a data source; without `FROM`, it is declared **unbound** (supported from `v3.4.3.10`), a state identical to running `ALTER COLUMN ... SET NULL` on a bound column, and it can be bound later with `ALTER COLUMN ... SET`. Specifying a type for a column that already exists in the virtual supertable is rejected.
+- In `create_definition`, an entry **without a type** (`[stb_col_name FROM] table_name.col_name`) is an aligned column (existing semantics, aligned by name or position with the virtual supertable's columns); an entry **with an explicit type** (`owned_col_name type_name [FROM table_name.col_name]`) declares an **owned column** — the column name is not in the virtual supertable's schema. With `FROM`, the column is bound to a data source; without `FROM`, it is declared **unbound** (supported from `v3.4.3.10`), a state identical to running `ALTER COLUMN ... SET NULL` on a bound column, and it can be bound later with `ALTER COLUMN ... SET`. An unbound column returns `NULL` on the available timeline. Specifying a type for a column that already exists in the virtual supertable is rejected.
 - In `tag_definition`, an entry **without a type** (`tag_name`) binds a virtual-supertable tag by name (existing semantics); an entry **with an explicit type** (`owned_tag_name type_name`) declares an **owned tag**, whose value is given positionally in `TAGS(...)` as a literal, `NULL`, or a tag-ref. Positional tag binding (omitting the tag list) does not support declaring owned tags.
 
 **Example**
@@ -223,7 +231,7 @@ Usage Notes:
 6. Specify maximum length for VARCHAR/NCHAR/GEOMETRY types (e.g., VARCHAR(20)).
 7. Virtual tables do not support the `BLOB` or `MEDIUMBLOB` data types.
 8. Use `FROM` to specify column data sources. Cross-database sources are supported via `db_name`. When `db_name` is omitted, TDengine uses the current database; if no current database is selected and `db_name` is not specified, the statement fails.
-9. You cannot explicitly specify a source for the `ts` column. During queries, the virtual table's `ts` values are the union of the primary-key timestamps from the source tables of the selected columns.
+9. You cannot explicitly specify a source for the `ts` column. During queries, the virtual table's `ts` values are the union of the timelines of the selected columns. `REFERENCE` bindings use their declared time columns, and other bindings use their existing timelines.
 10. Virtual supertables only support creating virtual subtables, and virtual subtables can only use virtual supertables as templates.
 11. Ensure virtual tables' column/tag data types match their source columns/tags.
 12. Virtual table names must be unique within a database and cannot conflict with table names, and it is recommended that view names do not duplicate virtual table names (not enforced). When a view and a virtual table have the same name, operations such as writing, querying, granting, and revoking permissions prioritize the virtual table with the same name.
@@ -235,6 +243,49 @@ Usage Notes:
 18. Owned tags do not support the `JSON` or `DECIMAL` types. If the virtual supertable has a single `JSON` tag, no owned tag can be declared on its virtual subtables.
 19. Column names and tag names share a single namespace: owned column/tag names must not duplicate the virtual supertable's columns, tags, or existing owned members. In addition, if a new column/tag name introduced by `ALTER STABLE` on a virtual supertable is already used by an owned member of any virtual subtable, that `ALTER` fails.
 20. Columns of a virtual basic table must carry a type (`name TYPE [FROM ...]`); the untyped `name FROM ...` form is reserved for aligned columns of virtual subtables.
+
+### Select an External Time Column
+
+Virtual basic tables and virtual subtables can use `REFERENCE` to select a time column from a MySQL, PostgreSQL, SQL Server, or Oracle external table or view. The source object can have no primary key, and the selected time column can be an ordinary data column. Its connector-mapped type must be `TIMESTAMP`, and the virtual table's database `PRECISION` must satisfy the selected column's precision requirements. Time conversion, timezone interpretation, and precision validation follow the federated query rules.
+
+A `REFERENCE` declaration stores the source object and time column. Each data column binds its value through `reference_alias.column_name` and stores its own optional `WHERE` condition. Filters follow the expression and type rules in the next section, can select any business columns, and can cover only part of a primary key. Queries construct timelines from the column bindings they read. An unused declaration contributes no timestamps.
+
+```sql
+CREATE VTABLE readings (
+    ts TIMESTAMP,
+    value DOUBLE FROM r1.value WHERE device = 'd1'
+)
+REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+
+CREATE STABLE readings_vst (ts TIMESTAMP, value DOUBLE) TAGS (device VARCHAR(16)) VIRTUAL 1;
+CREATE VTABLE readings_d1 (
+    value FROM r1.value WHERE device = 'd1',
+    extra_value DOUBLE
+) USING readings_vst TAGS ('d1')
+REFERENCE r1 AS sqlsrc.telemetry.dbo.readings_view TIMESTAMP EventTime;
+```
+
+The example assumes that the SQL Server view `readings_view` exposes an `EventTime` column mapped to `TIMESTAMP` and a `value` column mapped to `DOUBLE`. Multiple aliases can select the same or different time columns from one object. Declarations follow the column list and precede `TAGS` for virtual basic tables. They follow `TAGS` for virtual subtables. Multiple `REFERENCE` and `SERIES` declarations can be interleaved and separated by whitespace.
+
+Unquoted aliases are folded to lowercase, and backtick-quoted aliases preserve case. `REFERENCE` and `SERIES` share an alias namespace and use the existing duplicate-name checks. For a two-part `alias.column` input, resolution tries an exact `REFERENCE` alias, a local table with that name, and then a case-insensitive `REFERENCE` alias in declaration order, before continuing with existing source resolution. Different `REFERENCE` and `SERIES` candidates from mixed declarations produce an ambiguous-name error. Use `db_name.table_name.column_name` to select a local table that shares an alias name. Source object and column case matching follows the external source's rules.
+
+Each virtual basic table or virtual subtable can store up to 128 `REFERENCE` declarations, including declarations with no dependent columns. Each declaration saves the full object identity resolved when it is created or modified. Later changes to `USE` or the source's default namespace preserve that saved binding.
+
+Existing virtual basic tables and virtual subtables also support the following operations.
+
+```sql
+ALTER VTABLE readings ADD REFERENCE r2 AS sqlsrc.telemetry.dbo.readings_view
+    TIMESTAMP CollectedAt;
+ALTER VTABLE readings ALTER COLUMN value SET r2.value WHERE device = 'd1';
+ALTER VTABLE readings MODIFY REFERENCE r2 AS sqlsrc.telemetry.dbo.readings_view
+    TIMESTAMP EventTime;
+ALTER VTABLE readings ALTER COLUMN value SET NULL;
+ALTER VTABLE readings REMOVE REFERENCE r2;
+```
+
+`ADD REFERENCE` saves a new declaration. Existing columns use it after an explicit binding change. `MODIFY REFERENCE` requires the complete source object and time column. It validates every dependent value column, type, and saved filter before applying the change atomically. `MODIFY` and `REMOVE` find the saved alias by exact name after identifier processing. All dependent columns must be unbound or rebound before removing a declaration. `SET NULL` clears a column's binding and filter. `REMOVE REFERENCE` separately deletes the declaration. Dropping the virtual table also deletes its declarations.
+
+Queries read by the selected time column and validate the raw records actually consumed after column-level filtering, before timestamp alignment. A `NULL`, duplicate, or decreasing timestamp returns an error. Validation continues across fetch batches and covers the input consumed by this query. `LIMIT` can be pushed down under existing optimization rules. `OFFSET` is applied locally after time validation, alignment, and query filtering. A successful query means its consumed input passed these checks.
 
 ### External Column Reference Filters
 
@@ -251,10 +302,10 @@ comparison_operator: = | != | <> | < | <= | > | >=
 
 **Filter constraints**
 
-- `WHERE` is supported only for direct data-column references to MySQL, PostgreSQL, or SQL Server external tables. It cannot be appended to references to TDengine tables, other virtual tables, tag columns, or InfluxDB `SERIES`. Indirect references through other virtual tables retain filters already saved on the underlying references.
-- The external table must have a primary key containing exactly one column that maps to TDengine `TIMESTAMP`. Every other primary-key column must be covered by `column = literal` in each reference's `WHERE`, ensuring at most one row per timestamp after filtering. `WHERE` is optional when the timestamp column is the entire primary key.
+- `WHERE` is supported for direct data-column references to MySQL, PostgreSQL, or SQL Server external tables and for `REFERENCE` data-column bindings to MySQL, PostgreSQL, SQL Server, or Oracle. It cannot be appended to references to TDengine tables, other virtual tables, tag columns, or InfluxDB `SERIES`. Indirect references through other virtual tables retain filters already saved on the underlying references.
+- With a direct external column path, the external table must have a primary key containing exactly one column that maps to TDengine `TIMESTAMP`. Every other primary-key column must be covered by `column = literal` in each reference's `WHERE`, ensuring at most one row per timestamp after filtering. `WHERE` is optional when the timestamp column is the entire primary key.
 - Each comparison must have an unqualified column name from the current external table on the left and a numeric, string, or boolean literal on the right. The filter may use external columns that are not referenced by the virtual table. Literals must convert to the external column's data type; timestamp values must be string literals.
-- Each external column may appear only once in a filter. MySQL and SQL Server column matching is case insensitive (for SQL Server, the database collation applies). PostgreSQL column matching is case sensitive: identifiers without backticks are converted to lowercase, so use backticks to preserve column names containing uppercase letters. For example, PostgreSQL columns named `device` and `Device` are distinct and may both appear in the same filter. Non-timestamp primary-key columns require `=`; other columns support the comparison operators listed above. Multiple comparisons must be joined by `AND`; parentheses are allowed.
+- Each external column may appear only once in a filter. MySQL and SQL Server column matching is case insensitive (for SQL Server, the database collation applies). PostgreSQL column matching is case sensitive: identifiers without backticks are converted to lowercase, so use backticks to preserve column names containing uppercase letters. For example, PostgreSQL columns named `device` and `Device` are distinct and may both appear in the same filter. For direct external column paths, non-timestamp primary-key columns require `=`; other columns support the comparison operators listed above. Multiple comparisons must be joined by `AND`; parentheses are allowed.
 - `OR`, `NOT`, `IN`, `LIKE`, `IS NULL`, `NULL` values, functions, arithmetic expressions, subqueries, and parameter placeholders are not supported. `BETWEEN` expands into two comparisons of the same column and is therefore also unsupported.
 - A query's `WHERE` cannot replace the primary-key filter required in a column definition. Different columns can reference different filtered results from the same external table. Filters apply independently; timestamps are the union of the filtered results for references involved in the query, with missing values filled with `NULL`.
 
@@ -558,6 +609,9 @@ alter_table_clause: {
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP TAG tag_name
   | RENAME TAG old_tag_name new_tag_name
+  | ADD REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | MODIFY REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | REMOVE REFERENCE reference_alias
 }
 ```
 
@@ -651,6 +705,9 @@ alter_table_clause: {
   | SET TAG tag_name = {new_tag_value | [db_name.]table_name.tag_name}
   | DROP COLUMN owned_col_name
   | DROP TAG owned_tag_name
+  | ADD REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | MODIFY REFERENCE reference_alias AS external_table_path TIMESTAMP time_column
+  | REMOVE REFERENCE reference_alias
 }
 ```
 
@@ -796,6 +853,8 @@ Displays the creation statement for the specified virtual table. For virtual sub
 For a virtual subtable with owned members, the returned statement also includes the full definition of owned columns (with their source references) and owned tags (with their values or references); `DECIMAL` columns are rendered with precision and scale as `DECIMAL(p,s)`. An owned column whose data source has been cleared is emitted as `name TYPE` without `FROM`, and replaying the statement keeps it unbound; a cascaded column with no data source is inherited from the virtual supertable and is not emitted. The output is a single, fully replayable DDL.
 For a virtual basic table with tags, the returned statement includes the `TAGS(...)` clause: owned tags are inlined as `= value` (a NULL value is emitted as `= NULL`) and tag-refs as `FROM db_name.table_name.tag_name`, so a single statement fully recreates the virtual table.
 
+`SHOW CREATE VTABLE` preserves `REFERENCE` alias bindings, column filters, full source object paths, and selected time columns. It emits mixed `REFERENCE` and `SERIES` declarations in their saved order, including declarations with no dependent columns.
+
 ### Describe Structure
 
 ```sql
@@ -803,6 +862,8 @@ DESCRIBE [db_name.]vtb_name;
 ```
 
 `DESCRIBE` shows the virtual table's columns and tags. For tag-ref or col-ref entries, the result also shows the reference source. Tag rows are marked with `TAG` (both owned tags of virtual basic tables and owned tags of virtual subtables). For a virtual subtable with owned members, owned columns appear as regular data columns, after the virtual supertable's columns.
+
+For `REFERENCE` bindings, `DESCRIBE` and `information_schema.ins_columns.col_source` show the full value-column path, `(TIMESTAMP time_column)`, and the saved `WHERE` condition. Length-limited output preserves character boundaries and ends with `... [truncated]`. Source fields in `information_schema.ins_virtual_child_columns` retain their plain column paths.
 
 ### Show Current Tag Values of a Virtual Child Table
 
@@ -820,6 +881,8 @@ SHOW VTABLE VALIDATE FOR [db_name.]vtb_name;
 ```
 
 `SHOW VTABLE VALIDATE` checks column/tag references for a virtual basic table or virtual child table and returns the same validation metadata as `information_schema.ins_virtual_tables_referencing`, including `err_code` and `err_msg`.
+
+`REFERENCE` validation also returns `reference_alias`, `reference_object`, and `reference_time_column`. Declarations with no dependent columns return `type = 2`, with `virtual_col_name` and `src_column_name` set to `NULL`. Validation checks the current external object, time column, types, precision, and access. Timestamp values are validated when queries read data.
 
 ### Query Virtual Basic Tables and Virtual Subtables
 

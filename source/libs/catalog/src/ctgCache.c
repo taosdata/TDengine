@@ -608,6 +608,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
   SColRef *tmpColRef = NULL;
   SColRef *tmpTagRef = NULL;
   SSeriesEntry *tmpSeries = NULL;
+  SVtableReferenceExt tmpReferenceExt = {0};
 
   // Check if tbMeta is a virtual child table by checking tableType
   // Virtual child tables are stored as SVCTableMeta with inline colRef/tagRef data
@@ -736,6 +737,20 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       seriesNum = 0;
     }
   }
+  if (isVirtualChild) {
+    int32_t referenceCode = tCloneVtableReferenceExt(&tbMeta->referenceExt, &tmpReferenceExt);
+    if (referenceCode != TSDB_CODE_SUCCESS) {
+      queryFreeColRefTagConds(tmpColRef, numOfColRefs);
+      queryFreeColRefTagConds(tmpTagRef, numOfTagRefs);
+      taosMemoryFree(tmpColRef);
+      taosMemoryFree(tmpTagRef);
+      taosMemoryFree(tmpOwnSchemas);
+      taosMemoryFree(tmpOwnSchemaExt);
+      taosMemoryFree(tmpOwnTagSchemas);
+      queryFreeSeriesEntries(tmpSeries, seriesNum);
+      CTG_ERR_RET(referenceCode);
+    }
+  }
   // PROCESS FOR CHILD TABLE (both normal and virtual)
   ctgDebug("ctgCopyTbMeta ctb:%s tbType=%d", ctx->pName->tname, tbMeta->tableType);
   int32_t metaSize = sizeof(SCTableMeta);
@@ -750,6 +765,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(terrno);
   }
 
@@ -772,6 +788,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(stbCode);
   }
   if (NULL == tbCache) {
@@ -783,6 +800,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     taosMemoryFreeClear(*pTableMeta);
     *pDb = NULL;
     ctgDebug("stb:0x%" PRIx64 ", meta not in cache", ctx->tbInfo.suid);
@@ -803,6 +821,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
@@ -823,6 +842,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
     queryFreeSeriesEntries(tmpSeries, seriesNum);
+    tFreeVtableReferenceExt(&tmpReferenceExt);
     CTG_ERR_RET(terrno);
   }
   *pTableMeta = pTmp;
@@ -860,6 +880,7 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
       CTG_ERR_RET(mergeCode);
     }
   } else {
@@ -880,6 +901,8 @@ int32_t ctgCopyTbMeta(SCatalog *pCtg, SCtgTbMetaCtx *ctx, SCtgDBCache **pDb, SCt
     (*pTableMeta)->numOfSeries = 0;
     (*pTableMeta)->seriesEntries = NULL;
   }
+  (*pTableMeta)->referenceExt = tmpReferenceExt;
+  memset(&tmpReferenceExt, 0, sizeof(tmpReferenceExt));
   ctgDebug("ctgCopyTbMeta result:%s tagRef=%p numOfTagRefs=%d colRef=%p numOfColRefs=%d metaSize=%d schemaExt=%d colRef=%d tagRef=%d",
            ctx->pName->tname, (*pTableMeta)->tagRef, (*pTableMeta)->numOfTagRefs,
            (*pTableMeta)->colRef, (*pTableMeta)->numOfColRefs,
@@ -3900,6 +3923,7 @@ int32_t ctgGetTbMetaBFromCache(SCatalog* pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
 int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetasCtx *ctx, int32_t dbIdx,
                                int32_t *fetchIdx, int32_t baseResIdx, SArray *pList, bool autoCreate) {
+  SVtableReferenceExt tmpReferenceExt = {0};
   int32_t     tbNum = taosArrayGetSize(pList);
   char        dbFName[TSDB_DB_FNAME_LEN] = {0};
   char        dbName[TSDB_DB_NAME_LEN] = {0};
@@ -4053,6 +4077,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
 
       TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
       pTableMeta->seriesEntries = NULL;
+      memset(&pTableMeta->referenceExt, 0, sizeof(pTableMeta->referenceExt));
       if (withExtSchema(tbMeta->tableType) && tbMeta->schemaExt != NULL) {
         pTableMeta->schemaExt = (SSchemaExt *)((char *)pTableMeta + metaSize);
         TAOS_MEMCPY(pTableMeta->schemaExt, tbMeta->schemaExt, schemaExtSize);
@@ -4088,6 +4113,13 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         pTableMeta->tagRef = NULL;
       }
 
+      code = tCloneVtableReferenceExt(&tbMeta->referenceExt, &pTableMeta->referenceExt);
+      if (code != TSDB_CODE_SUCCESS) {
+        queryFreeTableMeta(pTableMeta);
+        CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+        taosHashRelease(dbCache->tbCache, pCache);
+        CTG_ERR_JRET(code);
+      }
       code = queryCloneSeriesEntries(tbMeta->seriesEntries, tbMeta->numOfSeries, &pTableMeta->seriesEntries);
       if (TSDB_CODE_SUCCESS != code) {
         queryFreeTableMeta(pTableMeta);
@@ -4271,6 +4303,22 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       }
     }
 
+    if (tbMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE) {
+      int32_t referenceCode = tCloneVtableReferenceExt(&tbMeta->referenceExt, &tmpReferenceExt);
+      if (referenceCode != TSDB_CODE_SUCCESS) {
+        queryFreeColRefTagConds(tmpRef, colRefNum);
+        queryFreeColRefTagConds(tmpTagRef, tagRefNum);
+        taosMemoryFree(tmpRef);
+        taosMemoryFree(tmpTagRef);
+        taosMemoryFree(tmpOwnSchemas);
+        taosMemoryFree(tmpOwnSchemaExt);
+        taosMemoryFree(tmpOwnTagSchemas);
+        queryFreeSeriesEntries(tmpSeries, seriesNum);
+        taosMemoryFree(pTableMeta);
+        ctgReleaseTbMetaToCache(pCtg, dbCache, pCache);
+        CTG_ERR_RET(referenceCode);
+      }
+    }
     TAOS_MEMCPY(pTableMeta, tbMeta, metaSize);
 
     CTG_UNLOCK(CTG_READ, &pCache->metaLock);
@@ -4295,6 +4343,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4318,6 +4367,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       
@@ -4346,6 +4396,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4373,6 +4424,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
 
       CTG_META_NHIT_INC();
       continue;
@@ -4396,6 +4448,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
       taosMemoryFreeClear(tmpOwnSchemaExt);
       taosMemoryFreeClear(tmpOwnTagSchemas);
       queryFreeSeriesEntries(tmpSeries, seriesNum);
+      tFreeVtableReferenceExt(&tmpReferenceExt);
       taosMemoryFreeClear(pTableMeta);
       CTG_ERR_RET(terrno);
     }
@@ -4435,6 +4488,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
         taosMemoryFreeClear(tmpOwnSchemaExt);
         taosMemoryFreeClear(tmpOwnTagSchemas);
         queryFreeSeriesEntries(tmpSeries, seriesNum);
+        tFreeVtableReferenceExt(&tmpReferenceExt);
         taosMemoryFreeClear(pTableMeta);
         CTG_ERR_RET(code);
       }
@@ -4450,6 +4504,8 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     taosMemoryFreeClear(tmpOwnSchemaExt);
     taosMemoryFreeClear(tmpOwnTagSchemas);
 
+    pTableMeta->referenceExt = tmpReferenceExt;
+    memset(&tmpReferenceExt, 0, sizeof(tmpReferenceExt));
     // Restore series (saved before merge)
     if (seriesNum > 0 && tmpSeries) {
       pTableMeta->numOfSeries = seriesNum;
@@ -4474,6 +4530,7 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
   }
 
 _return:
+  tFreeVtableReferenceExt(&tmpReferenceExt);
   queryFreeColRefTagConds(tmpRef, tmpRefNum);
   queryFreeColRefTagConds(tmpTagRef, tmpTagRefNum);
   taosMemoryFreeClear(tmpRef);

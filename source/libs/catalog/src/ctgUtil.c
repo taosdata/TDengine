@@ -2038,6 +2038,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
 
     TAOS_MEMCPY((*pOutput)->vctbMeta, output->vctbMeta, metaSize);
     (*pOutput)->vctbMeta->seriesEntries = NULL;
+    memset(&(*pOutput)->vctbMeta->referenceExt, 0, sizeof((*pOutput)->vctbMeta->referenceExt));
     if (colRefSize > 0) {
       (*pOutput)->vctbMeta->colRef = (SColRef*)((char*)(*pOutput)->vctbMeta + metaSize);
       TAOS_MEMCPY((*pOutput)->vctbMeta->colRef, output->vctbMeta->colRef, colRefSize);
@@ -2086,6 +2087,12 @@ int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput)
     } else {
       (*pOutput)->vctbMeta->numOfOwnTags = 0;
       (*pOutput)->vctbMeta->ownTagSchemas = NULL;
+    }
+    code = tCloneVtableReferenceExt(&output->vctbMeta->referenceExt, &(*pOutput)->vctbMeta->referenceExt);
+    if (code != TSDB_CODE_SUCCESS) {
+      queryFreeTableMeta((STableMeta*)(*pOutput)->vctbMeta);
+      taosMemoryFreeClear(*pOutput);
+      CTG_ERR_RET(code);
     }
     code = queryCloneSeriesEntries(output->vctbMeta->seriesEntries, output->vctbMeta->numOfSeries,
                                    &(*pOutput)->vctbMeta->seriesEntries);
