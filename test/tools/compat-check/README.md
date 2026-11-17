@@ -152,6 +152,9 @@ Phase 6  验证资源完整性 + 负载指标
 | TSMA 保持存在 | ✅ | ✅ | 基准版本 ≥ 3.3.6.0 时执行 |
 | Stream 保持运行 | ✅ | ✅ | 基准版本 ≥ 3.3.7.0 时执行 |
 | RSMA 保持存在 | ✅ | ✅ | 基准版本 ≥ 3.3.8.0 时执行 |
+| 虚拟表查询保持可用 | ✅ | ✅ | 基准版本创建，升级后新建连接查询，迫使客户端重新获取虚拟表元数据 |
+| 虚拟超级表/虚拟子表保持可用 | ✅ | ✅ | 虚拟子表保存自己的列绑定与标签，升级后同时查询虚拟超级表和虚拟子表 |
+| 虚拟表可继续 ALTER | ✅ | ✅ | `ADD COLUMN ... FROM` 与 `ALTER COLUMN ... SET`，覆盖 ALTER 请求报文 |
 | INFORMATION_SCHEMA 无意外变化 | ✅ | ✅ | 需加 `-S` 启用；支持白名单豁免 |
 
 ---
@@ -205,6 +208,23 @@ modified_tables:
 支持的变更类型：`added_columns`、`deleted_columns`、`changed_type`、`changed_position`。
 
 ---
+
+## 虚拟表覆盖
+
+虚拟表的元数据报文和磁盘记录有独立的编码路径，普通表用例无法覆盖。工具在 Phase 2 创建：
+
+- `vsrc_compat`：普通源表，写入 3 行；
+- `vtb_compat_local`：虚拟普通表，两列分别引用 `vsrc_compat` 的 `voltage` 和 `current`；
+- `vstb_compat`：虚拟超级表（仅模板，不存数据）；
+- `vctb_compat`：虚拟子表，以 `vstb_compat` 为模板、同样引用 `vsrc_compat` 的两列，带常量标签 `location='beijing'`。
+
+三类虚拟表各自有独立的元数据落盘路径：虚拟普通表与虚拟子表都会把列绑定、标签和引用声明写入自己的元数据记录，虚拟超级表保存模板定义。升级后对三者各查询一次，能同时覆盖这三条记录的读取与回放。
+
+`CREATE VTABLE`、`CREATE STABLE ... VIRTUAL 1` 与本地列引用在升级矩阵的六个基线上均已验证：3.3.6.0 / 3.3.8.0 / 3.4.0.0 / 3.4.1.0 / 3.4.2.1 / 3.4.3.0（前四个与 3.4.2.1、3.4.3.0 分别经本地实例与 CI 冷升级确认）。虚拟表本身是较新特性，因此仍保留 `config.VTABLE_MIN_VERSION`（当前 `3.3.6.0`，即已验证的最低基线）做门控：低于该版本的基线会跳过并在日志中说明；若将来把更旧的版本加入矩阵，需要先验证再上调该常量。升级后的校验会**新建连接**再查询虚拟表，客户端必须重新获取它的元数据；元数据帧或磁盘格式发生跨版本变化时，这项检查会直接失败。
+
+预置资源只覆盖“读”方向。升级后工具还会对 `vtb_compat_local` 和 `vctb_compat` 执行 `ALTER VTABLE ... ADD COLUMN ... FROM`，并对 `vtb_compat_local` 执行 `ALTER VTABLE ... ALTER COLUMN ... SET`，再新建连接回读 `SHOW CREATE VTABLE` 与新列数据（行数 3、`MAX` 为 222）。ALTER 请求本身带有虚拟表引用字段，因此这两条语句在不依赖任何外部数据库的前提下覆盖了“写”方向；滚动升级路径还会让基准版本客户端发出同样的 ALTER，验证旧客户端可以继续修改新服务端的虚拟表。这两条语句在升级矩阵的六个基线上均已验证可用。
+
+`REFERENCE`（外部数据源）不在 compat-check 覆盖范围内：`CREATE VTABLE ... REFERENCE` 在建表阶段就要连接外部源并校验被引用对象，CI 环境没有外部数据源，也不加载 provider 的运行时客户端库。该能力由 pytest 用例 `test/cases/05-VirtualTables/01-DDL/03-ExtSource/test_vtable_reference_ext_source.py` 覆盖。
 
 ## 配置参数（config.py）
 

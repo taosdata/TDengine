@@ -31,6 +31,11 @@ def _bar(char="═"):
     return char * W
 
 
+def _status_str(passed) -> str:
+    """Render a check state: truthy -> passed, otherwise FAILED."""
+    return "[passed]" if passed else "[FAILED]"
+
+
 class Reporter:
     """
     Minimal, structured output helper.
@@ -114,10 +119,11 @@ class Reporter:
     # Verification check items
     # ------------------------------------------------------------------
 
-    def check(self, label: str, passed: bool, detail: str = ""):
+    def check(self, label: str, passed, detail: str = ""):
+        """Print one check line.  passed is the check result (truthy = passed)."""
         FILL = 55
         dots = "." * max(4, FILL - len(label))
-        status = "[passed]" if passed else "[FAILED]"
+        status = _status_str(passed)
         detail_str = f"  {detail}" if detail else ""
         print(f"  {label} {dots} {status}{detail_str}")
         sys.stdout.flush()
@@ -161,7 +167,7 @@ class Reporter:
         for label, ok, detail in checks:
             FILL = 55
             dots = "." * max(4, FILL - len(label))
-            status = "[passed]" if ok else "[FAILED]"
+            status = _status_str(ok)
             detail_str = f"  {detail}" if detail else ""
             print(f"  {label} {dots} {status}{detail_str}")
         print(_bar("─"))

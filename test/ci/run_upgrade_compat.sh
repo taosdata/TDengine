@@ -283,9 +283,9 @@ fi
 
 echo "Available versions on server: $(echo "$ALL_VERSIONS" | tr '\n' ' ')"
 
-# Cold upgrade uses four fixed baselines. Hot upgrade uses the oldest available
+# Cold upgrade uses six fixed baselines. Hot upgrade uses the oldest available
 # version with the same major.minor.patch prefix as the current build.
-COLD_VERSIONS="3.3.6.0 3.3.8.0 3.4.0.0 3.4.1.0"
+COLD_VERSIONS="3.3.6.0 3.3.8.0 3.4.0.0 3.4.1.0 3.4.2.1 3.4.3.0"
 VERSION_FILE="$REPO_DIR/cmake/version.cmake"
 CURRENT_VERSION=$(sed -nE \
     's/^[[:space:]]*SET\([[:space:]]*BUILD_VER_NUMBER[[:space:]]+"([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)[^"]*"\).*/\1/p' \
