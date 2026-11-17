@@ -143,6 +143,8 @@ TEST(VtbScanProcessOrgTbVgTest, PublishesNewVgIdsForDeploy) {
   RedeployCheckHarness h;
   ASSERT_TRUE(initVgSets(&h, {1}, {1, 2}));
   h.dynInfo.vtbScan.uid = 0x1234;
+  h.dynInfo.vtbScan.suid = 0x5678;
+  h.dynInfo.vtbScan.dynTbUid = 0x9abc;
 
   EXPECT_EQ(processOrgTbVg(&h.dynInfo.vtbScan, &h.taskInfo, 7), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
 
@@ -156,6 +158,21 @@ TEST(VtbScanProcessOrgTbVgTest, PublishesNewVgIdsForDeploy) {
   EXPECT_EQ(atomic_load_8(&h.vtableDeployFlag), 1);
   EXPECT_EQ(atomic_load_64(&h.runtime.vtableDeployInfo.uid), (int64_t)0x1234);
   EXPECT_NE(atomic_load_64(&h.runtime.vtableDeployInfo.redeployStartMs), 0);
+}
+
+TEST(VtbScanProcessOrgTbVgTest, SuperTableDeployUsesScanPlanUid) {
+  for (uint64_t childUid : {0ULL, 0x1234ULL, 0x5678ULL}) {
+    SCOPED_TRACE(childUid);
+    RedeployCheckHarness h;
+    ASSERT_TRUE(initVgSets(&h, {1}, {1, 2}));
+    h.dynInfo.vtbScan.isSuperTable = true;
+    h.dynInfo.vtbScan.suid = 0x9abc;
+    h.dynInfo.vtbScan.dynTbUid = childUid;
+
+    EXPECT_EQ(processOrgTbVg(&h.dynInfo.vtbScan, &h.taskInfo, 7), TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY);
+    EXPECT_EQ(atomic_load_64(&h.runtime.vtableDeployInfo.uid), static_cast<int64_t>(h.dynInfo.vtbScan.suid));
+    EXPECT_EQ(h.dynInfo.vtbScan.dynTbUid, childUid);
+  }
 }
 
 TEST(VtbScanProcessOrgTbVgTest, ReleasesScratchListWhileDeployRequestPending) {

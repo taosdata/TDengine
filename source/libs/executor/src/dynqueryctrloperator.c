@@ -5759,7 +5759,8 @@ int32_t processOrgTbVg(SVtbScanDynCtrlInfo* pVtbScan, SExecTaskInfo* pTaskInfo, 
     }
     uint64_t deployUid = pVtbScan->uid;
     if (pVtbScan->isSuperTable) {
-      deployUid = pVtbScan->dynTbUid != 0 ? pVtbScan->dynTbUid : pVtbScan->suid;
+      // Reader deployment matches the stored supertable scan plan; dynTbUid only selects the current partition.
+      deployUid = pVtbScan->suid;
     }
     atomic_store_64(&pTaskInfo->pStreamRuntimeInfo->vtableDeployInfo.uid, (int64_t)deployUid);
     (void)atomic_val_compare_exchange_8(pTaskInfo->pStreamRuntimeInfo->vtableDeployGot, 0, 1);
