@@ -619,7 +619,6 @@ void taos_cleanup(void) {
   tzCleanup();
 #endif
   tmqMgmtClose();
-  writeRawCleanup();
 
   int32_t id = clientReqRefPool;
   clientReqRefPool = -1;
@@ -633,6 +632,7 @@ void taos_cleanup(void) {
   id = clientConnRefPool;
   clientConnRefPool = -1;
   taosCloseRef(id);
+  writeRawCleanup();
 
   nodesDestroyAllocatorSet();
   cleanupAppInfo();

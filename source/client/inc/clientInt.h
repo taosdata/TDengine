@@ -673,6 +673,7 @@ void sqlReqLog(int64_t rid, bool killed, int32_t code, int8_t type);
 
 void tmqMgmtClose(void);
 void writeRawCleanup(void);
+void writeRawCleanupConn(int64_t connId);
 
 /*
  * taos_fetch_row without the recorder hook. Internal callers on driver completion

@@ -522,6 +522,7 @@ void destroyTscObj(void *pObj) {
 
   destroyAllRequests(pTscObj->pRequests);
   taosHashCleanup(pTscObj->pRequests);
+  writeRawCleanupConn(pTscObj->id);
 
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
   tscDebug("conn:0x%" PRIx64 ", p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
