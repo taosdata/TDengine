@@ -7786,16 +7786,13 @@ static void expectWalProgressUnchanged(const SSTriggerWalProgress* pProgress, co
 
 struct CheckpointGenerationProbe {
   Stub                 encodeStub;
-  Stub                 allocationStub;
   Stub                 writeStub;
   Stub                 syncStub;
   getSynEpset_f        originalGetSynEpset = nullptr;
   int32_t              encodeStarts = 0;
-  int32_t              allocations = 0;
   int32_t              writes = 0;
   int32_t              syncs = 0;
   int32_t              writeCode = TSDB_CODE_SUCCESS;
-  bool                 generationObserved = false;
   std::vector<uint8_t> bytes;
   std::vector<uint8_t> storedBytes;
 };
@@ -7806,20 +7803,10 @@ static SEpSet                     gCheckpointGenerationEpSet = {};
 static int32_t captureCheckpointEncodeStart(SEncoder* pEncoder) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->encodeStarts;
-  pProbe->generationObserved = true;
   pProbe->encodeStub.reset(tStartEncode);
   int32_t code = tStartEncode(pEncoder);
   pProbe->encodeStub.set(tStartEncode, captureCheckpointEncodeStart);
   return code;
-}
-
-static void* captureCheckpointAllocation(int64_t size) {
-  CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
-  if (pProbe->generationObserved) ++pProbe->allocations;
-  pProbe->allocationStub.reset(taosMemMalloc);
-  void* pMemory = taosMemMalloc(size);
-  pProbe->allocationStub.set(taosMemMalloc, captureCheckpointAllocation);
-  return pMemory;
 }
 
 static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
@@ -7830,14 +7817,12 @@ static int32_t captureCheckpointWrite(int64_t, void* pData, int64_t dataLen) {
     pProbe->bytes.assign(pBytes, pBytes + dataLen);
   }
   if (pProbe->writeCode == TSDB_CODE_SUCCESS) pProbe->storedBytes = pProbe->bytes;
-  if (pProbe->writeCode != TSDB_CODE_SUCCESS) pProbe->generationObserved = false;
   return pProbe->writeCode;
 }
 
 static int32_t captureCheckpointSync(int64_t, SEpSet*, void* pData, int64_t) {
   CheckpointGenerationProbe* pProbe = gCheckpointGenerationProbe;
   ++pProbe->syncs;
-  pProbe->generationObserved = false;
   taosMemoryFree(pData);
   return TSDB_CODE_SUCCESS;
 }
@@ -7861,8 +7846,8 @@ class ScopedCheckpointGenerationProbe {
     probe_.storedBytes = std::move(storedBytes);
     probe_.originalGetSynEpset = gStreamMgmt.getSynEpset;
     gStreamMgmt.getSynEpset = checkpointGenerationEpSet;
+    // Do not replace the process allocator: background logging also allocates.
     probe_.encodeStub.set(tStartEncode, captureCheckpointEncodeStart);
-    probe_.allocationStub.set(taosMemMalloc, captureCheckpointAllocation);
     probe_.writeStub.set(streamWriteCheckPoint, captureCheckpointWrite);
     probe_.syncStub.set(streamSyncWriteCheckpoint, captureCheckpointSync);
   }
@@ -7870,7 +7855,6 @@ class ScopedCheckpointGenerationProbe {
   ~ScopedCheckpointGenerationProbe() {
     probe_.syncStub.reset(streamSyncWriteCheckpoint);
     probe_.writeStub.reset(streamWriteCheckPoint);
-    probe_.allocationStub.reset(taosMemMalloc);
     probe_.encodeStub.reset(tStartEncode);
     gStreamMgmt.getSynEpset = probe_.originalGetSynEpset;
     if (gCheckpointGenerationProbe == &probe_) gCheckpointGenerationProbe = nullptr;
@@ -7884,6 +7868,29 @@ class ScopedCheckpointGenerationProbe {
  private:
   CheckpointGenerationProbe probe_;
 };
+
+TEST(StreamCheckpointGenerationProbeTest, AllowsConcurrentHeapAllocations) {
+  ScopedCheckpointGenerationProbe checkpointProbe;
+  std::atomic<bool>               start{false};
+  std::atomic<int32_t>            completed{0};
+  auto                            allocate = [&] {
+    while (!start.load()) std::this_thread::yield();
+    for (int32_t i = 0; i < 1000; ++i) {
+      void* pMemory = taosMemoryMalloc(9);
+      if (pMemory == nullptr) return;
+      taosMemoryFree(pMemory);
+      ++completed;
+    }
+  };
+
+  // Background log rotation must be able to allocate while a checkpoint is probed.
+  std::thread background(allocate);
+  start.store(true);
+  allocate();
+  background.join();
+
+  EXPECT_EQ(2000, completed.load());
+}
 
 TEST_F(StreamNestedRecoveryTest, ExternalInflightCalcDefersPeriodicAndUndeployCheckpoint) {
   for (bool undeploy : {false, true}) {
@@ -7985,7 +7992,6 @@ TEST_F(StreamNestedRecoveryTest, CheckpointDefersBeforeEncoderWriteAndSync) {
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.hardUndeploy());
 
   EXPECT_EQ(0, checkpointProbe.probe().encodeStarts);
-  EXPECT_EQ(0, checkpointProbe.probe().allocations);
   EXPECT_EQ(0, checkpointProbe.probe().writes);
   EXPECT_EQ(0, checkpointProbe.probe().syncs);
   EXPECT_TRUE(checkpointProbe.probe().bytes.empty());
@@ -8014,7 +8020,6 @@ TEST_F(StreamNestedRecoveryTest, RetainedRetiredCheckpointDefersBeforeEncoderWri
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.hardUndeploy());
 
   EXPECT_EQ(0, checkpointProbe.probe().encodeStarts);
-  EXPECT_EQ(0, checkpointProbe.probe().allocations);
   EXPECT_EQ(0, checkpointProbe.probe().writes);
   EXPECT_EQ(0, checkpointProbe.probe().syncs);
   EXPECT_TRUE(checkpointProbe.probe().bytes.empty());
@@ -8022,7 +8027,6 @@ TEST_F(StreamNestedRecoveryTest, RetainedRetiredCheckpointDefersBeforeEncoderWri
   EXPECT_FALSE(harness.task()->pendingPeriodicCheckpoint);
   ASSERT_TRUE(harness.dropHeldRecoveryTransportWithoutResponse(0));
   EXPECT_EQ(0, checkpointProbe.probe().encodeStarts);
-  EXPECT_EQ(0, checkpointProbe.probe().allocations);
   EXPECT_EQ(0, checkpointProbe.probe().writes);
   EXPECT_EQ(0, checkpointProbe.probe().syncs);
 }
@@ -8318,7 +8322,6 @@ TEST_F(StreamNestedRecoveryTest, UndeployDeferredCheckpointContinuesHardTerminal
   ASSERT_EQ(TSDB_CODE_SUCCESS, harness.hardUndeploy());
 
   EXPECT_EQ(0, checkpointProbe.probe().encodeStarts);
-  EXPECT_EQ(0, checkpointProbe.probe().allocations);
   EXPECT_EQ(0, checkpointProbe.probe().writes);
   EXPECT_EQ(0, checkpointProbe.probe().syncs);
   EXPECT_FALSE(harness.task()->pendingPeriodicCheckpoint);
