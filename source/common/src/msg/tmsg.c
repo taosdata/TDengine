@@ -22663,7 +22663,10 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
     case TSDB_ALTER_TABLE_ADD_REFERENCE:
     case TSDB_ALTER_TABLE_MODIFY_REFERENCE:
     case TSDB_ALTER_TABLE_REMOVE_REFERENCE:
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
+      // seriesAlias is compared with strcmp()/strcasecmp() and printed with %s downstream
+      // (metaAlterTableReference -> metaFindReference), so the decoder must guarantee the
+      // terminating '\0' lives inside the length-prefixed blob.
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));
       break;
     case TSDB_ALTER_TABLE_ADD_TAG_WITH_TAG_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
