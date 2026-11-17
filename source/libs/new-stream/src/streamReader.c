@@ -2973,7 +2973,7 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
   }
 
   ENodeType ntype = (pCalcPlan != NULL) ? nodeType(pCalcPlan) : (ENodeType)0;
-  ST_TASK_DLOG("ext: calcCacheScanPlan subplan pNode type=%d", (int)ntype);
+  ST_TASK_DLOG("ext: scanPlan subplan pNode type=%d", (int)ntype);
 
   if (updateSpecPrecision && pExtSpec != NULL && pCalcPlan != NULL &&
       pCalcPlan->pOutputDataBlockDesc != NULL) {
@@ -2996,10 +2996,10 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
   pScanCols = stExtFindCalcScanColsInPlan((SNode *)pCalcPlan, pExtSpec == NULL ? NULL : pExtSpec->sourceName,
                                           &pFedScan, &scanType);
   if (pScanCols != NULL) {
-    ST_TASK_DLOG("ext: calcCacheScanPlan found scan node type=%d under root node type=%d",
+    ST_TASK_DLOG("ext: scanPlan found scan node type=%d under root node type=%d",
                  (int)scanType, (int)ntype);
   } else {
-    ST_TASK_DLOG("ext: calcCacheScanPlan root node type=%d has no TABLE_SCAN/FEDERATED_SCAN, calcColumns empty",
+    ST_TASK_DLOG("ext: scanPlan root node type=%d has no matching TABLE_SCAN/FEDERATED_SCAN, calcColumns empty",
                  (int)ntype);
   }
 
@@ -3007,7 +3007,7 @@ static int32_t stExtBuildCalcColumnsFromPlanNode(SStreamReaderTask *pTask,
     code = stExtCollectScanCols(pTask, pExtSpec, pScanCols, pFedScan);
   } else if (pScanCols != NULL) {
     const char *tag = pFedScan ? "federated " : "";
-    ST_TASK_DLOG("ext: %scalcScanPlan has no scan cols, calcColumns empty", tag);
+    ST_TASK_DLOG("ext: %sscanPlan has no scan cols, calcColumns empty", tag);
   }
 
   return code;
@@ -3019,14 +3019,14 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
                                              const char *planStr,
                                              bool updateSpecPrecision) {
   if (planStr == NULL) {
-    ST_TASK_DLOG("%s", "ext: calcScanPlan is NULL, calcColumns empty");
+    ST_TASK_DLOG("%s", "ext: scanPlan is NULL, calcColumns empty");
     return TSDB_CODE_SUCCESS;
   }
 
   SSubplan *pCalcSubplan = NULL;
   int32_t calcParseCode = nodesStringToNode(planStr, (SNode**)&pCalcSubplan);
   if (calcParseCode != TSDB_CODE_SUCCESS || pCalcSubplan == NULL) {
-    ST_TASK_DLOG("ext: calcCacheScanPlan parse failed code=%d, calcColumns will be empty",
+    ST_TASK_DLOG("ext: scanPlan parse failed code=%d, calcColumns will be empty",
                  calcParseCode);
     return TSDB_CODE_SUCCESS;
   }
@@ -3036,12 +3036,49 @@ static int32_t stExtBuildCalcColumnsFromPlan(SStreamReaderTask *pTask,
   return code;
 }
 
+static void stExtResetCalcColumns(SStreamExtTriggerSpec *pExtSpec) {
+  taosArrayDestroy(pExtSpec->calcColumns);
+  taosMemoryFree(pExtSpec->pCalcMappings);
+  pExtSpec->calcColumns = NULL;
+  pExtSpec->pCalcMappings = NULL;
+  pExtSpec->numCalcMappings = 0;
+}
+
 /* Convenience wrapper for the trigger reader deploy path. */
 static int32_t stExtBuildCalcColumns(SStreamReaderTask *pTask,
                                      const SStreamReaderDeployMsg *pMsg) {
-  return stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec,
-                                      (const char *)pMsg->msg.trigger.calcCacheScanPlan,
-                                      false);
+  const char *calcCachePlan = (const char *)pMsg->msg.trigger.calcCacheScanPlan;
+  const char *triggerPlan = (const char *)pMsg->msg.trigger.triggerScanPlan;
+  const char *scanPlan = calcCachePlan;
+  const char *planSource = "calcCacheScanPlan";
+
+  if (scanPlan == NULL) {
+    /* A PERIOD stream whose calculation reads the source directly has no
+     * cached calculation scan. Its trigger scan still carries the timestamp
+     * projection and transport mapping needed by external connectors. */
+    scanPlan = triggerPlan;
+    planSource = "triggerScanPlan";
+    ST_TASK_DLOG("%s", "ext: calc cache scan plan is empty, using trigger scan plan");
+  }
+
+  int32_t code = stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec, scanPlan, false);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (pMsg->pExtSpec->numCalcMappings > 0 ||
+      calcCachePlan == NULL || triggerPlan == NULL || calcCachePlan == triggerPlan) {
+    ST_TASK_DLOG("ext: trigger reader projection source=%s columns=%d", planSource,
+                 pMsg->pExtSpec->numCalcMappings);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  ST_TASK_DLOG("ext: projection source=%s yielded no columns, retrying triggerScanPlan",
+               planSource);
+  stExtResetCalcColumns(pMsg->pExtSpec);
+  code = stExtBuildCalcColumnsFromPlan(pTask, pMsg->pExtSpec, triggerPlan, false);
+  ST_TASK_DLOG("ext: triggerScanPlan fallback columns=%d", pMsg->pExtSpec->numCalcMappings);
+  return code;
 }
 
 /* Extract the stream calc scan time range (STimeRangeNode) from an already

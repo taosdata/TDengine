@@ -73,6 +73,7 @@
 #define EXT_CALC_SQL_BUF_LEN    (EXT_SQL_PREFILTER_BUF_LEN + 4096)
 #define EXT_DATA_SQL_BUF_LEN    (4096 * 2)
 #define EXT_BATCH_SQL_BUF_LEN   (4096 * 4)
+#define EXT_META_BLOCK_INITIAL_ROWS 64U
 
 /* Length limits for the tagset key string used as pTagsetIndex key
  * ("col1=val1|col2=val2|...").  EXT_TAGSET_KEY_MAX is the escaped storage size and
@@ -4088,28 +4089,35 @@ static SSDataBlock *createMetaBlock(void) {
   return pBlock;
 }
 
+static int32_t extEnsureBlockCapacityGeometric(SSDataBlock *pBlock, uint32_t needed,
+                                               uint32_t initialCapacity) {
+  if (needed <= pBlock->info.capacity) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  uint32_t capacity = pBlock->info.capacity;
+  if (capacity == 0) {
+    capacity = needed > initialCapacity ? needed : initialCapacity;
+  }
+  while (capacity < needed) {
+    if (capacity > UINT32_MAX / 2) {
+      capacity = needed;
+      break;
+    }
+    capacity *= 2;
+  }
+  return blockDataEnsureCapacity(pBlock, capacity);
+}
+
 /* Append one row to a metaBlock.  All values are int64. */
 static int32_t metaBlockAppendRow(SSDataBlock *pBlock,
                                   uint64_t groupId, int64_t skey, int64_t ekey,
                                   uint64_t uid, int64_t rows) {
   int32_t row = pBlock->info.rows;
-  /* Ensure capacity.  Grow geometrically: blockDataEnsureCapacity() sets the
-   * capacity to exactly the requested row count and reallocates every column, so
-   * reserving row + 1 per append copies the whole block once per row (quadratic for
-   * a META page holding thousands of series). */
-  int32_t code = TSDB_CODE_SUCCESS;
-  uint32_t needed = (uint32_t)row + 1;
-  if (needed > pBlock->info.capacity) {
-    uint32_t capacity = pBlock->info.capacity > 0 ? pBlock->info.capacity : 64;
-    while (capacity < needed) {
-      if (capacity > UINT32_MAX / 2) {
-        capacity = needed;
-        break;
-      }
-      capacity *= 2;
-    }
-    code = blockDataEnsureCapacity(pBlock, capacity);
-  }
+  /* Grow geometrically so appending a large META or demux block does not copy every
+   * existing row whenever the capacity is exceeded. */
+  int32_t code = extEnsureBlockCapacityGeometric(
+      pBlock, (uint32_t)row + 1, EXT_META_BLOCK_INITIAL_ROWS);
   if (code != TSDB_CODE_SUCCESS) return code;
 
   int64_t vals[META_COL_COUNT] = {(int64_t)groupId, skey, ekey, (int64_t)uid, rows};
@@ -5620,7 +5628,9 @@ static int32_t influxDemuxAppendRow(SInfluxDataDemuxCtx *pCtx, SSDataBlock *pSrc
   }
 
   int32_t row  = pDst->info.rows;
-  int32_t code = blockDataEnsureCapacity(pDst, row + 1);
+  /* Per-UID blocks persist across every batch query. Start from the row that is
+   * actually present so a sparse UID does not reserve a full 64-row page. */
+  int32_t code = extEnsureBlockCapacityGeometric(pDst, (uint32_t)row + 1, 1U);
   if (code != TSDB_CODE_SUCCESS) return code;
   for (int32_t c = 0; c < pCtx->nData; c++) {
     SColumnInfoData *pSrcCol = taosArrayGet(pSrc->pDataBlock, c);
@@ -5817,9 +5827,18 @@ static int32_t extBuildInfluxFetchBatchSql(SStreamExtReaderInfo *pInfo, const ch
     }
     if (!clauseOk) {
       sqlBuf[saveOff] = '\0';
-      ST_TASK_ELOG("ext: influx data batch SQL exceeds %d bytes uid=%" PRIu64 " batchStart=%d batchSize=%d",
-                   sqlBufLen, uid, batchStart, batchSize);
-      return TSDB_CODE_OUT_OF_RANGE;
+      off = saveOff;
+      if (k == 0) {
+        ST_TASK_ELOG("ext: influx data batch SQL exceeds %d bytes uid=%" PRIu64
+                     " batchStart=%d batchSize=%d",
+                     sqlBufLen, uid, batchStart, batchSize);
+        return TSDB_CODE_OUT_OF_RANGE;
+      }
+      *pConsumed = k;
+      *pAnyUid = anyUid;
+      ST_TASK_DLOG("ext: split influx data batch at SQL capacity consumed=%d requested=%d",
+                   k, batchSize);
+      return TSDB_CODE_SUCCESS;
     }
 
     anyUid = true;
@@ -6286,6 +6305,25 @@ static int32_t handleDataPull(SStreamExtReaderInfo *pInfo,
    * drop them and let the connector return raw columns. */
   const SExtColTypeMapping *pColMaps = (nCols > 0) ? pInfo->spec.pColMappings : NULL;
   int32_t                   nColMaps = (nCols > 0) ? pInfo->spec.numColMappings : 0;
+
+  /* PERIOD can have no trigger projection even when %%trows needs typed
+   * columns from the cached calculation scan. Reuse that scan's projection
+   * and mappings together: the InfluxDB JSON provider cannot infer types or
+   * column order from an unmapped SELECT * response. */
+  if (nCols == 0 && pInfo->spec.calcColumns != NULL && pInfo->spec.pCalcMappings != NULL &&
+      pInfo->spec.numCalcMappings > 0 &&
+      taosArrayGetSize(pInfo->spec.calcColumns) == (size_t)pInfo->spec.numCalcMappings) {
+    nCols = buildCalcColList(&pInfo->spec, colList, sizeof(colList), false);
+    if (nCols < 0) {
+      code = nCols;
+      goto _exit;
+    }
+    pColMaps = pInfo->spec.pCalcMappings;
+    nColMaps = pInfo->spec.numCalcMappings;
+    ST_TASK_DLOG("ext: handleDataPull using calc projection columns=%d", nCols);
+  } else if (nCols == 0) {
+    ST_TASK_DLOG("%s", "ext: handleDataPull no typed projection, using SELECT * without mappings");
+  }
 
   pUidBlocks = taosArrayInit(tSimpleHashGetSize(pReq->pUidWindow), sizeof(SUidBlockPair));
   if (pUidBlocks == NULL) {
