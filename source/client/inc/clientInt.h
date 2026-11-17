@@ -418,6 +418,7 @@ typedef struct SRequestObj {
   bool                 inCallback;
   bool                 txnChecked;  // true after doAsyncQuery has validated txn state; skips re-check in launchQueryImpl
   uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
+  uint8_t              stmtTbNameFlag;   // insert tbname kind reported by the parser, see SParseContext
   bool                 isQuery;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;

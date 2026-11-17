@@ -1327,7 +1327,9 @@ TEST(stmt2Case, insert_stb_get_fields_Test) {
   {
     const char* sql = "insert into stmt2_testdb_2.nstb values(?,?,?,?,?)";
     printf("case 6 : %s\n", sql);
-    getFieldsError(taos, sql, TSDB_CODE_TSC_STMT_TBNAME_ERROR, "Table does not exist");
+    // A concrete table name that does not exist is reported as-is; only a
+    // missing tbname placeholder is mapped to TSDB_CODE_TSC_STMT_TBNAME_ERROR.
+    getFieldsError(taos, sql, TSDB_CODE_PAR_TABLE_NOT_EXIST, "Table does not exist");
   }
 
   // case 7 :  no col

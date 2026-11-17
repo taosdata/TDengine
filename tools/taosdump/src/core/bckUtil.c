@@ -71,6 +71,7 @@ const char* bckErrStr(int code) {
         case TSDB_CODE_BCK_SPEC_TABLE_NOT_FOUND: return "specified database/table not found";
         case TSDB_CODE_BCK_INVALID_COMBINATION:  return "invalid option combination";
         case TSDB_CODE_BCK_INCOMPLETE_DATA:      return "backup data is incomplete";
+        case TSDB_CODE_BCK_CHILD_TABLE_MISSING:  return "data file has no matching child table";
         default:                                 return NULL;
     }
 }

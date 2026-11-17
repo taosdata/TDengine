@@ -5079,6 +5079,11 @@ int32_t parseInsertSql(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatal
     code = setRefreshMeta(*pQuery);
   }
 
+  // Expose how the insert target was spelled (concrete name, ? placeholder or
+  // USING clause). A failed parse still has to tell the client whether "table
+  // does not exist" is a real error or the legacy "tbname not set" case.
+  pCxt->stmtTbNameFlag = context.stmtTbNameFlag;
+
   qDestroyBoundColInfo(&context.tags);
   clearInsertParseContext(&context);
   // if no data to insert, set emptyMode to avoid request server
