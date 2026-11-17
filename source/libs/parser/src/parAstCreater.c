@@ -2601,7 +2601,6 @@ SNode* createAnomalyWindowNode(SAstCreateContext* pCxt, SNodeList* pExprList) {
 
       SListCell* pCell = nodesListGetCell(pExprList, len - 1);
       (void)nodesListErase(pExprList, pCell);
-      nodesDestroyNode(pNode);
     } else {
       tstrncpy(pAnomaly->anomalyOpt, "algo=iqr", TSDB_ANALYTIC_ALGO_OPTION_LEN);
     }
