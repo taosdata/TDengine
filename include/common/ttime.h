@@ -149,6 +149,12 @@ struct STm {
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm* tm, timezone_t tz);
 int32_t taosTm2Ts(struct STm* tm, int64_t* ts, int32_t precision, timezone_t tz);
 
+/// @brief split a timestamp into floored whole seconds and a non-negative fraction
+/// @param wholeSeconds whole seconds (floor division, so a negative ts maps to the previous second)
+/// @param fraction fractional part in the precision's tick units, always in [0, factor)
+/// @note invalid precision (hour/minute/out-of-range) falls back to whole seconds
+void taosTsSplit(int64_t ts, int32_t precision, int64_t* wholeSeconds, int64_t* fraction);
+
 /// @brief convert a timestamp to a formatted string
 /// @param format the timestamp format, must null terminated
 /// @param [in,out] formats the formats array pointer generated. Shouldn't be NULL.
