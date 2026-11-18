@@ -61,7 +61,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         <dependency>
             <groupId>at.yawk.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-            <version>1.11.1</version>
+            <version>1.11.4</version>
         </dependency>
 
         <dependency>
