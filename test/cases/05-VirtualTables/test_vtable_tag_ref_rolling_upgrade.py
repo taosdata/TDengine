@@ -80,7 +80,12 @@ class TestVtableTagRefRollingUpgrade:
         parts = nowServerVersion.split(".")
         assert len(parts) >= 3, \
             f"SERVER_VERSION() returned '{nowServerVersion}', expected at least 3 components"
-        lastBigVersion = parts[0] + "." + parts[1] + "." + parts[2] + "." + "0"
+        # Same rule as test-compat-upgrade's hot stage: roll inside one patch
+        # group, from its lowest published package.  A freshly bumped group has
+        # no package until it is released, so that case skips instead of failing.
+        lastBigVersion = tdCb.resolveRollingUpgradeBaseline(nowServerVersion)
+        if lastBigVersion is None:
+            pytest.skip(f"no published {'.'.join(parts[:3])}.* enterprise package for rolling upgrade")
         tdLog.info(f"Last big version is {lastBigVersion}")
         return lastBigVersion
 
@@ -217,6 +222,8 @@ class TestVtableTagRefRollingUpgrade:
 
         History:
             - 2026-09-14 initial version for vntb/ntb tag-ref sources
+            - 2026-11-18 AlexDuan Select the baseline like test-compat-upgrade's hot stage (lowest published
+              version in the same patch group) and skip when the group has no package yet
         """
         hostname = self.host
         tdLog.info(f"hostname: {hostname}")

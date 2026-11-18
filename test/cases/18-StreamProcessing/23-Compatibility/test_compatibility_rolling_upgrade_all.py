@@ -107,11 +107,15 @@ class TestCompatibilityRollingUpgradeAll:
         Since: v3.3.7.0
 
         Labels: common,ci,integration,functional,compatibility
+
         Jira: None
 
         History:
             - 2025-07-23 Beryl migrated from system-test/0-others/compatibility_rolling_upgrade_all.py
             - Note: Maintains original cb.* calls but adapted for pytest framework
+            - 2026-11-18 AlexDuan Select the baseline like test-compat-upgrade's hot stage (lowest published
+              version in the same patch group); skip when the group has no package, fail when a
+              resolved baseline cannot be prepared
 
         """
 
@@ -125,8 +129,14 @@ class TestCompatibilityRollingUpgradeAll:
         tdSql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdSql.queryResult[0][0]
         tdLog.info(f"Now server version is {nowServerVersion}")
-        # get the last big version
-        lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
+        # Same rule as test-compat-upgrade's hot stage: roll inside one patch
+        # group, from its lowest published package.  A group without a published
+        # package skips; it must not fall through to a green run that never
+        # upgraded anything.
+        lastBigVersion = tdCb.resolveRollingUpgradeBaseline(nowServerVersion)
+        if lastBigVersion is None:
+            patchGroup = ".".join(nowServerVersion.split(".")[:3])
+            pytest.skip(f"no published {patchGroup}.* enterprise package for rolling upgrade")
         tdLog.info(f"Last big version is {lastBigVersion}")
 
         bPath = tdCom.getBuildPath()
@@ -138,8 +148,11 @@ class TestCompatibilityRollingUpgradeAll:
         # Install old version for rolling upgrade
         baseVersionExist = tdCb.installTaosdForRollingUpgrade(cPaths, lastBigVersion)
         if not baseVersionExist:
-            tdLog.info(f"Base version {lastBigVersion} does not exist")
-            
+            # The baseline was resolved to a published package above, so this is
+            # a real prepare/download failure - not a group without a package.
+            # Never fall through to a green run that upgraded nothing.
+            pytest.fail(f"Base version {lastBigVersion} could not be prepared")
+
         if baseVersionExist:
             # Create dnodes
             tdSql.execute(f"CREATE DNODE '{hostname}:6130'")

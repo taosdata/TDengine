@@ -24,6 +24,8 @@ import platform
 import subprocess
 import psutil
 import shutil
+import urllib.error
+import urllib.request
 
 import importlib
 from pathlib import Path
@@ -142,6 +144,76 @@ class CompatibilityBase:
             elif v1 < v2:
                 return -1
         return 0
+
+    # ------------------------------------------------------------------
+    # Rolling upgrade baseline selection
+    #
+    # Same rule as tools/cicd tsdb-test-pipeline's hot stage in
+    # source/taos-community/test/ci/run_upgrade_compat.sh: the LOWEST published
+    # version that shares the first three segments with the running build.
+    # Rolling upgrade only makes sense inside one major.minor.patch group -
+    # the client/server handshake compares exactly those three segments - and a
+    # freshly bumped group has no package until it is released.  Callers turn a
+    # None result into a skip, the same way test-compat-upgrade records
+    # "No rolling upgrade test needed" instead of failing.
+    # ------------------------------------------------------------------
+
+    def _patchGroup(self, version):
+        return ".".join(version.split(".")[:3])
+
+    def _baselinePackagePublished(self, version):
+        """Probe the enterprise package on the package server.
+
+        Only an explicit 403/404 means "not published yet"; any other outcome
+        (no downloader, network error, HEAD not allowed) is treated as
+        published so a transient problem surfaces as a download failure rather
+        than a silent skip.
+        """
+        get_name = getattr(_downloader, "get_package_name", None)
+        base_url = getattr(_downloader, "base_url", "")
+        if not get_name or not base_url:
+            return True
+        package = get_name(version, "enterprise")
+        major_minor = ".".join(version.split(".")[:2])
+        url = f"{base_url}/{major_minor}/v{version}/enterprise/{package}"
+        try:
+            request = urllib.request.Request(url, method="HEAD")
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return 200 <= response.status < 300
+        except urllib.error.HTTPError as exc:
+            if exc.code in (403, 404):
+                tdLog.info(f"rolling baseline {version} not published: {url} -> HTTP {exc.code}")
+                return False
+            tdLog.info(f"cannot confirm rolling baseline {version} ({exc}); assuming published")
+            return True
+        except Exception as exc:
+            tdLog.info(f"cannot confirm rolling baseline {version} ({exc}); assuming published")
+            return True
+
+    def resolveRollingUpgradeBaseline(self, current_version):
+        """Baseline version for a rolling upgrade, or None when none is usable.
+
+        Args:
+            current_version: the running server version; only the first three
+                segments matter.
+
+        Returns:
+            The lowest published version in the same patch group, or None when
+            the group has no published package yet (caller skips) or no
+            enterprise downloader is available.
+        """
+        if _downloader is None:
+            return None
+        group = self._patchGroup(current_version)
+        candidates = [version for version in getattr(_downloader, "supported_versions", [])
+                      if self._patchGroup(version) == group]
+        candidates.sort(key=lambda version: [int(part) for part in version.split(".")])
+        for version in candidates:
+            if self._baselinePackagePublished(version):
+                tdLog.info(f"rolling upgrade baseline for {current_version}: {version}")
+                return version
+        tdLog.info(f"no published package in patch group {group} for rolling upgrade")
+        return None
 
     # Modified installTaosd to accept version parameter
     def installTaosdForRollingUpgrade(self, dnodePaths, base_version):

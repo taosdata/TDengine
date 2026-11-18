@@ -114,6 +114,8 @@ class TestCompatibilityRollingUpgrade:
             - 2025-07-23 Beryl migrated from system-test/0-others/compatibility_rolling_upgrade.py
             - Note: Maintains original cb.* calls but adapted for pytest framework
             - 2026-10-30 Reject missing baselines and report the unsupported Windows lifecycle as skipped
+            - 2026-11-18 AlexDuan Select the baseline like test-compat-upgrade's hot stage (lowest published
+              version in the same patch group) and skip when the group has no package yet
 
         """
         if platform.system().lower() == 'windows':
@@ -153,11 +155,16 @@ class TestCompatibilityRollingUpgrade:
         tdSql.query(f"SELECT SERVER_VERSION();")
         nowServerVersion=tdSql.queryResult[0][0]
         tdLog.info(f"Now server version is {nowServerVersion}")
-        # get the last big version
-        lastBigVersion = nowServerVersion.split(".")[0]+"."+nowServerVersion.split(".")[1]+"."+nowServerVersion.split(".")[2]+"."+"0"
+        # Same rule as test-compat-upgrade's hot stage: roll inside one patch
+        # group, from its lowest published package.  A freshly bumped group has
+        # no package until it is released, so that case skips instead of failing.
+        baseVersion = tdCb.resolveRollingUpgradeBaseline(nowServerVersion)
+        if baseVersion is None:
+            patchGroup = ".".join(nowServerVersion.split(".")[:3])
+            pytest.skip(f"no published {patchGroup}.* enterprise package for rolling upgrade")
 
-        tdLog.info(f"Last big version is {lastBigVersion}")
-        return lastBigVersion
+        tdLog.info(f"Last big version is {baseVersion}")
+        return baseVersion
 
     def getDnodePath(self):
         buildPath = tdCom.getBuildPath()
