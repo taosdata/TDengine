@@ -859,13 +859,13 @@ def _dim10_steps(src_type: str) -> list:
         "insert into local_t values ('2024-01-01 00:00:00.000', 1, 1.5, 'alpha')",
         "insert into local_t values ('2024-01-01 00:01:00.000', 2, 2.5, 'beta')",
         f"-- JOIN local + external (3-seg)",
-        f"select a.val, b.val from local_t a, {ext_path} b where a.val = b.val limit 5",
+        f"select a.val, b.val from local_t a, {ext_path} b where a.val = b.val order by a.val, b.val limit 5",
         f"-- Subquery with external (3-seg)",
         f"select * from (select val from {ext_path} order by val limit 3)",
         f"-- UNION external + local",
         f"select val from {ext_path} union all select val from local_t order by val limit 5",
         f"-- JOIN with 2-seg path",
-        f"select a.val, b.val from local_t a, {src}.{table} b where a.val = b.val limit 5",
+        f"select a.val, b.val from local_t a, {src}.{table} b where a.val = b.val order by a.val, b.val limit 5",
     ]
 
     # ── Cross-source JOIN: create a secondary source of different type ──
@@ -898,7 +898,7 @@ def _dim10_steps(src_type: str) -> list:
         f"drop external source if exists {sec_src}",
         sec_create,
         f"-- Cross-source JOIN: primary({src_type}) + secondary",
-        f"select a.val, b.val from {ext_path} a, {sec_path} b where a.val = b.val limit 5",
+        f"select a.val, b.val from {ext_path} a, {sec_path} b where a.val = b.val order by a.val, b.val limit 5",
         f"-- Cross-source in subquery",
         f"select * from (select val from {sec_path} order by val limit 3)",
         f"-- Cross-source UNION",

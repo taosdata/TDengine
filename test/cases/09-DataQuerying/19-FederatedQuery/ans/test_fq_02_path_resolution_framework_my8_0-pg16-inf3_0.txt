@@ -9802,11 +9802,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[MYS] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[MYS] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -9836,11 +9836,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[MYS] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[MYS] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -9859,12 +9859,12 @@ OK
 -- Cross-source JOIN: primary(mysql) + secondary
 ---
 ### DIM-10[MYS] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.fq02_path_mdb.path_t a, fq02_dim10_sec.public.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.fq02_path_mdb.path_t a, fq02_dim10_sec.public.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[MYS] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10009,11 +10009,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[POS] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.public.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.public.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[POS] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -10043,11 +10043,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[POS] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[POS] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -10066,12 +10066,12 @@ OK
 -- Cross-source JOIN: primary(postgresql) + secondary
 ---
 ### DIM-10[POS] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.public.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.public.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[POS] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10216,7 +10216,7 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[INF] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_idb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.fq02_path_idb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10250,7 +10250,7 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[INF] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10273,12 +10273,12 @@ OK
 -- Cross-source JOIN: primary(influxdb) + secondary
 ---
 ### DIM-10[INF] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.fq02_path_idb.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.fq02_path_idb.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[INF] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10423,11 +10423,11 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[SQL] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.dbo.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.dbo.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[SQL] STEP-004.009 COMMENT
 -- Subquery with external (3-seg)
@@ -10457,11 +10457,11 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[SQL] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
-2|2
 1|1
+2|2
 ---
 ### DIM-10[SQL] STEP-004.015 COMMENT
 -- [Cross-source JOIN] create secondary source
@@ -10480,12 +10480,12 @@ OK
 -- Cross-source JOIN: primary(sqlserver) + secondary
 ---
 ### DIM-10[SQL] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.dbo.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.dbo.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[SQL] STEP-004.020 COMMENT
 -- Cross-source in subquery
@@ -10630,7 +10630,7 @@ OK
 -- JOIN local + external (3-seg)
 ---
 ### DIM-10[ORA] STEP-004.008 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.`TAOSDATA`.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.`TAOSDATA`.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10664,7 +10664,7 @@ val
 -- JOIN with 2-seg path
 ---
 ### DIM-10[ORA] STEP-004.014 QUERY
-SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from local_t a, fq02_dim10.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
 1|1
@@ -10687,12 +10687,12 @@ OK
 -- Cross-source JOIN: primary(oracle) + secondary
 ---
 ### DIM-10[ORA] STEP-004.019 QUERY
-SQL: select a.val, b.val from fq02_dim10.`TAOSDATA`.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val limit 5
+SQL: select a.val, b.val from fq02_dim10.`TAOSDATA`.path_t a, fq02_dim10_sec.fq02_path_mdb.path_t b where a.val = b.val order by a.val, b.val limit 5
 RESULT:
 val|val
+1|1
 2|2
 3|3
-1|1
 ---
 ### DIM-10[ORA] STEP-004.020 COMMENT
 -- Cross-source in subquery

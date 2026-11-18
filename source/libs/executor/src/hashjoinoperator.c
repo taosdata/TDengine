@@ -374,16 +374,32 @@ static int32_t hJoinInitKeyColsInfo(SHJoinTableCtx* pTable, SNodeList* pList, SN
     if (pPeer != NULL) {
       SExprNode* pPeerExpr = QUERY_NODE_TARGET == nodeType(pPeer) ?
           (SExprNode*)((STargetNode*)pPeer)->pExpr : (SExprNode*)pPeer;
+      if (pExpr->resType.type != pPeerExpr->resType.type) {
+        if (!IS_NUMERIC_TYPE(pExpr->resType.type) ||
+            !IS_NUMERIC_TYPE(pPeerExpr->resType.type)) {
+          return TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND;
+        }
+        int32_t commonType = vectorGetConvertType(pExpr->resType.type,
+                                                 pPeerExpr->resType.type);
+        if (commonType < TSDB_DATA_TYPE_NULL ||
+            commonType >= TSDB_DATA_TYPE_MAX) {
+          return TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND;
+        }
+        pTable->keyCols[i].type = commonType;
+      }
       if (pExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
           pPeerExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP &&
           pPeerExpr->resType.precision > pTable->keyCols[i].precision) {
         pTable->keyCols[i].precision = pPeerExpr->resType.precision;
       }
     }
-    pTable->keyCols[i].vardata = IS_VAR_DATA_TYPE(pExpr->resType.type);
-    pTable->keyCols[i].bytes = pExpr->resType.bytes;
+    int8_t keyType = pTable->keyCols[i].type;
+    pTable->keyCols[i].vardata = IS_VAR_DATA_TYPE(keyType);
+    pTable->keyCols[i].bytes = keyType == pExpr->resType.type
+                                 ? pExpr->resType.bytes
+                                 : tDataTypes[keyType].bytes;
     pTable->keyCols[i].bufOffset = bufSize;
-    bufSize += pExpr->resType.bytes;
+    bufSize += pTable->keyCols[i].bytes;
     if (pExpr->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
       needKeyBuf = true;
     }

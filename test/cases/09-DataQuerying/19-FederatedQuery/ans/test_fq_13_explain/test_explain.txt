@@ -1093,11 +1093,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Data Exchange 1:1 (width=142)
-         -> Partition on Column region (width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-join_full-01_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -6084,11 +6081,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (columns=3 width=20 input_order=unknown)
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-      -> Data Exchange 1:1 (width=142)
-         -> Partition on Column region (width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
 ---
 ### EXP-ds_join-04_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region

@@ -1507,11 +1507,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (cost=<COST> rows=5 columns=3 width=20 input_order=unknown)
    -> Full Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-      -> Data Exchange 1:1 (cost=<COST> rows=2 width=142)
-         -> Partition on Column region (cost=<COST> rows=2 width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -8308,11 +8305,8 @@ SQL: select s.`time`, s.voltage, r.area from fq_exp_mysql.sensor s full join fq_
 RESULT
 -> Projection (cost=<COST> rows=5 columns=3 width=20 input_order=unknown)
    -> Full Join (cost=<COST> rows=5 columns=5 width=280 input_order=asc algo=Hash)
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-      -> Data Exchange 1:1 (cost=<COST> rows=2 width=142)
-         -> Partition on Column region (cost=<COST> rows=2 width=142)
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---

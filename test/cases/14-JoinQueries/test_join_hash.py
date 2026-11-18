@@ -1,4 +1,5 @@
 from new_test_framework.utils import tdLog, tdSql, tdCom
+from collections import Counter
 import os
 import threading
 import time
@@ -8,6 +9,8 @@ import taos
 
 
 class TestJoinHash:
+    updatecfgDict = {"clientCfg": {"timezone": "Asia/Shanghai"}}
+
     def setup_class(cls):
         tdLog.debug(f"start to execute {__file__}")
         cls().prepare_data()
@@ -142,6 +145,163 @@ class TestJoinHash:
 
         """
         self.run_case_file("test_join_hash_plan_selection")
+
+    def test_join_hash_without_input_partition(self):
+        """Hash Join consumes inputs without automatically partitioning them.
+
+        1. Check all eight ordinary join types with duplicate and NULL keys,
+           independent scan ranges, residual predicates and empty inputs.
+        2. Check constant child-table tags and supertable tag keys.
+        3. Preserve explicit input partitioning and its per-group limit.
+        4. Bind virtual and derived self-join aliases to their own inputs.
+
+        Catalog:
+            - Query
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-13 Add automatic Hash Join partition removal regression.
+        """
+        self.do_hash_join_without_input_partition()
+        self.do_hash_join_input_aliases()
+
+    def check_hash_partition_result(self, sql, expected, partitions=0):
+        tdSql.query("EXPLAIN VERBOSE TRUE " + sql)
+        plan = "\n".join(str(tdSql.getData(i, 0)) for i in range(tdSql.queryRows))
+        tdSql.checkEqual("algo=Hash" in plan, True)
+        tdSql.checkEqual(plan.count("-> Partition"), partitions)
+        tdSql.query(sql)
+        tdSql.checkRows(len(expected))
+        tdSql.checkEqual(Counter(tdSql.queryResult), Counter(expected))
+
+    def do_hash_join_without_input_partition(self):
+        left = [(1, 10), (2, 20), (1, 11), (None, 40), (3, 30)]
+        right = [(1, 100), (2, 200), (1, 101), (None, 900), (4, 400)]
+        bases = [1767225600000, 1767312000000]
+        for table, rows, start in zip(("np_l", "np_r"), (left, right), bases):
+            tdSql.execute(f"CREATE TABLE {table} (ts TIMESTAMP, k INT, v INT)")
+            values = "".join(
+                f"({start + i}, {'NULL' if key is None else key}, {value})"
+                for i, (key, value) in enumerate(rows)
+            )
+            tdSql.execute(f"INSERT INTO {table} VALUES {values}")
+
+        join_types = ("INNER", "LEFT", "RIGHT", "FULL",
+                      "LEFT SEMI", "RIGHT SEMI", "LEFT ANTI", "RIGHT ANTI")
+        # Both scan ranges are nonempty but disjoint. A business-key join
+        # must not intersect timestamps or discard preserved-side ON rows.
+        for residual in ("", " AND a.v + 90 = b.v", f" AND a.ts > {bases[0]}"):
+            matches = [
+                (lv, rv) for lk, lv in left for rk, rv in right
+                if lk is not None and lk == rk
+                and (not residual or (lv + 90 == rv if "a.v" in residual else lv != 10))
+            ]
+            matched_left = {lv for lv, _ in matches}
+            matched_right = {rv for _, rv in matches}
+            for empty_side in (None, "left", "right"):
+                active_left = [] if empty_side == "left" else left
+                active_right = [] if empty_side == "right" else right
+                pairs = matches if empty_side is None else []
+                lmatched = matched_left if empty_side is None else set()
+                rmatched = matched_right if empty_side is None else set()
+                for join_type in join_types:
+                    projection = "a.v, b.v"
+                    if "SEMI" in join_type or "ANTI" in join_type:
+                        is_left = join_type.startswith("LEFT")
+                        projection = "a.v" if is_left else "b.v"
+                        rows = active_left if is_left else active_right
+                        matched = lmatched if is_left else rmatched
+                        expected = [(v,) for _, v in rows
+                                    if (v in matched) == ("SEMI" in join_type)]
+                    else:
+                        expected = list(pairs)
+                        if join_type in ("LEFT", "FULL"):
+                            expected += [(v, None) for _, v in active_left if v not in lmatched]
+                        if join_type in ("RIGHT", "FULL"):
+                            expected += [(None, v) for _, v in active_right if v not in rmatched]
+                    inputs = []
+                    for side, table, start in zip(("left", "right"), ("np_l", "np_r"), bases):
+                        lower = start + 100 if empty_side == side else start
+                        inputs.append(
+                            f"(SELECT * FROM {table} WHERE ts >= {lower} AND ts < {start + 1000})"
+                        )
+                    sql = (
+                        f"SELECT /*+ HASH_JOIN() */ {projection} FROM {inputs[0]} a "
+                        f"{join_type} JOIN {inputs[1]} b ON a.k = b.k{residual}"
+                    )
+                    self.check_hash_partition_result(sql, expected)
+                    if empty_side is None:
+                        # Exercise direct scans too: subquery boundaries can
+                        # hide unsafe cross-input time-range propagation.
+                        where = (f"b.ts >= {bases[1]}" if join_type.startswith("RIGHT")
+                                 else f"a.ts < {bases[0] + 1000}")
+                        if join_type == "FULL":
+                            where += " OR a.ts IS NULL"
+                        self.check_hash_partition_result(
+                            f"SELECT /*+ HASH_JOIN() */ {projection} FROM np_l a "
+                            f"{join_type} JOIN np_r b ON a.k = b.k{residual} WHERE {where}",
+                            expected,
+                        )
+
+        self.check_hash_partition_result(
+            "SELECT /*+ HASH_JOIN() */ a.v, b.v, c.v FROM np_l a "
+            "JOIN np_r b ON a.k = b.k JOIN np_l c ON a.ts = c.ts "
+            f"WHERE c.ts < {bases[0] + 1000}",
+            [(10, 100, 10), (10, 101, 10), (20, 200, 20), (11, 100, 11), (11, 101, 11)],
+        )
+        self.check_hash_partition_result(
+            "SELECT /*+ HASH_JOIN() */ a.v, b.v, c.v, d.v FROM np_l a "
+            "JOIN (np_r b JOIN np_l d ON b.k = d.k) ON a.ts = d.ts "
+            f"JOIN np_r c ON b.ts = c.ts WHERE c.ts >= {bases[1]}",
+            [(10, 100, 100, 10), (10, 101, 101, 10), (20, 200, 200, 20),
+             (11, 100, 100, 11), (11, 101, 101, 11)],
+        )
+
+        self.check_hash_partition_result(
+            "SELECT a.val, b.metric FROM hj_l_stb_d1 a JOIN hj_r_stb_d1 b "
+            "ON a.device = b.device WHERE a.ts >= '2025-01-01 00:00:00'",
+            [(10, 100), (10, 200), (20, 100), (20, 200)],
+        )
+        self.check_hash_partition_result(
+            "SELECT a.val, b.metric FROM hj_l_stb a JOIN hj_r_stb b ON a.device = b.device",
+            [(10, 100), (10, 200), (20, 100), (20, 200),
+             (30, 300), (30, 400), (40, 300), (40, 400)],
+        )
+        self.check_hash_partition_result(
+            "SELECT a.v, b.v FROM "
+            "(SELECT ts, k, v FROM np_l PARTITION BY k LIMIT 1) a "
+            "JOIN np_r b ON a.k = b.k",
+            [(10, 100), (10, 101), (20, 200)], partitions=1,
+        )
+        tdLog.info("hash join without automatic partitions ......................... [ passed ]")
+
+    def do_hash_join_input_aliases(self):
+        tdSql.execute(
+            "CREATE VTABLE np_v (ts TIMESTAMP, k INT FROM np_l.k, v INT FROM np_l.v)"
+        )
+        for condition in ("a.k = b.k", "b.k = a.k"):
+            self.check_hash_partition_result(
+                f"SELECT count(*) FROM np_v a JOIN np_v b ON {condition}",
+                [(6,)],
+            )
+            for right in ("SELECT k, v FROM np_l", "SELECT * FROM np_l"):
+                self.check_hash_partition_result(
+                    f"SELECT a.v, b.v FROM (SELECT k, v FROM np_l) a "
+                    f"JOIN ({right}) b ON {condition} AND a.v < b.v",
+                    [(10, 11)],
+                )
+            self.check_hash_partition_result(
+                "SELECT a.v, b.doubled FROM (SELECT k, v FROM np_l) a "
+                "JOIN (SELECT k, v * 2 AS doubled FROM np_l) b "
+                f"ON {condition} AND a.v * 2 < b.doubled",
+                [(10, 22.0)],
+            )
+        tdLog.info("hash join input aliases ......................... [ passed ]")
 
     def test_stable_join_unique_after_tag_rewrite(self):
         """Keep stable tag joins valid under UNIQUE and post-join filters.

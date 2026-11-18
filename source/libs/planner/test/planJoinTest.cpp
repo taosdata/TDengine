@@ -33,6 +33,11 @@ using namespace std;
 
 class PlanJoinTest : public PlannerTestBase {
  protected:
+  static string hashJoinProjection(const string& type) {
+    return type == "RIGHT" || type == "RIGHT SEMI" || type == "RIGHT ANTI"
+               ? "b.c1" : "a.c1";
+  }
+
   static const SLogicNode* findNode(const SLogicNode* pNode, ENodeType type) {
     if (nodeType(pNode) == type) return pNode;
     SNode* pChild = nullptr;
@@ -354,6 +359,11 @@ class PlanJoinTest : public PlannerTestBase {
         }
       } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN == nodeType(pNode)) {
         auto* pJoin = (const SHashJoinPhysiNode*)pNode;
+        if (!pJoin->multiGroupJoin) {
+          EXPECT_EQ(pJoin->timeRangeTarget, 0);
+          EXPECT_EQ(pJoin->timeRange.skey, TSKEY_MIN);
+          EXPECT_EQ(pJoin->timeRange.ekey, TSKEY_MAX);
+        }
         checkPhysiJoinExprs(pJoin->pOnLeft, &ids);
         checkPhysiJoinExprs(pJoin->pOnRight, &ids);
         checkPhysiJoinExpr(pJoin->pLeftOnCond, &ids);
@@ -421,8 +431,7 @@ TEST_F(PlanJoinTest, orderedInnerJoinKeepsMergeWithSecondaryKey) {
       auto* pJoin = (const SJoinLogicNode*)findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
       ASSERT_NE(pJoin, nullptr);
       EXPECT_EQ(pJoin->joinAlgo, expected);
-      EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_PARTITION),
-                expected == JOIN_ALGO_HASH ? 2 : 0);
+      EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_PARTITION), 0);
     });
     run(sql);
   };
@@ -436,6 +445,94 @@ TEST_F(PlanJoinTest, orderedInnerJoinKeepsMergeWithSecondaryKey) {
   checkAlgo("SELECT a.ts, b.ts FROM "
             "(SELECT ts, c1 FROM st1s1 ORDER BY c1 LIMIT 10) a JOIN st1s2 b" + joinCond,
             JOIN_ALGO_HASH);
+}
+
+TEST_F(PlanJoinTest, hashJoinDoesNotMaterializeInputs) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_PARTITION), 0);
+    auto* pJoin = (const SJoinLogicNode*)findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(pJoin->joinAlgo, JOIN_ALGO_HASH);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+
+  for (const string type : {"INNER", "LEFT", "RIGHT", "FULL",
+                            "LEFT SEMI", "RIGHT SEMI", "LEFT ANTI", "RIGHT ANTI"}) {
+    SCOPED_TRACE(type);
+    const string projection = hashJoinProjection(type);
+    run("SELECT /*+ HASH_JOIN() */ " + projection + " FROM st1s1 a " + type +
+        " JOIN st1s2 b ON a.c1 = b.c1");
+  }
+  run("SELECT a.c1, b.c1 FROM st1s1 a JOIN st1s2 b ON a.tag1 = b.tag1");
+  run("SELECT a.c1, b.c1 FROM st1 a JOIN st2 b ON a.c1 = b.c1");
+  run("SELECT a.c1, b.c1 FROM st1s1 a JOIN st1s2 b ON a.c1 + 1 = b.c1");
+  run("SELECT a.c1, b.c1, c.c1 FROM st1s1 a JOIN st1s2 b ON a.c1 = b.c1 "
+      "JOIN st1s3 c ON b.c1 = c.c1");
+}
+
+TEST_F(PlanJoinTest, hashJoinPreservesExplicitPartition) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    EXPECT_EQ(countNodes(pRoot, QUERY_NODE_LOGIC_PLAN_PARTITION), 1);
+    auto* pJoin = (const SJoinLogicNode*)findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(pJoin->joinAlgo, JOIN_ALGO_HASH);
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  run("SELECT a.c1, b.c1 FROM "
+      "(SELECT ts, c1 FROM st1s1 PARTITION BY c1 LIMIT 1) a "
+      "JOIN st1s2 b ON a.c1 = b.c1");
+}
+
+TEST_F(PlanJoinTest, hashJoinKeepsIndependentScanRanges) {
+  useDb("root", "test");
+  setLogicPlanCheck([](const SLogicNode* pRoot, bool optimized) {
+    if (!optimized) return;
+    auto* pJoin = (const SJoinLogicNode*)findNode(pRoot, QUERY_NODE_LOGIC_PLAN_JOIN);
+    ASSERT_NE(pJoin, nullptr);
+    EXPECT_EQ(pJoin->joinAlgo, JOIN_ALGO_HASH);
+    EXPECT_EQ(pJoin->timeRangeTarget, 0);
+    ASSERT_EQ(LIST_LENGTH(pJoin->node.pChildren), 2);
+    const map<string, STimeWindow> expectedRanges = {
+        {"st1s1", {1000, 1999}}, {"st1s2", {3000, 3999}}};
+    set<string> seenTables;
+    for (int i = 0; i < 2; ++i) {
+      auto* pChild = (const SLogicNode*)nodesListGetNode(pJoin->node.pChildren, i);
+      ASSERT_NE(pChild, nullptr);
+      auto* pScan = (const SScanLogicNode*)findNode(pChild, QUERY_NODE_LOGIC_PLAN_SCAN);
+      ASSERT_NE(pScan, nullptr);
+      const string table = pScan->tableName.tname;
+      SCOPED_TRACE(table);
+      const auto expected = expectedRanges.find(table);
+      ASSERT_NE(expected, expectedRanges.end());
+      EXPECT_TRUE(seenTables.insert(table).second);
+      EXPECT_EQ(pScan->scanRange.skey, expected->second.skey);
+      EXPECT_EQ(pScan->scanRange.ekey, expected->second.ekey);
+    }
+    EXPECT_EQ(seenTables.size(), expectedRanges.size());
+  });
+  setPhysiPlanCheck([](const SQueryPlan* pPlan) {
+    expectPhysiJoinDirectChildContract(pPlan);
+  });
+  for (const string type : {"INNER", "LEFT", "RIGHT", "FULL",
+                            "LEFT SEMI", "RIGHT SEMI", "LEFT ANTI", "RIGHT ANTI"}) {
+    SCOPED_TRACE(type);
+    const string projection = hashJoinProjection(type);
+    run("SELECT /*+ HASH_JOIN() */ " + projection + " FROM "
+        "(SELECT ts, c1 FROM st1s1 WHERE ts >= 1000 AND ts < 2000) a " + type +
+        " JOIN (SELECT ts, c1 FROM st1s2 WHERE ts >= 3000 AND ts < 4000) b "
+        "ON a.c1 = b.c1");
+  }
+  SCOPED_TRACE("direct scan ranges");
+  run("SELECT /*+ HASH_JOIN() */ a.c1, b.c1 FROM st1s1 a JOIN st1s2 b ON a.c1 = b.c1 "
+      "WHERE a.ts >= 1000 AND a.ts < 2000 AND b.ts >= 3000 AND b.ts < 4000");
 }
 
 TEST_F(PlanJoinTest, nestedOrdinaryRightDeepSlots) {
@@ -1959,10 +2056,22 @@ void checkHashJoinInputKeys(const SPhysiNode* node, int* joins, int* thetaJoins 
     for (int side = 0; side < 2; ++side) {
       SNode* key = nullptr;
       FOREACH(key, side == 0 ? join->pOnLeft : join->pOnRight) {
-        ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(key));
-        const auto* column = reinterpret_cast<const SColumnNode*>(key);
-        EXPECT_EQ(column->dataBlockId,
-                  (side == 0 ? left : right)->pOutputDataBlockDesc->dataBlockId);
+        const auto* desc = (side == 0 ? left : right)->pOutputDataBlockDesc;
+        if (nodeType(key) == QUERY_NODE_TARGET) {
+          const auto* target = reinterpret_cast<const STargetNode*>(key);
+          EXPECT_EQ(target->dataBlockId, desc->dataBlockId);
+          ASSERT_GE(target->slotId, 0);
+          ASSERT_LT(target->slotId, LIST_LENGTH(desc->pSlots));
+          const auto* slot = reinterpret_cast<const SSlotDescNode*>(
+              nodesListGetNode(desc->pSlots, target->slotId));
+          const auto* expr = reinterpret_cast<const SExprNode*>(target->pExpr);
+          EXPECT_EQ(expr->resType.type, slot->dataType.type);
+          EXPECT_EQ(expr->resType.bytes, slot->dataType.bytes);
+        } else {
+          ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(key));
+          const auto* column = reinterpret_cast<const SColumnNode*>(key);
+          EXPECT_EQ(column->dataBlockId, desc->dataBlockId);
+        }
       }
     }
   }
@@ -1993,6 +2102,16 @@ TEST_F(PlanJoinTest, tbnameKeysStayOnJoinInputs) {
               checkPlanHashJoinInputs);
   runFullPlan("SELECT /*+ hash_join() */ a.c1, b.c1, c.c1 FROM st1 a JOIN st2 b ON a.tbname = b.tbname "
               "JOIN st1 c ON b.tbname = c.tbname", checkPlanHashJoinInputs);
+}
+
+TEST_F(PlanJoinTest, hashJoinExpressionSlotsKeepEvaluationType) {
+  useDb("root", "test");
+  runFullPlan("SELECT a.c1, b.c1 FROM st1 a JOIN st2 b "
+              "ON cast(a.c1 as bigint) = b.c1 + 1", checkPlanHashJoinInputs);
+  runFullPlan("SELECT a.c1, b.c1 FROM st1 a JOIN st2 b "
+              "ON b.c1 + 1 = cast(a.c1 as bigint)", checkPlanHashJoinInputs);
+  runFullPlan("SELECT a.c1, b.c1 FROM (SELECT c1 FROM st1) a "
+              "JOIN (SELECT c1 FROM st1) b ON b.c1 = a.c1", checkPlanHashJoinInputs);
 }
 
 TEST_F(PlanJoinTest, mergeJoinWrappedTimestampSort) {

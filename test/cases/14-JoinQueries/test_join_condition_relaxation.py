@@ -538,6 +538,13 @@ class TestJoinConditionRelaxation:
         for actual, reference in cases:
             self.check_query_equal(actual, reference)
 
+        # The two plans share key evaluation code, so equality alone can
+        # incorrectly pass when both return an empty result.
+        for sql in cases[0]:
+            tdSql.query(sql)
+            tdSql.checkRows(3)
+            tdSql.checkEqual(tdSql.queryResult, [(2, 11), (3, 12), (3, 13)])
+
         tdSql.query(
             "select a.x, b.k, b.x, a.x + b.k from l_expr a join r_expr b "
             "on a.x + b.k = b.x order by a.id, b.id"
@@ -560,6 +567,33 @@ class TestJoinConditionRelaxation:
             )
             self.check_query_equal(actual, reference)
         print("L2 normalized L1 reference oracle ......... [ passed ]")
+
+    def do_hash_key_evaluation_types(self):
+        # Fractional input distinguishes CAST-to-BIGINT followed by key
+        # conversion from replacing the CAST's own result type with DOUBLE.
+        tdSql.execute("create table l_cast (ts timestamp, id int, v double, n bigint)")
+        tdSql.execute("create table r_cast (ts timestamp, id int, v double, n bigint)")
+        tdSql.execute(
+            "insert into l_cast values "
+            "(1767225600000, 1, 1.9, 9007199254740992) "
+            "(1767225600001, 2, -1.9, 9007199254740993) "
+            "(1767225600002, 3, null, null)"
+        )
+        tdSql.execute(
+            "insert into r_cast values "
+            "(1767312000000, 11, 1.0, 9007199254740992) "
+            "(1767312000001, 12, -1.0, 9007199254740993) "
+            "(1767312000002, 13, null, null)"
+        )
+        for condition in ("cast(a.v as bigint) = b.v", "b.v = cast(a.v as bigint)",
+                          "cast(a.n as bigint) = cast(b.n as bigint)"):
+            tdSql.query(
+                f"select a.id, b.id from l_cast a join r_cast b on {condition} order by 1, 2"
+            )
+            tdSql.checkRows(2)
+            tdSql.checkEqual(tdSql.queryResult, [(1, 11), (2, 12)])
+
+        tdLog.info("hash key evaluation types ......................... [ passed ]")
 
     def do_l3_reference_oracle(self):
         left = [(-2, 1), (0, 2), (2, 3), (2, 4), (None, 5)]
@@ -1067,6 +1101,7 @@ class TestJoinConditionRelaxation:
         self.do_l2_integer_add_normalization()
         self.do_l2_hash_join_type_edges()
         self.do_l2_reference_oracle()
+        self.do_hash_key_evaluation_types()
         self.do_result_snapshot_matrix()
         self.do_l2_result_snapshot_matrix()
 

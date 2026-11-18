@@ -2719,30 +2719,18 @@ RESULT
          Output: columns=5 width=280
          Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=2 width=142)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=2 fetch_cost=<COST>
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+            Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=2 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
-                  Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -15740,30 +15728,18 @@ RESULT
          Output: columns=5 width=280
          Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Partition on Column region (cost=<COST> rows=5 width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+            Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (cost=<COST> rows=5 width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-               Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-      -> Data Exchange 1:1 (cost=<COST> rows=2 width=142)
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
             Output: columns=3 width=142
-            Network: mode=concurrent fetch_times=1 fetch_rows=2 fetch_cost=<COST>
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+            Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
             Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-         -> Partition on Column region (cost=<COST> rows=2 width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-               Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (cost=<COST> rows=2 width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
-                  Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
-                  Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---

@@ -1834,22 +1834,14 @@ RESULT
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
          Output: columns=5 width=280
          Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
-      -> Partition on Column region (width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Data Exchange 1:1 (width=142)
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
             Output: columns=3 width=142
-         -> Partition on Column region (width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
 ---
 ### EXP-join_full-01_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
@@ -10720,22 +10712,14 @@ RESULT
    -> Full Join (columns=5 width=280 input_order=asc algo=Hash)
          Output: columns=5 width=280
          Join Full Cond: (`fq_exp_mysql`.`s`.`time` = `fq_exp_mysql`.`r`.`time`) AND (`fq_exp_mysql`.`s`.`region` = `fq_exp_mysql`.`r`.`region`)
-      -> Partition on Column region (width=146)
+      -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
             Output: columns=3 width=146
-            Partition Key: partitions=1
-         -> Federated Scan on fq_exp_mysql.sensor (mysql) (width=146)
-               Output: columns=3 width=146
-               Source: 127.0.0.1:13306 user=root
-               Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
-      -> Data Exchange 1:1 (width=142)
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `voltage` FROM `fq_explain_m`.`sensor` ORDER BY `time` ASC
+      -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
             Output: columns=3 width=142
-         -> Partition on Column region (width=142)
-               Output: columns=3 width=142
-               Partition Key: partitions=1
-            -> Federated Scan on fq_exp_mysql.region_info (mysql) (width=142)
-                  Output: columns=3 width=142
-                  Source: 127.0.0.1:13306 user=root
-                  Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
+            Source: 127.0.0.1:13306 user=root
+            Remote SQL: SELECT `time`, `region`, `area` FROM `fq_explain_m`.`region_info` ORDER BY `time` ASC
 ---
 ### EXP-ds_join-04_pg POS
 SQL: select s.`time`, s.voltage, r.area from fq_exp_pg.sensor s full join fq_exp_pg.region_info r on s.`time` = r.`time` and s.region = r.region
