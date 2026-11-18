@@ -2146,58 +2146,128 @@ double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
   return rowSize;
 }
 
+typedef struct SSortKeyCell {
+  SColumnInfoData* pCol;  // NULL when the order slot is invalid, key skipped
+  __compar_fn_t    fn;    // resolved comparator, cached across comparisons
+  bool             nullFirst;
+  bool             isJson;
+} SSortKeyCell;
+
+// kind of the specialized single-key comparison (fixed-length, no NULL)
+enum {
+  BLOCK_SORT_CMP_FN = 0,
+  BLOCK_SORT_CMP_I8,
+  BLOCK_SORT_CMP_I16,
+  BLOCK_SORT_CMP_I32,
+  BLOCK_SORT_CMP_I64,
+  BLOCK_SORT_CMP_U8,
+  BLOCK_SORT_CMP_U16,
+  BLOCK_SORT_CMP_U32,
+  BLOCK_SORT_CMP_U64,
+};
+
 typedef struct SSDataBlockSortHelper {
   SArray*      orderInfo;  // SArray<SBlockOrderInfo>
   SSDataBlock* pDataBlock;
+  // compact key descriptors built once per sort; dataBlockCompar reads them
+  // without touching the order array or re-checking key types per comparison
+  int32_t          numOfKeys;
+  SSortKeyCell*    pKeys;
+  // single-key fast path (pOrderInfo.size == 1, fixed-length key, no NULL)
+  int32_t          keyCmpKind;
+  SColumnInfoData* pKeyCol;
+  bool             keyDesc;
 } SSDataBlockSortHelper;
+
+#define BLOCK_SORT_CMP3(lv, rv) ((lv) > (rv) ? 1 : ((lv) < (rv) ? -1 : 0))
+
+static int32_t dataBlockSingleKeyCompar(const void* p1, const void* p2, const void* param) {
+  const SSDataBlockSortHelper* pHelper = (const SSDataBlockSortHelper*)param;
+  const SColumnInfoData*       pKeyCol = pHelper->pKeyCol;
+  int32_t                      left = *(const int32_t*)p1;
+  int32_t                      right = *(const int32_t*)p2;
+
+  const char* pData = pKeyCol->pData;
+  int32_t     ret = 0;
+  switch (pHelper->keyCmpKind) {
+    case BLOCK_SORT_CMP_I8:
+      ret = BLOCK_SORT_CMP3(*(const int8_t*)(pData + left), *(const int8_t*)(pData + right));
+      break;
+    case BLOCK_SORT_CMP_U8:
+      ret = BLOCK_SORT_CMP3(*(const uint8_t*)(pData + left), *(const uint8_t*)(pData + right));
+      break;
+    case BLOCK_SORT_CMP_I16:
+      ret = BLOCK_SORT_CMP3(*(const int16_t*)(pData + (int64_t)left * 2),
+                            *(const int16_t*)(pData + (int64_t)right * 2));
+      break;
+    case BLOCK_SORT_CMP_U16:
+      ret = BLOCK_SORT_CMP3(*(const uint16_t*)(pData + (int64_t)left * 2),
+                            *(const uint16_t*)(pData + (int64_t)right * 2));
+      break;
+    case BLOCK_SORT_CMP_I32:
+      ret = BLOCK_SORT_CMP3(*(const int32_t*)(pData + (int64_t)left * 4),
+                            *(const int32_t*)(pData + (int64_t)right * 4));
+      break;
+    case BLOCK_SORT_CMP_U32:
+      ret = BLOCK_SORT_CMP3(*(const uint32_t*)(pData + (int64_t)left * 4),
+                            *(const uint32_t*)(pData + (int64_t)right * 4));
+      break;
+    case BLOCK_SORT_CMP_I64:
+      ret = BLOCK_SORT_CMP3(*(const int64_t*)(pData + (int64_t)left * 8), *(const int64_t*)(pData + (int64_t)right * 8));
+      break;
+    case BLOCK_SORT_CMP_U64:
+      ret = BLOCK_SORT_CMP3(*(const uint64_t*)(pData + (int64_t)left * 8), *(const uint64_t*)(pData + (int64_t)right * 8));
+      break;
+    default: {
+      // float/double and anything exotic: the library comparator obtained from
+      // getKeyComparFunc already encodes the sort direction, so its result must
+      // not be flipped again by keyDesc
+      const SSortKeyCell* pKey = &pHelper->pKeys[0];
+      int32_t             bytes = pKeyCol->info.bytes;
+      return pKey->fn(pData + (int64_t)left * bytes, pData + (int64_t)right * bytes);
+    }
+  }
+  return pHelper->keyDesc ? -ret : ret;
+}
 
 int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   const SSDataBlockSortHelper* pHelper = (const SSDataBlockSortHelper*)param;
+  const SSortKeyCell*          pKeys = pHelper->pKeys;
+  int32_t                      left = *(const int32_t*)p1;
+  int32_t                      right = *(const int32_t*)p2;
 
-  SSDataBlock* pDataBlock = pHelper->pDataBlock;
-
-  int32_t left = *(int32_t*)p1;
-  int32_t right = *(int32_t*)p2;
-
-  SArray* pInfo = pHelper->orderInfo;
-
-  for (int32_t i = 0; i < pInfo->size; ++i) {
-    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
-    SColumnInfoData* pColInfoData = pOrder->pColData;  // TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
+  for (int32_t i = 0; i < pHelper->numOfKeys; ++i) {
+    const SColumnInfoData* pColInfoData = pKeys[i].pCol;
+    if (pColInfoData == NULL) {
+      continue;
+    }
 
     if (pColInfoData->hasNull) {
-      bool leftNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, NULL);
-      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, NULL);
+      bool leftNull = colDataIsNull(pColInfoData, pHelper->pDataBlock->info.rows, left, NULL);
+      bool rightNull = colDataIsNull(pColInfoData, pHelper->pDataBlock->info.rows, right, NULL);
       if (leftNull && rightNull) {
         continue;  // continue to next slot
       }
 
       if (rightNull) {
-        return pOrder->nullFirst ? 1 : -1;
+        return pKeys[i].nullFirst ? 1 : -1;
       }
 
       if (leftNull) {
-        return pOrder->nullFirst ? -1 : 1;
+        return pKeys[i].nullFirst ? -1 : 1;
       }
     }
 
     void* left1 = colDataGetData(pColInfoData, left);
     void* right1 = colDataGetData(pColInfoData, right);
-    if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+    if (pKeys[i].isJson) {
       if (tTagIsJson(left1) || tTagIsJson(right1)) {
         terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
         return 0;
       }
     }
 
-    __compar_fn_t fn;
-    if (pOrder->compFn) {
-      fn = pOrder->compFn;
-    } else {
-      fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
-    }
-
-    int ret = fn(left1, right1);
+    int ret = pKeys[i].fn(left1, right1);
     if (ret == 0) {
       continue;
     } else {
@@ -2208,251 +2278,884 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   return 0;
 }
 
-static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, const int32_t* index) {
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pDst = &pCols[i];
-    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
-    if (pSrc == NULL) {
+// Build the compact key descriptors for one sort. Keys whose slot is invalid
+// get a NULL pCol and are skipped by the comparators, matching the previous
+// behavior of resolving pOrder->pColData with a NULL check.
+static int32_t blockDataSortBuildKeys(SSDataBlockSortHelper* pHelper) {
+  SArray* pInfo = pHelper->orderInfo;
+  int32_t numOfKeys = (int32_t)taosArrayGetSize(pInfo);
+
+  int32_t numOfBlockCols = (int32_t)taosArrayGetSize(pHelper->pDataBlock->pDataBlock);
+
+  for (int32_t i = 0; i < numOfKeys; ++i) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
+    if (pOrder == NULL || pOrder->slotId < 0 || pOrder->slotId >= numOfBlockCols) {
       continue;
     }
+
+    // Resolve everything into this call's key cell only. Writing pColData or
+    // compFn back to pOrder would hand a pointer that the gather step swaps
+    // out (and a later call a comparator it never supplied), so the order
+    // array stays exactly as the caller built it.
+    SColumnInfoData* pColData = taosArrayGet(pHelper->pDataBlock->pDataBlock, pOrder->slotId);
+    if (pColData == NULL) {
+      continue;
+    }
+    // Invariant: a comparator supplied by the caller always wins over the type
+    // specialized one. The single-key fast paths below are selected only when
+    // pOrder->compFn is NULL, so a caller-provided comparator keeps the generic
+    // path and never gets silently replaced by a typed comparison.
+    __compar_fn_t fn = pOrder->compFn != NULL ? (__compar_fn_t)pOrder->compFn
+                                              : getKeyComparFunc(pColData->info.type, pOrder->order);
+
+    SSortKeyCell* pCell = &pHelper->pKeys[i];
+    pCell->pCol = pColData;
+    pCell->fn = fn;
+    pCell->nullFirst = pOrder->nullFirst;
+    pCell->isJson = (pColData->info.type == TSDB_DATA_TYPE_JSON);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+struct SBlockSortScratch {
+  int32_t*   index;
+  int32_t    indexCap;  // allocated int32 elements
+  // gather column buffers. After each sort the freshly gathered buffers are
+  // swapped into the data block and the block's previous buffers stay here for
+  // the next round, so a steady-state sort performs no allocation at all.
+  int32_t          numOfCols;
+  // row capacity of the buffers currently held for each column. After a swap
+  // the held buffer is the one the block gave back, so the capacity is only
+  // known per column and must be re-checked before the next gather.
+  int32_t*         colCaps;
+  SColumnInfoData* pCols;
+  SSortKeyCell*    pKeys;
+  int32_t          keyCap;
+  // LSD radix sort workspaces for the single fixed-width key fast path. For
+  // 1/2/4-byte keys each entry packs the normalized key in the high 32 bits and
+  // the row index in the low 32 bits; for 8-byte keys radixA/B hold the full
+  // key and radixIdxIn/Out hold the permutation.
+  uint64_t* radixA;
+  uint64_t* radixB;
+  int32_t   radixCap;
+  // 8-byte keys cannot pack key and index into one word: keep the keys in
+  // radixA/B and the permutation in these two index arrays.
+  int32_t* radixIdxIn;
+  int32_t* radixIdxOut;
+  int32_t  radixIdxCap;
+};
+
+static void blockDataSortScratchResetCols(SBlockSortScratch* pScratch) {
+  if (pScratch->pCols != NULL) {
+    for (int32_t i = 0; i < pScratch->numOfCols; ++i) {
+      colDataDestroy(&pScratch->pCols[i]);
+    }
+    taosMemoryFreeClear(pScratch->pCols);
+    pScratch->numOfCols = 0;
+  }
+  taosMemoryFreeClear(pScratch->colCaps);
+}
+
+// Release everything the scratch owns but keep the scratch struct itself. Used
+// for the stack-allocated scratch of the self-contained blockDataSort call.
+static void blockDataSortScratchDestroyContents(SBlockSortScratch* pScratch) {
+  if (pScratch == NULL) {
+    return;
+  }
+  taosMemoryFreeClear(pScratch->index);
+  pScratch->indexCap = 0;
+  blockDataSortScratchResetCols(pScratch);
+  taosMemoryFreeClear(pScratch->pKeys);
+  pScratch->keyCap = 0;
+  taosMemoryFreeClear(pScratch->radixA);
+  taosMemoryFreeClear(pScratch->radixB);
+  pScratch->radixCap = 0;
+  taosMemoryFreeClear(pScratch->radixIdxIn);
+  taosMemoryFreeClear(pScratch->radixIdxOut);
+  pScratch->radixIdxCap = 0;
+}
+
+static void blockDataSortScratchDestroy(SBlockSortScratch* pScratch) {
+  if (pScratch == NULL) {
+    return;
+  }
+  blockDataSortScratchDestroyContents(pScratch);
+  taosMemoryFreeClear(pScratch);
+}
+
+void blockDataSortFreeScratch(SBlockSortScratch** ppScratch) {
+  if (ppScratch == NULL || *ppScratch == NULL) {
+    return;
+  }
+  blockDataSortScratchDestroy(*ppScratch);
+  *ppScratch = NULL;
+}
+
+static int32_t blockDataSortScratchBuildCols(SBlockSortScratch* pScratch, const SSDataBlock* pDataBlock, int32_t cap) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  size_t  numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+
+  // Declared and NULLed before the first jump to _end: the cleanup exit frees
+  // both pointers, so an allocation failure above must not observe an
+  // uninitialized stack value here.
+  int32_t* colCaps = NULL;
+
+  SColumnInfoData* pCols = taosMemoryCalloc(numOfCols, sizeof(SColumnInfoData));
+  QUERY_CHECK_NULL(pCols, code, lino, _end, terrno);
+
+  for (size_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+    if (pSrc == NULL) {
+      // Deterministic code: terrno can legitimately be 0 here, and returning
+      // success would leave the caller with an unsorted block.
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
+
+    pCols[i].info = pSrc->info;
+    if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
+      pCols[i].varmeta.offset = taosMemoryCalloc(cap, sizeof(int32_t));
+      if (pCols[i].varmeta.offset == NULL) {
+        code = terrno;
+        goto _end;
+      }
+      pCols[i].pData = NULL;  // grown lazily to the block's varmeta.length
+      pCols[i].varmeta.length = 0;
+      pCols[i].varmeta.allocLen = 0;
+    } else {
+      pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(cap));
+      if (pCols[i].info.bytes > 0) {
+        pCols[i].pData = taosMemoryCalloc(cap, pCols[i].info.bytes);
+      }
+      if (pCols[i].nullbitmap == NULL || (pCols[i].info.bytes > 0 && pCols[i].pData == NULL)) {
+        code = terrno;
+        goto _end;
+      }
+    }
+  }
+
+  colCaps = taosMemoryCalloc(numOfCols, sizeof(int32_t));
+  if (colCaps == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  for (size_t i = 0; i < numOfCols; ++i) {
+    colCaps[i] = cap;
+  }
+
+  pScratch->pCols = pCols;
+  pScratch->numOfCols = (int32_t)numOfCols;
+  pScratch->colCaps = colCaps;
+
+  return TSDB_CODE_SUCCESS;
+
+_end:
+  if (pCols != NULL) {
+    for (size_t j = 0; j < numOfCols; ++j) {
+      colDataDestroy(&pCols[j]);
+    }
+    taosMemoryFree(pCols);
+  }
+  taosMemoryFree(colCaps);
+  uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+// Grow/rebuild the scratch so it can gather `rows` rows of pDataBlock. The
+// schema fingerprint is (numOfCols, per-column type/bytes/scale): any mismatch
+// after a plan change drops the buffers and rebuilds them. scale is part of the
+// fingerprint because the scratch columns keep the block's SColumnInfo and a
+// DECIMAL key with a different scale must not reuse buffers described by the
+// previous scale.
+static int32_t blockDataSortScratchMatch(SBlockSortScratch* pScratch, const SSDataBlock* pDataBlock, int32_t cap) {
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+
+  if (pScratch->numOfCols == (int32_t)numOfCols && pScratch->colCaps != NULL) {
+    bool schemaSame = true;
+    for (size_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+      if (pSrc == NULL || pSrc->info.type != pScratch->pCols[i].info.type ||
+          pSrc->info.bytes != pScratch->pCols[i].info.bytes ||
+          pSrc->info.scale != pScratch->pCols[i].info.scale || pScratch->colCaps[i] < cap) {
+        schemaSame = false;
+        break;
+      }
+    }
+    if (schemaSame) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  blockDataSortScratchResetCols(pScratch);
+  return blockDataSortScratchBuildCols(pScratch, pDataBlock, cap);
+}
+
+static void blockDataSortTypedGather(SColumnInfoData* pDst, const SColumnInfoData* pSrc, const int32_t* index,
+                                     int32_t rows) {
+  char*       d = pDst->pData;
+  const char* s = pSrc->pData;
+
+  switch (pDst->info.bytes) {
+    case 1:
+      for (int32_t j = 0; j < rows; ++j) ((uint8_t*)d)[j] = ((const uint8_t*)s)[index[j]];
+      break;
+    case 2:
+      for (int32_t j = 0; j < rows; ++j) ((uint16_t*)d)[j] = ((const uint16_t*)s)[index[j]];
+      break;
+    case 4:
+      for (int32_t j = 0; j < rows; ++j) ((uint32_t*)d)[j] = ((const uint32_t*)s)[index[j]];
+      break;
+    case 8:
+      for (int32_t j = 0; j < rows; ++j) ((uint64_t*)d)[j] = ((const uint64_t*)s)[index[j]];
+      break;
+    case 16:
+      for (int32_t j = 0; j < rows; ++j) memcpy(d + (size_t)j * 16, s + (size_t)index[j] * 16, 16);
+      break;
+    default:
+      for (int32_t j = 0; j < rows; ++j) {
+        memcpy(d + (size_t)j * pDst->info.bytes, s + (size_t)index[j] * pDst->info.bytes, pDst->info.bytes);
+      }
+      break;
+  }
+}
+
+// Gather rows in `index` order into the scratch columns, then swap each
+// scratch buffer with the block's own, leaving the gathered data owned by the
+// block and the previous (same-capacity) buffers in the scratch for reuse.
+// Every column is gathered before the first buffer is swapped: a failure in
+// the middle (e.g. a payload realloc) then leaves the block completely
+// untouched instead of half gathered and half in its original row order.
+static int32_t blockDataGatherAndSwap(SBlockSortScratch* pScratch, SSDataBlock* pDataBlock, const int32_t* index) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
+  int32_t rows = pDataBlock->info.rows;
+  int32_t swappedCap = (int32_t)pDataBlock->info.capacity;
+
+  // The index is the permutation the sort just produced, but it can also be a
+  // stale buffer (reused scratch, rows changed by the caller). Both gathers
+  // below address the source payload through it, so validate it once here
+  // instead of letting a bad entry read outside the block.
+  if (index == NULL) {
+    lino = __LINE__;
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _end;
+  }
+  for (int32_t j = 0; j < rows; ++j) {
+    if (index[j] < 0 || index[j] >= rows) {
+      lino = __LINE__;
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
+  }
+
+  // Pass 1: gather into the scratch columns only.
+  for (int32_t i = 0; i < pScratch->numOfCols; ++i) {
+    SColumnInfoData*       pDst = &pScratch->pCols[i];
+    const SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pSrc, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+
+    // NULL bits written by the gather below, carried to pass 2 on the scratch
+    // column so the block column's hasNull flag describes the bitmap it
+    // receives. hasNull is unused on a scratch column while gathering.
+    pDst->hasNull = false;
+
     if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+      // The gather writes the offset array the scratch holds. A swap can hand
+      // back a NULL array when the block slot never allocated offsets; that
+      // slot is recorded with capacity 0 below, so the match above rebuilds it
+      // before it reaches here. Keep the dereference guarded anyway.
+      QUERY_CHECK_NULL(pDst->varmeta.offset, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
       if (pSrc->pData == NULL) {
         // Unmaterialized slots still need per-row NULL metadata for spilling.
-        memset(pDst->varmeta.offset, -1, pDataBlock->info.rows * sizeof(int32_t));
+        // Only the first `rows` offsets are handed to the block (the block
+        // reports info.rows rows); the rest stays stale until the next fill.
+        memset(pDst->varmeta.offset, -1, (size_t)rows * sizeof(int32_t));
+        pDst->varmeta.length = 0;
         continue;
       }
-      if (pSrc->varmeta.length != 0) {
+      // A materialized var column addresses rows through the offset array; the
+      // pData != NULL / offset == NULL combination has no valid row metadata.
+      QUERY_CHECK_NULL(pSrc->varmeta.offset, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
+      if ((int32_t)pSrc->varmeta.length > 0) {
+        if (pDst->varmeta.allocLen < pSrc->varmeta.length) {
+          char* tmp = taosMemoryRealloc(pDst->pData, pSrc->varmeta.length);
+          QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+          pDst->pData = tmp;
+          pDst->varmeta.allocLen = pSrc->varmeta.length;
+        }
         memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
       }
       pDst->varmeta.length = pSrc->varmeta.length;
-
-      for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+      for (int32_t j = 0; j < rows; ++j) {
         pDst->varmeta.offset[j] = pSrc->varmeta.offset[index[j]];
       }
-    } else if (pSrc->pData != NULL) {
-      for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
-        if (colDataIsNull_f(pSrc, index[j])) {
-          colDataSetNull_f_s(pDst, j);
-          continue;
-        }
-        memcpy(pDst->pData + j * pDst->info.bytes, pSrc->pData + index[j] * pDst->info.bytes, pDst->info.bytes);
-      }
-    }
-  }
-}
-
-static int32_t createHelpColInfoData(const SSDataBlock* pDataBlock, SColumnInfoData** ppCols) {
-  int32_t code = 0;
-  int32_t rows = pDataBlock->info.capacity;
-  size_t  numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-  int32_t i = 0;
-
-  *ppCols = NULL;
-
-  SColumnInfoData* pCols = taosMemoryCalloc(numOfCols, sizeof(SColumnInfoData));
-  if (pCols == NULL) {
-    return terrno;
-  }
-
-  for (i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, i);
-    if (pColInfoData == NULL) {
-      continue;
-    }
-
-    pCols[i].info = pColInfoData->info;
-    if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
-      pCols[i].varmeta.offset = taosMemoryCalloc(rows, sizeof(int32_t));
-      if (pCols[i].varmeta.offset == NULL) {
-        code = terrno;
-        goto _error;
-      }
-      // Keep the payload unmaterialized without dropping its NULL offsets.
-      if (pColInfoData->pData == NULL) {
+    } else {
+      if (pSrc->pData == NULL) {
+        // Unmaterialized slot: the block keeps pData == NULL, nothing to gather.
         continue;
       }
-      pCols[i].pData = taosMemoryCalloc(1, pColInfoData->varmeta.length);
-      if (pCols[i].pData == NULL) {
-        code = terrno;
-        taosMemoryFree(pCols[i].varmeta.offset);
-        taosMemoryFree(pCols[i].pData);
-        goto _error;
-      }
 
-      pCols[i].varmeta.length = pColInfoData->varmeta.length;
-      pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
-    } else if (pColInfoData->pData != NULL) {
-      pCols[i].nullbitmap = taosMemoryCalloc(1, BitmapLen(rows));
-      pCols[i].pData = taosMemoryCalloc(rows, pCols[i].info.bytes);
-      if (pCols[i].nullbitmap == NULL || pCols[i].pData == NULL) {
-        code = terrno;
-        taosMemoryFree(pCols[i].nullbitmap);
-        taosMemoryFree(pCols[i].pData);
-        goto _error;
+      // a fresh buffer is zeroed; a reused one may still carry the previous
+      // round's null bits beyond the last partial byte. Only the first `rows`
+      // bits are observable (info.rows == rows); blockDataEmpty clears the rest
+      // of the buffer before the next fill.
+      memset(pDst->nullbitmap, 0, BitmapLen(rows));
+
+      if (!pSrc->hasNull) {
+        blockDataSortTypedGather(pDst, pSrc, index, rows);
+      } else {
+        for (int32_t j = 0; j < rows; ++j) {
+          if (colDataIsNull_f(pSrc, index[j])) {
+            colDataSetNull_f_s(pDst, j);
+            pDst->hasNull = true;
+            continue;
+          }
+          memcpy(pDst->pData + (size_t)j * pDst->info.bytes, pSrc->pData + (size_t)index[j] * pDst->info.bytes,
+                 pDst->info.bytes);
+        }
       }
     }
   }
 
-  *ppCols = pCols;
-  return code;
+  // Pass 2: hand the gathered buffers to the block, keep the block's old ones.
+  // Payload and metadata travel as a pair so that every varmeta.allocLen keeps
+  // describing the payload buffer it was allocated for, on both sides.
+  for (int32_t i = 0; i < pScratch->numOfCols; ++i) {
+    SColumnInfoData* pDst = &pScratch->pCols[i];
+    SColumnInfoData* pBlkCol = taosArrayGet(pDataBlock->pDataBlock, i);
+    QUERY_CHECK_NULL(pBlkCol, code, lino, _end, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
 
-_error:
-  for (int32_t j = 0; j < i; ++j) {
-    colDataDestroy(&pCols[j]);
-  }
-
-  taosMemoryFree(pCols);
-  return code;
-}
-
-static void copyBackToBlock(SSDataBlock* pDataBlock, SColumnInfoData* pCols) {
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, i);
-    if (pColInfoData == NULL) {
-      continue;
+    if (IS_VAR_DATA_TYPE(pBlkCol->info.type)) {
+      if (pBlkCol->pData == NULL) {
+        // Unmaterialized slot: swap in the fresh offset array; the payload
+        // stays NULL and the block's previous offset array moves to the scratch.
+        int32_t* pTmpOff = pBlkCol->varmeta.offset;
+        pBlkCol->varmeta.offset = pDst->varmeta.offset;
+        pDst->varmeta.offset = pTmpOff;
+        pBlkCol->varmeta.length = 0;
+        pBlkCol->varmeta.allocLen = 0;
+        // A slot that never allocated its offset array gives the scratch NULL.
+        // It holds no rows, so record capacity 0: the next sort then rebuilds
+        // this column instead of writing through the NULL pointer.
+        pScratch->colCaps[i] = (pTmpOff != NULL) ? swappedCap : 0;
+        continue;
+      }
+    } else if (pBlkCol->pData == NULL) {
+      continue;  // unmaterialized fixed-width slot: nothing was gathered
     }
 
-    pColInfoData->info = pCols[i].info;
-    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-      taosMemoryFreeClear(pColInfoData->varmeta.offset);
-      pColInfoData->varmeta = pCols[i].varmeta;
+    char* tmpData = pBlkCol->pData;
+    pBlkCol->pData = pDst->pData;
+    pDst->pData = tmpData;
+
+    if (IS_VAR_DATA_TYPE(pBlkCol->info.type)) {
+      SVarColAttr tmpMeta = pBlkCol->varmeta;
+      pBlkCol->varmeta = pDst->varmeta;
+      pDst->varmeta = tmpMeta;
+      // The scratch buffer now holds no live rows; keeping its length would
+      // let a later zero-copy decision read past the rows it actually owns.
+      pDst->varmeta.length = 0;
+      if (pDst->pData == NULL) {
+        pDst->varmeta.allocLen = 0;
+      }
     } else {
-      taosMemoryFreeClear(pColInfoData->nullbitmap);
-      pColInfoData->nullbitmap = pCols[i].nullbitmap;
+      char* tmpBm = pBlkCol->nullbitmap;
+      pBlkCol->nullbitmap = pDst->nullbitmap;
+      pDst->nullbitmap = tmpBm;
+      // The gathered bitmap is the truth for this column now; the flag must
+      // follow it instead of carrying the previous fill's value.
+      pBlkCol->hasNull = pDst->hasNull;
     }
 
-    taosMemoryFreeClear(pColInfoData->pData);
-    pColInfoData->pData = pCols[i].pData;
+    // the buffers now held by the scratch are the block's previous ones; the
+    // block guarantees at least info.capacity rows for them
+    pScratch->colCaps[i] = swappedCap;
   }
 
-  taosMemoryFreeClear(pCols);
+_end:
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  }
+  return code;
 }
 
-static int32_t* createTupleIndex(size_t rows) {
-  int32_t* index = taosMemoryCalloc(rows, sizeof(int32_t));
-  if (index == NULL) {
-    return NULL;
+// LSD radix sort for one fixed-width integer key (1/2/4/8 bytes, no NULLs).
+// 1/2/4-byte keys pack the key and row index into one word; 8-byte keys keep
+// the full key in radixA/B and the permutation in radixIdxIn/Out.
+// The kind switch below must stay in sync with the caller's fast-path kinds: a
+// new kind that reaches the default simply falls back to the comparison sort,
+// so adding a type here without a matching comparator is safe but silently
+// slower.
+// Compared with taosqsort_r this removes the O(n log n) comparisons and turns
+// every pass into sequential reads/writes over the compact (key,index) pairs.
+// Returns false when the sort is not applicable or the workspace cannot grow,
+// so the caller can fall back to the comparison sort.
+static bool blockDataRadixSortIndex(SBlockSortScratch* pScratch, const SColumnInfoData* pCol, int32_t kind,
+                                    bool desc, int32_t rows) {
+  // The packed key/index word and the int32 index array both assume
+  // 0 < rows <= INT32_MAX; anything outside falls back to the comparison sort.
+  if (rows <= 0 || rows > INT32_MAX) {
+    return false;
+  }
+
+  int32_t keyBytes = 4;
+  bool    isSigned = false;
+  switch (kind) {
+    case BLOCK_SORT_CMP_I8:  keyBytes = 1; isSigned = true;  break;
+    case BLOCK_SORT_CMP_I16: keyBytes = 2; isSigned = true;  break;
+    case BLOCK_SORT_CMP_I32: keyBytes = 4; isSigned = true;  break;
+    case BLOCK_SORT_CMP_U8:  keyBytes = 1; isSigned = false; break;
+    case BLOCK_SORT_CMP_U16: keyBytes = 2; isSigned = false; break;
+    case BLOCK_SORT_CMP_U32: keyBytes = 4; isSigned = false; break;
+    case BLOCK_SORT_CMP_I64: keyBytes = 8; isSigned = true;  break;
+    case BLOCK_SORT_CMP_U64: keyBytes = 8; isSigned = false; break;
+    default:
+      return false;
+  }
+
+  if (pScratch->radixCap < rows) {
+    // Grow both buffers first and commit only when both succeeded: a partial
+    // failure leaves the scratch exactly as it was, so no recorded capacity
+    // ever describes a buffer that was not actually resized.
+    uint64_t* newA = taosMemoryRealloc(pScratch->radixA, (size_t)rows * sizeof(uint64_t));
+    if (newA == NULL) {
+      uWarn("%s:%d radix key buffer A unavailable, falling back to the comparison sort", __func__, __LINE__);
+      return false;
+    }
+    uint64_t* newB = taosMemoryRealloc(pScratch->radixB, (size_t)rows * sizeof(uint64_t));
+    if (newB == NULL) {
+      // newA is already a valid (possibly moved) pointer; hand it back so the
+      // scratch never keeps a freed address, then leave the capacity untouched.
+      pScratch->radixA = newA;
+      uWarn("%s:%d radix key buffer B unavailable, falling back to the comparison sort", __func__, __LINE__);
+      return false;
+    }
+    pScratch->radixA = newA;
+    pScratch->radixB = newB;
+    pScratch->radixCap = rows;
+  }
+
+  const char* data = pCol->pData;
+
+  if (keyBytes == 8) {
+    // Index-based LSD sort: keys and the permutation both travel through a
+    // pair of buffers so every pass stays a sequential histogram + scatter.
+    if (pScratch->radixIdxCap < rows) {
+      int32_t* newIn = taosMemoryRealloc(pScratch->radixIdxIn, (size_t)rows * sizeof(int32_t));
+      if (newIn == NULL) {
+        uWarn("%s:%d radix index buffer In unavailable, falling back to the comparison sort", __func__, __LINE__);
+        return false;
+      }
+      int32_t* newOut = taosMemoryRealloc(pScratch->radixIdxOut, (size_t)rows * sizeof(int32_t));
+      if (newOut == NULL) {
+        pScratch->radixIdxIn = newIn;
+        uWarn("%s:%d radix index buffer Out unavailable, falling back to the comparison sort", __func__, __LINE__);
+        return false;
+      }
+      pScratch->radixIdxIn = newIn;
+      pScratch->radixIdxOut = newOut;
+      pScratch->radixIdxCap = rows;
+    }
+
+    // Descending order is produced by complementing the normalized key, not by
+    // reversing the permutation: every LSD pass is stable, so equal keys keep
+    // their input order in both directions.
+    uint64_t  flip64 = isSigned ? 0x8000000000000000ULL : 0ULL;
+    if (desc) flip64 ^= 0xFFFFFFFFFFFFFFFFULL;
+    uint64_t* ka = pScratch->radixA;
+    uint64_t* kb = pScratch->radixB;
+    int32_t*  ia = pScratch->radixIdxIn;
+    int32_t*  ib = pScratch->radixIdxOut;
+    for (int32_t i = 0; i < rows; ++i) {
+      uint64_t k = 0;
+      memcpy(&k, data + (size_t)i * 8, sizeof(k));
+      ka[i] = k ^ flip64;
+      ia[i] = i;
+    }
+
+    for (int32_t pass = 0; pass < 8; ++pass) {
+      size_t  count[256] = {0};
+      int32_t shift = pass * 8;
+      for (int32_t i = 0; i < rows; ++i) {
+        count[(ka[i] >> shift) & 0xFFu]++;
+      }
+      size_t sum = 0;
+      for (int32_t k = 0; k < 256; ++k) {
+        size_t c = count[k];
+        count[k] = sum;
+        sum += c;
+      }
+      for (int32_t i = 0; i < rows; ++i) {
+        size_t slot = count[(ka[i] >> shift) & 0xFFu]++;
+        kb[slot] = ka[i];
+        ib[slot] = ia[i];
+      }
+      uint64_t* tk = ka;
+      ka = kb;
+      kb = tk;
+      int32_t* ti = ia;
+      ia = ib;
+      ib = ti;
+    }
+
+    // Eight passes (even) leave the result in radixIdxIn, which is `ia`. The
+    // permutation is already in final order for both directions.
+    for (int32_t i = 0; i < rows; ++i) {
+      pScratch->index[i] = ia[i];
+    }
+    return true;
+  }
+
+  // Reached only for 1/2/4-byte keys: the packed word carries the whole key in
+  // its high 32 bits, so the passes below stay below a 64-bit shift.
+  uint64_t* a = pScratch->radixA;
+  uint64_t* b = pScratch->radixB;
+  uint32_t    signFlip = (keyBytes == 4) ? 0x80000000u : ((keyBytes == 2) ? 0x8000u : 0x80u);
+  // Same key-complement trick as the 8-byte path: the packed row index in the
+  // low 32 bits is never part of a radix pass, so equal keys keep input order.
+  uint32_t    descFlip = desc ? 0xFFFFFFFFu : 0u;
+
+  for (int32_t i = 0; i < rows; ++i) {
+    // memcpy keeps the load alignment-safe and compiles to a single move.
+    uint32_t key;
+    if (keyBytes == 1) {
+      key = (uint32_t)(uint8_t)data[i];
+    } else if (keyBytes == 2) {
+      uint16_t v16 = 0;
+      memcpy(&v16, data + (size_t)i * 2, sizeof(v16));
+      key = v16;
+    } else {
+      uint32_t v32 = 0;
+      memcpy(&v32, data + (size_t)i * 4, sizeof(v32));
+      key = v32;
+    }
+    if (isSigned) {
+      key ^= signFlip;  // map signed order onto unsigned order
+    }
+    key ^= descFlip;  // complement so the stable ascending passes yield descending
+    a[i] = ((uint64_t)key << 32) | (uint32_t)i;
+  }
+
+  for (int32_t pass = 0; pass < keyBytes; ++pass) {
+    size_t  count[256] = {0};
+    int32_t shift = 32 + pass * 8;
+    for (int32_t i = 0; i < rows; ++i) {
+      count[(a[i] >> shift) & 0xFFu]++;
+    }
+    size_t sum = 0;
+    for (int32_t k = 0; k < 256; ++k) {
+      size_t c = count[k];
+      count[k] = sum;
+      sum += c;
+    }
+    for (int32_t i = 0; i < rows; ++i) {
+      uint64_t v = a[i];
+      b[count[(v >> shift) & 0xFFu]++] = v;
+    }
+    uint64_t* tmp = a;
+    a = b;
+    b = tmp;
   }
 
   for (int32_t i = 0; i < rows; ++i) {
-    index[i] = i;
+    pScratch->index[i] = (int32_t)(a[i] & 0xFFFFFFFFu);
   }
-
-  return index;
+  return true;
 }
 
-static void destroyTupleIndex(int32_t* index) { taosMemoryFreeClear(index); }
+// Decoded and merged blocks often carry a conservative `hasNull` flag even
+// when no row is actually NULL. Before giving up the typed comparator and the
+// radix path (which together cover the whole sort), check the real rows: one
+// sticky flag would otherwise send a third of a large sort back to the
+// comparison fallback.
+// Answers "does any of the first `rows` rows actually hold NULL" and keeps the
+// column's hasNull flag in step with the answer: when the scan proves the
+// column clean, the flag is cleared so that every later consumer (comparators,
+// gather, spilling) reaches the same conclusion instead of trusting a sticky
+// "may contain NULL" bit. The flag is a conservative cache, so clearing it is
+// always safe; setting it back happens in the code that writes a NULL bit.
+// NOTE: despite the query-shaped name this function MUTATES the column it is
+// given (it may clear hasNull). Callers pass a column owned by the block they
+// are about to sort, so the cleared flag describes that same block from then
+// on; never call it on a column another operator is still decoding.
+static bool blockDataColumnProbeAndClearNull(SColumnInfoData* pCol, int32_t rows) {
+  if (pCol->pData == NULL) {
+    return true;  // unmaterialized slot: every row is NULL
+  }
+  if (!pCol->hasNull) {
+    return false;
+  }
 
-int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+  if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+    if (pCol->varmeta.offset == NULL) {
+      return true;
+    }
+    for (int32_t i = 0; i < rows; ++i) {
+      int32_t off = pCol->varmeta.offset[i];
+      if (off == -1) {
+        return true;
+      }
+      // An offset outside the payload means the block cannot be validated:
+      // stay conservative and keep the flag, so no caller acts on a NULL-free
+      // verdict for a block whose var data does not line up.
+      if (off < 0 || (uint32_t)off > pCol->varmeta.length) {
+        return true;
+      }
+    }
+    pCol->hasNull = false;
+    return false;
+  }
+
+  const unsigned char* pBm = (const unsigned char*)pCol->nullbitmap;
+  if (pBm == NULL) {
+    // hasNull without a bitmap cannot be verified (setting a NULL always
+    // allocates one, so this is a defensive branch): stay conservative and let
+    // the caller use the generic path instead of trusting the raw payload.
+    return true;
+  }
+  int32_t fullBytes = rows >> 3;
+  for (int32_t i = 0; i < fullBytes; ++i) {
+    if (pBm[i] != 0) {
+      return true;
+    }
+  }
+  int32_t rem = rows & 7;
+  if (rem != 0) {
+    unsigned char mask = (unsigned char)(0xFFu << (8 - rem));
+    if ((pBm[fullBytes] & mask) != 0) {
+      return true;
+    }
+  }
+  pCol->hasNull = false;
+  return false;
+}
+
+int32_t blockDataSortEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortScratch** ppScratch) {
+  // Public entry point, so validate before touching any member: a NULL block or
+  // order array would otherwise be dereferenced by the row/shape reads below,
+  // and a block without a column array would crash in the scratch match.
+  if (pDataBlock == NULL || pOrderInfo == NULL || pDataBlock->pDataBlock == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
   if (pDataBlock->info.rows <= 1) {
     return TSDB_CODE_SUCCESS;
   }
 
-  // Allocate the additional buffer.
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t lino = 0;
   uint32_t rows = pDataBlock->info.rows;
 
   bool sortColumnHasNull = false;
   bool varTypeSort = false;
+  int32_t numOfOrderCols = (int32_t)taosArrayGetSize(pOrderInfo);
+  int32_t numOfBlockCols = (int32_t)taosArrayGetSize(pDataBlock->pDataBlock);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
+  for (int32_t i = 0; i < numOfOrderCols; ++i) {
     SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
-    if (pInfo == NULL) {
+    if (pInfo == NULL || pInfo->slotId < 0 || pInfo->slotId >= numOfBlockCols) {
       continue;
     }
-
     SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
     if (pColInfoData == NULL) {
       continue;
     }
 
-    if (pColInfoData->hasNull) {
-      sortColumnHasNull = true;
-    }
-
     if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
       varTypeSort = true;
     }
-  }
 
-  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
-
-  if (taosArrayGetSize(pOrderInfo) == 1 && (!sortColumnHasNull)) {
-    if (numOfCols == 1) {
-      if (!varTypeSort) {
-        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
-        SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
-        if (pColInfoData == NULL || pOrder == NULL) {
-          return terrno;
-        }
-
-        int64_t p0 = taosGetTimestampUs();
-
-        __compar_fn_t fn = getKeyComparFunc(pColInfoData->info.type, pOrder->order);
-        taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
-
-        int64_t p1 = taosGetTimestampUs();
-        uDebug("blockDataSort easy cost:%" PRId64 ", rows:%" PRId64 "\n", p1 - p0, pDataBlock->info.rows);
-
-        return TSDB_CODE_SUCCESS;
-      } else {  // var data type
-      }
-    } else if (numOfCols == 2) {
+    // Verify a sticky hasNull once per key column and clear it when the rows
+    // prove clean. dataBlockCompar() and the gather both consult the flag per
+    // row, so leaving a conservative flag in place would keep paying a NULL
+    // check per row for the whole sort, including the multi-key sorts where
+    // the typed/radix paths below never apply. sortColumnHasNull only gates
+    // those single-key paths; the probe still runs for every key so the flag
+    // and the payload it describes agree before either path reads it.
+    if (pColInfoData->hasNull && blockDataColumnProbeAndClearNull(pColInfoData, (int32_t)rows)) {
+      sortColumnHasNull = true;
     }
   }
 
-  int32_t* index = createTupleIndex(rows);
-  if (index == NULL) {
-    return terrno;
+  // single-column blocks with one fixed-length non-NULL key sort in place
+  if (numOfOrderCols == 1 && (!sortColumnHasNull) && (!varTypeSort) && numOfBlockCols == 1) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
+    SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
+    if (pColInfoData == NULL || pOrder == NULL) {
+      // Deterministic code: terrno can legitimately be 0 here, and returning
+      // success would leave the caller with an unsorted block.
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    if (pColInfoData->pData == NULL) {
+      // An unmaterialized column has no payload to reorder; every row reads as
+      // NULL, so the block is already in order. Never hand a NULL array to the
+      // sort.
+      return TSDB_CODE_SUCCESS;
+    }
+
+    int64_t p0 = taosGetTimestampUs();
+
+    // Resolve locally: writing the comparator back into the caller's order
+    // info would look like a caller supplied comparator to a later sort and
+    // silently disable the specialized single-key path.
+    __compar_fn_t fn = pOrder->compFn ? (__compar_fn_t)pOrder->compFn
+                                     : getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+    taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
+
+    uDebug("blockDataSort easy cost:%" PRId64 ", rows:%" PRId64 "\n", taosGetTimestampUs() - p0,
+           (int64_t)pDataBlock->info.rows);
+
+    return TSDB_CODE_SUCCESS;
   }
+
+  SBlockSortScratch  stackScratch = {0};
+  SBlockSortScratch* pScratch = NULL;
+  // ownsScratch == true means the struct lives on this stack frame and only its
+  // contents may be released on the way out; the struct itself must survive.
+  bool ownsScratch = true;
+  if (ppScratch == NULL) {
+    pScratch = &stackScratch;
+  } else {
+    if (*ppScratch == NULL) {
+      *ppScratch = taosMemoryCalloc(1, sizeof(SBlockSortScratch));
+      // Route through _end so the failure is logged with a line number, and
+      // never hand back a success code when terrno happens to be 0: the caller
+      // would then reuse a NULL scratch and leave the block unsorted.
+      QUERY_CHECK_NULL(*ppScratch, code, lino, _end, terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+    }
+    pScratch = *ppScratch;
+    ownsScratch = false;
+  }
+
+  int32_t cap = TMAX((int32_t)pDataBlock->info.capacity, (int32_t)rows);
+  code = blockDataSortScratchMatch(pScratch, pDataBlock, cap);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pScratch->indexCap < (int32_t)rows) {
+    int32_t* tmp = taosMemoryRealloc(pScratch->index, (size_t)rows * sizeof(int32_t));
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    pScratch->index = tmp;
+    pScratch->indexCap = (int32_t)rows;
+  }
+  for (int32_t i = 0; i < (int32_t)rows; ++i) {
+    pScratch->index[i] = i;
+  }
+
+  if (pScratch->keyCap < numOfOrderCols) {
+    SSortKeyCell* tmp = taosMemoryRealloc(pScratch->pKeys, (size_t)TMAX(numOfOrderCols, 1) * sizeof(SSortKeyCell));
+    QUERY_CHECK_NULL(tmp, code, lino, _end, terrno);
+    pScratch->pKeys = tmp;
+    // record the allocated element count, which is what the capacity check
+    // above compares against
+    pScratch->keyCap = TMAX(numOfOrderCols, 1);
+  }
+  if (numOfOrderCols > 0) {
+    memset(pScratch->pKeys, 0, (size_t)numOfOrderCols * sizeof(SSortKeyCell));
+  }
+
+  SSDataBlockSortHelper helper = {.pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
+  helper.numOfKeys = numOfOrderCols;
+  helper.pKeys = pScratch->pKeys;
+
+  __ext_compar_fn_t comparFn = dataBlockCompar;
+  if (numOfOrderCols == 1 && (!sortColumnHasNull) && (!varTypeSort)) {
+    SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
+    // a caller supplied comparator takes precedence over the type specialized
+    // one, keep the generic path in that case
+    if (pOrder != NULL && pOrder->compFn == NULL && pOrder->slotId >= 0 && pOrder->slotId < numOfBlockCols) {
+      SColumnInfoData* pKeyCol = taosArrayGet(pDataBlock->pDataBlock, pOrder->slotId);
+      if (pKeyCol != NULL && pKeyCol->pData != NULL) {
+        bool fastEligible = true;
+        switch (pKeyCol->info.type) {
+          case TSDB_DATA_TYPE_TINYINT:
+          case TSDB_DATA_TYPE_BOOL:
+            helper.keyCmpKind = BLOCK_SORT_CMP_I8;
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_U8;
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_I16;
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_U16;
+            break;
+          case TSDB_DATA_TYPE_INT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_I32;
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_U32;
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            helper.keyCmpKind = BLOCK_SORT_CMP_I64;
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            helper.keyCmpKind = BLOCK_SORT_CMP_U64;
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+          case TSDB_DATA_TYPE_DOUBLE:
+            // value comparison goes through the library comparator so NaN and
+            // signed-zero semantics stay identical
+            helper.keyCmpKind = BLOCK_SORT_CMP_FN;
+            break;
+          default:
+            fastEligible = false;
+            break;
+        }
+        if (fastEligible) {
+          helper.pKeyCol = pKeyCol;
+          helper.keyDesc = (pOrder->order == TSDB_ORDER_DESC);
+          comparFn = dataBlockSingleKeyCompar;
+        }
+      }
+    }
+  }
+
+  code = blockDataSortBuildKeys(&helper);
+  QUERY_CHECK_CODE(code, lino, _end);
 
   int64_t p0 = taosGetTimestampUs();
 
-  SSDataBlockSortHelper helper = {.pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
-  for (int32_t i = 0; i < taosArrayGetSize(helper.orderInfo); ++i) {
-    struct SBlockOrderInfo* pInfo = taosArrayGet(helper.orderInfo, i);
-    if (pInfo == NULL) {
-      continue;
-    }
-
-    pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->slotId);
-    if (pInfo->pColData == NULL) {
-      continue;
-    }
-    pInfo->compFn = getKeyComparFunc(pInfo->pColData->info.type, pInfo->order);
+  bool indexReady = false;
+  // The radix path reads raw payload and has no NULL slot handling: require the
+  // same "single key without NULLs" precondition the specialized comparator
+  // was selected under, so the invariant is local and cannot drift.
+  if (comparFn == dataBlockSingleKeyCompar && !sortColumnHasNull && rows >= 2048) {
+    indexReady = blockDataRadixSortIndex(pScratch, helper.pKeyCol, helper.keyCmpKind, helper.keyDesc, (int32_t)rows);
   }
 
   terrno = 0;
-  taosqsort_r(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
+  if (!indexReady) {
+    taosqsort_r(pScratch->index, rows, sizeof(int32_t), &helper, comparFn);
+  }
   if (terrno) {
-    destroyTupleIndex(index);
-    return terrno;
+    code = terrno;
+    goto _end;
   }
 
   int64_t p1 = taosGetTimestampUs();
 
-  SColumnInfoData* pCols = NULL;
-  int32_t          code = createHelpColInfoData(pDataBlock, &pCols);
-  if (code != 0) {
-    destroyTupleIndex(index);
-    return code;
+  code = blockDataGatherAndSwap(pScratch, pDataBlock, pScratch->index);
+  QUERY_CHECK_CODE(code, lino, _end);
+
+  uDebug("blockDataSort complex sort:%" PRId64 ", gather:%" PRId64 ", rows:%d\n", p1 - p0,
+         taosGetTimestampUs() - p1, rows);
+
+_end:
+  if (ownsScratch) {
+    blockDataSortScratchDestroyContents(pScratch);
   }
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("blockDataSortEx failed at line %d since %s", lino, tstrerror(code));
+  }
+  return code;
+}
 
-  int64_t p2 = taosGetTimestampUs();
-  blockDataAssign(pCols, pDataBlock, index);
-
-  int64_t p3 = taosGetTimestampUs();
-  copyBackToBlock(pDataBlock, pCols);
-
-  int64_t p4 = taosGetTimestampUs();
-  uDebug("blockDataSort complex sort:%" PRId64 ", create:%" PRId64 ", assign:%" PRId64 ", copyback:%" PRId64
-         ", rows:%d\n",
-         p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
-
-  destroyTupleIndex(index);
-  return TSDB_CODE_SUCCESS;
+int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+  return blockDataSortEx(pDataBlock, pOrderInfo, NULL);
 }
 
 SConstTagColumn* blockDataGetConstTagColumn(const SSDataBlock* pBlock, int32_t slotId) {
@@ -5709,32 +6412,98 @@ int32_t blockGetInternalEncodeSize(const SSDataBlock* pBlock) {
 }
 
 
-int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+// Row counts are non-negative, so the error sentinel must stay below zero.
+// Error codes in this code base carry the high bit and are therefore already
+// negative when read as int32_t; the helper keeps that invariant explicit and
+// covers a hypothetical code without the high bit.
+static int32_t blockDataRowCountError(int32_t code) {
+  if (code < 0) {
+    return code;
+  }
+  return (int32_t)(0x80000000u | (uint32_t)code);
+}
+
+int32_t blockDataGetSortedRowsEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortScratch** ppScratch) {
   if (!pDataBlock || !pOrderInfo) return 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
-    SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, i);
-    if (pOrder == NULL) {
-      continue;
-    }
 
-    pOrder->pColData = taosArrayGet(pDataBlock->pDataBlock, pOrder->slotId);
-    if (pOrder->pColData == NULL) {
-      continue;
-    }
-
-    pOrder->compFn = getKeyComparFunc(pOrder->pColData->info.type, pOrder->order);
+  int32_t numOfKeys = (int32_t)taosArrayGetSize(pOrderInfo);
+  if (numOfKeys <= 0) {
+    // No key means no ordering constraint: every row counts as ordered, the
+    // same contract the previous implementation had.
+    return pDataBlock->info.rows > 0 ? pDataBlock->info.rows : 1;
+  }
+  if (pDataBlock->info.rows <= 0) {
+    // Historical answer for an empty block; callers subtract it from the row
+    // count and expect the established value.
+    return 1;
   }
 
-  SSDataBlockSortHelper sortHelper = {.orderInfo = pOrderInfo, .pDataBlock = pDataBlock};
-
-  int32_t rowIdx = 0, nextRowIdx = 1;
-  for (; rowIdx < pDataBlock->info.rows && nextRowIdx < pDataBlock->info.rows; ++rowIdx, ++nextRowIdx) {
-    if (dataBlockCompar(&nextRowIdx, &rowIdx, &sortHelper) < 0) {
-      break;
+  // The key cells live in the caller's scratch when one is supplied, so a
+  // repeated call is allocation free. The same scratch as blockDataSortEx can
+  // be reused: both rebuild the cells at the start of every call.
+  SBlockSortScratch  stackScratch = {0};
+  SBlockSortScratch* pScratch = NULL;
+  bool               ownsScratch = true;
+  if (ppScratch == NULL) {
+    pScratch = &stackScratch;
+  } else {
+    if (*ppScratch == NULL) {
+      *ppScratch = taosMemoryCalloc(1, sizeof(SBlockSortScratch));
+      if (*ppScratch == NULL) {
+        uError("%s failed to create the sort scratch: %s", __func__, tstrerror(terrno));
+        return blockDataRowCountError(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      }
     }
+    pScratch = *ppScratch;
+    ownsScratch = false;
   }
 
-  return nextRowIdx;
+  int32_t ret = 1;
+  if (pScratch->keyCap < numOfKeys) {
+    int32_t       newCap = TMAX(numOfKeys, 1);
+    SSortKeyCell* tmp = taosMemoryRealloc(pScratch->pKeys, (size_t)newCap * sizeof(SSortKeyCell));
+    if (tmp == NULL) {
+      ret = blockDataRowCountError(terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY);
+      uError("%s failed to grow the key cell array: %s", __func__, tstrerror(terrno));
+      goto _end;
+    }
+    pScratch->pKeys = tmp;
+    pScratch->keyCap = newCap;
+  }
+  memset(pScratch->pKeys, 0, (size_t)numOfKeys * sizeof(SSortKeyCell));
+
+  {
+    SSDataBlockSortHelper sortHelper = {.orderInfo = pOrderInfo,
+                                        .pDataBlock = pDataBlock,
+                                        .numOfKeys = numOfKeys,
+                                        .pKeys = pScratch->pKeys};
+    (void)blockDataSortBuildKeys(&sortHelper);
+
+    // dataBlockCompar reads p1/p2 through a `const int32_t*`; these two locals
+    // must stay int32_t for the addresses below to denote the row indices.
+    int32_t rowIdx = 0, nextRowIdx = 1;
+    for (; rowIdx < pDataBlock->info.rows && nextRowIdx < pDataBlock->info.rows; ++rowIdx, ++nextRowIdx) {
+      if (dataBlockCompar(&nextRowIdx, &rowIdx, &sortHelper) < 0) {
+        break;
+      }
+    }
+    ret = nextRowIdx;
+  }
+
+_end:
+  if (ownsScratch) {
+    // Only the key cells were built in this path. Release exactly that array
+    // instead of running the full scratch teardown, so a later refactor that
+    // starts using the gather columns here cannot inherit a teardown written
+    // under the "only key cells were touched" invariant.
+    taosMemoryFreeClear(pScratch->pKeys);
+    pScratch->keyCap = 0;
+  }
+  return ret;
+}
+
+int32_t blockDataGetSortedRows(SSDataBlock* pDataBlock, SArray* pOrderInfo) {
+  return blockDataGetSortedRowsEx(pDataBlock, pOrderInfo, NULL);
 }
 
 #define BLOCK_DATA_CHECK_TRESSA(o)                      \

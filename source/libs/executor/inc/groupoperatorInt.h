@@ -154,6 +154,13 @@ typedef struct SPartitionOperatorInfo {
   int32_t remainRows;
   int32_t orderedRows;
   SArray* pOrderInfoArr;
+  // Reused key-cell storage for blockDataGetSortedRowsEx, so the per-block
+  // ordering check does not allocate on every call. Owned by this info (which
+  // is allocated with taosMemoryCalloc, so it starts NULL) and released once in
+  // destroyPartitionOperatorInfo with blockDataSortFreeScratch, which is
+  // idempotent. Keep it in the one pool-allocated info: a shallow copy would
+  // alias the pointer and double free it.
+  SBlockSortScratch* pBlockSortScratch;
 
   bool                 phasedMode;
   // Batch external-window partitions by outer group ID. The planner sets this;

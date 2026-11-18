@@ -109,6 +109,9 @@ struct SSortHandle {
 
   bool          bSortByRowId;
   SSortMemFile* pExtRowsMemFile;
+  // reused block-sort scratch (tuple index + gather column buffers) owned by
+  // this handle; keeps steady-state block sorts allocation-free
+  SBlockSortScratch* pBlkSortScratch;
   int32_t       extRowBytes;
   int32_t       extRowsPageSize;
   int32_t       extRowsMemSize;
@@ -436,6 +439,7 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   qDebug("all source fetch time: %" PRId64 "us num:%" PRId64 " %s", fetchUs, fetchNum, pSortHandle->idStr);
 
   taosArrayDestroy(pSortHandle->pOrderedSource);
+  blockDataSortFreeScratch(&pSortHandle->pBlkSortScratch);
   if (pSortHandle->pExtRowsMemFile != NULL) {
     destroySortMemFile(pSortHandle);
   }
@@ -673,6 +677,29 @@ static int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, const SSDataBlock* p
       return terrno;
     }
 
+    // A fixed-width source column without NULLs needs one memcpy per row; the
+    // generic colDataSetVal path re-dispatches on the type for every value.
+    // Both sides must be the same fixed-width type: nullbitmap and varmeta are
+    // a union, so treating a varlen destination as bitmap/rows would corrupt
+    // its offset array.
+    if (colDataCanCopyFixed(pColInfo, pSrcColInfo)) {
+      if (pColInfo->nullbitmap != NULL) {
+        // a reused destination can still carry a stale bit for this row
+        colDataClearNull_f(pColInfo->nullbitmap, pBlock->info.rows);
+      } else {
+        // No bitmap means no row ever carried a NULL bit (writing one requires
+        // a bitmap), so a set hasNull flag is stale and must not outlive the
+        // non-NULL value written below.
+        pColInfo->hasNull = false;
+      }
+      memcpy(pColInfo->pData + (size_t)pBlock->info.rows * pColInfo->info.bytes,
+             pSrcColInfo->pData + (size_t)(*rowIndex) * pColInfo->info.bytes, pColInfo->info.bytes);
+      continue;
+    }
+
+    // Keep the previous semantics exactly: colDataIsNull already returns false
+    // when hasNull is clear, and an unmaterialized source column (pData == NULL)
+    // is skipped below rather than turned into an explicit NULL.
     bool isNull = colDataIsNull(pSrcColInfo, pSource->info.rows, *rowIndex, NULL);
     if (isNull) {
       code = colDataSetVal(pColInfo, pBlock->info.rows, NULL, true);
@@ -680,6 +707,8 @@ static int32_t appendOneRowToDataBlock(SSDataBlock* pBlock, const SSDataBlock* p
         return code;
       }
     } else {
+      // Unmaterialized source column: keep the historical semantics of leaving
+      // the destination cell untouched instead of emitting an explicit NULL.
       if (!pSrcColInfo->pData) continue;
       char* pData = colDataGetData(pSrcColInfo, *rowIndex);
       code = colDataSetVal(pColInfo, pBlock->info.rows, pData, false);
@@ -861,6 +890,100 @@ int32_t tsortComparBlockCell(SSDataBlock* pLeftBlock, SSDataBlock* pRightBlock, 
   return ret;
 }
 
+// Typed comparison kinds for the single-key merge fast path.  Float and double
+// stay on the library comparator so NaN and signed-zero ordering do not change.
+enum {
+  TSORT_KEY_CMP_NONE = 0,
+  TSORT_KEY_CMP_I8,
+  TSORT_KEY_CMP_I16,
+  TSORT_KEY_CMP_I32,
+  TSORT_KEY_CMP_I64,
+  TSORT_KEY_CMP_U8,
+  TSORT_KEY_CMP_U16,
+  TSORT_KEY_CMP_U32,
+  TSORT_KEY_CMP_U64,
+};
+
+#define TSORT_CMP3(lv, rv) ((lv) > (rv) ? 1 : ((lv) < (rv) ? -1 : 0))
+
+static int8_t tsortKeyCmpKind(int8_t type) {
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_BOOL:
+      return TSORT_KEY_CMP_I8;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return TSORT_KEY_CMP_U8;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return TSORT_KEY_CMP_I16;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return TSORT_KEY_CMP_U16;
+    case TSDB_DATA_TYPE_INT:
+      return TSORT_KEY_CMP_I32;
+    case TSDB_DATA_TYPE_UINT:
+      return TSORT_KEY_CMP_U32;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return TSORT_KEY_CMP_I64;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return TSORT_KEY_CMP_U64;
+    default:
+      return TSORT_KEY_CMP_NONE;
+  }
+}
+
+// Payload stride implied by a comparison kind. 0 means "no typed comparison",
+// which keeps the fast path off for an unknown kind.
+static int32_t tsortKeyCmpWidth(int8_t kind) {
+  switch (kind) {
+    case TSORT_KEY_CMP_I8:
+    case TSORT_KEY_CMP_U8:
+      return 1;
+    case TSORT_KEY_CMP_I16:
+    case TSORT_KEY_CMP_U16:
+      return 2;
+    case TSORT_KEY_CMP_I32:
+    case TSORT_KEY_CMP_U32:
+      return 4;
+    case TSORT_KEY_CMP_I64:
+    case TSORT_KEY_CMP_U64:
+      return 8;
+    default:
+      return 0;
+  }
+}
+
+static int32_t tsortComparFixedKeyVal(const SColumnInfoData* pLeft, int32_t leftRow, const SColumnInfoData* pRight,
+                                      int32_t rightRow, int8_t kind) {
+  const char* l = pLeft->pData;
+  const char* r = pRight->pData;
+
+  switch (kind) {
+    case TSORT_KEY_CMP_I8:
+      return TSORT_CMP3(*(const int8_t*)(l + leftRow), *(const int8_t*)(r + rightRow));
+    case TSORT_KEY_CMP_U8:
+      return TSORT_CMP3(*(const uint8_t*)(l + leftRow), *(const uint8_t*)(r + rightRow));
+    case TSORT_KEY_CMP_I16:
+      return TSORT_CMP3(*(const int16_t*)(l + leftRow * 2), *(const int16_t*)(r + rightRow * 2));
+    case TSORT_KEY_CMP_U16:
+      return TSORT_CMP3(*(const uint16_t*)(l + leftRow * 2), *(const uint16_t*)(r + rightRow * 2));
+    case TSORT_KEY_CMP_I32:
+      return TSORT_CMP3(*(const int32_t*)(l + leftRow * 4), *(const int32_t*)(r + rightRow * 4));
+    case TSORT_KEY_CMP_U32:
+      return TSORT_CMP3(*(const uint32_t*)(l + leftRow * 4), *(const uint32_t*)(r + rightRow * 4));
+    case TSORT_KEY_CMP_I64:
+      return TSORT_CMP3(*(const int64_t*)(l + (int64_t)leftRow * 8), *(const int64_t*)(r + (int64_t)rightRow * 8));
+    case TSORT_KEY_CMP_U64:
+      return TSORT_CMP3(*(const uint64_t*)(l + (int64_t)leftRow * 8), *(const uint64_t*)(r + (int64_t)rightRow * 8));
+    default:
+      // Unreachable: the caller only enters the fast path with a kind whose
+      // tsortKeyCmpWidth() matches the column width, so every value produced by
+      // tsortKeyCmpKind() has a case above. Returning 0 here would report
+      // "equal" and silently corrupt the merge order, so keep the caller gate
+      // authoritative and state the invariant in one place.
+      return 0;
+  }
+}
+
 int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
   int32_t pLeftIdx = *(int32_t*)pLeft;
   int32_t pRightIdx = *(int32_t*)pRight;
@@ -954,6 +1077,97 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
 
     return fn(leftTs, rightTs);
   } else {
+    // Single fixed-length key without NULLs: compare the values directly and
+    // skip the generic per-key loop that re-reads the order array and calls a
+    // function pointer for every comparison.
+    if (pParam->fastKeyState != TSORT_FASTKEY_DISABLED) {
+      if (pParam->fastKeyState == TSORT_FASTKEY_UNKNOWN) {
+        // Resolve the slot and comparison kind once per sort handle. The
+        // candidate is rejected only when the shape is definitively
+        // ineligible; when the first compared block cannot answer yet (column
+        // not materialized, slot absent from this block), the state stays
+        // UNKNOWN so a later comparison still gets a chance. fastKeyKind is
+        // only ever a hint: the per-comparison checks below re-derive the kind
+        // from the current column and require it to match, so a stale hint can
+        // only disable the fast path, never misread data.
+        // ENABLED is not terminal either. A pair whose key is NULL, whose block
+        // carries pBlockAgg, or whose slot is missing from one side simply
+        // takes the generic per-key path for that comparison while the state
+        // stays ENABLED, so a clean pair later in the same merge still uses the
+        // typed compare. Only the shape checks below (slot/order drift) flip
+        // the state to DISABLED.
+        if (taosArrayGetSize(pInfo) != 1) {
+          pParam->fastKeyState = TSORT_FASTKEY_DISABLED;
+        } else {
+          SBlockOrderInfo* pOrder0 = TARRAY_GET_ELEM(pInfo, 0);
+          if (pOrder0 == NULL || pOrder0->compFn != NULL) {
+            pParam->fastKeyState = TSORT_FASTKEY_DISABLED;
+          } else if (pOrder0->slotId >= 0 &&
+                     pOrder0->slotId < (int32_t)taosArrayGetSize(pLeftBlock->pDataBlock)) {
+            SColumnInfoData* pCol0 = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder0->slotId);
+            if (pCol0 != NULL && pCol0->pData != NULL) {
+              int8_t kind = tsortKeyCmpKind(pCol0->info.type);
+              if (IS_VAR_DATA_TYPE(pCol0->info.type) || kind == TSORT_KEY_CMP_NONE) {
+                pParam->fastKeyState = TSORT_FASTKEY_DISABLED;
+              } else {
+                pParam->fastKeySlotId = pOrder0->slotId;
+                pParam->fastKeyKind = kind;
+                pParam->fastKeyDesc = (pOrder0->order == TSDB_ORDER_DESC);
+                pParam->fastKeyState = TSORT_FASTKEY_ENABLED;
+              }
+            }
+            // else: the column is not materialized yet; do not decide.
+          }
+          // else: this block does not carry the slot; do not decide.
+        }
+      }
+
+      if (pParam->fastKeyState == TSORT_FASTKEY_ENABLED) {
+        // Re-derive the direction from the live order array on every
+        // comparison instead of trusting the cached fastKeyDesc forever: if
+        // the sort key slot or the direction changes, comparing with the
+        // cached direction would emit the merge output in the wrong order.
+        // Drop the fast path in that case and let the generic loop resolve
+        // the current order.
+        SBlockOrderInfo* pOrder0 = (taosArrayGetSize(pInfo) == 1) ? TARRAY_GET_ELEM(pInfo, 0) : NULL;
+        if (pOrder0 == NULL || pOrder0->slotId != pParam->fastKeySlotId ||
+            (pOrder0->order == TSDB_ORDER_DESC) != pParam->fastKeyDesc) {
+          pParam->fastKeyState = TSORT_FASTKEY_DISABLED;
+        }
+      }
+
+      // The cached slot must exist in both blocks, otherwise fall through to
+      // the generic per-key loop instead of comparing garbage. The column
+      // shape is re-checked on every comparison rather than cached per block
+      // address: a merge frees and rebuilds source blocks, so the same address
+      // can come back carrying a different type or width (ABA). The checks read
+      // fields of the SColumnInfoData already touched below, so they are cheap.
+      bool fastUsable = pParam->fastKeyState == TSORT_FASTKEY_ENABLED && pParam->fastKeySlotId >= 0 &&
+                        pParam->fastKeySlotId < (int32_t)taosArrayGetSize(pLeftBlock->pDataBlock) &&
+                        pParam->fastKeySlotId < (int32_t)taosArrayGetSize(pRightBlock->pDataBlock);
+      if (fastUsable) {
+        SColumnInfoData* pLeftKey = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pParam->fastKeySlotId);
+        SColumnInfoData* pRightKey = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pParam->fastKeySlotId);
+        if (pLeftKey != NULL && pRightKey != NULL && pLeftKey->pData != NULL && pRightKey->pData != NULL &&
+            !pLeftKey->hasNull && !pRightKey->hasNull && pLeftBlock->pBlockAgg == NULL &&
+            pRightBlock->pBlockAgg == NULL && pLeftKey->info.type == pRightKey->info.type &&
+            pLeftKey->info.bytes == pRightKey->info.bytes &&
+            tsortKeyCmpKind(pLeftKey->info.type) == pParam->fastKeyKind &&
+            // the typed load advances by the kind's width: refuse a column whose
+            // declared width does not match it instead of reading at the wrong
+            // offset (a zero width also means an unknown kind)
+            tsortKeyCmpWidth(pParam->fastKeyKind) == pLeftKey->info.bytes &&
+            // the row indices come from the merge state; keep the typed load
+            // inside the block the column actually holds
+            pLeftSource->src.rowIndex >= 0 && pLeftSource->src.rowIndex < (int32_t)pLeftBlock->info.rows &&
+            pRightSource->src.rowIndex >= 0 && pRightSource->src.rowIndex < (int32_t)pRightBlock->info.rows) {
+          int32_t ret = tsortComparFixedKeyVal(pLeftKey, pLeftSource->src.rowIndex, pRightKey,
+                                               pRightSource->src.rowIndex, pParam->fastKeyKind);
+          return pParam->fastKeyDesc ? -ret : ret;
+        }
+      }
+    }
+
     bool isVarType;
     for (int32_t i = 0; i < pInfo->size; ++i) {
       SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
@@ -2557,7 +2771,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
     if (size > sortBufSize) {
       // Perform the in-memory sort and then flush data in the buffer into disk.
       int64_t st = taosGetTimestampUs();
-      code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+      code = blockDataSortEx(pHandle->pDataBlock, pHandle->pSortInfo, &pHandle->pBlkSortScratch);
       QUERY_CHECK_CODE(code, lino, _end);
 
       pHandle->sortElapsed += (taosGetTimestampUs() - st);
@@ -2573,7 +2787,7 @@ static int32_t createBlocksQuickSortInitialSources(SSortHandle* pHandle) {
 
     // Perform the in-memory sort and then flush data in the buffer into disk.
     int64_t st = taosGetTimestampUs();
-    code = blockDataSort(pHandle->pDataBlock, pHandle->pSortInfo);
+    code = blockDataSortEx(pHandle->pDataBlock, pHandle->pSortInfo, &pHandle->pBlkSortScratch);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (pHandle->pqMaxRows > 0) blockDataKeepFirstNRows(pHandle->pDataBlock, pHandle->pqMaxRows);
@@ -2646,9 +2860,30 @@ static int32_t tsortOpenForBufMergeSort(SSortHandle* pHandle) {
   return code;
 }
 
+// `closed` state machine, shared by the three accessors below:
+//   0 open            -> nothing closed the handle
+//   1 close requested -> tsortClose() (0 -> 1)
+//   2 closed/reaped   -> tsortSetClosed(), or the first consumer-side read here
+// Only the 1 -> 2 transition is consumed by tsortIsClosed(); state 0 is never
+// modified by a read, exactly as with the earlier bare compare-exchange against
+// 1. Callers only poll the boolean, so no one depends on a 0 -> 1 side effect.
 void tsortClose(SSortHandle* pHandle) { (void)atomic_val_compare_exchange_8(&pHandle->closed, 0, 1); }
 
-bool tsortIsClosed(SSortHandle* pHandle) { return atomic_val_compare_exchange_8(&pHandle->closed, 1, 2); }
+bool tsortIsClosed(SSortHandle* pHandle) {
+  // Same truth table as the original compare-exchange, which returned the
+  // previous state: 0 -> false, 1 -> true (and consumes the flag), 2 -> true
+  // (already consumed or explicitly closed by tsortSetClosed). The plain load
+  // avoids the locked instruction for the common, never-closed case and does
+  // not alter state 0.
+  int8_t state = atomic_load_8(&pHandle->closed);
+  if (state == 0) {
+    return false;
+  }
+  if (state == 1) {
+    return atomic_val_compare_exchange_8(&pHandle->closed, 1, 2) != 0;
+  }
+  return true;
+}
 
 void tsortSetClosed(SSortHandle* pHandle) { atomic_store_8(&pHandle->closed, 2); }
 
@@ -3013,6 +3248,17 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
   }
 
   return colDataIsNull_s(pColInfoSrc, pVHandle->rowIndex);
+}
+
+void tsortGetTuplePos(const STupleHandle* pVHandle, const SSDataBlock** ppBlock, int32_t* pRowIndex) {
+  // Tolerate a NULL handle: callers use a NULL block as the "no row" signal,
+  // which is exactly what an empty handle means.
+  if (ppBlock != NULL) {
+    *ppBlock = (pVHandle != NULL) ? pVHandle->pBlock : NULL;
+  }
+  if (pRowIndex != NULL) {
+    *pRowIndex = (pVHandle != NULL) ? pVHandle->rowIndex : -1;
+  }
 }
 
 void tsortGetValue(STupleHandle* pVHandle, int32_t colIndex, void** pVal) {
