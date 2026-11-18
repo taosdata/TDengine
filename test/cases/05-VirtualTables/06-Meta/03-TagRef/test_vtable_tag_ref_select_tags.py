@@ -68,7 +68,7 @@ class TestVtableTagRefSelectTags:
                 )
 
         tdSql.execute(
-            "CREATE STABLE vstb (ts TIMESTAMP, val INT) "
+            "CREATE STABLE vstb (ts TIMESTAMP, val INT, unused INT) "
             "TAGS (local_group INT, ref_city NCHAR(20), ref_code INT) VIRTUAL 1"
         )
         for vt, data_src, local_group, city_src, code_src in VTABLES:
@@ -89,6 +89,8 @@ class TestVtableTagRefSelectTags:
             os.path.join(case_dir, "ans", "test_vtable_tag_ref_select_tags.ans"),
             "test_vtable_tag_ref_select_tags",
         )
+        tdSql.query(f"SELECT unused, ref_city FROM {DB}.v2")
+        tdSql.checkRows(0)
         print("virtual child SELECT TAGS ......................... [ passed ]")
 
     def test_select_tags_from_virtual_child(self):
@@ -96,6 +98,7 @@ class TestVtableTagRefSelectTags:
 
         1. A local tag returns exactly one row
         2. A referenced tag resolves once and EXPLAIN remains stable
+        3. A data projection with only an unreferenced column and a tag returns zero rows
 
         Catalog:
             - VirtualTable
@@ -108,6 +111,7 @@ class TestVtableTagRefSelectTags:
 
         History:
             - 2026-07-18 Jing Sima Add virtual-child cardinality and EXPLAIN regression coverage
+            - 2026-11-17 Joey Sima Cover unreferenced columns with referenced tags
 
         """
         self.do_select_tags_from_virtual_child()

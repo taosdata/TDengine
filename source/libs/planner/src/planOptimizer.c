@@ -14112,7 +14112,8 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (nodeType(pNode) != QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN || LIST_LENGTH(pNode->pChildren) != 1) {
     return false;
   }
-  if (virtualScanContainsAlign((SVirtualScanLogicNode*)pNode)) {
+  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)pNode;
+  if (virtualScanContainsAlign(pVScan)) {
     return false;
   }
 
@@ -14124,28 +14125,31 @@ static bool eliminateVirtualScanMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     return false;
   }
 
-  if (pNode->pConditions || ((SVirtualScanLogicNode *)pNode)->pScanPseudoCols) {
+  if (pNode->pConditions || pVScan->pScanPseudoCols) {
     return false;
   }
 
-  // Don't eliminate if the child scan references a virtual table  -  it needs its own
-  // Virtual Table Scan  ->  DynQueryCtrl resolution chain at runtime.
   SNode* pChild = nodesListGetNode(pNode->pChildren, 0);
-  if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
-    int8_t childTableType = ((SScanLogicNode*)pChild)->tableType;
-    if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
-      return false;
-    }
-    if (((SScanLogicNode*)pChild)->scanType != SCAN_TYPE_EXTERNAL &&
-        ((SScanLogicNode*)pChild)->node.precision != pNode->precision) {
-      return false;
-    }
+  // A sole tag reference source can replace the virtual scan for tag-only output.
+  if (QUERY_NODE_LOGIC_PLAN_TAG_REF_SOURCE == nodeType(pChild)) {
+    return 0 == LIST_LENGTH(pVScan->pScanCols);
+  }
+  if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pChild)) {
+    return false;
+  }
+  // A virtual child scan needs its own Virtual Table Scan -> DynQueryCtrl resolution chain at runtime.
+  const SScanLogicNode* pScan = (const SScanLogicNode*)pChild;
+  int8_t childTableType = pScan->tableType;
+  if (TSDB_VIRTUAL_CHILD_TABLE == childTableType || TSDB_VIRTUAL_NORMAL_TABLE == childTableType) {
+    return false;
+  }
+  if (pScan->scanType != SCAN_TYPE_EXTERNAL && pScan->node.precision != pNode->precision) {
+    return false;
   }
 
-  SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode *)pNode;
-  SNode*                 pCol;
+  SNode* pCol;
   FOREACH(pCol, pVScan->pScanCols) {
-    SColumnNode* pScanCol = (SColumnNode* )pCol;
+    SColumnNode* pScanCol = (SColumnNode*)pCol;
     if (!pScanCol->hasRef) {
       // if col don't have ref, it can't be eliminated. If the vscan operator is eliminated,
       // the upper operator can't find the right slot id.
@@ -14164,10 +14168,13 @@ static int32_t eliminateVirtualScanOptimizeImpl(SOptimizeContext* pCxt, SLogicSu
     if (nodesEqualNode(pSibling, (SNode*)pVirtualScanNode)) {
       SNode* pChild;
       FOREACH(pChild, pVirtualScanNode->pChildren) {
-        // clear the mask to try scanPathOptimize again.
-        OPTIMIZE_FLAG_CLEAR_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
-        OPTIMIZE_FLAG_SET_MASK(((SScanLogicNode*)pChild)->node.optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_VSCAN);
-        ((SLogicNode*)pChild)->pParent = pVirtualScanNode->pParent;
+        SLogicNode* pChildLogic = (SLogicNode*)pChild;
+        if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pChild)) {
+          // Retry scanPathOptimize on the newly exposed scan.
+          OPTIMIZE_FLAG_CLEAR_MASK(pChildLogic->optimizedFlag, OPTIMIZE_FLAG_SCAN_PATH);
+          OPTIMIZE_FLAG_SET_MASK(pChildLogic->optimizedFlag, OPTIMIZE_FLAG_ELIMINATE_VSCAN);
+        }
+        pChildLogic->pParent = pVirtualScanNode->pParent;
       }
       INSERT_LIST(pVirtualScanNode->pParent->pChildren, pVirtualScanNode->pChildren);
       pVirtualScanNode->pChildren = NULL;
