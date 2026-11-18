@@ -25612,7 +25612,6 @@ static int32_t translateDropEncryptAlgr(STranslateContext* pCxt, SDropEncryptAlg
 }
 
 static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* pStmt) {
-  PAR_ENTERPRISE_ONLY(pCxt, "CREATE ANODE");
   if (strncasecmp(pStmt->url, "http://", 7) != 0 && strncasecmp(pStmt->url, "https://", 8) != 0) {
     return TSDB_CODE_MND_ANODE_INVALID_PROTOCOL;
   }
@@ -25635,7 +25634,6 @@ static int32_t translateCreateAnode(STranslateContext* pCxt, SCreateAnodeStmt* p
 }
 
 static int32_t translateDropAnode(STranslateContext* pCxt, SDropAnodeStmt* pStmt) {
-  PAR_ENTERPRISE_ONLY(pCxt, "DROP ANODE");
   SMDropAnodeReq dropReq = {0};
   dropReq.anodeId = pStmt->anodeId;
 
@@ -25645,7 +25643,6 @@ static int32_t translateDropAnode(STranslateContext* pCxt, SDropAnodeStmt* pStmt
 }
 
 static int32_t translateUpdateAnode(STranslateContext* pCxt, SUpdateAnodeStmt* pStmt) {
-  PAR_ENTERPRISE_ONLY(pCxt, "UPDATE ANODE");
   SMUpdateAnodeReq updateReq = {0};
   updateReq.anodeId = pStmt->anodeId;
 

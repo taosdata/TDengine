@@ -54,7 +54,7 @@ ENTERPRISE_MSG = "Operation not supported in community edition"
 # silently return success) — see the mnd* community stubs.
 #
 # Keep this list in sync with every PAR_ENTERPRISE_ONLY(pCxt, ...) call site in
-# parTranslater.c: 37 call sites cover the 35 distinct feature strings below
+# parTranslater.c: 34 call sites cover the 32 distinct feature strings below
 # (BEGIN/COMMIT/ROLLBACK share one "Transaction" message).
 ENTERPRISE_ONLY_SQL = [
     # ---- database / vgroup maintenance -----------------------------------
@@ -89,10 +89,6 @@ ENTERPRISE_ONLY_SQL = [
     ("drop totp_secret from user root", "DROP TOTP SECRET"),
     ("alter system set svr_key 'ee_new_key'", "ALTER ENCRYPT KEY"),
     ("alter system set key_expiration 90 days strategy 'delayed'", "ALTER KEY EXPIRATION"),
-    # ---- analytics nodes ---------------------------------------------------
-    ("create anode 'ep'", "CREATE ANODE"),
-    ("update anode 1", "UPDATE ANODE"),
-    ("drop anode 1", "DROP ANODE"),
     # ---- transactions ------------------------------------------------------
     ("begin", "Transaction (BEGIN/COMMIT/ROLLBACK)"),
     ("commit", "Transaction (BEGIN/COMMIT/ROLLBACK)"),
@@ -128,10 +124,10 @@ class TestEnterpriseFeatureReminder:
         2. Run every enterprise-only statement on a community build
         3. Verify it fails and that the error message names the unsupported feature
 
-        Covers all PAR_ENTERPRISE_ONLY call sites in parTranslater.c (37 call
-        sites / 35 distinct feature strings; BEGIN/COMMIT/ROLLBACK share the
+        Covers all PAR_ENTERPRISE_ONLY call sites in parTranslater.c (34 call
+        sites / 32 distinct feature strings; BEGIN/COMMIT/ROLLBACK share the
         "Transaction" message): database & vgroup maintenance, backup & restore,
-        view & rsma, cluster balancing, token/totp/encryption, analytics nodes,
+        view & rsma, cluster balancing, token/totp/encryption,
         transactions, and federated external sources.
 
         Since: v3.4.3.0
