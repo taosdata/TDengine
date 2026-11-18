@@ -1431,6 +1431,12 @@ const char* logicConditionTypeStr(ELogicConditionType type);
 bool nodesIsStar(SNode* pNode);
 bool nodesIsTableStar(SNode* pNode);
 
+// Composite primary keys are stored in (ts, pk) lexicographic order. The planner
+// (sortInputProvesFullOrder) and the executor (sortHasTsPkStorageOrder) must
+// agree on this key shape, so both use this predicate instead of keeping copies
+// that can drift. The planner layers its storage-proof prerequisites on top.
+bool queryNodeSortKeysAreAscPrimTsPk(SNodeList* pKeys);
+
 char*   getJoinTypeString(EJoinType type);
 char*   getJoinSTypeString(EJoinSubType type);
 char*   getFullJoinTypeString(EJoinType type, EJoinSubType stype);

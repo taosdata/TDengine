@@ -107,7 +107,19 @@ int32_t tsortCreateSortHandle(SArray* pOrderInfo, int32_t type, int32_t pageSize
                               SSDataBlock* pBlock, const char* idstr, uint64_t pqMaxRows, uint32_t pqMaxTupleLength,
                               uint32_t pqSortBufSize, SSortHandle** pHandle);
 
+/*
+ * The setters below all accept a NULL handle and become a no-op, so callers
+ * that treat the sort handle as optional do not need their own guard.
+ */
 void tsortSetForceUsePQSort(SSortHandle* pHandle);
+
+void tsortSetTsPkSort(SSortHandle* pHandle);
+
+/* Trust the plan's full-key input order contract: after the first strict
+ * threshold rejection the rest of the block is skipped without re-validation
+ * in release builds; with trace logging enabled the suffix is re-validated so
+ * a broken contract is reported instead of silently dropping rows. */
+void tsortSetInputOrdered(SSortHandle* pHandle);
 
 /**
  *

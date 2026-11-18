@@ -5139,6 +5139,7 @@ static const char* jkSortPhysiPlanTargets = "Targets";
 static const char* jkSortPhysiPlanCalcGroupIds = "CalcGroupIds";
 static const char* jkSortPhysiPlanExcludePKCol = "ExcludePKCol";
 static const char* jkSortPhysiPlanNumOfGroupKeys = "NumOfGroupKeys";
+static const char* jkSortPhysiPlanInputOrdered = "InputOrderedBySortKeys";
 
 static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   const SSortPhysiNode* pNode = (const SSortPhysiNode*)pObj;
@@ -5161,6 +5162,12 @@ static int32_t physiSortNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSortPhysiPlanNumOfGroupKeys, pNode->numOfGroupKeys);
+  }
+  // Emit only when set: a missing key decodes to false, and keeping the common
+  // false case absent preserves the existing plan-text goldens (parser tests
+  // compare the serialized plan byte for byte).
+  if (TSDB_CODE_SUCCESS == code && pNode->inputOrderedBySortKeys) {
+    code = tjsonAddBoolToObject(pJson, jkSortPhysiPlanInputOrdered, pNode->inputOrderedBySortKeys);
   }
 
   return code;
@@ -5187,6 +5194,12 @@ static int32_t jsonToPhysiSortNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSortPhysiPlanNumOfGroupKeys, &pNode->numOfGroupKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    // A missing field must mean "not proven ordered" even if pNode was reused
+    // or cloned with a stale value, matching the encoder that omits false.
+    pNode->inputOrderedBySortKeys = false;
+    code = tjsonGetBoolValue(pJson, jkSortPhysiPlanInputOrdered, &pNode->inputOrderedBySortKeys);
   }
 
   return code;

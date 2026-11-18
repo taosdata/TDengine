@@ -7366,7 +7366,7 @@ static size_t taosCurlWriteData(char *pCont, size_t contLen, size_t nmemb, void 
   }
 }
 
-static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
+static int32_t taosCurlGetRequest(const char *url, SCurlResp *pRsp, int64_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t code = 0;
   int32_t lino = 0;
@@ -7410,7 +7410,7 @@ _OVER:
   return code;
 }
 
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int64_t bufLen, int64_t timeout,
                                    const char *socketPath) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
@@ -7438,7 +7438,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_VERBOSE, 0L), &lino, _OVER);
   TAOS_CHECK_GOTO(curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L), &lino, _OVER);
 
-  mDebug("xnode curl post request will sent, url:%s len:%d content:%s", url, bufLen, buf);
+  mDebug("xnode curl post request will sent, url:%s len:%" PRId64 " content:%s", url, bufLen, buf);
   CURLcode curlCode = curl_easy_perform(curl);
 
   if (curlCode != CURLE_OK) {
@@ -7468,7 +7468,7 @@ _OVER:
   return code;
 }
 
-static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int32_t timeout, const char *socketPath) {
+static int32_t taosCurlDeleteRequest(const char *url, SCurlResp *pRsp, int64_t timeout, const char *socketPath) {
   CURL   *curl = NULL;
   int32_t code = 0;
   int32_t lino = 0;

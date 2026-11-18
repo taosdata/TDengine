@@ -5118,7 +5118,8 @@ enum {
   PHY_SORT_CODE_TARGETS,
   PHY_SORT_CODE_CALC_GROUPID,
   PHY_SORT_CODE_EXCLUDE_PK_COL,
-  PHY_SORT_CODE_NUM_OF_GROUP_KEYS
+  PHY_SORT_CODE_NUM_OF_GROUP_KEYS,
+  PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS
 };
 
 static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5142,6 +5143,12 @@ static int32_t physiSortNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, PHY_SORT_CODE_NUM_OF_GROUP_KEYS, pNode->numOfGroupKeys);
+  }
+  // Only publish the flag when it is set: an absent field decodes to false, and
+  // omitting it keeps every existing plan (and its golden message/JSON) byte
+  // identical for the common unproven case.
+  if (TSDB_CODE_SUCCESS == code && pNode->inputOrderedBySortKeys) {
+    code = tlvEncodeBool(pEncoder, PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS, pNode->inputOrderedBySortKeys);
   }
 
   return code;
@@ -5174,6 +5181,9 @@ static int32_t msgToPhysiSortNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_SORT_CODE_NUM_OF_GROUP_KEYS:
         code = tlvDecodeI32(pTlv, &pNode->numOfGroupKeys);
+        break;
+      case PHY_SORT_CODE_INPUT_ORDERED_BY_SORT_KEYS:
+        code = tlvDecodeBool(pTlv, &pNode->inputOrderedBySortKeys);
         break;
       default:
         break;

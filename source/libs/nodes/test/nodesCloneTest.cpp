@@ -368,6 +368,313 @@ TEST(NodesCodeTest, sortGroupKeyPrefixRoundTrip) {
   }
 }
 
+// inputOrderedBySortKeys makes the executor skip a whole block suffix without
+// re-validating it, so the plan transfers must never lose or invent it. The
+// JSON/TLV encoders omit the field when it is false to keep existing plan
+// text goldens stable, so cover both values and (below) the explicit
+// "field absent in an older plan" decode.
+TEST(NodesCodeTest, sortInputOrderedBySortKeysRoundTrip) {
+  for (bool inputOrdered : {false, true}) {
+    SCOPED_TRACE(inputOrdered);
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
+    pSort->inputOrderedBySortKeys = inputOrdered;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    EXPECT_EQ(strstr(pJson, "InputOrderedBySortKeys") != nullptr, inputOrdered);
+    SNode* pJsonNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(pJson, &pJsonNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> jsonNode(pJsonNode, nodesDestroyNode);
+    EXPECT_EQ(((SSortPhysiNode*)pJsonNode)->inputOrderedBySortKeys, inputOrdered);
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+    SNode* pMsgNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pMsgNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> msgNode(pMsgNode, nodesDestroyNode);
+    EXPECT_EQ(((SSortPhysiNode*)pMsgNode)->inputOrderedBySortKeys, inputOrdered);
+  }
+}
+
+// An older planner/subplan has no InputOrderedBySortKeys field at all. The
+// executor treats a false flag as permission to keep the row-wise path, so a
+// missing field must decode to false: anything else would let a cross-version
+// plan skip a block suffix that nobody proved ordered.
+TEST(NodesCodeTest, sortInputOrderedBySortKeysDefaultsFalseWhenAbsent) {
+  // JSON: serialize a plan that does carry the field, then drop it. This is
+  // byte-for-byte the text an older producer emits.
+  {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ((SSortPhysiNode*)pNode)->inputOrderedBySortKeys = true;
+
+    char* pJson = nullptr;
+    ASSERT_EQ(nodesNodeToString(pNode, false, &pJson, nullptr), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> json(pJson, freeTestBuffer);
+    ASSERT_NE(strstr(pJson, "InputOrderedBySortKeys"), nullptr);
+
+    std::string legacy(pJson);
+    eraseJsonField(&legacy, "InputOrderedBySortKeys");
+    EXPECT_EQ(legacy.find("InputOrderedBySortKeys"), std::string::npos);
+
+    SNode* pLegacyNode = nullptr;
+    ASSERT_EQ(nodesStringToNode(legacy.c_str(), &pLegacyNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> legacyNode(pLegacyNode, nodesDestroyNode);
+    EXPECT_FALSE(((SSortPhysiNode*)pLegacyNode)->inputOrderedBySortKeys);
+  }
+
+  // TLV: a false value omits the tag, so its encoding is exactly the old wire
+  // format. Decode it and check the flag defaults to false.
+  {
+    SNode* pNode = nullptr;
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SORT, &pNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> src(pNode, nodesDestroyNode);
+    ((SSortPhysiNode*)pNode)->inputOrderedBySortKeys = false;
+
+    char*   pMsg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(nodesNodeToMsg(pNode, &pMsg, &len), TSDB_CODE_SUCCESS);
+    std::unique_ptr<char, void (*)(char*)> msg(pMsg, freeTestBuffer);
+
+    SNode* pLegacyNode = nullptr;
+    ASSERT_EQ(nodesMsgToNode(pMsg, len, &pLegacyNode), TSDB_CODE_SUCCESS);
+    std::unique_ptr<SNode, void (*)(SNode*)> legacyNode(pLegacyNode, nodesDestroyNode);
+    EXPECT_FALSE(((SSortPhysiNode*)pLegacyNode)->inputOrderedBySortKeys);
+  }
+}
+
+// queryNodeSortKeysAreAscPrimTsPk is the single predicate that authorises both
+// the planner's ordered-input proof and the executor's block-suffix
+// short-circuit. A false positive lets the executor skip rows that it cannot
+// prove are ordered, so pin every shape constraint it relies on.
+namespace {
+
+struct SortKeySpec {
+  bool       isColumn = true;  // false builds a non-column expression node
+  bool       hasExpr = true;   // false leaves pExpr NULL
+  bool       isPrimTs = true;
+  bool       isPk = false;
+  col_id_t   colId = 0;
+  int8_t     type = TSDB_DATA_TYPE_INT;
+  EOrder     order = ORDER_ASC;
+  ENullOrder nullOrder = NULL_ORDER_DEFAULT;
+};
+
+SOrderByExprNode* makeSortKeyNode(const SortKeySpec& spec) {
+  SNode* pNode = nullptr;
+  if (nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, &pNode) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  SOrderByExprNode* pKey = (SOrderByExprNode*)pNode;
+  pKey->order = spec.order;
+  pKey->nullOrder = spec.nullOrder;
+  if (!spec.hasExpr) {
+    return pKey;
+  }
+
+  SNode* pExpr = nullptr;
+  if (spec.isColumn) {
+    if (nodesMakeNode(QUERY_NODE_COLUMN, &pExpr) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pNode);
+      return nullptr;
+    }
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    pCol->isPrimTs = spec.isPrimTs;
+    pCol->isPk = spec.isPk;
+    pCol->colId = spec.colId;
+    pCol->node.resType.type = spec.type;
+  } else {
+    if (nodesMakeNode(QUERY_NODE_VALUE, &pExpr) != TSDB_CODE_SUCCESS) {
+      nodesDestroyNode(pNode);
+      return nullptr;
+    }
+    ((SValueNode*)pExpr)->node.resType.type = spec.type;
+  }
+  pKey->pExpr = pExpr;
+  return pKey;
+}
+
+SNodeList* makeSortKeyList(const SortKeySpec& ts, const SortKeySpec& pk) {
+  SNodeList* pList = nullptr;
+  if (nodesMakeList(&pList) != TSDB_CODE_SUCCESS) {
+    return nullptr;
+  }
+  SNode* pTsKey = (SNode*)makeSortKeyNode(ts);
+  if (pTsKey == nullptr || nodesListAppend(pList, pTsKey) != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pTsKey);
+    nodesDestroyList(pList);
+    return nullptr;
+  }
+  SNode* pPkKey = (SNode*)makeSortKeyNode(pk);
+  if (pPkKey == nullptr || nodesListAppend(pList, pPkKey) != TSDB_CODE_SUCCESS) {
+    nodesDestroyNode(pPkKey);
+    nodesDestroyList(pList);
+    return nullptr;
+  }
+  return pList;
+}
+
+SortKeySpec tsKeySpec() {
+  SortKeySpec spec;
+  spec.isPrimTs = true;
+  spec.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  spec.type = TSDB_DATA_TYPE_TIMESTAMP;
+  return spec;
+}
+
+SortKeySpec pkKeySpec() {
+  SortKeySpec spec;
+  spec.isPrimTs = false;
+  spec.isPk = true;
+  spec.colId = 2;
+  spec.type = TSDB_DATA_TYPE_INT;
+  return spec;
+}
+
+}  // namespace
+
+TEST(NodesSortKeyPredicateTest, acceptsAscendingFixedWidthPrimTsPk) {
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+  ASSERT_NE(keys.get(), nullptr);
+  EXPECT_TRUE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+
+  // NULL ordering cannot matter for two NOT NULL primary-key columns.
+  SortKeySpec ts = tsKeySpec();
+  SortKeySpec pk = pkKeySpec();
+  ts.nullOrder = NULL_ORDER_LAST;
+  pk.nullOrder = NULL_ORDER_FIRST;
+  std::unique_ptr<SNodeList, void (*)(SNodeList*)> nullOrderKeys(makeSortKeyList(ts, pk), nodesDestroyList);
+  ASSERT_NE(nullOrderKeys.get(), nullptr);
+  EXPECT_TRUE(queryNodeSortKeysAreAscPrimTsPk(nullOrderKeys.get()));
+}
+
+TEST(NodesSortKeyPredicateTest, rejectsMalformedKeyLists) {
+  EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(nullptr));
+
+  // Exactly two keys are required: neither one nor three keys is enough.
+  {
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> one(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(one.get(), nullptr);
+    ASSERT_EQ(one->length, 2);
+    SNode* pLast = one->pTail->pNode;
+    one->pTail->pNode = nullptr;
+    one->length = 1;
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(one.get()));
+    nodesDestroyNode(pLast);
+  }
+  {
+    SortKeySpec third = pkKeySpec();
+    third.colId = 3;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> two(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(two.get(), nullptr);
+    SNode* pExtra = (SNode*)makeSortKeyNode(third);
+    ASSERT_NE(pExtra, nullptr);
+    ASSERT_EQ(nodesListAppend(two.get(), pExtra), TSDB_CODE_SUCCESS);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(two.get()));
+  }
+
+  // A NULL list cell must not be dereferenced.
+  {
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    SNode* pPkKey = keys->pTail->pNode;
+    keys->pTail->pNode = nullptr;
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+    nodesDestroyNode(pPkKey);
+  }
+
+  // A key without an expression, and a non-column expression, are rejected.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.hasExpr = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.isColumn = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // Both keys must be ascending.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.order = ORDER_DESC;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.order = ORDER_DESC;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+}
+
+TEST(NodesSortKeyPredicateTest, rejectsTsAndPkShapeViolations) {
+  // The first key must be the primary timestamp column.
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.isPrimTs = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.colId = 2;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+  {
+    SortKeySpec ts = tsKeySpec();
+    ts.type = TSDB_DATA_TYPE_BIGINT;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(ts, pkKeySpec()), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // The second key must be a primary key column.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.isPk = false;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // ts and pk must be distinct columns: the same column is not a two-key order.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+
+  // A variable-width primary key cannot be compared as a fixed-width key.
+  {
+    SortKeySpec pk = pkKeySpec();
+    pk.type = TSDB_DATA_TYPE_VARCHAR;
+    std::unique_ptr<SNodeList, void (*)(SNodeList*)> keys(makeSortKeyList(tsKeySpec(), pk), nodesDestroyList);
+    ASSERT_NE(keys.get(), nullptr);
+    EXPECT_FALSE(queryNodeSortKeysAreAscPrimTsPk(keys.get()));
+  }
+}
+
 TEST(NodesCodeTest, queryPlanJsonRoundTripPreservesAllSubplanLevels) {
   SNode* pNode = nullptr;
   ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, &pNode));
