@@ -1924,6 +1924,56 @@ TEST_F(PlanJoinTest, temporalJoinTimestampTag) {
       "WINDOW_OFFSET(-1s, 1s)");
 }
 
+TEST_F(PlanJoinTest, ReferencedTagDatabaseName) {
+  useDb("root", "test");
+  for (const char* sourceDb : {"test", "cache_db"}) {
+    const string table = string("v_tag_db_") + sourceDb;
+    g_mockCatalogService->createTableBuilder(
+        "test", table, TSDB_VIRTUAL_CHILD_TABLE, 2, 1)
+        .setPrecision(TSDB_TIME_PRECISION_MILLI)
+        .setVgid(1)
+        .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+        .addColumn("c1", TSDB_DATA_TYPE_INT)
+        .addTag("tag_ts", TSDB_DATA_TYPE_TIMESTAMP).done();
+    SColRef column = {};
+    column.id = 2;
+    column.hasRef = true;
+    strcpy(column.refDbName, "test");
+    strcpy(column.refTableName, "st1s1");
+    strcpy(column.refColName, "c1");
+    SColRef tag = column;
+    tag.id = 3;
+    strcpy(tag.refDbName, sourceDb);
+    strcpy(tag.refColName, "tag3");
+    g_mockCatalogService->setTableRefs("test", table, {column}, {tag});
+    const string expected = string("0.") + sourceDb;
+    setPhysiPlanCheck([expected](const SQueryPlan* plan) {
+      int sources = 0;
+      std::function<void(const SPhysiNode*, const char*)> walk;
+      walk = [&](const SPhysiNode* node, const char* db) {
+        if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_TAG_REF_SOURCE) {
+          EXPECT_STREQ(expected.c_str(), db);
+          ++sources;
+        }
+        SNode* child = nullptr;
+        FOREACH(child, node->pChildren) {
+          walk((const SPhysiNode*)child, db);
+        }
+      };
+      SNode* level = nullptr;
+      FOREACH(level, plan->pSubplans) {
+        SNode* node = nullptr;
+        FOREACH(node, ((const SNodeListNode*)level)->pNodeList) {
+          const auto* subplan = (const SSubplan*)node;
+          walk(subplan->pNode, subplan->dbFName);
+        }
+      }
+      EXPECT_GT(sources, 0);
+    });
+    run("SELECT c1 FROM " + table + " ORDER BY tag_ts");
+  }
+}
+
 TEST_F(PlanJoinTest, virtualReferencedTagOutsideProjection) {
   useDb("root", "test");
   g_mockCatalogService->createTableBuilder(

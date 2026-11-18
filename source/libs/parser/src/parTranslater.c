@@ -2479,6 +2479,7 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
 
 static void setVtbColumnInfoBySchema(const SVirtualTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                      SHashObj* pColRefMap, SColumnNode* pCol) {
+  pCol->isVirtualTable = true;
   strcpy(pCol->dbName, pTable->table.dbName);
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   strcpy(pCol->tableName, pTable->table.tableName);
@@ -2559,6 +2560,9 @@ static const SSchema* findPrimaryTsSchema(const STableMeta* pMeta) {
 
 static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, int32_t tagFlag,
                                   SColumnNode* pCol, const SSchemaExt* pExtSchema) {
+  pCol->isVirtualTable = pTable->pMeta->virtualStb ||
+                         pTable->pMeta->tableType == TSDB_VIRTUAL_CHILD_TABLE ||
+                         pTable->pMeta->tableType == TSDB_VIRTUAL_NORMAL_TABLE;
   tstrncpy(pCol->dbName, pTable->table.dbName, TSDB_DB_NAME_LEN);
   tstrncpy(pCol->tableAlias, pTable->table.tableAlias, TSDB_TABLE_NAME_LEN);
   tstrncpy(pCol->tableName, pTable->table.tableName, TSDB_TABLE_NAME_LEN);

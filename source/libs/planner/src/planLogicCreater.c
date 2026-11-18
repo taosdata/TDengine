@@ -489,12 +489,18 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
 }
 
+static bool isVirtualTableMeta(const STableMeta* meta) {
+  return meta->virtualStb || meta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+         meta->tableType == TSDB_VIRTUAL_CHILD_TABLE;
+}
+
 static SNode* createFirstCol(SRealTableNode* pTable, const SSchema* pSchema) {
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = isVirtualTableMeta(pTable->pMeta);
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -518,6 +524,7 @@ static SNode* createInsColsScanCol(SRealTableNode* pTable, const SSchema* pSchem
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = isVirtualTableMeta(pTable->pMeta);
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -538,6 +545,7 @@ static SNode* createVtbFirstCol(SVirtualTableNode* pTable, const SSchema* pSchem
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -560,6 +568,7 @@ static SNode* createVtbDataCol(SVirtualTableNode* pTable, const SSchema* pSchema
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) return NULL;
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (IS_DECIMAL_TYPE(pSchema->type) && hasDecimalBytesTypeInfo(pSchema->bytes)) {
@@ -620,6 +629,7 @@ static SNode* createVtbTagCol(SVirtualTableNode* pTable, const SSchema* pSchema)
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) return NULL;
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   pCol->tableId = pTable->pMeta->uid;
@@ -4623,6 +4633,10 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->colId = colId;
   pRefTableScanCol->tableId = pLogicScan->tableId;
   pRefTableScanCol->tableType = pLogicScan->tableType;
+  // No reference means this column belongs to the virtual stable itself.
+  pRefTableScanCol->isVirtualTable =
+      colRef == NULL || pLogicScan->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+      pLogicScan->tableType == TSDB_VIRTUAL_CHILD_TABLE;
   // DECIMAL columns carry precision/scale outside the plain (type, bytes) pair:
   // either packed into the schema bytes or in the column's typeMod.  Keep them
   // on the scan column, otherwise the output slot advertises DECIMAL(?,0) and
@@ -5718,6 +5732,7 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
     tstrncpy(pCol->colName, pVtbSchema->name, sizeof(pCol->colName));
     pCol->tableId = pVirtualTable->pMeta->uid;
     pCol->tableType = pVirtualTable->pMeta->tableType;
+    pCol->isVirtualTable = true;
     int32_t origBytes = pCol->node.resType.bytes;
     schemaToRefDataType(pVtbSchema, typeMod, &pCol->node.resType);
     if (IS_VAR_DATA_TYPE(pCol->node.resType.type) && origBytes > pCol->node.resType.bytes) {
@@ -8395,6 +8410,7 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   tstrncpy(pCol->node.userAlias, pColSchema->name, TSDB_COL_NAME_LEN);
   pCol->tableId = pProbeTable->pMeta->uid;
   pCol->tableType = pProbeTable->pMeta->tableType;
+  pCol->isVirtualTable = isVirtualTableMeta(pProbeTable->pMeta);
   pCol->colId = pColSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
   pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));

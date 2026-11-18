@@ -1086,7 +1086,7 @@ static int32_t checkTSColumn(SNode* pNode, bool* isMatch) {
 
 static int32_t checkPrimaryKey(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
+  if (nodeType(pNode) != QUERY_NODE_COLUMN ||
       !((SColumnNode*)pNode)->isPk) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_PK;
     *isMatch = false;
@@ -4063,7 +4063,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
-                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validDataType =
+                                              FUNC_PARAM_SUPPORT_INTEGER_TYPE |
+                                              FUNC_PARAM_SUPPORT_VARCHAR_TYPE |
+                                              FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
                                            .paramAttribute = FUNC_PARAM_MUST_BE_PK,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

@@ -1754,6 +1754,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }
   pScan->onlyMetaCtbIdx = pScanLogicNode->onlyMetaCtbIdx;
+  (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
@@ -1789,6 +1790,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }
+  (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
@@ -5874,6 +5876,7 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
 
   // Copy source table information
   memcpy(&pTagRefSource->sourceTableName, &pLogicNode->sourceTableName, sizeof(SName));
+  (void)tNameGetFullDbName(&pLogicNode->sourceTableName, pSubplan->dbFName);
   pTagRefSource->sourceSuid = pLogicNode->sourceSuid;
   pTagRefSource->sourceId = pLogicNode->sourceId;
   pTagRefSource->isUsedInFilter = pLogicNode->isUsedInFilter;
