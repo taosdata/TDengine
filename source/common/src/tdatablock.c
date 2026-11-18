@@ -822,9 +822,8 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     // A var-length column stores one int32_t offset per row and one uint32_t total length,
     // so a single block can never legitimately hold more than INT32_MAX bytes of payload.
-    // Merging is the only append path that does not go through checkAllocLen(), and the
-    // comparison below is done in uint32_t: without this guard `srcLen + dstLen` wraps and
-    // the memcpy writes at `pData + dstLen` off the end of the buffer (SIGSEGV).  Refuse
+    // Without this guard `srcLen + dstLen` can wrap and the memcpy writes at
+    // `pData + dstLen` off the end of the buffer (SIGSEGV). Refuse
     // before touching either the offsets or the data; callers that can split work, such as
     // the projection merge loop, decide to emit the destination block instead of merging.
     // Same BLOBSTR_HEADER_SIZE headroom as checkAllocLen() so a merged block can never reach
@@ -855,14 +854,10 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
     // copy data
     uint32_t len = pSource->varmeta.length;
     uint32_t oldLen = pColumnInfoData->varmeta.length;
-    if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
-      char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
-      if (tmp == NULL) {
-        return terrno;
-      }
-
-      pColumnInfoData->pData = tmp;
-      pColumnInfoData->varmeta.allocLen = len + oldLen;
+    // Repeated small merges must not copy the accumulated payload on every append.
+    int32_t code = checkAllocLen(pColumnInfoData, &pColumnInfoData->pData, len);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     if (pColumnInfoData->pData && pSource->pData) {  // TD-20382
