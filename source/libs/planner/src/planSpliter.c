@@ -206,6 +206,12 @@ static int32_t splCreateExchangeNodeForSubplan(SSplitContext* pCxt, SLogicSubpla
 
   PLAN_ERR_JRET(splCreateExchangeNode(pCxt, pSplitNode, &pExchange));
 
+  // The stream cache supplies these rows without executing the scan subplan.
+  if (inStreamCalcClause(pCxt->pPlanCxt) && QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pSplitNode) &&
+      SP_PARTITION_ROWS == ((SScanLogicNode*)pSplitNode)->placeholderType) {
+    PLAN_ERR_JRET(nodesCloneNode(pSplitNode->pConditions, &pExchange->node.pConditions));
+  }
+
   pExchange->dynTbname = nodeType(pSplitNode) == QUERY_NODE_LOGIC_PLAN_SCAN ? ((SScanLogicNode*)pSplitNode)->phTbnameScan : false;
   pExchange->seqRecvData = seqScan;
   pExchange->localBlockExchange = localBlockExchange;

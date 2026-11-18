@@ -2318,9 +2318,14 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     code = nodesCloneNode(pSelect->pTimeRange, (SNode**)&pScan->pTimeRange);
   }
 
-  if (pRealTable->placeholderType == SP_PARTITION_ROWS) {
+  if (TSDB_CODE_SUCCESS == code && pRealTable->placeholderType == SP_PARTITION_ROWS) {
     code = nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
                                &pCxt->pPlanCxt->streamCxt.triggerScanList);
+    if (TSDB_CODE_SUCCESS == code) {
+      // Temporal JOIN keys may appear only in WINDOW_TIME, outside the generic column walk.
+      code = collectTemporalJoinTimeColumns(pSelect, pRealTable->table.tableAlias, COLLECT_COL_TYPE_ALL,
+                                            &pCxt->pPlanCxt->streamCxt.triggerScanList);
+    }
   }
   // set columns to scan
   if (TSDB_CODE_SUCCESS == code) {
@@ -3798,7 +3803,9 @@ static bool temporalJoinCanOrderScan(SLogicNode* pNode, SNode* pTime) {
     return false;
   }
   SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-  return (SCAN_TYPE_TABLE == pScan->scanType ||
+  // Trigger-row cache readers always return ASC; scanSeq cannot reverse them.
+  return SP_PARTITION_ROWS != pScan->placeholderType &&
+         (SCAN_TYPE_TABLE == pScan->scanType ||
           SCAN_TYPE_TABLE_MERGE == pScan->scanType) &&
          NULL == pNode->pLimit && NULL == pNode->pSlimit &&
          NULL == pScan->pGroupTags && !scanIsSmallDataScanSortHinted(pScan) &&

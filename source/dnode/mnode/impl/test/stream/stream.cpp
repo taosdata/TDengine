@@ -3186,82 +3186,64 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
   }
 
   void AddSelectiveClearRecords() {
-    const SStmRecalcRecord agedLegacy = {
-        .snapshot =
-            {
-                .recalcId = kAgedLegacyRecalcId,
-                .start = 300,
-                .end = 400,
-                .progressPct = 100,
-                .status = STREAM_RECALC_STATUS_FINISHED,
-            },
-        .terminalObservedAtMs = 1,
-        .typedStatusKnown = true,
-        .hidden = true,
-    };
-    const SStmRecalcRecord evictedLegacy = {
-        .snapshot =
-            {
-                .recalcId = kEvictedLegacyRecalcId,
-                .start = 500,
-                .end = 600,
-                .progressPct = 100,
-                .status = STREAM_RECALC_STATUS_FINISHED,
-            },
-        .terminalObservedAtMs = 2,
-        .typedStatusKnown = true,
-        .hidden = true,
-    };
-    const SStmRecalcRecord visibleCoordinator = {
-        .snapshot =
-            {
-                .recalcId = kVisibleCoordinatorRecalcId,
-                .start = 700,
-                .end = 800,
-                .progressPct = 0,
-                .status = STREAM_RECALC_STATUS_PENDING,
-            },
-        .requestTimeMs = 1000,
-        .typedStatusKnown = true,
-        .visible = true,
-    };
-    const SStmRecalcRecord terminalCoordinator = {
-        .snapshot =
-            {
-                .recalcId = kTerminalCoordinatorRecalcId,
-                .start = 900,
-                .end = 1000,
-                .progressPct = 100,
-                .status = STREAM_RECALC_STATUS_FINISHED,
-            },
-        .requestTimeMs = 2000,
-        .terminalObservedAtMs = 3000,
-        .typedStatusKnown = true,
-        .visible = true,
-    };
-    const SStmRecalcRecord persistingCoordinator = {
-        .snapshot =
-            {
-                .recalcId = kPersistingCoordinatorRecalcId,
-                .start = 1100,
-                .end = 1200,
-                .progressPct = 80,
-                .status = STREAM_RECALC_STATUS_RUNNING,
-            },
-        .terminalCandidate =
-            {
-                .recalcId = kPersistingCoordinatorRecalcId,
-                .start = 1100,
-                .end = 1200,
-                .progressPct = 100,
-                .status = STREAM_RECALC_STATUS_FINISHED,
-            },
-        .requestTimeMs = 4000,
-        .typedStatusKnown = true,
-        .visible = true,
-        .terminalPersisting = true,
-        .terminalCandidateValid = true,
-    };
+    SStmRecalcRecord agedLegacy = {};
+    agedLegacy.snapshot.recalcId = kAgedLegacyRecalcId;
+    agedLegacy.snapshot.start = 300;
+    agedLegacy.snapshot.end = 400;
+    agedLegacy.snapshot.progressPct = 100;
+    agedLegacy.snapshot.status = STREAM_RECALC_STATUS_FINISHED;
+    agedLegacy.terminalObservedAtMs = 1;
+    agedLegacy.typedStatusKnown = true;
+    agedLegacy.hidden = true;
+
+    SStmRecalcRecord evictedLegacy = {};
+    evictedLegacy.snapshot.recalcId = kEvictedLegacyRecalcId;
+    evictedLegacy.snapshot.start = 500;
+    evictedLegacy.snapshot.end = 600;
+    evictedLegacy.snapshot.progressPct = 100;
+    evictedLegacy.snapshot.status = STREAM_RECALC_STATUS_FINISHED;
+    evictedLegacy.terminalObservedAtMs = 2;
+    evictedLegacy.typedStatusKnown = true;
+    evictedLegacy.hidden = true;
+
+    SStmRecalcRecord visibleCoordinator = {};
+    visibleCoordinator.snapshot.recalcId = kVisibleCoordinatorRecalcId;
+    visibleCoordinator.snapshot.start = 700;
+    visibleCoordinator.snapshot.end = 800;
+    visibleCoordinator.snapshot.progressPct = 0;
+    visibleCoordinator.snapshot.status = STREAM_RECALC_STATUS_PENDING;
+    visibleCoordinator.requestTimeMs = 1000;
+    visibleCoordinator.typedStatusKnown = true;
+    visibleCoordinator.visible = true;
+
+    SStmRecalcRecord terminalCoordinator = {};
+    terminalCoordinator.snapshot.recalcId = kTerminalCoordinatorRecalcId;
+    terminalCoordinator.snapshot.start = 900;
+    terminalCoordinator.snapshot.end = 1000;
+    terminalCoordinator.snapshot.progressPct = 100;
+    terminalCoordinator.snapshot.status = STREAM_RECALC_STATUS_FINISHED;
+    terminalCoordinator.requestTimeMs = 2000;
+    terminalCoordinator.terminalObservedAtMs = 3000;
+    terminalCoordinator.typedStatusKnown = true;
+    terminalCoordinator.visible = true;
+
+    SStmRecalcRecord persistingCoordinator = {};
+    persistingCoordinator.snapshot.recalcId = kPersistingCoordinatorRecalcId;
+    persistingCoordinator.snapshot.start = 1100;
+    persistingCoordinator.snapshot.end = 1200;
+    persistingCoordinator.snapshot.progressPct = 80;
+    persistingCoordinator.snapshot.status = STREAM_RECALC_STATUS_RUNNING;
+    persistingCoordinator.terminalCandidate.recalcId = kPersistingCoordinatorRecalcId;
+    persistingCoordinator.terminalCandidate.start = 1100;
+    persistingCoordinator.terminalCandidate.end = 1200;
+    persistingCoordinator.terminalCandidate.progressPct = 100;
+    persistingCoordinator.terminalCandidate.status = STREAM_RECALC_STATUS_FINISHED;
+    persistingCoordinator.requestTimeMs = 4000;
+    persistingCoordinator.typedStatusKnown = true;
+    persistingCoordinator.visible = true;
+    persistingCoordinator.terminalPersisting = true;
+    persistingCoordinator.terminalCandidateValid = true;
+
     ASSERT_NE(taosArrayPush(Status()->recalcRecords, &agedLegacy), nullptr);
     ASSERT_NE(taosArrayPush(Status()->recalcRecords, &evictedLegacy), nullptr);
     ASSERT_NE(taosArrayPush(Status()->recalcRecords, &visibleCoordinator), nullptr);

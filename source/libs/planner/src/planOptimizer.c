@@ -1013,6 +1013,12 @@ _exit:
 }
 
 static int32_t pdcDealScan(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
+  // Cached trigger rows bypass the storage scan. Keep every predicate intact
+  // for the exchange, including conditions otherwise extracted as scan ranges.
+  if (inStreamCalcClause(pCxt->pPlanCxt) && SP_PARTITION_ROWS == pScan->placeholderType) {
+    OPTIMIZE_FLAG_SET_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_PUSH_DOWN_CONDE);
+    return TSDB_CODE_SUCCESS;
+  }
   // TIME_ALIGN: every condition must be evaluated on the aligned output.  Any
   // time-range extraction here would prune input rows that PREV/NEXT may still
   // need (and remove the predicate from the post-align filter).
@@ -5773,7 +5779,9 @@ int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool groupSort, S
       // scan.  Checking here -- at the sequencing scan that would actually be
       // promoted -- keeps the guard scoped to the hinted scan, instead of vetoing
       // the optimization for the whole Sort subtree (e.g. an unrelated join branch).
-      if ((!groupSort && NULL != pScan->pGroupTags) ||
+      // Cache readers return ASC rows and cannot implement a scan-order rewrite.
+      if (SP_PARTITION_ROWS == pScan->placeholderType ||
+          (!groupSort && NULL != pScan->pGroupTags) ||
           TSDB_SYSTEM_TABLE == pScan->tableType ||
           scanIsSmallDataScanSortHinted(pScan)) {
         *pNotOptimize = true;

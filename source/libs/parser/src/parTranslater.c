@@ -1915,6 +1915,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* p
   pCxt->levelNo = 0;
   pCxt->currClause = 0;
   pCxt->inJoinOnCond = false;
+  pCxt->pStreamCalcRoot = NULL;
   pCxt->statementTimeSet = false;
   pCxt->statementTimeNs = 0;
   pCxt->origStmtType = 0;
@@ -14584,11 +14585,111 @@ _return:
   return code;
 }
 
+typedef struct SStreamTrowsReferenceCxt {
+  const SNode* pAllowed;
+  bool         hasOther;
+} SStreamTrowsReferenceCxt;
+
+static EDealRes streamFindOtherTrows(SNode* pNode, void* pContext) {
+  SStreamTrowsReferenceCxt* pCxt = pContext;
+  if (pCxt->hasOther) return DEAL_RES_END;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_PLACE_HOLDER_TABLE:
+      pCxt->hasOther = pNode != pCxt->pAllowed &&
+                      SP_PARTITION_ROWS == ((const SPlaceHolderTableNode*)pNode)->placeholderType;
+      break;
+    case QUERY_NODE_REAL_TABLE:
+      pCxt->hasOther = pNode != pCxt->pAllowed &&
+                      SP_PARTITION_ROWS == ((const SRealTableNode*)pNode)->placeholderType;
+      break;
+    case QUERY_NODE_TEMP_TABLE:
+      // nodesWalkExpr accepts NULL; derived queries need explicit traversal.
+      nodesWalkExpr(((STempTableNode*)pNode)->pSubquery, streamFindOtherTrows, pCxt);
+      return pCxt->hasOther ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+    case QUERY_NODE_SELECT_STMT: {
+      SSelectStmt* pSelect = (SSelectStmt*)pNode;
+      // FROM traversal includes JOIN inputs and ON expressions. Recurse into
+      // SELECT nodes here because the generic expression walker treats them as leaves.
+      nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, streamFindOtherTrows, pCxt);
+      nodesWalkExprs(pSelect->pSubQueries, streamFindOtherTrows, pCxt);
+      nodesWalkExpr(pSelect->pTimeRange, streamFindOtherTrows, pCxt);
+      nodesWalkExpr(pSelect->pRange, streamFindOtherTrows, pCxt);
+      nodesWalkExpr(pSelect->pRangeAround, streamFindOtherTrows, pCxt);
+      nodesWalkExpr(pSelect->pEvery, streamFindOtherTrows, pCxt);
+      // Walk helpers return void; propagate a match through the shared context.
+      return pCxt->hasOther ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+    }
+    case QUERY_NODE_SET_OPERATOR: {
+      const SSetOperator* pSet = (const SSetOperator*)pNode;
+      for (int32_t i = 0; i < setOperatorChildCount(pSet) && !pCxt->hasOther; ++i) {
+        nodesWalkExpr(setOperatorChildAt(pSet, i), streamFindOtherTrows, pCxt);
+      }
+      nodesWalkExprs(pSet->pOrderByList, streamFindOtherTrows, pCxt);
+      nodesWalkExprs(pSet->pSubQueries, streamFindOtherTrows, pCxt);
+      return pCxt->hasOther ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+    }
+    default:
+      break;
+  }
+  return pCxt->hasOther ? DEAL_RES_END : DEAL_RES_CONTINUE;
+}
+
+static bool streamDirectTrowsJoinAllowed(const STranslateContext* pCxt, const SNode* pTable) {
+  // Only the outermost SELECT is eligible, not a UNION arm or a nested SELECT.
+  if (!pCxt->streamInfo.calcClause || pCxt->pCurrStmt != pCxt->pStreamCalcRoot ||
+      QUERY_NODE_SELECT_STMT != nodeType(pCxt->pCurrStmt)) {
+    return false;
+  }
+  const SNode* pFrom = ((const SSelectStmt*)pCxt->pCurrStmt)->pFromTable;
+  if (NULL == pFrom || QUERY_NODE_JOIN_TABLE != nodeType(pFrom)) {
+    return false;
+  }
+  const SJoinTableNode* pJoin = (const SJoinTableNode*)pFrom;
+  const SNode*          pOther = NULL;
+  // translatePlaceHolderTable calls this before replacing the placeholder in
+  // its parent JOIN. Compare AST identity while that direct child is still attached.
+  if (pJoin->pLeft == pTable) {
+    pOther = pJoin->pRight;
+  } else if (pJoin->pRight == pTable) {
+    pOther = pJoin->pLeft;
+  }
+  if (NULL == pOther || (QUERY_NODE_REAL_TABLE != nodeType(pOther) && QUERY_NODE_TEMP_TABLE != nodeType(pOther))) {
+    return false;
+  }
+  // Expression subqueries can reference the cache independently of the FROM tree.
+  SStreamTrowsReferenceCxt cxt = {.pAllowed = pTable};
+  nodesWalkExpr(pCxt->pStreamCalcRoot, streamFindOtherTrows, &cxt);
+  return !cxt.hasOther;
+}
+
+static int32_t checkStreamDirectTrowsJoin(STranslateContext* pCxt, const SNode* pTable) {
+  if (streamDirectTrowsJoinAllowed(pCxt, pTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
+                                 "direct %%%%trows JOIN requires exactly one %%%%trows reference in the "
+                                 "stream query, joined at the top level with one ordinary table or "
+                                 "derived table; nested JOINs and additional references in subqueries "
+                                 "are not supported");
+}
+
 static int32_t translateJoinTable(STranslateContext* pCxt, SNode** pTable, bool inJoin) {
   SJoinTableNode* pJoinTable = (SJoinTableNode*)*pTable;
   SSelectStmt*    pCurrSmt = (SSelectStmt*)(pCxt->pCurrStmt);
   SNode*          pPrimCond = NULL;
   int32_t         code = TSDB_CODE_SUCCESS;
+
+  // Check both direct inputs before translating either side: translation of an
+  // ordinary derived table can rewrite away its expression-subquery references.
+  if (inStreamCalcClause(pCxt)) {
+    const SNode* pInputs[] = {pJoinTable->pLeft, pJoinTable->pRight};
+    for (int32_t i = 0; i < 2; ++i) {
+      if (QUERY_NODE_PLACE_HOLDER_TABLE == nodeType(pInputs[i]) &&
+          SP_PARTITION_ROWS == ((const SPlaceHolderTableNode*)pInputs[i])->placeholderType) {
+        PAR_ERR_JRET(checkStreamDirectTrowsJoin(pCxt, pInputs[i]));
+      }
+    }
+  }
 
   PAR_ERR_JRET(translateJoinTableImpl(pCxt, pJoinTable));
   PAR_ERR_JRET(translateTable(pCxt, &pJoinTable->pLeft, true));
@@ -14720,8 +14821,7 @@ static int32_t translatePlaceHolderTable(STranslateContext* pCxt, SNode** pTable
         newPlaceHolderTable->table.singleTable = true;
       }
       if (inJoin) {
-        PAR_ERR_JRET(generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY,
-                                             "%%%%trows should not appear in join condition"));
+        PAR_ERR_JRET(checkStreamDirectTrowsJoin(pCxt, (SNode*)pPlaceHolderTable));
       }
       break;
     }
@@ -16939,7 +17039,12 @@ typedef struct SConditionOnlyPhAndConstContext {
 
 static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
   SConditionOnlyPhAndConstContext* pCxt = (SConditionOnlyPhAndConstContext*)pContext;
-  if (nodeType(pNode) == QUERY_NODE_VALUE) {
+  if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    // Scan bounds are evaluated before reading any rows.
+    pCxt->onlyPhAndConst = false;
+    pCxt->onlyConst = false;
+    return DEAL_RES_END;
+  } else if (nodeType(pNode) == QUERY_NODE_VALUE) {
     pCxt->onlyPhAndConst &= true;
     pCxt->hasPhOrConst = true;
     pCxt->onlyConst &= true;
@@ -16963,12 +17068,13 @@ static EDealRes conditionOnlyPhAndConstImpl(SNode* pNode, void* pContext) {
 }
 
 typedef struct SFilterExtractTsContext {
-  SNodeList* pStart;
-  SNodeList* pEnd;
-  bool       onlyTsConst;
+  SNodeList*  pStart;
+  SNodeList*  pEnd;
+  bool        onlyTsConst;
+  const char* pCacheTableAlias;
 } SFilterExtractTsContext;
 
-static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight, bool* pOnlyTsConst) {
+static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight, SFilterExtractTsContext* pCxt) {
   if (nodeType(pLeft) == QUERY_NODE_COLUMN) {
     SColumnNode* pCol = (SColumnNode*)pLeft;
     if (pCol->colType != COLUMN_TYPE_COLUMN || pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -16977,7 +17083,12 @@ static bool filterExtractTsNeedCollect(SNode* pLeft, SNode* pRight, bool* pOnlyT
 
     SConditionOnlyPhAndConstContext cxt = {true, false, true};
     nodesWalkExpr(pRight, conditionOnlyPhAndConstImpl, &cxt);
-    *pOnlyTsConst &= cxt.onlyConst;
+    pCxt->onlyTsConst &= cxt.onlyConst;
+    // Cache reads use the trigger window identity, not a storage scan range.
+    // Keep these predicates in WHERE for the normal JOIN/filter pipeline.
+    if (pCxt->pCacheTableAlias && 0 == strcmp(pCol->tableAlias, pCxt->pCacheTableAlias)) {
+      return false;
+    }
     if (cxt.onlyPhAndConst && cxt.hasPhOrConst && (((SExprNode*)pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP)) {
       return true;
     } else {
@@ -16996,7 +17107,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
       PAR_ERR_JRET(scalarConvertOpValueNodeTs(pOperator));
       if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN ||
           pOperator->opType == OP_TYPE_GREATER_EQUAL || pOperator->opType == OP_TYPE_GREATER_THAN) {
-        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, &pCxt->onlyTsConst)) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, pCxt)) {
           SValueNode* pVal = NULL;
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
             PAR_ERR_JRET(nodesListMakeAppend(&pCxt->pEnd, *pNode));
@@ -17006,7 +17117,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           PAR_ERR_JRET(nodesMakeValueNodeFromBool(true, &pVal));
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
-        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, &pCxt->onlyTsConst)) {
+        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, pCxt)) {
           SValueNode* pVal = NULL;
           if (pOperator->opType == OP_TYPE_LOWER_EQUAL || pOperator->opType == OP_TYPE_LOWER_THAN) {
             TSWAP(pOperator->pLeft, pOperator->pRight);
@@ -17025,7 +17136,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           return DEAL_RES_CONTINUE;
         }
       } else if (pOperator->opType == OP_TYPE_EQUAL) {
-        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, &pCxt->onlyTsConst)) {
+        if (filterExtractTsNeedCollect(pOperator->pLeft, pOperator->pRight, pCxt)) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
@@ -17039,7 +17150,7 @@ EDealRes filterExtractTsCondImpl(SNode** pNode, void* pContext) {
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pVal;
           return DEAL_RES_IGNORE_CHILD;
-        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, &pCxt->onlyTsConst)) {
+        } else if (filterExtractTsNeedCollect(pOperator->pRight, pOperator->pLeft, pCxt)) {
           SNode*      startNode = NULL;
           SNode*      endNode = NULL;
           SValueNode* pVal = NULL;
@@ -17122,26 +17233,24 @@ static bool tsRangeSameToWindowRange(SNode* pCond, bool start, bool equal) {
 }
 
 static int32_t filterExtractTsCond(SNode** pCond, SNode** pTimeRangeExpr, bool leftEq, bool rightEq,
-                                   bool* onlyTsConst) {
+                                 SFilterExtractTsContext* pCxt) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   SNode*                  pNew = NULL;
-  SFilterExtractTsContext pCxt = {.onlyTsConst = true};
 
-  nodesRewriteExpr(pCond, filterExtractTsCondImpl, &pCxt);
-  *onlyTsConst = pCxt.onlyTsConst;
-  if (!pCxt.pStart && !pCxt.pEnd) {
+  nodesRewriteExpr(pCond, filterExtractTsCondImpl, pCxt);
+  if (!pCxt->pStart && !pCxt->pEnd) {
     return TSDB_CODE_SUCCESS;
   }
   PAR_ERR_JRET(nodesMakeNode(QUERY_NODE_TIME_RANGE, pTimeRangeExpr));
   STimeRangeNode* pRange = (STimeRangeNode*)*pTimeRangeExpr;
   bool            leftSame = false;
   bool            rightSame = false;
-  if (pCxt.pStart) {
-    PAR_ERR_JRET(nodesMergeConds(&pRange->pStart, &pCxt.pStart));
+  if (pCxt->pStart) {
+    PAR_ERR_JRET(nodesMergeConds(&pRange->pStart, &pCxt->pStart));
     leftSame = tsRangeSameToWindowRange(pRange->pStart, true, leftEq);
   }
-  if (pCxt.pEnd) {
-    PAR_ERR_JRET(nodesMergeConds(&pRange->pEnd, &pCxt.pEnd));
+  if (pCxt->pEnd) {
+    PAR_ERR_JRET(nodesMergeConds(&pRange->pEnd, &pCxt->pEnd));
     rightSame = tsRangeSameToWindowRange(pRange->pEnd, false, rightEq);
   }
   if (leftSame && rightSame) {
@@ -17168,26 +17277,41 @@ static int32_t getQueryTimeRange(STranslateContext* pCxt, SNode** pWhere, STimeW
   int32_t code = TSDB_CODE_SUCCESS;
   PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
 
-  bool extractJoinCond = true;
+  SFilterExtractTsContext extractCxt = {.onlyTsConst = true};
+  bool                    extractJoinCond = true;
+  bool                    keepJoinWhere = false;
   if (nodeType(pFromTable) == QUERY_NODE_JOIN_TABLE) {
     SJoinTableNode* pJoinTable = (SJoinTableNode*)pFromTable;
-    if (pJoinTable->subType == JOIN_STYPE_ASOF) {
+    // ASOF and bounded WINDOW JOIN choose their matches before WHERE.
+    if (pJoinTable->subType == JOIN_STYPE_ASOF ||
+        (pJoinTable->subType == JOIN_STYPE_WIN && NULL != pJoinTable->pJLimit)) {
       extractJoinCond = false;
     }
+    const SNode* pInputs[] = {pJoinTable->pLeft, pJoinTable->pRight};
+    for (int32_t i = 0; i < 2; ++i) {
+      if (QUERY_NODE_REAL_TABLE == nodeType(pInputs[i]) &&
+          SP_PARTITION_ROWS == ((const SRealTableNode*)pInputs[i])->placeholderType) {
+        extractCxt.pCacheTableAlias = ((const SRealTableNode*)pInputs[i])->table.tableAlias;
+        keepJoinWhere = JOIN_TYPE_INNER != pJoinTable->joinType ||
+                        QUERY_NODE_TEMP_TABLE == nodeType(pInputs[1 - i]);
+      }
+    }
   }
-  bool onlyTsConst = false;
   if (inStreamCalcClause(pCxt) && nodeType(pFromTable) != QUERY_NODE_TEMP_TABLE && extractJoinCond) {
     PAR_ERR_JRET(filterExtractTsCond(&pCond, pTimeRangeExpr, pCxt->streamInfo.extLeftEq, pCxt->streamInfo.extRightEq,
-                                     &onlyTsConst));
+                                    &extractCxt));
     // some node may be replaced
-    if (onlyTsConst) {
+    if (extractCxt.onlyTsConst) {
       nodesDestroyNode(pCond);
       PAR_ERR_JRET(nodesCloneNode(*pWhere, &pCond));
       nodesDestroyNode(*pTimeRangeExpr);
       *pTimeRangeExpr = NULL;
       // we can extract time range to pTimerange but not time range expr
     } else {
-      TSWAP(*pWhere, pCond);
+      // Derived inputs do not consume the outer scan range; outer JOINs also need null rejection.
+      if (!keepJoinWhere) {
+        TSWAP(*pWhere, pCond);
+      }
       goto _return;
     }
   }
@@ -31354,6 +31478,9 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
   ESqlClause currClause = pCxt->currClause;
   SNode*     pCurrStmt = pCxt->pCurrStmt;
   int32_t    currLevel = pCxt->currLevel;
+  SNode*     pPrevCalcRoot = pCxt->pStreamCalcRoot;
+  SNode*     pPrevTriggerTbl = pCxt->streamInfo.triggerTbl;
+  bool       prevCalcClause = pCxt->streamInfo.calcClause;
   SNode*     pNotifyCond = ppNotifyCond ? *ppNotifyCond : NULL;
 
   parserDebug("translate create stream req start translate calculate query");
@@ -31365,6 +31492,7 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
   pCxt->streamInfo.triggerTbl = pTriggerTbl;
   pCxt->streamInfo.calcClause = true;
   pCxt->pCurrStmt = (SNode*)pStreamCalcQuery;
+  pCxt->pStreamCalcRoot = pStreamCalcQuery;
 
   // if stream has notification condition, add this condition to query's select list, so that we can use this column's
   // value to judge whether to send notify later
@@ -31412,16 +31540,17 @@ static int32_t translateStreamCalcQuery(STranslateContext* pCxt, SNode* pTrigger
     }
     transferSubQueries(pCxt, pStreamCalcQuery);
   }
-  pCxt->streamInfo.calcClause = false;
-  pCxt->streamInfo.triggerTbl = NULL;
-
+_return:
+  pCxt->streamInfo.calcClause = prevCalcClause;
+  pCxt->streamInfo.triggerTbl = pPrevTriggerTbl;
   pCxt->currClause = currClause;
   pCxt->pCurrStmt = pCurrStmt;
   pCxt->currLevel = currLevel;
+  pCxt->pStreamCalcRoot = pPrevCalcRoot;
 
-  return code;
-_return:
-  parserError("translateStreamCalcQuery failed, code:%d", code);
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("translateStreamCalcQuery failed, code:%d", code);
+  }
   return code;
 }
 

@@ -65,6 +65,7 @@ typedef struct STranslateContext {
   bool                     refTable;
   bool                     isCurrOpIn;
   bool                     inJoinOnCond;
+  SNode*                   pStreamCalcRoot;  // borrowed root query while translating CREATE STREAM AS
   ENodeType                origStmtType;
   timezone_t               streamTimezone;     // borrowed from the current CREATE STREAM statement
   const SStreamTimeConfig* pStreamTimeConfig;  // borrowed from the current CREATE STREAM statement

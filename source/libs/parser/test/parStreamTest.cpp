@@ -1619,6 +1619,384 @@ TEST_F(ParserStreamTest, NestedWindowAllowsOuterWhereAroundTrowsSubquery) {
       TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
 }
 
+static int32_t pstCountPhysicalJoins(const SPhysiNode* pNode) {
+  if (nullptr == pNode) return 0;
+  const auto type = nodeType(pNode);
+  int32_t count = (type == QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN || type == QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN ||
+                   type == QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN) ? 1 : 0;
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { count += pstCountPhysicalJoins((const SPhysiNode*)pChild); }
+  return count;
+}
+
+static void pstCollectExchangeFilterColumns(const SPhysiNode* pNode, std::vector<string>* pColumns) {
+  if (nullptr == pNode) return;
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode) && nullptr != pNode->pConditions) {
+    SNodeList* pCols = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCollectColumnsFromNode(pNode->pConditions, nullptr, COLLECT_COL_TYPE_ALL, &pCols));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> colsGuard(pCols, nodesDestroyList);
+    SNode* pCol = nullptr;
+    FOREACH(pCol, pCols) {
+      const auto* pColumn = (const SColumnNode*)pCol;
+      pColumns->push_back(string(pColumn->tableAlias) + "." + pColumn->colName);
+    }
+  }
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { pstCollectExchangeFilterColumns((const SPhysiNode*)pChild, pColumns); }
+}
+
+TEST_F(ParserStreamTest, DirectTrowsJoinPreservesCacheFilters) {
+  useDb("root", "stream_streamdb");
+  string expectedColumn;
+  int32_t ddlCalls = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    ++ddlCalls;
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.calcPlan);
+    SNode* pPlan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pPlan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlan, nodesDestroyNode);
+    ASSERT_NE(nullptr, pPlan);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pPlan));
+    std::vector<string> columns;
+    SNode* pLevel = nullptr;
+    FOREACH(pLevel, ((const SQueryPlan*)pPlan)->pSubplans) {
+      SNode* pSubplan = nullptr;
+      FOREACH(pSubplan, ((const SNodeListNode*)pLevel)->pNodeList) {
+        pstCollectExchangeFilterColumns(((const SSubplan*)pSubplan)->pNode, &columns);
+      }
+    }
+    // Cache readers do not execute calc scan predicates or storage time ranges.
+    EXPECT_NE(columns.end(), std::find(columns.begin(), columns.end(), "a." + expectedColumn));
+  });
+  const string prefix = "create stream stream_streamdb.s_cache_filter interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select a.ts, a.c1 ac1, b.c1 bc1 from ";
+  for (const auto& predicate : {std::make_pair("c2", "a.c2 = 'keep'"),
+                                std::make_pair("ts", "a.ts > '2026-01-01 00:00:01'")}) {
+    expectedColumn = predicate.first;
+    for (const char* input : {"%%trows a join stream_querydb.stream_t1 b",
+                              "stream_querydb.stream_t1 b join %%trows a"}) {
+      for (const char* clause : {" where ", " and "}) {
+        const string sql = prefix + input + " on a.c1 = b.c1" + clause + predicate.second;
+        SCOPED_TRACE(sql);
+        const int32_t callsBefore = ddlCalls;
+        run(sql);
+        EXPECT_GT(ddlCalls, callsBefore);
+      }
+    }
+  }
+  // Dynamic cache bounds must survive translation instead of becoming scan-only ranges.
+  expectedColumn = "ts";
+  for (const char* predicate : {
+           "a.ts >= _twstart + 5s and a.ts < _twend",
+           "a.ts >= _twstart and a.ts < _twend - 2s",
+           "_twstart + 5s < a.ts and _twend - 2s >= a.ts",
+           "_twstart + 5s = a.ts",
+           "a.ts >= _twstart + 5s and b.ts >= _twstart and b.ts < _twend"}) {
+    for (const char* input : {"%%trows a join stream_querydb.stream_t1 b",
+                              "stream_querydb.stream_t1 b join %%trows a"}) {
+      const string sql = prefix + input + " on a.c1 = b.c1 where " + predicate;
+      SCOPED_TRACE(sql);
+      const int32_t callsBefore = ddlCalls;
+      run(sql);
+      EXPECT_GT(ddlCalls, callsBefore);
+    }
+  }
+}
+
+static bool pstScanHasColumn(const SPhysiNode* pNode, int32_t colId) {
+  std::vector<const SScanPhysiNode*> scans;
+  pstCollectTriggerScans(pNode, &scans);
+  for (const auto* pScan : scans) {
+    SNode* pTarget = nullptr;
+    FOREACH(pTarget, pScan->pScanCols) {
+      const SNode* pExpr = ((const STargetNode*)pTarget)->pExpr;
+      if (nullptr != pExpr && QUERY_NODE_COLUMN == nodeType(pExpr) &&
+          ((const SColumnNode*)pExpr)->colId == colId) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+TEST_F(ParserStreamTest, DirectTrowsWindowTimeRetainsTriggerColumn) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    ++ddlCalls;
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.triggerScanPlan);
+    SNode* pTrigger = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.triggerScanPlan, &pTrigger));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> triggerGuard(pTrigger, nodesDestroyNode);
+    ASSERT_NE(nullptr, pTrigger);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pTrigger));
+    // stream_t2.c3 is column 4 and is used only by WINDOW_TIME.
+    EXPECT_TRUE(pstScanHasColumn(((const SSubplan*)pTrigger)->pNode, 4));
+    ASSERT_NE(nullptr, req.calcScanPlanList);
+    int32_t cacheScans = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+      const auto* pScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+      if (!pScan->readFromCache) continue;
+      ++cacheScans;
+      ASSERT_NE(nullptr, pScan->scanPlan);
+      SNode* pCache = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pCache));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> cacheGuard(pCache, nodesDestroyNode);
+      ASSERT_NE(nullptr, pCache);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pCache));
+      EXPECT_TRUE(pstScanHasColumn(((const SSubplan*)pCache)->pNode, 4));
+    }
+    EXPECT_EQ(1, cacheScans);
+  });
+  const string prefix = "create stream stream_streamdb.s_cache_time interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select a.ts, a.c1 ac1, b.c1 bc1 from ";
+  for (const char* source : {
+           "%%trows a left window join stream_querydb.stream_t1 b window_time(a.c3,b.ts)",
+           "stream_querydb.stream_t1 b right window join %%trows a window_time(b.ts,a.c3)"}) {
+    const string sql = prefix + source + " window_offset(-1s,1s)";
+    SCOPED_TRACE(sql);
+    const int32_t callsBefore = ddlCalls;
+    run(sql);
+    EXPECT_GT(ddlCalls, callsBefore);
+  }
+}
+
+static int32_t pstCheckCacheExchangeOrder(const SPhysiNode* pNode, int32_t groupId) {
+  if (nullptr == pNode) return 0;
+  int32_t count = 0;
+  if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
+    const auto* pExchange = (const SExchangePhysiNode*)pNode;
+    if (pExchange->srcStartGroupId <= groupId && groupId <= pExchange->srcEndGroupId) {
+      EXPECT_EQ(ORDER_ASC, pNode->outputTsOrder);
+      ++count;
+    }
+  }
+  SNode* pChild = nullptr;
+  FOREACH(pChild, pNode->pChildren) { count += pstCheckCacheExchangeOrder((const SPhysiNode*)pChild, groupId); }
+  return count;
+}
+
+TEST_F(ParserStreamTest, DirectTrowsJoinKeepsCacheOrder) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    ++ddlCalls;
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_NE(nullptr, req.calcScanPlanList);
+    int32_t cacheGroup = -1;
+    int32_t cacheScans = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+      const auto* pScan = (const SStreamCalcScan*)taosArrayGet(req.calcScanPlanList, i);
+      if (!pScan->readFromCache) continue;
+      ++cacheScans;
+      ASSERT_NE(nullptr, pScan->scanPlan);
+      SNode* pPlan = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)pScan->scanPlan, &pPlan));
+      unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(pPlan, nodesDestroyNode);
+      ASSERT_NE(nullptr, pPlan);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(pPlan));
+      const auto* pSubplan = (const SSubplan*)pPlan;
+      cacheGroup = pSubplan->id.groupId;
+      std::vector<const SScanPhysiNode*> scans;
+      pstCollectTriggerScans(pSubplan->pNode, &scans);
+      ASSERT_EQ(1U, scans.size());
+      // The cached trigger rows are read in ASC regardless of scanSeq.
+      const auto* pTableScan = (const STableScanPhysiNode*)scans[0];
+      EXPECT_EQ(1, pTableScan->scanSeq[0]);
+      EXPECT_EQ(0, pTableScan->scanSeq[1]);
+    }
+    ASSERT_EQ(1, cacheScans);
+    ASSERT_NE(nullptr, req.calcPlan);
+    SNode* pCalcPlan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pCalcPlan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcGuard(pCalcPlan, nodesDestroyNode);
+    ASSERT_NE(nullptr, pCalcPlan);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pCalcPlan));
+    int32_t exchanges = 0;
+    SNode* pLevel = nullptr;
+    FOREACH(pLevel, ((const SQueryPlan*)pCalcPlan)->pSubplans) {
+      SNode* pSubplan = nullptr;
+      FOREACH(pSubplan, ((const SNodeListNode*)pLevel)->pNodeList) {
+        exchanges += pstCheckCacheExchangeOrder(((const SSubplan*)pSubplan)->pNode, cacheGroup);
+      }
+    }
+    EXPECT_EQ(1, exchanges);
+  });
+  const string prefix = "create stream stream_streamdb.s_cache_order interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select b.ts, b.c1 bc1, a.c1 ac1 from ";
+  const string derived = "(select ts,c1 from stream_querydb.stream_t1 order by ts desc limit 3) b";
+  for (const string& source : {
+           derived + " left window join %%trows a window_time(b.ts,a.ts) window_offset(-1s,1s)",
+           "%%trows a right window join " + derived + " window_time(a.ts,b.ts) window_offset(-1s,1s)",
+           derived + " left asof join %%trows a on b.ts>=a.ts jlimit 1",
+           "%%trows a right asof join " + derived + " on a.ts<=b.ts jlimit 1"}) {
+    const string sql = prefix + source;
+    SCOPED_TRACE(sql);
+    const int32_t callsBefore = ddlCalls;
+    run(sql);
+    EXPECT_GT(ddlCalls, callsBefore);
+  }
+  for (const char* input : {"%%trows a join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b join %%trows a",
+                            "%%trows a left join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b right join %%trows a"}) {
+    const string sql = prefix + input + " on a.ts=b.ts order by a.ts desc";
+    SCOPED_TRACE(sql);
+    const int32_t callsBefore = ddlCalls;
+    run(sql);
+    EXPECT_GT(ddlCalls, callsBefore);
+  }
+}
+
+TEST_F(ParserStreamTest, DirectTrowsBinaryJoinPlans) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    ++ddlCalls;
+    SCMCreateStreamReq req = {};
+    ASSERT_EQ(TSDB_CODE_SUCCESS, tDeserializeSCMCreateStreamReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> reqGuard(&req, tFreeSCMCreateStreamReq);
+    // CREATE STREAM translation builds the request and plans together. Every
+    // JOIN family must retain one trigger-cache scan and single-group execution.
+    EXPECT_FALSE(req.enableMultiGroupCalc);
+    ASSERT_NE(nullptr, req.triggerScanPlan);
+    ASSERT_NE(nullptr, req.calcPlan);
+    ASSERT_NE(nullptr, req.calcScanPlanList);
+    ASSERT_EQ(2, taosArrayGetSize(req.calcScanPlanList));
+    int32_t cacheScans = 0;
+    for (int32_t i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+      const auto* scan = static_cast<const SStreamCalcScan*>(taosArrayGet(req.calcScanPlanList, i));
+      cacheScans += scan->readFromCache ? 1 : 0;
+      ASSERT_NE(nullptr, scan->scanPlan);
+    }
+    EXPECT_EQ(1, cacheScans);
+    SNode* pCalcPlan = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode((const char*)req.calcPlan, &pCalcPlan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanGuard(pCalcPlan, nodesDestroyNode);
+    ASSERT_NE(nullptr, pCalcPlan);
+    ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN, nodeType(pCalcPlan));
+    int32_t joins = 0;
+    SNode* pLevel = nullptr;
+    FOREACH(pLevel, ((const SQueryPlan*)pCalcPlan)->pSubplans) {
+      SNode* pSubplan = nullptr;
+      FOREACH(pSubplan, ((const SNodeListNode*)pLevel)->pNodeList) {
+        joins += pstCountPhysicalJoins(((const SSubplan*)pSubplan)->pNode);
+      }
+    }
+    EXPECT_EQ(1, joins);
+  });
+  auto checkJoin = [&](const string& sql) {
+    SCOPED_TRACE(sql);
+    const int32_t callsBefore = ddlCalls;
+    run(sql);
+    // run() exercises multiple parser entry points; each SQL must reach the DDL check.
+    EXPECT_GT(ddlCalls, callsBefore);
+  };
+  const string prefix =
+      "create stream stream_streamdb.s_direct_trows interval(10s) sliding(10s) "
+      "from stream_triggerdb.stream_t1 into stream_outdb.stream_out as ";
+  const string left = "%%trows a ";
+  const string right = "stream_querydb.stream_t2 b ";
+
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "inner join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "inner join " + right + "on a.c1 < b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "inner join " + right +
+      "on a.c1 = b.c1 or a.c1 = 4");
+  checkJoin(prefix + "select b.ts, a.c1 ac1, b.c1 bc1 from " + right + "left join " + left +
+      "on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "left join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select b.ts, a.c1 ac1, b.c1 bc1 from " + left + "right join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select coalesce(a.ts,b.ts), a.c1 ac1, b.c1 bc1 from " + left + "full join " + right +
+      "on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1 from " + left + "left semi join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select b.ts, b.c1 bc1 from " + left + "right semi join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1 from " + left + "left anti join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select b.ts, b.c1 bc1 from " + left + "right anti join " + right + "on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "cross join " + right);
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "left asof join " + right +
+      "on a.ts >= b.ts jlimit 2");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left + "left window join " + right +
+      "window_offset(-1s,1s)");
+  checkJoin(prefix + "select b.ts, a.c1 ac1, b.c1 bc1 from " + left + "right asof join " + right +
+      "on a.ts <= b.ts jlimit 2");
+  checkJoin(prefix + "select b.ts, a.c1 ac1, b.c1 bc1 from " + left + "right window join " + right +
+      "window_offset(-1s,1s)");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from " + left +
+      "join (select ts,c1 from stream_querydb.stream_t2) b on a.c1 = b.c1");
+  checkJoin(prefix + "select a.ts, a.c1 ac1, b.c1 bc1 from "
+      "(select ts,c1 from stream_querydb.stream_t2) b join " + left + "on a.c1 = b.c1");
+
+  setCheckDdlFunc({});
+  run(prefix + "select a.ts from %%trows a join %%trows b on a.ts = b.ts",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts from (%%trows a join stream_querydb.stream_t2 b on a.ts = b.ts) "
+      "join stream_querydb.stream_t1 c on a.ts = c.ts",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts from %%trows a join "
+      "(select * from (select * from %%trows) q) b on a.ts = b.ts",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b "
+      "on a.c1 = b.c1 and b.c1 in (select c1 from %%trows)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, (select count(*) from %%trows) n "
+      "from %%trows a join stream_querydb.stream_t2 b on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b on a.c1 = b.c1 "
+      "where b.c1 in (select c1 from %%trows)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join "
+      "(select ts, c1, (select count(*) from %%trows) n from stream_querydb.stream_t2) b on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from "
+      "(select ts, c1, (select count(*) from %%trows) n from stream_querydb.stream_t2) b "
+      "join %%trows a on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b "
+      "on a.c1 = b.c1 and a.c1 > (select max(c1) from %%trows)",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join "
+      "(select ts,c1 from stream_querydb.stream_t2 union all select ts,c1 from %%trows) b "
+      "on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from "
+      "(select ts,c1 from stream_querydb.stream_t2 union all select ts,c1 from %%trows) b "
+      "join %%trows a on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join "
+      "(select ts,c1 from stream_querydb.stream_t2 union all select ts,c1 from stream_querydb.stream_t1 "
+      "order by (select count(*) from %%trows)) b on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from "
+      "(select ts,c1 from stream_querydb.stream_t2 union all select ts,c1 from stream_querydb.stream_t1 "
+      "order by (select count(*) from %%trows)) b join %%trows a on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select q.ts, q.c1 from "
+      "(select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b on a.c1 = b.c1) q",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b on a.c1 = b.c1 "
+      "union all select ts,c1 from stream_querydb.stream_t2",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+  run(prefix + "select ts,c1 from stream_querydb.stream_t2 union all "
+      "select a.ts, a.c1 from %%trows a join stream_querydb.stream_t2 b on a.c1 = b.c1",
+      TSDB_CODE_PAR_INVALID_STREAM_QUERY, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserStreamTest, NestedWindowKeepsAggregateAncestorLayerAsValue) {
   AsyncFlagGuard asyncGuard(false);
   useDb("root", "stream_streamdb");
@@ -4592,6 +4970,151 @@ static const SSelectStmt* pstGetCreateStreamSelect(const SQuery* pQuery, ParserS
   EXPECT_NE(pStmt->pQuery, nullptr);
   EXPECT_EQ(nodeType(pStmt->pQuery), QUERY_NODE_SELECT_STMT);
   return (const SSelectStmt*)pStmt->pQuery;
+}
+
+TEST_F(ParserStreamTest, DirectTrowsJoinPreservesResidualTimeFilters) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ++ddlCalls;
+    const SSelectStmt* pSelect = pstGetCreateStreamSelect(pQuery, stage);
+    ASSERT_NE(nullptr, pSelect);
+    // A scan range cannot replace outer null rejection or a derived-table filter.
+    ASSERT_NE(nullptr, pSelect->pTimeRange);
+    SNodeList* pCols = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCollectColumnsFromNode(pSelect->pWhere, "b", COLLECT_COL_TYPE_ALL, &pCols));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> colsGuard(pCols, nodesDestroyList);
+    bool hasTimeFilter = false;
+    SNode* pNode = nullptr;
+    FOREACH(pNode, pCols) {
+      const auto* pCol = (const SColumnNode*)pNode;
+      hasTimeFilter |= PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId;
+    }
+    EXPECT_TRUE(hasTimeFilter);
+  });
+  const string prefix = "create stream stream_streamdb.s_outer_filter interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select a.ts, a.c1 ac1, b.c1 bc1 from ";
+  for (const char* input : {"%%trows a left join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b right join %%trows a",
+                            "%%trows a full join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b full join %%trows a",
+                            "%%trows a join (select ts,c1 from stream_querydb.stream_t1) b",
+                            "(select ts,c1 from stream_querydb.stream_t1) b join %%trows a"}) {
+    for (const char* predicate : {"b.ts >= _twstart + 5s",
+                                  "b.ts < _twend - 3s",
+                                  "_twstart + 6s < b.ts and _twend > b.ts",
+                                  "_twstart + 6s = b.ts",
+                                  "a.ts >= _twstart + 5s and b.ts >= _twstart and b.ts < _twend"}) {
+      const string sql = prefix + input + " on a.c1 = b.c1 where " + predicate;
+      SCOPED_TRACE(sql);
+      const int32_t callsBefore = ddlCalls;
+      run(sql);
+      EXPECT_GT(ddlCalls, callsBefore);
+    }
+  }
+}
+
+TEST_F(ParserStreamTest, DirectTrowsWindowJLimitPreservesPostJoinFilters) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  bool hasJLimit = true;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ++ddlCalls;
+    const SSelectStmt* pSelect = pstGetCreateStreamSelect(pQuery, stage);
+    ASSERT_NE(nullptr, pSelect);
+    if (hasJLimit) {
+      EXPECT_EQ(nullptr, pSelect->pTimeRange);
+    } else {
+      EXPECT_NE(nullptr, pSelect->pTimeRange);
+    }
+    SNodeList* pCols = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCollectColumnsFromNode(pSelect->pWhere, "b", COLLECT_COL_TYPE_ALL, &pCols));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> colsGuard(pCols, nodesDestroyList);
+    bool hasTimeFilter = false;
+    SNode* pNode = nullptr;
+    FOREACH(pNode, pCols) {
+      hasTimeFilter |= PRIMARYKEY_TIMESTAMP_COL_ID == ((const SColumnNode*)pNode)->colId;
+    }
+    EXPECT_TRUE(hasTimeFilter);
+  });
+  const string prefix = "create stream stream_streamdb.s_window_limit interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select a.ts,b.c1 bc1 from ";
+  for (const char* input : {"%%trows a left window join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b right window join %%trows a"}) {
+    for (const char* limit : {" jlimit 0", " jlimit 1", " jlimit 2", " jlimit 1024", ""}) {
+      hasJLimit = limit[0] != '\0';
+      for (const char* predicate : {"b.ts >= _twstart + 5s",
+                                    "_twstart + 5s <= b.ts",
+                                    "b.ts >= _twstart + 5s and b.ts < _twend and a.ts >= _twstart"}) {
+        const string sql = prefix + input + " window_offset(-5s,5s)" + limit + " where " + predicate;
+        SCOPED_TRACE(sql);
+        const int32_t callsBefore = ddlCalls;
+        run(sql);
+        EXPECT_GT(ddlCalls, callsBefore);
+      }
+    }
+  }
+}
+
+TEST_F(ParserStreamTest, DirectTrowsJoinKeepsRowDependentTimeFilters) {
+  useDb("root", "stream_streamdb");
+  int32_t ddlCalls = 0;
+  bool mixedRange = false;
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ++ddlCalls;
+    const SSelectStmt* pSelect = pstGetCreateStreamSelect(pQuery, stage);
+    ASSERT_NE(nullptr, pSelect);
+    if (mixedRange) {
+      ASSERT_NE(nullptr, pSelect->pTimeRange);
+      SNodeList* pRangeCols = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                nodesCollectColumnsFromNode(pSelect->pTimeRange, nullptr, COLLECT_COL_TYPE_ALL, &pRangeCols));
+      unique_ptr<SNodeList, decltype(&nodesDestroyList)> rangeGuard(pRangeCols, nodesDestroyList);
+      SNode* pNode = nullptr;
+      FOREACH(pNode, pRangeCols) {
+        EXPECT_EQ(PRIMARYKEY_TIMESTAMP_COL_ID, ((const SColumnNode*)pNode)->colId);
+      }
+    } else {
+      EXPECT_EQ(nullptr, pSelect->pTimeRange);
+    }
+    SNodeList* pWhereCols = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesCollectColumnsFromNode(pSelect->pWhere, nullptr, COLLECT_COL_TYPE_ALL, &pWhereCols));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> whereGuard(pWhereCols, nodesDestroyList);
+    bool hasRowValue = false;
+    SNode* pNode = nullptr;
+    FOREACH(pNode, pWhereCols) {
+      hasRowValue |= 0 == strcmp(((const SColumnNode*)pNode)->colName, "c1");
+    }
+    EXPECT_TRUE(hasRowValue);
+  });
+  const string prefix = "create stream stream_streamdb.s_row_filter interval(10s) "
+                        "from stream_triggerdb.stream_t2 into stream_outdb.stream_out as "
+                        "select a.ts,a.c1 ac1,b.c1 bc1 from ";
+  for (const char* input : {"%%trows a join stream_querydb.stream_t1 b",
+                            "stream_querydb.stream_t1 b join %%trows a"}) {
+    for (const char* predicate : {"b.ts >= _twstart + a.c1",
+                                  "_twstart + a.c1 <= b.ts",
+                                  "b.ts < _twend - a.c1",
+                                  "b.ts >= _twstart + abs(a.c1)",
+                                  "b.ts >= _twstart + b.c1",
+                                  "b.ts >= _twstart + cast(a.c1 as bigint)",
+                                  "b.ts >= _twstart + case when a.c1 > 0 then a.c1 else 0 end"}) {
+      for (bool mixed : {false, true}) {
+        mixedRange = mixed;
+        const string sql = prefix + input + " on a.c1=b.c1 where " + predicate +
+                           (mixed ? " and b.ts >= _twstart and b.ts < _twend" : "");
+        SCOPED_TRACE(sql);
+        const int32_t callsBefore = ddlCalls;
+        run(sql);
+        EXPECT_GT(ddlCalls, callsBefore);
+      }
+    }
+  }
 }
 
 static void pstCheckCreateStreamSelectTimeRange(const SQuery* pQuery, ParserStage stage, bool expectedPresent,
