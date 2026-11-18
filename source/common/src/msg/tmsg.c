@@ -20865,6 +20865,10 @@ int32_t tDecodeSSeriesWrapper(SDecoder* pDecoder, SSeriesWrapper* pWrapper) {
   int32_t code = 0;
   int32_t lino;
   TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pWrapper->nSeries));
+  // nSeries is wire-controlled and later used to size/index pSeries: reject negative counts.
+  if (pWrapper->nSeries < 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   if (pWrapper->nSeries > 0) {
     pWrapper->pSeries = taosMemoryCalloc(pWrapper->nSeries, sizeof(SSeriesEntry));
     if (!pWrapper->pSeries) { TAOS_CHECK_EXIT(terrno); }
