@@ -1815,6 +1815,66 @@ class TestVtableCreateExtSource:
         tdSql.execute("DROP VTABLE v_or_schema_a")
         tdSql.execute("DROP VTABLE v_or_schema_b")
 
+    def do_oracle_virtual_child_relative_column_paths(self):
+        assert _LOCAL_DB.casefold() != _OR_SCHEMA.casefold()
+        create_oracle_remote_table(
+            "r_child_relative", [("v", "NUMBER(10,0)", "bigint")],
+            rows=["(TIMESTAMP '2024-01-01 00:00:00.000', 31)"])
+        tdSql.execute("DROP STABLE IF EXISTS vstb_or_relpaths")
+        tdSql.execute(
+            "CREATE STABLE vstb_or_relpaths "
+            "(ts timestamp, short_value bigint, full_value bigint) "
+            "TAGS (site int) VIRTUAL 1")
+        short_ref = f"{_OR_SRC}.r_child_relative.v"
+        full_ref = f"{_OR_SRC}.{_OR_SCHEMA_REF}.r_child_relative.v"
+        bindings = (
+            ("named", f"short_value FROM {short_ref}, full_value FROM {full_ref}"),
+            ("positional", f"{short_ref}, {full_ref}"),
+        )
+        try:
+            for site, (name, refs) in enumerate(bindings):
+                table = f"vctb_or_rel_{name}"
+                tdSql.execute(
+                    f"CREATE VTABLE {table} ({refs}) "
+                    f"USING vstb_or_relpaths TAGS ({site})")
+                tdSql.query(f"SELECT short_value, full_value FROM {table}")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 31)
+                tdSql.checkData(0, 1, 31)
+                tdSql.query(
+                    "SELECT col_source FROM information_schema.ins_columns "
+                    f"WHERE db_name='{_LOCAL_DB}' AND table_name='{table}' "
+                    "AND col_name IN ('short_value', 'full_value') "
+                    "ORDER BY col_name")
+                tdSql.checkRows(2)
+                expected_ref = f"{_OR_SRC}.{_OR_SCHEMA}.r_child_relative.v"
+                tdSql.checkData(0, 0, expected_ref)
+                tdSql.checkData(1, 0, expected_ref)
+        finally:
+            tdSql.execute("DROP STABLE IF EXISTS vstb_or_relpaths")
+        print("Oracle virtual child relative column paths ........ [ passed ]")
+
+    def test_oracle_virtual_child_relative_column_paths(self):
+        """Resolve Oracle virtual child references with the source default schema.
+
+        Create virtual children with named and positional column bindings.
+        Mix three-part and explicit-schema references, then verify query
+        results and the persisted schema when the local database differs.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: https://project.feishu.cn/taosdata_td/defect/detail/7160732905
+
+        History:
+            - 2026-11-16 Joey Sima Add regression for external default schemas
+        """
+        self.do_oracle_virtual_child_relative_column_paths()
+
     def test_oracle_show_create_roundtrip(self):
         """FQOR-VTBL-006: Oracle schema survives SHOW CREATE and replay.
 
