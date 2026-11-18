@@ -368,9 +368,13 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (ret < 0) {
             // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
             // value wider than declared (full source value by design) -- refuse to overrun.
-            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
-              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
-              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
             }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
@@ -396,9 +400,13 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (ret < 0) {
             // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
             // value wider than declared (full source value by design) -- refuse to overrun.
-            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
-              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
-              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
             }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
@@ -558,9 +566,13 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (ret > 0) {
             // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
             // value wider than declared (full source value by design) -- refuse to overrun.
-            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
-              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
-              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
             }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
@@ -587,9 +599,13 @@ static int32_t doExtractVal(SColumnInfoData* pCol, int32_t i, int32_t end, SqlFu
           if (ret > 0) {
             // pBuf->str holds pCol->info.bytes bytes; a virtual table column may carry a
             // value wider than declared (full source value by design) -- refuse to overrun.
-            if (calcStrBytesByType(pCol->info.type, pLeft) > pCol->info.bytes) {
-              uError("min/max value needs %d bytes, buffer width is %d", (int32_t)varDataTLen(pLeft), pCol->info.bytes);
-              return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            int32_t bytes = calcStrBytesByType(pCol->info.type, pLeft);
+            if (bytes > pCol->info.bytes) {
+              int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+              uError("min/max value needs %d bytes, buffer width is %d, "
+                     "code:0x%x(%s)", bytes, pCol->info.bytes,
+                     (uint32_t)code, tstrerror(code));
+              return code;
             }
             memcpy(pBuf->str, pLeft, varDataTLen(pLeft));
             if (pCtx->subsidiaries.num > 0) {
@@ -774,8 +790,11 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems)
           // overrun it.
           int32_t dataLen = calcStrBytesByType(pCol->info.type, colDataGetData(pCol, i));
           if (dataLen > pCol->info.bytes) {
-            uError("min/max value needs %d bytes, buffer width is %d", dataLen, pCol->info.bytes);
-            return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+            int32_t code = getFuncInputBufferError(pCtx, dataLen, 0);
+            uError("min/max value needs %d bytes, buffer width is %d, "
+                   "code:0x%x(%s)", dataLen, pCol->info.bytes,
+                   (uint32_t)code, tstrerror(code));
+            return code;
           }
           pBuf->str = taosMemoryMalloc(pCol->info.bytes);
           if (pBuf->str == NULL) {

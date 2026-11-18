@@ -3255,23 +3255,51 @@ int32_t getMaxValueBytes(int32_t type, int32_t bytes) {
   return IS_STR_DATA_BLOB(type) ? TSDB_MAX_BLOB_LEN : bytes;
 }
 
-// Planned width of the function's first parameter column.  The env sizing (getEnvFunc)
-// follows this width, which may exceed the function result schema for a virtual table
-// column that was widened to carry full source values; interbuf layouts must follow it too.
-static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* pCtx) {
-  if (NULL == pCtx->pExpr || NULL == pCtx->pExpr->pExpr ||
-      QUERY_NODE_FUNCTION != pCtx->pExpr->pExpr->nodeType) {
-    return pCtx->resDataInfo.bytes;
+static const tExprNode* getFuncExpr(const SqlFunctionCtx* ctx) {
+  if (ctx == NULL || ctx->pExpr == NULL || ctx->pExpr->pExpr == NULL ||
+      ctx->pExpr->pExpr->nodeType != QUERY_NODE_FUNCTION) {
+    return NULL;
   }
-  SFunctionNode* pFunc = pCtx->pExpr->pExpr->_function.pFunctNode;
-  if (NULL == pFunc || NULL == pFunc->pParameterList || 0 == LIST_LENGTH(pFunc->pParameterList)) {
-    return pCtx->resDataInfo.bytes;
+  return ctx->pExpr->pExpr;
+}
+
+static SNodeList* getFuncParamList(const SqlFunctionCtx* ctx) {
+  const tExprNode* expr = getFuncExpr(ctx);
+  if (expr == NULL) return NULL;
+  const SFunctionNode* func = expr->_function.pFunctNode;
+  return func != NULL ? func->pParameterList : ctx->pExpr->base.pParamList;
+}
+
+static const SColumnNode* getFuncParamCol(const SqlFunctionCtx* ctx,
+                                          int32_t index) {
+  SNodeList* params = getFuncParamList(ctx);
+  if (index < 0 || index >= LIST_LENGTH(params)) return NULL;
+  SNode* param = nodesListGetNode(params, index);
+  return param != NULL && nodeType(param) == QUERY_NODE_COLUMN
+             ? (const SColumnNode*)param : NULL;
+}
+
+// Env sizing follows the first parameter, including virtual source widening.
+// In incomplete contexts, retain the result-width fallback.
+static int32_t getFuncFirstParamColBytes(SqlFunctionCtx* ctx) {
+  const SColumnNode* col = getFuncParamCol(ctx, 0);
+  if (col != NULL && getFuncExpr(ctx)->_function.pFunctNode != NULL) {
+    return col->node.resType.bytes;
   }
-  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
-  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
-    return pCtx->resDataInfo.bytes;
-  }
-  return ((SColumnNode*)pParam)->node.resType.bytes;
+  return ctx != NULL ? ctx->resDataInfo.bytes : 0;
+}
+
+static FORCE_INLINE bool isSchemaBoundedVarType(int32_t type) {
+  return IS_STR_DATA_TYPE(type) || type == TSDB_DATA_TYPE_GEOMETRY;
+}
+
+static bool isPhysicalSchemaColumn(const SColumnNode* col) {
+  return col != NULL && !col->isVirtualTable && !col->hasRef &&
+         (col->colType == COLUMN_TYPE_COLUMN ||
+          col->colType == COLUMN_TYPE_TAG) &&
+         (col->tableType == TSDB_NORMAL_TABLE ||
+          col->tableType == TSDB_CHILD_TABLE ||
+          col->tableType == TSDB_SUPER_TABLE);
 }
 
 bool getFirstLastFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -3362,6 +3390,43 @@ static int32_t firstlastSaveTupleData(const SSDataBlock* pSrcBlock, int32_t rowI
   return code;
 }
 
+int32_t getFuncInputBufferError(SqlFunctionCtx* ctx, int32_t valueBytes,
+                                int32_t pkBytes) {
+  if (ctx == NULL) return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  const SColumnNode* col = getFuncParamCol(ctx, 0);
+  if (!isPhysicalSchemaColumn(col)) {
+    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+  }
+  // Physical strings must fit the planned column, even if a block can grow.
+  if (isSchemaBoundedVarType(col->node.resType.type) &&
+      valueBytes > col->node.resType.bytes) {
+    int32_t code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    qError("function input column exceeds planned width, functionId:%d, "
+           "colId:%d, tableId:%" PRIu64 ", bytes:%d, planned:%d, "
+           "code:0x%x(%s)", ctx->functionId, col->colId, col->tableId,
+           valueBytes, col->node.resType.bytes, (uint32_t)code,
+           tstrerror(code));
+    return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+  }
+  SNodeList* params = getFuncParamList(ctx);
+  const SColumnNode* pkCol = ctx->hasPrimaryKey && LIST_LENGTH(params) > 1
+                                ? getFuncParamCol(ctx, LIST_LENGTH(params) - 1)
+                                : NULL;
+  const SColumnInfoData* pk = ctx->input.pPrimaryKey;
+  if (pk != NULL && isPhysicalSchemaColumn(pkCol) && pkCol->isPk &&
+      isSchemaBoundedVarType(pkCol->node.resType.type) &&
+      pkBytes > pkCol->node.resType.bytes) {
+    int32_t code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    qError("function primary key exceeds planned width, functionId:%d, "
+           "colId:%d, tableId:%" PRIu64 ", bytes:%d, planned:%d, input:%d, "
+           "code:0x%x(%s)", ctx->functionId, pkCol->colId, pkCol->tableId,
+           pkBytes, pkCol->node.resType.bytes, pk->info.bytes, (uint32_t)code,
+           tstrerror(code));
+    return code;
+  }
+  return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+}
+
 static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t currentTs, char* pkData, int32_t type,
                                 char* pData, bool hasTsOrder) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -3393,8 +3458,11 @@ static int32_t doSaveCurrentVal(SqlFunctionCtx* pCtx, int32_t rowIndex, int64_t 
   int32_t needBytes = pInfo->bytes + ((pkData != NULL) ? pInfo->pkBytes : 0);
   int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
   if (needBytes > bufCap) {
-    qError("first/last value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
-    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    int32_t code = getFuncInputBufferError(pCtx, pInfo->bytes, pInfo->pkBytes);
+    qError("first/last value needs %d bytes, interbuf capacity is %d, "
+           "value:%d, pk:%d, code:0x%x(%s)", needBytes, bufCap, pInfo->bytes,
+           pInfo->pkBytes, (uint32_t)code, tstrerror(code));
+    return code;
   }
 
   (void)memcpy(pInfo->buf, pData, pInfo->bytes);
@@ -4114,8 +4182,12 @@ static int32_t doSaveLastrow(SqlFunctionCtx* pCtx, char* pData, int32_t rowIndex
   int32_t needBytes = pInfo->bytes + (hasPk ? pInfo->pkBytes : 0);
   int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SFirstLastRes);
   if (needBytes > bufCap) {
-    qError("last/last_row value needs %d bytes, interbuf capacity is %d", needBytes, bufCap);
-    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    int32_t code = getFuncInputBufferError(pCtx, pInfo->bytes,
+                                          hasPk ? pInfo->pkBytes : 0);
+    qError("last/last_row value needs %d bytes, interbuf capacity is %d, "
+           "value:%d, pk:%d, code:0x%x(%s)", needBytes, bufCap, pInfo->bytes,
+           hasPk ? pInfo->pkBytes : 0, (uint32_t)code, tstrerror(code));
+    return code;
   }
 
   if (!pInfo->isNull) {
@@ -5992,9 +6064,10 @@ int32_t fillforwardFunctionByRow(SArray* pCtxArray) {
             // var-data types a 2-byte header.
             int32_t dataLen = IS_STR_DATA_BLOB(inputType) ? blobDataTLen(pv) : varDataTLen(pv);
             if (dataLen > pInputCol->info.bytes) {
-              qError("interp fill-forward value needs %d bytes, buffer width is %d", dataLen,
-                     pInputCol->info.bytes);
-              code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+              code = getFuncInputBufferError(pCtx, dataLen, 0);
+              qError("interp fill-forward value needs %d bytes, "
+                     "buffer width is %d, code:0x%x(%s)", dataLen,
+                     pInputCol->info.bytes, (uint32_t)code, tstrerror(code));
               goto _exit;
             }
             if (!pFillforwardInfo->nonnull) {
@@ -8460,14 +8533,17 @@ int32_t sampleFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultIn
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index) {
+static int32_t sampleAssignResult(SqlFunctionCtx* pCtx, SSampleInfo* pInfo,
+                                  char* data, int32_t index) {
   // Reservoir slots are exactly colBytes wide; a virtual table column may carry a value
   // wider than declared (the full source value is returned by design) -- refuse to overrun.
   if (IS_VAR_DATA_TYPE(pInfo->colType)) {
     int32_t bytes = calcStrBytesByType(pInfo->colType, data);
     if (bytes > pInfo->colBytes) {
-      qError("sample value needs %d bytes, slot width is %d", bytes, pInfo->colBytes);
-      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+      qError("sample value needs %d bytes, slot width is %d, code:0x%x(%s)",
+             bytes, pInfo->colBytes, (uint32_t)code, tstrerror(code));
+      return code;
     }
   }
   assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
@@ -8477,7 +8553,7 @@ static int32_t sampleAssignResult(SSampleInfo* pInfo, char* data, int32_t index)
 static int32_t doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char* data, int32_t index) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pInfo->numSampled < pInfo->samples) {
-    code = sampleAssignResult(pInfo, data, pInfo->numSampled);
+    code = sampleAssignResult(pCtx, pInfo, data, pInfo->numSampled);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -8494,7 +8570,7 @@ static int32_t doReservoirSample(SqlFunctionCtx* pCtx, SSampleInfo* pInfo, char*
   } else {
     int32_t j = (int32_t)(taosRand() % (uint64_t)(pInfo->totalPoints + 1));
     if (j < pInfo->samples) {
-      code = sampleAssignResult(pInfo, data, j);
+      code = sampleAssignResult(pCtx, pInfo, data, j);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -8623,8 +8699,9 @@ int32_t tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tailAssignResult(STailItem* pItem, char* data, int32_t colType, int32_t colBytes, TSKEY ts,
-                                bool isNull) {
+static int32_t tailAssignResult(SqlFunctionCtx* pCtx, STailItem* pItem,
+                                char* data, int32_t colType, int32_t colBytes,
+                                TSKEY ts, bool isNull) {
   pItem->timestamp = ts;
   if (isNull) {
     pItem->isNull = true;
@@ -8636,8 +8713,10 @@ static int32_t tailAssignResult(STailItem* pItem, char* data, int32_t colType, i
       // to overrun.  Copy only the real value: the varstr header makes the tail unread.
       int32_t bytes = calcStrBytesByType(colType, data);
       if (bytes > colBytes) {
-        qError("tail value needs %d bytes, slot width is %d", bytes, colBytes);
-        return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+        int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+        qError("tail value needs %d bytes, slot width is %d, code:0x%x(%s)",
+               bytes, colBytes, (uint32_t)code, tstrerror(code));
+        return code;
       }
       (void)memcpy(pItem->data, data, bytes);
     } else {
@@ -8658,7 +8737,8 @@ static int32_t doTailAdd(SqlFunctionCtx* pCtx, STailInfo* pInfo, char* data, TSK
   int32_t      code = TSDB_CODE_SUCCESS;
   STailItem** pList = pInfo->pItems;
   if (pInfo->numAdded < pInfo->numOfPoints) {
-    code = tailAssignResult(pList[pInfo->numAdded], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pCtx, pList[pInfo->numAdded], data, pInfo->colType,
+                            pInfo->colBytes, ts, isNull);
     if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
       code = saveTupleData(pCtx, rowIndex, pSrcBlock, &pList[pInfo->numAdded]->tuplePos);
@@ -8667,7 +8747,8 @@ static int32_t doTailAdd(SqlFunctionCtx* pCtx, STailInfo* pInfo, char* data, TSK
     taosheapsort((void*)pList, sizeof(STailItem**), pInfo->numAdded + 1, NULL, tailCompFn, 0);
     pInfo->numAdded++;
   } else if (pList[0]->timestamp < ts) {
-    code = tailAssignResult(pList[0], data, pInfo->colType, pInfo->colBytes, ts, isNull);
+    code = tailAssignResult(pCtx, pList[0], data, pInfo->colType,
+                            pInfo->colBytes, ts, isNull);
     if (TSDB_CODE_SUCCESS != code) return code;
     if (pCtx->subsidiaries.num > 0) {
       code = updateTupleData(pCtx, rowIndex, pSrcBlock, &pList[0]->tuplePos);
@@ -8918,8 +8999,11 @@ static int32_t saveModeTupleData(SqlFunctionCtx* pCtx, char* data, SModeInfo* pI
   // returned by design) -- refuse to overrun it.
   int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SModeInfo);
   if (saveLen > (size_t)bufCap) {
-    qError("mode value needs %" PRIu64 " bytes, scratch capacity is %d", (uint64_t)saveLen, bufCap);
-    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    int32_t code = getFuncInputBufferError(pCtx, (int32_t)saveLen, 0);
+    qError("mode value needs %" PRIu64 " bytes, scratch capacity is %d, "
+           "code:0x%x(%s)", (uint64_t)saveLen, bufCap, (uint32_t)code,
+           tstrerror(code));
+    return code;
   }
   (void)memcpy(pInfo->buf, data, saveLen);
 
@@ -9340,7 +9424,9 @@ int32_t valueChangesFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pRe
 
 // Store the current cell as the "previous compared value". For var-length types the cell is
 // varData (length prefix + content); copy the full varData so the comparator can reuse it.
-static int32_t valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pCol, const char* pData,
+static int32_t valueChangesSetPrev(SqlFunctionCtx* pCtx,
+                                   SValueChangesInfo* pInfo,
+                                   SColumnInfoData* pCol, const char* pData,
                                    int32_t prevCap) {
   // calcStrBytesByType dispatches the varstr/blob/json headers correctly (varDataTLen
   // misreads the 4-byte blob header as a 2-byte varstr one).
@@ -9350,8 +9436,10 @@ static int32_t valueChangesSetPrev(SValueChangesInfo* pInfo, SColumnInfoData* pC
   // virtual table column may carry a value wider than declared (the full source value is
   // returned by design) -- refuse to overrun it.
   if (bytes > prevCap) {
-    qError("value_changes value needs %d bytes, interbuf capacity is %d", bytes, prevCap);
-    return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+    int32_t code = getFuncInputBufferError(pCtx, bytes, 0);
+    qError("value_changes value needs %d bytes, interbuf capacity is %d, "
+           "code:0x%x(%s)", bytes, prevCap, (uint32_t)code, tstrerror(code));
+    return code;
   }
   (void)memcpy(pInfo->prevData, pData, bytes);
   pInfo->prevBytes = bytes;
@@ -9421,7 +9509,7 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
 
     // non-NULL current row
     if (!pInfo->hasPrev) {
-      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      code = valueChangesSetPrev(pCtx, pInfo, pCol, row.pData, prevCap);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -9429,7 +9517,7 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
     }
     if (pInfo->prevIsNull) {  // only reachable with ignore_null=0
       pInfo->count++;
-      code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+      code = valueChangesSetPrev(pCtx, pInfo, pCol, row.pData, prevCap);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -9447,7 +9535,7 @@ int32_t valueChangesFunction(SqlFunctionCtx* pCtx) {
     } else if (pInfo->comparFn(pInfo->prevData, row.pData) != 0) {
       pInfo->count++;
     }
-    code = valueChangesSetPrev(pInfo, pCol, row.pData, prevCap);
+    code = valueChangesSetPrev(pCtx, pInfo, pCol, row.pData, prevCap);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
@@ -10733,7 +10821,8 @@ int32_t irateFuncSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, char* pk, double v) {
+static int32_t doSaveRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo,
+                              bool isFirst, int64_t ts, char* pk, double v) {
   if (isFirst) {
     pRateInfo->firstValue = v;
     pRateInfo->firstKey = ts;
@@ -10745,8 +10834,11 @@ static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, ch
         // table column may carry a value wider than declared (the full source value is
         // returned by design) -- refuse to overrun the slot.
         if (pkBytes > pRateInfo->pkBytes) {
-          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
-          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+          int32_t code = getFuncInputBufferError(pCtx, 0, pkBytes);
+          qError("irate pk value needs %d bytes, slot width is %d, "
+                 "code:0x%x(%s)", pkBytes, pRateInfo->pkBytes,
+                 (uint32_t)code, tstrerror(code));
+          return code;
         }
       } else {
         pkBytes = pRateInfo->pkBytes;
@@ -10762,8 +10854,11 @@ static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, ch
         pkBytes = calcStrBytesByType(pRateInfo->pkType, pk);
         // Same oversized-pk guard as the firstPk slot above.
         if (pkBytes > pRateInfo->pkBytes) {
-          qError("irate pk value needs %d bytes, slot width is %d", pkBytes, pRateInfo->pkBytes);
-          return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+          int32_t code = getFuncInputBufferError(pCtx, 0, pkBytes);
+          qError("irate pk value needs %d bytes, slot width is %d, "
+                 "code:0x%x(%s)", pkBytes, pRateInfo->pkBytes,
+                 (uint32_t)code, tstrerror(code));
+          return code;
         }
       } else {
         pkBytes = pRateInfo->pkBytes;
@@ -10774,21 +10869,41 @@ static int32_t doSaveRateInfo(SRateInfo* pRateInfo, bool isFirst, int64_t ts, ch
   return TSDB_CODE_SUCCESS;
 }
 
-static void initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo, bool isMerge) {
+static int32_t initializeRateInfo(SqlFunctionCtx* pCtx, SRateInfo* pRateInfo,
+                                  const SRateInfo* pInputInfo) {
   if (pCtx->hasPrimaryKey) {
-    if (!isMerge) {
-      pRateInfo->pkType = pCtx->input.pPrimaryKey->info.type;
-      pRateInfo->pkBytes = pCtx->input.pPrimaryKey->info.bytes;
-      pRateInfo->firstPk = pRateInfo->pkData;
-      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
-    } else {
-      pRateInfo->firstPk = pRateInfo->pkData;
-      pRateInfo->lastPk = pRateInfo->pkData + pRateInfo->pkBytes;
+    int8_t pkType = pInputInfo != NULL ? pInputInfo->pkType
+                                     : pCtx->input.pPrimaryKey->info.type;
+    int32_t pkBytes = pInputInfo != NULL ? pInputInfo->pkBytes
+                                       : pCtx->input.pPrimaryKey->info.bytes;
+    if (pInputInfo == NULL) {
+      const tExprNode* expr = getFuncExpr(pCtx);
+      const SFunctionNode* func =
+          expr != NULL ? expr->_function.pFunctNode : NULL;
+      // The allocated key slots follow the plan, not the current block width.
+      if (func != NULL && func->hasPk && IS_VAR_DATA_TYPE(pkType)) {
+        pkBytes = func->pkBytes;
+      }
     }
+    int64_t need = (int64_t)sizeof(SRateInfo) + 2LL * pkBytes;
+    if (pkBytes < 0 || need > pCtx->resDataInfo.interBufSize) {
+      int32_t code = TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      qError("irate key slots need %" PRId64 " bytes, interbuf capacity "
+             "is %d, code:0x%x(%s)", need, pCtx->resDataInfo.interBufSize,
+             (uint32_t)code, tstrerror(code));
+      return code;
+    }
+    pRateInfo->pkType = pkType;
+    pRateInfo->pkBytes = pkBytes;
+    pRateInfo->firstPk = pRateInfo->pkData;
+    pRateInfo->lastPk = pRateInfo->pkData + pkBytes;
   } else {
+    pRateInfo->pkType = TSDB_DATA_TYPE_NULL;
+    pRateInfo->pkBytes = 0;
     pRateInfo->firstPk = NULL;
     pRateInfo->lastPk = NULL;
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t irateFunction(SqlFunctionCtx* pCtx) {
@@ -10803,7 +10918,8 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
   funcInputUpdate(pCtx);
 
-  initializeRateInfo(pCtx, pRateInfo, false);
+  code = initializeRateInfo(pCtx, pRateInfo, NULL);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   int32_t       numOfElems = 0;
   int32_t       type = pInputCol->info.type;
@@ -10830,7 +10946,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     GET_TYPED_DATA(v, double, type, data, typeGetTypeModFromColInfo(&pInputCol->info));
 
     if (INT64_MIN == pRateInfo->lastKey) {
-      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pCtx, pRateInfo, false, row.ts, row.pPk, v);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -10840,12 +10956,13 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
 
     if (row.ts > pRateInfo->lastKey) {
       if ((INT64_MIN == pRateInfo->firstKey) || pRateInfo->lastKey > pRateInfo->firstKey) {
-        code = doSaveRateInfo(pRateInfo, true, pRateInfo->lastKey, pRateInfo->lastPk, pRateInfo->lastValue);
+        code = doSaveRateInfo(pCtx, pRateInfo, true, pRateInfo->lastKey,
+                              pRateInfo->lastPk, pRateInfo->lastValue);
         if (TSDB_CODE_SUCCESS != code) {
           return code;
         }
       }
-      code = doSaveRateInfo(pRateInfo, false, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pCtx, pRateInfo, false, row.ts, row.pPk, v);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -10855,7 +10972,7 @@ int32_t irateFunction(SqlFunctionCtx* pCtx) {
     }
 
     if ((INT64_MIN == pRateInfo->firstKey) || row.ts > pRateInfo->firstKey) {
-      code = doSaveRateInfo(pRateInfo, true, row.ts, row.pPk, v);
+      code = doSaveRateInfo(pCtx, pRateInfo, true, row.ts, row.pPk, v);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
@@ -10895,20 +11012,25 @@ static double doCalcRate(const SRateInfo* pRateInfo, double tickPerSec) {
 static int32_t irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInfo* pOutput, bool isFirstKey) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (inputKey > pOutput->lastKey) {
-    code = doSaveRateInfo(pOutput, true, pOutput->lastKey, pOutput->lastPk, pOutput->lastValue);
+    code = doSaveRateInfo(NULL, pOutput, true, pOutput->lastKey,
+                          pOutput->lastPk, pOutput->lastValue);
     if (TSDB_CODE_SUCCESS != code) {
       return code;
     }
     if (isFirstKey) {
-      code = doSaveRateInfo(pOutput, false, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(NULL, pOutput, false, pInput->firstKey,
+                            pInput->firstPk, pInput->firstValue);
     } else {
-      code = doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(NULL, pOutput, false, pInput->lastKey,
+                            pInput->lastPk, pInput->lastValue);
     }
   } else if ((inputKey < pOutput->lastKey) && (inputKey > pOutput->firstKey)) {
     if (isFirstKey) {
-      code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+      code = doSaveRateInfo(NULL, pOutput, true, pInput->firstKey,
+                            pInput->firstPk, pInput->firstValue);
     } else {
-      code = doSaveRateInfo(pOutput, true, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+      code = doSaveRateInfo(NULL, pOutput, true, pInput->lastKey,
+                            pInput->lastPk, pInput->lastValue);
     }
   } else {
     // inputKey < pOutput->firstKey
@@ -10917,11 +11039,13 @@ static int32_t irateTransferInfoImpl(TSKEY inputKey, SRateInfo* pInput, SRateInf
 }
 
 static int32_t irateCopyInfo(SRateInfo* pInput, SRateInfo* pOutput) {
-  int32_t code = doSaveRateInfo(pOutput, true, pInput->firstKey, pInput->firstPk, pInput->firstValue);
+  int32_t code = doSaveRateInfo(NULL, pOutput, true, pInput->firstKey,
+                                pInput->firstPk, pInput->firstValue);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  return doSaveRateInfo(pOutput, false, pInput->lastKey, pInput->lastPk, pInput->lastValue);
+  return doSaveRateInfo(NULL, pOutput, false, pInput->lastKey, pInput->lastPk,
+                        pInput->lastValue);
 }
 
 static int32_t irateTransferInfo(SRateInfo* pInput, SRateInfo* pOutput) {
@@ -10972,7 +11096,6 @@ int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
   SFunctionNode* pFunc = pCtx->pExpr->pExpr->_function.pFunctNode;
   int32_t        expectedPkBytes = pFunc->hasPk ? pFunc->pkBytes : 0;
   SRateInfo*     pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  pInfo->pkBytes = expectedPkBytes;
 
   int32_t start = pInput->startRowIndex;
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
@@ -11013,15 +11136,14 @@ int32_t irateFunctionMerge(SqlFunctionCtx* pCtx) {
       if (pInfo->hasResult && pInfo->pkType != pInputInfo->pkType) {
         return TSDB_CODE_QRY_INVALID_INPUT;
       }
-      pInfo->pkType = pInputInfo->pkType;
     } else {
       pInputInfo->firstPk = NULL;
       pInputInfo->lastPk = NULL;
-      pInfo->pkType = TSDB_DATA_TYPE_NULL;
     }
-    initializeRateInfo(pCtx, pInfo, true);
+    int32_t code = initializeRateInfo(pCtx, pInfo, pInputInfo);
+    if (code != TSDB_CODE_SUCCESS) return code;
     if (pInputInfo->hasResult) {
-      int32_t code = irateTransferInfo(pInputInfo, pInfo);
+      code = irateTransferInfo(pInputInfo, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -11168,8 +11290,10 @@ int32_t groupConstValueFunction(SqlFunctionCtx* pCtx) {
     // returned by design) -- refuse to overrun it.
     int32_t bufCap = pCtx->resDataInfo.interBufSize - (int32_t)sizeof(SGroupKeyInfo);
     if (copyLen > bufCap) {
-      qError("group key value needs %d bytes, interbuf capacity is %d", copyLen, bufCap);
-      return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER;
+      int32_t code = getFuncInputBufferError(pCtx, copyLen, 0);
+      qError("group key value needs %d bytes, interbuf capacity is %d, "
+             "code:0x%x(%s)", copyLen, bufCap, (uint32_t)code, tstrerror(code));
+      return code;
     }
     (void)memcpy(pInfo->data, data, copyLen);
     pInfo->isNull = false;

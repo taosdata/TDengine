@@ -24334,6 +24334,7 @@ static int32_t fqCloneRemotePkColRef(const SScanLogicNode* pDockScan, SColumnNod
     tstrncpy(pPkCol->tableName, pTemplate->tableName, sizeof(pPkCol->tableName));
     tstrncpy(pPkCol->tableAlias, pTemplate->tableAlias, sizeof(pPkCol->tableAlias));
     pPkCol->tableType = pTemplate->tableType;
+    pPkCol->isVirtualTable = pTemplate->isVirtualTable;
     pPkCol->tableId = pTemplate->tableId;
     pPkCol->colType = pTemplate->colType;
   } else {
@@ -24341,6 +24342,9 @@ static int32_t fqCloneRemotePkColRef(const SScanLogicNode* pDockScan, SColumnNod
     tstrncpy(pPkCol->tableName, pDockScan->tableName.tname, sizeof(pPkCol->tableName));
     tstrncpy(pPkCol->tableAlias, pDockScan->tableName.tname, sizeof(pPkCol->tableAlias));
     pPkCol->tableType = TSDB_NORMAL_TABLE;
+    pPkCol->isVirtualTable = pDockScan->virtualStableScan ||
+        pDockScan->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+        pDockScan->tableType == TSDB_VIRTUAL_CHILD_TABLE;
     pPkCol->colType = COLUMN_TYPE_COLUMN;
   }
 
