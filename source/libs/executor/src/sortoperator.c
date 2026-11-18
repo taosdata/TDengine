@@ -51,6 +51,8 @@ typedef struct SSortOperatorInfo {
   SLimitInfo          limitInfo;
   uint64_t            maxTupleLength;
   int64_t             maxRows;
+  bool                tsPkSort;
+  bool                inputOrderedBySortKeys;
   SSortOpGroupIdCalc* pGroupIdCalc;
   // Tuple block reused across calls so its buffers cycle with the output block
   // instead of being allocated and freed for every output block.
@@ -65,6 +67,13 @@ static int32_t doGroupSort(SOperatorInfo* pOperator, SSDataBlock** pResBlock);
 
 static void destroySortOperatorInfo(void* param);
 static void calcSortOperMaxTupleLength(SSortOperatorInfo* pSortOperInfo, SNodeList* pSortKeys);
+
+// Composite primary keys are stored in (ts, pk) lexicographic order. Only this exact key shape is eligible for
+// ordered-suffix validation in PQ sort; mixed directions and ordinary multi-column sorts retain the row-wise path.
+// The predicate is shared with the planner's sortInputProvesFullOrder so the two decisions cannot drift.
+static bool sortHasTsPkStorageOrder(SNodeList* pSortKeys) {
+  return queryNodeSortKeysAreAscPrimTsPk(pSortKeys);
+}
 
 // Check whether the given slotId is the output of a Sort scalar pre-calculation expression.
 // The planner's rewritePrecalcExprs pushes expression results (e.g. ts+1000) into extra slots
@@ -185,6 +194,8 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
 
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
   TSDB_CHECK_NULL(pInfo->pSortInfo, code, lino, _error, terrno);
+  pInfo->tsPkSort = sortHasTsPkStorageOrder(pSortNode->pSortKeys);
+  pInfo->inputOrderedBySortKeys = pSortNode->inputOrderedBySortKeys;
 
   if (pSortNode->calcGroupId) {
     int32_t keyLen;
@@ -772,6 +783,20 @@ int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
       tsortCreateSortHandle(pInfo->pSortInfo, SORT_SINGLESOURCE_SORT, -1, -1, NULL, pTaskInfo->id.str, pInfo->maxRows,
                             pInfo->maxTupleLength, tsPQSortMemThreshold * 1024 * 1024, &pInfo->pSortHandle);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  // Both flags are derived from the plan-time sort keys. Slot rewriting can
+  // change the runtime column behind a sort slot, so the sort handle re-checks
+  // the actual block columns before short-circuiting: tsortPlanOrderStillValid
+  // for the plan-proven path and tsortShortCircuitEligible for the threshold
+  // path. Trace the decision here so a lost optimization is diagnosable.
+  if (pInfo->tsPkSort) {
+    tsortSetTsPkSort(pInfo->pSortHandle);
+  }
+  if (pInfo->inputOrderedBySortKeys) {
+    tsortSetInputOrdered(pInfo->pSortHandle);
+  }
+  qTrace("%s sort flags, tsPkSort:%d inputOrderedBySortKeys:%d", pTaskInfo->id.str, pInfo->tsPkSort,
+         pInfo->inputOrderedBySortKeys);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
 

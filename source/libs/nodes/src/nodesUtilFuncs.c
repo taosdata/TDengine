@@ -6037,6 +6037,30 @@ bool nodesIsTableStar(SNode* pNode) {
          (0 == strcmp(((SColumnNode*)pNode)->colName, "*"));
 }
 
+bool queryNodeSortKeysAreAscPrimTsPk(SNodeList* pKeys) {
+  if (pKeys == NULL || LIST_LENGTH(pKeys) != 2) {
+    return false;
+  }
+
+  SOrderByExprNode* pTsKey = (SOrderByExprNode*)nodesListGetNode(pKeys, 0);
+  SOrderByExprNode* pPkKey = (SOrderByExprNode*)nodesListGetNode(pKeys, 1);
+  if (pTsKey == NULL || pPkKey == NULL || pTsKey->pExpr == NULL || pPkKey->pExpr == NULL ||
+      nodeType(pTsKey->pExpr) != QUERY_NODE_COLUMN || nodeType(pPkKey->pExpr) != QUERY_NODE_COLUMN ||
+      pTsKey->order != ORDER_ASC || pPkKey->order != ORDER_ASC) {
+    return false;
+  }
+
+  // Only the primary timestamp and a distinct fixed-width primary key can form
+  // a storage-order pair. The width and distinct-column constraints live here,
+  // in the shared predicate, so an executor-only caller cannot draw a wider
+  // conclusion than the planner does.
+  SColumnNode* pTsCol = (SColumnNode*)pTsKey->pExpr;
+  SColumnNode* pPkCol = (SColumnNode*)pPkKey->pExpr;
+  return pTsCol->isPrimTs && pTsCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
+         pTsCol->node.resType.type == TSDB_DATA_TYPE_TIMESTAMP && pPkCol->isPk &&
+         pPkCol->colId != pTsCol->colId && !IS_VAR_DATA_TYPE(pPkCol->node.resType.type);
+}
+
 void nodesSortList(SNodeList** pList, int32_t (*comp)(SNode* pNode1, SNode* pNode2)) {
   if ((*pList)->length == 1) return;
 

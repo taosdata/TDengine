@@ -7437,6 +7437,82 @@ static int32_t createWindowPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildr
 // no longer contain this node; the physical node and its serialization remain only for already
 // materialized plans received from older nodes during rolling upgrades.
 
+// Prove that the physical input emits rows ordered by the complete sort key
+// list, including every key, its direction and the NULL rules. Only a forward
+// scan of one normal table whose primary key is exactly the requested
+// (ts ASC, pk ASC) satisfies this: the storage engine returns rows in primary
+// key order, scan conditions preserve it, and both keys are NOT NULL primary
+// key columns so the requested NULL ordering can never affect the comparison.
+// Reverse, last-only, multi-pass and parallel sub-table scans do not provide
+// the full block sequence. Everything else (projections, merges, expression
+// keys, variable-width keys) keeps the runtime threshold path instead of
+// trusting an unproven contract.
+static bool sortInputProvesFullOrder(const SSortLogicNode* pSort, const SNodeList* pChildren) {
+  if (pSort == NULL || pSort->groupSort || pChildren == NULL || LIST_LENGTH(pChildren) != 1) {
+    return false;
+  }
+
+  const SPhysiNode* pChild = (const SPhysiNode*)nodesListGetNode((SNodeList*)pChildren, 0);
+  if (pChild == NULL || nodeType(pChild) != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    return false;
+  }
+
+  // TABLE_SCAN/SEQ_SCAN/MERGE_SCAN/STREAM_SCAN share one struct layout (see
+  // the typedefs in plannodes.h), so the cast is valid after the node type
+  // check above.
+  const STableScanPhysiNode* pScan = (const STableScanPhysiNode*)pChild;
+  // scanSeq[0] is the forward scan count, scanSeq[1] the reverse scan count
+  // (plannodes.h). Require exactly one forward scan and no reverse scan; the
+  // looser "scanSeq[0] > 1" test also admitted 0/0, an uninitialised scan that
+  // provides no order at all.
+  const uint8_t forwardScanOnce = 1;
+  const uint8_t reverseScanNone = 0;
+  if (pScan->scan.tableType != TSDB_NORMAL_TABLE || pScan->scanSeq[0] != forwardScanOnce ||
+      pScan->scanSeq[1] != reverseScanNone || pScan->lastOnlyScan || pScan->paraTablesSort ||
+      pScan->smallDataTsSort || pScan->scan.virtualStableScan || pScan->scan.groupOrderScan ||
+      pScan->pSubtable != NULL || pScan->pDynamicScanFuncs != NULL) {
+    return false;
+  }
+  // Shapes that can change the row sequence or its content: group-order scans,
+  // interval/fast-interval windows, TIME_ALIGN columns and sampled scans. Scan
+  // filter conditions are deliberately not listed: a filter removes rows but
+  // never reorders the surviving ones. Sampling fractions are (0, 1); 0 is an
+  // unset value on plain scans and must not disable the proof.
+  if (pScan->pGroupTags != NULL || pScan->groupSort || pScan->interval != 0 || pScan->fastInterval ||
+      pScan->exInterval || pScan->pAlignCols != NULL || (pScan->ratio > 0.0 && pScan->ratio < 1.0)) {
+    return false;
+  }
+
+  // The key-shape predicate is shared with the executor so that tsPkSort and
+  // inputOrderedBySortKeys can never disagree about the (ts, pk) shape. The two
+  // index reads below assume exactly two keys, so check the length here as
+  // well instead of relying on the predicate's internals.
+  if (!queryNodeSortKeysAreAscPrimTsPk(pSort->pSortKeys) || LIST_LENGTH(pSort->pSortKeys) != 2) {
+    return false;
+  }
+
+  // A plan proof additionally needs both keys of the same source: isPrimTs and
+  // isPk alone do not prove that in projected or joined shapes. Re-check the
+  // key nodes rather than relying on the predicate's internals, so widening the
+  // predicate later cannot turn this into a NULL dereference.
+  SNode* pTsKeyNode = nodesListGetNode(pSort->pSortKeys, 0);
+  SNode* pPkKeyNode = nodesListGetNode(pSort->pSortKeys, 1);
+  if (pTsKeyNode == NULL || pPkKeyNode == NULL || nodeType(pTsKeyNode) != QUERY_NODE_ORDER_BY_EXPR ||
+      nodeType(pPkKeyNode) != QUERY_NODE_ORDER_BY_EXPR) {
+    return false;
+  }
+  SOrderByExprNode* pTsKey = (SOrderByExprNode*)pTsKeyNode;
+  SOrderByExprNode* pPkKey = (SOrderByExprNode*)pPkKeyNode;
+  if (pTsKey->pExpr == NULL || pPkKey->pExpr == NULL || nodeType(pTsKey->pExpr) != QUERY_NODE_COLUMN ||
+      nodeType(pPkKey->pExpr) != QUERY_NODE_COLUMN) {
+    return false;
+  }
+  SColumnNode* pTsCol = (SColumnNode*)pTsKey->pExpr;
+  SColumnNode* pPkCol = (SColumnNode*)pPkKey->pExpr;
+  return pTsCol->dataBlockId == pPkCol->dataBlockId && pTsCol->tableId == pPkCol->tableId &&
+         !IS_VAR_DATA_TYPE(pTsCol->node.resType.type) && !IS_VAR_DATA_TYPE(pPkCol->node.resType.type);
+}
+
 static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren, SSortLogicNode* pSortLogicNode,
                                    SPhysiNode** pPhyNode) {
   SSortPhysiNode* pSort = (SSortPhysiNode*)makePhysiNode(
@@ -7468,6 +7544,10 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pSortKeys, &pSort->pSortKeys);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    pSort->inputOrderedBySortKeys = sortInputProvesFullOrder(pSortLogicNode, pChildren);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

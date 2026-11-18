@@ -380,7 +380,7 @@ _OVER:
   return code;
 }
 
-static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int32_t bufLen, int32_t timeout,
+static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char *buf, int64_t bufLen, int64_t timeout,
                                    const char *id) {
   struct curl_slist *headers = NULL;
   CURL              *curl = NULL;
@@ -403,6 +403,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   }
   if (curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, taosCurlWriteData) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_WRITEDATA, pRsp) != 0) goto _OVER;
+  // timeout is in seconds, see taosAnalysisParseTimout() and ANALY_DEFAULT_TIMEOUT.
   if (curl_easy_setopt(curl, CURLOPT_TIMEOUT, (long)timeout) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POST, 1L) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, (long)bufLen) != 0) goto _OVER;
@@ -410,7 +411,7 @@ static int32_t taosCurlPostRequest(const char *url, SCurlResp *pRsp, const char 
   if (curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L) != 0) goto _OVER;
   if (curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L) != 0) goto _OVER;
 
-  uDebugL("%s curl post request will sent, url:%s len:%d content:%s", id, url, bufLen, buf);
+  uDebugL("%s curl post request will sent, url:%s len:%" PRId64 " content:%s", id, url, bufLen, buf);
   code = curl_easy_perform(curl);
   if (code != CURLE_OK) {
     uError("%s failed to perform curl action, code:%d", id, code);

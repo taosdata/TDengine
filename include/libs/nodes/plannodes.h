@@ -1405,6 +1405,12 @@ typedef struct SSortPhysiNode {
   bool       excludePkCol;
   // Leading sort keys used for group id; 0 keeps legacy behavior.
   int32_t numOfGroupKeys;
+  // True when the planner proved that the physical child emits rows already
+  // ordered by the complete sort key list (every key, direction and NULL rule):
+  // a forward single-table scan with an ascending (ts, pk) primary key. The
+  // executor may then trust the plan and finish a block after the first strict
+  // threshold rejection instead of re-validating its suffix at runtime.
+  bool inputOrderedBySortKeys;
 } SSortPhysiNode;
 
 typedef SSortPhysiNode SGroupSortPhysiNode;

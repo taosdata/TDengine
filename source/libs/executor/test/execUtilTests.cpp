@@ -29571,6 +29571,299 @@ TEST(SortSpillSecurityTest, RowIdFileRoundTripAcrossReadBlocks) {
 
 namespace {
 
+// One scripted input block of the merge-limit fetch tests: rows of one table,
+// ts ordered in the scan direction, with an observable payload value.
+struct SMergeLimitFetchBlock {
+  uint64_t               uid;
+  std::vector<int64_t>   ts;
+  std::vector<int64_t>   val;
+};
+
+// Fetch context of one sort handle: serves the scripted blocks in order, then
+// ends the source. Every handle gets its own queue because the sort takes
+// ownership references into the blocks it fetched.
+struct SMergeLimitFetchCtx {
+  std::vector<SSDataBlock*> blocks;
+  size_t                    next = 0;
+};
+
+void destroyMergeLimitFetchCtx(SMergeLimitFetchCtx* ctx) {
+  for (SSDataBlock* b : ctx->blocks) {
+    blockDataDestroy(b);
+  }
+  ctx->blocks.clear();
+}
+
+int32_t mergeLimitTestFetch(void* param, SSDataBlock** result) {
+  auto* ctx = static_cast<SMergeLimitFetchCtx*>(param);
+  if (ctx->next >= ctx->blocks.size()) {
+    *result = NULL;
+    return 0;
+  }
+  *result = ctx->blocks[ctx->next++];
+  return 0;
+}
+
+// Records the table uids the merge-limit fetch loop asked the reader to skip.
+void recordMergeLimitPrune(uint64_t tableUid, void* param) {
+  static_cast<std::vector<uint64_t>*>(param)->push_back(tableUid);
+}
+
+int32_t buildMergeLimitBlocks(const std::vector<SMergeLimitFetchBlock>& script, SMergeLimitFetchCtx* ctx) {
+  int32_t      code = 0;
+  SSDataBlock* block = nullptr;
+  for (const auto& spec : script) {
+    code = createDataBlock(&block);
+    if (code != 0) goto _end;
+    SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+    SColumnInfoData val = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 2);
+    if ((code = blockDataAppendColInfo(block, &ts)) != 0) goto _end;
+    if ((code = blockDataAppendColInfo(block, &val)) != 0) goto _end;
+    if ((code = blockDataEnsureCapacity(block, (uint32_t)spec.ts.size())) != 0) goto _end;
+    auto* tsCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 0));
+    auto* valCol = static_cast<SColumnInfoData*>(taosArrayGet(block->pDataBlock, 1));
+    for (size_t i = 0; i < spec.ts.size(); ++i) {
+      if ((code = colDataSetVal(tsCol, (uint32_t)i, (char*)&spec.ts[i], false)) != 0) goto _end;
+      if ((code = colDataSetVal(valCol, (uint32_t)i, (char*)&spec.val[i], false)) != 0) goto _end;
+    }
+    block->info.rows = (int32_t)spec.ts.size();
+    block->info.id.uid = spec.uid;
+    ctx->blocks.push_back(block);
+    block = nullptr;  // ownership moved to the context
+  }
+  return 0;
+_end:
+  // A block that failed before push_back is not owned by ctx yet.
+  if (block != nullptr) {
+    blockDataDestroy(block);
+  }
+  destroyMergeLimitFetchCtx(ctx);
+  return code;
+}
+
+// Drain up to maxRows tuples of an opened merge handle in output order.
+int32_t drainMergeLimitHandle(SSortHandle* handle, int64_t maxRows,
+                              std::vector<std::pair<int64_t, int64_t>>* out) {
+  int32_t     code = 0;
+  SSDataBlock* output = nullptr;
+  if ((code = createDataBlock(&output)) != 0) return code;
+  SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, 8, 1);
+  SColumnInfoData val = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, 8, 2);
+  if ((code = blockDataAppendColInfo(output, &ts)) != 0) goto _end;
+  if ((code = blockDataAppendColInfo(output, &val)) != 0) goto _end;
+  if ((code = blockDataEnsureCapacity(output, 1)) != 0) goto _end;
+  for (int64_t i = 0; i < maxRows; ++i) {
+    STupleHandle* tuple = nullptr;
+    if ((code = tsortNextTuple(handle, &tuple)) != 0) goto _end;
+    if (tuple == NULL) {
+      break;
+    }
+    blockDataCleanup(output);
+    if ((code = tsortAppendTupleToBlock(handle, output, tuple)) != 0) goto _end;
+    auto* tsCol = static_cast<SColumnInfoData*>(taosArrayGet(output->pDataBlock, 0));
+    auto* valCol = static_cast<SColumnInfoData*>(taosArrayGet(output->pDataBlock, 1));
+    out->push_back({*(int64_t*)colDataGetData(tsCol, 0), *(int64_t*)colDataGetData(valCol, 0)});
+  }
+  blockDataDestroy(output);
+  return 0;
+_end:
+  blockDataDestroy(output);
+  return code != 0 ? code : TSDB_CODE_OUT_OF_MEMORY;
+}
+
+// Run the scripted blocks through a SORT_BLOCK_TS_MERGE handle with an
+// optional merge limit and return the emitted rows.
+int32_t runMergeLimitSort(const std::vector<SMergeLimitFetchBlock>& script, int32_t order, int64_t mergeLimit,
+                          int64_t maxRows, std::vector<std::pair<int64_t, int64_t>>* out,
+                          std::vector<uint64_t>* prunedUids = nullptr) {
+  SMergeLimitFetchCtx ctx;
+  SArray*             orders = nullptr;
+  SSortHandle*        handle = nullptr;
+  SSortSource*        source = nullptr;
+
+  int32_t code = buildMergeLimitBlocks(script, &ctx);
+  if (code != 0) {
+    return code;
+  }
+  out->clear();
+
+  orders = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  if (orders == nullptr) goto _end;
+  {
+    SBlockOrderInfo orderInfo = {};
+    orderInfo.order = order;
+    orderInfo.slotId = 0;
+    orderInfo.compFn = reinterpret_cast<void*>(getKeyComparFunc(TSDB_DATA_TYPE_TIMESTAMP, order));
+    if (taosArrayPush(orders, &orderInfo) == nullptr) goto _end;
+  }
+  // The merge path builds its page buffer from the schema of the first input
+  // block, so hand it one (the handle takes a copy and does not own it).
+  code = tsortCreateSortHandle(orders, SORT_BLOCK_TS_MERGE, 1024, 4, ctx.blocks.empty() ? nullptr : ctx.blocks[0],
+                               "merge-limit-test", 0, 0, 0, &handle);
+  if (code != 0) goto _end;
+  tsortSetMergeLimit(handle, mergeLimit);
+  tsortSetFetchRawDataFp(handle, mergeLimitTestFetch, nullptr, nullptr);
+  if (prunedUids != nullptr) {
+    tsortSetMergeLimitReachedFp(handle, recordMergeLimitPrune, prunedUids);
+  }
+  source = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
+  if (source == nullptr) goto _end;
+  source->param = &ctx;
+  source->onlyRef = true;
+  code = tsortAddSource(handle, source);
+  if (code != 0) goto _end;
+  source = nullptr;
+  code = tsortOpen(handle);
+  if (code != 0) goto _end;
+  code = drainMergeLimitHandle(handle, maxRows, out);
+
+_end:
+  if (source != nullptr) {
+    taosMemoryFree(source);
+  }
+  // The sort handle copies every block it keeps (extracted blocks are its own
+  // allocations), so the scripted blocks stay owned by the context.
+  if (handle != nullptr) {
+    tsortDestroySortHandle(handle);
+  }
+  destroyMergeLimitFetchCtx(&ctx);
+  taosArrayDestroy(orders);
+  return code;
+}
+
+// The merge-limit fetch path must emit exactly the first mergeLimit rows of
+// the unlimited merge of the same input, including tie order. The scenario
+// covers: the per-table row cut with a tie group split across two blocks of
+// one table, equal timestamps across tables, and a table that lies entirely
+// beyond the live threshold.
+TEST(SortMergeLimitTest, LimitedOutputMatchesUnlimitedPrefix) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  std::vector<SMergeLimitFetchBlock> script = {
+      // table 1: the cut tie group (ts=30) continues in the next block
+      {1, {10, 20, 30}, {101, 102, 103}},
+      // table 2: interleaved, ties with table 1 on ts=20/30
+      {2, {15, 20, 20, 35}, {201, 202, 203, 204}},
+      // table 3: entirely beyond any small threshold
+      {3, {80, 90, 95}, {301, 302, 303}},
+      // table 1 tail: tie row (ts=30) plus later rows
+      {1, {30, 40, 50}, {104, 105, 106}},
+      // table 2 tail
+      {2, {35, 40, 60}, {205, 206, 207}},
+  };
+
+  for (int64_t mergeLimit : {1LL, 3LL, 5LL, 7LL, 100LL}) {
+    SCOPED_TRACE(mergeLimit);
+    std::vector<std::pair<int64_t, int64_t>> unlimited;
+    ASSERT_EQ(runMergeLimitSort(script, TSDB_ORDER_ASC, -1, 100, &unlimited), 0);
+    ASSERT_EQ(unlimited.size(), 16U);
+
+    std::vector<std::pair<int64_t, int64_t>> limited;
+    ASSERT_EQ(runMergeLimitSort(script, TSDB_ORDER_ASC, mergeLimit, mergeLimit, &limited), 0);
+    EXPECT_EQ(limited.size(), (size_t)TMIN(mergeLimit, (int64_t)unlimited.size()));
+    for (size_t i = 0; i < limited.size(); ++i) {
+      EXPECT_EQ(limited[i], unlimited[i]) << "row " << i << " of " << mergeLimit;
+    }
+  }
+}
+
+TEST(SortMergeLimitTest, LimitedOutputMatchesUnlimitedPrefixDesc) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  std::vector<SMergeLimitFetchBlock> script = {
+      {1, {50, 40, 30}, {101, 102, 103}},
+      {2, {60, 35, 35, 20}, {201, 202, 203, 204}},
+      {3, {15, 10, 5}, {301, 302, 303}},
+      {1, {30, 20, 10}, {104, 105, 106}},
+      {2, {20, 15, 8}, {205, 206, 207}},
+  };
+
+  for (int64_t mergeLimit : {1LL, 4LL, 6LL, 100LL}) {
+    SCOPED_TRACE(mergeLimit);
+    std::vector<std::pair<int64_t, int64_t>> unlimited;
+    ASSERT_EQ(runMergeLimitSort(script, TSDB_ORDER_DESC, -1, 100, &unlimited), 0);
+    ASSERT_EQ(unlimited.size(), 16U);
+
+    std::vector<std::pair<int64_t, int64_t>> limited;
+    ASSERT_EQ(runMergeLimitSort(script, TSDB_ORDER_DESC, mergeLimit, mergeLimit, &limited), 0);
+    EXPECT_EQ(limited.size(), (size_t)TMIN(mergeLimit, (int64_t)unlimited.size()));
+    for (size_t i = 0; i < limited.size(); ++i) {
+      EXPECT_EQ(limited[i], unlimited[i]) << "row " << i << " of " << mergeLimit;
+    }
+  }
+}
+
+// The table-level skip must fire for a table that starts strictly beyond the
+// live threshold, and must keep a table whose first row only ties it: a tie
+// group may still reach the output.
+TEST(SortMergeLimitTest, PruneCallbackFiresForTableBeyondThreshold) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  std::vector<SMergeLimitFetchBlock> script = {
+      {1, {10, 20, 30}, {101, 102, 103}},
+      {2, {80, 90, 95}, {201, 202, 203}},
+      {3, {20, 25}, {301, 302}},
+  };
+  std::vector<std::pair<int64_t, int64_t>> out;
+  std::vector<uint64_t>                    pruned;
+  ASSERT_EQ(runMergeLimitSort(script, TSDB_ORDER_ASC, 2, 2, &out, &pruned), 0);
+  ASSERT_EQ(out.size(), 2U);
+  EXPECT_EQ(out[0].first, 10);
+  EXPECT_EQ(out[1].first, 20);
+
+  bool prunedBeyond = false;
+  bool prunedTie = false;
+  for (size_t i = 0; i < pruned.size(); ++i) {
+    if (pruned[i] == 2) prunedBeyond = true;
+    if (pruned[i] == 3) prunedTie = true;
+  }
+  EXPECT_TRUE(prunedBeyond) << "table starting beyond the threshold must be skipped";
+  EXPECT_FALSE(prunedTie) << "a table tying the threshold must not be pruned";
+}
+
+// A budget above the live-heap cap must not prune on a k-th best bound: the
+// heap cannot hold the N-th best timestamp, so the fetch loop keeps only the
+// per-table ts cut and the page-bound threshold. Regression for
+// LIMIT+OFFSET > 4096: the first table fills the cap with one ts value and the
+// second table starts at a later ts; pruning on the cap-sized heap would stop
+// the output at the cap instead of returning the full budget.
+TEST(SortMergeLimitTest, BudgetAboveHeapCapKeepsAllRows) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+  const int32_t capRows = 4096;
+  const int32_t tailRows = 1000;
+  const int64_t mergeLimit = 4200;
+
+  for (int32_t order : {TSDB_ORDER_ASC, TSDB_ORDER_DESC}) {
+    SCOPED_TRACE(order);
+    int64_t bestTs = (order == TSDB_ORDER_ASC) ? 1 : 2;
+    int64_t tailTs = (order == TSDB_ORDER_ASC) ? 2 : 1;
+    std::vector<int64_t> bestTsCol(capRows, bestTs), bestValCol(capRows, 0);
+    std::vector<int64_t> tailTsCol(tailRows, tailTs), tailValCol(tailRows, 0);
+    for (int32_t i = 0; i < capRows; ++i) bestValCol[i] = i;
+    for (int32_t i = 0; i < tailRows; ++i) tailValCol[i] = 100000 + i;
+    std::vector<SMergeLimitFetchBlock> script = {
+        {1, bestTsCol, bestValCol},
+        {2, tailTsCol, tailValCol},
+    };
+
+    std::vector<std::pair<int64_t, int64_t>> unlimited;
+    ASSERT_EQ(runMergeLimitSort(script, order, -1, capRows + tailRows, &unlimited), 0);
+    ASSERT_EQ(unlimited.size(), (size_t)(capRows + tailRows));
+
+    std::vector<std::pair<int64_t, int64_t>> limited;
+    ASSERT_EQ(runMergeLimitSort(script, order, mergeLimit, mergeLimit, &limited), 0);
+    EXPECT_EQ(limited.size(), (size_t)mergeLimit) << "output stopped before the budget";
+    for (size_t i = 0; i < limited.size(); ++i) {
+      EXPECT_EQ(limited[i], unlimited[i]) << "row " << i;
+    }
+  }
+}
+
+}  // namespace
+
+namespace {
+
 SColIdPair makeVtbColPair(col_id_t vtbColId, col_id_t orgColId, int8_t type, int32_t bytes) {
   SColIdPair pair = {};
   pair.vtbColId = vtbColId;

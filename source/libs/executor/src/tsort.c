@@ -78,10 +78,26 @@ struct SSortHandle {
   uint32_t      pqMaxTupleLength;
   uint32_t      pqSortBufSize;
   bool          forceUsePQSort;
+  bool          tsPkSort;
+  bool          inputOrderedBySortKeys;
+  // First field-read failure seen by tupleComparFn. A comparator can only
+  // return an order verdict, so it records the error here and the PQ sort
+  // loop surfaces it after the push that triggered the comparison.
+  int32_t       comparErr;
   BoundedQueue* pBoundedQueue;
   uint32_t      tmpRowIdx;
   int64_t       mergeLimit;
   int64_t       currMergeLimitTs;
+  // Live cross-table threshold for SORT_BLOCK_TS_MERGE with a merge limit.
+  // pTsHeap keeps the mergeLimit best (in sort order) timestamps admitted so
+  // far during the fetch loop; its worst element is an upper bound of the
+  // mergeLimit-th best ts, which tightens currMergeLimitTs block by block.
+  // It is only enabled when mergeLimit fits in TSORT_MERGE_LIMIT_TS_HEAP_CAP:
+  // a smaller heap would expose the k-th best ts as the root, which is a
+  // tighter bound than the N-th best and would prune rows that still belong
+  // to the first mergeLimit rows.
+  SArray*        pTsHeap;
+  int32_t        tsHeapCap;
 
   int32_t           sourceId;
   SSDataBlock*      pDataBlock;
@@ -448,6 +464,10 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
   taosArrayDestroy(pSortHandle->pSortInfo);
   taosArrayDestroy(pSortHandle->aExtRowsOrders);
   pSortHandle->aExtRowsOrders = NULL;
+  // Normally released at the end of createBlocksMergeSortInitialSources; kept
+  // here so an aborted open cannot leak it.
+  taosArrayDestroy(pSortHandle->pTsHeap);
+  pSortHandle->pTsHeap = NULL;
   taosMemoryFreeClear(pSortHandle);
 }
 
@@ -2480,57 +2500,192 @@ _error:
   return code;
 }
 
-static int32_t getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSHashObj* mTableNumRows, SSDataBlock* pOrigBlk,
-                                            bool* pExtractedBlock, bool* pSkipBlock, SSDataBlock** pRes) {
-  int64_t nRows = 0;
-  int64_t prevRows = 0;
+// Per-table admission state of the merge-limit fetch loop. Each table of the
+// merge scan is a ts-ordered stream, so the rows of one table that can still
+// reach the first mergeLimit rows of the merged output are exactly the rows
+// whose ts is not beyond the ts of that table's mergeLimit-th row.
+typedef struct SMergeLimitTblState {
+  int64_t nRows;   // rows of this table admitted into the merge so far
+  int64_t cutTs;   // ts of this table's mergeLimit-th row, valid when cutSet
+  bool    cutSet;  // whether the row budget is exhausted and cutTs is set
+} SMergeLimitTblState;
+
+/*
+ * Decide how many leading rows of pOrigBlk may still enter the merge.
+ *
+ * Correctness: the merged output is ordered by (ts [, pk]) with ts first, and
+ * every per-table stream is ts-ordered, so the first mergeLimit rows of the
+ * untruncated merge can only contain table rows that are not beyond the
+ * table's own mergeLimit-th row in ts. All rows kept here have ts equal to or
+ * better than cutTs, and every row dropped is strictly beyond cutTs in ts,
+ * which also keeps whole tie groups at the cut boundary: the tie selection of
+ * the merge is identical to an untruncated run.
+ *
+ * *pTableDone reports that the remaining rows of this table are provably
+ * beyond the cut value (the block was trimmed), so the caller may stop
+ * fetching the table. When a block ends inside the cut tie group the flag
+ * stays false because later blocks may still carry tie rows.
+ *
+ * Known cost: the per-table stream is only guaranteed to be ts-ordered, not
+ * (ts, pk)-ordered, so the whole tie group at cutTs must be kept. A table
+ * whose cut lands inside a very large equal-ts group therefore keeps every
+ * row of that group (the whole table in the degenerate all-equal-ts case).
+ * This is the price of not dropping tied rows; the cross-table threshold can
+ * still prune that table only with a strict ts comparison, so ties are never
+ * pruned early.
+ */
+static int32_t getRowsBlockWithinMergeLimit(const SSortHandle* pHandle, SSHashObj* mTableStates,
+                                            const SColumnInfoData* pTsCol, int32_t tsOrder, SSDataBlock* pOrigBlk,
+                                            int32_t* pKeepRows, bool* pTableDone) {
   int32_t code = 0;
+  uint64_t uid = pOrigBlk->info.id.uid;
 
-  *pRes = NULL;
-
-  void* pNum = tSimpleHashGet(mTableNumRows, &pOrigBlk->info.id.uid, sizeof(pOrigBlk->info.id.uid));
-  if (pNum == NULL) {
-    prevRows = 0;
-    nRows = pOrigBlk->info.rows;
-    code = tSimpleHashPut(mTableNumRows, &pOrigBlk->info.id.uid, sizeof(pOrigBlk->info.id.uid), &nRows, sizeof(nRows));
+  SMergeLimitTblState* pState = tSimpleHashGet(mTableStates, &uid, sizeof(uid));
+  if (pState == NULL) {
+    SMergeLimitTblState init = {0};
+    code = tSimpleHashPut(mTableStates, &uid, sizeof(uid), &init, sizeof(init));
     if (code) {
       return code;
     }
-  } else {
-    prevRows = *(int64_t*)pNum;
-    *(int64_t*)pNum = *(int64_t*)pNum + pOrigBlk->info.rows;
-    nRows = *(int64_t*)pNum;
-  }
-
-  int64_t keepRows = pOrigBlk->info.rows;
-  if (nRows >= pHandle->mergeLimit) {
-    if (pHandle->mergeLimitReachedFn) {
-      pHandle->mergeLimitReachedFn(pOrigBlk->info.id.uid, pHandle->mergeLimitReachedParam);
+    pState = tSimpleHashGet(mTableStates, &uid, sizeof(uid));
+    if (pState == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
-    keepRows = pHandle->mergeLimit > prevRows ? (pHandle->mergeLimit - prevRows) : 0;
   }
 
-  if (keepRows == 0) {
-    *pSkipBlock = true;
-    *pRes = pOrigBlk;
-  }
+  bool    asc = (tsOrder == TSDB_ORDER_ASC);
+  int32_t rows = pOrigBlk->info.rows;
+  int32_t keep = 0;
+  *pTableDone = false;
 
-  *pSkipBlock = false;
-  SSDataBlock* pBlock = NULL;
-  if (keepRows != pOrigBlk->info.rows) {
-    code = blockDataExtractBlock(pOrigBlk, 0, keepRows, &pBlock);
-    if (code) {
+  const int64_t* ts = (const int64_t*)pTsCol->pData;
+  if (pState->cutSet) {
+    // Budget exhausted earlier: only the tie group at cutTs may still enter.
+    while (keep < rows && ts[keep] == pState->cutTs) {
+      ++keep;
+    }
+    *pTableDone = (keep < rows);
+  } else if (rows <= pHandle->mergeLimit - pState->nRows) {
+    // The whole block fits into the remaining row budget.
+    keep = rows;
+    pState->nRows += rows;
+    if (pState->nRows == pHandle->mergeLimit) {
+      // The budget ends exactly at this block's last row; the tie group may
+      // continue into later blocks, so the table is not marked done here.
+      pState->cutTs = ts[rows - 1];
+      pState->cutSet = true;
+    }
+  } else {
+    // This block fills the budget; keep the tie group at the cut row as well.
+    keep = (int32_t)(pHandle->mergeLimit - pState->nRows);
+    if (keep <= 0) {
+      // Defensive: the branch above always marks cutSet once the budget is
+      // exhausted, so this is unreachable while that invariant holds. Never
+      // index ts[keep - 1] with a non-positive keep if it is ever broken.
+      pState->nRows = pHandle->mergeLimit;
+      pState->cutSet = true;
+      *pKeepRows = 0;
       return code;
     }
-
-    *pExtractedBlock = true;
-  } else {
-    *pExtractedBlock = false;
-    pBlock = pOrigBlk;
+    pState->nRows = pHandle->mergeLimit;
+    pState->cutTs = ts[keep - 1];
+    pState->cutSet = true;
+    while (keep < rows && ts[keep] == pState->cutTs) {
+      ++keep;
+    }
+    *pTableDone = (keep < rows);
   }
 
-  *pRes = pBlock;
+  *pKeepRows = keep;
   return code;
+}
+
+// Upper bound of the live threshold heap. The heap must hold the full
+// mergeLimit best timestamps: only the mergeLimit-th best ts may prune a
+// table. A smaller heap would expose a better (k-th) ts as the root and could
+// prune rows that still belong to the first mergeLimit rows, so this live heap
+// is disabled when LIMIT+OFFSET exceeds the cap; the per-table ts cut and the
+// page-bound threshold update keep working.
+#define TSORT_MERGE_LIMIT_TS_HEAP_CAP 4096
+
+// Sift helpers of the threshold heap. asc keeps the mergeLimit best (smallest)
+// ts values in a max-heap whose root is the worst of them; !asc mirrors it.
+static void tsortTsHeapSiftUp(int64_t* heap, int32_t idx, bool asc) {
+  while (idx > 0) {
+    int32_t parent = (idx - 1) >> 1;
+    bool    parentNotAbove = asc ? (heap[parent] < heap[idx]) : (heap[parent] > heap[idx]);
+    if (!parentNotAbove) {
+      break;
+    }
+    int64_t tmp = heap[parent];
+    heap[parent] = heap[idx];
+    heap[idx] = tmp;
+    idx = parent;
+  }
+}
+
+static void tsortTsHeapSiftDown(int64_t* heap, int32_t size, int32_t idx, bool asc) {
+  while (true) {
+    int32_t child = 2 * idx + 1;
+    if (child >= size) {
+      break;
+    }
+    int32_t candidate = child;
+    child += 1;
+    if (child < size) {
+      // pick the child that is "larger" in heap order
+      bool rightLarger = asc ? (heap[child] > heap[candidate]) : (heap[child] < heap[candidate]);
+      if (rightLarger) {
+        candidate = child;
+      }
+    }
+    bool childAbove = asc ? (heap[candidate] > heap[idx]) : (heap[candidate] < heap[idx]);
+    if (!childAbove) {
+      break;
+    }
+    int64_t tmp = heap[candidate];
+    heap[candidate] = heap[idx];
+    heap[idx] = tmp;
+    idx = candidate;
+  }
+}
+
+/*
+ * Track the mergeLimit best timestamps admitted to the merge. The heap is only
+ * created when tsHeapCap == mergeLimit (see the create site), so once it is
+ * full its root is an upper bound of the mergeLimit-th best ts of the whole
+ * input: any row strictly worse than the root cannot belong to the first
+ * mergeLimit rows of the merged output, because the heap already holds
+ * mergeLimit admitted rows that are all at least as good. The bound tightens
+ * monotonically as better rows arrive.
+ */
+static void tsortMergeLimitTrackTs(SSortHandle* pHandle, bool asc, const int64_t* ts, int32_t numOfRows) {
+  if (pHandle->pTsHeap == NULL || numOfRows <= 0) {
+    return;
+  }
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int64_t v = ts[i];
+    int32_t size = (int32_t)taosArrayGetSize(pHandle->pTsHeap);
+    if (size < pHandle->tsHeapCap) {
+      if (taosArrayPush(pHandle->pTsHeap, &v) == NULL) {
+        return;
+      }
+      tsortTsHeapSiftUp((int64_t*)TARRAY_DATA(pHandle->pTsHeap), size, asc);
+      continue;
+    }
+    int64_t* heap = (int64_t*)TARRAY_DATA(pHandle->pTsHeap);
+    bool     better = asc ? (v < heap[0]) : (v > heap[0]);
+    if (better) {
+      heap[0] = v;
+      tsortTsHeapSiftDown(heap, size, 0, asc);
+    }
+  }
+  if (taosArrayGetSize(pHandle->pTsHeap) == (size_t)pHandle->tsHeapCap) {
+    int64_t* heap = (int64_t*)TARRAY_DATA(pHandle->pTsHeap);
+    if ((asc && heap[0] < pHandle->currMergeLimitTs) || (!asc && heap[0] > pHandle->currMergeLimitTs)) {
+      pHandle->currMergeLimitTs = heap[0];
+    }
+  }
 }
 
 static void freeHelp(void* param) {
@@ -2547,15 +2702,15 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
   size_t           nSrc = taosArrayGetSize(pHandle->pOrderedSource);
   SArray*          aExtSrc = NULL;
   SArray*          aBlkSort = NULL;
-  SSHashObj*       mTableNumRows = NULL;
+  SSHashObj*       mTableStates = NULL;
   SSHashObj*       mUidBlk = NULL;
   SBlockOrderInfo* pOrigTsOrder = NULL;
 
   aExtSrc = taosArrayInit(nSrc, POINTER_BYTES);
   QUERY_CHECK_NULL(aExtSrc, code, lino, _err, terrno);
 
-  mTableNumRows = tSimpleHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
-  QUERY_CHECK_NULL(mTableNumRows, code, lino, _err, terrno);
+  mTableStates = tSimpleHashInit(8192, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  QUERY_CHECK_NULL(mTableStates, code, lino, _err, terrno);
 
   aBlkSort = taosArrayInit(8, POINTER_BYTES);
   QUERY_CHECK_NULL(aBlkSort, code, lino, _err, terrno);
@@ -2576,35 +2731,82 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
   pHandle->currMergeLimitTs = (pOrigTsOrder->order == TSDB_ORDER_ASC) ? INT64_MAX : INT64_MIN;
 
+  int64_t fetchedRows = 0;
+  int64_t admittedRows = 0;
+  int32_t prunedBlocks = 0;
+
+  if (pHandle->mergeLimit > 0 && !pHandle->bSortByRowId &&
+      pHandle->mergeLimit <= (int64_t)TSORT_MERGE_LIMIT_TS_HEAP_CAP) {
+    // Live threshold for the fetch loop; see tsortMergeLimitTrackTs. Sorted by
+    // row id is disabled whenever a merge limit is set, but keep the guard so
+    // the two settings can never combine unnoticed. The heap only serves as a
+    // prune bound when it holds the full mergeLimit best timestamps, so a
+    // limit above the cap keeps the per-table ts cut and the page-bound
+    // threshold update but leaves this live heap disabled.
+    pHandle->tsHeapCap = (int32_t)pHandle->mergeLimit;
+    pHandle->pTsHeap = taosArrayInit(pHandle->tsHeapCap, sizeof(int64_t));
+    QUERY_CHECK_NULL(pHandle->pTsHeap, code, lino, _err, terrno);
+  } else {
+    pHandle->tsHeapCap = 0;
+  }
+
   while (1) {
     bool         bExtractedBlock = false;
-    bool         bSkipBlock = false;
+    bool         bTableDone = false;
     SSDataBlock* pBlk = NULL;
 
     code = pHandle->fetchfp(pSrc->param, &pBlk);
     QUERY_CHECK_CODE(code, lino, _err);
 
     if (pBlk != NULL && pHandle->mergeLimit > 0) {
-      SSDataBlock* p = NULL;
-      code = getRowsBlockWithinMergeLimit(pHandle, mTableNumRows, pBlk, &bExtractedBlock, &bSkipBlock, &p);
-      if (bSkipBlock || code != 0) {
+      fetchedRows += pBlk->info.rows;
+    }
+
+    if (pBlk != NULL && pBlk->info.rows > 0 && pHandle->mergeLimit > 0) {
+      SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrigTsOrder->slotId);
+      QUERY_CHECK_NULL(tsCol, code, lino, _err, terrno);
+      QUERY_CHECK_NULL(tsCol->pData, code, lino, _err, terrno);
+
+      bool    asc = (pOrigTsOrder->order == TSDB_ORDER_ASC);
+      int64_t firstRowTs = *(int64_t*)tsCol->pData;
+      if ((asc && firstRowTs > pHandle->currMergeLimitTs) || (!asc && firstRowTs < pHandle->currMergeLimitTs)) {
+        // Cross-table pruning: the threshold already holds mergeLimit admitted
+        // rows strictly better than every row of this table, and per-table
+        // streams are ts-ordered, so the whole rest of this table is beyond
+        // the final output. Tell the reader to skip the table. Rows equal to
+        // the threshold ts are never pruned here, so ties are kept.
+        if (pHandle->mergeLimitReachedFn) {
+          pHandle->mergeLimitReachedFn(pBlk->info.id.uid, pHandle->mergeLimitReachedParam);
+        }
+        ++prunedBlocks;
         continue;
       }
 
-      pBlk = p;
-    }
+      int32_t keepRows = 0;
+      code = getRowsBlockWithinMergeLimit(pHandle, mTableStates, tsCol, pOrigTsOrder->order, pBlk, &keepRows,
+                                          &bTableDone);
+      QUERY_CHECK_CODE(code, lino, _err);
 
-    if (pBlk != NULL) {
-      SColumnInfoData* tsCol = taosArrayGet(pBlk->pDataBlock, pOrigTsOrder->slotId);
-      QUERY_CHECK_NULL(tsCol, code, lino, _err, terrno);
+      if (bTableDone && pHandle->mergeLimitReachedFn) {
+        // The block was trimmed at the table's cut ts, so every later row of
+        // this table is strictly beyond it and the reader may skip the table.
+        pHandle->mergeLimitReachedFn(pBlk->info.id.uid, pHandle->mergeLimitReachedParam);
+      }
 
-      int64_t firstRowTs = *(int64_t*)tsCol->pData;
-      if ((pOrigTsOrder->order == TSDB_ORDER_ASC && firstRowTs > pHandle->currMergeLimitTs) ||
-          (pOrigTsOrder->order == TSDB_ORDER_DESC && firstRowTs < pHandle->currMergeLimitTs)) {
-        if (bExtractedBlock) {
-          blockDataDestroy(pBlk);
-        }
+      // Track the admitted rows before trimming so the threshold reflects
+      // exactly the rows that continue into the merge.
+      tsortMergeLimitTrackTs(pHandle, asc, (const int64_t*)tsCol->pData, keepRows);
+      admittedRows += keepRows;
+
+      if (keepRows == 0) {
         continue;
+      }
+      if (keepRows != pBlk->info.rows) {
+        SSDataBlock* p = NULL;
+        code = blockDataExtractBlock(pBlk, 0, keepRows, &p);
+        QUERY_CHECK_CODE(code, lino, _err);
+        pBlk = p;
+        bExtractedBlock = true;
       }
     }
 
@@ -2614,6 +2816,11 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
       if (ppBlk != NULL) {
         SSDataBlock* tBlk = *(SSDataBlock**)(ppBlk);
         code = blockDataMerge(tBlk, pBlk);
+        if (code != TSDB_CODE_SUCCESS && bExtractedBlock) {
+          // The extracted block never reached aBlkSort/mUidBlk, so the freeHelp
+          // cleanup of aBlkSort cannot release it.
+          blockDataDestroy(pBlk);
+        }
         QUERY_CHECK_CODE(code, lino, _err);
 
         if (bExtractedBlock) {
@@ -2687,6 +2894,16 @@ static int32_t createBlocksMergeSortInitialSources(SSortHandle* pHandle) {
 
   pHandle->type = SORT_SINGLESOURCE_SORT;
 
+  if (pHandle->mergeLimit > 0) {
+    // Fetch-side LIMIT accounting: fetched rows entered the fetch loop,
+    // admitted rows survived the per-table cut and the cross-table threshold,
+    // and pruned blocks were dropped whole because their table starts beyond
+    // the live threshold.
+    qDebug("%s merge limit fetch done, limit:%" PRId64 " fetched rows:%" PRId64 " admitted rows:%" PRId64
+           " pruned blocks:%" PRId64,
+           pHandle->idStr, pHandle->mergeLimit, fetchedRows, admittedRows, (int64_t)prunedBlocks);
+  }
+
 _err:
   if (code) {
     qError("%s %s failed at line %d since %s", pHandle->idStr, __func__, lino, tstrerror(code));
@@ -2698,12 +2915,15 @@ _err:
   if (aBlkSort) {
     taosArrayDestroyEx(aBlkSort, freeHelp);
   }
-  if (mTableNumRows) {
-    tSimpleHashCleanup(mTableNumRows);
+  if (mTableStates) {
+    tSimpleHashCleanup(mTableStates);
   }
   if (mUidBlk) {
     tSimpleHashCleanup(mUidBlk);
   }
+  taosArrayDestroy(pHandle->pTsHeap);
+  pHandle->pTsHeap = NULL;
+  pHandle->tsHeapCap = 0;
   return code;
 }
 
@@ -2969,7 +3189,30 @@ static int32_t tsortBufMergeSortNextTuple(SSortHandle* pHandle, STupleHandle** p
 
 static bool tsortIsForceUsePQSort(SSortHandle* pHandle) { return pHandle->forceUsePQSort == true; }
 
-void tsortSetForceUsePQSort(SSortHandle* pHandle) { pHandle->forceUsePQSort = true; }
+void tsortSetForceUsePQSort(SSortHandle* pHandle) {
+  if (pHandle == NULL) {
+    return;
+  }
+  pHandle->forceUsePQSort = true;
+}
+
+// Declares the sort-key SHAPE only: exactly two ascending keys, the first a
+// primary timestamp and the second a primary key column. It says nothing about
+// the order of the input; that needs tsortSetInputOrdered() (a plan proof) or
+// the runtime threshold path. Keep the two flags independent.
+void tsortSetTsPkSort(SSortHandle* pHandle) {
+  if (pHandle == NULL) {
+    return;
+  }
+  pHandle->tsPkSort = true;
+}
+
+void tsortSetInputOrdered(SSortHandle* pHandle) {
+  if (pHandle == NULL) {
+    return;
+  }
+  pHandle->inputOrderedBySortKeys = true;
+}
 
 static bool tsortIsPQSortApplicable(SSortHandle* pHandle) {
   if (pHandle->type != SORT_SINGLESOURCE_SORT) return false;
@@ -3005,12 +3248,17 @@ static int32_t tupleComparFn(const void* pLeft, const void* pRight, void* param)
 
     int32_t ret1 = tupleDescGetField(pLeftDesc, pOrder->slotId, colNum, &lData);
     int32_t ret2 = tupleDescGetField(pRightDesc, pOrder->slotId, colNum, &rData);
-    if (ret1) {
-      return ret1;
-    }
-
-    if (ret2) {
-      return ret2;
+    if (ret1 || ret2) {
+      // A comparator result is only interpreted as an order verdict (negative,
+      // zero or positive), so an error code must not be returned here: a
+      // positive code would read as "left is greater" and reject a good row.
+      // Record the failure on the handle instead; the PQ sort loop surfaces it
+      // right after the push that triggered this comparison, so the query
+      // fails instead of silently treating unreadable keys as equal.
+      int32_t err = ret1 ? ret1 : ret2;
+      pHandle->comparErr = (err != TSDB_CODE_SUCCESS) ? err : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("sort comparator failed to read key field, slotId:%d code:%d/%d", pOrder->slotId, ret1, ret2);
+      return 0;
     }
 
     if ((!lData) && (!rData)) {
@@ -3022,7 +3270,12 @@ static int32_t tupleComparFn(const void* pLeft, const void* pRight, void* param)
 
     SColumnInfoData* p = (SColumnInfoData*)taosArrayGet(pHandle->pDataBlock->pDataBlock, pOrder->slotId);
     if (p == NULL) {
-      return terrno;
+      // Same policy as the key-field read failure above: record it so the PQ
+      // loop surfaces the error instead of treating the unreadable key as an
+      // equal one and silently returning an unordered result.
+      pHandle->comparErr = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      qError("sort comparator failed to get key column, slotId:%d", pOrder->slotId);
+      return 0;
     }
 
     __compar_fn_t fn = getKeyComparFunc(p->info.type, pOrder->order);
@@ -3036,6 +3289,162 @@ static int32_t tupleComparFn(const void* pLeft, const void* pRight, void* param)
   }
 
   return 0;
+}
+
+static const char* tsortSafeIdStr(const SSortHandle* pHandle) {
+  // Placeholder instead of an empty string so log lines never start with a
+  // blank field when the handle has no id.
+  return (pHandle != NULL && pHandle->idStr != NULL) ? pHandle->idStr : "-";
+}
+
+// Stack key buffers used by the P1-B short-circuit path. Eligibility admits
+// only a single key or the two-key (ts, pk) shape; the path re-checks the bound
+// before filling the buffers so widening the predicate cannot overflow them.
+#define TSORT_SHORT_CIRCUIT_MAX_KEYS 2
+
+// Runtime short-circuit eligibility for inputs whose order the plan did not
+// prove. Keep the preconditions of the previous suffix validator: one
+// TIMESTAMP first key, or the composite tsPk shape, and no variable-width key
+// (the conservative cost choice kept from the earlier review).
+static bool tsortShortCircuitEligible(const SSortHandle* pHandle, const SSDataBlock* pBlock) {
+  if (pHandle == NULL || pHandle->pDataBlock == NULL || pHandle->pDataBlock->pDataBlock == NULL) {
+    return false;
+  }
+  size_t keyNum = taosArrayGetSize(pHandle->pSortInfo);
+  if (keyNum != 1 && !(keyNum == 2 && pHandle->tsPkSort)) {
+    return false;
+  }
+  if (pBlock == NULL || pBlock->pDataBlock == NULL ||
+      blockDataGetNumOfCols(pBlock) != blockDataGetNumOfCols(pHandle->pDataBlock)) {
+    return false;
+  }
+
+  int32_t colNum = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (size_t keyIdx = 0; keyIdx < keyNum; ++keyIdx) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, keyIdx);
+    if (pOrder->slotId < 0 || pOrder->slotId >= colNum) {
+      return false;
+    }
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pOrder->slotId);
+    if (pCol == NULL || pCol->pData == NULL) {
+      return false;
+    }
+    if (keyIdx == 0 && pCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      // The planner may mark the shape from the parse tree only; the runtime
+      // column behind the sort slot can differ (e.g. after slot rewriting).
+      // Stay safe on the row-wise path and log why the optimization was lost.
+      qTrace("%s suffix fallback, sort key 0 is not timestamp, type:%d", tsortSafeIdStr(pHandle), pCol->info.type);
+      return false;
+    }
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      qTrace("%s suffix fallback, variable-width key, keyIdx:%d type:%d", tsortSafeIdStr(pHandle), (int32_t)keyIdx,
+             pCol->info.type);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Lightweight runtime re-check of the plan's ordered-input proof. The flag is
+// trusted in release builds (the per-row suffix check below only runs at trace
+// level), so a planner or slot-rewrite bug would drop the block suffix without
+// warning. Validate the key shape the proof depends on against the actual
+// block: exactly the two (ts, pk) keys, first key TIMESTAMP, both fixed-width,
+// and the same column layout as the first input block. A mismatch falls back
+// to the row-wise path instead of trusting the contract.
+static bool tsortPlanOrderStillValid(const SSortHandle* pHandle, const SSDataBlock* pBlock) {
+  if (pHandle == NULL || pHandle->pDataBlock == NULL || pHandle->pDataBlock->pDataBlock == NULL ||
+      pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return false;
+  }
+  if (taosArrayGetSize(pHandle->pSortInfo) != 2) {
+    return false;
+  }
+  int32_t colNum = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  if (colNum != (int32_t)taosArrayGetSize(pHandle->pDataBlock->pDataBlock)) {
+    return false;
+  }
+  for (int32_t k = 0; k < 2; ++k) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, k);
+    if (pOrder->slotId < 0 || pOrder->slotId >= colNum) {
+      return false;
+    }
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pOrder->slotId);
+    SColumnInfoData* pRef = taosArrayGet(pHandle->pDataBlock->pDataBlock, pOrder->slotId);
+    if (pCol == NULL || pRef == NULL || pCol->info.type != pRef->info.type) {
+      return false;
+    }
+    if (k == 0 && pCol->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
+      return false;
+    }
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Diagnostic check of the plan's full-key input order contract. The flag is
+// carried through the plan and never re-derived at runtime, so a planner or a
+// slot-rewrite bug would otherwise drop the block suffix without warning. The
+// check compares every adjacent key pair in the suffix, which costs a little
+// per row, so it only runs when trace logging is enabled; release builds keep
+// the zero-cost fast path. A false result keeps the caller on the row-wise
+// path instead of trusting the contract.
+static bool tsortSuffixIsOrdered(const SSortHandle* pHandle, const SSDataBlock* pBlock, size_t startRow) {
+  if ((qDebugFlag & DEBUG_TRACE) == 0) {
+    return true;
+  }
+  if (pBlock == NULL || pBlock->pDataBlock == NULL) {
+    return false;
+  }
+
+  size_t  keyNum = taosArrayGetSize(pHandle->pSortInfo);
+  int32_t colNum = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
+  for (size_t row = startRow + 1; row < pBlock->info.rows; ++row) {
+    for (size_t k = 0; k < keyNum; ++k) {
+      SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, k);
+      if (pOrder->slotId < 0 || pOrder->slotId >= colNum) {
+        qError("%s input order check failed, invalid sort slot:%d", tsortSafeIdStr(pHandle), pOrder->slotId);
+        return false;
+      }
+
+      SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, pOrder->slotId);
+      if (pCol == NULL || pCol->pData == NULL) {
+        qError("%s input order check failed, missing key column, slotId:%d", tsortSafeIdStr(pHandle),
+               pOrder->slotId);
+        return false;
+      }
+
+      bool    prevNull = colDataIsNull_s(pCol, (uint32_t)(row - 1));
+      bool    curNull = colDataIsNull_s(pCol, (uint32_t)row);
+      int32_t cmp = 0;
+      if (prevNull && curNull) {
+        continue;
+      } else if (prevNull) {
+        cmp = pOrder->nullFirst ? -1 : 1;
+      } else if (curNull) {
+        cmp = pOrder->nullFirst ? 1 : -1;
+      } else {
+        __compar_fn_t fn = getKeyComparFunc(pCol->info.type, pOrder->order);
+        if (fn == NULL) {
+          return false;
+        }
+        cmp = fn(colDataGetData(pCol, (uint32_t)(row - 1)), colDataGetData(pCol, (uint32_t)row));
+      }
+
+      if (cmp > 0) {
+        qError("%s input order contract violated, key:%d row:%zu", tsortSafeIdStr(pHandle), (int32_t)k, row);
+        return false;
+      }
+      if (cmp < 0) {
+        break;
+      }
+    }
+  }
+
+  return true;
 }
 
 static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
@@ -3097,19 +3506,213 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
     }
 
     ReferencedTuple refTuple = {.desc.data = (char*)pBlock, .desc.type = ReferencedTupleType, .rowIndex = 0};
+    bool shortCircuitChecked = false;
     for (size_t rowIdx = 0; rowIdx < pBlock->info.rows; ++rowIdx) {
       refTuple.rowIndex = rowIdx;
       pqNode.data = &refTuple;
       PriorityQueueNode* pPushedNode = taosBQPush(pHandle->pBoundedQueue, &pqNode);
-      if (!pPushedNode) {
-        // do nothing if push failed
-      } else {
+      if (pHandle->comparErr != TSDB_CODE_SUCCESS) {
+        // tupleComparFn could not read a key field while sifting this node in.
+        // Fail the sort instead of keeping a tuple it could not compare.
+        return pHandle->comparErr;
+      }
+      if (pPushedNode) {
         pPushedNode->data = NULL;
         int32_t code = createAllocatedTuple(pBlock, colNum, tupleLen, rowIdx, (TupleDesc**)&pPushedNode->data);
         if (code) {
           return code;
         }
+        continue;
       }
+
+      if (shortCircuitChecked) {
+        continue;
+      }
+
+      // A push is rejected only when the queue is at max+1 and the row is not
+      // better than the current threshold. Only then can the block suffix be
+      // short-circuited; later blocks are still processed normally.
+      if (taosBQSize(pHandle->pBoundedQueue) != taosBQMaxSize(pHandle->pBoundedQueue) + 1) {
+        // taosBQPush returns NULL either for a threshold rejection or for a
+        // failed backing-array allocation. The rejection case always leaves
+        // the queue at max+1, so this branch is an allocation failure: keep
+        // the row from being dropped silently.
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      shortCircuitChecked = true;
+
+      if (pHandle->inputOrderedBySortKeys) {
+        // P1-A: the planner proved that the physical input is ordered by the
+        // complete sort key list, so every remaining row of this block follows
+        // the rejected row and is strictly worse than the threshold. Skip the
+        // block suffix. A rejected last row leaves an empty suffix, so there is
+        // nothing to skip or verify.
+        if (rowIdx + 1 >= pBlock->info.rows) {
+          continue;
+        }
+        // Re-check the columns the proof depends on against the actual block,
+        // then re-validate the order itself when trace logging is on. Either
+        // check failing keeps the remaining rows on the row-wise path.
+        if (!tsortPlanOrderStillValid(pHandle, pBlock)) {
+          qTrace("%s suffix fallback, plan order contract does not match the block", tsortSafeIdStr(pHandle));
+          continue;
+        }
+        if (!tsortSuffixIsOrdered(pHandle, pBlock, rowIdx)) {
+          continue;
+        }
+        qTrace("%s suffix skip, ordered rows after rejected row, reason:plan skipped:%" PRId64
+               " block rows:%" PRId64 " start row:%zu",
+               tsortSafeIdStr(pHandle), (int64_t)pBlock->info.rows - (int64_t)rowIdx, pBlock->info.rows, rowIdx);
+        break;
+      }
+
+      if (!tsortShortCircuitEligible(pHandle, pBlock)) {
+        // Conservative fallback: keep the row-wise PQ for the rest of the block.
+        continue;
+      }
+
+      // P1-B: the order is not proven. Short-circuit the rest of the block
+      // against the live heap threshold, skipping only rows that the PQ
+      // comparator would reject. The comparison reuses the per-key comparator
+      // function and NULL ordering of tupleComparFn(), but reads the threshold
+      // tuple's key fields once per heap change instead of unpacking both
+      // tuples on every row. A row that may enter resumes the normal PQ
+      // insertion; the threshold is re-read after every accepted row because
+      // the heap changes.
+      size_t keyNum = taosArrayGetSize(pHandle->pSortInfo);
+      if (keyNum > TSORT_SHORT_CIRCUIT_MAX_KEYS) {
+        // Cannot happen while eligibility stays in sync with the buffers, but
+        // never index past them if the predicate is widened later. This is an
+        // internal-invariant diagnostic, not a query failure: warn and fall
+        // back to the row-wise path.
+        qWarn("%s suffix fallback, too many sort keys:%zu", tsortSafeIdStr(pHandle), keyNum);
+        continue;
+      }
+
+      SColumnInfoData* keyCols[TSORT_SHORT_CIRCUIT_MAX_KEYS] = {NULL, NULL};
+      __compar_fn_t    keyFns[TSORT_SHORT_CIRCUIT_MAX_KEYS] = {NULL, NULL};
+      bool             keyReady = true;
+      for (size_t k = 0; k < keyNum; ++k) {
+        SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, k);
+        keyCols[k] = taosArrayGet(pBlock->pDataBlock, pOrder->slotId);
+        if (keyCols[k] == NULL) {
+          keyReady = false;
+          break;
+        }
+        keyFns[k] = getKeyComparFunc(keyCols[k]->info.type, pOrder->order);
+        if (keyFns[k] == NULL) {
+          keyReady = false;
+          break;
+        }
+      }
+      if (!keyReady) {
+        continue;
+      }
+
+      int64_t  skipped = 1;  // the rejected row itself
+      // tupleDescGetField returns non-zero on failure and only leaves a NULL
+      // field for a genuine SQL NULL. A failed read aborts this block before
+      // the comparison loop, so NULL entries here mean NULL keys, never a
+      // read failure.
+      void*    topKeyData[TSORT_SHORT_CIRCUIT_MAX_KEYS] = {NULL, NULL};
+      bool     topKeysValid = false;
+      bool     fallbackRowWise = false;
+      for (size_t next = rowIdx + 1; next < pBlock->info.rows; ++next) {
+        refTuple.rowIndex = next;
+        if (!topKeysValid) {
+          // Re-read the threshold keys from the live heap top after every
+          // change. taosBQPush frees the replaced tuple and pqHeapify may
+          // reorder the heap, so caching a pointer into the old tuple can
+          // dangle or alias a recycled allocation.
+          PriorityQueueNode* top = taosBQTop(pHandle->pBoundedQueue);
+          if (top == NULL || top->data == NULL) {
+            // The queue is full here, so this only happens on an allocation
+            // failure. Do not dereference it: resume the row-wise path for the
+            // rest of the block instead of dropping rows. Both this and the
+            // unreadable-key case below are recoverable, so warn rather than
+            // raise an error-level diagnostic.
+            qWarn("%s suffix fallback, empty heap top", tsortSafeIdStr(pHandle));
+            fallbackRowWise = true;
+            rowIdx = next - 1;
+            break;
+          }
+          bool topReadFailed = false;
+          for (size_t k = 0; k < keyNum; ++k) {
+            SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, k);
+            int32_t rc = tupleDescGetField((TupleDesc*)top->data, pOrder->slotId, colNum, &topKeyData[k]);
+            if (rc) {
+              // Same policy as the other failures in this path: fall back to
+              // the row-wise PQ for the rest of the block instead of failing
+              // the query. The row-wise comparator reports the same failure.
+              qWarn("%s suffix fallback, cannot read heap top key:%d slotId:%d code:%d", tsortSafeIdStr(pHandle),
+                    (int32_t)k, pOrder->slotId, rc);
+              topReadFailed = true;
+              break;
+            }
+          }
+          if (topReadFailed) {
+            fallbackRowWise = true;
+            rowIdx = next - 1;
+            break;
+          }
+          topKeysValid = true;
+        }
+
+        int32_t cmp = 0;
+        for (size_t k = 0; k < keyNum; ++k) {
+          SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pHandle->pSortInfo, k);
+          bool topNull = (topKeyData[k] == NULL);
+          bool rowNull = colDataIsNull_s(keyCols[k], next);
+          void* rowData = rowNull ? NULL : colDataGetData(keyCols[k], next);
+          if (topNull && rowNull) {
+            continue;
+          } else if (topNull) {
+            cmp = pOrder->nullFirst ? -1 : 1;
+          } else if (rowNull) {
+            cmp = pOrder->nullFirst ? 1 : -1;
+          } else {
+            cmp = keyFns[k](topKeyData[k], rowData);
+          }
+          if (cmp != 0) {
+            break;
+          }
+        }
+
+        // The bounded queue rejects a row exactly when the threshold is
+        // strictly better, i.e. comparFn(threshold, row) < 0. Equal keys are
+        // accepted: tsortPQCompFn returns false for cmp == 0, and theap.c then
+        // replaces the threshold tuple, so only strict rejections are counted.
+        if (cmp < 0) {
+          ++skipped;
+          continue;
+        }
+
+        pqNode.data = &refTuple;
+        pPushedNode = taosBQPush(pHandle->pBoundedQueue, &pqNode);
+        if (pHandle->comparErr != TSDB_CODE_SUCCESS) {
+          return pHandle->comparErr;
+        }
+        if (pPushedNode) {
+          pPushedNode->data = NULL;
+          int32_t code = createAllocatedTuple(pBlock, colNum, tupleLen, next, (TupleDesc**)&pPushedNode->data);
+          if (code) {
+            return code;
+          }
+          // The heap top may have moved or its tuple been replaced.
+          topKeysValid = false;
+        }
+      }
+
+      if (fallbackRowWise) {
+        // rowIdx already points at the last row handled before the fallback,
+        // so the outer loop resumes with the row that was not compared yet.
+        continue;
+      }
+
+      qTrace("%s suffix skip, ordered rows after rejected row, reason:threshold skipped:%" PRId64
+             " block rows:%" PRId64 " start row:%zu",
+             tsortSafeIdStr(pHandle), skipped, pBlock->info.rows, rowIdx);
+      break;
     }
   }
 
@@ -3138,6 +3741,11 @@ static int32_t tsortPQSortNextTuple(SSortHandle* pHandle, STupleHandle** pTupleH
     // sort the results
     taosBQSetFn(pHandle->pBoundedQueue, tsortPQComFnReverse);
     taosBQBuildHeap(pHandle->pBoundedQueue);
+    if (pHandle->comparErr != TSDB_CODE_SUCCESS) {
+      // The reverse comparator hit an unreadable key field while building the
+      // output heap. Surface it instead of emitting a partially ordered block.
+      return pHandle->comparErr;
+    }
   }
   if (taosBQSize(pHandle->pBoundedQueue) > 0) {
     uint32_t           colNum = blockDataGetNumOfCols(pHandle->pDataBlock);
