@@ -22646,10 +22646,10 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
       break;
     case TSDB_ALTER_TABLE_ADD_SERIES:
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesSourceName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesDbName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesMeasurementName));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesSourceName, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesDbName, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesMeasurementName, NULL));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->seriesTagCondLen));
       if (pReq->seriesTagCondLen > 0) {
         pReq->seriesTagCondJson = taosMemoryMalloc(pReq->seriesTagCondLen + 1);
