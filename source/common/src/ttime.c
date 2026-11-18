@@ -2087,10 +2087,31 @@ char* formatTimestampTz(char* buf, int32_t cap, int64_t val, int precision, time
   (((_p) >= TSDB_TIME_PRECISION_MILLI && (_p) <= TSDB_TIME_PRECISION_NANO) ||                     \
    (_p) == TSDB_TIME_PRECISION_SECONDS)
 
-static time_t timestampWholeSeconds(int64_t ts, int32_t precision) {
+/* Split ts into whole seconds and a fraction in the precision's tick units.
+ * C's / and % truncate toward zero, so a negative ts must be floored to keep
+ * the fraction non-negative: -1 ms -> -1 s + 999 ms. */
+void taosTsSplit(int64_t ts, int32_t precision, int64_t* wholeSeconds, int64_t* fraction) {
+  if (!TS_PRECISION_VALID(precision)) {
+    // HOUR/MINUTE have a zero tick factor and out-of-range values index past
+    // TICK_PER_SECOND; fall back to whole seconds rather than divide by zero.
+    *wholeSeconds = ts;
+    *fraction = 0;
+    return;
+  }
   int64_t factor = TICK_PER_SECOND[precision];
-  time_t seconds = (time_t)(ts / factor);
-  return ts % factor < 0 ? seconds - 1 : seconds;
+  *wholeSeconds = ts / factor;
+  *fraction = ts % factor;
+  if (*fraction < 0) {
+    --*wholeSeconds;
+    *fraction += factor;
+  }
+}
+
+static time_t timestampWholeSeconds(int64_t ts, int32_t precision) {
+  int64_t wholeSeconds = 0;
+  int64_t fraction = 0;
+  taosTsSplit(ts, precision, &wholeSeconds, &fraction);
+  return (time_t)wholeSeconds;
 }
 
 int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm *tm,
@@ -2100,10 +2121,11 @@ int32_t taosTs2Tm(int64_t ts, int32_t precision, struct STm *tm,
     TAOS_RETURN(TSDB_CODE_INVALID_PARA);
   }
   int64_t factor = TICK_PER_SECOND[precision];
-  int64_t fraction = ts % factor;
-  if (fraction < 0) fraction += factor;
+  int64_t wholeSeconds = 0;
+  int64_t fraction = 0;
+  taosTsSplit(ts, precision, &wholeSeconds, &fraction);
   tm->fsec = fraction * (1000000000LL / factor);
-  time_t seconds = timestampWholeSeconds(ts, precision);
+  time_t seconds = (time_t)wholeSeconds;
   if (taosLocalTime(&seconds, &tm->tm, NULL, 0, tz) == NULL) {
     TAOS_RETURN(TAOS_SYSTEM_ERROR(ERRNO));
   }

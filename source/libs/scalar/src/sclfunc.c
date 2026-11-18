@@ -5022,32 +5022,26 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     int64_t timeVal;
     char   *format = NULL;
     int64_t quot = 0;
-    long    mod = 0;
+    int64_t mod = 0;
 
     GET_TYPED_DATA(timeVal, int64_t, type, input, typeGetTypeModFromColInfo(&pInput[0].columnData->info));
 
     switch (pInput->columnData[0].info.precision) {
       case TSDB_TIME_PRECISION_MILLI: {
-        quot = timeVal / 1000;
         fractionLen = 5;
         format = ".%03" PRId64;
-        mod = timeVal % 1000;
         break;
       }
 
       case TSDB_TIME_PRECISION_MICRO: {
-        quot = timeVal / 1000000;
         fractionLen = 8;
         format = ".%06" PRId64;
-        mod = timeVal % 1000000;
         break;
       }
 
       case TSDB_TIME_PRECISION_NANO: {
-        quot = timeVal / 1000000000;
         fractionLen = 11;
         format = ".%09" PRId64;
-        mod = timeVal % 1000000000;
         break;
       }
 
@@ -5056,6 +5050,8 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         continue;
       }
     }
+
+    taosTsSplit(timeVal, pInput->columnData[0].info.precision, &quot, &mod);
 
     struct tm tmInfo;
     int32_t   len = 0;

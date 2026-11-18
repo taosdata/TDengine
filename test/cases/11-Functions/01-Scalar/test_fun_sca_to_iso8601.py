@@ -92,6 +92,48 @@ class TestFunToIso8601:
         for i in range(len(ts_list)):
             tdSql.query(f'select to_iso8601({ts_list[i]}) from {self.ntbname}')
             tdSql.checkEqual(tdSql.queryResult[0][0],res_list_ns[i])
+    def check_negative_fractional_timestamp(self):
+        # 原始缺陷复现：裸 CAST(-1 AS TIMESTAMP) 使用毫秒精度。
+        tdSql.execute(f'drop database if exists {self.dbname}')
+        tdSql.execute(f'create database {self.dbname} precision "ms"')
+        tdSql.execute(f'use {self.dbname}')
+        tdSql.query('select to_iso8601(cast(-1 as timestamp), "+0000")')
+        tdSql.checkData(0, 0, '1969-12-31T23:59:59.999+0000')
+        tdSql.execute(f'drop database if exists {self.dbname}')
+
+        # 负小数时间戳：ISO 8601 小数部分须非负，整秒向下取整（-1ms -> -1s + 999ms）。
+        # 待测值放入非主键 TIMESTAMP 列 c1，主键 ts 用 now，避免被默认保留期拒绝。
+        cases = [
+            # (precision, value, expected to_iso8601(value, '+0000'))
+            ('ms', -1,           '1969-12-31T23:59:59.999+0000'),
+            ('ms', -1000,        '1969-12-31T23:59:59.000+0000'),
+            ('ms', -1001,        '1969-12-31T23:59:58.999+0000'),
+            ('ms', 0,            '1970-01-01T00:00:00.000+0000'),
+            ('ms', 1,            '1970-01-01T00:00:00.001+0000'),
+            ('us', -1,           '1969-12-31T23:59:59.999999+0000'),
+            ('us', -1000000,     '1969-12-31T23:59:59.000000+0000'),
+            ('us', -1000001,     '1969-12-31T23:59:58.999999+0000'),
+            ('us', 0,            '1970-01-01T00:00:00.000000+0000'),
+            ('us', 1,            '1970-01-01T00:00:00.000001+0000'),
+            ('ns', -1,           '1969-12-31T23:59:59.999999999+0000'),
+            ('ns', -1000000000,  '1969-12-31T23:59:59.000000000+0000'),
+            ('ns', -1000000001,  '1969-12-31T23:59:58.999999999+0000'),
+            ('ns', 0,            '1970-01-01T00:00:00.000000000+0000'),
+            ('ns', 1,            '1970-01-01T00:00:00.000000001+0000'),
+        ]
+        for prec, tsval, expected in cases:
+            tdSql.execute(f'drop database if exists {self.dbname}')
+            tdSql.execute(f'create database {self.dbname} precision "{prec}"')
+            tdSql.execute(f'use {self.dbname}')
+            tdSql.execute(f'create table {self.ntbname}(ts timestamp, c1 timestamp)')
+            tdSql.execute(f'insert into {self.ntbname} values(now, {tsval})')
+            # 固定偏移、IANA(UTC) 与字符串往返三条路径应一致。
+            tdSql.query(f'select to_iso8601(c1, "+0000"), to_iso8601(c1, "UTC"), '
+                        f'to_iso8601(cast(to_iso8601(c1, "+0000") as timestamp), "+0000") from {self.ntbname}')
+            tdSql.checkData(0, 0, expected)
+            tdSql.checkData(0, 1, expected)
+            tdSql.checkData(0, 2, expected)
+            tdSql.execute(f'drop database if exists {self.dbname}')
     def check_customize_param_ms(self):
         time_zone = time.strftime('%z')
         tdSql.execute(f'drop database if exists {self.dbname}')
@@ -204,6 +246,7 @@ class TestFunToIso8601:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:
@@ -213,6 +256,7 @@ class TestFunToIso8601:
         self.check_base_function()
         self.check_customize_param_ms()
         self.check_timestamp_precision()
+        self.check_negative_fractional_timestamp()
 
 
     def test_fun_sca_today(self):
@@ -225,6 +269,7 @@ class TestFunToIso8601:
         Since: v3.3.0.0
 
         Labels: common,ci,integration,functional
+
         History:
             - 2025-10-16 Alex Duan add doc
 
