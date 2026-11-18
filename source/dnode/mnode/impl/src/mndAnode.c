@@ -767,7 +767,28 @@ static int32_t mndRetrieveAnodesFull(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
       break;
     }
 
-    code = updateModelStatus(pObj);
+    // Keep the status failure out of code: code decides whether the row object is still held
+    // for the _end release below, and a failed refresh must not abort the whole retrieve.
+    int32_t statusCode = updateModelStatus(pObj);
+    if (statusCode != 0) {
+      mError("anode:%d, failed to update model status since %s", pObj->id, tstrerror(statusCode));
+    }
+
+    int32_t totalAlgos = 0;
+    for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
+      if (pObj->algos[t] != NULL) {
+        totalAlgos += (int32_t)taosArrayGetSize(pObj->algos[t]);
+      }
+    }
+
+    if (totalAlgos > 0) {
+      pBlock->info.rows = numOfRows;
+      code = blockDataEnsureCapacity(pBlock, numOfRows + totalAlgos);
+      if (code != 0) {
+        mError("anode:%d, failed to ensure block data capacity since %s", pObj->id, tstrerror(code));
+        break;
+      }
+    }
 
     for (int32_t t = 0; t < pObj->numOfAlgos; ++t) {
       SArray *algos = pObj->algos[t];
