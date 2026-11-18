@@ -58,7 +58,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
         <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-core</artifactId>
-            <version>6.2.11</version>
+            <version>6.2.19</version>
         </dependency>
 
         <dependency>
