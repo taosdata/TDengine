@@ -5615,6 +5615,136 @@ static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNo
   return cxt.code;
 }
 
+typedef struct {
+  SVirtualTableNode* pTable;
+  bool               needsScan;
+  int32_t            code;
+} SRewriteVtableColCxt;
+
+static bool canRewriteUnreferencedVtableCol(const SRewriteVtableColCxt* pCxt, SColumnNode* pCol) {
+  return COLUMN_TYPE_COLUMN == pCol->colType && !pCol->hasRef &&
+         !pCol->hasDep && !pCol->isPrimTs &&
+         PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId &&
+         isSameVirtualTableCol(pCxt->pTable, pCol);
+}
+
+static EDealRes checkUnreferencedVtableSlot(SNode* pNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && canRewriteUnreferencedVtableCol(pCxt, (SColumnNode*)pNode)) {
+    pCxt->needsScan = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes checkVtableSlotConsumer(SNode* pNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (pCxt->needsScan) {
+    return DEAL_RES_END;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_FILL:
+      // FILL assigns its values by projection position, including selection companions.
+      pCxt->needsScan = true;
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      // The external window walker visits its time column only.
+      pCxt->needsScan = NULL != ((SExternalWindowNode*)pNode)->pFill;
+      break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      // Both named and inline OVER clauses use input slots for their keys.
+      nodesWalkExpr(pNode, checkUnreferencedVtableSlot, pCxt);
+      break;
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      // The generic JOIN walker only visits ON and the two inputs.
+      nodesWalkExpr(pJoin->pOnCond, checkUnreferencedVtableSlot, pCxt);
+      nodesWalkExpr(pJoin->addPrimCond, checkUnreferencedVtableSlot, pCxt);
+      nodesWalkExprs(pJoin->pWindowTime, checkUnreferencedVtableSlot, pCxt);
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      nodesWalkExpr(((SCorrelationParamBindingNode*)pNode)->pSource, checkUnreferencedVtableSlot, pCxt);
+      break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      if (!fmIsScalarFunc(pFunc->funcId) && !fmIsSelectValueFunc(pFunc->funcId)) {
+        nodesWalkExprs(pFunc->pParameterList, checkUnreferencedVtableSlot, pCxt);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return pCxt->needsScan ? DEAL_RES_END : DEAL_RES_CONTINUE;
+}
+
+static EDealRes rewriteUnreferencedVtableCol(SNode** ppNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  SNode* pColumn = *ppNode;
+  if (QUERY_NODE_FUNCTION == nodeType(pColumn)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pColumn;
+    if (!fmIsSelectValueFunc(pFunc->funcId)) {
+      return DEAL_RES_CONTINUE;
+    }
+    // Selection companions require a column slot. Replace the wrapper too.
+    pColumn = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  if (NULL == pColumn || QUERY_NODE_COLUMN != nodeType(pColumn)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (!canRewriteUnreferencedVtableCol(pCxt, (SColumnNode*)pColumn)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SValueNode* pNull = NULL;
+  pCxt->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNull);
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  pNull->node = *(SExprNode*)*ppNode;
+  pNull->node.type = QUERY_NODE_VALUE;
+  pNull->node.hasNull = true;
+  pNull->translate = true;
+  pNull->isNull = true;
+  ((SExprNode*)*ppNode)->pAssociation = NULL;
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pNull;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t rewriteUnreferencedVtableCols(SSelectStmt* pSelect,
+                                            SVirtualTableNode* pTable,
+                                            SVirtualScanLogicNode* pScan) {
+  // TIME_ALIGN adds raw input slots to the scan even when only its outputs are selected.
+  if (NULL != pTable->pAlignCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // A consumer that needs an unbound column as a slot already requires the virtual scan.
+  // Check before changing either the statement or the scan's output columns.
+  SRewriteVtableColCxt cxt = {.pTable = pTable};
+  nodesWalkExpr(pSelect->pWindow, checkUnreferencedVtableSlot, &cxt);
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, checkVtableSlotConsumer, &cxt);
+  if (cxt.needsScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM,
+                        rewriteUnreferencedVtableCol, &cxt);
+  PLAN_ERR_RET(cxt.code);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    if (canRewriteUnreferencedVtableCol(&cxt, (SColumnNode*)pNode)) {
+      ERASE_NODE(pScan->pScanCols);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // Second pass after syncVirtualTable*ColRefs: _select_value subsidiaries size their tuple
 // row image from the function result width (prepareBuf), so a widened virtual column
 // parameter must widen the wrapping function too, keeping write/read strides consistent.
@@ -7945,6 +8075,11 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable, pRefTablesMap));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable, pRefTablesMap));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable, pRefTablesMap));
+  // An unbound data column keeps a tag-only source from supplying a data row.
+  if (hasUnrefCol && taosHashGetSize(pRefTablesMap) > 0) {
+    PLAN_ERR_JRET(rewriteUnreferencedVtableCols(pSelect, pVirtualTable,
+                                               pVtableScan));
+  }
   PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.

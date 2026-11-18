@@ -19,23 +19,75 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from vtable_util import VtableQueryUtil
+from vtable_util import (
+    VTABLE_COLUMN_TYPES,
+    VtableQueryUtil,
+    build_vstable_sql,
+    build_vtable_child_sql,
+    build_vtable_normal_sql,
+)
 
 class TestVTablePlanAggOptimize:
     def setup_class(cls):
         vtbUtil = VtableQueryUtil()
         vtbUtil.prepare_same_db_vtables(mode = 2)
 
-    def run_normal_query(self, testCase):
+    def run_normal_query(self, testCase, result_transform=None):
         # read sql from .sql file and execute
         tdLog.info(f"test case : {testCase}.")
         self.sqlFile = os.path.join(os.path.dirname(__file__), "in", f"{testCase}.in")
         self.ansFile = os.path.join(os.path.dirname(__file__), "ans", f"{testCase}.ans")
 
-        tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+        tdCom.compare_testcase_result(
+            self.sqlFile, self.ansFile, testCase,
+            result_transform=result_transform)
 
     def do_select_function_pushdown(self, test_case):
         self.run_normal_query(test_case)
+        print(f"{test_case} [ passed ]")
+
+    def do_unreferenced_column_null(self, test_case):
+        db = VtableQueryUtil.VTABLE_DB_NAME
+        column_types = VTABLE_COLUMN_TYPES + (("aux_ts", "timestamp"),)
+        source_map = {
+            "int_col": f"{db}.vtb_org_tb_0.int_col",
+            "float_col": f"{db}.vtb_org_tb_1.float_col",
+        }
+        tdSql.execute(f"use {db}")
+        null_ts = "2025-06-17 04:00:00.000"
+        try:
+            tdSql.execute(build_vstable_sql(column_types, stb="vtb_null_stb"))
+            tdSql.execute(build_vtable_normal_sql("vtb_null_ntb", source_map, column_types))
+            tdSql.execute(build_vtable_child_sql(
+                "vtb_null_ctb", source_map, "7, true, 7, 7, 'null', 'null'",
+                stb="vtb_null_stb"))
+            # A trailing NULL must not change LAST's chosen value or timestamp.
+            tdSql.execute(
+                f"insert into {db}.vtb_org_tb_0 (ts, int_col) "
+                f"values ('{null_ts}', null)")
+            for flushed in (False, True):
+                if flushed:
+                    tdSql.execute(f"flush database {db}")
+                self.run_normal_query(
+                    test_case,
+                    result_transform=lambda output: output.rstrip("\r\n") + "\n")
+
+            for table in ("vtb_null_ntb", "vtb_null_ctb"):
+                tdSql.query(
+                    f"select last(int_col) as val, _c0 as ts, "
+                    f"bool_col as q, nchar_16_col as label, "
+                    f"u_bigint_col as counter from {db}.{table}")
+                tdSql.checkRows(1)
+                tdSql.checkResColNameList(["val", "ts", "q", "label", "counter"])
+                for column, data_type in ((2, "BOOL"), (3, "NCHAR"),
+                                           (4, "BIGINT UNSIGNED")):
+                    tdSql.checkData(0, column, None)
+                    assert tdSql.getType(column) == data_type
+        finally:
+            tdSql.execute(f"delete from {db}.vtb_org_tb_0 where ts = '{null_ts}'")
+            tdSql.execute(f"drop table if exists {db}.vtb_null_ctb")
+            tdSql.execute(f"drop table if exists {db}.vtb_null_ntb")
+            tdSql.execute(f"drop stable if exists {db}.vtb_null_stb")
         print(f"{test_case} [ passed ]")
 
     def do_partitioned_aggregate_iteration(self):
@@ -204,6 +256,51 @@ class TestVTablePlanAggOptimize:
             - 2026-11-10 Joey Sima Created
         """
         self.do_select_function_pushdown("test_vtable_select_function_pushdown")
+
+    def test_unreferenced_column_null_result(self):
+        """Query: replace unreferenced virtual data columns with typed NULLs.
+
+        1. Reuse shared source data for virtual normal and child tables.
+        2. Check LAST companions, expressions, predicates, grouping and subqueries.
+        3. Preserve NULL-only and empty inputs, aliases and result types across flush.
+        4. Check the count when every SESSION timestamp is NULL.
+        5. Check positional FILL values, TIME_ALIGN inputs, WINDOW_TIME keys and correlated parameters.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-16 Joey Sima Created for defect 7170417049
+        """
+        self.do_unreferenced_column_null("test_vtable_unreferenced_column_null")
+
+    def test_unreferenced_column_null_plan(self):
+        """Plan: eliminate single-source virtual scans with unreferenced columns.
+
+        1. Check descending LAST scans after rewriting selection companions to NULL.
+        2. Cover virtual normal and child tables with scalar NULL expressions.
+        3. Preserve virtual supertable bindings and multiple-source row merging.
+        4. Retain the scan that supplies the unbound SESSION time key.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,virtual
+
+        Jira: None
+
+        History:
+            - 2026-11-16 Joey Sima Created for defect 7170417049
+        """
+        self.do_unreferenced_column_null("test_vtable_plan_unreferenced_column_null")
 
     def test_select_function_pushdown_plan(self):
         """Plan: selection aggregate pushdown and merged-row safety boundaries.

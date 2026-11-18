@@ -1264,10 +1264,12 @@ TEST_F(PlanJoinTest, temporalJoinHiddenConditionInputSlot) {
 
 TEST_F(PlanJoinTest, temporalJoinWithVirtualTable) {
   useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* plan) {
+    expectPhysiJoinDirectChildContract(plan);
+  });
 
   run("SELECT v.c1, r.c1 FROM v_stream_t2 v LEFT ASOF JOIN "
       "stream_t2 r");
-  ASSERT_TRUE(planContains("\"LeftPrimSlotId\":\"1\""));
   ASSERT_TRUE(planContains(
       "\"TableAlias\":\"v\",\"ColName\":\"ts\""));
 }
@@ -1976,23 +1978,32 @@ TEST_F(PlanJoinTest, ReferencedTagDatabaseName) {
 
 TEST_F(PlanJoinTest, virtualReferencedTagOutsideProjection) {
   useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* plan) {
+    expectPhysiJoinDirectChildContract(plan);
+  });
   g_mockCatalogService->createTableBuilder(
-      "test", "v_tag_join", TSDB_VIRTUAL_CHILD_TABLE, 2, 1)
+      "test", "v_tag_join", TSDB_VIRTUAL_CHILD_TABLE, 3, 1)
       .setPrecision(TSDB_TIME_PRECISION_MILLI)
       .setVgid(1)
       .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
       .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c2", TSDB_DATA_TYPE_INT)
       .addTag("tag_ts", TSDB_DATA_TYPE_TIMESTAMP).done();
+  SColRef timestamp = {};
+  timestamp.id = 1;
   SColRef column = {};
   column.id = 2;
   column.hasRef = true;
   strcpy(column.refDbName, "test");
   strcpy(column.refTableName, "st1s1");
   strcpy(column.refColName, "c1");
+  SColRef unreferenced = {};
+  unreferenced.id = 3;
   SColRef tag = column;
-  tag.id = 3;
+  tag.id = 4;
   strcpy(tag.refColName, "tag3");
-  g_mockCatalogService->setTableRefs("test", "v_tag_join", {column}, {tag});
+  g_mockCatalogService->setTableRefs(
+      "test", "v_tag_join", {timestamp, column, unreferenced}, {tag});
   for (const string side : {"LEFT", "RIGHT"}) {
     run("SELECT v.c1, r.c1 FROM v_tag_join v " + side +
         " WINDOW JOIN stream_t2 r WINDOW_TIME(v.tag_ts, r.ts) "
@@ -2014,6 +2025,15 @@ TEST_F(PlanJoinTest, virtualReferencedTagOutsideProjection) {
         " ASOF JOIN st1 r ON v.tag_ts = r.tag3");
     EXPECT_TRUE(findPlanNode("TagRefSource"));
     setLogicPlanCheck({});
+    run("SELECT v.c2, r.c1 FROM v_tag_join v " + side +
+        " WINDOW JOIN stream_t2 r WINDOW_TIME(v.tag_ts, r.ts) "
+        "WINDOW_OFFSET(-1s, 1s)");
+    EXPECT_TRUE(findPlanNode("TagRefSource"));
+    EXPECT_TRUE(findPlanNode("VirtualTableScan"));
+    run("SELECT v.c2, r.c1 FROM v_tag_join v " + side +
+        " ASOF JOIN st1 r ON v.tag_ts = r.tag3");
+    EXPECT_TRUE(findPlanNode("TagRefSource"));
+    EXPECT_TRUE(findPlanNode("VirtualTableScan"));
   }
   for (const string suffix : {"ORDER BY v.tag_ts",
                               "PARTITION BY v.tag_ts"}) {
