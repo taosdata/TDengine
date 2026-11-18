@@ -1338,6 +1338,46 @@ TEST(ColumnCopyTest, MergeAndAssignRejectWiderSource) {
   colDataDestroy(&same);
 }
 
+TEST(ColumnCopyTest, RepeatedVariableMergesHaveLinearPayloadGrowthCost) {
+  const int32_t   batches = 128;
+  const int32_t   batchRows = 7;
+  const int32_t   payloadBytes = 4093;
+  SColumnInfoData src = createColumnInfoData(TSDB_DATA_TYPE_BINARY, payloadBytes + VARSTR_HEADER_SIZE, 0);
+  SColumnInfoData dst = createColumnInfoData(TSDB_DATA_TYPE_BINARY, payloadBytes + VARSTR_HEADER_SIZE, 0);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&src, batchRows, true), TSDB_CODE_SUCCESS);
+  ASSERT_EQ(colInfoDataEnsureCapacity(&dst, batches * batchRows, true), TSDB_CODE_SUCCESS);
+
+  std::vector<char> value(payloadBytes + VARSTR_HEADER_SIZE, 'x');
+  varDataSetLen(value.data(), payloadBytes);
+  for (int32_t row = 0; row < batchRows; ++row) {
+    ASSERT_EQ(colDataSetVal(&src, row, value.data(), row == batchRows - 1), TSDB_CODE_SUCCESS);
+  }
+
+  int32_t  capacity = batches * batchRows;
+  uint64_t relocatedBytes = 0;
+  for (int32_t batch = 0; batch < batches; ++batch) {
+    uint32_t oldCapacity = dst.varmeta.allocLen;
+    uint32_t oldLength = dst.varmeta.length;
+    ASSERT_EQ(colDataMergeCol(&dst, batch * batchRows, &capacity, &src, batchRows), TSDB_CODE_SUCCESS);
+    if (dst.varmeta.allocLen != oldCapacity) relocatedBytes += oldLength;
+  }
+
+  // Bound the payload that reallocations must preserve, without relying on allocator timing or a growth factor.
+  EXPECT_LE(relocatedBytes, 4ULL * dst.varmeta.length);
+  EXPECT_EQ(dst.varmeta.length, batches * (batchRows - 1) * (payloadBytes + VARSTR_HEADER_SIZE));
+  for (int32_t row = 0; row < batches * batchRows; ++row) {
+    if (row % batchRows == batchRows - 1) {
+      EXPECT_TRUE(colDataIsNull_s(&dst, row));
+    } else {
+      EXPECT_FALSE(colDataIsNull_s(&dst, row));
+      EXPECT_EQ(varDataLen(colDataGetData(&dst, row)), payloadBytes);
+      EXPECT_EQ(memcmp(colDataGetData(&dst, row), value.data(), value.size()), 0);
+    }
+  }
+  colDataDestroy(&dst);
+  colDataDestroy(&src);
+}
+
 // NULL-type columns legitimately differ in width (0 vs CHAR_BYTES). Only a source that actually carries data wider
 // than the destination is refused; an all-NULL source without data must keep working.
 static SColumnInfoData makeNullTypeCol(int32_t bytes, int32_t rows, bool withData) {
