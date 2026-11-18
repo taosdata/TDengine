@@ -13,7 +13,11 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import json
 import time
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from taos.error import ProgrammingError
 from new_test_framework.utils import tdLog, tdSql
 
 
@@ -539,3 +543,231 @@ class TestTDgptBasic:
         
         tdSql.query("explain verbose true select _frowts, forecast(a) from t_1;")
         tdSql.query("explain verbose true select forecast(a)+20 from t_1;")
+
+    def test_show_anodes_full_many_algos(self):
+        """show anodes full with more than 100 algorithms
+
+        When an anode reports a large number of algorithms (> SHOW_STEP_SIZE=100),
+        mndRetrieveAnodesFull must dynamically expand the result block capacity.
+        Without the fix, writing past the pre-allocated 100 rows causes memory
+        overflow.
+
+        This test starts a local mock anode HTTP server that returns a JSON
+        response containing 113 algorithms across all types, then verifies
+        that show anodes full returns all 113 rows without crashing.
+
+        When the license allows a second anode, both anodes are replaced by two
+        mock anodes reporting 61 algorithms each: the first one fills part of a
+        page and the second one forces the capacity expansion inside the same
+        retrieve, so the cross-anode path is covered deterministically. On
+        clusters whose anode quota is one, that second part is skipped.
+
+        Since: v3.3.9.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2026-11-17  Haojun Liao  Added for mndRetrieveAnodesFull overflow fix
+
+        """
+
+        def build_algo(name, builtin=True, status="READY", params=None):
+            return {"builtins": builtin, "desc": name, "name": name,
+                    "params": params or {}, "status": status}
+
+        def make_algo_list(ad_count, reg_count, cls_count, prefix=""):
+            return {
+                "forecast": [build_algo(n, status=s) for n, s in [
+                    ("arima", "READY"), ("ces", "READY"), ("chronos", "UNAVAIL"),
+                    ("ets", "READY"), ("tdtsfm_1", "UNAVAIL"), ("holtwinters", "READY"),
+                    ("moirai", "UNAVAIL"), ("prophet", "READY"), ("theta", "READY"),
+                    ("timemoe-fc", "UNAVAIL"), ("timesfm", "UNAVAIL"),
+                ]],
+                "anomaly-detection": (
+                    [build_algo(n) for n in ["grubbs", "iqr", "ksigma", "lof"]] +
+                    [build_algo(f"{prefix}ud_ad_{i}", builtin=False) for i in range(ad_count)]
+                ),
+                "imputation": [build_algo("moment", status="UNAVAIL")],
+                "correlation": [build_algo("dtw"), build_algo("tlcc")],
+                "regression": [build_algo(f"{prefix}ud_reg_{i}", builtin=False) for i in range(reg_count)],
+                "classification": [build_algo(f"{prefix}ud_cls_{i}", builtin=False) for i in range(cls_count)],
+                "clustering": [build_algo(n) for n in ["dbscan", "gmm", "kmeans"]],
+                "series-diagnosis": [],
+            }
+
+        def algo_count(algo_list):
+            return sum(len(v) for v in algo_list.values())
+
+        def make_list_response(algo_list):
+            return {
+                "protocol": 1.0, "version": 0.1,
+                "details": [{"type": t, "algo": a} for t, a in algo_list.items()],
+            }
+
+        status_response = {"protocol": 1.0, "status": "ready"}
+
+        def start_mock_server(list_resp):
+            class Handler(BaseHTTPRequestHandler):
+                def log_message(self, *_args):
+                    pass
+
+                def reply(self, data):
+                    body = json.dumps(data).encode()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+
+                def do_GET(self):
+                    if self.path.endswith("/status"):
+                        self.reply(status_response)
+                    else:
+                        self.reply(list_resp)
+
+            server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+            return server
+
+        # --- Case 1: single anode with 113 algos (> SHOW_STEP_SIZE=100) ---
+        tdLog.info("=== Case 1: single anode, 113 algos ===")
+        algos1 = make_algo_list(ad_count=24, reg_count=44, cls_count=24)
+        expected1 = algo_count(algos1)
+        assert expected1 > 100, f"expected > 100, got {expected1}"
+
+        srv1 = start_mock_server(make_list_response(algos1))
+        url1 = f"http://127.0.0.1:{srv1.server_port}"
+        anode_ids = []
+        try:
+            # clean up any leftover anodes from prior tests
+            tdSql.query("show anodes")
+            for row in tdSql.queryResult:
+                tdSql.execute(f"drop anode {row[0]}")
+
+            tdSql.execute(f"create anode '{url1}'")
+            tdSql.query("show anodes")
+            tdSql.checkRows(1)
+            anode_ids.append(tdSql.queryResult[0][0])
+
+            tdSql.query("show anodes full")
+            tdLog.info(f"single anode: show anodes full returned {tdSql.queryRows} rows")
+            tdSql.checkRows(expected1)
+
+            # rows follow enum order: anomaly-detection(0) → forecast(1) → imputation(2)
+            # → correlation(3) → classification(4) → [motif(5) empty] → regression(6)
+            # → clustering(7) → [series-diagnosis(8) empty]
+            type_order = [
+                ("anomaly-detection", 28),  # 4 builtin + 24 user-defined
+                ("forecast",          11),
+                ("imputation",         1),
+                ("correlation",        2),
+                ("classification",    24),
+                # motif: 0 algos, no rows
+                ("regression",        44),
+                ("clustering",         3),
+                # series-diagnosis: 0 algos, no rows
+            ]
+
+            row_idx = 0
+            for type_name, count in type_order:
+                for i in range(count):
+                    tdSql.checkData(row_idx, 1, type_name)
+                    row_idx += 1
+
+            # spot-check first and last algo in key sections
+            tdSql.checkData(0,  2, "grubbs")         # first anomaly-detection algo
+            tdSql.checkData(3,  2, "lof")             # last builtin anomaly-detection
+            tdSql.checkData(4,  2, "ud_ad_0")         # first user-defined anomaly-detection
+            tdSql.checkData(28, 2, "arima")            # first forecast algo
+            # imputation section starts at row 28+11=39
+            tdSql.checkData(39, 2, "moment")           # the only imputation algo
+            tdSql.checkData(39, 3, "UNAVAIL")          # moment is unavailable
+            tdSql.checkData(40, 2, "dtw")              # first correlation algo
+            # last row: clustering section ends at row 113-1=112
+            tdSql.checkData(expected1 - 1, 2, "kmeans")
+            tdSql.checkData(expected1 - 1, 1, "clustering")
+
+            # --- Case 2: two anodes, 61 algos each (61+61 > 100, cross-page) ---
+            # Both anodes must stay below SHOW_STEP_SIZE (100) algorithms, otherwise the first
+            # anode fills a whole page on its own and the second one starts with numOfRows == 0,
+            # where blockDataEnsureCapacity returns early and the expansion branch is never
+            # reached. With 61 each, the first anode writes 61 rows, the loop continues in the
+            # same retrieve and the second anode forces the capacity expansion at numOfRows == 61
+            # - independent of the SDB hash iteration order. Case 1's 113-algorithm anode is
+            # therefore dropped first.
+            #
+            # The anode quota is licensed: the default grant allows a single anode
+            # (GRANT_UNIQ_DFT_TDGPT_ANODE_NUM is 1 when the license carries no TDgpt anode
+            # count). Run this case only when the cluster accepts a second anode, skip it
+            # otherwise, so environments with a larger quota keep the coverage.
+            tdLog.info("=== Case 2: two anodes, 61 algos each ===")
+            tdSql.execute(f"drop anode {anode_ids[0]}")
+            anode_ids.clear()
+            tdSql.query("show anodes")
+            tdSql.checkRows(0)
+
+            algos2 = make_algo_list(ad_count=10, reg_count=20, cls_count=10, prefix="b_")
+            algos3 = make_algo_list(ad_count=10, reg_count=20, cls_count=10, prefix="c_")
+            expected2 = algo_count(algos2)
+            expected3 = algo_count(algos3)
+            assert expected2 < 100 and expected3 < 100, \
+                f"each anode must stay below one page, got {expected2}/{expected3}"
+            assert expected2 + expected3 > 100, \
+                f"the two anodes must overflow one page, got {expected2 + expected3}"
+
+            srv2 = start_mock_server(make_list_response(algos2))
+            srv3 = start_mock_server(make_list_response(algos3))
+            url2 = f"http://127.0.0.1:{srv2.server_port}"
+            url3 = f"http://127.0.0.1:{srv3.server_port}"
+            try:
+                skipped = False
+                try:
+                    tdSql.cursor.execute(f"create anode '{url2}'")
+                    tdSql.cursor.execute(f"create anode '{url3}'")
+                except ProgrammingError as err:
+                    # 0x80000830 is TSDB_CODE_GRANT_ANODE_LIMITED
+                    if (err.errno & 0xFFFFFFFF) != 0x80000830:
+                        raise
+                    tdLog.notice("license allows one anode only, the two-anode case is skipped")
+                    skipped = True
+
+                tdSql.query("show anodes")
+                # register whatever was created so the outer cleanup drops it, also on skip
+                anode_ids.extend(row[0] for row in tdSql.queryResult)
+                if not skipped:
+                    tdSql.checkRows(2)
+                    id_by_url = {row[1]: row[0] for row in tdSql.queryResult}
+                    id2 = id_by_url[url2]
+                    id3 = id_by_url[url3]
+
+                    tdSql.query("show anodes full")
+                    total = expected2 + expected3
+                    tdLog.info(f"two anodes: show anodes full returned {tdSql.queryRows} rows, expected {total}")
+                    tdSql.checkRows(total)
+
+                    # every row must stay bound to its own anode: the block expansion has to keep
+                    # the rows already written for the first anode instead of shifting them
+                    counts = {id2: 0, id3: 0}
+                    for row in tdSql.queryResult:
+                        rid, algo = row[0], row[2]
+                        assert rid in (id2, id3), f"unexpected anode id {rid}, expected {id2} or {id3}"
+                        assert row[1] != "", f"algo type is empty for row id={rid} — offset corruption?"
+                        assert row[2] != "", f"algo name is empty for row id={rid} — offset corruption?"
+                        counts[rid] += 1
+                        if algo.startswith(("b_", "c_")):
+                            owner = id2 if algo.startswith("b_") else id3
+                            assert rid == owner, \
+                                f"algo {algo} is filed under anode id {rid}, expected {owner} — row misalignment"
+                    assert counts[id2] == expected2 and counts[id3] == expected3, \
+                        f"rows per anode {counts}, expected {expected2}/{expected3}"
+            finally:
+                srv3.shutdown()
+                srv2.shutdown()
+        finally:
+            for aid in reversed(anode_ids):
+                tdSql.execute(f"drop anode {aid}")
+            srv1.shutdown()
+
+        
