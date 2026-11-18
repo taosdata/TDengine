@@ -3917,6 +3917,53 @@ static int32_t getJoinChildTableAliases(const SJoinLogicNode* pJoinLogicNode, co
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SJoinAliasMatch {
+  const char* pAlias;
+  bool        found;
+} SJoinAliasMatch;
+
+static EDealRes matchJoinInputAlias(SNode* pNode, void* pContext) {
+  SJoinAliasMatch* pMatch = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) &&
+      0 == strcmp(((SColumnNode*)pNode)->tableAlias, pMatch->pAlias)) {
+    pMatch->found = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+typedef struct SSetJoinSlotIdCxt {
+  SSetSlotIdCxt         slots;
+  const SJoinLogicNode* pJoin;
+} SSetJoinSlotIdCxt;
+
+static EDealRes setJoinColumnSlotId(SNode* pNode, void* pContext) {
+  SSetJoinSlotIdCxt* pCxt = pContext;
+  SSetSlotIdCxt     slots = pCxt->slots;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) &&
+      '\0' != ((SColumnNode*)pNode)->tableAlias[0]) {
+    SJoinAliasMatch left = {.pAlias = ((SColumnNode*)pNode)->tableAlias};
+    SJoinAliasMatch right = {.pAlias = left.pAlias};
+    nodesWalkExprs(pCxt->pJoin->pLeftEqNodes, matchJoinInputAlias, &left);
+    nodesWalkExprs(pCxt->pJoin->pRightEqNodes, matchJoinInputAlias, &right);
+    // These lists retain the input scope established by logical planning,
+    // even when a virtual/external scan exposes a shared source alias.
+    // Resolve fallback names only in that input, never in its peer.
+    if (left.found != right.found) {
+      if (left.found) {
+        slots.pRightHash = NULL;
+        slots.pRightProdIdxHash = NULL;
+      } else {
+        slots.pLeftHash = NULL;
+        slots.pLeftProjIdxHash = NULL;
+      }
+    }
+  }
+  EDealRes result = doSetSlotId(pNode, &slots);
+  pCxt->slots.errCode = slots.errCode;
+  return result;
+}
+
 static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* pJoin, int64_t leftDataBlockId,
                                  int64_t rightDataBlockId, SNode* pNode, SNode** pOutput) {
   // Conditions are translated with the aliases exposed by the child scan
@@ -3929,7 +3976,26 @@ static int32_t setJoinNodeSlotId(SPhysiPlanContext* pCxt, const SJoinLogicNode* 
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  return setNodeSlotIdWithAliases(pCxt, leftDataBlockId, rightDataBlockId, leftAlias, rightAlias, pNode, pOutput);
+  if (NULL == pNode) return TSDB_CODE_SUCCESS;
+  SNode* pRes = NULL;
+  code = nodesCloneNode(pNode, &pRes);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  SSetJoinSlotIdCxt cxt = {
+      .slots = {.errCode = TSDB_CODE_SUCCESS,
+                .pLeftHash = taosArrayGetP(pCxt->pLocationHelper, leftDataBlockId),
+                .pLeftProjIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, leftDataBlockId),
+                .pRightHash = taosArrayGetP(pCxt->pLocationHelper, rightDataBlockId),
+                .pRightProdIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId),
+                .pLeftTableAlias = leftAlias,
+                .pRightTableAlias = rightAlias},
+      .pJoin = pJoin};
+  nodesWalkExpr(pRes, setJoinColumnSlotId, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.slots.errCode) {
+    nodesDestroyNode(pRes);
+    return cxt.slots.errCode;
+  }
+  *pOutput = pRes;
+  return TSDB_CODE_SUCCESS;
 }
 
 static bool getJoinExprTableAlias(SNode* pExpr, char* pAlias, int32_t aliasLen) {
@@ -3996,10 +4062,11 @@ static int32_t setJoinTargetListSlotId(SPhysiPlanContext* pCxt, const SJoinLogic
       .pRightProdIdxHash = taosArrayGetP(pCxt->pProjIdxLocHelper, rightDataBlockId),
       .pLeftTableAlias = pLeftAlias,
       .pRightTableAlias = pRightAlias};
-  nodesWalkExprs(pRes, doSetSlotId, &cxt);
-  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+  SSetJoinSlotIdCxt joinCxt = {.slots = cxt, .pJoin = pJoin};
+  nodesWalkExprs(pRes, setJoinColumnSlotId, &joinCxt);
+  if (TSDB_CODE_SUCCESS != joinCxt.slots.errCode) {
     nodesDestroyList(pRes);
-    return cxt.errCode;
+    return joinCxt.slots.errCode;
   }
   *pOutput = pRes;
   return TSDB_CODE_SUCCESS;
@@ -4580,7 +4647,7 @@ static int32_t createHashJoinKeyCol(SPhysiPlanContext* pCxt, SNode* pExpr, int64
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
-static int32_t normalizeHashJoinKeyTypes(SNode* pLeft, SNode* pRight) {
+static int32_t validateHashJoinKeyTypes(SNode* pLeft, SNode* pRight) {
   if (NULL == pLeft || NULL == pRight) {
     return TSDB_CODE_PLAN_INTERNAL_ERROR;
   }
@@ -4588,8 +4655,8 @@ static int32_t normalizeHashJoinKeyTypes(SNode* pLeft, SNode* pRight) {
   SNode* pLeftExpr = QUERY_NODE_TARGET == nodeType(pLeft) ? ((STargetNode*)pLeft)->pExpr : pLeft;
   SNode* pRightExpr = QUERY_NODE_TARGET == nodeType(pRight) ? ((STargetNode*)pRight)->pExpr : pRight;
   if (!nodesIsExprNode(pLeftExpr) || !nodesIsExprNode(pRightExpr)) return TSDB_CODE_PLAN_INTERNAL_ERROR;
-  SDataType* pLeftType = &((SExprNode*)pLeftExpr)->resType;
-  SDataType* pRightType = &((SExprNode*)pRightExpr)->resType;
+  const SDataType* pLeftType = &((SExprNode*)pLeftExpr)->resType;
+  const SDataType* pRightType = &((SExprNode*)pRightExpr)->resType;
   if (pLeftType->type == pRightType->type) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4603,10 +4670,8 @@ static int32_t normalizeHashJoinKeyTypes(SNode* pLeft, SNode* pRight) {
     return TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND;
   }
 
-  pLeftType->type = commonType;
-  pRightType->type = commonType;
-  pLeftType->bytes = tDataTypes[commonType].bytes;
-  pRightType->bytes = tDataTypes[commonType].bytes;
+  // Keep the expression's evaluation type and its output slot unchanged.
+  // The executor converts evaluated columns to the common hash key type.
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4807,7 +4872,7 @@ static int32_t extractHashJoinOpCols(SPhysiPlanContext* pCxt, SDataBlockDescNode
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = normalizeHashJoinKeyTypes(pLeftExpr, pRightExpr);
+    code = validateHashJoinKeyTypes(pLeftExpr, pRightExpr);
   }
   return code;
 }

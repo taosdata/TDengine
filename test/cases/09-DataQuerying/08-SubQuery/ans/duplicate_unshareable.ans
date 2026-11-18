@@ -2086,75 +2086,51 @@ QUERY_PLAN:                Output: columns=4 width=16
 *************************** 14.row ***************************
 QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`x`.`k` = `duplicate_unshareable`.`y`.`k`) AND (`duplicate_unshareable`.`x`.`v` < `duplicate_unshareable`.`y`.`v`)
 *************************** 15.row ***************************
-QUERY_PLAN:             -> Partition on Column k (width=16)
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 16.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=16
 *************************** 17.row ***************************
-QUERY_PLAN:                   Partition Key: partitions=1
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 18.row ***************************
-QUERY_PLAN:                -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
 *************************** 19.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=16
+QUERY_PLAN:                   Output: columns=3 width=16
 *************************** 20.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 21.row ***************************
-QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
-*************************** 22.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 23.row ***************************
-QUERY_PLAN:                -> Partition on Column k (width=16)
-*************************** 24.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 25.row ***************************
-QUERY_PLAN:                      Partition Key: partitions=1
-*************************** 26.row ***************************
-QUERY_PLAN:                   -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 27.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=16
-*************************** 28.row ***************************
-QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 29.row ***************************
-QUERY_PLAN:    InitPlan 1
-*************************** 30.row ***************************
-QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=unknown)
-*************************** 31.row ***************************
-QUERY_PLAN:             Output: columns=1 width=4 blocking=1
-*************************** 32.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
-*************************** 33.row ***************************
-QUERY_PLAN:          -> Inner Join (columns=4 width=16 input_order=asc algo=Hash)
-*************************** 34.row ***************************
-QUERY_PLAN:                Output: columns=4 width=16
-*************************** 35.row ***************************
-QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`a`.`k` = `duplicate_unshareable`.`b`.`k`) AND (`duplicate_unshareable`.`a`.`v` < `duplicate_unshareable`.`b`.`v`)
-*************************** 36.row ***************************
-QUERY_PLAN:             -> Partition on Column k (width=16)
-*************************** 37.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 38.row ***************************
-QUERY_PLAN:                   Partition Key: partitions=1
-*************************** 39.row ***************************
 QUERY_PLAN:                -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 40.row ***************************
+*************************** 21.row ***************************
 QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 41.row ***************************
+*************************** 22.row ***************************
 QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 42.row ***************************
-QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
-*************************** 43.row ***************************
+*************************** 23.row ***************************
+QUERY_PLAN:    InitPlan 1
+*************************** 24.row ***************************
+QUERY_PLAN:       -> Aggregate (functions=1 width=4 input_order=unknown)
+*************************** 25.row ***************************
+QUERY_PLAN:             Output: columns=1 width=4 blocking=1
+*************************** 26.row ***************************
+QUERY_PLAN:             Merge ResBlocks: True
+*************************** 27.row ***************************
+QUERY_PLAN:          -> Inner Join (columns=4 width=16 input_order=asc algo=Hash)
+*************************** 28.row ***************************
+QUERY_PLAN:                Output: columns=4 width=16
+*************************** 29.row ***************************
+QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`a`.`k` = `duplicate_unshareable`.`b`.`k`) AND (`duplicate_unshareable`.`a`.`v` < `duplicate_unshareable`.`b`.`v`)
+*************************** 30.row ***************************
+QUERY_PLAN:             -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 31.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 44.row ***************************
-QUERY_PLAN:                -> Partition on Column k (width=16)
-*************************** 45.row ***************************
+*************************** 32.row ***************************
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 33.row ***************************
+QUERY_PLAN:             -> Data Exchange 1:1 (width=16)
+*************************** 34.row ***************************
+QUERY_PLAN:                   Output: columns=3 width=16
+*************************** 35.row ***************************
+QUERY_PLAN:                -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 36.row ***************************
 QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 46.row ***************************
-QUERY_PLAN:                      Partition Key: partitions=1
-*************************** 47.row ***************************
-QUERY_PLAN:                   -> Table Scan on matrix_history (columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 48.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=16
-*************************** 49.row ***************************
-QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 37.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 
 taos> explain analyze verbose true select (select max(a.v) from matrix_history a join matrix_history b on a.k = b.k where a.v < b.v), (select max(y.v) from matrix_history x join matrix_history y on x.k = y.k where x.v < y.v) from matrix_readings limit 1\G;
 *************************** 1.row ***************************
@@ -2196,118 +2172,90 @@ QUERY_PLAN:                Output: columns=4 width=16
 QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`x`.`k` = `duplicate_unshareable`.`y`.`k`) AND (`duplicate_unshareable`.`x`.`v` < `duplicate_unshareable`.`y`.`v`)
 *************************** 21.row ***************************
 *************************** 22.row ***************************
-QUERY_PLAN:             -> Partition on Column k ( rows=4 width=16)
+QUERY_PLAN:             -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 23.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=16
 *************************** 24.row ***************************
-QUERY_PLAN:                   Partition Key: partitions=1
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 25.row ***************************
 *************************** 26.row ***************************
-QUERY_PLAN:                -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:                   I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 27.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 28.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 29.row ***************************
-*************************** 30.row ***************************
-QUERY_PLAN:                      I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 31.row ***************************
 QUERY_PLAN:
-*************************** 32.row ***************************
-QUERY_PLAN:                         check_rows=4
-*************************** 33.row ***************************
+*************************** 28.row ***************************
+QUERY_PLAN:                      check_rows=4
+*************************** 29.row ***************************
 QUERY_PLAN:             -> Data Exchange 1:1 ( rows=4 width=16)
-*************************** 34.row ***************************
+*************************** 30.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 35.row ***************************
+*************************** 31.row ***************************
 QUERY_PLAN:                   Network: mode=concurrent  fetch_rows=4
+*************************** 32.row ***************************
+*************************** 33.row ***************************
+QUERY_PLAN:                -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 34.row ***************************
+QUERY_PLAN:                      Output: columns=3 width=16
+*************************** 35.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 36.row ***************************
 *************************** 37.row ***************************
-QUERY_PLAN:                -> Partition on Column k ( rows=4 width=16)
+QUERY_PLAN:                      I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 38.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=16
+QUERY_PLAN:
 *************************** 39.row ***************************
-QUERY_PLAN:                      Partition Key: partitions=1
+QUERY_PLAN:                         check_rows=4
 *************************** 40.row ***************************
+QUERY_PLAN:    InitPlan 1
 *************************** 41.row ***************************
-QUERY_PLAN:                   -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=unknown)
 *************************** 42.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=16
+QUERY_PLAN:             Output: columns=1 width=4 blocking=1
 *************************** 43.row ***************************
-QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
+QUERY_PLAN:             Merge ResBlocks: True
 *************************** 44.row ***************************
 *************************** 45.row ***************************
-QUERY_PLAN:                         I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+QUERY_PLAN:          -> Inner Join ( rows=1 columns=4 width=16 input_order=asc algo=Hash)
 *************************** 46.row ***************************
-QUERY_PLAN:
+QUERY_PLAN:                Output: columns=4 width=16
 *************************** 47.row ***************************
-QUERY_PLAN:                            check_rows=4
+QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`a`.`k` = `duplicate_unshareable`.`b`.`k`) AND (`duplicate_unshareable`.`a`.`v` < `duplicate_unshareable`.`b`.`v`)
 *************************** 48.row ***************************
-QUERY_PLAN:    InitPlan 1
 *************************** 49.row ***************************
-QUERY_PLAN:       -> Aggregate ( rows=1 functions=1 width=4 input_order=unknown)
+QUERY_PLAN:             -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
 *************************** 50.row ***************************
-QUERY_PLAN:             Output: columns=1 width=4 blocking=1
+QUERY_PLAN:                   Output: columns=3 width=16
 *************************** 51.row ***************************
-QUERY_PLAN:             Merge ResBlocks: True
+QUERY_PLAN:                   Time Range: [-9223372036854775808, 9223372036854775807]
 *************************** 52.row ***************************
 *************************** 53.row ***************************
-QUERY_PLAN:          -> Inner Join ( rows=1 columns=4 width=16 input_order=asc algo=Hash)
+QUERY_PLAN:                   I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
 *************************** 54.row ***************************
-QUERY_PLAN:                Output: columns=4 width=16
+QUERY_PLAN:
 *************************** 55.row ***************************
-QUERY_PLAN:                Join Full Cond: (`duplicate_unshareable`.`a`.`k` = `duplicate_unshareable`.`b`.`k`) AND (`duplicate_unshareable`.`a`.`v` < `duplicate_unshareable`.`b`.`v`)
+QUERY_PLAN:                      check_rows=4
 *************************** 56.row ***************************
-*************************** 57.row ***************************
-QUERY_PLAN:             -> Partition on Column k ( rows=4 width=16)
-*************************** 58.row ***************************
-QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 59.row ***************************
-QUERY_PLAN:                   Partition Key: partitions=1
-*************************** 60.row ***************************
-*************************** 61.row ***************************
-QUERY_PLAN:                -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 62.row ***************************
-QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 63.row ***************************
-QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 64.row ***************************
-*************************** 65.row ***************************
-QUERY_PLAN:                      I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 66.row ***************************
-QUERY_PLAN:
-*************************** 67.row ***************************
-QUERY_PLAN:                         check_rows=4
-*************************** 68.row ***************************
 QUERY_PLAN:             -> Data Exchange 1:1 ( rows=4 width=16)
-*************************** 69.row ***************************
+*************************** 57.row ***************************
 QUERY_PLAN:                   Output: columns=3 width=16
-*************************** 70.row ***************************
+*************************** 58.row ***************************
 QUERY_PLAN:                   Network: mode=concurrent  fetch_rows=4
-*************************** 71.row ***************************
-*************************** 72.row ***************************
-QUERY_PLAN:                -> Partition on Column k ( rows=4 width=16)
-*************************** 73.row ***************************
+*************************** 59.row ***************************
+*************************** 60.row ***************************
+QUERY_PLAN:                -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
+*************************** 61.row ***************************
 QUERY_PLAN:                      Output: columns=3 width=16
-*************************** 74.row ***************************
-QUERY_PLAN:                      Partition Key: partitions=1
-*************************** 75.row ***************************
-*************************** 76.row ***************************
-QUERY_PLAN:                   -> Table Scan on matrix_history ( rows=4 columns=3 width=16 order=[asc|1 desc|0] mode=ts_order data_load=data)
-*************************** 77.row ***************************
-QUERY_PLAN:                         Output: columns=3 width=16
-*************************** 78.row ***************************
-QUERY_PLAN:                         Time Range: [-9223372036854775808, 9223372036854775807]
-*************************** 79.row ***************************
-*************************** 80.row ***************************
-QUERY_PLAN:                         I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
-*************************** 81.row ***************************
+*************************** 62.row ***************************
+QUERY_PLAN:                      Time Range: [-9223372036854775808, 9223372036854775807]
+*************************** 63.row ***************************
+*************************** 64.row ***************************
+QUERY_PLAN:                      I/O cost: total_blocks=1 file_load_blocks=0 stt_load_blocks=0 mem_load_blocks=1 sma_load_blocks=0 composed_blocks=1
+*************************** 65.row ***************************
 QUERY_PLAN:
-*************************** 82.row ***************************
-QUERY_PLAN:                            check_rows=4
-*************************** 83.row ***************************
+*************************** 66.row ***************************
+QUERY_PLAN:                         check_rows=4
+*************************** 67.row ***************************
 QUERY_PLAN:
-*************************** 84.row ***************************
+*************************** 68.row ***************************
 QUERY_PLAN:
 
 taos> select (select rand() from matrix_history limit 1) >= 0 and (select rand() from matrix_history limit 1) <= 1 from matrix_readings order by ts;
