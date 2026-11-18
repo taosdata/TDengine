@@ -1910,15 +1910,13 @@ TAOS_ROW taos_fetch_row_impl(TAOS_RES *res) {
     if (pRequest->killed) {
       tscInfo("query has been killed, cannot fetch more rows.");
       pRequest->code = TSDB_CODE_TSC_QUERY_KILLED;
-      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+      CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
       return NULL;
     }
 
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-        CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
-      }
+      CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
       return NULL;
     }
 
@@ -2401,7 +2399,12 @@ static int taos_fetch_block_s_impl(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows
 
     if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
         pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+      // Close the fetch stage only when this request actually entered it (or
+      // is an empty result, as before). All three fetch APIs share the rule:
+      // INSERT requests, failed queries and field-less results that never
+      // started fetching keep their phase instead of being reported as a
+      // completed fetch, while a mid-fetch error or kill still ends the stage.
+      CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
       return pRequest->code;
     }
 
@@ -2469,9 +2472,7 @@ static int taos_fetch_raw_block_impl(TAOS_RES *res, int *numOfRows, void **pData
 
   if (pRequest->type == TSDB_SQL_RETRIEVE_EMPTY_RESULT || pRequest->type == TSDB_SQL_INSERT ||
       pRequest->code != TSDB_CODE_SUCCESS || taos_num_fields(res) == 0) {
-    if (pRequest->code == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
-    }
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     return pRequest->code;
   }
 
@@ -3455,7 +3456,7 @@ static int32_t taos_fetch_rows_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void 
   // Each fetch call sets phase to IN_PROGRESS
 
   if (TSDB_SQL_RETRIEVE_EMPTY_RESULT == pRequest->type) {
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     SWorkloadDoneArgs done = {.logicalResultId = pRequest->wlrResultId};
     wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
     invokeSynchronousFetchCallback(fp, param, res, 0, wlrToken->callId);
@@ -3464,14 +3465,14 @@ static int32_t taos_fetch_rows_a_impl(TAOS_RES *res, __taos_async_fn_t fp, void 
 
   SAsyncFetchParam *pParam = taosMemoryCalloc(1, sizeof(SAsyncFetchParam));
   if (!pParam) {
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     SWorkloadDoneArgs done = {.code = terrno, .logicalResultId = pRequest->wlrResultId};
     wlrAsyncDone((SWorkloadCallToken *)wlrToken, &done);
     invokeSynchronousFetchCallback(fp, param, res, terrno, wlrToken->callId);
     return terrno;
   }
 
-  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_IN_PROGRESS);
+  CLIENT_ENTER_REQUEST_FETCH_PHASE(pRequest);
   pParam->pReq = pRequest;
   pParam->fp = fp;
   pParam->param = param;
@@ -3522,7 +3523,7 @@ static int32_t taos_fetch_raw_block_a_impl(TAOS_RES *res, __taos_async_fn_t fp, 
   SRequestObj    *pRequest = res;
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
 
-  CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_IN_PROGRESS);
+  CLIENT_ENTER_REQUEST_FETCH_PHASE(pRequest);
   // set the current block is all consumed
   pResultInfo->convertUcs4 = false;
 

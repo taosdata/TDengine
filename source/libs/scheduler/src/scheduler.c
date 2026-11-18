@@ -93,10 +93,12 @@ int32_t schedulerFetchRows(int64_t jobId, SSchedulerReq *pReq) {
   SSchJob *pJob = NULL;
 
   SCH_ERR_JRET(schHandleOpBeginEvent(jobId, &pJob, SCH_OP_FETCH, pReq));
-  // Set to IN_PROGRESS when starting fetch
-  SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, QUERY_PHASE_FETCH_IN_PROGRESS);
-
   SCH_ERR_JRET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_FETCH, pReq));
+
+  // Enter the fetch stage only after the status switch succeeded. If the job
+  // was killed or dropped the switch fails, and stamping the phase first would
+  // leave show queries reporting a fetch that never started.
+  schEnterFetchPhase(pJob);
 
 _return:
   SCH_RET(schHandleOpEndEvent(pJob, SCH_OP_FETCH, pReq, code));
@@ -210,8 +212,10 @@ int32_t schedulerGetJobPhase(int64_t jobId, int32_t *pPhase, int64_t *pPhaseStar
     SCH_ERR_RET(TSDB_CODE_SCH_JOB_NOT_EXISTS);
   }
 
-  *pPhase = SCH_GET_JOB_PHASE(pJob);
-  *pPhaseStartTime = SCH_GET_JOB_PHASE_START_TIME(pJob);
+  // Writers publish (phase, startTime) as one seqlock-guarded snapshot; the
+  // reader retries while a writer is updating, so show queries never pairs a
+  // new phase with the previous stage's start time.
+  schReadJobPhase(pJob, pPhase, pPhaseStartTime);
 
   (void)schReleaseJob(pJob->refId);
 

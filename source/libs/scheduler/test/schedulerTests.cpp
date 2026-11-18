@@ -23,7 +23,9 @@
 #endif
 
 #include <gtest/gtest.h>
+#include <atomic>
 #include <iostream>
+#include <thread>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -56,6 +58,7 @@
 #pragma GCC diagnostic ignored "-Wformat"
 
 #include "schInt.h"
+#include "schPhase.h"
 #include "stub.h"
 #include "tref.h"
 
@@ -2304,4 +2307,215 @@ TEST(schedulerTest, stmt_dispatch_tracks_accepted_work) {
   }
   dispatchTestJob = nullptr;
   dispatchTestTask = nullptr;
+}
+
+TEST(schPhase, mainPhaseMapping) {
+  // Main phase values map to themselves, including the fetch main phase which
+  // must agree with QUERY_PHASE_IS_FETCH_STAGE().
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_NONE), QUERY_PHASE_NONE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_PARSE), QUERY_PHASE_PARSE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_CATALOG), QUERY_PHASE_CATALOG);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_PLAN), QUERY_PHASE_PLAN);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_SCHEDULE), QUERY_PHASE_SCHEDULE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_EXECUTE), QUERY_PHASE_EXECUTE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_FETCH), QUERY_PHASE_FETCH);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_DONE), QUERY_PHASE_DONE);
+
+  // Sub-phase range boundaries and middle values map to their parent phase.
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_SCHEDULE_ANALYSIS), QUERY_PHASE_SCHEDULE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_SCHEDULE_PLANNING), QUERY_PHASE_SCHEDULE);
+  EXPECT_EQ(schGetMainPhase(QUERY_PHASE_SCHEDULE_NODE_SELECTION), QUERY_PHASE_SCHEDULE);
+  for (int32_t phase = QUERY_PHASE_SCHEDULE_ANALYSIS; phase <= QUERY_PHASE_SCHEDULE_NODE_SELECTION; ++phase) {
+    EXPECT_EQ(schGetMainPhase(phase), QUERY_PHASE_SCHEDULE) << "schedule sub-phase " << phase;
+  }
+  for (int32_t phase = QUERY_PHASE_EXEC_DATA_QUERY; phase <= QUERY_PHASE_EXEC_WAITING_CHILDREN; ++phase) {
+    EXPECT_EQ(schGetMainPhase(phase), QUERY_PHASE_EXECUTE) << "execute sub-phase " << phase;
+  }
+  for (int32_t phase = QUERY_PHASE_FETCH_IN_PROGRESS; phase <= QUERY_PHASE_FETCH_RETURNED; ++phase) {
+    EXPECT_EQ(schGetMainPhase(phase), QUERY_PHASE_FETCH) << "fetch sub-phase " << phase;
+  }
+
+  // Values in the gaps between the sub-phase ranges are returned unchanged so
+  // a future phase cannot be routed to an unrelated main phase silently.
+  // Derive the gaps from the enum bounds: if a sub-phase is added there, the
+  // gap value moves with it and the test keeps asserting the same intent.
+  const int32_t scheduleGap = QUERY_PHASE_SCHEDULE_NODE_SELECTION + 1;
+  const int32_t execGap = QUERY_PHASE_EXEC_WAITING_CHILDREN + 1;
+  const int32_t fetchGap = QUERY_PHASE_FETCH_RETURNED + 1;
+  const int32_t afterDone = QUERY_PHASE_DONE + 1;
+  EXPECT_EQ(schGetMainPhase(-1), -1);
+  EXPECT_EQ(schGetMainPhase(scheduleGap), scheduleGap);
+  EXPECT_EQ(schGetMainPhase(execGap), execGap);
+  EXPECT_EQ(schGetMainPhase(fetchGap), fetchGap);
+  EXPECT_EQ(schGetMainPhase(afterDone), afterDone);
+}
+
+TEST(schPhase, publishReadAndCasSemantics) {
+  SSchJob job = {};
+  int32_t phase = -1;
+  int64_t start = 0;
+
+  // schPublishJobPhase publishes the phase and stamps a start time.
+  schPublishJobPhase(&job, QUERY_PHASE_SCHEDULE_PLANNING);
+  schReadJobPhase(&job, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_SCHEDULE_PLANNING);
+  EXPECT_GT(start, 0);
+
+  // A CAS with a wrong expected value fails and leaves the pair untouched.
+  EXPECT_FALSE(schCasJobPhase(&job, QUERY_PHASE_EXEC_DATA_QUERY, QUERY_PHASE_FETCH_IN_PROGRESS, false));
+  int32_t phase2 = -1;
+  int64_t start2 = 0;
+  schReadJobPhase(&job, &phase2, &start2);
+  EXPECT_EQ(phase2, QUERY_PHASE_SCHEDULE_PLANNING);
+  EXPECT_EQ(start2, start);
+
+  // keepTime=true switches the sub-phase without restarting the timer.
+  EXPECT_TRUE(schCasJobPhase(&job, QUERY_PHASE_SCHEDULE_PLANNING, QUERY_PHASE_FETCH_IN_PROGRESS, true));
+  schReadJobPhase(&job, &phase2, &start2);
+  EXPECT_EQ(phase2, QUERY_PHASE_FETCH_IN_PROGRESS);
+  EXPECT_EQ(start2, start);
+
+  // keepTime=false resets the timer (it never moves backwards).
+  EXPECT_TRUE(schCasJobPhase(&job, QUERY_PHASE_FETCH_IN_PROGRESS, QUERY_PHASE_DONE, false));
+  schReadJobPhase(&job, &phase2, &start2);
+  EXPECT_EQ(phase2, QUERY_PHASE_DONE);
+  EXPECT_GE(start2, start);
+}
+
+TEST(schPhase, enterFetchPhaseKeepsStageTimer) {
+  SSchJob job = {};
+  job.execPhase = QUERY_PHASE_EXEC_DATA_QUERY;
+  job.phaseStartTime = 1234;
+  int32_t phase = -1;
+  int64_t start = 0;
+
+  // Entering from execute stamps the fetch stage and a new start time.
+  schEnterFetchPhase(&job);
+  schReadJobPhase(&job, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  EXPECT_GE(start, 1234);
+  int64_t fetchStart = start;
+
+  // Re-entering while already in the fetch stage is a no-op.
+  schEnterFetchPhase(&job);
+  schReadJobPhase(&job, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  EXPECT_EQ(start, fetchStart);
+
+  // Returning to in_progress after a returned block keeps one stage timer.
+  EXPECT_TRUE(schCasJobPhase(&job, QUERY_PHASE_FETCH_IN_PROGRESS, QUERY_PHASE_FETCH_RETURNED, true));
+  schEnterFetchPhase(&job);
+  schReadJobPhase(&job, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  EXPECT_EQ(start, fetchStart);
+
+  // DONE is terminal: entering fetch must not resurrect a finished query.
+  schPublishJobPhase(&job, QUERY_PHASE_DONE);
+  schReadJobPhase(&job, &phase, &start);
+  int64_t doneStart = start;
+  schEnterFetchPhase(&job);
+  schReadJobPhase(&job, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_DONE);
+  EXPECT_EQ(start, doneStart);
+}
+
+TEST(schPhase, promoteParentForSubJobs) {
+  SSchJob parent = {};
+  parent.execPhase = QUERY_PHASE_SCHEDULE_PLANNING;
+  parent.phaseStartTime = 100;
+  int32_t phase = -1;
+  int64_t start = 0;
+
+  // A schedule sub-phase is promoted to the coarse execute/waiting_children.
+  schPromoteParentForSubJobs(&parent);
+  schReadJobPhase(&parent, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+  EXPECT_GT(start, 100);
+
+  // A second promotion (parent already in execute) never moves it back.
+  int64_t execStart = start;
+  schPromoteParentForSubJobs(&parent);
+  schReadJobPhase(&parent, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+  EXPECT_EQ(start, execStart);
+
+  // An execute sub-phase is promoted as well: the sample/CAS gap may leave the
+  // parent on an intermediate execute sub-phase, and moving to waiting_children
+  // stays inside the same main phase, so it is not a backwards transition.
+  SSchJob execJob = {};
+  execJob.execPhase = QUERY_PHASE_EXEC_DATA_QUERY;
+  execJob.phaseStartTime = 9;
+  schPromoteParentForSubJobs(&execJob);
+  schReadJobPhase(&execJob, &phase, &start);
+  EXPECT_EQ(phase, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+  EXPECT_GT(start, 9);
+
+  // Non schedule-sub-phases are left untouched: not yet scheduled, the coarse
+  // SCHEDULE main-phase value itself, and the terminal DONE phase.
+  const int32_t untouched[] = {QUERY_PHASE_NONE, QUERY_PHASE_PARSE, QUERY_PHASE_SCHEDULE, QUERY_PHASE_DONE};
+  for (size_t i = 0; i < sizeof(untouched) / sizeof(untouched[0]); ++i) {
+    SSchJob job = {};
+    job.execPhase = untouched[i];
+    job.phaseStartTime = 7;
+    schPromoteParentForSubJobs(&job);
+    schReadJobPhase(&job, &phase, &start);
+    EXPECT_EQ(phase, untouched[i]) << "phase " << untouched[i];
+    EXPECT_EQ(start, 7) << "phase " << untouched[i];
+  }
+}
+
+TEST(schPhase, seqlockSnapshotIsConsistent) {
+  SSchJob job = {};
+  // Writers publish (phase, start) as a pair following the seqlock protocol;
+  // a reader must never observe a phase of one pair with the start time of the
+  // other one.
+  //
+  // The writer runs until the readers finish instead of for a fixed number of
+  // iterations, so the concurrent window covers the whole read loop. It keeps
+  // referencing a job that outlives it: the stop flag is only set after the
+  // read loop, and the guard joins the thread while `job` is still alive even
+  // if an assertion aborts the test body early.
+  std::atomic<bool> stop{false};
+  std::thread writer([&job, &stop]() {
+    int32_t i = 0;
+    while (!stop.load(std::memory_order_relaxed)) {
+      while (atomic_val_compare_exchange_32(&job.phaseWriteLock, 0, 1) != 0) {
+        taosMsleep(1);
+      }
+      atomic_add_fetch_32(&job.phaseSeq, 1);
+      bool executePair = (i++ % 2) == 0;
+      atomic_store_32(&job.execPhase,
+                      executePair ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_FETCH_IN_PROGRESS);
+      atomic_store_64(&job.phaseStartTime, executePair ? 5100 : 6000);
+      atomic_add_fetch_32(&job.phaseSeq, 1);
+      atomic_store_32(&job.phaseWriteLock, 0);
+      taosMsleep(1);
+    }
+  });
+  struct WriterStop {
+    std::thread          &thread;
+    std::atomic<bool>    &stop;
+    ~WriterStop() {
+      stop.store(true);
+      if (thread.joinable()) {
+        thread.join();
+      }
+    }
+  } writerStop{writer, stop};
+
+  for (int32_t i = 0; i < 3000; ++i) {
+    int32_t phase = -1;
+    int64_t start = -1;
+    schReadJobPhase(&job, &phase, &start);
+    if (phase == QUERY_PHASE_NONE) {
+      EXPECT_EQ(start, 0);
+    } else if (phase == QUERY_PHASE_EXEC_DATA_QUERY) {
+      EXPECT_EQ(start, 5100);
+    } else if (phase == QUERY_PHASE_FETCH_IN_PROGRESS) {
+      EXPECT_EQ(start, 6000);
+    } else {
+      ADD_FAILURE() << "unexpected phase " << phase;
+    }
+  }
+  // The guard stops and joins the writer here, before `job` goes out of scope.
 }

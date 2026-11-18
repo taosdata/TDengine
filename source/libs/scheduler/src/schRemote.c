@@ -1354,7 +1354,41 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_SCH_QUERY:
     case TDMT_SCH_MERGE_QUERY: {
       int32_t newPhase = (TDMT_SCH_QUERY == msgType) ? QUERY_PHASE_EXEC_DATA_QUERY : QUERY_PHASE_EXEC_MERGE_QUERY;
-      SCH_UPDATE_JOB_PHASE_IF_CHANGED(pJob, newPhase);
+      // CAS on the sampled value so a concurrent path that already finished the
+      // job (DONE), promoted a parent to waiting_children, or entered the fetch
+      // stage is not overwritten. The sample and the CAS are not atomic
+      // together: if another path moves the phase in between (e.g. to fetch),
+      // the CAS fails on purpose and the newer phase is kept.
+      //
+      // The guard is main-phase based so every fetch sub-phase is covered, not
+      // just the coarse FETCH value: re-stamping EXEC_DATA_QUERY/EXEC_MERGE_QUERY
+      // over FETCH_IN_PROGRESS/FETCH_RETURNED would move a query backwards, and
+      // schLaunchJobImpl() applies the same monotonicity rule.
+      //
+      // EXEC_WAITING_CHILDREN has two meanings and only one of them may block
+      // this update:
+      //  - A parent job waiting for its subjobs. That coarse marker is set by
+      //    schPromoteParentForSubJobs() and must survive while subjobs run.
+      //  - A multi-level plan whose child task finished before its parent task
+      //    was launched (schProcessOnTaskSuccess). Reaching this code means the
+      //    parent task message is being sent now, so the job is executing
+      //    rather than waiting: the real data/merge sub-phase must be stamped,
+      //    otherwise show queries keeps reporting execute/waiting until fetch.
+      int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
+      bool waitingSubJobs = curPhase == QUERY_PHASE_EXEC_WAITING_CHILDREN && SCH_JOB_GOT_SUB_JOBS(pJob) &&
+                            !SCH_SUB_JOBS_EXEC_FINISHED(pJob, atomic_load_32(&pJob->subJobDoneNum));
+      if (curPhase != newPhase && !waitingSubJobs && schGetMainPhase(curPhase) <= QUERY_PHASE_EXECUTE) {
+        if (!schCasJobPhase(pJob, curPhase, newPhase, false)) {
+          SCH_JOB_DLOG("exec phase stamp skipped, phase %d changed concurrently", curPhase);
+        }
+      }
+      // Subjobs are not registered in jobRef. Promote the parent only now,
+      // when a subjob query message is actually dispatched, so the parent
+      // reports execute while the subjob runs; queued-but-not-started tasks
+      // keep it in the schedule phase.
+      if (pJob->parent != NULL) {
+        schPromoteParentForSubJobs(pJob->parent);
+      }
 
       SCH_ERR_RET(schMakeQueryRpcCtx(pJob, pTask, &rpcCtx));
 

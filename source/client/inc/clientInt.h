@@ -68,20 +68,35 @@ enum {
 
 #define TSC_MAX_SUBPLAN_CAPACITY_NUM 1000
 
-// Client request phase tracking macros
-#define CLIENT_SET_REQUEST_PHASE(_req, _phase)                      \
-  do {                                                              \
-    atomic_store_32(&(_req)->execPhase, (_phase));                  \
-    atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
-  } while (0)
+// Client request phase tracking. All writers publish the (phase, startTime)
+// pair through these helpers, which serialize on phaseWriteLock and use a
+// seqlock sequence (phaseSeq odd while updating). The heartbeat reads the pair
+// through clientGetRequestPhaseSnapshot() so it never reports a new phase with
+// the previous stage's start time.
+#define CLIENT_PHASE_READ_RETRY_TIMES 16
+// Writer-lock waits beyond this many attempts are reported and back off from
+// 1ms to 10ms sleeps: the critical section only performs atomics, so a longer
+// wait means the holder was preempted rather than blocked.
+#define CLIENT_PHASE_LOCK_SPIN_TIMES 1000
 
-#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase)       \
-  do {                                                                \
-    if (atomic_load_32(&(_req)->execPhase) != (_newPhase)) {          \
-      atomic_store_32(&(_req)->execPhase, (_newPhase));               \
-      atomic_store_64(&(_req)->phaseStartTime, taosGetTimestampMs()); \
-    }                                                                 \
-  } while (0)
+#define CLIENT_SET_REQUEST_PHASE(_req, _phase) clientSetRequestPhase((_req), (_phase))
+
+#define CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(_req, _newPhase) \
+  clientUpdateRequestPhaseIfChanged((_req), (_newPhase))
+
+/* Enter the fetch stage without restarting it: a query fetches one data block
+ * at a time, so re-entering FETCH_IN_PROGRESS on every block would refresh
+ * phaseStartTime while the reported phase stays in the fetch stage. Returning
+ * to in_progress from FETCH_RETURNED keeps the same stage timer. The update is
+ * serialized with the other phase writers, so a concurrent fetch callback
+ * cannot resurrect a stage that already returned. */
+#define CLIENT_ENTER_REQUEST_FETCH_PHASE(_req) clientEnterRequestFetchPhase((_req))
+
+/* Close the fetch stage when the request already entered it (mid-fetch error,
+ * kill, or the final empty response). Requests that never entered the fetch
+ * stage (INSERT, failed or field-less results, empty-result requests) keep
+ * their current phase: a fetch stage is only created by entering it. */
+#define CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(_req) clientCloseRequestFetchIfEntered((_req))
 
 #define CLIENT_GET_REQUEST_PHASE(_req)            atomic_load_32(&(_req)->execPhase)
 #define CLIENT_GET_REQUEST_PHASE_START_TIME(_req) atomic_load_64(&(_req)->phaseStartTime)
@@ -428,9 +443,24 @@ typedef struct SRequestObj {
   SMetaData            parseMeta;
   char*                effectiveUser;
   int8_t               source;
+  // Request phase pair and its seqlock guard. These fields are one logical
+  // snapshot: (execPhase, phaseStartTime) is published under phaseWriteLock,
+  // while phaseSeq is odd when a writer updates the pair and even when it is
+  // stable. The heartbeat reads it through clientGetRequestPhaseSnapshot().
+  //
+  // Do NOT write execPhase/phaseStartTime directly: every update must go
+  // through clientSetRequestPhase(), clientUpdateRequestPhaseIfChanged(),
+  // clientEnterRequestFetchPhase() or clientCloseRequestFetchIfEntered() in
+  // clientEnv.c, otherwise the seqlock snapshot is broken.
+  // Plain int32_t is intentional (same as the other atomic lock words in this
+  // codebase, e.g. gConvLock): the atomic API takes int32_t volatile *, and
+  // qualifier addition on the way in is a valid conversion, so no cast or
+  // volatile field is needed.
   int32_t              execPhase;       // EQueryExecPhase
-  bool                 execDispatched;  // Retained across internal stmt retries.
   int64_t              phaseStartTime;  // when current phase started, ms
+  int32_t              phaseWriteLock;
+  int32_t              phaseSeq;        // odd while a phase writer updates the pair
+  bool                 execDispatched;  // Retained across internal stmt retries.
   int8_t               secureDelete;
   TAOS_STMT2          *literal_by_stmt2; // reference only
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
@@ -438,6 +468,14 @@ typedef struct SRequestObj {
   SExtCapSessionOverlay extSessionOverlay;
   uint32_t             extPoolRetry;  // pool-exhaustion retry count (client-side delayed retry)
 } SRequestObj;
+
+/* Request phase writers and the consistent snapshot reader used by the
+ * heartbeat. Defined in clientEnv.c; see the macro block above. */
+void clientSetRequestPhase(SRequestObj* pReq, int32_t phase);
+void clientUpdateRequestPhaseIfChanged(SRequestObj* pReq, int32_t newPhase);
+void clientEnterRequestFetchPhase(SRequestObj* pReq);
+void clientCloseRequestFetchIfEntered(SRequestObj* pReq);
+void clientGetRequestPhaseSnapshot(SRequestObj* pReq, int32_t* pPhase, int64_t* pStartTime);
 
 typedef struct SSyncQueryParam {
   tsem_t       sem;

@@ -304,6 +304,59 @@ void *taosDecodeSEpSet(const void *buf, SEpSet *pEp) {
   return (void *)buf;
 }
 
+int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_t createTimeMs,
+                              char *pOut, int32_t cap, int32_t *pBuilt) {
+  if (pOut == NULL || cap <= 0 || pBuilt == NULL) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t subNum = pSubDesc ? (int32_t)taosArrayGetSize(pSubDesc) : 0;
+  if (subNum > subPlanNum) {
+    subNum = subPlanNum;
+  }
+
+  int32_t offset = 0;
+  int32_t built = 0;
+  for (int32_t i = 0; i < subNum; ++i) {
+    const SQuerySubDesc *pDesc = (const SQuerySubDesc *)taosArrayGet(pSubDesc, i);
+    if (NULL == pDesc) {
+      break;
+    }
+
+    char startBuf[32] = {0};
+    if (pDesc->startTs > 0) {
+      int64_t offsetMs = pDesc->startTs / 1000 - createTimeMs;
+      if (offsetMs < 0) {
+        offsetMs = 0;
+      }
+      (void)snprintf(startBuf, sizeof(startBuf), "+%" PRId64 "ms", offsetMs);
+    } else {
+      (void)snprintf(startBuf, sizeof(startBuf), "-");
+    }
+
+    // The largest possible entry (20-digit tid, 31-char state, 24-char offset
+    // plus separators) stays well below this buffer, so the snprintf result is
+    // always the exact encoded length.
+    char    entry[160] = {0};
+    int32_t entryLen = snprintf(entry, sizeof(entry), "%s%" PRIu64 ":%s:%s", built ? "," : "", pDesc->tid,
+                                pDesc->status, startBuf);
+    if (entryLen < 0 || entryLen >= (int32_t)sizeof(entry)) {
+      return TSDB_CODE_INTERNAL_ERROR;
+    }
+    // Check the encoded length before appending so an entry is never split.
+    if (offset + entryLen > cap) {
+      break;
+    }
+
+    memcpy(pOut + offset, entry, entryLen);
+    offset += entryLen;
+    ++built;
+  }
+
+  *pBuilt = built;
+  return offset;
+}
+
 const char *queryPhaseStr(int32_t phase) {
   switch (phase) {
     /* Main phases: 0-9 */

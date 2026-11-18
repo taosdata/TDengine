@@ -6686,7 +6686,34 @@ typedef enum EQueryExecPhase {
   QUERY_PHASE_FETCH_RETURNED    = 61,  // Data returned to client, business logic processing
 } EQueryExecPhase;
 
+/* True when the phase belongs to the fetch stage. Transitions inside this stage
+ * (in_progress <-> returned) happen once per fetched data block and must not
+ * restart the reported phase.
+ *
+ * NOTE: the argument is evaluated once per comparison (three times in total),
+ * so it must be a side-effect-free expression, e.g. a plain local variable or
+ * an atomic load. Never pass an expression with side effects or a volatile
+ * object whose reads have meaning beyond the value. */
+#define QUERY_PHASE_IS_FETCH_STAGE(_phase)                                                       \
+  ((_phase) == QUERY_PHASE_FETCH || (_phase) == QUERY_PHASE_FETCH_IN_PROGRESS ||                 \
+   (_phase) == QUERY_PHASE_FETCH_RETURNED)
+
 const char* queryPhaseStr(int32_t phase);
+
+/* Encode the sub-task list of one query as the show queries.sub_status value.
+ *
+ * Every task is written as "<tid>:<type/state>:<offset>", entries separated by
+ * ','. <offset> is the task start time relative to <createTimeMs> (the query
+ * create_time, same reference for all tasks of the query) and carries its unit,
+ * for example "+58ms"; a task that never started is written as "-".
+ *
+ * <pOut> receives the payload only (no varstr length header) and <cap> is its
+ * capacity in bytes. All tasks that fit are written; when the list does not
+ * fit, the output is cut between two entries, never inside one. The number of
+ * encoded entries is returned through <pBuilt> so the caller can report the
+ * truncation. Returns the encoded payload length, or a negative error code. */
+int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_t createTimeMs,
+                              char *pOut, int32_t cap, int32_t *pBuilt);
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
