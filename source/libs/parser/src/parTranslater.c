@@ -45626,8 +45626,8 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
   if (pStmt->pSpecificColRefs) {
     FOREACH(pCol, pStmt->pSpecificColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      // Expand empty refDbName to vtable's database for 2-segment refs
-      if (pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0') {
+      // Only local refs inherit the vtable's database; external refs use source defaults.
+      if (pColRef->refType != 1 && pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0') {
         tstrncpy(pColRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
       }
       const SSchema*  pSchema = getColSchema(pSuperTableMeta, pColRef->colName);
@@ -45676,8 +45676,8 @@ static int32_t rewriteCreateVirtualSubTableClause(STranslateContext* pCxt, SCrea
     int32_t index = 1;
     FOREACH(pCol, pStmt->pColRefs) {
       SColumnRefNode* pColRef = (SColumnRefNode*)pCol;
-      // Expand empty refDbName to vtable's database for 2-segment refs
-      if (pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0') {
+      // Only local refs inherit the vtable's database; external refs use source defaults.
+      if (pColRef->refType != 1 && pColRef->refDbName[0] == '\0' && pColRef->refTableName[0] != '\0') {
         tstrncpy(pColRef->refDbName, pStmt->dbName, TSDB_DB_NAME_LEN);
       }
       const SSchemaExt* pSchemaExt =
