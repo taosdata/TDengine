@@ -137,6 +137,7 @@ This document compares the configuration parameters of taosd (server-side) and t
 | syncSnapReplMaxWaitN | taosd | Internal parameter, for debugging synchronization module |
 | snapshotRateLimit | taosd | Controls the total snapshot sending bandwidth per dnode (MB/s), 0 means no limit |
 | snapshotMediumOnLag | taosd | Whether a replica that owns data but lags behind uses file-level delta (medium) snap replication, 0 means the row-by-row mode |
+| snapshotMediumOnIncomplete | taosd | Whether an incomplete FSM uses file-level delta (medium) snapshot replication; 0 means row-by-row mode, default 1 |
 | arbHeartBeatIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbCheckSyncIntervalSec | taosd | Internal parameter, for debugging synchronization module |
 | arbSetAssignedTimeoutSec | taosd | Internal parameter, for debugging synchronization module |
