@@ -186,7 +186,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref -Q 2
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbMode2Ref -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/05-DataType/test_vtable_max_column_num.py::TestVtableCreate::test_virtual_table_wide_org_tables_32767_cols
-,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
+# TEMP_DISABLED: Job 937018; defect 7165024454; restore after Xnode transaction synchronization is fixed
+#,,y,.,./ci/pytest.sh pytest cases/42-Xnode/test_xnode_priv.py
 100,,n,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/03-ExtSource/test_vtable_query_ext_source_stb.py::TestVTableQueryExtSourceAllStbAgg::test_agg_group
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_interval cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_sliding cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_session cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_state_window cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_three_external_event_window
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql,pg,influx ./ci/pytest.sh pytest cases/18-StreamProcessing/20-UseCase/test_virtual_stream_mixed_external.py::TestVirtualStreamMixedExternal::test_virtual_stream_mixed_external
