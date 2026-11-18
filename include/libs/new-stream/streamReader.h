@@ -346,6 +346,10 @@ typedef struct {
   SStreamOptions*                      options;
   SSHashObj*                           pRollupMetaByUid;
   SSHashObj*                           pRollupMetaCount;
+  // Virtual metadata scans retain schema identities across META_NEXT requests.
+  STableKeyInfo*                       pMetaTables;
+  int32_t                              numMetaTables;
+  int32_t                              nextMetaTable;
   char*                                idStr;
   SQueryTableDataCond                  cond;
 } SStreamReaderTaskInner;

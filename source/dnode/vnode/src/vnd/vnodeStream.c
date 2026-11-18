@@ -4667,7 +4667,14 @@ static int32_t processTsVTable(SVnode* pVnode, SStreamTsResponse* tsRsp, SStream
     STREAM_CHECK_RET_GOTO(qStreamIterTableList(&tableInfo, &pList, &pNum, &suid));
     if(pNum == 0) break;
     pTaskInner->options->suid = suid;
-    STREAM_CHECK_RET_GOTO(getAllTs(pTask, pVnode, pResBlock, pTaskInner, pList, pNum));
+    if (suid == 0) {
+      // Ordinary source tables share the zero suid, but not their schemas.
+      for (int32_t i = 0; i < pNum; ++i) {
+        STREAM_CHECK_RET_GOTO(getAllTs(pTask, pVnode, pResBlock, pTaskInner, &pList[i], 1));
+      }
+    } else {
+      STREAM_CHECK_RET_GOTO(getAllTs(pTask, pVnode, pResBlock, pTaskInner, pList, pNum));
+    }
     taosMemoryFreeClear(pList);
   }
 
@@ -4872,6 +4879,45 @@ end:
   return code;
 }
 
+static int32_t compareMetaTableSchema(const void* left, const void* right, const void* param) {
+  const STableKeyInfo* a = left;
+  const STableKeyInfo* b = right;
+  if (a->groupId != b->groupId) {
+    return a->groupId < b->groupId ? -1 : 1;
+  }
+  return (a->uid > b->uid) - (a->uid < b->uid);
+}
+
+static int32_t metaTableGroupEnd(const STableKeyInfo* tables, int32_t num, int32_t start) {
+  if (start >= num) return start;
+  int32_t end = start + 1;
+  // Ordinary tables all have suid zero but do not share a schema.
+  while (tables[start].groupId != 0 && end < num && tables[end].groupId == tables[start].groupId) {
+    ++end;
+  }
+  return end;
+}
+
+static int32_t nextTsdbMetaBlock(SVnode* pVnode, SStreamReaderTaskInner* task, bool* hasNext) {
+  int32_t code = 0;
+  while (true) {
+    code = getTableDataInfo(task, hasNext);
+    if (code != 0 || *hasNext || task->nextMetaTable >= task->numMetaTables) {
+      return code;
+    }
+
+    int32_t start = task->nextMetaTable;
+    int32_t end = metaTableGroupEnd(task->pMetaTables, task->numMetaTables, start);
+    task->storageApi->tsdReader.tsdReaderClose(task->pReader);
+    task->pReader = NULL;
+    task->cond.suid = task->pMetaTables[start].groupId;
+    code = task->storageApi->tsdReader.tsdReaderOpen(pVnode, &task->cond, task->pMetaTables + start, end - start,
+                                                     task->pResBlock, &task->pReader, task->idStr, NULL);
+    if (code != 0) return code;
+    task->nextMetaTable = end;
+  }
+}
+
 static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTriggerPullRequestUnion* req,
                                              SStreamTriggerReaderInfo*   sStreamReaderInfo,
                                              SStreamReaderResponseStats* pRspStats) {
@@ -4892,6 +4938,7 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
                req->tsdbMetaReq.gid);
 
   SStreamReaderTaskInner* pTaskInner = NULL;
+  bool                    taskInMap = false;
   int64_t                 key = getSessionKey(req->base.sessionId, STRIGGER_PULL_TSDB_META);
   bool                    snapshotRollupMeta = isRollupMultiReader(sStreamReaderInfo);
   bool                    expandRollupMeta = snapshotRollupMeta && req->tsdbMetaReq.gid == 0;
@@ -4900,6 +4947,21 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
     STREAM_CHECK_RET_GOTO(qStreamGetTableList(sStreamReaderInfo, req->tsdbMetaReq.gid, &pList, &pNum));
     STableKeyInfo* pCreateList = pList;
     int32_t        createNum = pNum;
+    int64_t        suid = sStreamReaderInfo->suid;
+    if (sStreamReaderInfo->isVtableStream) {
+      // groupId in this locked copy is the source suid, not the stream group.
+      // Compact deleted-table holes before sorting the immutable scan snapshot.
+      int32_t count = 0;
+      for (int32_t i = 0; i < pNum; ++i) {
+        if (pList[i].uid != 0) pList[count++] = pList[i];
+      }
+      pNum = count;
+      if (pNum > 1) {
+        STREAM_CHECK_RET_GOTO(taosqsort(pList, pNum, sizeof(*pList), NULL, compareMetaTableSchema));
+      }
+      createNum = metaTableGroupEnd(pList, pNum, 0);
+      suid = pNum > 0 ? pList[0].groupId : 0;
+    }
     if (isRollupMultiReader(sStreamReaderInfo)) {
       if (req->tsdbMetaReq.gid == 0){
         STREAM_CHECK_RET_GOTO(buildRollupMetaSnapshot(pList, pNum, &pReadList, &readNum, &pRollupMetaByUid, &pRollupMetaCount));
@@ -4909,33 +4971,41 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
         STREAM_CHECK_RET_GOTO(buildRollupMetaCount(pList, pNum, &pRollupMetaCount));
       }
     }
-    BUILD_OPTION(options, getSuid(sStreamReaderInfo, pList), req->tsdbMetaReq.ver, req->tsdbMetaReq.order, req->tsdbMetaReq.startTime, req->tsdbMetaReq.endTime, 
-                          sStreamReaderInfo->tsSchemas, true, NULL);
+    BUILD_OPTION(options, suid, req->tsdbMetaReq.ver, req->tsdbMetaReq.order, req->tsdbMetaReq.startTime,
+                 req->tsdbMetaReq.endTime, sStreamReaderInfo->tsSchemas, true, NULL);
     STREAM_CHECK_RET_GOTO(
         createStreamTask(pVnode, &options, &pTaskInner, NULL, pCreateList, createNum, &sStreamReaderInfo->storageApi));
+    if (sStreamReaderInfo->isVtableStream) {
+      pTaskInner->pMetaTables = pList;
+      pTaskInner->numMetaTables = pNum;
+      pTaskInner->nextMetaTable = createNum;
+      pList = NULL;
+    }
     if (isRollupMultiReader(sStreamReaderInfo)) {
       pTaskInner->pRollupMetaByUid = pRollupMetaByUid;
       pRollupMetaByUid = NULL;
       pTaskInner->pRollupMetaCount = pRollupMetaCount;
       pRollupMetaCount = NULL;
     }
-    STREAM_CHECK_RET_GOTO(taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
-
     STREAM_CHECK_RET_GOTO(
         createBlockForTsdbMeta(&pTaskInner->pResBlockDst, sStreamReaderInfo->isVtableStream,
                                isRollupMultiReader(sStreamReaderInfo)));
+    STREAM_CHECK_RET_GOTO(
+        taosHashPut(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES, &pTaskInner, sizeof(pTaskInner)));
+    taskInMap = true;
   } else {
     void** tmp = taosHashGet(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
     STREAM_CHECK_NULL_GOTO(tmp, TSDB_CODE_STREAM_NO_CONTEXT);
     pTaskInner = *(SStreamReaderTaskInner**)tmp;
     STREAM_CHECK_NULL_GOTO(pTaskInner, TSDB_CODE_INTERNAL_ERROR);
+    taskInMap = true;
   }
 
   blockDataCleanup(pTaskInner->pResBlockDst);
   STREAM_CHECK_RET_GOTO(blockDataEnsureCapacity(pTaskInner->pResBlockDst, STREAM_RETURN_ROWS_NUM));
   bool hasNext = true;
   while (true) {
-    STREAM_CHECK_RET_GOTO(getTableDataInfo(pTaskInner, &hasNext));
+    STREAM_CHECK_RET_GOTO(nextTsdbMetaBlock(pVnode, pTaskInner, &hasNext));
     if (!hasNext) {
       break;
     }
@@ -4976,9 +5046,21 @@ static int32_t vnodeProcessStreamTsdbMetaReq(SVnode* pVnode, SRpcMsg* pMsg, SSTr
   printDataBlock(pTaskInner->pResBlockDst, __func__, "meta", ((SStreamTask *)sStreamReaderInfo->pTask)->streamId);
   if (!hasNext) {
     STREAM_CHECK_RET_GOTO(taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES));
+    pTaskInner = NULL;
   }
 
 end:
+  if (code != 0 && pTaskInner != NULL) {
+    if (taskInMap) {
+      int32_t removeCode = taosHashRemove(sStreamReaderInfo->streamTaskMap, &key, LONG_BYTES);
+      if (removeCode != TSDB_CODE_SUCCESS) {
+        ST_TASK_ELOG("vgId:%d %s failed to remove metadata session:%" PRId64 ", code:%d", TD_VID(pVnode), __func__,
+                     req->base.sessionId, removeCode);
+      }
+    } else {
+      releaseStreamTask(&pTaskInner);
+    }
+  }
   STREAM_PRINT_LOG_END_WITHID(code, lino);
   sendTriggerPullRsp(pMsg, sStreamReaderInfo, buf, size, code, pRspStats);
   tSimpleHashCleanup(pRollupMetaByUid);

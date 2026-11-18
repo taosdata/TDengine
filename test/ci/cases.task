@@ -1479,6 +1479,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_nested_window_recalc_matrix.py::TestNestedWindowRecalcMatrixLineage
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_manual_recalc_reliability.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_state_open_close_recalc.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_mixed_source_schema.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_watermark.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/recalc_bug_13.py
 

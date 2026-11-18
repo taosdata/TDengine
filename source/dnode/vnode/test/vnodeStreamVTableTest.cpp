@@ -1349,6 +1349,9 @@ class VnodeStreamSetTableTest : public ::testing::Test {
     request.base.type = static_cast<decltype(request.base.type)>(type);
     request.base.streamId = task_.task.streamId;
     request.base.readerTaskId = task_.task.taskId;
+    if (type == STRIGGER_PULL_TSDB_META || type == STRIGGER_PULL_TSDB_META_NEXT) {
+      request.tsdbMetaReq.order = TSDB_ORDER_ASC;
+    }
     int32_t length = tSerializeSTriggerPullRequest(nullptr, 0, &request.base);
     EXPECT_GT(length, 0);
     if (length <= 0) return TSDB_CODE_INVALID_MSG;
@@ -1416,6 +1419,214 @@ TEST_F(VnodeStreamSetTableTest, NormalTableDoesNotRequireSetTable) {
 
 TEST_F(VnodeStreamSetTableTest, GroupColumnsDoNotRequireSetTable) {
   EXPECT_EQ(TSDB_CODE_STREAM_NO_CONTEXT, pull(STRIGGER_PULL_GROUP_COL_VALUE));
+}
+
+// Drive the real metadata request/session code; replace only the storage boundary.
+// A TSDB reader accepts one schema identity, even when all schemas have version 1.
+class VnodeStreamMetaSchemaTest : public VnodeStreamSetTableTest {
+ protected:
+  static VnodeStreamMetaSchemaTest *active_;
+  struct Reader {
+    SSDataBlock               *block;
+    std::vector<STableKeyInfo> tables;
+    size_t                     position = 0;
+    int32_t                    repeats = 0;
+  };
+
+  void SetUp() override {
+    VnodeStreamSetTableTest::SetUp();
+    active_ = this;
+    reader_.vTableReady = true;
+    ASSERT_EQ(0, initStreamTableListInfo(&reader_.vSetTableList, UIDMAP_SINGLE));
+    reader_.tsSchemas = taosArrayInit(1, sizeof(SSchema));
+    ASSERT_NE(nullptr, reader_.tsSchemas);
+    ASSERT_EQ(0, qStreamBuildSchema(reader_.tsSchemas, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1));
+    reader_.streamTaskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, reader_.streamTaskMap);
+    taosHashSetFreeFp(reader_.streamTaskMap, releaseStreamTask);
+    reader_.storageApi.tsdReader.tsdReaderOpen = openReader;
+    reader_.storageApi.tsdReader.tsdReaderClose = closeReader;
+    reader_.storageApi.tsdReader.tsdNextDataBlock = nextBlock;
+    reader_.storageApi.tsdReader.tsdReaderReleaseDataBlock = [](void *) {};
+    stub_.set(tmsgSendRsp, captureResponse);
+  }
+
+  void TearDown() override {
+    taosHashCleanup(reader_.streamTaskMap);
+    EXPECT_EQ(opens_, closes_);
+    taosArrayDestroy(reader_.tsSchemas);
+    active_ = nullptr;
+    VnodeStreamSetTableTest::TearDown();
+  }
+
+  void addTable(uint64_t uid, uint64_t suid) { ASSERT_EQ(0, qStreamSetTableList(&reader_.vSetTableList, uid, suid)); }
+
+  static int32_t openReader(void *, SQueryTableDataCond *cond, void *list, int32_t count, SSDataBlock *block,
+                            void **out, const char *, SHashObj **) {
+    auto *self = active_;
+    *out = nullptr;
+    if (self->failOpen_ == self->opens_ + 1) return TSDB_CODE_OUT_OF_MEMORY;
+    auto *tables = static_cast<STableKeyInfo *>(list);
+    for (int32_t i = 0; i < count; ++i) {
+      EXPECT_EQ(tables[i].groupId, cond->suid);
+      EXPECT_NE(0, tables[i].uid);
+      if (cond->suid == 0) EXPECT_EQ(1, count);
+    }
+    EXPECT_EQ(TSDB_ORDER_ASC, cond->order);
+    EXPECT_EQ(0, cond->endVersion);
+    EXPECT_EQ(self->opens_, self->closes_);
+    auto *reader = &self->currentReader_;
+    *reader = Reader{};
+    reader->block = block;
+    if (count > 0) reader->tables.assign(tables, tables + count);
+    *out = reader;
+    ++self->opens_;
+    return 0;
+  }
+
+  static void closeReader(void *handle) {
+    if (handle == nullptr) return;
+    EXPECT_EQ(&active_->currentReader_, handle);
+    active_->currentReader_.tables.clear();
+    ++active_->closes_;
+  }
+
+  static int32_t nextBlock(void *handle, bool *hasNext) {
+    auto *reader = static_cast<Reader *>(handle);
+    if (active_->failRead_) return TSDB_CODE_OUT_OF_MEMORY;
+    *hasNext = reader->position < reader->tables.size();
+    if (!*hasNext) return 0;
+    reader->block->info.id.uid = reader->tables[reader->position].uid;
+    reader->block->info.rows = 2;
+    reader->block->info.window.skey = 10;
+    reader->block->info.window.ekey = 20;
+    if (++reader->repeats >= active_->blocksPerTable_) {
+      ++reader->position;
+      reader->repeats = 0;
+    }
+    return 0;
+  }
+
+  static void captureResponse(SRpcMsg *response) {
+    gPullResponseCode = response->code;
+    ++gPullResponseCount;
+    if (response->code == 0 && response->contLen > 0) {
+      SSDataBlock block = {};
+      const char *end = nullptr;
+      EXPECT_EQ(0, blockDecodeBounded(&block, static_cast<const char *>(response->pCont), response->contLen, &end));
+      auto *uids = static_cast<SColumnInfoData *>(taosArrayGet(block.pDataBlock, 2));
+      for (int32_t i = 0; i < block.info.rows; ++i) {
+        active_->uids_.push_back(*reinterpret_cast<uint64_t *>(colDataGetData(uids, i)));
+      }
+      blockDataFreeRes(&block);
+    }
+    rpcFreeCont(response->pCont);
+  }
+
+  void mockEmptyFirstLastScan() {
+    stub_.set(tmsgSendRsp, capturePullResponse);
+    reader_.storageApi.tsdReader.tsdCreateFirstLastTsIter = [](void *, STimeWindow *, SVersionRange *, uint64_t suid,
+                                                               void *, int32_t count, int32_t, void **out,
+                                                               const char *) -> int32_t {
+      EXPECT_EQ(0, suid);
+      EXPECT_EQ(1, count);
+      *out = active_;
+      ++active_->opens_;
+      return 0;
+    };
+    reader_.storageApi.tsdReader.tsdNextFirstLastTsBlock = [](void *, SSDataBlock *, bool *hasNext) -> int32_t {
+      *hasNext = false;
+      return 0;
+    };
+    reader_.storageApi.tsdReader.tsdDestroyFirstLastTsIter = [](void *) { ++active_->closes_; };
+  }
+
+  int32_t               opens_ = 0;
+  int32_t               closes_ = 0;
+  int32_t               failOpen_ = 0;
+  int32_t               blocksPerTable_ = 1;
+  bool                  failRead_ = false;
+  Reader                currentReader_;
+  std::vector<uint64_t> uids_;
+};
+
+VnodeStreamMetaSchemaTest *VnodeStreamMetaSchemaTest::active_ = nullptr;
+
+TEST_F(VnodeStreamMetaSchemaTest, SeparatesSchemasAndKeepsSiblingTablesTogether) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  addTable(102, 1000);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  std::sort(uids_.begin(), uids_.end());
+  EXPECT_EQ((std::vector<uint64_t>{101, 102, 201}), uids_);
+  EXPECT_EQ(2, opens_);
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, IsolatesOrdinaryTablesWithZeroSuid) {
+  addTable(101, 0);
+  addTable(102, 0);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ((std::vector<uint64_t>{101, 102}), uids_);
+  EXPECT_EQ(2, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, ContinuationRetainsOriginalTableSnapshot) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  blocksPerTable_ = STREAM_RETURN_ROWS_NUM;
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  ASSERT_EQ(STREAM_RETURN_ROWS_NUM, uids_.size());
+  EXPECT_EQ(1, taosHashGetSize(reader_.streamTaskMap));
+  qStreamClearTableInfo(&reader_.vSetTableList);
+  addTable(301, 3000);
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META_NEXT));
+  ASSERT_EQ(2 * STREAM_RETURN_ROWS_NUM, uids_.size());
+  EXPECT_EQ(101, uids_.front());
+  EXPECT_EQ(201, uids_.back());
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META_NEXT));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(2, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, EmptySnapshotFinishesWithoutRows) {
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_TRUE(uids_.empty());
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, LaterGroupOpenFailureReleasesSession) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  failOpen_ = 2;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(opens_, closes_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, ReadFailureReleasesSession) {
+  addTable(101, 1000);
+  failRead_ = true;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ(0, taosHashGetSize(reader_.streamTaskMap));
+  EXPECT_EQ(opens_, closes_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, DeletedSnapshotEntriesAreNotRead) {
+  addTable(101, 1000);
+  addTable(201, 2000);
+  ASSERT_EQ(0, qStreamRemoveTableList(&reader_.vSetTableList, 101));
+  ASSERT_EQ(0, pull(STRIGGER_PULL_TSDB_META));
+  EXPECT_EQ((std::vector<uint64_t>{201}), uids_);
+  EXPECT_EQ(1, opens_);
+}
+
+TEST_F(VnodeStreamMetaSchemaTest, LastTimestampAlsoIsolatesOrdinarySchemas) {
+  addTable(101, 0);
+  addTable(102, 0);
+  mockEmptyFirstLastScan();
+  ASSERT_EQ(0, pull(STRIGGER_PULL_LAST_TS));
+  EXPECT_EQ(2, opens_);
 }
 
 // Exercise serialized Reader requests against real WAL segments, including

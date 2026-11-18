@@ -1215,6 +1215,7 @@ void releaseStreamTask(void* p) {
   cleanupQueryTableDataCond(&pTask->cond);
   tSimpleHashCleanup(pTask->pRollupMetaByUid);
   tSimpleHashCleanup(pTask->pRollupMetaCount);
+  taosMemoryFree(pTask->pMetaTables);
 
   taosMemoryFree(pTask);
 }
