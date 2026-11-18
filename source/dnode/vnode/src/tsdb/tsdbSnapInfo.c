@@ -651,10 +651,11 @@ int32_t tsdbSnapPrepDescription(SVnode* pVnode, SSnapshot* pSnap) {
   // file list turns out to be empty.
   ETsdbRepFmt origFormat = opts.format;
 
-  // If FSM is incomplete, use MEDIUM mode for efficient partial file recovery
   if (pSnap->state == SYNC_FSM_STATE_INCOMPLETE) {
-    opts.format = TSDB_SNAP_REP_FMT_MEDIUM;
-    tsdbInfo("vgId:%d, snap prep: FSM incomplete, switching to MEDIUM format", TD_VID(pVnode));
+    // DEFAULT selects the row-by-row reader even when RAW was negotiated.
+    opts.format = tsSnapshotMediumOnIncomplete ? TSDB_SNAP_REP_FMT_MEDIUM : TSDB_SNAP_REP_FMT_DEFAULT;
+    tsdbInfo("vgId:%d, snap prep: FSM incomplete, snapshotMediumOnIncomplete:%d, format:%d",
+             TD_VID(pVnode), tsSnapshotMediumOnIncomplete, opts.format);
   } else if (tsSnapshotMediumOnLag && pSnap->type == TDMT_SYNC_PREP_SNAPSHOT_REPLY &&
              pSnap->lastApplyIndex >= 0) {
     // snapshotMediumOnLag: a follower that owns committed data (lastApplyIndex >= 0, i.e. the

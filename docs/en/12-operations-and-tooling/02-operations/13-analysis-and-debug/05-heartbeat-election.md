@@ -40,6 +40,7 @@ Most of the following parameters are global configuration parameters and must be
 | `syncSnapReplMaxWaitN` | 128 | entries | 16 - 256 | Global | Yes, effective immediately | Maximum number of log entries that can be waited on during snapshot replication. If a replica falls far behind and must be restored by a snapshot, a long-running restore keeps that replica from participating in elections |
 | `snapshotRateLimit` | 0 | MB/s | 0 - 10240 | Global | Yes, effective immediately | Total snapshot sending bandwidth limit per dnode. 0 means no limit. When multiple vgroups replicate snapshots at the same time, disk I/O can be saturated, indirectly causing heartbeat timeouts. Introduced in `v3.4.2.0` |
 | `snapshotMediumOnLag` | 0 | - | 0 - 1 | Global | Yes, effective immediately | Replication mode used by snapshot synchronization when a replica already owns data but lags behind the other replicas of its vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode which transfers less data and catches up faster. It does not apply to a new empty replica or to a replica whose FSM is incomplete. Introduced in `v3.4.3.0` |
+| `snapshotMediumOnIncomplete` | 1 | - | 0 - 1 | Global | Yes, effective immediately | Snapshot replication mode when the FSM is incomplete. 0 means row-by-row (normal) mode and 1 means file-level delta (medium) mode. An empty file list causes a fallback to the negotiated format |
 
 ### dnode Status Report Parameters
 
