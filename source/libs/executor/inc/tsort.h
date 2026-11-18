@@ -52,6 +52,13 @@ typedef struct SSortSource {
   int64_t fetchNum;
 } SSortSource;
 
+// Values of SMsortComparParam.fastKeyState.
+enum {
+  TSORT_FASTKEY_UNKNOWN = 0,   // shape not decided yet (retry on the next comparison)
+  TSORT_FASTKEY_ENABLED = 1,   // slot/kind/order cached, typed comparison usable
+  TSORT_FASTKEY_DISABLED = 2,  // shape is definitively ineligible
+};
+
 typedef struct SMsortComparParam {
   void**  pSources;
   int32_t numOfSources;
@@ -64,6 +71,22 @@ typedef struct SMsortComparParam {
   int32_t tsOrder;
   __compar_fn_t cmpTsFn;
   void* pPkOrder; // SBlockOrderInfo*
+  // Lazy single fixed-length key fast path for the generic merge comparator:
+  // the slot and comparison kind are resolved once, from the first compared
+  // pair that can answer. The kind is re-validated against the current pair's
+  // column type and width on every comparison; it is never cached by block
+  // address, because a merge can recycle an address for a block with a
+  // different shape.
+  // The lazy fields are written from the comparator, so the whole param (and
+  // the handle owning it) must be driven by a single thread: the executor
+  // merges one handle from its task thread and never shares it.
+  int32_t fastKeySlotId;
+  // State machine of the lazy fast path. Every SSortHandle is created with
+  // taosMemoryCalloc (tsortCreateSortHandle), so UNKNOWN is the zero value and
+  // no explicit initialization is needed.
+  int8_t  fastKeyState;  // TSORT_FASTKEY_* values above
+  int8_t  fastKeyKind;   // typed comparison kind, 0 = none
+  bool    fastKeyDesc;
 } SMsortComparParam;
 
 typedef struct SSortHandle  SSortHandle;
@@ -161,6 +184,15 @@ bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
  * @return
  */
 void tsortGetValue(STupleHandle* pVHandle, int32_t colId, void** pVal);
+// Expose the block and row the handle currently points at so hot callers can
+// copy values directly instead of going through the per-column accessors.
+// Contract: the block is owned by the sort handle and is only valid until the
+// next tsortNextTuple() call; callers must not cache it across tuples. Callers
+// must treat the block as possibly NULL: tsortNextTuple() only returns a
+// non-NULL handle once a row is available, but a handle whose source has been
+// exhausted carries an empty block internally, and the accessors below assume
+// a real block.
+void tsortGetTuplePos(const STupleHandle* pVHandle, const SSDataBlock** ppBlock, int32_t* pRowIndex);
 
 /**
  *

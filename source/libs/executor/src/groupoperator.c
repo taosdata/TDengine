@@ -3381,7 +3381,20 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     pInfo->binfo.pRes->info.rows += pInfo->remainRows;
     code = blockDataTrimFirstRows(pInfo->binfo.pRes, pInfo->orderedRows);
     QUERY_CHECK_CODE(code, lino, _end);
-    pInfo->orderedRows = blockDataGetSortedRows(pInfo->binfo.pRes, pInfo->pOrderInfoArr);
+    // A negative answer is an error, never a row count: turning it into rows
+    // here would hand the aggregation an unordered block.
+    int32_t orderedRows = blockDataGetSortedRowsEx(pInfo->binfo.pRes, pInfo->pOrderInfoArr, &pInfo->pBlockSortScratch);
+    if (orderedRows < 0) {
+      // already the error code itself: error codes are negative as int32.
+      // Reset the cursors before unwinding so a caller that catches the error
+      // and re-enters the operator never applies a stale orderedRows to the
+      // next block.
+      pInfo->orderedRows = 0;
+      pInfo->remainRows = 0;
+      code = orderedRows;
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+    pInfo->orderedRows = orderedRows;
     pInfo->remainRows = pInfo->binfo.pRes->info.rows - pInfo->orderedRows;
     pInfo->binfo.pRes->info.rows = pInfo->orderedRows;
   }
@@ -3954,6 +3967,7 @@ STATIC_EXCEPT_TEST void destroyPartitionOperatorInfo(void* param) {
   partitionDestroyPageClasses(pInfo);
   partitionFreeSpillResources(&pInfo->spill);
   taosArrayDestroy(pInfo->pOrderInfoArr);
+  blockDataSortFreeScratch(&pInfo->pBlockSortScratch);
   taosMemoryFreeClear(param);
 }
 
