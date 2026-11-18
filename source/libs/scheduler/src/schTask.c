@@ -333,7 +333,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   if (parentNum > 0) {
     int32_t curPhase = SCH_GET_JOB_PHASE(pJob);
     if (curPhase == QUERY_PHASE_EXEC_DATA_QUERY) {
-      SCH_SET_JOB_PHASE(pJob, QUERY_PHASE_EXEC_WAITING_CHILDREN);
+      (void)schCasJobPhase(pJob, curPhase, QUERY_PHASE_EXEC_WAITING_CHILDREN, false);
     }
   }
   if (parentNum == 0) {
@@ -1562,6 +1562,12 @@ int32_t schLaunchFetchTask(SSchJob *pJob) {
     SCH_JOB_DLOG("res already fetched, res:%p", fetchRes);
     return TSDB_CODE_SUCCESS;
   }
+
+  // Common funnel for every fetch launch, including the retry recovery path
+  // that resumes fetching from schProcessOnJobPartialSuccess() without a new
+  // fetch request. Stamp the fetch phase here so a resumed fetch is reported as
+  // fetch and not as the re-executed query.
+  schEnterFetchPhase(pJob);
 
   SCH_SET_TASK_STATUS(pJob->fetchTask, JOB_TASK_STATUS_FETCH);
 

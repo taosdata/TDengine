@@ -813,50 +813,59 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-/* Choose execution phase and phase start time for desc.
- * Rules:
- *  - If both timestamps are invalid (<= 0), keep the request's stored values.
- *  - If only one timestamp is valid, use the valid one.
- *  - If both are valid, prefer the job's phase/time when jobPhaseTime >= request's phaseStartTime;
- *    otherwise prefer the request's record.
+/* Choose the execution phase and its start time for desc.
  *
- * Note: If the local system clock was moved backwards (time rollback), jobPhaseTime may appear
- * earlier than the request's phase start time even when the job record is actually newer.
- * This logic avoids reporting a regressed start time in that situation.
+ * The scheduler job owns the schedule/execute/fetch/done phases, so once it has
+ * entered a real phase it is the authoritative source.
+ *
+ * The client request phase is only a fallback for the narrow window in which
+ * the job already exists (hbBuildQueryDesc skips requests whose queryJob is 0)
+ * but the scheduler has not stamped a phase yet, or while the job lookup
+ * transiently fails. In that window the fallback can report the request's
+ * schedule or execute phase. Parse/catalog/plan are never shown: those phases
+ * are written while queryJob is still 0, so the request is not part of the
+ * heartbeat yet.
+ *
+ * Do not arbitrate between the two sources by timestamp: they are independent
+ * state machines updated on different paths and cadence, so picking the freshest
+ * sample makes the reported phase jump back and forth between them.
  */
+
+/* show queries reports the fetch stage as one main phase. The in_progress and
+ * returned sub-states describe internal per-block I/O and stay in the debug
+ * logs; exposing them makes a query that is still fetching look like it keeps
+ * re-entering a new phase. */
+static int32_t hbReportedPhase(int32_t phase) {
+  return QUERY_PHASE_IS_FETCH_STAGE(phase) ? QUERY_PHASE_FETCH : phase;
+}
+
 static void hbSetRequestPhase(SRequestObj *pRequest, SQueryDesc *desc) {
   int32_t jobPhase = QUERY_PHASE_NONE;
   int64_t jobPhaseTime = 0;
   int32_t phaseCode = schedulerGetJobPhase(pRequest->body.queryJob, &jobPhase, &jobPhaseTime);
-  if (phaseCode != TSDB_CODE_SUCCESS) {
-    tscWarn("get job phase failed, code:%d", phaseCode);
-    desc->execPhase = CLIENT_GET_REQUEST_PHASE(pRequest);
-    desc->phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
+
+  if (phaseCode == TSDB_CODE_SUCCESS && jobPhase != QUERY_PHASE_NONE && jobPhaseTime > 0) {
+    desc->execPhase = hbReportedPhase(jobPhase);
+    desc->phaseStartTime = jobPhaseTime;
     return;
   }
 
-  tscDebug("get job phase success, jobPhase:%d, jobPhaseTime:%" PRId64, jobPhase, jobPhaseTime);
-  int64_t phaseStartTime = CLIENT_GET_REQUEST_PHASE_START_TIME(pRequest);
-  int32_t phaseStatus = CLIENT_GET_REQUEST_PHASE(pRequest);
-
-  if (jobPhaseTime <= 0 && phaseStartTime <= 0) {
-    /* No valid time available, keep original behavior */
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
-  } else if (jobPhaseTime <= 0) {
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
-  } else if (phaseStartTime <= 0) {
-    desc->phaseStartTime = jobPhaseTime;
-    desc->execPhase = jobPhase;
-  } else if (jobPhaseTime >= phaseStartTime) {
-    /* Job record is newer (or equal, prefer job) */
-    desc->phaseStartTime = jobPhaseTime;
-    desc->execPhase = jobPhase;
-  } else {
-    /* Request record is newer */
-    desc->phaseStartTime = phaseStartTime;
-    desc->execPhase = phaseStatus;
+  if (phaseCode != TSDB_CODE_SUCCESS) {
+    tscWarn("get job phase failed, code:%d, fallback to request phase", phaseCode);
+  } else if (jobPhase == QUERY_PHASE_NONE) {
+    // The job exists but never entered a phase (e.g. the begin event failed
+    // after init); report the client-phase fallback so this is diagnosable.
+    tscDebug("job phase is NONE, fallback to request phase");
+  }
+  int32_t reqPhase = QUERY_PHASE_NONE;
+  int64_t reqPhaseTime = 0;
+  clientGetRequestPhaseSnapshot(pRequest, &reqPhase, &reqPhaseTime);
+  desc->execPhase = hbReportedPhase(reqPhase);
+  desc->phaseStartTime = reqPhaseTime;
+  if (desc->phaseStartTime <= 0) {
+    // A request that never stamped its phase must not report a 1970 start time
+    // (and an absurd duration); floor it at the query creation time.
+    desc->phaseStartTime = desc->stime > 0 ? desc->stime : taosGetTimestampMs();
   }
 }
 

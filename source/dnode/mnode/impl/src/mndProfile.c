@@ -1674,42 +1674,40 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return code;
     }
 
-    char    subStatus[TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE] = {0};
-    int64_t reserve = 128;
-    int32_t strSize = sizeof(subStatus);
-    int32_t offset = VARSTR_HEADER_SIZE;
-    for (int32_t i = 0; i < pQuery->subPlanNum && offset + reserve < strSize; ++i) {
-      if (i) {
-        offset += snprintf(subStatus + offset, sizeof(subStatus) - offset, ",");
-      }
-      if (offset + reserve >= strSize) break;
-
-      SQuerySubDesc *pDesc = taosArrayGet(pQuery->subDesc, i);
-      if (NULL == pDesc) break;
-
-      char startBuf[32] = {0};
-      (void)snprintf(startBuf, sizeof(startBuf), "-");
-      if (pDesc->startTs > 0) {
-        time_t    startSec = (time_t)(pDesc->startTs / 1000000);
-        int32_t   startFrac = (int32_t)(pDesc->startTs % 1000000) / 1000;
-        struct tm startTm;
-        if (taosLocalTime(&startSec, &startTm, NULL, 0, NULL) != NULL) {
-          size_t n = taosStrfTime(startBuf, sizeof(startBuf), "%Y-%m-%d %H:%M:%S", &startTm);
-          if (tsnprintf(startBuf + n, sizeof(startBuf) - n, ".%03d", startFrac) < 0) {
-            mError("failed to format start time for sub query since %s", tstrerror(terrno));
-            code = terrno;
-            taosRUnLockLatch(&pConn->queryLock);
-            return code;
-          }
-        }
-      }
-
-      offset += tsnprintf(subStatus + offset, sizeof(subStatus) - offset,
-                          "%" PRIu64 ":%s:%s", pDesc->tid, pDesc->status, startBuf);
+    // sub_status has no schema-level length limit of its own: the only cap is
+    // the maximum VARCHAR payload. A cell is at most TSDB_MAX_FIELD_LEN bytes
+    // including the varstr header, so the payload limit is that minus the
+    // header. The formatter encodes every task whose actual encoded size fits
+    // and never splits an entry; a task list that cannot fit is reported
+    // instead of being silently truncated.
+    const int32_t maxPayload = TSDB_MAX_FIELD_LEN - (int32_t)VARSTR_HEADER_SIZE;
+    char         *subStatus = taosMemoryCalloc(1, TSDB_MAX_FIELD_LEN);
+    if (NULL == subStatus) {
+      mError("failed to alloc sub status buffer since %s", tstrerror(terrno));
+      taosRUnLockLatch(&pConn->queryLock);
+      return terrno;
     }
-    varDataLen(subStatus) = strlen(&subStatus[VARSTR_HEADER_SIZE]);
+
+    int32_t subNum = pQuery->subDesc ? (int32_t)taosArrayGetSize(pQuery->subDesc) : 0;
+    if (subNum > pQuery->subPlanNum) {
+      subNum = pQuery->subPlanNum;
+    }
+    int32_t built = 0;
+    int32_t len = tFormatQuerySubStatus(pQuery->subDesc, pQuery->subPlanNum, pQuery->stime,
+                                        subStatus + VARSTR_HEADER_SIZE, maxPayload, &built);
+    if (len < 0) {
+      mError("failed to format sub status for query %" PRIu64 " since %s", pQuery->queryId, tstrerror(len));
+      taosMemoryFree(subStatus);
+      taosRUnLockLatch(&pConn->queryLock);
+      return len;
+    }
+    if (built < subNum) {
+      mError("sub status truncated: %d of %d sub tasks fit into %d bytes", built, subNum, maxPayload);
+    }
+    varDataLen(subStatus) = (VarDataLenT)len;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     code = colDataSetVal(pColInfo, curRowIndex, subStatus, (varDataLen(subStatus) == 0) ? true : false);
+    taosMemoryFree(subStatus);
     if (code != 0) {
       mError("failed to set sub status since %s", tstrerror(code));
       taosRUnLockLatch(&pConn->queryLock);

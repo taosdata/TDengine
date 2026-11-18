@@ -694,6 +694,151 @@ _return:
   return code;
 }
 
+// Request phase writers publish (execPhase, phaseStartTime) as one seqlock
+// guarded snapshot: phaseSeq is odd while a writer updates the pair and even
+// when it is stable, so the heartbeat never mixes a new phase with an old
+// start time. Writers are serialized by phaseWriteLock; updates are rare and
+// the critical section only performs atomics, so it is non-reentrant and
+// cannot block on anything but the CPU.
+static void clientPhaseLockAcquire(SRequestObj *pReq) {
+  int32_t spins = 0;
+  while (atomic_val_compare_exchange_32(&pReq->phaseWriteLock, 0, 1) != 0) {
+    ++spins;
+    if (spins > CLIENT_PHASE_LOCK_SPIN_TIMES) {
+      // The holder is not making progress within the expected window, so it
+      // was most likely preempted. Back off instead of hammering the CPU and
+      // report the stall once per acquisition; the lock is not abandoned
+      // because a reader still needs a consistent pair to return.
+      if (spins == CLIENT_PHASE_LOCK_SPIN_TIMES + 1) {
+        tscError("req:0x%" PRIx64 ", phase write lock still held after %d attempts, the holder was likely "
+                 "preempted",
+                 pReq->self, CLIENT_PHASE_LOCK_SPIN_TIMES);
+      }
+      taosMsleep(10);
+    } else {
+      // Yield the CPU instead of a no-op sleep: taosMsleep(0) does not reliably
+      // give the writer holding the lock a chance to run.
+      taosMsleep(1);
+    }
+  }
+}
+
+static void clientPhaseWriteBegin(SRequestObj *pReq) {
+  clientPhaseLockAcquire(pReq);
+  // Increment immediately after acquiring the lock: from here on phaseSeq is
+  // odd and readers retry. The instructions between the CAS and this add are
+  // safe because no data store has happened yet, so a reader that passes the
+  // check reads the previous fully published pair. Each write performs two
+  // increments, so a reader that observes a writer at all sees a different
+  // sequence value and retries. The field is int32_t to match the atomic API;
+  // it is only compared for equality/parity, so a wrap-around is harmless.
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+}
+
+static void clientPhaseWriteEnd(SRequestObj *pReq) {
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  atomic_store_32(&pReq->phaseWriteLock, 0);
+}
+
+void clientSetRequestPhase(SRequestObj *pReq, int32_t phase) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  atomic_store_32(&pReq->execPhase, phase);
+  atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientUpdateRequestPhaseIfChanged(SRequestObj *pReq, int32_t newPhase) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  if (atomic_load_32(&pReq->execPhase) != newPhase) {
+    atomic_store_32(&pReq->execPhase, newPhase);
+    atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientEnterRequestFetchPhase(SRequestObj *pReq) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  int32_t curPhase = atomic_load_32(&pReq->execPhase);
+  // Once in the fetch stage the timer is kept: re-entering IN_PROGRESS for a
+  // later block must not restart the fetch stage, and a concurrent close of
+  // the stage is observed here instead of being overwritten.
+  if (curPhase == QUERY_PHASE_FETCH_RETURNED) {
+    // A later block arrives after the previous one was reported as returned:
+    // move back to in_progress but keep the single fetch stage timer.
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+  } else if (!QUERY_PHASE_IS_FETCH_STAGE(curPhase)) {
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_IN_PROGRESS);
+    atomic_store_64(&pReq->phaseStartTime, taosGetTimestampMs());
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientCloseRequestFetchIfEntered(SRequestObj *pReq) {
+  if (pReq == NULL) {
+    return;
+  }
+  clientPhaseWriteBegin(pReq);
+  int32_t curPhase = atomic_load_32(&pReq->execPhase);
+  // Only a request that actually entered the fetch stage is closed. INSERT,
+  // failed, field-less and empty-result requests that never fetched keep their
+  // phase instead of being reported as a completed fetch.
+  if (QUERY_PHASE_IS_FETCH_STAGE(curPhase) && curPhase != QUERY_PHASE_FETCH_RETURNED) {
+    atomic_store_32(&pReq->execPhase, QUERY_PHASE_FETCH_RETURNED);
+    // Keep phaseStartTime: the whole fetch stage has a single timer.
+  }
+  clientPhaseWriteEnd(pReq);
+}
+
+void clientGetRequestPhaseSnapshot(SRequestObj *pReq, int32_t *pPhase, int64_t *pStartTime) {
+  if (pReq == NULL || pPhase == NULL || pStartTime == NULL) {
+    return;
+  }
+  for (int32_t i = 0; i < CLIENT_PHASE_READ_RETRY_TIMES; ++i) {
+    uint32_t seq1 = (uint32_t)atomic_load_32(&pReq->phaseSeq);
+    if (seq1 & 1U) {
+      taosMsleep(1);
+      continue;
+    }
+    int32_t phase = atomic_load_32(&pReq->execPhase);
+    int64_t start = atomic_load_64(&pReq->phaseStartTime);
+    uint32_t seq2 = (uint32_t)atomic_load_32(&pReq->phaseSeq);
+    if (seq1 == seq2) {
+      *pPhase = phase;
+      *pStartTime = start;
+      return;
+    }
+    // A writer was active while the pair was read: yield before retrying.
+    taosMsleep(1);
+  }
+  // Retries exhausted (a writer stayed active for the whole window). Reading
+  // the pair while holding the writer lock still returns a consistent
+  // snapshot; two independent lock-free loads could return a new phase paired
+  // with an old start time, which is exactly what this reader exists to avoid.
+  // Readers must never be invoked from inside a phase write critical section:
+  // phaseWriteLock is not recursive, so the acquisition below would wait on
+  // the lock the caller already holds.
+  tscWarn("req:0x%" PRIx64 ", phase snapshot unstable after %d retries, read it under the writer lock",
+          pReq->self, CLIENT_PHASE_READ_RETRY_TIMES);
+  clientPhaseLockAcquire(pReq);
+  // Follow the writer protocol on this fallback path as well: phaseSeq is odd
+  // while the pair is read under the lock and even again afterwards, so the
+  // degraded read is indistinguishable from a regular publication.
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  *pPhase = atomic_load_32(&pReq->execPhase);
+  *pStartTime = atomic_load_64(&pReq->phaseStartTime);
+  (void)atomic_add_fetch_32(&pReq->phaseSeq, 1);
+  atomic_store_32(&pReq->phaseWriteLock, 0);
+}
+
 void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->pRspMsg);
   taosMemoryFreeClear(pResInfo->length);

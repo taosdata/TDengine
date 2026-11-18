@@ -4677,7 +4677,7 @@ void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertU
     // All data has returned to App already, no need to try again
     if (pResultInfo->completed) {
       pResultInfo->numOfRows = 0;
-      CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+      CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
       return NULL;
     }
 
@@ -6048,7 +6048,7 @@ int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* pa
   // this query has no results or error exists, return directly
   if (taos_num_fields(pRequest) == 0 || pRequest->code != TSDB_CODE_SUCCESS) {
     pResultInfo->numOfRows = 0;
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     pRequest->body.fetchFp(param, pRequest, pResultInfo->numOfRows);
 
     return TSDB_CODE_SUCCESS;
@@ -6056,7 +6056,7 @@ int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* pa
 
   // all data has returned to App already, no need to try again
   if (pResultInfo->completed) {
-    CLIENT_UPDATE_REQUEST_PHASE_IF_CHANGED(pRequest, QUERY_PHASE_FETCH_RETURNED);
+    CLIENT_CLOSE_REQUEST_FETCH_IF_ENTERED(pRequest);
     // it is a local executed query, no need to do async fetch
     if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
       if (pResultInfo->localResultFetched) {

@@ -106,6 +106,17 @@ if(TD_GRANT)
 endif()
 add_test(NAME subQueryMsgTest COMMAND subQueryMsgTest)
 
+# subStatusFormatTest.cpp
+add_executable(subStatusFormatTest "subStatusFormatTest.cpp")
+DEP_ext_gtest(subStatusFormatTest)
+target_link_libraries(subStatusFormatTest PRIVATE os util common)
+target_include_directories(
+    subStatusFormatTest
+    PUBLIC "${TD_SOURCE_DIR}/include/common"
+    PUBLIC "${TD_SOURCE_DIR}/include/util"
+)
+add_test(NAME subStatusFormatTest COMMAND subStatusFormatTest)
+
 # ttimeQuarterParseTest.cpp
 add_executable(ttimeQuarterParseTest "ttimeQuarterParseTest.cpp")
 DEP_ext_gtest(ttimeQuarterParseTest)

@@ -26,6 +26,7 @@ extern "C" {
 #include "os.h"
 #include "planner.h"
 #include "scheduler.h"
+#include "schPhase.h"
 #include "tarray.h"
 #include "thash.h"
 #include "trpc.h"
@@ -336,8 +337,23 @@ typedef struct SSchJob {
   int8_t               source;
   int8_t               secureDelete;
   void                *pWorkerCb;
+  // Query phase pair and its seqlock guard. These four fields describe one
+  // logical snapshot: (execPhase, phaseStartTime) is published under
+  // phaseWriteLock, while phaseSeq is odd when a writer updates the pair and
+  // even when it is stable. Readers use schReadJobPhase() so show queries
+  // never pair a new phase with the previous stage's start time.
+  //
+  // Do NOT write execPhase/phaseStartTime directly. Every update must go
+  // through schPublishJobPhase(), schPublishJobPhaseIfChanged() or
+  // schCasJobPhase() in schJob.c, otherwise the seqlock snapshot is broken.
+  // Plain int32_t is intentional (same as the other atomic lock words in this
+  // codebase, e.g. gConvLock): the atomic API takes int32_t volatile *, and
+  // qualifier addition on the way in is a valid conversion, so no cast or
+  // volatile field is needed.
   int32_t              execPhase;      // Add phase tracking for query execution
   int64_t              phaseStartTime; // When current phase started (ms)
+  int32_t              phaseWriteLock;
+  int32_t              phaseSeq;       // odd while a phase writer updates the pair
   int64_t              txnId;          // batch meta txn ID for same-txn visibility
   int8_t               firstDayOfWeek; /* 0-6, resolved by client before dispatch */
   SCorrelationExecution correlation;
@@ -361,20 +377,29 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_GET_TASK_CAPACITY(_n) ((_n) > SCH_DEFAULT_TASK_CAPACITY_NUM ? SCH_DEFAULT_TASK_CAPACITY_NUM : (_n))
 
-// Job phase tracking macros
-#define SCH_SET_JOB_PHASE(_job, _phase)                 \
-  do {                                                  \
-    atomic_store_32(&(_job)->execPhase, (_phase));      \
-    atomic_store_64(&(_job)->phaseStartTime, taosGetTimestampMs()); \
-  } while (0)
+// Job phase tracking. All writers publish the (phase, startTime) pair through
+// these helpers, which serialize on phaseWriteLock and use a seqlock sequence
+// so readers never observe a torn pair. A phase transition is a few atomics,
+// so the bounded read retry is normally not consumed.
+#define SCH_PHASE_READ_RETRY_TIMES 16
+// Writer-lock waits beyond this many attempts are reported and back off from
+// 1ms to 10ms sleeps: the critical section only performs atomics, so a longer
+// wait means the holder was preempted rather than blocked.
+#define SCH_PHASE_LOCK_SPIN_TIMES 1000
+// Resampled CAS attempts when promoting a parent out of its subjob execution
+// phase. The sample and the CAS are not atomic, so a concurrent move inside
+// the execute main phase is retried instead of leaving the parent stuck on an
+// intermediate execute sub-phase.
+#define SCH_PHASE_PROMOTE_RETRY_TIMES 4
 
+void schPublishJobPhase(SSchJob *pJob, int32_t phase);
+void schPublishJobPhaseIfChanged(SSchJob *pJob, int32_t newPhase, bool keepTime);
+bool schCasJobPhase(SSchJob *pJob, int32_t expected, int32_t newPhase, bool keepTime);
+void schReadJobPhase(SSchJob *pJob, int32_t *pPhase, int64_t *pStartTime);
+
+#define SCH_SET_JOB_PHASE(_job, _phase) schPublishJobPhase((_job), (_phase))
 #define SCH_UPDATE_JOB_PHASE_IF_CHANGED(_job, _newPhase) \
-  do {                                                   \
-    if (atomic_load_32(&(_job)->execPhase) != (_newPhase)) { \
-      atomic_store_32(&(_job)->execPhase, (_newPhase));  \
-      atomic_store_64(&(_job)->phaseStartTime, taosGetTimestampMs()); \
-    }                                                    \
-  } while (0)
+  schPublishJobPhaseIfChanged((_job), (_newPhase), false)
 
 #define SCH_GET_JOB_PHASE(_job) atomic_load_32(&(_job)->execPhase)
 #define SCH_GET_JOB_PHASE_START_TIME(_job) atomic_load_64(&(_job)->phaseStartTime)
@@ -660,6 +685,8 @@ int32_t  schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
 int32_t  schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t  schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t  schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
+void     schPromoteParentForSubJobs(SSchJob *pParent);
+void     schEnterFetchPhase(SSchJob *pJob);
 int32_t  schLaunchFetchTask(SSchJob *pJob);
 int32_t  schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 int32_t  schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId, SArray *taskAction);
