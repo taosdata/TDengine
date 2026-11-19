@@ -755,7 +755,10 @@ _CASES = [
             "drop external source if exists fq01_src030i",
             f"create external source fq01_src030i type='influxdb' host='192.0.2.200' port={_I_PORT} user='admin' database='{_I_DB}' options('api_token'='{_I_TOKEN}', 'protocol'='flight_sql', 'connect_timeout_ms'='500')",
             _q_count_step(negative=True),
-            f"alter external source fq01_src030i set host='{_I_HOST}', port={_I_PORT}",
+            # Restore a practical connect deadline for the recovery query: the
+            # 500 ms used to fail fast against the unreachable host is also the
+            # InfluxDB first-response deadline, and ASan can exceed it.
+            f"alter external source fq01_src030i set host='{_I_HOST}', port={_I_PORT}, options('connect_timeout_ms'='5000')",
             "describe external source fq01_src030i",
             "refresh external source fq01_src030i",
             _q_count_step(),
@@ -1059,6 +1062,12 @@ _CASES = [
             "alter external source fq01_src047m set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'",
             "describe external source fq01_src047m",
+            # 100 is the validation boundary for the option, not a query-latency
+            # budget: the usability check below opens a fresh connection, and
+            # a 100 ms connect budget is too tight to be a reliable functional
+            # check on an ASan-instrumented CI client. Restore a practical value
+            # before asserting the source is still usable.
+            "alter external source fq01_src047m set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             "alter external source fq01_src047m set options('connect_timeout_ms'='99')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047m'",
@@ -1521,6 +1530,11 @@ _CASES = [
             "alter external source fq01_src047i set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047i'",
             "describe external source fq01_src047i",
+            # 100 is the validation boundary, not a query-latency budget: the
+            # InfluxDB connectors also apply it to the first remote response,
+            # and an ASan-instrumented CI client can exceed it sporadically.
+            # Restore a practical value before asserting the source is usable.
+            "alter external source fq01_src047i set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             # invalid: connect_timeout_ms < 100
             "alter external source fq01_src047i set options('connect_timeout_ms'='99')",
@@ -1981,6 +1995,12 @@ _CASES = [
             "alter external source fq01_src047p set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047p'",
             "describe external source fq01_src047p",
+            # 100 is the validation boundary for the option, not a query-latency
+            # budget: the usability check below opens a fresh connection, and
+            # a 100 ms connect budget is too tight to be a reliable functional
+            # check on an ASan-instrumented CI client. Restore a practical value
+            # before asserting the source is still usable.
+            "alter external source fq01_src047p set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             # below min (99 < 100)
             "alter external source fq01_src047p set options('connect_timeout_ms'='99')",
@@ -2909,6 +2929,11 @@ _CASES = [
             "alter external source fq01_src047s set options('connect_timeout_ms'='100', 'read_timeout_ms'='600000')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
             "describe external source fq01_src047s",
+            # 100 is the validation boundary for the option, not a login budget:
+            # SQL Server enforces it as a hard connection-login deadline, and
+            # an ASan-instrumented CI client can exceed it sporadically.
+            # Restore a practical value before asserting the source is usable.
+            "alter external source fq01_src047s set options('connect_timeout_ms'='5000')",
             _q_count_step(),
             "alter external source fq01_src047s set options('connect_timeout_ms'='99')",
             "select source_name, options from information_schema.ins_ext_sources where source_name='fq01_src047s'",
