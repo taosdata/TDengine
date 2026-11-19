@@ -22,6 +22,7 @@ Split from test_meta_batch_txn_basic.py to keep per-file execution under 200s.
 """
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
+import taos
 import time
 import threading
 
@@ -373,6 +374,285 @@ class TestBatchMetaTxnBasicB:
     # =========================================================================
 
 
+    def s30_allow_nontransactional(self):
+        self.s0_reset_env()
+        tdLog.info("======== s30_allow_nontransactional")
+
+        tdSql.execute("create table base1 (ts timestamp, v int)")
+        tdSql.execute("create stable stb_idx (ts timestamp, v int) tags(t1 int, t2 int)")
+
+        # Default BEGIN: INSERT and tag-index DDL stay rejected.
+        tdSql.execute("BEGIN")
+        tdSql.error("insert into base1 values(now, 1)", expectErrInfo="not supported in transaction", fullMatched=False)
+        tdSql.error("create index idx_a on stb_idx (t2)", expectErrInfo="not supported in transaction", fullMatched=False)
+        tdSql.execute("ROLLBACK")
+
+        # Option is matched case-insensitively; unknown options are syntax errors.
+        tdSql.error("BEGIN bogus_option")
+        tdSql.error("BEGIN ALLOW_NONTRANSACTIONAL ALLOW_NONTRANSACTIONAL")
+        tdSql.execute_ignore_error("ROLLBACK")
+
+        # Both spellings pass everything through; txn-capable DDL still rolls back,
+        # non-transactional effects survive ROLLBACK. Each round uses its own table and
+        # index so no cleanup statement is needed between rounds.
+        rounds = (("BEGIN ALLOW_NONTRANSACTIONAL", "r1"),
+           ("start transaction allow_nontransactional", "r2"))
+        for begin, tag in rounds:
+            tdSql.execute(f"create table dat_{tag} (ts timestamp, v int)")
+            tdSql.execute(begin)
+            tdSql.execute(f"create table nt_tmp_{tag} (ts timestamp, v int)")
+            tdSql.execute(f"insert into dat_{tag} values(now, 1)")
+            tdSql.execute(f"create index idx_{tag} on stb_idx (t2)")
+            tdSql.query(f"select * from dat_{tag}")
+            tdSql.execute("ROLLBACK")
+
+            tdSql.error(f"select * from nt_tmp_{tag}")  # txn DDL rolled back
+            tdSql.query(f"select * from dat_{tag}")
+            tdSql.checkRows(1)  # insert kept
+            tdSql.execute(f"drop index idx_{tag}")  # index kept, so it is droppable
+
+        # The option does not leak into the next transaction.
+        tdSql.execute("BEGIN")
+        tdSql.error("insert into base1 values(now, 2)", expectErrInfo="not supported in transaction", fullMatched=False)
+        tdSql.execute("ROLLBACK")
+
+        # Txn-capable DDL under the option still commits normally.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("create table nt_c (ts timestamp, v int)")
+        tdSql.execute("COMMIT")
+        tdSql.query("select * from nt_c")
+        tdSql.checkRows(0)
+
+    def s31_allow_nontransactional_errors_and_boundaries(self):
+        """FS 4.15.3-4.15.5: errors are returned and the txn stays usable; the option does
+        not mask permission errors, cannot write to a pending_create table, and cannot be
+        switched inside a txn."""
+        self.s0_reset_env()
+        tdLog.info("======== s31_allow_nontransactional_errors_and_boundaries")
+
+        tdSql.execute("create table e_base (ts timestamp, v int)")
+
+        # (1) A failing statement does not abort the txn; the business chooses COMMIT.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("create table e_before (ts timestamp, v int)")
+        tdSql.error("insert into no_such_table values(now, 1)")
+        tdSql.error("create table e_before (ts timestamp, v int)")
+        tdSql.execute("insert into e_base values(now, 1)")
+        tdSql.execute("create table e_after (ts timestamp, v int)")
+        tdSql.query("show tables")
+        tdSql.query("describe e_base")
+        tdSql.execute("COMMIT")
+        tdSql.query("select * from e_before")
+        tdSql.checkRows(0)
+        tdSql.query("select * from e_after")
+        tdSql.checkRows(0)
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(1)
+
+        # (2) Same, but ROLLBACK: txn DDL undone, the non-txn insert kept.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("create table e_gone (ts timestamp, v int)")
+        tdSql.error("insert into no_such_table values(now, 1)")
+        tdSql.execute("insert into e_base values(now, 2)")
+        tdSql.execute("ROLLBACK")
+        tdSql.error("select * from e_gone")
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(2)
+
+        # (3) COMMIT does not replay non-txn statements; the option is reset after COMMIT.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("insert into e_base values(now, 3)")
+        tdSql.execute("COMMIT")
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(3)
+        tdSql.execute("BEGIN")
+        tdSql.error("insert into e_base values(now, 4)", expectErrInfo="not supported in transaction", fullMatched=False)
+        tdSql.execute("ROLLBACK")
+
+        # (4) Nested BEGIN is refused, does not end the live txn, and cannot switch the
+        # option of the running txn in either direction.
+        tdSql.execute("BEGIN")
+        tdSql.error("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.error("insert into e_base values(now, 5)", expectErrInfo="not supported in transaction", fullMatched=False)
+        tdSql.execute("ROLLBACK")
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.error("BEGIN")
+        tdSql.error("START TRANSACTION")
+        tdSql.execute("insert into e_base values(now, 6)")
+        tdSql.execute("create table e_nest (ts timestamp, v int)")
+        tdSql.execute("COMMIT")
+        tdSql.query("select * from e_nest")
+        tdSql.checkRows(0)
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(4)
+
+        # (5) A write to a table created by this still-open txn (pending_create) is refused
+        # even with the option; the txn stays usable and the table is gone after ROLLBACK.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("create table e_pending (ts timestamp, v int)")
+        tdSql.error("insert into e_pending values(now, 1)")
+        tdSql.execute("insert into e_base values(now, 7)")
+        tdSql.execute("ROLLBACK")
+        tdSql.error("select * from e_pending")
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(5)
+
+        # (6) Syntax and permission errors are not masked by the option.
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.error("insert into")
+        tdSql.error("create tabel x (ts timestamp)")
+        tdSql.execute("ROLLBACK")
+
+        user, pwd = "s31_user", "s31_pwd@123A"
+        tdSql.execute(f"drop user if exists {user}")
+        tdSql.execute(f"create user {user} pass '{pwd}'")
+        conn = taos.connect(user=user, password=pwd)
+        try:
+            cur = conn.cursor()
+            cur.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+            for sql in ("insert into txn_db.e_base values(now, 8)",
+                    "create table txn_db.e_denied (ts timestamp, v int)"):
+                try:
+                    cur.execute(sql)
+                except Exception as e:
+                    tdLog.info(f"s31 permission error returned as expected: {e}")
+                else:
+                    raise AssertionError(f"[{sql}] must fail for a user without privileges")
+            cur.execute("ROLLBACK")
+        finally:
+            conn.close()
+            tdSql.execute(f"drop user if exists {user}")
+        tdSql.query("select * from e_base")
+        tdSql.checkRows(5)
+        tdSql.error("select * from e_denied")
+
+    # -------------------------------------------------------------------------
+    # s32-s34: the database of a txn's participants is dropped before COMMIT / ROLLBACK
+    # -------------------------------------------------------------------------
+    # DROP DATABASE is not blocked while a txn has DDL in it (rare, and not worth tracking which
+    # databases a txn touches). The txn notices at its end instead: COMMIT is refused because the
+    # participants are gone and the txn stays open for ROLLBACK; ROLLBACK skips vgroups that no
+    # longer exist and finishes. Neither may hang.
+    S32_DB = "s32_db"
+    S32_END_TIMEOUT_S = 60
+
+    def _s32_fresh_db(self):
+        tdSql.execute(f"drop database if exists {self.S32_DB}")
+        tdSql.execute(f"create database {self.S32_DB} vgroups 2")
+
+    def _s32_open_txn_with_ddl(self, db):
+        conn = taos.connect()
+        cur = conn.cursor()
+        cur.execute(f"use {db}")
+        cur.execute("BEGIN")
+        # Normal tables land on the db's vgroups and enlist them (pVgList); the stable adds a
+        # mnode-side shadow op carrying the db. Both ways of finding participants are exercised.
+        for i in range(3):
+            cur.execute(f"create table nt{i} (ts timestamp, v int)")
+        cur.execute("create stable stb (ts timestamp, v int) tags (t int)")
+        cur.execute("create table ct0 using stb tags (0)")
+        return conn, cur
+
+    def _s32_run_bounded(self, cur, stmt):
+        """Run stmt in a worker so a hang fails the case instead of blocking the suite.
+        Returns None on success or the raised exception."""
+        result = {}
+
+        def work():
+            try:
+                cur.execute(stmt)
+            except Exception as e:
+                result["error"] = e
+
+        t = threading.Thread(target=work, daemon=True)
+        t.start()
+        t.join(self.S32_END_TIMEOUT_S)
+        assert not t.is_alive(), f"{stmt} did not finish within {self.S32_END_TIMEOUT_S}s"
+        return result.get("error")
+
+    def s32_commit_after_participant_db_dropped_needs_rollback(self):
+        """Another connection drops the db: COMMIT is refused with TXN_NEED_ROLLBACK (not a silent
+        success, not a hang), and a following ROLLBACK ends the txn so the connection is reusable."""
+        self.s0_reset_env()
+        tdLog.info("======== s32_commit_after_participant_db_dropped_needs_rollback")
+        db = self.S32_DB
+        self._s32_fresh_db()
+        conn = None
+        try:
+            conn, cur = self._s32_open_txn_with_ddl(db)
+            tdSql.execute(f"drop database {db}")  # not blocked
+
+            err = self._s32_run_bounded(cur, "COMMIT")
+            assert err is not None, "COMMIT must fail: the txn's DDL went away with the database"
+            errno = getattr(err, "errno", None)
+            assert (errno is not None and (errno & 0xFFFF) == 0x330F) or "0x330f" in str(err).lower(), \
+                f"COMMIT must fail with TSDB_CODE_TXN_NEED_ROLLBACK (0x330F), got: {err}"
+
+            err = self._s32_run_bounded(cur, "ROLLBACK")
+            assert err is None, f"ROLLBACK after the db was dropped must succeed: {err}"
+
+            # The connection is usable for a new txn.
+            cur.execute("use txn_db")
+            cur.execute("BEGIN")
+            cur.execute("create table s32_after (ts timestamp, v int)")
+            cur.execute("COMMIT")
+        finally:
+            if conn is not None:
+                try:
+                    conn.cursor().execute("ROLLBACK")
+                except Exception:
+                    pass
+                conn.close()
+            tdSql.execute(f"drop database if exists {db}")
+        tdSql.query("select * from txn_db.s32_after")
+        tdSql.checkRows(0)
+
+    def s33_rollback_after_participant_db_dropped_finishes(self):
+        """The same, but the user rolls back right away: ROLLBACK must finish even though the
+        participant vgroups no longer exist (it used to retry forever on an empty epset)."""
+        self.s0_reset_env()
+        tdLog.info("======== s33_rollback_after_participant_db_dropped_finishes")
+        db = self.S32_DB
+        self._s32_fresh_db()
+        conn = None
+        try:
+            conn, cur = self._s32_open_txn_with_ddl(db)
+            tdSql.execute(f"drop database {db}")
+            err = self._s32_run_bounded(cur, "ROLLBACK")
+            assert err is None, f"ROLLBACK must succeed: {err}"
+            # Nothing is left retrying on the mnode.
+            left = []
+            deadline = time.time() + 30
+            while time.time() < deadline:
+                tdSql.query("show transactions")
+                left = [r for r in tdSql.queryResult if any(str(c).lower() == "user" for c in r)]
+                if not left:
+                    break
+                time.sleep(1)
+            assert not left, f"user transactions left after ROLLBACK: {left}"
+        finally:
+            if conn is not None:
+                conn.close()
+            tdSql.execute(f"drop database if exists {db}")
+
+    def s34_commit_still_works_when_db_is_intact(self):
+        """The new COMMIT check must not refuse a healthy txn."""
+        self.s0_reset_env()
+        tdLog.info("======== s34_commit_still_works_when_db_is_intact")
+        db = self.S32_DB
+        self._s32_fresh_db()
+        conn = None
+        try:
+            conn, cur = self._s32_open_txn_with_ddl(db)
+            err = self._s32_run_bounded(cur, "COMMIT")
+            assert err is None, f"COMMIT of a healthy txn failed: {err}"
+            tdSql.query(f"show {db}.tables")
+            assert tdSql.queryRows >= 4
+        finally:
+            if conn is not None:
+                conn.close()
+            tdSql.execute(f"drop database if exists {db}")
+
     def test_meta_batch_txn_basic_b(self):
         """Batch meta txn: basic lifecycle (s15-s29).
 
@@ -391,8 +671,14 @@ class TestBatchMetaTxnBasicB:
         27. same_txn_stb_child_rollback
         28. alter_table_desc_in_txn
         29. show_create_table_ctb_in_txn
+        30. allow_nontransactional
+        31. allow_nontransactional_errors_and_boundaries
+        32. commit_after_participant_db_dropped_needs_rollback
+        33. rollback_after_participant_db_dropped_finishes
+        34. commit_still_works_when_db_is_intact
 
         Since: v3.3.6.0
+
         Labels: common,ci
         """
         self.s15_normal_table_create_commit()
@@ -410,4 +696,9 @@ class TestBatchMetaTxnBasicB:
         self.s27_same_txn_stb_child_rollback()
         self.s28_alter_table_desc_in_txn()
         self.s29_show_create_table_ctb_in_txn()
+        self.s30_allow_nontransactional()
+        self.s31_allow_nontransactional_errors_and_boundaries()
+        self.s32_commit_after_participant_db_dropped_needs_rollback()
+        self.s33_rollback_after_participant_db_dropped_finishes()
+        self.s34_commit_still_works_when_db_is_intact()
 

@@ -2131,12 +2131,50 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
   TAOS_RETURN(code);
 }
 
+// A vgroup is gone for good when it is no longer in the mnode's SDB, or is DROPPING (DROP DATABASE is
+// removing it; that cannot be undone). This is judged on the SDB, not on a vnode's answer: "Vnode is closed
+// or removed" (TSDB_CODE_VND_INVALID_VGROUP_ID) is also what an offline / starting / closed / failed vnode
+// answers, and such a vnode still holds the txn's uncommitted entries.
+bool mndTransVgroupIsGone(SMnode *pMnode, int32_t vgId) {
+  SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);  // only returns a READY vgroup
+  if (pVgroup != NULL) {
+    mndReleaseVgroup(pMnode, pVgroup);
+    return false;
+  }
+  return terrno == TSDB_CODE_MND_VGROUP_NOT_EXIST || terrno == TSDB_CODE_SDB_OBJ_DROPPING;
+}
+
+// The commit / rollback trans of a user txn (TRN_POLICY_RETRY) sends one action per participant vgroup. If
+// the vgroup's database was dropped meanwhile - possibly after the trans was prepared - the action would be
+// retried for ever and the txn could never end, although there is nothing left there to commit or roll
+// back. Such an action is completed without being sent. Only these two trans are affected (oper is
+// persisted with the trans); every other trans, incl. the orphan-txn clean-up ones, is untouched.
+static bool mndTransVnodeGoneForUserTxn(SMnode *pMnode, STrans *pTrans, STransAction *pAction) {
+  if (pTrans->oper != MND_OPER_COMMIT_TXN && pTrans->oper != MND_OPER_ROLLBACK_TXN) return false;
+  if (pAction->msgType != TDMT_VND_TXN_COMMIT && pAction->msgType != TDMT_VND_TXN_ROLLBACK) return false;
+  if (pAction->groupId <= 0) return false;
+  return mndTransVgroupIsGone(pMnode, pAction->groupId);
+}
+
 // execute in trans context
 static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransAction *pAction, bool topHalf,
                                      bool notSend) {
   if (pAction->msgSent) return 0;
   if (mndCannotExecuteTrans(pMnode, topHalf)) {
     TAOS_RETURN(TSDB_CODE_MND_TRANS_CTX_SWITCH);
+  }
+
+  if (!notSend && mndTransVnodeGoneForUserTxn(pMnode, pTrans, pAction)) {
+    // Record it exactly as a successful round trip, which is what every executor looks at.
+    mWarn("trans:%d, %s:%d (%s) skipped: vgId:%d no longer exists, its database was dropped during the txn",
+          pTrans->id, mndTransStr(pAction->stage), pAction->id, TMSG_INFO(pAction->msgType), pAction->groupId);
+    pAction->msgSent = 1;
+    pAction->msgReceived = 1;
+    pAction->errCode = 0;
+    pAction->startTime = taosGetTimestampMs();
+    pAction->endTime = pAction->startTime;
+    mndSetTransLastAction(pTrans, pAction);
+    return 0;
   }
 
   if (notSend) {

@@ -3065,11 +3065,13 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
     case QUERY_NODE_CREATE_VIRTUAL_SUBTABLE_STMT:
     case QUERY_NODE_DROP_VIRTUAL_TABLE_STMT:
     case QUERY_NODE_ALTER_VIRTUAL_TABLE_STMT:
-    // Stream DDL (phase 2). Only CREATE/DROP are in scope; ALTER/STOP/START/
-    // RECALCULATE STREAM stay rejected via the default branch (runtime control,
-    // not metadata DDL).
+    // Stream DDL (phase 2). CREATE/DROP/START/STOP are in scope; ALTER/RECALCULATE
+    // STREAM stay rejected via the default branch.
     case QUERY_NODE_CREATE_STREAM_STMT:
     case QUERY_NODE_DROP_STREAM_STMT:
+    // START / STOP STREAM: persisted lifecycle flag, applied at COMMIT.
+    case QUERY_NODE_PAUSE_STREAM_STMT:
+    case QUERY_NODE_RESUME_STREAM_STMT:
       return TXN_STMT_DDL;
     // SELECT, read-only utilities, transaction control  -  not counted
     case QUERY_NODE_SELECT_STMT:
@@ -3224,16 +3226,24 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
     return TSDB_CODE_TXN_TIMEOUT_KILLED;
   }
 
+  // BEGIN ALLOW_NONTRANSACTIONAL: statements the txn cannot cover are let through (no AST either),
+  // read under the mutex that BEGIN / reset use to write it. Txn-capable DDL still falls through to
+  // the normal path below so it keeps being budgeted.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  bool allowNonTxn = (pTscObj->txnFlags & TSC_TXN_FLAG_ALLOW_NONTXN) != 0;
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+
   // Validate stmt type and track DDL count.
   if (pRequest->pQuery == NULL || pRequest->pQuery->pRoot == NULL) {
     // No AST (e.g. rawBlock path): reject while a txn is active.
+    if (allowNonTxn) return TSDB_CODE_SUCCESS;
     tscWarn("req:0x%" PRIx64 ", txn:%" PRIu64 " has no AST, reject in txn context, QID:0x%" PRIx64, pRequest->self,
             pTscObj->txnId, pRequest->requestId);
     return TSDB_CODE_TXN_INVALID_OPERATION;
   }
   int32_t stmtKind = isTxnAllowedStmtType(pRequest->pQuery->pRoot);
   if (stmtKind == TXN_STMT_REJECTED) {
-    return TSDB_CODE_TXN_INVALID_OPERATION;
+    return allowNonTxn ? TSDB_CODE_SUCCESS : TSDB_CODE_TXN_INVALID_OPERATION;
   }
   if (stmtKind == TXN_STMT_DDL) {
     int32_t objCount = txnStmtObjectCount(pRequest->pQuery->pRoot);
@@ -3275,6 +3285,12 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
 static int32_t tscTxnTrackVgIdsFromQuery(STscObj* pTscObj, SQuery* pQuery) {
   if (atomic_load_8(&pTscObj->txnState) != UTXN_STAGE_ACTIVE || pQuery->pRoot == NULL ||
       nodeType(pQuery->pRoot) != QUERY_NODE_VNODE_MODIFY_STMT) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Non-txn statements let through by ALLOW_NONTRANSACTIONAL (e.g. INSERT) must not enlist their vgroups.
+  // Only reached for VNODE_MODIFY_STMT while the txn is ACTIVE. Let-through DDL runs in local/RPC mode and never
+  // gets here; a future let-through VNODE_MODIFY_STMT variant is filtered by this check.
+  if (isTxnAllowedStmtType(pQuery->pRoot) == TXN_STMT_REJECTED) {
     return TSDB_CODE_SUCCESS;
   }
   SVnodeModifyOpStmt* pModStmt = (SVnodeModifyOpStmt*)pQuery->pRoot;

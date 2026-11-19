@@ -45,7 +45,7 @@ three states that matter for a transaction:
 
 from new_test_framework.utils import tdLog, tdSql, tdCom
 
-ERR_TXN_INVALID_OP = "Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction"
+ERR_TXN_INVALID_OP = "Statement is not supported in transaction"
 ERR_VST_HAS_CHILD = "VST has child VSTs, cannot drop or alter"
 
 

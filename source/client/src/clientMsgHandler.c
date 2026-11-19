@@ -1707,6 +1707,13 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
       (void)taosThreadMutexLock(&pTscObj->mutex);
       pTscObj->txnId = rsp.txnId;
       pTscObj->txnDdlCount = 0;
+      // Option is fixed at BEGIN and always overwritten, so it never leaks from a previous txn.
+      pTscObj->txnFlags = 0;
+      if (pRequest->pQuery != NULL && pRequest->pQuery->pRoot != NULL &&
+          nodeType(pRequest->pQuery->pRoot) == QUERY_NODE_BEGIN_TRANS_STMT &&
+          (((SBeginTransStmt*)pRequest->pQuery->pRoot)->flags & TRANS_STMT_FLAG_ALLOW_NONTXN)) {
+        pTscObj->txnFlags |= TSC_TXN_FLAG_ALLOW_NONTXN;
+      }
       atomic_store_8(&pTscObj->txnState, UTXN_STAGE_ACTIVE);
       if (pTscObj->pTxnVgSet == NULL) {
         pTscObj->pTxnVgSet = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
@@ -1714,6 +1721,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
           orphanTxnId = rsp.txnId;
           atomic_store_8(&pTscObj->txnState, 0);
           pTscObj->txnId = 0;
+          pTscObj->txnFlags = 0;
           (void)taosThreadMutexUnlock(&pTscObj->mutex);
           code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
           setErrno(pRequest, code);
@@ -1748,6 +1756,7 @@ static int32_t processBeginTxnRsp(void* param, SDataBuf* pMsg, int32_t code) {
     (void)taosThreadMutexLock(&pTscObj->mutex);
     if (pTscObj->txnState == UTXN_STAGE_BEGIN_PENDING) {
       atomic_store_8(&pTscObj->txnState, UTXN_STAGE_IDLE);
+      pTscObj->txnFlags = 0;
     }
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
   }
@@ -1789,6 +1798,7 @@ void tscResetTxnState(STscObj* pTscObj) {
   (void)taosThreadMutexLock(&pTscObj->mutex);
   atomic_store_8(&pTscObj->txnState, 0);
   pTscObj->txnId = 0;
+  pTscObj->txnFlags = 0;
   pTscObj->txnDdlCount = 0;
   tSimpleHashCleanup(pTscObj->pTxnVgSet);
   pTscObj->pTxnVgSet = NULL;

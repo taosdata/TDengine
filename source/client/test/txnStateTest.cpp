@@ -22,6 +22,8 @@
 
 extern "C" {
 #include "clientInt.h"
+#include "cmdnodes.h"
+#include "querynodes.h"
 #include "query.h"
 #include "tmsg.h"
 }
@@ -326,6 +328,53 @@ TEST(txnStateCase, commitRspTransientCodeKeepsState) {
   EXPECT_NE(env.tscObj.pTxnVgSet, nullptr);
 
   // Cleanup
+  (void)taosThreadMutexLock(&env.tscObj.mutex);
+  tSimpleHashCleanup(env.tscObj.pTxnVgSet);
+  env.tscObj.pTxnVgSet = NULL;
+  (void)taosThreadMutexUnlock(&env.tscObj.mutex);
+
+  tsem_destroy(&request.body.rspSem);
+  g_fakeTxnEnv = nullptr;
+#else
+  GTEST_SKIP() << "requires Enterprise on Linux";
+#endif
+}
+
+// COMMIT refused because a participant database was dropped meanwhile (mnode answers
+// TSDB_CODE_TXN_NEED_ROLLBACK): the txn is still open on the mnode, so the client must keep its state
+// and let the user ROLLBACK. Resetting here would leave the mnode txn orphaned until it times out.
+TEST(txnStateCase, commitRspNeedRollbackKeepsState) {
+#if defined(TD_ENTERPRISE) && defined(__linux__)
+  FakeTxnEnv env;
+  g_fakeTxnEnv = &env;
+  g_rollbackReqCount.store(0);
+
+  (void)taosThreadMutexLock(&env.tscObj.mutex);
+  env.tscObj.txnState = UTXN_STAGE_ACTIVE;
+  env.tscObj.txnId = 8004;
+  env.tscObj.pTxnVgSet = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  (void)taosThreadMutexUnlock(&env.tscObj.mutex);
+
+  SRequestObj request = {0};
+  request.pTscObj = &env.tscObj;
+  ASSERT_EQ(tsem_init(&request.body.rspSem, 0, 0), 0);
+
+  SDataBuf msg = {0};
+  msg.pData = taosMemoryCalloc(1, 8);
+  msg.len = 8;
+  msg.pEpSet = (SEpSet*)taosMemoryCalloc(1, sizeof(SEpSet));
+
+  __async_send_cb_fn_t handler = getMsgRspHandle(TDMT_MND_COMMIT_TXN);
+  ASSERT_NE(handler, nullptr);
+  handler(&request, &msg, TSDB_CODE_TXN_NEED_ROLLBACK);
+  EXPECT_EQ(tsem_wait(&request.body.rspSem), 0);
+
+  // The error reaches the caller, and the txn state is kept so ROLLBACK can still be issued.
+  EXPECT_EQ(request.code, TSDB_CODE_TXN_NEED_ROLLBACK);
+  EXPECT_EQ(env.tscObj.txnState, UTXN_STAGE_ACTIVE);
+  EXPECT_EQ(env.tscObj.txnId, 8004);
+  EXPECT_NE(env.tscObj.pTxnVgSet, nullptr);
+
   (void)taosThreadMutexLock(&env.tscObj.mutex);
   tSimpleHashCleanup(env.tscObj.pTxnVgSet);
   env.tscObj.pTxnVgSet = NULL;

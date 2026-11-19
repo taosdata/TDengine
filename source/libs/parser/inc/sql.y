@@ -1464,7 +1464,9 @@ cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                 
 
 /*********************************** Transaction - begin/commit/rollback ***************************************/
 cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= BEGIN ALLOW_NONTRANSACTIONAL.                                             { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= START TRANSACTION ALLOW_NONTRANSACTIONAL.                                 { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANS_STMT); }
 cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANS_STMT); }
 /************************************************ show ****************************************************************/
