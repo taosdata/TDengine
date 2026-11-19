@@ -46413,7 +46413,7 @@ RESULT
          Output: columns=5 width=280
          Join Prim Cond: (`fq_exp_sqlserver`.`m`.`time` = `fq_exp_oracle`.`p`.`time`)
          Left Equal Cond: `m`.`region`
-         Right Equal Cond: `p`.`REGION`
+         Right Equal Cond: `p`.`region`
          Join Full Cond: (`fq_exp_sqlserver`.`m`.`region` = `fq_exp_oracle`.`p`.`region`)
          Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
       -> Federated Scan on fq_exp_sqlserver.sensor (sqlserver) (cost=<COST> rows=5 width=146)
@@ -55430,7 +55430,7 @@ RESULT
 -> Federated Scan on fq_exp_oracle.TAOSDATA.sensor (oracle) (cost=<COST> rows=2 width=138)
       Output: columns=2 width=138
       Source: 127.0.0.1:18322 user=taosdata
-      Remote SQL: SELECT "region" AS "region", COUNT("time") AS "1673364247120603815" FROM TAOSDATA."sensor" WHERE ("voltage" > 221.0) GROUP BY "region" UNION ALL SELECT "region" AS "region", COUNT("time") AS "1673364247120603815" FROM TAOSDATA."sensor" WHERE ("voltage" < 220.0) GROUP BY "region"
+      Remote SQL: SELECT "region", COUNT("time") AS "1673364247120603815" FROM TAOSDATA."sensor" WHERE ("voltage" > 221.0) GROUP BY "region" UNION ALL SELECT "region", COUNT("time") AS "1673364247120603815" FROM TAOSDATA."sensor" WHERE ("voltage" < 220.0) GROUP BY "region"
       Remote rows=2, blocks=<BLOCKS>, elapsed=<TIME>ms
       Exec cost: compute=<NUM> create=<TIME> start=<NUM> times=<NUM> input_wait=<NUM> output_wait=<NUM>
 Planning Time: <TIME> ms
