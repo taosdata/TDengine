@@ -14,7 +14,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool,sc
+from new_test_framework.utils import tdLog, tdSql, etool, sc, clusterComCheck
 import os
 import subprocess
 import time
@@ -326,7 +326,8 @@ class TestTaoscAutoCreateTableJson:
         sc.dnodeStopAll()
         time.sleep(2)
         sc.dnodeStart(1)
-        time.sleep(2)
+        # Queries can succeed before the first heartbeat makes the dnode allocatable.
+        clusterComCheck.checkDnodes(1)
 
         sql = "select count(*) from test.meters"
         tdSql.checkDataLoop(0, 0, 10, sql, loopCount=30) 
@@ -347,7 +348,8 @@ class TestTaoscAutoCreateTableJson:
         sc.dnodeStopAll()
         time.sleep(2)
         sc.dnodeStart(1)
-        time.sleep(2)
+        # Queries can succeed before the first heartbeat makes the dnode allocatable.
+        clusterComCheck.checkDnodes(1)
 
         sql = "select count(*) from test.meters"
         tdSql.checkDataLoop(0, 0, 10, sql, loopCount=30) 
@@ -366,8 +368,12 @@ class TestTaoscAutoCreateTableJson:
         cmd = [binPath, "-f", os.path.join(os.path.dirname(__file__),
                "json", "taosc_insert_table-creating-interval.json"), "-g"]
         tdLog.info(str(cmd))
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                text=True, check=True)
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    text=True, check=True)
+        except subprocess.CalledProcessError as exc:
+            tdLog.info(f"taosBenchmark failed with exit code {exc.returncode}:\n{exc.stdout}")
+            raise
         sleepTimes = sum("sleep" in line for line in result.stdout.splitlines())
         if sleepTimes != 8:
             tdLog.exit("expected sleep times 8, actual %d" % sleepTimes)
