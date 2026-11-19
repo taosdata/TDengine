@@ -359,6 +359,27 @@ int32_t tsdbTFileObjRemoveUpdateLC(STFileObj *fobj) {
   return 0;
 }
 
+// Resolve the disk path prefix for a tsdb file name. A stale did (from
+// persisted metadata or a snapshot peer with a different disk layout) falls
+// back to the primary disk. NULL means no usable disk path exists, in which
+// case the caller must not build a file name at all.
+// Shared by tsdbTFileName and tsdbTFileLastChunkName so the two paths cannot
+// drift apart.
+static const char *tsdbResolveDiskPath(STsdb *pTsdb, const STFile *f) {
+  SVnode *pVnode = pTsdb->pVnode;
+  STfs   *pTfs = TSDB_TFS(pVnode);
+  if (pTfs == NULL) return NULL;
+
+  const char *diskPath = tfsGetDiskPath(pTfs, f->did);
+  if (diskPath == NULL) {
+    // tfsGetDiskPath already logged the invalid id; warn here is enough.
+    tsdbWarn("vgId:%d, invalid disk id, type:%d fid:%d cid:%" PRId64 " level:%d id:%d, use primary path",
+             TD_VID(pVnode), f->type, f->fid, f->cid, f->did.level, f->did.id);
+    diskPath = tfsGetPrimaryPath(pTfs);
+  }
+  return diskPath;
+}
+
 void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   if (!tsdbFTypeIsValid(f->type)) {
     tsdbError("invalid file type:%d, refuse to build file name", f->type);
@@ -369,13 +390,18 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
   STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
   if (pTfs) {
+    const char *diskPath = tsdbResolveDiskPath(pTsdb, f);
+    if (diskPath == NULL) {
+      fname[0] = '\0';
+      return;
+    }
     if (pVnode->mounted) {
       // NOTE: the case 'if (f->mid != 0)' is not handled at present, this may be
       //       needed in the future.
       snprintf(fname,                                              //
-               TSDB_PATH_LEN,                                  //
+               TSDB_PATH_LEN,                                      //
                "%s%svnode%svnode%d%s%s%sv%df%dver%" PRId64 ".%s",  //
-               tfsGetDiskPath(pTfs, f->did),                       //
+               diskPath,                                           //
                TD_DIRSEP,                                          //
                TD_DIRSEP,                                          //
                TSDB_VID(pVnode),                                   //
@@ -389,29 +415,29 @@ void tsdbTFileName(STsdb *pTsdb, const STFile *f, char fname[]) {
     } else {
       if (f->mid == 0) {
         snprintf(fname,                              //
-                TSDB_PATH_LEN,                  //
-                "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
-                tfsGetDiskPath(pTfs, f->did),       //
-                TD_DIRSEP,                          //
-                pTsdb->path,                        //
-                TD_DIRSEP,                          //
-                TD_VID(pVnode),                     //
-                f->fid,                             //
-                f->cid,                             //
-                g_tfile_info[f->type].suffix);
+                 TSDB_PATH_LEN,                      //
+                 "%s%s%s%sv%df%dver%" PRId64 ".%s",  //
+                 diskPath,                           //
+                 TD_DIRSEP,                          //
+                 pTsdb->path,                        //
+                 TD_DIRSEP,                          //
+                 TD_VID(pVnode),                     //
+                 f->fid,                             //
+                 f->cid,                             //
+                 g_tfile_info[f->type].suffix);
       } else {
-        snprintf(fname,                          //
-                TSDB_PATH_LEN,                  //
-                "%s%s%s%sv%df%dver%" PRId64 ".m%d.%s",  //
-                tfsGetDiskPath(pTfs, f->did),       //
-                TD_DIRSEP,                          //
-                pTsdb->path,                        //
-                TD_DIRSEP,                          //
-                TD_VID(pVnode),                     //
-                f->fid,                             //
-                f->cid,                             //
-                f->mid,                             //
-                g_tfile_info[f->type].suffix);
+        snprintf(fname,                                  //
+                 TSDB_PATH_LEN,                          //
+                 "%s%s%s%sv%df%dver%" PRId64 ".m%d.%s",  //
+                 diskPath,                               //
+                 TD_DIRSEP,                              //
+                 pTsdb->path,                            //
+                 TD_DIRSEP,                              //
+                 TD_VID(pVnode),                         //
+                 f->fid,                                 //
+                 f->cid,                                 //
+                 f->mid,                                 //
+                 g_tfile_info[f->type].suffix);
       }
     }
   } else {
@@ -449,23 +475,31 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
   SVnode *pVnode = pTsdb->pVnode;
   STfs   *pTfs = TSDB_TFS(pTsdb->pVnode);
 
+  // Resolve the disk path only when tfs is configured; the diskPath is used
+  // exclusively by the pTfs branches below. NULL means no usable disk path.
+  const char *diskPath = (pTfs != NULL) ? tsdbResolveDiskPath(pTsdb, f) : NULL;
+  if (pTfs != NULL && diskPath == NULL) {
+    fname[0] = '\0';
+    return;
+  }
+
   // NOTE: the case 'if (pVnode->mounted)' is not handled at present, this may be needed
   //       in the future.
 
   if (f->mid == 0) {
     if (pTfs) {
       snprintf(fname,                                 //
-              TSDB_PATH_LEN,                     //
-              "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
-              tfsGetDiskPath(pTfs, f->did),          //
-              TD_DIRSEP,                             //
-              pTsdb->path,                           //
-              TD_DIRSEP,                             //
-              TD_VID(pVnode),                        //
-              f->fid,                                //
-              f->cid,                                //
-              f->lcn,                                //
-              g_tfile_info[f->type].suffix);
+               TSDB_PATH_LEN,                         //
+               "%s%s%s%sv%df%dver%" PRId64 ".%d.%s",  //
+               diskPath,                              //
+               TD_DIRSEP,                             //
+               pTsdb->path,                           //
+               TD_DIRSEP,                             //
+               TD_VID(pVnode),                        //
+               f->fid,                                //
+               f->cid,                                //
+               f->lcn,                                //
+               g_tfile_info[f->type].suffix);
     } else {
       snprintf(fname,                             //
               TSDB_PATH_LEN,                 //
@@ -480,19 +514,19 @@ void tsdbTFileLastChunkName(STsdb *pTsdb, const STFile *f, char fname[]) {
     }
   } else {
     if (pTfs) {
-      snprintf(fname,                                 //
-              TSDB_PATH_LEN,                     //
-              "%s%s%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
-              tfsGetDiskPath(pTfs, f->did),          //
-              TD_DIRSEP,                             //
-              pTsdb->path,                           //
-              TD_DIRSEP,                             //
-              TD_VID(pVnode),                        //
-              f->fid,                                //
-              f->cid,                                //
-              f->mid,                                //
-              f->lcn,                                //
-              g_tfile_info[f->type].suffix);
+      snprintf(fname,                                     //
+               TSDB_PATH_LEN,                             //
+               "%s%s%s%sv%df%dver%" PRId64 ".m%d.%d.%s",  //
+               diskPath,                                  //
+               TD_DIRSEP,                                 //
+               pTsdb->path,                               //
+               TD_DIRSEP,                                 //
+               TD_VID(pVnode),                            //
+               f->fid,                                    //
+               f->cid,                                    //
+               f->mid,                                    //
+               f->lcn,                                    //
+               g_tfile_info[f->type].suffix);
     } else {
       snprintf(fname,                             //
               TSDB_PATH_LEN,                 //

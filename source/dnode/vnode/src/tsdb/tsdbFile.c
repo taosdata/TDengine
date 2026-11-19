@@ -96,8 +96,19 @@ static int32_t tGetSmaFile(uint8_t *p, SSmaFile *pSmaFile) {
 
 // EXPOSED APIS ==================================================
 static char *getFileNamePrefix(STsdb *pTsdb, SDiskID did, int32_t fid, uint64_t commitId, char fname[]) {
-  const char *p1 = tfsGetDiskPath(pTsdb->pVnode->pTfs, did);
-  int32_t     len = strlen(p1);
+  STfs *pTfs = pTsdb->pVnode->pTfs;
+  // did may be stale (persisted metadata / snapshot peer with a different disk
+  // layout). tfsGetDiskPath returns NULL for an invalid id; fall back to the
+  // primary disk rather than passing NULL to strlen/memcpy.
+  const char *p1 = tfsGetDiskPath(pTfs, did);
+  if (p1 == NULL) {
+    // tfsGetDiskPath already logged the invalid id; warn here is enough on
+    // this high-frequency path.
+    tsdbWarn("vgId:%d, invalid disk id, fid:%d level:%d id:%d, use primary path", TD_VID(pTsdb->pVnode), fid,
+             did.level, did.id);
+    p1 = tfsGetPrimaryPath(pTfs);
+  }
+  int32_t len = strlen(p1);
 
   char *p = memcpy(fname, p1, len);
   p += len;

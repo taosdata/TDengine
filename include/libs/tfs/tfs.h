@@ -107,11 +107,13 @@ int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskI
 const char *tfsGetPrimaryPath(STfs *pTfs);
 
 /**
- * @brief Get the disk path.
+ * @brief Get the disk path. The diskId is treated as untrusted input: an
+ * out-of-range level/id or an unmounted disk slot yields NULL rather than an
+ * invalid memory access, so callers MUST check the result before using it.
  *
  * @param pTfs The fs object.
  * @param diskId The diskId.
- * @return const char * The primary path.
+ * @return const char * The disk path, or NULL if the diskId is not valid.
  */
 const char *tfsGetDiskPath(STfs *pTfs, SDiskID diskId);
 
