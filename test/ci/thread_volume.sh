@@ -231,21 +231,44 @@ prepare_thread_volume() {
     fi
 }
 
-# 挂载点在 prefix 下面的 bind。findmnt -R 只在目录自身是挂载点时才向下列，
-# thread_volume 在主盘上不是挂载点，那条命令一个都看不到。
-# mountinfo 记的是解析后的路径。调用方传来的 workdir 可能是符号链接，先解析再比。
-# 挂载表读不到时返回 2。当成“没有挂载”会继续删额外盘，把仍被挂着的内容卸成 //deleted。
-_thread_volume_mountpoints_under() {
-    local dir="${1%/}"
-    local info="${THREAD_VOLUME_MOUNTINFO:-/proc/self/mountinfo}"
-    local prefix
-    [[ -n "${dir}" ]] || return 2
-    [[ -r "${info}" ]] || return 2
-    dir="$(realpath -m -- "${dir}" 2>/dev/null || printf '%s\n' "${dir}")"
-    dir="${dir%/}"
-    [[ -n "${dir}" && "${dir}" != "/" ]] || return 2
-    prefix="${dir}/"
-    awk -v p="${prefix}" 'index($5, p) == 1 { print $5 }' "${info}"
+_thread_volume_job_mounts() {
+    local tvol="${1%/}" targets mp
+    if [[ -d "${tvol}" ]]; then
+        tvol=$(cd -- "${tvol}" && pwd -P) || return 1
+    fi
+    targets=$(findmnt --raw --noheadings --output TARGET) || return 1
+    while IFS= read -r mp; do
+        printf -v mp '%b' "${mp}"
+        if [[ "${mp}" == "${tvol}" || "${mp}" == "${tvol}"/* ]]; then
+            printf '%s\n' "${mp}"
+        fi
+    done <<< "${targets}" | sort -r
+}
+
+unmount_job_thread_volumes() {
+    local workdir="${1%/}"
+    local tvol="${workdir}/tmp/thread_volume"
+    local mp mounts
+
+    [[ "${workdir}" == /* && "${workdir##*/}" =~ ^job-[0-9]+$ ]] || return 1
+
+    if [[ "${DRY_RUN:-0}" == "1" ]]; then
+        echo "[thread-volume] DRY-RUN unmount ${workdir}"
+        return 0
+    fi
+    mounts=$(_thread_volume_job_mounts "${tvol}") || return 1
+    while IFS= read -r mp; do
+        [[ -n "${mp}" ]] || continue
+        if ! umount -- "${mp}"; then
+            echo "[thread-volume] ERROR: unable to unmount ${mp}; retaining job data" >&2
+            return 1
+        fi
+    done <<< "${mounts}"
+    mounts=$(_thread_volume_job_mounts "${tvol}") || return 1
+    if [[ -n "${mounts}" ]]; then
+        echo "[thread-volume] ERROR: job mounts remain; retaining job data" >&2
+        return 1
+    fi
 }
 
 # 先卸掉 job 工作目录上的 bind，再删除第二块盘上的 job 目录。
@@ -254,42 +277,26 @@ _thread_volume_mountpoints_under() {
 release_job_thread_volumes() {
     local workdir="${1%/}"
     local job_id=$2
-    local root dest mp failed=0 points
+    local root dest mounts
 
+    [[ "${job_id}" =~ ^[0-9]+$ && "${workdir}" == /*/job-"${job_id}" ]] || return 1
     if [[ "${DRY_RUN:-0}" == "1" ]]; then
         echo "[thread-volume] DRY-RUN release ${workdir} job ${job_id}"
         return 0
     fi
-    # 非法 id 不做卸载，也不拼进删除路径。
-    [[ "${job_id}" =~ ^[0-9]+$ ]] || return 0
-    if [[ -d "${workdir}" ]]; then
-        if ! points="$(_thread_volume_mountpoints_under "${workdir}")"; then
-            echo "[thread-volume] cannot read mount table for ${workdir}; not deleting the extra volume" >&2
-            return 1
-        fi
-        while IFS= read -r mp; do
-            [[ -n "${mp}" ]] || continue
-            if ! umount "${mp}" 2>/dev/null; then
-                echo "[thread-volume] umount failed: ${mp}" >&2
-                failed=1
-            fi
-        done < <(printf '%s\n' "${points}" | sort -r)
-    fi
-    if [[ ${failed} -ne 0 ]]; then
-        echo "[thread-volume] job ${job_id} still has mounts; not deleting the extra volume" >&2
-        return 1
-    fi
+    unmount_job_thread_volumes "${workdir}" || return 1
+    mounts=$(_thread_volume_job_mounts "${workdir}") || return 1
+    [[ -z "${mounts}" ]] || return 1
     while IFS= read -r root; do
         [[ -n "${root}" ]] || continue
         dest="${root}/job-${job_id}"
-        if [[ -e "${dest}" ]]; then
+        if [[ -d "${dest}" ]]; then
             chmod -R u+w -- "${dest}" 2>/dev/null || true
-            rm -rf --one-file-system -- "${dest}" 2>/dev/null || true
+            rm -rf --one-file-system -- "${dest}" || return 1
             if [[ -e "${dest}" ]]; then
                 echo "[thread-volume] failed to remove ${dest}" >&2
-                failed=1
+                return 1
             fi
         fi
     done < <(_thread_volume_extra_roots)
-    [[ ${failed} -eq 0 ]]
 }
