@@ -66,6 +66,9 @@ PAR_FUNC_NOT_EXIST_ORDERBY = 0x800026AA
 MND_FUNC_NOT_EXIST = 0x80000374
 VTABLE_TOPIC_REJECT = 0x80002639
 
+# 1200-byte value: wider than the declared varchar(4) but fits the varchar(2048) source.
+WIDE_VC = "b" * 1200
+
 
 def ts(offset):
     return BASE_TS + offset
@@ -477,6 +480,20 @@ class TestTimeAlign:
             f"({ts(1000)}, NULL) "
             f"({ts(2000)}, 'ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ')")
         tdSql.execute("create vtable vt_wide (ts timestamp, b binary(8) from t_wide.b)")
+
+        # VARCHAR source wider than the declared column: a 1200-byte value cannot
+        # fit the varchar(4) align output and must fail with a clean 0x070B error.
+        tdSql.execute("create table t_vchar_n (ts timestamp, v varchar(2048))")
+        tdSql.execute(
+            f"insert into t_vchar_n values ({ts(0)}, 'aa') ({ts(1000)}, NULL) "
+            f"({ts(2000)}, 'bb') ({ts(3000)}, 'cc')")
+        tdSql.execute("create vtable vt_vchar_n (ts timestamp, v varchar(4) from t_vchar_n.v)")
+
+        tdSql.execute("create table t_vchar_w (ts timestamp, v varchar(2048))")
+        tdSql.execute(f"insert into t_vchar_w values ({ts(0)}, 'aa') ({ts(1000)}, '{WIDE_VC}')")
+        tdSql.execute("create vtable vt_vchar_w (ts timestamp, v varchar(4) from t_vchar_w.v)")
+        tdSql.execute("create stable vst_vchar_w (ts timestamp, v varchar(4)) tags (loc varchar(8)) virtual 1")
+        tdSql.execute("create vtable vc_vchar_w (v from t_vchar_w.v) using vst_vchar_w tags ('l1')")
 
         # cross-database + cross-precision source: ns source -> ms vtable
         tdSql.execute("drop database if exists ta_align_x")
@@ -1245,6 +1262,54 @@ class TestTimeAlign:
             for row in build_frame(SHAPES["vt_gaps"], set(COLS3), False)
         ]
         _assert_query("select * from v_align order by ts", expected, 4)
+
+    def test_wide_varchar_source(self):
+        """VARCHAR source wider than the declared column: align in full or fail cleanly.
+
+        A value that fits varchar(4) aligns normally.  On a flat virtual table
+        the planner widens the scan column to the source width, so a 1200-byte
+        value is returned in full; on a virtual super table the declared
+        varchar(4) is kept and the wide value fails with 0x070B.
+
+        1. Narrow-only source aligns every value and carries NULL gaps
+        2. Flat virtual table returns the full 1200-byte value
+        3. Virtual super table over the wide source fails with 0x070B
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, width, negative, ci
+
+        Jira: None
+
+        History:
+            - 2026-11-18 Created
+        """
+        tdSql.query(
+            "select ts, v_a from table(time_align(table vt_vchar_n, 'v:PREV:_a')) order by ts")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, ts(0))
+        tdSql.checkData(0, 1, "aa")
+        tdSql.checkData(1, 0, ts(1000))
+        tdSql.checkData(1, 1, "aa")
+        tdSql.checkData(2, 0, ts(2000))
+        tdSql.checkData(2, 1, "bb")
+        tdSql.checkData(3, 0, ts(3000))
+        tdSql.checkData(3, 1, "cc")
+
+        # flat virtual table: the planner widens the scan column to the source
+        # width, so the full 1200-byte value is returned (not an error).
+        tdSql.query(
+            "select v_a from table(time_align(table vt_vchar_w, 'v:PREV:_a')) order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "aa")
+        tdSql.checkData(1, 0, WIDE_VC)
+
+        # virtual super table: children may reference differently-widthed sources,
+        # so the declared varchar(4) is kept and the wide value fails with 0x070B.
+        tdSql.error("select v_a from table(time_align(table vst_vchar_w, 'v:PREV:_a'))", 0x8000070B)
 
     def test_syntax_matrix(self):
         """Every syntax variant on every table shape/distribution.
