@@ -1055,9 +1055,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_all.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_bugs.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_and_last_row.py
-# Defect 7170528019: TIME_ALIGN expression node leak.
-# Restore this case after the fix passes ASAN.
-#,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_last_cache_schema_refresh.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_last_cache_schema_refresh.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_last_model.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_minmaxlast_interval.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_select_with_520_cols.py
