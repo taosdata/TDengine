@@ -428,12 +428,12 @@ RESULT
 ### EXP-func_str_concat-01_pg POS
 SQL: select concat(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-func_str_concat-01_influx POS
 SQL: select concat(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-func_str_trim-01_mysql POS
 SQL: select trim(region) from fq_exp_mysql.sensor
@@ -3859,12 +3859,12 @@ RESULT
 ### EXP-ds_string-03_pg POS
 SQL: select CONCAT(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-ds_string-03_influx POS
 SQL: select CONCAT(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-ds_string-04_mysql POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_mysql.sensor
@@ -3874,12 +3874,12 @@ RESULT
 ### EXP-ds_string-04_pg POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (width=131050)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (width=65518)
 ---
 ### EXP-ds_string-04_influx POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (width=131050)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (width=65518)
 ---
 ### EXP-ds_string-05_mysql POS
 SQL: select LOWER(region) from fq_exp_mysql.sensor

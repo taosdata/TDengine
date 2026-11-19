@@ -2262,6 +2262,19 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     resultBytes += sepBytes * (numOfParams - 3);
   }
 
+  // The summed argument widths are only an upper bound used to size the output column and the
+  // scalar scratch buffer. Unbounded CAST(... AS VARCHAR) parameters each declare the maximum
+  // field width, so a few of them make the sum exceed TSDB_MAX_FIELD_LEN; the result type would
+  // then be rejected when CASE WHEN unifies branch types with an implicit CAST. Saturate the
+  // metadata instead -- the scalar function grows the buffer on demand and rejects any result
+  // that does not actually fit (see concatCopyHelper).
+  int32_t maxResultBytes = TSDB_MAX_FIELD_LEN;
+  if (TSDB_DATA_TYPE_NCHAR == resultType) {
+    maxResultBytes = ((TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE +
+                     VARSTR_HEADER_SIZE;
+  }
+  resultBytes = TMIN(resultBytes, maxResultBytes);
+
   pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
   return TSDB_CODE_SUCCESS;
 }

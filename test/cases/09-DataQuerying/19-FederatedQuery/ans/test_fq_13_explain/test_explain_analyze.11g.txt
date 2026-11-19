@@ -598,14 +598,14 @@ Execution Time: <TIME> ms
 ### EXP-func_str_concat-01_pg POS
 SQL: select concat(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-func_str_concat-01_influx POS
 SQL: select concat(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -5255,14 +5255,14 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-03_pg POS
 SQL: select CONCAT(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-ds_string-03_influx POS
 SQL: select CONCAT(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
@@ -5276,14 +5276,14 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-04_pg POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=131050)
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
 ### EXP-ds_string-04_influx POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=131050)
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
 Planning Time: <TIME> ms
 Execution Time: <TIME> ms
 ---
