@@ -87,6 +87,8 @@ static const char *wlrInitErrorName(int32_t code) {
       return "WLR_E_PAYLOAD_LIMIT";
     case WLR_E_CONFIG:
       return "WLR_E_CONFIG";
+    case WLR_E_STATE:
+      return "WLR_E_STATE";
     default:
       return "WLR_E_UNKNOWN";
   }

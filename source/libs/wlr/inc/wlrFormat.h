@@ -497,6 +497,7 @@ typedef enum {
   WLR_E_WRITE = 3,          /* segment write/flush/fsync permanently failed */
   WLR_E_PAYLOAD_LIMIT = 4,  /* logical payload above WLR_MAX_LOGICAL_PAYLOAD */
   WLR_E_CONFIG = 5,         /* invalid or reserved startup parameter */
+  WLR_E_STATE = 6,          /* a previous session still owns the recorder; nothing started */
 } EWlrError;
 
 /* ---------------------------------------------------------- decode results */

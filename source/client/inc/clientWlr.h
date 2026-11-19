@@ -83,6 +83,16 @@ typedef struct {
  * a recording problem may not prevent the driver from working (FS 4.8). Log it
  * and continue.
  *
+ * WLR_E_OK means a session is recording: either this call started it, or one was
+ * already STARTING/RUNNING.
+ *
+ * WLR_E_STATE means a previous session still owns the manager and nothing was
+ * started, so a caller that retries must not assume success:
+ *   - STOPPING: a bounded close is finishing asynchronously; wait for
+ *     WLR_STATE_OFF and try again.
+ *   - FAILED_OPEN: terminal until cleanup, because only close publishes OFF;
+ *     the recorder has to be closed before a new session can start.
+ *
  * mode 0 and reserved modes 2..255 allocate nothing at all -- no queue, no
  * pool, no writer thread, no directory (DS 6.1).
  */
