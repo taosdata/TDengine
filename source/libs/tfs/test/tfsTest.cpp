@@ -897,3 +897,37 @@ TEST_F(TfsTest, DISABLED_06_Misc) {
     EXPECT_EQ(taosThreadSpinDestroy(&tfs.tiers[l].lock), 0);
   }
 }
+
+// A stale SDiskID can arrive from persisted metadata (current.json) or from a
+// snapshot peer whose disk layout differs from the local one. tfsGetDiskPath
+// must never dereference an unmounted disk slot for such an id.
+TEST_F(TfsTest, 99_GetDiskPathInvalidDiskId) {
+  SDiskCfg dCfg = {0};
+  tstrncpy(dCfg.dir, root, TSDB_FILENAME_LEN);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  dCfg.disable = 0;
+
+  taosRemoveDir(root);
+  taosMulMkDir(root);
+  STfs *pTfs = NULL;
+  ASSERT_EQ(tfsOpen(&dCfg, 1, &pTfs), 0);
+  ASSERT_NE(pTfs, nullptr);
+
+  // The only mounted disk is {level = 0, id = 0}; its path is valid.
+  SDiskID validDid = {.level = 0, .id = 0};
+  EXPECT_STREQ(tfsGetDiskPath(pTfs, validDid), root);
+
+  // id beyond the number of disks mounted at level 0 (the crash scenario:
+  // a metadata did with id = 5 on a node that has a single disk).
+  SDiskID staleId = {.level = 0, .id = 5};
+  EXPECT_EQ(tfsGetDiskPath(pTfs, staleId), nullptr);
+
+  // An unmounted tier, and a level outside the tiers array.
+  SDiskID unmountedLevel = {.level = 1, .id = 0};
+  EXPECT_EQ(tfsGetDiskPath(pTfs, unmountedLevel), nullptr);
+  SDiskID outOfRangeLevel = {.level = TFS_MAX_TIERS, .id = 0};
+  EXPECT_EQ(tfsGetDiskPath(pTfs, outOfRangeLevel), nullptr);
+
+  tfsClose(pTfs);
+}
