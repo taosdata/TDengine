@@ -22594,10 +22594,22 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->colModBytes));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME: {
+      char    *newName = NULL;
+      uint32_t newNameLen = 0;
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
+      TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &newName, &newNameLen));
+      // Consumers copy colNewName with tstrncpy()/strncpy() into a fixed TSDB_COL_NAME_LEN
+      // buffer (metaAlterTableColumnName / metaAlterTableTagName), so the terminating '\0'
+      // must be inside the length-prefixed payload. newNameLen == 0 also covers an empty
+      // encoding, for which the decoder yields a one-past-end pointer when the field is the
+      // last one; that pointer must not be dereferenced.
+      if (newNameLen == 0 || newName[newNameLen] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->colNewName = newName;
       break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
       // this is a legacy action, covert it to TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
       // with one table and one tag
