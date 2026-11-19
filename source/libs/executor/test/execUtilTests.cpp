@@ -27144,6 +27144,39 @@ class StreamReaderFetchSendTest : public StreamRunnerContextSendTest {
   void *owner = nullptr;
 };
 
+namespace {
+int        rejectedReaderFetchReleases = 0;
+__freeFunc rejectedReaderFetchFree = nullptr;
+
+void releaseRejectedReaderFetch(void *param) {
+  ++rejectedReaderFetchReleases;
+  EXPECT_NE(rejectedReaderFetchFree, nullptr);
+  if (rejectedReaderFetchFree != nullptr) rejectedReaderFetchFree(param);
+}
+
+int32_t rejectReaderFetch(void *, SEpSet *, int64_t *transporter,
+                          SMsgSendInfo *message) {
+  rejectedReaderFetchFree = message->paramFreeFp;
+  message->paramFreeFp = releaseRejectedReaderFetch;
+  destroySendMsgInfo(message);
+  *transporter = 0;
+  return TSDB_CODE_RPC_NETWORK_UNAVAIL;
+}
+}  // namespace
+
+TEST_F(StreamReaderFetchSendTest, SendFailureConsumesFetchContextExactlyOnce) {
+  rejectedReaderFetchReleases = 0;
+  rejectedReaderFetchFree = nullptr;
+  probe.reset(asyncSendMsgToServer);
+  probe.set(asyncSendMsgToServer, rejectReaderFetch);
+
+  EXPECT_EQ(exchangeTestSendReaderFetch(owner, 0),
+            TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  EXPECT_EQ(rejectedReaderFetchReleases, 1);
+  EXPECT_TRUE(forwardingMessages.empty());
+  rejectedReaderFetchFree = nullptr;
+}
+
 TEST_F(StreamReaderFetchSendTest, DimensionBatchSendsAllGroupsToEverySource) {
   exchangeTestDestroyMultiGroupOwner(owner);
   const uint64_t gids[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};

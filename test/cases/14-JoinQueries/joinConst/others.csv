@@ -157,8 +157,7 @@ taos> select * from (select * from a1 order by ts desc) a join (select today as 
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:00.000 |         303 |        3013 |
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
 
-taos> /*table+subq*/
-taos> select * from a1 a join (select * from b1 order by ts) b on a.ts = b.ts;
+taos> /*table+subq*/ select * from a1 a join (select * from b1 order by ts) b on a.ts = b.ts;
            ts            |      f      |      g      |           ts            |      f      |      g      |
 ============================================================================================================
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -174,8 +173,7 @@ taos> select * from a1 a join (select * from b1 order by ts desc) b on a.ts = b.
  __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> /*table+const subq*/
-taos> select * from a1 a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
+taos> /*table+const subq*/ select * from a1 a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
            ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ======================================================================================================================================
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -215,8 +213,7 @@ taos> select * from a1 a join (select today() as ts1, * from b1 order by f) b on
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:00.000 |         303 |        3013 |
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
 
-taos> /*subq+subq*/
-taos> select * from (select * from a1 order by ts) a join (select * from b1 order by ts) b on a.ts = b.ts;
+taos> /*subq+subq*/ select * from (select * from a1 order by ts) a join (select * from b1 order by ts) b on a.ts = b.ts;
            ts            |      f      |      g      |           ts            |      f      |      g      |
 ============================================================================================================
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -240,8 +237,7 @@ taos> select * from (select * from a1 order by ts desc) a join (select * from b1
  __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> /*subq+const subq*/
-taos> select * from (select * from a1 order by ts) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
+taos> /*subq+const subq*/ select * from (select * from a1 order by ts) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
            ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ======================================================================================================================================
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -321,8 +317,7 @@ taos> select * from (select * from a1 order by ts desc) a join (select today() a
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:00.000 |         303 |        3013 |
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
 
-taos> /*const subq+const subq*/
-taos> select * from (select today() as ts1, * from a1 order by ts) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
+taos> /*const subq+const subq*/ select * from (select today() as ts1, * from a1 order by ts) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;
            ts1           |           ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ================================================================================================================================================================
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -622,7 +617,7 @@ taos> select * from (select today() as ts1, * from a1 order by ts desc) a join (
  __today__ 00:00:00.000 | __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:00.000 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> select * from (select today() as ts1, * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 and a.ts = b.ts;
+taos> select * from (select today() as ts1, * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 and a.ts = b.ts order by a.f desc;
            ts1           |           ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ================================================================================================================================================================
  __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         104 |        1014 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
@@ -630,7 +625,7 @@ taos> select * from (select today() as ts1, * from a1 order by ts desc) a join (
  __today__ 00:00:00.000 | __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:00.000 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts1 = b.ts1 and a.ts = b.ts;
+taos> select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts1 = b.ts1 and a.ts = b.ts order by a.f desc;
            ts1           |           ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ================================================================================================================================================================
  __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         104 |        1014 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
@@ -646,7 +641,7 @@ taos> select * from (select today() as ts1, * from a1 order by f desc) a join (s
  __today__ 00:00:00.000 | __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:00.000 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 and a.ts = b.ts;
+taos> select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts1 and a.ts = b.ts order by a.f desc;
            ts1           |           ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ================================================================================================================================================================
  __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         104 |        1014 | __today__ 00:00:00.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
@@ -654,8 +649,7 @@ taos> select * from (select today() as ts1, * from a1 order by f desc) a join (s
  __today__ 00:00:00.000 | __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:00.000 | __today__ 00:00:01.000 |         302 |        3012 |
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
 
-taos> /*functions*/
-taos> select * from a1 a join (select to_timestamp('__today__', 'yyyy-mm-dd') as ts1, * from b1) b on a.ts = b.ts1;
+taos> /*functions*/ select * from a1 a join (select to_timestamp('__today__', 'yyyy-mm-dd') as ts1, * from b1) b on a.ts = b.ts1;
            ts            |      f      |      g      |           ts1           |           ts            |      f      |      g      |
 ======================================================================================================================================
  __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 | __today__ 00:00:00.000 |         301 |        3011 |
@@ -687,8 +681,7 @@ taos> select * from a1 a join (select to_unixtimestamp('__today__ 00:00:00.000',
  __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:01.000 | __tomorrow__ 00:00:00.000 |         303 |        3013 |
  __today__ 00:00:01.000 |         102 |        1012 | __today__ 00:00:01.000 | __tomorrow__ 00:00:02.000 |         304 |        3014 |
 
-taos> /*view*/
-taos> select * from view1 a join (select * from b1 order by ts) b on a.ts = b.ts;
+taos> /*view*/ select * from view1 a join (select * from b1 order by ts) b on a.ts = b.ts;
            ts1           |           ts            |      f      |      g      |           ts            |      f      |      g      |
 ======================================================================================================================================
  __today__ 00:00:00.000 | __today__ 00:00:00.000 |         101 |        1011 | __today__ 00:00:00.000 |         301 |        3011 |

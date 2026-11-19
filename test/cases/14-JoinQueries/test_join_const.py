@@ -167,39 +167,6 @@ class TestJoinConst:
         tdLog.printNoPrefix(f"==========step:abnormal case test")
         tdSql.error(f"select * from a1 a join (select '{self.today_ts}' as ts from b1) b on a.ts = b.ts;")
         tdSql.error(f"select * from a1 a join (select '{self.today_ts}' + 1s as ts from b1) b on a.ts = b.ts;")
-        tdSql.error(f"select b.ts from (select now() as ts1, ts, f, g, 'a' c from a1 order by f) a join (select now() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;")
-        tdSql.error(f"select b.ts from (select today() as ts1, ts, f, g, 'a' c from a1 order by f) a join (select today() as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts and a.ts = b.ts1;")
-        tdSql.error(f"select b.ts from (select today as ts1, ts, f, g, 'a' c from a1 order by f) a , (select today as ts1, ts, f, g, 'a' c from b1) b where b.ts = a.ts and a.ts = b.ts1;")
-        tdSql.error(f"select * from a1 a left asof join (select now as ts1, ts, f, g, 'a' c from b1) b on b.ts = a.ts;")
-        tdSql.error(f"select * from a1 a left window join (select now as ts1, ts, f, g, 'a' c from b1) b window_offset(-1s, 1s);")
-        tdSql.error(f"select * from a1 a join (select timestamp '{self.today_ts}' + 1d as ts, f, g, 'a' from b1) b on timetruncate(a.ts + 1s, 1d) = timetruncate(b.ts, 1d);")
-        tdSql.error(f"select * from a1 a join (select timestamp '{self.today_ts}' + 1d as ts, f, g, 'a' from b1) b on a.ts + 1s = timetruncate(b.ts, 1d);")
-        tdSql.error(f"select t1.* from sta t1, (select _wstart as ts, count(*) from sta partition by tbname interval(1d)) t2 where t1.ts = t2.ts;")
-        tdSql.error(f"select * from (select tg1, sum(f) s from sta group by tg1) t1, sta t2 where t1.tg1 = t2.tg1;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f) a join (select today as ts1, * from b1 order by f desc) b on a.ts = b.ts1;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today as ts1, * from b1 order by f) b on a.ts = b.ts1;")
-        tdSql.error(f"select * from a1 a join (select * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from a1 a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by ts) a join (select * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by ts desc) a join (select * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f) a join (select * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by ts) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts desc) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts1;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts desc) b on a.ts = b.ts1;")
-        tdSql.error(f"select * from (select * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts1;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by ts) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by ts desc) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by f desc) a join (select today() as ts1, * from b1 order by f) b on a.ts = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by ts) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts;")
-        tdSql.error(f"select * from (select today() as ts1, * from a1 order by ts desc) a join (select today() as ts1, * from b1 order by f) b on a.ts1 = b.ts;")
 
     def run_others_case(self, testCase):
         tdLog.printNoPrefix(f"==========step:{testCase} test")
@@ -211,6 +178,221 @@ class TestJoinConst:
         self.sqlFile = etool.curFile(__file__, f"joinConst/{testCase}.in.tmp2")
         self.ansFile = etool.curFile(__file__, f"joinConst/{testCase}.csv.tmp2")
         tdCom.compare_testcase_result(self.sqlFile, self.ansFile, testCase)
+
+    def test_hash_join_derived_time_condition(self):
+        """Keep time comparisons in Hash Join ON conditions.
+
+        Verify timestamp matching and NULL extension when either Hash Join
+        input projects a constant timestamp, including an aggregate input.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        History: 2026-10-08 Add a time condition regression case.
+        """
+        db = "test_join_hash_derived_time"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        try:
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create table l(ts timestamp, grp int, val int)")
+            tdSql.execute("create table r(ts timestamp, grp int, val int)")
+            tdSql.execute(
+                "insert into l values "
+                "('2024-01-01 00:00:00', 1, 101) "
+                "('2024-01-01 00:00:01', 1, 102) "
+                "('2024-01-01 00:00:02', 2, 201)"
+            )
+            tdSql.execute(
+                "insert into r values "
+                "('2024-01-01 00:00:05', 1, 301) "
+                "('2024-01-01 00:00:06', 2, 401)"
+            )
+            right = (
+                "(select timestamp '2024-01-01 00:00:00' as ts, "
+                "grp, val from r order by ts) r "
+            )
+            for left in (
+                "l l ",
+                "(select ts, grp, max(val) as val from l "
+                "group by ts, grp) l ",
+            ):
+                tdSql.query(
+                    "select /*+ HASH_JOIN() */ l.val, r.val from " + left +
+                    "left join " + right +
+                    "on l.ts = r.ts and l.grp = r.grp "
+                    "order by l.val"
+                )
+                tdSql.checkRows(3)
+                for row, expected in enumerate(((101, 301), (102, None),
+                                                (201, None))):
+                    tdSql.checkData(row, 0, expected[0])
+                    tdSql.checkData(row, 1, expected[1])
+            tdSql.query(
+                "select /*+ HASH_JOIN() */ l.val, r.val from "
+                "(select timestamp '2024-01-01 00:00:00' as ts, "
+                "grp, val from l) l right join r r "
+                "on l.ts = r.ts and l.grp = r.grp "
+                "order by r.val"
+            )
+            tdSql.checkRows(2)
+            for row, value in enumerate((301, 401)):
+                tdSql.checkData(row, 0, None)
+                tdSql.checkData(row, 1, value)
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+
+    def test_hash_join_on_time_range(self):
+        """Retain ON time bounds across outer, semi, and anti joins.
+
+        Check matched and unmatched rows when ON-clause time bounds filter
+        outer, semi, and anti Hash Join inputs.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        History: 2026-10-08 Cover Hash Join ON time bounds.
+        """
+        db = "test_join_hash_on_time"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        try:
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create table l(ts timestamp, grp int, val int)")
+            tdSql.execute("create table r(ts timestamp, grp int, val int)")
+            tdSql.execute(
+                "insert into l values "
+                "('2024-01-01 00:00:00', 1, 101) "
+                "('2024-01-01 00:00:01', 1, 102) "
+                "('2024-01-01 00:00:02', 2, 201)"
+            )
+            tdSql.execute(
+                "insert into r values "
+                "('2024-01-01 00:00:00', 1, 301) "
+                "('2024-01-01 00:00:01', 1, 302) "
+                "('2024-01-01 00:00:02', 2, 401) "
+                "('2024-01-01 00:00:03', 2, 402)"
+            )
+            cases = (
+                ("LEFT", "l.ts", "l.val, r.val",
+                 ((101, None), (102, 302), (201, 401))),
+                ("RIGHT", "r.ts", "l.val, r.val",
+                 ((None, 301), (102, 302), (201, 401),
+                  (None, 402))),
+                ("FULL", "l.ts", "l.val, r.val",
+                 ((101, None), (None, 301), (102, 302),
+                  (201, 401), (None, 402))),
+                ("LEFT ANTI", "l.ts", "l.val", ((101,),)),
+                ("RIGHT ANTI", "r.ts", "r.val",
+                 ((301,), (402,))),
+                ("LEFT SEMI", "l.ts", "l.val",
+                 ((102,), (201,))),
+                ("RIGHT SEMI", "r.ts", "r.val",
+                 ((302,), (401,))),
+            )
+            for kind, time_col, targets, expected in cases:
+                sql = (
+                    f"select /*+ HASH_JOIN() */ {targets} "
+                    f"from l l {kind} join r r "
+                    "on l.ts = r.ts and l.grp = r.grp "
+                    f"and {time_col} >= "
+                    "timestamp '2024-01-01 00:00:01'"
+                )
+                tdSql.query(sql)
+                tdSql.checkRows(len(expected))
+                assert set(tdSql.queryResult) == set(expected), sql
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+
+    def test_hash_join_direct_scan_on_time_range(self):
+        """Check ON time bounds with only a timestamp equality key.
+
+        Check matched, NULL-extended, semi, and anti results for direct scans
+        joined only by timestamp, with additional ON-clause time bounds.
+
+        Since: v3.4.3.0
+
+        Labels: common,ci,integration,functional
+
+        History: 2026-10-08 Cover the direct Scan Hash Join path.
+        """
+        db = "test_join_hash_scan_time"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(f"create database {db}")
+        try:
+            tdSql.execute(f"use {db}")
+            tdSql.execute("create table l(ts timestamp, val int)")
+            tdSql.execute("create table r(ts timestamp, val int)")
+            tdSql.execute(
+                "insert into l values "
+                "('2024-01-01 00:00:00', 101) "
+                "('2024-01-01 00:00:01', 102) "
+                "('2024-01-01 00:00:02', 201)"
+            )
+            tdSql.execute(
+                "insert into r values "
+                "('2024-01-01 00:00:00', 301) "
+                "('2024-01-01 00:00:01', 302) "
+                "('2024-01-01 00:00:02', 401) "
+                "('2024-01-01 00:00:03', 402)"
+            )
+            full_expected = (
+                (101, None), (None, 301), (102, 302),
+                (201, 401), (None, 402),
+            )
+            cases = (
+                ("INNER", "l.ts", "l.val, r.val",
+                 ((102, 302), (201, 401))),
+                ("LEFT", "l.ts", "l.val, r.val",
+                 ((101, None), (102, 302), (201, 401))),
+                ("RIGHT", "r.ts", "l.val, r.val",
+                 ((None, 301), (102, 302), (201, 401),
+                  (None, 402))),
+                ("LEFT ANTI", "l.ts", "l.val", ((101,),)),
+                ("RIGHT ANTI", "r.ts", "r.val",
+                 ((301,), (402,))),
+                ("LEFT SEMI", "l.ts", "l.val",
+                 ((102,), (201,))),
+                ("RIGHT SEMI", "r.ts", "r.val",
+                 ((302,), (401,))),
+                ("FULL", "l.ts", "l.val, r.val", full_expected),
+                ("FULL", "r.ts", "l.val, r.val", full_expected),
+            )
+            failures = []
+            for kind, time_col, targets, expected in cases:
+                expected_rows = sorted(expected, key=str)
+                hash_sql = (
+                    f"select /*+ HASH_JOIN() */ {targets} "
+                    f"from l {kind} join r "
+                    "on l.ts = r.ts "
+                    f"and {time_col} >= "
+                    "timestamp '2024-01-01 00:00:01'"
+                )
+                merge_sql = hash_sql.replace("HASH_JOIN", "MERGE_JOIN")
+                tdSql.query("explain " + hash_sql)
+                hash_plan = "\n".join(row[0] for row in tdSql.queryResult)
+                assert "algo=Hash" in hash_plan, hash_plan
+                if kind == "FULL":
+                    assert "Partition" not in hash_plan, hash_plan
+                tdSql.query("explain " + merge_sql)
+                merge_plan = "\n".join(row[0] for row in tdSql.queryResult)
+                assert "algo=Merge" in merge_plan, merge_plan
+                tdSql.query(hash_sql)
+                hash_rows = sorted(tdSql.queryResult, key=str)
+                tdSql.query(merge_sql)
+                merge_rows = sorted(tdSql.queryResult, key=str)
+                if (hash_rows != expected_rows or merge_rows != expected_rows
+                        or hash_rows != merge_rows):
+                    failures.append(
+                        f"{kind} {time_col}: "
+                        f"expected={expected_rows}, "
+                        f"hash={hash_rows}, merge={merge_rows}"
+                    )
+            assert not failures, "\n".join(failures)
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
 
     def test_join_const(self):
         """Join full data types
@@ -228,6 +410,7 @@ class TestJoinConst:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

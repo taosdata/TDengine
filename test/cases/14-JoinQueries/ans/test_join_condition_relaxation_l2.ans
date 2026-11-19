@@ -437,6 +437,8 @@ taos> SELECT a.id, b.id FROM l_expr a RIGHT JOIN r_expr b ON a.x + b.k = b.x AND
 taos> SELECT a.id, b.id FROM l_expr a FULL JOIN r_expr b ON a.x + b.k = b.x AND a.name IS NOT NULL WHERE COALESCE(a.id, 0) + COALESCE(b.id, 0) > 10 ORDER BY 1, 2;
      id      |     id      |
 ============================
+ NULL        |          14 |
+ NULL        |          15 |
            2 |          11 |
            3 |          12 |
            3 |          13 |

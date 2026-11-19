@@ -22,6 +22,7 @@
 #include <vector>
 #include "os.h"
 #include "taoserror.h"
+#include "ttestgate.h"
 #ifdef WINDOWS
 #include <aclapi.h>
 #else
@@ -589,3 +590,35 @@ TEST_F(PrivateFileTest, LocateCompanionExecIgnoresCwdAndPath) {
 }
 #endif
 }  // namespace
+
+TEST_F(PrivateFileTest, GatePathRejectsTruncation) {
+  char value[8];
+  EXPECT_TRUE(taosTestGatePath(value, sizeof(value), "x", "held"));
+  EXPECT_STREQ(value, "x/held");
+  EXPECT_FALSE(taosTestGatePath(value, 6, "x", "held"));
+  EXPECT_FALSE(taosTestGatePath(value, 0, "x", "held"));
+}
+
+TEST_F(PrivateFileTest, GateRequiresExactQueryIdentityAndRestoresError) {
+  const auto arm = path("arm");
+  const int32_t savedErrno = terrno;
+  terrno = TSDB_CODE_INVALID_PARA;
+  EXPECT_FALSE(taosTestGateArmed(root.c_str(), 7));
+  EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+  const std::vector<std::string> contents = {
+      "", "7", "8\n", "7\nextra", "07\n", std::string(32, '7'), "7\n"};
+  for (const auto& content : contents) {
+    {
+      FileHandle file(taosOpenPrivateFile(arm.c_str(),
+          TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE));
+      ASSERT_NE(file.get(), nullptr);
+      ASSERT_EQ(taosWriteFile(file.get(), content.data(), content.size()),
+                (int64_t)content.size());
+    }
+    terrno = TSDB_CODE_INVALID_PARA;
+    EXPECT_EQ(taosTestGateArmed(root.c_str(), 7), content == "7\n");
+    EXPECT_EQ(terrno, TSDB_CODE_INVALID_PARA);
+    ASSERT_EQ(taosRemoveFile(arm.c_str()), 0);
+  }
+  terrno = savedErrno;
+}
