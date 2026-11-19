@@ -3004,6 +3004,49 @@ function Find-OracleSetupFile {
     return $hit.FullName
 }
 
+function Assert-OracleInstallerServiceEnumeration {
+    if (-not ('TdengineOracleServiceProbe' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class TdengineOracleServiceProbe {
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern IntPtr OpenSCManagerW(IntPtr machine, IntPtr database, uint access);
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+    private static extern bool EnumServicesStatusA(IntPtr manager, uint type, uint state,
+        IntPtr buffer, uint size, out uint needed, out uint returned, ref uint resume);
+    [DllImport("advapi32.dll", ExactSpelling = true)]
+    private static extern bool CloseServiceHandle(IntPtr handle);
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+    public static extern uint GetACP();
+
+    public static int Check() {
+        IntPtr manager = OpenSCManagerW(IntPtr.Zero, IntPtr.Zero, 4);
+        if (manager == IntPtr.Zero) return Marshal.GetLastWin32Error();
+        IntPtr buffer = IntPtr.Zero;
+        try {
+            buffer = Marshal.AllocHGlobal(262144);
+            uint needed, returned, resume = 0;
+            bool success = EnumServicesStatusA(manager, 0x30, 3, buffer, 262144,
+                out needed, out returned, ref resume);
+            int error = Marshal.GetLastWin32Error();
+            return success || error == 234 ? 0 : error;
+        } finally {
+            if (buffer != IntPtr.Zero) Marshal.FreeHGlobal(buffer);
+            CloseServiceHandle(manager);
+        }
+    }
+}
+'@
+    }
+    $errorCode = [TdengineOracleServiceProbe]::Check()
+    if ($errorCode -ne 0) {
+        $codePage = [TdengineOracleServiceProbe]::GetACP()
+        throw "Oracle Free installer cannot enumerate Windows services through EnumServicesStatusA (Win32 error $errorCode, ACP=$codePage). Repair the host/API compatibility before retrying; do not automatically change the system UTF-8 setting required by Chinese-path tests."
+    }
+}
+
 # Silent install of Oracle AI Database Free 26ai.  The package creates the
 # container database FREE and the FREEPDB1 service itself; the response file
 # only selects the install directory, the port, and the admin password.
@@ -3014,6 +3057,7 @@ function Install-OracleFree {
         Err "      Re-run elevated, or point FQ_ORACLE_HOST at an existing Oracle instance."
         throw "Oracle Free installation requires administrator rights"
     }
+    Assert-OracleInstallerServiceEnumeration
     # The Free home cannot coexist with XE, and the installer aborts late (after
     # several minutes) when it finds one; refuse immediately instead.
     if ($null -ne (Get-Service -Name 'OracleServiceXE' -ErrorAction SilentlyContinue)) {

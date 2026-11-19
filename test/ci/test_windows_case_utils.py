@@ -39,6 +39,131 @@ from windows_case_utils import (
 
 
 
+class TestGrantDropTargetTopology(unittest.TestCase):
+    def helper(self, snapshots, clock=None):
+        source = Path(__file__).parents[1] / "cases/32-Grants/test_grant_basic.py"
+        case = next(node for node in ast.parse(source.read_text()).body
+                    if isinstance(node, ast.ClassDef) and node.name == "TestCase")
+        method = next(node for node in case.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "_prepare_dual_replica_drop_target")
+        nodes = Mock()
+        sql = SimpleNamespace(query=Mock(side_effect=snapshots))
+        timer = SimpleNamespace(monotonic=clock or Mock(return_value=0), sleep=Mock())
+        namespace = {"tdSql": sql, "tdDnodes": nodes, "tdLog": Mock(), "time": timer}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+        return namespace[method.name], nodes
+
+    def test_existing_follower_does_not_restart_nodes(self):
+        prepare, nodes = self.helper([[(1, "leader", "ready"), (2, "follower", "ready"),
+                                      (3, "follower", "ready")]])
+        prepare(None)
+        nodes.stop.assert_not_called()
+        nodes.start.assert_not_called()
+        nodes.startWithoutSleep.assert_not_called()
+
+    def test_leader_target_is_restored_before_grant_check(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "offline", "offline")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "follower", "ready")],
+        ])
+        prepare(None)
+        nodes.stop.assert_called_once_with(3)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_failed_election_restores_node_and_blocks_grant_check(self):
+        initial = [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")]
+        prepare, nodes = self.helper([initial, initial], Mock(side_effect=[0, 0, 61]))
+        with self.assertRaisesRegex(TimeoutError, "topology did not become ready"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_failed_stop_still_attempts_to_restore_node(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+        ])
+        nodes.stop.side_effect = RuntimeError("node stop failed")
+        with self.assertRaisesRegex(RuntimeError, "node stop failed"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+    def test_missing_restored_member_does_not_accept_smaller_topology(self):
+        prepare, nodes = self.helper([
+            [(1, "follower", "ready"), (2, "follower", "ready"), (3, "leader", "ready")],
+            [(1, "leader", "ready"), (2, "follower", "ready"), (3, "offline", "offline")],
+            [(1, "leader", "ready"), (2, "follower", "ready")],
+        ], Mock(side_effect=[0, 0, 0, 0, 61]))
+        with self.assertRaisesRegex(TimeoutError, "topology did not become ready"):
+            prepare(None)
+        nodes.startWithoutSleep.assert_called_once_with(3)
+        nodes.start.assert_not_called()
+
+
+class TestWindowsOracleInstallerPreflight(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("powershell.exe") or shutil.which("pwsh"), "PowerShell is required")
+    def test_service_api_failure_prevents_media_preparation(self):
+        source = (Path(__file__).parents[1] /
+                  "cases/09-DataQuerying/19-FederatedQuery/ensure_ext_env.ps1")
+        script = r'''
+param([string]$Source)
+$ErrorActionPreference = 'Stop'
+$tokens = $null
+$parseErrors = $null
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($Source, [ref]$tokens, [ref]$parseErrors)
+if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
+foreach ($name in @('Assert-OracleInstallerServiceEnumeration', 'Install-OracleFree')) {
+    $definition = $ast.Find({param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name
+    }, $true)
+    if (-not $definition) { throw "Missing function $name" }
+    Invoke-Expression $definition.Extent.Text
+}
+Add-Type -TypeDefinition @'
+public static class TdengineOracleServiceProbe {
+    public static int Result;
+    public static int Check() { return Result; }
+    public static uint GetACP() { return 65001; }
+}
+'@
+function Test-Admin { return $true }
+function Get-Service { return $null }
+function Warn {}
+function Get-OracleMedia {
+    $script:downloadStarted = $true
+    throw 'MEDIA_SENTINEL'
+}
+$OracleFreeUrl = 'unused'
+$OracleFreeSha256 = 'unused'
+foreach ($result in @(8, 5, 0)) {
+    [TdengineOracleServiceProbe]::Result = $result
+    $script:downloadStarted = $false
+    $message = ''
+    try { Install-OracleFree '26ai' 18322 'C:\oracle-preflight-test' }
+    catch { $message = $_.Exception.Message }
+    if ($result -eq 0) {
+        if (-not $script:downloadStarted -or $message -ne 'MEDIA_SENTINEL') {
+            throw "Healthy API was rejected merely because ACP is UTF-8: $message"
+        }
+    } elseif ($script:downloadStarted -or $message -notmatch "Win32 error $result, ACP=65001") {
+        throw "API failure reached media preparation or lost its diagnostic: $message"
+    }
+}
+Write-Output 'PASS oracle installer preflight'
+'''
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "oracle-preflight-test.ps1"
+            path.write_text(script)
+            result = subprocess.run(
+                [shutil.which("powershell.exe") or shutil.which("pwsh"), "-NoProfile",
+                 "-ExecutionPolicy", "Bypass", "-File", str(path), str(source)],
+                capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS oracle installer preflight", result.stdout)
+
+
 class TestWindowsReviewOwnership(unittest.TestCase):
     def test_selected_services_reach_provisioner_after_filtering(self):
         source = Path(__file__).with_name("run_windows_ci.py")
@@ -1212,6 +1337,34 @@ class TestCompatibilityReadiness(unittest.TestCase):
                 self.assertEqual(sorted(results.get(timeout=2) for _ in writers),
                                  [(False, "complete baseline", True), (True, "complete baseline", True)])
                 self.assertTrue(all(process.exitcode == 0 for process in writers))
+
+    def test_rbac_upgrade_peer_monitor_matches_first_node(self):
+        source = Path(__file__).parents[1] / "cases/25-Privileges/test_priv_upgrade.py"
+        method = next(node for node in ast.walk(ast.parse(source.read_text(encoding="utf-8")))
+                      if isinstance(node, ast.FunctionDef) and node.name == "ensureDnodeConfig")
+        namespace = {"os": SimpleNamespace(name="nt", path=os.path, makedirs=os.makedirs),
+                     "tdLog": Mock()}
+        exec(compile(ast.Module(body=[method], type_ignores=[]), str(source), "exec"), namespace)
+        for configured in ("0", "1", None):
+            for existing in (False, True):
+                with self.subTest(configured=configured, existing=existing), tempfile.TemporaryDirectory() as tmp:
+                    first = Path(tmp) / "node1"
+                    (first / "cfg").mkdir(parents=True)
+                    (first / "cfg/taos.cfg").write_text(
+                        f"monitor {configured}\n" if configured else "# default monitor\n")
+                    peer = Path(tmp) / "node2"
+                    if existing:
+                        (peer / "cfg").mkdir(parents=True)
+                        (peer / "cfg/taos.cfg").write_text("monitor 9\n# preserve\nserverPort 6130\n")
+                    case = SimpleNamespace(getDnodePath=lambda: [str(first)])
+                    namespace[method.name](case, str(peer) + os.sep, 2)
+                    text = (peer / "cfg/taos.cfg").read_text()
+                    self.assertIn(f"monitor {configured or '1'}\n", text)
+                    self.assertNotIn("monitor 9", text)
+                    if existing:
+                        self.assertIn("# preserve\nserverPort 6130\n", text)
+                    namespace[method.name](case, str(peer) + os.sep, 2)
+                    self.assertEqual((peer / "cfg/taos.cfg").read_text(), text)
 
     def test_rbac_upgrade_cli_preserves_sql_and_rejects_reported_errors(self):
         source = Path(__file__).parents[1] / "cases/25-Privileges/test_priv_upgrade.py"

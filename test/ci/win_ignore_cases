@@ -10,6 +10,7 @@
 83-DocTest/rust.sh
 83-DocTest/go.sh
 83-DocTest/test_R.sh
+83-DocTest/taosx.sh
 
 # Valgrind not supported in Windows CI
 cases/81-Tools/05-Valgrind/test_valgrind_basic1.py

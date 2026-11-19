@@ -687,7 +687,7 @@ def write_ctest_failure_junit(path, name, message):
     ElementTree.ElementTree(suite).write(path, encoding="utf-8", xml_declaration=True)
 
 
-def run_ctest_command(ctest_dir, debug_dir, group, *, include_pattern=None, exclude_pattern=None, jobs=1):
+def run_ctest_command(ctest_dir, debug_dir, group, *, include_pattern=None, exclude_pattern=None, jobs=1, env=None):
     junit = debug_dir / f"junit-windows-{group}.xml"
     log = debug_dir / f"ctest-{group}.log"
     command = ["ctest", "--test-dir", str(ctest_dir)]
@@ -698,7 +698,7 @@ def run_ctest_command(ctest_dir, debug_dir, group, *, include_pattern=None, excl
     command.extend(["--output-on-failure", "--output-junit", str(junit), "--timeout", "900", f"-j{jobs}"])
     print(f"[windows-ci] running {group} ctest group (-j{jobs})")
     with log.open("w", encoding="utf-8") as log_file:
-        result = run(command, stdout=log_file, stderr=subprocess.STDOUT)
+        result = run(command, env=env, stdout=log_file, stderr=subprocess.STDOUT)
     tail(log, 80)
     if not junit.exists():
         if result.returncode:
@@ -776,7 +776,7 @@ def print_ctest_failure_logs(debug_dir, failures):
     print("\x1b[31m" + "=" * 80 + "\x1b[0m")
 
 
-def run_ctest(source_dir, debug_dir, ctest_dir):
+def run_ctest(source_dir, debug_dir, ctest_dir, env=None):
     taosd, taos = (debug_dir / "build" / "bin" / name for name in ("taosd.exe", "taos.exe"))
     stdout_log, stderr_log, health_log = (debug_dir / name for name in ("taosd-ctest.stdout.log", "taosd-ctest.stderr.log", "taosd-ctest-health.log"))
     parallel_result = 1
@@ -796,10 +796,14 @@ def run_ctest(source_dir, debug_dir, ctest_dir):
                 print(f"[windows-ci] {message}")
                 write_ctest_failure_junit(debug_dir / "junit-windows-parallel.xml", "windows-parallel-ctest", message)
             else:
-                parallel_result = run_ctest_command(ctest_dir, debug_dir, "parallel", exclude_pattern=SERIAL_CTEST_PATTERN, jobs=4)
+                parallel_result = run_ctest_command(
+                    ctest_dir, debug_dir, "parallel", exclude_pattern=SERIAL_CTEST_PATTERN, jobs=4, env=env
+                )
         finally:
             stop_processes()
-    serial_result = run_ctest_command(ctest_dir, debug_dir, "serial", include_pattern=SERIAL_CTEST_PATTERN, jobs=1)
+    serial_result = run_ctest_command(
+        ctest_dir, debug_dir, "serial", include_pattern=SERIAL_CTEST_PATTERN, jobs=1, env=env
+    )
     merge_ctest_junit(debug_dir)
     failures = write_ctest_failure_logs(debug_dir)
     print(f"[windows-ci] ctest result: parallel={parallel_result}, serial={serial_result}")
@@ -1467,6 +1471,8 @@ def main():
         packaging_test = arguments.source_dir / "source/taos-internal/packaging/tests/test_windows_mimalloc.py"
         packaging_env = visual_studio_environment()
         require_command("cmake", packaging_env)
+        if not arguments.skip_ctest:
+            require_command("ctest", packaging_env)
         require_command("jom", packaging_env)
         packaging_env.update(
             TD_ALLOCATOR_BIN=str(arguments.debug_dir / "build/bin"),
@@ -1480,7 +1486,9 @@ def main():
             ctest_result = 0
         else:
             stage = "ctest"
-            ctest_result, ctest_failures = run_ctest(arguments.source_dir, arguments.debug_dir, arguments.ctest_dir)
+            ctest_result, ctest_failures = run_ctest(
+                arguments.source_dir, arguments.debug_dir, arguments.ctest_dir, env=packaging_env
+            )
         stage = "pytest"
         if arguments.skip_pytest:
             print("[windows-ci] pytest is skipped for this ctest-only validation run")
