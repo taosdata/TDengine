@@ -26,6 +26,14 @@
 #include "operator.h"
 #include "osMemPool.h"
 #include "osMemory.h"
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+#include "osFile.h"
+#include "osSleep.h"
+#include "osSystem.h"
+#include "osTime.h"
+#include "tglobal.h"
+#endif
 #include "planner.h"
 #include "query.h"
 #include "querytask.h"
@@ -43,6 +51,172 @@
 static TdThreadOnce initPoolOnce = PTHREAD_ONCE_INIT;
 int32_t             fetchObjRefPool = -1;
 SGlobalExecInfo     gExecInfo = {0};
+
+#if defined(BUILD_TEST)
+static void traceQueryTimeoutTest(const SExecTaskInfo* task,
+                                  const SSDataBlock* block,
+                                  const char* event, int32_t readTimeout) {
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " query timeout test %s, blockId:%" PRId64
+         ", rows:%" PRId64 ", readTimeout:%d",
+         task->id.queryId, task->id.taskId, event, block->info.id.blockId,
+         block->info.rows, readTimeout);
+}
+
+static void waitQueryTimeoutTestBarrier(SExecTaskInfo* task,
+                                         const SSDataBlock* block) {
+  if (task->execModel != OPTR_EXEC_MODEL_BATCH ||
+      task->pStreamRuntimeInfo != NULL || task->pSubplan == NULL ||
+      task->pSubplan->level != 0 || block == NULL || block->info.rows <= 0) {
+    return;
+  }
+
+  int32_t savedErrno = terrno;
+  char root[PATH_MAX], directory[PATH_MAX];
+  char held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_TIMEOUT_GATE_DIR", root, sizeof(root)) <= 0) {
+    goto _done;
+  }
+  int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64,
+                          root, task->id.queryId);
+  if (len < 0 || len >= (int32_t)sizeof(directory)) {
+    goto _done;
+  }
+  if (!taosTestGatePath(held, sizeof(held), directory, "held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(release, sizeof(release), directory, "release")) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, task->id.queryId)) {
+    goto _done;
+  }
+
+  file = taosOpenPrivateFile(held,
+                             TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // Keep the worker busy while the transport's real read timer expires.
+  int32_t readTimeout = tsReadTimeout;
+  traceQueryTimeoutTest(task, block, "held", readTimeout);
+  int64_t deadline = taosGetMonoTimestampMs() +
+                     (int64_t)readTimeout * 1000 + 30000;
+  while (!taosCheckExistFile(release)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      traceQueryTimeoutTest(task, block, "timed out", readTimeout);
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+  traceQueryTimeoutTest(task, block, "resumed", readTimeout);
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+}
+
+static void traceJoinFailureTest(const SExecTaskInfo* task,
+                                 const SSDataBlock* block,
+                                 const char* event, int32_t code) {
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " join failure test %s, blockId:%" PRId64
+         ", rows:%" PRId64 ", code:%d",
+         task->id.queryId, task->id.taskId, event, block->info.id.blockId,
+         block->info.rows, code);
+}
+
+static int32_t waitJoinFailureTestBarrier(SExecTaskInfo* task,
+                                          const SSDataBlock* block) {
+  if (task->execModel != OPTR_EXEC_MODEL_BATCH ||
+      task->pStreamRuntimeInfo != NULL || task->pSubplan == NULL ||
+      task->pSubplan->level != 1 || block == NULL || block->info.rows <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t savedErrno = terrno;
+  int32_t result = TSDB_CODE_SUCCESS;
+  char root[PATH_MAX], directory[PATH_MAX];
+  char held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_FAILURE_GATE_DIR", root, sizeof(root)) <= 0) {
+    goto _done;
+  }
+  int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64, root,
+                         task->id.queryId);
+  if (len < 0 || len >= (int32_t)sizeof(directory)) {
+    goto _done;
+  }
+  len = snprintf(held, sizeof(held), "%s/held.%" PRIu64, directory,
+                 task->id.taskId);
+  if (len < 0 || len >= (int32_t)sizeof(held)) {
+    goto _done;
+  }
+  len = snprintf(release, sizeof(release), "%s/release.%" PRIu64, directory,
+                 task->id.taskId);
+  if (len < 0 || len >= (int32_t)sizeof(release)) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, task->id.queryId)) {
+    goto _done;
+  }
+  int64_t read;
+
+  file = taosOpenPrivateFile(held,
+                            TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // QUICK query responses let the parent launch before either producer exits.
+  traceJoinFailureTest(task, block, "held", TSDB_CODE_SUCCESS);
+  int64_t deadline = taosGetMonoTimestampMs() + 30000;
+  while (true) {
+    file = taosOpenPrivateFile(release, TD_FILE_READ);
+    if (file != NULL) {
+      char command[6];
+      read = taosReadFile(file, command, sizeof(command));
+      code = taosCloseFile(&file);
+      if (code == TSDB_CODE_SUCCESS && read == 5) {
+        if (memcmp(command, "fail\n", 5) == 0) {
+          result = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+          traceJoinFailureTest(task, block, "injected", result);
+          break;
+        }
+        if (memcmp(command, "pass\n", 5) == 0) {
+          traceJoinFailureTest(task, block, "resumed", TSDB_CODE_SUCCESS);
+          break;
+        }
+      }
+    }
+    if (taosGetMonoTimestampMs() >= deadline) {
+      result = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      traceJoinFailureTest(task, block, "timed out", result);
+      break;
+    }
+    taosMsleep(10);
+  }
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+  return result;
+}
+#endif
 
 void setTaskScalarExtraInfo(qTaskInfo_t tinfo) {
   TD_SEAM_VOID(setTaskScalarExtraInfo, void (*)(qTaskInfo_t), (tinfo));
@@ -1134,6 +1308,14 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bo
   QUERY_CHECK_CODE(code, lino, _end);
   code = blockDataCheck(pRes);
   QUERY_CHECK_CODE(code, lino, _end);
+
+#if defined(BUILD_TEST)
+  waitQueryTimeoutTestBarrier(pTaskInfo, pRes);
+  int32_t injected = waitJoinFailureTestBarrier(pTaskInfo, pRes);
+  if (injected != TSDB_CODE_SUCCESS) {
+    T_LONG_JMP(pTaskInfo->env, injected);
+  }
+#endif
 
   if (pRes == NULL) {
     st = taosGetTimestampUs();

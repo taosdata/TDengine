@@ -2443,6 +2443,23 @@ TEST_F(ParserSelectTest, nestedWindowExplicitTimeScope) {
 
 class ParserNestedTemporalTest : public ParserDdlTest {};
 
+TEST_F(ParserNestedTemporalTest, windowTimeStatementClock) {
+  useDb("root", "test");
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (PARSER_STAGE_TRANSLATE != stage) return;
+    const auto* pSelect = (const SSelectStmt*)pQuery->pRoot;
+    const auto* pJoin = (const SJoinTableNode*)pSelect->pFromTable;
+    const SNode* pLeft = nodesListGetNode(pJoin->pWindowTime, 0);
+    const SNode* pRight = nodesListGetNode(pJoin->pWindowTime, 1);
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pLeft));
+    ASSERT_EQ(QUERY_NODE_VALUE, nodeType(pRight));
+    EXPECT_EQ(((const SValueNode*)pLeft)->datum.i,
+              ((const SValueNode*)pRight)->datum.i);
+  });
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(NOW(), NOW()) WINDOW_OFFSET(0s, 0s)");
+}
+
 TEST_F(ParserNestedTemporalTest, deferredDefaultTime) {
   useDb("root", "test");
   setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
@@ -2676,13 +2693,52 @@ TEST_F(ParserSelectTest, windowJoinWithExplicitTimeColumns) {
       "WINDOW_TIME(l.c3, r.ts) WINDOW_OFFSET(-1s, 1s)");
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
       "WINDOW_TIME(1, r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
-      "WINDOW_TIME(NOW(), r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      "WINDOW_TIME('2026-09-30 00:00:00', r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
-      "WINDOW_TIME(l.ts + 1s, r.ts) WINDOW_OFFSET(-1s, 1s)",
-      TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+      "WINDOW_TIME(TIMESTAMP '2026-09-30 00:00:00', "
+      "TIMESTAMP '2026-09-30 00:00:00') WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(NOW(), r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(TODAY(), r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts + 1s, r.ts) WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l RIGHT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(TIMETRUNCATE(l.ts, 1h), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)");
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(COALESCE(r.ts, l.ts), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts, COALESCE(l.ts, r.ts)) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_INVALID_COLUMN);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(MAX(l.ts), r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(RAND() AS TIMESTAMP), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(GENERATE_TOTP_CODE('JBSWY3DPEHPK3PXP') "
+      "AS TIMESTAMP), r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(CAST(CSUM(l.c1) AS TIMESTAMP), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(_wstart, r.ts) WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_WINDOW_PC);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME((SELECT MAX(ts) FROM stream_t2), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)", TSDB_CODE_PAR_SYNTAX_ERROR,
+      PARSER_STAGE_PARSE);
+  run("SELECT * FROM stream_t2 l LEFT WINDOW JOIN stream_t2 r "
+      "WINDOW_TIME(l.ts + (SELECT MAX(ts) FROM stream_t2), r.ts) "
+      "WINDOW_OFFSET(-1s, 1s)",
+      TSDB_CODE_PAR_INVALID_TIMELINE_QUERY);
   run("SELECT * FROM stream_t2 l LEFT ASOF JOIN stream_t2 r "
       "WINDOW_TIME(l.ts, r.ts)", TSDB_CODE_PAR_SYNTAX_ERROR,
       PARSER_STAGE_PARSE);

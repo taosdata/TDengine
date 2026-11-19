@@ -28,6 +28,9 @@
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tname.h"
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+#endif
 
 #ifndef _GRANT
 int32_t grantCheckQuery(uint32_t tsGrantVal, const SSubplan *pSubplan) { return TSDB_CODE_SUCCESS; }
@@ -727,7 +730,8 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
 
   SQWTaskCtx *ctx = NULL;
   bool        quickFetch = false;
-  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
+  // Preserve the execution error for a FETCH waiting on a QUICK response.
+  QW_ERR_RET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
   if (!QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
@@ -2167,6 +2171,35 @@ _return:
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
+#if defined(BUILD_TEST)
+int32_t qwIdleTestCheckInterval(SQWorker *mgmt) {
+  int32_t interval = QW_DEFAULT_TIMEOUT_INTERVAL_SECS;
+  int32_t savedErrno = terrno;
+  char root[PATH_MAX];
+  if (taosGetEnv("TD_JOIN_TEST_IDLE_GATE_DIR", root, sizeof(root)) <= 0) {
+    terrno = savedErrno;
+    return interval;
+  }
+  void *iter = taosHashIterate(mgmt->ctxHash, NULL);
+  while (iter != NULL) {
+    uint64_t queryId = 0;
+    memcpy(&queryId, taosHashGetKey(iter, NULL), sizeof(queryId));
+    char directory[PATH_MAX];
+    int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64,
+                           root, queryId);
+    if (len > 0 && len < (int32_t)sizeof(directory) &&
+        taosTestGateArmed(directory, queryId)) {
+      interval = 1;
+      taosHashCancelIterate(mgmt->ctxHash, iter);
+      break;
+    }
+    iter = taosHashIterate(mgmt->ctxHash, iter);
+  }
+  terrno = savedErrno;
+  return interval;
+}
+#endif
+
 void qwProcessHbTimerEvent(void *param, void *tmrId) {
   SQWHbParam *hbParam = (SQWHbParam *)param;
   if (hbParam->qwrId != atomic_load_32(&gQwMgmt.qwRef)) {
@@ -2193,7 +2226,13 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     qwStopAllTasks(mgmt);
   }
 
-  if (mgmt->lastChkTs > 0 && (currTs - mgmt->lastChkTs) >= QW_DEFAULT_TIMEOUT_INTERVAL_SECS) {
+  int32_t checkInterval = QW_DEFAULT_TIMEOUT_INTERVAL_SECS;
+#if defined(BUILD_TEST)
+  // Exercise the real age check without waiting for a ten-minute sweep.
+  checkInterval = qwIdleTestCheckInterval(mgmt);
+#endif
+  if (mgmt->lastChkTs > 0 &&
+      (currTs - mgmt->lastChkTs) >= checkInterval) {
     qwChkDropTimeoutQuery(mgmt, currTs);
     mgmt->lastChkTs = currTs;
   }

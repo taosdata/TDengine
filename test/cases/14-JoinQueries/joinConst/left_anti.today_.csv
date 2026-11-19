@@ -203,7 +203,7 @@ taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg1 from sta where
 ============================================================================================================
  __tomorrow__ 00:00:03.000 |         204 |           1 | NULL                    | NULL        | NULL        |
 
-taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta left anti join (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2;
+taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta left anti join (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2 order by ta.val;
            ts            |     val     |     tg2     |           ts            |     val     |     tg2     |
 ============================================================================================================
  __tomorrow__ 00:00:02.000 |         104 |           1 | NULL                    | NULL        | NULL        |
@@ -337,7 +337,7 @@ taos> select * from (select today() ts, last(f) val, tg1 from stb where tg1 >= 0
 ============================================================================================================
  __today__ 00:00:00.000 |         404 |           1 | NULL                    | NULL        | NULL        |
 
-taos> select * from (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb left anti join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2;
+taos> select * from (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb left anti join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2 order by tb.val;
            ts            |     val     |     tg2     |           ts            |     val     |     tg2     |
 ============================================================================================================
  __today__ 00:00:00.000 |         304 |           1 | NULL                    | NULL        | NULL        |

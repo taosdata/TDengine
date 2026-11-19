@@ -366,6 +366,26 @@ class TestJoin:
         :param join_type: the join type, can be "inner", "left-outer", "right-outer", "full",
         "left-semi", "right-semi", "left-anti", "right-anti", "left-asof", "right-asof", “left-window", "right-window”
         """
+        full_filter_rows = [
+            (None, "2024-01-01 12:00:00.100"),
+            (None, "2024-01-01 12:00:00.300"),
+            (None, "2024-01-01 12:00:00.500"),
+            (None, "2024-01-01 12:00:00.700"),
+            (None, "2024-01-01 12:00:01.900"),
+            ("2024-01-01 12:00:00.000", "2024-01-01 12:00:00.000"),
+            ("2024-01-01 12:00:00.200", "2024-01-01 12:00:00.200"),
+            ("2024-01-01 12:00:00.400", "2024-01-01 12:00:00.400"),
+            ("2024-01-01 12:00:00.600", None),
+            ("2024-01-01 12:00:00.800", "2024-01-01 12:00:00.800"),
+            ("2024-01-01 12:00:01.000", None),
+            ("2024-01-01 12:00:01.200", None),
+            ("2024-01-01 12:00:01.400", None),
+            ("2024-01-01 12:00:01.600", "2024-01-01 12:00:01.600"),
+            ("2024-01-01 12:00:01.800", None),
+        ]
+        left_filter_rows = sorted(
+            (row for row in full_filter_rows if row[0] is not None),
+            key=lambda row: (row[1] or "", row[0]))
         # id indicates the join type, case number and check points
         sql = {
             "inner": [
@@ -1138,19 +1158,13 @@ class TestJoin:
                     "exception": False,
                     "sql": ["select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t1.ts < now where t1.ts >= '2024-01-01 12:00:00.000' and t2.ts <= '2024-01-02 12:00:00.400' order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and abs(t1.v_int) >= 0 where t1.ts between '2023-12-31 12:00:00.400' and now and t2.ts <= now order by t1.ts, t2.ts;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t1.v_bigint >= 123456780 where (t2.ts < now or t1.ts is not  null) order by t1.ts, t2.ts limit 5;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and abs(t1.v_bigint - t2.v_bigint) >= 0 where (t2.ts < now or t1.ts is not  null) order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t1.ts between '2024-01-01 12:00:00.000' and now where (t1.v_int + t2.v_int > 0 or t1.v_int + t2.v_int <= 0 or (t1.v_int + t2.v_int) is not null) order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and abs(ceil(t1.v_double)) >= 0 where (t1.v_int * t2.v_int > 0 or t1.v_int * t2.v_int is not null) order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t1.ts between '2024-01-01 12:00:00.000' and now where (t1.v_bigint / t2.v_bigint > 0 or t1.v_bigint / t2.v_bigint is not null) order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and (t1.v_bool is null or t1.v_bool is not null) where (t1.v_double - t2.v_double != 0 or t1.v_double - t2.v_double = 0 or t1.v_double - t2.v_double is not null) order by t1.ts, t2.ts;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t1.v_int in (-2, 0, 2, 14, 16) where (t2.v_bool in (true, false) or t1.v_bool is not null) order by t1.ts, t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t2.ts >= '2024-01-01 12:00:00.000' and (t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') and t1.v_binary is not null order by t1.ts, t2.ts;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t1.ts >= '2024-01-01 12:00:00.000' and (t1.t_int = t2.t_int or t1.t_int != t2.t_int or t1.v_int is not null) order by t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t2.ts >= '2024-01-01 12:00:00.000' and (t1.t_bigint = t2.t_bigint or t1.t_bigint != t2.t_bigint or t1.t_bigint > t2.t_bigint or t1.t_bigint <= t2.t_bigint or t1.v_bigint is not null) order by t2.ts;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t1.ts >= '2024-01-01 12:00:00.000' and (t1.t_double = t2.t_double or t1.t_double != t2.t_double or t1.t_double > t2.t_double or t1.t_double <= t2.t_double or t1.v_double is not null) order by t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t2.ts >= '2024-01-01 12:00:00.000' and (t1.t_binary = t2.t_binary or t1.t_binary != t2.t_binary or t1.t_binary like '%abc%' or t1.t_binary not like '%abc%' or t1.v_binary is not null) order by t2.ts;",
-                            "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t1.ts >= '2024-01-01 12:00:00.000' and (t1.t_bool = t2.t_bool or t1.t_bool != t2.t_bool or t1.t_bool in (true, false) or t1.t_bool is not null) order by t2.ts;",
                             "select t1.ts, t2.ts from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts where t2.ts >= '2024-01-01 12:00:00.000' and (t1.t_int * t2.v_int_empty is null and t1.t_int is not null) order by t1.ts, t2.ts;"],
                     "res": {
                         "total_rows": 5,
@@ -1159,6 +1173,67 @@ class TestJoin:
                             "values": [[(0,0), (4,1)], [('2024-01-01 12:00:00.000'), ('2024-01-01 12:00:01.600')]]
                         }
                     }
+                },
+                {
+                    "id": "fj_c2_null_or_limit",
+                    "desc": "FULL JOIN keeps right-only rows before LIMIT",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": [
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "and t1.v_bigint >= 123456780 "
+                        "where (t2.ts < now or t1.ts is not null) "
+                        "order by t1.ts, t2.ts limit 5;",
+                    ],
+                    "res": {"total_rows": 5, "rows": full_filter_rows[:5]},
+                },
+                {
+                    "id": "fj_c2_null_or",
+                    "desc": "FULL JOIN keeps both unmatched sides under OR",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": [
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "and abs(t1.v_bigint - t2.v_bigint) >= 0 "
+                        "where (t2.ts < now or t1.ts is not null) "
+                        "order by t1.ts, t2.ts;",
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "and t1.v_int in (-2, 0, 2, 14, 16) "
+                        "where (t2.v_bool in (true, false) "
+                        "or t1.v_bool is not null) order by t1.ts, t2.ts;",
+                    ],
+                    "res": {"total_rows": 15, "rows": full_filter_rows},
+                },
+                {
+                    "id": "fj_c2_left_preserving_or",
+                    "desc": "FULL JOIN filters retain every left row",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": [
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "where t1.ts >= '2024-01-01 12:00:00.000' and "
+                        "(t1.t_int = t2.t_int or t1.t_int != t2.t_int "
+                        "or t1.v_int is not null) order by t2.ts, t1.ts;",
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "where t1.ts >= '2024-01-01 12:00:00.000' and "
+                        "(t1.t_double = t2.t_double "
+                        "or t1.t_double != t2.t_double "
+                        "or t1.t_double > t2.t_double "
+                        "or t1.t_double <= t2.t_double "
+                        "or t1.v_double is not null) order by t2.ts, t1.ts;",
+                        "select t1.ts, t2.ts from db1_st1 t1 "
+                        "full join db1_st2 t2 on t1.ts=t2.ts "
+                        "where t1.ts >= '2024-01-01 12:00:00.000' and "
+                        "(t1.t_bool = t2.t_bool or t1.t_bool != t2.t_bool "
+                        "or t1.t_bool in (true, false) "
+                        "or t1.t_bool is not null) order by t2.ts, t1.ts;",
+                    ],
+                    "res": {"total_rows": 10, "rows": left_filter_rows},
                 },
                 {
                     "id": "fj_c3_1",
@@ -1201,7 +1276,6 @@ class TestJoin:
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t2.v_bigint > 0 or t1.v_bigint <= 0 or t2.v_bigint is null) where t1.v_bigint * t2.v_bigint > 0 or t1.v_bigint * t2.v_bigint is not null) group by tbname order by tbname;",
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t2.v_double > 0 or t1.v_double <= 0 or t2.v_double is null) where t1.v_double - t2.v_double != 0 or t1.v_double - t2.v_double = 0 or t1.v_double - t2.v_double is not null) group by tbname order by tbname;",
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') where t2.v_binary like '%abc%' or t2.v_binary not like '%abc%') group by tbname order by tbname;",
-                            "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t1.t_int = t2.t_int or t1.t_int != t2.t_int or t1.v_int is null) where t1.t_int = t2.t_int or t1.t_int != t2.t_int or t1.v_int is not null) group by tbname order by tbname;",
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t1.t_bigint = t2.t_bigint or t1.t_bigint != t2.t_bigint or t2.t_bigint > t1.t_bigint or t2.t_bigint <= t1.t_bigint or t1.v_bigint is not null) where t1.t_bigint = t2.t_bigint or t1.t_bigint != t2.t_bigint or t2.t_bigint > t1.t_bigint or t1.t_bigint <= t2.t_bigint or t1.v_bigint is null) group by tbname order by tbname;",
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t1.t_double = t2.t_double or t1.t_double != t2.t_double or t2.t_double > t1.t_double or t2.t_double <= t1.t_double or t1.v_double is not null) where t1.t_double = t2.t_double or t1.t_double != t2.t_double or t2.t_double > t1.t_double or t1.t_double <= t2.t_double or t1.v_double is null) group by tbname order by tbname;",
                             "select tbname, spread(v_bigint) from (select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname from db1_st1 t1 full join db1_st2 t2 on t1.ts=t2.ts and t2.ts <= now and (t1.t_binary = t2.t_binary or t1.t_binary != t2.t_binary or t1.t_binary like '%abc%' or t1.t_binary not like '%abc%' or t2.t_binary is not null) where t1.t_binary = t2.t_binary or t1.t_binary != t2.t_binary or t2.t_binary like '%abc%' or t2.t_binary not like '%abc%' or t1.t_binary is null) group by tbname order by tbname;",
@@ -1213,6 +1287,27 @@ class TestJoin:
                             "values": [[(0,1), (1,1)], [(17), (0)]]
                         }
                     }
+                },
+                {
+                    "id": "fj_c4_null_group",
+                    "desc": "Unmatched FULL JOIN rows form a NULL group",
+                    "is_ci": True,
+                    "exception": False,
+                    "sql": [
+                        "select tbname, spread(v_bigint) from "
+                        "(select t1.ts ts1, t2.ts ts2, t2.v_bigint, t2.tbname "
+                        "from db1_st1 t1 full join db1_st2 t2 "
+                        "on t1.ts=t2.ts and t2.ts <= now and "
+                        "(t1.t_int = t2.t_int or t1.t_int != t2.t_int "
+                        "or t1.v_int is null) where t1.t_int = t2.t_int "
+                        "or t1.t_int != t2.t_int or t1.v_int is not null) "
+                        "group by tbname order by tbname;",
+                    ],
+                    "res": {
+                        "total_rows": 3,
+                        "rows": [(None, None), ("db1_st2_ct1", 17),
+                                 ("db1_st2_ct2", 0)],
+                    },
                 },
                 {
                     "id": "fj_c4_2",
@@ -3465,6 +3560,10 @@ class TestJoin:
         """
         if expected_result:
             tdSql.checkEqual(len(query_result), expected_result["total_rows"])
+            if "rows" in expected_result:
+                for row, values in enumerate(expected_result["rows"]):
+                    for column, value in enumerate(values):
+                        tdSql.checkData(row, column, value)
             if "value_check" in expected_result.keys():
                 if expected_result["value_check"]["type"] == "equal":
                     tdSql.checkEqual(tdSql.queryResult, expected_result)

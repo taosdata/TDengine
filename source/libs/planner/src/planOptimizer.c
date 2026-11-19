@@ -31,6 +31,7 @@
 #include "systable.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tdef.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "scalar.h"
@@ -158,7 +159,6 @@ typedef struct SCpdIsMultiTableCondCxt {
   SSHashObj* pRightTbls;
   bool       havaLeftCol;
   bool       haveRightCol;
-  bool       condIsNull;
 } SCpdIsMultiTableCondCxt;
 
 typedef struct SCpdIsVtableTsCondCxt {
@@ -3542,33 +3542,6 @@ static int32_t pdcJoinHandleGrpJoinCond(SOptimizeContext* pCxt, SJoinLogicNode* 
   return TSDB_CODE_SUCCESS;
 }
 
-static EDealRes pdcCheckTableCondType(SNode* pNode, void* pContext) {
-  SCpdIsMultiTableCondCxt* pCxt = pContext;
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN:
-    case QUERY_NODE_FUNCTION: {
-      if (pdcJoinColInTableList(pNode, pCxt->pLeftTbls)) {
-        pCxt->havaLeftCol = true;
-      } else if (pdcJoinColInTableList(pNode, pCxt->pRightTbls)) {
-        pCxt->haveRightCol = true;
-      }
-
-      break;
-    }
-    case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOp = (SOperatorNode*)pNode;
-      if (OP_TYPE_IS_NULL == pOp->opType) {
-        pCxt->condIsNull = true;
-      }
-      break;
-    }
-    default:
-      break;
-  }
-
-  return DEAL_RES_CONTINUE;
-}
-
 static EDealRes pdcCheckVirtualTableCond(SNode* pNode, void* pContext) {
   SCpdIsVtableTsCondCxt* pCxt = pContext;
   switch (nodeType(pNode)) {
@@ -3835,74 +3808,21 @@ _return:
 }
 
 
-static int32_t pdcJoinGetOpTableCondTypes(SNode* pCond, SSHashObj* pLeftTables, SSHashObj* pRightTables,
-                                          bool* tableCondTypes) {
-  SCpdIsMultiTableCondCxt cxt = {.pLeftTbls = pLeftTables,
-                                 .pRightTbls = pRightTables,
-                                 .havaLeftCol = false,
-                                 .haveRightCol = false,
-                                 .condIsNull = false};
-  nodesWalkExpr(pCond, pdcCheckTableCondType, &cxt);
+typedef struct SPdcJoinNullContext {
+  SSHashObj* pLeftTables;
+  SSHashObj* pRightTables;
+} SPdcJoinNullContext;
 
-  if (cxt.havaLeftCol) {
-    if (cxt.haveRightCol) {
-      if (cxt.condIsNull) {
-        tableCondTypes[1] = true;
-        tableCondTypes[3] = true;
-      } else {
-        tableCondTypes[0] = true;
-        tableCondTypes[2] = true;
-      }
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (cxt.condIsNull) {
-      tableCondTypes[1] = true;
-    } else {
-      tableCondTypes[0] = true;
-    }
-
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (cxt.haveRightCol) {
-    if (cxt.condIsNull) {
-      tableCondTypes[3] = true;
-    } else {
-      tableCondTypes[2] = true;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t pdcJoinGetLogicTableCondTypes(SNode* pCond, SSHashObj* pLeftTables, SSHashObj* pRightTables,
-                                             bool* tableCondTypes) {
-  SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
-  int32_t              code = 0;
-  SNode*               pSCond = NULL;
-  FOREACH(pSCond, pLogicCond->pParameterList) {
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(pSCond)) {
-      code = pdcJoinGetLogicTableCondTypes(pSCond, pLeftTables, pRightTables, tableCondTypes);
-    } else {
-      code = pdcJoinGetOpTableCondTypes(pSCond, pLeftTables, pRightTables, tableCondTypes);
-    }
-
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
-    }
-  }
-
-  return code;
-}
-
-static int32_t pdcGetTableCondTypes(SNode* pCond, SSHashObj* pLeftTables, SSHashObj* pRightTables,
-                                    bool* tableCondTypes) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
-    return pdcJoinGetLogicTableCondTypes(pCond, pLeftTables, pRightTables, tableCondTypes);
-  } else {
-    return pdcJoinGetOpTableCondTypes(pCond, pLeftTables, pRightTables, tableCondTypes);
-  }
+static uint64_t pdcJoinNullColumnInputs(const SColumnNode* pColumn,
+                                        const void* pContext) {
+  const SPdcJoinNullContext* pCxt = pContext;
+  const char* pAlias = pColumn->tableAlias;
+  size_t len = strlen(pAlias);
+  bool left = NULL != tSimpleHashGet(pCxt->pLeftTables, pAlias, len);
+  bool right = NULL != tSimpleHashGet(pCxt->pRightTables, pAlias, len);
+  // An absent or ambiguous alias cannot prove either input's ownership.
+  if (left == right) return 0;
+  return left ? UINT64_C(1) : UINT64_C(2);
 }
 
 static bool pdcFullFeedsTemporal(const SJoinLogicNode* pJoin) {
@@ -3918,7 +3838,8 @@ static bool pdcFullFeedsTemporal(const SJoinLogicNode* pJoin) {
          IS_WINDOW_JOIN(pConsumer->subType);
 }
 
-static int32_t pdcRewriteTypeBasedOnConds(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
+static int32_t pdcRewriteTypeBasedOnConds(SOptimizeContext* pCxt,
+                                          SJoinLogicNode* pJoin) {
   // Preserve both sides until the default temporal key is selected.
   if (pdcFullFeedsTemporal(pJoin)) return TSDB_CODE_SUCCESS;
   if (JOIN_TYPE_INNER == pJoin->joinType || JOIN_STYPE_OUTER != pJoin->subType) {
@@ -3927,46 +3848,52 @@ static int32_t pdcRewriteTypeBasedOnConds(SOptimizeContext* pCxt, SJoinLogicNode
 
   SSHashObj* pLeftTables = NULL;
   SSHashObj* pRightTables = NULL;
-  int32_t    code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
+  int32_t code = collectTableAliasFromNodes(
+      nodesListGetNode(pJoin->node.pChildren, 0), &pLeftTables);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
 
-  code = collectTableAliasFromNodes(nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
+  code = collectTableAliasFromNodes(
+      nodesListGetNode(pJoin->node.pChildren, 1), &pRightTables);
   if (TSDB_CODE_SUCCESS != code) {
     tSimpleHashCleanup(pLeftTables);
     return code;
   }
 
-  bool tableCondTypes[4] = {0};
-  code = pdcGetTableCondTypes(pJoin->node.pConditions, pLeftTables, pRightTables, tableCondTypes);
+  SPdcJoinNullContext context = {
+      .pLeftTables = pLeftTables, .pRightTables = pRightTables};
+  // A referenced column alone does not prove NULL rejection: CASE and
+  // non-strict functions can still produce a TRUE filter result.
+  uint64_t rejects = planCondRejectsNull(pJoin->node.pConditions, UINT64_C(3),
+                                         pdcJoinNullColumnInputs, &context);
+  bool rejectsLeft = 0 != (rejects & UINT64_C(1));
+  bool rejectsRight = 0 != (rejects & UINT64_C(2));
   tSimpleHashCleanup(pLeftTables);
   tSimpleHashCleanup(pRightTables);
 
-  if (TSDB_CODE_SUCCESS != code) return code;
-
   switch (pJoin->joinType) {
     case JOIN_TYPE_LEFT:
-      if (tableCondTypes[2] && !tableCondTypes[3]) {
+      if (rejectsRight) {
         pJoin->joinType = JOIN_TYPE_INNER;
         pJoin->subType = JOIN_STYPE_NONE;
       }
       break;
     case JOIN_TYPE_RIGHT:
-      if (tableCondTypes[0] && !tableCondTypes[1]) {
+      if (rejectsLeft) {
         pJoin->joinType = JOIN_TYPE_INNER;
         pJoin->subType = JOIN_STYPE_NONE;
       }
       break;
     case JOIN_TYPE_FULL:
-      if (tableCondTypes[0] && !tableCondTypes[1]) {
-        if (tableCondTypes[2] && !tableCondTypes[3]) {
+      if (rejectsLeft) {
+        if (rejectsRight) {
           pJoin->joinType = JOIN_TYPE_INNER;
           pJoin->subType = JOIN_STYPE_NONE;
         } else {
           pJoin->joinType = JOIN_TYPE_LEFT;
         }
-      } else if (tableCondTypes[2] && !tableCondTypes[3]) {
+      } else if (rejectsRight) {
         pJoin->joinType = JOIN_TYPE_RIGHT;
       }
       break;
@@ -4298,6 +4225,59 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     nodesDestroyNode(pRightChildCond);
   }
 
+  return code;
+}
+
+void planResetJoinRewriteFlags(SLogicNode* pNode) {
+  for (; NULL != pNode; pNode = pNode->pParent) {
+    int32_t mask = OPTIMIZE_FLAG_PUSH_DOWN_CONDE | OPTIMIZE_FLAG_JOIN_COND;
+    if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pNode)) {
+      const SJoinLogicNode* pJoin = (const SJoinLogicNode*)pNode;
+      if (IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) {
+        // PDC reentry can discard an already bound temporal time key.
+        mask = OPTIMIZE_FLAG_JOIN_COND;
+      }
+    }
+    OPTIMIZE_FLAG_CLEAR_MASK(pNode->optimizedFlag, mask);
+  }
+}
+
+static int32_t checkJoinRewriteConditionsImpl(SOptimizeContext* pCxt,
+                                             SLogicNode* pRoot) {
+  if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pRoot)) {
+    SJoinLogicNode* pJoin = (SJoinLogicNode*)pRoot;
+    // Keep temporal keys bound while checking any rewritten descendants.
+    if (!IS_ASOF_JOIN(pJoin->subType) && !IS_WINDOW_JOIN(pJoin->subType)) {
+      PLAN_ERR_RET(pdcDealJoin(pCxt, pJoin));
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pRoot->pChildren) {
+    PLAN_ERR_RET(checkJoinRewriteConditionsImpl(pCxt, (SLogicNode*)pChild));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t planCheckJoinRewriteConditions(SPlanContext* pCxt, SLogicNode* pRoot,
+                                       bool* pSupported) {
+  if (NULL == pSupported) return TSDB_CODE_INVALID_PARA;
+  *pSupported = false;
+  if (NULL == pCxt || NULL == pRoot) return TSDB_CODE_INVALID_PARA;
+
+  // Candidate rejection must not overwrite the original query's diagnostic.
+  SPlanContext cxt = *pCxt;
+  cxt.msgLen = TMAX(cxt.msgLen, TSDB_ERROR_MSG_LEN);
+  cxt.pMsg = taosMemoryCalloc(1, cxt.msgLen);
+  if (NULL == cxt.pMsg) return terrno;
+  SOptimizeContext optimizeCxt = {.pPlanCxt = &cxt};
+  int32_t code = checkJoinRewriteConditionsImpl(&optimizeCxt, pRoot);
+  taosMemoryFree(cxt.pMsg);
+
+  if (TSDB_CODE_PAR_NOT_SUPPORT_JOIN == code ||
+      TSDB_CODE_PLAN_NOT_SUPPORT_JOIN_COND == code) {
+    return TSDB_CODE_SUCCESS;
+  }
+  *pSupported = TSDB_CODE_SUCCESS == code;
   return code;
 }
 
@@ -8142,7 +8122,7 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
     SJoinLogicNode* pJoin = (SJoinLogicNode*)pParent;
     if ((IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) &&
         NULL == pJoin->addPrimEqCond && NULL == pJoin->pPrimKeyEqCond) {
-      // Default selection still needs each input's public column order.
+      // Unbound defaults still need each input's public column order.
       return false;
     }
   }
@@ -11923,6 +11903,36 @@ _return:
   return res;
 }
 
+void planRefreshJoinRewriteOrder(SJoinLogicNode* pJoin) {
+  if (JOIN_ALGO_UNKNOWN != pJoin->joinAlgo ||
+      IS_ASOF_JOIN(pJoin->subType) || IS_WINDOW_JOIN(pJoin->subType)) return;
+  SLogicNode* pNode = &pJoin->node;
+  pNode->outputTsOrder = TSDB_ORDER_NONE;
+  if (NULL == pJoin->pPrimKeyEqCond ||
+      QUERY_NODE_OPERATOR != nodeType(pJoin->pPrimKeyEqCond)) return;
+  const SOperatorNode* pKey = (const SOperatorNode*)pJoin->pPrimKeyEqCond;
+  const SNode* keys[] = {pKey->pLeft, pKey->pRight};
+  for (size_t i = 0; i < sizeof(keys) / sizeof(keys[0]); ++i) {
+    if (NULL == keys[i] || QUERY_NODE_COLUMN != nodeType(keys[i]) ||
+        PRIMARYKEY_TIMESTAMP_COL_ID != ((const SColumnNode*)keys[i])->colId ||
+        TSDB_DATA_TYPE_TIMESTAMP != ((const SExprNode*)keys[i])->resType.type) {
+      return;
+    }
+  }
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (hashJoinOptShouldBeOptimized(pNode, &code) ||
+      TSDB_CODE_SUCCESS != code ||
+      JOIN_MERGE_INPUT_READY != joinClassifyMergeInputs(pJoin, true)) return;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    if (((SLogicNode*)pChild)->outputTsOrder != pNode->inputTsOrder) return;
+  }
+  // Rebuilt children must expose their proven order before the parent is
+  // considered by HashJoin. Constants and derived time keys prove no order
+  // for physical timestamps, and genuine secondary Hash keys stay unordered.
+  pNode->outputTsOrder = pNode->inputTsOrder;
+}
+
 static SLogicNode* hashJoinOptFindPossibleNode(SLogicNode* pNode, int32_t* pCode) {
   SNode* pChild = NULL;
   FOREACH(pChild, pNode->pChildren) {
@@ -12119,24 +12129,16 @@ static int32_t hashJoinOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   return hashJoinOptRewriteJoin(pCxt, pNode);
 }
 
-static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
-  if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode) ||
-      OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_STB_JOIN)) {
-    return false;
-  }
+static bool stbJoinOptAlgoAllowed(const SJoinLogicNode* pJoin) {
+  return !pJoin->multiGroupJoin && JOIN_ALGO_MERGE != pJoin->joinAlgoHint &&
+         (JOIN_ALGO_HASH != pJoin->joinAlgoHint ||
+          JOIN_ALGO_UNKNOWN != pJoin->joinAlgo);
+}
 
-  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
-  if (pJoin->multiGroupJoin || JOIN_ALGO_MERGE == pJoin->joinAlgoHint ||
-      (JOIN_ALGO_HASH == pJoin->joinAlgoHint && pJoin->joinAlgo == JOIN_ALGO_UNKNOWN)) {
-    return false;
-  }
-  if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
-    (void)joinClassifyMergeInputs(pJoin, true);
-    pJoin->joinAlgo = JOIN_ALGO_MERGE;
-  }
-
-  if (JOIN_STYPE_NONE != pJoin->subType || pJoin->isSingleTableJoin || NULL == pJoin->pTagEqCond ||
-      pNode->pChildren->length != 2 || pJoin->isLowLevelJoin) {
+static bool stbJoinOptHasShape(const SJoinLogicNode* pJoin) {
+  if (JOIN_STYPE_NONE != pJoin->subType || pJoin->isSingleTableJoin ||
+      NULL == pJoin->pTagEqCond || pJoin->node.pChildren->length != 2 ||
+      pJoin->isLowLevelJoin) {
     return false;
   }
 
@@ -12156,6 +12158,31 @@ static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
   }
 
   return true;
+}
+
+// OPTIMIZE_FLAG_STB_JOIN only means a rule has processed the JOIN; HashJoin
+// sets it too. JOINs that StableJoin converted sit below DYN_QUERY_CTRL.
+bool planJoinMayBeStableJoin(const SJoinLogicNode* pJoin) {
+  return !OPTIMIZE_FLAG_TEST_MASK(pJoin->node.optimizedFlag,
+                                  OPTIMIZE_FLAG_STB_JOIN) &&
+         stbJoinOptAlgoAllowed(pJoin) && stbJoinOptHasShape(pJoin);
+}
+
+static bool stbJoinOptShouldBeOptimized(SLogicNode* pNode, void* pCtx) {
+  if (QUERY_NODE_LOGIC_PLAN_JOIN != nodeType(pNode) ||
+      OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_STB_JOIN)) {
+    return false;
+  }
+
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)pNode;
+  if (!stbJoinOptAlgoAllowed(pJoin)) {
+    return false;
+  }
+  if (pJoin->joinAlgo == JOIN_ALGO_UNKNOWN) {
+    (void)joinClassifyMergeInputs(pJoin, true);
+    pJoin->joinAlgo = JOIN_ALGO_MERGE;
+  }
+  return stbJoinOptHasShape(pJoin);
 }
 
 int32_t addFuncToScanNode(char* funcName, SScanLogicNode* pScan) {
@@ -18759,6 +18786,11 @@ static int32_t intervalLimitOptimize(SOptimizeContext* pCxt,
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t joinParallelOptimize(SOptimizeContext* pCxt,
+                                    SLogicSubplan* pSubplan) {
+  return planRewriteJoinParallel(pCxt->pPlanCxt, pSubplan, &pCxt->optimized);
+}
+
 // DISTINCT aggregates no longer use a plan node. COUNT/SUM/AVG dedup internally via
 // SSpillDistinctSet (see builtinsimpl.c), which handles multi-column DISTINCT, mixing DISTINCT
 // with plain aggregates, and spilling past a memory budget -- none of which the row-deleting
@@ -19103,6 +19135,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "FqUnionDedup",               .optimizeFunc = fqUnionDeduplicateOptimize},
   {.pName = "JoinCondOptimize",           .optimizeFunc = joinCondOptimize},
   {.pName = "AsofJoinCondOptimize",       .optimizeFunc = asofJoinCondOptimize},
+  {.pName = "JoinParallel",               .optimizeFunc = joinParallelOptimize},
   {.pName = "HashJoin",                   .optimizeFunc = hashJoinOptimize},
   {.pName = "StableJoin",                 .optimizeFunc = stableJoinOptimize},
   {.pName = "EliminateTemporalInputSort",

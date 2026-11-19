@@ -220,6 +220,18 @@ FROM meters a JOIN meters b ON a.voltage < b.voltage;
 
 For general syntax and other options, see [Hints in Data Querying](./01-query.md#hints).
 
+## Parallel Execution for Multi-Table Joins
+
+For eligible queries that join multiple tables, the system automatically
+schedules independent join operations to run in parallel to reduce query
+execution time. No SQL changes are required, and query results remain
+unchanged. Operations that cannot run in parallel retain their existing
+execution behavior.
+
+Whether joins can run in parallel depends on the query structure and join
+conditions. Performance gains depend on data volume, data distribution, and
+available resources.
+
 ## Syntax Explanation
 
 The following sections describe Left and Right Join together. In expressions such as "left/right", the part before `/` applies to Left Join and the part after `/` applies to Right Join.
@@ -436,7 +448,7 @@ operations within the window.
 ```sql
 SELECT ... FROM table_reference1
 LEFT|RIGHT WINDOW JOIN table_reference2 [ON ...]
-[WINDOW_TIME(left_time_column, right_time_column)]
+[WINDOW_TIME(left_time_expression, right_time_expression)]
 WINDOW_OFFSET(start_offset, end_offset)
 [JLIMIT jlimit_num] [WHERE ...] [...]
 ```
@@ -446,7 +458,7 @@ WINDOW_OFFSET(start_offset, end_offset)
 One of the following:
 
 - Each left/right row paired with up to `jlimit_num` right/left rows within the
-  window defined by the driving row's primary timestamp and `WINDOW_OFFSET`, or
+  window defined by the driving row's time reference and `WINDOW_OFFSET`, or
   with `NULL` values if no match exists.
 - Each left/right row combined with aggregate results over up to `jlimit_num`
   rows in that window. With no matches, the result depends on the aggregate
@@ -466,12 +478,11 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
 
 - The `ON` clause is optional, only supports specifying equality conditions between tags and normal columns (excluding scalar functions and operations) other than the primary key column for grouped calculations, and only supports `AND` operations between all conditions;
 - `WINDOW_OFFSET` is used to specify the left and right boundaries of the window
-  relative to the primary key timestamp of the left/right table, supporting
-  formats with built-in time units, for example: `WINDOW_OFFSET(-1a, 1a)` for a
-  Left Window Join, represents each window as
-  [left table primary key timestamp - 1 millisecond,
-  left table primary key timestamp + 1 millisecond], with both boundaries
-  included. The time units following the numbers can be
+  relative to each preserved-side row's time reference. Offsets support time
+  units, such as `WINDOW_OFFSET(-1a, 1a)`. For Left Window Join, each window
+  is `[left time reference - 1 ms, left time reference + 1 ms]`.
+  Right Window Join uses the right time reference to construct the window.
+  Both boundaries are inclusive. The time units following the numbers can be
   `b` (nanoseconds), `u` (microseconds), `a` (milliseconds), `s` (seconds), `m`
   (minutes), `h` (hours), `d` (days), `w` (weeks), does not support natural
   months (`n`), natural years (`y`), and the smallest supported time unit is the
@@ -481,15 +492,20 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
   window. By default, all matching rows are used. The range is `[0, 1024]`;
   `JLIMIT 0` returns an empty result. If the input being matched has fewer than
   `jlimit_num` matches, fewer rows may be returned. If it has more, the
-  `jlimit_num` rows with the earliest primary timestamps in the window are used.
+  `jlimit_num` rows with the smallest time reference values are used.
+  The order among rows with equal time reference values is unspecified.
 - SQL statements cannot contain other `GROUP BY`/`PARTITION BY`/window queries;
 - Supports scalar filtering in the `WHERE` clause, supports aggregation function filtering for each window in the `HAVING` clause (does not support scalar filtering), does not support `SLIMIT`, does not support various window pseudocolumns;
 - The first `WINDOW_TIME` argument is resolved only in the left input, and the
-  second only in the right input. Arguments must be `TIMESTAMP` columns and can
-  be qualified by input aliases. Constants, functions, and other expressions
-  are not supported.
+  second only in the right input. Arguments can be `TIMESTAMP` columns,
+  `TIMESTAMP` constants, or row-level scalar expressions returning `TIMESTAMP`.
+  Columns can be qualified by input aliases. Expressions can reference only
+  columns from the corresponding input. Aggregate functions, window functions,
+  subqueries, and nondeterministic functions such as `RAND()` are not supported.
+  Plain strings are not `TIMESTAMP` values; use `TIMESTAMP '...'` or an explicit
+  cast.
 - Actual tables, virtual tables, and FROM subqueries can specify a non-primary
-  key `TIMESTAMP` column.
+  key `TIMESTAMP` column or a time expression.
 - Without `WINDOW_TIME`, actual and virtual tables use their primary timestamp
   column. A FROM subquery prefers the first `TIMESTAMP` column in its output
   list that preserves primary timestamp semantics. If no such column exists,
@@ -500,6 +516,16 @@ as inputs, see [Mixed Nested Joins](#mixed-nested-joins).
   returned as unmatched rows.
 
 #### Examples
+
+The following query adds one second to each `d1001` row's timestamp
+and matches rows in `d1002` at that time:
+
+```sql
+SELECT a.ts, b.ts
+FROM d1001 a LEFT WINDOW JOIN d1002 b
+WINDOW_TIME(a.ts + 1s, b.ts)
+WINDOW_OFFSET(0s, 0s);
+```
 
 For each row in `d1001` whose voltage exceeds 220V, return voltages from `d1002` within one second before or after its timestamp:
 

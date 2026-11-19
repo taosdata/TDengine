@@ -1503,19 +1503,22 @@ def pytest_collection_modifyitems(config, items):
                 )  # 有效，名称可以修改
                 tdLog.debug(item.name)
                 tdLog.debug(item._nodeid)
-                params = {"params": name_suffix}  # 你的参数组合
-                param_ids = [name_suffix]  # 自定义参数ID
+                # Preserve pytest's callspec for existing parametrized items.
+                if not hasattr(item, "callspec"):
+                    params = {"params": name_suffix}  # 你的参数组合
+                    param_ids = [name_suffix]  # 自定义参数ID
 
-                # 创建参数化标记
-                marker = pytest.mark.parametrize(
-                    argnames="params", argvalues=[name_suffix], ids=param_ids
-                )
-                item.add_marker(marker)
+                    # 创建参数化标记
+                    marker = pytest.mark.parametrize(
+                        argnames="params", argvalues=[name_suffix],
+                        ids=param_ids
+                    )
+                    item.add_marker(marker)
 
-                # 确保Allure能识别新参数
-                item.callspec = type(
-                    "CallSpec", (), {"params": params, "id": param_ids[0]}
-                )
+                    # 确保Allure能识别新参数
+                    item.callspec = type(
+                        "CallSpec", (), {"params": params, "id": param_ids[0]}
+                    )
 
             # 检查是否在测试列表中
             if testlist_file:

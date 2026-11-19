@@ -2887,8 +2887,7 @@ static SJoinOutputCol* resolveJoinOutput(const SJoinInputProps* pProps,
     SJoinOutputCol* pOutput = taosArrayGet(pProps->pOutputCols, i);
     SColumnNode* pCol = (SColumnNode*)pOutput->pExpr;
     if (joinColumnIdsEqual(&pOutput->id, &id) &&
-        0 == strcmp(pCol->tableAlias, pRequired->tableAlias) &&
-        0 == strcmp(pCol->colName, pRequired->colName)) return pOutput;
+        planJoinColumnNamesEqual(pCol, pRequired)) return pOutput;
   }
   return NULL;
 }
@@ -3963,6 +3962,21 @@ int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot) {
   return code;
 }
 
+int32_t planRefreshJoinRewriteInputs(SPlanContext* pCxt, SLogicNode* pRoot) {
+  if (NULL == pCxt || NULL == pRoot) return TSDB_CODE_INVALID_PARA;
+
+  // Resolve against lineage first; targets may omit columns needed by parents.
+  int32_t code = planRebuildJoinInputProps(pCxt, pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = planRebuildJoinInputProps(pCxt, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS != code) planDestroyJoinPropsStore(pCxt);
+  return code;
+}
+
 static int32_t cloneTemporalTimeKey(SNode* pExpr, int8_t precision,
                                     SNode** ppKey) {
   if (((SExprNode*)pExpr)->resType.precision == precision) {
@@ -4058,6 +4072,95 @@ static int32_t missingJoinTime(SPlanContext* pCxt, int32_t side) {
   return TSDB_CODE_PAR_INVALID_TIMELINE_QUERY;
 }
 
+// Optional selected-key outputs borrow storage from the JOIN properties.
+// Consume them before rebuilding or destroying the property store.
+static int32_t createDefaultTemporalTimeCond(SPlanContext* pCxt,
+                                             SJoinLogicNode* pJoin,
+                                             SOperatorNode** ppCond,
+                                             SJoinOutputCol* pSelectedKeys[2]) {
+  SJoinOutputCol* pKeys[2] = {NULL, NULL};
+  for (int32_t i = 0; i < 2; ++i) {
+    SLogicNode* pChild =
+        (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, i);
+    SJoinInputProps* pInput =
+        getJoinInputProps(pCxt->pJoinPropsStore, pChild);
+    if (NULL == pInput) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    pKeys[i] = selectJoinTimeCandidate(pInput);
+    if (NULL == pKeys[i]) return missingJoinTime(pCxt, i);
+  }
+
+  SOperatorNode* pCond = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pCond));
+  pCond->opType = IS_WINDOW_JOIN(pJoin->subType) ? OP_TYPE_EQUAL :
+      JOIN_TYPE_LEFT == pJoin->joinType ? OP_TYPE_GREATER_EQUAL :
+                                         OP_TYPE_LOWER_EQUAL;
+  pCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  int8_t precision = TMAX(pKeys[0]->type.precision,
+                          pKeys[1]->type.precision);
+  int32_t code = cloneTemporalTimeKey(pKeys[0]->pExpr, precision,
+                                    &pCond->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cloneTemporalTimeKey(pKeys[1]->pExpr, precision, &pCond->pRight);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCond);
+    return code;
+  }
+  *ppCond = pCond;
+  if (NULL != pSelectedKeys) {
+    pSelectedKeys[0] = pKeys[0];
+    pSelectedKeys[1] = pKeys[1];
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Bind default time keys for ASOF/WINDOW JOINs with nested JOIN inputs,
+// preserving their selection across later JOIN rewrites.
+int32_t planBindTemporalJoinTimeKeys(SPlanContext* pCxt,
+                                     SJoinLogicNode* pJoin) {
+  if (NULL == pCxt || NULL == pJoin) return TSDB_CODE_INVALID_PARA;
+  if (!IS_ASOF_JOIN(pJoin->subType) && !IS_WINDOW_JOIN(pJoin->subType)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != planGetTemporalJoinTimeCond(pJoin)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (2 != LIST_LENGTH(pJoin->node.pChildren)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  SLogicNode* pLeft =
+      (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight =
+      (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  if (!logicTreeHasJoin(pLeft) && !logicTreeHasJoin(pRight)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Earlier optimizer rules can invalidate the context's cached properties.
+  PLAN_ERR_RET(planRebuildJoinInputProps(pCxt, &pJoin->node));
+  SOperatorNode* pCond = NULL;
+  SJoinOutputCol* pKeys[2] = {NULL, NULL};
+  int32_t code = createDefaultTemporalTimeCond(pCxt, pJoin, &pCond, pKeys);
+  // Creation could not filter these inputs before the default key was known.
+  for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < 2; ++i) {
+    SLogicNode* pChild = 0 == i ? pLeft : pRight;
+    if (logicTreeHasJoin(pChild)) continue;
+    if (pKeys[i]->nullable) {
+      // A filtered Project stays, matching deferred key selection.
+      code = addTemporalJoinNullFilter(pChild, pKeys[i]->pExpr);
+    }
+  }
+  planDestroyJoinPropsStore(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCond);
+    return code;
+  }
+
+  pJoin->addPrimEqCond = (SNode*)pCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
                                        SLogicNode* pNode) {
   SNode* pChildNode = NULL;
@@ -4083,33 +4186,8 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
       NULL != pJoin->pPrimKeyEqCond ? pJoin->pPrimKeyEqCond :
                                     pJoin->addPrimEqCond);
   bool deferred = NULL == pCond;
-  if (deferred) {
-    SJoinOutputCol* pKeys[2] = {NULL, NULL};
-    for (int32_t i = 0; i < 2; ++i) {
-      SLogicNode* pChild =
-          (SLogicNode*)nodesListGetNode(pNode->pChildren, i);
-      SJoinInputProps* pInput = getJoinInputProps(pStore, pChild);
-      pKeys[i] = selectJoinTimeCandidate(pInput);
-      if (NULL == pKeys[i]) return missingJoinTime(pCxt, i);
-    }
-    PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pCond));
-    pCond->opType = IS_WINDOW_JOIN(pJoin->subType) ? OP_TYPE_EQUAL :
-        JOIN_TYPE_LEFT == pJoin->joinType ? OP_TYPE_GREATER_EQUAL :
-                                           OP_TYPE_LOWER_EQUAL;
-    pCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
-    pCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-    int8_t precision = TMAX(pKeys[0]->type.precision,
-                             pKeys[1]->type.precision);
-    int32_t code = cloneTemporalTimeKey(pKeys[0]->pExpr, precision,
-                                        &pCond->pLeft);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = cloneTemporalTimeKey(pKeys[1]->pExpr, precision,
-                                  &pCond->pRight);
-    }
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pCond);
-      return code;
-    }
+  if (NULL == pCond) {
+    PLAN_ERR_RET(createDefaultTemporalTimeCond(pCxt, pJoin, &pCond, NULL));
     pJoin->addPrimEqCond = (SNode*)pCond;
   }
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
@@ -4122,6 +4200,34 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
     SJoinInputProps* pInput = getJoinInputProps(pStore, pChild);
     SNode* pKey = asofJoinInputTimeColumn(
         0 == i ? pCond->pLeft : pCond->pRight);
+    if (IS_WINDOW_JOIN(pJoin->subType) &&
+        QUERY_NODE_COLUMN != nodeType(pKey)) {
+      SNodeList* pCols = NULL;
+      int32_t code = nodesCollectColumnsFromNode(pKey, NULL,
+                                                 COLLECT_COL_TYPE_ALL, &pCols);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      SNode* pRef = NULL;
+      FOREACH(pRef, pCols) {
+        SJoinOutputCol* pCol = resolveJoinOutput(pInput, pRef);
+        if (NULL == pCol) {
+          code = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+          break;
+        }
+        if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+          code = appendRequiredJoinTarget(pInput, (SJoinLogicNode*)pChild,
+                                          (SColumnNode*)pCol->pExpr,
+                                          &pCol->id);
+          if (TSDB_CODE_SUCCESS != code) break;
+        }
+      }
+      nodesDestroyList(pCols);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+        PLAN_ERR_RET(propagateJoinRequiredColumns(pStore, pChild));
+      }
+      nullable[i] = true;
+      continue;
+    }
     SJoinOutputCol* pCol = resolveJoinOutput(pInput, pKey);
     if (NULL != pCol && QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
       PLAN_ERR_RET(appendRequiredJoinTarget(
@@ -4129,6 +4235,7 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
           &pCol->id));
       PLAN_ERR_RET(propagateJoinRequiredColumns(pStore, pChild));
     }
+    // Bound keys already filtered non-JOIN inputs during creation or binding.
     nullable[i] = NULL != pCol && pCol->nullable &&
                   (deferred || logicTreeHasJoin(pChild));
     if (logicTreeHasJoin(pChild)) {
