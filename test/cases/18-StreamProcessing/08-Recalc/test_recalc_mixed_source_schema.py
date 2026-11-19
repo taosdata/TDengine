@@ -4,8 +4,15 @@
 import time
 
 import pytest
+from taos.error import ProgrammingError
+from taosrest.errors import ConnectError
 
-from new_test_framework.utils import tdLog, tdSql, tdStream
+from new_test_framework.utils import (
+    TSDB_CODE_PAR_TABLE_NOT_EXIST,
+    tdLog,
+    tdSql,
+    tdStream,
+)
 
 
 class TestRecalcMixedSourceSchema:
@@ -13,16 +20,43 @@ class TestRecalcMixedSourceSchema:
         tdLog.debug(f"start to execute {__file__}")
 
     @staticmethod
-    def _wait(sql, expected):
+    def _fetch(sql):
+        """Run one poll attempt without reporting the expected miss as an error.
+
+        tdSql.query() logs an ERROR for every failed attempt; the sink table is
+        expected to be absent for a short while, so query the cursor directly and
+        let _wait decide which errors are tolerable.
+        """
+        tdSql.cursor.execute(sql)
+        return [tuple(row) for row in tdSql.cursor.fetchall()]
+
+    @staticmethod
+    def _wait(sql, expected, *, wait_for_creation=False):
         deadline = time.monotonic() + 60
         rows = []
+        last_error = None
         while time.monotonic() < deadline:
-            tdSql.query(sql, queryTimes=1)
-            rows = list(tdSql.queryResult)
-            if rows == expected:
-                return
+            try:
+                rows = TestRecalcMixedSourceSchema._fetch(sql)
+            except (ProgrammingError, ConnectError) as error:
+                # Stream sink tables are created asynchronously: a Trigger task can
+                # be Running before its sink table becomes visible on a loaded node.
+                if (
+                    not wait_for_creation
+                    or not isinstance(error.errno, int)
+                    or (error.errno & 0xFFFF) != TSDB_CODE_PAR_TABLE_NOT_EXIST
+                ):
+                    raise
+                last_error = error
+                rows = []
+            else:
+                wait_for_creation = False
+                last_error = None
+                if rows == expected:
+                    return
             time.sleep(0.2)
-        raise AssertionError(f"{sql}: expected {expected}, got {rows}")
+        detail = f", last error: {last_error}" if last_error is not None else ""
+        raise AssertionError(f"{sql}: expected {expected}, got {rows}{detail}")
 
     @staticmethod
     def _insert(db, ts, value):
@@ -36,7 +70,7 @@ class TestRecalcMixedSourceSchema:
         tdSql.execute(f"insert into {db}.normal_b values ({ts},{value + 2},'text')")
 
     @pytest.mark.parametrize("flush", [False, True], ids=["memory", "disk_and_memory"])
-    def test_recalc_mixed_source_schema(self, flush):
+    def test_recalc_mixed_source_schema(self, flush, request):
         """Stream metadata scans preserve each source table's schema identity.
 
         1. Put two different stable schemas and two ordinary schemas in one vnode.
@@ -54,14 +88,23 @@ class TestRecalcMixedSourceSchema:
 
         History:
             - 2026-11-17 OpenAI Created
+            - 2026-11-19 Alex Duan Tolerate a not-yet-created sink table and drop the stream before the database
+            - 2026-11-19 OpenAI Limit missing-table retries to sink creation and clean up failed cases
+            - 2026-11-19 OpenAI Apply the same readiness and result checks to REST cursors
         """
         tdStream.ensureSnode(1)
         db = f"recalc_schema_{int(flush)}"
         stream = f"schema_stream_{int(flush)}"
         base = (int(time.time() * 1000) // 60000 - 60) * 60000
+
+        def cleanup():
+            tdSql.execute(f"drop stream if exists {db}.{stream}")
+            tdSql.execute(f"drop database if exists {db}")
+
+        cleanup()
+        tdSql.execute(f"create database {db} vgroups 1")
+        request.addfinalizer(cleanup)
         tdSql.executes([
-            f"drop database if exists {db}",
-            f"create database {db} vgroups 1",
             f"create stable {db}.wide (ts timestamp,"
             + ",".join(f"d{i} double" for i in range(1, 12))
             + ",reason nchar(254),detail nchar(254),begin_ts timestamp,end_ts timestamp) tags(id int)",
@@ -90,7 +133,7 @@ class TestRecalcMixedSourceSchema:
         )
         tdStream.checkStreamStatus()
         result = f"select n,sx,sy,sz,sw from {db}.result where ts={base}"
-        self._wait(result, [(3, 60.0, 6, 9, 12.0)])
+        self._wait(result, [(3, 60.0, 6, 9, 12.0)], wait_for_creation=True)
 
         # Establish realtime progress before requesting manual history replay.
         recent = (int(time.time() * 1000) // 60000 + 1) * 60000
@@ -106,4 +149,3 @@ class TestRecalcMixedSourceSchema:
             f"where stream_name='{stream}'",
             [("Finished", "100%")],
         )
-        tdSql.execute(f"drop database {db}")

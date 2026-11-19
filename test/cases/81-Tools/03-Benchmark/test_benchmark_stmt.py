@@ -14,11 +14,25 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, etool, sc
+from new_test_framework.utils import (
+    tdLog,
+    tdSql,
+    etool,
+    sc,
+    TSDB_CODE_PAR_TABLE_NOT_EXIST,
+)
+from taos.error import ProgrammingError
+from taosrest.errors import ConnectError
 import json
 import os
-import threading
+import psutil
+import subprocess
 import time
+
+
+STMT2_RETRY_JSON = os.path.join(
+    os.path.dirname(__file__), "json", "stmt2_insert_retry-stb.json"
+)
 
 
 class TestBenchmarkStmt:
@@ -244,35 +258,71 @@ class TestBenchmarkStmt:
     #
     # ------------------- test_stmt2_insert_retry_json_stb.py ----------------
     #
-    def dbInsertThread(self):
-        tdLog.info(f"dbInsertThread start")
-        # taosBenchmark run
-        binPath = etool.benchMarkFile()
-        cmd = "%s -f %s/json/stmt2_insert_retry-stb.json" % (binPath, os.path.dirname(__file__))
-        output, error, code = etool.run(cmd, ret_code=True)
-        if code != 0:
-            print(f"taosBenchmark run failed, cmd:{cmd} output:{output} error:{error} code:{code}")
-            tdLog.exit("dbInsertThread run taosBenchmark failed")
-
-    def restartTaosdThread(self):
-        time.sleep(5)
-        # Stop only the server; stopAll also terminates the benchmark on Windows.
-        sc.dnodeStop(1)
-        time.sleep(3)
-        sc.dnodeStart(1)    
+    def waitStmt2Progress(self, writing, totalRows):
+        deadline = time.monotonic() + 60
+        inserted = 0
+        while time.monotonic() < deadline:
+            if writing.poll() is not None:
+                raise AssertionError(f"taosBenchmark exited before restart: {writing.returncode}")
+            stables = tdSql.query(
+                "select stable_name from information_schema.ins_stables "
+                "where db_name='test' and stable_name='meters'",
+                row_tag=True, queryTimes=1,
+            )
+            if stables:
+                try:
+                    rows = tdSql.query("select count(*) from test.meters", row_tag=True, queryTimes=1)
+                except (ProgrammingError, ConnectError) as error:
+                    if (
+                        not isinstance(error.errno, int)
+                        or (error.errno & 0xFFFF) != TSDB_CODE_PAR_TABLE_NOT_EXIST
+                    ):
+                        raise
+                else:
+                    inserted = rows[0][0] if rows else 0
+                    if inserted >= totalRows:
+                        raise AssertionError(f"All {inserted} rows were committed before restart")
+                    if inserted > 0:
+                        return inserted
+            time.sleep(0.1)
+        raise AssertionError(f"Timed out waiting for partial stmt2 writes: {inserted}/{totalRows}")
 
     def do_stmt2_insert_retry_json_stb(self):
-        t1 = threading.Thread(target=self.dbInsertThread)
-        t2 = threading.Thread(target=self.restartTaosdThread)
-        
-        t1.start()
-        t2.start()
-        # wait thread end 
-        t1.join()
-        t2.join()
-        
-        tdSql.query("select count(*) from test.meters")
-        tdSql.checkData(0, 0, 100)
+        totalRows = 100
+        countSql = "select count(*) from test.meters"
+        bootSql = "select cast(reboot_time as bigint) from information_schema.ins_dnodes where id=1"
+        tdSql.execute("drop database if exists test")
+        boot = tdSql.query(bootSql, row_tag=True)[0][0]
+        with subprocess.Popen([etool.benchMarkFile(), "-f", STMT2_RETRY_JSON]) as writing:
+            try:
+                inserted = self.waitStmt2Progress(writing, totalRows)
+                writer = psutil.Process(writing.pid)
+                sc.dnodeStop(1)
+                try:
+                    time.sleep(3)
+                    # Let the writer see the outage, then hold it while we count durable rows.
+                    writer.suspend()
+                finally:
+                    sc.dnodeStart(1)
+                tdSql.checkResultsByFunc(bootSql, lambda: tdSql.queryResult[0][0] > boot, retry=60)
+                rows = tdSql.query(countSql, row_tag=True)
+                recovered = rows[0][0] if rows else 0
+                assert inserted <= recovered < totalRows, (
+                    f"Expected pending writes after restart: before={inserted}, "
+                    f"recovered={recovered}, total={totalRows}"
+                )
+                tdLog.info(f"stmt2 committed rows before stop: {inserted}, after restart: {recovered}")
+                writer.resume()
+                code = writing.wait(timeout=120)
+                assert code == 0, f"taosBenchmark exited with code {code}"
+            except psutil.NoSuchProcess as error:
+                raise AssertionError(f"taosBenchmark exited during restart: {writing.wait()}") from error
+            finally:
+                if writing.poll() is None:
+                    writing.kill()
+
+        tdSql.query(countSql)
+        tdSql.checkData(0, 0, totalRows)
         print("do stmt2 insert retry ................. [passed]")
 
     #
@@ -513,6 +563,8 @@ class TestBenchmarkStmt:
             - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_stmt2_insert.py
             - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_stmt2_insert_retry_json_stb.py
             - 2025-10-28 Alex Duan Migrated from uncatalog/army/tools/benchmark/basic/test_taosdemo_test_insert_with_json_stmt_other_para.py
+            - 2026-11-19 Alex Duan Synchronize the taosd restart with stmt2 insertion progress
+            - 2026-11-19 OpenAI Verify recovery of the 100-row workload and reap its child process
 
         """
         self.do_stmt_auto_create_table_json()
