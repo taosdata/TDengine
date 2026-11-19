@@ -59,6 +59,7 @@ struct STsdbSnapMediumWriter {
   // current file being written
   TdFilePtr pFD;
   char      tmpFname[TSDB_PATH_LEN];
+  int64_t   cid;
 
   // Disk id remapping is decided once per file (when the first block arrives
   // and pFD is opened) and cached here, so every block of the same file uses
@@ -351,34 +352,20 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
           // Per spec 2.4.2: leader and follower both have this STT key.
           // Always use CREATE for leader file; all follower duplicates will be
           // DELETE'd in the DELETE check section below.
-          // This avoids MODIFY ambiguity when multiple follower files share same cid.
+          // Replace duplicate follower entries with a fresh leader copy.
           int32_t *pSttCount = taosHashGet(sttKeyCount, key, keyLen);
           int32_t  sttCount = pSttCount ? *pSttCount : 1;
 
-          // Find max cid among all follower files with this key for new cid assignment
-          int64_t maxFollowerCid = followerInfo->cid;
-          for (int32_t fi = 0; fi < followerList->nFiles; fi++) {
-            SMediumSnapFileInfo *ff = &followerList->aFiles[fi];
-            if (ff->fid == fid && ff->ftype == TSDB_FTYPE_STT &&
-                ff->level == leaderInfo.level &&
-                ff->minVer == leaderInfo.minVer && ff->maxVer == leaderInfo.maxVer) {
-              if (ff->cid > maxFollowerCid) {
-                maxFollowerCid = ff->cid;
-              }
-            }
-          }
-
           tsdbInfo("vgId:%d, medium diff: STT both exist, count=%d, CREATE leader + DELETE all follower."
-                   " fid:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " newCid:%" PRId64,
+                   " fid:%d level:%d minVer:%" PRId64 " maxVer:%" PRId64 " leaderCid:%" PRId64,
                    TD_VID(tsdb->pVnode), sttCount, fid, leaderInfo.level,
-                   leaderInfo.minVer, leaderInfo.maxVer, maxFollowerCid + 1);
+                   leaderInfo.minVer, leaderInfo.maxVer, leaderInfo.cid);
 
           // Emit CREATE for leader file
           SMediumDiffEntry createEntry = {0};
           createEntry.fileInfo = leaderInfo;
           createEntry.fileInfo.diskLevel = followerInfo->diskLevel;
           createEntry.fileInfo.diskId = followerInfo->diskId;
-          createEntry.fileInfo.cid = maxFollowerCid + 1;
           createEntry.opType = TSDB_FOP_CREATE;
           code = TARRAY2_APPEND(diffArr, createEntry);
           TSDB_CHECK_CODE(code, lino, _exit);
@@ -392,29 +379,12 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
           }
         } else {
           // Leader has, follower doesn't  ->  TRANSFER as CREATE
-          // For STT files: if follower has any STT in same fid, use max(follower stt cid) + 1
-          //                otherwise keep leader's cid unchanged
-          int64_t newCid = leaderInfo.cid;
-          bool    followerHasStt = false;
-          for (int32_t fi = 0; fi < followerList->nFiles; fi++) {
-            SMediumSnapFileInfo *ff = &followerList->aFiles[fi];
-            if (ff->fid == fid && ff->ftype == TSDB_FTYPE_STT) {
-              followerHasStt = true;
-              if (ff->cid >= newCid) {
-                newCid = ff->cid + 1;
-              }
-            }
-          }
-          if (!followerHasStt) {
-            newCid = leaderInfo.cid;  // keep unchanged
-          }
           tsdbInfo(
-              "vgId:%d, medium diff: CREATE fid:%d ftype:STT level:%d, reason: follower does not have this file,"
-              " cid:%" PRId64 " (original:%" PRId64 " followerHasStt:%d)",
-              TD_VID(tsdb->pVnode), fid, leaderInfo.level, newCid, leaderInfo.cid, followerHasStt);
+              "vgId:%d, medium diff: CREATE fid:%d ftype:STT level:%d,"
+              " reason: follower does not have this STT (minVer:%" PRId64 " maxVer:%" PRId64 "), leaderCid:%" PRId64,
+              TD_VID(tsdb->pVnode), fid, leaderInfo.level, leaderInfo.minVer, leaderInfo.maxVer, leaderInfo.cid);
           SMediumDiffEntry entry = {0};
           entry.fileInfo = leaderInfo;
-          entry.fileInfo.cid = newCid;
           entry.opType = TSDB_FOP_CREATE;
           code = TARRAY2_APPEND(diffArr, entry);
           TSDB_CHECK_CODE(code, lino, _exit);
@@ -1087,7 +1057,17 @@ static int32_t tsdbSnapMediumWriteData(STsdbSnapMediumWriter *writer, SSnapDataH
     tf.fid = fi->fid;
     tf.lcn = fi->lcn;
     tf.mid = fi->mid;
-    tf.cid = fi->cid;
+    if (hdr->opType == TSDB_FOP_CREATE) {
+      // The leader cannot see follower files awaiting reference release.
+      // Allocate locally to avoid reusing their cids and paths.
+      writer->cid = tsdbFSAllocEid(writer->tsdb->pFS);
+      tsdbInfo("vgId:%d, medium writer: allocate local cid:%" PRId64
+               " for CREATE, leader cid:%" PRId64 " fid:%d ftype:%d",
+               TD_VID(writer->tsdb->pVnode), writer->cid, fi->cid, fi->fid, fi->ftype);
+    } else {
+      writer->cid = fi->cid;
+    }
+    tf.cid = writer->cid;
     tf.size = fi->size;
     tf.minVer = fi->minVer;
     tf.maxVer = fi->maxVer;
@@ -1148,7 +1128,7 @@ static int32_t tsdbSnapMediumWriteData(STsdbSnapMediumWriter *writer, SSnapDataH
     tf.fid = fi->fid;
     tf.lcn = fi->lcn;
     tf.mid = fi->mid;
-    tf.cid = fi->cid;
+    tf.cid = writer->cid;
     tf.size = fi->size;  // use metadata size for current.json
     tf.minVer = fi->minVer;
     tf.maxVer = fi->maxVer;
@@ -1185,6 +1165,10 @@ static int32_t tsdbSnapMediumWriteData(STsdbSnapMediumWriter *writer, SSnapDataH
 
     code = TARRAY2_APPEND(writer->fopArr, op);
     TSDB_CHECK_CODE(code, lino, _exit);
+
+    // Keep the allocation watermark ahead of imported or locally allocated
+    // file ids before subsequent local commits and merges allocate a cid.
+    tsdbFSUpdateEid(writer->tsdb->pFS, tf.cid);
 
     tsdbInfo("vgId:%d, medium writer: %s file fid:%d ftype:%d level:%d size:%" PRId64,
               TD_VID(writer->tsdb->pVnode),
