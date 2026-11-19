@@ -22663,7 +22663,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       }
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->newCommentLen));
       if (pReq->newCommentLen > 0) {
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->newComment));
+        // newComment is accessed as a C string of newCommentLen + 1 bytes downstream
+        // (metaCheckUpdateTableOptionsReq() -> strnlen(), metaUpdateTableOptions2() -> memcpy()),
+        // so the wire payload must carry exactly that many bytes and end with its NUL terminator;
+        // otherwise those walks run past the end of the RPC buffer (CWE-125).
+        char    *pComment = NULL;
+        uint32_t commentLen = 0;
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &pComment, &commentLen));
+        if (commentLen != (uint32_t)pReq->newCommentLen || pComment == NULL ||
+            pComment[commentLen] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        pReq->newComment = pComment;
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
