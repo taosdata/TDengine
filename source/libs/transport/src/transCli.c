@@ -1645,6 +1645,11 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
   }
 
   if (pHead->comp == 1) {
+    // TD-SEC-2026-045: this buffer was compressed in place by cliBatchSend, which does not
+    // update pReq->contLen, so the caller-passed len may still be the stale uncompressed size
+    // when a broken connection is retried on a new one. The header-declared msgLen is the
+    // authoritative frame length here; the wire-facing read paths keep the strict
+    // declared-vs-actual validation in transValidateCompMsg.
     int32_t msgLen = ntohl(pHead->msgLen);
     code = transDecompressMsgExt((char*)(pHead), msgLen, &oriMsg, &oriLen);
     if (code < 0) {
@@ -1660,6 +1665,9 @@ bool cliConnMayAddUserInfo(SCliConn* pConn, STransMsgHead** ppHead, int32_t* msg
 
   STransMsgHead* tHead = taosMemoryCalloc(1, len + offset);
   if (tHead == NULL) {
+    if (oriMsg != NULL) {
+      taosMemoryFree(oriMsg);
+    }
     return false;
   }
 

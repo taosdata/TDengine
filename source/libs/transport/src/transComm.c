@@ -190,9 +190,20 @@ static int32_t transValidateCompMsg(STransMsgHead* pHead, int32_t msgLen, int32_
     return TSDB_CODE_INVALID_MSG;
   }
 
+  // Validate the buffer length before reading any field beyond the fixed header.
   int32_t minLen = (int32_t)(sizeof(STransMsgHead) + sizeof(STransCompMsg));
   if (msgLen < minLen) {
     tError("invalid compressed rpc msg, msgLen:%d, minLen:%d", msgLen, minLen);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  // TD-SEC-2026-045: the declared msgLen in the packet header must match the actual buffer length,
+  // otherwise the decompression input boundary would be derived from an attacker-controlled value.
+  // Every caller passes the exact length of one framed packet, so both directions of a mismatch
+  // indicate a malformed or truncated frame and are rejected.
+  int32_t declaredLen = (int32_t)ntohl(pHead->msgLen);
+  if (declaredLen != msgLen) {
+    tError("invalid compressed rpc msg, declared msgLen:%d, actual len:%d", declaredLen, msgLen);
     return TSDB_CODE_INVALID_MSG;
   }
 

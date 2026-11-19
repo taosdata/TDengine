@@ -145,6 +145,9 @@ TEST_F(QueueEnv, testIter) {
   }
 }
 
+// GHSA-m4h8-2wjh-rrpq zero-length case: comp=1 with an empty content area, i.e. not even
+// one byte of the STransCompMsg header is present. The minimum-length check in
+// transValidateCompMsg rejects it before any field of that header is read.
 TEST(TransCompressTest, RejectsCompressedPacketWithoutCompressionHeader) {
   int32_t msgLen = sizeof(STransMsgHead);
   char   *msg = (char *)taosMemoryCalloc(1, msgLen);
@@ -212,6 +215,187 @@ TEST(TransCompressTest, RejectsInvalidOriginalLength) {
   EXPECT_EQ(outLen, 0);
 
   taosMemoryFree(msg);
+}
+
+namespace {
+// Content length shared by the compression tests.
+constexpr int32_t kTestContLen = 4096;
+
+// Build a valid compressed rpc packet (head + STransCompMsg + lz4 block) from compressible
+// content. Sets *expected to a copy of the original content for round-trip comparison.
+char *buildCompressedPacket(int32_t contLen, char **expected, int32_t *compMsgLen) {
+  int32_t allocLen = (int32_t)(sizeof(STransMsgHead)) + contLen;
+  char *msg = (char *)taosMemoryCalloc(1, allocLen);
+  if (msg == nullptr) {
+    tError("buildCompressedPacket: packet alloc failed, len:%d", allocLen);
+    return nullptr;
+  }
+
+  STransMsgHead *head = (STransMsgHead *)msg;
+  head->version = TRANS_VER;
+
+  char *cont = transContFromHead(head);
+  memset(cont, 'A', contLen);
+
+  *expected = (char *)taosMemoryMalloc(contLen);
+  if (*expected == nullptr) {
+    tError("buildCompressedPacket: expected alloc failed, len:%d", contLen);
+    taosMemoryFree(msg);
+    return nullptr;
+  }
+  memcpy(*expected, cont, contLen);
+
+  int32_t newContLen = transCompressMsg(cont, contLen);
+  if (newContLen <= (int32_t)sizeof(STransCompMsg) || head->comp != 1) {
+    // The helper cannot use ASSERT_* (it returns a value); fail the build of the
+    // packet explicitly so callers stop on their ASSERT_NE(msg, nullptr) instead
+    // of continuing with a half-built packet.
+    tError("buildCompressedPacket: compression failed, contLen:%d, compressedLen:%d, comp:%d", contLen, newContLen,
+           head->comp);
+    taosMemoryFree(*expected);
+    *expected = nullptr;
+    taosMemoryFree(msg);
+    return nullptr;
+  }
+
+  *compMsgLen = (int32_t)(sizeof(STransMsgHead)) + newContLen;
+  head->msgLen = htonl(*compMsgLen);
+  return msg;
+}
+
+// A rejected packet must come back untouched from both entry points.
+void assertRejected(char *msg, int32_t len) {
+  char *packet = msg;
+  int32_t packetLen = len;
+  EXPECT_EQ(transDecompressMsg(&packet, &packetLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(packet, msg);
+  EXPECT_EQ(packetLen, len);
+
+  char *out = nullptr;
+  int32_t outLen = 0;
+  EXPECT_EQ(transDecompressMsgExt(msg, len, &out, &outLen), TSDB_CODE_INVALID_MSG);
+  EXPECT_EQ(out, nullptr);
+  EXPECT_EQ(outLen, 0);
+}
+}  // namespace
+
+// GHSA-m4h8-2wjh-rrpq: the original trigger is a comp=1 frame whose content area is
+// shorter than one STransCompMsg (8 bytes); the vulnerable code read pComp->contLen
+// before checking the length, so the out-of-bounds read happened before lz4. The
+// declared msgLen below equals the actual frame length on purpose: these packets must
+// be rejected by the minimum compressed-header length check, not by the declared-length
+// consistency hardening. Cover every 1..7 byte content area on both entry points.
+TEST(TransCompressTest, TdSec2026045RejectsIncompleteCompressedHeader) {
+  static const char content[] = "0123456";
+  const int32_t     compHdrLen = (int32_t)sizeof(STransCompMsg);
+
+  for (int32_t contLen = 1; contLen < compHdrLen; ++contLen) {
+    SCOPED_TRACE(contLen);
+
+    int32_t msgLen = (int32_t)(sizeof(STransMsgHead)) + contLen;
+    char   *msg = (char *)taosMemoryCalloc(1, msgLen);
+    ASSERT_NE(msg, nullptr);
+
+    STransMsgHead *head = (STransMsgHead *)msg;
+    head->version = TRANS_VER;
+    head->comp = 1;
+    head->msgLen = htonl(msgLen);  // declared length matches the actual frame
+    memcpy(transContFromHead(head), content, contLen);
+
+    assertRejected(msg, msgLen);
+
+    taosMemoryFree(msg);
+  }
+}
+
+// TD-SEC-2026-045 hardening (defense in depth): a declared msgLen that differs from the
+// actual frame length is rejected in both directions. This consistency check is not the
+// original GHSA-m4h8-2wjh-rrpq fix -- that advisory triggers with declared == actual when
+// the content area is shorter than one STransCompMsg (covered by the incomplete-header
+// cases below). Keeping both directions strict means no caller can derive the lz4 input
+// boundary from an attacker-controlled header value.
+TEST(TransCompressTest, TdSec2026045RejectsDeclaredLengthMismatch) {
+  char *expected = nullptr;
+  int32_t compMsgLen = 0;
+  char *msg = buildCompressedPacket(kTestContLen, &expected, &compMsgLen);
+  ASSERT_NE(msg, nullptr);
+
+  STransMsgHead *head = (STransMsgHead *)msg;
+  head->msgLen = htonl(compMsgLen + kTestContLen);  // lie: declared length exceeds the actual buffer
+
+  assertRejected(msg, compMsgLen);
+
+  taosMemoryFree(expected);
+  taosMemoryFree(msg);
+}
+
+// TD-SEC-2026-045 regression: legit compressed traffic (declared == actual) still decompresses
+// and round-trips the original content.
+TEST(TransCompressTest, TdSec2026045RoundTripWithMatchingLength) {
+  char *expected = nullptr;
+  int32_t compMsgLen = 0;
+  char *msg = buildCompressedPacket(kTestContLen, &expected, &compMsgLen);
+  ASSERT_NE(msg, nullptr);
+
+  ASSERT_NE(expected, nullptr);
+  char *packet = msg;
+  int32_t packetLen = compMsgLen;
+  ASSERT_EQ(transDecompressMsg(&packet, &packetLen), 0);
+  ASSERT_EQ(packetLen, (int32_t)(sizeof(STransMsgHead)) + kTestContLen);
+  EXPECT_EQ(0, memcmp(transContFromHead((STransMsgHead *)packet), expected, kTestContLen));
+
+  taosMemoryFree(packet);
+  taosMemoryFree(expected);
+}
+
+// TD-SEC-2026-045: a declared msgLen shorter than the frame is rejected as well;
+// callers always pass the exact length of one framed packet.
+TEST(TransCompressTest, TdSec2026045RejectsShorterDeclaredLength) {
+  char *expected = nullptr;
+  int32_t compMsgLen = 0;
+  char *msg = buildCompressedPacket(kTestContLen, &expected, &compMsgLen);
+  ASSERT_NE(msg, nullptr);
+
+  STransMsgHead *head = (STransMsgHead *)msg;
+  head->msgLen = htonl(compMsgLen - 1);
+
+  assertRejected(msg, compMsgLen);
+
+  taosMemoryFree(expected);
+  taosMemoryFree(msg);
+}
+
+// The Ext entry point keeps the caller's buffer. The client re-send path
+// (cliConnMayAddUserInfo) passes the header-declared frame length -- the frame
+// it holds was compressed in place and the request content length is stale --
+// so cover its success path with the exact declared frame length as well.
+TEST(TransCompressTest, TdSec2026045RoundTripExtWithMatchingLength) {
+  char *expected = nullptr;
+  int32_t compMsgLen = 0;
+  char *msg = buildCompressedPacket(kTestContLen, &expected, &compMsgLen);
+  ASSERT_NE(msg, nullptr);
+
+  char *out = nullptr;
+  int32_t outLen = 0;
+  ASSERT_NE(expected, nullptr);
+  ASSERT_EQ(transDecompressMsgExt(msg, compMsgLen, &out, &outLen), 0);
+  ASSERT_NE(out, nullptr);
+  EXPECT_EQ(outLen, (int32_t)(sizeof(STransMsgHead)) + kTestContLen);
+  EXPECT_EQ(0, memcmp(transContFromHead((STransMsgHead *)out), expected, kTestContLen));
+
+  taosMemoryFree(out);
+  taosMemoryFree(expected);
+  taosMemoryFree(msg);  // transDecompressMsgExt only borrows the input
+}
+
+// TD-SEC-2026-045: the re-send path (cliConnMayAddUserInfo) receives a frame that was
+// compressed in place while the request content length stayed stale; driving the real
+// client function with the stale length pins the contract that the header-declared
+// frame length is the decompression boundary. testCliConnMayAddUserInfoStaleLen()
+// lives in the test-only transportHeartbeatHarness.c translation unit.
+extern "C" int32_t testCliConnMayAddUserInfoStaleLen(int32_t contLen);
+TEST(TransCompressTest, TdSec2026045ResendPathWithStaleContLen) {
+  EXPECT_EQ(testCliConnMayAddUserInfoStaleLen(kTestContLen), 1);
 }
 
 class TransCtxEnv : public ::testing::Test {
