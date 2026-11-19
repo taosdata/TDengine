@@ -1951,6 +1951,16 @@ int32_t mndTxnCheckStbConflict(SMnode *pMnode, const char *stbName, txn_id_t cal
   return TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief Check if there are any pending stream create operations for a given transaction
+ *
+ * @param pMnode
+ * @param txnId
+ * @param name
+ * @param includeDrop the meaning is to include the drop stream operation in the check, if true, it will check for both
+ * create and drop stream operations, if false, it will only check for create stream operations.
+ * @return true if there are pending stream create operations, false otherwise
+ */
 static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const char *name, bool includeDrop) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
@@ -1963,8 +1973,7 @@ static bool mndTxnHasPendingStreamCreate(SMnode *pMnode, txn_id_t txnId, const c
     sdbReadLock(pSdb, SDB_TRANS);
     if ((pTrans->originRpcType == TDMT_MND_CREATE_STREAM ||
          (includeDrop && pTrans->originRpcType == TDMT_MND_DROP_STREAM)) &&
-        pTrans->userDataLen == sizeof(pending) &&
-        pTrans->userData != NULL) {
+        pTrans->userDataLen == sizeof(pending) && pTrans->userData != NULL) {
       memcpy(&pending, pTrans->userData, sizeof(pending));
       valid = pending.txnId != 0;
     }
@@ -1990,9 +1999,18 @@ static int32_t mndTxnCheckPendingStreamCreateForDdl(SMnode *pMnode, txn_id_t txn
   return mndTxnHasPendingStreamCreate(pMnode, txnId, NULL, false) ? TSDB_CODE_MND_TRANS_CONFLICT : TSDB_CODE_SUCCESS;
 }
 
+/**
+ * @brief Check for conflicts with existing stream operations
+ *
+ * @param pMnode
+ * @param name the name of the stream to check for conflicts
+ * @param callerTxnId the txnId of the caller
+ * @return int32_t
+ */
 int32_t mndTxnCheckStreamConflict(SMnode *pMnode, const char *name, txn_id_t callerTxnId) {
   if (mndTxnHasPendingStreamCreate(pMnode, 0, name, false)) return TSDB_CODE_TXN_RESOURCE_BUSY;
 
+  // Check for conflicts with existing shadow ops in other active txns
   SSdb    *pSdb = pMnode->pSdb;
   void    *pIter = NULL;
   STxnObj *pTxn = NULL;
@@ -2002,10 +2020,12 @@ int32_t mndTxnCheckStreamConflict(SMnode *pMnode, const char *name, txn_id_t cal
     if (pTxn->id != callerTxnId && (pTxn->stage == UTXN_STAGE_ACTIVE || pTxn->stage == UTXN_STAGE_PREPARING ||
                                     pTxn->stage == UTXN_STAGE_COMMITTING || pTxn->stage == UTXN_STAGE_ROLLINGBACK)) {
       // STBs and streams may share a name, so the mixed STB conflict map is insufficient.
-      for (int32_t i = 0; i < taosArrayGetSize(pTxn->pShadowOps); ++i) {
-        SMndShadowOp *pOp = taosArrayGet(pTxn->pShadowOps, i);
-        if ((pOp->opType == MND_SHADOW_OP_CREATE_STREAM || pOp->opType == MND_SHADOW_OP_DROP_STREAM) &&
-            strcmp(pOp->name, name) == 0) {
+      int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+      for (int32_t i = 0; i < numOps; ++i) {
+        SMndShadowOp *pOp = (SMndShadowOp *)TARRAY_GET_ELEM(pTxn->pShadowOps, i);
+        if ((pOp->opType == MND_SHADOW_OP_CREATE_STREAM || pOp->opType == MND_SHADOW_OP_DROP_STREAM ||
+             pOp->opType == MND_SHADOW_OP_ALTER_STREAM_STATE) &&
+            strncmp(pOp->name, name, sizeof(pOp->name)) == 0) {
           conflict = true;
           break;
         }
@@ -2288,6 +2308,26 @@ static int32_t mndTxnRebuildShadowOpsFromSdb(SMnode *pMnode, STxnObj *pTxn, bool
           mInfo("txn:%" PRIi64 ", rebuilt DROP_STREAM shadow op: stream=%s streamId=%" PRId64, pTxn->id, pStream->name,
                 streamId);
         }
+
+        // ALTER_STREAM_STATE: pre-existing stream locked by START/STOP
+        if (pStream->txnStatus == META_TXN_PRE_ALTER) {
+          SMndShadowOp op = {0};
+          op.opType = MND_SHADOW_OP_ALTER_STREAM_STATE;
+          op.uid = streamId;
+          tstrncpy(op.name, pStream->name, sizeof(op.name));
+          if (pStream->pCreate != NULL && pStream->pCreate->streamDB != NULL) {
+            tstrncpy(op.db, pStream->pCreate->streamDB, sizeof(op.db));
+          }
+          if (taosArrayPush(pTmpOps, &op) == NULL) {
+            sdbRelease(pSdb, pStream);
+            sdbCancelFetch(pSdb, pStmIter);
+            retCode = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            goto _rebuild_fail;
+          }
+          count++;
+          mInfo("txn:%" PRIi64 ", rebuilt ALTER_STREAM_STATE shadow op: stream=%s target_stopped=%d", pTxn->id, pStream->name,
+                STREAM_IS_TXN_TARGET_STOPPED(pStream->flags));
+        }
       }
       sdbRelease(pSdb, pStream);
     }
@@ -2526,6 +2566,54 @@ static int32_t mndTxnApplyShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTx
         mndReleaseStream(pMnode, pStream);
         break;
       }
+      case MND_SHADOW_OP_ALTER_STREAM_STATE: {
+        // The stream was locked PRE_ALTER with a pending START/STOP intent. At COMMIT the intent
+        // becomes the persisted userStopped flag and the lock is released. The runtime effect
+        // (undeploy / deploy) is posted after the commit trans is prepared - see
+        // mndApplyTxnStreamActions().
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) {
+          mDebug("txn:%" PRIi64 ", ALTER_STREAM_STATE stream=%s absent, skip", pTxn->id, pOp->name);
+          break;
+        }
+        if (pStream->txnStatus != META_TXN_PRE_ALTER || pStream->txnId != pTxn->id) {
+          // e.g. dropped later in this txn: the DROP_STREAM op owns the stream now.
+          mWarn("txn:%" PRIi64 ", ALTER_STREAM_STATE stream=%s skipped: txnStatus=%d txnId=%" PRIi64, pTxn->id,
+                pOp->name, pStream->txnStatus, pStream->txnId);
+          mndReleaseStream(pMnode, pStream);
+          break;
+        }
+        {
+          SStreamObj streamClone;
+          taosRLockLatch(&pStream->lock);
+          memcpy(&streamClone, pStream, sizeof(SStreamObj));
+          taosRUnLockLatch(&pStream->lock);
+          streamClone.lock = 0;
+          streamClone.userStopped = STREAM_IS_TXN_TARGET_STOPPED(streamClone.flags) ? 1 : 0;
+          streamClone.updateTime = taosGetTimestampMs();
+          streamClone.txnId = 0;
+          streamClone.txnStatus = META_TXN_NORMAL;
+          streamClone.flags &= ~STREAM_FLAG_TXN_TARGET_STOPPED;
+          SSdbRaw *pRaw = mndStreamActionEncode(&streamClone);
+          if (pRaw == NULL) {
+            mndReleaseStream(pMnode, pStream);
+            code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+            break;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append commit-log for ALTER_STREAM_STATE stream=%s: %s", pTxn->id,
+                   pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            code = rawCode;
+            break;
+          }
+        }
+        mndReleaseStream(pMnode, pStream);
+        break;
+      }
       default:
         mError("txn:%" PRIi64 ", unknown shadow op type %d", pTxn->id, pOp->opType);
         code = TSDB_CODE_MND_TXN_ERROR;
@@ -2745,6 +2833,42 @@ static int32_t mndTxnUndoShadowOps(SMnode *pMnode, STrans *pTrans, STxnObj *pTxn
           }
           mDebug("txn:%" PRIi64 ", appended marker cleanup commit-log for undo DROP_STREAM stream=%s", pTxn->id,
                  pOp->name);
+        }
+        mndReleaseStream(pMnode, pStream);
+        break;
+      }
+      case MND_SHADOW_OP_ALTER_STREAM_STATE: {
+        // Release the lock; the intent was never applied, so userStopped is untouched.
+        // Skip when the stream moved on to PRE_DROP: the DROP_STREAM undo clears the markers.
+        SStreamObj *pStream = NULL;
+        if (mndAcquireStream(pMnode, (char *)pOp->name, &pStream) != 0 || pStream == NULL) break;
+        if (pStream->txnStatus != META_TXN_PRE_ALTER || pStream->txnId != pTxn->id) {
+          mndReleaseStream(pMnode, pStream);
+          break;
+        }
+        {
+          SStreamObj streamClone;
+          taosRLockLatch(&pStream->lock);
+          memcpy(&streamClone, pStream, sizeof(SStreamObj));
+          taosRUnLockLatch(&pStream->lock);
+          streamClone.lock = 0;
+          streamClone.txnId = 0;
+          streamClone.txnStatus = META_TXN_NORMAL;
+          streamClone.flags &= ~STREAM_FLAG_TXN_TARGET_STOPPED;
+          SSdbRaw *pRaw = mndStreamActionEncode(&streamClone);
+          if (pRaw == NULL) {
+            mndReleaseStream(pMnode, pStream);
+            return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+          }
+          int32_t rawCode = sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+          if (rawCode == 0) rawCode = mndTransAppendCommitlog(pTrans, pRaw);
+          if (rawCode != 0) {
+            mError("txn:%" PRIi64 ", failed to append unlock for undo ALTER_STREAM_STATE stream=%s: %s", pTxn->id,
+                   pOp->name, tstrerror(rawCode));
+            sdbFreeRaw(pRaw);
+            mndReleaseStream(pMnode, pStream);
+            return rawCode;
+          }
         }
         mndReleaseStream(pMnode, pStream);
         break;
@@ -3051,9 +3175,13 @@ static void *mndBuildVTxnRollbackReq(SMnode *pMnode, int32_t vgId, STxnObj *pTxn
  * the commit trans is durable. Kept as a plain snapshot because pShadowOps is destroyed
  * by mndTxnApplyShadowOps before we reach the point of no return. */
 typedef struct {
-  int8_t  opType;    // MND_SHADOW_OP_CREATE_STREAM / MND_SHADOW_OP_DROP_STREAM
+  int8_t  opType;    // MND_SHADOW_OP_CREATE_STREAM / MND_SHADOW_OP_DROP_STREAM / MND_SHADOW_OP_ALTER_STREAM_STATE
   int64_t streamId;
   char    name[TSDB_STREAM_FNAME_LEN];
+  // ALTER_STREAM_STATE only: the userStopped value COMMIT establishes (1 = stop, 0 = start). Read from the
+  // stream's STREAM_FLAG_TXN_TARGET_STOPPED bit here, because the commit log clears that bit (and the shadow
+  // ops are freed) before mndApplyTxnStreamActions performs the stop / start.
+  int8_t  targetUserStopped;
 } SMndTxnStreamAct;
 
 /* Snapshot stream shadow ops before they are freed. Returns an (possibly empty) SArray
@@ -3066,10 +3194,47 @@ static SArray *mndCollectTxnStreamActions(SMnode *pMnode, STxnObj *pTxn) {
   int32_t numOps = (int32_t)taosArrayGetSize(pTxn->pShadowOps);
   for (int32_t i = 0; i < numOps; ++i) {
     SMndShadowOp *pOp = (SMndShadowOp *)taosArrayGet(pTxn->pShadowOps, i);
-    if (pOp->opType != MND_SHADOW_OP_CREATE_STREAM && pOp->opType != MND_SHADOW_OP_DROP_STREAM) continue;
+    if (pOp->opType != MND_SHADOW_OP_CREATE_STREAM && pOp->opType != MND_SHADOW_OP_DROP_STREAM &&
+        pOp->opType != MND_SHADOW_OP_ALTER_STREAM_STATE)
+      continue;
 
     SMndTxnStreamAct act = {.opType = pOp->opType, .streamId = pOp->uid};
     tstrncpy(act.name, pOp->name, sizeof(act.name));
+
+    if (pOp->opType == MND_SHADOW_OP_ALTER_STREAM_STATE) {
+      // Only a net change of userStopped has a runtime effect (STOP then START nets to nothing).
+      // Dropped later in this txn -> the stream is no longer PRE_ALTER and DROP handles it.
+      SStreamObj *pStream = NULL;
+      if (mndAcquireStream(pMnode, pOp->name, &pStream) != 0 || pStream == NULL) {
+        // The stream is gone, so the intent cannot be applied. COMMIT still succeeds, so leave a trace:
+        // otherwise "the stream did not stop / start" would have no clue in the log.
+        mWarn("txn:%" PRIi64 ", ALTER_STREAM_STATE stream=%s not found at COMMIT, skip runtime action", pTxn->id,
+            pOp->name);
+        continue;
+      }
+      // Decide from one snapshot taken under the read lock, like mndTxnApplyShadowOps does:
+      // txnId / txnStatus / flags are rewritten together under the write lock.
+      int8_t   snapTxnStatus = 0;
+      txn_id_t snapTxnId = 0;
+      bool     snapTargetStopped = false;
+      taosRLockLatch(&pStream->lock);
+      snapTxnStatus = pStream->txnStatus;
+      snapTxnId = pStream->txnId;
+      snapTargetStopped = STREAM_IS_TXN_TARGET_STOPPED(pStream->flags);
+      taosRUnLockLatch(&pStream->lock);
+      bool apply = snapTxnStatus == META_TXN_PRE_ALTER && snapTxnId == pTxn->id;
+      if (apply) {
+        act.targetUserStopped = snapTargetStopped ? 1 : 0;
+        apply = act.targetUserStopped != atomic_load_8(&pStream->userStopped);
+      }
+      mndReleaseStream(pMnode, pStream);
+      if (!apply) continue;
+      if (taosArrayPush(pActs, &act) == NULL) {
+        taosArrayDestroy(pActs);
+        return NULL;
+      }
+      continue;
+    }
 
     // A stream both created and dropped inside this txn nets out to nothing: it was never
     // deployed, so there is neither anything to deploy nor anything to undeploy.
@@ -3129,6 +3294,26 @@ static void mndApplyTxnStreamActions(SMnode *pMnode, SArray *pActs) {
       } else {
         mInfo("txn stream deploy posted for stream=%s streamId=%" PRId64, pAct->name, pAct->streamId);
       }
+    } else if (pAct->opType == MND_SHADOW_OP_ALTER_STREAM_STATE) {
+      // Publish the new flag in memory right away (the commit-log write of the same value
+      // follows), so deploy / undeploy below see the post-COMMIT state.
+      SStreamObj *pStream = NULL;
+      if (mndAcquireStream(pMnode, pAct->name, &pStream) == 0 && pStream != NULL) {
+        atomic_store_8(&pStream->userStopped, pAct->targetUserStopped);
+        mndReleaseStream(pMnode, pStream);
+      }
+      if (pAct->targetUserStopped) {
+        MND_STREAM_SET_LAST_TS(STM_EVENT_STOP_STREAM, taosGetTimestampMs());
+        msmUndeployStream(pMnode, pAct->streamId, pAct->name);
+        mInfo("txn stream stop applied for stream=%s streamId=%" PRId64, pAct->name, pAct->streamId);
+      } else {
+        int32_t code = mstPostStreamAction(mStreamMgmt.actionQ, pAct->streamId, pAct->name, NULL, true,
+                                           STREAM_ACT_DEPLOY);
+        if (code != 0) {
+          mError("txn stream start deploy post failed for stream=%s: %s (stream mgmt will retry)", pAct->name,
+                 tstrerror(code));
+        }
+      }
     } else {
       // DROP: now - and only now - is it safe to set userDropped and undeploy, because
       // the commit is durable and no rollback can follow. Before this point the stream
@@ -3158,6 +3343,7 @@ static int32_t mndCommitTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn) {
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "commit-txn")), code,
                   lino, _exit, terrno);
+  mndTransSetOper(pTrans, MND_OPER_COMMIT_TXN);  // lets the trans engine skip participants whose vgroup is gone
   mInfo("trans:%d, used to commit txn %" PRIi64, pTrans->id, pTxn->id);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
@@ -3351,6 +3537,7 @@ static int32_t mndRollbackTxn(SMnode *pMnode, SRpcMsg *pReq, STxnObj *pTxn, int3
 
   TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "rollback-txn")), code,
                   lino, _exit, terrno);
+  mndTransSetOper(pTrans, MND_OPER_ROLLBACK_TXN);  // same, see mndTransVnodeGoneForUserTxn
   mInfo("trans:%d, used to rollback txn %" PRIi64, pTrans->id, pTxn->id);
 
   mndTransSetKillMode(pTrans, TRN_KILL_MODE_SKIP);
@@ -3635,6 +3822,96 @@ _exit:
   TAOS_RETURN(code);
 }
 
+/**
+ * COMMIT-time check that everything the txn did still exists: every participant vgroup, and the database of
+ * every mnode-side shadow op (stable / stream). One is missing when its database was dropped while the txn
+ * was open (DROP DATABASE is not blocked for that - it is rare). Committing would then report success for
+ * DDL that went away with the database, so refuse with TSDB_CODE_TXN_NEED_ROLLBACK; the txn stays ACTIVE.
+ *
+ * Error log: one line per dropped database (every one of them, with its number of shadow ops), one line for
+ * the vgroups, one summary. A vgroup that is gone cannot be mapped back to its database (it is no longer in
+ * the SDB), so vgroups are counted, and each vgId goes to the trace log.
+ */
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
+  int32_t numOps;
+} SMndTxnGoneDb;
+
+static int32_t mndTxnCheckParticipantsExist(SMnode *pMnode, STxnObj *pTxn) {
+  int32_t totalVgs = 0, goneVgs = 0, goneOps = 0;
+  SArray *pGoneDbs = NULL;  // SMndTxnGoneDb, one entry per distinct database
+  bool    oom = false;      // could not record a database: its ops are logged one by one instead
+
+  taosRLockLatch(&pTxn->lock);
+  int32_t vgIter = 0;
+  void   *pVgData = NULL;
+  while (pTxn->pVgList != NULL && (pVgData = tSimpleHashIterate(pTxn->pVgList, pVgData, &vgIter)) != NULL) {
+    int32_t vgId = *(int32_t *)tSimpleHashGetKey(pVgData, NULL);
+    totalVgs++;
+    if (mndTransVgroupIsGone(pMnode, vgId)) {
+      goneVgs++;
+      mTrace("txn:%" PRIi64 ", participant vgId:%d no longer exists", pTxn->id, vgId);
+    }
+  }
+
+  int32_t numOps = taosArrayGetSize(pTxn->pShadowOps);
+  for (int32_t i = 0; i < numOps; ++i) {
+    SMndShadowOp *pOp = (SMndShadowOp *)TARRAY_GET_ELEM(pTxn->pShadowOps, i);
+    if (pOp->db[0] == 0) continue;
+    SDbObj *pDb = mndAcquireDb(pMnode, pOp->db);
+    if (pDb != NULL) {
+      mndReleaseDb(pMnode, pDb);
+      continue;
+    }
+    if (terrno != TSDB_CODE_MND_DB_NOT_EXIST && terrno != TSDB_CODE_MND_DB_IN_DROPPING) continue;
+    goneOps++;
+    mTrace("txn:%" PRIi64 ", shadow op (type:%d, name:%s) on db:%s, which no longer exists", pTxn->id, pOp->opType,
+           pOp->name, pOp->db);
+
+    SMndTxnGoneDb *pGone = NULL;
+    for (int32_t k = 0; k < taosArrayGetSize(pGoneDbs); ++k) {
+      SMndTxnGoneDb *pCur = (SMndTxnGoneDb *)TARRAY_GET_ELEM(pGoneDbs, k);
+      if (strncmp(pCur->db, pOp->db, sizeof(pCur->db)) == 0) {
+        pGone = pCur;
+        break;
+      }
+    }
+    if (pGone != NULL) {
+      pGone->numOps++;
+      continue;
+    }
+    SMndTxnGoneDb entry = {.numOps = 1};
+    tstrncpy(entry.db, pOp->db, sizeof(entry.db));
+    if (pGoneDbs == NULL) pGoneDbs = taosArrayInit(4, sizeof(SMndTxnGoneDb));
+    if (pGoneDbs == NULL || taosArrayPush(pGoneDbs, &entry) == NULL) {
+      oom = true;  // keep the report complete without the array
+      mError("txn:%" PRIi64 ", user:%s, db:%s no longer exists (shadow op type:%d, name:%s)", pTxn->id,
+             pTxn->createUser, pOp->db, pOp->opType, pOp->name);
+    }
+  }
+  taosRUnLockLatch(&pTxn->lock);
+
+  if (goneVgs == 0 && goneOps == 0) {
+    taosArrayDestroy(pGoneDbs);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t k = 0; k < taosArrayGetSize(pGoneDbs); ++k) {
+    SMndTxnGoneDb *pGone = (SMndTxnGoneDb *)TARRAY_GET_ELEM(pGoneDbs, k);
+    mError("txn:%" PRIi64 ", user:%s, db:%s no longer exists, %d shadow op(s) of the txn were on it", pTxn->id,
+           pTxn->createUser, pGone->db, pGone->numOps);
+  }
+  taosArrayDestroy(pGoneDbs);
+  if (goneVgs > 0) {
+    mError("txn:%" PRIi64 ", user:%s, %d of %d participant vgroup(s) no longer exist (vgIds in the trace log)", pTxn->id,
+           pTxn->createUser, goneVgs, totalVgs);
+  }
+  mError("txn:%" PRIi64 ", user:%s, cannot commit: a database was dropped during the txn and its DDL is lost%s; "
+         "ROLLBACK is the only way to end the txn",
+         pTxn->id, pTxn->createUser, oom ? " (out of memory while grouping, see the lines above)" : "");
+  return TSDB_CODE_TXN_NEED_ROLLBACK;
+}
+
 static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
 
@@ -3671,6 +3948,13 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   code = mndMergeVgList(pTxn, txnReq.pVgSet);
   taosWUnLockLatch(&pTxn->lock);
   TAOS_CHECK_EXIT(code);
+
+  // A participant vgroup (or the database of an mnode-side shadow op) may be gone: someone dropped the
+  // database after this txn's DDL ran there. The txn's DDL went with it, so committing would report
+  // success for work that no longer exists. Refuse; the txn stays ACTIVE for the client to ROLLBACK,
+  // which skips vgroups that no longer exist. DROP DATABASE is rare, so it is not blocked up front -
+  // it is detected here, at the end of the txn.
+  TAOS_CHECK_EXIT(mndTxnCheckParticipantsExist(pMnode, pTxn));
 
   // Commit: embed all shadow ops + VNode COMMIT into a single STrans
   TAOS_CHECK_EXIT(mndCommitTxn(pMnode, pReq, pTxn));

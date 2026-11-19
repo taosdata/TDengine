@@ -5473,6 +5473,7 @@ int32_t tSerializeSMPauseStreamReq(void *buf, int32_t bufLen, const SMPauseStrea
   int32_t nameLen = pReq->name == NULL ? 0 : (int32_t)strlen(pReq->name) + 1;
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name, nameLen));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
   tEndEncode(&encoder);
 
 _exit:
@@ -5494,6 +5495,11 @@ int32_t tDeserializeSMPauseStreamReq(void *buf, int32_t bufLen, SMPauseStreamReq
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -5516,6 +5522,7 @@ int32_t tSerializeSMResumeStreamReq(void *buf, int32_t bufLen, const SMResumeStr
   TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->name, nameLen));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igNotExists));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->igUntreated));
+  TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->txnId));
   tEndEncode(&encoder);
 
 _exit:
@@ -5538,6 +5545,11 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
   TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igUntreated));
+  if (!tDecodeIsEnd(&decoder)) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
+  } else {
+    pReq->txnId = 0;
+  }
   tEndDecode(&decoder);
 
 _exit:

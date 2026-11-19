@@ -239,6 +239,9 @@ typedef struct {
   int64_t lastAccessTime;
 } SConnAccessInfo;
 
+// STscObj.txnFlags bits: per-txn options fixed at BEGIN, cleared on reset.
+#define TSC_TXN_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL: skip stmt-type check
+
 typedef struct STscObj {
   char           user[TSDB_USER_LEN];
   char           tokenName[TSDB_TOKEN_NAME_LEN];
@@ -252,6 +255,8 @@ typedef struct STscObj {
   int8_t         dropped;
   int8_t         biMode;
   int8_t         txnState;
+  uint8_t        txnFlags;  // TSC_TXN_FLAG_*, written under mutex. Kept out of the bitfield word below: the heartbeat
+                            // thread updates those bitfields without the lock, and a bitfield write is a whole-word RMW.
   txn_id_t       txnId;
   int32_t        txnDdlCount;    // DDL op count in current txn; checked against TSDB_TXN_MAX_DDL_OPS_PER_TXN
   SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn

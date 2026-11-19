@@ -41,11 +41,16 @@ extern "C" {
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
 #define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
 #define STREAM_FLAG_REF_EXT_SOURCE  (1 << 3)  // stream references at least one external source
+// Stored on SStreamObj.flags only (never on task status): while a START / STOP STREAM is pending in a
+// transaction, the stream is in META_TXN_PRE_ALTER and this bit holds the target state, set = "stopped".
+// It is meaningful only in that state. The bit is persisted with the stream object, so keep its value.
+#define STREAM_FLAG_TXN_TARGET_STOPPED (1ULL << 8)
 
 #define STREAM_IS_TRIGGER_READER(_flags) ((_flags) & STREAM_FLAG_TRIGGER_READER)
 #define STREAM_IS_TOP_RUNNER(_flags) ((_flags) & STREAM_FLAG_TOP_RUNNER)
 #define STREAM_IS_REDEPLOY_RUNNER(_flags) ((_flags) & STREAM_FLAG_REDEPLOY_RUNNER)
 #define STREAM_IS_REF_EXT_SOURCE(_flags) ((_flags) & STREAM_FLAG_REF_EXT_SOURCE)
+#define STREAM_IS_TXN_TARGET_STOPPED(_flags) (((_flags) & STREAM_FLAG_TXN_TARGET_STOPPED) != 0)
 
 #define STREAM_CLR_FLAG(st, f) (st) &= (~f)
 
