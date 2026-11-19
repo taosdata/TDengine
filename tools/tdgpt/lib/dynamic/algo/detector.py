@@ -140,12 +140,14 @@ class BaseModelAnomalyDetector(ABC):
 
 class IsolationForestModelDetector(BaseModelAnomalyDetector):
     """
-    Anomaly detector that constructs an sklearn IsolationForest from best_params
-    and scores the input via a sliding-window feature matrix.
+    Anomaly detector that loads a pre-trained sklearn IsolationForest from
+    ``model_path`` and scores the input at point or window level.
 
     Expected config layout:
     {
       "algo": "iforest",
+      "mode": "window",        <- "window" or "point"; defaults to "window"
+      "model_path": "/path/to/model.pkl",
       "best_params": {
         "n_estimators": 300,
         "max_samples": 256,
@@ -157,18 +159,25 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
       }
     }
 
+    The pkl may carry its training-time window parameters in its pipeline state;
+    those win over ``best_params``, which wins over the ``100`` / ``1`` / ``[]``
+    defaults.
+
     Inference flow:
-      1. Construct IsolationForest from best_params (n_estimators, max_samples,
-         max_features, contamination).
-      2. Slide a window of length window_size over each input column with the given
+      1. Read the inference mode; ``point`` skips steps 3 and 5 and scores each
+         point on its own.
+      2. Load the IsolationForest from ``model_path`` (``best_params`` cannot
+         construct one).
+      3. Slide a window of length window_size over each input column with the given
          stride.  For each window, compute the features listed in feature_fns
          (supported: "mean", "std", "slope") and concatenate the feature vectors of
          all columns.  If feature_fns is empty the raw window values are used instead.
          With C columns the matrix has shape
            (n_windows, C * len(feature_fns))  when feature_fns is set, or
            (n_windows, C * window_size)        otherwise.
-      3. Call model.fit_predict() → sklearn convention: 1 = inlier, -1 = outlier.
-      4. Map window-level predictions back to per-point codes:
+      4. Score the matrix with the loaded model: sklearn convention, 1 = inlier,
+         -1 = outlier.
+      5. Map window-level predictions back to per-point codes:
          a point is anomalous if any window that covers it is anomalous.
     """
 
@@ -213,39 +222,88 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
 
     @staticmethod
     def _validate_window_params(params: dict) -> tuple[int, int]:
-        """Return validated sliding-window parameters from best_params."""
+        """Return validated sliding-window parameters (window_size, stride)."""
         try:
             window_size = int(params.get("window_size", 100))
             stride = int(params.get("stride", 1))
         except (TypeError, ValueError) as e:
-            raise ValueError(
-                "best_params.window_size and best_params.stride must be integers"
-            ) from e
+            raise ValueError("window_size and stride must be integers") from e
 
         if window_size <= 0 or stride <= 0:
             raise ValueError(
-                "best_params.window_size and best_params.stride must be positive integers; "
+                "window_size and stride must be positive integers; "
                 f"got window_size={window_size}, stride={stride}"
             )
 
         return window_size, stride
 
+    def _resolve_window_params(self) -> tuple[list, int, int]:
+        """Return ``(feature_fns, window_size, stride)`` for window-level scoring.
+
+        A pkl carries the values it was trained with in its pipeline state, so
+        that state wins. ``best_params`` is consulted next: the config layout
+        documented on this class states the parameters there, and reading the
+        pkl state alone made a model whose pipeline held preprocessing only
+        silently score with the ``[]`` / ``100`` / ``1`` defaults.
+
+        Precedence is pipeline state, then ``best_params``, then the defaults.
+        """
+        pipeline_state = self.model_info.get("_pipeline_state") or {}
+        params = self.model_info.get("best_params") or {}
+
+        if "feature_fns" in pipeline_state:
+            feature_fns = pipeline_state["feature_fns"]
+        else:
+            feature_fns = params.get("feature_fns", [])
+
+        window_size, stride = self._validate_window_params(
+            {
+                "window_size": pipeline_state.get(
+                    "window_size", params.get("window_size", 100)
+                ),
+                "stride": pipeline_state.get("stride", params.get("stride", 1)),
+            }
+        )
+        return feature_fns, window_size, stride
+
     def _predict(self, model) -> list:
-        pipeline_state = self.model_info.get("_pipeline_state")
-        inference_mode = self._get_inference_mode(pipeline_state)
-
-        if inference_mode == "point":
+        if self._get_inference_mode() == "point":
             return self._predict_point_level(model)
-        else:
-            return self._predict_window_level(model)
+        return self._predict_window_level(model)
 
-    def _get_inference_mode(self, pipeline_state) -> str:
-        """Determine inference mode: 'point' or 'window' (default)."""
+    def _get_inference_mode(self) -> str:
+        """Return the mode the model was trained in: ``point`` or ``window``.
+
+        ``mode`` is a top-level field of the config, written by the training
+        run. The older lookup only read ``pipeline_state["mode"]`` for a loaded
+        pkl, or ``best_params["mode"]`` when no pkl was loaded, and defaulted to
+        ``window`` in both cases -- so a config that carried ``mode`` at the top
+        level was scored at window level even when it had been trained point by
+        point.
+
+        Those older locations stay in the chain, so configs written before the
+        top-level field existed keep their previous reading:
+
+          * a pkl model uses ``pipeline_state["mode"]``, else ``window``;
+          * a ``best_params`` model uses ``best_params["mode"]``, else
+            ``window``.
+
+        Returns:
+            str: ``point`` or ``window``. A value this version does not know is
+                logged and replaced by ``window``, the default the older lookup
+                used.
+        """
+        pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
-            return pipeline_state.get("mode", "window")
+            legacy_mode = pipeline_state.get("mode")
         else:
-            params = self.model_info.get("best_params", {})
-            return params.get("mode", "window")
+            legacy_mode = (self.model_info.get("best_params") or {}).get("mode")
+
+        mode = str(self.model_info.get("mode") or legacy_mode or "window").strip().lower()
+        if mode not in ("point", "window"):
+            AppLogger.error("unknown inference mode '%s' in model config %s; using 'window'", mode, self.path)
+            return "window"
+        return mode
 
     def _predict_point_level(self, model) -> list:
         """Point-level anomaly detection without windowing.
@@ -263,15 +321,12 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
             )
             raise ValueError("input_data_lists shape mismatch")
 
-        # Apply pipeline preprocessing if available (normalization, fillna, etc.)
+        # _build_model only returns a pkl-backed model, so it is trained
+        # already: apply the pkl's preprocessing, then predict.
         pipeline_state = self.model_info.get("_pipeline_state")
         if pipeline_state:
-            X = BaseModelAnomalyDetector._apply_preprocessing(
-                X, pipeline_state
-            )
-            raw_preds = model.predict(X)
-        else:
-            raw_preds = model.fit_predict(X)
+            X = BaseModelAnomalyDetector._apply_preprocessing(X, pipeline_state)
+        raw_preds = model.predict(X)
 
         point_codes = [self.valid_code if pred == 1 else -1 for pred in raw_preds]
         return point_codes
@@ -281,21 +336,13 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
 
         Builds a feature matrix from sliding windows, then maps window predictions back to points.
         """
-        pipeline_state = self.model_info.get("_pipeline_state")
-        if pipeline_state:
-            feature_fns = pipeline_state.get("feature_fns", [])
-            window_size = int(pipeline_state.get("window_size", 100))
-            stride = int(pipeline_state.get("stride", 1))
-            AppLogger.debug(
-                "using pipeline config from pkl: window_size=%d, stride=%d, feature_fns=%s",
-                window_size,
-                stride,
-                feature_fns,
-            )
-        else:
-            params = self.model_info.get("best_params", {})
-            feature_fns = params.get("feature_fns", [])
-            window_size, stride = self._validate_window_params(params)
+        feature_fns, window_size, stride = self._resolve_window_params()
+        AppLogger.debug(
+            "window config: window_size=%d, stride=%d, feature_fns=%s",
+            window_size,
+            stride,
+            feature_fns,
+        )
 
         n = len(self.input_list)
 
@@ -326,11 +373,8 @@ class IsolationForestModelDetector(BaseModelAnomalyDetector):
             rows.append(row)
         X = np.array(rows, dtype=float)
 
-        # Use predict() for pkl models (already trained), fit_predict() for best_params models (need training)
-        if pipeline_state:
-            raw_preds = model.predict(X)
-        else:
-            raw_preds = model.fit_predict(X)
+        # _build_model only returns a pkl-backed model, so it is trained already.
+        raw_preds = model.predict(X)
 
         # Map window predictions back to per-point codes.
         # A point is flagged anomalous when any window that covers it is anomalous.

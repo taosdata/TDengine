@@ -2280,16 +2280,21 @@ def _defer_download(dao, task_id, model_name, reason=None):
             model_name,
         )
     else:
-        AppLogger.error(
-            "Download retry could not be recorded, reporting failure: task_id=%s, model=%s",
-            task_id,
-            model_name,
-        )
+        # The loop ran out without a successful write, so the row never went back
+        # to `queued` and nothing would run the task. Report the failure instead
+        # of returning a wait no recovery path can act on.
+        msg = "Download retry could not be recorded, reporting failure: task_id=%s, model=%s"
+        AppLogger.error(msg, task_id, model_name)
+
+        # Neutral wording on purpose: this branch is reached whenever the retry
+        # cannot be recorded, which includes a task whose state could not be read
+        # -- not only an apply the CLI refused. `waiting_for` carries whichever
+        # reason this call had.
         return {
             "status": TaskStatus.FAILED.value,
             "message": (
-                "Cannot record the download retry after another resource operation "
-                "refused the apply; retry the download"
+                "Cannot record the download retry, so the task cannot be resumed; "
+                f"retry the download (last wait: {waiting_for})"
             ),
         }
 
