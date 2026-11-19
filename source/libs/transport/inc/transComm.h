@@ -554,7 +554,14 @@ void    transPrintEpSet(SEpSet* pEpSet);
 
 void    transFreeMsg(void* msg);
 int32_t transCompressMsg(char* msg, int32_t len);
+/* `len` must be the exact length of one framed packet, including the head; the
+ * header's declared msgLen has to match it (TD-SEC-2026-045). Uncompressed
+ * input is returned as is and stays owned by the caller; a compressed input is
+ * freed on success and *msg is replaced by the decompressed packet. */
 int32_t transDecompressMsg(char** msg, int32_t* len);
+/* Same length contract as transDecompressMsg, but the frame must be compressed
+ * (uncompressed input is rejected) and the caller keeps ownership of `msg`;
+ * the decompressed packet is returned through `out`. */
 int32_t transDecompressMsgExt(char const* msg, int32_t len, char** out, int32_t* outLen);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));

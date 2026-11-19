@@ -209,6 +209,68 @@ int32_t testCliReleaseRespGate(int64_t releaseQid, int64_t registeredQid) {
   taosHashCleanup(thread.pIdConnTable);
   return present;
 }
+
+// TD-SEC-2026-045: when a request is retried over a new connection, cliBatchSend has already
+// compressed pCont in place while pReq->contLen still holds the uncompressed size, so the
+// caller-passed *msgLen is stale. The user info must still be prepended: the decompression
+// boundary is the header-declared frame length, not the stale request length.
+// Returns 1 when the user info is accepted and the payload survives intact, 0 when the frame
+// is rejected or the rebuilt content is wrong, negative on setup failure.
+int32_t testCliConnMayAddUserInfoStaleLen(int32_t contLen) {
+  STrans   instance = {0};
+  SCliThrd thread = {0};
+  SCliConn conn = {0};
+
+  thread.pInst = &instance;
+  conn.hostThrd = &thread;
+  for (int32_t i = 0; i < (int32_t)sizeof(instance.user); i++) {
+    instance.user[i] = (char)('A' + (i % 26));
+  }
+
+  int32_t headLen = (int32_t)sizeof(STransMsgHead);
+  char*   msg = (char*)taosMemoryCalloc(1, headLen + contLen);
+  char*   expected = (char*)taosMemoryMalloc(contLen);
+  if (msg == NULL || expected == NULL) {
+    taosMemoryFree(msg);
+    taosMemoryFree(expected);
+    return -1;
+  }
+  for (int32_t i = 0; i < contLen; i++) {
+    expected[i] = (char)('a' + (i % 26));
+  }
+
+  char* content = transContFromHead((STransMsgHead*)msg);
+  memcpy(content, expected, contLen);
+  int32_t compContLen = transCompressMsg(content, contLen);
+  if (compContLen <= 0 || compContLen >= contLen) {  // real compression must apply
+    taosMemoryFree(msg);
+    taosMemoryFree(expected);
+    return -2;
+  }
+  STransMsgHead* head = (STransMsgHead*)msg;
+  head->msgLen = (int32_t)htonl((uint32_t)(headLen + compContLen));
+
+  STransMsgHead* pHead = head;
+  int32_t        msgLen = headLen + contLen;  // the stale request length, as on the retry path
+  if (!cliConnMayAddUserInfo(&conn, &pHead, &msgLen)) {
+    taosMemoryFree(msg);
+    taosMemoryFree(expected);
+    return 0;
+  }
+
+  int32_t userLen = (int32_t)sizeof(instance.user);
+  int32_t ok = (conn.userInited == 1) && (pHead->withUserInfo == 1) && (pHead != head) &&
+               (msgLen == headLen + contLen + userLen) &&
+               (memcmp((char*)pHead + TRANS_MSG_OVERHEAD, instance.user, userLen) == 0) &&
+               (memcmp((char*)pHead + TRANS_MSG_OVERHEAD + userLen, expected, contLen) == 0);
+
+  if (conn.pInitUserReq != NULL) {
+    taosMemoryFree(conn.pInitUserReq);  // the head built by cliConnMayAddUserInfo
+  }
+  taosMemoryFree(msg);
+  taosMemoryFree(expected);
+  return ok ? 1 : 0;
+}
 #else
 #include "../src/transComm.c"
 
