@@ -159,6 +159,7 @@ bool           planIsExternalWindowSubquery(const SPlanContext* pCxt, int32_t su
 int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
+int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan);
 void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
                              void* pContext);
 int32_t planCreateJoinPropsStore(SPlanContext* pCxt);

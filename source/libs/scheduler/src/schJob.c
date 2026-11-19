@@ -829,6 +829,9 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
     SCH_JOB_DLOG("job failed with error %s", tstrerror(code));
   }
 
+  // A user callback can remove the job from the reference registry.
+  // Retain the cleanup reference before publishing the terminal result.
+  schStopQueryTasks(pJob);
   schPostJobRes(pJob, 0);
 
   SCH_RET(TSDB_CODE_SCH_IGNORE_ERROR);
@@ -845,6 +848,8 @@ int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode) {
     (void)schSwitchJobStatus((SSchJob*)pJob->parent, JOB_TASK_STATUS_FAIL, &errCode);  // ignore error
   }
 
+  schStopQueryTasks(pJob);
+
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
 
@@ -856,6 +861,7 @@ int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode) {
   }
 
   (void)schSwitchJobStatus(pJob, JOB_TASK_STATUS_DROP, &errCode);  // ignore error
+  schStopQueryTasks(pJob);
 
   return TSDB_CODE_SCH_IGNORE_ERROR;
 }
@@ -1220,7 +1226,7 @@ void schPromoteParentForSubJobs(SSchJob *pParent) {
     // must not be overwritten. An execute sub-phase however is exactly the
     // "stuck between execute sub-phases" case: promotion within the same main
     // phase is still monotonic, so it is retried from the fresh sample.
-    bool retryExecute = !promoting && schGetMainPhase(curPhase) == QUERY_PHASE_EXECUTE;
+    bool retryExecute = !pParent->earlyMainTasks && !promoting && schGetMainPhase(curPhase) == QUERY_PHASE_EXECUTE;
     if (!promoting && !retryExecute) {
       qDebug("QID:0x%" PRIx64 ", parent phase %d is not in schedule/execute, skip promotion", pParent->queryId,
              curPhase);
@@ -1235,7 +1241,141 @@ void schPromoteParentForSubJobs(SSchJob *pParent) {
          SCH_PHASE_PROMOTE_RETRY_TIMES);
 }
 
+int32_t schInitJobDependencies(SSchJob *pJob) {
+  if (pJob->attr.inlineTaskLaunch || !pJob->pDag->subqueryDepsKnown || !SCH_JOB_GOT_SUB_JOBS(pJob)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t count = taosArrayGetSize(pJob->subJobs);
+  for (int32_t i = 0; i < count; ++i) {
+    SSchJob* pSub = taosArrayGetP(pJob->subJobs, i);
+    if (!pSub->pDag->subqueryDepsKnown) return TSDB_CODE_SUCCESS;
+  }
+  for (int32_t i = 0; i <= count; ++i) {
+    SSchJob* pSub = i == count ? pJob : taosArrayGetP(pJob->subJobs, i);
+    SArray* pDeps = pSub->pDag->pSubqueryDeps;
+    pSub->pendingDependencies = taosArrayGetSize(pDeps);
+    for (int32_t j = 0; j < taosArrayGetSize(pDeps); ++j) {
+      int32_t producer = *(int32_t*)taosArrayGet(pDeps, j);
+      if (producer < 0 || producer >= i) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      for (int32_t k = 0; k < j; ++k) {
+        if (producer == *(int32_t*)taosArrayGet(pDeps, k)) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      }
+      if (i == count) continue;
+      SSchJob* pProducer = taosArrayGetP(pJob->subJobs, producer);
+      if (NULL == pProducer->dependentJobs) {
+        pProducer->dependentJobs = taosArrayInit(4, sizeof(int32_t));
+        if (NULL == pProducer->dependentJobs) return terrno;
+      }
+      if (NULL == taosArrayPush(pProducer->dependentJobs, &i)) return terrno;
+    }
+  }
+  if (SCH_IS_QUERY_JOB(pJob) && pJob->attr.explainMode == EXPLAIN_MODE_DISABLE) {
+    for (int32_t i = 0; i < taosArrayGetSize(pJob->levels); ++i) {
+      SSchLevel* level = taosArrayGet(pJob->levels, i);
+      for (int32_t j = 0; j < level->taskNum; ++j) {
+        SSchTask* task = taosArrayGet(level->subTasks, j);
+        if (!task->plan->subqueryDepsKnown) continue;
+        for (int32_t k = 0; k < taosArrayGetSize(task->plan->pSubqueryDeps); ++k) {
+          int32_t index = *(int32_t*)taosArrayGet(task->plan->pSubqueryDeps, k);
+          if (index < 0 || index >= count) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+        }
+        pJob->earlyMainTasks = true;
+      }
+    }
+  }
+  pJob->concurrentSubJobs = true;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t schLaunchReadySubJobs(SSchJob *pJob) {
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  int32_t count = taosArrayGetSize(pParent->subJobs);
+  int32_t candidates = pJob == pParent ? count : taosArrayGetSize(pJob->dependentJobs);
+  SArray* pReady = taosArrayInit(candidates + 1, POINTER_BYTES);
+  if (NULL == pReady) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+  if (!schJobNeedToStop(pParent, NULL)) {
+    // Reserve the whole batch before calling any launcher. An inline success
+    // callback can otherwise select the same sibling a second time.
+    for (int32_t i = 0; i < candidates; ++i) {
+      int32_t index = pJob == pParent ? i : *(int32_t*)taosArrayGet(pJob->dependentJobs, i);
+      SSchJob* pSub = taosArrayGetP(pParent->subJobs, index);
+      if (!pSub->subJobStarted && 0 == pSub->pendingDependencies) {
+        if (NULL == taosArrayPush(pReady, &pSub)) {
+          code = terrno;
+          goto _unlock;
+        }
+      }
+    }
+    if ((pParent->earlyMainTasks || pParent->subJobDoneNum == count) && !pParent->subJobStarted) {
+      if (NULL == taosArrayPush(pReady, &pParent)) {
+        code = terrno;
+        goto _unlock;
+      }
+    }
+    // Commit launch flags only after every ready job has been added.
+    for (int32_t i = 0; i < taosArrayGetSize(pReady); ++i) {
+      SSchJob* pReadyJob = taosArrayGetP(pReady, i);
+      pReadyJob->subJobStarted = true;
+      if (pReadyJob == pParent) {
+        pParent->launchedSeriesId = pParent->seriesId;
+      }
+    }
+  }
+
+_unlock:
+  SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  SCH_ERR_JRET(code);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pReady); ++i) {
+    SSchJob* pReadyJob = taosArrayGetP(pReady, i);
+    if (schJobNeedToStop(pParent, NULL)) break;
+    code = schLaunchJobImpl(pReadyJob);
+    if (TSDB_CODE_SUCCESS != code) {
+      (void)schHandleJobFailure(pReadyJob, code);
+      break;
+    }
+  }
+
+_return:
+  taosArrayDestroy(pReady);
+  return code;
+}
+
+static int32_t schStopQueryTasksImpl(void* param) {
+  SSchJob* pParent = param;
+  schDropJobAllTasks(pParent);
+  for (int32_t i = 0; i < taosArrayGetSize(pParent->subJobs); ++i) {
+    SSchJob* pSub = taosArrayGetP(pParent->subJobs, i);
+    schDropJobAllTasks(pSub);
+  }
+  (void)schReleaseJob(pParent->refId);
+  return TSDB_CODE_SUCCESS;
+}
+
+void schStopQueryTasks(SSchJob* pJob) {
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  if (!pParent->concurrentSubJobs || !schJobDone(pParent) ||
+      0 != atomic_val_compare_exchange_8(&pParent->stopScheduled, 0, 1)) return;
+  SSchJob* pRef = NULL;
+  if (TSDB_CODE_SUCCESS != schAcquireJob(pParent->refId, &pRef)) {
+    atomic_store_8(&pParent->stopScheduled, 0);
+    return;
+  }
+  // Failures also arrive with task locks held. Drop tasks on the worker pool
+  // so no callback waits for another task while holding its own task lock.
+  int32_t code = taosAsyncExec(schStopQueryTasksImpl, pRef, NULL);
+  if (TSDB_CODE_SUCCESS != code) {
+    atomic_store_8(&pParent->stopScheduled, 0);
+    (void)schReleaseJob(pParent->refId);
+    SCH_JOB_ELOG("schedule query task cleanup failed, code:%s", tstrerror(code));
+  }
+}
+
 int32_t schLaunchJobImpl(SSchJob *pJob) {
+  if (schJobNeedToStop(pJob, NULL)) return TSDB_CODE_SCH_IGNORE_ERROR;
   SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
   if (NULL == level) {
     SCH_JOB_ELOG("fail to get the %dth level, levelNum:%d", pJob->levelIdx, (int32_t)taosArrayGetSize(pJob->levels));
@@ -1260,7 +1400,30 @@ int32_t schLaunchJobImpl(SSchJob *pJob) {
     }
   }
 
-  SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+  if (pJob->earlyMainTasks) {
+    // Each leaf has its own exchange and subquery prerequisites. Internal tasks are
+    // launched by their last child and do not need the legacy level-by-level walk.
+    uint64_t series = atomic_load_64(&pJob->seriesId);
+    for (int32_t i = pJob->levelNum - 1; i >= 0; --i) {
+      SSchLevel* leafLevel = taosArrayGet(pJob->levels, i);
+      for (int32_t j = 0; j < leafLevel->taskNum; ++j) {
+        SSchTask* task = taosArrayGet(leafLevel->subTasks, j);
+        if (taosArrayGetSize(task->children)) continue;
+        SCH_LOCK_TASK(task);
+        if (series != atomic_load_64(&pJob->seriesId) || schJobNeedToStop(pJob, NULL)) {
+          SCH_UNLOCK_TASK(task);
+          return TSDB_CODE_SUCCESS;
+        }
+        task->failedSeriesId = series - 1;
+        task->seriesId = series;
+        int32_t code = schDelayLaunchTask(pJob, task);
+        SCH_UNLOCK_TASK(task);
+        SCH_ERR_RET(code);
+      }
+    }
+  } else {
+    SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+  }
 
   // The parent is promoted when a subjob query message is actually dispatched
   // (schBuildAndSendMsg), not when its tasks are queued here.
@@ -1278,6 +1441,21 @@ int32_t schLaunchJob(SSchJob *pJob) {
     SCH_ERR_RET(schSwitchJobStatus(pJob, JOB_TASK_STATUS_PART_SUCC, NULL));
 
     return TSDB_CODE_SUCCESS;
+  }
+
+  if (SCH_IS_PARENT_JOB(pJob) && pJob->concurrentSubJobs) {
+    // Child callbacks select the first main-job launch. Only this entry,
+    // called after retry reset, may select another execution series.
+    SCH_LOCK(SCH_WRITE, &pJob->subJobLock);
+    bool restart = pJob->subJobStarted && pJob->launchedSeriesId != pJob->seriesId;
+    if (restart) {
+      pJob->launchedSeriesId = pJob->seriesId;
+    }
+    SCH_UNLOCK(SCH_WRITE, &pJob->subJobLock);
+    if (restart) {
+      return schLaunchJobImpl(pJob);
+    }
+    return schLaunchReadySubJobs(pJob);
   }
 
   if (SCH_IS_PARENT_JOB(pJob) && SCH_JOB_GOT_SUB_JOBS(pJob) && pJob->subJobExecIdx < taosArrayGetSize(pJob->subJobs)) {
@@ -1359,6 +1537,8 @@ void schFreeJobImpl(void *job) {
   }
 
   schFreeFlowCtrl(pJob);
+  taosArrayDestroy(pJob->dependentJobs);
+  taosArrayDestroy(pJob->waitingMainTasks);
 
   taosHashCleanup(pJob->execTasks);
   //  taosHashCleanup(pJob->failTasks);
@@ -1673,6 +1853,11 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   
   SCH_ERR_JRET(schValidateAndBuildJob(pReq->pDag, pJob));
 
+  SCH_ERR_JRET(schInitJobDependencies(pJob));
+  if (pJob->concurrentSubJobs) {
+    SCH_ERR_JRET(schInitJobFlowCtrl(pJob));
+  }
+
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_JRET(qExecExplainBegin(pReq->pDag, &pJob->explainCtx, pReq->startTs));
   }
@@ -1719,7 +1904,9 @@ int32_t schExecJob(SSchJob *pJob, SSchedulerReq *pReq) {
   int32_t code = 0;
   qTrace("QID:0x%" PRIx64 ", jobId:0x%" PRIx64 ", sch job started", pReq->pDag->queryId, pJob->refId);
 
-  SCH_ERR_RET(schLaunchJob(pJob));
+  code = schLaunchJob(pJob);
+  schDrainInlineFlowTasks(pJob);
+  SCH_ERR_RET(code);
 
   if (pReq->syncReq) {
     SCH_JOB_DLOG("sync wait for rsp now, job status:%s", SCH_GET_JOB_STATUS_STR(pJob));
@@ -1764,35 +1951,51 @@ int32_t schChkResetJobRetry(SSchJob *pJob, int32_t rspCode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, bool *inRetry) {
+// Called with the task locked. A different retry can replace its execution while we wait.
+static bool schClaimJobRetry(SSchJob* pJob, SSchTask* pTask) {
+  uint64_t seriesId = pTask->seriesId;
+  int32_t execId = pTask->execId;
+  while (atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1) != 0) {
+    if (seriesId != atomic_load_64(&pJob->seriesId)) return false;
+    SCH_UNLOCK_TASK(pTask);
+    taosUsleep(1);
+    SCH_LOCK_TASK(pTask);
+  }
+  if (seriesId == atomic_load_64(&pJob->seriesId) && seriesId == pTask->seriesId && execId == pTask->execId) {
+    if (pJob->earlyMainTasks) {
+      SCH_LOCK(SCH_WRITE, &pJob->subJobLock);
+      pJob->invalidatedMainSeries = seriesId;
+      pJob->pendingMainResult.task = NULL;
+      SCH_UNLOCK(SCH_WRITE, &pJob->subJobLock);
+    }
+    return true;
+  }
+  atomic_store_8(&pJob->inRetry, 0);
+  return false;
+}
+
+static int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode) {
   int32_t code = 0;
   int32_t numOfLevels = taosArrayGetSize(pJob->levels);
-
-  while (true) {
-    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
-      SCH_TASK_DLOG("task sId %" PRId64 " is smaller than current job sId %" PRId64, pTask->seriesId, pJob->seriesId);
-      return TSDB_CODE_SCH_IGNORE_ERROR;
-    }
-
-    int8_t origInRetry = atomic_val_compare_exchange_8(&pJob->inRetry, 0, 1);
-    if (0 != origInRetry) {
-      SCH_JOB_DLOG("job already in retry, origInRetry: %d", pJob->inRetry);
-      taosUsleep(1);
-      continue;
-    }
-
-    if (pTask->seriesId < atomic_load_64(&pJob->seriesId)) {
-      SCH_TASK_DLOG("task sId:%" PRId64 " is smaller than current job sId:%" PRId64, pTask->seriesId, pJob->seriesId);
-      return TSDB_CODE_SCH_IGNORE_ERROR;
-    }
-
-    break;
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  // Early execution can publish from a deferred child callback. Hold the same
+  // root-task lock for status reset and invalidation as for result delivery.
+  SSchTask* root = NULL;
+  if (pJob->earlyMainTasks) {
+    SSchLevel* top = taosArrayGet(pJob->levels, 0);
+    root = top ? taosArrayGet(top->subTasks, 0) : NULL;
+    if (!root) return TSDB_CODE_SCH_INTERNAL_ERROR;
+    SCH_LOCK_TASK(root);
   }
-
-  *inRetry = true;
-  SCH_ERR_RET(schChkResetJobRetry(pJob, rspCode));
-
-  (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+  code = schChkResetJobRetry(pJob, rspCode);
+  if (TSDB_CODE_SUCCESS == code) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    (void)atomic_add_fetch_64(&pJob->seriesId, 1);
+    pJob->pendingMainResult.task = NULL;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  }
+  if (root) SCH_UNLOCK_TASK(root);
+  SCH_ERR_RET(code);
 
   // Every task in every level is reset and re-launched below, so the per-vgroup results already
   // summed into this job are stale by definition - the re-run reports them again. Without this
@@ -1840,6 +2043,11 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
   }
 
   SCH_RESET_JOB_LEVEL_IDX(pJob);
+  if (pParent->concurrentSubJobs && SCH_IS_SUBQ_JOB(pJob)) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    pJob->subJobRestarting = false;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
+  }
   
   SCH_JOB_DLOG("update job sId:%" PRId64 ", levelIdx:%d", pJob->seriesId, pJob->levelIdx);
 
@@ -1847,33 +2055,35 @@ int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCode, boo
 }
 
 int32_t schHandleJobRetry(SSchJob *pJob, SSchTask *pTask, SDataBuf *pMsg, int32_t rspCode) {
-  int32_t code = 0;
-  bool    inRetry = false;
-
   taosMemoryFreeClear(pMsg->pData);
   taosMemoryFreeClear(pMsg->pEpSet);
+  if (!schClaimJobRetry(pJob, pTask)) return TSDB_CODE_SCH_IGNORE_ERROR;
 
-  SCH_UNLOCK_TASK(pTask);
-  SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
-
-  SCH_ERR_JRET(schFailedTaskNeedRetry(pTask, pJob, rspCode));
-  SCH_ERR_JRET(schResetJobForRetry(pJob, pTask, rspCode, &inRetry));
-
-  SCH_ERR_JRET(schLaunchJob(pJob));
-
-  SCH_LOCK_TASK(pTask);
-  atomic_store_8(&pJob->inRetry, 0);
-
-  SCH_RET(code);
-
-_return:
-  SCH_LOCK_TASK(pTask);
-  code = schProcessOnTaskFailure(pJob, pTask, code);
-
-  if (inRetry) {
-    atomic_store_8(&pJob->inRetry, 0);
+  int32_t code = schFailedTaskNeedRetry(pTask, pJob, rspCode);
+  SSchJob* pParent = SCH_PARENT_JOB(pJob);
+  bool published = false;
+  if (pParent->concurrentSubJobs && SCH_IS_SUBQ_JOB(pJob)) {
+    SCH_LOCK(SCH_WRITE, &pParent->subJobLock);
+    published = pJob->resultReady;
+    if (!published && TSDB_CODE_SUCCESS == code) pJob->subJobRestarting = true;
+    SCH_UNLOCK(SCH_WRITE, &pParent->subJobLock);
   }
-  
+
+  if (published) {
+    SCH_UNLOCK_TASK(pTask);
+    code = schHandleJobFailure(pJob, rspCode);
+    SCH_LOCK_TASK(pTask);
+  } else {
+    if (TSDB_CODE_SUCCESS == code) {
+      SCH_TASK_DLOG("start to restart all tasks by error:%s from TID:0x%" PRIx64, tstrerror(rspCode), pTask->taskId);
+      SCH_UNLOCK_TASK(pTask);
+      code = schResetJobForRetry(pJob, pTask, rspCode);
+      if (TSDB_CODE_SUCCESS == code) code = schLaunchJob(pJob);
+      SCH_LOCK_TASK(pTask);
+    }
+    if (TSDB_CODE_SUCCESS != code) code = schProcessOnTaskFailure(pJob, pTask, code);
+  }
+  atomic_store_8(&pJob->inRetry, 0);
   SCH_RET(code);
 }
 
@@ -2008,6 +2218,7 @@ void schProcessOnCbEnd(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
   }
 
   if (pJob) {
+    schDrainInlineFlowTasks(pJob);
     (void)schReleaseJob(pJob->refId);  // ignore error
   }
 }
@@ -2025,7 +2236,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
     SCH_ERR_RET(TSDB_CODE_QRY_JOB_NOT_EXIST);
   }
 
-  if (schJobNeedToStop(pJob, &status)) {
+  if (!pJob->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
     SCH_TASK_DLOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
     SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
@@ -2037,7 +2248,7 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 
-    if (schJobNeedToStop(pJob, &status)) {
+    if (!SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
       SCH_TASK_DLOG("will not do further processing cause of sub job status %s", jobTaskStatusStr(status));
       SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
@@ -2046,6 +2257,11 @@ int32_t schProcessOnCbBegin(SSchJob **job, SSchTask **task, uint64_t qId, int64_
   SCH_ERR_JRET(schGetTaskInJob(pJob, tId, &pTask));
 
   SCH_LOCK_TASK(pTask);
+
+  if (SCH_PARENT_JOB(pJob)->concurrentSubJobs && schJobNeedToStop(pJob, &status)) {
+    schDropTaskOnExecNode(pJob, pTask);
+    SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
+  }
 
   *job = pJob;
   *task = pTask;

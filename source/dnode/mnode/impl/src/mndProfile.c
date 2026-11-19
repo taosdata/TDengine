@@ -1688,10 +1688,6 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       return terrno;
     }
 
-    int32_t subNum = pQuery->subDesc ? (int32_t)taosArrayGetSize(pQuery->subDesc) : 0;
-    if (subNum > pQuery->subPlanNum) {
-      subNum = pQuery->subPlanNum;
-    }
     int32_t built = 0;
     int32_t len = tFormatQuerySubStatus(pQuery->subDesc, pQuery->subPlanNum, pQuery->stime,
                                         subStatus + VARSTR_HEADER_SIZE, maxPayload, &built);
@@ -1701,8 +1697,8 @@ static int32_t packQueriesIntoBlock(SShowObj *pShow, SConnObj *pConn, SSDataBloc
       taosRUnLockLatch(&pConn->queryLock);
       return len;
     }
-    if (built < subNum) {
-      mError("sub status truncated: %d of %d sub tasks fit into %d bytes", built, subNum, maxPayload);
+    if (built < pQuery->subPlanNum) {
+      mError("sub status omitted %d of %d sub tasks", pQuery->subPlanNum - built, pQuery->subPlanNum);
     }
     varDataLen(subStatus) = (VarDataLenT)len;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

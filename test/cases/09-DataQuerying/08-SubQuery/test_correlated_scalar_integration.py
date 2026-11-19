@@ -56,9 +56,14 @@ class TestCorrelatedScalarIntegration:
                 [(1, 9), (2, 8)],
             )
             print(f"query policy {policy} ....................... [ passed ]")
+        having_subquery = "select sum(v) from history_st having sum(v) > (select min(v) from readings)"
         tdSql.execute('alter local "queryPolicy" "4"')
-        tdSql.error(scalar, expectedErrno=self.SCALAR_POLICY)
-        tdSql.execute('alter local "queryPolicy" "1"')
+        try:
+            tdSql.error(scalar, expectedErrno=self.SCALAR_POLICY)
+            tdSql.error(having_subquery, expectedErrno=self.SCALAR_POLICY)
+        finally:
+            tdSql.execute('alter local "queryPolicy" "1"')
+        self.check_result(having_subquery, [(45,)])
         print("query policies 1/2/3/4 ................. [ passed ]")
 
     def do_mnode_fallback(self):

@@ -1528,6 +1528,8 @@ typedef struct SSubplan {
   bool           dynTbname;
   bool           localBlockExchange;
   bool           execOnChildNode;
+  bool           subqueryDepsKnown;
+  SArray*        pSubqueryDeps;  // Direct reads of this task, indexed in the SQL-wide child job list.
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;
 
@@ -1585,6 +1587,8 @@ typedef struct SQueryPlan {
   bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
   bool          hasScan;           // true when plan contains at least one local (vnode) scan
   SNodeList*    pCorrelationTemplates;  // Owned; not auto-started child jobs.
+  bool          subqueryDepsKnown;
+  SArray*       pSubqueryDeps;  // Owned int32_t indices into the SQL's child jobs.
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

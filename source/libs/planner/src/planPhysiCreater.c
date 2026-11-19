@@ -8322,7 +8322,10 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     } else {
       pSubplan->msgType = TDMT_SCH_MERGE_QUERY;
     }
-    code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
+    code = planCollectTaskSubqueryDeps(pCxt->pPlanCxt, pLogicSubplan->pNode, pSubplan);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = createPhysiNode(pCxt, pLogicSubplan->pNode, pSubplan, &pSubplan->pNode);
+    }
     if (TSDB_CODE_SUCCESS == code &&
         (SUBPLAN_TYPE_SCAN == pSubplan->subplanType || SUBPLAN_TYPE_HSYSSCAN == pSubplan->subplanType) &&
         QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == nodeType(pSubplan->pNode) &&

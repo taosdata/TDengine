@@ -7302,6 +7302,32 @@ static int32_t msgToSubplanId(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+static int32_t subqueryDependenciesToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SArray* pDeps = pObj;
+  for (int32_t i = 0; i < taosArrayGetSize(pDeps); ++i) {
+    int32_t code = tlvEncodeI32(pEncoder, TLV_TYPE_ARRAY_ELEM, *(int32_t*)taosArrayGet(pDeps, i));
+    if (TSDB_CODE_SUCCESS != code) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t msgToSubqueryDependencies(STlv* pTlv, SArray** ppDeps) {
+  if (NULL != *ppDeps) return TSDB_CODE_QRY_INVALID_MSG;
+  *ppDeps = taosArrayInit(4, sizeof(int32_t));
+  if (NULL == *ppDeps) return terrno;
+  STlvDecoder decoder = {.bufSize = pTlv->len, .pBuf = pTlv->value};
+  STlv* pElem = NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  tlvForEach(&decoder, pElem, code) {
+    int32_t dependency = 0;
+    if (TLV_TYPE_ARRAY_ELEM != pElem->type) return TSDB_CODE_QRY_INVALID_MSG;
+    code = tlvDecodeI32(pElem, &dependency);
+    if (TSDB_CODE_SUCCESS != code) return code;
+    if (NULL == taosArrayPush(*ppDeps, &dependency)) return terrno;
+  }
+  return code;
+}
+
 enum {
   SUBPLAN_CODE_INLINE_ATTRS = 1,
   SUBPLAN_CODE_ROOT_NODE,
@@ -7315,6 +7341,8 @@ enum {
   SUBPLAN_CODE_SUBQ,
   SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE,
   SUBPLAN_CODE_EXEC_ON_CHILD_NODE,
+  SUBPLAN_CODE_SUBQUERY_DEPS,
+  SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN,
 };
 
 static int32_t subplanInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -7404,6 +7432,12 @@ static int32_t subplanToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_EXEC_ON_CHILD_NODE, pNode->execOnChildNode);
   }
 
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tlvEncodeBool(pEncoder, SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN, true);
+    if (TSDB_CODE_SUCCESS == code && pNode->pSubqueryDeps) {
+      code = tlvEncodeObj(pEncoder, SUBPLAN_CODE_SUBQUERY_DEPS, subqueryDependenciesToMsg, pNode->pSubqueryDeps);
+    }
+  }
   return code;
 }
 
@@ -7495,6 +7529,12 @@ static int32_t msgToSubplan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case SUBPLAN_CODE_LOCAL_BLOCK_EXCHANGE:
         code = tlvDecodeBool(pTlv, &pNode->localBlockExchange);
+        break;
+      case SUBPLAN_CODE_SUBQUERY_DEPS_KNOWN:
+        code = tlvDecodeBool(pTlv, &pNode->subqueryDepsKnown);
+        break;
+      case SUBPLAN_CODE_SUBQUERY_DEPS:
+        code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
         break;
       case SUBPLAN_CODE_EXEC_ON_CHILD_NODE:
         code = tlvDecodeBool(pTlv, &pNode->execOnChildNode);
@@ -8191,7 +8231,8 @@ enum { QUERY_PLAN_CODE_INLINE_ATTRS = 1, QUERY_PLAN_CODE_SUBPLANS, QUERY_PLAN_CO
        QUERY_PLAN_CODE_CORRELATION_TEMPLATES, QUERY_PLAN_CODE_SUBPLAN_LINKS,
        QUERY_PLAN_CODE_SUBQ_TYPE, QUERY_PLAN_CODE_SUB_SQL, QUERY_PLAN_CODE_EXPLAIN_MODE,
        QUERY_PLAN_CODE_EXPLAIN_VERBOSE, QUERY_PLAN_CODE_EXPLAIN_RATIO,
-       QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN };
+       QUERY_PLAN_CODE_HAS_FEDERATED_SCAN, QUERY_PLAN_CODE_HAS_SCAN,
+       QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES };
 
 enum { SUBPLAN_LINK_CODE_PARENT = 1, SUBPLAN_LINK_CODE_CHILD };
 
@@ -8347,6 +8388,13 @@ static int32_t queryPlanToMsg(const void* pObj, STlvEncoder* pEncoder) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_HAS_SCAN, pNode->hasScan);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tlvEncodeBool(pEncoder, QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN, true);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tlvEncodeObj(pEncoder, QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES,
+                          subqueryDependenciesToMsg, pNode->pSubqueryDeps);
+    }
+  }
   if ((qDebugFlag & DEBUG_DEBUG) && TSDB_CODE_SUCCESS == code) {
     qDebug("FQ-MSG: encoded query plan qid=0x%" PRIx64 " numOfSubplans=%d levels=%d subqueries=%d",
            pNode->queryId, pNode->numOfSubplans, pNode->pSubplans ? LIST_LENGTH(pNode->pSubplans) : 0,
@@ -8429,6 +8477,12 @@ static int32_t msgToQueryPlan(STlvDecoder* pDecoder, void* pObj) {
         break;
       case QUERY_PLAN_CODE_HAS_SCAN:
         code = tlvDecodeBool(pTlv, &pNode->hasScan);
+        break;
+      case QUERY_PLAN_CODE_SUBQUERY_DEPS_KNOWN:
+        code = tlvDecodeBool(pTlv, &pNode->subqueryDepsKnown);
+        break;
+      case QUERY_PLAN_CODE_SUBQUERY_DEPENDENCIES:
+        code = msgToSubqueryDependencies(pTlv, &pNode->pSubqueryDeps);
         break;
       default:
         break;

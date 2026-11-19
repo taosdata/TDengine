@@ -7453,10 +7453,19 @@ int32_t sendFetchRemoteNodeReq(STaskSubJobCtx* ctx, int32_t subQIdx, SNode* pRes
 
   if (IS_STREAM_MODE(pTaskInfo)) {
     innerIdx = pTaskInfo->pStreamRuntimeInfo->execId / STREAM_TASK_REPLICA_NUM;
+    if (subQIdx < 0 || innerIdx < 0 || subQIdx > (INT32_MAX - innerIdx) / STREAM_TASK_DEPLOY_NUM) {
+      return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+    }
     subQIdx = subQIdx * STREAM_TASK_DEPLOY_NUM + innerIdx;
   }
 
+  if (subQIdx < 0 || subQIdx >= taosArrayGetSize(ctx->subEndPoints)) {
+    return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
   SDownstreamSourceNode* pSource = (SDownstreamSourceNode*)taosArrayGetP(ctx->subEndPoints, subQIdx);
+  if (NULL == pSource || 0 == pSource->fetchMsgType) {
+    return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
 
   SResFetchReq req = {0};
   req.header.vgId = pSource->addr.nodeId;
@@ -7789,9 +7798,15 @@ int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {
   STaskSubJobCtx*  ctx = (STaskSubJobCtx*)pCtx;
   int32_t code = 0, lino = 0;
   int32_t       subEndPoinsNum = taosArrayGetSize(ctx->subEndPoints);
-  if (subQIdx >= subEndPoinsNum) {
+  if (subQIdx < 0 || subQIdx >= subEndPoinsNum) {
     qError("%s invalid subQIdx %d, subEndPointsNum:%d", ctx->idStr, subQIdx, subEndPoinsNum);
     return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+  }
+  if (!ctx->isStream) {
+    const SDownstreamSourceNode* pSource = taosArrayGetP(ctx->subEndPoints, subQIdx);
+    if (NULL == pSource || 0 == pSource->fetchMsgType) {
+      return TSDB_CODE_QRY_SUBQ_NOT_FOUND;
+    }
   }
 
   // In stream mode the subquery must be re-evaluated for every trigger event;

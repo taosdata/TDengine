@@ -101,15 +101,13 @@ int32_t qwCloneSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void** ppRes, int32_t* d
 
   *ppRes = pRsp;
   *dataLen = pItem->dataLen;
-  int32_t code = ctx->subQRes.code;
-  
-  QW_TASK_DLOG("subQ task got res from rspList, rsp:%p, dataLen:%d, code:%d", *ppRes, *dataLen, code);
+  QW_TASK_DLOG("subQ task got res from rspList, rsp:%p, dataLen:%d", *ppRes, *dataLen);
 
   if (toFetch) {
     *toFetch = false;
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qwSaveSubQueryFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* pItem, void* rsp, int32_t dataLen, int32_t code) {
@@ -122,7 +120,7 @@ int32_t qwSaveSubQueryFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* pIte
 
   SRetrieveTableRsp* pRsp = NULL;
   if (rsp && dataLen >= 0) {
-    int32_t tcode = qwMallocFetchRsp(!ctx->localExec, dataLen, &pRsp);
+    int32_t tcode = qwMallocFetchRsp(!ctx->localExec || !QW_IS_SCALAR_SUBQ(ctx), dataLen, &pRsp);
     if (tcode) {
       QW_TASK_ELOG("qwMallocFetchRsp size %d, localExec:%d failed, error:%s", dataLen, ctx->localExec, tstrerror(tcode));
       return tcode;
@@ -150,93 +148,58 @@ int32_t qwChkSaveScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32
   return code;
 }
 
-int32_t qwSaveAndHandleWailtList(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWRspItem* newItem, bool fetchDone) {
-  int32_t code = 0;
-  
-  taosWWaitLockLatch(&ctx->subQRes.lock);
-  if (NULL == taosArrayPush(ctx->subQRes.rspList, newItem)) {
-    qwFreeFetchRsp(ctx, newItem->rsp);
-    QW_TASK_ELOG("taosArrayPush SQWRspItem to list failed, error:%s", tstrerror(terrno));
-    code = terrno;
-    if (TSDB_CODE_SUCCESS == ctx->subQRes.code) {
-      ctx->subQRes.code = code;
-    }
+static int32_t qwCacheSubQBlock(QW_FPARAMS_DEF, SQWTaskCtx* ctx, void* rsp, int32_t dataLen) {
+  SQWRspItem item = {0};
+  SQWSubQRes* pSub = &ctx->subQRes;
+  if (NULL == pSub->rspList) {
+    pSub->rspList = taosArrayInit(32, sizeof(SQWRspItem));
+    if (NULL == pSub->rspList) return terrno;
   }
-
-  ctx->subQRes.fetchDone = fetchDone;
-
-  QW_TASK_DLOG("%s code:%d, fetchDone:%d, rspListSize:%d", __func__, ctx->subQRes.code, fetchDone, (int32_t)taosArrayGetSize(ctx->subQRes.rspList));
-
-  int32_t waitNum = taosArrayGetSize(ctx->subQRes.waitList);
-  if (TSDB_CODE_SUCCESS != ctx->subQRes.code) {
-    for (int32_t i = 0; i < waitNum; ++i) {
-      SQWWaitItem* pWaitItem = taosArrayGet(ctx->subQRes.waitList, i);
-      code = qwBuildAndSendFetchRsp(ctx, pWaitItem->reqMsgType + 1, &pWaitItem->connInfo, NULL, 0, ctx->subQRes.code);
-    }
-
-    taosArrayClear(ctx->subQRes.waitList);
-
-    taosWUnLockLatch(&ctx->subQRes.lock);
-
-    return ctx->subQRes.code;
+  QW_ERR_RET(qwSaveSubQueryFetchRsp(QW_FPARAMS(), ctx, &item, rsp, dataLen, TSDB_CODE_SUCCESS));
+  if (NULL == taosArrayPush(pSub->rspList, &item)) {
+    int32_t code = terrno;
+    rpcFreeCont(item.rsp);
+    return code;
   }
-
-  void* pRsp = NULL;
-  int32_t dataLen = 0;
-  for (int32_t i = 0; i < waitNum; ++i) {
-    SQWWaitItem* pWaitItem = taosArrayGet(ctx->subQRes.waitList, i);
-    SQWRspItem* pRspItem = taosArrayGet(ctx->subQRes.rspList, pWaitItem->blockIdx);
-    if (NULL == pRspItem) {
-      ctx->subQRes.code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
-      QW_TASK_ELOG("subQ srcTask 0x%" PRIx64 " with invalid blockIdx %" PRIu64 ", currentBlockNum:%d", 
-        pWaitItem->srcTaskId, pWaitItem->blockIdx, (int32_t)taosArrayGetSize(ctx->subQRes.rspList));
-        
-      code = qwBuildAndSendFetchRsp(ctx, pWaitItem->reqMsgType + 1, &pWaitItem->connInfo, NULL, 0, ctx->subQRes.code);
-      if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == ctx->subQRes.code) {
-        ctx->subQRes.code = code;
-      }
-
-      continue;
-    }
-    
-    code = qwCloneSubQRsp(QW_FPARAMS(), ctx, &pRsp, &dataLen, NULL, pRspItem);
-    if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == ctx->subQRes.code) {
-      ctx->subQRes.code = code;
-    }
-    code = qwBuildAndSendFetchRsp(ctx, pWaitItem->reqMsgType + 1, &pWaitItem->connInfo, (SRetrieveTableRsp*)pRsp, dataLen, ctx->subQRes.code);
-    if (TSDB_CODE_SUCCESS != code && TSDB_CODE_SUCCESS == ctx->subQRes.code) {
-      ctx->subQRes.code = code;
-    }
-  }
-
-  taosArrayClear(ctx->subQRes.waitList);
-
-  taosWUnLockLatch(&ctx->subQRes.lock);
-
-  return ctx->subQRes.code;
+  return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwChkSaveNonScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {
-  if (NULL == rsp || TSDB_CODE_SUCCESS != code) {
-    ctx->subQRes.code = code;
-    return code;
+int32_t qwChkSaveNonScalarSubQRsp(QW_FPARAMS_DEF, SQWTaskCtx* ctx, void* rsp, int32_t dataLen, int32_t code,
+                                  bool queryEnd) {
+  if (NULL == rsp && TSDB_CODE_SUCCESS == code) return TSDB_CODE_SUCCESS;
+
+  SQWSubQRes* pSub = &ctx->subQRes;
+  taosWWaitLockLatch(&pSub->lock);
+  if (pSub->code) {
+    code = pSub->code;
+  } else if (TSDB_CODE_SUCCESS == code) {
+    code = qwCacheSubQBlock(QW_FPARAMS(), ctx, rsp, dataLen);
   }
-  
-  if (NULL == ctx->subQRes.rspList) {
-    ctx->subQRes.rspList = taosArrayInit(32, sizeof(SQWRspItem));
-    if (NULL == ctx->subQRes.rspList) {
-      QW_TASK_ELOG("taosArrayInit SQWRspItem list failed, error:%s", tstrerror(terrno));
-      return terrno;
+  pSub->code = code;
+  pSub->fetchPending = false;
+  pSub->fetchDone = queryEnd;
+  SArray* waiters = pSub->waitList;
+  pSub->waitList = NULL;
+  taosWUnLockLatch(&pSub->lock);
+
+  // Waiters requested this block. The publisher owns rsp until it sends its own reply.
+  SQWRspItem source = {.rsp = rsp, .dataLen = dataLen};
+  for (int32_t i = 0; i < taosArrayGetSize(waiters); ++i) {
+    SQWWaitItem* waiter = taosArrayGet(waiters, i);
+    void* copy = NULL;
+    int32_t len = 0;
+    int32_t rspCode = code;
+    if (TSDB_CODE_SUCCESS == rspCode) {
+      rspCode = qwCloneSubQRsp(QW_FPARAMS(), ctx, &copy, &len, NULL, &source);
+    }
+    int32_t sendCode = qwBuildAndSendFetchRsp(ctx, waiter->reqMsgType + 1, &waiter->connInfo, copy, len, rspCode);
+    if (sendCode) {
+      QW_TASK_ELOG("send subQ block:%" PRIu64 " to srcTask:0x%" PRIx64 " failed, error:%s",
+                   waiter->blockIdx, waiter->srcTaskId, tstrerror(sendCode));
     }
   }
-
-  SQWRspItem item = {0};
-  code = qwSaveSubQueryFetchRsp(QW_FPARAMS(), ctx, &item, rsp, dataLen, code);
-  if (code) {
-    return code;
-  }
-
-  return qwSaveAndHandleWailtList(QW_FPARAMS(), ctx, &item, queryEnd);
+  taosArrayDestroy(waiters);
+  return code;
 }
 
 int32_t qwChkSaveSubQFetchRsp(QW_FPARAMS_DEF, SQWTaskCtx *ctx, void* rsp, int32_t dataLen, int32_t code, bool queryEnd) {

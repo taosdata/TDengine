@@ -317,6 +317,9 @@ int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_
 
   int32_t offset = 0;
   int32_t built = 0;
+  char    marker[sizeof(",...(+2147483647)")];
+  int32_t markedOffset = 0;
+  int32_t markedBuilt = 0;
   for (int32_t i = 0; i < subNum; ++i) {
     const SQuerySubDesc *pDesc = (const SQuerySubDesc *)taosArrayGet(pSubDesc, i);
     if (NULL == pDesc) {
@@ -351,6 +354,23 @@ int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_
     memcpy(pOut + offset, entry, entryLen);
     offset += entryLen;
     ++built;
+    // Keep the longest complete prefix that leaves room for an omission count.
+    // Use the whole payload if every entry fits, even at the exact byte limit.
+    int32_t remaining = cap - offset;
+    if (remaining >= (int32_t)sizeof(marker) - 1 ||
+        snprintf(marker, sizeof(marker), ",...(+%d)", subPlanNum - built) <= remaining) {
+      markedOffset = offset;
+      markedBuilt = built;
+    }
+  }
+
+  if (built < subPlanNum) {
+    int32_t len = snprintf(marker, sizeof(marker), "%s...(+%d)", markedBuilt ? "," : "", subPlanNum - markedBuilt);
+    if (len > 0 && len <= cap - markedOffset) {
+      memcpy(pOut + markedOffset, marker, len);
+      offset = markedOffset + len;
+      built = markedBuilt;
+    }
   }
 
   *pBuilt = built;

@@ -6660,6 +6660,11 @@ TEST(execUtilTest, remoteScalarCacheSurvivesFirstConsumerDestruction) {
     ctx.subResCache = taosArrayInit_s(POINTER_BYTES, 1);
     ASSERT_NE(ctx.subEndPoints, nullptr);
     ASSERT_NE(ctx.subResCache, nullptr);
+    SDownstreamSourceNode source = {};
+    source.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+    source.fetchMsgType = TDMT_SCH_FETCH;
+    auto* pSource = &source;
+    taosArraySet(ctx.subEndPoints, 0, &pSource);
     taosArraySet(ctx.subResCache, 0, &pCached);
 
     SRemoteValueNode* pSecond = nullptr;
@@ -30177,3 +30182,25 @@ TEST_P(AnomalyWindowResetTest, ReleasesExpressionsBeforeRebuildingWindowState) {
 INSTANTIATE_TEST_SUITE_P(WithAndWithoutScalarExpressions, AnomalyWindowResetTest, testing::Bool());
 }  // namespace
 #endif
+
+TEST(execUtilTest, invalidSubqueryEndpointsFailBeforeRpcOrWaiting) {
+  SExecTaskInfo task = {};
+  STaskSubJobCtx ctx = {};
+  ctx.idStr = const_cast<char*>("invalid subquery endpoint test");
+  ctx.pTaskInfo = &task;
+  ctx.subEndPoints = taosArrayInit_s(POINTER_BYTES, 2);
+  ASSERT_NE(ctx.subEndPoints, nullptr);
+  SRemoteValueNode remote = {};
+  remote.val.node.type = QUERY_NODE_REMOTE_VALUE;
+  SDownstreamSourceNode empty = {};
+  empty.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+  auto* pEmpty = &empty;
+  taosArraySet(ctx.subEndPoints, 1, &pEmpty);
+  for (int32_t index : {-1, 0, 1, 2, INT32_MAX}) {
+    SCOPED_TRACE(index);
+    EXPECT_EQ(qFetchRemoteNode(&ctx, index, reinterpret_cast<SNode*>(&remote)), TSDB_CODE_QRY_SUBQ_NOT_FOUND);
+    EXPECT_EQ(sendFetchRemoteNodeReq(&ctx, index, reinterpret_cast<SNode*>(&remote), true),
+              TSDB_CODE_QRY_SUBQ_NOT_FOUND);
+  }
+  taosArrayDestroy(ctx.subEndPoints);
+}

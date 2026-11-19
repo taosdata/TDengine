@@ -720,13 +720,14 @@ int32_t qwGetDeleteResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SDeleteRes *pRes
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
+int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t queryCode) {
   if (QUERY_RSP_POLICY_QUICK != tsQueryRspPolicy) {
     return TSDB_CODE_SUCCESS;
   }
 
   SQWTaskCtx *ctx = NULL;
   bool        quickFetch = false;
+  int32_t     code = TSDB_CODE_SUCCESS;
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   QW_LOCK(QW_WRITE, &ctx->lock);
@@ -742,6 +743,7 @@ int32_t qwQuickRspFetchReq(QW_FPARAMS_DEF, SQWMsg *qwMsg, int32_t code) {
   int32_t     dataLen = 0;
   int32_t     rawLen = 0;
   SOutputData sOutput = {0};
+  code = queryCode;
   if (TSDB_CODE_SUCCESS == code) {
     code = qwGetQueryResFromSink(QW_FPARAMS(), ctx, &dataLen, &rawLen, &rsp, &sOutput);
   }
@@ -1050,52 +1052,30 @@ int32_t qwHandleScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, 
   return code;
 }
 
-int32_t qwHandleNonScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool* toFetch, void** ppRes, int32_t* dataLen, SQWMsg *qwMsg) {
-  int32_t code = 0;
-  SResFetchReq* pReq = (SResFetchReq*)qwMsg->req;
+int32_t qwHandleNonScalarSubQFetch(QW_FPARAMS_DEF, SQWTaskCtx* ctx, bool* toFetch, void** ppRes, int32_t* dataLen,
+                                   SQWMsg* qwMsg) {
+  SResFetchReq* pReq = qwMsg->req;
   SQWSubQRes* pSub = &ctx->subQRes;
-
-  if (TSDB_CODE_SUCCESS != pSub->code) {
-    qError("non-scalar subQ already failed with error:%s", tstrerror(ctx->subQRes.code));
-    return pSub->code;
-  }
-  
-  if (0 == pSub->firstSrcTaskId) {
-    pSub->firstSrcTaskId = pReq->srcTaskId;
-    *toFetch = true;
-    return code;
-  }
-
-  if (pSub->firstSrcTaskId == pReq->srcTaskId) {
-    *toFetch = true;
-    return code;
-  }
+  *toFetch = false;
 
   taosWWaitLockLatch(&pSub->lock);
-
-  if (TSDB_CODE_SUCCESS != atomic_load_32(&pSub->code)) {
-    qError("non-scalar subQ already failed with error:%s", tstrerror(ctx->subQRes.code));
-    taosWUnLockLatch(&pSub->lock);
-    return pSub->code;
+  size_t count = taosArrayGetSize(pSub->rspList);
+  int32_t code = pSub->code;
+  if (code == TSDB_CODE_SUCCESS) {
+    if (pReq->blockIdx < count) {
+      SQWRspItem* item = taosArrayGet(pSub->rspList, pReq->blockIdx);
+      code = qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, item);
+    } else if (pReq->blockIdx != count || pSub->fetchDone) {
+      QW_TASK_ELOG("invalid subQ block index:%" PRIu64 ", cached:%zu, done:%d", pReq->blockIdx, count, pSub->fetchDone);
+      code = TSDB_CODE_QRY_INVALID_INPUT;
+    } else if (pSub->fetchPending) {
+      code = qwAppendToSubQWaitList(ctx, qwMsg);
+    } else {
+      pSub->fetchPending = true;
+      *toFetch = true;
+    }
   }
-  
-  SQWRspItem* pItem = (pReq->blockIdx < taosArrayGetSize(pSub->rspList)) ? taosArrayGet(pSub->rspList, pReq->blockIdx) : NULL;
-  if (NULL != pItem) {
-    taosWUnLockLatch(&pSub->lock);
-    return qwCloneSubQRsp(QW_FPARAMS(), ctx, ppRes, dataLen, toFetch, pItem);
-  }
-  
-  if (atomic_load_8(&ctx->subQRes.fetchDone)) {
-    taosWUnLockLatch(&pSub->lock);
-    QW_TASK_ELOG("no rsp for blockIdx:%" PRIu64 " while subQ fetch done, totalRsps:%d", pReq->blockIdx, (int32_t)taosArrayGetSize(pSub->rspList));
-    *toFetch = false;
-    return code;
-  }
-
-  code = qwAppendToSubQWaitList(ctx, qwMsg);
   taosWUnLockLatch(&pSub->lock);
-  
-  *toFetch = false;
 
   return code;
 }

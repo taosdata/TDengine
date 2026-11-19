@@ -178,10 +178,12 @@ TEST(SubStatusFormatTest, TruncatesOnlyBetweenEntriesAtTheVarcharLimit) {
 
   int32_t     built = 0;
   std::string payload = formatDescs(descs, entryNum + 1, kCreateMs, prefixLen, &built);
-  EXPECT_EQ(entryNum, built);
-  EXPECT_EQ(prefixLen, static_cast<int32_t>(payload.size()));
+  EXPECT_EQ(entryNum - 1, built);
+  EXPECT_LE(static_cast<int32_t>(payload.size()), prefixLen);
   std::vector<std::string> entries = splitEntries(payload);
   ASSERT_EQ(static_cast<size_t>(entryNum), entries.size());
+  EXPECT_EQ("...(+2)", entries.back());
+  entries.pop_back();
   for (const std::string &entry : entries) {
     expectCompleteEntry(entry, kTid, kStatus, "+3600000ms");
   }
@@ -208,4 +210,21 @@ TEST(SubStatusFormatTest, StopsAtSubPlanNum) {
   std::string payload = formatDescs(descs, 2, kCreateMs, kMaxPayload, &built);
   EXPECT_EQ(2, built);
   EXPECT_EQ(2U, splitEntries(payload).size());
+}
+
+TEST(SubStatusFormatTest, UsesExactCapacityAndCountsMissingDescriptors) {
+  SQuerySubDesc desc = {};
+  desc.tid = 1;
+  snprintf(desc.status, sizeof(desc.status), "scan/init");
+  std::string entry = "1:scan/init:-";
+  int32_t built = 0;
+  EXPECT_EQ(entry, formatDescs({desc}, 1, 0, entry.size(), &built));
+  EXPECT_EQ(1, built);
+  std::string marked = entry + ",...(+10)";
+  EXPECT_EQ(marked, formatDescs({desc}, 11, 0, marked.size(), &built));
+  EXPECT_EQ(1, built);
+  EXPECT_EQ("...(+11)", formatDescs({desc}, 11, 0, marked.size() - 1, &built));
+  EXPECT_EQ(0, built);
+  EXPECT_EQ("", formatDescs({desc}, 11, 0, 1, &built));
+  EXPECT_EQ(0, built);
 }

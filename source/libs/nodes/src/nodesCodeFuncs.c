@@ -7198,6 +7198,14 @@ static const char* jkSubplanLocalBlockExchange = "LocalBlockExchange";
 static const char* jkSubplanExecOnChildNode = "ExecOnChildNode";
 static const char* jkSubplanUserAppId = "UserAppId";
 
+static int32_t subqueryDependencyToJson(const void* pObj, SJson* pJson) {
+  return tjsonAddIntegerToObject(pJson, "SubqueryId", *(const int32_t*)pObj);
+}
+
+static int32_t jsonToSubqueryDependency(const SJson* pJson, void* pObj) {
+  return tjsonGetIntValue(pJson, "SubqueryId", (int32_t*)pObj);
+}
+
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
 
@@ -7284,6 +7292,12 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddIntegerToObject(pJson, jkSubplanUserAppId, pNode->userAppId);
   }
 
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tjsonAddBoolToObject(pJson, "SubqueryDepsKnown", true);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddTArray(pJson, "SubqueryDependencies", subqueryDependencyToJson, pNode->pSubqueryDeps);
+    }
+  }
   return code;
 }
 
@@ -7513,6 +7527,13 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, "SubqueryDepsKnown", &pNode->subqueryDepsKnown);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tjsonToTArray(pJson, "SubqueryDependencies", jsonToSubqueryDependency,
+                         &pNode->pSubqueryDeps, sizeof(int32_t));
+  }
   return code;
 }
 
@@ -7711,6 +7732,12 @@ static int32_t planToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, "CorrelationTemplates", pNode->pCorrelationTemplates);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->subqueryDepsKnown) {
+    code = tjsonAddBoolToObject(pJson, "SubqueryDepsKnown", true);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = tjsonAddTArray(pJson, "SubqueryDependencies", subqueryDependencyToJson, pNode->pSubqueryDeps);
+    }
   }
   return code;
 }
@@ -8084,6 +8111,13 @@ static int32_t jsonToPlan(const SJson* pJson, void* pObj) {
     code = correlationJsonList(pJson, "CorrelationTemplates", &pNode->pCorrelationTemplates, QUERY_NODE_CORRELATION_TEMPLATE);
   }
   if (TSDB_CODE_SUCCESS == code) code = nodesValidateCorrelationNode((const SNode*)pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, "SubqueryDepsKnown", &pNode->subqueryDepsKnown);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToTArray(pJson, "SubqueryDependencies", jsonToSubqueryDependency,
+                        &pNode->pSubqueryDeps, sizeof(int32_t));
+  }
   return code;
 }
 

@@ -2127,6 +2127,11 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynTbname);
   COPY_SCALAR_FIELD(localBlockExchange);
   COPY_SCALAR_FIELD(execOnChildNode);
+  COPY_SCALAR_FIELD(subqueryDepsKnown);
+  if (pSrc->pSubqueryDeps) {
+    pDst->pSubqueryDeps = taosArrayDup(pSrc->pSubqueryDeps, NULL);
+    if (!pDst->pSubqueryDeps) return terrno;
+  }
   COPY_SCALAR_FIELD(userAppId);
   return TSDB_CODE_SUCCESS;
 }
