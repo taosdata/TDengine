@@ -13,9 +13,14 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-import threading
+from concurrent.futures import ThreadPoolExecutor
+import time
 from dbutils.pooled_db import PooledDB
 import taosws
+
+
+def insert_timestamps(i: int, base_ts: int):
+    return base_ts + i + 1, base_ts + i + 2, base_ts + i + 3
 
 def init_websocket_pool():
     return PooledDB(
@@ -34,6 +39,7 @@ def init_websocket_pool():
 websocket_pool = init_websocket_pool()
 
 def init_db():
+    conn = None
     try:
         conn = websocket_pool.connection()
         cursor = conn.cursor()
@@ -51,28 +57,31 @@ def init_db():
 
     except Exception as err:
         print(f"Failed to create db and table; ErrMessage:{err}")
+        raise
     finally:
         if conn:
             conn.close()
 
-def ws_insert_sql(i: int):
+def ws_insert_sql(i: int, base_ts: int):
     conn = None
     try:
         conn = websocket_pool.connection()
         cursor = conn.cursor()
+        ts1, ts2, ts3 = insert_timestamps(i, base_ts)
         sql = f"""
             INSERT INTO 
             power.d1001 USING power.meters (groupid, location) TAGS(2, 'California.SanFrancisco')
-                VALUES (NOW + {i+1}a, 10.30000, 219, 0.31000) 
-                (NOW + {i+2}a, 12.60000, 218, 0.33000) (NOW + {i+3}a, 12.30000, 221, 0.31000)
+                VALUES ({ts1}, 10.30000, 219, 0.31000)
+                ({ts2}, 12.60000, 218, 0.33000) ({ts3}, 12.30000, 221, 0.31000)
             power.d1002 USING power.meters (groupid, location)  TAGS(3, 'California.SanFrancisco') 
-                VALUES (NOW + {i+1}a, 10.30000, 218, 0.25000)
+                VALUES ({base_ts + i + 1}, 10.30000, 218, 0.25000)
             """
         affectedRows = cursor.execute(sql)
         print(f"Successfully inserted {affectedRows} rows to power.meters.")
 
     except Exception as err:
         print(f"Failed to insert data to power.meters; ErrMessage:{err}")
+        raise
     finally:
         if conn:
             conn.close()
@@ -99,6 +108,7 @@ def ws_query(sql: str):
         # Close cursor
         if cursor:
             cursor.close()
+            cursor = None
         # Return connection to pool (not actually closed, just marked as idle)
         if conn:
             conn.close()
@@ -106,16 +116,15 @@ def ws_query(sql: str):
 
 if __name__ == "__main__":
     init_db()  # Initialize database and tables
-    threads = []
-    for i in range(5):
-        t1 = threading.Thread(target=ws_insert_sql, args=(i*10,))
-        t2 = threading.Thread(target=ws_query, args=("SELECT * FROM power.meters",))
-        threads.extend([t1, t2])
-        t1.start()
-        t2.start()
+    base_ts = time.time_ns() // 1_000_000
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = []
+        for i in range(5):
+            futures.append(pool.submit(ws_insert_sql, i * 10, base_ts))
+            futures.append(pool.submit(ws_query, "SELECT * FROM power.meters"))
 
-    for t in threads:
-        t.join()
+        for future in futures:
+            future.result()
 
     data = ws_query("SELECT count(*) FROM power.meters")
     assert data[0][0] == 20, "Expected 20 rows in power.meters"
