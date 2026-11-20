@@ -34,7 +34,7 @@ Installers migrate legacy `lib/taosanalytics/algo/custom` files with a backup, r
 
 ### Python Version
 
-- Source/online installation: Python 3.10, 3.11, or 3.12.
+- Source/online installation: Python 3.11 or 3.12.
 - This Lite offline release uses the supplied Python 3.12.16 runtime, Lite main venv 1.0.4, and optional shared TSFM runtime 1.0.1. Install TSFM separately; upgrading the product does not automatically replace an existing model runtime. Use the matching release manifest and SHA-256 values.
 
 ### Hardware Requirements
@@ -57,15 +57,15 @@ Installers migrate legacy `lib/taosanalytics/algo/custom` files with a backup, r
 
 ### Prerequisites
 
-1. Install Python 3.10+ (if not already installed):
+1. Install Python 3.11+ (if not already installed):
 
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install python3.10 python3.10-venv python3.10-dev
+sudo apt-get install python3.11 python3.11-venv python3.11-dev
 
 # CentOS/RHEL
-sudo yum install python310 python310-devel
+sudo yum install python311 python311-devel
 ```
 
 2. Ensure you have sudo privileges for system-wide installation.
@@ -170,7 +170,7 @@ sudo systemctl disable taosanode
 
 ### Prerequisites
 
-1. **Install Python 3.10+**:
+1. **Install Python 3.11+**:
    - Download from [python.org](https://www.python.org/downloads/)
    - During installation, check "Add Python to PATH"
    - Verify installation: `python --version`
