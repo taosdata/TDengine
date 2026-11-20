@@ -2730,7 +2730,8 @@ TEST_F(RemoteListRangeTest, publishAfterLastBatchAndRebuildAfterInvalidation) {
   init(OP_TYPE_IN);
   const int64_t large = INT64_C(9007199254740993);
   addKeys({large});
-  STimeWindow window = TSWINDOW_INITIALIZER;
+  // TSWINDOW_INITIALIZER is a C compound literal, which MSVC rejects in C++ (C4576).
+  STimeWindow window = {INT64_MIN, INT64_MAX};
   ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
   EXPECT_FALSE(filter->sclCtx.remoteRangePrepared);
   expectBlock(1, 1, 0, true);
@@ -2754,7 +2755,7 @@ TEST_F(RemoteListRangeTest, publishAfterLastBatchAndRebuildAfterInvalidation) {
   EXPECT_EQ(window.ekey, large + 3);
   filterInvalidateRemoteRange(filter);
   addKeys({10});
-  window = TSWINDOW_INITIALIZER;
+  window = {INT64_MIN, INT64_MAX};
   ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
   EXPECT_EQ(window.skey, 10);
   expectBlock(10, 10, 0, true);
@@ -2767,7 +2768,7 @@ TEST_F(RemoteListRangeTest, largeMembershipUsesBatchBounds) {
   addKeys(keys);
   addKeys({-400, 15000, 5000});
   list->flag = 0;
-  STimeWindow window = TSWINDOW_INITIALIZER;
+  STimeWindow window = {INT64_MIN, INT64_MAX};
   ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
   EXPECT_EQ(window.skey, -400);
   EXPECT_EQ(window.ekey, 15000);
@@ -2777,7 +2778,7 @@ TEST_F(RemoteListRangeTest, largeMembershipUsesBatchBounds) {
   filterInvalidateRemoteRange(filter);
   list->bounds.type = TSDB_DATA_TYPE_NULL;
   addKeys({10});
-  window = TSWINDOW_INITIALIZER;
+  window = {INT64_MIN, INT64_MAX};
   ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
   EXPECT_EQ(window.skey, INT64_MIN);
   EXPECT_EQ(window.ekey, INT64_MAX);
@@ -2835,7 +2836,7 @@ TEST_F(RemoteListRangeTest, waitForSiblingBeforeUsingSharedSnapshot) {
     ++cache->lookups;
     return cache->results[index];
   };
-  STimeWindow window = TSWINDOW_INITIALIZER;
+  STimeWindow window = {INT64_MIN, INT64_MAX};
   ASSERT_EQ(filterPrepareRemoteRange(filter, &cache, peek, &window), 0);
   EXPECT_FALSE(filter->sclCtx.remoteRangePrepared);
   expectBlock(10, 110, 0, true);
