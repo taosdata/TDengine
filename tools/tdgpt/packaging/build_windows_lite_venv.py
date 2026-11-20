@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import tempfile
@@ -53,6 +54,14 @@ def runtime_python(runtime_dir: Path) -> Path:
         if candidate.is_file():
             return candidate
     raise FileNotFoundError(f"Python runtime not found under {runtime_dir}")
+
+
+def validate_python_version(value: str) -> None:
+    if re.fullmatch(r"3\.12\.\d+", value) is None:
+        raise RuntimeError(
+            "TDgpt Lite main venv requires Python 3.12.x; "
+            f"requested {value!r} is not an exact 3.12.x version"
+        )
 
 
 def python_version(python: Path) -> str:
@@ -146,7 +155,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runtime-dir", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
-    parser.add_argument("--version", default="1.0.3")
+    parser.add_argument("--version", default="1.0.4")
+    parser.add_argument("--python-version", default="3.12.16")
     parser.add_argument(
         "--requirements",
         type=Path,
@@ -161,6 +171,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     ensure_windows_x64()
+    validate_python_version(args.python_version)
 
     runtime_dir = args.runtime_dir.resolve()
     requirements = args.requirements.resolve()
@@ -172,9 +183,11 @@ def main() -> int:
 
     base_python = runtime_python(runtime_dir)
     actual_version = python_version(base_python)
-    if not actual_version.startswith("3.12."):
+    if actual_version != args.python_version:
         raise RuntimeError(
-            f"TDgpt Lite main venv requires Python 3.12, got {actual_version}"
+            "TDgpt Lite main venv requires Python "
+            f"{args.python_version}, got {actual_version}; "
+            "pass --python-version matching the runtime"
         )
 
     venv_dir = work_dir / "venvs" / "venv"

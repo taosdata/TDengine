@@ -29,12 +29,13 @@ Installers migrate legacy `lib/taosanalytics/algo/custom` files with a backup, r
 
 ### Supported Platforms
 
-- **Linux**: Ubuntu 18.04+, CentOS 7+, or other Linux distributions
+- **Linux Lite / shared TSFM runtime (x64 and ARM64)**: glibc 2.28 or later, for example Ubuntu 20.04+ or Debian 10+. Ubuntu 18.04 and CentOS 7 are below this baseline. Check the target host with `getconf GNU_LIBC_VERSION` before deployment.
 - **Windows**: Windows Server 2016+ or Windows 10/11
 
 ### Python Version
 
-- Python 3.10, 3.11, or 3.12 (required)
+- Source/online installation: Python 3.10, 3.11, or 3.12.
+- This Lite offline release uses the supplied Python 3.12.16 runtime, Lite main venv 1.0.4, and optional shared TSFM runtime 1.0.1. Install TSFM separately; upgrading the product does not automatically replace an existing model runtime. Use the matching release manifest and SHA-256 values.
 
 ### Hardware Requirements
 
@@ -84,12 +85,21 @@ cd tdgpt-linux-x.x.x
 # Standard installation
 bash install.sh
 
-# Offline installation (if wheels are included)
-bash install.sh -o
-
 # Custom installation directory
 bash install.sh -d /opt/tdgpt
 ```
+
+`-o` currently only sets an offline flag; the script does not use that flag to control main venv reinstallation. In system-python mode, pip installation may still run. An existing offline-resource installation rejects an invocation without offline resource parameters. Do not use `-o` alone for an offline upgrade.
+
+**Lite offline installation or upgrade**: verify and extract the supplied Python 3.12.16 runtime to a stable directory, then explicitly provide the matching Lite main venv 1.0.4 archive. For Linux x64, run this from the extracted Lite product directory, replacing the paths with the actual deployment paths:
+
+```bash
+sudo bash install.sh \
+  --python-home /opt/tdgpt-deps/python-runtime-3.12.16 \
+  --venv-package /opt/tdgpt-offline/tdengine-tdgpt-lite-venv-1.0.4-linux-x64.tar.xz
+```
+
+Use the `linux-arm64` archive on ARM64. Before upgrading, record configuration, resource versions, and running models, then stop all model workers and the main service in a maintenance window. Keep any Python directory referenced by the old TSFM runtime until that runtime is explicitly replaced. The main venv and TSFM are managed separately; this command does not automatically upgrade an installed shared TSFM runtime. For TSFM 1.0.1, follow the [upgrade sequence](packaging/TDGPT-LITE-DESIGN-CN.md#723-下一版产品与已有动态资源的升级顺序发布方案): stop workers, explicitly replace the runtime, verify it, and resume the previous models. Do not use `-a` as a substitute for the independent Lite TSFM resource upgrade.
 
 3. **Verify installation**:
 

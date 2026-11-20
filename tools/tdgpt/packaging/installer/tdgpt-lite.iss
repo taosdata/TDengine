@@ -62,7 +62,9 @@ ConfirmUninstall=Are you sure you want to uninstall {#MyAppName}?
 
 [Files]
 Source: "{#MyAppIco}"; DestDir: "{app}"; DestName: "favicon.ico"; Flags: ignoreversion
-Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
+Source: "{#MyAppSourceDir}\cfg\*"; DestDir: "{app}\cfg"; Excludes: "package-metadata.json"; Flags: ignoreversion recursesubdirs createallsubdirs onlyifdoesntexist uninsneveruninstall
+; Generated product metadata must follow the installed release during upgrades.
+Source: "{#MyAppSourceDir}\cfg\package-metadata.json"; DestDir: "{app}\cfg"; Flags: ignoreversion uninsneveruninstall
 Source: "{#MyAppSourceDir}\lib\*"; DestDir: "{app}\lib"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs

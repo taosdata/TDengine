@@ -14,8 +14,12 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 
+import ast
 import io
+import shutil
+import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 from taosanodectl import build_parser, get_version_banner, translate_args
@@ -110,3 +114,73 @@ def test_model_status_json_translation():
 def test_model_status_stays_table_by_default():
     args = build_parser().parse_args(["model", "status"])
     assert translate_args(args) == ["model-status"]
+
+
+@pytest.mark.parametrize("release", [None, "1.0.0"])
+def test_resource_release_default_and_explicit_rollback(release):
+    argv = ["resource", "check"]
+    if release is not None:
+        argv.extend(["--release", release])
+    args = build_parser().parse_args(argv)
+    translated = translate_args(args)
+    assert translated[translated.index("--release") + 1] == (release or "1.0.1")
+
+
+def test_resource_release_contract():
+    """Keep separately packaged CLI/HTTP defaults and every recovery path aligned."""
+    root = Path(__file__).resolve().parents[1]
+    constants = {}
+    for relative in ("script/resource_manifest.py", "lib/tsfm/mgmt/response_event.py"):
+        tree = ast.parse((root / relative).read_text(encoding="utf-8"))
+        constants[relative] = next(
+            ast.literal_eval(node.value)
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "DEFAULT_RESOURCE_RELEASE" for target in node.targets)
+        )
+    assert set(constants.values()) == {"1.0.1"}
+
+    # Cover all fallbacks, including async resubmission and SSE replay, without
+    # importing the runtime-heavy HTTP application into the standalone CLI tests.
+    expected_counts = {
+        "script/taosanodectl.py": 1,
+        "script/taosanode_service.py": 1,
+        "lib/tsfm/mgmt/foundation_model.py": 6,
+        "lib/tsfm/mgmt/response_event.py": 1,
+    }
+    for relative, expected_count in expected_counts.items():
+        tree = ast.parse((root / relative).read_text(encoding="utf-8"))
+        defaults = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr == "get" and node.args and isinstance(node.args[0], ast.Constant):
+                if node.args[0].value == "release" and len(node.args) > 1:
+                    # A display placeholder is not a resource selection default.
+                    if isinstance(node.args[1], ast.Constant) and node.args[1].value == "-":
+                        continue
+                    defaults.append(node.args[1])
+            elif node.func.attr == "add_argument" and any(
+                isinstance(arg, ast.Constant) and arg.value == "--release" for arg in node.args
+            ):
+                defaults.extend(kw.value for kw in node.keywords if kw.arg == "default")
+        assert len(defaults) == expected_count, relative
+        assert all(isinstance(value, ast.Name) and value.id == "DEFAULT_RESOURCE_RELEASE" for value in defaults), relative
+
+
+@pytest.mark.parametrize("flag", ["--help", "--version"])
+def test_packaged_cli_starts_without_application_imports(tmp_path, flag):
+    root = Path(__file__).resolve().parents[1]
+    scripts = tmp_path / "bin"
+    scripts.mkdir()
+    for name in ("taosanodectl.py", "resource_manifest.py"):
+        shutil.copyfile(root / "script" / name, scripts / name)
+    library = tmp_path / "lib" / "taosanalytics"
+    library.mkdir(parents=True)
+    (library / "__init__.py").write_text('__version__ = "9.8.7"\n')
+    result = subprocess.run(
+        [sys.executable, "-E", str(scripts / "taosanodectl.py"), flag],
+        cwd=tmp_path, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout if flag == "--help" else "9.8.7" in result.stdout

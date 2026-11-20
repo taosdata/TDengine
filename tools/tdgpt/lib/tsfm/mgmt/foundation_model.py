@@ -43,6 +43,7 @@ from lib.tsfm.mgmt.foundation_models_db import (
 )
 from lib.tsfm.mgmt.model_state_machine import ModelStateManager, ModelStateTransitionError
 from lib.tsfm.mgmt.response_event import (
+    DEFAULT_RESOURCE_RELEASE,
     DOWNLOAD_FAMILY,
     RUNTIME_RESOURCE_NAME,
     OperationType,
@@ -1268,7 +1269,7 @@ def list_all_tsfm(request):
     and, for this host's own state, taosanodectl resource list --format json.
 
     Query parameters:
-        release: Release version (default: 1.0.0)
+        release: Release version (default: 1.0.1)
         resource_base_url: Base URL for resource repository (default: from config)
 
     Returns:
@@ -1301,7 +1302,7 @@ def list_all_tsfm(request):
 
     try:
         # Get parameters from query string
-        release = request.args.get("release", "1.0.0")
+        release = request.args.get("release", DEFAULT_RESOURCE_RELEASE)
         resource_base_url, exec_timeout = foundation_util.resolve_resource_settings(request=request)
         foundation_util.log_invocation(
             "resource check request",
@@ -1493,7 +1494,7 @@ def get_model_info(request, model_name):
 
     try:
         # Get parameters from query string
-        release = request.args.get("release", "1.0.0")
+        release = request.args.get("release", DEFAULT_RESOURCE_RELEASE)
         resource_base_url, exec_timeout = foundation_util.resolve_resource_settings(request=request)
         foundation_util.log_invocation(
             "resource list request",
@@ -1780,7 +1781,7 @@ def download_foundation_runtime(request):
 
     Expected payload:
     {
-        "release": "1.0.0",                    # optional, default: "1.0.0"
+        "release": "1.0.1",                    # optional, default: "1.0.1"
         "resource_base_url": "https://...",   # optional, uses config default
         "replace": false                       # optional, allow overwrite
     }
@@ -1795,7 +1796,7 @@ def download_foundation_runtime(request):
     )
 
     payload = request.get_json(silent=True) or {}
-    release = payload.get("release", "1.0.0")
+    release = payload.get("release", DEFAULT_RESOURCE_RELEASE)
     resource_base_url, _ = foundation_util.resolve_resource_settings(payload=payload)
     replace = payload.get("replace", False)
 
@@ -1890,7 +1891,7 @@ def download_foundation_model(request):
     Expected payload:
     {
         "model_name": "moirai",
-        "release": "1.0.0",                    # optional, default: "1.0.0"
+        "release": "1.0.1",                    # optional, default: "1.0.1"
         "resource_base_url": "https://...",   # optional, uses config default
         "replace": false                       # optional, allow overwrite
     }
@@ -1912,7 +1913,7 @@ def download_foundation_model(request):
 
     payload = request.get_json(silent=True) or {}
     model_name = payload.get("model_name")
-    release = payload.get("release", "1.0.0")
+    release = payload.get("release", DEFAULT_RESOURCE_RELEASE)
     replace = payload.get("replace", False)
 
     # Use provided resource_base_url or fall back to configured default
@@ -2702,7 +2703,7 @@ def _resubmit_download_task(worker_fn, args, task_id, model_name, operation, def
 def _resubmit_claimed_download(operation):
     """Submit one row claimed by claim_due_download, by its recorded parameters."""
     data = operation.data if isinstance(operation.data, dict) else {}
-    release = data.get("release", "1.0.0")
+    release = data.get("release", DEFAULT_RESOURCE_RELEASE)
     resource_base_url = data.get("resource_base_url", "")
     replace = bool(data.get("replace", False))
 
@@ -3631,7 +3632,7 @@ def download_and_start_foundation_model(request):
     Expected payload:
     {
         "model_name": "moirai",
-        "release": "1.0.0",                    # optional, default: "1.0.0"
+        "release": "1.0.1",                    # optional, default: "1.0.1"
         "resource_base_url": "https://...",   # optional, uses config default
         "replace": false                       # optional, allow overwrite + redownload
     }
@@ -3643,7 +3644,7 @@ def download_and_start_foundation_model(request):
 
     payload = request.get_json(silent=True) or {}
     model_name = payload.get("model_name")
-    release = payload.get("release", "1.0.0")
+    release = payload.get("release", DEFAULT_RESOURCE_RELEASE)
 
     # Use provided resource_base_url or fall back to configured default
     resource_base_url, _ = foundation_util.resolve_resource_settings(payload=payload)

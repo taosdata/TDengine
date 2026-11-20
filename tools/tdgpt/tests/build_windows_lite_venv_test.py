@@ -21,6 +21,8 @@ import subprocess
 import zipfile
 from pathlib import Path
 
+import pytest
+
 SCRIPT_PATH = (
     Path(__file__).resolve().parents[1]
     / "packaging"
@@ -43,6 +45,19 @@ def test_runtime_python_accepts_runtime_root(tmp_path):
     python.write_bytes(b"python")
 
     assert module.runtime_python(tmp_path) == python
+
+
+@pytest.mark.parametrize("value", ["3.12.0", "3.12.16", "3.12.999"])
+def test_validate_python_version_accepts_exact_312(value):
+    module = load_module()
+    assert module.validate_python_version(value) is None
+
+
+@pytest.mark.parametrize("value", ["3.12", "3.13.0", "3.12.x", "v3.12.16"])
+def test_validate_python_version_rejects_non_exact_312(value):
+    module = load_module()
+    with pytest.raises(RuntimeError, match="requires Python 3.12.x"):
+        module.validate_python_version(value)
 
 
 def test_prepare_work_dir_rejects_existing_content(tmp_path):
@@ -88,6 +103,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
         work_dir=work_dir,
         output_dir=output_dir,
         version="1.0.2",
+        python_version="3.12.16",
         index_url="",
         extra_index_url="",
         trusted_host="",
@@ -112,7 +128,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
 
     monkeypatch.setattr(module, "parse_args", lambda: args)
     monkeypatch.setattr(module, "ensure_windows_x64", lambda: None)
-    monkeypatch.setattr(module, "python_version", lambda _python: "3.12.12")
+    monkeypatch.setattr(module, "python_version", lambda _python: "3.12.16")
     monkeypatch.setattr(module, "run", fake_run)
     monkeypatch.setattr(
         module.subprocess,
@@ -131,7 +147,7 @@ def test_main_builds_versioned_windows_lite_zip(tmp_path, monkeypatch):
     assert "venvs/venv/requirements.lock" in names
     assert not any("__pycache__" in name for name in names)
     assert '"kind": "tdgpt-lite-main-venv"' in manifest
-    assert '"python_version": "3.12.12"' in manifest
+    assert '"python_version": "3.12.16"' in manifest
 
 
 def test_pruning_preserves_windows_include_headers_and_libraries(tmp_path):
@@ -151,3 +167,24 @@ def test_pruning_preserves_windows_include_headers_and_libraries(tmp_path):
     assert header.read_text() == "/* user model header */"
     assert library.read_bytes() == b"Windows import library"
     assert not test_dir.exists()
+
+
+@pytest.mark.parametrize("expected,actual", [("3.12.16", "3.12.12"), ("3.13.0", "3.13.0")])
+def test_main_rejects_wrong_runtime_before_installing(tmp_path, monkeypatch, expected, actual):
+    module = load_module()
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir()
+    (runtime_dir / "python.exe").write_bytes(b"python")
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("", encoding="utf-8")
+    args = argparse.Namespace(
+        runtime_dir=runtime_dir, requirements=requirements,
+        work_dir=tmp_path / "work", output_dir=tmp_path / "output",
+        python_version=expected,
+    )
+    monkeypatch.setattr(module, "parse_args", lambda: args)
+    monkeypatch.setattr(module, "ensure_windows_x64", lambda: None)
+    monkeypatch.setattr(module, "python_version", lambda _python: actual)
+    monkeypatch.setattr(module, "run", lambda _command: pytest.fail("must reject before installation"))
+    with pytest.raises(RuntimeError, match="requires Python"):
+        module.main()

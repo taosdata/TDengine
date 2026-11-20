@@ -46,7 +46,8 @@ def test_windows_package_version_with_copyright_header(tmp_path, monkeypatch):
     bin_dir = install_dir / "bin"
     bin_dir.mkdir()
     ctl = bin_dir / "taosanodectl.py"
-    shutil.copyfile(MODULE_PATH.parents[1] / "script" / ctl.name, ctl)
+    for name in ("taosanodectl.py", "resource_manifest.py"):
+        shutil.copyfile(MODULE_PATH.parents[1] / "script" / name, bin_dir / name)
     for flag in ("-V", "--version"):
         env = dict(os.environ, PYTHONIOENCODING="gbk:strict")
         result = subprocess.run(
@@ -243,6 +244,12 @@ def test_generated_lite_installer_names_current_and_legacy_groups(tmp_path, monk
     assert "WizardStyle=modern" in generated_iss
     assert "WizardForm.Caption := '{#MyAppName} {#MyAppVersion} Setup';" in generated_iss
     assert "UninstallAppFullTitle={#MyAppName} {#MyAppVersion} Uninstall" in generated_iss
+    cfg_rule = next(line for line in generated_iss.splitlines() if '\\cfg\\*";' in line)
+    assert 'Excludes: "package-metadata.json"' in cfg_rule
+    assert "onlyifdoesntexist" in cfg_rule
+    metadata_rule = next(line for line in generated_iss.splitlines() if '\\cfg\\package-metadata.json";' in line)
+    assert "ignoreversion" in metadata_rule
+    assert "onlyifdoesntexist" not in metadata_rule
     assert "ConfirmUninstall=Are you sure you want to uninstall {#MyAppName}?" in generated_iss
 
 

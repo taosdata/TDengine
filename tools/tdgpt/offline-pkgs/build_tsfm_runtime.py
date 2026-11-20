@@ -23,6 +23,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tarfile
@@ -51,6 +52,24 @@ def run(command: list[str]) -> None:
         raise RuntimeError(f"command failed ({result.returncode}): {' '.join(command)}")
 
 
+def resolve_uv(configured: str) -> str:
+    uv = shutil.which(configured)
+    if not uv:
+        raise RuntimeError(f"uv executable not found: {configured}")
+    version = subprocess.run([uv, "--version"], capture_output=True, check=False, text=True)
+    if version.returncode:
+        raise RuntimeError(
+            f"unable to query uv version ({uv}, exit {version.returncode}): "
+            f"{version.stderr.strip() or version.stdout.strip()}"
+        )
+    match = re.fullmatch(r"uv (\d+)\.(\d+)\.(\d+)(?: .*)?", version.stdout.strip())
+    if not match:
+        raise RuntimeError(f"unable to parse uv version ({uv}): {version.stdout.strip()!r}")
+    if tuple(map(int, match.groups())) < (0, 13, 9):
+        raise RuntimeError(f"uv >= 0.13.9 is required; found {version.stdout.strip()}")
+    return uv
+
+
 def runtime_python(runtime_dir: Path, target_platform: str) -> Path:
     filename = "python.exe" if target_platform == "windows" else "python3"
     candidates = [runtime_dir / filename, runtime_dir / "bin" / filename]
@@ -66,6 +85,13 @@ def venv_python(venv_dir: Path, target_platform: str) -> Path:
     return venv_dir / "bin" / "python3"
 
 
+def validate_python_version(value: str) -> None:
+    if re.fullmatch(r"3\.12\.\d+", value) is None:
+        raise RuntimeError(
+            f"TSFM runtime requires an exact Python 3.12.x version, got {value!r}"
+        )
+
+
 def python_version(python: Path) -> str:
     result = subprocess.run(
         [str(python), "-c", "import platform; print(platform.python_version())"],
@@ -79,7 +105,7 @@ def python_version(python: Path) -> str:
 
 
 def patch_arm64_jaxlib(venv_dir: Path, target_platform: str, target_arch: str) -> None:
-    """Fix the ARM64 jaxlib ELF dependency for glibc 2.27 hosts."""
+    """Fix the ARM64 jaxlib clock_gettime symbol binding to libc."""
     if target_platform != "linux" or target_arch != "arm64":
         return
     patchelf = shutil.which("patchelf")
@@ -114,6 +140,28 @@ def patch_arm64_jaxlib(venv_dir: Path, target_platform: str, target_arch: str) -
         text=True,
     ).stdout.splitlines():
         raise RuntimeError(f"failed to patch jaxlib dependency: {libjax_common}")
+
+
+def validate_cpu_torch(python: Path, venv_dir: Path, target_arch: str) -> None:
+    if target_arch != "arm64":
+        return
+    result = subprocess.run(
+        [str(python), "-B", "-c", "import torch; print(torch.version.cuda or '')"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or "unable to inspect ARM64 torch build")
+    if result.stdout.strip():
+        raise RuntimeError(f"ARM64 TSFM requires CPU torch, found CUDA {result.stdout.strip()}")
+    forbidden = ("libtorch_cuda", "libcudnn", "libcublas", "libcusparse", "libcufft")
+    library_dir = venv_dir / "lib"
+    if not library_dir.is_dir():
+        raise RuntimeError(f"ARM64 TSFM library directory not found: {library_dir}")
+    for path in library_dir.rglob("*"):
+        if any(token in path.name for token in forbidden) and path.is_file():
+            raise RuntimeError(f"ARM64 TSFM contains CUDA torch library: {path}")
 
 
 def package_runtime(source_dir: Path, output_path: Path, target_platform: str) -> None:
@@ -170,6 +218,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--platform", required=True, choices=["linux", "windows"])
     parser.add_argument("--arch", required=True, choices=["x64", "arm64"])
     parser.add_argument("--version", required=True)
+    parser.add_argument(
+        "--python-version",
+        default="3.12.16",
+        help="Exact CPython version (3.12.x) required by the runtime.",
+    )
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--work-dir", required=True, type=Path)
     parser.add_argument(
@@ -177,11 +230,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--moment-package", default="momentfm==0.1.4")
     parser.add_argument("--pyarrow-wheel", default="")
+    parser.add_argument("--uv", default="uv", help="uv executable used for venv and dependency installation")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    validate_python_version(args.python_version)
     runtime_dir = args.runtime_dir.resolve()
     requirements = args.requirements.resolve()
     work_dir = args.work_dir.resolve()
@@ -192,18 +247,31 @@ def main() -> int:
     work_dir.mkdir(parents=True, exist_ok=True)
 
     base_python = runtime_python(runtime_dir, args.platform)
+    uv = resolve_uv(args.uv)
     actual_version = python_version(base_python)
-    if not actual_version.startswith("3.12."):
-        raise RuntimeError(f"TSFM runtime requires Python 3.12, got {actual_version}")
+    if actual_version != args.python_version:
+        raise RuntimeError(
+            "TSFM runtime Python version mismatch: "
+            f"expected {args.python_version}, got {actual_version}; "
+            "pass --python-version matching the runtime"
+        )
 
     venv_dir = work_dir / "model_venvs" / "tsfm"
-    run([str(base_python), "-m", "venv", "--copies", str(venv_dir)])
+    run([uv, "venv", "--python", str(base_python), str(venv_dir)])
     python = venv_python(venv_dir, args.platform)
-    run([str(python), "-m", "pip", "install", "--upgrade", "pip"])
+    # Managed CPython includes ensurepip's bundled wheels. Bootstrap without a
+    # seed download and retain pip for freeze and the installer's offline repair.
+    run([str(python), "-m", "ensurepip", "--upgrade"])
+    uv_pip = [uv, "pip", "install", "--python", str(python)]
     pyarrow_wheel = args.pyarrow_wheel or PYARROW_WHEELS[(args.platform, args.arch)]
-    run([str(python), "-m", "pip", "install", "--no-deps", pyarrow_wheel])
-    run([str(python), "-m", "pip", "install", "-r", str(requirements)])
-    run([str(python), "-m", "pip", "install", "--no-deps", args.moment_package])
+    run([*uv_pip, "--no-deps", pyarrow_wheel])
+    run([*uv_pip, "-r", str(requirements)])
+    # MOMENT's upstream metadata pins older shared dependencies. Keep the
+    # unified TSFM versions instead of downgrading them here; see the MOMENT
+    # note in requirements_tsfm.txt for expected pip check conflicts and the
+    # required model-loading/inference validation when versions change.
+    run([*uv_pip, "--no-deps", args.moment_package])
+    validate_cpu_torch(python, venv_dir, args.arch)
     patch_arm64_jaxlib(venv_dir, args.platform, args.arch)
 
     lock_file = venv_dir / "requirements.lock"

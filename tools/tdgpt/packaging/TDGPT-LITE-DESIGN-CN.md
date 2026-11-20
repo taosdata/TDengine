@@ -30,7 +30,7 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 
 | 环境 | 用途 |
 | --- | --- |
-| Python runtime | 为安装器导入、创建或修复主 venv 提供解释器，当前资源为 Python 3.12.12 |
+| Python runtime | 为安装器导入、创建或修复主 venv 提供解释器，新构建目标为 Python 3.12.16；已发布资源以实际清单为准 |
 | Lite 主 venv | 运行 TDgpt 主服务，使用已交付的 Lite 离线 venv |
 | TSFM runtime / 模型 venv | 运行动态模型，使用匹配平台与架构的共享 TSFM runtime |
 
@@ -38,25 +38,29 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 
 ### 2.1.2 产品与资源版本分别管理
 
-以下为 `3.4.3.3` 本轮交付和验收使用的版本；后续发版以实际发布清单、资源 manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
+以下为 Python 3.12.16 升级批次的候选资源及产品示例版本；后续发版以实际发布清单、资源 manifest 和 SHA-256 为准，不根据产品版本推导资源版本。
 
 | 对象 | 本轮版本 | 升级方式 |
 | --- | --- | --- |
-| TDgpt Enterprise Lite 程序 | `3.4.3.3` | 使用对应平台的产品安装包，或替换对应架构的 Lite 镜像 |
-| 安装用 Python runtime | Python `3.12.12` | 由依赖部署流程提供，不能用打包工具或系统 Python 代替 |
-| Lite 主 venv | `1.0.2` | 安装/升级产品时显式传入对应平台的离线包；Apex 使用清单中的依赖版本和 SHA-256 |
-| 动态资源发布清单 | 默认 `1.0.0` | `resource check/apply --release <版本、URL 或本地清单>` 显式选择 |
-| 共享 TSFM runtime | 默认 `1.0.0` 清单中的 runtime | 通过资源命令单独导入或替换，不随主 venv 升级 |
+| TDgpt Enterprise Lite 程序 | 以本轮产品发布登记为准 | 使用对应平台的产品安装包，或替换对应架构的 Lite 镜像 |
+| 安装用 Python runtime | Python `3.12.16` | 由依赖部署流程提供，不能用打包工具或系统 Python 代替 |
+| Lite 主 venv | `1.0.4` | 安装/升级产品时显式传入对应平台的离线包；Apex 使用清单中的依赖版本和 SHA-256 |
+| 动态资源发布清单 | 默认 `1.0.1` | `resource check/apply --release <版本、URL 或本地清单>` 显式选择 |
+| 共享 TSFM runtime | 本轮候选 `1.0.1`，默认清单为 `1.0.1` | 通过资源命令单独导入或替换，不随主 venv 升级 |
 | 模型权重 | 各模型独立版本 | 按发布清单中的 `model_version`、资源版本与 SHA-256 识别 |
 
-`1.0.2` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到 `tsfm/1.0.2`。当前 CLI 的 `--release` 默认值仍为 `1.0.0`，不能仅修改本文示例就视为已升级动态资源。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
+`1.0.4` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到 `tsfm/1.0.1`。本轮代码将 CLI、HTTP API 和下载事件的默认 release 同步切换为 `1.0.1`；显式指定 `--release 1.0.0` 仍可选择旧清单。默认值切换不自动替换已安装资源，正式发布产品前必须先上传并核验 `1.0.1` 清单及其引用的全部资源。TSFM builder 的 `--version` 是必填参数，本轮显式传入 `1.0.1`；发布清单版本独立管理，不能由 Lite 主 venv 的版本推导。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
+
+Linux x64 与 ARM64 的 Lite 主环境和共享 TSFM runtime 统一要求 glibc ≥ 2.28；glibc 2.27 / Ubuntu 18.04 不再属于本轮及后续版本的支持范围。历史低版本系统测试通过不构成后续兼容承诺。部署前须确认目标系统版本，并在真实 glibc 2.28 环境验收资源和服务。
+
+Python patch 版本从 3.12.12 升级到 3.12.16 时，必须重新构建并发布 Linux/Windows Lite 主 venv，以及共享 TSFM runtime；不能在现有 venv 上直接替换解释器或执行增量升级。模型权重和用户算法目录不需要重建，但升级前必须停止使用共享 TSFM runtime 的模型 worker，完成新 runtime 校验后再恢复服务。Full venv 若继续发布，也必须使用 3.12.16 runtime 重建。
 
 本轮三平台主 venv 资源为：
 
 ```text
-tdengine-tdgpt-lite-venv-1.0.2-linux-x64.tar.xz
-tdengine-tdgpt-lite-venv-1.0.2-linux-arm64.tar.xz
-tdengine-tdgpt-lite-venv-1.0.2-windows-x64.zip
+tdengine-tdgpt-lite-venv-1.0.4-linux-x64.tar.xz
+tdengine-tdgpt-lite-venv-1.0.4-linux-arm64.tar.xz
+tdengine-tdgpt-lite-venv-1.0.4-windows-x64.zip
 ```
 
 资源位于 `tdengine-tdgpt-enterprise/deps/`；构建与验收时应核对清单，复用已发布资源不等于从 requirements 重建环境。资源构建方法见 [TDGPT-LITE-BUILD-CN.md](TDGPT-LITE-BUILD-CN.md)。
@@ -153,8 +157,8 @@ model/tsfm/<model_name>/
 {
   "schema_version": 1,
   "kind": "tsfm-runtime",
-  "runtime_id": "tsfm-runtime-1.0.0",
-  "python_version": "3.12.12",
+  "runtime_id": "tsfm-runtime-1.0.1",
+  "python_version": "3.12.16",
   "platform": "linux",
   "arch": "x64",
   "requirements_sha256": "<requirements.lock 的 SHA-256>"
@@ -360,7 +364,7 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 
 #### 7.2.1 在线与离线发布清单发现（规划）
 
-当前版本默认使用固定的 `1.0.0`，在线 `resource check` 只在内存中读取发布清单，不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
+本轮版本默认使用固定的 `1.0.1`，在线 `resource check` 只在内存中读取发布清单，不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
 
 新增统一配置 `resource_release`，允许发布通道或固定版本：
 
@@ -438,9 +442,9 @@ Windows 使用相同参数，通过第 10.2 节的 `.bat` 入口执行。只升�
 
 ### 7.2.3 下一版产品与已有动态资源的升级顺序（发布方案）
 
-本期仅更新产品、用户算法持久化及主 venv；TSFM runtime 与 release 继续使用 `1.0.0`，不纳入本期升级。以下替换 TSFM 的步骤适用于后续单独发布新 runtime，本期不执行。旧 TSFM 的 pyarrow 修复尚未交付，不能在本期发布说明中宣称已修复。
+本轮 Python 3.12.16 升级包括 Lite 主 venv `1.0.4` 和共享 TSFM runtime `1.0.1` 的构建与验收；既有安装的 TSFM 不随产品安装自动升级，须在维护窗口显式替换。模型权重内容未变时继续复用。实际验收状态以本轮 `1.0.1` 归档、包内元数据和 SHA-256 对应的记录为准，不将候选测试等同于正式发布。
 
-下一版产品暂按 `3.4.3.8` 规划，主 venv、TSFM runtime 和资源 release 独立编号，具体候选版本、依赖差异和发布阻塞项见 [构建文档第 7 节](TDGPT-LITE-BUILD-CN.md#7-下一版发布准备与版本决策待执行)。本方案不表示这些制品已经构建或发布，也不修改当前默认 release `1.0.0`。
+产品版本以实际发布登记为准，主 venv、TSFM runtime 和资源 release 独立编号，发布清单必须绑定本轮 runtime `1.0.1` 的真实文件名与摘要，具体候选版本、依赖差异和验收要求见 [构建文档第 7 节](TDGPT-LITE-BUILD-CN.md#7-下一版发布准备与版本决策待执行)。本方案不表示这些制品已经正式发布；本轮代码默认 release 已改为 `1.0.1`，发布产品前须先核验该清单及全部资源可下载，已有资源仍须显式升级。
 
 已动态加载的模型不必因产品版本变化而重新下载权重，但旧 TSFM venv 不会自动获得新版 pyarrow。需要修复 TSFM 依赖问题的安装必须显式升级共享 runtime。升级流程如下：
 
@@ -498,7 +502,7 @@ Lite 升级不得删除 `model/dynamic`、`model/tsfm`、`model/user`、`model_v
 
 主机安装模式与 Docker 使用同一资源协议，但没有离线包卷挂载。管理员将与当前操作系统和架构匹配的 TSFM runtime 包及模型 ZIP 放在本机任意可读的临时目录，再通过 `taosanodectl resource import` 导入。导入器只从该路径读取归档，资源实际安装到 TDgpt 数据目录；导入成功后可删除临时归档。
 
-以下是当前默认 `1.0.0` 发布清单对应的资源，Linux runtime 仍为历史 gzip 文件；不要将其误认为本轮 Lite 主 venv `1.0.2`。新构建的 Linux runtime 使用 XZ，导入时以所选发布清单的实际文件名与 SHA-256 为准。内网目录为 `https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。离线介质应从该目录取得以下文件；发布清单用于核对版本和 SHA-256，不作为 `resource import --package` 的输入。
+以下保留历史 `1.0.0` 发布清单对应的资源示例，Linux runtime 仍为历史 gzip 文件；不要将其误认为本轮 Lite 主 venv `1.0.4`。新构建的 Linux runtime 使用 XZ，导入时以所选发布清单的实际文件名与 SHA-256 为准。内网目录为 `https://release.tdengine.net/tdengine-tdgpt-enterprise/tsfm/1.0.0/`。以下文件用于旧版介质与显式回滚示例；本轮新介质须按 `1.0.1` 清单取得对应平台的 XZ/ZIP 及 SHA-256；发布清单用于核对版本和 SHA-256，不作为 `resource import --package` 的输入。
 
 | 类型 | 文件 | 使用方式 |
 | --- | --- | --- |
@@ -624,7 +628,7 @@ API 请求的 resource_base_url
 - TDgpt Lite 安装包：Linux 新包使用 `tar.xz`，Windows 使用 EXE；
 - Python runtime：Linux 新构建包使用 `tar.xz`，Windows 使用 ZIP；已发布依赖清单仍可引用历史 gzip；
 - Lite 主 venv 离线包：Linux `tar.xz`，Windows ZIP；
-- 官方 TSFM venv 资源包：Linux 新构建包使用 `tar.xz`，Windows ZIP；当前默认 `1.0.0` 清单仍引用 Linux gzip；
+- 官方 TSFM venv 资源包：Linux 新构建包使用 `tar.xz`，Windows ZIP；历史 `1.0.0` 清单引用 Linux gzip，本轮默认 `1.0.1` 清单须引用实际 XZ 资源；
 - 每个官方 TSFM 模型资源包，所有平台统一使用 ZIP。
 
 Linux 产品安装包直接包含程序目录，不再生成内层 `package.tar.gz` 或 `package.tar.xz`。Lite 镜像的离线 `docker save` 归档使用 XZ，文件名为 `tdengine-tdgpt-enterprise-lite-docker-<产品版本>-linux-<x64|arm64>.tar.xz`；它与产品安装包是不同产物。XZ 是离线归档格式，不改变 registry 的镜像层格式。 Linux 解压目标需提供 `xz`，Python 资源导入解释器需支持 `lzma`；历史 gzip 导入继续兼容。格式变化须同步构建、NAS 文件名、Apex 清单、下载 URL、SHA-256 和验收入口。
@@ -728,7 +732,7 @@ taosanodectl resource check --format json
 - 当前资源操作采用同步 CLI 和全局文件锁，不重复下载相同 digest；
 - 已在 Linux x64、Linux arm64 和 Windows x64 完成在线首次导入、第二模型复用 runtime、重复导入、完整性校验、Moirai/Moment 启动与端口验收；
 
-ARM64 的共享 TSFM runtime 发布前必须使用 `patchelf >= 0.14.0` 修复 `jaxlib/libjax_common.so` 的 `librt.so.1` 依赖，将其改为 `libc.so.6`。这是 Ubuntu 18.04/glibc 2.27 上 Moirai 使用的 `clock_gettime@GLIBC_2.17` 兼容修复；系统默认的 `patchelf 0.9` 不得用于构建。发布验收必须直接导入 `jax/jaxlib`，并实际启动 Moirai 检查 6064 端口。
+ARM64 的共享 TSFM runtime 发布前必须使用 `patchelf >= 0.14.0` 修复 `jaxlib/libjax_common.so` 的 `librt.so.1` 依赖，将其改为 `libc.so.6`。这是 Moirai 使用的 `clock_gettime@GLIBC_2.17` 符号绑定兼容修复（也曾在 Ubuntu 18.04/glibc 2.27 上验证，不表示继续支持该系统）；系统默认的 `patchelf 0.9` 不得用于构建。发布验收必须直接导入 `jax/jaxlib`，并实际启动 Moirai 检查 6064 端口。
 
 - `resource apply` 支持发布清单、平台/架构筛选、SHA-256 缓存、HTTP Range 断点续传和显式替换。
 - platform-group 已支持 Lite 三平台安装包构建、双架构 Docker 构建和发布；动态资源下载到模型 readiness 的验收当前保留为手工发布检查，后续再固化为流水线自动化。

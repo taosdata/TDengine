@@ -47,7 +47,7 @@ def test_moirai_cleanup_ignores_find_delete_races():
 def test_lite_image_uses_only_the_base_analytics_requirements():
     text = LITE_DOCKERFILE.read_text(encoding="utf-8")
 
-    assert "ARG PYTHON_BASE=python:3.12.12-slim-trixie" in text
+    assert "ARG PYTHON_BASE=python:3.12.16-slim-trixie" in text
     assert "python3.12 -m venv" in text
     assert "python3.10" not in text
     assert "-r /tmp/requirements_docker.txt" in text
@@ -74,6 +74,8 @@ def test_base_images_validate_all_five_pyod_algorithms():
 def test_lite_target_uses_the_model_free_entrypoint():
     text = IMAGE_DOCKERFILE.read_text(encoding="utf-8")
 
+    assert "ARG TDGPT_LITE_ENV_VERSION=1.2" in text
+    assert "FROM tdengine/tdgpt-lite-env-${ARCH}:${TDGPT_LITE_ENV_VERSION} AS tdgpt_lite" in text
     assert "AS tdgpt_lite" in text
     assert "entrypoint-lite.sh" in text
 

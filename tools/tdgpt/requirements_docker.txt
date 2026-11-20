@@ -8,14 +8,14 @@ urllib3==2.8.0
 scikit-learn==1.5.2
 # CPU distribution provides the same xgboost imports and manylinux2014 wheels.
 # The GPU distribution selects manylinux_2_28 and pulls NCCL on Linux x64.
-# Keep Lite compatible with glibc 2.27 without bundling an unused GPU runtime.
+# Avoid bundling an unused GPU runtime; Linux Lite requires glibc >= 2.28.
 xgboost-cpu==3.0.1
 outlier-utils==0.0.5
 statsmodels==0.14.6
 # Direct StatsForecast runtime dependencies are pinned explicitly in this file:
 # pandas, scipy, scikit-learn, and numpy.
 statsforecast==2.1.1
-# Keep pyarrow on a wheel-compatible line for Ubuntu 18.04 / glibc 2.27.
+# Keep the validated Lite dependency line; Linux Lite requires glibc >= 2.28.
 pyarrow<19
 pyculiarity==0.0.7
 Cython==3.0.11

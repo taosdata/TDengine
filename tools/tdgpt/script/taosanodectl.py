@@ -25,6 +25,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from resource_manifest import DEFAULT_RESOURCE_RELEASE
+
 COMMANDS = {
     ("service", "start"): "start",
     ("service", "stop"): "stop",
@@ -95,7 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--foreground", action="store_true")
     parser.add_argument("--full-preflight", action="store_true")
     parser.add_argument("--python-runtime-dir", default="")
-    parser.add_argument("--release", default="1.0.0")
+    parser.add_argument("--release", default=DEFAULT_RESOURCE_RELEASE)
     parser.add_argument("--resource-base-url", default="")
     parser.add_argument("--format", choices=["table", "json"], default="table")
     return parser
