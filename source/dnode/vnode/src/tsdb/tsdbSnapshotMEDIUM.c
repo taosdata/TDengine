@@ -325,6 +325,8 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
         SMediumDiffEntry entry = {0};
         entry.fileInfo = leaderInfo;
         entry.fileInfo.cid = newCid;
+        // Preserve the leader's tier as the starting point for local allocation.
+        entry.fileInfo.diskId = -1;
         entry.opType = TSDB_FOP_CREATE;
         code = TARRAY2_APPEND(diffArr, entry);
         TSDB_CHECK_CODE(code, lino, _exit);
@@ -385,6 +387,8 @@ static int32_t tsdbSnapMediumDiff(STsdb *tsdb, TFileSetArray *leaderArr,
               TD_VID(tsdb->pVnode), fid, leaderInfo.level, leaderInfo.minVer, leaderInfo.maxVer, leaderInfo.cid);
           SMediumDiffEntry entry = {0};
           entry.fileInfo = leaderInfo;
+          // Preserve the leader's tier as the starting point for local allocation.
+          entry.fileInfo.diskId = -1;
           entry.opType = TSDB_FOP_CREATE;
           code = TARRAY2_APPEND(diffArr, entry);
           TSDB_CHECK_CODE(code, lino, _exit);
@@ -947,14 +951,18 @@ static void tsdbSnapRemapDiskId(STsdbSnapMediumWriter *writer, SMediumSnapFileIn
     // tsdbTFileName will refuse to build a path in this case.
     tsdbWarn("vgId:%d, medium writer: tfs unavailable, keep original disk id level:%d id:%d",
              TD_VID(pTsdb->pVnode), srcDid.level, srcDid.id);
-  } else if (tfsGetDiskPath(pTfs, srcDid) != NULL) {
+  } else if (srcDid.id >= 0 && tfsGetDiskPath(pTfs, srcDid) != NULL) {
     // Already valid locally; nothing to remap.
   } else {
-    // Allocate on the original level first (tsdbAllocateDisk degrades level
+    // Allocate on the original level first (the allocator degrades level
     // by level, ending at the primary disk) so tiered-storage data is not
     // silently concentrated on level 0. The label is derived from ftype just
     // like the normal data-file writers do.
-    int32_t remapCode = tsdbAllocateDisk(pTsdb, tsdbFTypeLabel((tsdb_ftype_t)fi->ftype), srcDid.level, &dstDid);
+    int32_t remapCode = tfsAllocDiskWithStrategy(pTfs, srcDid.level, tsdbFTypeLabel((tsdb_ftype_t)fi->ftype),
+                                                 tsSnapshotMediumDiskStrategy, &dstDid);
+    if (remapCode == 0) {
+      remapCode = tfsMkdirRecurAt(pTfs, pTsdb->path, dstDid);
+    }
     if (remapCode != 0 || tfsGetDiskPath(pTfs, dstDid) == NULL) {
       // Allocation failed (e.g. every level is full/disabled). The file will
       // actually be written to the primary path by tsdbTFileName's fallback,
