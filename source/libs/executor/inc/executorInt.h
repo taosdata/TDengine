@@ -456,6 +456,8 @@ typedef struct STableMetaCacheInfo {
 } STableMetaCacheInfo;
 
 typedef struct STableScanBase {
+  SFilterInfo*           remoteFilter;  // Borrowed from exprSupp for eligible batch scans.
+  STaskSubJobCtx*        remoteCtx;
   STsdbReader*           dataReader;
   SFileBlockLoadRecorder readRecorder;
   SFileBlockLoadRecorder readerCostBaseline;

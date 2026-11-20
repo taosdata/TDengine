@@ -7951,17 +7951,16 @@ int32_t tsdbRetrieveDatablockSMA2(void* reader, SSDataBlock* pDataBlock,
     goto _end;
   }
 
-  // LAST cannot infer NULL values when any requested column has SMA disabled.
+  SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
+  bool remoteFilter = pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER;
+  // LAST needs complete column statistics to infer NULL values.
   if (pReader->status.composedDataBlock ||
-      (!pReader->suppInfo.smaValid &&
-       pReader->suppInfo.blockSmaMode != TSD_READER_BLOCK_SMA_MODE_MAX_ONLY)) {
+      (!pSup->smaValid && !remoteFilter && pSup->blockSmaMode != TSD_READER_BLOCK_SMA_MODE_MAX_ONLY)) {
     goto _end;
   }
 
   code = getCurrentBlockInfo(&pReader->status.blockIter, &pBlockInfo, pReader->idStr);
   TSDB_CHECK_CODE(code, lino, _end);
-
-  SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
 
   SSDataBlock* pResBlock = pReader->resBlockInfo.pResBlock;
   if (pResBlock->info.id.uid != pBlockInfo->uid) {
@@ -7980,7 +7979,8 @@ int32_t tsdbRetrieveDatablockSMA2(void* reader, SSDataBlock* pDataBlock,
     TSDB_CHECK_CODE(code, lino, _end);
   }
 
-  *allHave = true;
+  // Filters can use individual persisted aggregates even when another projected column has SMA disabled.
+  *allHave = !remoteFilter || pSup->smaValid;
   synthesizeAllNullSma = (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) ||
                          (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY) ||
                          (pSup->blockSmaMode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY &&
@@ -8774,7 +8774,7 @@ int32_t tsdbReaderSetBlockSmaMode(void* p, ETsdReaderBlockSmaMode mode) {
   TSDB_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INVALID_PARA);
   TSDB_CHECK_CONDITION(mode == TSD_READER_BLOCK_SMA_MODE_NORMAL || mode == TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY ||
                            mode == TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY ||
-                           mode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY,
+                           mode == TSD_READER_BLOCK_SMA_MODE_MAX_ONLY || mode == TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER,
                        code, lino, _end, TSDB_CODE_INVALID_PARA);
 
   pReader->suppInfo.blockSmaMode = mode;

@@ -712,8 +712,7 @@ static int32_t doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pCol
 }
 
 static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                              ETsdReaderBlockSmaMode mode, bool* pLoad,
-                              int64_t* pSourceRows) {
+                              ETsdReaderBlockSmaMode mode, bool* pLoad, int64_t* pSourceRows, bool* pPartial) {
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
   bool         allColumnsHaveAgg = true;
   bool         hasNullSMA = false;
@@ -747,10 +746,10 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
     return code;
   }
 
-  if (!allColumnsHaveAgg || hasNullSMA) {
-    *pLoad = false;
-  } else {
-    *pLoad = true;
+  *pLoad = allColumnsHaveAgg && !hasNullSMA;
+  if (pPartial != NULL) {
+    *pPartial = mode == TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER && !allColumnsHaveAgg && !hasNullSMA &&
+                pBlock->pBlockAgg != NULL;
   }
 
   return code;
@@ -835,6 +834,31 @@ static int32_t saveVtableReaderLimit(SOperatorInfo* pOperator) {
                      &pInfo->base.limitInfo, sizeof(pInfo->base.limitInfo));
 }
 
+static void bindScanRemoteFilter(STableScanBase* base, STableScanPhysiNode* scan, SExecTaskInfo* task,
+                                 SFilterInfo* filter) {
+  if (task->pSubJobCtx && !IS_STREAM_MODE(task) && !task->pStreamRuntimeInfo && !base->readHandle.streamRtInfo &&
+      !scan->scan.virtualStableScan && scan->scan.outputTsPrecision > TSDB_TIME_PRECISION_NANO &&
+      !scan->scan.node.dynamicOp && !scan->pAlignCols &&
+      !interpModeUsesPhasedProtocol(scan->interpMode) && !scan->pExtScanRange && !base->readHandle.extWinRangeValid &&
+      base->cond.type == TIMEWINDOW_RANGE_CONTAINED) {
+    base->remoteFilter = filter;
+    base->remoteCtx = task->pSubJobCtx;
+  }
+}
+
+static int32_t prepareScanRemoteWindow(STableScanBase* base, STimeWindow* window) {
+  if (!base->remoteFilter) return TSDB_CODE_SUCCESS;
+  return filterPrepareRemoteRange(base->remoteFilter, base->remoteCtx, qPeekRemoteResult, window);
+}
+
+static int32_t resetScanReaderWindow(STableScanBase* base, TsdReader* api) {
+  STimeWindow original = base->cond.twindows;
+  int32_t code = prepareScanRemoteWindow(base, &base->cond.twindows);
+  if (!code) code = api->tsdReaderResetStatus(base->dataReader, &base->cond);
+  base->cond.twindows = original;
+  return code;
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   int32_t        code = TSDB_CODE_SUCCESS;
@@ -890,6 +914,18 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   pBlock->pBlockAgg = NULL;
   pBlockInfo->pBlockAgg = NULL;
 
+  // A LAST candidate exposes only its latest key, while an earlier row can satisfy the filter.
+  if (pTableScanInfo->remoteFilter && !pBlockInfo->lastScanCandidate && pBlockInfo->rows > 0 &&
+      pBlockInfo->window.skey <= pBlockInfo->window.ekey) {
+    STimeWindow window = pBlockInfo->window;
+    code = prepareScanRemoteWindow(pTableScanInfo, &window);
+    if (code) {
+      pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+      return code;
+    }
+    if (window.skey > window.ekey) *status = FUNC_DATA_REQUIRED_FILTEROUT;
+  }
+
   if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%" PRId64, GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
@@ -912,8 +948,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     bool success = true;
     ETsdReaderBlockSmaMode smaMode = maxInterval ? TSD_READER_BLOCK_SMA_MODE_MAX_ONLY
                                                  : TSD_READER_BLOCK_SMA_MODE_NORMAL;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, smaMode,
-                          &success, NULL);
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, smaMode, &success, NULL, NULL);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));
@@ -965,14 +1000,17 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   if (!virtualStableScan && !alignActive && !loadSMA &&
       pOperator->exprSupp.pFilterInfo != NULL) {
     ETsdReaderBlockSmaMode blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
-    if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
+    bool candidate = pBlockInfo->lastScanCandidate;
+    if (!candidate && filterHasRemoteRange(pTableScanInfo->remoteFilter)) {
+      blockSmaMode = TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER;
+    } else if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
       blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY;
     }
 
     bool success = true;
-    bool candidate = pBlockInfo->lastScanCandidate;
+    bool partial = false;
     code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, blockSmaMode,
-                          &success, candidate ? &sourceRows : NULL);
+                          &success, candidate ? &sourceRows : NULL, &partial);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));
@@ -986,11 +1024,15 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
       if (!success) pBlock->pBlockAgg = NULL;
       success = success && sourceRows > 0 && sourceRows <= INT16_MAX;
     }
-    if (success) {
+    if (success || partial) {
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
-      code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo,
-                                pBlock->pBlockAgg, size, sourceRows, &keep);
+      if (partial) {
+        // The runtime range treats missing column statistics as unknown.
+        code = filterRemoteRangeMayMatch(pTableScanInfo->remoteFilter, pBlock->pBlockAgg, size, sourceRows, &keep);
+      } else {
+        code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, sourceRows, &keep);
+      }
       if (code) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
         qError("%s failed to do filter by block sma, code:%s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -1022,9 +1064,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     bool success = false;
     pBlock->pBlockAgg = NULL;
     pBlockInfo->pBlockAgg = NULL;
-    code = doLoadBlockSMA(
-        pTableScanInfo, pBlock, pTaskInfo,
-        TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY, &success, &sourceRows);
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY,
+                          &success, &sourceRows, NULL);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve SMA for dynamic prune", GET_TASKID(pTaskInfo));
@@ -2034,7 +2075,7 @@ static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock
       qDebug("start to repeat ascending order scan data blocks due to query func required, %s", GET_TASKID(pTaskInfo));
 
       // do prepare for the next round table scan operation
-      code = pAPI->tsdReader.tsdReaderResetStatus(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
+      code = resetScanReaderWindow(&pTableScanInfo->base, &pAPI->tsdReader);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   }
@@ -2043,7 +2084,7 @@ static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock
   if (pTableScanInfo->scanTimes < total) {
     if (pTableScanInfo->base.cond.order == TSDB_ORDER_ASC) {
       prepareForDescendingScan(&pTableScanInfo->base, pOperator->exprSupp.pCtx, 0);
-      code = pAPI->tsdReader.tsdReaderResetStatus(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
+      code = resetScanReaderWindow(&pTableScanInfo->base, &pAPI->tsdReader);
       QUERY_CHECK_CODE(code, lino, _end);
       qDebug("%s start to descending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
     }
@@ -2067,7 +2108,7 @@ static int32_t doGroupedTableScan(SOperatorInfo* pOperator, SSDataBlock** pBlock
         pTableScanInfo->base.scanFlag = MAIN_SCAN;
 
         qDebug("%s start to repeat descending order scan data blocks", GET_TASKID(pTaskInfo));
-        code = pAPI->tsdReader.tsdReaderResetStatus(pTableScanInfo->base.dataReader, &pTableScanInfo->base.cond);
+        code = resetScanReaderWindow(&pTableScanInfo->base, &pAPI->tsdReader);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -2233,21 +2274,23 @@ static int32_t doInitReader(STableScanInfo* pInfo, SExecTaskInfo* pTaskInfo, int
 int32_t openOrRebindTableReader(STableScanBase* pBase, STableKeyInfo* pTables, int32_t numOfTables, SSDataBlock* pBlock,
                                 const char* pTaskId, SHashObj** ppIgnoreTables, bool* pOpened) {
   *pOpened = false;
+  STimeWindow original = pBase->cond.twindows;
+  int32_t code = prepareScanRemoteWindow(pBase, &pBase->cond.twindows);
+  if (code) return code;
   if (pBase->dataReader == NULL) {
-    int32_t code = pBase->readerAPI.tsdReaderOpen(pBase->readHandle.vnode, &pBase->cond, pTables, numOfTables, pBlock,
-                                                  (void**)&pBase->dataReader, pTaskId, ppIgnoreTables);
+    code = pBase->readerAPI.tsdReaderOpen(pBase->readHandle.vnode, &pBase->cond, pTables, numOfTables, pBlock,
+                                          (void**)&pBase->dataReader, pTaskId, ppIgnoreTables);
     if (code == TSDB_CODE_SUCCESS) {
       *pOpened = true;
       bindFreshReaderStats(pBase);
     }
-    return code;
+  } else {
+    code = pBase->readerAPI.tsdSetQueryTableList(pBase->dataReader, pTables, numOfTables);
+    if (!code) code = pBase->readerAPI.tsdReaderResetStatus(pBase->dataReader, &pBase->cond);
   }
-
-  int32_t code = pBase->readerAPI.tsdSetQueryTableList(pBase->dataReader, pTables, numOfTables);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-  return pBase->readerAPI.tsdReaderResetStatus(pBase->dataReader, &pBase->cond);
+  // Keep the reader's pinned endVersion, but always rederive the window on reopen.
+  pBase->cond.twindows = original;
+  return code;
 }
 
 #if defined(BUILD_TEST)
@@ -3134,7 +3177,7 @@ static int32_t startNextGroupScan(SOperatorInfo* pOperator, SSDataBlock** pResul
     code = pAPI->tsdReader.tsdSetQueryTableList(pInfo->base.dataReader, pList, num);
     QUERY_CHECK_CODE(code, lino, _end);
 
-    code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+    code = resetScanReaderWindow(&pInfo->base, &pAPI->tsdReader);
     QUERY_CHECK_CODE(code, lino, _end);
   }
   pInfo->scanTimes = 0;
@@ -4118,7 +4161,7 @@ static int32_t doTableScanNextRaw(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       // vtable two-pass phase-2 rescan: reuse the phase-1 reader (tsdReaderResetStatus keeps
       // pReadSnap/verRange -- version-stable), rewind cursor, then rescan via the normal path below.
       pInfo->scanTimes = 0;
-      code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      code = resetScanReaderWindow(&pInfo->base, &pAPI->tsdReader);
       QUERY_CHECK_CODE(code, lino, _end);
       pOperator->status = OP_OPENED;
       freeOperatorParam(pOperator->pOperatorGetParam, OP_GET_PARAM);
@@ -4188,7 +4231,7 @@ static int32_t doTableScanNextRaw(SOperatorInfo* pOperator, SSDataBlock** ppRes)
       qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d/%d %s", tInfo.uid, numOfTables,
              pInfo->currentTable, numOfTables, GET_TASKID(pTaskInfo));
 
-      code = pAPI->tsdReader.tsdReaderResetStatus(pInfo->base.dataReader, &pInfo->base.cond);
+      code = resetScanReaderWindow(&pInfo->base, &pAPI->tsdReader);
       QUERY_CHECK_CODE(code, lino, _end);
       pInfo->scanTimes = 0;
     }
@@ -4896,6 +4939,9 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
   }
   pInfo->base.readHandle = *readHandle;
   pInfo->base.dataBlockLoadFlag = pTableScanNode->dataRequired;
+  if (pScanNode->node.pConditions && pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    pInfo->base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
 
   pInfo->sample.sampleRatio = pTableScanNode->ratio;
   pInfo->sample.seed = taosGetTimestampSec();
@@ -4936,6 +4982,7 @@ int32_t createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHa
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
   filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
+  bindScanRemoteFilter(&pInfo->base, pTableScanNode, pTaskInfo, pOperator->exprSupp.pFilterInfo);
 
   pInfo->currentGroupId = -1;
   pInfo->currentPhase = SCAN_PHASE_MAIN;
@@ -6660,8 +6707,12 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
 
   blockDataCleanup(pInput->pReaderBlock);
   if (!pInput->bInMemReader) {
+    STimeWindow original = pInput->tblCond.twindows;
+    code = prepareScanRemoteWindow(&pInfo->base, &pInput->tblCond.twindows);
+    QUERY_CHECK_CODE(code, lino, _end);
     code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, pInput->pKeyInfo, 1, pInput->pReaderBlock,
                                          (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
+    pInput->tblCond.twindows = original;
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
@@ -6940,8 +6991,12 @@ static int32_t initSubTableInputs(SOperatorInfo* pOperator, STableMergeScanInfo*
     }
 
     if (i + 1 < pSubTblsInfo->numInMemReaders) {
+      STimeWindow original = pInput->tblCond.twindows;
+      code = prepareScanRemoteWindow(&pInfo->base, &pInput->tblCond.twindows);
+      QUERY_CHECK_CODE(code, lino, _end);
       code = pAPI->tsdReader.tsdReaderOpen(pHandle->vnode, &pInput->tblCond, keyInfo, 1, pInput->pReaderBlock,
                                            (void**)&pInput->pReader, GET_TASKID(pTaskInfo), NULL);
+      pInput->tblCond.twindows = original;
       QUERY_CHECK_CODE(code, lino, _end);
       pInput->bInMemReader = true;
     } else {
@@ -8519,6 +8574,7 @@ int32_t createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SR
                             pTaskInfo->pStreamRuntimeInfo);
   QUERY_CHECK_CODE(code, lino, _error);
   filterSetExecContext(pOperator->exprSupp.pFilterInfo, pTaskInfo, isTaskKilled);
+  bindScanRemoteFilter(&pInfo->base, pTableScanNode, pTaskInfo, pOperator->exprSupp.pFilterInfo);
 
   initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 

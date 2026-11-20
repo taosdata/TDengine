@@ -241,6 +241,10 @@ typedef struct SFltScalarCtx {
   // Owned by this context; NULL until built. A shallow copy must not create
   // two owners of the same range tree.
   SFltSclRangeExpr *orRangeExpr;
+  SFltSclRangeExpr *remoteRange;
+  STimeWindow       remoteWindow;
+  void             *remoteContext;
+  bool              remoteRangePrepared;
   // Meaningful after range optimization: OR exists or detection reached its
   // depth limit. Without a usable tree, callers assume the full time window.
   bool              hasOrCondition;

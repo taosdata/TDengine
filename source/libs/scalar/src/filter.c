@@ -37,6 +37,8 @@
 
 struct SFltSclRangeExpr {
   ELogicConditionType condType;
+  EOperatorType       nullTest;
+  bool                empty;
   const SColumnNode  *colNode;
   SArray             *points;
   SArray             *children;
@@ -2253,6 +2255,7 @@ void filterFreeInfo(SFilterInfo *info) {
     taosArrayDestroy(colRange->points);
   }
   taosArrayDestroy(info->sclCtx.fltSclRange);
+  fltSclFreeRangeExpr(info->sclCtx.remoteRange);
   fltSclFreeRangeExpr(info->sclCtx.orRangeExpr);
   info->sclCtx.orRangeExpr = NULL;
 
@@ -4327,32 +4330,34 @@ int32_t fltSclMerge(SArray *pts1, SArray *pts2, bool isUnion, SArray *merged) {
   if (all == NULL) {
     FLT_ERR_RET(terrno);
   }
-  FLT_ERR_RET(fltSclMergeSort(pts1, pts2, all));
+  int32_t code = 0;
+  FLT_ERR_JRET(fltSclMergeSort(pts1, pts2, all));
   int32_t countRequired = (isUnion) ? 1 : 2;
   int32_t count = 0;
   for (int32_t i = 0; i < taosArrayGetSize(all); ++i) {
     SFltSclPoint *pt = taosArrayGet(all, i);
     if (NULL == pt) {
-      FLT_ERR_RET(TSDB_CODE_OUT_OF_RANGE);
+      FLT_ERR_JRET(TSDB_CODE_OUT_OF_RANGE);
     }
     if (pt->start) {
       ++count;
       if (count == countRequired) {
         if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(terrno);
+          FLT_ERR_JRET(terrno);
         }
       }
     } else {
       if (count == countRequired) {
         if (NULL == taosArrayPush(merged, pt)) {
-          FLT_ERR_RET(terrno);
+          FLT_ERR_JRET(terrno);
         }
       }
       --count;
     }
   }
+_return:
   taosArrayDestroy(all);
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t fltSclIntersect(SArray *pts1, SArray *pts2, SArray *merged) { return fltSclMerge(pts1, pts2, false, merged); }
@@ -4619,13 +4624,13 @@ int32_t fltSclBuildRangeFromBlockSma(SFltSclColumnRange *colRange, SColumnDataAg
   return TSDB_CODE_SUCCESS;
 }
 
-static bool fltSclSmaIsValid(const SColumnDataAgg *stat, int32_t numOfRows, int8_t dataType) {
+static bool fltSclSmaIsValid(const SColumnDataAgg *stat, int32_t numOfRows, int8_t dataType, bool checkBounds) {
   if (numOfRows <= 0 || stat->numOfNull < 0 || stat->numOfNull > numOfRows) return false;
   // A flagged SMA uses decimal bounds even if the column type says otherwise.
   if (!IS_DECIMAL_TYPE(dataType) && (stat->colId & DECIMAL_AGG_FLAG)) return false;
   // The decoder clears DECIMAL_AGG_FLAG, but preserves the overflow byte.
   if (IS_DECIMAL_TYPE(dataType) && stat->overflow) return false;
-  if (stat->numOfNull == numOfRows) return true;
+  if (!checkBounds || stat->numOfNull == numOfRows) return true;
   if (IS_SIGNED_NUMERIC_TYPE(dataType) || TSDB_DATA_TYPE_TIMESTAMP == dataType || IS_BOOLEAN_TYPE(dataType)) {
     // BOOL bounds, like signed numeric bounds, occupy int64 SMA slots.
     return stat->min <= stat->max;
@@ -4672,6 +4677,10 @@ static int32_t fltSclRangeExprMayMatch(const SFltSclRangeExpr *expr, SColumnData
     return TSDB_CODE_SUCCESS;
   }
   if (NULL != expr->colNode) {
+    if (expr->empty) {
+      *mayMatch = false;
+      return TSDB_CODE_SUCCESS;
+    }
     // Without column statistics this branch may match, so retain the block.
     if (NULL == stats || numOfCols <= 0) return TSDB_CODE_SUCCESS;
     SColumnDataAgg *stat = NULL;
@@ -4682,7 +4691,11 @@ static int32_t fltSclRangeExprMayMatch(const SFltSclRangeExpr *expr, SColumnData
       }
     }
     // A leaf with missing or invalid SMA cannot prove a miss; retain the block.
-    if (NULL == stat || !fltSclSmaIsValid(stat, numOfRows, expr->colNode->node.resType.type)) {
+    if (NULL == stat || !fltSclSmaIsValid(stat, numOfRows, expr->colNode->node.resType.type, !expr->nullTest)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    if (expr->nullTest) {
+      *mayMatch = expr->nullTest == OP_TYPE_IS_NULL ? stat->numOfNull > 0 : stat->numOfNull < numOfRows;
       return TSDB_CODE_SUCCESS;
     }
     // Borrow the tree's column node only for SMA range construction.
@@ -4785,12 +4798,23 @@ static int32_t fltExecuteBlkOrNotNullGroups(SFilterInfo *info, SColumnDataAgg *p
   return TSDB_CODE_SUCCESS;
 }
 
+bool filterHasRemoteRange(const SFilterInfo *info) { return info && info->sclCtx.remoteRange; }
+
+int32_t filterRemoteRangeMayMatch(const SFilterInfo *info, SColumnDataAgg *stats, int32_t numOfCols, int32_t numOfRows,
+                                  bool *keep) {
+  return fltSclRangeExprMayMatch(info->sclCtx.remoteRange, stats, numOfCols, numOfRows, keep);
+}
+
 int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                            bool *keep) {
   *keep = true;
   FLT_ERR_RET(fltExecuteBlkOrNotNullGroups(info, pDataStatis, numOfCols, numOfRows, keep));
   if (!(*keep)) {
     FLT_RET(TSDB_CODE_SUCCESS);
+  }
+  if (info->sclCtx.remoteRange) {
+    FLT_ERR_RET(filterRemoteRangeMayMatch(info, pDataStatis, numOfCols, numOfRows, keep));
+    if (!*keep) return TSDB_CODE_SUCCESS;
   }
   if (NULL == pDataStatis) return TSDB_CODE_SUCCESS;
 
@@ -4812,7 +4836,7 @@ int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32
       if (foundCol) {
         SColumnDataAgg *pAgg = &pDataStatis[j];
         // Invalid SMA must not let the AND range path reject a block.
-        if (!fltSclSmaIsValid(pAgg, numOfRows, colRange->colNode->node.resType.type)) {
+        if (!fltSclSmaIsValid(pAgg, numOfRows, colRange->colNode->node.resType.type, true)) {
           continue;
         }
         SArray         *points = taosArrayInit(2, sizeof(SFltSclPoint));
@@ -5091,6 +5115,10 @@ static int32_t fltSclRangeExprTimeWindow(const SFltSclRangeExpr *expr, STimeWind
   TAOS_SET_OBJ_ALIGNED(window, TSWINDOW_INITIALIZER);
   if (NULL == expr) return TSDB_CODE_SUCCESS;
   if (NULL != expr->colNode) {
+    if (expr->empty) {
+      *window = TSWINDOW_DESC_INITIALIZER;
+      return TSDB_CODE_SUCCESS;
+    }
     if (TSDB_DATA_TYPE_TIMESTAMP != expr->colNode->node.resType.type ||
         PRIMARYKEY_TIMESTAMP_COL_ID != expr->colNode->colId || !expr->colNode->isPrimTs ||
         0 == taosArrayGetSize(expr->points)) return TSDB_CODE_SUCCESS;
@@ -5314,6 +5342,26 @@ int32_t filterValidateFillTimeRange(const STimeWindow* pRange, int64_t interval,
   return TSDB_CODE_SUCCESS;
 }
 
+static void fltSwapComparisonOperands(SOperatorNode *op) {
+  TSWAP(op->pLeft, op->pRight);
+  switch (op->opType) {
+    case OP_TYPE_GREATER_THAN:
+      op->opType = OP_TYPE_LOWER_THAN;
+      break;
+    case OP_TYPE_LOWER_THAN:
+      op->opType = OP_TYPE_GREATER_THAN;
+      break;
+    case OP_TYPE_GREATER_EQUAL:
+      op->opType = OP_TYPE_LOWER_EQUAL;
+      break;
+    case OP_TYPE_LOWER_EQUAL:
+      op->opType = OP_TYPE_GREATER_EQUAL;
+      break;
+    default:
+      break;
+  }
+}
+
 EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -5460,25 +5508,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
       }
 
       if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
-        SNode *t = node->pLeft;
-        node->pLeft = node->pRight;
-        node->pRight = t;
-        switch (node->opType) {
-          case OP_TYPE_GREATER_THAN:
-            node->opType = OP_TYPE_LOWER_THAN;
-            break;
-          case OP_TYPE_LOWER_THAN:
-            node->opType = OP_TYPE_GREATER_THAN;
-            break;
-          case OP_TYPE_GREATER_EQUAL:
-            node->opType = OP_TYPE_LOWER_EQUAL;
-            break;
-          case OP_TYPE_LOWER_EQUAL:
-            node->opType = OP_TYPE_GREATER_EQUAL;
-            break;
-          default:
-            break;
-        }
+        fltSwapComparisonOperands(node);
       }
 
       if ((OP_TYPE_IN == node->opType || OP_TYPE_NOT_IN == node->opType) &&
@@ -5847,16 +5877,291 @@ static bool fltSclHasOrCondition(const SNode *node, int32_t depth) {
   return false;
 }
 
-static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeExpr **output) {
+// Ordinary query snapshots are immutable for the lifetime of the sub-job context.
+// Never fetch here: an empty scan need not evaluate a scalar subquery at all.
+typedef struct {
+  void                *task;
+  FltPeekRemoteResult  peek;
+  int32_t              endpoints;
+  bool                 pending;
+} SFltRemoteBuild;
+
+static const SNode *fltRemoteResult(const SNode *node, SFltRemoteBuild *build) {
+  int32_t index;
+  ENodeType expected = nodeType(node);
+  switch (expected) {
+    case QUERY_NODE_VALUE:
+      return node;
+    case QUERY_NODE_REMOTE_VALUE:
+      expected = QUERY_NODE_VALUE;
+      index = ((const SRemoteValueNode *)node)->subQIdx;
+      break;
+    case QUERY_NODE_REMOTE_ROW: {
+      const SRemoteRowNode *row = (const SRemoteRowNode *)node;
+      if (row->valSet) return node;
+      index = row->subQIdx;
+      break;
+    }
+    case QUERY_NODE_REMOTE_VALUE_LIST: {
+      const SRemoteValueListNode *list = (const SRemoteValueListNode *)node;
+      if (!(list->flag & VALUELIST_FLAG_VAL_UNSET)) return node;
+      index = list->subQIdx;
+      break;
+    }
+    default:
+      return NULL;
+  }
+  const SNode *result = build->peek ? build->peek(build->task, index) : NULL;
+  if (result == NULL) build->pending = true;
+  return result && nodeType(result) == expected ? result : NULL;
+}
+
+// Normalize only the copy used to derive bounds. Scalar evaluation still sees the original operands.
+static SOperatorNode fltRemoteColumnComparison(const SOperatorNode *op) {
+  SOperatorNode cmp = *op;
+  if (cmp.pRight && nodeType(cmp.pRight) == QUERY_NODE_COLUMN && cmp.pLeft &&
+      (nodeType(cmp.pLeft) == QUERY_NODE_VALUE || nodeType(cmp.pLeft) == QUERY_NODE_REMOTE_VALUE) &&
+      cmp.opType >= OP_TYPE_GREATER_THAN && cmp.opType <= OP_TYPE_NOT_EQUAL) {
+    fltSwapComparisonOperands(&cmp);
+  }
+  return cmp;
+}
+
+// Check every sibling before deriving any new range. An unevaluated remote,
+// a conversion that can fail, or an arbitrary function must still run.
+static bool fltRemoteTreeReady(SNode *node, SFltRemoteBuild *build, int32_t *budget) {
+  if (!node || --*budget < 0) return false;
+  if (nodeType(node) == QUERY_NODE_LOGIC_CONDITION) {
+    SLogicConditionNode *logic = (SLogicConditionNode *)node;
+    if (logic->condType != LOGIC_COND_TYPE_AND && logic->condType != LOGIC_COND_TYPE_OR &&
+        !(logic->condType == LOGIC_COND_TYPE_NOT && LIST_LENGTH(logic->pParameterList) == 1)) return false;
+    SNode *child = NULL;
+    FOREACH(child, logic->pParameterList) {
+      if (!fltRemoteTreeReady(child, build, budget)) return false;
+    }
+    return true;
+  }
+  if (nodeType(node) != QUERY_NODE_OPERATOR) return false;
+  SOperatorNode op = fltRemoteColumnComparison((SOperatorNode *)node);
+  if (!op.pLeft || nodeType(op.pLeft) != QUERY_NODE_COLUMN) return false;
+  SColumnNode *col = (SColumnNode *)op.pLeft;
+  if (col->colType != COLUMN_TYPE_COLUMN) return false;
+  if (op.opType == OP_TYPE_IS_NULL || op.opType == OP_TYPE_IS_NOT_NULL) {
+    return true;
+  }
+  if (op.opType < OP_TYPE_GREATER_THAN || op.opType > OP_TYPE_NOT_IN || !op.pRight) return false;
+  const SNode *result = fltRemoteResult(op.pRight, build);
+  if (!result) return false;
+  SDataType colType = col->node.resType, type = ((const SExprNode *)result)->resType;
+  SDataType consumer = ((const SExprNode *)op.pRight)->resType;
+  if (type.type != consumer.type || type.precision != consumer.precision || type.scale != consumer.scale) return false;
+  if ((op.opType == OP_TYPE_IN || op.opType == OP_TYPE_NOT_IN) !=
+      (nodeType(result) == QUERY_NODE_REMOTE_VALUE_LIST)) return false;
+  if (nodeType(result) == QUERY_NODE_REMOTE_ROW && op.opType > OP_TYPE_LOWER_EQUAL) return false;
+  if (nodeType(result) == QUERY_NODE_VALUE &&
+      (((const SValueNode *)result)->flag & (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_DEFERRED_QUERY_TIME))) return false;
+  if (IS_SIGNED_NUMERIC_TYPE(colType.type) && IS_SIGNED_NUMERIC_TYPE(type.type)) return true;
+  return colType.type == type.type && (IS_NUMERIC_TYPE(type.type) || type.type == TSDB_DATA_TYPE_TIMESTAMP) &&
+         colType.precision == type.precision && colType.scale == type.scale;
+}
+
+static EOperatorType fltNegateCompare(EOperatorType type) {
+  switch (type) {
+    case OP_TYPE_EQUAL:         return OP_TYPE_NOT_EQUAL;
+    case OP_TYPE_NOT_EQUAL:     return OP_TYPE_EQUAL;
+    case OP_TYPE_GREATER_THAN:  return OP_TYPE_LOWER_EQUAL;
+    case OP_TYPE_GREATER_EQUAL: return OP_TYPE_LOWER_THAN;
+    case OP_TYPE_LOWER_THAN:    return OP_TYPE_GREATER_EQUAL;
+    case OP_TYPE_LOWER_EQUAL:   return OP_TYPE_GREATER_THAN;
+    case OP_TYPE_IN:            return OP_TYPE_NOT_IN;
+    case OP_TYPE_NOT_IN:        return OP_TYPE_IN;
+    case OP_TYPE_IS_NULL:       return OP_TYPE_IS_NOT_NULL;
+    default:                    return OP_TYPE_IS_NULL;
+  }
+}
+
+static int32_t fltPushBound(SArray *points, SFltSclDatum value, bool start, bool excl) {
+  SFltSclPoint point = {.val = value, .start = start, .excl = excl};
+  return taosArrayPush(points, &point) ? TSDB_CODE_SUCCESS : terrno;
+}
+
+static int32_t fltCompareHashBound(const void *a, const void *b) {
+  return fltSclCompareDatum((SFltSclDatum *)a, (SFltSclDatum *)b);
+}
+
+// Hash keys use native widths, while block SMA widens narrow integers to eight bytes.
+static int32_t fltRemoteKeyDatum(SDataType type, const void *key, SFltSclDatum *datum) {
+  uint64_t buf[2] = {0};
+  memcpy(buf, key, tDataTypes[type.type].bytes);
+  datum->type = type;
+  if (IS_SIGNED_NUMERIC_TYPE(type.type)) {
+    datum->kind = FLT_SCL_DATUM_KIND_INT64;
+    GET_TYPED_DATA(datum->i, int64_t, type.type, buf, 0);
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type.type)) {
+    datum->kind = FLT_SCL_DATUM_KIND_UINT64;
+    GET_TYPED_DATA(datum->u, uint64_t, type.type, buf, 0);
+  } else {
+    return fltSclBuildDatumFromBlockSmaValue(datum, type.type, buf);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t fltRemoteListPoints(const SRemoteValueListNode *list, SColumnNode *col, EOperatorType op,
+                                   bool negative, SFltRemoteBuild *build, SFltSclRangeExpr *expr) {
+  if (!list->hasValue) {
+    expr->empty = op == OP_TYPE_IN;
+    return TSDB_CODE_SUCCESS;
+  }
+  SDataType type = col->node.resType;
+  // A shared producer may have used a different comparison domain or lost
+  // keys to overflow. Never infer distinctness from either hash in that case.
+  if ((!list->hasNull && !list->hasNotNull) || list->droppedKey || list->otherKeyType || list->pHashFilterOthers ||
+      type.type != list->filterValueType ||
+      (IS_DECIMAL_TYPE(type.type) && type.scale != getScaleFromTypeMod(type.type, list->filterValueTypeMod))) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (!list->hasNotNull || (op == OP_TYPE_NOT_IN && list->hasNull)) {
+    expr->empty = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  int32_t keyCount = taosHashGetSize(list->pHashFilter);
+  if (keyCount == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (negative && keyCount > 1) {
+    // With two distinct keys, = ALL matches no row and != ANY matches every non-NULL row.
+    expr->empty = op == OP_TYPE_NOT_IN;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // After the multi-key case above, = ALL and != ANY reduce to a single-key comparison.
+  bool matchIncludedKeys = negative ? op == OP_TYPE_NOT_IN : op == OP_TYPE_IN;
+  SFltSclDatum min = {.kind = FLT_SCL_DATUM_KIND_MIN, .type = type};
+  SFltSclDatum max = {.kind = FLT_SCL_DATUM_KIND_MAX, .type = type};
+  if (matchIncludedKeys) {
+    if (list->bounds.type != type.type) return TSDB_CODE_SUCCESS;
+    FLT_ERR_RET(fltRemoteKeyDatum(type, list->bounds.min, &min));
+    FLT_ERR_RET(fltRemoteKeyDatum(type, list->bounds.max, &max));
+    FLT_ERR_RET(fltPushBound(expr->points, min, true, false));
+    return fltPushBound(expr->points, max, false, false);
+  }
+  // Two outer endpoints and two open endpoints per excluded key.
+  if (build->endpoints < 2 || keyCount > (build->endpoints - 2) / 2) return TSDB_CODE_SUCCESS;
+  SArray *excluded = taosArrayInit(keyCount, sizeof(SFltSclDatum));
+  if (!excluded) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  void *it = NULL;
+  while ((it = taosHashIterate(list->pHashFilter, it))) {
+    size_t len = 0;
+    const void *key = taosHashGetKey(it, &len);
+    if (!key || len != tDataTypes[type.type].bytes) goto done;
+    SFltSclDatum datum = {0};
+    code = fltRemoteKeyDatum(type, key, &datum);
+    if (code) goto done;
+    if (!taosArrayPush(excluded, &datum)) {
+      code = terrno;
+      goto done;
+    }
+  }
+  build->endpoints -= 2 + 2 * keyCount;
+  taosArraySort(excluded, fltCompareHashBound);
+  code = fltPushBound(expr->points, min, true, false);
+  for (int32_t i = 0; i < keyCount && !code; ++i) {
+    SFltSclDatum *v = taosArrayGet(excluded, i);
+    code = fltPushBound(expr->points, *v, false, true);
+    if (!code) code = fltPushBound(expr->points, *v, true, true);
+  }
+  if (!code) code = fltPushBound(expr->points, max, false, false);
+done:
+  if (it) taosHashCancelIterate(list->pHashFilter, it);
+  taosArrayDestroy(excluded);
+  return code;
+}
+
+static int32_t fltRemoteLeafPoints(SOperatorNode *op, bool negate, SFltRemoteBuild *build, SFltSclRangeExpr *expr) {
+  SColumnNode *col = (SColumnNode *)op->pLeft;
+  SFltSclOperator range = {.colNode = col, .type = negate ? fltNegateCompare(op->opType) : op->opType};
+  if (range.type == OP_TYPE_IS_NULL || range.type == OP_TYPE_IS_NOT_NULL) {
+    // JSON values can encode NULL in their payload as well as in the column bitmap.
+    if (col->node.resType.type == TSDB_DATA_TYPE_JSON) return TSDB_CODE_SUCCESS;
+    expr->nullTest = range.type;
+    return fltSclBuildRangePoints(&range, expr->points);
+  }
+  // Block min/max cannot establish the absence of NaN in floating point data.
+  if (IS_FLOAT_TYPE(col->node.resType.type)) return TSDB_CODE_SUCCESS;
+  const SNode *result = fltRemoteResult(op->pRight, build);
+  if (!result) return TSDB_CODE_SUCCESS;
+  if (nodeType(result) == QUERY_NODE_REMOTE_VALUE_LIST) {
+    return fltRemoteListPoints((const SRemoteValueListNode *)result, col, range.type,
+                               op->flag & OPERATOR_FLAG_NEGATIVE_OP, build, expr);
+  }
+  SValueNode value = *(const SValueNode *)result;
+  if (nodeType(result) == QUERY_NODE_REMOTE_ROW) {
+    const SRemoteRowNode *row = (const SRemoteRowNode *)result;
+    bool greater = range.type == OP_TYPE_GREATER_THAN || range.type == OP_TYPE_GREATER_EQUAL;
+    bool any = greater == ((const SRemoteRowNode *)op->pRight)->isMinVal;
+    if (!row->hasValue) {
+      expr->empty = any;
+      return TSDB_CODE_SUCCESS;
+    }
+    if (!any && row->hasNull) {
+      expr->empty = true;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  if (value.isNull) {
+    expr->empty = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  // Narrow unsigned values can be sign extended in SValueNode.datum. The row
+  // evaluator reads the native width, so canonicalize to that same value.
+  if (IS_UNSIGNED_NUMERIC_TYPE(value.node.resType.type) && tDataTypes[value.node.resType.type].bytes < sizeof(uint64_t)) {
+    value.datum.u &= UINT64_MAX >> (8 * (sizeof(uint64_t) - tDataTypes[value.node.resType.type].bytes));
+  }
+  range.valNode = &value;
+  return fltSclBuildRangePoints(&range, expr->points);
+}
+
+static int32_t fltAddRangeChild(SFltSclRangeExpr *parent, SFltSclRangeExpr *child, bool intersectColumns) {
+  if (intersectColumns && parent->condType == LOGIC_COND_TYPE_AND && child->colNode) {
+    for (int32_t i = 0; i < taosArrayGetSize(parent->children); ++i) {
+      SFltSclRangeExpr *other = taosArrayGetP(parent->children, i);
+      if (!other->colNode || other->colNode->colId != child->colNode->colId) continue;
+      if (!other->empty && !child->empty) {
+        SArray *points = taosArrayInit(4, sizeof(SFltSclPoint));
+        if (!points) return terrno;
+        int32_t code = fltSclIntersect(other->points, child->points, points);
+        if (code) {
+          taosArrayDestroy(points);
+          return code;
+        }
+        taosArrayDestroy(other->points);
+        other->points = points;
+      }
+      other->empty |= child->empty || !taosArrayGetSize(other->points);
+      if (other->nullTest != child->nullTest) other->nullTest = 0;
+      fltSclFreeRangeExpr(child);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return taosArrayPush(parent->children, &child) ? TSDB_CODE_SUCCESS : terrno;
+}
+
+static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltRemoteBuild *remote, bool negate,
+                                    SFltSclRangeExpr **output) {
   if (NULL == node || NULL == budget || NULL == output) return TSDB_CODE_INVALID_PARA;
   *output = NULL;
-  if (QUERY_NODE_LOGIC_CONDITION != nodeType(node) && !fltSclIsCollectableNode(node)) {
+  if (!remote && QUERY_NODE_LOGIC_CONDITION != nodeType(node) && !fltSclIsCollectableNode(node)) {
     return TSDB_CODE_SUCCESS;
   }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(node)) {
     ELogicConditionType type = ((SLogicConditionNode *)node)->condType;
+    if (remote && type == LOGIC_COND_TYPE_NOT) {
+      return fltSclBuildRangeExpr(nodesListGetNode(((SLogicConditionNode *)node)->pParameterList, 0),
+                                  budget, remote, !negate, output);
+    }
     if (LOGIC_COND_TYPE_AND != type && LOGIC_COND_TYPE_OR != type) return TSDB_CODE_SUCCESS;
-  } else {
+  } else if (!remote) {
     SOperatorNode *op = (SOperatorNode *)node;
     if (OP_TYPE_IN == op->opType || QUERY_NODE_COLUMN != nodeType(op->pLeft) ||
         QUERY_NODE_VALUE != nodeType(op->pRight)) return TSDB_CODE_SUCCESS;
@@ -5892,6 +6197,7 @@ static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeEx
     SFltSclRangeExpr *expr = taosMemoryCalloc(1, sizeof(*expr));
     if (NULL == expr) return terrno;
     expr->condType = logic->condType;
+    if (negate) expr->condType = logic->condType == LOGIC_COND_TYPE_AND ? LOGIC_COND_TYPE_OR : LOGIC_COND_TYPE_AND;
     expr->children = taosArrayInit(TMIN(LIST_LENGTH(logic->pParameterList), 4), sizeof(SFltSclRangeExpr *));
     if (NULL == expr->children) {
       fltSclFreeRangeExpr(expr);
@@ -5900,13 +6206,13 @@ static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeEx
     SNode *childNode = NULL;
     FOREACH(childNode, logic->pParameterList) {
       SFltSclRangeExpr *child = NULL;
-      int32_t code = fltSclBuildRangeExpr(childNode, budget, &child);
+      int32_t code = fltSclBuildRangeExpr(childNode, budget, remote, negate, &child);
       if (TSDB_CODE_SUCCESS != code) {
         fltSclFreeRangeExpr(expr);
         return code;
       }
       if (NULL == child) {
-        if (LOGIC_COND_TYPE_OR == logic->condType) {
+        if (LOGIC_COND_TYPE_OR == expr->condType) {
           // Every OR arm must be represented before a block or time window can be pruned.
           fltSclFreeRangeExpr(expr);
           return TSDB_CODE_SUCCESS;
@@ -5914,12 +6220,12 @@ static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeEx
         // A dropped AND term contributes no block constraint and a full time window.
         continue;
       }
-      if (NULL == taosArrayPush(expr->children, &child)) {
+      code = fltAddRangeChild(expr, child, remote != NULL);
+      if (code) {
         fltSclFreeRangeExpr(child);
         fltSclFreeRangeExpr(expr);
-        return terrno;
+        return code;
       }
-      // The parent owns child after a successful push.
     }
     if (0 == taosArrayGetSize(expr->children)) {
       fltSclFreeRangeExpr(expr);
@@ -5930,6 +6236,11 @@ static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeEx
   }
 
   SOperatorNode *op = (SOperatorNode *)node;
+  SOperatorNode normalized;
+  if (remote) {
+    normalized = fltRemoteColumnComparison(op);
+    op = &normalized;
+  }
   SFltSclRangeExpr *expr = taosMemoryCalloc(1, sizeof(*expr));
   if (NULL == expr) return terrno;
   SNode *colNode = NULL;
@@ -5946,16 +6257,53 @@ static int32_t fltSclBuildRangeExpr(SNode *node, int32_t *budget, SFltSclRangeEx
   }
   SFltSclOperator rangeOp = {.colNode = (SColumnNode *)op->pLeft,
                             .valNode = (SValueNode *)op->pRight, .type = op->opType};
-  code = fltSclBuildRangePoints(&rangeOp, expr->points);
+  code = remote ? fltRemoteLeafPoints(op, negate, remote, expr) : fltSclBuildRangePoints(&rangeOp, expr->points);
   if (TSDB_CODE_SUCCESS != code) {
     fltSclFreeRangeExpr(expr);
     return code;
   }
-  if (0 == taosArrayGetSize(expr->points)) {
+  if (!expr->empty && 0 == taosArrayGetSize(expr->points)) {
     fltSclFreeRangeExpr(expr);
     return TSDB_CODE_SUCCESS;
   }
   *output = expr;
+  return TSDB_CODE_SUCCESS;
+}
+
+void filterInvalidateRemoteRange(SFilterInfo *info) {
+  if (!info) return;
+  fltSclFreeRangeExpr(info->sclCtx.remoteRange);
+  info->sclCtx.remoteRange = NULL;
+  info->sclCtx.remoteContext = NULL;
+  info->sclCtx.remoteRangePrepared = false;
+}
+
+int32_t filterPrepareRemoteRange(SFilterInfo *info, void *ctx, FltPeekRemoteResult peek, STimeWindow *window) {
+  if (!info || !info->hasRemoteNode || !info->scalarMode || info->pStreamRtInfo) return TSDB_CODE_SUCCESS;
+  SFltScalarCtx *scl = &info->sclCtx;
+  if (scl->remoteContext != ctx) filterInvalidateRemoteRange(info);
+  if (!scl->remoteRangePrepared) {
+    SFltRemoteBuild build = {.task = ctx, .peek = peek, .endpoints = 128};
+    int32_t budget = FLT_SCL_RANGE_EXPR_BUDGET;
+    scl->remoteWindow = TSWINDOW_INITIALIZER;
+    if (fltRemoteTreeReady(scl->node, &build, &budget)) {
+      budget = FLT_SCL_RANGE_EXPR_BUDGET;
+      SFltSclRangeExpr *expr = NULL;
+      FLT_ERR_RET(fltSclBuildRangeExpr(scl->node, &budget, &build, false, &expr));
+      int32_t code = fltSclRangeExprTimeWindow(expr, &scl->remoteWindow);
+      if (code) {
+        fltSclFreeRangeExpr(expr);
+        return code;
+      }
+      scl->remoteRange = expr;
+    }
+    scl->remoteRangePrepared = !build.pending;
+    scl->remoteContext = ctx;
+  }
+  if (window && scl->remoteRange) {
+    window->skey = TMAX(window->skey, scl->remoteWindow.skey);
+    window->ekey = TMIN(window->ekey, scl->remoteWindow.ekey);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6061,7 +6409,7 @@ int32_t fltOptimizeNodes(SFilterInfo *pInfo, SNode **pNode) {
   pInfo->sclCtx.hasOrCondition = fltSclHasOrCondition(*pNode, 0);
   if (pInfo->sclCtx.hasOrCondition) {
     int32_t budget = FLT_SCL_RANGE_EXPR_BUDGET;
-    FLT_ERR_JRET(fltSclBuildRangeExpr(*pNode, &budget, &pInfo->sclCtx.orRangeExpr));
+    FLT_ERR_JRET(fltSclBuildRangeExpr(*pNode, &budget, NULL, false, &pInfo->sclCtx.orRangeExpr));
     if (NULL == pInfo->sclCtx.orRangeExpr) {
       qDebug("scalar OR range optimization skipped: range expression unavailable");
     }
@@ -6364,7 +6712,7 @@ bool filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info) {
   bool hasNumOfNullOnlyUsage = false;
 
   // The OR tree needs min/max bounds; NULL counts alone cannot support its range tests.
-  if (NULL != info->sclCtx.orRangeExpr) {
+  if (info->sclCtx.remoteRange || info->sclCtx.orRangeExpr) {
     return false;
   }
 
@@ -6439,6 +6787,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options, 
   }
 
   info = *pInfo;
+  filterInvalidateRemoteRange(info);
   info->options = options;
   info->pStreamRtInfo = pSclExtraParams;
 

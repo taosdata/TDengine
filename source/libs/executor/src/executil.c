@@ -4939,7 +4939,12 @@ static int32_t getPrimaryTimeRange(SNode** pPrimaryKeyCond, STimeWindow* pTimeRa
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pNew;
     if (nodeType(pNew) != QUERY_NODE_VALUE) {
-      code = filterGetTimeRange(*pPrimaryKeyCond, pTimeRange, isStrict, NULL);
+      STimeWindow extracted = TSWINDOW_INITIALIZER;
+      code = filterGetTimeRange(*pPrimaryKeyCond, &extracted, isStrict, NULL);
+      if (!code) {
+        pTimeRange->skey = TMAX(pTimeRange->skey, extracted.skey);
+        pTimeRange->ekey = TMIN(pTimeRange->ekey, extracted.ekey);
+      }
     }
   }
   return code;
@@ -5131,9 +5136,6 @@ static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScan
     pCond->twindows = readHandle->winRange;
   }
   pCond->cacheSttStatis = readHandle->cacheSttStatis;
-  // allowed read stt file optimization mode
-  pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
-                       (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);
   pCond->lastScanType = pTableScanNode->lastScanType;
   pCond->allowLastScanTail = false;
 
@@ -5219,6 +5221,9 @@ static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScan
   }
 
   if (code == TSDB_CODE_SUCCESS) {
+    // allowed read stt file optimization mode
+    pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
+                         (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);
     code = prepareLastScanColumns(pCond, pTableScanNode);
     pCond->blockRowLimit = getReaderBlockRowLimit(pTableScanNode, pCond);
   }
@@ -7847,6 +7852,9 @@ int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst) {
       pDstNode->hasValue             = pSrcNode->hasValue;
       pDstNode->hasNull              = pSrcNode->hasNull;
       pDstNode->hasNotNull           = pSrcNode->hasNotNull;
+      pDstNode->otherKeyType         = pSrcNode->otherKeyType;
+      pDstNode->droppedKey           = pSrcNode->droppedKey;
+      pDstNode->bounds               = pSrcNode->bounds;
       pDstNode->pHashFilter          = pSrcNode->pHashFilter;
       pDstNode->pHashFilterOthers    = pSrcNode->pHashFilterOthers;
       pDstNode->filterValueType      = pSrcNode->filterValueType;
@@ -7932,6 +7940,12 @@ int32_t qCloneRemoteResult(SNode* pSrc, SNode** ppResult) {
 
   *ppResult = pResult;
   return TSDB_CODE_SUCCESS;
+}
+
+const SNode* qPeekRemoteResult(void* pCtx, int32_t subQIdx) {
+  STaskSubJobCtx* ctx = pCtx;
+  if (!ctx || ctx->isStream || subQIdx < 0 || subQIdx >= taosArrayGetSize(ctx->subResCache)) return NULL;
+  return taosArrayGetP(ctx->subResCache, subQIdx);
 }
 
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes) {

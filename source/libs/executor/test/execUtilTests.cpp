@@ -6665,7 +6665,13 @@ TEST(execUtilTest, remoteScalarCacheSurvivesFirstConsumerDestruction) {
     source.fetchMsgType = TDMT_SCH_FETCH;
     auto* pSource = &source;
     taosArraySet(ctx.subEndPoints, 0, &pSource);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), nullptr);
     taosArraySet(ctx.subResCache, 0, &pCached);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), pCached);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 1), nullptr);
+    ctx.isStream = true;
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), nullptr);
+    ctx.isStream = false;
 
     SRemoteValueNode* pSecond = nullptr;
     ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE, reinterpret_cast<SNode**>(&pSecond)), TSDB_CODE_SUCCESS);
@@ -6810,6 +6816,10 @@ TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
   pFirst->hasNull = true;
   pFirst->hasNotNull = true;
   pFirst->filterValueType = TSDB_DATA_TYPE_INT;
+  pFirst->droppedKey = true;
+  pFirst->otherKeyType = TSDB_DATA_TYPE_INT;
+  pFirst->bounds.type = TSDB_DATA_TYPE_INT;
+  pFirst->bounds.min[0] = pFirst->bounds.max[0] = 42;
   pFirst->hashAllocated = true;
   pFirst->pHashFilter = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   pFirst->pHashFilterOthers = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -6833,6 +6843,11 @@ TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
   EXPECT_TRUE(pSecond->hasValue);
   EXPECT_TRUE(pSecond->hasNull);
   EXPECT_TRUE(pSecond->hasNotNull);
+  EXPECT_TRUE(pSecond->droppedKey);
+  EXPECT_EQ(pSecond->otherKeyType, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(pSecond->bounds.type, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(pSecond->bounds.min[0], 42u);
+  EXPECT_EQ(pSecond->bounds.max[0], 42u);
   EXPECT_EQ(pSecond->pHashFilter, pCached->pHashFilter);
   EXPECT_EQ(pSecond->pHashFilterOthers, pCached->pHashFilterOthers);
   EXPECT_NE(taosHashGet(pSecond->pHashFilter, &key, sizeof(key)), nullptr);

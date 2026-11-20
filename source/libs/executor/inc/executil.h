@@ -390,6 +390,7 @@ bool    streamCanForwardRunnerContext(const SStreamRuntimeInfo* pRuntime, const 
 int32_t buildStreamRunnerFetchRtInfo(const SStreamRuntimeFuncInfo* pSrc, SStreamRuntimeFuncInfo* pDst);
 void    cleanupStreamRunnerFetchRtInfo(SStreamRuntimeFuncInfo* pInfo);
 int32_t remoteNodeCopy(SNode* pSrc, SNode* pDst);
+const SNode* qPeekRemoteResult(void* pCtx, int32_t subQIdx);
 int32_t qFetchRemoteNode(void* pCtx, int32_t subQIdx, SNode* pRes);
 bool    isStaticMultiGroupJoinQualified(const struct SOperatorInfo* pOperator);
 /** Request after each execution reset, before the first fetch. Mode resolves before its first return. */

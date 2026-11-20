@@ -24,6 +24,8 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <limits>
+#include <vector>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -2675,3 +2677,236 @@ int main(int argc, char **argv) {
 }
 
 #pragma GCC diagnostic pop
+
+class RemoteListRangeTest : public testing::Test {
+ protected:
+  SNode *predicate = nullptr;
+  SFilterInfo *filter = nullptr;
+  SRemoteValueListNode *list = nullptr;
+
+  void init(EOperatorType op, bool negative = false, SNode *sibling = nullptr) {
+    predicate = flttTimestampPredicate(op, 0);
+    ASSERT_NE(predicate, nullptr);
+    auto *cmp = reinterpret_cast<SOperatorNode *>(predicate);
+    SDataType type = reinterpret_cast<SExprNode *>(cmp->pLeft)->resType;
+    nodesDestroyNode(cmp->pRight);
+    ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE_LIST, &cmp->pRight), 0);
+    list = reinterpret_cast<SRemoteValueListNode *>(cmp->pRight);
+    list->node.resType = type;
+    list->targetType = type.type;
+    list->flag = VALUELIST_FLAG_VAL_UNSET;
+    if (negative) cmp->flag |= OPERATOR_FLAG_NEGATIVE_OP;
+    if (sibling) predicate = flttRangeLogic(LOGIC_COND_TYPE_AND, predicate, sibling);
+    ASSERT_EQ(filterInitFromNode(predicate, &filter, 0, nullptr), 0);
+    ASSERT_NE(filter, nullptr);
+  }
+
+  void addKeys(std::vector<int64_t> keys) {
+    SColumnInfoData col = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+    col.pData = reinterpret_cast<char *>(keys.data());
+    char id[] = "RemoteListRangeTest";
+    ASSERT_EQ(scalarBuildRemoteListHash(id, list, &col, keys.size()), TSDB_CODE_SUCCESS);
+    list->hasValue |= !keys.empty();
+  }
+
+  void expectBlock(int64_t min, int64_t max, int nulls, bool expected) {
+    SColumnDataAgg stat = {};
+    stat.colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+    stat.min = min;
+    stat.max = max;
+    stat.numOfNull = nulls;
+    bool keep = true;
+    ASSERT_EQ(filterRangeExecute(filter, &stat, 1, 100, &keep), 0);
+    EXPECT_EQ(expected, keep) << min << ".." << max << " nulls=" << nulls;
+  }
+
+  void TearDown() override {
+    filterFreeInfo(filter);
+    nodesDestroyNode(predicate);
+  }
+};
+
+TEST_F(RemoteListRangeTest, publishAfterLastBatchAndRebuildAfterInvalidation) {
+  init(OP_TYPE_IN);
+  const int64_t large = INT64_C(9007199254740993);
+  addKeys({large});
+  STimeWindow window = TSWINDOW_INITIALIZER;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_FALSE(filter->sclCtx.remoteRangePrepared);
+  expectBlock(1, 1, 0, true);
+
+  addKeys({large - 2, large + 3});
+  list->hasNull = true;
+  list->flag = 0;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_EQ(window.skey, large - 2);
+  EXPECT_EQ(window.ekey, large + 3);
+  auto *published = filter->sclCtx.remoteRange;
+  ASSERT_NE(published, nullptr);
+  for (int64_t x = large - 4; x < large + 6; ++x) {
+    expectBlock(x, x, 0, x >= large - 2 && x <= large + 3);
+  }
+  expectBlock(large, large, 100, false);
+  window = {large, large + 10};
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_EQ(filter->sclCtx.remoteRange, published);
+  EXPECT_EQ(window.skey, large);
+  EXPECT_EQ(window.ekey, large + 3);
+  filterInvalidateRemoteRange(filter);
+  addKeys({10});
+  window = TSWINDOW_INITIALIZER;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_EQ(window.skey, 10);
+  expectBlock(10, 10, 0, true);
+}
+
+TEST_F(RemoteListRangeTest, largeMembershipUsesBatchBounds) {
+  init(OP_TYPE_IN);
+  std::vector<int64_t> keys;
+  for (int64_t n = 10000; n > 1000; --n) keys.push_back(n);
+  addKeys(keys);
+  addKeys({-400, 15000, 5000});
+  list->flag = 0;
+  STimeWindow window = TSWINDOW_INITIALIZER;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_EQ(window.skey, -400);
+  EXPECT_EQ(window.ekey, 15000);
+  expectBlock(15001, 16000, 0, false);
+
+  // A pre-built hash without bounds cannot be summarized from only its next batch.
+  filterInvalidateRemoteRange(filter);
+  list->bounds.type = TSDB_DATA_TYPE_NULL;
+  addKeys({10});
+  window = TSWINDOW_INITIALIZER;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, &window), 0);
+  EXPECT_EQ(window.skey, INT64_MIN);
+  EXPECT_EQ(window.ekey, INT64_MAX);
+  expectBlock(15000, 15000, 0, true);
+}
+
+TEST_F(RemoteListRangeTest, complementBudgetAndDroppedKeys) {
+  init(OP_TYPE_NOT_IN);
+  std::vector<int64_t> keys;
+  for (int64_t i = 0; i < 63; ++i) keys.push_back(2 * i);
+  addKeys(keys);
+  list->flag = 0;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  for (int64_t x = 0; x < 126; ++x) expectBlock(x, x, 0, x % 2 != 0);
+  filterInvalidateRemoteRange(filter);
+  addKeys({126});
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  EXPECT_TRUE(filter->sclCtx.remoteRangePrepared);
+  EXPECT_EQ(filter->sclCtx.remoteRange, nullptr);
+  expectBlock(10, 10, 0, true);
+  filterInvalidateRemoteRange(filter);
+  list->droppedKey = true;
+  taosHashClear(list->pHashFilter);
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(1, 1, 0, true);
+  filterInvalidateRemoteRange(filter);
+  list->droppedKey = false;
+  list->hasNotNull = false;
+  ASSERT_TRUE(list->hasValue);
+  ASSERT_FALSE(list->hasNull);
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(1, 1, 0, true);
+}
+
+TEST_F(RemoteListRangeTest, waitForSiblingBeforeUsingSharedSnapshot) {
+  auto *sibling = reinterpret_cast<SOperatorNode *>(flttTimestampPredicate(OP_TYPE_GREATER_THAN, 100));
+  ASSERT_NE(sibling, nullptr);
+  SValueNode bound = *reinterpret_cast<SValueNode *>(sibling->pRight);
+  nodesDestroyNode(sibling->pRight);
+  ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &sibling->pRight), 0);
+  auto *remote = reinterpret_cast<SRemoteValueNode *>(sibling->pRight);
+  remote->subQIdx = 1;
+  remote->val.node.resType = bound.node.resType;
+  init(OP_TYPE_IN, false, reinterpret_cast<SNode *>(sibling));
+  list->subQIdx = 0;
+  addKeys({10, 20});
+  SRemoteValueListNode snapshot = *list;
+  snapshot.flag = 0;
+  struct Cache {
+    const SNode *results[2];
+    int lookups;
+  } cache = {{reinterpret_cast<SNode *>(&snapshot), nullptr}, 0};
+  auto peek = [](void *ctx, int32_t index) -> const SNode * {
+    auto *cache = static_cast<Cache *>(ctx);
+    ++cache->lookups;
+    return cache->results[index];
+  };
+  STimeWindow window = TSWINDOW_INITIALIZER;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, &cache, peek, &window), 0);
+  EXPECT_FALSE(filter->sclCtx.remoteRangePrepared);
+  expectBlock(10, 110, 0, true);
+  cache.results[1] = reinterpret_cast<SNode *>(&bound);
+  ASSERT_EQ(filterPrepareRemoteRange(filter, &cache, peek, &window), 0);
+  EXPECT_TRUE(filter->sclCtx.remoteRangePrepared);
+  EXPECT_GT(window.skey, window.ekey);
+  expectBlock(10, 110, 0, false);
+  int lookups = cache.lookups;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, &cache, peek, nullptr), 0);
+  EXPECT_EQ(cache.lookups, lookups);
+  EXPECT_NE(list->flag & VALUELIST_FLAG_VAL_UNSET, 0);
+}
+
+TEST_F(RemoteListRangeTest, equalityAllEmptyNullAndDistinctValues) {
+  init(OP_TYPE_NOT_IN, true);
+  list->filterValueType = TSDB_DATA_TYPE_TIMESTAMP;
+  list->flag = 0;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(0, 0, 100, true);
+  filterInvalidateRemoteRange(filter);
+  addKeys({4, 4});
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(4, 4, 0, true);
+  expectBlock(3, 3, 0, false);
+  filterInvalidateRemoteRange(filter);
+  list->hasNull = true;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(4, 4, 0, false);
+  filterInvalidateRemoteRange(filter);
+  list->hasNull = false;
+  addKeys({8});
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+  expectBlock(4, 8, 0, false);
+}
+
+TEST_F(RemoteListRangeTest, nullTestsUseCountsAlongsideRemoteRange) {
+  SNode *label = nullptr, *value = nullptr, *hasLabel = nullptr, *nullValue = nullptr;
+  ASSERT_EQ(flttMakeColumnNode(&label, nullptr, TSDB_DATA_TYPE_VARCHAR, 16, 0, nullptr), 0);
+  ASSERT_EQ(flttMakeColumnNode(&value, nullptr, TSDB_DATA_TYPE_DOUBLE, sizeof(double), 0, nullptr), 0);
+  reinterpret_cast<SColumnNode *>(label)->colType = COLUMN_TYPE_COLUMN;
+  reinterpret_cast<SColumnNode *>(value)->colType = COLUMN_TYPE_COLUMN;
+  reinterpret_cast<SColumnNode *>(label)->colId = 2;
+  reinterpret_cast<SColumnNode *>(value)->colId = 3;
+  ASSERT_EQ(flttMakeOpNode(&hasLabel, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, label, nullptr), 0);
+  ASSERT_EQ(flttMakeOpNode(&nullValue, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, value, nullptr), 0);
+  init(OP_TYPE_NOT_IN, false, flttRangeLogic(LOGIC_COND_TYPE_AND, hasLabel, nullValue));
+  addKeys({10});
+  list->flag = 0;
+  ASSERT_EQ(filterPrepareRemoteRange(filter, this, nullptr, nullptr), 0);
+
+  // The timestamp alone can rule out a block even when both siblings lack SMA.
+  expectBlock(10, 10, 0, false);
+  expectBlock(11, 11, 0, true);
+
+  SColumnDataAgg stats[2] = {};
+  stats[0].colId = 2;
+  stats[1].colId = 3;
+  double nan = std::numeric_limits<double>::quiet_NaN();
+  memcpy(&stats[1].min, &nan, sizeof(nan));
+  memcpy(&stats[1].max, &nan, sizeof(nan));
+  bool keep = true;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), 0);
+  EXPECT_FALSE(keep);  // No NULL double, although its min/max are unordered.
+  stats[1].numOfNull = 1;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), 0);
+  EXPECT_TRUE(keep);
+  stats[0].numOfNull = 100;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), 0);
+  EXPECT_FALSE(keep);  // No non-NULL label.
+  stats[0].numOfNull = 101;
+  ASSERT_EQ(filterRangeExecute(filter, stats, 2, 100, &keep), 0);
+  EXPECT_TRUE(keep);  // Invalid count cannot rule out a matching label.
+}

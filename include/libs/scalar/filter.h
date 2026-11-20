@@ -73,6 +73,13 @@ extern void    filterSetExecContext(SFilterInfo *info, void* pTaskInfo, sclIsTas
 extern void    filterFreeInfo(SFilterInfo *info);
 extern int32_t filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows,
                                   bool *keep);
+// Batch scans only. A lookup borrows a completed task snapshot and never initiates a fetch.
+typedef const SNode* (*FltPeekRemoteResult)(void* ctx, int32_t subQIdx);
+int32_t filterPrepareRemoteRange(SFilterInfo* info, void* ctx, FltPeekRemoteResult peek, STimeWindow* window);
+bool filterHasRemoteRange(const SFilterInfo* info);
+int32_t filterRemoteRangeMayMatch(const SFilterInfo* info, SColumnDataAgg* stats, int32_t numOfCols, int32_t numOfRows,
+                                  bool* keep);
+void filterInvalidateRemoteRange(SFilterInfo* info);
 extern bool    filterBlockSmaOnlyUsesNumOfNull(const SFilterInfo *info);
 
 /* condition split interface */
