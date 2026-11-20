@@ -19,7 +19,8 @@ class TestStreamVtableTagRedeploy:
 
         Bind a virtual column to its stream output in another vgroup after
         deployment; compare against the same stream without that reference.
-        Two partitions and two windows must keep their own literal tag values.
+        Two partitions and three windows must keep their own literal tag values,
+        including when the source insertion order changes between windows.
 
         Catalog:
             - Streams:VirtualTable
@@ -31,8 +32,11 @@ class TestStreamVtableTagRedeploy:
         Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7169474316
 
         History:
-            - 2026-11-16 Created
+            - 2026-11-16 kanekuang Created
         """
+        self.do_tag_output_after_rebind(feedback)
+
+    def do_tag_output_after_rebind(self, feedback):
         db = f"vtag_realtime_{int(feedback)}"
         src = f"{db}_src"
         try:
@@ -92,22 +96,30 @@ class TestStreamVtableTagRedeploy:
             else:
                 raise AssertionError("stream Reader tasks were not deployed")
             time.sleep(3)
+            # Realtime stream triggers need timestamps relative to deployment.
             ts = int(time.time() * 1000)
             expected = []
-            for window in (0, 1):
+            for window, tables in enumerate(((1, 2), (2, 1), (1, 2))):
                 start = ts + window * 20000
-                for i in (1, 2):
+                for i in tables:
                     tdSql.execute(
                         f"insert into {src}.m{i} values ({start}, 11, 100) ({start+3000}, 12, 101) "
                         f"({start+6000}, 13, 102) ({start+9000}, 0, 103)"
                     )
                     expected.append((start, f"meter-{i}"))
+                expected.sort()
                 tdSql.checkResultsByArray(
                     "select cast(output_timestamp as bigint), `属性1` from out order by output_timestamp, `属性1`",
                     expected,
                     retry=40,
                 )
+                for i in (1, 2):
+                    tdSql.query(f"select `属性1` from out_v{i} order by output_timestamp")
+                    tdSql.checkRows(window + 1)
+                    for row in range(window + 1):
+                        tdSql.checkData(row, 0, f"meter-{i}")
             tdStream.checkStreamStatus("s_tags")
+            print(f"virtual tags after rebind, feedback={feedback} ......................... [ passed ]")
         finally:
             tdSql.execute(f"drop database if exists {db} force")
             tdSql.execute(f"drop database if exists {src} force")

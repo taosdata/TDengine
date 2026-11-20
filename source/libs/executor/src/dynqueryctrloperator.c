@@ -44,6 +44,8 @@
 // (defect 7138880370: unbounded redeploy retry loop).
 #define STREAM_VTABLE_REDEPLOY_TIMEOUT_MS 60000
 
+static void updateDynTbUidIfNeeded(SVtbScanDynCtrlInfo* pVtbScan, SStreamRuntimeInfo* pStreamRuntimeInfo);
+
 typedef struct SDynResolvedColRef {
   char    sourceName[TSDB_EXT_SOURCE_NAME_LEN];
   char    dbName[TSDB_DB_NAME_LEN];
@@ -7263,6 +7265,12 @@ int32_t vtbScanNext(SOperatorInfo* pOperator, SSDataBlock** pRes) {
   QRY_PARAM_CHECK(pRes);
   if (pOperator->status == OP_EXEC_DONE && !pOperator->pOperatorGetParam) {
     return code;
+  }
+  // Runner binds the current group after resetting a reused executor.
+  // Refresh before opening so both source maps and tags use the current child.
+  const SDynQueryCtrlPhysiNode* pPhysiNode = pOperator->pPhyNode;
+  if (!OPTR_IS_OPENED(pOperator) && pPhysiNode->dynTbname) {
+    updateDynTbUidIfNeeded(pVtbScan, pOperator->pTaskInfo->pStreamRuntimeInfo);
   }
   if (pOperator->pOperatorGetParam) {
     if (pOperator->status == OP_EXEC_DONE) {
