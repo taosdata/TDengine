@@ -168,6 +168,24 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, const char *label, SDiskID *p
   TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
 }
 
+int32_t tfsAllocDiskWithStrategy(STfs *pTfs, int32_t expLevel, const char *label, int32_t strategy, SDiskID *pDiskId) {
+  if (pTfs == NULL || label == NULL || pDiskId == NULL ||
+      (strategy != TFS_DISK_ALLOC_ROUND_ROBIN && strategy != TFS_DISK_ALLOC_LEAST_USED)) {
+    TAOS_RETURN(TSDB_CODE_INVALID_PARA);
+  }
+  if (pTfs->nlevel <= 0) TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+  if (expLevel >= pTfs->nlevel || expLevel < 0) expLevel = pTfs->nlevel - 1;
+  for (; expLevel >= 0; --expLevel) {
+    int32_t diskId = tfsAllocDiskOnTierWithStrategy(&pTfs->tiers[expLevel], label, strategy);
+    if (diskId >= 0) {
+      pDiskId->level = expLevel;
+      pDiskId->id = diskId;
+      return 0;
+    }
+  }
+  TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);
+}
+
 int32_t tfsAllocDiskAtLevel(STfs *pTfs, int32_t level, const char *label, SDiskID *pDiskId) {
   if (level < 0 || level >= pTfs->nlevel) {
     TAOS_RETURN(TSDB_CODE_FS_NO_VALID_DISK);

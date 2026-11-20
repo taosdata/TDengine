@@ -138,6 +138,10 @@ void tfsUpdateTierSize(STfsTier *pTier) {
 
 // Round-Robin to allocate disk on a tier
 int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label) {
+  return tfsAllocDiskOnTierWithStrategy(pTier, label, TFS_DISK_ALLOC_ROUND_ROBIN);
+}
+
+int32_t tfsAllocDiskOnTierWithStrategy(STfsTier *pTier, const char *label, int32_t strategy) {
   TAOS_UNUSED(tfsLockTier(pTier));
 
   if (pTier->ndisk <= 0 || pTier->nAvailDisks <= 0) {
@@ -167,7 +171,7 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label) {
 
   // do allocation
   int32_t retId = -1;
-  int64_t avail = 0;
+  double minUsedRatio = 0;
   for (int32_t id = 0; id < TFS_MAX_DISKS_PER_TIER; ++id) {
     int32_t   diskId = (pCursor->nextid + id) % pTier->ndisk;
     STfsDisk *pDisk = pTier->disks[diskId];
@@ -186,10 +190,19 @@ int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label) {
       continue;
     }
 
+    if (strategy == TFS_DISK_ALLOC_LEAST_USED) {
+      if (pDisk->size.total <= 0) continue;
+      double usedRatio = (double)pDisk->size.used / (double)pDisk->size.total;
+      if (retId >= 0 && usedRatio >= minUsedRatio) continue;
+      minUsedRatio = usedRatio;
+    }
     retId = diskId;
+    if (strategy != TFS_DISK_ALLOC_LEAST_USED) break;
+  }
+
+  if (retId >= 0) {
     terrno = 0;
-    pCursor->nextid = (diskId + 1) % pTier->ndisk;
-    break;
+    pCursor->nextid = (retId + 1) % pTier->ndisk;
   }
 
   TAOS_UNUSED(tfsUnLockTier(pTier));

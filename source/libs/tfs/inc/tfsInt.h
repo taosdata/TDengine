@@ -91,6 +91,7 @@ void    tfsDestroyTier(STfsTier *pTier);
 int32_t tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg, STfsDisk **ppDisk);
 void    tfsUpdateTierSize(STfsTier *pTier);
 int32_t tfsAllocDiskOnTier(STfsTier *pTier, const char *label);
+int32_t tfsAllocDiskOnTierWithStrategy(STfsTier *pTier, const char *label, int32_t strategy);
 void    tfsPosNextId(STfsTier *pTier);
 
 #define tfsLockTier(pTier)   taosThreadSpinLock(&(pTier)->lock)
