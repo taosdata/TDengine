@@ -3880,9 +3880,10 @@ int32_t releaseRetryCleanupJob(int64_t refId) {
 }
 
 int32_t launchRetryCleanupTask(SSchJob* job, SSchTask* task) {
-  SQueryNodeAddr addr = {};
-  task->handle = reinterpret_cast<void*>(0x55);
-  return schAppendTaskExecNode(job, task, &addr, task->execId);
+  SSchNodeInfo nodeInfo = {};
+  nodeInfo.handle = reinterpret_cast<void*>(0x55);
+  task->handle = nodeInfo.handle;
+  return taosHashPut(task->execNodes, &task->execId, sizeof(task->execId), &nodeInfo, sizeof(nodeInfo));
 }
 
 int32_t sendRetryCleanupDrop(SSchJob* job, SSchTask* task,
