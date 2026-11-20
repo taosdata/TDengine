@@ -19,6 +19,13 @@
 #include "filter.h"
 #include "function.h"
 #include "operator.h"
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+#include "osFile.h"
+#include "osSleep.h"
+#include "osSystem.h"
+#include "osTime.h"
+#endif
 #include "query.h"
 #include "querytask.h"
 #include "tdatablock.h"
@@ -33,7 +40,105 @@ typedef struct SFetchRspHandleWrapper {
   int32_t  sourceIndex;
   int64_t  seqId;
   bool     localBlockFetch;
+  bool     traceLifecycle;
+  uint64_t queryId;
+  uint64_t taskId;
+  int64_t  blockId;
+  int64_t  fetchId;
+#if defined(BUILD_TEST)
+  bool     testRoot;
+#endif
 } SFetchRspHandleWrapper;
+
+#if defined(BUILD_TEST)
+static void waitFetchRetryTestBarrier(SFetchRspHandleWrapper* trace,
+                                      const SDataBuf* response,
+                                      int32_t code);
+
+static void traceFetchTestEvent(const SFetchRspHandleWrapper* trace,
+                                const char* event) {
+  if (!trace->traceLifecycle) {
+    return;
+  }
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " %s, exchangeId:%" PRId64 ", blockId:%" PRId64
+         ", fetchId:%" PRId64 ", sourceIndex:%d, seqId:%" PRId64,
+         trace->queryId, trace->taskId, event, trace->exchangeId,
+         trace->blockId, trace->fetchId, trace->sourceIndex, trace->seqId);
+}
+
+static void waitFetchTestBarrier(const SFetchRspHandleWrapper* trace) {
+  if (!trace->testRoot || !trace->traceLifecycle) {
+    return;
+  }
+  char directory[PATH_MAX];
+  if (taosGetEnv("TD_JOIN_TEST_FETCH_GATE_DIR", directory,
+                 sizeof(directory)) <= 0) {
+    return;
+  }
+
+  int32_t savedErrno = terrno;
+  char held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (!taosTestGatePath(held, sizeof(held), directory, "held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(release, sizeof(release), directory, "release")) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, trace->queryId)) {
+    goto _done;
+  }
+
+  file = taosOpenPrivateFile(held,
+                             TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // Holding no Exchange reference lets DROP finish before the late callback.
+  traceFetchTestEvent(trace, "fetch test barrier held");
+  int64_t deadline = taosGetMonoTimestampMs() + 30000;
+  while (!taosCheckExistFile(release)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      traceFetchTestEvent(trace, "fetch test barrier timed out");
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+  traceFetchTestEvent(trace, "fetch test barrier resumed");
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+}
+#endif
+
+static void freeFetchContext(void* param) {
+  if (param == NULL) {
+    return;
+  }
+  if (!((SFetchRspHandleWrapper*)param)->traceLifecycle) {
+    taosAutoMemoryFree(param);
+    return;
+  }
+  const SFetchRspHandleWrapper trace = *(SFetchRspHandleWrapper*)param;
+  taosAutoMemoryFree(param);
+  if (trace.traceLifecycle) {
+    qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+           " fetch context released, exchangeId:%" PRId64
+           ", blockId:%" PRId64 ", fetchId:%" PRId64
+           ", sourceIndex:%d, seqId:%" PRId64,
+           trace.queryId, trace.taskId, trace.exchangeId, trace.blockId,
+           trace.fetchId, trace.sourceIndex, trace.seqId);
+  }
+}
 
 // vtable two-pass: cap the empty-rsp retry rounds so a wedged phase-2 rescan (remote
 // cquery stuck, sink never filled, never completed) fails with a clear error instead of
@@ -1610,6 +1715,19 @@ int32_t createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode* pExNo
                                          destroyExchangeOperatorInfo, optrDefaultBufFn,
                                          exchangeGetExplainExecInfo, optrDefaultGetNextExtFn, NULL);
   setOperatorResetStateFn(pOperator, resetExchangeOperState);
+  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH &&
+      pTaskInfo->pStreamRuntimeInfo == NULL &&
+      (qDebugFlag & DEBUG_DEBUG) != 0) {
+    pInfo->lifecycleQueryId = pTaskInfo->id.queryId;
+    pInfo->lifecycleTaskId = pTaskInfo->id.taskId;
+    pInfo->lifecycleBlockId = pExNode->node.pOutputDataBlockDesc->dataBlockId;
+    pInfo->traceLifecycle = true;
+    qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+           " exchange lifecycle created, exchangeId:%" PRId64
+           ", blockId:%" PRId64,
+           pInfo->lifecycleQueryId, pInfo->lifecycleTaskId, pInfo->self,
+           pInfo->lifecycleBlockId);
+  }
   *pOptrInfo = pOperator;
   return TSDB_CODE_SUCCESS;
 
@@ -1660,12 +1778,21 @@ void doDestroyExchangeOperatorInfo(void* param) {
     return;
   }
   SExchangeInfo* pExInfo = (SExchangeInfo*)param;
+  const bool traceLifecycle = pExInfo->traceLifecycle;
+  const uint64_t queryId = pExInfo->lifecycleQueryId;
+  const uint64_t taskId = pExInfo->lifecycleTaskId;
+  const int64_t exchangeId = pExInfo->self;
+  const int64_t blockId = pExInfo->lifecycleBlockId;
+  const int64_t fetches = atomic_load_64(&pExInfo->lifecycleFetchId);
+  int32_t cleanupCode = TSDB_CODE_SUCCESS;
   if (pExInfo->pFetchRpcHandles) {
     for (int32_t i = 0; i < pExInfo->pFetchRpcHandles->size; ++i) {
       int64_t* pRpcHandle = taosArrayGet(pExInfo->pFetchRpcHandles, i);
       if (*pRpcHandle > 0) {
-        SDownstreamSourceNode* pSource = taosArrayGet(pExInfo->pSources, i);
-        (void)asyncFreeConnById(pExInfo->pTransporter, *pRpcHandle);
+        int32_t code = asyncFreeConnById(pExInfo->pTransporter, *pRpcHandle);
+        if (code != TSDB_CODE_SUCCESS) {
+          cleanupCode = code;
+        }
       }
     }
     taosArrayDestroy(pExInfo->pFetchRpcHandles);
@@ -1687,16 +1814,28 @@ void doDestroyExchangeOperatorInfo(void* param) {
 
   int32_t code = tsem_destroy(&pExInfo->ready);
   if (code != TSDB_CODE_SUCCESS) {
+    cleanupCode = code;
     qError("%s failed at line %d since %s", __func__, __LINE__, tstrerror(code));
   }
   taosMemoryFreeClear(pExInfo->pTaskId);
 
   taosMemoryFreeClear(param);
+  if (traceLifecycle) {
+    qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+           " exchange resources released, exchangeId:%" PRId64
+           ", blockId:%" PRId64 ", fetches:%" PRId64 ", code:%d - %s",
+           queryId, taskId, exchangeId, blockId, fetches, cleanupCode,
+           tstrerror(cleanupCode));
+  }
 }
 
 int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   SFetchRspHandleWrapper* pWrapper = (SFetchRspHandleWrapper*)param;
 
+#if defined(BUILD_TEST)
+  waitFetchRetryTestBarrier(pWrapper, pMsg, code);
+  waitFetchTestBarrier(pWrapper);
+#endif
   taosMemoryFreeClear(pMsg->pEpSet);
   SExchangeInfo* pExchangeInfo = taosAcquireRef(fetchObjRefPool, pWrapper->exchangeId);
   if (pExchangeInfo == NULL) {
@@ -1706,6 +1845,9 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
     } else {
       taosMemoryFreeClear(pMsg->pData);
     }
+#if defined(BUILD_TEST)
+    traceFetchTestEvent(pWrapper, "fetch callback discarded");
+#endif
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1841,6 +1983,127 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+static void waitFetchRetryTestBarrier(SFetchRspHandleWrapper* trace,
+                                      const SDataBuf* response,
+                                      int32_t code) {
+  if (!trace->testRoot || !trace->traceLifecycle || trace->localBlockFetch ||
+      code != TSDB_CODE_SUCCESS || response->pData == NULL) {
+    return;
+  }
+  int32_t savedErrno = terrno;
+  char root[PATH_MAX], directory[PATH_MAX];
+  char held[PATH_MAX], inject[PATH_MAX], release[PATH_MAX];
+  char nextHeld[PATH_MAX], nextRelease[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_RETRY_GATE_DIR", root, sizeof(root)) <= 0) {
+    goto _done;
+  }
+  int32_t len = snprintf(directory, sizeof(directory), "%s/%" PRIu64, root,
+                         trace->queryId);
+  if (len < 0 || len >= (int32_t)sizeof(directory)) {
+    goto _done;
+  }
+  if (!taosTestGatePath(held, sizeof(held), directory, "held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(inject, sizeof(inject), directory, "inject")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(release, sizeof(release), directory, "release")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(nextHeld, sizeof(nextHeld), directory, "next-held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(nextRelease, sizeof(nextRelease), directory,
+                        "next-release")) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, trace->queryId)) {
+    goto _done;
+  }
+  char expected[32], armed[32];
+  int64_t read;
+
+  file = taosOpenPrivateFile(held,
+                            TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    file = taosOpenPrivateFile(held, TD_FILE_READ);
+    if (file == NULL) {
+      goto _done;
+    }
+    read = taosReadFile(file, armed, sizeof(armed));
+    code = taosCloseFile(&file);
+    len = snprintf(expected, sizeof(expected), "%" PRId64 "\n",
+                    trace->exchangeId);
+    if (code != TSDB_CODE_SUCCESS || read <= 0 ||
+        read >= (int64_t)sizeof(armed) || len <= 0 ||
+        len >= (int32_t)sizeof(expected) ||
+        (read == len && memcmp(armed, expected, len) == 0)) {
+      goto _done;
+    }
+    file = taosOpenPrivateFile(nextHeld,
+                              TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+    if (file == NULL) {
+      goto _done;
+    }
+    code = taosCloseFile(&file);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _done;
+    }
+    traceFetchTestEvent(trace, "fetch retry next held");
+    int64_t nextDeadline = taosGetMonoTimestampMs() + 30000;
+    while (!taosCheckExistFile(nextRelease)) {
+      if (taosGetMonoTimestampMs() >= nextDeadline) {
+        traceFetchTestEvent(trace, "fetch retry test timed out");
+        goto _done;
+      }
+      taosMsleep(10);
+    }
+    traceFetchTestEvent(trace, "fetch retry next resumed");
+    goto _done;
+  }
+  len = snprintf(expected, sizeof(expected), "%" PRId64 "\n",
+                  trace->exchangeId);
+  int64_t written = taosWriteFile(file, expected, len);
+  code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS || written != len) {
+    goto _done;
+  }
+  traceFetchTestEvent(trace, "fetch retry test held");
+  int64_t deadline = taosGetMonoTimestampMs() + 30000;
+  while (!taosCheckExistFile(inject)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      traceFetchTestEvent(trace, "fetch retry test timed out");
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+
+  // The exclusive marker bounds recursive delivery to one retryable error.
+  // Keep the real reply transport-owned until the new execution is running.
+  SDataBuf failure = {.msgType = response->msgType};
+  traceFetchTestEvent(trace, "fetch retry test injected");
+  (void)loadRemoteDataCallback(trace, &failure,
+                               TSDB_CODE_SYN_RESTORING);
+  while (!taosCheckExistFile(release)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      traceFetchTestEvent(trace, "fetch retry test timed out");
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+  traceFetchTestEvent(trace, "fetch retry test resumed");
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+}
+#endif
 
 int32_t buildTableScanOperatorParam(SOperatorParam** ppRes, SArray* pUidList, int32_t srcOpType, bool tableSeq) {
   *ppRes = taosMemoryCalloc(1, sizeof(SOperatorParam));
@@ -2835,16 +3098,38 @@ int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTas
     }
 
     pMsgSendInfo->param = pWrapper;
-    pMsgSendInfo->paramFreeFp = taosAutoMemoryFree;
+    pMsgSendInfo->paramFreeFp = freeFetchContext;
     pMsgSendInfo->msgInfo.pData = msg;
     pMsgSendInfo->msgInfo.len = msgSize;
     pMsgSendInfo->msgType = DOWNSTREAM_SOURCE_FETCH_TYPE(pSource->fetchMsgType);
     pMsgSendInfo->fp = loadRemoteDataCallback;
     pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
+#if defined(BUILD_TEST)
+    pWrapper->testRoot = pTaskInfo->pSubplan != NULL &&
+                         pTaskInfo->pSubplan->level == 0;
+#endif
+    if (pExchangeInfo->traceLifecycle) {
+      pWrapper->traceLifecycle = true;
+      pWrapper->queryId = pExchangeInfo->lifecycleQueryId;
+      pWrapper->taskId = pExchangeInfo->lifecycleTaskId;
+      pWrapper->blockId = pExchangeInfo->lifecycleBlockId;
+      pWrapper->fetchId =
+          atomic_add_fetch_64(&pExchangeInfo->lifecycleFetchId, 1);
+      qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+             " fetch context registered, exchangeId:%" PRId64
+             ", blockId:%" PRId64 ", fetchId:%" PRId64
+             ", sourceIndex:%d, seqId:%" PRId64,
+             pWrapper->queryId, pWrapper->taskId, pWrapper->exchangeId,
+             pWrapper->blockId, pWrapper->fetchId, sourceIndex,
+             pWrapper->seqId);
+    }
+
     int64_t transporterId = 0;
     void* poolHandle = NULL;
     pDataInfo->startTime = taosGetTimestampUs();
+    // The send API owns param, including synchronous failure cleanup.
+    pWrapper = NULL;
     code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
     QUERY_CHECK_CODE(code, lino, _end);
     int64_t* pRpcHandle = taosArrayGet(pExchangeInfo->pFetchRpcHandles, sourceIndex);

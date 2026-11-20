@@ -24,9 +24,25 @@
 
 void vnodeGetPrimaryDir(const char *relPath, int32_t diskPrimary, STfs *pTfs, char *buf, size_t bufLen) {
   if (pTfs) {
-    SDiskID diskId = {0};
+    SDiskID     diskId = {0};
     diskId.id = diskPrimary;
-    snprintf(buf, bufLen - 1, "%s%s%s", tfsGetDiskPath(pTfs, diskId), TD_DIRSEP, relPath);
+    // diskPrimary may be stale after a disk-layout change. tfsGetDiskPath
+    // returns NULL for a disk that is not mounted locally, so fall back to
+    // the current primary disk instead of passing NULL to %s.
+    const char *diskPath = tfsGetDiskPath(pTfs, diskId);
+    if (diskPath == NULL) {
+      // WARNING: this function locates vnode metadata (meta/tsdb current.json/
+      // vnode.json ...). Silently switching disks here can open an empty
+      // directory (data appears lost) or fork metadata onto the wrong disk.
+      // The vnodeOpen path is protected by vnodeCheckDisk; for other callers
+      // this fallback is a last-resort recovery and MUST be loud so operators
+      // can detect a disk-layout mismatch.
+      vError("vnode primary disk id:%d is not mounted, falling back to current primary disk; "
+             "verify the vnode directory on the affected disks",
+             diskPrimary);
+      diskPath = tfsGetPrimaryPath(pTfs);
+    }
+    snprintf(buf, bufLen - 1, "%s%s%s", diskPath, TD_DIRSEP, relPath);
   } else {
     snprintf(buf, bufLen - 1, "%s", relPath);
   }

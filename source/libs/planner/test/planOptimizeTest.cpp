@@ -684,6 +684,41 @@ TEST_F(PlanCacheAggregateTest, ExchangeSourcesRequireEveryDeclaredGroup) {
   }
 }
 
+TEST_F(PlanCacheAggregateTest, CacheScanDatabaseName) {
+  useCacheDb("cache_meta_feedback");
+  g_mockCatalogService
+      ->createTableBuilder("cache_meta_feedback", "nt", TSDB_NORMAL_TABLE, 2)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .done();
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* plan) {
+    int scans = 0;
+    SNode* level = nullptr;
+    FOREACH(level, plan->pSubplans) {
+      SNode* node = nullptr;
+      FOREACH(node, ((const SNodeListNode*)level)->pNodeList) {
+        const auto* subplan = (const SSubplan*)node;
+        if (subplan->subplanType == SUBPLAN_TYPE_SCAN) {
+          EXPECT_STREQ(subplan->dbFName, "0.cache_meta_feedback");
+          ++scans;
+        }
+      }
+    }
+    EXPECT_GT(scans, 0);
+  });
+
+  for (const char* function : {"LAST_ROW", "LAST"}) {
+    for (const char* table : {"nt", "ct1", "st", "st PARTITION BY tbname"}) {
+      const string sql = string("SELECT ") + function +
+                         "(c2) FROM cache_meta_feedback." + table;
+      SCOPED_TRACE(sql);
+      run(sql);
+      EXPECT_GT(countPhysiPlanText("PhysiLastRowScan"), 0);
+    }
+  }
+}
+
 TEST_F(PlanCacheAggregateTest, GroupedCacheSplitDefaultsToConcurrentScan) {
   useCacheDb("cache_grouped_hint");
   for (const string& clause : {"PARTITION BY tbname", "GROUP BY tbname"}) {
@@ -1297,6 +1332,27 @@ TEST_F(PlanOptimizeTest, tagScan) {
   run("select tag1 from st1 group by tag1");
   run("select distinct tag1 from st1");
   run("select tag1*tag1 from st1 group by tag1*tag1");
+}
+
+TEST_F(PlanOptimizeTest, TagScanDatabaseName) {
+  useDb("root", "test");
+  setPhysiPlanCheck([](const SQueryPlan* plan) {
+    int scans = 0;
+    SNode* level = nullptr;
+    FOREACH(level, plan->pSubplans) {
+      SNode* node = nullptr;
+      FOREACH(node, ((const SNodeListNode*)level)->pNodeList) {
+        const auto* subplan = (const SSubplan*)node;
+        if (subplan->subplanType == SUBPLAN_TYPE_SCAN) {
+          EXPECT_STREQ("0.test", subplan->dbFName);
+          ++scans;
+        }
+      }
+    }
+    EXPECT_GT(scans, 0);
+  });
+  run("SELECT DISTINCT tbname, tag2 FROM st1");
+  EXPECT_GT(countPhysiPlanText("PhysiTagScan"), 0);
 }
 
 TEST_F(PlanOptimizeTest, pushDownLimit) {

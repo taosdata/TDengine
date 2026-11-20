@@ -117,6 +117,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextStream(SMnode *pMnode, void *pIter);
 static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextStreamTask(SMnode *pMnode, void *pIter);
+static int32_t mndStreamTagPendingMarker(STrans *pTrans, txn_id_t txnId, const char *streamName);
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessStartStreamReq(SRpcMsg *pReq);
 
@@ -605,6 +606,9 @@ static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pOldStream, SStream
   // pNew->txnId in mndStbActionUpdate.
   pOldStream->txnId = pNewStream->txnId;
   pOldStream->txnStatus = pNewStream->txnStatus;
+  // flags are otherwise immutable after create; only the txn target bit is updated here.
+  pOldStream->flags = (pOldStream->flags & ~STREAM_FLAG_TXN_TARGET_STOPPED) |
+                      (pNewStream->flags & STREAM_FLAG_TXN_TARGET_STOPPED);
   taosWUnLockLatch(&pOldStream->lock);
 
   taosArrayDestroy(pOldRequests);
@@ -2203,6 +2207,110 @@ void mndStreamUpdateTagsRefFlag(SMnode *pMnode, int64_t suid, SSchema* pTags, in
   sdbTraverse(pMnode->pSdb, SDB_STREAM, mndStreamUpdateTagsFlag, &suid, pTags, &tagNum);
 }
 
+/* Batch meta txn: START / STOP STREAM inside a transaction.
+ *
+ * - Stream created by this txn (PRE_CREATE): only the persisted userStopped flag changes. COMMIT
+ *   clears the marker and deploys; deploy is skipped for a stopped stream. ROLLBACK deletes it.
+ * - Pre-existing stream: first START/STOP takes the lock (txnId + PRE_ALTER + intent, shadow op
+ *   registered); other txns and non-txn START/STOP/DROP get TSDB_CODE_TXN_RESOURCE_BUSY. The
+ *   intent is applied at COMMIT only; ROLLBACK unlocks with no runtime effect.
+ * Returns 0 once the marker trans is prepared (caller answers ACTION_IN_PROGRESS). */
+static int32_t mndStreamTxnSetStopped(SMnode *pMnode, SRpcMsg *pReq, SStreamObj *pStream, txn_id_t txnId,
+                                      bool isStop, bool igNotExists, bool *pNoop) {
+  int32_t     code = 0, lino = 0;
+  STrans     *pTrans = NULL;
+  SDbObj     *pDb = NULL;
+  bool        addedOp = false, syncStarted = false;
+  const char *name = pStream->pCreate->name;
+  SStreamObj  marker = {0};
+  *pNoop = false;
+  int64_t     streamId = pStream->pCreate->streamId;  // used by the msts* log macros
+
+  // Take one consistent snapshot of the txn fields under the read lock and decide only from it.
+  // mndStreamActionUpdate rewrites txnId / txnStatus / flags together under the write lock, so
+  // reading them one by one outside the lock could pair an old txnStatus with a new flags. The
+  // mnode-write queue is single-threaded today, which would hide that; the snapshot keeps the
+  // decision correct without relying on it.
+  taosRLockLatch(&pStream->lock);
+  memcpy(&marker, pStream, sizeof(SStreamObj));
+  taosRUnLockLatch(&pStream->lock);
+  marker.lock = 0;
+
+  if (marker.txnId != 0 && marker.txnId != txnId) {
+    mstsError("stream:%s is owned by txn:%" PRId64 ", cannot %s in txn:%" PRId64, name, marker.txnId,
+       isStop ? "stop" : "start", txnId);
+    TAOS_RETURN(TSDB_CODE_TXN_RESOURCE_BUSY);
+  }
+  TAOS_CHECK_RETURN(mndTxnCheckStreamConflict(pMnode, name, txnId));
+
+  bool ownedByTxn = marker.txnId == txnId;
+  if (ownedByTxn && (marker.txnStatus == META_TXN_PRE_DROP || marker.txnStatus == META_TXN_PRE_CREATE_DROP)) {
+    if (igNotExists) {  // already dropped in this txn (read-your-own-writes): IF EXISTS is a no-op
+      *pNoop = true;
+      return TSDB_CODE_SUCCESS;
+    }
+    TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_EXIST);
+  }
+  if (atomic_load_8(&pStream->userDropped)) TAOS_RETURN(TSDB_CODE_MND_STREAM_DROPPING);
+
+  // Effective state as seen by this txn.
+  bool pendingAlter = ownedByTxn && marker.txnStatus == META_TXN_PRE_ALTER;
+  bool effStopped = pendingAlter ? STREAM_IS_TXN_TARGET_STOPPED(marker.flags) : marker.userStopped != 0;
+  if (!isStop && !effStopped) TAOS_RETURN(TSDB_CODE_MND_STREAM_NOT_STOPPED);
+
+  pDb = mndAcquireDb(pMnode, pStream->pCreate->streamDB);
+  if (pDb == NULL) TAOS_CHECK_EXIT(terrno ? terrno : TSDB_CODE_MND_DB_NOT_SELECTED);
+
+  marker.updateTime = taosGetTimestampMs();
+  if (ownedByTxn && marker.txnStatus == META_TXN_PRE_CREATE) {
+    marker.userStopped = isStop ? 1 : 0;
+  } else {
+    marker.txnId = txnId;
+    marker.txnStatus = META_TXN_PRE_ALTER;
+    marker.flags = isStop ? (marker.flags | STREAM_FLAG_TXN_TARGET_STOPPED)
+                          : (marker.flags & ~STREAM_FLAG_TXN_TARGET_STOPPED);
+  }
+
+  TSDB_CHECK_NULL((pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "mark-stream-state")),
+                  code, lino, _exit, terrno);
+  mndTransSetChangeless(pTrans);
+  // Tagged like the DROP marker so COMMIT / ROLLBACK wait for it to finish (they scan with
+  // includeDrop=true). Reusing DROP_STREAM is deliberate: originRpcType is persisted, so a new value
+  // would be unknown to an older mnode in a rolling upgrade. DDL / name checks scan with
+  // includeDrop=false and ignore this marker, as they do for DROP; non-txn START/STOP is fenced by
+  // the ALTER_STREAM_STATE shadow op in mndTxnCheckStreamConflict instead.
+  TAOS_CHECK_EXIT(mndStreamTagPendingMarker(pTrans, txnId, name));
+  pTrans->originRpcType = TDMT_MND_DROP_STREAM;
+
+  code = mndStreamTransAppend(&marker, pTrans, SDB_STATUS_READY);
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) goto _exit;
+
+  if (!ownedByTxn) {
+    code = mndTxnAddShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STREAM_STATE, name, pStream->pCreate->streamId,
+                             pDb->name, NULL, 0);
+    if (code != 0) goto _exit;
+    addedOp = true;
+  }
+  // A sync error can have an uncertain outcome: once the proposal started, the marker may
+  // already be committed (and the RETRY trans will finish it later). Only undo the shadow op
+  // when no proposal could have started; otherwise the stream would be left PRE_ALTER(txnId)
+  // with no shadow op, which neither COMMIT nor ROLLBACK would ever clear. Keeping the op
+  // when the marker did not land is harmless: COMMIT / ROLLBACK skip a stream that is not
+  // PRE_ALTER(txnId). Same rule as mndMarkStreamTxnCreate.
+  code = mndTransPrepareWithSyncStatus(pMnode, pTrans, &syncStarted);
+  if (code != 0 && addedOp && !syncStarted) {
+    mndTxnRemoveShadowOp(pMnode, txnId, MND_SHADOW_OP_ALTER_STREAM_STATE, name, pStream->pCreate->streamId);
+  }
+  TAOS_CHECK_EXIT(code);
+  mstsInfo("stream:%s txn:%" PRId64 " %s recorded (status=%d)", name, txnId, isStop ? "STOP" : "START",
+           marker.txnStatus);
+
+_exit:
+  mndReleaseDb(pMnode, pDb);
+  mndTransDrop(pTrans);
+  TAOS_RETURN(code);
+}
+
 static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -2260,7 +2368,13 @@ static int32_t mndProcessStopStreamReq(SRpcMsg *pReq) {
   // stream returns TSDB_CODE_TXN_RESOURCE_BUSY). The client rejects these inside
   // a txn; this is the server-side guard for other sessions (non-owning session
   // or hand-crafted RPC).
-  if (pStream->txnId != 0) {
+  if (pauseReq.txnId != 0) {
+    bool noop = false;
+    code = mndStreamTxnSetStopped(pMnode, pReq, pStream, (txn_id_t)pauseReq.txnId, true, pauseReq.igNotExists, &noop);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code == 0 ? (noop ? 0 : TSDB_CODE_ACTION_IN_PROGRESS) : code;
+  }
+  if (pStream->txnId != 0 || mndTxnCheckStreamConflict(pMnode, pStream->pCreate->name, 0) != 0) {
     mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot stop stream from a non-owning session",
               pStream->name, pStream->txnId);
     sdbRelease(pMnode->pSdb, pStream);
@@ -2381,7 +2495,13 @@ static int32_t mndProcessStartStreamReq(SRpcMsg *pReq) {
   // stream until COMMIT/ROLLBACK (FS Sec.4.6). The client rejects START inside a
   // txn; this is the server-side guard for other sessions (non-owning session
   // or hand-crafted RPC).
-  if (pStream->txnId != 0) {
+  if (resumeReq.txnId != 0) {
+    bool noop = false;
+    code = mndStreamTxnSetStopped(pMnode, pReq, pStream, (txn_id_t)resumeReq.txnId, false, resumeReq.igNotExists, &noop);
+    sdbRelease(pMnode->pSdb, pStream);
+    return code == 0 ? (noop ? 0 : TSDB_CODE_ACTION_IN_PROGRESS) : code;
+  }
+  if (pStream->txnId != 0 || mndTxnCheckStreamConflict(pMnode, pStream->pCreate->name, 0) != 0) {
     mstsError("stream:%s is owned by uncommitted txn:%" PRId64 ", cannot start stream from a non-owning session",
               pStream->name, pStream->txnId);
     sdbRelease(pMnode->pSdb, pStream);
@@ -2562,6 +2682,22 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     }
 
     // Batch meta txn (phase 2): conflict detection and txn branch.
+    // Shadow ops are registered before their marker is applied (the commit stage of a marker
+    // trans can be left to the RETRY timer, and DROP markers never own the request), so
+    // pStream->txnId alone misses a lock another txn has taken but not yet persisted. Check
+    // the shadow ops too, for both the txn and the non-txn path: otherwise a non-txn DROP
+    // could be followed by that marker writing the dropped stream back. Same check as
+    // CREATE / STOP / START.
+    code = mndTxnCheckStreamConflict(pMnode, streamName, (txn_id_t)dropReq.txnId);
+    if (code != 0) {
+      mstsError("stream:%s has a pending op in another txn, cannot drop in txn:%" PRId64 " since %s", streamName,
+                dropReq.txnId, tstrerror(code));
+      sdbRelease(pMnode->pSdb, pStream);
+      pStream = NULL;
+      mndTransDrop(pTrans);
+      pTrans = NULL;
+      goto _OVER;
+    }
     // Block if another txn owns this stream.
     if (pStream->txnId != 0 && pStream->txnId != (txn_id_t)dropReq.txnId) {
       code = TSDB_CODE_TXN_RESOURCE_BUSY;
@@ -3680,6 +3816,7 @@ static int32_t mndProcessRecalcStreamReq(SRpcMsg *pReq) {
 
 int32_t mndInitStream(SMnode *pMnode) {
   int32_t   code = TSDB_CODE_SUCCESS;
+
   SSdbTable table = {
       .sdbType = SDB_STREAM,
       .keyType = SDB_KEY_BINARY,

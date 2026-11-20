@@ -1754,6 +1754,7 @@ static int32_t createTagScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubpla
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }
   pScan->onlyMetaCtbIdx = pScanLogicNode->onlyMetaCtbIdx;
+  (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   return createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
 }
@@ -1789,6 +1790,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   if (pScanLogicNode->pVgroupList) {
     vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
   }
+  (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
 
   code = createScanPhysiNodeFinalize(pCxt, pSubplan, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
   if (TSDB_CODE_SUCCESS == code && pScanLogicNode->pFuncTypes != NULL) {
@@ -3643,6 +3645,34 @@ static int32_t setColEqList(SNode* pEqCond, int64_t leftBlkId, int64_t rightBlkI
   return code;
 }
 
+static int32_t setWindowJoinPrimExpr(SNode* pExpr, int64_t blockId,
+                                     int32_t* pSlotId, SNode** ppPrimExpr) {
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    SColumnNode* pCol = (SColumnNode*)pExpr;
+    if (blockId != pCol->dataBlockId) {
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    *pSlotId = pCol->slotId;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNodeList* pCols = NULL;
+  int32_t code = nodesCollectColumnsFromNode(pExpr, NULL,
+                                             COLLECT_COL_TYPE_ALL, &pCols);
+  if (TSDB_CODE_SUCCESS != code) return code;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCols) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    if (blockId != pCol->dataBlockId) {
+      nodesDestroyList(pCols);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    *pSlotId = pCol->slotId;
+  }
+  nodesDestroyList(pCols);
+  return nodesCloneNode(pExpr, ppPrimExpr);
+}
+
 static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_t leftBlkId, int64_t rightBlkId,
                                          SSortMergeJoinPhysiNode* pJoin, SJoinLogicNode* pJoinLogicNode) {
   int32_t code = 0;
@@ -3651,6 +3681,20 @@ static int32_t setMergeJoinPrimColEqCond(SNode* pEqCond, int32_t subType, int64_
     if (pOp->opType != OP_TYPE_EQUAL && JOIN_STYPE_ASOF != subType) {
       planError("invalid primary cond opType, opType:%d", pOp->opType);
       return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+
+    if (JOIN_STYPE_WIN == subType && NULL == pJoinLogicNode &&
+        (QUERY_NODE_COLUMN != nodeType(pOp->pLeft) ||
+         QUERY_NODE_COLUMN != nodeType(pOp->pRight))) {
+      code = setWindowJoinPrimExpr(pOp->pLeft, leftBlkId,
+                                   &pJoin->leftPrimSlotId,
+                                   &pJoin->leftPrimExpr);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = setWindowJoinPrimExpr(pOp->pRight, rightBlkId,
+                                     &pJoin->rightPrimSlotId,
+                                     &pJoin->rightPrimExpr);
+      }
+      return code;
     }
 
     // Track whether the LEFT operand already set asofOpType.  When two tables
@@ -5874,6 +5918,7 @@ static int32_t createTagRefSourcePhysiNode(SPhysiPlanContext* pCxt, SSubplan* pS
 
   // Copy source table information
   memcpy(&pTagRefSource->sourceTableName, &pLogicNode->sourceTableName, sizeof(SName));
+  (void)tNameGetFullDbName(&pLogicNode->sourceTableName, pSubplan->dbFName);
   pTagRefSource->sourceSuid = pLogicNode->sourceSuid;
   pTagRefSource->sourceId = pLogicNode->sourceId;
   pTagRefSource->isUsedInFilter = pLogicNode->isUsedInFilter;

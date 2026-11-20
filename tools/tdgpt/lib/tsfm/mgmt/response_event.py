@@ -27,6 +27,10 @@ from lib.tsfm.mgmt.foundation_models_db import (
     get_resource_dir,
 )
 
+# The application library cannot import the separately deployed CLI scripts.
+# test_resource_release_contract keeps this aligned with resource_manifest.
+DEFAULT_RESOURCE_RELEASE = "1.0.1"
+
 
 class TaskStatus(Enum):
     """Task execution status states."""
@@ -562,7 +566,7 @@ def do_build_operation_response(operation_info, task_states=None):
         response_data.update({
             "model_id": data.get("model_id", ""),
             "package": data.get("package", ""),
-            "release": data.get("release", "1.0.0"),
+            "release": data.get("release", DEFAULT_RESOURCE_RELEASE),
             "resource_base_url": data.get("resource_base_url", ""),
             "replace": data.get("replace", False),
         })

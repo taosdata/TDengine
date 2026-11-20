@@ -5935,7 +5935,21 @@ SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type) {
   pCxt->errCode = nodesMakeNode(type, (SNode**)&pStmt);
   CHECK_MAKE_NODE(pStmt);
   pStmt->transId = 0;
+  pStmt->flags = 0;
   return (SNode*)pStmt;
+_err:
+  return NULL;
+}
+
+// BEGIN|START TRANSACTION ALLOW_NONTRANSACTIONAL: the option is lexed as its own keyword token, so the
+// grammar itself guarantees the option text and no string matching is needed here.
+SNode* createBeginTransStmtAllowNonTxn(SAstCreateContext* pCxt) {
+  CHECK_PARSER_STATUS(pCxt);
+  SNode* pNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT);
+  if (pNode != NULL) {
+    ((STransStmt*)pNode)->flags |= TRANS_STMT_FLAG_ALLOW_NONTXN;
+  }
+  return pNode;
 _err:
   return NULL;
 }

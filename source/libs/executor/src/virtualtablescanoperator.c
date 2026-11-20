@@ -31,6 +31,7 @@ typedef struct SVirtualTableScanInfo {
   STableScanBase base;
   // TIME_ALIGN post-merge scalar stage (PREV, phase 1)
   SExprSupp      alignSup;
+  SNodeList*     pAlignTargets;  // Owns the function nodes borrowed by alignSup.
   char*          pAlignRowBuf;
   uint64_t       alignUid;
   int8_t         alignPhase;
@@ -2682,6 +2683,7 @@ void destroyVirtualTableScanOperatorInfo(void* param) {
   destroyResolvedTagsAndCaches(pInfo);
   resetTimeAlignState(pInfo);
   cleanupExprSupp(&pInfo->alignSup);
+  nodesDestroyList(pInfo->pAlignTargets);
   taosMemoryFreeClear(pInfo->pAlignRowBuf);
   taosMemoryFreeClear(param);
 }
@@ -2902,27 +2904,18 @@ static int32_t appendTimeAlignRangeParams(SFunctionNode* pFunc, const SColumnNod
   pTs->slotId = tsSlotId;
   pTs->colId = 0;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTs);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pTs);
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   SNode* pNode = NULL;
   code = nodesMakeValueNodeFromInt64(pOut->alignSpanValue, &pNode);
   if (code != TSDB_CODE_SUCCESS) return code;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode(pNode);
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   pNode = makeTimeAlignTinyIntValue(pOut->alignSpanUnit);
   if (pNode == NULL) return terrno;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode(pNode);
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   char tzBuf[TD_TIMEZONE_LEN] = {0};
   if (tzName != NULL) tstrncpy(tzBuf, tzName, sizeof(tzBuf));
@@ -2930,21 +2923,13 @@ static int32_t appendTimeAlignRangeParams(SFunctionNode* pFunc, const SColumnNod
   code = nodesMakeValueNodeFromString(tzBuf, &pTz);
   if (code != TSDB_CODE_SUCCESS) return code;
   code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pTz);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode((SNode*)pTz);
-    return code;
-  }
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   // Merged vtable blocks are monotonic per series; the descending bit tells
   // the fill function to measure the range along the delivery direction.
   pNode = makeTimeAlignTinyIntValue((int8_t)(0x1 | (desc ? 0x2 : 0)));
   if (pNode == NULL) return terrno;
-  code = nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
-  if (code != TSDB_CODE_SUCCESS) {
-    nodesDestroyNode(pNode);
-    return code;
-  }
-  return TSDB_CODE_SUCCESS;
+  return nodesListMakeStrictAppend(&pFunc->pParameterList, pNode);
 }
 
 static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* pScanCols,
@@ -2952,12 +2937,9 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
                                        const char* tzName, int8_t order, SExecTaskInfo* pTaskInfo) {
   if (pAlignCols == NULL || LIST_LENGTH(pAlignCols) == 0) return TSDB_CODE_SUCCESS;
 
-  bool       desc = (order == TSDB_ORDER_DESC);
-  SNodeList* pTargets = NULL;
-  int32_t    code = nodesMakeList(&pTargets);
-  if (code != TSDB_CODE_SUCCESS) return code;
-
-  SNode* pNode = NULL;
+  bool    desc = (order == TSDB_ORDER_DESC);
+  int32_t code = TSDB_CODE_SUCCESS;
+  SNode*  pNode = NULL;
   FOREACH(pNode, pAlignCols) {
     if (QUERY_NODE_COLUMN != nodeType(pNode)) continue;
     SColumnNode* pOut = (SColumnNode*)pNode;
@@ -2980,84 +2962,55 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
     if (pSrc == NULL || srcSlotId < 0 || outSlotId < 0) {
       qError("TIME_ALIGN: source or slot not found for %s (colId=%d srcSlot=%d outSlot=%d)", pOut->colName,
              pOut->colId, srcSlotId, outSlotId);
-      code = TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;
-      goto _return;
+      return TSDB_CODE_VTABLE_SCAN_INTERNAL_ERROR;
     }
 
-    SColumnNode*   pParam = NULL;
-    SFunctionNode* pFunc = NULL;
-    STargetNode*   pTarget = NULL;
-    code = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pParam);
-    if (code != TSDB_CODE_SUCCESS) goto _return;
-    *pParam = *pSrc;
+    STargetNode* pTarget = NULL;
+    code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    pTarget->slotId = outSlotId;
+    code = nodesListMakeStrictAppend(&pInfo->pAlignTargets, (SNode*)pTarget);
+    if (code != TSDB_CODE_SUCCESS) return code;
+
+    code = nodesMakeNode(QUERY_NODE_FUNCTION, &pTarget->pExpr);
+    if (code != TSDB_CODE_SUCCESS) return code;
+    SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
+    tstrncpy(pFunc->functionName, (method == ALIGN_METHOD_NEXT) ? "fill_next" : "fill_forward",
+             TSDB_FUNC_NAME_LEN);
+
+    SColumnNode* pParam = NULL;
+    code = nodesCloneNode((SNode*)pSrc, (SNode**)&pParam);
+    if (code != TSDB_CODE_SUCCESS) return code;
     // Read the source value from its slot in the merged output block, not from the
     // column's own (unset) slot id.
     pParam->slotId = srcSlotId;
 
-    code = nodesMakeNode(QUERY_NODE_FUNCTION, (SNode**)&pFunc);
-    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pParam); goto _return; }
-    tstrncpy(pFunc->functionName, (method == ALIGN_METHOD_NEXT) ? "fill_next" : "fill_forward",
-             TSDB_FUNC_NAME_LEN);
-    if (nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam) != TSDB_CODE_SUCCESS) {
-      nodesDestroyNode((SNode*)pParam);
-      nodesDestroyNode((SNode*)pFunc);
-      code = terrno;
-      goto _return;
-    }
-    pParam = NULL;
+    code = nodesListMakeStrictAppend(&pFunc->pParameterList, (SNode*)pParam);
+    if (code != TSDB_CODE_SUCCESS) return code;
     code = appendTimeAlignRangeParams(pFunc, pOut, tsSlotId, tzName, desc);
-    if (code != TSDB_CODE_SUCCESS) {
-      nodesDestroyNode((SNode*)pFunc);
-      goto _return;
-    }
+    if (code != TSDB_CODE_SUCCESS) return code;
     pFunc->node.resType = pOut->node.resType;
     tstrncpy(pFunc->node.aliasName, pOut->colName, TSDB_COL_NAME_LEN);
     code = fmGetFuncInfo(pFunc, NULL, 0);
-    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pFunc); goto _return; }
-
-    code = nodesMakeNode(QUERY_NODE_TARGET, (SNode**)&pTarget);
-    if (code != TSDB_CODE_SUCCESS) { nodesDestroyNode((SNode*)pFunc); goto _return; }
-    pTarget->pExpr = (SNode*)pFunc;
-    pTarget->slotId = outSlotId;
-    if (nodesListMakeStrictAppend(&pTargets, (SNode*)pTarget) != TSDB_CODE_SUCCESS) {
-      nodesDestroyNode((SNode*)pFunc);
-      nodesDestroyNode((SNode*)pTarget);
-      code = terrno;
-      goto _return;
-    }
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
-  if (LIST_LENGTH(pTargets) == 0) {
-    nodesDestroyList(pTargets);
-    return TSDB_CODE_SUCCESS;
-  }
+  if (pInfo->pAlignTargets == NULL) return TSDB_CODE_SUCCESS;
 
   SExprInfo* pExprInfo = NULL;
   int32_t    numOfExprs = 0;
-  code = createExprInfo(pTargets, NULL, &pExprInfo, &numOfExprs);
-  if (code != TSDB_CODE_SUCCESS) goto _return;
+  code = createExprInfo(pInfo->pAlignTargets, NULL, &pExprInfo, &numOfExprs);
+  if (code != TSDB_CODE_SUCCESS) return code;
+  code = initExprSupp(&pInfo->alignSup, pExprInfo, numOfExprs, &pTaskInfo->storageAPI.functionStore);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
-  SqlFunctionCtx* pCtx = createSqlFunctionCtx(pExprInfo, numOfExprs, &pInfo->alignSup.rowEntryInfoOffset,
-                                              &pTaskInfo->storageAPI.functionStore);
-  if (pCtx == NULL) {
-    destroyExprInfo(pExprInfo, numOfExprs);
-    taosMemoryFree(pExprInfo);
-    code = terrno;
-    goto _return;
-  }
-
+  SqlFunctionCtx* pCtx = pInfo->alignSup.pCtx;
   int64_t totalSize = 0;
   for (int32_t i = 0; i < numOfExprs; ++i) {
     totalSize += sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
   }
   char* pBuf = taosMemoryCalloc(1, totalSize);
-  if (pBuf == NULL) {
-    destroyExprInfo(pExprInfo, numOfExprs);
-    taosMemoryFree(pExprInfo);
-    taosMemoryFree(pCtx);
-    code = terrno;
-    goto _return;
-  }
+  if (pBuf == NULL) return terrno;
   int64_t off = 0;
   for (int32_t i = 0; i < numOfExprs; ++i) {
     pCtx[i].resultInfo = (SResultRowEntryInfo*)(pBuf + off);
@@ -3065,25 +3018,9 @@ static int32_t createTimeAlignExprSupp(SVirtualTableScanInfo* pInfo, SNodeList* 
     off += sizeof(SResultRowEntryInfo) + pCtx[i].resDataInfo.interBufSize;
   }
 
-  // The function nodes are now owned by pExprInfo (destroyExprInfo frees them).
-  // Detach them from the target wrappers before dropping the wrapper list.
-  SNode* pTmp = NULL;
-  FOREACH(pTmp, pTargets) {
-    ((STargetNode*)pTmp)->pExpr = NULL;
-  }
-  nodesDestroyList(pTargets);
-  pTargets = NULL;
-
-  pInfo->alignSup.pExprInfo = pExprInfo;
-  pInfo->alignSup.numOfExprs = numOfExprs;
-  pInfo->alignSup.pCtx = pCtx;
   pInfo->pAlignRowBuf = pBuf;
   pInfo->alignUidValid = false;
   return TSDB_CODE_SUCCESS;
-
-_return:
-  nodesDestroyList(pTargets);
-  return code;
 }
 
 static bool timeAlignAnyPending(SVirtualTableScanInfo* pInfo) {

@@ -228,6 +228,7 @@ int32_t tsHeartbeatTimeout = 20 * 1000;
 int32_t tsSnapReplMaxWaitN = 128;
 int32_t tsSnapshotRateLimit = 0;
 bool    tsSnapshotMediumOnLag = false;  // when enabled a follower that owns data but lags behind uses MEDIUM snap replication
+int32_t tsSnapshotMediumDiskStrategy = 0;
 bool    tsSnapshotMediumOnIncomplete = true;  // Use MEDIUM snapshot replication for an incomplete FSM.
 int64_t tsLogBufferMemoryAllowed = 0;  // bytes
 int64_t tsSyncApplyQueueSize = 512;
@@ -1235,6 +1236,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "syncSnapReplMaxWaitN", tsSnapReplMaxWaitN, 16, (TSDB_SYNC_SNAP_BUFFER_SIZE >> 2), CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "snapshotRateLimit", tsSnapshotRateLimit, 0, 10240, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "snapshotMediumOnLag", tsSnapshotMediumOnLag, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
+  TAOS_CHECK_RETURN(cfgAddInt32(pCfg, "snapshotMediumDiskStrategy", tsSnapshotMediumDiskStrategy, 0, 1, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddBool(pCfg, "snapshotMediumOnIncomplete", tsSnapshotMediumOnIncomplete, CFG_SCOPE_SERVER, CFG_DYN_SERVER, CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncLogBufferMemoryAllowed", tsLogBufferMemoryAllowed, TSDB_MSG_MEMORY_BASELINE * 10L, INT64_MAX, CFG_SCOPE_SERVER, CFG_DYN_ENT_SERVER,CFG_CATEGORY_LOCAL, CFG_PRIV_SYSTEM));
   TAOS_CHECK_RETURN(cfgAddInt64(pCfg, "syncApplyQueueSize", tsSyncApplyQueueSize, 32, 2048, CFG_SCOPE_SERVER, CFG_DYN_SERVER,CFG_CATEGORY_GLOBAL, CFG_PRIV_SYSTEM));
@@ -2551,6 +2553,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumOnLag");
   tsSnapshotMediumOnLag = pItem->bval;
 
+  TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumDiskStrategy");
+  tsSnapshotMediumDiskStrategy = pItem->i32;
+
   TAOS_CHECK_GET_CFG_ITEM(pCfg, pItem, "snapshotMediumOnIncomplete");
   tsSnapshotMediumOnIncomplete = pItem->bval;
 
@@ -3757,6 +3762,7 @@ static int32_t taosCfgDynamicOptionsForServer(SConfig *pCfg, const char *name) {
                                          {"syncSnapReplMaxWaitN", &tsSnapReplMaxWaitN},
                                          {"snapshotRateLimit", &tsSnapshotRateLimit},
                                          {"snapshotMediumOnLag", &tsSnapshotMediumOnLag},
+                                         {"snapshotMediumDiskStrategy", &tsSnapshotMediumDiskStrategy},
                                          {"snapshotMediumOnIncomplete", &tsSnapshotMediumOnIncomplete},
                                          {"syncRoutineReportInterval", &tsRoutineReportInterval},
                                          {"syncLogHeartbeat", &tsSyncLogHeartbeat},

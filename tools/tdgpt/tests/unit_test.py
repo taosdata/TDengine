@@ -1146,7 +1146,9 @@ class ServiceTest(unittest.TestCase):
             trained_model = IsolationForest(
                 n_estimators=10, contamination=0.1, random_state=42
             )
-            trained_model.fit([[i] for i in range(100)])
+            # Window scoring feeds one feature per feature_fns entry, so this
+            # model must accept the 2 features (mean, std) it will be given.
+            trained_model.fit([[i, i * 0.5] for i in range(100)])
             joblib.dump(trained_model, pkl_path)
 
             config = {
@@ -1200,7 +1202,9 @@ class ServiceTest(unittest.TestCase):
             trained_model = IsolationForest(
                 n_estimators=10, contamination=0.05, random_state=0
             )
-            trained_model.fit([[i] for i in range(100)])
+            # Without feature_fns the raw window values are the features, so the
+            # model must accept window_size (4) of them.
+            trained_model.fit([[i] * 4 for i in range(100)])
             joblib.dump(trained_model, pkl_path)
 
             config = {
@@ -1294,11 +1298,12 @@ class ServiceTest(unittest.TestCase):
         pkl_path = os.path.join(temp_dir, "iforest_pkl_test.pkl")
 
         try:
-            # Create and train a real IsolationForest model
+            # Create and train a real IsolationForest model. Window scoring passes
+            # raw window values, so it must accept window_size (5) features.
             trained_model = IsolationForest(
                 n_estimators=10, contamination=0.05, random_state=42
             )
-            trained_model.fit([[i] for i in range(100)])
+            trained_model.fit([[i] * 5 for i in range(100)])
 
             # Save model to pkl using joblib
             joblib.dump(trained_model, pkl_path)
@@ -1334,6 +1339,173 @@ class ServiceTest(unittest.TestCase):
             if os.path.isdir(temp_dir):
                 os.rmdir(temp_dir)
 
+    def test_iforest_detector_reads_the_mode_from_the_config(self):
+        """The inference mode is a top-level config field, not pipeline state.
+
+        The older lookup only read ``pipeline.mode`` for a loaded pkl (or
+        ``best_params.mode`` when none was loaded) and defaulted to ``window``,
+        so a config that carried ``mode`` at the top level was scored at window
+        level even when it had been trained point by point.
+        """
+        n_points = 12
+        input_data = [float(i) for i in range(n_points)]
+
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_mode_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_mode_test.pkl")
+        legacy_pkl_path = os.path.join(temp_dir, "iforest_mode_test_plain.pkl")
+
+        try:
+            trained_model = IsolationForest(n_estimators=10, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+            joblib.dump(
+                {
+                    "model": trained_model,
+                    "pipeline": {"feature_columns": ["value"], "fill_values": {}},
+                },
+                pkl_path,
+            )
+            joblib.dump(trained_model, legacy_pkl_path)
+
+            def make_detector(mode, model_path=pkl_path, best_params=None):
+                config = {
+                    "algo": "iforest",
+                    "best_params": best_params
+                    or {
+                        "window_size": 4,
+                        "stride": 2,
+                        "feature_fns": ["mean"],
+                    },
+                    "model_path": model_path,
+                }
+                if mode is not None:
+                    config["mode"] = mode
+                with open(config_path, "w", encoding="utf-8") as handle:
+                    handle.write(json.dumps(config))
+
+                detector = IsolationForestModelDetector(
+                    path=config_path,
+                    input_list=input_data,
+                    valid_code=1,
+                )
+                detector.build()
+                return detector
+
+            self.assertEqual(make_detector("window")._get_inference_mode(), "window")
+            self.assertEqual(make_detector("point")._get_inference_mode(), "point")
+            self.assertEqual(make_detector(" POINT ")._get_inference_mode(), "point")
+
+            # Configs written before the top-level `mode` existed keep their old
+            # reading: `window` unless the pkl pipeline says otherwise.
+            self.assertEqual(make_detector(None)._get_inference_mode(), "window")
+
+            # A pkl without pipeline state still honors best_params.mode, as before.
+            self.assertEqual(
+                make_detector(
+                    None, model_path=legacy_pkl_path, best_params={"mode": "point"}
+                )._get_inference_mode(),
+                "point",
+            )
+
+            # An unrecognized value falls back to `window` instead of silently
+            # selecting the other branch.
+            self.assertEqual(make_detector("sideways")._get_inference_mode(), "window")
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.exists(legacy_pkl_path):
+                os.remove(legacy_pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
+    def test_iforest_detector_resolves_window_params_from_pipeline_then_config(self):
+        """Window params come from the pkl pipeline state, then best_params.
+
+        A pkl whose pipeline holds preprocessing only used to be scored with the
+        100/1/[] defaults, ignoring the window parameters the config states.
+        """
+        from lib.dynamic.algo.detector import (
+            IsolationForestModelDetector,
+        )
+
+        temp_dir = tempfile.mkdtemp()
+        config_path = os.path.join(temp_dir, "iforest_window_params_test.json")
+        pkl_path = os.path.join(temp_dir, "iforest_window_params_test.pkl")
+        pipeline_pkl_path = os.path.join(temp_dir, "iforest_window_params_pipeline.pkl")
+
+        try:
+            trained_model = IsolationForest(n_estimators=10, random_state=42)
+            trained_model.fit([[i] for i in range(100)])
+            joblib.dump(
+                {
+                    "model": trained_model,
+                    "pipeline": {"feature_columns": ["value"], "fill_values": {}},
+                },
+                pkl_path,
+            )
+            joblib.dump(
+                {
+                    "model": trained_model,
+                    "pipeline": {
+                        "window_size": 6,
+                        "stride": 3,
+                        "feature_fns": ["std"],
+                    },
+                },
+                pipeline_pkl_path,
+            )
+
+            def resolve(model_path, best_params):
+                config = {
+                    "algo": "iforest",
+                    "mode": "window",
+                    "model_path": model_path,
+                    "best_params": best_params,
+                }
+                with open(config_path, "w", encoding="utf-8") as handle:
+                    handle.write(json.dumps(config))
+
+                detector = IsolationForestModelDetector(
+                    path=config_path,
+                    input_list=[float(i) for i in range(12)],
+                    valid_code=1,
+                )
+                detector.build()
+                return detector._resolve_window_params()
+
+            # Preprocessing-only pipeline: the config supplies the window params.
+            self.assertEqual(
+                resolve(
+                    pkl_path,
+                    {"window_size": 4, "stride": 2, "feature_fns": ["mean"]},
+                ),
+                (["mean"], 4, 2),
+            )
+            # A pipeline that states the window params wins over best_params.
+            self.assertEqual(
+                resolve(
+                    pipeline_pkl_path,
+                    {"window_size": 4, "stride": 2, "feature_fns": ["mean"]},
+                ),
+                (["std"], 6, 3),
+            )
+            # Neither source states them: the documented defaults apply.
+            self.assertEqual(resolve(pkl_path, {}), ([], 100, 1))
+            # An invalid value is rejected instead of reaching the window loop.
+            with self.assertRaises(ValueError):
+                resolve(pkl_path, {"window_size": 0})
+        finally:
+            if os.path.exists(config_path):
+                os.remove(config_path)
+            if os.path.exists(pkl_path):
+                os.remove(pkl_path)
+            if os.path.exists(pipeline_pkl_path):
+                os.remove(pipeline_pkl_path)
+            if os.path.isdir(temp_dir):
+                os.rmdir(temp_dir)
+
     def test_iforest_detector_falls_back_to_best_params_when_pkl_missing(self):
         """IsolationForestModelDetector falls back to best_params when pkl file not found."""
         from sklearn.ensemble import IsolationForest
@@ -1350,11 +1522,12 @@ class ServiceTest(unittest.TestCase):
         pkl_path = os.path.join(temp_dir, "iforest_fallback_test.pkl")
 
         try:
-            # Create and train a real IsolationForest model
+            # Create and train a real IsolationForest model. Window scoring passes
+            # raw window values, so it must accept window_size (5) features.
             trained_model = IsolationForest(
                 n_estimators=10, contamination=0.05, random_state=42
             )
-            trained_model.fit([[i] for i in range(100)])
+            trained_model.fit([[i] * 5 for i in range(100)])
 
             # Save model to pkl
             joblib.dump(trained_model, pkl_path)
@@ -1422,7 +1595,11 @@ class ServiceTest(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_iforest_point_mode_detection(self):
-        """IsolationForest point mode detects anomalies at point level."""
+        """Point mode scores each row on its own, with no window and no refit.
+
+        The mode is the top-level ``mode`` field. The ``inference_mode`` key this
+        test used to set is never read, so the case silently ran window-level.
+        """
         from sklearn.ensemble import IsolationForest
 
         from lib.dynamic.algo.detector import (
@@ -1433,17 +1610,16 @@ class ServiceTest(unittest.TestCase):
         config_path = os.path.join(temp_dir, "iforest_point_mode_test.json")
         pkl_path = os.path.join(temp_dir, "iforest_point_mode_test.pkl")
         try:
-            # Create and train model for point mode
             trained_model = IsolationForest(
-                n_estimators=50, contamination=0.2, random_state=42
+                n_estimators=10, contamination=0.05, random_state=42
             )
-            trained_model.fit([[i] for i in range(100)])
+            trained_model.fit([[i % 10 + 0.5, 10.0 + i, 1.0] for i in range(100)])
             joblib.dump(trained_model, pkl_path)
 
             # Config with point mode
             config = {
                 "algo": "iforest",
-                "best_params": {"inference_mode": "point"},
+                "mode": "point",
                 "model_path": pkl_path,
             }
             with open(config_path, "w", encoding="utf-8") as handle:
@@ -1484,11 +1660,23 @@ class ServiceTest(unittest.TestCase):
                 valid_code=1,
                 input_data_lists=input_data,
             )
+            detector.build()
+
+            # Record what reaches the model: point mode must pass one row per
+            # point, with one column per input column.
+            seen = {}
+
+            class RecordingModel:
+                def predict(self, X):
+                    seen["shape"] = X.shape
+                    return [1] * len(X)
+
+            detector._model = RecordingModel()
             result = detector.detect()
 
-            # Should produce results for all points
-            self.assertEqual(len(result), len(input_data[0]))
-            self.assertTrue(all(c in {1, -1} for c in result))
+            self.assertEqual(detector._get_inference_mode(), "point")
+            self.assertEqual(result, [1] * len(input_data[0]))
+            self.assertEqual(seen["shape"], (len(input_data[0]), len(input_data)))
         finally:
             if os.path.exists(config_path):
                 os.remove(config_path)

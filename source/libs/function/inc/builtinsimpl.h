@@ -27,6 +27,12 @@ extern "C" {
 #include "functionResInfoInt.h"
 
 int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc, int32_t* nElems);
+// Call only after a capacity failure. Physical schema-bound values exceeding
+// planned widths return TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER; all other
+// cases return TSDB_CODE_QRY_NOT_ENOUGH_BUFFER. NULL context is allowed for
+// merged states without column provenance and keeps the latter error.
+int32_t getFuncInputBufferError(SqlFunctionCtx* pCtx, int32_t valueBytes,
+                                int32_t pkBytes);
 int32_t i8VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i16VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);
 int32_t i32VectorCmpAVX2(const void* pData, int32_t numOfRows, bool isMinFunc, bool signVal, int64_t* res);

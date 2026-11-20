@@ -1,0 +1,217 @@
+
+taos> use test_vtable_select;
+Database changed.
+
+taos> select 8 as idx, last(int_col) as val, _c0 as ts, tinyint_col as q from vtb_null_ntb;
+          idx          |     val     |           ts            |  q   |
+=======================================================================
+                     8 |   355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select 8 as idx, last(int_col) as val, _c0 as ts, tinyint_col as q from vtb_null_ctb;
+          idx          |     val     |           ts            |  q   |
+=======================================================================
+                     8 |   355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select last(int_col), _c0, bool_col as q, u_bigint_col as counter, binary_16_col as quality, nchar_16_col as label from vtb_null_ntb;
+ last(int_col) |           _c0           |   q   |        counter        |      quality       |             label              |
+================================================================================================================================
+     355313610 | 2020-10-01 00:00:01.998 | NULL  | NULL                  | NULL               | NULL                           |
+
+taos> select last(int_col), _c0, bool_col as q, u_bigint_col as counter, binary_16_col as quality, nchar_16_col as label from vtb_null_ctb;
+ last(int_col) |           _c0           |   q   |        counter        |      quality       |             label              |
+================================================================================================================================
+     355313610 | 2020-10-01 00:00:01.998 | NULL  | NULL                  | NULL               | NULL                           |
+
+taos> select last(int_col), _c0, coalesce(tinyint_col, 7) as q, tinyint_col + 1 as next_q from vtb_null_ntb;
+ last(int_col) |           _c0           |           q           |          next_q           |
+==============================================================================================
+     355313610 | 2020-10-01 00:00:01.998 |                     7 | NULL                      |
+
+taos> select last(int_col), _c0, coalesce(tinyint_col, 7) as q, tinyint_col + 1 as next_q from vtb_null_ctb;
+ last(int_col) |           _c0           |           q           |          next_q           |
+==============================================================================================
+     355313610 | 2020-10-01 00:00:01.998 |                     7 | NULL                      |
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ntb where tinyint_col is null;
+ last(int_col) |           _c0           |  q   |
+=================================================
+     355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ctb where tinyint_col is null;
+ last(int_col) |           _c0           |  q   |
+=================================================
+     355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ntb where tinyint_col is not null;
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ctb where tinyint_col is not null;
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ntb where ts = '2025-06-17 04:00:00.000';
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ctb where ts = '2025-06-17 04:00:00.000';
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ntb where ts > '2025-06-17 04:00:00.000';
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_null_ctb where ts > '2025-06-17 04:00:00.000';
+
+taos> select tinyint_col, count(int_col) from vtb_null_ntb group by tinyint_col;
+ tinyint_col |    count(int_col)     |
+======================================
+ NULL        |                  1000 |
+
+taos> select tinyint_col, count(int_col) from vtb_null_ctb group by tinyint_col;
+ tinyint_col |    count(int_col)     |
+======================================
+ NULL        |                  1000 |
+
+taos> select last(int_col), count(tinyint_col), sum(tinyint_col) from vtb_null_ntb;
+ last(int_col) |  count(tinyint_col)   |   sum(tinyint_col)    |
+================================================================
+     355313610 |                     0 | NULL                  |
+
+taos> select last(int_col), count(tinyint_col), sum(tinyint_col) from vtb_null_ctb;
+ last(int_col) |  count(tinyint_col)   |   sum(tinyint_col)    |
+================================================================
+     355313610 |                     0 | NULL                  |
+
+taos> select count(tinyint_col), sum(tinyint_col), last(tinyint_col) from vtb_null_ntb;
+  count(tinyint_col)   |   sum(tinyint_col)    | last(tinyint_col) |
+====================================================================
+                     0 | NULL                  | NULL              |
+
+taos> select count(tinyint_col), sum(tinyint_col), last(tinyint_col) from vtb_null_ctb;
+  count(tinyint_col)   |   sum(tinyint_col)    | last(tinyint_col) |
+====================================================================
+                     0 | NULL                  | NULL              |
+
+taos> select tinyint_col from vtb_null_ntb;
+
+taos> select tinyint_col from vtb_null_ctb;
+
+taos> select count(int_col) from vtb_null_ntb session(aux_ts, 1s);
+    count(int_col)     |
+========================
+                     0 |
+
+taos> select count(int_col) from vtb_null_ctb session(aux_ts, 1s);
+    count(int_col)     |
+========================
+                     0 |
+
+taos> select ts, int_col, float_col, tinyint_col as q from vtb_null_ntb order by ts desc limit 2;
+           ts            |   int_col   |      float_col       |  q   |
+======================================================================
+ 2025-06-17 04:00:00.000 | NULL        | NULL                 | NULL |
+ 2020-10-01 00:00:02.997 | NULL        |              35984.1 | NULL |
+
+taos> select ts, int_col, float_col, tinyint_col as q from vtb_null_ctb order by ts desc limit 2;
+           ts            |   int_col   |      float_col       |  q   |
+======================================================================
+ 2025-06-17 04:00:00.000 | NULL        | NULL                 | NULL |
+ 2020-10-01 00:00:02.997 | NULL        |              35984.1 | NULL |
+
+taos> select ts, int_col, tinyint_col as q from vtb_null_ntb order by ts desc limit 2;
+           ts            |   int_col   |  q   |
+===============================================
+ 2025-06-17 04:00:00.000 | NULL        | NULL |
+ 2020-10-01 00:00:01.998 |   355313610 | NULL |
+
+taos> select ts, int_col, tinyint_col as q from vtb_null_ctb order by ts desc limit 2;
+           ts            |   int_col   |  q   |
+===============================================
+ 2025-06-17 04:00:00.000 | NULL        | NULL |
+ 2020-10-01 00:00:01.998 |   355313610 | NULL |
+
+taos> select last(v), _c0, q from (select ts, int_col as v, tinyint_col as q from vtb_null_ntb);
+   last(v)   |           _c0           |  q   |
+===============================================
+   355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select last(v), _c0, q from (select ts, int_col as v, tinyint_col as q from vtb_null_ctb);
+   last(v)   |           _c0           |  q   |
+===============================================
+   355313610 | 2020-10-01 00:00:01.998 | NULL |
+
+taos> select last(int_col), _c0, tinyint_col as q, int_tag from vtb_null_ctb;
+ last(int_col) |           _c0           |  q   |   int_tag   |
+===============================================================
+     355313610 | 2020-10-01 00:00:01.998 | NULL |           7 |
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_virtual_ntb_empty;
+
+taos> select last(int_col), _c0, tinyint_col as q from vtb_virtual_ctb_empty_0;
+
+taos> select last(tinyint_col) from vtb_virtual_stb;
+ last(tinyint_col) |
+====================
+                26 |
+
+taos> select tinyint_col, last(int_col) from vtb_null_ntb where ts >= '2020-10-01 00:00:01.998' and ts < '2020-10-01 00:00:04.000' interval(1s) fill(value, 7, 9);
+ tinyint_col | last(int_col) |
+==============================
+           7 |     355313610 |
+           7 |             9 |
+           7 |             9 |
+
+taos> select tinyint_col, last(int_col) from vtb_null_ctb where ts >= '2020-10-01 00:00:01.998' and ts < '2020-10-01 00:00:04.000' interval(1s) fill(value, 7, 9);
+ tinyint_col | last(int_col) |
+==============================
+           7 |     355313610 |
+           7 |             9 |
+           7 |             9 |
+
+taos> select int_col_a, tinyint_col_a from table(time_align(table vtb_null_ntb, false, '*:PREV:_a')) order by ts limit 2;
+  int_col_a  | tinyint_col_a |
+==============================
+  -650873068 | NULL          |
+   -77824226 | NULL          |
+
+taos> select int_col_a, tinyint_col_a from table(time_align(table vtb_null_ctb, false, '*:PREV:_a')) order by ts limit 2;
+  int_col_a  | tinyint_col_a |
+==============================
+  -650873068 | NULL          |
+   -77824226 | NULL          |
+
+taos> select count(*) as n from (select v.int_col as lval, r.int_col as rval from vtb_null_ntb v left window join vtb_org_tb_0 r window_time(v.aux_ts, r.ts) window_offset(-1s, 1s));
+           n           |
+========================
+                     0 |
+
+taos> select count(*) as n from (select v.int_col as lval, r.int_col as rval from vtb_null_ctb v left window join vtb_org_tb_0 r window_time(v.aux_ts, r.ts) window_offset(-1s, 1s));
+           n           |
+========================
+                     0 |
+
+taos> select v.int_col, (select count(*) from vtb_org_tb_0 r where r.int_col < v.tinyint_col) as n from vtb_null_ntb v where v.ts = '2020-10-01 00:00:01.998';
+   int_col   |           n           |
+======================================
+   355313610 |                     0 |
+
+taos> select v.int_col, (select count(*) from vtb_org_tb_0 r where r.int_col < v.tinyint_col) as n from vtb_null_ctb v where v.ts = '2020-10-01 00:00:01.998';
+   int_col   |           n           |
+======================================
+   355313610 |                     0 |
+
+taos> select tinyint_col, last(int_col) from vtb_null_ntb external_window((select ts + 1s, ts + 1004a from vtb_org_tb_0 where ts in ('2020-10-01 00:00:00.000', '2020-10-01 00:00:01.998')) w) fill(value, 7, 9) order by _wstart;
+ tinyint_col | last(int_col) |
+==============================
+ NULL        |     374865712 |
+           7 |             9 |
+
+taos> select tinyint_col, last(int_col) from vtb_null_ctb external_window((select ts + 1s, ts + 1004a from vtb_org_tb_0 where ts in ('2020-10-01 00:00:00.000', '2020-10-01 00:00:01.998')) w) fill(value, 7, 9) order by _wstart;
+ tinyint_col | last(int_col) |
+==============================
+ NULL        |     374865712 |
+           7 |             9 |
+
+taos> select sum(int_col) over (partition by tinyint_col) as s from vtb_null_ntb where ts <= '2020-10-01 00:00:00.002';
+           s           |
+========================
+            -728697294 |
+            -728697294 |
+
+taos> select sum(int_col) over w as s from vtb_null_ctb where ts <= '2020-10-01 00:00:00.002' window w as (partition by tinyint_col);
+           s           |
+========================
+            -728697294 |
+            -728697294 |

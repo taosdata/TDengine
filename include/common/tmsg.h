@@ -7173,8 +7173,9 @@ int32_t tDeserializeSMDropStreamReq(void* buf, int32_t bufLen, SMDropStreamReq* 
 void    tFreeMDropStreamReq(SMDropStreamReq* pReq);
 
 typedef struct {
-  char*  name;
-  int8_t igNotExists;
+  char*   name;
+  int8_t  igNotExists;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMPauseStreamReq;
 
 int32_t tSerializeSMPauseStreamReq(void* buf, int32_t bufLen, const SMPauseStreamReq* pReq);
@@ -7185,6 +7186,7 @@ typedef struct {
   char*  name;
   int8_t igNotExists;
   int8_t igUntreated;
+  int64_t txnId;  // batch meta txn ID (0 = not in txn)
 } SMResumeStreamReq;
 
 int32_t tSerializeSMResumeStreamReq(void* buf, int32_t bufLen, const SMResumeStreamReq* pReq);

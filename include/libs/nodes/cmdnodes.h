@@ -1072,9 +1072,13 @@ typedef struct SShowTokensStmt {
   ENodeType type;
 } SShowTokensStmt;
 
+// STransStmt.flags bits (BEGIN options); add new options here instead of new fields.
+#define TRANS_STMT_FLAG_ALLOW_NONTXN (1 << 0)  // BEGIN ALLOW_NONTRANSACTIONAL
+
 typedef struct STransStmt {
   ENodeType type;
   int32_t   transType;
+  uint8_t   flags;  // TRANS_STMT_FLAG_*
   txn_id_t  transId;
 } STransStmt;
 

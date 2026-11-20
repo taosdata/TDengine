@@ -53,12 +53,17 @@ from lib.tsfm.mgmt.foundation_model import (
     download_foundation_model,
     download_foundation_runtime,
     ensure_pending_deletes_resumed,
+    get_foundation_runtime,
     get_model_info,
+    get_runtime_upgrade,
     init_models_db,
     list_all_tsfm,
+    recover_runtime_upgrade,
     resume_due_downloads,
+    runtime_maintenance_guard,
     start_foundation_model,
     stop_foundation_model,
+    upgrade_foundation_runtime,
 )
 from lib.tsfm.mgmt.response_event import (
     get_all_operations_stream,
@@ -105,6 +110,18 @@ def _resume_interrupted_deletes():
         ensure_pending_deletes_resumed()
     except Exception as exc:  # recovery is best-effort; never break the request
         AppLogger.error("Failed to resume interrupted model deletes: %s", exc)
+
+
+@app.before_request
+def _guard_runtime_maintenance():
+    if request.method == "POST" and request.path in {
+        "/api/v1/foundation-models/start", "/api/v1/foundation-models/stop",
+        "/api/v1/foundation-models/delete", "/api/v1/foundation-models/download",
+        "/api/v1/foundation-models/download-start", "/api/v1/foundation-models/runtime/download",
+        "/api/v1/foundation-models/runtime/delete",
+    }:
+        return runtime_maintenance_guard()
+    return None
 
 
 @app.route("/")
@@ -284,6 +301,26 @@ def handle_download_foundation_runtime_req():
 def handle_delete_foundation_runtime_req():
     """Destroy the shared TSFM runtime (venv) environment (async operation)"""
     return delete_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime", methods=["GET"])
+def handle_get_foundation_runtime_req():
+    return get_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrade", methods=["POST"])
+def handle_upgrade_foundation_runtime_req():
+    return upgrade_foundation_runtime(request)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrades/<task_id>", methods=["GET"])
+def handle_get_runtime_upgrade_req(task_id):
+    return get_runtime_upgrade(request, task_id)
+
+
+@app.route("/api/v1/foundation-models/runtime/upgrades/<task_id>/recover", methods=["POST"])
+def handle_recover_runtime_upgrade_req(task_id):
+    return recover_runtime_upgrade(request, task_id)
 
 
 @app.route("/api/v1/foundation-models/<task_id>/status", methods=["GET"])

@@ -293,6 +293,11 @@ typedef struct SExchangeInfo {
   int32_t      current;
   SLoadRemoteDataInfo loadInfo;
   int64_t             self;
+  uint64_t            lifecycleQueryId;
+  uint64_t            lifecycleTaskId;
+  int64_t             lifecycleBlockId;
+  int64_t             lifecycleFetchId;
+  bool                traceLifecycle;
   SLimitInfo          limitInfo;
   int64_t             openedTs;  // start exec time stamp, todo: move to SLoadRemoteDataInfo
   char*               pTaskId;

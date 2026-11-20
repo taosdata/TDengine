@@ -103,6 +103,8 @@ typedef enum {
       4,                          // In-place: stream marked PRE_CREATE; COMMIT clears the marker then async-deploys
                                   // (mndApplyTxnStreamActions, after the commit trans is prepared), ROLLBACK removes it
   MND_SHADOW_OP_DROP_STREAM = 5,  // In-place: stream marked PRE_DROP; undeploy+remove on COMMIT, unmark on ROLLBACK
+  MND_SHADOW_OP_ALTER_STREAM_STATE = 6,  // Pre-existing stream locked (PRE_ALTER) with a pending START/STOP intent;
+                                         // COMMIT applies userStopped then (un)deploys, ROLLBACK unmarks
 } EMndShadowOpType;
 
 typedef struct SMndShadowOp {

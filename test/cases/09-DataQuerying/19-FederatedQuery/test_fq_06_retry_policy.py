@@ -29,10 +29,12 @@ Design notes:
     - SQL Server (4th external source; zero pushdown in step 1, so the remote
       SQL is a base scan) adds a parallel path to tests 001-005 and 007-009
       using the shared SQL Server helpers (sqlserver_exec /
-      stop|start_sqlserver_instance / _mk_sqlserver_real) plus the lock-based
-      slow-query substitute _sqlserver_hold_table_lock — T-SQL has no
-      SELECT-embedded SLEEP().  Tests keep the existing MySQL/PG/InfluxDB
-      paths unchanged and add the SQL Server path at the end of each test.
+      stop|start_sqlserver_instance / _mk_sqlserver_real) plus a lock-based
+      slow-query substitute — T-SQL has no SELECT-embedded SLEEP().  FQ-06-003
+      additionally confirms the lock and the blocked scan through SQL Server
+      DMVs before asserting pool exhaustion (see the fixture notes there).
+      Tests keep the existing MySQL/PG/InfluxDB paths unchanged and add the
+      SQL Server path at the end of each test.
     - FQ-06-006 stays MySQL-only: SQL Server native error 916 maps to
       EXT_ACCESS_DENIED, but a table-level permission error (native 229) falls
       through to EXT_REMOTE_INTERNAL, which FQ-06-009 covers.
@@ -180,25 +182,103 @@ _SQLSERVER_PUSH_T_SQLS = [
 ]
 
 
-def _sqlserver_hold_table_lock(database, seconds):
-    """Block remote readers of ``dbo.push_t`` for *seconds*.
+# ---------------------------------------------------------------------------
+# SQL Server resource-exhaustion fixtures
+# ---------------------------------------------------------------------------
+# SQL Server has no SELECT-embedded SLEEP(), so a remote scan is made slow by
+# an exclusive table lock (TABLOCKX) held in a background sqlcmd session.
+# Resource-exhaustion setup must not depend on fixed sleeps: on a loaded
+# worker the lock holder can take longer to start than any sleep that is short
+# enough to keep the case fast, and the assertion then runs against a free
+# pool.  Both preconditions are therefore confirmed positively:
+#   * the lock holder takes TABLOCKX and polls dbo.pool_lock_release inside its
+#     transaction, so the lock stays held until the test explicitly releases
+#     it — there is no wall-clock window that can be outrun;
+#   * _wait_sqlserver_table_lock() polls sys.dm_tran_locks until the X lock is
+#     granted, and _wait_sqlserver_blocked_scan() polls sys.dm_exec_requests
+#     until the federated scan is visibly blocked by that session.  A scan
+#     blocked at SQL Server has already opened its ext-connector connection,
+#     so it occupies the single pool slot by construction.
+# The lock is released only after the EXT_RESOURCE_EXHAUSTED assertion, so the
+# client retry chain (EXT_POOL_RETRY_MAX_TIMES x 1 s) can never outlast it.
 
-    SQL Server has no SELECT-embedded SLEEP(), so the row-locking waits used by
-    the MySQL paths cannot be translated literally.  A background sqlcmd
-    session opens a transaction, takes an exclusive table lock with
-    ``WITH (TABLOCKX)`` and holds it via ``WAITFOR DELAY`` before committing;
-    a concurrent plain SELECT (no locking hint) blocks for the whole window.
-    This is used to keep the single ext-connector pool slot busy (test 003)
-    and to make a remote scan deterministically slow.
+_SQLSERVER_LOCK_DEADLINE_S = 120
+_SQLSERVER_LOCK_WAIT_S = 60.0
+_SQLSERVER_BLOCKED_WAIT_S = 30.0
+_SQLSERVER_POLL_INTERVAL_S = 0.5
+_SQLSERVER_LOCK_TABLE = "dbo.push_t"
+_SQLSERVER_RELEASE_TABLE = "dbo.pool_lock_release"
+
+_SQLSERVER_HOLD_LOCK_SQL = (
+    "SET XACT_ABORT ON; BEGIN TRANSACTION; "
+    f"SELECT COUNT(*) FROM {_SQLSERVER_LOCK_TABLE} WITH (TABLOCKX); "
+    f"DECLARE @deadline DATETIME2 = DATEADD(second, {_SQLSERVER_LOCK_DEADLINE_S}, "
+    "SYSUTCDATETIME()); "
+    f"WHILE NOT EXISTS (SELECT 1 FROM {_SQLSERVER_RELEASE_TABLE}) "
+    "BEGIN "
+    "IF SYSUTCDATETIME() >= @deadline "
+    "BEGIN ROLLBACK TRANSACTION; THROW 50000, 'Pool lock release timed out', 1; END; "
+    "WAITFOR DELAY '00:00:00.500'; END; "
+    "COMMIT TRANSACTION"
+)
+
+_SQLSERVER_RELEASE_SQL = f"INSERT INTO {_SQLSERVER_RELEASE_TABLE} VALUES (1)"
+
+
+def _wait_sqlserver_table_lock(database, holder_errors, timeout=_SQLSERVER_LOCK_WAIT_S):
+    """Return the lock holder's session id once it owns the table X lock.
+
+    ``holder_errors`` is the lock-holder thread's error list; a background
+    failure is reported immediately instead of waiting out the timeout.
     """
-    ExtSrcEnv.sqlserver_exec(database, [
-        "BEGIN TRANSACTION; "
-        "SELECT COUNT(*) FROM dbo.push_t WITH (TABLOCKX); "
-        # WAITFOR takes HH:MM:SS; the seconds field must stay below 60, so
-        # anything from a minute upwards has to carry into the minutes field.
-        f"WAITFOR DELAY '{int(seconds) // 3600:02d}:{(int(seconds) % 3600) // 60:02d}:{int(seconds) % 60:02d}'; "
-        "COMMIT TRANSACTION",
-    ])
+    deadline = time.monotonic() + timeout
+    while True:
+        if holder_errors:
+            raise AssertionError(f"SQL Server lock holder failed: {holder_errors[0]}")
+        session = ExtSrcEnv.sqlserver_query(
+            database,
+            "SELECT COALESCE(MAX(request_session_id), 0) FROM sys.dm_tran_locks "
+            "WHERE resource_database_id = DB_ID() AND resource_type = 'OBJECT' "
+            "AND request_mode = 'X' AND request_status = 'GRANT' "
+            f"AND resource_associated_entity_id = OBJECT_ID('{_SQLSERVER_LOCK_TABLE}')",
+        )
+        if int(session or 0) > 0:
+            return int(session)
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"SQL Server did not hold the {_SQLSERVER_LOCK_TABLE} TABLOCKX "
+                f"within {timeout:.0f}s"
+            )
+        time.sleep(_SQLSERVER_POLL_INTERVAL_S)
+
+
+def _wait_sqlserver_blocked_scan(database, lock_session, scan_errors,
+                                 timeout=_SQLSERVER_BLOCKED_WAIT_S):
+    """Return once a federated scan is blocked by the lock-holder session.
+
+    ``scan_errors`` is the blocked-query thread's error list; a background
+    failure is reported immediately instead of waiting out the timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        if scan_errors:
+            raise AssertionError(
+                f"SQL Server blocked-query thread failed: {scan_errors[0]}"
+            )
+        blocked = ExtSrcEnv.sqlserver_query(
+            database,
+            "SELECT COUNT(*) FROM sys.dm_exec_requests "
+            f"WHERE database_id = DB_ID() AND blocking_session_id = {lock_session} "
+            "AND wait_type LIKE 'LCK_M_%' AND session_id <> @@SPID",
+        )
+        if int(blocked or 0) > 0:
+            return
+        if time.monotonic() >= deadline:
+            raise AssertionError(
+                f"SQL Server scan was not blocked by session {lock_session} "
+                f"within {timeout:.0f}s"
+            )
+        time.sleep(_SQLSERVER_POLL_INTERVAL_S)
 
 
 def _wait_dnode_var(param, value, timeout=30.0):
@@ -958,6 +1038,10 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             - 2026-07-01 wpan Full exhaustion test: extConnectorUpdateModuleCfg()
                                propagates ALTER DNODE SET to pool creation; threading
                                with MySQL SLEEP() VIEW holds slot for RESOURCE_EXHAUSTED.
+            - 2026-11-19 wpan SQL Server: confirm TABLOCKX and the blocked scan via
+                               DMVs before asserting, and hold the lock until an
+                               explicit release so a loaded worker cannot let the
+                               setup or the retry chain expire mid-assertion.
 
         """
 
@@ -1097,16 +1181,27 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         #
         # SQL Server has no SELECT-embedded SLEEP(): the single pool slot is
         # held by a federated base scan that blocks on an exclusive table lock
-        # (TABLOCKX) held by a background sqlcmd session.  The 12s lock window
-        # outlasts the client's retry loop for the retryable
-        # EXT_RESOURCE_EXHAUSTED error, as with the MySQL SLEEP(10) above.
+        # (TABLOCKX) held by a background sqlcmd session.  The lock stays held
+        # until an explicit release, and both setup preconditions are confirmed
+        # before the assertion — see the fixture notes at the top of the file.
         # ----------------------------------------------------------------
         s_src = "fq_06_003_s"
         s_db = "fq_06_003_s_ext"
         self._cleanup_src(s_src)
+        lt = None
+        bt = None
+        lock_errors = []
+        bg_errors = []
+        release_ready = False
         try:
             ExtSrcEnv.sqlserver_create_db(s_db)
             ExtSrcEnv.sqlserver_exec(s_db, _SQLSERVER_PUSH_T_SQLS)
+            ExtSrcEnv.sqlserver_exec(s_db, [
+                f"IF OBJECT_ID('{_SQLSERVER_RELEASE_TABLE}') IS NOT NULL "
+                f"DROP TABLE {_SQLSERVER_RELEASE_TABLE}",
+                f"CREATE TABLE {_SQLSERVER_RELEASE_TABLE} (released INT)",
+            ])
+            release_ready = True
 
             _alter_max_pool_size("1")
             self._mk_sqlserver_real(s_src, database=s_db, schema="dbo")
@@ -1115,12 +1210,9 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
 
-            lock_errors: list = []
-            bg_errors: list = []
-
             def _hold_lock():
                 try:
-                    _sqlserver_hold_table_lock(s_db, 12)
+                    ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_HOLD_LOCK_SQL])
                 except Exception as exc:
                     lock_errors.append(exc)
 
@@ -1144,11 +1236,11 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
 
             lt = threading.Thread(target=_hold_lock, daemon=True)
             lt.start()
-            time.sleep(1.5)  # let the lock holder acquire TABLOCKX
+            lock_session = _wait_sqlserver_table_lock(s_db, lock_errors)
             # Thread B: the blocked scan keeps the single pool slot busy.
             bt = threading.Thread(target=_run_blocked, daemon=True)
             bt.start()
-            time.sleep(1.5)  # blocked scan now occupies the pool slot
+            _wait_sqlserver_blocked_scan(s_db, lock_session, bg_errors)
 
             # Dimension a) Second query hits pool cap → RESOURCE_EXHAUSTED
             tdSql.error(
@@ -1163,21 +1255,36 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
             )
             tdSql.checkRows(1)
 
-            # Wait for the lock window to elapse and the blocked scan to finish
+            # The client retry chain has finished; release the lock only now.
+            ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_RELEASE_SQL])
             bt.join(timeout=60)
-            lt.join(timeout=30)
-            if bt.is_alive() or lt.is_alive():
-                tdLog.warning("Background SQL Server threads did not finish in time")
-            if lock_errors:
-                tdLog.warning(f"Lock-holder thread error: {lock_errors[0]}")
-            if bg_errors:
-                tdLog.warning(f"Blocked-query thread error: {bg_errors[0]}")
+            lt.join(timeout=60)
+            assert not bt.is_alive(), "Blocked-query thread did not finish after release"
+            assert not lt.is_alive(), "Lock-holder thread did not finish after release"
+            assert not lock_errors, f"Lock-holder thread error: {lock_errors}"
+            assert not bg_errors, f"Blocked-query thread error: {bg_errors}"
 
             # Dimension c) Recovery: slot freed → next query succeeds
             tdSql.query(f"select count(*) from {s_src}.push_t")
             tdSql.checkData(0, 0, 5)
 
         finally:
+            if release_ready:
+                # Release the marker even when the assertion failed: the
+                # lock-holder exits as soon as it observes the row, and the
+                # release is idempotent (the holder only tests for existence).
+                try:
+                    ExtSrcEnv.sqlserver_exec(s_db, [_SQLSERVER_RELEASE_SQL])
+                except Exception as exc:
+                    tdLog.warning(f"SQL Server lock release failed: {exc}")
+                if lt is not None:
+                    lt.join(timeout=_SQLSERVER_LOCK_DEADLINE_S + 30)
+                    if lt.is_alive():
+                        tdLog.warning("SQL Server lock-holder thread did not stop")
+                if bt is not None:
+                    bt.join(timeout=30)
+                    if bt.is_alive():
+                        tdLog.warning("SQL Server blocked-query thread did not stop")
             self._cleanup_src(s_src)
             try:
                 ExtSrcEnv.sqlserver_drop_db(s_db)
@@ -1196,7 +1303,7 @@ class TestFq06RetryPolicy(FederatedQueryVersionedMixin):
         # by a federated base scan over a view that calls DBMS_SESSION.SLEEP
         # through a SYSTEM-owned wrapper.  The 10 s sleep outlasts the client's
         # retry loop for the retryable EXT_RESOURCE_EXHAUSTED error, as with
-        # the MySQL SLEEP(10) and the SQL Server 12 s lock above.  The pool
+        # the MySQL SLEEP(10) and the SQL Server lock above.  The pool
         # acquire itself waits about the connect timeout (5 s) before giving
         # up, so the exhausted error arrives well inside the sleep window.
         # ----------------------------------------------------------------

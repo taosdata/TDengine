@@ -292,6 +292,38 @@ class TestCase:
             self.clearEnv()
             raise Exception(repr(e))
 
+    def _prepare_dual_replica_drop_target(self):
+        statement = "select `id`, `role`, `status` from information_schema.ins_mnodes"
+        rows = tdSql.query(statement, row_tag=True)
+        if not any(row[0] == 3 and row[1] == "leader" for row in rows):
+            return
+        expected_ids = {row[0] for row in rows}
+        if len(expected_ids) < 3:
+            raise RuntimeError(f"Cannot prepare grant stub drop dnode 3 with this mnode topology: {rows!r}")
+
+        def wait_for_topology(predicate):
+            deadline = time.monotonic() + 60
+            observed = []
+            while time.monotonic() < deadline:
+                observed = tdSql.query(statement, row_tag=True, queryTimes=1, exit=False) or []
+                if predicate(observed):
+                    return
+                time.sleep(1)
+            raise TimeoutError(f"Grant stub drop dnode 3 topology did not become ready: {observed!r}")
+
+        tdLog.info("Grant dual-replica stub drops dnode 3; moving mnode leadership before invoking it")
+        try:
+            tdDnodes.stop(3)
+            wait_for_topology(lambda current: any(
+                row[0] != 3 and row[1] == "leader" and row[2] == "ready" for row in current))
+        finally:
+            tdDnodes.startWithoutSleep(3)
+        wait_for_topology(lambda current: (
+            {row[0] for row in current} == expected_ids
+            and sum(row[1] == "leader" for row in current) == 1
+            and all(row[1] in ("leader", "follower") and row[2] == "ready" for row in current)
+            and any(row[0] == 3 and row[1] == "follower" for row in current)))
+
     def s4_ts6191_check_dual_replica(self):
         tdLog.printNoPrefix("======== test dual replica: ")
         try:
@@ -302,6 +334,7 @@ class TestCase:
             tdSql.query("select * from information_schema.ins_dnodes;")
             tdSql.checkRows(3)
 
+            self._prepare_dual_replica_drop_target()
             self.genClusterInfo(check=False)
             process = self._run_grant_test('2')
             output, error = process.stdout, process.stderr
@@ -387,6 +420,7 @@ class TestCase:
             2. Optional extra steps shipped with the enterprise sources (s5_run_ext_steps).
             4. Consistency of statistics for grant-related commands (show grants, show grants full).
             5. The impact of adding, deleting, and modifying various tables on timeseries statistics.
+            6. Prepare dnode3 as a follower before the external dual-replica stub drops it, preserving the original mnode count and grant assertions.
 
         Since: 2026-03-13
 

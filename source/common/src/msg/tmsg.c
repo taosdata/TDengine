@@ -20691,10 +20691,18 @@ _exit:
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pRSmaParam->name));
-  if (pRSmaParam->name[0] == '\0') {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  // pRSmaParam->name is kept in the super table entry as a C string and later walked by
+  // tEncodeSRSmaParam() -> tEncodeCStr() -> strlen() when the entry is persisted, so the wire
+  // payload must carry its NUL terminator; otherwise that walk runs past the end of the RPC
+  // buffer (CWE-125). rsmaNameLen == 0 also covers an empty encoding, for which the decoder
+  // yields a one-past-end pointer that must not be dereferenced.
+  char    *pRsmaName = NULL;
+  uint32_t rsmaNameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAndLen(pCoder, &pRsmaName, &rsmaNameLen));
+  if (rsmaNameLen == 0 || pRsmaName[rsmaNameLen] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
+  pRSmaParam->name = pRsmaName;
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pRSmaParam->uid));
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, (int8_t *)&pRSmaParam->intervalUnit));
   TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[0]));
@@ -22577,6 +22585,25 @@ _exit:
 
 
 
+// Column/tag reference names are consumed as C strings by the meta layer (tstrncpy, strncmp,
+// strcasecmp) while tDecodeCStr only hands out a pointer into the RPC message buffer, so the
+// terminating '\0' has to live inside the length-prefixed payload. Legal frames never carry a
+// zero-length payload for these fields: tEncodeSVAlterTbReq normalizes a NULL refSourceName to ""
+// and the parser guarantees the other three names are non-NULL before encoding, hence len == 0 is
+// rejected as well: the decoded pointer would otherwise sit on the next field or just past the
+// end of the message.
+static int32_t tDecodeAlterRefName(SDecoder *pDecoder, char **pName) {
+  char    *name = NULL;
+  uint32_t len = 0;
+
+  TAOS_CHECK_RETURN(tDecodeBinary(pDecoder, (uint8_t **)&name, &len));
+  if (len == 0 || name[len - 1] != '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  *pName = name;
+  return 0;
+}
+
 static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   int32_t code = 0;
   int32_t lino;
@@ -22614,10 +22641,22 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->colModBytes));
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
-    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
+    case TSDB_ALTER_TABLE_UPDATE_TAG_NAME: {
+      char    *newName = NULL;
+      uint32_t newNameLen = 0;
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colNewName));
+      TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &newName, &newNameLen));
+      // Consumers copy colNewName with tstrncpy()/strncpy() into a fixed TSDB_COL_NAME_LEN
+      // buffer (metaAlterTableColumnName / metaAlterTableTagName), so the terminating '\0'
+      // must be inside the length-prefixed payload. newNameLen == 0 also covers an empty
+      // encoding, for which the decoder yields a one-past-end pointer when the field is the
+      // last one; that pointer must not be dereferenced.
+      if (newNameLen == 0 || newName[newNameLen] != '\0') {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
+      pReq->colNewName = newName;
       break;
+    }
     case TSDB_ALTER_TABLE_UPDATE_TAG_VAL: {
       // this is a legacy action, covert it to TSDB_ALTER_TABLE_UPDATE_MULTI_TABLE_TAG_VAL
       // with one table and one tag
@@ -22683,7 +22722,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       }
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->newCommentLen));
       if (pReq->newCommentLen > 0) {
-        TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->newComment));
+        // newComment is accessed as a C string of newCommentLen + 1 bytes downstream
+        // (metaCheckUpdateTableOptionsReq() -> strnlen(), metaUpdateTableOptions2() -> memcpy()),
+        // so the wire payload must carry exactly that many bytes and end with its NUL terminator;
+        // otherwise those walks run past the end of the RPC buffer (CWE-125).
+        char    *pComment = NULL;
+        uint32_t commentLen = 0;
+        TAOS_CHECK_EXIT(tDecodeCStrAndLen(pDecoder, &pComment, &commentLen));
+        if (commentLen != (uint32_t)pReq->newCommentLen || pComment == NULL ||
+            pComment[commentLen] != '\0') {
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+        }
+        pReq->newComment = pComment;
       }
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_COMPRESS:
@@ -22700,11 +22750,11 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
     case TSDB_ALTER_TABLE_ALTER_COLUMN_REF:
     case TSDB_ALTER_TABLE_ALTER_TAG_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refDbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refTbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refColName));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->refType));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refSourceName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refSourceName));
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
       break;
     case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:
@@ -22715,18 +22765,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refDbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refTbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refColName));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->refType));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refSourceName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refSourceName));
       TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
       break;
     case TSDB_ALTER_TABLE_ADD_SERIES:
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesSourceName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesDbName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesMeasurementName));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesSourceName, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesDbName, NULL));
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesMeasurementName, NULL));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->seriesTagCondLen));
       if (pReq->seriesTagCondLen > 0) {
         pReq->seriesTagCondJson = taosMemoryMalloc(pReq->seriesTagCondLen + 1);
@@ -22750,9 +22800,9 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->type));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->flags));
       TAOS_CHECK_EXIT(tDecodeI32v(pDecoder, &pReq->bytes));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refDbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refTbName));
-      TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->refColName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refDbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refTbName));
+      TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refColName));
       break;
     default:
       break;

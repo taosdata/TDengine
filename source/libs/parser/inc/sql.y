@@ -1464,7 +1464,9 @@ cmd ::= DROP MOUNT exists_opt(A) mount_name(B).                                 
 
 /*********************************** Transaction - begin/commit/rollback ***************************************/
 cmd ::= BEGIN.                                                                    { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= BEGIN ALLOW_NONTRANSACTIONAL.                                             { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= START TRANSACTION.                                                        { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_BEGIN_TRANS_STMT); }
+cmd ::= START TRANSACTION ALLOW_NONTRANSACTIONAL.                                 { pCxt->pRootNode = createBeginTransStmtAllowNonTxn(pCxt); }
 cmd ::= COMMIT.                                                                   { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_COMMIT_TRANS_STMT); }
 cmd ::= ROLLBACK.                                                                 { pCxt->pRootNode = createTransStmt(pCxt, QUERY_NODE_ROLLBACK_TRANS_STMT); }
 /************************************************ show ****************************************************************/
@@ -3049,8 +3051,8 @@ join_on_clause(A) ::= ON search_condition(B).                                   
 %type window_time_clause_opt { SNodeList* }
 %destructor window_time_clause_opt { nodesDestroyList($$); }
 window_time_clause_opt(A) ::= . [WINDOW_TIME] { A = NULL; }
-window_time_clause_opt(A) ::= WINDOW_TIME NK_LP column_reference(B)
-  NK_COMMA column_reference(C) NK_RP.
+window_time_clause_opt(A) ::= WINDOW_TIME NK_LP expression(B)
+  NK_COMMA expression(C) NK_RP.
 {
   A = createNodeList(pCxt, releaseRawExprNode(pCxt, B));
   A = addNodeToList(pCxt, A, releaseRawExprNode(pCxt, C));

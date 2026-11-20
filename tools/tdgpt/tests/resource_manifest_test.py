@@ -19,7 +19,30 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from resource_manifest import COMPLETION_FILE, validate_tsfm_model, validate_tsfm_runtime
+from resource_manifest import COMPLETION_FILE, release_resource_file, validate_tsfm_model, validate_tsfm_runtime
+
+
+@pytest.mark.parametrize("schema_version,item,expected", [
+    (1, {"file": "model.zip"}, "model.zip"),
+    (1, {"file": "sub/model.zip"}, "sub/model.zip"),
+    (2, {"file": "model.zip", "path": "models/model.zip"}, "../models/model.zip"),
+    (2, {"kind": "runtime", "file": "runtime.tar.xz"}, "runtime.tar.xz"),
+])
+def test_release_resource_path_contract(schema_version, item, expected):
+    assert release_resource_file(item, schema_version) == expected
+
+
+@pytest.mark.parametrize("schema_version,item,error", [
+    (1, {"file": "model.zip", "path": "models/model.zip"}, "require release schema_version 2"),
+    (2, {"kind": "runtime", "file": "runtime.zip", "path": "models/runtime.zip"}, "only model resources"),
+    (2, {"file": "runtime.zip"}, "model path"),
+    (True, {"file": "model.zip"}, "unsupported"),
+    ("2", {"file": "model.zip"}, "unsupported"),
+    (3, {"file": "model.zip"}, "unsupported"),
+])
+def test_release_resource_path_rejects_incompatible_metadata(schema_version, item, error):
+    with pytest.raises(ValueError, match=error):
+        release_resource_file(item, schema_version)
 
 
 def test_runtime_manifest_requires_completed_import(tmp_path, mocker):

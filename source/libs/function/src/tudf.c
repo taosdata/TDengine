@@ -324,31 +324,42 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void *)pData;
+  if (err != 0) {
+    // Return a stable TDengine error code instead of the raw libuv errno so
+    // that callers can report it with tstrerror().
+    fnError("cannot spawn udfd. path: %s, error: %s", path, uv_strerror(err));
+    err = TSDB_CODE_UDF_UV_EXEC_FAILURE;
+    goto _OVER;
+  }
 
 #ifdef WINDOWS
   // End udfd.exe by Job.
-  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+  if (pData->jobHandle != NULL) {
+    CloseHandle(pData->jobHandle);
+    pData->jobHandle = NULL;
+  }
   pData->jobHandle = CreateJobObject(NULL, NULL);
-  bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
-  if (!add_job_ok) {
-    fnError("Assign udfd to job failed.");
+  if (pData->jobHandle == NULL) {
+    fnError("create job object for udfd failed, error:%lu", (unsigned long)GetLastError());
   } else {
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
-    memset(&limit_info, 0x0, sizeof(limit_info));
-    limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-    bool set_auto_kill_ok =
-        SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
-    if (!set_auto_kill_ok) {
-      fnError("Set job auto kill udfd failed.");
+    bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
+    if (!add_job_ok) {
+      fnError("Assign udfd to job failed.");
+    } else {
+      JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
+      memset(&limit_info, 0x0, sizeof(limit_info));
+      limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+      bool set_auto_kill_ok =
+          SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info,
+                                  sizeof(limit_info));
+      if (!set_auto_kill_ok) {
+        fnError("Set job auto kill udfd failed.");
+      }
     }
   }
 #endif
 
-  if (err != 0) {
-    fnError("cannot spawn udfd. path: %s, error: %s", path, uv_strerror(err));
-  } else {
-    fnInfo("udfd is initialized");
-  }
+  fnInfo("udfd is initialized");
 
 _OVER:
   if (pathTaosdLdLibHeap) {
@@ -389,10 +400,29 @@ static void udfUdfdStopAsyncCb(uv_async_t *async) {
   uv_stop(&pData->loop);
 }
 
+// libuv error codes are small negative errno-style values (UV_UNKNOWN is -4096,
+// the lowest one); TDengine error codes have the sign bit set and are far
+// outside that range.
+#define UDF_UV_ERRNO_MIN (-65536)
+
+// Map a libuv error to the module error code so callers can render the reason
+// with tstrerror(). The raw libuv value and uv_strerror() text are passed to
+// fnError(), which taosudf.h compiles to nothing on Windows, so on Windows the
+// failure is only observable through the returned code and the caller's
+// "failed to start ... since ..." log.
+static int32_t udfMapUvErr(int32_t code) {
+  if (code == 0 || code > UDF_UV_ERRNO_MIN) {
+    return TSDB_CODE_UDF_UV_EXEC_FAILURE;
+  }
+  return code;
+}
+
 static void udfWatchUdfd(void *args) {
   TAOS_UDF_CHECK_PTR_RVOID(args);
   SUdfdData *pData = args;
+  bool       loopInited = false;
   TAOS_UV_CHECK_ERRNO(uv_loop_init(&pData->loop));
+  loopInited = true;
   TAOS_UV_CHECK_ERRNO(uv_async_init(&pData->loop, &pData->stopAsync, udfUdfdStopAsyncCb));
   pData->stopAsync.data = pData;
   TAOS_UV_CHECK_ERRNO(udfSpawnUdfd(pData));
@@ -410,26 +440,36 @@ static void udfWatchUdfd(void *args) {
   return;
 
 _exit:
-  if (terrno != 0) {
-    (void)uv_barrier_wait(&pData->barrier);
-    atomic_store_32(&pData->spawnErr, terrno);
-    // Any handle initialized before failure (stopAsync, ctrlPipe from a
-    // partial udfSpawnUdfd) must be closed and drained, otherwise
-    // uv_loop_close fails and leaks the loop's internal state.
+  // Publish the failure before releasing the starter thread: it reads
+  // spawnErr as soon as the barrier is lifted.
+  atomic_store_32(&pData->spawnErr, udfMapUvErr(terrno));
+  (void)uv_barrier_wait(&pData->barrier);
+
+  // The starter thread does not send any stop notification on this path; it
+  // only joins, so this thread exclusively owns the loop teardown and can
+  // close every initialized handle (stopAsync, ctrlPipe from a partial
+  // udfSpawnUdfd). Otherwise uv_loop_close fails and leaks the loop's
+  // internal state.
+  if (loopInited) {
     uv_walk(&pData->loop, udfUdfdCloseWalkCb, NULL);
     int32_t num = uv_run(&pData->loop, UV_RUN_DEFAULT);
     fnInfo("udfd loop exit with %d active handles, line:%d", num, __LINE__);
     if (uv_loop_close(&pData->loop) != 0) {
       fnError("udfd loop close failed, lino:%d", __LINE__);
     }
-    fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
-    terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;
   }
+  if (terrno < 0 && terrno > UDF_UV_ERRNO_MIN) {
+    fnError("udfd thread exit with libuv error:%s (%d) lino:%d", uv_strerror(terrno), terrno, terrln);
+  } else {
+    fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
+  }
+  terrno = TSDB_CODE_UDF_UV_EXEC_FAILURE;
   return;
 }
 
 int32_t udfStartUdfd(int32_t startDnodeId) {
   int32_t code = 0, lino = 0;
+  bool    barrierInited = false;
   if (!tsStartUdfd) {
     fnInfo("start udfd is disabled.") return 0;
   }
@@ -445,17 +485,34 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   pData->dnodeId = startDnodeId;
 
   TAOS_CHECK_GOTO(uv_barrier_init(&pData->barrier, 2), &lino, _exit);
+  barrierInited = true;
   TAOS_CHECK_GOTO(uv_thread_create(&pData->thread, udfWatchUdfd, pData), &lino, _exit);
   (void)uv_barrier_wait(&pData->barrier);
   int32_t err = atomic_load_32(&pData->spawnErr);
   if (err != 0) {
-    uv_barrier_destroy(&pData->barrier);
-    if (uv_async_send(&pData->stopAsync) != 0) {
-      fnError("start udfd: failed to send stop async");
+    // The worker published the failure before releasing the barrier and owns
+    // the loop teardown: it closes every initialized handle, including
+    // stopAsync. Do not send a stop notification from this thread -
+    // uv_async_send() asserts when the handle is closing, which is exactly
+    // the race that crashed taosd when taosudf was missing.
+    int32_t joinErr = uv_thread_join(&pData->thread);
+    if (joinErr != 0) {
+      // The worker has already left the wait, but it may still be inside the
+      // barrier's emulated primitives (libuv's Windows barrier is built on a
+      // mutex and a condition variable), so leak the barrier instead of
+      // destroying it underneath the worker.
+      fnError("start udfd: failed to join udfd thread, code:%d", joinErr);
+    } else {
+      // Destroy the barrier only after the worker has left it.
+      uv_barrier_destroy(&pData->barrier);
     }
-    if (uv_thread_join(&pData->thread) != 0) {
-      fnError("start udfd: failed to join udfd thread");
+    barrierInited = false;
+#ifdef WINDOWS
+    if (pData->jobHandle != NULL) {
+      CloseHandle(pData->jobHandle);
+      pData->jobHandle = NULL;
     }
+#endif
     pData->needCleanUp = false;
     fnInfo("udfd is cleaned up after spawn err");
     TAOS_CHECK_GOTO(err, &lino, _exit);
@@ -464,7 +521,16 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   }
 _exit:
   if (code != 0) {
-    fnError("udfd start failed with code:%d, lino:%d", code, lino);
+    if (barrierInited) {
+      // Only reachable when the worker thread could not be created.
+      uv_barrier_destroy(&pData->barrier);
+    }
+    if (code < 0 && code > UDF_UV_ERRNO_MIN) {
+      fnError("udfd start failed with libuv error:%s (%d), lino:%d", uv_strerror(code), code, lino);
+    } else {
+      fnError("udfd start failed with code:%d, lino:%d", code, lino);
+    }
+    code = udfMapUvErr(code);
   }
   return code;
 }
@@ -477,16 +543,24 @@ void udfStopUdfd() {
   }
   atomic_store_32(&pData->stopCalled, 1);
   pData->needCleanUp = false;
-  uv_barrier_destroy(&pData->barrier);
+  // needCleanUp implies a successful start, so stopAsync is initialized and
+  // the worker is blocked in uv_run(). The worker only leaves that loop after
+  // this notification, and stopCalled guarantees a single sender, so the
+  // handle cannot be closing here.
   if (uv_async_send(&pData->stopAsync) != 0) {
     fnError("stop udfd: failed to send stop async");
   }
   if (uv_thread_join(&pData->thread) != 0) {
     fnError("stop udfd: failed to join udfd thread");
   }
+  // Destroy the barrier only after the worker has left it.
+  uv_barrier_destroy(&pData->barrier);
 
 #ifdef WINDOWS
-  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+  if (pData->jobHandle != NULL) {
+    CloseHandle(pData->jobHandle);
+    pData->jobHandle = NULL;
+  }
 #endif
   fnInfo("udfd is cleaned up");
   return;

@@ -1086,7 +1086,7 @@ static int32_t checkTSColumn(SNode* pNode, bool* isMatch) {
 
 static int32_t checkPrimaryKey(SNode* pNode, bool* isMatch) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (nodeType(pNode) != QUERY_NODE_COLUMN || !IS_INTEGER_TYPE(getSDataTypeFromNode(pNode)->type) ||
+  if (nodeType(pNode) != QUERY_NODE_COLUMN ||
       !((SColumnNode*)pNode)->isPk) {
     code = TSDB_CODE_FUNC_FUNTION_PARA_PK;
     *isMatch = false;
@@ -2261,6 +2261,19 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   if (hasSep) {
     resultBytes += sepBytes * (numOfParams - 3);
   }
+
+  // The summed argument widths are only an upper bound used to size the output column and the
+  // scalar scratch buffer. Unbounded CAST(... AS VARCHAR) parameters each declare the maximum
+  // field width, so a few of them make the sum exceed TSDB_MAX_FIELD_LEN; the result type would
+  // then be rejected when CASE WHEN unifies branch types with an implicit CAST. Saturate the
+  // metadata instead -- the scalar function grows the buffer on demand and rejects any result
+  // that does not actually fit (see concatCopyHelper).
+  int32_t maxResultBytes = TSDB_MAX_FIELD_LEN;
+  if (TSDB_DATA_TYPE_NCHAR == resultType) {
+    maxResultBytes = ((TSDB_MAX_FIELD_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) * TSDB_NCHAR_SIZE +
+                     VARSTR_HEADER_SIZE;
+  }
+  resultBytes = TMIN(resultBytes, maxResultBytes);
 
   pFunc->node.resType = (SDataType){.bytes = resultBytes, .type = resultType};
   return TSDB_CODE_SUCCESS;
@@ -4063,7 +4076,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                    .inputParaInfo[0][3] = {.isLastParam = true,
                                            .startParam = 4,
                                            .endParam = 4,
-                                           .validDataType = FUNC_PARAM_SUPPORT_INTEGER_TYPE,
+                                           .validDataType =
+                                              FUNC_PARAM_SUPPORT_INTEGER_TYPE |
+                                              FUNC_PARAM_SUPPORT_VARCHAR_TYPE |
+                                              FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE,
                                            .validNodeType = FUNC_PARAM_SUPPORT_COLUMN_NODE,
                                            .paramAttribute = FUNC_PARAM_MUST_BE_PK,
                                            .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},

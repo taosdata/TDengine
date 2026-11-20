@@ -19,8 +19,9 @@ import errno
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
+import pytest
 import taosanode_service as service_module
 
 
@@ -359,3 +360,18 @@ class TestResourceVersionDisplay:
                 row = dict(zip(headers, lines[-1].split("  ")))
                 assert row["MODEL_VERSION"] == "unknown"
                 assert row["RESOURCE_VERSION"] == "1.0.0"
+
+
+@pytest.mark.parametrize("release", [None, "1.0.0"])
+def test_resource_service_release_default_and_explicit_rollback(monkeypatch, release):
+    argv = ["taosanode_service.py", "resource-check"]
+    if release is not None:
+        argv.extend(["--release", release])
+    monkeypatch.setattr(service_module.sys, "argv", argv)
+    monkeypatch.setattr(service_module, "Config", Mock())
+    execute = Mock()
+    monkeypatch.setattr(service_module, "execute_command", execute)
+    monkeypatch.setattr(service_module, "get_logger", Mock())
+    monkeypatch.setattr(service_module, "_set_log_level", Mock())
+    service_module.main()
+    assert execute.call_args.args[0].release == release

@@ -1,0 +1,25 @@
+#!/usr/bin/env dockerfile
+# Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+ARG BASE_IMAGE=quay.io/pypa/manylinux2014_x86_64
+FROM ${BASE_IMAGE}
+
+ARG UV_VERSION=0.13.9
+
+RUN yum install -y \
+       bzip2-devel curl-devel db4-devel libffi-devel libuuid-devel \
+       ncurses-devel openssl-devel readline-devel sqlite-devel tk-devel \
+       xz xz-devel findutils zlib-devel patchelf \
+    && yum clean all \
+    && rm -rf /var/cache/yum
+
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | UV_INSTALL_DIR=/opt/uv sh
+ENV PATH=/opt/uv:$PATH
+
+COPY build_python_runtime_linux.sh /opt/tdgpt/build_python_runtime_linux.sh
+RUN chmod 0755 /opt/tdgpt/build_python_runtime_linux.sh
+
+WORKDIR /work
+ENTRYPOINT ["/opt/tdgpt/build_python_runtime_linux.sh"]

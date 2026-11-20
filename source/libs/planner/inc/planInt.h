@@ -165,10 +165,36 @@ void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
 int32_t planCreateJoinPropsStore(SPlanContext* pCxt);
 void    planDestroyJoinPropsStore(SPlanContext* pCxt);
 int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planRefreshJoinRewriteInputs(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planCheckJoinRewriteConditions(SPlanContext* pCxt, SLogicNode* pRoot,
+                                       bool* pSupported);
+void    planResetJoinRewriteFlags(SLogicNode* pNode);
 int32_t planFinalizeTemporalJoins(SPlanContext* pCxt, SLogicNode* pRoot);
+int32_t planBindTemporalJoinTimeKeys(SPlanContext* pCxt,
+                                     SJoinLogicNode* pJoin);
+int32_t planRewriteJoinParallel(SPlanContext* pCxt, SLogicSubplan* pSubplan,
+                                bool* pChanged);
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt);
+// Only common expression dependencies; callers own traversal boundaries.
+bool planExprIsRuntimeDependent(const SNode* pNode);
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight);
+// True if StableJoin may still convert the JOIN.
+bool    planJoinMayBeStableJoin(const SJoinLogicNode* pJoin);
 // Valid until the next property rebuild or query-context cleanup.
 const SJoinInputProps* planGetJoinInputProps(
     const SPlanContext* pCxt, const SLogicNode* pNode);
+// Resolver bits identify NULL extensions that make the column NULL.
+// Return zero when the column's ownership is unknown.
+typedef uint64_t (*FPlanNullColumnResolver)(const SColumnNode* pColumn,
+                                            const void* pContext);
+// Returns bits proving the condition cannot be TRUE after that extension.
+// Borrows the expression/context; unknown expressions contribute no proof.
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext);
+// Call after classifying conditions and refreshing rewritten children.
+void    planRefreshJoinRewriteOrder(SJoinLogicNode* pJoin);
 int32_t planPrepareAsofJoinTimeCondition(SJoinLogicNode* pJoin);
 int32_t planRetainJoinTimeKeyTarget(SLogicNode* pChild, SNode* pKey);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan);

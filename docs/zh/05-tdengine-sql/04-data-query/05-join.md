@@ -218,6 +218,14 @@ FROM meters a JOIN meters b ON a.voltage < b.voltage;
 
 通用 Hint 格式和其他选项见 [基础查询的 Hints](./01-query.md#hints)。
 
+## 多表 JOIN 并行执行
+
+对于符合条件的多表 JOIN 查询，系统会自动将互不依赖的关联计算安排为并行执行，
+以缩短查询耗时。用户无需改写 SQL，查询结果保持不变；
+无法并行的部分仍按原有方式执行。
+
+是否能够并行取决于查询结构和关联条件，实际性能提升受数据规模、数据分布和可用资源影响。
+
 ## 语法说明
 
 后续章节会同时介绍 Left/Right Join 系列，因此 Outer、Semi、Anti-Semi、ASOF、Window 等说明中采用类似“左/右”的写法。写在 `/` 前面的适用于 Left Join，写在 `/` 后面的适用于 Right Join。
@@ -416,7 +424,7 @@ SELECT a.ts, a.voltage, b.ts, b.voltage FROM d1001 a LEFT ASOF JOIN d1002 b ON a
 ```sql
 SELECT ... FROM table_reference1
 LEFT|RIGHT WINDOW JOIN table_reference2 [ON ...]
-[WINDOW_TIME(left_time_column, right_time_column)]
+[WINDOW_TIME(left_time_expression, right_time_expression)]
 WINDOW_OFFSET(start_offset, end_offset)
 [JLIMIT jlimit_num] [WHERE ...] [...]
 ```
@@ -425,7 +433,8 @@ WINDOW_OFFSET(start_offset, end_offset)
 
 以下两种之一：
 
-- 左/右表每一行，与右/左表中按左/右表主键时间戳和 `WINDOW_OFFSET` 划分的窗口内至多 `jlimit_num` 条数据（或不存在时的 `NULL`）的笛卡尔积集合。
+- 左/右输入每一行，与另一侧落在该行时间参照值和 `WINDOW_OFFSET` 确定的窗口内
+  至多 `jlimit_num` 条数据（或不存在时的 `NULL`）的笛卡尔积集合。
 - 左/右表每一行，与上述窗口内至多 `jlimit_num` 条数据的聚合结果组成的行集合。没有匹配时，结果由聚合函数决定，例如 `COUNT(b.voltage)` 为 `0`，`AVG(b.voltage)` 为 `NULL`（`b` 为被匹配表）。
 
 #### 适用范围
@@ -439,21 +448,37 @@ JOIN 结果作为输入的规则见 [多表混合嵌套 JOIN](#多表混合嵌�
 #### 说明
 
 - `ON` 子句可选，只支持指定除主键列外的标签、普通列（不支持标量函数及运算）之间的等值条件用于分组；所有条件之间只支持 `AND`。
-- `WINDOW_OFFSET` 用于指定窗口左右边界相对左/右表主键时间戳的偏移量，支持自带时间单位的写法，例如 `WINDOW_OFFSET(-1a, 1a)`。对 Left Window Join，表示每个窗口为 `[左表主键时间戳 - 1 毫秒, 左表主键时间戳 + 1 毫秒]`，左右边界均为闭区间。数字后的时间单位可为 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）；不支持自然月（`n`）、自然年（`y`）。支持的最小时间单位为数据库精度，左右表所在数据库精度需一致。
-- `JLIMIT` 用于指定单个窗口内的最大匹配行数，可选；未指定时默认获取每个窗口内的全部匹配行。`JLIMIT` 取值范围为 `[0, 1024]`；指定 `JLIMIT 0` 时返回空结果。若被匹配一侧不足 `jlimit_num` 条，返回行数可能更少；若超过 `jlimit_num` 条，优先返回窗口内主键时间戳最小的 `jlimit_num` 条。
+- `WINDOW_OFFSET` 用于指定窗口左右边界相对保留侧每行时间参照值的偏移量，支持自带时间单位的写法，例如 `WINDOW_OFFSET(-1a, 1a)`。
+  对 Left Window Join，窗口为 `[左侧时间参照值 - 1 毫秒, 左侧时间参照值 + 1 毫秒]`；
+  对 Right Window Join，以右侧时间参照值构造窗口。左右边界均为闭区间。
+  数字后的时间单位可为 `b`（纳秒）、`u`（微秒）、`a`（毫秒）、`s`（秒）、`m`（分）、`h`（小时）、`d`（天）、`w`（周）；不支持自然月（`n`）、自然年（`y`）。
+  支持的最小时间单位为数据库精度，左右表所在数据库精度需一致。
+- `JLIMIT` 用于指定单个窗口内的最大匹配行数，可选；未指定时默认获取每个窗口内的全部匹配行。
+  `JLIMIT` 取值范围为 `[0, 1024]`；指定 `JLIMIT 0` 时返回空结果。
+  若被匹配一侧不足 `jlimit_num` 条，返回行数可能更少；若超过 `jlimit_num` 条，优先返回时间参照值最小的 `jlimit_num` 条。
+  时间参照值相同的候选行没有确定的取行顺序。
 - SQL 中不能再含其他 `GROUP BY` / `PARTITION BY` / 窗口查询。
 - 支持在 `WHERE` 中做标量过滤；支持在 `HAVING` 中针对每个窗口做聚合函数过滤（不支持标量过滤）；不支持 `SLIMIT`；不支持各种窗口伪列。
 - `WINDOW_TIME` 的第一个参数只在左输入中解析，第二个参数只在右输入中解析。
-  参数只能是 `TIMESTAMP` 列，可以使用输入别名限定；
-  不支持常量、函数或其它表达式。
-- 实际表、虚拟表和 FROM 子查询均可指定非主键 `TIMESTAMP` 列。
-- 未指定 `WINDOW_TIME` 时，实际表和虚拟表使用自身主时间列；FROM 子查询优先使用
-  输出列表中从左到右第一个保留主时间列语义的 `TIMESTAMP` 列。没有这样的列时，
-  使用第一个 `TIMESTAMP` 列，包括常量时间列。选择不依赖子查询的排序状态。
+  参数可以是 `TIMESTAMP` 列、`TIMESTAMP` 常量或结果为 `TIMESTAMP` 的逐行标量表达式。
+  表达式只能引用对应输入的列；不支持聚合函数、窗口函数、子查询和 `RAND()` 等非确定性函数。
+  普通字符串不是 `TIMESTAMP`，需要使用 `TIMESTAMP '...'` 或显式转换。
+- 实际表、虚拟表和 FROM 子查询均可指定非主键 `TIMESTAMP` 列或时间表达式。
+- 未指定 `WINDOW_TIME` 时，实际表和虚拟表使用自身主时间列；FROM 子查询优先使用输出列表中从左到右第一个保留主时间列语义的 `TIMESTAMP` 列。
+  没有这样的列时，使用第一个 `TIMESTAMP` 列，包括常量时间列。选择不依赖子查询的排序状态。
   主时间列语义的保留规则与 ASOF JOIN 相同。
-- 时间参照列为 `NULL` 的行不参与连接，也不会作为未匹配行返回。
+- 时间参照值为 `NULL` 的行不参与连接，也不会作为未匹配行返回。
 
 #### 示例
+
+以下查询以 `d1001` 每行的时间加 1 秒为参照值，在 `d1002` 中匹配同一时间的行：
+
+```sql
+SELECT a.ts, b.ts
+FROM d1001 a LEFT WINDOW JOIN d1002 b
+WINDOW_TIME(a.ts + 1s, b.ts)
+WINDOW_OFFSET(0s, 0s);
+```
 
 表 `d1001` 电压大于 220V 时，前后 1 秒区间内表 `d1002` 的电压值：
 

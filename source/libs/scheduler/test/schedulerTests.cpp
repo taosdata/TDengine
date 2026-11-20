@@ -81,6 +81,7 @@ extern "C" void schInitTaskRetryInfo(SSchJob *pJob, SSchTask *pTask, SSchLevel *
 extern "C" int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_t execId);
 extern "C" int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask);
+extern "C" void schDropJobAllTasks(SSchJob *pJob);
 extern "C" int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schSetAddrsFromNodeList(SSchJob *pJob, SSchTask *pTask);
 extern "C" int32_t schNotifyTaskOnExecNode(SSchJob *pJob, SSchTask *pTask, ETaskNotifyType type);
@@ -2089,6 +2090,87 @@ TEST(correlationTest, ignoresResponseFromPreviousExecution) {
   taosHashCleanup(task.execNodes);
 }
 
+TEST(correlationTest, joinRetryStopsAfterResultsReachCaller) {
+  SSchJob job = {};
+  job.seriesId = 3;
+  job.status = JOB_TASK_STATUS_PART_SUCC;
+  job.fetched = true;
+  EXPECT_EQ(TSDB_CODE_SYN_RESTORING,
+            schChkResetJobRetry(&job, TSDB_CODE_SYN_RESTORING));
+  EXPECT_TRUE(job.noMoreRetry);
+  EXPECT_EQ(3, job.seriesId);
+  EXPECT_EQ(JOB_TASK_STATUS_PART_SUCC, job.status);
+}
+
+TEST(correlationTest, joinRetryBeforeFirstResultRestoresExecutionStatus) {
+  SSchJob job = {};
+  job.seriesId = 3;
+  job.status = JOB_TASK_STATUS_PART_SUCC;
+  EXPECT_EQ(TSDB_CODE_SUCCESS,
+            schChkResetJobRetry(&job, TSDB_CODE_SYN_RESTORING));
+  EXPECT_FALSE(job.noMoreRetry);
+  EXPECT_EQ(3, job.seriesId);
+  EXPECT_EQ(JOB_TASK_STATUS_EXEC, job.status);
+}
+
+TEST(correlationTest, staleJoinRepliesCannotAlterCurrentExecution) {
+  SSchJob job = {};
+  job.attr.type = JOB_TYPE_QUERY;
+  job.seriesId = 3;
+  job.resNumOfRows = 123;
+  SSchTask task = {};
+  task.seriesId = 3;
+  task.execId = 2;
+  task.status = JOB_TASK_STATUS_EXEC;
+  task.handle = reinterpret_cast<void*>(0x2);
+  task.execNodes = taosHashInit(1,
+                                taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT),
+                                true, HASH_NO_LOCK);
+  ASSERT_NE(nullptr, task.execNodes);
+  SSchNodeInfo node = {};
+  node.handle = task.handle;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            taosHashPut(task.execNodes, &task.execId, sizeof(task.execId),
+                        &node, sizeof(node)));
+  const int32_t types[] = {TDMT_SCH_QUERY_RSP, TDMT_SCH_MERGE_QUERY_RSP,
+                           TDMT_SCH_FETCH_RSP, TDMT_SCH_MERGE_FETCH_RSP,
+                           TDMT_SCH_LINK_BROKEN};
+  const int32_t codes[] = {TSDB_CODE_SUCCESS, TSDB_CODE_SYN_RESTORING,
+                           TSDB_CODE_RPC_BROKEN_LINK};
+  for (int32_t type : types) {
+    for (int32_t code : codes) {
+      for (int32_t previous = 0; previous < 2; ++previous) {
+        SCOPED_TRACE(::testing::Message() << type << ":" << code << ":"
+                                         << previous);
+        SDataBuf reply = {};
+        reply.msgType = type;
+        reply.pData = taosMemoryMalloc(1);
+        reply.len = 1;
+        reply.handle = reinterpret_cast<void*>(0x3);
+        ASSERT_NE(nullptr, reply.pData);
+        EXPECT_EQ(TSDB_CODE_SCH_IGNORE_ERROR,
+                  schHandleResponseMsg(&job, &task, previous ? 3 : 2,
+                                        previous ? 1 : 2, &reply, code));
+        EXPECT_EQ(nullptr, reply.pData);
+        EXPECT_EQ(3, job.seriesId);
+        EXPECT_EQ(123, job.resNumOfRows);
+        EXPECT_EQ(TSDB_CODE_SUCCESS, job.errCode);
+        EXPECT_FALSE(job.noMoreRetry);
+        EXPECT_EQ(3, task.seriesId);
+        EXPECT_EQ(2, task.execId);
+        EXPECT_EQ(JOB_TASK_STATUS_EXEC, task.status);
+        EXPECT_EQ(reinterpret_cast<void*>(0x2), task.handle);
+        EXPECT_EQ(1, taosHashGetSize(task.execNodes));
+        auto* saved = static_cast<SSchNodeInfo*>(
+            taosHashGet(task.execNodes, &task.execId, sizeof(task.execId)));
+        ASSERT_NE(nullptr, saved);
+        EXPECT_EQ(reinterpret_cast<void*>(0x2), saved->handle);
+      }
+    }
+  }
+  taosHashCleanup(task.execNodes);
+}
+
 TEST(correlationTest, retainsParameterBytesAfterCallerReleasesThem) {
 #ifdef WINDOWS
   GTEST_SKIP() << "cppstub patching of scheduler planner hooks is unreliable in Windows release builds";
@@ -3783,3 +3865,82 @@ TEST_F(SubquerySchedulingTest, cleanupRetainsJobBeforePublishingFailure) {
   EXPECT_EQ(subqueryAsyncWork.size(), 1);
 }
 }  // namespace
+
+namespace {
+SSchJob* retryCleanupJob = nullptr;
+int32_t retryCleanupDrops = 0;
+
+int32_t acquireRetryCleanupJob(int64_t refId, SSchJob** job) {
+  *job = retryCleanupJob;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t releaseRetryCleanupJob(int64_t refId) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t launchRetryCleanupTask(SSchJob* job, SSchTask* task) {
+  SQueryNodeAddr addr = {};
+  task->handle = reinterpret_cast<void*>(0x55);
+  return schAppendTaskExecNode(job, task, &addr, task->execId);
+}
+
+int32_t sendRetryCleanupDrop(SSchJob* job, SSchTask* task,
+                             SQueryNodeAddr* addr, int32_t type, void* param) {
+  if (type == TDMT_SCH_DROP_TASK) {
+    ++retryCleanupDrops;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+}
+
+TEST(correlationTest, joinRetryReenrollsRunningTasksForResultCleanup) {
+#ifndef LINUX
+  GTEST_SKIP() << "Scheduler address stubs are supported by this Linux test";
+#endif
+  Stub stub;
+  stub.set(schAcquireJob, acquireRetryCleanupJob);
+  stub.set(schReleaseJob, releaseRetryCleanupJob);
+  stub.set(schLaunchRemoteTask, launchRetryCleanupTask);
+  stub.set(schBuildAndSendMsg, sendRetryCleanupDrop);
+  for (int8_t status : {JOB_TASK_STATUS_EXEC, JOB_TASK_STATUS_PART_SUCC,
+                        JOB_TASK_STATUS_FETCH}) {
+    SCOPED_TRACE(static_cast<int>(status));
+    SSchJob job = {};
+    SSchTask task = {};
+    SSchLevel level = {};
+    SSubplan plan = {};
+    job.attr.type = JOB_TYPE_QUERY;
+    job.status = JOB_TASK_STATUS_EXEC;
+    job.subJobId = -1;
+    job.seriesId = 1;
+    task.taskId = 101;
+    task.seriesId = 1;
+    task.level = &level;
+    task.plan = &plan;
+    task.status = status;
+    plan.subplanType = SUBPLAN_TYPE_MERGE;
+    task.profile.execTime = taosArrayInit(1, sizeof(int64_t));
+    auto taskHash = taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT);
+    auto execHash = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
+    job.execTasks = taosHashInit(1, taskHash, true, HASH_NO_LOCK);
+    task.execNodes = taosHashInit(1, execHash, true, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, job.execTasks);
+    ASSERT_NE(nullptr, task.execNodes);
+    ASSERT_NE(nullptr, task.profile.execTime);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, schPushTaskToExecList(&job, &task));
+    schResetTaskForRetry(&job, &task);
+    EXPECT_EQ(0, taosHashGetSize(job.execTasks));
+    retryCleanupJob = &job;
+    retryCleanupDrops = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, schLaunchTask(&job, &task));
+    EXPECT_EQ(1, taosHashGetSize(task.execNodes));
+    EXPECT_EQ(1, taosHashGetSize(job.execTasks));
+    schDropJobAllTasks(&job);
+    EXPECT_EQ(1, retryCleanupDrops);
+    taosHashCleanup(task.execNodes);
+    taosHashCleanup(job.execTasks);
+    taosArrayDestroy(task.profile.execTime);
+  }
+  retryCleanupJob = nullptr;
+}

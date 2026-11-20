@@ -668,6 +668,7 @@ SNode* createAlterAllDnodeTLSStmt(SAstCreateContext* pCxt, SToken* alterName);
 
 SNode* setNodeQuantifyType(SAstCreateContext* pCxt, SNode* pNode, EQuantifyType type);
 SNode* createTransStmt(SAstCreateContext* pCxt, ENodeType type);
+SNode* createBeginTransStmtAllowNonTxn(SAstCreateContext* pCxt);
 SNode* setSubquerySql(SAstCreateContext* pCxt, SNode* pNode, const SToken* pLp, const SToken* pRp);
 // =================== Federated query: external source DDL ===================
 SNode* createCreateExtSourceStmt(SAstCreateContext* pCxt, bool ignoreExists,

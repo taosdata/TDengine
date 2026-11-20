@@ -26,13 +26,18 @@ import os
 import platform
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, Tuple
 
 # Module-level logger only. This module is imported by resource_manager.py and
 # taosanode_service.py, so where these records go (CLI stderr vs service log)
 # stays a decision of whichever entry point is running.
 logger = logging.getLogger(__name__)
+
+# CLI scripts and the application library are separate deployment units.
+# Keep this release aligned with response_event.DEFAULT_RESOURCE_RELEASE;
+# test_resource_release_contract checks both units and every fallback entry point.
+DEFAULT_RESOURCE_RELEASE = "1.0.1"
 
 SCHEMA_VERSION = 1
 COMPLETION_FILE = ".tdgpt-install-complete.json"
@@ -101,6 +106,37 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: file_obj.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def release_resource_file(item: Dict[str, Any], schema_version: int = 1) -> str:
+    """Resolve a release entry relative to its manifest directory."""
+    if type(schema_version) is not int or schema_version not in (1, 2):
+        raise ValueError("unsupported resource release manifest")
+    filename = item.get("file")
+    if not isinstance(filename, str) or not filename:
+        raise ValueError("resource file must be a non-empty string")
+    normalized = filename.replace("\\", "/")
+    relative = PurePosixPath(normalized)
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or relative.as_posix() != normalized
+        or any(character in normalized for character in (":", "?", "#", "%"))
+    ):
+        raise ValueError(f"invalid resource file path: {filename}")
+    if schema_version == 1:
+        if "path" in item:
+            raise ValueError("shared resource paths require release schema_version 2")
+        return relative.as_posix()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", filename):
+        raise ValueError(f"invalid resource file name: {filename}")
+    if item.get("kind", "model") == "model":
+        if item.get("path") != f"models/{filename}":
+            raise ValueError("schema 2 model path must be models/<file>")
+        return f"../models/{filename}"
+    if "path" in item:
+        raise ValueError("only model resources may use a shared path")
+    return filename
 
 
 def load_manifest(path: Path) -> Dict[str, Any]:

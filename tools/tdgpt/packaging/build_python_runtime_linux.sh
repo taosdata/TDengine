@@ -21,17 +21,18 @@ command -v xz >/dev/null 2>&1 || { echo "xz is required to build tar.xz packages
 
 work_dir="${PWD}/tdgpt-python-runtime-build"
 output_dir="${PWD}/dist"
-python_version="3.12.12"
+python_version="3.12.16"
 arch=""
 uv_exe=""
 patchelf_bin=""
+min_uv_version="0.13.9"
 
 usage() {
   cat <<'EOF'
 Usage: build_python_runtime_linux.sh [options]
 
 Options:
-  --python-version VERSION  CPython version. Default: 3.12.12
+  --python-version VERSION  CPython version. Default: 3.12.16
   --work-dir DIR            Build workspace. Default: ./tdgpt-python-runtime-build
   --output-dir DIR          Archive output directory. Default: ./dist
   --arch x64|arm64          Validate the native architecture and name the output.
@@ -66,7 +67,21 @@ arch="${arch:-$native_arch}"
 
 uv_exe="${uv_exe:-$(command -v uv || true)}"
 [[ -n "$uv_exe" && -x "$uv_exe" ]] || {
-  echo "uv is required to build the portable Python runtime; install uv or pass --uv-exe PATH" >&2
+  echo "uv is required to build the portable Python runtime; install uv >= ${min_uv_version} or pass --uv-exe PATH" >&2
+  exit 1
+}
+if ! uv_output="$("$uv_exe" --version 2>&1)"; then
+  echo "Unable to query uv version ($uv_exe): $uv_output" >&2
+  exit 1
+fi
+if [[ "$uv_output" =~ ^uv\ ([0-9]+\.[0-9]+\.[0-9]+)($|\ ) ]]; then
+  uv_version="${BASH_REMATCH[1]}"
+else
+  echo "Unable to parse uv version ($uv_exe): $uv_output" >&2
+  exit 1
+fi
+[[ -n "$uv_version" && "$(printf '%s\n%s\n' "$min_uv_version" "$uv_version" | sort -V | head -n1)" == "$min_uv_version" ]] || {
+  echo "uv >= ${min_uv_version} is required to build the portable Python runtime; found ${uv_version:-unknown}" >&2
   exit 1
 }
 patchelf_bin="${patchelf_bin:-$(command -v patchelf || true)}"
@@ -124,65 +139,6 @@ verify_runtime_dependencies() {
   [[ "$failed" -eq 0 ]] || exit 1
 }
 
-build_sqlite_extension_if_missing() {
-  local python_include
-  local python_source_archive
-  local python_source_dir
-  local extension_suffix
-  local extension_dir
-  local compiler
-
-  if env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c 'import sqlite3' 2>/dev/null; then
-    return
-  fi
-
-  [[ -f /usr/include/sqlite3.h ]] || {
-    echo "The managed Python runtime does not provide sqlite3." >&2
-    echo "Install libsqlite3-dev and rebuild the runtime." >&2
-    exit 1
-  }
-
-  compiler="${CC:-cc}"
-  command -v "$compiler" >/dev/null 2>&1 || {
-    echo "A C compiler is required to build the missing sqlite3 extension." >&2
-    exit 1
-  }
-
-  python_source_archive="${work_dir}/Python-${python_version}.tgz"
-  python_source_dir="${work_dir}/Python-${python_version}"
-  if [[ ! -d "$python_source_dir" ]]; then
-    if [[ ! -f "$python_source_archive" ]]; then
-      if command -v curl >/dev/null 2>&1; then
-        curl -fL --retry 3 \
-          -o "$python_source_archive" \
-          "https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
-      elif command -v wget >/dev/null 2>&1; then
-        wget -O "$python_source_archive" \
-          "https://www.python.org/ftp/python/${python_version}/Python-${python_version}.tgz"
-      else
-        echo "curl or wget is required to download the CPython source archive." >&2
-        exit 1
-      fi
-    fi
-    tar -C "$work_dir" -xzf "$python_source_archive"
-  fi
-
-  python_include="$(env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c \
-    'import sysconfig; print(sysconfig.get_path("include"))')"
-  extension_suffix="$(env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c \
-    'import sysconfig; print(sysconfig.get_config_var("EXT_SUFFIX"))')"
-  extension_dir="$(env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c \
-    'import sysconfig; print(sysconfig.get_config_var("DESTSHARED"))')"
-  mkdir -p "$extension_dir"
-
-  "$compiler" -shared -fPIC -pthread -O3 \
-    -I"$python_include" \
-    -I"${python_source_dir}/Modules/_sqlite" \
-    "${python_source_dir}"/Modules/_sqlite/*.c \
-    -lsqlite3 \
-    -o "${extension_dir}/_sqlite3${extension_suffix}"
-}
-
 mkdir -p "$work_dir" "$output_dir"
 rm -rf "$uv_store" "$runtime_dir"
 "$uv_exe" python install --managed-python --install-dir "$uv_store" "$python_version"
@@ -204,7 +160,6 @@ mkdir -p "$runtime_dir"
 cp -a "${runtime_source}/." "$runtime_dir/"
 
 "${runtime_dir}/bin/python3" --version | grep -Fx "Python ${python_version}"
-build_sqlite_extension_if_missing
 patch_runtime_rpaths
 verify_runtime_dependencies
 env -u LD_LIBRARY_PATH "${runtime_dir}/bin/python3" -c \

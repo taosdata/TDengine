@@ -47,6 +47,105 @@ RUNTIME_INFO = {
 }
 
 
+class TestRuntimeUpgradeApi:
+    @pytest.mark.parametrize("release", [None, "latest", "1.0.1"])
+    def test_inventory_defaults_to_bundled_and_keeps_version_selection(self, release):
+        request = _request()
+        request.args = {} if release is None else {"release": release}
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=({}, 200)) as command:
+            foundation_model.get_foundation_runtime(request)
+        assert command.call_args.args[1] == "tsfm_runtime"
+        options = command.call_args.args[2]
+        if release:
+            assert options[-2:] == ["--release", release]
+        else:
+            assert "--release" not in options
+
+    def test_upgrade_requires_explicit_version_and_digest(self):
+        for payload in ({}, {"release": "1.0.1"}, {"release": "../bad", "expected_sha256": "0" * 64},
+                        {"release": "latest", "expected_sha256": "0" * 64}):
+            with patch.object(foundation_model, "_runtime_upgrade_cli") as command:
+                _, code = foundation_model.upgrade_foundation_runtime(_request(payload))
+            assert code == 400
+            command.assert_not_called()
+
+    def test_upgrade_returns_a_durable_task_to_poll(self):
+        task_id = "upgrade-" + "a" * 32
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(
+            {"status": "success", "data": {"task_id": task_id, "phase": "queued"}}, 200,
+        )) as command:
+            body, code = foundation_model.upgrade_foundation_runtime(_request({
+                "release": "1.0.1", "expected_sha256": "0" * 64,
+            }))
+        assert code == 202
+        assert body["task_id"] == task_id
+        assert body["next_action"].endswith(task_id)
+        assert command.call_args.args[0] == "upgrade"
+        assert "--expected-sha256" in command.call_args.kwargs["options"]
+
+    def test_upgrade_poll_returns_recovery_details(self):
+        task_id = "upgrade-" + "a" * 32
+        expected = {"status": "success", "data": {
+            "task_id": task_id, "status": "interrupted", "phase": "manual_intervention",
+            "error": "worker stopped", "running_models": ["moirai"],
+        }}
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(expected, 200)):
+            body, code = foundation_model.get_runtime_upgrade(_request(), task_id)
+        assert code == 200
+        assert body == expected
+
+    def test_mutations_are_rejected_while_runtime_needs_recovery(self):
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(
+            {"data": {"task": {"status": "interrupted", "task_id": "upgrade-active"}}}, 200,
+        )):
+            body, code = foundation_model.runtime_maintenance_guard()
+        assert code == 409
+        assert body["task_id"] == "upgrade-active"
+
+    def test_recovery_returns_the_existing_task(self):
+        task_id = "upgrade-" + "a" * 32
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(
+            {"data": {"task_id": task_id, "status": "queued", "phase": "queued"}}, 200,
+        )) as command:
+            body, code = foundation_model.recover_runtime_upgrade(_request(), task_id)
+        assert code == 202
+        assert body["task_id"] == task_id
+        command.assert_called_once_with("upgrade-recover", task_id)
+
+    def test_interrupted_history_does_not_prevent_upgrade(self, reset_models):
+        reset_models.create_async_operation(AsyncOperation(
+            task_id="download-old", operation="download", model_name="moirai", status="interrupted",
+        ))
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(
+            {"data": {"task_id": "upgrade-" + "a" * 32, "status": "queued"}}, 200,
+        )) as command:
+            _, code = foundation_model.upgrade_foundation_runtime(_request({
+                "release": "1.0.1", "expected_sha256": "0" * 64,
+            }))
+        assert code == 202
+        command.assert_called_once()
+
+    def test_aborted_recovery_returns_terminal_state(self):
+        task_id = "upgrade-" + "a" * 32
+        with patch.object(foundation_model, "_runtime_upgrade_cli", return_value=(
+            {"data": {"task_id": task_id, "status": "failed", "phase": "aborted"}}, 200,
+        )):
+            body, code = foundation_model.recover_runtime_upgrade(_request(), task_id)
+        assert code == 200
+        assert body["data"]["phase"] == "aborted"
+
+    def test_pending_model_operation_prevents_upgrade(self, reset_models):
+        reset_models.create_async_operation(AsyncOperation(
+            task_id="model-stop-active", operation="stop", model_name="moirai", status="queued",
+        ))
+        with patch.object(foundation_model, "_runtime_upgrade_cli") as command:
+            _, code = foundation_model.upgrade_foundation_runtime(_request({
+                "release": "1.0.1", "expected_sha256": "0" * 64,
+            }))
+        assert code == 409
+        command.assert_not_called()
+
+
 @pytest.fixture(autouse=True)
 def reset_models():
     """Run every test against a private database seeded with one model row."""

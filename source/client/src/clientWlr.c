@@ -49,6 +49,22 @@ bool wlrTrySetState(int32_t from, int32_t to) {
   return atomic_val_compare_exchange_32(&wlrMgr.state, from, to) == from;
 }
 
+/*
+ * Same exchange, but it also hands back the value it observed. A caller that loses
+ * the race must decide on the state that made it lose: re-reading afterwards can
+ * see a state the winner published in between, e.g. OFF after a very short
+ * session, and then report a busy recorder that is in fact free.
+ */
+static bool wlrTrySetStateObserved(int32_t from, int32_t to, int32_t *observed) {
+  int32_t prev = atomic_val_compare_exchange_32(&wlrMgr.state, from, to);
+  if (observed != NULL) *observed = prev;
+  return prev == from;
+}
+
+/* Retries allowed when a losing init observes an OFF that a concurrent winner has
+ * already published again. Bounded so state churn cannot spin startup forever. */
+enum { WLR_INIT_STATE_RETRIES = 3 };
+
 /* --------------------------------------------------------------- ID minting */
 
 uint64_t wlrNextConnId(void) { return (uint64_t)atomic_add_fetch_64(&wlrMgr.nextConnId, 1); }
@@ -205,6 +221,7 @@ static int32_t wlrPrepareDir(const char *dir) {
 
 int32_t wlrRecorderInit(const SWorkloadRecorderCfg *cfg) {
   int32_t code = WLR_E_OK;
+  int32_t st = WLR_STATE_OFF;
   bool    queueReady = false;
   bool    writerCleanupNeeded = false;
 
@@ -224,9 +241,26 @@ int32_t wlrRecorderInit(const SWorkloadRecorderCfg *cfg) {
     return WLR_E_CONFIG;
   }
 
-  if (!wlrTrySetState(WLR_STATE_OFF, WLR_STATE_STARTING)) {
-    tscWarn("WLR: recorder already initialized, state:%d", wlrRecorderState());
-    return WLR_E_OK;
+  /* Take the start decision on the exchange itself; the retry below only covers
+   * the window where a concurrent session appeared and finished in between. */
+  for (int32_t attempt = 0;; ++attempt) {
+    if (wlrTrySetStateObserved(WLR_STATE_OFF, WLR_STATE_STARTING, &st)) break;
+    /* STARTING/RUNNING means this one-shot init was already honoured. */
+    if (st == WLR_STATE_STARTING || st == WLR_STATE_RUNNING) {
+      tscWarn("WLR: recorder already initialized, state:%d", st);
+      return WLR_E_OK;
+    }
+    /* Observed OFF: the winner's session was closed again before this attempt, so
+     * this caller is competing with nobody and may start for real. */
+    if (st == WLR_STATE_OFF && attempt < WLR_INIT_STATE_RETRIES) continue;
+    /* FAILED_OPEN never returns to OFF on its own -- only close publishes OFF --
+     * so it needs a different remedy than a close that is still finishing. */
+    if (st == WLR_STATE_FAILED_OPEN) {
+      tscError("WLR: recorder failed open and still owns the manager; close it before starting a new session");
+    } else {
+      tscError("WLR: recorder cannot start a new session while state:%d has not finished shutting down", st);
+    }
+    return WLR_E_STATE;
   }
   /* OFF is published only after the preceding generation has released all
    * resources. Reset its single-closer guard only after owning STARTING, so a

@@ -1086,6 +1086,22 @@ class ExtSrcEnv:
         return True
 
     @classmethod
+    def _oracle_lifecycle_is_local(cls):
+        """Whether the local Windows/Unix helper owns the configured Oracle host.
+
+        A CI worker can use a native Oracle instance on another Windows host
+        for queries.  The local lifecycle script cannot stop that host, and
+        silently running it would leave disruption tests asserting against a
+        still-healthy remote instance.
+        """
+        host = str(cls.ORACLE_HOST).strip().lower()
+        if host in {"127.0.0.1", "localhost", "::1"}:
+            return True
+        import socket
+        local_names = {socket.gethostname().lower(), socket.getfqdn().lower()}
+        return host in local_names
+
+    @classmethod
     def required_services(cls):
         # Every configured provider is required by default: the shared source
         # matrices (``_with_std_sources`` / ``_with_custom_sources``) walk all
@@ -2473,6 +2489,12 @@ class ExtSrcEnv:
             return
         if cls._external_service_action("stop", "oracle", ver):
             return
+        if not cls._oracle_lifecycle_is_local():
+            import pytest
+            pytest.skip(
+                f"Oracle {ver} at {cls.ORACLE_HOST} is remote and has no "
+                "configured lifecycle controller"
+            )
         import subprocess
         import time
         env = _fq_subprocess_env()
@@ -2504,6 +2526,12 @@ class ExtSrcEnv:
             return
         if cls._external_service_action("kill", "oracle", ver):
             return
+        if not cls._oracle_lifecycle_is_local():
+            import pytest
+            pytest.skip(
+                f"Oracle {ver} at {cls.ORACLE_HOST} is remote and has no "
+                "configured lifecycle controller"
+            )
         import subprocess
         env = _fq_subprocess_env()
         env["FQ_SERVICES_TO_RESET"] = "oracle"
@@ -2535,6 +2563,11 @@ class ExtSrcEnv:
         import subprocess
         import time
         external = cls._external_service_action("start", "oracle", ver)
+        if not external and not cls._oracle_lifecycle_is_local():
+            # A remote native instance is provisioned outside this worker.  Do
+            # not run the local setup script; only probe its application-level
+            # readiness below.
+            external = True
         if not external:
             env = _fq_subprocess_env()
             env["FQ_SERVICES_TO_RESET"] = "oracle"

@@ -75,6 +75,16 @@ if [ -d "${top_dir}/resource" ]; then
   cp -R "${top_dir}/resource/." "${install_dir}/resource/"
 fi
 
+# Bundle the verified TSFM release metadata with the program.  This
+# is program-owned metadata; user resource state and caches remain under data/.
+tsfm_release_manifest="${top_dir}/packaging/tdengine-tdgpt-tsfm-release-1.0.1.json"
+if [ ! -f "${tsfm_release_manifest}" ]; then
+  echo "Error: missing TSFM release manifest: ${tsfm_release_manifest}" >&2
+  exit 1
+fi
+mkdir -p "${install_dir}/share/tsfm"
+cp "${tsfm_release_manifest}" "${install_dir}/share/tsfm/tsfm-release.json"
+
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
@@ -103,7 +113,7 @@ cp -R ${top_dir}/lib/dynamic ${lib_install_dir}/ || :
 lifecycle_scripts=(
   start-model.sh stop-model.sh
   taosanode_service.py taosanodectl.py
-  resource_manifest.py resource_manager.py
+    resource_manifest.py resource_manager.py runtime_upgrade.py
   uninstall.sh
 )
 for lifecycle_script in "${lifecycle_scripts[@]}"; do

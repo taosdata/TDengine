@@ -102,6 +102,8 @@ void    mndTransSetKillMode(STrans *pTrans, ETrnKillMode killMode);
 void    mndTransSetParallel(STrans *pTrans);
 void    mndTransSetChangeless(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
+// True when vgId is no longer in the SDB or is DROPPING, i.e. its database was dropped (not a mere offline vnode).
+bool    mndTransVgroupIsGone(SMnode *pMnode, int32_t vgId);
 int32_t mndTransCheckConflict(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithCompact(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransCheckConflictWithRetention(SMnode *pMnode, STrans *pTrans);

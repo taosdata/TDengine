@@ -228,3 +228,102 @@ TEST(StreamMsgTest, VTableRefResolveReqDecodesLegacyFrameWithoutTxnId) {
   EXPECT_EQ(nullptr, dst.groups);
   tFreeSVTableRefResolveReq(&dst);
 }
+
+// A client that predates txn support sends the same frame without the trailing txnId.
+// It must still decode, and txnId must stay 0 (= not in a txn), or STOP / START from old
+// clients would fail the RPC in a mixed-version cluster.
+TEST(StreamMsgTest, PauseStreamReqDecodesLegacyFrameWithoutTxnId) {
+  const char legacyName[] = "db1.s3";
+  const int32_t nameLen = (int32_t)sizeof(legacyName);
+
+  auto build = [&](uint8_t* buf, int32_t cap) {
+    SEncoder enc = {};
+    tEncoderInit(&enc, buf, cap);
+    EXPECT_EQ(0, tStartEncode(&enc));
+    EXPECT_EQ(0, tEncodeBinary(&enc, (const uint8_t*)legacyName, nameLen));
+    EXPECT_EQ(0, tEncodeI8(&enc, 1));
+    tEndEncode(&enc);
+    int32_t pos = enc.pos;
+    tEncoderClear(&enc);
+    return pos;
+  };
+  int32_t encoded = build(nullptr, 0);
+  ASSERT_GT(encoded, 0);
+  std::vector<uint8_t> bytes(encoded, 0);
+  ASSERT_EQ(encoded, build(bytes.data(), encoded));
+
+  SMPauseStreamReq dst = {0};
+  ASSERT_EQ(0, tDeserializeSMPauseStreamReq(bytes.data(), encoded, &dst));
+  EXPECT_STREQ(legacyName, dst.name);
+  EXPECT_EQ(1, dst.igNotExists);
+  EXPECT_EQ(0, dst.txnId);
+  tFreeMPauseStreamReq(&dst);
+}
+
+TEST(StreamMsgTest, ResumeStreamReqDecodesLegacyFrameWithoutTxnId) {
+  const char legacyName[] = "db1.s4";
+  const int32_t nameLen = (int32_t)sizeof(legacyName);
+
+  auto build = [&](uint8_t* buf, int32_t cap) {
+    SEncoder enc = {};
+    tEncoderInit(&enc, buf, cap);
+    EXPECT_EQ(0, tStartEncode(&enc));
+    EXPECT_EQ(0, tEncodeBinary(&enc, (const uint8_t*)legacyName, nameLen));
+    EXPECT_EQ(0, tEncodeI8(&enc, 1));
+    EXPECT_EQ(0, tEncodeI8(&enc, 1));
+    tEndEncode(&enc);
+    int32_t pos = enc.pos;
+    tEncoderClear(&enc);
+    return pos;
+  };
+  int32_t encoded = build(nullptr, 0);
+  ASSERT_GT(encoded, 0);
+  std::vector<uint8_t> bytes(encoded, 0);
+  ASSERT_EQ(encoded, build(bytes.data(), encoded));
+
+  SMResumeStreamReq dst = {0};
+  ASSERT_EQ(0, tDeserializeSMResumeStreamReq(bytes.data(), encoded, &dst));
+  EXPECT_STREQ(legacyName, dst.name);
+  EXPECT_EQ(1, dst.igNotExists);
+  EXPECT_EQ(1, dst.igUntreated);
+  EXPECT_EQ(0, dst.txnId);
+  tFreeMResumeStreamReq(&dst);
+}
+
+TEST(StreamMsgTest, PauseStreamReqCarriesTxnId) {
+  SMPauseStreamReq src = {0};
+  char nm5[] = "db1.s5";
+  src.name = nm5;
+  src.igNotExists = 1;
+  src.txnId = 0x0123456789ABCDEFLL;
+  int32_t len = tSerializeSMPauseStreamReq(nullptr, 0, &src);
+  ASSERT_GT(len, 0);
+  std::vector<uint8_t> bytes(len, 0);
+  ASSERT_EQ(len, tSerializeSMPauseStreamReq(bytes.data(), len, &src));
+  SMPauseStreamReq dst = {0};
+  ASSERT_EQ(0, tDeserializeSMPauseStreamReq(bytes.data(), len, &dst));
+  EXPECT_STREQ("db1.s5", dst.name);
+  EXPECT_EQ(1, dst.igNotExists);
+  EXPECT_EQ(src.txnId, dst.txnId);
+  tFreeMPauseStreamReq(&dst);
+}
+
+TEST(StreamMsgTest, ResumeStreamReqCarriesTxnId) {
+  SMResumeStreamReq src = {0};
+  char nm6[] = "db1.s6";
+  src.name = nm6;
+  src.igNotExists = 1;
+  src.igUntreated = 1;
+  src.txnId = 0x0123456789ABCDEFLL;
+  int32_t len = tSerializeSMResumeStreamReq(nullptr, 0, &src);
+  ASSERT_GT(len, 0);
+  std::vector<uint8_t> bytes(len, 0);
+  ASSERT_EQ(len, tSerializeSMResumeStreamReq(bytes.data(), len, &src));
+  SMResumeStreamReq dst = {0};
+  ASSERT_EQ(0, tDeserializeSMResumeStreamReq(bytes.data(), len, &dst));
+  EXPECT_STREQ("db1.s6", dst.name);
+  EXPECT_EQ(1, dst.igNotExists);
+  EXPECT_EQ(1, dst.igUntreated);
+  EXPECT_EQ(src.txnId, dst.txnId);
+  tFreeMResumeStreamReq(&dst);
+}

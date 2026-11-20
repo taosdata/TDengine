@@ -489,12 +489,18 @@ static bool hasPkInTable(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo.numOfColumns >= 2 && pTableMeta->schema[1].flags & COL_IS_KEY;
 }
 
+static bool isVirtualTableMeta(const STableMeta* meta) {
+  return meta->virtualStb || meta->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+         meta->tableType == TSDB_VIRTUAL_CHILD_TABLE;
+}
+
 static SNode* createFirstCol(SRealTableNode* pTable, const SSchema* pSchema) {
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = isVirtualTableMeta(pTable->pMeta);
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -518,6 +524,7 @@ static SNode* createInsColsScanCol(SRealTableNode* pTable, const SSchema* pSchem
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = isVirtualTableMeta(pTable->pMeta);
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -538,6 +545,7 @@ static SNode* createVtbFirstCol(SVirtualTableNode* pTable, const SSchema* pSchem
   if (NULL == pCol) {
     return NULL;
   }
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type) {
@@ -560,6 +568,7 @@ static SNode* createVtbDataCol(SVirtualTableNode* pTable, const SSchema* pSchema
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) return NULL;
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   if (IS_DECIMAL_TYPE(pSchema->type) && hasDecimalBytesTypeInfo(pSchema->bytes)) {
@@ -620,6 +629,7 @@ static SNode* createVtbTagCol(SVirtualTableNode* pTable, const SSchema* pSchema)
   SColumnNode* pCol = NULL;
   terrno = nodesMakeNode(QUERY_NODE_COLUMN, (SNode**)&pCol);
   if (NULL == pCol) return NULL;
+  pCol->isVirtualTable = true;
   pCol->node.resType.type = pSchema->type;
   pCol->node.resType.bytes = pSchema->bytes;
   pCol->tableId = pTable->pMeta->uid;
@@ -2877,8 +2887,7 @@ static SJoinOutputCol* resolveJoinOutput(const SJoinInputProps* pProps,
     SJoinOutputCol* pOutput = taosArrayGet(pProps->pOutputCols, i);
     SColumnNode* pCol = (SColumnNode*)pOutput->pExpr;
     if (joinColumnIdsEqual(&pOutput->id, &id) &&
-        0 == strcmp(pCol->tableAlias, pRequired->tableAlias) &&
-        0 == strcmp(pCol->colName, pRequired->colName)) return pOutput;
+        planJoinColumnNamesEqual(pCol, pRequired)) return pOutput;
   }
   return NULL;
 }
@@ -3953,6 +3962,21 @@ int32_t planRebuildJoinInputProps(SPlanContext* pCxt, SLogicNode* pRoot) {
   return code;
 }
 
+int32_t planRefreshJoinRewriteInputs(SPlanContext* pCxt, SLogicNode* pRoot) {
+  if (NULL == pCxt || NULL == pRoot) return TSDB_CODE_INVALID_PARA;
+
+  // Resolve against lineage first; targets may omit columns needed by parents.
+  int32_t code = planRebuildJoinInputProps(pCxt, pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = propagateJoinRequiredColumns(pCxt->pJoinPropsStore, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = planRebuildJoinInputProps(pCxt, pRoot);
+  }
+  if (TSDB_CODE_SUCCESS != code) planDestroyJoinPropsStore(pCxt);
+  return code;
+}
+
 static int32_t cloneTemporalTimeKey(SNode* pExpr, int8_t precision,
                                     SNode** ppKey) {
   if (((SExprNode*)pExpr)->resType.precision == precision) {
@@ -4048,6 +4072,95 @@ static int32_t missingJoinTime(SPlanContext* pCxt, int32_t side) {
   return TSDB_CODE_PAR_INVALID_TIMELINE_QUERY;
 }
 
+// Optional selected-key outputs borrow storage from the JOIN properties.
+// Consume them before rebuilding or destroying the property store.
+static int32_t createDefaultTemporalTimeCond(SPlanContext* pCxt,
+                                             SJoinLogicNode* pJoin,
+                                             SOperatorNode** ppCond,
+                                             SJoinOutputCol* pSelectedKeys[2]) {
+  SJoinOutputCol* pKeys[2] = {NULL, NULL};
+  for (int32_t i = 0; i < 2; ++i) {
+    SLogicNode* pChild =
+        (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, i);
+    SJoinInputProps* pInput =
+        getJoinInputProps(pCxt->pJoinPropsStore, pChild);
+    if (NULL == pInput) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    pKeys[i] = selectJoinTimeCandidate(pInput);
+    if (NULL == pKeys[i]) return missingJoinTime(pCxt, i);
+  }
+
+  SOperatorNode* pCond = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pCond));
+  pCond->opType = IS_WINDOW_JOIN(pJoin->subType) ? OP_TYPE_EQUAL :
+      JOIN_TYPE_LEFT == pJoin->joinType ? OP_TYPE_GREATER_EQUAL :
+                                         OP_TYPE_LOWER_EQUAL;
+  pCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  int8_t precision = TMAX(pKeys[0]->type.precision,
+                          pKeys[1]->type.precision);
+  int32_t code = cloneTemporalTimeKey(pKeys[0]->pExpr, precision,
+                                    &pCond->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cloneTemporalTimeKey(pKeys[1]->pExpr, precision, &pCond->pRight);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCond);
+    return code;
+  }
+  *ppCond = pCond;
+  if (NULL != pSelectedKeys) {
+    pSelectedKeys[0] = pKeys[0];
+    pSelectedKeys[1] = pKeys[1];
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// Bind default time keys for ASOF/WINDOW JOINs with nested JOIN inputs,
+// preserving their selection across later JOIN rewrites.
+int32_t planBindTemporalJoinTimeKeys(SPlanContext* pCxt,
+                                     SJoinLogicNode* pJoin) {
+  if (NULL == pCxt || NULL == pJoin) return TSDB_CODE_INVALID_PARA;
+  if (!IS_ASOF_JOIN(pJoin->subType) && !IS_WINDOW_JOIN(pJoin->subType)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (NULL != planGetTemporalJoinTimeCond(pJoin)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (2 != LIST_LENGTH(pJoin->node.pChildren)) {
+    return TSDB_CODE_PLAN_INTERNAL_ERROR;
+  }
+  SLogicNode* pLeft =
+      (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0);
+  SLogicNode* pRight =
+      (SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1);
+  if (!logicTreeHasJoin(pLeft) && !logicTreeHasJoin(pRight)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // Earlier optimizer rules can invalidate the context's cached properties.
+  PLAN_ERR_RET(planRebuildJoinInputProps(pCxt, &pJoin->node));
+  SOperatorNode* pCond = NULL;
+  SJoinOutputCol* pKeys[2] = {NULL, NULL};
+  int32_t code = createDefaultTemporalTimeCond(pCxt, pJoin, &pCond, pKeys);
+  // Creation could not filter these inputs before the default key was known.
+  for (int32_t i = 0; TSDB_CODE_SUCCESS == code && i < 2; ++i) {
+    SLogicNode* pChild = 0 == i ? pLeft : pRight;
+    if (logicTreeHasJoin(pChild)) continue;
+    if (pKeys[i]->nullable) {
+      // A filtered Project stays, matching deferred key selection.
+      code = addTemporalJoinNullFilter(pChild, pKeys[i]->pExpr);
+    }
+  }
+  planDestroyJoinPropsStore(pCxt);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode((SNode*)pCond);
+    return code;
+  }
+
+  pJoin->addPrimEqCond = (SNode*)pCond;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
                                        SLogicNode* pNode) {
   SNode* pChildNode = NULL;
@@ -4073,33 +4186,8 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
       NULL != pJoin->pPrimKeyEqCond ? pJoin->pPrimKeyEqCond :
                                     pJoin->addPrimEqCond);
   bool deferred = NULL == pCond;
-  if (deferred) {
-    SJoinOutputCol* pKeys[2] = {NULL, NULL};
-    for (int32_t i = 0; i < 2; ++i) {
-      SLogicNode* pChild =
-          (SLogicNode*)nodesListGetNode(pNode->pChildren, i);
-      SJoinInputProps* pInput = getJoinInputProps(pStore, pChild);
-      pKeys[i] = selectJoinTimeCandidate(pInput);
-      if (NULL == pKeys[i]) return missingJoinTime(pCxt, i);
-    }
-    PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_OPERATOR, (SNode**)&pCond));
-    pCond->opType = IS_WINDOW_JOIN(pJoin->subType) ? OP_TYPE_EQUAL :
-        JOIN_TYPE_LEFT == pJoin->joinType ? OP_TYPE_GREATER_EQUAL :
-                                           OP_TYPE_LOWER_EQUAL;
-    pCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
-    pCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
-    int8_t precision = TMAX(pKeys[0]->type.precision,
-                             pKeys[1]->type.precision);
-    int32_t code = cloneTemporalTimeKey(pKeys[0]->pExpr, precision,
-                                        &pCond->pLeft);
-    if (TSDB_CODE_SUCCESS == code) {
-      code = cloneTemporalTimeKey(pKeys[1]->pExpr, precision,
-                                  &pCond->pRight);
-    }
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyNode((SNode*)pCond);
-      return code;
-    }
+  if (NULL == pCond) {
+    PLAN_ERR_RET(createDefaultTemporalTimeCond(pCxt, pJoin, &pCond, NULL));
     pJoin->addPrimEqCond = (SNode*)pCond;
   }
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
@@ -4112,6 +4200,34 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
     SJoinInputProps* pInput = getJoinInputProps(pStore, pChild);
     SNode* pKey = asofJoinInputTimeColumn(
         0 == i ? pCond->pLeft : pCond->pRight);
+    if (IS_WINDOW_JOIN(pJoin->subType) &&
+        QUERY_NODE_COLUMN != nodeType(pKey)) {
+      SNodeList* pCols = NULL;
+      int32_t code = nodesCollectColumnsFromNode(pKey, NULL,
+                                                 COLLECT_COL_TYPE_ALL, &pCols);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      SNode* pRef = NULL;
+      FOREACH(pRef, pCols) {
+        SJoinOutputCol* pCol = resolveJoinOutput(pInput, pRef);
+        if (NULL == pCol) {
+          code = TSDB_CODE_PLAN_SLOT_NOT_FOUND;
+          break;
+        }
+        if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+          code = appendRequiredJoinTarget(pInput, (SJoinLogicNode*)pChild,
+                                          (SColumnNode*)pCol->pExpr,
+                                          &pCol->id);
+          if (TSDB_CODE_SUCCESS != code) break;
+        }
+      }
+      nodesDestroyList(pCols);
+      if (TSDB_CODE_SUCCESS != code) return code;
+      if (QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
+        PLAN_ERR_RET(propagateJoinRequiredColumns(pStore, pChild));
+      }
+      nullable[i] = true;
+      continue;
+    }
     SJoinOutputCol* pCol = resolveJoinOutput(pInput, pKey);
     if (NULL != pCol && QUERY_NODE_LOGIC_PLAN_JOIN == nodeType(pChild)) {
       PLAN_ERR_RET(appendRequiredJoinTarget(
@@ -4119,6 +4235,7 @@ static int32_t finalizeTemporalJoinNode(SPlanContext* pCxt,
           &pCol->id));
       PLAN_ERR_RET(propagateJoinRequiredColumns(pStore, pChild));
     }
+    // Bound keys already filtered non-JOIN inputs during creation or binding.
     nullable[i] = NULL != pCol && pCol->nullable &&
                   (deferred || logicTreeHasJoin(pChild));
     if (logicTreeHasJoin(pChild)) {
@@ -4623,6 +4740,10 @@ static int32_t scanAddCol(SLogicNode* pLogicNode, SColRef* colRef, STableNode* p
   pRefTableScanCol->colId = colId;
   pRefTableScanCol->tableId = pLogicScan->tableId;
   pRefTableScanCol->tableType = pLogicScan->tableType;
+  // No reference means this column belongs to the virtual stable itself.
+  pRefTableScanCol->isVirtualTable =
+      colRef == NULL || pLogicScan->tableType == TSDB_VIRTUAL_NORMAL_TABLE ||
+      pLogicScan->tableType == TSDB_VIRTUAL_CHILD_TABLE;
   // DECIMAL columns carry precision/scale outside the plain (type, bytes) pair:
   // either packed into the schema bytes or in the column's typeMod.  Keep them
   // on the scan column, otherwise the output slot advertises DECIMAL(?,0) and
@@ -5601,6 +5722,136 @@ static int32_t syncVirtualTableStmtColRefs(SSelectStmt* pSelect, SVirtualTableNo
   return cxt.code;
 }
 
+typedef struct {
+  SVirtualTableNode* pTable;
+  bool               needsScan;
+  int32_t            code;
+} SRewriteVtableColCxt;
+
+static bool canRewriteUnreferencedVtableCol(const SRewriteVtableColCxt* pCxt, SColumnNode* pCol) {
+  return COLUMN_TYPE_COLUMN == pCol->colType && !pCol->hasRef &&
+         !pCol->hasDep && !pCol->isPrimTs &&
+         PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId &&
+         isSameVirtualTableCol(pCxt->pTable, pCol);
+}
+
+static EDealRes checkUnreferencedVtableSlot(SNode* pNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode) && canRewriteUnreferencedVtableCol(pCxt, (SColumnNode*)pNode)) {
+    pCxt->needsScan = true;
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes checkVtableSlotConsumer(SNode* pNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (pCxt->needsScan) {
+    return DEAL_RES_END;
+  }
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_FILL:
+      // FILL assigns its values by projection position, including selection companions.
+      pCxt->needsScan = true;
+      break;
+    case QUERY_NODE_EXTERNAL_WINDOW:
+      // The external window walker visits its time column only.
+      pCxt->needsScan = NULL != ((SExternalWindowNode*)pNode)->pFill;
+      break;
+    case QUERY_NODE_SQL_WINDOW_SPEC:
+      // Both named and inline OVER clauses use input slots for their keys.
+      nodesWalkExpr(pNode, checkUnreferencedVtableSlot, pCxt);
+      break;
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoin = (SJoinTableNode*)pNode;
+      // The generic JOIN walker only visits ON and the two inputs.
+      nodesWalkExpr(pJoin->pOnCond, checkUnreferencedVtableSlot, pCxt);
+      nodesWalkExpr(pJoin->addPrimCond, checkUnreferencedVtableSlot, pCxt);
+      nodesWalkExprs(pJoin->pWindowTime, checkUnreferencedVtableSlot, pCxt);
+      break;
+    }
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+      nodesWalkExpr(((SCorrelationParamBindingNode*)pNode)->pSource, checkUnreferencedVtableSlot, pCxt);
+      break;
+    case QUERY_NODE_FUNCTION: {
+      SFunctionNode* pFunc = (SFunctionNode*)pNode;
+      if (!fmIsScalarFunc(pFunc->funcId) && !fmIsSelectValueFunc(pFunc->funcId)) {
+        nodesWalkExprs(pFunc->pParameterList, checkUnreferencedVtableSlot, pCxt);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return pCxt->needsScan ? DEAL_RES_END : DEAL_RES_CONTINUE;
+}
+
+static EDealRes rewriteUnreferencedVtableCol(SNode** ppNode, void* pContext) {
+  SRewriteVtableColCxt* pCxt = pContext;
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  SNode* pColumn = *ppNode;
+  if (QUERY_NODE_FUNCTION == nodeType(pColumn)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pColumn;
+    if (!fmIsSelectValueFunc(pFunc->funcId)) {
+      return DEAL_RES_CONTINUE;
+    }
+    // Selection companions require a column slot. Replace the wrapper too.
+    pColumn = nodesListGetNode(pFunc->pParameterList, 0);
+  }
+  if (NULL == pColumn || QUERY_NODE_COLUMN != nodeType(pColumn)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  if (!canRewriteUnreferencedVtableCol(pCxt, (SColumnNode*)pColumn)) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  SValueNode* pNull = NULL;
+  pCxt->code = nodesMakeNode(QUERY_NODE_VALUE, (SNode**)&pNull);
+  if (TSDB_CODE_SUCCESS != pCxt->code) {
+    return DEAL_RES_ERROR;
+  }
+  pNull->node = *(SExprNode*)*ppNode;
+  pNull->node.type = QUERY_NODE_VALUE;
+  pNull->node.hasNull = true;
+  pNull->translate = true;
+  pNull->isNull = true;
+  ((SExprNode*)*ppNode)->pAssociation = NULL;
+  nodesDestroyNode(*ppNode);
+  *ppNode = (SNode*)pNull;
+  return DEAL_RES_IGNORE_CHILD;
+}
+
+static int32_t rewriteUnreferencedVtableCols(SSelectStmt* pSelect,
+                                            SVirtualTableNode* pTable,
+                                            SVirtualScanLogicNode* pScan) {
+  // TIME_ALIGN adds raw input slots to the scan even when only its outputs are selected.
+  if (NULL != pTable->pAlignCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // A consumer that needs an unbound column as a slot already requires the virtual scan.
+  // Check before changing either the statement or the scan's output columns.
+  SRewriteVtableColCxt cxt = {.pTable = pTable};
+  nodesWalkExpr(pSelect->pWindow, checkUnreferencedVtableSlot, &cxt);
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, checkVtableSlotConsumer, &cxt);
+  if (cxt.needsScan) {
+    return TSDB_CODE_SUCCESS;
+  }
+  nodesRewriteSelectStmt(pSelect, SQL_CLAUSE_FROM,
+                        rewriteUnreferencedVtableCol, &cxt);
+  PLAN_ERR_RET(cxt.code);
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pScan->pScanCols) {
+    if (canRewriteUnreferencedVtableCol(&cxt, (SColumnNode*)pNode)) {
+      ERASE_NODE(pScan->pScanCols);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 // Second pass after syncVirtualTable*ColRefs: _select_value subsidiaries size their tuple
 // row image from the function result width (prepareBuf), so a widened virtual column
 // parameter must widen the wrapping function too, keeping write/read strides consistent.
@@ -5718,6 +5969,7 @@ static int32_t rewriteFlatVirtualChildScanCols(SScanLogicNode* pRefScan, SVirtua
     tstrncpy(pCol->colName, pVtbSchema->name, sizeof(pCol->colName));
     pCol->tableId = pVirtualTable->pMeta->uid;
     pCol->tableType = pVirtualTable->pMeta->tableType;
+    pCol->isVirtualTable = true;
     int32_t origBytes = pCol->node.resType.bytes;
     schemaToRefDataType(pVtbSchema, typeMod, &pCol->node.resType);
     if (IS_VAR_DATA_TYPE(pCol->node.resType.type) && origBytes > pCol->node.resType.bytes) {
@@ -7930,6 +8182,11 @@ static int32_t createVirtualNormalChildTableLogicNode(SLogicPlanContext* pCxt, S
   PLAN_ERR_JRET(syncVirtualTableStmtColRefs(pSelect, pVirtualTable, pRefTablesMap));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanCols, pVirtualTable, pRefTablesMap));
   PLAN_ERR_JRET(syncVirtualTableColRefs(pVtableScan->pScanPseudoCols, pVirtualTable, pRefTablesMap));
+  // An unbound data column keeps a tag-only source from supplying a data row.
+  if (hasUnrefCol && taosHashGetSize(pRefTablesMap) > 0) {
+    PLAN_ERR_JRET(rewriteUnreferencedVtableCols(pSelect, pVirtualTable,
+                                               pVtableScan));
+  }
   PLAN_ERR_JRET(replaceVtbTsWithSingleRefTs(pSelect, pVirtualTable, pVtableScan, pRefTablesMap));
 
   // Iterate the table map, build scan logic node for each origin table and add these node to vtable scan's child list.
@@ -8395,6 +8652,7 @@ static int32_t addWinJoinPrimKeyToAggFuncs(SSelectStmt* pSelect, SNodeList** pLi
   tstrncpy(pCol->node.userAlias, pColSchema->name, TSDB_COL_NAME_LEN);
   pCol->tableId = pProbeTable->pMeta->uid;
   pCol->tableType = pProbeTable->pMeta->tableType;
+  pCol->isVirtualTable = isVirtualTableMeta(pProbeTable->pMeta);
   pCol->colId = pColSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
   pCol->hasIndex = (pColSchema != NULL && IS_IDX_ON(pColSchema));

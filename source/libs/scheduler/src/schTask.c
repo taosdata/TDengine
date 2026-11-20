@@ -658,6 +658,7 @@ void schResetTaskForRetry(SSchJob *pJob, SSchTask *pTask) {
   schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
   (void)schRemoveTaskFromExecList(pJob, pTask);  // ignore error
+  // Relaunch must reinsert an unfinished task for result-release cleanup.
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
   schDeregisterTaskHb(pJob, pTask);
   taosMemoryFreeClear(pTask->msg);

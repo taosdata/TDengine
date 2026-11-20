@@ -35,6 +35,148 @@
 #include "ttime.h"
 // clang-format on
 
+#if defined(BUILD_TEST)
+#include "ttestgate.h"
+
+typedef struct SMJoinTestTrace {
+  uint64_t queryId;
+  uint64_t taskId;
+  uint64_t blockId;
+  int32_t  subType;
+  int32_t  asofOp;
+  int64_t  rows;
+  int64_t  totalRows;
+  int32_t  probeBegin;
+  int32_t  probeRead;
+  int32_t  probeEnd;
+  int32_t  cacheRows;
+  int64_t  cacheOutRows;
+  int32_t  cacheGroups;
+  int32_t  cacheRead;
+  int64_t  candidates;
+  bool     grpRemains;
+  bool     done;
+} SMJoinTestTrace;
+
+static SMJoinTestTrace mJoinMatchTestTrace(SMJoinOperatorInfo* pJoin,
+                                           int64_t rows) {
+  SMJoinWindowCtx* pCtx = &pJoin->ctx.windowCtx;
+  SMJoinWinCache* pCache = &pCtx->cache;
+  SExecTaskInfo* pTask = pJoin->pOperator->pTaskInfo;
+  int64_t outRows = pCache->outBlk ? pCache->outBlk->info.rows : 0;
+  int64_t candidates = pJoin->subType == JOIN_STYPE_ASOF &&
+                              !pCtx->forwardRowsAcq
+                          ? outRows
+                          : TMIN(pCache->rowNum, pCtx->jLimit);
+  return (SMJoinTestTrace){
+      .queryId = pTask->id.queryId,
+      .taskId = pTask->id.taskId,
+      .blockId = pJoin->outBlkId,
+      .subType = pJoin->subType,
+      .asofOp = pCtx->asofOpType,
+      .rows = rows,
+      .totalRows = pJoin->execInfo.resRows,
+      .probeBegin = pCtx->probeGrp.beginIdx,
+      .probeRead = pCtx->probeGrp.readIdx,
+      .probeEnd = pCtx->probeGrp.endIdx,
+      .cacheRows = pCache->rowNum,
+      .cacheOutRows = outRows,
+      .cacheGroups = taosArrayGetSize(pCache->grps),
+      .cacheRead = pCache->outRowIdx,
+      .candidates = candidates,
+      .grpRemains = pCtx->grpRemains,
+      .done = pJoin->pOperator->status == OP_EXEC_DONE,
+  };
+}
+
+static void mJoinTraceMatchTest(const SMJoinTestTrace* trace,
+                                const char* event) {
+  qDebug("QID:0x%" PRIx64 ", TID:0x%" PRIx64
+         " temporal match test %s, blockId:%" PRIu64
+         ", kind:%s, asofOp:%d, rows:%" PRId64 ", totalRows:%" PRId64
+         ", probeBegin:%d, probeRead:%d, probeEnd:%d, cacheRows:%d"
+         ", cacheOutRows:%" PRId64 ", cacheGroups:%d, cacheRead:%d"
+         ", candidates:%" PRId64 ", grpRemains:%d, done:%d",
+         trace->queryId, trace->taskId, event, trace->blockId,
+         trace->subType == JOIN_STYPE_ASOF ? "asof" : "window",
+         trace->asofOp, trace->rows, trace->totalRows, trace->probeBegin,
+         trace->probeRead, trace->probeEnd, trace->cacheRows,
+         trace->cacheOutRows, trace->cacheGroups, trace->cacheRead,
+         trace->candidates, trace->grpRemains, trace->done);
+}
+
+static void mJoinWaitMatchTestBarrier(SMJoinOperatorInfo* pJoin,
+                                      SSDataBlock* pBlock) {
+  SExecTaskInfo* pTask = pJoin->pOperator->pTaskInfo;
+  if (pJoin->ctx.mergeCtxInUse ||
+      (pJoin->subType != JOIN_STYPE_ASOF &&
+       pJoin->subType != JOIN_STYPE_WIN) ||
+      pTask->execModel != OPTR_EXEC_MODEL_BATCH ||
+      pTask->pStreamRuntimeInfo != NULL || pTask->pSubplan == NULL ||
+      pTask->pSubplan->level != 0 || pBlock == NULL ||
+      pBlock->info.rows <= 0) {
+    return;
+  }
+
+  int32_t savedErrno = terrno;
+  SMJoinTestTrace trace = mJoinMatchTestTrace(pJoin, pBlock->info.rows);
+  if (pJoin->testMatchSelected) {
+    mJoinTraceMatchTest(&trace, "progress");
+    terrno = savedErrno;
+    return;
+  }
+  if (trace.done || !trace.grpRemains || trace.probeRead > trace.probeEnd ||
+      trace.candidates <= 0) {
+    return;
+  }
+
+  char directory[PATH_MAX], held[PATH_MAX], release[PATH_MAX];
+  TdFilePtr file = NULL;
+  if (taosGetEnv("TD_JOIN_TEST_MATCH_GATE_DIR", directory,
+                 sizeof(directory)) <= 0) {
+    goto _done;
+  }
+  if (!taosTestGatePath(held, sizeof(held), directory, "held")) {
+    goto _done;
+  }
+  if (!taosTestGatePath(release, sizeof(release), directory, "release")) {
+    goto _done;
+  }
+  if (!taosTestGateArmed(directory, trace.queryId)) {
+    goto _done;
+  }
+
+  file = taosOpenPrivateFile(held,
+                             TD_FILE_CREATE | TD_FILE_EXCL | TD_FILE_WRITE);
+  if (file == NULL) {
+    goto _done;
+  }
+  int32_t code = taosCloseFile(&file);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _done;
+  }
+
+  // The active worker owns this live cache until the retained group resumes.
+  pJoin->testMatchSelected = true;
+  mJoinTraceMatchTest(&trace, "held");
+  int64_t deadline = taosGetMonoTimestampMs() + 30000;
+  while (!taosCheckExistFile(release)) {
+    if (taosGetMonoTimestampMs() >= deadline) {
+      mJoinTraceMatchTest(&trace, "timed out");
+      goto _done;
+    }
+    taosMsleep(10);
+  }
+  mJoinTraceMatchTest(&trace, "resumed");
+
+_done:
+  if (file != NULL) {
+    (void)taosCloseFile(&file);
+  }
+  terrno = savedErrno;
+}
+#endif
+
 int32_t mJoinBuildEqGrp(SMJoinTableCtx* pTable, int64_t timestamp, bool* wholeBlk, SMJoinGrpRows* pGrp) {
   SColumnInfoData* pCol = taosArrayGet(pTable->blk->pDataBlock, pTable->primCtx.targetSlotId);
   if (NULL == pCol) {
@@ -914,15 +1056,21 @@ static int32_t mJoinInitFinColsInfo(SMJoinTableCtx* pTable, SNodeList* pList) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTarget) {
+static int32_t mJoinInitFuncPrimExprCtx(SMJoinPrimExprCtx* pCtx,
+                                       STargetNode* pTarget,
+                                       bool allowScalar) {
   SFunctionNode* pFunc = (SFunctionNode*)pTarget->pExpr;
-  if (FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
-      FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) {
-    qError("%s failed at line %d, code:0x%x, error:%s, reason:merge join prim "
-           "expr expects TIMETRUNCATE or TIMESTAMP_SCALE, funcType:%d",
-           __func__, __LINE__, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR,
-           tstrerror(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR), pFunc->funcType);
-    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  if ((FUNCTION_TYPE_TIMETRUNCATE != pFunc->funcType &&
+       FUNCTION_TYPE_TIMESTAMP_SCALE != pFunc->funcType) ||
+      QUERY_NODE_COLUMN !=
+          nodeType(nodesListGetNode(pFunc->pParameterList, 0))) {
+    if (!allowScalar) {
+      qError("unsupported merge join primary function type:%d",
+             pFunc->funcType);
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    pCtx->type = E_PRIM_SCALAR;
+    return TSDB_CODE_SUCCESS;
   }
 
   if (FUNCTION_TYPE_TIMESTAMP_SCALE == pFunc->funcType) {
@@ -987,7 +1135,9 @@ static int32_t mJoinInitValPrimExprCtx(SMJoinPrimExprCtx* pCtx, STargetNode* pTa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoinTableCtx* pTable) {
+static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx,
+                                    SMJoinTableCtx* pTable,
+                                    bool allowScalar) {
   if (NULL == pNode) {
     pCtx->targetSlotId = pTable->primCol->srcSlot;
     qDebug("merge join prim expr fallback to source slot:%d", pCtx->targetSlotId);
@@ -1007,7 +1157,8 @@ static int32_t mJoinInitPrimExprCtx(SNode* pNode, SMJoinPrimExprCtx* pCtx, SMJoi
   }
 
   if (QUERY_NODE_FUNCTION == nodeType(pTarget->pExpr)) {
-    MJ_ERR_RET(mJoinInitFuncPrimExprCtx(pCtx, pTarget));
+    MJ_ERR_RET(mJoinInitFuncPrimExprCtx(pCtx, pTarget,
+                                        allowScalar));
   } else if (QUERY_NODE_VALUE == nodeType(pTarget->pExpr)) {
     MJ_ERR_RET(mJoinInitValPrimExprCtx(pCtx, pTarget));
   }
@@ -1092,7 +1243,8 @@ static int32_t mJoinInitTableInfo(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysi
     pTable->multiEqGrpRows = true;
   }
 
-  MJ_ERR_RET(mJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx, pTable));
+  MJ_ERR_RET(mJoinInitPrimExprCtx(pTable->primExpr, &pTable->primCtx,
+                                 pTable, JOIN_STYPE_WIN == pJoinNode->subType));
   if (E_PRIM_SCALAR == pTable->primCtx.type) {
     SNodeList* pExprs = NULL;
     MJ_ERR_RET(nodesListMakeAppend(&pExprs, pTable->primExpr));
@@ -1979,6 +2131,9 @@ int32_t mJoinMainProcess(struct SOperatorInfo* pOperator, SSDataBlock** pResBloc
   }
 
   pJoin->execInfo.resRows += pBlock ? pBlock->info.rows : 0;
+#if defined(BUILD_TEST)
+  mJoinWaitMatchTestBarrier(pJoin, pBlock);
+#endif
   if (pBlock && pBlock->info.rows > 0) {
     *pResBlock = pBlock;
   }
@@ -2016,6 +2171,13 @@ void destroyMergeJoinTableCtx(SMJoinTableCtx* pTable) {
 
 void destroyMergeJoinOperator(void* param) {
   SMJoinOperatorInfo* pJoin = (SMJoinOperatorInfo*)param;
+#if defined(BUILD_TEST)
+  const bool traced = pJoin->testMatchSelected;
+  SMJoinTestTrace trace = {0};
+  if (traced) {
+    trace = mJoinMatchTestTrace(pJoin, 0);
+  }
+#endif
 
   mJoinDestroyCtx(pJoin);
 
@@ -2036,6 +2198,11 @@ void destroyMergeJoinOperator(void* param) {
   destroyMergeJoinTableCtx(pJoin->build);
 
   taosMemoryFreeClear(pJoin);
+#if defined(BUILD_TEST)
+  if (traced) {
+    mJoinTraceMatchTest(&trace, "destroyed");
+  }
+#endif
 }
 
 int32_t mJoinHandleConds(SMJoinOperatorInfo* pJoin, SSortMergeJoinPhysiNode* pJoinNode, SExecTaskInfo* pTaskInfo) {

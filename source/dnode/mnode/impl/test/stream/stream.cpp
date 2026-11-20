@@ -540,6 +540,219 @@ TEST_F(MndTransGroupProgressTest, UnsentNextActionStillWaitsForPullup) {
   EXPECT_EQ(gGroupProgressCommitCalls, 0);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Commit / rollback trans of a user txn whose participant vgroup no longer exists.
+//
+// A participant's vgroup disappears when its database is dropped, possibly after the commit / rollback
+// trans was prepared. Its TDMT_VND_TXN_COMMIT / ROLLBACK action would then be retried for ever
+// (TRN_POLICY_RETRY). mndTransSendSingleMsg therefore completes such an action without sending it - but
+// only for the commit / rollback trans of a user txn, and only when the *mnode's own SDB* says the vgroup
+// is gone. A vnode that merely answers "closed or removed" (offline, still starting, CLOSE VNODE, failed to
+// load) is still in the SDB and must keep being retried: it still holds the txn's uncommitted entries.
+// ---------------------------------------------------------------------------------------------
+
+int32_t gVgoneSendCalls = 0;
+int32_t gVgoneAcquireCalls = 0;
+int32_t gVgoneAcquireErrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;  // what mndAcquireVgroup reports when it finds nothing
+bool    gVgoneVgroupPresent = false;
+SVgObj  gVgoneVgroup = {};
+
+bool vgoneIsLeader(SMnode *) { return true; }
+
+SVgObj *vgoneAcquireVgroup(SMnode *, int32_t) {
+  ++gVgoneAcquireCalls;
+  if (gVgoneVgroupPresent) return &gVgoneVgroup;
+  terrno = gVgoneAcquireErrno;
+  return nullptr;
+}
+
+void vgoneReleaseVgroup(SMnode *, SVgObj *) {}
+
+int32_t vgoneSendReq(const SEpSet *, SRpcMsg *pMsg) {
+  ++gVgoneSendCalls;
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = nullptr;
+  return TSDB_CODE_SUCCESS;
+}
+
+// The trans engine syncs the trans to the other mnodes after each finished action and before it enters
+// the COMMIT stage. Fail the proposal so the engine stops right there: the test only looks at what the
+// redo stage did with the action, and must not need a raft group (same trick as MndTransGroupProgressTest).
+int32_t gVgoneSyncCalls = 0;
+int32_t vgoneSyncPropose(SMnode *, SSdbRaw *, int32_t) {
+  ++gVgoneSyncCalls;
+  return TSDB_CODE_MND_TRANS_SYNC_TIMEOUT;
+}
+
+class MndTransVnodeGoneTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    savedErrno_ = terrno;
+    gVgoneSendCalls = 0;
+    gVgoneSyncCalls = 0;
+    gVgoneAcquireCalls = 0;
+    gVgoneAcquireErrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    gVgoneVgroupPresent = false;
+    stub_.set(mndIsLeader, vgoneIsLeader);
+    stub_.set(mndAcquireVgroup, vgoneAcquireVgroup);
+    stub_.set(mndReleaseVgroup, vgoneReleaseVgroup);
+    stub_.set(tmsgSendReq, vgoneSendReq);
+    stub_.set(mndSyncPropose, vgoneSyncPropose);
+  }
+
+  void TearDown() override {
+    stub_.reset(mndSyncPropose);
+    stub_.reset(tmsgSendReq);
+    stub_.reset(mndReleaseVgroup);
+    stub_.reset(mndAcquireVgroup);
+    stub_.reset(mndIsLeader);
+    if (trans_ != nullptr) mndTransDrop(trans_);
+    terrno = savedErrno_;
+  }
+
+  // One redo action (a commit or rollback message to vgId 7) in a trans of the given kind. The commit trans
+  // of a user txn runs GROUP_PARALLEL (one group per vgId), the rollback trans runs plain PARALLEL; both
+  // executors must honour the skip, so the tests run each of them.
+  void Build(EOperType oper, tmsg_t msgType, ETrnExec exec = TRN_EXEC_PARALLEL) {
+    trans_ = createTestTrans();
+    ASSERT_NE(trans_, nullptr);
+    trans_->id = 1;
+    trans_->stage = TRN_STAGE_REDO_ACTION;
+    trans_->exec = exec;
+    trans_->policy = TRN_POLICY_RETRY;
+    trans_->oper = oper;
+    STransAction action = {};
+    action.id = 0;
+    action.groupId = 7;
+    action.stage = TRN_STAGE_REDO_ACTION;
+    action.actionType = TRANS_ACTION_MSG;
+    action.msgType = msgType;
+    action.contLen = 8;
+    action.pCont = taosMemoryCalloc(1, action.contLen);
+    ASSERT_NE(action.pCont, nullptr);
+    ASSERT_NE(taosArrayPush(trans_->redoActions, &action), nullptr);
+    if (exec == TRN_EXEC_GROUP_PARALLEL) {
+      trans_->redoGroupActions = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+      trans_->groupActionPos = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+      ASSERT_NE(trans_->redoGroupActions, nullptr);
+      ASSERT_NE(trans_->groupActionPos, nullptr);
+      int32_t groupId = 7;
+      SArray *actions = taosArrayInit(1, sizeof(STransAction *));
+      ASSERT_NE(actions, nullptr);
+      ASSERT_EQ(taosHashPut(trans_->redoGroupActions, &groupId, sizeof(groupId), &actions, sizeof(actions)), 0);
+      STransAction *first = Action();
+      ASSERT_NE(taosArrayPush(actions, &first), nullptr);
+      int32_t pos = 0;
+      ASSERT_EQ(taosHashPut(trans_->groupActionPos, &groupId, sizeof(groupId), &pos, sizeof(pos)), 0);
+      trans_->groupParallelNum = 1;
+    }
+  }
+
+  STransAction *Action() { return static_cast<STransAction *>(taosArrayGet(trans_->redoActions, 0)); }
+
+  SMnode node_ = {};
+  STrans *trans_ = nullptr;
+  int32_t savedErrno_ = 0;
+  Stub stub_;
+};
+
+// The case this exists for: user COMMIT, participant vgroup gone from the SDB -> done, nothing is sent.
+TEST_F(MndTransVnodeGoneTest, UserCommitSkipsVgroupGoneFromSdb) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT);
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 0);
+  EXPECT_EQ(Action()->msgSent, 1);
+  EXPECT_EQ(Action()->msgReceived, 1);
+  EXPECT_EQ(Action()->errCode, 0);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_COMMIT) << "done means the trans moves on instead of retrying for ever";
+}
+
+// Same, through the executor the real commit trans uses (GROUP_PARALLEL): a finished action is what makes
+// the engine persist progress and move on, so it must see the skipped action as finished.
+TEST_F(MndTransVnodeGoneTest, UserCommitSkipsVgroupGoneFromSdbGroupParallel) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT, TRN_EXEC_GROUP_PARALLEL);
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 0);
+  EXPECT_EQ(Action()->msgSent, 1);
+  EXPECT_EQ(Action()->msgReceived, 1);
+  EXPECT_EQ(Action()->errCode, 0);
+  EXPECT_GE(gVgoneSyncCalls, 1) << "the finished action must be acknowledged (progress persisted), not retried";
+}
+
+TEST_F(MndTransVnodeGoneTest, VgroupStillInSdbIsSentGroupParallel) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT, TRN_EXEC_GROUP_PARALLEL);
+  gVgoneVgroupPresent = true;
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 1);
+  EXPECT_EQ(Action()->msgReceived, 0);
+  EXPECT_EQ(gVgoneSyncCalls, 0);
+}
+
+TEST_F(MndTransVnodeGoneTest, UserRollbackSkipsVgroupGoneFromSdb) {
+  Build(MND_OPER_ROLLBACK_TXN, TDMT_VND_TXN_ROLLBACK);
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 0);
+  EXPECT_EQ(Action()->errCode, 0);
+  EXPECT_EQ(trans_->stage, TRN_STAGE_COMMIT);
+}
+
+// A vgroup the DROP DATABASE is removing right now (DROPPING) cannot come back either.
+TEST_F(MndTransVnodeGoneTest, VgroupBeingDroppedCountsAsGone) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT);
+  gVgoneAcquireErrno = TSDB_CODE_SDB_OBJ_DROPPING;
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 0);
+  EXPECT_EQ(Action()->errCode, 0);
+}
+
+// The point of keying on the SDB: a vgroup still in the SDB (offline / starting / closed / failed vnode) is
+// NOT skipped, however the vnode would answer - the message is sent, so the txn's entries are not lost.
+TEST_F(MndTransVnodeGoneTest, VgroupStillInSdbIsSent) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT);
+  gVgoneVgroupPresent = true;
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 1);
+  EXPECT_EQ(Action()->msgSent, 1);
+  EXPECT_EQ(Action()->msgReceived, 0) << "still waiting for the vnode's answer";
+  EXPECT_NE(trans_->stage, TRN_STAGE_COMMIT);
+}
+
+// A vgroup that cannot be acquired for another reason (e.g. still CREATING) is not "gone": keep trying.
+TEST_F(MndTransVnodeGoneTest, VgroupNotReadyForOtherReasonIsSent) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT);
+  gVgoneAcquireErrno = TSDB_CODE_SDB_OBJ_CREATING;
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 1);
+  EXPECT_EQ(Action()->msgReceived, 0);
+}
+
+// Nothing leaks to other trans: same message type, same missing vgroup, but not a user txn's trans
+// (e.g. the orphan-txn clean-up trans, which carries no txn oper) -> sent as before.
+TEST_F(MndTransVnodeGoneTest, OtherTransIsNeverSkipped) {
+  Build(MND_OPER_BEGIN_TXN, TDMT_VND_TXN_COMMIT);
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 1);
+  EXPECT_EQ(Action()->msgReceived, 0);
+  EXPECT_EQ(gVgoneAcquireCalls, 0) << "must not even look at the SDB for a trans that is not a user commit / rollback";
+}
+
+TEST_F(MndTransVnodeGoneTest, OtherMessageTypeOfAUserTxnTransIsNeverSkipped) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_CREATE_STB);
+  mndTransExecute(&node_, trans_, false);
+  EXPECT_EQ(gVgoneSendCalls, 1);
+  EXPECT_EQ(Action()->msgReceived, 0);
+  EXPECT_EQ(gVgoneAcquireCalls, 0);
+}
+
+// notSend means "only record, do not send"; the skip must not run there (it would mark the action done).
+TEST_F(MndTransVnodeGoneTest, NotSendLeavesActionUntouched) {
+  Build(MND_OPER_COMMIT_TXN, TDMT_VND_TXN_COMMIT);
+  mndTransExecute(&node_, trans_, true);
+  EXPECT_EQ(gVgoneSendCalls, 0);
+  EXPECT_EQ(Action()->msgSent, 0);
+  EXPECT_EQ(Action()->msgReceived, 0);
+}
+
 STxnObj *gShadowRemovalTxn = nullptr;
 
 void *acquireShadowRemovalTxn(SSdb *, ESdbType type, const void *key) {

@@ -112,7 +112,8 @@ typedef struct SColumnNode {
       uint8_t alignMethod : 2;   // EAlignMethod; valid when isAlignOut
       uint8_t alignHasSpan : 1;  // TIME_ALIGN optional time-range parameter present
       uint8_t isTbnamePlaceholder : 1;  // Unresolved %%tbname.column qualifier.
-      uint8_t reserve : 1;
+      // Virtual origin, including virtual stables; travels with flags.
+      uint8_t isVirtualTable : 1;
     };
   };
   int64_t alignSpanValue;  // TIME_ALIGN duration count; q is folded into months

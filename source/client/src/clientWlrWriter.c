@@ -51,12 +51,16 @@
  * descheduled writer is not mistaken for a stall. */
 #define WLR_DRAIN_POLL_MS 2
 #define WLR_LIFECYCLE_CLOSING INT64_MIN
+/* One join budget for both builds. A close that cannot join the writer within it
+ * is genuinely blocked, and shortening it for a merely slow writer marks the
+ * session incomplete and drops SESSION_STOP (feishu 7170629519). Tests that block
+ * I/O on purpose ask for a shorter budget through wlrTestSetJoinTimeout() rather
+ * than changing what an ordinary close does. */
+#define WLR_JOIN_TIMEOUT_MS 5000
 #ifdef WLR_TEST_HOOKS
 #define WLR_DRAIN_STALL_POLLS 25
-#define WLR_JOIN_TIMEOUT_MS 100
 #else
 #define WLR_DRAIN_STALL_POLLS 250
-#define WLR_JOIN_TIMEOUT_MS 5000
 #endif
 
 static bool wlrLifecycleEnter(SWlrManager *mgr) {
@@ -797,6 +801,7 @@ int32_t wlrWriterStart(SWlrManager *mgr) {
   atomic_store_32(&mgr->finalizing, 0);
   atomic_store_32(&mgr->stallFinalIo, 0);
   atomic_store_32(&mgr->finalIoStalled, 0);
+  atomic_store_32(&mgr->joinTimeoutMs, 0);
 #endif
 
   /* First segment is created on this thread so that an unwritable directory is
@@ -904,7 +909,15 @@ bool wlrWriterStop(SWlrManager *mgr, bool graceful) {
 
   atomic_store_32(&mgr->writerQuit, 1);
   wlrQueueWakeAll(mgr);
-  int64_t joinDeadline = taosGetMonoTimestampMs() + WLR_JOIN_TIMEOUT_MS;
+  int32_t joinTimeoutMs = WLR_JOIN_TIMEOUT_MS;
+#ifdef WLR_TEST_HOOKS
+  /* A test whose writer is parked in a trap asks for the short budget explicitly;
+   * the request is taken from the manager, not inferred from whichever injection
+   * happened to be armed when this function ran. */
+  int32_t requestedMs = atomic_load_32(&mgr->joinTimeoutMs);
+  if (requestedMs > 0) joinTimeoutMs = requestedMs;
+#endif
+  int64_t joinDeadline = taosGetMonoTimestampMs() + joinTimeoutMs;
   while (atomic_load_32(&mgr->writerExited) == 0 && taosGetMonoTimestampMs() < joinDeadline) {
     taosMsleep(WLR_DRAIN_POLL_MS);
   }
@@ -955,6 +968,13 @@ int32_t wlrTestResumeWrite(void) {
 }
 
 int32_t wlrTestWriteStalled(void) { return atomic_load_32(&wlrMgr.writeStalled); }
+
+/* Join budget for the blocked-I/O tests: their writer cannot reach the join while
+ * the trap is armed, so waiting the production budget would only slow the suite. */
+int32_t wlrTestSetJoinTimeout(int32_t ms) {
+  atomic_store_32(&wlrMgr.joinTimeoutMs, ms);
+  return 0;
+}
 
 int32_t wlrTestInjectWriterFailure(void) {
   if (!wlrStateIs(WLR_STATE_RUNNING)) {

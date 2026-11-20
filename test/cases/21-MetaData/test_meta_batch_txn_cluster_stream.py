@@ -16,7 +16,7 @@
 # -*- coding: utf-8 -*-
 
 
-"""Cluster batch meta txn: stream failover tests (cs72-cs77).
+"""Cluster batch meta txn: stream failover tests (cs72-cs80).
 
 Requires: ./ci/pytest.sh pytest ... -N 3 -M 3
 
@@ -39,9 +39,13 @@ Tests cover (DS 8 leader switch/reboot, stream-object dimension):
   - cs77: full cluster restart with an in-txn PRE_DROP stream -> ROLLBACK restores it
           (new leader keeps the stream running; DS 5.2's userDropped-is-not-persisted
           property, restart dimension)
+  - cs78: txn STOP STREAM + MNode leader switch -> lock still enforced, COMMIT stops the stream
+  - cs79: txn STOP STREAM + full cluster restart -> lock still enforced, ROLLBACK keeps the
+          stream running and releases the lock (FS 4.16.2 persistence promise)
+  - cs80: txn START STREAM + full cluster restart -> intent not applied early, COMMIT starts it
 """
 
-from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+from new_test_framework.utils import tdLog, tdSql, tdCom, sc, clusterComCheck
 import time
 
 
@@ -342,8 +346,139 @@ class TestBatchMetaTxnClusterStream:
             f"cs77 should still run after cluster restart + ROLLBACK, got {status}"
         tdLog.info(f"cs77 survived cluster restart + ROLLBACK, still {status}")
 
+    # =========================================================================
+    # cs78-cs80: START / STOP STREAM inside a txn, MNode leader switch / full restart.
+    #
+    # FS 4.16.2: the stream lock (txnId + PRE_ALTER + intent) and the pending intent are
+    # persisted on the stream object, so they survive an MNode leader switch and a cluster
+    # restart (rebuilt by mndTxnRebuildShadowOpsFromSdb). Three things must hold afterwards:
+    #   - the lock is still enforced: a second session is refused with TXN_RESOURCE_BUSY (0x3317);
+    #   - the intent is not applied early: the stream keeps its pre-txn run state until COMMIT;
+    #   - COMMIT applies the intent, ROLLBACK discards it and releases the lock.
+    # =========================================================================
+
+    def _busy_on_other_session(self, sql):
+        """`sql` from a separate session must fail with TSDB_CODE_TXN_RESOURCE_BUSY (0x3317)."""
+        other = tdCom.newTdSql()
+        try:
+            other.execute("use txn_cdb")
+            try:
+                other.execute(sql)
+            except Exception as e:
+                assert "0x3317" in str(e) or "being modified by another transaction" in str(e), \
+                    f"expected TXN_RESOURCE_BUSY for [{sql}], got: {e}"
+                return
+            raise AssertionError(f"[{sql}] must be refused while the txn holds the stream lock")
+        finally:
+            other.close()
+
+    def cs78_stop_stream_lock_survives_leader_switch(self):
+        self._reset_env()
+        tdLog.info("======== cs78_stop_stream_lock_survives_leader_switch")
+
+        self._create_stream("cs78", "o78")
+        assert self._wait_status("cs78", ("Running", "Idle")) in ("Running", "Idle")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("stop stream cs78")
+        assert self._stream_status("cs78") in ("Running", "Idle"), self._stream_status("cs78")
+
+        leader_id = self._get_mnode_leader_dnode_id()
+        tdLog.info(f"MNode leader: dnode {leader_id}, killing it (in-txn STOP STREAM pending)")
+        sc.dnodeForceStop(leader_id)
+        try:
+            clusterComCheck.check3mnodeoff(leader_id)
+            # New leader: lock still enforced, intent still not applied.
+            self._busy_on_other_session("stop stream cs78")
+            self._busy_on_other_session("start stream cs78")
+            self._busy_on_other_session("drop stream cs78")
+            assert self._stream_status("cs78") in ("Running", "Idle"), \
+                f"STOP intent applied before COMMIT, status={self._stream_status('cs78')}"
+            tdSql.execute("COMMIT")
+        finally:
+            sc.dnodeStart(leader_id)
+            time.sleep(3)
+            clusterComCheck.checkDnodes(3)
+
+        tdSql.execute("use txn_cdb")
+        status = self._wait_status("cs78", ("Stopped",), timeout=60)
+        assert status == "Stopped", f"cs78 should be stopped by COMMIT after a leader switch, got {status}"
+        # Lock released by COMMIT: an ordinary START works again.
+        tdSql.execute("start stream cs78")
+        status = self._wait_status("cs78", ("Running", "Idle"), timeout=60)
+        assert status in ("Running", "Idle"), f"cs78 did not restart after the lock was released, got {status}"
+
+    def cs79_stop_stream_lock_survives_cluster_restart_rollback(self):
+        self._reset_env()
+        tdLog.info("======== cs79_stop_stream_lock_survives_cluster_restart_rollback")
+
+        self._create_stream("cs79", "o79")
+        assert self._wait_status("cs79", ("Running", "Idle")) in ("Running", "Idle")
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("stop stream cs79")
+
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        # The lock was rebuilt from SDB: still refused for other sessions, intent not applied.
+        self._busy_on_other_session("stop stream cs79")
+        self._busy_on_other_session("drop stream cs79")
+
+        tdSql.execute("ROLLBACK")
+        tdSql.execute("use txn_cdb")
+        status = self._wait_status("cs79", ("Running", "Idle"), timeout=60)
+        assert status in ("Running", "Idle"), \
+            f"cs79 must keep running after cluster restart + ROLLBACK, got {status}"
+
+        # Lock released: a plain STOP from another session now succeeds.
+        other = tdCom.newTdSql()
+        try:
+            other.execute("use txn_cdb")
+            other.execute("stop stream cs79")
+        finally:
+            other.close()
+        assert self._wait_status("cs79", ("Stopped",), timeout=60) == "Stopped", self._stream_status("cs79")
+
+    def cs80_start_stream_lock_survives_cluster_restart_commit(self):
+        self._reset_env()
+        tdLog.info("======== cs80_start_stream_lock_survives_cluster_restart_commit")
+
+        self._create_stream("cs80", "o80")
+        assert self._wait_status("cs80", ("Running", "Idle")) in ("Running", "Idle")
+        tdSql.execute("stop stream cs80")
+        assert self._wait_status("cs80", ("Stopped",), timeout=60) == "Stopped"
+
+        tdSql.execute("BEGIN")
+        tdSql.execute("start stream cs80")
+        assert self._stream_status("cs80") == "Stopped", self._stream_status("cs80")
+
+        tdLog.info("Stopping all dnodes")
+        sc.dnodeStopAll()
+        time.sleep(2)
+        tdLog.info("Starting all dnodes")
+        sc.dnodeStartAll()
+        clusterComCheck.checkDnodes(3, timeout=30)
+
+        self._busy_on_other_session("start stream cs80")
+        # The START intent was not applied by the restart: the stream is still stopped.
+        # Right after a restart streamMgmt is still in WATCH state and SHOW STREAMS reports
+        # "Undeployed" (Mnode may be unstable), so wait for it to settle instead of reading once.
+        tdSql.execute("use txn_cdb")
+        status = self._wait_status("cs80", ("Stopped",), timeout=60)
+        assert status == "Stopped", status
+
+        tdSql.execute("COMMIT")
+        status = self._wait_status("cs80", ("Running", "Idle"), timeout=60)
+        assert status in ("Running", "Idle"), f"cs80 must start at COMMIT after a cluster restart, got {status}"
+
+
     def test_meta_batch_txn_cluster_stream(self):
-        """Cluster batch meta txn: stream failover (cs72-cs77)
+        """Cluster batch meta txn: stream failover (cs72-cs80)
 
         72. txn_drop_stream_leader_switch_rollback
         73. txn_create_stream_leader_switch_commit
@@ -351,6 +486,9 @@ class TestBatchMetaTxnClusterStream:
         75. cluster_restart_stream_txn_survives
         76. cluster_restart_pre_create_drop
         77. cluster_restart_pre_drop_rollback
+        78. stop_stream_lock_survives_leader_switch
+        79. stop_stream_lock_survives_cluster_restart_rollback
+        80. start_stream_lock_survives_cluster_restart_commit
 
         Since: v3.4.3.0
 
@@ -363,3 +501,6 @@ class TestBatchMetaTxnClusterStream:
         self.cs75_cluster_restart_stream_txn_survives()
         self.cs76_cluster_restart_pre_create_drop()
         self.cs77_cluster_restart_pre_drop_rollback()
+        self.cs78_stop_stream_lock_survives_leader_switch()
+        self.cs79_stop_stream_lock_survives_cluster_restart_rollback()
+        self.cs80_start_stream_lock_survives_cluster_restart_commit()

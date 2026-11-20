@@ -1032,8 +1032,8 @@ Execution Time: <TIME> ms
 ### EXP-func_str_concat-01_pg POS
 SQL: select concat(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-      Output: columns=1 width=65535
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:15434 user=postgres
       Remote SQL: SELECT CONCAT("region", '_x') AS "expr_1" FROM "public"."sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
@@ -1044,8 +1044,8 @@ Execution Time: <TIME> ms
 ### EXP-func_str_concat-01_influx POS
 SQL: select concat(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-      Output: columns=1 width=65535
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:18086 user=u
       Remote SQL: SELECT CONCAT("region", '_x') AS "expr_1" FROM "sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
@@ -10090,8 +10090,8 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-03_pg POS
 SQL: select CONCAT(region, '_x') from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65535)
-      Output: columns=1 width=65535
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:15434 user=postgres
       Remote SQL: SELECT CONCAT("region", '_x') AS "expr_1" FROM "public"."sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
@@ -10102,8 +10102,8 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-03_influx POS
 SQL: select CONCAT(region, '_x') from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65535)
-      Output: columns=1 width=65535
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:18086 user=u
       Remote SQL: SELECT CONCAT("region", '_x') AS "expr_1" FROM "sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
@@ -10126,8 +10126,8 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-04_pg POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_pg.sensor
 RESULT
--> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=131050)
-      Output: columns=1 width=131050
+-> Federated Scan on fq_exp_pg.sensor (postgresql) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:15434 user=postgres
       Remote SQL: SELECT CONCAT_WS(',', "region", "region") AS "expr_1" FROM "public"."sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms
@@ -10138,8 +10138,8 @@ Execution Time: <TIME> ms
 ### EXP-ds_string-04_influx POS
 SQL: select CONCAT_WS(',', region, region) from fq_exp_influx.sensor
 RESULT
--> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=131050)
-      Output: columns=1 width=131050
+-> Federated Scan on fq_exp_influx.sensor (influxdb) (cost=<COST> rows=5 width=65518)
+      Output: columns=1 width=65518
       Source: 127.0.0.1:18086 user=u
       Remote SQL: SELECT CONCAT_WS(',', "region", "region") AS "expr_1" FROM "sensor"
       Remote rows=5, blocks=<BLOCKS>, elapsed=<TIME>ms

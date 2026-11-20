@@ -1628,3 +1628,208 @@ bool inStreamCalcClause(SPlanContext* pCxt) {
 bool inStreamTriggerClause(SPlanContext* pCxt) {
   return pCxt->streamCxt.isTrigger;
 }
+
+// Specialized query blocks retain their existing execution paths.
+bool planJoinParallelQuerySupported(const SPlanContext* pCxt) {
+  return !pCxt->topicQuery && !pCxt->rSmaQuery && !pCxt->streamCxt.isCalc &&
+         !pCxt->streamCxt.isTrigger && !pCxt->streamCxt.isVtableCalc;
+}
+
+// Stage-specific remote operands and function safety stay with callers.
+bool planExprIsRuntimeDependent(const SNode* pNode) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_OUTER_REF:
+    case QUERY_NODE_CORRELATION_PARAM:
+    case QUERY_NODE_CORRELATION_PARAM_BINDING:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
+      return true;
+    case QUERY_NODE_COLUMN:
+      return ((const SColumnNode*)pNode)->hasDep;
+    case QUERY_NODE_VALUE:
+      return 0 != (((const SValueNode*)pNode)->flag &
+                   VALUE_FLAG_DEFERRED_QUERY_TIME);
+    default:
+      return false;
+  }
+}
+
+bool planJoinColumnNamesEqual(const SColumnNode* pLeft,
+                              const SColumnNode* pRight) {
+  return 0 == strcmp(pLeft->tableAlias, pRight->tableAlias) &&
+         0 == strcmp(pLeft->colName, pRight->colName);
+}
+
+// A bit describes the result after NULL-extending that input. Keeping both
+// truth exclusions lets NOT invert facts without mistaking FALSE for NULL.
+typedef struct SPlanNullFacts {
+  uint64_t notTrue;
+  uint64_t notFalse;
+} SPlanNullFacts;
+
+typedef struct SPlanNullContext {
+  FPlanNullColumnResolver resolver;
+  const void*             pResolveContext;
+  uint64_t                inputs;
+} SPlanNullContext;
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr);
+
+// A result that is neither TRUE nor FALSE is guaranteed NULL. Strict scalar
+// operations propagate this fact, not the weaker fact that a filter rejects.
+static SPlanNullFacts planNullStrictFacts(SPlanNullFacts left,
+                                          SPlanNullFacts right) {
+  uint64_t inputs = (left.notTrue & left.notFalse) |
+                    (right.notTrue & right.notFalse);
+  return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+}
+
+static SPlanNullFacts planNullLogicFacts(const SPlanNullContext* pCxt,
+                                         const SLogicConditionNode* pLogic) {
+  SPlanNullFacts facts = {0};
+  if (0 == LIST_LENGTH(pLogic->pParameterList)) return facts;
+  if (LOGIC_COND_TYPE_NOT == pLogic->condType) {
+    if (1 != LIST_LENGTH(pLogic->pParameterList)) return facts;
+    const SNode* pChild = nodesListGetNode(pLogic->pParameterList, 0);
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    return (SPlanNullFacts){.notTrue = child.notFalse,
+                            .notFalse = child.notTrue};
+  }
+  bool isAnd = LOGIC_COND_TYPE_AND == pLogic->condType;
+  if (!isAnd && LOGIC_COND_TYPE_OR != pLogic->condType) return facts;
+  facts.notTrue = isAnd ? 0 : pCxt->inputs;
+  facts.notFalse = isAnd ? pCxt->inputs : 0;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pLogic->pParameterList) {
+    SPlanNullFacts child = planNullExprFacts(pCxt, pChild);
+    if (isAnd) {
+      facts.notTrue |= child.notTrue;
+      facts.notFalse &= child.notFalse;
+    } else {
+      facts.notTrue &= child.notTrue;
+      facts.notFalse |= child.notFalse;
+    }
+  }
+  return facts;
+}
+
+static bool planNullIsRemoteOperand(const SNode* pNode) {
+  return QUERY_NODE_REMOTE_VALUE == nodeType(pNode) ||
+         QUERY_NODE_REMOTE_ROW == nodeType(pNode);
+}
+
+static SPlanNullFacts planNullOperatorFacts(const SPlanNullContext* pCxt,
+                                            const SOperatorNode* pOp) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pOp->pLeft) return unknown;
+  SPlanNullFacts left = planNullExprFacts(pCxt, pOp->pLeft);
+  uint64_t nulls = left.notTrue & left.notFalse;
+  switch (pOp->opType) {
+    case OP_TYPE_IS_NULL:
+      return (SPlanNullFacts){.notFalse = nulls};
+    case OP_TYPE_IS_NOT_NULL:
+      return (SPlanNullFacts){.notTrue = nulls};
+    case OP_TYPE_MINUS:
+      return planNullStrictFacts(left, unknown);
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_REM:
+    case OP_TYPE_BIT_AND:
+    case OP_TYPE_BIT_OR:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      // ANY/ALL rewritten to MIN/MAX use a remote row; an empty set yields
+      // TRUE or FALSE even for a NULL operand. Remote values stay unknown.
+      if (NULL == pOp->pRight || planNullIsRemoteOperand(pOp->pLeft) ||
+          planNullIsRemoteOperand(pOp->pRight)) return unknown;
+      return planNullStrictFacts(left,
+                                  planNullExprFacts(pCxt, pOp->pRight));
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullFunctionFacts(const SPlanNullContext* pCxt,
+                                            const SFunctionNode* pFunc) {
+  SPlanNullFacts unknown = {0};
+  if (!fmIsScalarFunc(pFunc->funcId)) return unknown;
+  EFunctionType type = fmGetFuncTypeFromId(pFunc->funcId);
+  int32_t numParams = LIST_LENGTH(pFunc->pParameterList);
+  // translateCast appends database precision after the expression argument.
+  if (1 != numParams && !(FUNCTION_TYPE_CAST == type && 2 == numParams)) {
+    return unknown;
+  }
+  // These unary implementations in sclfunc.c preserve NULL. Do not infer
+  // strictness from scalar classification or from a function's name.
+  const SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
+  switch (type) {
+    case FUNCTION_TYPE_ABS:
+    case FUNCTION_TYPE_CEIL:
+    case FUNCTION_TYPE_FLOOR:
+    case FUNCTION_TYPE_CAST:
+    case FUNCTION_TYPE_LOWER:
+    case FUNCTION_TYPE_UPPER:
+    case FUNCTION_TYPE_LENGTH:
+      return planNullStrictFacts(planNullExprFacts(pCxt, pArg), unknown);
+    default:
+      return unknown;
+  }
+}
+
+static SPlanNullFacts planNullExprFacts(const SPlanNullContext* pCxt,
+                                        const SNode* pExpr) {
+  SPlanNullFacts unknown = {0};
+  if (NULL == pExpr) return unknown;
+  switch (nodeType(pExpr)) {
+    case QUERY_NODE_COLUMN: {
+      const SColumnNode* pColumn = (const SColumnNode*)pExpr;
+      if (pColumn->hasDep) return unknown;
+      uint64_t inputs = pCxt->resolver(pColumn, pCxt->pResolveContext) &
+                        pCxt->inputs;
+      return (SPlanNullFacts){.notTrue = inputs, .notFalse = inputs};
+    }
+    case QUERY_NODE_VALUE: {
+      const SValueNode* pValue = (const SValueNode*)pExpr;
+      if (!pValue->translate || pValue->placeholderNo > 0 ||
+          0 != (pValue->flag & (VALUE_FLAG_VAL_UNSET | VALUE_FLAG_REMOTE_PLAN |
+                               VALUE_FLAG_RAW_SQL_FRAG |
+                               VALUE_FLAG_DEFERRED_QUERY_TIME))) return unknown;
+      if (pValue->isNull || TSDB_DATA_TYPE_NULL == pValue->node.resType.type) {
+        return (SPlanNullFacts){.notTrue = pCxt->inputs,
+                                .notFalse = pCxt->inputs};
+      }
+      if (TSDB_DATA_TYPE_BOOL == pValue->node.resType.type) {
+        return pValue->datum.b ? (SPlanNullFacts){.notFalse = pCxt->inputs}
+                               : (SPlanNullFacts){.notTrue = pCxt->inputs};
+      }
+      return unknown;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      return planNullLogicFacts(pCxt, (const SLogicConditionNode*)pExpr);
+    case QUERY_NODE_OPERATOR:
+      return planNullOperatorFacts(pCxt, (const SOperatorNode*)pExpr);
+    case QUERY_NODE_FUNCTION:
+      return planNullFunctionFacts(pCxt, (const SFunctionNode*)pExpr);
+    default:
+      return unknown;
+  }
+}
+
+uint64_t planCondRejectsNull(const SNode* pCondition, uint64_t inputs,
+                             FPlanNullColumnResolver resolver,
+                             const void* pContext) {
+  if (NULL == resolver || 0 == inputs) return 0;
+  SPlanNullContext context = {
+      .resolver = resolver, .pResolveContext = pContext, .inputs = inputs};
+  return planNullExprFacts(&context, pCondition).notTrue;
+}

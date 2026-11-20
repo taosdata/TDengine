@@ -14,12 +14,17 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 # -*- coding: utf-8 -*-
-from new_test_framework.utils import tdLog, tdSql, TDSetSql
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, TDSetSql
 import random
 import os
+import platform
+import shutil
 import subprocess
+import tempfile
 import time
 import sys
+
+import pytest
 
 class PerfDB:
     def __init__(self):
@@ -495,4 +500,140 @@ class TestUdfpyMain:
         self.query_aggr_udfpy()
 
         # show performance
+
+    # --- missing taosudf companion ---
+    def _udfd_candidates(self):
+        # taosLocateCompanionExec() looks in the taosd directory first and then
+        # in the fixed install directories.
+        is_win = platform.system().lower() == "windows"
+        name = "taosudf.exe" if is_win else "taosudf"
+        app_dir = os.path.dirname(tdDnodes.dnodes[0].binPath)
+        dirs = [app_dir]
+        dirs += ["C:\\TDengine"] if is_win else ["/usr/bin", "/usr/local/taos/bin"]
+        candidates = []
+        for d in dirs:
+            path = os.path.join(d, name)
+            if os.path.isfile(path) and path not in candidates:
+                candidates.append(path)
+        return candidates
+
+    @staticmethod
+    def _kill_leftover_udfd():
+        # A udfd left behind by an earlier case still holds the binary open on
+        # Windows and would make the rename below fail.
+        if platform.system().lower() == "windows":
+            os.system("taskkill /f /im taosudf.exe >nul 2>&1")
+        else:
+            os.system("pkill -9 taosudf 2>/dev/null || true")
+
+    def _hide_udfd(self, candidates):
+        hidden = []
+        for path in candidates:
+            backup = path + ".udfd_missing_bak"
+            if os.path.exists(backup):
+                os.remove(backup)
+            os.replace(path, backup)
+            hidden.append((path, backup))
+        return hidden
+
+    @staticmethod
+    def _restore_udfd(hidden):
+        for path, backup in hidden:
+            if os.path.exists(backup):
+                os.replace(backup, path)
+
+    def prepare_missing_udfd(self):
+        tdSql.execute("drop database if exists udf_missing_db")
+        tdSql.execute("create database udf_missing_db")
+        tdSql.execute("create table udf_missing_db.t1 (ts timestamp, c1 int)")
+        tdSql.execute("insert into udf_missing_db.t1 values (1720000000000, 3)")
+
+    @staticmethod
+    def make_stub_udf_lib():
+        # CVE-2023-38502 requires the UDF library to exist, carry the platform
+        # suffix and start with a valid ELF/PE magic number. The library is
+        # never loaded because udfd cannot start, so a 16-byte stub is enough.
+        stub_dir = tempfile.mkdtemp(prefix="udf_missing_")
+        if platform.system().lower() == "windows":
+            path = os.path.join(stub_dir, "libudf_missing_companion.dll")
+            magic = b"MZ"
+        else:
+            path = os.path.join(stub_dir, "libudf_missing_companion.so")
+            magic = b"\x7fELF"
+        with open(path, "wb") as f:
+            f.write(magic + b"\x00" * (16 - len(magic)))
+        return stub_dir, path
+
+    def do_missing_udfd(self):
+        if tdDnodes.dnodes[0].remoteIP != "":
+            pytest.skip("case requires a local deployment to hide the taosudf binary")
+
+        candidates = self._udfd_candidates()
+        if not candidates:
+            tdLog.info("taosudf is already absent from every search path")
+
+        tdDnodes.stop(1)
+        self._kill_leftover_udfd()
+
+        hidden = []
+        stub_dir, lib = self.make_stub_udf_lib()
+        try:
+            # --- make the companion binary unavailable ---
+            try:
+                hidden = self._hide_udfd(candidates)
+            except OSError as err:
+                self._restore_udfd(hidden)
+                hidden = []
+                tdDnodes.start(1)
+                pytest.skip(f"cannot make taosudf unavailable in this environment: {err}")
+
+            # --- taosd has to come online and stay alive without udfd ---
+            tdDnodes.start(1)
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+            tdLog.info("taosd stays online without taosudf")
+
+            # --- a UDF call must report an error instead of crashing taosd ---
+            tdSql.execute("drop function if exists udf_no_companion")
+            tdSql.execute("create function udf_no_companion as '%s' outputtype int" % lib.replace("\\", "/"))
+            tdSql.error("select udf_no_companion(c1) from udf_missing_db.t1")
+
+            tdSql.query("select server_version()")
+            tdSql.checkRows(1)
+            tdLog.info("taosd is still alive after the failed UDF call")
+        finally:
+            # --- always restore the deployment and leave a running server ---
+            self._restore_udfd(hidden)
+            shutil.rmtree(stub_dir, ignore_errors=True)
+            tdDnodes.stop(1)
+            tdDnodes.start(1)
+
+        tdSql.query("select server_version()")
+        tdSql.checkRows(1)
+        tdSql.execute("drop function if exists udf_no_companion")
+
+        print("missing taosudf startup ....... [ passed ]")
+
+    def test_udf_missing_udfd(self):
+        """Start taosd without the taosudf companion binary
+
+        1. Stop taosd and make taosudf unavailable in every search path
+        2. Start taosd: it must come online and stay alive without udfd
+        3. Call a UDF: it must report an error instead of crashing taosd
+        4. Restore taosudf, restart taosd and verify the server is usable
+
+        Catalog:
+            - UDF
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: 7167952520
+
+        History:
+            - 2026-11-18 Alex Duan Add regression coverage for a missing taosudf
+        """
+        self.prepare_missing_udfd()
+        self.do_missing_udfd()
 

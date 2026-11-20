@@ -35,6 +35,7 @@
 // Declare it here so the unit test can drive the scratch-vg-list ownership rules directly instead of
 // only through a full executor pipeline.
 extern "C" int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
+extern "C" int32_t vtbScanNext(SOperatorInfo *pOperator, SSDataBlock **pRes);
 
 namespace {
 
@@ -57,6 +58,7 @@ struct RedeployCheckHarness {
   }
 
   ~RedeployCheckHarness() {
+    taosArrayDestroy(runtime.funcInfo.pStreamPartColVals);
     if (dynInfo.vtbScan.existOrgTbVg != nullptr) {
       taosHashCleanup(dynInfo.vtbScan.existOrgTbVg);
     }
@@ -208,4 +210,43 @@ TEST(VtbScanProcessOrgTbVgTest, NoNewVgroupLeavesDeployStateUntouched) {
   EXPECT_EQ(h.dynInfo.vtbScan.rversion, 0);
   EXPECT_EQ(atomic_load_8(&h.vtableDeployFlag), 0);
   EXPECT_EQ(static_cast<int32_t>(taosHashGetSize(h.dynInfo.vtbScan.curOrgTbVg)), 2);
+}
+
+TEST(VtbScanPartitionTest, ReopenUsesGroupBoundAfterReset) {
+  RedeployCheckHarness h;
+  SDynQueryCtrlPhysiNode plan{};
+  plan.dynTbname = true;
+  h.op.pPhyNode = &plan;
+  h.dynInfo.vtbScan.isSuperTable = true;
+  h.runtime.funcInfo.pStreamPartColVals = taosArrayInit(2, sizeof(SStreamGroupValue));
+  ASSERT_NE(h.runtime.funcInfo.pStreamPartColVals, nullptr);
+  SStreamGroupValue other{};
+  other.uid = 0x9999;
+  ASSERT_NE(taosArrayPush(h.runtime.funcInfo.pStreamPartColVals, &other), nullptr);
+  SStreamGroupValue table{};
+  table.isTbname = true;
+  ASSERT_NE(taosArrayPush(h.runtime.funcInfo.pStreamPartColVals, &table), nullptr);
+
+  h.op.fpSet._openFn = [](SOperatorInfo *op) -> int32_t {
+    auto *dyn = static_cast<SDynQueryCtrlOperatorInfo *>(op->info);
+    auto *group = static_cast<SStreamGroupValue *>(
+        taosArrayGet(op->pTaskInfo->pStreamRuntimeInfo->funcInfo.pStreamPartColVals, 1));
+    // The real open builds child/source maps using this UID.
+    EXPECT_EQ(dyn->vtbScan.dynTbUid, group->uid);
+    OPTR_SET_OPENED(op);
+    return TSDB_CODE_SUCCESS;
+  };
+
+  // Simulate reset observing the old group, then Runner binding another group.
+  // Revisit both children across windows, including reopening the same child.
+  for (uint64_t uid : {0x1234ULL, 0x5678ULL, 0x5678ULL, 0x1234ULL}) {
+    SCOPED_TRACE(uid);
+    auto *group = static_cast<SStreamGroupValue *>(taosArrayGet(h.runtime.funcInfo.pStreamPartColVals, 1));
+    group->uid = uid;
+    h.op.status = OP_NOT_OPENED;
+    SSDataBlock *result = nullptr;
+    ASSERT_EQ(vtbScanNext(&h.op, &result), TSDB_CODE_SUCCESS);
+    EXPECT_EQ(h.dynInfo.vtbScan.dynTbUid, uid);
+    EXPECT_EQ(result, nullptr);
+  }
 }

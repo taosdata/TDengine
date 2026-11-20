@@ -63,6 +63,15 @@ Mixed table-DDL + stream scenarios (one transaction spanning both object kinds):
       TXN_RESOURCE_BUSY while the stream is pending_drop (FS 4.6)
   m17 txn DROP refuses TSMA-internal streams with 0x3110, same as the non-txn path (DS 6.1)
   m18 pre-existing NORMAL output table is referenced, never created or undone (form D)
+  m20 STOP/START on a stream created in the txn: only the persisted flag changes (FS 4.16)
+  m21 STOP/START on a pre-existing stream: lock, applied at COMMIT (FS 4.16)
+  m22 ROLLBACK discards the intent, lock conflicts between txns (FS 4.16)
+  m23 STOP+START nets out, STOP+DROP resolves to DROP, STOP inside mixed DDL (FS 4.16)
+  m24 STOP/START need the same privileges as outside a txn; a refusal leaves no lock (FS 4.16.3)
+  m25 an abandoned txn is rolled back: lock released, START intent never applied (FS 4.16.2)
+  m26 RECALCULATE stays unsupported in a txn and cannot bypass the stream lock (FS 4.1 / 4.16.5)
+  m27 STOP/START behave identically under BEGIN ALLOW_NONTRANSACTIONAL (FS 4.16.5)
+  m28 non-existent stream / IF EXISTS; others still see pre-txn state and tasks (FS 4.16.3)
 """
 
 from new_test_framework.utils import tdLog, tdSql
@@ -384,6 +393,22 @@ class TestBatchMetaTxnStream:
             if tdSql.queryResult[i][0] == name:
                 return tdSql.queryResult[i][1]
         return None
+
+    def _stream_tasks(self, name):
+        """(task_id, start_time) of every deployed task of `name`, sorted. Both change when
+        the stream is undeployed and deployed again, so equal sets mean no restart."""
+        tdSql.query(
+            "select stream_id from information_schema.ins_streams"
+            f" where db_name = 'txn_stm' and stream_name = '{name}'"
+        )
+        if tdSql.queryRows == 0:
+            return []
+        stream_id = tdSql.queryResult[0][0]
+        tdSql.query(
+            "select task_id, start_time from information_schema.ins_stream_tasks"
+            f" where stream_id = '{stream_id}'"
+        )
+        return sorted((str(r[0]), str(r[1])) for r in tdSql.queryResult)
 
     def s10_batch_drop_stream(self):
         self.s0_reset_env()
@@ -1310,8 +1335,9 @@ class TestBatchMetaTxnStream:
         """FS 4.6: STOP / START / RECALCULATE STREAM from outside the owning txn are
         rejected with TSDB_CODE_TXN_RESOURCE_BUSY while the stream is pending_drop.
 
-        The client rejects these statements inside a txn (they are runtime control, not
-        metadata DDL), so the only way to hit the guard is from a second connection. The
+        STOP / START are transactional since FS 4.16, but a stream already marked
+        pending_drop by another txn is owned by it, so the guard is reached from a second
+        connection (and from the owning txn itself, where it reads as not-exist). The
         in-txn DROP keeps the stream running until COMMIT/ROLLBACK (DS 5.2); poking it from
         outside must not be allowed to race the txn's outcome."""
         self.s0_reset_env()
@@ -1354,7 +1380,13 @@ class TestBatchMetaTxnStream:
                     f"expected TXN_RESOURCE_BUSY on RECALCULATE, got: {e}"
                 tdLog.info(f"m16 RECALCULATE blocked: {e}")
 
-            # START is not exercised here: the pending_drop stream is still Running, so a
+            # Inside the owning txn the stream is already dropped: STOP / START read it as
+            # not-exist (FS 4.16.3), IF EXISTS is a no-op.
+            tdSql.error("stop stream m16_s", expectedErrno=0x03F1)
+            tdSql.error("start stream m16_s", expectedErrno=0x03F1)
+            tdSql.execute("stop stream if exists m16_s")
+
+            # START from outside is not exercised here: the pending_drop stream is still Running, so a
             # START from outside would fail with MND_STREAM_NOT_STOPPED before reaching the
             # txn guard — it cannot distinguish the txn-ownership rejection from the
             # ordinary "already running" rejection.
@@ -1452,7 +1484,7 @@ class TestBatchMetaTxnStream:
         tdSql.execute("BEGIN")
         tdSql.error(
             nested_sql,
-            expectErrInfo="Only table DDL (CREATE/DROP/ALTER TABLE) allowed in transaction",
+            expectErrInfo="Statement is not supported in transaction",
             fullMatched=False,
         )
         # The txn is still alive and can ROLLBACK cleanly.
@@ -1461,6 +1493,352 @@ class TestBatchMetaTxnStream:
 
         tdLog.info("m19 PASSED: nested-window stream rejected inside a txn, "
                    "accepted outside one, txn usable after rejection")
+
+    # =========================================================================
+    # START STREAM / STOP STREAM inside a transaction (FS 4.16)
+    # =========================================================================
+
+    def _busy_on_conn2(self, cursor2, sql):
+        """`sql` on another connection must fail with TSDB_CODE_TXN_RESOURCE_BUSY (0x3317)."""
+        try:
+            cursor2.execute(sql)
+        except Exception as e:
+            assert "0x3317" in str(e) or "being modified by another transaction" in str(e), \
+                f"expected TXN_RESOURCE_BUSY for [{sql}], got: {e}"
+            return
+        raise AssertionError(f"[{sql}] should be refused with TXN_RESOURCE_BUSY")
+
+    def m20_stop_start_on_txn_created_stream(self):
+        """FS 4.16.1 (stream created in this txn): STOP/START only change the persisted
+        flag; COMMIT deploys or not according to it, ROLLBACK removes the stream."""
+        self.s0_reset_env()
+        tdLog.info("======== m20_stop_start_on_txn_created_stream")
+
+        # STOP in txn + COMMIT: the stream exists but is never run.
+        tdSql.execute("BEGIN")
+        self._create_stream("m20_a", "m20_oa")
+        tdSql.execute("stop stream m20_a")
+        assert self._stream_status("m20_a") == "pending_create", self._stream_status("m20_a")
+        tdSql.execute("COMMIT")
+        assert self._wait_status("m20_a", ("Stopped",), timeout=10) == "Stopped", self._stream_status("m20_a")
+        time.sleep(3)  # a wrongly posted deploy would have shown up by now
+        assert self._stream_status("m20_a") == "Stopped", self._stream_status("m20_a")
+
+        # ... and an ordinary START afterwards brings it up.
+        tdSql.execute("start stream m20_a")
+        status = self._wait_status("m20_a", ("Running", "Idle"))
+        assert status in ("Running", "Idle"), f"m20_a did not start, status={status}"
+
+        # STOP then START in the same txn nets to "run".
+        tdSql.execute("BEGIN")
+        self._create_stream("m20_b", "m20_ob")
+        tdSql.execute("stop stream m20_b")
+        tdSql.execute("start stream m20_b")
+        tdSql.execute("COMMIT")
+        status = self._wait_status("m20_b", ("Running", "Idle"))
+        assert status in ("Running", "Idle"), f"m20_b should run after STOP+START, status={status}"
+
+        # START on a stream that is not stopped is refused (0x7013), txn stays usable.
+        tdSql.execute("BEGIN")
+        self._create_stream("m20_c", "m20_oc")
+        tdSql.error("start stream m20_c", expectedErrno=0x7013)
+
+        # ROLLBACK: the stream is gone entirely.
+        tdSql.execute("stop stream m20_c")
+        tdSql.execute("ROLLBACK")
+        assert "m20_c" not in self._stream_names(), "m20_c survived ROLLBACK"
+
+    def m21_stop_start_existing_stream_commit(self):
+        """FS 4.16.1/4.16.2 (pre-existing stream): the first STOP takes the stream lock;
+        the stream keeps running until COMMIT, which stops it; a later txn START brings
+        it back at COMMIT."""
+        self.s0_reset_env()
+        tdLog.info("======== m21_stop_start_existing_stream_commit")
+
+        self._create_stream("m21_s", "m21_o")
+        assert self._wait_status("m21_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        conn2, cursor2 = self._other_conn()
+        try:
+            tdSql.execute("BEGIN")
+            tdSql.execute("stop stream m21_s")
+
+            # Not stopped yet from the outside's point of view.
+            assert self._stream_status("m21_s") in ("Running", "Idle"), self._stream_status("m21_s")
+
+            # Lock held: outside sessions cannot touch the stream.
+            for sql in ("stop stream m21_s", "start stream m21_s", "drop stream m21_s"):
+                self._busy_on_conn2(cursor2, sql)
+
+            tdSql.execute("COMMIT")
+            assert self._wait_status("m21_s", ("Stopped",), timeout=15) == "Stopped", self._stream_status("m21_s")
+
+            # Lock released by COMMIT: the other session may act on it now.
+            cursor2.execute("start stream m21_s")
+            assert self._wait_status("m21_s", ("Running", "Idle")) in ("Running", "Idle")
+            cursor2.execute("stop stream m21_s")
+            assert self._wait_status("m21_s", ("Stopped",), timeout=15) == "Stopped"
+
+            # START inside a txn on the stopped stream.
+            tdSql.execute("BEGIN")
+            tdSql.execute("start stream m21_s")
+            assert self._stream_status("m21_s") == "Stopped", self._stream_status("m21_s")
+            tdSql.execute("COMMIT")
+            status = self._wait_status("m21_s", ("Running", "Idle"))
+            assert status in ("Running", "Idle"), f"m21_s did not restart at COMMIT, status={status}"
+        finally:
+            tdSql.execute_ignore_error("ROLLBACK")
+            conn2.close()
+
+    def m22_stop_start_existing_stream_rollback_and_lock(self):
+        """FS 4.16.2/4.16.4: ROLLBACK discards the intent and releases the lock; a second
+        txn cannot take a stream already locked by the first."""
+        self.s0_reset_env()
+        tdLog.info("======== m22_stop_start_existing_stream_rollback_and_lock")
+
+        self._create_stream("m22_s", "m22_o")
+        assert self._wait_status("m22_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        conn2, cursor2 = self._other_conn()
+        try:
+            tdSql.execute("BEGIN")
+            tdSql.execute("stop stream m22_s")
+
+            # A second txn cannot lock the same stream.
+            cursor2.execute("BEGIN")
+            self._busy_on_conn2(cursor2, "stop stream m22_s")
+            cursor2.execute("ROLLBACK")
+
+            tdSql.execute("ROLLBACK")
+            # Still running, never interrupted, and unlocked again.
+            assert self._stream_status("m22_s") in ("Running", "Idle"), self._stream_status("m22_s")
+
+            cursor2.execute("BEGIN")
+            cursor2.execute("stop stream m22_s")
+            cursor2.execute("ROLLBACK")
+            assert self._stream_status("m22_s") in ("Running", "Idle"), self._stream_status("m22_s")
+
+            # A running stream cannot be START-ed in a txn (0x7013).
+            tdSql.execute("BEGIN")
+            tdSql.error("start stream m22_s", expectedErrno=0x7013)
+            tdSql.execute("ROLLBACK")
+        finally:
+            tdSql.execute_ignore_error("ROLLBACK")
+            conn2.close()
+
+    def m23_stop_start_combined_with_other_ops(self):
+        """FS 4.16.3: STOP then START nets to no change; STOP + DROP resolves to DROP;
+        STOP/START on a stream already dropped in the txn behaves as not-exist."""
+        self.s0_reset_env()
+        tdLog.info("======== m23_stop_start_combined_with_other_ops")
+
+        self._create_stream("m23_a", "m23_oa")
+        self._create_stream("m23_b", "m23_ob")
+        for n in ("m23_a", "m23_b"):
+            assert self._wait_status(n, ("Running", "Idle")) in ("Running", "Idle")
+
+        # STOP + START on m23_a: no runtime change at COMMIT (the stream is not restarted).
+        # Status alone would also pass after an undeploy + redeploy, so compare the deployed
+        # tasks: a restart gives new task ids / start times.
+        tasks_before = self._stream_tasks("m23_a")
+        assert tasks_before, "m23_a has no deployed task before the txn"
+        tdSql.execute("BEGIN")
+        tdSql.execute("stop stream m23_a")
+        tdSql.execute("start stream m23_a")
+        tdSql.execute("COMMIT")
+        # Give a (wrong) undeploy / redeploy time to show up before comparing.
+        time.sleep(5)
+        assert self._stream_status("m23_a") in ("Running", "Idle"), self._stream_status("m23_a")
+        tasks_after = self._stream_tasks("m23_a")
+        assert tasks_after == tasks_before, \
+            f"m23_a was redeployed by a net-zero STOP+START: before={tasks_before} after={tasks_after}"
+
+        # STOP + DROP on m23_b: DROP wins; further STOP/START see a dropped stream.
+        tdSql.execute("BEGIN")
+        tdSql.execute("stop stream m23_b")
+        tdSql.execute("drop stream m23_b")
+        tdSql.error("stop stream m23_b", expectedErrno=0x03F1)  # TSDB_CODE_MND_STREAM_NOT_EXIST
+        tdSql.execute("stop stream if exists m23_b")
+        tdSql.execute("COMMIT")
+        assert "m23_b" not in self._stream_names(), "m23_b survived DROP+COMMIT"
+        assert self._stream_status("m23_a") in ("Running", "Idle")
+
+        # STOP + DROP + ROLLBACK: both undone, stream untouched and unlocked.
+        tdSql.execute("BEGIN")
+        tdSql.execute("stop stream m23_a")
+        tdSql.execute("drop stream m23_a")
+        tdSql.execute("ROLLBACK")
+        assert self._stream_status("m23_a") in ("Running", "Idle"), self._stream_status("m23_a")
+        tdSql.execute("stop stream m23_a")  # non-txn STOP works => lock released
+        assert self._wait_status("m23_a", ("Stopped",), timeout=15) == "Stopped"
+
+        # Counts against the txn DDL budget like any other DDL statement is covered by
+        # s11; here only check the statements are accepted in the middle of other DDL.
+        tdSql.execute("BEGIN")
+        tdSql.execute("create table m23_t (ts timestamp, v int)")
+        tdSql.execute("start stream m23_a")
+        tdSql.execute("COMMIT")
+        assert self._wait_status("m23_a", ("Running", "Idle")) in ("Running", "Idle")
+
+    def m24_stop_start_requires_privilege(self):
+        """FS 4.16.3: permission checks in a txn match the non-txn path. A user without the
+        privilege is refused and, crucially, no lock is left on the stream."""
+        self.s0_reset_env()
+        tdLog.info("======== m24_stop_start_requires_privilege")
+        self._create_stream("m24_s", "m24_o")
+        assert self._wait_status("m24_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        user, pwd = "m24_user", "m24_pwd@123A"
+        tdSql.execute(f"drop user if exists {user}")
+        tdSql.execute(f"create user {user} pass '{pwd}'")
+        # USE on the db so the statement gets past the db-level check and actually reaches
+        # the STOP / START privilege check (PRIV_CM_STOP / PRIV_CM_START) in mnode. Without
+        # it the refusal would come from an earlier stage and prove nothing about that check.
+        tdSql.execute(f"grant use on database txn_stm to {user}")
+        conn = taos.connect(user=user, password=pwd)
+        try:
+            cur = conn.cursor()
+            cur.execute("BEGIN")
+            for sql in ("stop stream txn_stm.m24_s", "start stream txn_stm.m24_s"):
+                try:
+                    cur.execute(sql)
+                except Exception as e:
+                    errno = getattr(e, "errno", None)
+                    assert (errno is not None and (errno & 0xFFFF) == 0x0303) or "0x0303" in str(e), \
+                        f"[{sql}] expected TSDB_CODE_MND_NO_RIGHTS (0x0303), got: {e}"
+                    tdLog.info(f"m24 [{sql}] refused as expected: {e}")
+                else:
+                    raise AssertionError(f"[{sql}] must be refused for a user without privileges")
+            cur.execute("ROLLBACK")
+        finally:
+            conn.close()
+            tdSql.execute(f"drop user if exists {user}")
+
+        # The refused attempts left the stream untouched and unlocked: a plain STOP works.
+        assert self._stream_status("m24_s") in ("Running", "Idle"), self._stream_status("m24_s")
+        tdSql.execute("stop stream m24_s")
+        assert self._wait_status("m24_s", ("Stopped",), timeout=15) == "Stopped"
+
+    def m25_timeout_rollback_releases_stream_lock(self):
+        """FS 4.16.2 / 4.16.4: a txn that is abandoned (client gone) is rolled back like an
+        explicit ROLLBACK: the stream lock is released and the START intent is never applied."""
+        self.s0_reset_env()
+        tdLog.info("======== m25_timeout_rollback_releases_stream_lock")
+        self._create_stream("m25_s", "m25_o")
+        assert self._wait_status("m25_s", ("Running", "Idle")) in ("Running", "Idle")
+        tdSql.execute("stop stream m25_s")
+        assert self._wait_status("m25_s", ("Stopped",), timeout=15) == "Stopped"
+
+        conn_a, cur_a = self._other_conn()
+        conn2, cursor2 = self._other_conn()
+        try:
+            cur_a.execute("BEGIN")
+            cur_a.execute("start stream m25_s")  # lock + intent "run", not applied before COMMIT
+            assert self._stream_status("m25_s") == "Stopped", self._stream_status("m25_s")
+            self._busy_on_conn2(cursor2, "start stream m25_s")
+            conn_a.close()  # abandon the txn without COMMIT / ROLLBACK
+
+            # Poll with START itself: BUSY while the dead txn still holds the lock; success once it
+            # has been rolled back. NOT_STOPPED would mean the intent was wrongly applied.
+            released = False
+            for i in range(120):
+                try:
+                    cursor2.execute("start stream m25_s")
+                    released = True
+                    tdLog.info(f"m25 lock released after about {i}s")
+                    break
+                except Exception as e:
+                    msg = str(e)
+                    assert "0x7013" not in msg and "not stopped" not in msg.lower(), \
+                        f"abandoned txn must not apply its START intent, got: {msg}"
+                    assert "0x3317" in msg or "being modified by another transaction" in msg, \
+                        f"unexpected error while waiting for lock release: {msg}"
+                    time.sleep(1)
+            assert released, "abandoned txn did not release the stream lock within 120s"
+            status = self._wait_status("m25_s", ("Running", "Idle"))
+            assert status in ("Running", "Idle"), f"m25_s did not start after lock release, status={status}"
+        finally:
+            conn2.close()
+
+    def m26_recalculate_stays_unsupported(self):
+        """FS 4.1 / 4.16.5: RECALCULATE is not a transactional statement. Default BEGIN refuses
+        it (txn stays usable); with ALLOW_NONTRANSACTIONAL it is let through but cannot get
+        around the stream lock held by the same txn."""
+        self.s0_reset_env()
+        tdLog.info("======== m26_recalculate_stays_unsupported")
+        self._create_stream("m26_s", "m26_o")
+        assert self._wait_status("m26_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        tdSql.execute("BEGIN")
+        tdSql.error("recalculate stream m26_s from 0", expectedErrno=0x331C)
+        tdSql.execute("stop stream m26_s")  # txn still usable after the refusal
+        tdSql.execute("ROLLBACK")
+        assert self._stream_status("m26_s") in ("Running", "Idle"), self._stream_status("m26_s")
+
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("stop stream m26_s")
+        tdSql.error("recalculate stream m26_s from 0", expectedErrno=0x3317)
+        tdSql.execute("ROLLBACK")
+        assert self._stream_status("m26_s") in ("Running", "Idle"), self._stream_status("m26_s")
+
+    def m27_stop_start_under_allow_nontransactional(self):
+        """FS 4.16.5: STOP / START behave identically under BEGIN ALLOW_NONTRANSACTIONAL: they
+        join the txn, are applied at COMMIT only and are discarded by ROLLBACK."""
+        self.s0_reset_env()
+        tdLog.info("======== m27_stop_start_under_allow_nontransactional")
+        self._create_stream("m27_s", "m27_o")
+        assert self._wait_status("m27_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("stop stream m27_s")
+        assert self._stream_status("m27_s") in ("Running", "Idle"), self._stream_status("m27_s")
+        tdSql.execute("ROLLBACK")
+        time.sleep(2)
+        assert self._stream_status("m27_s") in ("Running", "Idle"), self._stream_status("m27_s")
+
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("stop stream m27_s")
+        tdSql.execute("COMMIT")
+        assert self._wait_status("m27_s", ("Stopped",), timeout=15) == "Stopped", self._stream_status("m27_s")
+
+        tdSql.execute("BEGIN ALLOW_NONTRANSACTIONAL")
+        tdSql.execute("start stream m27_s")
+        assert self._stream_status("m27_s") == "Stopped", self._stream_status("m27_s")
+        tdSql.execute("COMMIT")
+        status = self._wait_status("m27_s", ("Running", "Idle"))
+        assert status in ("Running", "Idle"), f"m27_s did not start at COMMIT, status={status}"
+
+    def m28_not_exist_and_visibility(self):
+        """FS 4.16.3: non-existent streams and IF EXISTS follow the non-txn rules; while the stream
+        is locked other sessions still see its pre-txn state and its tasks."""
+        self.s0_reset_env()
+        tdLog.info("======== m28_not_exist_and_visibility")
+        self._create_stream("m28_s", "m28_o")
+        assert self._wait_status("m28_s", ("Running", "Idle")) in ("Running", "Idle")
+
+        tdSql.execute("BEGIN")
+        tdSql.error("stop stream m28_none", expectedErrno=0x03F1)
+        tdSql.error("start stream m28_none", expectedErrno=0x03F1)
+        tdSql.execute("stop stream if exists m28_none")
+        tdSql.execute("start stream if exists m28_none")
+        tdSql.execute("ROLLBACK")
+
+        def task_streams(cursor):
+            cursor.execute("select distinct stream_name from information_schema.ins_stream_tasks")
+            return {r[0] for r in cursor.fetchall()}
+
+        conn2, cursor2 = self._other_conn()
+        try:
+            assert "m28_s" in task_streams(cursor2), "baseline: running stream must list its tasks"
+            tdSql.execute("BEGIN")
+            tdSql.execute("stop stream m28_s")
+            cursor2.execute("show streams")
+            rows = {r[0]: r[1] for r in cursor2.fetchall()}
+            assert rows.get("m28_s") in ("Running", "Idle"), f"others must see the pre-txn state, got {rows}"
+            assert "m28_s" in task_streams(cursor2), "the lock must not hide the stream's tasks"
+            tdSql.execute("ROLLBACK")
+        finally:
+            conn2.close()
 
     def test_stream_output_creation_visibility(self):
         """Stream creation completes its output table and marker before returning.
@@ -1689,6 +2067,15 @@ class TestBatchMetaTxnStream:
             reference, not a create outTblExists vs outStbExists dispatch)
         33. nested_window_rejected_in_txn (nested-window streams are refused inside a
             txn with TXN_INVALID_OPERATION, accepted outside one)
+        34. stop_start_on_txn_created_stream
+        35. stop_start_existing_stream_commit
+        36. stop_start_existing_stream_rollback_and_lock
+        37. stop_start_combined_with_other_ops
+        38. stop_start_requires_privilege
+        39. timeout_rollback_releases_stream_lock
+        40. recalculate_stays_unsupported
+        41. stop_start_under_allow_nontransactional
+        42. not_exist_and_visibility
 
         Catalog:
             - MetaData:Transaction
@@ -1737,3 +2124,14 @@ class TestBatchMetaTxnStream:
         self.m17_txn_drop_refuses_tsma_stream()
         self.m18_preexisting_normal_out_table()
         self.m19_nested_window_rejected_in_txn()
+
+        # START / STOP STREAM inside a transaction (FS 4.16).
+        self.m20_stop_start_on_txn_created_stream()
+        self.m21_stop_start_existing_stream_commit()
+        self.m22_stop_start_existing_stream_rollback_and_lock()
+        self.m23_stop_start_combined_with_other_ops()
+        self.m24_stop_start_requires_privilege()
+        self.m25_timeout_rollback_releases_stream_lock()
+        self.m26_recalculate_stays_unsupported()
+        self.m27_stop_start_under_allow_nontransactional()
+        self.m28_not_exist_and_visibility()

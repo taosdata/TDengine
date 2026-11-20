@@ -287,7 +287,7 @@ taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg1 from sta where
 ============================================================================================================
  NULL                    | NULL        | NULL        | __today__ 00:00:00.000 |         404 |           1 |
 
-taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta right join (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2;
+taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta right join (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2 order by tb.val;
            ts            |     val     |     tg2     |           ts            |     val     |     tg2     |
 ============================================================================================================
  NULL                    | NULL        | NULL        | __today__ 00:00:00.000 |         304 |           1 |
@@ -319,7 +319,7 @@ taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where
 
 taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 interval(1s) order by ts) ta right join (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 interval(1s) order by ts desc) tb on ta.ts=tb.ts and ta.tg2=tb.tg2 and tb.ts>today() where tb.ts>today();
 
-taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta right join (select today() + 1d +3s ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2;
+taos> select * from (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta right join (select today() + 1d +3s ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb on ta.ts=tb.ts and ta.tg2=tb.tg2 order by tb.val;
            ts            |     val     |     tg2     |           ts            |     val     |     tg2     |
 ============================================================================================================
  NULL                    | NULL        | NULL        | __tomorrow__ 00:00:03.000 |         304 |           1 |
@@ -582,7 +582,7 @@ taos> select * from (select today() ts, last(f) val, tg1 from stb where tg1 >= 0
 ============================================================================================================
  NULL                    | NULL        | NULL        | __tomorrow__ 00:00:03.000 |         204 |           1 |
 
-taos> select * from (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb right join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2;
+taos> select * from (select today() ts, last(f) val, tg2 from stb where tg2 >= 0 partition by tg2 order by ts) tb right join (select last(ts) as `ts`,last(f) as `val`,tg2 from sta where tg2>0 partition by tg2 order by ts) ta on ta.ts=tb.ts and ta.tg2=tb.tg2 order by ta.val;
            ts            |     val     |     tg2     |           ts            |     val     |     tg2     |
 ============================================================================================================
  NULL                    | NULL        | NULL        | __tomorrow__ 00:00:02.000 |         104 |           1 |

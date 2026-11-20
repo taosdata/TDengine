@@ -1,0 +1,14 @@
+set max_binary_display_width 300;
+use test_vtable_select;
+explain verbose true select 8 as idx, last(int_col) as val, _c0 as ts, tinyint_col as q from vtb_null_ntb;
+explain verbose true select 8 as idx, last(int_col) as val, _c0 as ts, tinyint_col as q from vtb_null_ctb;
+explain verbose true select last(int_col), _c0, bool_col, u_bigint_col, binary_16_col, nchar_16_col from vtb_null_ntb;
+explain verbose true select last(int_col), _c0, bool_col, u_bigint_col, binary_16_col, nchar_16_col from vtb_null_ctb;
+explain verbose true select last(int_col), _c0, coalesce(tinyint_col, 7), tinyint_col + 1 from vtb_null_ntb;
+explain verbose true select last(int_col), _c0, coalesce(tinyint_col, 7), tinyint_col + 1 from vtb_null_ctb;
+explain verbose true select ts, int_col, float_col, tinyint_col as q from vtb_null_ntb order by ts desc limit 2;
+explain verbose true select ts, int_col, float_col, tinyint_col as q from vtb_null_ctb order by ts desc limit 2;
+explain verbose true select last(int_col), _c0, tinyint_col, int_tag from vtb_null_ctb;
+explain verbose true select last(tinyint_col) from vtb_virtual_stb;
+explain select count(int_col) from vtb_null_ntb session(aux_ts, 1s);
+explain select count(int_col) from vtb_null_ctb session(aux_ts, 1s);

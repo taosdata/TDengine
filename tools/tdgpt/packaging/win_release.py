@@ -433,6 +433,23 @@ def copy_service_scripts():
         shutil.copy2(src_resource_manager, dst_resource_manager)
         logging.info("Copied resource_manager.py")
 
+    src_runtime_upgrade = os.path.join(source_script_dir, "runtime_upgrade.py")
+    dst_runtime_upgrade = os.path.join(bin_dir, "runtime_upgrade.py")
+    if os.path.exists(src_runtime_upgrade):
+        shutil.copy2(src_runtime_upgrade, dst_runtime_upgrade)
+        logging.info("Copied runtime_upgrade.py")
+
+    src_release_manifest = os.path.join(
+        install_info.source_dir, "packaging", "tdengine-tdgpt-tsfm-release-1.0.1.json"
+    )
+    release_metadata_dir = os.path.join(install_info.install_dir, "share", "tsfm")
+    os.makedirs(release_metadata_dir, exist_ok=True)
+    dst_release_manifest = os.path.join(release_metadata_dir, "tsfm-release.json")
+    if not os.path.isfile(src_release_manifest):
+        raise FileNotFoundError(f"Missing TSFM release manifest: {src_release_manifest}")
+    shutil.copy2(src_release_manifest, dst_release_manifest)
+    logging.info("Copied TSFM release manifest")
+
     src_ctl = os.path.join(source_script_dir, "taosanodectl.py")
     dst_ctl = os.path.join(bin_dir, "taosanodectl.py")
     if os.path.exists(src_ctl):
