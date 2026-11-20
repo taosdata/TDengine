@@ -27,6 +27,7 @@
 #include <cctype>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "nodes.h"
 #include "plannodes.h"
@@ -234,6 +235,220 @@ TEST(TimeAlignPlanTest, absentAlignColsDecodeAsNull) {
   NodePtr pDecoded(pBack, nodesDestroyNode);
   ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, nodeType(pDecoded.get()));
   EXPECT_EQ(nullptr, reinterpret_cast<SVirtualScanPhysiNode*>(pDecoded.get())->pAlignCols);
+}
+
+TEST(LastScanPlanTest, LastScanTypeRoundTripsAndLegacyDefault) {
+  for (int value = 0; value <= 3; ++value) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &raw));
+    NodePtr scan(raw, nodesDestroyNode);
+    auto* table = reinterpret_cast<STableScanPhysiNode*>(raw);
+    table->lastScanType = static_cast<ELastScanType>(value);
+    SNode* filter = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_OPERATOR, &filter));
+    table->scan.node.pConditions = filter;
+    auto* op = reinterpret_cast<SOperatorNode*>(filter);
+    op->opType = OP_TYPE_GREATER_THAN;
+    op->pLeft = reinterpret_cast<SNode*>(makeColumn("v", 2, false, 0));
+    ASSERT_NE(nullptr, op->pLeft);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeValueNodeFromInt64(10, &op->pRight));
+
+    SNode* cloneRaw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(raw, &cloneRaw));
+    NodePtr clone(cloneRaw, nodesDestroyNode);
+    EXPECT_EQ(value, reinterpret_cast<STableScanPhysiNode*>(cloneRaw)
+                         ->lastScanType);
+    EXPECT_TRUE(nodesEqualNode(filter,
+        reinterpret_cast<STableScanPhysiNode*>(cloneRaw)
+            ->scan.node.pConditions));
+
+    char* jsonRaw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesNodeToString(raw, false, &jsonRaw, nullptr));
+    std::string json(jsonRaw);
+    taosMemoryFree(jsonRaw);
+    EXPECT_EQ(std::string::npos, json.find("LastOnlyScan"));
+    EXPECT_EQ(std::string::npos, json.find("allowLastScanTail"));
+    SNode* decodedRaw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesStringToNode(json.c_str(), &decodedRaw));
+    NodePtr decoded(decodedRaw, nodesDestroyNode);
+    EXPECT_EQ(value, reinterpret_cast<STableScanPhysiNode*>(decodedRaw)
+                         ->lastScanType);
+    EXPECT_TRUE(nodesEqualNode(filter,
+        reinterpret_cast<STableScanPhysiNode*>(decodedRaw)
+            ->scan.node.pConditions));
+
+    char* msg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(raw, &msg, &len));
+    SNode* wireRaw = nullptr;
+    int32_t code = nodesMsgToNode(msg, len, &wireRaw);
+    taosMemoryFree(msg);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    NodePtr wire(wireRaw, nodesDestroyNode);
+    EXPECT_EQ(value, reinterpret_cast<STableScanPhysiNode*>(wireRaw)
+                         ->lastScanType);
+    EXPECT_TRUE(nodesEqualNode(filter,
+        reinterpret_cast<STableScanPhysiNode*>(wireRaw)
+            ->scan.node.pConditions));
+
+    const std::string field = "\"LastScanType\":\"" +
+                              std::to_string(value) + "\"";
+    const size_t fieldPos = json.find(field);
+    ASSERT_NE(std::string::npos, fieldPos);
+    for (int invalid : {-1, 4, 255}) {
+      std::string bad = json;
+      bad.replace(fieldPos, field.size(),
+                  "\"LastScanType\":\"" + std::to_string(invalid) +
+                      "\"");
+      SNode* badRaw = nullptr;
+      ASSERT_EQ(TSDB_CODE_SUCCESS,
+                nodesStringToNode(bad.c_str(), &badRaw));
+      NodePtr badNode(badRaw, nodesDestroyNode);
+      EXPECT_EQ(LAST_SCAN_NONE,
+                reinterpret_cast<STableScanPhysiNode*>(badRaw)
+                    ->lastScanType);
+    }
+    std::string wrongType = json;
+    wrongType.replace(fieldPos, field.size(), "\"LastScanType\":true");
+    SNode* wrongRaw = nullptr;
+    EXPECT_EQ(TSDB_CODE_INVALID_JSON_FORMAT,
+              nodesStringToNode(wrongType.c_str(), &wrongRaw));
+    EXPECT_EQ(nullptr, wrongRaw);
+    json.replace(fieldPos, field.size(), "\"LastOnlyScan\":true");
+    SNode* legacyRaw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesStringToNode(json.c_str(), &legacyRaw));
+    NodePtr legacy(legacyRaw, nodesDestroyNode);
+    EXPECT_EQ(LAST_SCAN_NONE,
+              reinterpret_cast<STableScanPhysiNode*>(legacyRaw)
+                  ->lastScanType);
+  }
+}
+
+TEST(LastScanPlanTest, LogicalTypeCloneAndJsonRoundTrip) {
+  for (int value = 0; value <= 3; ++value) {
+    SNode* raw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN, &raw));
+    NodePtr scan(raw, nodesDestroyNode);
+    reinterpret_cast<SScanLogicNode*>(raw)->lastScanType =
+        static_cast<ELastScanType>(value);
+    SNode* clonedRaw = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(raw, &clonedRaw));
+    NodePtr cloned(clonedRaw, nodesDestroyNode);
+    EXPECT_EQ(value,
+              reinterpret_cast<SScanLogicNode*>(clonedRaw)->lastScanType);
+    char* text = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesNodeToString(raw, false, &text, nullptr));
+    ASSERT_NE(nullptr, text);
+    SNode* decodedRaw = nullptr;
+    int32_t code = nodesStringToNode(text, &decodedRaw);
+    taosMemoryFree(text);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    NodePtr decoded(decodedRaw, nodesDestroyNode);
+    EXPECT_EQ(value,
+              reinterpret_cast<SScanLogicNode*>(decodedRaw)->lastScanType);
+  }
+}
+
+static int32_t readWireI32(const char* data) {
+  uint32_t value = 0;
+  memcpy(&value, data, sizeof(value));
+  return (int32_t)ntohl(value);
+}
+
+static void writeWireI32(char* data, int32_t value) {
+  uint32_t encoded = htonl((uint32_t)value);
+  memcpy(data, &encoded, sizeof(encoded));
+}
+
+static std::vector<char> makeWireField(int16_t type,
+                                       const std::vector<char>& value) {
+  std::vector<char> field(6 + value.size());
+  uint16_t encodedType = htons((uint16_t)type);
+  memcpy(field.data(), &encodedType, sizeof(encodedType));
+  writeWireI32(field.data() + 2, (int32_t)value.size());
+  memcpy(field.data() + 6, value.data(), value.size());
+  return field;
+}
+
+TEST(LastScanPlanTest, TlvLegacyOrderUnknownAndMalformed) {
+  constexpr int16_t kOldField = 14;
+  constexpr int16_t kNewField = 17;
+  SNode* raw = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS,
+            nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &raw));
+  NodePtr source(raw, nodesDestroyNode);
+  reinterpret_cast<STableScanPhysiNode*>(raw)->lastScanType = LAST_SCAN_MIXED;
+  char* msg = nullptr;
+  int32_t len = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(raw, &msg, &len));
+  std::vector<char> wire(msg, msg + len);
+  taosMemoryFree(msg);
+
+  size_t fieldPos = 6;
+  while (fieldPos + 6 <= wire.size()) {
+    uint16_t type = 0;
+    memcpy(&type, wire.data() + fieldPos, sizeof(type));
+    int32_t fieldLen = readWireI32(wire.data() + fieldPos + 2);
+    ASSERT_GE(fieldLen, 0);
+    ASSERT_LE(fieldPos + 6 + (size_t)fieldLen, wire.size());
+    if (ntohs(type) == kNewField) break;
+    fieldPos += 6 + fieldLen;
+  }
+  ASSERT_LT(fieldPos + 6, wire.size());
+  ASSERT_EQ(4, readWireI32(wire.data() + fieldPos + 2));
+  const std::vector<char> old = makeWireField(kOldField, {1});
+  for (bool before : {true, false}) {
+    std::vector<char> both = wire;
+    size_t pos = before ? fieldPos : fieldPos + 10;
+    both.insert(both.begin() + pos, old.begin(), old.end());
+    writeWireI32(both.data() + 2, (int32_t)both.size() - 6);
+    SNode* out = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMsgToNode(both.data(), (int32_t)both.size(), &out));
+    NodePtr decoded(out, nodesDestroyNode);
+    EXPECT_EQ(LAST_SCAN_MIXED,
+              reinterpret_cast<STableScanPhysiNode*>(out)->lastScanType);
+  }
+  for (bool withOld : {false, true}) {
+    std::vector<char> legacy = wire;
+    legacy.erase(legacy.begin() + fieldPos, legacy.begin() + fieldPos + 10);
+    if (withOld) {
+      legacy.insert(legacy.begin() + fieldPos, old.begin(), old.end());
+    }
+    writeWireI32(legacy.data() + 2, (int32_t)legacy.size() - 6);
+    SNode* out = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMsgToNode(legacy.data(), (int32_t)legacy.size(), &out));
+    NodePtr decoded(out, nodesDestroyNode);
+    EXPECT_EQ(LAST_SCAN_NONE,
+              reinterpret_cast<STableScanPhysiNode*>(out)->lastScanType);
+  }
+  for (int32_t invalid : {-1, 4, 255}) {
+    std::vector<char> bad = wire;
+    writeWireI32(bad.data() + fieldPos + 6, invalid);
+    SNode* out = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS,
+              nodesMsgToNode(bad.data(), (int32_t)bad.size(), &out));
+    NodePtr decoded(out, nodesDestroyNode);
+    EXPECT_EQ(LAST_SCAN_NONE,
+              reinterpret_cast<STableScanPhysiNode*>(out)->lastScanType);
+  }
+  std::vector<char> shortField = wire;
+  shortField.erase(shortField.begin() + fieldPos + 7,
+                   shortField.begin() + fieldPos + 10);
+  writeWireI32(shortField.data() + fieldPos + 2, 1);
+  writeWireI32(shortField.data() + 2, (int32_t)shortField.size() - 6);
+  SNode* out = nullptr;
+  EXPECT_NE(TSDB_CODE_SUCCESS,
+            nodesMsgToNode(shortField.data(), (int32_t)shortField.size(),
+                           &out));
+  EXPECT_EQ(nullptr, out);
 }
 
 }  // namespace

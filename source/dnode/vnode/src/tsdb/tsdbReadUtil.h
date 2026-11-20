@@ -89,7 +89,11 @@ typedef struct STsdbReaderInfo {
   SVersionRange verRange;
   int16_t       order;
   bool          cacheSttStatis;
-  bool          lastOnlyScan;
+  ELastScanType lastScanType;
+  bool          allowLastScanTail;
+  // Reader-owned copies, replaced on policy reset and destroyed on close.
+  SArray*       pFilterInputColIds;
+  SArray*       pLastInputColIds;
   int32_t       blockRowLimit;
 } STsdbReaderInfo;
 
@@ -165,6 +169,8 @@ typedef struct SResultBlockInfo {
 typedef struct SReadCostSummary {
   int64_t               numOfBlocks;
   double                blockLoadTime;
+  // Successful full-block, key or new-column load phases, excluding no-ops.
+  // A phase can issue multiple file reads.
   int64_t               fileLoadCalls;
   double                fileLoadElapsed;
   int64_t               nextCalls;
@@ -333,9 +339,23 @@ typedef struct SBrinTimeSummary {
   int32_t                numEntries;
 } SBrinTimeSummary;
 
+// Valid only for the current reader/file/block; clear invalidates all views.
+typedef struct SLastScanBlock {
+  bool             active;
+  bool             columnsLoaded;
+  SDataFileReader*  pFileReader;
+  SBrinRecord      record;
+  SDiskDataHdr     header;
+  int32_t          lo;
+  int32_t          hi;
+  SSDataBlock*     pFilterBlock;
+  int32_t*         pRowMap;
+} SLastScanBlock;
+
 struct STsdbReader {
   STsdb*              pTsdb;
   STsdbReaderInfo     info;
+  SLastScanBlock      lastScan;
   TdThreadMutex       readerMutex;
   EReaderStatus       flag;
   int32_t             code;

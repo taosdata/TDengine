@@ -5760,6 +5760,50 @@ void normalize_sort_group_key_count(cJSON* node) {
   }
 }
 
+// Legacy expectations omit NONE. Keep explicit modes and actual omissions
+// visible, and put the field last on both sides for ordered JSON comparison.
+void normalize_last_scan_type(cJSON* node, bool legacyExpected) {
+  if (cJSON_IsObject(node)) {
+    cJSON* scan = cJSON_GetObjectItemCaseSensitive(node, "PhysiTableScan");
+    if (cJSON_IsObject(scan)) {
+      cJSON* mode = cJSON_DetachItemFromObjectCaseSensitive(scan,
+                                                          "LastScanType");
+      if (mode == nullptr && legacyExpected) {
+        mode = cJSON_CreateString("0");
+      }
+      if (mode != nullptr) cJSON_AddItemToObject(scan, "LastScanType", mode);
+    }
+  }
+  if (cJSON_IsObject(node) || cJSON_IsArray(node)) {
+    for (cJSON* item = node->child; item != nullptr; item = item->next) {
+      normalize_last_scan_type(item, legacyExpected);
+    }
+  }
+}
+
+TEST(StreamPlanJsonTest, LegacyScanModeKeepsExplicitModesAndMissingActual) {
+  const char* legacy = R"({"PhysiTableScan":{"DataRequired":"1"}})";
+  std::unique_ptr<cJSON, decltype(&cJSON_Delete)> expected(
+      cJSON_Parse(legacy), cJSON_Delete);
+  ASSERT_NE(nullptr, expected);
+  normalize_last_scan_type(expected.get(), true);
+  for (const char* mode : {"0", "1", "2", "3", "missing"}) {
+    SCOPED_TRACE(mode);
+    std::unique_ptr<cJSON, decltype(&cJSON_Delete)> actual(
+        cJSON_Parse(legacy), cJSON_Delete);
+    ASSERT_NE(nullptr, actual);
+    if (strcmp(mode, "missing") != 0) {
+      cJSON* scan = cJSON_GetObjectItemCaseSensitive(actual.get(),
+                                                    "PhysiTableScan");
+      ASSERT_NE(nullptr, cJSON_AddStringToObject(scan, "LastScanType", mode));
+    }
+    normalize_last_scan_type(actual.get(), false);
+    EXPECT_EQ(strcmp(mode, "0") == 0,
+              printJsonUnformatted(expected.get()) ==
+                  printJsonUnformatted(actual.get()));
+  }
+}
+
 void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* const* pIgnoredFields,
                           int32_t numOfIgnoredFields) {
   cJSON* expect = cJSON_Parse(pExpect);
@@ -5775,6 +5819,8 @@ void checkJsonStringEqual(const char* pExpect, const char* pActual, const char* 
   delete_expression_charset_name_fields(expect);
   delete_expression_charset_name_fields(actual);
 
+  normalize_last_scan_type(expect, true);
+  normalize_last_scan_type(actual, false);
   std::string expectStr = printJsonUnformatted(expect);
   std::string actualStr = printJsonUnformatted(actual);
   cJSON_Delete(expect);
@@ -5809,6 +5855,8 @@ void checkCreateStreamTriggerScanPlan(SCMCreateStreamReq* expect, SCMCreateStrea
   delete_expression_charset_name_fields(j1);
   delete_expression_charset_name_fields(j2);
 
+  normalize_last_scan_type(j1, true);
+  normalize_last_scan_type(j2, false);
   std::string expectTriggerScanStr = printJsonUnformatted(j1);
   std::string reqTriggerScanStr = printJsonUnformatted(j2);
 
@@ -5859,6 +5907,8 @@ void checkCreateStreamCalcPlan(SCMCreateStreamReq* expect, SCMCreateStreamReq* r
   normalize_sort_group_key_count(j1);
   normalize_sort_group_key_count(j2);
 
+  normalize_last_scan_type(j1, true);
+  normalize_last_scan_type(j2, false);
   std::string expectCalcPlan = printJsonUnformatted(j1);
   std::string reqCalcPlan = printJsonUnformatted(j2);
 

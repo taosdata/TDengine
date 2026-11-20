@@ -1883,6 +1883,7 @@ int32_t blockDataFromBufBounded(SSDataBlock* pBlock, const char* buf,
 }
 
 int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
+  pBlock->info.lastScanCandidate = false;
   int32_t numOfRows = *(int32_t*)buf;
   if (numOfRows == 0) {
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
@@ -1981,6 +1982,7 @@ int32_t blockDataFromBufWithCapacity(SSDataBlock* pBlock, const char* buf, size_
     return TSDB_CODE_INVALID_PARA;
   }
 
+  pBlock->info.lastScanCandidate = false;
   const char* pStart = buf;
   const char* pEnd = buf + capacity;
   int32_t     numOfRows = 0;
@@ -3206,6 +3208,7 @@ void blockDataEmpty(SSDataBlock* pDataBlock) {
   }
   pDataBlock->pBlockAgg = NULL;
   SDataBlockInfo* pInfo = &pDataBlock->info;
+  pInfo->lastScanCandidate = false;
   if (pInfo->capacity == 0) {
     return;
   }
@@ -3243,6 +3246,7 @@ void blockDataReset(SSDataBlock* pDataBlock) {
   resetConstTagColumns(pDataBlock);
   pDataBlock->pBlockAgg = NULL;
   SDataBlockInfo* pInfo = &pDataBlock->info;
+  pInfo->lastScanCandidate = false;
   if (pInfo->capacity == 0) {
     return;
   }
@@ -3513,6 +3517,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
   int32_t code = 0;
 
   dst->info = src->info;
+  dst->info.lastScanCandidate = false;
   dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
@@ -3553,6 +3558,7 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
   uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.lastScanCandidate = false;
   dst->info.pBlockAgg = NULL;
   dst->info.pks[0].pData = NULL;
   dst->info.pks[1].pData = NULL;
@@ -3595,6 +3601,7 @@ int32_t copyDataBlock(SSDataBlock* pDst, const SSDataBlock* pSrc) {
   }
 
   pDst->info = pSrc->info;
+  pDst->info.lastScanCandidate = false;
   pDst->info.pBlockAgg = NULL;
   code = copyPkVal(&pDst->info, &pSrc->info);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3620,6 +3627,7 @@ int32_t blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx, SSDataBlo
   }
 
   pBlock->info = pDataBlock->info;
+  pBlock->info.lastScanCandidate = false;
   pBlock->info.pBlockAgg = NULL;
   pBlock->info.pks[0].pData = NULL;
   pBlock->info.pks[1].pData = NULL;
@@ -3722,6 +3730,7 @@ int32_t createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData, SSDataB
   TAOS_CHECK_EXIT(createDataBlock(&pDstBlock));
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.lastScanCandidate = false;
   pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
@@ -3830,6 +3839,7 @@ int32_t createOneDataBlockFromRecycle(const SSDataBlock* pDataBlock, SSDataBlock
 
   uint32_t capacity = pBlock->info.capacity;
   pBlock->info = pDataBlock->info;
+  pBlock->info.lastScanCandidate = false;
   pBlock->info.pBlockAgg = NULL;
   pBlock->info.pks[0].pData = NULL;
   pBlock->info.pks[1].pData = NULL;
@@ -3877,6 +3887,7 @@ int32_t createOneDataBlockWithColArray(const SSDataBlock* pDataBlock, SArray* pC
   QUERY_CHECK_CODE(createDataBlock(&pDstBlock), lino, _return);
 
   pDstBlock->info = pDataBlock->info;
+  pDstBlock->info.lastScanCandidate = false;
   pDstBlock->info.pBlockAgg = NULL;
   pDstBlock->info.pks[0].pData = NULL;
   pDstBlock->info.pks[1].pData = NULL;
@@ -4472,6 +4483,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
 }
 
 void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
+  pBlock->info.lastScanCandidate = false;
   int32_t sz = 0;
   int16_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
 

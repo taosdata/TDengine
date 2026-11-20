@@ -44,6 +44,8 @@ typedef struct SDataFileReader SDataFileReader;
 typedef struct SDataFileReaderConfig {
   STsdb  *tsdb;
   int32_t szPage;
+  // Defaults to false; only the data FD receives this permission.
+  bool    enableBatchRead;
   struct {
     bool   exist;
     STFile file;
@@ -54,11 +56,23 @@ typedef struct SDataFileReaderConfig {
 int32_t tsdbDataFileReaderOpen(const char *fname[/* TSDB_FTYPE_MAX */], const SDataFileReaderConfig *config,
                                SDataFileReader **reader);
 void    tsdbDataFileReaderClose(SDataFileReader **reader);
+int32_t tsdbRetainDataBlockPages(SDataFileReader *reader, bool retain);
+void    tsdbDataFileReaderSetBatchRead(SDataFileReader *reader, bool enabled);
 // .head
 int32_t tsdbDataFileReadBrinBlk(SDataFileReader *reader, const TBrinBlkArray **brinBlkArray);
 int32_t tsdbDataFileReadBrinBlock(SDataFileReader *reader, const SBrinBlk *brinBlk, SBrinBlock *brinBlock);
 // .data
 int32_t tsdbDataFileReadBlockData(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData);
+int32_t tsdbDataFileReadBlockKeys(SDataFileReader *reader,
+                                  const SBrinRecord *record,
+                                  SBlockData *bData, SDiskDataHdr *hdr);
+// Retain the reader/block and the hdr/bData returned by ReadBlockKeys.
+// Column IDs may repeat or be unsorted; this entry sorts and deduplicates them.
+int32_t tsdbDataFileReadBlockColumns(SDataFileReader *reader,
+                                     const SBrinRecord *record,
+                                     SBlockData *bData, STSchema *schema,
+                                     const SDiskDataHdr *hdr,
+                                     const int16_t *cids, int32_t ncid);
 int32_t tsdbDataFileReadBlockDataByColumn(SDataFileReader *reader, const SBrinRecord *record, SBlockData *bData,
                                           STSchema *pTSchema, int16_t cids[], int32_t ncid);
 // .sma

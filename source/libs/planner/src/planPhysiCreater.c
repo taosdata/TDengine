@@ -1889,7 +1889,7 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   }
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
-  pTableScan->lastOnlyScan = pScanLogicNode->lastOnlyScan;
+  pTableScan->lastScanType = pScanLogicNode->lastScanType;
   pTableScan->intervalLimit = pScanLogicNode->intervalLimit;
   pTableScan->pDynamicScanFuncs = NULL;
   int32_t code = nodesCloneList(pScanLogicNode->pDynamicScanFuncs, &pTableScan->pDynamicScanFuncs);
@@ -7532,9 +7532,12 @@ static bool sortInputProvesFullOrder(const SSortLogicNode* pSort, const SNodeLis
   // provides no order at all.
   const uint8_t forwardScanOnce = 1;
   const uint8_t reverseScanNone = 0;
-  if (pScan->scan.tableType != TSDB_NORMAL_TABLE || pScan->scanSeq[0] != forwardScanOnce ||
-      pScan->scanSeq[1] != reverseScanNone || pScan->lastOnlyScan || pScan->paraTablesSort ||
-      pScan->smallDataTsSort || pScan->scan.virtualStableScan || pScan->scan.groupOrderScan ||
+  if (pScan->scan.tableType != TSDB_NORMAL_TABLE ||
+      pScan->scanSeq[0] != forwardScanOnce ||
+      pScan->scanSeq[1] != reverseScanNone ||
+      pScan->lastScanType != LAST_SCAN_NONE || pScan->paraTablesSort ||
+      pScan->smallDataTsSort || pScan->scan.virtualStableScan ||
+      pScan->scan.groupOrderScan ||
       pScan->pSubtable != NULL || pScan->pDynamicScanFuncs != NULL) {
     return false;
   }

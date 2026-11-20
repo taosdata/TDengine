@@ -221,7 +221,22 @@ int32_t  tsdbSetTableList2(void *pReader, const void *pTableList, int32_t num);
 int32_t  tsdbReaderSetId(void *pReader, const char *idstr);
 void     tsdbReaderClose2(void *pReader);
 int32_t  tsdbNextDataBlock2(void *pReader, bool *hasNext);
-int32_t  tsdbRetrieveDatablockSMA2(STsdbReader *pReader, SSDataBlock *pDataBlock, bool *allHave, bool *hasNullSMA);
+// sourceRows is the physical block size, independent of candidate rows.
+int32_t  tsdbRetrieveDatablockSMA2(void *reader, SSDataBlock *block,
+                                 bool *allHave, bool *hasNullSMA,
+                                 int64_t *sourceRows);
+// Borrowed view/map preserve output slots; only loaded dependencies are usable.
+// Invalidated by Retrieve, Release, Next, reset or candidate error cleanup.
+int32_t  tsdbReaderGetFilterBlock(void *reader, SSDataBlock **view,
+                                 const int32_t **rowMap);
+// Use a physical row in the current candidate after complete filtering.
+int32_t  tsdbReaderSetLastScanCandidate(void *reader, int32_t row);
+// Requires the candidate held by the same Next, without intervening Release.
+// Rows are strictly ascending and unique. Success and failure release the lock;
+// invalid reader/output arguments are rejected before acquiring ownership.
+int32_t  tsdbReaderRetrieveSelectedDataBlock(void *reader,
+                                           const int32_t *rows, int32_t count,
+                                           SSDataBlock **block);
 void     tsdbReleaseDataBlock2(void *pReader);
 int32_t  tsdbRetrieveDataBlock2(void *pReader, SSDataBlock **pBlock);
 int32_t  tsdbReaderReset2(void *pReader, SQueryTableDataCond *pCond);

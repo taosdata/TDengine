@@ -1,4 +1,6 @@
 import os
+import re
+import time
 from dataclasses import dataclass
 from typing import Callable, Optional, Tuple
 
@@ -691,3 +693,359 @@ class TestLastSmaPrefilter:
                 expected,
                 expect_hidden_not_null,
             )
+
+    def test_last_scan_conditions(self):
+        """LAST conditional scans preserve filtered record selection.
+
+        1. Check ranges, filters, mixed NULL inputs and associated outputs.
+        2. Check composite keys and grouped tables before and after flush.
+
+        Catalog:
+            - Query
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-13 Tony Zhang added conditional LAST scan regressions
+        """
+        self.do_last_scan_conditions()
+
+    def test_last_scan_missing_sma(self):
+        """LAST preserves values in blocks without SMA on the input column.
+
+        Read a flushed table whose SMA list includes only the filter and key.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+        """
+        self.do_last_scan_missing_sma()
+
+    def test_last_scan_all_null_group(self):
+        """Grouped LAST preserves a tag group with only NULL input values.
+
+        Read a flushed supertable with default block statistics and no WHERE.
+
+        Since: v3.5.0.0
+
+        Labels: common,ci
+        """
+        self.do_last_scan_all_null_group()
+
+    def _last_scan_wait_for_data_blocks(self, sql):
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline:
+            tdSql.query(f"explain analyze verbose true {sql}")
+            plan = "\n".join(row[0] for row in tdSql.queryResult)
+            if re.search(r"file_load_blocks=[1-9]\d*\b", plan) and re.search(
+                r"stt_load_blocks=0\s+mem_load_blocks=0.*composed_blocks=0\b",
+                plan,
+            ):
+                return
+            time.sleep(0.2)
+        tdLog.exit(f"Expected a scan of clean DATA blocks for {sql}:\n{plan}")
+
+    def do_last_scan_missing_sma(self):
+        db = "last_scan_missing_sma"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(
+            f"create database {db} cachemodel 'none' keep 36500 "
+            "vgroups 1 stt_trigger 1 minrows 100 maxrows 256"
+        )
+        try:
+            tdSql.execute(
+                f"create table {db}.t (ts timestamp, v int, f int) sma(ts, f)"
+            )
+            values = " ".join(
+                f"({1704067200000 + i * 1000},{i + 1},{i % 2})"
+                for i in range(512)
+            )
+            tdSql.execute(f"insert into {db}.t values {values}")
+            tdSql.execute(
+                f"create table {db}.staggered (ts timestamp, v int, w int, "
+                "f int) sma(ts, w, f)"
+            )
+            values = " ".join(
+                f"({1704067200000 + i * 1000},"
+                f"{i + 1 if i < 256 else 'NULL'},{i + 1},{i % 2})"
+                for i in range(512)
+            )
+            tdSql.execute(f"insert into {db}.staggered values {values}")
+            tdSql.execute(f"flush database {db}")
+            sql = f"select last(v) from {db}.t where f = 1"
+            self._last_scan_wait_for_data_blocks(sql)
+            self._last_scan_check(sql, [(512,)])
+
+            # w has a result in the newest block, while v needs an older block.
+            sql = f"select last(v), last(w) from {db}.staggered where f = 1"
+            self._last_scan_wait_for_data_blocks(sql)
+            self._last_scan_check(sql, [(256, 512)])
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+        print("last scan without input SMA ................. [ passed ]")
+
+    def do_last_scan_all_null_group(self):
+        db = "last_scan_all_null_group"
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(
+            f"create database {db} cachemodel 'none' keep 36500 "
+            "vgroups 1 stt_trigger 1 minrows 100 maxrows 256"
+        )
+        try:
+            tdSql.execute(f"create stable {db}.st (ts timestamp, v int) tags(g int)")
+            tdSql.execute(f"create table {db}.t using {db}.st tags(42)")
+            values = " ".join(
+                f"({1704067200000 + i * 1000},NULL)" for i in range(512)
+            )
+            tdSql.execute(f"insert into {db}.t values {values}")
+            tdSql.execute(f"flush database {db}")
+            sql = f"select g, last(v) from {db}.st group by g"
+            self._last_scan_wait_for_data_blocks(sql)
+            self._last_scan_check(sql, [(42, None)])
+        finally:
+            tdSql.execute(f"drop database if exists {db}")
+        print("last scan all-NULL tag group ................ [ passed ]")
+
+    def _last_scan_check(self, sql, expected):
+        tdSql.query(sql)
+        tdSql.checkRows(len(expected))
+        for row_index, row in enumerate(expected):
+            for col_index, value in enumerate(row):
+                tdSql.checkData(row_index, col_index, value)
+
+    def _last_scan_expected(self, rows, functions):
+        if not rows:
+            return []
+        ordered = sorted(
+            rows, key=lambda row: (row["ts"], row.get("k", 0)),
+            reverse=True,
+        )
+        result = []
+        for function, column in functions:
+            candidates = ordered
+            if function == "last":
+                candidates = [row for row in ordered
+                              if row[column] is not None]
+            result.append(candidates[0][column] if candidates else None)
+        return [tuple(result)]
+
+    def _last_scan_query_shapes(self, table, where, rows):
+        shapes = (
+            (("last", "v"),),
+            (("last_row", "r"),),
+            (("last", "v"), ("last_row", "r")),
+            (("last_row", "note"), ("last", "r"), ("last", "v")),
+        )
+        for functions in shapes:
+            select = ", ".join(f"{fn}({col})" for fn, col in functions)
+            self._last_scan_check(
+                f"select {select} from {table} where {where}",
+                self._last_scan_expected(rows, functions),
+            )
+
+    def do_last_scan_prepare(self):
+        self.last_scan_db = "last_scan_conditions"
+        self.last_scan_base = 1704067200000
+        self.last_scan_rows = {}
+        self.last_scan_pk_rows = []
+        db = self.last_scan_db
+        tdSql.execute(f"drop database if exists {db}")
+        tdSql.execute(
+            f"create database {db} cachemodel 'none' keep 36500 "
+            "vgroups 1 minrows 10 maxrows 200"
+        )
+        tdSql.execute(
+            f"create stable {db}.st (ts timestamp, v int, r int, "
+            "pick int, note varchar(32)) tags (g int)"
+        )
+        for group, table in ((1, "ls_a"), (2, "ls_b")):
+            tdSql.execute(
+                f"create table {db}.{table} using {db}.st tags ({group})"
+            )
+            rows = []
+            for index in range(240):
+                rows.append({
+                    "ts": self.last_scan_base + index * 1000,
+                    "v": None if index >= 220 or index % 7 == 0
+                    else group * 1000 + index,
+                    "r": None if index >= 230 else group * 10000 + index,
+                    "pick": None if index % 11 == 0 else index % 4,
+                    "note": f"row_{group}_{index}",
+                })
+            values = " ".join(
+                "(" + ",".join(_fmt_sql_value(row[col])
+                               for col in ("ts", "v", "r", "pick", "note"))
+                + ")" for row in rows
+            )
+            tdSql.execute(f"insert into {db}.{table} values {values}")
+            self.last_scan_rows[table] = rows
+        tdSql.execute(
+            f"create table {db}.pk (ts timestamp, k int primary key, "
+            "v int, r int, pick int, note varchar(32))"
+        )
+        for index in range(120):
+            for key in range(4):
+                self.last_scan_pk_rows.append({
+                    "ts": self.last_scan_base + index * 1000,
+                    "k": key,
+                    "v": None if index >= 110 or
+                    (key == 3 and index % 3 == 0) else index * 10 + key,
+                    "r": None if index >= 115 else index * 100 + key,
+                    "pick": None if (index + key) % 17 == 0 else key % 2,
+                    "note": f"pk_{index}_{key}",
+                })
+        values = " ".join(
+            "(" + ",".join(_fmt_sql_value(row[col]) for col in
+                           ("ts", "k", "v", "r", "pick", "note"))
+            + ")" for row in self.last_scan_pk_rows
+        )
+        tdSql.execute(f"insert into {db}.pk values {values}")
+        print("last scan deterministic data ................ [ passed ]")
+
+    def do_last_scan_ranges(self):
+        base = self.last_scan_base
+        table = f"{self.last_scan_db}.ls_a"
+        all_rows = self.last_scan_rows["ls_a"]
+        ranges = (
+            (f"ts >= {base} and ts <= {base + 239000}",
+             lambda ts: base <= ts <= base + 239000),
+            (f"ts >= {base + 10000} and ts <= {base + 20000}",
+             lambda ts: base + 10000 <= ts <= base + 20000),
+            (f"ts > {base + 10000} and ts < {base + 20000}",
+             lambda ts: base + 10000 < ts < base + 20000),
+            (f"ts = {base + 10000}",
+             lambda ts: ts == base + 10000),
+            (f"ts > {base + 10000} and ts < {base + 11000}",
+             lambda ts: base + 10000 < ts < base + 11000),
+            (f"ts >= {base + 240000} and ts <= {base + 250000}",
+             lambda ts: base + 240000 <= ts <= base + 250000),
+        )
+        for where, matches in ranges:
+            rows = [row for row in all_rows if matches(row["ts"])]
+            self._last_scan_query_shapes(table, where, rows)
+        print("last scan closed ranges and holes ........... [ passed ]")
+
+    def do_last_scan_filters(self):
+        db = self.last_scan_db
+        base = self.last_scan_base
+        all_rows = self.last_scan_rows["ls_a"]
+        predicates = (
+            ("pick = 1", lambda row: row["pick"] == 1),
+            ("pick is null", lambda row: row["pick"] is None),
+            ("abs(pick) = 2", lambda row: row["pick"] == 2),
+            ("(pick = 1 or pick is null) and v >= 1050",
+             lambda row: (row["pick"] == 1 or row["pick"] is None)
+             and row["v"] is not None and row["v"] >= 1050),
+            ("(pick = 2 and r < 10100) or pick = 3",
+             lambda row: (row["pick"] == 2 and row["r"] is not None
+                          and row["r"] < 10100) or row["pick"] == 3),
+            ("pick = 99", lambda row: row["pick"] == 99),
+        )
+        for predicate, matches in predicates:
+            where = (f"ts >= {base} and ts <= {base + 239000} "
+                     f"and ({predicate})")
+            rows = [row for row in all_rows if matches(row)]
+            self._last_scan_query_shapes(f"{db}.ls_a", where, rows)
+        rows = [row for row in all_rows if row["pick"] == 1]
+        latest = rows[-1]
+        last_value = [row for row in rows if row["v"] is not None][-1]
+        self._last_scan_check(
+            f"select last_row(r), note from {db}.ls_a where pick = 1",
+            [(latest["r"], latest["note"])],
+        )
+        self._last_scan_check(
+            f"select last(v), note from {db}.ls_a where pick = 1",
+            [(last_value["v"], last_value["note"])],
+        )
+        self._last_scan_check(
+            f"select last(v), last_row(r) from {db}.ls_a "
+            "where pick is null and v is null",
+            [(None, None)],
+        )
+        print("last scan predicates and NULL association ... [ passed ]")
+
+    def do_last_scan_primary_keys(self):
+        table = f"{self.last_scan_db}.pk"
+        base = self.last_scan_base
+        all_rows = self.last_scan_pk_rows
+        predicates = (
+            (f"ts >= {base} and ts <= {base + 119000}",
+             lambda row: True),
+            (f"ts = {base + 42000}",
+             lambda row: row["ts"] == base + 42000),
+            (f"ts > {base + 42000} and ts <= {base + 44000}",
+             lambda row: base + 42000 < row["ts"] <= base + 44000),
+            (f"ts > {base + 42000} and ts < {base + 43000}",
+             lambda row: base + 42000 < row["ts"] < base + 43000),
+            ("k = 2", lambda row: row["k"] == 2),
+            ("k < 3 and pick = 0",
+             lambda row: row["k"] < 3 and row["pick"] == 0),
+            ("(k = 1 or k = 3) and pick is not null",
+             lambda row: row["k"] in (1, 3) and row["pick"] is not None),
+        )
+        for where, matches in predicates:
+            rows = [row for row in all_rows if matches(row)]
+            # Keep same-column mixed PK semantics outside this regression.
+            for function, column in (("last", "v"), ("last_row", "r")):
+                self._last_scan_check(
+                    f"select {function}({column}) from {table} "
+                    f"where {where}",
+                    self._last_scan_expected(rows, ((function, column),)),
+                )
+        latest = [row for row in all_rows if row["k"] < 3][-1]
+        self._last_scan_check(
+            f"select last_row(r), k, note from {table} where k < 3",
+            [(latest["r"], latest["k"], latest["note"])],
+        )
+        print("last scan composite key bounds and filter ... [ passed ]")
+
+    def do_last_scan_groups(self):
+        db = self.last_scan_db
+        tag_expected = []
+        table_expected = []
+        for group, table in ((1, "ls_a"), (2, "ls_b")):
+            rows = [row for row in self.last_scan_rows[table]
+                    if row["pick"] == 1]
+            result = self._last_scan_expected(
+                rows, (("last", "v"), ("last_row", "r")),
+            )[0]
+            tag_expected.append((group, *result))
+            table_expected.append(
+                (table, rows[-1]["r"], rows[-1]["note"])
+            )
+        self._last_scan_check(
+            f"select g, last(v), last_row(r) from {db}.st "
+            "where pick = 1 partition by g order by g",
+            tag_expected,
+        )
+        self._last_scan_check(
+            f"select tbname, last_row(r), note from {db}.st "
+            "where pick = 1 and tbname in ('ls_a', 'ls_b') "
+            "partition by tbname order by tbname",
+            table_expected,
+        )
+        rows = [row for row in self.last_scan_rows["ls_b"]
+                if row["pick"] is None]
+        self._last_scan_query_shapes(
+            f"{db}.st", "g = 2 and pick is null", rows,
+        )
+        print("last scan tag and table groups .............. [ passed ]")
+
+    def do_last_scan_conditions(self):
+        self.do_last_scan_prepare()
+        try:
+            for phase in ("memory", "flushed"):
+                if phase == "flushed":
+                    tdSql.execute(f"flush database {self.last_scan_db}")
+                tdLog.info(f"LAST conditional scan phase: {phase}")
+                self.do_last_scan_ranges()
+                self.do_last_scan_filters()
+                self.do_last_scan_primary_keys()
+                self.do_last_scan_groups()
+        finally:
+            tdSql.execute(f"drop database if exists {self.last_scan_db}")
+        print("last conditional scans ...................... [ passed ]")

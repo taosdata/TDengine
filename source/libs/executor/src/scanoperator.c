@@ -306,9 +306,23 @@ static bool isLastColumnExpr(const SqlFunctionCtx* pCtx) {
     return false;
   }
 
-  return (fmIsLastFunc(pCtx->functionId) || FUNCTION_TYPE_LAST_PARTIAL == fmGetFuncTypeFromId(pCtx->functionId)) &&
+  return fmIsIgnoreNullFunc(pCtx->functionId) &&
+         (fmIsLastFunc(pCtx->functionId) ||
+          pCtx->functionId == fmGetFuncId("_last_partial")) &&
          pCtx->numOfParams > 0 && NULL != pCtx->param && FUNC_PARAM_TYPE_COLUMN == pCtx->param[0].type &&
          NULL != pCtx->param[0].pCol;
+}
+
+static EFuncDataRequired lastScanDynDataRequired(
+    const STableScanInfo* pInfo, int32_t functionId, void* pEntry,
+    SDataBlockInfo* pBlockInfo) {
+  ELastScanType mode = pInfo->base.cond.lastScanType;
+  if ((mode < LAST_SCAN_LAST_ONLY || mode > LAST_SCAN_MIXED) &&
+      (functionId == fmGetFuncId("last_row") ||
+       functionId == fmGetFuncId("_last_row_partial"))) {
+    return fmFuncDynDataRequired(fmGetFuncId("last"), pEntry, pBlockInfo);
+  }
+  return fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
 }
 
 static bool isMaxColumnExpr(const SqlFunctionCtx* pCtx) {
@@ -428,14 +442,17 @@ static bool needsLastNullSmaForDynamicPrune(SOperatorInfo* pOperator, SSDataBloc
   }
 
   pRow = getTableGroupOutputBuf(pOperator, pBlock->info.id.groupId, &pPage);
-  if (NULL == pRow) {
+  if (NULL == pRow && !pBlock->info.lastScanCandidate) {
     return false;
   }
 
   for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
-    SResultRowEntryInfo* pEntry =
-        getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
-    EFuncDataRequired reqStatus = fmFuncDynDataRequired(pExprSup->pCtx[i].functionId, pEntry, &pBlock->info);
+    SResultRowEntryInfo* pEntry = NULL;
+    if (pRow != NULL) {
+      pEntry = getResultEntryInfo(pRow, i, pExprSup->rowEntryInfoOffset);
+    }
+    EFuncDataRequired reqStatus = lastScanDynDataRequired(
+        pTableScanInfo, pExprSup->pCtx[i].functionId, pEntry, &pBlock->info);
 
     if (reqStatus == FUNC_DATA_REQUIRED_NOT_LOAD || pExprSup->pCtx[i].skipDynDataCheck) {
       if (isLastColumnExpr(&pExprSup->pCtx[i])) {
@@ -453,11 +470,16 @@ static bool needsLastNullSmaForDynamicPrune(SOperatorInfo* pOperator, SSDataBloc
     hasUnsatisfiedLastExpr = true;
   }
 
-  releaseBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, pPage);
-  return hasSatisfiedLastExpr && hasUnsatisfiedLastExpr;
+  if (pPage != NULL) {
+    releaseBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, pPage);
+  }
+  return hasUnsatisfiedLastExpr &&
+         (pBlock->info.lastScanCandidate || hasSatisfiedLastExpr);
 }
 
-static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, uint32_t* status) {
+static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
+                                      SSDataBlock* pBlock, uint32_t* status,
+                                      int64_t sourceRows) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   int32_t         code = TSDB_CODE_SUCCESS;
   int32_t         blockerExprIdx = -1;
@@ -483,7 +505,7 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pB
   SFilePage*  pPage = NULL;
   SResultRow* pRow = getTableGroupOutputBuf(pOperator, pBlockInfo->id.groupId, &pPage);
 
-  if (pRow == NULL) {
+  if (pRow == NULL && !pBlockInfo->lastScanCandidate) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -492,7 +514,10 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pB
   for (int32_t i = 0; i < pSup1->numOfExprs; ++i) {
     int32_t functionId = pSup1->pCtx[i].functionId;
 
-    SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, i, pTableScanInfo->base.pdInfo.pExprSup->rowEntryInfoOffset);
+    SResultRowEntryInfo* pEntry = NULL;
+    if (pRow != NULL) {
+      pEntry = getResultEntryInfo(pRow, i, pSup1->rowEntryInfoOffset);
+    }
 
     pBlockInfo->pBlockAgg = NULL;
     if ((isLastColumnExpr(&pSup1->pCtx[i]) ||
@@ -505,10 +530,12 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pB
       }
     }
 
-    EFuncDataRequired reqStatus = fmFuncDynDataRequired(functionId, pEntry, pBlockInfo);
+    EFuncDataRequired reqStatus = lastScanDynDataRequired(
+        pTableScanInfo, functionId, pEntry, pBlockInfo);
     if (isLastColumnExpr(&pSup1->pCtx[i]) && reqStatus != FUNC_DATA_REQUIRED_NOT_LOAD &&
-        NULL != pBlockInfo->pBlockAgg && pBlockInfo->rows > 0 && pBlockInfo->pBlockAgg->colId != -1 &&
-        pBlockInfo->pBlockAgg->numOfNull == pBlockInfo->rows) {
+        NULL != pBlockInfo->pBlockAgg && sourceRows > 0 &&
+        pBlockInfo->pBlockAgg->colId != -1 &&
+        pBlockInfo->pBlockAgg->numOfNull == sourceRows) {
       reqStatus = FUNC_DATA_REQUIRED_NOT_LOAD;
       blockNullLast = true;
     }
@@ -525,15 +552,152 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator, SSDataBlock* pB
   pBlockInfo->pBlockAgg = NULL;
 
   // release buffer pages
-  releaseBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, pPage);
+  if (pPage != NULL) {
+    releaseBufPage(pTableScanInfo->base.pdInfo.pAggSup->pResultBuf, pPage);
+  }
 
-  if (notLoadBlock) {
+  // An all-NULL block may be needed to establish the group result row.
+  if (notLoadBlock && (!blockNullLast || pRow != NULL)) {
     *status = FUNC_DATA_REQUIRED_NOT_LOAD;
     if (!blockNullLast) {
       code = insertTableToScanIgnoreList(pTableScanInfo, pBlockInfo->id.uid);
     }
   }
 
+  return code;
+}
+
+static int32_t validateLastScanFilterView(const SQueryTableDataCond* pCond,
+                                         const SSDataBlock* pView) {
+  if (pCond->pFilterInputColIds == NULL || pView == NULL ||
+      pView->pDataBlock == NULL || pView->info.rows <= 0 ||
+      pView->info.rows > INT32_MAX) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  int32_t slots = taosArrayGetSize(pView->pDataBlock);
+  if (slots > INT16_MAX) {
+    return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  for (int32_t i = 0; i < taosArrayGetSize(pCond->pFilterInputColIds);
+       ++i) {
+    int16_t id = *(int16_t*)taosArrayGet(pCond->pFilterInputColIds, i);
+    bool found = false;
+    for (int32_t j = 0; j < pCond->numOfCols; ++j) {
+      if (pCond->colList[j].colId != id) {
+        continue;
+      }
+      int32_t slot = pCond->pSlotList[j];
+      if (slot < 0 || slot >= slots) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      SColumnInfoData* pCol = taosArrayGet(pView->pDataBlock, slot);
+      if (pCol == NULL || pCol->info.type != pCond->colList[j].type ||
+          (IS_VAR_DATA_TYPE(pCol->info.type)
+               ? pCol->varmeta.offset == NULL
+               : pCol->pData == NULL && pCol->nullbitmap == NULL)) {
+        return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      }
+      found = true;
+    }
+    if (!found) {
+      return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t loadLastScanFilteredBlock(SOperatorInfo* pOperator,
+                                         STableScanBase* pBase,
+                                         SSDataBlock* pBlock,
+                                         uint32_t* status,
+                                         int64_t sourceRows,
+                                         bool* pRetrieved) {
+  SStorageAPI* pAPI = &pOperator->pTaskInfo->storageAPI;
+  SSDataBlock* pView = NULL;
+  const int32_t* pRowMap = NULL;
+  SColumnInfoData* pResult = NULL;
+  int32_t* pSelected = NULL;
+  int32_t code = pAPI->tsdReader.tsdReaderGetFilterBlock(
+      pBase->dataReader, &pView, &pRowMap);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  code = validateLastScanFilterView(&pBase->cond, pView);
+  if (code != TSDB_CODE_SUCCESS || pRowMap == NULL) {
+    return code != TSDB_CODE_SUCCESS
+               ? code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+  SFilterColumnParam param = {
+      .numOfCols = taosArrayGetSize(pView->pDataBlock),
+      .pDataBlock = pView->pDataBlock};
+  code = filterSetDataFromSlotId(pOperator->exprSupp.pFilterInfo, &param);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+  int32_t filterStatus = 0;
+  code = filterExecuteWithTaskCorrelation(pOperator->exprSupp.pFilterInfo,
+                                          pView, &pResult, NULL,
+                                          param.numOfCols, &filterStatus,
+                                          pOperator->pTaskInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+  pBase->readRecorder.checkRows += pView->info.rows;
+  if (filterStatus == FILTER_RESULT_NONE_QUALIFIED) {
+    *status = FUNC_DATA_REQUIRED_FILTEROUT;
+    goto _end;
+  }
+  if (filterStatus != FILTER_RESULT_ALL_QUALIFIED &&
+      (filterStatus != FILTER_RESULT_PARTIAL_QUALIFIED ||
+       pResult == NULL || pResult->pData == NULL)) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    goto _end;
+  }
+  pSelected = taosMemoryMalloc(pView->info.rows * sizeof(int32_t));
+  if (pSelected == NULL) {
+    code = terrno;
+    goto _end;
+  }
+  int32_t count = 0;
+  for (int32_t i = 0; i < pView->info.rows; ++i) {
+    if (pRowMap[i] < 0 ||
+        (i > 0 && (int64_t)pRowMap[i] != (int64_t)pRowMap[i - 1] + 1)) {
+      code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+      goto _end;
+    }
+    if (filterStatus == FILTER_RESULT_ALL_QUALIFIED ||
+        (!colDataIsNull_s(pResult, i) &&
+         ((int8_t*)pResult->pData)[i] == 1)) {
+      pSelected[count++] = pRowMap[i];
+    }
+  }
+  if (count == 0) {
+    *status = FUNC_DATA_REQUIRED_FILTEROUT;
+    goto _end;
+  }
+  code = pAPI->tsdReader.tsdReaderSetLastScanCandidate(pBase->dataReader,
+                                                     pSelected[count - 1]);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _end;
+  }
+  code = doDynamicPruneDataBlock(pOperator, pBlock, status, sourceRows);
+  if (code != TSDB_CODE_SUCCESS ||
+      *status == FUNC_DATA_REQUIRED_NOT_LOAD) {
+    goto _end;
+  }
+  SSDataBlock* pOutput = NULL;
+  // Retrieve owns releasing the reader even when materialization fails.
+  *pRetrieved = true;
+  code = pAPI->tsdReader.tsdReaderRetrieveSelectedDataBlock(
+      pBase->dataReader, pSelected, count, &pOutput);
+  if (code == TSDB_CODE_SUCCESS && pOutput != pBlock) {
+    code = TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+  }
+
+_end:
+  colDataDestroy(pResult);
+  taosMemoryFree(pResult);
+  taosMemoryFree(pSelected);
   return code;
 }
 
@@ -548,7 +712,8 @@ static int32_t doFilterByBlockSMA(SFilterInfo* pFilterInfo, SColumnDataAgg* pCol
 }
 
 static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                              ETsdReaderBlockSmaMode mode, bool* pLoad) {
+                              ETsdReaderBlockSmaMode mode, bool* pLoad,
+                              int64_t* pSourceRows) {
   SStorageAPI* pAPI = &pTaskInfo->storageAPI;
   bool         allColumnsHaveAgg = true;
   bool         hasNullSMA = false;
@@ -565,7 +730,8 @@ static int32_t doLoadBlockSMA(STableScanBase* pTableScanInfo, SSDataBlock* pBloc
   }
 
   code = pAPI->tsdReader.tsdReaderRetrieveBlockSMAInfo(pTableScanInfo->dataReader, pBlock, &allColumnsHaveAgg,
-                                                       &hasNullSMA);
+                                                       &hasNullSMA,
+                                                       pSourceRows);
   if (pAPI->tsdReader.tsdReaderSetBlockSmaMode != NULL && mode != TSD_READER_BLOCK_SMA_MODE_NORMAL) {
     int32_t resetCode =
         pAPI->tsdReader.tsdReaderSetBlockSmaMode(pTableScanInfo->dataReader, TSD_READER_BLOCK_SMA_MODE_NORMAL);
@@ -676,6 +842,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SStorageAPI*   pAPI = &pTaskInfo->storageAPI;
   bool           loadSMA = false;
+  int64_t        sourceRows = pBlock->info.rows;
+  bool           filterApplied = false;
+  bool           readerReleased = false;
   bool           smaLoadAttempted = false;
   bool           overlap = false;
   bool           maxInterval = false;
@@ -695,7 +864,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   pCost->totalBlocks += 1;
   *status = pTableScanInfo->dataBlockLoadFlag;
-  if (virtualStableScan && *status == FUNC_DATA_REQUIRED_SMA_LOAD) {
+  if ((virtualStableScan || pBlock->info.lastScanCandidate) &&
+      *status == FUNC_DATA_REQUIRED_SMA_LOAD) {
     *status = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
@@ -742,7 +912,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     bool success = true;
     ETsdReaderBlockSmaMode smaMode = maxInterval ? TSD_READER_BLOCK_SMA_MODE_MAX_ONLY
                                                  : TSD_READER_BLOCK_SMA_MODE_NORMAL;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, smaMode, &success);
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, smaMode,
+                          &success, NULL);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));
@@ -781,25 +952,45 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     return TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
   }
 
+  if (pBlockInfo->lastScanCandidate) {
+    // Candidate rows cannot prove all physical rows NULL; compare keys first.
+    code = doDynamicPruneDataBlock(pOperator, pBlock, status, 0);
+    if (code != TSDB_CODE_SUCCESS ||
+        *status == FUNC_DATA_REQUIRED_NOT_LOAD) {
+      goto _dynamic_prune_done;
+    }
+  }
+
   // try to filter data block according to sma info
-  if (!virtualStableScan && !alignActive && pOperator->exprSupp.pFilterInfo != NULL && (!loadSMA)) {
+  if (!virtualStableScan && !alignActive && !loadSMA &&
+      pOperator->exprSupp.pFilterInfo != NULL) {
     ETsdReaderBlockSmaMode blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NORMAL;
     if (filterBlockSmaOnlyUsesNumOfNull(pOperator->exprSupp.pFilterInfo)) {
       blockSmaMode = TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY;
     }
 
     bool success = true;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, blockSmaMode, &success);
+    bool candidate = pBlockInfo->lastScanCandidate;
+    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, blockSmaMode,
+                          &success, candidate ? &sourceRows : NULL);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve sma info", GET_TASKID(pTaskInfo));
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    // A candidate describes one key; its SMA describes the physical block.
+    // NULL counts in SColumnDataAgg are signed 16-bit values.
+    if (candidate) {
+      smaLoadAttempted = success;
+      if (!success) pBlock->pBlockAgg = NULL;
+      success = success && sourceRows > 0 && sourceRows <= INT16_MAX;
+    }
     if (success) {
       size_t size = taosArrayGetSize(pBlock->pDataBlock);
       bool   keep = false;
-      code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo, pBlock->pBlockAgg, size, pBlockInfo->rows, &keep);
+      code = doFilterByBlockSMA(pOperator->exprSupp.pFilterInfo,
+                                pBlock->pBlockAgg, size, sourceRows, &keep);
       if (code) {
         pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
         qError("%s failed to do filter by block sma, code:%s", GET_TASKID(pTaskInfo), tstrerror(code));
@@ -831,7 +1022,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     bool success = false;
     pBlock->pBlockAgg = NULL;
     pBlockInfo->pBlockAgg = NULL;
-    code = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo, TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY, &success);
+    code = doLoadBlockSMA(
+        pTableScanInfo, pBlock, pTaskInfo,
+        TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY, &success, &sourceRows);
     if (code) {
       pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
       qError("%s failed to retrieve SMA for dynamic prune", GET_TASKID(pTaskInfo));
@@ -841,13 +1034,31 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
 
   // Virtual scans can prune by timestamp after LAST has a result for each source column.
   if (aggDynamicPrune && !maxInterval && !alignActive) {
-    code = doDynamicPruneDataBlock(pOperator, pBlock, status);
+    code = doDynamicPruneDataBlock(pOperator, pBlock, status, sourceRows);
   }
+  if (code == TSDB_CODE_SUCCESS && pBlockInfo->lastScanCandidate &&
+      *status != FUNC_DATA_REQUIRED_NOT_LOAD &&
+      pOperator->exprSupp.pFilterInfo != NULL) {
+    code = loadLastScanFilteredBlock(pOperator, pTableScanInfo, pBlock,
+                                      status, sourceRows,
+                                      &readerReleased);
+    filterApplied = true;
+  }
+
+_dynamic_prune_done:
   pBlock->pBlockAgg = NULL;
   pBlockInfo->pBlockAgg = NULL;
   if (code) {
-    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    if (!readerReleased) {
+      pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    }
     QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (*status == FUNC_DATA_REQUIRED_FILTEROUT) {
+    pCost->filterOutBlocks += 1;
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(pTableScanInfo->dataReader);
+    return TSDB_CODE_SUCCESS;
   }
 
   if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
@@ -865,12 +1076,21 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     return TSDB_CODE_SUCCESS;
   }
 
-  pCost->checkRows += pBlock->info.rows;
-
-  SSDataBlock* p = NULL;
-  code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(pTableScanInfo->dataReader, &p);
-  if (p == NULL || code != TSDB_CODE_SUCCESS || p != pBlock) {
-    return code;
+  if (!filterApplied) {
+    bool wasCandidate = pBlock->info.lastScanCandidate;
+    if (!wasCandidate) {
+      pCost->checkRows += pBlock->info.rows;
+    }
+    SSDataBlock* p = NULL;
+    code = pAPI->tsdReader.tsdReaderRetrieveDataBlock(
+        pTableScanInfo->dataReader, &p);
+    if (code != TSDB_CODE_SUCCESS || p != pBlock) {
+      return code != TSDB_CODE_SUCCESS
+                 ? code : TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR;
+    }
+    if (wasCandidate) {
+      pCost->checkRows += pBlock->info.rows;
+    }
   }
 
   if (!skipSetTagColumnData(pOperator)) {
@@ -878,7 +1098,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if (pOperator->exprSupp.pFilterInfo != NULL && !alignActive) {
+  if (pOperator->exprSupp.pFilterInfo != NULL && !alignActive &&
+      !filterApplied) {
     int64_t st = taosGetTimestampUs();
     code = doFilterWithTaskCorrelation(pBlock, pOperator->exprSupp.pFilterInfo, &pTableScanInfo->matchInfo, NULL,
                                        pTaskInfo);
@@ -908,6 +1129,23 @@ _end:
   }
   return code;
 }
+
+#if defined(BUILD_TEST)
+EFuncDataRequired scanTestLastScanDynDataRequired(STableScanInfo* pInfo,
+                                                int32_t functionId,
+                                                void* pEntry,
+                                                SDataBlockInfo* pBlock) {
+  return lastScanDynDataRequired(pInfo, functionId, pEntry, pBlock);
+}
+#endif
+
+#if defined(BUILD_TEST)
+int32_t scanTestLoadDataBlock(SOperatorInfo* pOperator,
+                              STableScanBase* pBase, SSDataBlock* pBlock,
+                              uint32_t* status) {
+  return loadDataBlock(pOperator, pBase, pBlock, status);
+}
+#endif
 
 static void prepareForDescendingScan(STableScanBase* pTableScanInfo, SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   SET_REVERSE_SCAN_FLAG(pTableScanInfo);
@@ -6315,6 +6553,9 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
   memcpy((void*)dst, (void*)src, sizeof(SQueryTableDataCond));
   dst->colList = NULL;
   dst->pSlotList = NULL;
+  dst->pFilterInputColIds = NULL;
+  dst->pLastInputColIds = NULL;
+  dst->allowLastScanTail = false;
 
   if (src->numOfCols > 0) {
     dst->colList = taosMemoryCalloc(src->numOfCols, sizeof(SColumnInfo));
@@ -6328,10 +6569,19 @@ int32_t dumpQueryTableCond(const SQueryTableDataCond* src, SQueryTableDataCond* 
     }
   }
 
+  if (src->pFilterInputColIds != NULL) {
+    dst->pFilterInputColIds = taosArrayDup(src->pFilterInputColIds, NULL);
+    QUERY_CHECK_NULL(dst->pFilterInputColIds, code, lino, _end, terrno);
+  }
+  if (src->pLastInputColIds != NULL) {
+    dst->pLastInputColIds = taosArrayDup(src->pLastInputColIds, NULL);
+    QUERY_CHECK_NULL(dst->pLastInputColIds, code, lino, _end, terrno);
+  }
+  dst->allowLastScanTail = src->allowLastScanTail;
+
 _end:
   if (code != TSDB_CODE_SUCCESS) {
-    taosMemoryFreeClear(dst->colList);
-    taosMemoryFreeClear(dst->pSlotList);
+    cleanupQueryTableDataCond(dst);
     qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;

@@ -4020,6 +4020,7 @@ enum {
   PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN,
   PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
   PHY_TABLE_SCAN_CODE_ALIGN_COLS,
+  PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE,
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4142,8 +4143,9 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_TWO_PASS_RESCAN_SOURCE, pNode->twoPassRescanSource);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
-    code = tlvEncodeBool(pEncoder, PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE,
+                        (int32_t)pNode->lastScanType);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
     code = tlvEncodeI64(pEncoder, PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT,
@@ -4244,7 +4246,7 @@ static int32_t msgToPhysiTableScanNodeInline(STlvDecoder* pDecoder, void* pObj) 
 static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
   pNode->firstDayOfWeek = tsDefaultFirstDayOfWeek;
-  pNode->lastOnlyScan = false;
+  pNode->lastScanType = LAST_SCAN_NONE;
   pNode->intervalLimit = 0;
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -4300,9 +4302,22 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_TABLE_SCAN_CODE_INTERP_MODE:
         code = tlvDecodeI8(pTlv, &pNode->interpMode);
         break;
-      case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN:
-        code = tlvDecodeBool(pTlv, &pNode->lastOnlyScan);
+      case PHY_TABLE_SCAN_CODE_LAST_ONLY_SCAN: {
+        bool ignored = false;
+        code = tlvDecodeBool(pTlv, &ignored);
         break;
+      }
+      case PHY_TABLE_SCAN_CODE_LAST_SCAN_TYPE: {
+        int32_t value = 0;
+        code = tlvDecodeI32(pTlv, &value);
+        if (code == TSDB_CODE_SUCCESS) {
+          pNode->lastScanType = value >= LAST_SCAN_NONE &&
+                                        value <= LAST_SCAN_MIXED
+                                    ? (ELastScanType)value
+                                    : LAST_SCAN_NONE;
+        }
+        break;
+      }
       case PHY_TABLE_SCAN_CODE_INTERVAL_LIMIT:
         code = tlvDecodeI64(pTlv, &pNode->intervalLimit);
         break;

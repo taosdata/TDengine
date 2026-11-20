@@ -34,6 +34,23 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj);
 static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode);
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
 
+static int32_t jsonGetLastScanType(const SJson* pJson, const char* name,
+                                   ELastScanType* pType) {
+  const char* value = tjsonGetStringPointer(pJson, name);
+  if (value == NULL || *value == '\0') return TSDB_CODE_INVALID_JSON_FORMAT;
+  const char* digit = value;
+  if (*digit == '-') ++digit;
+  if (*digit == '\0') return TSDB_CODE_INVALID_JSON_FORMAT;
+  for (; *digit != '\0'; ++digit) {
+    if (*digit < '0' || *digit > '9') return TSDB_CODE_INVALID_JSON_FORMAT;
+  }
+  *pType = LAST_SCAN_NONE;
+  if (strcmp(value, "1") == 0) *pType = LAST_SCAN_LAST_ONLY;
+  if (strcmp(value, "2") == 0) *pType = LAST_SCAN_LAST_ROW_ONLY;
+  if (strcmp(value, "3") == 0) *pType = LAST_SCAN_MIXED;
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isPhysiOperatorType(ENodeType type) {
   return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN &&
          type != QUERY_NODE_PHYSICAL_SUBPLAN && type != QUERY_NODE_PHYSICAL_PLAN &&
@@ -1196,7 +1213,7 @@ static const char* jkScanLogicPlanReverseScanCount = "ReverseScanCount";
 static const char* jkScanLogicPlanInterpMode = "InterpMode";
 static const char* jkScanLogicPlanDynamicScanFuncs = "DynamicScanFuncs";
 static const char* jkScanLogicPlanDataRequired = "DataRequired";
-static const char* jkScanLogicPlanLastOnlyScan = "LastOnlyScan";
+static const char* jkScanLogicPlanLastScanType = "LastScanType";
 static const char* jkScanLogicPlanIntervalLimit = "IntervalLimit";
 static const char* jkScanLogicPlanTagCond = "TagCond";
 static const char* jkScanLogicPlanGroupTags = "GroupTags";
@@ -1253,8 +1270,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanDataRequired, pNode->dataRequired);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
-    code = tjsonAddBoolToObject(pJson, jkScanLogicPlanLastOnlyScan, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanLastScanType,
+                                   pNode->lastScanType);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
     code = tjsonAddIntegerToObject(pJson, jkScanLogicPlanIntervalLimit,
@@ -1336,7 +1354,7 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
 
   int32_t objSize = 0;
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
-  pNode->lastOnlyScan = false;
+  pNode->lastScanType = LAST_SCAN_NONE;
   pNode->scanRange = TSWINDOW_INITIALIZER;
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkScanLogicPlanScanCols, &pNode->pScanCols);
@@ -1379,8 +1397,10 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkScanLogicPlanDataRequired, &pNode->dataRequired);
   }
-  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkScanLogicPlanLastOnlyScan) != NULL) {
-    code = tjsonGetBoolValue(pJson, jkScanLogicPlanLastOnlyScan, &pNode->lastOnlyScan);
+  if (TSDB_CODE_SUCCESS == code &&
+      tjsonGetObjectItem(pJson, jkScanLogicPlanLastScanType) != NULL) {
+    code = jsonGetLastScanType(pJson, jkScanLogicPlanLastScanType,
+                               &pNode->lastScanType);
   }
   pNode->intervalLimit = 0;
   if (TSDB_CODE_SUCCESS == code &&
@@ -3381,7 +3401,7 @@ static const char* jkTableScanPhysiPlanExtTimeRangeExpr = "ExtTimeRangeExpr";
 static const char* jkTableScanPhysiPlanPrimCondExpr = "PrimCondExpr";
 static const char* jkTableScanPhysiPlanRatio = "Ratio";
 static const char* jkTableScanPhysiPlanDataRequired = "DataRequired";
-static const char* jkTableScanPhysiPlanLastOnlyScan = "LastOnlyScan";
+static const char* jkTableScanPhysiPlanLastScanType = "LastScanType";
 static const char* jkTableScanPhysiPlanIntervalLimit = "IntervalLimit";
 static const char* jkTableScanPhysiPlanDynamicScanFuncs = "DynamicScanFuncs";
 static const char* jkTableScanPhysiPlanInterval = "Interval";
@@ -3452,8 +3472,9 @@ static int32_t physiTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanDataRequired, pNode->dataRequired);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->lastOnlyScan) {
-    code = tjsonAddBoolToObject(pJson, jkTableScanPhysiPlanLastOnlyScan, true);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanLastScanType,
+                                   pNode->lastScanType);
   }
   if (TSDB_CODE_SUCCESS == code && pNode->intervalLimit > 0) {
     code = tjsonAddIntegerToObject(pJson, jkTableScanPhysiPlanIntervalLimit,
@@ -3554,7 +3575,7 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   STableScanPhysiNode* pNode = (STableScanPhysiNode*)pObj;
 
   int32_t code = jsonToPhysiScanNode(pJson, pObj);
-  pNode->lastOnlyScan = false;
+  pNode->lastScanType = LAST_SCAN_NONE;
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetUTinyIntValue(pJson, jkTableScanPhysiPlanScanCount, &pNode->scanSeq[0]);
   }
@@ -3598,8 +3619,10 @@ static int32_t jsonToPhysiTableScanNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkTableScanPhysiPlanDataRequired, &pNode->dataRequired);
   }
-  if (TSDB_CODE_SUCCESS == code && tjsonGetObjectItem(pJson, jkTableScanPhysiPlanLastOnlyScan) != NULL) {
-    code = tjsonGetBoolValue(pJson, jkTableScanPhysiPlanLastOnlyScan, &pNode->lastOnlyScan);
+  if (TSDB_CODE_SUCCESS == code &&
+      tjsonGetObjectItem(pJson, jkTableScanPhysiPlanLastScanType) != NULL) {
+    code = jsonGetLastScanType(pJson, jkTableScanPhysiPlanLastScanType,
+                               &pNode->lastScanType);
   }
   pNode->intervalLimit = 0;
   if (TSDB_CODE_SUCCESS == code &&

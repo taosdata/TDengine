@@ -256,6 +256,9 @@ int32_t           getMaxValueBytes(int32_t type, int32_t bytes);
 EFuncDataRequired maxDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+// Equal-ts skipping without a PK requires lastScanCandidate proof.
+// Unknown metadata and virtual-column NULL ties conservatively require data.
+EFuncDataRequired lastRowDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 
 int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 

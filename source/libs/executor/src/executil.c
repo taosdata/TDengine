@@ -4966,6 +4966,141 @@ static int32_t getReaderBlockRowLimit(const STableScanPhysiNode* pTableScanNode,
   return primaryKeyCols == 1 ? (int32_t)limit : 0;
 }
 
+typedef struct SLastScanColumns {
+  SQueryTableDataCond* pCond;
+  SArray* pIds;
+  int32_t code;
+  bool valid;
+  bool filter;
+} SLastScanColumns;
+
+static EDealRes collectLastScanColumn(SNode* pNode, void* pContext) {
+  SLastScanColumns* pContextInfo = pContext;
+  if (nodeType(pNode) == QUERY_NODE_REMOTE_VALUE) {
+    pContextInfo->valid = false;
+    return DEAL_RES_END;
+  }
+  if (nodeType(pNode) != QUERY_NODE_COLUMN) {
+    return DEAL_RES_CONTINUE;
+  }
+  SColumnNode* pCol = (SColumnNode*)pNode;
+  if (pCol->colType != COLUMN_TYPE_COLUMN ||
+      (pContextInfo->filter &&
+       pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID)) {
+    pContextInfo->valid = false;
+    return DEAL_RES_END;
+  }
+  SQueryTableDataCond* pCond = pContextInfo->pCond;
+  for (int32_t i = 0; i < pCond->numOfCols; ++i) {
+    if (pCond->colList[i].colId == pCol->colId &&
+        pCond->pSlotList[i] == pCol->slotId &&
+        pCond->colList[i].type == pCol->node.resType.type) {
+      int16_t colId = pCol->colId;
+      if (taosArrayPush(pContextInfo->pIds, &colId) == NULL) {
+        pContextInfo->code = terrno;
+        return DEAL_RES_ERROR;
+      }
+      return DEAL_RES_CONTINUE;
+    }
+  }
+  pContextInfo->valid = false;
+  return DEAL_RES_END;
+}
+
+static void clearLastScanColumns(SQueryTableDataCond* pCond) {
+  taosArrayDestroy(pCond->pFilterInputColIds);
+  taosArrayDestroy(pCond->pLastInputColIds);
+  pCond->pFilterInputColIds = NULL;
+  pCond->pLastInputColIds = NULL;
+  pCond->allowLastScanTail = false;
+}
+
+static int32_t prepareLastScanColumns(SQueryTableDataCond* pCond,
+                                     STableScanPhysiNode* pScan) {
+  clearLastScanColumns(pCond);
+  if (pCond->lastScanType < LAST_SCAN_LAST_ONLY ||
+      pCond->lastScanType > LAST_SCAN_MIXED) {
+    pCond->lastScanType = LAST_SCAN_NONE;
+    return TSDB_CODE_SUCCESS;
+  }
+  bool valid = pCond->order == TSDB_ORDER_DESC &&
+               pCond->type == TIMEWINDOW_RANGE_CONTAINED &&
+               pCond->colList != NULL && pCond->pSlotList != NULL;
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (valid && pScan->scan.node.pConditions != NULL) {
+    pCond->pFilterInputColIds = taosArrayInit(4, sizeof(int16_t));
+    if (pCond->pFilterInputColIds == NULL) {
+      return terrno;
+    }
+    SLastScanColumns context = {.pCond = pCond,
+                               .pIds = pCond->pFilterInputColIds,
+                               .valid = true, .filter = true};
+    nodesWalkExpr(pScan->scan.node.pConditions, collectLastScanColumn,
+                  &context);
+    valid = context.valid;
+    code = context.code;
+  }
+  if (code == TSDB_CODE_SUCCESS && valid &&
+      pCond->lastScanType == LAST_SCAN_MIXED) {
+    SPhysiNode* pParent = pScan->scan.node.pParent;
+    valid = pParent != NULL &&
+            nodeType(pParent) == QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+    if (valid) {
+      pCond->pLastInputColIds = taosArrayInit(4, sizeof(int16_t));
+      if (pCond->pLastInputColIds == NULL) {
+        code = terrno;
+      } else {
+        SLastScanColumns context = {.pCond = pCond,
+                                   .pIds = pCond->pLastInputColIds,
+                                   .valid = true};
+        SNode* pNode = NULL;
+        FOREACH(pNode, ((SAggPhysiNode*)pParent)->pAggFuncs) {
+          SNode* pExpr = nodeType(pNode) == QUERY_NODE_TARGET
+                             ? ((STargetNode*)pNode)->pExpr : pNode;
+          if (pExpr == NULL || nodeType(pExpr) != QUERY_NODE_FUNCTION) {
+            valid = false;
+            break;
+          }
+          SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+          if (!fmIsIgnoreNullFunc(pFunc->funcId) ||
+              !(fmIsLastFunc(pFunc->funcId) ||
+                pFunc->funcId == fmGetFuncId("_last_partial"))) {
+            continue;
+          }
+          SNode* pInput = nodesListGetNode(pFunc->pParameterList, 0);
+          if (pInput == NULL || nodeType(pInput) != QUERY_NODE_COLUMN) {
+            valid = false;
+            break;
+          }
+          collectLastScanColumn(pInput, &context);
+          if (!context.valid || context.code != TSDB_CODE_SUCCESS) {
+            break;
+          }
+        }
+        code = context.code;
+        valid = valid && context.valid &&
+                taosArrayGetSize(pCond->pLastInputColIds) > 0;
+      }
+    }
+  }
+  if (code != TSDB_CODE_SUCCESS || !valid) {
+    clearLastScanColumns(pCond);
+    pCond->lastScanType = LAST_SCAN_NONE;
+    return code;
+  }
+  if (pCond->pFilterInputColIds != NULL) {
+    taosArraySort(pCond->pFilterInputColIds, compareInt16Val);
+    taosArrayRemoveDuplicate(pCond->pFilterInputColIds, compareInt16Val,
+                             NULL);
+  }
+  if (pCond->pLastInputColIds != NULL) {
+    taosArraySort(pCond->pLastInputColIds, compareInt16Val);
+    taosArrayRemoveDuplicate(pCond->pLastInputColIds, compareInt16Val, NULL);
+  }
+  pCond->allowLastScanTail = pScan->scan.node.pConditions == NULL;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScanPhysiNode* pTableScanNode,
                                           const SReadHandle* readHandle, bool applyExtWin, bool initColumns) {
   int32_t code = 0;                             
@@ -4999,7 +5134,8 @@ static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScan
   // allowed read stt file optimization mode
   pCond->notLoadData = (pTableScanNode->dataRequired == FUNC_DATA_REQUIRED_NOT_LOAD) &&
                        (pTableScanNode->scan.node.pConditions == NULL) && (pTableScanNode->interval == 0);
-  pCond->lastOnlyScan = pTableScanNode->lastOnlyScan;
+  pCond->lastScanType = pTableScanNode->lastScanType;
+  pCond->allowLastScanTail = false;
 
   if (initColumns) {
     int32_t j = 0;
@@ -5077,11 +5213,13 @@ static int32_t initQueryTableDataCondImpl(SQueryTableDataCond* pCond, STableScan
     bool isStream = (readHandle != NULL && readHandle->streamRtInfo != NULL);
     code = getPrimaryTimeRange((SNode**)&pTableScanNode->pPrimaryCond, &pCond->twindows, &isStrict, isStream);
     if (code || !isStrict) {
+      pCond->lastScanType = LAST_SCAN_NONE;
       code = nodesMergeNode((SNode**)&pTableScanNode->scan.node.pConditions, &pTableScanNode->pPrimaryCond);
     }
   }
 
   if (code == TSDB_CODE_SUCCESS) {
+    code = prepareLastScanColumns(pCond, pTableScanNode);
     pCond->blockRowLimit = getReaderBlockRowLimit(pTableScanNode, pCond);
   }
   return code;
@@ -5101,6 +5239,7 @@ int32_t resetQueryTableDataCond(SQueryTableDataCond* pCond, STableScanPhysiNode*
     cleanupQueryTableDataCond(pCond);
     return initQueryTableDataCond(pCond, pTableScanNode, readHandle, applyExtWin);
   }
+  clearLastScanColumns(pCond);
   SColumnInfo* columns = pCond->colList;
   int32_t*     slots = pCond->pSlotList;
   int32_t      numOfCols = pCond->numOfCols;
@@ -5220,6 +5359,7 @@ _return:
 }
 
 void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) {
+  clearLastScanColumns(pCond);
   taosMemoryFreeClear(pCond->colList);
   taosMemoryFreeClear(pCond->pSlotList);
 }
