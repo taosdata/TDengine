@@ -374,4 +374,4 @@ def test_resource_service_release_default_and_explicit_rollback(monkeypatch, rel
     monkeypatch.setattr(service_module, "get_logger", Mock())
     monkeypatch.setattr(service_module, "_set_log_level", Mock())
     service_module.main()
-    assert execute.call_args.args[0].release == (release or "1.0.1")
+    assert execute.call_args.args[0].release == release

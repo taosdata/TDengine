@@ -20,10 +20,12 @@ ResourceManager for real downloads and taosanode_service for process management.
 """
 
 import json
+import re
 import subprocess
 import threading
 import time
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from lib.log import AppLogger
 
@@ -1875,6 +1877,105 @@ def download_foundation_runtime(request):
         "resource_base_url": resource_base_url,
         "next_action": f"Query progress: GET /api/v1/foundation-models/{task_id}/status",
     }, 202
+
+
+def _runtime_upgrade_cli(action, target=None, options=None):
+    try:
+        from lib.conf import Configure
+        command = foundation_util.get_taosanodectl_cmd() + ["resource", action]
+        if target:
+            command.append(target)
+        command.extend(options or [])
+        config_path = Configure.get_instance().path
+        if config_path and Path(config_path).is_file():
+            command.extend(["--config", str(config_path)])
+        _, timeout = foundation_util.resolve_resource_settings()
+        result = subprocess.run(command, capture_output=True, text=True, timeout=timeout)
+        if result.returncode:
+            message = (result.stderr.strip() or result.stdout.strip() or
+                       f"Runtime operation failed (exit {result.returncode})")
+            return {"status": "error", "message": message}, (
+                409 if result.returncode in {3, 75} else 500
+            )
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError as exc:
+            return {"status": "error", "message": f"Invalid runtime control response: {exc}"}, 502
+        if not isinstance(data, dict):
+            return {"status": "error", "message": "Invalid runtime control response schema"}, 502
+        return {"status": "success", "data": data}, 200
+    except subprocess.TimeoutExpired:
+        return {"status": "error", "message": "Runtime control command timed out; query runtime status before retrying"}, 504
+    except (OSError, ValueError) as exc:
+        return {"status": "error", "message": str(exc)}, 500
+
+
+def get_foundation_runtime(request):
+    release = request.args.get("release", "")
+    if release and not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", release):
+        return {"status": "error", "message": "Invalid release version"}, 400
+    base_url, _ = foundation_util.resolve_resource_settings(request=request)
+    options = ["--resource-base-url", base_url]
+    if release:
+        options.extend(["--release", release])
+    return _runtime_upgrade_cli("runtime-status", RUNTIME_RESOURCE_NAME, options)
+
+
+def runtime_maintenance_guard():
+    body, status = _runtime_upgrade_cli("maintenance-status")
+    if status != 200:
+        return body, status
+    data = body.get("data") or {}
+    task = data.get("task")
+    if task and task.get("status") not in {"completed", "failed"}:
+        return {"status": "error", "message": "Shared runtime maintenance is active",
+                "task_id": task.get("task_id", "")}, 409
+    return None
+
+
+def upgrade_foundation_runtime(request):
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return {"status": "error", "message": "Expected a JSON object"}, 400
+    release = payload.get("release")
+    digest = payload.get("expected_sha256")
+    if not isinstance(release, str) or release == "latest" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", release):
+        return {"status": "error", "message": "An explicit release version is required"}, 400
+    if not isinstance(digest, str) or not re.fullmatch(r"[0-9a-f]{64}", digest):
+        return {"status": "error", "message": "expected_sha256 from runtime inventory is required"}, 400
+    active_operations = get_dao().list_async_operations(active_only=True)
+    if any(operation.status in {"queued", "running"} for operation in active_operations):
+        return {"status": "error", "message": "Wait for existing model operations to finish before upgrading"}, 409
+    base_url, _ = foundation_util.resolve_resource_settings(payload=payload)
+    body, status = _runtime_upgrade_cli("upgrade", options=[
+        "--release", release, "--resource-base-url", base_url, "--expected-sha256", digest,
+    ])
+    if status == 200:
+        if body["data"].get("status") == "completed":
+            body.update(status="completed", task_id=body["data"]["task_id"], reused=True)
+            return body, 200
+        body.update(status="queued", task_id=body["data"]["task_id"],
+                    next_action=f"GET /api/v1/foundation-models/runtime/upgrades/{body['data']['task_id']}")
+        return body, 202
+    return body, status
+
+
+def get_runtime_upgrade(request, task_id):
+    if not re.fullmatch(r"upgrade-[0-9a-f]{32}", task_id):
+        return {"status": "error", "message": "Invalid runtime upgrade task ID"}, 400
+    return _runtime_upgrade_cli("upgrade-status", task_id)
+
+
+def recover_runtime_upgrade(request, task_id):
+    if not re.fullmatch(r"upgrade-[0-9a-f]{32}", task_id):
+        return {"status": "error", "message": "Invalid runtime upgrade task ID"}, 400
+    body, status = _runtime_upgrade_cli("upgrade-recover", task_id)
+    if status == 200:
+        if body["data"].get("status") != "queued":
+            return body, 200
+        body.update(status="queued", task_id=task_id)
+        return body, 202
+    return body, status
 
 
 def download_foundation_model(request):

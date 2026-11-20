@@ -70,6 +70,7 @@ Source: "{#MyAppSourceDir}\model\*"; DestDir: "{app}\model"; Flags: ignoreversio
 Source: "{#MyAppSourceDir}\requirements\*"; DestDir: "{app}\requirements"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\python\*"; DestDir: "{app}\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "{#MyAppSourceDir}\bin\*"; DestDir: "{app}\bin"; Flags: ignoreversion
+Source: "{#MyAppSourceDir}\share\*"; DestDir: "{app}\share"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#MyAppSourceDir}\install.bat"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\install.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#MyAppSourceDir}\uninstall.bat"; DestDir: "{app}"; Flags: ignoreversion

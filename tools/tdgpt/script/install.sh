@@ -325,6 +325,8 @@ function install_main_path() {
 function install_bin_and_lib() {
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
   ${csudo}cp -r ${script_dir}/lib/* ${install_main_dir}/lib/
+  ${csudo}mkdir -p "${install_main_dir}/share/tsfm"
+  ${csudo}cp "${script_dir}/share/tsfm/tsfm-release.json" "${install_main_dir}/share/tsfm/tsfm-release.json"
 
   # Handle rmtaosanode separately
   sed -i.bak \

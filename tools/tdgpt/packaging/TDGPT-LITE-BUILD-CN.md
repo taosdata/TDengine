@@ -21,7 +21,7 @@ packaging/
 ├── win_release.py                    # Windows Lite 安装包
 ├── installer/                        # Inno Setup 模板
 ├── bin/                              # WinSW、uv 等构建缓存
-└── offline-pkgs/                     # TSFM 资源上传入口
+└── offline-pkgs/                     # 历史 schema 1 上传工具
 
 ../offline-pkgs/
 ├── build_tsfm_runtime.py             # 共享 TSFM runtime
@@ -30,7 +30,7 @@ packaging/
 └── README.md                         # 模型资源构建说明
 ```
 
-安装包、Python runtime、主 venv、共享 TSFM runtime、模型 ZIP 和 release manifest 是相互独立的发布物。`packaging/` 负责构建和验收，`../offline-pkgs/` 负责模型资源拆包与 runtime 构建；上传由 `packaging/offline-pkgs/upload_tsfm_release.py` 负责。
+安装包、Python runtime、主 venv、共享 TSFM runtime、模型 ZIP 和 release manifest 是相互独立的发布物。`packaging/` 负责构建和验收，`../offline-pkgs/` 负责模型资源拆包与 runtime 构建；正式发布的校验、NAS staging、upload-any 上传、任务轮询和发布门禁统一由 [platform-group !526](https://git.tdengine.net/rd-test/platform-group/-/merge_requests/526) 维护。本仓库的 `packaging/offline-pkgs/upload_tsfm_release.py` 仅保留历史 schema 1 行为，不用于发布本轮 schema 2 清单。
 
 Python 3.12.16 升级批次的 Lite 主 venv 候选版本为 `1.0.4`，共享 TSFM runtime 候选版本为 `1.0.1`。构建、JSON 元数据、SHA256 和 Apex YAML 必须引用同一批候选产物，不能覆盖已发布的 Lite `1.0.3` 或旧 TSFM 资源；候选版本号不表示已经完成发布验收。验收记录须对应实际构建的 `1.0.1` 归档、包内 manifest、锁文件及 SHA-256，不能仅根据文档版本号判断资源已部署或正式发布。
 
@@ -230,17 +230,21 @@ tdengine-tdgpt-model-moment-1-base.zip
 
 ### 4.3 上传资源
 
-本轮发布清单版本为 `1.0.1`。先根据三个平台实际验收的 runtime、复用的模型 ZIP 和各自 SHA256 生成不可变发布清单，再执行上传；构建 runtime 本身不会生成聚合发布清单。仓库中的 `packaging/tdengine-tdgpt-tsfm-release-1.0.0.json` 是历史清单，不能用它发布本轮资源，也不能只改 release 字段后保留旧 runtime 文件名和 SHA256。以下路径应替换为发布工作目录中已核对的清单文件：
+本轮发布清单为 `packaging/tdengine-tdgpt-tsfm-release-1.0.1.json`，使用 schema 2，同时引用三平台 TSFM runtime `1.0.1` 和复用的模型 ZIP。构建 runtime 本身不会生成聚合发布清单；发布前必须将各归档的实际大小和 SHA256 与清单逐项核对。`1.0.0` 是保留的历史清单，不能用它发布本轮资源，也不能只改 release 字段而保留旧 runtime 文件名和摘要。
+
+正式发布使用 platform-group 的 `versionRelease/publish_pkg/publish_tdgpt_tsfm.py`，具体参数和 Jenkins 开关见该仓库的 [TSFM 发布说明](https://git.tdengine.net/rd-test/platform-group/-/blob/feat/tdgpt-lite-venv-release/versionRelease/docs/tdgpt-tsfm-release.md)。以下命令在 platform-group 仓库根目录执行，清单与平铺归档目录须位于发布节点上：
 
 ```bash
-python3 packaging/offline-pkgs/upload_tsfm_release.py \
+python3 versionRelease/publish_pkg/publish_tdgpt_tsfm.py \
   --release-manifest /path/to/release/tdengine-tdgpt-tsfm-release-1.0.1.json \
+  --source-dir /path/to/validated-archives \
+  --staging-root /pkgs/release-apex \
   --dry-run
 ```
 
-确认 dry-run 的所有资源路径、大小及 SHA256 后，移除 `--dry-run` 执行上传。清单尚未生成、上传或公网下载校验未通过时，不得发布默认使用 `1.0.1` 的产品代码。
+`--dry-run` 会校验全部输入并写入 NAS staging，但不访问网络或提交上传任务。确认路径、大小和 SHA256 后，在正式发布授权下移除 `--dry-run` 执行上传。schema 2 将模型实际文件放到 `tdengine-tdgpt-enterprise/tsfm/models/`，runtime 与固定清单放到 `tsfm/1.0.1/`；不要求输入归档目录提前使用这套布局。NAS 可访问不能代替 Azure/CDN 目的站点的内容验收。远端资源及清单尚未验收时，不得正式发布默认使用它们的产品。
 
-上传脚本按清单批量提交 runtime、模型 ZIP 和 release manifest，并轮询异步任务至成功或失败。发布前应先使用 `--dry-run` 检查目标文件名和容器。
+发布器复用已有上传能力，校验共享模型不可变性，等待全部资源任务成功并核验共享模型内容后，才上传固定版本清单。Lite 主 venv 与 TSFM 使用独立发布开关；latest 指针发布仍须在 platform-group 接入并验收，不能将固定清单发布等同于 latest 已可用。历史清单和同名共享模型不得覆盖为不同内容。
 
 ## 5. ARM64 兼容性
 

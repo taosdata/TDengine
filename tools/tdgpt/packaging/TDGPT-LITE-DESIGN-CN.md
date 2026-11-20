@@ -45,11 +45,11 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 | TDgpt Enterprise Lite 程序 | 以本轮产品发布登记为准 | 使用对应平台的产品安装包，或替换对应架构的 Lite 镜像 |
 | 安装用 Python runtime | Python `3.12.16` | 由依赖部署流程提供，不能用打包工具或系统 Python 代替 |
 | Lite 主 venv | `1.0.4` | 安装/升级产品时显式传入对应平台的离线包；Apex 使用清单中的依赖版本和 SHA-256 |
-| 动态资源发布清单 | 默认 `1.0.1` | `resource check/apply --release <版本、URL 或本地清单>` 显式选择 |
+| 动态资源发布清单 | 随包推荐 `1.0.1`，schema 2 | CLI 默认读取本地 `share/tsfm/tsfm-release.json`；`--release <版本、URL 或本地清单>` 显式选择 |
 | 共享 TSFM runtime | 本轮候选 `1.0.1`，默认清单为 `1.0.1` | 通过资源命令单独导入或替换，不随主 venv 升级 |
 | 模型权重 | 各模型独立版本 | 按发布清单中的 `model_version`、资源版本与 SHA-256 识别 |
 
-`1.0.4` 是 Lite 主 venv 资源版本，不是 Python 版本，也不表示动态模型已切换到 `tsfm/1.0.1`。本轮代码将 CLI、HTTP API 和下载事件的默认 release 同步切换为 `1.0.1`；显式指定 `--release 1.0.0` 仍可选择旧清单。默认值切换不自动替换已安装资源，正式发布产品前必须先上传并核验 `1.0.1` 清单及其引用的全部资源。TSFM builder 的 `--version` 是必填参数，本轮显式传入 `1.0.1`；发布清单版本独立管理，不能由 Lite 主 venv 的版本推导。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
+`1.0.4` 是 Lite 主 venv 资源版本，不是 Python 或 TSFM 版本。CLI 不传 `--release` 时读取随包清单，不访问远端清单；HTTP 既有下载接口及下载事件默认 release 为 `1.0.1`，runtime 状态接口默认读取随包清单。显式指定 `--release 1.0.0` 仍可选择旧清单，检查最新版须显式查询 `latest`。随包推荐版本与本机已安装版本分别展示，程序更新不自动替换已安装 TSFM。正式发布产品前必须先上传并核验 `1.0.1` 清单及引用资源；资源版本不能由产品或 Lite 主 venv 版本推导。安装、模型导入与推理验收分别使用第 2.1.1 节指定的解释器。
 
 Linux x64 与 ARM64 的 Lite 主环境和共享 TSFM runtime 统一要求 glibc ≥ 2.28；glibc 2.27 / Ubuntu 18.04 不再属于本轮及后续版本的支持范围。历史低版本系统测试通过不构成后续兼容承诺。部署前须确认目标系统版本，并在真实 glibc 2.28 环境验收资源和服务。
 
@@ -402,7 +402,7 @@ TSDB 仓库负责构建制品、资源协议、下载与安装；正式发布的
 
 #### 7.2.1 在线与离线发布清单发现（规划）
 
-本轮版本默认使用固定的 `1.0.1`，在线 `resource check` 只在内存中读取发布清单，不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。
+默认 `resource check` 从随包 `share/tsfm/tsfm-release.json` 读取发布清单，与本地安装状态比较，不联网；显式指定远端版本或 URL 时才请求远端清单。页面打开先显示本地信息，检查更新使用显式 `release=latest`。
 
 新增统一配置 `resource_release`，允许发布通道或固定版本：
 
@@ -416,7 +416,7 @@ environment:
   TDGPT_RESOURCE_RELEASE: "${TDGPT_RESOURCE_RELEASE:-stable}"
 ```
 
-读取优先级为：API 显式 `release`、`TDGPT_RESOURCE_RELEASE`、 `taosanode.config.py` 的 `resource_release`、默认 `stable`。固定为 `1.0.0` 时不得自动切换到新版本，便于验收和回滚。
+在需要选择远端通道或固定版本的显式查询中，读取优先级为：API 显式 `release`、`TDGPT_RESOURCE_RELEASE`、`taosanode.config.py` 的 `resource_release`、默认 `stable`。固定为 `1.0.0` 时不得自动切换到新版本，便于验收和回滚；普通 `resource check` 不传版本时仍以随包清单为准，不读取该远端通道。
 
 发布站点使用不可变版本清单和一个稳定通道指针：
 
@@ -758,6 +758,55 @@ taosanodectl resource check --format json
 ```
 
 `--format table` 和 `--format json` 只改变输出格式，不改变命令语义。表格中的 `status` 是综合状态，`service_status` 表示模型服务进程状态，`install_status` 表示资源文件状态；任务进行中还会返回 `task_status`、`bytes_done` 和 `bytes_total`。
+
+### 10.4 共享 TSFM runtime 升级与 IDMP 调用
+
+共享 TSFM runtime 的升级使用单独的异步维护任务，页面不需要自行逐个停止、替换、再启动模型。此入口只更新 `model_venvs/tsfm/`，不更新基础 Python、Lite 主 venv、模型权重和用户算法；基础 Python 的升级仍由安装器或外部维护工具协调。升级前必须已安装一个完整有效的 runtime；首次安装或已损坏环境的修复继续使用原有 runtime download/import 入口。
+
+#### 10.4.1 查询最新发布版本
+
+页面默认调用 `GET /api/v1/foundation-models/runtime`，读取本地安装状态、升级任务和随包 `share/tsfm/tsfm-release.json`，不联网；按当前平台和架构选择推荐 runtime，返回 `data.target.release`、`data.target.sha256` 和制品信息。Linux、Windows 与 Docker 发布均携带推荐元数据，不包含 TSFM 环境或模型权重；当前源清单为 `packaging/tdengine-tdgpt-tsfm-release-1.0.1.json`，使用 schema 2，引用 runtime `1.0.1` 和原有模型权重。runtime 位于 `tsfm/1.0.1/`，模型位于 `tsfm/models/`，清单 release、runtime 版本和模型版本分别管理。不能把浮动 latest 当作随包清单。元数据随程序更新，不覆盖持久化安装状态或缓存。用户点击检查更新时调用 `?release=latest`：从已配置的 `resource_base_url` 读取 `tdengine-tdgpt-enterprise/tsfm/latest/tdengine-tdgpt-tsfm-release-latest.json`（例如 `{"schema_version":1,"release":"1.0.1"}`），再读取固定版本清单。latest 指针的 schema 1 与资源清单的 schema 2 分开；固定清单读取同时兼容 schema 1 和 schema 2。显式 `?release=1.0.1` 可查询指定远端版本。latest 由正式发布端维护，不扫描目录、不根据文件名猜测，也不随主程序版本自动递增。
+
+`share/tsfm/` 位于 TDgpt 安装目录内，存放程序自带的只读推荐元数据，三平台使用相同的相对布局；它不属于用户配置或 datadir 下的持久化资源。升级 TDgpt 程序会更新该清单，但保留已安装的 TSFM runtime、模型权重与资源状态，不自动下载或替换环境。页面应分别展示本机实际版本、随包推荐版本和显式检查更新后得到的远端目标。旧环境必须有有效的 runtime 清单和 `.tdgpt-install-complete.json` 安装记录才可进入托管升级；手工复制、记录缺失或损坏的环境会返回 `installed_error`，需先核实备份并通过原有资源安装/导入流程处理。
+
+升级随包推荐版本时直接使用本地清单；升级其他版本时读取指定版本的远端清单。目标版本和 SHA-256 固定后，先检查本地缓存中的完整归档，匹配大小和摘要就直接使用，否则从配置的远端地址下载并校验，后续替换和恢复流程相同。本地离线包仍可通过现有 `resource import` 使用；CLI 托管升级也可显式传入本地发布清单路径。当前 HTTP 升级入口使用具体 release 和摘要，不接收浏览器提交的服务器文件路径。
+
+正式发布统一由 platform-group !526 编排，客户端不维护上传实现。发布端应在制品验收完成且所有制品与固定版本清单上传成功后，才显式更新 latest 并刷新对应 CDN；latest 发布能力仍须在 platform-group 接入并验收，不能把 schema 2 资源上传完成等同于 latest 已可用。发布时不得把旧版本重新提升为 latest，也不能将尚未完成平台验收的制品加入该入口。普通重传旧包不更新 latest；程序安装和升级不会发布资源或修改远端 latest。
+
+查询失败、latest 尚未发布或没有当前平台的制品时，保留 `data.installed` 和 `data.task`，同时返回 `data.target=null` 和 `data.target_error`；页面显示“最新版本查询失败”及原因，不得将其显示为“已是最新”。`upgrade_available` 表示当前有效环境与查询目标的归档摘要不同；显式查询旧版本时也可能为 true，因此不能仅据此宣称目标一定比当前更新。页面展示 latest 返回的实际版本，用户确认后提交这一个具体 release 和摘要；升级请求不接受浮动的 `latest`，避免查询后发布渠道变化导致安装目标漂移。查询不下载制品，也不停止模型。
+
+#### 10.4.2 页面调用和升级编排
+
+| 步骤 | 接口 | 页面处理 |
+| --- | --- | --- |
+| 查询当前状态与随包推荐版本 | `GET /api/v1/foundation-models/runtime` | 本地读取；显示 `data.installed`、`data.target`、`data.target_error` 和 `data.task` |
+| 检查更新 | `GET /api/v1/foundation-models/runtime?release=latest` | 访问远端；保存目标的具体 `release`、`sha256`，网络失败不改变本地安装状态 |
+| 查询指定版本（可选） | `GET /api/v1/foundation-models/runtime?release=<release>` | 展示明确指定的发布版本；普通页面不需要使用此入口 |
+| 发起升级 | `POST /api/v1/foundation-models/runtime/upgrade` | 请求体为 `{"release":"1.0.1","expected_sha256":"<目标 sha256>"}`；HTTP 202 仅表示已受理，保存返回的 `task_id`；重复请求已完成的相同 digest 可返回 HTTP 200，复用原任务和回滚快照 |
+| 查询进度 | `GET /api/v1/foundation-models/runtime/upgrades/<task_id>` | 轮询 `data.status`、`data.phase`、`data.progress`、`data.error` 和 `data.rollback_error` |
+| 显式恢复 | `POST /api/v1/foundation-models/runtime/upgrades/<task_id>/recover` | 对中断任务恢复旧环境，或对最近一次已完成升级执行回滚；继续轮询同一任务 |
+
+通过 IDMP 的既有代理调用时，在以上地址前加 `/tdgpt`；代理鉴权和权限控制沿用现有模型管理接口。新升级任务使用上述独立轮询接口，不复用下载任务的 SSE `runtime_import` 完成事件，避免环境导入结束、模型尚未重新启动时被页面误判成功。页面关闭只停止查询，不取消后端升级。
+
+任务状态使用 `queued`、`running`、`completed`、`failed` 和 `interrupted`；阶段使用 `queued`、`preparing`、`stopping`、`installing`、`verifying`、`resuming`、`completed`、`unchanged`、`rolling_back`、`rolled_back`、`manual_intervention` 和 `aborted`。只有 `status=completed` 表示升级成功，`phase=unchanged` 表示已安装目标 digest，无须停止模型。`status=failed, phase=rolled_back, rollback_status=completed` 表示升级未成功、旧环境已恢复，应提示升级失败但恢复完成；不能显示升级成功。`status=interrupted, phase=manual_intervention` 表示需要显式恢复，维护门禁继续阻止模型和 runtime 的写操作。停止模型之前中断的任务可以通过 recover 解除门禁，不停止现有模型。
+
+服务端先下载并验证目标归档 SHA-256，在 runtime 同级临时目录解压、重定位并校验内部 manifest、依赖锁和解释器完整版本；目标不兼容时直接失败，不停止现有模型。随后保留并验证旧环境快照，记录升级前正在运行的模型，停止这些 worker，将已准备好的新环境切换到正式路径，再校验安装完整性并重新启动原先运行的模型，确认进程和端口就绪。原先停止的模型保持停止，不在用户升级时运行完整依赖或推理测试。快照位于 `model_venvs/.tsfm-rollback-<task_id>/`，与环境使用同一文件系统；Docker 必须持久化整个 `model_venvs` 父目录和 `resource` 状态目录。运维应为目标归档、新环境及旧快照预留磁盘空间；未完成的准备目录和残缺快照在失败或显式中断恢复时清理，已验证的快照保留用于恢复，不应当作普通下载缓存清理。
+
+整个替换和恢复流程由独立管理进程持有现有生命周期锁，直接调用模型管理方法，不在持锁期间嵌套启动同样需要该锁的 CLI。任务记录保存在 `resource/state/upgrades/`；API 进程重启后仍可查询。若管理进程退出且任务未写终态，查询会将其标记为需要人工恢复，而不是自动重新执行安装。查询只有取得生命周期锁后才会改写中断状态；新排队及重新排队的恢复任务保留 30 秒启动窗口，过期且未执行的任务标记为 `interrupted/manual_intervention`，通过显式 recover 清理并解除门禁。正常下载和安装全程持锁，不受此启动窗口限制；worker 等锁超时只退出，不在锁外改写任务，由后续状态查询处理。恢复只接受最新升级任务，避免用较早快照覆盖后续已经安装的新版本。升级期间普通模型和 runtime 写操作返回冲突，CLI 也受同一维护门禁保护。
+
+已完成任务的显式回滚还要求当前环境摘要仍与该任务目标一致；已自动回滚的任务再恢复时，当前环境必须仍匹配原环境摘要。通过原有 import/apply 等入口独立安装其他环境后，旧任务恢复会拒绝，不能覆盖后装版本。中断任务允许正式环境缺失或不完整，以支持半切换恢复。回滚时若正式路径已经完整匹配旧环境摘要，直接复用旧环境并恢复原运行模型，不再复制整份快照；只有环境确实需要恢复时才复制。历史 `interrupted` 下载记录不作为永久升级阻塞项，正在执行的任务和实际资源操作仍受状态检查与生命周期锁保护。恢复请求若直接完成准备阶段清理，返回 HTTP 200 及终态；只有真正排队的恢复任务返回 HTTP 202。
+
+#### 10.4.3 Python 配套升级、配置兼容与验收边界
+
+Python runtime 的补丁升级需要配套处理。比如 !3585 将构建目标从 Python `3.12.12` 调整为 `3.12.16`，必须重新构建与解释器精确匹配的 Lite 主 venv 和 TSFM runtime，并分别完成三平台验收；不能只替换基础 Python 或在旧 venv 中增量安装依赖。模型权重、用户算法和未受影响的配置保留，但发布验收仍须确认它们可被新环境加载。TSFM 依赖升级与基础 Python 升级应分别登记 release、manifest、依赖锁和验收记录。
+
+仅替换 TSFM runtime 时，主服务可以保持运行；同时替换基础 Python 和主 venv 时，必须由独立于待替换 Python 的安装器或外部维护工具停止主服务及 worker，协调替换和回滚。现有校验要求 Python 完整版本与 manifest 一致，保留旧 TSFM 包不足以支持跨 Python 版本回滚，必须保留匹配的基础 Python、主 venv、主程序及资源状态；本节的 runtime API 不负责这类升级。
+
+升级保留用户现有 `taosanode.config.py`，不能用新版默认配置覆盖端口、模型目录等本地设置。旧配置中的六个内置模型入口可能使用 `tdtsfm-server.py`、`timemoe-server.py`、`moirai-server.py`、`chronos-server.py`、`timesfm-server.py` 或 `moment-server.py`。启动器仅在这些旧入口不存在时回退到对应的 `*_server.py`；已有入口优先，自定义脚本和显式路径不做通用改写，兼容目标不存在时仍明确失败，不改写配置文件本身。
+
+底层 runtime download/apply/import 仍保留，单次操作的临时备份会在激活成功后清除，不能替代升级编排保留的旧环境快照。`resource verify` 校验完成标记、manifest、平台/架构、依赖锁摘要和解释器版本，不执行完整依赖导入、`pip check` 或模型推理。Linux runtime 使用 `tar.xz`（历史 `tar.gz` 按清单兼容），Windows runtime 使用 ZIP，与 Windows 产品 EXE 分开管理。
+
+完整依赖兼容性、各受支持模型的推理、Linux x64/arm64 与 Windows x64 安装，以及 Docker 卷持久化行为，属于正式发布前的测试验收；还应覆盖相同摘要重复请求、并发启停、错误摘要、Python 版本不匹配、停止超时、升级和回滚中断、服务重启及旧版本恢复。PyArrow/glibc 等依赖兼容性是独立发布门禁，升级接口通过回归不代表新制品已通过发布验收，也不代表基础 Python 已支持在线升级。
 
 ## 11. 实施阶段
 

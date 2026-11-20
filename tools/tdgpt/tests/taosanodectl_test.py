@@ -20,8 +20,11 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
+import runtime_upgrade
+import taosanode_service
 from taosanodectl import build_parser, get_version_banner, translate_args
 
 
@@ -100,6 +103,43 @@ def test_resource_apply_translation():
     ]
 
 
+@pytest.mark.parametrize("action,replace", [("check", False), ("apply", False), ("apply", True)])
+@pytest.mark.parametrize("release", [None, "1.2.3"])
+def test_resource_release_default_reaches_service(action, replace, release, monkeypatch, mock_config):
+    command = ["resource", action, "moirai", "--format", "json"]
+    if replace:
+        command.append("--replace")
+    if release:
+        command.extend(["--release", release])
+    translated = translate_args(build_parser().parse_args(command))
+    manager = MagicMock()
+    manager.check_release.return_value = {"resources": []}
+    manager.apply_release.return_value = []
+    manager.requires_runtime_replacement.return_value = False
+    models = MagicMock()
+    models.status.return_value = []
+    monkeypatch.setattr(sys, "argv", ["taosanode_service.py", *translated])
+    monkeypatch.setattr(taosanode_service, "Config", lambda path: mock_config)
+    monkeypatch.setattr(taosanode_service, "DynamicResourceManager", lambda config: manager)
+    monkeypatch.setattr(taosanode_service, "ModelService", lambda config, process_mgr: models)
+    monkeypatch.setattr(taosanode_service, "get_logger", lambda *args: MagicMock())
+    monkeypatch.setattr(runtime_upgrade.RuntimeUpgrade, "guard", lambda self: None)
+
+    taosanode_service.main()
+
+    expected_release = release
+    if action == "check":
+        manager.check_release.assert_called_once_with(expected_release, mock_config.resource_base_url, "moirai")
+    else:
+        manager.apply_release.assert_called_once_with(
+            expected_release, mock_config.resource_base_url, "moirai", replace
+        )
+        if replace:
+            manager.requires_runtime_replacement.assert_called_once_with(
+                expected_release, mock_config.resource_base_url, "moirai"
+            )
+
+
 def test_resource_verify_translation():
     args = build_parser().parse_args(["resource", "verify", "all"])
     assert translate_args(args) == ["resource-verify", "all"]
@@ -116,6 +156,21 @@ def test_model_status_stays_table_by_default():
     assert translate_args(args) == ["model-status"]
 
 
+def test_runtime_upgrade_translation_keeps_pinned_digest_and_version():
+    args = build_parser().parse_args([
+        "resource", "upgrade", "--release", "1.0.1", "--expected-sha256", "a" * 64,
+    ])
+    translated = translate_args(args)
+    assert translated[0] == "runtime-upgrade"
+    assert translated[translated.index("--release") + 1] == "1.0.1"
+    assert translated[translated.index("--expected-sha256") + 1] == "a" * 64
+
+
+def test_runtime_upgrade_recovery_translation_keeps_task_id():
+    args = build_parser().parse_args(["resource", "upgrade-recover", "upgrade-" + "a" * 32])
+    assert translate_args(args) == ["runtime-upgrade-recover", "upgrade-" + "a" * 32]
+
+
 @pytest.mark.parametrize("release", [None, "1.0.0"])
 def test_resource_release_default_and_explicit_rollback(release):
     argv = ["resource", "check"]
@@ -123,7 +178,10 @@ def test_resource_release_default_and_explicit_rollback(release):
         argv.extend(["--release", release])
     args = build_parser().parse_args(argv)
     translated = translate_args(args)
-    assert translated[translated.index("--release") + 1] == (release or "1.0.1")
+    if release is None:
+        assert "--release" not in translated
+    else:
+        assert translated[translated.index("--release") + 1] == release
 
 
 def test_resource_release_contract():
@@ -145,7 +203,7 @@ def test_resource_release_contract():
     expected_counts = {
         "script/taosanodectl.py": 1,
         "script/taosanode_service.py": 1,
-        "lib/tsfm/mgmt/foundation_model.py": 6,
+        "lib/tsfm/mgmt/foundation_model.py": 7,
         "lib/tsfm/mgmt/response_event.py": 1,
     }
     for relative, expected_count in expected_counts.items():
@@ -165,7 +223,13 @@ def test_resource_release_contract():
             ):
                 defaults.extend(kw.value for kw in node.keywords if kw.arg == "default")
         assert len(defaults) == expected_count, relative
-        assert all(isinstance(value, ast.Name) and value.id == "DEFAULT_RESOURCE_RELEASE" for value in defaults), relative
+        if relative.startswith("script/"):
+            assert all(isinstance(value, ast.Constant) and value.value is None for value in defaults), relative
+        else:
+            bundled_defaults = [value for value in defaults if isinstance(value, ast.Constant) and value.value == ""]
+            assert len(bundled_defaults) == (1 if relative.endswith("foundation_model.py") else 0)
+            assert all(isinstance(value, ast.Name) and value.id == "DEFAULT_RESOURCE_RELEASE"
+                       for value in defaults if value not in bundled_defaults), relative
 
 
 @pytest.mark.parametrize("flag", ["--help", "--version"])

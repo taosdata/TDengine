@@ -65,7 +65,6 @@ from resource_manager import (
     lifecycle_lock,
 )
 from resource_manifest import (
-    DEFAULT_RESOURCE_RELEASE,
     SHARED_RUNTIME_NAME,
     validate_tsfm_model,
     validate_tsfm_runtime,
@@ -2213,6 +2212,13 @@ class ModelService:
                 self.logger.info(f"Force killing model {model_name}...")
                 self.process_mgr.kill_process(pid, force=True)
 
+                deadline = time.monotonic() + 5
+                while self.process_mgr.is_running(service_name):
+                    if time.monotonic() >= deadline:
+                        self.logger.error(f"Model {model_name} PID {pid} did not stop")
+                        return False
+                    time.sleep(0.1)
+
         self.process_mgr.remove_pid(service_name)
         self.logger.info(f"Model {model_name} stopped")
         return True
@@ -2374,7 +2380,9 @@ Examples:
         choices=["start", "stop", "status", "model-start", "model-stop", "model-status", "wait-ready",
                  "resource-import", "resource-check", "resource-apply",
                  "resource-list", "resource-verify", "resource-delete", "install-service",
-                 "uninstall-service", "start-service", "stop-service"],
+                 "uninstall-service", "start-service", "stop-service", "runtime-status",
+                 "runtime-upgrade", "runtime-upgrade-status", "runtime-upgrade-recover", "runtime-upgrade-run",
+                 "runtime-maintenance-status"],
         help="Command to execute"
     )
     parser.add_argument(
@@ -2422,7 +2430,7 @@ Examples:
         "--python-runtime-dir",
         help="Host Python runtime directory used to relocate imported TSFM venvs",
     )
-    parser.add_argument("--release", default=DEFAULT_RESOURCE_RELEASE, help="Resource release version or manifest URL")
+    parser.add_argument("--release", default=None, help="Resource release version or manifest URL")
     parser.add_argument(
         "--resource-base-url",
         default=None,
@@ -2458,8 +2466,17 @@ Examples:
     # Initialize
     config = Config(args.config)
     try:
-        if args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete"}:
+        if args.command == "runtime-upgrade-run":
+            from runtime_upgrade import run_upgrade_task
+            model_service = ModelService(config, ProcessManager(config))
+            result = run_upgrade_task(config, args.target, model_service)
+            print(json.dumps(result, indent=2))
+        elif args.command in {"model-start", "model-stop", "resource-import", "resource-apply", "resource-delete",
+                              "runtime-upgrade", "runtime-upgrade-recover"}:
             with lifecycle_lock(config.resource_dir):
+                if args.command not in {"runtime-upgrade", "runtime-upgrade-recover"}:
+                    from runtime_upgrade import RuntimeUpgrade
+                    RuntimeUpgrade(config).guard()
                 execute_command(args, config)
         else:
             execute_command(args, config)
@@ -2499,7 +2516,43 @@ def execute_command(args, config):
     logger = get_logger()
 
     # Execute command
-    if args.command == "start":
+    if args.command.startswith("runtime-"):
+        from runtime_upgrade import RuntimeUpgrade
+        upgrade = RuntimeUpgrade(config, models)
+        if args.command == "runtime-maintenance-status":
+            task = upgrade.latest()
+            result = {"task": upgrade.status(task["task_id"]) if task else None}
+        elif args.command == "runtime-status":
+            result = upgrade.inventory(args.release or "", args.resource_base_url or config.resource_base_url)
+        elif args.command == "runtime-upgrade-status":
+            result = upgrade.status(args.target)
+        else:
+            if args.command == "runtime-upgrade-recover":
+                result = upgrade.queue_recovery(args.target)
+            else:
+                if not args.expected_sha256:
+                    raise ResourceImportError("--expected-sha256 from runtime-status is required")
+                result = upgrade.queue(args.release, args.resource_base_url or config.resource_base_url,
+                                       args.expected_sha256)
+            if result["status"] != "queued":
+                print(json.dumps(result, indent=2))
+                return
+            child = [sys.executable, str(Path(__file__).resolve()), "runtime-upgrade-run", result["task_id"]]
+            if args.config:
+                child.extend(["--config", args.config])
+            options = {"start_new_session": True} if os.name != "nt" else {
+                "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP,
+            }
+            try:
+                subprocess.Popen(child, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL, **options)
+            except OSError as exc:
+                upgrade.save(result, status="interrupted", phase="manual_intervention", error=str(exc))
+                raise
+        print(json.dumps(result, indent=2))
+        return
+
+    elif args.command == "start":
         success = taosanode.start(foreground=args.foreground, full_preflight=args.full_preflight)
         sys.exit(0 if success else 1)
 
@@ -2576,16 +2629,17 @@ def execute_command(args, config):
                 config.python_runtime_dir = args.python_runtime_dir
             manager = DynamicResourceManager(config)
             target = args.target or "all"
+            release = args.release
             if args.replace:
                 running = {item["model"] for item in models.status() if item["running"]}
                 base_url = args.resource_base_url or config.resource_base_url
-                runtime_replace = manager.requires_runtime_replacement(args.release, base_url, target)
+                runtime_replace = manager.requires_runtime_replacement(release, base_url, target)
                 blocked = running if runtime_replace or target == "all" else running.intersection({target})
                 if blocked:
                     scope = "all" if runtime_replace or target == "all" else ", ".join(sorted(blocked))
                     raise ResourceImportError(f"resource replacement requires stopped model workers: {scope}")
             result = DynamicResourceManager(config).apply_release(
-                args.release, args.resource_base_url or config.resource_base_url, target, args.replace
+                release, args.resource_base_url or config.resource_base_url, target, args.replace
             )
             print(json.dumps(result, indent=2))
         except ResourceImportError as exc:

@@ -145,6 +145,30 @@ class DynamicResourceManager:
         return f"{base}/tdengine-tdgpt-enterprise/tsfm/{release}/tdengine-tdgpt-tsfm-release-{release}.json"
 
     def load_release(self, release: str, base_url: str) -> Dict[str, Any]:
+        if not release:
+            script_dir = Path(__file__).resolve().parent
+            path = script_dir.parent / "share" / "tsfm" / "tsfm-release.json"
+            if not path.exists() and script_dir.name == "script":
+                path = script_dir.parent / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json"
+            try:
+                value = load_manifest(path)
+            except (OSError, ValueError) as exc:
+                raise ResourceImportError(f"bundled TSFM release manifest unavailable: {path}: {exc}") from exc
+            if (not isinstance(value, dict) or type(value.get("schema_version")) is not int
+                    or value["schema_version"] not in (1, 2)):
+                raise ResourceImportError("unsupported bundled TSFM release manifest")
+            try:
+                for item in self._resource_entries(value):
+                    release_resource_file(item, value["schema_version"])
+            except ValueError as exc:
+                raise ResourceImportError(str(exc)) from exc
+            version = value.get("release")
+            if not isinstance(version, str) or version == "latest" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", version):
+                raise ResourceImportError("bundled TSFM manifest must identify a concrete release")
+            value["_source_url"] = self._release_url(version, base_url)
+            self._active_base_url = base_url.rstrip("/")
+            self._fallback_release_source = self._release_url(version, self._fallback_base_url)
+            return value
         source = self._release_url(release, base_url)
         sources = [source]
         if (
@@ -170,7 +194,7 @@ class DynamicResourceManager:
                 source = candidate
                 if candidate != sources[0]:
                     selected_fallback = True
-                    print(f"Primary resource URL failed; using fallback URL: {candidate}")
+                    print(f"Primary resource URL failed; using fallback URL: {candidate}", file=sys.stderr)
                 break
             except (OSError, urllib.error.URLError, urllib.error.HTTPError, json.JSONDecodeError) as exc:
                 last_error = exc
@@ -302,7 +326,10 @@ class DynamicResourceManager:
                 and self._fallback_release_source
                 and isinstance(exc, (OSError, urllib.error.URLError, urllib.error.HTTPError))
             ):
-                print(f"Primary resource download failed; using fallback URL for {item.get('name')}")
+                print(
+                    f"Primary resource download failed; using fallback URL for {item.get('name')}",
+                    file=sys.stderr,
+                )
                 fallback_source = self._fallback_release_source
                 self._fallback_release_source = ""
                 return self._download(item, fallback_source)
