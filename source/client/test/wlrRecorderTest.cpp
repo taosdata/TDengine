@@ -375,6 +375,21 @@ bool jsonHasInteger(const std::string& json, const char* key, int64_t expected) 
 // Fixture: one recorder session per test, always torn down.
 class WlrRecorderTest : public ::testing::Test {
  protected:
+  ::testing::AssertionResult waitForRecorderOff() {
+    // Close can hand cleanup to the reaper after a bounded writer join. OFF
+    // is published only after resource teardown, so wait for that transition.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    for (;;) {
+      const int32_t state = wlrRecorderState();
+      if (state == WLR_STATE_OFF) return ::testing::AssertionSuccess();
+      if (std::chrono::steady_clock::now() >= deadline) {
+        return ::testing::AssertionFailure()
+               << "deferred recorder cleanup did not finish within 10s; state=" << state;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+
   void SetUp() override {
     dir_ = makeTempDir();
     ASSERT_FALSE(dir_.empty()) << "mkdtemp failed";
@@ -394,10 +409,7 @@ class WlrRecorderTest : public ::testing::Test {
      * unfinished call cannot make the next test order-dependent. */
     wlrTestResetDepth();
     wlrRecorderClose();
-    for (int attempt = 0; attempt < 1000 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+    ASSERT_TRUE(waitForRecorderOff());
     removeTree(dir_);
   }
 
@@ -452,10 +464,7 @@ class WlrRecorderTest : public ::testing::Test {
     EXPECT_TRUE(wlrMgr.lockReady);
 
     atomic_store_32(&wlrMgr.stallFinalIo, 0);
-    for (int attempt = 0; attempt < 1000 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
-    }
-    ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+    ASSERT_TRUE(waitForRecorderOff());
     EXPECT_EQ(wlrMgr.pool, nullptr);
     EXPECT_FALSE(wlrMgr.lockReady);
     std::string manifest = readManifestJson(dir_);
@@ -490,6 +499,7 @@ TEST_F(WlrRecorderTest, ReinitializationResetsSessionStatistics) {
   ASSERT_EQ(startRecorder(1), 0);
   ASSERT_EQ(recordCall(1, "select first_session"), 0);
   wlrRecorderClose();
+  ASSERT_TRUE(waitForRecorderOff());
   ASSERT_GT(wlrTestEventsWritten(), 0);
 
   ASSERT_EQ(startRecorder(1), 0);
@@ -516,7 +526,7 @@ TEST_F(WlrRecorderTest, ConcurrentCloseTearsDownOnce) {
   go.store(true);
   for (auto& closer : closers) closer.join();
 
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
   EXPECT_FALSE(readManifestJson(dir_).empty());
 }
 
@@ -559,7 +569,7 @@ TEST_F(WlrRecorderTest, RunningToOffOnClose) {
   ASSERT_EQ(startRecorder(1), 0);
   ASSERT_EQ(recordCall(1, "select 1"), 0);
   wlrRecorderClose();
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 TEST_F(WlrRecorderTest, CloseWaitsForReservedProducerBeforeDestroyingQueue) {
@@ -588,7 +598,7 @@ TEST_F(WlrRecorderTest, CloseWaitsForReservedProducerBeforeDestroyingQueue) {
   }
   closer.join();
   EXPECT_TRUE(closeFinished.load());
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 TEST_F(WlrRecorderTest, CloseWaitsForEntrantBeforeQueueLock) {
@@ -610,7 +620,7 @@ TEST_F(WlrRecorderTest, CloseWaitsForEntrantBeforeQueueLock) {
   wlrTestLeaveLifecycle();
   closer.join();
   EXPECT_TRUE(closeFinished.load());
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 TEST_F(WlrRecorderTest, ClosedLifecycleAdmissionRejectsLateEntrants) {
@@ -619,7 +629,7 @@ TEST_F(WlrRecorderTest, ClosedLifecycleAdmissionRejectsLateEntrants) {
 
   EXPECT_EQ(wlrTestEnterLifecycle(), -1);
   wlrRecorderClose();
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 // TS CFG024 -- a permanent writer error moves RUNNING -> FAILED_OPEN and
@@ -649,7 +659,7 @@ TEST_F(WlrRecorderTest, FailedOpenToOffOnClose) {
   EXPECT_EQ(wlrTestInjectWriterFailure(), 0) << "test hook required to fail the writer";
   ASSERT_EQ(wlrRecorderState(), WLR_STATE_FAILED_OPEN);
   wlrRecorderClose();
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 // TS FO006 -- no auto-recovery inside the same process: a healed disk must not
@@ -722,14 +732,7 @@ TEST_F(WlrRecorderTest, StoppingRejectsNewTokens) {
   worker.join();
   wlrRecorderClose();
 
-  // A bounded writer join can hand cleanup to the reaper, which publishes OFF
-  // only after it has torn everything down. Poll for up to 10s (20 x 500ms) so a
-  // loaded CI host cannot fail this test on scheduling latency, while still
-  // requiring OFF rather than tolerating STOPPING.
-  for (int attempt = 0; attempt < 20 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  }
-  ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF) << "deferred recorder cleanup did not finish within 10s";
+  ASSERT_TRUE(waitForRecorderOff());
   EXPECT_GT(accepted.load() + rejected.load(), 0);
   EXPECT_GT(rejected.load(), 0) << "shutdown race never observed a rejected token";
 
@@ -1046,7 +1049,7 @@ TEST_F(WlrRecorderTest, UnfinishedCallIsTrackedAtStop) {
   // Stopping must not block on it: a hung call holds a Call ID forever, so waiting
   // would hang process exit (DS 6.4).
   wlrRecorderClose();
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
   EXPECT_TRUE(sessionStopHasActiveCallCount(dir_, 1));
 }
 
@@ -1200,10 +1203,7 @@ TEST_F(WlrRecorderTest, ManifestReportsIncompleteDrain) {
 
   wlrRecorderClose();
   // Close may hand finalization to the reaper. Read the final manifest after OFF.
-  for (int attempt = 0; attempt < 20 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  }
-  ASSERT_EQ(wlrRecorderState(), WLR_STATE_OFF) << "deferred recorder cleanup did not finish within 10s";
+  ASSERT_TRUE(waitForRecorderOff());
 
   std::string path = findManifest(dir_);
   ASSERT_FALSE(path.empty()) << "no manifest was written after an incomplete drain";
@@ -1253,10 +1253,7 @@ TEST_F(WlrRecorderTest, CleanupDefersBlockedWrite) {
   EXPECT_EQ(wlrMgr.captureIncomplete, 1);
 
   ASSERT_EQ(wlrTestResumeWrite(), 0);
-  for (int attempt = 0; attempt < 500 && wlrRecorderState() != WLR_STATE_OFF; ++attempt) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-  }
-  EXPECT_EQ(wlrRecorderState(), WLR_STATE_OFF);
+  ASSERT_TRUE(waitForRecorderOff());
 }
 
 // An unfinished call is reported but is NOT a defect: replay accepts such a session
