@@ -34,7 +34,7 @@
 
 ### Python 版本
 
-- 源码/在线安装使用 Python 3.10、3.11 或 3.12。
+- 源码/在线安装使用 Python 3.11 或 3.12。
 - 本轮 Lite 离线版本使用配套 Python 3.12.16 runtime、主 venv 1.0.4，以及可选的共享 TSFM runtime 1.0.1。TSFM 单独安装，产品升级不会自动替换已有模型 runtime；以对应发布清单和 SHA-256 为准。
 
 ### 硬件要求
@@ -60,15 +60,15 @@
 
 ### 前置条件
 
-1. 安装 Python 3.10+（如果尚未安装）：
+1. 安装 Python 3.11+（如果尚未安装）：
 
 ```bash
 # Ubuntu/Debian
 sudo apt-get update
-sudo apt-get install python3.10 python3.10-venv python3.10-dev
+sudo apt-get install python3.11 python3.11-venv python3.11-dev
 
 # CentOS/RHEL
-sudo yum install python310 python310-devel
+sudo yum install python311 python311-devel
 ```
 
 2. 确保您有系统级安装的 sudo 权限。
@@ -173,7 +173,7 @@ sudo systemctl disable taosanode
 
 ### 前置条件
 
-1. **Python 3.10 / 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
+1. **Python 3.11 / 3.12** - 需要安装 Python 并添加到 PATH
    - 从 [python.org](https://www.python.org/downloads/) 下载
    - 安装时勾选"Add Python to PATH"
    - 验证安装：`python --version`

@@ -265,7 +265,7 @@ Linux x64、Linux ARM64 和 Windows x64 应分别使用原生构建节点。构�
 | `requirements_docker.txt`：Lite 三平台主 venv、Docker 主环境 | 新增 `xgboost==3.0.1`、`pyod==2.0.5`、`numba==0.66.0`、`llvmlite==0.48.0`、`pycatch22==1.0.1`；`requests==2.32.3` 改为 `2.33` | 重建主 venv；重建镜像依赖层，不能只替换程序层 |
 | `requirements_tsfm.txt`：共享 TSFM runtime | `pyarrow==18.1.0` 改为 `23.0.1`（!3025） | 独立重建三平台 TSFM runtime，已安装环境须显式升级 |
 | `requirements_ess.txt`：Full 依赖入口 | Keras 从 `3.12.0` 改为按 Python 版本选择 `3.15.0` / `3.12.3`；移除这里的 PyOD 声明 | 单独核对 Full 安装和镜像的依赖解析，不能套用 Lite 验收结论 |
-| `requirements.txt`：通用依赖入口 | Pillow 从 `12.3.0` 改为 Python < 3.11 用 `12.3.0`、其余用 `13.0.0` | 仅消费该文件的构建受影响，不应据此断言 Lite 主 venv 已安装 Pillow 13 |
+| `requirements.txt`：通用依赖入口 | Pillow 统一为 `13.0.0`（要求 Python >= 3.11）；Python < 3.11 不再可安装该清单 | `tdgpt-unit-test` 的依赖安装步骤直接消费该文件，其 CI 矩阵已同步收紧为 Python 3.11/3.12；不应据此断言 Lite 主 venv 已安装 Pillow 13 |
 
 本次进一步将 `xgboost==3.0.1` 改为 `xgboost-cpu==3.0.1`，保留相同 `import xgboost` 接口。CPU 发行包的 Linux wheel 使用 manylinux2014，避免普通发行包在新系统上选择 manylinux_2_28 并拉入 NVIDIA NCCL；本期主 venv 不提供 GPU XGBoost，需验证分类、回归训练与推理。Linux 主 venv 新增 manifest 与完整 `requirements.lock`，并保留实际构建使用的 `requirements.in`；manifest 中的 `requirements_sha256` 对应该文件，包含构建脚本对架构的调整。构建阶段执行 `pip check` 及新增算法依赖导入；Windows 同步加强导入验证。Docker 构建也消费同一 requirements 文件。
 
