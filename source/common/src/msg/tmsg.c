@@ -20671,10 +20671,18 @@ _exit:
 
 int32_t tDecodeSRSmaParam(SDecoder *pCoder, SRSmaParam *pRSmaParam) {
   int32_t code = 0, lino = 0;
-  TAOS_CHECK_EXIT(tDecodeCStr(pCoder, &pRSmaParam->name));
-  if (pRSmaParam->name[0] == '\0') {
-    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  // pRSmaParam->name is kept in the super table entry as a C string and later walked by
+  // tEncodeSRSmaParam() -> tEncodeCStr() -> strlen() when the entry is persisted, so the wire
+  // payload must carry its NUL terminator; otherwise that walk runs past the end of the RPC
+  // buffer (CWE-125). rsmaNameLen == 0 also covers an empty encoding, for which the decoder
+  // yields a one-past-end pointer that must not be dereferenced.
+  char    *pRsmaName = NULL;
+  uint32_t rsmaNameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAndLen(pCoder, &pRsmaName, &rsmaNameLen));
+  if (rsmaNameLen == 0 || pRsmaName[rsmaNameLen] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
+  pRSmaParam->name = pRsmaName;
   TAOS_CHECK_EXIT(tDecodeI64(pCoder, &pRSmaParam->uid));
   TAOS_CHECK_EXIT(tDecodeI8(pCoder, (int8_t *)&pRSmaParam->intervalUnit));
   TAOS_CHECK_EXIT(tDecodeI64v(pCoder, &pRSmaParam->interval[0]));
