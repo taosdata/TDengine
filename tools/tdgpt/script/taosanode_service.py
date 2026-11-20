@@ -64,7 +64,12 @@ from resource_manager import (
     ResourceImportError,
     lifecycle_lock,
 )
-from resource_manifest import SHARED_RUNTIME_NAME, validate_tsfm_model, validate_tsfm_runtime
+from resource_manifest import (
+    DEFAULT_RESOURCE_RELEASE,
+    SHARED_RUNTIME_NAME,
+    validate_tsfm_model,
+    validate_tsfm_runtime,
+)
 
 # Exit codes the REST layer switches on (see _CLI_EXIT_* in
 # lib/tsfm/mgmt/foundation_model.py -- the two modules are separate deployment
@@ -2417,7 +2422,7 @@ Examples:
         "--python-runtime-dir",
         help="Host Python runtime directory used to relocate imported TSFM venvs",
     )
-    parser.add_argument("--release", default="1.0.0", help="Resource release version or manifest URL")
+    parser.add_argument("--release", default=DEFAULT_RESOURCE_RELEASE, help="Resource release version or manifest URL")
     parser.add_argument(
         "--resource-base-url",
         default=None,

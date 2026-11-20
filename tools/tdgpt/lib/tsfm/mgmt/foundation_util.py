@@ -135,7 +135,7 @@ def resolve_resource_settings(request=None, payload=None):
     """
     config = Configure.get_instance()
     default_resource_url = config._conf.get(
-        "resource_base_url", "https://download.taosdata.com"
+        "resource_base_url", "https://downloads.taosdata.com"
     )
 
     if payload is not None:

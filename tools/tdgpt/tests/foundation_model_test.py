@@ -129,6 +129,17 @@ class TestListAllTsfm:
             assert status["status"] == "success"
             assert len(status["data"]["resources"]) == 1
 
+    @pytest.mark.parametrize("release", [None, "1.0.0"])
+    def test_resource_check_default_and_explicit_release(self, release):
+        mock_request = Mock(remote_addr="127.0.0.1")
+        mock_request.args = {} if release is None else {"release": release}
+        with patch("lib.tsfm.mgmt.foundation_model.subprocess.run") as run:
+            run.return_value = Mock(returncode=0, stdout=json.dumps({"resources": []}))
+            _, code = foundation_model.list_all_tsfm(mock_request)
+        assert code == 200
+        command = next(call.args[0] for call in run.call_args_list if "--release" in call.args[0])
+        assert command[command.index("--release") + 1] == (release or "1.0.1")
+
     def test_list_all_tsfm_timeout(self):
         """Test timeout handling."""
         mock_request = Mock()

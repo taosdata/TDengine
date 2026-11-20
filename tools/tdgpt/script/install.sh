@@ -38,7 +38,7 @@ show_help() {
   echo "Help:"
   echo "  -d [install dir]   Specify installation directory"
   echo "  -a                 Install all model virtual environments"
-  echo "  -o                 Offline mode: skip reinstalling existing virtual environments"
+  echo "  -o                 Legacy flag; does not skip venv installation (use explicit offline resource options)"
   echo "  --python-home <path>"
   echo "                     Existing Python runtime directory prepared by Apex"
   echo "  --venv-package <path>"
@@ -860,6 +860,8 @@ function resolve_python_bin() {
         return 0
       fi
     done
+    echo "No executable Python found in explicit --python-home: ${python_home}" >&2
+    return 1
   fi
   for candidate in \
     "$(command -v python3.${python_minor_ver} 2>/dev/null || true)" \
@@ -882,6 +884,8 @@ function resolve_repair_python_bin() {
         return 0
       fi
     done
+    echo "No executable Python found in explicit Python runtime directory: ${python_runtime_dir}" >&2
+    return 1
   fi
   resolve_python_bin
 }

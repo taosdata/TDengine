@@ -34,6 +34,11 @@ from typing import Any, Dict, Tuple
 # stays a decision of whichever entry point is running.
 logger = logging.getLogger(__name__)
 
+# CLI scripts and the application library are separate deployment units.
+# Keep this release aligned with response_event.DEFAULT_RESOURCE_RELEASE;
+# test_resource_release_contract checks both units and every fallback entry point.
+DEFAULT_RESOURCE_RELEASE = "1.0.1"
+
 SCHEMA_VERSION = 1
 COMPLETION_FILE = ".tdgpt-install-complete.json"
 SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

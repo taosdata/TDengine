@@ -1,4 +1,4 @@
-ARG PYTHON_BASE=python:3.12.12-slim-trixie
+ARG PYTHON_BASE=python:3.12.16-slim-trixie
 ARG PIP_INDEX_URL=
 
 FROM ${PYTHON_BASE}
