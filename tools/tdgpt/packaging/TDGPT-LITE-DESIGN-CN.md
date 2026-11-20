@@ -362,6 +362,44 @@ TDgpt Lite 安装或升级、taosanode 启动、机器或容器重启以及模�
 
 模型的安装状态保存在 `<resource_dir>/state/models/<model_name>.json`，记录 `model_id`、`model_version`、资源版本、发布文件名、归档大小、SHA-256、目标路径、部署时间和备注；状态文件只在模型目录切换成功后原子写入。共享 venv 使用自身的 `.tdgpt-install-complete.json` 记录等价状态。
 
+#### 共享模型下载路径（schema 2）
+
+新发布清单使用 `schema_version: 2`，将模型权重与 TSFM runtime 的发布版本目录分开。模型归档存放在 `tdengine-tdgpt-enterprise/tsfm/models/`，runtime 和清单仍存放在 `tdengine-tdgpt-enterprise/tsfm/<release>/`。这里是下载站点的制品布局，本机安装后的 `model/tsfm/<model_name>/` 和 `model_venvs/tsfm/` 不变。
+
+```text
+tdengine-tdgpt-enterprise/tsfm/
+├── models/
+│   └── tdengine-tdgpt-model-moment-1-base.zip
+└── <release>/
+    ├── tdengine-tdgpt-tsfm-release-<release>.json
+    └── tdengine-tdgpt-tsfm-runtime-<version>-<platform>-<arch>.<suffix>
+```
+
+schema 2 的模型条目保留 `file`、模型版本、大小和 SHA-256，并增加 `path`。例如：
+
+```json
+{
+  "kind": "model",
+  "name": "moment",
+  "version": "1.0.0",
+  "file": "tdengine-tdgpt-model-moment-1-base.zip",
+  "path": "models/tdengine-tdgpt-model-moment-1-base.zip",
+  "size": 421135114,
+  "sha256": "63f7a78b608948e513813fa68589314d26e125d786f0c695814ce596fc18cb7d",
+  "required_runtime": "1.0.0"
+}
+```
+
+`path` 只允许 `models/<file>`，相对于清单目录的上一级 TSFM 目录解析。HTTP 下载保持清单所在站点及其 URL 前缀；内网站点失败后，备用站点也使用同一个共享模型路径。runtime 不设置 `path`，继续从清单所在目录获取。离线使用 `resource apply --release <本地清单>` 时，应保持上述目录结构；直接 `resource import --package <归档>` 不依赖下载路径。
+
+schema 1 仍按 `file` 相对于清单目录下载，已发布的 `1.0.0`、`1.0.1` 清单与旧地址不得因目录整理被删除或覆盖。仅支持 schema 1 的旧客户端会拒绝 schema 2 清单，因此必须先交付支持新协议的 TDgpt 程序，再为它发布 schema 2 清单；不能仅修改 NAS 清单就认为现有安装包已支持共享模型。首次获取和显式升级使用同一套路径解析，产品安装或升级仍不会自动下载 TSFM 资源。
+
+TSDB 仓库负责构建制品、资源协议、下载与安装；正式发布的清单转换、NAS staging、Azure 上传、任务轮询、CDN 刷新和发布门禁由 platform-group 统一编排，与 Lite 主 venv 发布保持独立开关。两个仓库通过带版本的制品清单对接，不在客户端代码中嵌入发布环境或上传接口。仓库中原有 `packaging/offline-pkgs/upload_tsfm_release.py` 仅保留历史 schema 1 行为，不用于发布 schema 2 清单。
+
+发布端须将真实模型 ZIP 放到 NAS 的 `/pkgs/release-apex/tdengine-tdgpt-enterprise/tsfm/models/`，runtime 与新清单放到该目录旁的 `<release>/`。Azure Blob 必须保存文件的实际字节，NAS 软链不能代替远端对象。只有全部资源上传并校验完成，才可发布引用它们的新清单；NAS 源站可访问不表示 Azure/CDN 目的站点已可用。
+
+共享模型文件名是不可变的制品标识：同名文件不得替换成不同 SHA-256 的内容，权重变化必须使用新文件名并更新新清单。发布端应校验已有与新上传对象的真实大小和 SHA-256，并串行发布共享模型，避免并发覆盖。runtime 版本变化、权重不变时继续复用同一个模型文件，不重新打模型 ZIP，也不将模型版本改成 runtime 版本。具体发布命令、重试和门禁配置由 platform-group 发布文档维护。
+
 #### 7.2.1 在线与离线发布清单发现（规划）
 
 本轮版本默认使用固定的 `1.0.1`，在线 `resource check` 只在内存中读取发布清单，不会缓存清单。后续应保持同一个 `resource check` 和同一个页面接口，同时支持在线发现、网络失败回退与首次离线导入；页面不判断网络，也不传服务器本地路径。

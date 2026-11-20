@@ -13,10 +13,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import functools
 import hashlib
+import http.server
 import io
 import json
 import tarfile
+import threading
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -616,8 +619,9 @@ def test_release_manifest_falls_back_to_public_url(tmp_path, mock_config, mocker
     ]
 
 
+@pytest.mark.parametrize("shared_model", [False, True])
 def test_resource_download_falls_back_to_matching_release_directory(
-    tmp_path, mock_config, mocker
+    tmp_path, mock_config, mocker, shared_model
 ):
     payload = b"runtime archive"
     digest = hashlib.sha256(payload).hexdigest()
@@ -656,7 +660,8 @@ def test_resource_download_falls_back_to_matching_release_directory(
     archive = manager._download(
         {
             "name": "tsfm_runtime",
-            "file": "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz",
+            "file": "model.zip" if shared_model else "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz",
+            **({"kind": "model", "path": "models/model.zip", "_release_schema_version": 2} if shared_model else {}),
             "size": len(payload),
             "sha256": digest,
         },
@@ -665,9 +670,84 @@ def test_resource_download_falls_back_to_matching_release_directory(
     )
 
     assert archive.read_bytes() == payload
+    resource_path = "models/model.zip" if shared_model else "1.0.0/tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz"
     assert requested == [
-        "https://internal.example/tdengine-tdgpt-enterprise/tsfm/1.0.0/"
-        "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz",
-        "https://downloads.taosdata.com/tdengine-tdgpt-enterprise/tsfm/1.0.0/"
-        "tdengine-tdgpt-tsfm-runtime-1.0.0-linux-x64.tar.gz",
+        f"https://internal.example/tdengine-tdgpt-enterprise/tsfm/{resource_path}",
+        f"https://downloads.taosdata.com/tdengine-tdgpt-enterprise/tsfm/{resource_path}",
     ]
+
+
+@pytest.mark.parametrize("schema_version", [1, 2])
+@pytest.mark.parametrize("online", [False, True])
+def test_download_shared_and_legacy_release_layout(tmp_path, mock_config, schema_version, online):
+    web_root = tmp_path / "mirror"
+    tsfm_root = web_root / "prefix" / "tdengine-tdgpt-enterprise" / "tsfm"
+    release_dir = tsfm_root / "1.0.1"
+    release_dir.mkdir(parents=True)
+    model_dir = tsfm_root / "models" if schema_version == 2 else release_dir
+    model_dir.mkdir(exist_ok=True)
+    archive = _model_archive(model_dir)
+    item = {
+        "kind": "model", "name": "moirai", "file": archive.name,
+        "size": archive.stat().st_size, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
+    }
+    if schema_version == 2:
+        item["path"] = f"models/{archive.name}"
+    runtime = release_dir / "runtime.zip"
+    runtime.write_bytes(b"runtime")
+    runtime_item = {
+        "kind": "runtime", "name": "tsfm_runtime", "file": runtime.name,
+        "size": runtime.stat().st_size, "sha256": hashlib.sha256(runtime.read_bytes()).hexdigest(),
+    }
+    manifest_path = release_dir / "release.json"
+    manifest_path.write_text(json.dumps({
+        "schema_version": schema_version, "release": "1.0.1",
+        "models": [item], "runtimes": [runtime_item],
+    }))
+    server = http.server.ThreadingHTTPServer(
+        ("127.0.0.1", 0), functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(web_root))
+    )
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        source = (
+            f"http://127.0.0.1:{server.server_port}/prefix/tdengine-tdgpt-enterprise/tsfm/1.0.1/release.json?token=test"
+            if online else str(manifest_path)
+        )
+        manager = DynamicResourceManager(mock_config)
+        manifest = manager.load_release(source, "")
+        entries = manager._resource_entries(manifest)
+        for entry, original in zip(entries, (runtime, archive)):
+            assert manager._download(entry, manifest["_source_url"]).read_bytes() == original.read_bytes()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+
+
+@pytest.mark.parametrize("path", [
+    "../model.zip", "/models/model.zip", "https://other.example/model.zip",
+    "models/../model.zip", "models/%2e%2e/model.zip", "models/model.zip?x=1",
+    "models/model.zip#fragment", "models\\model.zip", "models//model.zip", None,
+])
+def test_invalid_shared_model_path_rejected_before_cached_download(tmp_path, mock_config, path):
+    manager = DynamicResourceManager(mock_config)
+    payload = b"cached"
+    digest = hashlib.sha256(payload).hexdigest()
+    manager.cache_root.mkdir(parents=True)
+    (manager.cache_root / f"{digest}.archive").write_bytes(payload)
+    item = {
+        "kind": "model", "name": "moirai", "file": "model.zip", "path": path,
+        "sha256": digest, "size": len(payload), "_release_schema_version": 2,
+    }
+    with pytest.raises(ResourceImportError, match="model path"):
+        manager._download(item, "https://example.test/tsfm/1.0.1/release.json")
+
+
+def test_shared_model_path_is_validated_when_loading_release(tmp_path, mock_config):
+    manifest_path = tmp_path / "release.json"
+    manifest_path.write_text(json.dumps({
+        "schema_version": 2, "models": [{"file": "model.zip", "path": "../model.zip"}],
+    }))
+    with pytest.raises(ResourceImportError, match="model path"):
+        DynamicResourceManager(mock_config).load_release(str(manifest_path), "")
