@@ -33,12 +33,17 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#include "cJSON.h"
 #include "functionMgt.h"
 #include "nodes.h"
 #include "planner.h"
 #include "stub.h"
 #include "systable.h"
 #include "tdatablock.h"
+#include "tjson.h"
+extern "C" {
+#include "tdTestSeam.h"
+}
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -47,13 +52,14 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
 #include <libs/transport/trpc.h>
+#include "../../../../../../include/libs/new-stream/stream.h"
 #include "../../inc/mndDb.h"
+#include "../../inc/mndDnode.h"
 #include "../../inc/mndExtSource.h"
 #include "../../inc/mndPrivilege.h"
 #include "../../inc/mndSnode.h"
 #include "../../inc/mndStb.h"
 #include "../../inc/mndStream.h"
-#include "../../../../../../include/libs/new-stream/stream.h"
 #include "../../inc/mndStreamRecalc.h"
 #include "../../inc/mndSync.h"
 #include "../../inc/mndTrans.h"
@@ -61,11 +67,18 @@
 #include "../../inc/mndUser.h"
 #include "../../inc/mndVgroup.h"
 #include "sdb.h"
+#ifdef TD_ENTERPRISE
+#include "../../../../../libs/new-stream/inc/streamInt.h"
+#include "../../../../../libs/new-stream/inc/streamReaderExt.h"
+#include "libs/extconnector/extConnector.h"
+#include "libs/qcom/extTypeMap.h"
+#endif
 
 extern "C" int32_t msmBuildTriggerDeployInfo(SMnode *pMnode, SStmStatus *pInfo, SStmTaskDeploy *pDeploy,
                                              SStreamObj *pStream);
 extern "C" void    msmStopStreamByError(int64_t streamId, SStmStatus *pStatus, int32_t errCode, int64_t currTs);
-extern "C" int32_t msmNormalHandleHbMsg(SStmGrpCtx *pCtx);
+extern "C" int32_t msmNormalHandleHbMsgImpl(SStmGrpCtx *pCtx, bool *recalcStartDeferred, SArray **inputs);
+extern "C" void    msmDrainStreamActions(SMnode *mnode);
 extern "C" int32_t msmHandleTaskMgmtReq(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 #ifdef TD_ENTERPRISE
 extern "C" int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
@@ -73,25 +86,35 @@ extern "C" int32_t msmBuildExtOrigTblReaderSpec(const SExtSourceObj *pSource,
                                                   const SExtTableMeta *pMeta,
                                                   SStreamExtTriggerSpec **ppSpec,
                                                   SStreamExtOrigTblReaderRsp *pRsp);
-extern "C" int32_t msmDeployExtOrigTblReaderFromMeta(SStmGrpCtx *pCtx,
-                                                       SStmStatus *pStatus,
-                                                       SStreamObj *pStream,
-                                                       const SExtSourceObj *pSource,
-                                                       const SStreamExtOrigTblReaderReq *pReq,
-                                                       const SExtTableMeta *pMeta,
-                                                       SStreamExtOrigTblReaderRsp *pRsp);
+extern "C" int32_t msmPrepareExtOrigTblReader(int64_t streamId, SCMCreateStreamReq *create, const SExtSourceObj *source,
+                                              const SStreamExtOrigTblReaderReq *req, const SExtTableMeta *meta,
+                                              SStmTaskToDeployExt *entry, SStreamExtOrigTblReaderRsp *rsp);
+extern "C" SStmTaskStatus *msmFindExtOrigTblReader(SStmStatus *status, int64_t registryEntryId);
+extern "C" int32_t         msmPublishExtOrigTblReader(SStmGrpCtx *ctx, SStmStatus *status, SStreamObj *stream,
+                                                      const SStreamExtOrigTblReaderReq *req, SStmTaskToDeployExt *entry,
+                                                      SStmTaskStatus **slot, SStreamExtOrigTblReaderRsp *rsp);
+
+static int32_t DeployExtReaderFromMeta(SStmGrpCtx *ctx, SStmStatus *status, SStreamObj *stream,
+                                       const SExtSourceObj *source, const SStreamExtOrigTblReaderReq *req,
+                                       const SExtTableMeta *meta, SStreamExtOrigTblReaderRsp *rsp) {
+  SStmTaskToDeployExt entry = {};
+  int32_t code = msmPrepareExtOrigTblReader(stream->pCreate->streamId, status->pCreate, source, req, meta, &entry, rsp);
+  if (!code) {
+    auto *reader = msmFindExtOrigTblReader(status, req->registryEntryId);
+    code = msmPublishExtOrigTblReader(ctx, status, stream, req, &entry, &reader, rsp);
+  }
+  mstDestroySStmTaskToDeployExt(&entry);
+  return rsp->code = code;
+}
 #endif
 extern "C" int32_t msmNormalHandleStatusUpdate(SStmGrpCtx *pCtx);
-extern "C" int32_t msmDeployTriggerOrigReader(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 extern "C" int32_t msmCheckDeployTrigReader(SStmGrpCtx *pCtx, SStmStatus *pStatus, SStmTaskStatusMsg *pTask,
-                                            int32_t vgId, int32_t vgNum);
+                                            int32_t vgId, SStreamObj *stream);
 extern "C" void    msmChkHandleTriggerOperations(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask, SStmTaskStatus *pStatus);
 extern "C" int32_t msmWatchRecordNewTask(SStmGrpCtx *pCtx, SStmTaskStatusMsg *pTask);
 extern "C" int32_t msmAssignTaskSnodeId(SMnode *pMnode, SStreamObj *pStream, bool isStatic);
 extern "C" void    msmDestroyRuntimeInfo(SMnode *pMnode);
 extern "C" void    msmCheckLoopStreamMap(SMnode *pMnode);
-extern "C" int32_t mstSetStreamTaskResBlock(SStreamObj *pStream, SStmTaskStatus *pTask, SSDataBlock *pBlock,
-                                            int32_t numOfRows);
 extern "C" void    monReportStreamFailure(int64_t ts, int64_t streamId, const char *streamName, int32_t errorCode);
 
 namespace {
@@ -169,6 +192,95 @@ TEST_F(MndStreamHbInputTest, RejectsHeaderWithoutBody) {
   EXPECT_EQ(mndProcessStreamHb(&msg), TSDB_CODE_INVALID_MSG);
   EXPECT_EQ(gStreamHbResponseCode, TSDB_CODE_INVALID_MSG);
 }
+
+TEST_F(MndStreamHbInputTest, DisabledMnodeRejectsHeartbeatFromPeerWithExistingTask) {
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 2;
+  hb.streamGId = 1;
+  hb.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(hb.pStreamStatus, nullptr);
+  SStmTaskStatusMsg task = {};
+  task.streamId = 1;
+  task.taskId = 17;
+  task.nodeId = hb.snodeId;
+  task.type = STREAM_RUNNER_TASK;
+  task.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(taosArrayPush(hb.pStreamStatus, &task), nullptr);
+
+  int32_t length = 0, code = 0;
+  tEncodeSize(tEncodeStreamHbMsg, &hb, length, code);
+  ASSERT_EQ(code, 0);
+  SStreamMsgGrpHeader  header = {hb.streamGId};
+  std::vector<uint8_t> frame(sizeof(header) + length);
+  memcpy(frame.data(), &header, sizeof(header));
+  SEncoder encoder = {};
+  tEncoderInit(&encoder, frame.data() + sizeof(header), length);
+  EXPECT_EQ(tEncodeStreamHbMsg(&encoder, &hb), length);
+  tEncoderClear(&encoder);
+  taosArrayDestroy(hb.pStreamStatus);
+
+  SMnode  mnode = {};
+  SRpcMsg msg = {};
+  msg.msgType = TDMT_MND_STREAM_HEARTBEAT;
+  msg.info.node = &mnode;
+  msg.contLen = static_cast<int32_t>(frame.size());
+  msg.pCont = frame.data();
+  const bool savedDisable = tsDisableStream;
+  tsDisableStream = true;
+  EXPECT_EQ(mndProcessStreamHb(&msg), TSDB_CODE_MSG_NOT_PROCESSED);
+  tsDisableStream = savedDisable;
+  EXPECT_EQ(gStreamHbResponseCode, TSDB_CODE_MSG_NOT_PROCESSED);
+  EXPECT_EQ(gStreamHbDecodeCalls, 0);
+}
+
+#ifdef TD_ENTERPRISE
+Stub            *gSchemaThreadStub = nullptr;
+int              gSchemaThreadCreates = 0;
+std::atomic<int> gSchemaThreadExits{0};
+void *(*gSchemaThreadMain)(void *) = nullptr;
+
+void *countSchemaThreadExit(void *arg) {
+  void *result = gSchemaThreadMain(arg);
+  ++gSchemaThreadExits;
+  return result;
+}
+
+int32_t failSecondSchemaThread(TdThread *tid, const TdThreadAttr *attr, void *(*main)(void *), void *arg) {
+  if (++gSchemaThreadCreates == 2) return TSDB_CODE_OUT_OF_MEMORY;
+  if (gSchemaThreadCreates == 1) gSchemaThreadMain = main;
+  gSchemaThreadStub->reset(taosThreadCreate);
+  int32_t code = taosThreadCreate(tid, attr, countSchemaThreadExit, arg);
+  gSchemaThreadStub->set(taosThreadCreate, failSecondSchemaThread);
+  return code;
+}
+
+TEST(MndStreamSchemaWorkerTest, FailedSecondThreadIsJoinedBeforeReopen) {
+  SMnode mnode = {};
+  Stub   stub;
+  gSchemaThreadStub = &stub;
+  gSchemaThreadCreates = 0;
+  gSchemaThreadExits = 0;
+  stub.set(taosThreadCreate, failSecondSchemaThread);
+  const auto savedThreads = tsNumOfMnodeStreamMgmtThreads;
+  tsNumOfMnodeStreamMgmtThreads = 2;
+
+  EXPECT_EQ(msmInitSchemaWorker(&mnode), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(gSchemaThreadCreates, 2);
+  EXPECT_EQ(gSchemaThreadExits.load(), 1);
+  EXPECT_EQ(mnode.streamSchemaWorker.pool, nullptr);
+  EXPECT_EQ(mnode.streamSchemaWorker.queue, nullptr);
+  msmCleanupSchemaWorker(&mnode);  // mndExecSteps rolls back the failed step too.
+
+  EXPECT_EQ(msmInitSchemaWorker(&mnode), 0);
+  EXPECT_NE(mnode.streamSchemaWorker.queue, nullptr);
+  EXPECT_EQ(gSchemaThreadCreates, 4);
+  msmCleanupSchemaWorker(&mnode);
+  EXPECT_EQ(gSchemaThreadExits.load(), 3);
+  tsNumOfMnodeStreamMgmtThreads = savedThreads;
+  stub.reset(taosThreadCreate);
+  gSchemaThreadStub = nullptr;
+}
+#endif
 
 struct CapturedStreamFailure {
   int32_t     calls = 0;
@@ -1186,6 +1298,10 @@ void destroyTrigOReaders(SStmStatus *pStatus) {
   }
   taosArrayDestroy(pStatus->trigOReaders);
   pStatus->trigOReaders = nullptr;
+#ifdef TD_ENTERPRISE
+  taosHashCleanup(pStatus->retiredExtReaders);
+  pStatus->retiredExtReaders = nullptr;
+#endif
 }
 
 class MndStreamActionQueueTest : public ::testing::Test {
@@ -1206,6 +1322,17 @@ class MndStreamActionQueueTest : public ::testing::Test {
 
   SStmActionQ queue_ = {};
 };
+
+static int32_t handleHeartbeatTaskMgmtReq(SStmGrpCtx *ctx, SStmTaskStatusMsg *task) {
+  taosRLockLatch(&mStreamMgmt.heartbeatLock);
+  taosRLockLatch(&mStreamMgmt.runtimeLock);
+  taosWLockLatch(&mStreamMgmt.actionQLock);
+  int32_t code = msmHandleTaskMgmtReq(ctx, task);
+  taosWUnLockLatch(&mStreamMgmt.actionQLock);
+  taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+  taosRUnLockLatch(&mStreamMgmt.heartbeatLock);
+  return code;
+}
 
 class MndStreamHeartbeatTest : public ::testing::Test {
  protected:
@@ -1654,10 +1781,30 @@ class StreamMapGuard {
   SHashObj *saved_ = nullptr;
 };
 
-class MndStreamOrigReaderReplyTest : public ::testing::Test {
+class MndStreamOrigReaderReplyTest : public MndStreamHeartbeatTest {
  protected:
   void SetUp() override {
-    ASSERT_NE(streamMap_.get(), nullptr);
+    ASSERT_NO_FATAL_FAILURE(MndStreamHeartbeatTest::SetUp());
+    current_ = this;
+    savedActive_ = mStreamMgmt.active;
+    mStreamMgmt.active = 1;
+    mStreamMgmt.lastTaskId = 100;
+    mStreamMgmt.vgroupMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    mStreamMgmt.toDeployVgMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, mStreamMgmt.vgroupMap);
+    ASSERT_NE(nullptr, mStreamMgmt.toDeployVgMap);
+    taosHashSetFreeFp(mStreamMgmt.vgroupMap, mstDestroySStmVgroupStatus);
+    taosHashSetFreeFp(mStreamMgmt.toDeployVgMap, mstDestroySStmVgTasksToDeploy);
+    create_.streamId = streamId_;
+    row_.pCreate = &create_;
+    tstrncpy(row_.name, "1.db.stream", sizeof(row_.name));
+    input_.refs = 1;
+    input_.create = &create_;
+    input_.name = row_.name;
+    status_.deployInput = &input_;
+    status_.pCreate = &create_;
+    status_.streamName = row_.name;
+    status_.triggerTask = &trigger_;
     deployCalls_ = 0;
     status_.lastTrigMgmtReqId = 17;
     status_.trigReaders = taosArrayInit(1, sizeof(SStmTaskStatus));
@@ -1671,10 +1818,37 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
     reader.id.taskId = 0x42;
     ASSERT_NE(taosArrayPush(readers_, &reader), nullptr);
     ASSERT_NE(taosArrayPush(status_.trigOReaders, &readers_), nullptr);
-    ASSERT_EQ(taosHashPut(streamMap_.get(), &streamId_, sizeof(streamId_), &status_, sizeof(status_)), 0);
-    stored_ = static_cast<SStmStatus *>(taosHashGet(streamMap_.get(), &streamId_, sizeof(streamId_)));
+    ASSERT_EQ(taosHashPut(mStreamMgmt.streamMap, &streamId_, sizeof(streamId_), &status_, sizeof(status_)), 0);
+    stored_ = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &streamId_, sizeof(streamId_)));
     ASSERT_NE(stored_, nullptr);
+    trigger_.pStream = stored_;
+    trigger_.type = STREAM_TRIGGER_TASK;
+    trigger_.id.taskId = 1;
+    int64_t key[] = {streamId_, trigger_.id.taskId};
+    auto   *trigger = &trigger_;
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &trigger, sizeof(trigger)));
+    ctx_.pMnode = &mnode_;
     ctx_.pRsp = &heartbeat_;
+    stub_.set(
+        mndAcquireStream, +[](SMnode *, char *name, SStreamObj **row) -> int32_t {
+          EXPECT_STREQ(current_->row_.name, name);
+          ++current_->acquireCalls_;
+          *row = &current_->row_;
+          return 0;
+        });
+    stub_.set(
+        mndAcquireStreamById, +[](SMnode *, int64_t, SStreamObj **) -> int32_t {
+          ADD_FAILURE() << "A Trigger original-reader request scanned the stream catalog";
+          return TSDB_CODE_MND_STREAM_NOT_EXIST;
+        });
+    stub_.set(
+        mndReleaseStream, +[](SMnode *, SStreamObj *row) {
+          EXPECT_EQ(row, &current_->row_);
+          ++current_->releaseCalls_;
+        });
+    stub_.set(
+        sdbGetTableVer,
+        +[](SSdb *, ESdbType type) -> int64_t { return type == SDB_VGROUP ? current_->vgVersion_ : 0; });
     stub_.set(mstBuildDBVgroupsMap, buildDbMap);
     stub_.set(mndGetVgroupEpsetById, readerEpset);
   }
@@ -1683,12 +1857,29 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
     tFreeSStreamMgmtReq(task_.pMgmtReq);
     taosMemoryFree(task_.pMgmtReq);
     taosArrayDestroyEx(heartbeat_.rsps.rspList, tFreeSStreamMgmtRsp);
-    taosArrayDestroy(readers_);
+    destroyTrigOReaders(&status_);
     taosArrayDestroy(status_.trigReaders);
-    taosArrayDestroy(status_.trigOReaders);
+    EXPECT_EQ(acquireCalls_, releaseCalls_);
+    EXPECT_EQ(1, input_.refs);
+    if (stored_) taosHashCleanup(stored_->registrations);
+    taosHashCleanup(mStreamMgmt.toDeployVgMap);
+    taosHashCleanup(mStreamMgmt.vgroupMap);
+    mStreamMgmt.toDeployVgMap = savedToDeployVgMap_;
+    mStreamMgmt.vgroupMap = savedVgroupMap_;
+    mStreamMgmt.lastTaskId = savedLastTaskId_;
+    mStreamMgmt.active = savedActive_;
+    current_ = nullptr;
+    MndStreamHeartbeatTest::TearDown();
   }
 
   static int32_t buildDbMap(SMnode *, SSHashObj **ppMap) {
+    ++current_->mapCalls_;
+    for (auto *lock : {&mStreamMgmt.heartbeatLock, &mStreamMgmt.runtimeLock, &mStreamMgmt.actionQLock}) {
+      int32_t code = taosWTryLockLatch(lock);
+      EXPECT_EQ(0, code);
+      if (!code) taosWUnLockLatch(lock);
+    }
+    if (current_->duringScan_) current_->duringScan_();
     *ppMap = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
     if (*ppMap == nullptr) return terrno;
     SDBVgHashInfo db = {};
@@ -1709,14 +1900,15 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
 
   static int32_t failDbMap(SMnode *, SSHashObj **) { return TSDB_CODE_MND_DB_NOT_EXIST; }
 
-  static int32_t countDeployment(SStmGrpCtx *, SStmStatus *, SStmTaskStatusMsg *, int32_t, int32_t) {
+  static int32_t countDeployment(SStmGrpCtx *, SStmStatus *, SStmTaskStatusMsg *, int32_t, SStreamObj *row) {
+    EXPECT_EQ(row, &current_->row_);
     ++deployCalls_;
     return 0;
   }
 
   static int32_t failDeployment(SStmGrpCtx *ctx, SStmStatus *status, SStmTaskStatusMsg *task, int32_t vgId,
-                                int32_t vgNum) {
-    countDeployment(ctx, status, task, vgId, vgNum);
+                                SStreamObj *row) {
+    countDeployment(ctx, status, task, vgId, row);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -1738,7 +1930,7 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
     return ep;
   }
 
-  void request() {
+  void request(bool mixed = false, int64_t cleanupRegistry = 0) {
     taosArrayDestroyEx(heartbeat_.rsps.rspList, tFreeSStreamMgmtRsp);
     heartbeat_.rsps.rspList = nullptr;
     task_.streamId = streamId_;
@@ -1756,11 +1948,39 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
       tstrncpy(name.tbName, table, sizeof(name.tbName));
       ASSERT_NE(taosArrayPush(task_.pMgmtReq->cont.pReqs, &name), nullptr);
     }
-    ASSERT_EQ(msmDeployTriggerOrigReader(&ctx_, &task_), 0);
+    if (mixed) {
+      task_.pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+      task_.pMgmtReq->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 1);
+      ASSERT_NE(nullptr, task_.pMgmtReq->cont.pExtOrigTblReaders);
+      if (cleanupRegistry) {
+        auto *req = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(task_.pMgmtReq->cont.pExtOrigTblReaders, 0));
+        req->registryEntryId = cleanupRegistry;
+        req->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+        req->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+      }
+#ifdef TD_ENTERPRISE
+      stub_.set(mndAcquireExtSource, +[](SMnode *, const char *) -> SExtSourceObj * { return nullptr; });
+#endif
+    }
+    ASSERT_EQ(0, handleHeartbeatTaskMgmtReq(&ctx_, &task_));
     ASSERT_EQ(taosArrayGetSize(heartbeat_.rsps.rspList), 1);
   }
 
-  StreamMapGuard    streamMap_;
+  static MndStreamOrigReaderReplyTest *current_;
+  std::function<void()>                duringScan_;
+  SHashObj                            *savedVgroupMap_ = mStreamMgmt.vgroupMap;
+  SHashObj                            *savedToDeployVgMap_ = mStreamMgmt.toDeployVgMap;
+  int64_t                              savedLastTaskId_ = mStreamMgmt.lastTaskId;
+  int8_t                               savedActive_ = 0;
+  int                                  mapCalls_ = 0;
+  int                                  acquireCalls_ = 0;
+  int                                  releaseCalls_ = 0;
+  int64_t                              vgVersion_ = 0;
+  SMnode                               mnode_ = {};
+  SStmDeployInput                      input_ = {};
+  SCMCreateStreamReq                   create_ = {};
+  SStreamObj                           row_ = {};
+  SStmTaskStatus                       trigger_ = {};
   Stub              stub_;
   int64_t           streamId_ = 0x7115431537;
   SStmStatus        status_ = {};
@@ -1772,7 +1992,109 @@ class MndStreamOrigReaderReplyTest : public ::testing::Test {
   static int        deployCalls_;
 };
 
+MndStreamOrigReaderReplyTest *MndStreamOrigReaderReplyTest::current_ = nullptr;
 int MndStreamOrigReaderReplyTest::deployCalls_ = 0;
+
+TEST_F(MndStreamOrigReaderReplyTest, MixedRequestResolvesLocalPlacementWithoutGlobalLocks) {
+  stored_->lastTrigMgmtReqId = 0;
+  taosArrayClear(readers_);
+  ASSERT_NO_FATAL_FAILURE(request(true));
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(STREAM_MSG_MIXED_ORIGTBL_READER_INFO, rsp->header.msgType);
+  EXPECT_EQ(0, rsp->code);
+  EXPECT_EQ(1, mapCalls_);
+  EXPECT_EQ(17, stored_->lastTrigMgmtReqId);
+  ASSERT_EQ(2, taosArrayGetSize(rsp->cont.vgIds));
+  EXPECT_EQ(5, *static_cast<int32_t *>(taosArrayGet(rsp->cont.vgIds, 0)));
+  ASSERT_EQ(1, taosArrayGetSize(rsp->cont.readerList));
+  auto *addr = static_cast<SStreamTaskAddr *>(taosArrayGet(rsp->cont.readerList, 0));
+  EXPECT_EQ(5, addr->nodeId);
+  auto *queue =
+      static_cast<SStmVgTasksToDeploy *>(taosHashGet(mStreamMgmt.toDeployVgMap, &addr->nodeId, sizeof(addr->nodeId)));
+  ASSERT_NE(nullptr, queue);
+  ASSERT_EQ(1, taosArrayGetSize(queue->taskList));
+  auto *entry = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->taskList, 0));
+  EXPECT_EQ(addr->taskId, entry->deploy.task.taskId);
+  ASSERT_EQ(1, taosArrayGetSize(rsp->cont.pExtOrigTblReaders));
+  const auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(rsp->cont.pExtOrigTblReaders, 0));
+#ifdef TD_ENTERPRISE
+  EXPECT_EQ(TSDB_CODE_EXT_SOURCE_NOT_FOUND, ext->code);
+#else
+  EXPECT_EQ(TSDB_CODE_OPS_NOT_SUPPORT, ext->code);
+#endif
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, FailedLocalRoutePreservesExternalReaderInMixedPatch) {
+  stored_->lastTrigMgmtReqId = 0;
+  SStmTaskStatus existing = {};
+  existing.id.uid = 82;
+  existing.id.nodeId = 1;
+  existing.id.taskId = 102;
+  existing.flags = STREAM_FLAG_REF_EXT_SOURCE;
+  existing.type = STREAM_READER_TASK;
+  existing.status = STREAM_STATUS_RUNNING;
+  auto *reader = static_cast<SStmTaskStatus *>(taosArrayPush(readers_, &existing));
+  ASSERT_NE(nullptr, reader);
+  duringScan_ = [&] { ++vgVersion_; };
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * { return nullptr; });
+  ASSERT_NO_FATAL_FAILURE(request(true, existing.id.uid));
+  auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  ASSERT_NE(nullptr, reply);
+  EXPECT_EQ(17, reply->reqId);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, reply->code);
+  auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+  ASSERT_NE(nullptr, result);
+  EXPECT_EQ(existing.id.uid, result->registryEntryId);
+  EXPECT_EQ(reply->code, result->code);
+  EXPECT_EQ(0u, taosArrayGetSize(heartbeat_.undeploy.taskList));
+  EXPECT_FALSE(reader->extReaderCleaned);
+  EXPECT_EQ(existing.id.taskId, reader->id.taskId);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, reader->status);
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, LocalRequestRejectsPlacementAndGenerationChangesDuringScan) {
+  stored_->lastTrigMgmtReqId = 0;
+  stub_.set(msmCheckDeployTrigReader, countDeployment);
+  stub_.set(
+      mndAcquireVgroup, +[](SMnode *, int32_t vgId) -> SVgObj * {
+        EXPECT_EQ(5, vgId);
+        return nullptr;
+      });
+  duringScan_ = [&] { ++vgVersion_; };
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, rsp->code);
+  duringScan_ = [&] { ++stored_->buildVersion; };
+  ASSERT_NO_FATAL_FAILURE(request());
+  rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_RUNNING, rsp->code);
+  EXPECT_EQ(2, mapCalls_);
+  EXPECT_EQ(0, deployCalls_);
+  EXPECT_EQ(0, stored_->lastTrigMgmtReqId);
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, UnrelatedVgroupChangeKeepsLocalReaderDeployment) {
+  stored_->lastTrigMgmtReqId = 0;
+  taosArrayClear(readers_);
+  duringScan_ = [&] { ++vgVersion_; };
+  stub_.set(
+      mndAcquireVgroup, +[](SMnode *, int32_t vgId) -> SVgObj * {
+        static SVgObj vg = {};
+        EXPECT_EQ(5, vgId);
+        tstrncpy(vg.dbName, "1.db", sizeof(vg.dbName));
+        vg.hashEnd = UINT32_MAX;
+        return &vg;
+      });
+  stub_.set(mndReleaseVgroup, +[](SMnode *, SVgObj *) {});
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_EQ(0, rsp->code);
+  EXPECT_EQ(1, mapCalls_);
+  EXPECT_EQ(17, stored_->lastTrigMgmtReqId);
+  EXPECT_EQ(1, taosArrayGetSize(rsp->cont.readerList));
+}
 
 TEST_F(MndStreamOrigReaderReplyTest, ReplaysCompleteReplyWithoutRedeployingReaders) {
   // The first reply may be delayed or lost; every retry must carry usable reader information.
@@ -1792,6 +2114,27 @@ TEST_F(MndStreamOrigReaderReplyTest, ReplaysCompleteReplyWithoutRedeployingReade
     EXPECT_EQ(msmGetTrigOReaderSize(stored_->trigOReaders), 1);
     EXPECT_EQ(task_.pMgmtReq, nullptr);
   }
+}
+
+TEST_F(MndStreamOrigReaderReplyTest, ReturnsReaderAddressesAcrossPartiallyFilledBlocks) {
+  SArray *second = taosArrayInit(1, sizeof(SStmTaskStatus));
+  ASSERT_NE(nullptr, second);
+  ASSERT_NE(nullptr, taosArrayPush(stored_->trigOReaders, &second));
+  SStmTaskStatus peer = {};
+  peer.id.nodeId = 6;
+  peer.id.taskId = 0x43;
+  ASSERT_NE(nullptr, taosArrayPush(second, &peer));
+
+  ASSERT_NO_FATAL_FAILURE(request());
+  const auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  ASSERT_EQ(0, reply->code);
+  ASSERT_EQ(2u, taosArrayGetSize(reply->cont.readerList));
+  const auto *first = static_cast<SStreamTaskAddr *>(taosArrayGet(reply->cont.readerList, 0));
+  const auto *last = static_cast<SStreamTaskAddr *>(taosArrayGet(reply->cont.readerList, 1));
+  EXPECT_EQ(0x42, first->taskId);
+  EXPECT_EQ(5, first->nodeId);
+  EXPECT_EQ(peer.id.taskId, last->taskId);
+  EXPECT_EQ(peer.id.nodeId, last->nodeId);
 }
 
 TEST_F(MndStreamOrigReaderReplyTest, FailedRequestDoesNotSuppressRetry) {
@@ -1836,7 +2179,7 @@ TEST_F(MndStreamOrigReaderReplyTest, PartialDeploymentFailureStopsStreamBeforeRe
   EXPECT_EQ(rsp->code, TSDB_CODE_MND_STREAM_STOPPED);
   EXPECT_EQ(deployCalls_, 1);
   EXPECT_EQ(msmGetTrigOReaderSize(stored_->trigOReaders), 1);
-  EXPECT_EQ(msmGetTrigOReader(stored_->trigOReaders, 0)->id.taskId, 0x42);
+  EXPECT_EQ(static_cast<SStmTaskStatus *>(taosArrayGet(readers_, 0))->id.taskId, 0x42);
 }
 
 TEST_F(MndStreamOrigReaderReplyTest, ReplyAllocationFailureDoesNotRepeatCompletedDeployment) {
@@ -3389,11 +3732,11 @@ class MndStreamRecalcPersistenceTest : public ::testing::Test {
     return pSnapshots;
   }
 
-  int32_t HandleHeartbeat(SStreamHbMsg *pHeartbeat) {
+  int32_t HandleHeartbeat(SStreamHbMsg *pHeartbeat, int64_t now = 100) {
     SRpcMsg request = {};
     SRpcMsg response = {};
     request.info.node = &mnode_;
-    const int32_t code = msmHandleStreamHbMsg(&mnode_, 100, pHeartbeat, &request, &response);
+    const int32_t code = msmHandleStreamHbMsg(&mnode_, now, pHeartbeat, &request, &response);
     rpcFreeCont(response.pCont);
     return code;
   }
@@ -3922,7 +4265,11 @@ int32_t captureLifecyclePrepare(SMnode *, STrans *pTrans) {
   return popHarnessCode(&gLifecycleHarness->prepareCodes, TSDB_CODE_ACTION_IN_PROGRESS);
 }
 
-void captureLifecycleUndeploy(SMnode *pMnode, int64_t streamId, char *) {
+extern "C" void msmInvalidateStreamDeployment(int64_t streamId, char *streamName);
+SMnode         *gLifecycleMnode = nullptr;
+
+void captureLifecycleUndeploy(int64_t streamId, char *) {
+  SMnode *pMnode = gLifecycleMnode;
   ++gLifecycleHarness->callbackCount;
   {
     std::unique_lock<std::mutex> lock(gLifecycleHarness->callbackMutex);
@@ -4000,7 +4347,8 @@ class StreamLifecycleTransactionTest : public ::testing::Test {
     stub_.set(mndCheckDbPrivilegeByName, allowLifecycleDbPrivilege);
     stub_.set(mndCheckObjPrivilegeRecF, allowLifecycleObjectPrivilege);
     stub_.set(mndTransPrepare, captureLifecyclePrepare);
-    stub_.set(msmUndeployStream, captureLifecycleUndeploy);
+    gLifecycleMnode = &mnode_;
+    stub_.set(msmInvalidateStreamDeployment, captureLifecycleUndeploy);
     stub_.set(mstPostStreamAction, captureLifecyclePost);
     stub_.set(tmsgSendRsp, captureLifecycleResponse);
     stub_.set(streamMgmtInited, alwaysStreamMgmtInited);
@@ -4013,7 +4361,8 @@ class StreamLifecycleTransactionTest : public ::testing::Test {
     stub_.reset(streamMgmtInited);
     stub_.reset(tmsgSendRsp);
     stub_.reset(mstPostStreamAction);
-    stub_.reset(msmUndeployStream);
+    stub_.reset(msmInvalidateStreamDeployment);
+    gLifecycleMnode = nullptr;
     stub_.reset(mndTransPrepare);
     stub_.reset(mndCheckObjPrivilegeRecF);
     stub_.reset(mndCheckDbPrivilegeByName);
@@ -4711,6 +5060,385 @@ TEST_F(MndStreamRecalcPersistenceTest, PullupRuntimeReaderBlocksTeardownThroughC
   teardown.join();
   EXPECT_TRUE(destroyProbe.Entered());
   EXPECT_EQ(harness_.createCalls, 2);
+}
+
+extern "C" int64_t msmAssignTaskSeriousId();
+int32_t            returnRecoverySnodeId(SMnode *, SStreamObj *, bool);
+
+class PrivateBuildPause {
+ public:
+  explicit PrivateBuildPause(bool pauseAtTaskId = true) {
+    entered_.store(false);
+    released_.store(false);
+    expired_.store(false);
+    if (pauseAtTaskId) stub_.set(msmAssignTaskSeriousId, Pause);
+  }
+  bool Entered() {
+    auto end = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!entered_.load() && std::chrono::steady_clock::now() < end) std::this_thread::yield();
+    return entered_.load();
+  }
+  void Release() {
+    released_.store(true);
+    EXPECT_FALSE(expired_.load());
+  }
+
+  static int64_t Pause() {
+    entered_.store(true);
+    auto end = std::chrono::steady_clock::now() + std::chrono::seconds(12);
+    while (!released_.load() && std::chrono::steady_clock::now() < end) std::this_thread::yield();
+    if (!released_.load()) expired_.store(true);
+    return taosGetTimestampNs();
+  }
+
+ private:
+  Stub                     stub_;
+  static std::atomic<bool> entered_, released_, expired_;
+};
+std::atomic<bool> PrivateBuildPause::entered_{false};
+std::atomic<bool> PrivateBuildPause::released_{false};
+std::atomic<bool> PrivateBuildPause::expired_{false};
+
+TEST_F(MndStreamOrigReaderReplyTest, TaskRowsSurviveResetWhileAnotherStreamAddsReaderAndStops) {
+  SCMCreateStreamReq create = {};
+  create.streamId = streamId_ + 1;
+  SStreamObj stream = {};
+  stream.pCreate = &create;
+  tstrncpy(stream.name, "1.db.large", sizeof(stream.name));
+  SStmStatus        status = {};
+  constexpr int32_t taskCount = 512;
+  for (int32_t i = 0; i < taskCount; ++i) {
+    auto *task = appendTask(&status.trigReaders, STREAM_READER_TASK, STREAM_FLAG_TRIGGER_READER);
+    ASSERT_NE(nullptr, task);
+    task->id.taskId = i + 1;
+  }
+  auto *last = static_cast<SStmTaskStatus *>(taosArrayGetLast(status.trigReaders));
+  last->status = STREAM_STATUS_FAILED;
+  last->errCode = TSDB_CODE_OUT_OF_MEMORY;
+  last->extraErrMsg = taosStrdup("reader detail");
+  ASSERT_NE(nullptr, last->extraErrMsg);
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.streamMap, &create.streamId, sizeof(create.streamId), &status, sizeof(status)));
+  auto *live = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &create.streamId, sizeof(create.streamId)));
+  ASSERT_NE(nullptr, live);
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAM_TASKS, 1);
+  ASSERT_NE(nullptr, block);
+
+  PrivateBuildPause pause(false);
+  static Stub      *gate;
+  gate = &stub_;
+  stub_.set(
+      blockDataEnsureCapacity, +[](SSDataBlock *block, uint32_t rows) -> int32_t {
+        gate->reset(blockDataEnsureCapacity);
+        PrivateBuildPause::Pause();
+        return blockDataEnsureCapacity(block, rows);
+      });
+  int32_t     rows = 0;
+  std::thread query([&] { EXPECT_EQ(0, mstSetStreamTasksResBlock(&stream, block, &rows, 1)); });
+  EXPECT_TRUE(pause.Entered());
+  auto savedState = mStreamMgmt.state;
+  mStreamMgmt.state = MND_STM_STATE_NORMAL;
+  stored_->lastTrigMgmtReqId = 0;
+  taosArrayClear(readers_);
+  request();
+  auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(heartbeat_.rsps.rspList, 0));
+  EXPECT_NE(nullptr, reply);
+  if (reply) {
+    EXPECT_EQ(0, reply->code);
+    EXPECT_EQ(1u, taosArrayGetSize(reply->cont.readerList));
+  }
+  EXPECT_EQ(1, msmGetTrigOReaderSize(stored_->trigOReaders));
+  msmUndeployStream(&mnode_, streamId_, row_.name);
+  EXPECT_EQ(2, stored_->stopped);
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  mstResetSStmStatus(live);
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  pause.Release();
+  query.join();
+  mStreamMgmt.state = savedState;
+
+  EXPECT_EQ(taskCount, rows);
+  EXPECT_EQ(rows, block->info.rows);
+  if (rows == taskCount) {
+    EXPECT_EQ("1", getVarCharValue(block, 2, 0));
+    EXPECT_EQ("200", getVarCharValue(block, 2, taskCount - 1));
+    EXPECT_NE(std::string::npos, getVarCharValue(block, 13, taskCount - 1).find("reader detail"));
+  }
+  blockDataDestroy(block);
+}
+
+TEST_F(MndStreamRecalcPersistenceTest, HealthAndQueriesFinishDuringPrivateRedeploy) {
+  SStreamObj *stream = nullptr;
+  ASSERT_EQ(0, mndAcquireStreamById(&mnode_, kStreamA, &stream));
+  Status(kStreamA)->streamName = taosStrdup(stream->name);
+  Status(kStreamB)->streamName = taosStrdup("1.test.recalc_b");
+  ASSERT_EQ(0, tCloneStreamCreateDeployPointers(stream->pCreate, &Status(kStreamA)->pCreate));
+  ASSERT_NE(InstallTriggerTask(), nullptr);
+  SnodeLookupStubGuard snodeLookup;
+  Stub                 placement;
+  placement.set(msmAssignTaskSnodeId, returnRecoverySnodeId);
+  auto *streams = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  auto *tasks = createSystemTableBlock(TSDB_INS_TABLE_STREAM_TASKS, 1);
+  ASSERT_NE(nullptr, streams);
+  ASSERT_NE(nullptr, tasks);
+  ASSERT_EQ(0, mstPostStreamAction(mStreamMgmt.actionQ, kStreamA, stream->name, nullptr, false, STREAM_ACT_DEPLOY));
+  PrivateBuildPause pause;
+  SStreamHbMsg      request = {};
+  request.dnodeId = 1;
+  ASSERT_EQ(0, msmInitDeployWorker(&mnode_));
+  EXPECT_EQ(0, HandleHeartbeat(&request));
+  EXPECT_TRUE(pause.Entered());
+  int64_t prior = mStreamMgmt.hCtx.currentTs;
+  msmHealthCheck(&mnode_);
+  EXPECT_GT(mStreamMgmt.hCtx.currentTs, prior);
+  SStreamHbMsg other = {};
+  other.dnodeId = 1;
+  other.streamGId = 1;
+  EXPECT_EQ(0, HandleHeartbeat(&other));
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, stream, streams, 0, 0));
+  int32_t rows = 1;
+  EXPECT_EQ(0, mstSetStreamTasksResBlock(stream, tasks, &rows, 1));
+  EXPECT_EQ(2, rows);
+  EXPECT_EQ(100, Status(kStreamA)->triggerTask->id.taskId);
+  atomic_store_8(&stream->userStopped, 1);
+  msmUndeployStream(&mnode_, kStreamA, stream->name);
+  pause.Release();
+  msmCleanupDeployWorker(&mnode_);
+  EXPECT_EQ(2, Status(kStreamA)->stopped);
+  EXPECT_EQ(100, Status(kStreamA)->triggerTask->id.taskId);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  blockDataDestroy(tasks);
+  blockDataDestroy(streams);
+  mndReleaseStream(&mnode_, stream);
+}
+
+extern "C" void msmCheckVgroupStatus(SMnode *);
+extern "C" void msmCheckTaskListStatus(int64_t streamId, SStmTaskStatus **tasks, int32_t count);
+
+TEST_F(MndStreamRecalcPersistenceTest, SameGroupReportsKeepHealthyTasksRunningDuringPrivateDeploy) {
+  auto *healthy = Status(kStreamB);
+  auto *trigger = InstallTriggerTask(kStreamB);
+  ASSERT_NE(nullptr, trigger);
+  healthy->runners[0] = taosArrayInit(1, sizeof(SStmTaskStatus));
+  ASSERT_NE(nullptr, healthy->runners[0]);
+  healthy->runnerDeploys = 1;
+  SStmTaskStatus runner = {};
+  runner.type = STREAM_RUNNER_TASK;
+  runner.id.taskId = 101;
+  runner.id.seriousId = 201;
+  runner.id.nodeId = 1;
+  runner.status = STREAM_STATUS_RUNNING;
+  runner.pStream = healthy;
+  auto *running = static_cast<SStmTaskStatus *>(taosArrayPush(healthy->runners[0], &runner));
+  ASSERT_NE(nullptr, running);
+  int64_t runnerKey[] = {kStreamB, 101};
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.taskMap, runnerKey, sizeof(runnerKey), &running, POINTER_BYTES));
+
+  SStreamObj *stream = nullptr;
+  ASSERT_EQ(0, mndAcquireStreamById(&mnode_, kStreamA, &stream));
+  Status(kStreamA)->streamName = taosStrdup(stream->name);
+  ASSERT_EQ(0, tCloneStreamCreateDeployPointers(stream->pCreate, &Status(kStreamA)->pCreate));
+  ASSERT_EQ(0, mstPostStreamAction(mStreamMgmt.actionQ, kStreamA, stream->name, nullptr, false, STREAM_ACT_DEPLOY));
+  Stub placement;
+  placement.set(msmAssignTaskSnodeId, returnRecoverySnodeId);
+  SStreamHbMsg heartbeat = {};
+  heartbeat.dnodeId = 1;
+  heartbeat.pStreamStatus = taosArrayInit(2, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(nullptr, heartbeat.pStreamStatus);
+  SStmTaskStatus *tasks[] = {trigger, running};
+  for (auto *task : tasks) {
+    SStmTaskStatusMsg report = {};
+    report.type = task->type;
+    report.streamId = kStreamB;
+    report.taskId = task->id.taskId;
+    report.seriousId = task->id.seriousId;
+    report.nodeId = 1;
+    report.status = STREAM_STATUS_RUNNING;
+    report.detailStatus = -1;
+    ASSERT_NE(nullptr, taosArrayPush(heartbeat.pStreamStatus, &report));
+  }
+
+  PrivateBuildPause pause;
+  ASSERT_EQ(0, msmInitDeployWorker(&mnode_));
+  // The same heartbeat worker must return from the first report to process the next one.
+  EXPECT_EQ(0, HandleHeartbeat(&heartbeat, 100));
+  EXPECT_TRUE(pause.Entered());
+  int64_t next = 100 + MST_ISOLATION_DURATION / 2;
+  EXPECT_EQ(0, HandleHeartbeat(&heartbeat, next));
+  int64_t saved = mStreamMgmt.hCtx.currentTs;
+  mStreamMgmt.hCtx.currentTs = 100 + MST_ISOLATION_DURATION + 1;
+  msmCheckTaskListStatus(kStreamB, tasks, 2);
+  mStreamMgmt.hCtx.currentTs = saved;
+  EXPECT_EQ(0, healthy->stopped);
+  EXPECT_EQ(100, trigger->id.taskId);
+  EXPECT_EQ(101, running->id.taskId);
+  EXPECT_EQ(200, trigger->id.seriousId);
+  EXPECT_EQ(201, running->id.seriousId);
+  for (auto *task : tasks) {
+    EXPECT_EQ(next, task->lastUpTs);
+    EXPECT_EQ(STREAM_STATUS_RUNNING, task->status);
+  }
+  atomic_store_8(&stream->userStopped, 1);
+  pause.Release();
+  msmCleanupDeployWorker(&mnode_);
+  tCleanupStreamHbMsg(&heartbeat, true);
+  mndReleaseStream(&mnode_, stream);
+}
+
+class IsolatedStreamRuntime {
+ public:
+  explicit IsolatedStreamRuntime(SMnode *node) : saved_(mStreamMgmt), mnode_(node) { mStreamMgmt = {}; }
+  ~IsolatedStreamRuntime() {
+    msmDestroyRuntimeInfo(mnode_);
+    mStreamMgmt = saved_;
+  }
+
+ private:
+  SStmRuntime saved_;
+  SMnode     *mnode_;
+};
+
+#ifdef TD_ENTERPRISE
+static void PauseExternalReaderSchema(Stub &stub) {
+  stub.set(
+      mndAcquireExtSource, +[](SMnode *, const char *) -> SExtSourceObj * {
+        static SExtSourceObj source = {};
+        source.type = EXT_SOURCE_MYSQL;
+        return &source;
+      });
+  stub.set(mndReleaseExtSource, +[](SMnode *, SExtSourceObj *) {});
+  stub.set(extConnectorOpen, +[](const SExtSourceCfg *, SExtConnectorHandle **) -> int32_t { return 0; });
+  stub.set(
+      extConnectorGetTableSchema, +[](SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **) -> int32_t {
+        PrivateBuildPause::Pause();
+        return TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
+      });
+}
+
+static void InitExternalReaderRequest(SStmTaskStatusMsg *task, int64_t streamId, const SStmTaskId &id) {
+  task->streamId = streamId;
+  task->type = STREAM_TRIGGER_TASK;
+  task->taskId = id.taskId;
+  task->seriousId = id.seriousId;
+  task->nodeId = id.nodeId;
+  task->pMgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(nullptr, task->pMgmtReq);
+  task->pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  task->pMgmtReq->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 1);
+  auto *ext = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(task->pMgmtReq->cont.pExtOrigTblReaders, 0));
+  ASSERT_NE(nullptr, ext);
+  ext->registryEntryId = 1;
+  ext->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  ext->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  tstrncpy(ext->identity.sourceName, "remote", sizeof(ext->identity.sourceName));
+  tstrncpy(ext->identity.dbName, "metrics", sizeof(ext->identity.dbName));
+  tstrncpy(ext->identity.tableName, "cpu", sizeof(ext->identity.tableName));
+}
+
+TEST_F(MndStreamRecalcPersistenceTest, LeadershipChangeDuringReaderRequestPreservesNewGroupState) {
+  IsolatedStreamRuntime runtime(&mnode_);
+  Stub                  topology;
+  topology.set(streamAddVnodeLeader, ignoreRuntimeVnodeLeaderRemoval);
+  topology.set(streamRemoveVnodeLeader, ignoreRuntimeVnodeLeaderRemoval);
+  msmHandleBecomeLeader(&mnode_);
+  ASSERT_EQ(1, mStreamMgmt.active);
+  atomic_store_8(&mStreamMgmt.state, MND_STM_STATE_NORMAL);
+  SStreamHbMsg heartbeat = {};
+  heartbeat.dnodeId = 1;
+  int64_t seen = 0;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &heartbeat.dnodeId, sizeof(heartbeat.dnodeId), &seen, sizeof(seen)));
+  SStmStatus status = {};
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA), &status, sizeof(status)));
+  Status()->streamName = taosStrdup("1.test.recalc_a");
+  ASSERT_NE(nullptr, Status()->streamName);
+  SStreamObj *stream = nullptr;
+  ASSERT_EQ(0, mndAcquireStream(&mnode_, Status()->streamName, &stream));
+  ASSERT_EQ(0, tCloneStreamCreateDeployPointers(stream->pCreate, &Status()->pCreate));
+  mndReleaseStream(&mnode_, stream);
+  const int64_t sentinelId = kStreamB;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.streamMap, &sentinelId, sizeof(sentinelId), &status, sizeof(status)));
+  auto *healthy = InstallTriggerTask(kStreamB);
+  ASSERT_NE(nullptr, healthy);
+  auto *trigger = InstallTriggerTask();
+  ASSERT_NE(nullptr, trigger);
+  heartbeat.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  heartbeat.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  ASSERT_NE(nullptr, task);
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(task, kStreamA, trigger->id));
+  SStmTaskStatusMsg other = {};
+  other.type = STREAM_TRIGGER_TASK;
+  other.streamId = kStreamB;
+  other.taskId = healthy->id.taskId;
+  other.seriousId = healthy->id.seriousId;
+  other.nodeId = healthy->id.nodeId;
+  other.status = STREAM_STATUS_RUNNING;
+  other.detailStatus = -1;
+  ASSERT_NE(nullptr, taosArrayPush(heartbeat.pStreamStatus, &other));
+  task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(heartbeat.pStreamStatus, 0));
+  PrivateBuildPause pause(false);
+  PauseExternalReaderSchema(topology);
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  task->status = STREAM_STATUS_RUNNING;
+  EXPECT_EQ(0, HandleHeartbeat(&heartbeat));
+  EXPECT_NE(nullptr, Status()->pendingSchema);
+  EXPECT_TRUE(pause.Entered());
+  // A retransmission on this same group must update both tasks while the provider is blocked.
+  auto *pending = Status()->pendingSchema;
+  InitExternalReaderRequest(task, kStreamA, trigger->id);
+  int64_t next = 100 + MST_ISOLATION_DURATION / 2;
+  EXPECT_EQ(0, HandleHeartbeat(&heartbeat, next));
+  EXPECT_EQ(pending, Status()->pendingSchema);
+  EXPECT_EQ(next, healthy->lastUpTs);
+  mStreamMgmt.hCtx.currentTs = 100 + MST_ISOLATION_DURATION + 1;
+  msmCheckTaskListStatus(kStreamB, &healthy, 1);
+  EXPECT_EQ(0, Status(kStreamB)->stopped);
+  EXPECT_EQ(other.taskId, healthy->id.taskId);
+  EXPECT_EQ(other.seriousId, healthy->id.seriousId);
+  msmHandleBecomeNotLeader(&mnode_);
+  msmHandleBecomeLeader(&mnode_);
+  auto         *newGroup = mStreamMgmt.tCtx[0].actionStm[0];
+  SStmAction    action = {};
+  EXPECT_EQ(0, taosHashPut(newGroup, &sentinelId, sizeof(sentinelId), &action, sizeof(action)));
+  pause.Release();
+  msmCleanupSchemaWorker(&mnode_);
+  EXPECT_NE(nullptr, taosHashGet(newGroup, &sentinelId, sizeof(sentinelId)));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  tCleanupStreamHbMsg(&heartbeat, true);
+}
+#endif
+
+TEST_F(MndStreamRecalcPersistenceTest, LeadershipChangeDuringBuildDiscardsOldTasks) {
+  IsolatedStreamRuntime runtime(&mnode_);
+  Stub topology;
+  topology.set(streamAddVnodeLeader, ignoreRuntimeVnodeLeaderRemoval);
+  topology.set(streamRemoveVnodeLeader, ignoreRuntimeVnodeLeaderRemoval);
+  topology.set(msmAssignTaskSnodeId, returnRecoverySnodeId);
+  msmHandleBecomeLeader(&mnode_);
+  ASSERT_EQ(1, mStreamMgmt.active);
+  atomic_store_8(&mStreamMgmt.state, MND_STM_STATE_NORMAL);
+  int     node = 1;
+  int64_t ts = 0;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &node, sizeof(node), &ts, sizeof(ts)));
+  char name[] = "1.test.recalc_a";
+  ASSERT_EQ(0, mstPostStreamAction(mStreamMgmt.actionQ, kStreamA, name, nullptr, false, STREAM_ACT_DEPLOY));
+  PrivateBuildPause pause;
+  SStreamHbMsg      req = {};
+  req.dnodeId = node;
+  ASSERT_EQ(0, msmInitDeployWorker(&mnode_));
+  EXPECT_EQ(0, HandleHeartbeat(&req));
+  EXPECT_TRUE(pause.Entered());
+  char waitingName[] = "1.test.recalc_b";
+  EXPECT_EQ(0, mstPostStreamCreate(kStreamB, waitingName));
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.actionQ->queuedCreates));
+  msmHandleBecomeNotLeader(&mnode_);
+  msmHandleBecomeLeader(&mnode_);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.actionQ->queuedCreates));
+  EXPECT_EQ(0, mstPostStreamCreate(kStreamB, waitingName));
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.actionQ->queuedCreates));
+  pause.Release();
+  msmCleanupDeployWorker(&mnode_);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
 }
 
 TEST_F(MndStreamRecalcPersistenceTest, FinishCommitAndRecalculateQueryCompleteWithRuntimeWriterWaiting) {
@@ -7217,9 +7945,11 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
     stub_.set(mndAcquireStream, returnRecoveryStreamByName);
     stub_.set(mndReleaseStream, ignoreRecoveryStreamRelease);
     stub_.set(msmAssignTaskSnodeId, returnRecoverySnodeId);
+    stub_.set(sdbGetTableVer, +[](SSdb *, ESdbType) -> int64_t { return 0; });
   }
 
   void TearDown() override {
+    stub_.reset(sdbGetTableVer);
     stub_.reset(msmAssignTaskSnodeId);
     stub_.reset(mndReleaseStream);
     stub_.reset(mndAcquireStream);
@@ -7284,11 +8014,14 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
     taosHashSetFreeFp(mStreamMgmt.toDeployVgMap, mstDestroySStmVgTasksToDeploy);
     taosHashSetFreeFp(mStreamMgmt.toDeploySnodeMap, mstDestroySStmSnodeTasksDeploy);
     taosHashSetFreeFp(actionStm_, mstDestroySStmAction);
-    taosHashSetFreeFp(deployStm_, tDeepFreeSStmStreamDeploy);
+    taosHashSetFreeFp(deployStm_, tFreeSStmStreamDeploy);
 
     actionQueue_.head = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
     ASSERT_NE(actionQueue_.head, nullptr);
     actionQueue_.tail = actionQueue_.head;
+    actionQueue_.queuedCreates =
+        taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, actionQueue_.queuedCreates);
     mStreamMgmt.actionQ = &actionQueue_;
     mStreamMgmt.actionQLock = 0;
     mStreamMgmt.lastTaskId = 100;
@@ -7327,6 +8060,7 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
     SStmQNode *pNode = nullptr;
     while (mndStreamActionDequeue(&actionQueue_, &pNode)) {
     }
+    taosHashCleanup(actionQueue_.queuedCreates);
     taosMemoryFreeClear(actionQueue_.head);
     actionQueue_.tail = nullptr;
   }
@@ -7336,6 +8070,13 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
     for (int64_t streamId : ids) {
       auto *pStatus = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId)));
       if (pStatus == nullptr) continue;
+      if (pStatus->deployInput && pStatus->pCreate == Stream(streamId)->pCreate) {
+        // AddStatus borrows the fixture's SDB object.
+        pStatus->deployInput->name = nullptr;
+        pStatus->deployInput->create = nullptr;
+        mstReleaseDeployInput(pStatus->deployInput);
+        pStatus->deployInput = nullptr;
+      }
       mstResetSStmStatus(pStatus);
       taosArrayDestroy(pStatus->recalcRecords);
       pStatus->recalcRecords = nullptr;
@@ -7439,8 +8180,27 @@ constexpr int64_t MndStreamRecalcRecoveryTest::kStreamB;
 constexpr int64_t MndStreamRecalcRecoveryTest::kRecalcId;
 constexpr int64_t MndStreamRecalcRecoveryTest::kRequestTimeMs;
 
+static thread_local int64_t heartbeatNowNs = 0;
+
 class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
  protected:
+  void UseHeartbeatClock() {
+    heartbeatNowNs = 0;
+    stub_.set(
+        taosClockGetTime, +[](int id, struct timespec *ts) -> int32_t {
+          if (id != CLOCK_REALTIME) return returnRecalcClock(id, ts);
+          // Distinct incarnations can be created within a single synthetic millisecond.
+          const int64_t ns = ++heartbeatNowNs;
+          ts->tv_sec = static_cast<time_t>(ns / NANOSECOND_PER_SEC);
+          ts->tv_nsec = static_cast<long>(ns % NANOSECOND_PER_SEC);
+          return 0;
+        });
+  }
+
+  void CheckQueuedCreate(bool fail, bool scanFirst);
+#ifdef TD_ENTERPRISE
+  void CheckSchemaWorkerStop(bool stopMnode);
+#endif
   void TearDown() override {
     stub_.reset(taosHashPut);
     stub_.reset(tCloneStreamWindowPlan);
@@ -7454,28 +8214,186 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
   }
 
   void HandleActions() {
-    SStreamHbMsg req = {};
-    req.dnodeId = 1;
-    req.pVgLeaders = taosArrayInit(0, sizeof(int32_t));
-    req.pStreamReq = taosArrayInit(0, sizeof(int32_t));
-    req.pStreamStatus = taosArrayInit(0, sizeof(SStmTaskStatusMsg));
-    ASSERT_NE(req.pVgLeaders, nullptr);
-    ASSERT_NE(req.pStreamReq, nullptr);
-    ASSERT_NE(req.pStreamStatus, nullptr);
-    SStmGrpCtx ctx = {};
-    ctx.pMnode = &mnode_;
-    ctx.currTs = 100;
-    ctx.pReq = &req;
-    ctx.actionStm = actionStm_;
-    ctx.deployStm = deployStm_;
-    EXPECT_EQ(msmNormalHandleHbMsg(&ctx), TSDB_CODE_SUCCESS);
-    tCleanupStreamHbMsg(&req, true);
+    atomic_store_8(&actionQueue_.draining, 1);
+    msmDrainStreamActions(&mnode_);
   }
 
   void QueueDeploy(int64_t id) {
     ASSERT_EQ(mstPostStreamAction(&actionQueue_, id, Stream(kStreamA)->name, nullptr, false, STREAM_ACT_DEPLOY),
               TSDB_CODE_SUCCESS);
   }
+
+  void ReadHeartbeatDeploys(SStreamHbMsg &hb, int32_t expectedCode,
+                            const std::function<void(const SStmStreamDeploy &)> &visit, int64_t now = 101,
+                            const std::function<void(const SMStreamHbRspMsg &)> &visitReply = {},
+                            bool deliverToReceiver = false, int32_t encodeError = 0) {
+    SStmThreadCtx threadCtx = {};
+    threadCtx.actionStm[hb.streamGId] = actionStm_;
+    threadCtx.deployStm[hb.streamGId] = deployStm_;
+    auto *savedCtx = mStreamMgmt.tCtx;
+    auto  savedThreads = mStreamMgmt.threadNum;
+    mStreamMgmt.tCtx = &threadCtx;
+    mStreamMgmt.threadNum = 1;
+    SRpcMsg request = {};
+    SRpcMsg response = {};
+    // Some replay tests revisit an earlier millisecond. Keep the sub-millisecond sequence for distinct task IDs.
+    heartbeatNowNs = now * NANOSECOND_PER_MSEC + heartbeatNowNs % NANOSECOND_PER_MSEC;
+    int32_t code = msmHandleStreamHbMsg(&mnode_, now, &hb, &request, &response);
+    mStreamMgmt.tCtx = savedCtx;
+    mStreamMgmt.threadNum = savedThreads;
+    EXPECT_EQ(expectedCode, code);
+    EXPECT_EQ(encodeError ? encodeError : expectedCode, response.code);
+
+    if (!expectedCode && !encodeError) EXPECT_NE(nullptr, response.pCont);
+    if (expectedCode || encodeError) EXPECT_EQ(nullptr, response.pCont);
+    if (response.pCont) {
+      SMStreamHbRspMsg decoded = {};
+      SDecoder         decoder;
+      tDecoderInit(&decoder, static_cast<uint8_t *>(response.pCont) + sizeof(SStreamMsgGrpHeader),
+                   response.contLen - sizeof(SStreamMsgGrpHeader));
+      EXPECT_EQ(0, tDecodeStreamHbRsp(&decoder, &decoded));
+      if (visitReply) visitReply(decoded);
+      for (size_t i = 0; i < taosArrayGetSize(decoded.deploy.streamList); ++i) {
+        auto *stream = static_cast<SStmStreamDeploy *>(taosArrayGet(decoded.deploy.streamList, i));
+        visit(*stream);
+      }
+      if (deliverToReceiver) {
+        EXPECT_EQ(0, streamHbProcessRspMsg(&decoded));
+      } else {
+        tDeepFreeSMStreamHbRspMsg(&decoded);
+      }
+      tDecoderClear(&decoder);
+      rpcFreeCont(response.pCont);
+    }
+  }
+
+  std::vector<int64_t> HeartbeatTriggerIds(int32_t expectedCode, std::vector<int64_t> *runnerIds = nullptr) {
+    std::vector<int64_t> tasks;
+    SStreamHbMsg         hb = {};
+    hb.dnodeId = hb.snodeId = 1;
+    ReadHeartbeatDeploys(hb, expectedCode, [&](const SStmStreamDeploy &stream) {
+      if (stream.triggerTask) tasks.push_back(stream.triggerTask->task.taskId);
+      if (runnerIds) {
+        for (size_t j = 0; j < taosArrayGetSize(stream.runnerTasks); ++j) {
+          auto *runner = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.runnerTasks, j));
+          runnerIds->push_back(runner->task.taskId);
+        }
+      }
+    });
+    return tasks;
+  }
+
+  void SetRunnerPlan(bool nested, int64_t streamId = kStreamA) {
+    auto endpoint = +[](SMnode *, int32_t id) -> SEpSet {
+      SEpSet ep = {};
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6000 + id;
+      tstrncpy(ep.eps[0].fqdn, id == 2 ? "node2" : "node1", sizeof(ep.eps[0].fqdn));
+      return ep;
+    };
+    stub_.set(mndGetDnodeEpsetById, endpoint);
+    if (nested) {
+      stub_.set(mndGetVgroupEpsetById, endpoint);
+      auto *create = Stream(streamId)->pCreate;
+      create->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
+      ASSERT_NE(nullptr, create->calcScanPlanList);
+      auto *scan = static_cast<SStreamCalcScan *>(taosArrayReserve(create->calcScanPlanList, 1));
+      ASSERT_NE(nullptr, scan);
+      const int32_t vg = 20;
+      scan->vgList = taosArrayInit(1, sizeof(vg));
+      ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &vg));
+      SNode *raw = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+      auto                                               *reader = reinterpret_cast<SSubplan *>(raw);
+      reader->subplanType = SUBPLAN_TYPE_SCAN;
+      reader->id.groupId = 3;
+      reader->id.subplanId = 13;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode **>(&reader->pNode)));
+      reinterpret_cast<STableScanPhysiNode *>(reader->pNode)->scan.uid = 42;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &reader->pNode->pConditions));
+      ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&scan->scanPlan), nullptr));
+    }
+    SNode *root = nullptr;
+    for (int i = 0; i <= (nested ? 1 : 0); ++i) {
+      SNode *dag = nullptr, *level = nullptr, *sub = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN, &dag));
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_NODE_LIST, &level));
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &sub));
+      if (nested) {
+        auto *plan = reinterpret_cast<SSubplan *>(sub);
+        plan->id.groupId = i + 1;
+        plan->id.subplanId = i + 11;
+        if (i == 0) {
+          ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, reinterpret_cast<SNode **>(&plan->pNode)));
+          auto *exchange = reinterpret_cast<SExchangePhysiNode *>(plan->pNode);
+          exchange->srcStartGroupId = exchange->srcEndGroupId = 3;
+          ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &plan->pNode->pConditions));
+          SNode *ref = nullptr;
+          ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_VALUE, &ref));
+          auto *value = reinterpret_cast<SValueNode *>(ref);
+          value->translate = true;
+          value->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+          value->datum.i = (INT64_C(3) << 32) | 13;
+          ASSERT_EQ(0, nodesListMakeStrictAppend(&plan->pChildren, ref));
+        } else {
+          ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, reinterpret_cast<SNode **>(&plan->pNode)));
+        }
+      }
+      reinterpret_cast<SQueryPlan *>(dag)->numOfSubplans = 1;
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SNodeListNode *>(level)->pNodeList, sub));
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SQueryPlan *>(dag)->pSubplans, level));
+      if (!root)
+        root = dag;
+      else
+        ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SQueryPlan *>(root)->pChildren, dag));
+    }
+    char *plan = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(root, false, &plan, nullptr));
+    nodesDestroyNode(root);
+    Stream(streamId)->pCreate->calcPlan = plan;
+    Stream(streamId)->pCreate->numOfCalcSubplan = 1;
+  }
+
+#if defined(BUILD_TEST_SEAM) && defined(TD_ENTERPRISE)
+  void SetExternalReaders() {
+    ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+    auto *stream = Stream(kStreamA);
+    auto *create = stream->pCreate;
+    auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+    *static_cast<int32_t *>(taosArrayGet(scan->vgList, 0)) = SNODE_HANDLE;
+    stream->flags |= STREAM_FLAG_REF_EXT_SOURCE;
+    stream->mainSnodeId = 1;
+    create->triggerTblType = TSDB_NORMAL_TABLE;
+    create->triggerTblName = taosStrdup("meters");
+    create->extSpecs = taosArrayInit_s(sizeof(SStreamExtTriggerSpec *), 1);
+    ASSERT_NE(nullptr, create->extSpecs);
+    auto *spec = static_cast<SStreamExtTriggerSpec *>(taosMemoryCalloc(1, sizeof(SStreamExtTriggerSpec)));
+    ASSERT_NE(nullptr, spec);
+    *static_cast<SStreamExtTriggerSpec **>(taosArrayGet(create->extSpecs, 0)) = spec;
+    create->numOfExtSpecs = 1;
+    tstrncpy(spec->sourceName, "1.test_pg", sizeof(spec->sourceName));
+    tstrncpy(spec->extTable, "meters", sizeof(spec->extTable));
+    spec->sourceType = EXT_SOURCE_POSTGRESQL;
+    spec->numCalcMappings = 128;
+    spec->pCalcMappings = static_cast<SExtColTypeMapping *>(taosMemoryCalloc(128, sizeof(SExtColTypeMapping)));
+    ASSERT_NE(nullptr, spec->pCalcMappings);
+    for (int i = 0; i < spec->numCalcMappings; ++i) {
+      snprintf(spec->pCalcMappings[i].colName, sizeof(spec->pCalcMappings[i].colName), "value_%d", i);
+    }
+    stub_.set(
+        mndAcquireExtSource, +[](SMnode *, const char *name) -> SExtSourceObj * {
+          static SExtSourceObj source = {};
+          source.encryptedPassword[0] = 1;
+          tstrncpy(source.options, "first", sizeof(source.options));
+          return strcmp(name, "1.test_pg") == 0 ? &source : nullptr;
+        });
+    stub_.set(mndReleaseExtSource, +[](SMnode *, SExtSourceObj *){});
+    stub_.set(sdbReadLock, +[](SSdb *, int32_t){});
+    stub_.set(sdbUnLock, +[](SSdb *, int32_t){});
+    stub_.set(sdbFetch, +[](SSdb *, ESdbType, void *, void **) -> void * { return nullptr; });
+  }
+#endif
 
   int32_t WatchTask() {
     SStmGrpCtx ctx = {};
@@ -7497,6 +8415,4628 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
     return terrno = TSDB_CODE_OUT_OF_MEMORY;
   }
 };
+
+extern "C" int32_t msmQueueVgroupCalcReaders(SStmGrpCtx *, SStreamObj *, SStmStatus *, SNodeList *);
+extern "C" int32_t msmGrpAddDeploySnodeTasks(SStmGrpCtx *, SArray **);
+extern "C" void    msmCleanDeployedSnodeTasks(int32_t);
+
+TEST_F(MndStreamDeployOwnershipTest, CalcReadersKeepOriginalPlanOrShareOneBindingAcrossVgroups) {
+  SStreamObj *stream = Stream(kStreamA);
+  SStmStatus *status = AddStatus(kStreamA);
+  ASSERT_NE(status, nullptr);
+  status->calcReaders = tdListNew(sizeof(SStmTaskStatus));
+  ASSERT_NE(status->calcReaders, nullptr);
+  status->pCreate->calcScanPlanList = taosArrayInit(2, sizeof(SStreamCalcScan));
+  ASSERT_NE(status->pCreate->calcScanPlanList, nullptr);
+  for (int i = 0; i < 2; ++i) {
+    SNode *plan = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &plan));
+    reinterpret_cast<SSubplan *>(plan)->id.groupId = 100 + i;
+    SStreamCalcScan scan = {};
+    char           *original = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(plan, true, &original, nullptr));
+    scan.scanPlan = original;
+    nodesDestroyNode(plan);
+    ASSERT_NE(nullptr, taosArrayPush(status->pCreate->calcScanPlanList, &scan));
+    for (int vg : {2, 3}) {
+      SStmTaskStatus reader = {};
+      reader.type = STREAM_READER_TASK;
+      reader.id.nodeId = vg;
+      reader.id.taskIdx = i;
+      ASSERT_NE(nullptr, tdListAdd(status->calcReaders, &reader));
+    }
+  }
+  static int serializations;
+  serializations = 0;
+  Stub counter;
+  counter.set(
+      tjsonToUnformattedString, +[](const SJson *json) -> char * {
+        ++serializations;
+        return cJSON_PrintUnformatted(reinterpret_cast<const cJSON *>(json));
+      });
+  ASSERT_EQ(0, msmQueueVgroupCalcReaders(nullptr, stream, status, nullptr));
+  EXPECT_EQ(0, serializations);
+  SNode *source = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_DOWNSTREAM_SOURCE, &source));
+  reinterpret_cast<SDownstreamSourceNode *>(source)->taskId = 73;
+  SNodeList *endpoints = nullptr;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&endpoints, source));
+  int32_t code = msmQueueVgroupCalcReaders(nullptr, stream, status, endpoints);
+  nodesDestroyList(endpoints);
+  ASSERT_EQ(0, code);
+  EXPECT_EQ(2, serializations);
+
+  const char *firstBound[2] = {};
+  for (int32_t vg : {2, 3}) {
+    auto *queue = static_cast<SStmVgTasksToDeploy *>(taosHashGet(mStreamMgmt.toDeployVgMap, &vg, sizeof(vg)));
+    ASSERT_NE(nullptr, queue);
+    ASSERT_EQ(4u, taosArrayGetSize(queue->taskList));
+    for (int i = 0; i < 2; ++i) {
+      auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(status->pCreate->calcScanPlanList, i));
+      auto *plain = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->taskList, i));
+      EXPECT_STREQ(static_cast<const char *>(scan->scanPlan),
+                   static_cast<const char *>(plain->deploy.msg.reader.msg.calc.calcScanPlan));
+      auto *patched = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->taskList, 2 + i));
+      auto *bound = static_cast<const char *>(patched->deploy.msg.reader.msg.calc.calcScanPlan);
+      if (firstBound[i]) {
+        EXPECT_NE(firstBound[i], bound);
+        EXPECT_STREQ(firstBound[i], bound);
+      }
+      firstBound[i] = bound;
+      SNode *decoded = nullptr;
+      ASSERT_EQ(0, nodesStringToNode(bound, &decoded));
+      auto *subplan = reinterpret_cast<SSubplan *>(decoded);
+      EXPECT_EQ(100 + i, subplan->id.groupId);
+      ASSERT_EQ(1, LIST_LENGTH(subplan->pSubQ));
+      EXPECT_EQ(73, reinterpret_cast<SDownstreamSourceNode *>(nodesListGetNode(subplan->pSubQ, 0))->taskId);
+      nodesDestroyNode(decoded);
+    }
+  }
+}
+
+extern "C" void msmCheckStreamsStatus(SMnode *);
+
+void MndStreamDeployOwnershipTest::CheckQueuedCreate(bool fail, bool scanFirst) {
+  // A occupies the worker while CREATE and the catalog scan both discover B.
+  // A successful B must keep its original Trigger; a failed B must retain its first backoff.
+  static bool failB;
+  static int  buildsB;
+  stub_.set(
+      msmAssignTaskSnodeId, +[](SMnode *, SStreamObj *stream, bool) -> int32_t {
+        if (stream->pCreate->streamId == gRecoveryStreams[1]->pCreate->streamId) {
+          ++buildsB;
+          if (failB) {
+            terrno = TSDB_CODE_SNODE_NO_AVAILABLE_NODE;
+            return 0;
+          }
+        }
+        return 1;
+      });
+  stub_.set(
+      sdbFetch, +[](SSdb *, ESdbType type, void *iter, void **row) -> void * {
+        if (!iter && type == SDB_STREAM) return *row = gRecoveryStreams[1];
+        return nullptr;
+      });
+  stub_.set(sdbRelease, +[](SSdb *, void *) {});
+  stub_.set(sdbCheckExists, reportStreamExists);
+  auto       savedHealth = mStreamMgmt.hCtx;
+  SStmLastTs savedTimes[STM_EVENT_MAX_VALUE];
+  memcpy(savedTimes, mStreamMgmt.lastTs, sizeof(savedTimes));
+  failB = fail;
+  buildsB = 0;
+  QueueDeploy(kStreamA);
+  PrivateBuildPause pause;
+  std::thread       worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  if (!scanFirst) EXPECT_EQ(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  for (int i = 0; i < 4; ++i) {
+    memset(mStreamMgmt.lastTs, 0, sizeof(savedTimes));
+    mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
+    msmCheckStreamsStatus(&mnode_);
+    EXPECT_EQ(1u, actionQueue_.qRemainNum);
+  }
+  if (scanFirst) EXPECT_EQ(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  EXPECT_EQ(1u, actionQueue_.qRemainNum);
+  EXPECT_EQ(1, taosHashGetSize(actionQueue_.queuedCreates));
+  pause.Release();
+  worker.join();
+  HandleActions();  // Drain any actions left queued by a failed deployment.
+  EXPECT_EQ(1, buildsB);
+  EXPECT_EQ(0, taosHashGetSize(actionQueue_.queuedCreates));
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_NE(nullptr, b);
+  EXPECT_EQ(0, b->deployTimes);
+  EXPECT_EQ(fail ? 1 : 0, b->stopped);
+  if (fail) {
+    EXPECT_GT(b->fatalRetryTs, mStreamMgmt.hCtx.currentTs);
+  } else {
+    EXPECT_NE(nullptr, b->triggerTask);
+  }
+  memcpy(mStreamMgmt.lastTs, savedTimes, sizeof(savedTimes));
+  mStreamMgmt.hCtx = savedHealth;
+}
+
+TEST_F(MndStreamDeployOwnershipTest, QueuedCreateAndHealthScanPublishOnce) { CheckQueuedCreate(false, false); }
+
+TEST_F(MndStreamDeployOwnershipTest, QueuedCreateAndHealthScanKeepFirstBackoff) { CheckQueuedCreate(true, false); }
+
+TEST_F(MndStreamDeployOwnershipTest, CatalogScanBeforeCreateCommitKeepsPublishedGeneration) {
+  CheckQueuedCreate(false, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, CatalogScanBeforeCreateCommitKeepsBackoff) { CheckQueuedCreate(true, true); }
+
+TEST_F(MndStreamDeployOwnershipTest, FailedFirstDeploymentEnqueueCanBeRetried) {
+  stub_.set(taosHashPut, FailHashPut);
+  EXPECT_NE(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  stub_.reset(taosHashPut);
+  EXPECT_EQ(0u, actionQueue_.qRemainNum);
+  EXPECT_EQ(0, taosHashGetSize(actionQueue_.queuedCreates));
+  EXPECT_EQ(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  EXPECT_EQ(1u, actionQueue_.qRemainNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ExternalPlacementScansCatalogOnceOutsideQueryLocks) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  Stream(kStreamA)->flags |= STREAM_FLAG_REF_EXT_SOURCE;
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+
+  static SStreamObj catalog[128] = {};
+  static SSnodeObj  nodes[2] = {};
+  static int        rowsRead;
+  rowsRead = 0;
+  nodes[0].id = 1;
+  nodes[1].id = 2;
+  for (auto &stream : catalog) {
+    stream.flags = STREAM_FLAG_REF_EXT_SOURCE;
+    stream.mainSnodeId = 1;
+  }
+  SStmSnodeStatus spare = {};
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.snodeMap, &nodes[1].id, sizeof(nodes[1].id), &spare, sizeof(spare)));
+  stub_.set(
+      sdbFetch, +[](SSdb *, ESdbType type, void *last, void **row) -> void * {
+        if (type == SDB_STREAM) {
+          auto *next = last ? static_cast<SStreamObj *>(last) + 1 : catalog;
+          if (next == catalog + 128) return nullptr;
+          if (next == catalog + 64) PrivateBuildPause::Pause();
+          ++rowsRead;
+          return *row = next;
+        }
+        if (type == SDB_SNODE) {
+          auto *next = last ? static_cast<SSnodeObj *>(last) + 1 : nodes;
+          if (next != nodes + 2) return *row = next;
+        }
+        return nullptr;
+      });
+  stub_.set(sdbRelease, +[](SSdb *, void *) {});
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  pause.Release();
+  builder.join();
+  blockDataDestroy(block);
+
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(2, status->triggerTask->id.nodeId);
+  ASSERT_GT(status->runnerDeploys, 0);
+  for (int i = 0; i < status->runnerDeploys; ++i) {
+    auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(status->runners[i], 0));
+    ASSERT_NE(nullptr, runner);
+    EXPECT_EQ(2, runner->id.nodeId);
+  }
+  EXPECT_EQ(128, rowsRead);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, UnrelatedVgroupChangeKeepsSelectedPlacement) {
+  Stream(kStreamA)->pCreate->triggerTblType = TSDB_NORMAL_TABLE;
+  Stream(kStreamA)->pCreate->triggerTblVgId = 20;
+  Stub addresses;
+  addresses.set(
+      mndGetVgroupEpsetById, +[](SMnode *, int32_t id) -> SEpSet {
+        EXPECT_EQ(20, id);
+        SEpSet ep = {};
+        ep.numOfEps = 1;
+        ep.eps[0].port = 6030;
+        tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+        return ep;
+      });
+  static std::atomic<int64_t> vgVersion{0};
+  vgVersion.store(0);
+  stub_.set(
+      sdbGetTableVer, +[](SSdb *, ESdbType type) -> int64_t { return type == SDB_VGROUP ? vgVersion.load() : 0; });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  PrivateBuildPause pause;
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  vgVersion.fetch_add(1);
+  pause.Release();
+  builder.join();
+
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(0, status->stopped);
+  EXPECT_EQ(1, status->deployTimes);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(2, taosHashGetSize(mStreamMgmt.taskMap));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, SelectedVgroupEndpointDisappearsBeforePublication) {
+  Stream(kStreamA)->pCreate->triggerTblType = TSDB_NORMAL_TABLE;
+  Stream(kStreamA)->pCreate->triggerTblVgId = 20;
+  static int versions, endpoints;
+  versions = endpoints = 0;
+  stub_.set(sdbGetTableVer, +[](SSdb *, ESdbType type) -> int64_t { return type == SDB_VGROUP ? ++versions : 0; });
+  Stub addresses;
+  addresses.set(
+      mndGetVgroupEpsetById, +[](SMnode *, int32_t id) -> SEpSet {
+        EXPECT_EQ(20, id);
+        SEpSet ep = {};
+        if (++endpoints == 1) {
+          ep.numOfEps = 1;
+          ep.eps[0].port = 6030;
+          tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+        }
+        return ep;
+      });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+  EXPECT_EQ(2, endpoints);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeployVgTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, LostSelectedSnodeRejectsDraft) {
+  PrivateBuildPause pause;
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  const int32_t snode = 1;
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  EXPECT_EQ(0, taosHashRemove(mStreamMgmt.snodeMap, &snode, sizeof(snode)));
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  pause.Release();
+  builder.join();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_SNODE_NO_AVAILABLE_NODE, status->fatalError);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RedeployAndStatusReadFinishWhileUnrelatedQueueIsLocked) {
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *published = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, published);
+  ASSERT_NE(nullptr, published->triggerTask);
+  int64_t oldKey[2] = {kStreamA, published->triggerTask->id.taskId};
+
+  constexpr int32_t lockedNode = 128;
+  for (int32_t node = 2; node <= lockedNode; ++node) {
+    SStmVgTasksToDeploy queue = {};
+    queue.taskList = taosArrayInit(1, sizeof(SStmTaskToDeployExt));
+    ASSERT_NE(nullptr, queue.taskList);
+    SStmTaskToDeployExt entry = {};
+    entry.deploy.task.type = STREAM_READER_TASK;
+    entry.deploy.task.streamId = kStreamB + node;
+    entry.deploy.task.taskId = node;
+    ASSERT_NE(nullptr, taosArrayPush(queue.taskList, &entry));
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.toDeployVgMap, &node, sizeof(node), &queue, sizeof(queue)));
+    int64_t         key[2] = {entry.deploy.task.streamId, entry.deploy.task.taskId};
+    SStmTaskStatus *unrelated = nullptr;
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &unrelated, sizeof(unrelated)));
+    ++mStreamMgmt.toDeployVgTaskNum;
+  }
+  auto *locked =
+      static_cast<SStmVgTasksToDeploy *>(taosHashGet(mStreamMgmt.toDeployVgMap, &lockedNode, sizeof(lockedNode)));
+  ASSERT_NE(nullptr, locked);
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAM_TASKS, 1);
+  ASSERT_NE(nullptr, block);
+
+  QueueDeploy(kStreamA);
+  std::mutex              mutex;
+  std::condition_variable cv;
+  bool                    done = false;
+  taosWLockLatch(&locked->lock);
+  std::thread worker([&] {
+    HandleActions();
+    int32_t rows = 0;
+    EXPECT_EQ(0, mstSetStreamTasksResBlock(Stream(kStreamB), block, &rows, 1));
+    EXPECT_EQ(1, rows);
+    std::lock_guard<std::mutex> guard(mutex);
+    done = true;
+    cv.notify_one();
+  });
+  {
+    std::unique_lock<std::mutex> guard(mutex);
+    EXPECT_TRUE(cv.wait_for(guard, std::chrono::seconds(5), [&] { return done; }));
+  }
+  taosWUnLockLatch(&locked->lock);
+  worker.join();
+  blockDataDestroy(block);
+  EXPECT_EQ(nullptr, taosHashGet(mStreamMgmt.taskMap, oldKey, sizeof(oldKey)));
+  EXPECT_EQ(lockedNode + 1, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, locked->deployed);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, NoAvailableNodeFailsBeforeGlobalTaskRollback) {
+  static int taskMapScans;
+  taskMapScans = 0;
+  stub_.set(
+      msmAssignTaskSnodeId, +[](SMnode *, SStreamObj *, bool) -> int32_t {
+        terrno = TSDB_CODE_SNODE_NO_AVAILABLE_NODE;
+        return 0;
+      });
+  Stub scan;
+  scan.set(
+      taosHashIterate, +[](SHashObj *map, void *) -> void * {
+        if (map == mStreamMgmt.taskMap) ++taskMapScans;
+        return nullptr;
+      });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_SNODE_NO_AVAILABLE_NODE, status->fatalError);
+  EXPECT_EQ(0, taskMapScans);
+}
+
+class FailPublishedTriggerPush {
+ public:
+  FailPublishedTriggerPush() {
+    hook_ = &stub_;
+    stub_.set(taosArrayAddBatch, Push);
+  }
+
+ private:
+  static void *Push(SArray *array, const void *data, int32_t count) {
+    const int32_t node = 1;
+    auto *queue = static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node)));
+    if (queue && array == queue->triggerList) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    }
+    hook_->reset(taosArrayAddBatch);
+    void *result = taosArrayAddBatch(array, data, count);
+    hook_->set(taosArrayAddBatch, Push);
+    return result;
+  }
+  Stub         stub_;
+  static Stub *hook_;
+};
+Stub *FailPublishedTriggerPush::hook_;
+
+TEST_F(MndStreamDeployOwnershipTest, FailedFullDeploymentDiscardsQueuedTasksBeforeHeartbeatCanCollectThem) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  FailPublishedTriggerPush fail;
+  QueueDeploy(kStreamA);
+  HandleActions();
+  const int32_t snodeId = 1;
+  auto         *queue =
+      static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &snodeId, sizeof(snodeId)));
+  ASSERT_NE(nullptr, queue);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, status->fatalError);
+  ASSERT_GT(status->runnerDeploys, 0);
+  ASSERT_EQ(status->runnerDeploys, taosArrayGetSize(queue->runnerList));
+  for (int i = 0; i < status->runnerDeploys; ++i) {
+    auto *runner = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->runnerList, i));
+    EXPECT_TRUE(runner->deployed);
+  }
+  EXPECT_EQ(status->runnerDeploys, queue->runnerDeployed);
+  EXPECT_EQ(0u, taosArrayGetSize(queue->triggerList));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  std::vector<int64_t> runners;
+  EXPECT_TRUE(HeartbeatTriggerIds(0, &runners).empty());
+  EXPECT_TRUE(runners.empty());
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RollbackThenCleanupStillDeliversAnotherStreamsRunner) {
+  const int32_t        node = 1;
+  SStmSnodeTasksDeploy queued = {};
+  queued.runnerList = taosArrayInit(1, sizeof(SStmTaskToDeployExt));
+  queued.triggerList = taosArrayInit(2, sizeof(SStmTaskToDeployExt));
+  SStmTaskToDeployExt runner = {};
+  runner.deploy.task.type = STREAM_RUNNER_TASK;
+  runner.deploy.task.streamId = kStreamA;
+  SStmTaskToDeployExt trigger = {};
+  trigger.deploy.task.type = STREAM_TRIGGER_TASK;
+  trigger.deploy.task.streamId = kStreamB;
+  ASSERT_NE(nullptr, taosArrayPush(queued.runnerList, &runner));
+  ASSERT_NE(nullptr, taosArrayPush(queued.triggerList, &trigger));
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node), &queued, sizeof(queued)));
+  mStreamMgmt.toDeploySnodeTaskNum = 2;
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  {
+    FailPublishedTriggerPush fail;
+    QueueDeploy(kStreamA);
+    HandleActions();
+  }
+  auto *failed = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, failed);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, failed->fatalError);
+  msmCleanDeployedSnodeTasks(node);
+  auto *queue = static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node)));
+  ASSERT_NE(nullptr, queue);
+  ASSERT_EQ(nullptr, queue->runnerList);
+  ASSERT_EQ(0, queue->runnerDeployed);
+  queue->runnerList = taosArrayInit(1, sizeof(runner));
+  runner.deploy.task.streamId = kStreamB;
+  runner.deploy.task.taskId = 83;
+  ASSERT_NE(nullptr, taosArrayPush(queue->runnerList, &runner));
+  ++mStreamMgmt.toDeploySnodeTaskNum;
+  SStreamHbMsg req = {};
+  req.snodeId = node;
+  SStmGrpCtx ctx = {};
+  ctx.pReq = &req;
+  ctx.deployStm = deployStm_;
+  ASSERT_EQ(0, msmGrpAddDeploySnodeTasks(&ctx, nullptr));
+  auto *collected = static_cast<SStmStreamDeploy *>(taosHashGet(deployStm_, &kStreamB, sizeof(kStreamB)));
+  ASSERT_NE(nullptr, collected);
+  ASSERT_EQ(1u, taosArrayGetSize(collected->runnerTasks));
+  EXPECT_EQ(83, static_cast<SStmTaskDeploy *>(taosArrayGet(collected->runnerTasks, 0))->task.taskId);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerRepairSurvivesCollectionOfLastNodeTask) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(status->runners[0], 0));
+  ASSERT_NE(nullptr, runner);
+  const auto runnerId = runner->id.taskId;
+
+  // Check that producers cannot enter between the cleanup's node lookup and hash removal.
+  static Stub *guard;
+  guard = &stub_;
+  stub_.set(
+      msmCleanDeployedSnodeTasks, +[](int32_t node) {
+        bool publisherEntered = taosWTryLockLatch(&mStreamMgmt.actionQLock) == 0;
+        if (publisherEntered) taosWUnLockLatch(&mStreamMgmt.actionQLock);
+        EXPECT_FALSE(publisherEntered);
+        guard->reset(msmCleanDeployedSnodeTasks);
+        msmCleanDeployedSnodeTasks(node);
+      });
+  std::vector<int64_t> runners;
+  EXPECT_EQ(std::vector<int64_t>{status->triggerTask->id.taskId}, HeartbeatTriggerIds(0, &runners));
+  ASSERT_EQ(static_cast<size_t>(status->runnerDeploys), runners.size());
+  EXPECT_EQ(runnerId, runners.front());
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.toDeploySnodeMap));
+
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY);
+  HandleActions();
+  runners.clear();
+  EXPECT_TRUE(HeartbeatTriggerIds(0, &runners).empty());
+  EXPECT_EQ(std::vector<int64_t>{runnerId}, runners);
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RequestedCalcReadersUseOneScanWhileAnotherStreamCanBeQueried) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *owner = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, owner);
+  ASSERT_NE(nullptr, owner->triggerTask);
+  auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(owner->runners[0], 0));
+  ASSERT_NE(nullptr, runner);
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  SnodeLookupStubGuard snode;
+  auto                *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+
+  SStreamHbMsg hb = {};
+  hb.dnodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  ASSERT_NE(nullptr, task);
+  task->streamId = kStreamA;
+  task->taskId = runner->id.taskId;
+  task->nodeId = runner->id.nodeId;
+  task->seriousId = runner->id.seriousId;
+  task->type = STREAM_RUNNER_TASK;
+  task->status = STREAM_STATUS_RUNNING;
+  task->pMgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(nullptr, task->pMgmtReq);
+  task->pMgmtReq->type = STREAM_MGMT_REQ_RUNNER_ORIGTBL_READER;
+  const int32_t groups[][3] = {{21, 22, 21}, {22, 21, 22}};
+  task->pMgmtReq->cont.pReqs = taosArrayInit_s(sizeof(SStreamOReaderDeployReq), 2);
+  for (int i = 0; i < 2; ++i) {
+    auto *req = static_cast<SStreamOReaderDeployReq *>(taosArrayGet(task->pMgmtReq->cont.pReqs, i));
+    ASSERT_NE(nullptr, req);
+    req->uid = 42;
+    req->execId = 50 + i;
+    req->vgIds = taosArrayInit(3, sizeof(int32_t));
+    for (int32_t vg : groups[i]) ASSERT_NE(nullptr, taosArrayPush(req->vgIds, &vg));
+  }
+
+  SStreamMgmtReq *retry = nullptr;
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(task->pMgmtReq, &retry));
+  static std::vector<int32_t> prepared;
+  static bool                 retrying;
+  retrying = false;
+  prepared.clear();
+  stub_.set(
+      mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+        if (vg == 21 || vg == 22) {
+          prepared.push_back(vg);
+          if (retrying && prepared.size() == 1) PrivateBuildPause::Pause();
+        }
+        SEpSet ep = {};
+        ep.numOfEps = 1;
+        ep.eps[0].port = 6000 + vg;
+        return ep;
+      });
+
+  PrivateBuildPause       pause(false);
+  static std::atomic<int> lookups{0};
+  lookups.store(0);
+  stub_.set(
+      mstGetScanUidFromPlan, +[](int64_t, void *, int64_t *uid) -> int32_t {
+        if (lookups.fetch_add(1) == 0) PrivateBuildPause::Pause();
+        *uid = 42;
+        return 0;
+      });
+  int64_t     taskIds[2] = {};
+  auto        receive = [&] {
+    ReadHeartbeatDeploys(
+        hb, 0, [](const SStmStreamDeploy &) {}, retrying ? 102 : 101,
+        [&](const SMStreamHbRspMsg &decoded) {
+          ASSERT_EQ(1u, taosArrayGetSize(decoded.rsps.rspList));
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(decoded.rsps.rspList, 0));
+          ASSERT_EQ(0, reply->code);
+          ASSERT_EQ(2u, taosArrayGetSize(reply->cont.execRspList));
+          for (int i = 0; i < 2; ++i) {
+            auto *exec = static_cast<SStreamOReaderDeployRsp *>(taosArrayGet(reply->cont.execRspList, i));
+            EXPECT_EQ(50 + i, exec->execId);
+            ASSERT_EQ(3u, taosArrayGetSize(exec->vgList));
+            for (int j = 0; j < 3; ++j) {
+              auto   *addr = static_cast<SStreamTaskAddr *>(taosArrayGet(exec->vgList, j));
+              int32_t vg = groups[i][j];
+              EXPECT_EQ(vg, addr->nodeId);
+              EXPECT_EQ(1, addr->epset.numOfEps);
+              EXPECT_EQ(6000 + vg, addr->epset.eps[0].port);
+              if (!retrying && i == 0 && j < 2) taskIds[j] = addr->taskId;
+              EXPECT_EQ(taskIds[vg - 21], addr->taskId);
+            }
+          }
+        });
+  };
+  std::thread receiving(receive);
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  pause.Release();
+  receiving.join();
+  EXPECT_EQ(1, lookups.load());
+  EXPECT_EQ((std::vector<int32_t>{21, 22}), prepared);
+  EXPECT_NE(taskIds[0], taskIds[1]);
+
+  // Retry the same execution slots after both Readers have been published.
+  task->pMgmtReq = retry;
+  retrying = true;
+  prepared.clear();
+  PrivateBuildPause firstLookup(false);
+  std::thread       replaying(receive);
+  EXPECT_TRUE(firstLookup.Entered());
+  auto start = std::chrono::steady_clock::now();
+  firstLookup.Release();
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  EXPECT_LT(std::chrono::steady_clock::now() - start, std::chrono::seconds(5));
+  replaying.join();
+  EXPECT_EQ(1, lookups.load());
+  EXPECT_EQ((std::vector<int32_t>{21, 22}), prepared);
+  for (int32_t vg : {21, 22}) {
+    auto *queue = static_cast<SStmVgTasksToDeploy *>(taosHashGet(mStreamMgmt.toDeployVgMap, &vg, sizeof(vg)));
+    ASSERT_NE(nullptr, queue);
+    ASSERT_EQ(1u, taosArrayGetSize(queue->taskList));
+    auto *entry = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->taskList, 0));
+    EXPECT_EQ(taskIds[vg - 21], entry->deploy.task.taskId);
+    EXPECT_EQ(kStreamA, entry->deploy.task.streamId);
+    EXPECT_EQ(0, entry->deploy.task.taskIdx);
+    EXPECT_NE(nullptr, entry->deploy.msg.reader.msg.calc.calcScanPlan);
+  }
+  blockDataDestroy(block);
+  tCleanupStreamHbMsg(&hb, true);
+}
+
+#ifdef TD_ENTERPRISE
+TEST_F(MndStreamDeployOwnershipTest, WideDynamicExternalCreateAndPatchAllowOtherStreamStatusReads) {
+  Stream(kStreamA)->mainSnodeId = 1;
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *owner = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, owner);
+  ASSERT_NE(nullptr, owner->triggerTask);
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PauseExternalReaderSchema(stub_);
+  stub_.set(mndGetDnodeEpsetById, +[](SMnode *, int32_t) -> SEpSet { return {}; });
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  stub_.set(
+      extConnectorGetTableSchema, +[](SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **out) -> int32_t {
+        std::vector<SExtColumnDef> columns(129);
+        tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
+        tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
+        columns[0].isPrimaryKey = true;
+        for (size_t i = 1; i < columns.size(); ++i) {
+          snprintf(columns[i].colName, sizeof(columns[i].colName), "value_%d", (int)i);
+          tstrncpy(columns[i].extTypeName, "int", sizeof(columns[i].extTypeName));
+        }
+        SExtTableMeta meta = {};
+        meta.numOfCols = (int32_t)columns.size();
+        meta.pCols = columns.data();
+        *out = extConnectorCloneTableSchema(&meta);
+        return *out ? 0 : terrno;
+      });
+  stub_.set(
+      extFindColumnIndex, +[](EExtSourceType, const SExtTableMeta *meta, const char *name) -> int32_t {
+        if (strcmp(name, "value_32") == 0) PrivateBuildPause::Pause();
+        for (int i = 0; i < meta->numOfCols; ++i)
+          if (strcmp(meta->pCols[i].colName, name) == 0) return i;
+        return -1;
+      });
+  int64_t originalId = 0, requestId = 0;
+  auto   *source = mndAcquireExtSource(&mnode_, "remote");
+  for (int width : {64, 128, 96}) {
+    const bool        alterSourceDuringPatch = width == 96;
+    PrivateBuildPause pause(false);
+    SStreamHbMsg      hb = {};
+    hb.dnodeId = hb.snodeId = 1;
+    hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+    hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+    ASSERT_NE(nullptr, hb.pStreamStatus);
+    ASSERT_NE(nullptr, hb.pStreamReq);
+    auto &task = *static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+    ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(&task, kStreamA, owner->triggerTask->id));
+    task.status = STREAM_STATUS_RUNNING;
+    auto *req = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(task.pMgmtReq->cont.pExtOrigTblReaders, 0));
+    task.ackedSchemaReqId = requestId ? requestId : -1;
+    task.pMgmtReq->reqId = ++requestId;
+    req->registryEntryId = 77;
+    req->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+    tstrncpy(req->identity.sourceName, "remote", sizeof(req->identity.sourceName));
+    req->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+    req->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+    if (originalId) req->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+    req->bindings = taosArrayInit(width, sizeof(SStreamExtOrigTblReaderBinding));
+    ASSERT_NE(nullptr, req->bindings);
+    for (int i = 1; i <= width; ++i) {
+      SStreamExtOrigTblReaderBinding binding = {};
+      binding.kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+      binding.bindingId = i;
+      binding.expectedType = TSDB_DATA_TYPE_INT;
+      snprintf(binding.externalColumn, sizeof(binding.externalColumn), "value_%d", i);
+      ASSERT_NE(nullptr, taosArrayPush(req->bindings, &binding));
+    }
+    SStreamMgmtReq *retry = nullptr, *duplicate = nullptr;
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(task.pMgmtReq, &retry));
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(task.pMgmtReq, &duplicate));
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    auto skipDeploy = [](const SStmStreamDeploy &) {};
+    ReadHeartbeatDeploys(hb, 0, skipDeploy, 101, [](const SMStreamHbRspMsg &response) {
+      EXPECT_EQ(0u, taosArrayGetSize(response.rsps.rspList));
+    });
+    EXPECT_TRUE(pause.Entered());
+    // This heartbeat uses the same group worker while value_32 is still being bound.
+    SStreamHbMsg other = {};
+    other.dnodeId = 1;
+    ReadHeartbeatDeploys(other, 0, skipDeploy, 102);
+    EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+    if (alterSourceDuringPatch) ++source->metaVersion;
+    pause.Release();
+    msmCleanupSchemaWorker(&mnode_);
+    task.pMgmtReq = retry;
+    ReadHeartbeatDeploys(hb, 0, skipDeploy, 103, [&](const SMStreamHbRspMsg &response) {
+      auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+      ASSERT_NE(nullptr, reply);
+      auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+      ASSERT_NE(nullptr, result);
+      if (alterSourceDuringPatch) {
+        --source->metaVersion;
+        EXPECT_EQ(TSDB_CODE_EXT_SOURCE_CHANGED, result->code);
+        EXPECT_EQ(0u, taosArrayGetSize(result->results));
+        EXPECT_EQ(0, result->acceptedTriggerBindingCount);
+        EXPECT_EQ(0u, taosArrayGetSize(response.undeploy.taskList));
+        EXPECT_EQ(0u, taosArrayGetSize(response.deploy.streamList));
+        return;
+      }
+      ASSERT_EQ(0, result->code);
+      ASSERT_EQ(width, result->acceptedTriggerBindingCount);
+      ASSERT_EQ(width, taosArrayGetSize(result->results));
+      if (originalId) {
+        ASSERT_EQ(originalId, result->readerTaskAddr.taskId);
+        ASSERT_EQ(1u, taosArrayGetSize(response.undeploy.taskList));
+        auto *cleanup = static_cast<SStreamTaskUndeploy *>(taosArrayGet(response.undeploy.taskList, 0));
+        EXPECT_EQ(originalId, cleanup->task.taskId);
+        EXPECT_TRUE(cleanup->undeployMsg.doCleanup);
+      } else {
+        originalId = result->readerTaskAddr.taskId;
+        EXPECT_NE(0, originalId);
+        EXPECT_EQ(0u, taosArrayGetSize(response.undeploy.taskList));
+      }
+      ASSERT_EQ(1u, taosArrayGetSize(response.deploy.streamList));
+      auto *stream = static_cast<SStmStreamDeploy *>(taosArrayGet(response.deploy.streamList, 0));
+      ASSERT_EQ(1u, taosArrayGetSize(stream->readerTasks));
+      auto *entry = static_cast<SStmTaskDeploy *>(taosArrayGet(stream->readerTasks, 0));
+      ASSERT_EQ(originalId, entry->task.taskId);
+      auto *spec = entry->msg.reader.pExtSpec;
+      ASSERT_NE(nullptr, spec);
+      ASSERT_EQ(width + 1, spec->numColMappings);
+      for (int i = 1; i <= width; ++i) {
+        auto *binding = static_cast<SStreamExtOrigTblReaderResult *>(taosArrayGet(result->results, i - 1));
+        EXPECT_EQ(i, binding->binding.resultColumnSlot);
+        EXPECT_STREQ(binding->binding.externalColumn, spec->pColMappings[i].colName);
+      }
+    });
+    // The schema worker is stopped. A retransmission must still recover the same reply.
+    ASSERT_EQ(nullptr, task.pMgmtReq);
+    task.pMgmtReq = duplicate;
+    ReadHeartbeatDeploys(hb, 0, skipDeploy, 104, [&](const SMStreamHbRspMsg &response) {
+      ASSERT_EQ(1u, taosArrayGetSize(response.rsps.rspList));
+      auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+      ASSERT_EQ(requestId, reply->reqId);
+      auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+      ASSERT_NE(nullptr, result);
+      EXPECT_EQ(alterSourceDuringPatch ? TSDB_CODE_EXT_SOURCE_CHANGED : 0, result->code);
+      EXPECT_EQ(alterSourceDuringPatch ? 0 : width, result->acceptedTriggerBindingCount);
+      if (!alterSourceDuringPatch) EXPECT_EQ(originalId, result->readerTaskAddr.taskId);
+    });
+    EXPECT_NE(nullptr, owner->pendingSchema);
+    tFreeSStreamMgmtReq(task.pMgmtReq);
+    taosMemoryFreeClear(task.pMgmtReq);
+    taosArrayClear(hb.pStreamReq);
+    if (alterSourceDuringPatch) {
+      // This last result has been published and replayed but the trigger has not acknowledged it.
+      EXPECT_EQ(TSDB_CODE_GRANT_STREAM_EXPIRED, msmHandleGrantExpired(&mnode_, TSDB_CODE_GRANT_STREAM_EXPIRED));
+      EXPECT_TRUE(MST_IS_GRANT_STOPPED(owner->stopped));
+      EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+    } else {
+      task.ackedSchemaReqId = requestId;
+      ReadHeartbeatDeploys(hb, 0, skipDeploy, 105);
+    }
+    EXPECT_EQ(nullptr, owner->pendingSchema);
+    EXPECT_EQ(0, mnode_.streamSchemaBatchCount);
+    tCleanupStreamHbMsg(&hb, true);
+  }
+  blockDataDestroy(block);
+}
+
+extern "C" int32_t smUndeployTask(SStreamTaskUndeploy *undeploy, bool removeFromVgroup);
+
+TEST_F(MndStreamDeployOwnershipTest, LostCreateAndPatchRespectReceiverReplayCapability) {
+  UseHeartbeatClock();
+  Stream(kStreamA)->mainSnodeId = 1;
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *owner = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_TRUE(owner && owner->triggerTask);
+  SnodeLookupStubGuard snode;
+  PauseExternalReaderSchema(stub_);
+  stub_.set(mndGetDnodeEpsetById, +[](SMnode *, int32_t) -> SEpSet { return {}; });
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  static int fetches;
+  fetches = 0;
+  stub_.set(
+      extConnectorGetTableSchema, +[](SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **out) {
+        ++fetches;
+        SExtColumnDef col = {};
+        tstrncpy(col.colName, "ts", sizeof(col.colName));
+        tstrncpy(col.extTypeName, "timestamp", sizeof(col.extTypeName));
+        col.isPrimaryKey = true;
+        SExtTableMeta meta = {};
+        meta.numOfCols = 1;
+        meta.pCols = &col;
+        *out = extConnectorCloneTableSchema(&meta);
+        return *out ? 0 : terrno;
+      });
+  auto        skip = [](const SStmStreamDeploy &) {};
+  SStreamTask previous = {};
+  for (int64_t reqId : {1, 2, 3, 4}) {
+    bool         patch = reqId == 2 || reqId == 3;
+    bool         legacy = reqId >= 3;
+    SStreamHbMsg hb = {};
+    hb.dnodeId = hb.snodeId = 1;
+    hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+    hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+    auto *trigger = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+    ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger, kStreamA, owner->triggerTask->id));
+    trigger->status = STREAM_STATUS_RUNNING;
+    trigger->ackedSchemaReqId = legacy ? 0 : -1;
+    trigger->pMgmtReq->reqId = reqId;
+    auto *ext = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(trigger->pMgmtReq->cont.pExtOrigTblReaders, 0));
+    ext->registryEntryId = reqId == 4 ? 19 : 18;
+    ext->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+    ext->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+    if (!legacy) ext->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+    if (patch) ext->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+    SStreamMgmtReq *retry = nullptr, *duplicate = nullptr;
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger->pMgmtReq, &retry));
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger->pMgmtReq, &duplicate));
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    ReadHeartbeatDeploys(hb, 0, skip);
+    msmCleanupSchemaWorker(&mnode_);
+    SStreamTask         deployed = {};
+    SStreamTaskUndeploy retired = {};
+    for (auto *message : {retry, duplicate}) {
+      trigger->pMgmtReq = message;
+      if (legacy && message == duplicate) {
+        auto noActions = [](const SStmStreamDeploy &) { ADD_FAILURE() << "Late legacy replay deployed a Reader"; };
+        ReadHeartbeatDeploys(hb, 0, noActions, 111, [](const SMStreamHbRspMsg &rsp) {
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.rsps.rspList));
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.undeploy.taskList));
+        });
+        ReadHeartbeatDeploys(hb, 0, noActions, 110 + MST_ISOLATION_DURATION, [&](const SMStreamHbRspMsg &rsp) {
+          ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+          ASSERT_EQ(reqId, reply->reqId);
+          auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+          ASSERT_NE(nullptr, result);
+          EXPECT_EQ(TSDB_CODE_MND_STREAM_TASK_LOST, result->code);
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.undeploy.taskList));
+        });
+        deployed.status = STREAM_STATUS_RUNNING;
+        ASSERT_NE(nullptr, taosArrayPush(hb.pStreamStatus, &deployed));
+        trigger = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+        ReadHeartbeatDeploys(hb, 0, noActions, 111 + MST_ISOLATION_DURATION, [&](const SMStreamHbRspMsg &rsp) {
+          ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+          EXPECT_EQ(reqId, reply->reqId);
+          auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+          ASSERT_NE(nullptr, result);
+          EXPECT_EQ(0, result->code);
+          EXPECT_EQ(deployed.taskId, result->readerTaskAddr.taskId);
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.undeploy.taskList));
+        });
+        taosArrayPop(hb.pStreamStatus);
+        tFreeSStreamMgmtReq(trigger->pMgmtReq);
+        taosMemoryFreeClear(trigger->pMgmtReq);
+        continue;
+      }
+      ReadHeartbeatDeploys(
+          hb, 0,
+          [&](const SStmStreamDeploy &stream) {
+            ASSERT_EQ(1u, taosArrayGetSize(stream.readerTasks));
+            auto *reader = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, 0));
+            ASSERT_NE(nullptr, reader->msg.reader.pExtSpec);
+            EXPECT_STREQ("ts", reader->msg.reader.pExtSpec->tsColumn);
+            if (message == retry) deployed = reader->task;
+            EXPECT_EQ(deployed.taskId, reader->task.taskId);
+            EXPECT_EQ(deployed.seriousId, reader->task.seriousId);
+          },
+          110,
+          [&](const SMStreamHbRspMsg &response) {
+            ASSERT_EQ(1u, taosArrayGetSize(response.rsps.rspList));
+            auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+            ASSERT_EQ(reqId, reply->reqId);
+            auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+            ASSERT_NE(nullptr, result);
+            ASSERT_EQ(0, result->code);
+            EXPECT_EQ(patch ? 1u : 0u, taosArrayGetSize(response.undeploy.taskList));
+            if (patch) {
+              retired = *static_cast<SStreamTaskUndeploy *>(taosArrayGet(response.undeploy.taskList, 0));
+              EXPECT_TRUE(retired.undeployMsg.doCleanup);
+              EXPECT_EQ(previous.taskId, retired.task.taskId);
+              EXPECT_EQ(previous.seriousId, retired.task.seriousId);
+            }
+          });
+      // A retry consumes its prepared request. Replayed requests stay owned by the heartbeat.
+      if (trigger->pMgmtReq) {
+        tFreeSStreamMgmtReq(trigger->pMgmtReq);
+        taosMemoryFreeClear(trigger->pMgmtReq);
+      }
+    }
+    EXPECT_NE(0, deployed.taskId);
+    EXPECT_EQ(reqId, fetches);
+    if (patch) {
+      EXPECT_NE(previous.seriousId, deployed.seriousId);
+      EXPECT_EQ(!legacy, previous.taskId == deployed.taskId);
+      // Execute the actual snode cleanup with only the replacement installed.
+      static SStreamTask *installed;
+      installed = &deployed;
+      Stub receiver;
+      receiver.set(
+          taosHashAcquire, +[](SHashObj *, const void *key, size_t) -> void * {
+            return static_cast<const int64_t *>(key)[1] == installed->taskId ? &installed : nullptr;
+          });
+      receiver.set(taosHashRelease, +[](SHashObj *, void *) {});
+      EXPECT_EQ(0, smUndeployTask(&retired, true));
+      EXPECT_EQ(0, deployed.deployed);
+    }
+    taosArrayClear(hb.pStreamReq);
+    trigger->ackedSchemaReqId = legacy ? 0 : reqId;
+    if (legacy) {
+      // A previously built no-request report cannot acknowledge a legacy Reader deployment.
+      ReadHeartbeatDeploys(hb, 0, skip);
+      EXPECT_NE(nullptr, owner->pendingSchema);
+      deployed.status = STREAM_STATUS_RUNNING;
+      ASSERT_NE(nullptr, taosArrayPush(hb.pStreamStatus, &deployed));
+    }
+    ReadHeartbeatDeploys(hb, 0, skip);
+    EXPECT_EQ(nullptr, owner->pendingSchema);
+    EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+    previous = deployed;
+    tCleanupStreamHbMsg(&hb, true);
+  }
+}
+
+class MndStreamRemoteReaderTest : public MndStreamDeployOwnershipTest {
+ protected:
+  void SetUp() override {
+    ASSERT_NO_FATAL_FAILURE(MndStreamDeployOwnershipTest::SetUp());
+    UseHeartbeatClock();
+    triggerHb_.snodeId = triggerHb_.dnodeId = 1;
+    readerHb_.snodeId = readerHb_.dnodeId = 2;
+    SStmSnodeStatus snode = {};
+    int64_t         lastUp = 0;
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.snodeMap, &readerHb_.snodeId, sizeof(int32_t), &snode, sizeof(snode)));
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &readerHb_.dnodeId, sizeof(int32_t), &lastUp, sizeof(lastUp)));
+    Stream(kStreamA)->mainSnodeId = readerHb_.snodeId;
+    SNode *raw = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(raw, nodesDestroyNode);
+    auto                                               *subplan = reinterpret_cast<SSubplan *>(raw);
+    subplan->subplanType = SUBPLAN_TYPE_SCAN;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode **>(&subplan->pNode)));
+    reinterpret_cast<STableScanPhysiNode *>(subplan->pNode)->scan.uid = 42;
+    ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&Stream(kStreamA)->pCreate->triggerScanPlan),
+                                   nullptr));
+    QueueDeploy(kStreamA);
+    HandleActions();
+    owner_ = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+    ASSERT_TRUE(owner_ && owner_->triggerTask);
+    ASSERT_EQ(triggerHb_.snodeId, owner_->triggerTask->id.nodeId);
+
+    PauseExternalReaderSchema(stub_);
+    stub_.set(
+        mstIsStreamDropped, +[](SMnode *, int64_t, bool *dropped) -> int32_t {
+          *dropped = false;
+          return 0;
+        });
+    stub_.set(mndGetDnodeEpsetById, +[](SMnode *, int32_t) -> SEpSet { return {}; });
+    stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+    stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+    stub_.set(
+        extConnectorGetTableSchema, +[](SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **out) {
+          SExtColumnDef cols[2] = {};
+          tstrncpy(cols[0].colName, "ts", sizeof(cols[0].colName));
+          tstrncpy(cols[0].extTypeName, "timestamp", sizeof(cols[0].extTypeName));
+          cols[0].isPrimaryKey = true;
+          tstrncpy(cols[1].colName, "load", sizeof(cols[1].colName));
+          tstrncpy(cols[1].extTypeName, "int", sizeof(cols[1].extTypeName));
+          SExtTableMeta meta = {};
+          meta.numOfCols = 2;
+          meta.pCols = cols;
+          *out = extConnectorCloneTableSchema(&meta);
+          return *out ? 0 : terrno;
+        });
+
+    triggerHb_.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+    triggerHb_.pStreamReq = taosArrayInit(1, sizeof(int32_t));
+    readerHb_.pStreamStatus = taosArrayInit(1, sizeof(SStmTaskStatusMsg));
+    ASSERT_TRUE(triggerHb_.pStreamStatus && triggerHb_.pStreamReq && readerHb_.pStreamStatus);
+    trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  }
+
+  void TearDown() override {
+    tFreeSStreamMgmtReq(request_);
+    taosMemoryFree(request_);
+    tCleanupStreamHbMsg(&triggerHb_, true);
+    tCleanupStreamHbMsg(&readerHb_, true);
+    MndStreamDeployOwnershipTest::TearDown();
+  }
+
+  void PrepareRequest(bool guarded, bool patch = false) {
+    tFreeSStreamMgmtReq(request_);
+    taosMemoryFreeClear(request_);
+    ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, streamId_, owner_->triggerTask->id));
+    trigger_->status = STREAM_STATUS_RUNNING;
+    trigger_->ackedSchemaReqId = guarded ? (patch ? 1 : -1) : 0;
+    request_ = trigger_->pMgmtReq;
+    trigger_->pMgmtReq = nullptr;
+    request_->reqId = patch ? 2 : 1;
+    auto *req = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(request_->cont.pExtOrigTblReaders, 0));
+    if (guarded) req->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+    if (patch) {
+      req->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+      req->bindings = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderBinding), 1);
+      auto *binding = static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(req->bindings, 0));
+      ASSERT_NE(nullptr, binding);
+      binding->kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+      binding->bindingId = 17;
+      binding->expectedType = TSDB_DATA_TYPE_INT;
+      tstrncpy(binding->externalColumn, "load", sizeof(binding->externalColumn));
+    }
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    TriggerHeartbeat(true);
+    msmCleanupSchemaWorker(&mnode_);
+    EXPECT_FALSE(success_);
+  }
+
+  void Submit(bool guarded, bool patch = false) {
+    ASSERT_NO_FATAL_FAILURE(PrepareRequest(guarded, patch));
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));  // Publish the prepared result.
+  }
+
+  // Build a separate copy of the request so a second poll can arrive during response encoding.
+  void PollLocalReader(int64_t when, SStreamTask *install, int32_t encodeError = 0) {
+    *install = {};
+    std::unique_ptr<SArray, decltype(&taosArrayDestroy)> reports(taosArrayInit(1, sizeof(SStmTaskStatusMsg)),
+                                                                 taosArrayDestroy);
+    std::unique_ptr<SArray, decltype(&taosArrayDestroy)> requests(taosArrayInit_s(sizeof(int32_t), 1),
+                                                                  taosArrayDestroy);
+    ASSERT_TRUE(reports && requests);
+    SStreamHbMsg hb = triggerHb_;
+    hb.pStreamStatus = reports.get();
+    hb.pStreamReq = requests.get();
+    auto *status = static_cast<SStmTaskStatusMsg *>(taosArrayPush(hb.pStreamStatus, trigger_));
+    ASSERT_NE(nullptr, status);
+    status->pMgmtReq = nullptr;
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &status->pMgmtReq));
+    ReadHeartbeatDeploys(
+        hb, 0,
+        [&](const SStmStreamDeploy &s) {
+          ASSERT_EQ(1u, taosArrayGetSize(s.readerTasks));
+          *install = static_cast<SStmTaskDeploy *>(taosArrayGet(s.readerTasks, 0))->task;
+        },
+        when, {}, false, encodeError);
+    tFreeSStreamMgmtReq(status->pMgmtReq);
+    taosMemoryFree(status->pMgmtReq);
+  }
+
+  void TriggerHeartbeat(bool retry, int32_t expectedError = 0, const SStreamTask *secondReader = nullptr) {
+    success_ = false;
+    bool gotReply = false;
+    if (retry) {
+      int32_t idx = 0;
+      ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &idx));
+      ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+    }
+    ReadHeartbeatDeploys(
+        triggerHb_, 0, [](const SStmStreamDeploy &s) { EXPECT_EQ(0u, taosArrayGetSize(s.readerTasks)); }, now_++,
+        [&](const SMStreamHbRspMsg &rsp) {
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.undeploy.taskList));
+          size_t count = taosArrayGetSize(rsp.rsps.rspList);
+          if (!count) return;
+          ASSERT_TRUE(retry);
+          ASSERT_EQ(1u, count);
+          gotReply = true;
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+          EXPECT_EQ(request_->reqId, reply->reqId);
+          ASSERT_EQ(0, reply->code);
+          if (request_->type == STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER) {
+            success_ = true;
+            return;
+          }
+          auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+          ASSERT_NE(nullptr, ext);
+          ASSERT_EQ(expectedError, ext->code);
+          if (expectedError) return;
+          EXPECT_EQ(readerHb_.snodeId, ext->readerTaskAddr.nodeId);
+          replyTask_ = ext->readerTaskAddr.taskId;
+          if (secondReader) {
+            ASSERT_EQ(2u, taosArrayGetSize(reply->cont.pExtOrigTblReaders));
+            auto *second = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 1));
+            EXPECT_EQ(0, second->code);
+            EXPECT_EQ(secondReader->nodeId, second->readerTaskAddr.nodeId);
+            EXPECT_EQ(secondReader->taskId, second->readerTaskAddr.taskId);
+          }
+          if (request_->reqId == 2) {
+            ASSERT_EQ(1u, taosArrayGetSize(ext->results));
+            auto *result = static_cast<SStreamExtOrigTblReaderResult *>(taosArrayGet(ext->results, 0));
+            EXPECT_EQ(17, result->binding.bindingId);
+            EXPECT_EQ(1, result->binding.resultColumnSlot);
+          }
+          success_ = true;
+        });
+    tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+    taosMemoryFreeClear(trigger_->pMgmtReq);
+    taosArrayClear(triggerHb_.pStreamReq);
+    if (expectedError) EXPECT_TRUE(gotReply);
+  }
+
+  struct Receiver {
+    int64_t       triggerKey[2];
+    SStreamHbInfo savedHeartbeat = {};
+    bool          enabled = gStreamMgmt.snodeEnabled;
+    Receiver(int64_t streamId, int64_t taskId) : triggerKey{streamId, taskId} {
+      std::swap(savedHeartbeat, gStreamMgmt.hb);
+      streamHbResetReaderRole(&gStreamMgmt.hb, true);
+      gStreamMgmt.taskMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+      gStreamMgmt.vgroupMap = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
+      taosHashSetFreeFp(
+          gStreamMgmt.vgroupMap, +[](void *p) { taosArrayDestroy(static_cast<SStreamVgReaderTasks *>(p)->taskList); });
+    }
+    ~Receiver() {
+      (void)taosHashRemove(gStreamMgmt.taskMap, triggerKey, sizeof(triggerKey));
+      smUndeployAllTasks();
+      taosHashCleanup(gStreamMgmt.taskMap);
+      taosHashCleanup(gStreamMgmt.vgroupMap);
+      taosHashCleanup(gStreamMgmt.stmGrp[STREAM_GID(triggerKey[0])]);
+      gStreamMgmt.taskMap = gStreamMgmt.vgroupMap = gStreamMgmt.stmGrp[STREAM_GID(triggerKey[0])] = nullptr;
+      streamHbResetReaderRole(&gStreamMgmt.hb, false);
+      std::swap(savedHeartbeat, gStreamMgmt.hb);
+      gStreamMgmt.snodeEnabled = enabled;
+    }
+  };
+
+  void ReaderHeartbeat(const SStreamTask *installed = nullptr, EStreamStatus state = STREAM_STATUS_RUNNING) {
+    if (deliverReader_) ASSERT_EQ(0, streamHbIssueReaderPoll(&gStreamMgmt.hb, now_, &readerHb_));
+    taosArrayClear(readerHb_.pStreamStatus);
+    if (installed) {
+      auto *status = static_cast<SStmTaskStatusMsg *>(taosArrayPush(readerHb_.pStreamStatus, installed));
+      ASSERT_NE(nullptr, status);
+      status->status = state;
+      if (state == STREAM_STATUS_FAILED) status->errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+    }
+    deployment_ = {};
+    cleanups_.clear();
+    ReadHeartbeatDeploys(
+        readerHb_, 0,
+        [&](const SStmStreamDeploy &s) {
+          ASSERT_EQ(1u, taosArrayGetSize(s.readerTasks));
+          auto *reader = static_cast<SStmTaskDeploy *>(taosArrayGet(s.readerTasks, 0));
+          EXPECT_EQ(0, deployment_.taskId);
+          deployment_ = reader->task;
+          EXPECT_EQ(readerHb_.readerDeployEpoch != 0, (deployment_.flags & STREAM_FLAG_REMOTE_READER_DEPLOY) != 0);
+          EXPECT_EQ(streamId_, deployment_.streamId);
+          EXPECT_EQ(readerHb_.snodeId, deployment_.nodeId);
+          auto *spec = reader->msg.reader.pExtSpec;
+          ASSERT_NE(nullptr, spec);
+          EXPECT_STREQ("ts", spec->tsColumn);
+          if (request_->reqId == 2) {
+            ASSERT_EQ(2, spec->numColMappings);
+            EXPECT_STREQ("load", spec->pColMappings[1].colName);
+          } else {
+            EXPECT_EQ(1, spec->numColMappings);
+          }
+        },
+        now_++,
+        [&](const SMStreamHbRspMsg &rsp) {
+          EXPECT_EQ(0u, taosArrayGetSize(rsp.rsps.rspList));
+          if (readerHb_.readerRuntime.id) {
+            EXPECT_EQ(readerHb_.readerRuntime.id, rsp.readerRuntime.id);
+            readerHb_.readerRuntime.challenge = rsp.readerRuntime.challenge;
+          }
+          if (taosArrayGetSize(rsp.deploy.streamList)) EXPECT_EQ(readerHb_.readerDeployEpoch, rsp.readerDeployEpoch);
+          for (size_t i = 0; i < taosArrayGetSize(rsp.undeploy.taskList); ++i) {
+            cleanups_.push_back(*static_cast<SStreamTaskUndeploy *>(taosArrayGet(rsp.undeploy.taskList, i)));
+          }
+        },
+        deliverReader_);
+  }
+
+  void CheckReaderHealth() {
+    Stub health;
+    health.set(sdbGetSize, +[](SSdb *, ESdbType) -> int32_t { return 1; });
+    health.set(mstEventPassIsolation, +[](int32_t, int32_t) { return false; });  // No catalog sweep is due.
+    health.set(taosClockGetTime, returnRecalcClock);
+    gRecalcNowMs = now_;
+    const auto saved = mStreamMgmt.hCtx;
+    mStreamMgmt.hCtx.slotIdx = readerHb_.snodeId % MND_STREAM_ISOLATION_PERIOD_NUM - 1;
+    msmHealthCheck(&mnode_);
+    EXPECT_EQ(now_, mStreamMgmt.hCtx.currentTs);
+    mStreamMgmt.hCtx = saved;
+  }
+
+  void CheckReplacementTimeout(bool dispatch) {
+    readerHb_.readerDeployEpoch = 17;
+    ASSERT_NO_FATAL_FAILURE(Submit(true));
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+    const auto original = deployment_;
+    ASSERT_NE(0, original.taskId);
+    const auto lastReport = now_;
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&original, STREAM_STATUS_FAILED));
+    int64_t key[] = {streamId_, original.taskId};
+    auto  **live = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, key, sizeof(key)));
+    ASSERT_NE(nullptr, live);
+
+    now_ += MST_ISOLATION_DURATION;
+    const auto queued = now_;
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    readerHb_.readerDeployEpoch = 0;
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+    ASSERT_EQ(0, deployment_.taskId);
+    CheckReaderHealth();  // The old report is stale, but the replacement has just been queued.
+    ASSERT_EQ(0u, actionQueue_.qRemainNum);
+
+    now_ = queued + MST_ISOLATION_DURATION - 4;
+    if (dispatch) readerHb_.readerDeployEpoch = 18;
+    const auto deadline = (dispatch ? now_ : queued) + MST_ISOLATION_DURATION;
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+    ASSERT_EQ(dispatch ? original.taskId : 0, deployment_.taskId);
+    const auto replacement = (*live)->id.seriousId;
+    ASSERT_NE(original.seriousId, replacement);
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+
+    now_ = deadline - 2;
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());  // A poll just before expiry keeps the node online.
+    if (dispatch) ASSERT_EQ(replacement, deployment_.seriousId);
+    CheckReaderHealth();
+    ASSERT_EQ(0u, actionQueue_.qRemainNum);
+    EXPECT_EQ(lastReport, (*live)->lastUpTs);
+    now_ = deadline;
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+    now_ = deadline;
+    CheckReaderHealth();
+    ASSERT_EQ(1u, actionQueue_.qRemainNum);
+    EXPECT_NE(replacement, (*live)->id.seriousId);
+    HandleActions();
+    EXPECT_EQ(1, owner_->stopped);
+    EXPECT_EQ(TSDB_CODE_MND_STREAM_TASK_LOST, owner_->fatalError);
+  }
+
+  void CheckReleased() {
+    EXPECT_EQ(nullptr, owner_->pendingSchema);
+    EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+    EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+  }
+
+  void CheckLegacyCreate(bool dropReply, int64_t *reservation = nullptr) {
+    ASSERT_NO_FATAL_FAILURE(Submit(false));
+    const bool firstSuccess = success_;
+    const auto batchBytes = atomic_load_64(&mnode_.streamSchemaBatchBytes);
+    ASSERT_GT(batchBytes, 0);
+    if (reservation) *reservation = batchBytes;
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+    SStreamTask installed = deployment_;
+    ASSERT_NE(0, installed.taskId);
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+    EXPECT_EQ(0, deployment_.taskId);  // A legacy Reader must never receive a second deployment.
+    if (!firstSuccess) {
+      ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+      ASSERT_TRUE(success_);
+    }
+    if (dropReply) {
+      // Lose the first success to the Trigger while the Reader keeps reporting on its own node.
+      now_ += MST_ISOLATION_DURATION;
+      ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+      ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+      ASSERT_TRUE(success_);
+    }
+    EXPECT_EQ(installed.taskId, replyTask_);
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+    EXPECT_EQ(nullptr, owner_->pendingSchema);
+    EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+    EXPECT_LT(atomic_load_64(&mnode_.streamSchemaBatchBytes), batchBytes);
+    // An idle legacy report can have been built before publication and arrive out of order.
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_TRUE(success_);
+    EXPECT_EQ(installed.taskId, replyTask_);
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+    EXPECT_EQ(0, deployment_.taskId);
+  }
+
+  void AdvanceLegacyRequest() {
+    int64_t next = request_->reqId + 1;
+    tFreeSStreamMgmtReq(request_);
+    *request_ = {};
+    request_->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+    request_->reqId = next;
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_TRUE(success_);
+    CheckReleased();
+  }
+
+  SnodeLookupStubGuard             snode_;
+  SStmStatus                      *owner_ = nullptr;
+  int64_t                          streamId_ = kStreamA;
+  SStreamHbMsg                     readerHb_ = {}, triggerHb_ = {};
+  SStmTaskStatusMsg               *trigger_ = nullptr;
+  SStreamMgmtReq                  *request_ = nullptr;
+  int64_t                          now_ = 100, replyTask_ = 0;
+  bool                             success_ = false, deliverReader_ = false;
+  SStreamTask                      deployment_ = {};
+  std::vector<SStreamTaskUndeploy> cleanups_;
+};
+
+TEST_F(MndStreamRemoteReaderTest, OtherGroupCannotDrainColocatedReaderFromGuardedSuccess) {
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  triggerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  trigger_->pMgmtReq->reqId = 1;
+  auto *entry = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(trigger_->pMgmtReq->cont.pExtOrigTblReaders, 0));
+  entry->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger_->pMgmtReq, &request_));
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(triggerHb_, 0, skip);
+  msmCleanupSchemaWorker(&mnode_);
+
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *other = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(other && other->triggerTask);
+  SStmTaskStatusMsg second = {};
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(&second, kStreamB, other->triggerTask->id));
+  second.status = STREAM_STATUS_RUNNING;
+  second.pMgmtReq->reqId = 2;
+  tFreeSStreamMgmtReq(second.pMgmtReq);
+  second.pMgmtReq->cont = {};
+  second.pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+  second.pMgmtReq->cont.pReqs = taosArrayInit_s(sizeof(SStreamDbTableName), 1);
+  ASSERT_NE(nullptr, second.pMgmtReq->cont.pReqs);
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &second));
+  index = 1;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+
+  static std::function<void()> pollOtherGroup;
+  bool                         polled = false;
+  pollOtherGroup = [&] {
+    SStreamHbMsg hb = {};
+    hb.snodeId = hb.dnodeId = triggerHb_.snodeId;
+    hb.streamGId = 1;
+    hb.readerDeployEpoch = 19;
+    ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &stream) {
+      EXPECT_EQ(0u, taosArrayGetSize(stream.readerTasks));
+    });  // Drop this group's decoded reply.
+    polled = true;
+  };
+  stub_.set(
+      mstBuildDBVgroupsMap, +[](SMnode *, SSHashObj **) -> int32_t {
+        pollOtherGroup();
+        return TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
+      });
+  int64_t installed = 0, returned = 0;
+  ReadHeartbeatDeploys(
+      triggerHb_, 0,
+      [&](const SStmStreamDeploy &stream) {
+        if (stream.streamId != kStreamA) return;
+        ASSERT_EQ(1u, taosArrayGetSize(stream.readerTasks));
+        const auto &task = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, 0))->task;
+        EXPECT_NE(0, task.flags & STREAM_FLAG_REMOTE_READER_DEPLOY);
+        installed = task.taskId;
+      },
+      now_++,
+      [&](const SMStreamHbRspMsg &rsp) {
+        ASSERT_EQ(2u, taosArrayGetSize(rsp.rsps.rspList));
+        auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+        auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+        ASSERT_NE(nullptr, ext);
+        ASSERT_EQ(0, ext->code);
+        returned = ext->readerTaskAddr.taskId;
+      });
+  pollOtherGroup = {};
+  EXPECT_TRUE(polled);
+  EXPECT_NE(0, installed);
+  EXPECT_EQ(installed, returned);
+}
+
+TEST_F(MndStreamRemoteReaderTest, ConsecutiveLocalPatchesInstallFinalInstanceOnFirstDeliveryAndReplay) {
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  ASSERT_EQ(nullptr, gStreamMgmt.taskMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.vgroupMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.stmGrp[STREAM_GID(kStreamA)]);
+  SStreamTask receiverTrigger = {};
+  Receiver    receiver(kStreamA, owner_->triggerTask->id.taskId);
+  receiverTrigger.type = STREAM_TRIGGER_TASK;
+  receiverTrigger.streamId = kStreamA;
+  receiverTrigger.taskId = owner_->triggerTask->id.taskId;
+  receiverTrigger.seriousId = owner_->triggerTask->id.seriousId;
+  SStreamTask *ptr = &receiverTrigger;
+  ASSERT_EQ(0, taosHashPut(gStreamMgmt.taskMap, receiver.triggerKey, sizeof(receiver.triggerKey), &ptr, sizeof(ptr)));
+  // Keep the Trigger request pending to simulate loss of its first acknowledgement.
+  stub_.set(smHandleMgmtRsp, +[](SStreamMgmtRsps *) -> int32_t { return 0; });
+  static int  opens, closes;
+  static bool receiving;
+  opens = closes = 0;
+  receiving = false;
+  stub_.set(
+      extConnectorOpen, +[](const SExtSourceCfg *, SExtConnectorHandle **handle) -> int32_t {
+        if (receiving) ++opens;
+        *handle = reinterpret_cast<SExtConnectorHandle *>(&opens);
+        return 0;
+      });
+  stub_.set(
+      extConnectorClose, +[](SExtConnectorHandle *) {
+        if (receiving) ++closes;
+      });
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  SStreamTask installed = {};
+  for (int64_t id : {1, 2}) {
+    ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+    trigger_->ackedSchemaReqId = id == 1 ? -1 : 1;
+    trigger_->status = STREAM_STATUS_RUNNING;
+    trigger_->pMgmtReq->reqId = id;
+    auto *tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+    auto *item = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+    item->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+    if (id == 2) {
+      item->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+      SStreamExtOrigTblReaderReq last = *item;
+      last.bindings = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderBinding), 1);
+      auto *binding = static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(last.bindings, 0));
+      ASSERT_NE(nullptr, binding);
+      binding->kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+      binding->bindingId = 17;
+      binding->expectedType = TSDB_DATA_TYPE_INT;
+      tstrncpy(binding->externalColumn, "load", sizeof(binding->externalColumn));
+      ASSERT_NE(nullptr, taosArrayPush(tables, &last));
+    }
+    tFreeSStreamMgmtReq(request_);
+    taosMemoryFreeClear(request_);
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger_->pMgmtReq, &request_));
+    receiverTrigger.pMgmtReq = request_;
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    auto skip = [](const SStmStreamDeploy &) {};
+    ReadHeartbeatDeploys(triggerHb_, 0, skip);
+    msmCleanupSchemaWorker(&mnode_);
+    const auto original = installed;
+    for (int delivery = 0; delivery < id; ++delivery) {
+      ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+      receiving = true;
+      ReadHeartbeatDeploys(
+          triggerHb_, 0,
+          [&](const SStmStreamDeploy &stream) {
+            ASSERT_EQ(1u, taosArrayGetSize(stream.readerTasks));
+            auto *reader = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, 0));
+            ASSERT_NE(nullptr, reader->msg.reader.pExtSpec);
+            EXPECT_EQ(id, reader->msg.reader.pExtSpec->numColMappings);
+            if (delivery) EXPECT_EQ(installed.seriousId, reader->task.seriousId);
+            installed = reader->task;
+          },
+          now_++,
+          [&](const SMStreamHbRspMsg &rsp) {
+            ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+            ASSERT_EQ(1u, taosArrayGetSize(rsp.deploy.streamList));
+            ASSERT_EQ(id - 1, taosArrayGetSize(rsp.undeploy.taskList));
+            if (id == 2) {
+              auto *cleanup = static_cast<SStreamTaskUndeploy *>(taosArrayGet(rsp.undeploy.taskList, 0));
+              EXPECT_EQ(original.taskId, cleanup->task.taskId);
+              EXPECT_EQ(original.seriousId, cleanup->task.seriousId);
+            }
+          },
+          true);
+      receiving = false;
+      if (id == 2) {
+        EXPECT_EQ(original.taskId, installed.taskId);
+        EXPECT_NE(original.seriousId, installed.seriousId);
+      }
+      const int64_t key[] = {kStreamA, installed.taskId};
+      auto        **live = static_cast<SStreamTask **>(taosHashGet(gStreamMgmt.taskMap, key, sizeof(key)));
+      ASSERT_NE(nullptr, live);
+      EXPECT_EQ(installed.seriousId, (*live)->seriousId);
+      EXPECT_EQ(id, opens);
+      EXPECT_EQ(id - 1, closes);
+      tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+      taosMemoryFreeClear(trigger_->pMgmtReq);
+    }
+  }
+}
+
+TEST_F(MndStreamRemoteReaderTest, BulkPublishReusesFirstRegistrySlotAcrossBlocksAndCleanup) {
+  constexpr int existing = MST_ORIGINAL_READER_LIST_SIZE, creates = 16;
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  ASSERT_EQ(0u, taosArrayGetSize(owner_->trigOReaders));
+  if (!owner_->trigOReaders) owner_->trigOReaders = taosArrayInit(1, sizeof(SArray *));
+  auto *block = taosArrayInit_s(sizeof(SStmTaskStatus), existing);
+  ASSERT_NE(nullptr, block);
+  ASSERT_NE(nullptr, taosArrayPush(owner_->trigOReaders, &block));
+  // Two retired external slots share a registry ID. An internal slot with the same UID precedes both.
+  for (int i : {0, 1, existing - 1}) {
+    auto *slot = static_cast<SStmTaskStatus *>(taosArrayGet(block, i));
+    slot->type = STREAM_READER_TASK;
+    slot->id.uid = 1;
+    slot->id.taskId = -(i + 1);
+    if (i) {
+      slot->flags = STREAM_FLAG_REF_EXT_SOURCE;
+      slot->extReaderCleaned = 1;
+    }
+  }
+
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *peer = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(peer && peer->triggerTask);
+  auto *statusBlock = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, statusBlock);
+  SStreamHbMsg peerHb = {};
+  peerHb.dnodeId = peerHb.snodeId = peer->triggerTask->id.nodeId;
+  peerHb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  auto *report = static_cast<SStmTaskStatusMsg *>(taosArrayGet(peerHb.pStreamStatus, 0));
+  ASSERT_NE(nullptr, report);
+  report->type = STREAM_TRIGGER_TASK;
+  report->streamId = kStreamB;
+  report->taskId = peer->triggerTask->id.taskId;
+  report->seriousId = peer->triggerTask->id.seriousId;
+  report->nodeId = peerHb.snodeId;
+  report->status = STREAM_STATUS_RUNNING;
+
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  trigger_->pMgmtReq->reqId = 1;
+  auto      *tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+  auto       table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  const auto create = table.capabilities;
+  for (int i = 2; i <= creates + 1; ++i) {
+    table.registryEntryId = i;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  table.capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));  // PATCH the last CREATE in the new block.
+  table.registryEntryId = 1;
+  table.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  table.capabilities = create;
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));  // Recreate the cleaned Reader in its original slot.
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger_->pMgmtReq, &request_));
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(triggerHb_, 0, skip);
+  msmCleanupSchemaWorker(&mnode_);
+
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  static int               slotReads;
+  static thread_local bool publishing;
+  static std::atomic<int>  waiting;
+  slotReads = 0;
+  waiting.store(0);
+  PrivateBuildPause pause(false);
+  Stub              count;
+  count.set(
+      mstWaitLock, +[](SRWLatch *lock, bool read) -> bool {
+        if (read) {
+          if (lock == &mStreamMgmt.actionQLock && !publishing) ++waiting;
+          taosRLockLatch(lock);
+        } else {
+          taosWWaitLockLatch(lock);
+        }
+        return true;
+      });
+  count.set(
+      taosArrayGet, +[](const SArray *array, size_t i) -> void * {
+        if (!array || i >= array->size) return nullptr;
+        if (publishing && array->elemSize == sizeof(SStmTaskStatus) && ++slotReads == existing / 2)
+          PrivateBuildPause::Pause();
+        return TARRAY_GET_ELEM(array, i);
+      });
+  int64_t     recreated = 0;
+  std::thread publisher([&] {
+    publishing = true;
+    ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+      ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+      auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+      auto *results = reply->cont.pExtOrigTblReaders;
+      ASSERT_EQ(creates + 4, taosArrayGetSize(results));
+      auto result = [&](int i) { return static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(results, i)); };
+      EXPECT_EQ(TSDB_CODE_MND_STREAM_TASK_LOST, result(0)->code);
+      for (int i = 1; i < creates + 4; ++i) EXPECT_EQ(0, result(i)->code);
+      EXPECT_EQ(result(creates)->readerTaskAddr.taskId, result(creates + 1)->readerTaskAddr.taskId);
+      recreated = result(creates + 3)->readerTaskAddr.taskId;
+      EXPECT_NE(0, recreated);
+      EXPECT_NE(result(creates + 2)->readerTaskAddr.taskId, recreated);
+    });
+  });
+  EXPECT_TRUE(pause.Entered());
+  std::thread query([&] { EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), statusBlock, 0, 0)); });
+  // Use a private heartbeat context. The fixture's RPC wrapper temporarily swaps the shared thread context.
+  std::thread heartbeat([&] {
+    SMStreamHbRspMsg reply = {};
+    SStmGrpCtx       ctx = {};
+    ctx.currTs = 123;
+    ctx.pMnode = &mnode_;
+    ctx.pReq = &peerHb;
+    ctx.pRsp = &reply;
+    bool deferred = false;
+    taosRLockLatch(&mStreamMgmt.runtimeLock);
+    EXPECT_EQ(0, msmNormalHandleHbMsgImpl(&ctx, &deferred, nullptr));
+    taosRUnLockLatch(&mStreamMgmt.runtimeLock);
+    tFreeSMStreamHbRspMsg(&reply);
+  });
+  const auto  deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (waiting.load() < 2 && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+  EXPECT_EQ(2, waiting.load());
+  pause.Release();
+  publisher.join();
+  query.join();
+  heartbeat.join();
+  EXPECT_EQ(123, peer->triggerTask->lastUpTs);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, peer->triggerTask->status);
+  blockDataDestroy(statusBlock);
+  tCleanupStreamHbMsg(&peerHb, true);
+  count.reset(taosArrayGet);
+  RecordProperty("nonempty_publish_registry_slot_reads", slotReads);
+  EXPECT_LE(slotReads, existing);
+  EXPECT_EQ(2u, taosArrayGetSize(owner_->trigOReaders));
+  EXPECT_EQ(existing + creates, msmGetTrigOReaderSize(owner_->trigOReaders));
+  EXPECT_EQ(-1, static_cast<SStmTaskStatus *>(taosArrayGet(block, 0))->id.taskId);
+  EXPECT_EQ(recreated, static_cast<SStmTaskStatus *>(taosArrayGet(block, 1))->id.taskId);
+  EXPECT_EQ(-existing, static_cast<SStmTaskStatus *>(taosArrayGet(block, existing - 1))->id.taskId);
+}
+
+TEST_F(MndStreamRemoteReaderTest, BulkPatchAndRetirementUseExactReaderInstances) {
+  constexpr int readers = 32;
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;  // PATCH keeps the taskId and replaces its incarnation.
+  trigger_->pMgmtReq->reqId = 1;
+  auto *tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+  auto  table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  for (int id = 2; id <= readers; ++id) {
+    table.registryEntryId = id;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  table.capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  for (int id = readers; id >= 1; --id) {
+    table.registryEntryId = id;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger_->pMgmtReq, &request_));
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  auto                   skip = [](const SStmStreamDeploy &) {};
+  static const SArray   *schemas;
+  static std::thread::id heartbeatThread;
+  schemas = nullptr;
+  heartbeatThread = std::this_thread::get_id();
+  {
+    Stub capture;
+    capture.set(
+        taosArrayInit_s, +[](size_t elem, size_t size) -> SArray * {
+          auto *array = taosArrayInit(size, elem);
+          if (array) array->size = size;
+          if (size == 2 * readers && std::this_thread::get_id() != heartbeatThread) schemas = array;
+          return array;
+        });
+    ReadHeartbeatDeploys(triggerHb_, 0, skip);
+    msmCleanupSchemaWorker(&mnode_);
+  }
+  ASSERT_NE(nullptr, schemas);
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+
+  static int           batchReads, slotReads;
+  static SStmStatus   *countedOwner;
+  static const SArray *slots;
+  batchReads = slotReads = 0;
+  slots = nullptr;
+  countedOwner = owner_;
+  Stub           count;
+  static int64_t incarnation;
+  incarnation = 0;
+  count.set(msmAssignTaskSeriousId, +[]() -> int64_t { return ++incarnation; });
+  count.set(
+      taosArrayGet, +[](const SArray *array, size_t i) -> void * {
+        if (!array || i >= array->size) return nullptr;
+        if (array == schemas) ++batchReads;
+        // The first publication creates the slot block. Reading its pointer directly
+        // avoids adding instrumented array reads to the measured path.
+        if (!slots && countedOwner->trigOReaders && countedOwner->trigOReaders->size) {
+          slots = *static_cast<SArray **>(TARRAY_GET_ELEM(countedOwner->trigOReaders, 0));
+        }
+        if (array == slots) ++slotReads;
+        return TARRAY_GET_ELEM(array, i);
+      });
+  std::vector<SStreamTask> deploys;
+  ReadHeartbeatDeploys(triggerHb_, 0, [&](const SStmStreamDeploy &s) {
+    for (size_t i = 0; i < taosArrayGetSize(s.readerTasks); ++i)
+      deploys.push_back(static_cast<SStmTaskDeploy *>(taosArrayGet(s.readerTasks, i))->task);
+  });
+  ASSERT_EQ(readers, deploys.size());
+  ASSERT_EQ(1u, taosArrayGetSize(owner_->trigOReaders));
+  RecordProperty("first_patch_registry_slot_reads", slotReads);
+  // Only slots present at the start of publication need to be visited.
+  EXPECT_EQ(slots, taosArrayGetP(owner_->trigOReaders, 0));
+  EXPECT_LE(slotReads, readers);
+  RecordProperty("first_patch_batch_reads", batchReads);
+  EXPECT_LE(batchReads, 4 * 2 * readers);
+  schemas = nullptr;
+
+  auto *reports = triggerHb_.pStreamStatus;
+  ASSERT_EQ(0, taosArrayEnsureCap(reports, readers + 4));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(reports, 0));
+  for (int i = 0; i < readers; ++i) {
+    auto &replacement = deploys[readers - 1 - i];
+    replacement.status = STREAM_STATUS_RUNNING;
+    auto reported = replacement;
+    if (i == 0) --reported.seriousId;
+    ASSERT_NE(nullptr, taosArrayPush(reports, &reported));
+  }
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++,
+                       [](const SMStreamHbRspMsg &rsp) { EXPECT_EQ(0u, taosArrayGetSize(rsp.rsps.rspList)); });
+  *static_cast<SStreamTask *>(taosArrayGet(reports, 1)) = deploys.back();
+  ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+    ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+    auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+    EXPECT_EQ(2 * readers, taosArrayGetSize(reply->cont.pExtOrigTblReaders));
+  });
+  tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+  taosMemoryFreeClear(trigger_->pMgmtReq);
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->ackedSchemaReqId = 1;
+  trigger_->pMgmtReq->reqId = 2;
+  tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+  table.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  taosArrayClear(tables);
+  for (int id = 1; id <= readers; ++id) {
+    table.registryEntryId = id;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  taosArrayPopTailBatch(reports, readers);
+  slotReads = 0;
+  ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+    ASSERT_EQ(readers, taosArrayGetSize(rsp.undeploy.taskList));
+  });
+  RecordProperty("cleanup_registry_slot_reads", slotReads);
+  EXPECT_LE(slotReads, readers);
+  ASSERT_EQ(readers, taosHashGetSize(owner_->retiredExtReaders));
+  slots = static_cast<const SArray *>(taosArrayGetP(owner_->trigOReaders, 0));
+  ASSERT_NE(nullptr, slots);
+  taosArrayClear(triggerHb_.pStreamReq);
+  for (auto &task : deploys) ASSERT_NE(nullptr, taosArrayPush(reports, &task));
+  auto wrongNode = deploys.back();
+  ++wrongNode.nodeId;
+  ASSERT_NE(nullptr, taosArrayPush(reports, &wrongNode));
+  auto stale = deploys.front();
+  --stale.seriousId;
+  ASSERT_NE(nullptr, taosArrayPush(reports, &stale));
+  auto otherStream = deploys.back();
+  otherStream.streamId = kStreamB;
+  ASSERT_NE(nullptr, taosArrayPush(reports, &otherStream));
+  for (int retry = 0; retry < 2; ++retry) {
+    slotReads = 0;
+    ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+      ASSERT_GE(taosArrayGetSize(rsp.undeploy.taskList), readers);
+      std::vector<int64_t> detached;
+      for (size_t i = 0; i < taosArrayGetSize(rsp.undeploy.taskList); ++i) {
+        auto *entry = static_cast<SStreamTaskUndeploy *>(taosArrayGet(rsp.undeploy.taskList, i));
+        if (entry->undeployMsg.doCleanup) {
+          EXPECT_FALSE(entry->undeployMsg.doCheckpoint);
+          EXPECT_EQ(kStreamA, entry->task.streamId);
+          EXPECT_EQ(triggerHb_.snodeId, entry->task.nodeId);
+          detached.push_back(entry->task.seriousId);
+        }
+      }
+      ASSERT_EQ(readers, detached.size());
+      for (int i = 0; i < readers; ++i) EXPECT_EQ(deploys[i].seriousId, detached[i]);
+    });
+    RecordProperty("retired_heartbeat_slot_reads", slotReads);
+    EXPECT_EQ(0, slotReads);
+  }
+}
+
+TEST_F(MndStreamRemoteReaderTest, CoLocatedLegacyBatchConfirmsInLinearTimeAndAllowsOtherStreamWork) {
+  constexpr int readers = 32;
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->pMgmtReq->reqId = 1;
+  auto *tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+  auto  table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  for (int i = 1; i < readers; ++i) {
+    table.registryEntryId = i + 1;
+    snprintf(table.identity.tableName, sizeof(table.identity.tableName), "cpu_%d", i);
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(trigger_->pMgmtReq, &request_));
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(triggerHb_, 0, skip);
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  std::vector<SStreamTask> deployed;
+  ReadHeartbeatDeploys(triggerHb_, 0, [&](const SStmStreamDeploy &stream) {
+    for (size_t i = 0; i < taosArrayGetSize(stream.readerTasks); ++i) {
+      const auto *entry = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, i));
+      deployed.push_back(entry->task);
+    }
+  });
+  ASSERT_EQ(readers, deployed.size());
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  auto *reports = triggerHb_.pStreamStatus;
+  ASSERT_EQ(0, taosArrayEnsureCap(reports, readers + 8));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(reports, 0));
+  taosArrayClear(triggerHb_.pStreamReq);
+  for (int i = readers - 1; i > 0; --i) {
+    deployed[i].status = i % 2 ? STREAM_STATUS_RUNNING : STREAM_STATUS_INIT;
+    ASSERT_NE(nullptr, taosArrayPush(reports, &deployed[i]));
+  }
+  // All but one Reader are present. Each lookalike differs from the missing instance in just one field.
+  SStreamTask missing = deployed[0];
+  missing.status = STREAM_STATUS_RUNNING;
+  SStreamTask impostors[] = {missing, missing, missing, missing, missing, missing};
+  impostors[0].streamId = kStreamB;
+  impostors[1].nodeId += 1;
+  impostors[2].taskId += 100000;
+  impostors[3].seriousId -= 1;
+  impostors[4].type = STREAM_RUNNER_TASK;
+  impostors[5].status = STREAM_STATUS_STOPPED;
+  for (const auto &task : impostors) ASSERT_NE(nullptr, taosArrayPush(reports, &task));
+  ReadHeartbeatDeploys(triggerHb_, 0, skip);
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ReadHeartbeatDeploys(triggerHb_, 0, skip, 102,
+                       [](const SMStreamHbRspMsg &rsp) { EXPECT_EQ(0u, taosArrayGetSize(rsp.rsps.rspList)); });
+  // An exact instance and a stale incarnation of the same address can coexist, in either order.
+  taosArrayPop(reports);  // The exact Reader now reports healthy instead of STOPPED.
+  ASSERT_NE(nullptr, taosArrayPush(reports, &missing));
+  ASSERT_NE(nullptr, taosArrayPush(reports, &impostors[3]));
+
+  static const SArray     *watched;
+  static Stub             *failInsert;
+  static std::atomic<int>  visits{0};
+  static std::atomic<bool> gated{false};
+  watched = reports;
+  Stub count;
+  count.set(
+      taosArrayGet, +[](const SArray *array, size_t i) -> void * {
+        if (array == watched) {
+          ++visits;
+          if (i == readers / 2 && !gated.exchange(true)) {
+            if (failInsert)
+              failInsert->set(taosHashPut, FailHashPut);
+            else
+              PrivateBuildPause::Pause();
+          }
+        }
+        if (!array || i >= array->size) return nullptr;
+        return TARRAY_GET_ELEM(array, i);
+      });
+  // Fail halfway through indexing, after the lost-task deadline. Keep the request for the next heartbeat.
+  {
+    Stub failure;
+    failInsert = &failure;
+    gated.store(false);
+    ReadHeartbeatDeploys(triggerHb_, TSDB_CODE_OUT_OF_MEMORY, skip, 103 + MST_ISOLATION_DURATION);
+    failInsert = nullptr;
+  }
+  ASSERT_TRUE(gated.load());
+  ASSERT_NE(nullptr, trigger_->pMgmtReq);
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  for (bool retry : {true, false}) {
+    visits.store(0);
+    gated.store(false);
+    PrivateBuildPause pause(false);
+    std::thread       receiving([&] {
+      ReadHeartbeatDeploys(triggerHb_, 0, skip, 104 + MST_ISOLATION_DURATION, [&](const SMStreamHbRspMsg &rsp) {
+        ASSERT_EQ(retry ? 1u : 0u, taosArrayGetSize(rsp.rsps.rspList));
+        if (retry) {
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+          ASSERT_EQ(readers, taosArrayGetSize(reply->cont.pExtOrigTblReaders));
+          for (int i = 0; i < readers; ++i) {
+            auto *result = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, i));
+            EXPECT_EQ(0, result->code);
+            EXPECT_EQ(deployed[i].taskId, result->readerTaskAddr.taskId);
+          }
+        }
+      });
+    });
+    EXPECT_TRUE(pause.Entered());
+    bool actionQueueAvailable = taosWTryLockLatch(&mStreamMgmt.actionQLock) == 0;
+    if (actionQueueAvailable) {
+      taosWUnLockLatch(&mStreamMgmt.actionQLock);
+      if (retry) {
+        EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+      } else {
+        EXPECT_EQ(
+            0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+        HandleActions();
+        auto *other = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+        EXPECT_TRUE(other && other->triggerTask);
+      }
+    }
+    pause.Release();
+    receiving.join();
+    EXPECT_TRUE(actionQueueAvailable);
+    // Includes the ordinary status/metric passes as well as the confirmation lookup.
+    RecordProperty(retry ? "retry_report_reads" : "idle_report_reads", visits.load());
+    EXPECT_LE(visits.load(), 6 * taosArrayGetSize(reports));
+    tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+    taosMemoryFreeClear(trigger_->pMgmtReq);
+    taosArrayClear(triggerHb_.pStreamReq);
+  }
+  CheckReleased();
+  blockDataDestroy(block);
+}
+
+TEST_F(MndStreamRemoteReaderTest, MixedPatchRetriesOnTriggerNodeUntilBothReaderInstancesReport) {
+  triggerHb_.readerDeployEpoch = 17;
+  readerHb_.readerDeployEpoch = 23;
+  readerHb_.readerRuntime.id = 7001;
+  Stream(kStreamA)->mainSnodeId = triggerHb_.snodeId;
+  auto submit = [&](int64_t id) {
+    tFreeSStreamMgmtReq(request_);
+    taosMemoryFreeClear(request_);
+    ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+    trigger_->status = STREAM_STATUS_RUNNING;
+    trigger_->ackedSchemaReqId = id == 1 ? -1 : 1;
+    request_ = trigger_->pMgmtReq;
+    trigger_->pMgmtReq = nullptr;
+    request_->reqId = id;
+    auto *tables = request_->cont.pExtOrigTblReaders;
+    auto *first = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+    first->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+    if (id == 2) {
+      auto create = *first;
+      create.registryEntryId = 2;
+      tstrncpy(create.identity.tableName, "memory", sizeof(create.identity.tableName));
+      first->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+      ASSERT_NE(nullptr, taosArrayPush(tables, &create));
+    }
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    TriggerHeartbeat(true);
+    msmCleanupSchemaWorker(&mnode_);
+    EXPECT_FALSE(success_);
+  };
+
+  SStreamTask                  install = {};
+  std::vector<SStreamTask>     cleanups;
+  std::vector<SStreamTaskAddr> results;
+  auto                         poll = [&](SStreamHbMsg &hb, bool retry) {
+    install = {};
+    cleanups.clear();
+    results.clear();
+    if (retry) {
+      int32_t index = 0;
+      ASSERT_NE(nullptr, taosArrayPush(hb.pStreamReq, &index));
+      ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+    }
+    ReadHeartbeatDeploys(
+        hb, 0,
+        [&](const SStmStreamDeploy &stream) {
+          for (size_t i = 0; i < taosArrayGetSize(stream.readerTasks); ++i) {
+            EXPECT_EQ(0, install.taskId);
+            install = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, i))->task;
+            EXPECT_EQ(hb.snodeId, install.nodeId);
+          }
+        },
+        now_++,
+        [&](const SMStreamHbRspMsg &rsp) {
+          EXPECT_EQ(hb.readerDeployEpoch, rsp.readerDeployEpoch);
+          if (hb.readerRuntime.id) {
+            EXPECT_EQ(hb.readerRuntime.id, rsp.readerRuntime.id);
+            hb.readerRuntime.challenge = rsp.readerRuntime.challenge;
+          }
+          for (size_t i = 0; i < taosArrayGetSize(rsp.undeploy.taskList); ++i) {
+            auto *entry = static_cast<SStreamTaskUndeploy *>(taosArrayGet(rsp.undeploy.taskList, i));
+            if (entry->undeployMsg.doCleanup) cleanups.push_back(entry->task);
+          }
+          size_t count = taosArrayGetSize(rsp.rsps.rspList);
+          if (!count) return;
+          ASSERT_TRUE(retry);
+          ASSERT_EQ(1u, count);
+          auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+          ASSERT_EQ(request_->reqId, reply->reqId);
+          ASSERT_EQ(0, reply->code);
+          for (size_t i = 0; i < taosArrayGetSize(reply->cont.pExtOrigTblReaders); ++i) {
+            auto *entry = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, i));
+            EXPECT_EQ(i + 1, entry->registryEntryId);
+            EXPECT_EQ(0, entry->code);
+            results.push_back(entry->readerTaskAddr);
+          }
+        });
+    if (retry) {
+      tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+      taosMemoryFreeClear(trigger_->pMgmtReq);
+      taosArrayClear(hb.pStreamReq);
+    }
+  };
+
+  ASSERT_NO_FATAL_FAILURE(submit(1));
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  SStreamTask previous = install;
+  ASSERT_NE(0, previous.taskId);
+  ASSERT_EQ(1u, results.size());
+  EXPECT_EQ(previous.taskId, results[0].taskId);
+  previous.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &previous));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  ASSERT_NO_FATAL_FAILURE(CheckReleased());
+  taosArrayPop(triggerHb_.pStreamStatus);
+
+  // A new table uses the new main snode; PATCH keeps its established address on the Trigger's node.
+  Stream(kStreamA)->mainSnodeId = readerHb_.snodeId;
+  ASSERT_NO_FATAL_FAILURE(submit(2));
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  SStreamTask replacement = install;
+  ASSERT_EQ(previous.taskId, replacement.taskId);
+  ASSERT_NE(previous.seriousId, replacement.seriousId);
+  auto checkPatch = [&] {
+    EXPECT_TRUE(results.empty());
+    EXPECT_EQ(replacement.taskId, install.taskId);
+    EXPECT_EQ(replacement.seriousId, install.seriousId);
+    EXPECT_TRUE(install.flags & STREAM_FLAG_REMOTE_READER_DEPLOY);
+    ASSERT_EQ(1u, cleanups.size());
+    EXPECT_EQ(previous.nodeId, cleanups[0].nodeId);
+    EXPECT_EQ(previous.taskId, cleanups[0].taskId);
+    EXPECT_EQ(previous.seriousId, cleanups[0].seriousId);
+    EXPECT_TRUE(cleanups[0].flags & STREAM_FLAG_REMOTE_READER_DEPLOY);
+  };
+  ASSERT_NO_FATAL_FAILURE(checkPatch());
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  SStreamTask remote = install;
+  ASSERT_NE(0, remote.taskId);
+  EXPECT_TRUE(remote.flags & STREAM_FLAG_REMOTE_READER_DEPLOY);
+  EXPECT_TRUE(cleanups.empty());
+  remote.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(readerHb_.pStreamStatus, &remote));
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  EXPECT_EQ(0, install.taskId);
+
+  // Lose the original local PATCH. A missing or stale local instance must keep the result pending.
+  ++triggerHb_.readerDeployEpoch;
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  ASSERT_NO_FATAL_FAILURE(checkPatch());
+  auto *reported = static_cast<SStreamTask *>(taosArrayPush(triggerHb_.pStreamStatus, &previous));
+  ASSERT_NE(nullptr, reported);
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  ASSERT_NO_FATAL_FAILURE(checkPatch());
+
+  // The remote process restarts while the local replacement is still missing.
+  // Even a delayed healthy report with its previous challenge cannot resurrect the acknowledgement.
+  const auto oldRuntime = readerHb_.readerRuntime;
+  ASSERT_NE(0, oldRuntime.challenge);
+  taosArrayClear(readerHb_.pStreamStatus);
+  readerHb_.readerRuntime = {7002, 0};
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  const auto restarted = readerHb_.readerRuntime;
+  ASSERT_NE(0, restarted.challenge);
+  ASSERT_NE(oldRuntime.challenge, restarted.challenge);
+  readerHb_.readerRuntime = oldRuntime;
+  ASSERT_NE(nullptr, taosArrayPush(readerHb_.pStreamStatus, &remote));
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  ASSERT_EQ(0, readerHb_.readerRuntime.challenge);  // Only the earlier sender must reintroduce itself.
+  readerHb_.readerRuntime = restarted;
+
+  *reported = replacement;
+  reported->status = STREAM_STATUS_INIT;
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, false));
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  ASSERT_TRUE(results.empty());
+  taosArrayClear(readerHb_.pStreamStatus);
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  EXPECT_EQ(restarted.challenge, readerHb_.readerRuntime.challenge);
+  ASSERT_EQ(remote.taskId, install.taskId);
+  ASSERT_EQ(remote.seriousId, install.seriousId);
+  ASSERT_NE(nullptr, taosArrayPush(readerHb_.pStreamStatus, &remote));
+  ASSERT_NO_FATAL_FAILURE(poll(readerHb_, false));
+  // The previous local INIT and the remote report would authorize this retry on their own.
+  // A failure in the Trigger's very same packet must withhold both addresses.
+  reported->status = STREAM_STATUS_FAILED;
+  reported->errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  EXPECT_TRUE(results.empty());
+  const SStreamTask retired = *reported;
+  reported->status = STREAM_STATUS_RUNNING;
+  reported->errorCode = 0;
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  ASSERT_TRUE(results.empty());
+  ASSERT_EQ(retired.taskId, install.taskId);
+  ASSERT_NE(retired.seriousId, install.seriousId);
+  *reported = install;
+  reported->status = STREAM_STATUS_RUNNING;
+  ASSERT_NO_FATAL_FAILURE(poll(triggerHb_, true));
+  EXPECT_EQ(0, install.taskId);
+  EXPECT_TRUE(cleanups.empty());
+  ASSERT_EQ(2u, results.size());
+  EXPECT_EQ(replacement.nodeId, results[0].nodeId);
+  EXPECT_EQ(replacement.taskId, results[0].taskId);
+  EXPECT_EQ(remote.nodeId, results[1].nodeId);
+  EXPECT_EQ(remote.taskId, results[1].taskId);
+  trigger_->ackedSchemaReqId = 2;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, LegacyTriggerRecoversLostSuccessAfterRemoteReaderReports) {
+  readerHb_.readerDeployEpoch = 11;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(true));
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, ReusedAndNewReaderBothConfirmBeforeFirstAndCachedSuccess) {
+  readerHb_.readerRuntime.id = 501;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  SStreamTask reused = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  auto       *tables = request_->cont.pExtOrigTblReaders;
+  auto        table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  table.registryEntryId = 2;
+  tstrncpy(table.identity.tableName, "memory", sizeof(table.identity.tableName));
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  request_->reqId = 3;
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+
+  readerHb_.readerRuntime = {502, 0};
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const SStreamTask added = deployment_;
+  ASSERT_NE(0, added.taskId);
+  ASSERT_NE(reused.taskId, added.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&added));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&reused));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, 0, &added));
+  ASSERT_TRUE(success_);
+  ASSERT_EQ(reused.taskId, replyTask_);
+  ASSERT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+
+  readerHb_.readerRuntime = {503, 0};
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&added));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&reused));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, 0, &added));
+  EXPECT_TRUE(success_);
+  EXPECT_EQ(reused.taskId, replyTask_);
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, IdleCachedResultAddsNoReportVisitsOnUnrelatedNode) {
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  ASSERT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  ASSERT_NE(nullptr, mnode_.streamSchemaResults);
+
+  auto *reports = triggerHb_.pStreamStatus;
+  auto  task = *trigger_;
+  ASSERT_EQ(nullptr, task.pMgmtReq);
+  for (int i = 1; i < 32; ++i) ASSERT_NE(nullptr, taosArrayPush(reports, &task));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(reports, 0));
+
+  static const SArray *watched;
+  static int           visits;
+  watched = reports;
+  Stub count;
+  count.set(
+      taosArrayGet, +[](const SArray *array, size_t i) -> void * {
+        if (array == watched) ++visits;
+        return array && i < array->size ? TARRAY_GET_ELEM(array, i) : nullptr;
+      });
+  visits = 0;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  const int cachedVisits = visits;
+  ASSERT_NO_FATAL_FAILURE(AdvanceLegacyRequest());
+  ASSERT_EQ(nullptr, mnode_.streamSchemaResults);
+  visits = 0;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  EXPECT_GE(visits, taosArrayGetSize(reports));
+  EXPECT_EQ(visits, cachedVisits);
+  RecordProperty("cached_idle_report_visits", cachedVisits);
+  RecordProperty("uncached_idle_report_visits", visits);
+}
+
+TEST_F(MndStreamRemoteReaderTest, TerminalFieldErrorReturnsBeforeUnconfirmedRemoteReader) {
+  readerHb_.readerRuntime.id = 501;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  const auto reused = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  readerHb_.readerRuntime = {502, 0};
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());  // The new process has not reported the reused address.
+
+  auto *tables = request_->cont.pExtOrigTblReaders;
+  auto  table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  table.registryEntryId = 2;
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));  // An independent install queued before the bad binding.
+  table.registryEntryId = 3;
+  table.bindings = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderBinding), 1);
+  auto *binding = static_cast<SStreamExtOrigTblReaderBinding *>(taosArrayGet(table.bindings, 0));
+  ASSERT_NE(nullptr, binding);
+  binding->kind = STREAM_EXT_ORIGTBL_READER_BINDING_TRIGGER;
+  binding->bindingId = 17;
+  binding->expectedType = TSDB_DATA_TYPE_INT;
+  tstrncpy(binding->externalColumn, "missing", sizeof(binding->externalColumn));
+  ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  request_->reqId = 3;
+
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  msmCleanupSchemaWorker(&mnode_);
+
+  int32_t i = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &i));
+  auto    skip = [](const SStmStreamDeploy &) {};
+  int64_t queued = 0;
+  auto    checkError = [&] {
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+    ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+      ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+      auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+      ASSERT_EQ(request_->reqId, reply->reqId);
+      ASSERT_EQ(0, reply->code);
+      auto *entries = reply->cont.pExtOrigTblReaders;
+      ASSERT_EQ(3u, taosArrayGetSize(entries));
+      auto *original = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(entries, 0));
+      auto *added = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(entries, 1));
+      auto *bad = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(entries, 2));
+      EXPECT_EQ(0, original->code);
+      EXPECT_EQ(reused.taskId, original->readerTaskAddr.taskId);
+      EXPECT_EQ(0, added->code);
+      ASSERT_NE(0, added->readerTaskAddr.taskId);
+      if (queued) EXPECT_EQ(queued, added->readerTaskAddr.taskId);
+      queued = added->readerTaskAddr.taskId;
+      EXPECT_EQ(3, bad->registryEntryId);
+      EXPECT_EQ(TSDB_CODE_EXT_COLUMN_NOT_EXIST, bad->code);
+    });
+    tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+    taosMemoryFreeClear(trigger_->pMgmtReq);
+  };
+  ASSERT_NO_FATAL_FAILURE(checkError());
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(checkError());  // A lost terminal reply replays even without either healthy report.
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto added = deployment_;
+  ASSERT_EQ(queued, added.taskId);
+
+  // The Trigger can clean up both addresses it received in the rejected response.
+  tFreeSStreamMgmtReq(request_);
+  taosMemoryFreeClear(request_);
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  auto *cleanupReq = trigger_->pMgmtReq;
+  cleanupReq->reqId = 4;
+  auto *cleanup = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(cleanupReq->cont.pExtOrigTblReaders, 0));
+  cleanup->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  auto secondCleanup = *cleanup;
+  secondCleanup.registryEntryId = 2;
+  ASSERT_NE(nullptr, taosArrayPush(cleanupReq->cont.pExtOrigTblReaders, &secondCleanup));
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(cleanupReq, &request_));
+  ReadHeartbeatDeploys(triggerHb_, 0, skip, now_++, [&](const SMStreamHbRspMsg &rsp) {
+    ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+    auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+    ASSERT_EQ(2u, taosArrayGetSize(reply->cont.pExtOrigTblReaders));
+    for (size_t n = 0; n < 2; ++n) {
+      auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, n));
+      EXPECT_EQ(0, ext->code);
+      EXPECT_EQ(n == 0 ? reused.taskId : added.taskId, ext->readerTaskAddr.taskId);
+    }
+  });
+  for (const auto &task : {reused, added}) {
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&task));
+    ASSERT_EQ(1u, cleanups_.size());
+    EXPECT_EQ(task.taskId, cleanups_[0].task.taskId);
+    EXPECT_EQ(task.seriousId, cleanups_[0].task.seriousId);
+  }
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, CollidingNodePollVisitsOneWaitEntryForManyQueuedReaders) {
+  constexpr int readers = 32;
+  readerHb_.snodeId = readerHb_.dnodeId = triggerHb_.snodeId + 32;
+  SStmSnodeStatus node = {};
+  int64_t         lastUp = 0;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.snodeMap, &readerHb_.snodeId, sizeof(int32_t), &node, sizeof(node)));
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &readerHb_.dnodeId, sizeof(int32_t), &lastUp, sizeof(lastUp)));
+  Stream(kStreamA)->mainSnodeId = readerHb_.snodeId;
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  trigger_->pMgmtReq->reqId = 1;
+  auto *tables = trigger_->pMgmtReq->cont.pExtOrigTblReaders;
+  auto  table = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  for (int i = 2; i <= readers; ++i) {
+    table.registryEntryId = i;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  request_ = trigger_->pMgmtReq;
+  trigger_->pMgmtReq = nullptr;
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  auto *target = static_cast<SStmSnodeTasksDeploy *>(
+      taosHashGet(mStreamMgmt.toDeploySnodeMap, &readerHb_.snodeId, sizeof(int32_t)));
+  ASSERT_NE(nullptr, target);
+  ASSERT_EQ(readers, taosArrayGetSize(target->calcReaderList));
+
+  static const SArray *bucket;
+  static int           visits;
+  bucket = mnode_.streamSchemaNodes[triggerHb_.snodeId % tListLen(mnode_.streamSchemaNodes)];
+  ASSERT_EQ(1u, taosArrayGetSize(bucket));
+  visits = 0;
+  {
+    Stub count;
+    count.set(
+        taosArrayGet, +[](const SArray *array, size_t index) -> void * {
+          if (array == bucket) ++visits;
+          return array && index < array->size ? TARRAY_GET_ELEM(array, index) : nullptr;
+        });
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));  // Node 1 has status only. Node 33 owns every pending install.
+  }
+  EXPECT_EQ(1, visits);
+  RecordProperty("queued_readers_on_colliding_node", readers);
+  RecordProperty("unrelated_wait_entry_visits", visits);
+  size_t deployed = 0;
+  ReadHeartbeatDeploys(
+      readerHb_, 0, [&](const SStmStreamDeploy &stream) { deployed += taosArrayGetSize(stream.readerTasks); }, now_++);
+  EXPECT_EQ(readers, deployed);
+  EXPECT_EQ(nullptr, mnode_.streamSchemaNodes[readerHb_.snodeId % tListLen(mnode_.streamSchemaNodes)]);
+}
+
+TEST_F(MndStreamRemoteReaderTest, UnrelatedStatusPollDuringMetadataFetchMatchesIdleWork) {
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  const SStreamTask reader = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  ASSERT_NO_FATAL_FAILURE(AdvanceLegacyRequest());
+  for (int i = 1; i < 32; ++i) ASSERT_NE(nullptr, taosArrayPush(readerHb_.pStreamStatus, &reader));
+
+  // A second stream's Trigger and external source request both belong to node 1.
+  Stream(kStreamB)->mainSnodeId = triggerHb_.snodeId;
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *other = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(other && other->triggerTask);
+  tFreeSStreamMgmtReq(request_);
+  taosMemoryFreeClear(request_);
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamB, other->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  request_ = trigger_->pMgmtReq;
+  request_->reqId = 1;
+  trigger_->pMgmtReq = nullptr;
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(readerHb_, 0, skip, now_++);
+
+  static const SArray *watched;
+  static int           visits, allocations;
+  static SHashObj     *spare;
+  watched = readerHb_.pStreamStatus;
+  auto measure = [&] {
+    // The poll can allocate at most one report index. Supply the same empty index if it asks for one.
+    spare = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    ASSERT_NE(nullptr, spare);
+    visits = allocations = 0;
+    {
+      Stub count;
+      count.set(
+          taosArrayGet, +[](const SArray *array, size_t i) -> void * {
+            if (array == watched) ++visits;
+            return array && i < array->size ? TARRAY_GET_ELEM(array, i) : nullptr;
+          });
+      count.set(
+          taosHashInit, +[](size_t capacity, _hash_fn_t hash, bool update, SHashLockTypeE lock) -> SHashObj * {
+            EXPECT_EQ(4u, capacity);
+            EXPECT_EQ(taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), hash);
+            EXPECT_TRUE(update);
+            EXPECT_EQ(HASH_NO_LOCK, lock);
+            ++allocations;
+            auto *result = spare;
+            spare = nullptr;
+            return result;
+          });
+      ReadHeartbeatDeploys(readerHb_, 0, skip, now_++);
+    }
+    taosHashCleanup(spare);
+  };
+
+  ASSERT_NO_FATAL_FAILURE(measure());
+  const int idleVisits = visits, idleAllocations = allocations;
+  EXPECT_GE(idleVisits, 32);
+  EXPECT_EQ(0, idleAllocations);
+  PrivateBuildPause pause(false);
+  Stub              blocked;
+  PauseExternalReaderSchema(blocked);
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  TriggerHeartbeat(true);
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_NE(nullptr, other->pendingSchema);
+  EXPECT_EQ(1, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  measure();
+  pause.Release();
+  msmCleanupSchemaWorker(&mnode_);
+  EXPECT_EQ(idleVisits, visits);
+  EXPECT_EQ(idleAllocations, allocations);
+  RecordProperty("idle_report_visits", idleVisits);
+  RecordProperty("pending_lookup_report_visits", visits);
+  RecordProperty("idle_report_index_allocations", idleAllocations);
+  RecordProperty("pending_lookup_report_index_allocations", allocations);
+}
+
+TEST_F(MndStreamRemoteReaderTest, FailedReaderRejectsDelayedHealthyReportOnCachedLegacyRetry) {
+  ASSERT_EQ(nullptr, gStreamMgmt.taskMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.vgroupMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.stmGrp[STREAM_GID(kStreamA)]);
+  Receiver   receiver(kStreamA, owner_->triggerTask->id.taskId);
+  static int closes;
+  closes = 0;
+  stub_.set(
+      extConnectorOpen, +[](const SExtSourceCfg *, SExtConnectorHandle **out) -> int32_t {
+        *out = reinterpret_cast<SExtConnectorHandle *>(&closes);
+        return 0;
+      });
+  stub_.set(extConnectorClose, +[](SExtConnectorHandle *) { ++closes; });
+  deliverReader_ = true;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  const auto    installed = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  const auto    runtime = readerHb_.readerRuntime;
+  const auto    epoch = readerHb_.readerDeployEpoch;
+  const int64_t key[] = {kStreamA, installed.taskId};
+  auto        **live = static_cast<SStreamTask **>(taosHashGet(gStreamMgmt.taskMap, key, sizeof(key)));
+  ASSERT_NE(nullptr, live);
+  ASSERT_EQ(installed.seriousId, (*live)->seriousId);
+  (*live)->status = STREAM_STATUS_FAILED;
+  const int before = closes;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed, STREAM_STATUS_FAILED));
+  EXPECT_EQ(nullptr, taosHashGet(gStreamMgmt.taskMap, key, sizeof(key)));
+  EXPECT_EQ(before + 1, closes);
+  ASSERT_EQ(1u, cleanups_.size());
+  EXPECT_EQ(installed.taskId, cleanups_[0].task.taskId);
+  EXPECT_EQ(installed.seriousId, cleanups_[0].task.seriousId);
+  deliverReader_ = false;
+  readerHb_.readerDeployEpoch = epoch;
+  readerHb_.readerRuntime = runtime;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_FALSE(success_);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  ASSERT_NO_FATAL_FAILURE(AdvanceLegacyRequest());
+}
+
+TEST_F(MndStreamRemoteReaderTest, PreviousRuntimeFailureCannotRemoveRestartedReader) {
+  ASSERT_EQ(nullptr, gStreamMgmt.taskMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.vgroupMap);
+  ASSERT_EQ(nullptr, gStreamMgmt.stmGrp[STREAM_GID(kStreamA)]);
+  Receiver   receiver(kStreamA, owner_->triggerTask->id.taskId);
+  static int handles[8], opens, closes, reads;
+  opens = closes = reads = 0;
+  stub_.set(
+      extConnectorOpen, +[](const SExtSourceCfg *, SExtConnectorHandle **out) -> int32_t {
+        if (opens == 8) return TSDB_CODE_FAILED;
+        *out = reinterpret_cast<SExtConnectorHandle *>(&handles[opens++]);
+        return 0;
+      });
+  stub_.set(extConnectorClose, +[](SExtConnectorHandle *) { ++closes; });
+  deliverReader_ = true;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto installed = deployment_;
+  ASSERT_NE(0, installed.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  const auto previous = readerHb_.readerRuntime;
+  const auto previousPoll = readerHb_.readerDeployEpoch;
+  ASSERT_NE(0, previous.challenge);
+
+  smUndeployAllTasks();  // Restart the target, keeping the management node and request alive.
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_NE(previous.id, readerHb_.readerRuntime.id);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_EQ(installed.taskId, deployment_.taskId);
+  ASSERT_EQ(installed.seriousId, deployment_.seriousId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  const int before = closes;
+
+  deliverReader_ = false;
+  readerHb_.readerRuntime = previous;
+  readerHb_.readerDeployEpoch = previousPoll;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed, STREAM_STATUS_FAILED));
+  EXPECT_TRUE(cleanups_.empty());
+  EXPECT_EQ(0, readerHb_.readerRuntime.challenge);
+  // The same old heartbeat may also name a task no longer registered at the mnode.
+  auto absent = installed;
+  ++absent.taskId;
+  readerHb_.readerRuntime = previous;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&absent, STREAM_STATUS_FAILED));
+  EXPECT_TRUE(cleanups_.empty());
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_TRUE(success_);  // A packet from the stopped process cannot clear the current confirmation.
+  deliverReader_ = true;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  EXPECT_TRUE(cleanups_.empty());
+  EXPECT_EQ(before, closes);
+
+  const int64_t key[] = {kStreamA, installed.taskId};
+  auto        **live = static_cast<SStreamReaderTask **>(taosHashGet(gStreamMgmt.taskMap, key, sizeof(key)));
+  ASSERT_NE(nullptr, live);
+  ASSERT_EQ(installed.seriousId, (*live)->task.seriousId);
+  stub_.set(
+      extConnectorExecQuery,
+      +[](SExtConnectorHandle *conn, const SFederatedScanPhysiNode *, const char *, const char *, SExtQueryHandle **out,
+          SExtConnectorError *) -> int32_t {
+        EXPECT_EQ(reinterpret_cast<SExtConnectorHandle *>(&handles[opens - 1]), conn);
+        *out = reinterpret_cast<SExtQueryHandle *>(conn);
+        return 0;
+      });
+  stub_.set(
+      extConnectorFetchBlock,
+      +[](SExtQueryHandle *, const SExtColTypeMapping *, int32_t, SSDataBlock **out, SExtConnectorError *) -> int32_t {
+        *out = nullptr;
+        if (++reads != 1) return 0;
+        SSDataBlock *raw = nullptr;
+        TAOS_CHECK_RETURN(createDataBlock(&raw));
+        std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> row(raw, blockDataDestroy);
+        auto column = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+        TAOS_CHECK_RETURN(blockDataAppendColInfo(raw, &column));
+        TAOS_CHECK_RETURN(blockDataEnsureCapacity(raw, 1));
+        int64_t ts = 1234;
+        colDataSetInt64(static_cast<SColumnInfoData *>(taosArrayGet(raw->pDataBlock, 0)), 0, &ts);
+        raw->info.rows = 1;
+        *out = row.release();
+        return 0;
+      });
+  stub_.set(extConnectorCloseQuery, +[](SExtQueryHandle *) {});
+  SSDataBlock *data = nullptr;
+  ASSERT_EQ(0,
+            streamReaderExtFetchData(static_cast<SStreamExtReaderInfo *>((*live)->info), INT64_MIN, INT64_MAX, &data));
+  std::unique_ptr<SSDataBlock, decltype(&blockDataDestroy)> result(data, blockDataDestroy);
+  ASSERT_NE(nullptr, data);
+  EXPECT_EQ(2, reads);
+  ASSERT_EQ(1, data->info.rows);
+  EXPECT_EQ(1234, getInt64Value(data, 0, 0));
+
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed, STREAM_STATUS_FAILED));
+  EXPECT_EQ(1u, cleanups_.size());
+  EXPECT_EQ(nullptr, taosHashGet(gStreamMgmt.taskMap, key, sizeof(key)));
+  EXPECT_EQ(before + 1, closes);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, ReplacementWaitsForTargetPollThenGetsTimeToConfirm) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto original = deployment_;
+  ASSERT_NE(0, original.taskId);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&original, STREAM_STATUS_FAILED));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));  // Queue a fresh instance after the original batch deadline.
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  now_ += MST_ISOLATION_DURATION - 4;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto replacement = deployment_;
+  ASSERT_EQ(original.taskId, replacement.taskId);
+  ASSERT_NE(original.seriousId, replacement.seriousId);
+  ASSERT_EQ(1u, cleanups_.size());
+  EXPECT_EQ(original.seriousId, cleanups_[0].task.seriousId);
+
+  now_ += 6;  // The first target poll gave this instance its own confirmation interval.
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());  // Retransmit without extending that interval.
+  ASSERT_EQ(replacement.seriousId, deployment_.seriousId);
+  CheckReaderHealth();
+  HandleActions();
+  ASSERT_EQ(0, owner_->stopped);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&replacement));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(replacement.taskId, replyTask_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, UnclaimedReplacementExpiresAtQueueDeadline) { CheckReplacementTimeout(false); }
+
+TEST_F(MndStreamRemoteReaderTest, SilentReplacementExpiresAtFirstDispatchDeadline) { CheckReplacementTimeout(true); }
+
+TEST_F(MndStreamRemoteReaderTest, ReplacementCannotBeClaimedByUnguardedPollAndExpiresFromQueueTime) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto original = deployment_;
+  ASSERT_NE(0, original.taskId);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&original, STREAM_STATUS_FAILED));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  readerHb_.readerDeployEpoch = 0;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+  EXPECT_TRUE(cleanups_.empty());
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_FALSE(success_);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+
+  readerHb_.readerDeployEpoch = 18;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto replacement = deployment_;
+  ASSERT_EQ(original.taskId, replacement.taskId);
+  ASSERT_NE(original.seriousId, replacement.seriousId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&replacement));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, CachedLegacyResultRequiresConfirmationFromRestartedTarget) {
+  readerHb_.readerRuntime.id = 501;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  SStreamTask installed = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  readerHb_.readerRuntime = {502, 0};
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, StaleChallengeCannotDisplaceConfirmedTargetAndLivePeerCanHandshakeAgain) {
+  readerHb_.readerRuntime.id = 500;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto earlier = readerHb_.readerRuntime;
+  readerHb_.readerRuntime = {501, 0};
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  const SStreamTask installed = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  readerHb_.readerRuntime = earlier;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_EQ(0, readerHb_.readerRuntime.challenge);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+
+  // A live peer with a challenge from another mnode can restart the handshake.
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_NE(0, readerHb_.readerRuntime.challenge);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(installed.taskId, replyTask_);
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, LegacyHeartbeatCannotReuseConfirmationDuringTargetDowngrade) {
+  readerHb_.readerRuntime.id = 501;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  SStreamTask installed = *static_cast<SStreamTask *>(taosArrayGet(readerHb_.pStreamStatus, 0));
+  readerHb_.readerRuntime = {};
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, DelayedLegacyPollLeavesRemoteDeployQueuedForCurrentTarget) {
+  readerHb_.readerRuntime.id = 501;
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto current = readerHb_.readerRuntime;
+  ASSERT_NE(0, current.challenge);
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+
+  readerHb_.readerRuntime = {};
+  readerHb_.readerDeployEpoch = 0;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_EQ(0, deployment_.taskId);
+  readerHb_.readerRuntime = current;
+  readerHb_.readerDeployEpoch = 18;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  SStreamTask installed = deployment_;
+  ASSERT_NE(0, installed.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, IdleLegacyTriggerReleasesRemoteReaderBatch) {
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false));
+  AdvanceLegacyRequest();
+}
+
+TEST_F(MndStreamRemoteReaderTest, LegacyCachedReplyYieldsBudgetToNewStream) {
+  int64_t reservation = 0;
+  ASSERT_NO_FATAL_FAILURE(CheckLegacyCreate(false, &reservation));
+  ASSERT_GT(atomic_load_64(&mnode_.streamSchemaBatchBytes), 0);
+  auto *previousOwner = owner_;
+  auto  previousTrigger = *trigger_;
+
+  Stream(kStreamB)->mainSnodeId = readerHb_.snodeId;
+  streamId_ = kStreamB;
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  owner_ = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(owner_ && owner_->triggerTask);
+  // Model unrelated active batches. This equally sized request fits only after eviction of A's cached reply.
+  const int64_t occupied = INT64_C(256) * 1024 * 1024 - reservation;
+  (void)atomic_add_fetch_64(&mnode_.streamSchemaBatchBytes, occupied);
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  (void)atomic_sub_fetch_64(&mnode_.streamSchemaBatchBytes, occupied);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  SStreamTask installed = deployment_;
+  ASSERT_NE(0, installed.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+
+  owner_ = previousOwner;
+  streamId_ = kStreamA;
+  *trigger_ = previousTrigger;
+  auto *req = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(request_->cont.pExtOrigTblReaders, 0));
+  req->capabilities &= ~STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_NOT_AVAILABLE);
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+  CheckReleased();
+}
+
+// Inject failure only when the outgoing list takes ownership of a Reader group.
+static void *FailReaderGroupAppend(SArray *array, const void *data, int32_t count) {
+  if (array->elemSize == sizeof(SStmStreamDeploy) &&
+      taosArrayGetSize(static_cast<const SStmStreamDeploy *>(data)->readerTasks)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  }
+  void *slot = taosArrayReserve(array, count);
+  return slot ? memcpy(slot, data, count * array->elemSize) : nullptr;
+}
+
+static void *FailReaderResponseAllocation(int64_t) {
+  terrno = TSDB_CODE_OUT_OF_MEMORY;
+  return nullptr;
+}
+
+TEST_F(MndStreamRemoteReaderTest, LegacyTargetRetriesOnlyUnsentReaderResponses) {
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  auto *slots = static_cast<SArray *>(taosArrayGetP(owner_->trigOReaders, 0));
+  ASSERT_TRUE(slots && taosArrayGetSize(slots) == 1);
+  auto      *reader = static_cast<SStmTaskStatus *>(taosArrayGet(slots, 0));
+  const auto original = reader->id;
+  const auto pickupDeadline = reader->readerRepairRetryTs;
+  now_ += 1000;
+  {
+    Stub fail;
+    fail.set(taosArrayAddBatch, FailReaderGroupAppend);
+    ReadHeartbeatDeploys(readerHb_, TSDB_CODE_OUT_OF_MEMORY, [](const SStmStreamDeploy &) {}, now_++);
+  }
+  EXPECT_EQ(pickupDeadline, reader->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  {
+    Stub fail;
+    // A Trigger retry while the target response is being encoded cannot queue a duplicate.
+    static std::function<void()> retry;
+    retry = [&]() {
+      fail.reset(rpcMallocCont);
+      TriggerHeartbeat(true);
+      EXPECT_FALSE(success_);
+      ReaderHeartbeat();
+      EXPECT_EQ(0, deployment_.taskId);
+    };
+    fail.set(
+        rpcMallocCont, +[](int64_t size) -> void * {
+          retry();
+          return FailReaderResponseAllocation(size);
+        });
+    ReadHeartbeatDeploys(readerHb_, 0, [](const SStmStreamDeploy &) {}, now_++, {}, false, TSDB_CODE_OUT_OF_MEMORY);
+    retry = {};
+  }
+  EXPECT_EQ(pickupDeadline, reader->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  const auto sent = now_;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto installed = deployment_;
+  ASSERT_EQ(original.taskId, installed.taskId);
+  ASSERT_EQ(original.seriousId, installed.seriousId);
+  EXPECT_EQ(sent + MST_ISOLATION_DURATION, reader->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_TRUE(success_);
+  EXPECT_EQ(original.taskId, replyTask_);
+}
+
+TEST_F(MndStreamRemoteReaderTest, GuardedLocalReaderGetsFullWindowAfterFirstEncodeFails) {
+  Stream(streamId_)->mainSnodeId = triggerHb_.snodeId;
+  triggerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(PrepareRequest(true));
+  const auto  first = now_;
+  SStreamTask install = {};
+  {
+    Stub                         failure;
+    static std::function<void()> duringEncode;
+    duringEncode = [&]() {
+      failure.reset(rpcMallocCont);
+      SStreamTask duplicate = {};
+      PollLocalReader(first + 1, &duplicate);
+      EXPECT_EQ(0, duplicate.taskId);
+    };
+    failure.set(
+        rpcMallocCont, +[](int64_t size) -> void * {
+          duringEncode();
+          return FailReaderResponseAllocation(size);
+        });
+    PollLocalReader(first, &install, TSDB_CODE_OUT_OF_MEMORY);
+    duringEncode = {};
+  }
+  ASSERT_EQ(0, install.taskId);
+  auto *slots = static_cast<SArray *>(taosArrayGetP(owner_->trigOReaders, 0));
+  ASSERT_TRUE(slots && taosArrayGetSize(slots) == 1);
+  auto      *live = static_cast<SStmTaskStatus *>(taosArrayGet(slots, 0));
+  const auto serial = live->id.seriousId;
+  EXPECT_EQ(first + MST_ISOLATION_DURATION, live->readerRepairRetryTs);
+  const auto sent = first + 25000;
+  ASSERT_NO_FATAL_FAILURE(PollLocalReader(sent, &install));
+  ASSERT_EQ(serial, install.seriousId);
+  ASSERT_EQ(live->id.taskId, install.taskId);
+  const auto deadline = sent + MST_ISOLATION_DURATION;
+  RecordProperty("guarded_encoded_window_ms", static_cast<int>(live->readerRepairRetryTs - sent));
+  EXPECT_EQ(deadline, live->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(PollLocalReader(deadline - 2, &install));
+  EXPECT_EQ(serial, install.seriousId);
+  EXPECT_EQ(deadline, live->readerRepairRetryTs);
+  auto saved = mStreamMgmt.hCtx.currentTs;
+  mStreamMgmt.hCtx.currentTs = deadline - 1;
+  msmCheckTaskListStatus(streamId_, &live, 1);
+  mStreamMgmt.hCtx.currentTs = saved;
+  ASSERT_EQ(0u, actionQueue_.qRemainNum);
+  install.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &install));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  trigger_->ackedSchemaReqId = request_->reqId;
+  now_ = deadline - 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  EXPECT_EQ(serial, live->id.seriousId);
+  EXPECT_EQ(deadline - 1, live->lastUpTs);
+  EXPECT_GT(live->remoteSchemaConfirmation, 0);
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, ColocatedLegacyRetryUsesFirstSuccessfulDispatchDeadline) {
+  Stream(streamId_)->mainSnodeId = triggerHb_.snodeId;
+  {
+    Stub fail;
+    fail.set(taosArrayAddBatch, FailReaderGroupAppend);
+    ASSERT_NO_FATAL_FAILURE(Submit(false));
+  }
+  ASSERT_FALSE(success_);
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  const auto  retryAt = now_ + 25000;
+  SStreamTask installed = {};
+  {
+    Stub fail;
+    fail.set(rpcMallocCont, FailReaderResponseAllocation);
+    ASSERT_NO_FATAL_FAILURE(PollLocalReader(retryAt - 10000, &installed, TSDB_CODE_OUT_OF_MEMORY));
+    ASSERT_EQ(0, installed.taskId);
+  }
+  {
+    Stub         delay;
+    static Stub *encoding;
+    encoding = &delay;
+    delay.set(
+        rpcMallocCont, +[](int64_t size) -> void * {
+          encoding->reset(rpcMallocCont);
+          heartbeatNowNs += 25000LL * NANOSECOND_PER_MSEC;
+          return rpcMallocCont(size);
+        });
+    ASSERT_NO_FATAL_FAILURE(PollLocalReader(retryAt, &installed));
+  }
+  const auto sent = heartbeatNowNs / NANOSECOND_PER_MSEC;
+  ASSERT_EQ(retryAt + 25000, sent);
+  ASSERT_NE(0, installed.taskId);
+  auto *slots = static_cast<SArray *>(taosArrayGetP(owner_->trigOReaders, 0));
+  ASSERT_TRUE(slots && taosArrayGetSize(slots) == 1);
+  auto *live = static_cast<SStmTaskStatus *>(taosArrayGet(slots, 0));
+  RecordProperty("legacy_encoded_window_ms", static_cast<int>(live->readerRepairRetryTs - sent));
+  EXPECT_EQ(sent + MST_ISOLATION_DURATION, live->readerRepairRetryTs);
+  const auto saved = mStreamMgmt.hCtx.currentTs;
+  mStreamMgmt.hCtx.currentTs = sent + MST_ISOLATION_DURATION - 1;
+  msmCheckTaskListStatus(streamId_, &live, 1);
+  mStreamMgmt.hCtx.currentTs = saved;
+  EXPECT_EQ(0u, actionQueue_.qRemainNum);
+  now_ = sent + 6000;  // The publication deadline passed, but the install can still be confirmed.
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_FALSE(success_);
+  now_ = sent + MST_ISOLATION_DURATION - 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  installed.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &installed));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  readerHb_.snodeId = triggerHb_.snodeId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_TRUE(success_);
+  EXPECT_EQ(installed.taskId, replyTask_);
+}
+
+TEST_F(MndStreamRemoteReaderTest, LegacyTargetGetsOneCopyWhenModernTriggerRetries) {
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const SStreamTask original = deployment_;
+  ASSERT_NE(0, original.taskId);
+
+  // A legacy target cannot reject a delayed copy after removing the Reader.
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  EXPECT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+
+  // If the original arrives late, its target's report makes the result available.
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&original));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(original.taskId, replyTask_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, DeferredRemotePatchDeliversCleanupWithItsReplacement) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto previous = deployment_;
+  ASSERT_NE(0, previous.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  ASSERT_NO_FATAL_FAILURE(Submit(true, true));
+
+  stub_.set(msmAssignTaskSnodeId, +[](SMnode *, SStreamObj *, bool) -> int32_t { return 2; });
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *other = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(other && other->triggerTask);
+  ASSERT_EQ(readerHb_.snodeId, other->triggerTask->id.nodeId);
+  auto *input = owner_->deployInput;
+  owner_->deployInput = nullptr;
+  std::vector<int64_t> triggers;
+  ReadHeartbeatDeploys(
+      readerHb_, 0,
+      [&](const SStmStreamDeploy &stream) {
+        EXPECT_EQ(0u, taosArrayGetSize(stream.readerTasks));
+        if (stream.triggerTask) triggers.push_back(stream.triggerTask->task.taskId);
+      },
+      now_++, [](const SMStreamHbRspMsg &rsp) { EXPECT_EQ(0u, taosArrayGetSize(rsp.undeploy.taskList)); });
+  owner_->deployInput = input;
+  EXPECT_EQ(std::vector<int64_t>{other->triggerTask->id.taskId}, triggers);
+
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  EXPECT_NE(0, deployment_.taskId);
+  EXPECT_NE(previous.seriousId, deployment_.seriousId);
+  ASSERT_EQ(1u, cleanups_.size());
+  EXPECT_EQ(previous.seriousId, cleanups_[0].task.seriousId);
+  const auto replacement = deployment_;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&replacement));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 2;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, ExpiringOneBatchMovesSharedQueueReadersAtMostOnce) {
+  constexpr int readers = 16;
+  Stream(kStreamB)->mainSnodeId = readerHb_.snodeId;
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *other = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(other && other->triggerTask);
+  ASSERT_EQ(triggerHb_.snodeId, other->triggerTask->id.nodeId);
+
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, kStreamA, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  request_ = trigger_->pMgmtReq;
+  trigger_->pMgmtReq = nullptr;
+  request_->reqId = 1;
+  auto *tables = request_->cont.pExtOrigTblReaders;
+  auto *first = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  first->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  auto table = *first;
+  for (int i = 2; i <= readers; ++i) {
+    table.registryEntryId = i;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  auto publish = [&] {
+    ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+    TriggerHeartbeat(true);
+    msmCleanupSchemaWorker(&mnode_);
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_FALSE(success_);
+  };
+  ASSERT_NO_FATAL_FAILURE(publish());
+  const auto older = *trigger_;
+  const auto expires = now_ - 1 + MST_ISOLATION_DURATION;
+  now_ += MST_ISOLATION_DURATION / 2;
+  trigger_->streamId = kStreamB;
+  trigger_->taskId = other->triggerTask->id.taskId;
+  trigger_->seriousId = other->triggerTask->id.seriousId;
+  ASSERT_NO_FATAL_FAILURE(publish());
+  const auto newer = *trigger_;
+
+  auto *node = static_cast<SStmSnodeTasksDeploy *>(
+      taosHashGet(mStreamMgmt.toDeploySnodeMap, &readerHb_.snodeId, sizeof(readerHb_.snodeId)));
+  ASSERT_NE(nullptr, node);
+  static const SArray *watched;
+  static int           moved;
+  watched = node->calcReaderList;
+  ASSERT_EQ(2 * readers, taosArrayGetSize(watched));
+  std::vector<int64_t> expected;
+  for (int i = 0; i < 2 * readers; ++i) {
+    const auto &task = static_cast<SStmTaskToDeployExt *>(taosArrayGet(watched, i))->deploy.task;
+    ASSERT_EQ(i < readers ? kStreamA : kStreamB, task.streamId);
+    if (i >= readers) expected.push_back(task.taskId);
+  }
+
+  *trigger_ = older;
+  now_ = expires;
+  moved = 0;
+  {
+    Stub count;
+    count.set(
+        taosArrayRemove, +[](SArray *a, size_t index) {
+          if (a == watched) moved += static_cast<int>(a->size - index - 1);
+          taosArrayRemoveBatch(a, index, 1, nullptr);
+        });
+    count.set(
+        taosArraySet, +[](SArray *a, size_t index, void *entry) {
+          if (a == watched) ++moved;
+          if (index < a->size) memcpy(TARRAY_GET_ELEM(a, index), entry, a->elemSize);
+        });
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  }
+  EXPECT_LE(moved, readers);
+  RecordProperty("queue_entries_moved", moved);
+  EXPECT_EQ(nullptr, owner_->pendingSchema);
+  ASSERT_NE(nullptr, other->pendingSchema);
+  EXPECT_EQ(1, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  EXPECT_EQ(readers, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, node->calcReaderDeployed);
+
+  std::vector<int64_t> delivered;
+  readerHb_.readerDeployEpoch = 17;
+  ReadHeartbeatDeploys(
+      readerHb_, 0,
+      [&](const SStmStreamDeploy &stream) {
+        ASSERT_EQ(kStreamB, stream.streamId);
+        for (size_t i = 0; i < taosArrayGetSize(stream.readerTasks); ++i) {
+          auto *entry = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, i));
+          ASSERT_NE(nullptr, entry->msg.reader.pExtSpec);
+          auto task = entry->task;
+          delivered.push_back(task.taskId);
+          task.status = STREAM_STATUS_RUNNING;
+          ASSERT_NE(nullptr, taosArrayPush(readerHb_.pStreamStatus, &task));
+        }
+      },
+      now_++);
+  EXPECT_EQ(expected, delivered);
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(nullptr, taosHashGet(mStreamMgmt.toDeploySnodeMap, &readerHb_.snodeId, sizeof(readerHb_.snodeId)));
+  ReadHeartbeatDeploys(readerHb_, 0, [](const SStmStreamDeploy &) { ADD_FAILURE() << "unexpected replay"; }, now_++);
+  *trigger_ = newer;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  EXPECT_EQ(nullptr, other->pendingSchema);
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, AnUnclaimedInitialInstallReleasesItsBatchAtTheDeadline) {
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  const auto queued = now_ - 1;
+  now_ = queued + MST_ISOLATION_DURATION - 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  ASSERT_NO_FATAL_FAILURE(CheckReleased());
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+}
+
+TEST_F(MndStreamRemoteReaderTest, LateFirstPollCannotClaimAnExpiredInstall) {
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  readerHb_.readerDeployEpoch = 17;
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_EQ(0, deployment_.taskId);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, MixedReaderKeepsFullClaimWindowAfterPreparingLocalRoute) {
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, streamId_, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  request_ = trigger_->pMgmtReq;
+  trigger_->pMgmtReq = nullptr;
+  request_->reqId = 1;
+  auto *ext = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(request_->cont.pExtOrigTblReaders, 0));
+  ext->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  request_->cont.pReqs = taosArrayInit_s(sizeof(SStreamDbTableName), 1);
+  ASSERT_NE(nullptr, request_->cont.pReqs);
+  auto *table = static_cast<SStreamDbTableName *>(taosArrayGet(request_->cont.pReqs, 0));
+  tstrncpy(table->dbFName, "1.db", sizeof(table->dbFName));
+  tstrncpy(table->tbName, "sensor", sizeof(table->tbName));
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  TriggerHeartbeat(true);
+  msmCleanupSchemaWorker(&mnode_);
+
+  stub_.set(
+      mstBuildDBVgroupsMap, +[](SMnode *, SSHashObj **map) -> int32_t {
+        *map = tSimpleHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+        return *map ? 0 : terrno;
+      });
+  stub_.set(
+      mstGetTableVgId, +[](SSHashObj *, char *, char *, int32_t *id) -> int32_t {
+        heartbeatNowNs += (MST_ISOLATION_DURATION / 2) * NANOSECOND_PER_MSEC;
+        *id = 5;
+        return 0;
+      });
+  // The local Reader was already requested. The retry still resolves its current routing.
+  owner_->lastTrigMgmtReqId = request_->reqId;
+  const int64_t published = now_ + MST_ISOLATION_DURATION / 2;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_EQ(published, heartbeatNowNs / NANOSECOND_PER_MSEC);
+  ASSERT_FALSE(success_);
+
+  now_ = published + MST_ISOLATION_DURATION - 2;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto installed = deployment_;
+  ASSERT_NE(0, installed.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(installed.taskId, replyTask_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, ColocatedReaderStartsConfirmationWhenItsBatchIsAppended) {
+  Stream(streamId_)->mainSnodeId = triggerHb_.snodeId;
+  triggerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, streamId_, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  request_ = trigger_->pMgmtReq;
+  trigger_->pMgmtReq = nullptr;
+  request_->reqId = 1;
+  auto *tables = request_->cont.pExtOrigTblReaders;
+  auto *first = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  first->capabilities |= STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  auto table = *first;
+  for (int i = 2; i <= 3; ++i) {
+    table.registryEntryId = i;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &table));
+  }
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  TriggerHeartbeat(true);
+  msmCleanupSchemaWorker(&mnode_);
+
+  std::vector<SStreamTask> installs;
+  std::vector<int64_t>     retired;
+  auto                     retry = [&](bool expectReply) {
+    installs.clear();
+    retired.clear();
+    int32_t index = 0;
+    ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+    ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+    ReadHeartbeatDeploys(
+        triggerHb_, 0,
+        [&](const SStmStreamDeploy &stream) {
+          for (size_t i = 0; i < taosArrayGetSize(stream.readerTasks); ++i)
+            installs.push_back(static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, i))->task);
+        },
+        now_++,
+        [&](const SMStreamHbRspMsg &rsp) {
+          EXPECT_EQ(expectReply ? 1u : 0u, taosArrayGetSize(rsp.rsps.rspList));
+          for (size_t i = 0; i < taosArrayGetSize(rsp.undeploy.taskList); ++i) {
+            auto *cleanup = static_cast<SStreamTaskUndeploy *>(taosArrayGet(rsp.undeploy.taskList, i));
+            retired.push_back(cleanup->task.seriousId);
+          }
+        });
+    taosArrayClear(triggerHb_.pStreamReq);
+    tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+    taosMemoryFreeClear(trigger_->pMgmtReq);
+  };
+
+  // Advance the heartbeat clock just as the complete group enters the reply. On the
+  // failing attempt, the middle Reader already has its new serial when the last push fails.
+  static bool failLast, pendingGroup;
+  failLast = pendingGroup = false;
+  Stub append;
+  append.set(
+      taosArrayAddBatch, +[](SArray *array, const void *data, int32_t count) -> void * {
+        if (array->elemSize == sizeof(SStmTaskDeploy) && array->size == 2) {
+          if (failLast) {
+            failLast = false;
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return nullptr;
+          }
+          pendingGroup = true;
+        } else if (pendingGroup && array->elemSize == sizeof(SStmStreamDeploy)) {
+          pendingGroup = false;
+          heartbeatNowNs += (MST_ISOLATION_DURATION / 2) * NANOSECOND_PER_MSEC;
+        }
+        void *slot = taosArrayReserve(array, count);
+        return slot ? memcpy(slot, data, count * array->elemSize) : nullptr;
+      });
+  const int64_t firstDispatch = now_ + MST_ISOLATION_DURATION / 2;
+  ASSERT_NO_FATAL_FAILURE(retry(true));
+  ASSERT_EQ(3u, installs.size());
+  ASSERT_TRUE(retired.empty());
+  ASSERT_EQ(firstDispatch, heartbeatNowNs / NANOSECOND_PER_MSEC);
+  const auto      original = installs;
+  SStmTaskStatus *live[3] = {};
+  for (size_t i = 0; i < original.size(); ++i) {
+    const int64_t key[] = {streamId_, original[i].taskId};
+    auto        **entry = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, key, sizeof(key)));
+    ASSERT_TRUE(entry && *entry);
+    live[i] = *entry;
+    EXPECT_EQ(firstDispatch + MST_ISOLATION_DURATION, live[i]->readerRepairRetryTs);
+  }
+  now_ = firstDispatch + 1;
+  auto failed = original[1];
+  failed.status = STREAM_STATUS_FAILED;
+  failed.errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &failed));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  ReadHeartbeatDeploys(triggerHb_, 0, [](const SStmStreamDeploy &) {}, now_++);
+  taosArrayPop(triggerHb_.pStreamStatus);
+
+  failLast = true;
+  ASSERT_NO_FATAL_FAILURE(retry(false));
+  ASSERT_FALSE(failLast);
+  ASSERT_TRUE(installs.empty());
+  ASSERT_TRUE(retired.empty());
+  const auto replacement = live[1]->id.seriousId;
+  ASSERT_NE(original[1].seriousId, replacement);
+
+  now_ += MST_ISOLATION_DURATION / 4;
+  const int64_t dispatched = now_ + MST_ISOLATION_DURATION / 2;
+  ASSERT_NO_FATAL_FAILURE(retry(true));
+  append.reset(taosArrayAddBatch);
+  ASSERT_EQ(dispatched, heartbeatNowNs / NANOSECOND_PER_MSEC);
+  ASSERT_EQ(3u, installs.size());
+  EXPECT_EQ(std::vector<int64_t>{original[1].seriousId}, retired);
+  const int64_t deadline = dispatched + MST_ISOLATION_DURATION;
+  for (size_t i = 0; i < installs.size(); ++i) {
+    EXPECT_EQ(original[i].taskId, installs[i].taskId);
+    EXPECT_EQ(i == 1 ? replacement : original[i].seriousId, installs[i].seriousId);
+    EXPECT_EQ(i == 1 ? deadline : firstDispatch + MST_ISOLATION_DURATION, live[i]->readerRepairRetryTs);
+  }
+  RecordProperty("local_replacement_confirmation_ms", static_cast<int>(live[1]->readerRepairRetryTs - dispatched));
+
+  now_ = deadline - 2;
+  ASSERT_NO_FATAL_FAILURE(retry(true));
+  ASSERT_EQ(3u, installs.size());
+  EXPECT_EQ(replacement, installs[1].seriousId);
+  EXPECT_EQ(deadline, live[1]->readerRepairRetryTs);
+  const int64_t saved = mStreamMgmt.hCtx.currentTs;
+  mStreamMgmt.hCtx.currentTs = now_;
+  msmCheckTaskListStatus(streamId_, &live[1], 1);
+  mStreamMgmt.hCtx.currentTs = saved;
+  ASSERT_EQ(0u, actionQueue_.qRemainNum);
+  installs[1].status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamStatus, &installs[1]));
+  trigger_ = static_cast<SStmTaskStatusMsg *>(taosArrayGet(triggerHb_.pStreamStatus, 0));
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  EXPECT_EQ(deadline - 1, live[1]->lastUpTs);
+  EXPECT_GT(live[1]->remoteSchemaConfirmation, 0);
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, FirstReaderDeliveryStartsConfirmationWindowAfterLockWait) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  const int64_t dispatched = now_ + MST_ISOLATION_DURATION / 2;
+  {
+    static bool delayed;
+    delayed = false;
+    Stub wait;
+    wait.set(
+        mstWaitLock, +[](SRWLatch *lock, bool read) -> bool {
+          if (read) {
+            taosRLockLatch(lock);
+            if (!delayed && lock == &mStreamMgmt.actionQLock) {
+              heartbeatNowNs += (MST_ISOLATION_DURATION / 2) * NANOSECOND_PER_MSEC;
+              delayed = true;
+            }
+          } else {
+            taosWLockLatch(lock);
+          }
+          return true;
+        });
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  }
+  const auto installed = deployment_;
+  ASSERT_NE(0, installed.taskId);
+  ASSERT_EQ(dispatched, heartbeatNowNs / NANOSECOND_PER_MSEC);
+  const int64_t deadline = dispatched + MST_ISOLATION_DURATION;
+  int64_t       key[] = {streamId_, installed.taskId};
+  auto        **live = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, key, sizeof(key)));
+  ASSERT_TRUE(live && *live);
+  EXPECT_EQ(deadline, (*live)->readerRepairRetryTs);
+
+  now_ = deadline - 3;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_EQ(installed.taskId, deployment_.taskId);
+  ASSERT_EQ(installed.seriousId, deployment_.seriousId);
+  EXPECT_EQ(deadline, (*live)->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(installed.taskId, replyTask_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, LostNodeReleasesInstallAfterTriggerHasReplacedItsRequest) {
+  stub_.set(sdbFetch, +[](SSdb *, ESdbType, void *, void **) -> void * { return nullptr; });
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  tFreeSStreamMgmtReq(request_);
+  *request_ = {};
+  request_->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+  request_->reqId = 2;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  ASSERT_EQ(nullptr, owner_->pendingSchema);
+  now_ += MST_ISOLATION_DURATION;
+  CheckReaderHealth();
+  CheckReleased();
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamRemoteReaderTest, NodeLossReleasesUnclaimedReaderWhileRunnerMovesToSurvivingNode) {
+  SStmStatus *other = owner_;
+  streamId_ = kStreamB;
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false, streamId_));
+  Stream(streamId_)->mainSnodeId = readerHb_.snodeId;
+  static int placements;
+  placements = 0;
+  stub_.set(msmAssignTaskSnodeId, +[](SMnode *, SStreamObj *, bool) -> int32_t { return ++placements == 2 ? 2 : 1; });
+  stub_.set(sdbFetch, +[](SSdb *, ESdbType, void *, void **) -> void * { return nullptr; });
+  ASSERT_EQ(0,
+            mstPostStreamAction(&actionQueue_, streamId_, Stream(streamId_)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  owner_ = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &streamId_, sizeof(streamId_)));
+  ASSERT_TRUE(owner_ && owner_->triggerTask);
+  ASSERT_EQ(triggerHb_.snodeId, owner_->triggerTask->id.nodeId);
+  auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(owner_->runners[0], 0));
+  ASSERT_NE(nullptr, runner);
+  ASSERT_EQ(readerHb_.snodeId, runner->id.nodeId);
+  const auto originalRunner = runner->id;
+  atomic_store_32(&owner_->runnerReplica, 1);
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+
+  now_ += MST_ISOLATION_DURATION;
+  CheckReaderHealth();  // The target never picked up its Reader.
+  HandleActions();
+  ASSERT_EQ(0, owner_->stopped);
+  EXPECT_EQ(originalRunner.taskId, runner->id.taskId);
+  EXPECT_NE(originalRunner.seriousId, runner->id.seriousId);
+  EXPECT_EQ(triggerHb_.snodeId, runner->id.nodeId);
+  ASSERT_NO_FATAL_FAILURE(CheckReleased());
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true, TSDB_CODE_MND_STREAM_TASK_LOST));
+
+  // Another stream can start preparing its request while the lost node is still offline.
+  streamId_ = kStreamA;
+  owner_ = other;
+  Stream(streamId_)->mainSnodeId = triggerHb_.snodeId;
+  tFreeSStreamMgmtReq(request_);
+  taosMemoryFreeClear(request_);
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(trigger_, streamId_, owner_->triggerTask->id));
+  trigger_->status = STREAM_STATUS_RUNNING;
+  trigger_->ackedSchemaReqId = -1;
+  request_ = trigger_->pMgmtReq;
+  trigger_->pMgmtReq = nullptr;
+  request_->reqId = 1;
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  TriggerHeartbeat(true);
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_NE(nullptr, owner_->pendingSchema);
+  ASSERT_EQ(1, atomic_load_32(&mnode_.streamSchemaBatchCount));
+
+  int32_t index = 0;
+  ASSERT_NE(nullptr, taosArrayPush(triggerHb_.pStreamReq, &index));
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(request_, &trigger_->pMgmtReq));
+  int64_t installed = 0, returned = 0;
+  ReadHeartbeatDeploys(
+      triggerHb_, 0,
+      [&](const SStmStreamDeploy &stream) {
+        if (stream.streamId != streamId_) return;
+        ASSERT_EQ(1u, taosArrayGetSize(stream.readerTasks));
+        installed = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, 0))->task.taskId;
+      },
+      now_++,
+      [&](const SMStreamHbRspMsg &rsp) {
+        ASSERT_EQ(1u, taosArrayGetSize(rsp.rsps.rspList));
+        auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(rsp.rsps.rspList, 0));
+        ASSERT_EQ(0, reply->code);
+        auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+        ASSERT_NE(nullptr, ext);
+        ASSERT_EQ(0, ext->code);
+        EXPECT_EQ(triggerHb_.snodeId, ext->readerTaskAddr.nodeId);
+        returned = ext->readerTaskAddr.taskId;
+      });
+  taosArrayClear(triggerHb_.pStreamReq);
+  tFreeSStreamMgmtReq(trigger_->pMgmtReq);
+  taosMemoryFreeClear(trigger_->pMgmtReq);
+  EXPECT_NE(0, returned);
+  EXPECT_EQ(returned, installed);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, NormalPatchSurvivesHealthScanUntilFirstDeliveryIsConfirmed) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  const auto previous = deployment_;
+  ASSERT_NE(0, previous.taskId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+
+  now_ += MST_ISOLATION_DURATION;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());  // The node is online, but the old Reader report is stale.
+  ASSERT_NO_FATAL_FAILURE(Submit(true, true));
+  const auto queued = now_ - 1;
+  CheckReaderHealth();
+  HandleActions();
+  ASSERT_EQ(0, owner_->stopped);
+  now_ = queued + MST_ISOLATION_DURATION - 2;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  const auto replacement = deployment_;
+  ASSERT_NE(0, replacement.taskId);
+  ASSERT_NE(previous.taskId, replacement.taskId);
+  ASSERT_NE(previous.seriousId, replacement.seriousId);
+  int64_t key[] = {streamId_, replacement.taskId};
+  auto  **live = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, key, sizeof(key)));
+  ASSERT_TRUE(live && *live);
+  const auto deadline = queued + 2 * MST_ISOLATION_DURATION - 2;
+  EXPECT_EQ(deadline, (*live)->readerRepairRetryTs);
+
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  now_ = deadline - 3;
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  ASSERT_EQ(replacement.seriousId, deployment_.seriousId);
+  CheckReaderHealth();
+  HandleActions();
+  ASSERT_EQ(0, owner_->stopped);
+  ASSERT_EQ(deadline, (*live)->readerRepairRetryTs);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&replacement));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(replacement.taskId, replyTask_);
+  trigger_->ackedSchemaReqId = request_->reqId;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+}
+
+TEST_F(MndStreamRemoteReaderTest, RemotePatchSurvivesLostDeploymentAndTriggerRetry) {
+  readerHb_.readerDeployEpoch = 17;
+  ASSERT_NO_FATAL_FAILURE(Submit(true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  SStreamTask previous = deployment_;
+  ASSERT_NE(0, previous.taskId);
+  // Hold A's first CREATE while B retries. A must receive the same instance.
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_FALSE(success_);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  ASSERT_EQ(previous.taskId, deployment_.taskId);
+  ASSERT_EQ(previous.seriousId, deployment_.seriousId);
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  trigger_->ackedSchemaReqId = 1;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  ASSERT_NO_FATAL_FAILURE(CheckReleased());
+
+  ASSERT_NO_FATAL_FAILURE(Submit(true, true));
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  SStreamTask dropped = deployment_;
+  ASSERT_NE(0, dropped.taskId);
+  EXPECT_NE(previous.seriousId, dropped.seriousId);
+  // Drop A's entire PATCH response. B retries, and acknowledges if a result was returned.
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  if (!success_) {
+    // Another retirement on A can change its epoch while the replacement is queued.
+    // The replacement must use the epoch from the heartbeat that actually takes it.
+    ++readerHb_.readerDeployEpoch;
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  }
+  const bool delivered = success_;
+  if (delivered) {
+    trigger_->ackedSchemaReqId = 2;
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  }
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&previous));
+  SStreamTask installed = deployment_;
+  ASSERT_EQ(dropped.taskId, installed.taskId);
+  ASSERT_EQ(dropped.seriousId, installed.seriousId);
+  bool retiredPrevious = false;
+  for (const auto &cleanup : cleanups_) {
+    EXPECT_EQ(readerHb_.snodeId, cleanup.task.nodeId);
+    EXPECT_EQ(previous.taskId, cleanup.task.taskId);
+    EXPECT_EQ(previous.seriousId, cleanup.task.seriousId);
+    retiredPrevious |= cleanup.undeployMsg.doCleanup && !cleanup.undeployMsg.doCheckpoint;
+  }
+  EXPECT_TRUE(retiredPrevious);
+  if (!delivered) {
+    // This instance fails before B receives success. Its earlier INIT report can no longer confirm installation.
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed, STREAM_STATUS_INIT));
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed, STREAM_STATUS_FAILED));
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_FALSE(success_);
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+    ASSERT_EQ(installed.taskId, deployment_.taskId);
+    ASSERT_NE(installed.seriousId, deployment_.seriousId);
+    SStreamTask replacement = deployment_;
+    bool        retiredFailed = false;
+    for (const auto &cleanup : cleanups_) {
+      if (cleanup.task.taskId == installed.taskId && cleanup.task.seriousId == installed.seriousId) {
+        retiredFailed = cleanup.undeployMsg.doCleanup && (cleanup.task.flags & STREAM_FLAG_REMOTE_READER_DEPLOY);
+      }
+    }
+    EXPECT_TRUE(retiredFailed);
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_FALSE(success_);
+    installed = replacement;
+  }
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+  if (!delivered) {
+    EXPECT_NE(nullptr, owner_->pendingSchema);
+    ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+    ASSERT_TRUE(success_);
+    trigger_->ackedSchemaReqId = 2;
+  }
+  EXPECT_EQ(installed.taskId, replyTask_);
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(false));
+  CheckReleased();
+
+  // Remove the final binding. B receives the result, A keeps receiving cleanup until the retired Reader disappears.
+  auto *req = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(request_->cont.pExtOrigTblReaders, 0));
+  req->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH | STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
+  taosArrayClear(req->bindings);
+  request_->reqId = 3;
+  ASSERT_NO_FATAL_FAILURE(TriggerHeartbeat(true));
+  ASSERT_TRUE(success_);
+  EXPECT_EQ(installed.taskId, replyTask_);
+  for (int i = 0; i < 2; ++i) {
+    ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat(&installed));
+    EXPECT_EQ(0, deployment_.taskId);
+    ASSERT_EQ(1u, cleanups_.size());
+    EXPECT_EQ(readerHb_.snodeId, cleanups_[0].task.nodeId);
+    EXPECT_EQ(installed.taskId, cleanups_[0].task.taskId);
+    EXPECT_EQ(installed.seriousId, cleanups_[0].task.seriousId);
+    EXPECT_TRUE(cleanups_[0].undeployMsg.doCleanup);
+    EXPECT_FALSE(cleanups_[0].undeployMsg.doCheckpoint);
+  }
+  ASSERT_NO_FATAL_FAILURE(ReaderHeartbeat());
+  EXPECT_TRUE(cleanups_.empty());
+}
+
+TEST_F(MndStreamDeployOwnershipTest, SchemaBatchFailurePreservesHealthyTriggerReport) {
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *a = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(a && a->triggerTask && b && b->triggerTask);
+  SnodeLookupStubGuard snode;
+  SStreamHbMsg         hb = {};
+  hb.dnodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 2);
+  hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  auto *healthy = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 1));
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(task, kStreamA, a->triggerTask->id));
+  task->pMgmtReq->reqId = 21;
+  auto *request = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(task->pMgmtReq->cont.pExtOrigTblReaders, 0));
+  request->registryEntryId = 11;
+  request->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
+  request->capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  task->status = healthy->status = STREAM_STATUS_RUNNING;
+  healthy->type = STREAM_TRIGGER_TASK;
+  healthy->streamId = kStreamB;
+  healthy->taskId = b->triggerTask->id.taskId;
+  healthy->nodeId = b->triggerTask->id.nodeId;
+  healthy->seriousId = b->triggerTask->id.seriousId;
+  SStreamMgmtReq *retry = nullptr;
+  ASSERT_EQ(0, tCloneSStreamMgmtReq(task->pMgmtReq, &retry));
+  static std::thread::id   mainThread;
+  static std::atomic<bool> failWorker{false};
+  mainThread = std::this_thread::get_id();
+  auto skipDeploy = [](const SStmStreamDeploy &) {};
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  stub_.set(
+      taosArrayInit_s, +[](size_t elem, size_t size) -> SArray * {
+        if (std::this_thread::get_id() != mainThread && failWorker.exchange(false)) {
+          terrno = TSDB_CODE_OUT_OF_MEMORY;
+          return nullptr;
+        }
+        SArray *result = taosArrayInit(size, elem);
+        if (result) result->size = size;
+        return result;
+      });
+  failWorker.store(true);
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 101);
+  msmCleanupSchemaWorker(&mnode_);
+  stub_.reset(taosArrayInit_s);
+  EXPECT_FALSE(failWorker.load());
+  task->pMgmtReq = retry;
+  healthy->pMgmtReq = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(nullptr, healthy->pMgmtReq);
+  healthy->pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_ORIGTBL_READER;
+  healthy->pMgmtReq->reqId = 22;
+  int32_t healthyIndex = 1;
+  ASSERT_NE(nullptr, taosArrayPush(hb.pStreamReq, &healthyIndex));
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 105, [&](const SMStreamHbRspMsg &response) {
+    ASSERT_EQ(2u, taosArrayGetSize(response.rsps.rspList));
+    auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+    EXPECT_EQ(21, reply->reqId);
+    ASSERT_EQ(1u, taosArrayGetSize(reply->cont.pExtOrigTblReaders));
+    auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, ext->code);
+    auto *other = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 1));
+    ASSERT_NE(nullptr, other);
+    EXPECT_EQ(22, other->reqId);
+    EXPECT_EQ(b->triggerTask->id.taskId, other->task.taskId);
+    EXPECT_EQ(0, other->code);
+  });
+  EXPECT_EQ(105, b->triggerTask->lastUpTs);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, b->triggerTask->status);
+  EXPECT_EQ(nullptr, a->pendingSchema);
+  EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  tCleanupStreamHbMsg(&hb, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, SchemaAdmissionDefersRequestsAndStopReleasesQueuedInput) {
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *a = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(a && a->triggerTask && b && b->triggerTask);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  PauseExternalReaderSchema(stub_);
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  SStreamHbMsg hb = {};
+  hb.dnodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(task, kStreamA, a->triggerTask->id));
+  auto addTables = [](SStreamMgmtReq *request, const std::string &condition) {
+    auto                      *tables = request->cont.pExtOrigTblReaders;
+    auto                      *first = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+    SStreamExtOrigTblReaderReq cleanup = *first;
+    cleanup.registryEntryId = 2;
+    cleanup.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+    ASSERT_NE(nullptr, taosArrayPush(tables, &cleanup));
+    for (size_t i = 0; !condition.empty() && i < tables->size; ++i) {
+      auto *table = static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, i));
+      table->tagCondLen = static_cast<int32_t>(condition.size());
+      table->tagCondJson = taosStrdup(condition.c_str());
+      ASSERT_NE(nullptr, table->tagCondJson);
+    }
+  };
+  ASSERT_NO_FATAL_FAILURE(addTables(task->pMgmtReq, ""));
+  task->status = STREAM_STATUS_RUNNING;
+  const int32_t original = tsNumOfMnodeStreamMgmtThreads;
+  tsNumOfMnodeStreamMgmtThreads = 1;
+  const int32_t init = msmInitSchemaWorker(&mnode_);
+  tsNumOfMnodeStreamMgmtThreads = original;
+  ASSERT_EQ(0, init);
+  auto skipDeploy = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(hb, 0, skipDeploy);
+  EXPECT_TRUE(pause.Entered());
+  const auto retained = atomic_load_64(&mnode_.streamSchemaBatchBytes);
+  EXPECT_GT(retained, 0);
+  EXPECT_EQ(1, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  InitExternalReaderRequest(task, kStreamB, b->triggerTask->id);
+  const std::string condition = "\"" + std::string(STREAM_EXT_SOURCE_IDENTITY_MAX_TAG_COND_LEN - 2, 'x') + "\"";
+  ASSERT_NO_FATAL_FAILURE(addTables(task->pMgmtReq, condition));
+  const auto *retry = task->pMgmtReq;
+  // Simulate capacity occupied by other batches without creating a large fixture.
+  (void)atomic_add_fetch_32(&mnode_.streamSchemaBatchCount, 31);
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 103, [](const SMStreamHbRspMsg &response) {
+    EXPECT_EQ(0u, taosArrayGetSize(response.rsps.rspList));
+  });
+  EXPECT_EQ(retry, task->pMgmtReq);
+  EXPECT_EQ(nullptr, b->pendingSchema);
+  EXPECT_EQ(103, b->triggerTask->lastUpTs);
+  (void)atomic_sub_fetch_32(&mnode_.streamSchemaBatchCount, 31);
+  // One prepared table owns request/spec/replay copies, the cleanup-only table owns its request.
+  const int64_t tagBytes = 4 * (static_cast<int64_t>(condition.size()) + 1);
+  const int64_t occupied = INT64_C(256) * 1024 * 1024 - 2 * retained - tagBytes + 1;
+  (void)atomic_add_fetch_64(&mnode_.streamSchemaBatchBytes, occupied);
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 104, [](const SMStreamHbRspMsg &response) {
+    EXPECT_EQ(0u, taosArrayGetSize(response.rsps.rspList));
+  });
+  EXPECT_EQ(retry, task->pMgmtReq);
+  EXPECT_EQ(nullptr, b->pendingSchema);
+  EXPECT_EQ(104, b->triggerTask->lastUpTs);
+  (void)atomic_sub_fetch_64(&mnode_.streamSchemaBatchBytes, 1);
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 105);
+  EXPECT_NE(nullptr, b->pendingSchema);
+  EXPECT_EQ(INT64_C(256) * 1024 * 1024, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+  (void)atomic_sub_fetch_64(&mnode_.streamSchemaBatchBytes, occupied - 1);
+  const auto queued = atomic_load_64(&mnode_.streamSchemaBatchBytes);
+  EXPECT_EQ(2 * retained + tagBytes, queued);
+  msmUndeployStream(&mnode_, kStreamB, Stream(kStreamB)->name);
+  EXPECT_EQ(nullptr, b->pendingSchema);
+  EXPECT_LT(atomic_load_64(&mnode_.streamSchemaBatchBytes), queued);
+  // A newer request queues behind A's in-flight provider call.
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(task, kStreamA, a->triggerTask->id));
+  task->pMgmtReq->reqId = 2;
+  ReadHeartbeatDeploys(hb, 0, skipDeploy, 106);
+  EXPECT_NE(nullptr, a->pendingSchema);
+  const auto beforeExpiry = atomic_load_64(&mnode_.streamSchemaBatchBytes);
+  EXPECT_EQ(TSDB_CODE_GRANT_STREAM_EXPIRED, msmHandleGrantExpired(&mnode_, TSDB_CODE_GRANT_STREAM_EXPIRED));
+  EXPECT_EQ(nullptr, a->pendingSchema);
+  EXPECT_LT(atomic_load_64(&mnode_.streamSchemaBatchBytes), beforeExpiry);
+  const auto version = atomic_load_64(&a->buildVersion);
+  EXPECT_EQ(TSDB_CODE_GRANT_STREAM_EXPIRED, msmHandleGrantExpired(&mnode_, TSDB_CODE_GRANT_STREAM_EXPIRED));
+  EXPECT_EQ(version, atomic_load_64(&a->buildVersion));
+  pause.Release();
+  msmCleanupSchemaWorker(&mnode_);
+  EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+  tCleanupStreamHbMsg(&hb, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MnodeStopSkipsQueuedSchemaBatchesAndRemainingTables) {
+  CheckSchemaWorkerStop(true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ErrorStopSkipsQueuedSchemaBatchesAndRemainingTables) {
+  CheckSchemaWorkerStop(false);
+}
+
+void MndStreamDeployOwnershipTest::CheckSchemaWorkerStop(bool stopMnode) {
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *a = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(a && a->triggerTask && b && b->triggerTask);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  PauseExternalReaderSchema(stub_);
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  static std::atomic<int> opens, fetches;
+  opens.store(0);
+  fetches.store(0);
+  stub_.set(
+      extConnectorOpen, +[](const SExtSourceCfg *, SExtConnectorHandle **) -> int32_t {
+        ++opens;
+        PrivateBuildPause::Pause();
+        return 0;
+      });
+  stub_.set(
+      extConnectorGetTableSchema, +[](SExtConnectorHandle *, const SExtTableNode *, SExtTableMeta **) -> int32_t {
+        ++fetches;
+        return TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
+      });
+  SStreamHbMsg hb = {};
+  hb.dnodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(task, kStreamA, a->triggerTask->id));
+  task->status = STREAM_STATUS_RUNNING;
+  auto *tables = task->pMgmtReq->cont.pExtOrigTblReaders;
+  auto  second = *static_cast<SStreamExtOrigTblReaderReq *>(taosArrayGet(tables, 0));
+  second.registryEntryId = 2;
+  tstrncpy(second.identity.tableName, "other", sizeof(second.identity.tableName));
+  ASSERT_NE(nullptr, taosArrayPush(tables, &second));
+  const auto savedThreads = tsNumOfMnodeStreamMgmtThreads;
+  tsNumOfMnodeStreamMgmtThreads = 1;
+  const auto init = msmInitSchemaWorker(&mnode_);
+  tsNumOfMnodeStreamMgmtThreads = savedThreads;
+  ASSERT_EQ(0, init);
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(hb, 0, skip);
+  EXPECT_TRUE(pause.Entered());
+  InitExternalReaderRequest(task, kStreamB, b->triggerTask->id);
+  ReadHeartbeatDeploys(hb, 0, skip);
+  EXPECT_NE(nullptr, b->pendingSchema);
+
+  if (!stopMnode) {
+    stub_.set(
+        mstIsStreamDropped, +[](SMnode *, int64_t, bool *dropped) -> int32_t {
+          *dropped = false;
+          return TSDB_CODE_SUCCESS;
+        });
+    StreamFailureStubGuard report;
+    const auto             reserved = atomic_load_64(&mnode_.streamSchemaBatchBytes);
+    taosArrayClear(hb.pStreamReq);
+    task->status = STREAM_STATUS_FAILED;
+    task->errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+    ReadHeartbeatDeploys(hb, 0, skip);  // No requests: actionQLock is held for reading.
+    EXPECT_EQ(1, b->stopped);
+    EXPECT_EQ(nullptr, b->pendingSchema);
+    EXPECT_EQ(1, atomic_load_32(&mnode_.streamSchemaBatchCount));
+    EXPECT_LT(atomic_load_64(&mnode_.streamSchemaBatchBytes), reserved);
+
+    int32_t index = 0;
+    EXPECT_NE(nullptr, taosArrayPush(hb.pStreamReq, &index));
+    InitExternalReaderRequest(task, kStreamB, b->triggerTask->id);
+    task->status = STREAM_STATUS_RUNNING;
+    ReadHeartbeatDeploys(hb, 0, skip, 102, [](const SMStreamHbRspMsg &response) {
+      auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+      ASSERT_NE(nullptr, reply);
+      auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+      ASSERT_NE(nullptr, ext);
+      EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_RUNNING, ext->code);
+    });
+    EXPECT_EQ(nullptr, b->pendingSchema);
+
+    taosWLockLatch(&mStreamMgmt.runtimeLock);  // Health checks stop a stream by ID.
+    msmStopStreamByError(kStreamA, nullptr, TSDB_CODE_MND_STREAM_TASK_LOST, 103);
+    taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+    EXPECT_EQ(nullptr, a->pendingSchema);
+    pause.Release();
+    msmCleanupSchemaWorker(&mnode_);
+    EXPECT_EQ(1, opens.load());
+    EXPECT_EQ(0, fetches.load());
+    EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+    EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+    tCleanupStreamHbMsg(&hb, true);
+    return;
+  }
+
+  stub_.set(syncLeaderTransfer, +[](int64_t) -> int32_t { return 0; });
+  stub_.set(syncPreStop, +[](int64_t) {});
+  stub_.set(sdbWriteFile, +[](SSdb *, int32_t) -> int32_t { return 0; });
+  mndPreClose(&mnode_);
+  pause.Release();
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+  while (!taosQueueEmpty(mnode_.streamSchemaWorker.queue) && std::chrono::steady_clock::now() < deadline) {
+    std::this_thread::yield();
+  }
+  EXPECT_TRUE(taosQueueEmpty(mnode_.streamSchemaWorker.queue));
+  EXPECT_EQ(1, opens.load());
+  EXPECT_EQ(0, fetches.load());
+  // Supersede B's outstanding request while the queue is still open.
+  InitExternalReaderRequest(task, kStreamB, b->triggerTask->id);
+  task->pMgmtReq->reqId = 2;
+  ReadHeartbeatDeploys(hb, 0, skip, 102, [](const SMStreamHbRspMsg &response) {
+    ASSERT_EQ(1u, taosArrayGetSize(response.rsps.rspList));
+    auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+    auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+    ASSERT_NE(nullptr, ext);
+    EXPECT_EQ(TSDB_CODE_APP_IS_STOPPING, ext->code);
+  });
+  EXPECT_EQ(nullptr, b->pendingSchema);
+  msmCleanupSchemaWorker(&mnode_);
+  msmUndeployStream(&mnode_, kStreamA, Stream(kStreamA)->name);
+  EXPECT_EQ(1, opens.load());
+  EXPECT_EQ(0, fetches.load());
+  EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+  tCleanupStreamHbMsg(&hb, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ErrorStopReleasesPreparedAndPublishedSchema) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *a = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_TRUE(a && a->triggerTask && a->runners[0] && b && b->triggerTask);
+  auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(a->runners[0], 0));
+  ASSERT_NE(nullptr, runner);
+  StreamFailureStubGuard report;
+  stub_.set(mndAcquireExtSource, +[](SMnode *, const char *) -> SExtSourceObj * { return nullptr; });
+
+  SStreamHbMsg hb = {};
+  hb.dnodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 2);
+  hb.pStreamReq = taosArrayInit_s(sizeof(int32_t), 2);
+  auto *triggerA = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  auto *triggerB = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 1));
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(triggerA, kStreamA, a->triggerTask->id));
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(triggerB, kStreamB, b->triggerTask->id));
+  triggerA->status = triggerB->status = STREAM_STATUS_RUNNING;
+  triggerA->ackedSchemaReqId = -1;
+  *static_cast<int32_t *>(taosArrayGet(hb.pStreamReq, 1)) = 1;
+  ASSERT_EQ(0, msmInitSchemaWorker(&mnode_));
+  auto skip = [](const SStmStreamDeploy &) {};
+  ReadHeartbeatDeploys(hb, 0, skip);
+  msmCleanupSchemaWorker(&mnode_);
+  ASSERT_EQ(2, atomic_load_32(&mnode_.streamSchemaBatchCount));
+
+  // A retries and borrows its published reply for encoding. B still owns its prepared result.
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(triggerA, kStreamA, a->triggerTask->id));
+  taosArrayPop(hb.pStreamReq);
+  triggerB->status = STREAM_STATUS_FAILED;
+  triggerB->errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+  SStmTaskStatusMsg failed = {};
+  failed.streamId = kStreamA;
+  failed.type = STREAM_RUNNER_TASK;
+  failed.taskId = runner->id.taskId;
+  failed.seriousId = runner->id.seriousId;
+  failed.nodeId = runner->id.nodeId;
+  failed.status = STREAM_STATUS_FAILED;
+  failed.errorCode = TSDB_CODE_MND_STREAM_TASK_LOST;
+  ASSERT_NE(nullptr, taosArrayPush(hb.pStreamStatus, &failed));
+  ReadHeartbeatDeploys(hb, 0, skip, 102, [](const SMStreamHbRspMsg &response) {
+    ASSERT_EQ(1u, taosArrayGetSize(response.rsps.rspList));
+    auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+    auto *ext = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+    ASSERT_NE(nullptr, ext);
+    EXPECT_EQ(TSDB_CODE_EXT_SOURCE_NOT_FOUND, ext->code);
+  });
+  EXPECT_EQ(1, a->stopped);
+  EXPECT_EQ(1, b->stopped);
+  EXPECT_EQ(nullptr, a->pendingSchema);
+  EXPECT_EQ(nullptr, b->pendingSchema);
+  EXPECT_EQ(0, atomic_load_32(&mnode_.streamSchemaBatchCount));
+  EXPECT_EQ(0, atomic_load_64(&mnode_.streamSchemaBatchBytes));
+  tCleanupStreamHbMsg(&hb, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StopAndStatusReadFinishDuringExternalSchemaFetch) {
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *owner = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, owner);
+  ASSERT_NE(nullptr, owner->triggerTask);
+  SStreamObj other = BuildMinimalStreamObj();
+  ASSERT_NE(nullptr, other.pCreate);
+  other.pCreate->streamId = kStreamB + 1;
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  PauseExternalReaderSchema(stub_);
+  stub_.set(sdbReadLock, +[](SSdb *, int32_t) {});
+  stub_.set(sdbUnLock, +[](SSdb *, int32_t) {});
+  SStmTaskStatusMsg task = {};
+  ASSERT_NO_FATAL_FAILURE(InitExternalReaderRequest(&task, kStreamA, owner->triggerTask->id));
+  SMStreamHbRspMsg response = {};
+  SStmGrpCtx       ctx = {};
+  ctx.pMnode = &mnode_;
+  ctx.pRsp = &response;
+  std::thread fetch([&] { EXPECT_EQ(0, handleHeartbeatTaskMgmtReq(&ctx, &task)); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  HandleActions();
+  auto *published = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  EXPECT_TRUE(published && published->triggerTask);
+  SStreamHbMsg heartbeat = {};
+  heartbeat.dnodeId = 1;
+  heartbeat.streamGId = 1;
+  ReadHeartbeatDeploys(heartbeat, 0, [](const SStmStreamDeploy &) {});
+  auto *seen = static_cast<int64_t *>(taosHashGet(mStreamMgmt.dnodeMap, &heartbeat.dnodeId, sizeof(heartbeat.dnodeId)));
+  EXPECT_EQ(101, seen ? *seen : 0);
+  msmUndeployStream(&mnode_, kStreamB, Stream(kStreamB)->name);
+  EXPECT_TRUE(published && published->stopped == 2);
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, &other, block, 0, 0));
+  msmUndeployStream(&mnode_, kStreamA, Stream(kStreamA)->name);
+  pause.Release();
+  fetch.join();
+  auto *reply = static_cast<SStreamMgmtRsp *>(taosArrayGet(response.rsps.rspList, 0));
+  ASSERT_NE(nullptr, reply);
+  auto *extReply = static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(reply->cont.pExtOrigTblReaders, 0));
+  ASSERT_NE(nullptr, extReply);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_RUNNING, extReply->code);
+  tFreeSMStreamHbRspMsg(&response);
+  blockDataDestroy(block);
+  tFreeStreamObj(&other);
+}
+#endif
+
+TEST_F(MndStreamDeployOwnershipTest, SameNameReplacementDuringBuildDiscardsOldTasks) {
+  PrivateBuildPause pause;
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  auto *old = Stream(kStreamA);
+  auto *replacement = Stream(kStreamB);
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  atomic_store_8(&old->userDropped, 1);
+  tstrncpy(replacement->name, old->name, sizeof(replacement->name));
+  gRecoveryStreams[0] = replacement;
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  pause.Release();
+  builder.join();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  QueueDeploy(kStreamB);
+  HandleActions();
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(1, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StopDuringPublicationPreventsNextHeartbeatClaim) {
+  auto *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  PrivateBuildPause pause(false);
+  Stub              reset;
+  reset.set(
+      mstResetSStmStatus, +[](SStmStatus *) {
+        PrivateBuildPause::Pause();  // Both the old fixture status and the transferred draft own no tasks here.
+      });
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  static std::atomic<bool> waiting{false};
+  waiting.store(false);
+  std::atomic<bool> finished{false};
+  Stub              wait;
+  wait.set(
+      mstWaitLock, +[](SRWLatch *lock, bool read) -> bool {
+        if (lock == &mStreamMgmt.runtimeLock) waiting.store(true);
+        if (read)
+          taosRLockLatch(lock);
+        else
+          taosWLockLatch(lock);
+        return true;
+      });
+  std::thread stop([&] {
+    atomic_store_8(&Stream(kStreamA)->userStopped, 1);
+    msmUndeployStream(&mnode_, kStreamA, Stream(kStreamA)->name);
+    finished.store(true);
+  });
+  while (!waiting.load() && !finished.load()) std::this_thread::yield();
+  EXPECT_TRUE(waiting.load());
+  EXPECT_FALSE(finished.load());
+  pause.Release();
+  builder.join();
+  stop.join();
+  EXPECT_TRUE(finished.load());
+  EXPECT_EQ(2, status->stopped);
+  SStreamHbMsg req = {};
+  req.snodeId = 1;
+  SStmGrpCtx ctx = {};
+  ctx.pReq = &req;
+  ctx.deployStm = deployStm_;
+  EXPECT_EQ(0, msmGrpAddDeploySnodeTasks(&ctx, nullptr));
+  EXPECT_EQ(0, taosHashGetSize(deployStm_));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ReaderRepairDropsSupersededSerialAfterPrivateBuild) {
+  auto *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  status->pCreate->calcScanPlanList = taosArrayInit_s(sizeof(SStreamCalcScan), 1);
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(status->pCreate->calcScanPlanList, 0));
+  ASSERT_NE(nullptr, scan);
+  scan->scanPlan = taosStrdup("reader plan");
+  ASSERT_NE(nullptr, scan->scanPlan);
+  SStmTaskStatus reader = {};
+  reader.pStream = status;
+  reader.id.nodeId = 3;
+  reader.id.taskId = 742;
+  reader.id.seriousId = 1;
+  reader.type = STREAM_READER_TASK;
+  int64_t         key[] = {kStreamA, reader.id.taskId};
+  SStmTaskStatus *ptr = &reader;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.taskMap, key, sizeof(key), &ptr, sizeof(ptr)));
+  SStmTaskAction repair = {};
+  repair.type = reader.type;
+  repair.id = reader.id;
+  repair.streamId = kStreamA;
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  static Stub         *guard;
+  guard = &stub_;
+  stub_.set(
+      msmBuildReaderDeployInfo, +[](SStmTaskDeploy *deploy, void *plan, SStmStatus *input, bool trigger) -> int32_t {
+        PrivateBuildPause::Pause();
+        guard->reset(msmBuildReaderDeployInfo);
+        return msmBuildReaderDeployInfo(deploy, plan, input, trigger);
+      });
+  mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY);
+  std::thread worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  EXPECT_TRUE(HeartbeatTriggerIds(0).empty());
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  repair.id.seriousId = mstBumpTaskSeriousId(&reader);
+  mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY);
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  pause.Release();
+  worker.join();
+  blockDataDestroy(block);
+
+  EXPECT_EQ(0, status->stopped);
+  ASSERT_EQ(1, mStreamMgmt.toDeployVgTaskNum);
+  auto *queue = static_cast<SStmVgTasksToDeploy *>(
+      taosHashGet(mStreamMgmt.toDeployVgMap, &reader.id.nodeId, sizeof(reader.id.nodeId)));
+  ASSERT_NE(nullptr, queue);
+  auto *entry = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->taskList, 0));
+  ASSERT_NE(nullptr, entry);
+  EXPECT_EQ(repair.id.seriousId, entry->deploy.task.seriousId);
+  EXPECT_STREQ("reader plan", static_cast<const char *>(entry->deploy.msg.reader.msg.calc.calcScanPlan));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ReaderTimeoutKeepsOneRepairUntilHeartbeatDispatch) {
+  auto *create = Stream(kStreamA)->pCreate;
+  create->calcScanPlanList = taosArrayInit_s(sizeof(SStreamCalcScan), 1);
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+  ASSERT_NE(nullptr, scan);
+  const int32_t vgId = 3;
+  scan->vgList = taosArrayInit(1, sizeof(vgId));
+  ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &vgId));
+  scan->scanPlan = taosStrdup("reader plan");
+  ASSERT_NE(nullptr, scan->scanPlan);
+
+  SStmGrpCtx ctx = {};
+  ctx.pMnode = &mnode_;
+  ctx.currTs = 1;
+  SStmTaskStatusMsg report = {};
+  report.type = STREAM_TRIGGER_TASK;
+  report.streamId = kStreamA;
+  report.taskId = 100;
+  report.seriousId = 10;
+  report.nodeId = 1;
+  report.status = STREAM_STATUS_RUNNING;
+  ASSERT_EQ(0, msmWatchRecordNewTask(&ctx, &report));
+  report.type = STREAM_READER_TASK;
+  report.taskId = 101;
+  report.nodeId = vgId;
+  ASSERT_EQ(0, msmWatchRecordNewTask(&ctx, &report));
+  SStreamHbMsg hb = {};
+  hb.dnodeId = 1;
+  hb.pVgLeaders = taosArrayInit(1, sizeof(report.nodeId));
+  ASSERT_NE(nullptr, taosArrayPush(hb.pVgLeaders, &report.nodeId));
+  const auto health = mStreamMgmt.hCtx;
+  mStreamMgmt.hCtx.slotIdx = report.nodeId % MND_STREAM_ISOLATION_PERIOD_NUM;
+  auto *vg = static_cast<SStmVgroupStatus *>(taosHashGet(mStreamMgmt.vgroupMap, &report.nodeId, sizeof(report.nodeId)));
+  ASSERT_NE(nullptr, vg);
+  vg->lastUpTs = ctx.currTs;
+  int64_t              now = taosGetTimestampMs() - 4 * MST_ISOLATION_DURATION;
+  std::vector<int64_t> delivered;
+  auto                 heartbeat = [&] {
+    ReadHeartbeatDeploys(
+        hb, 0,
+        [&](const SStmStreamDeploy &stream) {
+          for (size_t i = 0; i < taosArrayGetSize(stream.readerTasks); ++i) {
+            auto *entry = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.readerTasks, i));
+            EXPECT_EQ(report.taskId, entry->task.taskId);
+            delivered.push_back(entry->task.seriousId);
+          }
+        },
+        now);
+    EXPECT_EQ(now, vg->lastUpTs);
+  };
+  auto check = [&] {
+    mStreamMgmt.hCtx.currentTs = now;
+    msmCheckVgroupStatus(&mnode_);
+  };
+  heartbeat();
+  stub_.set(
+      mstPostTaskAction, +[](SStmActionQ *, SStmTaskAction *, int32_t) -> int32_t { return TSDB_CODE_OUT_OF_MEMORY; });
+  check();
+  EXPECT_EQ(0, actionQueue_.qRemainNum);
+  stub_.reset(mstPostTaskAction);
+  check();
+  check();
+  EXPECT_EQ(1, actionQueue_.qRemainNum);
+  PrivateBuildPause pause(false);
+  static Stub      *guard;
+  guard = &stub_;
+  stub_.set(
+      msmBuildReaderDeployInfo, +[](SStmTaskDeploy *deploy, void *plan, SStmStatus *input, bool trigger) -> int32_t {
+        PrivateBuildPause::Pause();
+        guard->reset(msmBuildReaderDeployInfo);
+        return msmBuildReaderDeployInfo(deploy, plan, input, trigger);
+      });
+  std::thread worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  for (int i = 0; i < 3; ++i) {
+    now += MST_ISOLATION_DURATION;
+    heartbeat();
+    check();
+  }
+  EXPECT_EQ(0, actionQueue_.qRemainNum);
+  EXPECT_TRUE(delivered.empty());
+  pause.Release();
+  worker.join();
+  check();
+  EXPECT_EQ(0, actionQueue_.qRemainNum);
+  const int64_t beforeDispatch = taosGetTimestampMs();
+  heartbeat();
+  const int64_t afterDispatch = taosGetTimestampMs();
+  EXPECT_EQ(std::vector<int64_t>{report.seriousId + 1}, delivered);
+  now = beforeDispatch + MST_ISOLATION_DURATION - 1;
+  heartbeat();
+  check();
+  EXPECT_EQ(0, actionQueue_.qRemainNum);
+  now = afterDispatch + MST_ISOLATION_DURATION;
+  heartbeat();
+  check();
+  EXPECT_EQ(1, actionQueue_.qRemainNum);
+  HandleActions();
+  heartbeat();
+  EXPECT_EQ((std::vector<int64_t>{report.seriousId + 1, report.seriousId + 2}), delivered);
+  taosArrayDestroy(hb.pVgLeaders);
+  mStreamMgmt.hCtx = health;
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StaleReaderRepairCannotStopNewDeployment) {
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  SStmTaskStatus reader = {};
+  reader.pStream = status;
+  reader.type = STREAM_READER_TASK;
+  reader.id.taskId = 742;
+  SStmTaskStatus   *oldReader = &reader;
+  PrivateBuildPause pause;
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  auto saved = mStreamMgmt.hCtx;
+  mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
+  msmCheckTaskListStatus(kStreamA, &oldReader, 1);
+  EXPECT_EQ(1u, actionQueue_.qRemainNum);
+  auto oldGeneration = status->triggerTask->id.taskId;
+  pause.Release();
+  builder.join();
+  EXPECT_NE(oldGeneration, status->triggerTask->id.taskId);
+  EXPECT_EQ(0, status->stopped);
+  SStmTaskStatus missing = {};
+  missing.type = STREAM_READER_TASK;
+  missing.pStream = status;
+  missing.id.taskId = 743;
+  SStmTaskStatus *missingReader = &missing;
+  msmCheckTaskListStatus(kStreamA, &missingReader, 1);  // Same generation, missing ID still fails.
+  HandleActions();
+  EXPECT_EQ(1, status->stopped);
+  EXPECT_EQ(TSDB_CODE_STREAM_INTERNAL_ERROR, status->fatalError);
+  mStreamMgmt.hCtx = saved;
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RetryIsClaimedOnceAcrossSuccessAndBackoff) {
+  auto *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  stub_.set(sdbCheckExists, reportStreamExists);
+  const auto saved = mStreamMgmt.hCtx;
+  status->stopped = 1;
+  status->fatalRetryTs = 1;
+  mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
+  msmCheckLoopStreamMap(&mnode_);
+  ASSERT_EQ(1u, actionQueue_.qRemainNum);
+  status->fatalRetryTs = taosGetTimestampMs() + MST_ISOLATION_DURATION;
+  HandleActions();
+  EXPECT_EQ(0, status->deployTimes);
+  EXPECT_FALSE(status->retryQueued);
+  status->fatalRetryTs = 1;
+  msmCheckLoopStreamMap(&mnode_);
+  ASSERT_EQ(1u, actionQueue_.qRemainNum);
+  ++status->buildVersion;
+  HandleActions();
+  EXPECT_EQ(0, status->deployTimes);
+  EXPECT_FALSE(status->retryQueued);
+  for (bool fail : {false, true}) {
+    Stub failRestore;
+    if (fail)
+      failRestore.set(
+          mndStreamRecalcPrepareRestore, +[](const SStreamObj *, SStreamRecalcRestore *, int64_t, int64_t) -> int32_t {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          });
+    status->stopped = 1;
+    status->fatalRetryTs = 1;
+    mStreamMgmt.hCtx.currentTs = taosGetTimestampMs();
+    msmCheckLoopStreamMap(&mnode_);
+    msmCheckLoopStreamMap(&mnode_);
+    EXPECT_EQ(1u, actionQueue_.qRemainNum);
+    PrivateBuildPause pause;
+    auto              attempts = status->deployTimes;
+    std::thread       worker([&] { HandleActions(); });
+    EXPECT_TRUE(pause.Entered());
+    msmCheckLoopStreamMap(&mnode_);
+    EXPECT_EQ(0u, actionQueue_.qRemainNum);
+    pause.Release();
+    worker.join();
+    EXPECT_EQ(attempts + 1, status->deployTimes);
+    EXPECT_EQ(fail ? 1 : 0, status->stopped);
+    if (fail) EXPECT_GT(status->fatalRetryTs, mStreamMgmt.hCtx.currentTs);
+    msmCheckLoopStreamMap(&mnode_);
+    EXPECT_EQ(0u, actionQueue_.qRemainNum);
+  }
+  mStreamMgmt.hCtx = saved;
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ClaimedStartSurvivesRuntimeMapCleanup) {
+  auto *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  status->stopped = 2;
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamA, Stream(kStreamA)->name, nullptr, true, STREAM_ACT_DEPLOY));
+  PrivateBuildPause pause;
+  std::thread       worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  msmCheckLoopStreamMap(&mnode_);
+  EXPECT_EQ(status, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  pause.Release();
+  worker.join();
+  ASSERT_EQ(status, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_EQ(0, status->stopped);
+  EXPECT_EQ(1, status->deployTimes);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StatusQueryFinishesDuringFirstPlanCopy) {
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  static Stub         *clone;
+  clone = &stub_;
+  stub_.set(
+      tCloneStreamCreateDeployPointers, +[](SCMCreateStreamReq *from, SCMCreateStreamReq **to) -> int32_t {
+        PrivateBuildPause::Pause();
+        clone->reset(tCloneStreamCreateDeployPointers);
+        return tCloneStreamCreateDeployPointers(from, to);
+      });
+  QueueDeploy(kStreamA);
+  std::thread worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  pause.Release();
+  worker.join();
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  blockDataDestroy(block);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StatusQueryFinishesDuringRunnerOnlyPlanSerialization) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_NE(nullptr, status->runners[0]);
+  auto *runner = static_cast<SStmTaskStatus *>(taosArrayGet(status->runners[0], 0));
+  ASSERT_NE(nullptr, runner);
+  const auto savedRunner = runner->id.taskId;
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  PrivateBuildPause    pause(false);
+  stub_.set(
+      tjsonToUnformattedString, +[](const SJson *json) -> char * {
+        PrivateBuildPause::Pause();
+        return cJSON_PrintUnformatted(reinterpret_cast<const cJSON *>(json));
+      });
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY);
+  auto        pending = mStreamMgmt.toDeploySnodeTaskNum;
+  std::thread worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  pause.Release();
+  worker.join();
+  EXPECT_EQ(0, status->stopped);
+  EXPECT_EQ(savedRunner, runner->id.taskId);
+  EXPECT_TRUE(STREAM_IS_TOP_RUNNER(runner->flags));
+  EXPECT_TRUE(STREAM_IS_REDEPLOY_RUNNER(runner->flags));
+  EXPECT_EQ(STREAM_STATUS_UNDEPLOYED, runner->status);
+  EXPECT_EQ(pending + 1, mStreamMgmt.toDeploySnodeTaskNum);
+  blockDataDestroy(block);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerLossRebindsNestedSubqueryEndpoints) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+  const int32_t   lostNode = 2, vg = 20;
+  const int64_t   lastUp = 0;
+  SStmSnodeStatus node = {};
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.snodeMap, &lostNode, sizeof(lostNode), &node, sizeof(node)));
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &lostNode, sizeof(lostNode), &lastUp, sizeof(lastUp)));
+  // Place only the first child DAG on node 2. Trigger and parent Runner stay on node 1.
+  static int placement;
+  placement = 0;
+  stub_.set(msmAssignTaskSnodeId, +[](SMnode *, SStreamObj *, bool) -> int32_t { return ++placement == 2 ? 2 : 1; });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  std::vector<int64_t> oldTasks;
+  auto                 checkGeneration = [&](int32_t childNode) {
+    ASSERT_NE(nullptr, status->triggerTask);
+    ASSERT_NE(nullptr, status->calcReaders);
+    ASSERT_EQ(1, listNEles(status->calcReaders));
+    auto reader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data)->id;
+    EXPECT_EQ(vg, reader.nodeId);
+    auto runner = [&](int deploy, int index) {
+      return static_cast<SStmTaskStatus *>(taosArrayGet(status->runners[deploy], index))->id;
+    };
+    std::vector<int64_t> current = {status->triggerTask->id.taskId, reader.taskId};
+    for (int deploy = 0; deploy < status->runnerDeploys; ++deploy) {
+      ASSERT_EQ(2u, taosArrayGetSize(status->runners[deploy]));
+      EXPECT_EQ(deploy == 0 ? childNode : 1, runner(deploy, 0).nodeId);
+      EXPECT_EQ(1, runner(deploy, 1).nodeId);
+      current.push_back(runner(deploy, 0).taskId);
+      current.push_back(runner(deploy, 1).taskId);
+    }
+    for (auto id : current) EXPECT_EQ(oldTasks.end(), std::find(oldTasks.begin(), oldTasks.end(), id));
+    oldTasks = current;
+    std::vector<int64_t> delivered;
+    auto checkEndpoint = [&](SNode *raw, int64_t task, int32_t dest, int32_t msgType, int64_t clientId) {
+      ASSERT_NE(nullptr, raw);
+      ASSERT_EQ(QUERY_NODE_DOWNSTREAM_SOURCE, nodeType(raw));
+      auto *source = reinterpret_cast<SDownstreamSourceNode *>(raw);
+      EXPECT_EQ(clientId, source->clientId);
+      EXPECT_EQ(task, source->taskId);
+      EXPECT_EQ(msgType, source->fetchMsgType);
+      EXPECT_EQ(dest, source->addr.nodeId);
+      ASSERT_EQ(1, source->addr.epSet.numOfEps);
+      EXPECT_EQ(6000 + dest, source->addr.epSet.eps[0].port);
+      EXPECT_STREQ(dest == 2 ? "node2" : "node1", source->addr.epSet.eps[0].fqdn);
+    };
+    for (int nodeId = 1; nodeId <= childNode; ++nodeId) {
+      SStreamHbMsg hb = {};
+      hb.dnodeId = hb.snodeId = nodeId;
+      if (nodeId == 1) {
+        hb.pVgLeaders = taosArrayInit(1, sizeof(vg));
+        ASSERT_NE(nullptr, taosArrayPush(hb.pVgLeaders, &vg));
+      }
+      ReadHeartbeatDeploys(hb, 0, [&](const SStmStreamDeploy &stream) {
+        EXPECT_EQ(kStreamA, stream.streamId);
+        if (stream.triggerTask) delivered.push_back(stream.triggerTask->task.taskId);
+        for (SArray *tasks : {stream.readerTasks, stream.runnerTasks}) {
+          for (size_t i = 0; i < taosArrayGetSize(tasks); ++i) {
+            auto       *task = static_cast<SStmTaskDeploy *>(taosArrayGet(tasks, i));
+            bool        isReader = tasks == stream.readerTasks;
+            const void *serialized = isReader ? task->msg.reader.msg.calc.calcScanPlan : task->msg.runner.pPlan;
+            SNode      *raw = nullptr;
+            ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(serialized), &raw));
+            std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+            ASSERT_NE(nullptr, raw);
+            ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(raw));
+            delivered.push_back(task->task.taskId);
+            ASSERT_GE(task->task.deployId, 0);
+            ASSERT_LT(task->task.deployId, status->runnerDeploys);
+            auto *plan = reinterpret_cast<SSubplan *>(raw);
+            ASSERT_NE(nullptr, plan->pNode);
+            if (plan->id.subplanId == 12) {
+              auto child = runner(task->task.deployId, 0);
+              EXPECT_FALSE(isReader);
+              EXPECT_EQ(child.nodeId, nodeId);
+              EXPECT_EQ(child.taskId, task->task.taskId);
+              continue;
+            }
+            EXPECT_EQ(1, nodeId);
+            ASSERT_NE(nullptr, plan->pNode->pConditions);
+            ASSERT_EQ(QUERY_NODE_REMOTE_VALUE, nodeType(plan->pNode->pConditions));
+            EXPECT_EQ(0, reinterpret_cast<SRemoteValueNode *>(plan->pNode->pConditions)->subQIdx);
+            ASSERT_EQ(status->runnerDeploys, LIST_LENGTH(plan->pSubQ));
+            for (int deploy = 0; deploy < status->runnerDeploys; ++deploy) {
+              auto child = runner(deploy, 0);
+              ASSERT_NO_FATAL_FAILURE(checkEndpoint(nodesListGetNode(plan->pSubQ, deploy), child.taskId, child.nodeId,
+                                                                    TDMT_STREAM_FETCH_FROM_RUNNER, kStreamA));
+            }
+            if (isReader) {
+              EXPECT_EQ(13, plan->id.subplanId);
+              EXPECT_EQ(reader.taskId, task->task.taskId);
+            } else {
+              auto parent = runner(task->task.deployId, 1);
+              EXPECT_EQ(11, plan->id.subplanId);
+              EXPECT_EQ(parent.taskId, task->task.taskId);
+              ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, nodeType(plan->pNode));
+              auto *exchange = reinterpret_cast<SExchangePhysiNode *>(plan->pNode);
+              ASSERT_EQ(1, LIST_LENGTH(exchange->pSrcEndPoints));
+              ASSERT_NO_FATAL_FAILURE(checkEndpoint(nodesListGetNode(exchange->pSrcEndPoints, 0), reader.taskId, vg,
+                                                                    TDMT_STREAM_FETCH, parent.taskId));
+            }
+          }
+        }
+      });
+      taosArrayDestroy(hb.pVgLeaders);
+    }
+    std::sort(delivered.begin(), delivered.end());
+    std::sort(current.begin(), current.end());
+    EXPECT_EQ(current, delivered);
+  };
+  ASSERT_NO_FATAL_FAILURE(checkGeneration(lostNode));
+  static_cast<SStmSnodeStatus *>(taosHashGet(mStreamMgmt.snodeMap, &lostNode, sizeof(lostNode)))->runnerThreadNum = -1;
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY);
+  HandleActions();
+  EXPECT_EQ(0, status->stopped);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_NE(repair.generation, status->triggerTask->id.taskId);
+  EXPECT_EQ(1, status->deployTimes);
+  ASSERT_NO_FATAL_FAILURE(checkGeneration(1));
+}
 
 TEST_F(MndStreamDeployOwnershipTest, StaleActionCannotDeploySameNameReplacement) {
   QueueDeploy(kStreamB);
@@ -7534,6 +13074,51 @@ TEST_F(MndStreamDeployOwnershipTest, SuccessfulInsertTransfersStatusOwnership) {
   EXPECT_NE(status->triggerTask, nullptr);
 }
 
+TEST_F(MndStreamDeployOwnershipTest, FailedHeartbeatPinDeliversOriginalTaskOnRetry) {
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(status, nullptr);
+  ASSERT_NE(status->triggerTask, nullptr);
+  const int64_t expectedTask = status->triggerTask->id.taskId;
+
+  {
+    Stub fail;
+    fail.set(
+        taosArrayInit, +[](size_t size, size_t elemSize) -> SArray * {
+          if (elemSize == sizeof(SStmDeployInput *)) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return nullptr;
+          }
+          auto *array = taosArrayInit_s(elemSize, (std::max)(size, static_cast<size_t>(TARRAY_MIN_SIZE)));
+          if (array) array->size = 0;
+          return array;
+        });
+    EXPECT_TRUE(HeartbeatTriggerIds(TSDB_CODE_OUT_OF_MEMORY).empty());
+  }
+  EXPECT_EQ(std::vector<int64_t>{expectedTask}, HeartbeatTriggerIds(0));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, LaterPinFailurePreservesBothStreamsAcrossHeartbeats) {
+  QueueDeploy(kStreamA);
+  HandleActions();
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  HandleActions();
+  auto *first = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *second = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, second);
+  ASSERT_NE(nullptr, first->triggerTask);
+  ASSERT_NE(nullptr, second->triggerTask);
+  const int64_t firstTask = first->triggerTask->id.taskId;
+  const int64_t secondTask = second->triggerTask->id.taskId;
+  auto         *input = second->deployInput;
+  second->deployInput = nullptr;
+  EXPECT_EQ(std::vector<int64_t>{firstTask}, HeartbeatTriggerIds(0));
+  second->deployInput = input;
+  EXPECT_EQ(std::vector<int64_t>{secondTask}, HeartbeatTriggerIds(0));
+}
+
 // LSan checks that failed initialization/insertion releases the unregistered status.
 TEST_F(MndStreamDeployOwnershipTest, DeployInsertFailureReleasesStatus) {
   QueueDeploy(kStreamA);
@@ -7547,6 +13132,523 @@ TEST_F(MndStreamDeployOwnershipTest, DeployCloneFailureReleasesStatus) {
   FailClone();
   HandleActions();
   EXPECT_EQ(taosHashGetSize(mStreamMgmt.streamMap), 0);
+}
+
+#ifdef BUILD_TEST_SEAM
+class DeployPhasePause : public PrivateBuildPause {
+ public:
+  explicit DeployPhasePause(const char *phase) : PrivateBuildPause(false), previous_(gTdSeam_msmDeployPhase) {
+    phase_ = phase;
+    calls_.store(0);
+    gTdSeam_msmDeployPhase = [](const char *phase, const char *) {
+      if (strcmp(phase_, phase) == 0 && calls_.fetch_add(1) == 0) Pause();
+    };
+  }
+  ~DeployPhasePause() { gTdSeam_msmDeployPhase = previous_; }
+  int Calls() const { return calls_.load(); }
+
+ private:
+  decltype(gTdSeam_msmDeployPhase) previous_;
+  static const char               *phase_;
+  static std::atomic<int>          calls_;
+};
+const char      *DeployPhasePause::phase_;
+std::atomic<int> DeployPhasePause::calls_{0};
+
+#ifdef TD_ENTERPRISE
+static std::atomic<int32_t> deployGrantCode{0};
+static int32_t              currentDeployGrant(EGrantType) { return deployGrantCode.load(); }
+
+TEST_F(MndStreamDeployOwnershipTest, GrantExpiryDuringFirstCopySkipsQueuedDeployUntilRenewal) {
+  deployGrantCode.store(0);
+  stub_.set(grantCheckExpire, currentDeployGrant);
+  stub_.set(sdbCheckExists, reportStreamExists);
+  auto *existing = AddStatus(kStreamB);
+  ASSERT_NE(nullptr, existing);
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamB, Stream(kStreamB)->name, nullptr, false, STREAM_ACT_DEPLOY));
+  DeployPhasePause pause("first-copy");
+  std::thread      worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  deployGrantCode.store(TSDB_CODE_GRANT_STREAM_EXPIRED);
+  EXPECT_EQ(TSDB_CODE_GRANT_STREAM_EXPIRED, msmHandleGrantExpired(&mnode_, TSDB_CODE_GRANT_STREAM_EXPIRED));
+  pause.Release();
+  worker.join();
+  EXPECT_EQ(nullptr, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_TRUE(MST_IS_GRANT_STOPPED(existing->stopped));
+  EXPECT_EQ(nullptr, existing->triggerTask);
+  EXPECT_TRUE(HeartbeatTriggerIds(0).empty());
+  deployGrantCode.store(0);
+  ASSERT_EQ(0, mstPostStreamCreate(kStreamA, Stream(kStreamA)->name));
+  msmCheckLoopStreamMap(&mnode_);
+  HandleActions();
+  EXPECT_EQ(0, existing->stopped);
+  EXPECT_EQ(2u, HeartbeatTriggerIds(0).size());
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ExpiryDuringDraftPreventsPublicationBeforeExpiryHeartbeat) {
+  deployGrantCode.store(0);
+  stub_.set(grantCheckExpire, currentDeployGrant);
+  stub_.set(sdbCheckExists, reportStreamExists);
+  QueueDeploy(kStreamA);
+  DeployPhasePause pause("recalc-restore");
+  std::thread      worker([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  deployGrantCode.store(TSDB_CODE_GRANT_BASIC_EXPIRED);
+  pause.Release();
+  worker.join();
+  auto *owner = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, owner);
+  EXPECT_TRUE(MST_IS_GRANT_STOPPED(owner->stopped));
+  EXPECT_EQ(nullptr, owner->triggerTask);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_TRUE(HeartbeatTriggerIds(0).empty());
+  deployGrantCode.store(0);
+  msmCheckLoopStreamMap(&mnode_);
+  HandleActions();
+  EXPECT_EQ(0, owner->stopped);
+  EXPECT_EQ(1u, HeartbeatTriggerIds(0).size());
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchFirstCopyCannotAdoptAfterGrantExpires) {
+  deployGrantCode.store(0);
+  stub_.set(grantCheckExpire, currentDeployGrant);
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  ASSERT_NE(nullptr, hb.pStreamStatus);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  task->type = STREAM_TRIGGER_TASK;
+  task->streamId = kStreamA;
+  task->taskId = 105;
+  task->seriousId = 65;
+  task->nodeId = 1;
+  task->status = STREAM_STATUS_RUNNING;
+
+  const auto watch = mStreamMgmt.watch;
+  mStreamMgmt.watch = {};
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  const int64_t    now = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  auto             report = [&] { ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, now); };
+  DeployPhasePause pause("watch-copy");
+  std::thread      first(report);
+  EXPECT_TRUE(pause.Entered());
+  deployGrantCode.store(TSDB_CODE_GRANT_STREAM_EXPIRED);
+  EXPECT_EQ(TSDB_CODE_GRANT_STREAM_EXPIRED, msmHandleGrantExpired(&mnode_, TSDB_CODE_GRANT_STREAM_EXPIRED));
+  pause.Release();
+  first.join();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.streamMap));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  deployGrantCode.store(0);
+  report();
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  mStreamMgmt.watch = watch;
+  taosArrayDestroy(hb.pStreamStatus);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ExternalReaderCopiesAllowHeartbeatAndStatusReads) {
+  ASSERT_NO_FATAL_FAILURE(SetExternalReaders());
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  DeployPhasePause     pause("ext-reader-copy");
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) { ADD_FAILURE() << "Draft reached the live queue"; });
+  auto *lastUp = static_cast<int64_t *>(taosHashGet(mStreamMgmt.dnodeMap, &hb.dnodeId, sizeof(hb.dnodeId)));
+  EXPECT_TRUE(lastUp && atomic_load_64(lastUp) == 101);
+  auto *src = static_cast<SStreamExtTriggerSpec *>(taosArrayGetP(Stream(kStreamA)->pCreate->extSpecs, 0));
+  // Change the inline pair under the same lock used by a credential refresh.
+  // The first reader has already captured both fields when its mapping copy pauses.
+  taosWLockLatch(&mStreamMgmt.actionQLock);
+  src->encryptedPassword[0] = 2;
+  tstrncpy(src->options, "second", sizeof(src->options));
+  taosWUnLockLatch(&mStreamMgmt.actionQLock);
+  pause.Release();
+  builder.join();
+  blockDataDestroy(block);
+
+  ASSERT_EQ(2, pause.Calls());
+  const int32_t node = 1;
+  auto *queue = static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node)));
+  ASSERT_NE(nullptr, queue);
+  ASSERT_EQ(2u, taosArrayGetSize(queue->calcReaderList));
+  auto *previous = src;
+  for (int i = 0; i < 2; ++i) {
+    auto *entry = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->calcReaderList, i));
+    auto *copy = entry->deploy.msg.reader.pExtSpec;
+    ASSERT_NE(nullptr, copy);
+    EXPECT_EQ(i + 1, copy->encryptedPassword[0]);
+    EXPECT_STREQ(i == 0 ? "first" : "second", copy->options);
+    EXPECT_TRUE(entry->ownsExtSpec);
+    EXPECT_TRUE(entry->deploy.msg.reader.ownsExtSpec);
+    EXPECT_NE(src->pCalcMappings, copy->pCalcMappings);
+    EXPECT_NE(previous, copy);
+    EXPECT_NE(previous->pCalcMappings, copy->pCalcMappings);
+    ASSERT_NE(nullptr, copy->pCalcMappings);
+    ASSERT_EQ(128, copy->numCalcMappings);
+    EXPECT_STREQ("value_127", copy->pCalcMappings[127].colName);
+    previous = copy;
+  }
+}
+
+TEST_F(MndStreamDeployOwnershipTest, StopDiscardsPrivateExternalReaderConfigs) {
+  ASSERT_NO_FATAL_FAILURE(SetExternalReaders());
+  DeployPhasePause pause("ext-reader-copy");
+  QueueDeploy(kStreamA);
+  std::thread builder([&] { HandleActions(); });
+  EXPECT_TRUE(pause.Entered());
+  atomic_store_8(&Stream(kStreamA)->userStopped, 1);
+  msmUndeployStream(&mnode_, kStreamA, Stream(kStreamA)->name);
+  pause.Release();
+  builder.join();
+  EXPECT_EQ(2, pause.Calls());
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.toDeploySnodeMap));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, PartialPublicationReleasesQueuedExternalReaderConfigs) {
+  ASSERT_NO_FATAL_FAILURE(SetExternalReaders());
+  {
+    FailPublishedTriggerPush fail;
+    QueueDeploy(kStreamA);
+    HandleActions();
+  }
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, status->fatalError);
+  const int32_t node = 1;
+  auto *queue = static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node)));
+  ASSERT_NE(nullptr, queue);
+  ASSERT_EQ(2, queue->calcReaderDeployed);
+  for (int i = 0; i < queue->calcReaderDeployed; ++i) {
+    auto *entry = static_cast<SStmTaskToDeployExt *>(taosArrayGet(queue->calcReaderList, i));
+    EXPECT_TRUE(entry->deployed);
+    EXPECT_FALSE(entry->ownsExtSpec);
+    EXPECT_EQ(nullptr, entry->deploy.msg.reader.pExtSpec);
+  }
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+}
+#endif
+
+TEST_F(MndStreamDeployOwnershipTest, WatchFirstCopyAllowsStatusQueryAndConcurrentAdoption) {
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+  SStmTaskStatusMsg    task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = kStreamA;
+  task.taskId = 105;
+  task.seriousId = 65;
+  task.nodeId = 1;
+  task.status = STREAM_STATUS_RUNNING;
+  SArray *reports = taosArrayInit(1, sizeof(task));
+  ASSERT_NE(nullptr, reports);
+  ASSERT_NE(nullptr, taosArrayPush(reports, &task));
+
+  SStmThreadCtx threadCtx = {};
+  auto         *oldCtx = mStreamMgmt.tCtx;
+  auto          oldThreads = mStreamMgmt.threadNum;
+  auto          oldWatch = mStreamMgmt.watch;
+  mStreamMgmt.tCtx = &threadCtx;
+  mStreamMgmt.threadNum = 1;
+  mStreamMgmt.watch = {};
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  auto heartbeat = [&](int group) {
+    SStreamHbMsg hb = {};
+    hb.streamGId = group;
+    hb.dnodeId = 1;
+    hb.snodeId = 1;
+    hb.pStreamStatus = reports;
+    SRpcMsg req = {}, rsp = {};
+    int     code = msmHandleStreamHbMsg(&mnode_, MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN), &hb, &req, &rsp);
+    rpcFreeCont(rsp.pCont);
+    return code;
+  };
+
+  DeployPhasePause pause("watch-copy");
+  std::thread      first([&] { EXPECT_EQ(0, heartbeat(0)); });
+  EXPECT_TRUE(pause.Entered());
+  EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+  EXPECT_EQ(0, heartbeat(1));
+  pause.Release();
+  first.join();
+  EXPECT_EQ(2, pause.Calls());
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_TRUE(status && status->triggerTask && status->triggerTask->id.taskId == task.taskId);
+  mStreamMgmt.tCtx = oldCtx;
+  mStreamMgmt.threadNum = oldThreads;
+  mStreamMgmt.watch = oldWatch;
+  taosArrayDestroy(reports);
+  blockDataDestroy(block);
+}
+
+void finishRecalcAfterCapture(const char *phase, const char *name) {
+  auto *stream = gRecoveryStreams[0];
+  if (strcmp(phase, "recalc-restore") || strcmp(name, stream->name)) return;
+  // Completing a persisted request after each capture invalidates the real commit check.
+  taosWLockLatch(&stream->lock);
+  if (taosArrayGetSize(stream->pIncompleteRecalcs) > 1) {
+    taosArrayPop(stream->pIncompleteRecalcs);
+    ++stream->recalcRevision;
+  }
+  taosWUnLockLatch(&stream->lock);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchRecalcConflictRetriesOnNextHeartbeatAndAdoptsOtherStream) {
+  for (int i = 0; i < 3; ++i) AddPersisted(kStreamA, kRecalcId + i);
+  auto *a = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, a);
+  AddRuntimeRecord(a, 11, 22);
+  const auto *oldRecords = a->recalcRecords;
+
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 2);
+  ASSERT_NE(nullptr, hb.pStreamStatus);
+  for (int i = 0; i < 2; ++i) {
+    auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, i));
+    task->type = STREAM_TRIGGER_TASK;
+    task->streamId = i == 0 ? kStreamA : kStreamB;
+    task->taskId = 201 + i;
+    task->seriousId = 1;
+    task->nodeId = 1;
+    task->status = STREAM_STATUS_RUNNING;
+  }
+
+  const auto watch = mStreamMgmt.watch;
+  const auto normalBegin = mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN];
+  const auto previous = gTdSeam_msmDeployPhase;
+  mStreamMgmt.watch = {};
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  gTdSeam_msmDeployPhase = finishRecalcAfterCapture;
+  const int64_t begin = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  for (int i = 1; i <= 2; ++i) {
+    ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + i);
+    EXPECT_EQ(i, Stream(kStreamA)->recalcRevision);
+    EXPECT_EQ(nullptr, a->triggerTask);
+    EXPECT_EQ(oldRecords, a->recalcRecords);
+    EXPECT_EQ(0, a->stopped);
+    auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+    EXPECT_TRUE(b && b->triggerTask && b->triggerTask->id.taskId == 202 && b->triggerTask->lastUpTs == begin + i);
+    EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  }
+
+  gTdSeam_msmDeployPhase = previous;
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + MST_SHORT_ISOLATION_DURATION + 1);
+  EXPECT_EQ(MND_STM_STATE_NORMAL, mStreamMgmt.state);
+  mStreamMgmt.watch = watch;
+  mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN] = normalBegin;
+  taosArrayDestroy(hb.pStreamStatus);
+
+  EXPECT_EQ(0, a->stopped);
+  ASSERT_NE(nullptr, a->triggerTask);
+  EXPECT_EQ(201, a->triggerTask->id.taskId);
+  EXPECT_EQ(2, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(1u, taosArrayGetSize(a->recalcRecords));
+  auto *restored = FindRecord(a);
+  ASSERT_NE(nullptr, restored);
+  EXPECT_EQ(201, restored->triggerTaskId);
+  EXPECT_EQ(STREAM_RECALC_STATUS_PENDING, restored->snapshot.status);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RecalcConflictsYieldToQueuedCreate) {
+  for (int i = 0; i < 6; ++i) AddPersisted(kStreamA, kRecalcId + i);
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *a = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, a);
+  ASSERT_NE(nullptr, a->triggerTask);
+  const auto oldTask = a->triggerTask->id.taskId;
+  ASSERT_EQ((std::vector<int64_t>{oldTask}), HeartbeatTriggerIds(0));
+
+  QueueDeploy(kStreamA);
+  ASSERT_EQ(0, mstPostStreamCreate(kStreamB, Stream(kStreamB)->name));
+  auto previous = gTdSeam_msmDeployPhase;
+  gTdSeam_msmDeployPhase = finishRecalcAfterCapture;
+  HandleActions();
+  gTdSeam_msmDeployPhase = previous;
+
+  auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_NE(nullptr, b);
+  ASSERT_NE(nullptr, a->triggerTask);
+  EXPECT_EQ(oldTask, a->triggerTask->id.taskId);
+  EXPECT_EQ(0, a->deployTimes);
+  EXPECT_EQ(0, a->stopped);
+  ASSERT_NE(nullptr, b->triggerTask);
+  ASSERT_EQ(0, tsem_init(&mnode_.streamDeploySem, 0, 0));
+  EXPECT_EQ((std::vector<int64_t>{b->triggerTask->id.taskId}), HeartbeatTriggerIds(0));
+  EXPECT_EQ(0, tsem_timewait(&mnode_.streamDeploySem, 0));
+  EXPECT_EQ(0, tsem_destroy(&mnode_.streamDeploySem));
+  EXPECT_EQ(2u, Stream(kStreamA)->recalcRevision);
+  EXPECT_EQ(1u, actionQueue_.qRemainNum);
+
+  msmDrainStreamActions(&mnode_);
+  ASSERT_NE(nullptr, a->triggerTask);
+  EXPECT_NE(oldTask, a->triggerTask->id.taskId);
+  EXPECT_EQ(1, a->deployTimes);
+  EXPECT_EQ(4u, taosArrayGetSize(a->recalcRecords));
+  EXPECT_EQ((std::vector<int64_t>{a->triggerTask->id.taskId}), HeartbeatTriggerIds(0));
+  EXPECT_EQ(0u, actionQueue_.qRemainNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, DeferredFirstCreatePublishesOnce) {
+  for (int i = 0; i < 3; ++i) AddPersisted(kStreamA, kRecalcId + i);
+  ASSERT_EQ(0, mstPostStreamCreate(kStreamA, Stream(kStreamA)->name));
+  auto previous = gTdSeam_msmDeployPhase;
+  gTdSeam_msmDeployPhase = finishRecalcAfterCapture;
+  HandleActions();
+  gTdSeam_msmDeployPhase = previous;
+  ASSERT_EQ(1u, actionQueue_.qRemainNum);
+  ASSERT_EQ(0, mstPostStreamCreate(kStreamA, Stream(kStreamA)->name));
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(0, status->deployTimes);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0u, actionQueue_.qRemainNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, DeferredStartSurvivesHealthScanAndYieldsToStop) {
+  auto *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  status->stopped = 2;
+  for (int i = 0; i < 3; ++i) AddPersisted(kStreamA, kRecalcId + i);
+  auto *stream = Stream(kStreamA);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamA, stream->name, nullptr, true, STREAM_ACT_DEPLOY));
+  auto previous = gTdSeam_msmDeployPhase;
+  gTdSeam_msmDeployPhase = finishRecalcAfterCapture;
+  HandleActions();
+  gTdSeam_msmDeployPhase = previous;
+  ASSERT_EQ(1u, actionQueue_.qRemainNum);
+  msmCheckLoopStreamMap(&mnode_);
+  ASSERT_EQ(status, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+
+  msmUndeployStream(&mnode_, kStreamA, stream->name);
+  HandleActions();
+  EXPECT_EQ(0u, actionQueue_.qRemainNum);
+  EXPECT_EQ(2, status->stopped);
+  EXPECT_EQ(nullptr, status->triggerTask);
+  ASSERT_EQ(0, mstPostStreamAction(&actionQueue_, kStreamA, stream->name, nullptr, true, STREAM_ACT_DEPLOY));
+  HandleActions();
+  EXPECT_EQ(0, status->stopped);
+  EXPECT_NE(nullptr, status->triggerTask);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RecalcRestoreKeepsConcurrentPersistenceAndRuntimeUpdates) {
+  constexpr int kRequests = 128;
+  for (int i = 0; i < kRequests; ++i) AddPersisted(kStreamA, kRecalcId + i);
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_EQ(kRequests, taosArrayGetSize(status->recalcRecords));
+  ASSERT_NE(nullptr, AddStatus(kStreamB));
+  auto *block = createSystemTableBlock(TSDB_INS_TABLE_STREAMS, 1);
+  ASSERT_NE(nullptr, block);
+  SnodeLookupStubGuard snode;
+
+  enum Update { durableRequest, finishCandidate, oldProgress };
+  for (Update update : {durableRequest, finishCandidate, oldProgress}) {
+    QueueDeploy(kStreamA);
+    DeployPhasePause pause("recalc-restore");
+    std::thread      builder([&] { HandleActions(); });
+    EXPECT_TRUE(pause.Entered());
+    EXPECT_EQ(0, mstSetStreamAttrResBlock(&mnode_, Stream(kStreamB), block, 0, 0));
+    if (update == durableRequest) {
+      auto *stream = Stream(kStreamA);
+      taosWLockLatch(&stream->lock);
+      AddPersisted(kStreamA, kRecalcId + kRequests);
+      ++stream->recalcRevision;
+      taosWUnLockLatch(&stream->lock);
+    } else {
+      // The real heartbeat path queues FINISH and defers persistence until its outer locks are released.
+      auto                 *active = FindRecord(status, update == finishCandidate ? kRecalcId : kRecalcId + 1);
+      SStreamRecalcSnapshot report = active->snapshot;
+      report.status = update == finishCandidate ? STREAM_RECALC_STATUS_FINISHED : STREAM_RECALC_STATUS_RUNNING;
+      report.progressPct = update == finishCandidate ? 100 : 42;
+      SArray *snapshots = taosArrayInit(1, sizeof(report));
+      EXPECT_NE(nullptr, taosArrayPush(snapshots, &report));
+      bool deferred = false;
+      EXPECT_EQ(0, mndStreamRecalcApplySnapshotDeferred(&mnode_, kStreamA, status, status->triggerTask->id.taskId,
+                                                        status->triggerTask->id.seriousId, false,
+                                                        STREAM_RECALC_DETAIL_ABSENT, snapshots, nullptr, &deferred));
+      EXPECT_EQ(update == finishCandidate, deferred);
+      if (update == oldProgress) EXPECT_EQ(42, active->snapshot.progressPct);
+      taosArrayDestroy(snapshots);
+    }
+    pause.Release();
+    builder.join();
+    EXPECT_EQ(update == oldProgress ? 1 : 2, pause.Calls());
+    EXPECT_EQ(0, FindRecord(status, kRecalcId + 1)->snapshot.progressPct);
+    EXPECT_FALSE(FindRecord(status, kRecalcId + 1)->dispatchConfirmed);
+    EXPECT_EQ(0, status->stopped);
+    EXPECT_EQ(kRequests + 1, taosArrayGetSize(status->recalcRecords));
+    EXPECT_NE(nullptr, FindRecord(status, kRecalcId + kRequests));
+  }
+  auto *record = FindRecord(status);
+  ASSERT_NE(nullptr, record);
+  EXPECT_TRUE(record->terminalCandidateValid);
+  EXPECT_TRUE(record->terminalPersisting);
+  EXPECT_EQ(STREAM_RECALC_STATUS_FINISHED, record->terminalCandidate.status);
+  blockDataDestroy(block);
+}
+#endif
+
+TEST_F(MndStreamDeployOwnershipTest, WatchTriggerConflictKeepsOtherStreamRunning) {
+  SStmSnodeStatus snode = {};
+  int32_t         node = 2;
+  int64_t         lastUp = 0;
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.snodeMap, &node, sizeof(node), &snode, sizeof(snode)));
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.dnodeMap, &node, sizeof(node), &lastUp, sizeof(lastUp)));
+  SStreamHbMsg hb = {};
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 1);
+  auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 0));
+  ASSERT_NE(nullptr, task);
+  auto watch = mStreamMgmt.watch;
+  auto normalBegin = mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN];
+  auto errorTs = mStreamMgmt.lastTs[STM_EVENT_STM_TERR];
+  mStreamMgmt.watch = {};
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  int64_t now = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  auto    report = [&](int64_t streamId, int64_t taskId, int32_t nodeId) {
+    task->streamId = streamId;
+    task->type = STREAM_TRIGGER_TASK;
+    task->taskId = taskId;
+    task->seriousId = 1;
+    task->nodeId = hb.dnodeId = hb.snodeId = nodeId;
+    task->status = STREAM_STATUS_RUNNING;
+    ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, now);
+  };
+  report(kStreamB, 201, 1);
+  report(kStreamA, 202, 1);
+  report(kStreamA, 203, 2);
+  EXPECT_EQ(MND_STM_STATE_WATCH, mStreamMgmt.state);
+  report(kStreamA, 204, 2);
+  now += MST_SHORT_ISOLATION_DURATION + 1;
+  report(kStreamB, 201, 1);
+  EXPECT_EQ(MND_STM_STATE_NORMAL, mStreamMgmt.state);
+  auto *failed = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *healthy = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  EXPECT_TRUE(failed && failed->stopped && failed->fatalError == TSDB_CODE_MND_STREAM_TASK_LOST);
+  EXPECT_TRUE(healthy && !healthy->stopped && healthy->triggerTask);
+  int64_t key[] = {kStreamB, 201};
+  auto  **entry = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, key, sizeof(key)));
+  EXPECT_TRUE(entry && healthy && *entry == healthy->triggerTask && (*entry)->id.taskId == 201 &&
+              (*entry)->status == STREAM_STATUS_RUNNING && (*entry)->lastUpTs == now);
+  EXPECT_EQ(2, taosHashGetSize(mStreamMgmt.taskMap));
+  taosArrayDestroy(hb.pStreamStatus);
+  mStreamMgmt.watch = watch;
+  mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN] = normalBegin;
+  mStreamMgmt.lastTs[STM_EVENT_STM_TERR] = errorTs;
 }
 
 TEST_F(MndStreamDeployOwnershipTest, WatchInsertFailureReleasesStatus) {
@@ -7565,7 +13667,11 @@ TEST_F(MndStreamDeployOwnershipTest, WatchCloneFailureReleasesStatus) {
 TEST_F(MndStreamRecalcRecoveryTest, NewRuntimeRestoresOriginalIdRangeAndRequestTime) {
   AddPersisted(kStreamA);
   SStmStatus status = {};
-  ASSERT_EQ(mndStreamRecalcRestore(Stream(kStreamA), &status, 55, 66), TSDB_CODE_SUCCESS);
+  SStreamRecalcRestore restore = {};
+  ASSERT_EQ(0, mndStreamRecalcCaptureRecords(&status, &restore));
+  ASSERT_EQ(0, mndStreamRecalcPrepareRestore(Stream(kStreamA), &restore, 55, 66));
+  ASSERT_TRUE(mndStreamRecalcCommitRestore(Stream(kStreamA), &status, &restore));
+  taosArrayDestroy(restore.records);
 
   const SStmRecalcRecord *pRecord = FindRecord(&status);
   ASSERT_NE(pRecord, nullptr);
@@ -7587,23 +13693,8 @@ TEST_F(MndStreamRecalcRecoveryTest, RedeployResetsProgressRetryAndDispatchConfir
   ASSERT_EQ(mstPostStreamAction(&actionQueue_, kStreamA, Stream(kStreamA)->name, nullptr, false, STREAM_ACT_DEPLOY),
             TSDB_CODE_SUCCESS);
 
-  SStreamHbMsg req = {};
-  req.dnodeId = 1;
-  req.snodeId = 0;
-  req.pVgLeaders = taosArrayInit(0, sizeof(int32_t));
-  req.pStreamReq = taosArrayInit(0, sizeof(int32_t));
-  req.pStreamStatus = taosArrayInit(0, sizeof(SStmTaskStatusMsg));
-  ASSERT_NE(req.pVgLeaders, nullptr);
-  ASSERT_NE(req.pStreamReq, nullptr);
-  ASSERT_NE(req.pStreamStatus, nullptr);
-  SStmGrpCtx ctx = {};
-  ctx.pMnode = &mnode_;
-  ctx.currTs = 100;
-  ctx.pReq = &req;
-  ctx.actionStm = actionStm_;
-  ctx.deployStm = deployStm_;
-  ASSERT_EQ(msmNormalHandleHbMsg(&ctx), TSDB_CODE_SUCCESS);
-  tCleanupStreamHbMsg(&req, true);
+  atomic_store_8(&actionQueue_.draining, 1);
+  msmDrainStreamActions(&mnode_);
 
   pStatus = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
   ASSERT_NE(pStatus, nullptr);
@@ -7620,20 +13711,37 @@ TEST_F(MndStreamRecalcRecoveryTest, RedeployResetsProgressRetryAndDispatchConfir
   EXPECT_EQ(pRecord->triggerSeriousId, pStatus->triggerTask->id.seriousId);
 }
 
-TEST_F(MndStreamRecalcRecoveryTest, ValidRuntimeForCurrentDeploymentIsPreserved) {
+TEST_F(MndStreamRecalcRecoveryTest, RepeatWatchReportPreservesCurrentTriggerProgress) {
   AddPersisted(kStreamA);
-  SStmStatus status = {};
-  AddRuntimeRecord(&status, 55, 66);
-  ASSERT_EQ(mndStreamRecalcRestore(Stream(kStreamA), &status, 55, 66), TSDB_CODE_SUCCESS);
-
-  const SStmRecalcRecord *pRecord = FindRecord(&status);
-  ASSERT_NE(pRecord, nullptr);
-  EXPECT_EQ(pRecord->snapshot.status, STREAM_RECALC_STATUS_RUNNING);
-  EXPECT_EQ(pRecord->snapshot.progressPct, 64);
-  EXPECT_EQ(pRecord->retryOrdinal, 2);
-  EXPECT_EQ(pRecord->errorCode, TSDB_CODE_OUT_OF_MEMORY);
-  EXPECT_TRUE(pRecord->dispatchConfirmed);
-  taosArrayDestroy(status.recalcRecords);
+  SStmGrpCtx ctx = {};
+  ctx.pMnode = &mnode_;
+  SStmTaskStatusMsg task = {};
+  task.type = STREAM_TRIGGER_TASK;
+  task.streamId = kStreamA;
+  task.taskId = 55;
+  task.seriousId = 66;
+  task.nodeId = 1;
+  task.status = STREAM_STATUS_RUNNING;
+  SStmStatus *status = AddStatus(kStreamA);
+  ASSERT_NE(nullptr, status);
+  ASSERT_EQ(0, msmWatchRecordNewTask(&ctx, &task));
+  const auto *record = FindRecord(status);
+  ASSERT_NE(nullptr, record);
+  SStreamRecalcSnapshot progress = record->snapshot;
+  progress.status = STREAM_RECALC_STATUS_RUNNING;
+  progress.progressPct = 64;
+  SArray *snapshots = taosArrayInit(1, sizeof(progress));
+  ASSERT_NE(nullptr, snapshots);
+  ASSERT_NE(nullptr, taosArrayPush(snapshots, &progress));
+  ASSERT_EQ(0, mndStreamRecalcApplySnapshot(&mnode_, kStreamA, status, task.taskId, task.seriousId, false,
+                                            STREAM_RECALC_DETAIL_ABSENT, snapshots, nullptr));
+  taosArrayDestroy(snapshots);
+  ASSERT_EQ(0, msmWatchRecordNewTask(&ctx, &task));
+  record = FindRecord(status);
+  ASSERT_NE(nullptr, record);
+  EXPECT_EQ(STREAM_RECALC_STATUS_RUNNING, record->snapshot.status);
+  EXPECT_EQ(64, record->snapshot.progressPct);
+  EXPECT_TRUE(record->dispatchConfirmed);
 }
 
 TEST_F(MndStreamRecalcRecoveryTest, LargeRestoreUsesBoundedRecordLookups) {
@@ -7661,7 +13769,11 @@ TEST_F(MndStreamRecalcRecoveryTest, LargeRestoreUsesBoundedRecordLookups) {
   int32_t code = TSDB_CODE_SUCCESS;
   {
     RecalcRecordArrayGetGuard guard;
-    code = mndStreamRecalcRestore(Stream(kStreamA), &status, 55, 66);
+    SStreamRecalcRestore      restore = {};
+    code = mndStreamRecalcCaptureRecords(&status, &restore);
+    if (!code) code = mndStreamRecalcPrepareRestore(Stream(kStreamA), &restore, 55, 66);
+    EXPECT_TRUE(!code && mndStreamRecalcCommitRestore(Stream(kStreamA), &status, &restore));
+    taosArrayDestroy(restore.records);
   }
 
   EXPECT_EQ(code, TSDB_CODE_SUCCESS);
@@ -9113,28 +15225,12 @@ TEST_F(MndStreamTest, TaskMetricColumnsPreserveApplicability) {
   storedRunner->id.taskId = 10;
   storedRunner->id.seriousId = 20;
   storedRunner->id.deployId = 0;
-  StreamMapGuard streamMap;
-  ASSERT_NE(streamMap.get(), nullptr);
-  ASSERT_EQ(
-      taosHashPut(mStreamMgmt.streamMap, &createReq.streamId, sizeof(createReq.streamId), &topology, sizeof(topology)),
-      TSDB_CODE_SUCCESS);
-  auto *storedTopology =
-      static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &createReq.streamId, sizeof(createReq.streamId)));
-  ASSERT_NE(storedTopology, nullptr);
-  storedRunner = static_cast<SStmTaskStatus *>(taosArrayGetLast(storedTopology->runners[0]));
-  ASSERT_NE(storedRunner, nullptr);
-
-  SStmTaskStatus reader = {};
-  reader.type = STREAM_READER_TASK;
-  reader.flags = STREAM_FLAG_TRIGGER_READER;
-  reader.metricsValid = true;
-  reader.metrics.windowReady = true;
-  reader.metrics.validMask = STREAM_METRIC_PHYSICAL_INPUT;
-  reader.metrics.physicalInputRows1m = 600;
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, &reader, pBlock, 0), TSDB_CODE_SUCCESS);
-  EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, inputColumn, 0), 10.0);
-  EXPECT_TRUE(isNullValue(pBlock, outputColumn, 0, 3));
-  EXPECT_TRUE(isNullValue(pBlock, latencyColumn, 0, 3));
+  auto *reader = appendTask(&topology.trigReaders, STREAM_READER_TASK, STREAM_FLAG_TRIGGER_READER);
+  ASSERT_NE(nullptr, reader);
+  reader->metricsValid = true;
+  reader->metrics.windowReady = true;
+  reader->metrics.validMask = STREAM_METRIC_PHYSICAL_INPUT;
+  reader->metrics.physicalInputRows1m = 600;
 
   storedRunner->metricsValid = true;
   storedRunner->metrics.windowReady = true;
@@ -9142,22 +15238,34 @@ TEST_F(MndStreamTest, TaskMetricColumnsPreserveApplicability) {
   storedRunner->metrics.deliveredOutputRows1m = 120;
   storedRunner->metrics.resultLatencyUs1m = 3000;
   storedRunner->metrics.resultLatencySamples1m = 2;
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedRunner, pBlock, 1), TSDB_CODE_SUCCESS);
+
+  auto *nonTop = appendTask(&topology.runners[1], STREAM_RUNNER_TASK, 0);
+  ASSERT_NE(nullptr, nonTop);
+  nonTop->id.deployId = 1;
+  nonTop->metricsValid = true;
+  nonTop->metrics.windowReady = true;
+  nonTop->metrics.validMask = STREAM_METRIC_DELIVERED_OUTPUT | STREAM_METRIC_RESULT_LATENCY;
+
+  StreamMapGuard streamMap;
+  ASSERT_NE(streamMap.get(), nullptr);
+  ASSERT_EQ(0, taosHashPut(mStreamMgmt.streamMap, &createReq.streamId, sizeof(createReq.streamId), &topology,
+                           sizeof(topology)));
+  int32_t rows = 0;
+  ASSERT_EQ(0, mstSetStreamTasksResBlock(&stream, pBlock, &rows, 3));
+  ASSERT_EQ(3, rows);
+  EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, inputColumn, 0), 10.0);
+  EXPECT_TRUE(isNullValue(pBlock, outputColumn, 0, 3));
+  EXPECT_TRUE(isNullValue(pBlock, latencyColumn, 0, 3));
   EXPECT_TRUE(isNullValue(pBlock, inputColumn, 1, 3));
   EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, outputColumn, 1), 2.0);
   EXPECT_DOUBLE_EQ(getDoubleValue(pBlock, latencyColumn, 1), 1.5);
-
-  SStmTaskStatus nonTop = {};
-  nonTop.type = STREAM_RUNNER_TASK;
-  nonTop.metricsValid = true;
-  nonTop.metrics.windowReady = true;
-  nonTop.metrics.validMask = STREAM_METRIC_DELIVERED_OUTPUT | STREAM_METRIC_RESULT_LATENCY;
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, &nonTop, pBlock, 2), TSDB_CODE_SUCCESS);
   EXPECT_TRUE(isNullValue(pBlock, inputColumn, 2, 3));
   EXPECT_TRUE(isNullValue(pBlock, outputColumn, 2, 3));
   EXPECT_TRUE(isNullValue(pBlock, latencyColumn, 2, 3));
 
+  taosArrayDestroy(topology.trigReaders);
   taosArrayDestroy(topology.runners[0]);
+  taosArrayDestroy(topology.runners[1]);
   blockDataDestroy(pBlock);
 }
 
@@ -9274,25 +15382,15 @@ TEST_F(MndStreamTest, FinalRunnerTopologyDrivesStreamAndTaskMetrics) {
   ASSERT_EQ(
       taosHashPut(mStreamMgmt.streamMap, &createReq.streamId, sizeof(createReq.streamId), &status, sizeof(status)),
       TSDB_CODE_SUCCESS);
-  auto *storedStatus =
-      static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &createReq.streamId, sizeof(createReq.streamId)));
-  ASSERT_NE(storedStatus, nullptr);
-  auto *storedIntermediate = static_cast<SStmTaskStatus *>(taosArrayGet(storedStatus->runners[0], 0));
-  auto *storedFinal0 = static_cast<SStmTaskStatus *>(taosArrayGetLast(storedStatus->runners[0]));
-  auto *storedFinal1 = static_cast<SStmTaskStatus *>(taosArrayGetLast(storedStatus->runners[1]));
-  ASSERT_NE(storedIntermediate, nullptr);
-  ASSERT_NE(storedFinal0, nullptr);
-  ASSERT_NE(storedFinal1, nullptr);
-
   SnodeLookupStubGuard snodeLookup;
   SMnode               mnode = {};
   ASSERT_EQ(mstSetStreamAttrResBlock(&mnode, &stream, pStreamBlock, 0, 0), TSDB_CODE_SUCCESS);
   EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamOutputRateColumn, 0), 2.0);
   EXPECT_DOUBLE_EQ(getDoubleValue(pStreamBlock, kStreamResultLatencyColumn, 0), 1000.0);
 
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedIntermediate, pTaskBlock, 0), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedFinal0, pTaskBlock, 1), TSDB_CODE_SUCCESS);
-  ASSERT_EQ(mstSetStreamTaskResBlock(&stream, storedFinal1, pTaskBlock, 2), TSDB_CODE_SUCCESS);
+  int32_t rows = 0;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, mstSetStreamTasksResBlock(&stream, pTaskBlock, &rows, 4));
+  ASSERT_EQ(3, rows);
   const int32_t taskOutputColumn = pTaskMeta->colNum - 2;
   const int32_t taskLatencyColumn = pTaskMeta->colNum - 1;
   EXPECT_TRUE(isNullValue(pTaskBlock, taskOutputColumn, 0, 3));
@@ -10429,19 +16527,6 @@ TEST(MndStreamWatchTest, TriggerDeployBuilderPropagatesRunnerTargetError) {
 extern "C" int32_t msmGrpAddActionUndeploy(SStmGrpCtx *pCtx, int64_t streamId, SStreamTask *pTask);
 
 namespace {
-SStreamObj gMixedReaderAcquiredStream = {};
-int32_t gMixedReaderReleaseCalls = 0;
-
-int32_t acquireMixedReaderStream(SMnode *, int64_t, SStreamObj **ppStream) {
-  *ppStream = &gMixedReaderAcquiredStream;
-  return TSDB_CODE_SUCCESS;
-}
-
-void releaseMixedReaderStream(SMnode *, SStreamObj *pStream) {
-  EXPECT_EQ(pStream, &gMixedReaderAcquiredStream);
-  ++gMixedReaderReleaseCalls;
-}
-
 void *failMixedReaderResponsePush(SArray *, const void *, int32_t) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   return nullptr;
@@ -10450,37 +16535,35 @@ void *failMixedReaderResponsePush(SArray *, const void *, int32_t) {
 int32_t acceptMixedReaderUndeploy(SStmGrpCtx *, int64_t, SStreamTask *) {
   return TSDB_CODE_SUCCESS;
 }
-}
+}  // namespace
 
-TEST_F(MndStreamHeartbeatTest, MixedReaderResponsePushFailureReleasesAcquiredStream) {
+TEST_F(MndStreamOrigReaderReplyTest, MixedReaderResponsePushFailureReleasesAcquiredStream) {
   SStreamMgmtReq *request = static_cast<SStreamMgmtReq *>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
   ASSERT_NE(request, nullptr);
   request->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
   request->cont.pExtOrigTblReaders = taosArrayInit_s(sizeof(SStreamExtOrigTblReaderReq), 1);
   ASSERT_NE(request->cont.pExtOrigTblReaders, nullptr);
   SStmTaskStatusMsg task = {};
-  task.streamId = 1;
+  task.streamId = streamId_;
+  task.taskId = trigger_.id.taskId;
+  task.type = trigger_.type;
   task.pMgmtReq = request;
   SMnode mnode = {};
   SMStreamHbRspMsg response = {};
   SStmGrpCtx context = {};
   context.pMnode = &mnode;
   context.pRsp = &response;
-  gMixedReaderReleaseCalls = 0;
   Stub stub;
-  stub.set(mndAcquireStreamById, acquireMixedReaderStream);
-  stub.set(mndReleaseStream, releaseMixedReaderStream);
+  stub.set(mndAcquireExtSource, +[](SMnode *, const char *) -> SExtSourceObj * { return nullptr; });
   stub.set(taosArrayAddBatch, failMixedReaderResponsePush);
   stub.set(msmGrpAddActionUndeploy, acceptMixedReaderUndeploy);
 
-  EXPECT_EQ(msmHandleTaskMgmtReq(&context, &task), TSDB_CODE_OUT_OF_MEMORY);
-  EXPECT_EQ(gMixedReaderReleaseCalls, 1);
+  EXPECT_EQ(handleHeartbeatTaskMgmtReq(&context, &task), TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_GT(acquireCalls_, 0);
   EXPECT_EQ(task.pMgmtReq, nullptr);
 
   stub.reset(msmGrpAddActionUndeploy);
   stub.reset(taosArrayAddBatch);
-  stub.reset(mndReleaseStream);
-  stub.reset(mndAcquireStreamById);
   tFreeSMStreamHbRspMsg(&response);
 }
 #endif
@@ -10517,7 +16600,7 @@ TEST_F(MndStreamHeartbeatTest, MixedInternalAndExternalReaderRequestPreservesBot
   SStmGrpCtx ctx = {};
   ctx.pRsp = &hbRsp;
 
-  EXPECT_EQ(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(handleHeartbeatTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
   ASSERT_NE(hbRsp.rsps.rspList, nullptr);
   ASSERT_EQ(taosArrayGetSize(hbRsp.rsps.rspList), 1);
   SStreamMgmtRsp *rsp = static_cast<SStreamMgmtRsp *>(taosArrayGet(hbRsp.rsps.rspList, 0));
@@ -10530,11 +16613,7 @@ TEST_F(MndStreamHeartbeatTest, MixedInternalAndExternalReaderRequestPreservesBot
       static_cast<SStreamExtOrigTblReaderRsp *>(taosArrayGet(rsp->cont.pExtOrigTblReaders, 0));
   ASSERT_NE(extRsp, nullptr);
   EXPECT_EQ(extRsp->registryEntryId, extReq.registryEntryId);
-#ifdef TD_ENTERPRISE
-  EXPECT_EQ(extRsp->code, TSDB_CODE_MND_STREAM_NOT_RUNNING);
-#else
-  EXPECT_EQ(extRsp->code, TSDB_CODE_OPS_NOT_SUPPORT);
-#endif
+  EXPECT_EQ(extRsp->code, rsp->code);
 
   tFreeSMStreamHbRspMsg(&hbRsp);
 }
@@ -10570,7 +16649,7 @@ TEST_F(MndStreamHeartbeatTest, SingleExtReaderRequestTypeIsRejectedAsUnsupported
   SStmGrpCtx ctx = {};
   ctx.pRsp = &hbRsp;
 
-  EXPECT_NE(msmHandleTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
+  EXPECT_NE(handleHeartbeatTaskMgmtReq(&ctx, &task), TSDB_CODE_SUCCESS);
 
   // The rejected request is not consumed: free it here.
   tFreeSStreamMgmtReq(mgmtReq);
@@ -11236,15 +17315,19 @@ TEST_F(MndStreamExtReaderRuntimeTest, DeploysAndReusesExternalOriginalReaderFrom
   tstrncpy(source.defaultDatabase, "metrics", sizeof(source.defaultDatabase));
   source.metaVersion = 12;
 
-  SExtColumnDef columns[2] = {};
+  std::vector<SExtColumnDef> columns(256);
   tstrncpy(columns[0].colName, "ts", sizeof(columns[0].colName));
   tstrncpy(columns[0].extTypeName, "timestamp", sizeof(columns[0].extTypeName));
   columns[0].isPrimaryKey = true;
   tstrncpy(columns[1].colName, "cpu", sizeof(columns[1].colName));
   tstrncpy(columns[1].extTypeName, "double", sizeof(columns[1].extTypeName));
   SExtTableMeta meta = {};
-  meta.pCols = columns;
-  meta.numOfCols = 2;
+  for (size_t i = 2; i < columns.size(); ++i) {
+    snprintf(columns[i].colName, sizeof(columns[i].colName), "extra_%u", (unsigned)i);
+    tstrncpy(columns[i].extTypeName, "double", sizeof(columns[i].extTypeName));
+  }
+  meta.pCols = columns.data();
+  meta.numOfCols = static_cast<int32_t>(columns.size());
 
   SStreamExtOrigTblReaderBinding binding = {};
   binding.bindingId = 11;
@@ -11272,35 +17355,69 @@ TEST_F(MndStreamExtReaderRuntimeTest, DeploysAndReusesExternalOriginalReaderFrom
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp firstRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
-            TSDB_CODE_SUCCESS);
+  // The background batch holds both tables' prepared payloads before either is queued.
+  SStreamExtOrigTblReaderReq secondTable = req;
+  ++secondTable.registryEntryId;
+  tstrncpy(secondTable.identity.tableName, "other_metrics", sizeof(secondTable.identity.tableName));
+  SStmTaskToDeployExt        prepared[2] = {};
+  SStreamExtOrigTblReaderRsp otherRsp = {};
+  ASSERT_EQ(0,
+            msmPrepareExtOrigTblReader(createReq.streamId, &createReq, &source, &req, &meta, &prepared[0], &firstRsp));
+  ASSERT_EQ(0, msmPrepareExtOrigTblReader(createReq.streamId, &createReq, &source, &secondTable, &meta, &prepared[1],
+                                          &otherRsp));
+  auto checkRetained = [](const SStreamExtTriggerSpec *spec) {
+    ASSERT_NE(nullptr, spec);
+    EXPECT_EQ(2, spec->numColMappings);
+    EXPECT_EQ(1, spec->numCalcMappings);
+    EXPECT_LE(spec->triggerColumns->capacity, TARRAY_MIN_SIZE);
+    EXPECT_LE(spec->calcColumns->capacity, TARRAY_MIN_SIZE);
+    EXPECT_LE(taosMemorySize(spec->pColMappings), 2 * sizeof(SExtColTypeMapping) + 64);
+    EXPECT_LE(taosMemorySize(spec->pCalcMappings), sizeof(SExtColTypeMapping) + 64);
+  };
+  for (auto &entry : prepared) checkRetained(entry.deploy.msg.reader.pExtSpec);
+  SStmTaskStatus *firstSlot = nullptr, *otherSlot = nullptr;
+  ASSERT_EQ(0, msmPublishExtOrigTblReader(&ctx, &status, &stream, &req, &prepared[0], &firstSlot, &firstRsp));
+  SArray *nextBlock = taosArrayInit(MST_ORIGINAL_READER_LIST_SIZE, sizeof(SStmTaskStatus));
+  ASSERT_NE(nullptr, nextBlock);
+  ASSERT_NE(nullptr, taosArrayPush(status.trigOReaders, &nextBlock));
+  ASSERT_EQ(0, msmPublishExtOrigTblReader(&ctx, &status, &stream, &secondTable, &prepared[1], &otherSlot, &otherRsp));
+  EXPECT_EQ(firstRsp.readerTaskAddr.taskId, prepared[0].deploy.task.taskId);
+  EXPECT_EQ(otherRsp.readerTaskAddr.taskId, prepared[1].deploy.task.taskId);
+  EXPECT_EQ(snodeId_, prepared[1].deploy.task.nodeId);
+  EXPECT_NE(0, prepared[1].deploy.task.seriousId);
+  for (auto &entry : prepared) mstDestroySStmTaskToDeployExt(&entry);
   ASSERT_EQ(firstRsp.code, TSDB_CODE_SUCCESS);
   EXPECT_EQ(firstRsp.readerTaskAddr.nodeId, snodeId_);
   EXPECT_NE(firstRsp.readerTaskAddr.taskId, 0);
   EXPECT_EQ(firstRsp.acceptedTriggerBindingCount, 1);
-  ASSERT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+  ASSERT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 2);
 
   SStmSnodeTasksDeploy *deploy = static_cast<SStmSnodeTasksDeploy *>(
       taosHashGet(mStreamMgmt.toDeploySnodeMap, &snodeId_, sizeof(snodeId_)));
   ASSERT_NE(deploy, nullptr);
   ASSERT_NE(deploy->calcReaderList, nullptr);
-  ASSERT_EQ(taosArrayGetSize(deploy->calcReaderList), 1);
+  ASSERT_EQ(taosArrayGetSize(deploy->calcReaderList), 2);
   SStmTaskToDeployExt *deployTask =
       static_cast<SStmTaskToDeployExt *>(taosArrayGet(deploy->calcReaderList, 0));
   ASSERT_NE(deployTask, nullptr);
+  for (size_t i = 0; i < taosArrayGetSize(deploy->calcReaderList); ++i) {
+    auto *queued = static_cast<SStmTaskToDeployExt *>(taosArrayGet(deploy->calcReaderList, i));
+    checkRetained(queued->deploy.msg.reader.pExtSpec);
+  }
   EXPECT_TRUE(deployTask->ownsExtSpec);
   ASSERT_NE(deployTask->deploy.msg.reader.pExtSpec, nullptr);
   EXPECT_TRUE(deployTask->deploy.msg.reader.ownsExtSpec);
 
   SStreamExtOrigTblReaderRsp secondRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &secondRsp),
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &secondTable, &meta, &secondRsp),
             TSDB_CODE_SUCCESS);
-  EXPECT_EQ(secondRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
-  EXPECT_EQ(secondRsp.readerTaskAddr.nodeId, firstRsp.readerTaskAddr.nodeId);
-  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
+  EXPECT_EQ(secondRsp.readerTaskAddr.taskId, otherRsp.readerTaskAddr.taskId);
+  EXPECT_EQ(secondRsp.readerTaskAddr.nodeId, otherRsp.readerTaskAddr.nodeId);
+  EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 2);
 
   tFreeSStreamExtOrigTblReaderRsp(&firstRsp);
   tFreeSStreamExtOrigTblReaderRsp(&secondRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&otherRsp);
   tFreeSStreamExtOrigTblReaderReq(&req);
   destroyTrigOReaders(&status);
 }
@@ -11368,8 +17485,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, RejectsExternalOriginalReaderWhenCreateSta
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp rsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp),
-            TSDB_CODE_OPS_NOT_SUPPORT);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp), TSDB_CODE_OPS_NOT_SUPPORT);
   EXPECT_EQ(rsp.code, TSDB_CODE_OPS_NOT_SUPPORT);
   EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 0);
   EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 0);
@@ -11437,8 +17553,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, PatchRedeploysExistingExternalOriginalRead
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp firstRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
-            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp), TSDB_CODE_SUCCESS);
   ASSERT_NE(firstRsp.readerTaskAddr.taskId, 0);
 
   taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
@@ -11456,8 +17571,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, PatchRedeploysExistingExternalOriginalRead
   SMStreamHbRspMsg hbRsp = {};
   ctx.pRsp = &hbRsp;
   SStreamExtOrigTblReaderRsp patchRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &patchRsp),
-            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &patchRsp), TSDB_CODE_SUCCESS);
   EXPECT_EQ(patchRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
   EXPECT_EQ(patchRsp.acceptedTriggerBindingCount, 2);
   EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
@@ -11476,7 +17590,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, PatchRedeploysExistingExternalOriginalRead
   destroyTrigOReaders(&status);
 }
 
-TEST_F(MndStreamExtReaderRuntimeTest, CleanupPatchUndeploysAndDoesNotReuseReader) {
+TEST_F(MndStreamExtReaderRuntimeTest, CleanupAndRecreatePreservePeerRegistrations) {
   char streamName[] = "test.ext_cleanup_stream";
   char triggerTbl[] = "vmeters";
   SCMCreateStreamReq createReq = {};
@@ -11534,9 +17648,18 @@ TEST_F(MndStreamExtReaderRuntimeTest, CleanupPatchUndeploysAndDoesNotReuseReader
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp firstRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp),
-            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &firstRsp), TSDB_CODE_SUCCESS);
   ASSERT_NE(firstRsp.readerTaskAddr.taskId, 0);
+
+  auto peerReq = req;
+  ++peerReq.registryEntryId;
+  tstrncpy(peerReq.identity.tableName, "peer_cpu", sizeof(peerReq.identity.tableName));
+  SStreamExtOrigTblReaderRsp peerRsp = {};
+  ASSERT_EQ(0, DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &peerReq, &meta, &peerRsp));
+  const int64_t peerKey[] = {createReq.streamId, peerRsp.readerTaskAddr.taskId};
+  auto        **peer = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, peerKey, sizeof(peerKey)));
+  ASSERT_NE(nullptr, peer);
+  auto *peerSlot = *peer;
 
   taosHashCleanup(mStreamMgmt.toDeploySnodeMap);
   mStreamMgmt.toDeploySnodeMap =
@@ -11550,8 +17673,21 @@ TEST_F(MndStreamExtReaderRuntimeTest, CleanupPatchUndeploysAndDoesNotReuseReader
   SMStreamHbRspMsg hbRsp = {};
   ctx.pRsp = &hbRsp;
   SStreamExtOrigTblReaderRsp cleanupRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &cleanupRsp),
-            TSDB_CODE_SUCCESS);
+  {
+    Stub fail;
+    fail.set(
+        taosHashPut, +[](SHashObj *, const void *, size_t, const void *, size_t) -> int32_t {
+          return terrno = TSDB_CODE_OUT_OF_MEMORY;
+        });
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &cleanupRsp));
+  }
+  const int64_t firstKey[] = {createReq.streamId, firstRsp.readerTaskAddr.taskId};
+  EXPECT_NE(nullptr, taosHashGet(mStreamMgmt.taskMap, firstKey, sizeof(firstKey)));
+  EXPECT_EQ(0, taosHashGetSize(status.retiredExtReaders));
+  EXPECT_EQ(0u, taosArrayGetSize(hbRsp.undeploy.taskList));
+  cleanupRsp = {};
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &cleanupRsp), TSDB_CODE_SUCCESS);
   EXPECT_EQ(cleanupRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
   EXPECT_EQ(cleanupRsp.acceptedTriggerBindingCount, 0);
   EXPECT_EQ(cleanupRsp.acceptedCalcBindingCount, 0);
@@ -11570,24 +17706,52 @@ TEST_F(MndStreamExtReaderRuntimeTest, CleanupPatchUndeploysAndDoesNotReuseReader
   auto* streamStatus = static_cast<SStmSnodeStreamStatus*>(
       taosHashGet(snodeStatus->streamTasks, &createReq.streamId, sizeof(createReq.streamId)));
   ASSERT_NE(streamStatus, nullptr);
-  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
+  EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 2);
 
   ASSERT_NE(taosArrayPush(req.bindings, &binding), nullptr);
   req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
   SStreamExtOrigTblReaderRsp recreateRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &recreateRsp),
-            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &recreateRsp), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(0, taosHashGetSize(status.retiredExtReaders));
   EXPECT_NE(recreateRsp.readerTaskAddr.taskId, firstRsp.readerTaskAddr.taskId);
   EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
   EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 2);
-  auto* readerList = static_cast<SArray*>(taosArrayGetP(status.trigOReaders, 0));
-  ASSERT_NE(readerList, nullptr);
-  ASSERT_GE(taosArrayGetSize(readerList), 1);
-  auto* reader = static_cast<SStmTaskStatus*>(taosArrayGet(readerList, taosArrayGetSize(readerList) - 1));
-  ASSERT_NE(reader, nullptr);
-  EXPECT_EQ(reader->id.taskId, recreateRsp.readerTaskAddr.taskId);
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  taosArrayClear(req.bindings);
+  for (int i = 0; i < 2; ++i) {
+    SStreamExtOrigTblReaderRsp reply = {};
+    ASSERT_EQ(0, DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &reply));
+    EXPECT_EQ(recreateRsp.readerTaskAddr.taskId, reply.readerTaskAddr.taskId);
+    EXPECT_EQ(snodeId_, reply.readerTaskAddr.nodeId);
+  }
+  stream.mainSnodeId = snodeId_ + 1;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START;
+  SStreamExtOrigTblReaderRsp failed = {};
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_INTERNAL_ERROR,
+            DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &failed));
+  EXPECT_NE(nullptr, taosHashGet(status.retiredExtReaders, &recreateRsp.readerTaskAddr.taskId,
+                                 sizeof(recreateRsp.readerTaskAddr.taskId)));
+  tFreeSStreamExtOrigTblReaderRsp(&failed);
+  stream.mainSnodeId = snodeId_;
+  req.capabilities = STREAM_EXT_ORIGTBL_READER_CAP_PATCH;
+  SStreamExtOrigTblReaderRsp previous = {};
+  ASSERT_EQ(0, DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &previous));
+  EXPECT_EQ(recreateRsp.readerTaskAddr.taskId, previous.readerTaskAddr.taskId);
+  peer = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, peerKey, sizeof(peerKey)));
+  ASSERT_NE(nullptr, peer);
+  EXPECT_EQ(peerSlot, *peer);
+  EXPECT_EQ(peerReq.registryEntryId, (*peer)->id.uid);
+  EXPECT_EQ(peerRsp.readerTaskAddr.taskId, (*peer)->id.taskId);
+  ASSERT_EQ(1u, taosArrayGetSize(streamStatus->runners[0]));
+  EXPECT_EQ(peerSlot, taosArrayGetP(streamStatus->runners[0], 0));
+  SStreamExtOrigTblReaderRsp repeatedPeer = {};
+  ASSERT_EQ(0, DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &peerReq, &meta, &repeatedPeer));
+  EXPECT_EQ(peerRsp.readerTaskAddr.taskId, repeatedPeer.readerTaskAddr.taskId);
+  EXPECT_EQ(snodeId_, repeatedPeer.readerTaskAddr.nodeId);
 
   tFreeSMStreamHbRspMsg(&hbRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&peerRsp);
+  tFreeSStreamExtOrigTblReaderRsp(&repeatedPeer);
   tFreeSStreamExtOrigTblReaderRsp(&firstRsp);
   tFreeSStreamExtOrigTblReaderRsp(&cleanupRsp);
   tFreeSStreamExtOrigTblReaderRsp(&recreateRsp);
@@ -11663,8 +17827,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, FailedBindingDoesNotCreateAdditionalExtern
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp goodRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &goodReq, &meta, &goodRsp),
-            TSDB_CODE_SUCCESS);
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &goodReq, &meta, &goodRsp), TSDB_CODE_SUCCESS);
   ASSERT_EQ(goodRsp.code, TSDB_CODE_SUCCESS);
   ASSERT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
   ASSERT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 1);
@@ -11680,7 +17843,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, FailedBindingDoesNotCreateAdditionalExtern
   ASSERT_NE(taosArrayPush(badReq.bindings, &badBinding), nullptr);
 
   SStreamExtOrigTblReaderRsp badRsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &badReq, &meta, &badRsp),
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &badReq, &meta, &badRsp),
             TSDB_CODE_EXT_COLUMN_NOT_EXIST);
   EXPECT_EQ(badRsp.code, TSDB_CODE_EXT_COLUMN_NOT_EXIST);
   EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 1);
@@ -11763,7 +17926,7 @@ TEST_F(MndStreamExtReaderRuntimeTest, RollsBackExternalOriginalReaderWhenSnodeRe
   SStmGrpCtx ctx = {};
   ctx.currTs = 1000;
   SStreamExtOrigTblReaderRsp rsp = {};
-  ASSERT_EQ(msmDeployExtOrigTblReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp),
+  ASSERT_EQ(DeployExtReaderFromMeta(&ctx, &status, &stream, &source, &req, &meta, &rsp),
             TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   EXPECT_EQ(msmGetTrigOReaderSize(status.trigOReaders), 0);
   EXPECT_EQ(atomic_load_32(&mStreamMgmt.toDeploySnodeTaskNum), 0);
@@ -11837,14 +18000,12 @@ TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReade
 
   SStmQNode *pNoopAction = static_cast<SStmQNode *>(taosMemoryCalloc(1, sizeof(SStmQNode)));
   ASSERT_NE(pNoopAction, nullptr);
-  SHashObj *consumerActionStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  ASSERT_NE(consumerActionStm, nullptr);
-  SHashObj *consumerDeployStm = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  ASSERT_NE(consumerDeployStm, nullptr);
+  SMnode mnode = {};
+  int8_t savedActive = atomic_exchange_8(&mStreamMgmt.active, 1);
 
   taosWLockLatch(&queue_.lock);
   std::thread heartbeat([&]() {
-    heartbeatCode.store(msmNormalHandleHbMsg(&ctx));
+    heartbeatCode.store(msmNormalHandleHbMsgImpl(&ctx, nullptr, nullptr));
     heartbeatFinished.store(true);
   });
 
@@ -11866,20 +18027,10 @@ TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReade
   queue_.tail = pNoopAction;
   (void)atomic_add_fetch_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum), 1);
 
-  SStreamHbMsg consumerReq = {0};
-  consumerReq.dnodeId = dnodeId;
-  SMStreamHbRspMsg consumerRsp = {0};
-  SStmGrpCtx       consumerCtx = {0};
-  consumerCtx.currTs = 2;
-  consumerCtx.pReq = &consumerReq;
-  consumerCtx.pRsp = &consumerRsp;
-  consumerCtx.actionStm = consumerActionStm;
-  consumerCtx.deployStm = consumerDeployStm;
-
-  std::atomic<int32_t> consumerCode{TSDB_CODE_SUCCESS};
-  std::atomic<bool>    consumerFinished{false};
-  std::thread          consumer([&]() {
-    consumerCode.store(msmNormalHandleHbMsg(&consumerCtx));
+  atomic_store_8(&queue_.draining, 1);
+  std::atomic<bool> consumerFinished{false};
+  std::thread       consumer([&]() {
+    msmDrainStreamActions(&mnode);
     consumerFinished.store(true);
   });
 
@@ -11899,11 +18050,11 @@ TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReade
   taosWUnLockLatch(&queue_.lock);
   heartbeat.join();
   consumer.join();
+  atomic_store_8(&mStreamMgmt.active, savedActive);
 
   EXPECT_TRUE(posted);
   EXPECT_TRUE(writerWaitedForReader);
   EXPECT_EQ(heartbeatCode.load(), TSDB_CODE_SUCCESS);
-  EXPECT_EQ(consumerCode.load(), TSDB_CODE_SUCCESS);
   EXPECT_EQ(atomic_load_64(reinterpret_cast<volatile int64_t *>(&queue_.qRemainNum)), 0);
   ASSERT_NE(rsp.rsps.rspList, nullptr);
   ASSERT_EQ(taosArrayGetSize(rsp.rsps.rspList), 1);
@@ -11918,9 +18069,6 @@ TEST_F(MndStreamHeartbeatTest, SnapshotDeployWriterWaitsForPostingHeartbeatReade
   EXPECT_EQ(pStart->task.taskId, triggerTask.id.taskId);
 
   tFreeSMStreamHbRspMsg(&rsp);
-  tFreeSMStreamHbRspMsg(&consumerRsp);
-  taosHashCleanup(consumerDeployStm);
-  taosHashCleanup(consumerActionStm);
   taosHashCleanup(deployStm);
   taosHashCleanup(actionStm);
 }
@@ -13761,9 +19909,9 @@ int main(int argc, char** argv) {
 #pragma GCC diagnostic pop
 
 extern "C" int32_t msmUpdateRunnerPlans(SStmGrpCtx *, SArray *, SStreamObj *);
-extern "C" int32_t msmUpdateLowestPlanSourceAddr(SSubplan *, SStmTaskDeploy *, int64_t);
+extern "C" int32_t msmUpdateLowestPlanSourceAddr(SSubplan *, SStmTaskDeploy *, int64_t, SHashObj *);
 
-static int32_t broadcastReuseSourceAddrStub(SSubplan *, SStmTaskDeploy *, int64_t) { return 0; }
+static int32_t broadcastReuseSourceAddrStub(SSubplan *, SStmTaskDeploy *, int64_t, SHashObj *) { return 0; }
 
 TEST(MndBroadcastReuseTest, CommonDeploymentQualifiesOldPlansBeforeErasingReferences) {
   // These are persisted payloads without BroadcastInputReusable. Endpoint routing

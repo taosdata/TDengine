@@ -41,6 +41,7 @@ extern "C" {
 #define STREAM_FLAG_TOP_RUNNER      (1 << 1)
 #define STREAM_FLAG_REDEPLOY_RUNNER (1 << 2)
 #define STREAM_FLAG_REF_EXT_SOURCE  (1 << 3)  // stream references at least one external source
+#define STREAM_FLAG_REMOTE_READER_DEPLOY (1 << 4)  // Heartbeat action flag for a replayable remote Reader.
 // Stored on SStreamObj.flags only (never on task status): while a START / STOP STREAM is pending in a
 // transaction, the stream is in META_TXN_PRE_ALTER and this bit holds the target state, set = "stopped".
 // It is meaningful only in that state. The bit is persisted with the stream object, so keep its value.
@@ -65,6 +66,7 @@ typedef struct SStreamReaderTask {
   SStreamTask       task;
   SStreamTaskStats *pStats;
   int8_t            triggerReader;
+  bool              snodeOwned;
   void             *info;
 } SStreamReaderTask;
 

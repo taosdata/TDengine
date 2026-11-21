@@ -1344,7 +1344,8 @@ class TestBatchMetaTxnStream:
         tdLog.info("======== m16_runtime_ops_blocked_outside_owning_txn")
 
         self._create_stream("m16_s", "m16_o")
-        self._wait_status("m16_s", ("Running", "Idle"))
+        started = self._wait_status("m16_s", ("Running",))
+        assert started == "Running", f"m16_s never reached Running (got {started})"
 
         conn2, cursor2 = self._other_conn()
         try:

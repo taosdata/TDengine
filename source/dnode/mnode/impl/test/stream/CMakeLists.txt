@@ -35,7 +35,33 @@ if(NOT TD_WINDOWS)
                 NAME streamTest
                 COMMAND streamTest
         )
-endif(NOT TD_WINDOWS)
+else()
+        string(JOIN ":" stream_deploy_filter
+                "MndStreamRecalcPersistenceTest.HealthAndQueriesFinishDuringPrivateRedeploy"
+                "MndStreamRecalcPersistenceTest.SameGroupReportsKeepHealthyTasksRunningDuringPrivateDeploy"
+                "MndStreamRecalcPersistenceTest.LeadershipChange*"
+                "MndStreamDeployOwnershipTest.*"
+                "MndStreamRemoteReaderTest.*"
+                "MndStreamOrigReaderReplyTest.*"
+                "MndStreamHbInputTest.DisabledMnodeRejectsHeartbeatFromPeerWithExistingTask"
+                "MndStreamSchemaWorkerTest.*"
+                "MndStreamExtReaderRuntimeTest.DeploysAndReusesExternalOriginalReaderFromSchema"
+                "MndStreamExtReaderRuntimeTest.CleanupAndRecreatePreservePeerRegistrations")
+        add_test(
+                NAME streamDeployConcurrency
+                COMMAND streamTest "--gtest_filter=${stream_deploy_filter}"
+        )
+        if(NOT BUILD_TAOSD_INTEGRATED)
+                find_package(Python3 REQUIRED COMPONENTS Interpreter)
+                add_test(NAME streamDeployHeartbeatLog
+                        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/test_stream_deploy_cli.py")
+                add_test(NAME streamDeployNativeCli
+                        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/stream_deploy_cli.py"
+                                $<TARGET_FILE:streamDeployTestDaemon>
+                                $<TARGET_FILE_DIR:shell>/taos$<TARGET_FILE_SUFFIX:shell>)
+                set_tests_properties(streamDeployNativeCli PROPERTIES TIMEOUT 360 RUN_SERIAL TRUE)
+        endif()
+endif()
 
 # aux_source_directory(. MNODE_STREAM_TEST_SRC)
 # add_executable(streamTest ${MNODE_STREAM_TEST_SRC})

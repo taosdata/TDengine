@@ -12523,6 +12523,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       taosWLockLatch(&pTask->task.mgmtReqLock);
       SStreamMgmtReq *pReq = atomic_load_ptr(&pTask->task.pMgmtReq);
       if (pReq && pReq->reqId == reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pReq, NULL)) {
+        if (pMsg->msgType == STREAM_MSG_MIXED_ORIGTBL_READER_INFO) pTask->task.ackedSchemaReqId = reqId;
         tFreeSStreamMgmtReq(pReq);
         taosMemoryFree(pReq);
       }
@@ -24819,7 +24820,7 @@ static int32_t stTriggerTaskBuildExtReaderReq(SStreamTriggerTask *pTask, SSTrigg
   pExtReq->registryEntryId = pRef->registryEntryId;
   pExtReq->deploymentGeneration = pRef->sourceConfigVersion;
   pExtReq->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
-  pExtReq->capabilities = capabilities;
+  pExtReq->capabilities = capabilities | STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
   pExtReq->sourceType = pRef->sourceType;
   pExtReq->sourceConfigVersion = pRef->sourceConfigVersion;
   tstrncpy(pExtReq->identity.sourceName, pRef->sourceName, sizeof(pExtReq->identity.sourceName));

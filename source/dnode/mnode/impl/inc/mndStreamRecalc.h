@@ -36,8 +36,16 @@ int32_t mndStreamRecalcAccept(SMnode *pMnode, SStreamObj *pStream, SStmStatus *p
                               const SRpcMsg *pReq);
 int32_t mndStreamRecalcFinish(SMnode *pMnode, int64_t streamId, const SStreamRecalcTerminalCandidate *pCandidate);
 int32_t mndStreamRecalcSnapshot(const SStreamObj *pStream, SArray **ppRequests);
-int32_t mndStreamRecalcRestore(const SStreamObj *pStream, SStmStatus *pStatus, int64_t triggerTaskId,
-                               int64_t triggerSeriousId);
+typedef struct {
+  SArray  *records;
+  uint64_t recordsVersion;
+  uint64_t revision;
+} SStreamRecalcRestore;
+
+int32_t mndStreamRecalcCaptureRecords(SStmStatus *status, SStreamRecalcRestore *restore);
+int32_t mndStreamRecalcPrepareRestore(const SStreamObj *stream, SStreamRecalcRestore *restore, int64_t triggerTaskId,
+                                      int64_t triggerSeriousId);
+bool    mndStreamRecalcCommitRestore(const SStreamObj *stream, SStmStatus *status, SStreamRecalcRestore *restore);
 int32_t mndStreamRecalcBuildDispatch(SStmStatus *pStatus, SArray **ppRequests);
 int32_t mndStreamRecalcApplySnapshot(SMnode *pMnode, int64_t streamId, SStmStatus *pStatus, int64_t triggerTaskId,
                                      int64_t triggerSeriousId, bool completeSnapshot,

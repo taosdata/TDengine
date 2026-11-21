@@ -149,14 +149,15 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
       (void)taosThreadAttrInit(&thAttr);
       (void)taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-      if (taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tQWorkerThreadFp, worker) != 0) {
+      code = taosThreadCreate(&worker->thread, &thAttr, (ThreadFp)tQWorkerThreadFp, worker);
+      (void)taosThreadAttrDestroy(&thAttr);
+      if (code != 0) {
         taosCloseQueue(queue);
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         queue = NULL;
         break;
       }
 
-      (void)taosThreadAttrDestroy(&thAttr);
       pool->num++;
       uInfo("worker:%s:%d is launched, total:%d", pool->name, worker->id, pool->num);
     } while (pool->num < pool->min);
@@ -506,15 +507,19 @@ int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) 
       pPool->min = pCfg->min;
       pPool->max = pCfg->max;
       pPool->threadCategory = pCfg->threadCategory;
-      pWorker->pool = pPool;
       if ((code = tQWorkerInit(pPool))) {
+        taosMemoryFree(pPool);
         return (terrno = code);
       }
 
       pWorker->queue = tQWorkerAllocQueue(pPool, pCfg->param, pCfg->fp);
       if (pWorker->queue == NULL) {
-        return terrno;
+        code = terrno;
+        tQWorkerCleanup(pPool);
+        taosMemoryFree(pPool);
+        return (terrno = code);
       }
+      pWorker->pool = pPool;
     } break;
     case QUERY_AUTO_QWORKER_POOL: {
       SQueryAutoQWorkerPool *pPool = taosMemoryCalloc(1, sizeof(SQueryAutoQWorkerPool));
@@ -565,6 +570,8 @@ void tSingleWorkerCleanup(SSingleWorker *pWorker) {
     default:
       break;
   }
+  pWorker->pool = NULL;
+  pWorker->queue = NULL;
 }
 
 int32_t tMultiWorkerInit(SMultiWorker *pWorker, const SMultiWorkerCfg *pCfg) {
