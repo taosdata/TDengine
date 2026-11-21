@@ -144,7 +144,7 @@ typedef struct SJoinInputProps {
 int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 int32_t createColumnByRewriteExprs(SNodeList* pExprs, SNodeList** pList);
 int32_t createColumnByRewriteExpr(SNode* pExpr, SNodeList** pList);
-int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList);
+int32_t            createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList);
 int32_t replaceProjectLogicProjections(SLogicNode* pNode, const SNodeList* pExprs);
 int32_t replaceLogicNode(SLogicSubplan* pSubplan, SLogicNode* pOld, SLogicNode* pNew);
 int32_t adjustLogicNodeDataRequirement(SLogicNode* pNode, EDataOrderLevel requirement);

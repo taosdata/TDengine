@@ -275,6 +275,7 @@ static bool sqlNamedWindowEqual(const SNamedWindowNode* a, const SNamedWindowNod
 }
 
 static bool logicWindowFuncNodeEqual(const SWindowFuncLogicNode* a, const SWindowFuncLogicNode* b) {
+  COMPARE_SCALAR_FIELD(numValuePartitionKeys);
   COMPARE_NODE_LIST_FIELD(pPartitionKeys);
   COMPARE_NODE_LIST_FIELD(pOrderKeys);
   COMPARE_NODE_LIST_FIELD(pFuncs);
@@ -284,6 +285,7 @@ static bool logicWindowFuncNodeEqual(const SWindowFuncLogicNode* a, const SWindo
 
 static bool physiWindowFuncNodeEqual(const SWindowFuncPhysiNode* a, const SWindowFuncPhysiNode* b) {
   COMPARE_NODE_LIST_FIELD(pExprs);
+  COMPARE_SCALAR_FIELD(numValuePartitionKeys);
   COMPARE_NODE_LIST_FIELD(pPartitionKeys);
   COMPARE_NODE_LIST_FIELD(pOrderKeys);
   COMPARE_NODE_LIST_FIELD(pFuncs);

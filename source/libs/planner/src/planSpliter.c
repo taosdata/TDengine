@@ -1798,6 +1798,8 @@ static int32_t stbSplCreateOrderByExpr(SOrderByExprNode* pSortKey, SNode* pCol, 
   }
   pOutput->order = pSortKey->order;
   pOutput->nullOrder = pSortKey->nullOrder;
+  pOutput->isWindowKey = pSortKey->isWindowKey;
+  pOutput->isQueryPartitionKey = pSortKey->isQueryPartitionKey;
   *ppNode = (SNode*)pOutput;
   return code;
 }

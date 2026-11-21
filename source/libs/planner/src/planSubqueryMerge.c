@@ -44,7 +44,7 @@ SUBQUERY_CHECK_LAYOUT(SSetOperator, 656);
 SUBQUERY_CHECK_LAYOUT(SOperatorNode, 512);
 SUBQUERY_CHECK_LAYOUT(SLogicConditionNode, 384);
 SUBQUERY_CHECK_LAYOUT(SGroupingSetNode, 16);
-SUBQUERY_CHECK_LAYOUT(SOrderByExprNode, 24);
+SUBQUERY_CHECK_LAYOUT(SOrderByExprNode, 32);
 SUBQUERY_CHECK_LAYOUT(SLimitNode, 24);
 SUBQUERY_CHECK_LAYOUT(SNodeListNode, 376);
 SUBQUERY_CHECK_LAYOUT(SWhenThenNode, 384);
@@ -429,6 +429,7 @@ static bool subquerySetOutputEqual(const SNode* a, const SNode* b, const char* l
     const SOrderByExprNode* pLeft = (const SOrderByExprNode*)a;
     const SOrderByExprNode* pRight = (const SOrderByExprNode*)b;
     return pLeft->order == pRight->order && pLeft->nullOrder == pRight->nullOrder &&
+           pLeft->isWindowKey == pRight->isWindowKey && pLeft->isQueryPartitionKey == pRight->isQueryPartitionKey &&
            subquerySetOutputEqual(pLeft->pExpr, pRight->pExpr, leftStmt, rightStmt, pCtx);
   }
   return subqueryNodeEqual(a, b, pCtx);
@@ -535,6 +536,7 @@ static bool subqueryNodeEqual(const SNode* a, const SNode* b, const SSubqueryCom
       const SOrderByExprNode* pLeft = (const SOrderByExprNode*)a;
       const SOrderByExprNode* pRight = (const SOrderByExprNode*)b;
       return pLeft->order == pRight->order && pLeft->nullOrder == pRight->nullOrder &&
+             pLeft->isWindowKey == pRight->isWindowKey && pLeft->isQueryPartitionKey == pRight->isQueryPartitionKey &&
              subqueryNodeEqual(pLeft->pExpr, pRight->pExpr, pCtx);
     }
     case QUERY_NODE_LIMIT: {

@@ -1983,11 +1983,15 @@ static const char* jkWindowFuncPlanOrderKeys = "OrderKeys";
 static const char* jkWindowFuncPlanFuncs = "Funcs";
 static const char* jkWindowFuncPlanFrame = "Frame";
 static const char* jkWindowFuncPlanExprs = "Exprs";
+static const char* jkWindowFuncNumValuePartitionKeys = "NumValuePartitionKeys";
 
 static int32_t logicWindowFuncNodeToJson(const void* pObj, SJson* pJson) {
   const SWindowFuncLogicNode* pNode = (const SWindowFuncLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowFuncNumValuePartitionKeys, pNode->numValuePartitionKeys);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkWindowFuncPlanPartitionKeys, pNode->pPartitionKeys);
   }
@@ -2008,6 +2012,9 @@ static int32_t jsonToLogicWindowFuncNode(const SJson* pJson, void* pObj) {
   SWindowFuncLogicNode* pNode = (SWindowFuncLogicNode*)pObj;
 
   int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkWindowFuncNumValuePartitionKeys, &pNode->numValuePartitionKeys);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkWindowFuncPlanPartitionKeys, &pNode->pPartitionKeys);
   }
@@ -5235,6 +5242,9 @@ static int32_t physiWindowFuncNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkWindowFuncPlanExprs, pNode->pExprs);
   }
+  if (TSDB_CODE_SUCCESS == code && pNode->numValuePartitionKeys) {
+    code = tjsonAddIntegerToObject(pJson, jkWindowFuncNumValuePartitionKeys, pNode->numValuePartitionKeys);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkWindowFuncPlanPartitionKeys, pNode->pPartitionKeys);
   }
@@ -5257,6 +5267,9 @@ static int32_t jsonToPhysiWindowFuncNode(const SJson* pJson, void* pObj) {
   int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkWindowFuncPlanExprs, &pNode->pExprs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkWindowFuncNumValuePartitionKeys, &pNode->numValuePartitionKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkWindowFuncPlanPartitionKeys, &pNode->pPartitionKeys);
@@ -9877,6 +9890,8 @@ static int32_t jsonToGroupingSetNode(const SJson* pJson, void* pObj) {
 static const char* jkOrderByExprExpr = "Expr";
 static const char* jkOrderByExprOrder = "Order";
 static const char* jkOrderByExprNullOrder = "NullOrder";
+static const char* jkOrderByExprWindowKey = "IsWindowKey";
+static const char* jkOrderByExprQueryPartitionKey = "IsQueryPartitionKey";
 
 static int32_t orderByExprNodeToJson(const void* pObj, SJson* pJson) {
   const SOrderByExprNode* pNode = (const SOrderByExprNode*)pObj;
@@ -9887,6 +9902,12 @@ static int32_t orderByExprNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkOrderByExprNullOrder, pNode->nullOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isWindowKey) {
+    code = tjsonAddBoolToObject(pJson, jkOrderByExprWindowKey, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isQueryPartitionKey) {
+    code = tjsonAddBoolToObject(pJson, jkOrderByExprQueryPartitionKey, true);
   }
 
   return code;
@@ -9901,6 +9922,12 @@ static int32_t jsonToOrderByExprNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     tjsonGetNumberValue(pJson, jkOrderByExprNullOrder, pNode->nullOrder, code);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkOrderByExprWindowKey, &pNode->isWindowKey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBoolValue(pJson, jkOrderByExprQueryPartitionKey, &pNode->isQueryPartitionKey);
   }
 
   return code;

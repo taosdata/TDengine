@@ -201,7 +201,7 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
-  
+
   // unary comparison operator
   OP_TYPE_IS_NULL = 100,
   OP_TYPE_IS_NOT_NULL,

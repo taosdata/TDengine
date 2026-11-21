@@ -2226,6 +2226,73 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   return comparFn;
 }
 
+// Sorting and window peers require a transitive order, including at zero.
+static int32_t compareFloatingKeys(double left, double right) {
+  if (isnan(left)) return isnan(right) ? 0 : -1;
+  if (isnan(right)) return 1;
+  return (left > right) - (left < right);
+}
+
+static int32_t compareFloatKey(const void *left, const void *right) {
+  return compareFloatingKeys(GET_FLOAT_VAL(left), GET_FLOAT_VAL(right));
+}
+
+static int32_t compareDoubleKey(const void *left, const void *right) {
+  return compareFloatingKeys(GET_DOUBLE_VAL(left), GET_DOUBLE_VAL(right));
+}
+
+static int32_t compareFloatKeyDesc(const void *left, const void *right) { return compareFloatKey(right, left); }
+static int32_t compareDoubleKeyDesc(const void *left, const void *right) { return compareDoubleKey(right, left); }
+
+static int32_t compareNcharSortKey(const void *left, const void *right) {
+  int32_t leftLen = varDataLen(left), rightLen = varDataLen(right);
+  int32_t common = TMIN(leftLen, rightLen);
+  for (int32_t offset = 0; offset + TSDB_NCHAR_SIZE <= common; offset += TSDB_NCHAR_SIZE) {
+    uint32_t a, b;
+    memcpy(&a, varDataVal(left) + offset, sizeof(a));
+    memcpy(&b, varDataVal(right) + offset, sizeof(b));
+    if (a != b) return a < b ? -1 : 1;
+  }
+  return (leftLen > rightLen) - (leftLen < rightLen);
+}
+
+static int32_t compareNcharSortKeyDesc(const void *left, const void *right) { return compareNcharSortKey(right, left); }
+
+static int32_t compareJsonSortKey(const void *left, const void *right) {
+  const char *a = left, *b = right;
+  if (*a == *b) {
+    if (*a == TSDB_DATA_TYPE_DOUBLE) {
+      double x, y;
+      memcpy(&x, a + 1, sizeof(x));
+      memcpy(&y, b + 1, sizeof(y));
+      return compareFloatingKeys(x, y);
+    }
+    if (*a == TSDB_DATA_TYPE_NCHAR) return compareNcharSortKey(a + 1, b + 1);
+  }
+  return compareJsonVal(left, right);
+}
+
+static int32_t compareJsonSortKeyDesc(const void *left, const void *right) { return compareJsonSortKey(right, left); }
+
+// OVER sorts compare the same complete keys as partition boundaries and peer groups.
+__compar_fn_t getWindowKeyComparFunc(int32_t keyType, int32_t order) {
+  switch (keyType) {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return order == TSDB_ORDER_ASC ? compareLenBinaryVal : compareLenBinaryValDesc;
+    case TSDB_DATA_TYPE_NCHAR:
+      return order == TSDB_ORDER_ASC ? compareNcharSortKey : compareNcharSortKeyDesc;
+    case TSDB_DATA_TYPE_FLOAT:
+      return order == TSDB_ORDER_ASC ? compareFloatKey : compareFloatKeyDesc;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return order == TSDB_ORDER_ASC ? compareDoubleKey : compareDoubleKeyDesc;
+    case TSDB_DATA_TYPE_JSON:
+      return order == TSDB_ORDER_ASC ? compareJsonSortKey : compareJsonSortKeyDesc;
+    default:
+      return getKeyComparFunc(keyType, order);
+  }
+}
+
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order) {
   switch (keyType) {
     case TSDB_DATA_TYPE_TINYINT:

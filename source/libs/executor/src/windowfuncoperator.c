@@ -941,9 +941,10 @@ static int32_t winFuncCopyOutputColumns(SSDataBlock *pDst, SWindowInputStore *pS
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t winFuncRowsSamePartition(SWindowInputStore *pStore, const SNodeList *pPartitionKeys, int32_t lhs,
+static int32_t winFuncRowsSamePartition(SWindowInputStore *pStore, const SWindowFuncPhysiNode *pWindow, int32_t lhs,
                                         int32_t rhs, bool *pSame) {
   *pSame = false;
+  const SNodeList *pPartitionKeys = pWindow->pPartitionKeys;
   if (pPartitionKeys == NULL || LIST_LENGTH(pPartitionKeys) == 0) {
     *pSame = true;
     return TSDB_CODE_SUCCESS;
@@ -963,7 +964,9 @@ static int32_t winFuncRowsSamePartition(SWindowInputStore *pStore, const SNodeLi
   }
 
   SNode *pNode = NULL;
+  int32_t numStoredKeys = LIST_LENGTH(pPartitionKeys) - pWindow->numValuePartitionKeys;
   FOREACH(pNode, pPartitionKeys) {
+    bool   storedKey = numStoredKeys-- > 0;
     SNode *pExpr = (nodeType(pNode) == QUERY_NODE_TARGET) ? ((STargetNode *)pNode)->pExpr : pNode;
     if (nodeType(pExpr) != QUERY_NODE_COLUMN) {
       return TSDB_CODE_INVALID_PARA;
@@ -976,6 +979,12 @@ static int32_t winFuncRowsSamePartition(SWindowInputStore *pStore, const SNodeLi
       return TSDB_CODE_OUT_OF_RANGE;
     }
 
+    if (storedKey && pLhsCol->info.type == TSDB_DATA_TYPE_JSON) {
+      if (compareJsonQueryKeys(blockJsonQueryKey(pLhsCol, lhsRow), blockJsonQueryKey(pRhsCol, rhsRow), false,
+                               TSDB_ORDER_ASC) != 0)
+        return TSDB_CODE_SUCCESS;
+      continue;
+    }
     bool lhsNull = colDataIsNull(pLhsCol, pLhsBlock->info.rows, lhsRow, NULL);
     bool rhsNull = colDataIsNull(pRhsCol, pRhsBlock->info.rows, rhsRow, NULL);
     if (lhsNull != rhsNull) {
@@ -987,12 +996,13 @@ static int32_t winFuncRowsSamePartition(SWindowInputStore *pStore, const SNodeLi
 
     char *lhsData = colDataGetData(pLhsCol, lhsRow);
     char *rhsData = colDataGetData(pRhsCol, rhsRow);
-    if (IS_VAR_DATA_TYPE(pLhsCol->info.type)) {
-      if (varDataTLen(lhsData) != varDataTLen(rhsData) || memcmp(lhsData, rhsData, varDataTLen(lhsData)) != 0) {
-        return TSDB_CODE_SUCCESS;
-      }
-    } else if (memcmp(lhsData, rhsData, pLhsCol->info.bytes) != 0) {
-      return TSDB_CODE_SUCCESS;
+    if (!storedKey) {
+      if (getWindowKeyComparFunc(pLhsCol->info.type, TSDB_ORDER_ASC)(lhsData, rhsData) != 0) return TSDB_CODE_SUCCESS;
+    } else {
+      int8_t  type = pLhsCol->info.type;
+      int32_t lhsLen = IS_VAR_DATA_TYPE(type) ? calcStrBytesByType(type, lhsData) : pLhsCol->info.bytes;
+      int32_t rhsLen = IS_VAR_DATA_TYPE(type) ? calcStrBytesByType(type, rhsData) : pRhsCol->info.bytes;
+      if (lhsLen != rhsLen || memcmp(lhsData, rhsData, lhsLen) != 0) return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -1281,7 +1291,9 @@ static int32_t winFuncSameOrderKeys(SWindowInputStore *pStore, const SNodeList *
     char   *lhsData = colDataGetData(pLhsCol, lhsRow);
     char   *rhsData = colDataGetData(pRhsCol, rhsRow);
     int32_t order = (((SOrderByExprNode *)pNode)->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-    if (getKeyComparFunc(pLhsCol->info.type, order)(lhsData, rhsData) != 0) {
+    __compar_fn_t compare = ((SOrderByExprNode *)pNode)->isWindowKey ? getWindowKeyComparFunc(pLhsCol->info.type, order)
+                                                                     : getKeyComparFunc(pLhsCol->info.type, order);
+    if (compare(lhsData, rhsData) != 0) {
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -2257,7 +2269,7 @@ static int32_t winFuncOpenPartition(SWindowFuncOperatorInfo *pInfo, SWindowFuncP
   int32_t partitionEnd = row + 1;
   while (partitionEnd < totalRows) {
     bool    same = false;
-    int32_t code = winFuncRowsSamePartition(pInfo->pInputStore, pWindowNode->pPartitionKeys, row, partitionEnd, &same);
+    int32_t code = winFuncRowsSamePartition(pInfo->pInputStore, pWindowNode, row, partitionEnd, &same);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2416,6 +2428,8 @@ int32_t createWindowFuncOperatorInfo(SOperatorInfo *downstream, SWindowFuncPhysi
   }
 
   if (downstream == NULL || pWindowNode == NULL || pWindowNode->pFrame == NULL ||
+      pWindowNode->numValuePartitionKeys < 0 ||
+      pWindowNode->numValuePartitionKeys > LIST_LENGTH(pWindowNode->pPartitionKeys) ||
       (((SWindowFrameNode *)pWindowNode->pFrame)->frameUnit != WINDOW_FRAME_UNIT_ROWS &&
        ((SWindowFrameNode *)pWindowNode->pFrame)->frameUnit != WINDOW_FRAME_UNIT_RANGE)) {
     code = TSDB_CODE_INVALID_PARA;

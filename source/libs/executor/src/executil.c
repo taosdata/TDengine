@@ -417,7 +417,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
   return (int32_t)taosArrayGetSize(pGroupResInfo->pRows);
 }
 
-SArray* createSortInfo(SNodeList* pNodeList) {
+SArray* createSortInfo(SNodeList* pNodeList, bool forceDescending) {
   size_t numOfCols = 0;
 
   if (pNodeList != NULL) {
@@ -442,8 +442,8 @@ SArray* createSortInfo(SNodeList* pNodeList) {
       break;
     }
     SBlockOrderInfo bi = {0};
-    bi.order = (pSortKey->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-    bi.nullFirst = (pSortKey->nullOrder == NULL_ORDER_FIRST);
+    bi.order = (!forceDescending && pSortKey->order == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
+    bi.nullFirst = !forceDescending && pSortKey->nullOrder == NULL_ORDER_FIRST;
 
     if (nodeType(pSortKey->pExpr) != QUERY_NODE_COLUMN) {
       qError("invalid order by expr type:%d", nodeType(pSortKey->pExpr));
@@ -455,6 +455,17 @@ SArray* createSortInfo(SNodeList* pNodeList) {
     
     SColumnNode* pColNode = (SColumnNode*)pSortKey->pExpr;
     bi.slotId = pColNode->slotId;
+    if (pSortKey->isWindowKey) {
+      int8_t        type = pColNode->node.resType.type;
+      bi.jsonQueryKey = pSortKey->isQueryPartitionKey && type == TSDB_DATA_TYPE_JSON;
+      // Query partitions distinguish the stored bit patterns of signed zeros.
+      __compar_fn_t fn =
+          pSortKey->isQueryPartitionKey && IS_FLOAT_TYPE(type)
+              ? getKeyComparFunc(type == TSDB_DATA_TYPE_FLOAT ? TSDB_DATA_TYPE_UINT : TSDB_DATA_TYPE_UBIGINT, bi.order)
+              : getWindowKeyComparFunc(type, bi.order);
+      // Keep the native fast paths when this type has the ordinary sort order.
+      if (fn != getKeyComparFunc(type, bi.order)) bi.compFn = fn;
+    }
     void* tmp = taosArrayPush(pList, &bi);
     if (!tmp) {
       taosArrayDestroy(pList);

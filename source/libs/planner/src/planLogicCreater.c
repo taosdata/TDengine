@@ -8934,13 +8934,15 @@ static int32_t collectSqlWindowFuncs(SSelectStmt* pSelect, SNodeList** pFuncs) {
   return code;
 }
 
-static int32_t appendWindowSortKeyExprs(SNodeList** pSortKeys, SNodeList* pExprs) {
+static int32_t appendWindowSortKeyExprs(SNodeList** pSortKeys, SNodeList* pExprs, int32_t numQueryKeys) {
   SNode* pExpr = NULL;
   FOREACH(pExpr, pExprs) {
     SOrderByExprNode* pKey = NULL;
     PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_ORDER_BY_EXPR, (SNode**)&pKey));
     pKey->order = ORDER_ASC;
     pKey->nullOrder = NULL_ORDER_DEFAULT;
+    pKey->isWindowKey = true;
+    pKey->isQueryPartitionKey = numQueryKeys-- > 0;
     int32_t code = nodesCloneNode(pExpr, &pKey->pExpr);
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesListMakeStrictAppend(pSortKeys, (SNode*)pKey);
@@ -8958,6 +8960,7 @@ static int32_t cloneWindowOrderKeys(SNodeList* pSrc, SNodeList** pDst) {
   FOREACH(pKey, pSrc) {
     SNode* pNew = NULL;
     PLAN_ERR_RET(nodesCloneNode(pKey, &pNew));
+    ((SOrderByExprNode*)pNew)->isWindowKey = true;
     PLAN_ERR_RET(nodesListMakeStrictAppend(pDst, pNew));
   }
   return TSDB_CODE_SUCCESS;
@@ -8968,7 +8971,8 @@ static int32_t createSqlWindowSortLogicNode(SWindowFuncLogicNode* pWindow, SLogi
   SSortLogicNode* pSort = NULL;
   PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SORT, (SNode**)&pSort));
 
-  int32_t code = appendWindowSortKeyExprs(&pSort->pSortKeys, pWindow->pPartitionKeys);
+  int32_t code = appendWindowSortKeyExprs(&pSort->pSortKeys, pWindow->pPartitionKeys,
+                                          LIST_LENGTH(pWindow->pPartitionKeys) - pWindow->numValuePartitionKeys);
   if (TSDB_CODE_SUCCESS == code) {
     code = cloneWindowOrderKeys(pWindow->pOrderKeys, &pSort->pSortKeys);
   }
@@ -9164,6 +9168,7 @@ static int32_t createSqlWindowFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
       // Query partitions are the outer boundary of every OVER partition. Add
       // them after grouping functions so shared window specifications still match.
       SNodeList* pPartitionKeys = NULL;
+      pWindow->numValuePartitionKeys = LIST_LENGTH(pWindow->pPartitionKeys);
       PLAN_ERR_JRET(nodesCloneList(pSelect->pPartitionByList, &pPartitionKeys));
       if (NULL != pPartitionKeys) {
         if (NULL != pWindow->pPartitionKeys) {
@@ -9179,12 +9184,25 @@ static int32_t createSqlWindowFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
       pSort->precision = pSelect->precision;
       PLAN_ERR_JRET(pushLogicNode(pCxt, pRoot, pSort));
 
-      // Sort materializes partition expressions; the window compares its output columns.
-      if (NULL != pSelect->pPartitionByList) {
+      // Compare the key values used by the sort, including non-deterministic expressions.
+      if (NULL != pWindow->pPartitionKeys) {
         pPartitionKeys = NULL;
         PLAN_ERR_JRET(createColumnByRewriteExprs(pWindow->pPartitionKeys, &pPartitionKeys));
         nodesDestroyList(pWindow->pPartitionKeys);
         pWindow->pPartitionKeys = pPartitionKeys;
+      }
+      SNode* pOrderKey = NULL;
+      FOREACH(pOrderKey, pWindow->pOrderKeys) {
+        SOrderByExprNode* pKey = (SOrderByExprNode*)pOrderKey;
+        pKey->isWindowKey = true;
+        if (QUERY_NODE_COLUMN != nodeType(pKey->pExpr)) {
+          SColumnNode* pCol = createColumnByExpr(NULL, (SExprNode*)pKey->pExpr);
+          if (NULL == pCol) {
+            PLAN_ERR_JRET(terrno);
+          }
+          nodesDestroyNode(pKey->pExpr);
+          pKey->pExpr = (SNode*)pCol;
+        }
       }
       pWindow->node.precision = pSelect->precision;
       PLAN_ERR_JRET(rewriteExprsForSelect(pWindow->pFuncs, pSelect, SQL_CLAUSE_SELECT, NULL));

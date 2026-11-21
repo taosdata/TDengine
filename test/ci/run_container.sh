@@ -619,6 +619,13 @@ if fq_ci_needs_databases "$cmd" && \
     export FQ_CI_HYBRID="${FQ_CI_HYBRID:-1}"
 fi
 
+# Native Oracle 11g runs its Java VM during database creation. Docker's
+# default noexec /dev/shm prevents it from mapping its shared object cache.
+fq_oracle_shm=""
+if [[ ${#fq_runner[@]} == 0 && "$cmd" == *"/19-FederatedQuery/test_fq_oracle_window_order.py"* ]]; then
+    fq_oracle_shm="--tmpfs=/dev/shm:rw,exec,nosuid,nodev,size=1g"
+fi
+
 mock_env=""
 if [[ "${CHILD_PIPELINE_NAME:-}" == "tsdb-ci-linux" && "${cmd}" =~ (cases/[^[:space:]]+\.py) ]]; then
   case_file="${REPDIR}/test/${BASH_REMATCH[1]}"
@@ -636,7 +643,7 @@ _ci_remove_flag=--rm
 [[ "${CI_WORKER_MANAGED_CONTAINER:-0}" != 1 ]] || _ci_remove_flag=""
 
 echo "docker run \
-    ${name_param:+$name_param }--privileged=true \
+    ${name_param:+$name_param }--privileged=true ${fq_oracle_shm} \
     $asan_env \
     $mock_env \
     -e CI_MIN_RESERVED_MEMORY_MB=${CI_MIN_RESERVED_MEMORY_MB:-2048} \
@@ -657,7 +664,7 @@ rm -f "${_ci_exit_marker}" "${TMP_DIR}/thread_volume/${thread_no}/.ci-test-comma
 _ci_docker_start_ms=$(date +%s%3N)
 echo "[ci-timing] stage=docker-run event=start"
 "${fq_runner[@]}" docker run \
-    ${name_param:+$name_param} --privileged=true \
+    ${name_param:+$name_param} --privileged=true ${fq_oracle_shm} \
     $asan_env \
     $mock_env \
     -e CI_CONTAINER_EXIT_MARKER="$CONTAINER_TESTDIR/test/.ci-container-exit" \
