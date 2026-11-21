@@ -64,6 +64,7 @@ void *gTdSeam_rpcSendResponse = NULL;
 void *gTdSeam_rpcFreeCont = NULL;
 void *gTdSeam_rpcSetIpWhite = NULL;
 void *gTdSeam_rpcSetTimeIpWhite = NULL;
+void (*gTdSeam_msmDeployPhase)(const char *phase, const char *streamName) = NULL;
 void *gTdSeam_streamHbHandleRspErr = NULL;
 void *gTdSeam_streamHbProcessRspMsg = NULL;
 void *gTdSeam_taosAnalyUpdate = NULL;

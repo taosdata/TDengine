@@ -3181,6 +3181,11 @@ end:
   return code;
 }
 
+void stReaderTaskDiscardInstall(SStreamReaderTask* pTask) {
+  streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
+  stReaderTaskReleaseInfo(pTask);
+}
+
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg) {
   int32_t code = 0;
   int32_t lino = 0;
@@ -3312,12 +3317,11 @@ end:
   STREAM_PRINT_LOG_END(code, lino);
 
   if (code) {
-    streamTaskStatsHandleLifecycle(&pTask->pStats, STREAM_TASK_STATS_DEPLOY_FAILED);
     if (!pPlanMoved) {
       nodesDestroyNode(pPlan);
     }
     nodesDestroyNode(pCalcPlan);
-    stReaderTaskReleaseInfo(pTask);
+    stReaderTaskDiscardInstall(pTask);
     pTask->task.status = STREAM_STATUS_FAILED;
   }
 

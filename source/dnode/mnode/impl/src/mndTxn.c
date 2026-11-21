@@ -3286,8 +3286,7 @@ static void mndApplyTxnStreamActions(SMnode *pMnode, SArray *pActs) {
 
     if (pAct->opType == MND_SHADOW_OP_CREATE_STREAM) {
       MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
-      int32_t code = mstPostStreamAction(mStreamMgmt.actionQ, pAct->streamId, pAct->name, NULL, true,
-                                         STREAM_ACT_DEPLOY);
+      int32_t code = mstPostStreamCreate(pAct->streamId, pAct->name);
       if (code != 0) {
         mError("txn stream deploy post failed for stream=%s: %s (stream mgmt will retry)", pAct->name,
                tstrerror(code));

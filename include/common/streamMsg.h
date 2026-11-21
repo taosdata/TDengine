@@ -784,6 +784,7 @@ typedef enum EStreamExtOrigTblReaderCapability {
   STREAM_EXT_ORIGTBL_READER_CAP_START = 1 << 1,
   STREAM_EXT_ORIGTBL_READER_CAP_PATCH = 1 << 2,
   STREAM_EXT_ORIGTBL_READER_CAP_RECOVER = 1 << 3,
+  STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY = 1 << 4,
 } EStreamExtOrigTblReaderCapability;
 
 typedef struct SStreamExtOrigTblReaderIdentity {
@@ -897,6 +898,7 @@ typedef struct SStreamMgmtReq {
   int64_t            reqId;
   SStreamMgmtReqType type;
   SStreamMgmtReqCont cont;
+  int64_t legacyReaderDeadline;  // Receiver-local deadline for a legacy CREATE that only returns a missing address.
 } SStreamMgmtReq;
 
 void tFreeSStreamMgmtReq(SStreamMgmtReq* pReq);
@@ -928,6 +930,9 @@ typedef struct SStreamTask {
   char*         extraErrMsg;
 
   SStreamMgmtReq* pMgmtReq;  // request that should be handled by stream mgmt thread
+
+  // Carried by the optional heartbeat acknowledgment tail only.
+  int64_t ackedSchemaReqId;
 
   // FOR LOCAL PART
   SRWLatch        mgmtReqLock;
@@ -1000,6 +1005,9 @@ typedef struct SSTriggerRuntimeStatus {
 typedef SStreamTask SStmTaskStatusMsg;
 
 #define STREAM_HB_OBSERVABILITY_VERSION_V1 1
+#define STREAM_HB_READER_DEPLOY_EPOCH_MAGIC UINT32_C(0x52444550)  // RDEP
+#define STREAM_HB_READER_RUNTIME_MAGIC      UINT32_C(0x5252554E)  // RRUN
+#define STREAM_HB_SCHEMA_ACK_MAGIC         UINT32_C(0x5341434B)  // SACK
 
 typedef enum EStreamTaskMetric {
   STREAM_METRIC_PHYSICAL_INPUT = 1ULL << 0,
@@ -1069,6 +1077,12 @@ typedef struct SStreamTaskMetricsEntry {
   SStreamTaskMetricsSnapshot snapshot;
 } SStreamTaskMetricsEntry;
 
+// An snode echoes the mnode's challenge only for its current task-map lifetime.
+typedef struct {
+  int64_t id;
+  int64_t challenge;
+} SStreamReaderRuntime;
+
 typedef struct SStreamHbMsg {
   int32_t dnodeId;
   int32_t streamGId;
@@ -1080,6 +1094,8 @@ typedef struct SStreamHbMsg {
   SArray* pTriggerStatus; // SArray<SSTriggerRuntimeStatus>
   int32_t observabilityVersion;
   SArray* pTaskMetrics;  // SArray<SStreamTaskMetricsEntry>
+  int64_t readerDeployEpoch;  // Nonzero when the target can discard a retired remote Reader deployment.
+  SStreamReaderRuntime readerRuntime;
 } SStreamHbMsg;
 
 int32_t tEncodeStreamHbMsg(SEncoder* pEncoder, const SStreamHbMsg* pReq);
@@ -1228,6 +1244,7 @@ typedef union {
 typedef struct {
   SStreamTask          task;
   SStreamDeployTaskMsg msg;
+  int64_t              colocatedReaderRuntime;  // Receiver-local snode role for a co-delivered legacy install.
 } SStmTaskDeploy;
 
 typedef struct {
@@ -1235,11 +1252,13 @@ typedef struct {
   SArray*         readerTasks;  // SArray<SStmTaskDeploy>
   SStmTaskDeploy* triggerTask;
   SArray*         runnerTasks;  // SArray<SStmTaskDeploy>
+  int64_t         readerDeployEpoch;  // Local copy of the enclosing heartbeat epoch.
 } SStmStreamDeploy;
 
 
 void tFreeSStmStreamDeploy(void* param);
 void tDeepFreeSStmStreamDeploy(void* param);
+void tFreeSStmTaskDeploy(void* param);
 
 typedef struct {
   SArray* streamList;  // SArray<SStmStreamDeploy>
@@ -1262,6 +1281,7 @@ typedef struct {
 typedef struct {
   int8_t  undeployAll;
   SArray* taskList;  // SArray<SStreamTaskUndeploy>
+  int64_t readerDeployEpoch;  // Local copy of the enclosing heartbeat epoch.
 } SStreamUndeployActions;
 
 typedef struct {
@@ -1278,6 +1298,8 @@ typedef struct {
   SStreamStartActions    start;
   SStreamUndeployActions undeploy;
   SStreamMgmtRsps        rsps;
+  int64_t                readerDeployEpoch;
+  SStreamReaderRuntime   readerRuntime;
 } SMStreamHbRspMsg;
 
 

@@ -130,7 +130,72 @@ _return:
 }
 */
 
-int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
+// The caller holds readerDeployLock through the task-map claim or retirement.
+static bool smReaderPollAllowsTask(const SStreamTask* task, int64_t epoch) {
+  if (!gStreamMgmt.hb.readerRuntime.id) return false;
+  const SReaderPollWindow* windows = gStreamMgmt.hb.readerPollWindows;
+  const int64_t            key[] = {task->streamId, task->taskId, task->seriousId};
+  const int64_t*           poll = tSimpleHashGet(windows[0].polls, &epoch, sizeof(epoch));
+  if (!poll) poll = tSimpleHashGet(windows[1].polls, &epoch, sizeof(epoch));
+  if (!poll) return false;
+  for (size_t i = 0; i < 2; ++i) {
+    const int64_t* retired = tSimpleHashGet(windows[i].retired, key, sizeof(key));
+    if (retired && *poll <= *retired) return false;
+  }
+  return true;
+}
+
+static void smRetireReaderInstance(const SStreamTask* task) {
+  SStreamHbInfo* hb = &gStreamMgmt.hb;
+  if (!hb->readerPollSerial) return;
+  SReaderPollWindow* window = hb->readerPollWindows;
+  if (window[1].period > window[0].period) ++window;
+  if (!window->retired) window->retired = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  const int64_t key[] = {task->streamId, task->taskId, task->seriousId};
+  if (!window->retired ||
+      tSimpleHashPut(window->retired, key, sizeof(key), &hb->readerPollSerial, sizeof(hb->readerPollSerial))) {
+    // Even under allocation failure teardown must finish and no earlier packet may resurrect this Reader.
+    tSimpleHashClear(hb->readerPollWindows[0].polls);
+    tSimpleHashClear(hb->readerPollWindows[1].polls);
+    stError("failed to record Reader retirement, discarded outstanding Reader poll tokens");
+  }
+}
+
+// The stream owner keeps this list entry private throughout initialization. Publish only
+// a fully opened Reader, so map users and the removal callback always see a counted task.
+static int32_t smInstallSnodeReader(SStreamReaderTask* reader, const SStmTaskDeploy* deploy, SStreamInfo* stream,
+                                    int64_t epoch, int32_t* stale) {
+  SStreamHbInfo* hb = &gStreamMgmt.hb;
+  const int64_t  key[] = {reader->task.streamId, reader->task.taskId};
+  taosRLockLatch(&hb->readerDeployLock);
+  const int64_t localRole = deploy->colocatedReaderRuntime;
+  bool          allowed = localRole ? localRole == hb->readerRuntime.id : smReaderPollAllowsTask(&reader->task, epoch);
+  taosRUnLockLatch(&hb->readerDeployLock);
+  if (!allowed) {
+    ++*stale;
+    return TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  }
+  if (taosHashGet(gStreamMgmt.taskMap, key, sizeof(key))) return TSDB_CODE_DUP_KEY;
+
+  reader->snodeOwned = true;
+  reader->task.flags &= ~STREAM_FLAG_REMOTE_READER_DEPLOY;
+  TAOS_CHECK_RETURN(stReaderTaskDeploy(reader, &deploy->msg.reader));
+
+  taosRLockLatch(&hb->readerDeployLock);
+  int32_t code = TSDB_CODE_STREAM_TASK_NOT_EXIST;
+  if (localRole ? localRole == hb->readerRuntime.id : smReaderPollAllowsTask(&reader->task, epoch)) {
+    code = taosHashPut(gStreamMgmt.taskMap, key, sizeof(key), &reader, sizeof(reader));
+    if (!code) (void)atomic_add_fetch_32(&stream->taskNum, 1);
+  } else {
+    ++*stale;
+  }
+  taosRUnLockLatch(&hb->readerDeployLock);
+  if (code) stReaderTaskDiscardInstall(reader);
+  return code;
+}
+
+static int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream, const bool* claims,
+                                     int32_t* staleReaders) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = pDeploy->streamId;
@@ -145,13 +210,19 @@ int32_t smAddTasksToStreamMap(SStmStreamDeploy* pDeploy, SStreamInfo* pStream) {
     }
     
     for (int32_t i = 0; i < readerNum; ++i) {
+      SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
+      bool            guarded = (pReader->task.flags & STREAM_FLAG_REMOTE_READER_DEPLOY) != 0;
+      if (guarded && !claims[i]) continue;
       SStreamReaderTask* pTask = tdListReserve(pStream->readerList);
       TSDB_CHECK_NULL(pTask, code, lino, _exit, terrno);
-
-      SStmTaskDeploy* pReader = taosArrayGet(pDeploy->readerTasks, i);
       pTask->task = pReader->task;
-
-      code = taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId, sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES);
+      if (guarded || pReader->colocatedReaderRuntime) {
+        code = smInstallSnodeReader(pTask, pReader, pStream, pDeploy->readerDeployEpoch, staleReaders);
+        if (code) taosMemoryFree(tdListPopTail(pStream->readerList));
+        continue;
+      }
+      code = taosHashPut(gStreamMgmt.taskMap, &pTask->task.streamId,
+                         sizeof(pTask->task.streamId) + sizeof(pTask->task.taskId), &pTask, POINTER_BYTES);
       if (code) {
         ST_TASK_ELOG("reader task fail to add to taskMap, error:%s", tstrerror(code));
         taosMemoryFree(tdListPopTail(pStream->readerList));
@@ -295,8 +366,6 @@ _exit:
   return TSDB_CODE_SUCCESS; // ALWAYS SUCCESS
 }
 
-
-
 int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   int64_t streamId = pStart->task.streamId;
   int32_t code = TSDB_CODE_SUCCESS;
@@ -306,8 +375,8 @@ int32_t smStartStreamTasks(SStreamTaskStart* pStart) {
   
   TAOS_CHECK_EXIT(streamAcquireTask(streamId, pStart->task.taskId, (SStreamTask**)&pTask, &taskAddr));
 
-  if (pTask->type != STREAM_TRIGGER_TASK || !gStreamMgmt.snodeEnabled || gStreamMgmt.getSynEpset == NULL ||
-      gStreamMgmt.msgCb.putToQueueFp == NULL) {
+  if (pTask->type != STREAM_TRIGGER_TASK || !atomic_load_8(&gStreamMgmt.snodeEnabled) ||
+      gStreamMgmt.getSynEpset == NULL || gStreamMgmt.msgCb.putToQueueFp == NULL) {
     code = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -380,7 +449,7 @@ void smRemoveTaskCb(void* param) {
   int32_t lino = 0;
   SStreamTask* pTask = *(SStreamTask**)param;
   int32_t gid = STREAM_GID(pTask->streamId);
-  SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
+  SHashObj*    pGrp = atomic_load_ptr(&gStreamMgmt.stmGrp[gid]);
   int64_t streamId = pTask->streamId;
   SStreamInfo* pStream = NULL;
 
@@ -395,19 +464,21 @@ void smRemoveTaskCb(void* param) {
     goto _exit;
   }
 
-  bool isLastTask = false;
+  if (pTask->type != STREAM_TRIGGER_TASK) {
+    ST_TASK_DLOG("queue task for removal from stream task list, tidx:%d", pTask->taskIdx);
+  }
   switch (pTask->type) {
     case STREAM_READER_TASK: {
       if (NULL == pStream->undeployReaders) {
         int32_t num = pStream->readerList ? TD_DLIST_NELES(pStream->readerList) : 0;
-        SArray* pReaders = taosArrayInit(num, sizeof(int64_t) * 2);
+        SArray* pReaders = taosArrayInit(num, sizeof(pTask));
         TSDB_CHECK_NULL(pReaders, code, lino, _exit, terrno);
         if (NULL != atomic_val_compare_exchange_ptr(&pStream->undeployReaders, NULL, pReaders)) {
           taosArrayDestroy(pReaders);
         }
       }
       taosWLockLatch(&pStream->undeployLock);
-      void* pTmp = taosArrayPush(pStream->undeployReaders, &pTask->taskId);
+      void* pTmp = taosArrayPush(pStream->undeployReaders, &pTask);
       taosWUnLockLatch(&pStream->undeployLock);
       TSDB_CHECK_NULL(pTmp, code, lino, _exit, terrno);
       break;
@@ -452,8 +523,6 @@ _exit:
 
   if (code) {
     ST_TASK_ELOG("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
-  } else if (pTask && STREAM_TRIGGER_TASK != pTask->type){
-    ST_TASK_DLOG("task pre-removed from stream task list, tidx:%d", pTask->taskIdx);
   }
 
   taosHashRelease(gStreamMgmt.taskMap, param);
@@ -461,28 +530,56 @@ _exit:
   taosHashRelease(pGrp, pStream);
 }
 
-
-int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
+static int32_t smUndeployTaskImpl(SStreamTaskUndeploy* pUndeploy, bool rmFromVg, int64_t replyEpoch) {
   int64_t streamId = pUndeploy->task.streamId;
   int64_t key[2] = {streamId, pUndeploy->task.taskId};
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SStreamTask* pTask= &pUndeploy->task;
-  
+
   ST_TASK_ILOG("start to undeploy task, tidx:%d", pTask->taskIdx);
-  
+
+  bool namedReader = pTask->type == STREAM_READER_TASK && STREAM_IS_REF_EXT_SOURCE(pTask->flags);
+  bool paired = (pTask->flags & STREAM_FLAG_REMOTE_READER_DEPLOY) != 0;
+  if (namedReader) taosWLockLatch(&gStreamMgmt.hb.readerDeployLock);
   SStreamTask** ppTask = taosHashAcquire(gStreamMgmt.taskMap, key, sizeof(key));
-  if (NULL == ppTask) {
-    ST_TASK_WLOG("task no longer exists in taskMap while trying to undeploy it, tidx:%d", pTask->taskIdx);
+  if (!ppTask || (namedReader && (*ppTask)->seriousId != pTask->seriousId)) {
+    // The final cleanup can beat the first task-map claim, including when a different incarnation occupies the key.
+    if (namedReader) {
+      if (pUndeploy->undeployMsg.doCleanup && STREAM_IS_TRIGGER_READER(pTask->flags) &&
+          ((!paired && !replyEpoch) || smReaderPollAllowsTask(pTask, replyEpoch))) {
+        smRetireReaderInstance(pTask);
+      }
+      taosWUnLockLatch(&gStreamMgmt.hb.readerDeployLock);
+    }
+    if (!ppTask) ST_TASK_WLOG("task no longer exists in taskMap while trying to undeploy it, tidx:%d", pTask->taskIdx);
+    taosHashRelease(gStreamMgmt.taskMap, ppTask);
     return code;
   }
 
+  bool reader = (*ppTask)->type == STREAM_READER_TASK && STREAM_IS_TRIGGER_READER((*ppTask)->flags) &&
+                STREAM_IS_REF_EXT_SOURCE((*ppTask)->flags);
+  if (namedReader && !reader) taosWUnLockLatch(&gStreamMgmt.hb.readerDeployLock);
+  if (reader) {
+    if (!namedReader) taosWLockLatch(&gStreamMgmt.hb.readerDeployLock);
+    bool guarded = paired || (replyEpoch && namedReader && ((SStreamReaderTask*)*ppTask)->snodeOwned);
+    if (guarded && !smReaderPollAllowsTask(pTask, replyEpoch)) {
+      taosWUnLockLatch(&gStreamMgmt.hb.readerDeployLock);
+      taosHashRelease(gStreamMgmt.taskMap, ppTask);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
   if (1 == atomic_val_compare_exchange_8(&(*ppTask)->deployed, 0, 1)) {
+    if (reader) taosWUnLockLatch(&gStreamMgmt.hb.readerDeployLock);
     ST_TASK_ILOG("task already be undeploying, tidx:%d", pTask->taskIdx);
     taosHashRelease(gStreamMgmt.taskMap, ppTask);
     return code;
   }
 
+  if (reader) {
+    smRetireReaderInstance(*ppTask);
+    taosWUnLockLatch(&gStreamMgmt.hb.readerDeployLock);
+  }
   SStreamTask task = **ppTask;
   pTask= &task;
 
@@ -496,7 +593,7 @@ int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
   
   switch (pTask->type) {
     case STREAM_READER_TASK:
-      if (rmFromVg) {
+      if (rmFromVg && !((SStreamReaderTask*)*ppTask)->snodeOwned) {
         smRemoveReaderFromVgMap(pTask);
       }
       code = stReaderTaskUndeploy((SStreamReaderTask**)ppTask, false);
@@ -523,6 +620,9 @@ _exit:
   return code;
 }
 
+int32_t smUndeployTask(SStreamTaskUndeploy* pUndeploy, bool rmFromVg) {
+  return smUndeployTaskImpl(pUndeploy, rmFromVg, 0);
+}
 
 void smUndeployVgTasks(int32_t vgId, bool cleanup) {
   stInfo("start to undeploy vgroup tasks, vgId:%d", vgId);
@@ -585,13 +685,16 @@ void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, ES
   
   int32_t unNum = taosArrayGetSize(pUndeployList);
   for (int32_t i = 0; i < unNum; ++i) {
-    int64_t* taskId = taosArrayGet(pUndeployList, i);
-    int64_t* seriousId = taskId + 1;
+    void*     removed = taosArrayGet(pUndeployList, i);
     SListIter iter = {0};
     tdListInitIter(pTaskList, &iter, TD_LIST_FORWARD);
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamTask* pTask = (SStreamTask*)listNode->data;
-      if (pTask->taskId == *taskId && pTask->seriousId == *seriousId) {
+      // A pinned Reader from a previous snode role can have the same wire identity as its replacement.
+      bool matches = type == STREAM_READER_TASK
+                         ? pTask == *(SStreamTask**)removed
+                         : pTask->taskId == ((int64_t*)removed)[0] && pTask->seriousId == ((int64_t*)removed)[1];
+      if (matches) {
         SListNode* tmp = tdListPopNode(pTaskList, listNode);
         // The caller holds pStream->lock, excluding heartbeat snapshots while the owner is removed.
         streamTaskStatsHandleLifecycle(streamTaskGetStatsSlot(pTask), STREAM_TASK_STATS_REMOVED);
@@ -679,6 +782,13 @@ void smUndeployGrpSnodeTasks(SHashObj* pGrp, bool cleanup) {
       undeploy.task = pRunner->task;
       (void)smUndeployTask(&undeploy, false);
     }
+    tdListInitIter(pStream->readerList, &iter, TD_LIST_FORWARD);
+    while ((listNode = tdListNext(&iter)) != NULL) {
+      SStreamReaderTask* reader = (SStreamReaderTask*)listNode->data;
+      if (!reader->snodeOwned) continue;
+      undeploy.task = reader->task;
+      (void)smUndeployTask(&undeploy, false);
+    }
     taosWUnLockLatch(&pStream->lock);
   }
 }
@@ -689,7 +799,7 @@ void smUndeploySnodeTasks(bool cleanup) {
   stInfo("start to undeploy snode tasks, cleanup:%d", cleanup);
   
   for (int32_t i = 0; i < STREAM_MAX_GROUP_NUM; ++i) {
-    pHash = gStreamMgmt.stmGrp[i];
+    pHash = atomic_load_ptr(&gStreamMgmt.stmGrp[i]);
     smUndeployGrpSnodeTasks(pHash, cleanup);
   } 
 }
@@ -718,6 +828,8 @@ void smUndeployAllTasks(void) {
 
   stInfo("start to undeploy ALL tasks, remains:%d", taosHashGetSize(gStreamMgmt.taskMap));
 
+  // Invalidate outstanding deployments before walking tasks, including Readers still opening a connector.
+  streamHbRenewReaderRuntime(&gStreamMgmt.hb);
   smUndeployAllVgTasks();
 
   while (true) {
@@ -741,8 +853,8 @@ int32_t smUndeployTasks(SStreamUndeployActions* actions) {
   for (int32_t i = 0; i < listNum; ++i) {
     SStreamTaskUndeploy* pUndeploy = taosArrayGet(actions->taskList, i);
     streamId = pUndeploy->task.streamId;
-    
-    (void)smUndeployTask(pUndeploy, true);
+
+    (void)smUndeployTaskImpl(pUndeploy, true, actions->readerDeployEpoch);
   }
 
   return code;
@@ -772,6 +884,8 @@ int32_t smHandleTaskMgmtRsp(SStreamMgmtRsp* pRsp) {
       if (pTask->type != STREAM_TRIGGER_TASK) {
         TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
       }
+      if (pRsp->header.msgType == STREAM_MSG_MIXED_ORIGTBL_READER_INFO && pTask->seriousId != pRsp->task.seriousId)
+        break;
       if (pRsp->header.msgType == STREAM_MSG_EXT_SOURCE_IDENTITY_INFO) {
         SStreamMgmtReq* pReq = atomic_load_ptr(&pTask->pMgmtReq);
         if (pReq && pReq->reqId == pRsp->reqId &&
@@ -838,8 +952,64 @@ int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t smClaimReaderInstalls(const SStmStreamDeploy* deploy, bool** claims, int32_t* skipped) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t count = taosArrayGetSize(deploy->readerTasks);
+  SStreamHbInfo* hb = &gStreamMgmt.hb;
+  for (int32_t i = 0; i < count; ++i) {
+    SStmTaskDeploy* reader = taosArrayGet(deploy->readerTasks, i);
+    if (!(reader->task.flags & STREAM_FLAG_REMOTE_READER_DEPLOY)) continue;
+    if (!*claims) {
+      *claims = taosMemoryCalloc(count, sizeof(**claims));
+      if (!*claims) return terrno;
+      taosWLockLatch(&hb->readerDeployLock);
+    }
+    const int64_t key[] = {reader->task.streamId, reader->task.taskId, reader->task.seriousId};
+    if (!smReaderPollAllowsTask(&reader->task, deploy->readerDeployEpoch) ||
+        tSimpleHashGet(hb->readerInstalls, key, sizeof(key))) {
+      ++*skipped;
+      continue;
+    }
+    if (!hb->readerInstalls) {
+      hb->readerInstalls = tSimpleHashInit(count, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+      if (!hb->readerInstalls) {
+        code = terrno;
+        break;
+      }
+    }
+    code = tSimpleHashPut(hb->readerInstalls, key, sizeof(key), &deploy->readerDeployEpoch,
+                          sizeof(deploy->readerDeployEpoch));
+    if (code) break;
+    (*claims)[i] = true;
+  }
+  if (*claims) taosWUnLockLatch(&hb->readerDeployLock);
+  return code;
+}
+
+static void smReleaseReaderInstalls(const SStmStreamDeploy* deploy, bool* claims) {
+  if (!claims) return;
+  SStreamHbInfo* hb = &gStreamMgmt.hb;
+  taosWLockLatch(&hb->readerDeployLock);
+  for (int32_t i = 0; i < taosArrayGetSize(deploy->readerTasks); ++i) {
+    if (!claims[i]) continue;
+    SStmTaskDeploy* reader = taosArrayGet(deploy->readerTasks, i);
+    const int64_t   key[] = {reader->task.streamId, reader->task.taskId, reader->task.seriousId};
+    const int64_t*  owner = tSimpleHashGet(hb->readerInstalls, key, sizeof(key));
+    if (owner && *owner == deploy->readerDeployEpoch) {
+      TAOS_UNUSED(tSimpleHashRemove(hb->readerInstalls, key, sizeof(key)));
+    }
+  }
+  if (!tSimpleHashGetSize(hb->readerInstalls)) {
+    tSimpleHashCleanup(hb->readerInstalls);
+    hb->readerInstalls = NULL;
+  }
+  taosWUnLockLatch(&hb->readerDeployLock);
+  taosMemoryFree(claims);
+}
+
 int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
-  if (!gStreamMgmt.snodeEnabled && (pDeploy->triggerTask != NULL || taosArrayGetSize(pDeploy->runnerTasks) != 0)) {
+  if (!atomic_load_8(&gStreamMgmt.snodeEnabled) &&
+      (pDeploy->triggerTask != NULL || taosArrayGetSize(pDeploy->runnerTasks) != 0)) {
     return TSDB_CODE_INVALID_MSG;
   }
 
@@ -848,48 +1018,72 @@ int32_t smDeployTasks(SStmStreamDeploy* pDeploy) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   int32_t      taskNum = 0;
-  SHashObj*    pGrp = gStreamMgmt.stmGrp[gid];
+  SHashObj*    pGrp = atomic_load_ptr(&gStreamMgmt.stmGrp[gid]);
   SStreamInfo* pStream = NULL;
   SStreamInfo  stream = {0};
+  bool         created = false;
+  int32_t      skippedReaders = 0;
+  bool*        claims = NULL;
+
+  TAOS_CHECK_EXIT(smClaimReaderInstalls(pDeploy, &claims, &skippedReaders));
+  if (skippedReaders && skippedReaders == taosArrayGetSize(pDeploy->readerTasks) && !pDeploy->triggerTask &&
+      !taosArrayGetSize(pDeploy->runnerTasks)) {
+    goto _exit;
+  }
 
   stsInfo("start to deploy stream, readerNum:%zu, triggerNum:%d, runnerNum:%zu", taosArrayGetSize(pDeploy->readerTasks),
           pDeploy->triggerTask ? 1 : 0, taosArrayGetSize(pDeploy->runnerTasks));
 
   if (NULL == pGrp) {
-    gStreamMgmt.stmGrp[gid] =
+    pGrp =
         taosHashInit(STREAM_GRP_STREAM_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
-    TSDB_CHECK_NULL(gStreamMgmt.stmGrp[gid], code, lino, _exit, terrno);
-    taosHashSetFreeFp(gStreamMgmt.stmGrp[gid], stmDestroySStreamInfo);
-    pGrp = gStreamMgmt.stmGrp[gid];
-  }
-
-  pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
-  if (NULL != pStream) {
-    taosRLockLatch(&pStream->lock);
-    if (atomic_load_8(&pStream->destroyed)) {
-      taosRUnLockLatch(&pStream->lock);
-      taosHashRelease(pGrp, pStream);
-      pStream = NULL;
+    TSDB_CHECK_NULL(pGrp, code, lino, _exit, terrno);
+    taosHashSetFreeFp(pGrp, stmDestroySStreamInfo);
+    SHashObj* existing = atomic_val_compare_exchange_ptr(&gStreamMgmt.stmGrp[gid], NULL, pGrp);
+    if (existing) {
+      taosHashCleanup(pGrp);
+      pGrp = existing;
     }
   }
 
-  if (NULL == pStream) {
-    // Register the owner before publishing tasks whose undeploy callbacks need it.
-    TAOS_CHECK_EXIT(taosHashPut(pGrp, &streamId, sizeof(streamId), &stream, sizeof(stream)));
+  for (;;) {
     pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
-    TSDB_CHECK_NULL(pStream, code, lino, _exit, TSDB_CODE_MND_STREAM_NOT_EXIST);
-    taosRLockLatch(&pStream->lock);
+    if (pStream) {
+      // Workers draining the snode deployment queue can write the same owner's task lists.
+      // Status heartbeats try-lock this owner and continue to other streams while a Reader opens.
+      taosWWaitLockLatch(&pStream->lock);
+      if (!atomic_load_8(&pStream->destroyed)) break;
+      taosWUnLockLatch(&pStream->lock);
+      taosHashRelease(pGrp, pStream);
+      pStream = NULL;
+    }
+    // Register the owner before publishing tasks whose undeploy callbacks need it.
+    code = taosHashPut(pGrp, &streamId, sizeof(streamId), &stream, sizeof(stream));
+    if (code != TSDB_CODE_DUP_KEY) {
+      TAOS_CHECK_EXIT(code);
+      created = true;
+    }
   }
 
-  code = smAddTasksToStreamMap(pDeploy, pStream);
+  code = smAddTasksToStreamMap(pDeploy, pStream, claims, &skippedReaders);
   taskNum = atomic_load_32(&pStream->taskNum);
-  taosRUnLockLatch(&pStream->lock);
+  if (created && !taskNum && skippedReaders && skippedReaders == taosArrayGetSize(pDeploy->readerTasks) &&
+      !pDeploy->triggerTask && !taosArrayGetSize(pDeploy->runnerTasks) &&
+      (!pStream->readerList || !TD_DLIST_NELES(pStream->readerList)) &&
+      (!pStream->triggerList || !TD_DLIST_NELES(pStream->triggerList)) &&
+      (!pStream->runnerList || !TD_DLIST_NELES(pStream->runnerList))) {
+    // A retirement can win after this stream owner was created but before the guarded map claim.
+    atomic_store_8(&pStream->destroyed, 1);
+    TAOS_UNUSED(taosHashRemove(pGrp, &streamId, sizeof(streamId)));
+  }
+  taosWUnLockLatch(&pStream->lock);
   TAOS_CHECK_EXIT(code);
 
   stsInfo("stream deploy succeed, current taskNum:%d", taskNum);
 
 _exit:
 
+  smReleaseReaderInstalls(pDeploy, claims);
   taosHashRelease(pGrp, pStream);
 
   if (code) {
@@ -899,7 +1093,7 @@ _exit:
   return code;
 }
 
-int32_t smDeployStreams(SStreamDeployActions* actions) {
+int32_t smDeployStreams(SStreamDeployActions* actions, int64_t readerDeployEpoch) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   int64_t streamId = 0;
@@ -909,7 +1103,10 @@ int32_t smDeployStreams(SStreamDeployActions* actions) {
     SStmStreamDeploy* pDeploy = taosArrayGet(actions->streamList, i);
     streamId = pDeploy->streamId;
 
-    (void)smDeployTasks(pDeploy);
+    pDeploy->readerDeployEpoch = readerDeployEpoch;
+    if (pDeploy->triggerTask || taosArrayGetSize(pDeploy->readerTasks) || taosArrayGetSize(pDeploy->runnerTasks)) {
+      (void)smDeployTasks(pDeploy);
+    }
   }
 
   return code;
@@ -920,7 +1117,6 @@ _exit:
 
   return code;
 }
-
 
 void smEnableVgDeploy(int32_t vgId) {
   stInfo("start to enable vgroup deploy, vgId:%d", vgId);

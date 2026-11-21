@@ -37,6 +37,14 @@ target_include_directories(
 
 target_link_libraries(taosd PUBLIC dnode crypt)
 
+if(BUILD_TEST AND NOT BUILD_TAOSD_INTEGRATED)
+  add_executable(streamDeployTestDaemon ${EXEC_SRC} test/streamDeployTestDaemon.c)
+  target_compile_definitions(streamDeployTestDaemon PRIVATE TAOSD_INTEGRATED)
+  target_include_directories(streamDeployTestDaemon PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc")
+  target_link_libraries(streamDeployTestDaemon PRIVATE dnode crypt)
+  set_target_properties(streamDeployTestDaemon PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+endif()
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
   include(CheckLinkerFlag)
   check_linker_flag(C "-Wl,-no_warn_duplicate_libraries" HAVE_NO_WARN_DUP_LIBS)

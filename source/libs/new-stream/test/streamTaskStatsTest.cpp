@@ -935,10 +935,10 @@ TEST(StreamTaskStatsTest, ReaderUndeployDefersStatsUntilRealListRemoval) {
   EXPECT_EQ(gLastLifecycleEvent, STREAM_TASK_STATS_UNDEPLOYED);
   ASSERT_NE(task->pStats, nullptr);
 
-  stream.undeployReaders = taosArrayInit(1, sizeof(int64_t) * 2);
+  stream.undeployReaders = taosArrayInit(1, sizeof(SStreamTask *));
   ASSERT_NE(stream.undeployReaders, nullptr);
-  int64_t identity[2] = {taskId, seriousId};
-  ASSERT_NE(taosArrayPush(stream.undeployReaders, identity), nullptr);
+  SStreamTask *removed = &task->task;
+  ASSERT_NE(taosArrayPush(stream.undeployReaders, &removed), nullptr);
 
   taosWLockLatch(&stream.lock);
   smHandleRemovedTask(&stream, streamId, 0, STREAM_READER_TASK, stream.undeployReaders, stream.readerList);

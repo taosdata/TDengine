@@ -27674,9 +27674,17 @@ TEST(StreamTriggerExternalRegistryTest, RejectsFailedMixedResponseWithoutExterna
   response.reqId = 40960;
   response.code = TSDB_CODE_OPS_NOT_SUPPORT;
   atomic_store_64(&task.waitingMgmtReqId, response.reqId);
+  task.task.pMgmtReq = static_cast<SStreamMgmtReq*>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(task.task.pMgmtReq, nullptr);
+  task.task.pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  task.task.pMgmtReq->reqId = response.reqId;
 
   EXPECT_EQ(stTriggerTaskExecute(&task, &response.header), TSDB_CODE_OPS_NOT_SUPPORT);
   EXPECT_FALSE(task.virTableInfoReady);
+  EXPECT_EQ(task.task.ackedSchemaReqId, 0);
+  EXPECT_NE(task.task.pMgmtReq, nullptr);
+  tFreeSStreamMgmtReq(task.task.pMgmtReq);
+  taosMemoryFree(task.task.pMgmtReq);
 
   taosArrayDestroy(task.pExtOrigTableRefs);
   tSimpleHashCleanup(context.patchContext.pPatchItems);
@@ -28271,6 +28279,10 @@ TEST(StreamTriggerExternalRegistryTest, AcceptsExternalTimestampColumnBindingOnS
   response.reqId = 16384;
   response.code = TSDB_CODE_SUCCESS;
   atomic_store_64(&task.waitingMgmtReqId, response.reqId);
+  task.task.pMgmtReq = static_cast<SStreamMgmtReq*>(taosMemoryCalloc(1, sizeof(SStreamMgmtReq)));
+  ASSERT_NE(task.task.pMgmtReq, nullptr);
+  task.task.pMgmtReq->type = STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER;
+  task.task.pMgmtReq->reqId = response.reqId;
   response.cont.pExtOrigTblReaders = taosArrayInit(1, sizeof(SStreamExtOrigTblReaderRsp));
   response.cont.vgIds = taosArrayInit(0, sizeof(int32_t));
   ASSERT_NE(response.cont.pExtOrigTblReaders, nullptr);
@@ -28292,6 +28304,8 @@ TEST(StreamTriggerExternalRegistryTest, AcceptsExternalTimestampColumnBindingOnS
 
   ScopedDiscardTriggerMessages discardTriggerMessages;
   EXPECT_EQ(stTriggerTaskExecute(&task, &response.header), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(task.task.ackedSchemaReqId, response.reqId);
+  EXPECT_EQ(task.task.pMgmtReq, nullptr);
   auto* storedRef = static_cast<SSTriggerExtOrigTableRef*>(taosArrayGet(task.pExtOrigTableRefs, 0));
   auto* storedBinding = static_cast<SSTriggerExtOrigTableBinding*>(taosArrayGet(storedRef->bindings, 0));
   ASSERT_NE(storedBinding, nullptr);
@@ -32114,9 +32128,9 @@ TEST(StreamTriggerExternalPatchTest, RequestsOnlyAffectedRegistriesAndCleanup) {
   }
   ASSERT_NE(patchRequest, nullptr);
   ASSERT_NE(cleanupRequest, nullptr);
-  EXPECT_EQ(patchRequest->capabilities, STREAM_EXT_ORIGTBL_READER_CAP_CREATE |
-                                            STREAM_EXT_ORIGTBL_READER_CAP_START |
-                                            STREAM_EXT_ORIGTBL_READER_CAP_PATCH);
+  EXPECT_EQ(patchRequest->capabilities, STREAM_EXT_ORIGTBL_READER_CAP_CREATE | STREAM_EXT_ORIGTBL_READER_CAP_START |
+                                            STREAM_EXT_ORIGTBL_READER_CAP_PATCH |
+                                            STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY);
   ASSERT_EQ(TARRAY_SIZE(patchRequest->bindings), 2);
   for (int32_t i = 0; i < TARRAY_SIZE(patchRequest->bindings); ++i) {
     auto* binding = static_cast<SStreamExtOrigTblReaderBinding*>(taosArrayGet(patchRequest->bindings, i));
@@ -32124,7 +32138,8 @@ TEST(StreamTriggerExternalPatchTest, RequestsOnlyAffectedRegistriesAndCleanup) {
     ASSERT_LT(binding->virtualSlot, static_cast<int32_t>(trigColTypes.size()));
     EXPECT_EQ(binding->expectedType, trigColTypes[binding->virtualSlot]);
   }
-  EXPECT_EQ(cleanupRequest->capabilities, STREAM_EXT_ORIGTBL_READER_CAP_PATCH);
+  EXPECT_EQ(cleanupRequest->capabilities,
+            STREAM_EXT_ORIGTBL_READER_CAP_PATCH | STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY);
   EXPECT_EQ(TARRAY_SIZE(cleanupRequest->bindings), 0);
   EXPECT_EQ(TARRAY_SIZE(fixture.task.pExtOrigTableRefs), 3);
 

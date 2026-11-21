@@ -40,19 +40,20 @@ bool streamMgmtInited(void) {
   return inited;
 }
 
-void streamSetSnodeEnabled(  SMsgCb* msgCb) {
-  gStreamMgmt.snodeEnabled = true;
+void streamSetSnodeEnabled(SMsgCb* msgCb) {
   gStreamMgmt.msgCb = *msgCb;
+  streamHbResetReaderRole(&gStreamMgmt.hb, true);
   stInfo("snode %d enabled", (*gStreamMgmt.getDnode)(gStreamMgmt.dnode));
 }
 
 void streamSetSnodeDisabled(bool cleanup) {
   stInfo("snode disabled");
-  gStreamMgmt.snodeEnabled = false;
+  streamHbResetReaderRole(&gStreamMgmt.hb, false);
   smUndeploySnodeTasks(cleanup);
 }
 
 void streamMgmtCleanup() {
+  streamHbResetReaderRole(&gStreamMgmt.hb, false);
   taosArrayDestroy(gStreamMgmt.vgLeaders);
   gStreamMgmt.vgLeaders = NULL;
   taosHashCleanup(gStreamMgmt.taskMap);
@@ -255,7 +256,7 @@ int32_t streamAcquireTriggerTask(int64_t streamId, SStreamTask** ppTask, void** 
   int32_t gid = STREAM_GID(streamId);
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SHashObj* pGrp = gStreamMgmt.stmGrp[gid];
+  SHashObj* pGrp = atomic_load_ptr(&gStreamMgmt.stmGrp[gid]);
 
   SStreamInfo* pStream = taosHashAcquire(pGrp, &streamId, sizeof(streamId));
   if (NULL == pStream) {

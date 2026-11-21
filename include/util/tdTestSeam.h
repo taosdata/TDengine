@@ -90,6 +90,7 @@ extern void *gTdSeam_rpcSendResponse;
 extern void *gTdSeam_rpcFreeCont;
 extern void *gTdSeam_rpcSetIpWhite;
 extern void *gTdSeam_rpcSetTimeIpWhite;
+extern void (*gTdSeam_msmDeployPhase)(const char *phase, const char *streamName);
 extern void *gTdSeam_streamHbHandleRspErr;
 extern void *gTdSeam_streamHbProcessRspMsg;
 extern void *gTdSeam_taosAnalyUpdate;
