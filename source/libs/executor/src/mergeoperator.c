@@ -291,23 +291,9 @@ static int32_t rebuildSortMergeInfo(SOperatorInfo* pOperator) {
   SSortMergeInfo*             pMerge = &pInfo->sortMergeInfo;
   SMergePhysiNode*            pMergeNode =
       (SMergePhysiNode*)pOperator->pPhyNode;
-  SArray*                     pSortInfo =
-      createSortInfo(pMergeNode->pMergeKeys);
+  SArray* pSortInfo = createSortInfo(pMergeNode->pMergeKeys, pMerge->currentPhase == SCAN_PHASE_PREV);
   if (pSortInfo == NULL) {
     return terrno;
-  }
-
-  if (pMerge->currentPhase == SCAN_PHASE_PREV) {
-    for (int32_t i = 0; i < taosArrayGetSize(pSortInfo); ++i) {
-      SBlockOrderInfo* pOrder = taosArrayGet(pSortInfo, i);
-      if (pOrder == NULL) {
-        taosArrayDestroy(pSortInfo);
-        return terrno;
-      }
-      pOrder->order = TSDB_ORDER_DESC;
-      pOrder->nullFirst = false;
-      pOrder->compFn = NULL;
-    }
   }
 
   taosArrayDestroy(pMerge->pSortInfo);
@@ -1402,7 +1388,7 @@ int32_t createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size_t numS
       size_t  numOfCols = taosArrayGetSize(pInfo->binfo.pRes->pDataBlock);
       int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
       int32_t numOfOutputCols = 0;
-      pSortMergeInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
+      pSortMergeInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys, false);
       TSDB_CHECK_NULL(pSortMergeInfo->pSortInfo, code, lino, _error,
                       terrno);
       pSortMergeInfo->bufPageSize = getProperSortPageSize(rowSize, numOfCols);

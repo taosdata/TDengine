@@ -11794,6 +11794,10 @@ int32_t nodesCollectRemoteQuerySelectOutputs(const SLogicNode* pQueryRoot,
     if (TSDB_CODE_SUCCESS == code) {
       outputIdx = pOutputs->pSelectExprs ? LIST_LENGTH(pOutputs->pSelectExprs) : 0;
     }
+  } else if (group.pFromSource != NULL && nodeType(group.pFromSource) == QUERY_NODE_LOGIC_PLAN_JOIN &&
+             group.pFromSource != pQueryRoot) {
+    // A sort over an inline JOIN returns the same qualified columns as the JOIN.
+    return nodesCollectRemoteQuerySelectOutputs(group.pFromSource, pOutputs);
   } else {
     pOutputs->source = NODES_REMOTE_SELECT_SOURCE_UNKNOWN;
     qDebug("FQ-SELECT: no explicit select-output source resolved rootType=%s root=%p",

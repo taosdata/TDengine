@@ -632,6 +632,7 @@ typedef struct SWindowFuncLogicNode {
   SNodeList* pOrderKeys;
   SNodeList* pFuncs;
   SNode*     pFrame;
+  int32_t    numValuePartitionKeys;
 } SWindowFuncLogicNode;
 
 typedef struct SSortLogicNode {
@@ -1395,6 +1396,7 @@ typedef struct SWindowFuncPhysiNode {
   SNodeList* pOrderKeys;
   SNodeList* pFuncs;
   SNode*     pFrame;
+  int32_t    numValuePartitionKeys;  // trailing OVER keys; older plans compare every key by stored bytes
 } SWindowFuncPhysiNode;
 
 typedef struct SSortPhysiNode {

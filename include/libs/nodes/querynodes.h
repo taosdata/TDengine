@@ -755,6 +755,8 @@ typedef struct SOrderByExprNode {
   SNode*     pExpr;
   EOrder     order;
   ENullOrder nullOrder;
+  bool       isWindowKey;  // use the same value ordering as OVER partitions and peers
+  bool       isQueryPartitionKey;  // leading query partition in an OVER sort
 } SOrderByExprNode;
 
 typedef struct SLimitNode {

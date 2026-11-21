@@ -339,6 +339,16 @@ int32_t getJsonValueLen(const char* data) {
   return dataLen;
 }
 
+int32_t compareJsonQueryKeys(const void* left, const void* right, bool nullFirst, int32_t order) {
+  bool leftNull = left == NULL || tTagIsJsonNull((void*)left);
+  bool rightNull = right == NULL || tTagIsJsonNull((void*)right);
+  if (leftNull || rightNull) return leftNull == rightNull ? 0 : (leftNull == nullFirst ? -1 : 1);
+  int32_t leftLen = getJsonValueLen(left), rightLen = getJsonValueLen(right);
+  int32_t cmp = memcmp(left, right, TMIN(leftLen, rightLen));
+  if (cmp == 0) cmp = (leftLen > rightLen) - (leftLen < rightLen);
+  return order == TSDB_ORDER_ASC ? cmp : (cmp < 0) - (cmp > 0);
+}
+
 static int32_t getDataLen(int32_t type, const char* pData) {
   int32_t dataLen = 0;
   if (type == TSDB_DATA_TYPE_JSON) {
@@ -2148,6 +2158,8 @@ typedef struct SSortKeyCell {
   __compar_fn_t    fn;    // resolved comparator, cached across comparisons
   bool             nullFirst;
   bool             isJson;
+  bool             jsonQueryKey;
+  int32_t          order;
 } SSortKeyCell;
 
 // kind of the specialized single-key comparison (fixed-length, no NULL)
@@ -2239,6 +2251,12 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
       continue;
     }
 
+    if (pKeys[i].jsonQueryKey) {
+      int32_t cmp = compareJsonQueryKeys(blockJsonQueryKey(pColInfoData, left), blockJsonQueryKey(pColInfoData, right),
+                                         pKeys[i].nullFirst, pKeys[i].order);
+      if (cmp != 0) return cmp;
+      continue;
+    }
     if (pColInfoData->hasNull) {
       bool leftNull = colDataIsNull(pColInfoData, pHelper->pDataBlock->info.rows, left, NULL);
       bool rightNull = colDataIsNull(pColInfoData, pHelper->pDataBlock->info.rows, right, NULL);
@@ -2298,17 +2316,16 @@ static int32_t blockDataSortBuildKeys(SSDataBlockSortHelper* pHelper) {
     if (pColData == NULL) {
       continue;
     }
-    // Invariant: a comparator supplied by the caller always wins over the type
-    // specialized one. The single-key fast paths below are selected only when
-    // pOrder->compFn is NULL, so a caller-provided comparator keeps the generic
-    // path and never gets silently replaced by a typed comparison.
-    __compar_fn_t fn = pOrder->compFn != NULL ? (__compar_fn_t)pOrder->compFn
-                                              : getKeyComparFunc(pColData->info.type, pOrder->order);
+    // The single-key function path also uses this resolved comparator.
+    __compar_fn_t fn =
+        pOrder->compFn != NULL ? (__compar_fn_t)pOrder->compFn : getKeyComparFunc(pColData->info.type, pOrder->order);
 
     SSortKeyCell* pCell = &pHelper->pKeys[i];
     pCell->pCol = pColData;
     pCell->fn = fn;
     pCell->nullFirst = pOrder->nullFirst;
+    pCell->order = pOrder->order;
+    pCell->jsonQueryKey = pOrder->jsonQueryKey && pColData->info.type == TSDB_DATA_TYPE_JSON;
     pCell->isJson = (pColData->info.type == TSDB_DATA_TYPE_JSON);
   }
 
@@ -2997,8 +3014,8 @@ int32_t blockDataSortEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortS
     // Resolve locally: writing the comparator back into the caller's order
     // info would look like a caller supplied comparator to a later sort and
     // silently disable the specialized single-key path.
-    __compar_fn_t fn = pOrder->compFn ? (__compar_fn_t)pOrder->compFn
-                                     : getKeyComparFunc(pColInfoData->info.type, pOrder->order);
+    __compar_fn_t fn =
+        pOrder->compFn ? (__compar_fn_t)pOrder->compFn : getKeyComparFunc(pColInfoData->info.type, pOrder->order);
     taosSort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
 
     uDebug("blockDataSort easy cost:%" PRId64 ", rows:%" PRId64 "\n", taosGetTimestampUs() - p0,
@@ -3059,11 +3076,11 @@ int32_t blockDataSortEx(SSDataBlock* pDataBlock, SArray* pOrderInfo, SBlockSortS
   __ext_compar_fn_t comparFn = dataBlockCompar;
   if (numOfOrderCols == 1 && (!sortColumnHasNull) && (!varTypeSort)) {
     SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
-    // a caller supplied comparator takes precedence over the type specialized
-    // one, keep the generic path in that case
-    if (pOrder != NULL && pOrder->compFn == NULL && pOrder->slotId >= 0 && pOrder->slotId < numOfBlockCols) {
+    if (pOrder != NULL && pOrder->slotId >= 0 && pOrder->slotId < numOfBlockCols) {
       SColumnInfoData* pKeyCol = taosArrayGet(pDataBlock->pDataBlock, pOrder->slotId);
-      if (pKeyCol != NULL && pKeyCol->pData != NULL) {
+      // Typed and radix paths bypass the comparator. Only the floating-point
+      // function path can accept a caller-supplied order here.
+      if (pKeyCol != NULL && pKeyCol->pData != NULL && (pOrder->compFn == NULL || IS_FLOAT_TYPE(pKeyCol->info.type))) {
         bool fastEligible = true;
         switch (pKeyCol->info.type) {
           case TSDB_DATA_TYPE_TINYINT:

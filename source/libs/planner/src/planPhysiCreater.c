@@ -2558,7 +2558,7 @@ static int32_t fqRefreshRemoteOutputTargets(SNode* pRemoteRoot) {
   }
 
   SNodeList* pNewTargets = NULL;
-  code = createColumnByRemoteOutputExprs(outputs.pSelectExprs, &pNewTargets);
+  code = createRemoteOutputTargets(&outputs, &pNewTargets);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyRemoteSelectOutputs(&outputs);
     return code;
@@ -6756,12 +6756,8 @@ static int32_t createWindowFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   SNodeList* pPrecalcExprs = NULL;
   SNodeList* pFuncs = NULL;
-  SNodeList* pOrderKeys = NULL;
+  pWindow->numValuePartitionKeys = pWindowLogicNode->numValuePartitionKeys;
   int32_t    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pFuncs, &pPrecalcExprs, &pFuncs);
-
-  if (TSDB_CODE_SUCCESS == code) {
-    code = rewritePrecalcExprs(pCxt, pWindowLogicNode->pOrderKeys, &pPrecalcExprs, &pOrderKeys);
-  }
 
   SDataBlockDescNode* pChildTuple = NULL;
   if (TSDB_CODE_SUCCESS == code) {
@@ -6778,7 +6774,7 @@ static int32_t createWindowFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
         setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pWindowLogicNode->pPartitionKeys, &pWindow->pPartitionKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pOrderKeys, &pWindow->pOrderKeys);
+    code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pWindowLogicNode->pOrderKeys, &pWindow->pOrderKeys);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = setListSlotId(pCxt, pChildTuple->dataBlockId, -1, pFuncs, &pWindow->pFuncs);
@@ -6801,7 +6797,6 @@ static int32_t createWindowFuncPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pCh
 
   nodesDestroyList(pPrecalcExprs);
   nodesDestroyList(pFuncs);
-  nodesDestroyList(pOrderKeys);
 
   return code;
 }

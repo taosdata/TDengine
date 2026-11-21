@@ -1194,6 +1194,13 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
       SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
       SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
       SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+      if (pOrder->jsonQueryKey) {
+        int32_t cmp = compareJsonQueryKeys(blockJsonQueryKey(pLeftColInfoData, pLeftSource->src.rowIndex),
+                                           blockJsonQueryKey(pRightColInfoData, pRightSource->src.rowIndex),
+                                           pOrder->nullFirst, pOrder->order);
+        if (cmp != 0) return cmp;
+        continue;
+      }
       isVarType = IS_VAR_DATA_TYPE(pLeftColInfoData->info.type);
 
       if (pLeftColInfoData->hasNull || pRightColInfoData->hasNull) {
@@ -3261,6 +3268,11 @@ static int32_t tupleComparFn(const void* pLeft, const void* pRight, void* param)
       return 0;
     }
 
+    if (pOrder->jsonQueryKey) {
+      int32_t cmp = compareJsonQueryKeys(lData, rData, pOrder->nullFirst, pOrder->order);
+      if (cmp != 0) return cmp;
+      continue;
+    }
     if ((!lData) && (!rData)) {
       continue;
     }
@@ -3278,7 +3290,7 @@ static int32_t tupleComparFn(const void* pLeft, const void* pRight, void* param)
       return 0;
     }
 
-    __compar_fn_t fn = getKeyComparFunc(p->info.type, pOrder->order);
+    __compar_fn_t fn = pOrder->compFn ? (__compar_fn_t)pOrder->compFn : getKeyComparFunc(p->info.type, pOrder->order);
 
     int32_t ret = fn(lData, rData);
     if (ret == 0) {
@@ -3420,14 +3432,18 @@ static bool tsortSuffixIsOrdered(const SSortHandle* pHandle, const SSDataBlock* 
       bool    prevNull = colDataIsNull_s(pCol, (uint32_t)(row - 1));
       bool    curNull = colDataIsNull_s(pCol, (uint32_t)row);
       int32_t cmp = 0;
-      if (prevNull && curNull) {
+      if (pOrder->jsonQueryKey) {
+        cmp = compareJsonQueryKeys(blockJsonQueryKey(pCol, row - 1), blockJsonQueryKey(pCol, row), pOrder->nullFirst,
+                                   pOrder->order);
+      } else if (prevNull && curNull) {
         continue;
       } else if (prevNull) {
         cmp = pOrder->nullFirst ? -1 : 1;
       } else if (curNull) {
         cmp = pOrder->nullFirst ? 1 : -1;
       } else {
-        __compar_fn_t fn = getKeyComparFunc(pCol->info.type, pOrder->order);
+        __compar_fn_t fn =
+            pOrder->compFn ? (__compar_fn_t)pOrder->compFn : getKeyComparFunc(pCol->info.type, pOrder->order);
         if (fn == NULL) {
           return false;
         }
@@ -3599,7 +3615,8 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
           keyReady = false;
           break;
         }
-        keyFns[k] = getKeyComparFunc(keyCols[k]->info.type, pOrder->order);
+        keyFns[k] =
+            pOrder->compFn ? (__compar_fn_t)pOrder->compFn : getKeyComparFunc(keyCols[k]->info.type, pOrder->order);
         if (keyFns[k] == NULL) {
           keyReady = false;
           break;
@@ -3664,7 +3681,9 @@ static int32_t tsortOpenForPQSort(SSortHandle* pHandle) {
           bool topNull = (topKeyData[k] == NULL);
           bool rowNull = colDataIsNull_s(keyCols[k], next);
           void* rowData = rowNull ? NULL : colDataGetData(keyCols[k], next);
-          if (topNull && rowNull) {
+          if (pOrder->jsonQueryKey) {
+            cmp = compareJsonQueryKeys(topKeyData[k], rowData, pOrder->nullFirst, pOrder->order);
+          } else if (topNull && rowNull) {
             continue;
           } else if (topNull) {
             cmp = pOrder->nullFirst ? -1 : 1;

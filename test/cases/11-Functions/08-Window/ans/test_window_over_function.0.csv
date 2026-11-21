@@ -11907,25 +11907,25 @@ taos> select 'E038_nth_extra_arg' as cid, nth_value(v, 1, 2) over(partition by d
 DB error: Invalid number of parameters : nth_value [0x80002801]
 taos> select 'E051_where_position' as cid, v from rows_t where row_number() over(order by ts) > 1;
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> select 'E051_group_position' as cid, row_number() over(order by ts) as rn, count(*) as c from rows_t group by row_number() over(order by ts);
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> select 'E051_having_position' as cid, dev, count(*) as c from rows_t group by dev having rank() over(order by dev) > 1;
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> select 'E052_scalar_arg' as cid, abs(row_number() over(order by ts)) as w from rows_t;
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> select 'E052_nested_window' as cid, avg(v) over(partition by row_number() over(order by ts) order by ts) as w from rows_t;
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> alter table stb_d1 set tag device = cast(row_number() over(order by ts) as varchar);
 
 DB error: syntax error near "cast(row_number() over(order by ts) as varchar);" [0x80002600]
 taos> create topic topic_window_illegal as select row_number() over(order by ts) from rows_t;
 
-DB error: Unknown error [0x800026B6]
+DB error: Window function is not allowed in this clause [0x800026B6]
 taos> select 'E053_typo_function' as cid, densk_rank() over(order by ts) as w from rows_t;
 
 DB error: function 'densk_rank' is not defined [0x80000374]

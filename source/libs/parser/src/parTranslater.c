@@ -9059,10 +9059,12 @@ static int32_t validateIndefiniteWindowMix(STranslateContext* pCxt, SSelectStmt*
 }
 
 static EDealRes checkIllegalSqlWindowSpecFunc(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) &&
-      (NULL != ((SFunctionNode*)pNode)->pOver || !fmIsScalarFunc(((SFunctionNode*)pNode)->funcId))) {
-    *(bool*)pContext = true;
-    return DEAL_RES_END;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (NULL != pFunc->pOver || (!fmIsScalarFunc(pFunc->funcId) && FUNCTION_TYPE_TBNAME != pFunc->funcType)) {
+      *(bool*)pContext = true;
+      return DEAL_RES_END;
+    }
   }
   return DEAL_RES_CONTINUE;
 }
@@ -9087,11 +9089,29 @@ static int32_t validateNoSqlWindowFunc(STranslateContext* pCxt, SNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateSqlWindowKeys(STranslateContext* pCxt, SNodeList* pKeys, FNodeWalker checkFunc) {
+  SNode* pKey = NULL;
+  FOREACH(pKey, pKeys) {
+    SNode* pExpr = QUERY_NODE_ORDER_BY_EXPR == nodeType(pKey) ? ((SOrderByExprNode*)pKey)->pExpr : pKey;
+    if (QUERY_NODE_FUNCTION == nodeType(pExpr) && fmIsNoPushdownFunc(((SFunctionNode*)pExpr)->funcId)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC,
+                                     "%s cannot be used as a window partition or order key",
+                                     ((SFunctionNode*)pExpr)->functionName);
+    }
+    bool hasIllegalFunc = false;
+    nodesWalkExpr(pExpr, checkFunc, &hasIllegalFunc);
+    if (hasIllegalFunc) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t validateSqlWindowSpecExpr(STranslateContext* pCxt, SNode* pNode) {
   SWindowSpecNode* pSpec = (SWindowSpecNode*)pNode;
+  PAR_ERR_RET(validateSqlWindowKeys(pCxt, pSpec->pPartitionByList, checkIllegalSqlWindowSpecFunc));
+  PAR_ERR_RET(validateSqlWindowKeys(pCxt, pSpec->pOrderByList, checkIllegalSqlWindowOrderFunc));
   bool hasIllegalFunc = false;
-  nodesWalkExprs(pSpec->pPartitionByList, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
-  nodesWalkExprs(pSpec->pOrderByList, checkIllegalSqlWindowOrderFunc, &hasIllegalFunc);
   nodesWalkExpr(pSpec->pFrame, checkIllegalSqlWindowSpecFunc, &hasIllegalFunc);
   if (hasIllegalFunc) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_FUNC);
