@@ -1807,21 +1807,16 @@ _exit:
   return code;
 }
 
-int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
-                                    SBlockData *blockData, SBuffer *assist) {
+int32_t tBlockDataDecompressColDataTo(const SDiskDataHdr *hdr,
+                                      const SBlockCol *blockCol,
+                                      SBufferReader *br, SColData *colData,
+                                      SBuffer *assist) {
   int32_t code = 0;
   int32_t lino = 0;
 
-  SColData *colData;
-
-  // the column type indexes tDataTypes[] during decompression
   if (IS_INVALID_TYPE(blockCol->type)) {
-    tsdbError("invalid column type:%d in disk data block", blockCol->type);
-    TSDB_CHECK_CODE(code = TSDB_CODE_FILE_CORRUPTED, lino, _exit);
+    return TSDB_CODE_FILE_CORRUPTED;
   }
-
-  code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type, blockCol->cflag, &colData);
-  TSDB_CHECK_CODE(code, lino, _exit);
 
   // The column's compressed sizes must fit the remaining payload, otherwise
   // tDecompressData would read past the buffer.
@@ -1866,6 +1861,21 @@ int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *bl
 
 _exit:
   return code;
+}
+
+int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr,
+                                    const SBlockCol *blockCol,
+                                    SBufferReader *br, SBlockData *blockData,
+                                    SBuffer *assist) {
+  if (IS_INVALID_TYPE(blockCol->type)) {
+    tsdbError("invalid column type:%d in disk data block", blockCol->type);
+    return TSDB_CODE_FILE_CORRUPTED;
+  }
+  SColData *colData = NULL;
+  int32_t code = tBlockDataAddColData(blockData, blockCol->cid, blockCol->type,
+                                      blockCol->cflag, &colData);
+  if (code) return code;
+  return tBlockDataDecompressColDataTo(hdr, blockCol, br, colData, assist);
 }
 
 int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData,

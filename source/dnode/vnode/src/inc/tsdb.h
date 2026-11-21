@@ -205,6 +205,10 @@ int32_t tBlockDataDecompress(SBufferReader *br, SBlockData *blockData, SBuffer *
 int32_t tBlockDataDecompressKeyPart(const SDiskDataHdr *hdr, SBufferReader *br, SBlockData *blockData, SBuffer *assist);
 int32_t tBlockDataDecompressColData(const SDiskDataHdr *hdr, const SBlockCol *blockCol, SBufferReader *br,
                                     SBlockData *blockData, SBuffer *assist);
+int32_t tBlockDataDecompressColDataTo(const SDiskDataHdr *hdr,
+                                      const SBlockCol *blockCol,
+                                      SBufferReader *br, SColData *colData,
+                                      SBuffer *assist);
 
 SColData *tBlockDataGetColData(SBlockData *pBlockData, int16_t cid);
 int32_t   tBlockDataAddColData(SBlockData *pBlockData, int16_t cid, int8_t type, int8_t cflag, SColData **ppColData);
@@ -727,6 +731,9 @@ typedef struct {
   int32_t     fid;
   int64_t     cid;
   int64_t     blkno;
+  // Read-only data FD permission; shared-storage reads keep their own path.
+  bool        enableBatchRead;
+  SArray     *blockPageRuns;
 } STsdbFD;
 
 struct SDelFWriter {

@@ -28,6 +28,7 @@
 #include "tanalytics.h"
 #include "tarray.h"
 #include "tcompare.h"
+#include "tdataformat.h"
 #include "tdatablock.h"
 #include "tdigest.h"
 #include "tfunctionInt.h"
@@ -3208,6 +3209,31 @@ EFuncDataRequired firstDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   }
 }
 
+static EFuncDataRequired lastVariablePkDataReq(SFirstLastRes* result,
+                                                 const SValue* candidate) {
+  if (candidate->type != result->pkType || candidate->pData == NULL ||
+      candidate->nData > TSDB_MAX_FIELD_LEN ||
+      result->pkBytes < VARSTR_HEADER_SIZE) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  SValue resultPk = {.type = result->pkType};
+  VarDataLenT resultLength = 0;
+  memcpy(&resultLength, result->pkData, sizeof(resultLength));
+  resultPk.pData = (uint8_t*)varDataVal(result->pkData);
+  resultPk.nData = resultLength;
+  if (resultPk.nData > TSDB_MAX_FIELD_LEN || resultPk.nData >
+      (uint32_t)(result->pkBytes - VARSTR_HEADER_SIZE)) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  if (result->pkType == TSDB_DATA_TYPE_NCHAR &&
+      (resultPk.nData % sizeof(TdUcs4) != 0 ||
+       candidate->nData % sizeof(TdUcs4) != 0)) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  return tValueCompare(&resultPk, candidate) > 0
+             ? FUNC_DATA_REQUIRED_NOT_LOAD : FUNC_DATA_REQUIRED_DATA_LOAD;
+}
+
 EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
 
@@ -3221,6 +3247,9 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
     if (!pResult->hasTsOrder) {
       return FUNC_DATA_REQUIRED_DATA_LOAD;
     }
+    if (pBlockInfo->lastScanCandidate && pResult->bytes < 0) {
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
     if (pResult->pkBytes > 0) {
       pResult->pkData = pResult->buf + pResult->bytes;
     } else {
@@ -3229,6 +3258,28 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
     if (pResult->ts > pBlockInfo->window.ekey) {
       return FUNC_DATA_REQUIRED_NOT_LOAD;
     } else if (pResult->ts == pBlockInfo->window.ekey && pResult->pkData) {
+      if (pBlockInfo->lastScanCandidate) {
+        SValue* candidate = &pBlockInfo->pks[1];
+        if (candidate->type != pResult->pkType) {
+          return FUNC_DATA_REQUIRED_DATA_LOAD;
+        }
+        if (pResult->pkType == TSDB_DATA_TYPE_VARCHAR) {
+          return lastVariablePkDataReq(pResult, candidate);
+        }
+        if (pResult->pkType != TSDB_DATA_TYPE_INT &&
+            pResult->pkType != TSDB_DATA_TYPE_UINT &&
+            pResult->pkType != TSDB_DATA_TYPE_BIGINT &&
+            pResult->pkType != TSDB_DATA_TYPE_UBIGINT &&
+            pResult->pkType != TSDB_DATA_TYPE_TIMESTAMP) {
+          return FUNC_DATA_REQUIRED_DATA_LOAD;
+        }
+        int32_t size = pResult->pkType == TSDB_DATA_TYPE_INT ||
+                               pResult->pkType == TSDB_DATA_TYPE_UINT
+                           ? sizeof(int32_t) : sizeof(int64_t);
+        if (pResult->pkBytes != size) {
+          return FUNC_DATA_REQUIRED_DATA_LOAD;
+        }
+      }
       if (comparePkDataWithSValue(pResult->pkType, pResult->pkData, pBlockInfo->pks + 1, TSDB_ORDER_DESC) < 0) {
         return FUNC_DATA_REQUIRED_NOT_LOAD;
       }
@@ -3237,6 +3288,47 @@ EFuncDataRequired lastDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
   } else {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
+}
+
+EFuncDataRequired lastRowDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
+  if (pRes == NULL || pBlockInfo == NULL) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  SFirstLastRes* pResult = GET_ROWCELL_INTERBUF(pRes);
+  if (!pResult->hasResult || !pResult->hasTsOrder) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  if (pResult->ts != pBlockInfo->window.ekey) {
+    return lastDynDataReq(pRes, pBlockInfo);
+  }
+  if (pResult->bytes < 0 || pResult->pkBytes < 0) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+  if (pResult->pkBytes > 0) {
+    pResult->pkData = pResult->buf + pResult->bytes;
+    SValue* pBlockPk = &pBlockInfo->pks[1];
+    if (pBlockPk->type != pResult->pkType) {
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
+    if (pResult->pkType == TSDB_DATA_TYPE_VARCHAR ||
+        pResult->pkType == TSDB_DATA_TYPE_NCHAR ||
+        pResult->pkType == TSDB_DATA_TYPE_VARBINARY) {
+      return lastVariablePkDataReq(pResult, pBlockPk);
+    }
+    if (pResult->pkType != TSDB_DATA_TYPE_INT &&
+        pResult->pkType != TSDB_DATA_TYPE_UINT &&
+        pResult->pkType != TSDB_DATA_TYPE_BIGINT &&
+        pResult->pkType != TSDB_DATA_TYPE_UBIGINT &&
+        pResult->pkType != TSDB_DATA_TYPE_TIMESTAMP) {
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+    }
+    return lastDynDataReq(pRes, pBlockInfo);
+  }
+
+  return pBlockInfo->lastScanCandidate && !pResult->preferNonNullOnTsTie
+             ? FUNC_DATA_REQUIRED_NOT_LOAD
+             : FUNC_DATA_REQUIRED_DATA_LOAD;
 }
 
 int32_t getFirstLastInfoSize(int32_t resBytes, int32_t pkBytes) {

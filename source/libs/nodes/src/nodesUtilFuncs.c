@@ -3565,6 +3565,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode((SNode*)pSubplan->pNode);
       nodesDestroyNode((SNode*)pSubplan->pDataSink);
       nodesDestroyList(pSubplan->pSubQ);
+      taosArrayDestroy(pSubplan->pSubqueryDeps);
       nodesDestroyNode((SNode*)pSubplan->pTagCond);
       nodesDestroyNode((SNode*)pSubplan->pTagIndexCond);
       tSimpleHashCleanup(pSubplan->pVTables);
@@ -3575,6 +3576,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(((SQueryPlan*)pNode)->pSubplans);
       nodesDestroyList(((SQueryPlan*)pNode)->pChildren);
       nodesDestroyList(((SQueryPlan*)pNode)->pCorrelationTemplates);
+      taosArrayDestroy(((SQueryPlan*)pNode)->pSubqueryDeps);
       if (((SQueryPlan*)pNode)->ownsSubSql) {
         taosMemoryFree(((SQueryPlan*)pNode)->subSql);
       }

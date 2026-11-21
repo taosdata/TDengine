@@ -253,6 +253,7 @@ typedef enum {
   TSD_READER_BLOCK_SMA_MODE_NUM_OF_NULL_ONLY = 1,
   TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY = 2,
   TSD_READER_BLOCK_SMA_MODE_MAX_ONLY = 3,
+  TSD_READER_BLOCK_SMA_MODE_REMOTE_FILTER = 4,  // Return available statistics and leave missing columns unknown.
 } ETsdReaderBlockSmaMode;
 
 struct SFileSetReader;
@@ -269,7 +270,16 @@ typedef struct TsdReader {
   int32_t      (*tsdSetQueryTableList)(void* p, const void* pTableList, int32_t num);
   int32_t      (*tsdNextDataBlock)(void* pReader, bool* hasNext);
 
-  int32_t      (*tsdReaderRetrieveBlockSMAInfo)();
+  int32_t (*tsdReaderRetrieveBlockSMAInfo)(void* reader, SSDataBlock* block,
+                                          bool* allHave, bool* hasNullSma,
+                                          int64_t* sourceRows);
+  int32_t (*tsdReaderGetFilterBlock)(void* reader, SSDataBlock** view,
+                                     const int32_t** rowMap);
+  int32_t (*tsdReaderSetLastScanCandidate)(void* reader, int32_t row);
+  int32_t (*tsdReaderRetrieveSelectedDataBlock)(void* reader,
+                                               const int32_t* rows,
+                                               int32_t count,
+                                               SSDataBlock** block);
   int32_t      (*tsdReaderRetrieveDataBlock)(void* p, SSDataBlock** pBlock);
   int32_t      (*tsdReaderSetBlockSmaMode)(void* pReader, ETsdReaderBlockSmaMode mode);
 

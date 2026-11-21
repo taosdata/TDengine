@@ -6660,7 +6660,18 @@ TEST(execUtilTest, remoteScalarCacheSurvivesFirstConsumerDestruction) {
     ctx.subResCache = taosArrayInit_s(POINTER_BYTES, 1);
     ASSERT_NE(ctx.subEndPoints, nullptr);
     ASSERT_NE(ctx.subResCache, nullptr);
+    SDownstreamSourceNode source = {};
+    source.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+    source.fetchMsgType = TDMT_SCH_FETCH;
+    auto* pSource = &source;
+    taosArraySet(ctx.subEndPoints, 0, &pSource);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), nullptr);
     taosArraySet(ctx.subResCache, 0, &pCached);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), pCached);
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 1), nullptr);
+    ctx.isStream = true;
+    EXPECT_EQ(qPeekRemoteResult(&ctx, 0), nullptr);
+    ctx.isStream = false;
 
     SRemoteValueNode* pSecond = nullptr;
     ASSERT_EQ(nodesMakeNode(QUERY_NODE_REMOTE_VALUE, reinterpret_cast<SNode**>(&pSecond)), TSDB_CODE_SUCCESS);
@@ -6805,6 +6816,10 @@ TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
   pFirst->hasNull = true;
   pFirst->hasNotNull = true;
   pFirst->filterValueType = TSDB_DATA_TYPE_INT;
+  pFirst->droppedKey = true;
+  pFirst->otherKeyType = TSDB_DATA_TYPE_INT;
+  pFirst->bounds.type = TSDB_DATA_TYPE_INT;
+  pFirst->bounds.min[0] = pFirst->bounds.max[0] = 42;
   pFirst->hashAllocated = true;
   pFirst->pHashFilter = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   pFirst->pHashFilterOthers = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -6828,6 +6843,11 @@ TEST(execUtilTest, remoteListCacheOwnsHashesAfterFirstConsumerDestruction) {
   EXPECT_TRUE(pSecond->hasValue);
   EXPECT_TRUE(pSecond->hasNull);
   EXPECT_TRUE(pSecond->hasNotNull);
+  EXPECT_TRUE(pSecond->droppedKey);
+  EXPECT_EQ(pSecond->otherKeyType, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(pSecond->bounds.type, TSDB_DATA_TYPE_INT);
+  EXPECT_EQ(pSecond->bounds.min[0], 42u);
+  EXPECT_EQ(pSecond->bounds.max[0], 42u);
   EXPECT_EQ(pSecond->pHashFilter, pCached->pHashFilter);
   EXPECT_EQ(pSecond->pHashFilterOthers, pCached->pHashFilterOthers);
   EXPECT_NE(taosHashGet(pSecond->pHashFilter, &key, sizeof(key)), nullptr);
@@ -30210,3 +30230,702 @@ TEST_P(AnomalyWindowResetTest, ReleasesExpressionsBeforeRebuildingWindowState) {
 INSTANTIATE_TEST_SUITE_P(WithAndWithoutScalarExpressions, AnomalyWindowResetTest, testing::Bool());
 }  // namespace
 #endif
+
+TEST(execUtilTest, invalidSubqueryEndpointsFailBeforeRpcOrWaiting) {
+  SExecTaskInfo task = {};
+  STaskSubJobCtx ctx = {};
+  ctx.idStr = const_cast<char*>("invalid subquery endpoint test");
+  ctx.pTaskInfo = &task;
+  ctx.subEndPoints = taosArrayInit_s(POINTER_BYTES, 2);
+  ASSERT_NE(ctx.subEndPoints, nullptr);
+  SRemoteValueNode remote = {};
+  remote.val.node.type = QUERY_NODE_REMOTE_VALUE;
+  SDownstreamSourceNode empty = {};
+  empty.type = QUERY_NODE_DOWNSTREAM_SOURCE;
+  auto* pEmpty = &empty;
+  taosArraySet(ctx.subEndPoints, 1, &pEmpty);
+  for (int32_t index : {-1, 0, 1, 2, INT32_MAX}) {
+    SCOPED_TRACE(index);
+    EXPECT_EQ(qFetchRemoteNode(&ctx, index, reinterpret_cast<SNode*>(&remote)), TSDB_CODE_QRY_SUBQ_NOT_FOUND);
+    EXPECT_EQ(sendFetchRemoteNodeReq(&ctx, index, reinterpret_cast<SNode*>(&remote), true),
+              TSDB_CODE_QRY_SUBQ_NOT_FOUND);
+  }
+  taosArrayDestroy(ctx.subEndPoints);
+}
+
+extern "C" int32_t dumpQueryTableCond(const SQueryTableDataCond* source,
+                                      SQueryTableDataCond* target);
+extern "C" int32_t scanTestLoadDataBlock(SOperatorInfo* op,
+                                        STableScanBase* base,
+                                        SSDataBlock* block,
+                                        uint32_t* status);
+
+class LastScanConditionTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    scan_.scanSeq[1] = 1;
+    scan_.scanRange = {0, 100};
+    scan_.lastScanType = LAST_SCAN_LAST_ONLY;
+    for (int16_t id : {PRIMARYKEY_TIMESTAMP_COL_ID, 2, 5}) {
+      STargetNode* target = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_TARGET,
+                                reinterpret_cast<SNode**>(&target)));
+      target->pExpr = column(id);
+      target->slotId = id == PRIMARYKEY_TIMESTAMP_COL_ID ? 0 : id == 2 ? 1 : 2;
+      ASSERT_EQ(0, nodesListMakeAppend(&scan_.scan.pScanCols,
+                                      reinterpret_cast<SNode*>(target)));
+    }
+  }
+
+  void TearDown() override {
+    cleanupQueryTableDataCond(&cond_);
+    nodesDestroyList(scan_.scan.pScanCols);
+    nodesDestroyNode(scan_.scan.node.pConditions);
+    nodesDestroyList(agg_.pAggFuncs);
+  }
+
+  SNode* column(int16_t id) {
+    bool primary = id == PRIMARYKEY_TIMESTAMP_COL_ID;
+    auto* col = reinterpret_cast<SColumnNode*>(makeTagColumn(
+        id, primary ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_INT,
+        primary ? sizeof(TSKEY) : sizeof(int32_t)));
+    col->colType = COLUMN_TYPE_COLUMN;
+    col->slotId = id == PRIMARYKEY_TIMESTAMP_COL_ID ? 0 : id == 2 ? 1 : 2;
+    return reinterpret_cast<SNode*>(col);
+  }
+
+  void filter(int16_t first, int16_t second) {
+    SLogicConditionNode* conjunction = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_LOGIC_CONDITION,
+                              reinterpret_cast<SNode**>(&conjunction)));
+    conjunction->condType = LOGIC_COND_TYPE_AND;
+    for (int16_t id : {first, second}) {
+      ASSERT_EQ(0, nodesListMakeAppend(
+                       &conjunction->pParameterList,
+                       makeEqualCond(column(id), makeIntValue(1))));
+    }
+    nodesDestroyNode(scan_.scan.node.pConditions);
+    scan_.scan.node.pConditions = reinterpret_cast<SNode*>(conjunction);
+  }
+
+  void aggregate(const char* name, int16_t id) {
+    SFunctionNode* function = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_FUNCTION,
+                              reinterpret_cast<SNode**>(&function)));
+    function->funcId = fmGetFuncId(name);
+    function->funcType = fmGetFuncTypeFromId(function->funcId);
+    ASSERT_EQ(0, nodesListMakeAppend(&function->pParameterList, column(id)));
+    STargetNode* target = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_TARGET,
+                              reinterpret_cast<SNode**>(&target)));
+    target->pExpr = reinterpret_cast<SNode*>(function);
+    target->slotId = 7 + LIST_LENGTH(agg_.pAggFuncs);
+    ASSERT_EQ(0, nodesListMakeAppend(&agg_.pAggFuncs,
+                                    reinterpret_cast<SNode*>(target)));
+    agg_.node.type = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
+    scan_.scan.node.pParent = &agg_.node;
+  }
+
+  STableScanPhysiNode scan_ = {};
+  SAggPhysiNode agg_ = {};
+  SQueryTableDataCond cond_ = {};
+  SReadHandle handle_ = {};
+};
+
+TEST_F(LastScanConditionTest, CollectsSortedUniqueFilterColumns) {
+  ASSERT_NO_FATAL_FAILURE(filter(5, 2));
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_LAST_ONLY, cond_.lastScanType);
+  EXPECT_FALSE(cond_.allowLastScanTail);
+  ASSERT_NE(nullptr, cond_.pFilterInputColIds);
+  ASSERT_EQ(2, taosArrayGetSize(cond_.pFilterInputColIds));
+  EXPECT_EQ(2, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pFilterInputColIds, 0)));
+  EXPECT_EQ(5, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pFilterInputColIds, 1)));
+  ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+  ASSERT_EQ(0, resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(1, taosArrayGetSize(cond_.pFilterInputColIds));
+  nodesDestroyNode(scan_.scan.node.pConditions);
+  scan_.scan.node.pConditions = nullptr;
+  ASSERT_EQ(0, resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(nullptr, cond_.pFilterInputColIds);
+  EXPECT_TRUE(cond_.allowLastScanTail);
+  cleanupQueryTableDataCond(&cond_);
+  cleanupQueryTableDataCond(&cond_);
+  EXPECT_FALSE(cond_.allowLastScanTail);
+}
+
+TEST_F(LastScanConditionTest, ResidualTimestampOrUnknownColumnFallsBack) {
+  for (int16_t id : {PRIMARYKEY_TIMESTAMP_COL_ID, 6}) {
+    ASSERT_NO_FATAL_FAILURE(filter(id, 2));
+    ASSERT_EQ(0, resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+    EXPECT_EQ(LAST_SCAN_NONE, cond_.lastScanType);
+    EXPECT_FALSE(cond_.allowLastScanTail);
+    EXPECT_EQ(nullptr, cond_.pFilterInputColIds);
+  }
+}
+
+TEST_F(LastScanConditionTest, MixedInputsUseActualPartialIdentity) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("_last_partial", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("_last_row_partial", 2));
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_MIXED, cond_.lastScanType);
+  ASSERT_NE(nullptr, cond_.pLastInputColIds);
+  ASSERT_EQ(1, taosArrayGetSize(cond_.pLastInputColIds));
+  EXPECT_EQ(5, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pLastInputColIds, 0)));
+  ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+  ASSERT_EQ(0, resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_FALSE(cond_.allowLastScanTail);
+  EXPECT_EQ(1, taosArrayGetSize(cond_.pLastInputColIds));
+  scan_.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+  ASSERT_EQ(0, resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(nullptr, cond_.pLastInputColIds);
+}
+
+TEST_F(LastScanConditionTest, CopyOwnsAllArraysIndependently) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("last_row", 2));
+  ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  cond_.allowLastScanTail = true;
+  SQueryTableDataCond copied = {};
+  ASSERT_EQ(0, dumpQueryTableCond(&cond_, &copied));
+  EXPECT_NE(cond_.colList, copied.colList);
+  EXPECT_NE(cond_.pSlotList, copied.pSlotList);
+  EXPECT_NE(cond_.pFilterInputColIds, copied.pFilterInputColIds);
+  EXPECT_NE(cond_.pLastInputColIds, copied.pLastInputColIds);
+  EXPECT_TRUE(copied.allowLastScanTail);
+  cleanupQueryTableDataCond(&cond_);
+  EXPECT_EQ(2, *static_cast<int16_t*>(
+                   taosArrayGet(copied.pFilterInputColIds, 0)));
+  EXPECT_EQ(5, *static_cast<int16_t*>(
+                   taosArrayGet(copied.pLastInputColIds, 0)));
+  cleanupQueryTableDataCond(&copied);
+}
+
+class LastScanFilterTest : public LastScanConditionTest {
+ public:
+  void SetUp() override {
+    ASSERT_NO_FATAL_FAILURE(LastScanConditionTest::SetUp());
+    ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+    ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+    ASSERT_EQ(0, filterInitFromNode(scan_.scan.node.pConditions,
+                                   &op_.exprSupp.pFilterInfo, 0, nullptr));
+    ASSERT_EQ(0, createDataBlock(&view_));
+    ASSERT_EQ(0, createDataBlock(&output_));
+    SColumnInfoData ts = createColumnInfoData(
+        TSDB_DATA_TYPE_TIMESTAMP, sizeof(TSKEY), 0);
+    SColumnInfoData value = createColumnInfoData(
+        TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+    SColumnInfoData unloaded = createColumnInfoData(
+        TSDB_DATA_TYPE_INT, sizeof(int32_t), 5);
+    ASSERT_EQ(0, blockDataAppendColInfo(view_, &ts));
+    ASSERT_EQ(0, blockDataAppendColInfo(view_, &value));
+    ASSERT_EQ(0, blockDataAppendColInfo(view_, &unloaded));
+    ASSERT_EQ(0, blockDataAppendColInfo(output_, &ts));
+    ASSERT_EQ(0, blockDataAppendColInfo(output_, &value));
+    ASSERT_EQ(0, blockDataAppendColInfo(output_, &unloaded));
+    ASSERT_EQ(0, blockDataEnsureCapacity(view_, 3));
+    auto* tsCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(view_->pDataBlock, 0));
+    auto* valCol = static_cast<SColumnInfoData*>(
+        taosArrayGet(view_->pDataBlock, 1));
+    colDataDestroy(static_cast<SColumnInfoData*>(
+        taosArrayGet(view_->pDataBlock, 2)));
+    for (int32_t i = 0; i < 3; ++i) {
+      TSKEY time = 7 + i;
+      int32_t val = i == 1 ? 0 : 1;
+      ASSERT_EQ(0, colDataSetVal(tsCol, i,
+                                reinterpret_cast<char*>(&time), false));
+      ASSERT_EQ(0, colDataSetVal(valCol, i,
+                                reinterpret_cast<char*>(&val), false));
+    }
+    view_->info.rows = 3;
+    output_->info.rows = 1;
+    output_->info.window = {9, 9};
+    output_->info.lastScanCandidate = true;
+    op_.operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+    op_.info = &info_;
+    op_.pTaskInfo = &task_;
+    info_.base.dataReader = reinterpret_cast<STsdbReader*>(this);
+    tables_.pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
+    ASSERT_NE(nullptr, tables_.pTableList);
+    STableKeyInfo table = {};
+    table.uid = 1;
+    ASSERT_NE(nullptr, taosArrayPush(tables_.pTableList, &table));
+    info_.base.pTableListInfo = &tables_;
+    info_.base.dataBlockLoadFlag = FUNC_DATA_REQUIRED_DATA_LOAD;
+    info_.base.limitInfo.limit.limit = -1;
+    info_.base.cond = cond_;
+    auto& reader = task_.storageAPI.tsdReader;
+    reader.tsdReaderGetFilterBlock = +[](void* reader,
+                                        SSDataBlock** view,
+                                        const int32_t** rowMap) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(1);
+      *view = test->view_;
+      *rowMap = test->mapping_;
+      return TSDB_CODE_SUCCESS;
+    };
+    reader.tsdReaderSetLastScanCandidate = +[](void* reader, int32_t row) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(2);
+      test->candidate_ = row;
+      test->output_->info.window = {row, row};
+      return TSDB_CODE_SUCCESS;
+    };
+    reader.tsdReaderRetrieveSelectedDataBlock =
+        +[](void* reader, const int32_t* rows, int32_t count,
+             SSDataBlock** output) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(3);
+      ++test->released_;
+      if (test->retrieveError_ != TSDB_CODE_SUCCESS) {
+        return test->retrieveError_;
+      }
+      test->selected_.assign(rows, rows + count);
+      test->output_->info.rows = count;
+      test->output_->info.lastScanCandidate = false;
+      *output = test->output_;
+      return TSDB_CODE_SUCCESS;
+    };
+    reader.tsdReaderReleaseDataBlock = +[](void* reader) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(4);
+      ++test->released_;
+    };
+    reader.tsdReaderRetrieveBlockSMAInfo =
+        +[](void* reader, SSDataBlock* block, bool* all, bool* nullSma,
+             int64_t* sourceRows) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(5);
+      *all = test->allSma_;
+      *nullSma = !test->allSma_;
+      if (sourceRows != nullptr) {
+        *sourceRows = test->sourceRows_;
+      }
+      if (test->allSma_) {
+        block->pBlockAgg = test->sma_;
+      }
+      return TSDB_CODE_SUCCESS;
+    };
+  }
+
+  void TearDown() override {
+    tSimpleHashCleanup(aggSup_.pResultRowHashTable);
+    taosHashCleanup(info_.pIgnoreTables);
+    taosArrayDestroy(tables_.pTableList);
+    filterFreeInfo(op_.exprSupp.pFilterInfo);
+    blockDataDestroy(view_);
+    blockDataDestroy(output_);
+    LastScanConditionTest::TearDown();
+  }
+
+  void bindAggregates(bool mixed) {
+    aggSup_.pResultRowHashTable = tSimpleHashInit(
+        2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    ASSERT_NE(nullptr, aggSup_.pResultRowHashTable);
+    aggCol_.slotId = 1;
+    aggCol_.type = TSDB_DATA_TYPE_INT;
+    for (int32_t i = 0; i < 2; ++i) {
+      params_[i].type = FUNC_PARAM_TYPE_COLUMN;
+      params_[i].pCol = &aggCol_;
+      contexts_[i].param = &params_[i];
+      contexts_[i].numOfParams = 1;
+      contexts_[i].functionId = fmGetFuncId(
+          i == 0 ? "last" : "_last_row_partial");
+    }
+    aggExprs_.pCtx = contexts_;
+    aggExprs_.numOfExprs = mixed ? 2 : 1;
+    info_.base.pdInfo.pExprSup = &aggExprs_;
+    info_.base.pdInfo.pAggSup = &aggSup_;
+  }
+
+  int32_t load() {
+    return scanTestLoadDataBlock(&op_, &info_.base, output_, &status_);
+  }
+
+  void useOrdinaryRetrieve(int64_t rows) {
+    filterFreeInfo(op_.exprSupp.pFilterInfo);
+    op_.exprSupp.pFilterInfo = nullptr;
+    retrievedRows_ = rows;
+    task_.storageAPI.tsdReader.tsdReaderRetrieveDataBlock =
+        +[](void* reader, SSDataBlock** output) {
+      auto* test = static_cast<LastScanFilterTest*>(reader);
+      test->calls_.push_back(6);
+      ++test->released_;
+      if (test->retrieveError_ != TSDB_CODE_SUCCESS) {
+        return test->retrieveError_;
+      }
+      test->output_->info.rows = test->retrievedRows_;
+      test->output_->info.lastScanCandidate = false;
+      *output = test->output_;
+      return TSDB_CODE_SUCCESS;
+    };
+  }
+
+  SExecTaskInfo task_ = {};
+  SOperatorInfo op_ = {};
+  STableScanInfo info_ = {};
+  SSDataBlock* view_ = nullptr;
+  SSDataBlock* output_ = nullptr;
+  int32_t mapping_[3] = {7, 8, 9};
+  std::vector<int32_t> selected_;
+  std::vector<int32_t> calls_;
+  STableListInfo tables_ = {};
+  SAggSupporter aggSup_ = {};
+  SExprSupp aggExprs_ = {};
+  SqlFunctionCtx contexts_[2] = {};
+  SFunctParam params_[2] = {};
+  SColumn aggCol_ = {};
+  SColumnDataAgg sma_[3] = {};
+  bool allSma_ = false;
+  int64_t sourceRows_ = 0;
+  int64_t retrievedRows_ = 0;
+  int32_t candidate_ = -1;
+  int32_t released_ = 0;
+  int32_t retrieveError_ = TSDB_CODE_SUCCESS;
+  uint32_t status_ = 0;
+};
+
+TEST_F(LastScanFilterTest, KeepsOriginalNoncontiguousRowsAndFiltersOnce) {
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 2, 3}), calls_);
+  EXPECT_EQ((std::vector<int32_t>{7, 9}), selected_);
+  EXPECT_EQ(9, candidate_);
+  EXPECT_EQ(2, output_->info.rows);
+  EXPECT_EQ(3, view_->info.rows);
+  EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD, status_);
+  EXPECT_EQ(3, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, EmptySelectionReleasesBeforeAppendingValues) {
+  auto* values = static_cast<SColumnInfoData*>(
+      taosArrayGet(view_->pDataBlock, 1));
+  int32_t zero = 0;
+  for (int32_t i = 0; i < 3; ++i) {
+    ASSERT_EQ(0, colDataSetVal(values, i,
+                              reinterpret_cast<char*>(&zero), false));
+  }
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 4}), calls_);
+  EXPECT_TRUE(selected_.empty());
+  EXPECT_EQ(FUNC_DATA_REQUIRED_FILTEROUT, status_);
+  EXPECT_EQ(3, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, UnloadedFilterDependencyFailsAndReleases) {
+  colDataDestroy(static_cast<SColumnInfoData*>(
+      taosArrayGet(view_->pDataBlock, 1)));
+  EXPECT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 4}), calls_);
+}
+
+TEST_F(LastScanFilterTest, InvalidPhysicalMappingFailsBeforeSelection) {
+  mapping_[1] = 7;
+  EXPECT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 4}), calls_);
+}
+
+TEST_F(LastScanFilterTest, RetrieveErrorDoesNotReleaseReaderTwice) {
+  retrieveError_ = TSDB_CODE_OUT_OF_MEMORY;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 2, 3}), calls_);
+  EXPECT_EQ(1, released_);
+}
+
+TEST_F(LastScanFilterTest, PureLastUsesPhysicalRowsBeforeAnyResult) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  allSma_ = true;
+  sourceRows_ = 10;
+  sma_[1].colId = 2;
+  sma_[1].numOfNull = 10;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 4}), calls_);
+  EXPECT_EQ(nullptr, info_.pIgnoreTables);
+  EXPECT_EQ(FUNC_DATA_REQUIRED_FILTEROUT, status_);
+  EXPECT_EQ(1, released_);
+}
+
+TEST_F(LastScanFilterTest, LargestSmaNullCountCanPrune) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  allSma_ = true;
+  sourceRows_ = INT16_MAX;
+  sma_[1].colId = 2;
+  sma_[1].numOfNull = INT16_MAX;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 4}), calls_);
+  EXPECT_EQ(FUNC_DATA_REQUIRED_FILTEROUT, status_);
+  EXPECT_EQ(0, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, LargerSourceRowsDoNotMatchTruncatedNullCount) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  allSma_ = true;
+  sourceRows_ = int64_t{INT16_MAX} + 1;
+  sma_[1].colId = 2;
+  sma_[1].numOfNull = INT16_MIN;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 2, 3}), calls_);
+  EXPECT_EQ((std::vector<int32_t>{7, 9}), selected_);
+  EXPECT_EQ(3, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, NeededLastRowDoesNotRequestNullOnlySma) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(true));
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 2, 3}), calls_);
+  EXPECT_EQ((std::vector<int32_t>{7, 9}), selected_);
+  EXPECT_EQ(1, released_);
+}
+
+TEST_F(LastScanFilterTest, CandidateRowCountCannotProveAllPhysicalRowsNull) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  allSma_ = true;
+  sourceRows_ = 10;
+  sma_[1].colId = 2;
+  sma_[1].max = 1;
+  sma_[1].numOfNull = 1;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 1, 2, 3}), calls_);
+  EXPECT_EQ((std::vector<int32_t>{7, 9}), selected_);
+}
+
+TEST_F(LastScanFilterTest, MixedFilterOutsidePhysicalRangeSkipsView) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(true));
+  allSma_ = true;
+  sourceRows_ = 10;
+  sma_[1].colId = 2;
+  sma_[1].min = 3;
+  sma_[1].max = 12;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 4}), calls_);
+  EXPECT_EQ(FUNC_DATA_REQUIRED_FILTEROUT, status_);
+  EXPECT_EQ(0, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanConditionTest, CollectionOomClosesTailPermission) {
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  ASSERT_TRUE(cond_.allowLastScanTail);
+  ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+  {
+    Stub failure;
+    failure.set(taosArrayInit, +[](size_t, size_t) -> SArray* {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    });
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              resetQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  }
+  EXPECT_FALSE(cond_.allowLastScanTail);
+  EXPECT_EQ(nullptr, cond_.pFilterInputColIds);
+  EXPECT_EQ(nullptr, cond_.pLastInputColIds);
+}
+
+TEST_F(LastScanConditionTest, CopyOomCleansOnlyTarget) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("last_row", 2));
+  ASSERT_NO_FATAL_FAILURE(filter(2, 2));
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  SQueryTableDataCond copied = {};
+  {
+    Stub failure;
+    failure.set(taosArrayDup,
+                +[](const SArray*, __array_item_dup_fn_t) -> SArray* {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    });
+    EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+              dumpQueryTableCond(&cond_, &copied));
+  }
+  EXPECT_EQ(nullptr, copied.colList);
+  EXPECT_EQ(nullptr, copied.pSlotList);
+  EXPECT_EQ(nullptr, copied.pFilterInputColIds);
+  EXPECT_EQ(nullptr, copied.pLastInputColIds);
+  EXPECT_FALSE(copied.allowLastScanTail);
+  EXPECT_EQ(2, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pFilterInputColIds, 0)));
+  EXPECT_EQ(5, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pLastInputColIds, 0)));
+  cleanupQueryTableDataCond(&copied);
+}
+
+TEST_F(LastScanConditionTest, MixedWithoutBoundInputsFallsBack) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_NONE, cond_.lastScanType);
+  EXPECT_FALSE(cond_.allowLastScanTail);
+}
+
+TEST_F(LastScanFilterTest, FilteredMaximumKeyCanPruneBeforeAppendingValues) {
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  auto* values = static_cast<SColumnInfoData*>(
+      taosArrayGet(view_->pDataBlock, 1));
+  int32_t zero = 0;
+  ASSERT_EQ(0, colDataSetVal(values, 2,
+                            reinterpret_cast<char*>(&zero), false));
+  Stub result;
+  result.set(fmFuncDynDataRequired,
+             +[](int32_t, void*, SDataBlockInfo* block) {
+    return block->window.ekey <= 7 ? FUNC_DATA_REQUIRED_NOT_LOAD
+                                    : FUNC_DATA_REQUIRED_DATA_LOAD;
+  });
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{5, 5, 1, 2, 4}), calls_);
+  EXPECT_EQ(7, candidate_);
+  EXPECT_TRUE(selected_.empty());
+  EXPECT_EQ(FUNC_DATA_REQUIRED_ALL_FILTEROUT, status_);
+  EXPECT_EQ(1, released_);
+}
+
+TEST_F(LastScanFilterTest, NoFilterUsesOrdinaryRetrieve) {
+  useOrdinaryRetrieve(3);
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{6}), calls_);
+  EXPECT_TRUE(selected_.empty());
+  EXPECT_EQ(3, output_->info.rows);
+  EXPECT_EQ(3, info_.base.readRecorder.checkRows);
+  EXPECT_EQ(1, released_);
+}
+
+TEST_F(LastScanFilterTest, NoFilterCountsSingleRowOutput) {
+  useOrdinaryRetrieve(1);
+  info_.base.readRecorder.checkRows = 7;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{6}), calls_);
+  EXPECT_EQ(1, output_->info.rows);
+  EXPECT_EQ(8, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, NoFilterPrunedCandidateDoesNotCountRows) {
+  useOrdinaryRetrieve(3);
+  ASSERT_NO_FATAL_FAILURE(bindAggregates(false));
+  Stub result;
+  result.set(fmFuncDynDataRequired, +[](int32_t, void*, SDataBlockInfo*) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  });
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{4}), calls_);
+  EXPECT_EQ(FUNC_DATA_REQUIRED_ALL_FILTEROUT, status_);
+  EXPECT_EQ(0, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, NoFilterRetrieveErrorDoesNotCountCandidate) {
+  useOrdinaryRetrieve(3);
+  retrieveError_ = TSDB_CODE_OUT_OF_MEMORY;
+  info_.base.readRecorder.checkRows = 7;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, load());
+  EXPECT_EQ((std::vector<int32_t>{6}), calls_);
+  EXPECT_EQ(7, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, NoFilterRetrieveMismatchDoesNotCountCandidate) {
+  useOrdinaryRetrieve(3);
+  task_.storageAPI.tsdReader.tsdReaderRetrieveDataBlock =
+      +[](void* reader, SSDataBlock** output) {
+    auto* test = static_cast<LastScanFilterTest*>(reader);
+    test->calls_.push_back(6);
+    *output = test->view_;
+    return TSDB_CODE_SUCCESS;
+  };
+  EXPECT_EQ(TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR, load());
+  EXPECT_EQ((std::vector<int32_t>{6}), calls_);
+  EXPECT_EQ(0, info_.base.readRecorder.checkRows);
+}
+
+TEST_F(LastScanFilterTest, OrdinaryBlockKeepsHeaderRowAccounting) {
+  useOrdinaryRetrieve(3);
+  output_->info.lastScanCandidate = false;
+  output_->info.rows = 7;
+  ASSERT_EQ(0, load());
+  EXPECT_EQ((std::vector<int32_t>{6}), calls_);
+  EXPECT_EQ(3, output_->info.rows);
+  EXPECT_EQ(7, info_.base.readRecorder.checkRows);
+}
+
+extern "C" EFuncDataRequired scanTestLastScanDynDataRequired(
+    STableScanInfo* info, int32_t functionId, void* entry,
+    SDataBlockInfo* block);
+
+TEST(LastScanModeTest, NoneKeepsBaselineLastRowDynamicComparison) {
+  size_t size = sizeof(SResultRowEntryInfo) + sizeof(SFirstLastRes) +
+                sizeof(int32_t);
+  auto* entry = static_cast<SResultRowEntryInfo*>(
+      taosMemoryCalloc(1, size));
+  ASSERT_NE(nullptr, entry);
+  auto* result = static_cast<SFirstLastRes*>(GET_ROWCELL_INTERBUF(entry));
+  result->hasResult = true;
+  result->hasTsOrder = true;
+  result->ts = 100;
+  SDataBlockInfo block = {};
+  block.window = {100, 100};
+  block.lastScanCandidate = true;
+  STableScanInfo info = {};
+  for (const char* name : {"last_row", "_last_row_partial"}) {
+    SCOPED_TRACE(name);
+    int32_t id = fmGetFuncId(name);
+    info.base.cond.lastScanType = LAST_SCAN_NONE;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              scanTestLastScanDynDataRequired(&info, id, entry, &block));
+    info.base.cond.lastScanType = LAST_SCAN_LAST_ROW_ONLY;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_NOT_LOAD,
+              scanTestLastScanDynDataRequired(&info, id, entry, &block));
+    info.base.cond.lastScanType = LAST_SCAN_NONE;
+    result->ts = 101;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_NOT_LOAD,
+              scanTestLastScanDynDataRequired(&info, id, entry, &block));
+    result->ts = 100;
+  }
+  taosMemoryFree(entry);
+}
+
+TEST_F(LastScanConditionTest, WrappedInputsStaySortedAndUnique) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("_last_partial", 2));
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("_last_row_partial", 2));
+  ASSERT_NO_FATAL_FAILURE(aggregate("_select_value", 5));
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_MIXED, cond_.lastScanType);
+  ASSERT_NE(nullptr, cond_.pLastInputColIds);
+  ASSERT_EQ(2, taosArrayGetSize(cond_.pLastInputColIds));
+  EXPECT_EQ(2, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pLastInputColIds, 0)));
+  EXPECT_EQ(5, *static_cast<int16_t*>(
+                   taosArrayGet(cond_.pLastInputColIds, 1)));
+}
+
+TEST_F(LastScanConditionTest, UnknownWrappedExpressionFallsBack) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("last_row", 2));
+  auto* target = reinterpret_cast<STargetNode*>(
+      nodesListGetNode(agg_.pAggFuncs, 0));
+  nodesDestroyNode(target->pExpr);
+  target->pExpr = makeIntValue(1);
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_NONE, cond_.lastScanType);
+  EXPECT_FALSE(cond_.allowLastScanTail);
+  EXPECT_EQ(nullptr, cond_.pLastInputColIds);
+}
+
+TEST_F(LastScanConditionTest, WrappedInputSlotMustMatchScanMapping) {
+  scan_.lastScanType = LAST_SCAN_MIXED;
+  ASSERT_NO_FATAL_FAILURE(aggregate("last", 5));
+  ASSERT_NO_FATAL_FAILURE(aggregate("last_row", 2));
+  auto* target = reinterpret_cast<STargetNode*>(
+      nodesListGetNode(agg_.pAggFuncs, 0));
+  auto* function = reinterpret_cast<SFunctionNode*>(target->pExpr);
+  auto* column = reinterpret_cast<SColumnNode*>(
+      nodesListGetNode(function->pParameterList, 0));
+  column->slotId = 999;
+  ASSERT_EQ(0, initQueryTableDataCond(&cond_, &scan_, &handle_, false));
+  EXPECT_EQ(LAST_SCAN_NONE, cond_.lastScanType);
+  EXPECT_FALSE(cond_.allowLastScanTail);
+}

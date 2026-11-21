@@ -46,6 +46,7 @@
 #include "planner.h"
 #include "qworker.h"
 #include "qwInt.h"
+#include "qwMsg.h"
 #include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"
@@ -1195,6 +1196,150 @@ void qwtCheckQuickFetchExecutionError(bool pending) {
   taosHashCleanup(mgmt.ctxHash);
 }
 
+}  // namespace
+
+namespace {
+struct SubquerySink {
+  int blocksRead = 0;
+  bool available = true;
+};
+
+struct SubqueryReply {
+  int calls = 0;
+  int code = 0;
+  int value = 0;
+  bool completed = false;
+};
+
+class SubqueryFetchTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    stub.set(dsGetDataLength, +[](DataSinkHandle handle, int64_t* len, int64_t* rawLen, bool* end) {
+      auto* sink = static_cast<SubquerySink*>(handle);
+      *len = *rawLen = sink->available ? 1 : 0;
+      *end = false;
+    });
+    stub.set(dsGetDataBlock, +[](DataSinkHandle handle, SOutputData* output) -> int32_t {
+      auto* sink = static_cast<SubquerySink*>(handle);
+      output->pData[0] = ++sink->blocksRead;
+      output->queryEnd = sink->blocksRead == 2;
+      output->bufStatus = output->queryEnd ? DS_BUF_EMPTY : DS_BUF_FULL;
+      output->numOfRows = 1;
+      return 0;
+    });
+    stub.set(dsDestroyDataSinker, qwtDestroyDataSinker);
+    stub.set(qwUpdateTaskStatus, +[](QW_FPARAMS_DEF, int8_t, bool) -> int32_t { return 0; });
+    stub.set(qwBuildAndSendFetchRsp, +[](SQWTaskCtx* ctx, int32_t, SRpcHandleInfo* conn, void* msg,
+                                          int32_t len, int32_t code) -> int32_t {
+      auto* reply = static_cast<SubqueryReply*>(conn->handle);
+      ++reply->calls;
+      reply->code = code;
+      if (msg && len > 0) {
+        auto* rsp = static_cast<SRetrieveTableRsp*>(msg);
+        reply->value = rsp->data[len - 1];
+        reply->completed = rsp->completed;
+      }
+      qwFreeFetchRsp(ctx, msg);
+      return 0;
+    });
+    savedPolicy = tsQueryRspPolicy;
+    tsQueryRspPolicy = QUERY_RSP_POLICY_QUICK;
+    mgmt.ctxHash = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    ASSERT_NE(nullptr, mgmt.ctxHash);
+    ASSERT_EQ(0, qwAddTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4));
+    ASSERT_EQ(0, qwGetTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4, &ctx));
+    ctx->subQuery = ctx->queryRsped = true;
+    ctx->subQType = E_SUB_QUERY_COLUMN;
+    ctx->sinkHandle = &sink;
+  }
+
+  void TearDown() override {
+    if (ctx) qwFreeTaskCtx(&mgmt, 0, 1, 2, 3, 0, 4, ctx);
+    taosHashCleanup(mgmt.ctxHash);
+    tsQueryRspPolicy = savedPolicy;
+  }
+
+  void fetch(uint64_t task, uint64_t index, SubqueryReply& reply) {
+    SResFetchReq req = {};
+    req.srcTaskId = task;
+    req.blockIdx = index;
+    SQWMsg msg = {};
+    msg.msgType = TDMT_SCH_FETCH;
+    msg.req = &req;
+    msg.connInfo.handle = &reply;
+    ASSERT_EQ(0, qwProcessFetch(&mgmt, 0, 1, 2, 3, 0, 4, &msg));
+  }
+
+  SQWorker mgmt = {};
+  SQWTaskCtx* ctx = nullptr;
+  Stub stub;
+  SubquerySink sink;
+  int32_t savedPolicy = 0;
+};
+
+TEST_F(SubqueryFetchTest, sameConsumerReplaysEachBlockAfterRetry) {
+  SubqueryReply original, retry, terminal;
+  fetch(11, 0, original);
+  ASSERT_EQ(1, original.value);
+  fetch(11, 0, retry);
+  EXPECT_EQ(1, retry.value);
+  EXPECT_FALSE(retry.completed);
+  fetch(11, 1, terminal);
+  EXPECT_EQ(2, terminal.value);
+  EXPECT_TRUE(terminal.completed);
+  ASSERT_EQ(nullptr, ctx->sinkHandle);
+
+  for (uint64_t task : {11, 22}) {
+    SubqueryReply first, last;
+    fetch(task, 0, first);
+    fetch(task, 1, last);
+    EXPECT_EQ(1, first.calls);
+    EXPECT_EQ(1, first.value);
+    EXPECT_FALSE(first.completed);
+    EXPECT_EQ(1, last.calls);
+    EXPECT_EQ(2, last.value);
+    EXPECT_TRUE(last.completed);
+  }
+  EXPECT_EQ(2, sink.blocksRead);
+  EXPECT_EQ(2, taosArrayGetSize(ctx->subQRes.rspList));
+  SubqueryReply pastEnd;
+  fetch(11, 2, pastEnd);
+  EXPECT_EQ(1, pastEnd.calls);
+  EXPECT_EQ(TSDB_CODE_QRY_INVALID_INPUT, pastEnd.code);
+}
+
+TEST_F(SubqueryFetchTest, pendingBlockAnswersOriginalRetryAndOtherConsumer) {
+  sink.available = false;
+  SubqueryReply first, retry, other;
+  fetch(11, 0, first);
+  fetch(11, 0, retry);
+  fetch(22, 0, other);
+  SQWMsg msg = {};
+  sink.available = true;
+  ASSERT_EQ(0, qwQuickRspFetchReq(&mgmt, 0, 1, 2, 3, 0, 4, &msg, 0));
+  for (auto* reply : {&first, &retry, &other}) {
+    EXPECT_EQ(1, reply->calls);
+    EXPECT_EQ(1, reply->value);
+  }
+  EXPECT_EQ(1, sink.blocksRead);
+  SubqueryReply next;
+  fetch(22, 1, next);
+  EXPECT_EQ(2, next.value);
+  EXPECT_TRUE(next.completed);
+}
+
+TEST_F(SubqueryFetchTest, pendingReadersReceiveProducerError) {
+  sink.available = false;
+  SubqueryReply first, other;
+  fetch(11, 0, first);
+  fetch(22, 0, other);
+  SQWMsg msg = {};
+  ASSERT_EQ(0, qwQuickRspFetchReq(&mgmt, 0, 1, 2, 3, 0, 4, &msg, TSDB_CODE_OUT_OF_MEMORY));
+  EXPECT_EQ(1, first.calls);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, first.code);
+  EXPECT_EQ(1, other.calls);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, other.code);
+}
 }  // namespace
 
 TEST(qwTaskLifecycleTest, quickFetchRepliesWithOriginalExecutionError) {

@@ -99,6 +99,7 @@ typedef struct SPlanQueryUnit {
   int32_t         origSubQIdx;
   int32_t         finalSubQIdx;
   bool            shared;
+  SArray*         pDependencies;
   const SCorrelatedSubqueryNode* pCorrelationCall;  // Borrowed from the state-owned snapshot.
 } SPlanQueryUnit;
 
@@ -110,6 +111,7 @@ typedef struct SPlanSubqueryState {
   SPlanQueryUnit** pSubqueryUnits;  // indexed by original global subQIdx
   SCorrelatedSubqueryNode** pCorrelationCalls;  // Owned snapshots, same indexing.
   int32_t*        pCanonicalSubqueries;  // Original index to first equivalent query; AST ownership is unchanged.
+  bool            concurrentSubqueries;
 } SPlanSubqueryState;
 
 typedef struct SPlanCollectCorrelationContext {
@@ -384,6 +386,8 @@ typedef struct SPlanRemoteRewriteCtx {
   int32_t             code;
   uint64_t            queryId;
   int32_t             currentSubQIdx;
+  SPlanQueryUnit*      pUnit;
+  int32_t             dependencyLimit;
 } SPlanRemoteRewriteCtx;
 
 typedef struct SPlanRemoteMarkCtx {
@@ -534,12 +538,17 @@ static bool planGetRemoteExprInfo(SNode* pNode, int32_t** ppSubQIdx, EFqSubqRend
       *pppRemotePlan = &pRemote->pRemotePlan;
       return true;
     }
+    case QUERY_NODE_REMOTE_TABLE:
+      *ppSubQIdx = &((SRemoteTableNode*)pNode)->subQIdx;
+      *ppRenderMode = NULL;
+      *pppRemotePlan = NULL;
+      return true;
     default:
       return false;
   }
 }
 
-void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pContext) {
+static void planWalkLogicFieldsImpl(SLogicNode* pNode, FNodeWalker walker, void* pContext) {
   if (NULL == pNode) {
     return;
   }
@@ -646,6 +655,14 @@ void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pConte
       nodesWalkExprs(pPart->pAggFuncs, walker, pContext);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC: {
+      SWindowFuncLogicNode* pWindow = (SWindowFuncLogicNode*)pNode;
+      nodesWalkExprs(pWindow->pFuncs, walker, pContext);
+      nodesWalkExprs(pWindow->pPartitionKeys, walker, pContext);
+      nodesWalkExprs(pWindow->pOrderKeys, walker, pContext);
+      nodesWalkExpr(pWindow->pFrame, walker, pContext);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN: {
       SVirtualScanLogicNode* pVScan = (SVirtualScanLogicNode*)pNode;
       nodesWalkExprs(pVScan->pScanCols, walker, pContext);
@@ -662,6 +679,27 @@ void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker, void* pConte
     default:
       break;
   }
+}
+
+typedef struct SLogicFieldWalk {
+  FNodeWalker walker;
+  void*       context;
+  EDealRes    result;
+} SLogicFieldWalk;
+
+static EDealRes planVisitLogicField(SNode* node, void* param) {
+  SLogicFieldWalk* walk = param;
+  if (walk->result != DEAL_RES_END && walk->result != DEAL_RES_ERROR) {
+    walk->result = walk->walker(node, walk->context);
+  }
+  return walk->result;
+}
+
+void planWalkLogicExprFields(SLogicNode* node, FNodeWalker walker, void* context) {
+  // Each nodesWalkExpr starts a fresh traversal. Carry a visitor's stop request
+  // across the separate expression fields of this operator.
+  SLogicFieldWalk walk = {.walker = walker, .context = context, .result = DEAL_RES_CONTINUE};
+  planWalkLogicFieldsImpl(node, planVisitLogicField, &walk);
 }
 
 static void planWalkLogicTreeForRewrite(SLogicNode* pNode, FNodeWalker walker, SPlanRemoteRewriteCtx* pCtx) {
@@ -788,6 +826,7 @@ static void planDestroyQueryUnit(SPlanQueryUnit* pUnit, bool destroyPhysiPlan) {
     return;
   }
   planDestroyJoinPropsStore(pUnit->pCtx);
+  taosArrayDestroy(pUnit->pDependencies);
   nodesDestroyNode((SNode*)pUnit->pLogicSubplan);
   pUnit->pLogicSubplan = NULL;
   nodesDestroyNode((SNode*)pUnit->pLogicPlan);
@@ -1159,6 +1198,120 @@ static int32_t planOptimizeAllLogicPlans(SPlanSubqueryState* pState) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes planAttachRemoteSubqueryWalker(SNode* pNode, void* pContext) {
+  SPlanRemoteRewriteCtx* pCtx = (SPlanRemoteRewriteCtx*)pContext;
+  int32_t* pSubQIdx = NULL;
+  EFqSubqRenderMode* pMode = NULL;
+  SNode** ppRemotePlan = NULL;
+  if (!planGetRemoteExprInfo(pNode, &pSubQIdx, &pMode, &ppRemotePlan) || NULL == ppRemotePlan) {
+    return DEAL_RES_CONTINUE;
+  }
+  nodesDestroyNode(*ppRemotePlan);
+  *ppRemotePlan = NULL;
+  if (*pMode != FQ_SUBQ_RENDER_DIRECT_SQL) {
+    SLogicNode* pRoot = planGetSubqueryRenderLogic(pCtx->pState->rootUnit.pCtx, *pSubQIdx, nodeType(pNode));
+    if (NULL == pRoot) {
+      pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+      return DEAL_RES_END;
+    }
+    pCtx->code = nodesCloneNode((SNode*)pRoot, ppRemotePlan);
+    if (TSDB_CODE_SUCCESS != pCtx->code) {
+      return DEAL_RES_END;
+    }
+    planWalkLogicTreeForRewrite((SLogicNode*)*ppRemotePlan, planAttachRemoteSubqueryWalker, pCtx);
+  }
+  return TSDB_CODE_SUCCESS == pCtx->code ? DEAL_RES_IGNORE_CHILD : DEAL_RES_END;
+}
+
+static int32_t planAddSubqueryDependency(SArray* deps, int32_t index) {
+  for (int32_t i = 0; i < taosArrayGetSize(deps); ++i) {
+    if (*(int32_t*)taosArrayGet(deps, i) == index) return TSDB_CODE_SUCCESS;
+  }
+  return taosArrayPush(deps, &index) ? TSDB_CODE_SUCCESS : terrno;
+}
+
+typedef struct STaskDependencyContext {
+  SSubplan* subplan;
+  int32_t   code;
+} STaskDependencyContext;
+
+static EDealRes planCollectTaskDependency(SNode* node, void* param) {
+  STaskDependencyContext* ctx = param;
+  if (ctx->code || !ctx->subplan->subqueryDepsKnown) return DEAL_RES_END;
+  int32_t* index = NULL;
+  EFqSubqRenderMode* mode = NULL;
+  SNode** renderPlan = NULL;
+  if (nodeType(node) == QUERY_NODE_CORRELATED_SUBQUERY) {
+    // The template may access additional endpoint slots inherited from its caller.
+    ctx->subplan->subqueryDepsKnown = false;
+    return DEAL_RES_END;
+  }
+  if (!planGetRemoteExprInfo(node, &index, &mode, &renderPlan)) return DEAL_RES_CONTINUE;
+  if (renderPlan && *renderPlan) {
+    ctx->subplan->subqueryDepsKnown = false;
+    return DEAL_RES_END;
+  }
+  if (!ctx->subplan->pSubqueryDeps) {
+    ctx->subplan->pSubqueryDeps = taosArrayInit(2, sizeof(int32_t));
+    if (!ctx->subplan->pSubqueryDeps) {
+      ctx->code = terrno;
+      return DEAL_RES_END;
+    }
+  }
+  ctx->code = planAddSubqueryDependency(ctx->subplan->pSubqueryDeps, *index);
+  return ctx->code ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+}
+
+static void planCollectTaskTreeDeps(SLogicNode* node, STaskDependencyContext* ctx) {
+  if (!node || ctx->code || !ctx->subplan->subqueryDepsKnown) return;
+  switch (nodeType(node)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      if (((SScanLogicNode*)node)->pRemoteLogicPlan) {
+        ctx->subplan->subqueryDepsKnown = false;
+        return;
+      }
+      break;
+    case QUERY_NODE_LOGIC_PLAN_MERGE:
+      nodesWalkExprs(((SMergeLogicNode*)node)->pMergeKeys, planCollectTaskDependency, ctx);
+      nodesWalkExprs(((SMergeLogicNode*)node)->pInputs, planCollectTaskDependency, ctx);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+    case QUERY_NODE_LOGIC_PLAN_SORT:
+    case QUERY_NODE_LOGIC_PLAN_PARTITION:
+    case QUERY_NODE_LOGIC_PLAN_WINDOW:
+    case QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC:
+      break;
+    default:
+      // Unknown operators inherit the job's complete dependency set.
+      ctx->subplan->subqueryDepsKnown = false;
+      return;
+  }
+  planWalkLogicExprFields(node, planCollectTaskDependency, ctx);
+  SNode* child = NULL;
+  FOREACH(child, node->pChildren) {
+    planCollectTaskTreeDeps((SLogicNode*)child, ctx);
+  }
+}
+
+int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan) {
+  SPlanSubqueryState* state = planGetSubqueryStateImpl(pCxt);
+  if (!state || !state->concurrentSubqueries || !state->numSubQueries || pCxt->subqueryIndex >= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  // Use this fragment after splitting and scale-out; never cross an exchange into another subplan.
+  pSubplan->subqueryDepsKnown = true;
+  STaskDependencyContext ctx = {.subplan = pSubplan};
+  planCollectTaskTreeDeps(pRoot, &ctx);
+  if (!pSubplan->subqueryDepsKnown) {
+    taosArrayDestroy(pSubplan->pSubqueryDeps);
+    pSubplan->pSubqueryDeps = NULL;
+  }
+  return ctx.code;
+}
+
 static EDealRes planRewriteRemoteSubqueryWalker(SNode* pNode, void* pContext) {
   SPlanRemoteRewriteCtx* pCtx = (SPlanRemoteRewriteCtx*)pContext;
   int32_t*               pSubQIdx = NULL;
@@ -1179,6 +1332,18 @@ static EDealRes planRewriteRemoteSubqueryWalker(SNode* pNode, void* pContext) {
   int32_t newIdx = pCtx->pOldToNew[oldIdx];
   if (newIdx >= 0) {
     *pSubQIdx = newIdx;
+    if (pCtx->pState->concurrentSubqueries) {
+      if (newIdx >= pCtx->dependencyLimit) {
+        planError("QID:0x%" PRIx64 ", invalid subquery dependency %d -> %d",
+                  pCtx->queryId, newIdx, pCtx->dependencyLimit);
+        pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
+        return DEAL_RES_END;
+      }
+      pCtx->code = planAddSubqueryDependency(pCtx->pUnit->pDependencies, newIdx);
+      if (TSDB_CODE_SUCCESS != pCtx->code) {
+        return DEAL_RES_END;
+      }
+    }
     planDebug("QID:0x%" PRIx64 ", stage3 remote ref remap, ownerSubQIdx:%d, remoteNodeType:%d, oldSubQIdx:%d -> newSubQIdx:%d, insideRemotePlan:%d",
               pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx, newIdx, (int)pCtx->insideRemotePlan);
   } else if (!pCtx->insideRemotePlan) {
@@ -1191,36 +1356,18 @@ static EDealRes planRewriteRemoteSubqueryWalker(SNode* pNode, void* pContext) {
               pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx);
   }
 
-  if (NULL != *ppRemotePlan) {
-    nodesDestroyNode(*ppRemotePlan);
-    *ppRemotePlan = NULL;
-  }
-  if (*pMode != FQ_SUBQ_RENDER_DIRECT_SQL) {
-    SLogicNode* pRenderRoot = planGetSubqueryRenderLogic(pCtx->pState->rootUnit.pCtx, oldIdx, nodeType(pNode));
-    if (NULL == pRenderRoot) {
-      planError("QID:0x%" PRIx64 ", stage3 remote ref missing render logic, ownerSubQIdx:%d, remoteNodeType:%d, refSubQIdx:%d, renderMode:%d",
-                pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx, (int)*pMode);
-      pCtx->code = TSDB_CODE_PLAN_INTERNAL_ERROR;
-      return DEAL_RES_END;
-    }
-    pCtx->code = nodesCloneNode((SNode*)pRenderRoot, ppRemotePlan);
-    if (TSDB_CODE_SUCCESS != pCtx->code) {
-      planError("QID:0x%" PRIx64 ", stage3 remote ref clone render logic failed, ownerSubQIdx:%d, remoteNodeType:%d, refSubQIdx:%d, code:%s",
-                pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx, tstrerror(pCtx->code));
-      return DEAL_RES_END;
-    }
-    planDebug("QID:0x%" PRIx64 ", stage3 remote ref attach render logic, ownerSubQIdx:%d, remoteNodeType:%d, refSubQIdx:%d, renderMode:%d, renderRootType:%d",
-              pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx, (int)*pMode,
-              (int)nodeType((SNode*)pRenderRoot));
-  } else {
-    planDebug("QID:0x%" PRIx64 ", stage3 remote ref keep direct sql, ownerSubQIdx:%d, remoteNodeType:%d, refSubQIdx:%d",
-              pCtx->queryId, pCtx->currentSubQIdx, (int)nodeType(pNode), oldIdx);
+  if (NULL != ppRemotePlan && NULL != *ppRemotePlan) {
+    bool previous = pCtx->insideRemotePlan;
+    pCtx->insideRemotePlan = true;
+    planWalkLogicTreeForRewrite((SLogicNode*)*ppRemotePlan, planRewriteRemoteSubqueryWalker, pCtx);
+    pCtx->insideRemotePlan = previous;
   }
 
-  return DEAL_RES_IGNORE_CHILD;
+  return TSDB_CODE_SUCCESS == pCtx->code ? DEAL_RES_IGNORE_CHILD : DEAL_RES_END;
 }
 
-static int32_t planRewriteUnitRemoteRefs(SPlanSubqueryState* pState, SPlanQueryUnit* pUnit, const int32_t* pOldToNew) {
+static int32_t planRewriteUnitRemoteRefs(SPlanSubqueryState* pState, SPlanQueryUnit* pUnit,
+                                       const int32_t* pOldToNew, int32_t retainedNum) {
   SPlanRemoteRewriteCtx ctx = {
       .pState = pState,
       .pOldToNew = pOldToNew,
@@ -1228,7 +1375,15 @@ static int32_t planRewriteUnitRemoteRefs(SPlanSubqueryState* pState, SPlanQueryU
       .code = TSDB_CODE_SUCCESS,
       .queryId = pUnit->pCtx->queryId,
       .currentSubQIdx = pUnit->origSubQIdx,
+      .pUnit = pUnit,
+      .dependencyLimit = (pUnit->isRoot || pUnit->pCorrelationCall) ? retainedNum : pUnit->finalSubQIdx,
   };
+  if (pState->concurrentSubqueries) {
+    pUnit->pDependencies = taosArrayInit(4, sizeof(int32_t));
+    if (NULL == pUnit->pDependencies) {
+      return terrno;
+    }
+  }
   planWalkLogicTreeForRewrite(pUnit->pLogicSubplan->pNode, planRewriteRemoteSubqueryWalker, &ctx);
   return ctx.code;
 }
@@ -1269,12 +1424,25 @@ static int32_t planReorderAllSubqueries(SPlanSubqueryState* pState, int32_t** pp
     pOldToNew[i] = pOldToNew[pState->pCanonicalSubqueries[i]];
   }
 
-  int32_t code = planRewriteUnitRemoteRefs(pState, &pState->rootUnit, pOldToNew);
+  // Clone render trees while every source still uses original indices. Remap
+  // each owned copy exactly once, including references used by SQL rendering.
+  SPlanRemoteRewriteCtx attach = {.pState = pState};
+  planWalkLogicTreeForRewrite(pState->rootUnit.pLogicSubplan->pNode, planAttachRemoteSubqueryWalker, &attach);
+  for (int32_t i = 0; i < pState->numSubQueries && TSDB_CODE_SUCCESS == attach.code; ++i) {
+    SPlanQueryUnit* pUnit = pState->pSubqueryUnits[i];
+    if (NULL != pUnit && !pUnit->pLogicSubplan->pushedDown) {
+      planWalkLogicTreeForRewrite(pUnit->pLogicSubplan->pNode, planAttachRemoteSubqueryWalker, &attach);
+    }
+  }
+  int32_t code = attach.code;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = planRewriteUnitRemoteRefs(pState, &pState->rootUnit, pOldToNew, kept);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     for (int32_t i = 0; i < pState->numSubQueries; ++i) {
       SPlanQueryUnit* pUnit = pState->pSubqueryUnits[i];
       if (NULL != pUnit && NULL != pUnit->pLogicSubplan && !pUnit->pLogicSubplan->pushedDown) {
-        code = planRewriteUnitRemoteRefs(pState, pUnit, pOldToNew);
+        code = planRewriteUnitRemoteRefs(pState, pUnit, pOldToNew, kept);
         if (TSDB_CODE_SUCCESS != code) {
           break;
         }
@@ -1483,6 +1651,11 @@ static int32_t planBuildPhysiForUnit(SPlanQueryUnit* pUnit, SArray* pExecNodeLis
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pUnit->pCtx, pUnit->pLogicPlan, &pUnit->pPhysiPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pUnit->pDependencies && NULL == pUnit->pCorrelationCall) {
+    pUnit->pPhysiPlan->subqueryDepsKnown = true;
+    pUnit->pPhysiPlan->pSubqueryDeps = pUnit->pDependencies;
+    pUnit->pDependencies = NULL;
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = planFinalizeCorrelationPlan(pUnit->pPhysiPlan);
@@ -1716,6 +1889,24 @@ static bool planPhysiPlanHasCorrelationCall(const SQueryPlan* pPlan, int32_t tem
   return false;
 }
 
+// A runtime template receives its caller's endpoint array, including sources
+// used only by nested templates. Attribute those reads to the scheduled job.
+static int32_t planAddTemplateDependencies(SPlanSubqueryState* pState, SPlanQueryUnit* pOwner, SNodeList* pTemplates) {
+  SArray* deps = pOwner->pPhysiPlan->pSubqueryDeps;
+  SNode* node = NULL;
+  FOREACH(node, pTemplates) {
+    SCorrelationTemplateNode* tpl = (SCorrelationTemplateNode*)node;
+    SArray* reads = pState->pSubqueryUnits[tpl->templateId]->pDependencies;
+    for (int32_t i = 0; i < taosArrayGetSize(reads); ++i) {
+      int32_t idx = *(int32_t*)taosArrayGet(reads, i);
+      if (!pOwner->isRoot && idx >= pOwner->finalSubQIdx) return TSDB_CODE_PLAN_INTERNAL_ERROR;
+      PLAN_ERR_RET(planAddSubqueryDependency(deps, idx));
+    }
+    PLAN_ERR_RET(planAddTemplateDependencies(pState, pOwner, tpl->pNestedTemplates));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t planAppendCorrelationTemplates(SPlanSubqueryState* pState) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
@@ -1772,6 +1963,14 @@ static int32_t planAppendCorrelationTemplates(SPlanSubqueryState* pState) {
     PLAN_ERR_JRET(nodesListMakeStrictAppend(ppList, (SNode*)pTemplates[i]));
     pOwned[i] = 1;
   }
+  if (pState->concurrentSubqueries) {
+    for (int32_t i = -1; i < pState->numSubQueries; ++i) {
+      SPlanQueryUnit* owner = i < 0 ? &pState->rootUnit : pState->pSubqueryUnits[i];
+      if (owner && owner->pPhysiPlan) {
+        PLAN_ERR_JRET(planAddTemplateDependencies(pState, owner, owner->pPhysiPlan->pCorrelationTemplates));
+      }
+    }
+  }
 
 _return:
   if (TSDB_CODE_SUCCESS != code) {
@@ -1808,6 +2007,8 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   pCxt->splitScan = hasSplitScanHint(pCxt->pAstRoot);
   TAOS_CHECK_EXIT(planCreateSubqueryState(pCxt, &pState));
   TAOS_CHECK_EXIT(planCollectCorrelationCalls(pState));
+  pState->concurrentSubqueries = !pCxt->topicQuery && !pCxt->rSmaQuery &&
+      !pCxt->streamCxt.isCalc && !pCxt->streamCxt.isTrigger && !pCxt->streamCxt.isVtableCalc;
   TAOS_CHECK_EXIT(planCollectSharedSubqueries(pCxt, pState));
 
   // Stage 1: create logic plans for root + all global subqueries.

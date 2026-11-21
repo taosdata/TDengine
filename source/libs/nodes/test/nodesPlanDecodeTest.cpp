@@ -321,3 +321,49 @@ TEST(PlanDecodeTest, ExternalTableJsonKeepsFirstErrorAndAcceptsMissingFlags) {
     }
   }
 }
+
+template <typename Plan>
+static void checkSubqueryDependencies(ENodeType type) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(nodesMakeNode(type, &raw), TSDB_CODE_SUCCESS);
+  NodePtr source(raw, nodesDestroyNode);
+  auto* plan = reinterpret_cast<Plan*>(raw);
+  for (bool known : {false, true}) {
+    plan->subqueryDepsKnown = known;
+    for (int32_t count : {0, 2}) {
+      taosArrayDestroy(plan->pSubqueryDeps);
+      plan->pSubqueryDeps = taosArrayInit(2, sizeof(int32_t));
+      ASSERT_NE(plan->pSubqueryDeps, nullptr);
+      for (int32_t i = 0; i < count; ++i) {
+        int32_t dependency = i * 3;
+        ASSERT_NE(taosArrayPush(plan->pSubqueryDeps, &dependency), nullptr);
+      }
+      for (bool json : {false, true}) {
+        SNode* decodedRaw = nullptr;
+        if (json) {
+          ASSERT_EQ(nodesStringToNode(saveJson(raw).c_str(), &decodedRaw), TSDB_CODE_SUCCESS);
+        } else {
+          char* msg = nullptr;
+          int32_t len = 0;
+          ASSERT_EQ(nodesNodeToMsg(raw, &msg, &len), TSDB_CODE_SUCCESS);
+          int32_t code = nodesMsgToNode(msg, len, &decodedRaw);
+          taosMemoryFree(msg);
+          ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+        }
+        NodePtr decoded(decodedRaw, nodesDestroyNode);
+        auto* copy = reinterpret_cast<Plan*>(decodedRaw);
+        EXPECT_EQ(copy->subqueryDepsKnown, known);
+        ASSERT_EQ(taosArrayGetSize(copy->pSubqueryDeps), known ? count : 0);
+        if (known && count > 0) EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(copy->pSubqueryDeps, 1)), 3);
+      }
+    }
+  }
+}
+
+TEST(PlanDecodeTest, SubqueryDependenciesSurviveJsonAndTlv) {
+  checkSubqueryDependencies<SQueryPlan>(QUERY_NODE_PHYSICAL_PLAN);
+}
+
+TEST(PlanDecodeTest, TaskDependenciesSurviveJsonAndTlv) {
+  checkSubqueryDependencies<SSubplan>(QUERY_NODE_PHYSICAL_SUBPLAN);
+}

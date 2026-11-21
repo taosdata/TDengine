@@ -471,6 +471,343 @@ class BitDurationTestContext {
 
 }  // namespace
 
+class LastRowDynamicDataTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    int32_t size = sizeof(SResultRowEntryInfo) +
+                   getFirstLastInfoSize(sizeof(int32_t), 32);
+    entry_ = static_cast<SResultRowEntryInfo*>(taosMemoryCalloc(1, size));
+    ASSERT_NE(nullptr, entry_);
+    result_ = static_cast<SFirstLastRes*>(GET_ROWCELL_INTERBUF(entry_));
+    result_->hasResult = true;
+    result_->hasTsOrder = true;
+    result_->bytes = sizeof(int32_t);
+    result_->ts = 100;
+    block_.rows = 1;
+    block_.window = {100, 100};
+  }
+
+  void TearDown() override { taosMemoryFree(entry_); }
+
+  void expectRequired(EFuncDataRequired expected) {
+    const char* names[] = {"last_row", "_last_row_partial"};
+    for (const char* name : names) {
+      SCOPED_TRACE(name);
+      int32_t id = fmGetFuncId(name);
+      ASSERT_GE(id, 0);
+      EXPECT_EQ(expected, fmFuncDynDataRequired(id, entry_, &block_));
+    }
+  }
+
+  void setPrimaryKey(int32_t resultKey, int32_t candidateKey) {
+    result_->pkType = TSDB_DATA_TYPE_INT;
+    result_->pkBytes = sizeof(resultKey);
+    memcpy(result_->buf + result_->bytes, &resultKey, sizeof(resultKey));
+    block_.pks[1].type = TSDB_DATA_TYPE_INT;
+    block_.pks[1].val = candidateKey;
+  }
+
+  void setVariablePrimaryKey(int8_t type, const void* resultKey,
+                             int32_t resultSize, const void* candidateKey,
+                             int32_t candidateSize) {
+    result_->pkType = type;
+    result_->pkBytes = VARSTR_HEADER_SIZE + resultSize;
+    ASSERT_LE(result_->pkBytes, 32);
+    char* key = result_->buf + result_->bytes;
+    varDataSetLen(key, resultSize);
+    memcpy(varDataVal(key), resultKey, resultSize);
+    block_.pks[1].type = type;
+    block_.pks[1].pData =
+        reinterpret_cast<uint8_t*>(const_cast<void*>(candidateKey));
+    block_.pks[1].nData = candidateSize;
+  }
+
+  SResultRowEntryInfo* entry_ = nullptr;
+  SFirstLastRes* result_ = nullptr;
+  SDataBlockInfo block_ = {};
+};
+
+TEST_F(LastRowDynamicDataTest, EqualTimestampRequiresCandidateProof) {
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  block_.lastScanCandidate = true;
+  expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+  const char* names[] = {"last", "_last_partial"};
+  for (const char* name : names) {
+    SCOPED_TRACE(name);
+    int32_t id = fmGetFuncId(name);
+    ASSERT_GE(id, 0);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, LatestNullRemainsAnActualResult) {
+  result_->isNull = true;
+  entry_->isNullRes = true;
+  block_.lastScanCandidate = true;
+  expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+  block_.lastScanCandidate = false;
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+}
+
+TEST_F(LastRowDynamicDataTest, MissingActualResultAlwaysReads) {
+  result_->hasResult = false;
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    result_->ts = 101;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    result_->ts = 100;
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, UnknownTimestampOrderAlwaysReads) {
+  result_->hasTsOrder = false;
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    result_->ts = 101;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    result_->ts = 100;
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, PreservesStrictTimestampComparison) {
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    result_->ts = 101;
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    result_->ts = 99;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, VirtualColumnTiePreferenceRequiresReading) {
+  block_.lastScanCandidate = true;
+  result_->preferNonNullOnTsTie = true;
+  for (bool isNull : {false, true}) {
+    result_->isNull = isNull;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+  result_->ts = 101;
+  expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+}
+
+TEST_F(LastRowDynamicDataTest, PrimaryKeyMustBeStrictlyGreater) {
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    for (bool preferNonNull : {false, true}) {
+      result_->preferNonNullOnTsTie = preferNonNull;
+      setPrimaryKey(20, 10);
+      expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+      setPrimaryKey(20, 20);
+      expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+      setPrimaryKey(20, 30);
+      expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    }
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, UnknownPrimaryKeyHeaderRequiresReadingOnTie) {
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    setPrimaryKey(20, 10);
+    block_.pks[1].type = TSDB_DATA_TYPE_NULL;
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    result_->ts = 101;
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    result_->ts = 100;
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, MissingResultStorageRequiresReading) {
+  taosMemoryFree(entry_);
+  entry_ = nullptr;
+  block_.lastScanCandidate = true;
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+}
+
+TEST_F(LastRowDynamicDataTest, MissingBlockHeaderRequiresReading) {
+  const char* names[] = {"last_row", "_last_row_partial"};
+  for (const char* name : names) {
+    SCOPED_TRACE(name);
+    int32_t id = fmGetFuncId(name);
+    ASSERT_GE(id, 0);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, nullptr));
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, VarcharPrimaryKeyUsesRawBlockPayload) {
+  for (bool candidate : {false, true}) {
+    block_.lastScanCandidate = candidate;
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "beta", 4);
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "zeta", 4);
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "bet", 3);
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "betamax", 7);
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, LastCandidateVarcharUsesRawPayload) {
+  // The first two payload bytes form a safe but incorrect legacy length.
+  const uint8_t candidate[] = {1, 0, 'z', 0};
+  setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "a", 1, candidate, 3);
+  block_.lastScanCandidate = true;
+  for (const char* name : {"last", "_last_partial"}) {
+    SCOPED_TRACE(name);
+    int32_t id = fmGetFuncId(name);
+    ASSERT_GE(id, 0);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_NOT_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    // The fake legacy length is 98, but it compares only one byte.
+    const uint8_t later[] = {'b', 0, 0, 0};
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "a", 1, later, 1);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "a", 1, candidate, 3);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, LastCandidateVarcharTieAndMetadata) {
+  block_.lastScanCandidate = true;
+  for (const char* name : {"last", "_last_partial"}) {
+    SCOPED_TRACE(name);
+    int32_t id = fmGetFuncId(name);
+    ASSERT_GE(id, 0);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_NOT_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "beta", 4);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "a", 1, "beta", 4);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    block_.pks[1].type = TSDB_DATA_TYPE_INT;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    block_.pks[1].pData = nullptr;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    block_.pks[1].nData = TSDB_MAX_BINARY_LEN + 1u;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    result_->pkBytes = VARSTR_HEADER_SIZE - 1;
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+    varDataSetLen(result_->buf + result_->bytes, 5);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_DATA_LOAD,
+              fmFuncDynDataRequired(id, entry_, &block_));
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, LastOrdinaryBlockKeepsLegacyComparison) {
+  block_.lastScanCandidate = false;
+  uint8_t candidate[8] = {};
+  varDataSetLen(candidate, 1);
+  memcpy(varDataVal(candidate), "a", 1);
+  setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "b", 1, candidate, 3);
+  for (const char* name : {"last", "_last_partial"}) {
+    SCOPED_TRACE(name);
+    EXPECT_EQ(FUNC_DATA_REQUIRED_NOT_LOAD,
+              fmFuncDynDataRequired(fmGetFuncId(name), entry_, &block_));
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, VarbinaryPrimaryKeyComparesEmbeddedZeroBytes) {
+  const uint8_t result[] = {1, 0, 2};
+  const uint8_t smaller[] = {1, 0, 1};
+  const uint8_t greater[] = {1, 0, 3};
+  const uint8_t longer[] = {1, 0, 2, 0};
+  for (bool candidate : {false, true}) {
+    SCOPED_TRACE(candidate);
+    block_.lastScanCandidate = candidate;
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARBINARY, result, sizeof(result),
+                          smaller, sizeof(smaller));
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARBINARY, result, sizeof(result),
+                          result, sizeof(result));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARBINARY, result, sizeof(result),
+                          greater, sizeof(greater));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARBINARY, result, sizeof(result),
+                          result, sizeof(result) - 1);
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_VARBINARY, result, sizeof(result),
+                          longer, sizeof(longer));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, NcharPrimaryKeyUsesPayloadLength) {
+  const TdUcs4 result[] = {0x4e2d, 0x6587};
+  const TdUcs4 smaller[] = {0x4e2d, 0x6586};
+  const TdUcs4 greater[] = {0x4e2d, 0x6588};
+  const TdUcs4 longer[] = {0x4e2d, 0x6587, 0x5b57};
+  for (bool candidate : {false, true}) {
+    SCOPED_TRACE(candidate);
+    block_.lastScanCandidate = candidate;
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          smaller, sizeof(smaller));
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          result, sizeof(result));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          greater, sizeof(greater));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          result, sizeof(TdUcs4));
+    expectRequired(FUNC_DATA_REQUIRED_NOT_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          longer, sizeof(longer));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, InvalidNcharPayloadLengthsRequireReading) {
+  const TdUcs4 result[] = {0x4e2d, 0x6587};
+  const TdUcs4 smaller[] = {0x4e2d, 0x6586};
+  for (bool candidate : {false, true}) {
+    SCOPED_TRACE(candidate);
+    block_.lastScanCandidate = candidate;
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result),
+                          smaller, sizeof(smaller) - 1);
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+    setVariablePrimaryKey(TSDB_DATA_TYPE_NCHAR, result, sizeof(result) - 1,
+                          smaller, sizeof(smaller));
+    expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  }
+}
+
+TEST_F(LastRowDynamicDataTest, InvalidPrimaryKeyMetadataRequiresReading) {
+  block_.lastScanCandidate = true;
+  setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+  block_.pks[1].pData = nullptr;
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+  result_->pkBytes = VARSTR_HEADER_SIZE - 1;
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  setVariablePrimaryKey(TSDB_DATA_TYPE_VARCHAR, "beta", 4, "alpha", 5);
+  varDataSetLen(result_->buf + result_->bytes, 5);
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+  setPrimaryKey(20, 10);
+  result_->pkType = TSDB_DATA_TYPE_FLOAT;
+  block_.pks[1].type = TSDB_DATA_TYPE_FLOAT;
+  expectRequired(FUNC_DATA_REQUIRED_DATA_LOAD);
+}
+
 TEST(BitDurationFunctionTest, EmptyInputFinalizesWithoutAResult) {
   BitDurationTestContext test;
   ASSERT_EQ(TSDB_CODE_SUCCESS, test.initialize(BIT_DURATION_FLAG_NONZERO));

@@ -915,18 +915,21 @@ TEST_F(TfsTest, 99_GetDiskPathInvalidDiskId) {
   ASSERT_NE(pTfs, nullptr);
 
   // The only mounted disk is {level = 0, id = 0}; its path is valid.
-  SDiskID validDid = {.level = 0, .id = 0};
+  SDiskID validDid = {0};
   EXPECT_STREQ(tfsGetDiskPath(pTfs, validDid), root);
 
   // id beyond the number of disks mounted at level 0 (the crash scenario:
   // a metadata did with id = 5 on a node that has a single disk).
-  SDiskID staleId = {.level = 0, .id = 5};
+  SDiskID staleId = {0};
+  staleId.id = 5;
   EXPECT_EQ(tfsGetDiskPath(pTfs, staleId), nullptr);
 
   // An unmounted tier, and a level outside the tiers array.
-  SDiskID unmountedLevel = {.level = 1, .id = 0};
+  SDiskID unmountedLevel = {0};
+  unmountedLevel.level = 1;
   EXPECT_EQ(tfsGetDiskPath(pTfs, unmountedLevel), nullptr);
-  SDiskID outOfRangeLevel = {.level = TFS_MAX_TIERS, .id = 0};
+  SDiskID outOfRangeLevel = {0};
+  outOfRangeLevel.level = TFS_MAX_TIERS;
   EXPECT_EQ(tfsGetDiskPath(pTfs, outOfRangeLevel), nullptr);
 
   tfsClose(pTfs);

@@ -25,6 +25,7 @@ extern "C" {
 #include "libs/qcom/extTypeMap.h"  // EExtTimestampTzClass
 #include "query.h"
 #include "querynodes.h"
+#include "tcommon.h"
 #include "tname.h"
 
 #define SLOT_NAME_LEN TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN
@@ -150,7 +151,7 @@ typedef struct SScanLogicNode {
   double             ratio;
   SNodeList*         pDynamicScanFuncs;
   int32_t            dataRequired;
-  bool               lastOnlyScan;
+  ELastScanType      lastScanType;
   int64_t            intervalLimit;  // per-table window prefix; zero disables pruning
   int64_t            interval;
   int64_t            offset;
@@ -896,7 +897,7 @@ typedef struct STableScanPhysiNode {
   SNode*         pPrimaryCond;   // for remote node, splited from filter conditions
   double         ratio;
   int32_t        dataRequired;
-  bool           lastOnlyScan;
+  ELastScanType  lastScanType;
   int64_t        intervalLimit;  // per-table window prefix; zero disables pruning
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
@@ -1528,6 +1529,8 @@ typedef struct SSubplan {
   bool           dynTbname;
   bool           localBlockExchange;
   bool           execOnChildNode;
+  bool           subqueryDepsKnown;
+  SArray*        pSubqueryDeps;  // Direct reads of this task, indexed in the SQL-wide child job list.
   int16_t        userAppId;  // encoded from client user_app, propagated for server-side use
 } SSubplan;
 
@@ -1585,6 +1588,8 @@ typedef struct SQueryPlan {
   bool          hasFederatedScan;  // true when plan contains at least one SCAN_TYPE_EXTERNAL node
   bool          hasScan;           // true when plan contains at least one local (vnode) scan
   SNodeList*    pCorrelationTemplates;  // Owned; not auto-started child jobs.
+  bool          subqueryDepsKnown;
+  SArray*       pSubqueryDeps;  // Owned int32_t indices into the SQL's child jobs.
 } SQueryPlan;
 
 const char* dataOrderStr(EDataOrderLevel order);

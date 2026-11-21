@@ -13,6 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+import re
 import threading
 import time
 
@@ -39,7 +40,7 @@ class TestQueryPhaseStability:
         """Run query on a second connection and poll show queries for it.
 
         Returns (query_start_time, samples) where every sample is
-        (sample_time, phase_state, phase_start_time).
+        (sample_time, phase_state, phase_start_time, sub_status).
         """
         consumer_conn = taos.connect(host=self.host, port=self.port, config=self.cfg_path)
         errors = []
@@ -64,12 +65,18 @@ class TestQueryPhaseStability:
                 sql_idx = self._get_index(col_names, "sql")
                 phase_idx = self._get_index(col_names, "phase_state")
                 time_idx = self._get_index(col_names, "phase_start_time")
-                if sql_idx < 0 or phase_idx < 0 or time_idx < 0:
+                status_idx = self._get_index(col_names, "sub_status")
+                if min(sql_idx, phase_idx, time_idx, status_idx) < 0:
                     break
                 for row in range(tdSql.getRows()):
                     if match in str(tdSql.getData(row, sql_idx)):
                         samples.append(
-                            (time.time(), tdSql.getData(row, phase_idx), tdSql.getData(row, time_idx))
+                            (
+                                time.time(),
+                                tdSql.getData(row, phase_idx),
+                                tdSql.getData(row, time_idx),
+                                tdSql.getData(row, status_idx),
+                            )
                         )
                 time.sleep(0.1)
         finally:
@@ -357,10 +364,9 @@ class TestQueryPhaseStability:
     def test_multi_subquery_parent_phase_stable(self):
         """ Fun: parent keeps one execute/waiting start time across subjobs
 
-        Two scalar subqueries run as two sequential subjobs. Launching the
-        second subjob must not restart the parent's execute/waiting timer: the
-        promotion happens only while the parent is still below execute, so the
-        whole subjob window has a single phase_start_time.
+        The outer scalar subquery filters on the inner subquery's result.
+        Sample each subjob while it is executing and verify the parent keeps
+        the same phase_start_time across the handoff.
 
         Since: v3.4.3.0
 
@@ -382,36 +388,31 @@ class TestQueryPhaseStability:
         tdSql.execute(f"insert into {db}.t1 values (now, 1), (now+1a, 2)")
         tdSql.execute(f"insert into {db}.t2 values (now, 10), (now+1a, 20)")
 
-        # Two sequential 4s subjobs: the second launch happens around t+4s and
-        # must keep the start time stamped at the first launch.
+        # SLEEP returns zero. Both rows pass the dependent filter, so the
+        # consumer also executes its SLEEP and can be observed in a heartbeat.
         query = (
-            f"select (select sleep(4) from {db}.t2 limit 1), "
-            f"(select sleep(4) from {db}.t2 limit 1) from {db}.t1 limit 1"
+            f"select (select sleep(4) from {db}.t2 "
+            f"where x > (select sleep(4) from {db}.t2 limit 1) limit 1) "
+            f"from {db}.t1 limit 1"
         )
-        start, samples = self._sample_query_phases(query, "sleep(4)", 9)
+        _, samples = self._sample_query_phases(query, query, 15)
 
         tdLog.info(f"multi subquery parent samples: {samples}")
         waiting = [s for s in samples if s[1] == "execute/waiting"]
-        assert len(waiting) >= 2, (
-            f"expected at least 2 execute/waiting samples across the two subjobs, got: {samples}"
+        states = [re.findall(r":(j\d+)/\w+/(\w+):", s[3] or "") for s in waiting]
+        producer = [
+            i for i, tasks in enumerate(states)
+            if ("j0", "executing") in tasks and ("j1", "wait_dep") in tasks
+        ]
+        consumer = [i for i, tasks in enumerate(states) if ("j1", "executing") in tasks]
+        assert producer and consumer and producer[-1] < consumer[0], (
+            f"expected to observe j0 executing while j1 waits, then j1 executing; samples: {samples}"
         )
 
         waiting_times = {s[2] for s in waiting}
-        assert len(waiting_times) == 1, (
+        assert len(waiting_times) == 1 and None not in waiting_times, (
             f"execute/waiting phase_start_time must not be re-stamped when the second subjob "
             f"starts, got {waiting_times}; samples: {samples}"
-        )
-
-        # The two sleep(4) subjobs run sequentially, so the first window ends and
-        # the second one starts around t+4s. Require a sample from each window:
-        # two late samples could both carry the timestamp stamped by the second
-        # launch, and the uniqueness check above would still pass without ever
-        # proving that the first window kept its own start time.
-        assert any(s[0] - start < 4.0 for s in waiting), (
-            f"expected an execute/waiting sample from the first subjob window (< t+4s), got: {samples}"
-        )
-        assert any(s[0] - start >= 5.0 for s in waiting), (
-            f"expected execute/waiting samples from the second subjob window (>= t+5s), got: {samples}"
         )
 
         first_execute_idx = next(

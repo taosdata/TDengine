@@ -22,10 +22,36 @@
 #include "executor.h"
 #include "ttime.h"
 #include "os.h"
+#include "mockCatalogService.h"
 
 using namespace std;
 
 class PlanSubqeuryTest : public PlannerTestBase {};
+
+TEST_F(PlanSubqeuryTest, joinFieldWalkPreservesFirstDependencyError) {
+  SJoinLogicNode join = {};
+  join.node.type = QUERY_NODE_LOGIC_PLAN_JOIN;
+  SNode first = {};
+  SNode second = {};
+  first.type = second.type = QUERY_NODE_REMOTE_VALUE;
+  join.pColOnCond = &first;
+  join.pTagOnCond = &second;
+
+  struct WalkState {
+    SNode* failingField;
+    int32_t code;
+    int visits;
+  } state = {&first, 0, 0};
+  planWalkLogicExprFields(&join.node, [](SNode* field, void* param) {
+    auto* state = static_cast<WalkState*>(param);
+    ++state->visits;
+    // Model a failed dependency append followed by a field whose dependency already exists.
+    state->code = (field == state->failingField) ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+    return state->code ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
+  }, &state);
+  EXPECT_EQ(state.code, TSDB_CODE_OUT_OF_MEMORY);
+  EXPECT_EQ(state.visits, 1);
+}
 
 static EDealRes findCorrelatedCall(SNode* pNode, void* pContext) {
   if (QUERY_NODE_CORRELATED_SUBQUERY == nodeType(pNode)) {
@@ -1458,6 +1484,8 @@ TEST_F(PlanSubqeuryTest, duplicateExpressionSubqueriesKeepExternalWindowPlans) {
     SCOPED_TRACE(sql);
     runFullPlan(sql,
               [](const SQueryPlan* pPlan) {
+                ASSERT_TRUE(pPlan->subqueryDepsKnown);
+                EXPECT_EQ(LIST_LENGTH(pPlan->pChildren), taosArrayGetSize(pPlan->pSubqueryDeps));
                 int32_t scalarPlans = 0;
                 SNode* pChild = nullptr;
                 FOREACH(pChild, pPlan->pChildren) {
@@ -1475,7 +1503,14 @@ TEST_F(PlanSubqeuryTest, duplicateExpressionSubqueriesKeepStreamPlans) {
                   "SELECT ts, (SELECT MAX(c1) FROM stream_querydb.stream_t2) AS first_value, "
                   "(SELECT MAX(c1) FROM stream_querydb.stream_t2) AS second_value "
                   "FROM stream_querydb.stream_t2",
-                  [](const SQueryPlan& plan, const SArray*) { EXPECT_EQ(2, LIST_LENGTH(plan.pChildren)); });
+                  [](const SQueryPlan& plan, const SArray*) {
+                    EXPECT_EQ(2, LIST_LENGTH(plan.pChildren));
+                    EXPECT_FALSE(plan.subqueryDepsKnown);
+                    SNode* child = nullptr;
+                    FOREACH(child, plan.pChildren) {
+                      EXPECT_FALSE(reinterpret_cast<const SQueryPlan*>(child)->subqueryDepsKnown);
+                    }
+                  });
 }
 
 TEST_F(PlanSubqeuryTest, duplicateExpressionSubqueriesKeepDerivedProjectionBindings) {
@@ -1639,6 +1674,183 @@ TEST_F(PlanSubqeuryTest, duplicateExpressionSubqueriesShareNormalizedVariants) {
     runFullPlan(sql, [](const SQueryPlan* pPlan) {
       EXPECT_EQ(1, LIST_LENGTH(pPlan->pChildren));
       EXPECT_EQ(0, LIST_LENGTH(pPlan->pCorrelationTemplates));
+    });
+  }
+}
+
+TEST_F(PlanSubqeuryTest, independentJobsHaveEmptyDependencyLists) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT AVG(c1) FROM t1), (SELECT MAX(c1) FROM t1), "
+              "(SELECT MIN(c1) FROM t1), (SELECT SUM(c1) FROM t1) FROM t1",
+              [](const SQueryPlan* plan) {
+                ASSERT_TRUE(plan->subqueryDepsKnown);
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 4);
+                EXPECT_EQ(taosArrayGetSize(plan->pSubqueryDeps), 4);
+                SNode* child = nullptr;
+                FOREACH(child, plan->pChildren) {
+                  const auto* subplan = reinterpret_cast<const SQueryPlan*>(child);
+                  EXPECT_TRUE(subplan->subqueryDepsKnown);
+                  EXPECT_EQ(taosArrayGetSize(subplan->pSubqueryDeps), 0);
+                }
+              });
+}
+
+TEST_F(PlanSubqeuryTest, sqlWindowScalarSubqueriesKeepDependencies) {
+  useDb("root", "test");
+  for (const char* sql : {
+           "SELECT SUM((SELECT MAX(c1) FROM t1)) OVER () FROM t1",
+           "SELECT SUM(c1 + (SELECT MAX(c1) FROM t1)) OVER "
+           "(PARTITION BY c2 ORDER BY ts ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) FROM t1"}) {
+    SCOPED_TRACE(sql);
+    runFullPlan(sql, [](const SQueryPlan* plan) {
+      ASSERT_TRUE(plan->subqueryDepsKnown);
+      ASSERT_EQ(LIST_LENGTH(plan->pChildren), 1);
+      ASSERT_EQ(taosArrayGetSize(plan->pSubqueryDeps), 1);
+      EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(plan->pSubqueryDeps, 0)), 0);
+      const auto* child =
+          reinterpret_cast<const SQueryPlan*>(nodesListGetNode(plan->pChildren, 0));
+      ASSERT_TRUE(child->subqueryDepsKnown);
+      EXPECT_EQ(taosArrayGetSize(child->pSubqueryDeps), 0);
+      EXPECT_NE(findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC), nullptr);
+    });
+  }
+}
+
+TEST_F(PlanSubqeuryTest, sqlWindowSharedScalarReferenceUsesFinalIndex) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT MAX(c1) FROM t1), "
+              "SUM(c1 + (SELECT MAX(c1) FROM t1)) OVER () FROM t1",
+              [](const SQueryPlan* plan) {
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 1);
+                ASSERT_TRUE(plan->subqueryDepsKnown);
+                ASSERT_EQ(taosArrayGetSize(plan->pSubqueryDeps), 1);
+                EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(plan->pSubqueryDeps, 0)), 0);
+                const auto* window = reinterpret_cast<const SWindowFuncPhysiNode*>(
+                    findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC));
+                ASSERT_NE(window, nullptr);
+                RemoteSubqueryReferences references;
+                nodesWalkExprs(window->pExprs, collectRemoteSubqueryReferences, &references);
+                nodesWalkExprs(window->pFuncs, collectRemoteSubqueryReferences, &references);
+                ASSERT_EQ(references.count, 1);
+                EXPECT_EQ(references.firstIndex, 0);
+              });
+}
+
+TEST_F(PlanSubqeuryTest, sharedProducerDependenciesAreUniqueAndOrdered) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT MAX(c1) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t1)), "
+              "(SELECT MIN(c1) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t1)) FROM t1",
+              [](const SQueryPlan* plan) {
+                ASSERT_TRUE(plan->subqueryDepsKnown);
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 3);
+                int32_t index = 0;
+                SNode* child = nullptr;
+                FOREACH(child, plan->pChildren) {
+                  const auto* subplan = reinterpret_cast<const SQueryPlan*>(child);
+                  ASSERT_TRUE(subplan->subqueryDepsKnown);
+                  ASSERT_EQ(taosArrayGetSize(subplan->pSubqueryDeps), index == 0 ? 0 : 1);
+                  if (index > 0) EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(subplan->pSubqueryDeps, 0)), 0);
+                  ++index;
+                }
+                EXPECT_EQ(taosArrayGetSize(plan->pSubqueryDeps), 2);
+              });
+}
+
+TEST_F(PlanSubqeuryTest, independentJoinInputCanRunBeforeScalarSubquery) {
+  useDb("root", "test");
+  runFullPlan("SELECT a.c1, b.c1, (SELECT MAX(c1) FROM t1) FROM t1 a JOIN st1s1 b "
+              "ON a.ts = b.ts AND a.c1 <= (SELECT MAX(c1) FROM t1) ORDER BY a.ts",
+              [](const SQueryPlan* plan) {
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 1);
+                int independent = 0;
+                int consumers = 0;
+                SNode* level = nullptr;
+                FOREACH(level, plan->pSubplans) {
+                  SNode* node = nullptr;
+                  FOREACH(node, reinterpret_cast<SNodeListNode*>(level)->pNodeList) {
+                    auto* fragment = reinterpret_cast<SSubplan*>(node);
+                    ASSERT_TRUE(fragment->subqueryDepsKnown);
+                    if (taosArrayGetSize(fragment->pSubqueryDeps) == 0) {
+                      if (!LIST_LENGTH(fragment->pChildren)) ++independent;
+                    } else {
+                      ASSERT_EQ(taosArrayGetSize(fragment->pSubqueryDeps), 1);
+                      EXPECT_EQ(*static_cast<int32_t*>(taosArrayGet(fragment->pSubqueryDeps, 0)), 0);
+                      ++consumers;
+                    }
+                  }
+                }
+                EXPECT_GT(independent, 0);
+                EXPECT_GT(consumers, 0);
+              });
+}
+
+TEST_F(PlanSubqeuryTest, mixedQuerySchedulesIndependentJobs) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT AVG(c1) FROM t1), (SELECT MIN(c1) FROM t1), "
+              "(SELECT MAX(b.c1) FROM t1 b WHERE b.c1 = a.c1) FROM t1 a",
+              [](const SQueryPlan* plan) {
+                ASSERT_TRUE(plan->subqueryDepsKnown);
+                ASSERT_EQ(LIST_LENGTH(plan->pCorrelationTemplates), 1);
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 2);
+                SNode* child = nullptr;
+                FOREACH(child, plan->pChildren) {
+                  auto* sub = reinterpret_cast<const SQueryPlan*>(child);
+                  EXPECT_TRUE(sub->subqueryDepsKnown);
+                  EXPECT_EQ(taosArrayGetSize(sub->pSubqueryDeps), 0);
+                }
+              });
+}
+
+TEST_F(PlanSubqeuryTest, templateInputsAreDependenciesOfCaller) {
+  useDb("root", "test");
+  runFullPlan("SELECT (SELECT MAX(b.c1) FROM t1 b WHERE b.c1 = a.c1 "
+              "AND b.c1 <= (SELECT AVG(c1) FROM t1)) FROM t1 a",
+              [](const SQueryPlan* plan) {
+                ASSERT_EQ(LIST_LENGTH(plan->pChildren), 1);
+                ASSERT_EQ(taosArrayGetSize(plan->pSubqueryDeps), 1);
+                EXPECT_EQ(*static_cast<const int32_t*>(taosArrayGet(plan->pSubqueryDeps, 0)), 0);
+              });
+}
+
+TEST_F(PlanSubqeuryTest, remoteRenderingKeepsRetainedDependenciesInGlobalOrder) {
+  useDb("root", "test");
+  struct FederatedQueryGuard {
+    bool previous = tsFederatedQueryEnable;
+    ~FederatedQueryGuard() { tsFederatedQueryEnable = previous; }
+  } guard;
+  tsFederatedQueryEnable = true;
+  std::vector<MockCatalogService::MockExtColDef> columns = {
+      {"ts", TSDB_DATA_TYPE_TIMESTAMP, true, false, false, "timestamp"},
+      {"v", TSDB_DATA_TYPE_INT, false, true, false, "int"},
+  };
+  g_mockCatalogService->createExtSource("job_remote", EXT_SOURCE_MYSQL, "127.0.0.1", 1, "fake_user", "fake_db");
+  g_mockCatalogService->createExtTable("job_remote", "fake_db", "", "metrics", columns);
+  for (const char* sql : {
+           "SELECT MAX(v) FROM job_remote.fake_db.metrics WHERE v > (SELECT AVG(v) FROM job_remote.fake_db.metrics)",
+           "SELECT v FROM job_remote.fake_db.metrics WHERE v IN (SELECT v FROM job_remote.fake_db.metrics "
+           "WHERE v > (SELECT AVG(c1) FROM t1))",
+           "SELECT (SELECT MAX(v) FROM job_remote.fake_db.metrics WHERE v > (SELECT AVG(c1) FROM t1)), "
+           "(SELECT AVG(c1) FROM t1) FROM t1"}) {
+    SCOPED_TRACE(sql);
+    runFullPlan(sql, [sql](const SQueryPlan* plan) {
+      int32_t count = LIST_LENGTH(plan->pChildren);
+      bool localDependency = false;
+      for (int32_t index = 0; index <= count; ++index) {
+        const auto* job = index == count ? plan :
+            reinterpret_cast<const SQueryPlan*>(nodesListGetNode(plan->pChildren, index));
+        ASSERT_TRUE(job->subqueryDepsKnown);
+        for (int32_t i = 0; i < taosArrayGetSize(job->pSubqueryDeps); ++i) {
+          int32_t dependency = *static_cast<int32_t*>(taosArrayGet(job->pSubqueryDeps, i));
+          ASSERT_GE(dependency, 0);
+          ASSERT_LT(dependency, index);
+          const auto* producer = reinterpret_cast<const SQueryPlan*>(nodesListGetNode(plan->pChildren, dependency));
+          localDependency |= nullptr != findPhysiNodeInPlan(producer, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+          for (int32_t j = 0; j < i; ++j) {
+            EXPECT_NE(dependency, *static_cast<int32_t*>(taosArrayGet(job->pSubqueryDeps, j)));
+          }
+        }
+      }
+      if (nullptr != strstr(sql, "AVG(c1)")) EXPECT_TRUE(localDependency);
     });
   }
 }

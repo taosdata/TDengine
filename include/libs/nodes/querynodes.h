@@ -271,6 +271,12 @@ typedef struct SCorrelatedSubqueryNode {
 #define VALUELIST_FLAG_VAL_UNSET      (1 << 0)
 
 
+typedef struct SRemoteListBounds {
+  int8_t   type;  // TSDB_DATA_TYPE_NULL until the first ordered non-NULL key.
+  uint64_t min[2];
+  uint64_t max[2];
+} SRemoteListBounds;
+
 typedef struct SRemoteValueListNode {
   SExprNode  node;
   int32_t    flag;
@@ -282,6 +288,9 @@ typedef struct SRemoteValueListNode {
   bool       hashAllocated;
   SHashObj  *pHashFilter;
   SHashObj  *pHashFilterOthers;
+  int32_t    otherKeyType;  // Type used to build the auxiliary hash.
+  bool       droppedKey;    // At least one non-NULL input overflowed during conversion.
+  SRemoteListBounds bounds; // Min/max of the primary hash keys in their native representation.
   int32_t    filterValueType;
   STypeMod   filterValueTypeMod;
   int32_t    subQIdx;

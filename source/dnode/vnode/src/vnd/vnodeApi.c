@@ -58,6 +58,10 @@ void initTsdbReaderAPI(TsdReader* pReader) {
   pReader->tsdReaderReleaseDataBlock = tsdbReleaseDataBlock2;
 
   pReader->tsdReaderRetrieveBlockSMAInfo = tsdbRetrieveDatablockSMA2;
+  pReader->tsdReaderGetFilterBlock = tsdbReaderGetFilterBlock;
+  pReader->tsdReaderSetLastScanCandidate = tsdbReaderSetLastScanCandidate;
+  pReader->tsdReaderRetrieveSelectedDataBlock =
+      tsdbReaderRetrieveSelectedDataBlock;
   pReader->tsdReaderSetBlockSmaMode = tsdbReaderSetBlockSmaMode;
 
   pReader->tsdReaderNotifyClosing = (void (*)(void*))tsdbReaderSetCloseFlag;

@@ -19,14 +19,226 @@
 #include <set>
 
 #include "mockCatalog.h"
+#include "mockCatalogService.h"
 #include "planTestUtil.h"
 #include "planner.h"
+#include "stub.h"
 // The C headers define wchar_t, so load the C++ test headers first.
 #include "functionMgt.h"
 
 using namespace std;
 
 class PlanOptimizeTest : public PlannerTestBase {};
+
+static bool lastScanUnsupportedPkType = false;
+
+static int32_t lastScanCompositeCatalogGetTableMeta(
+    SCatalog*, SRequestConnInfo*, const SName* name, STableMeta** meta) {
+  int32_t code = g_mockCatalogService->catalogGetTableMeta(name, meta);
+  if (code == TSDB_CODE_SUCCESS && meta != nullptr && *meta != nullptr &&
+      strcmp(tNameGetTableName(name), "t1") == 0) {
+    (*meta)->tableInfo.numOfPKs = 1;
+    (*meta)->schema[1].flags |= COL_IS_KEY;
+    if (lastScanUnsupportedPkType) {
+      (*meta)->schema[1].type = TSDB_DATA_TYPE_DOUBLE;
+      (*meta)->schema[1].bytes = sizeof(double);
+    }
+  }
+  return code;
+}
+
+TEST_F(PlanOptimizeTest, lastScanTypeEligibility) {
+  useDb("root", "test");
+  struct Case {
+    const char* sql;
+    ELastScanType expected;
+  };
+  const Case cases[] = {
+      {"LAST(c1) FROM t1", LAST_SCAN_LAST_ONLY},
+      {"LAST_ROW(c1) FROM t1", LAST_SCAN_LAST_ROW_ONLY},
+      {"LAST(c1), LAST_ROW(c2) FROM t1", LAST_SCAN_MIXED},
+      {"LAST(c1), SUM(c3) FROM t1", LAST_SCAN_NONE},
+      {"LAST_ROW(c1), COUNT(c3) FROM t1", LAST_SCAN_NONE},
+      {"c2, LAST(c1) FROM t1", LAST_SCAN_LAST_ONLY},
+      {"c2, LAST_ROW(c1) FROM t1", LAST_SCAN_LAST_ROW_ONLY},
+      {"LAST(c1) FROM t1 WHERE c3 > 10", LAST_SCAN_LAST_ONLY},
+      {"LAST_ROW(c1) FROM t1 WHERE c3 IS NULL", LAST_SCAN_LAST_ROW_ONLY},
+      {"LAST(c1) FROM st1 GROUP BY tag1", LAST_SCAN_LAST_ONLY},
+      {"LAST_ROW(c1) FROM st1 GROUP BY tbname", LAST_SCAN_LAST_ROW_ONLY},
+      {"LAST(c1) FROM t1 GROUP BY c3", LAST_SCAN_NONE},
+      {"LAST(c1 + 1) FROM t1", LAST_SCAN_NONE},
+  };
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.sql);
+    setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+      if (!optimized) return;
+      const SScanLogicNode* scan = nullptr;
+      std::function<void(const SLogicNode*)> walk;
+      walk = [&](const SLogicNode* node) {
+        if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+          scan = (const SScanLogicNode*)node;
+        }
+        SNode* child = nullptr;
+        FOREACH(child, node->pChildren) walk((const SLogicNode*)child);
+      };
+      walk(root);
+      ASSERT_NE(nullptr, scan);
+      EXPECT_EQ(test.expected, scan->lastScanType);
+      char* json = nullptr;
+      ASSERT_EQ(0, nodesNodeToString((const SNode*)scan, false, &json,
+                                      nullptr));
+      ASSERT_NE(nullptr, json);
+      EXPECT_NE(string::npos, string(json).find("\"LastScanType\""));
+      EXPECT_EQ(string::npos, string(json).find("\"LastOnlyScan\""));
+      taosMemoryFree(json);
+    });
+    string sql = string("SELECT ") + test.sql;
+    const size_t group = sql.find(" GROUP BY");
+    const string conjunction = sql.find(" WHERE ") == string::npos
+                                   ? " WHERE " : " AND ";
+    sql.insert(group == string::npos ? sql.size() : group,
+               conjunction + "ts >= 1650000000000 AND ts < 1660000000000");
+    run(sql);
+  }
+}
+
+TEST_F(PlanOptimizeTest, lastScanCompositePrimaryKeyEligibility) {
+  Stub stub;
+  struct ResetPkType {
+    ~ResetPkType() { lastScanUnsupportedPkType = false; }
+  } resetPkType;
+  stub.set(catalogGetTableMeta, lastScanCompositeCatalogGetTableMeta);
+  useDb("root", "test");
+  struct Case {
+    const char* sql;
+    ELastScanType expected;
+  };
+  const Case cases[] = {
+      {"LAST(c3) FROM t1", LAST_SCAN_LAST_ONLY},
+      {"LAST_ROW(c3) FROM t1", LAST_SCAN_LAST_ROW_ONLY},
+      {"LAST(c3), LAST_ROW(c4) FROM t1", LAST_SCAN_MIXED},
+      {"LAST(c3) FROM t1 WHERE c1 > 1", LAST_SCAN_LAST_ONLY},
+      {"LAST(c3) FROM t1 GROUP BY c1", LAST_SCAN_NONE},
+      {"LAST(c3 + 1) FROM t1", LAST_SCAN_NONE},
+  };
+  for (const auto& test : cases) {
+    SCOPED_TRACE(test.sql);
+    setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+      if (!optimized) return;
+      const SScanLogicNode* scan = nullptr;
+      std::function<void(const SLogicNode*)> walk;
+      walk = [&](const SLogicNode* node) {
+        if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+          scan = (const SScanLogicNode*)node;
+        }
+        SNode* child = nullptr;
+        FOREACH(child, node->pChildren) walk((const SLogicNode*)child);
+      };
+      walk(root);
+      ASSERT_NE(nullptr, scan);
+      EXPECT_EQ(test.expected, scan->lastScanType);
+      bool foundPk = false;
+      SNode* col = nullptr;
+      FOREACH(col, scan->pScanCols) {
+        if (nodeType(col) == QUERY_NODE_COLUMN &&
+            ((SColumnNode*)col)->isPk) foundPk = true;
+      }
+      EXPECT_TRUE(foundPk);
+    });
+    string sql = string("SELECT ") + test.sql;
+    const size_t group = sql.find(" GROUP BY");
+    const string conjunction = sql.find(" WHERE ") == string::npos
+                                   ? " WHERE " : " AND ";
+    sql.insert(group == string::npos ? sql.size() : group,
+               conjunction + "ts >= 1650000000000 AND ts < 1660000000000");
+    run(sql);
+  }
+  lastScanUnsupportedPkType = true;
+  setLogicPlanCheck([](const SLogicNode* root, bool optimized) {
+    if (!optimized) return;
+    const SScanLogicNode* scan = nullptr;
+    std::function<void(const SLogicNode*)> walk;
+    walk = [&](const SLogicNode* node) {
+      if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+        scan = (const SScanLogicNode*)node;
+      }
+      SNode* child = nullptr;
+      FOREACH(child, node->pChildren) walk((const SLogicNode*)child);
+    };
+    walk(root);
+    ASSERT_NE(nullptr, scan);
+    EXPECT_EQ(LAST_SCAN_NONE, scan->lastScanType);
+  });
+  run("SELECT LAST(c3) FROM t1 WHERE ts >= 1650000000000 "
+      "AND ts < 1660000000000");
+  lastScanUnsupportedPkType = false;
+  stub.reset(catalogGetTableMeta);
+}
+
+TEST_F(PlanOptimizeTest, lastScanWindowsKeepBaselineFallback) {
+  useDb("root", "test");
+  const char* expressions[] = {
+      "LAST(c1)", "LAST_ROW(c1)", "LAST(c1), LAST_ROW(c2)"};
+  const char* windows[] = {
+      "SESSION(ts, 10s)", "STATE_WINDOW(c3)", "INTERVAL(10s)"};
+  for (const char* expression : expressions) {
+    for (const char* window : windows) {
+      const string sql = string("SELECT ") + expression +
+                         " FROM t1 WHERE ts >= 1650000000000 "
+                         "AND ts < 1660000000000 " + window;
+      SCOPED_TRACE(sql);
+      bool checked = false;
+      setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        std::function<void(const SLogicNode*)> walk;
+        walk = [&](const SLogicNode* node) {
+          if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+            checked = true;
+            EXPECT_EQ(LAST_SCAN_NONE,
+                      ((const SScanLogicNode*)node)->lastScanType);
+          }
+          SNode* child = nullptr;
+          FOREACH(child, node->pChildren) walk((const SLogicNode*)child);
+        };
+        walk(root);
+      });
+      run(sql);
+      EXPECT_TRUE(checked);
+    }
+  }
+}
+
+TEST_F(PlanOptimizeTest, lastScanUnsupportedFiltersUseOrdinaryScan) {
+  useDb("root", "test");
+  const char* expressions[] = {
+      "LAST(c1)", "LAST_ROW(c1)", "LAST(c1), LAST_ROW(c2)"};
+  const char* filters[] = {"ABS(c3) > 10", "c3 > c1", "c2 LIKE 'a%'"};
+  for (const char* expression : expressions) {
+    for (const char* filter : filters) {
+      const string sql = string("SELECT ") + expression +
+                         " FROM t1 WHERE ts >= 1650000000000 "
+                         "AND ts < 1660000000000 AND " + filter;
+      SCOPED_TRACE(sql);
+      bool checked = false;
+      setLogicPlanCheck([&](const SLogicNode* root, bool optimized) {
+        if (!optimized) return;
+        std::function<void(const SLogicNode*)> walk;
+        walk = [&](const SLogicNode* node) {
+          if (nodeType(node) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+            checked = true;
+            EXPECT_EQ(LAST_SCAN_NONE,
+                      ((const SScanLogicNode*)node)->lastScanType);
+          }
+          SNode* child = nullptr;
+          FOREACH(child, node->pChildren) walk((const SLogicNode*)child);
+        };
+        walk(root);
+      });
+      run(sql);
+      EXPECT_TRUE(checked);
+    }
+  }
+}
 
 TEST_F(PlanOptimizeTest, scanPath) {
   useDb("root", "test");

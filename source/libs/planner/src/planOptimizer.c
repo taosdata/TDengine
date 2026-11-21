@@ -416,7 +416,8 @@ static bool scanPathOptIsLastOnlyFunc(const SFunctionNode* pFunc) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
   SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
   for (int32_t i = 1; i < numOfParams;
-       ++i, pParameterCell = (NULL != pParameterCell ? pParameterCell->pNext : NULL)) {
+       ++i, pParameterCell =
+                NULL != pParameterCell ? pParameterCell->pNext : NULL) {
     SNode* pExtra = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
     if (NULL == pExtra || QUERY_NODE_COLUMN != nodeType(pExtra)) {
       return false;
@@ -424,6 +425,70 @@ static bool scanPathOptIsLastOnlyFunc(const SFunctionNode* pFunc) {
     const SColumnNode* pExtraCol = (const SColumnNode*)pExtra;
     if (PRIMARYKEY_TIMESTAMP_COL_ID != pExtraCol->colId && !pExtraCol->isPk && !pExtraCol->isPrimTs) {
       return false;
+    }
+  }
+
+  return true;
+}
+
+static bool lastScanIsSupportedFunc(const SFunctionNode* pFunc) {
+  if (NULL == pFunc || (FUNCTION_TYPE_LAST != pFunc->funcType &&
+       FUNCTION_TYPE_LAST_ROW != pFunc->funcType &&
+       FUNCTION_TYPE_LAST_PARTIAL != pFunc->funcType) ||
+      pFunc->isDistinct || NULL == pFunc->pParameterList ||
+      0 == LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  if (fmGetFuncTypeFromId(pFunc->funcId) != pFunc->funcType) return false;
+  if (pFunc->funcType == FUNCTION_TYPE_LAST_PARTIAL) {
+    const char* name = fmGetFuncName(pFunc->funcId);
+    bool isLast = strcmp(name, "_last_partial") == 0;
+    bool isLastRow = strcmp(name, "_last_row_partial") == 0;
+    if (!isLast && !isLastRow) return false;
+    if (pFunc->hasOriginalFunc) {
+      EFunctionType original = fmGetFuncTypeFromId(pFunc->originalFuncId);
+      if ((isLast && original != FUNCTION_TYPE_LAST) ||
+          (isLastRow && original != FUNCTION_TYPE_LAST_ROW)) {
+        return false;
+      }
+    }
+  }
+
+  SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (NULL == pParam || QUERY_NODE_COLUMN != nodeType(pParam)) {
+    return false;
+  }
+
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (numOfParams > 3) return false;
+  if ((pFunc->hasPk && numOfParams != 3) ||
+      (!pFunc->hasPk && numOfParams == 3)) return false;
+  const SColumnNode* pValueCol = (const SColumnNode*)pParam;
+  SListCell* pParameterCell = nodesListGetCell(pFunc->pParameterList, 1);
+  for (int32_t i = 1; i < numOfParams;
+       ++i, pParameterCell =
+                NULL != pParameterCell ? pParameterCell->pNext : NULL) {
+    SNode* pExtra = (NULL != pParameterCell ? pParameterCell->pNode : NULL);
+    if (NULL == pExtra || QUERY_NODE_COLUMN != nodeType(pExtra)) {
+      return false;
+    }
+    const SColumnNode* pExtraCol = (const SColumnNode*)pExtra;
+    if (pExtraCol->tableId != pValueCol->tableId ||
+        pExtraCol->colType != COLUMN_TYPE_COLUMN) {
+      return false;
+    }
+    if (i == 1 && (pExtraCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID ||
+                   pExtraCol->node.resType.type != TSDB_DATA_TYPE_TIMESTAMP)) {
+      return false;
+    }
+    if (i == 2) {
+      int8_t type = pExtraCol->node.resType.type;
+      if (!pExtraCol->isPk ||
+          (type != TSDB_DATA_TYPE_TIMESTAMP && type != TSDB_DATA_TYPE_INT &&
+           type != TSDB_DATA_TYPE_UINT && type != TSDB_DATA_TYPE_BIGINT &&
+           type != TSDB_DATA_TYPE_UBIGINT && type != TSDB_DATA_TYPE_VARCHAR)) {
+        return false;
+      }
     }
   }
 
@@ -444,6 +509,40 @@ static bool scanPathOptIsNonDataGroupKey(const SFunctionNode* pFunc) {
   return COLUMN_TYPE_TAG == pCol->colType || COLUMN_TYPE_TBNAME == pCol->colType;
 }
 
+static bool lastScanIsBoundSelectValue(const SFunctionNode* pFunc,
+                                       const SNodeList* pFuncs,
+                                       const SScanLogicNode* pScan) {
+  if (pFunc->funcType != FUNCTION_TYPE_SELECT_VALUE ||
+      LIST_LENGTH(pFunc->pParameterList) != 1) {
+    return false;
+  }
+  const SNode* pParam = nodesListGetNode(pFunc->pParameterList, 0);
+  if (pParam == NULL || nodeType(pParam) != QUERY_NODE_COLUMN) return false;
+  const SColumnNode* pCol = (const SColumnNode*)pParam;
+  if (pCol->tableId != pScan->tableId ||
+      pCol->colType != COLUMN_TYPE_COLUMN || pCol->isPrimTs ||
+      pCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    return false;
+  }
+
+  int32_t target = pFunc->node.relatedTo;
+  int32_t matches = 0;
+  int32_t selectors = 0;
+  bool hasExplicitBinding = false;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pFuncs) {
+    if (nodeType(pNode) != QUERY_NODE_FUNCTION) return false;
+    const SFunctionNode* pSelect = (const SFunctionNode*)pNode;
+    if (!lastScanIsSupportedFunc(pSelect)) continue;
+    ++selectors;
+    if (pSelect->node.bindExprID > 0) hasExplicitBinding = true;
+    if (pSelect->node.bindExprID == (target > 0 ? target : 1)) ++matches;
+  }
+  if (target < 0) return false;
+  if (hasExplicitBinding) return matches == 1;
+  return target == 0 && selectors == 1;
+}
+
 static bool scanPathOptLastOnlyScanHasColumn(const SNodeList* pFuncs, const SColumnNode* pScanCol) {
   SNode* pNode = NULL;
   FOREACH(pNode, pFuncs) {
@@ -457,12 +556,87 @@ static bool scanPathOptLastOnlyScanHasColumn(const SNodeList* pFuncs, const SCol
   return false;
 }
 
-// The reader may skip a clean block's older rows only after every physical value column is proven to be a LAST input.
-static bool scanPathOptCanUseLastOnlyScan(const SScanLogicNode* pScan) {
-  const char* reason = NULL;
-  bool        canUse = false;
+static bool lastScanFilterSupported(const SNode* pNode, uint64_t tableId) {
+  if (pNode == NULL) return true;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
+    const SLogicConditionNode* pLogic = (const SLogicConditionNode*)pNode;
+    if (pLogic->condType != LOGIC_COND_TYPE_AND &&
+        pLogic->condType != LOGIC_COND_TYPE_OR) {
+      return false;
+    }
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (!lastScanFilterSupported(pChild, tableId)) return false;
+    }
+    return pLogic->pParameterList != NULL &&
+           LIST_LENGTH(pLogic->pParameterList) > 0;
+  }
+  if (nodeType(pNode) != QUERY_NODE_OPERATOR) return false;
+  const SOperatorNode* pOp = (const SOperatorNode*)pNode;
+  const SNode* pColumn = pOp->pLeft;
+  const SNode* pOther = pOp->pRight;
+  bool isNull = pOp->opType == OP_TYPE_IS_NULL ||
+                pOp->opType == OP_TYPE_IS_NOT_NULL;
+  if (!isNull && (pOp->opType < OP_TYPE_GREATER_THAN ||
+                  pOp->opType > OP_TYPE_NOT_EQUAL)) {
+    return false;
+  }
+  if (!isNull && pColumn != NULL && nodeType(pColumn) == QUERY_NODE_VALUE) {
+    pColumn = pOp->pRight;
+    pOther = pOp->pLeft;
+  }
+  if (pColumn == NULL || nodeType(pColumn) != QUERY_NODE_COLUMN ||
+      (!isNull && (pOther == NULL || nodeType(pOther) != QUERY_NODE_VALUE)) ||
+      (isNull && pOther != NULL)) {
+    return false;
+  }
+  if (!isNull) {
+    const SValueNode* pValue = (const SValueNode*)pOther;
+    if (IS_VAL_UNSET(pValue->flag) ||
+        (pValue->flag & VALUE_FLAG_DEFERRED_QUERY_TIME) != 0 ||
+        IS_RAW_SQL_FRAG(pValue->flag)) {
+      return false;
+    }
+  }
+  const SColumnNode* pCol = (const SColumnNode*)pColumn;
+  return pCol->tableId == tableId && pCol->colType == COLUMN_TYPE_COLUMN &&
+         pCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID && !pCol->isPrimTs;
+}
 
-  if (NULL == pScan || 0 != pScan->scanSeq[0] || 1 != pScan->scanSeq[1] || NULL != pScan->node.pConditions ||
+static bool lastScanFilterHasColumn(const SNode* pNode,
+                                    const SColumnNode* pColumn) {
+  if (pNode == NULL) return false;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_CONDITION) {
+    const SLogicConditionNode* pLogic = (const SLogicConditionNode*)pNode;
+    SNode* pChild = NULL;
+    FOREACH(pChild, pLogic->pParameterList) {
+      if (lastScanFilterHasColumn(pChild, pColumn)) return true;
+    }
+  } else if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+    const SOperatorNode* pOp = (const SOperatorNode*)pNode;
+    return lastScanFilterHasColumn(pOp->pLeft, pColumn) ||
+           lastScanFilterHasColumn(pOp->pRight, pColumn);
+  } else if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+    const SColumnNode* pCol = (const SColumnNode*)pNode;
+    return pCol->tableId == pColumn->tableId &&
+           pCol->colId == pColumn->colId &&
+           pCol->colType == pColumn->colType;
+  }
+  return false;
+}
+
+// The reader may skip a clean block's older rows only after every physical value column is proven to be a LAST input.
+static ELastScanType scanPathOptLastScanType(const SScanLogicNode* pScan) {
+  const char* reason = NULL;
+  ELastScanType scanType = LAST_SCAN_NONE;
+  bool hasLast = false;
+  bool hasLastRow = false;
+
+  if (NULL == pScan || NULL == pScan->node.pParent ||
+      pScan->node.dynamicOp || pScan->node.pParent->dynamicOp ||
+      nodeType(pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_WINDOW ||
+      0 != pScan->scanSeq[0] || 1 != pScan->scanSeq[1] ||
+      !lastScanFilterSupported(pScan->node.pConditions, pScan->tableId) ||
       NULL != pScan->pExtScanRange || 0 != pScan->interval) {
     reason = "scan shape ineligible";
     goto _return;
@@ -477,7 +651,9 @@ static bool scanPathOptCanUseLastOnlyScan(const SScanLogicNode* pScan) {
   SNode* pNode = NULL;
   FOREACH(pNode, pFuncs) {
     if (QUERY_NODE_FUNCTION != nodeType(pNode) ||
-        (!scanPathOptIsLastOnlyFunc((SFunctionNode*)pNode) && !scanPathOptIsNonDataGroupKey((SFunctionNode*)pNode))) {
+        (!lastScanIsSupportedFunc((SFunctionNode*)pNode) &&
+         !scanPathOptIsNonDataGroupKey((SFunctionNode*)pNode) &&
+         !lastScanIsBoundSelectValue((SFunctionNode*)pNode, pFuncs, pScan))) {
       if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
         SFunctionNode* pF = (SFunctionNode*)pNode;
         SNode*         pPara = pF->pParameterList ? nodesListGetNode(pF->pParameterList, 0) : NULL;
@@ -491,6 +667,41 @@ static bool scanPathOptCanUseLastOnlyScan(const SScanLogicNode* pScan) {
       reason = "func above scan is neither LAST() nor non-data group key";
       goto _return;
     }
+  }
+
+  FOREACH(pNode, pFuncs) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    if (scanPathOptIsNonDataGroupKey(pFunc)) {
+      continue;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_SELECT_VALUE) continue;
+    const SColumnNode* pValue =
+        (const SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+    if (pValue->tableId != pScan->tableId ||
+        pValue->colType != COLUMN_TYPE_COLUMN) {
+      reason = "LAST input does not belong to the scan";
+      goto _return;
+    }
+    if (pValue->tableHasPk != pFunc->hasPk) {
+      reason = "LAST primary-key parameters do not match the table";
+      goto _return;
+    }
+    if (pFunc->funcType == FUNCTION_TYPE_LAST) {
+      hasLast = true;
+    } else if (pFunc->funcType == FUNCTION_TYPE_LAST_ROW) {
+      hasLastRow = true;
+    } else if (pFunc->funcType == FUNCTION_TYPE_LAST_PARTIAL) {
+      if (fmIsIgnoreNullFunc(pFunc->funcId)) {
+        hasLast = true;
+      } else {
+        hasLastRow = true;
+      }
+    }
+  }
+  if (hasLastRow &&
+      nodeType(pScan->node.pParent) != QUERY_NODE_LOGIC_PLAN_AGG) {
+    reason = "LAST_ROW requires direct aggregation";
+    goto _return;
   }
 
   int32_t nonPrimaryColNum = 0;
@@ -523,22 +734,27 @@ static bool scanPathOptCanUseLastOnlyScan(const SScanLogicNode* pScan) {
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId || pCol->isPk || pCol->isPrimTs) {
       continue;
     }
-    if (!scanPathOptLastOnlyScanHasColumn(pFuncs, pCol)) {
+    if (!scanPathOptLastOnlyScanHasColumn(pFuncs, pCol) &&
+        !lastScanFilterHasColumn(pScan->node.pConditions, pCol)) {
       reason = "data column not consumed by LAST()";
       goto _return;
     }
     nonPrimaryColNum += 1;
   }
 
-  canUse = nonPrimaryColNum > 0;
-  if (!canUse) {
+  if (nonPrimaryColNum > 0) {
+    scanType = hasLast && hasLastRow ? LAST_SCAN_MIXED :
+               hasLast ? LAST_SCAN_LAST_ONLY :
+               hasLastRow ? LAST_SCAN_LAST_ROW_ONLY : LAST_SCAN_NONE;
+  } else {
     reason = "no non-primary column consumed by LAST()";
   }
 
 _return:
-  planDebug("last-only scan judgement: tableId:0x%" PRIx64 ", lastOnlyScan:%d, reason:%s", pScan ? pScan->tableId : 0,
-            canUse, reason ? reason : "eligible");
-  return canUse;
+  planDebug("last scan judgement: tableId:0x%" PRIx64
+            ", type:%d, reason:%s", pScan ? pScan->tableId : 0,
+            scanType, reason ? reason : "eligible");
+  return scanType;
 }
 
 static bool scanPathOptIsSpecifiedFuncType(const SFunctionNode* pFunc, bool (*typeCheckFn)(int32_t)) {
@@ -784,7 +1000,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
 
   if (!alignScan) {
     scanPathOptSetGroupOrderScan(info.pScan);
-    info.pScan->lastOnlyScan = scanPathOptCanUseLastOnlyScan(info.pScan);
+    info.pScan->lastScanType = LAST_SCAN_NONE;
 
     if (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs) {
       info.pScan->dataRequired = scanPathOptGetDataRequired(info.pSdrFuncs);
@@ -792,7 +1008,7 @@ static int32_t scanPathOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
       info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
     }
   } else {
-    info.pScan->lastOnlyScan = false;
+    info.pScan->lastScanType = LAST_SCAN_NONE;
   }
 
   if (nodeType(info.pScan->node.pParent) == QUERY_NODE_LOGIC_PLAN_VIRTUAL_TABLE_SCAN) {
@@ -28262,6 +28478,21 @@ static int32_t pruneTemporalInputTargets(SLogicNode* pNode,
   return code;
 }
 
+static void finalizeLastScanType(SLogicNode* pNode) {
+  if (pNode == NULL) return;
+  if (nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    SScanLogicNode* pScan = (SScanLogicNode*)pNode;
+    pScan->lastScanType = LAST_SCAN_NONE;
+    if (pScan->scanType == SCAN_TYPE_TABLE && !scanContainsAlign(pScan)) {
+      pScan->lastScanType = scanPathOptLastScanType(pScan);
+    }
+  }
+  SNode* pChild = NULL;
+  FOREACH(pChild, pNode->pChildren) {
+    finalizeLastScanType((SLogicNode*)pChild);
+  }
+}
+
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   planDestroyJoinPropsStore(pCxt);
   if (NULL != pLogicSubplan && pLogicSubplan->pushedDown) {
@@ -28281,6 +28512,9 @@ int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicSubplan* pLogicSubplan) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = planRebuildJoinInputProps(pCxt, pLogicSubplan->pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    finalizeLastScanType(pLogicSubplan->pNode);
   }
   return code;
 }

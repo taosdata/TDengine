@@ -1162,7 +1162,7 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(ratio);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   COPY_SCALAR_FIELD(dataRequired);
-  COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(lastScanType);
   COPY_SCALAR_FIELD(intervalLimit);
   COPY_SCALAR_FIELD(interval);
   COPY_SCALAR_FIELD(offset);
@@ -1847,7 +1847,7 @@ static int32_t physiTableScanCopy(const STableScanPhysiNode* pSrc, STableScanPhy
   CLONE_NODE_FIELD(pExtTimeRange);
   COPY_SCALAR_FIELD(ratio);
   COPY_SCALAR_FIELD(dataRequired);
-  COPY_SCALAR_FIELD(lastOnlyScan);
+  COPY_SCALAR_FIELD(lastScanType);
   COPY_SCALAR_FIELD(intervalLimit);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
   CLONE_NODE_LIST_FIELD(pGroupTags);
@@ -2127,6 +2127,11 @@ static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
   COPY_SCALAR_FIELD(dynTbname);
   COPY_SCALAR_FIELD(localBlockExchange);
   COPY_SCALAR_FIELD(execOnChildNode);
+  COPY_SCALAR_FIELD(subqueryDepsKnown);
+  if (pSrc->pSubqueryDeps) {
+    pDst->pSubqueryDeps = taosArrayDup(pSrc->pSubqueryDeps, NULL);
+    if (!pDst->pSubqueryDeps) return terrno;
+  }
   COPY_SCALAR_FIELD(userAppId);
   return TSDB_CODE_SUCCESS;
 }

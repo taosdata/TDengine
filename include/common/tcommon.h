@@ -233,6 +233,13 @@ typedef enum EScanPhase {
   SCAN_PHASE_COUNT,
 } EScanPhase;
 
+typedef enum ELastScanType {
+  LAST_SCAN_NONE = 0,
+  LAST_SCAN_LAST_ONLY = 1,
+  LAST_SCAN_LAST_ROW_ONLY = 2,
+  LAST_SCAN_MIXED = 3,
+} ELastScanType;
+
 typedef struct SDataBlockInfo {
   STimeWindow window;
   int32_t     rowSize;
@@ -244,6 +251,7 @@ typedef struct SDataBlockInfo {
   uint8_t     scanFlag;
   int8_t      scanPhase;  // EScanPhase serialized in the block flag segment
   bool        blankFill;
+  bool        lastScanCandidate;
   SValue      pks[2];
   SColumnDataAgg* pBlockAgg;  // borrowed block SMA for dynamic aggregate pruning; do not serialize or copy
   int32_t     smaSourceRows;  // source physical row count represented by a one-row SMA block; do not serialize
@@ -312,8 +320,10 @@ typedef struct SQueryTableDataCond {
   bool         notLoadData;  // response the actual data, not only the rows in the attribute of info.row of ssdatablock
   bool         cacheSttStatis;
   bool         mainFirst;  // scan external windows in MAIN/NEXT/PREV order
-  // A planner-proven LAST-only scan may discard clean-block rows before copying them.
-  bool         lastOnlyScan;
+  ELastScanType lastScanType;
+  bool          allowLastScanTail;
+  SArray*       pFilterInputColIds;
+  SArray*       pLastInputColIds;
   // Positive only for a planner-proven ordered single-primary-key scan with LIMIT and no OFFSET.
   int32_t      blockRowLimit;
 } SQueryTableDataCond;

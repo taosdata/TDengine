@@ -6815,9 +6815,9 @@ const char* queryPhaseStr(int32_t phase);
  *
  * <pOut> receives the payload only (no varstr length header) and <cap> is its
  * capacity in bytes. All tasks that fit are written; when the list does not
- * fit, the output is cut between two entries, never inside one. The number of
- * encoded entries is returned through <pBuilt> so the caller can report the
- * truncation. Returns the encoded payload length, or a negative error code. */
+ * fit, the output ends at an entry boundary and includes "...(+N)" for the
+ * omitted tasks when the marker fits. <pBuilt> counts only encoded tasks.
+ * Returns the encoded payload length, or a negative error code. */
 int32_t tFormatQuerySubStatus(const SArray *pSubDesc, int32_t subPlanNum, int64_t createTimeMs,
                               char *pOut, int32_t cap, int32_t *pBuilt);
 
