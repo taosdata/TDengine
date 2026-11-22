@@ -11536,9 +11536,15 @@ _exit:
 int32_t tDeserializeGetStreamCreateSqlReq(void* buf, int32_t bufLen, SGetStreamCreateSqlReq* pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
-  int32_t code = 0, lino = 0;
+  int32_t  code = 0, lino = 0;
+  char*    nameStr = NULL;
+  uint32_t wireLen = 0;
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->name));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&nameStr, &wireLen));
+  if (wireLen == 0 || wireLen > sizeof(pReq->name) || nameStr[wireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->name, nameStr, wireLen);
   tEndDecode(&decoder);
 _exit:
   if (code) uError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
