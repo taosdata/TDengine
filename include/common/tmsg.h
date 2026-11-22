@@ -1853,7 +1853,30 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pSchema->flags));
   TAOS_CHECK_RETURN(tDecodeI32v(pDecoder, &pSchema->bytes));
   TAOS_CHECK_RETURN(tDecodeI16v(pDecoder, &pSchema->colId));
-  TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pSchema->name));
+
+  // tEncodeSSchema() -> tEncodeCStr() writes strlen(name) + 1 bytes, so a legitimate column
+  // name is at most sizeof(name) - 1 chars followed by a NUL. Require that terminator
+  // explicitly: tDecodeCStrToN() only enforces a NUL when the payload is longer than the
+  // destination, so a field of exactly sizeof(name) bytes would fill the array with no
+  // terminator. name is the last member of the packed SSchema, so the later
+  // tEncodeSSchema() -> strlen() would then read past the schema heap block.
+  char*    pColName = NULL;
+  uint32_t colNameLen = 0;  // decoded string length, excluding the terminating '\0'
+  TAOS_CHECK_RETURN(tDecodeCStrAndLen(pDecoder, &pColName, &colNameLen));
+  // An empty name is a valid wire form: tEncodeCStr(NULL) emits L == 0 and
+  // tEncodeSSchema() -> tEncodeCStr("") emits L == 1 + '\0'. The decoder does not enforce a
+  // non-empty name here -- that is a semantic check for the table-creation paths. Accept both
+  // as an empty string without reading pColName: for L == 0 it points at (or, when this is the
+  // last field, one past) the decoded region and carries no payload byte (same as
+  // tDecodeCStrToFixed()).
+  if (colNameLen == 0) {
+    pSchema->name[0] = '\0';
+    return 0;
+  }
+  if (colNameLen >= sizeof(pSchema->name) || pColName[colNameLen] != '\0') {
+    TAOS_RETURN(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pSchema->name, pColName, colNameLen + 1);
   return 0;
 }
 
