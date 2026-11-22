@@ -1481,6 +1481,12 @@ static int32_t translateOutBigInt(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateOutInt(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes, .type = TSDB_DATA_TYPE_INT};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateSqlWindowValue(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   FUNC_ERR_RET(validateParam(pFunc, pErrBuf, len));
   pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
@@ -9589,6 +9595,30 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
                      MYSQL_TIME_DATE_TYPES, 0),
   MYSQL_TIME_BUILTIN("yearweek", FUNCTION_TYPE_MYSQL_YEARWEEK, 1, 2,
                      MYSQL_TIME_DATE_TYPES, MYSQL_TIME_MODE_TYPES),
+  {
+    .name = "strcmp",
+    .type = FUNCTION_TYPE_STRCMP,
+    .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
+    // Intentionally not pushed down: STRCMP uses binary comparison, while remote
+    // MySQL STRCMP follows the column collation, so results could differ.
+    .fqPushCap = FQ_CAP_NONE,
+    .parameters = {.minParamNum = 2,
+                   .maxParamNum = 2,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 2,
+                                           .validDataType = FUNC_PARAM_SUPPORT_VARCHAR_TYPE | FUNC_PARAM_SUPPORT_NCHAR_TYPE | FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_INT_TYPE}},
+    .translateFunc = translateOutInt,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = strcmpFunction,
+    .finalizeFunc = NULL
+  },
 };
 // clang-format on
 #undef MYSQL_TIME_BUILTIN

@@ -163,6 +163,7 @@ int32_t sm4DeFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOut
 int32_t charFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t asciiFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t strcmpFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t trimFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t replaceFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t repeatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

@@ -961,7 +961,8 @@ static int32_t trimHelper(char *orgStr, char *remStr, int32_t orgLen, int32_t re
 }
 
 static int32_t convVarcharToNchar(char *input, char **output, int32_t inputLen, int32_t *outputLen, void *charsetCxt) {
-  *output = taosMemoryCalloc(inputLen * TSDB_NCHAR_SIZE, 1);
+  // allocate at least one byte so an empty input never depends on calloc(0, 1) returning non-NULL
+  *output = taosMemoryCalloc(inputLen > 0 ? inputLen * TSDB_NCHAR_SIZE : 1, 1);
   if (NULL == *output) {
     return terrno;
   }
@@ -3031,6 +3032,89 @@ int32_t positionFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
       taosMemoryFree(substr);
     }
     colDataSetInt64(pOutput->columnData, i, &offset);
+  }
+
+  pOutput->numOfRows = numOfRows;
+  return code;
+}
+
+static int32_t strcmpBytes(const char *a, int32_t aLen, const char *b, int32_t bLen) {
+  int32_t minLen = TMIN(aLen, bLen);
+  int32_t r = (minLen > 0) ? memcmp(a, b, minLen) : 0;
+  if (r == 0) {
+    r = (aLen < bLen) ? -1 : ((aLen > bLen) ? 1 : 0);
+  }
+  return r < 0 ? -1 : (r > 0 ? 1 : 0);
+}
+
+static int32_t strcmpUcs4(const TdUcs4 *a, int32_t aLen, const TdUcs4 *b, int32_t bLen) {
+  int32_t minLen = TMIN(aLen, bLen);
+  for (int32_t i = 0; i < minLen; ++i) {
+    if (a[i] != b[i]) {
+      return (uint32_t)a[i] < (uint32_t)b[i] ? -1 : 1;
+    }
+  }
+  return (aLen < bLen) ? -1 : ((aLen > bLen) ? 1 : 0);
+}
+
+int32_t strcmpFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  int32_t          code = TSDB_CODE_SUCCESS;
+  SColumnInfoData *pOutputData = pOutput[0].columnData;
+  int32_t          numOfRows = TMAX(pInput[0].numOfRows, pInput[1].numOfRows);
+  int32_t          type0 = GET_PARAM_TYPE(&pInput[0]);
+  int32_t          type1 = GET_PARAM_TYPE(&pInput[1]);
+
+  if (IS_NULL_TYPE(type0) || IS_NULL_TYPE(type1)) {
+    colDataSetNNULL(pOutputData, 0, numOfRows);
+    pOutput->numOfRows = numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnInfoData *pData0 = pInput[0].columnData;
+  SColumnInfoData *pData1 = pInput[1].columnData;
+  bool             mixed = (type0 != type1);
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    int32_t idx0 = (pInput[0].numOfRows == 1) ? 0 : i;
+    int32_t idx1 = (pInput[1].numOfRows == 1) ? 0 : i;
+    if (colDataIsNull_s(pData0, idx0) || colDataIsNull_s(pData1, idx1)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char   *p0 = colDataGetData(pData0, idx0);
+    char   *p1 = colDataGetData(pData1, idx1);
+    char   *s0 = varDataVal(p0);
+    char   *s1 = varDataVal(p1);
+    int32_t l0 = varDataLen(p0);
+    int32_t l1 = varDataLen(p1);
+    char   *conv = NULL;
+    int32_t res = 0;
+
+    if (mixed) {
+      // convert the VARCHAR side to NCHAR, then compare by code point
+      // a zero-length VARCHAR is an empty NCHAR, no conversion needed
+      if (type0 == TSDB_DATA_TYPE_NCHAR) {
+        if (l1 > 0) {
+          code = convVarcharToNchar(s1, &conv, l1, &l1, pInput[1].charsetCxt);
+          s1 = conv;
+        }
+      } else {
+        if (l0 > 0) {
+          code = convVarcharToNchar(s0, &conv, l0, &l0, pInput[0].charsetCxt);
+          s0 = conv;
+        }
+      }
+      SCL_ERR_RET(code);
+    }
+
+    if (type0 == TSDB_DATA_TYPE_NCHAR || type1 == TSDB_DATA_TYPE_NCHAR) {
+      res = strcmpUcs4((TdUcs4 *)s0, l0 / TSDB_NCHAR_SIZE, (TdUcs4 *)s1, l1 / TSDB_NCHAR_SIZE);
+    } else {
+      res = strcmpBytes(s0, l0, s1, l1);
+    }
+    taosMemoryFree(conv);
+    colDataSetInt32(pOutputData, i, &res);
   }
 
   pOutput->numOfRows = numOfRows;
