@@ -21587,6 +21587,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrToN(pCoder, pReq->comment, pReq->commentLen + 1));
+    // metaCreateNormalTable() copies comment/commentLen into SMetaEntry as-is, and the apply path
+    // persists it with tEncodeCStr() (strlen), which walks past the exact-size heap allocation when
+    // the payload has no terminator (CWE-125). Require the '\0' to live inside the allocation.
+    if (memchr(pReq->comment, '\0', (size_t)pReq->commentLen + 1) == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
 
   if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
