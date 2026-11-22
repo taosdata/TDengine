@@ -22779,11 +22779,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesMeasurementName, NULL));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->seriesTagCondLen));
       if (pReq->seriesTagCondLen > 0) {
-        pReq->seriesTagCondJson = taosMemoryMalloc(pReq->seriesTagCondLen + 1);
-        if (pReq->seriesTagCondJson == NULL) {
-          TAOS_CHECK_EXIT(terrno);
+        uint64_t tagCondSize = 0;
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesTagCondJson, &tagCondSize));
+        // metaAddTableSeries() copies this buffer with taosStrdup() (allocating strlen + 1 bytes) and
+        // stores the declared seriesTagCondLen, which the persistence path later feeds to
+        // tEncodeBinary(tagCondJson, tagCondLen). The blob must therefore be exactly the declared
+        // number of bytes and terminate at its last byte: an embedded '\0' would shrink the
+        // taosStrdup allocation below tagCondLen and re-open the out-of-bounds read.
+        if (tagCondSize != (uint64_t)pReq->seriesTagCondLen ||
+            strlen(pReq->seriesTagCondJson) + 1 != tagCondSize) {
+          taosMemoryFreeClear(pReq->seriesTagCondJson);
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
         }
-        TAOS_CHECK_EXIT(tDecodeCStrToN(pDecoder, pReq->seriesTagCondJson, pReq->seriesTagCondLen + 1));
       }
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:
