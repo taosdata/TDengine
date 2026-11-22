@@ -5168,7 +5168,13 @@ int32_t tDeserializeSMDropStreamReq(void *buf, int32_t bufLen, SMDropStreamReq *
       goto _exit;
     }
     for (int32_t i = 0; i < pReq->count; i++) {
-      TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name[i], NULL));
+      // Stream names are consumed with strlen() downstream (sdbGetkeySize), so require the
+      // terminator to be part of the payload and reject empty names.
+      uint64_t nameLen = 0;
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void**)&pReq->name[i], &nameLen));
+      if (nameLen == 0) {
+        TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      }
     }
   }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
@@ -5581,7 +5587,13 @@ int32_t tDeserializeSMPauseStreamReq(void *buf, int32_t bufLen, SMPauseStreamReq
 
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
+  // Stream names are consumed with strlen() downstream (sdbGetkeySize), so require the
+  // terminator to be part of the payload and reject empty names.
+  uint64_t nameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void**)&pReq->name, &nameLen));
+  if (nameLen == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   if (!tDecodeIsEnd(&decoder)) {
     TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->txnId));
@@ -5630,7 +5642,13 @@ int32_t tDeserializeSMResumeStreamReq(void *buf, int32_t bufLen, SMResumeStreamR
 
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
+  // Stream names are consumed with strlen() downstream (sdbGetkeySize), so require the
+  // terminator to be part of the payload and reject empty names.
+  uint64_t nameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void**)&pReq->name, &nameLen));
+  if (nameLen == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igNotExists));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->igUntreated));
   if (!tDecodeIsEnd(&decoder)) {
@@ -5681,7 +5699,13 @@ int32_t tDeserializeSMRecalcStreamReq(void *buf, int32_t bufLen, SMRecalcStreamR
   tDecoderInit(&decoder, buf, bufLen);
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
 
-  TAOS_CHECK_EXIT(tDecodeBinaryAlloc(&decoder, (void**)&pReq->name, NULL));
+  // Stream names are consumed with strlen() downstream (sdbGetkeySize), so require the
+  // terminator to be part of the payload and reject empty names.
+  uint64_t nameLen = 0;
+  TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(&decoder, (void**)&pReq->name, &nameLen));
+  if (nameLen == 0) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->calcAll));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeRange.skey));
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->timeRange.ekey));
