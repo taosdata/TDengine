@@ -49,6 +49,7 @@ class TestCase:
         'ssAccessString'   : f"fs:baseDir={localSSPath}",
         'ssEnabled'        : 1,
         'ssUploadDelaySec' : 2,
+        'retentionSpeedLimitMB': 1,
     }
 
     @classmethod
@@ -2258,18 +2259,12 @@ class TestCase:
 
         # --- KILL TRIM: verify noperm denied on a live trim/retention ID ---
         tdSql.connect("root", "taosdata")
-        tdSql.execute("trim database d_oper_ktrim")
         tdSql.execute("use d_oper_ktrim")
-        tdSql.query("show retentions")
-        trim_rows = tdSql.queryResult
-        if trim_rows:
-            trim_id = trim_rows[0][0]
-            tdSql.connect("u_oper_noperm", self.test_pass)
-            time.sleep(2)
-            tdSql.error(f"kill retention {trim_id}", expectErrInfo="Insufficient privilege for operation", fullMatched=False)
-            # sysdba can kill it
-            tdSql.connect("u_oper_sysdba", self.test_pass)
-            tdSql.execute(f"kill retention {trim_id}")
+        tdSql.execute("create table d_oper_ktrim.workload "
+                      "(ts timestamp, payload binary(1024) encode 'disabled' compress 'disabled')")
+        self.ktrim_workload_ts = 1750046400000
+        self.check_kill_retention_privilege("u_oper_noperm", 0x0303)
+        self.check_kill_retention_privilege("u_oper_sysdba")
 
         # --- Cleanup ---
         tdSql.connect("root", "taosdata")
@@ -2281,6 +2276,59 @@ class TestCase:
         tdSql.execute("drop user u_oper_sysdba")
         tdSql.execute("drop user u_oper_owner")
         tdSql.execute("drop user u_oper_noperm")
+
+    def prepare_kill_retention_workload(self):
+        # Flush onto tier 0 before making the files eligible for tier 1.
+        # Fixed historical timestamps stay within KEEP but qualify for tier 1.
+        tdSql.execute("alter database d_oper_ktrim keep 36500")
+        payload = "x" * 1024
+        with etool.data_write_log():
+            for batch in range(16):
+                rows = " ".join(f"({self.ktrim_workload_ts + batch * 512 + row}, '{payload}')"
+                                for row in range(512))
+                tdSql.execute(f"insert into d_oper_ktrim.workload values {rows}")
+            tdSql.execute("flush database d_oper_ktrim")
+            # A second FLUSH waits for the first async commit before KEEP changes.
+            tdSql.execute("flush database d_oper_ktrim")
+        # Use a fresh fileset on every retry, including after a completed migration.
+        self.ktrim_workload_ts += 10 * 86400000
+        tdSql.execute("alter database d_oper_ktrim keep 30d,36500d")
+
+    def check_kill_retention_privilege(self, username, expected_errno=None):
+        connection = taos.connect(user=username, password=self.test_pass)
+        try:
+            cursor = connection.cursor()
+            try:
+                for attempt in range(5):
+                    tdSql.query("show d_oper_ktrim.retentions")
+                    if not tdSql.queryResult:
+                        # 8 MiB without compression takes several seconds to migrate
+                        # at retentionSpeedLimitMB=1, keeping the task alive for KILL.
+                        self.prepare_kill_retention_workload()
+                        tdSql.execute("trim database d_oper_ktrim")
+                        tdSql.query("show d_oper_ktrim.retentions")
+                    if not tdSql.queryResult:
+                        continue
+                    trim_id = tdSql.queryResult[0][0]
+                    try:
+                        cursor.execute(f"kill retention {trim_id}")
+                    except taos.Error as error:
+                        errno = error.errno & 0xFFFF
+                        if expected_errno is not None and errno == expected_errno:
+                            tdLog.info(f"{username}: kill retention {trim_id} denied as expected: {error}")
+                            return
+                        if errno == 0x04CA:
+                            tdLog.info(f"retention {trim_id} completed before kill, attempt {attempt + 1}/5: {error}")
+                            continue
+                        raise
+                    if expected_errno is not None:
+                        tdLog.exit(f"{username}: kill retention {trim_id} unexpectedly succeeded")
+                    return
+                tdLog.exit(f"{username}: could not check KILL RETENTION privilege against a live task in 5 attempts")
+            finally:
+                cursor.close()
+        finally:
+            connection.close()
 
     def do_check_createdb_owner_immediate_create(self):
         """TS-7067421011: CREATE DATABASE owner must be able to auto-create tables
