@@ -349,8 +349,13 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);
@@ -459,8 +464,13 @@ static int32_t dmProcessAlterNodeTypeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     if (code == 0) {
       code = dmStartNode(pWrapper);
     }
-    pWrapper->deployed = true;
-    pWrapper->required = true;
+    // dmOpenNode() publishes pMgmt and marks the wrapper deployed only after a
+    // successful open. Do not force `deployed` here: a failed create/alter would
+    // otherwise leave a deployed wrapper with a NULL management handle, and the
+    // next sync message would dereference it (see dmProcessNodeMsg).
+    if (code == 0) {
+      pWrapper->required = true;
+    }
   }
 
   (void)taosThreadMutexUnlock(&pDnode->mutex);

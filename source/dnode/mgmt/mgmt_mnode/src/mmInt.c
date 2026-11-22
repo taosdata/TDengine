@@ -165,7 +165,11 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
   SMnodeOpt option = {0};
   if ((code = mmReadFile(pMgmt->path, &option)) != 0) {
     dError("failed to read file since %s", tstrerror(code));
-    mmClose(pMgmt);
+    // startFp must not free the management handle: once mmOpen() returns it via
+    // SMgmtOutputOpt, the owning wrapper releases it through closeFp (dmCloseNode ->
+    // mmClose). Freeing it here would leave the wrapper's pMgmt dangling while the
+    // wrapper is still `deployed`, so later messages would dereference freed memory
+    // in mmAcquire().
     return code;
   }
   if ((code = mndStart(pMgmt->pMnode)) != 0) {

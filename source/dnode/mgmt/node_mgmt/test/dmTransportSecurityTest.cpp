@@ -98,6 +98,7 @@ class DmTransportSecurityTest : public testing::Test {
   SDnode  node = {};
   int32_t savedRpcThreads = 0;
   int64_t savedQueueMemoryAllowed = 0;
+  int     dummyMgmt = 0;
 
   void SetUp() override {
     registrations.clear();
@@ -117,6 +118,10 @@ class DmTransportSecurityTest : public testing::Test {
     auto& wrapper = node.wrappers[DNODE];
     wrapper.name = "transport-security-test";
     wrapper.pDnode = &node;
+    // dmProcessNodeMsg() now rejects a deployed wrapper whose pMgmt is still NULL. The normal
+    // routing cases under test need a valid dispatch, so publish a dummy management handle; the
+    // captureNodeQueue handler never dereferences it.
+    wrapper.pMgmt = &dummyMgmt;
     for (int32_t type : {TDMT_MND_STATUS_RSP, TDMT_MND_STREAM_HEARTBEAT_RSP, TDMT_DND_SERVER_STATUS}) {
       node.trans.msgHandles[TMSG_INDEX(type)].defaultNtype = DNODE;
       wrapper.msgFps[TMSG_INDEX(type)] = captureNodeQueue;

@@ -185,6 +185,7 @@ class StreamHeartbeatTest : public testing::Test {
   int32_t savedRpcThreads = 0;
   int32_t savedMgmtThreads = 0;
   int64_t savedQueueMemoryAllowed = 0;
+  int     dummyMgmt = 0;
   void    SetUp() override {
     registrations.clear();
     trackedBody = nullptr;
@@ -202,6 +203,10 @@ class StreamHeartbeatTest : public testing::Test {
     auto& wrapper = node.wrappers[DNODE];
     wrapper.name = "heartbeat-test";
     wrapper.pDnode = &node;
+    // dmProcessNodeMsg() now rejects a deployed wrapper whose pMgmt is still NULL. The normal
+    // routing cases under test need a valid dispatch, so publish a dummy management handle; the
+    // captureNodeQueue handler never dereferences it.
+    wrapper.pMgmt = &dummyMgmt;
     for (int32_t type : {TDMT_MND_STREAM_HEARTBEAT_RSP, TDMT_MND_STATUS_RSP, TDMT_STREAM_SYNC_CHECKPOINT_RSP,
                             TDMT_STREAM_TRIGGER_CALC}) {
       // Start from DNODE so a valid routing header must explicitly select SNODE.
@@ -282,6 +287,7 @@ TEST_F(StreamHeartbeatTest, RunnerRequestWithValidRoutingHeaderUsesSnodeQueue) {
   auto& wrapper = node.wrappers[SNODE];
   wrapper.name = "snode-routing-test";
   wrapper.pDnode = &node;
+  wrapper.pMgmt = &dummyMgmt;
   wrapper.msgFps[TMSG_INDEX(TDMT_STREAM_TRIGGER_CALC)] = captureNodeQueue;
 
   HeartbeatMessage request;

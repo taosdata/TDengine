@@ -42,11 +42,20 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     return code;
   }
   dInfo("node:%s, has been opened", pWrapper->name);
-  pWrapper->deployed = true;
 
+  // Publish the management handle before flagging the wrapper as deployed.
+  // dmProcessRpcMsg() dispatches a message as soon as dmMarkWrapper() observes
+  // `deployed`, and the node handlers dereference pWrapper->pMgmt without checking
+  // it. If `deployed` became visible first, a sync message (e.g. an mnode heartbeat
+  // or snapshot response arriving while `create mnode` is still opening the node)
+  // would dereference a NULL pMgmt and crash taosd. Writing both fields under the
+  // wrapper lock makes the reader's rdlock in dmMarkWrapper() order them.
+  (void)taosThreadRwlockWrlock(&pWrapper->lock);
   if (output.pMgmt != NULL) {
     pWrapper->pMgmt = output.pMgmt;
   }
+  pWrapper->deployed = true;
+  (void)taosThreadRwlockUnlock(&pWrapper->lock);
 
   dmReportStartup(pWrapper->name, "opened");
   return 0;
@@ -58,6 +67,14 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, start to start", pWrapper->name);
     if ((code = (*pWrapper->func.startFp)(pWrapper->pMgmt)) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, tstrerror(code));
+      // dmOpenNode() published pMgmt and marked the wrapper deployed before this call.
+      // startFp must not free the management handle (the wrapper owns it), so a failure
+      // here would otherwise leave the wrapper dispatchable with a half-started node,
+      // or with a dangling pMgmt if startFp tore itself down. Roll back the same way
+      // dmRunDnode() does when dmStartNodes() fails: stop and close the node so
+      // `deployed` is cleared and pMgmt is released exactly once via closeFp.
+      dmStopNode(pWrapper);
+      dmCloseNode(pWrapper);
       return code;
     }
     dDebug("node:%s, has been started", pWrapper->name);
