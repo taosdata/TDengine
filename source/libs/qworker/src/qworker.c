@@ -844,12 +844,27 @@ int32_t qwStartDynamicTaskNewExec(QW_FPARAMS_DEF, SQWTaskCtx *ctx, SQWMsg *qwMsg
 
   QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
 
+  // The running/in-queue decision must be made under ctx->lock together with
+  // the queryContinue arm: qwProcessCQuery's exit check reads queryContinue and
+  // switches the phase to POST_CQUERY under the same lock. Without this lock the
+  // fetch thread may observe PRE_CQUERY and arm queryContinue after the loop has
+  // already decided to exit with queryContinue==0 -- the new execution never
+  // starts, the pending fetch event is never answered and the fetching task
+  // (e.g. a vtable merge parent) waits forever. Mirrors qwProcessFetch's
+  // continue path, which already serializes on ctx->lock.
+  bool reQueue = false;
+  QW_LOCK(QW_WRITE, &ctx->lock);
   if (QW_QUERY_RUNNING(ctx)) {
     atomic_store_8((int8_t *)&ctx->queryContinue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started, continue running", ctx->dynExecId++);
   } else if (0 == atomic_load_8((int8_t *)&ctx->queryInQueue)) {
     atomic_store_8((int8_t *)&ctx->queryInQueue, 1);
     QW_TASK_DLOG("the %dth dynamic task exec started", ctx->dynExecId++);
+    reQueue = true;
+  }
+  QW_UNLOCK(QW_WRITE, &ctx->lock);
+
+  if (reQueue) {
     QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), &qwMsg->connInfo, ctx->taskType));
   }
 

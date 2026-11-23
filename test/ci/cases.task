@@ -552,6 +552,8 @@
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_vtb_ref -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_filter_vtb_ref -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_projection_timerange_filter_vtb_ref -Q 3
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb_merge_repeat.py::TestVtableQueryCrossDbStbMergeRepeat
+,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb_merge_repeat.py::TestVtableQueryCrossDbStbMergeRepeat -Q 3
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_interval_vtb_ref
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_session_vtb_ref
 ,,y,.,./ci/pytest.sh pytest cases/05-VirtualTables/04-Query/02-CrossDb/test_vtable_query_cross_db_stb.py::TestVTableQueryCrossDBStbRef::test_event_vtb_ref

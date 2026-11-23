@@ -3644,20 +3644,38 @@ int32_t dynProcessUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     goto _return;
   }
 
-  pScanResInfo->vtbScan.pRsp = taosMemoryMalloc(sizeof(SUseDbRsp));
+  // calloc (not malloc) so a failed/partial deserialize below leaves a
+  // zeroed struct: pVgroupInfos stays NULL and the cleanup in
+  // buildDbVgInfoMap (tFreeSUsedbRsp) never frees uninitialized pointers.
+  pScanResInfo->vtbScan.pRsp = taosMemoryCalloc(1, sizeof(SUseDbRsp));
   QUERY_CHECK_NULL(pScanResInfo->vtbScan.pRsp, code, lino, _return, terrno)
 
   code = tDeserializeSUseDbRsp(pMsg->pData, (int32_t)pMsg->len, pScanResInfo->vtbScan.pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
 
-  taosMemoryFreeClear(pMsg->pData);
-
-  code = tsem_post(&pScanResInfo->vtbScan.ready);
-  QUERY_CHECK_CODE(code, lino, _return);
-
-  return code;
 _return:
-  qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  taosMemoryFreeClear(pMsg->pData);
+  if (lino != 0) {
+    qError("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+    if (operator->pTaskInfo->code == TSDB_CODE_SUCCESS) {
+      operator->pTaskInfo->code = code;
+    }
+  }
+  // Post the ready semaphore on both success and failure so the waiter in
+  // buildDbVgInfoMap is never left blocked -- an error rsp (e.g. mnode busy or
+  // broken link during cross-db virtual_ref resolution) must wake the executor
+  // thread so the query fails fast instead of hanging the merge task forever.
+  // Same invariant as dynProcessVTagCondRsp.
+  int32_t postCode = tsem_post(&pScanResInfo->vtbScan.ready);
+  if (postCode != TSDB_CODE_SUCCESS) {
+    qError("%s failed to post vtb scan ready semaphore since %s", __func__, tstrerror(postCode));
+    if (operator->pTaskInfo->code == TSDB_CODE_SUCCESS) {
+      operator->pTaskInfo->code = postCode;
+    }
+    if (code == TSDB_CODE_SUCCESS) {
+      code = postCode;
+    }
+  }
   return code;
 }
 
@@ -3741,11 +3759,35 @@ static int32_t buildDbVgInfoMap(SOperatorInfo* pOperator, SMsgCb* pMsgCb, SName*
   pMsgSendInfo->fp = dynProcessUseDbRsp;
   pMsgSendInfo->requestId = pTaskInfo->id.queryId;
 
+  // asyncSendMsgToServer owns msgInfo.pData from this point on: it frees the
+  // buffer on every exit path (on success after copying it into the rpc
+  // buffer, on failure via destroySendMsgInfo), so drop the local reference
+  // to keep the _return cleanup from double-freeing it. Same handoff as
+  // fetchVtbCondGroup.
+  buf1 = NULL;
+
   code = asyncSendMsgToServer(pMsgCb->clientRpc, &pScanResInfo->vtbScan.epSet, NULL, pMsgSendInfo);
   QUERY_CHECK_CODE(code, lino, _return);
 
   code = tsem_wait(&pScanResInfo->vtbScan.ready);
   QUERY_CHECK_CODE(code, lino, _return);
+
+  // dynProcessUseDbRsp posts on failure as well: an error rsp (mnode busy,
+  // broken link, failed/partial deserialize) wakes this thread with the error
+  // recorded on pTaskInfo. Surface it and fail the query fast instead of
+  // consuming a NULL/partial rsp and hanging the merge task forever.
+  // Same post-wait check pattern as fetchVtbCondGroup.
+  if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    code = pTaskInfo->code;
+    lino = __LINE__;
+    goto _return;
+  }
+
+  if (NULL == pScanResInfo->vtbScan.pRsp) {
+    code = TSDB_CODE_QRY_INVALID_MSG;
+    lino = __LINE__;
+    goto _return;
+  }
 
   code = queryBuildUseDbOutput(output, pScanResInfo->vtbScan.pRsp);
   QUERY_CHECK_CODE(code, lino, _return);
@@ -3756,8 +3798,14 @@ _return:
      taosMemoryFree(buf1);
   }
   taosMemoryFree(pReq);
-  tFreeSUsedbRsp(pScanResInfo->vtbScan.pRsp);
-  taosMemoryFreeClear(pScanResInfo->vtbScan.pRsp);
+  if (pScanResInfo->vtbScan.pRsp != NULL) {
+    // dynProcessUseDbRsp leaves pRsp NULL when the useDb rsp carries an error
+    // code (mnode reports DB not exist / no privilege / broken link etc.),
+    // and this function may fail before any rsp arrived. tFreeSUsedbRsp
+    // dereferences its argument, so guard it like the other cleanup points.
+    tFreeSUsedbRsp(pScanResInfo->vtbScan.pRsp);
+    taosMemoryFreeClear(pScanResInfo->vtbScan.pRsp);
+  }
   return code;
 }
 
@@ -4915,7 +4963,12 @@ static int32_t getDbVgInfo(SOperatorInfo* pOperator, SName *name, SDBVgInfo **db
   QRY_PARAM_CHECK(dbVgInfo);
 
   if (find == NULL) {
-    output = taosMemoryMalloc(sizeof(SUseDbOutput));
+    // calloc (not malloc): buildDbVgInfoMap can fail before
+    // queryBuildUseDbOutput initializes the struct (e.g. the useDb rsp
+    // carries an error code), and _return's freeUseDbOutput dereferences
+    // pOut->dbVgroup -- a zeroed struct makes that cleanup a safe no-op
+    // instead of freeing a garbage pointer.
+    output = taosMemoryCalloc(1, sizeof(SUseDbOutput));
     QUERY_CHECK_NULL(output, code, line, _return, terrno);
     code = buildDbVgInfoMap(pOperator, pMsgCb, name, pTaskInfo, output);
     QUERY_CHECK_CODE(code, line, _return);

@@ -2983,17 +2983,24 @@ class TDCom:
                 if i == 1:
                     self.record_history_ts = ts_value
 
-    def generate_query_result_file(self, test_case, idx, sql):
+    def generate_query_result_file(self, test_case, idx, sql, timeout=None):
         self.query_result_file = f"./{test_case}.{idx}.csv"
         cfgPath = self.getClientCfgPath()
         # Construct command parameters to avoid platform compatibility issues
         cmd = ["taos", "-c", cfgPath, "-s", sql]
         try:
-            # Capture output
-            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", errors="ignore", shell=False)
+            # Capture output. The optional timeout bounds the CLI run so a
+            # query that never returns (e.g. a hung vtable merge task) fails
+            # fast with TimeoutExpired instead of stalling the whole case.
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    encoding="utf-8", errors="ignore", shell=False,
+                                    timeout=timeout)
             output = result.stdout.splitlines()
             tdLog.info(f"[PIPELINE] taos -s: rc={result.returncode} "
                        f"stdout_lines={len(output)} stderr={result.stderr[:200]!r}")
+        except subprocess.TimeoutExpired as e:
+            tdLog.error(f"taos command timed out after {timeout}s: {e}")
+            raise
         except Exception as e:
             tdLog.error(f"Failed to run taos command: {e}")
             output = []
