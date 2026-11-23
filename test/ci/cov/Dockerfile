@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-FROM python:3-slim
+FROM python:3.12.16-slim
 
 # Copy crontab file early for better layer caching
 COPY crontab /etc/cron.d/tdengine-coverage-cron
