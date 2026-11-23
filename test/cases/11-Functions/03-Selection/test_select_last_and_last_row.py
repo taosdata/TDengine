@@ -1036,6 +1036,47 @@ class TestFuncLast:
         tdSql.checkData(4, 0, "   -> Aggregate (functions=1 width=8 input_order=desc)")
         tdSql.checkData(6, 0, "         -> Last Row Scan on tt (columns=2 width=16)")
 
+    def test_last_row_binary_primary_key(self):
+        """Return the same last row for cache and table scans on a composite key.
+
+        1. Store different-length primary keys that share a timestamp and a zero byte.
+        2. Verify both scan plans and the reading selected by each.
+
+        Catalog:
+            - Function:Selection
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        db = "last_row_binary_pk"
+        tdSql.execute(f"create database {db} cachemodel 'both'")
+        try:
+            tdSql.execute(f"create table {db}.src(ts timestamp, encoded varchar(8), v int)")
+            tdSql.execute(f"insert into {db}.src values (1700000000001,'QQBa',1)(1700000000002,'QQBBQQ==',2)")
+            tdSql.execute(f"create table {db}.t(ts timestamp, k varchar(10) primary key, v int)")
+            tdSql.execute(
+                f"insert into {db}.t select cast(1700000000001 as timestamp), from_base64(encoded), v from {db}.src"
+            )
+            tdSql.query(f"select to_base64(k), v from {db}.t order by v")
+            tdSql.checkRows(2)
+            tdSql.checkData(0, 0, "QQBa")
+            tdSql.checkData(1, 0, "QQBBQQ==")
+            for condition, scan in (("", "Last Row Scan"), (" where ts=1700000000001", "Table Scan")):
+                sql = f"select last_row(v) from {db}.t{condition}"
+                tdSql.query("explain " + sql)
+                assert any(scan in row[0] for row in tdSql.queryResult), tdSql.queryResult
+                tdSql.query(sql)
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, 2)
+        finally:
+            tdSql.execute(f"drop database {db}")
+
     def test_last_blob_data_from_cache(self):
         """Last blob data from cache
         

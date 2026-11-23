@@ -3885,6 +3885,13 @@ function Sync-OracleClientToBin {
     }
 }
 
+function Initialize-OracleClient {
+    param([string]$Ver)
+    if (-not (Register-OracleOdbcDriver $Ver)) { return $false }
+    Sync-OracleClientToBin $Ver
+    return $true
+}
+
 function Ensure-Oracle {
     param([string]$Ver)
     if ($Ver -notin @('11g', '26ai')) {
@@ -3909,11 +3916,10 @@ function Ensure-Oracle {
     # native Windows Free installation, exactly as before.  The container is
     # local, so this check comes before the host split.
     if ($Ver -eq '11g' -and (Get-OracleDockerCommand)) {
-        if (-not (Register-OracleOdbcDriver $Ver)) {
+        if (-not (Initialize-OracleClient $Ver)) {
             $script:OverallOk = $false
             return
         }
-        Sync-OracleClientToBin $Ver
         if (-not (Start-OracleContainer $Ver)) {
             $script:OverallOk = $false
             return
@@ -3953,11 +3959,10 @@ function Ensure-Oracle {
     if (-not (Test-LocalHost $OracleHost)) {
         # The local Instant Client registration belongs to this host even when
         # the database itself runs elsewhere.
-        if (-not (Register-OracleOdbcDriver $Ver)) {
+        if (-not (Initialize-OracleClient $Ver)) {
             $script:OverallOk = $false
             return
         }
-        Sync-OracleClientToBin $Ver
         if (Test-OraclePortOpen $OracleHost $port) {
             Info "Oracle ${Ver}: remote instance at ${OracleHost}:${port} is reachable (no install or reset on a shared host)."
             return
@@ -4022,11 +4027,10 @@ function Ensure-Oracle {
         $script:OverallOk = $false
         return
     }
-    if (-not (Register-OracleOdbcDriver $Ver)) {
+    if (-not (Initialize-OracleClient $Ver)) {
         $script:OverallOk = $false
         return
     }
-    Sync-OracleClientToBin $Ver
 
     if ($quick) {
         Info "Oracle ${Ver}: quick restart complete (data preserved)."
@@ -4168,6 +4172,10 @@ if ($CliArgs.Count -gt 0) {
     $actionVer = ''
     if ($CliArgs.Count -ge 2) { $actionVer = [string]$CliArgs[1] }
     switch ($action) {
+        '--oracle-client' {
+            if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-client <version>"; exit 2 }
+            if (Initialize-OracleClient $actionVer) { exit 0 } else { exit 1 }
+        }
         '--oracle-exec' {
             if (-not $actionVer) { Err "usage: ensure_ext_env.ps1 --oracle-exec <version>"; exit 2 }
             if (Invoke-OracleExecAction $actionVer) { exit 0 } else { exit 1 }

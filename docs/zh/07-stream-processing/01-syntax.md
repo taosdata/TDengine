@@ -602,7 +602,7 @@ tag_definition:
 | 滑动触发 | _tcurrent_ts     | 本次触发的事件时间（精度同记录）     |
 | 滑动触发 | _tnext_ts        | 下一次触发的事件时间（精度同记录）   |
 | 窗口触发 | _twstart         | 本次触发窗口的起始时间戳            |
-| 窗口触发 | _twend           | 本次触发窗口的结束时间戳；`WINDOW_OPEN` 时，数据驱动窗口取窗口起始时间，时间窗口取已确定的窗口结束时间 |
+| 窗口触发 | _twend           | 本次触发窗口的结束时间戳。对单层、单一开始条件的事件窗口，若窗口整体的 `TRUE_FOR` 仅按时长过滤，`WINDOW_OPEN` 时取 `_twstart + 时长`。例如，`TRUE_FOR(1m, START(10s), END(10s))` 取 `_twstart + 1m`。其他数据驱动窗口开窗时取窗口起始时间，时间窗口取已确定的窗口结束时间。 |
 | 窗口触发 | `_tpre_wstart` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的起始时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
 | 窗口触发 | `_tpre_wend` | 本次事件触发时，同一触发分组中最近一个已关闭窗口的结束时间戳；尚无已关闭窗口时为 `NULL`。支持 `WINDOW_OPEN`、`WINDOW_CLOSE` 及两者组合 |
 | 窗口触发 | _twduration      | 本次触发窗口的持续时间，只适用于 `WINDOW_CLOSE` 触发使用   |

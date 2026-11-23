@@ -1856,7 +1856,13 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { ORDER_BY_EXPR_CODE_EXPR = 1, ORDER_BY_EXPR_CODE_ORDER, ORDER_BY_EXPR_CODE_NULL_ORDER };
+enum {
+  ORDER_BY_EXPR_CODE_EXPR = 1,
+  ORDER_BY_EXPR_CODE_ORDER,
+  ORDER_BY_EXPR_CODE_NULL_ORDER,
+  ORDER_BY_EXPR_CODE_WINDOW_KEY,
+  ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY
+};
 
 static int32_t orderByExprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SOrderByExprNode* pNode = (const SOrderByExprNode*)pObj;
@@ -1867,6 +1873,12 @@ static int32_t orderByExprNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, ORDER_BY_EXPR_CODE_NULL_ORDER, pNode->nullOrder);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isWindowKey) {
+    code = tlvEncodeBool(pEncoder, ORDER_BY_EXPR_CODE_WINDOW_KEY, true);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->isQueryPartitionKey) {
+    code = tlvEncodeBool(pEncoder, ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY, true);
   }
 
   return code;
@@ -1887,6 +1899,12 @@ static int32_t msgToOrderByExprNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case ORDER_BY_EXPR_CODE_NULL_ORDER:
         code = tlvDecodeEnum(pTlv, &pNode->nullOrder, sizeof(pNode->nullOrder));
+        break;
+      case ORDER_BY_EXPR_CODE_QUERY_PARTITION_KEY:
+        code = tlvDecodeBool(pTlv, &pNode->isQueryPartitionKey);
+        break;
+      case ORDER_BY_EXPR_CODE_WINDOW_KEY:
+        code = tlvDecodeBool(pTlv, &pNode->isWindowKey);
         break;
       default:
         break;
@@ -5215,6 +5233,7 @@ enum {
   PHY_WINDOW_FUNC_CODE_FUNCS,
   PHY_WINDOW_FUNC_CODE_FRAME,
   PHY_WINDOW_FUNC_CODE_EXPRS,
+  PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS,
 };
 
 static int32_t physiWindowFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -5235,6 +5254,9 @@ static int32_t physiWindowFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder)
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_WINDOW_FUNC_CODE_FRAME, nodeToMsg, pNode->pFrame);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->numValuePartitionKeys) {
+    code = tlvEncodeI32(pEncoder, PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS, pNode->numValuePartitionKeys);
   }
 
   return code;
@@ -5261,6 +5283,9 @@ static int32_t msgToPhysiWindowFuncNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_WINDOW_FUNC_CODE_FUNCS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pFuncs);
+        break;
+      case PHY_WINDOW_FUNC_CODE_VALUE_PARTITION_KEYS:
+        code = tlvDecodeI32(pTlv, &pNode->numValuePartitionKeys);
         break;
       case PHY_WINDOW_FUNC_CODE_FRAME:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pFrame);

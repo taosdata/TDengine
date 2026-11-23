@@ -614,16 +614,17 @@ bool transAsyncPoolIsEmpty(SAsyncPool* pool) {
   }
   return true;
 }
-int transAsyncSend(SAsyncPool* pool, queue* q) {
+// Send the async message to the specified slot.
+int transAsyncSendToIdx(SAsyncPool* pool, int32_t idx, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
     return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
   }
-  int idx = pool->index % pool->nAsync;
 
-  // no need mutex here
-  if (pool->index++ > pool->nAsync * 2000) {
-    pool->index = 0;
+  if (idx < 0 || idx >= pool->nAsync) {
+    tError("invalid async index:%d, nAsync:%d", idx, pool->nAsync);
+    return TSDB_CODE_INVALID_PARA;
   }
+
   uv_async_t* async = &(pool->asyncs[idx]);
   SAsyncItem* item = async->data;
 
@@ -642,6 +643,28 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   }
   return 0;
 }
+
+// Round-robin send; outputs the slot used so callers can keep related messages in the same slot.
+int transAsyncSendWithIdx(SAsyncPool* pool, queue* q, int32_t* pIdx) {
+  if (atomic_load_8(&pool->stop) == 1) {
+    return TSDB_CODE_RPC_ASYNC_MODULE_QUIT;
+  }
+
+  int idx = pool->index % pool->nAsync;
+
+  // no need mutex here
+  if (pool->index++ > pool->nAsync * 2000) {
+    pool->index = 0;
+  }
+
+  if (pIdx != NULL) {
+    *pIdx = idx;
+  }
+
+  return transAsyncSendToIdx(pool, idx, q);
+}
+
+int transAsyncSend(SAsyncPool* pool, queue* q) { return transAsyncSendWithIdx(pool, q, NULL); }
 
 void transCtxInit(STransCtx* ctx) {
   // init transCtx

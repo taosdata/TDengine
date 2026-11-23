@@ -53,6 +53,69 @@ std::string saveJson(const SNode* pNode) {
   return json;
 }
 
+template <typename WindowNode>
+void checkWindowPartitionEquality(ENodeType type) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(type, &raw));
+  NodePtr source(raw, nodesDestroyNode);
+  auto*   window = reinterpret_cast<WindowNode*>(source.get());
+  SNode*  col = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &col));
+  reinterpret_cast<SColumnNode*>(col)->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&window->pPartitionKeys, col));
+  window->numValuePartitionKeys = 1;
+
+  SNode* cloned = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(raw, &cloned));
+  NodePtr copy(cloned, nodesDestroyNode);
+  EXPECT_TRUE(nodesEqualNode(raw, cloned));
+  reinterpret_cast<WindowNode*>(cloned)->numValuePartitionKeys = 0;
+  EXPECT_FALSE(nodesEqualNode(raw, cloned));
+}
+
+TEST(PlanDecodeTest, WindowPartitionComparisonAffectsEquality) {
+  checkWindowPartitionEquality<SWindowFuncLogicNode>(QUERY_NODE_LOGIC_PLAN_WINDOW_FUNC);
+  checkWindowPartitionEquality<SWindowFuncPhysiNode>(QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC);
+}
+
+TEST(PlanDecodeTest, WindowPartitionComparisonSurvivesCloneAndWireFormats) {
+  SNode* raw = nullptr;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_WINDOW_FUNC, &raw));
+  NodePtr source(raw, nodesDestroyNode);
+  auto*   window = reinterpret_cast<SWindowFuncPhysiNode*>(source.get());
+  for (int i = 0; i < 2; ++i) {
+    SNode* col = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesMakeNode(QUERY_NODE_COLUMN, &col));
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesListMakeStrictAppend(&window->pPartitionKeys, col));
+  }
+
+  for (int count : {0, 1, 2}) {
+    window->numValuePartitionKeys = count;
+    auto check = [count](SNode* decoded) {
+      NodePtr result(decoded, nodesDestroyNode);
+      ASSERT_NE(nullptr, result.get());
+      const auto* copy = reinterpret_cast<const SWindowFuncPhysiNode*>(result.get());
+      EXPECT_EQ(2, LIST_LENGTH(copy->pPartitionKeys));
+      EXPECT_EQ(count, copy->numValuePartitionKeys);
+    };
+
+    SNode* decoded = nullptr;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesCloneNode(raw, &decoded));
+    check(decoded);
+    std::string json = saveJson(raw);
+    EXPECT_EQ(count != 0, json.find("NumValuePartitionKeys") != std::string::npos);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesStringToNode(json.c_str(), &decoded));
+    check(decoded);
+    char*   msg = nullptr;
+    int32_t len = 0;
+    ASSERT_EQ(TSDB_CODE_SUCCESS, nodesNodeToMsg(raw, &msg, &len));
+    int32_t code = nodesMsgToNode(msg, len, &decoded);
+    taosMemoryFree(msg);
+    ASSERT_EQ(TSDB_CODE_SUCCESS, code);
+    check(decoded);
+  }
+}
+
 struct JoinCase {
   EJoinType type;
   EJoinSubType subType;

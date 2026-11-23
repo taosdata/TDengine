@@ -206,6 +206,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Tags can only be applied to super tables and child tables";
     case TSDB_CODE_PAR_WINDOW_NOT_ALLOWED_FUNC:
       return "%s function is not supported in time window query";
+    case TSDB_CODE_PAR_INVALID_WINDOW_FUNC:
+      return "Window function is not allowed in this clause";
     case TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC:
       return "%s function is not supported in stream query";
     case TSDB_CODE_PAR_GROUP_BY_NOT_ALLOWED_FUNC:

@@ -50,6 +50,12 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
     TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
   }
 
+  // The dedicated RPC queue bypasses the handler registration in mndInitStream.
+  // A peer with existing tasks applies its normal heartbeat-error undeploy timeout.
+  if (tsDisableStream) {
+    TAOS_CHECK_EXIT(TSDB_CODE_MSG_NOT_PROCESSED);
+  }
+
   msg = POINTER_SHIFT(pReq->pCont, sizeof(SStreamMsgGrpHeader));
   len = pReq->contLen - (int32_t)sizeof(SStreamMsgGrpHeader);
 
@@ -66,7 +72,7 @@ int32_t mndProcessStreamHb(SRpcMsg *pReq) {
 
   // SECURITY: streamGId comes straight from the wire (tDecodeStreamHbMsg decodes an arbitrary
   // int32) and msmHandleStreamHbMsg uses it to index tCtx[threadNum] and the per-thread
-  // grpCtx/deployStm/actionStm arrays, which hold only STREAM_MAX_GROUP_NUM entries. An
+  // deployStm/actionStm arrays, which hold only STREAM_MAX_GROUP_NUM entries. An
   // out-of-range value would turn into an out-of-bounds heap write/dereference in the mnode,
   // so reject it here, before any array is indexed. The body gid must also match the grp header
   // gid, because the worker that runs this heartbeat is picked from the header gid alone
@@ -88,13 +94,15 @@ _exit:
   if (code) {
     msmEncodeStreamHbRsp(code, &pReq->info, &rsp, &rspMsg);
   }
-  
+
+  int32_t responseCode = rspMsg.code;
+  int32_t group = req.streamGId;
   mndStreamHbSendRsp(&pReq->info, &rspMsg);
   tDecoderClear(&decoder);
   tCleanupStreamHbMsg(&req, true);
   tFreeSMStreamHbRspMsg(&rsp);
 
-  mstDebug("end to process stream hb req msg, code:%d", code);
+  mstDebug("end to process stream hb req msg, gid:%d, response code:%d", group, responseCode);
 
   return code;
 }

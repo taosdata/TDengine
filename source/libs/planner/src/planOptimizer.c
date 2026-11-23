@@ -19475,13 +19475,11 @@ static bool fqCharKeyIsExact(const SNode* pExpr, const SScanLogicNode* pScan,
                              const SExtSourceCapability* pCap);
 static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot);
 
-// InfluxQL 1.8 has a separate expression grammar from DataFusion SQL.
-// Column roles come from the source metadata, never from TDengine's column id.
-static const SExtColumnDef* fqInflux18Column(const SNode* pExpr, const SScanLogicNode* pScan) {
+static const SExtColumnDef* fqScanColumnDef(const SNode* pExpr, const SScanLogicNode* pScan) {
   if (NULL == pExpr || QUERY_NODE_COLUMN != nodeType(pExpr) || NULL == pScan ||
       NULL == pScan->pExtTableNode) return NULL;
   const SExtTableMeta* pMeta = ((const SExtTableNode*)pScan->pExtTableNode)->pExtMeta;
-  if (NULL == pMeta) return NULL;
+  if (NULL == pMeta || NULL == pMeta->pCols) return NULL;
   const SColumnNode* pCol = (const SColumnNode*)pExpr;
   for (int32_t i = 0; i < pMeta->numOfCols; ++i) {
     if (0 == strcmp(pMeta->pCols[i].colName, pCol->colName)) return &pMeta->pCols[i];
@@ -19489,6 +19487,8 @@ static const SExtColumnDef* fqInflux18Column(const SNode* pExpr, const SScanLogi
   return NULL;
 }
 
+// InfluxQL 1.8 has a separate expression grammar from DataFusion SQL.
+// Column roles come from the source metadata, never from TDengine's column id.
 static bool fqInflux18TagKey(SNode* pExpr, const SScanLogicNode* pScan) {
   if (NULL != pExpr && QUERY_NODE_GROUPING_SET == nodeType(pExpr)) {
     SGroupingSetNode* pSet = (SGroupingSetNode*)pExpr;
@@ -19500,7 +19500,7 @@ static bool fqInflux18TagKey(SNode* pExpr, const SScanLogicNode* pScan) {
     if (FUNCTION_TYPE_GROUP_KEY != pFunc->funcType || LIST_LENGTH(pFunc->pParameterList) != 1) return false;
     pExpr = nodesListGetNode(pFunc->pParameterList, 0);
   }
-  const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+  const SExtColumnDef* pCol = fqScanColumnDef(pExpr, pScan);
   return NULL != pCol && pCol->isTag;
 }
 
@@ -19519,7 +19519,7 @@ static bool fqInflux18CompareLiteral(const SNode* pExpr, const SNode* pValue,
   if (!fqInflux18Literal(pValue)) return false;
   int32_t exprType = ((const SExprNode*)pExpr)->resType.type;
   int32_t valueType = ((const SExprNode*)pValue)->resType.type;
-  const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+  const SExtColumnDef* pCol = fqScanColumnDef(pExpr, pScan);
   if (NULL != pCol && pCol->isTag) {
     char* text = NULL;
     int32_t code = nodesInfluxQLValueString((const SValueNode*)pValue, &text);
@@ -19545,7 +19545,7 @@ static bool fqInflux18Arithmetic(SNode* pExpr, SScanLogicNode* pScan,
   int8_t exprType = ((SExprNode*)pExpr)->resType.type;
   if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &exprType)) return false;
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
-    const SExtColumnDef* pCol = fqInflux18Column(pExpr, pScan);
+    const SExtColumnDef* pCol = fqScanColumnDef(pExpr, pScan);
     return NULL != pCol && !pCol->isTag && !pCol->isPrimaryKey &&
            fqInflux18NumericType(((SExprNode*)pExpr)->resType.type);
   }
@@ -19608,7 +19608,7 @@ static bool fqInflux18Predicate(SNode* pExpr, SScanLogicNode* pScan,
     pLeft = pOp->pRight;
     pRight = pOp->pLeft;
   }
-  const SExtColumnDef* pCol = fqInflux18Column(pLeft, pScan);
+  const SExtColumnDef* pCol = fqScanColumnDef(pLeft, pScan);
   uint8_t role = NULL == pCol ? 2 : pCol->isPrimaryKey ? 4 : pCol->isTag ? 1 : 2;
   if (inOr && role == 4) return false;
   *pRoles |= role;
@@ -19644,7 +19644,7 @@ static bool fqInflux18Aggregate(const SFunctionNode* pFunc, SScanLogicNode* pSca
       !fqFuncIsPushable(pFunc->funcId, pCap->dialect, pOverlay) ||
       capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_FUNC, pFunc->functionName)) return false;
   SNode* pArg = nodesListGetNode(pFunc->pParameterList, 0);
-  const SExtColumnDef* pCol = fqInflux18Column(pArg, pScan);
+  const SExtColumnDef* pCol = fqScanColumnDef(pArg, pScan);
   if (NULL == pCol || pCol->isTag || pCol->isPrimaryKey) return false;
   int8_t type = ((SExprNode*)pArg)->resType.type;
   if (capDisabled(pCap, pOverlay, EXT_DEMOTE_KIND_TYPE, &type)) return false;
@@ -20005,6 +20005,77 @@ static bool fqAggIsPushdownable(const SLogicNode* pNode, SScanLogicNode* pScan,
 static bool fqLayerIsPushable(SLogicNode* pNode, SScanLogicNode* pScan, const SExtSourceCapability* pCap,
                               const SExtCapSessionOverlay* pOverlay, const SPlanContext* pPlanCxt);
 
+// Only direct inputs of this join scope can own a bound window key.
+static const SExtColumnDef* fqWindowColumnDef(const SLogicNode* pInput, const SColumnNode* pCol) {
+  if (pInput == NULL) return NULL;
+  if (nodeType(pInput) == QUERY_NODE_LOGIC_PLAN_SCAN) {
+    const SScanLogicNode* pScan = (const SScanLogicNode*)pInput;
+    if (pScan->pRemoteLogicPlan != NULL) {
+      return fqWindowColumnDef((const SLogicNode*)pScan->pRemoteLogicPlan, pCol);
+    }
+    const SExtTableNode* pTable = (const SExtTableNode*)pScan->pExtTableNode;
+    if (pTable == NULL || pCol->tableAlias[0] == '\0' || strcmp(pCol->tableAlias, pTable->table.tableAlias) != 0) {
+      return NULL;
+    }
+    int32_t idx = extFindColumnIndex(pTable->sourceType, pTable->pExtMeta, pCol->colName);
+    return idx < 0 ? NULL : &pTable->pExtMeta->pCols[idx];
+  }
+  if (nodeType(pInput) == QUERY_NODE_LOGIC_PLAN_JOIN) {
+    SNode* pChild = NULL;
+    FOREACH(pChild, pInput->pChildren) {
+      const SExtColumnDef* pDef = fqWindowColumnDef((const SLogicNode*)pChild, pCol);
+      if (pDef != NULL) return pDef;
+    }
+  }
+  return NULL;
+}
+
+static bool fqWindowSortKeyIsPushable(const SOrderByExprNode* pOrder, const SLogicNode* pInput,
+                                      const SExtSourceCapability* pCap) {
+  // A remote ORDER BY expression does not add its computed value to the scan output.
+  // The local window needs that value to identify peers and partition boundaries.
+  const SNode* pExpr = pOrder->pExpr;
+  if (nodeType(pExpr) != QUERY_NODE_COLUMN) return false;
+  const SColumnNode* pCol = (const SColumnNode*)pExpr;
+  int8_t             type = pCol->node.resType.type;
+  if (IS_INTEGER_TYPE(type) || IS_BOOLEAN_TYPE(type) || IS_DECIMAL_TYPE(type) || IS_TIMESTAMP_TYPE(type)) return true;
+
+  // Verify the bound native column before delegating a type-dependent comparison.
+  if ((!IS_FLOAT_TYPE(type) && type != TSDB_DATA_TYPE_VARBINARY && type != TSDB_DATA_TYPE_VARCHAR) || pCap == NULL ||
+      pCol->colId <= 0)
+    return false;
+  const SExtColumnDef* pDef = fqWindowColumnDef(pInput, pCol);
+  if (pDef == NULL) return false;
+  // Without an explicit null order the local window puts NULL last. PostgreSQL
+  // renders bare ASC/DESC; MySQL and the Oracle renderer put NULL last for DESC.
+  if (pDef->nullable && pOrder->nullOrder == NULL_ORDER_DEFAULT &&
+      (pCap->dialect == EXT_SQL_DIALECT_POSTGRES ? pOrder->order != ORDER_ASC : pOrder->order != ORDER_DESC))
+    return false;
+  switch (pCap->dialect) {
+    case EXT_SQL_DIALECT_MYSQL:
+      // Query-level partitions distinguish the two representations of zero.
+      if (IS_FLOAT_TYPE(type)) {
+        const char* native = type == TSDB_DATA_TYPE_FLOAT ? "float" : "double";
+        size_t      len = strlen(native);
+        return !pOrder->isQueryPartitionKey && strncasecmp(pDef->extTypeName, native, len) == 0 &&
+               (pDef->extTypeName[len] == '\0' || pDef->extTypeName[len] == '(' || pDef->extTypeName[len] == ' ');
+      }
+      return type == TSDB_DATA_TYPE_VARBINARY &&
+             (strncasecmp(pDef->extTypeName, "binary(", sizeof("binary(") - 1) == 0 ||
+              strncasecmp(pDef->extTypeName, "varbinary(", sizeof("varbinary(") - 1) == 0);
+    case EXT_SQL_DIALECT_POSTGRES:
+      return (type == TSDB_DATA_TYPE_VARBINARY && strcasecmp(pDef->extTypeName, "bytea") == 0) ||
+             (type == TSDB_DATA_TYPE_VARCHAR &&
+              (strcasecmp(pDef->extTypeName, "uuid") == 0 || strcasecmp(pDef->extTypeName, "macaddr") == 0 ||
+               strcasecmp(pDef->extTypeName, "macaddr8") == 0));
+    case EXT_SQL_DIALECT_ORACLE:
+      return type == TSDB_DATA_TYPE_VARBINARY &&
+             (strcasecmp(pDef->extTypeName, "RAW") == 0 || strncasecmp(pDef->extTypeName, "RAW(", 4) == 0);
+    default:
+      return false;
+  }
+}
+
 // Check if all sort keys in a Sort node are pushable expressions.
 // Allows simple column references and renderable function expressions.
 // When aboveAgg=true, colId==0 column references are permitted (they are
@@ -20032,7 +20103,7 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
     SNode* pKey = nodesListGetNode(pSort->pSortKeys, 0);
     if (QUERY_NODE_ORDER_BY_EXPR == nodeType(pKey)) pKey = ((SOrderByExprNode*)pKey)->pExpr;
     if (NULL == pKey || QUERY_NODE_COLUMN != nodeType(pKey)) return false;
-    const SExtColumnDef* pCol = fqInflux18Column(pKey, pScan);
+    const SExtColumnDef* pCol = fqScanColumnDef(pKey, pScan);
     return aboveAgg ? COLUMN_TYPE_WINDOW_START == ((SColumnNode*)pKey)->colType :
                      (NULL != pCol && pCol->isPrimaryKey);
   }
@@ -20041,12 +20112,14 @@ static bool fqSortAllKeysPushdownable(const SLogicNode* pNode, SScanLogicNode* p
   SNode*                pKey  = NULL;
   int32_t               kidx  = 0;
   FOREACH(pKey, pSort->pSortKeys) {
-    const SNode* pInner = pKey;
-    if (nodeType(pInner) == QUERY_NODE_ORDER_BY_EXPR) {
-      pInner = ((const SOrderByExprNode*)pInner)->pExpr;
-    }
+    const SOrderByExprNode* pOrder = nodeType(pKey) == QUERY_NODE_ORDER_BY_EXPR ? (const SOrderByExprNode*)pKey : NULL;
+    const SNode*            pInner = pOrder != NULL ? pOrder->pExpr : pKey;
     if (pInner == NULL) {
       planDebug("FQ-push: Sort NOT pushable - key[%d] expr is NULL", kidx);
+      return false;
+    }
+    if (pOrder != NULL && pOrder->isWindowKey && !fqWindowSortKeyIsPushable(pOrder, fqFirstChild(pNode), pCap)) {
+      planDebug("FQ-push: keep window sort local for key[%d]", kidx);
       return false;
     }
     // colId==0 indicates a synthetic/precalculated column - not pushable
@@ -27042,7 +27115,7 @@ static int32_t fqAlignRemoteRootTargetsForRender(SLogicNode* pRemoteRoot) {
   }
 
   SNodeList* pNewTargets = NULL;
-  code = createColumnByRemoteOutputExprs(outputs.pSelectExprs, &pNewTargets);
+  code = createRemoteOutputTargets(&outputs, &pNewTargets);
   if (TSDB_CODE_SUCCESS != code) {
     planError("FQ-remoteTargets: rebuild from shared outputs failed rootType=%d source=%d selectExprs=%d code=0x%x",
               (int)nodeType(pRemoteRoot), (int)outputs.source,
@@ -27351,7 +27424,7 @@ static int32_t fqCreateDockingTargets(SLogicNode* pRemoteRoot,
   SNodesRemoteSelectOutputs outputs = {0};
   int32_t code = nodesCollectRemoteQuerySelectOutputs(pRemoteRoot, &outputs);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByRemoteOutputExprs(outputs.pSelectExprs, ppTargets);
+    code = createRemoteOutputTargets(&outputs, ppTargets);
   }
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyRemoteSelectOutputs(&outputs);

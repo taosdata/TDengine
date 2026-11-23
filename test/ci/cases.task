@@ -330,6 +330,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_balancex.py -N 4 -C 1
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica1.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica2.py -N 5
+,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_query_no_hang.py -N 4
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_follower.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v1_leader.py -N 5
 ,,y,.,./ci/pytest.sh pytest cases/02-Databases/05-Sync/test_redistribute_vgroup_replica3_v3.py -N 8
@@ -953,6 +954,9 @@
 100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_missing_instant_client_uses_provider_error
 100,,n,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_19_runtime_libs.py::TestFq19RuntimeLibs::test_oracle_pool_disconnect_reconnects
 100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_24_wide_column_list.py
+100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_mysql_window_order.py
+100,,y,.,env FQ_REQUIRED_SERVICES=pg ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_pg_window_order.py
+100,,y,.,env FQ_REQUIRED_SERVICES=oracle ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_oracle_window_order.py
 
 ## 20-Charset
 ,,y,.,./ci/pytest.sh pytest cases/09-DataQuerying/20-Charset/test_query_client_charset.py
@@ -1075,6 +1079,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_unique.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_top.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_bottom.py
+,,y,.,./ci/pytest.sh pytest cases/11-Functions/03-Selection/test_fun_select_top_bottom_sma.py
 ## 04-Timeseries
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_bit_changes.py
 ,,y,.,./ci/pytest.sh pytest cases/11-Functions/04-Timeseries/test_fun_ts_csum.py
@@ -1848,6 +1853,9 @@
 
 # 73-TLS
 ,,y,.,./ci/pytest.sh pytest cases/73-TLS/test_tls.py
+
+# 74-Transport
+,,y,.,./ci/pytest.sh pytest cases/33-Transport/test_rpc_send_failure_close.py -N 3
 
 # 80-Components
 

@@ -2884,6 +2884,84 @@ TEST(StreamMsgTest, LegacyDecoderIgnoresV1Tail) {
   tCleanupStreamHbMsg(&input, true);
 }
 
+TEST(StreamMsgTest, SchemaReplyAckAndReaderEpochKeepLegacyTaskAndMetricsFramesReadable) {
+  SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
+  input.readerDeployEpoch = INT64_C(0x100000023);
+  input.readerRuntime = {29, INT64_C(0x100000024)};
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.pTaskMetrics = taosArrayInit(1, sizeof(SStreamTaskMetricsEntry));
+  SStreamTaskMetricsEntry metric = buildTriggerMetricEntry(1, 101, 202, 302);
+  ASSERT_NE(taosArrayPush(input.pTaskMetrics, &metric), nullptr);
+  auto* first = static_cast<SStmTaskStatusMsg*>(taosArrayGet(input.pStreamStatus, 0));
+  first->type = STREAM_TRIGGER_TASK;
+  first->ackedSchemaReqId = -1;
+  auto* trigger = static_cast<SStmTaskStatusMsg*>(taosArrayGet(input.pStreamStatus, 1));
+  trigger->type = STREAM_TRIGGER_TASK;
+  trigger->ackedSchemaReqId = INT64_C(0x100000002);
+  std::vector<char> bytes = encodeHeartbeat(input);
+  SDecoder          decoder = {};
+  SStreamHbMsg      legacy = {};
+  uint32_t          offset = 0;
+  tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+  ASSERT_EQ(decodeOldStreamHbMsg(&decoder, &legacy, &offset), 0);
+  EXPECT_EQ(decoder.pos, bytes.size());
+  EXPECT_EQ(legacy.streamGId, input.streamGId);
+  tDecoderClear(&decoder);
+
+  // The previous V1 encoder ended the outer frame at the end of its length-delimited metrics.
+  const size_t legacyEnd = offset + 2 * sizeof(int32_t) + readI32(bytes, offset + sizeof(int32_t));
+  ASSERT_LT(legacyEnd, bytes.size());
+  for (bool withAck : {true, false}) {
+    if (!withAck) {
+      bytes.resize(legacyEnd);
+      writeI32(&bytes, 0, static_cast<int32_t>(bytes.size() - sizeof(int32_t)));
+    }
+    SStreamHbMsg output = {};
+    tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+    ASSERT_EQ(tDecodeStreamHbMsg(&decoder, &output), 0);
+    EXPECT_EQ(decoder.pos, bytes.size());
+    const auto* firstReported = static_cast<const SStmTaskStatusMsg*>(taosArrayGet(output.pStreamStatus, 0));
+    ASSERT_NE(firstReported, nullptr);
+    EXPECT_EQ(firstReported->ackedSchemaReqId, withAck ? -1 : 0);
+    EXPECT_EQ(output.readerDeployEpoch, withAck ? input.readerDeployEpoch : 0);
+    EXPECT_EQ(output.readerRuntime.id, withAck ? input.readerRuntime.id : 0);
+    EXPECT_EQ(output.readerRuntime.challenge, withAck ? input.readerRuntime.challenge : 0);
+    const auto* reported = static_cast<const SStmTaskStatusMsg*>(taosArrayGet(output.pStreamStatus, 1));
+    ASSERT_NE(reported, nullptr);
+    EXPECT_EQ(reported->taskId, trigger->taskId);
+    EXPECT_EQ(reported->ackedSchemaReqId, withAck ? trigger->ackedSchemaReqId : 0);
+    const auto* entry = static_cast<const SStreamTaskMetricsEntry*>(taosArrayGet(output.pTaskMetrics, 0));
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->snapshot.logicalInputRows1m, metric.snapshot.logicalInputRows1m);
+    tDecoderClear(&decoder);
+    tCleanupStreamHbMsg(&output, true);
+  }
+  tCleanupStreamHbMsg(&input, true);
+}
+
+TEST(StreamMsgTest, UnknownReaderEpochVersionPreservesHeartbeatAndZeroEpochIsInvalid) {
+  SStreamHbMsg input = {};
+  input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
+  input.readerDeployEpoch = 23;
+  std::vector<char> bytes = encodeHeartbeat(input);
+  // The final v1 frame carries a fixed header followed by one 64-bit epoch.
+  const size_t frameSize = 2 * sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(int64_t);
+  ASSERT_GE(bytes.size(), frameSize);
+  const size_t frame = bytes.size() - frameSize;
+  ASSERT_EQ(STREAM_HB_READER_DEPLOY_EPOCH_MAGIC, readI32(bytes, frame));
+  for (uint16_t version : {2, 1}) {
+    memcpy(bytes.data() + frame + sizeof(uint32_t), &version, sizeof(version));
+    memset(bytes.data() + bytes.size() - sizeof(int64_t), 0, sizeof(int64_t));
+    SStreamHbMsg output = {};
+    SDecoder     decoder = {};
+    tDecoderInit(&decoder, reinterpret_cast<uint8_t*>(bytes.data()), static_cast<uint32_t>(bytes.size()));
+    EXPECT_EQ(version == 2 ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_MSG, tDecodeStreamHbMsg(&decoder, &output));
+    EXPECT_EQ(0, output.readerDeployEpoch);
+    tDecoderClear(&decoder);
+    tCleanupStreamHbMsg(&output, true);
+  }
+}
+
 TEST(StreamMsgTest, UnknownTailVersionIsSkippedByOuterLength) {
   SStreamHbMsg input = buildHeartbeatWithTwoTaskStatuses();
   input.observabilityVersion = STREAM_HB_OBSERVABILITY_VERSION_V1;
@@ -4721,6 +4799,8 @@ TEST(td_msg_test, stream_heartbeat_carries_ext_prefilter_ast_in_a_tail_frame) {
       {201, "mysql_t", nullptr},
   };
   SMStreamHbRspMsg rsp = {};
+  rsp.readerDeployEpoch = INT64_C(0x100000023);
+  rsp.readerRuntime = {51, INT64_C(0x100000026)};
   rsp.deploy.streamList = streamHbDeployList(100, readers);
   ASSERT_NE(rsp.deploy.streamList, nullptr);
 
@@ -4730,6 +4810,9 @@ TEST(td_msg_test, stream_heartbeat_carries_ext_prefilter_ast_in_a_tail_frame) {
   SMStreamHbRspMsg decoded = {};
   ASSERT_EQ(decodeStreamHbRsp(&buf, &decoded), 0);
   ASSERT_EQ((int32_t)taosArrayGetSize(decoded.deploy.streamList), 1);
+  EXPECT_EQ(rsp.readerDeployEpoch, decoded.readerDeployEpoch);
+  EXPECT_EQ(rsp.readerRuntime.id, decoded.readerRuntime.id);
+  EXPECT_EQ(rsp.readerRuntime.challenge, decoded.readerRuntime.challenge);
   auto* pStream = (SStmStreamDeploy*)taosArrayGet(decoded.deploy.streamList, 0);
   ASSERT_NE(pStream, nullptr);
   EXPECT_EQ(pStream->streamId, 100);
@@ -4751,11 +4834,16 @@ TEST(td_msg_test, stream_heartbeat_carries_ext_prefilter_ast_in_a_tail_frame) {
   auto* pOwnStream = (SStmStreamDeploy*)taosArrayGet(rsp.deploy.streamList, 0);
   SStmTaskDeploy* pOwnReader = (SStmTaskDeploy*)taosArrayGet(pOwnStream->readerTasks, 0);
   taosMemoryFreeClear(pOwnReader->msg.reader.pExtSpec->triggerPrefilterAst);
+  rsp.readerDeployEpoch = 0;
+  rsp.readerRuntime = {};
   buf.clear();
   ASSERT_EQ(encodeStreamHbRsp(&rsp, &buf), 0);
   SMStreamHbRspMsg legacy = {};
   ASSERT_EQ(decodeStreamHbRsp(&buf, &legacy), 0);
   ASSERT_EQ((int32_t)taosArrayGetSize(legacy.deploy.streamList), 1);
+  EXPECT_EQ(0, legacy.readerDeployEpoch);
+  EXPECT_EQ(0, legacy.readerRuntime.id);
+  EXPECT_EQ(0, legacy.readerRuntime.challenge);
   auto* pLegacyStream = (SStmStreamDeploy*)taosArrayGet(legacy.deploy.streamList, 0);
   ASSERT_EQ((int32_t)taosArrayGetSize(pLegacyStream->readerTasks), 2);
   auto* pLegacyReader = (SStmTaskDeploy*)taosArrayGet(pLegacyStream->readerTasks, 0);

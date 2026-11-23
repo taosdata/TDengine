@@ -699,6 +699,8 @@ static int32_t orderByExprNodeCopy(const SOrderByExprNode* pSrc, SOrderByExprNod
   CLONE_NODE_FIELD(pExpr);
   COPY_SCALAR_FIELD(order);
   COPY_SCALAR_FIELD(nullOrder);
+  COPY_SCALAR_FIELD(isWindowKey);
+  COPY_SCALAR_FIELD(isQueryPartitionKey);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1440,6 +1442,7 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
 }
 
 static int32_t logicWindowFuncCopy(const SWindowFuncLogicNode* pSrc, SWindowFuncLogicNode* pDst) {
+  COPY_SCALAR_FIELD(numValuePartitionKeys);
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pOrderKeys);
@@ -1932,6 +1935,7 @@ static int32_t physiWindowCopy(const SWindowPhysiNode* pSrc, SWindowPhysiNode* p
 
 static int32_t physiWindowFuncCopy(const SWindowFuncPhysiNode* pSrc, SWindowFuncPhysiNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, physiNodeCopy);
+  COPY_SCALAR_FIELD(numValuePartitionKeys);
   CLONE_NODE_LIST_FIELD(pExprs);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
   CLONE_NODE_LIST_FIELD(pOrderKeys);

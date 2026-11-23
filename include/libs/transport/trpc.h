@@ -206,6 +206,19 @@ int32_t rpcSendResponse(const SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int32_t rpcReleaseHandle(void *handle, int8_t type, int32_t code);  // just release conn to rpc instance, no close sock
 
+/**
+ * Synchronously close the physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t rpcCloseConnSync(void* handle);
+
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 int32_t rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
@@ -404,6 +417,19 @@ int32_t rpcSendResponse(SRpcMsg *pMsg);
 int32_t rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 int32_t rpcReleaseHandle(void *handle, int8_t type,
                          int32_t status);  // just release conn to rpc instance, no close sock
+
+/**
+ * Synchronously close the physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t rpcCloseConnSync(void* handle);
 
 // These functions will not be called in the child process
 int32_t rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);

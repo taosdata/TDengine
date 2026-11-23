@@ -192,7 +192,7 @@ int32_t createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortN
   pInfo->binfo.pRes = createDataBlockFromDescNode(pDescNode);
   QUERY_CHECK_NULL(pInfo->binfo.pRes, code, lino, _error, terrno);
 
-  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
+  pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys, false);
   TSDB_CHECK_NULL(pInfo->pSortInfo, code, lino, _error, terrno);
   pInfo->tsPkSort = sortHasTsPkStorageOrder(pSortNode->pSortKeys);
   pInfo->inputOrderedBySortKeys = pSortNode->inputOrderedBySortKeys;
@@ -1392,7 +1392,7 @@ int32_t createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNo
                              &pInfo->matchInfo);
   TSDB_CHECK_CODE(code, lino, _error);
 
-  pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
+  pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys, false);
   initLimitInfo(pSortPhyNode->node.pLimit, pSortPhyNode->node.pSlimit, &pInfo->limitInfo);
   setOperatorInfo(pOperator, "GroupSortOperator", QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT, false, OP_NOT_OPENED, pInfo,
                   pTaskInfo);

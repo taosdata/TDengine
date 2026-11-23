@@ -5237,7 +5237,20 @@ int32_t tDeserializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  // pReq->user is a fixed-size array that the handler uses as a NUL-terminated C string (mTrace
+  // %s, then mndAcquireUser() -> sdbGetkeySize() -> strlen()), so the wire payload must carry its
+  // NUL terminator; otherwise that walk runs past the end of the array (CWE-125). wireLen == 0
+  // also covers an empty encoding, for which tDecodeBinary() yields a one-past-end pointer that
+  // must not be dereferenced.
+  {
+    char    *userStr = NULL;
+    uint32_t userWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&userStr, &userWireLen));
+    if (userWireLen == 0 || userWireLen > sizeof(pReq->user) || userStr[userWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    TAOS_MEMCPY(pReq->user, userStr, userWireLen);
+  }
   tEndDecode(&decoder);
 
 _exit:
@@ -11291,10 +11304,16 @@ int32_t tDeserializeSDbCfgReq(void *buf, int32_t bufLen, SDbCfgReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char*    dbStr = NULL;
+  uint32_t dbWireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&dbStr, &dbWireLen));
+  if (dbWireLen == 0 || dbWireLen > sizeof(pReq->db) || dbStr[dbWireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->db, dbStr, dbWireLen);
   tEndDecode(&decoder);
 
 _exit:
@@ -12251,10 +12270,16 @@ int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pR
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char    *tbStr = NULL;
+  uint32_t tbWireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbFName));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&tbStr, &tbWireLen));
+  if (tbWireLen == 0 || tbWireLen > sizeof(pReq->tbFName) || tbStr[tbWireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->tbFName, tbStr, tbWireLen);
   tEndDecode(&decoder);
 
 _exit:
@@ -21587,6 +21612,12 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
       TAOS_CHECK_EXIT(terrno);
     }
     TAOS_CHECK_EXIT(tDecodeCStrToN(pCoder, pReq->comment, pReq->commentLen + 1));
+    // metaCreateNormalTable() copies comment/commentLen into SMetaEntry as-is, and the apply path
+    // persists it with tEncodeCStr() (strlen), which walks past the exact-size heap allocation when
+    // the payload has no terminator (CWE-125). Require the '\0' to live inside the allocation.
+    if (memchr(pReq->comment, '\0', (size_t)pReq->commentLen + 1) == NULL) {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
   }
 
   if (pReq->type == TSDB_CHILD_TABLE || pReq->type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -22779,11 +22810,18 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesMeasurementName, NULL));
       TAOS_CHECK_EXIT(tDecodeI32(pDecoder, &pReq->seriesTagCondLen));
       if (pReq->seriesTagCondLen > 0) {
-        pReq->seriesTagCondJson = taosMemoryMalloc(pReq->seriesTagCondLen + 1);
-        if (pReq->seriesTagCondJson == NULL) {
-          TAOS_CHECK_EXIT(terrno);
+        uint64_t tagCondSize = 0;
+        TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesTagCondJson, &tagCondSize));
+        // metaAddTableSeries() copies this buffer with taosStrdup() (allocating strlen + 1 bytes) and
+        // stores the declared seriesTagCondLen, which the persistence path later feeds to
+        // tEncodeBinary(tagCondJson, tagCondLen). The blob must therefore be exactly the declared
+        // number of bytes and terminate at its last byte: an embedded '\0' would shrink the
+        // taosStrdup allocation below tagCondLen and re-open the out-of-bounds read.
+        if (tagCondSize != (uint64_t)pReq->seriesTagCondLen ||
+            strlen(pReq->seriesTagCondJson) + 1 != tagCondSize) {
+          taosMemoryFreeClear(pReq->seriesTagCondJson);
+          TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
         }
-        TAOS_CHECK_EXIT(tDecodeCStrToN(pDecoder, pReq->seriesTagCondJson, pReq->seriesTagCondLen + 1));
       }
       break;
     case TSDB_ALTER_TABLE_REMOVE_SERIES:

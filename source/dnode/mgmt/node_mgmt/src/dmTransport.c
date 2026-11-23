@@ -87,6 +87,18 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 
   dGTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
+
+  // dmOpenNode() publishes pMgmt before `deployed`, but the pointer write is not
+  // synchronized with this read and a node type could legitimately return success
+  // without a management handle. A NULL pMgmt here would be dereferenced by every
+  // node handler (e.g. mmPutMsgToSyncRdQueue -> mmAcquire), so reject the message
+  // as "still starting" instead of crashing the daemon.
+  if (pWrapper->pMgmt == NULL) {
+    dGError("msg:%p, not processed since %s has no mgmt yet, type:%s", pMsg, pWrapper->name,
+            TMSG_INFO(pMsg->msgType));
+    return TSDB_CODE_APP_IS_STARTING;
+  }
+
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 

@@ -602,7 +602,7 @@ When performing calculations, you may need to use contextual information from th
 | Sliding Trigger   | _tcurrent_ts     | Event time of current trigger (same precision as record)     |
 | Sliding Trigger   | _tnext_ts        | Event time of next trigger (same precision as record)        |
 | Window Trigger    | _twstart         | Start timestamp of current window                            |
-| Window Trigger    | _twend           | End timestamp of the current trigger window. On `WINDOW_OPEN`, data-driven windows use the start timestamp, while time windows use the known window end. |
+| Window Trigger    | _twend           | End timestamp of the current trigger window. On `WINDOW_OPEN`, a single-level, single-START event window with a duration-only whole-window `TRUE_FOR` limit uses `_twstart + duration`. For example, `TRUE_FOR(1m, START(10s), END(10s))` uses `_twstart + 1m`. Other data-driven windows use the start timestamp. Time windows use the known window end. |
 | Window Trigger    | `_tpre_wstart`   | Start timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
 | Window Trigger    | `_tpre_wend`     | End timestamp of the most recently closed window in the same trigger group when this event fires. `NULL` when no closed window exists. Supports `WINDOW_OPEN`, `WINDOW_CLOSE`, or both. |
 | Window Trigger    | _twduration      | Duration of currently open window. Used only with WINDOW_CLOSE trigger. |

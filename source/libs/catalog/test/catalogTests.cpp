@@ -4490,6 +4490,181 @@ TEST(viewSweep, staleReqIdTimeoutAndHbError) {
   catalogDestroy();
 }
 
+class CtgExtSourceRefreshTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    enqueueStub.set(ctgEnqueue, enqueueImmediately);
+    tstrncpy(source.source_name, "refresh_oracle", sizeof(source.source_name));
+    source.type = EXT_SOURCE_ORACLE;
+    source.port = 1521;
+    source.meta_version = 1;
+    source.create_time = 1000;
+    tstrncpy(source.host, "localhost", sizeof(source.host));
+    tstrncpy(source.database, "test", sizeof(source.database));
+
+    auto* msg = static_cast<SCtgUpdateExtSourceMsg*>(taosMemoryCalloc(1, sizeof(SCtgUpdateExtSourceMsg)));
+    ASSERT_NE(msg, nullptr);
+    msg->pCtg = &catalog;
+    msg->sourceRsp = source;
+    tstrncpy(msg->sourceName, source.source_name, sizeof(msg->sourceName));
+    SCtgCacheOperation operation = {};
+    operation.data = msg;
+    ASSERT_EQ(ctgOpUpdateExtSource(&operation), TSDB_CODE_SUCCESS);
+  }
+
+  void TearDown() override { ctgDestroyExtSourceCache(&catalog); }
+
+  static int32_t enqueueImmediately(SCatalog*, SCtgCacheOperation* operation, bool*) {
+    int32_t code = ctgOpReplaceExtSourceCache(operation);
+    taosMemoryFree(operation);
+    return code;
+  }
+
+  SExtSourceCacheEntry* entry() {
+    auto** cached = static_cast<SExtSourceCacheEntry**>(
+        taosHashGet(catalog.pExtSourceHash, source.source_name, strlen(source.source_name)));
+    return cached ? *cached : nullptr;
+  }
+
+  void replace(bool includeSource = true) {
+    SArray* sources = taosArrayInit(1, sizeof(source));
+    ASSERT_NE(sources, nullptr);
+    if (includeSource && taosArrayPush(sources, &source) == nullptr) {
+      taosArrayDestroy(sources);
+      FAIL() << "failed to construct external source snapshot";
+    }
+    int32_t code = ctgReplaceExtSourceCacheEnqueue(&catalog, ++globalVer, sources);
+    taosArrayDestroy(sources);
+    ASSERT_EQ(code, TSDB_CODE_SUCCESS);
+    ASSERT_EQ(atomic_load_64(&catalog.extSrcGlobalVer), globalVer);
+  }
+
+  void disableClause(EExtClauseKind clause) {
+    SExtCapDemoteSpec spec = {};
+    spec.kind = EXT_DEMOTE_KIND_CLAUSE;
+    spec.reasonCode = EXT_DEMOTE_REASON_USER_FORCED;
+    spec.detail.clauseKind = clause;
+    ASSERT_EQ(extCapDemoteApply(&entry()->capability, &spec), TSDB_CODE_SUCCESS);
+  }
+
+  bool clauseDisabled(EExtClauseKind clause) {
+    return capDisabled(&entry()->capability, nullptr, EXT_DEMOTE_KIND_CLAUSE, &clause);
+  }
+
+  Stub enqueueStub;
+  SCatalog catalog = {};
+  SGetExtSourceRsp source = {};
+  int64_t globalVer = 0;
+};
+
+TEST_F(CtgExtSourceRefreshTest, preservesDisabledPushdownAcrossHeartbeat) {
+  ASSERT_NE(entry(), nullptr);
+  const EExtClauseKind clauses[] = {EXT_CLAUSE_FILTER, EXT_CLAUSE_PROJECTION, EXT_CLAUSE_AGG,
+                                   EXT_CLAUSE_ORDER, EXT_CLAUSE_LIMIT, EXT_CLAUSE_JOIN};
+  for (auto clause : clauses) {
+    ASSERT_NO_FATAL_FAILURE(disableClause(clause));
+  }
+  int64_t loadedAtMs = entry()->capability.loadedAtMs;
+  SHashObj* dbHash = entry()->pDbHash;
+  SHashObj* disabledClauses = entry()->capability.disabledClauses;
+
+  const int64_t fetchedTimes[] = {0, 123};
+  for (auto fetchedAt : fetchedTimes) {
+    entry()->capFetchedAt = fetchedAt;
+    ASSERT_NO_FATAL_FAILURE(replace());
+    ASSERT_NE(entry(), nullptr);
+    EXPECT_EQ(entry()->pDbHash, dbHash);
+    EXPECT_EQ(entry()->capFetchedAt, fetchedAt);
+    EXPECT_EQ(entry()->capability.loadedAtMs, loadedAtMs);
+    EXPECT_EQ(entry()->capability.dialect, EXT_SQL_DIALECT_ORACLE);
+    EXPECT_EQ(entry()->capability.disabledClauses, disabledClauses);
+    for (auto clause : clauses) {
+      EXPECT_TRUE(clauseDisabled(clause)) << "clause: " << clause;
+    }
+  }
+
+  taosHashClear(entry()->capability.disabledClauses);
+  ASSERT_NO_FATAL_FAILURE(replace());
+  for (auto clause : clauses) {
+    EXPECT_FALSE(clauseDisabled(clause)) << "clause: " << clause;
+  }
+}
+
+TEST_F(CtgExtSourceRefreshTest, invalidatesCapabilitiesOnSourceVersionChange) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  ++source.meta_version;
+
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+  EXPECT_EQ(entry()->capability.loadedAtMs, 0);
+}
+
+TEST_F(CtgExtSourceRefreshTest, doesNotInheritStateAcrossSourceRecreate) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  SHashObj* oldDbHash = entry()->pDbHash;
+
+  // DROP + CREATE with identical settings: mnode restarts meta_version at 1 but
+  // stamps a new create_time.  The heartbeat push only carries the recreated
+  // source (no delete event), so the stale entry must not be treated as the
+  // same instance and its demotions must not migrate to the new one.
+  ++source.create_time;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_NE(entry()->pDbHash, oldDbHash);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+  EXPECT_EQ(entry()->capability.loadedAtMs, 0);
+}
+
+TEST_F(CtgExtSourceRefreshTest, simulatesOtherClientRecreateBetweenHeartbeats) {
+  // Client A has the source cached and JOIN pushdown disabled locally.
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  entry()->capFetchedAt = 123;
+  SHashObj* oldDbHash = entry()->pDbHash;
+
+  // A routine heartbeat for the same instance must keep A's demotion.
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_TRUE(clauseDisabled(EXT_CLAUSE_JOIN));
+
+  // While A is between heartbeats, client B drops and recreates the source
+  // with an identical definition.  A's next heartbeat carries only the
+  // recreated instance - meta_version is back to 1 and only create_time
+  // differs, with no delete snapshot in between.
+  ++source.create_time;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_EQ(entry()->source.meta_version, 1);
+  EXPECT_EQ(entry()->source.create_time, source.create_time);
+  EXPECT_NE(entry()->pDbHash, oldDbHash);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+
+  // State accumulated by the recreated instance still survives its own
+  // refreshes, so the guard only drops cross-instance state.
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_FILTER));
+  entry()->capFetchedAt = 456;
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_TRUE(clauseDisabled(EXT_CLAUSE_FILTER));
+  EXPECT_EQ(entry()->capFetchedAt, 456);
+}
+
+TEST_F(CtgExtSourceRefreshTest, doesNotRestoreDemotionsAfterSourceRemoval) {
+  ASSERT_NO_FATAL_FAILURE(disableClause(EXT_CLAUSE_JOIN));
+  ASSERT_NO_FATAL_FAILURE(replace(false));
+  EXPECT_EQ(entry(), nullptr);
+
+  ASSERT_NO_FATAL_FAILURE(replace());
+  ASSERT_NE(entry(), nullptr);
+  EXPECT_FALSE(clauseDisabled(EXT_CLAUSE_JOIN));
+  EXPECT_EQ(entry()->capFetchedAt, 0);
+}
+
 #ifdef INTEGRATION_TEST
 TEST(intTest, autoCreateTableTest) {
   struct SCatalog *pCtg = NULL;

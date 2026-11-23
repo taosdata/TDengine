@@ -27,6 +27,7 @@ import pytest
 from collections import namedtuple
 from contextlib import contextmanager
 from functools import wraps
+from uuid import uuid4
 from itertools import zip_longest
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -1116,7 +1117,7 @@ class ExtSrcEnv:
         return services
 
     @classmethod
-    def ensure_env(cls):
+    def ensure_env(cls, *, provision=True, purge_sources=True):
         """Start and verify all external test databases.
 
         External mode probes an exclusively leased environment without
@@ -1167,7 +1168,7 @@ class ExtSrcEnv:
         env["FQ_ORACLE_ADMIN_USER"] = cls.ORACLE_ADMIN_USER
         env["FQ_ORACLE_ADMIN_PASS"] = cls.ORACLE_ADMIN_PASS
 
-        if services and cls._env_mode() == "local":
+        if provision and services and cls._env_mode() == "local":
             if sys.platform == "win32":
                 ps1 = os.path.join(here, "ensure_ext_env.ps1")
                 if os.path.exists(ps1):
@@ -1366,7 +1367,8 @@ class ExtSrcEnv:
         # external sources created by earlier test files accumulate.  Purge
         # them here so every test class starts from a clean state.
         # ------------------------------------------------------------------
-        cls.purge_all_external_sources()
+        if purge_sources:
+            cls.purge_all_external_sources()
         tdLog.info(
             f"[FQ env] mode={cls._env_mode()} ready in "
             f"{_time.monotonic() - started:.3f}s")
@@ -3961,7 +3963,11 @@ class FederatedQueryTestMixin:
             pytest.skip("oracle is not in FQ_REQUIRED_SERVICES")
         tdSql.execute(f"drop database if exists {name}")
         tdSql.execute(f"drop external source if exists {name}")
-        cfg = self._oracle_cfg()
+        self._mk_oracle_real_ver(name, self._oracle_cfg(), database, schema,
+                                 extra_options, user, password)
+
+    def _mk_oracle_real_ver(self, name, cfg, database=None, schema=None,
+                            extra_options=None, user=None, password=None):
         _user = user if user is not None else cfg.user
         _pass = password if password is not None else cfg.password
         sql = (f"create external source {name} "
@@ -4804,6 +4810,69 @@ def influx_versions(*versions):
             return result
         return run
     return decorate
+
+
+class FederatedWindowOrderTestMixin(FederatedQueryTestMixin):
+    """Check the remote plan and row ranks with ORDER enabled and disabled."""
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _window_source_env(self):
+        provider = self.PROVIDER
+        if provider not in ExtSrcEnv.required_services():
+            pytest.skip(f"{provider} is not configured for this run")
+        cfg = next(getattr(ExtSrcEnv, f"{provider}_version_configs")())
+        with pytest.MonkeyPatch.context() as patch:
+            # Each window test queries just its primary provider/version.
+            patch.setenv("FQ_REQUIRED_SERVICES", provider)
+            patch.setattr(ExtSrcEnv, f"{provider.upper()}_VERSIONS", [cfg.version])
+            # The environment owner manages the database even after a connection loss.
+            patch.setattr(ExtSrcEnv, "revive_if_dead", lambda: False)
+            if provider == "oracle":
+                if ExtSrcEnv._env_mode() == "local":
+                    if sys.platform != "win32" and cfg.host.lower() not in ("127.0.0.1", "localhost"):
+                        raise RuntimeError(f"Remote Oracle at {cfg.host}:{cfg.port} requires an exclusive lease "
+                                           "on this platform; run the window test through fq/run-ci.py")
+                    if not ExtSrcEnv._tcp_probe(cfg.host, cfg.port):
+                        raise RuntimeError(f"Oracle {cfg.version} listener at {cfg.host}:{cfg.port} is unavailable; "
+                                           "start the test instance and listener before running the window test")
+                if sys.platform == "win32":
+                    subprocess.run([*ExtSrcEnv._ext_env_script_cmd(), "--oracle-client", cfg.version],
+                                   env=_fq_subprocess_env(), check=True)
+            ExtSrcEnv.ensure_env(provision=False, purge_sources=False)
+            yield
+
+    def _create_window_source(self, cleanup, cfg, **options):
+        self.source = f"fq_{self.PROVIDER}_window_src_{uuid4().hex}"
+        create = getattr(self, f"_mk_{self.PROVIDER}_real_ver")
+        create(self.source, cfg, **options)
+        cleanup.callback(tdSql.execute, f"DROP EXTERNAL SOURCE {self.source}")
+
+    def _read_window(self, sql, enabled):
+        action = "ENABLE" if enabled else "DISABLE"
+        for _ in range(2):
+            tdSql.execute(f"ALTER EXTERNAL SOURCE {self.source} {action} CLAUSE 'ORDER'")
+            tdSql.query(f"EXPLAIN VERBOSE TRUE {sql}")
+            remote = [str(row[0]).lower() for row in tdSql.queryResult
+                      if "remote sql:" in str(row[0]).lower()]
+            tdSql.query(sql)
+            ranks = sorted((ts.second, rank) for ts, rank in tdSql.queryResult)
+            if enabled:
+                return remote, ranks
+            # A heartbeat after CREATE can replace the client catalog and clear
+            # the override between the two queries. Discard only that sample.
+            tdSql.query(f"SHOW EXTERNAL SOURCE {self.source} CAPABILITY")
+            if any(row[:2] == ("CLAUSE", "ORDER") for row in tdSql.queryResult):
+                return remote, ranks
+        raise AssertionError("ORDER did not stay disabled during EXPLAIN and SELECT")
+
+    def _check_window(self, sql, expected, pushable):
+        for enabled in (False, True):
+            remote, ranks = self._read_window(sql, enabled)
+            assert ranks == expected, (enabled, sql, remote, ranks)
+            assert len(remote) == 1, remote
+            assert ("order by" in remote[0]) == (enabled and pushable), (enabled, sql, remote)
+            if " JOIN " in sql:
+                assert " join " in remote[0], remote
 
 
 class FederatedQueryVersionedMixin(FederatedQueryTestMixin):

@@ -251,6 +251,7 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+__compar_fn_t getWindowKeyComparFunc(int32_t keyType, int32_t order);
 
 #ifdef __cplusplus
 }

@@ -33,6 +33,7 @@ typedef struct SBlockOrderInfo {
   int32_t          slotId;
   void*            compFn;
   SColumnInfoData* pColData;
+  bool             jsonQueryKey;
 } SBlockOrderInfo;
 
 #define BLOCK_VERSION_1 1
@@ -234,6 +235,11 @@ static FORCE_INLINE void colDataSetDouble(SColumnInfoData* pColumnInfoData, uint
 }
 
 int32_t getJsonValueLen(const char* data);
+int32_t compareJsonQueryKeys(const void* left, const void* right, bool nullFirst, int32_t order);
+
+static FORCE_INLINE const void* blockJsonQueryKey(const SColumnInfoData* col, int32_t row) {
+  return col->pData && !colDataIsNull_s(col, row) ? colDataGetVarData(col, row) : NULL;
+}
 
 // For the VAR_DATA_TYPE type, new data is inserted strictly according to the position of SVarColAttr.length.
 // If the same row is inserted repeatedly, data holes will result.

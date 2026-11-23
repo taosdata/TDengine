@@ -924,6 +924,13 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-sync", mndInitSync, mndCleanupSync));
   TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-telem", mndInitTelem, mndCleanupTelem));
+  if (!tsDisableStream) {
+    // Join deployment work before cleaning up any of the metadata it reads.
+    TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-st-deploy", msmInitDeployWorker, msmCleanupDeployWorker));
+#ifdef TD_ENTERPRISE
+    TAOS_CHECK_RETURN(mndAllocStep(pMnode, "mnode-st-schema", msmInitSchemaWorker, msmCleanupSchemaWorker));
+#endif
+  }
 
   return 0;
 }
@@ -1043,8 +1050,15 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   return pMnode;
 }
 
+static void mndStopStreamSchemaWork(SMnode *pMnode) {
+#ifdef TD_ENTERPRISE
+  atomic_store_8(&pMnode->streamSchemaStopping, 1);
+#endif
+}
+
 void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
+    mndStopStreamSchemaWork(pMnode);
     int32_t code = 0;
     // TODO check return value
     mInfo(KEYOP("mnode-leader-transfer", "START") "vgId:1, transferring leader before close");
@@ -1068,6 +1082,7 @@ void mndPreClose(SMnode *pMnode) {
 
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
+    mndStopStreamSchemaWork(pMnode);
     mInfo("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     taosMemoryFreeClear(pMnode->path);
@@ -1570,6 +1585,7 @@ void mndSetRestored(SMnode *pMnode, bool restored) {
 bool mndGetRestored(SMnode *pMnode) { return pMnode->restored; }
 
 void mndSetStop(SMnode *pMnode) {
+  mndStopStreamSchemaWork(pMnode);
   (void)taosThreadRwlockWrlock(&pMnode->lock);
   pMnode->stopped = true;
   (void)taosThreadRwlockUnlock(&pMnode->lock);

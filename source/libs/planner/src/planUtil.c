@@ -92,7 +92,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
     case QUERY_NODE_FUNCTION:
-    case QUERY_NODE_CASE_WHEN: 
+    case QUERY_NODE_CASE_WHEN:
+    case QUERY_NODE_CORRELATED_SUBQUERY:
     case QUERY_NODE_REMOTE_VALUE: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = NULL;
@@ -261,11 +262,17 @@ static int32_t planCreateRemoteOutputColumn(const SExprNode* pResExpr,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createColumnByRemoteOutputExprs(SNodeList* pExprs, SNodeList** pList) {
+int32_t createRemoteOutputTargets(const SNodesRemoteSelectOutputs* pOutputs, SNodeList** pList) {
   if (NULL == pList) {
     return TSDB_CODE_INVALID_PARA;
   }
 
+  // JOIN targets are also the SELECT expressions used by the renderer. Keep
+  // their input qualifiers across repeated logical and physical target refreshes.
+  if (pOutputs->source == NODES_REMOTE_SELECT_SOURCE_JOIN) {
+    return nodesCloneList(pOutputs->pSelectExprs, pList);
+  }
+  SNodeList* pExprs = pOutputs->pSelectExprs;
   SNodeList* pCols = *pList;
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pCols) {

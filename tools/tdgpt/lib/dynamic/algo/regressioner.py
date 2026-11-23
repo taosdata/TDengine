@@ -23,6 +23,11 @@ from lib.dynamic.model_loader import ModelLoader
 from lib.log import AppLogger
 
 
+def _normalize_algo(algo: str) -> str:
+    """Upper-case an algorithm name and unify `-`/`_` so spellings compare equal."""
+    return (algo or "").strip().upper().replace("-", "_")
+
+
 class BaseModelRegressioner(ABC):
     """
     Dynamic loader for regression models driven by a JSON config file.
@@ -38,6 +43,10 @@ class BaseModelRegressioner(ABC):
     """
 
     target_algo: str = ""
+    # Extra `algo` spellings accepted from the model config. A model created from
+    # SQL carries the registry name, e.g. `polynomial_regression`, while
+    # `target_algo` keeps the short stable name, so both must match here.
+    algo_aliases: tuple = ()
 
     def __init__(self, path: str, input_data: list, schema: list = None):
         self.path = path
@@ -81,8 +90,10 @@ class BaseModelRegressioner(ABC):
         return None
 
     def _is_expected_algo(self) -> bool:
-        algo = (self.model_info.get("algo") or "").upper().replace("-", "_")
-        return algo == self.target_algo.upper().replace("-", "_")
+        algo = _normalize_algo(self.model_info.get("algo"))
+        accepted = {_normalize_algo(self.target_algo)}
+        accepted.update(_normalize_algo(alias) for alias in self.algo_aliases)
+        return algo in accepted
 
     def _load_from_pkl(self, model_path: str, expected_type):
         """Load model from pkl file, store pipeline_state in model_info."""
@@ -125,6 +136,7 @@ class LinearRegressioner(BaseModelRegressioner):
     """Linear regression — pkl only."""
 
     target_algo = "LINEAR"
+    algo_aliases = ("LINEAR_REGRESSION",)
 
     def _build_model(self):
         from sklearn.linear_model import LinearRegression
@@ -234,6 +246,7 @@ class PolynomialRegressioner(BaseModelRegressioner):
     """
 
     target_algo = "POLYNOMIAL"
+    algo_aliases = ("POLYNOMIAL_REGRESSION",)
 
     def _build_model(self):
         from sklearn.pipeline import Pipeline

@@ -444,6 +444,19 @@ static STrueForInfo stDurationStateEventTrueForInfo(const SStreamTriggerTask    
   return pTask->eventTrueForInfo;
 }
 
+static void stSetEventOpenCalcEnd(const SStreamTriggerTask *pTask, const SNode *pStartCond,
+                                  const SSTriggerGroupDurationState *pDur, SSTriggerCalcParam *pParam) {
+  if (pTask->triggerType != STREAM_TRIGGER_EVENT || !(pTask->placeHolderBitmap & PLACE_HOLDER_WEND) ||
+      pStartCond == NULL || nodeType(pStartCond) == QUERY_NODE_NODE_LIST) {
+    return;
+  }
+  STrueForInfo limit = stDurationStateEventTrueForInfo(pTask, pDur);
+  if (limit.trueForType == TRUE_FOR_DURATION_ONLY && limit.duration > 0) {
+    // A qualified OPEN has already spanned this duration, even if samples skipped the boundary.
+    pParam->wend = pParam->wstart + limit.duration;
+  }
+}
+
 static STrueForInfo stDurationStateStartTrueForInfo(const SStreamTriggerTask          *pTask,
                                                     const SSTriggerGroupDurationState *pDur) {
   if (pTask->useDurationTagRuntime && pDur->durationsFrozen) {
@@ -12523,6 +12536,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
       taosWLockLatch(&pTask->task.mgmtReqLock);
       SStreamMgmtReq *pReq = atomic_load_ptr(&pTask->task.pMgmtReq);
       if (pReq && pReq->reqId == reqId && pReq == atomic_val_compare_exchange_ptr(&pTask->task.pMgmtReq, pReq, NULL)) {
+        if (pMsg->msgType == STREAM_MSG_MIXED_ORIGTBL_READER_INFO) pTask->task.ackedSchemaReqId = reqId;
         tFreeSStreamMgmtReq(pReq);
         taosMemoryFree(pReq);
       }
@@ -24819,7 +24833,7 @@ static int32_t stTriggerTaskBuildExtReaderReq(SStreamTriggerTask *pTask, SSTrigg
   pExtReq->registryEntryId = pRef->registryEntryId;
   pExtReq->deploymentGeneration = pRef->sourceConfigVersion;
   pExtReq->protocolVersion = STREAM_EXT_ORIGTBL_READER_PROTOCOL_VERSION;
-  pExtReq->capabilities = capabilities;
+  pExtReq->capabilities = capabilities | STREAM_EXT_ORIGTBL_READER_CAP_GUARDED_DEPLOY;
   pExtReq->sourceType = pRef->sourceType;
   pExtReq->sourceConfigVersion = pRef->sourceConfigVersion;
   tstrncpy(pExtReq->identity.sourceName, pRef->sourceName, sizeof(pExtReq->identity.sourceName));
@@ -33205,6 +33219,9 @@ static int32_t stRealtimeGroupAddTreeCalcParam(SSTriggerRealtimeGroup *pGroup, S
 
   if (needCalc) {
     SObjList *pParamList = isParent ? &pGroup->pPendingParWinCalcParams : &pGroup->pPendingCalcParams;
+    if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
+      stSetEventOpenCalcEnd(pTask, pTask->pStartCond, &pGroup->dur, &param);
+    }
     code = taosObjListAppend(pParamList, &param);
     QUERY_CHECK_CODE(code, lino, _end);
     if (eventType == STRIGGER_EVENT_WINDOW_OPEN) {
@@ -33824,6 +33841,7 @@ static int32_t stRealtimeGroupGenCalcParams(SSTriggerRealtimeGroup *pGroup, int3
       code = stRealtimeGroupApplyPrevWindowSnapshot(pGroup, &param, true);
       QUERY_CHECK_CODE(code, lino, _end);
       if (calcOpen && emitOpen) {
+        stSetEventOpenCalcEnd(pTask, pTask->pStartCond, &pGroup->dur, &param);
         code = taosObjListAppend(&pGroup->pPendingCalcParams, &param);
         QUERY_CHECK_CODE(code, lino, _end);
         pWin->pWinOpenNotify = NULL;
@@ -34825,6 +34843,9 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   SObjList *pParamList = isParent ? &pGroup->pPendingParWinCalcParams : &pGroup->pPendingCalcParams;
   code = stTriggerTaskRefreshPrevWindowSnapshot(pTask, pGroup->gid, pParam, isOpen);
   QUERY_CHECK_CODE(code, lino, _end);
+  if (isOpen) {
+    stSetEventOpenCalcEnd(pTask, pTask->histStartCond, &pGroup->dur, pParam);
+  }
   code = taosObjListAppend(pParamList, pParam);
   QUERY_CHECK_CODE(code, lino, _end);
   pParam = NULL;

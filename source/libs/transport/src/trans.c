@@ -310,6 +310,8 @@ int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
   return (*transReleaseHandle[type])(handle, status);
 }
 
+int32_t rpcCloseConnSync(void* handle) { return transCloseConnSync(handle); }
+
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
@@ -621,6 +623,8 @@ int32_t rpcRegisterBrokenLinkArg(SRpcMsg* msg) {
 int32_t rpcReleaseHandle(void* handle, int8_t type, int32_t status) {
   return (*transReleaseHandle[type])(handle, status);
 }
+
+int32_t rpcCloseConnSync(void* handle) { return transCloseConnSync(handle); }
 
 // client only
 int32_t rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {

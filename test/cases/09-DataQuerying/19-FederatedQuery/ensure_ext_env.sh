@@ -1203,6 +1203,13 @@ _ensure_linux_engine_deps() {
         _ensure_engine_deps_apt_index
     fi
 
+    # The staged Oracle ODBC driver manager also loads libltdl at runtime.
+    if [[ ${FQ_CI_CASE_CONTAINER:-0} == 1 && ${FQ_SERVICES_TO_RESET:-} == oracle ]] &&
+       ! ldconfig -p | grep -F 'libltdl.so.7 ' >/dev/null; then
+        _ensure_engine_deps_apt_index
+        _apt_get_install_bounded libltdl7 || return 1
+    fi
+
     # Install libaio separately so we can fall back from libaio1t64 to libaio1.
     # Modern Debian (trixie+) renamed the package to libaio1t64; older distros
     # use libaio1.  A batch install that includes an unknown package name causes

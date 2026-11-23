@@ -1299,7 +1299,7 @@ int32_t createSortHandleFromParam(SOperatorInfo* pOperator) {
   VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
   ((SOrderByExprNode*)nodesListGetNode(pMergeKeys, 0))->order =
       pInfo->binfo.outputTsOrder == ORDER_DESC ? ORDER_DESC : ORDER_ASC;
-  pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
+  pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys, false);
   TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   NODES_DESTORY_LIST(pMergeKeys);
 
@@ -3226,7 +3226,7 @@ int32_t createVirtualTableMergeOperatorInfo(SOperatorInfo** pDownstream, int32_t
     VTS_ERR_JRET(makeTSMergeKey(&pMergeKeys, 0));
     ((SOrderByExprNode*)nodesListGetNode(pMergeKeys, 0))->order =
         pInfo->binfo.outputTsOrder == ORDER_DESC ? ORDER_DESC : ORDER_ASC;
-    pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys);
+    pVirtualScanInfo->pSortInfo = createSortInfo(pMergeKeys, false);
     TSDB_CHECK_NULL(pVirtualScanInfo->pSortInfo, code, lino, _return, terrno)
   } else {
     pTaskInfo->dynamicTask = true;

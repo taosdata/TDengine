@@ -685,7 +685,7 @@ static void mndStreamBuildObj(SMnode *pMnode, SStreamObj *pObj, SCMCreateStreamR
   // (set in buildCreateStreamReq when the stream references any EXTERNAL
   // SOURCE table) into the SStreamObj flag STREAM_FLAG_REF_EXT_SOURCE.
   // Downstream:
-  //   - msmAssignTaskSnodeId (P1 B4) picks the snode with the least EXT
+  //   - msmSelectBuildSnode picks the snode with the least EXT
   //     reader count when this bit is set.
   //   - msmTDAdd*ReaderTasks (P1 B5) attach the matching extSpec to the
   //     STREAM_TASK_DEPLOY message.
@@ -1990,8 +1990,8 @@ static int32_t mndRetrieveStreamTask(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock
     }
 
     code = mstSetStreamTasksResBlock(pStream, pBlock, &numOfRows, rowsCapacity);
-
     sdbRelease(pSdb, pStream);
+    if (code != TSDB_CODE_SUCCESS) return code;
   }
 
   pShow->numOfRows += numOfRows;
@@ -3626,7 +3626,7 @@ static int32_t mndProcessCreateStreamFinal(SRpcMsg *pReq, SCMCreateStreamReq *pC
 
   MND_STREAM_SET_LAST_TS(STM_EVENT_CREATE_STREAM, taosGetTimestampMs());
 
-  mstPostStreamAction(mStreamMgmt.actionQ, streamId, pStream->pCreate->name, NULL, true, STREAM_ACT_DEPLOY);
+  (void)mstPostStreamCreate(streamId, pStream->pCreate->name);
 
 _OVER:
 

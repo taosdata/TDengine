@@ -36,11 +36,22 @@ extern "C" {
 #define STREAM_GRP_STREAM_NUM             20
 #define STREAM_HB_ERR_HANDLE_MAX_DELAY    300000
 
+typedef struct {
+  int64_t    period;
+  SSHashObj* polls;    // opaque heartbeat token -> poll serial
+  SSHashObj* retired;  // (stream, task, seriousId) -> last poll issued before retirement
+} SReaderPollWindow;
+
 typedef struct SStreamHbInfo {
   int32_t      lastErrCode;
   int64_t      lastErrTs;
   tmr_h        hbTmr;
   SStreamHbMsg hbMsg;
+  SStreamReaderRuntime readerRuntime;
+  SRWLatch     readerDeployLock;  // Serializes guarded task-map claims with Reader retirement.
+  int64_t              readerPollSerial;
+  SReaderPollWindow    readerPollWindows[2];
+  SSHashObj*           readerInstalls;  // (stream, task, seriousId) -> claiming heartbeat token
 } SStreamHbInfo;
 
 typedef struct SStreamInfo {
@@ -55,7 +66,7 @@ typedef struct SStreamInfo {
 
   SRWLatch            undeployLock;
 
-  SArray*             undeployReaders;        // SArray<taskId+seriousId>
+  SArray*             undeployReaders;        // SArray<SStreamTask*>, owned by readerList
   SArray*             undeployTriggers;       // SArray<taskId+seriousId>
   SArray*             undeployRunners;        // SArray<taskId+seriousId>
 } SStreamInfo;
@@ -122,7 +133,7 @@ typedef struct SStreamNotifyWorkerPool {
 typedef struct SStreamMgmtInfo {
   void*                  timer;
   void*                  dnode;
-  bool                   snodeEnabled;
+  int8_t                 snodeEnabled;
   SRWLatch               snodeLock;
   SNodeEpSet             snodeLeaders[2];
   SNodeEpSet             snodeReplica;
@@ -169,6 +180,9 @@ extern SStreamMgmtInfo gStreamMgmt;
 
 int32_t streamTimerInit(void** ppTimer);
 int32_t streamHbInit(SStreamHbInfo* pHb);
+int32_t streamHbIssueReaderPoll(SStreamHbInfo* hb, int64_t now, SStreamHbMsg* msg);
+void    streamHbResetReaderRole(SStreamHbInfo* hb, bool enabled);
+void    streamHbRenewReaderRuntime(SStreamHbInfo* hb);
 int32_t smDeployTasks(SStmStreamDeploy* pDeploy);
 int32_t smUndeployTasks(SStreamUndeployActions* actions);
 int32_t smHandleMgmtRsp(SStreamMgmtRsps* rsps);
@@ -182,12 +196,13 @@ int32_t stTriggerTaskEnvInit();
 void    stTriggerTaskEnvCleanup();
 
 int32_t stReaderTaskDeploy(SStreamReaderTask* pTask, const SStreamReaderDeployMsg* pMsg);
+void    stReaderTaskDiscardInstall(SStreamReaderTask* pTask);
 int32_t stReaderTaskUndeploy(SStreamReaderTask** ppTask, bool force);
 int32_t stReaderTaskExecute(SStreamReaderTask* pTask, SStreamMsg* pMsg);
 
 void smHandleRemovedTask(SStreamInfo* pStream, int64_t streamId, int32_t gid, EStreamTaskType type, SArray* pUndeployList, SList* pTaskList);
 void smUndeployVgTasks(int32_t vgId, bool cleanup);
-int32_t smDeployStreams(SStreamDeployActions* actions);
+int32_t smDeployStreams(SStreamDeployActions* actions, int64_t readerDeployEpoch);
 void stmDestroySStreamInfo(void* param);
 int32_t streamBuildMultiStateNotifyContent(ESTriggerEventType eventType, const SArray* pStateCols,
                                            const SArray* pFromStates, const bool* pFromDefined, const SArray* pToStates,

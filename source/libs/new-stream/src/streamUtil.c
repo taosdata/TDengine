@@ -216,11 +216,16 @@ static int32_t stmPushTaskStatus(SStreamHbMsg* pMsg, SStreamTask* pTask, SStream
     ST_TASK_ELOG("failed to rotate or log task statistics: %s", tstrerror(statsCode));
   }
 
-  if (taosArrayPush(pMsg->pStreamStatus, pTask) == NULL) {
-    return terrno;
+  SStmTaskStatusMsg* pStatus = NULL;
+  if (pTask->type == STREAM_TRIGGER_TASK) {
+    pStatus = taosArrayReserve(pMsg->pStreamStatus, 1);
+    if (!pStatus) return terrno;
+    // stmHbAddTaskStatus snapshots the request and its acknowledgment together under mgmtReqLock.
+    memcpy(pStatus, pTask, offsetof(SStreamTask, pMgmtReq));
+  } else {
+    pStatus = taosArrayPush(pMsg->pStreamStatus, pTask);
+    if (!pStatus) return terrno;
   }
-
-  SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
   code = stmCloneTaskExtraErrMsg(pTask, pStatus);
   if (code != TSDB_CODE_SUCCESS) {
     TARRAY_SIZE(pMsg->pStreamStatus)--;
@@ -280,14 +285,18 @@ void stmHandleStreamRemovedTasks(SStreamInfo* pStream, int64_t streamId, int32_t
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pTask, SStreamTaskStats* pStats) {
   int32_t code = 0, lino = 0;
 
+  size_t metricCount = taosArrayGetSize(pMsg->pTaskMetrics);
   // Period logging may release the last task reference and complete undeploy.
   TAOS_CHECK_GOTO(stmPushTaskStatus(pMsg, pTask, pStats), &lino, _end);
   SStmTaskStatusMsg* pStatus = taosArrayGetLast(pMsg->pStreamStatus);
   pStatus->pMgmtReq = NULL;
 
   taosWLockLatch(&pTask->mgmtReqLock);
+  pStatus->ackedSchemaReqId = pTask->ackedSchemaReqId;
   SStreamMgmtReq* pMgmtReq = pTask->pMgmtReq;
   if (pMgmtReq) {
+    if (pMgmtReq->type == STREAM_MGMT_REQ_TRIGGER_MIXED_ORIGTBL_READER && !pStatus->ackedSchemaReqId)
+      pStatus->ackedSchemaReqId = -1;  // Advertise explicit ACK and versioned PATCH support.
     TAOS_CHECK_EXIT(tCloneSStreamMgmtReq(pMgmtReq, &pStatus->pMgmtReq));
     TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
   }
@@ -295,6 +304,18 @@ int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg* pMsg, SStreamTask* pT
 _exit:
 
   taosWUnLockLatch(&pTask->mgmtReqLock);
+  if (code) {
+    // A status without its request index can be interpreted as an acknowledgment.
+    tFreeSStreamMgmtReq(pStatus->pMgmtReq);
+    taosMemoryFree(pStatus->pMgmtReq);
+    taosMemoryFree(pStatus->extraErrMsg);
+    TAOS_UNUSED(taosArrayPop(pMsg->pStreamStatus));
+    if (taosArrayGetSize(pMsg->pTaskMetrics) > metricCount) {
+      SStreamTaskMetricsEntry* entry = taosArrayPop(pMsg->pTaskMetrics);
+      taosArrayDestroy(entry->snapshot.pRecalculates);
+      taosArrayDestroyEx(entry->snapshot.pRecalcDetails, stmDestroyRecalcDetail);
+    }
+  }
 
 _end:
   if (code) {
@@ -304,13 +325,15 @@ _end:
   return code;
 }
 
-int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod) {
+int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t streamId, bool reportPeriod,
+                             int32_t* pollError) {
   int32_t      code = TSDB_CODE_SUCCESS;
   int32_t      lino = 0;
   SListIter    iter = {0};
   SListNode*   listNode = NULL;
   SStreamTask* pTask = NULL;
 
+  if (pollError) *pollError = TSDB_CODE_SUCCESS;
   // Deployment may wait for external connections; keep heartbeats for other streams moving.
   if (taosWTryLockLatch(&pStream->lock) != 0) {
     return TSDB_CODE_SUCCESS;
@@ -326,6 +349,11 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
   if (NULL == pMsg->pStreamStatus) {
     pMsg->pStreamStatus = taosArrayInit(pStream->taskNum, sizeof(SStmTaskStatusMsg));
     TSDB_CHECK_NULL(pMsg->pStreamStatus, code, lino, _exit, terrno);
+    // The first report commits this group to sending. Bind the poll to the role
+    // and retirement order before taking any task observations.
+    code = streamHbIssueReaderPoll(&gStreamMgmt.hb, taosGetMonoTimestampMs(), pMsg);
+    if (pollError) *pollError = code;
+    TAOS_CHECK_EXIT(code);
   }
 
   int32_t origTaskNum = taosArrayGetSize(pMsg->pStreamStatus);
@@ -335,6 +363,7 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     while ((listNode = tdListNext(&iter)) != NULL) {
       SStreamReaderTask* pReader = (SStreamReaderTask*)listNode->data;
       pTask = (SStreamTask*)pReader;
+      if (pReader->snodeOwned && atomic_load_8(&pTask->deployed)) continue;
       TAOS_CHECK_EXIT(stmPushTaskStatus(pMsg, &pReader->task, pReader->pStats));
       //if (pReader->task.pMgmtReq) {
       //  TAOS_CHECK_EXIT(stmAddMgmtReq(streamId, &pMsg->pStreamReq, taosArrayGetSize(pMsg->pStreamStatus) - 1));
@@ -356,7 +385,12 @@ int32_t stmHbAddStreamStatus(SStreamHbMsg* pMsg, SStreamInfo* pStream, int64_t s
     }
 
     SStreamTriggerTask* pTrigger = (SStreamTriggerTask*)pTask;
-    TAOS_CHECK_EXIT(stmHbAddTaskStatus(streamId, pMsg, pTask, pTrigger->pStats));
+    code = stmHbAddTaskStatus(streamId, pMsg, pTask, pTrigger->pStats);
+    if (code && reportPeriod) {
+      SSTriggerRuntimeStatus* status = taosArrayPop(pMsg->pTriggerStatus);
+      taosArrayDestroy(status->userRecalcs);
+    }
+    TAOS_CHECK_EXIT(code);
 
     ST_TASK_DLOG("task status added to hb %s mgmtReq", pTask->pMgmtReq ? "with" : "without");
     stsDebug("%d trigger tasks status added to hb", 1);
@@ -409,13 +443,12 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
 
   stDebug("start to build hb status req, gid:%d", pMsg->streamGId);
 
-  SHashObj* pHash = gStreamMgmt.stmGrp[pMsg->streamGId];
+  SHashObj* pHash = atomic_load_ptr(&gStreamMgmt.stmGrp[pMsg->streamGId]);
   if (NULL == pHash) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  void*   pIter = NULL;
+  void* pIter = NULL;
   while (true) {
     pIter = taosHashIterate(pHash, pIter);
     if (NULL == pIter) {
@@ -425,10 +458,16 @@ int32_t stmBuildHbStreamsStatusReq(SStreamHbMsg* pMsg) {
     SStreamInfo* pStream = (SStreamInfo*)pIter;
     int64_t*     streamId = taosHashGetKey(pIter, NULL);
 
-    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod);
+    int32_t pollError = TSDB_CODE_SUCCESS;
+    (void)stmHbAddStreamStatus(pMsg, pStream, *streamId, reportPeriod, &pollError);
+    if (pollError) {
+      // A failed poll registration cannot authorize a deployment reply for this group.
+      taosHashCancelIterate(pHash, pIter);
+      return pollError;
+    }
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 static void stmClearTaskExtraErrMsg(SStreamTask* pTask) {

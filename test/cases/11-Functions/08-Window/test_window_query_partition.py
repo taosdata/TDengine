@@ -75,6 +75,419 @@ class TestWindowQueryPartition:
             [(1, 1), (1, 1)],
         )
 
+    def test_window_partition_by_tbname(self):
+        """Rank rows and compute averages within each child table.
+
+        1. Filter the top three readings per table in an outer query.
+        2. Subtract a single child's window average from each reading.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-19 Created
+        """
+        tdSql.execute("create stable meters (ts timestamp, current float) tags (site int)")
+        tdSql.execute("create table d1 using meters tags (1) d2 using meters tags (1)")
+        tdSql.execute(
+            "insert into d1 values (1700000000000, 4)(1700000000001, 10)"
+            "(1700000000002, 2)(1700000000003, 8) "
+            "d2 values (1700000000000, 24)(1700000000001, 26)"
+        )
+        self.check(
+            "select tbname, ts, current from (select tbname, ts, current, "
+            "row_number() over (partition by tbname order by current desc) as rn "
+            "from meters) t where rn <= 3 order by tbname, rn",
+            [("d1", 1700000000001, 10), ("d1", 1700000000003, 8),
+             ("d1", 1700000000000, 4), ("d2", 1700000000001, 26),
+             ("d2", 1700000000000, 24)],
+        )
+        self.check(
+            "select ts, current - avg(current) over (partition by tbname) from d1 order by ts",
+            [(1700000000000, -2), (1700000000001, 4), (1700000000002, -4), (1700000000003, 2)],
+        )
+
+    def test_window_tbname_keys(self):
+        """Rank across child tables with equally long names.
+
+        1. Interleave rows from three tables with distinct timestamps.
+        2. Check partition boundaries for table name lengths, BLOB values and signed zeros.
+        3. Check diagnostic messages for unsupported partition and order keys.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-19 Created
+        """
+        tdSql.execute("create stable devices (ts timestamp, v int) tags (site int)")
+        tdSql.execute("create table aa using devices tags (1) bb using devices tags (1) ccc using devices tags (1)")
+        tdSql.execute(
+            "insert into aa values (1700000000000, 1)(1700000000003, 4) "
+            "bb values (1700000000002, 3) ccc values (1700000000001, 2)"
+        )
+        self.check(
+            "select tbname, row_number() over (partition by length(tbname) order by ts) "
+            "from devices order by ts",
+            [("aa", 1), ("ccc", 1), ("bb", 2), ("aa", 3)],
+        )
+
+        self.check(
+            "select tbname, row_number() over (partition by cast(tbname as blob) order by ts) "
+            "from devices order by ts",
+            [("aa", 1), ("ccc", 1), ("bb", 1), ("aa", 2)],
+        )
+        self.check(
+            "select tbname, row_number() over (partition by "
+            "cast(case when tbname = 'aa' then '-0' else '0' end as double) order by ts) "
+            "from devices order by ts",
+            [("aa", 1), ("ccc", 2), ("bb", 3), ("aa", 4)],
+        )
+        for sql in (
+            "select row_number() over (partition by sleep(0 * length(tbname)) order by ts) from devices",
+            "select row_number() over w from devices window w as (order by sleep(0 * length(tbname)))",
+        ):
+            tdSql.error(sql, expectErrInfo="sleep cannot be used as a window partition or order key")
+
+    def test_binary_window_keys(self):
+        """Compare every byte of binary window keys.
+
+        1. Interleave two distinct points and check their row numbers.
+        2. Rank VARCHAR and NCHAR strings that differ after an embedded zero.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-19 Created
+        """
+        tdSql.execute("create table points (ts timestamp, g geometry(128), encoded varchar(4))")
+        tdSql.execute(
+            "insert into points values (1700000000001,'POINT(1 1)','QQBB')"
+            "(1700000000002,'POINT(2 2)','QQBC')(1700000000003,'POINT(1 1)','QQBB')"
+        )
+        self.check("select row_number() over(partition by g order by ts) from points order by ts",
+                   [(1,), (1,), (2,)])
+        tdSql.execute("create table payloads (ts timestamp, k varchar(8))")
+        tdSql.execute("insert into payloads select ts, from_base64(encoded) from points")
+        self.check(
+            "select to_base64(k), row_number() over(partition by k order by ts), "
+            "dense_rank() over(order by k desc) from payloads order by ts",
+            [("QQBB", 1, 2), ("QQBC", 1, 1), ("QQBB", 2, 2)],
+        )
+
+        tdSql.execute("create table wide_keys (ts timestamp, k nchar(8))")
+        tdSql.execute("insert into wide_keys select ts, cast(k as nchar(8)) from payloads")
+        self.check(
+            "select length(k), row_number() over(partition by k order by ts), "
+            "dense_rank() over(order by k desc) from wide_keys order by ts",
+            [(12, 1, 2), (12, 1, 1), (12, 2, 2)],
+        )
+
+    def test_json_window_keys(self):
+        """Preserve JSON scalar keys in query and window partitions.
+
+        1. Partition by adjacent numbers extracted from child table tags.
+        2. Check window row numbers and descending dense ranks against the stored values.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        tdSql.execute("create stable json_keys (ts timestamp, v int) tags(j json)")
+        tdSql.execute("""create table jzero using json_keys tags('{"v":0}')""")
+        tdSql.execute("""create table jsmall using json_keys tags('{"v":1.1102230246251565e-16}')""")
+        tdSql.execute(
+            "insert into jzero values(1700000000001,1)(1700000000003,3) "
+            "jsmall values(1700000000002,2)"
+        )
+        self.check("select count(*) from (select count(*) from json_keys partition by j->'v')", [(2,)])
+        self.check("select v, row_number() over(order by ts) from json_keys partition by j->'v' order by ts",
+                   [(1, 1), (2, 1), (3, 2)])
+        self.check(
+            "select v, row_number() over(partition by j->'v' order by ts), "
+            "dense_rank() over(order by j->'v' desc) from json_keys order by ts",
+            [(1, 1, 2), (2, 1, 1), (3, 2, 2)],
+        )
+
+        tdSql.execute("""create table jnegative using json_keys tags('{"v":-0.0}')""")
+        tdSql.execute("""create table jstring using json_keys tags('{"v":"0"}')""")
+        tdSql.execute("""create table jmissing using json_keys tags('{"other":1}')""")
+        tdSql.execute(
+            "insert into jnegative values(1700000000004,4) jstring values(1700000000005,5) "
+            "jmissing values(1700000000006,6)(1700000000007,7)"
+        )
+        self.check("select count(*) from (select count(*) from json_keys partition by j->'v')", [(5,)])
+        self.check("select row_number() over(order by ts) from json_keys partition by j->'v' order by ts",
+                   [(1,), (1,), (2,), (1,), (1,), (1,), (2,)])
+        self.check("select row_number() over(partition by j->'v' order by ts) from json_keys order by ts",
+                   [(1,), (1,), (2,), (3,), (1,), (1,), (2,)])
+
+    def test_whole_json_partition(self):
+        """Keep the identity of a whole JSON tag in query partitions consumed by OVER.
+
+        1. Check one nonempty object, then equal and distinct objects on different children.
+        2. Compare empty-object and NULL row numbers with ordinary partition counts.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        tdSql.execute("create stable whole_tags(ts timestamp, v int) tags(j json)")
+        tdSql.execute("""create table ja using whole_tags tags('{"v":1}')""")
+        tdSql.execute("insert into ja values (1700000000001,1)")
+        sql = "select v, row_number() over(order by ts) from whole_tags partition by j order by ts"
+        self.check(sql, [(1, 1)])
+        tdSql.execute("""create table jb using whole_tags tags('{"v":1}')""")
+        tdSql.execute("""create table jc using whole_tags tags('{"v":2}')""")
+        tdSql.execute("create table jn using whole_tags tags(null)")
+        tdSql.execute("create table je using whole_tags tags('{}')")
+        tdSql.execute(
+            "insert into jb values (1700000000002,2) jc values (1700000000003,3) "
+            "jn values (1700000000004,4) je values (1700000000005,5)"
+        )
+        self.check("select count(*) from whole_tags partition by j order by count(*) desc", [(2,), (2,), (1,)])
+        self.check(sql, [(1, 1), (2, 2), (3, 1), (4, 1), (5, 2)])
+
+    def test_window_and_query_key_order(self):
+        """Use window peer ordering only inside OVER.
+
+        1. Compare ordinary VARCHAR keyset pagination with a single sorted query.
+        2. Compare both NCHAR sort directions with their corresponding extrema.
+        3. Rank the same VARCHAR and NCHAR keys inside a window.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        tdSql.execute("create table page_src(ts timestamp, encoded varchar(8))")
+        tdSql.execute("insert into page_src values(1700000000001,'QQBa')(1700000000002,'QQBBQQ==')")
+        tdSql.execute("create table page_keys(ts timestamp, k varchar(12), w nchar(12))")
+        tdSql.execute(
+            "insert into page_keys select ts, from_base64(encoded), cast(from_base64(encoded) as nchar(12)) "
+            "from page_src"
+        )
+        select = "select to_base64(k) from page_keys"
+        self.check(select + " order by k", [("QQBa",), ("QQBBQQ==",)])
+        tdSql.query(select + " order by k limit 1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "QQBa")
+        cursor = tdSql.getData(0, 0)
+        self.check(select + f" where k > from_base64('{cursor}') order by k limit 1", [("QQBBQQ==",)])
+        self.check("select length(min(w)), length(max(w)) from page_keys", [(12, 16)])
+        self.check("select length(w) from page_keys order by w asc limit 1", [(12,)])
+        self.check("select length(w) from page_keys order by w desc limit 1", [(16,)])
+        self.check(
+            "select dense_rank() over(order by k), dense_rank() over(order by w) from page_keys order by ts",
+            [(2, 2), (1, 1)],
+        )
+
+        self.check(
+            "select to_base64(k), dense_rank() over(order by k) from page_keys order by k",
+            [("QQBa", 2), ("QQBBQQ==", 1)],
+        )
+
+    def test_state_window_primary_key_order(self):
+        """Keep storage primary-key order across state window execution plans.
+
+        1. Put opposite states at the same timestamp on different child tables.
+        2. Compare the default and scan-sort plans within and across vgroups.
+        3. Rank the same keys using OVER across both vgroups.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        tdSql.execute("create table state_src(ts timestamp, encoded varchar(8), s int)")
+        tdSql.execute(
+            "insert into state_src values (1700000000200,'QQ==',0)(1700000000201,'QQBa',0)"
+            "(1700000000202,'QQBBQQ==',1)(1700000000203,'Qg==',1)"
+        )
+        for groups in (1, 2):
+            db = f"window_state_pk_{groups}"
+            tdSql.execute(f"create database {db} vgroups {groups}")
+            try:
+                tdSql.execute(f"create stable {db}.st(ts timestamp, k varchar(12) primary key, s int) tags(site int)")
+                for i in range(2 if groups == 1 else 16):
+                    tdSql.execute(f"create table {db}.c{i} using {db}.st tags(1)")
+                tdSql.query("select table_name, vgroup_id from information_schema.ins_tables "
+                            f"where db_name='{db}' order by table_name")
+                children = tdSql.queryResult
+                first, first_group = children[0]
+                second = next(name for name, vg in children[1:] if groups == 1 or vg != first_group)
+                for state, name in enumerate((first, second)):
+                    tdSql.execute(
+                        f"insert into {db}.{name} select case when ts=1700000000202 "
+                        "then cast(1700000000201 as timestamp) else ts end, from_base64(encoded), s "
+                        f"from state_src where s={state}"
+                    )
+                for hint in ("", "/*+ SMALLDATA_SCAN_SORT() */"):
+                    sql = f"select {hint} _wstart, count(*), to_base64(first(k)) from {db}.st state_window(s)"
+                    tdSql.query("explain " + sql)
+                    plan = "\n".join(row[0] for row in tdSql.queryResult)
+                    assert ("Sort" if hint else "Table Merge Scan") in plan, plan
+                    if groups == 2:
+                        assert "-> Merge " in plan, plan
+                    self.check(sql, [(1700000000200, 2, "QQ=="), (1700000000201, 2, "QQBBQQ==")])
+                self.check(
+                    f"select to_base64(k), dense_rank() over(order by k) from {db}.st order by ts,s",
+                    [("QQ==", 1), ("QQBa", 3), ("QQBBQQ==", 2), ("Qg==", 4)],
+                )
+            finally:
+                tdSql.execute(f"drop database {db}")
+
+    def test_floating_window_keys(self):
+        """Keep close floating-point values distinct when sorting and partitioning.
+
+        1. Reverse the secondary sort key and check the same partition boundaries.
+        2. Verify exact DOUBLE ranks and query versus window signed-zero groups.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-19 Created
+        """
+        tdSql.execute("create table floats (ts timestamp, f float, dv double, device int)")
+        tdSql.execute(
+            "insert into floats values (1700000000001,0.00000035762786865234375,1e-16,1)"
+            "(1700000000002,0,0,2)(1700000000003,0.0000007152557373046875,2e-16,3)"
+        )
+        self.check("select row_number() over(order by ts) from floats partition by f order by ts",
+                   [(1,), (1,), (1,)])
+        self.check(
+            "select row_number() over(partition by f order by ts), row_number() over(partition by f order by ts desc), "
+            "dense_rank() over(order by dv) from floats order by ts",
+            [(1, 1, 2), (1, 1, 1), (1, 1, 3)],
+        )
+        for type_name in ("float", "double"):
+            key = f"cast(case when device=2 then '-0' else '0' end as {type_name})"
+            self.check(f"select row_number() over(order by ts) from floats partition by {key} order by ts",
+                       [(1,), (1,), (2,)])
+            self.check(f"select row_number() over(partition by {key} order by ts) from floats order by ts",
+                       [(1,), (2,), (3,)])
+
+    def test_stored_float_query_partition(self):
+        """Read the original floating column when a window uses it as a query partition.
+
+        1. Store both signs of zero and a nonzero value in FLOAT and DOUBLE columns.
+        2. Check hidden and projected query keys, then use the same column inside OVER.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-20 Created
+        """
+        tdSql.execute("create table seed(ts timestamp, k varchar(3))")
+        tdSql.execute("insert into seed values(1700000000001,'0')(1700000000002,'-0')"
+                      "(1700000000003,'0')(1700000000004,'1')")
+        tdSql.execute("create table stored(ts timestamp, f float, d double)")
+        tdSql.execute("insert into stored select ts, cast(k as float), cast(k as double) from seed")
+        for key in ("f", "d"):
+            self.check(f"select row_number() over(order by ts) from stored partition by {key} order by ts",
+                       [(1,), (1,), (2,), (1,)])
+            self.check(f"select {key}, row_number() over(partition by {key} order by ts) from stored "
+                       f"partition by {key} order by ts", [(0, 1), (0, 1), (0, 2), (1, 1)])
+            self.check(f"select row_number() over(partition by {key} order by ts) from stored order by ts",
+                       [(1,), (2,), (3,), (1,)])
+
+    def test_correlated_window_keys(self):
+        """Use correlated scalar subquery results as window keys.
+
+        1. Give different devices matching thresholds and a third device a lower one.
+        2. Rank and partition by the returned thresholds.
+
+        Catalog:
+            - Function:Window
+
+        Since: v3.4.3.11
+
+        Labels: common,ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/defect/detail/7174122374
+
+        History:
+            - 2026-11-19 Created
+        """
+        tdSql.execute("create table thresholds (ts timestamp, device int, lim int)")
+        tdSql.execute(
+            "insert into thresholds values (1700000000001,1,10)(1700000000002,2,10)(1700000000003,3,5)"
+        )
+        tdSql.query("show local variables")
+        policy = dict((row[0], row[1]) for row in tdSql.queryResult)["queryPolicy"]
+        try:
+            tdSql.execute('alter local "queryPolicy" "1"')
+            key = "(select max(t.lim) from thresholds t where t.device=r.device)"
+            self.check(f"select dense_rank() over(order by {key}) from thresholds r order by r.ts",
+                       [(2,), (2,), (1,)])
+            self.check(f"select row_number() over(partition by {key} order by r.ts) from thresholds r order by r.ts",
+                       [(1,), (2,), (1,)])
+        finally:
+            tdSql.execute(f'alter local "queryPolicy" "{policy}"')
+
     def test_nested_partitions_and_frames(self):
         """Window keys refine query partitions without merging devices.
 
