@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "transComm.h"
@@ -856,4 +857,163 @@ TEST(TransConflictRetry, OtherMessagesAreNotResent) {
   EXPECT_EQ(SendOnce(TDMT_MND_CREATE_DB, 3, &reqCount), TSDB_CODE_MND_TRANS_CONFLICT);
   EXPECT_EQ(reqCount, 1);
 }
+// ---------------------------------------------------------------------------
+// transAsyncSendToIdx / transAsyncSendWithIdx: the task-release affinity fix
+// relies on (a) the round-robin helper reporting the slot it used, (b) sending
+// to an explicit slot without advancing the round-robin counter, and (c) the
+// loop draining slot 0 before slot 7 for messages queued in the same pass.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct AsyncSlotMsg {
+  queue q;
+  int   val;
+};
+
+struct AsyncSlotProbe {
+  SAsyncPool*            pool = nullptr;
+  vector<pair<int, int>> order;  // (slot, val)
+};
+
+AsyncSlotProbe gAsyncProbe;
+
+void asyncSlotTestCb(uv_async_t* handle) {
+  SAsyncItem* item = (SAsyncItem*)handle->data;
+  int         slot = (int)(handle - gAsyncProbe.pool->asyncs);
+
+  queue tmp;
+  QUEUE_INIT(&tmp);
+
+  taosThreadMutexLock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &tmp);
+  taosThreadMutexUnlock(&item->mtx);
+
+  while (!QUEUE_IS_EMPTY(&tmp)) {
+    queue* h = QUEUE_HEAD(&tmp);
+    QUEUE_REMOVE(h);
+    AsyncSlotMsg* m = QUEUE_DATA(h, AsyncSlotMsg, q);
+    gAsyncProbe.order.push_back(make_pair(slot, m->val));
+    taosMemoryFree(m);
+  }
+}
+
+void asyncSlotCloseCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
+// The async handles stay active for the lifetime of the pool, so UV_RUN_DEFAULT would never
+// return; poll the loop until the expected number of messages has been drained.
+bool runLoopUntilDrained(uv_loop_t* loop, size_t expected, int timeoutMs = 3000) {
+  auto deadline = chrono::steady_clock::now() + chrono::milliseconds(timeoutMs);
+  while (gAsyncProbe.order.size() < expected) {
+    uv_run(loop, UV_RUN_NOWAIT);
+    if (chrono::steady_clock::now() > deadline) {
+      return false;
+    }
+    this_thread::sleep_for(chrono::milliseconds(1));
+  }
+  return true;
+}
+
+AsyncSlotMsg* newAsyncSlotMsg(int val) {
+  AsyncSlotMsg* m = (AsyncSlotMsg*)taosMemoryCalloc(1, sizeof(AsyncSlotMsg));
+  EXPECT_NE(nullptr, m);
+  if (m != nullptr) {
+    QUEUE_INIT(&m->q);
+    m->val = val;
+  }
+  return m;
+}
+
+class AsyncSlotEnv : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(0, uv_loop_init(&loop));
+    ASSERT_EQ(0, transAsyncPoolCreate(&loop, 8, NULL, asyncSlotTestCb, &pool));
+    ASSERT_NE(nullptr, pool);
+    gAsyncProbe.pool = pool;
+    gAsyncProbe.order.clear();
+  }
+
+  void TearDown() override {
+    uv_walk(&loop, asyncSlotCloseCb, NULL);
+    uv_run(&loop, UV_RUN_DEFAULT);
+    uv_loop_close(&loop);
+    transAsyncPoolDestroy(pool);
+    pool = NULL;
+    gAsyncProbe.pool = NULL;
+  }
+
+  uv_loop_t   loop;
+  SAsyncPool* pool = nullptr;
+};
+
+TEST_F(AsyncSlotEnv, sendWithIdxReportsTheUsedSlot) {
+  pool->index = 5;
+
+  AsyncSlotMsg* m = newAsyncSlotMsg(1);
+  ASSERT_NE(nullptr, m);
+
+  int32_t idx = -1;
+  ASSERT_EQ(0, transAsyncSendWithIdx(pool, &m->q, &idx));
+  EXPECT_EQ(5, idx);
+  EXPECT_EQ(6, pool->index);
+
+  ASSERT_TRUE(runLoopUntilDrained(&loop, 1));
+  ASSERT_EQ(1u, gAsyncProbe.order.size());
+  EXPECT_EQ(make_pair(5, 1), gAsyncProbe.order[0]);
+}
+
+TEST_F(AsyncSlotEnv, toIdxDoesNotAdvanceIndexAndKeepsSameSlotOrder) {
+  pool->index = 7;
+
+  AsyncSlotMsg* first = newAsyncSlotMsg(1);
+  ASSERT_NE(nullptr, first);
+  int32_t idx = -1;
+  ASSERT_EQ(0, transAsyncSendWithIdx(pool, &first->q, &idx));
+  ASSERT_EQ(7, idx);
+  int32_t afterFirst = pool->index;
+  EXPECT_EQ(8, afterFirst);
+
+  AsyncSlotMsg* second = newAsyncSlotMsg(2);
+  ASSERT_NE(nullptr, second);
+  ASSERT_EQ(0, transAsyncSendToIdx(pool, idx, &second->q));
+  EXPECT_EQ(afterFirst, pool->index);  // explicit slot send must not touch the counter
+
+  ASSERT_TRUE(runLoopUntilDrained(&loop, 2));
+  ASSERT_EQ(2u, gAsyncProbe.order.size());
+  EXPECT_EQ(make_pair(7, 1), gAsyncProbe.order[0]);
+  EXPECT_EQ(make_pair(7, 2), gAsyncProbe.order[1]);
+}
+
+TEST_F(AsyncSlotEnv, lowerSlotIsDrainedBeforeHigherSlot) {
+  AsyncSlotMsg* high = newAsyncSlotMsg(7);
+  ASSERT_NE(nullptr, high);
+  ASSERT_EQ(0, transAsyncSendToIdx(pool, 7, &high->q));
+
+  AsyncSlotMsg* low = newAsyncSlotMsg(0);
+  ASSERT_NE(nullptr, low);
+  ASSERT_EQ(0, transAsyncSendToIdx(pool, 0, &low->q));
+
+  ASSERT_TRUE(runLoopUntilDrained(&loop, 2));
+  ASSERT_EQ(2u, gAsyncProbe.order.size());
+  EXPECT_EQ(make_pair(0, 0), gAsyncProbe.order[0]);
+  EXPECT_EQ(make_pair(7, 7), gAsyncProbe.order[1]);
+}
+
+TEST_F(AsyncSlotEnv, invalidSlotIsRejected) {
+  AsyncSlotMsg* m = newAsyncSlotMsg(1);
+  ASSERT_NE(nullptr, m);
+
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, transAsyncSendToIdx(pool, 8, &m->q));
+  EXPECT_EQ(TSDB_CODE_INVALID_PARA, transAsyncSendToIdx(pool, -1, &m->q));
+
+  taosMemoryFree(m);
+  uv_run(&loop, UV_RUN_NOWAIT);
+  EXPECT_TRUE(gAsyncProbe.order.empty());
+}
+
+}  // namespace
 #endif

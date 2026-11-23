@@ -234,7 +234,7 @@ typedef struct {
   int64_t overloadRetryStartTs;   // timestamp when overload retry first started
   int32_t overloadRetryLastInterval;  // last retry interval for exponential backoff
 } SReqCtx;
-typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update, FreeById, ReloadTLS, CloseConn } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -298,6 +298,8 @@ typedef struct {
 int32_t transAsyncPoolCreate(uv_loop_t* loop, int sz, void* arg, AsyncCB cb, SAsyncPool** pPool);
 void    transAsyncPoolDestroy(SAsyncPool* pool);
 int     transAsyncSend(SAsyncPool* pool, queue* mq);
+int     transAsyncSendWithIdx(SAsyncPool* pool, queue* mq, int32_t* pIdx);
+int     transAsyncSendToIdx(SAsyncPool* pool, int32_t idx, queue* mq);
 bool    transAsyncPoolIsEmpty(SAsyncPool* pool);
 
 #define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc, param) \
@@ -369,6 +371,19 @@ int32_t transGetRefCount(void* handle);
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
 
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
+
 int32_t transSendRequest2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransCtx* pCtx);
 int32_t transSendRecv2(void* pInit, const SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp);
 int32_t transSendRecvWithTimeout2(void* pInit, SEpSet* pEpSet, STransMsg* pReq, STransMsg* pRsp, int8_t* epUpdated,
@@ -411,6 +426,19 @@ int32_t transGetRefCount(void* handle);
 
 int32_t transReleaseCliHandle(void* handle, int32_t status);
 int32_t transReleaseSrvHandle(void* handle, int32_t status);
+
+/**
+ * Synchronously close the underlying physical connection referenced by the RPC handle info.
+ *
+ * The connection is marked broken so that no further message can be queued on it, the real
+ * socket is closed in the transport loop thread and (when called from another thread) this
+ * function waits until the connection has been destroyed. This guarantees that a client
+ * waiting for a response either receives it or observes a broken link.
+ *
+ * @param handle SRpcHandleInfo* of the connection.
+ * @return 0 on success, otherwise an error code.
+ */
+int32_t transCloseConnSync(void* handle);
 
 int32_t transReloadTlsConfig(void* handle, int8_t type);
 
