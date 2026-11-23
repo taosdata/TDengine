@@ -123,3 +123,39 @@ def test_model_validation_rejects_invalid_or_empty_directory(tmp_path):
         validate_tsfm_model(Path(tmp_path), "../moirai", {})
     with pytest.raises(ValueError, match="missing"):
         validate_tsfm_model(Path(tmp_path) / "empty", "moirai", {})
+
+
+@pytest.mark.parametrize("actual,accepted", [
+    ("3.12.12", True), ("3.12.16", True), ("3.13.0", False),
+    ("3.11.16", False), ("3.12.11", False), ("3.12.16rc1", False),
+    ("", False), ("garbage", False),
+])
+def test_runtime_python_patch_compatibility(tmp_path, mocker, actual, accepted):
+    root = tmp_path / "tsfm"
+    python = root / "bin" / "python3"
+    python.parent.mkdir(parents=True)
+    python.touch()
+    lock = b"torch==2.4.1\n"
+    (root / "requirements.lock").write_bytes(lock)
+    manifest = {"schema_version": 1, "kind": "tsfm-runtime", "runtime_id": "tsfm-runtime-1.0.0",
+                "python_version": "3.12.12", "platform": "linux", "arch": "x64",
+                "requirements_sha256": hashlib.sha256(lock).hexdigest()}
+    (root / "manifest.json").write_text(json.dumps(manifest))
+    (root / COMPLETION_FILE).write_text(json.dumps({"kind": "tsfm-runtime-install"}))
+    mocker.patch("resource_manifest.normalized_platform", return_value="linux")
+    mocker.patch("resource_manifest.normalized_arch", return_value="x64")
+    probe = mocker.patch("resource_manifest.subprocess.run")
+    probe.return_value = subprocess.CompletedProcess([], 0, actual + "\n", "")
+    if accepted:
+        assert validate_tsfm_runtime(root)[0] == manifest
+    else:
+        with pytest.raises(ValueError, match="explicitly run taosanodectl resource import"):
+            validate_tsfm_runtime(root)
+
+
+def test_runtime_failed_python_probe_is_rejected(tmp_path, mocker):
+    # A matching version printed by a failing process must not bypass validation.
+    test_runtime_python_patch_compatibility(tmp_path, mocker, "3.12.12", True)
+    mocker.patch("resource_manifest.subprocess.run", return_value=subprocess.CompletedProcess([], 1, "3.12.12\n", ""))
+    with pytest.raises(ValueError, match="incompatible"):
+        validate_tsfm_runtime(tmp_path / "tsfm")

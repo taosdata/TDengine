@@ -269,24 +269,26 @@ def validate_tsfm_runtime(
             f"runtime Python interpreter is not runnable: {python_exe}: {exc}"
         ) from exc
 
-    # Record what the probe actually returned: while the comparison below stays
-    # disabled this is the only evidence of interpreter/manifest version drift.
-    logger.debug(
-        "TSFM runtime Python probe: %s exit=%s reported=%r manifest=%r",
-        python_exe,
-        result.returncode,
-        (result.stdout or "").strip(),
-        manifest.get("python_version"),
-    )
-
-    if result.returncode or result.stdout.strip() != _required_string(manifest, "python_version"):
-        logger.error(
-            "TSFM runtime Python version mismatch in %s: manifest=%r reported=%r",
-            runtime_dir,
-            manifest.get("python_version"),
-            (result.stdout or "").strip(),
+    # The manifest records the build interpreter, not an exact patch-level ABI.
+    # Keep minor-version changes and patch downgrades explicit; verified forward
+    # patch updates reuse installed dependencies without downloading resources.
+    built = _required_string(manifest, "python_version")
+    actual = (result.stdout or "").strip()
+    built_match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", built)
+    actual_match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", actual)
+    expected = tuple(map(int, built_match.groups())) if built_match else ()
+    reported = tuple(map(int, actual_match.groups())) if actual_match else ()
+    if (result.returncode or not expected or not reported
+            or expected[:2] != reported[:2] or reported[2] < expected[2]):
+        raise ValueError(
+            f"TSFM runtime Python is incompatible: built={built!r}, actual={actual!r}. "
+            "Use the matching Python or prepare a matching TSFM runtime archive; "
+            "with model workers stopped, explicitly run taosanodectl resource import "
+            "--package <archive> --expected-sha256 <digest> --replace. "
+            "This validation does not initiate downloads or replacement."
         )
-        raise ValueError("runtime Python version does not match its manifest")
+    if actual != built:
+        logger.info("TSFM runtime uses a newer Python patch: built=%s actual=%s", built, actual)
 
     logger.debug(
         "TSFM runtime validated: %s (runtime_id=%s)", runtime_dir, manifest.get("runtime_id")
