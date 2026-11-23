@@ -921,8 +921,8 @@ static int32_t mndWaitCreatedXnode(SMnode *pMnode, const char *url, bool waitUse
   return TSDB_CODE_SUCCESS;
 }
 
-// mndStartXnoded returns about 100ms after spawn, which is not enough for xnoded to
-// bind its control endpoint. Sending POST /xnode before that fails as URL_CANT_ACCESS.
+// mndStartXnoded waits for spawn, not for xnoded to bind its control endpoint.
+// Sending POST /xnode before the endpoint is ready fails as URL_CANT_ACCESS.
 static int32_t mndWaitXnodedSocket(SMnode *pMnode, int32_t timeoutMs) {
 #ifndef WINDOWS
   char socketPath[PATH_MAX] = {0};

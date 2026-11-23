@@ -27,6 +27,7 @@
 #include "tarray.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tutil.h"
 #include "tudf.h"
 #include "tudfInt.h"
 
@@ -400,23 +401,6 @@ static void udfUdfdStopAsyncCb(uv_async_t *async) {
   uv_stop(&pData->loop);
 }
 
-// libuv error codes are small negative errno-style values (UV_UNKNOWN is -4096,
-// the lowest one); TDengine error codes have the sign bit set and are far
-// outside that range.
-#define UDF_UV_ERRNO_MIN (-65536)
-
-// Map a libuv error to the module error code so callers can render the reason
-// with tstrerror(). The raw libuv value and uv_strerror() text are passed to
-// fnError(), which taosudf.h compiles to nothing on Windows, so on Windows the
-// failure is only observable through the returned code and the caller's
-// "failed to start ... since ..." log.
-static int32_t udfMapUvErr(int32_t code) {
-  if (code == 0 || code > UDF_UV_ERRNO_MIN) {
-    return TSDB_CODE_UDF_UV_EXEC_FAILURE;
-  }
-  return code;
-}
-
 static void udfWatchUdfd(void *args) {
   TAOS_UDF_CHECK_PTR_RVOID(args);
   SUdfdData *pData = args;
@@ -442,7 +426,7 @@ static void udfWatchUdfd(void *args) {
 _exit:
   // Publish the failure before releasing the starter thread: it reads
   // spawnErr as soon as the barrier is lifted.
-  atomic_store_32(&pData->spawnErr, udfMapUvErr(terrno));
+  atomic_store_32(&pData->spawnErr, tsdbMapUvErr(terrno, TSDB_CODE_UDF_UV_EXEC_FAILURE));
   (void)uv_barrier_wait(&pData->barrier);
 
   // The starter thread does not send any stop notification on this path; it
@@ -458,7 +442,7 @@ _exit:
       fnError("udfd loop close failed, lino:%d", __LINE__);
     }
   }
-  if (terrno < 0 && terrno > UDF_UV_ERRNO_MIN) {
+  if (terrno < 0 && terrno > TSDB_UV_ERRNO_MIN) {
     fnError("udfd thread exit with libuv error:%s (%d) lino:%d", uv_strerror(terrno), terrno, terrln);
   } else {
     fnError("udfd thread exit with code:%d lino:%d", terrno, terrln);
@@ -525,12 +509,12 @@ _exit:
       // Only reachable when the worker thread could not be created.
       uv_barrier_destroy(&pData->barrier);
     }
-    if (code < 0 && code > UDF_UV_ERRNO_MIN) {
+    if (code < 0 && code > TSDB_UV_ERRNO_MIN) {
       fnError("udfd start failed with libuv error:%s (%d), lino:%d", uv_strerror(code), code, lino);
     } else {
       fnError("udfd start failed with code:%d, lino:%d", code, lino);
     }
-    code = udfMapUvErr(code);
+    code = tsdbMapUvErr(code, TSDB_CODE_UDF_UV_EXEC_FAILURE);
   }
   return code;
 }
