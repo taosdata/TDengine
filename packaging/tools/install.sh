@@ -2234,15 +2234,14 @@ function installProduct() {
 
 check_java_env() {
   if ! command -v java &>/dev/null; then
-    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    echo -e "\033[31mWarning: Java command not found. Version 17+ is required.\033[0m"
     return
   fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_major=$(echo "$java_version" | cut -d"." -f1 | tr -cd '0-9')
   java_version_ok=false
-  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
-    java_version_ok=true
-  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+  if [ -n "$java_major" ] && [ "$java_major" -ge 17 ]; then
     java_version_ok=true
   fi
 
@@ -2251,7 +2250,7 @@ check_java_env() {
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
     echo
-    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+    echo -e "\033[31mWarning: Java Version 17+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 
