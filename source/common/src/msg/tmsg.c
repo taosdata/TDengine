@@ -12264,10 +12264,16 @@ int32_t tDeserializeSTableIndexReq(void *buf, int32_t bufLen, STableIndexReq *pR
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char    *tbStr = NULL;
+  uint32_t tbWireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->tbFName));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&tbStr, &tbWireLen));
+  if (tbWireLen == 0 || tbWireLen > sizeof(pReq->tbFName) || tbStr[tbWireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->tbFName, tbStr, tbWireLen);
   tEndDecode(&decoder);
 
 _exit:
