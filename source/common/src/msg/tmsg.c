@@ -11304,10 +11304,16 @@ int32_t tDeserializeSDbCfgReq(void *buf, int32_t bufLen, SDbCfgReq *pReq) {
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char*    dbStr = NULL;
+  uint32_t dbWireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->db));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t**)&dbStr, &dbWireLen));
+  if (dbWireLen == 0 || dbWireLen > sizeof(pReq->db) || dbStr[dbWireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->db, dbStr, dbWireLen);
   tEndDecode(&decoder);
 
 _exit:
