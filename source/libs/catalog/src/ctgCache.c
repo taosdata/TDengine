@@ -5167,16 +5167,25 @@ static int32_t ctgBuildNewExtSourceHash(SArray* pSources, SHashObj** ppNewHash) 
 }
 
 // Two snapshots of the same external source describe the same remote namespace
-// only when every field the connector resolves names against is identical.  The
-// version is bumped on every ALTER / REFRESH, so a changed version always means
-// the remote schema really did change.
+// only when they refer to the same source instance and every field the
+// connector resolves names against is identical.  meta_version is bumped on
+// every ALTER / REFRESH, so a changed version always means the remote schema
+// really did change.  create_time identifies the instance itself: a DROP
+// followed by a CREATE with the same name and connection settings restarts
+// meta_version, and the heartbeat push carries no delete event in between, so
+// without it cached state would leak from the dropped instance into the new one.
+// create_time has millisecond resolution; a collision would require the old
+// CREATE, the DROP and the new CREATE to commit inside one millisecond, which
+// two separate commitlog transactions make impractical.
 static bool ctgExtSourceSameIdentity(const SGetExtSourceRsp* a, const SGetExtSourceRsp* b) {
   return a->type == b->type && a->port == b->port && a->meta_version == b->meta_version &&
-         0 == strcmp(a->host, b->host) && 0 == strcmp(a->user, b->user) &&
-         0 == strcmp(a->database, b->database) && 0 == strcmp(a->schema_name, b->schema_name);
+         a->create_time == b->create_time && 0 == strcmp(a->host, b->host) &&
+         0 == strcmp(a->user, b->user) && 0 == strcmp(a->database, b->database) &&
+         0 == strcmp(a->schema_name, b->schema_name);
 }
 
-// Carry the cached table schemas of an unchanged source across a cache replace.
+// Carry the cached table schemas and capability profile of an unchanged source
+// instance across a cache replace.
 //
 // The heartbeat push rebuilds pExtSourceHash from mnode's source list, which
 // carries no table metadata.  Without this, a push that lands right after a
@@ -5186,16 +5195,16 @@ static bool ctgExtSourceSameIdentity(const SGetExtSourceRsp* a, const SGetExtSou
 // the two reads then shows up in a SELECT * that must still answer from the
 // cached schema (the documented ADD COLUMN without REFRESH behaviour).
 //
-// Ownership of pDbHash moves to the new entry; the old one is left empty so the
-// old hash's freeFp only reclaims the entry itself.  Called with the
-// extHashLatch WRITE lock held, so no reader holds a reference to either hash.
-static void ctgCarryOverExtTableMeta(SHashObj* pOldHash, SHashObj* pNewHash) {
+// Ownership of pDbHash and capability moves to the new entry; the old one is
+// left empty so the old hash's freeFp only reclaims the entry itself.  Called
+// with the extHashLatch WRITE lock held, so no reader references either hash.
+static void ctgCarryOverExtSourceState(SHashObj* pOldHash, SHashObj* pNewHash) {
   if (NULL == pOldHash || NULL == pNewHash) return;
 
   void* p = taosHashIterate(pOldHash, NULL);
   while (p) {
     SExtSourceCacheEntry* pOld = *(SExtSourceCacheEntry**)p;
-    if (NULL != pOld && NULL != pOld->pDbHash) {
+    if (NULL != pOld) {
       SExtSourceCacheEntry** ppNew =
           (SExtSourceCacheEntry**)taosHashGet(pNewHash, pOld->source.source_name,
                                               strlen(pOld->source.source_name));
@@ -5204,6 +5213,10 @@ static void ctgCarryOverExtTableMeta(SHashObj* pOldHash, SHashObj* pNewHash) {
         taosHashCleanup(pNew->pDbHash);  // freshly allocated by ctgBuildNewExtSourceHash, still empty
         pNew->pDbHash = pOld->pDbHash;   // ownership moves to the new entry
         pOld->pDbHash = NULL;
+        extCapDestroy(&pNew->capability);
+        pNew->capability = pOld->capability;
+        TAOS_MEMSET(&pOld->capability, 0, sizeof(pOld->capability));
+        pNew->capFetchedAt = pOld->capFetchedAt;
       }
     }
     p = taosHashIterate(pOldHash, p);
@@ -5553,9 +5566,9 @@ int32_t ctgOpReplaceExtSourceCache(SCtgCacheOperation* operation) {
     SHashObj* pOldHash = NULL;
     CTG_LOCK(CTG_WRITE, &pCtg->extHashLatch);
     pOldHash = pCtg->pExtSourceHash;
-    // Keep the remote table schemas of sources whose definition did not change;
+    // Keep the remote table schemas and capability profiles of unchanged sources;
     // only a real ALTER / REFRESH (meta_version bump) invalidates them.
-    ctgCarryOverExtTableMeta(pOldHash, pNewHash);
+    ctgCarryOverExtSourceState(pOldHash, pNewHash);
     pCtg->pExtSourceHash = pNewHash;
     pNewHash = NULL;   // pCtg now owns the new hash
     CTG_UNLOCK(CTG_WRITE, &pCtg->extHashLatch);
