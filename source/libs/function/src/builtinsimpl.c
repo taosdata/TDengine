@@ -6451,12 +6451,204 @@ static STopBotRes* getTopBotOutputInfo(SqlFunctionCtx* pCtx) {
   return pRes;
 }
 
+// Decides from the block SMA whether the current block can be skipped. Pruning
+// is implemented only for signed/unsigned integer, FLOAT and DOUBLE columns;
+// every other type (BOOL, TIMESTAMP, DECIMAL, ...) returns DATA_LOAD even
+// though topBotProcessBlock can still aggregate it.
+static EFuncDataRequired topBotDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo, bool isTopQuery) {
+  SResultRowEntryInfo* pEntry = (SResultRowEntryInfo*)pRes;
+  if (NULL == pEntry || !pEntry->initialized || NULL == pBlockInfo || NULL == pBlockInfo->pBlockAgg) {
+    // A dynamic callback can run before the first process call initializes the
+    // interbuf; there is no heap or column type to compare against yet.
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  // SColumnDataAgg::numOfNull is int16_t. For a block above INT16_MAX rows the
+  // stored null count cannot represent the row count, so a block whose rows
+  // are all NULL could be truncated to a value smaller than rows and then pass
+  // the all-null check below; a non-positive row count is not a real block
+  // either. Reject both before numOfNull is used. Dynamic pruning only sees
+  // DATA_LOAD blocks, where rows is the real row count (smaSourceRows is set
+  // only for one-row SMA_LOAD blocks, whose scan path returns before this
+  // callback).
+  if (pBlockInfo->rows <= 0 || pBlockInfo->rows > INT16_MAX) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  if (pBlockInfo->pBlockAgg->colId == -1 || pBlockInfo->pBlockAgg->numOfNull == pBlockInfo->rows) {
+    // An all-null aggregate is synthesized for columns without persisted SMA
+    // (TSD_READER_BLOCK_SMA_MODE_LAST_NULL_ONLY) and cannot be used for
+    // pruning. TOP/BOTTOM always reject such stats; the block-SMA scheduler
+    // relies on this when MAX or LAST share the same SMA read.
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  if (pBlockInfo->pBlockAgg->numOfNull < 0 || pBlockInfo->pBlockAgg->numOfNull > pBlockInfo->rows) {
+    // A real SMA always has numOfNull in [0, rows]. Outside that range the
+    // aggregate does not describe this block, so it cannot drive pruning.
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  STopBotRes* pResult = GET_ROWCELL_INTERBUF(pEntry);
+  if (pResult->maxSize <= 0 || pEntry->numOfRes < pResult->maxSize) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  const SColumnDataAgg* pAgg = pBlockInfo->pBlockAgg;
+  // Reuse the pointer set by getTopBotOutputInfo() during process instead of
+  // recomputing it: reaching numOfRes >= maxSize means process already ran,
+  // and any future change to the interbuf layout stays in one place.
+  const STopBotResItem* pItems = pResult->pItems;
+  bool                  rejectBlock = false;
+
+  // The comparison must be strict: a block whose extreme value equals the
+  // current threshold can still hold a row that ties with the kept ones, and
+  // TOP/BOTTOM also return the sibling columns of the selected row, so which
+  // tied row wins is observable. Loading that block keeps the tie handling
+  // identical to the unpruned path.
+  //
+  // Only reach numOfRes >= maxSize after at least one process call, which sets
+  // pResult->type from input.pData[0]. The caller builds pBlockAgg from
+  // pBlock->pBlockAgg[slotId] with the same param[0].pCol slotId that binds
+  // input.pData[0], and tsdb indexes block SMA by that slot as well, so the
+  // aggregate and pItems[0] always describe the same column.
+  //
+  // Unsigned SMA stores max/min as the bit pattern in the int64_t fields (the
+  // same convention as the max-dynamic-prune path), hence the explicit cast.
+  //
+  // FLOAT SMA stores max/min as double too (tColDataCalcSMAFloat), so
+  // GET_DOUBLE_VAL is the right read here, as in the max-dynamic-prune path.
+  switch (pResult->type) {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+      rejectBlock = isTopQuery ? pAgg->max < pItems[0].v.i : pAgg->min > pItems[0].v.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      rejectBlock = isTopQuery ? (uint64_t)pAgg->max < pItems[0].v.u : (uint64_t)pAgg->min > pItems[0].v.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      rejectBlock = isTopQuery ? GET_DOUBLE_VAL(&pAgg->max) < pItems[0].v.f
+                               : GET_DOUBLE_VAL(&pAgg->min) > pItems[0].v.f;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      rejectBlock = isTopQuery ? GET_DOUBLE_VAL(&pAgg->max) < pItems[0].v.d
+                               : GET_DOUBLE_VAL(&pAgg->min) > pItems[0].v.d;
+      break;
+    default:
+      return FUNC_DATA_REQUIRED_DATA_LOAD;
+  }
+
+  return rejectBlock ? FUNC_DATA_REQUIRED_NOT_LOAD : FUNC_DATA_REQUIRED_DATA_LOAD;
+}
+
+EFuncDataRequired topDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
+  return topBotDynDataReq(pRes, pBlockInfo, true);
+}
+
+EFuncDataRequired bottomDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo) {
+  return topBotDynDataReq(pRes, pBlockInfo, false);
+}
+
 static int32_t doAddIntoResult(SqlFunctionCtx* pCtx, void* pData, int32_t rowIndex, SSDataBlock* pSrcBlock,
                                uint16_t type, uint64_t uid, SResultRowEntryInfo* pEntryInfo, bool isTopQuery);
 
 static int32_t addResult(SqlFunctionCtx* pCtx, STopBotResItem* pSourceItem, int16_t type, bool isTopQuery);
 
-int32_t topFunction(SqlFunctionCtx* pCtx) {
+// Typed in-block prefilter for TOP/BOTTOM. The heap root is cached once the
+// heap is full and refreshed after an accepted row, so non-qualifying rows
+// never reach the generic variant conversion, tuple save or heap adjust.
+typedef enum {
+  TOPBOT_FAST_NONE = 0,
+  TOPBOT_FAST_SIGNED,
+  TOPBOT_FAST_UNSIGNED,
+  TOPBOT_FAST_FLOAT,
+  TOPBOT_FAST_DOUBLE,
+} ETopBotFastKind;
+
+static FORCE_INLINE ETopBotFastKind topBotFastKind(int16_t type) {
+  if (IS_SIGNED_NUMERIC_TYPE(type)) return TOPBOT_FAST_SIGNED;
+  if (IS_UNSIGNED_NUMERIC_TYPE(type)) return TOPBOT_FAST_UNSIGNED;
+  if (TSDB_DATA_TYPE_FLOAT == type) return TOPBOT_FAST_FLOAT;
+  if (TSDB_DATA_TYPE_DOUBLE == type) return TOPBOT_FAST_DOUBLE;
+  return TOPBOT_FAST_NONE;
+}
+
+static FORCE_INLINE int64_t topBotReadSigned(const char* pData, int16_t type) {
+  int8_t  v8 = 0;
+  int16_t v16 = 0;
+  int32_t v32 = 0;
+  int64_t v64 = 0;
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      memcpy(&v8, pData, sizeof(v8));
+      return v8;
+    case TSDB_DATA_TYPE_SMALLINT:
+      memcpy(&v16, pData, sizeof(v16));
+      return v16;
+    case TSDB_DATA_TYPE_INT:
+      memcpy(&v32, pData, sizeof(v32));
+      return v32;
+    default:
+      memcpy(&v64, pData, sizeof(v64));
+      return v64;
+  }
+}
+
+static FORCE_INLINE uint64_t topBotReadUnsigned(const char* pData, int16_t type) {
+  uint8_t  v8 = 0;
+  uint16_t v16 = 0;
+  uint32_t v32 = 0;
+  uint64_t v64 = 0;
+  switch (type) {
+    case TSDB_DATA_TYPE_UTINYINT:
+      memcpy(&v8, pData, sizeof(v8));
+      return v8;
+    case TSDB_DATA_TYPE_USMALLINT:
+      memcpy(&v16, pData, sizeof(v16));
+      return v16;
+    case TSDB_DATA_TYPE_UINT:
+      memcpy(&v32, pData, sizeof(v32));
+      return v32;
+    default:
+      memcpy(&v64, pData, sizeof(v64));
+      return v64;
+  }
+}
+
+// Strict comparison, matching the replace gate in doAddIntoResult: equal
+// values and NaN comparisons reject the row.
+static FORCE_INLINE bool topBotRawBeatsRoot(const char* pData, int16_t type, ETopBotFastKind kind,
+                                            const SVariant* pRoot, bool isTopQuery) {
+  switch (kind) {
+    case TOPBOT_FAST_SIGNED: {
+      int64_t v = topBotReadSigned(pData, type);
+      return isTopQuery ? v > pRoot->i : v < pRoot->i;
+    }
+    case TOPBOT_FAST_UNSIGNED: {
+      uint64_t v = topBotReadUnsigned(pData, type);
+      return isTopQuery ? v > pRoot->u : v < pRoot->u;
+    }
+    case TOPBOT_FAST_FLOAT: {
+      float v = 0;
+      memcpy(&v, pData, sizeof(v));
+      return isTopQuery ? v > pRoot->f : v < pRoot->f;
+    }
+    case TOPBOT_FAST_DOUBLE: {
+      double v = 0;
+      memcpy(&v, pData, sizeof(v));
+      return isTopQuery ? v > pRoot->d : v < pRoot->d;
+    }
+    default:
+      return true;
+  }
+}
+
+static int32_t topBotProcessBlock(SqlFunctionCtx* pCtx, bool isTopQuery) {
   int32_t              numOfElems = 0;
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
@@ -6464,21 +6656,57 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData*      pCol = pInput->pData[0];
 
   STopBotRes* pRes = getTopBotOutputInfo(pCtx);
-  pRes->type = pInput->pData[0]->info.type;
+  pRes->type = pCol->info.type;
 
-  int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
-      continue;
+  ETopBotFastKind kind = topBotFastKind(pRes->type);
+  STopBotResItem* pItems = pRes->pItems;
+  int32_t         start = pInput->startRowIndex;
+  int32_t         end = start + pInput->numOfRows;
+  bool            heapFull = pRes->maxSize > 0 && pResInfo->numOfRes >= pRes->maxSize;
+  SVariant        root = {0};
+  if (heapFull) {
+    // pItems[0] is the heap root: doAddIntoResult sorts and adjusts the heap
+    // with maxroot = !isTopQuery, so TOP keeps the maximum (its worst kept
+    // value) at the root and BOTTOM the minimum. The prefilter below and the
+    // block prune in topBotDynDataReq both compare against this root; keep
+    // the invariant if the heap helpers or their maxroot argument change.
+    root = pItems[0].v;
+  }
+
+#define TOPBOT_PROCESS_ROW(i)                                                                       \
+  do {                                                                                              \
+    const char* pRow = colDataGetData(pCol, (i));                                                   \
+    if (TOPBOT_FAST_NONE != kind && heapFull &&                                                     \
+        !topBotRawBeatsRoot(pRow, pRes->type, kind, &root, isTopQuery)) {                           \
+      continue;                                                                                     \
+    }                                                                                               \
+    int32_t rowCode = doAddIntoResult(pCtx, (void*)pRow, (i), pCtx->pSrcBlock, pRes->type,          \
+                                      pInput->uid, pResInfo, isTopQuery);                           \
+    if (TSDB_CODE_SUCCESS != rowCode) {                                                             \
+      return rowCode;                                                                               \
+    }                                                                                               \
+    if (heapFull || pResInfo->numOfRes >= pRes->maxSize) {                                          \
+      heapFull = true;                                                                              \
+      root = pItems[0].v;                                                                           \
+    }                                                                                               \
+  } while (0)
+
+  if (!pCol->hasNull) {
+    for (int32_t i = start; i < end; ++i) {
+      numOfElems++;
+      TOPBOT_PROCESS_ROW(i);
     }
-
-    numOfElems++;
-    char*   data = colDataGetData(pCol, i);
-    int32_t code = doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, true);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+  } else {
+    for (int32_t i = start; i < end; ++i) {
+      if (colDataIsNull_f(pCol, i)) {
+        continue;
+      }
+      numOfElems++;
+      TOPBOT_PROCESS_ROW(i);
     }
   }
+
+#undef TOPBOT_PROCESS_ROW
 
   if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
     int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pRes->nullTuplePos);
@@ -6490,40 +6718,9 @@ int32_t topFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t bottomFunction(SqlFunctionCtx* pCtx) {
-  int32_t              numOfElems = 0;
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+int32_t topFunction(SqlFunctionCtx* pCtx) { return topBotProcessBlock(pCtx, true); }
 
-  SInputColumnInfoData* pInput = &pCtx->input;
-  SColumnInfoData*      pCol = pInput->pData[0];
-
-  STopBotRes* pRes = getTopBotOutputInfo(pCtx);
-  pRes->type = pInput->pData[0]->info.type;
-
-  int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (pCol->hasNull && colDataIsNull_f(pCol, i)) {
-      continue;
-    }
-
-    numOfElems++;
-    char*   data = colDataGetData(pCol, i);
-    int32_t code = doAddIntoResult(pCtx, data, i, pCtx->pSrcBlock, pRes->type, pInput->uid, pResInfo, false);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-  }
-
-  if (numOfElems == 0 && pCtx->subsidiaries.num > 0 && !pRes->nullTupleSaved) {
-    int32_t code = saveTupleData(pCtx, pInput->startRowIndex, pCtx->pSrcBlock, &pRes->nullTuplePos);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-    pRes->nullTupleSaved = true;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
+int32_t bottomFunction(SqlFunctionCtx* pCtx) { return topBotProcessBlock(pCtx, false); }
 
 static int32_t topBotResComparFn(const void* p1, const void* p2, const void* param) {
   uint16_t type = *(uint16_t*)param;

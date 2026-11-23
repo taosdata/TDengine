@@ -267,6 +267,8 @@ int32_t lastRowFunction(SqlFunctionCtx* pCtx);
 
 bool    getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topBotFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
+EFuncDataRequired topDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
+EFuncDataRequired bottomDynDataReq(void* pRes, SDataBlockInfo* pBlockInfo);
 int32_t topFunction(SqlFunctionCtx* pCtx);
 int32_t bottomFunction(SqlFunctionCtx* pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
