@@ -1063,6 +1063,13 @@ int32_t doColsMerge(SOperatorInfo* pOperator, SSDataBlock** pResBlock) {
       }
       SOperatorInfo*  pExtWinOp = pOperator->pDownstream[i];
       SOperatorParam* pParam = pOperator->pDownstreamGetParams[i];
+      if (pExtWinOp->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXTERNAL_WINDOW &&
+          pParam->opType == pExtWinOp->operatorType) {
+        // The child adopts this parameter and may free it before a longjmp.
+        // This covers both the plain external-window node and the merge-aligned
+        // wrapper, whose getNextExtFn also delegates to the default consumer.
+        pOperator->pDownstreamGetParams[i] = NULL;
+      }
       code = pExtWinOp->fpSet.getNextExtFn(pExtWinOp, pParam, &pBlock);
       setOperatorCompleted(pExtWinOp);
       pOperator->pDownstreamGetParams[i] = NULL;
