@@ -19,6 +19,10 @@
 #include "transLog.h"
 #include "transSasl.h"
 #include "transTLS.h"
+#ifndef NDEBUG
+#include "osEnv.h"
+#include "osFile.h"
+#endif
 
 static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 
@@ -113,6 +117,17 @@ typedef struct {
   SHashObj* pList;
   int64_t   ver;
 } SDataTimeWhiteListTab;
+// Key of the per-connection async slot map: (conn refId, qid).
+typedef struct {
+  int64_t refId;
+  int64_t qId;
+} STransQidSlotKey;
+
+// Upper bound of the per-worker qid slot map, protects memory from abnormal clients/tasks.
+#define SRV_QID_SLOT_MAP_LIMIT 8192
+// Max time to wait for the transport loop to destroy a connection in rpcCloseConnSync.
+#define SRV_CLOSE_WAIT_MS      2000
+
 typedef struct SWorkThrd {
   TdThread     thread;
   uv_connect_t connect_req;
@@ -135,6 +150,14 @@ typedef struct SWorkThrd {
   int8_t                 enableDataTimeWhiteList;
 
   int32_t connRefMgt;
+
+  // (conn refId, qid) -> async slot used by the last response of that qid on that connection.
+  // TDMT_SCH_TASK_RELEASE uses this slot so that it is always delivered after its response.
+  SHashObj*     pQidSlotTable;
+  TdThreadMutex qidSlotLock;
+  int8_t        qidSlotInited;
+
+  int64_t threadId;  // loop thread id, used to detect calls made from the loop thread
 
   int8_t inited;
 } SWorkThrd;
@@ -212,9 +235,10 @@ static void uvHandleRegister(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void uvHandleUpdate(SSvrRespMsg* pMsg, SWorkThrd* thrd);
 static void uvHandleFreeById(SSvrRespMsg* pMsg, SWorkThrd* thrd);
 static void uvHandleReloadTlsConfig(SSvrRespMsg* pMsg, SWorkThrd* thrd);
+static void uvHandleCloseConn(SSvrRespMsg* msg, SWorkThrd* thrd);
 static void (*transAsyncHandle[])(SSvrRespMsg* msg, SWorkThrd* thrd) = {
-    uvHandleResp,   uvHandleQuit,     uvHandleRelease,        uvHandleRegister,
-    uvHandleUpdate, uvHandleFreeById, uvHandleReloadTlsConfig};
+    uvHandleResp,    uvHandleQuit,     uvHandleRelease,         uvHandleRegister,
+    uvHandleUpdate,  uvHandleFreeById, uvHandleReloadTlsConfig, uvHandleCloseConn};
 
 static void uvDestroyConn(uv_handle_t* handle);
 
@@ -245,6 +269,195 @@ static int32_t addHandleToAcceptloop(void* arg);
       goto _return1;                                    \
     }                                                   \
   } while (0)
+
+#ifndef NDEBUG
+// Debug-only fault injection used by transport/system tests: when the marker file
+// "<logDir>/rpc_force_send_fail" exists, the next query response send is failed once (the
+// marker is consumed) so the send-failure path (connection close + peer broken-link handling)
+// can be exercised by ordinary tests without a debugger.
+static bool srvDebugTakeForcedSendFail(void) {
+  if (tsLogDir[0] == '\0') {
+    return false;
+  }
+
+  char    path[512];
+  int32_t len = (int32_t)strlen(tsLogDir);
+  char    sep[2] = {0};
+  if (len > 0 && tsLogDir[len - 1] != '/' && tsLogDir[len - 1] != '\\') {
+    sep[0] = TD_DIRSEP_CHAR;
+  }
+
+  int32_t n = snprintf(path, sizeof(path), "%s%srpc_force_send_fail", tsLogDir, sep);
+  if (n <= 0 || n >= (int32_t)sizeof(path)) {
+    return false;
+  }
+
+  if (!taosCheckExistFile(path)) {
+    return false;
+  }
+
+  (void)taosRemoveFile(path);
+  tError("debug fault injection: forced response send failure");
+  return true;
+}
+#endif
+
+// Record the async slot used by the last response of (refId, qId) on this worker thread.
+static void srvQidSlotSet(SWorkThrd* pThrd, int64_t refId, int64_t qId, int32_t slot) {
+  if (pThrd == NULL || qId == 0 || slot < 0) {
+    return;
+  }
+
+  taosThreadMutexLock(&pThrd->qidSlotLock);
+  if (pThrd->pQidSlotTable != NULL && taosHashGetSize(pThrd->pQidSlotTable) < SRV_QID_SLOT_MAP_LIMIT) {
+    STransQidSlotKey key = {.refId = refId, .qId = qId};
+    int32_t*          pSlot = taosHashGet(pThrd->pQidSlotTable, &key, sizeof(key));
+    if (pSlot != NULL) {
+      *pSlot = slot;
+    } else {
+      int32_t code = taosHashPut(pThrd->pQidSlotTable, &key, sizeof(key), &slot, sizeof(slot));
+      if (code != 0) {
+        tError("failed to record qid slot, refId:%" PRId64 ", qId:%" PRId64 ", since %s", refId, qId,
+               tstrerror(code));
+      }
+    }
+  }
+  taosThreadMutexUnlock(&pThrd->qidSlotLock);
+}
+
+// Take (and remove) the async slot recorded for (refId, qId); returns -1 if absent.
+static int32_t srvQidSlotTake(SWorkThrd* pThrd, int64_t refId, int64_t qId) {
+  int32_t slot = -1;
+  if (pThrd == NULL || qId == 0) {
+    return -1;
+  }
+
+  taosThreadMutexLock(&pThrd->qidSlotLock);
+  if (pThrd->pQidSlotTable != NULL) {
+    STransQidSlotKey key = {.refId = refId, .qId = qId};
+    int32_t*         pSlot = taosHashGet(pThrd->pQidSlotTable, &key, sizeof(key));
+    if (pSlot != NULL) {
+      slot = *pSlot;
+      int32_t code = taosHashRemove(pThrd->pQidSlotTable, &key, sizeof(key));
+      if (code != 0) {
+        tError("failed to remove qid slot, refId:%" PRId64 ", qId:%" PRId64 ", since %s", refId, qId,
+               tstrerror(code));
+      }
+    }
+  }
+  taosThreadMutexUnlock(&pThrd->qidSlotLock);
+
+  return slot;
+}
+
+// Drop all slot entries of a destroyed connection.
+static void srvQidSlotRemoveByRef(SWorkThrd* pThrd, int64_t refId) {
+  if (pThrd == NULL) {
+    return;
+  }
+
+  SHashObj* pOld = NULL;
+  taosThreadMutexLock(&pThrd->qidSlotLock);
+  pOld = pThrd->pQidSlotTable;
+  if (pOld != NULL) {
+    SHashObj* pNew = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (pNew != NULL) {
+      void* pIter = taosHashIterate(pOld, NULL);
+      while (pIter != NULL) {
+        STransQidSlotKey* pKey = taosHashGetKey(pIter, NULL);
+        if (pKey != NULL && pKey->refId != refId) {
+          int32_t code = taosHashPut(pNew, pKey, sizeof(*pKey), pIter, sizeof(int32_t));
+          if (code != 0) {
+            tError("failed to copy qid slot, refId:%" PRId64 ", qId:%" PRId64 ", since %s", pKey->refId,
+                   pKey->qId, tstrerror(code));
+          }
+        }
+        pIter = taosHashIterate(pOld, pIter);
+      }
+      pThrd->pQidSlotTable = pNew;
+    }
+  }
+  taosThreadMutexUnlock(&pThrd->qidSlotLock);
+
+  if (pOld != NULL && pOld != pThrd->pQidSlotTable) {
+    taosHashCleanup(pOld);
+  }
+}
+
+// Close a connection on the loop thread (the caller must be the loop thread).
+static void srvConnCloseInLoop(SWorkThrd* pThrd, int64_t refId) {
+  SExHandle* exh = transAcquireExHandle(uvGetConnRefOfThrd(pThrd), refId);
+  if (exh == NULL) {
+    return;
+  }
+
+  SSvrConn* conn = exh->handle;
+  transReleaseExHandle(uvGetConnRefOfThrd(pThrd), refId);
+
+  if (conn != NULL) {
+    conn->broken = true;
+    destroyConn(conn, true);
+  }
+}
+
+/**
+ * Mark the connection broken and synchronously close the real socket.
+ *
+ * The close request is always queued to async slot 0 so that the loop handles it before any
+ * other slot of the same drain pass, and any message queued after the failure (especially
+ * TDMT_SCH_TASK_RELEASE) can never be written to the client.
+ *
+ * @param pThrd  transport worker thread owning the connection.
+ * @param refMgt handle reference manager of the worker thread.
+ * @param refId  connection handle reference id.
+ * @return 0 if the connection has been destroyed, otherwise an error code.
+ */
+static int32_t srvConnRequestClose(SWorkThrd* pThrd, int32_t refMgt, int64_t refId) {
+  if (pThrd == NULL || refId <= 0) {
+    return TSDB_CODE_INVALID_PTR;
+  }
+
+  if (taosGetSelfPthreadId() == pThrd->threadId) {
+    srvConnCloseInLoop(pThrd, refId);
+    return 0;
+  }
+
+  SSvrRespMsg* m = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
+  if (m == NULL) {
+    tError("failed to alloc close-conn msg since %s", tstrerror(terrno));
+    return terrno;
+  }
+
+  m->type = CloseConn;
+  m->arg = (void*)(intptr_t)refId;
+
+  int32_t code = transAsyncSendToIdx(pThrd->asyncPool, 0, &m->q);
+  if (code != 0) {
+    tError("failed to send close-conn msg, refId:%" PRId64 ", code:%s", refId, tstrerror(code));
+    taosMemoryFree(m);
+    return code;
+  }
+
+  int64_t st = taosGetTimestampMs();
+  while (taosGetTimestampMs() - st < SRV_CLOSE_WAIT_MS) {
+    SExHandle* exh = transAcquireExHandle(refMgt, refId);
+    if (exh == NULL) {
+      return 0;
+    }
+    transReleaseExHandle(refMgt, refId);
+    taosMsleep(1);
+  }
+
+  tError("wait for conn close timeout, refId:%" PRId64, refId);
+  return TSDB_CODE_RPC_TIMEOUT;
+}
+
+static void uvHandleCloseConn(SSvrRespMsg* msg, SWorkThrd* thrd) {
+  int64_t refId = (int64_t)(intptr_t)msg->arg;
+  tDebug("conn refId:%" PRId64 ", close requested", refId);
+  srvConnCloseInLoop(thrd, refId);
+  taosMemoryFree(msg);
+}
 
 void uvAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SSvrConn*    conn = handle->data;
@@ -1233,6 +1446,9 @@ void uvOnSendCb(uv_write_t* req, int status) {
 
     conn->broken = true;
     transUnrefSrvHandle(conn);
+    // Actively close the real connection on write failure so the peer never waits forever
+    // for a response that could not be written.
+    destroyConn(conn, true);
   }
   transUnrefSrvHandle(conn);
 }
@@ -1350,6 +1566,10 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   int32_t   code = 0;
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken) {
+    // A broken connection must never stay half-open: close the real socket so the client can
+    // detect the failure instead of waiting for a response that will never be written.
+    tError("%s conn:%p, broken, close connection", transLabel(pConn->pInst), pConn);
+    destroyConn(pConn, true);
     return;
   }
   int32_t size = transQueueSize(&pConn->resps);
@@ -1362,6 +1582,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   if (req == NULL) {
     uError("%s conn:%p, failed to alloc write req since %s", transLabel(pConn->pInst), pConn, tstrerror(terrno));
     transUnrefSrvHandle(pConn);
+    destroyConn(pConn, true);
     return;
   }
   SWReqsWrapper* pWreq = req->data;
@@ -1370,7 +1591,15 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
   int32_t   bufNum = 0;
   code = uvBuildToSendData(pConn, &pBuf, &bufNum, &pWreq->node);
   if (code != 0) {
-    tError("%s conn:%p, failed to send data", transLabel(pConn->pInst), pConn);
+    tError("%s conn:%p, failed to build send data since %s", transLabel(pConn->pInst), pConn, tstrerror(code));
+    while (!QUEUE_IS_EMPTY(&pWreq->node)) {
+      queue* head = QUEUE_HEAD(&pWreq->node);
+      QUEUE_REMOVE(head);
+      SSvrRespMsg* respMsg = QUEUE_DATA(head, SSvrRespMsg, q);
+      destroySmsg(respMsg);
+    }
+    freeWReqToWQ(&pConn->wq, req->data);
+    destroyConn(pConn, true);
     return;
   }
   if (bufNum == 0) {
@@ -1400,6 +1629,7 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrRespMsg* smsg) {
     freeWReqToWQ(&pConn->wq, req->data);
 
     transUnrefSrvHandle(pConn);
+    destroyConn(pConn, true);
   }
 }
 int32_t uvMayHandleReleaseResp(SSvrRespMsg* pMsg) {
@@ -1488,7 +1718,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     }
 
     // release handle to rpc init
-    if (msg->type == Quit || msg->type == Update || msg->type == ReloadTLS) {
+    if (msg->type == Quit || msg->type == Update || msg->type == ReloadTLS || msg->type == CloseConn) {
       (*transAsyncHandle[msg->type])(msg, pThrd);
     } else {
       STransMsg transMsg = msg->msg;
@@ -1951,6 +2181,7 @@ void* transWorkerThread(void* arg) {
   setThreadName("trans-svr-work");
   taosSetCpuAffinity(THREAD_CAT_MANAGEMENT);
   SWorkThrd* pThrd = (SWorkThrd*)arg;
+  pThrd->threadId = taosGetSelfPthreadId();
   tsEnableRandErr = true;
   code = uv_run(pThrd->loop, UV_RUN_DEFAULT);
   if (code != 0) {
@@ -2135,6 +2366,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
   }
   SWorkThrd* thrd = conn->hostThrd;
 
+  // Drop the async slot records of this connection.
+  srvQidSlotRemoveByRef(thrd, conn->refId);
+
   transReleaseExHandle(uvGetConnRefOfThrd(thrd), conn->refId);
   transRemoveExHandle(uvGetConnRefOfThrd(thrd), conn->refId);
 
@@ -2301,6 +2535,19 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       goto End;
     }
 
+    thrd->pQidSlotTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (thrd->pQidSlotTable == NULL) {
+      code = terrno;
+      tError("failed to init qid slot map since %s", tstrerror(code));
+      goto End;
+    }
+    code = taosThreadMutexInit(&thrd->qidSlotLock, NULL);
+    if (code != 0) {
+      tError("failed to init qid slot lock since %s", tstrerror(code));
+      goto End;
+    }
+    thrd->qidSlotInited = 1;
+
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
       destroyWorkThrdObj(thrd);
@@ -2356,6 +2603,19 @@ void* transInitServer(SIpAddr* addr, char* label, int numOfThreads, void* fp, vo
       code = thrd->connRefMgt;
       goto End;
     }
+
+    thrd->pQidSlotTable = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    if (thrd->pQidSlotTable == NULL) {
+      code = terrno;
+      tError("failed to init qid slot map since %s", tstrerror(code));
+      goto End;
+    }
+    code = taosThreadMutexInit(&thrd->qidSlotLock, NULL);
+    if (code != 0) {
+      tError("failed to init qid slot lock since %s", tstrerror(code));
+      goto End;
+    }
+    thrd->qidSlotInited = 1;
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
     if (srv->pipe[i] == NULL) {
@@ -2593,6 +2853,14 @@ void destroyWorkThrdObj(SWorkThrd* pThrd) {
   uvWhiteListDestroy(pThrd->pWhiteList);
   uvDataTimeWhiteListDestroy(pThrd->pDataTimeWhiteList);
   taosCloseRef(pThrd->connRefMgt);
+  if (pThrd->pQidSlotTable != NULL) {
+    taosHashCleanup(pThrd->pQidSlotTable);
+    pThrd->pQidSlotTable = NULL;
+  }
+  if (pThrd->qidSlotInited) {
+    taosThreadMutexDestroy(&pThrd->qidSlotLock);
+    pThrd->qidSlotInited = 0;
+  }
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);
 }
@@ -2699,16 +2967,29 @@ int32_t transReleaseSrvHandle(void* handle, int32_t status) {
   SSvrRespMsg* m = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
   if (m == NULL) {
     code = terrno;
+    tError("failed to alloc task-release msg since %s, qId:%" PRId64, tstrerror(code), qId);
+    (void)srvConnRequestClose(pThrd, info->refIdMgt, refId);
     goto _return1;
   }
 
   m->msg = tmsg;
   m->type = Normal;
 
-  tDebug("%s conn:%p, start to send %s, sid:%" PRId64, transLabel(pThrd->pInst), exh->handle, TMSG_INFO(tmsg.msgType),
-         qId);
-  if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
+  // Follow the async slot of the last response of this qid so the release is always written
+  // after its own response on the same connection.
+  int32_t slot = srvQidSlotTake(pThrd, refId, qId);
+  tDebug("%s conn:%p, start to send %s, sid:%" PRId64 ", slot:%d, affinity:%d", transLabel(pThrd->pInst),
+         exh->handle, TMSG_INFO(tmsg.msgType), qId, slot, slot >= 0);
+  if (slot >= 0) {
+    code = transAsyncSendToIdx(pThrd->asyncPool, slot, &m->q);
+  } else {
+    code = transAsyncSend(pThrd->asyncPool, &m->q);
+  }
+
+  if (code != 0) {
+    tError("failed to queue task-release msg since %s, qId:%" PRId64, tstrerror(code), qId);
     destroySmsg(m);
+    (void)srvConnRequestClose(pThrd, info->refIdMgt, refId);
     transReleaseExHandle(info->refIdMgt, refId);
     return code;
   }
@@ -2750,9 +3031,25 @@ int32_t transSendResponse(const STransMsg* msg) {
   SWorkThrd* pThrd = exh->pThrd;
   ASYNC_ERR_JRET(pThrd);
 
+#ifndef NDEBUG
+  // Debug-only fault injection for transport/system tests: the marker file in the dnode log
+  // directory makes the next query response send fail once, so the send-failure path
+  // (connection close + peer broken-link handling) can be exercised without a debugger.
+  if (msg->info.qId > 0 && srvDebugTakeForcedSendFail()) {
+    code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    tError("debug fault injection: fail to queue resp msg, qId:%" PRId64, msg->info.qId);
+    (void)srvConnRequestClose(pThrd, msg->info.refIdMgt, refId);
+    rpcFreeCont(msg->pCont);
+    transReleaseExHandle(msg->info.refIdMgt, refId);
+    return code;
+  }
+#endif
+
   SSvrRespMsg* m = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
   if (m == NULL) {
     code = terrno;
+    tError("failed to alloc resp msg since %s, qId:%" PRId64, tstrerror(code), msg->info.qId);
+    (void)srvConnRequestClose(pThrd, msg->info.refIdMgt, refId);
     goto _return1;
   }
   m->msg = tmsg;
@@ -2761,11 +3058,20 @@ int32_t transSendResponse(const STransMsg* msg) {
 
   STraceId* trace = (STraceId*)&msg->info.traceId;
   tGTrace("conn:%p, start to send resp (1/2)", exh->handle);
-  if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
+
+  int32_t slot = -1;
+  if ((code = transAsyncSendWithIdx(pThrd->asyncPool, &m->q, &slot)) != 0) {
+    tError("failed to queue resp msg since %s, qId:%" PRId64, tstrerror(code), msg->info.qId);
     destroySmsg(m);
+    (void)srvConnRequestClose(pThrd, msg->info.refIdMgt, refId);
     transReleaseExHandle(msg->info.refIdMgt, refId);
     return code;
   }
+
+  // Remember the slot of the last response of this qid, the task release will follow it.
+  srvQidSlotSet(pThrd, refId, msg->info.qId, slot);
+  tDebug("%s conn:%p, resp queued, qId:%" PRId64 ", slot:%d", transLabel(pThrd->pInst), exh->handle,
+         msg->info.qId, slot);
 
   transReleaseExHandle(msg->info.refIdMgt, refId);
   return 0;
@@ -2801,6 +3107,8 @@ int32_t transRegisterMsg(const STransMsg* msg) {
   SSvrRespMsg* m = taosMemoryCalloc(1, sizeof(SSvrRespMsg));
   if (m == NULL) {
     code = terrno;
+    tError("failed to alloc register msg since %s, qId:%" PRId64, tstrerror(code), msg->info.qId);
+    (void)srvConnRequestClose(pThrd, msg->info.refIdMgt, refId);
     goto _return1;
   }
 
@@ -2810,7 +3118,9 @@ int32_t transRegisterMsg(const STransMsg* msg) {
   STrans* pInst = pThrd->pInst;
   tDebug("%s conn:%p, start to register brokenlink callback", transLabel(pInst), exh->handle);
   if ((code = transAsyncSend(pThrd->asyncPool, &m->q)) != 0) {
+    tError("failed to queue register msg since %s, qId:%" PRId64, tstrerror(code), msg->info.qId);
     destroySmsg(m);
+    (void)srvConnRequestClose(pThrd, msg->info.refIdMgt, refId);
     transReleaseExHandle(msg->info.refIdMgt, refId);
     return code;
   }
@@ -2827,6 +3137,27 @@ _return2:
   tDebug("handle %p failed to register brokenlink", exh);
   rpcFreeCont(msg->pCont);
   return code;
+}
+
+int32_t transCloseConnSync(void* handle) {
+  SRpcHandleInfo* info = handle;
+  if (info == NULL || info->handle == NULL || info->refId <= 0) {
+    return TSDB_CODE_INVALID_PTR;
+  }
+
+  SExHandle* exh = transAcquireExHandle(info->refIdMgt, info->refId);
+  if (exh == NULL || exh != info->handle) {
+    if (exh != NULL) {
+      transReleaseExHandle(info->refIdMgt, info->refId);
+    }
+    tError("invalid handle to close conn, refId:%" PRId64, info->refId);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  SWorkThrd* pThrd = exh->pThrd;
+  transReleaseExHandle(info->refIdMgt, info->refId);
+
+  return srvConnRequestClose(pThrd, info->refIdMgt, info->refId);
 }
 
 int32_t transSetIpWhiteList(void* thandle, void* arg, FilteFunc* func) {
@@ -2964,6 +3295,7 @@ int32_t transReleaseSrvHandle(void *handle, int32_t status) {
   tDebug("rpc start to release svr handle");
   return 0;
 }
+int32_t transCloseConnSync(void *handle) { return 0; }
 void transRefSrvHandle(void *handle) { return; }
 
 void    transUnrefSrvHandle(void *handle) { return; }
