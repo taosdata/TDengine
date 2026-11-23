@@ -5237,7 +5237,20 @@ int32_t tDeserializeSGetUserAuthReq(void *buf, int32_t bufLen, SGetUserAuthReq *
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->user));
+  // pReq->user is a fixed-size array that the handler uses as a NUL-terminated C string (mTrace
+  // %s, then mndAcquireUser() -> sdbGetkeySize() -> strlen()), so the wire payload must carry its
+  // NUL terminator; otherwise that walk runs past the end of the array (CWE-125). wireLen == 0
+  // also covers an empty encoding, for which tDecodeBinary() yields a one-past-end pointer that
+  // must not be dereferenced.
+  {
+    char    *userStr = NULL;
+    uint32_t userWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&userStr, &userWireLen));
+    if (userWireLen == 0 || userWireLen > sizeof(pReq->user) || userStr[userWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    TAOS_MEMCPY(pReq->user, userStr, userWireLen);
+  }
   tEndDecode(&decoder);
 
 _exit:
