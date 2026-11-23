@@ -177,13 +177,19 @@ static SResultRow* getTableGroupOutputBuf(SOperatorInfo* pOperator, uint64_t gro
     return NULL;
   }
 
-  int64_t buf[2] = {0};
-  SET_RES_WINDOW_KEY((char*)buf, &groupId, sizeof(groupId), groupId);
+  // Result-row writers append one 8-byte key part after the group id
+  // (aggregate: group id; interval: window start). Windowed writers are
+  // excluded from dynamic pruning before this lookup, so only the aggregate
+  // writer's [group id][group id] key is addressed here. Keep both halves at
+  // the writer's 8-byte part length, as used by GET_RES_WINDOW_KEY_LEN.
+  const int32_t keyPartLen = (int32_t)sizeof(uint64_t);
+  int64_t       buf[2] = {0};
+  SET_RES_WINDOW_KEY((char*)buf, &groupId, keyPartLen, groupId);
 
   STableScanInfo* pTableScanInfo = pOperator->info;
 
   SResultRowPosition* p1 = (SResultRowPosition*)tSimpleHashGet(pTableScanInfo->base.pdInfo.pAggSup->pResultRowHashTable,
-                                                               buf, GET_RES_WINDOW_KEY_LEN(sizeof(groupId)));
+                                                               buf, GET_RES_WINDOW_KEY_LEN(keyPartLen));
 
   if (p1 == NULL) {
     return NULL;
@@ -334,35 +340,98 @@ static bool isMaxColumnExpr(const SqlFunctionCtx* pCtx) {
          NULL != pCtx->param && FUNC_PARAM_TYPE_COLUMN == pCtx->param[0].type && NULL != pCtx->param[0].pCol;
 }
 
+static bool isTopBotFuncCtx(const SqlFunctionCtx* pCtx) {
+  if (NULL == pCtx) {
+    return false;
+  }
+
+  int32_t type = fmGetFuncTypeFromId(pCtx->functionId);
+  return FUNCTION_TYPE_TOP == type || FUNCTION_TYPE_BOTTOM == type;
+}
+
+static bool isTopBotColumnExpr(const SqlFunctionCtx* pCtx) {
+  return isTopBotFuncCtx(pCtx) && pCtx->numOfParams > 0 && NULL != pCtx->param &&
+         FUNC_PARAM_TYPE_COLUMN == pCtx->param[0].type && NULL != pCtx->param[0].pCol;
+}
+
 static bool isGroupKeyExpr(const SqlFunctionCtx* pCtx) {
   return NULL != pCtx && FUNCTION_TYPE_GROUP_KEY == fmGetFuncTypeFromId(pCtx->functionId);
 }
 
-static bool needsMaxSmaForDynamicPrune(SOperatorInfo* pOperator) {
+// Classifies the block-level prune candidates once per scan pass. A candidate
+// must aggregate a real column; the caller handles the interval and mixed-case
+// fallbacks. Returns every kind so callers do not walk the contexts twice.
+static void getAggPruneExprKinds(const SExprSupp* pExprSup, bool* pHasMax, bool* pHasTopBot, bool* pHasLast) {
+  *pHasMax = false;
+  *pHasTopBot = false;
+  *pHasLast = false;
+  if (NULL == pExprSup || NULL == pExprSup->pCtx) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
+    const SqlFunctionCtx* pCtx = &pExprSup->pCtx[i];
+    // Pseudo and non-function contexts have no registered dynamic callback,
+    // even when they carry a column parameter. Skip them here exactly like
+    // doDynamicPruneDataBlock does, so both paths classify the same contexts.
+    if (pCtx->isPseudoFunc || pCtx->functionId < 0) {
+      continue;
+    }
+    if (pCtx->numOfParams <= 0 || NULL == pCtx->param || FUNC_PARAM_TYPE_COLUMN != pCtx->param[0].type ||
+        NULL == pCtx->param[0].pCol) {
+      continue;
+    }
+
+    int32_t funcType = fmGetFuncTypeFromId(pCtx->functionId);
+    if (FUNCTION_TYPE_MAX == funcType) {
+      *pHasMax = true;
+    } else if (FUNCTION_TYPE_TOP == funcType || FUNCTION_TYPE_BOTTOM == funcType) {
+      *pHasTopBot = true;
+    } else if (fmIsLastFunc(pCtx->functionId) || FUNCTION_TYPE_LAST_PARTIAL == funcType) {
+      *pHasLast = true;
+    }
+  }
+}
+
+// One LAST_NULL_ONLY SMA read serves every request in the block, and that mode
+// synthesizes all-null stats for columns without persisted SMA. MAX and LAST
+// treat an all-null aggregate as prunable, which is only valid for a real
+// all-null block, so they must never share the read with another prune kind.
+// TOP/BOTTOM already reject synthesized stats in topBotDynDataReq.
+static bool aggPruneKindsConflict(bool hasMax, bool hasTopBot, bool hasLast) {
+  return (int32_t)hasMax + (int32_t)hasTopBot + (int32_t)hasLast >= 2;
+}
+
+static bool needsAggSmaForDynamicPrune(SOperatorInfo* pOperator) {
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     return false;
   }
 
   // Block SMA describes the whole block, while a filter changes the set of
-  // rows contributing to the aggregate. Keep filtered MAX queries on the
-  // regular data path; interval MAX without a filter is handled separately.
+  // rows contributing to the aggregate. Keep filtered queries on the regular
+  // data path.
   if (pOperator->exprSupp.pFilterInfo != NULL) {
     return false;
   }
 
   STableScanInfo* pTableScanInfo = pOperator->info;
-  SExprSupp*      pExprSup = pTableScanInfo->base.pdInfo.pExprSup;
-
-  if (NULL == pExprSup || NULL == pExprSup->pCtx) {
+  if (pTableScanInfo->base.pdInfo.interval.interval > 0) {
+    // Windowed aggregates store one result row per window start while this
+    // lookup is keyed by group id, so block SMA cannot address the right state.
+    // MAX-only interval queries use the separate SMA_LOAD path instead.
     return false;
   }
 
-  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
-    if (isMaxColumnExpr(&pExprSup->pCtx[i])) {
-      return true;
-    }
+  bool hasMax = false;
+  bool hasTopBot = false;
+  bool hasLast = false;
+  getAggPruneExprKinds(pTableScanInfo->base.pdInfo.pExprSup, &hasMax, &hasTopBot, &hasLast);
+  if (aggPruneKindsConflict(hasMax, hasTopBot, hasLast)) {
+    // See aggPruneKindsConflict: do not share the synthesized SMA read across
+    // prune kinds that would treat it as real block statistics.
+    return false;
   }
-  return false;
+  return hasMax || hasTopBot;
 }
 
 // One-row SMA blocks retain their physical source row count only in
@@ -441,6 +510,16 @@ static bool needsLastNullSmaForDynamicPrune(SOperatorInfo* pOperator, SSDataBloc
     return false;
   }
 
+  // A conflicting query never prunes (see aggPruneKindsConflict), so it must
+  // not trigger the LAST_NULL_ONLY SMA read either.
+  bool hasMax = false;
+  bool hasTopBot = false;
+  bool hasLast = false;
+  getAggPruneExprKinds(pExprSup, &hasMax, &hasTopBot, &hasLast);
+  if (aggPruneKindsConflict(hasMax, hasTopBot, hasLast)) {
+    return false;
+  }
+
   pRow = getTableGroupOutputBuf(pOperator, pBlock->info.id.groupId, &pPage);
   if (NULL == pRow && !pBlock->info.lastScanCandidate) {
     return false;
@@ -502,6 +581,17 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
 
   SExprSupp* pSup1 = pTableScanInfo->base.pdInfo.pExprSup;
 
+  // See needsAggSmaForDynamicPrune: windowed results are keyed per window and
+  // mixing prune kinds shares an SMA mode that can synthesize all-null stats
+  // for MAX and LAST columns. Keep both cases on the data path.
+  bool hasMax = false;
+  bool hasTopBot = false;
+  bool hasLast = false;
+  getAggPruneExprKinds(pSup1, &hasMax, &hasTopBot, &hasLast);
+  if (pTableScanInfo->base.pdInfo.interval.interval > 0 || aggPruneKindsConflict(hasMax, hasTopBot, hasLast)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   SFilePage*  pPage = NULL;
   SResultRow* pRow = getTableGroupOutputBuf(pOperator, pBlockInfo->id.groupId, &pPage);
 
@@ -511,6 +601,7 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
 
   bool notLoadBlock = true;
   bool blockNullLast = false;
+  bool currentBlockOnly = false;
   for (int32_t i = 0; i < pSup1->numOfExprs; ++i) {
     int32_t functionId = pSup1->pCtx[i].functionId;
 
@@ -520,8 +611,23 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
     }
 
     pBlockInfo->pBlockAgg = NULL;
+    // Pseudo and non-function contexts (functionId == -1) have no registered
+    // dynamic-data callback; handing them to fmFuncDynDataRequired would read
+    // an uninitialized interbuf. Same filter as the SMA request path.
+    if (pSup1->pCtx[i].isPseudoFunc || pSup1->pCtx[i].functionId < 0) {
+      // The threshold of a skipped TOP/BOTTOM was not consulted. Never let
+      // the remaining expressions turn this into a table-level ignore; load
+      // the block so the aggregate still sees it.
+      if (isTopBotFuncCtx(&pSup1->pCtx[i])) {
+        notLoadBlock = false;
+      }
+      continue;
+    }
+    // Interval and mixed-kind queries returned above, so TOP/BOTTOM here
+    // always addresses the group-keyed aggregate result.
     if ((isLastColumnExpr(&pSup1->pCtx[i]) ||
-         (isMaxColumnExpr(&pSup1->pCtx[i]) && pOperator->exprSupp.pFilterInfo == NULL)) &&
+         ((isMaxColumnExpr(&pSup1->pCtx[i]) || isTopBotColumnExpr(&pSup1->pCtx[i])) &&
+          pOperator->exprSupp.pFilterInfo == NULL)) &&
         NULL != pBlock->pBlockAgg && NULL != pBlock->pDataBlock) {
       int32_t slotId = pSup1->pCtx[i].param[0].pCol->slotId;
       int32_t numOfBlockCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
@@ -546,9 +652,14 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
       notLoadBlock = false;
       break;
     }
-    pBlockInfo->pBlockAgg = NULL;
+    if (reqStatus == FUNC_DATA_REQUIRED_NOT_LOAD && isTopBotColumnExpr(&pSup1->pCtx[i])) {
+      currentBlockOnly = true;
+    }
   }
 
+  // The loop resets pBlockAgg at the start of every iteration and the break
+  // path can leave a pointer into this block, so clear it once more before
+  // returning: the caller must not keep a pointer into a released block.
   pBlockInfo->pBlockAgg = NULL;
 
   // release buffer pages
@@ -559,7 +670,9 @@ static int32_t doDynamicPruneDataBlock(SOperatorInfo* pOperator,
   // An all-NULL block may be needed to establish the group result row.
   if (notLoadBlock && (!blockNullLast || pRow != NULL)) {
     *status = FUNC_DATA_REQUIRED_NOT_LOAD;
-    if (!blockNullLast) {
+    // A TOP/BOTTOM threshold can change in a later block. Only skip this
+    // block; never ignore the remaining blocks of the table.
+    if (!blockNullLast && !currentBlockOnly) {
       code = insertTableToScanIgnoreList(pTableScanInfo, pBlockInfo->id.uid);
     }
   }
@@ -1060,7 +1173,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableSca
   bool aggDynamicPrune =
       pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
   if (aggDynamicPrune && !virtualStableScan && !overlap && !maxInterval && !smaLoadAttempted &&
-      (needsLastNullSmaForDynamicPrune(pOperator, pBlock) || needsMaxSmaForDynamicPrune(pOperator))) {
+      (needsLastNullSmaForDynamicPrune(pOperator, pBlock) || needsAggSmaForDynamicPrune(pOperator))) {
     bool success = false;
     pBlock->pBlockAgg = NULL;
     pBlockInfo->pBlockAgg = NULL;
