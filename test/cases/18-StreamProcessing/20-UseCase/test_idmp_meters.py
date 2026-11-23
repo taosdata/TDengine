@@ -990,7 +990,7 @@ class Test_IDMP_Meters:
     def verify_stream1(self):
         # result_stream1
         result_sql = f"select * from tdasset.`result_stream1` "
-        result_sql_sub1 = f"select * from tdasset.`result_stream1_sub1` "
+        result_sql_sub1 = "select * from tdasset.`result_stream1_sub1` order by ts"
         result_sql_sub2 = f"select * from tdasset.`result_stream1_sub2` "
 
         # result_stream1
@@ -1006,12 +1006,7 @@ class Test_IDMP_Meters:
         )
 
         # result_stream_sub1
-        tdSql.checkResultsByFunc(
-            sql=result_sql_sub1,
-            func=lambda: tdSql.checkRows(2, show=True)
-            and tdSql.compareData(0, 0, 1752563060000)
-            and tdSql.compareData(0, 1, 0),  # cnt
-        )
+        tdSql.checkResultsByArray(result_sql_sub1, [[1752563060000, 10, 300], [1752564380000, 10, 400]])
 
         # result_stream1_sub2
         tdSql.checkResultsBySql(sql=result_sql, exp_sql=result_sql_sub2)

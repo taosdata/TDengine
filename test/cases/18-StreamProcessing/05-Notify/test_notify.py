@@ -2029,8 +2029,10 @@ class TestStreamNotifyTrigger:
             tdLog.info(f"check1 the stream {self.db}.s1")
             tdSql.query(f"desc {self.db}.ana_ct0_end")
             tdSql.checkRows(3)
-            tdSql.query(f"select * from {self.db}.ana_ct0_end")
-            tdSql.checkRows(0)
+            tdSql.checkResultsByArray(
+                f"select output_timestamp, c0 from {self.db}.ana_ct0_end order by output_timestamp",
+                [[f"2025-01-01 00:00:0{sec}.000", 6 + sec] for sec in range(5)],
+            )
             
             expect_event_count(
                 os.path.join(NOTIFY_RESULT_DIR, "basic14_s1.log"),
