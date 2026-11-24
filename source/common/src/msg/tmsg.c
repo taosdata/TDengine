@@ -13921,8 +13921,18 @@ int32_t tDeserializeSConnectReq(void *buf, int32_t bufLen, SConnectReq *pReq) {
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->connectTime));
   TAOS_CHECK_EXIT(tDecodeBinaryTo(&decoder, pReq->signature, sizeof(pReq->signature)));
   // SASL one-time token (optional trailing field; absent from older clients)
+  // pReq->saslToken is a fixed-size array used as a NUL-terminated C string downstream, so the
+  // wire payload must carry its NUL terminator. wireLen == 0 must be rejected as well: for an
+  // empty encoding tDecodeBinary() yields a one-past-end pointer when the field is last in the
+  // message, and tDecodeCStrToN() would read one byte past the decoded region (CWE-125).
   if (!tDecodeIsEnd(&decoder)) {
-    TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->saslToken));
+    char    *saslStr = NULL;
+    uint32_t saslWireLen = 0;
+    TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&saslStr, &saslWireLen));
+    if (saslWireLen == 0 || saslWireLen > sizeof(pReq->saslToken) || saslStr[saslWireLen - 1] != '\0') {
+      TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+    TAOS_MEMCPY(pReq->saslToken, saslStr, saslWireLen);
   }
 
   tEndDecode(&decoder);
