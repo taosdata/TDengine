@@ -15,6 +15,7 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import threading
+import time
 from enum import Enum
 
 from new_test_framework.utils import tdLog, tdSql, tdCom, tmqCom
@@ -172,7 +173,7 @@ class TestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
+        tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'], producerTimeout=600)
 
         tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("drop some ntables")
@@ -181,6 +182,11 @@ class TestCase:
         paraDict["ctbNum"] = int(paraDict["ctbNum"] / 4)
         tmqCom.drop_ctable(tdSql, dbname=paraDict['dbName'], count=paraDict["ctbNum"], default_ctbname_prefix=paraDict["ctbPrefix"], ctbStartIdx=paraDict["ctbStartIdx"])
 
+        tdLog.info("pause production beyond the consumer idle timeout")
+        time.sleep(paraDict['pollDelay'] + 1)
+        tdSql.query("select * from cdb.consumeresult where consumerid = %d" % consumerId)
+        tdSql.checkRows(0)
+
         tdLog.info("start create some new normal tables....")
         paraDict["ctbPrefix"] = 'newCtb'
         paraDict["ctbNum"] = self.ctbNum
@@ -188,9 +194,13 @@ class TestCase:
         tdLog.info("start insert data into these new normal tables....")
         tmqCom.insert_rows_into_ntbl(tsql=tdSql, dbname=paraDict["dbName"], tbname_prefix=paraDict["ctbPrefix"], tbname_index_start_num = 1, column_ele_list=paraDict["colSchema"],startTs=paraDict["startTs"], tblNum=paraDict["ctbNum"], rows=paraDict["rowsPerTbl"])
 
+        tmqCom.notifyProducerDone(consumerId)
         tdLog.info("start to check consume result")
         expectRows = 1
         resultList = tmqCom.selectConsumeResult(expectRows)
+        tdSql.query("select checkresult from cdb.consumeresult where consumerid = %d" % consumerId)
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
         totalConsumeRows = 0
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
@@ -215,10 +225,13 @@ class TestCase:
         3. Drop normal table during consumption
         4. Verify drop event handling
         5. Check consumer handles table removal
+        6. Pause production beyond the idle timeout and verify consumption stays active
+        7. Finish production and verify the original consumed-row bounds and barrier status
         
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

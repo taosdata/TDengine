@@ -324,7 +324,10 @@ class TMQCom:
         cdbName="cdb",
         alias=0,
         snapshot=0,
+        producerTimeout=0,
     ):
+        if not isinstance(producerTimeout, int) or not 0 <= producerTimeout <= 3600:
+            raise ValueError("producerTimeout must be an integer between 0 and 3600 seconds")
         buildPath = tdCom.getBuildPath()
         cfgPath = tdCom.getClientCfgPath()
         tdLog.debug(
@@ -341,6 +344,8 @@ class TMQCom:
             arguments = [processorName, "-c", cfgPath, "-y", str(pollDelay),
                          "-d", dbName, "-g", str(showMsg), "-r", str(showRow),
                          "-w", cdbName, "-e", str(snapshot)]
+            if producerTimeout:
+                arguments += ["--producer-timeout", str(producerTimeout)]
             startup = subprocess.STARTUPINFO()
             startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             startup.wShowWindow = subprocess.SW_HIDE
@@ -371,6 +376,8 @@ class TMQCom:
                 cdbName,
                 snapshot,
             )
+            if producerTimeout:
+                shellCmd += "--producer-timeout %d " % producerTimeout
             shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
@@ -381,6 +388,9 @@ class TMQCom:
             psCmd = "ps -ef|grep -w %s|grep -v grep | awk '{print $2}'"%(processorName)
         processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
         tdLog.info("cmd:%s start processID: %s" % (shellCmd, processID))
+
+    def notifyProducerDone(self, consumerId, cdbName="cdb"):
+        tdSql.execute(f"insert into {cdbName}.notifyinfo values (now, 3, {consumerId})")
 
     def stopTmqSimProcess(self, processorName):
         if platform.system().lower() == "windows":
