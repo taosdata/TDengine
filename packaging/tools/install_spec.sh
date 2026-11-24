@@ -180,13 +180,13 @@ service_config_dir="/etc/systemd/system"
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} ${inspect_name} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
 if [ "${verMode}" == "cluster" ]; then
   services=(${serverName} ${adapterName} ${xname} ${explorerName} ${keeperName})
 elif [ "${verMode}" == "edge" ]; then
   if [ "${pagMode}" == "full" ]; then
     services=(${serverName} ${adapterName} ${keeperName} ${explorerName})
-    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh stop-all.sh)
+    tools=(${clientName} ${benchmarkName} ${dumpName} ${demoName} remove.sh ${udfdName} set_core.sh TDinsight.sh start_pre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh)
   else
     services=(${serverName})
     tools=(${clientName} ${benchmarkName} remove.sh start_pre.sh)
@@ -265,6 +265,7 @@ function install_bin() {
   else
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/start-all.sh ${install_main_dir}/bin
+    ${csudo}cp ${script_dir}/reconcile-tsdb-nodes.sh ${install_main_dir}/bin
     ${csudo}cp ${script_dir}/stop-all.sh ${install_main_dir}/bin
   fi
 
