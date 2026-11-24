@@ -567,6 +567,7 @@ void         destroyRequest(SRequestObj* pRequest);
 SRequestObj* acquireRequest(int64_t rid);
 int32_t      releaseRequest(int64_t rid);
 int32_t      removeRequest(int64_t rid);
+bool         chkRequestKilled(void* param);
 void         doDestroyRequest(void* p);
 int64_t      removeFromMostPrevReq(SRequestObj* pRequest);
 

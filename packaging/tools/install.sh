@@ -503,13 +503,13 @@ function setup_env() {
     # server/默认，按 verMode/pkgMode/entMode 细分
     # entMode lite will include xnode in the next version, so it is added to the tools list for forward compatibility.
     remove_name="remove.sh"
-    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
+    tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${inspect_name}" "${mqtt_name}" "${remove_name}" "${udfdName}" "${xnode_name}" set_core.sh TDinsight.sh startPre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh "${taosgen_name}" "${taosk_name}")
     if [ "${verMode}" == "cluster" ]; then
       services=("${serverName}" "${adapterName}" "${xname}" "${explorerName}" "${keeperName}")
     elif [ "${verMode}" == "edge" ]; then
       if [ "${pkgMode}" == "full" ]; then
         services=("${serverName}" "${adapterName}" "${keeperName}" "${explorerName}")
-        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh stop-all.sh "${taosgen_name}")
+        tools=("${clientName}" "${benchmarkName}" "${dumpName}" "${demoName}" "${mqtt_name}" "${remove_name}" "${udfdName}" set_core.sh TDinsight.sh startPre.sh start-all.sh reconcile-tsdb-nodes.sh stop-all.sh "${taosgen_name}")
       else
         services=("${serverName}")
         tools=("${clientName}" "${benchmarkName}" "${remove_name}" startPre.sh)
@@ -1058,6 +1058,7 @@ function install_bin() {
     copy_package_files -r "${script_dir}/bin/"* "${install_main_dir}/bin"
     if [ "${pkgMode}" != "lite" ]; then
       copy_package_files "${script_dir}/start-all.sh" "${install_main_dir}/bin"
+      copy_package_files "${script_dir}/reconcile-tsdb-nodes.sh" "${install_main_dir}/bin"
       sed -i.bak \
         -e "s|/etc/${PREFIX}|${configDir}|g" \
         "${install_main_dir}/bin/start-all.sh"
@@ -2234,15 +2235,14 @@ function installProduct() {
 
 check_java_env() {
   if ! command -v java &>/dev/null; then
-    echo -e "\033[31mWarning: Java command not found. Version 1.8+ is required.\033[0m"
+    echo -e "\033[31mWarning: Java command not found. Version 17+ is required.\033[0m"
     return
   fi
 
   java_version=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+  java_major=$(echo "$java_version" | cut -d"." -f1 | tr -cd '0-9')
   java_version_ok=false
-  if [[ $(echo "$java_version" | cut -d"." -f1) -gt 1 ]]; then
-    java_version_ok=true
-  elif [[ $(echo "$java_version" | cut -d"." -f1) -eq 1 && $(echo "$java_version" | cut -d"." -f2) -ge 8 ]]; then
+  if [ -n "$java_major" ] && [ "$java_major" -ge 17 ]; then
     java_version_ok=true
   fi
 
@@ -2251,7 +2251,7 @@ check_java_env() {
     echo -e "\033[32mJava ${java_version} has been found.\033[0m"
   else
     echo
-    echo -e "\033[31mWarning: Java Version 1.8+ is required, but version ${java_version} has been found.\033[0m"
+    echo -e "\033[31mWarning: Java Version 17+ is required, but version ${java_version} has been found.\033[0m"
   fi
 }
 

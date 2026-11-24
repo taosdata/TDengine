@@ -3216,6 +3216,20 @@ bool cliMayRetry(SCliConn* pConn, SCliReq* pReq, STransMsg* pResp) {
   if (cliRetryIsTimeout(pInst, pReq)) {
     return false;
   }
+
+  // Heartbeats are periodic state reports: once every endpoint of the current epset has
+  // been tried, stop retrying this message instead of keeping the retry chain alive until
+  // retryMaxTimeout. The next heartbeat carries fresher state. Returning false here goes
+  // through the normal non-retry path, so the failure response is still delivered to the
+  // caller and any epset carried by the response is still processed.
+  if (pCtx != NULL && pCtx->epSet != NULL &&
+      (pCtx->msgType == TDMT_MND_HEARTBEAT || pCtx->msgType == TDMT_MND_TMQ_HB) &&
+      pCtx->epsetRetryCnt >= pCtx->epSet->numOfEps) {
+    tDebug("%s heartbeat retry budget exhausted, eps:%d, retries:%d, stop retrying", TMSG_INFO(pCtx->msgType),
+           pCtx->epSet->numOfEps, pCtx->epsetRetryCnt);
+    return false;
+  }
+
   // opt timeout msg retry
   if (pCtx && pCtx->syncMsgRef != 0) {
     STransSyncMsg* pSyncMsg = taosAcquireRef(transGetSyncMsgMgt(), pCtx->syncMsgRef);

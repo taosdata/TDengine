@@ -5915,7 +5915,8 @@ TEST(td_msg_test, explain_response_rejects_verbose_length_mismatch) {
 /* The CONNECT request is the authentication step itself, so it is decoded on the mnode worker's
  * stack before any credential is examined. Its app/db/user/passwd/sVer/token fields are fixed
  * arrays in SConnectReq, and the decoder must never copy more than the destination holds. */
-static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uint32_t appLen) {
+static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uint32_t appLen,
+                                 bool zeroLenSaslToken = false) {
   char    passwd[TSDB_PASSWORD_LEN + 1] = {0};
   uint8_t signature[20] = {0};
   /* the client stores a NUL-terminated password in a TSDB_PASSWORD_LEN byte array */
@@ -5937,7 +5938,14 @@ static int32_t encodeConnectBody(uint8_t *buf, int32_t cap, const char *app, uin
   if ((code = tEncodeCStr(&encoder, "")) < 0) goto _exit;
   if ((code = tEncodeI64(&encoder, 2)) < 0) goto _exit;
   if ((code = tEncodeBinary(&encoder, signature, sizeof(signature))) < 0) goto _exit;
-  if ((code = tEncodeCStr(&encoder, NULL)) < 0) goto _exit;
+  /* saslToken is a fixed-size array used as a NUL-terminated C string, so the wire payload must
+   * carry the terminator: the legal encodings are a normal token or an empty string (wireLen
+   * 1 + '\0'). zeroLenSaslToken emits the malformed wireLen-0 form that the decoder must refuse. */
+  if (zeroLenSaslToken) {
+    if ((code = tEncodeBinary(&encoder, nullptr, 0)) < 0) goto _exit;
+  } else {
+    if ((code = tEncodeCStr(&encoder, "")) < 0) goto _exit;
+  }
   tEndEncode(&encoder);
   code = encoder.pos;
 
@@ -5988,6 +5996,20 @@ TEST(td_msg_test, connect_req_accepts_app_that_fits) {
   /* passwd is encoded with tEncodeCStrWithLen(x, TSDB_PASSWORD_LEN) by tSerializeSConnectReq,
    * i.e. one byte more than the field holds; that historical encoding must keep working. */
   EXPECT_STREQ(req.passwd, "passwd");
+}
+
+TEST(td_msg_test, connect_req_rejects_zero_length_sasl_token) {
+  /* A zero-length saslToken prefix leaves the decoder with a one-past-end pointer when the field
+   * is last in the message, so the frame must be refused before anything is copied from it. */
+  std::vector<char> app(TSDB_APP_NAME_LEN, 'A');
+  app[TSDB_APP_NAME_LEN - 1] = '\0';
+  std::vector<uint8_t> buf(4096);
+  int32_t bodyLen = encodeConnectBody(buf.data(), (int32_t)buf.size(), app.data(),
+                                      TSDB_APP_NAME_LEN - 1, true);
+  ASSERT_GT(bodyLen, 0);
+
+  SConnectReq req = {0};
+  EXPECT_EQ(tDeserializeSConnectReq(buf.data(), bodyLen, &req), TSDB_CODE_INVALID_MSG);
 }
 
 TEST(td_msg_test, connect_req_roundtrip) {

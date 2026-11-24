@@ -11293,11 +11293,18 @@ static int32_t streamCurrentSelectSatisfyExternalWindow(SLogicPlanContext* pCxt,
     return TSDB_CODE_SUCCESS;
   }
 
+  // FORECAST consumes a complete series. Reset its executor for each trigger
+  // window instead of passing multiple windows through one forecast.
+  if (pSelect->hasForecastFunc) {
+    planDebug("%s", "stream external window disabled: forecast requires per-window execution");
+    return TSDB_CODE_SUCCESS;
+  }
+
   if (NULL != pSelect->pWindow || hasEffectivePartition(pSelect) || NULL != pSelect->pGroupByList ||
       !inStreamCalcClause(pCxt->pPlanCxt) || (hasPlaceHolderCond && !safeBroadcast) ||
       (QUERY_NODE_JOIN_TABLE == fromType && !safeExtJoin) || NULL != pSelect->pSlimit || NULL != pSelect->pLimit ||
       pCxt->pPlanCxt->streamCxt.disableExtWindow || pSelect->hasInterpFunc || pSelect->hasUniqueFunc ||
-      pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc || pSelect->hasTailFunc || pSelect->hasForecastFunc ||
+      pSelect->hasIndefiniteRowsFunc || pSelect->hasMultiRowsFunc || pSelect->hasTailFunc ||
       (pSelect->pOrderByList != NULL && pCxt->pPlanCxt->streamCxt.hasForceOutput)) {
     return TSDB_CODE_SUCCESS;
   }

@@ -157,11 +157,11 @@ ulimit -c unlimited
 # marker 不能放在 bind-mounted 源码目录、/tmp 或 /var/tmp 里。
 # 这些路径来自 thread volume，同一个 slot 的下一个 --rm 容器还能看到 marker，
 # 却看不到上一个容器装进 site-packages 的 pymysql。
-# The runtime image supplies the pip index. Python 3.12 provisioning is a
-# prerequisite for this requirement upgrade (7145792566 / image MR !2643).
+# The runtime image supplies the pip index. Python 3.12.16 provisioning is a
+# prerequisite for this requirement upgrade (7176672096 / CI image 0.5).
 # Fail before dependency installation if a worker still uses an older image.
-if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12) else 1)'; then
-    echo "[ci] FATAL: container interpreter is $(python3 -V 2>&1), but test/requirements.txt and test/pyproject.toml require >=3.12 (7145792566)" >&2
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 12, 16) else 1)'; then
+    echo "[ci] FATAL: container interpreter is $(python3 -V 2>&1), but test/requirements.txt and test/pyproject.toml require >=3.12.16 (7176672096)" >&2
     exit 1
 fi
 _REQ_FILE="${CONTAINER_TESTDIR}/test/requirements.txt"

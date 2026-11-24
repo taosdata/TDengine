@@ -53,7 +53,7 @@ Windows 安装器通过 `/PYTHON_RUNTIME_DIR=<path>` 接收已解压的 Python r
 
 Linux x64 与 ARM64 的 Lite 主环境和共享 TSFM runtime 统一要求 glibc ≥ 2.28；glibc 2.27 / Ubuntu 18.04 不再属于本轮及后续版本的支持范围。历史低版本系统测试通过不构成后续兼容承诺。部署前须确认目标系统版本，并在真实 glibc 2.28 环境验收资源和服务。
 
-Python patch 版本从 3.12.12 升级到 3.12.16 时，必须重新构建并发布 Linux/Windows Lite 主 venv，以及共享 TSFM runtime；不能在现有 venv 上直接替换解释器或执行增量升级。模型权重和用户算法目录不需要重建，但升级前必须停止使用共享 TSFM runtime 的模型 worker，完成新 runtime 校验后再恢复服务。Full venv 若继续发布，也必须使用 3.12.16 runtime 重建。
+Python patch 版本从 `3.12.12` 升级到 `3.12.16` 时，本轮 Lite 主 venv 按发布依赖重建；已安装的共享 TSFM runtime `1.0.0` 可继续使用，不因补丁版本差异自动下载或替换。该组合已在 Linux x64、Linux ARM64 和 Windows x64 验证六模型启动及五模型有效推理；TimesFM 在新旧解释器下均出现 NaN，另行调查。模型权重和用户算法目录保留。后续每次 Python 发布仍须执行平台和模型兼容验收，不能用版本检查代替测试。
 
 本轮三平台主 venv 资源为：
 
@@ -790,7 +790,7 @@ taosanodectl resource check --format json
 
 任务状态使用 `queued`、`running`、`completed`、`failed` 和 `interrupted`；阶段使用 `queued`、`preparing`、`stopping`、`installing`、`verifying`、`resuming`、`completed`、`unchanged`、`rolling_back`、`rolled_back`、`manual_intervention` 和 `aborted`。只有 `status=completed` 表示升级成功，`phase=unchanged` 表示已安装目标 digest，无须停止模型。`status=failed, phase=rolled_back, rollback_status=completed` 表示升级未成功、旧环境已恢复，应提示升级失败但恢复完成；不能显示升级成功。`status=interrupted, phase=manual_intervention` 表示需要显式恢复，维护门禁继续阻止模型和 runtime 的写操作。停止模型之前中断的任务可以通过 recover 解除门禁，不停止现有模型。
 
-服务端先下载并验证目标归档 SHA-256，在 runtime 同级临时目录解压、重定位并校验内部 manifest、依赖锁和解释器完整版本；目标不兼容时直接失败，不停止现有模型。随后保留并验证旧环境快照，记录升级前正在运行的模型，停止这些 worker，将已准备好的新环境切换到正式路径，再校验安装完整性并重新启动原先运行的模型，确认进程和端口就绪。原先停止的模型保持停止，不在用户升级时运行完整依赖或推理测试。快照位于 `model_venvs/.tsfm-rollback-<task_id>/`，与环境使用同一文件系统；Docker 必须持久化整个 `model_venvs` 父目录和 `resource` 状态目录。运维应为目标归档、新环境及旧快照预留磁盘空间；未完成的准备目录和残缺快照在失败或显式中断恢复时清理，已验证的快照保留用于恢复，不应当作普通下载缓存清理。
+服务端先下载并验证目标归档 SHA-256，在 runtime 同级临时目录解压、重定位并校验内部 manifest、依赖锁和解释器兼容版本；目标不兼容时直接失败，不停止现有模型。随后保留并验证旧环境快照，记录升级前正在运行的模型，停止这些 worker，将已准备好的新环境切换到正式路径，再校验安装完整性并重新启动原先运行的模型，确认进程和端口就绪。原先停止的模型保持停止，不在用户升级时运行完整依赖或推理测试。快照位于 `model_venvs/.tsfm-rollback-<task_id>/`，与环境使用同一文件系统；Docker 必须持久化整个 `model_venvs` 父目录和 `resource` 状态目录。运维应为目标归档、新环境及旧快照预留磁盘空间；未完成的准备目录和残缺快照在失败或显式中断恢复时清理，已验证的快照保留用于恢复，不应当作普通下载缓存清理。
 
 整个替换和恢复流程由独立管理进程持有现有生命周期锁，直接调用模型管理方法，不在持锁期间嵌套启动同样需要该锁的 CLI。任务记录保存在 `resource/state/upgrades/`；API 进程重启后仍可查询。若管理进程退出且任务未写终态，查询会将其标记为需要人工恢复，而不是自动重新执行安装。查询只有取得生命周期锁后才会改写中断状态；新排队及重新排队的恢复任务保留 30 秒启动窗口，过期且未执行的任务标记为 `interrupted/manual_intervention`，通过显式 recover 清理并解除门禁。正常下载和安装全程持锁，不受此启动窗口限制；worker 等锁超时只退出，不在锁外改写任务，由后续状态查询处理。恢复只接受最新升级任务，避免用较早快照覆盖后续已经安装的新版本。升级期间普通模型和 runtime 写操作返回冲突，CLI 也受同一维护门禁保护。
 
@@ -798,13 +798,15 @@ taosanodectl resource check --format json
 
 #### 10.4.3 Python 配套升级、配置兼容与验收边界
 
-Python runtime 的补丁升级需要配套处理。比如 !3585 将构建目标从 Python `3.12.12` 调整为 `3.12.16`，必须重新构建与解释器精确匹配的 Lite 主 venv 和 TSFM runtime，并分别完成三平台验收；不能只替换基础 Python 或在旧 venv 中增量安装依赖。模型权重、用户算法和未受影响的配置保留，但发布验收仍须确认它们可被新环境加载。TSFM 依赖升级与基础 Python 升级应分别登记 release、manifest、依赖锁和验收记录。
+TSFM manifest 中的 `python_version` 保留构建时的完整版本用于追溯。运行时允许相同 major/minor 且不低于构建版本的正式补丁版本，例如 `3.12.12 → 3.12.16`；不同 major/minor、补丁降级、非正式版本、解释器不存在或执行失败均拒绝。平台、架构、导入完成标记及依赖锁摘要检查不变。此规则只判断解释器版本，不证明任意未来补丁或所有依赖均已通过验收。TSFM 依赖升级与基础 Python 升级分别登记 release、manifest、依赖锁和验证记录。
 
-仅替换 TSFM runtime 时，主服务可以保持运行；同时替换基础 Python 和主 venv 时，必须由独立于待替换 Python 的安装器或外部维护工具停止主服务及 worker，协调替换和回滚。现有校验要求 Python 完整版本与 manifest 一致，保留旧 TSFM 包不足以支持跨 Python 版本回滚，必须保留匹配的基础 Python、主 venv、主程序及资源状态；本节的 runtime API 不负责这类升级。
+仅替换 TSFM runtime 时，主服务可以保持运行；同时替换基础 Python 和主 venv 时，由独立于待替换 Python 的安装器或外部维护工具停止主服务及 worker，协调替换和回滚。Python minor 升级（例如 `3.12 → 3.13`）不能直接复用旧环境，须先准备并验证匹配的 runtime。当前版本检查会明确提示实际/构建版本及离线导入命令，不联网、不替换资源；安装器在覆盖基础 Python 前进行整套事务预检不在当前实现范围。旧解释器链接失效需修复到经验证的匹配解释器，放宽版本检查不会修复失效链接。
 
 升级保留用户现有 `taosanode.config.py`，不能用新版默认配置覆盖端口、模型目录等本地设置。旧配置中的六个内置模型入口可能使用 `tdtsfm-server.py`、`timemoe-server.py`、`moirai-server.py`、`chronos-server.py`、`timesfm-server.py` 或 `moment-server.py`。启动器仅在这些旧入口不存在时回退到对应的 `*_server.py`；已有入口优先，自定义脚本和显式路径不做通用改写，兼容目标不存在时仍明确失败，不改写配置文件本身。
 
-底层 runtime download/apply/import 仍保留，单次操作的临时备份会在激活成功后清除，不能替代升级编排保留的旧环境快照。`resource verify` 校验完成标记、manifest、平台/架构、依赖锁摘要和解释器版本，不执行完整依赖导入、`pip check` 或模型推理。Linux runtime 使用 `tar.xz`（历史 `tar.gz` 按清单兼容），Windows runtime 使用 ZIP，与 Windows 产品 EXE 分开管理。
+底层 runtime download/apply/import 仍保留，单次操作的临时备份会在激活成功后清除，不能替代升级编排保留的旧环境快照。`resource verify` 校验完成标记、manifest、平台/架构、依赖锁摘要和解释器版本兼容性，不执行完整依赖导入、`pip check` 或模型推理。Linux runtime 使用 `tar.xz`（历史 `tar.gz` 按清单兼容），Windows runtime 使用 ZIP，与 Windows 产品 EXE 分开管理。
+
+已有实例需要显式更新 TSFM 时，沿用 `resource check/apply/import` 与 10.4 的托管升级入口。离线可在停止模型 worker 后执行 `taosanodectl resource import --package <对应平台归档> --expected-sha256 <清单摘要> --replace`，再执行 `resource verify tsfm_runtime` 并验收模型。在线下载仅由管理员明确执行相关下载/升级命令触发；Docker 启动和普通安装不会因本次补丁版本兼容修复自动下载、迁移或替换 TSFM。跨 minor 或基础 Python 变化的回滚需要保留匹配的旧 Python、主程序、主 venv 和资源状态，单独保留旧 TSFM 包不足以恢复整套环境。
 
 完整依赖兼容性、各受支持模型的推理、Linux x64/arm64 与 Windows x64 安装，以及 Docker 卷持久化行为，属于正式发布前的测试验收；还应覆盖相同摘要重复请求、并发启停、错误摘要、Python 版本不匹配、停止超时、升级和回滚中断、服务重启及旧版本恢复。PyArrow/glibc 等依赖兼容性是独立发布门禁，升级接口通过回归不代表新制品已通过发布验收，也不代表基础 Python 已支持在线升级。
 

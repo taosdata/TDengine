@@ -797,7 +797,12 @@ static int generateChildTblName(int len, char *buffer, SDataBase *database,
                                 SSuperTable *stbInfo, uint64_t tableSeq, char* tagData, int i,
                                 char *ttl, char *tableName) {
     if (0 == len) {
-        memset(buffer, 0, TOOLS_MAX_ALLOWED_SQL_LEN);
+        // Do not clear the whole TOOLS_MAX_ALLOWED_SQL_LEN (4MB) buffer for
+        // every statement: snprintf() below NUL-terminates the string, and
+        // every later append starts at buffer + len, so bytes left over from
+        // the previous SQL are never read. The per-statement memset made
+        // table creation client CPU bound.
+        buffer[0] = '\0';
         len += snprintf(buffer + len,
                         TOOLS_MAX_ALLOWED_SQL_LEN - len, "CREATE TABLE");
     }

@@ -16,12 +16,15 @@
 
 import sys
 import time
-import threading
+import json
+import subprocess
+import tempfile
 from taos.tmq import Consumer
 import platform
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from new_test_framework.utils import etool, tdLog, tdSql, tdCom, tmqCom
+from new_test_framework.utils.server.dnodes import tdDnodes
 
 class TestCase:
     updatecfgDict = {'debugFlag': 135}    
@@ -120,6 +123,62 @@ class TestCase:
             consumer.close()
             return 'fail'
 
+    def waitForRows(self, statement, expected, process, timeout=180):
+        deadline = time.monotonic() + timeout
+        while True:
+            tdSql.query(statement, queryTimes=1)
+            actual = tdSql.queryRows
+            tdLog.info(f"{statement}: count={actual}, expected={expected}")
+            returncode = process.poll()
+            if returncode is not None:
+                raise AssertionError(
+                    f"taosBenchmark exited with status {returncode}; "
+                    f"{statement}: count={actual}, expected={expected}"
+                )
+            if actual == expected:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AssertionError(
+                    f"Timed out after {timeout}s: {statement}: "
+                    f"count={actual}, expected={expected}"
+                )
+            time.sleep(min(1, remaining))
+
+    def dumpDiagnostics(self, process, writer, benchmarkLog):
+        tdLog.info(
+            f"taosBenchmark pid={process.pid if process else None}, "
+            f"returncode={process.poll() if process else None}, "
+            f"writer_alive={writer.is_alive()}, benchmark_log={benchmarkLog}"
+        )
+        for statement in ("show consumers", "show subscriptions"):
+            try:
+                tdSql.query(statement, queryTimes=1)
+                tdLog.info(f"{statement}: {tdSql.queryResult!r}")
+            except Exception as error:
+                tdLog.info(f"Diagnostic query {statement} failed: {error}")
+        try:
+            command = (["tasklist"] if platform.system().lower() == "windows"
+                       else ["ps", "-eo", "pid,ppid,stat,etime,comm"])
+            result = subprocess.run(command, capture_output=True, text=True, timeout=5)
+            tdLog.info(f"Process state:\n{result.stdout}")
+        except Exception as error:
+            tdLog.info(f"Process diagnostics failed: {error}")
+        logFiles = [benchmarkLog]
+        for node in [tdDnodes.sim, *tdDnodes.dnodes]:
+            logDir = getattr(node, "logDir", None)
+            if logDir and os.path.isdir(logDir):
+                logFiles.extend(os.path.join(logDir, name) for name in os.listdir(logDir)
+                                if name.startswith(("taosdlog", "taoslog")))
+        for logFile in logFiles:
+            try:
+                with open(logFile, "rb") as log:
+                    log.seek(0, os.SEEK_END)
+                    log.seek(max(0, log.tell() - 16384))
+                    tdLog.info(f"Log tail {logFile}:\n{log.read().decode(errors='replace')}")
+            except OSError as error:
+                tdLog.info(f"Cannot read {logFile}: {error}")
+
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'dbt',
@@ -156,62 +215,57 @@ class TestCase:
         # if topicNum != len(topicNameList):
         #     tdLog.exit("show topics %d not equal expect num: %d"%(topicNum, len(topicNameList)))
         
-        pThread = tmqCom.asyncInsertDataByInterlace(paraDict)
-        
-        # use taosBenchmark to subscribe  
-        binPath = etool.benchMarkFile()
         jsonfile = os.path.join(os.path.dirname(__file__), "tmqMaxGroupIds.json")
-        tmqCom.startProcess(binPath, ['-f', jsonfile])
-                
-        expectTopicNum = 1
-        expectConsumerNUm = 99
-        expectSubscribeNum = 99
-                
-        tdSql.query('show topics;')
-        topicNum = tdSql.queryRows
-        tdLog.info(" get topic count: %d"%(topicNum))
-        if topicNum != expectTopicNum:
-            tdLog.exit("show topics %d not equal expect num: %d"%(topicNum, expectTopicNum))
-        
-        flag = 0
-        while (1):        
-            tdSql.query('show consumers;')
-            consumerNUm = tdSql.queryRows
-            tdLog.info(" get consumers count: %d"%(consumerNUm))
-            if consumerNUm == expectConsumerNUm:
-                flag = 1
-                break
-            else:
-                time.sleep(1)
+        with open(jsonfile, encoding="utf-8") as configFile:
+            config = json.load(configFile)
+        tmqInfo = config["tmq_info"]
+        assert tmqInfo["concurrent"] == self.tmqMaxGroups - 1
+        assert tmqInfo["group_mode"] == "independent"
+        assert tmqInfo["group.id"] == ""
+        expected = tmqInfo["concurrent"]
 
-        if (0 == flag):
-            tdLog.exit("show consumers %d not equal expect num: %d"%(topicNum, expectConsumerNUm))
+        os.makedirs("sim", exist_ok=True)
+        logDir = tempfile.mkdtemp(prefix="tmq-max-groups-", dir="sim")
+        benchmarkLog = os.path.abspath(os.path.join(logDir, "taosBenchmark.log"))
+        tmqCom.g_end_insert_flag = 0
+        pThread = tmqCom.asyncInsertDataByInterlace(paraDict)
+        process = None
+        try:
+            # Keep the process handle and output: startProcess discards both on Linux.
+            with open(benchmarkLog, "w", encoding="utf-8") as output:
+                process = subprocess.Popen(
+                    [etool.benchMarkFile(), "-f", jsonfile],
+                    stdout=output, stderr=subprocess.STDOUT,
+                )
+                tdSql.query("show topics")
+                tdSql.checkRows(1)
+                self.waitForRows("show consumers", expected, process)
+                self.waitForRows("show subscriptions", expected, process)
 
-        flag = 0
-        while (1):
-            tdSql.query('show subscriptions;')
-            subscribeNum = tdSql.queryRows
-            tdLog.info(" get subscriptions count: %d, expected:%d"%(subscribeNum, expectSubscribeNum))
-            if subscribeNum == expectSubscribeNum:
-                flag = 1
-                break
-            else:
-                time.sleep(1)
-                
-        if (0 == flag):
-            tdLog.exit("show subscriptions %d not equal expect num: %d"%(subscribeNum, expectSubscribeNum))
-        
-        res = self.tmqSubscribe(topicNameList[0], "newGroupId_001", "success")
-        if res != 'success':
-            tdLog.exit("limit max groupid fail")
-        
-        res = self.tmqSubscribe(topicNameList[0], "newGroupId_002", "fail")
-        if res != 'success':
-            tdLog.exit("limit max groupid fail")
-        
-        tmqCom.g_end_insert_flag = 1
-        tdLog.debug("notify sub-thread to stop insert data")
-        pThread.join()
+                res = self.tmqSubscribe(topicNameList[0], "newGroupId_001", "success")
+                assert res == "success", "100th consumer group must subscribe"
+                res = self.tmqSubscribe(topicNameList[0], "newGroupId_002", "fail")
+                assert res == "success", "101st consumer group must be rejected"
+        except BaseException:
+            try:
+                self.dumpDiagnostics(process, pThread, benchmarkLog)
+            except Exception as error:
+                tdLog.info(f"Failed to collect TMQ diagnostics: {error}")
+            raise
+        finally:
+            tmqCom.g_end_insert_flag = 1
+            try:
+                if process is not None and process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=10)
+            finally:
+                pThread.join(timeout=30)
+                if pThread.is_alive():
+                    raise AssertionError("Insert thread did not stop within 30s")
 
         tdLog.printNoPrefix("======== test case 1 end ...... ")
 
@@ -220,7 +274,7 @@ class TestCase:
         
         1. Create database and topic
         2. Create 100 consumer groups (maximum allowed)
-        3. Verify all groups work correctly
+        3. Use a 180s polling deadline for consumers and subscriptions; dump diagnostics on failure
         4. Try creating 101st group and verify limit
         
         Since: v3.0.0.0
@@ -235,8 +289,6 @@ class TestCase:
         """
         self.prepareTestEnv()
         self.tmqCase1()
-        if platform.system().lower() == 'windows':
-           os.system("taskkill /f /im taosBenchmark.exe")
 
 
 

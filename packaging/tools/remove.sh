@@ -216,6 +216,7 @@ else
 fi
 
 initd_mod=0
+tools+=("reconcile-tsdb-nodes.sh")
 service_mod=2
 if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
