@@ -4359,6 +4359,7 @@ enum {
   PHY_SYSTABLE_SCAN_CODE_PRIV_INFO,
   PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME,
   PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
+  PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS,  // optional, appended last: older decoders skip unknown types
 };
 
 static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -4390,6 +4391,11 @@ static int32_t physiSysTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncode
     code = tlvEncodeI8(pEncoder,
                        PHY_SYSTABLE_SCAN_CODE_XNODE_DSN_OUTPUT_MODE,
                        pNode->xnodeDsnOutputMode);
+  }
+  // Only inside a batch meta txn; never emitted otherwise, so plans of every other query are unchanged.
+  if (TSDB_CODE_SUCCESS == code && pNode->pTxnStbSchemas != NULL && pNode->txnStbSchemasLen > 0) {
+    code = tlvEncodeBinary(pEncoder, PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS, pNode->pTxnStbSchemas,
+                           pNode->txnStbSchemasLen);
   }
 
   return code;
@@ -4426,6 +4432,19 @@ static int32_t msgToPhysiSysTableScanNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_SYSTABLE_SCAN_CODE_CHARSET_NAME:
         code = tlvDecodeCStr(pTlv, pNode->charsetName,
                              sizeof(pNode->charsetName));
+        break;
+      case PHY_SYSTABLE_SCAN_CODE_TXN_STB_SCHEMAS:
+        // length and pointer always change together: never leave len > 0 with a NULL buffer behind
+        taosMemoryFreeClear(pNode->pTxnStbSchemas);
+        pNode->txnStbSchemasLen = 0;
+        if (pTlv->len < 0 || pTlv->len > TXN_STB_SCHEMAS_MAX_LEN) {
+          code = TSDB_CODE_INVALID_MSG;
+        } else if (pTlv->len > 0) {
+          code = tlvDecodeDynBinary(pTlv, (void**)&pNode->pTxnStbSchemas);
+          if (TSDB_CODE_SUCCESS == code) {
+            pNode->txnStbSchemasLen = pTlv->len;
+          }
+        }
         break;
       default:
         break;

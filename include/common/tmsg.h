@@ -1214,6 +1214,7 @@ typedef struct {
   uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
+  int64_t     txnId;  // batch meta txn: read-your-own-writes for the table cfg request (0 = not in txn)
 } SBuildTableInput;
 
 typedef struct {

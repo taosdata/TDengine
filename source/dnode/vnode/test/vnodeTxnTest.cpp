@@ -82,7 +82,15 @@ struct MockMetaContext {
 
 MockMetaContext g_ctx;
 
-void resetMockContext() { g_ctx = MockMetaContext{}; }
+// Calls of the mocked tag filter cache clears, see seamMetaTagFilterCachesClearAll below.
+int32_t g_tagCachesClearAllCalls = 0;
+int32_t g_tagCachesClearSuidCalls = 0;
+
+void resetMockContext() {
+  g_ctx = MockMetaContext{};
+  g_tagCachesClearAllCalls = 0;
+  g_tagCachesClearSuidCalls = 0;
+}
 
 SMetaEntry* cloneMetaEntry(const MockMetaEntrySpec& spec) {
   SMetaEntry* pEntry = static_cast<SMetaEntry*>(taosMemoryCalloc(1, sizeof(SMetaEntry)));
@@ -288,6 +296,20 @@ void seamMetaULock(SMeta* pMeta) { (void)pMeta; }
 // the dummy pMeta pointer (0x1) must never be dereferenced.
 void seamMetaBumpVtableGen(SMeta* pMeta) { (void)pMeta; }
 
+// Mock tag filter cache clears (called when a txn is finalized / its entries promoted or undone): they walk the real
+// caches of pMeta, which the dummy pMeta does not have. The calls are counted so a test can check they happen.
+int32_t seamMetaTagFilterCachesClearAll(SMeta* pMeta) {
+  (void)pMeta;
+  ++g_tagCachesClearAllCalls;
+  return 0;
+}
+int32_t seamMetaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid) {
+  (void)pMeta;
+  (void)suid;
+  ++g_tagCachesClearSuidCalls;
+  return 0;
+}
+
 }  // extern "C"
 
 namespace {
@@ -310,6 +332,10 @@ struct SeamInstaller {
     *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = reinterpret_cast<void*>(&seamMetaTxnMetaUpsert);
     *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = reinterpret_cast<void*>(&seamMetaMarkTableTxnStatus);
     *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = reinterpret_cast<void*>(&seamMetaBumpVtableGen);
+    *seamSlot(gTdSeam_metaTagFilterCachesClearAll, "gTdSeam_metaTagFilterCachesClearAll") =
+        reinterpret_cast<void*>(&seamMetaTagFilterCachesClearAll);
+    *seamSlot(gTdSeam_metaTagFilterCachesClearSuid, "gTdSeam_metaTagFilterCachesClearSuid") =
+        reinterpret_cast<void*>(&seamMetaTagFilterCachesClearSuid);
     *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = reinterpret_cast<void*>(&seamMetaRLock);
     *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = reinterpret_cast<void*>(&seamMetaULock);
     *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = reinterpret_cast<void*>(&seamVnodeAsync);
@@ -329,6 +355,8 @@ struct SeamInstaller {
     *seamSlot(gTdSeam_metaTxnMetaUpsert, "gTdSeam_metaTxnMetaUpsert") = nullptr;
     *seamSlot(gTdSeam_metaMarkTableTxnStatus, "gTdSeam_metaMarkTableTxnStatus") = nullptr;
     *seamSlot(gTdSeam_metaBumpVtableGen, "gTdSeam_metaBumpVtableGen") = nullptr;
+    *seamSlot(gTdSeam_metaTagFilterCachesClearAll, "gTdSeam_metaTagFilterCachesClearAll") = nullptr;
+    *seamSlot(gTdSeam_metaTagFilterCachesClearSuid, "gTdSeam_metaTagFilterCachesClearSuid") = nullptr;
     *seamSlot(gTdSeam_metaRLock, "gTdSeam_metaRLock") = nullptr;
     *seamSlot(gTdSeam_metaULock, "gTdSeam_metaULock") = nullptr;
     *seamSlot(gTdSeam_vnodeAsync, "gTdSeam_vnodeAsync") = nullptr;
@@ -700,6 +728,8 @@ TEST(vnodeTxnCase, inlineCommitPartialFailureFallsBackToLazyFinalize) {
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
+  // finalizing flips what every reader sees at once: the tag filter caches of the vnode go with it
+  EXPECT_EQ(g_tagCachesClearAllCalls, 1);
 
   auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);
@@ -738,6 +768,7 @@ TEST(vnodeTxnCase, rollbackAlterFailureFallsBackToLazyFinalize) {
   EXPECT_EQ(g_ctx.vnodeAsyncCalls, 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnHash), 1);
   EXPECT_EQ(taosHashGetSize(vnode.pTxnMetaCache), 1);
+  EXPECT_EQ(g_tagCachesClearAllCalls, 1);  // the lazy finalize of a ROLLBACK drops the tag caches as well
 
   auto* pFinalStatus = static_cast<int8_t*>(taosHashGet(vnode.pTxnMetaCache, &txnId, sizeof(txnId)));
   ASSERT_NE(pFinalStatus, nullptr);

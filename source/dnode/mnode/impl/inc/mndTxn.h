@@ -66,6 +66,9 @@ void             mndTxnRefreshKeepalive(SMnode* pMnode, txn_id_t txnId);  // cli
 // Returns true if txnId was forcibly rolled back by the MNode due to inactivity or lifetime timeout.
 // Used by the HB handler to notify the client via HEARTBEAT_KEY_TXN_KILLED.
 bool    mndTxnIsTimeoutKilled(SMnode* pMnode, txn_id_t txnId);
+// The answer to a COMMIT / ROLLBACK for a txn no longer in SDB_TXN, from its compact record in SDB_TXN_LOG (see the
+// definition). *pFound: the log has a record; the return code is meaningful only then. Exported for the unit test.
+int32_t mndTxnAnswerFromLog(SMnode* pMnode, SRpcMsg* pReq, txn_id_t txnId, bool isCommit, bool* pFound);
 int32_t mndRollbackOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);  // Raft-safe orphan rollback
 int32_t mndCommitOrphanTxnOnVnode(SMnode* pMnode, txn_id_t txnId, int32_t vgId);    // Raft-safe orphan commit
 

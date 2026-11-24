@@ -1343,6 +1343,7 @@ int32_t  taosGetErrSize();
 #define TSDB_CODE_TXN_EXCEEDED_LIFETIME          TAOS_DEF_ERROR_CODE(0, 0x331E)  // Transaction exceeded maximum lifetime
 #define TSDB_CODE_TXN_TIMEOUT_KILLED             TAOS_DEF_ERROR_CODE(0, 0x331F)  // Transaction was forcibly rolled back by server due to inactivity timeout; execute ROLLBACK to clean up
 #define TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED     TAOS_DEF_ERROR_CODE(0, 0x3320)  // Object was dropped in this transaction; creating it again with the same name is not supported until COMMIT/ROLLBACK
+#define TSDB_CODE_TXN_CONCURRENT_STMT            TAOS_DEF_ERROR_CODE(0, 0x3321)  // Another statement of this transaction is still executing on the connection
 
 //tmq
 #define TSDB_CODE_TMQ_INVALID_MSG                TAOS_DEF_ERROR_CODE(0, 0x4000)

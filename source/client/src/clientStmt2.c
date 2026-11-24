@@ -5327,6 +5327,7 @@ int stmtExec2(TAOS_STMT2* stmt, int* affected_rows, const SWorkloadCallToken* wl
 
     stmt2WlrInstallRequestExecToken(pRequest, wlrToken);
     pStmt->execSemWaited = false;
+    tscReqStartStatement(pRequest);  // the request may be reused from a previous execution: check it afresh
     launchAsyncQuery(pRequest, pStmt->sql.pQuery, NULL, pWrapper);
   }
 

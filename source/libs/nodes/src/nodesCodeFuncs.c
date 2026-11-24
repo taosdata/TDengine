@@ -4422,6 +4422,8 @@ static const char* jkSysTableScanPhysiPlanAccountId = "AccountId";
 static const char* jkSysTableScanPhysiPlanSysInfo = "SysInfo";
 static const char* jkSysTableScanPhysiPlanPrivInfo = "PrivInfo";
 static const char* jkSysTableScanPhysiPlanCharsetName = "CharsetName";
+static const char* jkSysTableScanPhysiPlanTxnStbSchemasLen = "TxnStbSchemasLen";
+static const char* jkSysTableScanPhysiPlanTxnStbSchemas = "TxnStbSchemas";
 
 static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
   const SSystemTableScanPhysiNode* pNode = (const SSystemTableScanPhysiNode*)pObj;
@@ -4449,6 +4451,20 @@ static int32_t physiSysTableScanNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddStringToObject(pJson, jkSysTableScanPhysiPlanCharsetName,
                                   pNode->charsetName);
+  }
+  // Batch meta txn only (see SSystemTableScanPhysiNode.pTxnStbSchemas); omitted otherwise. Hex-encoded.
+  if (TSDB_CODE_SUCCESS == code && pNode->pTxnStbSchemas != NULL && pNode->txnStbSchemasLen > 0) {
+    code = tjsonAddIntegerToObject(pJson, jkSysTableScanPhysiPlanTxnStbSchemasLen, pNode->txnStbSchemasLen);
+    if (TSDB_CODE_SUCCESS == code) {
+      int64_t hexLen = (int64_t)pNode->txnStbSchemasLen * 2 + 1;
+      char*   pHex = taosMemoryCalloc(hexLen, 1);
+      if (NULL == pHex) return terrno;
+      code = taosHexEncode((const unsigned char*)pNode->pTxnStbSchemas, pHex, pNode->txnStbSchemasLen, hexLen);
+      if (TSDB_CODE_SUCCESS == code) {
+        code = tjsonAddStringToObject(pJson, jkSysTableScanPhysiPlanTxnStbSchemas, pHex);
+      }
+      taosMemoryFree(pHex);
+    }
   }
 
   return code;
@@ -4480,6 +4496,33 @@ static int32_t jsonToPhysiSysTableScanNode(const SJson* pJson, void* pObj) {
     code = tjsonGetStringValue1(pJson, jkSysTableScanPhysiPlanCharsetName,
                                 pNode->charsetName,
                                 sizeof(pNode->charsetName));
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkSysTableScanPhysiPlanTxnStbSchemasLen)) {
+    // The plan arrives over the network: trust neither the declared length nor the hex string.
+    taosMemoryFreeClear(pNode->pTxnStbSchemas);
+    pNode->txnStbSchemasLen = 0;
+    int32_t declared = 0;
+    tjsonGetNumberValue(pJson, jkSysTableScanPhysiPlanTxnStbSchemasLen, declared, code);
+    if (TSDB_CODE_SUCCESS == code && declared < 0) code = TSDB_CODE_INVALID_MSG;
+    if (TSDB_CODE_SUCCESS == code && declared > TXN_STB_SCHEMAS_MAX_LEN) code = TSDB_CODE_INVALID_MSG;
+    if (TSDB_CODE_SUCCESS == code && declared > 0) {
+      const char* pStr = cJSON_GetStringValue(tjsonGetObjectItem(pJson, jkSysTableScanPhysiPlanTxnStbSchemas));
+      // Hex is two characters per byte. taosHexDecode trusts the length it is given and never looks for the
+      // terminator, so a shorter string would be read past its end: reject it here. (declared is capped above,
+      // so declared * 2 cannot overflow.)
+      if (NULL == pStr || strlen(pStr) != (size_t)declared * 2) {
+        code = TSDB_CODE_INVALID_MSG;
+      } else {
+        pNode->pTxnStbSchemas = taosMemoryCalloc((size_t)declared, 1);
+        if (NULL == pNode->pTxnStbSchemas) return terrno;
+        code = taosHexDecode(pStr, pNode->pTxnStbSchemas, declared);
+        if (TSDB_CODE_SUCCESS == code) {
+          pNode->txnStbSchemasLen = declared;
+        } else {
+          taosMemoryFreeClear(pNode->pTxnStbSchemas);
+        }
+      }
+    }
   }
 
   return code;

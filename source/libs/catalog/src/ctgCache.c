@@ -3868,12 +3868,18 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SCtgTbMetaCtx *ctx, STableMeta **pTableMeta) {
+int32_t ctgGetTbMetaFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMetaCtx *ctx, STableMeta **pTableMeta) {
   if (IS_SYS_DBNAME(ctx->pName->dbname)) {
     CTG_FLAG_SET_SYS_DB(ctx->flag);
   }
 
   CTG_ERR_RET(ctgReadTbMetaFromCache(pCtg, ctx, pTableMeta));
+
+  if (*pTableMeta && ctgIsCachedMetaTouchedByTxn(pConn, ctx->pName, *pTableMeta)) {
+    ctgDebug("tb:%s, cached meta is stale for txn:%" PRId64 ", treat as miss", ctx->pName->tname, (int64_t)pConn->txnId);
+    queryFreeTableMeta(*pTableMeta);
+    *pTableMeta = NULL;
+  }
 
   if (*pTableMeta) {
     if (CTG_FLAG_MATCH_STB(ctx->flag, (*pTableMeta)->tableType) &&
@@ -4070,6 +4076,24 @@ int32_t ctgGetTbMetasFromCache(SCatalog *pCtg, SRequestConnInfo *pConn, SCtgTbMe
     }
 
     STableMeta *tbMeta = pCache->pMeta;
+
+    if (ctgIsCachedMetaTouchedByTxn(pConn, pName, tbMeta)) {
+      // Batch meta txn: the committed meta in the shared cache is stale for this txn, fetch it with the txnId
+      CTG_UNLOCK(CTG_READ, &pCache->metaLock);
+      taosHashRelease(dbCache->tbCache, pCache);
+
+      ctgDebug("tb:%s, cached meta is stale for txn:%" PRId64 ", treat as miss, db:%s", pName->tname,
+               (int64_t)pConn->txnId, dbFName);
+
+      CTG_ERR_JRET(ctgAddFetch(&ctx->pFetchs, dbIdx, i, fetchIdx, baseResIdx + i, flag));
+      if (NULL == taosArrayPush(ctx->pResList, &(SMetaData){0})) {
+        CTG_ERR_JRET(terrno);
+      }
+
+      CTG_META_NHIT_INC();
+
+      continue;
+    }
 
     CTG_META_HIT_INC(tbMeta->tableType);
 

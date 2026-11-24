@@ -34,6 +34,11 @@ typedef struct SPhysiPlanContext {
   SArray*       pLocationHelper;
   SArray*       pProjIdxLocHelper;
   bool          hasFederatedScan;  // set when SCAN_TYPE_EXTERNAL subplan is built
+  // Batch meta txn: txn-local super table schemas, fetched lazily by the first system table scan that needs them
+  // (see SPlanContext.getTxnStbSchemas) and shared by every such scan of this plan. Owned by this context.
+  char*         pTxnStbSchemas;
+  int32_t       txnStbSchemasLen;
+  bool          txnStbSchemasLoaded;
 } SPhysiPlanContext;
 
 // Stable-table join rewrites keep the two logical inputs below a single

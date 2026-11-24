@@ -190,6 +190,18 @@ typedef struct SParseContext {
   uint8_t     stmtTbNameFlag;
 } SParseContext;
 
+// Fill the connection info used by catalog requests from the parse context, including the txn-local
+// state the catalog needs to tell which tables the current txn has touched (see ctgIsMetaTouchedByTxn).
+static FORCE_INLINE void parseCxtToConnInfo(const SParseContext* pCxt, SRequestConnInfo* pConn) {
+  pConn->pTrans = pCxt->pTransporter;
+  pConn->requestId = pCxt->requestId;
+  pConn->requestObjRefId = pCxt->requestRid;
+  pConn->mgmtEps = pCxt->mgmtEpSet;
+  pConn->txnId = pCxt->txnId;
+  pConn->pTxnTableMeta = pCxt->pTxnTableMeta;
+  pConn->pTxnSuidMap = pCxt->pTxnSuidMap;
+}
+
 typedef struct SPureInsertParserCtx {
   int                    nr_params;
 

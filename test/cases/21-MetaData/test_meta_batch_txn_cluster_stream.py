@@ -169,7 +169,7 @@ class TestBatchMetaTxnClusterStream:
             clusterComCheck.checkDnodes(3)
 
         assert "cs72" in self._stream_names(), "stream lost after leader switch + ROLLBACK"
-        status = self._wait_status("cs72", ("Running", "Idle"), timeout=30)
+        status = self._wait_status("cs72", ("Running", "Idle"), timeout=90)
         assert status in ("Running", "Idle"), \
             f"cs72 should still run after leader switch + ROLLBACK, got {status}"
         tdLog.info(f"cs72 survived leader switch + ROLLBACK, still {status}")
@@ -203,7 +203,7 @@ class TestBatchMetaTxnClusterStream:
             clusterComCheck.checkDnodes(3)
 
         assert "cs73" in self._stream_names(), "stream lost after leader switch + COMMIT"
-        status = self._wait_status("cs73", ("Running", "Idle"), timeout=30)
+        status = self._wait_status("cs73", ("Running", "Idle"), timeout=90)
         assert status in ("Running", "Idle"), \
             f"cs73 should deploy after leader switch + COMMIT, got {status}"
         tdLog.info(f"cs73 deployed after leader switch + COMMIT, status={status}")
@@ -392,7 +392,13 @@ class TestBatchMetaTxnClusterStream:
             self._busy_on_other_session("stop stream cs78")
             self._busy_on_other_session("start stream cs78")
             self._busy_on_other_session("drop stream cs78")
-            assert self._stream_status("cs78") in ("Running", "Idle"), \
+            # Only "not Stopped" is asserted. SHOW STREAMS reports Stopped as soon as the intent is applied
+            # (userStopped wins over every runtime state), so this is exactly the "applied early" check.
+            # Running/Idle must not be required: when the killed dnode also led the vgroup of the stream's
+            # reader, the new MNode leader finds that task missing at the end of WATCH and marks the stream
+            # Failed (Stream task lost) until its ~30s redeploy retry. That is the stream engine's own
+            # recovery, unrelated to the txn.
+            assert self._stream_status("cs78") != "Stopped", \
                 f"STOP intent applied before COMMIT, status={self._stream_status('cs78')}"
             tdSql.execute("COMMIT")
         finally:

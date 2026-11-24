@@ -1282,8 +1282,191 @@ static bool isChildOfDroppedStbCached(const SParseContext* pParCxt, const SName*
   return false;
 }
 
-int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
-                          bool couldBeView) {
+// ---- batch meta txn: a child table's schema follows the super table, and so must its column bindings ----
+//
+// A virtual child's persisted column bindings (colRef) are positional against the super table's row schema as the
+// vnode holds it. Inside a txn the client already knows the txn's version of the super table (pTxnTableMeta), whose
+// column list may differ (added / dropped / renamed columns), so positions shift and a binding would show up on
+// the wrong column (DESCRIBE, SHOW CREATE) or, worse, make a query read the wrong source column. One function
+// rebuilds the child's schema from the txn's super table and re-aligns the bindings by colId. Every consumer
+// (table meta, table cfg) goes through it, so none of them ever sees a position that no longer matches.
+typedef struct STxnRealigned {
+  SSchema*    pSchemas;      // [stb cols][own cols][stb tags][own tags]
+  SSchemaExt* pExt;          // NULL when neither side carries ext schema
+  SColRef*    pRefs;         // numOfColumns entries; NULL when the caller has no column bindings
+  int32_t     numOfColumns;
+  int32_t     numOfTags;
+} STxnRealigned;
+
+// A binding is found by the colId it carries (SColRef.id), NEVER by its index: inside a txn the old schema and the
+// old bindings can be out of step (the catalog merges the vnode's child, whose bindings follow the committed
+// column list, with the txn's super table schema). A binding that is carried over is MOVED into pOut->pRefs (its
+// heap fields are cleared in pOldRefs); whatever is left in pOldRefs belongs to a column that is gone and is still
+// the caller's to free. A column added in the txn is unbound. extCoversTags: the ext array of a table cfg also has
+// (zeroed) slots for the tags, readers index past the columns for own tags.
+static int32_t txnRealignVchildSchema(const STableMeta* pStb, bool isVchild, const SSchema* pOldSchemas,
+                                      int32_t oldCols, int32_t oldTags, const SSchemaExt* pOldExt, SColRef* pOldRefs,
+                                      int32_t oldRefs, bool extCoversTags, STxnRealigned* pOut) {
+  memset(pOut, 0, sizeof(*pOut));
+  const int32_t stbCols = pStb->tableInfo.numOfColumns;
+  const int32_t stbTags = pStb->tableInfo.numOfTags;
+
+  int32_t ownCols = 0, ownTags = 0;
+  for (int32_t i = 0; isVchild && i < oldCols; ++i) {
+    if (pOldSchemas[i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) ++ownCols;
+  }
+  for (int32_t i = 0; isVchild && i < oldTags; ++i) {
+    if (pOldSchemas[oldCols + i].colId >= TSDB_VCHILD_OWN_COL_ID_BASE) ++ownTags;
+  }
+  const int32_t newCols = stbCols + ownCols;
+  const int32_t newTags = stbTags + ownTags;
+  const bool    hasExt = (pOldExt != NULL || pStb->schemaExt != NULL);
+
+  SSchema*    pSchemas = taosMemoryMalloc(sizeof(SSchema) * (newCols + newTags));
+  SSchemaExt* pExt = hasExt ? taosMemoryCalloc(extCoversTags ? newCols + newTags : newCols, sizeof(SSchemaExt)) : NULL;
+  SColRef*    pRefs = pOldRefs != NULL ? taosMemoryCalloc(newCols, sizeof(SColRef)) : NULL;
+  if (pSchemas == NULL || (hasExt && pExt == NULL) || (pOldRefs != NULL && pRefs == NULL)) {
+    int32_t code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pSchemas);
+    taosMemoryFree(pExt);
+    taosMemoryFree(pRefs);
+    return code;
+  }
+
+  // the txn's super table columns / tags
+  memcpy(pSchemas, pStb->schema, sizeof(SSchema) * stbCols);
+  memcpy(pSchemas + newCols, pStb->schema + stbCols, sizeof(SSchema) * stbTags);
+  for (int32_t i = 0; i < stbCols; ++i) {
+    if (pExt != NULL) {
+      if (pStb->schemaExt != NULL) pExt[i] = pStb->schemaExt[i];
+      pExt[i].colId = pSchemas[i].colId;
+    }
+    if (pRefs != NULL) {
+      pRefs[i].id = pSchemas[i].colId;
+      for (int32_t j = 0; j < oldRefs; ++j) {  // a column that survives the ALTER keeps its binding
+        if (pOldRefs[j].id == pSchemas[i].colId) {
+          pRefs[i] = pOldRefs[j];
+          memset(&pOldRefs[j], 0, sizeof(SColRef));  // ownership of the heap fields moved
+          break;
+        }
+      }
+    }
+  }
+
+  // the child's own (extension) columns / tags follow unchanged, with their bindings
+  int32_t k = stbCols;
+  for (int32_t j = 0; isVchild && j < oldCols; ++j) {
+    if (pOldSchemas[j].colId < TSDB_VCHILD_OWN_COL_ID_BASE) continue;
+    pSchemas[k] = pOldSchemas[j];
+    if (pExt != NULL && pOldExt != NULL) pExt[k] = pOldExt[j];
+    if (pRefs != NULL) {
+      pRefs[k].id = pSchemas[k].colId;
+      for (int32_t r = 0; r < oldRefs; ++r) {
+        if (pOldRefs[r].id == pSchemas[k].colId) {
+          pRefs[k] = pOldRefs[r];
+          memset(&pOldRefs[r], 0, sizeof(SColRef));
+          break;
+        }
+      }
+    }
+    ++k;
+  }
+  k = newCols + stbTags;
+  for (int32_t j = 0; isVchild && j < oldTags; ++j) {
+    if (pOldSchemas[oldCols + j].colId < TSDB_VCHILD_OWN_COL_ID_BASE) continue;
+    pSchemas[k++] = pOldSchemas[oldCols + j];
+  }
+
+  pOut->pSchemas = pSchemas;
+  pOut->pExt = pExt;
+  pOut->pRefs = pRefs;
+  pOut->numOfColumns = newCols;
+  pOut->numOfTags = newTags;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Rebuild a virtual child's table meta against the txn's version of its super table (see above). *ppMeta is
+// replaced by a new block with the same layout the rest of the code expects ([schema][ext][colRef][tagRef]); every
+// heap member (binding conditions, series, external references) is moved, the old block is freed.
+static int32_t txnRealignVchildMeta(const SParseContext* pParCxt, STableMeta** ppMeta) {
+  STableMeta* pOld = *ppMeta;
+  if (pParCxt->txnId <= 0 || !pParCxt->pTxnTableMeta || !pParCxt->pTxnSuidMap || pOld == NULL ||
+      pOld->tableType != TSDB_VIRTUAL_CHILD_TABLE || pOld->colRef == NULL || pOld->numOfColRefs <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  char* stbFullName = (char*)taosHashGet(pParCxt->pTxnSuidMap, &pOld->suid, sizeof(uint64_t));
+  if (stbFullName == NULL) return TSDB_CODE_SUCCESS;  // its super table was not touched by this txn
+  STableMeta** ppStb = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, stbFullName, strlen(stbFullName));
+  if (ppStb == NULL || *ppStb == NULL || (*ppStb)->tableType != TSDB_SUPER_TABLE) return TSDB_CODE_SUCCESS;
+  const STableMeta* pStb = *ppStb;
+
+  STxnRealigned r;
+  int32_t       code = txnRealignVchildSchema(pStb, true, pOld->schema, pOld->tableInfo.numOfColumns,
+                                              pOld->tableInfo.numOfTags, pOld->schemaExt, pOld->colRef,
+                                              pOld->numOfColRefs, false, &r);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  // the block layout must be exactly what TABLE_META_FULL_SIZE() / tableMetaResetPointers() assume
+  const bool    withExt = withExtSchema(pOld->tableType) && r.pExt != NULL;
+  const bool    withTagRef = hasTagRef(pOld->tableType) && pOld->tagRef != NULL && pOld->numOfTagRefs > 0;
+  const int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * (r.numOfColumns + r.numOfTags);
+  const int32_t extSize = withExt ? sizeof(SSchemaExt) * r.numOfColumns : 0;
+  const int32_t refSize = sizeof(SColRef) * r.numOfColumns;
+  const int32_t tagRefSize = withTagRef ? sizeof(SColRef) * pOld->numOfTagRefs : 0;
+
+  STableMeta* pNew = taosMemoryCalloc(1, metaSize + extSize + refSize + tagRefSize);
+  if (pNew == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    queryFreeColRefTagConds(r.pRefs, r.numOfColumns);  // the moved bindings are ours now
+    taosMemoryFree(r.pRefs);
+    taosMemoryFree(r.pExt);
+    taosMemoryFree(r.pSchemas);
+    queryFreeTableMeta(pOld);
+    *ppMeta = NULL;
+    return code;
+  }
+  memcpy(pNew, pOld, sizeof(STableMeta));  // header: also moves seriesEntries and referenceExt (by colId / alias)
+  pNew->tableInfo.numOfColumns = r.numOfColumns;
+  pNew->tableInfo.numOfTags = r.numOfTags;
+  int32_t rowSize = 0;
+  for (int32_t i = 0; i < r.numOfColumns; ++i) rowSize += r.pSchemas[i].bytes;
+  pNew->tableInfo.rowSize = rowSize;
+  memcpy(pNew->schema, r.pSchemas, sizeof(SSchema) * (r.numOfColumns + r.numOfTags));
+  char* pCursor = (char*)pNew + metaSize;
+  if (withExt) {
+    pNew->schemaExt = (SSchemaExt*)pCursor;
+    memcpy(pNew->schemaExt, r.pExt, extSize);
+    pCursor += extSize;
+  } else {
+    pNew->schemaExt = NULL;
+  }
+  pNew->colRef = (SColRef*)pCursor;
+  pNew->numOfColRefs = r.numOfColumns;
+  memcpy(pNew->colRef, r.pRefs, refSize);
+  pCursor += refSize;
+  if (withTagRef) {
+    pNew->tagRef = (SColRef*)pCursor;
+    memcpy(pNew->tagRef, pOld->tagRef, tagRefSize);  // bound by colId, nothing to re-align; heap fields move too
+  } else {
+    pNew->tagRef = NULL;
+    pNew->numOfTagRefs = 0;
+  }
+  taosMemoryFree(r.pRefs);
+  taosMemoryFree(r.pExt);
+  taosMemoryFree(r.pSchemas);
+
+  // everything heap-owned now lives in pNew: detach it from pOld, then free what is left of pOld (the bindings of
+  // columns that are gone, and the block itself)
+  pOld->seriesEntries = NULL;
+  memset(&pOld->referenceExt, 0, sizeof(pOld->referenceExt));
+  if (withTagRef) pOld->numOfTagRefs = 0;
+  queryFreeTableMeta(pOld);
+  *ppMeta = pNew;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t getTargetMetaRaw(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName,
+                                STableMeta** pMeta, bool couldBeView) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   // Batch meta txn: check same-txn cache first (has latest schema after CREATE/ALTER)
@@ -1293,6 +1476,12 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
       STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
       if (ppCached && *ppCached) {
         STableMeta* cached = *ppCached;
+        // A child cached in this txn goes away with its super table: once the txn dropped the parent, the child
+        // is gone for this txn too (COMMIT removes it), whether its meta is a compact stub or a full virtual one.
+        if ((cached->tableType == TSDB_CHILD_TABLE || cached->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
+            pParCxt->pTxnSuidMap && isParentStbDroppedInTxn(pParCxt, cached->suid)) {
+          return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        }
         // Compact CTB stub (numOfColumns == 0): assemble full meta on demand from parent STB schema.
         if (cached->tableType == TSDB_CHILD_TABLE && cached->tableInfo.numOfColumns == 0) {
           return txnAssembleCtbMeta(cached, pParCxt->pTxnTableMeta, pParCxt->pTxnSuidMap, pParCxt->pCatalog, pMeta);
@@ -1324,11 +1513,8 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
     }
 #endif
   } else {
-    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                             .requestId = pParCxt->requestId,
-                             .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet,
-                             .txnId = pParCxt->txnId};
+    SRequestConnInfo conn = {0};
+    parseCxtToConnInfo(pParCxt, &conn);
     code = catalogGetTableMeta(pParCxt->pCatalog, &conn, pName, pMeta);
   }
 
@@ -1343,6 +1529,17 @@ int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, c
   if (TSDB_CODE_SUCCESS != code && TSDB_CODE_PAR_TABLE_NOT_EXIST != code) {
     parserError("QID:0x%" PRIx64 ", catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", pParCxt->requestId,
                 tstrerror(code), pName->dbname, pName->tname);
+  }
+  return code;
+}
+
+// Every table meta the translator / authenticator gets goes through here: inside a batch meta txn a virtual child's
+// meta is re-aligned with the txn's version of its super table (see txnRealignVchildSchema).
+int32_t getTargetMetaImpl(SParseContext* pParCxt, SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta,
+                          bool couldBeView) {
+  int32_t code = getTargetMetaRaw(pParCxt, pMetaCache, pName, pMeta, couldBeView);
+  if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta) {
+    code = txnRealignVchildMeta(pParCxt, pMeta);
   }
   return code;
 }
@@ -1428,6 +1625,46 @@ static int32_t getTableMeta(STranslateContext* pCxt, const char* pDbName, const 
   return getTargetMeta(pCxt, &name, pMeta, false);
 }
 
+// A child table's cfg is built by the vnode from the super table it holds, and a txn's ALTERs on the super
+// table only reach the vnode at COMMIT. When this txn altered the parent, rebuild the schema part of the
+// child's cfg from the txn-local super table meta so SHOW CREATE TABLE/VTABLE shows the txn's own view.
+// The tag values (pTags) are keyed by colId, which ALTER keeps, so they stay valid.
+//
+// A virtual child table's cfg is "super table schema + the child's own (extension) columns / tags". Own
+// ones carry colId >= TSDB_VCHILD_OWN_COL_ID_BASE, so they are told apart from the inherited part and
+// re-appended after the txn-local super table schema. Column refs follow their column by colId: refs of
+// inherited columns dropped in this txn are released, columns added in this txn start unbound.
+static int32_t txnOverlayChildCfg(const SParseContext* pParCxt, STableCfg* pCfg) {
+  if (pParCxt->txnId <= 0 || !pParCxt->pTxnTableMeta || pCfg == NULL ||
+      (pCfg->tableType != TSDB_CHILD_TABLE && pCfg->tableType != TSDB_VIRTUAL_CHILD_TABLE) ||
+      pCfg->stbName[0] == '\0' || pCfg->pSchemas == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  char stbFullName[TSDB_TABLE_FNAME_LEN];
+  snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pCfg->dbFName, pCfg->stbName);
+  STableMeta** ppStb = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, stbFullName, strlen(stbFullName));
+  if (ppStb == NULL || *ppStb == NULL) return TSDB_CODE_SUCCESS;  // parent not altered in this txn
+  const STableMeta* pStb = *ppStb;
+  if (pStb->tableType != TSDB_SUPER_TABLE) return TSDB_CODE_SUCCESS;
+
+  STxnRealigned r;
+  int32_t       code = txnRealignVchildSchema(pStb, pCfg->tableType == TSDB_VIRTUAL_CHILD_TABLE, pCfg->pSchemas,
+                                              pCfg->numOfColumns, pCfg->numOfTags, pCfg->pSchemaExt, pCfg->pColRefs,
+                                              pCfg->numOfColumns, true, &r);
+  if (code != TSDB_CODE_SUCCESS) return code;
+
+  tFreeSColRefArray(pCfg->pColRefs, pCfg->numOfColumns);  // bindings of columns dropped in this txn
+  taosMemoryFree(pCfg->pColRefs);
+  taosMemoryFree(pCfg->pSchemas);
+  taosMemoryFree(pCfg->pSchemaExt);
+  pCfg->pColRefs = r.pRefs;
+  pCfg->pSchemas = r.pSchemas;
+  pCfg->pSchemaExt = r.pExt;
+  pCfg->numOfColumns = r.numOfColumns;
+  pCfg->numOfTags = r.numOfTags;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCfg** pCfg) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
@@ -1491,11 +1728,8 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
       if (pParCxt->async) {
         code = getTableCfgFromCache(pCxt->pMetaCache, pName, pCfg);
       } else {
-        SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                                 .requestId = pParCxt->requestId,
-                                 .requestObjRefId = pParCxt->requestRid,
-                                 .mgmtEps = pParCxt->mgmtEpSet,
-                                 .txnId = pParCxt->txnId};
+        SRequestConnInfo conn = {0};
+        parseCxtToConnInfo(pParCxt, &conn);
         code = catalogRefreshGetTableCfg(pParCxt->pCatalog, &conn, pName, pCfg);
       }
       // Cascading child check: if catalog returned a child table cfg, verify parent STB wasn't dropped
@@ -1511,6 +1745,10 @@ static int32_t getTableCfg(STranslateContext* pCxt, const SName* pName, STableCf
           code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
           goto end;
         }
+      }
+      if (TSDB_CODE_SUCCESS == code && *pCfg != NULL) {
+        code = txnOverlayChildCfg(pParCxt, *pCfg);
+        if (TSDB_CODE_SUCCESS != code) goto end;
       }
     }
 
@@ -1577,13 +1815,21 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
       STableMeta** ppCached = (STableMeta**)taosHashGet(pParCxt->pTxnTableMeta, fullName, strlen(fullName));
       if (ppCached && *ppCached) {
         STableMeta* cached = *ppCached;
+        // A child cached in this txn goes away with its super table: once the txn dropped the parent, the child
+        // is gone for this txn too (COMMIT removes it), whether its meta is a compact stub or a full virtual one.
+        if ((cached->tableType == TSDB_CHILD_TABLE || cached->tableType == TSDB_VIRTUAL_CHILD_TABLE) &&
+            pParCxt->pTxnSuidMap && isParentStbDroppedInTxn(pParCxt, cached->suid)) {
+          return TSDB_CODE_PAR_TABLE_NOT_EXIST;
+        }
         // Compact CTB stub (numOfColumns == 0): assemble full meta on demand from parent STB schema.
         if (cached->tableType == TSDB_CHILD_TABLE && cached->tableInfo.numOfColumns == 0) {
           return txnAssembleCtbMeta(cached, pParCxt->pTxnTableMeta, pParCxt->pTxnSuidMap, pParCxt->pCatalog, pMeta);
         }
         *pMeta = tableMetaDup(cached);
         if (*pMeta) {
-          return TSDB_CODE_SUCCESS;
+          // A virtual child created in this txn is cached as of its creation; if its super table was altered
+          // afterwards the bindings / columns must follow (same as getTargetMetaImpl does for every other reader).
+          return txnRealignVchildMeta(pParCxt, pMeta);
         }
         // tableMetaDup OOM  -  do NOT fall through to catalog (would return stale pre-txn schema).
         return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
@@ -1601,11 +1847,8 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   if (pParCxt->async) {
     code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
   } else {
-    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                             .requestId = pParCxt->requestId,
-                             .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet,
-                             .txnId = pParCxt->txnId};
+    SRequestConnInfo conn = {0};
+    parseCxtToConnInfo(pParCxt, &conn);
 
     code = catalogRefreshGetTableMeta(pParCxt->pCatalog, &conn, &name, pMeta, false);
   }
@@ -1614,6 +1857,9 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
       isParentStbDroppedInTxn(pParCxt, (*pMeta)->suid)) {
     taosMemoryFreeClear(*pMeta);
     code = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta) {
+    code = txnRealignVchildMeta(pParCxt, pMeta);
   }
   if (TSDB_CODE_SUCCESS == code && NULL != pMeta && NULL != *pMeta && (*pMeta)->virtualStb &&
       ((*pMeta)->tableType == TSDB_VIRTUAL_CHILD_TABLE || (*pMeta)->tableType == TSDB_VIRTUAL_NORMAL_TABLE) &&

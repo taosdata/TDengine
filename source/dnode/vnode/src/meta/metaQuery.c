@@ -168,7 +168,46 @@ bool metaIsTableExist(void *pVnode, tb_uid_t uid) {
   return true;
 }
 
+// batch meta txn: a table the reader's OWN txn has dropped (PRE_DROP, not committed yet) no longer exists for
+// that reader (read your own writes), exactly as the cursor scan already treats it. Every other reader keeps
+// seeing it until COMMIT. The "committed PRE_DROP" case is handled by each caller's finalized-txn check.
+static FORCE_INLINE bool metaIsDroppedByOwnTxn(const SMetaReader *pReader) {
+  return pReader->txnId != 0 && pReader->txnId == pReader->me.txnId && pReader->me.txnStatus == META_TXN_PRE_DROP;
+}
 
+// batch meta txn: what the reader may see of the entry it has just loaded into pReader->me. The single place that
+// holds the visibility rules; every by-uid entry getter ends here, so they cannot drift apart again.
+//   - txn already COMMITTED (the vacuum has not normalised the entry yet): PRE_DROP is gone, the rest is visible
+//   - PRE_CREATE: invisible once ROLLEDBACK, and to every reader but the creating txn (snapshot isolation);
+//     the creating txn reads its own write
+//   - PRE_DROP by the reader's own txn: gone for it, still visible to everyone else until COMMIT
+//   - PRE_ALTER: every reader but the altering txn is redirected to the pre-txn version (txnOrigVer)
+static int32_t metaApplyTxnVisibility(SMetaReader *pReader, tb_uid_t uid) {
+  int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);  // NONE when me.txnId == 0
+  if (finalStatus == TXN_META_COMMITTED) {
+    return pReader->me.txnStatus == META_TXN_PRE_DROP ? (terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST) : 0;
+  }
+
+  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
+    if (finalStatus == TXN_META_ROLLEDBACK || pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
+      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    }
+  }
+
+  // a ROLLEDBACK txn restored the table (the vacuum has not normalised the entry yet): its PRE_DROP is void
+  if (finalStatus != TXN_META_ROLLEDBACK && metaIsDroppedByOwnTxn(pReader)) {
+    return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+  }
+
+  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0 &&
+      (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId)) {
+    tDecoderClear(&pReader->coder);
+    int32_t code = metaGetTableEntryByVersion(pReader, pReader->me.txnOrigVer, uid);
+    if (code) return terrno = code;
+  }
+
+  return 0;
+}
 
 int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
@@ -182,47 +221,9 @@ int metaReaderGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
 
   version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
   code = metaGetTableEntryByVersion(pReader, version1, uid);
-  if (code) return code;
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      // COMMITTED: PRE_CREATE/PRE_ALTER  ->  visible as normal; PRE_DROP  ->  invisible (deleted)
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      // PRE_CREATE and PRE_ALTER: fall through (visible, use current version)
-      return 0;
-    }
-  }
-
-  // batch meta txn: PRE_CREATE entries visibility:
-  //   - ROLLEDBACK txn: always invisible
-  //   - other-txn reader OR non-txn reader (txnId == 0): invisible (snapshot isolation)
-  //   - same-txn reader: visible (RYOW  -  read your own writes)
-  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_ROLLEDBACK) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-  }
-
-  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-  // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnOrigVer;
-      tDecoderClear(&pReader->coder);
-      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-      if (code) return code;
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 static int32_t getUidVersion(SMetaReader *pReader, int64_t *version, tb_uid_t uid) {
@@ -296,38 +297,9 @@ int metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t version, t
     }
     code = metaGetTableEntryByVersion(pReader, version, uid);
   }
-  if (code) return code;
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      return 0;
-    }
-  }
-
-  // batch meta txn: PRE_CREATE entries are invisible unless same-txn reader
-  if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    }
-  }
-
-  // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-  // Same-txn readers see the new (altered) version directly
-  if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-    if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-      int64_t prevVer = pReader->me.txnOrigVer;
-      tDecoderClear(&pReader->coder);
-      code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-      if (code) return code;
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
@@ -340,45 +312,9 @@ int metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid) {
   }
 
   code = metaGetTableEntryByVersion(pReader, info.version, uid);
-  if (code) return code;
+  if (code) return terrno = code;
 
-  // batch meta txn: finalized txn visibility adjustment
-  if (pReader->me.txnId != 0) {
-    int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-    if (finalStatus == TXN_META_COMMITTED) {
-      if (pReader->me.txnStatus == META_TXN_PRE_DROP) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      return 0;
-    }
-  }
-
-  if (pReader->me.txnStatus != META_TXN_NORMAL) {
-    if (pReader->me.txnStatus == META_TXN_PRE_CREATE) {
-      // batch meta txn: PRE_CREATE visibility:
-      //   - ROLLEDBACK: invisible
-      //   - other-txn reader OR non-txn reader (txnId==0): invisible (snapshot isolation)
-      //   - same-txn reader: visible (RYOW  -  read your own writes)
-      int8_t finalStatus = metaGetTxnMetaStatus(pReader->pMeta, pReader->me.txnId);
-      if (finalStatus == TXN_META_ROLLEDBACK) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-        return terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-      }
-    } else if (pReader->me.txnStatus == META_TXN_PRE_ALTER && pReader->me.txnOrigVer > 0) {
-      // batch meta txn: PRE_ALTER entries  -  redirect to old version for snapshot isolation
-      // Same-txn readers see the new (altered) version directly
-      if (pReader->txnId == 0 || pReader->txnId != pReader->me.txnId) {
-        int64_t prevVer = pReader->me.txnOrigVer;
-        tDecoderClear(&pReader->coder);
-        code = metaGetTableEntryByVersion(pReader, prevVer, uid);
-        if (code) return code;
-      }
-    }
-  }
-
-  return 0;
+  return metaApplyTxnVisibility(pReader, uid);
 }
 
 int metaGetTableEntryByVersionName(SMetaReader *pReader, int64_t version, const char *name) {
@@ -2765,7 +2701,7 @@ static int32_t metaGetTableTagByUidVersion(SMeta *pMeta, int64_t suid, int64_t u
  * Returns a taosMemoryMalloc'd buffer on redirect (caller owns), NULL otherwise.
  * Must be called under metaRLock (held by the caller).
  */
-static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLen) {
+static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int64_t txnId, int32_t *pOutLen) {
   void   *pTxnVal = NULL;
   int32_t txnValLen = 0;
   if (tdbTbGet(pMeta->pTxnIdx, &uid, sizeof(uid), &pTxnVal, &txnValLen) != 0) {
@@ -2775,6 +2711,11 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   tdbFree(pTxnVal);
 
   if (txnVal.txnStatus != META_TXN_PRE_ALTER || txnVal.txnOrigVer < 0) {
+    return NULL;
+  }
+  // Read-your-own-writes: the txn that made the alter sees its new tag value, only other readers
+  // (and non-txn readers, txnId == 0) are redirected to the pre-alter value.
+  if (txnId != 0 && txnVal.txnId == txnId) {
     return NULL;
   }
   // If the txn is already committed the dirty pCtbIdx value is correct  -  no redirect.
@@ -2815,7 +2756,7 @@ static void *metaGetOldTagIfPreAlter(SMeta *pMeta, tb_uid_t uid, int32_t *pOutLe
   tdbFree(pOldBuf);
   return result;
 }
-int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version) {
+int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version, int64_t txnId) {
   SMeta        *pMeta = ((SVnode *)pVnode)->pMeta;
   const int32_t LIMIT = 128;
 
@@ -2834,7 +2775,7 @@ int32_t metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidLis
     // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag
     if (metaHasPendingTxnEntries(pMeta)) {
       int32_t oldLen = 0;
-      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, p->uid, &oldLen);
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, p->uid, txnId, &oldLen);
       if (pOldTags != NULL) {
         p->pTagVal = pOldTags;
         continue;
@@ -2868,7 +2809,7 @@ int32_t metaGetTableTags(void *pVnode, uint64_t suid, SArray *pUidTagInfo, int64
     // batch-meta-txn: redirect uncommitted PRE_ALTER to the old tag blob
     if (metaHasPendingTxnEntries(pMeta)) {
       int32_t oldLen = 0;
-      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, uid, &oldLen);
+      void   *pOldTags = metaGetOldTagIfPreAlter(pMeta, uid, txnId, &oldLen);
       if (pOldTags != NULL) {
         info.pTagVal = pOldTags;
         if (taosArrayPush(pUidTagInfo, &info) == NULL) {

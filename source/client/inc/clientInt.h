@@ -262,6 +262,9 @@ typedef struct STscObj {
   SSHashObj*     pTxnVgSet;      // Hash set of int32_t vgId  ->  dummy, accumulated during DDL in txn
   SHashObj*      pTxnTableMeta;  // Hash cache: "db.table"  ->  STableMeta* for tables created in this txn
   SHashObj*      pTxnSuidMap;    // Hash: suid (uint64_t)  ->  stbFullName (char[TSDB_TABLE_FNAME_LEN])
+  // Batch meta txn: rid of the user request that is executing a statement of the active txn, 0 = none. The
+  // statements of a txn run one at a time (see tscTxnAcquireStmtSlot). Written under mutex.
+  int64_t        txnStmtOwner;
   union {
     uint32_t flags;
     struct {
@@ -445,7 +448,8 @@ typedef struct SRequestObj {
   bool                 inRetry;
   bool                 isSubReq;
   bool                 inCallback;
-  bool                 txnChecked;  // true after doAsyncQuery has validated txn state; skips re-check in launchQueryImpl
+  bool                 txnChecked;  // txn check done for this statement: launchAsyncQuery skips it, a retry does not charge again
+  bool                 txnIdFixed;  // txnId below is fixed (see tscReqFixTxnId)
   uint8_t              stmtBindVersion;  // 0 for not stmt; 1 for stmt1; 2 for stmt2
   uint8_t              stmtTbNameFlag;   // insert tbname kind reported by the parser, see SParseContext
   bool                 isQuery;
@@ -477,6 +481,10 @@ typedef struct SRequestObj {
   int32_t              phaseSeq;        // odd while a phase writer updates the pair
   bool                 execDispatched;  // Retained across internal stmt retries.
   int8_t               secureDelete;
+  // Batch meta txn: the txn this statement belongs to (0 = none), fixed once when the statement starts and read by
+  // every later stage (txn check, plan, schedule, response handling) instead of the connection's current txnId. A
+  // statement issued before BEGIN completed therefore stays a plain statement from start to end.
+  txn_id_t             txnId;
   TAOS_STMT2          *literal_by_stmt2; // reference only
   char                 extSourceName[TSDB_EXT_SOURCE_NAME_LEN];  // ext source for this request (FH-10)
   int32_t              extPushdownAttemptCount;
@@ -575,6 +583,12 @@ char* getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 void  setConnectionExtSource(STscObj* pTscObj, const char* srcName, const char* ns1, const char* ns2);
 void  resetConnectDB(STscObj* pTscObj);
+int32_t tscTxnEnsureLocalMetaHashes(STscObj* pTscObj);  // caller holds pTscObj->mutex
+int32_t tscTxnAcquireStmtSlot(SRequestObj* pRequest, txn_id_t txnId, bool* pAcquired);  // caller holds pTscObj->mutex
+void    tscReqFixTxnId(SRequestObj* pRequest);
+void    tscReqStartStatement(SRequestObj* pRequest);
+void    tscTxnReleaseStmtSlot(SRequestObj* pRequest);
+int32_t tscTxnClaimStmtSlot(SRequestObj* pRequest);  // bypass paths (SML / rawBlock / STMT / STMT2), takes the mutex
 void  tscBestEffortRollbackOrphanTxn(STscObj* pTscObj, txn_id_t txnId, const char* source);// Reset all client-side txn state (txnId, txnState, txnDdlCount, pTxnVgSet, pTxnTableMeta, pTxnSuidMap).
 // Used for explicit COMMIT/ROLLBACK completion and for local-only cleanup after a timeout-killed txn.
 void    tscResetTxnState(STscObj* pTscObj);
@@ -656,10 +670,13 @@ void    doAsyncQuery(SRequestObj* pRequest, EClientMetaRefreshScope refreshScope
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList, bool isView);
 int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName);
-int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp);
-int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta* pTableMeta, const char* opName);
-int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName);
+// Writers of the connection's txn-local state on behalf of a statement of txn `txnId` (pRequest->txnId). A write
+// for a txn that is no longer the connection's one (the response came back after COMMIT / ROLLBACK) is dropped.
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp, const char* opName);
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp);
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, txn_id_t txnId, const char* fullName, STableMeta* pTableMeta,
+                              const char* opName);
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, txn_id_t txnId, const SName* pStbName);
 int32_t qnodeRequired(SRequestObj* pRequest, bool* required);
 void    continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
 void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);

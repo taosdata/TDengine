@@ -96,6 +96,13 @@ typedef struct SSysTableScanInfo {
   // Borrowed query charset (SConvInfo*) restored from the physical node's
   // charsetName; NULL means "use the server default" (tsCharsetCxt). Never freed.
   void*                  charsetCxt;
+  // Batch meta txn: suid -> STxnStbSchema decoded from the plan (NULL outside a txn). Overrides the super table
+  // schema this vnode holds (it learns of the txn's ALTER STB only at COMMIT) for ins_tags / ins_columns rows.
+  SHashObj*              pTxnStb;
+  // Scratch for a virtual child's column bindings re-aligned to a txn-overridden super table schema.
+  SColRefWrapper         txnColRef;
+  SColRef*               pTxnColRefBuf;
+  int32_t                txnColRefCap;
   bool                   sysInfo;
   bool                   showRewrite;
   bool                   restore;
@@ -279,6 +286,78 @@ static void           destroySysScanOperator(void* param);
 static int32_t        loadSysTableCallback(void* param, SDataBuf* pMsg, int32_t code);
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse, bool* equal);
 static int            tableUidCompare(const void* a, const void* b);
+
+// A child table whose super table cannot be read: true when that is explained by a batch meta txn rather than a real
+// inconsistency. The super table is invisible to this reader (its own txn dropped it) or already gone while its
+// children wait for the vacuum (the dropping txn committed, any reader). The child goes with it, so a scan skips the
+// child instead of failing; with no txn involved a missing super table stays an error.
+static bool sysParentGoneByTxn(const SSysTableScanInfo* pInfo, SStorageAPI* pAPI, int32_t code) {
+  if (code != TSDB_CODE_PAR_TABLE_NOT_EXIST && code != TSDB_CODE_TDB_TABLE_NOT_EXIST) return false;
+  return pInfo->readHandle.txnId != 0 ||
+         (pAPI->metaFn.hasPendingTxnEntries && pAPI->metaFn.hasPendingTxnEntries(pInfo->readHandle.vnode));
+}
+
+// Batch meta txn: replace a super table's column schema / typeMods by the txn's version when the plan carries one.
+static void sysTxnOverrideStbCols(const SSysTableScanInfo* pInfo, int64_t suid, SSchemaWrapper** ppRow,
+                                  SExtSchema** ppExt) {
+  if (pInfo->pTxnStb == NULL) return;
+  STxnStbSchema* pStb = taosHashGet(pInfo->pTxnStb, &suid, sizeof(int64_t));
+  if (pStb == NULL) return;
+  *ppRow = &pStb->schemaRow;
+  *ppExt = pStb->pExtSchemas;
+}
+
+// Same for the tag schema. Tag values are still read by colId from the child's own entry, which ALTER keeps.
+static const SSchemaWrapper* sysTxnStbTagSchema(const SSysTableScanInfo* pInfo, const SMetaEntry* pStbEntry) {
+  if (pInfo->pTxnStb != NULL) {
+    STxnStbSchema* pStb = taosHashGet(pInfo->pTxnStb, &pStbEntry->uid, sizeof(int64_t));
+    if (pStb != NULL) return &pStb->schemaTag;
+  }
+  return &pStbEntry->stbEntry.schemaTag;
+}
+
+// A virtual child's column bindings are positional: pColRef[i] belongs to column i of the super table schema the
+// vnode holds. When the plan overrides that schema (txn ALTER STB changed the column list) the positions shift, so
+// re-align the bindings by colId onto the overridden schema: a surviving column keeps its binding, a column added
+// in the txn is unbound, a dropped one disappears. Result lives in pInfo's scratch until the next call.
+static int32_t sysTxnAlignColRef(SSysTableScanInfo* pInfo, int64_t suid, const SSchemaWrapper* pRow,
+                                 SColRefWrapper** ppRef) {
+  if (pInfo->pTxnStb == NULL || *ppRef == NULL || taosHashGet(pInfo->pTxnStb, &suid, sizeof(int64_t)) == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+  const SColRefWrapper* pSrc = *ppRef;
+  int32_t               n = pRow->nCols;
+  if (n > pInfo->txnColRefCap) {
+    SColRef* pBuf = taosMemoryRealloc(pInfo->pTxnColRefBuf, (size_t)n * sizeof(SColRef));
+    if (pBuf == NULL) return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    pInfo->pTxnColRefBuf = pBuf;
+    pInfo->txnColRefCap = n;
+  }
+  memset(pInfo->pTxnColRefBuf, 0, (size_t)n * sizeof(SColRef));
+  for (int32_t i = 0; i < n; ++i) {
+    pInfo->pTxnColRefBuf[i].id = pRow->pSchema[i].colId;
+    for (int32_t j = 0; pSrc->pColRef != NULL && j < pSrc->nCols; ++j) {
+      if (pSrc->pColRef[j].id == pRow->pSchema[i].colId) {
+        pInfo->pTxnColRefBuf[i] = pSrc->pColRef[j];  // shallow: the strings it points to are owned by pSrc
+        break;
+      }
+    }
+  }
+  pInfo->txnColRef = *pSrc;
+  pInfo->txnColRef.nCols = n;
+  pInfo->txnColRef.pColRef = pInfo->pTxnColRefBuf;
+  *ppRef = &pInfo->txnColRef;
+  return TSDB_CODE_SUCCESS;
+}
+
+// Batch meta txn: column count of a super table as the txn sees it (ins_tables.columns of its child tables).
+static int32_t sysTxnStbNumOfCols(const SSysTableScanInfo* pInfo, const SMetaEntry* pStb) {
+  if (pInfo->pTxnStb != NULL) {
+    STxnStbSchema* pTxn = taosHashGet(pInfo->pTxnStb, &pStb->uid, sizeof(int64_t));
+    if (pTxn != NULL) return pTxn->schemaRow.nCols;
+  }
+  return pStb->stbEntry.schemaRow.nCols;
+}
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
                                                 SMetaReader* smrChildTable, const char* dbname, const char* tableName,
@@ -1088,6 +1167,7 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
   const SVChildOwnSchema* pOwn = NULL;
   if (smrTable.me.type == TSDB_SUPER_TABLE) {
     schemaRow = &smrTable.me.stbEntry.schemaRow;
+    sysTxnOverrideStbCols(pInfo, smrTable.me.uid, &schemaRow, &extSchemaRow);
     STR_TO_VARSTR(typeName, "CHILD_TABLE");
   } else if (smrTable.me.type == TSDB_NORMAL_TABLE) {
     schemaRow = &smrTable.me.ntbEntry.schemaRow;
@@ -1110,7 +1190,16 @@ static SSDataBlock* doOptimizeTableNameFilter(SOperatorInfo* pOperator, SSDataBl
     }
     schemaRow = &smrSuperTable.me.stbEntry.schemaRow;
     extSchemaRow = smrSuperTable.me.pExtSchemas;
+    sysTxnOverrideStbCols(pInfo, smrSuperTable.me.uid, &schemaRow, &extSchemaRow);
     colRef = &smrTable.me.colRef;
+    code = sysTxnAlignColRef(pInfo, smrSuperTable.me.uid, schemaRow, &colRef);
+    if (code != TSDB_CODE_SUCCESS) {
+      pAPI->metaReaderFn.clearReader(&smrTable);
+      pAPI->metaReaderFn.clearReader(&smrSuperTable);
+      pInfo->loadInfo.totalRows = 0;
+      pTaskInfo->code = code;
+      T_LONG_JMP(pTaskInfo->env, code);
+    }
     pOwn = &smrTable.me.own;
     STR_TO_VARSTR(typeName, "VIRTUAL_CHILD_TABLE");
   }
@@ -1229,11 +1318,25 @@ static SSDataBlock* doOptimizeVTableNameFilter(SOperatorInfo* pOperator, SSDataB
     pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_LOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
     smrSuperTableInited = true;
     code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+    if (sysParentGoneByTxn(pInfo, pAPI, code)) {
+      // "no reference rows" is what the reader sees before and after the vacuum (see sysParentGoneByTxn).
+      qWarn("doOptimizeVTableNameFilter: super table suid:%" PRId64 " of %s not visible in txn:%" PRId64
+            ", return empty", suid, pInfo->req.filterTb, pInfo->readHandle.txnId);
+      code = TSDB_CODE_SUCCESS;
+      goto _end;
+    }
     QUERY_CHECK_CODE(code, lino, _end);
 
     STR_TO_VARSTR(pVtableRefInfo->vStbName, smrSuperTable.me.name);
     schemaRow = &smrSuperTable.me.stbEntry.schemaRow;
-    schemaTag = &smrSuperTable.me.stbEntry.schemaTag;
+    schemaTag = (SSchemaWrapper*)sysTxnStbTagSchema(pInfo, &smrSuperTable.me);
+    {
+      SExtSchema* pUnusedExt = NULL;
+      sysTxnOverrideStbCols(pInfo, smrSuperTable.me.uid, &schemaRow, &pUnusedExt);
+    }
+    // bindings are positional against the super table schema: re-align them to the txn's schema by colId
+    code = sysTxnAlignColRef(pInfo, smrSuperTable.me.uid, schemaRow, &colRef);
+    QUERY_CHECK_CODE(code, lino, _end);
 
     // Release lock but keep data valid for sysTableFillOneVirtualTableRefImpl
     pAPI->metaReaderFn.readerReleaseLock(&smrSuperTable);
@@ -1381,10 +1484,14 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
     if (pInfo->pCur->mr.me.type == TSDB_SUPER_TABLE) {
       qDebug("sysTableScanUserCols cursor get super table, %s", GET_TASKID(pTaskInfo));
+      // the (possibly txn-overridden) super table schema, shared by the row-schema and ext-schema caches below
+      SSchemaWrapper* pSrcRow = &pInfo->pCur->mr.me.stbEntry.schemaRow;
+      SExtSchema*     pSrcExt = pInfo->pCur->mr.me.pExtSchemas;
+      sysTxnOverrideStbCols(pInfo, pInfo->pCur->mr.me.uid, &pSrcRow, &pSrcExt);
       void* schema = taosHashGet(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if (schema == NULL) {
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&pInfo->pCur->mr.me.stbEntry.schemaRow);
-        if (pInfo->pCur->mr.me.stbEntry.schemaRow.pSchema) {
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(pSrcRow);
+        if (pSrcRow->pSchema) {
           QUERY_CHECK_NULL(schemaWrapper, code, lino, _end, terrno);
         }
         code = taosHashPut(pInfo->pSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), &schemaWrapper, POINTER_BYTES);
@@ -1396,9 +1503,12 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
 
       void* pExtSchema = taosHashGet(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t));
       if (pExtSchema == NULL) {
-        SExtSchema* pExtSchema = pInfo->pCur->mr.me.pExtSchemas;
-        code = taosHashPut(pInfo->pExtSchema, &pInfo->pCur->mr.me.uid, sizeof(int64_t), pExtSchema,
-                           pInfo->pCur->mr.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        {
+          int64_t suidKey = pInfo->pCur->mr.me.uid;
+          // cached next to the (possibly txn-overridden) row schema, sized by the same column count
+          code = taosHashPut(pInfo->pExtSchema, &suidKey, sizeof(int64_t), pSrcExt,
+                             pSrcRow->nCols * sizeof(SExtSchema));
+        }
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
@@ -1422,6 +1532,13 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
         smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (sysParentGoneByTxn(pInfo, pAPI, code)) {
+          qWarn("skip orphan child table in columns scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+                pInfo->pCur->mr.me.name, suid, tstrerror(code), GET_TASKID(pTaskInfo));
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
           qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
@@ -1432,8 +1549,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
+        SSchemaWrapper* pSrcRow = &smrSuperTable.me.stbEntry.schemaRow;
+        SExtSchema*     pSrcExt = smrSuperTable.me.pExtSchemas;
+        sysTxnOverrideStbCols(pInfo, smrSuperTable.me.uid, &pSrcRow, &pSrcExt);
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(pSrcRow);
+        if (pSrcRow->pSchema) {
           if (schemaWrapper == NULL) {
             code = terrno;
             lino = __LINE__;
@@ -1445,9 +1565,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
-        SExtSchema* pExtSchema = smrSuperTable.me.pExtSchemas;
-        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
-                           smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pSrcExt, pSrcRow->nCols * sizeof(SExtSchema));
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
@@ -1488,6 +1606,13 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
         smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (sysParentGoneByTxn(pInfo, pAPI, code)) {
+          qWarn("skip orphan child table in columns scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+                pInfo->pCur->mr.me.name, suid, tstrerror(code), GET_TASKID(pTaskInfo));
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
           qError("sysTableScanUserCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
@@ -1498,8 +1623,11 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
           pInfo->loadInfo.totalRows = 0;
           return NULL;
         }
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-        if (smrSuperTable.me.stbEntry.schemaRow.pSchema) {
+        SSchemaWrapper* pSrcRow = &smrSuperTable.me.stbEntry.schemaRow;
+        SExtSchema*     pSrcExt = smrSuperTable.me.pExtSchemas;
+        sysTxnOverrideStbCols(pInfo, smrSuperTable.me.uid, &pSrcRow, &pSrcExt);
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(pSrcRow);
+        if (pSrcRow->pSchema) {
           if (schemaWrapper == NULL) {
             code = terrno;
             lino = __LINE__;
@@ -1511,9 +1639,7 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
-        SExtSchema* pExtSchema = smrSuperTable.me.pExtSchemas;
-        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pExtSchema,
-                           smrSuperTable.me.stbEntry.schemaRow.nCols * sizeof(SExtSchema));
+        code = taosHashPut(pInfo->pExtSchema, &suid, sizeof(int64_t), pSrcExt, pSrcRow->nCols * sizeof(SExtSchema));
         if (code == TSDB_CODE_DUP_KEY) {
           code = TSDB_CODE_SUCCESS;
         }
@@ -1527,6 +1653,10 @@ static SSDataBlock* sysTableScanUserCols(SOperatorInfo* pOperator) {
       continue;
     }
 
+    if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+      code = sysTxnAlignColRef(pInfo, pInfo->pCur->mr.me.ctbEntry.suid, schemaRow, &colRef);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     int32_t nOwnCols = (pOwn != NULL) ? pOwn->nOwnCols : 0;
     if ((numOfRows + schemaRow->nCols + nOwnCols) > pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, pDataBlock, pOperator->exprSupp.pFilterInfo, pTaskInfo);
@@ -1769,8 +1899,12 @@ static int32_t sysTableScanUserVcColsResolveVChildSchema(SSysTableScanInfo* pInf
     return TSDB_CODE_SUCCESS;
   }
 
-  SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
-  bool hasSchema = smrSuperTable.me.stbEntry.schemaRow.pSchema != NULL;
+  // batch meta txn: the txn's version of the super table schema when the plan carries one
+  SSchemaWrapper* pSrcRow = &smrSuperTable.me.stbEntry.schemaRow;
+  SExtSchema*     pUnusedExt = NULL;
+  sysTxnOverrideStbCols(pInfo, suid, &pSrcRow, &pUnusedExt);
+  SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(pSrcRow);
+  bool hasSchema = pSrcRow->pSchema != NULL;
   pAPI->metaReaderFn.clearReader(&smrSuperTable);
   if (hasSchema && schemaWrapper == NULL) {
     return terrno;
@@ -2011,6 +2145,9 @@ static SSDataBlock* sysTableScanUserVcCols(SOperatorInfo* pOperator) {
         // walking the cursor so unrelated tables can still contribute rows.
         continue;
       }
+      QUERY_CHECK_CODE(code, lino, _end);
+      // bindings are positional against the super table schema: re-align them to the txn's schema by colId
+      code = sysTxnAlignColRef(pInfo, pInfo->pCur->mr.me.ctbEntry.suid, schemaRow, &colRef);
       QUERY_CHECK_CODE(code, lino, _end);
     } else {
       qDebug("sysTableScanUserVcCols cursor get invalid table, %s", GET_TASKID(pTaskInfo));
@@ -2335,6 +2472,13 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
         smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (sysParentGoneByTxn(pInfo, pAPI, code)) {
+          qWarn("skip orphan virtual child table in refs scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+                pInfo->pCur->mr.me.name, suid, tstrerror(code), GET_TASKID(pTaskInfo));
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
           qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
@@ -2353,6 +2497,13 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
         pAPI->metaReaderFn.initReader(&smrSuperTable, pInfo->readHandle.vnode, META_READER_NOLOCK, &pAPI->metaFn, pInfo->readHandle.txnId);
         smrSuperTable.txnId = pInfo->readHandle.txnId;
         code = pAPI->metaReaderFn.getTableEntryByUid(&smrSuperTable, suid);
+        if (sysParentGoneByTxn(pInfo, pAPI, code)) {
+          qWarn("skip orphan virtual child table in refs scan, cname:%s, suid:0x%" PRIx64 ", code:%s, %s",
+                pInfo->pCur->mr.me.name, suid, tstrerror(code), GET_TASKID(pTaskInfo));
+          pAPI->metaReaderFn.clearReader(&smrSuperTable);
+          code = TSDB_CODE_SUCCESS;
+          continue;
+        }
         if (code != TSDB_CODE_SUCCESS) {
           // terrno has been set by pAPI->metaReaderFn.getTableEntryByName, therefore, return directly
           qError("sysTableScanUserVcCols get meta by suid:%" PRId64 " error, code:%d, %s", suid, code,
@@ -2365,8 +2516,11 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
           return NULL;
         }
         STR_TO_VARSTR(pVtableRefInfo->vStbName, smrSuperTable.me.name);
-        bool hasSchema = (smrSuperTable.me.stbEntry.schemaRow.pSchema != NULL);
-        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(&smrSuperTable.me.stbEntry.schemaRow);
+        SSchemaWrapper* pSrcRow = &smrSuperTable.me.stbEntry.schemaRow;
+        SExtSchema*     pSrcExt = smrSuperTable.me.pExtSchemas;
+        sysTxnOverrideStbCols(pInfo, smrSuperTable.me.uid, &pSrcRow, &pSrcExt);  // txn's super table schema
+        bool hasSchema = (pSrcRow->pSchema != NULL);
+        SSchemaWrapper* schemaWrapper = tCloneSSchemaWrapper(pSrcRow);
         pAPI->metaReaderFn.clearReader(&smrSuperTable);
         if (schemaWrapper == NULL) {
           if (!hasSchema) {
@@ -2392,6 +2546,11 @@ static SSDataBlock* sysTableScanVirtualTableRef(SOperatorInfo* pOperator) {
       continue;
     }
 
+    if (pInfo->pCur->mr.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
+      // bindings are positional against the super table schema: re-align them to the txn's schema by colId
+      code = sysTxnAlignColRef(pInfo, pInfo->pCur->mr.me.ctbEntry.suid, schemaRow, &colRef);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
     pVtableRefInfo->pReferenceExt = &pInfo->pCur->mr.me.referenceExt;
     pVtableRefInfo->pOwn = &pInfo->pCur->mr.me.own;
     int32_t totalOutputRows = schemaRow->nCols + (colRef ? colRef->nTagRefs : 0) +
@@ -2529,7 +2688,7 @@ static int32_t sysTableUserTagsFillRefTagsRow(SOperatorInfo* pOperator, const ch
       // into pInfo->pRes here: relocateAndFilterSysTagsScanResult overwrites
       // pRes and may only run when pRes is empty, which mid-scan is not
       // guaranteed. Own (extension) tags of the virtual child count as rows too.
-      int32_t nTotalTags = smrSuperTable.me.stbEntry.schemaTag.nCols + smrChildRef.me.own.nOwnTags;
+      int32_t nTotalTags = sysTxnStbTagSchema(pInfo, &smrSuperTable.me)->nCols + smrChildRef.me.own.nOwnTags;
       if ((nTotalTags + *pNumOfRows) > pOperator->resultInfo.capacity) {
         code = blockDataEnsureCapacity(dataBlock, nTotalTags + *pNumOfRows);
       }
@@ -2722,7 +2881,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     // A single table whose tag count exceeds the block capacity would overflow the fill below
     // (colDataSetVal does no bounds check on rowIndex)  -  grow the buffer first, same guard as
     // the full-scan loop below.
-    int32_t nTagCols = isChild ? smrSuperTable.me.stbEntry.schemaTag.nCols
+    int32_t nTagCols = isChild ? sysTxnStbTagSchema(pInfo, &smrSuperTable.me)->nCols
                                : smrChildTable.me.ntbEntry.schemaTag.nCols;
     // a virtual child's own (extension) tags are filled after the vstb tags  -  count them too
     if (smrChildTable.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
@@ -2883,7 +3042,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
         dataBlock = NULL;
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
-      nTagCols = smrSuperTable.me.stbEntry.schemaTag.nCols;
+      nTagCols = sysTxnStbTagSchema(pInfo, &smrSuperTable.me)->nCols;
     } else {
       nTagCols = pInfo->pCur->mr.me.ntbEntry.schemaTag.nCols;
     }
@@ -4233,7 +4392,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
                                                 int32_t* pNumOfRows, const SSDataBlock* dataBlock,
                                                 uint64_t reqId, SExecTaskInfo* pTaskInfo) {
   bool isVirtualChild = (smrChildTable->me.type == TSDB_VIRTUAL_CHILD_TABLE);
-  int32_t code = sysTableUserTagsFillTags(pInfo, &smrSuperTable->me.stbEntry.schemaTag,
+  int32_t code = sysTableUserTagsFillTags(pInfo, sysTxnStbTagSchema(pInfo, &smrSuperTable->me),
                                           (const STag*)smrChildTable->me.ctbEntry.pTags, smrSuperTable->me.name,
                                           isVirtualChild ? smrChildTable->me.colRef.pTagRef : NULL,
                                           isVirtualChild ? smrChildTable->me.colRef.nTagRefs : 0, dbname, tableName,
@@ -4283,7 +4442,8 @@ static int32_t sysTableUserColsFillOneTableCols(const char* dbname, int32_t* pNu
 
   int32_t numOfCols = schemaRow->nCols;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    const SColRef* pColRefEntry = (colRef != NULL) ? &colRef->pColRef[i] : NULL;
+    // A virtual child's persisted bindings can be shorter than the super table schema (never read past them).
+    const SColRef* pColRefEntry = (colRef != NULL && colRef->pColRef != NULL && i < colRef->nCols) ? &colRef->pColRef[i] : NULL;
     code = sysTableUserColsFillOneCol(dbname, pNumOfRows, dataBlock, tName, &schemaRow->pSchema[i],
                                       extSchemaRow ? extSchemaRow[i].typeMod : 0, tableType, pColRefEntry,
                                       tVtableReferenceForColumn(pReferenceExt, schemaRow->pSchema[i].colId));
@@ -4748,6 +4908,11 @@ static int32_t sysTableScanFillRequestedVirtualTableCol(SOperatorInfo* pOperator
 
     schemaRow = &smrSuperTable.me.stbEntry.schemaRow;
     STR_TO_VARSTR(stableName, smrSuperTable.me.name);
+    // batch meta txn: the txn's version of the super table schema, with the bindings re-aligned to it by colId
+    SExtSchema* pUnusedExt = NULL;
+    sysTxnOverrideStbCols(pInfo, suid, &schemaRow, &pUnusedExt);
+    code = sysTxnAlignColRef(pInfo, suid, schemaRow, &colRef);
+    QUERY_CHECK_CODE(code, lino, _return);
   }
 
   QUERY_CHECK_NULL(schemaRow, code, lino, _return, TSDB_CODE_QRY_EXECUTOR_INTERNAL_ERROR);
@@ -6865,7 +7030,8 @@ static int32_t doSetUserTableMetaInfo(const SSysTableScanInfo* pInfo, SStoreMeta
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     }
 
-    code = colDataSetVal(pColInfoData, rowIndex, (char*)&mr1.me.stbEntry.schemaRow.nCols, false);
+    int32_t stbNumOfCols = sysTxnStbNumOfCols(pInfo, &mr1.me);
+    code = colDataSetVal(pColInfoData, rowIndex, (char*)&stbNumOfCols, false);
     if (code != 0) {
       pMetaReaderFn->clearReader(&mr1);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7057,7 +7223,8 @@ static int32_t doSetUserTableMetaInfo(const SSysTableScanInfo* pInfo, SStoreMeta
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
     }
 
-    code = colDataSetVal(pColInfoData, rowIndex, (char*)&mr1.me.stbEntry.schemaRow.nCols, false);
+    int32_t stbNumOfCols = sysTxnStbNumOfCols(pInfo, &mr1.me);
+    code = colDataSetVal(pColInfoData, rowIndex, (char*)&stbNumOfCols, false);
     if (code != 0) {
       pMetaReaderFn->clearReader(&mr1);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7505,7 +7672,8 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
+      int32_t stbNumOfCols = sysTxnStbNumOfCols(pInfo, &mr.me);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&stbNumOfCols, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // super table name
@@ -7678,7 +7846,8 @@ static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
       // number of columns
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
       QUERY_CHECK_NULL(pColInfoData, code, lino, _end, terrno);
-      code = colDataSetVal(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
+      int32_t stbNumOfCols = sysTxnStbNumOfCols(pInfo, &mr.me);
+      code = colDataSetVal(pColInfoData, numOfRows, (char*)&stbNumOfCols, false);
       QUERY_CHECK_CODE(code, lino, _end);
 
       // super table name
@@ -9447,6 +9616,8 @@ int32_t createSysTableScanOperatorInfo(void* readHandle, SSystemTableScanPhysiNo
   // renderers below map to the server default tsCharsetCxt.
   code = nodesDecodeCharsetName(pScanPhyNode->charsetName, &pInfo->charsetCxt);
   QUERY_CHECK_CODE(code, lino, _error);
+  code = queryDecodeTxnStbSchemas(pScanPhyNode->pTxnStbSchemas, pScanPhyNode->txnStbSchemasLen, &pInfo->pTxnStb);
+  QUERY_CHECK_CODE(code, lino, _error);
   pInfo->req.xnodeDsnOutputMode = pScanPhyNode->xnodeDsnOutputMode;
   if (pInfo->showRewrite) {
     (void)extractXnodeRetrieveFilterFromCondition(pScanPhyNode, pScanNode->node.pConditions,
@@ -9603,6 +9774,10 @@ static void doDestroySysTableScanInfo(void* param) {
     taosHashCleanup(pInfo->pExtSchema);
     pInfo->pExtSchema = NULL;
   }
+  queryDestroyTxnStbSchemas(pInfo->pTxnStb);
+  pInfo->pTxnStb = NULL;
+  taosMemoryFreeClear(pInfo->pTxnColRefBuf);
+  pInfo->txnColRefCap = 0;
   sysTagsRefCachesClear(&pInfo->pRefDbVgInfoCache, &pInfo->pRefTableCfgCache);
   sysTagsRefValueCacheClear(&pInfo->pRefTagValueCache);
   destroySysTableScanVtbRefReqs(pInfo);
