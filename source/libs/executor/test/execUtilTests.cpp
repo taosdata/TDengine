@@ -29638,6 +29638,8 @@ struct SMergeLimitFetchBlock {
 struct SMergeLimitFetchCtx {
   std::vector<SSDataBlock*> blocks;
   size_t                    next = 0;
+  SSortHandle*              pruneHandle = nullptr;
+  std::vector<int64_t>*      rowsAfterTrim = nullptr;
 };
 
 void destroyMergeLimitFetchCtx(SMergeLimitFetchCtx* ctx) {
@@ -29654,6 +29656,19 @@ int32_t mergeLimitTestFetch(void* param, SSDataBlock** result) {
     return 0;
   }
   *result = ctx->blocks[ctx->next++];
+  if (ctx->rowsAfterTrim != nullptr) {
+    SSDataBlock* block = *result;
+    block->info.dataLoad = true;
+    int32_t code = blockDataUpdateTsWindow(block, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+    if (tsortGetMergeBlockPrune(ctx->pruneHandle, &block->info.window, true) ==
+        MERGE_BLOCK_TRIM) {
+      tsortTrimMergeBlock(ctx->pruneHandle, block);
+    }
+    ctx->rowsAfterTrim->push_back(block->info.rows);
+  }
   return 0;
 }
 
@@ -29728,7 +29743,8 @@ _end:
 // optional merge limit and return the emitted rows.
 int32_t runMergeLimitSort(const std::vector<SMergeLimitFetchBlock>& script, int32_t order, int64_t mergeLimit,
                           int64_t maxRows, std::vector<std::pair<int64_t, int64_t>>* out,
-                          std::vector<uint64_t>* prunedUids = nullptr) {
+                          std::vector<uint64_t>* prunedUids = nullptr,
+                          std::vector<int64_t>* rowsAfterTrim = nullptr) {
   SMergeLimitFetchCtx ctx;
   SArray*             orders = nullptr;
   SSortHandle*        handle = nullptr;
@@ -29755,6 +29771,8 @@ int32_t runMergeLimitSort(const std::vector<SMergeLimitFetchBlock>& script, int3
                                "merge-limit-test", 0, 0, 0, &handle);
   if (code != 0) goto _end;
   tsortSetMergeLimit(handle, mergeLimit);
+  ctx.pruneHandle = handle;
+  ctx.rowsAfterTrim = rowsAfterTrim;
   tsortSetFetchRawDataFp(handle, mergeLimitTestFetch, nullptr, nullptr);
   if (prunedUids != nullptr) {
     tsortSetMergeLimitReachedFp(handle, recordMergeLimitPrune, prunedUids);
@@ -29872,6 +29890,32 @@ TEST(SortMergeLimitTest, PruneCallbackFiresForTableBeyondThreshold) {
   }
   EXPECT_TRUE(prunedBeyond) << "table starting beyond the threshold must be skipped";
   EXPECT_FALSE(prunedTie) << "a table tying the threshold must not be pruned";
+}
+
+TEST(SortMergeLimitTest, TrimCrossingBlockKeepsCutoffTies) {
+  ExecutorTempDirGuard tempDir;
+  ASSERT_EQ(tempDir.code, TSDB_CODE_SUCCESS);
+
+  for (int32_t order : {TSDB_ORDER_ASC, TSDB_ORDER_DESC}) {
+    SCOPED_TRACE(order);
+    const int64_t step = order == TSDB_ORDER_ASC ? 1 : -1;
+    const std::vector<SMergeLimitFetchBlock> script = {
+        {1, {10 * step, 20 * step, 30 * step}, {101, 102, 103}},
+        {2, {15 * step, 20 * step, 20 * step, 21 * step, 80 * step},
+         {201, 202, 203, 204, 205}},
+        {3, {10 * step, 15 * step, 15 * step}, {301, 302, 303}},
+    };
+
+    std::vector<std::pair<int64_t, int64_t>> expected;
+    std::vector<std::pair<int64_t, int64_t>> actual;
+    std::vector<int64_t> rowsAfterTrim;
+    ASSERT_EQ(runMergeLimitSort(script, order, 2, 2, &expected), 0);
+    ASSERT_EQ(runMergeLimitSort(script, order, 2, 2, &actual, nullptr,
+                                &rowsAfterTrim),
+              0);
+    EXPECT_EQ(rowsAfterTrim, (std::vector<int64_t>{3, 3, 3}));
+    EXPECT_EQ(actual, expected);
+  }
 }
 
 // A budget above the live-heap cap must not prune on a k-th best bound: the
