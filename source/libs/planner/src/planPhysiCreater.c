@@ -6910,6 +6910,19 @@ bool projectCouldMergeUnsortDataBlock(SProjectLogicNode* pProject) {
   return false;
 }
 
+static int32_t createScalarCheckPhysiNode(SPhysiPlanContext* ctx, SNodeList* children,
+                                          SScalarCheckLogicNode* logic, SPhysiNode** output) {
+  SScalarCheckPhysiNode* check = NULL;
+  PLAN_ERR_RET(nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK, (SNode**)&check));
+  SDataBlockDescNode* input = ((SPhysiNode*)nodesListGetNode(children, 0))->pOutputDataBlockDesc;
+  int32_t code = nodesCloneNode((SNode*)input, (SNode**)&check->node.pOutputDataBlockDesc);
+  if (!code) code = setListSlotId(ctx, input->dataBlockId, -1, logic->pProjections, &check->pProjections);
+  if (!code) code = setConditionsSlotId(ctx, &logic->node, &check->node);
+  if (code) nodesDestroyNode((SNode*)check);
+  else *output = &check->node;
+  return code;
+}
+
 static int32_t createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                       SProjectLogicNode* pProjectLogicNode, SSubplan* pSubplan,
                                       SPhysiNode** pPhyNode) {
@@ -8034,6 +8047,8 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
       return createJoinPhysiNode(pCxt, pChildren, (SJoinLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return createAggPhysiNode(pCxt, pChildren, (SAggLogicNode*)pLogicNode, pPhyNode, pSubplan);
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
+      return createScalarCheckPhysiNode(pCxt, pChildren, (SScalarCheckLogicNode*)pLogicNode, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return createProjectPhysiNode(pCxt, pChildren, (SProjectLogicNode*)pLogicNode, pSubplan, pPhyNode);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
@@ -8075,6 +8090,23 @@ static int32_t doCreatePhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode
   return TSDB_CODE_FAILED;
 }
 
+// A parent can reserve expression slots in its input after that input has been planned.
+// Row checks forward their child's block, so its producer must allocate those slots too.
+static int32_t propagateScalarCheckSlots(SPhysiNode* pNode) {
+  while (nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK) {
+    SPhysiNode* child = (SPhysiNode*)nodesListGetNode(pNode->pChildren, 0);
+    if (LIST_LENGTH(child->pOutputDataBlockDesc->pSlots) == LIST_LENGTH(pNode->pOutputDataBlockDesc->pSlots)) {
+      break;
+    }
+    SDataBlockDescNode* desc = NULL;
+    PLAN_ERR_RET(nodesCloneNode((SNode*)pNode->pOutputDataBlockDesc, (SNode**)&desc));
+    nodesDestroyNode((SNode*)child->pOutputDataBlockDesc);
+    child->pOutputDataBlockDesc = desc;
+    pNode = child;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SSubplan* pSubplan,
                                SPhysiNode** pPhyNode) {
   SNodeList* pChildren = NULL;
@@ -8103,7 +8135,15 @@ static int32_t createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, 
     if (LIST_LENGTH(pChildren) > 0) {
       (*pPhyNode)->pChildren = pChildren;
       SNode* pChild;
-      FOREACH(pChild, (*pPhyNode)->pChildren) { ((SPhysiNode*)pChild)->pParent = (*pPhyNode); }
+      FOREACH(pChild, pChildren) {
+        ((SPhysiNode*)pChild)->pParent = *pPhyNode;
+        code = propagateScalarCheckSlots((SPhysiNode*)pChild);
+        if (code != TSDB_CODE_SUCCESS) {
+          nodesDestroyNode((SNode*)*pPhyNode);
+          *pPhyNode = NULL;
+          return code;
+        }
+      }
     } else {
       nodesDestroyList(pChildren);
     }

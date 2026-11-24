@@ -32,6 +32,7 @@ hint:
   | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
   | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO
   | HASH_JOIN | MERGE_JOIN | NO_CONCURRENT_LAST_SCAN
+  | NO_DECORRELATE
 
 select_list:
     select_expr [, select_expr] ...
@@ -188,6 +189,7 @@ Hints 用于控制单条语句的查询优化。当 Hint 不适用于当前查�
 | `HASH_JOIN` | 无 | 已有写法，对应 `JOIN_ALGO(HASH)` | 普通 JOIN |
 | `MERGE_JOIN` | 无 | 自 `v3.4.3.0` 起支持，对应 `JOIN_ALGO(MERGE)` | 普通 JOIN |
 | [`NO_CONCURRENT_LAST_SCAN`](#no_concurrent_last_scan) | 无 | 禁用缓存与普通扫描的并发拆分 | 数据库已启用相应的 `cachemodel`，且查询同时包含可使用缓存的 `LAST`/`LAST_ROW` 与需要普通扫描的聚合函数 |
+| [`NO_DECORRELATE`](#no_decorrelate) | 无 | 禁用相关标量子查询默认的 JOIN 改写，改为逐行执行 | 最外层 `SELECT` 或其直接包含的相关标量子查询 |
 
 示例：
 
@@ -1098,7 +1100,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 
 ### 相关标量子查询
 
-相关标量子查询引用外层查询块的列，并在外层表达式实际求值时，使用当前行的值执行内层查询。例如：
+相关标量子查询引用外层查询块的列。例如，以下查询为每一行读数查找同一设备的最近一条历史记录：
 
 ```sql
 SELECT r.ts, r.c1,
@@ -1109,6 +1111,39 @@ FROM readings r;
 内层查询必须只返回一列。返回零行时，表达式结果为该列类型的 `NULL`；返回一行时，使用该行的值；返回多行时报错。`LIMIT 1` 可以明确限制结果基数。相关引用可以来自当前外层查询块或更外层的祖先查询块，内层每次执行都使用对应调用位置的值。
 
 相关标量子查询可用于普通查询和 `INSERT INTO ... SELECT` 的查询部分。查询中的非相关子查询仍按原有方式独立计算和复用。当前不支持相关 `IN`、`EXISTS`、`ANY`、`ALL`、行子查询，以及在 `FROM` 派生表中引用外层列；这些限制不影响查询中已有的非相关子查询。流计算、订阅、DDL 及其他 DML 语句不支持相关标量子查询。`queryPolicy` 为 `4`（客户端聚合）时也不支持，查询报错 `Client query policy does not support correlated scalar subqueries`；`queryPolicy` 为 `1`、`2`、`3` 时支持。
+
+#### NO_DECORRELATE
+
+对于符合条件的等值相关标量子查询，TDengine 默认会执行去相关优化，将其改写为 `LEFT JOIN`：先将内表按关联键分组，再与外表做左连接。改写后仍保持标量子查询语义（无匹配时返回 `NULL`，直接查询数据列且匹配多行时仍会报错），同时避免针对每一行外层数据重复执行内层查询。
+
+默认改写适用于满足以下主要条件的普通 `SELECT` 查询：外层和内层均读取单张普通表、子表或超级表，不含分组、窗口等子句，且外层不含聚合函数；子查询直接位于最外层的 `SELECT` 列表或 `WHERE` 条件中，通过同类型整数列或同精度 `TIMESTAMP` 列的等值条件与外层关联；内层不含 `ORDER BY` 或 `LIMIT`，仅返回单个非 `BLOB` 数据列或受支持的单值聚合（如 `AVG`、`SUM`、`MIN`、`MAX`）。不满足条件的相关标量子查询（例如范围关联，或内层包含 `ORDER BY ... LIMIT`）会自动保持逐行执行。
+
+默认改写通常在外层结果行数较多、关联键值重复较多时更高效。但当外层过滤后仅返回少量行而内表数据量很大时，对整个内表扫描并分组的开销可能高于逐行求值。此时可使用 `/*+ NO_DECORRELATE() */` 禁用 JOIN 改写，恢复逐行执行。
+
+该 Hint 需紧跟在 `SELECT` 之后，名称不区分大小写，不接收参数，必须使用空括号 `()`；省略括号（如 `/*+ NO_DECORRELATE */`）或传入参数（如 `/*+ NO_DECORRELATE(1) */`）时会被忽略并保持默认行为。其作用范围取决于书写位置：
+
+- 置于最外层 `SELECT` 之后：禁用该层直接包含的所有相关标量子查询的 JOIN 改写。
+- 置于某个相关标量子查询的 `SELECT` 之后：仅禁用该子查询的 JOIN 改写，同一查询中其他符合条件的相关标量子查询仍默认改写为 JOIN。
+
+例如，假设 `alarms` 和 `readings` 的 `k` 列均为 `INT` 类型：
+
+```sql
+-- 禁用最外层 SELECT 直接包含的所有相关标量子查询的 JOIN 改写
+SELECT /*+ NO_DECORRELATE() */ a.ts,
+       (SELECT AVG(r.v) FROM readings r WHERE r.k = a.k),
+       (SELECT MAX(r.v) FROM readings r WHERE r.k = a.k)
+FROM alarms a
+WHERE a.ts >= '2026-01-01 00:00:00' AND a.ts < '2026-01-01 00:05:00';
+
+-- 仅禁用第一个相关标量子查询的 JOIN 改写，第二个仍默认改写为 JOIN
+SELECT a.ts,
+       (SELECT /*+ NO_DECORRELATE() */ AVG(r.v) FROM readings r WHERE r.k = a.k),
+       (SELECT MAX(r.v) FROM readings r WHERE r.k = a.k)
+FROM alarms a
+WHERE a.ts >= '2026-01-01 00:00:00' AND a.ts < '2026-01-01 00:05:00';
+```
+
+建议使用 `EXPLAIN` 确认改写是否生效，并结合 `EXPLAIN ANALYZE` 对比启用 Hint 前后的实际耗时。执行计划的解读方法参见 [执行计划](./10-explain.md#相关标量子查询)。
 
 ### 子查询表达式
 

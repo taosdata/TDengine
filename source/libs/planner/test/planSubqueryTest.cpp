@@ -1620,7 +1620,7 @@ TEST_F(PlanSubqeuryTest, duplicatePredicateSubqueriesShareAcrossOperatorStages) 
 
 TEST_F(PlanSubqeuryTest, duplicateMixedSubqueriesKeepIndependentCorrelation) {
   useDb("root", "test");
-  runFullPlan("SELECT (SELECT MAX(a.c1) FROM t1 a), (SELECT MAX(b.c1) FROM t1 b), "
+  runFullPlan("SELECT /*+ NO_DECORRELATE() */ (SELECT MAX(a.c1) FROM t1 a), (SELECT MAX(b.c1) FROM t1 b), "
               "(SELECT MAX(h.c1) FROM st1s1 h WHERE h.c1 = r.c1), "
               "(SELECT MAX(h.c1) FROM st1s1 h WHERE h.c1 = r.c1), "
               "r.c1 IN (SELECT c.c1 FROM t1 c), r.c1 IN (SELECT d.c1 FROM t1 d) FROM t1 r",
@@ -1786,7 +1786,7 @@ TEST_F(PlanSubqeuryTest, independentJoinInputCanRunBeforeScalarSubquery) {
 
 TEST_F(PlanSubqeuryTest, mixedQuerySchedulesIndependentJobs) {
   useDb("root", "test");
-  runFullPlan("SELECT (SELECT AVG(c1) FROM t1), (SELECT MIN(c1) FROM t1), "
+  runFullPlan("SELECT /*+ NO_DECORRELATE() */ (SELECT AVG(c1) FROM t1), (SELECT MIN(c1) FROM t1), "
               "(SELECT MAX(b.c1) FROM t1 b WHERE b.c1 = a.c1) FROM t1 a",
               [](const SQueryPlan* plan) {
                 ASSERT_TRUE(plan->subqueryDepsKnown);
@@ -1851,6 +1851,101 @@ TEST_F(PlanSubqeuryTest, remoteRenderingKeepsRetainedDependenciesInGlobalOrder) 
         }
       }
       if (nullptr != strstr(sql, "AVG(c1)")) EXPECT_TRUE(localDependency);
+    });
+  }
+}
+
+TEST_F(PlanSubqeuryTest, decorrelateScalarAggregate) {
+  useDb("root", "test");
+  runFullPlan("SELECT a.ts, (SELECT AVG(r.c1) FROM st1 r WHERE r.c1=a.c1 AND r.c1>0 "
+              "AND r.ts>=1700000000000) FROM t1 a",
+              [](const SQueryPlan* plan) {
+                EXPECT_EQ(0, LIST_LENGTH(plan->pCorrelationTemplates));
+                const auto* join = reinterpret_cast<const SHashJoinPhysiNode*>(
+                    findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN));
+                ASSERT_NE(nullptr, join);
+                EXPECT_EQ(JOIN_TYPE_LEFT, join->joinType);
+                EXPECT_NE(nullptr, findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_HASH_AGG));
+              });
+}
+
+TEST_F(PlanSubqeuryTest, decorrelateRetainsRangeTemplate) {
+  useDb("root", "test");
+  for (bool mixed : {false, true}) {
+    std::string sql = "SELECT (SELECT MAX(r.c1) FROM st1 r WHERE r.c1<a.c1)";
+    if (mixed) sql += ", (SELECT AVG(r.c1) FROM st1 r WHERE r.c1=a.c1)";
+    runFullPlan(sql + " FROM t1 a", [mixed](const SQueryPlan* plan) {
+      EXPECT_EQ(1, LIST_LENGTH(plan->pCorrelationTemplates));
+      EXPECT_EQ(mixed, nullptr != findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN));
+    });
+  }
+}
+
+TEST_F(PlanSubqeuryTest, decorrelateChecksScalarCardinalityAtCall) {
+  useDb("root", "test");
+  for (bool where : {false, true}) {
+    const std::string scalar = "(SELECT r.c1 FROM st1 r WHERE r.c1=a.c1)";
+    std::string sql = where ? "SELECT a.c1 FROM t1 a WHERE " + scalar + ">1"
+                            : "SELECT " + scalar + " FROM t1 a WHERE a.c1>1";
+    runFullPlan(sql, [where](const SQueryPlan* plan) {
+      EXPECT_EQ(0, LIST_LENGTH(plan->pCorrelationTemplates));
+      const auto* check = findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK);
+      ASSERT_NE(nullptr, check);
+      EXPECT_EQ(where, check->pConditions != nullptr);
+      ASSERT_EQ(1, LIST_LENGTH(check->pChildren));
+      EXPECT_EQ(QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN, nodeType(nodesListGetNode(check->pChildren, 0)));
+    });
+  }
+}
+
+TEST_F(PlanSubqeuryTest, decorrelateRespectsCountAndLimitSemantics) {
+  useDb("root", "test");
+  const std::string count = "(SELECT COUNT(*) FROM st1 r WHERE r.c1=a.c1)";
+  for (const std::string predicate : {" > 0", " >= 1", " = 1", " = 0", " IS NULL"}) {
+    bool needsTemplate = predicate == " = 0" || predicate == " IS NULL";
+    runFullPlan("SELECT a.ts FROM t1 a WHERE " + count + predicate, [needsTemplate](const SQueryPlan* plan) {
+      EXPECT_EQ(needsTemplate ? 1 : 0, LIST_LENGTH(plan->pCorrelationTemplates));
+    });
+  }
+  runFullPlan("SELECT " + count + ", (SELECT r.c1 FROM st1 r WHERE r.c1=a.c1) FROM t1 a LIMIT 1",
+              [](const SQueryPlan* plan) { EXPECT_EQ(2, LIST_LENGTH(plan->pCorrelationTemplates)); });
+}
+
+TEST_F(PlanSubqeuryTest, noDecorrelateHintScope) {
+  useDb("root", "test");
+  struct HintCase {
+    const char* outer;
+    const char* inner;
+    bool expectJoin;
+  };
+  const HintCase cases[] = {
+      {"", "", true},
+      {"/*+ nO_dEcOrReLaTe() */", "", false},
+      {"", "/*+ NO_DECORRELATE() */", false},
+      {"/*+ NO_DECORRELATE() */", "/*+ NO_DECORRELATE() */", false},
+      {"/*+ NO_CONCURRENT_LAST_SCAN() NO_DECORRELATE() */", "", false},
+      {"/*+ NO_DECORRELATE */", "", true},
+      {"/*+ NO_DECORRELATE(1) */", "", true},
+      {"/*+ NO_DECORRELATE(,) */", "", true},
+  };
+  for (const auto& test : cases) {
+    const std::string sql = std::string("SELECT ") + test.outer + " a.ts, (SELECT " + test.inner +
+                            " AVG(r.c1) FROM st1 r WHERE r.c1=a.c1) FROM t1 a";
+    SCOPED_TRACE(sql);
+    runFullPlan(sql, [&](const SQueryPlan* plan) {
+      EXPECT_EQ(test.expectJoin ? 0 : 1, LIST_LENGTH(plan->pCorrelationTemplates));
+      EXPECT_EQ(test.expectJoin, findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) != nullptr);
+    });
+  }
+
+  for (bool hintOuter : {false, true}) {
+    std::string sql = hintOuter ? "SELECT /*+ NO_DECORRELATE() */ " : "SELECT ";
+    sql += "(SELECT /*+ NO_DECORRELATE() */ AVG(r.c1) FROM st1 r WHERE r.c1=a.c1), "
+           "(SELECT AVG(r.c1) FROM st1 r WHERE r.c1=a.c1) FROM t1 a";
+    SCOPED_TRACE(sql);
+    runFullPlan(sql, [hintOuter](const SQueryPlan* plan) {
+      EXPECT_EQ(hintOuter ? 2 : 1, LIST_LENGTH(plan->pCorrelationTemplates));
+      EXPECT_EQ(!hintOuter, findPhysiNodeInPlan(plan, QUERY_NODE_PHYSICAL_PLAN_HASH_JOIN) != nullptr);
     });
   }
 }

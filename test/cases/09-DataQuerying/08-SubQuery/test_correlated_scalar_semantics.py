@@ -654,3 +654,129 @@ class TestCorrelatedScalarSemantics:
             )
         finally:
             tdSql.execute(f"drop database {database}")
+
+    def create_children_across_vgroups(self, database, stable):
+        groups = {}
+        for i in range(32):
+            child = f"{stable}_{i}"
+            tdSql.execute(f"create table {child} using {stable} tags({i})")
+            tdSql.query(f"select vgroup_id from information_schema.ins_tables "
+                        f"where db_name='{database}' and table_name='{child}'")
+            groups.setdefault(tdSql.queryResult[0][0], child)
+            if len(groups) == 2:
+                break
+        assert len(groups) == 2, "The duplicate key must span two vgroups"
+        return tuple(groups.values())
+
+    def do_grouped_scalar_join(self, database):
+        tdSql.execute("create table alarms(ts timestamp, k int, status int)")
+        tdSql.execute("create stable readings(ts timestamp, k int, status int, v int) tags(region int)")
+        first, second = self.create_children_across_vgroups(database, "readings")
+        tdSql.execute("insert into alarms values(1700000000000,1,1)(1700000000001,1,1)"
+                      "(1700000000002,2,1)(1700000000003,3,1)(1700000000004,NULL,1)")
+        tdSql.execute(f"insert into {first} values(1700000000000,1,1,20)(1700000000001,2,1,NULL)"
+                      "(1700000000002,1,0,80)(1700000000003,NULL,1,100)")
+        tdSql.execute(f"insert into {second} values(1700000000000,1,1,40)")
+        aggregate = "(select avg(r.v) from readings r where a.k=r.k and r.status=a.status)"
+        value = "(select r.v from readings r where r.k=a.k)"
+        self.check_result(f"select {aggregate} from alarms a order by a.ts",
+                          [(30,), (30,), (None,), (None,), (None,)])
+        self.check_result(f"select a.k from alarms a where a.k=3 or {aggregate}>29 order by a.ts",
+                          [(1,), (1,), (3,)])
+        single_value = ("select (select r.v from readings r where a.k=r.k and r.status=0) "
+                        "as temperature from alarms a order by a.ts")
+        self.check_result(single_value, [(80,), (80,), (None,), (None,), (None,)])
+        tdSql.query("explain analyze " + single_value)
+        checks = [line for (line,) in tdSql.queryResult if "Scalar Row Check" in line]
+        assert len(checks) == 1 and "cost=" in checks[0] and "rows=5)" in checks[0], checks
+        tdSql.error(f"select a.k from alarms a where {value}>0", expectedErrno=self.SCALAR_ROWS)
+        self.check_result(f"select a.k from alarms a where a.ts>=1700000000002 and {value}>0", [])
+        for hint in ("", "/*+ NO_DECORRELATE() */"):
+            direct = f"select {hint} (select r.v from readings r where r.k=a.k) from alarms a"
+            self.check_result(direct + " where a.k>1 order by a.ts", [(None,), (None,)])
+            self.check_result(
+                f"select {hint} a.k, (select r.v from readings r where r.k=a.k), "
+                "(select r.status from readings r where r.k=a.k) from alarms a "
+                "where a.k>1 order by abs(a.k) desc, -a.status", [(3, None, None), (2, None, 1)],
+            )
+            tdSql.error(direct, expectedErrno=self.SCALAR_ROWS)
+        tdSql.execute(f"insert into {second} values(1700000000001,2,1,NULL)")
+        tdSql.error(f"select {value} from alarms a where a.k=2", expectedErrno=self.SCALAR_ROWS)
+        self.check_result("select a.k from alarms a where (select count(r.v) from readings r "
+                          "where r.k=a.k)=3 order by a.ts", [(1,), (1,)])
+        self.check_result(f"select {aggregate}, (select max(r.v) from readings r where r.k<a.k) "
+                          "from alarms a order by a.ts", [(30, None), (30, None), (None, 80),
+                                                           (None, 80), (None, None)])
+        tdSql.execute("insert into alarms values(1700000000005,1,NULL)")
+        tdSql.execute(f"insert into {first} values(1700000000004,1,NULL,1000)")
+        self.check_result(f"select {aggregate} from alarms a where a.ts=1700000000005", [(None,)])
+        tdSql.execute("create table payloads(ts timestamp, k int, payload blob)")
+        tdSql.execute("insert into payloads values(1700000000000,1,'hello')(1700000000001,2,NULL)")
+        for hint in ("", "/*+ NO_DECORRELATE() */"):
+            sql = (f"select {hint} (select r.payload from payloads r where r.k=a.k) as payload "
+                   "from alarms a order by a.ts")
+            self.check_result(sql, [(b"hello",), (b"hello",), (None,), (None,), (None,), (b"hello",)])
+
+    def do_tag_scalar_value(self, database):
+        tdSql.execute("create stable tag_readings(ts timestamp, v int) tags(device int)")
+        first, second = self.create_children_across_vgroups(database, "tag_readings")
+        tdSql.execute(f"alter table {second} set tag device=0")
+        tdSql.execute("create table null_reading using tag_readings tags(-1)")
+        tdSql.execute("create table tag_alarms(ts timestamp, device int)")
+        tdSql.execute("insert into tag_alarms values(1700000000000,0)(1700000000001,-1)(1700000000002,-2)")
+        tdSql.execute(f"insert into {first} values(1700000000000,42)")
+        tdSql.execute("insert into null_reading values(1700000000000,NULL)")
+        tdSql.query("explain select device, count(ts) from tag_readings group by device")
+        tag_scans = [line for (line,) in tdSql.queryResult if "Table Scan on tag_readings " in line]
+        assert tag_scans and all("data_load=no" in line for line in tag_scans), tag_scans
+
+        value = "(select r.v from tag_readings r where r.device=a.device)"
+        projection = f"select {{hint}} {value} from tag_alarms a order by a.ts"
+        predicate = f"select {{hint}} a.device from tag_alarms a where {value}=42"
+        for sql in (projection, predicate):
+            tdSql.query("explain " + sql.format(hint=""))
+            plan = [line for (line,) in tdSql.queryResult]
+            assert any("Scalar Row Check" in line for line in plan), plan
+            scans = [line for line in plan if "Table Scan on tag_readings " in line]
+            assert scans and all("data_load=data)" in line for line in scans), plan
+        for flush in (False, True):
+            if flush:
+                tdSql.execute(f"flush database {database}")
+            for hint in ("", "/*+ NO_DECORRELATE() */"):
+                self.check_result(projection.format(hint=hint), [(42,), (None,), (None,)])
+                self.check_result(predicate.format(hint=hint), [(0,)])
+
+        tdSql.execute(f"insert into {second} values(1700000000001,42)")
+        tdSql.execute(f"flush database {database}")
+        for hint in ("", "/*+ NO_DECORRELATE() */"):
+            for sql in (projection, predicate):
+                tdSql.error(sql.format(hint=hint), expectedErrno=self.SCALAR_ROWS)
+
+    def test_grouped_scalar_join(self):
+        """Check scalar aggregation and cardinality across vgroups
+
+        1. Verify composite grouping keys, repeated outer keys, and missing or NULL groups.
+        2. Verify WHERE and SELECT cardinality checks, mixed templates, and grouped counts.
+        3. Compare scalar values and multirow errors with and without the NO_DECORRELATE hint.
+        4. Check data-column loading for TAG correlations before and after flushing to disk.
+
+        Catalog:
+            - Query:SubQuery
+
+        Since: v3.4.3.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-18 Joey Sima Added correlated scalar JOIN coverage.
+        """
+        database = f"scalar_join_{uuid.uuid4().hex[:8]}"
+        tdSql.execute(f"create database {database} vgroups 2")
+        try:
+            tdSql.execute(f"use {database}")
+            self.do_grouped_scalar_join(database)
+            self.do_tag_scalar_value(database)
+        finally:
+            tdSql.execute(f"drop database {database}")

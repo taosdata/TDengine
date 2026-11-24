@@ -149,8 +149,8 @@ explain verbose true select (select v from matrix_history where k = 3), (select 
 explain analyze verbose true select (select v from matrix_history where k = 3), (select v from matrix_history where k = 3) from matrix_readings limit 1\G;
 select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000;
 # Expected InitPlans 1, correlated templates 1.
-explain select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
-explain analyze select (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
+explain select /*+ NO_DECORRELATE() */ (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
+explain analyze select /*+ NO_DECORRELATE() */ (select max(v) from matrix_history), (select max(v) from matrix_history), (select max(h.v) from matrix_history h where h.k = r.k) from matrix_readings r where r.v > 1000\G;
 # Expected InitPlans 1, correlated templates 0.
 explain verbose true select (select v from matrix_history where k = 1), (select v from matrix_history where k = 1) from matrix_readings\G;
 # Expected error 0x26A5.
@@ -164,7 +164,7 @@ select (select v from matrix_history where v is not null order by v limit 1), (s
 # Expected error 0x26A5.
 explain analyze select (select v from matrix_history where v is not null order by v limit 1), (select v from matrix_history where v is not null order by v limit 2) from matrix_readings;
 # Expected InitPlans 1, correlated templates 1.
-explain select (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r\G;
+explain select /*+ NO_DECORRELATE() */ (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r\G;
 # Expected error 0x26A5.
 select (select h.v from matrix_history h where h.k = r.k), (select max(v) from matrix_history), (select max(v) from matrix_history) from matrix_readings r;
 # Expected error 0x26A5.

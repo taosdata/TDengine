@@ -2946,7 +2946,7 @@ static int32_t createRelationInputProps(SJoinPropsStore* pStore,
   bool project = QUERY_NODE_LOGIC_PLAN_PROJECT == nodeType(pNode);
   bool sort = QUERY_NODE_LOGIC_PLAN_SORT == nodeType(pNode);
   bool partition = QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode);
-  bool passthrough = sort || partition ||
+  bool passthrough = sort || partition || nodeType(pNode) == QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK ||
       (project && !((SProjectLogicNode*)pNode)->isSetOpProj);
   uint64_t relationId = pStore->nextRelationId++;
   uint64_t outputIndex = 1;
@@ -13012,6 +13012,13 @@ static int32_t streamEnableMultiGroupCalc(SPlanContext* pPlanCxt, SLogicNode* pR
 
   taosArrayDestroy(cxt.pJoins);
   return code;
+}
+
+int32_t planFinalizeScalarRewrite(SPlanContext* ctx, SLogicNode* root) {
+  setLogicNodeParent(root);
+  PLAN_ERR_RET(planRebuildJoinInputProps(ctx, root));
+  PLAN_ERR_RET(propagateJoinRequiredColumns(ctx->pJoinPropsStore, root));
+  return adjustLogicNodeDataRequirement(root, DATA_ORDER_LEVEL_NONE);
 }
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan) {

@@ -4329,7 +4329,7 @@ static int32_t pdcDealJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
     code = pdcJoinSplitPrimEqCond(pCxt, pJoin);
   }
   while (true) {
-    if (TSDB_CODE_SUCCESS == code && NULL != pJoin->node.pConditions) {
+    if (TSDB_CODE_SUCCESS == code && !pJoin->scalarSubqueryJoin && NULL != pJoin->node.pConditions) {
       if (0 != gJoinWhereOpt[t][s].pushDownFlag) {
         code = pdcJoinSplitCond(pJoin, &pJoin->node.pConditions, &pOnCond, &pLeftChildCond, &pRightChildCond, true);
         if (TSDB_CODE_SUCCESS == code && NULL != pOnCond) {
@@ -8320,6 +8320,11 @@ static int32_t eliminateProjOptCheckProjColumnNames(SProjectLogicNode* pProjectN
 }
 
 static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode, void* pCtx) {
+  // A scalar check returns the original JOIN block, including its hidden
+  // count. Its parent owns the projection onto the SQL result schema.
+  if (LIST_LENGTH(pNode->pChildren) == 1 &&
+      nodeType(nodesListGetNode(pNode->pChildren, 0)) == QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK) return false;
+
   // Local super-table scans keep the root Project so the top-level project
   // operator can merge result blocks efficiently. External scans may reuse
   // the super-table model for semantic checks, but should still participate

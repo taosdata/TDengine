@@ -36,7 +36,7 @@
 #define TLV_TYPE_ARRAY_ELEM   0
 
 static bool isPhysiOperatorType(ENodeType type) {
-  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN &&
+  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK &&
          type != QUERY_NODE_PHYSICAL_SUBPLAN && type != QUERY_NODE_PHYSICAL_PLAN &&
          type != QUERY_NODE_PHYSICAL_PLAN_DISPATCH && type != QUERY_NODE_PHYSICAL_PLAN_INSERT &&
          type != QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT && type != QUERY_NODE_PHYSICAL_PLAN_DELETE;
@@ -8922,6 +8922,7 @@ enum {
   LOGIC_JOIN_CODE_FULL_ON_COND,
   LOGIC_JOIN_CODE_COL_EQ_COND,
   LOGIC_JOIN_CODE_IS_CROSS_JOIN,
+  LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN,
 };
 
 static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -8941,6 +8942,9 @@ static int32_t logicJoinNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, LOGIC_JOIN_CODE_IS_CROSS_JOIN, pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->scalarSubqueryJoin) {
+    code = tlvEncodeBool(pEncoder, LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN, true);
   }
   return code;
 }
@@ -8968,6 +8972,9 @@ static int32_t msgToLogicJoinNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case LOGIC_JOIN_CODE_IS_CROSS_JOIN:
         code = tlvDecodeBool(pTlv, &pNode->isCrossJoin);
+        break;
+      case LOGIC_JOIN_CODE_SCALAR_SUBQUERY_JOIN:
+        code = tlvDecodeBool(pTlv, &pNode->scalarSubqueryJoin);
         break;
       default:
         break;
@@ -9202,6 +9209,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       code = physiSysTableScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectNodeToMsg(pObj, pEncoder);
       break;
@@ -9307,6 +9315,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = logicScanNodeToMsg(pObj, pEncoder);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = logicProjectNodeToMsg(pObj, pEncoder);
       break;
@@ -9465,6 +9474,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       code = msgToPhysiSysTableScanNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = msgToPhysiProjectNode(pDecoder, pObj);
       break;
@@ -9570,6 +9580,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       code = msgToLogicScanNode(pDecoder, pObj);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = msgToLogicProjectNode(pDecoder, pObj);
       break;

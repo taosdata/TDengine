@@ -1470,6 +1470,22 @@ static int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx 
       }
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK: {
+      EXPLAIN_ROW_NEW(level, "Scalar Row Check");
+      if (pResNode->pExecInfo) {
+        EXPLAIN_ROW_APPEND(EXPLAIN_LEFT_PARENTHESIS_FORMAT);
+        QRY_ERR_RET(qExplainBufAppendExecInfo(pResNode->pExecInfo, tbuf, &tlen, &filterEfficiency));
+        EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
+      }
+      EXPLAIN_ROW_END();
+      QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
+      if (verbose) {
+        QRY_ERR_RET(qExplainAppendFilterRow(ctx, level, pNode->pConditions, &tlen,
+                                            hasEfficiency ? &filterEfficiency : NULL));
+        QRY_ERR_RET(qExplainExecAnalyze(pResNode, ctx, level));
+      }
+      break;
+    }
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
       SProjectPhysiNode *pPrjNode = (SProjectPhysiNode *)pNode;
       EXPLAIN_ROW_NEW(level, EXPLAIN_PROJECTION_FORMAT);

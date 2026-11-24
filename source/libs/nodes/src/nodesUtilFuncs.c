@@ -1452,6 +1452,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = makeNode(type, sizeof(SAggLogicNode), &pNode);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = makeNode(type, sizeof(SProjectLogicNode), &pNode);
       break;
@@ -1543,6 +1544,7 @@ int32_t nodesMakeNode(ENodeType type, SNode** ppNodeOut) {
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_COUNT_SCAN_BY_TYPE:
       code = makeNode(type, sizeof(STableCountScanPhysiNode), &pNode);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = makeNode(type, sizeof(SProjectPhysiNode), &pNode);
       break;
@@ -3045,6 +3047,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyList(pLogicNode->pGroupKeys);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT: {
       SProjectLogicNode* pLogicNode = (SProjectLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
@@ -3329,6 +3332,7 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pPrimaryCond);
       break;
     }
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT: {
       SProjectPhysiNode* pPhyNode = (SProjectPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);

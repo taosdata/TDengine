@@ -160,6 +160,10 @@ int32_t        planMarkSubqueryPushedDown(SPlanContext* pCxt, int32_t subQIdx);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicSubplan** pLogicSubplan);
 int32_t planCollectTaskSubqueryDeps(SPlanContext* pCxt, SLogicNode* pRoot, SSubplan* pSubplan);
+bool planCanDecorrelateSelect(SNode* pAst, bool inner);
+int32_t planDecorrelateScalar(SPlanContext* ctx, SLogicSubplan* outer, SLogicSubplan* inner,
+                              const SCorrelatedSubqueryNode* call, bool onlySubquery, bool rewriteFilters);
+int32_t planFinalizeScalarRewrite(SPlanContext* ctx, SLogicNode* root);
 void planWalkLogicExprFields(SLogicNode* pNode, FNodeWalker walker,
                              void* pContext);
 int32_t planCreateJoinPropsStore(SPlanContext* pCxt);

@@ -100,6 +100,7 @@ typedef struct SPlanQueryUnit {
   int32_t         finalSubQIdx;
   bool            shared;
   SArray*         pDependencies;
+  bool            canDecorrelate;
   const SCorrelatedSubqueryNode* pCorrelationCall;  // Borrowed from the state-owned snapshot.
 } SPlanQueryUnit;
 
@@ -595,6 +596,7 @@ static void planWalkLogicFieldsImpl(SLogicNode* pNode, FNodeWalker walker, void*
       nodesWalkExprs(pAgg->pAggFuncs, walker, pContext);
       break;
     }
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       nodesWalkExprs(((SProjectLogicNode*)pNode)->pProjections, walker, pContext);
       break;
@@ -913,6 +915,7 @@ static int32_t planCreateLogicForUnit(SPlanQueryUnit* pUnit) {
   planDebug("QID:0x%" PRIx64 ", create logic plan start, queryRole:%s, origSubQIdx:%d, astType:%d, groupId:%d",
             pUnit->pCtx->queryId, pUnit->isRoot ? "root" : "subquery", pUnit->origSubQIdx,
             pUnit->pAstRoot ? (int)nodeType(pUnit->pAstRoot) : -1, pUnit->pCtx->groupId);
+  pUnit->canDecorrelate = planCanDecorrelateSelect(planExtractQueryRoot(pUnit->pAstRoot), !pUnit->isRoot);
   int32_t code = createLogicPlan(pUnit->pCtx, &pUnit->pLogicSubplan);
   if (TSDB_CODE_SUCCESS == code && NULL != pUnit->pLogicSubplan) {
     planDebug("QID:0x%" PRIx64 ", create logic plan done, queryRole:%s, origSubQIdx:%d, subplanGroupId:%d, rootType:%d",
@@ -1992,6 +1995,55 @@ _return:
   return code;
 }
 
+static EDealRes keepNestedScalarTemplate(SNode* node, void* arg) {
+  if (nodeType(node) == QUERY_NODE_CORRELATED_SUBQUERY) {
+    SPlanRemoteMarkCtx* mark = arg;
+    SPlanQueryUnit* unit = planGetQueryUnitImpl(mark->pCxt, ((SCorrelatedSubqueryNode*)node)->templateId);
+    if (unit) unit->canDecorrelate = false;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t planDecorrelateQueryUnits(SPlanContext* ctx, SPlanSubqueryState* state) {
+  if (state->numSubQueries == 0 || !state->rootUnit.canDecorrelate || ctx->topicQuery || ctx->rSmaQuery ||
+      ctx->streamCxt.isCalc || ctx->streamCxt.isTrigger || ctx->streamCxt.isVtableCalc ||
+      (nodeType(ctx->pAstRoot) != QUERY_NODE_SELECT_STMT && nodeType(ctx->pAstRoot) != QUERY_NODE_EXPLAIN_STMT))
+    return TSDB_CODE_SUCCESS;
+
+  bool hasCandidate = false;
+  for (int32_t i = 0; i < state->numSubQueries; ++i) {
+    SPlanQueryUnit* unit = state->pSubqueryUnits[i];
+    if (unit && unit->canDecorrelate && unit->pCorrelationCall) {
+      hasCandidate = true;
+      break;
+    }
+  }
+  if (!hasCandidate) return TSDB_CODE_SUCCESS;
+
+  // Other units keep their own evaluation scope. A template referenced by
+  // any of them must still be available when physical plans are attached.
+  SPlanRemoteMarkCtx mark = {.pCxt = ctx};
+  for (int32_t i = 0; i < state->numSubQueries; ++i) {
+    SPlanQueryUnit* unit = state->pSubqueryUnits[i];
+    if (unit && unit->pLogicSubplan) {
+      planWalkLogicTreeForMark(unit->pLogicSubplan->pNode, keepNestedScalarTemplate, &mark);
+    }
+  }
+
+  // Filter the joined rows before adding any projection cardinality checks.
+  for (int32_t stage = 0; stage < 2; ++stage) {
+    for (int32_t i = 0; i < state->numSubQueries; ++i) {
+      SPlanQueryUnit* unit = state->pSubqueryUnits[i];
+      if (unit && unit->canDecorrelate && unit->pCorrelationCall && !unit->pLogicSubplan->pushedDown) {
+        PLAN_ERR_RET(planDecorrelateScalar(ctx, state->rootUnit.pLogicSubplan, unit->pLogicSubplan,
+                                           unit->pCorrelationCall, state->numSubQueries == 1, stage == 0));
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPlanSubqueryState* pState = NULL;
   int32_t             code = TSDB_CODE_SUCCESS;
@@ -2013,6 +2065,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 
   // Stage 1: create logic plans for root + all global subqueries.
   TAOS_CHECK_EXIT(planCreateAllLogicPlans(pCxt, pState));
+  TAOS_CHECK_EXIT(planDecorrelateQueryUnits(pCxt, pState));
 
   // Stage 2: optimize root first, then subqueries in global order, skipping absorbed ones.
   TAOS_CHECK_EXIT(planOptimizeAllLogicPlans(pState));

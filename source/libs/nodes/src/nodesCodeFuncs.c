@@ -52,7 +52,7 @@ static int32_t jsonGetLastScanType(const SJson* pJson, const char* name,
 }
 
 static bool isPhysiOperatorType(ENodeType type) {
-  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_THETA_JOIN &&
+  return type >= QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN && type <= QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK &&
          type != QUERY_NODE_PHYSICAL_SUBPLAN && type != QUERY_NODE_PHYSICAL_PLAN &&
          type != QUERY_NODE_PHYSICAL_PLAN_DISPATCH && type != QUERY_NODE_PHYSICAL_PLAN_INSERT &&
          type != QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT && type != QUERY_NODE_PHYSICAL_PLAN_DELETE;
@@ -592,6 +592,8 @@ const char* nodesNodeName(ENodeType type) {
       return "LogicJoin";
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return "LogicAgg";
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
+      return "LogicScalarCheck";
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return "LogicProject";
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -656,6 +658,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiMergeCountWindow";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_ANOMALY:
       return "PhysiMergeAnomalyWindow";
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
+      return "PhysicalScalarCheck";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -2773,6 +2777,7 @@ static const char* jkJoinLogicPlanPrimKeyEqCondition = "PrimKeyEqCond";
 static const char* jkJoinLogicPlanColEqCondition = "ColumnEqCond";
 static const char* jkJoinLogicPlanTagEqCondition = "TagEqCond";
 static const char* jkJoinLogicPlanIsCrossJoin = "IsCrossJoin";
+static const char* jkJoinLogicPlanScalarSubqueryJoin = "ScalarSubqueryJoin";
 
 static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
@@ -2801,6 +2806,9 @@ static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkJoinLogicPlanIsCrossJoin, pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->scalarSubqueryJoin) {
+    code = tjsonAddBoolToObject(pJson, jkJoinLogicPlanScalarSubqueryJoin, true);
   }
   return code;
 }
@@ -2832,6 +2840,9 @@ static int32_t jsonToLogicJoinNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinLogicPlanIsCrossJoin)) {
     code = tjsonGetBoolValue(pJson, jkJoinLogicPlanIsCrossJoin, &pNode->isCrossJoin);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != tjsonGetObjectItem(pJson, jkJoinLogicPlanScalarSubqueryJoin)) {
+    code = tjsonGetBoolValue(pJson, jkJoinLogicPlanScalarSubqueryJoin, &pNode->scalarSubqueryJoin);
   }
 
   return code;
@@ -15297,6 +15308,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicTagRefSourceNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return logicAggNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return logicProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -15365,6 +15377,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return showExtSourceCapabilityStmtToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return physiSysTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return physiProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:
@@ -15861,6 +15874,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicTagRefSourceNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return jsonToLogicAggNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return jsonToLogicProjectNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:
@@ -15919,6 +15933,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToExtTableNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
       return jsonToPhysiSysTableScanNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return jsonToPhysiProjectNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN:

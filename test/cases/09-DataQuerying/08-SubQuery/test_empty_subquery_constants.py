@@ -113,7 +113,7 @@ class TestEmptySubqueryConstants:
                 assert "InitPlan" not in plan, f"{sql}\n{plan}"
             else:
                 assert "Scan on inner_rows" in plan, f"{sql}\n{plan}"
-                assert "Correlated Scalar Subquery" in plan, f"{sql}\n{plan}"
+                assert "Correlated Scalar Subquery" in plan or "Left Join" in plan, f"{sql}\n{plan}"
 
     # --- impl ---
     def do_empty_expressions(self):
@@ -263,7 +263,7 @@ class TestEmptySubqueryConstants:
         )
         self.check_result(sql, [(None, 1, 1, None, 2), (None, 2, 2, None, 2), (None, None, None, None, 2)])
         plan = self.explain_text(sql)
-        assert plan.count("Correlated Scalar Subquery") == 1, plan
+        assert plan.count("Scalar Row Check") == 1, plan
         assert plan.count("InitPlan") == 1, plan
         for subquery, expected in (
             ("select h.v from inner_rows h where not (h.v = r.v and (1 = null))", [2, 1, None]),
@@ -278,7 +278,7 @@ class TestEmptySubqueryConstants:
             sql = f"select r.v, ({subquery}) from outer_rows r order by r.ts"
             self.check_result(sql, list(zip((1, 2, None), expected)))
             plan = self.explain_text(sql)
-            assert "Correlated Scalar Subquery" in plan, f"{sql}\n{plan}"
+            assert "Correlated Scalar Subquery" in plan or "Left Join" in plan, f"{sql}\n{plan}"
             assert "Scan on inner_rows" in plan, f"{sql}\n{plan}"
         tdSql.error(
             f"select ({live} union all {live}) from outer_rows r",

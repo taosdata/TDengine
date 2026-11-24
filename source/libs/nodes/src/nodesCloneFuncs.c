@@ -1269,6 +1269,7 @@ static int32_t logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pRightEqNodes);
   COPY_SCALAR_FIELD(allEqTags);
   COPY_SCALAR_FIELD(isSingleTableJoin);
+  COPY_SCALAR_FIELD(scalarSubqueryJoin);
   COPY_SCALAR_FIELD(hasSubQuery);
   COPY_SCALAR_FIELD(isCrossJoin);
   COPY_SCALAR_FIELD(isLowLevelJoin);
@@ -2771,6 +2772,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_LOGIC_PLAN_AGG:
       code = logicAggCopy((const SAggLogicNode*)pNode, (SAggLogicNode*)pDst);
       break;
+    case QUERY_NODE_LOGIC_PLAN_SCALAR_CHECK:
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       code = logicProjectCopy((const SProjectLogicNode*)pNode, (SProjectLogicNode*)pDst);
       break;
@@ -2884,6 +2886,7 @@ int32_t nodesCloneNode(const SNode* pNode, SNode** ppNode) {
     case QUERY_NODE_EXTERNAL_TABLE:
       code = extTableNodeCopy((const SExtTableNode*)pNode, (SExtTableNode*)pDst);
       break;
+    case QUERY_NODE_PHYSICAL_PLAN_SCALAR_CHECK:
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       code = physiProjectCopy((const SProjectPhysiNode*)pNode, (SProjectPhysiNode*)pDst);
       break;

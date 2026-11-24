@@ -30,6 +30,7 @@ hint:
   | PARA_TABLES_SORT | SMALLDATA_TS_SORT | SMALLDATA_SCAN_SORT
   | FAST_INTERVAL | EX_INTERVAL | INTERVAL_LIMIT | JOIN_ALGO
   | HASH_JOIN | MERGE_JOIN | NO_CONCURRENT_LAST_SCAN
+  | NO_DECORRELATE
 
 select_list:
     select_expr [, select_expr] ...
@@ -186,6 +187,7 @@ The currently supported Hints list is as follows:
 | `HASH_JOIN` | None | Existing form corresponding to `JOIN_ALGO(HASH)` | Ordinary joins |
 | `MERGE_JOIN` | None | Available from `v3.4.3.0`; corresponds to `JOIN_ALGO(MERGE)` | Ordinary joins |
 | `NO_CONCURRENT_LAST_SCAN` | None | Shared scan | Grouped and ungrouped mixed aggregates |
+| [`NO_DECORRELATE`](#no_decorrelate) | None | Disable the default JOIN rewrite for correlated scalar subqueries and evaluate them per row | Outermost `SELECT` or one of its immediate correlated scalar subqueries |
 
 Examples:
 
@@ -1101,7 +1103,7 @@ SELECT col1 FROM tb2 WHERE col1 >= (SELECT avg(col1) FROM tb1);
 
 ## Correlated Scalar Subqueries
 
-A correlated scalar subquery refers to a column in an outer query block. The inner query runs when the containing expression is evaluated, using the values at that position. For example:
+A correlated scalar subquery refers to a column in an outer query block. For example, the following query finds the latest history record for the device in each reading:
 
 ```sql
 SELECT r.ts, r.c1,
@@ -1112,6 +1114,39 @@ FROM readings r;
 The inner query must return one column. Zero rows produce a typed `NULL`; one row produces its value; multiple rows cause an error. Use `LIMIT 1` when the result must contain at most one row. A correlated reference can target the immediate outer query block or another ancestor query block.
 
 Correlated scalar subqueries are supported in queries and in the query part of `INSERT INTO ... SELECT`. Non-correlated subqueries in the same statement retain their independent execution and result reuse. Correlated `IN`, `EXISTS`, `ANY`, `ALL`, row subqueries, and references to outer columns from derived tables in `FROM` are not supported. This does not restrict existing non-correlated subqueries. Stream processing, subscriptions, DDL, and other DML statements do not support correlated scalar subqueries. `queryPolicy` `4` (client-side aggregation) does not support them either; the query fails with `Client query policy does not support correlated scalar subqueries`. `queryPolicy` `1`, `2`, and `3` are supported.
+
+### NO_DECORRELATE
+
+By default, TDengine decorrelates eligible equality-correlated scalar subqueries by rewriting them into a grouped `LEFT JOIN`: the inner table is grouped by the correlation key(s) and left-joined with the outer table. This preserves scalar subquery semantics (returning `NULL` when no inner rows match and raising an error if multiple rows match a direct column lookup) while avoiding repeated inner-query execution for every outer row.
+
+This rewrite applies to ordinary `SELECT` queries meeting the following main conditions: both the outer and inner queries read a single regular table, child table, or supertable without grouping or window clauses, and the outer query has no aggregate functions; the subquery appears directly in the outermost `SELECT` list or `WHERE` clause and correlates via equality (`=`) on columns of matching integer types or matching-precision `TIMESTAMP` types; the inner query has no `ORDER BY` or `LIMIT` and returns either a single plain non-`BLOB` data column or a supported single-value aggregate (such as `AVG`, `SUM`, `MIN`, or `MAX`). Ineligible correlated scalar subqueries (for example, range-correlated subqueries or those using `ORDER BY ... LIMIT`) automatically keep per-row evaluation.
+
+The default JOIN rewrite is typically faster when the outer query produces many rows, especially with repeated correlation keys. However, if the outer query returns only a few rows after filtering while the inner table is very large, scanning and grouping the entire inner table can cost more than evaluating the subquery per row. In that case, use `/*+ NO_DECORRELATE() */` to disable the JOIN rewrite and fall back to per-row evaluation.
+
+Place the hint immediately after `SELECT`. The name is case-insensitive, takes no parameters, and requires empty parentheses `()`. Omitting the parentheses (for example, `/*+ NO_DECORRELATE */`) or passing parameters (for example, `/*+ NO_DECORRELATE(1) */`) causes the hint to be ignored, preserving the default behavior. Its scope depends on where it is placed:
+
+- After the outermost `SELECT`: disables the JOIN rewrite for all correlated scalar subqueries directly contained in that `SELECT`.
+- After a specific correlated scalar subquery's `SELECT`: disables the JOIN rewrite for that subquery only; other eligible correlated scalar subqueries in the same query still use the default JOIN rewrite.
+
+For example, assuming the `k` columns in both `alarms` and `readings` are `INT`:
+
+```sql
+-- Disable the JOIN rewrite for all immediate correlated scalar subqueries in the outer SELECT
+SELECT /*+ NO_DECORRELATE() */ a.ts,
+       (SELECT AVG(r.v) FROM readings r WHERE r.k = a.k),
+       (SELECT MAX(r.v) FROM readings r WHERE r.k = a.k)
+FROM alarms a
+WHERE a.ts >= '2026-01-01 00:00:00' AND a.ts < '2026-01-01 00:05:00';
+
+-- Disable the JOIN rewrite only for the first subquery; the second still uses the default rewrite
+SELECT a.ts,
+       (SELECT /*+ NO_DECORRELATE() */ AVG(r.v) FROM readings r WHERE r.k = a.k),
+       (SELECT MAX(r.v) FROM readings r WHERE r.k = a.k)
+FROM alarms a
+WHERE a.ts >= '2026-01-01 00:00:00' AND a.ts < '2026-01-01 00:05:00';
+```
+
+Use `EXPLAIN` to confirm whether the rewrite is enabled or disabled, and use `EXPLAIN ANALYZE` to compare actual execution times with and without the hint. For how to read the plan output, see [EXPLAIN](./10-explain.md#correlated-scalar-subqueries).
 
 ## Subquery expression
 

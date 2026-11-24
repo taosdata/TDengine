@@ -959,51 +959,27 @@ static bool hasHint(SNodeList* pHintList, EHintOption hint) {
   return false;
 }
 
-static bool isFastIntervalHint(const SToken* pToken) {
-  static const char kFastIntervalHint[] = "FAST_INTERVAL";
-
-  return pToken->n == (int32_t)strlen(kFastIntervalHint) &&
-         0 == strncasecmp(pToken->z, kFastIntervalHint, pToken->n);
-}
-
-static bool isExIntervalHint(const SToken* pToken) {
-  static const char kExIntervalHint[] = "EX_INTERVAL";
-
-  return pToken->n == (int32_t)strlen(kExIntervalHint) &&
-         0 == strncasecmp(pToken->z, kExIntervalHint, pToken->n);
-}
-
-static bool isIntervalLimitHint(const SToken* pToken) {
-  static const char kIntervalLimitHint[] = "INTERVAL_LIMIT";
-
-  return pToken->n == (int32_t)strlen(kIntervalLimitHint) &&
-         0 == strncasecmp(pToken->z, kIntervalLimitHint, pToken->n);
-}
-
-static bool isSplitScanHint(const SToken* pToken) {
-  static const char kSplitScanHint[] = "SPLIT_SCAN";
-
-  return pToken->n == (int32_t)strlen(kSplitScanHint) &&
-         0 == strncasecmp(pToken->z, kSplitScanHint, pToken->n);
-}
-
-static bool isExtWinPartitionBatchHint(const SToken* pToken) {
-  static const char kExtWinPartitionBatchHint[] = "EXTWIN_PARTITION_BATCH";
-  return pToken->n == (int32_t)strlen(kExtWinPartitionBatchHint) &&
-         0 == strncasecmp(pToken->z, kExtWinPartitionBatchHint, pToken->n);
-}
-
-static bool isNoExtWinPartitionBatchHint(const SToken* pToken) {
-  static const char kNoExtWinPartitionBatchHint[] = "NO_EXTWIN_PARTITION_BATCH";
-  return pToken->n == (int32_t)strlen(kNoExtWinPartitionBatchHint) &&
-         0 == strncasecmp(pToken->z, kNoExtWinPartitionBatchHint, pToken->n);
-}
-
-static bool isNoConcurrentLastScanHint(const SToken* pToken) {
-  static const char kHint[] = "NO_CONCURRENT_LAST_SCAN";
-
-  return pToken->n == (int32_t)strlen(kHint) &&
-         0 == strncasecmp(pToken->z, kHint, pToken->n);
+// These names are ordinary identifiers outside a SELECT hint comment.
+static EHintOption getIdentifierHint(const SToken* token) {
+  static const struct {
+    const char* name;
+    EHintOption option;
+  } hints[] = {
+      {"FAST_INTERVAL", HINT_FAST_INTERVAL},
+      {"EX_INTERVAL", HINT_EX_INTERVAL},
+      {"INTERVAL_LIMIT", HINT_INTERVAL_LIMIT},
+      {"SPLIT_SCAN", HINT_SPLIT_SCAN},
+      {"EXTWIN_PARTITION_BATCH", HINT_EXTWIN_PARTITION_BATCH},
+      {"NO_EXTWIN_PARTITION_BATCH", HINT_NO_EXTWIN_PARTITION_BATCH},
+      {"NO_CONCURRENT_LAST_SCAN", HINT_NO_CONCURRENT_LAST_SCAN},
+      {"NO_DECORRELATE", HINT_NO_DECORRELATE},
+  };
+  for (size_t i = 0; i < sizeof(hints) / sizeof(hints[0]); ++i) {
+    if (token->n == strlen(hints[i].name) && strncasecmp(token->z, hints[i].name, token->n) == 0) {
+      return hints[i].option;
+    }
+  }
+  return 0;
 }
 
 static EJoinAlgorithm getHintJoinAlgo(SNodeList* pHintList) {
@@ -1072,6 +1048,10 @@ static bool addHintNodeToList(SAstCreateContext* pCxt, SNodeList** ppHintList, E
       break;
     case HINT_INTERVAL_LIMIT:
       if (paramNum != 0 || hasHint(*ppHintList, HINT_INTERVAL_LIMIT)) return true;
+      break;
+    case HINT_NO_DECORRELATE:
+      if (paramNum != 0) return true;
+      if (hasHint(*ppHintList, opt)) return false;
       break;
     case HINT_NO_CONCURRENT_LAST_SCAN:
       if (paramNum != 0 || hasHint(*ppHintList, opt)) return true;
@@ -1308,69 +1288,22 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_ID:
-        if (!inParamList && isNoConcurrentLastScanHint(&t0)) {
-          lastComma = false;
-          if (0 != opt) {
+        lastComma = false;
+        // A bare join alias can precede an identifier hint such as NO_DECORRELATE().
+        if (opt == HINT_HASH_JOIN || opt == HINT_MERGE_JOIN) {
+          if (addHintNodeToList(pCxt, &pHintList, opt, &pParams)) {
             quit = true;
             break;
           }
-          opt = HINT_NO_CONCURRENT_LAST_SCAN;
-          break;
+          opt = 0;
         }
-        if (!inParamList && isNoExtWinPartitionBatchHint(&t0)) {
-          lastComma = false;
-          if (0 != opt) {
-            quit = true;
-            break;
-          }
-          opt = HINT_NO_EXTWIN_PARTITION_BATCH;
-          break;
+        if (opt != 0 || inParamList) {
+          quit = true;
+        } else {
+          opt = getIdentifierHint(&t0);
+          quit = (opt == 0);
         }
-        if (!inParamList && isExtWinPartitionBatchHint(&t0)) {
-          lastComma = false;
-          if (0 != opt) {
-            quit = true;
-            break;
-          }
-          opt = HINT_EXTWIN_PARTITION_BATCH;
-          break;
-        }
-        if (!inParamList && isFastIntervalHint(&t0)) {
-          lastComma = false;
-          if (0 != opt || inParamList) {
-            quit = true;
-            break;
-          }
-          opt = HINT_FAST_INTERVAL;
-          break;
-        }
-        if (!inParamList && isExIntervalHint(&t0)) {
-          lastComma = false;
-          if (0 != opt || inParamList) {
-            quit = true;
-            break;
-          }
-          opt = HINT_EX_INTERVAL;
-          break;
-        }
-        if (!inParamList && isSplitScanHint(&t0)) {
-          lastComma = false;
-          if (0 != opt || inParamList) {
-            quit = true;
-            break;
-          }
-          opt = HINT_SPLIT_SCAN;
-          break;
-        }
-        if (!inParamList && isIntervalLimitHint(&t0)) {
-          lastComma = false;
-          if (0 != opt || inParamList) {
-            quit = true;
-            break;
-          }
-          opt = HINT_INTERVAL_LIMIT;
-          break;
-        }
+        break;
       case TK_MERGE:
         lastComma = false;
         if (0 == opt || !inParamList) {
@@ -1380,7 +1313,7 @@ SNodeList* createHintNodeList(SAstCreateContext* pCxt, const SToken* pLiteral) {
         }
         break;
       case TK_NK_COMMA:
-        if (lastComma) {
+        if (lastComma || (!pHintList && !opt) || opt == HINT_NO_DECORRELATE) {
           quit = true;
         }
         lastComma = true;

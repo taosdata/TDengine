@@ -244,6 +244,7 @@ typedef struct SJoinLogicNode {
   bool           allEqTags;
   bool           isSingleTableJoin;
   bool           hasSubQuery;
+  bool           scalarSubqueryJoin; // Preserve the null-extended row until the original WHERE stage.
   bool           isCrossJoin;
   bool           isLowLevelJoin;
   bool           seqWinGroup;
@@ -356,6 +357,9 @@ typedef struct SProjectLogicNode {
   // block without a group id continues the current single sequence.
   bool       timeAlignOutputOrder;
 } SProjectLogicNode;
+
+// Unary pass-through. pProjections holds the input count and candidate value, in that order.
+typedef SProjectLogicNode SScalarCheckLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
   SLogicNode node;
@@ -1054,6 +1058,9 @@ typedef struct SProjectPhysiNode {
   bool       timeAlignProject;  // see SProjectLogicNode.timeAlignProject
   bool       timeAlignOutputOrder;  // see SProjectLogicNode.timeAlignOutputOrder
 } SProjectPhysiNode;
+
+// Unary pass-through. pProjections holds the input count and candidate value, in that order.
+typedef SProjectPhysiNode SScalarCheckPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
   SPhysiNode node;
