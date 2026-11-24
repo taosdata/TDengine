@@ -236,7 +236,7 @@ int32_t vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     case TSDB_CHILD_TABLE:
     case TSDB_VIRTUAL_CHILD_TABLE:{
       metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, infoReq.txnId);
-      if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit2;
+      if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit2;
 
       tstrncpy(metaRsp.stbName, mer2.me.name, sizeof(metaRsp.stbName));
       metaRsp.suid = mer2.me.uid;
@@ -509,7 +509,7 @@ int32_t vnodeGetTableCfg(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     goto _exit;
   } else if (mer1.me.type == TSDB_CHILD_TABLE || mer1.me.type == TSDB_VIRTUAL_CHILD_TABLE) {
     metaReaderDoInit(&mer2, pVnode->pMeta, META_READER_NOLOCK, cfgReq.txnId);
-    if (metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
+    if ((code = metaReaderGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid)) < 0) goto _exit;
 
     tstrncpy(cfgRsp.stbName, mer2.me.name, TSDB_TABLE_NAME_LEN);
     schema = mer2.me.stbEntry.schemaRow;

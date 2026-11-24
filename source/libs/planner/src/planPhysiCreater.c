@@ -1965,6 +1965,34 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
   // the server default at decode.
   tstrncpy(pScan->charsetName, taosConvCharset(pCxt->pPlanCxt->charsetCxt),
            TD_CHARSET_LEN);
+  // Batch meta txn: the views the vnode computes from a super table's schema need the txn's version of it. It is
+  // encoded lazily, once per plan, here and only here: statements that scan no such view never pay for it.
+  if (NULL != pCxt->pPlanCxt->getTxnStbSchemas && qSysTableNeedsTxnStbSchemas(pScanLogicNode->tableName.tname)) {
+    if (NULL == pCxt->pTxnStbSchemas && !pCxt->txnStbSchemasLoaded) {
+      pCxt->txnStbSchemasLoaded = true;
+      int32_t code = pCxt->pPlanCxt->getTxnStbSchemas(pCxt->pPlanCxt->getTxnStbSchemasParam, &pCxt->pTxnStbSchemas,
+                                                      &pCxt->txnStbSchemasLen);
+      if (TSDB_CODE_SUCCESS != code) {
+        // "loaded" must mean "loaded": were the flag left set, a later scan of the same plan would skip the retry
+        // and go out without the txn's schema, silently showing the committed one.
+        pCxt->txnStbSchemasLoaded = false;
+        pCxt->pTxnStbSchemas = NULL;
+        pCxt->txnStbSchemasLen = 0;
+        nodesDestroyNode((SNode*)pScan);
+        terrno = code;
+        return code;
+      }
+    }
+    if (NULL != pCxt->pTxnStbSchemas && pCxt->txnStbSchemasLen > 0) {
+      pScan->pTxnStbSchemas = taosMemoryMalloc(pCxt->txnStbSchemasLen);
+      if (NULL == pScan->pTxnStbSchemas) {
+        nodesDestroyNode((SNode*)pScan);
+        return terrno;
+      }
+      memcpy(pScan->pTxnStbSchemas, pCxt->pTxnStbSchemas, pCxt->txnStbSchemasLen);
+      pScan->txnStbSchemasLen = pCxt->txnStbSchemasLen;
+    }
+  }
   if (0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TABLES) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_TAGS) ||
       0 == strcmp(pScanLogicNode->tableName.tname, TSDB_INS_TABLE_COLS) ||
@@ -8551,6 +8579,19 @@ static void destoryLocationHash(void* p) {
 static void destoryPhysiPlanContext(SPhysiPlanContext* pCxt) {
   taosArrayDestroyEx(pCxt->pLocationHelper, destoryLocationHash);
   taosArrayDestroyEx(pCxt->pProjIdxLocHelper, destoryLocationHash);
+  taosMemoryFreeClear(pCxt->pTxnStbSchemas);
+}
+
+// The single list of system tables the vnode computes from a super table's schema. Inside a batch meta txn the
+// vnode does not know the txn's ALTER STABLE until COMMIT, so scans of these tables carry the txn's schema.
+bool qSysTableNeedsTxnStbSchemas(const char* pSysTableName) {
+  static const char* const tables[] = {TSDB_INS_TABLE_TAGS, TSDB_INS_TABLE_COLS, TSDB_INS_TABLE_TABLES,
+                                       TSDB_INS_TABLE_VIRTUAL_TABLES_REFERENCING, TSDB_INS_TABLE_VC_COLS};
+  if (NULL == pSysTableName) return false;
+  for (size_t i = 0; i < sizeof(tables) / sizeof(tables[0]); ++i) {
+    if (0 == strcmp(pSysTableName, tables[i])) return true;
+  }
+  return false;
 }
 
 static void setExplainInfo(SPlanContext* pCxt, SQueryPlan* pPlan) {

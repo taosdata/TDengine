@@ -3911,6 +3911,49 @@ static int32_t mndTxnCheckParticipantsExist(SMnode *pMnode, STxnObj *pTxn) {
   return TSDB_CODE_TXN_NEED_ROLLBACK;
 }
 
+// The answer to a COMMIT / ROLLBACK for a txn that is no longer in SDB_TXN, from its compact record in SDB_TXN_LOG.
+// A finished txn is dropped from SDB_TXN and leaves that record. The request can reach here for a txn that already
+// finished: the client resends it after a leader switch (the first attempt got "Sync leader is unreachable" while
+// the new leader went on with the txn). Answering from the log makes the resend idempotent where it is the same
+// request, and tells the truth where it is not:
+//   COMMIT   on COMMITTED  -> success          COMMIT   on ROLLEDBACK -> TXN_ROLLEDBACK
+//   ROLLBACK on ROLLEDBACK -> success          ROLLBACK on COMMITTED  -> TXN_COMMITTED
+// (the client treats both codes as terminal and clears its txn state). A record of another user is not answered,
+// and a record with any other stage is reported as TXN_NOT_EXIST: only COMMITTED / ROLLEDBACK are ever written
+// (stage 9, once planned as ZOMBIE, was never assigned and is TIMEOUT_KILLED, a client-side state).
+// *pFound: the log has a record for the txn; the return code is meaningful only then.
+int32_t mndTxnAnswerFromLog(SMnode *pMnode, SRpcMsg *pReq, txn_id_t txnId, bool isCommit, bool *pFound) {
+  *pFound = false;
+  SSdb       *pSdb = pMnode->pSdb;
+  STxnLogObj *pLog = sdbAcquire(pSdb, SDB_TXN_LOG, &txnId);
+  if (pLog == NULL) return TSDB_CODE_SUCCESS;
+  *pFound = true;
+  bool   sameUser = (strncmp(pLog->createUser, RPC_MSG_USER(pReq), sizeof(pLog->createUser)) == 0);
+  int8_t stage = pLog->stage;
+  sdbRelease(pSdb, pLog);
+
+  if (!sameUser) return TSDB_CODE_MND_NO_RIGHTS;
+  if (stage == UTXN_STAGE_COMMITTED) {
+    if (isCommit) {
+      mInfo("txn:%" PRIi64 ", already committed (SDB_TXN_LOG), commit is idempotent", txnId);
+      return TSDB_CODE_SUCCESS;
+    }
+    mError("txn:%" PRIi64 ", already committed (SDB_TXN_LOG), cannot rollback", txnId);
+    return TSDB_CODE_TXN_COMMITTED;
+  }
+  if (stage == UTXN_STAGE_ROLLEDBACK) {
+    if (!isCommit) {
+      mInfo("txn:%" PRIi64 ", already rolled back (SDB_TXN_LOG), rollback is idempotent", txnId);
+      return TSDB_CODE_SUCCESS;
+    }
+    mError("txn:%" PRIi64 ", already rolled back (SDB_TXN_LOG), cannot commit", txnId);
+    return TSDB_CODE_TXN_ROLLEDBACK;
+  }
+  mError("txn:%" PRIi64 ", SDB_TXN_LOG record has unexpected stage %d, cannot %s", txnId, stage,
+         isCommit ? "commit" : "rollback");
+  return TSDB_CODE_TXN_NOT_EXIST;
+}
+
 static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   int32_t code = 0, lino = 0;
 
@@ -3929,11 +3972,18 @@ static int32_t mndProcessCommitTxnReq(SRpcMsg *pReq) {
   mInfo("start to commit txn: %" PRIi64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
+    // finished already: answer from SDB_TXN_LOG (see mndTxnAnswerFromLog)
+    bool inLog = false;
+    code = mndTxnAnswerFromLog(pMnode, pReq, txnReq.txnId, true, &inLog);
+    if (inLog) {
+      TAOS_CHECK_EXIT(code);
+      goto _exit;
+    }
     mError("txn:%" PRIi64 ", not found, cannot commit", txnReq.txnId);
     TAOS_CHECK_EXIT(TSDB_CODE_TXN_NOT_EXIST);
   }
 
-  if (strcmp(pTxn->createUser, RPC_MSG_USER(pReq)) != 0) {
+  if (strncmp(pTxn->createUser, RPC_MSG_USER(pReq), sizeof(pTxn->createUser)) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
   }
 
@@ -3995,12 +4045,20 @@ static int32_t mndProcessRollbackTxnReq(SRpcMsg *pReq) {
   mInfo("start to rollback txn: %" PRIi64, txnReq.txnId);
   pTxn = mndAcquireTxn(pMnode, txnReq.txnId);
   if (pTxn == NULL) {
-    // Transaction not found  -  treat as already rolled back (idempotent).
+    // finished already: answer from SDB_TXN_LOG (see mndTxnAnswerFromLog)
+    bool inLog = false;
+    code = mndTxnAnswerFromLog(pMnode, pReq, txnReq.txnId, false, &inLog);
+    if (inLog) {
+      TAOS_CHECK_EXIT(code);
+      terrno = 0;
+      goto _exit;
+    }
+    // Not in SDB_TXN or SDB_TXN_LOG (record GC'd or never existed): nothing to roll back, keep it idempotent.
     mInfo("txn:%" PRIi64 ", not found, treat as already rolled back", txnReq.txnId);
     terrno = 0;
     goto _exit;
   }
-  if (strcmp(pTxn->createUser, RPC_MSG_USER(pReq)) != 0) {
+  if (strncmp(pTxn->createUser, RPC_MSG_USER(pReq), sizeof(pTxn->createUser)) != 0) {
     TAOS_CHECK_EXIT(TSDB_CODE_MND_NO_RIGHTS);
   }
   if (pTxn->stage == UTXN_STAGE_COMMITTING) {

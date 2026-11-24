@@ -746,6 +746,50 @@ static void vnodeTxnNotifyTmq(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   }
 }
 
+// A child table that becomes visible at COMMIT (PRE_CREATE / PRE_ALTER -> NORMAL), or whose txn state is undone at
+// ROLLBACK, changes what a tag filter on its super table returns. Other sessions keep querying meanwhile, and the
+// per-stable uid-list / group caches are keyed by the filter, not by who asked; the stable tag filter cache (stream
+// readers) was even maintained by the txn's own writes, at statement time. So every tag cache of the super table is
+// dropped once the txn's outcome is in place. The super tables are collected while the entries are processed and
+// their caches dropped once, after the last entry: a per-entry drop would repeat for every child of a bulk txn, and
+// a reader in between could cache a half-promoted state that no later drop would remove.
+// The lazy path (vnodeTxnFinalizeLazy) flips the outcome for every reader at once and drops all tag caches there.
+// DROP needs nothing here: the physical drop maintains the caches.
+static void vnodeTxnCollectTagCacheSuid(SSHashObj **ppSuids, bool *pLost, const SMetaEntry *pME) {
+  if (pME->type != TSDB_CHILD_TABLE && pME->type != TSDB_VIRTUAL_CHILD_TABLE) return;
+  if (*pLost) return;  // already falling back to dropping every tag cache of the vnode
+  if (*ppSuids == NULL) {
+    *ppSuids = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  }
+  uint64_t suid = (uint64_t)pME->ctbEntry.suid;
+  int8_t   dummy = 1;
+  if (*ppSuids == NULL || tSimpleHashPut(*ppSuids, &suid, sizeof(suid), &dummy, sizeof(dummy)) != 0) {
+    *pLost = true;  // OOM: a super table could be missed, so drop them all instead
+  }
+}
+
+// Drop the tag caches of the collected super tables and release the set. lost: a super table may be missing from
+// the set (allocation failure), drop every tag cache of the vnode instead.
+static void vnodeTxnInvalidateTagCaches(SVnode *pVnode, SSHashObj *pSuids, bool lost, const char *stage) {
+  if (lost) {
+    if (metaTagFilterCachesClearAll(pVnode->pMeta) < 0) {
+      vWarn("vgId:%d, %s: failed to clear tag filter caches since %s", TD_VID(pVnode), stage, tstrerror(terrno));
+    }
+  } else if (pSuids != NULL) {
+    int32_t iter = 0;
+    void   *pData = NULL;
+    while ((pData = tSimpleHashIterate(pSuids, pData, &iter)) != NULL) {
+      size_t   keyLen = 0;
+      uint64_t suid = *(uint64_t *)tSimpleHashGetKey(pData, &keyLen);
+      if (metaTagFilterCachesClearSuid(pVnode->pMeta, suid) < 0) {
+        vWarn("vgId:%d, %s: failed to clear tag filter caches of suid %" PRIu64 " since %s", TD_VID(pVnode), stage,
+              suid, tstrerror(terrno));
+      }
+    }
+  }
+  tSimpleHashCleanup(pSuids);
+}
+
 // ============================================================================
 // Shadow-in-B+tree: COMMIT  -  promote shadow entries
 // ============================================================================
@@ -776,8 +820,10 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
   // returned data to advance.  Passing NULL repeatedly with a stable `iter` just
   // re-returns the same bucket's first node  ->  infinite loop.  Use the same
   // "advance-at-end-of-body" pattern as vnodeTxnUndoShadowEntries below.
-  int32_t iter = 0;
-  void   *pData = NULL;
+  SSHashObj *pCacheSuids = NULL;  // super tables whose tag caches go once all entries are promoted
+  bool       cacheSuidsLost = false;
+  int32_t    iter = 0;
+  void      *pData = NULL;
   while ((pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter))) {
     size_t   keyLen = 0;
     tb_uid_t uid = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
@@ -815,6 +861,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
         // Promote: clear txnId/txnStatus  ->  NORMAL
         code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
         if (code == 0) {
+          vnodeTxnCollectTagCacheSuid(&pCacheSuids, &cacheSuidsLost, pME);
           // The commit makes the new version visible to other sessions. The
           // earlier ALTER/CREATE already bumped vtableGen, but a concurrent
           // reader can have cached the pre-commit (txnOrigVer) columns under
@@ -887,6 +934,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
     metaFetchEntryFree(&pME);
   }
 
+  vnodeTxnInvalidateTagCaches(pVnode, pCacheSuids, cacheSuidsLost, "commit");
   return lasterr;
 }
 
@@ -904,7 +952,7 @@ static int32_t vnodeTxnPromoteShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEnt
  * Caller must NOT hold txnMutex.
  */
 static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_uid_t uid, bool stbOnly,
-                                          int32_t *lasterr);
+                                          int32_t *lasterr, SSHashObj **ppCacheSuids, bool *pCacheSuidsLost);
 
 static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry) {
   if (pEntry->pTouchedUids == NULL) return TSDB_CODE_SUCCESS;
@@ -920,13 +968,16 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
   // drop fails because metaHandleChildTableDrop needs the parent entry.
   // Hash iteration order is non-deterministic, so we must enforce ordering.
 
+  SSHashObj *pCacheSuids = NULL;  // super tables whose tag caches go once all entries are undone
+  bool       cacheSuidsLost = false;
+
   // Pass 1: non-STB entries (child tables, normal tables, etc.)
   int32_t iter = 0;
   void   *pData = tSimpleHashIterate(pEntry->pTouchedUids, NULL, &iter);
   while (pData != NULL) {
     size_t   keyLen = 0;
     tb_uid_t uid = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
-    vnodeTxnUndoOneShadowEntry(pVnode, pEntry, uid, false, &lasterr);
+    vnodeTxnUndoOneShadowEntry(pVnode, pEntry, uid, false, &lasterr, &pCacheSuids, &cacheSuidsLost);
     pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
   }
 
@@ -936,10 +987,11 @@ static int32_t vnodeTxnUndoShadowEntries(SVnode *pVnode, SVnodeTxnEntry *pEntry)
   while (pData != NULL) {
     size_t   keyLen = 0;
     tb_uid_t uid = *(tb_uid_t *)tSimpleHashGetKey(pData, &keyLen);
-    vnodeTxnUndoOneShadowEntry(pVnode, pEntry, uid, true, &lasterr);
+    vnodeTxnUndoOneShadowEntry(pVnode, pEntry, uid, true, &lasterr, &pCacheSuids, &cacheSuidsLost);
     pData = tSimpleHashIterate(pEntry->pTouchedUids, pData, &iter);
   }
 
+  vnodeTxnInvalidateTagCaches(pVnode, pCacheSuids, cacheSuidsLost, "rollback");
   return lasterr;
 }
 
@@ -1068,7 +1120,7 @@ static int32_t vnodeTxnUndoPreAlter(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_u
  * If stbOnly==true, only process STB entries.
  */
 static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry, tb_uid_t uid, bool stbOnly,
-                                          int32_t *lasterr) {
+                                          int32_t *lasterr, SSHashObj **ppCacheSuids, bool *pCacheSuidsLost) {
   // Fetch the current entry from B+ tree
   SMetaEntry *pME = NULL;
   int32_t     code = metaFetchEntryByUid(pVnode->pMeta, uid, &pME);
@@ -1147,6 +1199,11 @@ static int32_t vnodeTxnUndoOneShadowEntry(SVnode *pVnode, SVnodeTxnEntry *pEntry
     *lasterr = code;
     metaFetchEntryFree(&pME);
     return code;
+  }
+
+  // a child whose txn state was undone: its super table's tag caches go after the last entry
+  if (pME->txnStatus == META_TXN_PRE_CREATE || pME->txnStatus == META_TXN_PRE_ALTER) {
+    vnodeTxnCollectTagCacheSuid(ppCacheSuids, pCacheSuidsLost, pME);
   }
 
   // Remove from txn.idx regardless of status.
@@ -1239,6 +1296,13 @@ static int32_t vnodeTxnFinalizeLazy(SVnode *pVnode, SVnodeTxnEntry *pEntry, int8
   // vtable generation so a calc-side vc_cols cache filled with the pre-finalize
   // columns is invalidated immediately, without waiting for vacuum.
   metaBumpVtableGen(pVnode->pMeta);
+  // Same for the tag filter caches (uid lists, table groups, stable tag filter results): what a tag condition
+  // matches changes for every reader now, not when the vacuum reaches each table. The vacuum does no per-table
+  // invalidation for that reason.
+  if (metaTagFilterCachesClearAll(pVnode->pMeta) < 0) {
+    vWarn("vgId:%d, finalize txn:%" PRId64 ": failed to clear tag filter caches since %s", TD_VID(pVnode),
+          pEntry->txnId, tstrerror(terrno));
+  }
 
   // 3. Prepare vacuum array for deferred cleanup
   code = vnodeTxnPrepareVacuumArray(pEntry);
@@ -1447,6 +1511,7 @@ static int32_t vnodeTxnVacuumOneTxn(SVnode *pVnode, SVnodeTxnEntry *pEntry, int3
         case META_TXN_PRE_ALTER:
           code = metaMarkTableTxnStatus(pVnode->pMeta, uid, 0, META_TXN_NORMAL, -1);
           if (code == 0) {
+            // tag filter caches: dropped at finalize (vnodeTxnFinalizeLazy), see there
             // Promote makes the committed version visible to other sessions;
             // bump the vtable generation so a calc-side vc_cols cache that was
             // filled with the pre-commit (txnOrigVer) columns gets invalidated.

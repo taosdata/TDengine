@@ -1196,7 +1196,7 @@ static int32_t getColInfoResultForGroupbyForStream(void* pVnode, SNodeList* grou
   }
  
   if (taosArrayGetSize(pUidTagList) > 0) {
-    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, version);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, version, txnId);
   } else {
     // Defensive: unreachable while `rows > 0` above guarantees a non-empty uid list.
     // Keep the caller's txn snapshot rather than a literal 0 so this branch can never
@@ -1355,6 +1355,15 @@ end:
   return code;
 }
 
+// Batch meta txn: whether a txn read must keep away from the shared tag filter / table-group caches. They hold the
+// committed view and are keyed without any txn identity. A txn reader sees that same view as long as this vnode holds
+// no uncommitted txn entry (no PRE_CREATE / PRE_ALTER / PRE_DROP of any txn), so the caches stay usable then. Decide
+// once per call and use the answer for both the cache read and the cache write.
+static bool txnReadBypassesTagCaches(SStorageAPI* pAPI, void* pVnode, int64_t txnId) {
+  if (txnId == 0) return false;
+  return pAPI->metaFn.hasPendingTxnEntries == NULL || pAPI->metaFn.hasPendingTxnEntries(pVnode);
+}
+
 int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STableListInfo* pTableListInfo, uint8_t* digest,
                                    SStorageAPI* pAPI, bool initRemainGroups, SHashObj* groupIdMap, bool gIdFromBaseId) {
   int32_t      code = TSDB_CODE_SUCCESS;
@@ -1375,7 +1384,11 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   } 
 
   T_MD5_CTX context = {0};
-  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE) {
+  // Batch meta txn: the table-group cache is shared by every session and keyed without any txn identity, and a
+  // txn may have changed child tag values (SET TAG) that are not committed yet. A group-by on tags has no tag
+  // condition, so digest[0] alone does not tell: bypass the cache (read and write) when the txn's view can differ.
+  const bool txnBypass = txnReadBypassesTagCaches(pAPI, pVnode, pHandle->txnId);
+  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE && !txnBypass) {
     SNodeListNode* listNode = NULL;
     code = nodesMakeNode(QUERY_NODE_NODE_LIST, (SNode**)&listNode);
     if (TSDB_CODE_SUCCESS != code) {
@@ -1414,7 +1427,7 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
   if (taosArrayGetSize(pUidTagList) > 0) {
     // Batch queries read current tags. WAL-version pinning is limited to the
     // stream-specific path.
-    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, pTableListInfo->idInfo.suid, pUidTagList, -1, pHandle->txnId);
   } else {
     code = pAPI->metaFn.getTableTags(pVnode, pTableListInfo->idInfo.suid, pUidTagList, pHandle->txnId);
   }
@@ -1659,7 +1672,8 @@ int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STabl
     }
   }
 
-  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE) {
+  // Batch meta txn: same decision as the cache read above (txnBypass)
+  if (tsTagFilterCache && groupIdMap == NULL && digest && digest[0] != TB_GROUP_DIGEST_NO_CACHE && !txnBypass) {
     tableList = taosArrayDup(pTableListInfo->pTableList, NULL);
     QUERY_CHECK_NULL(tableList, code, lino, end, terrno);
 
@@ -1830,7 +1844,7 @@ static int32_t optimizeTbnameInCond(void* pVnode, int64_t suid, SArray* list, SN
       code = doTbnameEqWithOr(cond, pVnode, list, pAPI, suid, txnId);
     }
     QUERY_CHECK_CODE(code, lino, end);
-    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, list, version);
+    code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, list, version, txnId);
   }
   
 end:
@@ -2321,7 +2335,7 @@ static int32_t filterTagRefChildBatch(STagRefChildFilterCtx* pCtx, SArray* pTags
   SDataType    type = {.type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
   int32_t      rows = taosArrayGetSize(pTags);
 
-  code = pCtx->pAPI->metaFn.getTableTagsByUidVersion(pCtx->pVnode, pCtx->suid, pTags, -1);
+  code = pCtx->pAPI->metaFn.getTableTagsByUidVersion(pCtx->pVnode, pCtx->suid, pTags, -1, pCtx->txnId);
   QUERY_CHECK_CODE(code, lino, _end);
   code = resolveQueryVirtualTags(&pCtx->refs, pTags, pCtx->pCols);
   QUERY_CHECK_CODE(code, lino, _end);
@@ -2470,7 +2484,7 @@ int32_t doFilterByTagCond(int64_t suid, SArray* pUidList, int64_t version, SNode
     FilterCondType condType = checkTagCond(pTagCond);
     if (((condType == FILTER_NO_LOGIC || condType == FILTER_AND) && status != SFLT_NOT_INDEX) || // (super table) use tagIndex and operator is and
         (status == SFLT_NOT_INDEX && taosArrayGetSize(pUidTagList) > 0)) {                       // (child table with tagCond)
-      code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, pUidTagList, version);
+      code = pAPI->metaFn.getTableTagsByUidVersion(pVnode, suid, pUidTagList, version, txnId);
     } else {
       taosArrayClearEx(pUidTagList, freeItem);       // clear tablelist if using tagIndex and or condition
       code = pAPI->metaFn.getTableTags(pVnode, suid, pUidTagList, txnId);
@@ -2992,12 +3006,32 @@ static int32_t getTableListImpl(void* pVnode, SScanPhysiNode* pScanNode, SNode* 
       }
     }
 
+    // Batch meta txn: the tag filter caches are shared by every session and hold the committed view.
+    // A txn may have modified child tag values that are not yet committed (SET TAG), so its result
+    // must neither be served from nor written to them (see txnReadBypassesTagCaches).
+    if (hasTagCond && !bypassTagFilterCache && txnReadBypassesTagCaches(pStorageAPI, pVnode, txnId)) {
+      bypassTagFilterCache = true;
+      qDebug("suid:%" PRIu64 ", %s txn:%" PRId64 " tag condition bypasses tag filter cache", pScanNode->suid, idstr,
+             txnId);
+      if (digest != NULL) {
+        digest[0] = TB_GROUP_DIGEST_NO_CACHE;
+      }
+    }
+
     qTrace("start to get table list by tag filter, suid:%" PRIu64 ",tsStableTagFilterCache:%d, tsTagFilterCache:%d",
            pScanNode->suid, tsStableTagFilterCache, tsTagFilterCache);
 
     bool acquired = false;
+    // Batch meta txn: the stable tag filter cache (stream readers) is maintained incrementally by the meta writes
+    // themselves, and those happen when a txn statement runs, not at COMMIT: a child created (PRE_CREATE) or
+    // re-tagged (SET TAG, PRE_ALTER) by a txn that has not committed yet is already in it. While this vnode holds any
+    // uncommitted txn entry the cache may therefore show what no reader may see yet, so keep away from it (no read,
+    // no warmup); the uid cache path below serves the committed view meanwhile. COMMIT / ROLLBACK drop the cache
+    // entries of the super tables the txn touched (vnodeTxnInvalidateTagCaches), so nothing of it survives the txn.
+    const bool stableCacheHasTxnState = isStream && hasTagCond && pStorageAPI->metaFn.hasPendingTxnEntries != NULL &&
+                                        pStorageAPI->metaFn.hasPendingTxnEntries(pVnode);
     // first, check whether we can use stable tag filter cache
-    if (!bypassTagFilterCache && tsStableTagFilterCache && isStream && hasTagCond) {
+    if (!bypassTagFilterCache && !stableCacheHasTxnState && tsStableTagFilterCache && isStream && hasTagCond) {
       if (pTagLookupPlan != NULL) {
         code = streamTagLookupBind(pTagLookupPlan, pStreamInfo, &key, &canCacheTagEqCondFilter);
         QUERY_CHECK_CODE(code, lino, end);

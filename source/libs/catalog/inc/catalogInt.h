@@ -1216,7 +1216,7 @@ int32_t ctgdShowCacheInfo(void);
 int32_t ctgdShowStatInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq, bool related);
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList, bool autoCreate);
 int32_t ctgGetTbNamesFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbNamesCtx* ctx, int32_t dbIdx,
@@ -1348,6 +1348,8 @@ void    ctgFreeBatch(SCtgBatch* pBatch);
 void    ctgFreeBatchs(SHashObj* pBatchs);
 int32_t ctgCloneVgInfo(SDBVgInfo* src, SDBVgInfo** dst);
 int32_t ctgCloneMetaOutput(STableMetaOutput* output, STableMetaOutput** pOutput);
+bool    ctgIsMetaTouchedByTxn(const SRequestConnInfo* pConn, const STableMetaOutput* pOut);
+bool    ctgIsCachedMetaTouchedByTxn(const SRequestConnInfo* pConn, const SName* pName, const STableMeta* pMeta);
 int32_t ctgMergeVctbOwnMeta(STableMeta** ppTbMeta, const SVCTableMeta* pVctbMeta);
 int32_t ctgGenerateVgList(SCatalog* pCtg, SHashObj* vgHash, SArray** pList, const char* dbFName);
 void    ctgFreeJob(void* job);

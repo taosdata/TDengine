@@ -74,6 +74,8 @@ extern void *gTdSeam_metaTxnMetaGet;
 extern void *gTdSeam_metaTxnMetaUpsert;
 extern void *gTdSeam_metaMarkTableTxnStatus;
 extern void *gTdSeam_metaBumpVtableGen;
+extern void *gTdSeam_metaTagFilterCachesClearAll;
+extern void *gTdSeam_metaTagFilterCachesClearSuid;
 extern void *gTdSeam_metaRLock;
 extern void *gTdSeam_metaULock;
 

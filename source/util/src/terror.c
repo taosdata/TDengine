@@ -1136,6 +1136,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TOO_MANY_DDL_OPS,           "Transaction DDL ope
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_EXCEEDED_LIFETIME,          "Transaction exceeded maximum lifetime")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_TIMEOUT_KILLED,             "Transaction killed by server due to inactivity timeout; execute ROLLBACK to clean up")
 TAOS_DEFINE_ERROR(TSDB_CODE_TXN_RECREATE_NOT_SUPPORTED,     "Object dropped in this transaction cannot be recreated with the same name; use a different name or COMMIT/ROLLBACK first")
+TAOS_DEFINE_ERROR(TSDB_CODE_TXN_CONCURRENT_STMT,            "Another statement of this transaction is still executing on the connection; statements of a transaction must run one at a time")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

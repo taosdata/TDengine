@@ -146,6 +146,15 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
       int32_t exist = 0;
       if (!CTG_FLAG_IS_FORCE_UPDATE(ctx->flag)) {
         CTG_ERR_JRET(ctgTbMetaExistInCache(pCtg, output->dbFName, output->tbName, &exist));
+        if (exist) {
+          // Batch meta txn: the cached super table is the committed view; if this txn modified it, the
+          // child's schema must come from the txn-aware super table meta fetched from mnode below.
+          SName stbName = *ctx->pName;
+          tstrncpy(stbName.tname, output->tbName, sizeof(stbName.tname));
+          if (ctgIsCachedMetaTouchedByTxn(pConn, &stbName, NULL)) {
+            exist = 0;
+          }
+        }
       }
 
       if (0 == exist) {
@@ -187,6 +196,16 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
     CTG_ERR_JRET(ctgCloneMetaOutput(output, pOutput));
   }
 
+  if (ctgIsMetaTouchedByTxn(pConn, output)) {
+    // Batch meta txn: this table is touched by the txn; a txn-aware response may carry this txn's
+    // uncommitted overlay (e.g. an ALTER STB shadow op). The shared catalog cache is the committed
+    // view seen by every session, so it must never be written with it.
+    ctgDebug("tb:%s, txn:%" PRId64 ", touched by txn, skip updating shared cache", ctx->pName->tname,
+             (int64_t)pConn->txnId);
+    code = TSDB_CODE_SUCCESS;
+    goto _return;
+  }
+
   code = ctgUpdateTbMetaEnqueue(pCtg, output, syncReq);
   output = NULL;
   CTG_ERR_JRET(code);
@@ -195,12 +214,12 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
 
 _return:
 
-  if (output) {
-    taosMemoryFreeClear(output->tbMeta);
-    taosMemoryFreeClear(output->vctbMeta);
-    taosMemoryFreeClear(output);
-  }
-  
+  // Not handed to the cache: free it with everything a (virtual) table meta owns on the heap (binding conditions,
+  // series, external references). A bare free of the blocks would leak those, and the txn path above (a table
+  // touched by the txn is never cached) makes this exit a common one.
+  ctgFreeSTableMetaOutput(output);
+  output = NULL;
+
   CTG_RET(code);
 }
 
@@ -208,7 +227,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
   int32_t           code = 0;
   STableMetaOutput* output = NULL;
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, ctx, pTableMeta));
   if (*pTableMeta || (ctx->flag & CTG_FLAG_ONLY_CACHE)) {
     goto _return;
   }

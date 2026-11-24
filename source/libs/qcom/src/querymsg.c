@@ -380,6 +380,7 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   cfgReq.header.vgId = pInput->vgId;
   tstrncpy(cfgReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   tstrncpy(cfgReq.tbName, pInput->tbName, TSDB_TABLE_NAME_LEN);
+  cfgReq.txnId = pInput->txnId;
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);

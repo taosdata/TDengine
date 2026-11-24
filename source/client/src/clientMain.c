@@ -1617,7 +1617,13 @@ static int tscTxnEndImpl(TAOS *taos, const char *sql, uint16_t wlrApiType) {
   // If the MNode forcibly rolled back this txn due to inactivity timeout, handle locally.
   if (pTscObj->txnState == UTXN_STAGE_TIMEOUT_KILLED) {
     bool isRollback = (strcmp(sql, "ROLLBACK") == 0);
+    // The local cleanup below frees the txn-local state: not while a statement of the txn still borrows it.
+    bool busy = (atomic_load_64(&pTscObj->txnStmtOwner) != 0);
     (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    if (isRollback && busy) {
+      releaseTscObj(connId);
+      return wlrTxnEnd(&wlrTok, TSDB_CODE_TXN_CONCURRENT_STMT, wlrConnId);
+    }
     if (isRollback) {
       // Local cleanup only - do not send ROLLBACK RPC to MNode since it already
       // completed the rollback.  Just clear client-side txn state.
@@ -2944,11 +2950,8 @@ void handleQueryAnslyseRes(SSqlCallbackWrapper *pWrapper, SMetaData *pResultMeta
 }
 
 static int32_t getAllMetaAsync(SSqlCallbackWrapper *pWrapper, catalogCallback fp) {
-  SRequestConnInfo conn = {.pTrans = pWrapper->pParseCtx->pTransporter,
-                           .requestId = pWrapper->pParseCtx->requestId,
-                           .requestObjRefId = pWrapper->pParseCtx->requestRid,
-                           .mgmtEps = pWrapper->pParseCtx->mgmtEpSet,
-                           .txnId = pWrapper->pParseCtx->txnId};
+  SRequestConnInfo conn = {0};
+  parseCxtToConnInfo(pWrapper->pParseCtx, &conn);
 
   pWrapper->pRequest->metric.ctgStart = taosGetTimestampUs();
 
@@ -3157,8 +3160,7 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
                            // lifecycle under that lock. Deriving the per-vgroup quota from
                            // an unlocked read could see a half-updated txnId/txnDdlCount pair.
                            .pTxnVgSet = pTscObj->pTxnVgSet,
-                           .pTxnTableMeta = pTscObj->pTxnTableMeta,
-                           .pTxnSuidMap = pTscObj->pTxnSuidMap,
+                           // .pTxnTableMeta / .pTxnSuidMap are filled in below, under pTscObj->mutex.
                            .firstDayOfWeek = pTscObj->optionInfo.firstDayOfWeek};
   tstrncpy((*pCxt)->timezoneName, pTscObj->optionInfo.timezoneName,
            sizeof((*pCxt)->timezoneName));
@@ -3174,13 +3176,26 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt, SS
   // handler and tscResetTxnState use to write (and zero) them. txnDdlCount is also charged
   // from the scheduler completion callback, so deriving the per-vgroup quota from an unlocked
   // read could see a half-updated txnId/txnDdlCount pair.
-  (*pCxt)->txnId = pTscObj->txnId;
-  (*pCxt)->txnDdlRemaining = txnDdlRemainingOps(pTscObj);
+  // The statement's txn identity is fixed here, once (a retry keeps it), and the parse context follows it, not the
+  // connection's current txnId: a statement that started before BEGIN completed stays a plain statement.
+  tscReqFixTxnId((SRequestObj *)pRequest);
+  (*pCxt)->txnId = pRequest->txnId;
+  (*pCxt)->txnDdlRemaining = pRequest->txnId > 0 ? txnDdlRemainingOps(pTscObj) : 0;
+  // The txn slot taken here is given back by doRequestCallback (see tscTxnAcquireStmtSlot).
+  bool    txnSlotAcquired = false;
+  int32_t txnHashCode = (*pCxt)->txnId > 0
+                            ? tscTxnAcquireStmtSlot((SRequestObj *)pRequest, (*pCxt)->txnId, &txnSlotAcquired)
+                            : TSDB_CODE_SUCCESS;
+  if (txnHashCode == TSDB_CODE_SUCCESS && (*pCxt)->txnId > 0) {
+    txnHashCode = tscTxnEnsureLocalMetaHashes((STscObj *)pTscObj);
+  }
+  (*pCxt)->pTxnTableMeta = pTscObj->pTxnTableMeta;
+  (*pCxt)->pTxnSuidMap = pTscObj->pTxnSuidMap;
   tstrncpy((*pCxt)->currentExtSource, pTscObj->extSource, sizeof((*pCxt)->currentExtSource));
   tstrncpy((*pCxt)->currentExtNs1,    pTscObj->extNs1,    sizeof((*pCxt)->currentExtNs1));
   tstrncpy((*pCxt)->currentExtNs2,    pTscObj->extNs2,    sizeof((*pCxt)->currentExtNs2));
   (void)taosThreadMutexUnlock(&((STscObj *)pTscObj)->mutex);
-  return TSDB_CODE_SUCCESS;
+  return txnHashCode;
 }
 
 EClientMetaRefreshScope clientGetMetaRefreshScope(int32_t code) {

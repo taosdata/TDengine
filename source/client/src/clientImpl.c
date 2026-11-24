@@ -51,7 +51,7 @@ static int32_t initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorE
 static int32_t buildConnectMsg(SRequestObj* pRequest, SMsgSendInfo** pMsgSendInfo, int32_t totpCode,
                                const char* saslToken);
 static int32_t removeQueryDbMeta(STscObj* pTscObj, SArray* dbList);
-static void    tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes);
+static void    tscChargeTouchedObjects(SRequestObj* pRequest, const SExecResult* pRes);
 
 void setQueryRequest(int64_t rId) {
   SRequestObj* pReq = acquireRequest(rId);
@@ -395,8 +395,88 @@ int32_t buildPreviousRequest(SRequestObj* pRequest, const char* sql, SRequestObj
     (*pNewRequest)->relation.nextRefId = pRequest->self;
     (*pNewRequest)->relation.userRefId = pRequest->self;
     (*pNewRequest)->isSubReq = true;
+    // a sub-request is part of its user request's statement: same txn identity
+    (*pNewRequest)->txnId = pRequest->txnId;
+    (*pNewRequest)->txnIdFixed = pRequest->txnIdFixed;
   }
   return code;
+}
+
+// Inside a txn, make sure pTxnTableMeta / pTxnSuidMap exist. The parse context and the catalog borrow these
+// pointers for the whole request, so a hash first created by a DDL of the very same statement (or by another
+// thread) would be invisible to them and txn-touched tables would look untouched. Caller holds pTscObj->mutex.
+int32_t tscTxnEnsureLocalMetaHashes(STscObj* pTscObj) {
+  if (pTscObj->pTxnTableMeta == NULL) {
+    pTscObj->pTxnTableMeta = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    pTscObj->pTxnSuidMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnTableMeta == NULL || pTscObj->pTxnSuidMap == NULL) {
+    return terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+// The statements of a batch meta txn run one at a time on their connection. They all read and write the same
+// txn-local state (pTxnTableMeta / pTxnSuidMap and the DDL budget), which the parser and the catalog borrow for the
+// whole statement, and the order of the statements is what the txn means. A statement claims the connection's txn
+// slot before it borrows that state and gives it back when its callback is delivered; a second statement arriving
+// meanwhile is rejected with TSDB_CODE_TXN_CONCURRENT_STMT. A sub-request runs on behalf of its user request and a
+// retry reuses the request object, so both pass with the owner's claim. Outside a txn nothing is claimed.
+// txnId: the txn the statement belongs to (pRequest->txnId on the main path). Caller holds pTscObj->mutex.
+// *pAcquired: this call took the slot (it was free).
+int32_t tscTxnAcquireStmtSlot(SRequestObj* pRequest, txn_id_t txnId, bool* pAcquired) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  *pAcquired = false;
+  if (txnId <= 0) return TSDB_CODE_SUCCESS;
+  if (pTscObj->txnId != txnId) {
+    // The statement belongs to a txn that is no longer the connection's one. The slot keeps COMMIT / ROLLBACK
+    // out while it runs, so this is defensive only: never run it against another txn's state.
+    tscWarn("req:0x%" PRIx64 ", belongs to txn:%" PRId64 " but the connection's txn is %" PRId64 ", QID:0x%" PRIx64,
+            pRequest->self, txnId, pTscObj->txnId, pRequest->requestId);
+    return TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  }
+
+  int64_t owner = (pRequest->isSubReq && pRequest->relation.userRefId != 0) ? pRequest->relation.userRefId
+                                                                             : pRequest->self;
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == 0) {
+    atomic_store_64(&pTscObj->txnStmtOwner, owner);
+    *pAcquired = true;
+    return TSDB_CODE_SUCCESS;
+  }
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == owner) return TSDB_CODE_SUCCESS;
+
+  tscWarn("req:0x%" PRIx64 ", txn:%" PRIu64 " statement rejected, req:0x%" PRIx64
+          " of the same txn is still executing, QID:0x%" PRIx64,
+          pRequest->self, pTscObj->txnId, atomic_load_64(&pTscObj->txnStmtOwner), pRequest->requestId);
+  return TSDB_CODE_TXN_CONCURRENT_STMT;
+}
+
+// A request object reused for another execution (STMT / STMT2 keep it across executions) starts a new statement:
+// its txn check and txn identity from the previous execution do not carry over.
+void tscReqStartStatement(SRequestObj* pRequest) {
+  pRequest->txnChecked = false;
+  pRequest->txnIdFixed = false;
+  pRequest->txnId = 0;
+}
+
+// Fix the txn a statement belongs to: the connection's txn when the statement starts, once (a retry keeps it).
+void tscReqFixTxnId(SRequestObj* pRequest) {
+  if (pRequest->txnIdFixed) return;
+  pRequest->txnId = pRequest->pTscObj->txnId;
+  pRequest->txnIdFixed = true;
+}
+
+// Give the txn slot back if pRequest holds it (no-op otherwise, so it is safe on every completion path).
+void tscTxnReleaseStmtSlot(SRequestObj* pRequest) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pTscObj == NULL || atomic_load_64(&pTscObj->txnStmtOwner) != pRequest->self) return;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (atomic_load_64(&pTscObj->txnStmtOwner) == pRequest->self) {
+    atomic_store_64(&pTscObj->txnStmtOwner, 0);
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
 }
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
@@ -432,8 +512,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       // that governs the txn DDL budget and are written (and zeroed together) by the txn
       // lifecycle under that lock.
       .pTxnVgSet = pTscObj->pTxnVgSet,
-      .pTxnTableMeta = pTscObj->pTxnTableMeta,
-      .pTxnSuidMap = pTscObj->pTxnSuidMap,
+      // .pTxnTableMeta / .pTxnSuidMap are also filled in below, under pTscObj->mutex.
   };
   tstrncpy(cxt.timezoneName, pTscObj->optionInfo.timezoneName,
            sizeof(cxt.timezoneName));
@@ -446,14 +525,27 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
   // could see a half-updated txnId/txnDdlCount pair.
   cxt.txnId = pTscObj->txnId;
   cxt.txnDdlRemaining = txnDdlRemainingOps(pTscObj);
+  // This synchronous parse (statement / bypass paths) is not followed by a request callback, so a slot it takes
+  // is given back when the parse is done, below.
+  bool    txnSlotAcquired = false;
+  int32_t txnHashCode = cxt.txnId > 0 ? tscTxnAcquireStmtSlot(pRequest, cxt.txnId, &txnSlotAcquired) : TSDB_CODE_SUCCESS;
+  if (txnHashCode == TSDB_CODE_SUCCESS && cxt.txnId > 0) {
+    txnHashCode = tscTxnEnsureLocalMetaHashes(pTscObj);
+  }
+  cxt.pTxnTableMeta = pTscObj->pTxnTableMeta;
+  cxt.pTxnSuidMap = pTscObj->pTxnSuidMap;
   tstrncpy(cxt.currentExtSource, pTscObj->extSource, sizeof(cxt.currentExtSource));
   tstrncpy(cxt.currentExtNs1,    pTscObj->extNs1,    sizeof(cxt.currentExtNs1));
   tstrncpy(cxt.currentExtNs2,    pTscObj->extNs2,    sizeof(cxt.currentExtNs2));
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 
-  cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  int32_t code = txnHashCode;
+  if (code == TSDB_CODE_SUCCESS) {
+    cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+    code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  }
   if (code != TSDB_CODE_SUCCESS) {
+    if (txnSlotAcquired) tscTxnReleaseStmtSlot(pRequest);
     return code;
   }
 
@@ -477,6 +569,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
 
   taosArrayDestroy(cxt.pTableMetaPos);
   taosArrayDestroy(cxt.pTableVgroupPos);
+  if (txnSlotAcquired) tscTxnReleaseStmtSlot(pRequest);
 
   return code;
 }
@@ -1349,6 +1442,45 @@ static int32_t syncQnodeListIfEmpty(SRequestObj* pRequest, SArray** pQnodeList) 
   return TSDB_CODE_SUCCESS;
 }
 
+// Batch meta txn: encode the super tables the statement's txn has altered or created, from the connection's
+// txn-local meta. param is the request: the statement is judged by its own txn (pRequest->txnId), and the
+// connection's txn-local state is used only while it still belongs to that txn. *ppBuf is NULL outside a txn or
+// when the txn touched no super table. Caller frees with taosMemoryFree.
+static int32_t tscTxnBuildStbSchemas(void* param, char** ppBuf, int32_t* pLen) {
+  SRequestObj* pRequest = (SRequestObj*)param;
+  STscObj*     pTscObj = pRequest->pTscObj;
+  *ppBuf = NULL;
+  *pLen = 0;
+  if (pRequest->txnId <= 0) return TSDB_CODE_SUCCESS;
+
+  SArray* pStbs = taosArrayInit(4, sizeof(STableMeta*));
+  if (pStbs == NULL) return terrno;
+  int32_t code = TSDB_CODE_SUCCESS;
+  // The metas are encoded while the lock is held: another thread of this connection may replace (and free) them.
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (pTscObj->txnId != pRequest->txnId) {
+    // the txn is over (defensive: the statement slot keeps COMMIT / ROLLBACK out while the statement runs)
+    code = TSDB_CODE_TXN_NOT_IN_PROGRESS;
+  } else if (pTscObj->pTxnTableMeta != NULL) {
+    void* pIter = NULL;
+    while ((pIter = taosHashIterate(pTscObj->pTxnTableMeta, pIter)) != NULL) {
+      STableMeta* pMeta = *(STableMeta**)pIter;
+      if (pMeta != NULL && pMeta->tableType == TSDB_SUPER_TABLE && pMeta->tableInfo.numOfColumns > 0 &&
+          taosArrayPush(pStbs, &pMeta) == NULL) {
+        code = terrno;
+        taosHashCancelIterate(pTscObj->pTxnTableMeta, pIter);
+        break;
+      }
+    }
+  }
+  if (code == TSDB_CODE_SUCCESS) {
+    code = queryEncodeTxnStbSchemas(pStbs, ppBuf, pLen);
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  taosArrayDestroy(pStbs);
+  return code;
+}
+
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
   pRequest->type = pQuery->msgType;
   SAppInstInfo* pAppInfo = getAppInfo(pRequest);
@@ -1381,6 +1513,11 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
   tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
            sizeof(cxt.timezoneName));
 
+  // encoded by the planner only if this plan scans a system table that needs it
+  if (pRequest->txnId > 0) {
+    cxt.getTxnStbSchemas = tscTxnBuildStbSchemas;
+    cxt.getTxnStbSchemasParam = pRequest;
+  }
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
 
@@ -1847,7 +1984,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
          .secureDelete = pRequest->secureDelete,
          .pWorkerCb = getTaskPoolWorkerCb(),
          .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
-         .txnId = pRequest->pTscObj->txnId,
+         .txnId = pRequest->txnId,
          .correlation = initCorrelationExecution(pRequest, pDag),
   };
 
@@ -1870,7 +2007,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   // trustworthy (the vnode may have assigned it before the lock/track loop failed),
   // so charging it here would diverge from the async behavior and skew txnDdlCount.
   if (res.code == TSDB_CODE_SUCCESS) {
-    tscChargeTouchedObjects(pRequest->pTscObj, pRequest->pQuery, &res);
+    tscChargeTouchedObjects(pRequest, &res);
   }
 
   if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
@@ -1957,12 +2094,30 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
   return catalogAsyncUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
-// Upsert a pre-built STableMeta into pTxnTableMeta.
-// On success, ownership of pTableMeta is transferred to the hash.
+// Whether txn-local state may still be written on behalf of a statement of txn `txnId`. Caller holds
+// pTscObj->mutex. A statement's response can arrive after its txn ended (COMMIT / ROLLBACK cleared the txn-local
+// hashes, which live on for the connection) or even after the next txn began: writing then would leave an entry of
+// a finished txn behind, which the next txn would take for its own. Such a late write is dropped.
+static bool tscTxnLocalWritable(const STscObj* pTscObj, txn_id_t txnId, const char* what) {
+  if (txnId > 0 && pTscObj->txnId == txnId) return true;
+  tscWarn("conn:0x%" PRIx64 ", txn:%" PRId64 " is no longer the connection's txn (now %" PRId64 "), drop late %s",
+          pTscObj->id, (int64_t)txnId, (int64_t)pTscObj->txnId, what);
+  return false;
+}
+
+// Upsert a pre-built STableMeta into pTxnTableMeta on behalf of a statement of txn `txnId`.
+// On success, ownership of pTableMeta is transferred to the hash; that includes a late write for a txn that is no
+// longer the connection's one, which is dropped (pTableMeta freed here, see tscTxnLocalWritable).
 // On failure, caller must free pTableMeta.
-int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta* pTableMeta, const char* opName) {
+int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, txn_id_t txnId, const char* fullName, STableMeta* pTableMeta,
+                              const char* opName) {
   int32_t code = 0;
   (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (!tscTxnLocalWritable(pTscObj, txnId, opName)) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    taosMemoryFree(pTableMeta);
+    return TSDB_CODE_SUCCESS;
+  }
   if (pTscObj->pTxnTableMeta == NULL) {
     pTscObj->pTxnTableMeta = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
   }
@@ -1983,9 +2138,37 @@ int32_t tscTxnUpsertTableMeta(STscObj* pTscObj, const char* fullName, STableMeta
   return code;
 }
 
+// Record stb suid -> full name in pTxnSuidMap (created on demand). Lets the txn tell which child tables follow
+// a super table it touched: used to detect a dropped parent and to keep txn-modified meta out of the shared cache.
+static int32_t tscTxnPutStbSuid(STscObj* pTscObj, txn_id_t txnId, uint64_t suid, const char* stbFullName) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  char    value[TSDB_TABLE_FNAME_LEN] = {0};
+  tstrncpy(value, stbFullName, sizeof(value));
+
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  if (!tscTxnLocalWritable(pTscObj, txnId, "stb suid")) {
+    (void)taosThreadMutexUnlock(&pTscObj->mutex);
+    return TSDB_CODE_SUCCESS;
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    pTscObj->pTxnSuidMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+  }
+  if (pTscObj->pTxnSuidMap == NULL) {
+    code = terrno != 0 ? terrno : TSDB_CODE_OUT_OF_MEMORY;
+    tscError("txn: failed to alloc pTxnSuidMap, code:0x%x", code);
+  } else {
+    code = taosHashPut(pTscObj->pTxnSuidMap, &suid, sizeof(uint64_t), value, TSDB_TABLE_FNAME_LEN);
+    if (code != 0) {
+      tscError("txn: failed to track suid:%" PRIu64 " in pTxnSuidMap, code:0x%x", suid, code);
+    }
+  }
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
+}
+
 // Record STB's suid  ->  fullName in pTxnSuidMap so that subsequent queries against child
 // tables can detect the parent STB was dropped in this txn.
-int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
+int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, txn_id_t txnId, const SName* pStbName) {
   SCatalog* pCatalog = NULL;
   int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != 0) return code;
@@ -2006,27 +2189,12 @@ int32_t tscTxnRecordDroppedStbSuid(STscObj* pTscObj, const SName* pStbName) {
   int32_t nameCode = tNameExtractFullName(pStbName, stbFullName);
   if (nameCode != 0) return nameCode;
 
-  code = TSDB_CODE_SUCCESS;
-  (void)taosThreadMutexLock(&pTscObj->mutex);
-  if (pTscObj->pTxnSuidMap == NULL) {
-    pTscObj->pTxnSuidMap = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
-  }
-  if (pTscObj->pTxnSuidMap == NULL) {
-    code = terrno;
-    tscError("txn: failed to alloc pTxnSuidMap, code:0x%x", code);
-  } else {
-    code = taosHashPut(pTscObj->pTxnSuidMap, &suid, sizeof(uint64_t), stbFullName, TSDB_TABLE_FNAME_LEN);
-    if (code != 0) {
-      tscError("txn: failed to track suid:%" PRIu64 " in pTxnSuidMap, code:0x%x", suid, code);
-    }
-  }
-  (void)taosThreadMutexUnlock(&pTscObj->mutex);
-  return code;
+  return tscTxnPutStbSuid(pTscObj, txnId, suid, stbFullName);
 }
 
 // Decode STableMetaRsp into STableMeta and upsert into pTxnTableMeta.
 // Handles the full lifecycle: decode  ->  fullName  ->  upsert  ->  log.
-int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const char* opName) {
+int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp, const char* opName) {
   if (pMetaRsp == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -2038,16 +2206,24 @@ int32_t tscTxnCacheMetaFromRsp(STscObj* pTscObj, STableMetaRsp* pMetaRsp, const 
   }
   char fullName[TSDB_TABLE_FNAME_LEN];
   snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
-  code = tscTxnUpsertTableMeta(pTscObj, fullName, pTableMeta, opName);
+  uint64_t stbSuid = isStb ? (uint64_t)pTableMeta->uid : 0;
+  code = tscTxnUpsertTableMeta(pTscObj, txnId, fullName, pTableMeta, opName);
   if (code != 0) {
     taosMemoryFree(pTableMeta);
+    return code;
+  }
+  if (stbSuid != 0) {
+    // A super table with txn-local meta (ALTER/CREATE in this txn): record suid -> fullName so that
+    // child tables, whose schema follows the STB, can be resolved against this txn's version
+    // instead of the shared (committed) catalog cache. pTableMeta is owned by the hash now.
+    code = tscTxnPutStbSuid(pTscObj, txnId, stbSuid, fullName);
   }
   return code;
 }
 
 // Cache a VNode CREATE TABLE response into pTxnTableMeta.
 // Handles CTB compact stubs (with pTxnSuidMap population) and normal/virtual tables.
-int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp) {
+int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, txn_id_t txnId, STableMetaRsp* pMetaRsp) {
   int32_t     code = 0;
   STableMeta* pTableMeta = NULL;
 
@@ -2073,6 +2249,11 @@ int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp) {
     char stbFullName[TSDB_TABLE_FNAME_LEN];
     (void)snprintf(stbFullName, sizeof(stbFullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->stbName);
     (void)taosThreadMutexLock(&pTscObj->mutex);
+    if (!tscTxnLocalWritable(pTscObj, txnId, "child table meta")) {
+      (void)taosThreadMutexUnlock(&pTscObj->mutex);
+      taosMemoryFree(pTableMeta);
+      return TSDB_CODE_SUCCESS;
+    }
     if (pTscObj->pTxnSuidMap == NULL) {
       pTscObj->pTxnSuidMap =
           taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
@@ -2100,7 +2281,7 @@ int32_t tscTxnCacheCreateTbMeta(STscObj* pTscObj, STableMetaRsp* pMetaRsp) {
   if (pTableMeta != NULL) {
     char fullName[TSDB_TABLE_FNAME_LEN];
     snprintf(fullName, sizeof(fullName), "%s.%s", pMetaRsp->dbFName, pMetaRsp->tbName);
-    code = tscTxnUpsertTableMeta(pTscObj, fullName, pTableMeta, "cached");
+    code = tscTxnUpsertTableMeta(pTscObj, txnId, fullName, pTableMeta, "cached");
     if (code != 0) {
       taosMemoryFree(pTableMeta);
       return code;
@@ -2131,7 +2312,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     case TDMT_MND_ALTER_STB: {
       // Batch meta txn: skip global catalog update during txn to prevent
       // cross-session pollution. Only populate per-connection pTxnTableMeta.
-      if (pTscObj->txnId == 0) {
+      if (pRequest->txnId == 0) {
         code = handleAlterTbExecRes(pRes->res, pCatalog);
         // ALTER ... ADD/DROP BASE ON flips the parents' hasInheritors. The create/alter response
         // carries the altered table's meta (so the generic RM_TBLMETA path is skipped), so invalidate
@@ -2144,19 +2325,19 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
                     pRequest->requestId, tstrerror(rmCode));
           }
         }
-      } else if (pTscObj->txnId > 0) {
+      } else if (pRequest->txnId > 0) {
         if (pRes->res != NULL) {
           STableMetaRsp* pMetaRsp = (STableMetaRsp*)pRes->res;
           if (pRes->msgType == TDMT_VND_ALTER_TABLE) {
             code = tscTxnTrackVgId(pTscObj, pMetaRsp->vgId);
           }
           if (code == 0) {
-            code = tscTxnCacheMetaFromRsp(pTscObj, pMetaRsp, "alter");
+            code = tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, pMetaRsp, "alter");
           }
         }
       } else {
         code = TSDB_CODE_APP_ERROR;
-        tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in ALTER TABLE response", pTscObj->id, pTscObj->txnId);
+        tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in ALTER TABLE response", pTscObj->id, pRequest->txnId);
       }
       break;
     }
@@ -2165,14 +2346,14 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       int32_t num = taosArrayGetSize(pList);
       for (int32_t i = 0; i < num; ++i) {
         void* res = taosArrayGetP(pList, i);
-        if (pTscObj->txnId == 0) {
+        if (pRequest->txnId == 0) {
           code = handleCreateTbExecRes(res, pCatalog);
-        } else if (pTscObj->txnId > 0) {
-          code = tscTxnCacheCreateTbMeta(pTscObj, (STableMetaRsp*)res);
+        } else if (pRequest->txnId > 0) {
+          code = tscTxnCacheCreateTbMeta(pTscObj, pRequest->txnId, (STableMetaRsp*)res);
         } else {
           code = TSDB_CODE_APP_ERROR;
           tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in CREATE TABLE response", pTscObj->id,
-                   pTscObj->txnId);
+                   pRequest->txnId);
         }
       }
       break;
@@ -2180,7 +2361,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
     case TDMT_MND_CREATE_STB: {
       // Batch meta txn: skip global catalog cache update during txn to prevent
       // cross-session pollution. Only populate per-connection pTxnTableMeta.
-      if (pTscObj->txnId == 0) {
+      if (pRequest->txnId == 0) {
         code = handleCreateTbExecRes(pRes->res, pCatalog);
         // CREATE STABLE ... BASE ON sets hasInheritors on its parents. As above, the response carries
         // the new child's meta so the generic RM_TBLMETA path is skipped; invalidate parents here.
@@ -2192,12 +2373,12 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
                     pRequest->requestId, tstrerror(rmCode));
           }
         }
-      } else if (pTscObj->txnId > 0) {
-        code = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "cached STB");
+      } else if (pRequest->txnId > 0) {
+        code = tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "cached STB");
       } else {
         code = TSDB_CODE_APP_ERROR;
         tscError("conn:0x%" PRIx64 ", invalid txnId:%" PRIu64 " in CREATE STABLE response", pTscObj->id,
-                 pTscObj->txnId);
+                 pRequest->txnId);
       }
       break;
     }
@@ -2813,7 +2994,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     // partial count from here is not possible: a response carrying a non-zero code has no
     // trustworthy numTouched to add.
     if (code == TSDB_CODE_SUCCESS) {
-      tscChargeTouchedObjects(pTscObj, pRequest->pQuery, pResult);
+      tscChargeTouchedObjects(pRequest, pResult);
     }
   }
 
@@ -2897,12 +3078,12 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res &&
       !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == code)) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache
-    if (code == 0 && pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+    if (code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
         SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
         if (pTbName) {
-          int32_t rc = tscTxnRecordDroppedStbSuid(pTscObj, pTbName);
+          int32_t rc = tscTxnRecordDroppedStbSuid(pTscObj, pRequest->txnId, pTbName);
           if (rc != 0) {
             code = rc;
             break;
@@ -2917,7 +3098,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
 
   // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
   // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
-  if (code == 0 && pTscObj->txnId > 0 &&
+  if (code == 0 && pRequest->txnId > 0 &&
       (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
     int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -2925,7 +3106,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
       if (pTbName) {
         char fullName[TSDB_TABLE_FNAME_LEN];
         if (tNameExtractFullName(pTbName, fullName) == 0) {
-          (void)tscTxnUpsertTableMeta(pTscObj, fullName, NULL, "drop");
+          (void)tscTxnUpsertTableMeta(pTscObj, pRequest->txnId, fullName, NULL, "drop");
         }
       }
     }
@@ -3139,9 +3320,11 @@ int32_t isTxnAllowedStmtType(SNode* pRoot) {
 // failed to execute still consumed its provisional unit. That is an over-count of at most
 // one object per rejected statement, which only makes the limit marginally stricter;
 // it never under-counts, so the budget can never be evaded through this path.
-static void tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, const SExecResult* pRes) {
+static void tscChargeTouchedObjects(SRequestObj* pRequest, const SExecResult* pRes) {
 #ifdef TD_ENTERPRISE
-  if (pTscObj == NULL || pTscObj->txnId == 0 || pRes == NULL || pRes->numTouchedObjects <= 0) {
+  STscObj*      pTscObj = pRequest->pTscObj;
+  const SQuery* pQuery = pRequest->pQuery;
+  if (pTscObj == NULL || pRequest->txnId == 0 || pRes == NULL || pRes->numTouchedObjects <= 0) {
     return;
   }
   // Only the WHERE-based bulk tag update is charged provisionally as 1 in
@@ -3185,6 +3368,20 @@ static void tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, cons
 #endif
 }
 
+// Claim the connection's txn statement slot for a statement of a txn (no-op outside a txn, and for the request that
+// already holds it). The main path claims it when it builds the parse context; the bypass paths (SML / rawBlock /
+// STMT / STMT2) only get here, so this is where they are serialised with the other statements of the txn, and with
+// its COMMIT / ROLLBACK. Run before the txn check, which charges the DDL budget: a rejected statement costs nothing.
+int32_t tscTxnClaimStmtSlot(SRequestObj* pRequest) {
+  if (pRequest->txnId <= 0) return TSDB_CODE_SUCCESS;
+  bool    acquired = false;
+  STscObj* pTscObj = pRequest->pTscObj;
+  (void)taosThreadMutexLock(&pTscObj->mutex);
+  int32_t code = tscTxnAcquireStmtSlot(pRequest, pRequest->txnId, &acquired);
+  (void)taosThreadMutexUnlock(&pTscObj->mutex);
+  return code;
+}
+
 // Validate transaction state and statement type for the current request.
 // Called from doAsyncQuery (main path) and, when txnChecked is false, from
 // launchQueryImpl / launchAsyncQuery (SML / rawBlock / STMT2 bypass paths).
@@ -3199,10 +3396,15 @@ static void tscChargeTouchedObjects(STscObj* pTscObj, const SQuery* pQuery, cons
 // when this function has already dispatched the callback.
 int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, bool* pHandled) {
   *pHandled = false;
+  // The main path fixed the request's txn identity when it created the parse context; the bypass paths (SML /
+  // rawBlock / STMT) fix it here. Everything after this point judges the statement by pRequest->txnId only.
+  tscReqFixTxnId(pRequest);
 #ifdef TD_ENTERPRISE
+  // A retry of the statement checks it again but must not charge its DDL objects a second time.
+  const bool firstCheck = !pRequest->txnChecked;
   pRequest->txnChecked = true;
   STscObj* pTscObj = pRequest->pTscObj;
-  if (pTscObj->txnId == 0) {
+  if (pRequest->txnId == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -3245,7 +3447,7 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
   if (stmtKind == TXN_STMT_REJECTED) {
     return allowNonTxn ? TSDB_CODE_SUCCESS : TSDB_CODE_TXN_INVALID_OPERATION;
   }
-  if (stmtKind == TXN_STMT_DDL) {
+  if (stmtKind == TXN_STMT_DDL && firstCheck) {
     int32_t objCount = txnStmtObjectCount(pRequest->pQuery->pRoot);
     // Clamp the object count to [1, limit] before the budget arithmetic: a count that
     // is somehow out of range (e.g. an overflowing batch accumulator) must neither make
@@ -3282,8 +3484,9 @@ int32_t tscCheckTxnState(SRequestObj* pRequest, SSqlCallbackWrapper* pWrapper, b
 
 // Track all VNode vgIds referenced by a VNODE_MODIFY_STMT inside a batch txn.
 // Called from both the sync (launchQueryImpl) and async (launchAsyncQuery) paths.
-static int32_t tscTxnTrackVgIdsFromQuery(STscObj* pTscObj, SQuery* pQuery) {
-  if (atomic_load_8(&pTscObj->txnState) != UTXN_STAGE_ACTIVE || pQuery->pRoot == NULL ||
+static int32_t tscTxnTrackVgIdsFromQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  STscObj* pTscObj = pRequest->pTscObj;
+  if (pRequest->txnId == 0 || atomic_load_8(&pTscObj->txnState) != UTXN_STAGE_ACTIVE || pQuery->pRoot == NULL ||
       nodeType(pQuery->pRoot) != QUERY_NODE_VNODE_MODIFY_STMT) {
     return TSDB_CODE_SUCCESS;
   }
@@ -3328,18 +3531,25 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
   int32_t subplanNum = 0;
 
 #ifdef TD_ENTERPRISE
-  // SML / rawBlock / STMT2 bypass doAsyncQuery and land here without transaction validation.
-  // Run the full check when txnChecked is false (main path has already set it to true).
-  if (!pRequest->txnChecked) {
+  // SML / rawBlock / STMT / STMT2 bypass doAsyncQuery and land here without transaction validation. Only those
+  // paths call this function, once per execution, and a statement object may run the same request again: every
+  // call is a new statement, checked (and its txn identity fixed) afresh.
+  tscReqStartStatement(pRequest);
+  tscReqFixTxnId(pRequest);
+  // This synchronous execution is not followed by a request callback: the slot it claims is given back below,
+  // on every exit of this function.
+  code = tscTxnClaimStmtSlot(pRequest);
+  if (code == TSDB_CODE_SUCCESS && !pRequest->txnChecked) {
     bool handled = false;
     code = tscCheckTxnState(pRequest, NULL, &handled);
     // tscCheckTxnState does not call doRequestCallback on the sync path (pWrapper == NULL,
     // so handled is always false here). Just propagate the error code.
-    if (code != TSDB_CODE_SUCCESS) {
-      pRequest->code = code;
-      if (res) *res = pRequest;
-      return;
-    }
+  }
+  if (code != TSDB_CODE_SUCCESS) {
+    tscTxnReleaseStmtSlot(pRequest);
+    pRequest->code = code;
+    if (res) *res = pRequest;
+    return;
   }
 #endif
 
@@ -3380,7 +3590,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
       const bool trackStmtPhase = pRequest->stmtBindVersion > 0;
-      code = tscTxnTrackVgIdsFromQuery(pRequest->pTscObj, pQuery);
+      code = tscTxnTrackVgIdsFromQuery(pRequest, pQuery);
       if (code != 0) break;
       SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
       if (NULL == pMnodeList) {
@@ -3434,12 +3644,12 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       !(IS_CREATE_TBL_REQUEST(pRequest->type) && TSDB_CODE_SUCCESS == pRequest->code)) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache,
     // so child table queries can detect the parent was dropped.
-    if (pRequest->code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+    if (pRequest->code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
         SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
         if (pTbName) {
-          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pTbName);
+          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pRequest->txnId, pTbName);
           if (rc != 0) {
             pRequest->code = rc;
             break;
@@ -3456,7 +3666,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
 
   // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
   // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
-  if (pRequest->code == 0 && pRequest->pTscObj->txnId > 0 &&
+  if (pRequest->code == 0 && pRequest->txnId > 0 &&
       (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
     int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -3464,7 +3674,7 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
       if (pTbName) {
         char fullName[TSDB_TABLE_FNAME_LEN];
         if (tNameExtractFullName(pTbName, fullName) == 0) {
-          if ((code = tscTxnUpsertTableMeta(pRequest->pTscObj, fullName, NULL, "drop"))) {
+          if ((code = tscTxnUpsertTableMeta(pRequest->pTscObj, pRequest->txnId, fullName, NULL, "drop"))) {
             pRequest->code = code;
             break;
           }
@@ -3485,6 +3695,9 @@ void launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void
     *res = pRequest->body.resInfo.execRes.res;
     pRequest->body.resInfo.execRes.res = NULL;
   }
+
+  // the statement is done with the txn-local state (see tscTxnClaimStmtSlot)
+  tscTxnReleaseStmtSlot(pRequest);
 }
 
 static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
@@ -3531,6 +3744,10 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
                         .allocatorId = pRequest->stmtBindVersion > 0 ? 0 : pRequest->allocatorRefId};
     tstrncpy(cxt.timezoneName, pRequest->pTscObj->optionInfo.timezoneName,
              sizeof(cxt.timezoneName));
+    if (pRequest->txnId > 0) {
+      cxt.getTxnStbSchemas = tscTxnBuildStbSchemas;
+      cxt.getTxnStbSchemasParam = pRequest;
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
     }
@@ -3582,7 +3799,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
              .secureDelete = pRequest->secureDelete,
              .pWorkerCb = getTaskPoolWorkerCb(),
              .firstDayOfWeek = pRequest->pTscObj->optionInfo.firstDayOfWeek,
-             .txnId = pRequest->pTscObj->txnId,
+             .txnId = pRequest->txnId,
              .correlation = initCorrelationExecution(pRequest, pDag),
       };
 
@@ -3623,7 +3840,17 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
   }
 
 #ifdef TD_ENTERPRISE
-  // SML / rawBlock / STMT2 bypass doAsyncQuery: run the full txn check when not yet done.
+  // SML / rawBlock / STMT2 bypass doAsyncQuery: claim the txn statement slot (a no-op for the main path, which holds
+  // it already, and also taken again by an internal STMT2 retry, which runs after the first callback gave it back),
+  // then run the full txn check when not yet done. The slot is given back by doRequestCallback.
+  tscReqFixTxnId(pRequest);
+  code = tscTxnClaimStmtSlot(pRequest);
+  if (code != TSDB_CODE_SUCCESS) {
+    // same unwinding as a failed txn check below
+    pRequest->code = code;
+    doRequestCallback(pRequest, code);
+    return;
+  }
   if (!pRequest->txnChecked) {
     bool handled = false;
     code = tscCheckTxnState(pRequest, pWrapper, &handled);
@@ -3661,7 +3888,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       code = asyncExecDdlQuery(pRequest, pQuery);
       break;
     case QUERY_EXEC_MODE_SCHEDULE: {
-      code = tscTxnTrackVgIdsFromQuery(pRequest->pTscObj, pQuery);
+      code = tscTxnTrackVgIdsFromQuery(pRequest, pQuery);
       if (code != 0) {
         doRequestCallback(pRequest, code);
         break;
@@ -6105,6 +6332,9 @@ int32_t taosAsyncFetchImpl(SRequestObj* pRequest, __taos_async_fn_t fp, void* pa
 
 void doRequestCallback(SRequestObj* pRequest, int32_t code) {
   pRequest->inCallback = true;
+  // The statement is done with the txn-local state: the next statement of the txn may run (before the user
+  // callback, which may well issue it).
+  tscTxnReleaseStmtSlot(pRequest);
 
   int64_t this = pRequest->self;
   SRequestObj* pThis = acquireRequest(this);

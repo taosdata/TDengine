@@ -117,6 +117,10 @@ int64_t metaGetStbKeep(SMeta* pMeta, int64_t uid);
 void    metaUpdateStbStats(SMeta* pMeta, int64_t uid, int64_t deltaCtb, int32_t deltaCol, int64_t deltaKeep);
 int32_t metaUidFilterCacheGet(SMeta* pMeta, uint64_t suid, const void* pKey, int32_t keyLen, LRUHandle** pHandle);
 int32_t metaGetChildUidsOfSuperTable(SMeta* pMeta, tb_uid_t suid, SArray** childList);
+// Same, but child tables that are PRE_CREATE in batch meta txn `txnId` are included (txnId 0: none are).
+// includeAllPreCreate: no visibility filter, every child that belongs to the super table (for dropping it).
+int32_t metaGetChildUidsOfSuperTableTxn(SMeta* pMeta, tb_uid_t suid, int64_t txnId, bool includeAllPreCreate,
+                                        SArray** childList);
 
 // Details of the first vchild own-name conflict found by the checks below, used to build a
 // client-facing error message that names the conflicting child table. pConflictTbName is the

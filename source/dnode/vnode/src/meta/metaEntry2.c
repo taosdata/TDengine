@@ -858,9 +858,11 @@ static int32_t metaAddOrDropColumnIndexOfVirtualSuperTable(SMeta *pMeta, const S
     action = ADD_COLUMN;
   }
 
-  // fetch all child tables
+  // fetch all child tables. A virtual child created by the same batch meta txn is still PRE_CREATE here, but its
+  // persisted colRef must follow this change like any other child's: left out, it would be committed with a colRef
+  // array that no longer matches the super table's row schema.
   SArray *childTables = 0;
-  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childTables);
+  code = metaGetChildUidsOfSuperTableTxn(pMeta, pEntry->uid, pEntry->txnId, false, &childTables);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     return code;
@@ -2664,6 +2666,18 @@ int32_t metaDropOrphanedEntry(SMeta *pMeta, tb_uid_t uid, const SMetaEntry *pOld
 }
 
 int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **childList) {
+  return metaGetChildUidsOfSuperTableTxn(pMeta, suid, 0, false, childList);
+}
+
+// Child tables of a super table. Children that are PRE_CREATE in another (or no) batch meta txn are skipped: they
+// are not visible yet. Children created by batch meta txn `txnId` itself are included, so that a super table
+// change made by that txn reaches them too (their persisted state must stay aligned with the super table).
+// includeAllPreCreate: no visibility filter, every child that belongs to the super table. For a caller that removes
+// the super table physically: which children belong to it does not depend on who may see them, and a child that was
+// created in a txn but is still PRE_CREATE (not vacuumed yet) must go with it, or it outlives its super table as an
+// orphan.
+int32_t metaGetChildUidsOfSuperTableTxn(SMeta *pMeta, tb_uid_t suid, int64_t txnId, bool includeAllPreCreate,
+                                        SArray **childList) {
   int32_t code = TSDB_CODE_SUCCESS;
   void   *key = NULL;
   int32_t keySize = 0;
@@ -2713,7 +2727,11 @@ int32_t metaGetChildUidsOfSuperTable(SMeta *pMeta, tb_uid_t suid, SArray **child
         STxnIdxVal txnVal = *(const STxnIdxVal *)pTxnVal;
         int8_t     st = txnVal.txnStatus;
         tdbFree(pTxnVal);
-        if (st == META_TXN_PRE_CREATE) {
+        if (st == META_TXN_PRE_CREATE && !includeAllPreCreate && !(txnId != 0 && txnVal.txnId == txnId)) {
+          continue;
+        }
+        // created and dropped inside one txn: gone for every reader, including that txn itself
+        if (st == META_TXN_PRE_CREATE_DROP && !includeAllPreCreate) {
           continue;
         }
       }
@@ -3272,7 +3290,7 @@ static int32_t metaHandleSuperTableDrop(SMeta *pMeta, const SMetaEntry *pEntry) 
     return code;
   }
 
-  code = metaGetChildUidsOfSuperTable(pMeta, pEntry->uid, &childList);
+  code = metaGetChildUidsOfSuperTableTxn(pMeta, pEntry->uid, 0, true, &childList);
   if (code) {
     metaErr(TD_VID(pMeta->pVnode), code);
     metaFetchEntryFree(&pOldEntry);
