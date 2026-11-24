@@ -28,9 +28,10 @@
 #include "dataSink.h"
 #include "tglobal.h"
 
+#include "nodes.h"
+#include "streamTimeAlign.h"
 #include "streamTriggerMerger.h"
 #include "streamTriggerTask.h"
-#include "nodes.h"
 #include "stub.h"
 #include "tdatablock.h"
 
@@ -508,6 +509,82 @@ class StreamHistoryFilteredMergerTest : public ::testing::Test {
   SArray                *metas_ = nullptr;
 };
 
+TEST_F(StreamHistoryFilteredMergerTest, MultipleRawBatchesShareOneMetadataInterval) {
+  Prepare({6});
+  SSDataBlock *first = MakeBlock(1, 3, false);
+  ASSERT_EQ(0, stVtableMergerBindDataBatch(merger_, &first, false));
+  EXPECT_EQ(nullptr, first);
+  SSDataBlock *output = nullptr;
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  EXPECT_EQ(nullptr, output);
+  EXPECT_FALSE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+  ExpectFetch(1);
+  SSDataBlock *second = MakeBlock(4, 3, true);
+  ASSERT_EQ(0, stVtableMergerBindDataBatch(merger_, &second, true));
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  ASSERT_NE(nullptr, output);
+  ASSERT_EQ(1, output->info.rows);
+  auto *times = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 0));
+  EXPECT_EQ(6, *reinterpret_cast<const int64_t *>(colDataGetData(times, 0)));
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  EXPECT_TRUE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+  auto *original = static_cast<SSTriggerMetaData *>(taosArrayGet(metas_, 0));
+  EXPECT_EQ(1, original->skey);
+  EXPECT_EQ(6, original->ekey);
+}
+
+TEST_F(StreamHistoryFilteredMergerTest, EqualLogicalTimestampsPreserveRowsAcrossPhysicalPages) {
+  Prepare({3});
+  auto page = [&](const int64_t (&times)[3], int match, bool done) {
+    SSDataBlock *block = MakeBlock(1, 3, false);
+    auto        *ts = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 0));
+    auto        *value = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+    int64_t      one = 1;
+    for (int i = 0; i < 3; ++i) {
+      ASSERT_EQ(0, colDataSetVal(ts, i, reinterpret_cast<const char *>(&times[i]), false));
+      ASSERT_EQ(0, colDataSetVal(value, i, reinterpret_cast<const char *>(&one), i != match));
+    }
+    ASSERT_EQ(0, stVtableMergerBindDataBatch(merger_, &block, done));
+  };
+  // The first row of each page is its only matching value. The second
+  // page begins on the previous page's last tick.
+  page({1, 1, 1}, 0, false);
+  SSDataBlock *result = nullptr;
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &result));
+  ASSERT_EQ(nullptr, result);
+  ExpectFetch(1);
+  page({1, 1, 3}, 0, true);
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &result));
+  ASSERT_NE(nullptr, result);
+  ASSERT_EQ(2, result->info.rows);
+  const auto *times = static_cast<const SColumnInfoData *>(taosArrayGet(result->pDataBlock, 0));
+  EXPECT_EQ(1, *reinterpret_cast<const int64_t *>(colDataGetData(times, 0)));
+  EXPECT_EQ(1, *reinterpret_cast<const int64_t *>(colDataGetData(times, 1)));
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &result));
+  EXPECT_TRUE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+}
+
+TEST_F(StreamHistoryFilteredMergerTest, EmptyFinalBatchReleasesOriginalInterval) {
+  Prepare({4});
+  SSDataBlock *first = MakeBlock(1, 3, true);
+  ASSERT_EQ(0, stVtableMergerBindDataBatch(merger_, &first, false));
+  SSDataBlock *output = nullptr;
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  EXPECT_EQ(nullptr, output);
+  ExpectFetch(1);
+  SSDataBlock *empty = nullptr;
+  ASSERT_EQ(0, createDataBlock(&empty));
+  ASSERT_EQ(0, stVtableMergerBindDataBatch(merger_, &empty, true));
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  ASSERT_NE(nullptr, output);
+  ASSERT_EQ(1, output->info.rows);
+  const auto *original = static_cast<const SSTriggerMetaData *>(taosArrayGet(metas_, 0));
+  EXPECT_EQ(1, original->skey);
+  EXPECT_EQ(4, original->ekey);
+  ASSERT_EQ(0, stVtableMergerNextDataBlock(merger_, &output));
+  EXPECT_TRUE(IS_TRIGGER_VTABLE_MERGER_EMPTY(merger_));
+}
+
 TEST_F(StreamHistoryFilteredMergerTest, EntirelyFilteredInputReturnsEofWithoutEmptyBlock) {
   Prepare({3});
   Bind(1, 3, false);
@@ -716,6 +793,109 @@ TEST_F(StreamPeriodSnapshotSorterTest, MergesBatchesAndKeepsLatestVersionOfTimes
   EXPECT_EQ(Values(), (std::vector<int64_t>{21, 12, 22, 13}));
 }
 
+TEST_F(StreamPeriodSnapshotSorterTest, WalVersionsDeduplicateOnlyTheSamePhysicalTimestampAndKey) {
+  SSDataBlock *block = nullptr;
+  ASSERT_EQ(0, createDataBlock(&block));
+  for (int i = 0; i < 5; ++i) {
+    SColumnInfoData col = createColumnInfoData(i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT,
+                                               sizeof(int64_t), i == 3 ? STREAM_WAL_PHYSICAL_TS_COL_ID : i + 1);
+    ASSERT_EQ(0, blockDataAppendColInfo(block, &col));
+  }
+  // Logical time, secondary key, sample, physical time, WAL version.
+  const int64_t rows[][5] = {{1, 1, 8, 1002, 1}, {1, 1, 35, 1001, 2}, {1, 1, 37, 1001, 3}, {1, 2, 38, 1001, 3}};
+  ASSERT_EQ(0, blockDataEnsureCapacity(block, 4));
+  for (int row = 0; row < 4; ++row) {
+    for (int col = 0; col < 5; ++col) {
+      auto *column = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, col));
+      ASSERT_EQ(0, colDataSetVal(column, row, reinterpret_cast<const char *>(&rows[row][col]), false));
+    }
+  }
+  block->info.rows = 4;
+  SObjPool pool{};
+  SObjList metas{};
+  ASSERT_EQ(0, taosObjPoolInit(&pool, 3, sizeof(SSTriggerMetaData)));
+  ASSERT_EQ(0, taosObjListInit(&metas, &pool));
+  for (int ver = 1; ver <= 3; ++ver) {
+    SSTriggerMetaData meta = {};
+    meta.skey = meta.ekey = 1;
+    meta.ver = ver;
+    ASSERT_EQ(0, taosObjListAppend(&metas, &meta));
+  }
+  SSTriggerDataSlice slice{};
+  slice.pDataBlock = block;
+  slice.endIdx = 4;
+  auto        key = stTriggerReaderDataKey(STRIGGER_READER_KIND_INTERNAL, 7, 17);
+  STimeWindow range = {1, 1};
+  task_.watermark = 5;
+  for (int pkSlot : {-1, 1}) {
+    // Without a secondary key there is just one row in version 3.
+    slice.endIdx = pkSlot < 0 ? 3 : 4;
+    ASSERT_EQ(0, stNewTimestampSorterSetData(sorter_, &key, 0, pkSlot, &range, &metas, &slice, true));
+    EXPECT_EQ(pkSlot < 0 ? (std::vector<int64_t>{37, 8}) : (std::vector<int64_t>{37, 38, 8}), Values());
+    stNewTimestampSorterReset(sorter_);
+  }
+  taosObjListClear(&metas);
+  taosObjPoolDestroy(&pool);
+  blockDataDestroy(block);
+}
+
+TEST_F(StreamPeriodSnapshotSorterTest, MergesPresentCellsAcrossVersionsOfTheSamePhysicalKey) {
+  SSDataBlock *input = nullptr;
+  ASSERT_EQ(0, createDataBlock(&input));
+  const int     types[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT,
+                           TSDB_DATA_TYPE_UBIGINT,   TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_BIGINT};
+  const int16_t ids[] = {1, 2, 3, STREAM_WAL_NULL_MASK_COL_ID, STREAM_WAL_PHYSICAL_TS_COL_ID, -1};
+  for (int i = 0; i < 6; ++i) {
+    auto col = createColumnInfoData(types[i], sizeof(int64_t), ids[i]);
+    ASSERT_EQ(0, blockDataAppendColInfo(input, &col));
+  }
+  // Both secondary keys share one source timestamp. The second version explicitly
+  // clears only key 2. The final version omits the sample for both keys.
+  const int64_t rows[][6] = {{1, 1, 37, 0, 1001, 1}, {1, 2, 38, 0, 1001, 1}, {1, 1, 39, 0, 1001, 2},
+                             {1, 2, 0, 4, 1001, 2},  {1, 1, 0, 0, 1001, 3},  {1, 2, 0, 0, 1001, 3}};
+  ASSERT_EQ(0, blockDataEnsureCapacity(input, 6));
+  for (int row = 0; row < 6; ++row) {
+    for (int col = 0; col < 6; ++col) {
+      auto *dst = static_cast<SColumnInfoData *>(taosArrayGet(input->pDataBlock, col));
+      ASSERT_EQ(0, colDataSetVal(dst, row, reinterpret_cast<const char *>(&rows[row][col]), col == 2 && row >= 3));
+    }
+  }
+  input->info.rows = 6;
+  SObjPool pool{};
+  SObjList metas{};
+  ASSERT_EQ(0, taosObjPoolInit(&pool, 3, sizeof(SSTriggerMetaData)));
+  ASSERT_EQ(0, taosObjListInit(&metas, &pool));
+  for (int ver = 1; ver <= 3; ++ver) {
+    SSTriggerMetaData meta{};
+    meta.skey = meta.ekey = 1;
+    meta.ver = ver;
+    ASSERT_EQ(0, taosObjListAppend(&metas, &meta));
+  }
+  SSTriggerDataSlice slice{};
+  slice.pDataBlock = input;
+  slice.endIdx = 6;
+  auto        key = stTriggerReaderDataKey(STRIGGER_READER_KIND_INTERNAL, 7, 17);
+  STimeWindow range = {1, 1};
+  ASSERT_EQ(0, stNewTimestampSorterSetData(sorter_, &key, 0, 1, &range, &metas, &slice, false));
+  for (int pk = 1; pk <= 2; ++pk) {
+    SSDataBlock *block = nullptr;
+    int32_t      start = 0, end = 0;
+    ASSERT_EQ(0, stNewTimestampSorterNextDataBlock(sorter_, &block, &start, &end));
+    ASSERT_NE(nullptr, block);
+    ASSERT_EQ(1, end - start);
+    auto *keyCol = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 1));
+    auto *value = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 2));
+    EXPECT_EQ(pk, *reinterpret_cast<const int64_t *>(colDataGetData(keyCol, start)));
+    EXPECT_EQ(pk == 2, colDataIsNull_s(value, start));
+    auto *mask = static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, 3));
+    EXPECT_EQ(pk == 2 ? 4U : 0U, *reinterpret_cast<const uint64_t *>(colDataGetData(mask, start)));
+    if (pk == 1) EXPECT_EQ(39, *reinterpret_cast<const int64_t *>(colDataGetData(value, start)));
+  }
+  taosObjListClear(&metas);
+  taosObjPoolDestroy(&pool);
+  blockDataDestroy(input);
+}
+
 TEST_F(StreamPeriodSnapshotSorterTest, OrderedInputFrontierSurvivesCacheBatchBoundaries) {
   Append(1, {{{100, 1, 11, 1}}, {{300, 1, 13, 1}}});
   Append(1, {{{100, 1, 21, 2}}, {{400, 1, 24, 2}}});
@@ -827,6 +1007,38 @@ TEST_F(StreamPeriodSnapshotVtableTest, ColumnsFromDifferentPollsMergeAtTheSameEv
   }
   ASSERT_EQ(stNewVtableMergerNextDataBlock(merger_, &block, &start, &end), 0);
   EXPECT_EQ(block, nullptr);
+}
+
+TEST_F(StreamPeriodSnapshotVtableTest, SameTickPairsFollowBindingsForEitherShardReplyOrder) {
+  Append(1, {{{100, 1, 37, 1}}, {{100, 2, 38, 1}}});
+  Append(2, {{{100, 1, 9, 1}}});
+  merger_->timeAlignTrigger = true;
+  STimeWindow range = {100, 100};
+  for (bool reverse : {false, true}) {
+    SCOPED_TRACE(reverse);
+    taosObjListClear(&tables_);
+    for (int offset = 0; offset < 2; ++offset) {
+      const int                     source = reverse ? 2 - offset : 1 + offset;
+      SSTriggerVirtualTableSliceRef table = {};
+      table.virtualUid = 42;
+      table.readerKey = stTriggerReaderDataKey(STRIGGER_READER_KIND_INTERNAL, source, source);
+      ASSERT_EQ(0, taosObjListAppend(&tables_, &table));
+    }
+    ASSERT_EQ(0, stNewVtableMergerSetData(merger_, 42, 0, 1, &range, &tables_, refs_, metas_, slices_, nullptr, false));
+    SSDataBlock *output = nullptr;
+    int32_t      start = 0, end = 0;
+    ASSERT_EQ(0, stNewVtableMergerNextDataBlock(merger_, &output, &start, &end));
+    ASSERT_NE(nullptr, output);
+    ASSERT_EQ(2, end - start);
+    auto *sample = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 1));
+    auto *beat = static_cast<SColumnInfoData *>(taosArrayGet(output->pDataBlock, 2));
+    EXPECT_EQ(37, *reinterpret_cast<const int64_t *>(colDataGetData(sample, start)));
+    EXPECT_EQ(38, *reinterpret_cast<const int64_t *>(colDataGetData(sample, start + 1)));
+    EXPECT_TRUE(colDataIsNull_s(beat, start));
+    ASSERT_FALSE(colDataIsNull_s(beat, start + 1));
+    EXPECT_EQ(9, *reinterpret_cast<const int64_t *>(colDataGetData(beat, start + 1)));
+    stNewVtableMergerReset(merger_);
+  }
 }
 
 TEST_F(StreamPeriodSnapshotVtableTest, BindingGenerationsMergeWithIndependentLayoutsAndLatestColumns) {
@@ -978,3 +1190,153 @@ TEST_F(StreamPeriodSnapshotSorterTest, ReadFailureReleasesIteratorWithoutConsumi
   ASSERT_EQ(Bind(false), 0);
   EXPECT_EQ(Values(), (std::vector<int64_t>{11}));
 }
+
+namespace {
+class StreamAlignedMergerTest : public ::testing::Test {
+ protected:
+  SStreamTimeAlignSpec spec = {};
+  SSTimeAlignState    *state = nullptr;
+  SArray              *slots = nullptr;
+  SSDataBlock         *block = nullptr;
+  SFilterInfo         *filter = nullptr;
+  SNode               *predicate = nullptr;
+
+  void SetUp() override {
+    spec.pColumns = taosArrayInit(1, sizeof(SStreamTimeAlignColumn));
+    SStreamTimeAlignColumn def = {};
+    def.srcColId = 7;
+    def.type.type = TSDB_DATA_TYPE_INT;
+    def.type.bytes = sizeof(int32_t);
+    ASSERT_NE(nullptr, taosArrayPush(spec.pColumns, &def));
+    ASSERT_EQ(0, stTimeAlignCreate(&spec, &state));
+    slots = taosArrayInit(1, sizeof(SSTimeAlignSlot));
+    ASSERT_NE(nullptr, slots);
+  }
+
+  void TearDown() override {
+    filterFreeInfo(filter);
+    nodesDestroyNode(predicate);
+    blockDataDestroy(block);
+    stTimeAlignDestroy(&state);
+    taosArrayDestroy(spec.pColumns);
+    taosArrayDestroy(slots);
+  }
+
+  void addEquality(int slot, int32_t target) {
+    SNode *column = nullptr, *value = nullptr, *expression = nullptr;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, &column));
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_VALUE, &value));
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_OPERATOR, &expression));
+    auto *col = reinterpret_cast<SColumnNode *>(column);
+    col->node.resType.type = TSDB_DATA_TYPE_INT;
+    col->node.resType.bytes = sizeof(int32_t);
+    col->slotId = slot;
+    col->colId = static_cast<col_id_t>(slot + 1);
+    snprintf(col->colName, sizeof(col->colName), "c%d", slot);
+    auto *val = reinterpret_cast<SValueNode *>(value);
+    val->node.resType = col->node.resType;
+    val->translate = true;
+    ASSERT_EQ(0, nodesSetValueNodeValue(val, &target));
+    auto *op = reinterpret_cast<SOperatorNode *>(expression);
+    op->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    op->node.resType.bytes = sizeof(bool);
+    op->opType = OP_TYPE_EQUAL;
+    op->pLeft = column;
+    op->pRight = value;
+    auto *conditions = reinterpret_cast<SLogicConditionNode *>(predicate);
+    ASSERT_EQ(0, nodesListMakeStrictAppend(&conditions->pParameterList, expression));
+  }
+
+  SColumnInfoData *column(int slot) { return static_cast<SColumnInfoData *>(taosArrayGet(block->pDataBlock, slot)); }
+
+  void expectFilteredRows(uint64_t uid, int ts, int temperature, int quality, int rawCount) {
+    ASSERT_EQ(0, stTimeAlignRegisterTable(state, uid, 1));
+    SSTimeAlignSeed *seed = nullptr;
+    SArray          *bounds = taosArrayInit(1, sizeof(SSTimeAlignSourceBound));
+    ASSERT_EQ(0, stTimeAlignSeedCreate(&spec, uid, 1, 0, bounds, &seed));
+    bool applied = false;
+    ASSERT_EQ(0, stTimeAlignInstallSeed(state, seed, &applied));
+    stTimeAlignSeedDestroy(&seed);
+    taosArrayDestroy(bounds);
+    ASSERT_TRUE(applied);
+    ASSERT_EQ(0, createDataBlock(&block));
+    for (int i = 0; i < rawCount; ++i) {
+      auto col = createColumnInfoData(i == ts ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_INT,
+                                      i == ts ? sizeof(int64_t) : sizeof(int32_t),
+                                      i == ts            ? PRIMARYKEY_TIMESTAMP_COL_ID
+                                      : i == temperature ? 7
+                                                         : 12 + i);
+      ASSERT_EQ(0, blockDataAppendColInfo(block, &col));
+    }
+    ASSERT_EQ(0, blockDataEnsureCapacity(block, 2));
+    for (int32_t row = 0; row < 2; ++row) {
+      const int64_t time = row * 1000;
+      const int32_t temp = 100;
+      ASSERT_EQ(0, colDataSetVal(column(ts), row, reinterpret_cast<const char *>(&time), false));
+      ASSERT_EQ(0, colDataSetVal(column(temperature), row, reinterpret_cast<const char *>(&temp), row == 1));
+      ASSERT_EQ(0, colDataSetVal(column(quality), row, reinterpret_cast<const char *>(&row), false));
+      for (int i = 0; i < rawCount; ++i)
+        if (i != ts && i != temperature && i != quality) colDataSetNULL(column(i), row);
+    }
+    block->info.rows = 2;
+    SSTimeAlignSlot mapping = {7, temperature, rawCount};
+    taosArrayClear(slots);
+    ASSERT_NE(nullptr, taosArrayPush(slots, &mapping));
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_LOGIC_CONDITION, &predicate));
+    auto *conditions = reinterpret_cast<SLogicConditionNode *>(predicate);
+    conditions->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    conditions->node.resType.bytes = sizeof(bool);
+    conditions->condType = LOGIC_COND_TYPE_AND;
+    addEquality(quality, 1);
+    addEquality(rawCount, 100);
+    ASSERT_EQ(0, filterInitFromNode(predicate, &filter, 0, nullptr));
+    ASSERT_EQ(0, stVtableMergerAlignBlock(state, slots, uid, ts, filter, block, nullptr, 0));
+    ASSERT_EQ(1, block->info.rows);
+    EXPECT_TRUE(colDataIsNull_s(column(temperature), 0));
+    EXPECT_EQ(1000, *reinterpret_cast<const int64_t *>(colDataGetData(column(ts), 0)));
+    EXPECT_EQ(100, *reinterpret_cast<const int32_t *>(colDataGetData(column(rawCount), 0)));
+    filterFreeInfo(filter);
+    filter = nullptr;
+    nodesDestroyNode(predicate);
+    predicate = nullptr;
+    blockDataDestroy(block);
+    block = nullptr;
+  }
+};
+
+TEST_F(StreamAlignedMergerTest, FilterConsumesAlignedRows) { expectFilteredRows(43, 0, 1, 2, 3); }
+
+TEST_F(StreamAlignedMergerTest, HistoryAndRealtimeSlotsAgree) {
+  ASSERT_NO_FATAL_FAILURE(expectFilteredRows(16, 2, 0, 1, 3));
+  expectFilteredRows(17, 0, 3, 2, 4);
+}
+}  // namespace
+
+namespace {
+int32_t failMiddleColumnCopy(SColumnInfoData *column, uint32_t, const char *, bool) {
+  return column->info.colId == 2 ? TSDB_CODE_OUT_OF_MEMORY : 0;
+}
+
+TEST_F(StreamAlignedMergerTest, FailedMiddleColumnCopyDoesNotPublishPartialRawSlice) {
+  ASSERT_EQ(0, createDataBlock(&block));
+  for (int i = 1; i <= 3; ++i) {
+    auto col = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), i);
+    ASSERT_EQ(0, blockDataAppendColInfo(block, &col));
+  }
+  ASSERT_EQ(0, blockDataEnsureCapacity(block, 1));
+  for (int32_t i = 0; i < 3; ++i) ASSERT_EQ(0, colDataSetVal(column(i), 0, reinterpret_cast<const char *>(&i), false));
+  block->info.rows = 1;
+  SSDataBlock *extracted = nullptr;
+  Stub         stub;
+  stub.set(colDataSetVal, failMiddleColumnCopy);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, blockDataExtractBlock(block, 0, 1, &extracted));
+  EXPECT_EQ(nullptr, extracted);
+  blockDataDestroy(extracted);
+  extracted = nullptr;
+  stub.reset(colDataSetVal);
+  ASSERT_EQ(0, blockDataExtractBlock(block, 0, 1, &extracted));
+  auto *copied = static_cast<SColumnInfoData *>(taosArrayGet(extracted->pDataBlock, 1));
+  EXPECT_EQ(1, *reinterpret_cast<const int32_t *>(colDataGetData(copied, 0)));
+  blockDataDestroy(extracted);
+}
+}  // namespace

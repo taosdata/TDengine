@@ -1905,6 +1905,14 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_SCALAR_FIELD(sysInfo);
   COPY_SCALAR_FIELD(privInfo);
   COPY_CHAR_ARRAY_FIELD(charsetName);
+  pDst->pTxnStbSchemas = NULL;
+  pDst->txnStbSchemasLen = 0;
+  if (pSrc->pTxnStbSchemas != NULL && pSrc->txnStbSchemasLen > 0) {
+    pDst->pTxnStbSchemas = taosMemoryMalloc(pSrc->txnStbSchemasLen);
+    if (NULL == pDst->pTxnStbSchemas) return terrno;
+    memcpy(pDst->pTxnStbSchemas, pSrc->pTxnStbSchemas, pSrc->txnStbSchemasLen);
+    pDst->txnStbSchemasLen = pSrc->txnStbSchemasLen;
+  }
   return TSDB_CODE_SUCCESS;
 }
 

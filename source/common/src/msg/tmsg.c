@@ -12190,10 +12190,16 @@ int32_t tDeserializeSUserIndexReq(void *buf, int32_t bufLen, SUserIndexReq *pReq
   SDecoder decoder = {0};
   int32_t  code = 0;
   int32_t  lino;
+  char    *idxStr = NULL;
+  uint32_t idxWireLen = 0;
   tDecoderInit(&decoder, buf, bufLen);
 
   TAOS_CHECK_EXIT(tStartDecode(&decoder));
-  TAOS_CHECK_EXIT(tDecodeCStrTo(&decoder, pReq->indexFName));
+  TAOS_CHECK_EXIT(tDecodeBinary(&decoder, (uint8_t **)&idxStr, &idxWireLen));
+  if (idxWireLen == 0 || idxWireLen > sizeof(pReq->indexFName) || idxStr[idxWireLen - 1] != '\0') {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  }
+  TAOS_MEMCPY(pReq->indexFName, idxStr, idxWireLen);
   tEndDecode(&decoder);
 
 _exit:
@@ -26483,6 +26489,7 @@ int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDno
     }
   }
   tEndEncode(&encoder);
+  code = encoder.pos;
 
 _exit:
   tEncoderClear(&encoder);

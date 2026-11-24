@@ -949,6 +949,7 @@ _return:
   }
   if (code == TSDB_CODE_SUCCESS && pDeploy->task.type == STREAM_TRIGGER_TASK) {
     pDeploy->msg.trigger.pWindowPlan = NULL;
+    pDeploy->msg.trigger.pTimeAlign = NULL;
   }
 
   if (code) {
@@ -1294,6 +1295,8 @@ int32_t msmBuildReaderDeployInfo(SStmTaskDeploy* pDeploy, void* calcScanPlan, SS
     pTrigger->triggerTblSuid = pInfo->pCreate->triggerTblSuid;
     pTrigger->triggerTblType = pInfo->pCreate->triggerTblType;
     pTrigger->isTriggerTblVirt = STREAM_IS_VIRTUAL_TABLE(pInfo->pCreate->triggerTblType, pInfo->pCreate->flags);
+    pTrigger->requireLocalVtableRefs = pInfo->pCreate->pTimeAlign != NULL;
+    pTrigger->timeAlignConsumer = pTrigger->requireLocalVtableRefs && pInfo->pCreate->triggerType != WINDOW_TYPE_PERIOD;
     pTrigger->deleteReCalc = pInfo->pCreate->deleteReCalc;
     pTrigger->deleteOutTbl = pInfo->pCreate->deleteOutTbl;
     pTrigger->partitionCols = pInfo->pCreate->partitionCols;
@@ -1410,6 +1413,10 @@ int32_t msmBuildTriggerDeployInfo(SMnode* pMnode, SStmStatus* pInfo, SStmTaskDep
   pMsg->notifyEventTypes = pStream->pCreate->notifyEventTypes;
   pMsg->addOptions = pStream->pCreate->addOptions;
   pMsg->notifyHistory = pStream->pCreate->notifyHistory;
+  if (BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_TIME_ALIGN) != (pStream->pCreate->pTimeAlign != NULL)) {
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
+  }
+  TAOS_CHECK_EXIT(tCloneStreamTimeAlignSpec(pStream->pCreate->pTimeAlign, &pMsg->pTimeAlign));
   if (BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     if (pStream->pCreate->pWindowPlan == NULL) {
       TAOS_CHECK_EXIT(TSDB_CODE_INVALID_PARA);
@@ -1489,6 +1496,7 @@ _exit:
     taosArrayDestroy(pMsg->runnerList);
     pMsg->runnerList = NULL;
     tDestroyStreamWindowPlan(&pMsg->pWindowPlan);
+    tDestroyStreamTimeAlignSpec(&pMsg->pTimeAlign);
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   } else {
     mstsDebug("trigger deploy info built, readerNum:%d, runnerNum:%d", (int32_t)taosArrayGetSize(pMsg->readerList), (int32_t)taosArrayGetSize(pMsg->runnerList));
@@ -1522,6 +1530,10 @@ int32_t msmBuildRunnerDeployInfo(SStmTaskDeploy* pDeploy, SSubplan* plan, SStrea
   pMsg->topPlan = topPlan;
   pMsg->pNotifyAddrUrls = pInfo->pCreate->pNotifyAddrUrls;
   pMsg->addOptions = pStream->pCreate->addOptions;
+  // The Runner enforces admission from deployment, including for create-table retries.
+  // PERIOD consumes only metadata and never owns a bounded input round.
+  if (pStream->pCreate->triggerType == WINDOW_TYPE_PERIOD)
+    BIT_FLAG_UNSET_MASK(pMsg->addOptions, STREAM_OPTION_TIME_ALIGN);
   const int64_t openCloseEvents = EVENT_WINDOW_OPEN | EVENT_WINDOW_CLOSE;
   // OPEN and CLOSE calculations share the window's starting row.
   if ((WINDOW_TYPE_INTERVAL == pStream->pCreate->triggerType && pStream->pCreate->trigger.sliding.overlap) ||
@@ -4462,6 +4474,7 @@ static int32_t msmInitStreamDeploy(SStmStreamDeploy* pStream, SStmTaskDeploy* pD
       TSDB_CHECK_NULL(taosArrayPush(pStream->readerTasks, pDeploy), code, lino, _exit, terrno);
       break;
     case STREAM_TRIGGER_TASK:
+      if (pStream->triggerTask != NULL) TAOS_CHECK_EXIT(TSDB_CODE_DUP_KEY);
       pStream->streamId = streamId;
       pStream->triggerTask = taosMemoryMalloc(sizeof(SStmTaskDeploy));
       TSDB_CHECK_NULL(pStream->triggerTask, code, lino, _exit, terrno);
@@ -4504,6 +4517,7 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
       if (TSDB_CODE_SUCCESS == code) {
         if (pDeploy->task.type == STREAM_TRIGGER_TASK) {
           pDeploy->msg.trigger.pWindowPlan = NULL;
+          pDeploy->msg.trigger.pTimeAlign = NULL;
         }
         goto _exit;
       }
@@ -4519,6 +4533,7 @@ static int32_t msmGrpAddDeployTask(SHashObj* pHash, SStmTaskDeploy* pDeploy) {
     TAOS_CHECK_EXIT(msmInitStreamDeploy(pStream, pDeploy));
     if (pDeploy->task.type == STREAM_TRIGGER_TASK) {
       pDeploy->msg.trigger.pWindowPlan = NULL;
+      pDeploy->msg.trigger.pTimeAlign = NULL;
     }
 
     break;

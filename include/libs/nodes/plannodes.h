@@ -884,6 +884,11 @@ typedef struct SSystemTableScanPhysiNode {
   // string means "use the server default charset" (tsCharsetCxt). Serialized in
   // TLV/JSON; restored to an SConvInfo* in the sysscan operator via taosConvInit.
   char charsetName[TD_CHARSET_LEN];
+  // Batch meta txn: txn-local schemas of the super tables the client's txn altered (queryEncodeTxnStbSchemas),
+  // set only on scans of the tables listed by qSysTableNeedsTxnStbSchemas(). NULL/0 outside a txn: the field is then omitted from the
+  // serialized plan, which stays byte-identical to older versions (rolling upgrade).
+  char*   pTxnStbSchemas;
+  int32_t txnStbSchemasLen;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {

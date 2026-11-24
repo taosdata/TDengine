@@ -110,7 +110,12 @@ class FillForwardTest : public ::testing::Test {
     SFuncExecEnv env = {};
     ASSERT_TRUE(getFillforwardFuncEnv(nullptr, &env));
     std::unique_ptr<void, void (*)(void*)> result(taosMemoryCalloc(1, sizeof(SResultRowEntryInfo) + env.calcMemSize),
-                                                  [](void* p) { taosMemoryFree(p); });
+                                                  [](void* p) {
+                                                    SqlFunctionCtx cleanup = {};
+                                                    cleanup.resultInfo = static_cast<SResultRowEntryInfo*>(p);
+                                                    fillforwardFunctionCleanupExt(&cleanup);
+                                                    taosMemoryFree(p);
+                                                  });
     ASSERT_NE(result.get(), nullptr);
     std::unique_ptr<SArray, decltype(&taosArrayDestroy)> contexts(taosArrayInit(1, sizeof(SqlFunctionCtx*)),
                                                                   taosArrayDestroy);

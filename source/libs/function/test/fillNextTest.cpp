@@ -18,9 +18,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
+#include <vector>
 
 #include "builtinsimpl.h"
+#include "functionResInfoInt.h"
 #include "tdatablock.h"
 
 namespace {
@@ -41,12 +44,18 @@ class FillNextTest : public ::testing::Test {
     SColumnInfoData*                       inputs[1];
   };
 
-  static CtxHolder makeCtx(int8_t type, int32_t bytes, SColumnInfoData* output, SSDataBlock* block) {
+  static CtxHolder makeCtx(int8_t type, int32_t bytes, SColumnInfoData* output, SSDataBlock* block,
+                           SFunctParam* params = nullptr, int numParams = 0) {
     SFuncExecEnv env = {};
     EXPECT_TRUE(getFillnextFuncEnv(nullptr, &env));
     CtxHolder holder{
-        std::unique_ptr<void, void (*)(void*)>(
-            taosMemoryCalloc(1, sizeof(SResultRowEntryInfo) + env.calcMemSize), [](void* p) { taosMemoryFree(p); }),
+        std::unique_ptr<void, void (*)(void*)>(taosMemoryCalloc(1, sizeof(SResultRowEntryInfo) + env.calcMemSize),
+                                               [](void* p) {
+                                                 SqlFunctionCtx cleanup = {};
+                                                 cleanup.resultInfo = static_cast<SResultRowEntryInfo*>(p);
+                                                 fillnextFunctionCleanupExt(&cleanup);
+                                                 taosMemoryFree(p);
+                                               }),
         {}};
     EXPECT_NE(holder.result.get(), nullptr);
     holder.ctx.functionId = fmGetFuncId("fill_next");
@@ -54,6 +63,8 @@ class FillNextTest : public ::testing::Test {
     holder.ctx.resDataInfo.bytes = bytes;
     holder.ctx.resDataInfo.interBufSize = env.calcMemSize;
     holder.ctx.resultInfo = static_cast<SResultRowEntryInfo*>(holder.result.get());
+    holder.ctx.param = params;
+    holder.ctx.numOfParams = numParams;
     EXPECT_EQ(fillnextFunctionSetup(&holder.ctx, holder.ctx.resultInfo), TSDB_CODE_SUCCESS);
     holder.ctx.pOutput = reinterpret_cast<char*>(output);
     holder.ctx.pSrcBlock = block;
@@ -66,6 +77,51 @@ class FillNextTest : public ::testing::Test {
     holder.ctx.input.startRowIndex = startRow;
     holder.ctx.input.numOfRows = rows;
     holder.ctx.offset = offset;
+  }
+
+  // Submit one descending row per block. The last row supplies the only non-NULL value.
+  static void checkDescendingMonth(std::vector<int64_t> times, const char* zone, int maxQueued, int firstFilled) {
+    const int            n = static_cast<int>(times.size());
+    std::vector<int32_t> values(n, 42), out(n, 0);
+    std::vector<char>    nulls((n + 7) / 8), outNulls(nulls.size());
+    SColumnInfoData      input = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+    input.pData = reinterpret_cast<char*>(values.data());
+    input.nullbitmap = nulls.data();
+    for (int i = 0; i < n - 1; ++i) colDataSetNULL(&input, i);
+    SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+    ts.info.precision = TSDB_TIME_PRECISION_MILLI;
+    ts.pData = reinterpret_cast<char*>(times.data());
+    SColumnInfoData output = input;
+    output.pData = reinterpret_cast<char*>(out.data());
+    output.nullbitmap = outNulls.data();
+    char zoneValue[TD_TIMEZONE_LEN + VARSTR_HEADER_SIZE] = {};
+    STR_TO_VARSTR(zoneValue, zone);
+    SSDataBlock block = {};
+    block.info.rows = n;
+    block.info.id.groupId = 1;
+    SFunctParam params[6] = {};
+    for (int i = 2; i < 6; ++i) params[i].type = FUNC_PARAM_TYPE_VALUE;
+    params[2].param.i = 1;
+    params[3].param.i = 'n';
+    params[4].param.pz = zoneValue;
+    params[5].param.i = 3;
+    auto             holder = makeCtx(TSDB_DATA_TYPE_INT, sizeof(int32_t), &output, &block, params, 6);
+    SColumnInfoData* inputs[] = {&input, &ts};
+    holder.ctx.input.pData = inputs;
+    SqlFunctionCtx*                                      ctx = &holder.ctx;
+    std::unique_ptr<SArray, decltype(&taosArrayDestroy)> contexts(taosArrayInit(1, sizeof(ctx)), taosArrayDestroy);
+    ASSERT_NE(nullptr, taosArrayPush(contexts.get(), &ctx));
+    auto* state = static_cast<SFillNextInfo*>(GET_ROWCELL_INTERBUF(ctx->resultInfo));
+    int   peak = 0;
+    for (int i = 0; i < n; ++i) {
+      ctx->input.startRowIndex = ctx->offset = i;
+      ctx->input.numOfRows = 1;
+      ASSERT_EQ(0, fillnextFunctionByRow(contexts.get()));
+      peak = (std::max)(peak, static_cast<int>(taosArrayGetSize(state->pPending)));
+    }
+    EXPECT_LE(peak, maxQueued);
+    RecordProperty("peak_queued_positions", peak);
+    for (int i = 0; i < n; ++i) expectInt(&output, i, i < firstFilled, 42);
   }
 
   static int32_t readInt(SColumnInfoData* col, int32_t row) {
@@ -217,6 +273,76 @@ TEST_F(FillNextTest, AllNullColumnStaysNull) {
 
   for (int32_t i = 0; i < 3; ++i) expectInt(&output, i, true, 0);
   EXPECT_TRUE(fillnextHasPending(&holder.ctx));
+}
+
+TEST_F(FillNextTest, DescendingZeroCalendarSpanKeepsOnlyCurrentTimestamp) {
+  constexpr int   n = 257;
+  int32_t         values[n] = {}, out[n] = {};
+  int64_t         times[n] = {};
+  char            nulls[(n + 7) / 8] = {}, outNulls[(n + 7) / 8] = {};
+  SColumnInfoData input = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 2);
+  input.pData = reinterpret_cast<char*>(values);
+  input.nullbitmap = nulls;
+  SColumnInfoData ts = createColumnInfoData(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1);
+  ts.pData = reinterpret_cast<char*>(times);
+  SColumnInfoData output = input;
+  output.nullbitmap = outNulls;
+  output.pData = reinterpret_cast<char*>(out);
+  for (int i = 0; i < n - 1; ++i) {
+    times[i] = n - i;
+    colDataSetNULL(&input, i);
+  }
+  times[n - 1] = times[n - 2];
+  values[n - 1] = 42;
+  SSDataBlock block = {};
+  block.info.rows = n;
+  block.info.id.groupId = 1;
+  SFunctParam params[6] = {};
+  for (int i = 2; i < 6; ++i) params[i].type = FUNC_PARAM_TYPE_VALUE;
+  params[3].param.i = 'n';
+  params[5].param.i = 3;
+  CtxHolder        holder = makeCtx(TSDB_DATA_TYPE_INT, sizeof(int32_t), &output, &block, params, 6);
+  SColumnInfoData* inputs[] = {&input, &ts};
+  holder.ctx.input.pData = inputs;
+  holder.ctx.input.numOfRows = n - 1;
+  SqlFunctionCtx*                                      ctx = &holder.ctx;
+  std::unique_ptr<SArray, decltype(&taosArrayDestroy)> contexts(taosArrayInit(1, sizeof(ctx)), taosArrayDestroy);
+  ASSERT_NE(nullptr, taosArrayPush(contexts.get(), &ctx));
+  ASSERT_EQ(0, fillnextFunctionByRow(contexts.get()));
+  auto* state = static_cast<SFillNextInfo*>(GET_ROWCELL_INTERBUF(holder.ctx.resultInfo));
+  EXPECT_EQ(1, taosArrayGetSize(state->pPending));
+  holder.ctx.input.startRowIndex = n - 1;
+  holder.ctx.input.numOfRows = 1;
+  holder.ctx.offset = n - 1;
+  ASSERT_EQ(0, fillnextFunctionByRow(contexts.get()));
+  expectInt(&output, n - 3, true, 0);
+  expectInt(&output, n - 2, false, 42);
+  expectInt(&output, n - 1, false, 42);
+}
+
+TEST_F(FillNextTest, DescendingMonthDiscardsUnreachableNullBatches) {
+  constexpr int        batches = 192;
+  std::vector<int64_t> times(batches);
+  for (int i = 0; i < batches; ++i) times[i] = (batches - i) * INT64_C(61) * 86400000;
+  checkDescendingMonth(times, "UTC", 1, batches - 1);
+}
+
+TEST_F(FillNextTest, DescendingMonthCompactsExpiredPrefixWithLiveSuffix) {
+  constexpr int        batches = 192;
+  std::vector<int64_t> times(batches);
+  for (int i = 0; i < batches; ++i) times[i] = INT64_C(1704067200000) + (batches - 1 - i) * INT64_C(86400000);
+  checkDescendingMonth(times, "UTC", 70, batches - 32);
+}
+
+TEST_F(FillNextTest, DescendingMonthKeepsCandidateAcrossDstGap) {
+  // Feb 10 03:00 EST expires at Mar 10 03:00 EDT, but the earlier 02:30 EST value expires
+  // at 03:30 EDT after spring-forward normalization. Check its inclusive endpoint and the next tick.
+  checkDescendingMonth({1710055800001, 1710055800000, 1707552000000, 1707550200000}, "America/New_York", 3, 1);
+}
+
+TEST_F(FillNextTest, DescendingMonthKeepsClampedMonthEndCandidate) {
+  // Jan 31 midnight and Jan 30 noon clamp to different times on Feb 29.
+  checkDescendingMonth({1709208000001, 1709208000000, 1706659200000, 1706616000000}, "UTC", 3, 1);
 }
 
 TEST_F(FillNextTest, MultipleColumnsKeepIndependentPending) {

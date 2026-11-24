@@ -22,6 +22,13 @@
 #include "tarray.h"
 #include "tobjpool.h"
 
+TEST(objpoolTest, clear_before_pool_attachment) {
+  SObjList list = {};
+  taosObjListClear(&list);
+  EXPECT_EQ(list.pPool, nullptr);
+  EXPECT_EQ(list.neles, 0);
+}
+
 TEST(objpoolTest, shrink_empty_pool_rebuilds_shared_free_list) {
   SObjPool pool = {};
   SObjList first = {};
@@ -158,4 +165,7 @@ TEST(objpoolTest, objpool_basic_test) {
       ASSERT_EQ(*pv, *pr);
     }
   }
+  taosObjListClear(&list);
+  taosArrayDestroy(ref);
+  taosObjPoolDestroy(&pool);
 }

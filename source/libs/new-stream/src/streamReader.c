@@ -194,8 +194,15 @@ bool stReaderTaskGetShallowMemoryEstimate(const SStreamReaderTask *pTask, int64_
     return true;
   }
 
-  const SStreamTriggerReaderInfo *pInfo = (const SStreamTriggerReaderInfo *)pTask->info;
+  SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)pTask->info;
   int64_t total = sizeof(*pInfo);
+  taosRLockLatch(&pInfo->timeAlignScanLock);
+  size_t scanBytes = taosHashGetMemSize(pInfo->pTimeAlignScans);
+  size_t roundBytes = taosHashGetMemSize(pInfo->pTimeAlignRounds);
+  bool   widthsCounted = stReaderAddArrayMemory(&total, pInfo->timeAlignWidthTxns);
+  taosRUnLockLatch(&pInfo->timeAlignScanLock);
+  if (!widthsCounted || !stReaderAddMemoryBytes(&total, scanBytes) || !stReaderAddMemoryBytes(&total, roundBytes))
+    return false;
   const SHashObj *hashes[] = {pInfo->streamTaskMap, pInfo->groupIdMap, pInfo->pTableMetaCacheTrigger,
                               pInfo->pTableMetaCacheCalc, pInfo->triggerTableSchemaMapVTable};
   const SSHashObj *simpleHashes[] = {pInfo->uidHashTrigger, pInfo->uidHashCalc};
@@ -1213,6 +1220,7 @@ void releaseStreamTask(void* p) {
   blockDataDestroy(pTask->pResBlockDst);
   pTask->storageApi->tsdReader.tsdReaderClose(pTask->pReader);
   cleanupQueryTableDataCond(&pTask->cond);
+  taosArrayDestroy(pTask->rawColumnAliases);
   tSimpleHashCleanup(pTask->pRollupMetaByUid);
   tSimpleHashCleanup(pTask->pRollupMetaCount);
   taosMemoryFree(pTask->pMetaTables);
@@ -2015,6 +2023,11 @@ void streamVTableInfoCacheDestroy(SStreamVTableInfoCache *pCache) {
 static void releaseStreamReaderInfo(void* p) {
   if (p == NULL) return;
   SStreamTriggerReaderInfo* pInfo = (SStreamTriggerReaderInfo*)p;
+  taosArrayDestroy(pInfo->timeAlignWidthTxns);
+  taosHashCleanup(pInfo->pTimeAlignScans);
+  pInfo->pTimeAlignScans = NULL;
+  taosHashCleanup(pInfo->pTimeAlignRounds);
+  pInfo->pTimeAlignRounds = NULL;
   taosHashCleanup(pInfo->streamTaskMap);
   taosHashCleanup(pInfo->groupIdMap);
   taosArrayDestroy(pInfo->pendingGroupColRefresh);
@@ -2046,6 +2059,8 @@ static void releaseStreamReaderInfo(void* p) {
   qStreamDestroyTableInfo(&pInfo->vSetTableList);
   filterFreeInfo(pInfo->pFilterInfo);
   pInfo->pFilterInfo = NULL;
+  blockDataDestroy(pInfo->extendedWalBlock[0]);
+  blockDataDestroy(pInfo->extendedWalBlock[1]);
   blockDataDestroy(pInfo->triggerBlock);
   pInfo->triggerBlock = NULL;
   blockDataDestroy(pInfo->calcBlock);
@@ -2162,6 +2177,8 @@ static SStreamTriggerReaderInfo* createStreamReaderInfo(void* pTask, const SStre
 
   sStreamReaderInfo->lock = 0;
   sStreamReaderInfo->pTask = pTask;
+  sStreamReaderInfo->timeAlignConsumer = pMsg->msg.trigger.timeAlignConsumer;
+  sStreamReaderInfo->requireLocalVtableRefs = pMsg->msg.trigger.requireLocalVtableRefs;
   sStreamReaderInfo->tableType = pMsg->msg.trigger.triggerTblType;
   sStreamReaderInfo->isVtableStream = pMsg->msg.trigger.isTriggerTblVirt;
 

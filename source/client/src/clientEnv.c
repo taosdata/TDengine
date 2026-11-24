@@ -944,6 +944,9 @@ void doDestroyRequest(void *p) {
 
   int64_t nextReqRefId = pRequest->relation.nextRefId;
 
+  // safety net: a request that never got its callback must not keep its txn's statement slot
+  tscTxnReleaseStmtSlot(pRequest);
+
   int32_t code = taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
   if (TSDB_CODE_SUCCESS != code) {
     tscDebug("failed to remove request from hash since %s", tstrerror(code));

@@ -1216,6 +1216,7 @@ typedef struct {
   uint8_t     autoCreateCtb;  // 0x0 not auto create, 0x01 auto create
   const char* dbFName;
   const char* tbName;
+  int64_t     txnId;  // batch meta txn: read-your-own-writes for the table cfg request (0 = not in txn)
 } SBuildTableInput;
 
 typedef struct {
@@ -8104,6 +8105,9 @@ typedef struct {
   int64_t  version;
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
+
+// Accepted only by the admission worker, never by ordinary submit preprocessing or apply.
+#define STREAM_CONDITIONAL_SUBMIT_VERSION INT64_C(0x54415201)
 
 int32_t transformRawSSubmitTbData(void* data, int64_t suid, int64_t uid, int32_t sver);
 int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);

@@ -243,3 +243,9 @@ TARGET_LINK_LIBRARIES(
 )
 add_test(NAME streamTriggerMergerTest COMMAND streamTriggerMergerTest)
 endif(NOT ${TD_WINDOWS})
+
+add_executable(streamTimeAlignTest streamTimeAlignTest.cpp)
+DEP_ext_gtest(streamTimeAlignTest)
+target_include_directories(streamTimeAlignTest PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+target_link_libraries(streamTimeAlignTest PRIVATE new-stream function)
+add_test(NAME streamTimeAlignTest COMMAND streamTimeAlignTest)

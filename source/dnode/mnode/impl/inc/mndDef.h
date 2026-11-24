@@ -354,7 +354,7 @@ typedef enum {
 
 typedef struct {
   txn_id_t id;              // transaction ID (SDB key)
-  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / ROLLEDBACK / ZOMBIE
+  int8_t   stage;           // terminal stage: UTXN_STAGE_COMMITTED / UTXN_STAGE_ROLLEDBACK (nothing else is written)
   int8_t   rollbackReason;  // ETxnRollbackReason (0 = explicit; only meaningful when stage == ROLLEDBACK)
   int64_t  createTime;      // creation timestamp (ms)
   int64_t  completedAt;     // completion timestamp (ms); used for adaptive GC TTL

@@ -212,3 +212,23 @@ Compared with `v3.3.6.0`, stream processing has been completely redesigned. Befo
 - Delete all result tables.
 
 Note: If the above steps are not performed, taosd will fail to start.
+
+### Initialization and recalculation for TIME_ALIGN
+
+Even without `FILL_HISTORY`, the first trigger row can use an earlier non-NULL value. The lookup itself emits no window. With history enabled, the start time selects the first eligible trigger row. An earlier reading can still supply its predecessor. The stream looks up the last eligible value before the scan starts, then updates it as it reads rows across windows. Both reads follow the same visibility rules as other streams. The calculation query takes its own snapshot.
+
+`DELETE_RECALC`, `IGNORE_DISORDER`, `EXPIRED_TIME` and the window type determine which changes qualify for automatic recalculation. When deletion recalculation is off, an ordinary deletion leaves counts already consumed by an open window in place. When a change qualifies, one source reading can affect several later heartbeats and windows. Recalculation can overwrite a row with the same output key. A previously written row can remain if its old window produces no replacement.
+
+A new historical scan or recalculation reads the available source history. If a source sample has been overwritten, deleted, or expired, a new scan can produce a different predecessor. `DELETE_RECALC` controls whether a deletion triggers recalculation.
+
+If an accepted correction still needs later input to close a nested window, the stream saves the recalculation progress for that group. After a restart, new input can finish the correction. A correction that had already expired before the restart stays ignored.
+
+When a late write overlaps input that a still-open nested window has already consumed, a checkpoint can preserve the window’s start, row count, and parent. With the same source binding, the window can then continue after a restart even if the source now contains a replacement value. Checkpoints written by older versions can recover only the window information they saved.
+
+On rebinding, the next calculation uses the new reference. A calculation already in progress keeps its snapshot. On recovery, the stream rebuilds its predecessors from the history currently visible to it. Edits and retention can therefore change the first value after recovery. Budget for predecessor lookups when source data is sparse and for one candidate per required source column per active virtual child. Use participating nodes that support aligned stream triggers.
+
+Every source column visible to the trigger must still reference local data after a virtual table changes. This includes columns omitted from the trigger expression. During a rolling upgrade, each participating Reader must support metadata validation for aligned `PERIOD` triggers and the new physical width when a binding widens.
+
+Before creating an aligned stream, upgrade every management node that can become leader. Upgrade every participating Reader and every node that can host the Trigger, including a dedicated Trigger node. For non-`PERIOD` aligned streams, also upgrade every node eligible to run the top-level Runner after deployment, migration or failover. Non-`PERIOD` bindings require Readers that can preserve physical WAL timestamps when source and virtual table precisions differ. Older nodes reject these aligned tasks during deployment.
+
+For non-`PERIOD` aligned streams, upgrade every replica that can become leader of a result vgroup before the first result write. Include vgroups in a separate result database. An older result leader rejects the conditional submit at write time, even if deployment succeeded. An upgraded result leader checks the result with the Trigger before queuing the write.

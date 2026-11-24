@@ -15,17 +15,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../../parser/inc/parUtil.h"
+#include "cmdnodes.h"
 #include "extConnector.h"
 #include "filter.h"
 #include "functionMgt.h"
 #include "parser.h"
-#include "../../parser/inc/parUtil.h"
 #include "planInt.h"
 #include "planner.h"
 #include "plannodes.h"
 #include "querynodes.h"
-#include "cmdnodes.h"
 #include "systable.h"
+#include "tdataformat.h"
 #include "tglobal.h"
 #include "ttime.h"
 
@@ -860,6 +861,28 @@ static SNode* createRealTableDataCol(SRealTableNode* pTable, const SSchema* pSch
   tstrncpy(pCol->node.aliasName, pSchema->name, TSDB_COL_NAME_LEN);
   tstrncpy(pCol->node.userAlias, pSchema->name, TSDB_COL_NAME_LEN);
   return (SNode*)pCol;
+}
+
+// Keep collected columns in place, then append the remaining timestamp contributors in schema order.
+static int32_t appendTimeAlignRawScanCols(SRealTableNode* pTable, SNodeList* pScanCols) {
+  uint8_t seen[BIT1_SIZE(UINT16_MAX + 1)] = {0};
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pScanCols) {
+    if (nodeType(pNode) == QUERY_NODE_COLUMN) {
+      uint16_t id = (uint16_t)((SColumnNode*)pNode)->colId;
+      SET_BIT1(seen, id, 1);
+    }
+  }
+  for (int32_t i = 1; i < pTable->pMeta->tableInfo.numOfColumns; ++i) {
+    const SSchema* pSchema = &pTable->pMeta->schema[i];
+    uint16_t       id = (uint16_t)pSchema->colId;
+    if (GET_BIT1(seen, id)) continue;
+    SNode* pCol = createRealTableDataCol(pTable, pSchema);
+    if (pCol == NULL) return terrno;
+    TAOS_CHECK_RETURN(nodesListStrictAppend(pScanCols, pCol));
+    SET_BIT1(seen, id, 1);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static SNode* createRealAlignOutCol(SRealTableNode* pTable, const SSchema* pSchema, const SAlignOutCol* pOut) {
@@ -2379,6 +2402,13 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   if (TSDB_CODE_SUCCESS == code) {
     code = prepareRealTimeAlignScanCols(pRealTable, &pScan->pScanCols, &pScan->pAlignCols);
+  }
+
+  // A virtual trigger merges timestamps from all participating source columns,
+  // even when neither a window expression nor PRE_FILTER consumes their values.
+  if (TSDB_CODE_SUCCESS == code && inStreamTriggerClause(pCxt->pPlanCxt) && pRealTable->pAlignCols != NULL &&
+      pRealTable->outputRaw) {
+    code = appendTimeAlignRawScanCols(pRealTable, pScan->pScanCols);
   }
 
   if (TSDB_CODE_SUCCESS == code) {

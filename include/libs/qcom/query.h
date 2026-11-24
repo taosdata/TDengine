@@ -559,6 +559,12 @@ typedef struct SRequestConnInfo {
   int64_t  requestObjRefId;
   SEpSet   mgmtEps;
   int64_t  txnId;  // batch meta txn: same-txn visibility for PRE_CREATE entries
+  // Batch meta txn: borrowed refs to the connection's txn-local state (NULL when the txn has not
+  // touched anything yet). They let the catalog tell which tables this txn has modified, so responses
+  // for untouched tables can still be cached. Whoever sets txnId must fill these too: use
+  // parseCxtToConnInfo(), otherwise txn-touched tables would look untouched and be cached.
+  SHashObj* pTxnTableMeta;  // "db.table" -> STableMeta* (NULL value = dropped in txn)
+  SHashObj* pTxnSuidMap;    // stb suid -> stb full name, for stbs touched in txn
 } SRequestConnInfo;
 
 typedef void (*__freeFunc)(void* param);
@@ -596,6 +602,7 @@ int32_t cleanupTaskQueue();
  * @return
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+bool    taosInAsyncTask(void);
 int32_t taosAsyncWait();
 int32_t taosAsyncRecover();
 int32_t taosStmt2AsyncBind(__async_exec_fn_t execFn, void* execParam);
@@ -637,6 +644,29 @@ int32_t        getNormalColSchemaIndex(const STableMeta* pTableMeta, const char*
 int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateVCTableMetaFromMsg(STableMetaRsp *msg, SVCTableMeta **pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
+// Batch meta txn: schema of a super table as seen by the txn that altered it (ALTER STB is applied to the
+// vnodes only at COMMIT). The client ships these with the system table scans listed by qSysTableNeedsTxnStbSchemas() so that
+// the vnode renders child-table rows with the txn's tag/column names and types. Display only: tag values are
+// still read by colId from the vnode, ALTER never changes a colId.
+// Upper bound of the encoded blob. One super table is at most (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS) schemas of well
+// under 64 bytes each (about 2 MB), and a txn alters a handful of them. The bound only exists so that a forged
+// length in a plan cannot turn into a huge allocation: every decoder of the blob must reject anything above it.
+#define TXN_STB_SCHEMAS_MAX_LEN (64 * 1024 * 1024)
+
+typedef struct STxnStbSchema {
+  int64_t        suid;
+  SSchemaWrapper schemaRow;
+  SSchemaWrapper schemaTag;
+  SExtSchema*    pExtSchemas;  // schemaRow.nCols entries (typeMod), never NULL after decode
+} STxnStbSchema;
+
+// Encode the super tables in pStbMetas (element: const STableMeta*, tableType must be TSDB_SUPER_TABLE).
+// *ppBuf is taosMemoryMalloc'd, *ppBuf == NULL / *pLen == 0 when the array is empty.
+int32_t queryEncodeTxnStbSchemas(const SArray* pStbMetas, char** ppBuf, int32_t* pLen);
+// Decode into a hash suid(int64) -> STxnStbSchema (release with queryDestroyTxnStbSchemas).
+int32_t queryDecodeTxnStbSchemas(const char* pBuf, int32_t len, SHashObj** ppHash);
+void    queryDestroyTxnStbSchemas(SHashObj* pHash);
+
 int32_t queryCreateTableMetaExFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 void    queryFreeSeriesEntries(SSeriesEntry* pSeries, int32_t nSeries);
 // Legacy names: both helpers handle every owned condition string in SColRef.

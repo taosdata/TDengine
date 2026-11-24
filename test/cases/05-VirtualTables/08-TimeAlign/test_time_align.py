@@ -1911,14 +1911,13 @@ class TestTimeAlign:
     def test_table_function_positions(self):
         """Invalid TABLE(...) contents and TIME_ALIGN outside table positions.
 
-        `TABLE(...)` only accepts `TIME_ALIGN([db.]table [, args])` (the
-        legacy `TIME_ALIGN(TABLE [db.]table [, args])` form is also accepted);
-        anything else (another function, raw values, a missing table name or
-        malformed argument lists) is a syntax error.
+        Ordinary queries accept a table name with or without the TABLE keyword
+        inside TIME_ALIGN. Other functions, raw values, a missing table name
+        and malformed argument lists are rejected.
 
         Using `time_align` as a scalar function reports function-not-defined,
         and the FS 4.8.4 unsupported positions are rejected: INSERT ... SELECT
-        and CREATE STREAM with a dedicated usage error, CREATE TOPIC by the
+        with a dedicated usage error, CREATE TOPIC by the
         topic-query validation, and DDL/DELETE by the grammar.
 
         Catalog:
@@ -1993,10 +1992,6 @@ class TestTimeAlign:
         # 3. FS 4.8.4 unsupported statement positions.
         tdSql.error(
             "insert into t_gaps select * from table(time_align(table vt_gaps))",
-            PAR_INVALID_OPTR_USAGE)
-        tdSql.error(
-            "create stream ta_s interval(1s) from t_gaps into ta_s_out as "
-            "select * from table(time_align(table vt_gaps))",
             PAR_INVALID_OPTR_USAGE)
         tdSql.error(
             "create topic ta_topic as select * from table(time_align(table vt_gaps))",
@@ -2290,6 +2285,41 @@ class TestTimeAlign:
         finally:
             conn.close()
             tdSql.execute(f"drop user if exists {user}")
+
+    def test_desc_calendar_gap(self):
+        """Descending PREV preserves a predecessor whose expiry crosses a DST gap.
+
+        Compare both scan orders at the normalized deadline, one millisecond beyond it
+        and after an intervening NULL whose local time has a different expiry.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, time_range, ci
+
+        Feishu: https://project.feishu.cn/taosdata_td/feature/detail/7163362578
+
+        History:
+            - 2026-11-22 OpenAI Created
+        """
+        tdSql.execute("create table d_gap(ts timestamp, v int)")
+        tdSql.execute("insert into d_gap values (1707550200000, 7) (1707552000000, NULL) "
+                      "(1710055200000, NULL) (1710055800000, NULL) (1710055800001, NULL)")
+        tdSql.query("select timezone()")
+        original_zone = tdSql.queryResult[0][0].split()[0]
+        try:
+            tdSql.execute("set timezone 'America/New_York'")
+            sql = "select ts, v_p from table(time_align(table d_gap, 'v:PREV(1n):_p')) order by ts "
+            tdSql.query("explain " + sql + "desc")
+            assert all("Sort" not in str(line[0]) for line in tdSql.queryResult)
+            for direction, expected in (("asc", [7, 7, 7, 7, None]), ("desc", [None, 7, 7, 7, 7])):
+                tdSql.query(sql + direction)
+                assert [row[1] for row in tdSql.queryResult] == expected
+        finally:
+            tdSql.execute(f"set timezone '{original_zone}'")
+
     def test_time_range_prev(self):
         """PREV(duration) bounds how far the predecessor value may be.
 

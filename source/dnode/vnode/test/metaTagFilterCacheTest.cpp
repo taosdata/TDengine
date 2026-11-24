@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <array>
 #include <cstring>
 #include <functional>
@@ -406,7 +407,7 @@ TEST_F(MetaTagFilterCacheTest, VersionedBatchTagsDoNotScanTheVersionRangePerUid)
 
   // The existing cursor failure hook must remain unused on exact-version hits.
   failCursorSeek = true;
-  ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), batchVersion));
+  ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), batchVersion, 0));
   EXPECT_TRUE(failCursorSeek);
   failCursorSeek = false;
   for (int32_t i = 0; i < count; ++i) {
@@ -431,7 +432,7 @@ TEST_F(MetaTagFilterCacheTest, MissingExactVersionFallsBackWithoutReadingFutureT
 
   for (int64_t version : {oldVersion, betweenVersion, int64_t(-1)}) {
     SCOPED_TRACE(version);
-    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), version));
+    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), version, 0));
     auto* result = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
     ASSERT_NE(nullptr, result->pTagVal);
     expectIntTagValue(result->pTagVal, version == -1 ? 3 : 1);
@@ -513,6 +514,223 @@ TEST_F(MetaTagFilterCacheTest, VersionedReaderExactHitKeepsPendingCreateVisibili
   ASSERT_EQ(TSDB_TXN_INLINE_THRESHOLD + 1,
             vnodeTxnVacuumBatch(&vnode_, TSDB_TXN_INLINE_THRESHOLD + 1));
   vnode_.vacuumRunning = 0;
+}
+
+// Batch meta txn: a child's tag changed by an uncommitted txn (PRE_ALTER) is read-your-own-writes for that txn
+// only; every other reader, including non-txn readers (txnId 0), is redirected to the pre-alter value.
+TEST_F(MetaTagFilterCacheTest, PreAlterTagIsVisibleToOwnerTxnOnly) {
+  constexpr uint64_t uid = 800001;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t origVersion = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, putChild(uid, 2));  // the in-place (dirty) new tag value
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto readByVersionApi = [&](int64_t txnId, int32_t expected) {
+    ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+    ASSERT_NE(nullptr, tags);
+    STUidTagInfo info = {};
+    info.uid = uid;
+    ASSERT_NE(nullptr, taosArrayPush(tags.get(), &info));
+    ASSERT_EQ(0, metaGetTableTagsByUidsVersion(&vnode_, kSuid, tags.get(), -1, txnId));
+    auto* got = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, got->pTagVal);
+    expectIntTagValue(got->pTagVal, expected);
+  };
+  auto readByCursorApi = [&](int64_t txnId, int32_t expected) {
+    ArrayOwner tags(taosArrayInit(1, sizeof(STUidTagInfo)), destroyVersionTagList);
+    ASSERT_NE(nullptr, tags);
+    ASSERT_EQ(0, metaGetTableTags(&vnode_, kSuid, tags.get(), txnId));
+    ASSERT_EQ(1, taosArrayGetSize(tags.get()));
+    auto* got = static_cast<STUidTagInfo*>(taosArrayGet(tags.get(), 0));
+    ASSERT_NE(nullptr, got->pTagVal);
+    expectIntTagValue(got->pTagVal, expected);
+  };
+
+  readByVersionApi(kTxnId, 2);      // the altering txn sees its own write
+  readByVersionApi(0, 1);           // non-txn reader sees the committed value
+  readByVersionApi(kOtherTxnId, 1); // another txn sees the committed value
+  readByCursorApi(kTxnId, 2);
+  readByCursorApi(0, 1);
+  readByCursorApi(kOtherTxnId, 1);
+}
+
+// Batch meta txn: what each by-uid reader entry returns for one table, to one reader. The three entries must agree
+// (they share metaApplyTxnVisibility), so every visibility test asks all three the same question.
+struct ByUidVisibility {
+  int32_t byUid;
+  int32_t byVersionUid;
+  int32_t byUidCache;
+};
+
+static ByUidVisibility readByUidEntries(SVnode* pVnode, int64_t readerTxnId, int64_t version, tb_uid_t uid) {
+  auto open = [&](SMetaReader* reader) { metaReaderDoInit(reader, pVnode->pMeta, META_READER_NOLOCK, readerTxnId); };
+  ByUidVisibility out = {};
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byUid = metaReaderGetTableEntryByUid(&reader, uid);
+    metaReaderClear(&reader);
+  }
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byVersionUid = metaReaderGetTableEntryByVersionUid(&reader, version, uid);
+    metaReaderClear(&reader);
+  }
+  {
+    SMetaReader reader = {};
+    open(&reader);
+    out.byUidCache = metaReaderGetTableEntryByUidCache(&reader, uid);
+    metaReaderClear(&reader);
+  }
+  return out;
+}
+
+static void expectAllEntries(const ByUidVisibility& got, int32_t expected, const char* what) {
+  EXPECT_EQ(expected, got.byUid) << what << ": metaReaderGetTableEntryByUid";
+  EXPECT_EQ(expected, got.byVersionUid) << what << ": metaReaderGetTableEntryByVersionUid";
+  EXPECT_EQ(expected, got.byUidCache) << what << ": metaReaderGetTableEntryByUidCache";
+}
+
+// A table the txn dropped (PRE_DROP, not committed) is gone for that txn and still there for everyone else, through
+// every by-uid entry. After the txn commits it is gone for everyone.
+TEST_F(MetaTagFilterCacheTest, PreDropIsInvisibleToOwnerTxnOnly) {
+  constexpr tb_uid_t uid = 810001;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t version = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "owner txn");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn reader");
+  expectAllEntries(readByUidEntries(&vnode_, kOtherTxnId, version, uid), 0, "another txn");
+}
+
+// A table created by a txn that has since ROLLED BACK is invisible to everybody, the creating txn's own reader
+// included. (metaReaderGetTableEntryByVersionUid used to lack this check.)
+TEST_F(MetaTagFilterCacheTest, PreCreateOfRolledBackTxnIsInvisibleToEveryone) {
+  constexpr tb_uid_t uid = 810101;
+  ASSERT_EQ(0, putPendingChild(uid, 1));
+  const int64_t version = version_;
+
+  // before the outcome is known: only the creating txn sees it
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), 0, "creator, txn open");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "non-txn, txn open");
+
+  // record the outcome the way the lazy ROLLBACK does: a finalized marker, with the entry not yet vacuumed
+  int8_t rolledBack = TXN_META_ROLLEDBACK;
+  ASSERT_EQ(0, taosHashPut(vnode_.pTxnMetaCache, &kTxnId, sizeof(kTxnId), &rolledBack, sizeof(rolledBack)));
+  ASSERT_EQ(TXN_META_ROLLEDBACK, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST,
+                   "creator, txn rolled back");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST,
+                   "non-txn, txn rolled back");
+}
+
+// The children a super table change must reach: PRE_CREATE children are skipped for a non-txn caller and for another
+// txn, and included for the txn that created them. For the physical drop of the super table every child belongs to
+// it, whoever may see it (includeAllPreCreate).
+TEST_F(MetaTagFilterCacheTest, ChildListIncludesPendingChildrenOfTheSameTxnOnly) {
+  constexpr tb_uid_t kCommitted = 820001, kPending1 = 820002, kPending2 = 820003;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(kCommitted, 0));
+  ASSERT_EQ(0, putPendingChild(kPending1, 1));
+  ASSERT_EQ(0, putPendingChild(kPending2, 2));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto childrenFor = [&](int64_t txnId, bool includeAll = false) {
+    SArray* list = nullptr;
+    EXPECT_EQ(0, metaGetChildUidsOfSuperTableTxn(vnode_.pMeta, kSuid, txnId, includeAll, &list));
+    std::vector<uint64_t> uids;
+    for (size_t i = 0; list != nullptr && i < taosArrayGetSize(list); ++i) {
+      uids.push_back(*static_cast<tb_uid_t*>(taosArrayGet(list, i)));
+    }
+    taosArrayDestroy(list);
+    std::sort(uids.begin(), uids.end());
+    return uids;
+  };
+
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted, kPending1, kPending2}), childrenFor(kTxnId));
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted}), childrenFor(0));
+  EXPECT_EQ((std::vector<uint64_t>{kCommitted}), childrenFor(kOtherTxnId));
+
+  // the physical drop of the super table: all of them, for any caller
+  const std::vector<uint64_t> all{kCommitted, kPending1, kPending2};
+  EXPECT_EQ(all, childrenFor(0, true));
+  EXPECT_EQ(all, childrenFor(kTxnId, true));
+  EXPECT_EQ(all, childrenFor(kOtherTxnId, true));
+
+  // the non-txn entry point keeps its old contract
+  SArray* plain = nullptr;
+  ASSERT_EQ(0, metaGetChildUidsOfSuperTable(vnode_.pMeta, kSuid, &plain));
+  EXPECT_EQ(1, taosArrayGetSize(plain));
+  taosArrayDestroy(plain);
+}
+
+// A child created and dropped inside one txn (PRE_CREATE_DROP) is gone for every reader, the txn itself included, so a
+// super table change must not reach it. Only the physical drop of the super table (includeAllPreCreate) still lists it,
+// because the entry has not been vacuumed yet and must go with its super table.
+TEST_F(MetaTagFilterCacheTest, PreCreateDropChildIsListedOnlyForPhysicalStbDrop) {
+  constexpr tb_uid_t kCommitted = 821001, kCreatedAndDropped = 821002;
+  constexpr int64_t  kOtherTxnId = 99;
+  ASSERT_EQ(0, putChild(kCommitted, 0));
+  ASSERT_EQ(0, putPendingChild(kCreatedAndDropped, 1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, kCreatedAndDropped, kTxnId, META_TXN_PRE_CREATE_DROP, -1));
+  ASSERT_TRUE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  auto childrenFor = [&](int64_t txnId, bool includeAll) {
+    SArray* list = nullptr;
+    EXPECT_EQ(0, metaGetChildUidsOfSuperTableTxn(vnode_.pMeta, kSuid, txnId, includeAll, &list));
+    std::vector<uint64_t> uids;
+    for (size_t i = 0; list != nullptr && i < taosArrayGetSize(list); ++i) {
+      uids.push_back(*static_cast<tb_uid_t*>(taosArrayGet(list, i)));
+    }
+    taosArrayDestroy(list);
+    std::sort(uids.begin(), uids.end());
+    return uids;
+  };
+
+  const std::vector<uint64_t> committedOnly{kCommitted};
+  EXPECT_EQ(committedOnly, childrenFor(kTxnId, false)) << "the txn that created and dropped it";
+  EXPECT_EQ(committedOnly, childrenFor(kOtherTxnId, false)) << "another txn";
+  EXPECT_EQ(committedOnly, childrenFor(0, false)) << "non-txn caller";
+
+  const std::vector<uint64_t> all{kCommitted, kCreatedAndDropped};
+  EXPECT_EQ(all, childrenFor(0, true)) << "physical drop of the super table";
+  EXPECT_EQ(all, childrenFor(kTxnId, true)) << "physical drop of the super table, same txn";
+}
+
+// The owner txn's PRE_DROP hides the table from that txn only while the txn is open. Once the txn is ROLLED BACK and the
+// vacuum has not normalised the entry yet, ROLLBACK has restored the table: it must be visible again, to the owner's
+// reader too (a request in flight that still carries the txnId).
+TEST_F(MetaTagFilterCacheTest, PreDropOfRolledBackTxnIsVisibleAgainToOwnerTxn) {
+  constexpr tb_uid_t uid = 810201;
+  ASSERT_EQ(0, putChild(uid, 1));
+  const int64_t version = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_DROP, -1));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+
+  // txn open: gone for the owner, still there for everyone else
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), TSDB_CODE_PAR_TABLE_NOT_EXIST, "owner, txn open");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn, txn open");
+
+  // record the outcome the way the lazy ROLLBACK does: a finalized marker, with the entry not yet vacuumed
+  int8_t rolledBack = TXN_META_ROLLEDBACK;
+  ASSERT_EQ(0, taosHashPut(vnode_.pTxnMetaCache, &kTxnId, sizeof(kTxnId), &rolledBack, sizeof(rolledBack)));
+  ASSERT_EQ(TXN_META_ROLLEDBACK, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  expectAllEntries(readByUidEntries(&vnode_, kTxnId, version, uid), 0, "owner, txn rolled back");
+  expectAllEntries(readByUidEntries(&vnode_, 0, version, uid), 0, "non-txn, txn rolled back");
 }
 
 class MetaVarTagFilterCacheTest : public MetaTagFilterCacheTest, public ::testing::WithParamInterface<int8_t> {
@@ -1070,4 +1288,100 @@ TEST(MetaColRefDecodeOverflow, RejectsOversizedNCols) {
   EXPECT_NE(code, 0);
   EXPECT_EQ(entry.colRef.pColRef, nullptr);
   tDecoderClear(&decoder);
+}
+
+// ---- batch meta txn: the tag filter caches of a super table whose children a txn changed go with the txn ----
+// The stable tag filter cache is maintained by the meta writes themselves, i.e. when a txn statement runs. Once the
+// txn's outcome is in place every cached result of the touched super table is dropped (inline COMMIT / ROLLBACK:
+// after the last entry; lazy COMMIT / ROLLBACK: at finalize, for every super table), so no state of the txn survives
+// in it and the next reader rebuilds from what is visible then.
+
+namespace {
+int32_t rollbackTxn(SVnode* pVnode, int64_t* pVersion) {
+  SVTxnRollbackReq req = {};
+  req.txnId = kTxnId;
+  std::array<char, 128> buffer = {};
+  const int32_t         len = tSerializeSVTxnRollbackReq(buffer.data(), buffer.size(), &req);
+  if (len < 0) return len;
+  return vnodeProcessTxnRollbackReq(pVnode, ++(*pVersion), buffer.data(), len, nullptr);
+}
+}  // namespace
+
+TEST_F(MetaTagFilterCacheTest, InlineCommitDropsStableTagCacheOfTouchedSuperTable) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);  // complete mapping built before the txn
+
+  ASSERT_EQ(0, putPendingChild(800002, 1));  // the txn's write already reached the cached mapping
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  const auto dropped = lookup(1);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);  // gone with the txn
+  EXPECT_TRUE(dropped.needWarmup);
+  expectHit(1, {800001, 800002}, true);  // rebuilt from what is committed now
+}
+
+TEST_F(MetaTagFilterCacheTest, InlineRollbackDropsStableTagCacheOfUndoneTagChange) {
+  constexpr uint64_t uid = 800001;
+  ASSERT_EQ(0, putChild(uid, 1));
+  expectHit(1, {uid}, true);
+
+  // SET TAG inside the txn: the in-place new value moved the cached mapping to tag value 2
+  const int64_t origVersion = version_;
+  ASSERT_EQ(0, vnodeTxnEnsureEntry(&vnode_, kTxnId, version_ + 1));
+  ASSERT_EQ(0, putChild(uid, 2));
+  // as the txn machinery does after the ALTER: mark the entry itself and the txn index
+  ASSERT_EQ(0, metaMarkTableTxnStatus(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, metaTxnIdxUpsert(vnode_.pMeta, uid, kTxnId, META_TXN_PRE_ALTER, origVersion));
+  ASSERT_EQ(0, vnodeTxnTrackTable(&vnode_, kTxnId, uid));
+  // the tag change is already in the cached mapping
+  expectHit(2, {uid});
+
+  ASSERT_EQ(0, rollbackTxn(&vnode_, &version_));
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+
+  // without the drop the mapping would still say "1 -> nothing, 2 -> uid", the value the rollback undid
+  const auto dropped = lookup(1);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);
+  expectHit(1, {uid}, true);
+  expectHit(2, {});
+}
+
+TEST_F(MetaTagFilterCacheTest, LazyFinalizeDropsEveryStableTagCacheAtOnce) {
+  ASSERT_EQ(0, putChild(800000, 0));
+  expectHit(0, {800000}, true);
+  for (int32_t value = 1; value <= 129; ++value) {  // above the inline threshold: lazy finalize + vacuum
+    ASSERT_EQ(0, putPendingChild(800000 + value, 0));
+  }
+  vnode_.vacuumRunning = 1;  // keep the vacuum from running: the drop must not wait for it
+  ASSERT_EQ(0, commitPendingChildren());
+  ASSERT_EQ(TXN_META_COMMITTED, metaGetTxnMetaStatus(vnode_.pMeta, kTxnId));
+
+  const auto dropped = lookup(0);
+  EXPECT_EQ(0, dropped.code);
+  EXPECT_FALSE(dropped.acquired);  // dropped at finalize, before any vacuum batch
+
+  ASSERT_EQ(129, vnodeTxnVacuumBatch(&vnode_, 256));
+  vnode_.vacuumRunning = 0;
+  ASSERT_FALSE(metaHasPendingTxnEntries(vnode_.pMeta));
+  std::vector<uint64_t> all;
+  for (uint64_t uid = 800000; uid <= 800129; ++uid) all.push_back(uid);
+  expectHit(0, all, true);
+}
+
+TEST_F(MetaTagFilterCacheTest, ClearHelpersToleratePresentAndAbsentEntries) {
+  ASSERT_EQ(0, putChild(800001, 1));
+  expectHit(1, {800001}, true);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid + 1));  // nothing cached for it: fine
+  EXPECT_TRUE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid));
+  EXPECT_FALSE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearSuid(vnode_.pMeta, kSuid));  // twice: fine
+
+  expectHit(1, {800001}, true);
+  EXPECT_EQ(0, metaTagFilterCachesClearAll(vnode_.pMeta));
+  EXPECT_FALSE(lookup(1).acquired);
+  EXPECT_EQ(0, metaTagFilterCachesClearAll(vnode_.pMeta));  // empty caches: fine
 }

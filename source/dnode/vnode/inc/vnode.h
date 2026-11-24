@@ -151,7 +151,7 @@ int32_t     metaReaderGetTableEntryByVersionUid(SMetaReader *pReader, int64_t ve
 int32_t     metaReaderGetTableEntryByUidCache(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTbnameByIdIfTableNotExist(SMeta *pMeta, int64_t uid, char *tbname);
 int32_t     metaGetTableTags(void *pVnode, uint64_t suid, SArray *uidList, int64_t txnId);
-int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version);
+int32_t     metaGetTableTagsByUidsVersion(void *pVnode, int64_t suid, SArray *uidList, int64_t version, int64_t txnId);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(const void *tag, int16_t type, STagVal *tagVal);
 int32_t     metaGetTableNameByUid(void *pVnode, uint64_t uid, char *tbName, int64_t txnId);

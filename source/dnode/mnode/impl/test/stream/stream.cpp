@@ -13848,6 +13848,41 @@ TEST_F(MndStreamRecalcRecoveryTest, StreamDropReleasesPersistentArrayWithObject)
   EXPECT_EQ(stream.pCreate, nullptr);
 }
 
+TEST(StreamObjTest, OnlyAlignedDefinitionsRequireTheNewStorageFrame) {
+  SStreamObj                                             input = BuildMinimalStreamObj();
+  std::unique_ptr<SStreamObj, decltype(&tFreeStreamObj)> guard(&input, tFreeStreamObj);
+  ASSERT_NE(input.pCreate, nullptr);
+  EXPECT_EQ(TSDB_CODE_SUCCESS, DecodeLegacyStreamObjAndConsumeOuterObject(EncodeStreamObj(input)));
+
+  input.pCreate->addOptions = STREAM_OPTION_TIME_ALIGN;
+  auto *spec = static_cast<SStreamTimeAlignSpec *>(taosMemoryCalloc(1, sizeof(SStreamTimeAlignSpec)));
+  ASSERT_NE(spec, nullptr);
+  input.pCreate->pTimeAlign = spec;
+  spec->timezone = taosStrdup("UTC");
+  col_id_t               cid = 2;
+  SStreamTimeAlignColumn rule = {};
+  rule.srcColId = cid;
+  rule.type.type = TSDB_DATA_TYPE_INT;
+  rule.type.bytes = sizeof(int32_t);
+  tstrncpy(rule.outName, "prev_a", sizeof(rule.outName));
+  spec->pRowsetColIds = taosArrayInit(1, sizeof(cid));
+  spec->pColumns = taosArrayInit(1, sizeof(rule));
+  ASSERT_NE(nullptr, taosArrayPush(spec->pRowsetColIds, &cid));
+  ASSERT_NE(nullptr, taosArrayPush(spec->pColumns, &rule));
+
+  auto bytes = EncodeStreamObj(input);
+  ASSERT_FALSE(bytes.empty());
+  EXPECT_EQ(TSDB_CODE_OUT_OF_RANGE, DecodeLegacyStreamObjAndConsumeOuterObject(bytes));
+  SStreamObj                                             output = DecodeStreamObj(bytes, MND_STREAM_VER_NUMBER);
+  std::unique_ptr<SStreamObj, decltype(&tFreeStreamObj)> outputGuard(&output, tFreeStreamObj);
+  ASSERT_NE(nullptr, output.pCreate);
+  ASSERT_NE(nullptr, output.pCreate->pTimeAlign);
+  ASSERT_EQ(1, taosArrayGetSize(output.pCreate->pTimeAlign->pColumns));
+  auto *decoded = static_cast<SStreamTimeAlignColumn *>(taosArrayGet(output.pCreate->pTimeAlign->pColumns, 0));
+  EXPECT_EQ(cid, decoded->srcColId);
+  EXPECT_STREQ("prev_a", decoded->outName);
+}
+
 TEST(StreamObjTest, RecalcTailRoundTripsAtVersionEight) {
   SStreamObj input = BuildMinimalStreamObj();
   ASSERT_NE(input.pCreate, nullptr);
@@ -16447,6 +16482,28 @@ TEST(MndStreamWatchTest, CalcReaderBuilderRejectsUnknownReplica) {
   status.runnerReplica = 5;
   ASSERT_EQ(msmBuildReaderDeployInfo(&deploy, nullptr, &status, false), TSDB_CODE_SUCCESS);
   EXPECT_EQ(deploy.msg.reader.msg.calc.execReplica, 15);
+}
+
+TEST(MndStreamWatchTest, TimeAlignPeriodRequiresLocalMetadataWithoutRawReads) {
+  SCMCreateStreamReq create{};
+  SStmStatus         status{};
+  status.pCreate = &create;
+  SStmTaskDeploy deploy{};
+  create.triggerType = WINDOW_TYPE_PERIOD;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildReaderDeployInfo(&deploy, nullptr, &status, true));
+  EXPECT_FALSE(deploy.msg.reader.msg.trigger.requireLocalVtableRefs);
+  EXPECT_FALSE(deploy.msg.reader.msg.trigger.timeAlignConsumer);
+
+  SStreamTimeAlignSpec spec{};
+  create.pTimeAlign = &spec;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildReaderDeployInfo(&deploy, nullptr, &status, true));
+  EXPECT_TRUE(deploy.msg.reader.msg.trigger.requireLocalVtableRefs);
+  EXPECT_FALSE(deploy.msg.reader.msg.trigger.timeAlignConsumer);
+
+  create.triggerType = WINDOW_TYPE_INTERVAL;
+  ASSERT_EQ(TSDB_CODE_SUCCESS, msmBuildReaderDeployInfo(&deploy, nullptr, &status, true));
+  EXPECT_TRUE(deploy.msg.reader.msg.trigger.requireLocalVtableRefs);
+  EXPECT_TRUE(deploy.msg.reader.msg.trigger.timeAlignConsumer);
 }
 
 TEST(MndStreamWatchTest, TriggerTargetBuilderRejectsUnknownReplica) {

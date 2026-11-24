@@ -3207,8 +3207,11 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_LOGIC_PLAN:
       nodesDestroyList(((SQueryLogicPlan*)pNode)->pTopSubplans);
       break;
-    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+      taosMemoryFreeClear(((SSystemTableScanPhysiNode*)pNode)->pTxnStbSchemas);
+      destroyScanPhysiNode((SScanPhysiNode*)pNode);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
       destroyScanPhysiNode((SScanPhysiNode*)pNode);
       break;

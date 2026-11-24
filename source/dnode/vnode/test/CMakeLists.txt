@@ -374,3 +374,17 @@ IF(NOT TD_WINDOWS)
             COMMAND vnodeSecurityTest
     )
 ENDIF()
+
+IF(NOT TD_WINDOWS)
+    add_executable(vnodeStreamTimeAlignTest vnodeStreamTimeAlignTest.cpp)
+    DEP_ext_gtest(vnodeStreamTimeAlignTest)
+    DEP_ext_cppstub(vnodeStreamTimeAlignTest)
+    target_include_directories(vnodeStreamTimeAlignTest PUBLIC
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/libs/new-stream"
+        "${TD_SOURCE_DIR}/source/libs/new-stream/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../src/inc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/../inc")
+    target_link_libraries(vnodeStreamTimeAlignTest PUBLIC os util common vnode mgmt_mnode vnode mgmt_mnode)
+    add_test(NAME vnodeStreamTimeAlignTest COMMAND vnodeStreamTimeAlignTest)
+ENDIF()

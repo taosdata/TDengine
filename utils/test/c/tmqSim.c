@@ -45,6 +45,7 @@ typedef enum {
   NOTIFY_CMD_START_CONSUM,
   NOTIFY_CMD_START_COMMIT,
   NOTIFY_CMD_ID_BUTT,
+  NOTIFY_CMD_PRODUCER_DONE,
 } NOTIFY_CMD_ID;
 
 typedef enum enumQUERY_TYPE { NO_INSERT_TYPE, INSERT_TYPE, QUERY_TYPE_BUT } QUERY_TYPE;
@@ -102,6 +103,7 @@ typedef struct {
   int32_t     showRowFlag;
   int32_t     saveRowFlag;
   int32_t     consumeDelay;  // unit s
+  int32_t     producerTimeout;
   int32_t     numOfThread;
   int32_t     useSnapshot;
   int64_t     nowTime;
@@ -142,6 +144,8 @@ static void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "saveRowFlag, default is ", g_stConfInfo.saveRowFlag);
   printf("%s%s\n", indent, "-y");
   printf("%s%s%s%ds\n", indent, indent, "consume delay, default is ", g_stConfInfo.consumeDelay);
+  printf("%s--producer-timeout <seconds>\n", indent);
+  printf("%s%sWait for producer-done notification before idle exit; 1..3600 seconds, disabled by default\n", indent, indent);
   printf("%s%s\n", indent, "-e");
   printf("%s%s%s%d\n", indent, indent, "snapshot, default is ", g_stConfInfo.useSnapshot);
 
@@ -275,6 +279,14 @@ void parseArgument(int32_t argc, char* argv[]) {
       g_stConfInfo.saveRowFlag = atol(argv[++i]);
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
+    } else if (strcmp(argv[i], "--producer-timeout") == 0) {
+      char* end = NULL;
+      int64_t timeout = i + 1 < argc ? taosStr2Int64(argv[++i], &end, 10) : 0;
+      if (end == NULL || *end != '\0' || timeout < 1 || timeout > 3600) {
+        fprintf(stderr, "--producer-timeout requires an integer between 1 and 3600\n");
+        exit(EXIT_FAILURE);
+      }
+      g_stConfInfo.producerTimeout = (int32_t)timeout;
     } else if (strcmp(argv[i], "-e") == 0) {
       g_stConfInfo.useSnapshot = atol(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
@@ -780,6 +792,20 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   return 0;
 }
 
+int32_t producerFinished(SThreadInfo* pInfo) {
+  char sql[256];
+  snprintf(sql, sizeof(sql), "select * from %s.notifyinfo where cmdid = %d and consumerid = %d limit 1",
+           g_stConfInfo.cdbName, NOTIFY_CMD_PRODUCER_DONE, pInfo->consumerId);
+  TAOS_RES* result = taos_query(pInfo->taos, sql);
+  if (result == NULL) {
+    return -1;
+  }
+
+  int32_t status = taos_errno(result) == 0 ? (taos_fetch_row(result) != NULL) : -1;
+  taos_free_result(result);
+  return status;
+}
+
 void loop_consume(SThreadInfo* pInfo) {
   int32_t code;
 
@@ -814,11 +840,22 @@ void loop_consume(SThreadInfo* pInfo) {
 
   int64_t  lastTotalMsgs = 0;
   uint64_t lastPrintTime = taosGetTimestampMs();
-  uint64_t startTs = taosGetTimestampMs();
+  int64_t producerStart = taosGetMonoTimestampMs();
 
   int32_t consumeDelay = g_stConfInfo.consumeDelay == -1 ? -1 : (g_stConfInfo.consumeDelay * 1000);
+  bool producerDone = g_stConfInfo.producerTimeout == 0;
   while (running) {
-    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, consumeDelay);
+    if (!producerDone) {
+      int32_t status = producerFinished(pInfo);
+      if (status < 0 || taosGetMonoTimestampMs() - producerStart >= (int64_t)g_stConfInfo.producerTimeout * 1000) {
+        pInfo->checkresult = -1;
+        taosFprintfFile(g_fp, "producer barrier failed: status=%d, timeout=%d seconds\n", status,
+                        g_stConfInfo.producerTimeout);
+        break;
+      }
+      producerDone = status == 1;
+    }
+    TAOS_RES* tmqMsg = tmq_consumer_poll(pInfo->tmq, producerDone ? consumeDelay : 1000);
     if (tmqMsg) {
       if (0 != g_stConfInfo.showMsgFlag) {
         tmq_res_t msgType = tmq_get_res_type(tmqMsg);
@@ -849,7 +886,7 @@ void loop_consume(SThreadInfo* pInfo) {
         notifyMainScript(pInfo, NOTIFY_CMD_START_CONSUM);
       }
 
-      if ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt)) {
+      if (producerDone && ((totalRows >= pInfo->expectMsgCnt) || (totalMsgs >= pInfo->expectMsgCnt))) {
         memset(tmpString, 0, tListLen(tmpString));
         taosFprintfFile(g_fp, "%s over than expect rows, so break consume\n", getCurrentTimeString(tmpString));
         break;
@@ -858,6 +895,9 @@ void loop_consume(SThreadInfo* pInfo) {
       memset(tmpString, 0, tListLen(tmpString));
       code = taos_errno(NULL);
       if (code == 0) {
+        if (!producerDone) {
+          continue;
+        }
         taosFprintfFile(g_fp, "%s no poll more msg when time over, break consume, errMsg:%s\n", getCurrentTimeString(tmpString), taos_errstr(NULL));
         break;
       } else if (code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
@@ -877,6 +917,9 @@ void loop_consume(SThreadInfo* pInfo) {
 
   if (0 == running) {
     taosFprintfFile(g_fp, "receive stop signal and not continue consume\n");
+  }
+  if (!producerDone) {
+    pInfo->checkresult = -1;
   }
 
   pInfo->consumeMsgCnt = totalMsgs;

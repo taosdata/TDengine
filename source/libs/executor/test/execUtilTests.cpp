@@ -1070,6 +1070,9 @@ extern "C" int32_t doTableScanNext(SOperatorInfo* pOperator,
 extern "C" int32_t doTableMergeScanNext(SOperatorInfo* pOperator,
                                          SSDataBlock** ppRes);
 extern "C" int32_t openSortMergeOperator(SOperatorInfo* pOperator);
+extern "C" int32_t getColInfoResultForGroupby(SReadHandle* pHandle, SNodeList* group, STableListInfo* pTableListInfo,
+                                              uint8_t* digest, SStorageAPI* pAPI, bool initRemainGroups,
+                                              SHashObj* groupIdMap, bool gIdFromBaseId);
 
 namespace {
 
@@ -4034,7 +4037,7 @@ class StreamWalGroupMetadataTest : public ::testing::Test {
       STR_TO_VARSTR(name, text.c_str());
       return int32_t(TSDB_CODE_SUCCESS);
     };
-    api_.metaFn.getTableTagsByUidVersion = [](void *context, int64_t, SArray *tags, int64_t version) {
+    api_.metaFn.getTableTagsByUidVersion = [](void *context, int64_t, SArray *tags, int64_t version, int64_t) {
       auto *self = static_cast<StreamWalGroupMetadataTest *>(context);
       self->tagVersion_ = version;
       for (size_t i = 0; i < taosArrayGetSize(tags); ++i) {
@@ -5073,6 +5076,82 @@ TEST(execUtilTest, stableTagFilterCacheBypassesNonCanonicalEqualityKeys) {
     taosArrayDestroy(tableList.pTableList);
   }
   tsStableTagFilterCache = oldStable;
+  tsTagFilterCache = oldNormal;
+}
+
+struct TxnGroupCacheMock {
+  bool    pending = false;
+  int32_t getGroupCalls = 0;
+  int32_t putGroupCalls = 0;
+};
+
+bool mockHasPendingTxnEntries(void *pVnode) { return static_cast<TxnGroupCacheMock *>(pVnode)->pending; }
+
+int32_t mockMetaGetCachedTbGroup(void *pVnode, tb_uid_t, const uint8_t *, int32_t, SArray **pList) {
+  ++static_cast<TxnGroupCacheMock *>(pVnode)->getGroupCalls;
+  *pList = nullptr;  // always a miss: the group-by is computed
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockMetaPutTbGroupToCache(void *pVnode, uint64_t, const void *, int32_t, void *pPayload, int32_t) {
+  ++static_cast<TxnGroupCacheMock *>(pVnode)->putGroupCalls;
+  taosArrayDestroy(static_cast<SArray *>(pPayload));  // the cache owns the payload
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mockGetTableTagsByUidVersion(void *, int64_t, SArray *, int64_t, int64_t) { return TSDB_CODE_SUCCESS; }
+
+// Batch meta txn: the table-group cache is shared by every session and keyed without a txn identity. A txn read must
+// neither read from nor write to it while this vnode holds an uncommitted txn entry (or when that cannot be known).
+TEST(execUtilTest, tableGroupCacheIsBypassedByTxnReadWithPendingEntries) {
+  const auto oldNormal = tsTagFilterCache;
+  tsTagFilterCache = 1;
+  struct Case {
+    int64_t     txnId;
+    bool        pending;
+    bool        hasCallback;
+    int32_t     expectReads;
+    int32_t     expectWrites;
+    const char *what;
+  };
+  for (const auto &c : {Case{0, true, true, 1, 1, "non-txn read keeps using the cache"},
+                        Case{7, false, true, 1, 1, "txn read, no pending entry: cache is safe"},
+                        Case{7, true, true, 0, 0, "txn read, pending entry: bypass read and write"},
+                        Case{7, false, false, 0, 0, "txn read, cannot verify: bypass read and write"}}) {
+    SCOPED_TRACE(c.what);
+    TxnGroupCacheMock mock;
+    mock.pending = c.pending;
+    SStorageAPI api = {};
+    api.metaFn.hasPendingTxnEntries = c.hasCallback ? mockHasPendingTxnEntries : nullptr;
+    api.metaFn.metaGetCachedTbGroup = mockMetaGetCachedTbGroup;
+    api.metaFn.metaPutTbGroupToCache = mockMetaPutTbGroupToCache;
+    api.metaFn.getTableTagsByUidVersion = mockGetTableTagsByUidVersion;
+
+    SReadHandle handle = {};
+    handle.vnode = &mock;
+    handle.txnId = c.txnId;
+
+    STableListInfo tables = {};
+    tables.idInfo.suid = 42;
+    tables.pTableList = taosArrayInit(2, sizeof(STableKeyInfo));
+    ASSERT_NE(nullptr, tables.pTableList);
+    for (int64_t uid : {1001, 1002}) {
+      STableKeyInfo info = {};
+      info.uid = uid;
+      ASSERT_NE(nullptr, taosArrayPush(tables.pTableList, &info));
+    }
+
+    SNodeList *group = nullptr;
+    ASSERT_EQ(0, nodesListMakeAppend(&group, makeTagColumn(3, TSDB_DATA_TYPE_INT, sizeof(int32_t))));
+
+    uint8_t digest[1 + 16] = {};
+    EXPECT_EQ(0, getColInfoResultForGroupby(&handle, group, &tables, digest, &api, false, nullptr, false));
+    EXPECT_EQ(c.expectReads, mock.getGroupCalls);
+    EXPECT_EQ(c.expectWrites, mock.putGroupCalls);
+
+    nodesDestroyList(group);
+    taosArrayDestroy(tables.pTableList);
+  }
   tsTagFilterCache = oldNormal;
 }
 
@@ -22202,7 +22281,7 @@ TEST_F(QueryVirtualTagsTest, TbnameRestrictionsAvoidChildEnumeration) {
     }
     return TSDB_CODE_SUCCESS;
   };
-  task.storageAPI.metaFn.getTableTagsByUidVersion = [](void *, int64_t, SArray *entries, int64_t) -> int32_t {
+  task.storageAPI.metaFn.getTableTagsByUidVersion = [](void *, int64_t, SArray *entries, int64_t, int64_t) -> int32_t {
     for (int32_t i = 0; i < taosArrayGetSize(entries); ++i) {
       auto *entry = static_cast<STUidTagInfo *>(taosArrayGet(entries, i));
       if (entry->pTagVal != nullptr) continue;
@@ -23075,7 +23154,7 @@ class ReaderGroupScanTest : public ::testing::Test {
     if (!triggerTables) {
       plan_.pTagCond = makeEqualCond(makeIntValue(1), makeIntValue(2));
       task_.storageAPI.metaFn.isTableExisted = countExistingStreamGroupTable;
-      task_.storageAPI.metaFn.getTableTagsByUidVersion = [](void *, int64_t, SArray *, int64_t) { return 0; };
+      task_.storageAPI.metaFn.getTableTagsByUidVersion = [](void *, int64_t, SArray *, int64_t, int64_t) { return 0; };
     }
     gStreamGroupTableListExistsCalls = 0;
     const uint64_t high = UINT64_C(0x8000000000000001);

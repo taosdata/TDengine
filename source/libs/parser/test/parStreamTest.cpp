@@ -20,6 +20,7 @@
 #include <cstring>
 #include <fstream>
 #include <memory>
+#include <set>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -17232,4 +17233,555 @@ TEST_F(ParserStreamTest, TestFederatedStreamExtDualSources) {
 #endif
 }
 
+class TimeAlignTriggerContract : public ParserDdlTest {
+ protected:
+  Stub catalogStub;
+  void registerTables() {
+    catalogStub.set(
+        catalogAsyncGetAllMeta,
+        +[](SCatalog*, SRequestConnInfo*, const SCatalogReq* req, catalogCallback cb, void* param,
+            int64_t*) -> int32_t {
+          auto*   data = new SMetaData{};
+          int32_t code = g_mockCatalogService->catalogGetAllMeta(req, data);
+          cb(data, param, code);
+          MockCatalogService::destoryMetaData(data);
+          return 0;
+        });
+    useDb("0", "stream_streamdb");
+    const auto* meta = getSysTableMeta(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VC_COLS);
+    ASSERT_NE(nullptr, meta);
+    auto& builder = g_mockCatalogService->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VC_COLS,
+                                                             TSDB_SYSTEM_TABLE, meta->colNum);
+    for (int i = 0; i < meta->colNum; ++i)
+      builder.addColumn(meta->schema[i].name, meta->schema[i].type, meta->schema[i].bytes);
+    builder.done();
+    for (const char* name : {"align_src_a", "align_src_b"}) {
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", name, TSDB_NORMAL_TABLE, 2)
+          .setVgid(2)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("v", TSDB_DATA_TYPE_INT)
+          .done();
+    }
+    for (const auto& entry :
+         {std::make_pair("align_vn", TSDB_VIRTUAL_NORMAL_TABLE), std::make_pair("align_vc", TSDB_VIRTUAL_CHILD_TABLE),
+          std::make_pair("align_vs", TSDB_SUPER_TABLE)}) {
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", entry.first, entry.second, 4)
+          .setVgid(2)
+          .setVirtualSuperTable(entry.second == TSDB_SUPER_TABLE)
+          .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+          .addColumn("a", TSDB_DATA_TYPE_INT)
+          .addColumn("b", TSDB_DATA_TYPE_INT)
+          .addColumn("c", TSDB_DATA_TYPE_INT)
+          .done();
+      if (entry.second == TSDB_SUPER_TABLE) continue;
+      std::vector<SColRef> refs(3);
+      for (int i = 0; i < 3; ++i) {
+        refs[i].hasRef = true;
+        refs[i].id = i + 2;
+        tstrncpy(refs[i].refDbName, "stream_triggerdb", sizeof(refs[i].refDbName));
+        tstrncpy(refs[i].refTableName, i == 0 ? "align_src_a" : "align_src_b", sizeof(refs[i].refTableName));
+        tstrncpy(refs[i].refColName, "v", sizeof(refs[i].refColName));
+      }
+      g_mockCatalogService->setTableRefs("stream_triggerdb", entry.first, refs, {});
+    }
+  }
+  std::string sql(const std::string& window, const std::string& table = "align_vn",
+                  const std::string& args = "'a:PREV(8s):_a;b:PREV:_a'", const std::string& options = "",
+                  const std::string& query = "") {
+    return "create stream stream_streamdb.s_align " + window + " from table(time_align(table stream_triggerdb." +
+           table + (args.empty() ? "" : ", " + args) + ")) partition by tbname " + options +
+           " into stream_outdb.stream_out as " +
+           (query.empty() ? "select _twstart as ts, count(*) as n from %%tbname" : query);
+  }
+};
+
+TEST_F(TimeAlignTriggerContract, ExistingWindowForms) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  for (const char* table : {"align_vn", "align_vc", "align_vs"}) {
+    for (const char* window :
+         {"interval(2s) sliding(1s)", "sliding(1s)", "session(ts, 1s)", "state_window(a_a)", "count_window(3, 1)",
+          "event_window(start with a_a = 1 end with a_a = 2)", "period(1s)"}) {
+      const bool periodic = strncmp(window, "period", 6) == 0 || strncmp(window, "sliding", 7) == 0;
+      run(sql(window, table, "'a:PREV(8s):_a;b:PREV:_a'", "",
+              periodic ? "select max(ts) as ts, count(*) as n from %%tbname" : ""));
+    }
+  }
+  runClonedAst(sql("state_window(a_a)"));
+  runAsyncOnly(sql("interval(1s)"));
+  run(sql("window(interval(1m) sliding(1m) as outer_w, state_window(a_a) as inner_w)"));
+}
+
+TEST_F(TimeAlignTriggerContract, TimeAlignRejectsUnsupportedSourcesAndOptions) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  for (const char* query :
+       {"select _twstart as ts, count(*) from %%trows",
+        "select _twstart as ts, count(*) from (select * from %%trows) q",
+        "select _twstart as ts, count(*) from %%tbname x join %%trows y on x.ts = y.ts",
+        "select _twstart as ts, count(*) from %%tbname union all select _twstart as ts, count(*) from %%trows"}) {
+    run(sql("interval(1s)", "align_vn", "'a:PREV:_a'", "", query), TSDB_CODE_STREAM_INVALID_QUERY);
+  }
+  for (const char* filter : {"1=1", "a > 0", "a_a > 0"}) {
+    run(sql("period(1s)", "align_vn", "true, 'a:PREV:_a'", std::string("stream_options(pre_filter(") + filter + "))"),
+        TSDB_CODE_STREAM_INVALID_TRIGGER);
+  }
+  run(sql("interval(1s)", "align_src_a", "'v:PREV:_a'"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+  run(sql("interval(1s)", "align_vn", "'a:NEXT:_a'"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+}
+
+#ifdef TD_ENTERPRISE
+TEST_F(TimeAlignTriggerContract, RejectsExpandedViewTrigger) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  g_mockCatalogService->createTableBuilder("stream_triggerdb", "align_view", TSDB_VIEW_TABLE, 2)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("a", TSDB_DATA_TYPE_INT)
+      .done();
+  // View SQL expansion is outside this catalog fixture. Preserve its real
+  // replacement-node contract and verify rejection before alignment binding.
+  Stub stub;
+  stub.set(
+      translateView, +[](STranslateContext*, SNode** table, SName*, bool) -> int32_t {
+        SNode*  expanded = nullptr;
+        int32_t code = nodesMakeNode(QUERY_NODE_TEMP_TABLE, &expanded);
+        if (code != 0) return code;
+        nodesDestroyNode(*table);
+        *table = expanded;
+        return 0;
+      });
+  runAsyncOnly(sql("interval(1s)", "align_view", "'a:PREV:_a'"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+}
+#endif
+
+TEST_F(TimeAlignTriggerContract, RejectsExternalAndMixedOrigins) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  for (int externalCount : {1, 3}) {
+    std::vector<SColRef> refs(3);
+    for (int i = 0; i < 3; ++i) {
+      refs[i].hasRef = true;
+      refs[i].id = i + 2;
+      refs[i].refType = i < externalCount ? 1 : 0;
+      tstrncpy(refs[i].refSourceName, i < externalCount ? "ext_mysql" : "", sizeof(refs[i].refSourceName));
+      tstrncpy(refs[i].refDbName, "stream_triggerdb", sizeof(refs[i].refDbName));
+      tstrncpy(refs[i].refTableName, "align_src_a", sizeof(refs[i].refTableName));
+      tstrncpy(refs[i].refColName, "v", sizeof(refs[i].refColName));
+    }
+    g_mockCatalogService->setTableRefs("stream_triggerdb", "align_vn", refs, {});
+    run(sql("interval(1s)"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+  }
+#ifdef TD_ENTERPRISE
+  FederatedFlagGuard federatedGuard(true);
+  registerExtMysqlEvents();
+  runAsyncOnly(
+      "create stream stream_streamdb.s_align interval(1s) "
+      "from table(time_align(table ext_mysql.events, 'v:PREV:_a')) "
+      "into stream_outdb.stream_out as select _twstart as ts, count(*) as n from stream_triggerdb.align_src_a",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+#endif
+}
+
+TEST_F(TimeAlignTriggerContract, RejectsExternalVirtualSuperTable) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  g_mockCatalogService->setVstbExternalSource("ext_mysql");
+  run(sql("interval(1s)", "align_vs"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+  runAsyncOnly(sql("interval(1s)", "align_vs"), TSDB_CODE_STREAM_INVALID_TRIGGER);
+  g_mockCatalogService->setVstbExternalSource("");
+}
+
+TEST_F(TimeAlignTriggerContract, RowsetSurvivesProjectionPruning) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  int expectedRowset = 2;
+  int expectedRules = 2;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.pTimeAlign);
+    EXPECT_EQ(expectedRowset, taosArrayGetSize(req.pTimeAlign->pRowsetColIds));
+    for (int i = 0; i < expectedRowset; ++i) {
+      EXPECT_EQ(i + 2, *static_cast<col_id_t*>(taosArrayGet(req.pTimeAlign->pRowsetColIds, i)));
+    }
+    EXPECT_EQ(expectedRules, taosArrayGetSize(req.pTimeAlign->pColumns));
+    const auto* first = static_cast<const SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, 0));
+    ASSERT_NE(nullptr, first);
+    EXPECT_EQ(2, first->srcColId);
+    EXPECT_STREQ("a_a", first->outName);
+    EXPECT_EQ(TSDB_DATA_TYPE_INT, first->type.type);
+    EXPECT_EQ(expectedRowset == 3, req.pTimeAlign->outputRaw);
+    EXPECT_STREQ(req.timeConfig.timezone, req.pTimeAlign->timezone);
+    SNode* plan = nullptr;
+    ASSERT_EQ(0, nodesStringToNode(static_cast<char*>(req.triggerScanPlan), &plan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(plan, nodesDestroyNode);
+    auto*                                          root = reinterpret_cast<SSubplan*>(plan)->pNode;
+    std::set<col_id_t>                             scanned;
+    std::function<void(SPhysiNode*)>               checkScan = [&](SPhysiNode* node) {
+      EXPECT_EQ(nullptr, node->pConditions);
+      if (nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN ||
+          nodeType(node) == QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN) {
+        const auto* scan = reinterpret_cast<const STableScanPhysiNode*>(node);
+        EXPECT_EQ(TSKEY_MIN, scan->scanRange.skey);
+        EXPECT_EQ(TSKEY_MAX, scan->scanRange.ekey);
+        EXPECT_EQ(nullptr, scan->pAlignCols);
+        EXPECT_EQ(LIST_LENGTH(scan->scan.pScanCols) + LIST_LENGTH(scan->scan.pScanPseudoCols),
+                                LIST_LENGTH(node->pOutputDataBlockDesc->pSlots));
+        SNode* target = nullptr;
+        FOREACH(target, scan->scan.pScanCols) {
+          ASSERT_EQ(QUERY_NODE_TARGET, nodeType(target));
+          auto* col = reinterpret_cast<SColumnNode*>(reinterpret_cast<STargetNode*>(target)->pExpr);
+          ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(col));
+          if (!col->isAlignOut && col->colId > PRIMARYKEY_TIMESTAMP_COL_ID) scanned.insert(col->colId);
+        }
+      }
+      SNode* child = nullptr;
+      FOREACH(child, node->pChildren) { checkScan(reinterpret_cast<SPhysiNode*>(child)); }
+    };
+    checkScan(root);
+    for (int i = 0; i < expectedRowset; ++i) EXPECT_EQ(1u, scanned.count(i + 2));
+    EXPECT_NE(nullptr, req.triggerPrevFilter);
+  });
+  run(sql("state_window(a_a)", "align_vn", "'a:PREV:_a;b:PREV:_a'", "stream_options(pre_filter(a_a > 0))"));
+  run(sql("state_window(a_a)", "align_vn", "'a:PREV:_a;b:PREV:_a'", "stream_options(pre_filter(1=0))"));
+  run(sql("state_window(a_a)", "align_vn", "'a:PREV:_a;b:PREV:_a'", "stream_options(pre_filter(ts > 1000))"));
+  expectedRowset = 3;
+  run(sql("state_window(a_a)", "align_vn", "true, 'a:PREV:_a;b:PREV:_a'", "stream_options(pre_filter(a > 0))"));
+  expectedRowset = 1;
+  run(sql("state_window(a_a)", "align_vn", "'a:PREV:_a;a:PREV(8s):_b'", "stream_options(pre_filter(a_a > 0))"));
+}
+
+TEST_F(TimeAlignTriggerContract, WideRuleListPreservesSchemaOrderAndTypes) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  const int         width = 256;
+  const std::string tableName = "align_wide";
+  auto&             table =
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", tableName, TSDB_VIRTUAL_NORMAL_TABLE, width + 1);
+  table.setVgid(2).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP);
+  std::vector<SColRef> refs(width);
+  std::string          rules;
+  for (int i = 0; i < width; ++i) {
+    table.addColumn("c" + std::to_string(i), TSDB_DATA_TYPE_INT);
+    refs[i].hasRef = true;
+    refs[i].id = i + 2;
+    tstrncpy(refs[i].refDbName, "stream_triggerdb", sizeof(refs[i].refDbName));
+    tstrncpy(refs[i].refTableName, "align_src_a", sizeof(refs[i].refTableName));
+    tstrncpy(refs[i].refColName, "v", sizeof(refs[i].refColName));
+    if (i) rules += ";";
+    rules += "c" + std::to_string(width - 1 - i) + ":PREV:_p";
+  }
+  table.done();
+  g_mockCatalogService->setTableRefs("stream_triggerdb", tableName, refs, {});
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.pTimeAlign);
+    ASSERT_EQ(width, taosArrayGetSize(req.pTimeAlign->pRowsetColIds));
+    ASSERT_EQ(width, taosArrayGetSize(req.pTimeAlign->pColumns));
+    std::set<col_id_t> ids;
+    for (int i = 0; i < width; ++i) {
+      EXPECT_EQ(i + 2, *static_cast<col_id_t*>(taosArrayGet(req.pTimeAlign->pRowsetColIds, i)));
+      const auto* col = static_cast<SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, i));
+      EXPECT_EQ(TSDB_DATA_TYPE_INT, col->type.type);
+      EXPECT_EQ("c" + std::to_string(col->srcColId - 2) + "_p", col->outName);
+      EXPECT_TRUE(ids.insert(col->srcColId).second);
+    }
+  });
+  run(sql("state_window(c0_p)", tableName, "'" + rules + "'"));
+}
+
+TEST_F(TimeAlignTriggerContract, WideFlatVariableColumnsResolvePhysicalWidths) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  const int width = 256;
+  auto&     source =
+      g_mockCatalogService->createTableBuilder("stream_triggerdb", "align_width_src", TSDB_NORMAL_TABLE, width + 1);
+  source.setVgid(2).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP);
+  for (int i = 0; i < width; ++i) source.addColumn("field_" + std::to_string(i), TSDB_DATA_TYPE_BINARY, 32 + i);
+  source.done();
+  auto& table = g_mockCatalogService->createTableBuilder("stream_triggerdb", "align_width_vt",
+                                                         TSDB_VIRTUAL_NORMAL_TABLE, width + 1);
+  table.setVgid(2).addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP);
+  std::vector<SColRef> refs(width);
+  for (int i = 0; i < width; ++i) {
+    table.addColumn("v" + std::to_string(i), TSDB_DATA_TYPE_BINARY, 6);
+    refs[i].hasRef = true;
+    refs[i].id = i + 2;
+    tstrncpy(refs[i].refDbName, "stream_triggerdb", sizeof(refs[i].refDbName));
+    tstrncpy(refs[i].refTableName, "align_width_src", sizeof(refs[i].refTableName));
+    tstrncpy(refs[i].refColName, ("field_" + std::to_string(i)).c_str(), sizeof(refs[i].refColName));
+  }
+  table.done();
+  g_mockCatalogService->setTableRefs("stream_triggerdb", "align_width_vt", refs, {});
+  setCheckDdlFunc([](const SQuery* query, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.pTimeAlign);
+    ASSERT_EQ(3, taosArrayGetSize(req.pTimeAlign->pColumns));
+    for (int i = 0; i < 3; ++i) {
+      const auto* col = static_cast<const SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, i));
+      EXPECT_EQ(32 + col->srcColId - 2, col->type.bytes);
+    }
+  });
+  run(sql("count_window(1)", "align_width_vt", "'v255:PREV:_p;v0:PREV:_p;v127:PREV:_p'"));
+}
+
+TEST_F(TimeAlignTriggerContract, NestedFilterUsesScanSlotsForDistinctPrevSpans) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    ASSERT_EQ(PARSER_STAGE_TRANSLATE, stage);
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    SNode* plan = nullptr;
+    ASSERT_EQ(0, nodesStringToNode(static_cast<char*>(req.triggerScanPlan), &plan));
+    unique_ptr<SNode, decltype(&nodesDestroyNode)> planGuard(plan, nodesDestroyNode);
+    SPhysiNode*                                    scan = reinterpret_cast<SSubplan*>(plan)->pNode;
+    while (LIST_LENGTH(scan->pChildren) == 1)
+      scan = reinterpret_cast<SPhysiNode*>(nodesListGetNode(scan->pChildren, 0));
+    int rawSlots = LIST_LENGTH(scan->pOutputDataBlockDesc->pSlots);
+    ASSERT_GT(rawSlots, 0);
+    SNodeList* cols = nullptr;
+    ASSERT_EQ(0, nodesStringToList(static_cast<char*>(req.triggerFilterCols), &cols));
+    unique_ptr<SNodeList, decltype(&nodesDestroyList)> colGuard(cols, nodesDestroyList);
+    ASSERT_EQ(2, LIST_LENGTH(cols));
+    std::map<std::string, int> slots;
+    SNode*                     node = nullptr;
+    FOREACH(node, cols) {
+      ASSERT_EQ(QUERY_NODE_COLUMN, nodeType(node));
+      auto* col = reinterpret_cast<SColumnNode*>(node);
+      slots.emplace(col->colName, col->slotId);
+    }
+    EXPECT_EQ(rawSlots, slots["a_short"]);
+    EXPECT_EQ(rawSlots + 1, slots["a_long"]);
+  });
+  for (const char* rules : {"'a:PREV(1s):_short;a:PREV(1m):_long'", "true, 'a:PREV(1s):_short;a:PREV(1m):_long'"}) {
+    run(sql("window(interval(1m) as parent, count_window(2,2) as leaf)", "align_vn", rules,
+            "stream_options(pre_filter(a_long = 7 or a_short = 9))"));
+  }
+}
+
+TEST_F(TimeAlignTriggerContract, TimeAlignTriggerDefaults) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.pTimeAlign);
+    EXPECT_FALSE(req.pTimeAlign->outputRaw);
+    ASSERT_EQ(3, taosArrayGetSize(req.pTimeAlign->pColumns));
+    for (int i = 0; i < 3; ++i) {
+      auto* col = static_cast<SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, i));
+      EXPECT_EQ(i + 2, col->srcColId);
+      EXPECT_FALSE(col->hasSpan);
+      EXPECT_EQ(std::string(1, 'a' + i), col->outName);
+    }
+  });
+  run(sql("state_window(a)", "align_vn", ""));
+  run(sql("state_window(a)", "align_vn", "'*:PREV:'"));
+}
+
+TEST_F(TimeAlignTriggerContract, ZeroAndCalendarSpan) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    if (stage != PARSER_STAGE_TRANSLATE) return;
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.pTimeAlign);
+    ASSERT_EQ(2, taosArrayGetSize(req.pTimeAlign->pColumns));
+    auto* zero = static_cast<SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, 0));
+    EXPECT_TRUE(zero->hasSpan);
+    EXPECT_EQ(0, zero->amount);
+    EXPECT_EQ('s', zero->unit);
+    auto* quarter = static_cast<SStreamTimeAlignColumn*>(taosArrayGet(req.pTimeAlign->pColumns, 1));
+    EXPECT_TRUE(quarter->hasSpan);
+    EXPECT_EQ(3, quarter->amount);
+    EXPECT_EQ('n', quarter->unit);
+  });
+  run(sql("state_window(a_a)", "align_vn", "'a:PREV(0s):_a;b:PREV(1q):_a'"));
+}
+
+TEST_F(TimeAlignTriggerContract, NestedDepthLimitAndIllegalCombinations) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  for (int depth : {STREAM_WINDOW_MAX_LAYERS, STREAM_WINDOW_MAX_LAYERS + 1}) {
+    std::string window = "window(";
+    for (int i = 0; i < depth - 1; ++i) {
+      window += "count_window(2,2) as outer_" + std::to_string(i) + ", ";
+    }
+    window += "state_window(a_a) as leaf)";
+    run(sql(window), depth == STREAM_WINDOW_MAX_LAYERS ? 0 : TSDB_CODE_INVALID_PARA);
+  }
+  run(sql("window(period(1m) as parent, state_window(a_a) as leaf)"), TSDB_CODE_INVALID_PARA);
+}
+
+#ifdef TD_ENTERPRISE
+TEST_F(TimeAlignTriggerContract, RejectsUnauthorizedTriggerSource) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  Stub stub;
+  stub.set(
+      catalogChkAuth, +[](SCatalog*, SRequestConnInfo*, SUserAuthInfo* auth, SUserAuthRes* res) -> int32_t {
+        res->pass[0] = !(auth->privType == PRIV_TBL_SELECT && strcmp(auth->tbName.tname, "align_vn") == 0);
+        return 0;
+      });
+  const std::string querySql = sql("state_window(a_a)");
+  SQuery*           query = nullptr;
+  char              message[1024] = {};
+  ASSERT_NE(nullptr, pstParseCreateStreamOnly(querySql.c_str(), &query, message, sizeof(message)));
+  unique_ptr<SQuery, decltype(&qDestroyQuery)> guard(query, qDestroyQuery);
+  SParseContext                                ctx = {};
+  ctx.pUser = "restricted_reader";
+  ctx.db = "stream_streamdb";
+  ctx.pMsg = message;
+  ctx.msgLen = sizeof(message);
+  EXPECT_EQ(TSDB_CODE_PAR_TB_SELECT_PERMISSION_DENIED, authenticate(&ctx, query, nullptr));
+}
+
+TEST_F(TimeAlignTriggerContract, AuthorizesEachAlignedCalculationSource) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  static int triggerSelectChecks;
+  Stub       stub;
+  stub.set(
+      catalogChkAuth, +[](SCatalog*, SRequestConnInfo*, SUserAuthInfo* auth, SUserAuthRes* res) -> int32_t {
+        res->pass[0] = true;
+        if (auth->privType == PRIV_TBL_SELECT) {
+          if (strcmp(auth->tbName.tname, "align_vc") == 0) res->pass[0] = false;
+          if (strcmp(auth->tbName.tname, "align_vn") == 0) res->pass[0] = ++triggerSelectChecks == 1;
+        }
+        return 0;
+      });
+  for (const char* source : {"stream_triggerdb.align_vc", "%%tbname"}) {
+    triggerSelectChecks = 0;
+    const std::string querySql = sql(
+        "interval(1s)", "align_vn", "", "",
+        std::string("select _twstart as ts, avg(a_p) as v from table(time_align(table ") + source + ", 'a:PREV:_p'))");
+    SQuery* query = nullptr;
+    char    message[1024] = {};
+    ASSERT_NE(nullptr, pstParseCreateStreamOnly(querySql.c_str(), &query, message, sizeof(message)));
+    unique_ptr<SQuery, decltype(&qDestroyQuery)> guard(query, qDestroyQuery);
+    SParseContext                                ctx = {};
+    ctx.pUser = "restricted_reader";
+    ctx.userId = -1;
+    ctx.db = "stream_streamdb";
+    ctx.pMsg = message;
+    ctx.msgLen = sizeof(message);
+    EXPECT_EQ(TSDB_CODE_PAR_PERMISSION_DENIED, authenticate(&ctx, query, nullptr)) << source;
+  }
+}
+
+#endif
+
+static void checkPartitionLeafScans(const cJSON* node, std::set<std::string>* leaves) {
+  const char* table = cJSON_GetStringValue(cJSON_GetObjectItemCaseSensitive(node, "StbName"));
+  if (table && cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(node, "IsSuperTable"))) {
+    EXPECT_TRUE(cJSON_IsTrue(cJSON_GetObjectItemCaseSensitive(node, "DynTbname"))) << table;
+    leaves->insert(table);
+  }
+  for (const cJSON* child = node->child; child; child = child->next) checkPartitionLeafScans(child, leaves);
+}
+
+TEST_F(TimeAlignTriggerContract, NonLeafPlaceholderBindsTriggerChildInEachLeafScan) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  for (const char* name : {"align_parent", "align_leaf_a", "align_leaf_b"}) {
+    g_mockCatalogService->createTableBuilder("stream_triggerdb", name, TSDB_SUPER_TABLE, 2)
+        .setVirtualSuperTable(true, strcmp(name, "align_parent") == 0)
+        .setVgid(2)
+        .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+        .addColumn("a", TSDB_DATA_TYPE_INT)
+        .done();
+  }
+  catalogStub.set(
+      catalogGetVstLeaves, +[](SCatalog*, SRequestConnInfo*, const char* db, int64_t, SVstLeavesRsp* rsp) -> int32_t {
+        rsp->numLeaves = 2;
+        rsp->pLeaves = static_cast<SVstLeafInfo*>(taosMemoryCalloc(2, sizeof(SVstLeafInfo)));
+        if (!rsp->pLeaves) return terrno;
+        for (int i = 0; i < 2; ++i) {
+          auto& leaf = rsp->pLeaves[i];
+          tstrncpy(leaf.dbFName, db, sizeof(leaf.dbFName));
+          tstrncpy(leaf.stbName, i == 0 ? "align_leaf_a" : "align_leaf_b", sizeof(leaf.stbName));
+        }
+        return 0;
+      });
+  setCheckDdlFunc([](const SQuery* query, ParserStage) {
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.calcPlan);
+    unique_ptr<cJSON, decltype(&cJSON_Delete)> plan(cJSON_Parse(static_cast<const char*>(req.calcPlan)), cJSON_Delete);
+    ASSERT_NE(nullptr, plan);
+    std::set<std::string> leaves;
+    checkPartitionLeafScans(plan.get(), &leaves);
+    EXPECT_EQ((std::set<std::string>{"align_leaf_a", "align_leaf_b"}), leaves);
+  });
+  const std::string statement =
+      "create stream stream_streamdb.s_align interval(10s) from stream_triggerdb.align_parent "
+      "partition by tbname into stream_outdb.stream_out as select _twstart as ts, avg(a_p) as v "
+      "from table(time_align(table %%tbname, true, 'a:PREV:_p')) where ts >= _twstart and ts <= _twend";
+  run(statement);
+  runAsyncOnly(statement);
+  g_mockCatalogService->setVstbExternalSource("ext_mysql");
+  run(statement, TSDB_CODE_STREAM_INVALID_TRIGGER);
+  runAsyncOnly(statement, TSDB_CODE_STREAM_INVALID_TRIGGER);
+  g_mockCatalogService->setVstbExternalSource("");
+}
+
+TEST_F(TimeAlignTriggerContract, TimeAlignCalcPlaceholderAndNestedFallback) {
+  AsyncFlagGuard asyncGuard(false);
+  registerTables();
+  const std::string base =
+      "create stream stream_streamdb.s_align interval(10s) from stream_triggerdb.align_vn "
+      "partition by tbname into stream_outdb.stream_out as ";
+  bool aligned = true;
+  setCheckDdlFunc([&](const SQuery* query, ParserStage stage) {
+    SCMCreateStreamReq                                                 req = {};
+    unique_ptr<SCMCreateStreamReq, decltype(&tFreeSCMCreateStreamReq)> guard(&req, tFreeSCMCreateStreamReq);
+    ASSERT_EQ(0, tDeserializeSCMCreateStreamReq(query->pCmdMsg->pMsg, query->pCmdMsg->msgLen, &req));
+    ASSERT_NE(nullptr, req.calcPlan);
+    std::string plans((const char*)req.calcPlan);
+    for (int i = 0; i < taosArrayGetSize(req.calcScanPlanList); ++i) {
+      const auto* scan = static_cast<const SStreamCalcScan*>(taosArrayGet(req.calcScanPlanList, i));
+      if (scan->scanPlan != nullptr) plans.append((const char*)scan->scanPlan);
+    }
+    EXPECT_EQ(aligned, plans.find("\"AlignCols\":[") != std::string::npos);
+    EXPECT_EQ(!aligned, plans.find("ExternalWindow\"") != std::string::npos);
+  });
+  const std::string named = "table(time_align(table stream_triggerdb.align_vn, true, 'a:PREV:_p'))";
+  const std::string placeholder = "table(time_align(table %%tbname, true, 'a:PREV:_p'))";
+  for (const auto& source :
+       {named, placeholder, "(select ts, a_p from " + named + ") s",
+        "(select ts, a_p from " + named + " union all select ts, a from stream_triggerdb.align_vn) s"}) {
+    run(base + "select _twstart as ts, avg(a_p) as v from " + source + " where ts >= _twstart and ts <= _twend");
+  }
+  run("create stream stream_streamdb.s_align interval(10s) from stream_triggerdb.align_vn "
+      "into stream_outdb.stream_out as select _twstart as ts, avg(a_p) as v from " +
+          placeholder,
+      TSDB_CODE_STREAM_INVALID_PLACE_HOLDER);
+  run(base +
+          "select _twstart as ts, avg(v_p) as v from "
+          "table(time_align(table stream_triggerdb.align_src_a, true, 'v:PREV:_p'))",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+  run(base +
+          "select _twstart as ts, avg(a_p) as v from "
+          "table(time_align(table %%tbname, true, 'a:NEXT:_p'))",
+      TSDB_CODE_STREAM_INVALID_TRIGGER);
+  aligned = false;
+  run(base +
+      "select _twstart as ts, avg(v) as v from stream_triggerdb.align_src_a "
+      "where ts >= _twstart and ts <= _twend");
+}
 }  // namespace ParserTest

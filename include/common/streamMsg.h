@@ -101,6 +101,12 @@ typedef struct STokenBucket       STokenBucket;
 #define STREAM_OPTION_NESTED_WINDOW_PLAN   BIT_FLAG_MASK(5)
 #define STREAM_OPTION_TIME_CONFIG_PRESENT     BIT_FLAG_MASK(6)
 #define STREAM_OPTION_DERIVATIVE_TAG          BIT_FLAG_MASK(7)
+#define STREAM_OPTION_TIME_ALIGN                    BIT_FLAG_MASK(8)
+#define STREAM_TIME_ALIGN_FRAME_MAGIC               UINT32_C(0x4e575441)
+#define STREAM_TIME_ALIGN_FRAME_VERSION             1
+#define STREAM_RESULT_ADMISSION_FRAME_MAGIC         UINT32_C(0x4e575241)
+#define STREAM_RESULT_ADMISSION_VERSION             1
+#define STREAM_RESULT_ADMISSION_TIMEOUT_MS          5000
 
 typedef enum EStreamRunnerFetchType {
   STREAM_RUNNER_FETCH_LEGACY = 0,
@@ -278,6 +284,24 @@ typedef union {
   SCountTrigger    count;
   SPeriodTrigger   period;
 } SStreamTrigger;
+
+/** PREV output rule; source columns and timestamp contributors are independent. */
+typedef struct SStreamTimeAlignColumn {
+  col_id_t  srcColId;
+  SDataType type;
+  char      outName[TSDB_COL_NAME_LEN];
+  bool      hasSpan;
+  int64_t   amount;
+  int8_t    unit;
+} SStreamTimeAlignColumn;
+
+typedef struct SStreamTimeAlignSpec {
+  bool    outputRaw;
+  int8_t  precision;
+  SArray* pRowsetColIds;  // unique virtual source column IDs
+  SArray* pColumns;       // complete SStreamTimeAlignColumn definitions
+  char*   timezone;
+} SStreamTimeAlignSpec;
 
 typedef struct SStreamTimeConfig {
   char   timezone[TD_TIMEZONE_LEN];
@@ -527,6 +551,7 @@ typedef struct {
   int32_t numOfExtSpecs;
   SArray* extSpecs;
   SStreamWindowPlan* pWindowPlan;
+  SStreamTimeAlignSpec* pTimeAlign;
 
   // batch-meta-txn (stream phase 2): owning txn, 0 = not in a txn. Encoded in the
   // outer frame of tSerializeSCMCreateStreamReq, NOT in the JSON body, because the
@@ -1108,8 +1133,10 @@ typedef struct {
   int64_t triggerTblSuid;
   int8_t  triggerTblType;
   int8_t  isTriggerTblVirt;
+  bool    timeAlignConsumer;
   int8_t  deleteReCalc;
   int8_t  deleteOutTbl;
+  bool    requireLocalVtableRefs;
   void*   partitionCols;  // nodelist of SColumnNode
   void*   rollupTagCols;  // nodelist of SColumnNode
   void*   triggerCols;    // nodelist of SColumnNode
@@ -1175,6 +1202,7 @@ typedef struct {
   int32_t addOptions;
   int8_t  notifyHistory;
   SStreamWindowPlan* pWindowPlan;
+  SStreamTimeAlignSpec* pTimeAlign;
 
   int64_t        maxDelay;              // precision is ms
   col_id_t       maxDelayTagColId;      // 0 = use maxDelay literal; otherwise PARTITION BY duration tag
@@ -1355,6 +1383,11 @@ int32_t tDeserializeSCMCreateStreamReq(void* buf, int32_t bufLen, SCMCreateStrea
 void    tFreeSCMCreateStreamReq(SCMCreateStreamReq* pReq);
 int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStreamReq** ppDst);
 
+int32_t tValidateStreamTimeAlignSpec(const SStreamTimeAlignSpec* pSpec);
+int32_t tCloneStreamTimeAlignSpec(const SStreamTimeAlignSpec* pSrc, SStreamTimeAlignSpec** ppDst);
+void    tDestroyStreamTimeAlignSpec(SStreamTimeAlignSpec** ppSpec);
+int32_t tEncodeStreamTimeAlignSpec(SEncoder* pEncoder, const SStreamTimeAlignSpec* pSpec);
+int32_t tDecodeStreamTimeAlignSpec(SDecoder* pDecoder, SStreamTimeAlignSpec** ppSpec);
 int32_t tCloneStreamWindowPlan(const SStreamWindowPlan* pSrc, SStreamWindowPlan** ppDst);
 void    tDestroyStreamWindowPlan(SStreamWindowPlan** ppPlan);
 int32_t tValidateStreamWindowPlan(const SStreamWindowPlan* pPlan, const SStreamWindowPlanValidationCtx* pCtx);
@@ -1401,6 +1434,8 @@ void    tEndEncodeStreamTailFrame(SEncoder* pEncoder);
 int32_t tDecodeNextStreamTailFrame(SDecoder* pParent, SStreamTailFrameDecoder* pFrame);
 int32_t tFinishDecodeStreamTailFrame(SStreamTailFrameDecoder* pFrame, bool requirePayloadEnd);
 
+int32_t tStartEncodeStreamDefinition(SEncoder* encoder, const SCMCreateStreamReq* req);
+int32_t tStartDecodeStreamDefinition(SDecoder* decoder, bool* aligned);
 int32_t tSerializeSCMCreateStreamReqImpl(SEncoder* pEncoder, const SCMCreateStreamReq* pReq);
 int32_t tDeserializeSCMCreateStreamReqImplOld(
   SDecoder *pDecoder, SCMCreateStreamReq *pReq, int32_t leftBytes);
@@ -1421,7 +1456,7 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT,
   STRIGGER_PULL_TSDB_CALC_DATA,
   STRIGGER_PULL_TSDB_CALC_DATA_NEXT,
-  STRIGGER_PULL_TSDB_DATA, //10
+  STRIGGER_PULL_TSDB_DATA,  // 10
   STRIGGER_PULL_TSDB_DATA_NEXT,
   STRIGGER_PULL_GROUP_COL_VALUE,
   STRIGGER_PULL_VTABLE_INFO,
@@ -1433,14 +1468,25 @@ typedef enum ESTriggerPullType {
   STRIGGER_PULL_WAL_CALC_DATA_NEW,
   /* External-source PULL subtypes  -  all transported via TDMT_STREAM_TRIGGER_PULL_EXT.
    * See DS section 6.1.5 and section 6.2.4 for request/response semantics. */
-  STRIGGER_PULL_LAST_TS_EXT,      /* returns SArray<{uid,gid,ts}>          */
-  STRIGGER_PULL_META_EXT,         /* returns SSDataBlock metaBlock         */
-  STRIGGER_PULL_DATA_EXT,         /* returns dataBlock + indexHash         */
-  STRIGGER_PULL_META_DATA_EXT,    /* returns metaBlock + dataBlock + indexHash */
-  STRIGGER_PULL_CALC_DATA_EXT,    /* returns dataBlock(calc cols) + indexHash */
+  STRIGGER_PULL_LAST_TS_EXT,         /* returns SArray<{uid,gid,ts}>          */
+  STRIGGER_PULL_META_EXT,            /* returns SSDataBlock metaBlock         */
+  STRIGGER_PULL_DATA_EXT,            /* returns dataBlock + indexHash         */
+  STRIGGER_PULL_META_DATA_EXT,       /* returns metaBlock + dataBlock + indexHash */
+  STRIGGER_PULL_CALC_DATA_EXT,       /* returns dataBlock(calc cols) + indexHash */
   STRIGGER_PULL_GROUP_COL_VALUE_EXT, /* returns SArray<SStreamGroupValue> for one gid */
+  STRIGGER_PULL_TIME_ALIGN_DATA,
+  STRIGGER_PULL_TIME_ALIGN_DATA_NEXT,
+  STRIGGER_PULL_TIME_ALIGN_DATA_CLOSE,
+  STRIGGER_PULL_TIME_ALIGN_BOUND,
+  STRIGGER_PULL_TIME_ALIGN_VALIDATE,
+  STRIGGER_PULL_TIME_ALIGN_RELEASE,
+  STRIGGER_PULL_TIME_ALIGN_WAL_CHECK,
+  STRIGGER_PULL_TIME_ALIGN_WAL_RANGE,
   STRIGGER_PULL_TYPE_MAX,
 } ESTriggerPullType;
+
+#define STREAM_TRIGGER_REALTIME_SESSIONID 1
+#define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
 typedef struct SSTriggerPullRequest {
   ESTriggerPullType type;
@@ -1452,12 +1498,64 @@ typedef struct SSTriggerPullRequest {
   uint64_t          progressRequestToken;  // does not serialize
   SStreamManualRecalcAttemptId manualAttempt;         // does not serialize
   uint32_t          retryCount;  // does not serialize
+  uint64_t                     timeAlignWalRound;    // WAL reads for an admitted TIME_ALIGN round
+  uint64_t                     timeAlignWalRequest;  // stable across a transport retry
 } SSTriggerPullRequest;
+
+#define STREAM_TIME_ALIGN_WAL_CHECK_CELLS 256
+
+typedef struct {
+  int64_t  version, uid, ts;
+  col_id_t cid;
+  bool     written;
+  bool     physical;     // ts is an exact source tick
+  bool     unavailable;  // local result when the checked WAL page has expired
+} STimeAlignWalProbe;
+
+int32_t tCompareTimeAlignWalProbe(const void* lhs, const void* rhs);
+int32_t tDecodeTimeAlignWalCheckRsp(const void* buf, int32_t len, uint64_t pageId, STimeAlignWalProbe* cells,
+                                    int32_t n);
+
+typedef struct {
+  SSTriggerPullRequest base;
+  uint64_t             metaRequest;  // WAL_META response that admitted these versions
+  SArray*              cells;        // sorted by submit version, uid, timestamp and physical column
+} SSTriggerTimeAlignWalCheckRequest;
+
+// Check the available WAL for changes to the selected sources, one page at a time.
+typedef struct {
+  SSTriggerPullRequest base;
+  uint64_t             roundId;
+  int64_t              firstVer, throughTs;
+  bool                 hasFromTs;
+  int64_t              fromTs;  // inclusive lower limit for submits; deletes retain their own policy
+  SArray*              uids;    // sorted physical UIDs on registration, omitted on continuation
+  uint64_t             selectionId;  // zero uses the full-list protocol
+} SSTriggerTimeAlignWalRangeRequest;
+
+typedef struct {
+  uint64_t roundId;
+  int64_t  firstVer, nextVer;
+  bool     changed;
+} SSTriggerTimeAlignWalRangeRsp;
+
+int32_t tSerializeSTriggerTimeAlignWalRangeRsp(void* buf, int32_t len, const SSTriggerTimeAlignWalRangeRsp* rsp);
+int32_t tDeserializeSTriggerTimeAlignWalRangeRsp(void* buf, int32_t len, SSTriggerTimeAlignWalRangeRsp* rsp);
+
+typedef struct SStreamWalSlotWidth {
+  int16_t slot;
+  int32_t bytes;
+} SStreamWalSlotWidth;
 
 typedef struct SSTriggerSetTableRequest {
   SSTriggerPullRequest base;
   SSHashObj*           uidInfoTrigger;    // < uid->SHashObj<slotId->colId> >
   SSHashObj*           uidInfoCalc;    // < uid->SHashObj<slotId->colId> >
+  int8_t               timeAlignPrecision;  // virtual table precision + 1, zero for a legacy binding
+  bool                 physicalWalCells;    // preserve NONE and the exact PREV source tick
+  bool                 physicalWalKeys;     // preserve source row identity across precision conversion
+  SArray*              physicalWidths[2];
+  SArray*              physicalAliases[2];  // additional trigger and calc WAL slots -> logical template slot
 } SSTriggerSetTableRequest;
 
 typedef struct SSTriggerLastTsRequest {
@@ -1469,6 +1567,7 @@ typedef struct SSTriggerFirstTsRequest {
   int64_t              gid;  // optional, 0 by default
   int64_t              startTime;
   int64_t              ver;
+  uint64_t             roundId;
 } SSTriggerFirstTsRequest;
 
 typedef struct SSTriggerTsdbMetaRequest {
@@ -1478,6 +1577,8 @@ typedef struct SSTriggerTsdbMetaRequest {
   int64_t              gid;    // optional, 0 by default
   int8_t               order;  // 1 for asc, 2 for desc
   int64_t              ver;
+  uint64_t             roundId;
+  uint64_t             requestId;  // reused when retrying this metadata page
 } SSTriggerTsdbMetaRequest;
 
 typedef struct SSTriggerTsdbTsDataRequest {
@@ -1534,7 +1635,15 @@ typedef enum {
   // one cursor (the WAL cursor does not move), and each change is emitted once because the reader
   // cache is updated before the notification is sent.
   TABLE_BLOCK_ADD_RECHECK,
+  // A terminal column widened on this WAL reader. The uid belongs to the flat virtual trigger table.
+  TABLE_BLOCK_REFRESH_WIDTH,
 } ETableBlockType;
+
+// Local column ID for the hidden physical timestamp immediately before the WAL version.
+#define STREAM_WAL_PHYSICAL_TS_COL_ID (INT16_MIN + 1)
+#define STREAM_WAL_NULL_MASK_COL_ID   (INT16_MIN + 2)
+int32_t tStreamWalNullMaskSlot(const SSDataBlock* block);
+int32_t tStreamWalPhysicalTsSlot(const SSDataBlock* block);
 
 typedef struct SSTriggerWalNewRsp {
   SSHashObj*           indexHash;
@@ -1564,7 +1673,7 @@ typedef struct SSTriggerWalDataNewRequest {
 typedef struct SSTriggerWalMetaDataNewRequest {
   SSTriggerPullRequest base;
   int64_t              lastVer;
-  int64_t              endVer;  // exclusive upper bound; 0 means unbounded
+  int64_t              endVer;  // exclusive upper bound; 0 means unbounded, -1 an empty aligned page at cursor 0
   bool                 withGroupColVals;
   uint64_t             requestId;  // stable across retries; acknowledges the previous response
 } SSTriggerWalMetaDataNewRequest;
@@ -1592,6 +1701,7 @@ typedef struct OTableInfoRsp {
   int64_t  suid;
   int64_t  uid;
   col_id_t cid;
+  int32_t  bytes;
 } OTableInfoRsp;
 
 typedef struct OTableInfo {
@@ -1759,7 +1869,39 @@ typedef struct SSTriggerExtPullRsp {
   /* No hasMore field: trigger infers "more data" from row count >= STREAM_RETURN_ROWS_NUM. */
 } SSTriggerExtPullRsp;
 
+// The Trigger reuses roundId across transport retries.
+typedef struct SSTriggerTimeAlignRoundRequest {
+  SSTriggerPullRequest base;
+  uint64_t             roundId;
+  STimeWindow          window;
+  bool                 resumeWal;
+} SSTriggerTimeAlignRoundRequest;
 
+typedef struct SSTriggerTimeAlignDataRequest {
+  SSTriggerPullRequest base;
+  uint64_t             roundId;
+  int64_t              roundSessionId;  // session that admitted the shared source vector
+  uint64_t             scanId;
+  uint64_t             batchId;
+  int64_t              suid;
+  int64_t              uid;
+  int64_t              skey;
+  int64_t              ekey;
+  SArray*              cids;   // SArray<col_id_t>, col_id starts from 0
+  int8_t               order;  // 1 for asc, 2 for desc
+  int64_t              ver;
+} SSTriggerTimeAlignDataRequest;
+
+typedef struct SSTriggerTimeAlignDataRsp {
+  uint64_t     scanId;
+  uint64_t     batchId;
+  bool         done;
+  SSDataBlock* pBlock;
+} SSTriggerTimeAlignDataRsp;
+
+int32_t tSerializeSTriggerTimeAlignDataRsp(void* buf, int32_t len, const SSTriggerTimeAlignDataRsp* pRsp);
+int32_t tDeserializeSTriggerTimeAlignDataRsp(void* buf, int32_t len, SSTriggerTimeAlignDataRsp* pRsp);
+void    tDestroySTriggerTimeAlignDataRsp(SSTriggerTimeAlignDataRsp* pRsp);
 
 typedef union SSTriggerPullRequestUnion {
   SSTriggerPullRequest                base;
@@ -1771,6 +1913,8 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerTsdbTriggerDataRequest     tsdbTriggerDataReq;
   SSTriggerTsdbCalcDataRequest        tsdbCalcDataReq;
   SSTriggerTsdbDataRequest            tsdbDataReq;
+  SSTriggerTimeAlignWalCheckRequest   walCheckReq;
+  SSTriggerTimeAlignWalRangeRequest   walRangeReq;
   SSTriggerWalMetaNewRequest          walMetaNewReq;
   SSTriggerWalDataNewRequest          walDataNewReq;
   SSTriggerWalMetaDataNewRequest      walMetaDataNewReq;
@@ -1779,6 +1923,8 @@ typedef union SSTriggerPullRequestUnion {
   SSTriggerVirTablePseudoColRequest   virTablePseudoColReq;
   SSTriggerOrigTableInfoRequest       origTableInfoReq;
   SSTriggerExtPullReq                 extPullReq;
+  SSTriggerTimeAlignDataRequest       timeAlignDataReq;
+  SSTriggerTimeAlignRoundRequest      timeAlignRoundReq;
 } SSTriggerPullRequestUnion;
 
 int32_t tSerializeSTriggerPullRequest(void* buf, int32_t bufLen, const SSTriggerPullRequest* pReq);
@@ -1855,6 +2001,24 @@ typedef struct SSTriggerGroupReadInfo {
   SArray*            pTables;  // SArray<uid uint64_t>, tables to read; tables are decided by reader if it is null
 } SSTriggerGroupReadInfo;
 
+// Identifies the Trigger-owned active calculation. Source routes are never carried by submitters.
+typedef struct SStreamResultAdmission {
+  int64_t  streamId;
+  int64_t  triggerTaskId;
+  int64_t  runnerTaskId;
+  int64_t  sessionId;
+  uint64_t roundId;
+  uint64_t calcToken;
+  uint64_t calcTokenHi;
+  int32_t  triggerDnodeId;
+} SStreamResultAdmission;
+
+#define STREAM_RESULT_ADMISSION_WIRE_SIZE (1 + 7 * sizeof(uint64_t) + sizeof(int32_t))
+int32_t tSerializeStreamResultAdmission(void* buf, int32_t len, const SStreamResultAdmission* admission);
+int32_t tDeserializeStreamResultAdmission(void* buf, int32_t len, SStreamResultAdmission* admission);
+// Appends the mandatory admission trailer to an ordinary submit buffer allocated by taosMemoryMalloc.
+int32_t tAttachStreamResultAdmission(void** buf, int32_t* len, const SStreamResultAdmission* admission);
+
 typedef struct SSTriggerCalcRequest {
   int64_t streamId;
   int64_t runnerTaskId;
@@ -1881,6 +2045,8 @@ typedef struct SSTriggerCalcRequest {
   SStreamAncestorContext* pAncestorContext;
   SStreamContextFrames*   pContextFrames;  // optional owned validated frame copy
   int64_t derivativeLogEpoch;  // frozen single-point configuration or history-round identity
+
+  SStreamResultAdmission resultAdmission;
 
   // The following fields are not serialized
   int32_t assembledParamCount;  // only used by the trigger task
@@ -2078,14 +2244,15 @@ int32_t tSerializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, const SStreamM
 int32_t tDeserializeSStreamMsgVTableInfo(void* buf, int32_t bufLen, SStreamMsgVTableInfo *pBlock);
 void    tDestroySStreamMsgVTableInfo(SStreamMsgVTableInfo *ptr);
 
-
 typedef struct SStreamTsResponse {
   int64_t ver;
   SArray* tsInfo;  // SArray<STsInfo>
+  uint64_t sourceId;  // Reader incarnation for TIME_ALIGN BOUND replies
 } SStreamTsResponse;
 
 int32_t tSerializeSStreamTsResponse(void* buf, int32_t bufLen, const SStreamTsResponse* pRsp);
 int32_t tDeserializeSStreamTsResponse(void* buf, int32_t bufLen, void *pBlock);
+int32_t tDeserializeTimeAlignBoundRsp(void* buf, int32_t bufLen, void* block, uint64_t* sourceId);
 
 typedef struct SStreamWalDataSlice {
   int64_t  uid;

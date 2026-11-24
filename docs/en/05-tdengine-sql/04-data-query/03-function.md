@@ -5275,7 +5275,7 @@ Usage Instructions:
 
 A table function returns a row set. It is called through `TABLE(...)` in the `FROM` clause. The result of a table function can participate in `JOIN`, subqueries, aggregation, windows, sorting, `LIMIT`, and other queries like a table.
 
-A table function is not an expression function: it cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as a parameter of a scalar, aggregate, or set function. Table function results do not support writes, `ALTER`, deletion, subscriptions, or stream processing.
+A table function is not an expression function: it cannot appear in the `SELECT` list, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`, or other expressions, and cannot be used as a parameter of a scalar, aggregate, or set function. Table function results are read-only and do not support subscriptions. A stream can use TIME_ALIGN on a local virtual trigger table.
 
 ### TIME_ALIGN
 
@@ -5476,7 +5476,8 @@ Limitations:
 - System tables, streams, and topics cannot be used as input.
 - For table input, tag columns and the primary timestamp column cannot be used as aligned columns. For view input and an external table without a primary key, every output column can be used as an aligned column.
 - A virtual table cannot reference a composite-primary-key source, so such a source can use time alignment only through a basic table or supertable.
-- The following positions are not supported: `INSERT INTO ... SELECT`, `CREATE STREAM`, `CREATE TOPIC`, column references in `CREATE VTABLE` or `ALTER VTABLE`, `DELETE`, and `CREATE TABLE ... AS`.
+- For stream triggers, local virtual tables support `PREV` and `PREV(duration)`. A calculation query can specify TIME_ALIGN independently. See [stream syntax](../../07-stream-processing/01-syntax.md).
+- The following positions are not supported: `INSERT INTO ... SELECT`, `CREATE TOPIC`, column references in `CREATE VTABLE` or `ALTER VTABLE`, `DELETE`, and `CREATE TABLE ... AS`.
 - The default column definition `*:PREV:` references many columns. To reduce scanned columns, explicitly provide column definitions containing only the required columns.
 
 #### Privileges

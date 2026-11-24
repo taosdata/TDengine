@@ -196,10 +196,12 @@ typedef struct SStreamTriggerReaderInfo {
   uint64_t     uid;
   int8_t       tableType;
   int8_t       isVtableStream;  // whether is virtual table stream
+  bool                           timeAlignConsumer;
   int8_t       isVtableOnlyTs;
   int8_t       vTableReady;
   int8_t       deleteReCalc;
   int8_t       deleteOutTbl;
+  bool                           requireLocalVtableRefs;
   SNode*       pTagCond;
   SNode*       pTagIndexCond;
   SNode*       pConditions;
@@ -208,6 +210,13 @@ typedef struct SStreamTriggerReaderInfo {
   SNodeList*   triggerCols;
   SNodeList*   triggerPseudoCols;
   SHashObj*    streamTaskMap;
+  SHashObj*                      pTimeAlignScans;
+  SHashObj*                      pTimeAlignRounds;
+  uint64_t     timeAlignSourceId;           // identifies this deployed Reader across its realtime and history sessions
+  uint64_t     timeAlignRoundWatermark[2];  // one sequence per Trigger session
+  SRWLatch     timeAlignScanLock;
+  SArray*      timeAlignWidthTxns;  // local WAL transactions observed continuously since BEGIN
+  int64_t      timeAlignWidthNextVer;
   SHashObj*    groupIdMap;
   SArray*      pendingGroupColRefresh;  // lazily allocated int64_t gids whose tag values changed (SET TAG)
   SMCtbCursor* groupColRefreshCursor;   // paused cursor for a chunked bulk SET TAG refresh
@@ -220,8 +229,12 @@ typedef struct SStreamTriggerReaderInfo {
   int32_t      walMetaRspCacheType;
   int64_t      walMetaRspCacheSessionId;
   uint64_t     walMetaRspCacheRequestId;
+  uint64_t     walMetaRspCacheRound;
   SSubplan*    triggerAst;
   SSubplan*    calcAst;
+  int8_t       physicalWalCells;
+  int8_t       timeAlignPrecision;   // virtual table precision + 1, zero for a legacy binding
+  SSDataBlock* extendedWalBlock[2];  // immutable layouts with physical aliases before the version column
   SSDataBlock* triggerResBlock;
   SSDataBlock* triggerBlock;
   SSDataBlock* calcResBlock;
@@ -352,6 +365,7 @@ typedef struct {
   int32_t                              nextMetaTable;
   char*                                idStr;
   SQueryTableDataCond                  cond;
+  SArray*                              rawColumnAliases;
 } SStreamReaderTaskInner;
 
 int32_t qStreamInitQueryTableDataCond(SQueryTableDataCond* pCond, int32_t order, void* schemas, bool isSchema,

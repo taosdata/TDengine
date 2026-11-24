@@ -227,8 +227,11 @@ class TestCase:
             tdLog.exit("%d tmq consume rows error!"%consumerId)
 
         time.sleep(10)
+        # consumer 0 was killed with -9 and never unsubscribed, so mnode keeps its subscription until it is
+        # judged lost (session timeout, ~45s after the kill); DROP TOPIC is refused with "Topic subscribed
+        # cannot be dropped" until then. Give the default 10 retries (~10s) more room.
         for i in range(len(topicNameList)):
-            tdSql.query("drop topic %s"%topicNameList[i])
+            tdSql.query("drop topic %s"%topicNameList[i], queryTimes=30)
 
         tdLog.printNoPrefix("======== test case 4 end ...... ")
 
@@ -244,6 +247,7 @@ class TestCase:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

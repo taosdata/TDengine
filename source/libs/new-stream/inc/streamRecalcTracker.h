@@ -158,6 +158,8 @@ int32_t stRecalcTrackerCompleteReader(SStreamRecalcTracker *pTracker, uint64_t s
 int32_t stRecalcTrackerSetTriggerDone(SStreamRecalcTracker *pTracker, uint64_t stepId, int32_t pendingCalcParamCount);
 int32_t stRecalcTrackerAddRunner(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);
 int32_t stRecalcTrackerCompleteRunner(SStreamRecalcTracker *pTracker, uint64_t stepId, uint64_t requestToken);
+/* Retire input tokens without advancing contributors when the fixed source view is revoked. */
+int32_t stRecalcTrackerDiscardStep(SStreamRecalcTracker *pTracker, uint64_t stepId);
 int32_t stRecalcTrackerFailStep(SStreamRecalcTracker *pTracker, uint64_t stepId, int32_t errorCode);
 int32_t stRecalcTrackerInitHistory(SStreamRecalcTracker *pTracker, bool enabled, SStreamProgressRange originalRange,
                                    bool checkpointFinished);

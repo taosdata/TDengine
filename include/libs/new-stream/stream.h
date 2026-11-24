@@ -94,6 +94,14 @@ typedef enum {
   STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY,
   STRIGGER_AHANDLE_PARAM_NESTED_RECOVERY_PSEUDO,
   STRIGGER_AHANDLE_PARAM_PERIOD_INPUT,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_SEED,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BODY,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_VALIDATE,
+  STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_CHECK,
+  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_RANGE,
 } ESTriggerAHandleParamType;
 
 typedef struct SSTriggerAHandle {
@@ -105,6 +113,9 @@ typedef struct SSTriggerAHandle {
   int64_t requestGid;
   int8_t  paramType; /* ESTriggerAHandleParamType */
   void   *param;
+  SSDataBlock                **timeAlignBlock; /* synchronous history continuation only */
+  bool                         timeAlignDone;
+  uint64_t                     timeAlignRound;
   void   *pullOwner; /* borrowed owner for pull requests that require terminal cleanup */
   uint64_t progressStepId;
   uint64_t progressRequestToken;
@@ -147,6 +158,15 @@ typedef enum sinkHandleInitState {
 } sinkHandleInitState;
 
 typedef struct SStreamRunnerGroupedContinuation SStreamRunnerGroupedContinuation;
+typedef struct SStreamRunnerResultState         SStreamRunnerResultState;
+
+// Owned by one local calculation. The snode serializes execution and timer wakes until completion.
+typedef struct SStreamResultWait {
+  void   *runnerState;
+  void   *sinkState;
+  int32_t delayMs;
+  bool    cancelled;
+} SStreamResultWait;
 
 typedef struct SStreamRunnerTaskExecution {
   const char        *pPlan;
@@ -160,12 +180,14 @@ typedef struct SStreamRunnerTaskExecution {
   int32_t            sinkHandleInited;  // 0: Uninitialized, 1: initializing, 2: initialized
 
   SStreamRunnerGroupedContinuation *pGroupedContinuation;
+  SStreamRunnerResultState         *pResultState;
   int64_t            outputMemoryBytes;
   int64_t            executorMemoryBytes;
   int64_t            memorySnapshotAtMonoUs;
   bool               outputMemoryValid;
   bool               executorMemoryValid;
   bool               memorySnapshotPublished;
+  SStreamResultAdmission            resultAdmission;
 } SStreamRunnerTaskExecution;
 
 typedef struct SStreamRunnerTaskOutput {
@@ -409,6 +431,8 @@ int32_t streamCheckpointSyncComplete(int64_t streamId, int32_t result);
 int32_t streamSyncAllCheckpoints(SEpSet* epSet);
 void    streamDeleteAllCheckpoints();
 void    smUndeploySnodeTasks(bool cleanup);
+int32_t stTriggerTaskValidateResult(SStreamTask *task, const SStreamResultAdmission *claim,
+                                    const SRpcHandleInfo *reply);
 int32_t stTriggerTaskProcessRsp(SStreamTask *pTask, SRpcMsg *pRsp, int64_t *pErrTaskId);
 int32_t stTriggerTaskGetStatus(SStreamTask *pTask, SSTriggerRuntimeStatus *pStatus);
 int32_t stTriggerTaskGetDelay(SStreamTask *pTask, int64_t *pDelay, bool *pFillHisFinished);

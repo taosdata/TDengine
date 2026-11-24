@@ -196,12 +196,12 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && !viewMetaHandled) {
     // For DROP STB: save suid -> fullName before removeMeta clears the cache
-    if (code == 0 && pRequest->pTscObj->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
+    if (code == 0 && pRequest->txnId > 0 && pRequest->type == TDMT_MND_DROP_STB) {
       int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
       for (int32_t i = 0; i < tbNum; ++i) {
         SName* pTbName = TARRAY_GET_ELEM(pRequest->targetTableList, i);
         if (pTbName) {
-          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pTbName);
+          int32_t rc = tscTxnRecordDroppedStbSuid(pRequest->pTscObj, pRequest->txnId, pTbName);
           if (rc != 0) {
             code = rc;
             break;
@@ -216,7 +216,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 
   // Batch meta txn: record NULL sentinel in pTxnTableMeta after DROP so that
   // subsequent queries in the same txn return TABLE_NOT_EXIST instead of stale meta.
-  if (code == 0 && pRequest->pTscObj->txnId > 0 &&
+  if (code == 0 && pRequest->txnId > 0 &&
       (pRequest->type == TDMT_MND_DROP_STB || pRequest->type == TDMT_VND_DROP_TABLE)) {
     int32_t tbNum = taosArrayGetSize(pRequest->targetTableList);
     for (int32_t i = 0; i < tbNum; ++i) {
@@ -224,7 +224,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
       if (pTbName) {
         char fullName[TSDB_TABLE_FNAME_LEN];
         if (tNameExtractFullName(pTbName, fullName) == 0) {
-          (void)tscTxnUpsertTableMeta(pRequest->pTscObj, fullName, NULL, "drop");
+          (void)tscTxnUpsertTableMeta(pRequest->pTscObj, pRequest->txnId, fullName, NULL, "drop");
         }
       }
     }
@@ -668,14 +668,15 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
         // Batch meta txn: skip global catalog cache update during txn to prevent
         // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
-        if (pTscObj->txnId == 0) {
+        if (pRequest->txnId == 0) {
           if (ret == TSDB_CODE_SUCCESS) {
             ret = handleCreateTbExecRes(pRes->res, pCatalog);
           }
         }
 #ifdef TD_ENTERPRISE
-        else if (pTscObj->txnId > 0) {
-          int32_t txnCode = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "cached STB (CREATE STB)");
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "cached STB (CREATE STB)");
           if (txnCode != 0) {
             doRequestCallback(pRequest, txnCode);
             return txnCode;
@@ -807,14 +808,15 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
         // Batch meta txn: skip global catalog cache update during txn to prevent
         // cross-session pollution. Only populate per-connection pTxnTableMeta.
         STscObj* pTscObj = pRequest->pTscObj;
-        if (pTscObj->txnId == 0) {
+        if (pRequest->txnId == 0) {
           if (ret == TSDB_CODE_SUCCESS) {
             ret = handleAlterTbExecRes(pRes->res, pCatalog);
           }
         }
 #ifdef TD_ENTERPRISE
-        else if (pTscObj->txnId > 0) {
-          int32_t txnCode = tscTxnCacheMetaFromRsp(pTscObj, (STableMetaRsp*)pRes->res, "updated STB (ALTER STB)");
+        else if (pRequest->txnId > 0) {
+          int32_t txnCode =
+              tscTxnCacheMetaFromRsp(pTscObj, pRequest->txnId, (STableMetaRsp*)pRes->res, "updated STB (ALTER STB)");
           if (txnCode != 0) {
             doRequestCallback(pRequest, txnCode);
             return txnCode;
@@ -1831,13 +1833,14 @@ void tscResetTxnState(STscObj* pTscObj) {
       STableMeta** ppMeta = (STableMeta**)pIter;
       taosMemoryFreeClear(*ppMeta);
     }
-    taosHashCleanup(pTscObj->pTxnTableMeta);
-    pTscObj->pTxnTableMeta = NULL;
+    // Cleared, not destroyed: requests still in flight on this connection (their parse context and catalog jobs)
+    // borrow this hash pointer. It lives as long as the connection and is destroyed in destroyTscObj.
+    taosHashClear(pTscObj->pTxnTableMeta);
   }
 
-  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed.
-  taosHashCleanup(pTscObj->pTxnSuidMap);
-  pTscObj->pTxnSuidMap = NULL;
+  // pTxnSuidMap values are char[] copied inline by the hash  -  no per-entry free needed. Cleared, not destroyed,
+  // for the same reason as pTxnTableMeta.
+  taosHashClear(pTscObj->pTxnSuidMap);
   (void)taosThreadMutexUnlock(&pTscObj->mutex);
 
   if (NULL != pStaleTables) {

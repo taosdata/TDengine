@@ -3353,9 +3353,13 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
           stbCtx.pName = &stbName;
 
           taosMemoryFreeClear(pOut->tbMeta);
-          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
-          if (pOut->tbMeta) {
-            exist = 1;
+          // Batch meta txn: a super table modified by this txn must be fetched with the txnId, the
+          // shared cache only has its committed view.
+          if (!ctgIsCachedMetaTouchedByTxn(pConn, &stbName, NULL)) {
+            CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
+            if (pOut->tbMeta) {
+              exist = 1;
+            }
           }
         }
 
@@ -3373,7 +3377,12 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
-  CTG_ERR_JRET(ctgUpdateTbMetaToCache(pCtg, pOut, flag & CTG_FLAG_SYNC_OP));
+  if (ctgIsMetaTouchedByTxn(pConn, pOut)) {
+    // Batch meta txn: for a table touched by the txn never write txn-aware (possibly overlaid, uncommitted) meta into the shared cache.
+    ctgDebug("txn:%" PRId64 ", table touched by txn, skip updating shared cache", (int64_t)pConn->txnId);
+  } else {
+    CTG_ERR_JRET(ctgUpdateTbMetaToCache(pCtg, pOut, flag & CTG_FLAG_SYNC_OP));
+  }
 
   if (CTG_IS_META_BOTH(pOut->metaType)) {
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
@@ -3635,7 +3644,9 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.pName = &stbName;
 
           STableMeta* stbMeta = NULL;
-          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta));
+          if (!ctgIsCachedMetaTouchedByTxn(pConn, &stbName, NULL)) {
+            CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta));
+          }
           if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgTaskDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
@@ -3661,7 +3672,12 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
 
-  (void)ctgUpdateTbMetaToCache(pCtg, pOut, false);  // cache update not fatal error
+  if (ctgIsMetaTouchedByTxn(pConn, pOut)) {
+    // Batch meta txn: for a table touched by the txn never write txn-aware (possibly overlaid, uncommitted) meta into the shared cache.
+    ctgDebug("txn:%" PRId64 ", table touched by txn, skip updating shared cache", (int64_t)pConn->txnId);
+  } else {
+    (void)ctgUpdateTbMetaToCache(pCtg, pOut, false);  // cache update not fatal error
+  }
 
   if (CTG_IS_META_BOTH(pOut->metaType)) {
     TAOS_MEMCPY(pOut->tbMeta, &pOut->ctbMeta, sizeof(pOut->ctbMeta));
@@ -5159,7 +5175,7 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
   if (pTask->res) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;

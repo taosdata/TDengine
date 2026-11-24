@@ -205,6 +205,8 @@ void            metaFreeRsmaParam(SRSmaParam* pParam, int8_t type);
 
 int32_t metaUidCacheClear(SMeta* pMeta, uint64_t suid);
 int32_t metaTbGroupCacheClear(SMeta* pMeta, uint64_t suid);
+int32_t metaTagFilterCachesClearAll(SMeta* pMeta);  // batch meta txn: see metaCache.c
+int32_t metaTagFilterCachesClearSuid(SMeta* pMeta, uint64_t suid);  // batch meta txn: see metaCache.c
 int32_t metaRefDbsCacheClear(SMeta* pMeta, uint64_t suid);
 void    metaCacheClear(SMeta* pMeta);
 

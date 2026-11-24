@@ -16,6 +16,7 @@
  */
 
 #include "streamTriggerTask.h"
+#include "streamTimeAlign.h"
 
 #include "cJSON.h"
 #include <stdarg.h>
@@ -28,6 +29,7 @@
 #include "scalar.h"
 #include "streamInt.h"
 #include "streamReaderExt.h"
+#include "streamTimeAlign.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tarray.h"
@@ -47,8 +49,6 @@
 #define STREAM_TRIGGER_MAX_METAS          1 * 1024 * 1024         // 1M
 #define STREAM_TRIGGER_CALC_PARAM_POOL_MIN_CAP 1024
 #define STREAM_TRIGGER_CALC_PARAM_POOL_SHRINK_INTERVAL_US (60 * 1000000LL)
-#define STREAM_TRIGGER_REALTIME_SESSIONID 1
-#define STREAM_TRIGGER_HISTORY_SESSIONID  2
 
 #define STREAM_TRIGGER_RECALC_MERGE_MS    (30 * MILLISECOND_PER_MINUTE)  // 30min
 #define STREAM_TRIGGER_BLOCK_SIZE_LIMIT   (8 * 1024 * 1024)              // 8MB
@@ -68,6 +68,319 @@
 #define IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) (TRINGBUF_SIZE(&(pGroup)->winBuf) > 0)
 #define TRIGGER_GROUP_UNCLOSED_WINDOW_MASK   ((int64_t)1 << 62)
 #define container_of(ptr, type, member)      ((type *)((char *)(ptr) - offsetof(type, member)))
+
+typedef struct {
+  bool         ready;
+  int32_t      bindingVersion;
+  SSDataBlock *pending;
+  SArray      *sourceTimes;
+  int32_t      first, last;
+} STimeAlignInput;
+
+static int32_t stAppendNestedInputProjectionCols(SStreamTriggerTask *pTask, SSDataBlock *pDataBlock, bool appendCols);
+
+// One flat virtual group owns this proof while its history round is pinned.
+typedef struct {
+  STimeWindow change;
+  int64_t     stableFrom;
+  int64_t     latestRaw;
+  int64_t     previous;
+  int64_t     anchor;
+  int64_t     stop;
+  int64_t     stableRows;
+  int32_t     unresolved;
+  bool        hasPrevious;
+  bool        hasAnchor;
+  bool        hasStop;
+  bool        recovered[];
+} STimeAlignWindowReplay;
+
+typedef struct STriggerTimeAlignGroup {
+  SSTimeAlignState       *state;
+  const SArray           *slots;
+  SSHashObj              *inputs;
+  SSHashObj              *previous;  // raw candidates retained across a live binding change or late write
+  STimeAlignWindowReplay *windowReplay;
+  SFilterInfo            *filter;
+} STriggerTimeAlignGroup;
+
+static void stTriggerTimeAlignDestroyInput(void *ptr) {
+  STimeAlignInput *input = ptr;
+  blockDataDestroy(input->pending);
+  taosArrayDestroyEx(input->sourceTimes, (FDelete)colDataDestroy);
+}
+
+void stTriggerTimeAlignDestroyGroup(STriggerTimeAlignGroup *group) {
+  if (!group) return;
+  stTimeAlignDestroy(&group->state);
+  tSimpleHashCleanup(group->inputs);
+  tSimpleHashCleanup(group->previous);
+  taosMemoryFree(group->windowReplay);
+  filterFreeInfo(group->filter);
+  taosMemoryFree(group);
+}
+
+static int32_t stTriggerTimeAlignCreateGroup(SStreamTriggerTask *task, bool history, STriggerTimeAlignGroup **out) {
+  int32_t                 code = 0, lino = 0;
+  STriggerTimeAlignGroup *group = taosMemoryCalloc(1, sizeof(*group));
+  if (!group) return terrno;
+  TAOS_CHECK_EXIT(stTimeAlignCreateFromConfig(task->pTimeAlignConfig, &group->state));
+  group->inputs = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+  TSDB_CHECK_NULL(group->inputs, code, lino, _exit, terrno);
+  tSimpleHashSetFreeFp(group->inputs, stTriggerTimeAlignDestroyInput);
+  group->slots = stTimeAlignSlots(task->pTimeAlignConfig, history);
+  TSDB_CHECK_NULL(group->slots, code, lino, _exit, TSDB_CODE_INVALID_MSG);
+  TAOS_CHECK_EXIT(filterInitFromNode(history ? task->histTriggerFilter : task->triggerFilter, &group->filter, 0, NULL));
+  *out = group;
+  return 0;
+_exit:
+  stTriggerTimeAlignDestroyGroup(group);
+  return code;
+}
+
+static bool stTriggerTimeAlignHasPending(STriggerTimeAlignGroup *group, uint64_t uid) {
+  STimeAlignInput *input = group ? tSimpleHashGet(group->inputs, &uid, sizeof(uid)) : NULL;
+  return input && input->pending;
+}
+
+// A nested checkpoint rebuilds the realtime session in a private bundle until cutover.
+static SSTriggerRealtimeContext *stTimeAlignRealtimeOwner(SStreamTriggerTask *task) {
+  if (task->pTimeAlign && task->pNestedRecovery && task->pNestedRecovery->pShadowBundle)
+    return task->pNestedRecovery->pShadowBundle->pContext;
+  return task->pRealtimeContext;
+}
+
+static STriggerTimeAlignGroup *stFindTimeAlignGroup(SStreamTriggerTask *task, int64_t sessionId, int64_t gid) {
+  STriggerTimeAlignGroup *group = NULL;
+  if (sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && task->pHistoryContext) {
+    SSTriggerHistoryGroup **found = tSimpleHashGet(task->pHistoryContext->pGroups, &gid, sizeof(gid));
+    if (found) group = (*found)->pTimeAlignStates;
+  } else if (sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
+    SSTriggerRealtimeContext *ctx = stTimeAlignRealtimeOwner(task);
+    SSTriggerRealtimeGroup  **found = ctx ? tSimpleHashGet(ctx->pGroups, &gid, sizeof(gid)) : NULL;
+    if (found) group = (*found)->pTimeAlignStates;
+  }
+  return group;
+}
+
+static void stTriggerTaskForgetTimeAlignInput(SStreamTriggerTask *task, int64_t sessionId, int64_t gid, uint64_t uid) {
+  STriggerTimeAlignGroup *group = stFindTimeAlignGroup(task, sessionId, gid);
+  if (!group) return;
+  stTimeAlignForgetTable(group->state, uid);
+  TAOS_UNUSED(tSimpleHashRemove(group->inputs, &uid, sizeof(uid)));
+}
+
+static int32_t stTriggerTimeAlignSeedInput(SStreamTriggerTask *task, STriggerTimeAlignGroup *group,
+                                           STimeAlignInput *input, int64_t sessionId, int64_t gid,
+                                           const SSTriggerVirtTableInfo *table, int64_t firstTs, bool *waiting) {
+  const SSTimeAlignSeed *seed = NULL;
+  uint64_t               generation = 0;
+  TAOS_CHECK_RETURN(
+      stTriggerTaskAcquireTimeAlignSeed(task, sessionId, gid, table, firstTs, &seed, &generation, waiting));
+  if (generation) TAOS_CHECK_RETURN(stTimeAlignRegisterTable(group->state, table->tbUid, generation));
+  if (*waiting) return 0;
+  TAOS_CHECK_RETURN(stTimeAlignInstallSeed(group->state, seed, &input->ready));
+  if (input->ready) {
+    input->bindingVersion = table->tbVer;
+    if (group->previous) TAOS_UNUSED(tSimpleHashRemove(group->previous, &table->tbUid, sizeof(table->tbUid)));
+  }
+  stTriggerTaskReleaseTimeAlignSeed(task, sessionId, gid, table->tbUid, generation);
+  return input->ready ? 0 : TSDB_CODE_STREAM_EXEC_CANCELLED;
+}
+
+static void stTimeAlignObserveRaw(STimeAlignWindowReplay *replay, const SSTimeAlignConfig *config, const SArray *slots,
+                                  const SSDataBlock *block, int32_t tsSlot, int32_t first, int32_t end) {
+  const SColumnInfoData *timestamps = taosArrayGet(block->pDataBlock, tsSlot);
+  const int64_t         *ts = (const int64_t *)timestamps->pData;
+  const int64_t          previousRaw = replay->latestRaw;
+  replay->latestRaw = ts[end - 1];
+  if (!replay->unresolved || replay->latestRaw <= replay->change.ekey) return;
+  for (int32_t c = 0; c < taosArrayGetSize(slots); ++c) {
+    if (replay->recovered[c]) continue;
+    const SSTimeAlignSlot *slot = taosArrayGet(slots, c);
+    const SColumnInfoData *raw = taosArrayGet(block->pDataBlock, slot->inputSlot);
+    int64_t                successor = 0;
+    bool                   found =
+        stTimeAlignRuleExpiryAfter(config, c, replay->change.ekey, &successor) && successor <= replay->latestRaw;
+    for (int32_t r = first; r < end; ++r) {
+      if (ts[r] > replay->change.ekey && !colDataIsNull_s(raw, r)) {
+        // An earlier row at this trigger tick can still carry the changed PREV, even across a page boundary.
+        bool sameTick = ts[r] == (r > first ? ts[r - 1] : previousRaw);
+        if (!sameTick || ts[r] < INT64_MAX) {
+          int64_t stable = ts[r] + (sameTick ? 1 : 0);
+          successor = found ? TMIN(successor, stable) : stable;
+          found = true;
+        }
+        break;
+      }
+    }
+    if (found) {
+      replay->stableFrom = TMAX(replay->stableFrom, successor);
+      replay->recovered[c] = true;
+      --replay->unresolved;
+    }
+  }
+}
+
+// Truncation finds the earliest covering window. Calendar intervals and fixed slides use different units.
+static bool stTriggerTaskGetLastCoveringWindow(SStreamTriggerTask *task, int64_t ts, STimeWindow *last) {
+  *last = stTriggerTaskGetTimeWindow(task, ts);
+  while (last->skey < ts) {
+    STimeWindow next = *last;
+    stTriggerTaskNextTimeWindow(task, &next);
+    if (next.skey <= last->skey) return false;
+    if (next.skey > ts) break;
+    *last = next;
+  }
+  return true;
+}
+
+static void stTimeAlignLimitHistoryInterval(SStreamTriggerTask *pTask, STimeAlignWindowReplay *replay,
+                                            SSTriggerVtableMerger *merger, int32_t tsSlot, SSDataBlock *block) {
+  if (replay->unresolved) return;
+  SSTriggerHistoryContext *ctx = pTask->pHistoryContext;
+  if (!replay->hasStop) {
+    STimeWindow last;
+    if (!stTriggerTaskGetLastCoveringWindow(pTask, replay->stableFrom - 1, &last)) return;
+    if (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) {
+      STimeWindow next = last;
+      stTriggerTaskNextTimeWindow(pTask, &next);
+      if (next.skey <= last.skey) return;
+      last = next;
+    }
+    replay->stop = TMIN(ctx->scanRange.ekey, TMAX(last.ekey, ctx->stepRange.skey));
+    replay->hasStop = true;
+    ctx->scanRange.ekey = replay->stop;
+    ST_TASK_DLOG("limit aligned interval replay, gid:%" PRId64 ", stable:%" PRId64 ", through:%" PRId64, ctx->gid,
+                 replay->stableFrom, replay->stop);
+  }
+  ctx->stepRange.ekey = TMIN(ctx->stepRange.ekey, replay->stop);
+  merger->readRange.ekey = TMIN(merger->readRange.ekey, replay->stop);
+  if (block->info.rows) {
+    const SColumnInfoData *timestamps = taosArrayGet(block->pDataBlock, tsSlot);
+    const int64_t         *ts = (const int64_t *)timestamps->pData;
+    while (block->info.rows && ts[block->info.rows - 1] > replay->stop) --block->info.rows;
+  }
+}
+
+static int32_t stRetireStaleTimeAlignInput(SStreamTriggerTask *task, int64_t session, int64_t gid,
+                                           const SSTriggerVirtTableInfo *table, STimeAlignInput **input);
+
+static int32_t stSetTimeAlignMergeWidths(const SStreamTriggerTask *task, const SSTriggerVirtTableInfo *table,
+                                         bool history, SSDataBlock *block) {
+  const SSDataBlock *deployed = history ? task->pVirDataBlock : task->pVirtTrigBlock;
+  for (size_t i = 0; i < taosArrayGetSize(table->pTrigColRefs); ++i) {
+    const SSTriggerTableColRef *ref = taosArrayGet(table->pTrigColRefs, i);
+    const SArray               *matches = history ? ref->pColMatches : ref->pNewColMatches;
+    for (size_t j = 0; j < taosArrayGetSize(matches); ++j) {
+      const SSTriggerColMatch *match = taosArrayGet(matches, j);
+      if (!match->sourceBytes) continue;
+      const SColumnInfoData *base = taosArrayGet(deployed->pDataBlock, match->vtbSlotId);
+      SColumnInfoData       *out = taosArrayGet(block->pDataBlock, match->vtbSlotId);
+      if (!base || !out) return TSDB_CODE_INVALID_MSG;
+      if (IS_VAR_DATA_TYPE(base->info.type)) {
+        out->info.bytes = TMAX(base->info.bytes, match->sourceBytes);
+        block->info.rowSize = 0;
+      }
+    }
+  }
+  return 0;
+}
+
+int32_t stTriggerTimeAlignNext(SStreamTriggerTask *task, STriggerTimeAlignGroup **owner, int64_t sessionId, int64_t gid,
+                               const SSTriggerVirtTableInfo *table, SSTriggerNewVtableMerger *newer,
+                               SSTriggerVtableMerger *older, SSDataBlock **out, int32_t *start, int32_t *end,
+                               bool *waiting) {
+  *out = NULL;
+  *start = *end = 0;
+  *waiting = false;
+  bool history = older != NULL;
+  if (!*owner) TAOS_CHECK_RETURN(stTriggerTimeAlignCreateGroup(task, history, owner));
+  STriggerTimeAlignGroup *group = *owner;
+  uint64_t                uid = table->tbUid;
+  STimeAlignInput        *input = tSimpleHashGet(group->inputs, &uid, sizeof(uid));
+  // Retiring a superseded seed discards its pending page. Do it before borrowing the input for this binding.
+  if (!input || !input->ready || input->bindingVersion != table->tbVer)
+    TAOS_CHECK_RETURN(stRetireStaleTimeAlignInput(task, sessionId, gid, table, &input));
+  if (!input) {
+    STimeAlignInput empty = {0};
+    TAOS_CHECK_RETURN(tSimpleHashPut(group->inputs, &uid, sizeof(uid), &empty, sizeof(empty)));
+    input = tSimpleHashGet(group->inputs, &uid, sizeof(uid));
+    if (!input) return TSDB_CODE_INTERNAL_ERROR;
+  }
+  int32_t                tsSlot = history ? task->histTrigTsIndex : task->trigTsSlotId;
+  SSTriggerAlignBuffers *buffers = history ? &older->alignBuffers : &newer->alignBuffers;
+  SSDataBlock          **mergeBlock = history ? &older->pDataBlock : &newer->pDataBlock;
+  blockDataDestroy(buffers->output);
+  buffers->output = NULL;
+  for (;;) {
+    if (!input->pending) {
+      // A borrowed pending block keeps its cut. Only the next writable merge buffer takes this binding's widths.
+      if (task->flatVirtualScan) TAOS_CHECK_RETURN(stSetTimeAlignMergeWidths(task, table, history, *mergeBlock));
+      // Reserve the replacement before Next consumes any rows. A seed wait or a failed
+      // output allocation can then suspend this child's entire raw slice without copying.
+      if (!buffers->spare) TAOS_CHECK_RETURN(createOneDataBlock(*mergeBlock, false, &buffers->spare));
+      if (!history) TAOS_CHECK_RETURN(blockDataEnsureCapacity(buffers->spare, (*mergeBlock)->info.capacity));
+      SSDataBlock *raw = NULL;
+      if (history) {
+        TAOS_CHECK_RETURN(stVtableMergerNextDataBlock(older, &raw));
+        input->first = 0;
+        input->last = raw ? raw->info.rows : 0;
+      } else {
+        TAOS_CHECK_RETURN(stNewVtableMergerNextDataBlock(newer, &raw, &input->first, &input->last));
+      }
+      if (!raw) {
+        if (!input->ready) TAOS_UNUSED(tSimpleHashRemove(group->inputs, &uid, sizeof(uid)));
+        return 0;
+      }
+      if (input->first == input->last) continue;
+      input->pending = *mergeBlock;
+      input->sourceTimes = buffers->sourceTimes;
+      buffers->sourceTimes = NULL;
+      *mergeBlock = buffers->spare;
+      buffers->spare = NULL;
+    }
+    if (!input->ready) {
+      const SColumnInfoData *ts = taosArrayGet(input->pending->pDataBlock, tsSlot);
+      if (!ts || ts->info.type != TSDB_DATA_TYPE_TIMESTAMP || colDataIsNull_s(ts, input->first))
+        return TSDB_CODE_INVALID_MSG;
+      int64_t firstTs;
+      memcpy(&firstTs, colDataGetData(ts, input->first), sizeof(firstTs));
+      TAOS_CHECK_RETURN(stTriggerTimeAlignSeedInput(task, group, input, sessionId, gid, table, firstTs, waiting));
+      if (*waiting) return 0;
+    }
+    if (!history && task->triggerType == STREAM_TRIGGER_SLIDING &&
+        !BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN))
+      TAOS_CHECK_RETURN(stTimeAlignSavePassStart(group->state, uid));
+    TAOS_CHECK_RETURN(
+        blockDataExtractBlock(input->pending, input->first, input->last - input->first, &buffers->output));
+    TAOS_CHECK_RETURN(stVtableMergerAlignBlock(group->state, group->slots, uid, tsSlot, group->filter, buffers->output,
+                                               input->sourceTimes, input->first));
+    if (group->windowReplay) {
+      stTimeAlignObserveRaw(group->windowReplay, task->pTimeAlignConfig, group->slots, input->pending, tsSlot,
+                            input->first, input->last);
+      if (task->triggerType == STREAM_TRIGGER_SLIDING)
+        stTimeAlignLimitHistoryInterval(task, group->windowReplay, older, tsSlot, buffers->output);
+    }
+    blockDataDestroy(buffers->spare);
+    buffers->spare = input->pending;
+    input->pending = NULL;
+    taosArrayDestroyEx(input->sourceTimes, (FDelete)colDataDestroy);
+    input->sourceTimes = NULL;
+    blockDataReset(buffers->spare);
+    if (buffers->output->info.rows || (group->windowReplay && group->windowReplay->hasStop &&
+                                       group->windowReplay->latestRaw > group->windowReplay->stop)) {
+      if (!history && task->pNestedInputProjections && buffers->output->info.rows) {
+        TAOS_CHECK_RETURN(stAppendNestedInputProjectionCols(task, buffers->output, true));
+      }
+      *out = buffers->output;
+      *end = buffers->output->info.rows;
+      return 0;
+    }
+    blockDataDestroy(buffers->output);
+    buffers->output = NULL;
+  }
+}
 
 typedef struct SSTriggerRollupSliceKey {
   int64_t gid;
@@ -1427,8 +1740,8 @@ static void    stRealtimeGroupRestoreCheckpointPredecessor(SSTriggerRealtimeGrou
 static void    stRealtimeGroupDestroy(void *ptr);
 // Add metadatas to the group, which are used to check trigger conditions later.
 static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
-                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta,
-                                      int64_t nowNs);
+                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta, int64_t nowNs,
+                                      int64_t virtualUid);
 // Use metadatas to check trigger conditions, and generate notification and calculation requests.
 static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup);
 static int32_t stRealtimeGroupCompareWindows(const void *pLeft, const void *pRight);
@@ -1459,8 +1772,209 @@ static int32_t stPrevWindowSnapshotCompare(const SSTriggerPrevWindowSnapshot *pL
                                            const SSTriggerPrevWindowSnapshot *pRight);
 static int32_t stPrevWindowSnapshotLowerBound(const SArray *pSnapshots,
                                               const SSTriggerPrevWindowSnapshot *pKey);
+typedef struct {
+  int32_t  vgId;
+  int64_t  taskId;
+  int64_t  version;
+  uint64_t sourceId;
+  int64_t  liveCursor;
+  uint64_t liveRound;
+  int64_t  proofCursor;
+  SArray  *uids;  // frozen, sorted and unique for WAL range proofs
+  bool     legacyProof, registeredSelection;
+  uint64_t selectionId, proofPage;
+  bool     changed;
+} SAlignedChainReader;
+
+typedef struct SAlignedNormalPage {
+  int32_t      refs;
+  SSDataBlock *rows;
+  SArray      *peers;
+  size_t       replayIndex;
+  int8_t       sealed;
+  int8_t       released;
+  size_t       prefixEnd;
+
+} SAlignedNormalPage;
+
+// The realtime worker alone owns prefixEnd. History can release the entire page at any time.
+static bool stAlignedNormalPageWaiting(SAlignedNormalPage *page) {
+  return atomic_load_8(&page->sealed) && !page->prefixEnd && !atomic_load_8(&page->released);
+}
+
+static void stFreeAlignedPeer(void *ptr) {
+  SWindowChainPeerGroup *peer = ptr;
+  taosArrayDestroy(peer->pRows);
+}
+
+static void stReleaseAlignedNormalPage(SAlignedNormalPage **owner) {
+  SAlignedNormalPage *page = *owner;
+  *owner = NULL;
+  if (page && atomic_sub_fetch_32(&page->refs, 1) == 0) {
+    taosArrayDestroyEx(page->peers, stFreeAlignedPeer);
+    blockDataDestroy(page->rows);
+    taosMemoryFree(page);
+  }
+}
+
+// Append individual peers without reallocating the variable-width payload for every row.
+static int32_t stAppendAlignedPeerRow(SSDataBlock *dst, const SWindowChainRowRef *row) {
+  int32_t idx = dst->info.rows;
+  if (idx >= dst->info.capacity) TAOS_CHECK_RETURN(blockDataEnsureCapacity(dst, TMAX(16, (uint32_t)idx * 2)));
+  for (size_t i = 0; i < taosArrayGetSize(dst->pDataBlock); ++i) {
+    SColumnInfoData       *out = taosArrayGet(dst->pDataBlock, i);
+    const SColumnInfoData *in = taosArrayGet(row->pBlock->pDataBlock, i);
+    if (!in || !out || in->info.type != out->info.type || in->info.bytes != out->info.bytes)
+      return TSDB_CODE_INVALID_PARA;
+    bool isNull = colDataIsNull_s(in, row->rowIndex);
+    TAOS_CHECK_RETURN(colDataSetVal(out, idx, isNull ? NULL : colDataGetData(in, row->rowIndex), isNull));
+  }
+  ++dst->info.rows;
+  return 0;
+}
+
+static int32_t stCaptureAlignedPeer(SAlignedNormalPage *page, const SWindowChainPeerGroup *input) {
+  SWindowChainPeerGroup peer = {.gid = input->gid,
+                                .ts = input->ts,
+                                .pRows = taosArrayInit(taosArrayGetSize(input->pRows), sizeof(SWindowChainRowRef))};
+  if (!peer.pRows) return terrno;
+  int32_t code = 0;
+  for (size_t i = 0; i < taosArrayGetSize(input->pRows); ++i) {
+    const SWindowChainRowRef *row = taosArrayGet(input->pRows, i);
+    int32_t                   index = page->rows ? page->rows->info.rows : 0;
+    if (!page->rows) {
+      code = blockDataExtractBlock((SSDataBlock *)row->pBlock, row->rowIndex, 1, &page->rows);
+    } else {
+      code = stAppendAlignedPeerRow(page->rows, row);
+    }
+    if (code) break;
+    SWindowChainRowRef saved = {.tableUid = row->tableUid, .pBlock = page->rows, .rowIndex = index};
+    if (!taosArrayPush(peer.pRows, &saved)) {
+      code = terrno;
+      break;
+    }
+  }
+  if (!code && !taosArrayPush(page->peers, &peer)) code = terrno;
+  if (code) stFreeAlignedPeer(&peer);
+  return code;
+}
+
+static void stReleaseAlignedFuture(SAlignedFutureRepair **owner, bool cancel) {
+  SAlignedFutureRepair *repair = *owner;
+  *owner = NULL;
+  if (!repair) return;
+  if (cancel) atomic_store_8(&repair->cancelled, 1);
+  if (atomic_sub_fetch_32(&repair->refs, 1) == 0) taosMemoryFree(repair);
+}
+
+enum { ST_ALIGNED_BINDING_BYTES = 16 };
+
+typedef struct {
+  uint8_t                 binding[ST_ALIGNED_BINDING_BYTES];
+  bool                    recalcNextWindow;
+  STimeWindow             fixed;
+  TSKEY                   fixedThrough;
+  bool                    hasFuture;
+  TSKEY                   anchor;
+  TSKEY                   after;
+  SWindowChainRepairCarry carry;
+} SCheckpointAlignedRepair;
+
+static bool stHasAlignedFixedRepair(const SSTriggerRealtimeGroup *group) {
+  return group->timeAlignNestedRepair.skey <= group->timeAlignNestedRepair.ekey;
+}
+
+static void stClearAlignedRepairBinding(SSTriggerRealtimeGroup *group) {
+  if (!group->alignedFuture && !stHasAlignedFixedRepair(group)) taosMemoryFreeClear(group->alignedRepairBinding);
+}
+
+static void stCancelAlignedObligation(SSTriggerRealtimeGroup *group) {
+  if (group->alignedRepairBinding) {
+    if (stHasAlignedFixedRepair(group)) group->recalcNextWindow = false;
+    group->timeAlignNestedRepair = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+    taosMemoryFreeClear(group->alignedRepairBinding);
+  }
+  stReleaseAlignedFuture(&group->alignedFuture, true);
+}
+
+static int32_t stCaptureAlignedBinding(SStreamTriggerTask *task, int64_t gid, uint8_t *digest, bool *found);
+static int32_t stOwnAlignedRepairBinding(SSTriggerRealtimeGroup *group);
+static int32_t stRecheckAlignedBindings(SSTriggerRealtimeContext *ctx);
+
+typedef struct SAlignedChainUpdate {
+  SAlignedFutureRepair   *future;  // borrowed from the executing history request
+  uint64_t                id;
+  uint64_t                round;
+  int64_t                 gid;
+  TSKEY                   frontier;
+  TSKEY                   ordinaryFrontier;
+  TSKEY                   repairFrontier;
+  SWindowChainState      *chain;
+  SArray                 *readers;
+  const SArray           *tables;
+  SSHashObj              *readerByVg;  // vgId -> readers array index
+  int32_t                 pendingProofs;  // outstanding frozen WAL range requests
+  bool                    hasInputCut;
+  bool                    heldNormalPage;
+  bool                    compare;
+  bool                    comparing;
+  bool                    following;
+  bool                    betweenPages;
+  bool                    tailPending;
+  bool                    tailScanning;
+  bool                    tailDone;
+  SWindowChainRepairCarry carry;
+  bool                    outstanding;
+  bool                    mismatch;
+  size_t                  ordinal;
+  size_t                  matchedPrefix;
+  SAlignedNormalPage     *normal;
+  bool                    catchup;
+  bool                    caughtUp;
+  bool                    superseded;
+  TSKEY                   caughtFrontier;
+  bool                    proofComplete;
+  bool                    prepared;
+  bool                    committed;
+  bool                    checked;
+} SAlignedChainUpdate;
+
+static SAlignedChainReader *stAlignedReaderForVg(const SAlignedChainUpdate *update, int32_t vgId) {
+  const int32_t *index = update ? tSimpleHashGet(update->readerByVg, &vgId, sizeof(vgId)) : NULL;
+  return index ? taosArrayGet(update->readers, *index) : NULL;
+}
+
+static int64_t stAlignedOrdinaryEndVer(const SAlignedChainUpdate *update, const SStreamTaskAddr *addr, int64_t last) {
+  const SAlignedChainReader *reader = stAlignedReaderForVg(update, addr->nodeId);
+  if (!reader || reader->taskId != addr->taskId) return 0;
+  int64_t end = TMAX(last, reader->version + 1);
+  return end ? end : -1;
+}
+
+static void stFreeAlignedChainReader(void *item) { taosArrayDestroy(((SAlignedChainReader *)item)->uids); }
+
+static void stDestroyAlignedChainUpdate(SAlignedChainUpdate **update) {
+  if (!*update) return;
+  stReleaseAlignedNormalPage(&(*update)->normal);
+  stWindowChainDestroy(&(*update)->chain);
+  tSimpleHashCleanup((*update)->readerByVg);
+  taosArrayDestroyEx((*update)->readers, stFreeAlignedChainReader);
+  taosMemoryFreeClear(*update);
+}
+
 static void stTriggerTaskApplyPrevWindowUpdates(SStreamTriggerTask *pTask, bool locked);
 static int32_t stHistoryContextPublishCountPredecessor(SSTriggerHistoryContext *pContext);
+typedef struct {
+  uint64_t round;
+  uint64_t pageId;
+  int64_t  first;
+  int32_t  vgId;
+} SAlignedWalRangeRoute;
+
+static int32_t stAlignedWalRangeRsp(SSTriggerHistoryContext *ctx, const SAlignedWalRangeRoute *route, SRpcMsg *rpc);
+static void    stUpdateAlignedWorkGroup(SSTriggerRealtimeGroup *group);
+static bool    stHasReadyAlignedRepair(SStreamTriggerTask *task, uint64_t repairId);
+static int32_t stRestartHistoryTimeAlignRound(SSTriggerHistoryContext *ctx);
 static int32_t stHistoryContextCompleteOpenRepair(SSTriggerHistoryContext *pContext);
 // Update the next execution time of the group and add into the heap if needed
 static int32_t stRealtimeGroupUpdateExecTime(SSTriggerRealtimeGroup *pGroup, int64_t now, bool enterHeap);
@@ -1477,6 +1991,7 @@ static int32_t stHistoryContextCleanNestedCacheScopes(SSTriggerHistoryContext *p
 
 static int32_t stHistoryGroupInit(SSTriggerHistoryGroup *pGroup, SSTriggerHistoryContext *pContext, int64_t gid);
 static int32_t stHistoryGroupAddVirtTableInfo(SSTriggerHistoryGroup *pGroup, const SSTriggerVirtTableInfo *pInfo);
+static bool stHistoryVirtualTableHasStepData(const SSTriggerHistoryGroup *pGroup, const SSTriggerVirtTableInfo *pInfo);
 static void    stHistoryGroupDestroy(void *ptr);
 static int32_t stHistoryGroupAddMetaDatas(SSTriggerHistoryGroup *pGroup, SArray *pMetadatas, SArray *pVgIds,
                                           bool *pAdded);
@@ -1531,6 +2046,8 @@ typedef struct {
   SSTriggerMetaData                *pMetaToFetch;
   SSTriggerTableColRef             *pColRefToFetch;
   SSDataBlock                      *pBlock;
+  SSDataBlock                      *pAlignedTriggerView;
+  int32_t                           borrowedColumns;
   int32_t                           rowIndex;
   int32_t                           endRowIndex;
   bool                              eof;
@@ -1551,6 +2068,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
                                      ESTriggerRealtimeContextInitMode mode);
 static void    stRealtimeContextDestroy(void *ptr);
 static int32_t stRealtimeContextFinishVtablePatch(SSTriggerRealtimeContext *pContext);
+static int32_t stFinishEmptyVtablePatch(SSTriggerRealtimeContext *pContext);
+static int32_t stPublishVtableBindings(SSTriggerRealtimeContext *ctx);
 static void    stRealtimeContextDestroyWalProgress(void *ptr);
 static bool    stRealtimeContextHasWalProgress(const SSTriggerRealtimeContext *pContext);
 static bool    stRealtimeContextHasPendingWalPulls(const SSTriggerRealtimeContext *pContext);
@@ -1622,12 +2141,14 @@ _end:
   return code;
 }
 // Start or continue the realtime context after receiving pull/calc responses.
+static int32_t stRestartRealtimeTimeAlignRound(SStreamTriggerTask *task);
 static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int64_t nowNs);
 static int32_t stRealtimeContextCheck(SSTriggerRealtimeContext *pContext);
 // Force PERIOD's "fire regardless of new data" semantics onto groupsToCheck.
 static int32_t stRealtimeContextForcePeriodGroupsToCheck(SSTriggerRealtimeContext *pContext);
 
 typedef struct SSTriggerPeriodInput {
+  uint64_t                  walLayoutGeneration;
   SStreamTaskAddr           address;
   SSTriggerPullRequestUnion request;
   SSTriggerPeriodCycle     *pCycle;
@@ -1721,7 +2242,8 @@ typedef struct {
   SNode  *pExpr;
 } SSTriggerNestedInputProjection;
 
-static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan *pPlan, SArray **ppProjections);
+static int32_t stTriggerTaskBuildNestedInputProjections(SStreamWindowPlan *pPlan, int32_t nextAlignedSlot,
+                                                        SArray **ppProjections);
 static void    stDestroyNestedInputProjection(void *pItem);
 
 static void    stDestroyRealtimeNestedCalcMaterialization(void **ppMaterialization);
@@ -1759,6 +2281,7 @@ static void    stHistoryContextDestroy(void *ptr);
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext);
 static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ESTriggerPullType type);
 static int32_t stTriggerTaskResumeVtableCalcRequests(SStreamTriggerTask *pTask, int64_t sessionId);
+static int32_t stTriggerTaskScheduleCalcRetry(SStreamTriggerTask *pTask, int64_t sessionId, SSTriggerCalcRequest *pReq);
 static int32_t stTriggerTaskHandleManualAttemptOutcome(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq,
                                                        const SStreamRecalcAttemptOutcome *pOutcome);
 static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SRpcMsg *pRsp,
@@ -1849,17 +2372,24 @@ typedef struct SRewriteSlotidCxt {
   SArray *newSlotIds;
 } SRewriteSlotidCxt;
 
+typedef struct STOrigColumn {
+  col_id_t id;
+  int32_t  bytes;
+} STOrigColumn;
+
 typedef struct SSTriggerOrigColumnInfo {
   int32_t    vgId;
   int64_t    suid;
   int64_t    uid;
-  SSHashObj *pColumns;  // SSHashObj<col_name, col_id>
+  SSHashObj *pColumns;  // SSHashObj<col_name, STOrigColumn>
 } SSTriggerOrigColumnInfo;
 
 typedef enum {
   STREAM_TRIGGER_WAIT_GENERIC = 0,
   STREAM_TRIGGER_WAIT_CALC_RETRY,
   STREAM_TRIGGER_WAIT_PERIOD_POLL,
+  STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE,
+  STREAM_TRIGGER_WAIT_RESULT_CHECK,
 } EStreamTriggerWaitReason;
 
 typedef struct StreamTriggerWaitInfo {
@@ -2746,7 +3276,8 @@ static int32_t stTriggerTaskAddWaitSessionForReason(SStreamTriggerTask *pTask, i
       .reason = reason,
   };
   taosWLockLatch(&gStreamTriggerWaitLatch);
-  if (reason == STREAM_TRIGGER_WAIT_PERIOD_POLL) {
+  if (reason == STREAM_TRIGGER_WAIT_PERIOD_POLL || reason == STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE ||
+      reason == STREAM_TRIGGER_WAIT_RESULT_CHECK) {
     SListIter  iter = {0};
     SListNode *pNode = NULL;
     tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
@@ -2911,7 +3442,9 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
   tdListInitIter(&gStreamTriggerWaitList, &iter, TD_LIST_FORWARD);
   while ((pNode = tdListNext(&iter)) != NULL) {
     StreamTriggerWaitInfo *pInfo = (StreamTriggerWaitInfo *)pNode->data;
-    int64_t                clockNow = pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? monoNow : now;
+    int64_t                clockNow =
+        (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY || pInfo->reason == STREAM_TRIGGER_WAIT_RESULT_CHECK) ? monoNow
+                                                                                                                              : now;
     if (!pInfo->queued && pInfo->controlMsgId == 0 && pInfo->resumeTime <= clockNow) {
       TD_DLIST_POP(&gStreamTriggerWaitList, pNode);
       TD_DLIST_APPEND(&readylist, pNode);
@@ -2945,7 +3478,9 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
     bool                 manual = pInfo->manualRecalcChainId != 0;
     bool                 manualPending = false;
     SSTriggerCtrlRequest req = {
-        .type = pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? STRIGGER_CTRL_CALC_RETRY : STRIGGER_CTRL_START,
+        .type = (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY || pInfo->reason == STREAM_TRIGGER_WAIT_RESULT_CHECK)
+                    ? STRIGGER_CTRL_CALC_RETRY
+                    : STRIGGER_CTRL_START,
         .streamId = pInfo->streamId,
         .taskId = pInfo->taskId,
         .sessionId = pInfo->sessionId};
@@ -3009,7 +3544,10 @@ static void stTriggerTaskCheckWaitSession(void *param, void *tmrId) {
     } else {
       rpcFreeCont(msg.pCont);
       pInfo->resumeTime =
-          (pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY ? monoNow : now) + STREAM_TRIGGER_NOTICE_RETRY_NS;
+          ((pInfo->reason == STREAM_TRIGGER_WAIT_CALC_RETRY || pInfo->reason == STREAM_TRIGGER_WAIT_RESULT_CHECK)
+               ? monoNow
+               : now) +
+          STREAM_TRIGGER_NOTICE_RETRY_NS;
       stWarn("retry trigger start request stream:%" PRIx64 ", task:%" PRIx64 ", session:%" PRIx64 " at:%" PRId64,
              pInfo->streamId, pInfo->taskId, pInfo->sessionId, pInfo->resumeTime);
       taosWLockLatch(&gStreamTriggerWaitLatch);
@@ -3114,6 +3652,11 @@ static int32_t stTriggerTaskAllocAhandle(SStreamTriggerTask *pTask, int64_t sess
   pRes->streamId = pTask->task.streamId;
   pRes->taskId = pTask->task.taskId;
   pRes->sessionId = sessionId;
+  if (sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pTask->pHistoryContext) {
+    pRes->timeAlignRound = pTask->pHistoryContext->timeAlignRound;
+  } else if (sessionId == STREAM_TRIGGER_REALTIME_SESSIONID && pTask->pRealtimeContext) {
+    pRes->timeAlignRound = pTask->pRealtimeContext->timeAlignRound;
+  }
   pRes->paramType = STRIGGER_AHANDLE_PARAM_PULL_REQUEST;
   pRes->param = param;
   pRes->progressStepId = progressStepId;
@@ -3136,12 +3679,72 @@ _exit:
   return code;
 }
 
+typedef struct {
+  SSTriggerCalcSlot *slot;
+  uint64_t           generation;
+} SResultDispatch;
+
+// Calc slots are allocated at deploy and retain their address through retries and releases.
+static int32_t stRegisterResultDispatch(SStreamTriggerTask *task, SResultDispatch dispatch,
+                                        const SStreamResultAdmission *claim) {
+  SStreamResultAdmission *prior = &dispatch.slot->req.resultAdmission;
+  if (dispatch.slot->generation != dispatch.generation ||
+      (prior->roundId && (prior->roundId != claim->roundId || prior->sessionId != claim->sessionId)))
+    return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  if (!task->resultDispatches)
+    task->resultDispatches = tSimpleHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!task->resultDispatches) return terrno;
+  uint64_t token[] = {claim->calcToken, claim->calcTokenHi};
+  if (tSimpleHashGet(task->resultDispatches, token, sizeof(token))) return TSDB_CODE_NEED_RETRY;
+  TAOS_CHECK_RETURN(tSimpleHashPut(task->resultDispatches, token, sizeof(token), &dispatch, sizeof(dispatch)));
+  if (prior->roundId) {
+    uint64_t old[] = {prior->calcToken, prior->calcTokenHi};
+    TAOS_UNUSED(tSimpleHashRemove(task->resultDispatches, old, sizeof(old)));
+  }
+  *prior = *claim;
+  return 0;
+}
+
+static int32_t stStampResultAdmission(SStreamTriggerTask *task, int64_t session, SSTriggerCalcRequest *req,
+                                      uint64_t generation) {
+  if (!BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_TIME_ALIGN) || task->triggerType == STREAM_TRIGGER_PERIOD)
+    return 0;
+  uint64_t round = session == STREAM_TRIGGER_HISTORY_SESSIONID
+                       ? (task->pHistoryContext ? task->pHistoryContext->timeAlignRound : 0)
+                       : (task->pRealtimeContext && task->pRealtimeContext->sessionId == session
+                              ? task->pRealtimeContext->timeAlignRound
+                              : 0);
+  if (!round) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  uint64_t token[2];
+  if (!taosSecureRandBytes((uint8_t *)token, sizeof(token)) || !(token[0] || token[1])) return TSDB_CODE_NEED_RETRY;
+  SStreamResultAdmission claim = {.streamId = task->task.streamId,
+                                  .runnerTaskId = req->runnerTaskId,
+                                  .sessionId = session,
+                                  .triggerTaskId = task->task.taskId,
+                                  .triggerDnodeId = task->task.nodeId,
+                                  .roundId = round,
+                                  .calcToken = token[0],
+                                  .calcTokenHi = token[1]};
+  taosWLockLatch(&task->calcPoolLock);
+  SResultDispatch dispatch = {.slot = (SSTriggerCalcSlot *)req, .generation = generation};
+  int32_t         code = stRegisterResultDispatch(task, dispatch, &claim);
+  taosWUnLockLatch(&task->calcPoolLock);
+  return code;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTestStampResultAdmission(SStreamTriggerTask *task, SSTriggerCalcRequest *request) {
+  return stStampResultAdmission(task, request->sessionId, request, ((SSTriggerCalcSlot *)request)->generation);
+}
+#endif
+
 static int32_t stTriggerTaskAllocCalcAhandle(SStreamTriggerTask *pTask, int64_t sessionId, SSTriggerCalcRequest *pReq,
                                              void **ppAhandle) {
   uint64_t generation = 0;
   if (ppAhandle == NULL || !stTriggerTaskFindCalcRequestGeneration(pTask, pReq, &generation) || generation == 0) {
     return TSDB_CODE_INVALID_PARA;
   }
+  TAOS_CHECK_RETURN(stStampResultAdmission(pTask, sessionId, pReq, generation));
   int32_t code =
       stTriggerTaskAllocAhandle(pTask, sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken, ppAhandle);
   if (code == TSDB_CODE_SUCCESS) {
@@ -3243,6 +3846,1633 @@ _exit:
   taosMemoryFree(pAhandle);
   taosMemoryFree(pInfo);
   return code;
+}
+
+typedef struct {
+  SStreamTaskAddr address;
+  int64_t         sessionId;
+  uint64_t        roundId;
+  uint64_t        scanId;  // zero releases the entire round
+  uint64_t        operationId;
+  int64_t         retryAt;
+} STimeAlignClose;
+
+static uint64_t stNextTimeAlignId(SStreamTriggerTask *task) {
+  int64_t now = taosGetTimestampUs();
+  int64_t prior, next;
+  do {
+    prior = atomic_load_64(&task->lastTimeAlignId);
+    next = TMAX(prior + 1, now);
+  } while (atomic_val_compare_exchange_64(&task->lastTimeAlignId, prior, next) != prior);
+  return (uint64_t)next;
+}
+
+static STriggerTimeAlignCloseQueue *stTimeAlignCloses(SStreamTriggerTask *task, int64_t session) {
+  return session == STREAM_TRIGGER_HISTORY_SESSIONID ? &task->historyTimeAlignCloses : &task->timeAlignCloses;
+}
+
+static SSHashObj **stTimeAlignSeeds(SStreamTriggerTask *task, int64_t session) {
+  if (session == STREAM_TRIGGER_HISTORY_SESSIONID) return &task->historyTimeAlignSeeds;
+  SSTriggerRealtimeContext *ctx = stTimeAlignRealtimeOwner(task);
+  return ctx && ctx->pRecovery ? &ctx->pRecovery->timeAlignSeeds : &task->timeAlignSeeds;
+}
+
+// Only copied identities cross an RPC or survive cancellation of a group.
+static int32_t stSendOwnedTimeAlignRequest(SStreamTriggerTask *task, const SStreamTaskAddr *address,
+                                           const SSTriggerPullRequest *req, const void *key, size_t keyLen,
+                                           ESTriggerAHandleParamType kind) {
+  SRpcMsg msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
+  int32_t len = tSerializeSTriggerPullRequest(NULL, 0, req);
+  if (len <= 0) return len ? len : TSDB_CODE_INVALID_MSG;
+  void *identity = taosMemoryMalloc(keyLen);
+  if (!identity) return terrno;
+  memcpy(identity, key, keyLen);
+  int32_t code = stTriggerTaskAllocAhandle(task, req->sessionId, identity, req->progressStepId,
+                                           req->progressRequestToken, &msg.info.ahandle);
+  if (code) {
+    taosMemoryFree(identity);
+    return code;
+  }
+  SMsgSendInfo *send = msg.info.ahandle;
+  send->paramFreeFp = stTriggerTaskDestroyNestedInputAhandle;
+  SSTriggerAHandle *route = send->param;
+  route->paramType = kind;
+  route->requestGid = kind == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND ? address->nodeId : address->taskId;
+  msg.contLen = sizeof(SMsgHead) + len;
+  msg.pCont = rpcMallocCont(msg.contLen);
+  if (!msg.pCont) {
+    code = terrno;
+    goto fail;
+  }
+  SMsgHead *head = msg.pCont;
+  head->vgId = htonl(address->nodeId);
+  head->contLen = htonl(msg.contLen);
+  int32_t encoded = tSerializeSTriggerPullRequest(head + 1, len, req);
+  if (encoded != len) {
+    code = encoded < 0 ? encoded : TSDB_CODE_INVALID_MSG;
+    rpcFreeCont(msg.pCont);
+    goto fail;
+  }
+  TRACE_SET_ROOTID(&msg.info.traceId, task->task.streamId);
+  TRACE_SET_MSGID(&msg.info.traceId, tGenIdPI64());
+  code = tmsgSendReq(&address->epset, &msg);
+  if (!code) return 0;
+fail:
+  destroyAhandle(msg.info.ahandle);
+  return code;
+}
+
+static int32_t stSendTimeAlignRequest(SStreamTriggerTask *task, const SStreamTaskAddr *address,
+                                      const SSTriggerPullRequest *req, uint64_t id, ESTriggerAHandleParamType kind) {
+  return stSendOwnedTimeAlignRequest(task, address, req, &id, sizeof(id), kind);
+}
+
+typedef struct {
+  int64_t  reader, session;
+  uint64_t round, scan;
+} STimeAlignCloseKey;
+
+static STimeAlignCloseKey stTimeAlignCloseKey(const STimeAlignClose *close) {
+  return (STimeAlignCloseKey){close->address.taskId, close->sessionId, close->roundId, close->scanId};
+}
+
+static void stDestroyTimeAlignCloses(STriggerTimeAlignCloseQueue *queue) {
+  tSimpleHashCleanup(queue->byRequest);
+  tSimpleHashCleanup(queue->byOperation);
+  *queue = (STriggerTimeAlignCloseQueue){0};
+}
+
+static int32_t stRegisterTimeAlignClose(SStreamTriggerTask *task, STimeAlignClose *close) {
+  STriggerTimeAlignCloseQueue *queue = stTimeAlignCloses(task, close->sessionId);
+  if (!queue->byRequest) {
+    queue->byRequest = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    queue->byOperation = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+    if (!queue->byRequest || !queue->byOperation) {
+      stDestroyTimeAlignCloses(queue);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  STimeAlignCloseKey key = stTimeAlignCloseKey(close);
+  const uint64_t    *prior = tSimpleHashGet(queue->byRequest, &key, sizeof(key));
+  if (prior) {
+    close->operationId = *prior;
+    return 0;
+  }
+  close->operationId = stNextTimeAlignId(task);
+  TAOS_CHECK_RETURN(
+      tSimpleHashPut(queue->byRequest, &key, sizeof(key), &close->operationId, sizeof(close->operationId)));
+  int32_t code =
+      tSimpleHashPut(queue->byOperation, &close->operationId, sizeof(close->operationId), close, sizeof(*close));
+  if (code) {
+    TAOS_UNUSED(tSimpleHashRemove(queue->byRequest, &key, sizeof(key)));
+  } else {
+    queue->nextRetryAt = 0;
+  }
+  return code;
+}
+
+static int32_t stQueueTimeAlignClose(SStreamTriggerTask *task, const SStreamTaskAddr *address, int64_t session,
+                                     uint64_t roundId, uint64_t scanId) {
+  if (!roundId) return TSDB_CODE_INVALID_PARA;
+  STimeAlignClose close = {.address = *address, .sessionId = session, .roundId = roundId, .scanId = scanId};
+  return stRegisterTimeAlignClose(task, &close);
+}
+
+static int32_t stDriveTimeAlignCloses(SStreamTriggerTask *task, int64_t session, int64_t now) {
+  STriggerTimeAlignCloseQueue *queue = stTimeAlignCloses(task, session);
+  if (queue->nextRetryAt > now) {
+    return queue->nextRetryAt == INT64_MAX ? 0
+                                           : stTriggerTaskAddWaitSessionForReason(task, session, queue->nextRetryAt,
+                                                                                  STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE);
+  }
+  int64_t wake = INT64_MAX;
+  int32_t          iter = 0;
+  STimeAlignClose *close = NULL;
+  while ((close = tSimpleHashIterate(queue->byOperation, close, &iter))) {
+    if (close->retryAt <= now) {
+      SSTriggerPullRequestUnion request = {0};
+      request.base.type = close->scanId ? STRIGGER_PULL_TIME_ALIGN_DATA_CLOSE : STRIGGER_PULL_TIME_ALIGN_RELEASE;
+      request.base.streamId = task->task.streamId;
+      request.base.readerTaskId = close->address.taskId;
+      request.base.sessionId = close->sessionId;
+      if (close->scanId) {
+        request.timeAlignDataReq.roundId = close->roundId;
+        request.timeAlignDataReq.scanId = close->scanId;
+      } else {
+        request.timeAlignRoundReq.roundId = close->roundId;
+      }
+      if (!stSendTimeAlignRequest(task, &close->address, &request.base, close->operationId,
+                                  STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE)) {
+        close->retryAt = now + NANOSECOND_PER_SEC;
+      } else {
+        close->retryAt = now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+      }
+    }
+    wake = TMIN(wake, close->retryAt);
+  }
+  queue->nextRetryAt = wake;
+  return wake < INT64_MAX
+             ? stTriggerTaskAddWaitSessionForReason(task, session, wake, STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE)
+             : 0;
+}
+
+static int32_t stTimeAlignCloseRsp(SStreamTriggerTask *task, int64_t session, uint64_t id, int32_t code) {
+  STriggerTimeAlignCloseQueue *queue = stTimeAlignCloses(task, session);
+  STimeAlignClose             *close = tSimpleHashGet(queue->byOperation, &id, sizeof(id));
+  if (!close) return 0;
+  if (!code || code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+    uint64_t           round = close->roundId;
+    STimeAlignCloseKey key = stTimeAlignCloseKey(close);
+    TAOS_UNUSED(tSimpleHashRemove(queue->byRequest, &key, sizeof(key)));
+    TAOS_UNUSED(tSimpleHashRemove(queue->byOperation, &id, sizeof(id)));
+    if (session == STREAM_TRIGGER_REALTIME_SESSIONID && task->pRealtimeContext &&
+        task->pRealtimeContext->timeAlignAbortedRound == round) {
+      int64_t delay = task->pRealtimeContext->catchUp ? STREAM_TRIGGER_IDLE_TIME_NS : 0;
+      return stTriggerTaskAddWaitSessionForReason(task, session, taosGetTimestampNs() + delay,
+                                                  STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE);
+    }
+    return 0;
+  }
+  close->retryAt = taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+  queue->nextRetryAt = TMIN(queue->nextRetryAt, close->retryAt);
+  return stTriggerTaskAddWaitSessionForReason(task, session, close->retryAt, STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE);
+}
+
+static bool stUsesTimeAlignRows(const SStreamTriggerTask *task) {
+  return task->triggerType != STREAM_TRIGGER_PERIOD && BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_TIME_ALIGN);
+}
+
+static bool stTimeAlignNeedsIntervalPrefix(const SStreamTriggerTask *task) {
+  return task->triggerType == STREAM_TRIGGER_SLIDING && task->interval.interval > 0 && !task->ignoreNoDataTrigger &&
+         !(task->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) &&
+         !BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+}
+
+static void stClearTimeAlignWalCheck(SSTriggerWalProgress *progress) {
+  taosArrayDestroy(progress->timeAlignWalCheck.cells);
+  taosMemoryFree(progress->timeAlignWalCheck.metaReply);
+  memset(&progress->timeAlignWalCheck, 0, sizeof(progress->timeAlignWalCheck));
+}
+
+static int32_t stDiscardTimeAlignSessionSeeds(SStreamTriggerTask *task, int64_t session, bool completed);
+
+typedef struct STriggerResultChecks STriggerResultChecks;
+static void                         stClearResultChecks(STriggerResultChecks **checks);
+
+static void stFinishDrainedAlignedWal(SSTriggerRealtimeContext *context, bool completed) {
+  int32_t               iter = 0;
+  SSTriggerWalProgress *progress = NULL;
+  while ((progress = tSimpleHashIterate(context->pReaderWalProgress, progress, &iter))) {
+    if (completed && progress->alignedDrainedVer > progress->doneVer) {
+      progress->doneVer = progress->alignedDrainedVer;
+      stTriggerTaskUpdateReaderProgress(context->pTask, progress);
+    }
+    progress->alignedDrainedVer = 0;
+  }
+}
+
+static int32_t stDropTimeAlignBoundary(SSTriggerRealtimeContext *context, bool completed) {
+  stClearResultChecks(&context->resultChecks);
+  SStreamTriggerTask   *task = context->pTask;
+  uint64_t              round = context->timeAlignRound;
+  int32_t               iter = 0;
+  SSTriggerWalProgress *progress = NULL;
+  TAOS_CHECK_RETURN(stDiscardTimeAlignSessionSeeds(task, context->sessionId, completed));
+  while ((progress = tSimpleHashIterate(context->pReaderWalProgress, progress, &iter)) != NULL) {
+    if (progress->timeAlignRound != round || !round) continue;
+    progress->alignedDrainedVer = 0;
+    TAOS_CHECK_RETURN(stQueueTimeAlignClose(task, progress->pTaskAddr, context->sessionId, round, 0));
+    stClearTimeAlignWalCheck(progress);
+    taosMemoryFreeClear(progress->timeAlignBoundRsp);
+    progress->timeAlignBoundSourceId = 0;
+    progress->timeAlignBoundLen = 0;
+    progress->timeAlignRound = 0;
+    progress->timeAlignHasVersion = false;
+    progress->pendingPulls = 0;
+  }
+  if (completed || !context->timeAlignRestart) {
+    tSimpleHashCleanup(context->pOrdinaryBeforeInput);
+    context->pOrdinaryBeforeInput = NULL;
+  }
+  context->timeAlignValidation = (SSTriggerTimeAlignValidation){0};
+  context->timeAlignAbortedRound = round;
+  context->timeAlignRound = 0;
+  context->timeAlignBoundsPending = 0;
+  context->timeAlignWalCheckRetryAt = 0;
+  context->status = STRIGGER_CONTEXT_IDLE;
+  int64_t now = taosGetTimestampNs();
+  TAOS_CHECK_RETURN(stDriveTimeAlignCloses(task, context->sessionId, now));
+  return stTriggerTaskAddWaitSessionForReason(task, context->sessionId,
+                                              now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC,
+                                              STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE);
+}
+
+static int32_t stTriggerTaskDriveNestedReplay(SStreamTriggerTask *task, SSTriggerNestedRecovery *recovery, int64_t now);
+static int32_t stTriggerTaskAbortNestedRecovery(SStreamTriggerTask *task, SSTriggerNestedRecovery *recovery,
+                                                int32_t code);
+
+static bool stTimeAlignSourceRoundNeedsRetry(int32_t code) {
+  return code == TSDB_CODE_STREAM_EXEC_CANCELLED || code == TSDB_CODE_STREAM_NO_CONTEXT ||
+         code == TSDB_CODE_NEED_RETRY || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_RPC_NETWORK_ERROR ||
+         code == TSDB_CODE_RPC_BROKEN_LINK || code == TSDB_CODE_RPC_TIMEOUT || code == TSDB_CODE_RPC_NETWORK_BUSY ||
+         code == TSDB_CODE_RPC_SOMENODE_NOT_CONNECTED || code == TSDB_CODE_RPC_SOMENODE_BROKEN_LINK;
+}
+
+// A lost source view invalidates both seed and body. A transport failure keeps the same page identity.
+static bool stRetryTimeAlignScanPage(int32_t code) {
+  return code != TSDB_CODE_STREAM_EXEC_CANCELLED && code != TSDB_CODE_STREAM_NO_CONTEXT &&
+         stTimeAlignSourceRoundNeedsRetry(code);
+}
+
+static int32_t stTriggerTaskDrainManualResponse(SStreamTriggerTask *pTask, SSTriggerAHandle *pAhandle, bool reader,
+                                                int32_t errorCode);
+static int32_t stTriggerTaskRecordManualCallbackFailure(SStreamTriggerTask *pTask, SSTriggerAHandle *pAhandle,
+                                                        int32_t errorCode);
+
+static int32_t stFailManualTimeAlignRead(SSTriggerHistoryContext *ctx, SSTriggerAHandle *route, int32_t code) {
+  if (route->progressRequestToken) return stTriggerTaskDrainManualResponse(ctx->pTask, route, true, code);
+  // Bounds and PREV probes have no ordinary Reader token. Close the current trigger step on failure.
+  SSTriggerAHandle failed = *route;
+  failed.progressStepId = ctx->progressStepId;
+  return stTriggerTaskRecordManualCallbackFailure(ctx->pTask, &failed, code);
+}
+
+static int32_t stOpenTimeAlignBoundary(SSTriggerRealtimeContext *context, SSTriggerWalProgress *progress) {
+  SSTriggerTimeAlignRoundRequest req = {.base = {.type = STRIGGER_PULL_TIME_ALIGN_BOUND,
+                                                 .streamId = context->pTask->task.streamId,
+                                                 .readerTaskId = progress->pTaskAddr->taskId,
+                                                 .sessionId = context->sessionId},
+                                        .roundId = context->timeAlignRound,
+                                        .window = {.skey = INT64_MIN, .ekey = INT64_MAX}};
+  req.resumeWal = (context->boundDetermined || context->pRecovery) && !context->timeAlignRepairEnds;
+  progress->timeAlignRound = req.roundId;
+  progress->pullReq.base.type = STRIGGER_PULL_LAST_TS;
+  int32_t code = stSendOwnedTimeAlignRequest(context->pTask, progress->pTaskAddr, &req.base, &req, sizeof(req),
+                                             STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND);
+  if (!code) {
+    ++progress->pendingPulls;
+    progress->pullType = STRIGGER_PULL_LAST_TS;
+  }
+  return code;
+}
+
+static int32_t stReleaseHistoryTimeAlignRound(SSTriggerHistoryContext *ctx) {
+  stClearResultChecks(&ctx->resultChecks);
+  if (!ctx->timeAlignRound) return 0;
+  TAOS_CHECK_RETURN(stDiscardTimeAlignSessionSeeds(ctx->pTask, ctx->sessionId, false));
+  SSTriggerTsdbProgress *progress = NULL;
+  int32_t                iter = 0;
+  while ((progress = tSimpleHashIterate(ctx->pReaderTsdbProgress, progress, &iter))) {
+    TAOS_CHECK_RETURN(stQueueTimeAlignClose(ctx->pTask, &progress->taskAddr, ctx->sessionId, ctx->timeAlignRound, 0));
+    progress->timeAlignBound = false;
+  }
+  ctx->timeAlignRound = 0;
+  ctx->timeAlignReady = false;
+  ctx->timeAlignBoundsPending = 0;
+  ctx->timeAlignValidation = (SSTriggerTimeAlignValidation){0};
+  return stDriveTimeAlignCloses(ctx->pTask, ctx->sessionId, taosGetTimestampNs());
+}
+
+// A lost round or retryable transport error needs a fresh cut from all Readers.
+static int32_t stHistoryTimeAlignBoundaryError(SSTriggerHistoryContext *ctx, int32_t code) {
+  if (!stTimeAlignSourceRoundNeedsRetry(code)) return code;
+  TAOS_CHECK_RETURN(stReleaseHistoryTimeAlignRound(ctx));
+  return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId,
+                                     taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+}
+
+static int32_t stOpenHistoryTimeAlignRound(SSTriggerHistoryContext *ctx) {
+  if (ctx->timeAlignRound) return 0;
+  ctx->timeAlignRound = stNextTimeAlignId(ctx->pTask);
+  ctx->timeAlignBoundsPending = tSimpleHashGetSize(ctx->pReaderTsdbProgress);
+  SSTriggerTsdbProgress *progress = NULL;
+  int32_t                iter = 0;
+  while ((progress = tSimpleHashIterate(ctx->pReaderTsdbProgress, progress, &iter))) {
+    SSTriggerTimeAlignRoundRequest req = {.base = {.type = STRIGGER_PULL_TIME_ALIGN_BOUND,
+                                                   .streamId = ctx->pTask->task.streamId,
+                                                   .readerTaskId = progress->taskAddr.taskId,
+                                                   .sessionId = ctx->sessionId},
+                                          .roundId = ctx->timeAlignRound,
+                                          .window = {.skey = INT64_MIN, .ekey = INT64_MAX}};
+    int32_t code = stSendOwnedTimeAlignRequest(ctx->pTask, &progress->taskAddr, &req.base, &req, sizeof(req),
+                                               STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND);
+    if (code) {
+      if (ctx->pManualRecalcRequest && stRetryTimeAlignScanPage(code)) return code;
+      return stHistoryTimeAlignBoundaryError(ctx, code);
+    }
+  }
+  return 0;
+}
+
+static int32_t stHistoryTimeAlignBoundaryRsp(SSTriggerHistoryContext *ctx, SSTriggerAHandle *route, SRpcMsg *rsp) {
+  const SSTriggerTimeAlignRoundRequest *req = route->param;
+  if (!ctx || !ctx->timeAlignBoundsPending || ctx->timeAlignRound != req->roundId ||
+      atomic_load_32((int32_t *)&ctx->pTask->task.status) == STREAM_STATUS_FAILED)
+    return 0;
+  int32_t                vgId = (int32_t)route->requestGid;
+  SSTriggerTsdbProgress *progress = tSimpleHashGet(ctx->pReaderTsdbProgress, &vgId, sizeof(vgId));
+  if (!progress || progress->taskAddr.taskId != req->base.readerTaskId || progress->timeAlignBound) return 0;
+  if (rsp->code) {
+    if (route->manualAttempt.chainId && stRetryTimeAlignScanPage(rsp->code))
+      return stFailManualTimeAlignRead(ctx, route, rsp->code);
+    return stHistoryTimeAlignBoundaryError(ctx, rsp->code);
+  }
+  if (!rsp->pCont || rsp->contLen <= 0) return TSDB_CODE_INVALID_MSG;
+  SSDataBlock            block = {0};
+  uint64_t               sourceId = 0;
+  int32_t                code = tDeserializeTimeAlignBoundRsp(rsp->pCont, rsp->contLen, &block, &sourceId);
+  if (!code && block.info.id.groupId > INT64_MAX) code = TSDB_CODE_INVALID_MSG;
+  int64_t cursor = (int64_t)block.info.id.groupId;
+  blockDataFreeRes(&block);
+  TAOS_CHECK_RETURN(code);
+  progress->timeAlignStagedSourceId = sourceId;
+  progress->timeAlignStagedVersion = cursor - 1;
+  progress->timeAlignBound = true;
+  if (--ctx->timeAlignBoundsPending) return 0;
+  int32_t iter = 0;
+  progress = NULL;
+  while ((progress = tSimpleHashIterate(ctx->pReaderTsdbProgress, progress, &iter))) {
+    progress->version = progress->timeAlignStagedVersion;
+    progress->timeAlignSourceId = progress->timeAlignStagedSourceId;
+  }
+  ctx->timeAlignReady = true;
+  return stHistoryContextCheck(ctx);
+}
+
+static int32_t stRaiseTimeAlignRepairEnd(SSHashObj *ends, int64_t gid, TSKEY ts) {
+  TSKEY *end = tSimpleHashGet(ends, &gid, sizeof(gid));
+  if (!end) return tSimpleHashPut(ends, &gid, sizeof(gid), &ts, sizeof(ts));
+  *end = TMAX(*end, ts);
+  return 0;
+}
+
+static int32_t stCollectTimeAlignRepairEnds(SSTriggerRealtimeContext *ctx, SSDataBlock *block) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (!block->info.rows) return 0;
+  SColumnInfoData *ids = taosArrayGet(block->pDataBlock, 0);
+  SColumnInfoData *times = taosArrayGet(block->pDataBlock, 1);
+  if (!ids || !times || !ids->pData || !times->pData) return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < block->info.rows; ++i) {
+    const int64_t uid = ((int64_t *)ids->pData)[i];
+    const TSKEY   ts = ((TSKEY *)times->pData)[i];
+    if (!task->isVirtualTable) {
+      TAOS_CHECK_RETURN(stRaiseTimeAlignRepairEnd(ctx->timeAlignRepairEnds, uid, ts));
+      continue;
+    }
+    const SSTriggerOrigTableInfo *source = tSimpleHashGet(task->pOrigTableInfos, &uid, sizeof(uid));
+    if (!source) continue;
+    for (size_t j = 0; j < taosArrayGetSize(source->pVtbUids); ++j) {
+      const int64_t                *vuid = taosArrayGet(source->pVtbUids, j);
+      const SSTriggerVirtTableInfo *table = tSimpleHashGet(task->pVirtTableInfos, vuid, sizeof(*vuid));
+      for (size_t k = 0; table && k < taosArrayGetSize(table->tbGids); ++k) {
+        const int64_t *gid = taosArrayGet(table->tbGids, k);
+        TAOS_CHECK_RETURN(stRaiseTimeAlignRepairEnd(ctx->timeAlignRepairEnds, *gid, ts));
+      }
+    }
+  }
+  return 0;
+}
+
+static int32_t stQueueTimeAlignRepairs(SSTriggerRealtimeContext *ctx);
+static int32_t stCancelRealtimeTimeAlignRound(SSTriggerRealtimeContext *ctx);
+
+static int32_t stReceiveTimeAlignBound(SSTriggerWalProgress *progress, const SRpcMsg *rsp) {
+  if (!rsp->pCont || rsp->contLen <= 0) return TSDB_CODE_INVALID_MSG;
+  SSDataBlock block = {0};
+  uint64_t    sourceId = 0;
+  int32_t     code = tDeserializeTimeAlignBoundRsp(rsp->pCont, rsp->contLen, &block, &sourceId);
+  if (!code && block.info.id.groupId > INT64_MAX) code = TSDB_CODE_INVALID_MSG;
+  blockDataFreeRes(&block);
+  TAOS_CHECK_RETURN(code);
+  progress->timeAlignBoundRsp = taosMemoryMalloc(rsp->contLen);
+  if (!progress->timeAlignBoundRsp) return terrno;
+  memcpy(progress->timeAlignBoundRsp, rsp->pCont, rsp->contLen);
+  progress->timeAlignBoundLen = rsp->contLen;
+  progress->timeAlignBoundSourceId = sourceId;
+  return 0;
+}
+
+static int32_t stTimeAlignBoundaryRsp(SStreamTriggerTask *task, SSTriggerAHandle *route, SRpcMsg *rsp) {
+  if (route->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID)
+    return stHistoryTimeAlignBoundaryRsp(task->pHistoryContext, route, rsp);
+  SSTriggerRealtimeContext             *context = stTimeAlignRealtimeOwner(task);
+  const SSTriggerTimeAlignRoundRequest *req = route->param;
+  uint64_t                              id = req->roundId;
+  if (!context || context->timeAlignRestart || !id || context->timeAlignRound != id ||
+      context->status != STRIGGER_CONTEXT_DETERMINE_BOUND)
+    return 0;
+  if (!context->timeAlignBoundsPending) return 0;
+  int32_t               vgId = (int32_t)route->requestGid;
+  SSTriggerWalProgress *progress = tSimpleHashGet(context->pReaderWalProgress, &vgId, sizeof(vgId));
+  if (!progress || progress->pTaskAddr->taskId != req->base.readerTaskId) return 0;
+  if (progress->timeAlignRound != id || progress->timeAlignBoundRsp) return 0;
+  int32_t code = rsp->code ? rsp->code : stReceiveTimeAlignBound(progress, rsp);
+  if (code) {
+    if (context->pRecovery) return stTriggerTaskAbortNestedRecovery(task, context->pRecovery, code);
+    TAOS_CHECK_RETURN(stDropTimeAlignBoundary(context, false));
+    return stTimeAlignSourceRoundNeedsRetry(code) ? 0 : code;
+  }
+  if (--context->timeAlignBoundsPending) return 0;
+  int32_t remaining = tSimpleHashGetSize(context->pReaderWalProgress);
+  int32_t iter = 0;
+  progress = NULL;
+  while ((progress = tSimpleHashIterate(context->pReaderWalProgress, progress, &iter))) {
+    if (progress->previousSourceId && progress->previousSourceId != progress->timeAlignBoundSourceId) {
+      progress->previousSourceId = 0;
+      if (context->pRecovery)
+        return stTriggerTaskAbortNestedRecovery(task, context->pRecovery, TSDB_CODE_STREAM_EXEC_CANCELLED);
+      return stCancelRealtimeTimeAlignRound(context);
+    }
+  }
+
+  // Publish the complete vector together. No history cutoff or saved cursor survives a partial admission failure.
+  iter = 0;
+  progress = NULL;
+  while ((progress = tSimpleHashIterate(context->pReaderWalProgress, progress, &iter)) != NULL) {
+    if (progress->timeAlignRound != id) continue;
+    progress->previousSourceId = progress->timeAlignBoundSourceId;
+    if (context->boundDetermined || context->pRecovery) {
+      SSDataBlock block = {0};
+      int32_t code = tDeserializeSStreamTsResponse(progress->timeAlignBoundRsp, progress->timeAlignBoundLen, &block);
+      int64_t cursor = (int64_t)block.info.id.groupId;
+      if (!code && context->timeAlignRepairEnds) code = stCollectTimeAlignRepairEnds(context, &block);
+      blockDataFreeRes(&block);
+      TAOS_CHECK_RETURN(code);
+      progress->timeAlignHasVersion = cursor > 0;
+      progress->timeAlignMaxVer = cursor > 0 ? cursor - 1 : 0;
+      taosMemoryFreeClear(progress->timeAlignBoundRsp);
+      progress->timeAlignBoundLen = 0;
+      progress->pendingPulls = 0;
+      if (context->timeAlignRepairEnds) {
+        progress->startVer = progress->savedVer = progress->lastScanVer = progress->doneVer = cursor;
+        stTriggerTaskUpdateReaderProgress(task, progress);
+      }
+      if (--remaining == 0) {
+        if (context->timeAlignRepairEnds) TAOS_CHECK_RETURN(stQueueTimeAlignRepairs(context));
+        context->curReaderIdx = 0;
+        context->status = STRIGGER_CONTEXT_IDLE;
+        if (context->pRecovery) return stTriggerTaskDriveNestedReplay(task, context->pRecovery, taosGetTimestampNs());
+        return stRealtimeContextCheck(context);
+      }
+      continue;
+    }
+    SSTriggerAHandle handle = {.paramType = STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND,
+                               .param = &progress->pullReq.base,
+                               .timeAlignDone = remaining == 1,
+                               .pullOwner = progress};
+    SMsgSendInfo     info = {.param = &handle};
+    SRpcMsg          local = {
+                 .info = {.ahandle = &info}, .pCont = progress->timeAlignBoundRsp, .contLen = progress->timeAlignBoundLen};
+    progress->timeAlignBoundRsp = NULL;
+    progress->timeAlignBoundLen = 0;
+    bool    childFailure = false;
+    int32_t code = stRealtimeContextProcPullRsp(context, &local, taosGetTimestampNs(), &childFailure);
+    taosMemoryFree(local.pCont);
+    if (code || --remaining == 0) return code;
+  }
+  return 0;
+}
+
+typedef struct {
+  SStreamTaskAddr               address;
+  SSTriggerTimeAlignDataRequest request;
+  uint64_t                      attempt;
+  int32_t                       nextToSend;
+  bool                          inFlight;
+  bool                          sent;
+  bool                          closed;
+} STimeAlignSeedInput;
+
+typedef struct {
+  STimeAlignGroupKey key;
+  uint64_t           generation;
+  int64_t            bindingVersion;
+  uint64_t           admissionId, nextRetryUid;
+  bool               retryQueued;
+  SSTimeAlignSeed   *seed;
+  SArray            *inputs;
+  int32_t            nextToSend;  // Index of the first unsent page, or inputs.size if none.
+  bool               ready;
+} STimeAlignTriggerSeed;
+
+typedef struct {
+  STimeAlignGroupKey key;
+  uint64_t           generation, scanId, batchId, attempt;
+  int32_t            sourceIndex;
+} STimeAlignSeedRoute;
+
+static STimeAlignSeedAdmission *stTimeAlignSeedAdmission(SStreamTriggerTask *task, const STimeAlignTriggerSeed *slot) {
+  if (!slot->admissionId) return NULL;
+  const STimeAlignGroupKey *key = &slot->key;
+  STimeAlignSeedAdmission  *admission = NULL;
+  if (key->session == STREAM_TRIGGER_HISTORY_SESSIONID) {
+    SSTriggerHistoryContext *ctx = task->pHistoryContext;
+    SSTriggerHistoryGroup  **group = ctx ? tSimpleHashGet(ctx->pGroups, &key->gid, sizeof(key->gid)) : NULL;
+    if (group) admission = &(*group)->seedAdmission;
+  } else {
+    SSTriggerRealtimeContext *ctx = stTimeAlignRealtimeOwner(task);
+    SSTriggerRealtimeGroup  **group = ctx ? tSimpleHashGet(ctx->pGroups, &key->gid, sizeof(key->gid)) : NULL;
+    if (group) admission = &(*group)->seedAdmission;
+  }
+  return admission && admission->id == slot->admissionId ? admission : NULL;
+}
+
+static void stInvalidateTimeAlignSeedAdmission(SStreamTriggerTask *task, const STimeAlignTriggerSeed *slot) {
+  STimeAlignSeedAdmission *admission = stTimeAlignSeedAdmission(task, slot);
+  if (admission) *admission = (STimeAlignSeedAdmission){0};
+}
+
+static void stQueueTimeAlignSeedRetry(STimeAlignSeedAdmission *admission, STimeAlignTriggerSeed *slot) {
+  if (admission && !slot->retryQueued) {
+    slot->nextRetryUid = admission->retryUid;
+    admission->retryUid = slot->key.uid;
+    slot->retryQueued = true;
+  }
+}
+
+static void stFreeTimeAlignSeedInput(void *data) {
+  STimeAlignSeedInput *input = data;
+  taosArrayDestroy(input->request.cids);
+}
+
+static void stFreeTimeAlignTriggerSeed(void *data) {
+  STimeAlignTriggerSeed *slot = data;
+  stTimeAlignSeedDestroy(&slot->seed);
+  taosArrayDestroyEx(slot->inputs, stFreeTimeAlignSeedInput);
+}
+
+static void stFreeTimeAlignSourceBound(void *data) { taosArrayDestroy(((SSTimeAlignSourceBound *)data)->pColRefs); }
+
+static int32_t stAddTimeAlignSeedInput(SStreamTriggerTask *task, const SSTriggerTableColRef *source, int64_t firstTs,
+                                       STimeAlignTriggerSeed *slot, SArray *bounds) {
+  int64_t          session = slot->key.session;
+  SStreamTaskAddr *address;
+  uint64_t         round;
+  int64_t          maxVer;
+  bool             hasVersion;
+  if (session == STREAM_TRIGGER_HISTORY_SESSIONID) {
+    SSTriggerHistoryContext *ctx = task->pHistoryContext;
+    SSTriggerTsdbProgress   *hist =
+        ctx ? tSimpleHashGet(ctx->pReaderTsdbProgress, &source->otbVgId, sizeof(source->otbVgId)) : NULL;
+    if (!hist || !ctx->timeAlignReady) return TSDB_CODE_STREAM_NO_CONTEXT;
+    address = &hist->taskAddr;
+    round = ctx->timeAlignRound;
+    maxVer = hist->version;
+    hasVersion = maxVer >= 0;
+  } else {
+    SSTriggerWalProgress *live =
+        tSimpleHashGet(stTimeAlignRealtimeOwner(task)->pReaderWalProgress, &source->otbVgId, sizeof(source->otbVgId));
+    if (!live || !live->timeAlignRound) return TSDB_CODE_STREAM_NO_CONTEXT;
+    address = live->pTaskAddr;
+    round = live->timeAlignRound;
+    maxVer = live->timeAlignMaxVer;
+    hasVersion = live->timeAlignHasVersion;
+  }
+  if (!hasVersion) return 0;
+  if (!task->pVirDataBlock) return TSDB_CODE_STREAM_NO_CONTEXT;
+  SSTimeAlignSourceBound bound = {
+      .readerTaskId = address->taskId, .uid = source->otbUid, .suid = source->otbSuid, .maxVer = maxVer};
+  STimeAlignSeedInput input = {.address = *address, .nextToSend = (int32_t)taosArrayGetSize(slot->inputs) + 1};
+  int32_t             code = 0, lino = 0;
+  input.request = (SSTriggerTimeAlignDataRequest){.base = {.type = STRIGGER_PULL_TIME_ALIGN_DATA,
+                                                           .sessionId = session,
+                                                           .streamId = task->task.streamId,
+                                                           .readerTaskId = bound.readerTaskId},
+                                                  .roundId = round,
+                                                  .roundSessionId = session,
+                                                  .scanId = stNextTimeAlignId(task),
+                                                  .suid = bound.suid,
+                                                  .uid = bound.uid,
+                                                  .skey = firstTs,
+                                                  .ekey = firstTs == INT64_MIN ? INT64_MIN : firstTs - 1,
+                                                  .order = TSDB_ORDER_DESC,
+                                                  .ver = maxVer};
+  SSHashObj *requested =
+      tSimpleHashInit(taosArrayGetSize(source->pColMatches), taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+  TSDB_CHECK_NULL(requested, code, lino, _exit, terrno);
+  bound.pColRefs = taosArrayInit(2, sizeof(SSTimeAlignColumnRef));
+  input.request.cids = taosArrayInit(2, sizeof(col_id_t));
+  TSDB_CHECK_NULL(bound.pColRefs, code, lino, _exit, terrno);
+  TSDB_CHECK_NULL(input.request.cids, code, lino, _exit, terrno);
+  col_id_t tsId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  TSDB_CHECK_NULL(taosArrayPush(input.request.cids, &tsId), code, lino, _exit, terrno);
+  for (size_t i = 0; i < taosArrayGetSize(source->pColMatches); ++i) {
+    const SSTriggerColMatch *match = taosArrayGet(source->pColMatches, i);
+    const SColumnInfoData   *col = taosArrayGet(task->pVirDataBlock->pDataBlock, match->vtbSlotId);
+    TSDB_CHECK_NULL(col, code, lino, _exit, TSDB_CODE_INVALID_PARA);
+    int64_t floor;
+    if (!stTimeAlignSeedFloor(task->pTimeAlignConfig, col->info.colId, firstTs, &floor)) continue;
+    input.request.skey = TMIN(input.request.skey, floor);
+    SSTimeAlignColumnRef ref = {
+        .virtualColId = col->info.colId, .sourceColId = match->otbColId, .sourceBytes = match->sourceBytes};
+    TSDB_CHECK_NULL(taosArrayPush(bound.pColRefs, &ref), code, lino, _exit, terrno);
+    if (ref.sourceColId != tsId && !tSimpleHashGet(requested, &ref.sourceColId, sizeof(ref.sourceColId))) {
+      TAOS_CHECK_EXIT(tSimpleHashPut(requested, &ref.sourceColId, sizeof(ref.sourceColId), &i, sizeof(i)));
+      TSDB_CHECK_NULL(taosArrayPush(input.request.cids, &ref.sourceColId), code, lino, _exit, terrno);
+    }
+  }
+  if (taosArrayGetSize(bound.pColRefs)) {
+    bound.emptyRange = input.request.skey == firstTs;
+    TSDB_CHECK_NULL(taosArrayPush(bounds, &bound), code, lino, _exit, terrno);
+    bound.pColRefs = NULL;
+    if (!bound.emptyRange) {
+      TSDB_CHECK_NULL(taosArrayPush(slot->inputs, &input), code, lino, _exit, terrno);
+      input.request.cids = NULL;
+    }
+  }
+_exit:
+  tSimpleHashCleanup(requested);
+  taosArrayDestroy(bound.pColRefs);
+  taosArrayDestroy(input.request.cids);
+  return code;
+}
+
+static int32_t stQueueTimeAlignSeedCloses(SStreamTriggerTask *task, STimeAlignTriggerSeed *slot) {
+  for (size_t i = 0; i < taosArrayGetSize(slot->inputs); ++i) {
+    STimeAlignSeedInput *input = taosArrayGet(slot->inputs, i);
+    if (!input->sent || input->closed) continue;
+    TAOS_CHECK_RETURN(
+        stQueueTimeAlignClose(task, &input->address, slot->key.session, input->request.roundId, input->request.scanId));
+    input->closed = true;
+  }
+  return 0;
+}
+
+static int32_t stWakeTimeAlignCloses(SStreamTriggerTask *task, int64_t session) {
+  STriggerTimeAlignCloseQueue *queue = stTimeAlignCloses(task, session);
+  if (queue->nextRetryAt || !tSimpleHashGetSize(queue->byOperation)) return 0;
+  return stTriggerTaskAddWaitSessionForReason(task, session, taosGetTimestampNs(),
+                                              STREAM_TRIGGER_WAIT_TIME_ALIGN_CLOSE);
+}
+
+static int32_t stDiscardTimeAlignSessionSeeds(SStreamTriggerTask *task, int64_t session, bool completed) {
+  SSHashObj            **seeds = stTimeAlignSeeds(task, session);
+  int32_t                iter = 0;
+  STimeAlignTriggerSeed *slot = NULL;
+  while ((slot = tSimpleHashIterate(*seeds, slot, &iter))) {
+    TAOS_CHECK_RETURN(stQueueTimeAlignSeedCloses(task, slot));
+    stInvalidateTimeAlignSeedAdmission(task, slot);
+    STriggerTimeAlignGroup *group = stFindTimeAlignGroup(task, session, slot->key.gid);
+    STimeAlignInput        *input = group ? tSimpleHashGet(group->inputs, &slot->key.uid, sizeof(slot->key.uid)) : NULL;
+    if (!completed || !input || !input->ready)
+      stTriggerTaskForgetTimeAlignInput(task, session, slot->key.gid, slot->key.uid);
+  }
+  tSimpleHashCleanup(*seeds);
+  *seeds = NULL;
+  return 0;
+}
+
+static int32_t stStartTimeAlignSeed(SStreamTriggerTask *task, const SSTriggerVirtTableInfo *table,
+                                    const STimeAlignGroupKey *key, int64_t firstTs, STimeAlignTriggerSeed **out) {
+  int32_t               code = 0, lino = 0;
+  STimeAlignTriggerSeed slot = {.key = *key, .generation = stNextTimeAlignId(task), .bindingVersion = table->tbVer};
+  SArray               *bounds = taosArrayInit(taosArrayGetSize(table->pTrigColRefs), sizeof(SSTimeAlignSourceBound));
+  TSDB_CHECK_NULL(bounds, code, lino, _exit, terrno);
+  slot.inputs = taosArrayInit(taosArrayGetSize(table->pTrigColRefs), sizeof(STimeAlignSeedInput));
+  TSDB_CHECK_NULL(slot.inputs, code, lino, _exit, terrno);
+  for (size_t i = 0; i < taosArrayGetSize(table->pTrigColRefs); ++i) {
+    const SSTriggerTableColRef *source = taosArrayGet(table->pTrigColRefs, i);
+    TAOS_CHECK_EXIT(stAddTimeAlignSeedInput(task, source, firstTs, &slot, bounds));
+  }
+  TAOS_CHECK_EXIT(stTimeAlignSeedCreate(task->pTimeAlign, table->tbUid, slot.generation, firstTs, bounds, &slot.seed));
+  slot.ready = taosArrayGetSize(slot.inputs) == 0;
+  TAOS_CHECK_EXIT(tSimpleHashPut(*stTimeAlignSeeds(task, key->session), key, sizeof(*key), &slot, sizeof(slot)));
+  slot.seed = NULL;
+  slot.inputs = NULL;
+  *out = tSimpleHashGet(*stTimeAlignSeeds(task, key->session), key, sizeof(*key));
+_exit:
+  taosArrayDestroyEx(bounds, stFreeTimeAlignSourceBound);
+  stFreeTimeAlignTriggerSeed(&slot);
+  return code;
+}
+
+static void stDestroyPreviousTimeAlignValues(void *entry) { stTimeAlignDestroyCandidates(*(SArray **)entry); }
+
+static int32_t stRetireTimeAlignTableSeed(SStreamTriggerTask *task, const STimeAlignGroupKey *key) {
+  SSHashObj             *seeds = *stTimeAlignSeeds(task, key->session);
+  STimeAlignTriggerSeed *slot = tSimpleHashGet(seeds, key, sizeof(*key));
+  if (slot) {
+    TAOS_CHECK_RETURN(stQueueTimeAlignSeedCloses(task, slot));
+    stInvalidateTimeAlignSeedAdmission(task, slot);
+  }
+  STriggerTimeAlignGroup *group = stFindTimeAlignGroup(task, key->session, key->gid);
+  STimeAlignInput        *input = group ? tSimpleHashGet(group->inputs, &key->uid, sizeof(key->uid)) : NULL;
+  if (key->session == STREAM_TRIGGER_REALTIME_SESSIONID && input && input->ready) {
+    if (!group->previous) {
+      group->previous = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+      if (!group->previous) return terrno;
+      tSimpleHashSetFreeFp(group->previous, stDestroyPreviousTimeAlignValues);
+    }
+    SArray *empty = NULL;
+    TAOS_CHECK_RETURN(tSimpleHashPut(group->previous, &key->uid, sizeof(key->uid), &empty, sizeof(empty)));
+    SArray **values = tSimpleHashGet(group->previous, &key->uid, sizeof(key->uid));
+    *values = stTimeAlignTakeCandidates(group->state, key->uid);
+  }
+  stTriggerTaskForgetTimeAlignInput(task, key->session, key->gid, key->uid);
+  if (slot) TAOS_CHECK_RETURN(tSimpleHashRemove(seeds, key, sizeof(*key)));
+  return stWakeTimeAlignCloses(task, key->session);
+}
+
+static int32_t stRetireStaleTimeAlignInput(SStreamTriggerTask *task, int64_t session, int64_t gid,
+                                           const SSTriggerVirtTableInfo *table, STimeAlignInput **input) {
+  STimeAlignGroupKey     key = {.session = session, .gid = gid, .uid = table->tbUid};
+  STimeAlignTriggerSeed *slot = tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key));
+  if ((slot && slot->bindingVersion != table->tbVer) ||
+      (*input && (*input)->ready && (*input)->bindingVersion != table->tbVer)) {
+    TAOS_CHECK_RETURN(stRetireTimeAlignTableSeed(task, &key));
+    *input = NULL;
+  }
+  return 0;
+}
+
+static int32_t stInvalidateTimeAlignChange(SSTriggerRealtimeContext *ctx, int64_t gid, uint64_t uid, int64_t reader,
+                                           int64_t source, STimeWindow range, int64_t version, const SArray *probes) {
+  if (!ctx->pTask->pTimeAlign) return 0;
+  STimeAlignGroupKey key = {.session = ctx->sessionId, .gid = gid, .uid = uid};
+  TAOS_CHECK_RETURN(stRetireTimeAlignTableSeed(ctx->pTask, &key));
+  STriggerTimeAlignGroup *group = stFindTimeAlignGroup(ctx->pTask, ctx->sessionId, gid);
+  SArray                **values = group ? tSimpleHashGet(group->previous, &uid, sizeof(uid)) : NULL;
+  if (values) {
+    if (version >= 0)
+      stTimeAlignDiscardWalWrites(*values, reader, source, range, version, probes);
+    else
+      stTimeAlignDiscardCandidates(*values, reader, source, range);
+  }
+  return 0;
+}
+
+// A transport retry reuses the Reader's scan and page. A new local attempt rejects late responses to the old send.
+static int32_t stSendTimeAlignSeedPage(SStreamTriggerTask *task, STimeAlignTriggerSeed *slot, int32_t index,
+                                       STimeAlignSeedInput *input) {
+  STimeAlignSeedRoute route = {.key = slot->key,
+                               .generation = slot->generation,
+                               .scanId = input->request.scanId,
+                               .batchId = input->request.batchId,
+                               .attempt = ++input->attempt,
+                               .sourceIndex = index};
+  TAOS_CHECK_RETURN(stSendOwnedTimeAlignRequest(task, &input->address, &input->request.base, &route, sizeof(route),
+                                                STRIGGER_AHANDLE_PARAM_TIME_ALIGN_SEED));
+  input->inFlight = true;
+  input->sent = true;
+  return 0;
+}
+
+static int32_t stDriveTimeAlignSeedPages(SStreamTriggerTask *task, STimeAlignTriggerSeed *slot) {
+  while (slot->nextToSend < taosArrayGetSize(slot->inputs)) {
+    STimeAlignSeedInput *input = taosArrayGet(slot->inputs, slot->nextToSend);
+    int32_t              code = stSendTimeAlignSeedPage(task, slot, slot->nextToSend, input);
+    if (code) {
+      if (!stRetryTimeAlignScanPage(code) ||
+          (slot->key.session == STREAM_TRIGGER_HISTORY_SESSIONID && task->pHistoryContext->pManualRecalcRequest))
+        return code;
+      return stTriggerTaskAddWaitSession(task, slot->key.session,
+                                         taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+    }
+    slot->nextToSend = input->nextToSend;
+  }
+  return 0;
+}
+
+int32_t stTriggerTaskAcquireTimeAlignSeed(SStreamTriggerTask *task, int64_t sessionId, int64_t gid,
+                                          const SSTriggerVirtTableInfo *table, int64_t firstTs,
+                                          const SSTimeAlignSeed **seed, uint64_t *generation, bool *waiting) {
+  if (!task || !task->pTimeAlign || !table || !seed || !generation || !waiting) return TSDB_CODE_INVALID_PARA;
+  *waiting = false;
+  *generation = 0;
+  *seed = NULL;
+  SSHashObj **seeds = stTimeAlignSeeds(task, sessionId);
+  if (!*seeds) {
+    *seeds = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+    if (!*seeds) return terrno;
+    tSimpleHashSetFreeFp(*seeds, stFreeTimeAlignTriggerSeed);
+  }
+  STimeAlignGroupKey     key = {.session = sessionId, .gid = gid, .uid = table->tbUid};
+  STimeAlignTriggerSeed *slot = tSimpleHashGet(*seeds, &key, sizeof(key));
+  STriggerTimeAlignGroup *group = stFindTimeAlignGroup(task, sessionId, gid);
+  STimeAlignInput        *input = group ? tSimpleHashGet(group->inputs, &key.uid, sizeof(key.uid)) : NULL;
+  if ((slot && slot->bindingVersion != table->tbVer) ||
+      (input && input->ready && input->bindingVersion != table->tbVer)) {
+    TAOS_CHECK_RETURN(stRetireTimeAlignTableSeed(task, &key));
+    slot = NULL;
+  }
+  if (!slot) TAOS_CHECK_RETURN(stStartTimeAlignSeed(task, table, &key, firstTs, &slot));
+  *generation = slot->generation;
+  if (slot->ready) {
+    SArray **values = group ? tSimpleHashGet(group->previous, &key.uid, sizeof(key.uid)) : NULL;
+    if (values && slot->seed) TAOS_CHECK_RETURN(stTimeAlignMergeCandidates(slot->seed, *values));
+    *seed = slot->seed;
+    return 0;
+  }
+  *waiting = true;
+  return stDriveTimeAlignSeedPages(task, slot);
+}
+
+static int32_t stDiscardTimeAlignGroupSeeds(SStreamTriggerTask *task, int64_t session, int64_t gid, uint64_t uid,
+                                            bool destroyingGroup) {
+  if (!task) return TSDB_CODE_INVALID_PARA;
+  int32_t iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(*stTimeAlignSeeds(task, session), entry, &iter)) != NULL) {
+    STimeAlignTriggerSeed *slot = entry;
+    if (slot->key.session != session || slot->key.gid != gid || (uid && slot->key.uid != uid)) continue;
+    TAOS_CHECK_RETURN(stQueueTimeAlignSeedCloses(task, slot));
+    if (!destroyingGroup) stInvalidateTimeAlignSeedAdmission(task, slot);
+    TAOS_CHECK_RETURN(
+        tSimpleHashIterateRemove(*stTimeAlignSeeds(task, session), &slot->key, sizeof(slot->key), &entry, &iter));
+  }
+  return stWakeTimeAlignCloses(task, session);
+}
+
+int32_t stTriggerTaskDiscardTimeAlignSeed(SStreamTriggerTask *task, int64_t session, int64_t gid, uint64_t uid) {
+  return stDiscardTimeAlignGroupSeeds(task, session, gid, uid, false);
+}
+
+uint64_t stTriggerTaskTimeAlignGeneration(SStreamTriggerTask *task, int64_t session, int64_t gid, uint64_t uid) {
+  STimeAlignGroupKey     key = {.session = session, .gid = gid, .uid = uid};
+  STimeAlignTriggerSeed *slot = task ? tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key)) : NULL;
+  return slot ? slot->generation : 0;
+}
+
+void stTriggerTaskReleaseTimeAlignSeed(SStreamTriggerTask *task, int64_t session, int64_t gid, uint64_t uid,
+                                       uint64_t generation) {
+  STimeAlignGroupKey     key = {.session = session, .gid = gid, .uid = uid};
+  STimeAlignTriggerSeed *slot = task ? tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key)) : NULL;
+  if (!slot || !slot->ready || slot->generation != generation) return;
+  stTimeAlignSeedDestroy(&slot->seed);
+  taosArrayDestroyEx(slot->inputs, stFreeTimeAlignSeedInput);
+  slot->inputs = NULL;
+}
+
+static int32_t stCloseTimeAlignBodies(SSTriggerHistoryContext *ctx, const int64_t *gid);
+
+static int32_t stDiscardTimeAlignPendingCalcs(SStreamTriggerTask *task, int64_t session,
+                                              SSTriggerCalcRequest **current) {
+  if (*current) TAOS_CHECK_RETURN(stTriggerTaskReleaseRequest(task, current, false));
+  for (size_t i = 0; i < taosArrayGetSize(task->pCalcNodes); ++i) {
+    SSTriggerCalcNode *node = taosArrayGet(task->pCalcNodes, i);
+    for (size_t j = 0; j < taosArrayGetSize(node->pSlots); ++j) {
+      SSTriggerCalcSlot *slot = taosArrayGet(node->pSlots, j);
+      taosWLockLatch(&task->calcPoolLock);
+      bool parked = slot->req.sessionId == session && slot->vtableRetryAtMs != 0;
+      if (parked) slot->vtableRetryAtMs = 0;
+      taosWUnLockLatch(&task->calcPoolLock);
+      if (parked) {
+        SSTriggerCalcRequest *request = &slot->req;
+        TAOS_CHECK_RETURN(stTriggerTaskReleaseRequest(task, &request, false));
+      }
+    }
+  }
+  return 0;
+}
+
+static void stDiscardAlignedChainUpdate(SSTriggerHistoryContext *ctx) {
+  if (!ctx->alignedChainPosted) return;
+  SStreamTriggerTask *task = ctx->pTask;
+  taosWLockLatch(&task->prevWindowUpdateLock);
+  if (task->pAlignedChainUpdate && ((SAlignedChainUpdate *)task->pAlignedChainUpdate)->normal)
+    atomic_store_8(&((SAlignedChainUpdate *)task->pAlignedChainUpdate)->normal->released, 1);
+  stDestroyAlignedChainUpdate(&task->pAlignedChainUpdate);
+  taosWUnLockLatch(&task->prevWindowUpdateLock);
+  ctx->alignedChainPosted = false;
+  ctx->alignedChainCommitted = false;
+}
+
+static int32_t stCancelHistoryTimeAlignRound(SSTriggerHistoryContext *ctx) {
+  if (!ctx || !ctx->timeAlignRound) return 0;
+  bool wakeOrdinary = ctx->alignedChainPosted;
+  stDiscardAlignedChainUpdate(ctx);
+  ctx->timeAlignRestart = true;
+  if (ctx->progressStepId) {
+    TAOS_CHECK_RETURN(stRecalcTrackerDiscardStep(ctx->pTask->pRecalcTracker, ctx->progressStepId));
+    ctx->progressStepId = 0;
+  }
+  TAOS_CHECK_RETURN(stDiscardTimeAlignPendingCalcs(ctx->pTask, ctx->sessionId, &ctx->pCalcReq));
+  TAOS_CHECK_RETURN(stCloseTimeAlignBodies(ctx, NULL));
+  TAOS_CHECK_RETURN(stReleaseHistoryTimeAlignRound(ctx));
+  if (wakeOrdinary)
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(ctx->pTask, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
+  return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId, taosGetTimestampNs());
+}
+
+// Each dispatch turn validates every participating Reader, including sources that supplied only a seed.
+static int32_t stCancelRealtimeTimeAlignRound(SSTriggerRealtimeContext *ctx) {
+  if (!ctx || !ctx->timeAlignRound) return 0;
+  ctx->timeAlignRestart = true;
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **group = NULL;
+  while ((group = tSimpleHashIterate(ctx->pGroups, group, &iter))) {
+    // This cancels the transient reader round. Its replacement takes the admitted repair on the same binding.
+    stReleaseAlignedNormalPage(&(*group)->alignedNormalPage);
+  }
+  TAOS_CHECK_RETURN(stDiscardTimeAlignPendingCalcs(ctx->pTask, ctx->sessionId, &ctx->pCalcReq));
+  TAOS_CHECK_RETURN(stDropTimeAlignBoundary(ctx, false));
+  return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId, taosGetTimestampNs());
+}
+
+static TSKEY stDisorderFloor(TSKEY frontier, int64_t expired) {
+  return expired > 0 && frontier >= INT64_MIN + expired - 1 ? frontier - (expired - 1) : INT64_MIN;
+}
+
+static STimeWindow stDisorderRange(const SSTriggerRealtimeGroup *group, int64_t start, int64_t end) {
+  return (STimeWindow){TMAX(start, stDisorderFloor(group->oldThreshold, group->pContext->pTask->expiredTime)),
+                       TMIN(end, group->oldThreshold)};
+}
+
+static int32_t stCollectGroupWalChecks(SSTriggerRealtimeGroup *group, int64_t vuid, int64_t reader, int64_t uid,
+                                       TSKEY start, TSKEY end, int64_t version, SArray **checks) {
+  STimeWindow range = stDisorderRange(group, start, end);
+  if (range.skey > range.ekey) return 0;
+  SArray **saved =
+      group->pTimeAlignStates ? tSimpleHashGet(group->pTimeAlignStates->previous, &vuid, sizeof(vuid)) : NULL;
+  if (saved) TAOS_CHECK_RETURN(stTimeAlignCollectWalProbes(*saved, reader, uid, range, version, checks));
+  if (group->pTimeAlignStates)
+    TAOS_CHECK_RETURN(
+        stTimeAlignCollectLiveWalProbes(group->pTimeAlignStates->state, vuid, reader, uid, range, version, checks));
+  return 0;
+}
+
+static int32_t stCollectTimeAlignWalChecks(SSTriggerRealtimeContext *ctx, SSTriggerWalProgress *progress,
+                                           const SSDataBlock *meta) {
+  SStreamTriggerTask *task = ctx->pTask;
+  SArray            **checks = &progress->timeAlignWalCheck.cells;
+  int64_t             reader = progress->pTaskAddr->taskId;
+  if (!meta->info.rows || ctx->suppressOutput || stTriggerTaskRequiresOrderedInput(task)) return 0;
+  const int64_t *uids =
+      (const int64_t *)((const SColumnInfoData *)taosArrayGet(meta->pDataBlock, STREAM_WAL_META_GID_COL))->pData;
+  const int64_t *starts =
+      (const int64_t *)((const SColumnInfoData *)taosArrayGet(meta->pDataBlock, STREAM_WAL_META_SKEY_COL))->pData;
+  const int64_t *ends =
+      (const int64_t *)((const SColumnInfoData *)taosArrayGet(meta->pDataBlock, STREAM_WAL_META_EKEY_COL))->pData;
+  const int64_t *versions =
+      (const int64_t *)((const SColumnInfoData *)taosArrayGet(meta->pDataBlock, STREAM_WAL_META_VER_COL))->pData;
+  for (int32_t i = 0; i < meta->info.rows; ++i) {
+    if (ctx->recovering && versions[i] >= progress->savedVer) continue;
+    const SSTriggerOrigTableInfo *source = tSimpleHashGet(task->pOrigTableInfos, uids + i, sizeof(*uids));
+    for (size_t j = 0; source && j < taosArrayGetSize(source->pVtbUids); ++j) {
+      const int64_t                *vuid = taosArrayGet(source->pVtbUids, j);
+      const SSTriggerVirtTableInfo *table = tSimpleHashGet(task->pVirtTableInfos, vuid, sizeof(*vuid));
+      for (size_t k = 0; table && k < taosArrayGetSize(table->tbGids); ++k) {
+        const int64_t           *gid = taosArrayGet(table->tbGids, k);
+        SSTriggerRealtimeGroup **group = tSimpleHashGet(ctx->pGroups, gid, sizeof(*gid));
+        if (!group || starts[i] > (*group)->oldThreshold) continue;
+        TAOS_CHECK_RETURN(
+            stCollectGroupWalChecks(*group, *vuid, reader, uids[i], starts[i], ends[i], versions[i], checks));
+      }
+    }
+  }
+  if (*checks) {
+    taosArraySort(*checks, tCompareTimeAlignWalProbe);
+    taosArrayRemoveDuplicate(*checks, tCompareTimeAlignWalProbe, NULL);
+  }
+  return 0;
+}
+
+static int32_t stRetryTimeAlignWalCheck(SSTriggerRealtimeContext *ctx, SSTriggerWalProgress *progress, int32_t code) {
+  if (code == TSDB_CODE_STREAM_EXEC_CANCELLED || code == TSDB_CODE_STREAM_NO_CONTEXT)
+    return stCancelRealtimeTimeAlignRound(ctx);
+  if (!stRetryTimeAlignScanPage(code)) return code;
+  int64_t retryAt = taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC;
+  progress->timeAlignWalCheck.pageId = 0;
+  progress->timeAlignWalCheck.retryAt = retryAt;
+  if (ctx->timeAlignWalCheckRetryAt && ctx->timeAlignWalCheckRetryAt <= retryAt) return 0;
+  ctx->timeAlignWalCheckRetryAt = retryAt;
+  return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId, retryAt);
+}
+
+static int32_t stSendTimeAlignWalCheck(SSTriggerRealtimeContext *ctx, SSTriggerWalProgress *progress) {
+  int32_t offset = progress->timeAlignWalCheck.offset;
+  SArray *all = progress->timeAlignWalCheck.cells;
+  int32_t n = TMIN(taosArrayGetSize(all) - offset, STREAM_TIME_ALIGN_WAL_CHECK_CELLS);
+  SArray  page = {.size = n, .capacity = n, .elemSize = sizeof(STimeAlignWalProbe), .pData = taosArrayGet(all, offset)};
+  STimeAlignWalCheckPage            route = {.round = progress->timeAlignRound,
+                                             .pageId = stNextTimeAlignId(ctx->pTask),
+                                             .vgId = progress->pTaskAddr->nodeId,
+                                             .count = n};
+  SSTriggerTimeAlignWalCheckRequest req = {
+      .base = progress->pullReq.base, .metaRequest = progress->pullReq.base.timeAlignWalRequest, .cells = &page};
+  req.base.type = STRIGGER_PULL_TIME_ALIGN_WAL_CHECK;
+  req.base.timeAlignWalRequest = route.pageId;
+  progress->timeAlignWalCheck.pageId = route.pageId;
+  return stSendOwnedTimeAlignRequest(ctx->pTask, progress->pTaskAddr, &req.base, &route, sizeof(route),
+                                     STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_CHECK);
+}
+
+static int32_t stDriveTimeAlignWalCheckRetries(SSTriggerRealtimeContext *ctx, int64_t now) {
+  if (!ctx->timeAlignWalCheckRetryAt || now < ctx->timeAlignWalCheckRetryAt) return 0;
+  ctx->timeAlignWalCheckRetryAt = 0;
+  int32_t               pos = 0;
+  SSTriggerWalProgress *progress = NULL;
+  while ((progress = tSimpleHashIterate(ctx->pReaderWalProgress, progress, &pos))) {
+    int64_t retryAt = progress->timeAlignWalCheck.retryAt;
+    if (!retryAt) continue;
+    if (retryAt > now) {
+      if (!ctx->timeAlignWalCheckRetryAt || retryAt < ctx->timeAlignWalCheckRetryAt)
+        ctx->timeAlignWalCheckRetryAt = retryAt;
+      continue;
+    }
+    progress->timeAlignWalCheck.retryAt = 0;
+    int32_t code = stSendTimeAlignWalCheck(ctx, progress);
+    if (code) {
+      TAOS_CHECK_RETURN(stRetryTimeAlignWalCheck(ctx, progress, code));
+      if (!ctx->timeAlignRound) return 0;
+    }
+  }
+  if (ctx->timeAlignWalCheckRetryAt)
+    return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId, ctx->timeAlignWalCheckRetryAt);
+  return 0;
+}
+
+// Hold an intersecting META reply until every exact-cell check for that reply is known.
+// The caller re-enters the same META handler before advancing its cursor or applying its groups.
+static int32_t stDeferTimeAlignWalMeta(SSTriggerRealtimeContext *ctx, SSTriggerWalProgress *progress,
+                                       const SRpcMsg *rsp, bool *deferred) {
+  *deferred = false;
+  // Recovery consumes the checkpoint's already validated WAL pages. The source round only supplies PREV.
+  if (ctx->suppressOutput || !progress->timeAlignRound || progress->timeAlignWalCheck.ready) return 0;
+  if (!progress->timeAlignWalCheck.metaReply) {
+    int32_t code = stCollectTimeAlignWalChecks(ctx, progress, ctx->pMetaBlock);
+    if (!code && !taosArrayGetSize(progress->timeAlignWalCheck.cells)) return 0;
+    if (!code) {
+      progress->timeAlignWalCheck.metaReply = taosMemoryMalloc(rsp->contLen);
+      if (!progress->timeAlignWalCheck.metaReply) code = terrno;
+    }
+    if (!code) {
+      memcpy(progress->timeAlignWalCheck.metaReply, rsp->pCont, rsp->contLen);
+      progress->timeAlignWalCheck.metaLen = rsp->contLen;
+      code = stSendTimeAlignWalCheck(ctx, progress);
+    }
+    if (code) {
+      if (stTimeAlignSourceRoundNeedsRetry(code)) {
+        ++progress->pendingPulls;
+        *deferred = true;
+        return stRetryTimeAlignWalCheck(ctx, progress, code);
+      }
+      stClearTimeAlignWalCheck(progress);
+      return code;
+    }
+  }
+  ++progress->pendingPulls;
+  *deferred = true;
+  return 0;
+}
+
+static int32_t stTimeAlignWalCheckRsp(SStreamTriggerTask *task, const STimeAlignWalCheckPage *page, SRpcMsg *rsp,
+                                      int64_t now, bool *childFailure) {
+  SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
+  if (!ctx || ctx->timeAlignRound != page->round) return 0;
+  SSTriggerWalProgress *progress = tSimpleHashGet(ctx->pReaderWalProgress, &page->vgId, sizeof(page->vgId));
+  if (!progress || !progress->timeAlignWalCheck.metaReply || progress->timeAlignWalCheck.pageId != page->pageId)
+    return 0;
+  if (rsp->code && rsp->code != TSDB_CODE_STREAM_NO_DATA) return stRetryTimeAlignWalCheck(ctx, progress, rsp->code);
+  STimeAlignWalProbe *cells = taosArrayGet(progress->timeAlignWalCheck.cells, progress->timeAlignWalCheck.offset);
+  if (rsp->code == TSDB_CODE_STREAM_NO_DATA) {
+    for (int32_t i = 0; i < page->count; ++i) cells[i].unavailable = true;
+  } else {
+    TAOS_CHECK_RETURN(tDecodeTimeAlignWalCheckRsp(rsp->pCont, rsp->contLen, page->pageId, cells, page->count));
+  }
+  progress->timeAlignWalCheck.offset += page->count;
+  if (progress->timeAlignWalCheck.offset < taosArrayGetSize(progress->timeAlignWalCheck.cells)) {
+    int32_t code = stSendTimeAlignWalCheck(ctx, progress);
+    return code ? stRetryTimeAlignWalCheck(ctx, progress, code) : 0;
+  }
+
+  SSTriggerAHandle route = {.param = &progress->pullReq.base};
+  SMsgSendInfo     info = {.param = &route};
+  SRpcMsg          meta = {.msgType = TDMT_STREAM_TRIGGER_PULL_RSP,
+                           .pCont = progress->timeAlignWalCheck.metaReply,
+                           .contLen = progress->timeAlignWalCheck.metaLen,
+                           .info = {.ahandle = &info}};
+  progress->timeAlignWalCheck.metaReply = NULL;
+  progress->timeAlignWalCheck.ready = true;
+  int32_t code = stRealtimeContextProcPullRsp(ctx, &meta, now, childFailure);
+  stClearTimeAlignWalCheck(progress);
+  taosMemoryFree(meta.pCont);
+  return code;
+}
+
+typedef struct {
+  uint64_t operation;
+  int32_t  vgId;
+} STimeAlignValidationRoute;
+
+static int32_t stTimeAlignValidationError(SStreamTriggerTask *task, int64_t session,
+                                          SSTriggerTimeAlignValidation *state, int32_t code) {
+  *state = (SSTriggerTimeAlignValidation){0};
+  if (code == TSDB_CODE_STREAM_EXEC_CANCELLED || code == TSDB_CODE_STREAM_NO_CONTEXT) {
+    if (session == STREAM_TRIGGER_HISTORY_SESSIONID) return stCancelHistoryTimeAlignRound(task->pHistoryContext);
+    SSTriggerRealtimeContext *owner = stTimeAlignRealtimeOwner(task);
+    return owner->pRecovery ? stTriggerTaskAbortNestedRecovery(task, owner->pRecovery, code)
+                            : stCancelRealtimeTimeAlignRound(owner);
+  }
+  if (!stTimeAlignSourceRoundNeedsRetry(code)) {
+    state->error = code;
+    return code;
+  }
+  return stTriggerTaskAddWaitSession(task, session,
+                                     taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+}
+
+static int32_t stValidateTimeAlignRound(SStreamTriggerTask *task, int64_t session, uint64_t round,
+                                        SSTriggerTimeAlignValidation *state, bool *waiting) {
+  *waiting = false;
+  if (!round) return 0;
+  if (state->error) return state->error;
+  if (state->ready) {
+    state->ready = false;
+    return 0;
+  }
+  *waiting = true;
+  if (state->operation) return 0;
+  state->operation = stNextTimeAlignId(task);
+  state->pending = 0;
+  bool       hist = session == STREAM_TRIGGER_HISTORY_SESSIONID;
+  SSHashObj *readers =
+      hist ? task->pHistoryContext->pReaderTsdbProgress : stTimeAlignRealtimeOwner(task)->pReaderWalProgress;
+  int32_t iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(readers, entry, &iter))) {
+    const SStreamTaskAddr *addr =
+        hist ? &((SSTriggerTsdbProgress *)entry)->taskAddr : ((SSTriggerWalProgress *)entry)->pTaskAddr;
+    SSTriggerTimeAlignRoundRequest req = {.base = {.type = STRIGGER_PULL_TIME_ALIGN_VALIDATE,
+                                                   .readerTaskId = addr->taskId,
+                                                   .streamId = task->task.streamId,
+                                                   .sessionId = session},
+                                          .roundId = round};
+    STimeAlignValidationRoute      route = {.operation = state->operation, .vgId = addr->nodeId};
+    int32_t                        code = stSendOwnedTimeAlignRequest(task, addr, &req.base, &route, sizeof(route),
+                                                                      STRIGGER_AHANDLE_PARAM_TIME_ALIGN_VALIDATE);
+    if (code) return stTimeAlignValidationError(task, session, state, code);
+    ++state->pending;
+  }
+  if (!state->pending) return TSDB_CODE_STREAM_NO_CONTEXT;
+  return 0;
+}
+
+typedef struct STriggerResultCheck {
+  TD_DLIST_NODE(STriggerResultCheck);
+  uint64_t               operation;
+  SStreamResultAdmission claim;
+  int64_t                deadlineNs;
+  SRpcHandleInfo         reply;
+  SSHashObj             *pendingReaders;
+} STriggerResultCheck;
+
+struct STriggerResultChecks {
+  SSHashObj *byOperation;
+  TD_DLIST(STriggerResultCheck) deadlines;
+};
+
+static bool stSameResultDispatch(const SStreamResultAdmission *a, const SStreamResultAdmission *b) {
+  return a->calcToken == b->calcToken && a->calcTokenHi == b->calcTokenHi && a->roundId == b->roundId &&
+         a->sessionId == b->sessionId && a->streamId == b->streamId && a->runnerTaskId == b->runnerTaskId &&
+         a->triggerTaskId == b->triggerTaskId && a->triggerDnodeId == b->triggerDnodeId;
+}
+
+static bool stResultDispatchIsLive(SStreamTriggerTask *task, const SStreamResultAdmission *claim) {
+  uint64_t token[] = {claim->calcToken, claim->calcTokenHi};
+  taosRLockLatch(&task->calcPoolLock);
+  const SResultDispatch *dispatch = tSimpleHashGet(task->resultDispatches, token, sizeof(token));
+  bool                   found = dispatch && dispatch->slot->generation == dispatch->generation &&
+               stSameResultDispatch(&dispatch->slot->req.resultAdmission, claim);
+  taosRUnLockLatch(&task->calcPoolLock);
+  return found;
+}
+
+static void stReplyResultCheck(const SRpcHandleInfo *reply, int32_t code) {
+  SRpcMsg response = {.msgType = TDMT_STREAM_VALIDATE_RESULT_RSP, .info = *reply, .code = code};
+  tmsgSendRsp(&response);
+}
+
+// Hash entries have stable addresses across resizes. Equal timeouts on the monotonic clock give FIFO deadlines.
+static void stFinishResultCheck(STriggerResultChecks *checks, STriggerResultCheck *check, int32_t code) {
+  SRpcHandleInfo reply = check->reply;
+  TD_DLIST_POP(&checks->deadlines, check);
+  tSimpleHashCleanup(check->pendingReaders);
+  TAOS_UNUSED(tSimpleHashRemove(checks->byOperation, &check->operation, sizeof(check->operation)));
+  stReplyResultCheck(&reply, code);
+}
+
+static void stClearResultChecks(STriggerResultChecks **checks) {
+  if (!*checks) return;
+  while (TD_DLIST_HEAD(&(*checks)->deadlines))
+    stFinishResultCheck(*checks, TD_DLIST_HEAD(&(*checks)->deadlines), TSDB_CODE_STREAM_EXEC_CANCELLED);
+  tSimpleHashCleanup((*checks)->byOperation);
+  taosMemoryFreeClear(*checks);
+}
+
+static STriggerResultChecks **stFindResultRound(SStreamTriggerTask *task, int64_t session, uint64_t round,
+                                                SSHashObj **readers) {
+  if (session == STREAM_TRIGGER_HISTORY_SESSIONID) {
+    SSTriggerHistoryContext *ctx = task->pHistoryContext;
+    if (!ctx || ctx->timeAlignRound != round || ctx->timeAlignRestart || !ctx->timeAlignReady) return NULL;
+    *readers = ctx->pReaderTsdbProgress;
+    return &ctx->resultChecks;
+  }
+  SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
+  if (!ctx || ctx->sessionId != session || ctx->timeAlignRound != round || ctx->timeAlignRestart ||
+      !ctx->boundDetermined)
+    return NULL;
+  *readers = ctx->pReaderWalProgress;
+  return &ctx->resultChecks;
+}
+
+static void stExpireResultChecks(STriggerResultChecks *checks, int64_t now) {
+  STriggerResultCheck *head = NULL;
+  while ((head = TD_DLIST_HEAD(&checks->deadlines)) && head->deadlineNs <= now)
+    stFinishResultCheck(checks, head, TSDB_CODE_NEED_RETRY);
+}
+
+static void stWakeResultChecks(SStreamTriggerTask *task, int64_t session) {
+  STriggerResultChecks *checks = session == STREAM_TRIGGER_HISTORY_SESSIONID
+                                     ? (task->pHistoryContext ? task->pHistoryContext->resultChecks : NULL)
+                                     : (task->pRealtimeContext && task->pRealtimeContext->sessionId == session
+                                            ? task->pRealtimeContext->resultChecks
+                                            : NULL);
+  if (!checks) return;
+  stExpireResultChecks(checks, taosGetMonoTimestampNs());
+  STriggerResultCheck *head = TD_DLIST_HEAD(&checks->deadlines);
+  if (head && stTriggerTaskAddWaitSessionForReason(task, session, head->deadlineNs, STREAM_TRIGGER_WAIT_RESULT_CHECK)) {
+    // There is no wakeup for the remaining requests. Let their destinations retry.
+    while ((head = TD_DLIST_HEAD(&checks->deadlines))) stFinishResultCheck(checks, head, TSDB_CODE_NEED_RETRY);
+  }
+}
+
+// The destination holds the original submit. Every accepted invocation starts a fresh set of Reader checks.
+int32_t stTriggerTaskValidateResult(SStreamTask *base, const SStreamResultAdmission *claim,
+                                    const SRpcHandleInfo *reply) {
+  if (!base || !claim || !reply) return TSDB_CODE_INVALID_MSG;
+  if (base->type != STREAM_TRIGGER_TASK) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  SStreamTriggerTask *task = (SStreamTriggerTask *)base;
+  if (!claim->roundId || !(claim->calcToken || claim->calcTokenHi) || base->streamId != claim->streamId ||
+      base->taskId != claim->triggerTaskId || base->nodeId != claim->triggerDnodeId)
+    return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  SSHashObj             *readers = NULL;
+  STriggerResultChecks **owner = stFindResultRound(task, claim->sessionId, claim->roundId, &readers);
+  if (!owner || !stResultDispatchIsLive(task, claim)) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  if (!*owner) {
+    *owner = taosMemoryCalloc(1, sizeof(**owner));
+    if (!*owner) return terrno;
+    (*owner)->byOperation = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT));
+    if (!(*owner)->byOperation) {
+      taosMemoryFreeClear(*owner);
+      return terrno;
+    }
+  }
+  STriggerResultChecks *checks = *owner;
+  int64_t               now = taosGetMonoTimestampNs();
+  stExpireResultChecks(checks, now);
+  int64_t deadline = now + (int64_t)STREAM_RESULT_ADMISSION_TIMEOUT_MS * NANOSECOND_PER_MSEC;
+  if (!TD_DLIST_HEAD(&checks->deadlines))
+    TAOS_CHECK_RETURN(
+        stTriggerTaskAddWaitSessionForReason(task, claim->sessionId, deadline, STREAM_TRIGGER_WAIT_RESULT_CHECK));
+  STriggerResultCheck check = {
+      .operation = stNextTimeAlignId(task), .claim = *claim, .deadlineNs = deadline, .reply = *reply};
+  check.pendingReaders =
+      tSimpleHashInit(tSimpleHashGetSize(readers), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
+  if (!check.pendingReaders) return terrno;
+  int32_t code = 0, iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(readers, entry, &iter))) {
+    const SStreamTaskAddr *addr = claim->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID
+                                      ? &((SSTriggerTsdbProgress *)entry)->taskAddr
+                                      : ((SSTriggerWalProgress *)entry)->pTaskAddr;
+    code = tSimpleHashPut(check.pendingReaders, &addr->taskId, sizeof(addr->taskId), NULL, 0);
+    if (code) break;
+    SSTriggerTimeAlignRoundRequest req = {.base = {.type = STRIGGER_PULL_TIME_ALIGN_VALIDATE,
+                                                   .readerTaskId = addr->taskId,
+                                                   .streamId = base->streamId,
+                                                   .sessionId = claim->sessionId},
+                                          .roundId = claim->roundId};
+    if (stSendTimeAlignRequest(task, addr, &req.base, check.operation, STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE)) {
+      code = TSDB_CODE_NEED_RETRY;
+      break;
+    }
+  }
+  if (!code && !tSimpleHashGetSize(check.pendingReaders)) code = TSDB_CODE_STREAM_EXEC_CANCELLED;
+  if (!code)
+    code = tSimpleHashPut(checks->byOperation, &check.operation, sizeof(check.operation), &check, sizeof(check));
+  if (code) {
+    tSimpleHashCleanup(check.pendingReaders);
+  } else {
+    STriggerResultCheck *pending = tSimpleHashGet(checks->byOperation, &check.operation, sizeof(check.operation));
+    TD_DLIST_APPEND(&checks->deadlines, pending);
+  }
+  return code;
+}
+
+static int32_t stResultReaderReply(SStreamTriggerTask *task, const SSTriggerAHandle *route, int32_t code) {
+  SSHashObj             *readers = NULL;
+  STriggerResultChecks **owner = stFindResultRound(task, route->sessionId, route->timeAlignRound, &readers);
+  if (!owner) return 0;
+  if (code == TSDB_CODE_STREAM_EXEC_CANCELLED || code == TSDB_CODE_STREAM_NO_CONTEXT) {
+    // A late negative still proves that this same immutable input round has ended.
+    return route->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID
+               ? stCancelHistoryTimeAlignRound(task->pHistoryContext)
+               : stCancelRealtimeTimeAlignRound(task->pRealtimeContext);
+  }
+  const uint64_t      *op = route->param;
+  STriggerResultCheck *check = *owner ? tSimpleHashGet((*owner)->byOperation, op, sizeof(*op)) : NULL;
+  if (!check || tSimpleHashRemove(check->pendingReaders, &route->requestGid, sizeof(route->requestGid))) return 0;
+  if (!code && tSimpleHashGetSize(check->pendingReaders)) return 0;
+  if (!stResultDispatchIsLive(task, &check->claim)) {
+    stFinishResultCheck(*owner, check, TSDB_CODE_STREAM_EXEC_CANCELLED);
+  } else if (check->deadlineNs <= taosGetMonoTimestampNs()) {
+    stFinishResultCheck(*owner, check, TSDB_CODE_NEED_RETRY);
+  } else if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) {
+    stFinishResultCheck(*owner, check, TSDB_CODE_STREAM_EXEC_CANCELLED);
+    if (route->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
+      TAOS_CHECK_RETURN(stCancelHistoryTimeAlignRound(task->pHistoryContext));
+    } else {
+      TAOS_CHECK_RETURN(stCancelRealtimeTimeAlignRound(task->pRealtimeContext));
+    }
+    return code;
+  } else {
+    stFinishResultCheck(*owner, check, code ? TSDB_CODE_NEED_RETRY : 0);
+  }
+  return 0;
+}
+
+static int32_t stTimeAlignValidationRsp(SStreamTriggerTask *task, const SSTriggerAHandle *route, int32_t code) {
+  const bool hist = route->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID;
+  if (hist ? !task->pHistoryContext : !task->pRealtimeContext) return 0;
+  SSTriggerRealtimeContext     *owner = hist ? NULL : stTimeAlignRealtimeOwner(task);
+  SSTriggerTimeAlignValidation *state =
+      hist ? &task->pHistoryContext->timeAlignValidation : &owner->timeAlignValidation;
+  const STimeAlignValidationRoute *identity = route->param;
+  uint64_t                         op = identity->operation;
+  if (!op || state->operation != op || (owner && owner->timeAlignRestart)) return 0;
+  SSHashObj *readers = hist ? task->pHistoryContext->pReaderTsdbProgress : owner->pReaderWalProgress;
+  void      *entry = tSimpleHashGet(readers, &identity->vgId, sizeof(identity->vgId));
+  if (!entry) return 0;
+  SSTriggerTsdbProgress *tsdb = entry;
+  SSTriggerWalProgress  *wal = entry;
+  const SStreamTaskAddr *addr = hist ? &tsdb->taskAddr : wal->pTaskAddr;
+  uint64_t              *ack = hist ? &tsdb->timeAlignValidationAck : &wal->timeAlignValidationAck;
+  if (addr->taskId != route->requestGid || *ack == op) return 0;
+  if (code) return stTimeAlignValidationError(task, route->sessionId, state, code);
+  *ack = op;
+  if (--state->pending) return 0;
+  state->operation = 0;
+  state->ready = true;
+  if (hist) return stHistoryContextCheck(task->pHistoryContext);
+  return owner->pRecovery ? stTriggerTaskDriveNestedReplay(task, owner->pRecovery, taosGetTimestampNs())
+                          : stRealtimeContextCheck(owner);
+}
+
+static int32_t stEndTimeAlignScan(SStreamTriggerTask *task, int64_t session, int32_t code) {
+  if (session == STREAM_TRIGGER_HISTORY_SESSIONID) {
+    TAOS_CHECK_RETURN(stCancelHistoryTimeAlignRound(task->pHistoryContext));
+  } else {
+    SSTriggerRealtimeContext *owner = stTimeAlignRealtimeOwner(task);
+    if (owner->pRecovery) return stTriggerTaskAbortNestedRecovery(task, owner->pRecovery, code);
+    TAOS_CHECK_RETURN(stCancelRealtimeTimeAlignRound(owner));
+  }
+  return stTimeAlignSourceRoundNeedsRetry(code) ? 0 : code;
+}
+
+static int32_t stTimeAlignSeedRsp(SStreamTriggerTask *task, SSTriggerAHandle *handle, SRpcMsg *rpc) {
+  const STimeAlignSeedRoute *route = handle->param;
+  if (route->key.session == STREAM_TRIGGER_HISTORY_SESSIONID &&
+      (!task->pHistoryContext || task->pHistoryContext->timeAlignRestart))
+    return 0;
+  STimeAlignTriggerSeed *slot =
+      tSimpleHashGet(*stTimeAlignSeeds(task, route->key.session), &route->key, sizeof(route->key));
+  if (!slot || slot->generation != route->generation) return 0;
+  SSTriggerRealtimeContext *owner =
+      route->key.session == STREAM_TRIGGER_REALTIME_SESSIONID ? stTimeAlignRealtimeOwner(task) : NULL;
+  if (owner && owner->timeAlignRestart) return 0;
+  STimeAlignSeedInput *input = taosArrayGet(slot->inputs, route->sourceIndex);
+  if (!input || !input->inFlight || input->attempt != route->attempt || input->request.scanId != route->scanId ||
+      input->request.batchId != route->batchId)
+    return 0;
+  input->inFlight = false;
+  int32_t code = rpc->code;
+  if (code && code != TSDB_CODE_STREAM_NO_DATA) goto page_error;
+  SSTriggerTimeAlignDataRsp result = {.done = code == TSDB_CODE_STREAM_NO_DATA};
+  if (result.done) {
+    code = 0;
+  } else {
+    code = tDeserializeSTriggerTimeAlignDataRsp(rpc->pCont, rpc->contLen, &result);
+    if (!code && (result.scanId != route->scanId || result.batchId != route->batchId)) code = TSDB_CODE_INVALID_MSG;
+  }
+  if (!code) code = stTimeAlignSeedConsume(slot->seed, input->request.uid, result.pBlock, result.done, &slot->ready);
+  tDestroySTriggerTimeAlignDataRsp(&result);
+  if (code) return stEndTimeAlignScan(task, route->key.session, code);
+  if (!stTimeAlignSeedNeedsSource(slot->seed, input->request.uid)) {
+    TAOS_CHECK_RETURN(
+        stQueueTimeAlignClose(task, &input->address, slot->key.session, input->request.roundId, input->request.scanId));
+    input->closed = true;
+    if (!slot->ready) return stWakeTimeAlignCloses(task, slot->key.session);
+    STimeAlignSeedAdmission *admission = stTimeAlignSeedAdmission(task, slot);
+    if (slot->admissionId && (!admission || --admission->pending))
+      return stWakeTimeAlignCloses(task, slot->key.session);
+    TAOS_CHECK_RETURN(stDriveTimeAlignCloses(task, slot->key.session, taosGetTimestampNs()));
+  } else {
+    if (input->request.batchId == UINT64_MAX) return TSDB_CODE_OUT_OF_RANGE;
+    ++input->request.batchId;
+    input->request.base.type = STRIGGER_PULL_TIME_ALIGN_DATA_NEXT;
+    code = stSendTimeAlignSeedPage(task, slot, route->sourceIndex, input);
+    if (code) goto page_error;
+    return 0;
+  }
+  if (!owner) return stHistoryContextCheck(task->pHistoryContext);
+  return owner->pRecovery ? stTriggerTaskDriveNestedReplay(task, owner->pRecovery, taosGetTimestampNs())
+                          : stRealtimeContextCheck(owner);
+
+page_error:
+  if (!stRetryTimeAlignScanPage(code)) return stEndTimeAlignScan(task, route->key.session, code);
+  if (handle->manualAttempt.chainId) return stFailManualTimeAlignRead(task->pHistoryContext, handle, code);
+  input->nextToSend = slot->nextToSend;
+  slot->nextToSend = route->sourceIndex;
+  stQueueTimeAlignSeedRetry(stTimeAlignSeedAdmission(task, slot), slot);
+  return stTriggerTaskAddWaitSession(task, route->key.session,
+                                     taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+}
+
+typedef struct {
+  uint64_t scan, batch, attempt;
+} STimeAlignBodyRoute;
+
+typedef struct {
+  STimeAlignBodyRoute           route;
+  SStreamTaskAddr               address;
+  SSTriggerTimeAlignDataRequest request;
+  SSTriggerPullRequest         *legacy;
+  const SSTriggerMetaData      *meta;  // owned by the active history group
+  int64_t                       gid, vuid;
+  bool                          inFlight, retry;
+} STimeAlignBody;
+
+static void stFreeTimeAlignBody(void *ptr) {
+  STimeAlignBody *body = ptr;
+  taosArrayDestroy(body->request.cids);
+}
+
+static int32_t stCloseTimeAlignBodies(SSTriggerHistoryContext *ctx, const int64_t *gid) {
+  for (size_t i = taosArrayGetSize(ctx->timeAlignBodies); i > 0; --i) {
+    STimeAlignBody *body = taosArrayGet(ctx->timeAlignBodies, i - 1);
+    if (gid && body->gid != *gid) continue;
+    TAOS_CHECK_RETURN(
+        stQueueTimeAlignClose(ctx->pTask, &body->address, ctx->sessionId, body->request.roundId, body->route.scan));
+    stFreeTimeAlignBody(body);
+    taosArrayRemove(ctx->timeAlignBodies, i - 1);
+  }
+  return 0;
+}
+
+static int32_t stIssueTimeAlignBody(SStreamTriggerTask *task, STimeAlignBody *body) {
+  if (body->inFlight) return 0;
+  ++body->route.attempt;
+  TAOS_CHECK_RETURN(stSendOwnedTimeAlignRequest(task, &body->address, &body->request.base, &body->route,
+                                                sizeof(body->route), STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BODY));
+  body->inFlight = true;
+  body->retry = false;
+  return 0;
+}
+
+static int32_t stSendTimeAlignBody(SSTriggerHistoryContext *ctx, SSTriggerTsdbProgress *progress,
+                                   SSTriggerTsdbDataRequest *legacy, int64_t gid) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (!ctx->timeAlignReady || !ctx->pCurVirTable) return TSDB_CODE_STREAM_NO_CONTEXT;
+  if (!ctx->timeAlignBodies) {
+    ctx->timeAlignBodies = taosArrayInit(4, sizeof(STimeAlignBody));
+    if (!ctx->timeAlignBodies) return terrno;
+  }
+  STimeAlignBody *body = NULL;
+  for (size_t i = 0; i < taosArrayGetSize(ctx->timeAlignBodies); ++i) {
+    STimeAlignBody *prior = taosArrayGet(ctx->timeAlignBodies, i);
+    if (prior->gid == gid && prior->vuid == ctx->pCurVirTable->tbUid && prior->request.uid == legacy->uid &&
+        prior->meta == ctx->pMetaToFetch && prior->request.roundId == ctx->timeAlignRound) {
+      body = prior;
+      break;
+    }
+  }
+  if (!body) {
+    STimeAlignBody item = {
+        .address = progress->taskAddr, .gid = gid, .vuid = ctx->pCurVirTable->tbUid, .meta = ctx->pMetaToFetch};
+    item.route.scan = stNextTimeAlignId(task);
+    item.request = (SSTriggerTimeAlignDataRequest){.roundId = ctx->timeAlignRound,
+                                                   .roundSessionId = ctx->sessionId,
+                                                   .scanId = item.route.scan,
+                                                   .suid = legacy->suid,
+                                                   .uid = legacy->uid,
+                                                   .skey = TMAX(legacy->skey, ctx->stepRange.skey),
+                                                   .ekey = TMIN(legacy->ekey, ctx->stepRange.ekey),
+                                                   .order = legacy->order,
+                                                   .ver = legacy->ver};
+    item.request.cids = taosArrayDup(legacy->cids, NULL);
+    if (!item.request.cids) return terrno;
+    body = taosArrayPush(ctx->timeAlignBodies, &item);
+    if (!body) {
+      stFreeTimeAlignBody(&item);
+      return terrno;
+    }
+  }
+  body->legacy = &legacy->base;
+  body->request.base = legacy->base;
+  body->request.base.type = body->route.batch ? STRIGGER_PULL_TIME_ALIGN_DATA_NEXT : STRIGGER_PULL_TIME_ALIGN_DATA;
+  body->request.batchId = body->route.batch;
+  return stIssueTimeAlignBody(task, body);
+}
+
+static int32_t stTimeAlignBodyRsp(SStreamTriggerTask *task, SSTriggerAHandle *rpcRoute, SRpcMsg *rpc,
+                                  int64_t *errTask) {
+  SSTriggerHistoryContext *ctx = task->pHistoryContext;
+  if (!ctx || ctx->timeAlignRestart || rpcRoute->sessionId != ctx->sessionId) return 0;
+  const STimeAlignBodyRoute *route = rpcRoute->param;
+  for (size_t i = 0; i < taosArrayGetSize(ctx->timeAlignBodies); ++i) {
+    STimeAlignBody *body = taosArrayGet(ctx->timeAlignBodies, i);
+    if (body->route.scan != route->scan || body->route.batch != route->batch || body->route.attempt != route->attempt ||
+        !body->inFlight)
+      continue;
+    body->inFlight = false;
+    if (rpc->code && rpc->code != TSDB_CODE_STREAM_NO_DATA) {
+      if (!stRetryTimeAlignScanPage(rpc->code)) return stEndTimeAlignScan(task, ctx->sessionId, rpc->code);
+      if (rpcRoute->manualAttempt.chainId) return stFailManualTimeAlignRead(ctx, rpcRoute, rpc->code);
+      body->retry = true;
+      return stTriggerTaskAddWaitSession(task, ctx->sessionId,
+                                         taosGetTimestampNs() + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+    }
+    SSTriggerTimeAlignDataRsp batch = {.done = rpc->code == TSDB_CODE_STREAM_NO_DATA};
+    int32_t                   code = 0;
+    if (!batch.done) {
+      code = tDeserializeSTriggerTimeAlignDataRsp(rpc->pCont, rpc->contLen, &batch);
+      if (!code && (batch.scanId != route->scan || batch.batchId != route->batch)) code = TSDB_CODE_INVALID_MSG;
+    }
+    if (!code && !batch.pBlock && !batch.done) code = TSDB_CODE_INVALID_MSG;
+    if (!code && !batch.pBlock) code = createDataBlock(&batch.pBlock);
+    if (code) {
+      tDestroySTriggerTimeAlignDataRsp(&batch);
+      return stEndTimeAlignScan(task, ctx->sessionId, code);
+    }
+    // Use the existing history progress/attempt accounting for each delivered batch. All pointers below
+    // are synchronous and the retained RPC identity contains no group, merger or borrowed request pointer.
+    SSTriggerAHandle continuation = *rpcRoute;
+    continuation.paramType = STRIGGER_AHANDLE_PARAM_PULL_REQUEST;
+    continuation.param = body->legacy;
+    continuation.timeAlignBlock = &batch.pBlock;
+    continuation.timeAlignDone = batch.done;
+    SMsgSendInfo send = {.param = &continuation};
+    SRpcMsg      local = *rpc;
+    local.code = 0;
+    local.info.ahandle = &send;
+    if (batch.done) {
+      code = stQueueTimeAlignClose(task, &body->address, ctx->sessionId, body->request.roundId, body->route.scan);
+      if (!code) {
+        stFreeTimeAlignBody(body);
+        taosArrayRemove(ctx->timeAlignBodies, i);
+        code = stDriveTimeAlignCloses(task, ctx->sessionId, taosGetTimestampNs());
+      }
+    } else if (body->route.batch == UINT64_MAX) {
+      code = TSDB_CODE_OUT_OF_RANGE;
+    } else {
+      ++body->route.batch;
+    }
+    if (!code) code = stTriggerTaskProcessRsp(&task->task, &local, errTask);
+    tDestroySTriggerTimeAlignDataRsp(&batch);
+    return code;
+  }
+  return 0;
 }
 
 static void stTriggerTaskDestroyNestedInputRequest(SSTriggerVirTablePseudoColRequest *pRequest) {
@@ -4156,7 +6386,9 @@ void stTriggerTaskNextTimeWindow(SStreamTriggerTask *pTask, STimeWindow *pWindow
 // its own, so (virtualUid, virtualGid, kind) could only be resolved to the FIRST reference that
 // lists the virtual table: the recovered cutoff then landed on the wrong reader.
 #define STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION 15
-#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                  15
+#define STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION           16
+#define STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION           17
+#define STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION                   STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION
 
 static SSTriggerExtProgress *stTriggerTaskGetExtProgressByRef(SSHashObj *pExtProgress,
                                                               const SSTriggerExtOrigTableRef *pRef) {
@@ -4294,6 +6526,7 @@ static void stTriggerTaskDestroyNestedRecoveryStorage(SSTriggerNestedRecovery *p
     return;
   }
   stRealtimeBundleDestroy(&pRecovery->pShadowBundle);
+  tSimpleHashCleanup(pRecovery->timeAlignSeeds);
   taosArrayDestroy(pRecovery->pReaders);
   pRecovery->pReaders = NULL;
   taosArrayDestroyEx(pRecovery->pWalReaders, stTriggerTaskDestroyNestedWalReader);
@@ -4351,6 +6584,16 @@ static int32_t stTriggerTaskAbortNestedRecovery(SStreamTriggerTask *pTask, SSTri
     return code == TSDB_CODE_SUCCESS ? TSDB_CODE_INTERNAL_ERROR : code;
   }
   if (pTask->pNestedRecovery == pRecovery) {
+    SSTriggerRealtimeContext *shadow = pRecovery->pShadowBundle ? pRecovery->pShadowBundle->pContext : NULL;
+    if (shadow && shadow->timeAlignRound) {
+      bool    retry = stTimeAlignSourceRoundNeedsRetry(code);
+      int32_t cleanup = stDropTimeAlignBoundary(shadow, false);
+      if (!cleanup && retry) {
+        shadow->timeAlignRestart = true;
+        return 0;
+      }
+      if (cleanup) code = cleanup;
+    }
     atomic_store_8(&pRecovery->lifecycle, STRIGGER_NESTED_RECOVERY_STALE);
     stTriggerTaskDetachNestedRecoveryTask(pRecovery);
     pTask->pNestedRecovery = NULL;
@@ -4993,6 +7236,28 @@ static int32_t stTriggerTaskStartNestedReplay(SStreamTriggerTask *pTask, SSTrigg
   if (pRecovery->phase != STRIGGER_NESTED_RECOVERY_REPLAY_PENDING) {
     return TSDB_CODE_INVALID_PARA;
   }
+  if (stUsesTimeAlignRows(pTask) && pTask->pTimeAlign) {
+    SSTriggerRealtimeContext *shadow = pRecovery->pShadowBundle->pContext;
+    if (shadow->status == STRIGGER_CONTEXT_DETERMINE_BOUND) return 0;
+    if (!shadow->timeAlignRound) {
+      shadow->pRecovery = pRecovery;
+      shadow->timeAlignRound = stNextTimeAlignId(pTask);
+      shadow->timeAlignBoundsPending = tSimpleHashGetSize(shadow->pReaderWalProgress);
+      shadow->status = STRIGGER_CONTEXT_DETERMINE_BOUND;
+      for (int32_t i = 0; i < TARRAY_SIZE(pRecovery->pWalReaders); ++i) {
+        SSTriggerNestedWalReader *reader = taosArrayGet(pRecovery->pWalReaders, i);
+        SSTriggerWalProgress     *progress =
+            tSimpleHashGet(shadow->pReaderWalProgress, &reader->addr.nodeId, sizeof(reader->addr.nodeId));
+        if (!progress) return TSDB_CODE_INVALID_MSG;
+        progress->pTaskAddr = &reader->addr;
+        progress->startVer = progress->doneVer = progress->lastScanVer = reader->startVer;
+        progress->savedVer = reader->savedVer;
+        progress->savedTbVer = reader->savedVer - 1;
+        TAOS_CHECK_RETURN(stOpenTimeAlignBoundary(shadow, progress));
+      }
+      return 0;
+    }
+  }
   pRecovery->phase = STRIGGER_NESTED_RECOVERY_REPLAY;
   if (pTask->isVirtualTable) {
     if (pRecovery->pShadowBundle == NULL || pRecovery->pShadowBundle->pContext == NULL ||
@@ -5614,6 +7879,278 @@ static bool stTriggerTaskHasUnfinishedExtCalc(SStreamTriggerTask *pTask) {
   return unfinished;
 }
 
+enum {
+  ST_ALIGNED_FIXED = 1,
+  ST_ALIGNED_NEXT = 2,
+  ST_ALIGNED_FUTURE = 4,
+  ST_SCOPE_OPEN = 1,
+  ST_SCOPE_CURRENT = 2,
+  ST_SCOPE_PREV = 4,
+  ST_SCOPE_HAS_PREV = 8,
+  ST_SCOPE_OPEN_AS_PREV = 16,
+  ST_SCOPE_COUNT = 32,
+};
+
+typedef struct {
+  uint8_t            binding[ST_ALIGNED_BINDING_BYTES];
+  TSKEY              overlapThrough;
+  TSKEY              frontier;
+  SWindowChainState *chain;
+} SCheckpointOrdinary;
+
+static SWindowChainPolicy stNestedLivePolicy(SStreamTriggerTask *pTask, bool extraClose);
+static bool               stAlignedWalInputsDrained(SSTriggerRealtimeContext *ctx, bool closing);
+
+static void stDestroyCheckpointOrdinary(void *ptr) {
+  SCheckpointOrdinary *record = ptr;
+  stWindowChainDestroy(&record->chain);
+}
+
+static bool stCheckpointOrdinaryGroup(const SSTriggerRealtimeGroup *group) {
+  return group && group->ordinaryOverlap &&
+         stWindowChainHasOrdinaryState(group->pWindowChain, group->ordinaryOverlapThrough);
+}
+
+static SCheckpointOrdinary stOrdinaryRecord(SSTriggerRealtimeGroup *group) {
+  SCheckpointOrdinary record = {
+      .chain = group->pWindowChain, .overlapThrough = group->ordinaryOverlapThrough, .frontier = group->oldThreshold};
+  memcpy(record.binding, group->ordinaryBinding, sizeof(record.binding));
+  return record;
+}
+
+// Copy only unfinished state, using the same portable projection as a durable checkpoint.
+static int32_t stSaveOrdinaryRecord(SSHashObj **records, const SCheckpointOrdinary *record, int64_t gid,
+                                    SStreamTriggerTask *task) {
+  if (tSimpleHashGet(*records, &gid, sizeof(gid))) return 0;
+  if (!*records) {
+    *records = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    if (!*records) return terrno;
+    tSimpleHashSetFreeFp(*records, stDestroyCheckpointOrdinary);
+  }
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, NULL, 0);
+  int32_t code = stWindowChainEncodeOrdinary(&encoder, record->chain);
+  int32_t len = encoder.pos;
+  tEncoderClear(&encoder);
+  if (code) return code;
+  uint8_t *buf = taosMemoryMalloc(len);
+  if (!buf) return terrno;
+  tEncoderInit(&encoder, buf, len);
+  code = stWindowChainEncodeOrdinary(&encoder, record->chain);
+  tEncoderClear(&encoder);
+  SCheckpointOrdinary copy = *record;
+  copy.chain = NULL;
+  if (!code) {
+    SDecoder                 decoder = {0};
+    const SWindowChainPolicy policy = stNestedLivePolicy(task, false);
+    tDecoderInit(&decoder, buf, len);
+    code = stWindowChainDecodeOrdinary(&decoder, task->pWindowPlan, gid, &policy, &copy.chain);
+    tDecoderClear(&decoder);
+  }
+  taosMemoryFree(buf);
+  if (!code) code = tSimpleHashPut(*records, &gid, sizeof(gid), &copy, sizeof(copy));
+  if (code) stDestroyCheckpointOrdinary(&copy);
+  return code;
+}
+
+// All metadata from one vnode submit is indivisible. Only a frontier that
+// another submit could have established before this read can change admission.
+static TSKEY stOrdinarySubmitFloor(SSTriggerRealtimeGroup *group, int32_t vgId, int64_t version) {
+  if (group->ordinarySubmitVg != vgId || group->ordinarySubmitVer != version) {
+    group->ordinarySubmitVg = vgId;
+    group->ordinarySubmitVer = version;
+    group->ordinarySubmitFloor = group->newThreshold;
+  }
+  return TMAX(group->ordinarySubmitFloor, group->oldThreshold);
+}
+
+static int32_t stBeginOrdinaryInput(SSTriggerRealtimeGroup *group) {
+  SSTriggerRealtimeContext *ctx = group->pContext;
+  if (group->ordinaryInputRound == ctx->timeAlignRound) return 0;
+  if (stCheckpointOrdinaryGroup(group)) {
+    SCheckpointOrdinary record = stOrdinaryRecord(group);
+    TAOS_CHECK_RETURN(stSaveOrdinaryRecord(&ctx->pOrdinaryBeforeInput, &record, group->gid, ctx->pTask));
+  }
+  group->ordinaryInputRound = ctx->timeAlignRound;
+  return 0;
+}
+
+static int32_t stCountCheckpointOrdinary(const SStreamTriggerTask *task) {
+  if (!stUsesTimeAlignRows(task) || !BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) return 0;
+  const SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
+  int32_t                         count = tSimpleHashGetSize(ctx->pRecoveredOrdinary), iter = 0;
+  SSTriggerRealtimeGroup        **pp = NULL;
+  while ((pp = tSimpleHashIterate(ctx->pGroups, pp, &iter))) {
+    if (stCheckpointOrdinaryGroup(*pp) && !tSimpleHashGet(ctx->pRecoveredOrdinary, &(*pp)->gid, sizeof((*pp)->gid)))
+      ++count;
+  }
+  return count;
+}
+
+static int32_t stEncodeOrdinaryRecord(SEncoder *encoder, int64_t gid, const SCheckpointOrdinary *record) {
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, gid));
+  TAOS_CHECK_RETURN(tEncodeBinary(encoder, record->binding, sizeof(record->binding)));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, record->overlapThrough));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, record->frontier));
+  return stWindowChainEncodeOrdinary(encoder, record->chain);
+}
+
+static int32_t stEncodeCheckpointOrdinary(SEncoder *encoder, const SSTriggerRealtimeContext *ctx, int32_t count) {
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, count));
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **pp = NULL;
+  while ((pp = tSimpleHashIterate(ctx->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (!stCheckpointOrdinaryGroup(group) || tSimpleHashGet(ctx->pRecoveredOrdinary, &group->gid, sizeof(group->gid)))
+      continue;
+    SCheckpointOrdinary record = stOrdinaryRecord(group);
+    TAOS_CHECK_RETURN(stEncodeOrdinaryRecord(encoder, group->gid, &record));
+  }
+  iter = 0;
+  SCheckpointOrdinary *record = NULL;
+  while ((record = tSimpleHashIterate(ctx->pRecoveredOrdinary, record, &iter))) {
+    int64_t gid;
+    memcpy(&gid, tSimpleHashGetKey(record, NULL), sizeof(gid));
+    TAOS_CHECK_RETURN(stEncodeOrdinaryRecord(encoder, gid, record));
+  }
+  return 0;
+}
+
+static bool stCheckpointAlignedGroup(const SSTriggerRealtimeGroup *group) {
+  return group && group->alignedRepairBinding && (stHasAlignedFixedRepair(group) || group->alignedFuture);
+}
+
+static int32_t stCountCheckpointAlignedRepairs(const SStreamTriggerTask *task) {
+  if (!stUsesTimeAlignRows(task) || !BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) return 0;
+  const SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
+  int32_t                         count = tSimpleHashGetSize(ctx->pRecoveredAlignedRepairs);
+  int32_t                         iter = 0;
+  SSTriggerRealtimeGroup        **group = NULL;
+  while ((group = tSimpleHashIterate(ctx->pGroups, group, &iter))) {
+    if (stCheckpointAlignedGroup(*group) &&
+        !tSimpleHashGet(ctx->pRecoveredAlignedRepairs, &(*group)->gid, sizeof((*group)->gid)))
+      ++count;
+  }
+  return count;
+}
+
+static int32_t stEncodeAlignedRepair(SEncoder *encoder, int64_t gid, const SCheckpointAlignedRepair *record) {
+  bool    fixed = record->fixed.skey <= record->fixed.ekey;
+  uint8_t flags = (fixed ? ST_ALIGNED_FIXED : 0) | (fixed && record->recalcNextWindow ? ST_ALIGNED_NEXT : 0) |
+                  (record->hasFuture ? ST_ALIGNED_FUTURE : 0);
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, gid));
+  TAOS_CHECK_RETURN(tEncodeBinary(encoder, record->binding, sizeof(record->binding)));
+  TAOS_CHECK_RETURN(tEncodeU8(encoder, flags));
+  if (fixed) {
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, record->fixed.skey));
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, record->fixed.ekey));
+    TAOS_CHECK_RETURN(tEncodeI64(encoder, record->fixedThrough));
+  }
+  if (!record->hasFuture) return 0;
+  const SWindowChainRepairCarry *carry = &record->carry;
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, record->anchor));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, record->after));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, carry->horizon));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, carry->openLeaves.skey));
+  TAOS_CHECK_RETURN(tEncodeI64(encoder, carry->openLeaves.ekey));
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, carry->numLayers));
+  for (int32_t i = 0; i < carry->numLayers; ++i) {
+    const SWindowChainRepairScope *scope = &carry->layers[i];
+    flags = (scope->hasOpening ? ST_SCOPE_OPEN : 0) | (scope->current ? ST_SCOPE_CURRENT : 0) |
+            (scope->predecessor ? ST_SCOPE_PREV : 0) | (scope->hasPrevWindow ? ST_SCOPE_HAS_PREV : 0) |
+            (scope->currentAsPredecessor ? ST_SCOPE_OPEN_AS_PREV : 0) | (scope->countPhase ? ST_SCOPE_COUNT : 0);
+    TAOS_CHECK_RETURN(tEncodeU8(encoder, flags));
+    if (scope->hasOpening) TAOS_CHECK_RETURN(tEncodeI64(encoder, scope->openingTs));
+    if (scope->predecessor && scope->hasPrevWindow) {
+      TAOS_CHECK_RETURN(tEncodeI64(encoder, scope->prevWindow.skey));
+      TAOS_CHECK_RETURN(tEncodeI64(encoder, scope->prevWindow.ekey));
+    }
+  }
+  return 0;
+}
+
+static int32_t stEncodeAlignedRepairs(SEncoder *encoder, const SSTriggerRealtimeContext *ctx, int32_t count) {
+  TAOS_CHECK_RETURN(tEncodeI32(encoder, count));
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **pp = NULL;
+  while ((pp = tSimpleHashIterate(ctx->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (!stCheckpointAlignedGroup(group) ||
+        tSimpleHashGet(ctx->pRecoveredAlignedRepairs, &group->gid, sizeof(group->gid)))
+      continue;
+    SCheckpointAlignedRepair record = {.fixed = group->timeAlignNestedRepair,
+                                       .fixedThrough = group->alignedFixedThrough,
+                                       .recalcNextWindow = group->recalcNextWindow,
+                                       .hasFuture = group->alignedFuture != NULL};
+    memcpy(record.binding, group->alignedRepairBinding, sizeof(record.binding));
+    if (group->alignedFuture) {
+      record.anchor = group->alignedFuture->anchor;
+      record.after = group->alignedFuture->after;
+      record.carry = group->alignedFuture->carry;
+    }
+    TAOS_CHECK_RETURN(stEncodeAlignedRepair(encoder, group->gid, &record));
+  }
+  iter = 0;
+  SCheckpointAlignedRepair *record = NULL;
+  while ((record = tSimpleHashIterate(ctx->pRecoveredAlignedRepairs, record, &iter))) {
+    int64_t gid;
+    memcpy(&gid, tSimpleHashGetKey(record, NULL), sizeof(gid));
+    TAOS_CHECK_RETURN(stEncodeAlignedRepair(encoder, gid, record));
+  }
+  return 0;
+}
+
+static int32_t stDecodeAlignedRepair(SDecoder *decoder, int64_t gid, SCheckpointAlignedRepair *record, int32_t depth) {
+  uint8_t *digest = NULL, flags = 0;
+  uint32_t length = 0;
+  TAOS_CHECK_RETURN(tDecodeBinary(decoder, &digest, &length));
+  if (length != sizeof(record->binding)) return TSDB_CODE_INVALID_MSG;
+  memcpy(record->binding, digest, length);
+  TAOS_CHECK_RETURN(tDecodeU8(decoder, &flags));
+  if (!(flags & (ST_ALIGNED_FIXED | ST_ALIGNED_FUTURE)) || (flags & ~7) ||
+      ((flags & ST_ALIGNED_NEXT) && !(flags & ST_ALIGNED_FIXED)))
+    return TSDB_CODE_INVALID_MSG;
+  record->recalcNextWindow = (flags & ST_ALIGNED_NEXT) != 0;
+  record->fixed = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+  if (flags & ST_ALIGNED_FIXED) {
+    TAOS_CHECK_RETURN(tDecodeI64(decoder, &record->fixed.skey));
+    TAOS_CHECK_RETURN(tDecodeI64(decoder, &record->fixed.ekey));
+    TAOS_CHECK_RETURN(tDecodeI64(decoder, &record->fixedThrough));
+    if (record->fixed.skey > record->fixed.ekey) return TSDB_CODE_INVALID_MSG;
+  }
+  record->hasFuture = (flags & ST_ALIGNED_FUTURE) != 0;
+  if (!record->hasFuture) return 0;
+  SWindowChainRepairCarry *carry = &record->carry;
+  carry->gid = gid;
+  TAOS_CHECK_RETURN(tDecodeI64(decoder, &record->anchor));
+  TAOS_CHECK_RETURN(tDecodeI64(decoder, &record->after));
+  TAOS_CHECK_RETURN(tDecodeI64(decoder, &carry->horizon));
+  TAOS_CHECK_RETURN(tDecodeI64(decoder, &carry->openLeaves.skey));
+  TAOS_CHECK_RETURN(tDecodeI64(decoder, &carry->openLeaves.ekey));
+  TAOS_CHECK_RETURN(tDecodeI32(decoder, &carry->numLayers));
+  if (record->anchor > record->after || carry->numLayers != depth || depth < 1 || depth > STREAM_WINDOW_MAX_LAYERS)
+    return TSDB_CODE_INVALID_MSG;
+  for (int32_t i = 0; i < depth; ++i) {
+    SWindowChainRepairScope *scope = &carry->layers[i];
+    TAOS_CHECK_RETURN(tDecodeU8(decoder, &flags));
+    if ((flags & ~63) || ((flags & (ST_SCOPE_CURRENT | ST_SCOPE_OPEN_AS_PREV)) && !(flags & ST_SCOPE_OPEN)))
+      return TSDB_CODE_INVALID_MSG;
+    scope->hasOpening = (flags & ST_SCOPE_OPEN) != 0;
+    scope->current = (flags & ST_SCOPE_CURRENT) != 0;
+    scope->predecessor = (flags & ST_SCOPE_PREV) != 0;
+    scope->hasPrevWindow = (flags & ST_SCOPE_HAS_PREV) != 0;
+    scope->currentAsPredecessor = (flags & ST_SCOPE_OPEN_AS_PREV) != 0;
+    scope->countPhase = (flags & ST_SCOPE_COUNT) != 0;
+    if (scope->hasOpening) TAOS_CHECK_RETURN(tDecodeI64(decoder, &scope->openingTs));
+    if (scope->predecessor && scope->hasPrevWindow) {
+      TAOS_CHECK_RETURN(tDecodeI64(decoder, &scope->prevWindow.skey));
+      TAOS_CHECK_RETURN(tDecodeI64(decoder, &scope->prevWindow.ekey));
+      if (scope->prevWindow.skey > scope->prevWindow.ekey) return TSDB_CODE_INVALID_MSG;
+    }
+  }
+  return 0;
+}
+
 int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, int64_t *pLen, int32_t version) {
   int32_t  code = TSDB_CODE_SUCCESS;
   int32_t  lino = 0;
@@ -5652,7 +8189,11 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   code = tEncodeI64(&encoder, pTask->task.streamId);
   QUERY_CHECK_CODE(code, lino, _end);
 
-  code = tEncodeI32(&encoder, STREAM_TRIGGER_CHECKPOINT_FORMAT_VERSION);
+  int32_t alignedCount = stCountCheckpointAlignedRepairs(pTask);
+  int32_t ordinaryCount = stCountCheckpointOrdinary(pTask);
+  code = tEncodeI32(&encoder, ordinaryCount  ? STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION
+                              : alignedCount ? STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION
+                                             : STREAM_TRIGGER_CHECKPOINT_ADD_EXT_BINDING_REGISTRY_VERSION);
   QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t nWalProgresses = 0;
@@ -5972,6 +8513,16 @@ int32_t stTriggerTaskDoGenCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     pRecovered = tSimpleHashIterate(pRecoveredPrevWindows, pRecovered, &recoveredIter);
   }
 
+  if (alignedCount || ordinaryCount) {
+    code = stEncodeAlignedRepairs(&encoder, pTask->pRealtimeContext, alignedCount);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
+  if (ordinaryCount) {
+    code = stEncodeCheckpointOrdinary(&encoder, pTask->pRealtimeContext, ordinaryCount);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+
   tEndEncode(&encoder);
 
   *pLen = encoder.pos;
@@ -5997,14 +8548,27 @@ typedef struct {
   int32_t                   code;
 } SSTriggerCheckpointResult;
 
-static SSTriggerCheckpointResult stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask) {
+static bool stCanCheckpointFinishedFuture(SStreamTriggerTask *task, const SAlignedChainUpdate *update);
+
+static bool stOrdinaryCheckpointPending(const SStreamTriggerTask *task, bool closing) {
+  SSTriggerRealtimeContext *ctx = task->pRealtimeContext;
+  // Closing the last affected ancestor is speculative until the same input's
+  // WAL cursor advances. The saved prior state still belongs to the older cut.
+  return (tSimpleHashGetSize(ctx->pOrdinaryBeforeInput) || stCountCheckpointOrdinary(task)) &&
+         (ctx->timeAlignRestart || !stAlignedWalInputsDrained(ctx, closing));
+}
+
+static SSTriggerCheckpointResult stTriggerTaskGenCheckpoint(SStreamTriggerTask *pTask, bool closing) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   uint8_t                  *buf = NULL;
   int64_t                   len = 0;
   SSTriggerCheckpointResult result = {.status = STRIGGER_CHECKPOINT_GENERATED, .code = TSDB_CODE_SUCCESS};
 
-  if (stTriggerTaskHasNestedRecoveryOwner(pTask) || stTriggerTaskHasUnfinishedExtCalc(pTask)) {
+  if (stTriggerTaskHasNestedRecoveryOwner(pTask) || stTriggerTaskHasUnfinishedExtCalc(pTask) ||
+      stOrdinaryCheckpointPending(pTask, closing) ||
+      (atomic_load_32(&pTask->alignedCheckpointHold) &&
+       !(closing && stCanCheckpointFinishedFuture(pTask, pTask->pAlignedChainUpdate)))) {
     result.status = STRIGGER_CHECKPOINT_DEFERRED;
     return result;
   }
@@ -6051,7 +8615,7 @@ static void stTriggerTaskGeneratePeriodicCheckpoint(SStreamTriggerTask *pTask, S
     return;
   }
 
-  SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask);
+  SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask, false);
   if (result.status == STRIGGER_CHECKPOINT_DEFERRED) {
     pTask->pendingPeriodicCheckpoint = true;
     return;
@@ -6094,6 +8658,8 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   SArray                  *pFrozenReaders = NULL;
   SArray                  *pDecodedTreePrevWindows = NULL;
   SArray                  *pDecodedPrevWindowSnapshots = NULL;
+  SSHashObj               *pDecodedOrdinary = NULL;
+  SSHashObj               *pDecodedAligned = NULL;
   SSHashObj               *pDecodedCutoff = NULL;
   SSHashObj               *pDecodedPrevWindows = NULL;
   SSTriggerNestedRecovery *pRecovery = NULL;
@@ -6622,6 +9188,65 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
     }
   }
 
+  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION) {
+    int32_t count = 0;
+    code = tDecodeI32(&decoder, &count);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(nested && stUsesTimeAlignRows(pTask) &&
+                              count >= (formatVer == STREAM_TRIGGER_CHECKPOINT_ALIGNED_REPAIR_VERSION) &&
+                              count <= len / 26,
+                          code, lino, _end, TSDB_CODE_INVALID_MSG);
+    pDecodedAligned = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    QUERY_CHECK_NULL(pDecodedAligned, code, lino, _end, terrno);
+    int32_t depth = pTask->pWindowPlan ? taosArrayGetSize(pTask->pWindowPlan->pLayers) : 0;
+    for (int32_t i = 0; i < count; ++i) {
+      int64_t                  gid = 0;
+      SCheckpointAlignedRepair record = {0};
+      code = tDecodeI64(&decoder, &gid);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(!tSimpleHashGet(pDecodedAligned, &gid, sizeof(gid)), code, lino, _end,
+                            TSDB_CODE_INVALID_MSG);
+      code = stDecodeAlignedRepair(&decoder, gid, &record, depth);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = tSimpleHashPut(pDecodedAligned, &gid, sizeof(gid), &record, sizeof(record));
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
+  if (formatVer >= STREAM_TRIGGER_CHECKPOINT_ORDINARY_STATE_VERSION) {
+    int32_t count = 0;
+    code = tDecodeI32(&decoder, &count);
+    QUERY_CHECK_CODE(code, lino, _end);
+    QUERY_CHECK_CONDITION(count > 0 && count <= len / 42, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    pDecodedOrdinary = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    QUERY_CHECK_NULL(pDecodedOrdinary, code, lino, _end, terrno);
+    tSimpleHashSetFreeFp(pDecodedOrdinary, stDestroyCheckpointOrdinary);
+    const SWindowChainPolicy policy = stNestedLivePolicy(pTask, false);
+    for (int32_t i = 0; i < count; ++i) {
+      int64_t             gid = 0;
+      SCheckpointOrdinary record = {0};
+      uint8_t            *binding = NULL;
+      uint32_t            size = 0;
+      code = tDecodeI64(&decoder, &gid);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(!tSimpleHashGet(pDecodedOrdinary, &gid, sizeof(gid)), code, lino, _end,
+                            TSDB_CODE_INVALID_MSG);
+      code = tDecodeBinary(&decoder, &binding, &size);
+      QUERY_CHECK_CODE(code, lino, _end);
+      QUERY_CHECK_CONDITION(size == sizeof(record.binding), code, lino, _end, TSDB_CODE_INVALID_MSG);
+      memcpy(record.binding, binding, size);
+      code = tDecodeI64(&decoder, &record.overlapThrough);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = tDecodeI64(&decoder, &record.frontier);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = stWindowChainDecodeOrdinary(&decoder, pTask->pWindowPlan, gid, &policy, &record.chain);
+      QUERY_CHECK_CODE(code, lino, _end);
+      code = tSimpleHashPut(pDecodedOrdinary, &gid, sizeof(gid), &record, sizeof(record));
+      if (code) stDestroyCheckpointOrdinary(&record);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
+  }
+
   hasExtCheckpointProgress = hasExtCheckpointProgress || nRestoredExtUids > 0;
   QUERY_CHECK_CONDITION(tDecodeIsEnd(&decoder), code, lino, _end, TSDB_CODE_INVALID_MSG);
   tEndDecode(&decoder);
@@ -6743,6 +9368,8 @@ int32_t stTriggerTaskParseCheckpoint(SStreamTriggerTask *pTask, uint8_t *buf, in
   pTask->nestedRecoveryError = TSDB_CODE_SUCCESS;
   pTask->pNestedRecovery = pRecovery;
   pRecovery = NULL;
+  TSWAP(pTask->pRealtimeContext->pRecoveredOrdinary, pDecodedOrdinary);
+  TSWAP(pTask->pRealtimeContext->pRecoveredAlignedRepairs, pDecodedAligned);
 
 _end:
   tDecoderClear(&decoder);
@@ -6751,6 +9378,8 @@ _end:
   taosArrayDestroy(pFrozenReaders);
   taosArrayDestroy(pDecodedTreePrevWindows);
   taosArrayDestroy(pDecodedPrevWindowSnapshots);
+  tSimpleHashCleanup(pDecodedOrdinary);
+  tSimpleHashCleanup(pDecodedAligned);
   tSimpleHashCleanup(pDecodedCutoff);
   tSimpleHashCleanup(pDecodedPrevWindows);
   stTriggerTaskDestroyNestedRecovery(&pRecovery);
@@ -6758,6 +9387,23 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+// Legacy Readers lack column widths in their metadata reply. A previously installed physical
+// column is still usable when the original slot can hold it without an extended SET_TABLE.
+static int32_t stLegacyFlatBindingWidth(const SStreamTriggerTask *task, int64_t uid, col_id_t cid, int32_t deployed,
+                                        int32_t *bytes) {
+  const SSTriggerOrigTableInfo *source = tSimpleHashGet(task->pOrigTableInfos, &uid, sizeof(uid));
+  if (source) {
+    for (int calc = 0; calc < 2; ++calc) {
+      const STPhysicalWalSlot *installed = tSimpleHashGet(source->physicalSlots[calc], &cid, sizeof(cid));
+      if (installed && installed->cid == cid && installed->bytes > 0 && installed->bytes <= deployed) {
+        *bytes = installed->bytes;
+        return 0;
+      }
+    }
+  }
+  return TSDB_CODE_VERSION_NOT_COMPATIBLE;
 }
 
 static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo *pInfo, SArray *pSlots,
@@ -6841,8 +9487,17 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
     SSHashObj               *pDbInfo = *(SSHashObj **)px;
     SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
     QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    col_id_t *pOrigColId = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
-    QUERY_CHECK_NULL(pOrigColId, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    STOrigColumn *sourceCol = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
+    QUERY_CHECK_NULL(sourceCol, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    int32_t bindingBytes = pTask->flatVirtualScan ? sourceCol->bytes : 0;
+    if (pTask->pTimeAlign && pTask->flatVirtualScan && IS_VAR_DATA_TYPE(pCol->info.type) && sourceCol->id > 0 &&
+        !sourceCol->bytes && pTask->pRealtimeContext && IS_PATCHING_VITRUAL_TABLE(pTask->pRealtimeContext)) {
+      code = stLegacyFlatBindingWidth(pTask, pTbInfo->uid, sourceCol->id, pCol->info.bytes, &bindingBytes);
+      if (code)
+        ST_TASK_ELOG("TIME_ALIGN cannot establish width for %s.%s: Reader did not report column widths",
+                     pColRef->refTableName, pColRef->refColName);
+      QUERY_CHECK_CODE(code, lino, _end);
+    }
 
     SSTriggerTableColRef *pRef = NULL;
     for (int32_t j = 0; j < TARRAY_SIZE(pColRefs); j++) {
@@ -6864,7 +9519,7 @@ static int32_t stTriggerTaskGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo 
       pRef->pNewColMatches = taosArrayInit(0, sizeof(SSTriggerColMatch));
       QUERY_CHECK_NULL(pRef->pNewColMatches, code, lino, _end, terrno);
     }
-    SSTriggerColMatch match = {.otbColId = *pOrigColId, .vtbSlotId = slotId};
+    SSTriggerColMatch match = {.otbColId = sourceCol->id, .vtbSlotId = slotId, .sourceBytes = bindingBytes};
     px = taosArrayPush(pRef->pColMatches, &match);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
@@ -6875,6 +9530,244 @@ _end:
     ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
   }
   return code;
+}
+
+// SET_TABLE can replace the schema even when the number of columns is unchanged.
+static void stPreparePhysicalWalBlock(const SStreamTriggerTask *task, uint64_t *generation, SSDataBlock *block) {
+  if (*generation == task->walLayoutGeneration) return;
+  blockDataFreeRes(block);
+  *generation = task->walLayoutGeneration;
+}
+
+// Aliases for one logical column form a dense range on each Reader. Tables share
+// that range because a WAL row belongs to exactly one physical table.
+typedef struct {
+  int32_t count, published, firstAlias;
+} STWalLogicalRange;
+
+static void stFreeWalColumnList(void *ptr) { taosArrayDestroy(*(SArray **)ptr); }
+
+// Remove in constant time. A surviving tail column will publish its new rank to
+// the live matches; history and in-flight reads already own their frozen matches.
+static void stRemoveWalColumn(SSTriggerOrigTableInfo *source, int side, STPhysicalWalSlot *column,
+                              uint64_t *rankProbes) {
+  SArray *columns =
+      *(SArray **)tSimpleHashGet(source->walLogicalColumns[side], &column->logical, sizeof(column->logical));
+  STPhysicalWalSlot *last = *(STPhysicalWalSlot **)taosArrayGetLast(columns);
+  if (rankProbes) ++*rankProbes;
+  if (last != column) {
+    *(STPhysicalWalSlot **)taosArrayGet(columns, column->rank) = last;
+    last->rank = column->rank;
+  }
+  TAOS_UNUSED(taosArrayPop(columns));
+  column->rank = -1;
+}
+
+static int32_t stObserveWalColumn(SSTriggerOrigTableInfo *source, int side, const SSTriggerColMatch *match,
+                                  int32_t bytes, uint64_t generation, uint64_t *rankProbes) {
+  if (!source->physicalSlots[side]) {
+    source->physicalSlots[side] = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+    if (!source->physicalSlots[side]) return terrno;
+  }
+  if (!source->walLogicalColumns[side]) {
+    source->walLogicalColumns[side] = tSimpleHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+    if (!source->walLogicalColumns[side]) return terrno;
+    tSimpleHashSetFreeFp(source->walLogicalColumns[side], stFreeWalColumnList);
+  }
+  STPhysicalWalSlot *column =
+      tSimpleHashGet(source->physicalSlots[side], &match->physicalId, sizeof(match->physicalId));
+  if (!column) {
+    STPhysicalWalSlot fresh = {.cid = match->physicalId, .rank = -1};
+    TAOS_CHECK_RETURN(
+        tSimpleHashPut(source->physicalSlots[side], &fresh.cid, sizeof(fresh.cid), &fresh, sizeof(fresh)));
+    column = tSimpleHashGet(source->physicalSlots[side], &fresh.cid, sizeof(fresh.cid));
+  }
+  if (column->generation == generation) {
+    column->bytes = TMAX(column->bytes, bytes);
+    return 0;
+  }
+  if (column->rank >= 0 && column->logical != match->vtbSlotId) stRemoveWalColumn(source, side, column, rankProbes);
+  if (column->rank < 0) {
+    SArray **list = tSimpleHashGet(source->walLogicalColumns[side], &match->vtbSlotId, sizeof(match->vtbSlotId));
+    if (!list) {
+      SArray *empty = NULL;
+      TAOS_CHECK_RETURN(tSimpleHashPut(source->walLogicalColumns[side], &match->vtbSlotId, sizeof(match->vtbSlotId),
+                                       &empty, sizeof(empty)));
+      list = tSimpleHashGet(source->walLogicalColumns[side], &match->vtbSlotId, sizeof(match->vtbSlotId));
+    }
+    if (!*list && !(*list = taosArrayInit(2, sizeof(column)))) return terrno;
+    if (!taosArrayPush(*list, &column)) return terrno;
+    column->rank = taosArrayGetSize(*list) - 1;
+    column->logical = match->vtbSlotId;
+    if (rankProbes) ++*rankProbes;
+  }
+  column->bytes = bytes;
+  column->generation = generation;
+  return 0;
+}
+
+static int32_t stPublishWalAliases(SSTriggerWalProgress *reader, int side) {
+  SArray *ranges = reader->walLogicalRanges[side];
+  int32_t width = taosArrayGetSize(ranges), slots = width;
+  bool    changed = false;
+  for (int32_t i = 0; i < width; ++i) {
+    STWalLogicalRange *range = taosArrayGet(ranges, i);
+    range->firstAlias = slots;
+    slots += TMAX(range->count - 1, 0);
+    if (slots >= INT16_MAX) return TSDB_CODE_INVALID_PARA;  // reserve final WAL version
+    changed |= range->published != range->count;
+  }
+  if (!changed) return 0;  // retain this Reader's published alias array
+  SArray **aliases = &reader->physicalAliases[side];
+  if (slots > width && !*aliases && !(*aliases = taosArrayInit(slots - width, sizeof(int16_t)))) return terrno;
+  if (slots > width) TAOS_CHECK_RETURN(taosArrayEnsureCap(*aliases, slots - width));
+  taosArrayClear(*aliases);
+  for (int16_t i = 0; i < width; ++i) {
+    STWalLogicalRange *range = taosArrayGet(ranges, i);
+    for (int32_t j = 1; j < range->count; ++j)
+      if (!taosArrayPush(*aliases, &i)) return terrno;
+    range->published = range->count;
+  }
+  return 0;
+}
+
+static int32_t stVisitWalMatches(SStreamTriggerTask *task, int side, const SSDataBlock *layout, bool publish,
+                                 uint64_t *rankProbes) {
+  SSTriggerVirtTableInfo *table = NULL;
+  int32_t                 iter = 0;
+  while ((table = tSimpleHashIterate(task->pVirtTableInfos, table, &iter))) {
+    const SArray *refs = side ? table->pCalcColRefs : table->pTrigColRefs;
+    for (size_t j = 0; j < taosArrayGetSize(refs); ++j) {
+      SSTriggerTableColRef *ref = taosArrayGet(refs, j);
+      if (!taosArrayGetSize(ref->pNewColMatches)) continue;
+      SSTriggerOrigTableInfo *source = tSimpleHashGet(task->pOrigTableInfos, &ref->otbUid, sizeof(ref->otbUid));
+      if (!source || !layout) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      SSHashObj *map = side ? source->pCalcColMap : source->pTrigColMap;
+      for (size_t k = 0; k < taosArrayGetSize(ref->pNewColMatches); ++k) {
+        SSTriggerColMatch *match = taosArrayGet(ref->pNewColMatches, k);
+        if (!publish) {
+          const SColumnInfoData *logical = taosArrayGet(layout->pDataBlock, match->vtbSlotId);
+          if (!logical) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+          TAOS_CHECK_RETURN(stObserveWalColumn(source, side, match, TMAX(logical->info.bytes, match->sourceBytes),
+                                               task->walLayoutGeneration, rankProbes));
+        } else {
+          const col_id_t *slot = tSimpleHashGet(map, &match->physicalId, sizeof(match->physicalId));
+          if (!slot) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+          match->otbSlotId = *slot;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
+// SET_TABLE transmits the complete current map. Visiting its live entries is
+// linear, but only new, moved or retired columns need changes to the rank lists.
+static int32_t stBuildTimeAlignWalSide(SSTriggerRealtimeContext *ctx, int side, uint64_t *rankProbes) {
+  SStreamTriggerTask   *task = ctx->pTask;
+  const SSDataBlock    *layout = side ? task->pVirtCalcBlock : task->pVirtTrigBlock;
+  int32_t               width = layout ? blockDataGetNumOfCols(layout) : 0;
+  int32_t               iter = 0;
+  SSTriggerWalProgress *reader = NULL;
+  while ((reader = tSimpleHashIterate(ctx->pReaderWalProgress, reader, &iter))) {
+    taosArrayClear(reader->physicalWidths[side]);
+    SArray **ranges = &reader->walLogicalRanges[side];
+    if (width && !*ranges && !(*ranges = taosArrayInit_s(sizeof(STWalLogicalRange), width))) return terrno;
+    for (size_t i = 0; i < taosArrayGetSize(*ranges); ++i) ((STWalLogicalRange *)taosArrayGet(*ranges, i))->count = 0;
+  }
+
+  TAOS_CHECK_RETURN(stVisitWalMatches(task, side, layout, false, rankProbes));
+  SSTriggerOrigTableInfo *source = NULL;
+  iter = 0;
+  while ((source = tSimpleHashIterate(task->pOrigTableInfos, source, &iter))) {
+    reader = tSimpleHashGet(ctx->pReaderWalProgress, &source->vgId, sizeof(source->vgId));
+    int32_t    it = 0;
+    void      *entry = NULL;
+    SSHashObj *map = side ? source->pCalcColMap : source->pTrigColMap;
+    while ((entry = tSimpleHashIterate(source->physicalSlots[side], entry, &it))) {
+      STPhysicalWalSlot *column = entry;
+      if (column->generation == task->walLayoutGeneration) continue;
+      if (column->rank >= 0) stRemoveWalColumn(source, side, column, rankProbes);
+      if (tSimpleHashGet(map, &column->cid, sizeof(column->cid)))
+        TAOS_CHECK_RETURN(tSimpleHashRemove(map, &column->cid, sizeof(column->cid)));
+      TAOS_CHECK_RETURN(
+          tSimpleHashIterateRemove(source->physicalSlots[side], &column->cid, sizeof(column->cid), &entry, &it));
+    }
+    it = 0;
+    SArray **group = NULL;
+    while ((group = tSimpleHashIterate(source->walLogicalColumns[side], group, &it))) {
+      int32_t  count = taosArrayGetSize(*group);
+      col_id_t logical = *(col_id_t *)tSimpleHashGetKey(group, NULL);
+      if (!count) {
+        void *current = group;
+        TAOS_CHECK_RETURN(
+            tSimpleHashIterateRemove(source->walLogicalColumns[side], &logical, sizeof(logical), &current, &it));
+        group = current;
+        continue;
+      }
+      if (!reader) return TSDB_CODE_STREAM_INTERNAL_ERROR;
+      STWalLogicalRange *range = taosArrayGet(reader->walLogicalRanges[side], logical);
+      range->count = TMAX(range->count, count);
+    }
+  }
+
+  iter = 0;
+  reader = NULL;
+  while ((reader = tSimpleHashIterate(ctx->pReaderWalProgress, reader, &iter)))
+    TAOS_CHECK_RETURN(stPublishWalAliases(reader, side));
+
+  // A raw slot can serve multiple physical tables. Publish its maximum requested width once.
+  iter = 0;
+  source = NULL;
+  while ((source = tSimpleHashIterate(task->pOrigTableInfos, source, &iter))) {
+    reader = tSimpleHashGet(ctx->pReaderWalProgress, &source->vgId, sizeof(source->vgId));
+    SSHashObj         *map = side ? source->pCalcColMap : source->pTrigColMap;
+    STPhysicalWalSlot *column = NULL;
+    int32_t            it = 0;
+    while ((column = tSimpleHashIterate(source->physicalSlots[side], column, &it))) {
+      const STWalLogicalRange *range = taosArrayGet(reader->walLogicalRanges[side], column->logical);
+      col_id_t                 slot = column->rank ? range->firstAlias + column->rank - 1 : column->logical;
+      const col_id_t          *old = tSimpleHashGet(map, &column->cid, sizeof(column->cid));
+      if (!old || *old != slot)
+        TAOS_CHECK_RETURN(tSimpleHashPut(map, &column->cid, sizeof(column->cid), &slot, sizeof(slot)));
+      const SColumnInfoData *logical = taosArrayGet(layout->pDataBlock, column->logical);
+      if (!IS_VAR_DATA_TYPE(logical->info.type) || column->bytes <= logical->info.bytes) continue;
+      SArray **widths = &reader->physicalWidths[side];
+      int32_t  slots = width + taosArrayGetSize(reader->physicalAliases[side]);
+      if (!*widths && !(*widths = taosArrayInit(2, sizeof(SStreamWalSlotWidth)))) return terrno;
+      if (!taosArrayGetSize(*widths) && !taosArrayReserve(*widths, slots)) return terrno;
+      SStreamWalSlotWidth *field = taosArrayGet(*widths, slot);
+      field->slot = slot;
+      field->bytes = TMAX(field->bytes, column->bytes);
+    }
+  }
+  iter = 0;
+  reader = NULL;
+  while ((reader = tSimpleHashIterate(ctx->pReaderWalProgress, reader, &iter))) {
+    SArray *widths = reader->physicalWidths[side];
+    size_t  n = 0, slots = taosArrayGetSize(widths);
+    for (size_t i = 0; i < slots; ++i) {
+      SStreamWalSlotWidth *field = taosArrayGet(widths, i);
+      if (field->bytes) *(SStreamWalSlotWidth *)taosArrayGet(widths, n++) = *field;
+    }
+    if (n < slots) taosArrayPopTailBatch(widths, slots - n);
+  }
+  return stVisitWalMatches(task, side, layout, true, NULL);
+}
+
+static int32_t stBuildTimeAlignWalProjection(SSTriggerRealtimeContext *ctx, uint64_t *rankProbes) {
+  SStreamTriggerTask *task = ctx->pTask;
+  ++task->walLayoutGeneration;
+  for (int side = 0; side < 2; ++side) TAOS_CHECK_RETURN(stBuildTimeAlignWalSide(ctx, side, rankProbes));
+  int32_t iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(task->pOrigTableInfos, entry, &iter))) {
+    SSTriggerOrigTableInfo *source = entry;
+    if (!tSimpleHashGetSize(source->pTrigColMap) && !tSimpleHashGetSize(source->pCalcColMap))
+      TAOS_CHECK_RETURN(
+          tSimpleHashIterateRemove(task->pOrigTableInfos, &source->tbUid, sizeof(source->tbUid), &entry, &iter));
+  }
+  return 0;
 }
 
 static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableInfo *pInfo, bool isTriggerData,
@@ -6960,7 +9853,7 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
           void *px = taosArrayPush(pOrigTableInfo->pVtbUids, &pInfo->uid);
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
-        SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId};
+        SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId, .physicalId = tsColId};
         void             *px = taosArrayPush(pRef->pNewColMatches, &match);
         QUERY_CHECK_NULL(px, code, lino, _end, terrno);
       }
@@ -6995,8 +9888,8 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
     SSHashObj               *pDbInfo = *(SSHashObj **)px;
     SSTriggerOrigColumnInfo *pTbInfo = tSimpleHashGet(pDbInfo, pColRef->refTableName, tbNameLen);
     QUERY_CHECK_NULL(pTbInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-    col_id_t *pOrigColId = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
-    QUERY_CHECK_NULL(pOrigColId, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    STOrigColumn *sourceCol = tSimpleHashGet(pTbInfo->pColumns, pColRef->refColName, colNameLen);
+    QUERY_CHECK_NULL(sourceCol, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
     // set original table info
     SSTriggerOrigTableInfo *pOrigTableInfo = tSimpleHashGet(pTask->pOrigTableInfos, &pTbInfo->uid, sizeof(int64_t));
@@ -7015,13 +9908,13 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
       QUERY_CHECK_NULL(pOrigTableInfo->pVtbUids, code, lino, _end, terrno);
     }
     SSHashObj *pColMap = isTriggerData ? pOrigTableInfo->pTrigColMap : pOrigTableInfo->pCalcColMap;
-    col_id_t  *pOrigSlotId = tSimpleHashGet(pColMap, pOrigColId, sizeof(col_id_t));
+    col_id_t  *pOrigSlotId = tSimpleHashGet(pColMap, &sourceCol->id, sizeof(col_id_t));
     if (pOrigSlotId == NULL) {
-      code = tSimpleHashPut(pColMap, pOrigColId, sizeof(col_id_t), pOrigColId, sizeof(col_id_t));
+      int16_t rawSlot = i;
+      code = tSimpleHashPut(pColMap, &sourceCol->id, sizeof(col_id_t), &rawSlot, sizeof(rawSlot));
       QUERY_CHECK_CODE(code, lino, _end);
-      pOrigSlotId = tSimpleHashGet(pColMap, pOrigColId, sizeof(col_id_t));
+      pOrigSlotId = tSimpleHashGet(pColMap, &sourceCol->id, sizeof(col_id_t));
       QUERY_CHECK_NULL(pOrigSlotId, code, lino, _end, terrno);
-      *pOrigSlotId = i;
     }
 
     // set virtual table info
@@ -7064,11 +9957,14 @@ static int32_t stTriggerTaskNewGenVirColRefs(SStreamTriggerTask *pTask, VTableIn
           QUERY_CHECK_NULL(px, code, lino, _end, terrno);
         }
       }
-      SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId};
+      SSTriggerColMatch match = {.otbSlotId = tsSlotId, .vtbSlotId = tsSlotId, .physicalId = tsColId};
       void             *px = taosArrayPush(pRef->pNewColMatches, &match);
       QUERY_CHECK_NULL(px, code, lino, _end, terrno);
     }
-    SSTriggerColMatch match = {.otbSlotId = *pOrigSlotId, .vtbSlotId = i};
+    SSTriggerColMatch match = {.otbSlotId = *pOrigSlotId,
+                               .vtbSlotId = i,
+                               .physicalId = sourceCol->id,
+                               .sourceBytes = pTask->flatVirtualScan ? sourceCol->bytes : 0};
     px = taosArrayPush(pRef->pNewColMatches, &match);
     QUERY_CHECK_NULL(px, code, lino, _end, terrno);
   }
@@ -7569,6 +10465,11 @@ static int32_t stTriggerTaskReleaseRequests(SStreamTriggerTask *pTask, SSTrigger
   tSimpleHashClear(pReq->pGroupCalcInfos);
   tSimpleHashClear(pReq->pGroupReadInfos);
   *pRunningCnt -= 1;
+  if (pReq->resultAdmission.roundId) {
+    uint64_t token[] = {pReq->resultAdmission.calcToken, pReq->resultAdmission.calcTokenHi};
+    TAOS_UNUSED(tSimpleHashRemove(pTask->resultDispatches, token, sizeof(token)));
+    pReq->resultAdmission = (SStreamResultAdmission){0};
+  }
   pSlot->vtableRetryAtMs = 0;
   pSlot->vtableRetryDelayMs = 0;
   if (++pSlot->generation == 0) ++pSlot->generation;
@@ -7744,6 +10645,8 @@ static void stHistoryContextResetManualExecution(SSTriggerHistoryContext *pConte
   stTriggerTaskPublishHistoryDebugGauges(pContext->pTask, pContext);
   taosWLockLatch(&pContext->pTask->recalcRequestLock);
   pContext->pTask->recalcInProgress = false;
+  pContext->pTask->activeAlignedCheckpointWork = false;
+  pContext->pTask->activeAlignedRepairId = 0;
   taosWUnLockLatch(&pContext->pTask->recalcRequestLock);
 }
 
@@ -7797,6 +10700,11 @@ typedef struct SSTriggerRecalcMutation {
   STimeWindow             oldCalcRange;
   SSHashObj              *pOldTsdbVersions;
   SRecalcImpactDomain     oldImpactDomain;
+  bool                    oldHasTimeAlignChange;
+  STimeWindow             oldTimeAlignChange;
+  uint64_t                oldTimeAlignSourceUid;
+  uint64_t                oldAlignedRepairId;
+  TSKEY                   oldAlignedInputFloor;
   size_t                  oldContributorCount;
   bool                    oldContributorsNull;
   bool                    impactDomainReplaced;
@@ -7856,6 +10764,8 @@ void stTriggerTaskDestroyRecalcRequest(SSTriggerRecalcRequest **ppReq) {
   if (ppReq == NULL || *ppReq == NULL) return;
   SSTriggerRecalcRequest *pReq = *ppReq;
   *ppReq = NULL;
+  stReleaseAlignedFuture(&pReq->alignedFuture, false);
+  if (pReq->timeAlignRepairOwner) (void)atomic_sub_fetch_32(&pReq->timeAlignRepairOwner->timeAlignRepairs, 1);
   if (pReq->pOpenRepairOwner != NULL) stTriggerTaskReleaseOpenRepair(pReq->pOpenRepairOwner, pReq->gid);
   stRecalcAttemptDestroy(&pReq->pPreparedAttempt);
   taosMemoryFreeClear(pReq->pRetryWaitNode);
@@ -7910,12 +10820,24 @@ static int32_t stTriggerTaskMergeRecalcRequest(SSTriggerRecalcRequest *pTarget, 
     }
     pTarget->impactDomain = unionDomain;
   }
+  if (pSource->alignedRepairId > pTarget->alignedRepairId) {
+    pTarget->alignedRepairId = pSource->alignedRepairId;
+    pTarget->alignedInputFloor = pSource->alignedInputFloor;
+  }
+  pTarget->hasTimeAlignChange = pTarget->hasTimeAlignChange && pSource->hasTimeAlignChange;
+  if (pTarget->hasTimeAlignChange) {
+    if (pTarget->timeAlignSourceUid != pSource->timeAlignSourceUid) pTarget->timeAlignSourceUid = 0;
+    pTarget->timeAlignChange.skey = TMIN(pTarget->timeAlignChange.skey, pSource->timeAlignChange.skey);
+    pTarget->timeAlignChange.ekey = TMAX(pTarget->timeAlignChange.ekey, pSource->timeAlignChange.ekey);
+  }
   pTarget->scanRange = newScanRange;
   pTarget->calcRange = newCalcRange;
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t stTriggerTaskRefreshRecalcVersions(SStreamTriggerTask *pTask, SSTriggerRecalcRequest *pReq) {
+  // Aligned work captures its own Reader views when its binding snapshot is prepared.
+  if (stUsesTimeAlignRows(pTask)) return 0;
   if (pReq->pTsdbVersions != NULL) {
     tSimpleHashCleanup(pReq->pTsdbVersions);
   }
@@ -7927,8 +10849,8 @@ static int32_t stTriggerTaskRefreshRecalcVersions(SStreamTriggerTask *pTask, SST
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pWalProgress, NULL, &iter);
   while (pProgress != NULL) {
     int32_t vgId = *(int32_t *)tSimpleHashGetKey(pProgress, NULL);
-    int32_t code =
-        tSimpleHashPut(pReq->pTsdbVersions, &vgId, sizeof(int32_t), &pProgress->lastScanVer, sizeof(int64_t));
+    int64_t version = pProgress->lastScanVer;
+    int32_t code = tSimpleHashPut(pReq->pTsdbVersions, &vgId, sizeof(vgId), &version, sizeof(version));
     if (code != TSDB_CODE_SUCCESS) return code;
     pProgress = tSimpleHashIterate(pWalProgress, pProgress, &iter);
   }
@@ -8080,6 +11002,11 @@ static int32_t stTriggerTaskAddReadyRecalcImpl(SStreamTriggerTask *pTask, SSTrig
           .pReq = pTmpReq,
           .oldScanRange = pTmpReq->scanRange,
           .oldCalcRange = pTmpReq->calcRange,
+          .oldHasTimeAlignChange = pTmpReq->hasTimeAlignChange,
+          .oldTimeAlignChange = pTmpReq->timeAlignChange,
+          .oldTimeAlignSourceUid = pTmpReq->timeAlignSourceUid,
+          .oldAlignedRepairId = pTmpReq->alignedRepairId,
+          .oldAlignedInputFloor = pTmpReq->alignedInputFloor,
           .pOldTsdbVersions = pTmpReq->pTsdbVersions,
           .oldContributorCount = pTmpReq->pContributors == NULL ? 0 : TARRAY_SIZE(pTmpReq->pContributors),
           .oldContributorsNull = pTmpReq->pContributors == NULL};
@@ -8184,6 +11111,11 @@ static void stTriggerTaskFinishRecalcMutations(SStreamTriggerTask *pTask, SArray
       stRecalcAttemptDestroy(&pReq->pPreparedAttempt);
       taosMemoryFreeClear(pReq->pRetryWaitNode);
     }
+    pReq->hasTimeAlignChange = pMutation->oldHasTimeAlignChange;
+    pReq->timeAlignChange = pMutation->oldTimeAlignChange;
+    pReq->timeAlignSourceUid = pMutation->oldTimeAlignSourceUid;
+    pReq->alignedRepairId = pMutation->oldAlignedRepairId;
+    pReq->alignedInputFloor = pMutation->oldAlignedInputFloor;
     pReq->scanRange = pMutation->oldScanRange;
     pReq->calcRange = pMutation->oldCalcRange;
     while (pReq->pContributors != NULL && TARRAY_SIZE(pReq->pContributors) > pMutation->oldContributorCount) {
@@ -8290,8 +11222,8 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
                                                  STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc,
                                                  bool isDetermined, int64_t recalcId, bool requestsLocked,
                                                  SArray *pMutations, bool repairCountDisorder,
-                                                 SSTriggerRecalcRequest **ppPreparedReq,
-                                                 SArray *pNoDataGids) {
+                                                 SSTriggerRecalcRequest **ppPreparedReq, SArray *pNoDataGids,
+                                                 uint64_t sourceUid) {
   int32_t                      code = TSDB_CODE_SUCCESS;
   int32_t                      lino = 0;
   bool                         ready = false;
@@ -8304,7 +11236,19 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
   }
   nestedPlan = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
 
+  bool        alignedChange = !isHistory && !isUserRecalc && !isDetermined && stUsesTimeAlignRows(pTask);
+  STimeWindow originalChange = alignedChange ? *pCalcRange : (STimeWindow){0};
+  STimeWindow alignedRange;
+  uint64_t    alignedRepairId = 0;
+  STimeWindow nestedRepair = {.skey = INT64_MAX, .ekey = INT64_MIN};
   if (!isHistory && !isUserRecalc && !isDetermined) {
+    if (stUsesTimeAlignRows(pTask)) {
+      // A changed PREV can affect later filtered inputs through the current frontier.
+      // Retain the existing open-window and output-order checks below.
+      alignedRange = *pCalcRange;
+      alignedRange.ekey = TMAX(alignedRange.ekey, pGroup->newThreshold);
+      pCalcRange = &alignedRange;
+    }
     // A deleted tail window may have no existing successor to replay. Repair
     // the first future window instead of replacing live predecessor state with
     // the history context's snapshot.
@@ -8368,9 +11312,17 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
   }
   QUERY_CHECK_NULL(pReq, code, lino, _end, terrno);
 
-  pReq->waitForOutput = pReq->openWindowRepair ||
-                       (!isHistory && !isUserRecalc && !nestedPlan &&
-                        (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0);
+  pReq->alignedCheckpointWork = nestedPlan && stUsesTimeAlignRows(pTask) &&
+                                (pReq->alignedFuture || (isDetermined && pGroup && pGroup->alignedRepairBinding &&
+                                                         stHasAlignedFixedRepair(pGroup)));
+  if (pReq->alignedCheckpointWork) pReq->noMerge = true;
+  bool finiteCheckpointWork = pReq->alignedCheckpointWork;
+  pReq->hasTimeAlignChange = alignedChange;
+  pReq->timeAlignChange = originalChange;
+  pReq->timeAlignSourceUid = sourceUid;
+  pReq->waitForOutput = pReq->alignedFuture || pReq->openWindowRepair ||
+                        (!isHistory && !isUserRecalc && !nestedPlan &&
+                         (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0);
   // Every automatic predecessor repair must retain its output barrier when other
   // recalculations for the group are already queued.
   if (pReq->waitForOutput) pReq->noMerge = true;
@@ -8399,6 +11351,10 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
     if (isUserRecalc && pHistoryCutoff != NULL) {
       scanUpper = TMAX(scanUpper, *(TSKEY *)pHistoryCutoff);
     }
+    if (pReq->alignedFuture) {
+      pReq->scanRange.skey = pReq->alignedInputFloor;
+      scanUpper = pCalcRange->ekey;
+    }
     pReq->scanRange.ekey = scanUpper;
     const TSKEY predecessorScanStart = pReq->scanRange.skey;
     // FROM without TO becomes the closed upper bound TSKEY_MAX - 1 and still ends at the current stream progress.
@@ -8421,20 +11377,16 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
       }
     }
     if (!nestedPlan && pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-      if (pCalcRange->skey != INT64_MIN) {
+      // An empty interval is emitted only after an eligible row establishes the grid.
+      // Without the predecessor probe below, replay that prefix even if the change removes every eligible row.
+      bool needIntervalPrefix = alignedChange && stTimeAlignNeedsIntervalPrefix(pTask);
+      if (!needIntervalPrefix && pCalcRange->skey != INT64_MIN) {
         STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->skey);
         pReq->scanRange.skey = isUserRecalc ? win.skey : TMAX(pReq->scanRange.skey, win.skey);
       }
-      if (pCalcRange->ekey != INT64_MAX && !openEndedUserRecalc) {
-        STimeWindow win = stTriggerTaskGetTimeWindow(pTask, pCalcRange->ekey);
-        while (pTask->interval.interval > pTask->interval.sliding) {
-          STimeWindow nextWin = win;
-          stTriggerTaskNextTimeWindow(pTask, &nextWin);
-          if (nextWin.skey > pCalcRange->ekey) {
-            break;
-          }
-          win = nextWin;
-        }
+      STimeWindow win;
+      if (pCalcRange->ekey != INT64_MAX && !openEndedUserRecalc &&
+          stTriggerTaskGetLastCoveringWindow(pTask, pCalcRange->ekey, &win)) {
         if (!isUserRecalc && pTask->interval.interval > 0 &&
             (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0) {
           stTriggerTaskNextTimeWindow(pTask, &win);
@@ -8446,7 +11398,8 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
         // full range; the pending queue waits for realtime output to catch up.
         pReq->scanRange.ekey = TMAX(pReq->scanRange.ekey, pCalcRange->ekey);
       }
-    } else if (!isUserRecalc && pTask->fillHistoryStartTime > 0 && pCalcRange->skey != INT64_MIN &&
+    } else if (!isUserRecalc && !stUsesTimeAlignRows(pTask) && pTask->fillHistoryStartTime > 0 &&
+               pCalcRange->skey != INT64_MIN &&
                (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) == 0) {
       pReq->scanRange.skey = TMAX(pReq->scanRange.skey, pCalcRange->skey - pTask->historyStep);
     }
@@ -8486,6 +11439,24 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
     code = stWindowChainBuildRecalcImpactDomain(pTask->pWindowPlan, pReq->gid, &policy, &pReq->scanRange,
                                                 &pReq->calcRange, &pReq->impactDomain);
     QUERY_CHECK_CODE(code, lino, _end);
+    if (alignedChange && pGroup && pGroup->pWindowChain && pGroup->hasAlignedInputFloor &&
+        (pTask->triggerType == STREAM_TRIGGER_STATE || pTask->triggerType == STREAM_TRIGGER_EVENT)) {
+      alignedRepairId = stNextTimeAlignId(pTask);
+      pReq->alignedRepairId = alignedRepairId;
+      pReq->alignedInputFloor = pGroup->alignedInputFloor;
+    }
+    const SStreamWindowLayerSpec *root = taosArrayGet(pTask->pWindowPlan->pLayers, 0);
+    if (alignedChange && root->triggerType == WINDOW_TYPE_INTERVAL &&
+        (pTask->triggerType == STREAM_TRIGGER_STATE || pTask->triggerType == STREAM_TRIGGER_EVENT)) {
+      const STimeWindow *extent = taosArrayGetLast(pReq->impactDomain.pRootExtents);
+      nestedRepair = (STimeWindow){.skey = originalChange.skey, .ekey = extent->ekey};
+      code = stOwnAlignedRepairBinding(pGroup);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!alignedRepairId) {
+        pReq->alignedCheckpointWork = finiteCheckpointWork = true;
+        pReq->noMerge = true;
+      }
+    }
   }
 
   if (isHistory || isUserRecalc) {
@@ -8568,6 +11539,14 @@ static int32_t stTriggerTaskAddRecalcRequestImpl(SStreamTriggerTask *pTask, SSTr
     }
   }
 
+  if (alignedRepairId) pGroup->alignedRepairId = alignedRepairId;
+  if (alignedRepairId || finiteCheckpointWork) atomic_store_32(&pTask->alignedCheckpointHold, 1);
+  if (nestedRepair.skey <= nestedRepair.ekey) {
+    pGroup->alignedFixedThrough = pGroup->oldThreshold;
+    pGroup->timeAlignNestedRepair.skey = TMIN(pGroup->timeAlignNestedRepair.skey, nestedRepair.skey);
+    pGroup->timeAlignNestedRepair.ekey = TMAX(pGroup->timeAlignNestedRepair.ekey, nestedRepair.ekey);
+  }
+
 _end:
   if (pReq != NULL) {
     stTriggerTaskDestroyRecalcRequest(&pReq);
@@ -8582,13 +11561,34 @@ int32_t stTriggerTaskAddRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealti
                                       STimeWindow *pCalcRange, bool isHistory, bool isUserRecalc, bool isDetermined,
                                       int64_t recalcId) {
   return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, isHistory, isUserRecalc, isDetermined, recalcId,
-                                           false, NULL, false, NULL, NULL);
+                                           false, NULL, false, NULL, NULL, 0);
 }
 
-static int32_t stTriggerTaskAddDisorderRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
-                                                     STimeWindow *pCalcRange) {
-  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, true, NULL,
-                                           NULL);
+static int32_t stTriggerTaskAddSourceRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
+                                                   STimeWindow *pCalcRange, bool disorder, uint64_t sourceUid) {
+  return stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, pCalcRange, false, false, false, 0, false, NULL, disorder,
+                                           NULL, NULL, sourceUid);
+}
+
+// The next ordinary frontier schedules a distinct, version-bounded repair from the original
+// anchor. The group retains its obligation without retaining the previous source view or WAL.
+static int32_t stScheduleAlignedFuture(SSTriggerRealtimeGroup *group, TSKEY frontier) {
+  SAlignedFutureRepair *repair = group->alignedFuture;
+  if (!repair) return 0;
+  repair->target = TMAX(repair->target, frontier);
+  if (repair->running || repair->target <= repair->after) return 0;
+  SSTriggerRecalcRequest *req = taosMemoryCalloc(1, sizeof(*req));
+  if (!req) return terrno;
+  req->noMerge = true;
+  req->alignedInputFloor = repair->anchor;
+  req->alignedFuture = repair;
+  atomic_add_fetch_32(&repair->refs, 1);
+  STimeWindow range = {.skey = repair->anchor, .ekey = repair->target};
+  int32_t code = stTriggerTaskAddRecalcRequestImpl(group->pContext->pTask, group, &range, false, false, true, 0, false,
+                                                   NULL, false, &req, NULL, 0);
+  stTriggerTaskDestroyRecalcRequest(&req);
+  if (!code) repair->running = true;
+  return code;
 }
 
 static int32_t stTriggerTaskAddOpenWindowRecalcRequest(SStreamTriggerTask *pTask, SSTriggerRealtimeGroup *pGroup,
@@ -8601,8 +11601,8 @@ static int32_t stTriggerTaskAddOpenWindowRecalcRequest(SStreamTriggerTask *pTask
   STimeWindow openRange = {.skey = wstart, .ekey = wstart};
   int32_t code = stTriggerTaskHoldOpenRepair(pTask, pReq);
   if (code == TSDB_CODE_SUCCESS) {
-    code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &openRange, false, false, true, 0,
-                                             false, NULL, false, &pReq, NULL);
+    code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &openRange, false, false, true, 0, false, NULL, false,
+                                             &pReq, NULL, 0);
   }
   stTriggerTaskDestroyRecalcRequest(&pReq);
   return code;
@@ -8738,6 +11738,8 @@ int32_t stTriggerTaskFetchRecalcRequest(SStreamTriggerTask *pTask, SSTriggerReca
   if (pNode != NULL) {
     *ppReq = *(SSTriggerRecalcRequest **)pNode->data;
     // Transfer the checkpoint barrier from the queue to the active scan under the same lock.
+    pTask->activeAlignedCheckpointWork = (*ppReq)->alignedCheckpointWork;
+    pTask->activeAlignedRepairId = (*ppReq)->alignedRepairId;
     pTask->recalcInProgress = !(*ppReq)->isHistory;
     taosMemoryFreeClear(pNode);
     ST_TASK_DLOG("start recalc request, gid: %" PRId64 ", scanRange: [%" PRId64 ", %" PRId64 "], calcRange: [%" PRId64
@@ -10100,6 +13102,10 @@ static void stTriggerTaskDestroyOrigTableInfo(void *ptr) {
     return;
   }
 
+  tSimpleHashCleanup(pTableInfo->walLogicalColumns[0]);
+  tSimpleHashCleanup(pTableInfo->walLogicalColumns[1]);
+  tSimpleHashCleanup(pTableInfo->physicalSlots[0]);
+  tSimpleHashCleanup(pTableInfo->physicalSlots[1]);
   if (pTableInfo->pTrigColMap != NULL) {
     tSimpleHashCleanup(pTableInfo->pTrigColMap);
     pTableInfo->pTrigColMap = NULL;
@@ -10486,9 +13492,9 @@ static int32_t stTriggerTaskSyncPatchOrigTableIds(SStreamTriggerTask *pTask, SST
             void   *pPatchColId = tSimpleHashIterate(pPatchTb->pColumns, NULL, &iter3);
             while (pPatchColId != NULL) {
               char      *colName = tSimpleHashGetKey(pPatchColId, NULL);
-              col_id_t  *pTaskColId = tSimpleHashGet(pTaskTb->pColumns, colName, strlen(colName) + 1);
+              STOrigColumn *pTaskColId = tSimpleHashGet(pTaskTb->pColumns, colName, strlen(colName) + 1);
               if (pTaskColId != NULL) {
-                *(col_id_t *)pPatchColId = *pTaskColId;
+                *(STOrigColumn *)pPatchColId = *pTaskColId;
               }
               pPatchColId = tSimpleHashIterate(pPatchTb->pColumns, pPatchColId, &iter3);
             }
@@ -10909,7 +13915,7 @@ _end:
 }
 
 static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan, SArray **ppColids,
-                                           SArray **ppIsPseudoCol, SNodeList **ppSlots) {
+                                           SArray **ppIsPseudoCol, SNodeList **ppSlots, bool *flatTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
   SNode  *pScanPlan = NULL;
@@ -10934,6 +13940,7 @@ static int32_t stTriggerTaskCollectVirCols(SStreamTriggerTask *pTask, void *plan
   QUERY_CHECK_NULL(pScanNode, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(nodeType(pScanNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, code, lino, _end,
                         TSDB_CODE_INVALID_PARA);
+  if (flatTable) *flatTable = pScanNode->scan.tableType == TSDB_VIRTUAL_NORMAL_TABLE;
   QUERY_CHECK_NULL(pScanNode->scan.node.pOutputDataBlockDesc, code, lino, _end, TSDB_CODE_INVALID_PARA);
   SNodeList *pSlots = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
   SNodeList *pScanCols = pScanNode->scan.pScanCols;
@@ -11010,7 +14017,8 @@ _end:
   return code;
 }
 
-static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *triggerScanPlan, void *calcCacheScanPlan) {
+static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *triggerScanPlan, void *calcCacheScanPlan,
+                                          const SStreamTimeAlignSpec *align) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
   SArray    *pTrigColids = NULL;
@@ -11026,9 +14034,10 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
   int64_t    bufLen = 0;
   int64_t    bufCap = 1024;
 
-  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTrigIsPseudoCol, &pTrigSlots);
+  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTrigIsPseudoCol, &pTrigSlots,
+                                     &pTask->flatVirtualScan);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pCalcIsPseudoCol, &pCalcSlots);
+  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pCalcIsPseudoCol, &pCalcSlots, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   int32_t nTrigCols = taosArrayGetSize(pTrigColids);
@@ -11197,6 +14206,17 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     infoBuf[bufLen - 1] = '}';
   }
 
+  // Aligned columns follow the raw columns in rule order in each materialized block.
+  int32_t nAligned = align ? taosArrayGetSize(align->pColumns) : 0;
+  if (nAligned > 0 && (nTrigCols + nAligned > INT16_MAX || nTotalCols + nAligned > INT16_MAX)) {
+    code = TSDB_CODE_INVALID_PARA;
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  for (int32_t i = 0; i < nAligned; ++i) {
+    int32_t histSlot = nTotalCols + i;
+    QUERY_CHECK_NULL(taosArrayPush(pTrigSlotids, &histSlot), code, lino, _end, terrno);
+  }
+
   SRewriteSlotidCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .newSlotIds = pTrigSlotids,
@@ -11244,6 +14264,7 @@ static int32_t stTriggerTaskParseVirtScan(SStreamTriggerTask *pTask, void *trigg
     }
   }
 
+  if (nAligned > 0) taosArrayPopTailBatch(pTrigSlotids, nAligned);
   pTask->pVirTrigSlots = pTrigSlotids;
   pTrigSlotids = NULL;
   pTask->pVirCalcSlots = pCalcSlotids;
@@ -11302,9 +14323,10 @@ static int32_t stTriggerTaskNewParseVirtScan(SStreamTriggerTask *pTask, void *tr
   int32_t    i = 0;
   SNode     *pNode = NULL;
 
-  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTask->pTrigIsPseudoCol, &pTrigSlots);
+  code = stTriggerTaskCollectVirCols(pTask, triggerScanPlan, &pTrigColids, &pTask->pTrigIsPseudoCol, &pTrigSlots, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pTask->pCalcIsPseudoCol, &pCalcSlots);
+  code =
+      stTriggerTaskCollectVirCols(pTask, calcCacheScanPlan, &pCalcColids, &pTask->pCalcIsPseudoCol, &pCalcSlots, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
 
   pTask->virScanTsOnly = (pTrigSlots != NULL) || (pCalcSlots != NULL);
@@ -11402,6 +14424,9 @@ static EDealRes stTriggerTaskCollectPartitionFacts(SNode *pNode, void *pContext)
 
 static int32_t stTriggerTaskValidateWindowPlan(const SStreamTriggerTask *pTask, const SStreamTriggerDeployMsg *pMsg) {
   const bool nested = BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
+  bool       aligned = BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_TIME_ALIGN);
+  if (aligned != (pMsg->pTimeAlign != NULL)) return TSDB_CODE_INVALID_PARA;
+  if (aligned) TAOS_CHECK_RETURN(tValidateStreamTimeAlignSpec(pMsg->pTimeAlign));
   if (!nested) return pMsg->pWindowPlan == NULL ? TSDB_CODE_SUCCESS : TSDB_CODE_INVALID_PARA;
   if (pMsg->pWindowPlan == NULL) return TSDB_CODE_INVALID_PARA;
 
@@ -11814,7 +14839,7 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   }
 
   if (pTask->isVirtualTable) {
-    code = stTriggerTaskParseVirtScan(pTask, pMsg->triggerScanPlan, pMsg->calcCacheScanPlan);
+    code = stTriggerTaskParseVirtScan(pTask, pMsg->triggerScanPlan, pMsg->calcCacheScanPlan, pMsg->pTimeAlign);
     QUERY_CHECK_CODE(code, lino, _end);
     code = stTriggerTaskNewParseVirtScan(pTask, pMsg->triggerScanPlan, pMsg->calcCacheScanPlan);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -11898,10 +14923,24 @@ int32_t stTriggerTaskDeploy(SStreamTriggerTask *pTask, SStreamTriggerDeployMsg *
   QUERY_CHECK_NULL(pTask->pHistoryCutoffTime, code, lino, _end, terrno);
 
   if (BIT_FLAG_TEST_MASK(pMsg->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
-    code = stTriggerTaskBuildNestedInputProjections(pMsg->pWindowPlan, &pTask->pNestedInputProjections);
+    // Virtual nested plans serialize parent SELECT positions. The chain runs directly
+    // on the merged block, whose raw columns and PREV outputs precede all predicates.
+    int32_t nextAlignedSlot =
+        pMsg->pTimeAlign ? blockDataGetNumOfCols(pTask->pVirtTrigBlock) + taosArrayGetSize(pMsg->pTimeAlign->pColumns)
+                         : -1;
+    code =
+        stTriggerTaskBuildNestedInputProjections(pMsg->pWindowPlan, nextAlignedSlot, &pTask->pNestedInputProjections);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  TSWAP(pTask->pTimeAlign, pMsg->pTimeAlign);
+  if (pTask->pTimeAlign && stUsesTimeAlignRows(pTask)) {
+    // Both scan templates are built at deploy. A table rebind changes physical references only.
+    // Redeploy builds new templates and their slot maps together, before starting either worker.
+    code = stTimeAlignTriggerConfigCreate(pTask->pTimeAlign, pTask->pVirtTrigBlock, pTask->pVirDataBlock,
+                                          &pTask->pTimeAlignConfig);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
   TSWAP(pTask->pWindowPlan, pMsg->pWindowPlan);
   pTask->flushOnOuterClose = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_FLUSH_ON_OUTER_CLOSE);
   pTask->task.status = STREAM_STATUS_INIT;
@@ -11957,7 +14996,7 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   ST_TASK_DLOG("undeploy trigger task, doCheckpoint: %d, doCleanup: %d", pMsg->doCheckpoint, pMsg->doCleanup);
 
   if (pMsg->doCheckpoint && pTask->pRealtimeContext) {
-    SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask);
+    SSTriggerCheckpointResult result = stTriggerTaskGenCheckpoint(pTask, true);
     if (result.status == STRIGGER_CHECKPOINT_ERROR) {
       ST_TASK_WLOG("failed to generate checkpoint since %s, continue to undeploy", tstrerror(result.code));
     }
@@ -11975,6 +15014,16 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     }
   }
 
+  if (pTask->pHistoryContext && pTask->pHistoryContext->timeAlignRound) {
+    (void)stReleaseHistoryTimeAlignRound(pTask->pHistoryContext);
+  }
+  SSTriggerRealtimeContext *seedOwner = stTimeAlignRealtimeOwner(pTask);
+  if (seedOwner && seedOwner->pRecovery && seedOwner->timeAlignRound) {
+    (void)stDropTimeAlignBoundary(seedOwner, false);
+  }
+  if (pTask->pRealtimeContext && pTask->pRealtimeContext->timeAlignRound) {
+    (void)stDropTimeAlignBoundary(pTask->pRealtimeContext, false);
+  }
   taosWLockLatch(&gStreamTriggerWaitLatch);
   SListNode *pNode = TD_DLIST_HEAD(&gStreamTriggerWaitList);
   while (pNode != NULL) {
@@ -11988,6 +15037,8 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   }
   taosWUnLockLatch(&gStreamTriggerWaitLatch);
 
+  stDestroyTimeAlignCloses(&pTask->historyTimeAlignCloses);
+  stDestroyTimeAlignCloses(&pTask->timeAlignCloses);
   stTriggerTaskDetachNestedRecoveries(pTask);
 
   /*
@@ -12114,6 +15165,13 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
   }
 
   tDestroyStreamWindowPlan(&pTask->pWindowPlan);
+  tSimpleHashCleanup(pTask->historyTimeAlignSeeds);
+  pTask->historyTimeAlignSeeds = NULL;
+  tSimpleHashCleanup(pTask->timeAlignSeeds);
+  pTask->timeAlignSeeds = NULL;
+  stTimeAlignConfigDestroy(&pTask->pTimeAlignConfig);
+  tDestroyStreamTimeAlignSpec(&pTask->pTimeAlign);
+  stDestroyAlignedChainUpdate(&pTask->pAlignedChainUpdate);
   taosArrayDestroy(pTask->pPrevWindowUpdates);
   pTask->pPrevWindowUpdates = NULL;
   taosArrayDestroyEx(pTask->pNestedInputProjections, stDestroyNestedInputProjection);
@@ -12176,6 +15234,8 @@ int32_t stTriggerTaskUndeployImpl(SStreamTriggerTask **ppTask, const SStreamUnde
     pTask->pExtOrigTableRefs = NULL;
   }
 
+  tSimpleHashCleanup(pTask->resultDispatches);
+  pTask->resultDispatches = NULL;
   if (pTask->pCalcNodes != NULL) {
     taosArrayDestroyEx(pTask->pCalcNodes, stTriggerTaskDestroyCalcNode);
     pTask->pCalcNodes = NULL;
@@ -12641,7 +15701,7 @@ int32_t stTriggerTaskExecute(SStreamTriggerTask *pTask, const SStreamMsg *pMsg) 
         } else {
           code = stTriggerTaskInitPatchVirtTableColRefs(pTask, pContext);
           QUERY_CHECK_CODE(code, lino, _end);
-          code = stRealtimeContextFinishVtablePatch(pContext);
+          code = stFinishEmptyVtablePatch(pContext);
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -13431,11 +16491,22 @@ static int32_t stRealtimeNestedPeerSourceLoad(SSTriggerNestedPeerSource *pSource
     return TSDB_CODE_INVALID_PARA;
   }
 
-  int32_t code = pSource->pSorter != NULL
-                     ? stNewTimestampSorterNextDataBlock(pSource->pSorter, &pSource->pOutputBlock, &pSource->rowIndex,
-                                                         &pSource->endRowIndex)
-                     : stNewVtableMergerNextDataBlock(pSource->pVtableMerger, &pSource->pOutputBlock,
-                                                      &pSource->rowIndex, &pSource->endRowIndex);
+  int32_t                 code = 0;
+  SSTriggerRealtimeGroup *pGroup = pSource->pGroup;
+  SStreamTriggerTask     *pTask = pGroup == NULL ? NULL : pGroup->pContext->pTask;
+  if (pSource->pVtableMerger != NULL && pTask != NULL && pTask->pTimeAlign != NULL) {
+    const SSTriggerVirtTableInfo *pInfo = tSimpleHashGet(pTask->pVirtTableInfos, &pSource->tableUid, sizeof(int64_t));
+    if (pInfo == NULL) return TSDB_CODE_INTERNAL_ERROR;
+    code = stTriggerTimeAlignNext(pTask, &pGroup->pTimeAlignStates, pGroup->pContext->sessionId, pGroup->gid, pInfo,
+                                  pSource->pVtableMerger, NULL, &pSource->pOutputBlock, &pSource->rowIndex,
+                                  &pSource->endRowIndex, &pSource->waitingForTimeAlignSeed);
+    if (code == 0 && pSource->waitingForTimeAlignSeed) return 0;
+  } else {
+    code = pSource->pSorter != NULL ? stNewTimestampSorterNextDataBlock(pSource->pSorter, &pSource->pOutputBlock,
+                                                                        &pSource->rowIndex, &pSource->endRowIndex)
+                                    : stNewVtableMergerNextDataBlock(pSource->pVtableMerger, &pSource->pOutputBlock,
+                                                                     &pSource->rowIndex, &pSource->endRowIndex);
+  }
   if (code != TSDB_CODE_SUCCESS) {
     pSource->pOutputBlock = NULL;
     pSource->rowIndex = 0;
@@ -13470,7 +16541,7 @@ static int32_t stRealtimeNestedPeerSourcePeek(void *pSourcePtr, SStreamTriggerPe
   if (pBlock == NULL) {
     if (pSource->eof) {
       *pStatus = STREAM_TRIGGER_PEER_SOURCE_EOF;
-    } else if (pSource->needsInput || pSource->inFlight) {
+    } else if (pSource->needsInput || pSource->inFlight || pSource->waitingForTimeAlignSeed) {
       *pStatus = STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT;
     } else {
       return TSDB_CODE_INTERNAL_ERROR;
@@ -13771,8 +16842,9 @@ static int32_t stRealtimeGroupInitNestedVtableSource(SSTriggerRealtimeGroup *pGr
   if (pSource->pVtableMerger == NULL) {
     return terrno;
   }
-  int32_t code = stNewVtableMergerInit(pSource->pVtableMerger, pTask, pTask->pVirtTrigBlock,
-                                       TARRAY_DATA(pTask->pTrigIsPseudoCol), pTask->triggerFilter);
+  int32_t code =
+      stNewVtableMergerInit(pSource->pVtableMerger, pTask, pTask->pVirtTrigBlock, TARRAY_DATA(pTask->pTrigIsPseudoCol),
+                            pTask->pTimeAlign ? NULL : pTask->triggerFilter);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -13875,6 +16947,7 @@ static int32_t stRealtimeGroupBuildNestedPeerSources(SSTriggerRealtimeGroup *pGr
       havePreviousUid = true;
 
       SSTriggerNestedPeerSource source = {
+          .pGroup = pGroup,
           .tableUid = *pTableUid,
           .readerTaskId = pReader->taskId,
           .sourceIndex = pTask->isVirtualTable ? readerIdx : taosArrayGetSize(pGroup->pNestedPeerSources),
@@ -14074,13 +17147,33 @@ static void stRealtimeGroupFinishNestedInputRound(SSTriggerRealtimeGroup *pGroup
   stTriggerMergerPeerDestroy(&pGroup->pPeerMerger);
 }
 
+static int32_t stScheduleAlignedFixed(SSTriggerRealtimeGroup *group, TSKEY frontier) {
+  if (!group->alignedRepairBinding || !stHasAlignedFixedRepair(group) || frontier <= group->alignedFixedThrough)
+    return 0;
+  // A changed leaf may close on a peer which causes no transition on the ordinary chain.
+  // The finite history request owns the checkpoint barrier until its output drains.
+  STimeWindow range = {.skey = group->timeAlignNestedRepair.skey,
+                       .ekey = TMIN(frontier, group->timeAlignNestedRepair.ekey)};
+  TAOS_CHECK_RETURN(stTriggerTaskAddRecalcRequest(group->pContext->pTask, group, &range, false, false, true, 0));
+  group->alignedFixedThrough = frontier;
+  if (frontier > group->timeAlignNestedRepair.ekey) {
+    group->timeAlignNestedRepair = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+    stClearAlignedRepairBinding(group);
+  }
+  return 0;
+}
+
 static int32_t stRealtimeGroupCompleteNestedCheck(SSTriggerRealtimeGroup *pGroup) {
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
+  TAOS_CHECK_RETURN(stScheduleAlignedFuture(pGroup, pGroup->newThreshold));
+  TAOS_CHECK_RETURN(stScheduleAlignedFixed(pGroup, pGroup->newThreshold));
+
   if (pGroup->repairCountDisorder) {
     pGroup->recalcNextWindow = false;
     pGroup->repairCountDisorder = false;
     pGroup->countDisorderRange = (STimeWindow){0};
   }
+  stReleaseAlignedNormalPage(&pGroup->alignedNormalPage);
   stRealtimeGroupClearTempState(pGroup);
   if (IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
     TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
@@ -14096,6 +17189,19 @@ static int32_t stRealtimeGroupCompleteNestedCheck(SSTriggerRealtimeGroup *pGroup
   }
   pContext->status = STRIGGER_CONTEXT_FETCH_META;
   return TSDB_CODE_SUCCESS;
+}
+
+// Only CLOSE is transferred to an automatic boundary repair. Other ordinary effects retain the
+// original aligned row, filter decision and live timing.
+static void stFilterAlignedCloseCandidates(SWindowChainSubmitResult *result, const SWindowChainRepairCarry *carry) {
+  for (int32_t i = (int32_t)taosArrayGetSize(result->pCandidates) - 1; i >= 0; --i) {
+    SLeafEventCandidate *event = taosArrayGet(result->pCandidates, i);
+    if (event->eventType != STRIGGER_EVENT_WINDOW_CLOSE ||
+        (carry && !stWindowChainCandidateCarriesRepair(carry, event))) {
+      stDestroyLeafEventCandidate(event);
+      taosArrayRemove(result->pCandidates, i);
+    }
+  }
 }
 
 static int32_t stRealtimeGroupTryAddNestedBoundaryRecalc(SSTriggerRealtimeGroup   *pGroup,
@@ -14219,6 +17325,10 @@ static int32_t stRealtimeContextCollectNestedDelayed(SSTriggerRealtimeContext *p
   }
 
   SSTriggerRealtimeGroup *pGroup = container_of(pContext->pMaxDelayHeap->min, SSTriggerRealtimeGroup, heapNode);
+  if (pGroup->alignedCatchupId ||
+      (pGroup->alignedRepairId && stHasReadyAlignedRepair(pContext->pTask, pGroup->alignedRepairId))) {
+    return stRealtimeGroupUpdateExecTime(pGroup, nowNs, true);
+  }
   if (pGroup->pWindowChain == NULL || pGroup->nextExecTime > nowNs || pGroup->nestedPeerGroupPinned ||
       pGroup->pNestedPeerGroup != NULL || stWindowChainNextDelayDeadline(pGroup->pWindowChain) > nowNs) {
     return TSDB_CODE_SUCCESS;
@@ -14284,8 +17394,32 @@ static int32_t stRealtimeContextCollectNestedDelayed(SSTriggerRealtimeContext *p
 }
 
 static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, int64_t nowNs) {
-  if (!pGroup->nestedInputRegistered || pGroup->nestedPeerGroupPinned || pGroup->pNestedPeerGroup != NULL) {
+  if (!pGroup->nestedInputRegistered || pGroup->nestedPeerGroupPinned || pGroup->pNestedPeerGroup != NULL)
     return TSDB_CODE_SUCCESS;
+  SAlignedNormalPage *page = pGroup->alignedNormalPage;
+  if (page && atomic_load_8(&page->sealed)) {
+    if (stAlignedNormalPageWaiting(page)) return 0;
+    size_t end = page->prefixEnd ? page->prefixEnd : taosArrayGetSize(page->peers);
+    while (page->replayIndex < end) {
+      pGroup->pNestedPeerGroup = taosArrayGet(page->peers, page->replayIndex);
+      pGroup->nestedPeerGroupPinned = true;
+      if (pGroup->alignedOrdinaryChain) {
+        SWindowChainSubmitResult silent = {0};
+        int32_t                  code =
+            stWindowChainSubmitPeerGroup(pGroup->alignedOrdinaryChain, pGroup->pNestedPeerGroup, nowNs, &silent);
+        stDestroyWindowChainSubmitResult(&silent);
+        if (code) {
+          stRealtimeGroupReleaseNestedPeerGroup(pGroup);
+          return code;
+        }
+      }
+      TAOS_CHECK_RETURN(stRealtimeGroupSubmitNestedPeer(pGroup, nowNs));
+      ++page->replayIndex;
+    }
+    if (page->prefixEnd) {
+      page->prefixEnd = 0;
+      return stTriggerTaskAddWaitSession(pGroup->pContext->pTask, STREAM_TRIGGER_REALTIME_SESSIONID, nowNs);
+    }
   }
 
   while (true) {
@@ -14303,6 +17437,14 @@ static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, 
         int32_t clearCode = stRealtimeGroupClearNestedInputOwner(pGroup, true, true, false);
         return clearCode != TSDB_CODE_SUCCESS ? clearCode : code;
       }
+      if (page && !atomic_load_8(&page->sealed)) {
+        code = stCaptureAlignedPeer(page, pPeerGroup);
+        if (code) {
+          (void)stTriggerMergerPeerRetryOutstanding(pGroup->pPeerMerger);
+          return code;
+        }
+        continue;
+      }
       pGroup->pNestedPeerGroup = pPeerGroup;
       pGroup->nestedPeerGroupPinned = true;
       code = stRealtimeGroupSubmitNestedPeer(pGroup, nowNs);
@@ -14318,6 +17460,10 @@ static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, 
         int32_t clearCode = stRealtimeGroupClearNestedInputOwner(pGroup, true, true, false);
         return clearCode != TSDB_CODE_SUCCESS ? clearCode : code;
       }
+      if (pSource->waitingForTimeAlignSeed) {
+        pGroup->pContext->timeAlignWaiting = true;
+        return TSDB_CODE_SUCCESS;
+      }
       code = stRealtimeGroupPrimeNestedInputSource(pGroup, pSource);
       if (code != TSDB_CODE_SUCCESS) {
         int32_t clearCode = stRealtimeGroupClearNestedInputOwner(pGroup, true, true, false);
@@ -14326,6 +17472,12 @@ static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, 
       return code;
     }
 
+    if (page && !atomic_load_8(&page->sealed)) {
+      atomic_store_8(&page->sealed, 1);
+      int64_t session =
+          atomic_load_8(&page->released) ? STREAM_TRIGGER_REALTIME_SESSIONID : STREAM_TRIGGER_HISTORY_SESSIONID;
+      return stTriggerTaskAddWaitSession(pGroup->pContext->pTask, session, taosGetTimestampNs());
+    }
     SWindowChainSubmitResult result = {
         .pAcceptedBatches = taosArrayInit(0, sizeof(SWindowChainAcceptedBatch)),
         .pCandidates = taosArrayInit(2, sizeof(SLeafEventCandidate)),
@@ -14336,6 +17488,12 @@ static int32_t stRealtimeGroupDrainNestedInputs(SSTriggerRealtimeGroup *pGroup, 
       code = stWindowChainAdvanceFrontier(pGroup->pWindowChain, pGroup->newThreshold, nowNs, result.pCandidates);
     }
 
+    if (!code && pGroup->alignedOrdinaryChain) {
+      SArray *silent = taosArrayInit(2, sizeof(SLeafEventCandidate));
+      code = silent ? stWindowChainAdvanceFrontier(pGroup->alignedOrdinaryChain, pGroup->newThreshold, nowNs, silent)
+                    : terrno;
+      taosArrayDestroyEx(silent, stDestroyLeafEventCandidate);
+    }
     SSTriggerRealtimeContext  *pContext = pGroup->pContext;
     SStreamNestedEffectContext effectContext = {
         .pTask = pContext->pTask,
@@ -14440,6 +17598,8 @@ static int32_t stRealtimeGroupClearNestedInputOwner(SSTriggerRealtimeGroup *pGro
   stRealtimeGroupClearNestedPendingEvents(&pGroup->pendingNestedEvents);
   stRealtimeGroupClearNestedPendingEvents(&pGroup->pendingNestedParWinEvents);
   stTriggerMergerPeerDestroy(&pGroup->pPeerMerger);
+  stWindowChainDestroy(&pGroup->alignedOrdinaryChain);
+  stUpdateAlignedWorkGroup(pGroup);
   stWindowChainDestroy(&pGroup->pWindowChain);
   if (pGroup->pContext != NULL && pGroup->pContext->pNestedCalcHeap != NULL) {
     int32_t syncCode = stRealtimeGroupUpdateExecTime(pGroup, taosGetTimestampNs(), true);
@@ -14454,19 +17614,23 @@ static int32_t stRealtimeGroupClearNestedInputOwner(SSTriggerRealtimeGroup *pGro
   return code;
 }
 
+static SWindowChainPolicy stNestedLivePolicy(SStreamTriggerTask *pTask, bool extraClose) {
+  return (SWindowChainPolicy){
+      .flushOnOuterClose = pTask->flushOnOuterClose,
+      .leafEventTypes = pTask->calcEventType | pTask->notifyEventType | (extraClose ? STRIGGER_EVENT_WINDOW_CLOSE : 0),
+      .leafNotifyEventTypes = pTask->notifyEventType,
+      .maxDelayNs = pTask->maxDelayNs,
+      .timezone = pTask->timezone,
+      .firstDayOfWeek = pTask->firstDayOfWeek,
+      .pEventStartCondCols = pTask->pStartCondCols,
+      .pEventEndCondCols = pTask->pEndCondCols};
+}
+
 static int32_t stRealtimeGroupInitNestedInputOwner(SSTriggerRealtimeGroup *pGroup, int64_t nowNs) {
-  int32_t             code = TSDB_CODE_SUCCESS;
-  int32_t             clearCode = TSDB_CODE_SUCCESS;
-  SStreamTriggerTask *pTask = pGroup->pContext->pTask;
-  SWindowChainPolicy  policy = {.flushOnOuterClose = pTask->flushOnOuterClose,
-                                .leafEventTypes = pTask->calcEventType | pTask->notifyEventType |
-                                                  (pGroup->recalcNextWindow ? STRIGGER_EVENT_WINDOW_CLOSE : 0),
-                                .leafNotifyEventTypes = pTask->notifyEventType,
-                                .maxDelayNs = pTask->maxDelayNs,
-                                .timezone = pTask->timezone,
-                                .firstDayOfWeek = pTask->firstDayOfWeek,
-                                .pEventStartCondCols = pTask->pStartCondCols,
-                                .pEventEndCondCols = pTask->pEndCondCols};
+  int32_t                  code = TSDB_CODE_SUCCESS;
+  int32_t                  clearCode = TSDB_CODE_SUCCESS;
+  SStreamTriggerTask      *pTask = pGroup->pContext->pTask;
+  const SWindowChainPolicy policy = stNestedLivePolicy(pTask, pGroup->recalcNextWindow);
 
   pGroup->nestedInputRegistered = false;
   pGroup->nestedInputFailed = false;
@@ -14839,6 +18003,7 @@ static int32_t stTriggerTaskContinueNestedReplayRound(SStreamTriggerTask *pTask,
                ? TSDB_CODE_SUCCESS
                : TSDB_CODE_INVALID_MSG;
   }
+  if (pContext->timeAlignWaiting && TD_DLIST_NELES(&pContext->groupsToCheck)) return 0;
   if (pRecovery->replayWalPending != 0 || pseudoInFlight != 0 || pContext->curReaderIdx != 0 ||
       TD_DLIST_NELES(&pContext->groupsToCheck) != 0 || listNEles(&pContext->retryPullReqs) != 0 ||
       pContext->pCalcReq != NULL || pContext->pNestedCalcMaterialization != NULL) {
@@ -15012,6 +18177,73 @@ static bool stTriggerTaskRecalcHasCutoverBlocker(SStreamTriggerTask *pTask) {
   return blocker;
 }
 
+static bool stAlignedWalInputsDrained(SSTriggerRealtimeContext *ctx, bool closing) {
+  if (ctx->metaPool.size || ctx->calcParamPool.size || ctx->nestedPendingParamCount) return false;
+  // Exclusive undeploy can discard unanswered probes. After a WAL reply the round may have
+  // changed a window, even if its scan cursor has not moved.
+  bool bound = ctx->status == STRIGGER_CONTEXT_DETERMINE_BOUND && ctx->timeAlignBoundsPending;
+  bool firstWal = ctx->status == STRIGGER_CONTEXT_FETCH_META && !ctx->timeAlignBoundsPending &&
+                  ctx->timeAlignWalReplyRound != ctx->timeAlignRound;
+  bool closingPoll =
+      closing && (bound || firstWal) && ctx->boundDetermined && ctx->timeAlignRound && !ctx->timeAlignRestart &&
+      !ctx->timeAlignRepairEnds && !ctx->pRecovery && !tSimpleHashGetSize(ctx->pOrdinaryBeforeInput) &&
+      !stTriggerTaskRealtimeContextHasCutoverBlocker(ctx, true) && !stTriggerTaskCalcHasCutoverBlocker(ctx->pTask);
+  int32_t               iter = 0;
+  SSTriggerWalProgress *reader = NULL;
+  while ((reader = tSimpleHashIterate(ctx->pReaderWalProgress, reader, &iter))) {
+    if (reader->lastScanVer != reader->doneVer || (closingPoll && reader->alignedDrainedVer)) return false;
+    if (!reader->pendingPulls) continue;
+    if (!closingPoll || reader->pendingPulls != 1 || reader->timeAlignRound != ctx->timeAlignRound) return false;
+    if (bound ? reader->pullType != STRIGGER_PULL_LAST_TS
+              : (reader->pullType != STRIGGER_PULL_WAL_META_DATA_NEW && reader->pullType != STRIGGER_PULL_WAL_META_NEW))
+      return false;
+  }
+  return true;
+}
+
+static bool stFinalAlignedFutureUpdate(const SSTriggerHistoryContext *history, const SAlignedChainUpdate *update) {
+  return update && !update->outstanding && update->future && update->future == history->alignedFuture &&
+         (!update->checked || (atomic_load_8(&update->future->cancelled) && !update->future->running));
+}
+
+// Undeploy owns the task exclusively. The history timer can still own an accepted terminal
+// handoff, or history can have retired while realtime is waiting to clear the hold.
+static bool stCanCheckpointFinishedFuture(SStreamTriggerTask *task, const SAlignedChainUpdate *update) {
+  SSTriggerHistoryContext  *history = task->pHistoryContext;
+  SSTriggerRealtimeContext *live = task->pRealtimeContext;
+  if (!history || !live || history->alignedFutureCalcError || task->activeAlignedRepairId || live->timeAlignRestart)
+    return false;
+  if (update) {
+    if (!update->checked || !stFinalAlignedFutureUpdate(history, update) || !history->alignedChainPosted ||
+        !history->pendingToFinish || !task->activeAlignedCheckpointWork)
+      return false;
+  } else if (history->status != STRIGGER_CONTEXT_WAIT_RECALC_REQ || history->alignedFuture ||
+             history->alignedRepairId || history->pendingToFinish || history->alignedChainPosted ||
+             task->activeAlignedCheckpointWork || task->recalcInProgress || atomic_load_32(&task->timeAlignRepairs)) {
+    return false;
+  }
+  if (task->nestedRecoveryError || IS_PATCHING_VITRUAL_TABLE(live) ||
+      atomic_load_32((int32_t *)&task->task.status) == STREAM_STATUS_FAILED ||
+      stTriggerTaskRealtimeContextHasCutoverBlocker(live, true) || stTriggerTaskHistoryHasCutoverBlocker(history) ||
+      stTriggerTaskCalcHasCutoverBlocker(task) || stTriggerTaskRecalcHasCutoverBlocker(task)) {
+    return false;
+  }
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **group = NULL;
+  while ((group = tSimpleHashIterate(live->pGroups, group, &iter))) {
+    if ((*group)->alignedRepairId || (*group)->alignedCatchupId ||
+        ((*group)->alignedFuture && (*group)->alignedFuture->running))
+      return false;
+  }
+  return stAlignedWalInputsDrained(live, true);
+}
+
+bool stTriggerTestCanCheckpointFinishedFuture(SStreamTriggerTask *task, SAlignedFutureRepair *future, bool checked,
+                                              bool outstanding) {
+  SAlignedChainUpdate update = {.future = future, .checked = checked, .outstanding = outstanding};
+  return stCanCheckpointFinishedFuture(task, future ? &update : NULL);
+}
+
 static int32_t stTriggerTaskValidateNestedRecoveryDrained(const SStreamTriggerTask *pTask,
                                                           SSTriggerNestedRecovery  *pRecovery) {
   if (pTask == NULL || pRecovery == NULL || pTask->pNestedRecovery != pRecovery ||
@@ -15123,6 +18355,14 @@ static int32_t stTriggerTaskTryNestedCutover(SStreamTriggerTask *pTask, SSTrigge
     return code;
   }
 
+  if (pShadow->timeAlignRound) {
+    bool waiting = false;
+    TAOS_CHECK_RETURN(stValidateTimeAlignRound(pTask, pShadow->sessionId, pShadow->timeAlignRound,
+                                               &pShadow->timeAlignValidation, &waiting));
+    if (waiting) return 0;
+    TAOS_CHECK_RETURN(stDropTimeAlignBoundary(pShadow, true));
+  }
+
   int32_t                  iter = 0;
   SSTriggerRealtimeGroup **ppGroup = tSimpleHashIterate(pShadow->pGroups, NULL, &iter);
   while (ppGroup != NULL) {
@@ -15162,6 +18402,8 @@ static int32_t stTriggerTaskTryNestedCutover(SStreamTriggerTask *pTask, SSTrigge
   }
 
   pLive->pCalcDataCache = NULL;
+  TSWAP(pShadow->pRecoveredOrdinary, pLive->pRecoveredOrdinary);
+  TSWAP(pShadow->pRecoveredAlignedRepairs, pLive->pRecoveredAlignedRepairs);
   pTask->pRealtimeBundle = pNewBundle;
   pTask->pRealtimeContext = pNewBundle->pContext;
   pRecovery->pShadowBundle = NULL;
@@ -15174,6 +18416,35 @@ static int32_t stTriggerTaskTryNestedCutover(SStreamTriggerTask *pTask, SSTrigge
   }
   stRealtimeBundleDestroy(&pOldBundle);
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t stTriggerTaskDriveNestedReplay(SStreamTriggerTask *task, SSTriggerNestedRecovery *recovery,
+                                              int64_t now) {
+  if (recovery->phase == STRIGGER_NESTED_RECOVERY_VALIDATE) return stTriggerTaskDriveNestedValidate(task);
+  if (!recovery->pShadowBundle || !recovery->pShadowBundle->pContext) return TSDB_CODE_INVALID_MSG;
+  SSTriggerRealtimeContext *shadow = recovery->pShadowBundle->pContext;
+  int32_t                   code = 0;
+  if (shadow->timeAlignRestart) {
+    // Older WAL and pseudo replies release their attempts before the replacement reuses the validated ledger.
+    if (atomic_load_32(&recovery->inFlight))
+      return stTriggerTaskAddWaitSession(task, shadow->sessionId,
+                                         now + STREAM_ACT_MIN_DELAY_MSEC * NANOSECOND_PER_MSEC);
+    stRealtimeBundleDestroy(&recovery->pShadowBundle);
+    code = stRealtimeBundleCreateShadow(task, &recovery->pShadowBundle);
+    if (!code) code = stTriggerTaskPrepareNestedReplay(recovery);
+    recovery->replayRoundActive = false;
+    recovery->replayWalPending = 0;
+  }
+  if (!code && recovery->phase == STRIGGER_NESTED_RECOVERY_REPLAY_PENDING) {
+    code = stTriggerTaskStartNestedReplay(task, recovery);
+  } else if (!code && recovery->phase == STRIGGER_NESTED_RECOVERY_REPLAY && !recovery->replayWalPending &&
+             shadow->timeAlignWaiting) {
+    shadow->timeAlignWaiting = false;
+    code = stRealtimeContextCheckAt(shadow, now);
+    if (!code) code = stTriggerTaskContinueNestedReplayRound(task, recovery);
+  }
+  if (!code) code = stTriggerTaskTryNestedCutover(task, recovery, now);
+  return code && task->pNestedRecovery == recovery ? stTriggerTaskAbortNestedRecovery(task, recovery, code) : code;
 }
 
 static int32_t stRealtimeGroupRetryNestedInputs(SSTriggerRealtimeGroup *pGroup) {
@@ -15465,7 +18736,8 @@ static int32_t stTriggerTaskProcNestedRecoveryPseudoRsp(SStreamTriggerTask *pTas
                                                         SRpcMsg *pRsp, int64_t nowNs) {
   SSTriggerNestedPseudoAttempt *pAttempt = pAhandle->param;
   SSTriggerNestedRecovery      *pRecovery = pAttempt->pRecovery;
-  if (pRecovery == NULL || atomic_load_8(&pRecovery->lifecycle) != STRIGGER_NESTED_RECOVERY_ACTIVE) {
+  if (pRecovery == NULL || atomic_load_8(&pRecovery->lifecycle) != STRIGGER_NESTED_RECOVERY_ACTIVE ||
+      (pRecovery->pShadowBundle && pRecovery->pShadowBundle->pContext->timeAlignRestart)) {
     pAttempt->handled = true;
     stTriggerTaskDetachNestedPseudoAttempt(pAhandle);
     return TSDB_CODE_SUCCESS;
@@ -15511,7 +18783,8 @@ static int32_t stTriggerTaskProcNestedRecoveryRsp(SStreamTriggerTask *pTask, SST
   SSTriggerNestedWalAttempt *pAttempt = pAhandle->param;
   SSTriggerNestedRecovery   *pRecovery = pAttempt->pRecovery;
   if (pRecovery == NULL || pTask->pNestedRecovery != pRecovery ||
-      atomic_load_8(&pRecovery->lifecycle) != STRIGGER_NESTED_RECOVERY_ACTIVE) {
+      atomic_load_8(&pRecovery->lifecycle) != STRIGGER_NESTED_RECOVERY_ACTIVE ||
+      (pRecovery->pShadowBundle && pRecovery->pShadowBundle->pContext->timeAlignRestart)) {
     pAttempt->handled = true;
     stTriggerTaskDetachNestedWalAttempt(pAhandle);
     stTriggerTaskSweepRetiredNestedRecoveries(pTask);
@@ -15728,10 +19001,15 @@ static int32_t stTriggerTaskRecordManualCallbackFailure(SStreamTriggerTask *pTas
   return stTriggerTaskHandleManualAttemptOutcome(pTask, pReq, &outcome);
 }
 
+static bool stHistoryIndexPull(int32_t type) {
+  return type == STRIGGER_PULL_FIRST_TS || type == STRIGGER_PULL_TSDB_META || type == STRIGGER_PULL_TSDB_META_NEXT;
+}
+
 int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t *pErrTaskId) {
   int32_t             code = 0;
   int32_t             lino = 0;
   SStreamTriggerTask *pTask = (SStreamTriggerTask *)pStreamTask;
+  bool                missingHistoryIndexReader = false;
   bool                localFailure = false;
   bool                retryScheduled = false;
   bool                failureRecordedByChild = false;
@@ -15747,6 +19025,57 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     SSTriggerAHandle *pAhandle = ahandle->param;
     QUERY_CHECK_NULL(pAhandle, code, lino, _end, TSDB_CODE_INVALID_MSG);
     QUERY_CHECK_NULL(pAhandle->param, code, lino, _end, TSDB_CODE_INVALID_MSG);
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE) {
+      if (pAhandle->streamId == pTask->task.streamId && pAhandle->taskId == pTask->task.taskId)
+        code = stResultReaderReply(pTask, pAhandle, pRsp->code);
+      goto _end;
+    }
+    if (pAhandle->timeAlignRound && pAhandle->paramType != STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE &&
+        ((pAhandle->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID && pTask->pRealtimeContext &&
+          pTask->pRealtimeContext->timeAlignRestart) ||
+         (pAhandle->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pTask->pHistoryContext &&
+          pTask->pHistoryContext->timeAlignRestart)))
+      goto _end;
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_RANGE) {
+      if (pAhandle->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pAhandle->streamId == pTask->task.streamId &&
+          pAhandle->taskId == pTask->task.taskId)
+        code = stAlignedWalRangeRsp(pTask->pHistoryContext, pAhandle->param, pRsp);
+      goto _end;
+    }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_CHECK) {
+      if (pAhandle->streamId != pTask->task.streamId || pAhandle->taskId != pTask->task.taskId ||
+          pAhandle->sessionId != STREAM_TRIGGER_REALTIME_SESSIONID)
+        goto _end;
+      code = stTimeAlignWalCheckRsp(pTask, pAhandle->param, pRsp, nowNs, &failureRecordedByChild);
+      localFailure = code && !failureRecordedByChild;
+      goto _end;
+    }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_VALIDATE) {
+      if (pAhandle->streamId == pTask->task.streamId && pAhandle->taskId == pTask->task.taskId)
+        code = stTimeAlignValidationRsp(pTask, pAhandle, pRsp->code);
+      goto _end;
+    }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BODY) {
+      if (pAhandle->streamId != pTask->task.streamId || pAhandle->taskId != pTask->task.taskId) goto _end;
+      code = stTimeAlignBodyRsp(pTask, pAhandle, pRsp, pErrTaskId);
+      goto _end;
+    }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_SEED) {
+      const STimeAlignSeedRoute *route = pAhandle->param;
+      if (pAhandle->streamId != pTask->task.streamId || pAhandle->taskId != pTask->task.taskId ||
+          pAhandle->sessionId != route->key.session)
+        goto _end;
+      code = stTimeAlignSeedRsp(pTask, pAhandle, pRsp);
+      goto _end;
+    }
+    if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE ||
+        pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND) {
+      if (pAhandle->streamId != pTask->task.streamId || pAhandle->taskId != pTask->task.taskId) goto _end;
+      code = pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_CLOSE
+                 ? stTimeAlignCloseRsp(pTask, pAhandle->sessionId, *(const uint64_t *)pAhandle->param, pRsp->code)
+                 : stTimeAlignBoundaryRsp(pTask, pAhandle, pRsp);
+      goto _end;
+    }
     if (pAhandle->paramType == STRIGGER_AHANDLE_PARAM_NESTED_INPUT_ROUTE) {
       SStreamNestedInputRoute *pRoute = pAhandle->param;
       QUERY_CHECK_CONDITION(pAhandle->streamId == pTask->task.streamId && pAhandle->taskId == pTask->task.taskId &&
@@ -15779,6 +19108,53 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     }
     QUERY_CHECK_CONDITION(pAhandle->paramType == STRIGGER_AHANDLE_PARAM_PULL_REQUEST, code, lino, _end,
                           TSDB_CODE_INVALID_MSG);
+    if (pAhandle->timeAlignRound && pAhandle->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
+      SSTriggerRealtimeContext *ctx = pTask->pRealtimeContext;
+      if (!ctx || ctx->timeAlignRestart || ctx->timeAlignRound != pAhandle->timeAlignRound) goto _end;
+    }
+    if (pAhandle->timeAlignRound && pAhandle->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID) {
+      SSTriggerHistoryContext *ctx = pTask->pHistoryContext;
+      if (!ctx || ctx->timeAlignRestart || ctx->timeAlignRound != pAhandle->timeAlignRound ||
+          pAhandle->streamId != pTask->task.streamId || pAhandle->taskId != pTask->task.taskId)
+        goto _end;
+      if (stHistoryIndexPull(pAhandle->requestType)) {
+        int32_t                vgId = (int32_t)pAhandle->requestGid;
+        SSTriggerTsdbProgress *progress = tSimpleHashGet(ctx->pReaderTsdbProgress, &vgId, sizeof(vgId));
+        if (!progress || !progress->timeAlignIndexRequest ||
+            progress->timeAlignIndexRequest != (uint64_t)pAhandle->requestGeneration ||
+            pAhandle->param != &progress->pullReq.base || pAhandle->requestType != progress->pullReq.base.type)
+          goto _end;
+        progress->timeAlignIndexRequest = 0;
+        if ((pRsp->code == TSDB_CODE_STREAM_NO_CONTEXT || pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST) &&
+            (!pAhandle->manualAttempt.chainId ||
+             (stTriggerTaskIsCurrentManualResponse(pTask, pAhandle) && !ctx->pManualRecalcRequest->retryScheduled))) {
+          missingHistoryIndexReader = pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST;
+          code = stEndTimeAlignScan(pTask, ctx->sessionId, pRsp->code);
+          goto _end;
+        }
+      }
+      if (pRsp->code == TSDB_CODE_STREAM_EXEC_CANCELLED) {
+        code = stCancelHistoryTimeAlignRound(ctx);
+        goto _end;
+      }
+    }
+    if (pAhandle->requestGeneration && (pAhandle->requestType == STRIGGER_PULL_WAL_META_NEW ||
+                                        pAhandle->requestType == STRIGGER_PULL_WAL_META_DATA_NEW ||
+                                        pAhandle->requestType == STRIGGER_PULL_WAL_DATA_NEW)) {
+      int32_t               vgId = (int32_t)pAhandle->requestGid;
+      SSTriggerWalProgress *progress =
+          !pTask->pRealtimeContext ? NULL
+                                   : tSimpleHashGet(pTask->pRealtimeContext->pReaderWalProgress, &vgId, sizeof(vgId));
+      if (!progress || !progress->pendingPulls || !progress->timeAlignRound ||
+          progress->pullReq.base.timeAlignWalRequest != (uint64_t)pAhandle->requestGeneration ||
+          &progress->pullReq.base != pAhandle->param || progress->pullReq.base.type != pAhandle->requestType)
+        goto _end;
+      if (progress->timeAlignWalCheck.metaReply) goto _end;
+      if (pRsp->code == TSDB_CODE_STREAM_EXEC_CANCELLED) {
+        code = stCancelRealtimeTimeAlignRound(pTask->pRealtimeContext);
+        goto _end;
+      }
+    }
     SSTriggerPullRequest *pReq = pAhandle->param;
     debugSessionId = pReq->sessionId;
     if (pAhandle->manualAttempt.chainId != 0) {
@@ -15901,16 +19277,29 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
       QUERY_CHECK_CONDITION(pReq->sessionId == pAhandle->sessionId, code, lino, _end, TSDB_CODE_INVALID_MSG);
     }
     debugSessionId = pReq->sessionId;
+    if (pAhandle->timeAlignRound && ((pAhandle->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID &&
+                                      pTask->pHistoryContext && pTask->pHistoryContext->timeAlignRestart) ||
+                                     (pAhandle->sessionId == STREAM_TRIGGER_REALTIME_SESSIONID &&
+                                      pTask->pRealtimeContext && pTask->pRealtimeContext->timeAlignRestart))) {
+      code = stTriggerTaskReleaseRequest(pTask, &pReq, false);
+      if (!code) code = stTriggerTaskAddWaitSession(pTask, pAhandle->sessionId, taosGetTimestampNs());
+      goto _end;
+    }
     bool completed = (pRsp->code == TSDB_CODE_SUCCESS);
+    bool writerBusy = pRsp->code == TSDB_CODE_STREAM_INPUTQ_FULL && pReq->resultAdmission.roundId != 0;
     if (pRsp->code == TSDB_CODE_MND_STREAM_TABLE_NOT_CREATE &&
         pAhandle->sessionId == STREAM_TRIGGER_HISTORY_SESSIONID && pAhandle->manualAttempt.chainId != 0) {
       taosArrayClearEx(pReq->params, tDestroySSTriggerCalcParam);
       pRsp->code = TSDB_CODE_SUCCESS;
     }
-    if (pAhandle->manualAttempt.chainId != 0) {
-      bool                    current = stTriggerTaskIsCurrentManualResponse(pTask, pAhandle);
-      SSTriggerRecalcRequest *pManualReq = current ? pTask->pHistoryContext->pManualRecalcRequest : NULL;
-      bool                    draining = current && pManualReq->retryScheduled;
+    bool manual = pAhandle->manualAttempt.chainId != 0;
+    bool current = manual && stTriggerTaskIsCurrentManualResponse(pTask, pAhandle);
+    bool draining = current && pTask->pHistoryContext->pManualRecalcRequest->retryScheduled;
+    if (writerBusy && (!manual || (current && !draining))) {
+      pRsp->code = stTriggerTaskScheduleCalcRetry(pTask, pReq->sessionId, pReq);
+      if (!pRsp->code) goto _end;
+    }
+    if (manual) {
       if (!current || pRsp->code != TSDB_CODE_SUCCESS || draining) {
         code = stTriggerTaskDrainManualResponse(pTask, pAhandle, false, pRsp->code);
         if (code == TSDB_CODE_SUCCESS && current) code = stTriggerTaskReleaseRequest(pTask, &pReq, completed);
@@ -15966,6 +19355,7 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
     switch (req.type) {
       case STRIGGER_CTRL_CALC_RETRY:
       case STRIGGER_CTRL_START: {
+        if (req.type == STRIGGER_CTRL_CALC_RETRY) stWakeResultChecks(pTask, req.sessionId);
         if (atomic_load_32((int32_t *)&pStreamTask->status) == STREAM_STATUS_FAILED) {
           code = atomic_load_32(&pStreamTask->errorCode);
           QUERY_CHECK_CONDITION(code != TSDB_CODE_SUCCESS, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -15974,6 +19364,11 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
         if (req.sessionId == STREAM_TRIGGER_REALTIME_SESSIONID) {
           while (atomic_load_8(&pTask->realtimeStarted) == 0) {
             taosMsleep(5);
+          }
+          if (pTask->pRealtimeContext && pTask->pRealtimeContext->timeAlignRestart) {
+            code = stRestartRealtimeTimeAlignRound(pTask);
+            QUERY_CHECK_CODE(code, lino, _end);
+            break;
           }
           if (req.type == STRIGGER_CTRL_CALC_RETRY) {
             // A retry wake must not repeat pending pulls or ordinary timer waits.
@@ -16063,12 +19458,25 @@ int32_t stTriggerTaskProcessRsp(SStreamTask *pStreamTask, SRpcMsg *pRsp, int64_t
 
 _end:
   if (code != TSDB_CODE_SUCCESS) {
+    if (pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP && debugSessionId == STREAM_TRIGGER_REALTIME_SESSIONID &&
+        pTask->pRealtimeContext && pTask->pRealtimeContext->nestedWindowPlan &&
+        pTask->pRealtimeContext->timeAlignRound) {
+      stFinishDrainedAlignedWal(pTask->pRealtimeContext, false);
+    }
     if (!retryScheduled && !failureRecordedByChild &&
         (pRsp->msgType == TDMT_STREAM_TRIGGER_PULL_RSP || pRsp->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) &&
         pRsp->info.ahandle != NULL) {
       SMsgSendInfo     *pSendInfo = pRsp->info.ahandle;
       SSTriggerAHandle *pAhandle = pSendInfo->param;
-      if (pAhandle != NULL && pAhandle->manualAttempt.chainId != 0) {
+      // A current missing Reader must reach the worker, including during a manual scan or destination validation.
+      bool missingReader =
+          pAhandle && pRsp->code == TSDB_CODE_STREAM_TASK_NOT_EXIST && code == pRsp->code &&
+          (missingHistoryIndexReader || pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_SEED ||
+           pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BODY ||
+           pAhandle->paramType == STRIGGER_AHANDLE_PARAM_RESULT_VALIDATE);
+      if (pAhandle != NULL && pAhandle->manualAttempt.chainId != 0 && !missingReader &&
+          pAhandle->paramType != STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND &&
+          !(pTask->pHistoryContext && pTask->pHistoryContext->timeAlignValidation.error == code)) {
         int32_t trackerCode = stTriggerTaskRecordManualCallbackFailure(pTask, pAhandle, code);
         if (trackerCode == TSDB_CODE_SUCCESS) {
           code = TSDB_CODE_SUCCESS;
@@ -16084,7 +19492,8 @@ _end:
           pRsp->info.ahandle != NULL) {
         SMsgSendInfo     *pSendInfo = pRsp->info.ahandle;
         SSTriggerAHandle *pAhandle = pSendInfo->param;
-        if (pAhandle != NULL && pAhandle->manualAttempt.chainId == 0 && pAhandle->progressStepId != 0) {
+        if (!missingHistoryIndexReader && pAhandle != NULL && pAhandle->manualAttempt.chainId == 0 &&
+            pAhandle->progressStepId != 0) {
           int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pAhandle->progressStepId, code);
           if (trackerCode != TSDB_CODE_SUCCESS) {
             ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pAhandle->progressStepId,
@@ -17041,9 +20450,14 @@ int32_t stTriggerTaskGetDelay(SStreamTask *pStreamTask, int64_t *pDelay, bool *p
 
 static void stRealtimeContextDestroyWalProgress(void *ptr) {
   SSTriggerWalProgress *pProgress = ptr;
-  if (pProgress == NULL) {
-    return;
+  stClearTimeAlignWalCheck(pProgress);
+  if (pProgress == NULL) return;
+  for (int side = 0; side < 2; ++side) {
+    taosArrayDestroy(pProgress->physicalAliases[side]);
+    taosArrayDestroy(pProgress->walLogicalRanges[side]);
+    taosArrayDestroy(pProgress->physicalWidths[side]);
   }
+  taosMemoryFreeClear(pProgress->timeAlignBoundRsp);
   if (pProgress->reqCids != NULL) {
     taosArrayDestroy(pProgress->reqCids);
     pProgress->reqCids = NULL;
@@ -18228,6 +21642,116 @@ _end:
   return code;
 }
 
+// A table can rebind twice before its next heartbeat. Drop superseded columns at each patch.
+static int32_t stPruneTimeAlignBindings(SSTriggerRealtimeContext *ctx) {
+  int32_t code = 0, pos = 0;
+  void   *patch = NULL;
+  while ((patch = tSimpleHashIterate(ctx->patchContext.pPatchItems, patch, &pos))) {
+    uint64_t uid;
+    memcpy(&uid, tSimpleHashGetKey(patch, NULL), sizeof(uid));
+    const SSTriggerVirtTableInfo *table = tSimpleHashGet(ctx->pTask->pVirtTableInfos, &uid, sizeof(uid));
+    SSHashObj                    *bindings = NULL;
+    int32_t                       groups = 0;
+    SSTriggerRealtimeGroup      **group;
+    void                         *entry = NULL;
+    while ((entry = tSimpleHashIterate(ctx->pGroups, entry, &groups))) {
+      group = entry;
+      STriggerTimeAlignGroup *align = (*group)->pTimeAlignStates;
+      if (!align ||
+          (!tSimpleHashGet(align->inputs, &uid, sizeof(uid)) && !tSimpleHashGet(align->previous, &uid, sizeof(uid))))
+        continue;
+      STimeAlignGroupKey key = {ctx->sessionId, (*group)->gid, uid};
+      code = stRetireTimeAlignTableSeed(ctx->pTask, &key);
+      if (code) break;
+      if (!stTriggerTaskMatchVirtTableInfo(table, key.gid)) {
+        TAOS_UNUSED(tSimpleHashRemove(align->previous, &uid, sizeof(uid)));
+        continue;
+      }
+      SArray **previous = tSimpleHashGet(align->previous, &uid, sizeof(uid));
+      if (!previous) continue;
+      if (!bindings) {
+        bindings = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT));
+        if (!bindings) {
+          code = terrno;
+          break;
+        }
+        for (size_t j = 0; j < taosArrayGetSize(table->pTrigColRefs) && !code; ++j) {
+          const SSTriggerTableColRef *source = taosArrayGet(table->pTrigColRefs, j);
+          const SSTriggerWalProgress *reader =
+              tSimpleHashGet(ctx->pReaderWalProgress, &source->otbVgId, sizeof(source->otbVgId));
+          if (!reader || !ctx->pTask->pVirDataBlock) continue;
+          for (size_t k = 0; k < taosArrayGetSize(source->pColMatches); ++k) {
+            const SSTriggerColMatch *match = taosArrayGet(source->pColMatches, k);
+            const SColumnInfoData   *col = taosArrayGet(ctx->pTask->pVirDataBlock->pDataBlock, match->vtbSlotId);
+            if (!col || tSimpleHashGet(bindings, &col->info.colId, sizeof(col->info.colId))) continue;
+            STimeAlignPhysicalBinding binding = {reader->pTaskAddr->taskId, source->otbUid, match->otbColId};
+            code = tSimpleHashPut(bindings, &col->info.colId, sizeof(col->info.colId), &binding, sizeof(binding));
+            if (code) break;
+          }
+        }
+        if (code) break;
+      }
+      stTimeAlignRetainColumnBindings(*previous, bindings);
+    }
+    tSimpleHashCleanup(bindings);
+    if (code) return code;
+  }
+  return 0;
+}
+
+// A table-change WAL record can arrive while another vnode already supplied trigger
+// slices. A pending group resumes under the published binding after its old cut drains.
+static bool stTimeAlignWalSourceFeedsGroup(const SStreamTriggerTask *task, const SSTriggerReaderDataKey *key,
+                                           int64_t gid, const int64_t *virtualUid) {
+  const SSTriggerOrigTableInfo *source =
+      tSimpleHashGet(task->pOrigTableInfos, &key->logicalUid, sizeof(key->logicalUid));
+  if (!source) {
+    // Nested virtual scans can report the virtual table itself as the input.
+    const SSTriggerVirtTableInfo *table =
+        tSimpleHashGet(task->pVirtTableInfos, &key->logicalUid, sizeof(key->logicalUid));
+    return (!virtualUid || *virtualUid == key->logicalUid) && stTriggerTaskMatchVirtTableInfo(table, gid);
+  }
+  if (virtualUid) {
+    const SSTriggerVirtTableInfo *table = tSimpleHashGet(task->pVirtTableInfos, virtualUid, sizeof(*virtualUid));
+    if (!stTriggerTaskMatchVirtTableInfo(table, gid)) return false;
+    for (size_t i = 0; i < taosArrayGetSize(table->pTrigColRefs); ++i) {
+      const SSTriggerTableColRef *ref = taosArrayGet(table->pTrigColRefs, i);
+      if (ref->otbUid == key->logicalUid) return true;
+    }
+    return false;
+  }
+  for (size_t i = 0; i < taosArrayGetSize(source->pVtbUids); ++i) {
+    const int64_t                *uid = taosArrayGet(source->pVtbUids, i);
+    const SSTriggerVirtTableInfo *table = tSimpleHashGet(task->pVirtTableInfos, uid, sizeof(*uid));
+    if (stTriggerTaskMatchVirtTableInfo(table, gid)) return true;
+  }
+  return false;
+}
+
+static void stPruneTimeAlignWalInputs(SSTriggerRealtimeContext *ctx) {
+  for (SSTriggerRealtimeGroup *group = TD_DLIST_HEAD(&ctx->groupsToCheck); group; group = TD_DLIST_NODE_NEXT(group)) {
+    SObjListIter it = {0};
+    taosObjListInitIter(&group->tableUids, &it, TOBJLIST_ITER_FORWARD);
+    SSTriggerVirtualTableSliceRef *ref;
+    while ((ref = taosObjListIterNext(&it))) {
+      if (!tSimpleHashGet(ctx->patchContext.pPatchItems, &ref->virtualUid, sizeof(ref->virtualUid))) continue;
+      // Re-enroll from the published bindings, including changed columns on a source that still feeds this group.
+      group->seedAdmission = (STimeAlignSeedAdmission){0};
+      if (stTimeAlignWalSourceFeedsGroup(ctx->pTask, &ref->readerKey, group->gid, &ref->virtualUid)) continue;
+      TAOS_UNUSED(tSimpleHashRemove(group->pSeenTableUids, ref, sizeof(*ref)));
+      taosObjListPopObj(&group->tableUids, ref);
+    }
+    // WAL versions are group-owned. Another child in the same group may still use this source.
+    int32_t pos = 0;
+    void   *metas = NULL;
+    while ((metas = tSimpleHashIterate(group->pWalMetas, metas, &pos))) {
+      const SSTriggerReaderDataKey *key = tSimpleHashGetKey(metas, NULL);
+      if (!stTimeAlignWalSourceFeedsGroup(ctx->pTask, key, group->gid, NULL))
+        TAOS_UNUSED(tSimpleHashIterateRemove(group->pWalMetas, key, sizeof(*key), &metas, &pos));
+    }
+  }
+}
+
 static int32_t stRealtimeContextFinishVtablePatch(SSTriggerRealtimeContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
@@ -18247,6 +21771,14 @@ static int32_t stRealtimeContextFinishVtablePatch(SSTriggerRealtimeContext *pCon
     ST_TASK_DLOG("finished virtual table patch with pending realtime groups:%" PRId64,
                  (int64_t)TD_DLIST_NELES(&pContext->groupsToCheck));
   } else {
+    pContext->status = STRIGGER_CONTEXT_IDLE;
+  }
+  if (stUsesTimeAlignRows(pTask)) {
+    code = stRecheckAlignedBindings(pContext);
+    QUERY_CHECK_CODE(code, lino, _end);
+    code = stPruneTimeAlignBindings(pContext);
+    QUERY_CHECK_CODE(code, lino, _end);
+    stPruneTimeAlignWalInputs(pContext);
     pContext->status = STRIGGER_CONTEXT_IDLE;
   }
   stRealtimeContextResetPatchContext(pContext);
@@ -18465,7 +21997,8 @@ static int32_t stAppendNestedEventStartProjectionFromString(SArray **ppProjectio
   return code;
 }
 
-static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan *pPlan, SArray **ppProjections) {
+static int32_t stTriggerTaskBuildNestedInputProjections(SStreamWindowPlan *pPlan, int32_t nextAlignedSlot,
+                                                        SArray **ppProjections) {
   if (pPlan == NULL || pPlan->pLayers == NULL || ppProjections == NULL || *ppProjections != NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -18474,15 +22007,17 @@ static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan 
   SArray *pProjections = NULL;
 
   for (int32_t layerIndex = 0; layerIndex < taosArrayGetSize(pPlan->pLayers); ++layerIndex) {
-    const SStreamWindowLayerSpec *pLayer = taosArrayGet(pPlan->pLayers, layerIndex);
+    SStreamWindowLayerSpec *pLayer = taosArrayGet(pPlan->pLayers, layerIndex);
     if (pLayer == NULL) {
       code = TSDB_CODE_INVALID_PARA;
       break;
     }
     if (pLayer->triggerType == WINDOW_TYPE_EVENT) {
+      if (nextAlignedSlot >= 0) pLayer->input.eventStartSlotId = nextAlignedSlot++;
       code = stAppendNestedEventStartProjectionFromString(&pProjections, pLayer->input.eventStartSlotId,
                                                           pLayer->trigger.event.startCond);
       if (code == TSDB_CODE_SUCCESS && pLayer->trigger.event.endCond != NULL) {
+        if (nextAlignedSlot >= 0) pLayer->input.eventEndSlotId = nextAlignedSlot++;
         code = stAppendNestedInputProjectionFromString(&pProjections, pLayer->input.eventEndSlotId,
                                                        pLayer->trigger.event.endCond);
       }
@@ -18503,8 +22038,9 @@ static int32_t stTriggerTaskBuildNestedInputProjections(const SStreamWindowPlan 
         SNode *pClone = NULL;
         code = nodesCloneNode(pExpr, &pClone);
         if (code == TSDB_CODE_SUCCESS) {
-          const int16_t slotId = *(const int16_t *)taosArrayGet(pLayer->input.pConditionSlotIds, exprIndex);
-          code = stAppendNestedInputProjection(&pProjections, slotId, &pClone);
+          int16_t *slotId = taosArrayGet(pLayer->input.pConditionSlotIds, exprIndex);
+          if (nextAlignedSlot >= 0) *slotId = nextAlignedSlot++;
+          code = stAppendNestedInputProjection(&pProjections, *slotId, &pClone);
         }
         nodesDestroyNode(pClone);
         if (code != TSDB_CODE_SUCCESS) break;
@@ -18781,7 +22317,8 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
   } else if (pTask->triggerType == STREAM_TRIGGER_PERIOD) {
     needTrigData = false;
   } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    needTrigData = (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
+    needTrigData =
+        pTask->pTimeAlign != NULL || (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   }
   if (nested) {
     bool needRangeAwareWal = !pTask->isVirtualTable && !STREAM_IS_REF_EXT_SOURCE(pTask->task.flags) &&
@@ -18978,8 +22515,9 @@ static int32_t stRealtimeContextInit(SSTriggerRealtimeContext *pContext, SStream
     if (!(nested && mode == STRIGGER_REALTIME_CONTEXT_SHADOW)) {
       pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerNewVtableMerger));
       QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
-      code = stNewVtableMergerInit(pContext->pMerger, pTask, pTask->pVirtTrigBlock,
-                                   TARRAY_DATA(pTask->pTrigIsPseudoCol), pTask->triggerFilter);
+      code =
+          stNewVtableMergerInit(pContext->pMerger, pTask, pTask->pVirtTrigBlock, TARRAY_DATA(pTask->pTrigIsPseudoCol),
+                                pTask->pTimeAlign ? NULL : pTask->triggerFilter);
       QUERY_CHECK_CODE(code, lino, _end);
     }
   } else {
@@ -19066,6 +22604,9 @@ static void stRealtimeContextDestroy(void *ptr) {
   }
 
   SSTriggerRealtimeContext *pContext = *ppContext;
+  stClearResultChecks(&pContext->resultChecks);
+  tSimpleHashCleanup(pContext->timeAlignRepairEnds);
+  pContext->timeAlignRepairEnds = NULL;
   SStreamTriggerTask       *pTask = pContext->pTask;
   stTriggerTaskClearRealtimeDebugGauges(pTask);
   stDestroyRealtimeNestedCalcMaterialization(&pContext->pNestedCalcMaterialization);
@@ -19197,6 +22738,12 @@ static void stRealtimeContextDestroy(void *ptr) {
     tSimpleHashCleanup(pContext->pGroups);
     pContext->pGroups = NULL;
   }
+  tSimpleHashCleanup(pContext->pOrdinaryBeforeInput);
+  pContext->pOrdinaryBeforeInput = NULL;
+  tSimpleHashCleanup(pContext->pRecoveredOrdinary);
+  pContext->pRecoveredOrdinary = NULL;
+  tSimpleHashCleanup(pContext->pRecoveredAlignedRepairs);
+  pContext->pRecoveredAlignedRepairs = NULL;
   tSimpleHashCleanup(pContext->pRecoveredPrevWindows);
   pContext->pRecoveredPrevWindows = NULL;
 
@@ -19531,6 +23078,14 @@ static void stRealtimeContextReleaseGroupColValuePull(SSTriggerWalProgress *pPro
   pProgress->groupColValuePullGid = 0;
 }
 
+static void stSetTimeAlignWalRoute(SMsgSendInfo *info, const SSTriggerPullRequest *req, int32_t vgId) {
+  if (!req->timeAlignWalRound) return;
+  SSTriggerAHandle *route = info->param;
+  route->requestType = req->type;
+  route->requestGeneration = req->timeAlignWalRequest;
+  route->requestGid = vgId;
+}
+
 static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, ESTriggerPullType type) {
   int32_t               code = TSDB_CODE_SUCCESS;
   int32_t               lino = 0;
@@ -19569,6 +23124,7 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       pProgress = tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       QUERY_CHECK_CONDITION(pProgress->pendingPulls == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+      if (stUsesTimeAlignRows(pTask)) return stOpenTimeAlignBoundary(pContext, pProgress);
       break;
     }
 
@@ -19657,6 +23213,15 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       SSTriggerWalMetaDataNewRequest *pReq = &pProgress->pullReq.walMetaDataNewReq;
       pReq->lastVer = pProgress->lastScanVer;
       pReq->endVer = 0;
+      if (pProgress->timeAlignRound && pContext->nestedWindowPlan && !pContext->suppressOutput &&
+          (pTask->triggerType == STREAM_TRIGGER_STATE || pTask->triggerType == STREAM_TRIGGER_EVENT)) {
+        taosRLockLatch(&pTask->prevWindowUpdateLock);
+        SAlignedChainUpdate *update = pTask->pAlignedChainUpdate;
+        if (update && update->catchup && !update->checked && tSimpleHashGetSize(pTask->pVirtTableGidIndex) <= 1) {
+          pReq->endVer = stAlignedOrdinaryEndVer(update, pReader, pReq->lastVer);
+        }
+        taosRUnLockLatch(&pTask->prevWindowUpdateLock);
+      }
       pReq->withGroupColVals = stTriggerTaskNeedsDurationTags(pTask) ||
                                BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG);
       pReq->requestId = pReq->withGroupColVals ? (uint64_t)tGenIdPI64() : 0;
@@ -19847,6 +23412,13 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       QUERY_CHECK_CONDITION(pProgress->pendingPulls == 0, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
       SSTriggerSetTableRequest *pReq = &pProgress->pullReq.setTableReq;
+      pReq->timeAlignPrecision = pTask->pTimeAlign ? pTask->pTimeAlign->precision + 1 : 0;
+      pReq->physicalWalKeys = pTask->pTimeAlign && pTask->triggerType != STREAM_TRIGGER_PERIOD;
+      pReq->physicalWalCells = pReq->physicalWalKeys;
+      pReq->physicalWidths[0] = pProgress->physicalWidths[0];
+      pReq->physicalWidths[1] = pProgress->physicalWidths[1];
+      pReq->physicalAliases[0] = pProgress->physicalAliases[0];
+      pReq->physicalAliases[1] = pProgress->physicalAliases[1];
       pReq->uidInfoTrigger = pProgress->uidInfoTrigger;
       pReq->uidInfoCalc = pProgress->uidInfoCalc;
       tSimpleHashClear(pReq->uidInfoTrigger);
@@ -19945,10 +23517,18 @@ static int32_t stRealtimeContextSendPullReq(SSTriggerRealtimeContext *pContext, 
   pReq->type = type;
   pReq->readerTaskId = pReader->taskId;
 
+  pReq->timeAlignWalRound = 0;
+  if (pProgress->timeAlignRound && (type == STRIGGER_PULL_WAL_META_NEW || type == STRIGGER_PULL_WAL_META_DATA_NEW ||
+                                    type == STRIGGER_PULL_WAL_DATA_NEW)) {
+    pReq->timeAlignWalRound = pProgress->timeAlignRound;
+    pReq->timeAlignWalRequest = stNextTimeAlignId(pTask);
+  }
+
   // serialize and send request
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
                                    &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
+  stSetTimeAlignWalRoute(msg.info.ahandle, pReq, pReader->nodeId);
   ST_TASK_DLOG("trigger pull req ahandle %p allocated", msg.info.ahandle);
 
   msg.contLen = tSerializeSTriggerPullRequest(NULL, 0, pReq);
@@ -20394,7 +23974,8 @@ static int64_t stRealtimeGroupNestedPendingDeadline(const SSTriggerRealtimeGroup
 
 static int64_t stRealtimeGroupNestedDeadline(const SSTriggerRealtimeGroup *pGroup, int64_t now) {
   int64_t deadline = stRealtimeGroupNestedPendingDeadline(pGroup, now);
-  if (pGroup->pWindowChain != NULL) {
+  if (pGroup->pWindowChain != NULL && !pGroup->alignedCatchupId &&
+      !(pGroup->alignedRepairId && stHasReadyAlignedRepair(pGroup->pContext->pTask, pGroup->alignedRepairId))) {
     deadline = TMIN(deadline, stWindowChainNextDelayDeadline(pGroup->pWindowChain));
   }
   return deadline;
@@ -20784,8 +24365,8 @@ static int32_t stTriggerTaskSendVtableCalcRequest(SStreamTriggerTask *pTask, int
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t stTriggerTaskRetryVtableCalcRequest(SStreamTriggerTask *pTask, int64_t sessionId,
-                                                   SSTriggerCalcRequest *pReq) {
+static int32_t stTriggerTaskScheduleCalcRetry(SStreamTriggerTask *pTask, int64_t sessionId,
+                                              SSTriggerCalcRequest *pReq) {
   uint64_t generation = 0;
   if (!stTriggerTaskFindCalcRequestGeneration(pTask, pReq, &generation) || generation == 0) {
     return TSDB_CODE_INVALID_PARA;
@@ -20793,7 +24374,7 @@ static int32_t stTriggerTaskRetryVtableCalcRequest(SStreamTriggerTask *pTask, in
   SSTriggerCalcSlot *pSlot = (SSTriggerCalcSlot *)pReq;
   if (pSlot->vtableRetryAtMs != 0) return TSDB_CODE_SUCCESS;
 
-  // Keep the logical request and execId: the runner owns the original redeploy timeout.
+  // A delayed dispatch keeps its logical request, execId and progress accounting.
   int32_t delayMs =
       pSlot->vtableRetryDelayMs == 0 ? STREAM_TRIGGER_CHECK_INTERVAL_MS : TMIN(pSlot->vtableRetryDelayMs * 2, 5000);
   int64_t retryAtMs = taosGetMonoTimestampMs() + delayMs;
@@ -20820,10 +24401,23 @@ static int32_t stTriggerTaskResumeVtableCalcRequests(SStreamTriggerTask *pTask, 
       taosWUnLockLatch(&pTask->calcPoolLock);
       if (!due) continue;
       SSTriggerCalcRequest *pReq = &pSlot->req;
-      int32_t               code = stTriggerTaskSendVtableCalcRequest(pTask, sessionId, pReq);
+      SSTriggerAHandle      manual = {.manualAttempt = pReq->manualAttempt,
+                                      .progressStepId = pReq->progressStepId,
+                                      .progressRequestToken = pReq->progressRequestToken};
+      bool                  isManual = manual.manualAttempt.chainId != 0;
+      bool                  drain = isManual && (!stTriggerTaskIsCurrentManualResponse(pTask, &manual) ||
+                                pTask->pHistoryContext->pManualRecalcRequest->retryScheduled);
+      int32_t code = drain ? TSDB_CODE_SUCCESS : stTriggerTaskSendVtableCalcRequest(pTask, sessionId, pReq);
+      if (isManual && (drain || code)) {
+        // Capacity was refused before execution. Settle the original attempt token when it can no longer be dispatched.
+        code = stTriggerTaskDrainManualResponse(pTask, &manual, false, code);
+        int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pReq, false);
+        TAOS_CHECK_RETURN(code ? code : releaseCode);
+        continue;
+      }
       if (code != TSDB_CODE_SUCCESS) {
         // CTRL has no response handle for the common failure tail. Settle progress before release clears it.
-        if (pReq->manualAttempt.chainId == 0 && pReq->progressStepId != 0) {
+        if (pReq->progressStepId != 0) {
           int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pReq->progressStepId, code);
           if (trackerCode != TSDB_CODE_SUCCESS) {
             ST_TASK_ELOG("failed to mark recalculation step %" PRIu64 " as failed since %s", pReq->progressStepId,
@@ -20885,6 +24479,7 @@ typedef struct {
   int64_t    gid;
   SSHashObj *pWalMetas;
   SSHashObj *pTableMetas;
+  const SArray *pAlignedReaders;
   bool       stbPartByTbname;
 } SStreamNestedCalcGroupAdapter;
 
@@ -20964,6 +24559,16 @@ static int32_t stAppendNestedCalcGroupReadInfos(SSTriggerCalcRequest *pReq, cons
                                                 const SStreamAncestorParamContext *pParamContext, bool extend) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t iter = 0;
+  if (pGroup->pAlignedReaders != NULL) {
+    // Several physical sources can share a vnode. Each nested read segment belongs to the reader once.
+    for (int32_t i = 0; i < taosArrayGetSize(pGroup->pAlignedReaders); ++i) {
+      const SStreamTaskAddr *reader = taosArrayGet(pGroup->pAlignedReaders, i);
+      code = stAppendNestedGroupReadInfo(pReq, pGroup->gid, reader->nodeId, pParam, pParamContext, extend,
+                                         pGroup->stbPartByTbname);
+      if (code != TSDB_CODE_SUCCESS) return code;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
   if (pGroup->pWalMetas != NULL) {
     SObjList *pMetas = tSimpleHashIterate(pGroup->pWalMetas, NULL, &iter);
     while (pMetas != NULL) {
@@ -21171,6 +24776,7 @@ static int32_t stRealtimeGroupAppendPendingNestedCalc(SSTriggerRealtimeGroup *pG
     SStreamNestedCalcGroupAdapter        adapter = {
                .gid = pGroup->gid,
                .pWalMetas = pGroup->pWalMetas,
+               .pAlignedReaders = pTask->pTimeAlign ? pTask->readerList : NULL,
                .stbPartByTbname = pTask->stbPartByTbname,
     };
     bool extendReadInfo = stCanExtendNestedGroupReadInfo(pReq, pGroup->gid, pEvent);
@@ -22370,6 +25976,7 @@ static int32_t stRealtimeContextRetryPullRequest(SSTriggerRealtimeContext *pCont
   code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
                                    &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
+  stSetTimeAlignWalRoute(msg.info.ahandle, pReq, pReader->nodeId);
   if (pReq->type == STRIGGER_PULL_GROUP_COL_VALUE) {
     SSTriggerWalProgress *pProgress =
         tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(pReader->nodeId));
@@ -22661,7 +26268,7 @@ int32_t stRealtimeContextAddUserRecalcTransactional(SSTriggerRealtimeContext *pC
         STimeWindow              range = {.skey = pReq->start, .ekey = pReq->end - 1};
         SSTriggerRecalcRequest **ppPrepared = TARRAY_GET_ELEM(pPreparedReqs, j);
         code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
-                                                 pMutations, false, ppPrepared, pNoDataGids);
+                                                 pMutations, false, ppPrepared, pNoDataGids, 0);
         if (code != TSDB_CODE_SUCCESS) break;
       }
     }
@@ -22820,7 +26427,7 @@ static int32_t stRealtimeContextAddUserRecalc(SSTriggerRealtimeContext *pContext
       code = stTriggerTaskPrepareManualRecalcRequest(pTask, *pGid, range, &pPrepared);
       if (code == TSDB_CODE_SUCCESS) {
         code = stTriggerTaskAddRecalcRequestImpl(pTask, pGroup, &range, false, true, false, pReq->recalcId, true,
-                                                 pMutations, false, &pPrepared, NULL);
+                                                 pMutations, false, &pPrepared, NULL, 0);
       }
       if (code == TSDB_CODE_SUCCESS) {
         if (TARRAY_SIZE(pMutations) != 1) {
@@ -23482,15 +27089,843 @@ static int32_t stRealtimeContextPrepareNotifyName(SSTriggerRealtimeContext *pCon
   return code;
 }
 
+static int32_t stQueueTimeAlignRepairs(SSTriggerRealtimeContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  int32_t             iter = 0;
+  TSKEY              *end = NULL;
+  while ((end = tSimpleHashIterate(ctx->timeAlignRepairEnds, end, &iter))) {
+    int64_t      gid = *(const int64_t *)tSimpleHashGetKey(end, NULL);
+    const TSKEY *cutoff = tSimpleHashGet(task->pHistoryCutoffTime, &gid, sizeof(gid));
+    if (!task->fillHistory && cutoff && *cutoff == INT64_MAX) continue;
+    TSKEY start = task->fillHistory ? task->fillHistoryStartTime : (cutoff ? *cutoff + 1 : INT64_MIN);
+    if (start > *end) continue;
+    SSTriggerRecalcRequest *req = taosMemoryCalloc(1, sizeof(*req));
+    if (!req) return terrno;
+    req->gid = gid;
+    req->scanRange = req->calcRange = (STimeWindow){.skey = start, .ekey = *end};
+    req->noMerge = true;
+    req->timeAlignRepairOwner = task;
+    (void)atomic_add_fetch_32(&task->timeAlignRepairs, 1);
+    int32_t code = stTriggerTaskAddReadyRecalc(task, &req);
+    stTriggerTaskDestroyRecalcRequest(&req);
+    TAOS_CHECK_RETURN(code);
+  }
+  tSimpleHashCleanup(ctx->timeAlignRepairEnds);
+  ctx->timeAlignRepairEnds = NULL;
+  return 0;
+}
+
+// Build every destination before moving ownership. A failed replacement can then retry using the old
+// groups. Retain the live object identity: a history request may still publish its confirmed frontier.
+static int32_t stMoveAlignedRepairs(SSTriggerRealtimeContext *old, SSTriggerRealtimeContext *fresh) {
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **pp = NULL;
+  while ((pp = tSimpleHashIterate(old->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (!stCheckpointAlignedGroup(group)) continue;
+    uint8_t digest[ST_ALIGNED_BINDING_BYTES];
+    bool    found = false;
+    TAOS_CHECK_RETURN(stCaptureAlignedBinding(fresh->pTask, group->gid, digest, &found));
+    if (!found || memcmp(digest, group->alignedRepairBinding, sizeof(digest))) {
+      stCancelAlignedObligation(group);
+      continue;
+    }
+    SSTriggerRealtimeGroup *dest = NULL;
+    TAOS_CHECK_RETURN(stRealtimeContextGetOrCreateGroup(fresh, group->gid, group->vgId, &dest));
+  }
+  // A replacement discards the current input round. Preserve the previous confirmed
+  // chain for touched groups and the current chain for groups that round never reached.
+  iter = 0;
+  pp = NULL;
+  while ((pp = tSimpleHashIterate(old->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (old->timeAlignAbortedRound && group->ordinaryInputRound == old->timeAlignAbortedRound) {
+      const SCheckpointOrdinary *prior = tSimpleHashGet(old->pOrdinaryBeforeInput, &group->gid, sizeof(group->gid));
+      if (prior) TAOS_CHECK_RETURN(stSaveOrdinaryRecord(&old->pRecoveredOrdinary, prior, group->gid, old->pTask));
+    } else if (stCheckpointOrdinaryGroup(group)) {
+      SCheckpointOrdinary record = stOrdinaryRecord(group);
+      TAOS_CHECK_RETURN(stSaveOrdinaryRecord(&old->pRecoveredOrdinary, &record, group->gid, old->pTask));
+    }
+  }
+  iter = 0;
+  pp = NULL;
+  while ((pp = tSimpleHashIterate(old->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (!stCheckpointAlignedGroup(group)) continue;
+    SSTriggerRealtimeGroup **dest = tSimpleHashGet(fresh->pGroups, &group->gid, sizeof(group->gid));
+    TSWAP((*dest)->alignedFuture, group->alignedFuture);
+    TSWAP((*dest)->alignedRepairBinding, group->alignedRepairBinding);
+    (*dest)->timeAlignNestedRepair = group->timeAlignNestedRepair;
+    (*dest)->alignedFixedThrough = group->alignedFixedThrough;
+    if (stHasAlignedFixedRepair(group)) (*dest)->recalcNextWindow |= group->recalcNextWindow;
+  }
+  TSWAP(fresh->pRecoveredOrdinary, old->pRecoveredOrdinary);
+  TSWAP(fresh->pRecoveredAlignedRepairs, old->pRecoveredAlignedRepairs);
+  return 0;
+}
+
+static int32_t stRestartRealtimeTimeAlignRound(SStreamTriggerTask *task) {
+  SSTriggerRealtimeContext *old = task->pRealtimeContext;
+  int64_t                   running = 0;
+  TAOS_CHECK_RETURN(stTriggerTaskGetRunningReq(task, old->sessionId, &running));
+  if (running)
+    return stTriggerTaskAddWaitSession(task, old->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  SSTriggerRealtimeContext *fresh = taosMemoryCalloc(1, sizeof(*fresh));
+  if (!fresh) return terrno;
+  int32_t code = stRealtimeContextInit(fresh, task, STRIGGER_REALTIME_CONTEXT_LIVE);
+  if (code) goto fail;
+  fresh->timeAlignRepairEnds = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  if (!fresh->timeAlignRepairEnds) {
+    code = terrno;
+    goto fail;
+  }
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **group = NULL;
+  while ((group = tSimpleHashIterate(old->pGroups, group, &iter))) {
+    code = stRaiseTimeAlignRepairEnd(fresh->timeAlignRepairEnds, (*group)->gid, (*group)->newThreshold);
+    if (code) goto fail;
+    code = stTriggerTaskDiscardTimeAlignSeed(task, old->sessionId, (*group)->gid, 0);
+    if (code) goto fail;
+  }
+  int32_t               readerIter = 0;
+  SSTriggerWalProgress *reader = NULL;
+  while ((reader = tSimpleHashIterate(fresh->pReaderWalProgress, reader, &readerIter))) {
+    int32_t               vg = reader->pTaskAddr->nodeId;
+    SSTriggerWalProgress *prior = tSimpleHashGet(old->pReaderWalProgress, &vg, sizeof(vg));
+    if (prior && prior->pTaskAddr->taskId == reader->pTaskAddr->taskId) {
+      reader->previousSourceId = prior->previousSourceId;
+    }
+  }
+  code = stMoveAlignedRepairs(old, fresh);
+  if (code) goto fail;
+  fresh->timeAlignAbortedRound = old->timeAlignAbortedRound;
+  fresh->haveReadCheckpoint = true;
+  fresh->boundDetermined = true;
+  // Re-enter through a control turn. No synchronous Reader callback retains this context across destruction.
+  taosWLockLatch(&task->calcDataCacheIterLock);
+  if (task->pRealtimeBundle) task->pRealtimeBundle->pContext = fresh;
+  task->pRealtimeContext = fresh;
+  taosWUnLockLatch(&task->calcDataCacheIterLock);
+  stRealtimeContextDestroy(&old);
+  return stRealtimeContextCheck(fresh);
+fail:
+  stRealtimeContextDestroy(&fresh);
+  return code;
+}
+
+// Acquire only the seed here. Installation and row consumption belong to the group's check.
+static int32_t stPrepareTimeAlignTable(SStreamTriggerTask *task, int64_t session, int64_t gid,
+                                       const SSTriggerVirtTableInfo *table, SSTriggerRealtimeGroup *live,
+                                       SObjList *tableRefs, int64_t historyStart, STimeAlignSeedAdmission *admission) {
+  STimeAlignGroupKey     key = {.session = session, .gid = gid, .uid = table->tbUid};
+  STimeAlignTriggerSeed *slot = tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key));
+  int64_t                first = historyStart;
+  if (!slot || slot->bindingVersion != table->tbVer) {
+    if (live) {
+      bool found = false;
+      TAOS_CHECK_RETURN(
+          stVtableMergerFirstInputTs(live, table, tableRefs, stTriggerTaskRequiresOrderedInput(task), &first, &found));
+      if (!found) return 0;
+      if (live->pContext->nestedWindowPlan && (!live->hasAlignedInputFloor || first < live->alignedInputFloor)) {
+        live->hasAlignedInputFloor = true;
+        live->alignedInputFloor = first;
+      }
+    }
+  } else if (slot->ready) {
+    return 0;
+  }
+  if (live && live->pTimeAlignStates) {
+    const STimeAlignInput *input = tSimpleHashGet(live->pTimeAlignStates->inputs, &key.uid, sizeof(key.uid));
+    if (input && input->ready && input->bindingVersion == table->tbVer) return 0;
+  }
+  const SSTimeAlignSeed *seed = NULL;
+  uint64_t               generation = 0;
+  bool                   waiting = false;
+  TAOS_CHECK_RETURN(stTriggerTaskAcquireTimeAlignSeed(task, session, gid, table, first, &seed, &generation, &waiting));
+  if (waiting) {
+    slot = tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key));
+    if (slot && slot->admissionId == admission->id) return 0;
+    ++admission->pending;
+    if (slot) {
+      slot->admissionId = admission->id;
+      slot->retryQueued = false;
+      if (slot->nextToSend < taosArrayGetSize(slot->inputs)) stQueueTimeAlignSeedRetry(admission, slot);
+    }
+  }
+  return 0;
+}
+
+static int32_t stAdmitTimeAlignTableRefs(SSTriggerRealtimeGroup *group, SObjList *refs) {
+  const SSTriggerVirtualTableSliceRef *first = taosObjListGetHead(refs);
+  if (!first) return TSDB_CODE_SUCCESS;
+  SSTriggerRealtimeContext     *ctx = group->pContext;
+  const SSTriggerVirtTableInfo *table =
+      tSimpleHashGet(ctx->pTask->pVirtTableInfos, &first->virtualUid, sizeof(first->virtualUid));
+  if (!table) return TSDB_CODE_INTERNAL_ERROR;
+  return stPrepareTimeAlignTable(ctx->pTask, ctx->sessionId, group->gid, table, group, refs, 0, &group->seedAdmission);
+}
+
+// The initial pass enrolls each active child once. A transport retry drives only the affected child's unsent pages.
+static int32_t stResumeTimeAlignSeedAdmission(SStreamTriggerTask *task, int64_t session, int64_t gid,
+                                              STimeAlignSeedAdmission *admission) {
+  while (admission->retryUid) {
+    STimeAlignGroupKey     key = {.session = session, .gid = gid, .uid = admission->retryUid};
+    STimeAlignTriggerSeed *slot = tSimpleHashGet(*stTimeAlignSeeds(task, session), &key, sizeof(key));
+    if (!slot || slot->admissionId != admission->id) return TSDB_CODE_INTERNAL_ERROR;
+    TAOS_CHECK_RETURN(stDriveTimeAlignSeedPages(task, slot));
+    if (slot->nextToSend < taosArrayGetSize(slot->inputs)) return 0;
+    admission->retryUid = slot->nextRetryUid;
+    slot->retryQueued = false;
+  }
+  admission->ready = admission->pending == 0;
+  return 0;
+}
+
+static int32_t stRealtimeGroupAdmitTimeAlignSeeds(SSTriggerRealtimeGroup *group) {
+  SStreamTriggerTask                  *pTask = group->pContext->pTask;
+  int32_t                              lino = 0;
+  int32_t                              code = TSDB_CODE_SUCCESS;
+  STimeAlignSeedAdmission             *admission = &group->seedAdmission;
+  if (admission->id) return stResumeTimeAlignSeedAdmission(pTask, group->pContext->sessionId, group->gid, admission);
+  admission->id = stNextTimeAlignId(pTask);
+  SObjPool                             pool = {0};
+  SSHashObj                           *byTable = NULL;
+  SObjListIter                         iter = {0};
+  const SSTriggerVirtualTableSliceRef *first = taosObjListGetHead(&group->tableUids);
+  const SSTriggerVirtualTableSliceRef *ref = NULL;
+  taosObjListInitIter(&group->tableUids, &iter, TOBJLIST_ITER_FORWARD);
+  while ((ref = taosObjListIterNext(&iter)) != NULL) {
+    if (ref->virtualUid != first->virtualUid) break;
+  }
+  if (!ref) {
+    TAOS_CHECK_EXIT(stAdmitTimeAlignTableRefs(group, &group->tableUids));
+  } else {
+    // Each virtual table needs only its own slices to find its first input timestamp.
+    byTable = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+    TSDB_CHECK_NULL(byTable, code, lino, _exit, terrno);
+    TAOS_CHECK_EXIT(taosObjPoolInit(&pool, group->tableUids.neles, sizeof(*ref)));
+    taosObjListInitIter(&group->tableUids, &iter, TOBJLIST_ITER_FORWARD);
+    while ((ref = taosObjListIterNext(&iter)) != NULL) {
+      SObjList *list = tSimpleHashGet(byTable, &ref->virtualUid, sizeof(ref->virtualUid));
+      if (!list) {
+        SObjList empty = {0};
+        TAOS_CHECK_EXIT(taosObjListInit(&empty, &pool));
+        TAOS_CHECK_EXIT(tSimpleHashPut(byTable, &ref->virtualUid, sizeof(ref->virtualUid), &empty, sizeof(empty)));
+        list = tSimpleHashGet(byTable, &ref->virtualUid, sizeof(ref->virtualUid));
+      }
+      TAOS_CHECK_EXIT(taosObjListAppend(list, ref));
+    }
+    int32_t   pos = 0;
+    SObjList *list = NULL;
+    while ((list = tSimpleHashIterate(byTable, list, &pos)) != NULL) {
+      TAOS_CHECK_EXIT(stAdmitTimeAlignTableRefs(group, list));
+    }
+  }
+  admission->ready = admission->pending == 0;
+_exit:
+  if (code) *admission = (STimeAlignSeedAdmission){0};
+  tSimpleHashCleanup(byTable);
+  taosObjPoolDestroy(&pool);
+  if (code != TSDB_CODE_SUCCESS) ST_TASK_ELOG("%s failed at line %d since %s", __func__, lino, tstrerror(code));
+  return code;
+}
+
+static int32_t stHistoryGroupAdmitTimeAlignSeeds(SSTriggerHistoryGroup *group) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  STimeAlignSeedAdmission *admission = &group->seedAdmission;
+  if (admission->id) return stResumeTimeAlignSeedAdmission(ctx->pTask, ctx->sessionId, group->gid, admission);
+  admission->id = stNextTimeAlignId(ctx->pTask);
+  for (size_t i = 0; i < taosArrayGetSize(group->pVirtTableInfos); ++i) {
+    const SSTriggerVirtTableInfo *table = *(SSTriggerVirtTableInfo **)taosArrayGet(group->pVirtTableInfos, i);
+    if (!stHistoryVirtualTableHasStepData(group, table)) continue;
+    // Seed strictly before the history step, then consume its raw rows in order.
+    int32_t code = stPrepareTimeAlignTable(ctx->pTask, ctx->sessionId, group->gid, table, NULL, NULL,
+                                           ctx->stepRange.skey, admission);
+    if (code) {
+      *admission = (STimeAlignSeedAdmission){0};
+      return code;
+    }
+  }
+  admission->ready = admission->pending == 0;
+  return 0;
+}
+
+static void stUpdateAlignedWorkGroup(SSTriggerRealtimeGroup *group) {
+  SSTriggerRealtimeContext *ctx = group->pContext;
+  if (!ctx) return;
+  bool active = group->alignedOrdinaryChain && group->alignedCatchupId;
+  bool linked =
+      TD_DLIST_NODE_NEXT_WITH_FIELD(group, alignedWorkNode) || TD_DLIST_TAIL(&ctx->groupsWithAlignedWork) == group;
+  if (active && !linked) {
+    TD_DLIST_APPEND_WITH_FIELD(&ctx->groupsWithAlignedWork, group, alignedWorkNode);
+  } else if (!active && linked) {
+    TD_DLIST_POP_WITH_FIELD(&ctx->groupsWithAlignedWork, group, alignedWorkNode);
+  }
+}
+
+static bool stHasReadyAlignedRepair(SStreamTriggerTask *task, uint64_t repairId) {
+  taosRLockLatch(&task->recalcRequestLock);
+  bool ready = repairId ? task->activeAlignedRepairId == repairId
+                        : task->activeAlignedRepairId || task->activeAlignedCheckpointWork;
+  for (SListNode *node = task->pRecalcRequests ? TD_DLIST_HEAD(task->pRecalcRequests) : NULL; !ready && node;
+       node = TD_DLIST_NODE_NEXT(node)) {
+    const SSTriggerRecalcRequest *req = *(SSTriggerRecalcRequest **)node->data;
+    ready = repairId ? req->alignedRepairId == repairId : req->alignedRepairId || req->alignedCheckpointWork;
+  }
+  taosRUnLockLatch(&task->recalcRequestLock);
+  return ready;
+}
+
+// Metadata hash iteration and the source discovery order can change after restart. Hash sorted,
+// endian-independent identities, including virtual membership, physical columns and destination slots.
+typedef struct {
+  uint8_t bytes[7 * sizeof(int64_t)];
+} SAlignedBindingRow;
+
+static int32_t stCompareAlignedBindings(const void *a, const void *b) {
+  return memcmp(a, b, sizeof(SAlignedBindingRow));
+}
+
+static int32_t stAddAlignedBindingRow(SArray *rows, const SSTriggerVirtTableInfo *table,
+                                      const SSTriggerTableColRef *ref, const SSTriggerColMatch *match) {
+  uint64_t           fields[] = {table->tbUid,
+                                 table->tbVer,
+                       ref ? ref->otbUid : 0,
+                       ref ? ref->otbSuid : 0,
+                       ref ? ref->otbVgId : 0,
+                       match ? match->otbColId : -1,
+                       match ? match->vtbSlotId : -1};
+  SAlignedBindingRow row;
+  for (size_t i = 0; i < sizeof(fields) / sizeof(fields[0]); ++i) {
+    for (size_t j = 0; j < 8; ++j) row.bytes[8 * i + j] = (uint8_t)(fields[i] >> (8 * j));
+  }
+  return taosArrayPush(rows, &row) ? 0 : terrno;
+}
+
+static int32_t stCaptureAlignedBinding(SStreamTriggerTask *task, int64_t gid, uint8_t *digest, bool *found) {
+  *found = false;
+  TAOS_CHECK_RETURN(stTriggerTaskEnsureVirtTableGidIndex(task));
+  const SArray *const *tables = tSimpleHashGet(task->pVirtTableGidIndex, &gid, sizeof(gid));
+  if (!tables) return 0;
+  SArray *rows = taosArrayInit(taosArrayGetSize(*tables), sizeof(SAlignedBindingRow));
+  if (!rows) return terrno;
+  int32_t code = 0;
+  for (size_t i = 0; i < taosArrayGetSize(*tables); ++i) {
+    const SSTriggerVirtTableInfo *table = taosArrayGetP(*tables, i);
+    if (!table->colRefsInitialized) goto end;
+    code = stAddAlignedBindingRow(rows, table, NULL, NULL);
+    if (code) goto end;
+    for (size_t j = 0; j < taosArrayGetSize(table->pTrigColRefs); ++j) {
+      const SSTriggerTableColRef *ref = taosArrayGet(table->pTrigColRefs, j);
+      for (size_t k = 0; k < taosArrayGetSize(ref->pColMatches); ++k) {
+        code = stAddAlignedBindingRow(rows, table, ref, taosArrayGet(ref->pColMatches, k));
+        if (code) goto end;
+      }
+    }
+  }
+  taosArraySort(rows, stCompareAlignedBindings);
+  T_MD5_CTX md;
+  tMD5Init(&md);
+  for (size_t i = 0; i < taosArrayGetSize(rows); ++i)
+    tMD5Update(&md, taosArrayGet(rows, i), sizeof(SAlignedBindingRow));
+  tMD5Final(&md);
+  memcpy(digest, md.digest, ST_ALIGNED_BINDING_BYTES);
+  *found = true;
+end:
+  taosArrayDestroy(rows);
+  return code;
+}
+
+static int32_t stOwnAlignedRepairBinding(SSTriggerRealtimeGroup *group) {
+  if (group->alignedRepairBinding) return 0;
+  uint8_t digest[ST_ALIGNED_BINDING_BYTES];
+  bool    found = false;
+  TAOS_CHECK_RETURN(stCaptureAlignedBinding(group->pContext->pTask, group->gid, digest, &found));
+  if (!found) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  group->alignedRepairBinding = taosMemoryMalloc(sizeof(digest));
+  if (!group->alignedRepairBinding) return terrno;
+  memcpy(group->alignedRepairBinding, digest, sizeof(digest));
+  return 0;
+}
+
+static int32_t stRecheckAlignedBindings(SSTriggerRealtimeContext *ctx) {
+  int32_t                  iter = 0;
+  SSTriggerRealtimeGroup **pp = NULL;
+  while ((pp = tSimpleHashIterate(ctx->pGroups, pp, &iter))) {
+    SSTriggerRealtimeGroup *group = *pp;
+    if (!group->alignedRepairBinding && !group->ordinaryOverlap) continue;
+    uint8_t digest[ST_ALIGNED_BINDING_BYTES];
+    bool    found = false;
+    TAOS_CHECK_RETURN(stCaptureAlignedBinding(ctx->pTask, group->gid, digest, &found));
+    if (!found || memcmp(digest, group->ordinaryBinding, sizeof(digest))) group->ordinaryOverlap = false;
+    if (group->alignedRepairBinding && (!found || memcmp(digest, group->alignedRepairBinding, sizeof(digest))))
+      stCancelAlignedObligation(group);
+  }
+  return 0;
+}
+
+static int32_t stRestoreCheckpointOrdinary(SSTriggerRealtimeContext *ctx) {
+  if (!ctx->pRecoveredOrdinary || ctx->suppressOutput || !ctx->pTask->virTableInfoReady ||
+      stTriggerTaskHasNestedRecoveryOwner(ctx->pTask) || IS_PATCHING_VITRUAL_TABLE(ctx))
+    return 0;
+  int32_t iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(ctx->pRecoveredOrdinary, entry, &iter))) {
+    int64_t gid;
+    memcpy(&gid, tSimpleHashGetKey(entry, NULL), sizeof(gid));
+    SCheckpointOrdinary *record = entry;
+    uint8_t              digest[ST_ALIGNED_BINDING_BYTES];
+    bool                 found = false;
+    TAOS_CHECK_RETURN(stCaptureAlignedBinding(ctx->pTask, gid, digest, &found));
+    if (found && !memcmp(digest, record->binding, sizeof(digest))) {
+      SArray                      **tables = tSimpleHashGet(ctx->pTask->pVirtTableGidIndex, &gid, sizeof(gid));
+      const SSTriggerVirtTableInfo *first = taosArrayGetP(*tables, 0);
+      SSTriggerRealtimeGroup       *group = NULL;
+      TAOS_CHECK_RETURN(stRealtimeContextGetOrCreateGroup(ctx, gid, first->vgId, &group));
+      int64_t now = taosGetTimestampNs();
+      stWindowChainRearmDelayClocks(record->chain, now);
+      TSWAP(group->pWindowChain, record->chain);
+      int32_t code = stRealtimeGroupUpdateExecTime(group, now, true);
+      if (code) {
+        TSWAP(group->pWindowChain, record->chain);
+        return code;
+      }
+      group->ordinaryOverlap = true;
+      group->ordinaryOverlapThrough = record->overlapThrough;
+      memcpy(group->ordinaryBinding, record->binding, sizeof(record->binding));
+      group->oldThreshold = group->newThreshold = record->frontier;
+    }
+    TAOS_CHECK_RETURN(tSimpleHashIterateRemove(ctx->pRecoveredOrdinary, &gid, sizeof(gid), &entry, &iter));
+  }
+  tSimpleHashCleanup(ctx->pRecoveredOrdinary);
+  ctx->pRecoveredOrdinary = NULL;
+  return 0;
+}
+
+static int32_t stRestoreAlignedRepairs(SSTriggerRealtimeContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (!ctx->pRecoveredAlignedRepairs || ctx->suppressOutput || !task->virTableInfoReady ||
+      stTriggerTaskHasNestedRecoveryOwner(task) || IS_PATCHING_VITRUAL_TABLE(ctx))
+    return 0;
+  int32_t iter = 0;
+  void   *entry = NULL;
+  while ((entry = tSimpleHashIterate(ctx->pRecoveredAlignedRepairs, entry, &iter))) {
+    const SCheckpointAlignedRepair *record = entry;
+    int64_t                         gid;
+    memcpy(&gid, tSimpleHashGetKey(entry, NULL), sizeof(gid));
+    uint8_t digest[ST_ALIGNED_BINDING_BYTES];
+    bool    found = false;
+    TAOS_CHECK_RETURN(stCaptureAlignedBinding(task, gid, digest, &found));
+    if (found && memcmp(record->binding, digest, sizeof(digest)) == 0) {
+      SArray                      **tables = tSimpleHashGet(task->pVirtTableGidIndex, &gid, sizeof(gid));
+      const SSTriggerVirtTableInfo *first = taosArrayGetP(*tables, 0);
+      SSTriggerRealtimeGroup       *group = NULL;
+      TAOS_CHECK_RETURN(stRealtimeContextGetOrCreateGroup(ctx, gid, first->vgId, &group));
+      if (!group->alignedRepairBinding) {
+        uint8_t *binding = taosMemoryMalloc(sizeof(digest));
+        if (!binding) return terrno;
+        if (record->hasFuture) {
+          SAlignedFutureRepair *future = taosMemoryCalloc(1, sizeof(*future));
+          if (!future) {
+            taosMemoryFree(binding);
+            return terrno;
+          }
+          future->refs = 1;
+          future->anchor = record->anchor;
+          future->target = future->after = record->after;
+          future->carry = record->carry;
+          group->alignedFuture = future;
+        }
+        memcpy(binding, digest, sizeof(digest));
+        group->alignedRepairBinding = binding;
+        group->timeAlignNestedRepair = record->fixed;
+        group->alignedFixedThrough = record->fixedThrough;
+        group->recalcNextWindow |= record->recalcNextWindow;
+      }
+      TAOS_CHECK_RETURN(stScheduleAlignedFuture(group, group->oldThreshold));
+      TAOS_CHECK_RETURN(stScheduleAlignedFixed(group, group->oldThreshold));
+    }
+    TAOS_CHECK_RETURN(tSimpleHashIterateRemove(ctx->pRecoveredAlignedRepairs, &gid, sizeof(gid), &entry, &iter));
+  }
+  tSimpleHashCleanup(ctx->pRecoveredAlignedRepairs);
+  ctx->pRecoveredAlignedRepairs = NULL;
+  return 0;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestTimeAlignInputCount(const STriggerTimeAlignGroup *group) {
+  return tSimpleHashGetSize(group->inputs);
+}
+
+int32_t stTriggerTestStageTimeAlignSeeds(SSTriggerRealtimeContext *ctx) {
+  return stDiscardTimeAlignSessionSeeds(ctx->pTask, ctx->sessionId, true);
+}
+
+int32_t stTriggerTestMoveAlignedRepairs(SSTriggerRealtimeContext *old, SSTriggerRealtimeContext *fresh) {
+  return stMoveAlignedRepairs(old, fresh);
+}
+
+int32_t stTriggerTestScheduleAlignedFuture(SSTriggerRealtimeGroup *group, TSKEY frontier) {
+  return stScheduleAlignedFuture(group, frontier);
+}
+
+int32_t stTriggerTestBindAdmittedAlignedRepair(SSTriggerRealtimeGroup *group, TSKEY change) {
+  STimeWindow accepted = stDisorderRange(group, change, change);
+  return accepted.skey <= accepted.ekey ? stOwnAlignedRepairBinding(group) : 0;
+}
+
+int32_t stTriggerTestRestoreAlignedRepairs(SSTriggerRealtimeContext *ctx) {
+  TAOS_CHECK_RETURN(stRestoreCheckpointOrdinary(ctx));
+  return stRestoreAlignedRepairs(ctx);
+}
+TSKEY stTriggerTestOrdinarySubmitFloor(SSTriggerRealtimeGroup *group, int32_t vgId, int64_t version) {
+  return stOrdinarySubmitFloor(group, vgId, version);
+}
+bool stTriggerTestOrdinaryCheckpointPending(const SStreamTriggerTask *task) {
+  return stOrdinaryCheckpointPending(task, false);
+}
+int32_t stTriggerTestBeginOrdinaryInput(SSTriggerRealtimeGroup *group) { return stBeginOrdinaryInput(group); }
+int32_t stTriggerTestRecheckAlignedBindings(SSTriggerRealtimeContext *ctx) { return stRecheckAlignedBindings(ctx); }
+#endif
+
+static bool stAlignedChainBindingsMatch(const SStreamTriggerTask *task, const SAlignedChainUpdate *update) {
+  const SArray *const *tables = tSimpleHashGet(task->pVirtTableGidIndex, &update->gid, sizeof(update->gid));
+  if (!tables || taosArrayGetSize(*tables) != taosArrayGetSize(update->tables)) return false;
+  for (int32_t i = 0; i < taosArrayGetSize(update->tables); ++i) {
+    const SSTriggerVirtTableInfo *frozen = taosArrayGetP(update->tables, i);
+    const SSTriggerVirtTableInfo *live = tSimpleHashGet(task->pVirtTableInfos, &frozen->tbUid, sizeof(frozen->tbUid));
+    if (!live || !stTriggerTaskMatchVirtTableInfo(live, update->gid) || !live->colRefsInitialized ||
+        frozen->tbVer != live->tbVer || taosArrayGetSize(frozen->pTrigColRefs) != taosArrayGetSize(live->pTrigColRefs))
+      return false;
+    for (int32_t j = 0; j < taosArrayGetSize(frozen->pTrigColRefs); ++j) {
+      const SSTriggerTableColRef *a = taosArrayGet(frozen->pTrigColRefs, j);
+      const SSTriggerTableColRef *b = taosArrayGet(live->pTrigColRefs, j);
+      if (a->otbUid != b->otbUid || a->otbSuid != b->otbSuid || a->otbVgId != b->otbVgId ||
+          taosArrayGetSize(a->pColMatches) != taosArrayGetSize(b->pColMatches))
+        return false;
+      for (int32_t k = 0; k < taosArrayGetSize(a->pColMatches); ++k) {
+        const SSTriggerColMatch *x = taosArrayGet(a->pColMatches, k);
+        const SSTriggerColMatch *y = taosArrayGet(b->pColMatches, k);
+        if (x->otbColId != y->otbColId || x->vtbSlotId != y->vtbSlotId) return false;
+      }
+    }
+  }
+  return true;
+}
+
+static int32_t stRetireAlignedFollower(SSTriggerRealtimeGroup *group, uint64_t repairId, bool restore);
+
+static int32_t stRetireCancelledAlignedFollowers(SSTriggerRealtimeContext *ctx) {
+  for (SSTriggerRealtimeGroup *group = TD_DLIST_HEAD(&ctx->groupsWithAlignedWork), *next; group; group = next) {
+    next = TD_DLIST_NODE_NEXT_WITH_FIELD(group, alignedWorkNode);
+    taosRLockLatch(&ctx->pTask->prevWindowUpdateLock);
+    const SAlignedChainUpdate *update = ctx->pTask->pAlignedChainUpdate;
+    bool                       retired = !update || update->id != group->alignedCatchupId;
+    taosRUnLockLatch(&ctx->pTask->prevWindowUpdateLock);
+    if (retired) TAOS_CHECK_RETURN(stRetireAlignedFollower(group, group->alignedCatchupId, true));
+  }
+  return 0;
+}
+
+static bool stAlignedPageHasFrozenInput(const SSTriggerRealtimeGroup *group, const SAlignedChainUpdate *update) {
+  int32_t   pos = 0;
+  SObjList *records = NULL;
+  while ((records = tSimpleHashIterate(group->pWalMetas, records, &pos))) {
+    const SSTriggerReaderDataKey *key = tSimpleHashGetKey(records, NULL);
+    if (key->readerKind != STRIGGER_READER_KIND_INTERNAL) continue;
+    const SSTriggerOrigTableInfo *table =
+        tSimpleHashGet(group->pContext->pTask->pOrigTableInfos, &key->logicalUid, sizeof(key->logicalUid));
+    if (!table) continue;
+    const SAlignedChainReader *bound = stAlignedReaderForVg(update, table->vgId);
+    if (!bound) continue;
+    SObjListIter cursor = {0};
+    taosObjListInitIter(records, &cursor, TOBJLIST_ITER_FORWARD);
+    const SSTriggerMetaData *meta;
+    while ((meta = taosObjListIterNext(&cursor)))
+      if (meta->ver <= bound->version && meta->ekey > group->oldThreshold) return true;
+  }
+  return false;
+}
+
+static int32_t stRetireAlignedFollower(SSTriggerRealtimeGroup *group, uint64_t repairId, bool restore) {
+  if (restore && group->alignedOrdinaryChain) TSWAP(group->pWindowChain, group->alignedOrdinaryChain);
+  stWindowChainDestroy(&group->alignedOrdinaryChain);
+  if (group->alignedRepairId == repairId) group->alignedRepairId = 0;
+  group->alignedCatchupId = 0;
+  group->alignedDraining = false;
+  stUpdateAlignedWorkGroup(group);
+  return stRealtimeGroupUpdateExecTime(group, taosGetTimestampNs(), true);
+}
+
+static int32_t stAcceptAlignedChain(SSTriggerRealtimeContext *ctx) {
+  SStreamTriggerTask *pTask = ctx->pTask;
+  taosWLockLatch(&pTask->prevWindowUpdateLock);
+  SAlignedChainUpdate *update = pTask->pAlignedChainUpdate;
+  int32_t                  code = 0;
+  SSTriggerRealtimeGroup **target = NULL;
+  if (update && !update->checked) {
+    target = tSimpleHashGet(ctx->pGroups, &update->gid, sizeof(update->gid));
+    if (update->future) {
+      if (target && (*target)->alignedFuture == update->future) {
+        SAlignedFutureRepair *future = (*target)->alignedFuture;
+        future->running = false;
+        future->after = update->frontier;
+        if (!update->outstanding) {
+          stReleaseAlignedFuture(&(*target)->alignedFuture, true);
+          stClearAlignedRepairBinding(*target);
+        } else {
+          code = stScheduleAlignedFuture(*target, (*target)->oldThreshold);
+        }
+      }
+      update->checked = !code;
+      goto end;
+    }
+    bool match = target && ((*target)->alignedRepairId == update->id || (*target)->alignedCatchupId == update->id) &&
+                 (update->following || update->catchup || (*target)->oldThreshold == update->frontier) &&
+                 (update->catchup || update->normal || !(*target)->nestedInputRegistered) && !ctx->timeAlignRestart &&
+                 !ctx->suppressOutput && !stTriggerTaskHasNestedRecoveryOwner(pTask) &&
+                 !IS_PATCHING_VITRUAL_TABLE(ctx) && stAlignedChainBindingsMatch(pTask, update);
+    bool drained = match && !(*target)->nestedInputRegistered && (*target)->newThreshold == (*target)->oldThreshold &&
+                   TD_DLIST_NODE_NEXT(*target) == NULL && TD_DLIST_TAIL(&ctx->groupsToCheck) != *target;
+    bool unread = false;
+    for (int32_t i = 0; match && i < taosArrayGetSize(update->readers); ++i) {
+      SAlignedChainReader  *bound = taosArrayGet(update->readers, i);
+      SSTriggerWalProgress *reader = tSimpleHashGet(ctx->pReaderWalProgress, &bound->vgId, sizeof(bound->vgId));
+      match = reader && reader->pTaskAddr->taskId == bound->taskId && bound->sourceId &&
+              reader->previousSourceId == bound->sourceId;
+      int64_t  cursor = reader ? reader->lastScanVer : 0;
+      uint64_t round = reader ? reader->timeAlignRound : 0;
+      if (match && !update->hasInputCut) {
+        bound->liveCursor = cursor;
+        bound->liveRound = round;
+        bound->proofCursor = TMIN(bound->liveCursor, bound->version + 1);
+      }
+      if (match && cursor <= bound->version) {
+        drained = false;
+        unread = true;
+      }
+      if (match && !update->following && !update->catchup && update->hasInputCut && update->heldNormalPage) {
+        match = cursor == bound->liveCursor && round == bound->liveRound;
+      }
+    }
+    if (match && update->tailPending) {
+      SSTriggerRealtimeGroup *group = *target;
+      if (update->tailDone) {
+        if (update->outstanding) {
+          code = stOwnAlignedRepairBinding(group);
+          if (code) goto end;
+          SAlignedFutureRepair *future = taosMemoryCalloc(1, sizeof(*future));
+          if (!future) {
+            code = terrno;
+            goto end;
+          }
+          future->refs = 1;
+          future->anchor = group->alignedInputFloor;
+          future->carry = update->carry;
+          future->after = update->caughtFrontier;
+          future->target = future->after;
+          if (group->alignedFuture) {
+            future->target = TMAX(future->target, group->alignedFuture->target);
+            future->anchor = TMIN(future->anchor, group->alignedFuture->anchor);
+            future->after = TMIN(future->after, group->alignedFuture->after);
+            stReleaseAlignedFuture(&group->alignedFuture, true);
+          }
+          group->alignedFuture = future;
+          code = stScheduleAlignedFuture(group, group->oldThreshold);
+          if (code) goto end;
+        }
+        code = stRetireAlignedFollower(group, update->id, false);
+        update->checked = !code;
+      } else if (drained && !listNEles(&group->pendingNestedEvents) && !listNEles(&group->pendingNestedParWinEvents) &&
+                 !stRealtimeCalcGroupIsRunning(pTask, ctx->sessionId, group->gid)) {
+        update->caughtUp = true;
+        update->caughtFrontier = group->oldThreshold;
+      }
+      goto end;
+    }
+    if (match && update->betweenPages) {
+      SSTriggerRealtimeGroup *group = *target;
+      if (group->alignedNormalPage || group->nestedInputRegistered || stRealtimeContextHasPendingWalPulls(ctx))
+        goto end;
+      bool next = group->newThreshold > group->oldThreshold;
+      if (!unread && (!next || !stAlignedPageHasFrozenInput(group, update))) {
+        code = stRetireAlignedFollower(group, update->id, false);
+        update->checked = !code;
+        goto end;
+      }
+      if (!next) goto end;
+      stReleaseAlignedNormalPage(&update->normal);
+      update->frontier = group->oldThreshold;
+      update->ordinaryFrontier = group->newThreshold;
+      update->ordinal = update->matchedPrefix = 0;
+      update->mismatch = false;
+      update->comparing = update->proofComplete = update->prepared = update->committed = false;
+      update->betweenPages = false;
+    }
+    if (match && !update->hasInputCut) {
+      update->heldNormalPage = (*target)->newThreshold > (*target)->oldThreshold;
+      update->ordinaryFrontier = (*target)->newThreshold;
+    }
+    update->hasInputCut = match;
+    if (match && update->compare && !update->normal) {
+      SAlignedNormalPage *page = taosMemoryCalloc(1, sizeof(*page));
+      if (!page) {
+        code = terrno;
+        goto end;
+      }
+      page->peers = taosArrayInit(4, sizeof(SWindowChainPeerGroup));
+      if (!page->peers) {
+        taosMemoryFree(page);
+        code = terrno;
+        goto end;
+      }
+      page->refs = 2;
+      update->normal = page;
+      (*target)->alignedNormalPage = page;
+    }
+    if (match && update->catchup) {
+      (*target)->alignedCatchupId = update->id;
+      (*target)->alignedDraining = !drained;
+      if (drained) {
+        update->caughtFrontier = (*target)->oldThreshold;
+        update->caughtUp = true;
+        update->superseded = (*target)->alignedRepairId && (*target)->alignedRepairId != update->id;
+      }
+    }
+    if (match && update->committed) {
+      SSTriggerRealtimeGroup *group = *target;
+      int64_t                 now = taosGetTimestampNs();
+      bool                    follow = update->normal && !update->mismatch && unread;
+      if (update->mismatch && update->matchedPrefix) {
+        SAlignedNormalPage *page = update->normal;
+        if (page->replayIndex < update->matchedPrefix) {
+          if (!update->following) {
+            stWindowChainRearmDelayClocks(update->chain, now);
+            TSWAP(group->pWindowChain, update->chain);
+            TSWAP(group->alignedOrdinaryChain, update->chain);
+            update->following = true;
+          }
+          group->alignedCatchupId = update->id;
+          group->alignedDraining = true;
+          page->prefixEnd = update->matchedPrefix;
+          goto end;
+        }
+        // Both source versions admitted this portion. Its actual ordinary effects were already
+        // submitted on the corrected chain, so the history continuation starts after that peer.
+        const SWindowChainPeerGroup *last = taosArrayGet(page->peers, update->matchedPrefix - 1);
+        update->frontier = last->ts;
+      }
+      if (update->mismatch &&
+          stWindowChainCaptureRepairCarry(update->following ? group->pWindowChain : update->chain,
+                                          update->following ? group->alignedOrdinaryChain : group->pWindowChain,
+                                          update->repairFrontier, &update->carry)) {
+        // P1 can have already closed this correction's last affected leaf. Keep only a still-open
+        // prefix. The ordinary branch must consume the conflicting page using its own input.
+        if (update->following) {
+          TSWAP(group->pWindowChain, update->chain);
+          TSWAP(group->pWindowChain, group->alignedOrdinaryChain);
+        }
+        group->alignedCatchupId = update->id;
+        group->alignedDraining = true;
+        atomic_store_8(&update->normal->released, 1);
+        update->tailPending = update->catchup = true;
+        update->following = update->comparing = update->compare = update->committed = false;
+        goto end;
+      }
+      if (!update->following && !update->mismatch) {
+        stWindowChainRearmDelayClocks(update->chain, now);
+        TSWAP(group->pWindowChain, update->chain);
+        if (follow) TSWAP(group->alignedOrdinaryChain, update->chain);
+      }
+      if (update->normal) atomic_store_8(&update->normal->released, 1);
+      if (follow) {
+        group->alignedCatchupId = update->id;
+        group->alignedDraining = true;
+        update->following = update->betweenPages = true;
+      } else {
+        code = stRetireAlignedFollower(group, update->id, update->mismatch);
+        if (code) goto end;
+      }
+      if (!update->mismatch) {
+        group->recalcNextWindow = false;
+        group->timeAlignNestedRepair = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
+        stClearAlignedRepairBinding(group);
+      }
+      if (follow) {
+        code = stRealtimeGroupUpdateExecTime(group, now, true);
+        goto end;
+      }
+    }
+    ST_TASK_DLOG("nested handoff id:%" PRIu64 " frontier:%" PRId64 " match:%d", update->id, update->frontier, match);
+    if (!match && target && (*target)->alignedCatchupId == update->id) {
+      code = stRetireAlignedFollower(*target, update->id, true);
+      if (code) goto end;
+    }
+    if (!match && update->normal) atomic_store_8(&update->normal->released, 1);
+    update->prepared = match && update->proofComplete;
+    update->checked = !match || update->committed;
+  }
+end:
+  if (target) stUpdateAlignedWorkGroup(*target);
+  taosWUnLockLatch(&pTask->prevWindowUpdateLock);
+  return code;
+}
+
+// Both BOUND and the first WAL read start at IDLE. Only an empty, fully rolled-back
+// poll can preserve the prior cut when the local dnode has stopped sending requests.
+static int32_t stAbortIdleAlignedPoll(SSTriggerRealtimeContext *ctx, int32_t code) {
+  if (!ctx->timeAlignRound) return code;
+  SStreamTriggerTask *task = ctx->pTask;
+  bool stopping = code == TSDB_CODE_APP_IS_STOPPING && ctx == task->pRealtimeContext && ctx->boundDetermined &&
+                  BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) &&
+                  atomic_load_32(&task->alignedCheckpointHold) && stAlignedWalInputsDrained(ctx, false) &&
+                  !stTriggerTaskRealtimeContextHasCutoverBlocker(ctx, true);
+  if (stopping || ctx->status == STRIGGER_CONTEXT_DETERMINE_BOUND) {
+    TAOS_CHECK_RETURN(stDropTimeAlignBoundary(ctx, false));
+    if (stopping || stTimeAlignSourceRoundNeedsRetry(code)) return TSDB_CODE_SUCCESS;
+  }
+  return code;
+}
+
 static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int64_t now) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
+  int64_t             waitingGroups = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   int64_t             checkStartMonoUs = streamTaskGetMonotonicUs();
   int64_t             checkEndMonoUs = 0;
   bool                nested = BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN);
   bool                periodicCheckpointChecked = false;
 
+  if (pContext->timeAlignRestart) return 0;
+  TAOS_CHECK_RETURN(stDriveTimeAlignWalCheckRetries(pContext, now));
+  if (pContext->timeAlignRestart) return 0;
+  if (tSimpleHashGetSize(pTask->timeAlignCloses.byOperation)) {
+    code = stDriveTimeAlignCloses(pTask, pContext->sessionId, now);
+    QUERY_CHECK_CODE(code, lino, _end);
+    int32_t          iter = 0;
+    STimeAlignClose *close = NULL;
+    while (pContext->timeAlignAbortedRound &&
+           (close = tSimpleHashIterate(pTask->timeAlignCloses.byOperation, close, &iter))) {
+      if (close->roundId == pContext->timeAlignAbortedRound) goto _end;
+    }
+  }
+  pContext->timeAlignAbortedRound = 0;
+  if (nested && stUsesTimeAlignRows(pTask) && !pContext->suppressOutput) {
+    TAOS_CHECK_RETURN(stAcceptAlignedChain(pContext));
+    if (atomic_load_32(&pTask->alignedCheckpointHold)) TAOS_CHECK_RETURN(stRetireCancelledAlignedFollowers(pContext));
+  }
+  if (atomic_load_32(&pTask->timeAlignRepairs) > 0) {
+    return stTriggerTaskAddWaitSession(pTask, pContext->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  }
+  if (pContext->timeAlignRound && pContext->boundDetermined && pContext->status != STRIGGER_CONTEXT_DETERMINE_BOUND &&
+      (listNEles(&pContext->groupsToCheck) || pContext->pMinGroup || pContext->calcParamPool.size ||
+       pContext->nestedPendingParamCount || pContext->pCalcReq || pContext->timeAlignValidation.operation)) {
+    bool waiting = false;
+    TAOS_CHECK_RETURN(stValidateTimeAlignRound(pTask, pContext->sessionId, pContext->timeAlignRound,
+                                               &pContext->timeAlignValidation, &waiting));
+    if (waiting) return 0;
+  }
   stTriggerTaskApplyPrevWindowUpdates(pTask, false);
 
   stTriggerTaskShrinkCalcParamPool(pTask, &pContext->calcParamPool, &pContext->lastCalcParamPoolShrinkMonoUs,
@@ -23506,9 +27941,7 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     QUERY_CHECK_CODE(pTask->nestedRecoveryError, lino, _end);
     if (pContext->haveReadCheckpoint && pTask->pNestedRecovery != NULL) {
       SSTriggerNestedRecovery *pRecovery = pTask->pNestedRecovery;
-      code = pRecovery->phase == STRIGGER_NESTED_RECOVERY_REPLAY_DRAINED
-                 ? stTriggerTaskTryNestedCutover(pTask, pRecovery, now)
-                 : stTriggerTaskDriveNestedValidate(pTask);
+      code = stTriggerTaskDriveNestedReplay(pTask, pRecovery, now);
       if (code != TSDB_CODE_SUCCESS && pTask->pNestedRecovery == pRecovery) {
         code = stTriggerTaskAbortNestedRecovery(pTask, pRecovery, code);
         stTriggerTaskSweepRetiredNestedRecoveries(pTask);
@@ -23628,6 +28061,9 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     }
   }
 
+  TAOS_CHECK_RETURN(stRestoreCheckpointOrdinary(pContext));
+  TAOS_CHECK_RETURN(stRestoreAlignedRepairs(pContext));
+
   bool periodPatchBusy = false;
   if (IS_PATCHING_VITRUAL_TABLE(pContext) && pContext->pPeriod != NULL) {
     int32_t               iter = 0;
@@ -23643,7 +28079,22 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     if (periodPatchBusy && !dispatchBusy) goto _end;
     periodPatchBusy = periodPatchBusy || dispatchBusy;
   }
-  if (IS_PATCHING_VITRUAL_TABLE(pContext) && !periodPatchBusy) {
+  bool finishingAlignCalc = pContext->timeAlignRound && pContext->pCalcReq;
+  if (IS_PATCHING_VITRUAL_TABLE(pContext) && !periodPatchBusy && !finishingAlignCalc) {
+    // The old cut covers the old physical table set. Drain its dispatched results
+    // before releasing it, then admit a cut including the replacement bindings.
+    if (pContext->timeAlignRound) {
+      int64_t outstanding = 0;
+      code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &outstanding);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (outstanding) {
+        code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, now + STREAM_TRIGGER_IDLE_TIME_NS);
+      } else if (!stRealtimeContextHasPendingWalPulls(pContext)) {
+        code = stDropTimeAlignBoundary(pContext, true);
+      }
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
     int64_t waitingReqId = atomic_load_64(&pTask->waitingMgmtReqId);
     if (waitingReqId != -1) {
       ST_TASK_DLOG("wait virtual table patch mgmt response, reqId:%" PRId64, waitingReqId);
@@ -23690,9 +28141,7 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
     QUERY_CHECK_CODE(pTask->nestedRecoveryError, lino, _end);
     if (pTask->pNestedRecovery != NULL) {
       SSTriggerNestedRecovery *pRecovery = pTask->pNestedRecovery;
-      code = pRecovery->phase == STRIGGER_NESTED_RECOVERY_REPLAY_DRAINED
-                 ? stTriggerTaskTryNestedCutover(pTask, pRecovery, now)
-                 : stTriggerTaskDriveNestedValidate(pTask);
+      code = stTriggerTaskDriveNestedReplay(pTask, pRecovery, now);
       if (code != TSDB_CODE_SUCCESS && pTask->pNestedRecovery == pRecovery) {
         code = stTriggerTaskAbortNestedRecovery(pTask, pRecovery, code);
         stTriggerTaskSweepRetiredNestedRecoveries(pTask);
@@ -23760,13 +28209,21 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
   }
 
   if (pContext->status == STRIGGER_CONTEXT_IDLE) {
-    if ((hasWalProgress || hasExtProgress) && !pContext->boundDetermined) {
+    if ((hasWalProgress || hasExtProgress) &&
+        (!pContext->boundDetermined || (stUsesTimeAlignRows(pTask) && !pContext->timeAlignRound))) {
       pContext->status = STRIGGER_CONTEXT_DETERMINE_BOUND;
+      if (hasWalProgress && stUsesTimeAlignRows(pTask)) {
+        pContext->timeAlignRound = stNextTimeAlignId(pTask);
+        pContext->timeAlignBoundsPending = tSimpleHashGetSize(pContext->pReaderWalProgress);
+      }
       if (hasWalProgress) {
         for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
              pContext->curReaderIdx++) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_LAST_TS);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (code) {
+            code = stAbortIdleAlignedPoll(pContext, code);
+            goto _end;
+          }
         }
       }
       if (hasExtProgress) {
@@ -23825,7 +28282,10 @@ static int32_t stRealtimeContextCheckAt(SSTriggerRealtimeContext *pContext, int6
           code = stRealtimeContextSendPullReq(pContext, (pContext->walMode == STRIGGER_WAL_META_WITH_DATA)
                                                             ? STRIGGER_PULL_WAL_META_DATA_NEW
                                                             : STRIGGER_PULL_WAL_META_NEW);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (code) {
+            code = stAbortIdleAlignedPoll(pContext, code);
+            goto _end;
+          }
         }
       }
       if (hasExtProgress) {
@@ -23918,6 +28378,34 @@ _check:
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0 && pContext->status != STRIGGER_CONTEXT_ACQUIRE_REQUEST &&
          pContext->status != STRIGGER_CONTEXT_SEND_CALC_REQ) {
     SSTriggerRealtimeGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+    if (pGroup->alignedCatchupId && !stHasReadyAlignedRepair(pTask, pGroup->alignedCatchupId)) {
+      pGroup->alignedCatchupId = 0;
+      pGroup->alignedDraining = false;
+      stUpdateAlignedWorkGroup(pGroup);
+    }
+    // Keep this page in the ordinary Reader buffers while history finishes the correction.
+    // Other groups on the page can run before the next multi-vgroup poll.
+    bool waitingRepair = !pContext->suppressOutput && !pGroup->alignedDraining && !pGroup->alignedNormalPage &&
+                         (pGroup->alignedCatchupId ||
+                          (pGroup->alignedRepairId && stHasReadyAlignedRepair(pTask, pGroup->alignedRepairId)));
+    if (waitingRepair || (pGroup->alignedNormalPage && stAlignedNormalPageWaiting(pGroup->alignedNormalPage))) {
+      TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+      TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+      if (++waitingGroups >= TD_DLIST_NELES(&pContext->groupsToCheck)) break;
+      continue;
+    }
+    if (pTask->pTimeAlign && stUsesTimeAlignRows(pTask) && !pGroup->seedAdmission.ready) {
+      code = stRealtimeGroupAdmitTimeAlignSeeds(pGroup);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!pGroup->seedAdmission.ready) {
+        if (pContext->pRecovery) pContext->timeAlignWaiting = true;
+        TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        if (++waitingGroups >= TD_DLIST_NELES(&pContext->groupsToCheck)) break;
+        continue;
+      }
+    }
+    waitingGroups = 0;
     bool                    notifyNameReady = false;
     code = stRealtimeContextPrepareNotifyName(pContext, pGroup, &notifyNameReady);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -23930,9 +28418,16 @@ _check:
           pContext->status == STRIGGER_CONTEXT_FETCH_META || pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION, code,
           lino, _end, TSDB_CODE_INTERNAL_ERROR);
       pContext->status = STRIGGER_CONTEXT_CHECK_CONDITION;
+      pContext->timeAlignWaiting = false;
       code = stRealtimeGroupDriveNestedInputs(pGroup, now);
       QUERY_CHECK_CODE(code, lino, _end);
+      if (pContext->timeAlignWaiting) goto _end;
       if (pGroup->nestedInputRegistered) {
+        if (pGroup->alignedNormalPage && stAlignedNormalPageWaiting(pGroup->alignedNormalPage)) {
+          TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+          TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+          continue;
+        }
         goto _end;
       }
       code = stRealtimeGroupCompleteNestedCheck(pGroup);
@@ -23960,8 +28455,10 @@ _check:
           code = stRealtimeContextCopyTableUids(pContext, &pGroup->tableUids, &pContext->dumpTableUids);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+        pContext->timeAlignWaiting = false;
         code = stRealtimeGroupCheck(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->timeAlignWaiting) goto _end;
         if (pContext->needPseudoCols) {
           code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_VTABLE_PSEUDO_COL);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -24001,6 +28498,8 @@ _check:
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
+    if (pGroup->pTimeAlignStates && pTask->triggerType == STREAM_TRIGGER_SLIDING)
+      stTimeAlignFinishPass(pGroup->pTimeAlignStates->state, pContext->needCheckAgain);
     if (pContext->needCheckAgain && pTask->triggerType == STREAM_TRIGGER_SLIDING) {
       code = stRealtimeContextCopyTableUids(pContext, &pContext->dumpTableUids, &pGroup->tableUids);
       QUERY_CHECK_CODE(code, lino, _end);
@@ -24295,6 +28794,13 @@ _check:
   }
 
 _calc_done:
+  if (nested && stUsesTimeAlignRows(pTask) && !pContext->suppressOutput) {
+    TAOS_CHECK_RETURN(stAcceptAlignedChain(pContext));
+  }
+  if (waitingGroups) {
+    pContext->status = STRIGGER_CONTEXT_FETCH_META;
+    goto _end;
+  }
   // Drain the nested backlog before starting another input round, even after all groups were checked.
   if (TD_DLIST_NELES(&pContext->groupsToCheck) > 0 ||
       (nested && !pContext->suppressOutput && pContext->nestedPendingParamCount >= tsStreamTriggerMaxPendingParams)) {
@@ -24350,14 +28856,27 @@ _calc_done:
     QUERY_CHECK_CODE(code, lino, _end);
     forwardDoneVer = (nRunningReq == 0);
   }
+  if (forwardDoneVer && atomic_load_32(&pTask->alignedCheckpointHold) && !stHasReadyAlignedRepair(pTask, 0) &&
+      TD_DLIST_NELES(&pContext->groupsToCheck) == 0) {
+    int32_t                      i = 0;
+    SSTriggerGroupPendingRecalc *pending = NULL;
+    while ((pending = tSimpleHashIterate(pTask->pGroupPendingRecalcs, pending, &i))) {
+      if (TD_DLIST_HEAD(&pending->pendingRequests)) break;
+    }
+    if (!pending) atomic_store_32(&pTask->alignedCheckpointHold, 0);
+  }
   pContext->recovering = false;
   // For STREAM_TRIGGER_EVENT, pre-compute the set of vgIds that currently have at
   // least one group with an active start/end streak. This replaces an O(G) scan
   // per progress entry (total O(G x V)) with a single O(G) build + O(1) lookup
   // per progress entry (total O(G + V)).
+  // Stage the cursor only after the groups on this ordinary page have consumed their input.
+  bool stageAlignedDone = !forwardDoneVer && noPendingCalc && nested && pContext->timeAlignRound &&
+                          !pContext->suppressOutput && !pContext->timeAlignRestart && !pContext->metaPool.size &&
+                          !stRealtimeContextHasPendingWalPulls(pContext);
   SHashObj *pFrozenVgIds = NULL;
-  if (forwardDoneVer && pTask->triggerType == STREAM_TRIGGER_EVENT && pTask->pRealtimeContext != NULL &&
-      pTask->pRealtimeContext->pGroups != NULL) {
+  if ((forwardDoneVer || stageAlignedDone) && pTask->triggerType == STREAM_TRIGGER_EVENT &&
+      pTask->pRealtimeContext != NULL && pTask->pRealtimeContext->pGroups != NULL) {
     pFrozenVgIds = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
     if (pFrozenVgIds != NULL) {
       int32_t                  giter = 0;
@@ -24381,7 +28900,7 @@ _calc_done:
   int32_t               iter = 0;
   SSTriggerWalProgress *pProgress = tSimpleHashIterate(pContext->pReaderWalProgress, NULL, &iter);
   while (pProgress != NULL) {
-    if (forwardDoneVer) {
+    if (forwardDoneVer || stageAlignedDone) {
       int64_t newDoneVer = pProgress->lastScanVer;
       if (pTask->triggerType == STREAM_TRIGGER_EVENT) {
         // Freeze doneVer if any group on this vnode has an active streak so that WAL replay
@@ -24391,7 +28910,12 @@ _calc_done:
           newDoneVer = pProgress->doneVer;  // freeze at current position
         }
       }
-      pProgress->doneVer = newDoneVer;
+      if (forwardDoneVer) {
+        pProgress->doneVer = newDoneVer;
+        pProgress->alignedDrainedVer = 0;
+      } else if (pTask->triggerType != STREAM_TRIGGER_EVENT || pFrozenVgIds != NULL) {
+        pProgress->alignedDrainedVer = newDoneVer;
+      }
     }
     if (pProgress->lastScanVer < pProgress->savedVer) {
       pContext->recovering = true;
@@ -24410,6 +28934,17 @@ _calc_done:
 
   code = stRealtimeContextAddUserRecalc(pContext);
   QUERY_CHECK_CODE(code, lino, _end);
+
+  if (pContext->timeAlignRound && forwardDoneVer && !pContext->metaPool.size && !hasReadyDeferredGroup &&
+      !stRealtimeContextHasPendingWalPulls(pContext)) {
+    int64_t outstanding = 0;
+    code = stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &outstanding);
+    QUERY_CHECK_CODE(code, lino, _end);
+    if (outstanding) goto _end;
+    code = stDropTimeAlignBoundary(pContext, true);
+    QUERY_CHECK_CODE(code, lino, _end);
+    goto _end;
+  }
 
   if (pContext->pPeriod != NULL) {
     pContext->pPeriod->dispatchDone = noPendingCalc;
@@ -24541,7 +29076,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
                 SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
                 SSTriggerReaderDataKey readerKey =
                     stTriggerTaskInternalReaderDataKey(0, pVirtTableInfo->tbUid, pVirtTableInfo->vgId);
-                code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs);
+                code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs, 0);
                 QUERY_CHECK_CODE(code, lino, _end);
                 if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
                     stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -24573,7 +29108,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
             SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
             SSTriggerReaderDataKey readerKey =
                 stTriggerTaskInternalReaderDataKey(pOrigTableInfo->tbSuid, pOrigTableInfo->tbUid, vgId);
-            code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs);
+            code = stRealtimeGroupAddMeta(pGroup, vgId, &readerKey, &meta, nowNs, vtbUid);
             QUERY_CHECK_CODE(code, lino, _end);
             if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
                 stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -24609,7 +29144,7 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
           pGroup = *(SSTriggerRealtimeGroup **)px;
         }
         SSTriggerMetaData meta = {.skey = pSkeys[i], .ekey = pEkeys[i], .ver = pVers[i]};
-        code = stRealtimeGroupAddMeta(pGroup, vgId, NULL, &meta, nowNs);
+        code = stRealtimeGroupAddMeta(pGroup, vgId, NULL, &meta, nowNs, 0);
         QUERY_CHECK_CODE(code, lino, _end);
         if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) && stRealtimeGroupNeedCheck(pGroup) &&
             !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -24666,7 +29201,10 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
             STimeWindow range = {.skey = pSkeys[i], .ekey = pEkeys[i]};
             ST_TASK_DLOG("add recalc request for delete data, gid: %" PRId64 ", start: %" PRId64 ", end: %" PRId64, gid,
                          range.skey, range.ekey);
-            code = stTriggerTaskAddRecalcRequest(pTask, pGroup, &range, false, false, false, 0);
+            code = stInvalidateTimeAlignChange(pContext, gid, vtbUid, pProgress->pTaskAddr->taskId, otbUid, range, -1,
+                                               NULL);
+            QUERY_CHECK_CODE(code, lino, _end);
+            code = stTriggerTaskAddSourceRecalcRequest(pTask, pGroup, &range, false, otbUid);
             QUERY_CHECK_CODE(code, lino, _end);
             if ((pContext->pPeriod == NULL || pContext->pPeriod->pReceiving == NULL) &&
                 stRealtimeGroupNeedCheck(pGroup) && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -24732,6 +29270,21 @@ static int32_t stRealtimeContextProcWalMeta(SSTriggerRealtimeContext *pContext, 
     for (int32_t i = 0; i < nrows; i++) {
       const bool isRecheckAdd = (pTypes[i] == TABLE_BLOCK_ADD_RECHECK);
       const bool passesTbGate = isRecheckAdd || pVers[i] > tbPatchWatermark;
+      if (pTypes[i] == TABLE_BLOCK_REFRESH_WIDTH && pTask->flatVirtualScan && passesTbGate) {
+        // The physical Reader owns the WAL cursor. Fetch the virtual table from its own vgroup.
+        SSHashObj              *pending = pContext->patchContext.pPatchItems;
+        SSTriggerVirtTableInfo *table = tSimpleHashGet(pTask->pVirtTableInfos, &pUids[i], sizeof(pUids[i]));
+        if (table && !tSimpleHashGet(pending, &pUids[i], sizeof(pUids[i]))) {
+          SSTriggerVTablePatchItem item = {
+              .vtbUid = pUids[i], .ver = pVers[i], .vgId = table->vgId, .op = TABLE_BLOCK_ADD};
+          code = tSimpleHashPut(pending, &pUids[i], sizeof(pUids[i]), &item, sizeof(item));
+          QUERY_CHECK_CODE(code, lino, _end);
+          ST_TASK_DLOG("refresh physical column width for virtual table:%" PRId64 ", reader vgId:%d, table vgId:%d",
+                       pUids[i], vgId, table->vgId);
+        }
+        pProgress->savedTbVer = TMAX(pProgress->savedTbVer, pVers[i]);
+        continue;
+      }
       if ((pTypes[i] == TABLE_BLOCK_ADD || isRecheckAdd) && pTask->isVirtualTable && passesTbGate) {
 #if TRIGGER_SUPPORT_RUNTIME_VTABLE_CHANGE
         ST_TASK_DLOG("found runtime virtual table %s, uid:%" PRId64 ", ver:%" PRId64,
@@ -24884,6 +29437,51 @@ _end:
   return code;
 }
 
+static int32_t stValidateTimeAlignVtables(const SArray *tables) {
+  for (size_t i = 0; i < taosArrayGetSize(tables); ++i) {
+    const VTableInfo *table = taosArrayGet(tables, i);
+    for (int j = 0; j < table->cols.nCols; ++j) {
+      const SColRef *ref = &table->cols.pColRef[j];
+      if (ref->hasRef && (ref->refType != 0 || ref->refSourceName[0])) return TSDB_CODE_STREAM_INVALID_TRIGGER;
+    }
+  }
+  return 0;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestBuildWalProjection(SSTriggerRealtimeContext *ctx, uint64_t *placements) {
+  return stBuildTimeAlignWalProjection(ctx, placements);
+}
+void stTriggerTestFreeWalProjection(SStreamTriggerTask *task, SSTriggerRealtimeContext *ctx) {
+  tSimpleHashSetFreeFp(task->pOrigTableInfos, stTriggerTaskDestroyOrigTableInfo);
+  tSimpleHashSetFreeFp(task->pVirtTableInfos, stTriggerTaskDestroyTableInfo);
+  tSimpleHashSetFreeFp(ctx->pReaderWalProgress, stRealtimeContextDestroyWalProgress);
+  tSimpleHashCleanup(task->pOrigTableInfos);
+  tSimpleHashCleanup(task->pVirtTableInfos);
+  tSimpleHashCleanup(ctx->pReaderWalProgress);
+  blockDataDestroy(task->pVirtTrigBlock);
+  blockDataDestroy(task->pVirtCalcBlock);
+}
+int32_t stTriggerTestValidateTimeAlignVtables(const SArray *tables) { return stValidateTimeAlignVtables(tables); }
+int32_t stTriggerTestLegacyFlatBindingWidth(const SStreamTriggerTask *task, int64_t uid, col_id_t cid, int32_t deployed,
+                                            int32_t *bytes) {
+  return stLegacyFlatBindingWidth(task, uid, cid, deployed, bytes);
+}
+#endif
+
+static int32_t stPublishVtableBindings(SSTriggerRealtimeContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (task->pTimeAlign) TAOS_CHECK_RETURN(stBuildTimeAlignWalProjection(ctx, NULL));
+  for (ctx->curReaderIdx = 0; ctx->curReaderIdx < taosArrayGetSize(task->readerList); ++ctx->curReaderIdx)
+    TAOS_CHECK_RETURN(stRealtimeContextSendPullReq(ctx, STRIGGER_PULL_SET_TABLE));
+  return 0;
+}
+
+static int32_t stFinishEmptyVtablePatch(SSTriggerRealtimeContext *ctx) {
+  if (ctx->pTask->pTimeAlign && taosArrayGetSize(ctx->pTask->readerList)) return stPublishVtableBindings(ctx);
+  return stRealtimeContextFinishVtablePatch(ctx);
+}
+
 static int32_t stTriggerTaskContinueVtableInfo(SStreamTriggerTask *pTask, SSTriggerRealtimeContext *pContext) {
   int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    lino = 0;
@@ -24978,7 +29576,7 @@ static int32_t stTriggerTaskContinueVtableInfo(SStreamTriggerTask *pTask, SSTrig
     atomic_store_64(&pTask->waitingMgmtReqId, pReq->reqId);
     atomic_store_ptr(&pTask->task.pMgmtReq, pReq);
   } else if (IS_PATCHING_VITRUAL_TABLE(pContext)) {
-    code = stRealtimeContextFinishVtablePatch(pContext);
+    code = stFinishEmptyVtablePatch(pContext);
     QUERY_CHECK_CODE(code, lino, _end);
   } else {
     ST_TASK_DLOG("skip empty original table reader request, nReaders:%d", (int32_t)taosArrayGetSize(pTask->readerList));
@@ -25017,6 +29615,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                             pRsp->code == TSDB_CODE_STREAM_NO_CONTEXT,
                         code, lino, _end, TSDB_CODE_INVALID_PARA);
 
+  if (pContext->timeAlignRound && pReq->timeAlignWalRound == pContext->timeAlignRound &&
+      (pReq->type == STRIGGER_PULL_WAL_META_DATA_NEW || pReq->type == STRIGGER_PULL_WAL_META_NEW)) {
+    pContext->timeAlignWalReplyRound = pContext->timeAlignRound;
+  }
+
   ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64 ", code:%d", pReq->type, pReq->readerTaskId,
                pRsp->code);
 
@@ -25036,8 +29639,9 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
 
   switch (pReq->type) {
     case STRIGGER_PULL_LAST_TS: {
-      SSTriggerWalProgress *pProgress = NULL;
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
+      bool                  publishing = pAhandle->paramType == STRIGGER_AHANDLE_PARAM_TIME_ALIGN_BOUND;
+      SSTriggerWalProgress *pProgress = publishing ? pPullProgress : NULL;
+      for (int32_t i = 0; !pProgress && i < TARRAY_SIZE(pTask->readerList); i++) {
         SStreamTaskAddr      *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
         SSTriggerWalProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderWalProgress, &pReader->nodeId, sizeof(int32_t));
@@ -25059,6 +29663,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CODE(code, lino, _end);
       // set start version to current latest version of WAL
       pProgress->startVer = pDataBlock->info.id.groupId;
+      if (pProgress->timeAlignRound) {
+        // LAST_TS gives the next WAL cursor. Zero means no admitted version. An inclusive upper bound of zero is valid.
+        pProgress->timeAlignHasVersion = pProgress->startVer > 0;
+        pProgress->timeAlignMaxVer = pProgress->timeAlignHasVersion ? pProgress->startVer - 1 : 0;
+      }
       pProgress->savedVer = pProgress->startVer;
       pProgress->doneVer = pProgress->startVer;
       pProgress->lastScanVer = pProgress->startVer;
@@ -25161,7 +29770,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
       }
 
-      if (stRealtimeContextHasPendingWalPulls(pContext)) {
+      if (publishing ? !pAhandle->timeAlignDone : stRealtimeContextHasPendingWalPulls(pContext)) {
         ST_TASK_DLOG("wal: wait for remaining LAST_TS responses after reader task:%" PRIx64,
                      pProgress->pTaskAddr != NULL ? pProgress->pTaskAddr->taskId : 0);
         goto _end;
@@ -25226,6 +29835,15 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
                                   .tableBlock = pContext->pTableBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, NULL);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (pProgress->timeAlignRound) {
+          bool deferred = false;
+          code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+          if (!code) code = stDeferTimeAlignWalMeta(pContext, pProgress, pRsp, &deferred);
+          if (code || deferred) {
+            taosArrayDestroyEx(rsp.groupInfos, stRealtimeContextDestroyGroupInfoWithId);
+            goto _end;
+          }
+        }
         code = stRealtimeContextCacheGroupInfos(pContext, rsp.groupInfos, nowNs);
         // A SET TAG-only batch can stop before any META rows exist; ordinary
         // META batches can also carry group values and should proceed to DATA.
@@ -25236,8 +29854,10 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         taosArrayDestroyEx(rsp.groupInfos, stRealtimeContextDestroyGroupInfoWithId);
         rsp.groupInfos = NULL;
         QUERY_CHECK_CODE(code, lino, _end);
-        code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
-        QUERY_CHECK_CODE(code, lino, _end);
+        if (!pProgress->timeAlignRound) {
+          code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
         pContext->pMetaBlock->info.version = rsp.ver;
         pProgress->verTime = rsp.verTime;
       }
@@ -25395,6 +30015,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       ST_CLEAR_WAL_PENDING(pProgress);
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_FETCH_META, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
+      stPreparePhysicalWalBlock(pTask, &pProgress->walLayoutGeneration[0], pProgress->pTrigBlock);
       bool firstDataBlock = (blockDataGetNumOfCols(pProgress->pTrigBlock) == 0);
 
       if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) {
@@ -25423,26 +30044,46 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         }
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (pProgress->timeAlignRound && pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+          bool deferred = false;
+          code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+          if (!code) code = stDeferTimeAlignWalMeta(pContext, pProgress, pRsp, &deferred);
+          if (code || deferred) {
+            taosArrayDestroyEx(rsp.groupInfos, stRealtimeContextDestroyGroupInfoWithId);
+            goto _end;
+          }
+        }
         code = stRealtimeContextCacheGroupInfos(pContext, rsp.groupInfos, nowNs);
         taosArrayDestroyEx(rsp.groupInfos, stRealtimeContextDestroyGroupInfoWithId);
         rsp.groupInfos = NULL;
         QUERY_CHECK_CODE(code, lino, _end);
         if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
-          code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
-          QUERY_CHECK_CODE(code, lino, _end);
+          if (!pProgress->timeAlignRound) {
+            code = stTriggerTaskValidateWalMeta(pContext->pMetaBlock, pContext->pDeleteBlock, pContext->pTableBlock);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
           pContext->pMetaBlock->info.version = rsp.ver;
           pProgress->verTime = rsp.verTime;
         }
       }
 
       if (pContext->walMode == STRIGGER_WAL_META_WITH_DATA) {
+        if (pProgress->timeAlignRound && pReq->type == STRIGGER_PULL_WAL_META_DATA_NEW) {
+          const SSTriggerWalMetaDataNewRequest *bounded = &pProgress->pullReq.walMetaDataNewReq;
+          int64_t                               next = pContext->pMetaBlock->info.version;
+          if (bounded->endVer && (next < bounded->lastVer || next > TMAX(0, bounded->endVer))) {
+            code = TSDB_CODE_INVALID_MSG;
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+        }
         code = stRealtimeContextProcWalMeta(pContext, pProgress, nowNs);
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
       int32_t nTables = TARRAY_SIZE(pContext->pTempSlices);
-      ST_TASK_DLOG("receive %" PRId64 " rows trig data of %d tables from vnode %d", pProgress->pTrigBlock->info.rows,
-                   nTables, pProgress->pTaskAddr->nodeId);
+      ST_TASK_DLOG("receive %" PRId64 " rows trig data of %d tables from vnode %d, walCols:%zu",
+                   pProgress->pTrigBlock->info.rows, nTables, pProgress->pTaskAddr->nodeId,
+                   blockDataGetNumOfCols(pProgress->pTrigBlock));
       bool maybeShrinked = pContext->recovering && (pContext->walMode == STRIGGER_WAL_META_WITH_DATA);
       if (pTask->isVirtualTable) {
         for (int32_t i = 0; i < nTables; i++) {
@@ -25617,6 +30258,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         taosArrayClear(pContext->pTempSlices);
       } else {
         QUERY_CHECK_CONDITION(pRsp->contLen > 0, code, lino, _end, TSDB_CODE_INVALID_PARA);
+        stPreparePhysicalWalBlock(pTask, &pProgress->walLayoutGeneration[1], pProgress->pCalcBlock);
         SSTriggerWalNewRsp rsp = {.dataBlock = pProgress->pCalcBlock};
         code = tDeserializeSStreamWalDataResponse(pRsp->pCont, pRsp->contLen, &rsp, pContext->pTempSlices);
         QUERY_CHECK_CODE(code, lino, _end);
@@ -25963,6 +30605,11 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
       code = tDeserializeSStreamMsgVTableInfo(pRsp->pCont, pRsp->contLen, &vtableInfo);
       QUERY_CHECK_CODE(code, lino, _end);
       int32_t nVirTables = taosArrayGetSize(vtableInfo.infos);
+      if (pTask->pTimeAlign) {
+        code = stValidateTimeAlignVtables(vtableInfo.infos);
+        if (code) ST_TASK_ELOG("%s", "TIME_ALIGN requires local virtual column references");
+        QUERY_CHECK_CODE(code, lino, _end);
+      }
 
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_GATHER_VTABLE_INFO, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
@@ -26062,8 +30709,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             pTbInfo->pColumns = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY));
             QUERY_CHECK_NULL(pTbInfo->pColumns, code, lino, _end, terrno);
           }
-          col_id_t colid = 0;
-          code = tSimpleHashPut(pTbInfo->pColumns, pColRef->refColName, colNameLen, &colid, sizeof(col_id_t));
+          STOrigColumn column = {0};
+          code = tSimpleHashPut(pTbInfo->pColumns, pColRef->refColName, colNameLen, &column, sizeof(column));
           QUERY_CHECK_CODE(code, lino, _end);
         }
       }
@@ -26125,7 +30772,7 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
             while (px2 != NULL) {
               pTbInfo->suid = pRsp->suid;
               pTbInfo->uid = pRsp->uid;
-              *(col_id_t *)px2 = pRsp->cid;
+              *(STOrigColumn *)px2 = (STOrigColumn){.id = pRsp->cid, .bytes = pRsp->bytes};
               pRsp++;
               px2 = tSimpleHashIterate(pTbInfo->pColumns, px2, &iter3);
             }
@@ -26152,11 +30799,8 @@ static int32_t stRealtimeContextProcPullRsp(SSTriggerRealtimeContext *pContext, 
         QUERY_CHECK_CODE(code, lino, _end);
       }
 
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
-        code = stRealtimeContextSendPullReq(pContext, STRIGGER_PULL_SET_TABLE);
-        QUERY_CHECK_CODE(code, lino, _end);
-      }
+      code = stPublishVtableBindings(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
       break;
     }
 
@@ -26587,6 +31231,17 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       QUERY_CHECK_CODE(code, lino, _end);
     }
 
+    if (completed && pContext->nestedWindowPlan && pContext->timeAlignRound &&
+        pContext->timeAlignRound == pAhandle->timeAlignRound && !pContext->timeAlignRestart &&
+        atomic_load_32((int32_t *)&pTask->task.status) != STREAM_STATUS_FAILED) {
+      int64_t running = 0;
+      TAOS_CHECK_RETURN(stTriggerTaskGetRunningReq(pTask, pContext->sessionId, &running));
+      if (!running) {
+        // The next WAL fetch can already be in flight. Only its predecessor reached _calc_done.
+        stFinishDrainedAlignedWal(pContext, true);
+      }
+    }
+
     // retry pending create-table when slot freed (previous attempt may have failed due to no slot)
     if (pContext->status == STRIGGER_CONTEXT_DETERMINE_BOUND && pContext->pPendingCreateTableGids != NULL &&
         taosArrayGetSize(pContext->pPendingCreateTableGids) > 0) {
@@ -26677,7 +31332,7 @@ static int32_t stRealtimeContextProcCalcRsp(SSTriggerRealtimeContext *pContext, 
       }
     }
   } else if (pRsp->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
-    code = stTriggerTaskRetryVtableCalcRequest(pTask, pContext->sessionId, pReq);
+    code = stTriggerTaskScheduleCalcRetry(pTask, pContext->sessionId, pReq);
     if (code != TSDB_CODE_SUCCESS) {
       int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pReq, false);
       if (releaseCode != TSDB_CODE_SUCCESS) code = releaseCode;
@@ -26876,6 +31531,10 @@ static int32_t stHistoryContextInit(SSTriggerHistoryContext *pContext, SStreamTr
   return TSDB_CODE_SUCCESS;
 }
 
+static const SArray *stHistoryContextReaders(const SSTriggerHistoryContext *ctx) {
+  return ctx->timeAlignReaders ? ctx->timeAlignReaders : ctx->pTask->readerList;
+}
+
 static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContext, bool isHistory, int64_t gid) {
   if (pContext->executionInitialized) {
     if (!pContext->pTask->isVirtualTable || (pContext->isHistory == isHistory && pContext->gid == gid)) {
@@ -26900,8 +31559,8 @@ static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContex
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     pContext->needTsdbMeta = true;
   } else if (pTask->triggerType == STREAM_TRIGGER_SLIDING) {
-    pContext->needTsdbMeta = (pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter ||
-                             (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) ||
+    pContext->needTsdbMeta = pTask->pTimeAlign != NULL || (pTask->histTriggerFilter != NULL) ||
+                             pTask->hasTriggerFilter || (pTask->placeHolderBitmap & PLACE_HOLDER_PARTITION_ROWS) ||
                              (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) || pTask->ignoreNoDataTrigger;
   } else if (pTask->isVirtualTable || (pTask->triggerType == STREAM_TRIGGER_SESSION)) {
     pContext->needTsdbMeta = true;
@@ -26911,10 +31570,17 @@ static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContex
   QUERY_CHECK_NULL(pContext->pReaderTsdbProgress, code, lino, _end, terrno);
   tSimpleHashSetFreeFp(pContext->pReaderTsdbProgress, stHistoryContextDestroyTsdbProgress);
   int32_t nReaders = taosArrayGetSize(pTask->readerList);
+  if (stUsesTimeAlignRows(pTask)) {
+    pContext->timeAlignReaders = taosArrayInit(nReaders, sizeof(SStreamTaskAddr));
+    QUERY_CHECK_NULL(pContext->timeAlignReaders, code, lino, _end, terrno);
+  }
   for (int32_t i = 0; i < nReaders; i++) {
     SStreamTaskAddr *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
     if (tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t)) != NULL) {
       continue;
+    }
+    if (pContext->timeAlignReaders) {
+      QUERY_CHECK_NULL(taosArrayPush(pContext->timeAlignReaders, pReader), code, lino, _end, terrno);
     }
     SSTriggerTsdbProgress progress = {0};
     code = tSimpleHashPut(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t), &progress,
@@ -26960,7 +31626,7 @@ static int32_t stHistoryContextPrepareExecution(SSTriggerHistoryContext *pContex
   if (pTask->isVirtualTable) {
     code = createOneDataBlock(pTask->pVirDataBlock, false, &pVirDataBlock);
     QUERY_CHECK_CODE(code, lino, _end);
-    code = filterInitFromNode(pTask->histTriggerFilter, &pVirDataFilter, 0, NULL);
+    code = filterInitFromNode(pTask->pTimeAlign ? NULL : pTask->histTriggerFilter, &pVirDataFilter, 0, NULL);
     QUERY_CHECK_CODE(code, lino, _end);
     pContext->pMerger = taosMemoryCalloc(1, sizeof(SSTriggerVtableMerger));
     QUERY_CHECK_NULL(pContext->pMerger, code, lino, _end, terrno);
@@ -27004,6 +31670,8 @@ _end:
   return code;
 }
 
+static int32_t stHistoryContextBeginProgressStep(SSTriggerHistoryContext *pContext);
+
 static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, SSTriggerRecalcRequest **ppReq) {
   int32_t                 code = TSDB_CODE_SUCCESS;
   int32_t                 lino = 0;
@@ -27017,6 +31685,26 @@ static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, 
     *ppReq = NULL;
   }
   pContext->gid = pReq->gid;
+  pContext->alignedRepairId = pReq->alignedRepairId;
+  pContext->alignedInputFloor = pReq->alignedInputFloor;
+  if (pReq->alignedFuture) {
+    TSWAP(pContext->alignedFuture, pReq->alignedFuture);
+    pContext->alignedReplayAfter = pContext->alignedFuture->after;
+    pContext->alignedReplaySuffix = true;
+  }
+  if (pReq->alignedRepairId || pContext->alignedFuture) {
+    SSTriggerHistoryGroup **group = tSimpleHashGet(pContext->pGroups, &pReq->gid, sizeof(pReq->gid));
+    QUERY_CHECK_NULL(group, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+    const SWindowChainPolicy policy = stNestedLivePolicy(pTask, false);
+    code = stWindowChainCreate(pTask->pWindowPlan, pReq->gid, &policy, &(*group)->pAlignedLiveChain);
+    QUERY_CHECK_CODE(code, lino, _end);
+  }
+  pContext->timeAlignRepair = pReq->timeAlignRepairOwner != NULL;
+  pReq->timeAlignRepairOwner = NULL;
+  pContext->hasTimeAlignChange = pReq->hasTimeAlignChange;
+  pContext->timeAlignChange = pReq->timeAlignChange;
+  pContext->timeAlignSourceUid = pReq->timeAlignSourceUid;
+  pContext->timeAlignOriginalScan = pReq->scanRange;
   pContext->scanRange = pReq->scanRange;
   pContext->predecessorScanThrough = pReq->scanRange.ekey;
   pContext->calcRange = pReq->calcRange;
@@ -27044,7 +31732,7 @@ static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, 
   }
   int32_t                iter = 0;
   SSTriggerTsdbProgress *pProgress = tSimpleHashIterate(pContext->pReaderTsdbProgress, NULL, &iter);
-  while (pProgress != NULL) {
+  while (!stUsesTimeAlignRows(pTask) && pProgress != NULL) {
     void *px = tSimpleHashGet(pReq->pTsdbVersions, &pProgress->taskAddr.nodeId, sizeof(int32_t));
     QUERY_CHECK_NULL(px, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
     pProgress->version = *(int64_t *)px;
@@ -27052,6 +31740,8 @@ static int32_t stHistoryContextHandleRequest(SSTriggerHistoryContext *pContext, 
   }
   pContext->ownsOpenRepairHold = pReq->pOpenRepairOwner != NULL;
   pReq->pOpenRepairOwner = NULL;
+  // Both initial admission and a fresh Reader round need a tracker step before their first timestamp requests.
+  if (manual) code = stHistoryContextBeginProgressStep(pContext);
 _end:
   return code;
 }
@@ -27084,12 +31774,31 @@ static TSKEY stHistoryContextGetFirstTsSearchStart(const SSTriggerHistoryContext
 
 static void stHistoryContextClearExecution(SSTriggerHistoryContext *pContext) {
   SStreamTriggerTask      *pTask = pContext->pTask;
+  pContext->prefixProbe = (STimeAlignPrefixProbe){0};
+  stDiscardAlignedChainUpdate(pContext);
+  stReleaseAlignedFuture(&pContext->alignedFuture, false);
+  pContext->alignedConfirmedAdvanced = false;
+  pContext->alignedTailAdvanced = false;
+  pContext->alignedFutureCalcError = 0;
+  taosArrayDestroyEx(pContext->alignedTailEvents, stDestroyLeafEventCandidate);
+  if (pContext->timeAlignRepair) (void)atomic_sub_fetch_32(&pTask->timeAlignRepairs, 1);
   if (pContext->ownsOpenRepairHold) stTriggerTaskReleaseOpenRepair(pTask, pContext->gid);
   stTriggerTaskDestroyRecalcRequest(&pContext->pManualRecalcRequest);
   if (pTask != NULL && pTask->pHistoryContext == pContext) {
     stTriggerTaskClearHistoryDebugGauges(pTask);
   }
   stHistoryContextAbortNestedLeafEffects(pContext);
+  if (pContext->timeAlignBodies && pContext->timeAlignRound && pTask->pRealtimeContext) {
+    (void)stCloseTimeAlignBodies(pContext, NULL);
+    (void)stDriveTimeAlignCloses(pTask, pContext->sessionId, taosGetTimestampNs());
+  }
+  if (pContext->timeAlignRound && pTask->pRealtimeContext) {
+    (void)stReleaseHistoryTimeAlignRound(pContext);
+  }
+  taosArrayDestroyEx(pContext->timeAlignBodies, stFreeTimeAlignBody);
+  pContext->timeAlignBodies = NULL;
+  taosArrayDestroy(pContext->timeAlignReaders);
+  pContext->timeAlignReaders = NULL;
   if (pContext->pReaderTsdbProgress != NULL) {
     tSimpleHashCleanup(pContext->pReaderTsdbProgress);
     pContext->pReaderTsdbProgress = NULL;
@@ -27204,6 +31913,7 @@ static void stHistoryContextDestroy(void *ptr) {
   if (ppContext == NULL || *ppContext == NULL) return;
 
   SStreamTriggerTask *pTask = (*ppContext)->pTask;
+  stClearResultChecks(&(*ppContext)->resultChecks);
   stHistoryContextClearExecution(*ppContext);
   // Cache consumers read the context pointer under this latch.
   if (pTask != NULL) taosWLockLatch(&pTask->calcDataCacheIterLock);
@@ -27403,6 +32113,25 @@ static int32_t stHistoryContextCompleteManualRequest(SSTriggerHistoryContext *pC
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stHistoryContextAllocPullAhandle(SSTriggerHistoryContext *ctx, SSTriggerPullRequest *req, int32_t vgId,
+                                                void **handle) {
+  SSTriggerTsdbProgress *progress = NULL;
+  if (ctx->timeAlignRound && stHistoryIndexPull(req->type)) {
+    progress = tSimpleHashGet(ctx->pReaderTsdbProgress, &vgId, sizeof(vgId));
+    if (!progress || &progress->pullReq.base != req) return TSDB_CODE_INTERNAL_ERROR;
+  }
+  TAOS_CHECK_RETURN(stTriggerTaskAllocAhandle(ctx->pTask, ctx->sessionId, req, req->progressStepId,
+                                              req->progressRequestToken, handle));
+  if (progress) {
+    SSTriggerAHandle *route = ((SMsgSendInfo *)*handle)->param;
+    progress->timeAlignIndexRequest = stNextTimeAlignId(ctx->pTask);
+    route->requestGeneration = progress->timeAlignIndexRequest;
+    route->requestType = req->type;
+    route->requestGid = vgId;
+  }
+  return 0;
+}
+
 static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ESTriggerPullType type) {
   int32_t                     code = TSDB_CODE_SUCCESS;
   int32_t                     lino = 0;
@@ -27412,9 +32141,10 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
   SSTriggerHistoryPeerSource *pNestedSource = NULL;
   SRpcMsg                     msg = {.msgType = TDMT_STREAM_TRIGGER_PULL};
 
+  const SArray *readers = stHistoryContextReaders(pContext);
   switch (type) {
     case STRIGGER_PULL_FIRST_TS: {
-      SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SStreamTaskAddr *pReader = taosArrayGet(readers, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -27422,12 +32152,13 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->gid = pTask->isVirtualTable ? 0 : pContext->gid;
       pReq->startTime = stHistoryContextGetFirstTsSearchStart(pContext);
       pReq->ver = pProgress->version;
+      pReq->roundId = pContext->timeAlignRound;
       break;
     }
 
     case STRIGGER_PULL_TSDB_META:
     case STRIGGER_PULL_TSDB_META_NEXT: {
-      SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SStreamTaskAddr *pReader = taosArrayGet(readers, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -27437,6 +32168,8 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
       pReq->gid = pTask->isVirtualTable ? 0 : pContext->gid;
       pReq->order = 1;
       pReq->ver = pProgress->version;
+      pReq->roundId = pContext->timeAlignRound;
+      pReq->requestId = pReq->roundId ? stNextTimeAlignId(pTask) : 0;
       ST_TASK_DLOG("pull tsdb meta from vgId:%d, gid:%" PRId64 ", time range:[%" PRId64 ", %" PRId64 "]",
                    pReader->nodeId, pReq->gid, pReq->startTime, pReq->endTime);
       break;
@@ -27476,7 +32209,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
 
     case STRIGGER_PULL_TSDB_TRIGGER_DATA:
     case STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT: {
-      SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SStreamTaskAddr *pReader = taosArrayGet(readers, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -27490,7 +32223,7 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
 
     case STRIGGER_PULL_TSDB_CALC_DATA:
     case STRIGGER_PULL_TSDB_CALC_DATA_NEXT: {
-      SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, pContext->curReaderIdx);
+      SStreamTaskAddr *pReader = taosArrayGet(readers, pContext->curReaderIdx);
       QUERY_CHECK_NULL(pReader, code, lino, _end, terrno);
       pProgress = tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
       QUERY_CHECK_NULL(pProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -27658,9 +32391,17 @@ static int32_t stHistoryContextSendPullReq(SSTriggerHistoryContext *pContext, ES
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
+  if (stUsesTimeAlignRows(pTask) && type == STRIGGER_PULL_TSDB_DATA &&
+      pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION) {
+    SSTriggerHistoryGroup *group = stHistoryContextGetCurrentGroup(pContext);
+    QUERY_CHECK_NULL(group, code, lino, _end, TSDB_CODE_STREAM_NO_CONTEXT);
+    code = stSendTimeAlignBody(pContext, pProgress, (SSTriggerTsdbDataRequest *)pReq, group->gid);
+    if (!code && pNestedSource) pNestedSource->inFlight = true;
+    goto _end;
+  }
+
   // serialize and send request
-  code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
-                                   &msg.info.ahandle);
+  code = stHistoryContextAllocPullAhandle(pContext, pReq, pReader->nodeId, &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
   ST_TASK_DLOG("trigger pull req ahandle %p allocated", msg.info.ahandle);
 
@@ -27822,7 +32563,7 @@ static int32_t stHistoryContextSendCalcReq(SSTriggerHistoryContext *pContext) {
           QUERY_CHECK_CONDITION(pContext->pMetaToFetch == NULL, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
           taosArrayClearP(pContext->pCalcDataBlocks, (FDelete)blockDataDestroy);
           pContext->calcDataBlockIdx = 0;
-          for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
+          for (pContext->curReaderIdx = 0; pContext->curReaderIdx < taosArrayGetSize(stHistoryContextReaders(pContext));
                ++pContext->curReaderIdx) {
             code = stHistoryContextSendPullReq(
                 pContext, everGetData ? STRIGGER_PULL_TSDB_CALC_DATA_NEXT : STRIGGER_PULL_TSDB_CALC_DATA);
@@ -27914,8 +32655,9 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
   QUERY_CHECK_NULL(pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
   QUERY_CHECK_CONDITION(*(SSTriggerPullRequest **)pNode->data == pReq, code, lino, _end, TSDB_CODE_INVALID_PARA);
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); i++) {
-    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(pTask->readerList, i);
+  const SArray *readers = stHistoryContextReaders(pContext);
+  for (int32_t i = 0; i < taosArrayGetSize(readers); i++) {
+    SStreamTaskAddr *pTempReader = TARRAY_GET_ELEM(readers, i);
     if (pTempReader->taskId == pReq->readerTaskId) {
       pReader = pTempReader;
       break;
@@ -27924,8 +32666,7 @@ static int32_t stHistoryContextRetryPullRequest(SSTriggerHistoryContext *pContex
   QUERY_CHECK_NULL(pReader, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
 
   // serialize and send request
-  code = stTriggerTaskAllocAhandle(pTask, pContext->sessionId, pReq, pReq->progressStepId, pReq->progressRequestToken,
-                                   &msg.info.ahandle);
+  code = stHistoryContextAllocPullAhandle(pContext, pReq, pReader->nodeId, &msg.info.ahandle);
   QUERY_CHECK_CODE(code, lino, _end);
   ST_TASK_DLOG("trigger retry pull req ahandle %p allocated", msg.info.ahandle);
 
@@ -28011,6 +32752,466 @@ static int32_t stHistoryContextCommitNestedLeafEffects(SSTriggerHistoryContext *
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t stFreezeAlignedChainReaders(const SSTriggerHistoryContext *ctx, SAlignedChainUpdate *update) {
+  int32_t count = tSimpleHashGetSize(ctx->pReaderTsdbProgress);
+  update->readers = taosArrayInit(count, sizeof(SAlignedChainReader));
+  if (!update->readers) return terrno;
+  update->readerByVg = tSimpleHashInit(count, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT));
+  if (!update->readerByVg) return terrno;
+
+  int32_t                iter = 0;
+  SSTriggerTsdbProgress *reader = NULL;
+  while ((reader = tSimpleHashIterate(ctx->pReaderTsdbProgress, reader, &iter))) {
+    SAlignedChainReader bound = {.vgId = reader->taskAddr.nodeId,
+                                 .taskId = reader->taskAddr.taskId,
+                                 .version = reader->version,
+                                 .sourceId = reader->timeAlignSourceId};
+    int32_t             index = taosArrayGetSize(update->readers);
+    if (!taosArrayPush(update->readers, &bound)) return terrno;
+    TAOS_CHECK_RETURN(tSimpleHashPut(update->readerByVg, &bound.vgId, sizeof(bound.vgId), &index, sizeof(index)));
+  }
+  for (size_t i = 0; i < taosArrayGetSize(update->tables); ++i) {
+    const SSTriggerVirtTableInfo *table = taosArrayGetP(update->tables, i);
+    for (size_t j = 0; j < taosArrayGetSize(table->pTrigColRefs); ++j) {
+      const SSTriggerTableColRef *ref = taosArrayGet(table->pTrigColRefs, j);
+      SAlignedChainReader        *bound = stAlignedReaderForVg(update, ref->otbVgId);
+      if (!bound) continue;
+      if (!bound->uids) bound->uids = taosArrayInit(2, sizeof(int64_t));
+      if (!bound->uids || !taosArrayPush(bound->uids, &ref->otbUid)) return terrno;
+    }
+  }
+  for (size_t i = 0; i < taosArrayGetSize(update->readers); ++i) {
+    SAlignedChainReader *bound = taosArrayGet(update->readers, i);
+    if (taosArrayGetSize(bound->uids) > 1) {
+      taosArraySort(bound->uids, compareInt64Val);
+      taosArrayRemoveDuplicate(bound->uids, compareInt64Val, NULL);
+    }
+  }
+  return 0;
+}
+
+static int32_t stCheckAlignedWalRange(SSTriggerHistoryContext *ctx, SAlignedChainUpdate *update,
+                                      SAlignedChainReader *reader) {
+  SSTriggerTsdbProgress *progress = tSimpleHashGet(ctx->pReaderTsdbProgress, &reader->vgId, sizeof(reader->vgId));
+  if (!progress || progress->taskAddr.taskId != reader->taskId) return TSDB_CODE_STREAM_EXEC_CANCELLED;
+  SSTriggerTimeAlignWalRangeRequest req = {.base = {.type = STRIGGER_PULL_TIME_ALIGN_WAL_RANGE,
+                                                    .streamId = ctx->pTask->task.streamId,
+                                                    .readerTaskId = reader->taskId,
+                                                    .sessionId = ctx->sessionId},
+                                           .roundId = ctx->timeAlignRound,
+                                           .firstVer = reader->proofCursor,
+                                           .throughTs = update->frontier};
+  req.hasFromTs = false;
+  SStreamTriggerTask *pTask = ctx->pTask;
+  ST_TASK_DLOG("nested retained WAL query gid:%" PRId64 " first:%" PRId64 " lower:%" PRId64 " upper:%" PRId64,
+               update->gid, reader->proofCursor, req.fromTs, req.throughTs);
+  if (!taosArrayGetSize(reader->uids)) {
+    reader->proofCursor = reader->version + 1;
+    return 0;
+  }
+  if (!reader->legacyProof && !reader->selectionId) reader->selectionId = stNextTimeAlignId(ctx->pTask);
+  req.selectionId = reader->selectionId;
+  req.uids = reader->registeredSelection ? NULL : reader->uids;
+  SAlignedWalRangeRoute route = {
+      .round = req.roundId, .pageId = stNextTimeAlignId(ctx->pTask), .first = req.firstVer, .vgId = reader->vgId};
+  int32_t code = stSendOwnedTimeAlignRequest(ctx->pTask, &progress->taskAddr, &req.base, &route, sizeof(route),
+                                             STRIGGER_AHANDLE_PARAM_TIME_ALIGN_WAL_RANGE);
+  if (!code) {
+    reader->proofPage = route.pageId;
+    ++update->pendingProofs;
+  }
+  return code;
+}
+
+static int32_t stStartAlignedWalProofs(SSTriggerHistoryContext *ctx, SAlignedChainUpdate *update, bool *changed) {
+  for (size_t i = 0; i < taosArrayGetSize(update->readers); ++i) {
+    SAlignedChainReader *reader = taosArrayGet(update->readers, i);
+    *changed |= reader->changed;
+    if (!ctx->alignedReplaySuffix && (!reader->changed && reader->proofCursor <= reader->version)) {
+      TAOS_CHECK_RETURN(stCheckAlignedWalRange(ctx, update, reader));
+    }
+  }
+  return 0;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTestFreezeAlignedHandoff(SSTriggerHistoryContext *ctx, const SArray *tables) {
+  SAlignedChainUpdate *update = taosMemoryCalloc(1, sizeof(*update));
+  if (!update) return terrno;
+  update->tables = tables;
+  update->round = ctx->timeAlignRound;
+  ctx->pTask->pAlignedChainUpdate = update;
+  return stFreezeAlignedChainReaders(ctx, update);
+}
+
+int64_t stTestAlignedOrdinaryEndVer(SStreamTriggerTask *task, const SStreamTaskAddr *addr, int64_t last) {
+  return stAlignedOrdinaryEndVer(task->pAlignedChainUpdate, addr, last);
+}
+
+void stTestDiscardAlignedChainUpdate(SSTriggerHistoryContext *history) { stDiscardAlignedChainUpdate(history); }
+
+int32_t stTestDrainAlignedPrefix(SSTriggerRealtimeGroup *group, SSTriggerHistoryContext *history, SArray *peers) {
+  SAlignedNormalPage   page = {.refs = 2, .peers = peers, .sealed = 1, .prefixEnd = 1};
+  SAlignedChainUpdate *update = taosMemoryCalloc(1, sizeof(*update));
+  if (!update) return terrno;
+  update->normal = &page;
+  history->pTask->pAlignedChainUpdate = update;
+  history->alignedChainPosted = true;
+  group->alignedNormalPage = &page;
+  group->nestedInputRegistered = true;
+  int32_t code = stRealtimeGroupDrainNestedInputs(group, taosGetTimestampNs());
+  if (!code) code = stRealtimeGroupDrainNestedInputs(group, taosGetTimestampNs());
+  stDiscardAlignedChainUpdate(history);
+  group->alignedNormalPage = NULL;
+  return code;
+}
+
+bool stTestAlignedHandoffHasFrozenInput(const SSTriggerRealtimeGroup *group) {
+  return stAlignedPageHasFrozenInput(group, group->pContext->pTask->pAlignedChainUpdate);
+}
+
+int32_t stTestCheckAlignedHandoffPage(SSTriggerHistoryContext *ctx, int64_t first) {
+  SAlignedChainUpdate *update = ctx->pTask->pAlignedChainUpdate;
+  for (size_t i = 0; i < taosArrayGetSize(update->readers); ++i) {
+    SAlignedChainReader *reader = taosArrayGet(update->readers, i);
+    reader->proofCursor = first;
+  }
+  bool changed = false;
+  return stStartAlignedWalProofs(ctx, update, &changed);
+}
+#endif
+
+static int32_t stAlignedWalRangeRsp(SSTriggerHistoryContext *ctx, const SAlignedWalRangeRoute *route, SRpcMsg *rpc) {
+  if (!ctx || ctx->timeAlignRound != route->round) return 0;
+  SStreamTriggerTask *task = ctx->pTask;
+  taosWLockLatch(&task->prevWindowUpdateLock);
+  SAlignedChainUpdate *update = task->pAlignedChainUpdate;
+  int32_t              code = 0;
+  bool                 retry = false;
+  SAlignedChainReader *reader = stAlignedReaderForVg(update, route->vgId);
+  bool                 wake = false;
+  if (reader && update->round == route->round && reader->proofPage == route->pageId &&
+      reader->proofCursor == route->first) {
+    reader->proofPage = 0;
+    --update->pendingProofs;
+    if (update->checked) {
+      // Realtime can retire the handoff while proofs are in flight.
+      wake = update->pendingProofs == 0;
+      goto end;
+    }
+    if (rpc->code == TSDB_CODE_INVALID_MSG && reader->selectionId && !reader->registeredSelection) {
+      // Readers predating registered selections reject the extended first page.
+      reader->legacyProof = true;
+      reader->selectionId = 0;
+      code = stCheckAlignedWalRange(ctx, update, reader);
+      goto end;
+    }
+    SSTriggerTimeAlignWalRangeRsp page = {0};
+    code = rpc->code ? rpc->code : tDeserializeSTriggerTimeAlignWalRangeRsp(rpc->pCont, rpc->contLen, &page);
+    if (!code &&
+        (page.roundId != route->round || page.firstVer != route->first ||
+         (page.nextVer < route->first || (page.nextVer == route->first && route->first != reader->version + 1)) ||
+         page.nextVer > reader->version + 1))
+      code = TSDB_CODE_INVALID_MSG;
+    if (!code) {
+      SStreamTriggerTask *pTask = task;
+      ST_TASK_DLOG("nested retained WAL proof round:%" PRIu64 " first:%" PRId64 " next:%" PRId64 " max:%" PRId64
+                   " changed:%d",
+                   route->round, route->first, page.nextVer, reader->version, page.changed);
+      reader->registeredSelection = reader->selectionId != 0;
+      reader->proofCursor = page.nextVer;
+      reader->changed = page.changed;
+      if (!reader->changed && reader->proofCursor <= reader->version)
+        code = stCheckAlignedWalRange(ctx, update, reader);
+      wake = update->pendingProofs == 0;
+      if (wake && !code) {
+        // A validation from another wake predates the completed proof. Ignore its late replies.
+        ctx->timeAlignValidation = (SSTriggerTimeAlignValidation){.error = ctx->timeAlignValidation.error};
+      }
+    }
+    retry = stTimeAlignSourceRoundNeedsRetry(code);
+  }
+end:
+  taosWUnLockLatch(&task->prevWindowUpdateLock);
+  if (retry) return stCancelHistoryTimeAlignRound(ctx);
+  return code || !wake ? code : stHistoryContextCheck(ctx);
+}
+
+// The accepted normal suffix has drained to this frozen version vector. Reset the scans, retaining the
+// actual source views (including deletions already visible when this correction started).
+static int32_t stDrainAlignedSuffixBatch(SSTriggerHistoryContext *ctx, bool *waiting) {
+  TAOS_CHECK_RETURN(stHistoryContextCommitNestedLeafEffects(ctx));
+  SSTriggerHistoryGroup **group = tSimpleHashGet(ctx->pGroups, &ctx->gid, sizeof(ctx->gid));
+  if (!group) return TSDB_CODE_INTERNAL_ERROR;
+  while (stHistoryGroupPendingCalcCount(*group) || ctx->pCalcReq) {
+    if (!ctx->pCalcReq)
+      TAOS_CHECK_RETURN(stTriggerTaskAcquireRequest(ctx->pTask, ctx->sessionId, ctx->gid, &ctx->pCalcReq));
+    if (ctx->pCalcReq) {
+      TAOS_CHECK_RETURN(stHistoryGroupRetrievePendingCalc(*group));
+      TAOS_CHECK_RETURN(stHistoryContextFlushCalcRequest(ctx));
+    }
+    if (ctx->pCalcReq || stHistoryGroupPendingCalcCount(*group)) {
+      *waiting = true;
+      return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId,
+                                         taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+    }
+  }
+  ctx->alignedStaged = 0;
+  ctx->alignedFlush = false;
+  return 0;
+}
+
+static int32_t stReplayAlignedSuffix(SSTriggerHistoryContext *ctx, TSKEY frontier) {
+  SSTriggerHistoryGroup **group = tSimpleHashGet(ctx->pGroups, &ctx->gid, sizeof(ctx->gid));
+  if (!group) return TSDB_CODE_INTERNAL_ERROR;
+  TAOS_CHECK_RETURN(stCloseTimeAlignBodies(ctx, NULL));
+  TAOS_CHECK_RETURN(stTriggerTaskDiscardTimeAlignSeed(ctx->pTask, ctx->sessionId, ctx->gid, 0));
+  stTriggerTimeAlignDestroyGroup((*group)->pTimeAlignStates);
+  (*group)->pTimeAlignStates = NULL;
+  (*group)->seedAdmission = (STimeAlignSeedAdmission){0};
+  (*group)->finishTs = INT64_MAX;
+  ctx->alignedReplayAfter = ctx->timeAlignOriginalScan.ekey;
+  ctx->alignedReplaySuffix = true;
+  ctx->hasTimeAlignChange = false;
+  ctx->scanRange.skey = ctx->alignedReplayAfter + 1;
+  ctx->scanRange.ekey = ctx->timeAlignOriginalScan.ekey = ctx->calcRange.ekey = frontier;
+  ctx->finishCheck = false;
+  ctx->pendingToFinish = false;
+  ctx->reenterCheck = false;
+  ctx->status = STRIGGER_CONTEXT_IDLE;
+  return stTriggerTaskAddWaitSession(ctx->pTask, ctx->sessionId, taosGetTimestampNs());
+}
+
+static int32_t stStageAlignedTailCloses(SSTriggerHistoryGroup *group, SWindowChainSubmitResult *result,
+                                        const SWindowChainRepairCarry *carry) {
+  stFilterAlignedCloseCandidates(result, carry);
+  if (!taosArrayGetSize(result->pCandidates)) return 0;
+  SSTriggerHistoryContext   *ctx = group->pContext;
+  SStreamNestedEffectContext effects = {.pTask = ctx->pTask,
+                                        .pGroupColVals = ctx->pGroupColVals,
+                                        .sessionId = ctx->sessionId,
+                                        .gid = group->gid,
+                                        .pPendingNestedEvents = &group->pendingNestedEvents,
+                                        .pPendingNestedParWinEvents = &group->pendingNestedParWinEvents,
+                                        .pHistoryGroup = group,
+                                        .notifyHistory = true};
+  SStagedNestedLeafEffects  *staged = NULL;
+  int32_t                    code = stTriggerTaskStageNestedLeafEffects(&effects, result, &staged);
+  if (code) {
+    stTriggerTaskAbortNestedLeafEffects(&staged);
+    return code;
+  }
+  stHistoryContextOwnNestedLeafEffects(ctx, &staged);
+  ctx->alignedStaged += taosArrayGetSize(result->pCandidates);
+  ctx->alignedFlush = ctx->alignedStaged >= TMAX(1, TMIN(tsStreamTriggerMaxPendingParams, STREAM_CALC_REQ_MAX_WIN_NUM));
+  return 0;
+}
+
+static int32_t stAdvanceConfirmedAlignedFrontier(SSTriggerHistoryGroup *group) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  if (!ctx->alignedFuture || ctx->alignedConfirmedAdvanced) return 0;
+  SArray *closed = taosArrayInit(2, sizeof(SLeafEventCandidate));
+  if (!closed) return terrno;
+  int32_t code =
+      stWindowChainAdvanceFrontier(group->pAlignedLiveChain, ctx->alignedReplayAfter, taosGetTimestampNs(), closed);
+  taosArrayDestroyEx(closed, stDestroyLeafEventCandidate);
+  if (!code) ctx->alignedConfirmedAdvanced = true;
+  return code;
+}
+
+// A filtered final peer can advance a SESSION deadline without entering the leaf merger.
+static int32_t stFinishAlignedTail(SSTriggerHistoryGroup *group, TSKEY frontier, const SWindowChainRepairCarry *carry,
+                                   bool *waiting) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  TAOS_CHECK_RETURN(stAdvanceConfirmedAlignedFrontier(group));
+  if (!ctx->alignedTailAdvanced) {
+    ctx->alignedTailEvents = taosArrayInit(2, sizeof(SLeafEventCandidate));
+    if (!ctx->alignedTailEvents) return terrno;
+    int32_t code =
+        stWindowChainAdvanceFrontier(group->pAlignedLiveChain, frontier, taosGetTimestampNs(), ctx->alignedTailEvents);
+    if (code) {
+      taosArrayDestroyEx(ctx->alignedTailEvents, stDestroyLeafEventCandidate);
+      ctx->alignedTailEvents = NULL;
+      return code;
+    }
+    ctx->alignedTailAdvanced = true;
+  }
+  if (ctx->alignedTailEvents) {
+    SArray                   empty = {.elemSize = sizeof(SWindowChainAcceptedBatch)};
+    SWindowChainSubmitResult result = {.pAcceptedBatches = &empty, .pCandidates = ctx->alignedTailEvents};
+    TAOS_CHECK_RETURN(stStageAlignedTailCloses(group, &result, carry));
+    taosArrayDestroyEx(ctx->alignedTailEvents, stDestroyLeafEventCandidate);
+    ctx->alignedTailEvents = NULL;
+  }
+  return stDrainAlignedSuffixBatch(ctx, waiting);
+}
+
+// The history worker retains its frozen input until the live worker examines the reconstruction.
+static int32_t stPublishAlignedChain(SSTriggerHistoryContext *ctx, bool *waiting) {
+  if (!ctx->alignedRepairId && !ctx->alignedFuture) return 0;
+  SStreamTriggerTask     *task = ctx->pTask;
+  SSTriggerHistoryGroup **group = tSimpleHashGet(ctx->pGroups, &ctx->gid, sizeof(ctx->gid));
+  if (!group) return 0;
+  if (ctx->alignedFuture) {
+    if (ctx->alignedFutureCalcError) return ctx->alignedFutureCalcError;
+    if (atomic_load_8(&ctx->alignedFuture->cancelled) && !ctx->alignedChainPosted) return 0;
+    if (!ctx->alignedChainPosted) {
+      TAOS_CHECK_RETURN(
+          stFinishAlignedTail(*group, ctx->timeAlignOriginalScan.ekey, &ctx->alignedFuture->carry, waiting));
+      if (*waiting) return 0;
+      // Draining the tail may have dispatched a Runner after TryFinish checked the session.
+      int64_t running = 0;
+      TAOS_CHECK_RETURN(stTriggerTaskGetRunningReq(task, ctx->sessionId, &running));
+      if (running) {
+        *waiting = true;
+        return 0;
+      }
+    }
+    taosWLockLatch(&task->prevWindowUpdateLock);
+    if (!ctx->alignedChainPosted) {
+      SAlignedChainUpdate *update = taosMemoryCalloc(1, sizeof(*update));
+      if (!update) {
+        taosWUnLockLatch(&task->prevWindowUpdateLock);
+        return terrno;
+      }
+      update->gid = ctx->gid;
+      update->future = ctx->alignedFuture;
+      update->frontier = ctx->timeAlignOriginalScan.ekey;
+      update->outstanding = stWindowChainHasRepairCarry((*group)->pAlignedLiveChain, &ctx->alignedFuture->carry);
+      task->pAlignedChainUpdate = update;
+      ctx->alignedChainPosted = true;
+    }
+    *waiting = !task->pAlignedChainUpdate->checked;
+    taosWUnLockLatch(&task->prevWindowUpdateLock);
+    if (!*waiting) return 0;
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(task, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
+    return stTriggerTaskAddWaitSession(task, ctx->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  }
+  if (!ctx->alignedChainPosted) {
+    if (!(*group)->pAlignedLiveChain) return 0;
+    SAlignedChainUpdate *update = taosMemoryCalloc(1, sizeof(*update));
+    if (!update) return terrno;
+    update->id = ctx->alignedRepairId;
+    update->gid = ctx->gid;
+    update->repairFrontier = update->frontier = ctx->timeAlignOriginalScan.ekey;
+    update->round = ctx->timeAlignRound;
+    update->tables = (*group)->pVirtTableInfos;
+    int32_t code = stFreezeAlignedChainReaders(ctx, update);
+    if (code) {
+      stDestroyAlignedChainUpdate(&update);
+      return code;
+    }
+    SArray *closed = taosArrayInit(1, sizeof(SLeafEventCandidate));
+    code = closed ? stWindowChainAdvanceFrontier((*group)->pAlignedLiveChain, update->frontier, taosGetTimestampNs(),
+                                                 closed)
+                  : terrno;
+    taosArrayDestroyEx(closed, stDestroyLeafEventCandidate);
+    if (code) {
+      stDestroyAlignedChainUpdate(&update);
+      return code;
+    }
+    TSWAP(update->chain, (*group)->pAlignedLiveChain);
+    taosWLockLatch(&task->prevWindowUpdateLock);
+    task->pAlignedChainUpdate = update;
+    ctx->alignedChainPosted = true;
+    taosWUnLockLatch(&task->prevWindowUpdateLock);
+  }
+  int32_t code = 0;
+  taosWLockLatch(&task->prevWindowUpdateLock);
+  SAlignedChainUpdate *update = task->pAlignedChainUpdate;
+  if (update && update->tailPending && !update->checked) {
+    bool  scan = !update->tailScanning && update->caughtUp;
+    TSKEY frontier = update->caughtFrontier;
+    if (scan) {
+      update->tailScanning = true;
+      TSWAP((*group)->pAlignedLiveChain, update->chain);
+      ctx->timeAlignOriginalScan.ekey = update->frontier;
+      ctx->alignedChainCommitted = false;
+    } else if (update->tailScanning) {
+      const SWindowChainRepairCarry *carry = &update->carry;
+      taosWUnLockLatch(&task->prevWindowUpdateLock);
+      TAOS_CHECK_RETURN(stFinishAlignedTail(*group, frontier, carry, waiting));
+      if (*waiting) return 0;
+      taosWLockLatch(&task->prevWindowUpdateLock);
+      update->outstanding = stWindowChainHasRepairCarry((*group)->pAlignedLiveChain, &update->carry);
+      update->tailDone = true;
+    }
+    *waiting = true;
+    taosWUnLockLatch(&task->prevWindowUpdateLock);
+    if (scan && frontier > ctx->timeAlignOriginalScan.ekey) return stReplayAlignedSuffix(ctx, frontier);
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(task, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
+    return stTriggerTaskAddWaitSession(task, ctx->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  }
+  if (update && update->betweenPages && !update->checked) {
+    *waiting = true;
+    taosWUnLockLatch(&task->prevWindowUpdateLock);
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(task, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
+    return stTriggerTaskAddWaitSession(task, ctx->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  }
+  if (update && update->hasInputCut && !update->pendingProofs && !update->proofComplete && !update->checked) {
+    bool changed = false;
+    code = stStartAlignedWalProofs(ctx, update, &changed);
+    bool complete = !code && !update->pendingProofs;
+    if (complete && changed && update->heldNormalPage) {
+      update->compare = true;
+    } else if (complete && changed) {
+      update->catchup = true;
+    } else if (complete && !update->catchup) {
+      update->proofComplete = true;
+    }
+  }
+  if (!code && update && !update->checked && update->pendingProofs) {
+    *waiting = true;  // The final page reply wakes history for a fresh whole-round validation.
+    taosWUnLockLatch(&task->prevWindowUpdateLock);
+    return 0;
+  }
+  bool startComparison = update && update->compare && update->normal && atomic_load_8(&update->normal->sealed) &&
+                         !update->comparing && !update->checked;
+  if (startComparison) {
+    update->comparing = true;
+    ctx->alignedChainCommitted = false;
+  }
+  if (update && update->comparing && !startComparison && ctx->alignedReplaySuffix) {
+    update->mismatch |= update->ordinal != taosArrayGetSize(update->normal->peers);
+    update->proofComplete = true;
+  }
+  if (update && update->prepared && update->round == ctx->timeAlignRound) {
+    update->committed = true;
+    ctx->alignedChainCommitted = true;
+  }
+  bool  extend = update && update->catchup && update->caughtUp && !update->checked;
+  TSKEY frontier = extend ? update->caughtFrontier : 0;
+  if (extend && !update->superseded && frontier != update->frontier) {
+    // This correction owns history through H only. A real normal row has already been admitted
+    // under a different source vector. Its existing branch remains authoritative until a later
+    // scheduled correction can establish a common boundary.
+    update->checked = true;
+    extend = false;
+  }
+  if (extend && frontier == update->frontier) {
+    // No new ordinary timestamp needs replay. The matching input vector is already fully admitted.
+    update->catchup = false;
+    update->proofComplete = true;
+    extend = false;
+  }
+  *waiting = update && !update->checked;
+  if (extend) {
+    TSWAP((*group)->pAlignedLiveChain, update->chain);
+    stDestroyAlignedChainUpdate(&task->pAlignedChainUpdate);
+    ctx->alignedChainPosted = false;
+    ctx->alignedChainCommitted = false;
+  }
+  if (startComparison) frontier = update->ordinaryFrontier;
+  taosWUnLockLatch(&task->prevWindowUpdateLock);
+  TAOS_CHECK_RETURN(code);
+  if (startComparison || extend) return stReplayAlignedSuffix(ctx, frontier);
+  if (*waiting) {
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(task, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
+    return stTriggerTaskAddWaitSession(task, ctx->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+  }
+  return 0;
+}
+
 static int32_t stHistoryContextTryFinish(SSTriggerHistoryContext *pContext) {
   if (pContext == NULL || pContext->pTask == NULL) return TSDB_CODE_INVALID_PARA;
   SStreamTriggerTask *pTask = pContext->pTask;
@@ -28031,6 +33232,15 @@ static int32_t stHistoryContextTryFinish(SSTriggerHistoryContext *pContext) {
   if (active) {
     pContext->pendingToFinish = true;
     return TSDB_CODE_SUCCESS;
+  }
+
+  bool waiting = false;
+  TAOS_CHECK_RETURN(stPublishAlignedChain(pContext, &waiting));
+  if (waiting) {
+    // A common input boundary starts another pass through the same physical snapshot.
+    pContext->pendingToFinish =
+        !pContext->alignedReplaySuffix || pContext->finishCheck || pContext->status != STRIGGER_CONTEXT_IDLE;
+    return 0;
   }
 
   if (pContext->isHistory) {
@@ -28056,16 +33266,190 @@ static int32_t stHistoryContextTryFinish(SSTriggerHistoryContext *pContext) {
   code = stHistoryContextInit(pTask->pHistoryContext, pTask);
   if (code != TSDB_CODE_SUCCESS) return code;
   taosWLockLatch(&pTask->recalcRequestLock);
+  bool wakeAligned = pTask->activeAlignedRepairId != 0 || pTask->activeAlignedCheckpointWork;
+  pTask->activeAlignedCheckpointWork = false;
+  pTask->activeAlignedRepairId = 0;
   pTask->recalcInProgress = false;
   taosWUnLockLatch(&pTask->recalcRequestLock);
+  if (wakeAligned)
+    TAOS_CHECK_RETURN(stTriggerTaskAddWaitSession(pTask, STREAM_TRIGGER_REALTIME_SESSIONID, taosGetTimestampNs()));
   int64_t resumeTime = taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS;
   code = stTriggerTaskAddWaitSession(pTask, pTask->pHistoryContext->sessionId, resumeTime);
   return code;
 }
 
+static int32_t stRestartHistoryTimeAlignRound(SSTriggerHistoryContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  int64_t             running = 0;
+  TAOS_CHECK_RETURN(stTriggerTaskGetRunningReq(task, ctx->sessionId, &running));
+  if (running)
+    return stTriggerTaskAddWaitSession(task, ctx->sessionId, taosGetTimestampNs() + STREAM_TRIGGER_IDLE_TIME_NS);
+
+  // All previously issued writes have retired. Discard this scan's buffers and start at the original frontier.
+  TAOS_CHECK_RETURN(stCloseTimeAlignBodies(ctx, NULL));
+  TAOS_CHECK_RETURN(stReleaseHistoryTimeAlignRound(ctx));
+  int32_t                 iter = 0;
+  SSTriggerHistoryGroup **group = NULL;
+  while ((group = tSimpleHashIterate(ctx->pGroups, group, &iter))) {
+    TAOS_CHECK_RETURN(stTriggerTaskDiscardTimeAlignSeed(task, ctx->sessionId, (*group)->gid, 0));
+  }
+  SSTriggerRecalcRequest  replay = {.gid = ctx->gid,
+                                    .scanRange = ctx->timeAlignOriginalScan,
+                                    .alignedRepairId = ctx->alignedRepairId,
+                                    .alignedInputFloor = ctx->alignedInputFloor,
+                                    .hasTimeAlignChange = ctx->hasTimeAlignChange,
+                                    .timeAlignChange = ctx->timeAlignChange,
+                                    .timeAlignSourceUid = ctx->timeAlignSourceUid,
+                                    .calcRange = ctx->calcRange,
+                                    .isHistory = ctx->isHistory,
+                                    .openWindowRepair = ctx->openWindowRepair};
+  SSTriggerRecalcRequest *request = ctx->pManualRecalcRequest ? ctx->pManualRecalcRequest : &replay;
+  ctx->pManualRecalcRequest = NULL;
+  if (request == &replay) TSWAP(replay.pContributors, ctx->pContributors);
+  if (request == &replay) TSWAP(replay.alignedFuture, ctx->alignedFuture);
+
+  if (ctx->timeAlignRepair) request->timeAlignRepairOwner = task;
+  ctx->timeAlignRepair = false;
+  if (ctx->ownsOpenRepairHold) request->pOpenRepairOwner = task;
+  ctx->ownsOpenRepairHold = false;
+  stHistoryContextClearExecution(ctx);
+  int32_t code = stHistoryContextPrepareExecution(ctx, request->isHistory, request->gid);
+  if (!code) code = stHistoryContextHandleRequest(ctx, &request);
+  if (code && request && request != &replay) stTriggerTaskDestroyRecalcRequest(&request);
+  taosArrayDestroy(replay.pContributors);
+  stReleaseAlignedFuture(&replay.alignedFuture, false);
+  if (replay.timeAlignRepairOwner) (void)atomic_sub_fetch_32(&task->timeAlignRepairs, 1);
+  if (replay.pOpenRepairOwner) stTriggerTaskReleaseOpenRepair(task, replay.gid);
+  TAOS_CHECK_RETURN(code);
+  ctx->status = STRIGGER_CONTEXT_IDLE;
+  return stHistoryContextCheck(ctx);
+}
+
+static void stHistoryContextProbeAlignedInterval(SSTriggerHistoryContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (!ctx->hasTimeAlignChange || !stTimeAlignNeedsIntervalPrefix(task) || task->notifyHistory ||
+      ctx->openWindowRepair || taosArrayGetSize(ctx->pContributors) || ctx->calcRange.skey == INT64_MIN)
+    return;
+  SSTriggerHistoryGroup **group = tSimpleHashGet(ctx->pGroups, &ctx->gid, sizeof(ctx->gid));
+  if (!group || taosArrayGetSize((*group)->pVirtTableInfos) != 1) return;
+  STimeWindow first = stTriggerTaskGetTimeWindow(task, ctx->calcRange.skey);
+  STimeWindow prev = first;
+  stTriggerTaskPrevTimeWindow(task, &prev);
+  if (prev.skey >= first.skey || prev.skey <= ctx->scanRange.skey || first.skey > ctx->scanRange.ekey) return;
+  // A qualifying row before the first affected instance establishes the grid. Keep the probe in the frozen round.
+  ctx->stepRange.skey = (uint64_t)first.skey - (uint64_t)prev.skey > (uint64_t)task->historyStep
+                            ? first.skey - task->historyStep
+                            : prev.skey;
+  ctx->stepRange.ekey = first.skey - 1;
+  ctx->pTimeAlignIntervalProbe = *group;
+}
+
+static STimeWindow stPreviousAlignedStep(TSKEY floor, TSKEY before, int64_t step) {
+  TSKEY first = (uint64_t)before - (uint64_t)floor > (uint64_t)step ? before - step : floor;
+  return (STimeWindow){.skey = first, .ekey = before - 1};
+}
+
+static void stStartAlignedPrefixProbe(SSTriggerHistoryContext *ctx) {
+  SStreamTriggerTask *task = ctx->pTask;
+  if (!ctx->hasTimeAlignChange || ctx->openWindowRepair || taosArrayGetSize(ctx->pContributors) ||
+      BIT_FLAG_TEST_MASK(task->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN) ||
+      (task->triggerType != STREAM_TRIGGER_SESSION &&
+       (task->triggerType != STREAM_TRIGGER_COUNT || task->windowSliding != 1)))
+    return;
+  TSKEY change = ctx->timeAlignChange.skey;
+  if (change <= ctx->scanRange.skey || change > ctx->scanRange.ekey ||
+      (uint64_t)change - (uint64_t)ctx->scanRange.skey <= (uint64_t)task->historyStep)
+    return;
+  SSTriggerHistoryGroup **group = tSimpleHashGet(ctx->pGroups, &ctx->gid, sizeof(ctx->gid));
+  if (!group || (!ctx->gid && tSimpleHashGetSize(ctx->pGroups) != 1) ||
+      taosArrayGetSize((*group)->pVirtTableInfos) != 1)
+    return;
+  bool    previous = (task->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0;
+  int64_t needed = (task->triggerType == STREAM_TRIGGER_COUNT ? task->windowCount - 1 : 1) + previous;
+  if (!needed) {
+    ctx->stepRange.skey = change;
+    ctx->stepRange.ekey = change > TSKEY_MAX - (task->historyStep - 1) ? TSKEY_MAX : change + task->historyStep - 1;
+    return;
+  }
+  ctx->prefixProbe = (STimeAlignPrefixProbe){.group = *group, .needed = needed};
+  ctx->stepRange = stPreviousAlignedStep(ctx->scanRange.skey, change, task->historyStep);
+}
+
+static void stAlignedPrefixBoundary(STimeAlignPrefixProbe *probe, TSKEY ts) {
+  if (!probe->hasBoundary) {
+    probe->boundary = ts;
+    probe->hasBoundary = true;
+  }
+  if (probe->needed) --probe->needed;
+}
+
+static int32_t stReadAlignedPrefix(SSTriggerHistoryGroup *group) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  STimeAlignPrefixProbe   *probe = &ctx->prefixProbe;
+  for (;;) {
+    SSDataBlock *block = NULL;
+    int32_t      first, end;
+    bool         done, waiting;
+    TAOS_CHECK_RETURN(stHistoryGroupGetDataBlock(group, false, &block, &first, &end, &done, &waiting));
+    if (done || waiting) return 0;
+    if (ctx->pTask->triggerType == STREAM_TRIGGER_COUNT) {
+      probe->needed -= TMIN(probe->needed, end - first);
+    } else {
+      const SColumnInfoData *col = taosArrayGet(block->pDataBlock, ctx->pTask->histTrigTsIndex);
+      const TSKEY           *timestamps = (const TSKEY *)col->pData;
+      for (int32_t i = first; i < end; ++i) {
+        TSKEY ts = timestamps[i];
+        if (!probe->hasRows) {
+          probe->first = ts;
+          probe->hasRows = true;
+        } else if ((uint64_t)ts - (uint64_t)probe->last > (uint64_t)ctx->pTask->gap) {
+          stAlignedPrefixBoundary(probe, ts);
+        }
+        probe->last = ts;
+      }
+    }
+  }
+}
+
+static int32_t stAdvanceAlignedPrefixProbe(SSTriggerHistoryContext *ctx) {
+  STimeAlignPrefixProbe *probe = &ctx->prefixProbe;
+  SSTriggerHistoryGroup *group = probe->group;
+  SStreamTriggerTask    *task = ctx->pTask;
+  TSKEY                  first = ctx->stepRange.skey;
+  if (task->triggerType == STREAM_TRIGGER_SESSION) {
+    if (probe->hasRows) {
+      if (probe->hasRight && (uint64_t)probe->right - (uint64_t)probe->last > (uint64_t)task->gap)
+        stAlignedPrefixBoundary(probe, probe->right);
+      probe->right = probe->first;
+      probe->hasRight = true;
+    }
+    // Even an unseen row immediately below this step cannot join the first session.
+    if (probe->needed == 1 && probe->hasRight && (uint64_t)probe->right - (uint64_t)first >= (uint64_t)task->gap) {
+      probe->boundary = probe->right;
+      probe->hasBoundary = true;
+      probe->needed = 0;
+    }
+  }
+  TAOS_CHECK_RETURN(stTriggerTaskDiscardTimeAlignSeed(task, ctx->sessionId, group->gid, 0));
+  stTriggerTimeAlignDestroyGroup(group->pTimeAlignStates);
+  group->pTimeAlignStates = NULL;
+  group->seedAdmission = (STimeAlignSeedAdmission){0};
+  if (!probe->needed || first == ctx->scanRange.skey) {
+    TSKEY start = !probe->needed && probe->hasBoundary ? probe->boundary : first;
+    ctx->stepRange.skey = start;
+    ctx->stepRange.ekey = start > TSKEY_MAX - (task->historyStep - 1) ? TSKEY_MAX : start + task->historyStep - 1;
+    *probe = (STimeAlignPrefixProbe){0};
+  } else {
+    ctx->stepRange = stPreviousAlignedStep(ctx->scanRange.skey, first, task->historyStep);
+    probe->hasBoundary = probe->hasRows = false;
+  }
+  return 0;
+}
+
 static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   int32_t             code = TSDB_CODE_SUCCESS;
   int32_t             lino = 0;
+  int64_t             waitingGroups = 0;
   SStreamTriggerTask *pTask = pContext->pTask;
   int64_t             checkStartMonoUs = streamTaskGetMonotonicUs();
   int64_t             checkEndMonoUs = 0;
@@ -28080,6 +33464,42 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   stTriggerTaskShrinkCalcParamPool(pTask, &pContext->calcParamPool, &pContext->lastCalcParamPoolShrinkMonoUs,
                                    checkStartMonoUs, pContext->sessionId);
 
+  if (pContext->timeAlignRestart) return stRestartHistoryTimeAlignRound(pContext);
+  bool proving = false;
+  bool validateFinish = pContext->pendingToFinish;
+  if (pContext->alignedChainPosted && pContext->pendingToFinish) {
+    taosRLockLatch(&pTask->prevWindowUpdateLock);
+    const SAlignedChainUpdate *update = pTask->pAlignedChainUpdate;
+    proving = update && update->round == pContext->timeAlignRound && !update->checked && update->pendingProofs;
+    bool finalFuture = stFinalAlignedFutureUpdate(pContext, update) && update->gid == pContext->gid &&
+                       update->frontier == pContext->timeAlignOriginalScan.ekey;
+    taosRUnLockLatch(&pTask->prevWindowUpdateLock);
+    // After posting the final frontier, TryFinish waits for realtime to accept it before retiring history.
+    validateFinish =
+        !proving && (!finalFuture || pContext->timeAlignValidation.error || pContext->alignedFutureCalcError ||
+                     pContext->alignedFlush || stTriggerTaskHistoryHasCutoverBlocker(pContext) ||
+                     stTriggerTaskCalcHasCutoverBlocker(pTask));
+  }
+  if (pContext->timeAlignReady && !pContext->alignedChainCommitted &&
+      (listNEles(&pContext->groupsToCheck) || listNEles(&pContext->groupsForceClose) || pContext->pMinGroup ||
+       pContext->pCalcReq || validateFinish || pContext->timeAlignValidation.operation)) {
+    bool waiting = false;
+    TAOS_CHECK_RETURN(stValidateTimeAlignRound(pTask, pContext->sessionId, pContext->timeAlignRound,
+                                               &pContext->timeAlignValidation, &waiting));
+    if (waiting) return 0;
+  }
+  if (pContext->alignedFlush) {
+    bool waiting = false;
+    TAOS_CHECK_RETURN(stDrainAlignedSuffixBatch(pContext, &waiting));
+    if (waiting) return 0;
+  }
+  if (tSimpleHashGetSize(pTask->historyTimeAlignCloses.byOperation)) {
+    TAOS_CHECK_RETURN(stDriveTimeAlignCloses(pTask, pContext->sessionId, taosGetTimestampNs()));
+  }
+  for (size_t i = 0; i < taosArrayGetSize(pContext->timeAlignBodies); ++i) {
+    STimeAlignBody *body = taosArrayGet(pContext->timeAlignBodies, i);
+    if (body->retry) return stIssueTimeAlignBody(pTask, body);
+  }
   if (stTriggerTaskHasNestedRecoveryOwner(pTask)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -28095,10 +33515,15 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     goto _end;
   }
 
-  if (pContext->notifyGroupColValuePending) goto _end;
+  // A control wake can arrive before the last FIRST_TS or metadata reply.
+  if (pContext->notifyGroupColValuePending ||
+      (pContext->curReaderIdx &&
+       (pContext->status == STRIGGER_CONTEXT_ADJUST_START || pContext->status == STRIGGER_CONTEXT_FETCH_META))) {
+    goto _end;
+  }
 
   if (pContext->pendingToFinish) {
-    code = stHistoryContextTryFinish(pContext);
+    if (!proving) code = stHistoryContextTryFinish(pContext);
     QUERY_CHECK_CODE(code, lino, _end);
     goto _end;
   }
@@ -28139,21 +33564,22 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     code = stHistoryContextHandleRequest(pContext, &pReq);
     stTriggerTaskDestroyRecalcRequest(&pReq);
     QUERY_CHECK_CODE(code, lino, _end);
-    if (pContext->pManualRecalcRequest != NULL) {
-      code = stHistoryContextBeginProgressStep(pContext);
-      QUERY_CHECK_CODE(code, lino, _end);
-    }
     pContext->status = STRIGGER_CONTEXT_IDLE;
   }
 
+  const SArray *readers = stHistoryContextReaders(pContext);
   if (pContext->status == STRIGGER_CONTEXT_IDLE) {
+    if (stUsesTimeAlignRows(pTask) && !pContext->timeAlignReady) {
+      code = stOpenHistoryTimeAlignRound(pContext);
+      QUERY_CHECK_CODE(code, lino, _end);
+      goto _end;
+    }
     pContext->status = STRIGGER_CONTEXT_ADJUST_START;
     if (pContext->pFirstTsMap == NULL) {
       // forward start time to the firstTs of each group
       pContext->pFirstTsMap = tSimpleHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
       QUERY_CHECK_NULL(pContext->pFirstTsMap, code, lino, _end, terrno);
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_FIRST_TS);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -28177,10 +33603,11 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       pContext->stepRange.skey = pContext->scanRange.skey;
       TSKEY stepBase = pContext->scanRange.skey / step * step;
       pContext->stepRange.ekey = stepBase > TSKEY_MAX - (step - 1) ? TSKEY_MAX : stepBase + step - 1;
+      stHistoryContextProbeAlignedInterval(pContext);
+      stStartAlignedPrefixProbe(pContext);
       code = stHistoryContextBeginProgressStep(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_META);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -28189,8 +33616,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       code = stHistoryContextBeginProgressStep(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
       taosArrayClearP(pContext->pTrigDataBlocks, (FDelete)blockDataDestroy);
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_TRIGGER_DATA);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -28212,6 +33638,17 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
 
   while (TD_DLIST_NELES(&pContext->groupsToCheck) > 0) {
     SSTriggerHistoryGroup *pGroup = TD_DLIST_HEAD(&pContext->groupsToCheck);
+    if (pTask->pTimeAlign && stUsesTimeAlignRows(pTask) && !pGroup->seedAdmission.ready) {
+      code = stHistoryGroupAdmitTimeAlignSeeds(pGroup);
+      QUERY_CHECK_CODE(code, lino, _end);
+      if (!pGroup->seedAdmission.ready) {
+        TD_DLIST_POP(&pContext->groupsToCheck, pGroup);
+        TD_DLIST_APPEND(&pContext->groupsToCheck, pGroup);
+        if (++waitingGroups >= TD_DLIST_NELES(&pContext->groupsToCheck)) break;
+        continue;
+      }
+    }
+    waitingGroups = 0;
     if ((BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG) ||
          (stTriggerTaskNeedNotifyTableName(pTask) && !pTask->isVirtualTable &&
           (!pContext->isHistory || pTask->notifyHistory))) &&
@@ -28255,8 +33692,15 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
         if (!durationsReady) {
           goto _end;
         }
+        pContext->timeAlignWaiting = false;
         code = stHistoryGroupCheck(pGroup);
         QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->timeAlignWaiting || pContext->alignedFlush) {
+          pContext->reenterCheck = true;
+          if (pContext->alignedFlush)
+            code = stTriggerTaskAddWaitSession(pTask, pContext->sessionId, taosGetTimestampNs());
+          goto _end;
+        }
         if (useGroupedAccumulator) pContext->checkedGroupGid = pGroup->gid;
         pContext->reenterCheck = true;
         if (pContext->pColRefToFetch != NULL && pContext->pMetaToFetch != NULL) {
@@ -28271,6 +33715,13 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
           code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_TS_DATA);
           QUERY_CHECK_CODE(code, lino, _end);
           goto _end;
+        }
+
+        if (taosArrayGetSize(pContext->timeAlignBodies)) {
+          code = stCloseTimeAlignBodies(pContext, &pGroup->gid);
+          QUERY_CHECK_CODE(code, lino, _end);
+          code = stDriveTimeAlignCloses(pTask, pContext->sessionId, taosGetTimestampNs());
+          QUERY_CHECK_CODE(code, lino, _end);
         }
 
         if (!pContext->openWindowRepair && taosArrayGetSize(pContext->pNotifyParams) > 0) {
@@ -28393,7 +33844,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
   }
 
   bool finishCheckTransition = false;
-  if (!pContext->finishCheck) {
+  if (!waitingGroups && !pContext->finishCheck) {
     bool finishCheck = false;
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
@@ -28714,6 +34165,10 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     }
   }
 
+  if (waitingGroups) {
+    pContext->status = STRIGGER_CONTEXT_ACQUIRE_REQUEST;
+    goto _end;
+  }
   if (!pContext->finishCheck) {
     bool keepProgressOpen = nested && stHistoryHasPendingCalc(pContext);
     if (!keepProgressOpen) {
@@ -28728,13 +34183,28 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
     if (pContext->needTsdbMeta) {
       // TODO(kjq): use precision of trigger table
       int64_t step = pTask->historyStep;
-      pContext->stepRange.skey = pContext->stepRange.ekey + 1;
-      pContext->stepRange.ekey =
-          pContext->stepRange.ekey > TSKEY_MAX - step ? TSKEY_MAX : pContext->stepRange.ekey + step;
+      TSKEY                  next = pContext->stepRange.ekey + 1;
+      SSTriggerHistoryGroup *probe = pContext->pTimeAlignIntervalProbe;
+      if (probe && IS_TRIGGER_GROUP_NONE_WINDOW(probe)) {
+        // No qualifying row proved the grid existed. Reseed at the legal start before reading the prefix.
+        code = stTriggerTaskDiscardTimeAlignSeed(pTask, pContext->sessionId, probe->gid, 0);
+        QUERY_CHECK_CODE(code, lino, _end);
+        stTriggerTimeAlignDestroyGroup(probe->pTimeAlignStates);
+        probe->pTimeAlignStates = NULL;
+        probe->seedAdmission = (STimeAlignSeedAdmission){0};
+        next = pContext->scanRange.skey;
+      }
+      pContext->pTimeAlignIntervalProbe = NULL;
+      if (pContext->prefixProbe.group) {
+        code = stAdvanceAlignedPrefixProbe(pContext);
+        QUERY_CHECK_CODE(code, lino, _end);
+      } else {
+        pContext->stepRange.skey = next;
+        pContext->stepRange.ekey = next > TSKEY_MAX - (step - 1) ? TSKEY_MAX : next + (step - 1);
+      }
       code = stHistoryContextBeginProgressStep(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_META);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -28742,8 +34212,7 @@ static int32_t stHistoryContextCheck(SSTriggerHistoryContext *pContext) {
       code = stHistoryContextBeginProgressStep(pContext);
       QUERY_CHECK_CODE(code, lino, _end);
       taosArrayClearP(pContext->pTrigDataBlocks, (FDelete)blockDataDestroy);
-      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-           pContext->curReaderIdx++) {
+      for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
         code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_TRIGGER_DATA_NEXT);
         QUERY_CHECK_CODE(code, lino, _end);
       }
@@ -28858,13 +34327,14 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
 
   ST_TASK_DLOG("receive pull response of type %d from task:%" PRIx64, reqType, pReq->readerTaskId);
 
+  const SArray *readers = stHistoryContextReaders(pContext);
   switch (reqType) {
     case STRIGGER_PULL_FIRST_TS: {
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_ADJUST_START, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       SSTriggerTsdbProgress *pProgress = NULL;
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(readers); i++) {
+        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(readers, i);
         SSTriggerTsdbProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -28996,8 +34466,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_FETCH_META, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       SSTriggerTsdbProgress *pProgress = NULL;
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(readers); i++) {
+        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(readers, i);
         SSTriggerTsdbProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -29033,8 +34503,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       }
 
       bool continueToFetch = false;
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(readers); i++) {
+        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(readers, i);
         SSTriggerTsdbProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -29047,10 +34517,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       }
 
       if (continueToFetch) {
-        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu,
-                     TARRAY_SIZE(pTask->readerList));
-        for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(pTask->readerList);
-             pContext->curReaderIdx++) {
+        ST_TASK_DLOG("continue to fetch wal metas since some readers are not exhausted: %" PRIzu, TARRAY_SIZE(readers));
+        for (pContext->curReaderIdx = 0; pContext->curReaderIdx < TARRAY_SIZE(readers); pContext->curReaderIdx++) {
           code = stHistoryContextSendPullReq(pContext, STRIGGER_PULL_TSDB_META_NEXT);
           QUERY_CHECK_CODE(code, lino, _end);
         }
@@ -29062,8 +34530,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       QUERY_CHECK_NULL(pAllMetadatas, code, lino, _end, terrno);
       pVgIds = taosArrayInit(0, sizeof(int32_t));
       QUERY_CHECK_NULL(pVgIds, code, lino, _end, terrno);
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(readers); i++) {
+        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(readers, i);
         SSTriggerTsdbProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -29139,8 +34607,8 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       QUERY_CHECK_CONDITION(pContext->status == STRIGGER_CONTEXT_FETCH_META, code, lino, _end,
                             TSDB_CODE_INTERNAL_ERROR);
       SSTriggerTsdbProgress *pProgress = NULL;
-      for (int32_t i = 0; i < TARRAY_SIZE(pTask->readerList); i++) {
-        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(pTask->readerList, i);
+      for (int32_t i = 0; i < TARRAY_SIZE(readers); i++) {
+        SStreamTaskAddr       *pReader = TARRAY_GET_ELEM(readers, i);
         SSTriggerTsdbProgress *pTempProgress =
             tSimpleHashGet(pContext->pReaderTsdbProgress, &pReader->nodeId, sizeof(int32_t));
         QUERY_CHECK_NULL(pTempProgress, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
@@ -29245,6 +34713,24 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         pSource->inFlight = false;
         QUERY_CHECK_CONDITION(pSource->pMetaToFetch != NULL && pSource->pSorter != NULL, code, lino, _end,
                               TSDB_CODE_INVALID_PARA);
+        if (pTask->pNestedInputProjections != NULL && blockDataGetNumOfRows(pDataBlock) > 0) {
+          const int32_t                         ncols = blockDataGetNumOfCols(pDataBlock);
+          const SSTriggerNestedInputProjection *first = taosArrayGet(pTask->pNestedInputProjections, 0);
+          // A raw physical history scan omits the WAL version slot reserved by the nested plan.
+          if (first->slotId == ncols + 1) {
+            SColumnInfoData version = createColumnInfoData(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 0);
+            code = blockDataAppendColInfo(pDataBlock, &version);
+            QUERY_CHECK_CODE(code, lino, _end);
+            SColumnInfoData *col = taosArrayGetLast(pDataBlock->pDataBlock);
+            code = colInfoDataEnsureCapacity(col, pDataBlock->info.capacity, false);
+            QUERY_CHECK_CODE(code, lino, _end);
+            colDataSetNNULL(col, 0, pDataBlock->info.rows);
+          }
+          if (ncols <= first->slotId) {
+            code = stAppendNestedInputProjectionCols(pTask, pDataBlock, true);
+            QUERY_CHECK_CODE(code, lino, _end);
+          }
+        }
         code = stTimestampSorterBindDataBlock(pSource->pSorter, &pDataBlock);
         TSDB_CHECK_CODE(code, lino, _end);
         pSource->pMetaToFetch = NULL;
@@ -29299,15 +34785,19 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
       QUERY_CHECK_CONDITION(
           pContext->status == STRIGGER_CONTEXT_CHECK_CONDITION || pContext->status == STRIGGER_CONTEXT_SEND_CALC_REQ,
           code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
-      pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-      QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
-      if (pRsp->contLen > 0) {
+      if (pAhandle->timeAlignBlock) {
+        TSWAP(pDataBlock, *pAhandle->timeAlignBlock);
+      } else {
+        pDataBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+        QUERY_CHECK_NULL(pDataBlock, code, lino, _end, terrno);
+      }
+      if (!pAhandle->timeAlignBlock && pRsp->contLen > 0) {
         QUERY_CHECK_NULL(pRsp->pCont, code, lino, _end, TSDB_CODE_INVALID_MSG);
         const char *pCont = pRsp->pCont;
         code = blockDecodeBounded(pDataBlock, pCont, (size_t)pRsp->contLen, &pCont);
         QUERY_CHECK_CODE(code, lino, _end);
         QUERY_CHECK_CONDITION(pCont == (char *)pRsp->pCont + pRsp->contLen, code, lino, _end, TSDB_CODE_INVALID_MSG);
-      } else {
+      } else if (!pAhandle->timeAlignBlock) {
         blockDataEmpty(pDataBlock);
       }
       QUERY_CHECK_NULL(pContext->pColRefToFetch, code, lino, _end, TSDB_CODE_INVALID_PARA);
@@ -29319,13 +34809,17 @@ static int32_t stHistoryContextProcPullRsp(SSTriggerHistoryContext *pContext, SR
         QUERY_CHECK_CONDITION(&pSource->dataRequest.base == pReq && pSource->pVtableMerger != NULL &&
                                   pSource->pColRefToFetch != NULL && pSource->pMetaToFetch != NULL,
                               code, lino, _end, TSDB_CODE_INVALID_PARA);
-        code = stVtableMergerBindDataBlock(pSource->pVtableMerger, &pDataBlock);
+        code = pAhandle->timeAlignBlock
+                   ? stVtableMergerBindDataBatch(pSource->pVtableMerger, &pDataBlock, pAhandle->timeAlignDone)
+                   : stVtableMergerBindDataBlock(pSource->pVtableMerger, &pDataBlock);
         TSDB_CHECK_CODE(code, lino, _end);
         pSource->pColRefToFetch = NULL;
         pSource->pMetaToFetch = NULL;
         pContext->pCurVirTable = NULL;
       } else {
-        code = stVtableMergerBindDataBlock(pContext->pMerger, &pDataBlock);
+        code = pAhandle->timeAlignBlock
+                   ? stVtableMergerBindDataBatch(pContext->pMerger, &pDataBlock, pAhandle->timeAlignDone)
+                   : stVtableMergerBindDataBlock(pContext->pMerger, &pDataBlock);
       }
       TSDB_CHECK_CODE(code, lino, _end);
       pContext->pColRefToFetch = NULL;
@@ -29487,8 +34981,9 @@ static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SR
   ST_TASK_DLOG("receive calc response from task:%" PRIx64 ", code:%d", pReq->runnerTaskId, pRsp->code);
 
   if (pRsp->code == TSDB_CODE_STREAM_VTABLE_NEED_REDEPLOY) {
-    int32_t code = stTriggerTaskRetryVtableCalcRequest(pTask, pContext->sessionId, pReq);
+    int32_t code = stTriggerTaskScheduleCalcRetry(pTask, pContext->sessionId, pReq);
     if (code == TSDB_CODE_SUCCESS) return code;
+    if (pContext->alignedFuture) pContext->alignedFutureCalcError = code;
     int32_t releaseCode = stTriggerTaskReleaseRequest(pTask, &pReq, false);
     if (releaseCode != TSDB_CODE_SUCCESS) {
       ST_TASK_ELOG("failed to release vtable history request since %s", tstrerror(releaseCode));
@@ -29500,6 +34995,7 @@ static int32_t stHistoryContextProcCalcRsp(SSTriggerHistoryContext *pContext, SR
 
   if (pRsp->code != TSDB_CODE_SUCCESS) {
     int32_t responseCode = pRsp->code;
+    if (pContext->alignedFuture) pContext->alignedFutureCalcError = responseCode;
     if (pAhandle->progressStepId != 0 && pAhandle->manualAttempt.chainId == 0) {
       int32_t trackerCode = stRecalcTrackerFailStep(pTask->pRecalcTracker, pAhandle->progressStepId, responseCode);
       if (trackerCode != TSDB_CODE_SUCCESS) {
@@ -29605,6 +35101,7 @@ static int32_t stRealtimeGroupInit(SSTriggerRealtimeGroup *pGroup, SSTriggerReal
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_DERIVATIVE_TAG)) {
     pGroup->derivativeLogEpoch = tGenIdPI64();
   }
+  pGroup->timeAlignNestedRepair = (STimeWindow){.skey = INT64_MAX, .ekey = INT64_MIN};
   bool repairHistoryPredecessor =
       pTask->fillHistory &&
       (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0 &&
@@ -29714,6 +35211,16 @@ static void stRealtimeGroupDestroy(void *ptr) {
   }
 
   SSTriggerRealtimeGroup   *pGroup = *ppGroup;
+  stCancelAlignedObligation(pGroup);
+  stWindowChainDestroy(&pGroup->alignedOrdinaryChain);
+  stReleaseAlignedNormalPage(&pGroup->alignedNormalPage);
+  if ((pGroup->pTimeAlignStates || pGroup->seedAdmission.id) && pGroup->pContext && pGroup->pContext->pTask) {
+    SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+    int32_t             code = stDiscardTimeAlignGroupSeeds(pTask, pGroup->pContext->sessionId, pGroup->gid, 0, true);
+    if (code) ST_TASK_ELOG("could not close alignment scans for group %" PRId64 ": %s", pGroup->gid, tstrerror(code));
+  }
+  stTriggerTimeAlignDestroyGroup(pGroup->pTimeAlignStates);
+  pGroup->pTimeAlignStates = NULL;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   if (pContext != NULL && pContext->nestedWindowPlan) {
     (void)stRealtimeGroupClearNestedInputOwner(pGroup, false, false, true);
@@ -29933,6 +35440,7 @@ static bool stRealtimeGroupGetMaxInternalWalMetaEkey(SSTriggerRealtimeGroup *pGr
 }
 
 static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
+  pGroup->seedAdmission = (STimeAlignSeedAdmission){0};
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
   SStreamTriggerTask       *pTask = pContext->pTask;
   int64_t                   threshold = 0;
@@ -30090,6 +35598,7 @@ static void stRealtimeGroupClearMetadatas(SSTriggerRealtimeGroup *pGroup) {
   } else {
     pGroup->oldThreshold = pGroup->newThreshold;
   }
+  if (pGroup->ordinaryOverlap && !stCheckpointOrdinaryGroup(pGroup)) pGroup->ordinaryOverlap = false;
 }
 
 static int32_t stRealtimeGroupRecordInput(SSTriggerRealtimeGroup *pGroup, int64_t nowNs) {
@@ -30174,8 +35683,8 @@ _end:
 }
 
 static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
-                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta,
-                                      int64_t nowNs) {
+                                      const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta, int64_t nowNs,
+                                      int64_t virtualUid) {
   int32_t                   code = TSDB_CODE_SUCCESS;
   int32_t                   lino = 0;
   SSTriggerRealtimeContext *pContext = pGroup->pContext;
@@ -30234,19 +35743,39 @@ static int32_t stRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vg
     goto _end;
   }
 
+  if (pTask->pTimeAlign && pContext->nestedWindowPlan && !pContext->suppressOutput) {
+    TAOS_CHECK_RETURN(stBeginOrdinaryInput(pGroup));
+    TSKEY floor = stOrdinarySubmitFloor(pGroup, vgId, pMeta->ver);
+    if (pMeta->skey <= floor) {
+      if (!pGroup->ordinaryOverlap) {
+        code = stCaptureAlignedBinding(pTask, pGroup->gid, pGroup->ordinaryBinding, &pGroup->ordinaryOverlap);
+        QUERY_CHECK_CODE(code, lino, _end);
+        pGroup->ordinaryOverlapThrough = floor;
+      } else {
+        pGroup->ordinaryOverlapThrough = TMAX(pGroup->ordinaryOverlapThrough, floor);
+      }
+    }
+  }
+
   // check disorder data
   if (!stTriggerTaskRequiresOrderedInput(pTask)) {
     if (pMeta->skey <= pGroup->oldThreshold) {
-      STimeWindow range = {.skey = pMeta->skey, .ekey = pMeta->ekey};
-      if (pTask->expiredTime > 0) {
-        range.skey = TMAX(range.skey, pGroup->oldThreshold - pTask->expiredTime + 1);
-      }
-      range.ekey = TMIN(range.ekey, pGroup->oldThreshold);
+      STimeWindow range = stDisorderRange(pGroup, pMeta->skey, pMeta->ekey);
       if (range.skey <= range.ekey && !pContext->suppressOutput) {
         ST_TASK_DLOG("add recalc request for disorder data, threshold: %" PRId64 ", gid: %" PRId64 ", start: %" PRId64
                      ", end: %" PRId64,
                      pGroup->oldThreshold, pGroup->gid, pMeta->skey, pMeta->ekey);
-        code = stTriggerTaskAddDisorderRecalcRequest(pTask, pGroup, &range);
+        if (pTask->pTimeAlign && virtualUid && pReaderKey && pReaderKey->readerKind == STRIGGER_READER_KIND_INTERNAL) {
+          const SSTriggerWalProgress *progress = tSimpleHashGet(pContext->pReaderWalProgress, &vgId, sizeof(vgId));
+          if (progress)
+            code = stInvalidateTimeAlignChange(pContext, pGroup->gid, virtualUid, progress->pTaskAddr->taskId,
+                                               pReaderKey->logicalUid, range, pMeta->ver,
+                                               progress->timeAlignWalCheck.cells);
+          QUERY_CHECK_CODE(code, lino, _end);
+        }
+        uint64_t sourceUid =
+            pReaderKey && pReaderKey->readerKind == STRIGGER_READER_KIND_INTERNAL ? pReaderKey->logicalUid : 0;
+        code = stTriggerTaskAddSourceRecalcRequest(pTask, pGroup, &range, true, sourceUid);
         QUERY_CHECK_CODE(code, lino, _end);
       }
     }
@@ -30301,8 +35830,9 @@ _end:
 
 #ifdef BUILD_TEST_SEAM
 int32_t stTestRealtimeGroupAddMeta(SSTriggerRealtimeGroup *pGroup, int32_t vgId,
-                                   const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta, int64_t nowNs) {
-  return stRealtimeGroupAddMeta(pGroup, vgId, pReaderKey, pMeta, nowNs);
+                                   const SSTriggerReaderDataKey *pReaderKey, SSTriggerMetaData *pMeta, int64_t nowNs,
+                                   int64_t virtualUid) {
+  return stRealtimeGroupAddMeta(pGroup, vgId, pReaderKey, pMeta, nowNs, virtualUid);
 }
 #endif
 
@@ -31170,7 +36700,7 @@ static int32_t stRealtimeContextAddExtDataSlices(SSTriggerRealtimeContext *pCont
           }
         }
         if (!metaSuppressed && !metaAlreadySeen) {
-          code = stRealtimeGroupAddMeta(pGroup, 0, pTask->isVirtualTable ? &readerKey : NULL, &meta, nowNs);
+          code = stRealtimeGroupAddMeta(pGroup, 0, pTask->isVirtualTable ? &readerKey : NULL, &meta, nowNs, 0);
           QUERY_CHECK_CODE(code, lino, _end);
         }
         if (pGroup->oldThreshold < pGroup->newThreshold && !IS_TRIGGER_GROUP_TO_CHECK(pGroup)) {
@@ -31580,7 +37110,19 @@ static int32_t stRealtimeGroupNextDataBlock(SSTriggerRealtimeGroup *pGroup, SSDa
                                         pGroup->pReaderConsumedEkeys, pTask->ignoreDisorder || forceOrderedInput);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      code = stNewVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock, pStartIdx, pEndIdx);
+      if (pTask->pTimeAlign != NULL) {
+        const SSTriggerVirtualTableSliceRef *pRef = taosObjListGetHead(&pGroup->tableUids);
+        const SSTriggerVirtTableInfo        *pInfo =
+            tSimpleHashGet(pTask->pVirtTableInfos, &pRef->virtualUid, sizeof(int64_t));
+        QUERY_CHECK_NULL(pInfo, code, lino, _end, TSDB_CODE_INTERNAL_ERROR);
+        code = stTriggerTimeAlignNext(pTask, &pGroup->pTimeAlignStates, pContext->sessionId, pGroup->gid, pInfo,
+                                      pContext->pMerger, NULL, ppDataBlock, pStartIdx, pEndIdx,
+                                      &pContext->timeAlignWaiting);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->timeAlignWaiting) break;
+      } else {
+        code = stNewVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock, pStartIdx, pEndIdx);
+      }
       QUERY_CHECK_CODE(code, lino, _end);
       if (*ppDataBlock != NULL && *pStartIdx < *pEndIdx) {
         break;
@@ -31992,13 +37534,13 @@ static int32_t stRealtimeGroupDoSparseSlidingCheck(SSTriggerRealtimeGroup *pGrou
     }
   }
   // A pseudo-column pull resumes this same group; keep its pending batch without sorting it.
-  if (!pContext->needPseudoCols) {
+  if (!pContext->needPseudoCols && !pContext->timeAlignWaiting) {
     code = stRealtimeGroupFlushSparseWindows(pContext, pPending);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
 _end:
-  if (code != TSDB_CODE_SUCCESS || !pContext->needPseudoCols) {
+  if (code != TSDB_CODE_SUCCESS || (!pContext->needPseudoCols && !pContext->timeAlignWaiting)) {
     tSimpleHashCleanup(pPending);
     pContext->pSparseWindows = NULL;
   }
@@ -34092,7 +39634,7 @@ static int32_t stRealtimeGroupCheck(SSTriggerRealtimeGroup *pGroup) {
     }
   }
 
-  if (!pContext->needPseudoCols) {
+  if (!pContext->needPseudoCols && !pContext->timeAlignWaiting) {
     int32_t nInitWins = pGroup->windows.neles;
     code = stRealtimeGroupMergeWindows(pGroup);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -34555,12 +40097,20 @@ static void stHistoryGroupDestroy(void *ptr) {
   }
 
   SSTriggerHistoryGroup *pGroup = *ppGroup;
+  if ((pGroup->pTimeAlignStates || pGroup->seedAdmission.id) && pGroup->pContext) {
+    SStreamTriggerTask *pTask = pGroup->pContext->pTask;
+    int32_t             code = stDiscardTimeAlignGroupSeeds(pTask, pGroup->pContext->sessionId, pGroup->gid, 0, true);
+    if (code) ST_TASK_ELOG("could not close alignment scans for group %" PRId64 ": %s", pGroup->gid, tstrerror(code));
+  }
+  stTriggerTimeAlignDestroyGroup(pGroup->pTimeAlignStates);
+  pGroup->pTimeAlignStates = NULL;
   stHistoryGroupLeaveMaxDelayHeap(pGroup->pContext, pGroup);
 
   if (BIT_FLAG_TEST_MASK(pGroup->pContext->pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     stHistoryGroupFinishNestedRound(pGroup);
     stRealtimeGroupClearNestedPendingEvents(&pGroup->pendingNestedEvents);
     stRealtimeGroupClearNestedPendingEvents(&pGroup->pendingNestedParWinEvents);
+    stWindowChainDestroy(&pGroup->pAlignedLiveChain);
     stWindowChainDestroy(&pGroup->pWindowChain);
     if (pGroup->pContext->pCalcDataCache != NULL) {
       TAOS_UNUSED(cleanStreamDataCacheGroup(pGroup->pContext->pCalcDataCache, pGroup->gid));
@@ -34628,6 +40178,7 @@ static void stHistoryGroupClearTempState(SSTriggerHistoryGroup *pGroup) {
 }
 
 static void stHistoryGroupClearMetadatas(SSTriggerHistoryGroup *pGroup) {
+  pGroup->seedAdmission = (STimeAlignSeedAdmission){0};
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
   int64_t                  threshold = 0;
@@ -34671,7 +40222,11 @@ static void stHistoryGroupClearMetadatas(SSTriggerHistoryGroup *pGroup) {
   int32_t             iter = 0;
   SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
   while (pTableMeta != NULL) {
-    if (taosArrayGetSize(pTableMeta->pMetas) > 0) {
+    if (pContext->prefixProbe.group == pGroup) {
+      // A probe never queues output. Its metadata cannot be carried into a backwards or replay seek.
+      taosArrayClear(pTableMeta->pMetas);
+      pTableMeta->metaIdx = 0;
+    } else if (taosArrayGetSize(pTableMeta->pMetas) > 0) {
       int32_t idx = taosArraySearchIdx(pTableMeta->pMetas, &threshold, stHistoryGroupMetaDataSearch, TD_GT);
       taosArrayPopFrontBatch(pTableMeta->pMetas, (idx == -1) ? TARRAY_SIZE(pTableMeta->pMetas) : idx);
       idx = taosArraySearchIdx(pTableMeta->pMetas, &pContext->stepRange.ekey, stHistoryGroupMetaDataSearch, TD_GT);
@@ -34765,6 +40320,13 @@ static int32_t stHistoryGroupAddMetaDatas(SSTriggerHistoryGroup *pGroup, SArray 
       }
       if (TARRAY_SIZE(pTableMeta->pMetas) > 0) {
         SSTriggerMetaData *pLastMeta = taosArrayGetLast(pTableMeta->pMetas);
+        // The clock conversion can put the end and start of adjacent physical blocks in
+        // one logical tick. Opening both inclusive intervals would read that tick twice.
+        if (pTask->pTimeAlign && pLastMeta->ekey == pSkeys[i]) {
+          pLastMeta->ekey = pEkeys[i];
+          SET_TRIGGER_META_NROW_INACCURATE(pLastMeta);
+          continue;
+        }
         QUERY_CHECK_CONDITION(pLastMeta->ekey < pSkeys[i], code, lino, _end, TSDB_CODE_INVALID_PARA);
       }
       SSTriggerMetaData *pNewMeta = taosArrayReserve(pTableMeta->pMetas, 1);
@@ -34793,6 +40355,12 @@ static int32_t stHistoryGroupAddCalcParam(SSTriggerHistoryGroup *pGroup, SSTrigg
   bool                     hasAfter = false;
   bool                     match = false;
   // This request repairs exactly one OPEN; CLOSE and successor repairs have separate ordering.
+  const STimeAlignWindowReplay *replay = pGroup->pTimeAlignStates ? pGroup->pTimeAlignStates->windowReplay : NULL;
+  if (replay && pTask->triggerType == STREAM_TRIGGER_SESSION && replay->hasAnchor && pParam->wend < replay->anchor)
+    goto _end;
+  if (replay && pTask->triggerType == STREAM_TRIGGER_SESSION && !isOpen && pParam->wend < replay->change.skey &&
+      (uint64_t)replay->change.skey - (uint64_t)pParam->wend > (uint64_t)pTask->gap)
+    goto _end;
   if (pContext->openWindowRepair && (!isOpen || pParam->wstart != pContext->calcRange.skey)) {
     goto _end;
   }
@@ -35786,7 +41354,9 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
       }
       break;
     } else {
-      if (IS_TRIGGER_VTABLE_MERGER_EMPTY(pContext->pMerger)) {
+      if (IS_TRIGGER_VTABLE_MERGER_EMPTY(pContext->pMerger) &&
+          !(pContext->pCurVirTable != NULL &&
+            stTriggerTimeAlignHasPending(pGroup->pTimeAlignStates, pContext->pCurVirTable->tbUid))) {
         while (saveWindow && IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup)) {
           code = stHistoryGroupCloseWindow(pGroup, NULL, saveWindow, false);
           QUERY_CHECK_CODE(code, lino, _end);
@@ -35822,10 +41392,21 @@ static int32_t stHistoryGroupGetDataBlock(SSTriggerHistoryGroup *pGroup, bool sa
         code = stVtableMergerSetMetaDatas(pContext->pMerger, pGroup->pTableMetas);
         QUERY_CHECK_CODE(code, lino, _end);
       }
-      code = stVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock);
-      QUERY_CHECK_CODE(code, lino, _end);
-      *pStartIdx = 0;
-      *pEndIdx = *ppDataBlock ? blockDataGetNumOfRows(*ppDataBlock) : 0;
+      if (!isCalcData && pTask->pTimeAlign != NULL) {
+        code = stTriggerTimeAlignNext(pTask, &pGroup->pTimeAlignStates, pContext->sessionId, pGroup->gid,
+                                      pContext->pCurVirTable, NULL, pContext->pMerger, ppDataBlock, pStartIdx, pEndIdx,
+                                      &pContext->timeAlignWaiting);
+        QUERY_CHECK_CODE(code, lino, _end);
+        if (pContext->timeAlignWaiting) {
+          *pNeedFetchData = true;
+          break;
+        }
+      } else {
+        code = stVtableMergerNextDataBlock(pContext->pMerger, ppDataBlock);
+        QUERY_CHECK_CODE(code, lino, _end);
+        *pStartIdx = 0;
+        *pEndIdx = *ppDataBlock ? blockDataGetNumOfRows(*ppDataBlock) : 0;
+      }
       if (*ppDataBlock == NULL) {
         if (!IS_TRIGGER_VTABLE_MERGER_EMPTY(pContext->pMerger)) {
           *pNeedFetchData = true;
@@ -35853,6 +41434,39 @@ static bool stHistoryCalcParamCanSkipPrevRows(SStreamTriggerTask *pTask, const S
            pParam->eventConditionPath != NULL);
 }
 
+static void stHistoryNestedClearAlignedView(SSTriggerHistoryPeerSource *source) {
+  if (!source->pAlignedTriggerView) return;
+  SArray *columns = source->pAlignedTriggerView->pDataBlock;
+  // The merger owns raw and aligned column data. Only the appended nested expressions belong to this view.
+  while (taosArrayGetSize(columns) > source->borrowedColumns) colDataDestroy(taosArrayPop(columns));
+  taosArrayClear(columns);
+}
+
+static int32_t stHistoryNestedProjectAlignedBlock(SSTriggerHistoryPeerSource *source, SStreamTriggerTask *task) {
+  SSDataBlock *block = source->pBlock;
+  int32_t      raw = taosArrayGetSize(task->pVirTrigSlots);
+  int32_t      aligned = taosArrayGetSize(task->pTimeAlign->pColumns);
+  int32_t      firstAligned = blockDataGetNumOfCols(task->pVirDataBlock);
+  if (!source->pAlignedTriggerView) {
+    TAOS_CHECK_RETURN(createDataBlock(&source->pAlignedTriggerView));
+    source->borrowedColumns = raw + aligned;
+  }
+  SSDataBlock *view = source->pAlignedTriggerView;
+  stHistoryNestedClearAlignedView(source);
+
+  // History merges in virtual-column order. The shared window plan and its expressions use trigger slots.
+  for (int32_t i = 0; i < source->borrowedColumns; ++i) {
+    int32_t slot = i < raw ? *(const int32_t *)taosArrayGet(task->pVirTrigSlots, i) : firstAligned + i - raw;
+    const SColumnInfoData *column = taosArrayGet(block->pDataBlock, slot);
+    if (!column) return TSDB_CODE_INVALID_PARA;
+    if (!taosArrayPush(view->pDataBlock, column)) return terrno;
+  }
+  view->info = block->info;
+  TAOS_CHECK_RETURN(stAppendNestedInputProjectionCols(task, view, true));
+  source->pBlock = view;
+  return 0;
+}
+
 static int32_t stHistoryNestedPeerSourcePeek(void *pSourcePtr, SStreamTriggerPeerHead *pHead,
                                              EStreamTriggerPeerSourceStatus *pStatus) {
   if (pSourcePtr == NULL || pHead == NULL || pStatus == NULL) {
@@ -35867,9 +41481,22 @@ static int32_t stHistoryNestedPeerSourcePeek(void *pSourcePtr, SStreamTriggerPee
   while (pSource->pBlock == NULL && !pSource->eof) {
     int32_t code = TSDB_CODE_SUCCESS;
     if (pSource->pVirtTableInfo != NULL) {
-      code = stVtableMergerNextDataBlock(pSource->pVtableMerger, &pSource->pBlock);
-      pSource->rowIndex = 0;
-      pSource->endRowIndex = pSource->pBlock == NULL ? 0 : blockDataGetNumOfRows(pSource->pBlock);
+      SSTriggerHistoryGroup *pGroup = pSource->pGroup;
+      SStreamTriggerTask    *pTask = pGroup->pContext->pTask;
+      if (pTask->pTimeAlign != NULL) {
+        code = stTriggerTimeAlignNext(pTask, &pGroup->pTimeAlignStates, pGroup->pContext->sessionId, pGroup->gid,
+                                      pSource->pVirtTableInfo, NULL, pSource->pVtableMerger, &pSource->pBlock,
+                                      &pSource->rowIndex, &pSource->endRowIndex, &pGroup->pContext->timeAlignWaiting);
+        if (code == 0 && pGroup->pContext->timeAlignWaiting) {
+          *pStatus = STREAM_TRIGGER_PEER_SOURCE_NEED_INPUT;
+          return 0;
+        }
+        if (code == 0 && pSource->pBlock != NULL) code = stHistoryNestedProjectAlignedBlock(pSource, pTask);
+      } else {
+        code = stVtableMergerNextDataBlock(pSource->pVtableMerger, &pSource->pBlock);
+        pSource->rowIndex = 0;
+        pSource->endRowIndex = pSource->pBlock == NULL ? 0 : blockDataGetNumOfRows(pSource->pBlock);
+      }
     } else {
       code =
           stTimestampSorterNextDataBlock(pSource->pSorter, &pSource->pBlock, &pSource->rowIndex, &pSource->endRowIndex);
@@ -35910,7 +41537,8 @@ static int32_t stHistoryNestedPeerSourcePeek(void *pSourcePtr, SStreamTriggerPee
   }
 
   SStreamTriggerTask *pTask = pSource->pGroup->pContext->pTask;
-  SColumnInfoData    *pTsCol = taosArrayGet(pSource->pBlock->pDataBlock, pTask->histTrigTsIndex);
+  int32_t tsSlot = pSource->pBlock == pSource->pAlignedTriggerView ? pTask->trigTsSlotId : pTask->histTrigTsIndex;
+  SColumnInfoData *pTsCol = taosArrayGet(pSource->pBlock->pDataBlock, tsSlot);
   if (pTsCol == NULL || pTsCol->info.type != TSDB_DATA_TYPE_TIMESTAMP || colDataIsNull_s(pTsCol, pSource->rowIndex)) {
     return TSDB_CODE_INVALID_MSG;
   }
@@ -35952,6 +41580,11 @@ static void stHistoryNestedPeerSourceDestroy(void *ptr) {
   SSTriggerHistoryPeerSource *pSource = *ppSource;
   pSource->inFlight = false;
   stTimestampSorterDestroy(&pSource->pSorter);
+  stHistoryNestedClearAlignedView(pSource);
+  if (pSource->pAlignedTriggerView) {
+    taosArrayDestroy(pSource->pAlignedTriggerView->pDataBlock);
+    taosMemoryFree(pSource->pAlignedTriggerView);
+  }
   stVtableMergerDestroy(&pSource->pVtableMerger);
   taosArrayDestroy(pSource->pDataReqCids);
   taosArrayDestroy(pSource->pPseudoColReqCids);
@@ -35983,7 +41616,7 @@ static int32_t stHistoryNestedVirtualPeerSourceInit(SSTriggerHistoryPeerSource *
 
   code = createOneDataBlock(pTask->pVirDataBlock, false, &pVirDataBlock);
   QUERY_CHECK_CODE(code, lino, _end);
-  code = filterInitFromNode(pTask->histTriggerFilter, &pVirDataFilter, 0, NULL);
+  code = filterInitFromNode(pTask->pTimeAlign ? NULL : pTask->histTriggerFilter, &pVirDataFilter, 0, NULL);
   QUERY_CHECK_CODE(code, lino, _end);
   pSource->pVtableMerger = taosMemoryCalloc(1, sizeof(SSTriggerVtableMerger));
   QUERY_CHECK_NULL(pSource->pVtableMerger, code, lino, _end, terrno);
@@ -36005,14 +41638,14 @@ _end:
   return code;
 }
 
-static bool stHistoryNestedTableMetaActive(const SSTriggerHistoryGroup *pGroup, const SSTriggerTableMeta *pTableMeta) {
+static bool stHistoryTableMetaHasStepData(const SSTriggerHistoryGroup *pGroup, const SSTriggerTableMeta *pTableMeta) {
   if (pGroup == NULL || pTableMeta == NULL || pTableMeta->pMetas == NULL) {
     return false;
   }
 
   const STimeWindow *pRange = &pGroup->pContext->stepRange;
   for (int32_t i = 0; i < TARRAY_SIZE(pTableMeta->pMetas); ++i) {
-    SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
+    const SSTriggerMetaData *pMeta = TARRAY_GET_ELEM(pTableMeta->pMetas, i);
     if (pMeta != NULL && pMeta->nrows > 0 && pMeta->ekey >= pRange->skey && pMeta->skey <= pRange->ekey) {
       return true;
     }
@@ -36020,17 +41653,18 @@ static bool stHistoryNestedTableMetaActive(const SSTriggerHistoryGroup *pGroup, 
   return false;
 }
 
-static bool stHistoryNestedVirtualSourceActive(SSTriggerHistoryGroup *pGroup, SSTriggerVirtTableInfo *pVirtTableInfo) {
+static bool stHistoryVirtualTableHasStepData(const SSTriggerHistoryGroup  *pGroup,
+                                             const SSTriggerVirtTableInfo *pVirtTableInfo) {
   if (pGroup == NULL || pVirtTableInfo == NULL || pVirtTableInfo->pTrigColRefs == NULL) {
     return false;
   }
   for (int32_t i = 0; i < TARRAY_SIZE(pVirtTableInfo->pTrigColRefs); ++i) {
-    SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pVirtTableInfo->pTrigColRefs, i);
+    const SSTriggerTableColRef *pRef = TARRAY_GET_ELEM(pVirtTableInfo->pTrigColRefs, i);
     if (pRef == NULL) {
       continue;
     }
-    SSTriggerTableMeta *pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pRef->otbUid, sizeof(int64_t));
-    if (stHistoryNestedTableMetaActive(pGroup, pTableMeta)) {
+    const SSTriggerTableMeta *pTableMeta = tSimpleHashGet(pGroup->pTableMetas, &pRef->otbUid, sizeof(int64_t));
+    if (stHistoryTableMetaHasStepData(pGroup, pTableMeta)) {
       return true;
     }
   }
@@ -36049,7 +41683,7 @@ static int32_t stHistoryGroupInitNestedRound(SSTriggerHistoryGroup *pGroup) {
   if (pTask->isVirtualTable) {
     for (int32_t i = 0; i < TARRAY_SIZE(pGroup->pVirtTableInfos); ++i) {
       SSTriggerVirtTableInfo *pVirtTableInfo = *(SSTriggerVirtTableInfo **)TARRAY_GET_ELEM(pGroup->pVirtTableInfos, i);
-      if (stHistoryNestedVirtualSourceActive(pGroup, pVirtTableInfo)) {
+      if (stHistoryVirtualTableHasStepData(pGroup, pVirtTableInfo)) {
         ++numSources;
       }
     }
@@ -36062,7 +41696,7 @@ static int32_t stHistoryGroupInitNestedRound(SSTriggerHistoryGroup *pGroup) {
     int32_t             iter = 0;
     SSTriggerTableMeta *pTableMeta = tSimpleHashIterate(pGroup->pTableMetas, NULL, &iter);
     while (pTableMeta != NULL) {
-      if (stHistoryNestedTableMetaActive(pGroup, pTableMeta) && taosArrayPush(pNormalTableMetas, &pTableMeta) == NULL) {
+      if (stHistoryTableMetaHasStepData(pGroup, pTableMeta) && taosArrayPush(pNormalTableMetas, &pTableMeta) == NULL) {
         code = terrno;
         goto _exit;
       }
@@ -36081,7 +41715,7 @@ static int32_t stHistoryGroupInitNestedRound(SSTriggerHistoryGroup *pGroup) {
   if (pTask->isVirtualTable) {
     for (int32_t i = 0; i < TARRAY_SIZE(pGroup->pVirtTableInfos); ++i) {
       SSTriggerVirtTableInfo *pVirtTableInfo = *(SSTriggerVirtTableInfo **)TARRAY_GET_ELEM(pGroup->pVirtTableInfos, i);
-      if (!stHistoryNestedVirtualSourceActive(pGroup, pVirtTableInfo)) {
+      if (!stHistoryVirtualTableHasStepData(pGroup, pVirtTableInfo)) {
         continue;
       }
       SSTriggerHistoryPeerSource *pSource = taosMemoryCalloc(1, sizeof(SSTriggerHistoryPeerSource));
@@ -36175,6 +41809,7 @@ static int32_t stHistoryGroupDriveNested(SSTriggerHistoryGroup *pGroup) {
       return code;
     }
     if (status == STREAM_TRIGGER_PEER_GROUP_NEED_INPUT) {
+      if (pGroup->pContext->timeAlignWaiting) return 0;
       if (needSourceIndex < 0 || needSourceIndex >= TARRAY_SIZE(pGroup->pNestedPeerSources)) {
         return TSDB_CODE_INTERNAL_ERROR;
       }
@@ -36196,6 +41831,43 @@ static int32_t stHistoryGroupDriveNested(SSTriggerHistoryGroup *pGroup) {
     }
     if (status != STREAM_TRIGGER_PEER_GROUP_READY || pPeerGroup == NULL) {
       return TSDB_CODE_INTERNAL_ERROR;
+    }
+
+    if (pGroup->pContext->alignedReplaySuffix) {
+      SStreamTriggerTask *task = pGroup->pContext->pTask;
+      taosWLockLatch(&task->prevWindowUpdateLock);
+      SAlignedChainUpdate           *update = task->pAlignedChainUpdate;
+      bool                           comparing = update && update->comparing && update->normal;
+      SAlignedFutureRepair          *future = pGroup->pContext->alignedFuture;
+      const SWindowChainRepairCarry *carry =
+          future ? &future->carry : (update && update->tailScanning ? &update->carry : NULL);
+      if (comparing && pPeerGroup->ts > pGroup->pContext->alignedReplayAfter &&
+          pPeerGroup->ts <= update->ordinaryFrontier) {
+        const SWindowChainPeerGroup *normal = update->ordinal < taosArrayGetSize(update->normal->peers)
+                                                  ? taosArrayGet(update->normal->peers, update->ordinal)
+                                                  : NULL;
+        update->mismatch |= !stWindowChainPeerInputsEqual(task->pWindowPlan, normal, pPeerGroup);
+        ++update->ordinal;
+        if (!update->mismatch) update->matchedPrefix = update->ordinal;
+      }
+      taosWUnLockLatch(&task->prevWindowUpdateLock);
+      if (comparing || (future && atomic_load_8(&future->cancelled))) continue;
+      if (pPeerGroup->ts >= pGroup->pContext->alignedInputFloor &&
+          pPeerGroup->ts <= pGroup->pContext->timeAlignOriginalScan.ekey) {
+        SWindowChainSubmitResult silent = {0};
+        if (future && pPeerGroup->ts > pGroup->pContext->alignedReplayAfter)
+          TAOS_CHECK_RETURN(stAdvanceConfirmedAlignedFrontier(pGroup));
+        code = stWindowChainSubmitPeerGroup(pGroup->pAlignedLiveChain, pPeerGroup, taosGetTimestampNs(), &silent);
+        if (!code && pPeerGroup->ts > pGroup->pContext->alignedReplayAfter)
+          code = stStageAlignedTailCloses(pGroup, &silent, carry);
+        stDestroyWindowChainSubmitResult(&silent);
+        if (code) {
+          (void)stTriggerMergerPeerRetryOutstanding(pGroup->pPeerMerger);
+          return code;
+        }
+      }
+      if (pGroup->pContext->alignedFlush) return 0;
+      continue;
     }
 
     SWindowChainSubmitResult  result = {0};
@@ -36240,6 +41912,19 @@ static int32_t stHistoryGroupDriveNested(SSTriggerHistoryGroup *pGroup) {
         return code;
       }
     }
+    if (pGroup->pAlignedLiveChain && pPeerGroup->ts >= pContext->alignedInputFloor &&
+        pPeerGroup->ts <= pContext->timeAlignOriginalScan.ekey) {
+      SWindowChainSubmitResult silent = {0};
+      code = stWindowChainSubmitPeerGroup(pGroup->pAlignedLiveChain, pPeerGroup, taosGetTimestampNs(), &silent);
+      stDestroyWindowChainSubmitResult(&silent);
+      if (code) {
+        stTriggerTaskAbortNestedLeafEffects(&pStaged);
+        stWindowChainAbortPeerGroup(&pPeerTxn);
+        (void)stTriggerMergerPeerRetryOutstanding(pGroup->pPeerMerger);
+        stDestroyWindowChainSubmitResult(&result);
+        return code;
+      }
+    }
     stWindowChainCommitPeerGroup(&pPeerTxn);
     if (!pContext->isHistory) {
       stHistoryContextOwnNestedLeafEffects(pContext, &pStaged);
@@ -36254,6 +41939,7 @@ static int32_t stHistoryGroupDriveNested(SSTriggerHistoryGroup *pGroup) {
 }
 
 static int32_t stHistoryGroupFinalizeNestedLeaf(SSTriggerHistoryGroup *pGroup) {
+  if (pGroup && pGroup->pContext && pGroup->pContext->alignedReplaySuffix) return 0;
   if (pGroup == NULL || pGroup->pWindowChain == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
@@ -36328,6 +42014,68 @@ static int32_t stHistoryGroupSeedIntervalPredecessor(SSTriggerHistoryGroup *pGro
   return stHistoryGroupOpenWindow(pGroup, *pFirstTs, NULL, saveWindow, false, false, false);
 }
 
+static int32_t stHistoryGroupPrepareAlignedReplay(SSTriggerHistoryGroup *group) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  SStreamTriggerTask      *task = ctx->pTask;
+  if (!ctx->hasTimeAlignChange || ctx->timeAlignChange.ekey == INT64_MAX || !ctx->needTsdbMeta ||
+      taosArrayGetSize(group->pVirtTableInfos) != 1 || tSimpleHashGetSize(ctx->pGroups) != 1 ||
+      (task->triggerType == STREAM_TRIGGER_SESSION &&
+       (task->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND))) ||
+      (task->triggerType == STREAM_TRIGGER_COUNT && task->windowSliding != 1))
+    return 0;
+  if (!group->pTimeAlignStates) TAOS_CHECK_RETURN(stTriggerTimeAlignCreateGroup(task, true, &group->pTimeAlignStates));
+  STriggerTimeAlignGroup *state = group->pTimeAlignStates;
+  if (!state->windowReplay) {
+    int32_t                 slots = taosArrayGetSize(state->slots);
+    STimeAlignWindowReplay *replay = taosMemoryCalloc(1, sizeof(*replay) + slots * sizeof(bool));
+    if (!replay) return terrno;
+    replay->change = ctx->timeAlignChange;
+    replay->unresolved = slots;
+    replay->stableFrom = ctx->timeAlignChange.ekey + 1;
+    replay->latestRaw = INT64_MIN;
+    if (ctx->timeAlignSourceUid) {
+      const SSTriggerVirtTableInfo *table = taosArrayGetP(group->pVirtTableInfos, 0);
+      // A rebound or otherwise unknown source keeps the conservative all-column proof.
+      for (int32_t i = 0; i < taosArrayGetSize(table->pTrigColRefs); ++i) {
+        const SSTriggerTableColRef *source = taosArrayGet(table->pTrigColRefs, i);
+        if (source->otbUid != ctx->timeAlignSourceUid) continue;
+        int32_t inputs = blockDataGetNumOfCols(task->pVirDataBlock);
+        bool   *affected = taosMemoryCalloc(inputs, sizeof(*affected));
+        if (!affected) {
+          int32_t code = terrno;
+          taosMemoryFree(replay);
+          return code;
+        }
+        for (int32_t j = 0; j < taosArrayGetSize(source->pColMatches); ++j) {
+          const SSTriggerColMatch *match = taosArrayGet(source->pColMatches, j);
+          if (match->vtbSlotId >= 0 && match->vtbSlotId < inputs) affected[match->vtbSlotId] = true;
+        }
+        for (int32_t c = 0; c < slots; ++c) {
+          const SSTimeAlignSlot *slot = taosArrayGet(state->slots, c);
+          if (!affected[slot->inputSlot]) {
+            replay->recovered[c] = true;
+            --replay->unresolved;
+          }
+        }
+        taosMemoryFree(affected);
+        break;
+      }
+    }
+    state->windowReplay = replay;
+  }
+  return 0;
+}
+
+#if defined(BUILD_TEST)
+int32_t stTriggerTestPrepareAlignedReplay(SSTriggerHistoryGroup *group, const bool **recovered, int32_t *unresolved) {
+  TAOS_CHECK_RETURN(stHistoryGroupPrepareAlignedReplay(group));
+  const STimeAlignWindowReplay *replay = group->pTimeAlignStates->windowReplay;
+  *recovered = replay->recovered;
+  *unresolved = replay->unresolved;
+  return 0;
+}
+#endif
+
 static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -36337,13 +42085,15 @@ static int32_t stHistoryGroupDoSlidingCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
 
+  if (pTask->interval.interval > 0) TAOS_CHECK_RETURN(stHistoryGroupPrepareAlignedReplay(pGroup));
+
   if (!pContext->reenterCheck) {
     // save initial windows at the first check
     code = stHistoryGroupSaveInitWindow(pGroup, pContext->pInitWindows);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if ((pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter) {
+  if (pTask->pTimeAlign != NULL || (pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
   } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
@@ -36445,6 +42195,36 @@ _end:
   return code;
 }
 
+static void stTimeAlignObserveSessionRow(STimeAlignWindowReplay *replay, int64_t ts, int64_t gap) {
+  bool newSession = !replay->hasPrevious || (uint64_t)ts - (uint64_t)replay->previous > (uint64_t)gap;
+  if (newSession && ts < replay->change.skey) {
+    replay->anchor = ts;
+    replay->hasAnchor = true;
+  }
+  if (newSession && !replay->hasStop && !replay->unresolved && replay->hasPrevious &&
+      replay->previous >= replay->stableFrom) {
+    replay->stop = ts;
+    replay->hasStop = true;
+  }
+  replay->hasPrevious = true;
+  replay->previous = ts;
+}
+
+static bool stTimeAlignReplayPeerComplete(const SSTriggerHistoryContext *ctx, const STimeAlignWindowReplay *replay) {
+  return replay->hasStop && (replay->latestRaw > replay->stop ||
+                             (IS_TRIGGER_VTABLE_MERGER_EMPTY(ctx->pMerger) && !taosArrayGetSize(ctx->timeAlignBodies)));
+}
+
+static void stHistoryGroupFinishAlignedReplay(SSTriggerHistoryGroup *group, const STimeAlignWindowReplay *replay) {
+  SSTriggerHistoryContext *ctx = group->pContext;
+  SStreamTriggerTask      *pTask = ctx->pTask;
+  ctx->scanRange.ekey = replay->stop;
+  ctx->stepRange.ekey = replay->stop;
+  ST_TASK_DLOG("aligned %s replay complete, gid:%" PRId64 ", anchor:%" PRId64 ", stable:%" PRId64 ", stop:%" PRId64,
+               pTask->triggerType == STREAM_TRIGGER_SESSION ? "session" : "count", group->gid,
+               replay->hasAnchor ? replay->anchor : ctx->scanRange.skey, replay->stableFrom, replay->stop);
+}
+
 static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
   int32_t                  code = TSDB_CODE_SUCCESS;
   int32_t                  lino = 0;
@@ -36454,13 +42234,15 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
 
+  TAOS_CHECK_RETURN(stHistoryGroupPrepareAlignedReplay(pGroup));
+  STimeAlignWindowReplay *replay = pGroup->pTimeAlignStates ? pGroup->pTimeAlignStates->windowReplay : NULL;
   if (!pContext->reenterCheck) {
     // save initial windows at the first check
     code = stHistoryGroupSaveInitWindow(pGroup, pContext->pInitWindows);
     QUERY_CHECK_CODE(code, lino, _end);
   }
 
-  if ((pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter) {
+  if (pTask->pTimeAlign != NULL || (pTask->histTriggerFilter != NULL) || pTask->hasTriggerFilter) {
     readAllData = true;
   } else if (pTask->placeHolderBitmap & PLACE_HOLDER_WROWNUM) {
     readAllData = true;
@@ -36527,6 +42309,10 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
       int64_t *pTsData = (int64_t *)pTsCol->pData;
       for (int32_t r = startIdx; r < endIdx; r++) {
         int64_t          ts = pTsData[r];
+        if (replay) {
+          if (replay->hasStop && ts > replay->stop) break;
+          stTimeAlignObserveSessionRow(replay, ts, pTask->gap);
+        }
         SSTriggerWindow *pCurWin = TRINGBUF_HEAD(&pGroup->winBuf);
         if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && pCurWin->range.ekey + pTask->gap >= ts) {
           pCurWin->range.ekey = ts;
@@ -36539,6 +42325,13 @@ static int32_t stHistoryGroupDoSessionCheck(SSTriggerHistoryGroup *pGroup) {
           code = stHistoryGroupOpenWindow(pGroup, ts, NULL, true, true, false, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+      }
+      // All peers at the common start must have arrived. A buffered later raw
+      // timestamp or exhaustion of every bounded source in this step proves it.
+      if (replay && stTimeAlignReplayPeerComplete(pContext, replay)) {
+        TRINGBUF_DEQUEUE(&pGroup->winBuf);
+        stHistoryGroupFinishAlignedReplay(pGroup, replay);
+        allTableProcessed = true;
       }
     }
   }
@@ -36563,6 +42356,9 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
   bool                     readAllData = true;
   bool                     allTableProcessed = false;
   bool                     needFetchData = false;
+
+  TAOS_CHECK_RETURN(stHistoryGroupPrepareAlignedReplay(pGroup));
+  STimeAlignWindowReplay *replay = pGroup->pTimeAlignStates ? pGroup->pTimeAlignStates->windowReplay : NULL;
 
 #define ALIGN_UP(x, b) (((x) + (b) - 1) / (b) * (b))
   while (!allTableProcessed && !needFetchData) {
@@ -36631,6 +42427,25 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
         int64_t nrowsToSkip = TMIN(nrowsNextWstart, pTask->windowCount) - nrowsCurWin;
         int64_t skipped = TMIN(nrowsToSkip, endIdx - r);
         int64_t lastTs = pTsData[r + skipped - 1];
+        if (replay && replay->hasStop && lastTs > replay->stop) break;
+        if (replay && !replay->unresolved && !replay->hasStop && lastTs >= replay->stableFrom) {
+          // With sliding step one the loop advances a single qualifying input.
+          // The first all-stable window can still refer to a changed predecessor.
+          bool needsPrevious = (pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) != 0;
+          if (replay->stableRows == pTask->windowCount - (needsPrevious ? 0 : 1)) {
+            replay->hasStop = true;
+            replay->stop = lastTs;
+          } else {
+            ++replay->stableRows;
+          }
+        }
+        if (replay && !replay->hasAnchor && lastTs >= replay->change.skey) {
+          replay->anchor = IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) ? TRINGBUF_HEAD(&pGroup->winBuf)->range.skey : lastTs;
+          if ((pTask->placeHolderBitmap & (PLACE_HOLDER_PREV_WSTART | PLACE_HOLDER_PREV_WEND)) &&
+              pGroup->prevWindow.skey != INT64_MIN)
+            replay->anchor = TMIN(replay->anchor, pGroup->prevWindow.skey);
+          replay->hasAnchor = true;
+        }
         r += skipped;
         if (IS_TRIGGER_GROUP_OPEN_WINDOW(pGroup) && skipped > 0) {
           TRINGBUF_HEAD(&pGroup->winBuf)->range.ekey = lastTs;
@@ -36645,6 +42460,10 @@ static int32_t stHistoryGroupDoCountCheck(SSTriggerHistoryGroup *pGroup) {
           code = stHistoryGroupCloseWindow(pGroup, NULL, false, false);
           QUERY_CHECK_CODE(code, lino, _end);
         }
+      }
+      if (replay && stTimeAlignReplayPeerComplete(pContext, replay)) {
+        stHistoryGroupFinishAlignedReplay(pGroup, replay);
+        allTableProcessed = true;
       }
     }
   }
@@ -37257,6 +43076,7 @@ static int32_t stHistoryGroupCheck(SSTriggerHistoryGroup *pGroup) {
   SSTriggerHistoryContext *pContext = pGroup->pContext;
   SStreamTriggerTask      *pTask = pContext->pTask;
 
+  if (pContext->prefixProbe.group == pGroup) return stReadAlignedPrefix(pGroup);
   if (BIT_FLAG_TEST_MASK(pTask->addOptions, STREAM_OPTION_NESTED_WINDOW_PLAN)) {
     return stHistoryGroupDriveNested(pGroup);
   }
@@ -37318,9 +43138,9 @@ static int32_t stAppendHistoryGroupReadInfos(SSTriggerCalcRequest *pReq, const S
   const SSTriggerCalcParam *pFirstParam = taosArrayGet(pParams, 0);
   const SSTriggerCalcParam *pLastParam = taosArrayGetLast(pParams);
   const SStreamTriggerTask *pTask = pGroup == NULL || pGroup->pContext == NULL ? NULL : pGroup->pContext->pTask;
+  const SArray             *readers = pTask ? stHistoryContextReaders(pGroup->pContext) : NULL;
   if (pReq == NULL || pTask == NULL || pGroup->pTableMetas == NULL || tSimpleHashGetSize(pGroup->pTableMetas) == 0 ||
-      pTask->readerList == NULL || taosArrayGetSize(pTask->readerList) == 0 || pFirstParam == NULL ||
-      pLastParam == NULL) {
+      readers == NULL || taosArrayGetSize(readers) == 0 || pFirstParam == NULL || pLastParam == NULL) {
     return TSDB_CODE_INVALID_PARA;
   }
 
@@ -37329,8 +43149,8 @@ static int32_t stAppendHistoryGroupReadInfos(SSTriggerCalcRequest *pReq, const S
   tCopySTriggerCalcParamValues(&readInfo.lastParam, pLastParam);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < taosArrayGetSize(pTask->readerList); ++i) {
-    const SStreamTaskAddr *pReader = taosArrayGet(pTask->readerList, i);
+  for (int32_t i = 0; i < taosArrayGetSize(readers); ++i) {
+    const SStreamTaskAddr *pReader = taosArrayGet(readers, i);
     if (pReader == NULL || pReader->nodeId <= 0) return TSDB_CODE_INVALID_PARA;
     SSTriggerGroupReadInfo nodeReadInfo = readInfo;
     if (pTask->stbPartByTbname) {
@@ -37549,6 +43369,7 @@ static int32_t stHistoryGroupAppendPendingCalc(SSTriggerHistoryGroup *pGroup, in
       SStreamNestedCalcGroupAdapter adapter = {
           .gid = pGroup->gid,
           .pTableMetas = pGroup->pTableMetas,
+          .pAlignedReaders = pTask->pTimeAlign ? stHistoryContextReaders(pContext) : NULL,
           .stbPartByTbname = pTask->stbPartByTbname,
       };
       bool extendReadInfo = stCanExtendNestedGroupReadInfo(pReq, pGroup->gid, pEvent);
@@ -38216,6 +44037,7 @@ static int32_t stRealtimePeriodSaveData(SSTriggerRealtimeContext *pContext, SSTr
                                         SRpcMsg *pRsp) {
   SStreamTriggerTask *pTask = pContext->pTask;
   if (pRsp->code == TSDB_CODE_STREAM_NO_DATA) return TSDB_CODE_SUCCESS;
+  stPreparePhysicalWalBlock(pTask, &pInput->walLayoutGeneration, pInput->pBlock);
   blockDataEmpty(pInput->pBlock);
   taosArrayClear(pInput->pSlices);
   SSTriggerWalNewRsp rsp = {.dataBlock = pInput->pBlock};

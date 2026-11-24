@@ -27,6 +27,7 @@ typedef struct SAuthCxt {
   bool             macNruGuaranteed;
   bool             macNwdGuaranteed;
   bool             allowExternalQuery;
+  const STableNode* pStreamTriggerTable;
 } SAuthCxt;
 
 typedef struct SSelectAuthCxt {
@@ -509,22 +510,22 @@ static bool authIsExternalSeries(SNodeList* pSeriesList, const char* tableName) 
 // during translation), so the auth walker cannot reach a REAL_TABLE node and
 // must check the recorded name here.
 static int32_t authTimeAlignTable(SAuthCxt* pCxt, SSelectStmt* pSelect, STimeAlignTableNode* pAlign) {
-  if (pAlign->dbName[0] == '\0') {
-    // No current database: translation reports the proper "db not specified"
-    // error; there is nothing selectable to check yet.
-    return TSDB_CODE_SUCCESS;
+  const STableNode* pSource = NULL;
+  if (pAlign->pRealTableNode != NULL && nodeType(pAlign->pRealTableNode) == QUERY_NODE_PLACE_HOLDER_TABLE) {
+    pSource = pCxt->pStreamTriggerTable;
   }
+  const char* db = pSource != NULL ? pSource->dbName : pAlign->dbName;
+  if (db[0] == '\0') return TSDB_CODE_SUCCESS;
 
-  int32_t code = checkDbUseAuth(pCxt, pAlign->dbName);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-
+  PAR_ERR_RET(checkDbUseAuth(pCxt, db));
   STableNode table = {0};
-  tstrncpy(table.dbName, pAlign->dbName, sizeof(table.dbName));
-  tstrncpy(table.tableName, pAlign->tbName, sizeof(table.tableName));
-  tstrncpy(table.tableAlias, pAlign->table.tableAlias, sizeof(table.tableAlias));
+  tstrncpy(table.dbName, db, sizeof(table.dbName));
+  tstrncpy(table.tableName, pSource != NULL ? pSource->tableName : pAlign->tbName, sizeof(table.tableName));
+  const char* alias =
+      pSource != NULL && pAlign->table.tableAlias[0] == '\0' ? pSource->tableAlias : pAlign->table.tableAlias;
+  tstrncpy(table.tableAlias, alias, sizeof(table.tableAlias));
 
+  int32_t code = TSDB_CODE_SUCCESS;
   bool isView = false;
 #ifdef TD_ENTERPRISE
   // Mirror the REAL_TABLE path: MAC level check and the owner shortcut.  Both
@@ -653,7 +654,7 @@ static EDealRes authSelectImpl(SNode* pNode, void* pContext) {
     return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TIME_ALIGN_TABLE == nodeType(pNode)) {
     pAuthCxt->errCode = authTimeAlignTable(pAuthCxt, pCxt->pSelect, (STimeAlignTableNode*)pNode);
-    return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
+    return TSDB_CODE_SUCCESS == pAuthCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
   } else if (QUERY_NODE_TEMP_TABLE == nodeType(pNode)) {
     return authSubquery(pAuthCxt, ((STempTableNode*)pNode)->pSubquery);
   }
@@ -899,6 +900,10 @@ static int32_t authCreateStream(SAuthCxt* pCxt, SCreateStreamStmt* pStmt) {
   if (pStmt->pTrigger) {
     SStreamTriggerNode* pTrigger = (SStreamTriggerNode*)pStmt->pTrigger;
     STableNode*         pTriggerTable = (STableNode*)pTrigger->pTrigerTable;
+    if (pTriggerTable != NULL && nodeType(pTriggerTable) == QUERY_NODE_TIME_ALIGN_TABLE) {
+      pTriggerTable = (STableNode*)((STimeAlignTableNode*)pTriggerTable)->pRealTableNode;
+    }
+    pCxt->pStreamTriggerTable = pTriggerTable;
     if (pTriggerTable) {
       if (IS_SYS_DBNAME(pTriggerTable->dbName)) return TSDB_CODE_PAR_PERMISSION_DENIED;
       if (authObjPrivileges(pCxt, pTriggerTable->dbName, pTriggerTable->tableName, PRIV_TBL_SELECT, PRIV_OBJ_TBL)) {

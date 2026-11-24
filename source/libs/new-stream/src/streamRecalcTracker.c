@@ -1611,6 +1611,16 @@ _exit:
   return code;
 }
 
+int32_t stRecalcTrackerDiscardStep(SStreamRecalcTracker *pTracker, uint64_t stepId) {
+  if (!pTracker || !stepId) return TSDB_CODE_INVALID_PARA;
+  taosWLockLatch(&pTracker->lock);
+  SStreamRecalcStep *step = stGetStep(pTracker, stepId);
+  int32_t            code = step ? 0 : stMissingStepCode(pTracker, stepId);
+  if (step) stRetireStep(pTracker, step);
+  taosWUnLockLatch(&pTracker->lock);
+  return code;
+}
+
 int32_t stRecalcTrackerFailStep(SStreamRecalcTracker *pTracker, uint64_t stepId, int32_t errorCode) {
   if (pTracker == NULL || errorCode == TSDB_CODE_SUCCESS) return TSDB_CODE_INVALID_PARA;
   int32_t code = TSDB_CODE_SUCCESS;

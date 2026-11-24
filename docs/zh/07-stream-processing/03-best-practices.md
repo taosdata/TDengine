@@ -380,3 +380,107 @@ CREATE STREAM yearly_archive
     INTERVAL(1y)
     PARTITION BY location, groupId;
 ```
+
+### 用异步电压和电流计算平均功率
+
+准备好运行中的流节点。示例使用毫秒精度，时间戳从 UTC 2026-01-01 00:00:00 开始，数据库保留期覆盖示例数据。
+
+```sql
+CREATE DATABASE manual_align_power PRECISION 'ms' KEEP 3650;
+USE manual_align_power;
+CREATE TABLE volts (ts TIMESTAMP, value DOUBLE);
+CREATE TABLE amps (ts TIMESTAMP, value DOUBLE);
+CREATE VTABLE meter (ts TIMESTAMP, voltage DOUBLE FROM volts.value,
+                     current_a DOUBLE FROM amps.value);
+
+CREATE STREAM power_10s INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname INTO power_10s_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend;
+
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'power_10s' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后写入读数，等第一个窗口关闭后查询结果。
+
+```sql
+INSERT INTO volts VALUES (1767225600000, 220);
+INSERT INTO amps VALUES (1767225601000, 2) (1767225602000, 3);
+INSERT INTO amps VALUES (1767225611000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM power_10s_out WHERE ws = 1767225600000;
+```
+
+第 11 秒的读数使首个十秒窗口关闭。第 0 秒只有电压，乘积为 NULL。随后两次采样得到 220 × 2 和 220 × 3，结果为 `1767225600000 | 2 | 550`。
+
+#### 限制电压前值的有效时间
+
+继续使用同一个数据库。触发过滤要求当前行有电流读数，且对齐后的电压为 220。计算查询也显式指定 `current_a IS NOT NULL`，以免只有电压的行沿用上一次电流而多计一次采样。
+
+```sql
+DROP STREAM power_10s;
+CREATE STREAM bounded_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 220 AND current_a IS NOT NULL))
+INTO bounded_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'bounded_power' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后写入电压。在恰好两秒和两秒零一毫秒时分别写入电流。
+
+```sql
+INSERT INTO volts VALUES (1767225660000, 220);
+INSERT INTO amps VALUES (1767225662000, 2) (1767225662001, 3);
+INSERT INTO volts VALUES (1767225671000, 220);
+INSERT INTO amps VALUES (1767225672000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM bounded_power_out WHERE ws = 1767225660000;
+```
+
+只有电压的行被触发过滤排除，但它仍为下一条电流读数提供前值。恰好两秒时电压仍然有效，两秒零一毫秒时已经过期。查询结果为 `1767225660000 | 1 | 440`。
+
+#### 切换电压来源
+
+替代源表预先写入一条 100 伏的读数。下面的流选择对齐后电压为 100 的电流读数。
+
+```sql
+DROP STREAM bounded_power;
+CREATE TABLE replacement (ts TIMESTAMP, value DOUBLE);
+INSERT INTO replacement VALUES (1767225700000, 100);
+CREATE STREAM rebound_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 100 AND current_a IS NOT NULL))
+INTO rebound_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND voltage_p = 100 AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'rebound_power' AND type = 'Trigger';
+```
+
+触发任务显示 `Running` 后，先写入原来的源表，再切换电压引用，并写入两条电流读数。
+
+```sql
+INSERT INTO volts VALUES (1767225701000, 220);
+INSERT INTO amps VALUES (1767225702000, 2);
+ALTER VTABLE meter ALTER COLUMN voltage SET replacement.value;
+INSERT INTO amps VALUES (1767225721000, 3);
+INSERT INTO replacement VALUES (1767225722000, 100);
+INSERT INTO amps VALUES (1767225731000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM rebound_power_out WHERE ws = 1767225720000;
+```
+
+第 121 秒的电流使用替代源表的电压。第 122 秒只有电压更新，计算查询会排除该行。第 131 秒的电流使窗口关闭。查询结果为 `1767225720000 | 1 | 300`。

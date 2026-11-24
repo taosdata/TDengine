@@ -43,6 +43,7 @@ class ITableBuilder {
   virtual ITableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) = 0;
   virtual ITableBuilder& setVgid(int16_t vgid) = 0;
   virtual ITableBuilder& setPrecision(uint8_t precision) = 0;
+  virtual ITableBuilder& setVirtualSuperTable(bool enabled, bool hasInheritors = false) = 0;
   virtual void           done() = 0;
 };
 
@@ -72,6 +73,7 @@ class MockCatalogService {
   void setTableRefs(const std::string& db, const std::string& table,
                    const std::vector<SColRef>& columns,
                    const std::vector<SColRef>& tags);
+  void           setVstbExternalSource(const std::string& source);
   void showTables() const;
   void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize);
   void createSmaIndex(const SMCreateSmaReq* pReq);

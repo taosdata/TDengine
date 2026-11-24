@@ -48,6 +48,8 @@ typedef struct {
 SSnode *sndOpen(const char *path, const SSnodeOpt *pOption);
 
 int32_t sndInit(SSnode * pSnode);
+// Drain parked writes while the runner queue can still accept their final wakes.
+void sndStop(SSnode *pSnode);
 /**
  * @brief Stop Snode in Dnode.
  *

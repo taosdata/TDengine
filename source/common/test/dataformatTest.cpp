@@ -477,6 +477,48 @@ TEST(testCase, tColDataGetValue) {
 }
 #endif
 
+TEST(testCase, PackedColumnValuesCanStartAtAnOddByte) {
+  alignas(8) uint8_t bytes[32]{};
+  SColData           col{};
+  col.cid = 2;
+  col.flag = HAS_VALUE;
+  col.nVal = 2;
+  col.pData = bytes + 1;
+  for (int8_t type : {TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BIGINT}) {
+    col.type = type;
+    col.nData = 2 * tDataTypes[type].bytes;
+    if (tDataTypes[type].bytes == 2) {
+      uint16_t values[] = {11, 3571};
+      memcpy(col.pData, values, sizeof(values));
+    } else if (tDataTypes[type].bytes == 4) {
+      uint32_t values[] = {11, 3571};
+      memcpy(col.pData, values, sizeof(values));
+    } else {
+      uint64_t values[] = {11, 3571};
+      memcpy(col.pData, values, sizeof(values));
+    }
+    SColVal value{};
+    ASSERT_EQ(0, tColDataGetValue(&col, 0, &value));
+    EXPECT_EQ(11, value.value.val);
+    ASSERT_EQ(0, tColDataGetValue(&col, 1, &value));
+    EXPECT_EQ(3571, value.value.val);
+  }
+  int32_t offsets[] = {0, 2};
+  memcpy(bytes + 1, offsets, sizeof(offsets));
+  col.type = TSDB_DATA_TYPE_VARCHAR;
+  col.aOffset = reinterpret_cast<int32_t *>(bytes + 1);
+  col.nData = 5;
+  col.pData = bytes + 1 + sizeof(offsets);
+  memcpy(col.pData, "abcde", col.nData);
+  SColVal value{};
+  ASSERT_EQ(0, tColDataGetValue(&col, 0, &value));
+  ASSERT_EQ(2u, value.value.nData);
+  EXPECT_EQ(0, memcmp("ab", value.value.pData, value.value.nData));
+  ASSERT_EQ(0, tColDataGetValue(&col, 1, &value));
+  ASSERT_EQ(3u, value.value.nData);
+  EXPECT_EQ(0, memcmp("cde", value.value.pData, value.value.nData));
+}
+
 TEST(testCase, AllNormTest) {
   int16_t nCols = 14;
   STSRow *row = nullptr;

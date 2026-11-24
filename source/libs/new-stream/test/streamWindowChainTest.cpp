@@ -768,6 +768,64 @@ TEST(StreamWindowChainTimeTest, slidingBoundaryRowUsesOldScopeBeforeReset) {
   EXPECT_EQ(0, taosArrayGetSize(boundary.value().pCandidates));
 }
 
+TEST(StreamWindowChainTimeTest, ordinaryCheckpointRetainsRootCountPhaseBeyondAffectedAncestor) {
+  Plan               plan({countLayer(2, 2), countLayer(1, 1)});
+  Chain              chain = createChain(plan);
+  std::vector<Block> blocks;
+  for (TSKEY ts : {10, 20, 30, 40}) submit(chain.get(), ts, {1}, ts, &blocks);
+  EXPECT_TRUE(stWindowChainHasOrdinaryState(chain.get(), 10));
+}
+
+TEST(StreamWindowChainTimeTest, ordinaryCheckpointPreservesOriginalLeafAndAncestorRows) {
+  Plan               plan({sessionLayer(1000), sessionLayer(15)});
+  SWindowChainPolicy policy = {};
+  policy.leafEventTypes = STRIGGER_EVENT_WINDOW_CLOSE;
+  policy.leafNotifyEventTypes = STRIGGER_EVENT_WINDOW_CLOSE;
+  for (bool combined : {false, true}) {
+    Chain              original = createChain(plan);
+    std::vector<Block> blocks;
+    submit(original.get(), 0, {1}, 1, &blocks);
+    submit(original.get(), 25, {1}, 2, &blocks);
+    if (combined) {
+      submit(original.get(), 31, {1}, 3, &blocks);
+      submit(original.get(), 35, {1}, 4, &blocks);
+    }
+    // In the separated case the previous state ended. Use a gap to start its new leaf.
+    TSKEY next = combined ? 40 : 41;
+    submit(original.get(), next, {1}, 5, &blocks);
+    ASSERT_TRUE(stWindowChainHasOrdinaryState(original.get(), 40));
+    SEncoder encoder = {};
+    tEncoderInit(&encoder, nullptr, 0);
+    ASSERT_EQ(0, stWindowChainEncodeOrdinary(&encoder, original.get()));
+    std::vector<uint8_t> bytes(encoder.pos);
+    tEncoderClear(&encoder);
+    tEncoderInit(&encoder, bytes.data(), bytes.size());
+    ASSERT_EQ(0, stWindowChainEncodeOrdinary(&encoder, original.get()));
+    tEncoderClear(&encoder);
+    SDecoder decoder = {};
+    tDecoderInit(&decoder, bytes.data(), bytes.size() - 1);
+    SWindowChainState* restored = nullptr;
+    EXPECT_NE(0, stWindowChainDecodeOrdinary(&decoder, plan.get(), kGid, &policy, &restored));
+    EXPECT_EQ(nullptr, restored);
+    tDecoderClear(&decoder);
+    tDecoderInit(&decoder, bytes.data(), bytes.size());
+    ASSERT_EQ(0, stWindowChainDecodeOrdinary(&decoder, plan.get(), kGid, &policy, &restored));
+    Chain recovered(restored);
+    EXPECT_EQ(bytes.size(), decoder.pos);
+    tDecoderClear(&decoder);
+    submit(recovered.get(), 55, {1}, 6, &blocks);
+    auto closed = submit(recovered.get(), 80, {1}, 7, &blocks);
+    ASSERT_EQ(1, taosArrayGetSize(closed.value().pCandidates));
+    const auto* leaf = static_cast<const SLeafEventCandidate*>(taosArrayGet(closed.value().pCandidates, 0));
+    EXPECT_EQ(combined ? 5 : 2, leaf->rowCount);
+    EXPECT_EQ(combined ? 25 : next, leaf->leafParam.wstart);
+    EXPECT_EQ(55, leaf->leafParam.wend);
+    EXPECT_EQ(combined ? 7 : 5, snapshot(*leaf, 0)->values.window.rownum);
+    submit(recovered.get(), 2000, {1}, 8, &blocks);
+    EXPECT_FALSE(stWindowChainHasOrdinaryState(recovered.get(), 40));
+  }
+}
+
 TEST(StreamWindowChainTimeTest, sessionGapRowStartsNewScopeBeforeRouting) {
   Plan               plan({sessionLayer(5000), sessionLayer(10000)});
   Chain              chain = createChain(plan);
@@ -1828,6 +1886,31 @@ TEST(StreamWindowChainDataPeerTest, StateOpenFreezesAfterCompletePeerGroup) {
   expectWindowEvent(open, STRIGGER_EVENT_WINDOW_OPEN, 1000, 1000, 2);
   ASSERT_EQ(1, taosArrayGetSize(open->pAncestorSnapshots));
   EXPECT_EQ(2, snapshot(*open, 0)->values.window.rownum);
+}
+
+TEST(StreamWindowChainDataPeerTest, RepairComparesCountAdmissionAcrossAllConditionColumns) {
+  Plan          plan({sessionLayer(10000), countLayer(2, 2, {1, 4})});
+  DataPeerGroup left(DataRow(1000, 10, false, 0, 0, 0, true));
+  DataPeerGroup right(DataRow(1000, 0, true, 0, 0, 99, false));
+  DataPeerGroup empty(DataRow(1000, 0, true, 0, 0, 0, true));
+  EXPECT_TRUE(stWindowChainPeerInputsEqual(plan.get(), left.get(), right.get()));
+  EXPECT_FALSE(stWindowChainPeerInputsEqual(plan.get(), left.get(), empty.get()));
+  Plan state({sessionLayer(10000), twoColumnStateLayer(STATE_WIN_EXTEND_OPTION_DEFAULT)});
+  EXPECT_FALSE(stWindowChainPeerInputsEqual(state.get(), left.get(), right.get()));
+}
+
+TEST(StreamWindowChainDataPeerTest, RepairComparesEventConditionIndicesWithAbsentConditionsAsZero) {
+  Plan          plan({sessionLayer(10000), eventLayer(true)});
+  DataPeerGroup zero(DataRow(1000, 0, true, 0, 0));
+  DataPeerGroup one(DataRow(1000, 0, true, 1, 0));
+  DataPeerGroup two(DataRow(1000, 0, true, 2, 0));
+  DataPeerGroup missing(DataRow(1000, 0, true, 0, 0));
+  const auto*   ref = static_cast<const SWindowChainRowRef*>(taosArrayGet(missing.get()->pRows, 0));
+  auto*         start = static_cast<SColumnInfoData*>(taosArrayGet(ref->pBlock->pDataBlock, 2));
+  ASSERT_EQ(0, colDataSetVal(start, 0, nullptr, true));
+  EXPECT_TRUE(stWindowChainPeerInputsEqual(plan.get(), zero.get(), missing.get()));
+  EXPECT_FALSE(stWindowChainPeerInputsEqual(plan.get(), one.get(), missing.get()));
+  EXPECT_FALSE(stWindowChainPeerInputsEqual(plan.get(), one.get(), two.get()));
 }
 
 TEST(StreamWindowChainDataPeerTest, CountOpenAndCloseFreezeAfterCompletePeerGroup) {
@@ -3834,6 +3917,100 @@ TEST(StreamWindowChainHistoryTailTest, AllocationFailureLeavesChainAndOutputUnch
   EXPECT_EQ(sentinelLineage, output.at(0)->lineage.pScopes);
   expectWindowEvent(output.at(1), STRIGGER_EVENT_WINDOW_CLOSE, 0, 1999, 1);
   expectWindowEvent(output.at(2), STRIGGER_EVENT_WINDOW_CLOSE, 1000, 2999, 1);
+}
+
+TEST(StreamWindowChainRepairTest, CorrectedEventParentOwnsLaterLeafUntilItsScopeCloses) {
+  Plan               plan({eventLayer(), stateLayer()});
+  Chain              frozen = createChain(plan), ordinary = createChain(plan);
+  std::vector<Block> blocks;
+  submitData(ordinary.get(), {31, 2, false, 0, 0}, 0, &blocks);
+  submitData(frozen.get(), {31, 2, false, 1, 0}, 0, &blocks);
+  for (auto* chain : {frozen.get(), ordinary.get()}) {
+    submitData(chain, {35, 2, false, 0, 0}, 1, &blocks);
+    submitData(chain, {40, 3, false, 0, 0}, 2, &blocks);
+  }
+  SWindowChainRepairCarry carry = {};
+  EXPECT_TRUE(stWindowChainCaptureRepairCarry(frozen.get(), ordinary.get(), 35, &carry));
+  SubmitResult closed = submitData(frozen.get(), {46, 4, false, 0, 0}, 3, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(closed.value().pCandidates));
+  EXPECT_TRUE(stWindowChainHasRepairCarry(frozen.get(), &carry));
+  EXPECT_EQ(40, candidateAt(closed, 0)->leafParam.wstart);
+  EXPECT_TRUE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(closed, 0)));
+
+  submitData(frozen.get(), {50, 4, false, 0, 1}, 4, &blocks);
+  EXPECT_FALSE(stWindowChainHasRepairCarry(frozen.get(), &carry));
+  submitData(frozen.get(), {60, 2, false, 1, 0}, 5, &blocks);
+  SubmitResult independent = submitData(frozen.get(), {65, 3, false, 0, 0}, 6, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(independent.value().pCandidates));
+  EXPECT_FALSE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(independent, 0)));
+}
+
+TEST(StreamWindowChainRepairTest, MatchedParentAndConsumedLeafNeedNoMoreCloses) {
+  SStreamWindowLayerSpec parent = sessionLayer(120);
+  parent.placeholderMask = PLACE_HOLDER_WSTART;
+  Plan               plan({parent, stateLayer()});
+  Chain              frozen = createChain(plan), ordinary = createChain(plan);
+  std::vector<Block> blocks;
+  for (auto* chain : {frozen.get(), ordinary.get()}) {
+    submitData(chain, {25, 2, false, 0, 0}, 0, &blocks);
+  }
+  submitData(frozen.get(), {31, 2, false, 0, 0}, 1, &blocks);
+  for (auto* chain : {frozen.get(), ordinary.get()}) {
+    submitData(chain, {35, 2, false, 0, 0}, 2, &blocks);
+    SubmitResult emitted = submitData(chain, {40, 3, false, 0, 0}, 3, &blocks);
+    ASSERT_EQ(1, taosArrayGetSize(emitted.value().pCandidates));
+  }
+  SWindowChainRepairCarry carry = {};
+  EXPECT_FALSE(stWindowChainCaptureRepairCarry(frozen.get(), ordinary.get(), 35, &carry));
+  SubmitResult later = submitData(frozen.get(), {46, 4, false, 0, 0}, 4, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(later.value().pCandidates));
+  EXPECT_FALSE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(later, 0)));
+}
+
+TEST(StreamWindowChainRepairTest, LaterLeafUsesDifferentRequestedPredecessor) {
+  SStreamWindowLayerSpec leaf = stateLayer();
+  leaf.placeholderMask |= PLACE_HOLDER_PREV_WSTART;
+  Plan               plan({intervalLayer(120, 120), leaf});
+  Chain              frozen = createChain(plan), ordinary = createChain(plan);
+  std::vector<Block> blocks;
+  submitData(frozen.get(), {25, 2, false, 0, 0}, 0, &blocks);
+  submitData(ordinary.get(), {31, 2, false, 0, 0}, 0, &blocks);
+  for (auto* chain : {frozen.get(), ordinary.get()}) {
+    submitData(chain, {35, 2, false, 0, 0}, 1, &blocks);
+    submitData(chain, {40, 3, false, 0, 0}, 2, &blocks);
+  }
+  SWindowChainRepairCarry carry = {};
+  EXPECT_TRUE(stWindowChainCaptureRepairCarry(frozen.get(), ordinary.get(), 35, &carry));
+  SubmitResult dependent = submitData(frozen.get(), {46, 4, false, 0, 0}, 3, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(dependent.value().pCandidates));
+  EXPECT_TRUE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(dependent, 0)));
+  SubmitResult independent = submitData(frozen.get(), {50, 5, false, 0, 0}, 4, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(independent.value().pCandidates));
+  EXPECT_FALSE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(independent, 0)));
+  EXPECT_FALSE(stWindowChainHasRepairCarry(frozen.get(), &carry));
+}
+
+TEST(StreamWindowChainRepairTest, CountPhasePersistsAcrossAnEmptyGapUntilOuterReset) {
+  SStreamWindowLayerSpec root = intervalLayer(100, 100);
+  root.placeholderMask = PLACE_HOLDER_WSTART;
+  Plan               plan({root, countLayer(2, 4), stateLayer()});
+  Chain              frozen = createChain(plan), ordinary = createChain(plan);
+  std::vector<Block> blocks;
+  for (auto* chain : {frozen.get(), ordinary.get()}) {
+    submitData(chain, {25, 2, false, 0, 0}, 0, &blocks);
+    submitData(chain, {30, 2, false, 0, 0}, 1, &blocks);
+  }
+  submitData(frozen.get(), {31, 2, false, 0, 0}, 2, &blocks);
+  SWindowChainRepairCarry carry = {};
+  ASSERT_TRUE(stWindowChainCaptureRepairCarry(frozen.get(), ordinary.get(), 35, &carry));
+  EXPECT_TRUE(stWindowChainHasRepairCarry(frozen.get(), &carry));
+  submitData(frozen.get(), {40, 2, false, 0, 0}, 3, &blocks);
+  submitData(frozen.get(), {45, 2, false, 0, 0}, 4, &blocks);
+  SubmitResult closed = submitData(frozen.get(), {46, 3, false, 0, 0}, 5, &blocks);
+  ASSERT_EQ(1, taosArrayGetSize(closed.value().pCandidates));
+  EXPECT_TRUE(stWindowChainCandidateCarriesRepair(&carry, candidateAt(closed, 0)));
+  submitData(frozen.get(), {125, 2, false, 0, 0}, 6, &blocks);
+  EXPECT_FALSE(stWindowChainHasRepairCarry(frozen.get(), &carry));
 }
 
 }  // namespace

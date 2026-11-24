@@ -6402,7 +6402,8 @@ static int32_t tagScanResolveVirtualBatch(SOperatorInfo* pOperator, int32_t size
     STUidTagInfo tag = {.uid = pTable->uid};
     QUERY_CHECK_NULL(taosArrayPush(pInfo->aUidTags, &tag), code, lino, _end, terrno);
   }
-  code = pAPI->metaFn.getTableTagsByUidVersion(pInfo->readHandle.vnode, pInfo->suid, pInfo->aUidTags, -1);
+  code = pAPI->metaFn.getTableTagsByUidVersion(pInfo->readHandle.vnode, pInfo->suid, pInfo->aUidTags, -1,
+                                                    pInfo->readHandle.txnId);
   QUERY_CHECK_CODE(code, lino, _end);
   code = resolveQueryVirtualTags(pInfo->pVirtualTagCtx, pInfo->aUidTags, pInfo->pVirtualTagCols);
 _end:
