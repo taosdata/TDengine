@@ -1857,6 +1857,7 @@
 
 # 74-Transport
 ,,y,.,./ci/pytest.sh pytest cases/33-Transport/test_rpc_send_failure_close.py -N 3
+,,y,.,./ci/pytest.sh pytest cases/33-Transport/test_heartbeat_retry_budget.py -N 1
 
 # 80-Components
 
