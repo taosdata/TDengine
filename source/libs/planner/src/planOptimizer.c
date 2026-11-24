@@ -15206,6 +15206,26 @@ static bool externalScanSafeForVstableAgg(const SScanLogicNode* pScan) {
   return externalScanSafeForVtableWindow(pScan);
 }
 
+// The splitter transfers the whole function once per column argument. Exactly one
+// column selects its source scan, and literal arguments can move along with it.
+static bool vtableWindowFuncCanSplit(const SFunctionNode* pFunc) {
+  // The split plan cannot supply both scan phases to the aggregate.
+  if (fmIsRepeatScanFunc(pFunc->funcId)) {
+    return false;
+  }
+
+  bool   hasColumn = false;
+  SNode* pParam = NULL;
+  FOREACH(pParam, pFunc->pParameterList) {
+    if (QUERY_NODE_COLUMN == nodeType(pParam) && !hasColumn) {
+      hasColumn = true;
+    } else if (QUERY_NODE_VALUE != nodeType(pParam)) {
+      return false;
+    }
+  }
+  return hasColumn;
+}
+
 static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   if (OPTIMIZE_FLAG_TEST_MASK(pNode->optimizedFlag, OPTIMIZE_FLAG_VTB_WINDOW)) {
     return false;
@@ -15266,6 +15286,9 @@ static bool vtableWindowMayBeOptimized(SLogicNode* pNode, void* pCtx) {
   FOREACH(pFunc, pWindow->pFuncs) {
     SFunctionNode* pFunction = (SFunctionNode*)pFunc;
     if (functionHasTagOrPkParam(pFunction)) {
+      return false;
+    }
+    if (!fmIsWindowPseudoColumnFunc(pFunction->funcId) && !vtableWindowFuncCanSplit(pFunction)) {
       return false;
     }
   }
