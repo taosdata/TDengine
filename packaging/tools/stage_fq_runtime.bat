@@ -1,7 +1,20 @@
+REM Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
+REM
+REM SPDX-License-Identifier: AGPL-3.0-or-later
+REM
+REM This program is free software: you can use, redistribute, and/or modify
+REM it under the terms of the GNU Affero General Public License, version 3
+REM or later ("AGPL"), as published by the Free Software Foundation.
+REM
+REM This program is distributed in the hope that it will be useful, but WITHOUT
+REM ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+REM FITNESS FOR A PARTICULAR PURPOSE.
+REM
+REM You should have received a copy of the GNU Affero General Public License
+REM along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 @echo off
 setlocal EnableExtensions
-rem Copyright (c) 2026 TAOS Data, Inc. <jhtao@taosdata.com>
-rem
 rem Stage the Windows federated-query runtime dependencies into a package
 rem directory.  The package must carry the provider client DLLs next to taosd,
 rem the official Microsoft ODBC Driver 18 installer for SQL Server, and the
@@ -87,109 +100,39 @@ if exist "%FQ_BIN%\msodbcsql18.msi" (
 )
 
 rem --- Oracle Instant Client -------------------------------------------
-rem   The ODBC driver (sqora32.dll) loads its Instant Client base libraries
-rem   (oraociei, orannz, orasql, oci, ...) by name from its own directory, so
-rem   the whole set stays together in driver\oracle.  Windows resolves an ODBC
-rem   driver only through its registry registration and the Driver keyword
-rem   cannot name a DLL path, so the package also carries odbc_install.exe:
-rem   running it from driver\oracle registers the driver with its absolute
-rem   path.  ensure_ext_env.ps1 performs the same registration on a
-rem   development host; the provider in turn resolves the driver through that
-rem   registration and preloads the base DLLs from the registered directory.
-rem   Batch files in this repository are stored with LF-only line endings, so
-rem   this section uses no goto labels (cmd.exe cannot resolve them here) and
-rem   no for loops over wildcard tokens (such a token is matched against the
-rem   current directory and silently dropped; copy expands a quoted wildcard
-rem   itself).  Only single-level if blocks are used so that exit /b keeps
-rem   its exit code.
+rem Keep one copy per generation; registered ODBC paths load dependencies
+rem from driver\oracle\<active>. Never publish the build/bin flat copy.
 set "FQ_ORACLE_BUILD_TREE=%FQ_BIN%\..\driver\oracle"
-rem   Versioned build tree: keep driver\oracle for the 19c/23ai directories and
-rem   flatten the build's active generation next to taosd (the invariant
-rem   install.sh keeps in <install>/lib).  Legacy flat build: the single
-rem   client stays in driver\oracle.
 set "FQ_ORACLE_DEST=%FQ_DEST%\driver\oracle"
-if exist "%FQ_ORACLE_BUILD_TREE%\active" set "FQ_ORACLE_DEST=%FQ_DEST%"
-rem   Status: 0 staged, 1 driver missing but required, 2 copy incomplete,
-rem   3 provider disabled and nothing to stage.
-set "FQ_ORACLE_STATUS=0"
-if not exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_BUILD_TREE%\active" set "FQ_ORACLE_STATUS=3"
-if not exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_BUILD_TREE%\active" if /I "%FQ_REQUIRE_ORACLE%"=="ON" set "FQ_ORACLE_STATUS=1"
-if "%FQ_ORACLE_STATUS%"=="1" (
-  echo [FQ] Oracle Instant Client driver is missing: %FQ_BIN%\sqora*.dll 1>&2
-  exit /b 1
-)
-if exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_DEST%" mkdir "%FQ_ORACLE_DEST%" >nul 2>&1
-rem   A pattern that matches nothing only sets an error level; the
-rem   completeness checks below turn a real gap into a hard failure.
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\sqora*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\sqres*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\oraociei*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\orannz*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\orasql*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\oraocci*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\oci.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\ociw32.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" copy /y "%FQ_BIN%\fips*.dll" "%FQ_ORACLE_DEST%\" >nul 2>&1
-rem   legacy/extks/pkcs11 are optional client helpers that the Basic + ODBC
-rem   packages do not ship; a placeholder under those names must never be
-rem   packaged (test_fq_22 rejects a non-PE DLL), so they are not copied.
-if exist "%FQ_BIN%\sqora*.dll" if exist "%FQ_BIN%\odbc_install.exe" copy /y "%FQ_BIN%\odbc_install.exe" "%FQ_ORACLE_DEST%\" >nul 2>&1
-if exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_DEST%\sqora*.dll" set "FQ_ORACLE_STATUS=2"
-if exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_DEST%\oraociei*.dll" set "FQ_ORACLE_STATUS=2"
-if exist "%FQ_BIN%\sqora*.dll" if not exist "%FQ_ORACLE_DEST%\odbc_install.exe" set "FQ_ORACLE_STATUS=2"
-if "%FQ_ORACLE_STATUS%"=="2" (
-  echo [FQ] failed to stage the Oracle Instant Client into %FQ_ORACLE_DEST%: 1>&2
-  echo [FQ] driver sqora*.dll, base library oraociei*.dll and odbc_install.exe are required 1>&2
-  exit /b 1
-)
-if "%FQ_ORACLE_STATUS%"=="0" echo [FQ] staged the Oracle Instant Client into %FQ_ORACLE_DEST%
-if "%FQ_ORACLE_STATUS%"=="3" echo [FQ] Oracle provider is disabled; the Instant Client is not packaged
-
-rem --- Versioned Oracle Instant Client trees ---------------------------
-rem   The build stages build\driver\oracle\<19c|23ai>\ plus the `active`
-rem   marker, the same layout the Linux dependency package carries.  Copy it
-rem   as-is; the installer's selection step (stage_oracle_client.bat) rewrites
-rem   the marker and flattens the selected generation next to taosd.
-set "FQ_ORACLE_BUILD_TREE=%FQ_BIN%\..\driver\oracle"
 if exist "%FQ_ORACLE_BUILD_TREE%\active" (
-  if not exist "%FQ_DEST%\driver\oracle" mkdir "%FQ_DEST%\driver\oracle" >nul 2>&1
-  xcopy /E /I /Y /Q "%FQ_ORACLE_BUILD_TREE%" "%FQ_DEST%\driver\oracle\" >nul 2>&1
-  if errorlevel 1 (
-    echo [FQ] failed to copy the versioned Oracle Instant Client tree 1>&2
+  xcopy /E /I /Y /Q "%FQ_ORACLE_BUILD_TREE%" "%FQ_ORACLE_DEST%\" >nul 2>&1
+  if errorlevel 1 exit /b 1
+) else (
+  rem Compatibility with old build outputs containing only a 23ai flat set.
+  if exist "%FQ_BIN%\sqora*.dll" (
+    if not exist "%FQ_ORACLE_DEST%\23ai" mkdir "%FQ_ORACLE_DEST%\23ai" >nul 2>&1
+    for %%P in (sqora sqres oraociei orannz orasql oraocci fips) do copy /y "%FQ_BIN%\%%P*.dll" "%FQ_ORACLE_DEST%\23ai\" >nul 2>&1
+    copy /y "%FQ_BIN%\oraons.dll" "%FQ_ORACLE_DEST%\23ai\" >nul 2>&1
+    copy /y "%FQ_BIN%\oci.dll" "%FQ_ORACLE_DEST%\23ai\" >nul 2>&1
+    copy /y "%FQ_BIN%\ociw32.dll" "%FQ_ORACLE_DEST%\23ai\" >nul 2>&1
+    copy /y "%FQ_BIN%\odbc_install.exe" "%FQ_ORACLE_DEST%\23ai\" >nul 2>&1
+    > "%FQ_ORACLE_DEST%\active" echo 23ai
+  )
+)
+(call )
+if exist "%FQ_ORACLE_DEST%\active" powershell -NoProfile -NonInteractive -Command "$ErrorActionPreference='Stop'; $root=$env:FQ_ORACLE_DEST; $active=(Get-Content -LiteralPath (Join-Path $root 'active') -Raw).Trim(); if ($active -cnotin @('19c','23ai')) { throw 'Invalid Oracle active generation' }; if (-not (Test-Path -LiteralPath (Join-Path $root $active) -PathType Container)) { throw 'Missing active Oracle client' }; foreach ($client in @('19c','23ai')) { $dir=Join-Path $root $client; if (Test-Path -LiteralPath $dir) { if ($client -eq '19c' -and -not (Test-Path -LiteralPath (Join-Path $dir 'oraons.dll') -PathType Leaf)) { throw 'Incomplete Oracle 19c: oraons.dll' }; foreach ($pattern in @('sqora32.dll','sqres*.dll','oraociei*.dll','orannz*.dll','orasql*.dll','oci.dll','odbc_install.exe')) { if (-not (Get-ChildItem -Path (Join-Path $dir $pattern) -File)) { throw ('Incomplete Oracle '+$client+': '+$pattern) } } } }"
+if errorlevel 1 exit /b 1
+if exist "%FQ_ORACLE_DEST%\active" (
+  copy /y "%~dp0stage_oracle_client.bat" "%FQ_ORACLE_DEST%\select-client.bat" >nul 2>&1
+  if errorlevel 1 exit /b 1
+  echo [FQ] staged versioned Oracle clients into %FQ_ORACLE_DEST%
+) else (
+  if /I "%FQ_REQUIRE_ORACLE%"=="ON" (
+    echo [FQ] Oracle Instant Client is missing 1>&2
     exit /b 1
   )
-  if exist "%FQ_ORACLE_BUILD_TREE%\19c\sqora*.dll" (
-    if not exist "%FQ_DEST%\driver\oracle\19c\sqora*.dll" (
-      echo [FQ] the staged 19c Oracle client has no sqora driver 1>&2
-      exit /b 1
-    )
-    if not exist "%FQ_DEST%\driver\oracle\19c\oraociei*.dll" (
-      echo [FQ] the staged 19c Oracle client has no oraociei base library 1>&2
-      exit /b 1
-    )
-    if not exist "%FQ_DEST%\driver\oracle\19c\odbc_install.exe" (
-      echo [FQ] the staged 19c Oracle client has no odbc_install.exe 1>&2
-      exit /b 1
-    )
-  )
-  if exist "%FQ_ORACLE_BUILD_TREE%\23ai\sqora*.dll" (
-    if not exist "%FQ_DEST%\driver\oracle\23ai\sqora*.dll" (
-      echo [FQ] the staged 23ai Oracle client has no sqora driver 1>&2
-      exit /b 1
-    )
-    if not exist "%FQ_DEST%\driver\oracle\23ai\oraociei*.dll" (
-      echo [FQ] the staged 23ai Oracle client has no oraociei base library 1>&2
-      exit /b 1
-    )
-    if not exist "%FQ_DEST%\driver\oracle\23ai\odbc_install.exe" (
-      echo [FQ] the staged 23ai Oracle client has no odbc_install.exe 1>&2
-      exit /b 1
-    )
-  )
-  echo [FQ] staged the versioned Oracle Instant Client tree into %FQ_ORACLE_DEST%
+  echo [FQ] Oracle provider is disabled; the Instant Client is not packaged
 )
-rem   Keep a copy that matched nothing from leaking an error level out.
 (call )
-
 echo [FQ] staged %FQ_COPIED% runtime DLLs into %FQ_DEST%
 endlocal & exit /b 0
