@@ -335,6 +335,16 @@ run_init_scripts() {
 
 # Bootstrap one query node only when the cluster has none. Preserve operator topology.
 create_qnode_if_needed() {
+    local daemon_version
+    daemon_version=$(taosd -V 2>&1) || { echo 'Error: cannot detect TDengine edition' >&2; return 1; }
+    if printf '%s\n' "$daemon_version" | grep -Eqi 'version:[[:space:]]+[^[:space:]]+\.community([[:space:]]|$)'; then
+        log_info 'Community edition: skipping QNODE initialization'
+        return 0
+    fi
+    if ! printf '%s\n' "$daemon_version" | grep -Eqi 'version:[[:space:]]+[^[:space:]]+\.enterprise([[:space:]]|$)'; then
+        echo 'Error: cannot detect TDengine edition from taosd -V' >&2
+        return 1
+    fi
     local output dnodes dnode_id
     output=$(qnode_cli -s 'SHOW QNODES;' 2>&1) || return 1
     if ! printf '%s\n' "$output" | grep -Eq '[0-9]+ row\(s\)'; then

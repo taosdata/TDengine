@@ -145,6 +145,7 @@ cp ${community_packaging_dir}/tools/startPre.sh    ${pkg_dir}${install_home_path
 cp ${community_packaging_dir}/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${community_packaging_dir}/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
 cp ${internal_packaging_dir}/start-all.sh  ${pkg_dir}${install_home_path}/bin
+cp ${internal_packaging_dir}/reconcile-tsdb-nodes.sh  ${pkg_dir}${install_home_path}/bin
 cp ${internal_packaging_dir}/stop-all.sh  ${pkg_dir}${install_home_path}/bin
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/start-all.sh
 sed -i "s/versionType=\"enterprise\"/versionType=\"community\"/g" ${pkg_dir}${install_home_path}/bin/stop-all.sh

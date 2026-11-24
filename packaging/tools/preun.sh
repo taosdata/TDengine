@@ -175,6 +175,7 @@ ${csudo}rm -f ${bin_link_dir}/taoskeeper  || :
 ${csudo}rm -f ${bin_link_dir}/taos-explorer  || :
 ${csudo}rm -f ${bin_link_dir}/start-all.sh  || :
 ${csudo}rm -f ${bin_link_dir}/stop-all.sh  || :
+${csudo}rm -f ${bin_link_dir}/reconcile-tsdb-nodes.sh || :
 ${csudo}rm -f ${cfg_link_dir}/*.new      || :
 ${csudo}rm -f ${inc_link_dir}/taos.h     || :
 ${csudo}rm -f ${inc_link_dir}/taosdef.h  || :
