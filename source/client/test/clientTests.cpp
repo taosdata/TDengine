@@ -31,6 +31,7 @@
 #include "tarray.h"
 #include "thash.h"
 #include "totp.h"
+#include "tref.h"
 #include "tdatablock.h"
 #include "tcompression.h"
 #include "tconv.h"
@@ -431,6 +432,39 @@ int main(int argc, char** argv) {
 TEST(clientCase, driverInit_Test) {
   // taosInitGlobalCfg();
   //  taos_init();
+}
+
+TEST(clientCase, killCheckPreservesRetainedRequest) {
+  struct RefPool {
+    const int32_t original = clientReqRefPool;
+    const int32_t temporary = taosOpenRef(1, [](void*) {});
+
+    ~RefPool() {
+      clientReqRefPool = original;
+      if (temporary > 0) {
+        taosCloseRef(temporary);
+      }
+    }
+  } pool;
+  ASSERT_GT(pool.temporary, 0);
+  clientReqRefPool = pool.temporary;
+
+  SRequestObj request = {};
+  const int64_t rid = taosAddRef(pool.temporary, &request);
+  ASSERT_GT(rid, 0);
+  void* param = reinterpret_cast<void*>(static_cast<intptr_t>(rid));
+  EXPECT_FALSE(chkRequestKilled(param));
+  request.killed = true;
+  EXPECT_TRUE(chkRequestKilled(param));
+
+  // The heartbeat can retain a request after its owner removes it.
+  EXPECT_EQ(acquireRequest(rid), &request);
+  EXPECT_EQ(removeRequest(rid), TSDB_CODE_SUCCESS);
+  EXPECT_TRUE(chkRequestKilled(param));
+
+  int32_t released = 0;
+  EXPECT_EQ(taosReleaseRefEx(pool.temporary, rid, &released), TSDB_CODE_SUCCESS);
+  EXPECT_EQ(released, 1);
 }
 
 TEST(clientCase, tmq_close_releases_creator_ref_after_unsubscribe_failure) {
