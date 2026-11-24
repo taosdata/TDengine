@@ -579,7 +579,7 @@ typedef struct STimeAlignTableNode {
   char       tbName[TSDB_TABLE_NAME_LEN];
   bool       outputRaw;    // 2nd argument; default false
   char*      columnList;   // raw column-def string (quotes stripped); NULL = default '*:PREV:'
-  // Pre-built input table for multi-segment (external source) paths.
+  // Owned input AST for stream triggers and multi-segment table paths.
   SNode*     pRealTableNode;
 } STimeAlignTableNode;
 

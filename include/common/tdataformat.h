@@ -278,6 +278,7 @@ int32_t tColDataAddValueByDataBlockWithBlob(SColData *pColData, int8_t type, int
 // for encode/decode
 int32_t tEncodeColData(uint8_t version, SEncoder *pEncoder, SColData *pColData);
 int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, bool jump);
+int32_t tDecodeColDataByCid(uint8_t version, SDecoder *pDecoder, col_id_t cid, SColData *pColData);
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow);
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow);
 

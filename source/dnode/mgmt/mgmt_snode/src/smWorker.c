@@ -165,6 +165,12 @@ _end:
   return code;
 }
 
+static int32_t smReadResultAdmission(const SRpcMsg *msg, SStreamResultAdmission *claim) {
+  if (!msg->pCont || msg->contLen <= (int32_t)sizeof(SMsgHead)) return TSDB_CODE_INVALID_MSG;
+  return tDeserializeStreamResultAdmission((char *)msg->pCont + sizeof(SMsgHead), msg->contLen - sizeof(SMsgHead),
+                                           claim);
+}
+
 static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   int32_t       code = TSDB_CODE_SUCCESS;
   int32_t       lino = 0;
@@ -177,7 +183,20 @@ static void smProcessStreamTriggerQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   STraceId   *trace = &pMsg->info.traceId;
   dGDebug("msg:%p, get from snode-stream-trigger queue, type:%s %" PRIx64 ":%" PRIx64, pMsg, TMSG_INFO(pMsg->msgType), TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
-  if (pMsg->msgType == TDMT_SND_BATCH_META) {
+  if (pMsg->msgType == TDMT_STREAM_VALIDATE_RESULT) {
+    SStreamResultAdmission claim = {0};
+    code = smReadResultAdmission(pMsg, &claim);
+    if (!code) {
+      code = streamAcquireTask(claim.streamId, claim.triggerTaskId, &pTask, &taskAddr);
+      if (code == TSDB_CODE_STREAM_TASK_NOT_EXIST) code = TSDB_CODE_STREAM_EXEC_CANCELLED;
+      if (!code) code = stTriggerTaskValidateResult(pTask, &claim, &pMsg->info);
+    }
+    if (code) {
+      SRpcMsg rsp = {.msgType = TDMT_STREAM_VALIDATE_RESULT_RSP, .info = pMsg->info, .code = code};
+      tmsgSendRsp(&rsp);
+    }
+    goto _exit;
+  } else if (pMsg->msgType == TDMT_SND_BATCH_META) {
     code = smProcessStreamProgressRequest(pMsg);
     if (code != TSDB_CODE_SUCCESS) {
       dError("msg:%p, failed to process stream progress request in snode-stream-trigger queue", pMsg);
@@ -252,7 +271,13 @@ static int32_t smDispatchStreamTriggerRsp(struct SDispatchWorkerPool *pPool, voi
 
   dDebug("dispatch snode %s msg", TMSG_INFO(pMsg->msgType));
 
-  if (pMsg->msgType == TDMT_SND_BATCH_META) {
+  if (pMsg->msgType == TDMT_STREAM_VALIDATE_RESULT) {
+    SStreamResultAdmission claim = {0};
+    TAOS_CHECK_EXIT(smReadResultAdmission(pMsg, &claim));
+    streamId = claim.streamId;
+    taskId = claim.triggerTaskId;
+    sessionId = claim.sessionId;
+  } else if (pMsg->msgType == TDMT_SND_BATCH_META) {
     code = tDeserializeSBatchReq(pMsg->pCont, pMsg->contLen, &batchReq);
     if (code != TSDB_CODE_SUCCESS) {
       dError("msg:%p, failed to deserialize batch meta request", pMsg);

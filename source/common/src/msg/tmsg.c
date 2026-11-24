@@ -26483,6 +26483,7 @@ int32_t tSerializeSDnodeQuerySnapSendProgressRsp(void *buf, int32_t bufLen, SDno
     }
   }
   tEndEncode(&encoder);
+  code = encoder.pos;
 
 _exit:
   tEncoderClear(&encoder);

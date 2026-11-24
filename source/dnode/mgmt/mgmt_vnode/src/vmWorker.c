@@ -144,7 +144,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dGTrace("vgId:%d, msg:%p, get from vnode-query queue", pVnode->vgId, pMsg);
   int32_t code = vnodeProcessQueryMsg(pVnode->pImpl, pMsg, pInfo);
   if (code != 0) {
-    if (terrno != 0) code = terrno;
+    if (pMsg->msgType != TDMT_VND_SUBMIT && terrno != 0) code = terrno;
     dGError("vgId:%d, msg:%p, failed to query since %s", pVnode->vgId, pMsg, tstrerror(code));
     vmSendRsp(pMsg, code);
   }
@@ -331,10 +331,15 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
         break;
       }
 #endif
-      if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && pVnode->disable) {
+      if (pMsg->msgType != TDMT_VND_ALTER_CONFIRM && atomic_load_8(&pVnode->disable)) {
         dDebug("vgId:%d, msg:%p, failed to put into vnode-write queue since its disable, type:%s", pVnode->vgId, pMsg,
                TMSG_INFO(pMsg->msgType));
         code = TSDB_CODE_VND_STOPPED;
+        break;
+      }
+      if (pMsg->msgType == TDMT_VND_SUBMIT && pMsg->contLen >= (int32_t)sizeof(SSubmitReq2Msg) &&
+          be64toh(((SSubmitReq2Msg *)pMsg->pCont)->version) == STREAM_CONDITIONAL_SUBMIT_VERSION) {
+        code = taosWriteQitem(pVnode->pQueryQ, pMsg);
         break;
       }
       dGDebug("vgId:%d, msg:%p, put into vnode-write queue, type:%s", pVnode->vgId, pMsg, TMSG_INFO(pMsg->msgType));

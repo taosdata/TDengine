@@ -382,3 +382,107 @@ CREATE STREAM yearly_archive
     INTERVAL(1y)
     PARTITION BY location, groupId;
 ```
+
+### Average power from asynchronous readings
+
+Use a database with millisecond precision and a running stream node. The Unix timestamps below start at 2026-01-01 00:00:00 UTC. Set retention to cover the example data.
+
+```sql
+CREATE DATABASE manual_align_power PRECISION 'ms' KEEP 3650;
+USE manual_align_power;
+CREATE TABLE volts (ts TIMESTAMP, value DOUBLE);
+CREATE TABLE amps (ts TIMESTAMP, value DOUBLE);
+CREATE VTABLE meter (ts TIMESTAMP, voltage DOUBLE FROM volts.value,
+                     current_a DOUBLE FROM amps.value);
+
+CREATE STREAM power_10s INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname INTO power_10s_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend;
+
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'power_10s' AND type = 'Trigger';
+```
+
+When the trigger reports `Running`, write the readings and query the first window after it closes.
+
+```sql
+INSERT INTO volts VALUES (1767225600000, 220);
+INSERT INTO amps VALUES (1767225601000, 2) (1767225602000, 3);
+INSERT INTO amps VALUES (1767225611000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM power_10s_out WHERE ws = 1767225600000;
+```
+
+The reading at 11 seconds closes the first ten-second window. The voltage at second zero has no matching current yet. The two later currents yield 220 × 2 and 220 × 3, giving `1767225600000 | 2 | 550` for the first window.
+
+#### Limit the age of a voltage reading
+
+Continue in the same database. The trigger requires a current reading and an aligned voltage of 220. The calculation also specifies `current_a IS NOT NULL` so a voltage-only row carrying an earlier current does not count as a new power sample.
+
+```sql
+DROP STREAM power_10s;
+CREATE STREAM bounded_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 220 AND current_a IS NOT NULL))
+INTO bounded_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV(2s):_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'bounded_power' AND type = 'Trigger';
+```
+
+Once the trigger reports `Running`, write one current reading exactly two seconds after the voltage and another one millisecond later.
+
+```sql
+INSERT INTO volts VALUES (1767225660000, 220);
+INSERT INTO amps VALUES (1767225662000, 2) (1767225662001, 3);
+INSERT INTO volts VALUES (1767225671000, 220);
+INSERT INTO amps VALUES (1767225672000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM bounded_power_out WHERE ws = 1767225660000;
+```
+
+The voltage-only row seeds the next current reading even though the trigger filter excludes it. At exactly two seconds the voltage still applies. At 2.001 seconds it has expired. The query returns `1767225660000 | 1 | 440`.
+
+#### Switch the voltage source
+
+The replacement table already contains a 100-volt reading. The following stream selects current readings whose aligned voltage is 100.
+
+```sql
+DROP STREAM bounded_power;
+CREATE TABLE replacement (ts TIMESTAMP, value DOUBLE);
+INSERT INTO replacement VALUES (1767225700000, 100);
+CREATE STREAM rebound_power INTERVAL(10s) SLIDING(10s)
+FROM TABLE(TIME_ALIGN(TABLE meter, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+PARTITION BY tbname
+STREAM_OPTIONS(PRE_FILTER(voltage_p = 100 AND current_a IS NOT NULL))
+INTO rebound_power_out AS
+SELECT _twstart AS ws, COUNT(voltage_p * current_a_p) AS samples,
+       AVG(voltage_p * current_a_p) AS power_avg
+FROM TABLE(TIME_ALIGN(TABLE %%tbname, TRUE, 'voltage:PREV:_p;current_a:PREV:_p'))
+WHERE ts >= _twstart AND ts < _twend AND voltage_p = 100 AND current_a IS NOT NULL;
+SELECT status FROM information_schema.ins_stream_tasks
+WHERE stream_name = 'rebound_power' AND type = 'Trigger';
+```
+
+Once the trigger reports `Running`, write to the original source, switch the voltage reference and send two more current readings.
+
+```sql
+INSERT INTO volts VALUES (1767225701000, 220);
+INSERT INTO amps VALUES (1767225702000, 2);
+ALTER VTABLE meter ALTER COLUMN voltage SET replacement.value;
+INSERT INTO amps VALUES (1767225721000, 3);
+INSERT INTO replacement VALUES (1767225722000, 100);
+INSERT INTO amps VALUES (1767225731000, 4);
+SELECT CAST(ws AS BIGINT) AS start_ms, samples, power_avg
+FROM rebound_power_out WHERE ws = 1767225720000;
+```
+
+The current at 121 seconds uses the replacement voltage. The calculation excludes the voltage-only update at 122 seconds. The current at 131 seconds closes the window. The query returns `1767225720000 | 1 | 300`.

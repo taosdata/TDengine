@@ -4711,12 +4711,12 @@ static FORCE_INLINE void tColDataGetValue3(SColData *pColData, int32_t iVal,
 static FORCE_INLINE void tColDataGetValue4(SColData *pColData, int32_t iVal, SColVal *pColVal) {  // HAS_VALUE
   SValue value = {.type = pColData->type};
   if (IS_VAR_DATA_TYPE(pColData->type)) {
-    if (iVal + 1 < pColData->nVal) {
-      value.nData = pColData->aOffset[iVal + 1] - pColData->aOffset[iVal];
-    } else {
-      value.nData = pColData->nData - pColData->aOffset[iVal];
-    }
-    value.pData = pColData->pData + pColData->aOffset[iVal];
+    int32_t        start, end = pColData->nData;
+    const uint8_t *offset = (const uint8_t *)pColData->aOffset + sizeof(start) * iVal;
+    memcpy(&start, offset, sizeof(start));
+    if (iVal + 1 < pColData->nVal) memcpy(&end, offset + sizeof(start), sizeof(end));
+    value.nData = end - start;
+    value.pData = pColData->pData + start;
   } else {
     valueSetDatum(&value, pColData->type, pColData->pData + tDataTypes[pColData->type].bytes * iVal,
                   tDataTypes[pColData->type].bytes);
@@ -6698,6 +6698,18 @@ int32_t tDecodeColData(uint8_t version, SDecoder *pDecoder, SColData *pColData, 
   }
 }
 
+// Legacy columns have no length prefix. Only v2 can skip an unselected column without decoding its fields.
+int32_t tDecodeColDataByCid(uint8_t version, SDecoder *pDecoder, col_id_t cid, SColData *pColData) {
+  if (version == 2) {
+    SDecoder header = *pDecoder;
+    int32_t  len;
+    TAOS_CHECK_RETURN(tDecodeI32(&header, &len));
+    TAOS_CHECK_RETURN(tDecodeI16v(&header, &pColData->cid));
+    if (pColData->cid != cid) return tDecodeColData(version, pDecoder, pColData, true);
+  }
+  return tDecodeColData(version, pDecoder, pColData, false);
+}
+
 int32_t tEncodeRow(SEncoder *pEncoder, SRow *pRow) { return tEncodeFixed(pEncoder, pRow, pRow->len); }
 
 int32_t tDecodeRow(SDecoder *pDecoder, SRow **ppRow) {
@@ -7796,15 +7808,24 @@ void valueSetDatum(SValue *pVal, int8_t type, void *pDatum, uint32_t len) {
       case sizeof(uint8_t):
         pVal->val = *(uint8_t *)pDatum;
         break;
-      case sizeof(uint16_t):
-        pVal->val = *(uint16_t *)pDatum;
+      case sizeof(uint16_t): {
+        uint16_t value;
+        memcpy(&value, pDatum, sizeof(value));
+        pVal->val = value;
         break;
-      case sizeof(uint32_t):
-        pVal->val = *(uint32_t *)pDatum;
+      }
+      case sizeof(uint32_t): {
+        uint32_t value;
+        memcpy(&value, pDatum, sizeof(value));
+        pVal->val = value;
         break;
-      case sizeof(uint64_t):
-        pVal->val = *(uint64_t *)pDatum;
+      }
+      case sizeof(uint64_t): {
+        uint64_t value;
+        memcpy(&value, pDatum, sizeof(value));
+        pVal->val = value;
         break;
+      }
       default:
         break;
     }

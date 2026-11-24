@@ -3316,6 +3316,33 @@ TEST(StreamCalcRequestAdmissionTest, DerivativeLogEpochRoundTripsAndDefaultsForO
   }
 }
 
+TEST(StreamCalcRequestAdmissionTest, ResultAdmissionBindsToTheCalcAndIsRequiredWhenPresent) {
+  SSTriggerCalcRequest src = makeSingleGroupCalcRequest();
+  src.sessionId = STREAM_TRIGGER_HISTORY_SESSIONID;
+  auto plain = serializeCalcRequest(src);
+  src.resultAdmission = {src.streamId, 21, src.runnerTaskId, src.sessionId, 781, 0, 99, 7};
+  auto wire = serializeCalcRequest(src);
+  ASSERT_GT(wire.size(), plain.size());
+  SSTriggerCalcRequest decoded = {};
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequestWithContextFrames(wire.data(), wire.size(), &decoded));
+  EXPECT_EQ(781U, decoded.resultAdmission.roundId);
+  EXPECT_EQ(99U, decoded.resultAdmission.calcTokenHi);
+  tDestroySTriggerCalcRequest(&decoded);
+
+  auto duplicate = wire;
+  duplicate.insert(duplicate.end(), wire.begin() + plain.size(), wire.end());
+  writeI32(&duplicate, 0, static_cast<int32_t>(duplicate.size() - sizeof(int32_t)));
+  expectCalcRequestDecodeFailure(duplicate);
+  src.resultAdmission.runnerTaskId++;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, tSerializeSTriggerCalcRequest(nullptr, 0, &src));
+  tDestroySTriggerCalcRequest(&src);
+  decoded = {};
+  decoded.resultAdmission.roundId = 123;
+  ASSERT_EQ(0, tDeserializeSTriggerCalcRequest(plain.data(), plain.size(), &decoded));
+  EXPECT_EQ(0U, decoded.resultAdmission.roundId);
+  tDestroySTriggerCalcRequest(&decoded);
+}
+
 TEST(StreamCalcRequestAdmissionTest, NestedMultiGroupRoundTripsEveryGidAndParamIndex) {
   SSTriggerCalcRequest source = makeLineageSplitMultiGroupCalcRequest();
   auto                 bytes = serializeCalcRequest(source);

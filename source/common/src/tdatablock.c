@@ -1646,7 +1646,8 @@ int32_t blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t r
         char* p = colDataGetData(pColData, j);
         code = colDataSetVal(pDstCol, j - startIndex, p, false);
         if (code) {
-          break;
+          blockDataDestroy(pDst);
+          return code;
         }
       }
     }

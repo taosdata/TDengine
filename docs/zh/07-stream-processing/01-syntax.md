@@ -11,8 +11,10 @@ toc_max_heading_level: 4
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM trigger_source] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
+
+trigger_source: {[db_name.]table_name | TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))}
 
 trigger_type: {
     PERIOD(period_time[, offset_time])
@@ -87,6 +89,18 @@ tag_definition:
 ```
 
 从 `v3.4.3` 起，创建流时会把时区和一周起始日写入流定义；`PERIOD`、`SLIDING`、`INTERVAL` 对日、周、月、季、年的支持范围也有扩展。详见 [时区与自然时间单位](../05-tdengine-sql/10-time/01-timezone.md#流式计算时间配置)。
+
+### TIME_ALIGN 触发源
+
+普通虚拟表、虚拟子表和虚拟超级表可使用以下触发源写法。
+
+```sql
+FROM TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))
+```
+
+流按虚拟子表归并来源时间戳，用各列最近的非 NULL 值填充，再应用 `PRE_FILTER` 并判断窗口。被过滤的行仍可为后续行提供前值。`PREV(8s)` 包含恰好八秒前的读数；超过期限后，下一条输入在该列得到 NULL。`output_raw=FALSE` 为默认值，此时参与的时间戳由规则选中的输入列决定。设为 TRUE 时，全部原始数据列都贡献时间戳。
+
+引用来源须全部为本地表。触发规则支持 `PREV` 和 `PREV(duration)`。普通 TIME_ALIGN 查询仍支持 `NEXT`。使用对齐触发源时，`%%trows` 以及 `PERIOD` 与 `PRE_FILTER` 的组合会在建流时报错。单用 `PERIOD` 时，所选来源决定是否有输入。在符合分组条件的计算查询中，`%%tbname` 指向实际表；需要对齐或过滤计算输入时，在计算查询中显式指定。
 
 ### 流式计算的触发方式
 

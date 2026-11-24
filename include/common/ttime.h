@@ -97,6 +97,10 @@ int64_t taosGetTimestampToday(int32_t precision, timezone_t tz);
 
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz);
 
+/* Add calendar months or years. Advance a skipped local time by the offset change. On error, leave end at t. */
+int32_t taosTimeAddCalendarMonths(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz,
+                                  int64_t* end);
+
 TSKEY   getNextTimeWindowStart(const SInterval* pInterval, TSKEY start, int32_t order);
 int64_t taosTimeTruncate(int64_t ts, const SInterval* pInterval);
 int64_t taosTimeGetIntervalEnd(int64_t ts, const SInterval* pInterval);
