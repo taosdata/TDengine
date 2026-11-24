@@ -416,7 +416,7 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       COMMAND "${CMAKE_COMMAND}"
         "-DOUT_DIR=${_td_runtime_lib_dir}"
         "-DSEARCH_DIRS=${_fq_dll_dirs_str}"
-        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread;^caching_sha2_password[.]dll$;^sha256_password[.]dll$;^client_ed25519[.]dll$;^dialog[.]dll$;^mysql_clear_password[.]dll$;^pvio_shmem[.]dll$;^sqora;^sqres;^oraociei;^orannz[.]dll$;^orasql[.]dll$;^oraocci;^oci[.]dll$;^ociw32[.]dll$;^legacy[.]dll$;^fips;^extks[.]dll$;^pkcs11[.]dll$"
+        "-DNAME_PATTERNS=^libmariadb;^libmysql;^libpq;^libssl;^libcrypto;^libintl;^libiconv;^libwinpthread;^caching_sha2_password[.]dll$;^sha256_password[.]dll$;^client_ed25519[.]dll$;^dialog[.]dll$;^mysql_clear_password[.]dll$;^pvio_shmem[.]dll$;^sqora;^sqres;^oraociei;^orannz;^orasql;^oraocci;^oraons[.]dll$;^oci[.]dll$;^ociw32[.]dll$;^legacy[.]dll$;^fips;^extks[.]dll$;^pkcs11[.]dll$"
         -P "${TD_SOURCE_DIR}/cmake/stage_fq_runtime_windows.cmake"
       COMMENT "Staging federated-query provider runtime DLLs -> build/bin/"
       VERBATIM
@@ -455,6 +455,13 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
       set(_oracle_windows_23ai_dir "${EXT_ORACLE_SO_SRCPATH}")
     endif()
     set(_oracle_versioned_root "${CMAKE_BINARY_DIR}/build/driver/oracle")
+    add_custom_command(TARGET extconnector POST_BUILD
+      COMMAND "${CMAKE_COMMAND}" -E make_directory "${_oracle_versioned_root}"
+      COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${TD_SOURCE_DIR}/packaging/tools/stage_oracle_client.bat"
+        "${_oracle_versioned_root}/select-client.bat"
+      VERBATIM
+    )
     # Orasqlplusic<ver>.dll is SQL*Plus's message library; SQL*Plus itself
     # travels via EXTRA_FILES for the Windows FQ harness (the 11g server runs
     # in a Linux container, so its admin SQL executes on the Windows side).
@@ -463,8 +470,8 @@ if(TD_ENTERPRISE AND TD_WINDOWS AND INSTALL_FQ_RUNTIME_LIBS)
     # placeholder with their names must never reach the runtime package
     # (test_fq_22 rejects a non-PE DLL).
     set(_oracle_windows_patterns
-      "^sqora" "^sqres" "^oraociei" "^orannz[.]dll$" "^orasql[.]dll$"
-      "^oraocci" "^oci[.]dll$" "^ociw32[.]dll$" "^fips"
+      "^sqora" "^sqres" "^oraociei" "^orannz" "^orasql"
+      "^oraocci" "^oraons[.]dll$" "^oci[.]dll$" "^ociw32[.]dll$" "^fips"
       "^[Oo]rasqlplusic")
     string(JOIN ";" _oracle_windows_patterns_str ${_oracle_windows_patterns})
     foreach(_oracle_pair "19c|${_oracle_windows_19c_dir}" "23ai|${_oracle_windows_23ai_dir}")
