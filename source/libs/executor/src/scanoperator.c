@@ -972,8 +972,12 @@ static int32_t resetScanReaderWindow(STableScanBase* base, TsdReader* api) {
   return code;
 }
 
-static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanBase* pTableScanInfo, SSDataBlock* pBlock,
-                             uint32_t* status) {
+static void tableMergeScanDoSkipTable(uint64_t uid, void* pTableMergeOpInfo);
+
+static int32_t loadDataBlock(SOperatorInfo* pOperator,
+                             STableScanBase* pTableScanInfo,
+                             SSDataBlock* pBlock, uint32_t* status,
+                             const SSortHandle* pPruneSort) {
   int32_t        code = TSDB_CODE_SUCCESS;
   int32_t        lino = 0;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
@@ -1247,6 +1251,15 @@ _dynamic_prune_done:
     }
   }
 
+  if (pPruneSort != NULL) {
+    int64_t loadedRows = pBlock->info.rows;
+    if (tsortTrimMergeBlock(pPruneSort, pBlock)) {
+      pCost->checkRows -= loadedRows - pBlock->info.rows;
+      // The discarded suffix proves that later rows of this table also lose.
+      tableMergeScanDoSkipTable(pBlock->info.id.uid, pOperator);
+    }
+  }
+
   if (!skipSetTagColumnData(pOperator)) {
     code = doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
     QUERY_CHECK_CODE(code, lino, _end);
@@ -1297,7 +1310,7 @@ EFuncDataRequired scanTestLastScanDynDataRequired(STableScanInfo* pInfo,
 int32_t scanTestLoadDataBlock(SOperatorInfo* pOperator,
                               STableScanBase* pBase, SSDataBlock* pBlock,
                               uint32_t* status) {
-  return loadDataBlock(pOperator, pBase, pBlock, status);
+  return loadDataBlock(pOperator, pBase, pBlock, status, NULL);
 }
 #endif
 
@@ -2081,7 +2094,8 @@ static int32_t doTableScanImplNext(SOperatorInfo* pOperator, SSDataBlock** ppRes
     }
 
     uint32_t status = 0;
-    code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status);
+    code = loadDataBlock(pOperator, &pTableScanInfo->base, pBlock, &status,
+                         NULL);
     QUERY_CHECK_CODE(code, lino, _end);
 
     if (status == FUNC_DATA_REQUIRED_ALL_FILTEROUT) {
@@ -6873,7 +6887,8 @@ static int32_t fetchNextSubTableBlockFromReader(SOperatorInfo* pOperator, STmsSu
     }
 
     uint32_t status = 0;
-    code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status);
+    code = loadDataBlock(pOperator, &pInfo->base, pInput->pReaderBlock, &status,
+                         NULL);
     if (code != 0) {
       pInfo->base.dataReader = NULL;
       QUERY_CHECK_CODE(code, lino, _end);
@@ -7637,8 +7652,35 @@ static int32_t doGetBlockForTableMergeScan(SOperatorInfo* pOperator, bool* pFini
     return code;
   }
 
+  bool hasFilter = pOperator->exprSupp.pFilterInfo != NULL;
+  bool contained = pInfo->base.cond.type == TIMEWINDOW_RANGE_CONTAINED;
+  bool skipUnloaded = pBlock->info.dataLoad == 0 && contained;
+  EMergeBlockPrune prune = MERGE_BLOCK_KEEP;
+
+  // The sort threshold belongs to the current duration.
+  if ((hasFilter || skipUnloaded) && pInfo->pAlignStage == NULL &&
+      !pInfo->base.cond.mainFirst && !pInfo->bNewFilesetEvent &&
+      !pInfo->bNextDurationBlockEvent) {
+    prune = tsortGetMergeBlockPrune(pInfo->pSortHandle, &pBlock->info.window,
+                                   hasFilter && contained);
+  }
+  if (prune == MERGE_BLOCK_SKIP) {
+    uint64_t uid = pBlock->info.id.uid;
+    pAPI->tsdReader.tsdReaderReleaseDataBlock(reader);
+    if (contained) {
+      // Per-table timestamps stay ordered before and after column filtering.
+      tableMergeScanDoSkipTable(uid, pOperator);
+    }
+    ++pInfo->base.readRecorder.totalBlocks;
+    ++pInfo->base.readRecorder.skipBlocks;
+    *pSkipped = true;
+    return code;
+  }
+
   uint32_t status = 0;
-  code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status);
+  const SSortHandle* pPruneSort =
+      prune == MERGE_BLOCK_TRIM ? pInfo->pSortHandle : NULL;
+  code = loadDataBlock(pOperator, &pInfo->base, pBlock, &status, pPruneSort);
 
   if (code != TSDB_CODE_SUCCESS) {
     qInfo("table merge scan load datablock code %d, %s", code, GET_TASKID(pTaskInfo));
