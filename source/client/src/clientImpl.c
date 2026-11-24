@@ -157,14 +157,15 @@ static int32_t escapeToPrinted(char* dst, size_t maxDstLength, const char* src, 
 }
 
 bool chkRequestKilled(void* param) {
-  bool         killed = false;
-  SRequestObj* pRequest = acquireRequest((int64_t)param);
-  if (NULL == pRequest || pRequest->killed) {
-    killed = true;
+  int64_t      rid = (intptr_t)param;
+  SRequestObj* pRequest = acquireRequest(rid);
+  if (NULL == pRequest) {
+    // A removed request may still be held by the heartbeat thread.
+    return true;
   }
 
-  (void)releaseRequest((int64_t)param);
-
+  bool killed = pRequest->killed;
+  (void)releaseRequest(rid);
   return killed;
 }
 
