@@ -5274,7 +5274,7 @@ ignore_null_values: {
 
 表函数返回一个行集，在 `FROM` 子句中通过 `TABLE(...)` 调用。表函数结果可以像表一样参与 `JOIN`、子查询、聚合、窗口、排序和 `LIMIT` 等查询。
 
-表函数不是表达式函数：不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等位置，也不能作为标量、聚合或集合函数的参数。表函数结果不支持写入、`ALTER`、删除、订阅和流式计算。
+表函数不是表达式函数：不能出现在 `SELECT` 列表、`WHERE`、`GROUP BY`、`HAVING`、`ORDER BY` 等位置，也不能作为标量、聚合或集合函数的参数。表函数结果只读，不支持订阅。本地虚拟表可通过 TIME_ALIGN 用作流触发源。
 
 ### TIME_ALIGN
 
@@ -5475,7 +5475,8 @@ column_def:
 - 系统表、流、主题不能作为输入。
 - 表输入中，标签列和主键时间戳列不能作为插值列；视图输入和没有主键的外部表中，所有输出列都可以作为插值列。
 - 虚拟表不能引用复合主键源，因此该类源只能通过普通表或超级表使用时间对齐。
-- 不支持在 `INSERT INTO ... SELECT`、`CREATE STREAM`、`CREATE TOPIC`、`CREATE VTABLE`、`ALTER VTABLE` 的列引用、`DELETE`、`CREATE TABLE ... AS` 等位置使用。
+- 流触发源支持本地虚拟表上的 `PREV` 和 `PREV(duration)`。计算查询可独立指定 TIME_ALIGN。详见[建流语法](../../07-stream-processing/01-syntax.md)。
+- 不支持在 `INSERT INTO ... SELECT`、`CREATE TOPIC`、`CREATE VTABLE`、`ALTER VTABLE` 的列引用、`DELETE`、`CREATE TABLE ... AS` 等位置使用。
 - 默认列定义 `*:PREV:` 引用的列较多；需要减少扫描列时，应显式给出只包含所需列的列定义。
 
 #### 权限

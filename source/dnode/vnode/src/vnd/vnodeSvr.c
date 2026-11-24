@@ -33,6 +33,7 @@
 #include "tstrbuild.h"
 #include "ttypes.h"
 #include "tutil.h"
+#include "tworker.h"
 #include "vnd.h"
 #include "vnode.h"
 #include "vnodeInt.h"
@@ -71,6 +72,7 @@ static int32_t vnodeProcessCreateRsmaReq(SVnode *pVnode, int64_t ver, void *pReq
 static int32_t vnodeProcessDropRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int32_t vnodeProcessAlterRsmaReq(SVnode *pVnode, int64_t ver, void *pReq, int32_t len, SRpcMsg *pRsp);
 
+static int32_t vnodeAdmitStreamResult(SVnode *vnode, SRpcMsg *msg, SQueueInfo *queue);
 static int32_t vnodeCheckState(SVnode *pVnode);
 static int32_t vnodeCheckToken(SVnode *pVnode, char *member0Token, char *member1Token);
 static int32_t vnodeCheckSyncd(SVnode *pVnode, char *member0Token, char *member1Token);
@@ -1417,6 +1419,8 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vDebug("vgId:%d, msg:%s, %p in vnode query queue is processing, %" PRIx64 ":%" PRIx64, 
     pVnode->config.vgId, TMSG_INFO(pMsg->msgType), pMsg, TRACE_GET_ROOTID(trace), TRACE_GET_MSGID(trace));
 
+  if (pMsg->msgType == TDMT_VND_SUBMIT) return vnodeAdmitStreamResult(pVnode, pMsg, pInfo);
+
   SReadHandle handle = {0};
   handle.vnode = pVnode;
   handle.pMsgCb = &pVnode->msgCb;
@@ -1450,6 +1454,67 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_APP_ERROR;
   }
+}
+
+// Called after receipt of the complete submit. Reader requests run on the separate
+// stream reader pool, including when the result and source vgroups share a dnode.
+static int32_t vnodeAdmitStreamResult(SVnode *vnode, SRpcMsg *msg, SQueueInfo *queue) {
+  const int32_t tailSize = STREAM_RESULT_ADMISSION_WIRE_SIZE;
+  if (!msg->pCont || msg->contLen <= (int32_t)(sizeof(SSubmitReq2Msg) + sizeof(int32_t)) + tailSize)
+    return TSDB_CODE_INVALID_MSG;
+  SSubmitReq2Msg *submit = msg->pCont;
+  const int32_t   submitLen = msg->contLen - tailSize;
+  int32_t         frameLen = 0;
+  memcpy(&frameLen, submit->data, sizeof(frameLen));
+  if (submit->header.vgId != TD_VID(vnode) || submit->header.contLen != msg->contLen ||
+      be64toh(submit->version) != STREAM_CONDITIONAL_SUBMIT_VERSION ||
+      frameLen != submitLen - (int32_t)sizeof(*submit) - (int32_t)sizeof(frameLen))
+    return TSDB_CODE_INVALID_MSG;
+  void                  *tail = POINTER_SHIFT(msg->pCont, submitLen);
+  SStreamResultAdmission admission = {0};
+  TAOS_CHECK_RETURN(tDeserializeStreamResultAdmission(tail, tailSize, &admission));
+
+  SEpSet ep = {.numOfEps = 1};
+  if (!vnode->msgCb.getDnodeEpFp || !vnode->msgCb.clientRpc) return TSDB_CODE_NEED_RETRY;
+  vnode->msgCb.getDnodeEpFp(vnode->msgCb.data, admission.triggerDnodeId, NULL, ep.eps[0].fqdn, &ep.eps[0].port);
+  if (!ep.eps[0].fqdn[0] || !ep.eps[0].port) return TSDB_CODE_NEED_RETRY;
+
+  SRpcMsg check = {.msgType = TDMT_STREAM_VALIDATE_RESULT, .contLen = sizeof(SMsgHead) + tailSize};
+  check.pCont = rpcMallocCont(check.contLen);
+  if (!check.pCont) return terrno;
+  SMsgHead *head = check.pCont;
+  head->vgId = htonl(SNODE_HANDLE);
+  head->contLen = htonl(check.contLen);
+  memcpy(head + 1, tail, tailSize);
+
+  // Release the query execution slot during the RPC. Bound replacement workers
+  // per dnode even if every source is unavailable and more batches keep arriving.
+  static int32_t           activeChecks = 0;
+  SQueryAutoQWorkerPoolCB *worker = queue->workerCb;
+  int32_t                  code = TSDB_CODE_NEED_RETRY;
+  SRpcMsg                  reply = {0};
+  if (atomic_add_fetch_32(&activeChecks, 1) <= queue->threadNum && worker && !worker->beforeBlocking(worker->pPool)) {
+    code =
+        rpcSendRecvWithTimeout(vnode->msgCb.clientRpc, &ep, &check, &reply, NULL, STREAM_RESULT_ADMISSION_TIMEOUT_MS);
+    int32_t recovered = worker->afterRecoverFromBlocking(worker->pPool);
+    if (!code) code = recovered;
+  } else {
+    rpcFreeCont(check.pCont);
+  }
+  atomic_sub_fetch_32(&activeChecks, 1);
+  rpcFreeCont(reply.pCont);
+  if (code) return TSDB_CODE_NEED_RETRY;
+  if (reply.code == TSDB_CODE_STREAM_EXEC_CANCELLED) return reply.code;
+  if (reply.code) return TSDB_CODE_NEED_RETRY;
+  if (reply.msgType != TDMT_STREAM_VALIDATE_RESULT_RSP || reply.contLen != 0) return TSDB_CODE_INVALID_MSG;
+
+  // Preserve the original payload, destination and submitter when re-entering the normal write queue.
+  submit->header.contLen = submitLen;
+  submit->version = htobe64(1);
+  msg->contLen = submitLen;
+  // The queue callback consumes the buffer and tmsgPutToQueue replies on enqueue failure.
+  TAOS_UNUSED(tmsgPutToQueue(&vnode->msgCb, WRITE_QUEUE, msg));
+  return 0;
 }
 
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {

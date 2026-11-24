@@ -215,6 +215,26 @@ static int32_t streamFillResolvedColRef(SVnode *pVnode, SStreamTriggerReaderInfo
   return code;
 }
 
+static bool streamTimeAlignEntryHasExternalRef(const SMetaEntry *entry, bool includeOwn,
+                                               const SVTableResolveResult *resolved) {
+  if (entry) {
+    for (int32_t i = 0; i < streamVTableColRefCount(entry, includeOwn); ++i) {
+      const SColRef *ref = streamVTableColRefAt(entry, i);
+      if (ref->hasRef && (ref->refType || ref->refSourceName[0])) return true;
+    }
+    for (int32_t i = 0; i < entry->colRef.nTagRefs; ++i) {
+      const SColRef *ref = &entry->colRef.pTagRef[i];
+      if (ref->hasRef && (ref->refType || ref->refSourceName[0])) return true;
+    }
+  }
+  int32_t           iter = 0;
+  SColResolveItem **item = NULL;
+  while (resolved && (item = tSimpleHashIterate(resolved->colMap, item, &iter))) {
+    if (*item && (*item)->hasRef && ((*item)->refType || (*item)->refSourceName[0])) return true;
+  }
+  return false;
+}
+
 // For a single resolved uid, fill one VTableInfo entry: copy each requested cid's
 // resolved terminal SColResolveItem into pColRef[i] (hasRef + ref{Db,Table,Col}Name);
 // id is the virtual cid itself. version is taken from metaReader if available.
@@ -261,6 +281,14 @@ int32_t streamFillVTableInfoFromResolved(SVnode *pVnode, SStreamTriggerReaderInf
   }
   ST_TASK_DLOG("vgId:%d %s put resolved vtable uid:%" PRId64 ", gid:%" PRIu64 ", tbname:%s", TD_VID(pVnode),
                __func__, uid, gid, vTable->tbName);
+
+  if (sStreamReaderInfo->requireLocalVtableRefs &&
+      streamTimeAlignEntryHasExternalRef(haveMeta ? &metaReader->me : NULL,
+                                         sStreamReaderInfo->tableType != TSDB_SUPER_TABLE, pRes)) {
+    ST_TASK_ELOG("vgId:%d TIME_ALIGN requires local references for virtual table uid:%" PRId64, TD_VID(pVnode), uid);
+    code = TSDB_CODE_STREAM_INVALID_TRIGGER;
+    goto end;
+  }
 
   if (cids == NULL) {
     int32_t nAll =
@@ -546,9 +574,9 @@ _unlock:
 // with newRes (ownership transferred from uid2Result).
 //
 // Must be called with pCache->lock held in write mode (caller's responsibility).
-static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamVTableInfoCache *pCache,
-                                               int64_t uid, SSHashObj *uid2Result,
-                                               SArray *changedUids) {
+static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamTriggerReaderInfo *pInfo, int64_t uid,
+                                               SSHashObj *uid2Result, SArray *changedUids) {
+  SStreamVTableInfoCache *pCache = pInfo->vtbCache;
   SVTableResolveResult **ppNew = (SVTableResolveResult **)tSimpleHashGet(uid2Result, &uid, sizeof(uid));
   SVTableResolveResult **ppOld = (SVTableResolveResult **)tSimpleHashGet(pCache->uid2Result, &uid, sizeof(uid));
   SVTableResolveResult  *newRes = (ppNew == NULL) ? NULL : *ppNew;
@@ -588,8 +616,10 @@ static int32_t streamRecheckDiffAndApplyOneUid(SVnode *pVnode, SStreamVTableInfo
   if (tagChanged) return TSDB_CODE_STREAM_VTB_TAG_CHANGED;
 
   // Col diff -- collect uids that need re-publication.
-  bool colChanged = false;
-  if (oldRes != NULL && oldRes->colMap != NULL) {
+  // TIME_ALIGN admits the full visible reference set, including newly added, unprojected columns.
+  bool colChanged = pInfo->requireLocalVtableRefs && oldRes != NULL &&
+                    tSimpleHashGetSize(oldRes->colMap) != tSimpleHashGetSize(newRes->colMap);
+  if (!colChanged && oldRes != NULL && oldRes->colMap != NULL) {
     void *it2 = NULL; int32_t i2 = 0;
     while ((it2 = tSimpleHashIterate(oldRes->colMap, it2, &i2)) != NULL) {
       col_id_t          cid  = *(col_id_t *)tSimpleHashGetKey(it2, NULL);
@@ -656,7 +686,7 @@ int32_t streamMaybeRecheckVTableCache(SVnode *pVnode, SStreamTriggerReaderInfo *
   taosWLockLatch(&pCache->lock);
   for (int32_t i = 0; i < (int32_t)taosArrayGetSize(sliceUids); ++i) {
     int64_t uid = *(int64_t *)taosArrayGet(sliceUids, i);
-    code = streamRecheckDiffAndApplyOneUid(pVnode, pCache, uid, uid2Result, changedUids);
+    code = streamRecheckDiffAndApplyOneUid(pVnode, pInfo, uid, uid2Result, changedUids);
     if (code != 0) break;
   }
   pCache->lastCheckMs = taosGetTimestampMs();

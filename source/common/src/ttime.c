@@ -39,7 +39,7 @@ static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 static int32_t parseTimezone(char* str, int64_t* tzOffset);
-static int64_t taosDaysFromCivil(int32_t y, int32_t m, int32_t d);
+static int64_t taosDaysFromCivil(int64_t y, int32_t m, int32_t d);
 static bool convertSecondsToTicks(int64_t seconds, int64_t fraction,
                                  int64_t factor, int64_t* ticks);
 
@@ -1060,7 +1060,7 @@ int32_t getDuration(int64_t val, char unit, int64_t* result, int32_t timePrecisi
       (*result) = convertTimePrecision(val * MILLISECOND_PER_MINUTE, TSDB_TIME_PRECISION_MILLI, timePrecision);
       break;
     case 'h':
-      if (val > INT64_MAX / MILLISECOND_PER_MINUTE) {
+      if (val > INT64_MAX / MILLISECOND_PER_HOUR || val < INT64_MIN / MILLISECOND_PER_HOUR) {
         TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
       }
       (*result) = convertTimePrecision(val * MILLISECOND_PER_HOUR, TSDB_TIME_PRECISION_MILLI, timePrecision);
@@ -1316,7 +1316,7 @@ static bool convertSecondsToTicks(int64_t seconds, int64_t fraction,
  * algorithm).  Counts whole local calendar days between two instants in a
  * DST-independent way, mirroring taosTimeAdd's calendar-day stepping.
  */
-static int64_t taosDaysFromCivil(int32_t y, int32_t m, int32_t d) {
+static int64_t taosDaysFromCivil(int64_t y, int32_t m, int32_t d) {
   y -= (m <= 2);
   int64_t era = (y >= 0 ? y : y - 399) / 400;
   int32_t yoe = (int32_t)(y - era * 400);                          // [0, 399]
@@ -1388,28 +1388,55 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     }
   }
 
-  // The following code handles the y/n time duration
+  int64_t end = t;
+  int32_t code = taosTimeAddCalendarMonths(t, duration, unit, precision, tz, &end);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("failed to add calendar duration, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d, code:%s", t,
+           duration, unit, precision, tstrerror(code));
+  }
+  return end;
+}
+
+// A missing local time maps forward by the actual offset change. Verify that
+// interpreting the wall clock with either offset lands on the opposite side
+// of the transition before accepting the pre-transition offset.
+static int32_t calendarGapEnd(const struct tm* local, timezone_t tz, time_t* end) {
+  int64_t wall = taosDaysFromCivil(1900LL + local->tm_year, local->tm_mon + 1, local->tm_mday) * 86400 +
+                 local->tm_hour * 3600 + local->tm_min * 60 + local->tm_sec;
+  int64_t before, after, other;
+  // Two days cover UTC offsets on either side of an IANA skipped date.
+  TAOS_CHECK_RETURN(taosGetTimezoneOffsetAtSeconds(wall - 2 * 86400, tz, &before));
+  TAOS_CHECK_RETURN(taosGetTimezoneOffsetAtSeconds(wall - before, tz, &after));
+  if (after <= before) return TSDB_CODE_INVALID_PARA;
+  TAOS_CHECK_RETURN(taosGetTimezoneOffsetAtSeconds(wall - after, tz, &other));
+  if (other != before) return TSDB_CODE_INVALID_PARA;
+  *end = (time_t)(wall - before);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t taosTimeAddCalendarMonths(int64_t t, int64_t duration, char unit, int32_t precision, timezone_t tz,
+                                  int64_t* end) {
+  *end = t;
+  if (duration == 0) return TSDB_CODE_SUCCESS;
   int64_t numOfMonth = duration;
   if (unit == 'y' || unit == 'Y') {
     if (duration > INT64_MAX / 12 || duration < INT64_MIN / 12) {
-      uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
-      return t;
+      return TSDB_CODE_OUT_OF_RANGE;
     }
     numOfMonth *= 12;
   }
-  int64_t fraction = t % TSDB_TICK_PER_SECOND(precision);
-
-  struct tm  tm;
-  time_t     tt = (time_t)(t / TSDB_TICK_PER_SECOND(precision));
+  int64_t seconds, fraction;
+  taosTsSplit(t, precision, &seconds, &fraction);
+  struct tm tm;
+  time_t    tt = (time_t)seconds;
   if(taosLocalTime(&tt, &tm, NULL, 0, tz) == NULL) {
     uError("failed to convert time to gm time, code:%d", ERRNO);
-    return t;
+    return TSDB_CODE_INVALID_PARA;
   }
   int64_t currentMonth = (int64_t)tm.tm_year * 12 + tm.tm_mon;
   if ((numOfMonth > 0 && currentMonth > INT64_MAX - numOfMonth) ||
       (numOfMonth < 0 && currentMonth < INT64_MIN - numOfMonth)) {
-    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
-    return t;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
   int64_t mon = currentMonth + numOfMonth;
   int64_t y = mon / 12;
@@ -1419,8 +1446,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
     y -= 1;
   }
   if (y < INT32_MIN || y > INT32_MAX) {
-    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
-    return t;
+    return TSDB_CODE_OUT_OF_RANGE;
   }
   tm.tm_year = (int32_t)y;
   tm.tm_mon = m;
@@ -1433,17 +1459,17 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision, t
   }
   tm.tm_isdst = -1;
 
-  tt = taosMktime(&tm, tz);
+  struct tm target = tm;
+  tt = taosMktime(&target, tz);
   if (TAOS_MKTIME_FAILED(tt)) {
-    uError("failed to convert gm time to time, code:%d", ERRNO);
-    return t;
+    if (ERRNO != EINVAL && ERRNO != EOVERFLOW) return TAOS_SYSTEM_ERROR(ERRNO);
+    TAOS_CHECK_RETURN(calendarGapEnd(&tm, tz, &tt));
+    terrno = TSDB_CODE_SUCCESS;
   }
-  int64_t result = 0;
-  if (!convertSecondsToTicks((int64_t)tt, fraction, TSDB_TICK_PER_SECOND(precision), &result)) {
-    uError("time overflow, t:%" PRId64 ", duration:%" PRId64 ", unit:%c, precision:%d", t, duration, unit, precision);
-    return t;
+  if (!convertSecondsToTicks((int64_t)tt, fraction, TSDB_TICK_PER_SECOND(precision), end)) {
+    return TSDB_CODE_OUT_OF_RANGE;
   }
-  return result;
+  return TSDB_CODE_SUCCESS;
 }
 
 /**

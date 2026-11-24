@@ -15,9 +15,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cJSON.h"
 #include "streamMsg.h"
 #include "tbase64.h"
 #include "tjson.h"
+#include "tvariant.h"
 
 static int32_t int16ToJson(const void* pObj, SJson* pJson);
 static int32_t jsonToInt16(const SJson* pJson, void* pObj);
@@ -1047,8 +1049,114 @@ _exit:
   return code;
 }
 
+static int32_t streamTimeAlignColumnToJson(const void* pObj, SJson* pJson) {
+  const SStreamTimeAlignColumn* pCol = pObj;
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "SrcColId", pCol->srcColId));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Type", pCol->type.type));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Bytes", pCol->type.bytes));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Precision", pCol->type.precision));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Scale", pCol->type.scale));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "OutName", pCol->outName));
+  TAOS_CHECK_RETURN(tjsonAddBoolToObject(pJson, "HasSpan", pCol->hasSpan));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Amount", pCol->amount));
+  return tjsonAddIntegerToObject(pJson, "Unit", pCol->unit);
+}
+
+static int32_t streamTimeAlignCidToJson(const void* pObj, SJson* pJson) {
+  return tjsonAddIntegerToObject(pJson, "Cid", *(const col_id_t*)pObj);
+}
+
+static int32_t streamTimeAlignToJson(const void* pObj, SJson* pJson) {
+  const SStreamTimeAlignSpec* pSpec = pObj;
+  TAOS_CHECK_RETURN(tValidateStreamTimeAlignSpec(pSpec));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Version", STREAM_TIME_ALIGN_FRAME_VERSION));
+  TAOS_CHECK_RETURN(tjsonAddBoolToObject(pJson, "OutputRaw", pSpec->outputRaw));
+  TAOS_CHECK_RETURN(tjsonAddIntegerToObject(pJson, "Precision", pSpec->precision));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "Timezone", pSpec->timezone));
+  TAOS_CHECK_RETURN(tjsonAddTArray(pJson, "RowsetColIds", streamTimeAlignCidToJson, pSpec->pRowsetColIds));
+  return tjsonAddTArray(pJson, "Columns", streamTimeAlignColumnToJson, pSpec->pColumns);
+}
+
+static int32_t getTimeAlignInteger(const SJson* obj, const char* key, int64_t min, int64_t max, int64_t* value) {
+  const char* text = tjsonGetStringPointer(obj, key);
+  if (text == NULL || text[0] == 0 || toInteger(text, strlen(text), 10, value) != 0 || *value < min || *value > max)
+    return TSDB_CODE_INVALID_MSG;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t jsonToStreamTimeAlign(const SJson* pJson, SCMCreateStreamReq* pReq) {
+  SJson* pAlign = tjsonGetObjectItem(pJson, "timeAlign");
+  if (BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_TIME_ALIGN) != (pAlign != NULL)) return TSDB_CODE_INVALID_MSG;
+  if (pAlign == NULL) return TSDB_CODE_SUCCESS;
+  if (pReq->pTimeAlign != NULL) return TSDB_CODE_INVALID_PARA;
+  int32_t               code = 0, lino = 0;
+  int64_t               version = 0;
+  SStreamTimeAlignSpec* pSpec = NULL;
+  if (tjsonGetObjectItem(pAlign, "OutputRaw") == NULL) return TSDB_CODE_INVALID_MSG;
+  TAOS_CHECK_RETURN(getTimeAlignInteger(pAlign, "Version", STREAM_TIME_ALIGN_FRAME_VERSION,
+                                        STREAM_TIME_ALIGN_FRAME_VERSION, &version));
+  SJson*  pCids = tjsonGetObjectItem(pAlign, "RowsetColIds");
+  SJson*  pCols = tjsonGetObjectItem(pAlign, "Columns");
+  int32_t n = tjsonGetArraySize(pCids), m = tjsonGetArraySize(pCols);
+  if (!tjsonIsArray(pCids) || !tjsonIsArray(pCols) || n <= 0 || n > TSDB_MAX_COLUMNS || m <= 0 || m > TSDB_MAX_COLUMNS)
+    TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  pSpec = taosMemoryCalloc(1, sizeof(*pSpec));
+  TSDB_CHECK_NULL(pSpec, code, lino, _exit, terrno);
+  TAOS_CHECK_EXIT(tjsonGetBoolValue(pAlign, "OutputRaw", &pSpec->outputRaw));
+  int64_t value = 0;
+  TAOS_CHECK_EXIT(getTimeAlignInteger(pAlign, "Precision", 0, TSDB_TIME_PRECISION_NANO, &value));
+  pSpec->precision = value;
+  const char* timezone = tjsonGetStringPointer(pAlign, "Timezone");
+  if (timezone == NULL || strlen(timezone) >= TD_TIMEZONE_LEN) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+  pSpec->timezone = taosStrdup(timezone);
+  TSDB_CHECK_NULL(pSpec->timezone, code, lino, _exit, terrno);
+  pSpec->pRowsetColIds = taosArrayInit(n, sizeof(col_id_t));
+  TSDB_CHECK_NULL(pSpec->pRowsetColIds, code, lino, _exit, terrno);
+  pSpec->pColumns = taosArrayInit(m, sizeof(SStreamTimeAlignColumn));
+  TSDB_CHECK_NULL(pSpec->pColumns, code, lino, _exit, terrno);
+  const cJSON* item = NULL;
+  cJSON_ArrayForEach(item, (const cJSON*)pCids) {
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Cid", PRIMARYKEY_TIMESTAMP_COL_ID + 1, INT16_MAX, &value));
+    col_id_t cid = value;
+    if (taosArrayPush(pSpec->pRowsetColIds, &cid) == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+  cJSON_ArrayForEach(item, (const cJSON*)pCols) {
+    SStreamTimeAlignColumn col = {0};
+    if (tjsonGetObjectItem(item, "HasSpan") == NULL) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "SrcColId", PRIMARYKEY_TIMESTAMP_COL_ID + 1, INT16_MAX, &value));
+    col.srcColId = value;
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Type", 1, TSDB_DATA_TYPE_MAX - 1, &value));
+    col.type.type = value;
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Bytes", 1, INT32_MAX, &value));
+    col.type.bytes = value;
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Precision", 0, UINT8_MAX, &value));
+    col.type.precision = value;
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Scale", 0, UINT8_MAX, &value));
+    col.type.scale = value;
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Unit", 0, INT8_MAX, &value));
+    col.unit = value;
+    const char* name = tjsonGetStringPointer(item, "OutName");
+    if (name == NULL || strlen(name) >= sizeof(col.outName)) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    tstrncpy(col.outName, name, sizeof(col.outName));
+    TAOS_CHECK_EXIT(tjsonGetBoolValue(item, "HasSpan", &col.hasSpan));
+    TAOS_CHECK_EXIT(getTimeAlignInteger(item, "Amount", 0, INT64_MAX, &col.amount));
+    if (taosArrayPush(pSpec->pColumns, &col) == NULL) TAOS_CHECK_EXIT(terrno);
+  }
+  TAOS_CHECK_EXIT(tValidateStreamTimeAlignSpec(pSpec));
+  pReq->pTimeAlign = pSpec;
+  return TSDB_CODE_SUCCESS;
+_exit:
+  tDestroyStreamTimeAlignSpec(&pSpec);
+  return code;
+}
+
 static int32_t scmCreateStreamReqToJsonImpl(const void* pObj, void* pJson) {
   const SCMCreateStreamReq* pReq = (const SCMCreateStreamReq*)pObj;
+  if (BIT_FLAG_TEST_MASK(pReq->addOptions, STREAM_OPTION_TIME_ALIGN) != (pReq->pTimeAlign != NULL))
+    return TSDB_CODE_INVALID_MSG;
+  if (pReq->pTimeAlign != NULL) {
+    TAOS_CHECK_RETURN(tjsonAddObject(pJson, "timeAlign", streamTimeAlignToJson, pReq->pTimeAlign));
+  }
   if (NULL != pReq->name) {
     TAOS_CHECK_RETURN(tjsonAddStringToObject(
       pJson, jkCreateStreamReqName, pReq->name));
@@ -1605,6 +1713,7 @@ int32_t jsonToSCMCreateStreamReq(const void* pJson, void* pObj) {
   }
 
   TAOS_CHECK_RETURN(jsonToStreamWindowPlan(pJson, pReq));
+  TAOS_CHECK_RETURN(jsonToStreamTimeAlign(pJson, pReq));
 
   return TSDB_CODE_SUCCESS;
 }

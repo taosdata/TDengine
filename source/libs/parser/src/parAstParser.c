@@ -563,7 +563,7 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
     case QUERY_NODE_TIME_ALIGN_TABLE: {
       STimeAlignTableNode* pAlign = (STimeAlignTableNode*)pNode;
       if (pAlign->pRealTableNode != NULL) {
-        return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pAlign->pRealTableNode);
+        return DEAL_RES_CONTINUE;  // The type-aware walker visits the input child.
       }
       SRealTableNode* pReal = NULL;
       if (nodesMakeNode(QUERY_NODE_REAL_TABLE, (SNode**)&pReal) != TSDB_CODE_SUCCESS) {
@@ -1567,7 +1567,11 @@ static int32_t collectMetaKeyFromCreateStream(SCollectMetaKeyCxt* pCxt, SCreateS
     PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->targetDbName, pCxt->pMetaCache));
   }
   PAR_ERR_RET(reserveDbCfgInCache(pCxt->pParseCxt->acctId, pStmt->streamDbName, pCxt->pMetaCache));
-  SRealTableNode* pTriggerTable = (SRealTableNode*)((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  SNode* pTriggerSource = ((SStreamTriggerNode*)pStmt->pTrigger)->pTrigerTable;
+  if (pTriggerSource != NULL && nodeType(pTriggerSource) == QUERY_NODE_TIME_ALIGN_TABLE) {
+    pTriggerSource = ((STimeAlignTableNode*)pTriggerSource)->pRealTableNode;
+  }
+  SRealTableNode* pTriggerTable = (SRealTableNode*)pTriggerSource;
   if (pTriggerTable) {
     SCollectMetaKeyFromExprCxt cxt = {
         .pComCxt = pCxt, .hasLastRowOrLast = false, .tbnameCollect = true, .errCode = TSDB_CODE_SUCCESS};

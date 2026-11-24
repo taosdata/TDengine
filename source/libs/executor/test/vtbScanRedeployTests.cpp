@@ -99,6 +99,66 @@ bool initVgSets(RedeployCheckHarness *h, std::initializer_list<int32_t> exist, s
 
 }  // namespace
 
+class VtbTimeAlignLifetimeTest : public testing::TestWithParam<bool> {
+ protected:
+  void SetUp() override {
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_VIRTUAL_TABLE_SCAN, reinterpret_cast<SNode **>(&scan)));
+    auto &node = scan->scan.node;
+    node.inputTsOrder = node.outputTsOrder = ORDER_ASC;
+    ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_DATABLOCK_DESC, reinterpret_cast<SNode **>(&node.pOutputDataBlockDesc)));
+    auto *desc = node.pOutputDataBlockDesc;
+    desc->totalRowSize = desc->outputRowSize = 24;
+    for (int16_t i = 0; i < 3; ++i) {
+      SSlotDescNode *slot = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_SLOT_DESC, reinterpret_cast<SNode **>(&slot)));
+      slot->slotId = i;
+      slot->dataType.type = i == 0 ? TSDB_DATA_TYPE_TIMESTAMP : TSDB_DATA_TYPE_BIGINT;
+      slot->dataType.bytes = 8;
+      slot->output = true;
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&desc->pSlots, reinterpret_cast<SNode *>(slot)));
+      SColumnNode *column = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_COLUMN, reinterpret_cast<SNode **>(&column)));
+      column->node.resType = slot->dataType;
+      column->colId = i == 0 ? PRIMARYKEY_TIMESTAMP_COL_ID : 2;
+      column->colType = COLUMN_TYPE_COLUMN;
+      column->slotId = i;
+      tstrncpy(column->colName, i == 0 ? "ts" : (i == 1 ? "v" : "v_prev"), sizeof(column->colName));
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->pTargets, reinterpret_cast<SNode *>(column)));
+      SNode *copy = nullptr;
+      ASSERT_EQ(0, nodesCloneNode(reinterpret_cast<SNode *>(column), &copy));
+      if (i < 2) {
+        ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->scan.pScanCols, copy));
+      } else {
+        auto *aligned = reinterpret_cast<SColumnNode *>(copy);
+        aligned->alignMethod = ALIGN_METHOD_PREV;
+        aligned->alignHasSpan = GetParam();
+        aligned->alignSpanValue = 8;
+        aligned->alignSpanUnit = 's';
+        ASSERT_EQ(0, nodesListMakeStrictAppend(&scan->pAlignCols, copy));
+      }
+    }
+  }
+
+  void TearDown() override {
+    destroyOperator(op);
+    nodesDestroyNode(reinterpret_cast<SNode *>(scan));
+  }
+
+  SVirtualScanPhysiNode *scan = nullptr;
+  SOperatorInfo         *op = nullptr;
+  SExecTaskInfo          task{};
+};
+
+TEST_P(VtbTimeAlignLifetimeTest, CreateResetDestroyReleasesGeneratedExpressions) {
+  // Exercise real expression construction and teardown; LSan detects detached AST owners.
+  ASSERT_EQ(0, createVirtualTableMergeOperatorInfo(nullptr, 0, scan, &task, &op));
+  ASSERT_NE(nullptr, op);
+  ASSERT_NE(nullptr, op->fpSet.resetStateFn);
+  EXPECT_EQ(0, op->fpSet.resetStateFn(op));
+}
+
+INSTANTIATE_TEST_SUITE_P(WithAndWithoutDuration, VtbTimeAlignLifetimeTest, testing::Bool());
+
 TEST(VtbScanRedeployCheckTest, NoPendingRedeployReturnsNeedRedeploy) {
   RedeployCheckHarness h;
   EXPECT_EQ(h.runtime.vtableDeployInfo.redeployStartMs, 0);

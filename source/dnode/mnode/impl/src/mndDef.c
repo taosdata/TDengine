@@ -23,7 +23,7 @@
 #include "tunit.h"
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
-  TAOS_CHECK_RETURN(tStartEncode(pEncoder));
+  TAOS_CHECK_RETURN(tStartEncodeStreamDefinition(pEncoder, pObj->pCreate));
 
   TAOS_CHECK_RETURN(tEncodeCStr(pEncoder, pObj->name));
   TAOS_CHECK_RETURN(tSerializeSCMCreateStreamReqImpl(pEncoder, pObj->pCreate));
@@ -70,7 +70,8 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
   int32_t code = 0;
   int32_t lino = 0;
-  TAOS_CHECK_RETURN(tStartDecode(pDecoder));
+  bool    aligned = false;
+  TAOS_CHECK_RETURN(tStartDecodeStreamDefinition(pDecoder, &aligned));
 
   TAOS_CHECK_RETURN(tDecodeCStrTo(pDecoder, pObj->name));
   pObj->pCreate = taosMemoryCalloc(1, sizeof(*pObj->pCreate));
@@ -85,6 +86,8 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj, int32_t sver) {
     TAOS_CHECK_RETURN(
       tDeserializeSCMCreateStreamReqImplOld(pDecoder, pObj->pCreate, 21));
   }
+
+  if (aligned && !pObj->pCreate->pTimeAlign) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
 
   TAOS_CHECK_RETURN(tDecodeI32(pDecoder, &pObj->mainSnodeId));
   TAOS_CHECK_RETURN(tDecodeI8(pDecoder, &pObj->userStopped));

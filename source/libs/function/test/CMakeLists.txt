@@ -42,6 +42,11 @@ if(NOT TD_DARWIN)
         COMMAND functionMgtTest
     )
 
+    add_executable(fillPrevTest fillPrevTest.cpp)
+    DEP_ext_gtest(fillPrevTest)
+    target_link_libraries(fillPrevTest PRIVATE os util common nodes function)
+    add_test(NAME fillPrevTest COMMAND fillPrevTest)
+
     add_executable(fillForwardTest fillForwardTest.cpp)
     DEP_ext_gtest(fillForwardTest)
     target_link_libraries(fillForwardTest PRIVATE os util common nodes function)

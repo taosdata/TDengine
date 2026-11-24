@@ -134,6 +134,8 @@ typedef struct SStreamDataInserterInfo {
   int64_t groupId;
   char*   tbName;
   SArray* pTagVals;  // SArray<SStreamTagInfo>
+  const struct SStreamResultAdmission* resultAdmission;
+  struct SStreamResultWait*            resultWait;
 } SStreamDataInserterInfo;
 
 typedef struct SInputData {

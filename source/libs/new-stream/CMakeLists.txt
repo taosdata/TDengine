@@ -46,7 +46,7 @@ endif(${BUILD_WITH_ROCKSDB})
 target_link_libraries(
     new-stream
     PUBLIC tdb
-    PRIVATE os util transport qcom executor wal index extconnector
+    PRIVATE os util transport qcom executor function wal index extconnector
 )
 
 if(${BUILD_TEST})

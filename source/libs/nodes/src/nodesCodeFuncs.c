@@ -9414,6 +9414,26 @@ static int32_t jsonToTableNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static int32_t timeAlignTableNodeToJson(const void* pObj, SJson* pJson) {
+  const STimeAlignTableNode* pNode = pObj;
+  TAOS_CHECK_RETURN(tableNodeToJson(pObj, pJson));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "InputDb", pNode->dbName));
+  TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "InputTable", pNode->tbName));
+  TAOS_CHECK_RETURN(tjsonAddBoolToObject(pJson, "OutputRaw", pNode->outputRaw));
+  if (pNode->columnList != NULL) TAOS_CHECK_RETURN(tjsonAddStringToObject(pJson, "Columns", pNode->columnList));
+  return tjsonAddObject(pJson, "Input", nodeToJson, pNode->pRealTableNode);
+}
+
+static int32_t jsonToTimeAlignTableNode(const SJson* pJson, void* pObj) {
+  STimeAlignTableNode* pNode = pObj;
+  TAOS_CHECK_RETURN(jsonToTableNode(pJson, pObj));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, "InputDb", pNode->dbName, sizeof(pNode->dbName)));
+  TAOS_CHECK_RETURN(tjsonGetStringValue1(pJson, "InputTable", pNode->tbName, sizeof(pNode->tbName)));
+  TAOS_CHECK_RETURN(tjsonGetBoolValue(pJson, "OutputRaw", &pNode->outputRaw));
+  TAOS_CHECK_RETURN(tjsonDupStringValue(pJson, "Columns", &pNode->columnList));
+  return jsonToNodeObject(pJson, "Input", &pNode->pRealTableNode);
+}
+
 static const char* jkRealTableMetaSize = "MetaSize";
 static const char* jkRealTableMeta = "Meta";
 static const char* jkRealTableVgroupsInfoSize = "VgroupsInfoSize";
@@ -14939,6 +14959,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return functionNodeToJson(pObj, pJson);
     case QUERY_NODE_REAL_TABLE:
       return realTableNodeToJson(pObj, pJson);
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      return timeAlignTableNodeToJson(pObj, pJson);
     case QUERY_NODE_TEMP_TABLE:
       return tempTableNodeToJson(pObj, pJson);
     case QUERY_NODE_JOIN_TABLE:
@@ -15519,6 +15541,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToFunctionNode(pJson, pObj);
     case QUERY_NODE_REAL_TABLE:
       return jsonToRealTableNode(pJson, pObj);
+    case QUERY_NODE_TIME_ALIGN_TABLE:
+      return jsonToTimeAlignTableNode(pJson, pObj);
     case QUERY_NODE_TEMP_TABLE:
       return jsonToTempTableNode(pJson, pObj);
     case QUERY_NODE_JOIN_TABLE:

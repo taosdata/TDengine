@@ -1341,8 +1341,8 @@ static int32_t mergeSlotHashForChildren(SNodeList* pChild, SArray* hashArray, SH
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setMultiBlockSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, bool isVtb, const SNodeList* pList,
-                                   SNodeList** pOutput) {
+static int32_t setMultiBlockSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, const SVirtualScanLogicNode* pVtb,
+                                   const SNodeList* pList, SNodeList** pOutput) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (NULL == pList) {
     PLAN_RET(code);
@@ -1354,18 +1354,28 @@ static int32_t setMultiBlockSlotId(SPhysiPlanContext* pCxt, SNodeList* pChild, b
 
   PLAN_ERR_JRET(nodesCloneList(pList, &pRes));
 
+  // The dynamic stream reader resolves data sources at execution and delivers
+  // virtual-schema slots. Keep the emitted block's column identities for its
+  // consumers, but do not bind the reader targets to fixed physical sources.
+  if (pVtb != NULL && inStreamCalcClause(pCxt->pPlanCxt) && pVtb->pAlignCols != NULL) {
+    SNode* pTarget = NULL;
+    FOREACH(pTarget, pRes) {
+      if (nodeType(pTarget) == QUERY_NODE_COLUMN && ((SColumnNode*)pTarget)->colType == COLUMN_TYPE_COLUMN) {
+        ((SColumnNode*)pTarget)->hasRef = false;
+      }
+    }
+  }
+
   PLAN_ERR_JRET(mergeSlotHashForChildren(pChild, pCxt->pLocationHelper, &mergedHash));
   PLAN_ERR_JRET(mergeSlotHashForChildren(pChild, pCxt->pProjIdxLocHelper, &mergedProjIdxHash));
 
-  SMultiTableSetSlotIdCxt cxt = {
-    .errCode = TSDB_CODE_SUCCESS,
-    .hashArray = pCxt->pLocationHelper,
-    .projIdxHashArray = pCxt->pProjIdxLocHelper,
-    .mergedHash = mergedHash,
-    .mergedProjIdxHash = mergedProjIdxHash,
-    .pChild = pChild,
-    .isVtb = isVtb
-  };
+  SMultiTableSetSlotIdCxt cxt = {.errCode = TSDB_CODE_SUCCESS,
+                                 .hashArray = pCxt->pLocationHelper,
+                                 .projIdxHashArray = pCxt->pProjIdxLocHelper,
+                                 .mergedHash = mergedHash,
+                                 .mergedProjIdxHash = mergedProjIdxHash,
+                                 .pChild = pChild,
+                                 .isVtb = pVtb != NULL};
 
   nodesWalkExprs(pRes, doSetMultiTableSlotId, &cxt);
   PLAN_ERR_JRET(cxt.errCode);
@@ -5900,12 +5910,14 @@ static int32_t createVirtualTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan
 
   (void)tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   PLAN_ERR_RET(createVirtualTableScanPhysiNodeFinalize(pCxt, pChildren, pScanLogicNode, (SVirtualScanPhysiNode*)pVirtualScan, pPhyNode));
-  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
+  PLAN_ERR_RET(
+      setMultiBlockSlotId(pCxt, pChildren, pScanLogicNode, pScanLogicNode->node.pTargets, &pVirtualScan->pTargets));
   if (pVirtualScan->pRefTagCols != NULL) {
     nodesDestroyList(pVirtualScan->pRefTagCols);
     pVirtualScan->pRefTagCols = NULL;
   }
-  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, true, pScanLogicNode->pRefTagCols, &pVirtualScan->pRefTagCols));
+  PLAN_ERR_RET(
+      setMultiBlockSlotId(pCxt, pChildren, pScanLogicNode, pScanLogicNode->pRefTagCols, &pVirtualScan->pRefTagCols));
   return code;
 }
 
@@ -6143,7 +6155,7 @@ static int32_t updateDynQueryCtrlVtbWindowInfo(SPhysiPlanContext* pCxt, SNodeLis
   pDynCtrl->vtbWindow.isVstb = pLogicNode->vtbWindow.isVstb;
   pDynCtrl->vtbWindow.extendOption = pLogicNode->vtbWindow.extendOption;
 
-  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, false, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));
+  PLAN_ERR_RET(setMultiBlockSlotId(pCxt, pChildren, NULL, pLogicNode->node.pTargets, &pDynCtrl->vtbWindow.pTargets));
   PLAN_ERR_RET(addDataBlockSlots(pCxt, pDynCtrl->vtbWindow.pTargets, pDynCtrl->node.pOutputDataBlockDesc));
 
   return code;
@@ -8042,7 +8054,7 @@ static int32_t createMergePhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildre
                                 &pMerge->pTargets));
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   } else {
-    PLAN_ERR_JRET(setMultiBlockSlotId(pCxt, pChildren, false, pMergeLogicNode->node.pTargets, &pMerge->pTargets));
+    PLAN_ERR_JRET(setMultiBlockSlotId(pCxt, pChildren, NULL, pMergeLogicNode->node.pTargets, &pMerge->pTargets));
     PLAN_ERR_JRET(addDataBlockSlots(pCxt, pMerge->pTargets, pMerge->node.pOutputDataBlockDesc));
   }
 

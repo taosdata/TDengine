@@ -205,4 +205,40 @@ TEST(ParserTimeAlignTest, rejectsInvalidArguments) {
   expectParseError("SELECT * FROM TABLE(time_align(TABLE vt, 'a', 'b'))");
 }
 
+TEST(ParserTimeAlignTest, ClonesTriggerSource) {
+  int32_t code = 0;
+  auto    query = parseTimeAlignSql(
+      "CREATE STREAM s INTERVAL(1s) FROM TABLE(TIME_ALIGN(TABLE vt, 'a:PREV(8s):_a')) "
+         "INTO out AS SELECT _twstart, count(*) FROM %%tbname",
+      &code);
+  ASSERT_EQ(0, code);
+  ASSERT_NE(nullptr, query);
+  auto* stream = reinterpret_cast<SCreateStreamStmt*>(query->pRoot);
+  ASSERT_EQ(QUERY_NODE_TIME_ALIGN_TABLE,
+            nodeType(reinterpret_cast<SStreamTriggerNode*>(stream->pTrigger)->pTrigerTable));
+  auto* source =
+      reinterpret_cast<STimeAlignTableNode*>(reinterpret_cast<SStreamTriggerNode*>(stream->pTrigger)->pTrigerTable);
+  EXPECT_STREQ("a:PREV(8s):_a", source->columnList);
+  SNode* copy = nullptr;
+  ASSERT_EQ(0, nodesCloneNode(query->pRoot, &copy));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> guard(copy, nodesDestroyNode);
+  auto* copiedTrigger = reinterpret_cast<SStreamTriggerNode*>(reinterpret_cast<SCreateStreamStmt*>(copy)->pTrigger);
+  auto* aligned = reinterpret_cast<STimeAlignTableNode*>(copiedTrigger->pTrigerTable);
+  ASSERT_NE(nullptr, aligned->pRealTableNode);
+  EXPECT_NE(source->pRealTableNode, aligned->pRealTableNode);
+  EXPECT_EQ(QUERY_NODE_REAL_TABLE, nodeType(aligned->pRealTableNode));
+  char* json = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(copy, false, &json, nullptr));
+  SNode*  decoded = nullptr;
+  int32_t decodeCode = nodesStringToNode(json, &decoded);
+  taosMemoryFree(json);
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> decodedGuard(decoded, nodesDestroyNode);
+  ASSERT_EQ(0, decodeCode);
+  auto* trigger = reinterpret_cast<SStreamTriggerNode*>(reinterpret_cast<SCreateStreamStmt*>(decoded)->pTrigger);
+  auto* restored = reinterpret_cast<STimeAlignTableNode*>(trigger->pTrigerTable);
+  ASSERT_NE(nullptr, restored->pRealTableNode);
+  EXPECT_STREQ("vt", reinterpret_cast<STableNode*>(restored->pRealTableNode)->tableName);
+  EXPECT_STREQ(source->columnList, restored->columnList);
+}
+
 }  // namespace ParserTest

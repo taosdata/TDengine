@@ -25,6 +25,7 @@ extern "C" {
 #include "streamInt.h"
 #include "streamRunner.h"
 #include "streamTriggerTask.h"
+#include "ttimer.h"
 }
 
 namespace {
@@ -251,6 +252,134 @@ TEST_F(SnodeMessageTest, ValidRunnerStillReachesExecution) {
   EXPECT_EQ(fetch(TDMT_STREAM_FETCH_FROM_RUNNER, &runtime), TSDB_CODE_APP_ERROR);
   EXPECT_EQ(fetch(TDMT_STREAM_FETCH_FROM_RUNNER, &runtime, false), TSDB_CODE_APP_ERROR);
   EXPECT_EQ(executions, 2);
+}
+
+class SnodeResultWaitTest : public SnodeMessageTest {
+ protected:
+  static SnodeResultWaitTest* self;
+  Stub                        hooks;
+  SStreamRunnerTask           runner{};
+  TAOS_TMR_CALLBACK           timerCallback = nullptr;
+  void*                       timerArg = nullptr;
+  bool                        rejectTimer = false;
+  bool                        completeOnWake = false;
+  int                         cancelled = 0;
+  int                         posts = 0;
+
+  void SetUp() override {
+    SnodeMessageTest::SetUp();
+    self = this;
+    ASSERT_EQ(0, taosThreadMutexInit(&node.resultLock, nullptr));
+    ASSERT_EQ(0, taosThreadCondInit(&node.resultDrained, nullptr));
+    node.resultTimer = &node;
+    node.msgCb.putToQueueFp = +[](void*, EQueueType queue, SRpcMsg* wake) -> int32_t {
+      EXPECT_EQ(STREAM_RUNNER_QUEUE, queue);
+      EXPECT_EQ(TDMT_STREAM_TASK_RESUME, wake->msgType);
+      ++self->posts;
+      if (self->completeOnWake) {
+        EXPECT_EQ(0, sndProcessStreamMsg(&self->node, nullptr, wake));
+        EXPECT_EQ(0, self->node.activeResultWriters);
+        EXPECT_EQ(1, self->node.activeResultPosts);
+        return 0;
+      }
+      return TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY;
+    };
+    hooks.set(
+        taosTmrStart, +[](TAOS_TMR_CALLBACK callback, int32_t ms, void* arg, void*) -> tmr_h {
+          EXPECT_GT(ms, 0);
+          if (self->rejectTimer) return nullptr;
+          self->timerCallback = callback;
+          self->timerArg = arg;
+          return arg;
+        });
+    hooks.set(
+        stRunnerTaskExecuteResumable,
+        +[](SStreamRunnerTask*, SSTriggerCalcRequest*, int64_t, SStreamResultWait* wait) -> int32_t {
+          if (wait->cancelled) {
+            ++self->cancelled;
+            return TSDB_CODE_STREAM_EXEC_CANCELLED;
+          }
+          if (self->completeOnWake) return 0;
+          wait->delayMs = 10;
+          return TSDB_CODE_ACTION_IN_PROGRESS;
+        });
+    runner.task.type = STREAM_RUNNER_TASK;
+    runner.topTask = true;
+    runner.addOptions = STREAM_OPTION_TIME_ALIGN;
+    addTask(&runner.task);
+  }
+  void TearDown() override {
+    EXPECT_EQ(0, node.activeResultWriters);
+    EXPECT_EQ(0, node.activeResultPosts);
+    EXPECT_EQ(0, runner.task.entryLock);
+    (void)taosThreadCondDestroy(&node.resultDrained);
+    (void)taosThreadMutexDestroy(&node.resultLock);
+    self = nullptr;
+    SnodeMessageTest::TearDown();
+  }
+  int32_t start() {
+    SSTriggerCalcRequest calc{};
+    calc.streamId = kStreamId;
+    calc.runnerTaskId = kTaskId;
+    calc.sessionId = STREAM_TRIGGER_REALTIME_SESSIONID;
+    calc.createTable = 1;
+    calc.resultAdmission = {kStreamId, kTaskId + 1, kTaskId, calc.sessionId, 2, 3, 0, 1};
+    int32_t len = tSerializeSTriggerCalcRequest(nullptr, 0, &calc);
+    if (len <= 0) return len;
+    std::vector<char> body(sizeof(SMsgHead) + len);
+    EXPECT_EQ(len, tSerializeSTriggerCalcRequest(body.data() + sizeof(SMsgHead), len, &calc));
+    return process(TDMT_STREAM_TRIGGER_CALC, body.data(), body.size());
+  }
+  static void fireOnStop(bool) { self->fire(); }
+  void fire() {
+    ASSERT_NE(nullptr, timerCallback);
+    auto callback = timerCallback;
+    timerCallback = nullptr;
+    callback(timerArg, nullptr);
+  }
+};
+
+SnodeResultWaitTest* SnodeResultWaitTest::self = nullptr;
+
+TEST_F(SnodeResultWaitTest, QueueFailureFinalizesTheOriginalCalculation) {
+  ASSERT_EQ(0, start());
+  EXPECT_EQ(1, node.activeResultWriters);
+  ASSERT_NO_FATAL_FAILURE(fire());
+  EXPECT_EQ(TSDB_CODE_UTIL_QUEUE_OUT_OF_MEMORY, responseCode);
+  EXPECT_EQ(1, posts);
+  EXPECT_EQ(1, cancelled);
+}
+
+TEST_F(SnodeResultWaitTest, QueueRemainsOwnedUntilItsPostReturns) {
+  ASSERT_EQ(0, start());
+  ASSERT_EQ(1, node.activeResultWriters);
+  completeOnWake = true;
+  ASSERT_NO_FATAL_FAILURE(fire());
+  EXPECT_EQ(0, node.activeResultPosts);
+  EXPECT_EQ(0, responseCode);
+  EXPECT_EQ(1, posts);
+  EXPECT_EQ(0, cancelled);
+}
+
+TEST_F(SnodeResultWaitTest, TimerFailureReturnsItsCreditAndReleasesTheTask) {
+  rejectTimer = true;
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, start());
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, responseCode);
+  EXPECT_EQ(0, posts);
+  EXPECT_EQ(1, cancelled);
+}
+
+TEST_F(SnodeResultWaitTest, StopDrainsParkedWorkBeforeClosingTheRunnerQueue) {
+  ASSERT_EQ(0, start());
+  ASSERT_EQ(1, node.activeResultWriters);
+  hooks.set(streamSetSnodeDisabled, fireOnStop);
+  sndStop(&node);
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, responseCode);
+  EXPECT_EQ(0, node.activeResultWriters);
+  EXPECT_EQ(0, posts);
+  EXPECT_EQ(1, cancelled);
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, start());
+  EXPECT_EQ(1, cancelled);
 }
 
 TEST_F(SnodeMessageTest, TriggerProgressRejectsReaderAndRunnerTasks) {

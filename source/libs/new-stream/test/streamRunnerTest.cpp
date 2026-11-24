@@ -21,10 +21,14 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
-#include <cstdlib>
+#include <condition_variable>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
+#include <deque>
+#include <functional>
 #include <initializer_list>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <utility>
@@ -33,6 +37,7 @@
 #include "cJSON.h"
 #include "cmdnodes.h"
 #include "dataSink.h"
+#include "dataSinkInt.h"
 #include "dataSinkMgt.h"
 #include "dynqueryctrl.h"
 #include "operator.h"
@@ -45,10 +50,12 @@
 #include "streamTaskStats.h"
 #include "stub.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 
 extern "C" {
 #include "tcurl.h"
 
+extern SHashObj *gStreamGrpTableHash;
 int32_t stmHbAddTaskStatus(int64_t streamId, SStreamHbMsg *pMsg, SStreamTask *pTask, SStreamTaskStats *pStats);
 int32_t processOrgTbVg(SVtbScanDynCtrlInfo *pVtbScan, SExecTaskInfo *pTaskInfo, int32_t rversion);
 int32_t sndTestBuildStreamFetchRsp(SSDataBlock *pBlock, const SStreamRunnerFetchFrame *pFrame, void **data,
@@ -147,6 +154,7 @@ struct RunnerCallState {
   std::vector<SStreamAncestorContext *>    executeAncestorOwners;
   std::vector<std::vector<uint64_t>>       executeGroupOrders;
   std::vector<bool>                        executeMultiGroupFlags;
+  std::vector<uint64_t>                    outputRounds;
   std::vector<bool>                        autoCreateTableCalls;
   std::vector<const SSDataBlock *>         sinkBlocks;
   std::vector<int32_t>                     notifyBuildCodes;
@@ -297,6 +305,7 @@ struct CacheResponseState {
 };
 
 int32_t              gResponseCode = TSDB_CODE_SUCCESS;
+std::atomic<int32_t> gCalcResponseCount{0};
 CacheResponseState   gCacheResponse;
 std::vector<int32_t> gCacheResponseValues;
 int32_t              gRunnerFetchResponseCount = 0;
@@ -306,6 +315,7 @@ int32_t              gStrictResponseBlockSize = 0;
 int32_t              gStrictResponseAllocationCalls = 0;
 
 int32_t mockRpcSendResponse(const SRpcMsg *pMsg) {
+  if (pMsg->msgType == TDMT_STREAM_TRIGGER_CALC_RSP) ++gCalcResponseCount;
   gResponseCode = pMsg->code;
   if (pMsg->msgType == TDMT_STREAM_FETCH_FROM_RUNNER_RSP && pMsg->code == TSDB_CODE_SUCCESS && pMsg->pCont != nullptr) {
     const auto *response = static_cast<const SRetrieveTableRsp *>(pMsg->pCont);
@@ -509,6 +519,8 @@ int32_t mockStreamForceOutput(qTaskInfo_t, SSDataBlock **ppBlock, int32_t winInd
 
 int32_t mockDsPutDataBlock(DataSinkHandle, const SInputData *pInput, bool *pContinue) {
   ++gCalls.sinkCalls;
+  const auto *admission = pInput->pStreamDataInserterInfo->resultAdmission;
+  gCalls.outputRounds.push_back(admission ? admission->roundId : 0);
   gCalls.sinkBlockIsNull = pInput->pData == nullptr;
   gCalls.autoCreateTable = pInput->pStreamDataInserterInfo->isAutoCreateTable;
   gCalls.autoCreateTableCalls.push_back(pInput->pStreamDataInserterInfo->isAutoCreateTable);
@@ -1258,6 +1270,7 @@ class StreamRunnerTest : public ::testing::Test {
     gRunnerDestroySawFrames = false;
     gRunnerDestroySawPrepared = false;
     gResponseCode = TSDB_CODE_SUCCESS;
+    gCalcResponseCount.store(0);
     gCacheResponse = {};
     gCacheResponseValues.clear();
     gRunnerFetchResponseCount = 0;
@@ -1395,13 +1408,14 @@ class StreamRunnerTest : public ::testing::Test {
     gRunnerResultBlock = nullptr;
   }
 
-  bool setUpPublicSnode() {
+  bool setUpPublicSnode(const SMsgCb *msgCb = nullptr) {
     taosInitRWLatch(&task_.task.entryLock);
     request_.streamId = task_.task.streamId;
     request_.runnerTaskId = task_.task.taskId;
 
     stub_.set(rpcSendResponse, mockRpcSendResponse);
     SSnodeOpt option = {};
+    if (msgCb) option.msgCb = *msgCb;
     snode_ = sndOpen(".", &option);
     return snode_ != nullptr;
   }
@@ -1473,7 +1487,7 @@ class StreamRunnerTest : public ::testing::Test {
     return sndProcessStreamMsg(snode_, nullptr, &msg);
   }
 
-  int32_t processPublicCalc() {
+  int32_t processPublicCalc(void *worker = nullptr) {
     const int32_t bodyLen = tSerializeSTriggerCalcRequest(nullptr, 0, &request_);
     if (bodyLen <= 0) {
       ADD_FAILURE() << "failed to size trigger calc request: " << bodyLen;
@@ -1498,7 +1512,7 @@ class StreamRunnerTest : public ::testing::Test {
     }
     reinterpret_cast<SMsgHead *>(msg.pCont)->contLen = htonl(msg.contLen);
 
-    const int32_t code = sndProcessStreamMsg(snode_, nullptr, &msg);
+    const int32_t code = sndProcessStreamMsg(snode_, worker, &msg);
     rpcFreeCont(msg.pCont);
     return code;
   }
@@ -3501,6 +3515,74 @@ TEST_F(StreamRunnerTest, FirstPublishedGroupFailureStopsTheBatch) {
   EXPECT_EQ(gCalls.resetAtExecuteCalls, (std::vector<int32_t>{0, 1}));
   EXPECT_EQ(listNEles(task_.execMgr.pFreeExecs), 1);
   EXPECT_EQ(listNEles(task_.execMgr.pRunningExecs), 0);
+}
+
+TEST_F(StreamRunnerTest, ResumedEmptyWriteKeepsSmallResultsBatchedAcrossWindows) {
+  SetWindows(3);
+  task_.addOptions = STREAM_OPTION_TIME_ALIGN;
+  request_.runnerTaskId = task_.task.taskId;
+  request_.streamId = task_.task.streamId;
+  request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+  ASSERT_FALSE(task_.lowLatencyCalc);
+  ASSERT_GE(tsStreamBatchRequestWaitMs, 1000);
+  auto *first = makeCacheBlock(101, 8);
+  auto *last = makeCacheBlock(102, 9);
+  ASSERT_NE(nullptr, first);
+  ASSERT_NE(nullptr, last);
+  ownedBlocks_.push_back(first);
+  ownedBlocks_.push_back(last);
+  gCalls.executeBlocks = {first, nullptr, last};
+  gRunnerSinkCodes = {TSDB_CODE_ACTION_IN_PROGRESS, 0, 0};
+
+  SStreamResultWait wait = {};
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  ASSERT_EQ(2, gCalls.executeCalls);
+  ASSERT_EQ(1u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(nullptr, gCalls.sinkBlocks[0]);
+  ASSERT_EQ(0, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  ASSERT_EQ(3u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(nullptr, gCalls.sinkBlocks[1]);
+  EXPECT_NE(nullptr, gCalls.sinkBlocks[2]);
+  EXPECT_EQ(3, gCalls.executeCalls);
+  const auto stats = RotateRunnerStats();
+  EXPECT_EQ(1u, stats.outputBlocks);
+  EXPECT_EQ(2u, stats.outputRows);
+}
+
+TEST_F(StreamRunnerTest, ParkedGroupedOutputKeepsItsWindowNotificationAndExecutorPosition) {
+  ASSERT_TRUE(prepareRunnerMultiGroupRequest(&request_, {101, 202}, 1, false));
+  task_.addOptions = NOTIFY_ON_FAILURE_PAUSE | STREAM_OPTION_TIME_ALIGN;
+  task_.lowLatencyCalc = true;
+  request_.streamId = task_.task.streamId;
+  request_.runnerTaskId = task_.task.taskId;
+  request_.resultAdmission = {task_.task.streamId, 123, task_.task.taskId, request_.sessionId, 92, 0, 1, 3};
+  auto *exec = Exec();
+  ASSERT_NE(nullptr, exec);
+  exec->runtimeInfo.funcInfo.withExternalWindow = true;
+  gCalls.pRuntimeInfo = &exec->runtimeInfo;
+  gCalls.executeGroupIds = {101, 101, 202, 202};
+  gCalls.executeBlocks = {NewMultiGroupDataBlock(1, 101), NewMultiGroupEog(101), NewMultiGroupDataBlock(1, 202),
+                          NewMultiGroupEog(202), nullptr};
+  gCalls.executeFinished = {false, false, false, false, true};
+  gRunnerSinkCodes = {0, TSDB_CODE_ACTION_IN_PROGRESS, TSDB_CODE_ACTION_IN_PROGRESS, 0};
+  SStreamResultWait wait = {};
+  for (int i = 0; i < 2; ++i) {
+    ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+    EXPECT_EQ(3, gCalls.executeCalls);
+    EXPECT_EQ(exec, RunningExec());
+    ASSERT_EQ(1u, gCalls.notificationIdentities.size());
+    EXPECT_EQ(101, gCalls.notificationIdentities.front().gid);
+  }
+  ASSERT_EQ(0, stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait));
+  EXPECT_EQ(nullptr, wait.runnerState);
+  EXPECT_EQ(5, gCalls.executeCalls);
+  EXPECT_EQ((std::vector<int64_t>{101, 202, 202, 202}), gCalls.sinkGroupIds);
+  ASSERT_EQ(4u, gCalls.sinkBlocks.size());
+  EXPECT_EQ(gCalls.sinkBlocks[1], gCalls.sinkBlocks[2]);
+  EXPECT_EQ(gCalls.sinkBlocks[1], gCalls.sinkBlocks[3]);
+  ASSERT_EQ(2u, gCalls.notificationIdentities.size());
+  EXPECT_EQ(202, gCalls.notificationIdentities.back().gid);
+  EXPECT_EQ(exec, Exec());
 }
 
 TEST_F(StreamRunnerTest, MiddlePublishedGroupFailureStopsLaterGroups) {
@@ -5666,6 +5748,17 @@ TEST_F(StreamRunnerTest, DroppedNotifyQueueFailureDoesNotHideLaterCalcFailure) {
   EXPECT_EQ(stats.outputRows, 0);
 }
 
+TEST_F(StreamRunnerTest, OrdinaryCalculationExecutesEachWindowInABatch) {
+  SetWindows(2);
+  ASSERT_NE(Exec(), nullptr);
+  Exec()->runtimeInfo.funcInfo.withExternalWindow = false;
+  gCalls.executeBlocks = {NewBlock(1), NewBlock(1)};
+
+  ASSERT_EQ(TSDB_CODE_SUCCESS, stRunnerTaskExecute(&task_, &request_, 1000));
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(2, RotateRunnerStats().resultLatency.samples);
+}
+
 TEST_F(StreamRunnerTest, ExternalWindowIndexesRecordDataAndGapWindowsExactlyOnce) {
   SetWindows(3);
   SSDataBlock *pBlock = NewBlock(3);
@@ -6202,12 +6295,337 @@ TEST_F(StreamRunnerTest, NormalOutputRetriesMissingTableWithSameComputedBlock) {
   EXPECT_EQ(stRunnerTaskExecute(&task_, &request_, 1000), TSDB_CODE_SUCCESS);
   ASSERT_EQ(gCalls.sinkCalls, 2);
   ASSERT_EQ(gCalls.autoCreateTableCalls.size(), 2);
+  EXPECT_EQ((std::vector<uint64_t>{0, 0}), gCalls.outputRounds);
   EXPECT_FALSE(gCalls.autoCreateTableCalls[0]);
   EXPECT_TRUE(gCalls.autoCreateTableCalls[1]);
   ASSERT_EQ(gCalls.sinkBlocks.size(), 2);
   EXPECT_NE(gCalls.sinkBlocks[0], nullptr);
   EXPECT_EQ(gCalls.sinkBlocks[0], gCalls.sinkBlocks[1]);
   EXPECT_EQ(gCalls.notifyCalls, 2);
+}
+
+TEST_F(StreamRunnerTest, AlignedOutputIncludesTheRoundOnTableCreationRetry) {
+  stub_.set(streamExecuteTask, mockRunnerExecuteTask);
+  ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+  request_.streamId = task_.task.streamId;
+  request_.runnerTaskId = task_.task.taskId;
+  task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+  EXPECT_EQ(TSDB_CODE_INVALID_MSG, stRunnerTaskExecute(&task_, &request_, 1000));
+  EXPECT_TRUE(gCalls.outputRounds.empty());
+  request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+  gRunnerSinkCodes = {TSDB_CODE_STREAM_INSERT_TBINFO_NOT_FOUND, TSDB_CODE_STREAM_EXEC_CANCELLED};
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, stRunnerTaskExecute(&task_, &request_, 2000));
+  EXPECT_EQ((std::vector<uint64_t>{92, 92}), gCalls.outputRounds);
+}
+
+// Use the public calc RPC and real row encoder. The fixture supplies local table metadata and destination replies.
+struct AdmissionBatchTransport {
+  std::vector<std::vector<char>> arrivals;
+  std::vector<int32_t>           replies;
+  int32_t                        routed = 0;
+  int32_t                        released = 0;
+  int32_t                        resumed = 0;
+  SStreamRunnerTask             *dropAfterReply = nullptr;
+  std::function<void()>          onFirstSend;
+
+  static int32_t route(void *ctx, const char *, const char *, SVgroupInfo *vg) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->routed;
+    vg->vgId = 7;
+    return 0;
+  }
+
+  static int32_t send(void *ctx, SEpSet *, int64_t *, SMsgSendInfo *info) {
+    auto *state = static_cast<AdmissionBatchTransport *>(ctx);
+    auto *data = static_cast<char *>(info->msgInfo.pData);
+    state->arrivals.emplace_back(data, data + info->msgInfo.len);
+    size_t   i = state->arrivals.size() - 1;
+    if (i == 0 && state->onFirstSend) state->onFirstSend();
+    int32_t  reply = i < state->replies.size() ? state->replies[i] : TSDB_CODE_INVALID_MSG;
+    SDataBuf rsp = {};
+    if (reply == 0) {
+      SSubmitRsp2 result = {};
+      SEncoder    enc = {};
+      tEncoderInit(&enc, nullptr, 0);
+      EXPECT_EQ(0, tEncodeSSubmitRsp2(&enc, &result));
+      rsp.len = enc.pos;
+      tEncoderClear(&enc);
+      rsp.pData = taosMemoryMalloc(rsp.len);
+      tEncoderInit(&enc, static_cast<uint8_t *>(rsp.pData), rsp.len);
+      EXPECT_EQ(0, tEncodeSSubmitRsp2(&enc, &result));
+      tEncoderClear(&enc);
+    }
+    EXPECT_EQ(0, info->fp(info->param, &rsp, reply));
+    destroySendMsgInfo(info);
+    if (state->dropAfterReply) (void)taosWTryForceLockLatch(&state->dropAfterReply->task.entryLock);
+    return 0;
+  }
+
+  static int32_t release(void *ctx) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->released;
+    return 0;
+  }
+  static int32_t recover(void *ctx) {
+    ++static_cast<AdmissionBatchTransport *>(ctx)->resumed;
+    return 0;
+  }
+};
+
+class StreamRunnerAdmissionBatchTest : public StreamRunnerTest {
+ protected:
+  void SetUp() override {
+    StreamRunnerTest::SetUp();
+    SMsgCb scheduler = {};
+    scheduler.mgmt = this;
+    scheduler.putToQueueFp = [](void *ptr, EQueueType kind, SRpcMsg *msg) -> int32_t {
+      auto *fixture = static_cast<StreamRunnerAdmissionBatchTest *>(ptr);
+      if (kind != STREAM_RUNNER_QUEUE || msg->pCont) return TSDB_CODE_INVALID_MSG;
+      std::lock_guard<std::mutex> lock(fixture->queueMutex_);
+      fixture->resumeQueue_.push_back(*msg);
+      fixture->queueChanged_.notify_one();
+      return 0;
+    };
+    ASSERT_TRUE(setUpPublicSnode(&scheduler));
+    ASSERT_TRUE(prepareRunnerOutputRequest(&request_));
+    task_.lowLatencyCalc = true;
+    task_.addOptions |= STREAM_OPTION_TIME_ALIGN;
+    request_.resultAdmission = {request_.streamId, 123, request_.runnerTaskId, request_.sessionId, 92, 0, 1, 3};
+    auto *second = makeCacheBlock(101, 8);
+    ASSERT_NE(nullptr, second);
+    ownedBlocks_.push_back(second);
+    gCalls.executeBlocks = {gRunnerResultBlock, second};
+    gCalls.executeFinished = {false, true};
+    worker_.pPool = &transport_;
+    worker_.beforeBlocking = AdmissionBatchTransport::release;
+    worker_.afterRecoverFromBlocking = AdmissionBatchTransport::recover;
+    msgCb_.clientRpc = &transport_;
+    auto *params = static_cast<SInserterParam *>(taosMemoryCalloc(1, sizeof(SInserterParam)));
+    ASSERT_NE(nullptr, params);
+    params->streamInserterParam =
+        static_cast<SStreamInserterParam *>(taosMemoryCalloc(1, sizeof(SStreamInserterParam)));
+    params->readHandle = static_cast<SReadHandle *>(taosMemoryCalloc(1, sizeof(SReadHandle)));
+    ASSERT_NE(nullptr, params->streamInserterParam);
+    ASSERT_NE(nullptr, params->readHandle);
+    ASSERT_EQ(nullptr, gStreamGrpTableHash);
+    ASSERT_EQ(0, initInserterGrpInfo());
+    auto *table = static_cast<SInsertTableInfo *>(taosMemoryCalloc(1, sizeof(SInsertTableInfo)));
+    ASSERT_NE(nullptr, table);
+    table->uid = 77;
+    table->version = 1;
+    table->tbname = taosStrdup("out_zero_window");
+    SSchema columns[2] = {};
+    columns[0].type = TSDB_DATA_TYPE_TIMESTAMP;
+    columns[0].bytes = sizeof(TSKEY);
+    columns[0].colId = 1;
+    columns[1].type = TSDB_DATA_TYPE_INT;
+    columns[1].bytes = sizeof(int32_t);
+    columns[1].colId = 2;
+    table->pSchema = tBuildTSchema(columns, 2, 1);
+    ASSERT_NE(nullptr, table->pSchema);
+    int64_t key[2] = {task_.task.streamId, 0};
+    ASSERT_EQ(0, taosHashPut(gStreamGrpTableHash, key, sizeof(key), &table, sizeof(table)));
+    auto *inserter = params->streamInserterParam;
+    inserter->tbType = TSDB_NORMAL_TABLE;
+    inserter->pFields = taosArrayInit(2, sizeof(SFieldWithOptions));
+    for (auto &col : columns) {
+      SFieldWithOptions field = {};
+      field.type = col.type;
+      field.bytes = col.bytes;
+      ASSERT_NE(nullptr, taosArrayPush(inserter->pFields, &field));
+    }
+    params->readHandle->pMsgCb = &msgCb_;
+    ASSERT_EQ(0, createStreamDataInserter(nullptr, &sink_, params));
+    Exec()->pSinkHandle = sink_;
+    stub_.reset(dsPutDataBlock);
+    stub_.set(getDbVgInfoForExec, AdmissionBatchTransport::route);
+    stub_.set(asyncSendMsgToServer, AdmissionBatchTransport::send);
+  }
+  void TearDown() override {
+    dsDestroyDataSinker(sink_);
+    taosHashCleanup(gStreamGrpTableHash);
+    gStreamGrpTableHash = nullptr;
+    StreamRunnerTest::TearDown();
+  }
+  bool pumpUntilReplies(int32_t count) {
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (gCalcResponseCount < count) {
+      std::unique_lock<std::mutex> lock(queueMutex_);
+      if (!queueChanged_.wait_until(lock, deadline, [&]() { return !resumeQueue_.empty(); })) return false;
+      SRpcMsg resume = resumeQueue_.front();
+      resumeQueue_.pop_front();
+      lock.unlock();
+      (void)sndProcessStreamMsg(snode_, &worker_, &resume);
+      if (duplicateWake_) {
+        duplicateWake_ = false;
+        const auto    writes = transport_.arrivals.size();
+        const int32_t operators = gCalls.executeCalls;
+        (void)sndProcessStreamMsg(snode_, &worker_, &resume);
+        EXPECT_EQ(writes, transport_.arrivals.size());
+        EXPECT_EQ(operators, gCalls.executeCalls);
+      }
+    }
+    return true;
+  }
+  std::mutex              queueMutex_;
+  std::condition_variable queueChanged_;
+  bool                    duplicateWake_ = false;
+  std::deque<SRpcMsg>     resumeQueue_;
+  AdmissionBatchTransport transport_;
+  SQueryAutoQWorkerPoolCB worker_ = {};
+  SMsgCb                  msgCb_ = {};
+  DataSinkHandle          sink_ = nullptr;
+};
+
+TEST_F(StreamRunnerAdmissionBatchTest, ResumesOnlyTheDeferredBatchBeforeAnsweringCalc) {
+  duplicateWake_ = true;
+  transport_.replies = {0, TSDB_CODE_NEED_RETRY, 0};
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  ASSERT_TRUE(pumpUntilReplies(1));
+  EXPECT_EQ(0, gResponseCode);
+  ASSERT_EQ(3u, transport_.arrivals.size());
+  EXPECT_NE(transport_.arrivals[0], transport_.arrivals[1]);
+  EXPECT_EQ(transport_.arrivals[1], transport_.arrivals[2]);
+  EXPECT_EQ(2, transport_.routed);
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+  EXPECT_EQ(0, transport_.released);
+  EXPECT_EQ(0, transport_.resumed);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, RevocationAfterDeferralAbandonsTheRoundWithoutFailingTheRunner) {
+  transport_.replies = {TSDB_CODE_NEED_RETRY, TSDB_CODE_STREAM_EXEC_CANCELLED};
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  ASSERT_TRUE(pumpUntilReplies(1));
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, gResponseCode);
+  ASSERT_EQ(2u, transport_.arrivals.size());
+  EXPECT_EQ(transport_.arrivals[0], transport_.arrivals[1]);
+  EXPECT_EQ(1, transport_.routed);
+  EXPECT_EQ(1, gCalls.executeCalls);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, BusyProducerReturnsBeforeComputingAnotherBatch) {
+  // One conditional writer and one ordinary worker. Reenter while the first batch is at the destination.
+  const int32_t savedThreads = tsNumOfStreamRunnerThreads;
+  tsNumOfStreamRunnerThreads = 2;
+  transport_.replies = {0, 0};
+  transport_.onFirstSend = [&]() {
+    EXPECT_EQ(0, processPublicCalc(&worker_));
+    EXPECT_EQ(TSDB_CODE_STREAM_INPUTQ_FULL, gResponseCode);
+    EXPECT_EQ(1, gCalls.executeCalls);
+    EXPECT_EQ(1u, transport_.arrivals.size());
+  };
+  EXPECT_EQ(0, processPublicCalc(&worker_));
+  tsNumOfStreamRunnerThreads = savedThreads;
+  ASSERT_TRUE(pumpUntilReplies(2));
+  EXPECT_EQ(0, gResponseCode);
+  EXPECT_EQ(2, gCalls.executeCalls);
+  EXPECT_EQ(2u, transport_.arrivals.size());
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, UndeployInterruptsDeferredBatchBeforeAnotherSend) {
+  transport_.replies = {TSDB_CODE_NEED_RETRY};
+  transport_.dropAfterReply = &task_;
+  task_.pWorkerCb = &worker_;
+  SStreamResultWait wait = {};
+  int32_t           code = stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait);
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) code = stRunnerTaskExecuteResumable(&task_, &request_, 1000, &wait);
+  EXPECT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, code);
+  EXPECT_EQ(nullptr, wait.runnerState);
+  EXPECT_EQ(nullptr, wait.sinkState);
+  EXPECT_EQ(1u, transport_.arrivals.size());
+  EXPECT_EQ(STREAM_STATUS_RUNNING, task_.task.status);
+  if (taosHasRWWFlag(&task_.task.entryLock)) taosWUnLockLatch(&task_.task.entryLock);
+}
+
+TEST_F(StreamRunnerAdmissionBatchTest, SinkPollsOneReceiptAndReleasesAnOutstandingSubmitOnCancel) {
+  static SMsgSendInfo *pending;
+  static int64_t       now;
+  pending = nullptr;
+  now = 1000;
+  stub_.reset(asyncSendMsgToServer);
+  stub_.set(
+      asyncSendMsgToServer, +[](void *, SEpSet *, int64_t *, SMsgSendInfo *send) -> int32_t {
+        EXPECT_EQ(nullptr, pending);
+        pending = send;
+        return 0;
+      });
+  Stub clock;
+  clock.set(
+      taosClockGetTime, +[](int, struct timespec *ts) -> int32_t {
+        ts->tv_sec = now / 1000;
+        ts->tv_nsec = (now % 1000) * NANOSECOND_PER_MSEC;
+        return 0;
+      });
+  SStreamResultWait       wait = {};
+  SStreamDataInserterInfo info = {};
+  char                    table[TSDB_TABLE_NAME_LEN] = {};
+  info.streamId = task_.task.streamId;
+  info.tbName = table;
+  info.resultAdmission = &request_.resultAdmission;
+  info.resultWait = &wait;
+  SInputData input = {};
+  input.pData = gRunnerResultBlock;
+  input.pTask = &task_;
+  input.pStreamDataInserterInfo = &info;
+  bool cont = false;
+  auto put = [&]() { return dsPutDataBlock(sink_, &input, &cont); };
+  auto reply = [&](int32_t code) {
+    ASSERT_NE(nullptr, pending);
+    SDataBuf msg = {};
+    if (!code) {
+      SSubmitRsp2 result = {};
+      result.affectedRows = 1;
+      SEncoder encoder = {};
+      tEncoderInit(&encoder, nullptr, 0);
+      ASSERT_EQ(0, tEncodeSSubmitRsp2(&encoder, &result));
+      msg.len = encoder.pos;
+      tEncoderClear(&encoder);
+      msg.pData = taosMemoryMalloc(msg.len);
+      ASSERT_NE(nullptr, msg.pData);
+      tEncoderInit(&encoder, static_cast<uint8_t *>(msg.pData), msg.len);
+      ASSERT_EQ(0, tEncodeSSubmitRsp2(&encoder, &result));
+      tEncoderClear(&encoder);
+    }
+    EXPECT_EQ(0, pending->fp(pending->param, &msg, code));
+    destroySendMsgInfo(pending);
+    pending = nullptr;
+  };
+
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_NE(nullptr, pending);
+  auto             *first = static_cast<const char *>(pending->msgInfo.pData);
+  std::vector<char> encoded(first, first + pending->msgInfo.len);
+  auto             *firstAttempt = pending;
+  EXPECT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  EXPECT_EQ(firstAttempt, pending);
+  reply(TSDB_CODE_NEED_RETRY);
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_GT(wait.delayMs, 0);
+  ASSERT_EQ(nullptr, pending);
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_EQ(nullptr, pending);
+  now += wait.delayMs;
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  ASSERT_NE(nullptr, pending);
+  auto *second = static_cast<const char *>(pending->msgInfo.pData);
+  EXPECT_EQ(encoded, std::vector<char>(second, second + pending->msgInfo.len));
+  EXPECT_EQ(1, transport_.routed);
+  reply(0);
+  ASSERT_EQ(0, put());
+  EXPECT_TRUE(cont);
+  EXPECT_EQ(nullptr, wait.sinkState);
+  int64_t rows = 0, raw = 0;
+  bool    ended = false;
+  dsGetDataLength(sink_, &rows, &raw, &ended);
+  EXPECT_EQ(1, rows);
+
+  ASSERT_EQ(TSDB_CODE_ACTION_IN_PROGRESS, put());
+  wait.cancelled = true;
+  ASSERT_EQ(TSDB_CODE_STREAM_EXEC_CANCELLED, put());
+  EXPECT_EQ(nullptr, wait.sinkState);
+  dsDestroyDataSinker(sink_);
+  Exec()->pSinkHandle = sink_ = nullptr;
+  reply(0);
 }
 
 TEST_F(StreamRunnerTest, NormalOutputReturnsRetryErrorAfterMissingTable) {

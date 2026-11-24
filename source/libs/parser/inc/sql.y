@@ -1854,6 +1854,10 @@ offset_opt(A) ::= NK_COMMA interval_sliding_duration_literal(B).                
 
 trigger_table_opt(A) ::= .                                                 { A = NULL; }
 trigger_table_opt(A) ::= FROM full_table_name(B).                          { A = B; }
+trigger_table_opt(A) ::= FROM TABLE NK_LP NK_ID(F) NK_LP TABLE full_table_name(B) time_align_args_opt(C) NK_RP NK_RP.
+                                                                         { A = createTimeAlignTableNodeWithTable(pCxt, &F, B, &C, NULL); }
+trigger_table_opt(A) ::= FROM TABLE NK_LP NK_ID(F) NK_LP full_table_name(B) time_align_args_opt(C) NK_RP NK_RP.
+                                                                         { A = createTimeAlignTableNodeWithTable(pCxt, &F, B, &C, NULL); }
 
 /***** stream_partition_by_opt *****/
 
@@ -2894,6 +2898,8 @@ table_primary(A) ::= subquery(B) alias_opt(C).                                  
 table_primary(A) ::= parenthesized_joined_table(B).                               { A = B; }
 table_primary(A) ::= NK_PH TBNAME alias_opt(C).                                   { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, &C); }
 table_primary(A) ::= NK_PH TROWS alias_opt(C).                                    { A = createPlaceHolderTableNode(pCxt, SP_PARTITION_ROWS, &C); }
+table_primary(A) ::= TABLE NK_LP NK_ID(F) NK_LP TABLE NK_PH TBNAME time_align_args_opt(C) NK_RP NK_RP alias_opt(D).
+                                                                                  { A = createTimeAlignTableNodeWithTable(pCxt, &F, createPlaceHolderTableNode(pCxt, SP_PARTITION_TBNAME, NULL), &C, &D); }
 table_primary(A) ::= TEXT NK_LP column_def_list(B) NK_RP VALUES text_row_list(C) alias_opt(D).  { A = createTextTableNode(pCxt, B, C, &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, false, ',', &D); }
 table_primary(A) ::= FILE NK_LP NK_STRING(B) NK_COMMA NK_STRING(C) NK_COMMA file_options_opt(E) NK_RP alias_opt(D).  { A = createFileTableNode(pCxt, &B, &C, ((E).header == 1), (E).delimiter, &D); }

@@ -11,8 +11,10 @@ toc_max_heading_level: 4
 CREATE STREAM [IF NOT EXISTS] [db_name.]stream_name options [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])] [AS subquery]
 
 options: {
-    trigger_type [FROM [db_name.]table_name] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
+    trigger_type [FROM trigger_source] [{PARTITION BY col1 [, ...] | ROLLUP BY tag_name}] [STREAM_OPTIONS(stream_option [|...])] [notification_definition]
 }
+
+trigger_source: {[db_name.]table_name | TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))}
 
 trigger_type: {
     PERIOD(period_time[, offset_time])
@@ -87,6 +89,18 @@ tag_definition:
 ```
 
 From `v3.4.3`, creating a stream writes the timezone and first day of week into the stream definition. `PERIOD`, `SLIDING`, and `INTERVAL` also extend support for day, week, month, quarter, and year. See [Timezone and Natural Time Units](../05-tdengine-sql/10-time/01-timezone.md#stream-time-configuration).
+
+### TIME_ALIGN trigger tables
+
+A stream can read a local virtual table, virtual child table, or virtual supertable with this trigger source.
+
+```sql
+FROM TABLE(TIME_ALIGN(TABLE [db_name.]virtual_table [, output_raw] [, 'column_list']))
+```
+
+The stream merges source timestamps for each virtual child, fills each configured column with its most recent non-NULL value, applies `PRE_FILTER`, then evaluates the window. A filtered row can supply the predecessor of a later row. `PREV(8s)` includes a value exactly eight seconds old. An expired value contributes NULL at the next input row. With `output_raw=FALSE` (the default), the configured input columns determine which source timestamps participate. With TRUE, all raw data columns contribute timestamps.
+
+All referenced sources must be local. Trigger rules accept `PREV` and `PREV(duration)`. `NEXT` remains available in ordinary TIME_ALIGN queries. An aligned trigger rejects `%%trows` and the combination of `PERIOD` and `PRE_FILTER`. With `PERIOD` alone, the selected sources determine whether input arrived. In the calculation query, `%%tbname` refers to the actual table when the grouping permits it. Specify TIME_ALIGN and any calculation filter in that query to apply them there.
 
 ### Trigger Methods in Stream Processing
 

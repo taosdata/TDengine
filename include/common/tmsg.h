@@ -8104,6 +8104,9 @@ typedef struct {
   char     data[];  // SSubmitReq2
 } SSubmitReq2Msg;
 
+// Accepted only by the admission worker, never by ordinary submit preprocessing or apply.
+#define STREAM_CONDITIONAL_SUBMIT_VERSION INT64_C(0x54415201)
+
 int32_t transformRawSSubmitTbData(void* data, int64_t suid, int64_t uid, int32_t sver);
 int32_t tEncodeSubmitReq(SEncoder* pCoder, const SSubmitReq2* pReq);
 int32_t tDecodeSubmitReq(SDecoder* pCoder, SSubmitReq2* pReq, SArray* rawList);

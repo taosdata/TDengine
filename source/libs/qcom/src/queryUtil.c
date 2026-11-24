@@ -234,10 +234,16 @@ bool beginAsyncWorkShutdown() {
 
 bool mayCreateAsyncWork() { return atomic_load_32(&shutdownSentinel) == 0; }
 
+static threadlocal bool inAsyncTask = false;
+
+bool taosInAsyncTask(void) { return inAsyncTask; }
+
 static void processTaskQueue(SQueueInfo *pInfo, SSchedMsg *pSchedMsg) {
   if(!pSchedMsg || !pSchedMsg->ahandle) return;
   __async_exec_fn_t execFn = (__async_exec_fn_t)pSchedMsg->ahandle;
+  inAsyncTask = true;
   (void)execFn(pSchedMsg->thandle);
+  inAsyncTask = false;
   taosFreeQitem(pSchedMsg);
 }
 

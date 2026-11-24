@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 #include "decimal.h"
+#include "fillPrev.h"
 #include "functionResInfo.h"
 #include "os.h"
 #include "tdigest.h"
@@ -123,32 +124,15 @@ typedef struct SMinmaxResInfo {
 // to ticks of the input time axis precision with getDuration(); calendar units
 // (n/y) keep the period count and advance timestamps with taosTimeAdd().
 typedef struct SFillSpanInfo {
-  bool       hasSpan;
-  bool       spanReady;   // spanTicks/tz resolved against the input ts column
-  int64_t    spanValue;
-  int8_t     spanUnit;
-  int64_t    spanTicks;   // b/u/a/s/m/h/d/w converted with the ts precision
-  timezone_t tz;          // calendar units only; owned by the function state
-  int8_t     precision;   // time axis precision
-  bool       mono;        // input timestamps are monotonic in the delivery direction
-  bool       desc;        // rows are delivered in descending timestamp order
+  SFillPrevRange range;
+  bool           spanReady;
+  bool           mono;
+  bool           desc;
 } SFillSpanInfo;
 
 typedef struct SFillforwardInfo {
-  union {
-    struct {
-      int64_t v;
-      float   fv;
-      double  dv;
-      char*   str;
-    };
-    int64_t dec[2];  // for decimal types
-  };
-
-  bool nonnull;
-  SFillSpanInfo span;
-  int64_t       lastTs;  // timestamp of the most recent non-NULL value
-  bool          tsValid;
+  SFillPrevValue value;
+  SFillSpanInfo  span;
 } SFillforwardInfo;
 
 // One output position whose successor value is not known yet, together with
