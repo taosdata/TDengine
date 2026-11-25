@@ -229,25 +229,37 @@ Taking the exclusive-limit level alarm as an example (a representative subset of
 ```sql
 -- Supertable = event type
 CREATE STABLE st_alarm_exclusive_limit (
-  ts               TIMESTAMP,               -- event time
-  event_id         VARCHAR(64) PRIMARY KEY, -- second column of the composite primary key
-  receive_time     TIMESTAMP,
-  message          NCHAR(255),
-  severity         INT,
-  last_severity    INT,
-  quality          INT,
-  client_user_id   NCHAR(255),              -- operator identity (audit chain)
-  branch_id        NCHAR(255),
+  ts                   TIMESTAMP,  -- event time
+  event_id             VARCHAR(64) PRIMARY KEY,  -- second column of the composite primary key
+  receive_time         TIMESTAMP,
+  message              NCHAR(255),
+  severity             INT,
+  last_severity        INT,
+  quality              INT,
+  client_user_id       NCHAR(255),  -- operator identity (audit chain)
+  branch_id            NCHAR(255),
   -- state-machine fields: split into _id (BOOL) + _text (NCHAR)
-  enabled_state_id   BOOL, enabled_state_text   NCHAR(32),
-  active_state_id    BOOL, active_state_text    NCHAR(32),
-  acked_state_id     BOOL, acked_state_text     NCHAR(32),
-  confirmed_state_id BOOL, confirmed_state_text NCHAR(32),
-  high_limit DOUBLE, highhigh_limit DOUBLE, low_limit DOUBLE, lowlow_limit DOUBLE
+  enabled_state_id     BOOL,
+  enabled_state_text   NCHAR(32),
+  active_state_id      BOOL,
+  active_state_text    NCHAR(32),
+  acked_state_id       BOOL,
+  acked_state_text     NCHAR(32),
+  confirmed_state_id   BOOL,
+  confirmed_state_text NCHAR(32),
+  high_limit           DOUBLE,
+  highhigh_limit       DOUBLE,
+  low_limit            DOUBLE,
+  lowlow_limit         DOUBLE
+
   -- …other inherited fields expanded in full
 ) TAGS (
-  device_id NCHAR(255), source_node NCHAR(255), source_name NCHAR(255),
-  event_type NCHAR(255), condition_id NCHAR(255), condition_name NCHAR(255),
+  device_id       NCHAR(255),
+  source_node     NCHAR(255),
+  source_name     NCHAR(255),
+  event_type      NCHAR(255),
+  condition_id    NCHAR(255),
+  condition_name  NCHAR(255),
   server_endpoint NCHAR(255)
 );
 ```
@@ -256,15 +268,23 @@ Typical queries:
 
 ```sql
 -- Full history of an alarm point
-SELECT * FROM st_alarm_exclusive_limit
-WHERE condition_name = 'Tank1_Level' ORDER BY ts;
+SELECT *
+FROM st_alarm_exclusive_limit
+WHERE condition_name = 'Tank1_Level'
+ORDER BY ts;
 
 -- All A&E of a device (correlated via TAG, independent of subtable name)
-SELECT * FROM st_alarm_exclusive_limit WHERE device_id = 'tank1';
+SELECT *
+FROM st_alarm_exclusive_limit
+WHERE device_id = 'tank1';
 
 -- Count alarms by severity for a device today
-SELECT severity, COUNT(*) FROM st_alarm_exclusive_limit
-WHERE device_id = 'tank1' AND ts >= TODAY
+SELECT
+  severity,
+  COUNT(*)
+FROM st_alarm_exclusive_limit
+WHERE device_id = 'tank1'
+  AND ts >= TODAY
 GROUP BY severity;
 
 -- Correlate A&E with point data of the same device:

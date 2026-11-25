@@ -443,8 +443,8 @@ tlsCaPath   /etc/taos/certs/ca.pem
 
 ```sql
 ALTER DNODES RELOAD TLS;
-ALTER DNODE <dnode_id> RELOAD TLS;
 
+ALTER DNODE <dnode_id> RELOAD TLS;
 ```
 
 部署新证书 → 执行 RELOAD → 新连接自动使用新证书，无需停服。
@@ -668,16 +668,22 @@ usessl   = true
 
 ```sql
 CREATE STABLE meters (
-    ts        TIMESTAMP ENCODE 'delta-i'  COMPRESS 'lz4'  LEVEL 'medium',
-    current   FLOAT     ENCODE 'delta-d'  COMPRESS 'zstd' LEVEL 'high',
-    voltage   INT       ENCODE 'simple8b' COMPRESS 'lz4'  LEVEL 'low',
-    note      VARCHAR(64)                 COMPRESS 'lz4'
-) TAGS (location VARCHAR(64), groupId INT);
+  ts      TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+  current FLOAT ENCODE 'delta-d' COMPRESS 'zstd' LEVEL 'high',
+  voltage INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'low',
+  note    VARCHAR(64) COMPRESS 'lz4'
+) TAGS (
+  location VARCHAR(64),
+  groupId  INT
+);
 
 ALTER TABLE meters MODIFY COLUMN current COMPRESS 'zstd' LEVEL 'high';
 
-CREATE DATABASE sensor_db COMP 2;     -- 0=关 1=一级 2=两级（默认）
-COMPACT DATABASE sensor_db;            -- 触发三级压缩
+CREATE DATABASE sensor_db
+  COMP 2;
+
+-- 0=关 1=一级 2=两级（默认）
+COMPACT DATABASE sensor_db;  -- 触发三级压缩
 ```
 
 ### 6.5 按数据特征选择
@@ -733,6 +739,7 @@ ALTER USER alice SESSIONS 5 CONNECTIONS 20 QUERIES 5;
 
 ```sql
 SHOW TABLE DISTRIBUTED <db_name>.<table_name>;
+
 SHOW DATABASES;
 ```
 

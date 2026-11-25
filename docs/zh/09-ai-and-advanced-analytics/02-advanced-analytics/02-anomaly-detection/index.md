@@ -10,9 +10,11 @@ TDengine 中定义了异常（状态）窗口来提供异常检测服务。异�
 
 ```sql
 -- 使用异常检测算法 IQR 对输入列 col_val 进行异常检测。同时输出异常窗口的起始时间、结束时间、以及异常窗口内 col 列的和。
-SELECT _wstart, _wend, SUM(col)
-FROM foo
-ANOMALY_WINDOW(col_val, "algo=iqr");
+SELECT
+  _wstart,
+  _wend,
+  SUM(col)
+FROM foo ANOMALY_WINDOW(col_val, "algo=iqr");
 ```
 
 如下图所示，Anode 将返回时序数据异常窗口 **[10:51:30, 10:53:40]**
@@ -53,27 +55,41 @@ algo=expr1
 
 ```sql
 -- 使用 iqr 算法进行异常检测，检测列 i32 列，同时输出异常窗口的起始时间、结束时间、窗口异常值的汇总 (sum), 以及异常标识。
-SELECT _wstart, _wend, SUM(i32), _anomalymark
-FROM foo
-ANOMALY_WINDOW(i32, "algo=iqr");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32),
+  _anomalymark
+FROM foo ANOMALY_WINDOW(i32, "algo=iqr");
 
 -- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列
-SELECT _wstart, _wend, SUM(i32)
-FROM foo
-ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32)
+FROM foo ANOMALY_WINDOW(i32, "algo=ksigma,k=2");
+```
 
-taos> SELECT _wstart, _wend, count(*) FROM foo ANOMALY_WINDOW(i32);
+```sql
+taos> SELECT
+        _wstart,
+        _wend,
+        COUNT(*)
+      FROM foo ANOMALY_WINDOW(i32);
          _wstart         |          _wend          |   count(*)    |
 ====================================================================
  2020-01-01 00:00:16.000 | 2020-01-01 00:00:17.000 |             2 |
-Query OK, 1 row(s) in set (0.028946s)
+Query OK, 1 row(s) in set
+```
 
-
+```sql
 -- 使用 ksigma 算法进行异常检测，输入参数 k 值为 2，检测列 i32 列；i8 列会被自动忽略。
 -- 在 `v3.4.1.0` 之前的版本会报告错误，自 `v3.4.1.0` 起自动忽略 i8 列
-SELECT _wstart, _wend, SUM(i32)
-FROM foo
-ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
+SELECT
+  _wstart,
+  _wend,
+  SUM(i32)
+FROM foo ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 ```
 
 ### 在流式计算中使用异常窗口
@@ -82,15 +98,19 @@ ANOMALY_WINDOW(i32, i8, "algo=ksigma,k=2");
 
 ```sql
 CREATE STREAM sm2
-    INTERVAL(1h) SLIDING(1h)
-    FROM meters PARTITION BY tbname
-    STREAM_OPTIONS(FILL_HISTORY)
-    INTO td2
-AS
-    SELECT _wstart AS ts, _wend AS end_ts, COUNT(*) AS ab
+  INTERVAL(1h) SLIDING(1h)
+  FROM meters
+  PARTITION BY tbname
+  STREAM_OPTIONS(FILL_HISTORY)
+  INTO td2
+  AS
+    SELECT
+      _wstart AS ts,
+      _wend AS end_ts,
+      COUNT(*) AS ab
     FROM %%tbname
-    WHERE _c0 >= _twstart AND _c0 <= _twend
-    ANOMALY_WINDOW(%%tbname.voltage, "algo=ksigma,k=1");
+    WHERE _c0 >= _twstart
+      AND _c0 <= _twend ANOMALY_WINDOW(%%tbname.voltage, "algo=ksigma,k=1");
 ```
 
 `PARTITION BY tbname` 使每个子表分别触发计算。`WHERE` 子句将检测输入限定为本次一小时触发窗口内的数据，k-sigma 算法对该子表的 `voltage` 列进行异常检测，`COUNT(*)` 分别统计每个异常窗口内的记录数。一个触发窗口内可以产生零个、一个或多个异常窗口。

@@ -49,10 +49,13 @@ toc_max_heading_level: 4
 
 ```sql
 -- 创建时启用
-CREATE DATABASE power CACHEMODEL 'both' CACHESIZE 16;
+CREATE DATABASE power
+  CACHEMODEL 'both'
+  CACHESIZE 16;
 
 -- 已有库上启用或调整
 ALTER DATABASE power CACHEMODEL 'both';
+
 ALTER DATABASE power CACHESIZE 32;
 ```
 
@@ -71,46 +74,50 @@ taosBenchmark -d power -Q --start-timestamp=1600000000000 --tables=10000 --recor
 未启用读缓存时查询最新电流与时间戳：
 
 ```sql
-taos> SELECT LAST(ts, current) FROM meters;
+taos> SELECT LAST(ts, current)
+      FROM meters;
         last(ts)         |    last(current)     |
 =================================================
  2020-09-15 00:13:10.000 |            1.1294620 |
-Query OK, 1 row(s) in set (0.353815s)
+Query OK, 1 row(s) in set
 
-taos> SELECT LAST_ROW(ts, current) FROM meters;
+taos> SELECT LAST_ROW(ts, current)
+      FROM meters;
       last_row(ts)       |  last_row(current)   |
 =================================================
  2020-09-15 00:13:10.000 |            1.1294620 |
-Query OK, 1 row(s) in set (0.344070s)
+Query OK, 1 row(s) in set
 ```
 
 启用读缓存并确认生效：
 
 ```sql
 taos> ALTER DATABASE power CACHEMODEL 'both';
-Query OK, 0 row(s) affected (0.046092s)
+Query OK, 0 row(s) affected
 
-taos> SHOW CREATE DATABASE power\G;
+taos> SHOW CREATE DATABASE power \G;
 *************************** 1.row ***************************
        Database: power
 Create Database: CREATE DATABASE `power` BUFFER 256 CACHESIZE 1 CACHEMODEL 'both' COMP 2 DURATION 14400m WAL_FSYNC_PERIOD 3000 MAXROWS 4096 MINROWS 100 STT_TRIGGER 2 KEEP 5256000m,5256000m,5256000m PAGES 256 PAGESIZE 4 PRECISION 'ms' REPLICA 1 WAL_LEVEL 1 VGROUPS 10 SINGLE_STABLE 0 TABLE_PREFIX 0 TABLE_SUFFIX 0 TSDB_PAGESIZE 4 WAL_RETENTION_PERIOD 3600 WAL_RETENTION_SIZE 0 KEEP_TIME_OFFSET 0
-Query OK, 1 row(s) in set (0.000282s)
+Query OK, 1 row(s) in set
 ```
 
 再次查询。首次查询会填充缓存，后续查询时延通常明显下降：
 
 ```sql
-taos> SELECT LAST(ts, current) FROM meters;
+taos> SELECT LAST(ts, current)
+      FROM meters;
         last(ts)         |    last(current)     |
 =================================================
  2020-09-15 00:13:10.000 |            1.1294620 |
-Query OK, 1 row(s) in set (0.044021s)
+Query OK, 1 row(s) in set
 
-taos> SELECT LAST_ROW(ts, current) FROM meters;
+taos> SELECT LAST_ROW(ts, current)
+      FROM meters;
       last_row(ts)       |  last_row(current)   |
 =================================================
  2020-09-15 00:13:10.000 |            1.1294620 |
-Query OK, 1 row(s) in set (0.046682s)
+Query OK, 1 row(s) in set
 ```
 
 本例中时延从约 353 / 344 ms 降至约 44 ms。实际效果与数据规模、硬件和并发负载有关。

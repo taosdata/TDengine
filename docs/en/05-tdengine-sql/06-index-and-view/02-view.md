@@ -129,15 +129,32 @@ priv_type: {
 - Create View
   
   ```sql
-  CREATE VIEW view1 AS SELECT _wstart, count(*) FROM table1 INTERVAL(1d);
-  CREATE VIEW view2 AS SELECT ts, col2 FROM table1;
-  CREATE VIEW view3 AS SELECT * from view1;
+  CREATE VIEW view1
+    AS
+      SELECT
+        _wstart,
+        COUNT(*)
+      FROM table1
+      INTERVAL(1d);
+
+  CREATE VIEW view2
+    AS
+      SELECT
+        ts,
+        col2
+      FROM table1;
+
+  CREATE VIEW view3
+    AS
+      SELECT *
+      FROM view1;
   ```
 
 - Query Data
   
   ```sql
-  SELECT * from view1;
+  SELECT *
+  FROM view1;
   ```
 
 - Delete View

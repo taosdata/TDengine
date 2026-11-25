@@ -29,13 +29,18 @@ CREATE [OR REPLACE] FUNCTION function_name AS library_path OUTPUTTYPE output_typ
 将 `libbitand.so` 注册为可用 UDF：
 
 ```sql
-CREATE FUNCTION bit_and AS "/home/taos/udf_example/libbitand.so" OUTPUTTYPE INT;
+CREATE FUNCTION bit_and
+  AS "/home/taos/udf_example/libbitand.so"
+  OUTPUTTYPE INT;
 ```
 
 修改已定义的 `bit_and`：输出类型改为 `BIGINT`，并用 Python 实现：
 
 ```sql
-CREATE OR REPLACE FUNCTION bit_and AS "/home/taos/udf_example/bit_and.py" OUTPUTTYPE BIGINT LANGUAGE 'Python';
+CREATE OR REPLACE FUNCTION bit_and
+  AS "/home/taos/udf_example/bit_and.py"
+  OUTPUTTYPE BIGINT
+  LANGUAGE 'Python';
 ```
 
 ### 创建聚合函数
@@ -56,13 +61,19 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name AS library_path OUTPUTTYPE 
 将 `libl2norm.so` 注册为可用 UDF：
 
 ```sql
-CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE BUFSIZE 8;
+CREATE AGGREGATE FUNCTION l2norm
+  AS "/home/taos/udf_example/libl2norm.so"
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 8;
 ```
 
 将已定义 `l2norm` 的缓冲区大小修改为 64：
 
 ```sql
-CREATE OR REPLACE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE BUFSIZE 64;
+CREATE OR REPLACE AGGREGATE FUNCTION l2norm
+  AS "/home/taos/udf_example/libl2norm.so"
+  OUTPUTTYPE DOUBLE
+  BUFSIZE 64;
 ```
 
 如何开发自定义函数，参见 [UDF 编程接口](../../10-developer-guide/06-udf.md)。
@@ -92,7 +103,8 @@ SHOW FUNCTIONS;
 在 SQL 中可直接使用创建时指定的函数名调用 UDF：
 
 ```sql
-SELECT bit_and(c1, c2) FROM table;
+SELECT bit_and(c1, c2)
+FROM TABLE;
 ```
 
 上例对表 `table` 的 `c1`、`c2` 列调用 `bit_and`。UDF 也可与 `WHERE` 等查询子句一起使用。

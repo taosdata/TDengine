@@ -356,7 +356,11 @@ Token 认证是 TDengine TSDB Enterprise 的轻量级身份验证机制，相对
 
 ```sql
 -- 创建 Token，有效期 1 天（TTL 单位与手册说明见用户管理）
-CREATE TOKEN my_app_token FROM USER root ENABLE 1 PROVIDER 'root' TTL 1;
+CREATE TOKEN my_app_token
+  FROM USER root
+  ENABLE 1
+  PROVIDER 'root'
+  TTL 1;
 
 -- 查询当前用户创建的 Token
 SHOW TOKENS;

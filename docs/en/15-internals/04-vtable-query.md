@@ -30,7 +30,10 @@ When querying a virtual table, the engine reads data from each source table, sor
 Consider the following aggregation query:
 
 ```sql
-SELECT count(a), sum(b) FROM vtable;
+SELECT
+  COUNT(a),
+  SUM(b)
+FROM vtable;
 ```
 
 Column `a` comes from source table A, and column `b` comes from source table B. Assume that source tables A and B each contain 1 million rows. Under the naive execution path, the engine must first merge the full data from A and B by timestamp into a temporary result set, then perform the aggregation on that result set.
@@ -83,7 +86,12 @@ This optimization provides two benefits:
 When multiple aggregation functions depend on the same source table, they are grouped together:
 
 ```sql
-SELECT count(a), avg(a), sum(b), max(b) FROM vtable;
+SELECT
+  COUNT(a),
+  AVG(a),
+  SUM(b),
+  MAX(b)
+FROM vtable;
 ```
 
 The optimized execution plan is:
@@ -107,7 +115,12 @@ While Pushdown Aggregation is highly effective for plain aggregation queries, it
 In TDengine, window queries allow users to partition data into multiple windows by time intervals, state changes, or other criteria, and then perform independent aggregation within each window. For example:
 
 ```sql
-SELECT _wstart, _wend, avg(b) FROM vtable STATE_WINDOW(a);
+SELECT
+  _wstart,
+  _wend,
+  AVG(b)
+FROM vtable
+STATE_WINDOW(a);
 ```
 
 This query partitions data into windows based on value changes in column `a`, computing the average of column `b` within each window.
@@ -198,7 +211,12 @@ Using the typical scenario described above: state column `a` has 50 rows, aggreg
 When a query involves multiple source tables, window boundaries only need to be determined once, and each source table can execute window aggregation in parallel:
 
 ```sql
-SELECT _wstart, avg(b), max(c) FROM vtable STATE_WINDOW(a);
+SELECT
+  _wstart,
+  AVG(b),
+  MAX(c)
+FROM vtable
+STATE_WINDOW(a);
 ```
 
 Where column `a` is in source table A, column `b` is in source table B, and column `c` is in source table C. The optimized execution plan is:

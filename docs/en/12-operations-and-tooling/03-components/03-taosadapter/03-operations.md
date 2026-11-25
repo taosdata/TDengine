@@ -139,8 +139,9 @@ Records are stored in CSV format without headers. Each line includes the followi
    Original SQL:
 
     ```sql
-      select * from t1
-      where c1 = "ab"
+    SELECT *
+    FROM t1
+    WHERE c1 = "ab"
     ```
 
    CSV record:

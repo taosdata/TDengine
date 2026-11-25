@@ -26,14 +26,20 @@ import TabItem from "@theme/TabItem";
 确定子表存在时，不带标签可提升写入性能。若子表不存在，行为与 `taos` shell 不一致：`taos` shell 会以 tag 为 `NULL` 自动建表，而 STMT 会报错，以避免因错误表名意外建表。
 
 ```sql
-   1. INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?) 
+INSERT INTO meters (tbname, ts, current, voltage, phase)
+VALUES (?, ?, ?, ?, ?);
 ```
 
 ##### 子表不存在，指定标签自动建表
 
 ```sql
-   1. INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)   
-   2. INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+INSERT INTO ?
+USING meters
+TAGS (?, ?)
+VALUES (?, ?, ?, ?);
 ```
 
 ## 参数绑定更新

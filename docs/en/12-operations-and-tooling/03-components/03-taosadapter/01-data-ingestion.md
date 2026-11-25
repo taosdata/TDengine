@@ -187,8 +187,17 @@ Complete configuration parameter description:
 Before writing data, ensure that the target database and supertable have been created. Assume the following database and supertable have been created:
 
 ```sql
-create database test_input_json;
-create table test_input_json.meters (ts timestamp, current float, voltage int, phase float) tags (location nchar(64), `groupid` int);
+CREATE DATABASE test_input_json;
+
+CREATE TABLE test_input_json.meters (
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
+) TAGS (
+  location  NCHAR(64),
+  `groupid` INT
+);
 ```
 
 Request example:
@@ -437,16 +446,16 @@ For details, please refer to the [JSONata documentation](https://docs.jsonata.or
 Taking the reference configuration example, inputting the JSON data from the [Transformation Example Description](#transformation-example-description), the generated SQL is as follows:
 
 ```sql
-insert into `test_input_json`.`meters`(`tbname`,`ts`,`current`,`voltage`,`phase`,`location`,`groupid`)values
-('d_001','2025-11-04T09:24:13.123Z',10.5,220,30,'Los Angeles',1)
-('d_002','2025-11-04T09:24:13.123Z',15.2,230,45,'Los Angeles',1)
-('d_003','2025-11-04T09:24:13.123Z',8.7,210,60,'Los Angeles',1)
-('d_004','2025-11-04T09:24:13.123Z',12.3,225,15,'Los Angeles',2)
-('d_005','2025-11-04T09:24:13.123Z',9.8,215,75,'Los Angeles',2)
-('d_006','2025-11-04T09:24:13.123Z',11,240,20,'New York',1)
-('d_007','2025-11-04T09:24:13.123Z',14.5,235,50,'New York',1)
-('d_008','2025-11-04T09:24:13.123Z',13.2,245,10,'New York',2)
-('d_009','2025-11-04T09:24:13.123Z',7.9,220,80,'New York',2)
+INSERT INTO `test_input_json`.`meters` (`tbname`, `ts`, `current`, `voltage`, `phase`, `location`, `groupid`)
+VALUES ('d_001', '2025-11-04T09:24:13.123Z', 10.5, 220, 30, 'Los Angeles', 1)
+       ('d_002', '2025-11-04T09:24:13.123Z', 15.2, 230, 45, 'Los Angeles', 1)
+       ('d_003', '2025-11-04T09:24:13.123Z', 8.7, 210, 60, 'Los Angeles', 1)
+       ('d_004', '2025-11-04T09:24:13.123Z', 12.3, 225, 15, 'Los Angeles', 2)
+       ('d_005', '2025-11-04T09:24:13.123Z', 9.8, 215, 75, 'Los Angeles', 2)
+       ('d_006', '2025-11-04T09:24:13.123Z', 11, 240, 20, 'New York', 1)
+       ('d_007', '2025-11-04T09:24:13.123Z', 14.5, 235, 50, 'New York', 1)
+       ('d_008', '2025-11-04T09:24:13.123Z', 13.2, 245, 10, 'New York', 2)
+       ('d_009', '2025-11-04T09:24:13.123Z', 7.9, 220, 80, 'New York', 2)
 ```
 
 SQL generation description:

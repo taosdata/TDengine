@@ -103,8 +103,9 @@ Set the timezone for the current connection:
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
-SET TIMEZONE '-08:00';             -- POSIX: local = UTC+8, same as Beijing time
-SET TIMEZONE '+08:00';             -- POSIX: local = UTC-8, NOT Beijing time
+
+SET TIMEZONE '-08:00';  -- POSIX: local = UTC+8, same as Beijing time
+SET TIMEZONE '+08:00';  -- POSIX: local = UTC-8, NOT Beijing time
 SET TIMEZONE 'America/New_York';
 ```
 
@@ -228,10 +229,21 @@ For Sunday, set it to `0`.
 ### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts) FROM t;                        -- uses connection timezone
-SELECT TO_ISO8601(ts, '+09:00') FROM t;              -- specified fixed offset (ISO 8601 sign)
-SELECT TO_ISO8601(ts, 'UTC+09:00') FROM t;           -- equivalent, 'UTC' prefix is stripped
-SELECT TO_ISO8601(ts, 'America/New_York') FROM t;    -- specified IANA timezone
+-- uses connection timezone
+SELECT TO_ISO8601(ts)
+FROM t;
+
+-- specified fixed offset (ISO 8601 sign)
+SELECT TO_ISO8601(ts, '+09:00')
+FROM t;
+
+-- equivalent, 'UTC' prefix is stripped
+SELECT TO_ISO8601(ts, 'UTC+09:00')
+FROM t;
+
+-- specified IANA timezone
+SELECT TO_ISO8601(ts, 'America/New_York')
+FROM t;
 ```
 
 **Sign convention**: `TO_ISO8601` is the only entry point that uses the ISO 8601 sign convention — `local = UTC + offset`, meaning `'+08:00'` denotes east-8 (Beijing time). The following forms are fully equivalent: `'+0800'`, `'+08:00'`, `'UTC+8'`, `'UTC+0800'`, `'UTC+08:00'`. All other entry points (`SET TIMEZONE`, `taos.cfg`, `TO_CHAR`, `TIMETRUNCATE`, etc.) use POSIX sign convention (`+` = west).
@@ -249,12 +261,29 @@ SELECT TO_ISO8601('2026-07-15 12:00:00');  -- ...T12:00:00-04:00 (EDT, summer)
 Truncate a timestamp to the specified unit boundary.
 
 ```sql
-SELECT TIMETRUNCATE(ts, 1d) FROM t;                          -- truncate to 00:00:00 of the day
-SELECT TIMETRUNCATE(ts, 1w) FROM t;                          -- truncate to first day of week 00:00:00
-SELECT TIMETRUNCATE(ts, 1n) FROM t;                          -- truncate to 1st of month
-SELECT TIMETRUNCATE(ts, 1q) FROM t;                          -- truncate to 1st of quarter
-SELECT TIMETRUNCATE(ts, 1y) FROM t;                          -- truncate to Jan 1st
-SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- specify timezone
+-- truncate to 00:00:00 of the day
+SELECT TIMETRUNCATE(ts, 1d)
+FROM t;
+
+-- truncate to first day of week 00:00:00
+SELECT TIMETRUNCATE(ts, 1w)
+FROM t;
+
+-- truncate to 1st of month
+SELECT TIMETRUNCATE(ts, 1n)
+FROM t;
+
+-- truncate to 1st of quarter
+SELECT TIMETRUNCATE(ts, 1q)
+FROM t;
+
+-- truncate to Jan 1st
+SELECT TIMETRUNCATE(ts, 1y)
+FROM t;
+
+-- specify timezone
+SELECT TIMETRUNCATE(ts, 1d, 'America/New_York')
+FROM t;
 ```
 
 **Supported natural time units**
@@ -270,9 +299,9 @@ SELECT TIMETRUNCATE(ts, 1d, 'America/New_York') FROM t;      -- specify timezone
 **Examples**
 
 ```sql
-SELECT TIMETRUNCATE('2026-03-15', 1n);   -- 2026-03-01 00:00:00
-SELECT TIMETRUNCATE('2026-05-15', 1q);   -- 2026-04-01 00:00:00
-SELECT TIMETRUNCATE('2026-08-15', 1y);   -- 2026-01-01 00:00:00
+SELECT TIMETRUNCATE('2026-03-15', 1n);  -- 2026-03-01 00:00:00
+SELECT TIMETRUNCATE('2026-05-15', 1q);  -- 2026-04-01 00:00:00
+SELECT TIMETRUNCATE('2026-08-15', 1y);  -- 2026-01-01 00:00:00
 ```
 
 **Third parameter** (timezone):
@@ -297,6 +326,7 @@ To verify whether `SET TIMEZONE` has taken effect:
 
 ```sql
 SELECT TIMEZONE();
+
 SELECT TO_ISO8601(NOW());
 ```
 
@@ -311,17 +341,26 @@ Examples:
 `INTERVAL` supports natural time unit window splitting:
 
 ```sql
-SELECT _wstart, COUNT(*) FROM meters
-  INTERVAL(1n)                      -- monthly windows
-  FILL(PREV);
+SELECT
+  _wstart,
+  COUNT(*)
+FROM meters
+INTERVAL(1n) -- monthly windows
+FILL(PREV);
 
-SELECT _wstart, AVG(voltage) FROM meters
-  INTERVAL(1q)                      -- quarterly windows
-  FILL(NULL);
+SELECT
+  _wstart,
+  AVG(voltage)
+FROM meters
+INTERVAL(1q) -- quarterly windows
+FILL(NULL);
 
-SELECT _wstart, SUM(energy) FROM meters
-  INTERVAL(1w)                      -- weekly windows (respects firstDayOfWeek)
-  FILL(LINEAR);
+SELECT
+  _wstart,
+  SUM(energy)
+FROM meters
+INTERVAL(1w) -- weekly windows (respects firstDayOfWeek)
+FILL(LINEAR);
 ```
 
 **Supported natural time units**
@@ -373,12 +412,18 @@ If `CONFIG` is omitted, or only one key is written, the missing item uses the va
 
 ```sql
 SET TIMEZONE 'Asia/Shanghai';
+
 SET FIRST_DAY_OF_WEEK 1;
 
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 After this statement, the stream stores `timezone = 'Asia/Shanghai'` and `firstDayOfWeek = 1`. Use `SHOW CREATE STREAM` to confirm the `CONFIG` that was actually written.
@@ -415,33 +460,51 @@ When `SLIDING` is written, the sliding step supports only `a`/`s`/`m`/`h`/`d`/`w
 
 ```sql
 -- Fire quarterly on Tokyo local time
-CREATE STREAM meters_quarter_tokyo PERIOD(1q)
+CREATE STREAM meters_quarter_tokyo
+  PERIOD(1q)
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Tokyo', firstDayOfWeek = 1))
-  INTO meters_quarter_tokyo_out AS
-  SELECT CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
-         AVG(current) AS avg_current
-  FROM meters;
+  INTO meters_quarter_tokyo_out
+  AS
+    SELECT
+      CAST(_tlocaltime / 1000000 AS TIMESTAMP) AS ts,
+      AVG(current) AS avg_current
+    FROM meters;
 
 -- Slide on New York local year boundaries
-CREATE STREAM meters_slide_year SLIDING(1y) FROM meters
+CREATE STREAM meters_slide_year
+  SLIDING(1y)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'America/New_York', firstDayOfWeek = 0))
-  INTO meters_slide_year_out AS
-  SELECT _tprev_ts AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_slide_year_out
+  AS
+    SELECT
+      _tprev_ts AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- Split windows by London local calendar month
-CREATE STREAM meters_monthly INTERVAL(1n) FROM meters
+CREATE STREAM meters_monthly
+  INTERVAL(1n)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Europe/London', firstDayOfWeek = 1))
-  INTO meters_monthly_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_monthly_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 
 -- Compute the previous 1 second every 2 seconds; windows have gaps
-CREATE STREAM meters_gapped INTERVAL(1s) SLIDING(2s) FROM meters
+CREATE STREAM meters_gapped
+  INTERVAL(1s) SLIDING(2s)
+  FROM meters
   STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
-  INTO meters_gapped_out AS
-  SELECT _twstart AS window_start, AVG(current) AS avg_current
-  FROM %%trows;
+  INTO meters_gapped_out
+  AS
+    SELECT
+      _twstart AS window_start,
+      AVG(current) AS avg_current
+    FROM %%trows;
 ```
 
 ### Offsets
@@ -494,7 +557,11 @@ Upgrade the client and the cluster together offline. Mixed old and new versions 
 ```sql
 SHOW CREATE STREAM db_name.stream_name;
 
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 

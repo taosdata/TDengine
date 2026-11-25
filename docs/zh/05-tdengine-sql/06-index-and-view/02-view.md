@@ -133,15 +133,32 @@ priv_type: {
 创建视图：
 
 ```sql
-CREATE VIEW view1 AS SELECT _wstart, COUNT(*) FROM table1 INTERVAL(1d);
-CREATE VIEW view2 AS SELECT ts, col2 FROM table1;
-CREATE VIEW view3 AS SELECT * FROM view1;
+CREATE VIEW view1
+  AS
+    SELECT
+      _wstart,
+      COUNT(*)
+    FROM table1
+    INTERVAL(1d);
+
+CREATE VIEW view2
+  AS
+    SELECT
+      ts,
+      col2
+    FROM table1;
+
+CREATE VIEW view3
+  AS
+    SELECT *
+    FROM view1;
 ```
 
 查询数据：
 
 ```sql
-SELECT * FROM view1;
+SELECT *
+FROM view1;
 ```
 
 删除视图：

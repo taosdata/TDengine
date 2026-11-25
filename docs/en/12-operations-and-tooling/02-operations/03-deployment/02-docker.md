@@ -47,7 +47,7 @@ taos> show databases;
 =================================
  information_schema             |
  performance_schema             |
-Query OK, 2 rows in database (0.033802s)
+Query OK, 2 row(s) in set
 ```
 
 Within the container, TDengine CLI or various connectors (such as JDBC-JNI) connect to the server via the container's hostname. Accessing TDengine inside the container from outside is more complex, and using RESTful/WebSocket connection methods is the simplest approach.
@@ -83,7 +83,7 @@ taos> show dnodes;
      id      |            endpoint            | vnodes | support_vnodes |   status   |       create_time       |              note              |
 =================================================================================================================================================
            1 | vm98:6030                      |      0 |             32 | ready      | 2022-08-19 14:50:05.337 |                                |
-Query OK, 1 rows in database (0.010654s)
+Query OK, 1 row(s) in set
 ```
 
 ## Start TDengine with a specified hostname and port
@@ -176,5 +176,5 @@ taos> show dnodes
            1 | td1:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:41.630 | 2025-08-21 01:56:41.462 |                                |
            2 | td2:6030                       |      1 |             85 | ready        | 2025-08-21 01:56:43.203 | 2025-08-21 01:56:43.453 |                                |
            3 | td3:6030                       |      0 |             85 | ready        | 2025-08-21 01:56:43.296 | 2025-08-21 01:56:43.491 |                                |
-Query OK, 3 row(s) in set (0.006355s)
+Query OK, 3 row(s) in set
 ```

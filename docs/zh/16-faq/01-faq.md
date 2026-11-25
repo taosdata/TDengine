@@ -369,7 +369,8 @@ Java 写入应用运行一段时间后进程假死，几乎没有写入 QPS。
 6. **子表已存在时不传 TAG**：若确认子表已存在，可使用以下格式的 SQL 省略 TAG，提升性能：
 
    ```sql
-   INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
+   INSERT INTO meters (tbname, ts, current, voltage, phase)
+   VALUES (?, ?, ?, ?, ?)
    ```
 
 ## 4. 数据查询 {#数据查询}

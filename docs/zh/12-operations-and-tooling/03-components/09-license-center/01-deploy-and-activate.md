@@ -123,9 +123,13 @@ TSDB / IDMP 集群可通过配置与 CLS 通信；配置成功后，可在 CLS �
 
 ```sql
 ALTER ALL DNODES 'clsEnabled' '1';
+
 ALTER ALL DNODES 'clsRefreshInterval' '15';
+
 ALTER ALL DNODES 'clsUrl' 'http://192.168.2.158:6059';
+
 ALTER ALL DNODES 'clsLicenseId' 'lic-53467044-2dad-4be2-9280-adacb201a644';
+
 ALTER ALL DNODES 'clsQuotaSlotId' 'tsdb-1';
 ```
 

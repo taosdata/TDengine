@@ -25,19 +25,33 @@ taos>
 In the shell, each SQL statement must end with a semicolon (`;`). The following example creates a database, inserts two rows, and queries the result:
 
 ```sql
-CREATE DATABASE demo;
-USE demo;
-CREATE TABLE t (ts TIMESTAMP, speed INT);
-INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
-INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
-SELECT * FROM t;
+taos> CREATE DATABASE demo;
+Create OK, 0 row(s) affected
 
+taos> USE demo;
+Database changed.
+
+taos> CREATE TABLE t (
+        ts    TIMESTAMP,
+        speed INT
+      );
+Create OK, 0 row(s) affected
+
+taos> INSERT INTO t
+      VALUES ('2019-07-15 00:00:00', 10);
+Insert OK, 1 row(s) affected
+
+taos> INSERT INTO t
+      VALUES ('2019-07-15 01:00:00', 20);
+Insert OK, 1 row(s) affected
+
+taos> SELECT *
+      FROM t;
            ts            |    speed    |
 ========================================
  2019-07-15 00:00:00.000 |          10 |
  2019-07-15 01:00:00.000 |          20 |
-
-Query OK, 2 row(s) in set (0.003128s)
+Query OK, 2 row(s) in set
 ```
 
 Besides SQL, you can use the shell to check system status and manage users. The CLI and client drivers can also be installed separately on other machines. For details, see [TDengine CLI](../../../12-operations-and-tooling/04-tools/01-taos-cli.md).
@@ -71,62 +85,69 @@ After writing data with `taosBenchmark`, run the following queries in the shell 
 1. Count all records under the `meters` supertable:
 
 ```sql
-SELECT COUNT(*) FROM test.meters;
-
+taos> SELECT COUNT(*)
+      FROM test.meters;
      count(*)     |
 ===================
         100000000 |
-
-Query OK, 1 row(s) in set (0.075247s)
+Query OK, 1 row(s) in set
 ```
 
 2. Compute the average, maximum, and minimum over 100 million records:
 
 ```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
-
+taos> SELECT
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.meters;
    avg(current)   | max(voltage) | min(phase) |
 ===============================================
  10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.094037s)
+Query OK, 1 row(s) in set
 ```
 
 3. Count records where `location = "California.SanFrancisco"`:
 
 ```sql
-SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
-
+taos> SELECT COUNT(*)
+      FROM test.meters
+      WHERE location = "California.SanFrancisco";
      count(*)     |
 ===================
          10340000 |
-
-Query OK, 1 row(s) in set (0.050540s)
+Query OK, 1 row(s) in set
 ```
 
 4. Compute the average, maximum, and minimum for all records where `groupId = 10`:
 
 ```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
-
+taos> SELECT
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.meters
+      WHERE groupId = 10;
    avg(current)   | max(voltage) | min(phase) |
 ===============================================
  10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.033754s)
+Query OK, 1 row(s) in set
 ```
 
 5. Aggregate table `d1001` every 10 seconds for average, maximum, and minimum:
 
 ```sql
-SELECT _wstart, AVG(current), MAX(voltage), MIN(phase)
-FROM test.d1001 INTERVAL(10s);
-
+taos> SELECT
+        _wstart,
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.d1001
+      INTERVAL(10s);
          _wstart         |   avg(current)   | max(voltage) | min(phase) |
 =========================================================================
  2017-07-14 10:40:00.000 | 10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.004716s)
+Query OK, 1 row(s) in set
 ```
 
 In the query above, the system pseudocolumn `_wstart` is the start time of each window.

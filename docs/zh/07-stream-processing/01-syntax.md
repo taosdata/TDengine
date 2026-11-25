@@ -51,8 +51,8 @@ true_for_expr:
 
 true_for_arg: {
     limit_expr
-  | start(limit_expr)
-  | end(limit_expr)
+  | START(limit_expr)
+  | END(limit_expr)
 }
 
 limit_expr: {
@@ -244,7 +244,12 @@ CREATE STREAM s_tag_state
   FROM meters
   PARTITION BY tbname
   INTO meters_state_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 多列状态窗口示例：
@@ -256,7 +261,11 @@ CREATE STREAM s_multi_state
   PARTITION BY tbname
   INTO result_table
   AS
-    SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 上面的流会在 `s1` 或 `s2` 任一变化时切窗，只对 `s1 = 1` 做零状态过滤，`s2` 不参与零状态判断。
@@ -297,7 +306,12 @@ CREATE STREAM s_tag_event
   FROM meters
   PARTITION BY tbname
   INTO meters_event_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 适用场景：需要通过事件窗口驱动计算和（或）通知的场景。
@@ -325,31 +339,44 @@ CREATE STREAM s_tag_event
 
 ```sql
 CREATE DATABASE true_for_demo;
+
 USE true_for_demo;
-CREATE TABLE sensor (ts TIMESTAMP, temperature INT);
+
+CREATE TABLE sensor (
+  ts          TIMESTAMP,
+  temperature INT
+);
 
 CREATE STREAM temperature_alarm
-  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80)
-  TRUE_FOR(START(1m), END(COUNT 2))
+  EVENT_WINDOW(START WITH temperature >= 80 END WITH temperature < 80) TRUE_FOR(START(1m), END(COUNT 2))
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   FROM sensor
   INTO temperature_alarm_out
-  AS SELECT _twstart AS ts, _twend AS te, COUNT(*) AS cnt FROM %%trows;
+  AS
+    SELECT
+      _twstart AS ts,
+      _twend AS te,
+      COUNT(*) AS cnt
+    FROM %%trows;
 ```
 
 等待流就绪后，按时间顺序写入以下数据：
 
 ```sql
-INSERT INTO sensor VALUES
-  ('2026-01-01 10:00:00', 85)
-  ('2026-01-01 10:00:30', 70)
-  ('2026-01-01 10:01:00', 85)
-  ('2026-01-01 10:01:30', 86)
-  ('2026-01-01 10:02:00', 87)
-  ('2026-01-01 10:02:10', 70)
-  ('2026-01-01 10:02:20', 69);
+INSERT INTO sensor
+VALUES ('2026-01-01 10:00:00', 85)
+       ('2026-01-01 10:00:30', 70)
+       ('2026-01-01 10:01:00', 85)
+       ('2026-01-01 10:01:30', 86)
+       ('2026-01-01 10:02:00', 87)
+       ('2026-01-01 10:02:10', 70)
+       ('2026-01-01 10:02:20', 69);
 
-SELECT ts, te, cnt FROM temperature_alarm_out;
+SELECT
+  ts,
+  te,
+  cnt
+FROM temperature_alarm_out;
 ```
 
 窗口判断过程如下：
@@ -413,15 +440,16 @@ start_event_item:
 
 ```sql
 CREATE STREAM s_event_tree
-  EVENT_WINDOW(
-    START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3))
-    END WITH voltage < 210
-  )
-  TRUE_FOR(10s)
+  EVENT_WINDOW(START WITH ((current >= 12 TRUE_FOR(1s), current >= 10), voltage < 215 TRUE_FOR(COUNT 3)) END WITH voltage < 210) TRUE_FOR(10s)
   FROM meters
   PARTITION BY tbname
   INTO event_tree_out(ts, path COMPOSITE KEY, cnt)
-  AS SELECT _twstart, _event_condition_path, COUNT(*) FROM %%trows;
+  AS
+    SELECT
+      _twstart,
+      _event_condition_path,
+      COUNT(*)
+    FROM %%trows;
 ```
 
 上例的条件路径如下：
@@ -465,7 +493,7 @@ COUNT_WINDOW(count_val[, sliding_val][, col1[, ...]])
 ##### 嵌套窗口触发
 
 ```sql
-WINDOW (
+WINDOW(
   nested_window_type AS outer_layer,
   ...,
   nested_window_type [AS leaf_layer]
@@ -488,7 +516,7 @@ WINDOW (
 
 ```sql
 CREATE STREAM order_pairs
-  WINDOW (
+  WINDOW(
     STATE_WINDOW(order_id) EXTEND(1) AS order_scope,
     COUNT_WINDOW(2, 1) AS pair
   )
@@ -496,12 +524,13 @@ CREATE STREAM order_pairs
   STREAM_OPTIONS(EVENT_TYPE(WINDOW_CLOSE))
   INTO order_pair_results
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           order_scope._twstart AS order_start,
-           FIRST(soc) AS previous_soc,
-           LAST(soc) AS current_soc,
-           LAST(soc) - FIRST(soc) AS soc_delta
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      order_scope._twstart AS order_start,
+      FIRST(soc) AS previous_soc,
+      LAST(soc) AS current_soc,
+      LAST(soc) - FIRST(soc) AS soc_delta
     FROM %%trows;
 ```
 
@@ -575,7 +604,7 @@ CREATE STREAM order_pairs
 [INTO [db_name.]table_name] [NODELAY_CREATE_SUBTABLE] [OUTPUT_SUBTABLE(tbname_expr)] [(column_name1, column_name2 [COMPOSITE KEY][, ...])] [TAGS (tag_definition [, ...])]
 
 tag_definition:
-    tag_name type_name AS expr
+  tag_name type_name AS expr
 ```
 
 说明如下：
@@ -703,10 +732,10 @@ STREAM_OPTIONS(CONFIG(timezone = 'Asia/Shanghai', firstDayOfWeek = 1))
 [notification_definition]
 
 notification_definition:
-    NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
+  NOTIFY(url [, ...]) [ON (event_types)] [WHERE condition] [NOTIFY_OPTIONS(notify_option[|notify_option])]
 
 event_types:
-    event_type [|event_type]
+  event_type [|event_type]
 
 event_type: {WINDOW_OPEN | WINDOW_CLOSE | IDLE | RESUME}
 ```
@@ -990,7 +1019,11 @@ SHOW CREATE STREAM [db_name.]stream_name;
 更完整字段可查询 [`INS_STREAMS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_streams)：
 
 ```sql
-SELECT stream_name, timezone, first_day_of_week, sql
+SELECT
+  stream_name,
+  timezone,
+  first_day_of_week,
+  sql
 FROM information_schema.ins_streams;
 ```
 
@@ -1003,7 +1036,8 @@ FROM information_schema.ins_streams;
 流式计算在执行时由多个任务组成，可从 [`INS_STREAM_TASKS`](../05-tdengine-sql/09-system-info/01-meta.md#ins_stream_tasks) 获取任务信息：
 
 ```sql
-SELECT * FROM information_schema.`ins_stream_tasks`;
+SELECT *
+FROM information_schema.`ins_stream_tasks`;
 ```
 
 ## 操作流式计算
@@ -1061,8 +1095,11 @@ CREATE STREAM stream_db.influx18_high_voltage
   STREAM_OPTIONS(PRE_FILTER(voltage > 220))
   INTO stream_db.influx18_result
   AS
-  SELECT _twstart AS ts, COUNT(*) AS cnt, AVG(voltage) AS avg_voltage
-  FROM %%trows;
+    SELECT
+      _twstart AS ts,
+      COUNT(*) AS cnt,
+      AVG(voltage) AS avg_voltage
+    FROM %%trows;
 ```
 
 InfluxDB 1.8 的每个 series 会作为独立子表身份参与流式计算。`PARTITION BY` 决定触发分组：未指定时，同一 measurement 使用一个分组；`PARTITION BY tbname` 时，每个 series 独立分组；也可以按 measurement tag 或 tag 子集分组。需要固定到具体 series 时，可以创建 InfluxDB SERIES 虚拟表并从该虚拟表建流，详见 [InfluxDB SERIES 列引用](../05-tdengine-sql/04-data-query/06-federated-query.md#influxdb-series-列引用)。

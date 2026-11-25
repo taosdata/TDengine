@@ -229,13 +229,14 @@ TDengine 对 `last_row` 查询有缓存机制，需要在数据库创建时显�
 
 ```sql
 -- 创建数据库时指定（推荐）
-CREATE DATABASE test CACHEMODEL 'last_row';
+CREATE DATABASE test
+  CACHEMODEL 'last_row';
 
 -- 修改已有数据库
 ALTER DATABASE test CACHEMODEL 'last_row';
 
 -- 查看当前配置，shell 中执行可以分号前加 \G 显示详细信息
-show create database test;
+SHOW CREATE DATABASE test;
 ```
 
 **注意事项：**

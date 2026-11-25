@@ -87,17 +87,17 @@ Starting from TDengine 3.0.5.0, we support granting permissions to specific subt
 
 ```sql
 GRANT privileges ON priv_level [WITH tag_condition] TO user_name
- 
+
 privileges : {
     ALL
   | priv_type [, priv_type] ...
 }
- 
+
 priv_type : {
     READ
   | WRITE
 }
- 
+
 priv_level : {
     dbname.tbname
   | dbname.*
@@ -110,12 +110,12 @@ privileges : {
     ALL
   | priv_type [, priv_type] ...
 }
- 
+
 priv_type : {
     READ
   | WRITE
 }
- 
+
 priv_level : {
     dbname.tbname
   | dbname.*
@@ -143,7 +143,7 @@ The table below lists the actual permissions produced under different combinatio
 Use the following command to display the authorizations a user has:
 
 ```sql
-show user privileges 
+SHOW user privileges
 ```
 
 ## Revoke Authorization
@@ -219,13 +219,20 @@ Starting from 3.4.0.0, TDengine Enterprise Edition implements a separation of th
 
 ```sql
 -- Create dedicated administrators
-CREATE USER dba_user PASS 'DbaPass123!@#';
-CREATE USER sec_user PASS 'SecPass123!@#';
-CREATE USER audit_user PASS 'AuditPass123!@#';
+CREATE USER dba_user
+  PASS 'DbaPass123!@#';
+
+CREATE USER sec_user
+  PASS 'SecPass123!@#';
+
+CREATE USER audit_user
+  PASS 'AuditPass123!@#';
 
 -- Separate authorization
 GRANT ROLE `SYSDBA` TO dba_user;
+
 GRANT ROLE `SYSSEC` TO sec_user;
+
 GRANT ROLE `SYSAUDIT` TO audit_user;
 ```
 
@@ -317,6 +324,7 @@ SELECT * FROM information_schema.ins_role_privileges;
 
 ```sql
 LOCK ROLE role_name;
+
 UNLOCK ROLE role_name;
 ```
 
@@ -324,6 +332,7 @@ UNLOCK ROLE role_name;
 
 ```sql
 GRANT ROLE role_name TO user_name;
+
 REVOKE ROLE role_name FROM user_name;
 ```
 
@@ -616,11 +625,10 @@ GRANT INSERT ON power.* TO collector;
 GRANT SELECT, INSERT, DELETE ON power.devices TO operator;
 
 -- User has full operation permissions on power.devices table
-GRANT ALL ON power.devices to operator;
+GRANT ALL ON power.devices TO operator;
 
 -- User can modify table structure in power database
 GRANT ALTER ON power.* TO dba_user;
-
 ```
 
 **Table Permission Policy and Priority:**
@@ -636,8 +644,15 @@ Row permissions are used to restrict users to only access rows in tables that me
 **Syntax:**
 
 ```sql
-GRANT SELECT ON table_name WITH condition TO user_name;
-REVOKE SELECT ON table_name FROM user_name; // the revoke will take effect regardless of whether a condition is specified
+GRANT
+SELECT
+  ON table_name WITH condition TO user_name;
+
+REVOKE
+SELECT
+  ON table_name
+FROM user_name;  -- the revoke will take effect regardless of whether a condition is specified
+
 REVOKE ALL ON table_name FROM user_name;
 ```
 
@@ -654,7 +669,7 @@ REVOKE ALL ON table_name FROM user_name;
 
 ```sql
 -- User u1 can only see data from sensor_001
-GRANT SELECT ON power.meters WITH source='sensor_001' TO u1;
+GRANT SELECT ON power.meters WITH source = 'sensor_001' TO u1;
 
 -- User u2 can only see data with temperature > 30°C
 GRANT SELECT ON power.meters WITH temperature > 30 TO u2;
@@ -716,7 +731,7 @@ GRANT SELECT (device_id, status) ON power.meters TO limited_user;
 GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
 
 -- Combine row permissions with column masking
-GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region = 'cn' TO support;
 ```
 
 **Example - Combining Row and Column Permissions:**
@@ -726,7 +741,7 @@ GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO s
 GRANT SELECT (ts, power, status) ON power.meters WITH ts >= '2024-01-01' TO analyst;
 
 -- User can view/write/delete temperature data from specific sensor
-GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sensor_001' TO collector;
+GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source = 'sensor_001' TO collector;
 ```
 
 **Row/Column Permission Priority:**
@@ -912,8 +927,10 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 -- View user permissions (3.4.0.0+)
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
+```
 
-taos> show user privileges;
+```sql
+taos> SHOW user privileges;
  user_name |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |        update_time         |
 ===================================================================================================================================
  u1        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
@@ -925,14 +942,16 @@ taos> show user privileges;
  u1        | SELECT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.960258 |
  u1        | INSERT              | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.977788 |
  u2        | CREATE DATABASE     | CLUSTER     |         |            |           |        |         |                            |
+```
 
+```sql
 -- View role permissions (3.4.0.0+)
 SHOW ROLE PRIVILEGES
 SELECT * FROM information_schema.ins_role_privileges
 ```
 
-```text
-taos> show role privileges;
+```sql
+taos> SHOW role privileges;
  role_name      |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns |     update_time       |
  ===================================================================================================================================
  SYSSEC         | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |                       |
@@ -962,6 +981,7 @@ Mandatory Separation of Duties (SoD Mandatory) further enforces the three-power 
 ```sql
 -- Enable mandatory separation of duties (executor must hold ALTER SECURITY POLICY privilege or the SYSSEC role)
 ALTER CLUSTER 'sod' 'mandatory';
+
 -- Or using the full name
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
 ```
@@ -990,7 +1010,12 @@ No enabled non-root user with SYSDBA role found to satisfy SoD policy
 **Check SoD status:**
 
 ```sql
-SELECT name, mode FROM information_schema.ins_security_policies WHERE name='SoD';
+SELECT
+  name,
+  mode
+FROM information_schema.ins_security_policies
+WHERE name = 'SoD';
+
 -- Or
 SHOW SECURITY_POLICIES;
 ```
@@ -1061,6 +1086,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 ```sql
 -- Enable mandatory access control (executor must hold ALTER SECURITY POLICY privilege or the SYSSEC role)
 ALTER CLUSTER 'MAC' 'mandatory';
+
 -- Or using the full name
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
@@ -1107,9 +1133,13 @@ After MAC is activated, all data access is additionally subject to the following
 **Check MAC status:**
 
 ```sql
-SELECT name, mode, operator, activate_time
+SELECT
+  name,
+  mode,
+  operator,
+  activate_time
 FROM information_schema.ins_security_policies
-WHERE name='MAC';
+WHERE name = 'MAC';
 ```
 
 #### MAC Error Codes
@@ -1146,8 +1176,11 @@ WHERE name='MAC';
 
 ```sql
 CREATE ROLE analyst_role;
-GRANT SHOW,SELECT ON power.* TO analyst_role;
-GRANT SHOW,USE on database power TO analyst_role;
+
+GRANT SHOW, SELECT ON power.* TO analyst_role;
+
+GRANT SHOW, USE ON DATABASE power TO analyst_role;
+
 GRANT ROLE analyst_role TO analyst_user;
 ```
 
@@ -1155,8 +1188,11 @@ GRANT ROLE analyst_role TO analyst_user;
 
 ```sql
 CREATE ROLE writer_role;
+
 GRANT INSERT ON power.* TO writer_role;
-GRANT SHOW,USE,CREATE TABLE ON database power TO writer_role;
+
+GRANT SHOW, USE, CREATE TABLE ON DATABASE power TO writer_role;
+
 GRANT ROLE writer_role TO writer_user;
 ```
 
@@ -1164,14 +1200,21 @@ GRANT ROLE writer_role TO writer_user;
 
 ```sql
 -- Create audit database
-CREATE DATABASE audit_db KEEP 36500d IS_AUDIT 1 ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2;
+CREATE DATABASE audit_db
+  KEEP 36500d
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2;
 
 -- Create auditor
-CREATE USER audit_user PASS 'AuditPass123!@#';
+CREATE USER audit_user
+  PASS 'AuditPass123!@#';
+
 GRANT ROLE `SYSAUDIT` TO audit_user;
 
 -- Create audit log role (for application writes)
 CREATE ROLE audit_logger;
+
 GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 ```
 

@@ -23,13 +23,19 @@ After a model service is deployed and configured in TDgpt, invoke it through SQL
 - The following statement forecasts 10 rows of data using TDtsfm:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=tdtsfm_1,rows=10") FROM foo;
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=tdtsfm_1,rows=10")
+FROM foo;
 ```
 
 - The following statement forecasts 10 rows of data using Time-MoE:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") FROM foo;
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=timemoe-fc,rows=10")
+FROM foo;
 ```
 
 ## References

@@ -91,7 +91,7 @@ TDengine 的传输层支持加密通信，保障数据在网络传输过程中�
 通过以下命令可查看集群中各节点的 TLS 相关配置：
 
 ```sql
-SHOW VARIABLES LIKE '%tls%'; 
+SHOW VARIABLES LIKE '%tls%';
 ```
 
 #### 约束说明
@@ -207,7 +207,8 @@ taosd [-c <cfgDir>] --rewrite-endpoints-apply <预检文件保存目录>
 2. 对所有数据库和 mnode 执行 flush：
 
    ```sql
-   flush database <dbName>;
+   flush DATABASE <dbName>;
+
    flush mnode;
    ```
 

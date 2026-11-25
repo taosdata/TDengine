@@ -25,19 +25,33 @@ taos>
 在 shell 中，SQL 语句需要以分号（`;`）结尾。下面的示例会创建数据库、写入两条数据并查询结果：
 
 ```sql
-CREATE DATABASE demo;
-USE demo;
-CREATE TABLE t (ts TIMESTAMP, speed INT);
-INSERT INTO t VALUES ('2019-07-15 00:00:00', 10);
-INSERT INTO t VALUES ('2019-07-15 01:00:00', 20);
-SELECT * FROM t;
+taos> CREATE DATABASE demo;
+Create OK, 0 row(s) affected
 
+taos> USE demo;
+Database changed.
+
+taos> CREATE TABLE t (
+        ts    TIMESTAMP,
+        speed INT
+      );
+Create OK, 0 row(s) affected
+
+taos> INSERT INTO t
+      VALUES ('2019-07-15 00:00:00', 10);
+Insert OK, 1 row(s) affected
+
+taos> INSERT INTO t
+      VALUES ('2019-07-15 01:00:00', 20);
+Insert OK, 1 row(s) affected
+
+taos> SELECT *
+      FROM t;
            ts            |    speed    |
 ========================================
  2019-07-15 00:00:00.000 |          10 |
  2019-07-15 01:00:00.000 |          20 |
-
-Query OK, 2 row(s) in set (0.003128s)
+Query OK, 2 row(s) in set
 ```
 
 除执行 SQL 外，你还可以通过 shell 检查系统运行状态、管理用户账号等。shell 和应用驱动也可以独立安装在其他机器上运行，详情请参考 [TDengine 命令行](../../../12-operations-and-tooling/04-tools/01-taos-cli.md)。
@@ -71,62 +85,69 @@ taosBenchmark --help
 1. 查询超级表 `meters` 下的记录总条数：
 
 ```sql
-SELECT COUNT(*) FROM test.meters;
-
+taos> SELECT COUNT(*)
+      FROM test.meters;
      count(*)     |
 ===================
         100000000 |
-
-Query OK, 1 row(s) in set (0.075247s)
+Query OK, 1 row(s) in set
 ```
 
 2. 查询 1 亿条记录的平均值、最大值和最小值：
 
 ```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
-
+taos> SELECT
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.meters;
    avg(current)   | max(voltage) | min(phase) |
 ===============================================
  10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.094037s)
+Query OK, 1 row(s) in set
 ```
 
 3. 查询 `location = "California.SanFrancisco"` 的记录总条数：
 
 ```sql
-SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
-
+taos> SELECT COUNT(*)
+      FROM test.meters
+      WHERE location = "California.SanFrancisco";
      count(*)     |
 ===================
          10340000 |
-
-Query OK, 1 row(s) in set (0.050540s)
+Query OK, 1 row(s) in set
 ```
 
 4. 查询 `groupId = 10` 的所有记录的平均值、最大值和最小值：
 
 ```sql
-SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters WHERE groupId = 10;
-
+taos> SELECT
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.meters
+      WHERE groupId = 10;
    avg(current)   | max(voltage) | min(phase) |
 ===============================================
  10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.033754s)
+Query OK, 1 row(s) in set
 ```
 
 5. 对表 `d1001` 按每 10 秒进行平均值、最大值和最小值聚合统计：
 
 ```sql
-SELECT _wstart, AVG(current), MAX(voltage), MIN(phase)
-FROM test.d1001 INTERVAL(10s);
-
+taos> SELECT
+        _wstart,
+        AVG(current),
+        MAX(voltage),
+        MIN(phase)
+      FROM test.d1001
+      INTERVAL(10s);
          _wstart         |   avg(current)   | max(voltage) | min(phase) |
 =========================================================================
  2017-07-14 10:40:00.000 | 10.2084751316071 |          258 |        145 |
-
-Query OK, 1 row(s) in set (0.004716s)
+Query OK, 1 row(s) in set
 ```
 
 在上面的查询中，系统伪列 `_wstart` 表示每个窗口的开始时间。

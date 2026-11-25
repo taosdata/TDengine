@@ -37,25 +37,31 @@ Confirm that you have completed the earlier chapters:
 If you have not created these objects yet, run the following SQL in the first shell.
 
 ```sql
-CREATE DATABASE IF NOT EXISTS power PRECISION 'ms' KEEP 3650 DURATION 10 BUFFER 16;
+CREATE DATABASE IF NOT EXISTS power
+  PRECISION 'ms'
+  KEEP 3650
+  DURATION 10
+  BUFFER 16;
 
 USE power;
 
 CREATE STABLE IF NOT EXISTS meters (
-    ts timestamp,
-    current float,
-    voltage int,
-    phase float
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
 ) TAGS (
-    location varchar(64),
-    group_id int
+  location VARCHAR(64),
+  group_id INT
 );
 
 CREATE TABLE IF NOT EXISTS d1001
-USING meters TAGS ("California.SanFrancisco", 2);
+  USING meters
+  TAGS ("California.SanFrancisco", 2);
 
 CREATE TABLE IF NOT EXISTS d1002
-USING meters TAGS ("California.SanFrancisco", 3);
+  USING meters
+  TAGS ("California.SanFrancisco", 3);
 ```
 
 ## Create a Topic
@@ -63,8 +69,15 @@ USING meters TAGS ("California.SanFrancisco", 3);
 In the first shell, create a topic named `topic_meters`. A topic defines which data subscribers can receive. The following topic subscribes to newly written data on the `meters` supertable and also outputs `tbname` so you can see which subtable each row comes from.
 
 ```sql
-CREATE TOPIC IF NOT EXISTS topic_meters AS
-SELECT tbname, ts, current, voltage, phase FROM meters;
+CREATE TOPIC IF NOT EXISTS topic_meters
+  AS
+    SELECT
+      tbname,
+      ts,
+      current,
+      voltage,
+      phase
+    FROM meters;
 ```
 
 Run the following command to verify that the topic was created.
@@ -100,8 +113,11 @@ By default, subscription starts from the latest position. Keep this shell open, 
 In the first shell, insert two new meter rows.
 
 ```sql
-INSERT INTO d1001 VALUES (NOW, 10.3, 219, 0.31);
-INSERT INTO d1002 VALUES (NOW, 10.2, 220, 0.23);
+INSERT INTO d1001
+VALUES (NOW, 10.3, 219, 0.31);
+
+INSERT INTO d1002
+VALUES (NOW, 10.2, 220, 0.23);
 ```
 
 In the second shell, the subscribe command outputs the newly written data in real time. The layout may vary slightly with terminal width; the content looks similar to:
@@ -152,7 +168,9 @@ In the shell you can list topics, consumers, and subscription assignments.
 
 ```sql
 SHOW TOPICS;
+
 SHOW CONSUMERS;
+
 SHOW SUBSCRIPTIONS;
 ```
 
@@ -160,7 +178,9 @@ When you no longer need this quick-start example, stop the subscribe shell first
 
 ```sql
 DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg ON topic_meters;
+
 DROP CONSUMER GROUP IF EXISTS FORCE quickstart_cg_earliest ON topic_meters;
+
 DROP TOPIC IF EXISTS topic_meters;
 ```
 

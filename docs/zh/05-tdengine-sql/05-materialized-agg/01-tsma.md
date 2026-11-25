@@ -20,7 +20,7 @@ CREATE TSMA tsma_name ON [dbname.]table_name FUNCTION (func_name(func_param) [, 
 CREATE RECURSIVE TSMA tsma_name ON [db_name.]tsma_name1 INTERVAL(time_duration);
 
 time_duration:
-    number unit
+  number unit
 ```
 
 创建 TSMA 时需指定 TSMA 名称、表名、函数列表以及窗口大小。基于已有 TSMA 再创建时，须使用 `RECURSIVE` 关键字，且不能指定 `FUNCTION()`；新 TSMA 与所基于的 TSMA 拥有相同的函数列表。此时 `INTERVAL` 必须至少为所基于 TSMA 窗口长度的整数倍；按天创建时不能基于 `2h` 或 `3h`，只能基于 `1h`；按月创建时只能基于 `1d`，而不能基于 `2d`、`3d`。

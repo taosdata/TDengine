@@ -142,7 +142,9 @@ taosd --checkss
 完成配置后，即可启动 TDengine 集群，创建使用共享存储的数据库，比如：
 
 ```sql
-create database demo_db duration 1d ss_keeplocal 3d;
+CREATE DATABASE demo_db
+  duration 1d
+  ss_keeplocal 3d;
 ```
 
 数据库 demo_db 中写入时序数据后，3 天之前的时序数据会自动分块存放到共享存储中。
@@ -150,7 +152,7 @@ create database demo_db duration 1d ss_keeplocal 3d;
 如果 `ssEnabled` 是 `2`，mnode 每小时会下发数据迁移检查的指令，如果有时序数据需要迁移，则自动分块存放到共享存储中，也可以使用 SQL 命令手动触发，由用户触发这一操作，语法如下：
 
 ```sql
-ssmigrate database <db_name>;
+ssmigrate DATABASE <db_name>;
 ```
 
 如果 `ssEnabled` 是 `1`，mnode 不会自动下发迁移指令，用户必须自己手动触发迁移。

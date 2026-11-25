@@ -32,10 +32,29 @@ Before creating the publishing task, prepare an accessible Kafka cluster and con
 Use the `taos` CLI tool or the taosExplorer management interface to execute SQL statements, create a database, create a supertable, create a topic, and insert test data for the publishing task. A simple example is shown below:
 
 ```sql
-create database db vgroups 1;
-create table db.meters (ts timestamp, f1 int) tags(t1 int);
-create topic topic_meters as select ts, tbname, f1, t1 from db.meters;
-insert into db.tb using db.meters tags(1) values(now, 1);
+CREATE DATABASE db
+  vgroups 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
 ```
 
 For more details about topic definitions, consumption offsets, and subscription parameters, see [Data Subscription](../../10-developer-guide/07-subscription-api.md).

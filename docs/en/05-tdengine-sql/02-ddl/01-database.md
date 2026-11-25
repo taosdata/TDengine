@@ -289,7 +289,9 @@ Specifies the database security level used by MAC. For syntax and rules, see [Ma
 ### Database Creation Example
 
 ```sql
-create database if not exists db vgroups 10 buffer 10
+CREATE DATABASE IF NOT EXISTS db
+  vgroups 10
+  buffer 10
 ```
 
 The above example creates a database named db with 10 vgroups, where each vnode is allocated 10MB of write buffer.
@@ -391,7 +393,8 @@ The command to modify database parameters is simple, but the difficulty lies in 
 1. How to view `CACHESIZE`?
 
    ```sql
-   SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES;
+   SELECT *
+   FROM INFORMATION_SCHEMA.INS_DATABASES;
    ```
 
    This displays the configured `CACHESIZE` value in MB.
@@ -411,7 +414,12 @@ If cacheload is very close to cachesize, then cachesize may be too small. If cac
 `ALTER DATABASE ... CACHESIZE ...` takes effect immediately, without restarting the `dnode` or reopening the `vnode`: both the in-memory LRU cache capacity and the block-cache capacity of the persistent last-cache engine (RocksDB) are resized in place, each to half of the new `CACHESIZE`. You can confirm the new capacity took effect per `vgroup` immediately via the `block_cache_capacity` column of the [`INS_LAST_CACHE_STATS`](../09-system-info/01-meta.md#ins_last_cache_stats) system table (`block_cache_capacity` will be approximately half of the new `CACHESIZE`), for example:
 
 ```sql
-SELECT vgroup_id, block_cache_capacity, block_cache_usage FROM INFORMATION_SCHEMA.INS_LAST_CACHE_STATS WHERE db_name = 'db_name';
+SELECT
+  vgroup_id,
+  block_cache_capacity,
+  block_cache_usage
+FROM INFORMATION_SCHEMA.INS_LAST_CACHE_STATS
+WHERE db_name = 'db_name';
 ```
 
 :::note
@@ -438,7 +446,9 @@ Commonly used for database migration. For an existing database, it returns its c
 ### View Database Parameters
 
 ```sql
-SELECT * FROM INFORMATION_SCHEMA.INS_DATABASES WHERE NAME='db_name' \G;
+SELECT *
+FROM INFORMATION_SCHEMA.INS_DATABASES
+WHERE NAME = 'db_name' \G;
 ```
 
 Lists the configuration parameters of the specified database, displaying one parameter per line.
@@ -493,10 +503,15 @@ This command migrates data between dnodes, applies to the whole cluster, and sta
 
 ```sql
 BALANCE VGROUP LEADER;
+
 BALANCE VGROUP LEADER FORCE;
+
 BALANCE VGROUP LEADER ON vgroup_id;
+
 BALANCE VGROUP LEADER ON vgroup_id FORCE;
+
 BALANCE VGROUP LEADER DATABASE db_name;
+
 BALANCE VGROUP LEADER DATABASE db_name FORCE;
 ```
 
@@ -513,7 +528,9 @@ Query the availability status of the database db_name, with return values of 0 (
 ### View DB Disk Usage
 
 ```sql
-select * from  INFORMATION_SCHEMA.INS_DISK_USAGE where db_name = 'db_name'   
+SELECT *
+FROM INFORMATION_SCHEMA.INS_DISK_USAGE
+WHERE db_name = 'db_name'
 ```
 
 View the disk usage of each module in the DB.

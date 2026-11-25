@@ -105,7 +105,7 @@ import Link from "@docusaurus/Link";
 In the TDengine CLI, you can run multiple SQL commands from a script file using the `source` command, multiple SQL statements in the script file can be written in line.
 
 ```sql
-taos> source <filename>;
+source <filename>;
 ```
 
 ## Data Subscription
@@ -115,7 +115,7 @@ TDengine CLI supports subscribing to Topic data via the `subscribe` command in i
 ### Syntax
 
 ```sql
-taos> subscribe <topic_name> -g <group_id> [options];
+subscribe <topic_name> -g <group_id> [options];
 ```
 
 ### Parameters
@@ -135,25 +135,32 @@ taos> subscribe <topic_name> -g <group_id> [options];
 Prerequisite: A topic must already be created, for example:
 
 ```sql
-taos> CREATE TOPIC topic_meters AS SELECT ts, current, voltage, phase FROM power.meters;
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      current,
+      voltage,
+      phase
+    FROM power.meters;
 ```
 
 Example 1 — Continuous subscription, press Ctrl+C to stop:
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest;
+subscribe topic_meters -g my_group -o earliest;
 ```
 
 Example 2 — Consume 10 rows from the earliest offset then exit:
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest -n 10;
+subscribe topic_meters -g my_group -o earliest -n 10;
 ```
 
 Example 3 — Custom poll timeout of 500ms:
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest -t 500;
+subscribe topic_meters -g my_group -o earliest -t 500;
 ```
 
 ### Output Format
@@ -197,7 +204,7 @@ Unsubscribed. Total rows received: 10
 You can adjust the display character width in the TDengine CLI using the following command:
 
 ```sql
-taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 ```
 
 If the displayed content ends with ..., it indicates that the content has been truncated. You can modify the display character width with this command to display the full content.

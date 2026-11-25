@@ -31,19 +31,19 @@ sudo systemctl restart telegraf
 
 Use TDengine CLI to verify that data is being written from Telegraf to TDengine and can be correctly read:
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  telegraf                       |
-Query OK, 3 rows in database (0.010568s)
+Query OK, 3 row(s) in set
 
-taos> use telegraf;
+taos> USE telegraf;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  swap                           |
@@ -54,9 +54,11 @@ taos> show stables;
  mem                            |
  processes                      |
  disk                           |
-Query OK, 8 row(s) in set (0.000521s)
+Query OK, 8 row(s) in set
 
-taos> select * from telegraf.system limit 10;
+taos> SELECT *
+      FROM telegraf.system
+      LIMIT 10;
               ts               |           load1           |           load5           |          load15           |        n_cpus         |        n_users        |        uptime         | uptime_format |              host
 |
 =============================================================================================================================================================================================================================================
@@ -66,7 +68,7 @@ taos> select * from telegraf.system limit 10;
 |
  2022-04-20 08:48:10.000000000 |               0.000000000 |               0.040000000 |               0.070000000 |                     4 |                     1 |                  5553 |  1:32         | shuduo-1804
 |
-Query OK, 3 row(s) in set (0.013269s)
+Query OK, 3 row(s) in set
 ```
 
 :::note

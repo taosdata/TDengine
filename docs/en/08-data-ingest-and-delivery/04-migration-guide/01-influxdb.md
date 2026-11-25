@@ -52,7 +52,8 @@ For each measurement, select a small time window as a pilot. Include multiple ta
 InfluxDB data can use second, millisecond, microsecond, or nanosecond precision. Use a nanosecond-precision target database to avoid precision loss:
 
 ```sql
-CREATE DATABASE migration_db PRECISION 'ns';
+CREATE DATABASE migration_db
+  PRECISION 'ns';
 ```
 
 Before production migration, also:
@@ -246,7 +247,10 @@ GROUP BY time(1m), "host"
 TDengine SQL:
 
 ```sql
-SELECT _wstart AS window_start, host, AVG(usage) AS avg_usage
+SELECT
+  _wstart AS window_start,
+  host,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 00:02:00.000000000'
@@ -260,7 +264,10 @@ INTERVAL(1m);
 To calculate each `region` independently:
 
 ```sql
-SELECT region, MAX(usage) AS max_usage, COUNT(usage) AS sample_count
+SELECT
+  region,
+  MAX(usage) AS max_usage,
+  COUNT(usage) AS sample_count
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-02 00:00:00.000000000'
@@ -270,7 +277,10 @@ PARTITION BY region;
 To calculate a one-hour average for every subtable:
 
 ```sql
-SELECT tbname, _wstart AS window_start, AVG(usage) AS avg_usage
+SELECT
+  tbname,
+  _wstart AS window_start,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 01:00:00.000000000'
@@ -293,7 +303,10 @@ Use `LAST(expr)` or `LAST(*)` when you need the last non-null value of a field.
 To return the most recent ten raw rows:
 
 ```sql
-SELECT _ts, usage, load
+SELECT
+  _ts,
+  usage,
+  load
 FROM migration_db.cpu
 WHERE host = 'server01'
 ORDER BY _ts DESC
@@ -303,7 +316,9 @@ LIMIT 10;
 For continuous report windows, use `FILL`. For example, this fills missing one-minute windows with the preceding value:
 
 ```sql
-SELECT _wstart AS window_start, AVG(usage) AS avg_usage
+SELECT
+  _wstart AS window_start,
+  AVG(usage) AS avg_usage
 FROM migration_db.cpu
 WHERE _ts >= '2024-01-01 00:00:00.000000000'
   AND _ts < '2024-01-01 01:00:00.000000000'
@@ -328,8 +343,9 @@ CREATE STREAM cpu_usage_1m_stream
   FROM migration_db.cpu
   INTO cpu_usage_1m
   AS
-    SELECT _twstart AS ts,
-           AVG(usage) AS avg_usage
+    SELECT
+      _twstart AS ts,
+      AVG(usage) AS avg_usage
     FROM %%trows;
 ```
 
@@ -338,9 +354,14 @@ CREATE STREAM cpu_usage_1m_stream
 [Data Subscription](../../06-data-subscription/index.md) distributes new data or query results to downstream consumers:
 
 ```sql
-CREATE TOPIC cpu_realtime_topic AS
-SELECT tbname, _ts, usage, status
-FROM migration_db.cpu;
+CREATE TOPIC cpu_realtime_topic
+  AS
+    SELECT
+      tbname,
+      _ts,
+      usage,
+      status
+    FROM migration_db.cpu;
 ```
 
 Query topics do not support aggregation or time windows. To subscribe to aggregates, first write them to a table with stream processing, then subscribe to that result table.
@@ -351,9 +372,9 @@ Query topics do not support aggregation or time windows. To subscribe to aggrega
 
 ```sql
 CREATE VTABLE device_overview (
-    ts TIMESTAMP,
-    cpu_usage DOUBLE FROM migration_db.cpu_server01.usage,
-    temperature FLOAT FROM migration_db.env_server01.temperature
+  ts          TIMESTAMP,
+  cpu_usage   DOUBLE FROM migration_db.cpu_server01.usage,
+  temperature FLOAT FROM migration_db.env_server01.temperature
 );
 ```
 

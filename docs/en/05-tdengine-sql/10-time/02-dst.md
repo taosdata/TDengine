@@ -83,8 +83,12 @@ The advantages of RFC 3339 include:
 TDengine uses the RFC3339 format for display in REST API and Explorer UI. In SQL statements, you can use the RFC3339 format to write timestamp data:
 
 ```sql
-insert into t1 values('2024-10-27T01:59:59.000Z', 0);
-select * from t1 where ts >= '2024-10-27T01:59:59.000Z';
+INSERT INTO t1
+VALUES ('2024-10-27T01:59:59.000Z', 0);
+
+SELECT *
+FROM t1
+WHERE ts >= '2024-10-27T01:59:59.000Z';
 ```
 
 ### Undefined Behavior
@@ -126,17 +130,23 @@ The following examples use the timestamps shown below or a subset of them, with 
   - At the **start of DST**, the skipped time (`[03-31 02:00:00,03-31 03:00:00)`) does not exist, so using that time for queries results in undefined behavior: `SELECT ts FROM t1 WHERE ts BETWEEN '2024-03-31 02:00:00' AND '2024-03-31 02:59:59'` (the nonexistent local timestamp is converted to `-1000`):
 
     ```sql
-    taos> SELECT ts FROM t1 WHERE ts BETWEEN '2024-03-31 02:00:00' AND '2024-03-31 02:59:59';
+    taos> SELECT ts
+          FROM t1
+          WHERE ts BETWEEN '2024-03-31 02:00:00' AND '2024-03-31 02:59:59';
            ts       |
     =================
      -1000 |
-    Query OK, 1 row(s) in set (0.003635s)
+    Query OK, 1 row(s) in set
     ```
 
     When the nonexistent timestamp is used together with the existing timestamp, the result is also not as expected, as shown below where the start local time does not exist:
 
     ```sql
-    taos> SELECT ts, to_iso8601(ts,'Z') FROM t1 WHERE ts BETWEEN '2024-03-31 02:00:00' AND '2024-03-31 03:59:59';
+    taos> SELECT
+            ts,
+            TO_ISO8601(ts, 'Z')
+          FROM t1
+          WHERE ts BETWEEN '2024-03-31 02:00:00' AND '2024-03-31 03:59:59';
          ts       |       to_iso8601(ts,'Z')       |
     ==================================================
     -1000 | 1969-12-31T23:59:59.000Z       |
@@ -144,28 +154,41 @@ The following examples use the timestamps shown below or a subset of them, with 
     1711846799000 | 2024-03-31T00:59:59.000Z       |
     1711846800000 | 2024-03-31T01:00:00.000Z       |
     1711846801000 | 2024-03-31T01:00:01.000Z       |
-    Query OK, 5 row(s) in set (0.003339s)
+    Query OK, 5 row(s) in set
     ```
 
     In the following statements, the first SQL query end time does not exist, and the second end time exists. The first SQL query result is not as expected:
 
     ```sql
-    taos> SELECT ts, to_iso8601(ts,'Z') FROM t1 WHERE ts BETWEEN '2024-03-31 01:00:00' AND '2024-03-31 02:00:00';
-    Query OK, 0 row(s) in set (0.000930s)
+    taos> SELECT
+            ts,
+            TO_ISO8601(ts, 'Z')
+          FROM t1
+          WHERE ts BETWEEN '2024-03-31 01:00:00' AND '2024-03-31 02:00:00';
+    Query OK, 0 row(s) in set
 
-    taos> SELECT ts, to_iso8601(ts,'Z') FROM t1 WHERE ts BETWEEN '2024-03-31 01:00:00' AND '2024-03-31 01:59:59';
+    taos> SELECT
+            ts,
+            TO_ISO8601(ts, 'Z')
+          FROM t1
+          WHERE ts BETWEEN '2024-03-31 01:00:00' AND '2024-03-31 01:59:59';
            ts       |       to_iso8601(ts,'Z')       |
     ==================================================
      1711843200000 | 2024-03-31T00:00:00.000Z       |
      1711846799000 | 2024-03-31T00:59:59.000Z       |
-    Query OK, 2 row(s) in set (0.001227s)
+    Query OK, 2 row(s) in set
     ```
 
   - At the end of DST, the repeated time (`[10-27 02:00:00,10-27 03:00:00)` excluding `10-27 03:00:00`) appears twice, and using that time range for queries in TDengine is also undefined behavior.
     - Querying the data between `[2024-10-27 02:00:00, 2024-10-27 03:00:00]` includes the repeated timestamps and the data at `2024-10-27 03:00:00`:
 
         ```sql
-        taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts BETWEEN '2024-10-27 02:00:00' AND '2024-10-27 03:00:00';
+        taos> SELECT
+                ts,
+                TO_ISO8601(ts, 'Z'),
+                TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss')
+              FROM t1
+              WHERE ts BETWEEN '2024-10-27 02:00:00' AND '2024-10-27 03:00:00';
                ts       |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
         =======================================================================================
          1729987200000 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |
@@ -173,29 +196,41 @@ The following examples use the timestamps shown below or a subset of them, with 
          1729990800000 | 2024-10-27T01:00:00.000Z       | 2024-10-27 02:00:00                |
          1729994399000 | 2024-10-27T01:59:59.000Z       | 2024-10-27 02:59:59                |
          1729994400000 | 2024-10-27T02:00:00.000Z       | 2024-10-27 03:00:00                |
-        Query OK, 5 row(s) in set (0.001370s)
+        Query OK, 5 row(s) in set
         ```
 
     - However, the following query for the range [2024-10-27 02:00:00.000,2024-10-27 02:57:00.999] can only find the data at the first 2024-10-27 02:00:00 time point:
 
         ```sql
-        taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts >= '2024-10-27 02:00:00' AND ts <= '2024-10-27 02:57:00.999';
+        taos> SELECT
+                ts,
+                TO_ISO8601(ts, 'Z'),
+                TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss')
+              FROM t1
+              WHERE ts >= '2024-10-27 02:00:00'
+                AND ts <= '2024-10-27 02:57:00.999';
                ts       |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
         =======================================================================================
          1729987200000 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |
-        Query OK, 1 row(s) in set (0.004480s)
+        Query OK, 1 row(s) in set
         ```
 
     - The following query for the range [2024-10-27 02:00:01,2024-10-27 02:57:35] can find 3 rows of data (including one row of local time data at 02:59:59):
 
         ```sql
-        taos> SELECT ts, to_iso8601(ts,'Z'), TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') FROM t1 WHERE ts >= '2024-10-27 02:00:00' AND ts <= '2024-10-27 02:57:35';
+        taos> SELECT
+                ts,
+                TO_ISO8601(ts, 'Z'),
+                TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss')
+              FROM t1
+              WHERE ts >= '2024-10-27 02:00:00'
+                AND ts <= '2024-10-27 02:57:35';
                    ts            |       to_iso8601(ts,'Z')       | to_char(ts, 'YYYY-MM-DD HH:mi:ss') |
         ===============================================================================================
          2024-10-27 02:00:00.000 | 2024-10-27T00:00:00.000Z       | 2024-10-27 02:00:00                |
          2024-10-27 02:59:59.000 | 2024-10-27T00:59:59.000Z       | 2024-10-27 02:59:59                |
          2024-10-27 02:00:00.000 | 2024-10-27T01:00:00.000Z       | 2024-10-27 02:00:00                |
-        Query OK, 3 row(s) in set (0.004428s)
+        Query OK, 3 row(s) in set
         ```
 
 ## Summary and Suggestions
@@ -227,15 +262,19 @@ To avoid unnecessary impacts of DST on querying and writing in TDengine, it is r
   | 1711846800000 | 2024-03-31T01:00:00.000Z | 2024-03-31T03:00:00.000+02:00 | 2024-03-31 03:00:00 |
 
   ```sql
-  taos> insert into t1 values(1711846799000, 1)(1711846800000, 2);
-  Insert OK, 2 row(s) affected (0.001434s)
+  taos> INSERT INTO t1
+        VALUES (1711846799000, 1)
+               (1711846800000, 2);
+  Insert OK, 2 row(s) affected
 
-  taos> select * from t1 where ts between 1711846799000 and 1711846800000;
+  taos> SELECT *
+        FROM t1
+        WHERE ts BETWEEN 1711846799000 AND 1711846800000;
          ts       |     v1      |
   ===============================
    1711846799000 |           1 |
    1711846800000 |           2 |
-  Query OK, 2 row(s) in set (0.003503s)
+  Query OK, 2 row(s) in set
   ```
 
 - Use RFC3339 Time Format: The RFC3339 time format with time zone offsets can effectively avoid the uncertainty of DST.
@@ -248,17 +287,18 @@ To avoid unnecessary impacts of DST on querying and writing in TDengine, it is r
   | 1729994399000 | 2024-10-27T01:59:59.000Z | 2024-10-27T02:59:59.000+01:00 | 2024-10-27 02:59:59 |
 
   ```sql
-  INSERT INTO t1 VALUES
-    ('2024-10-27T02:00:00.000+02:00', 1)
-    ('2024-10-27T02:59:59.000+02:00', 2)
-    ('2024-10-27T02:00:00.000+01:00', 3)
-    ('2024-10-27T02:59:59.000+01:00', 4);
+  INSERT INTO t1
+  VALUES ('2024-10-27T02:00:00.000+02:00', 1)
+         ('2024-10-27T02:59:59.000+02:00', 2)
+         ('2024-10-27T02:00:00.000+01:00', 3)
+         ('2024-10-27T02:59:59.000+01:00', 4);
   ```
 
   Query both occurrences of the repeated hour:
 
   ```sql
-  SELECT *,
+  SELECT
+    *,
     TO_ISO8601(ts, 'Z') AS utc_time,
     TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') AS local_time
   FROM t1
@@ -276,7 +316,8 @@ To avoid unnecessary impacts of DST on querying and writing in TDengine, it is r
   Query only the first occurrence, before DST ends:
 
   ```sql
-  SELECT *,
+  SELECT
+    *,
     TO_ISO8601(ts, 'Z') AS utc_time,
     TO_CHAR(ts, 'YYYY-MM-DD HH:mi:ss') AS local_time
   FROM t1

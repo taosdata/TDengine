@@ -11,14 +11,12 @@ Starting in `v3.4.1.13`, LOF supports multivariate anomaly detection. You can pa
 
 ```sql
 --- Use LOF.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, "algo=lof")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, "algo=lof")
 
 --- Use LOF for multi-variate anomaly detection.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, foo.f32, "algo=lof")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, foo.f32, "algo=lof")
 ```
 
 The following algorithms are in development:
@@ -54,29 +52,24 @@ numeric columns as features.
 
 ```sql
 --- Use PyOD ECOD for multi-variate anomaly detection.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=ecod,contamination=0.1")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=ecod,contamination=0.1")
 
 --- Use PyOD HBOS.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=hbos,contamination=0.1,n_bins=10")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=hbos,contamination=0.1,n_bins=10")
 
 --- Use PyOD COPOD.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=copod,contamination=0.1")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=copod,contamination=0.1")
 
 --- Use PyOD Isolation Forest.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=iforest,contamination=0.1,n_estimators=100,random_state=42")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=iforest,contamination=0.1,n_estimators=100,random_state=42")
 
 --- Use PyOD PCA.
-SELECT count(*)
-FROM foo
-ANOMALY_WINDOW(foo.i32, foo.i64, "algo=pca,contamination=0.1,n_components=2")
+SELECT COUNT(*)
+FROM foo ANOMALY_WINDOW(foo.i32, foo.i64, "algo=pca,contamination=0.1,n_components=2")
 ```
 
 ### References

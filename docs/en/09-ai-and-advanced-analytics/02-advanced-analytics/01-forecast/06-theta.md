@@ -33,7 +33,10 @@ FORECAST(i32, "algo=theta,period=12,decomposition_type=multiplicative")
 The complete SQL statement is shown as follows:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=theta,period=12,decomposition_type=multiplicative") from foo
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=theta,period=12,decomposition_type=multiplicative")
+FROM foo
 ```
 
 ```json

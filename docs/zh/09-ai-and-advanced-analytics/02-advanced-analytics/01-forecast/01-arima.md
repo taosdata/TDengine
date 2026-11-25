@@ -44,7 +44,10 @@ FORECAST(i32, "algo=arima,conf=0.95,period=10,start_p=1,max_p=5,start_q=1,max_q=
 完整的调用 SQL 语句如下：
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=arima,conf=0.95,period=10,start_p=1,max_p=5,start_q=1,max_q=5") FROM foo;
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=arima,conf=0.95,period=10,start_p=1,max_p=5,start_q=1,max_q=5")
+FROM foo;
 ```
 
 ```json5

@@ -34,7 +34,10 @@ FORECAST(i32, "algo=ets,period=12,model=ZZZ,damped=1")
 完整的调用 SQL 语句如下：
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=ets,period=12,model=ZZZ,damped=1") from foo
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=ets,period=12,model=ZZZ,damped=1")
+FROM foo
 ```
 
 ```json5

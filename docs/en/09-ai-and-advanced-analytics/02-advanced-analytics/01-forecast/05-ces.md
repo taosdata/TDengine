@@ -33,7 +33,10 @@ FORECAST(i32, "algo=ces,period=12,model=Z")
 The complete SQL statement is shown as follows:
 
 ```sql
-SELECT _frowts, FORECAST(i32, "algo=ces,period=12,model=Z") from foo
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=ces,period=12,model=Z")
+FROM foo
 ```
 
 ```json

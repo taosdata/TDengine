@@ -1164,19 +1164,25 @@ timezone Asia/Shanghai
 连接级时区影响 SQL 中无偏移时间字符串的解析和当地日历边界，不改变 `NOW()` 的绝对时间戳。例如：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < '2019-04-11 12:01:08';
 ```
 
 在东八区，SQL 语句等效于：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554955268000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554955268000;
 ```
 
 在 UTC 时区，SQL 语句等效于：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554984068000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554984068000;
 ```
 
 为了避免使用字符串时间格式带来的不确定性，也可以直接使用 Unix 时间戳。此外，还可以在 SQL 语句中使用带有时区的时间戳字符串，例如：RFC3339 格式的时间戳字符串，2013-04-12T15:52:01.123+08:00 或者 ISO-8601 格式时间戳字符串 2013-04-12T15:52:01.123+0800。上述两个字符串转化为 Unix 时间戳不受系统所在时区的影响。

@@ -52,6 +52,7 @@ SHOW SNODES;
 
 ```sql
 SHOW DNODES;
+
 CREATE SNODE ON DNODE 1;
 ```
 
@@ -68,9 +69,14 @@ USE test;
 确认超级表 `meters` 中已经有数据。
 
 ```sql
-SELECT tbname, ts, current, voltage
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage
 FROM meters
-WHERE voltage > 250 and tbname = 'd1'
+WHERE voltage > 250
+  AND tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -85,7 +91,6 @@ LIMIT 5;
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -97,6 +102,7 @@ Query OK, 5 row(s) in set
 
 ```sql
 DROP STREAM IF EXISTS avg_current_stream;
+
 DROP STABLE IF EXISTS avg_current_stb;
 ```
 
@@ -105,17 +111,17 @@ DROP STABLE IF EXISTS avg_current_stb;
 ```sql
 CREATE STREAM avg_current_stream
   INTERVAL(1m) SLIDING(1m)
-  FROM meters PARTITION BY tbname, groupId
+  FROM meters
+  PARTITION BY tbname, groupId
   STREAM_OPTIONS(FILL_HISTORY_FIRST | MAX_DELAY(3s))
   INTO avg_current_stb
-  OUTPUT_SUBTABLE(CONCAT("avg_", tbname))
-  TAGS (
-      groupId INT AS groupId
-  )
+    OUTPUT_SUBTABLE(CONCAT("avg_", tbname))
+    TAGS (groupId INT AS groupId)
   AS
-    SELECT _twstart AS ts,
-           _twend AS window_end,
-           AVG(current) AS avg_current
+    SELECT
+      _twstart AS ts,
+      _twend AS window_end,
+      AVG(current) AS avg_current
     FROM %%trows;
 ```
 
@@ -143,7 +149,6 @@ SHOW STREAMS;
       stream_name     | status |         message         | db_name |
 ====================================================================
  avg_current_stream   | Idle   | Current deploy times: 0 | test    |
-
 Query OK, 1 row(s) in set
 ```
 
@@ -162,7 +167,12 @@ WHERE stream_name = 'avg_current_stream';
 查询输出超级表 `avg_current_stb`。
 
 ```sql
-SELECT tbname, groupId, ts, window_end, avg_current
+SELECT
+  tbname,
+  groupId,
+  ts,
+  window_end,
+  avg_current
 FROM avg_current_stb
 ORDER BY ts, tbname
 LIMIT 5;
@@ -189,19 +199,26 @@ LIMIT 5;
 向 `d0` 写入一条落在该窗口内的电表数据。
 
 ```sql
-INSERT INTO d0 VALUES ("2017-07-14 10:41:30", 12.4, 221, 147);
+INSERT INTO d0
+VALUES ("2017-07-14 10:41:30", 12.4, 221, 147);
 ```
 
 也可以再写入一条下一窗口起点的数据，用事件时间直接关窗（即使未配置 `MAX_DELAY` 也会触发）：
 
 ```sql
-INSERT INTO d0 VALUES ("2017-07-14 10:42:00", 12.5, 220, 147);
+INSERT INTO d0
+VALUES ("2017-07-14 10:42:00", 12.5, 220, 147);
 ```
 
 等待几秒后，查询 `d0` 对应输出子表 `avg_d0` 最近的流计算结果。
 
 ```sql
-SELECT tbname, groupId, ts, window_end, avg_current
+SELECT
+  tbname,
+  groupId,
+  ts,
+  window_end,
+  avg_current
 FROM avg_current_stb
 WHERE tbname = "avg_d0"
 ORDER BY ts DESC
@@ -225,6 +242,7 @@ LIMIT 3;
 
 ```sql
 DROP STREAM IF EXISTS avg_current_stream;
+
 DROP STABLE IF EXISTS avg_current_stb;
 ```
 

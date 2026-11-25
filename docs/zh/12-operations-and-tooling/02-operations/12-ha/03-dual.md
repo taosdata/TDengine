@@ -79,6 +79,7 @@ CREATE XNODE TASK 'aa_power_td1_td2'
   FROM 'tmq+ws://root:taosdata@td1:6041/power'
   TO 'taos+ws://root:taosdata@td2:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_td1_td2';
 
 -- 在 td2 上执行：td2 -> td1
@@ -86,6 +87,7 @@ CREATE XNODE TASK 'aa_power_td2_td1'
   FROM 'tmq+ws://root:taosdata@td2:6041/power'
   TO 'taos+ws://root:taosdata@td1:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_td2_td1';
 ```
 
@@ -99,13 +101,19 @@ START XNODE TASK 'aa_power_td2_td1';
 
 ```sql
 -- 在管理集群执行（ins_cluster 为特权表，需要 SYSINFO 权限）
-SELECT id FROM information_schema.ins_cluster;
+SELECT id
+FROM information_schema.ins_cluster;
 
 -- 在源集群执行，将 <管理集群 ID> 和 <任务 ID> 替换为实际值
-SELECT topic_name, vgroup_id, consumer_id, `offset`, `rows`
-  FROM information_schema.ins_subscriptions
-  WHERE topic_name = '__replica__<管理集群 ID>_<任务 ID>'
-    AND consumer_group = '__replica__<管理集群 ID>_<任务 ID>';
+SELECT
+  topic_name,
+  vgroup_id,
+  consumer_id,
+  `offset`,
+  `rows`
+FROM information_schema.ins_subscriptions
+WHERE topic_name = '__replica__<管理集群 ID>_<任务 ID>'
+  AND consumer_group = '__replica__<管理集群 ID>_<任务 ID>';
 ```
 
 - 快照复制阶段，`offset` 以 `tsdb:` 开头；进入 WAL 复制阶段后，显示为 `wal:<已消费版本>/<最新版本>`。两个版本之差是该 vgroup 的 WAL 版本差，可近似反映积压量，与 v3.3 版本 `taosx replica diff` 的含义相同。该位置由消费者心跳上报，可能超前于已提交位点。

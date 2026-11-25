@@ -363,7 +363,10 @@ VGroup 1 (replica=3)
 ```
 
 ```sql
-CREATE DATABASE db REPLICA 3 VGROUPS 10;
+CREATE DATABASE db
+  REPLICA 3
+  VGROUPS 10;
+
 ALTER DATABASE db REPLICA 3;
 ```
 
@@ -381,8 +384,11 @@ VGroup 1 (replica=2)
 ```
 
 ```sql
-CREATE DATABASE db REPLICA 2 VGROUPS 10;
-ALTER DATABASE db REPLICA 2;   -- Supports conversion only with single replica
+CREATE DATABASE db
+  REPLICA 2
+  VGROUPS 10;
+
+ALTER DATABASE db REPLICA 2;  -- Supports conversion only with single replica
 ```
 
 Fault tolerance boundary: recovery is possible when a single service fails and no continuous failures occur. If both data replicas are unavailable at the same time, or another failure occurs before synchronization completes, service cannot continue. Operations such as force assigning a Leader are described below.
@@ -409,15 +415,16 @@ Leader receives write -> append WAL -> send AppendEntries in parallel -> majorit
 
 ```sql
 RESTORE DNODE <dnode_id>;
+
 RESTORE MNODE ON DNODE <dnode_id>;
+
 RESTORE VNODE ON DNODE <dnode_id>;
 ```
 
 ### 4.6 Replica Status Monitoring
 
 ```sql
-SHOW VGROUPS;
--- status: leader / follower / offline / candidate
+SHOW VGROUPS;  -- status: leader / follower / offline / candidate
 ```
 
 ### 4.7 Highly Reliable MNode Metadata
@@ -426,7 +433,9 @@ MNode stores cluster metadata, including users, databases, tables, and the DNode
 
 ```sql
 SHOW MNODES;
+
 CREATE MNODE ON DNODE 2;
+
 CREATE MNODE ON DNODE 3;
 ```
 
@@ -477,10 +486,13 @@ Each VNode maintains an independent WAL. Write requests are first appended to th
 
 ```sql
 -- WAL mode 1: memory cache (highest performance, latest data may be lost on crash)
-CREATE DATABASE db WAL_LEVEL 1;
+CREATE DATABASE db
+  WAL_LEVEL 1;
 
 -- WAL mode 2: fsync to disk (recommended for production)
-CREATE DATABASE db WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
+CREATE DATABASE db
+  WAL_LEVEL 2
+  WAL_FSYNC_PERIOD 3000;
 ```
 
 ```ini
@@ -520,7 +532,9 @@ SVR_KEY -> DB_KEY -> CFG_KEY -> META_KEY -> DATA_KEY
 **Enable example (`v3.4+`, must first use `taosk` to generate keys containing `DATA_KEY`):**
 
 ```sql
-CREATE DATABASE db ENCRYPT_ALGORITHM 'SM4-CBC';
+CREATE DATABASE db
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
 SHOW ENCRYPT_STATUS;
 ```
 

@@ -128,21 +128,24 @@ You can run the following command to display the FQDN and status of the anodes i
 
 ```sql
 SHOW ANODES;
+```
 
-taos> show anodes;
+```sql
+taos> SHOW anodes;
      id      |              url               |    status    |       create_time       |       update_time       |
 ==================================================================================================================
            1 | 192.168.0.1:6035               | ready        | 2024-11-28 18:44:27.089 | 2024-11-28 18:44:27.089 |
-Query OK, 1 row(s) in set (0.037205s)
-
+Query OK, 1 row(s) in set
 ```
 
 #### View Advanced Analytics Services
 
 ```sql
 SHOW ANODES FULL;
+```
 
-taos> show anodes full;                                                      
+```sql
+taos> SHOW anodes FULL;
      id      |            type            |              algo              | 
 ============================================================================ 
            1 | anomaly-detection          | grubbs                         | 
@@ -155,7 +158,7 @@ taos> show anodes full;
            1 | forecast                   | holtwinters                    | 
            1 | forecast                   | tdtsfm_1                       | 
            1 | forecast                   | timemoe-fc                     | 
-Query OK, 10 row(s) in set (0.028750s)                                       
+Query OK, 10 row(s) in set
 ```
 
 The actual list depends on the models loaded by the Anode. Common built-in models include:

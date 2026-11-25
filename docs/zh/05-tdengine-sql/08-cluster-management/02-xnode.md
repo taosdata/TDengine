@@ -18,9 +18,14 @@ Xnode 节点是数据同步服务的基本执行单元，负责具体的数据�
 **语法**
 
 ```sql
+CREATE XNODE 'url';
+
 CREATE XNODE 'url'
-CREATE XNODE 'url' USER name PASS 'password'
-CREATE XNODE 'url' TOKEN 'token'
+  USER name
+  PASS 'password';
+
+CREATE XNODE 'url'
+  TOKEN 'token';
 ```
 
 **参数说明**
@@ -35,8 +40,13 @@ CREATE XNODE 'url' TOKEN 'token'
 
 ```sql
 CREATE XNODE 'localhost:6055';
-CREATE XNODE 'localhost:6055' USER root PASS 'taosdata';
-CREATE XNODE 'localhost:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+
+CREATE XNODE 'localhost:6055'
+  USER root
+  PASS 'taosdata';
+
+CREATE XNODE 'localhost:6055'
+  TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
 ```
 
 ### 修改认证
@@ -44,8 +54,9 @@ CREATE XNODE 'localhost:6055' TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHb
 修改认证会重启守护进程 `xnoded`。本命令修改的是单个 `xnoded` 守护进程连接 `taosd` 所用的认证凭据。
 
 ```sql
-ALTER XNODE SET USER name PASS 'password'
-ALTER XNODE SET TOKEN 'token'
+ALTER XNODE SET USER name PASS 'password';
+
+ALTER XNODE SET TOKEN 'token';
 ```
 
 **参数说明**
@@ -56,6 +67,7 @@ ALTER XNODE SET TOKEN 'token'
 
 ```sql
 ALTER XNODE SET TOKEN 'C8V3o0ZVvYQ6sMEnjfixjtw0OvN9nIPFAL1HWvSKmHbQsds8vBpVbrEZn2hrzar';
+
 ALTER XNODE SET USER root PASS 'taosdata';
 ```
 
@@ -138,6 +150,7 @@ DROP XNODE FORCE {id | 'url'}
 
 ```sql
 DROP XNODE 1;
+
 DROP XNODE 'localhost:6055';
 ```
 
@@ -295,6 +308,7 @@ CREATE XNODE TASK 'aa_power_a_b'
   FROM 'tmq+ws://root:taosdata@td1:6041/power'
   TO 'taos+ws://root:taosdata@td2:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_a_b';
 ```
 
@@ -317,7 +331,7 @@ SHOW XNODE TASKS WHERE parser != '{}' AND parser IS NOT NULL;
 **示例**
 
 ```sql
-SHOW XNODE TASKS\G;
+SHOW XNODE TASKS \G;
 ```
 
 示例输出：
@@ -408,10 +422,7 @@ alter_options:
 **示例**
 
 ```sql
-ALTER XNODE TASK 3
-  FROM 'pulsar://localhost:6650'
-  TO 'testdb'
-  WITH XNODE_ID 33 VIA 333 REASON 'zgc_test';
+ALTER XNODE TASK 3 FROM 'pulsar://localhost:6650' TO 'testdb' WITH XNODE_ID 33 VIA 333 REASON 'zgc_test';
 ```
 
 ### 删除任务
@@ -471,7 +482,7 @@ SHOW XNODE JOBS WHERE config != '{}' AND config IS NOT NULL;
 **示例**
 
 ```sql
-SHOW XNODE JOBS\G;
+SHOW XNODE JOBS \G;
 ```
 
 示例输出：
@@ -523,7 +534,9 @@ REBALANCE XNODE JOBS [WHERE job_conditions]
 
 ```sql
 REBALANCE XNODE JOBS WHERE id > 1;
+
 REBALANCE XNODE JOBS WHERE task_id = 1 AND (xnode_id = 3 OR xnode_id = 4);
+
 REBALANCE XNODE JOBS;
 ```
 
@@ -551,7 +564,9 @@ agent_options:
 
 ```sql
 CREATE XNODE AGENT 'a1';
-CREATE XNODE AGENT 'a2' WITH STATUS 'running';
+
+CREATE XNODE AGENT 'a2'
+  WITH STATUS 'running';
 ```
 
 ### 查询 Agent
@@ -565,7 +580,7 @@ SHOW XNODE AGENTS [WHERE condition]
 **示例**
 
 ```sql
-SHOW XNODE AGENTS\G;
+SHOW XNODE AGENTS \G;
 ```
 
 示例输出：
@@ -588,7 +603,7 @@ update_time: 2026-01-12 09:51:41.364
 ALTER XNODE AGENT {agent_id | 'name'} WITH alter_options
 
 alter_options:
-  STATUS 'status'
+    STATUS 'status'
   | NAME 'name'
 ```
 
@@ -601,6 +616,7 @@ alter_options:
 
 ```sql
 ALTER XNODE AGENT 1 WITH NAME 'test1';
+
 ALTER XNODE AGENT 'a2' WITH NAME 'test2' STATUS 'online';
 ```
 

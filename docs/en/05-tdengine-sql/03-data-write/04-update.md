@@ -12,8 +12,8 @@ The examples below use the tables from [Data Ingestion](./01-insert.md). The sup
 
 ```sql
 UPDATE [db_name.]tb_name
-    SET col_name = expr [, col_name = expr] ...
-    [WHERE condition];
+  SET col_name = expr [, col_name = expr] ...
+  [WHERE condition];
 ```
 
 ### Parameters
@@ -173,7 +173,11 @@ UPDATE meters SET groupId = 3 WHERE location = 'California.SanFrancisco';
 Query the point information to confirm the result:
 
 ```sql
-SELECT DISTINCT tbname, location, groupId FROM meters;
+SELECT
+  DISTINCT tbname,
+  location,
+  groupId
+FROM meters;
 ```
 
 ## Update Through Parameter Binding

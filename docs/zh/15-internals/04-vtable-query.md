@@ -30,7 +30,10 @@ toc_max_heading_level: 4
 以如下聚合查询为例：
 
 ```sql
-SELECT count(a), sum(b) FROM vtable;
+SELECT
+  COUNT(a),
+  SUM(b)
+FROM vtable;
 ```
 
 其中列 `a` 来自源表 A，列 `b` 来自源表 B。假设源表 A 和 B 各有 100 万行数据，朴素执行路径下，引擎需要先将 A 和 B 的全量数据按时间戳归并为一张临时结果集，再在该结果集上执行聚合运算。
@@ -83,7 +86,12 @@ AggA 直接在源表 A 上执行 `count(a)`，由于是对原始数据块的聚�
 当多个聚合函数依赖同一张源表时，将被划分至同一组：
 
 ```sql
-SELECT count(a), avg(a), sum(b), max(b) FROM vtable;
+SELECT
+  COUNT(a),
+  AVG(a),
+  SUM(b),
+  MAX(b)
+FROM vtable;
 ```
 
 对应的优化后执行计划为：
@@ -107,7 +115,12 @@ ColsMerge
 在 TDengine 中，窗口查询允许用户按时间间隔、状态变化等方式将数据划分为多个窗口，在每个窗口内独立执行聚合。例如：
 
 ```sql
-SELECT _wstart, _wend, avg(b) FROM vtable STATE_WINDOW(a);
+SELECT
+  _wstart,
+  _wend,
+  AVG(b)
+FROM vtable
+STATE_WINDOW(a);
 ```
 
 该查询的语义为：按列 `a` 的值变化划分窗口，在每个窗口内计算列 `b` 的平均值。
@@ -198,7 +211,12 @@ DynQueryCtrl（调度节点）
 当查询涉及多张源表时，窗口边界仅需确定一次，各源表可并行执行窗口聚合：
 
 ```sql
-SELECT _wstart, avg(b), max(c) FROM vtable STATE_WINDOW(a);
+SELECT
+  _wstart,
+  AVG(b),
+  MAX(c)
+FROM vtable
+STATE_WINDOW(a);
 ```
 
 其中列 `a` 在源表 A，列 `b` 在源表 B，列 `c` 在源表 C。优化后的执行计划为：

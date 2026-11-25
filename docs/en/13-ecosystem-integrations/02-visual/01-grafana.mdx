@@ -418,7 +418,16 @@ In "Define query and alert condition" configure the alert rule.
 2. Query statement:
 
     ```sql
-    select _wstart as ts, groupid, avg(current) as current from power.meters where ts > $from and ts < $to partition by groupid interval($interval) fill(null)
+    SELECT
+      _wstart AS ts,
+      groupid,
+      AVG(current) AS current
+    FROM power.meters
+    WHERE ts > $from
+      AND ts < $to
+    PARTITION BY groupid
+    INTERVAL($interval)
+    FILL(NULL)
     ```
 
 3. Set "Expression" (expression): `Threshold is above 100`  

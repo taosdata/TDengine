@@ -9,7 +9,8 @@ The user management syntax is available across all versions, but in the TDengine
 ## Create User
 
 ```sql
-CREATE USER user_name PASS 'password'
+CREATE USER user_name
+  PASS 'password'
   [SYSINFO {1|0}]
   [CREATEDB {1|0}]
   [ENABLE {1|0}]
@@ -39,16 +40,17 @@ The username can be up to 23 bytes long.
 The password must be between 8 and 255 characters long and include at least three types of characters from the following: uppercase letters, lowercase letters, numbers, and special characters. Special characters include `! @ # $ % ^ & * ( ) - _ + = [ ] { } : ; > < ? | ~ , .`, and this requirement is able to be closed by adding enableStrongPassword 0 in taos.cfg, or by the following SQL:
 
 ```sql
-alter all dnodes 'EnableStrongPassword' '0'
+ALTER ALL dnodes 'EnableStrongPassword' '0'
 ```
 
 The default values of options such as `FAILED_LOGIN_ATTEMPTS` are related to the configuration parameter `enableAdvancedSecurity`, as detailed below. The state of `enableAdvancedSecurity` can be changed using the following SQL.
 
 ```sql
 -- enable advanced security by default
-alter all dnodes 'EnableAdvancedSecurity' '1'
+ALTER ALL dnodes 'EnableAdvancedSecurity' '1'
+
 -- disable advanced security by default
-alter all dnodes 'EnableAdvancedSecurity' '0'
+ALTER ALL dnodes 'EnableAdvancedSecurity' '0'
 ```
 
 - `SYSINFO` indicates whether the user can view system information. `1` means they can view, `0` means they have no permission to view. System information includes service configuration, dnode, vnode, storage, etc. The default value is `1`.
@@ -79,8 +81,10 @@ alter all dnodes 'EnableAdvancedSecurity' '0'
 In the example below, we create a user with the password `abc123!@#` who can view system information.
 
 ```sql
-taos> create user test pass 'abc123!@#' sysinfo 1;
-Query OK, 0 of 0 rows affected (0.001254s)
+taos> CREATE USER test
+        PASS 'abc123!@#'
+        SYSINFO 1;
+Query OK, 0 of 0 rows affected
 ```
 
 ## View Users
@@ -94,12 +98,12 @@ SHOW USERS;
 Here is an example:
 
 ```sql
-taos> show users;
+taos> SHOW users;
        name        | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       |   allowed_datetime   |
 ============================================================================================================================================
  test              |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
  root              |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
-Query OK, 2 rows in set (0.001657s)
+Query OK, 2 rows in set
 ```
 
 Note that in `allowed_host`, if an address or subnet range is prefixed with `+`, it indicates a whitelist entry, allowing login from that address. If prefixed with `-`, it indicates a blacklist entry, disallowing login from that address. The same rule applies to `allowed_datetime`.
@@ -107,12 +111,13 @@ Note that in `allowed_host`, if an address or subnet range is prefixed with `+`,
 Alternatively, you can query the built-in system table INFORMATION_SCHEMA.INS_USERS to get user information.
 
 ```sql
-taos> select * from information_schema.ins_users;
+taos> SELECT *
+      FROM information_schema.ins_users;
        name        | super | enable | sysinfo | createdb |       create_time       | totp |      allowed_host       |   allowed_datetime   |
 ============================================================================================================================================
  test              |     0 |      1 |       1 |        0 | 2025-12-24 18:56:20.709 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
  root              |     1 |      1 |       1 |        1 | 2025-12-24 18:00:43.197 |    0 | +127.0.0.1/32, +::1/128 | +ALL                 |
-Query OK, 2 row(s) in set (0.007383s)
+Query OK, 2 row(s) in set
 ```
 
 ## Delete User
@@ -125,7 +130,7 @@ DROP USER [IF EXISTS] user_name;
 
 ```sql
 ALTER USER user_name alter_user_clause
- 
+
 alter_user_clause: {
   [PASS 'password']
   [SYSINFO {1|0}]
@@ -160,8 +165,8 @@ alter_user_clause: {
 The following example disables the user named `test`:
 
 ```sql
-taos> alter user test enable 0;
-Query OK, 0 of 0 rows affected (0.001160s)
+taos> ALTER user test enable 0;
+Query OK, 0 of 0 rows affected
 ```
 
 After you change a user's password (`ALTER USER ... PASS`), the server detects existing sessions that still use the **old password** on heartbeat and disconnects them. Subsequent requests on those connections return authentication failure (`0x80000357`). The connection that performed the password change is not affected. **Token-authenticated connections are not subject to this mechanism.**
@@ -184,7 +189,10 @@ Login evaluation rules:
 Add an IP allowlist:
 
 ```sql
-CREATE USER test PASS 'taosdata1' HOST '192.168.1.0/24', '10.0.0.1';
+CREATE USER test
+  PASS 'taosdata1'
+  HOST '192.168.1.0/24', '10.0.0.1';
+
 ALTER USER test ADD HOST '192.168.2.0/24';
 ```
 
@@ -197,7 +205,11 @@ ALTER USER test ADD NOT_ALLOW_HOST '203.0.113.5/32';
 Query:
 
 ```sql
-SELECT name, allowed_host FROM information_schema.ins_users;
+SELECT
+  name,
+  allowed_host
+FROM information_schema.ins_users;
+
 SHOW USERS;
 ```
 
@@ -207,6 +219,7 @@ Drop:
 
 ```sql
 ALTER USER test DROP HOST '192.168.2.0/24';
+
 ALTER USER test DROP NOT_ALLOW_HOST '203.0.113.5/32';
 ```
 
@@ -245,11 +258,11 @@ After enabling TOTP two-factor authentication, TDengine TSDB requires the OTP to
 For example, we can use the following command to create a TOTP secret for user test.
 
 ```sql
-taos> create totp_secret for user test;
+taos> CREATE totp_secret for user test;
                      totp_secret                      |
 =======================================================
  ERIRPLZL4ZBFTPT5BNXMVFPR4Z3PTHUWTBTCNZPOHYPYQGTD25XA |
-Query OK, 1 row(s) in set (0.002314s)
+Query OK, 1 row(s) in set
 ```
 
 ### Drop TOTP Secret
@@ -263,8 +276,8 @@ This command drops the TOTP secret from the user. After the secret is dropped, t
 For example, we can use the following command to drop the TOTP key from user test.
 
 ```sql
-taos> drop totp_secret from user test;
-Drop OK, 0 row(s) affected (0.002295s)
+taos> DROP totp_secret FROM user test;
+Drop OK, 0 row(s) affected
 ```
 
 ## Token Management
@@ -287,11 +300,12 @@ The token_name can be up to 31 bytes long. Starting from `v3.4.3.12`, names that
 In the following example, we create a token named test_token for the user test. Please save the token value promptly as it is only displayed once upon creation—and cannot be queried thereafter.
 
 ```sql
-taos> create token test_token from user test;
+taos> CREATE token test_token
+        FROM user test;
                              token                               |
 ==================================================================
  BsyjYKxhCMntZ3pHgweCd2uV2C8HoGKn8Mvd49dRRCtzusX0P1mgqRMrG7SzUca |
-Query OK, 1 row(s) in set (0.003018s)
+Query OK, 1 row(s) in set
 ```
 
 ### View Tokens
@@ -305,23 +319,24 @@ SHOW TOKENS;
 For example:
 
 ```sql
-taos> show tokens;
+taos> SHOW tokens;
     name    | user | provider | enable |       create_time       |       expire_time       | extra_info |
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
  test_token | test |          |      1 | 2025-12-25 10:01:47.000 | 1970-01-01 08:00:00.000 |            |
-Query OK, 2 row(s) in set (0.003313s)
+Query OK, 2 row(s) in set
 ```
 
 Alternatively, you can query the built-in system table INFORMATION_SCHEMA.INS_TOKENS to get user information.
 
 ```sql
-taos> select * from information_schema.ins_tokens;
+taos> SELECT *
+      FROM information_schema.ins_tokens;
     name    | user | provider | enable |       create_time       |       expire_time       | extra_info |
 =========================================================================================================
  root_token | root |          |      1 | 2025-12-25 10:02:28.000 | 1970-01-01 08:00:00.000 |            |
  test_token | test |          |      1 | 2025-12-25 10:01:47.000 | 1970-01-01 08:00:00.000 |            |
-Query OK, 2 row(s) in set (0.007438s)
+Query OK, 2 row(s) in set
 ```
 
 ### Modify Token

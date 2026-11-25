@@ -109,7 +109,7 @@ import Link from "@docusaurus/Link";
 在 `taos` shell 里可以通过 `source` 命令来运行脚本文件中的多条 SQL 命令，脚本文件中多条 SQL 按行书写即可。
 
 ```sql
-taos> source <filename>;
+source <filename>;
 ```
 
 ## 数据订阅 {#数据订阅}
@@ -119,7 +119,7 @@ taos> source <filename>;
 ### 语法
 
 ```sql
-taos> subscribe <topic_name> -g <group_id> [options];
+subscribe <topic_name> -g <group_id> [options];
 ```
 
 ### 参数说明
@@ -139,25 +139,32 @@ taos> subscribe <topic_name> -g <group_id> [options];
 前提条件：已创建 Topic，例如：
 
 ```sql
-taos> CREATE TOPIC topic_meters AS SELECT ts, current, voltage, phase FROM power.meters;
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      current,
+      voltage,
+      phase
+    FROM power.meters;
 ```
 
 示例 1 — 持续订阅，按 Ctrl+C 退出：
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest;
+subscribe topic_meters -g my_group -o earliest;
 ```
 
 示例 2 — 从最早位置消费 10 条后自动退出：
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest -n 10;
+subscribe topic_meters -g my_group -o earliest -n 10;
 ```
 
 示例 3 — 自定义 poll 超时为 500ms：
 
 ```sql
-taos> subscribe topic_meters -g my_group -o earliest -t 500;
+subscribe topic_meters -g my_group -o earliest -t 500;
 ```
 
 ### 输出格式
@@ -202,7 +209,7 @@ Unsubscribed. Total rows received: 10
 以下命令设置了显示宽度为 120 个字符：
 
 ```sql
-taos> SET MAX_BINARY_DISPLAY_WIDTH 120;
+SET MAX_BINARY_DISPLAY_WIDTH 120;
 ```
 
 如显示的内容后面以 `...` 结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。

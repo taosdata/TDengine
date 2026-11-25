@@ -23,13 +23,19 @@ TDgpt 集成时序基础模型的预测能力后，可直接通过 SQL 调用已
 - 以下 SQL 语句调用涛思时序基础模型（`tdtsfm_1`）预测数据，返回 10 条预测记录。
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=tdtsfm_1,rows=10") from foo
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=tdtsfm_1,rows=10")
+FROM foo
 ```
 
 - 以下 SQL 语句调用 TimeMoE 时序基础模型预测数据，并返回 10 条预测记录。
 
 ```SQL
-SELECT _frowts, FORECAST(i32, "algo=timemoe-fc,rows=10") from foo
+SELECT
+  _frowts,
+  FORECAST(i32, "algo=timemoe-fc,rows=10")
+FROM foo
 ```
 
 ## 参考文献

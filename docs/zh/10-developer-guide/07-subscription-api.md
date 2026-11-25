@@ -15,7 +15,16 @@ TDengine 提供类似消息队列的数据订阅与消费接口。在许多场�
 请用 `taos` shell，或参考 [执行 SQL](./02-execute-sql.md) 用程序执行创建主题的 SQL：
 
 ```sql
-CREATE TOPIC IF NOT EXISTS topic_meters AS SELECT ts, current, voltage, phase, groupid, location FROM meters;
+CREATE TOPIC IF NOT EXISTS topic_meters
+  AS
+    SELECT
+      ts,
+      current,
+      voltage,
+      phase,
+      groupid,
+      location
+    FROM meters;
 ```  
 
 上述 SQL 将创建一个名为 `topic_meters` 的主题。使用该订阅所获取的消息中的每条记录都由此查询语句 `SELECT ts, current, voltage, phase, groupid, location FROM meters` 所选择的列组成。

@@ -151,7 +151,7 @@ Then restart the taosanode service and run `UPDATE ALL ANODES`. You can now use 
 ## Use a TSFM in SQL
 
 ```sql
-SELECT FORECAST(i32, 'algo=timemoe-fc') 
+SELECT FORECAST(i32, 'algo=timemoe-fc')
 FROM foo;
 ```
 

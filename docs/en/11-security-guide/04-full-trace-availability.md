@@ -341,7 +341,9 @@ MNode manages cluster metadata, including database and table definitions, user p
 
 ```sql
 SHOW MNODES;
+
 CREATE MNODE ON DNODE 2;
+
 CREATE MNODE ON DNODE 3;
 ```
 
@@ -356,7 +358,10 @@ CREATE MNODE ON DNODE 3;
 VGroups use multiple replicas to carry time-series data:
 
 ```sql
-CREATE DATABASE db REPLICA 3 VGROUPS 10;
+CREATE DATABASE db
+  REPLICA 3
+  VGROUPS 10;
+
 SHOW db.VGROUPS;
 ```
 
