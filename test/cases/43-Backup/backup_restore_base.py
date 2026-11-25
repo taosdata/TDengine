@@ -24,7 +24,9 @@ Subclasses must provide at least:
 """
 
 import os
+import shutil
 import subprocess
+import tempfile
 import time
 
 from new_test_framework.utils import tdLog, tdSql, sc, cluster, clusterComCheck
@@ -99,6 +101,20 @@ class BackupRestoreTestBase:
                     return backup_id
             time.sleep(1)
         tdLog.exit(f"backup record did not appear within {timeout}s")
+
+    def _start_incremental_backup(self, chain_path, password=None):
+        chain_id = int(os.path.basename(chain_path))
+        backup_dir = os.path.dirname(chain_path).replace("\\", "/")
+        tdSql.query("SHOW BACKUPS")
+        baseline = max((tdSql.getData(r, 0) for r in range(tdSql.queryRows)), default=0)
+        time.sleep(1.1)
+        password_sql = f" WITH PASSWORD '{password}'" if password else ""
+        tdSql.execute(
+            f"CREATE INCREMENTAL BACKUP ON DNODE {self.backup_dnode} TO '{backup_dir}' {chain_id}{password_sql}"
+        )
+        backup_id = self._wait_backup_record(baseline)
+        self._wait_backup_done(backup_id)
+        return backup_id
 
     def _wait_backup_done(self, backup_id, timeout=None):
         """Poll SHOW BACKUPS until the given backup is no longer running.
@@ -423,3 +439,18 @@ class BackupRestoreTestBase:
             tdLog.exit(f"failed to re-encrypt backup.json: {enc.stderr[-500:]}")
         with open(manifest_path, "wb") as f:
             f.write(iv + enc.stdout)
+
+
+class SingleNodeBackupRestoreBase(BackupRestoreTestBase):
+    backup_root = None
+
+    def setup_class(cls):
+        tdLog.debug(f"start to execute {cls.__module__}")
+        cls.dnode_id = 1
+        cls.dnode_nums = 1
+        cls.backup_dnode = 1
+        cls.backup_root = tempfile.mkdtemp(prefix="backup_restore_").replace("\\", "/")
+
+    def teardown_class(cls):
+        if cls.backup_root and os.path.exists(cls.backup_root):
+            shutil.rmtree(cls.backup_root)

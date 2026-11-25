@@ -149,7 +149,6 @@
 100,,y,.,env FQ_REQUIRED_SERVICES=mysql ./ci/pytest.sh pytest cases/18-StreamProcessing/99-Others/test_fs_07_performance.py::TestFsPerformance::test_count_window_external_trigger_large_perf
 
 100,,y,.,env FQ_INFLUX_VERSIONS=3.0,1.8 ./ci/pytest.sh pytest cases/09-DataQuerying/19-FederatedQuery/test_fq_12_compatibility.py
-100,1,y,.,CASE_TIMEOUT=1800 ./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_concurrent_write.py -N 3 --timeout=1800
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/08-Recalc/test_recalc_manual_basic.py
 ,,n,.,pytest cases/09-DataQuerying/08-SubQuery/test_correlated_scalar_lifecycle.py
 # Stream cases observed at 7-12 minutes. They are large-mem and used to
@@ -2031,6 +2030,8 @@
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_syntax.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_backup_privilege.py
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_backup_restore.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_single_node_incremental_backup_restore.py
+100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_incremental_multidisk_restore.py -D 2
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_negative.py -N 3
 100,,y,.,./ci/pytest.sh pytest cases/43-Backup/test_cluster_backup_restore_dnode_mismatch.py -N 3

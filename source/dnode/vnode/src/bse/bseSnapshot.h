@@ -42,6 +42,7 @@ struct SBseRawFileWriter {
   int32_t   keepDays;
   SBse     *pBse;
   int64_t   offset;
+  int64_t   timestamp;
 };
 
 struct SBseSnapWriter {

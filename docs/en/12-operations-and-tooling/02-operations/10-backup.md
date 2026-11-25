@@ -4,9 +4,9 @@ title: Data Backup and Restoration
 
 You can back up the data in your TDengine cluster and restore it in the event that data is lost or damaged.
 
-## Full Cluster Backup and Restoration
+## Full and Incremental Cluster Backup and Restoration
 
-TDengine TSDB Enterprise supports full backup and restoration at the cluster level. Backups are performed online, while restoration is performed offline. This feature is suitable for restoring an entire cluster to the original cluster or to another cluster with the same topology.
+TDengine TSDB Enterprise supports full and incremental backup and restoration at the cluster level. Backups are performed online, while restoration is performed offline. You can restore the entire cluster to the original cluster or to another cluster with the same number of dnodes.
 
 ### Create a Full Backup
 
@@ -40,6 +40,24 @@ CREATE FULL BACKUP ON DNODE 1 TO '/backup' PARALLEL 4;
 ```
 
 After the backup succeeds, a subdirectory is created under the backup directory based on the backup time. This subdirectory is the backup chain directory, such as `/backup/20260824094003`. Specify this backup chain directory when restoring data.
+
+### Create an Incremental Backup
+
+Each backup chain starts with a full backup. An incremental backup uses the previous successful full or incremental backup in the same chain as its baseline and backs up data changes since that baseline.
+
+```sql
+CREATE INCREMENTAL BACKUP ON DNODE <dnode_id> TO <backup_path> [<backup_chain_id>] [WITH PASSWORD <password>] [PARALLEL <n>];
+```
+
+`backup_path` is the parent directory of the backup chain directory and is usually the same as the `backup_path` used for the full backup. `backup_chain_id` specifies the target backup chain. If omitted, the chain with the largest ID in `backup_path` is used. If the full backup is encrypted, subsequent incremental backups must use the same password. If the full backup is not encrypted, subsequent incremental backups cannot be encrypted either.
+
+For example, the following command adds an encrypted incremental backup to chain `20260824094003`:
+
+```sql
+CREATE INCREMENTAL BACKUP ON DNODE 1 TO '/backup' 20260824094003 WITH PASSWORD 'Abcd1234' PARALLEL 4;
+```
+
+Before creating an incremental backup, the system checks the cluster ID, dnode membership, vgroups, and the dnode membership of their replicas against the previous backup. If any of these have changed, the incremental backup cannot proceed. In this case, you can create a new full backup.
 
 ### View Backup Status
 
@@ -99,14 +117,15 @@ KILL BACKUP 20260824094003
 Perform data restoration from an operating system terminal. The command syntax is as follows:
 
 ```shell
-taosd --restore <backup_chain_path> [--password <password>] [--verify=0|1|2] [--parallel <n>] [--verbose]
+taosd --restore <backup_chain_path> [--last-backup <backup_id>] [--password <password>] [--verify=0|1|2] [--parallel <n>] [--verbose]
 ```
 
 Here:
 
 - `backup_chain_path` is the backup chain directory created during the backup. The backup chain path may differ between backup and restoration if the storage device is mounted at a different path.
+- `last-backup` specifies the backup ID to restore through. If omitted, the last backup in the chain is used. The specified backup must exist; restoration applies the full backup and every increment through that ID in order.
 - `password` is the password used to encrypt the backup data. It is required only for encrypted backups.
-- `verify` specifies whether to verify backup data integrity before restoration. The default value is `1`, which enables verification. If you are certain that the backup data is complete, you can use `0` to skip verification and reduce restoration time. Specify `2` to verify data integrity without performing restoration.
+- `verify` specifies whether to check backup data integrity before restoration. The default value is `1`, which enables verification. If you are certain that the backup data is complete, you can use `0` to skip verification and reduce restoration time. Specify `2` to verify data integrity without performing restoration.
 - `parallel` specifies the number of vnodes to restore in parallel. The default value is `1` (serial restoration), and the value must be greater than or equal to `1`. When there are many vnodes, increasing this value can significantly shorten the verification and restoration time.
 - Because restoration involves interactive prompts, only logs closely related to restoration are printed by default. If an error occurs, rerun the restoration with `verbose` to print more diagnostic information.
 
@@ -124,28 +143,29 @@ For example, the following command decrypts and restores the backup chain at `/b
 taosd --restore /backup/20260824094003 --password Abcd1234
 ```
 
+To restore through a specific incremental backup:
+
+```shell
+taosd --restore /backup/20260824094003 --last-backup 20260825120000 --password Abcd1234
+```
+
 Follow these steps to restore data:
 
-**Step 1:** Prepare the software and hardware environment for all dnodes in the target cluster. The number of target dnodes must be the same as in the source cluster.
+- **Step 1:** Prepare the software and hardware environment for all dnodes in the target cluster. The number of target dnodes must be the same as in the source cluster.
+- **Step 2:** Start all dnodes and use the `CREATE DNODE` command to add all dnodes to the cluster.
+- **Step 3:** Stop all dnodes.
+- **Step 4:** Run the restoration command separately on each dnode (this step can be executed parallelly on all dnodes to reduce overall restoration time).
 
-**Step 2:** Start all dnodes and use the `CREATE DNODE` command to add all dnodes to the cluster.
+  - **Step 4.1:** Start restoration with the appropriate options described above.
+  - **Step 4.2:** `taosd` verifies backup data integrity according to the `verify` option. If verification fails, restoration fails immediately and the remaining steps are skipped.
+  - **Step 4.3:** `taosd` checks version compatibility. Using the same `taosd` version as the one used for the backup is recommended. If the version numbers differ, `taosd` asks whether to continue. You must enter `YES` in uppercase to continue; any other input exits the restoration.
+  - **Step 4.4:** `taosd` informs you that the existing data on the dnode will be deleted and cannot be rolled back. You must enter `YES` in uppercase to continue; any other input exits the restoration.
+  - **Step 4.5:** `taosd` restores the data and prints progress information. This step may take a long time depending on the amount of data. Wait for it to complete.
+  - **Step 4.6:** After restoration completes, `taosd` prints `restore completed successfully`.
 
-**Step 3:** Stop all dnodes.
-
-**Step 4:** Run the restoration command separately on each dnode (this step can be executed parallelly on all dnodes to reduce overall restoration time).
-
-- **Step 4.1:** Start restoration with the appropriate options described above.
-- **Step 4.2:** `taosd` verifies the integrity of the backup data. If verification fails, restoration fails immediately and the remaining steps are skipped.
-- **Step 4.3:** `taosd` checks version compatibility. Using the same `taosd` version as the one used for the backup is recommended. If the version numbers differ, `taosd` asks whether to continue. You must enter `YES` in uppercase to continue; any other input exits the restoration.
-- **Step 4.4:** `taosd` informs you that the existing data on the dnode will be deleted and cannot be rolled back. You must enter `YES` in uppercase to continue; any other input exits the restoration.
-- **Step 4.5:** `taosd` restores the data and prints progress information. This step may take a long time depending on the amount of data. Wait for it to complete.
-- **Step 4.6:** After restoration completes, `taosd` prints `restore completed successfully`.
-
-**Step 5:** Start all dnodes and check that the cluster and its data are functioning correctly.
-
-**Step 6:** Manually restore anode, bnode, qnode, and xnode as needed.
-
-**Step 7:** After the cluster is restored, reconnect other applications and resume normal use.
+- **Step 5:** Start all dnodes and check that the cluster and its data are functioning correctly.
+- **Step 6:** Manually restore anode, bnode, qnode, and xnode as needed.
+- **Step 7:** After the cluster is restored, reconnect other applications and resume normal use.
 
 ## Data Backup and Restoration Using taosdump
 

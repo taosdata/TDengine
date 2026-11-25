@@ -19,6 +19,7 @@
 #include "libs/sm4/sm4.h"
 #include "mnode.h"
 #include "tencrypt.h"
+#include "tsdb.h"
 #include "tversion.h"
 #include "version.h"
 #include "vnd.h"
@@ -446,8 +447,16 @@ static int32_t dmRestoreParseInt64(const SJson *pItem, int64_t *value) {
   char *stringValue = NULL;
   if (tjsonGetObjectValueString(pItem, &stringValue) == 0) {
     char   *end = NULL;
+    if (stringValue == NULL || *stringValue == '\0') return TSDB_CODE_INVALID_DATA_FMT;
+    const char *p = stringValue;
+    if (*p == '-') ++p;
+    if (*p == '\0') return TSDB_CODE_INVALID_DATA_FMT;
+    for (; *p != '\0'; ++p) {
+      if (*p < '0' || *p > '9') return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    SET_ERRNO(0);
     int64_t parsed = taosStr2Int64(stringValue, &end, 10);
-    if (end == NULL || *end != '\0') {
+    if (ERRNO == ERANGE || end == stringValue || end == NULL || *end != '\0') {
       return TSDB_CODE_INVALID_DATA_FMT;
     }
     *value = parsed;
@@ -455,7 +464,8 @@ static int32_t dmRestoreParseInt64(const SJson *pItem, int64_t *value) {
   }
 
   const cJSON *pNumber = pItem;
-  if (!cJSON_IsNumber(pNumber)) {
+  const double maxExact = 9007199254740991.0;
+  if (!cJSON_IsNumber(pNumber) || !(pNumber->valuedouble >= -maxExact && pNumber->valuedouble <= maxExact)) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
@@ -565,6 +575,9 @@ static int32_t dmRestoreClearDataDir(const char *dataDir) {
       continue;
     }
     if (taosDirEntryIsDir(pEntry) && strcmp(name, "dnode") == 0) {
+      continue;
+    }
+    if (strcmp(name, ".running") == 0) {
       continue;
     }
 
@@ -858,12 +871,21 @@ static int32_t dmRestoreVerifySnode(const char *backupDir, const SJson *pManifes
 // Verify the checksum of one vnode backup: parse the manifest entry and
 // compare the recorded digest against the chunked vnode data on disk. Read
 // only, so it is safe to run concurrently for different vnodes.
-static int32_t dmRestoreVerifyOneVnode(const char *backupDir, const SJson *pVnode) {
+static int32_t dmRestoreValidateOneVnode(const SDmRestoreOption *pOpt, const char *backupDir,
+                                         const SJson *manifest, const SJson *previous,
+                                         const SArray *pDnodes, bool chain, const SJson *vnode);
+static int32_t dmRestoreValidateVnodes(const SJson *manifest, const SJson *previous, bool chain);
+
+static int32_t dmRestoreVerifyOneVnode(const SDmRestoreOption *pOpt, const char *backupDir,
+                                       const SJson *manifest, const SJson *previous,
+                                       const SArray *pDnodes, bool chain, const SJson *pVnode) {
+  int32_t code = dmRestoreValidateOneVnode(pOpt, backupDir, manifest, previous, pDnodes, chain, pVnode);
+  if (code != 0) return code;
   const char *checksum = NULL;
   int64_t     vgId = 0;
   int64_t     snapshotIndex = 0;
   int64_t     numOfChunks = 0;
-  int32_t     code = dmRestoreGetRequiredInt64(pVnode, "id", &vgId);
+  code = dmRestoreGetRequiredInt64(pVnode, "id", &vgId);
   if (code != 0) {
     return code;
   }
@@ -902,8 +924,13 @@ static int32_t dmRestoreVerifyOneVnode(const char *backupDir, const SJson *pVnod
 }
 
 typedef struct {
+  const SDmRestoreOption *pOpt;
   const char        *backupDir;
   SJson             *pVnodes;       // manifest "vnodes" array (read only)
+  const SJson       *pManifest;
+  const SJson       *pPrevious;
+  const SArray      *pDnodes;
+  bool               chain;
   int32_t volatile   nextIndex;     // atomic index into pVnodes
   int32_t volatile   failedCode;    // first failure, 0 = none; atomic CAS on write
 } SDmRestoreVerifyVnodeCtx;
@@ -919,7 +946,8 @@ static void *dmRestoreVerifyVnodeWorkerFp(void *pParam) {
     if (idx >= tjsonGetArraySize(pCtx->pVnodes)) {
       break;
     }
-    int32_t code = dmRestoreVerifyOneVnode(pCtx->backupDir, tjsonGetArrayItem(pCtx->pVnodes, idx));
+    int32_t code = dmRestoreVerifyOneVnode(pCtx->pOpt, pCtx->backupDir, pCtx->pManifest, pCtx->pPrevious,
+                                           pCtx->pDnodes, pCtx->chain, tjsonGetArrayItem(pCtx->pVnodes, idx));
     if (code != 0) {
       atomic_val_compare_exchange_32(&pCtx->failedCode, 0, code);
       break;
@@ -931,19 +959,26 @@ static void *dmRestoreVerifyVnodeWorkerFp(void *pParam) {
 // Verify the checksums of all vnodes in the manifest, up to pOpt->parallel
 // workers at a time. The per-vnode digest reads are independent, so they run
 // concurrently; the first failure is recorded atomically and propagated.
-static int32_t dmRestoreVerifyVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest) {
+static int32_t dmRestoreVerifyVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest,
+                                    const SJson *pPrevious, const SArray *pDnodes, bool chain) {
   SJson *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
   if (pVnodes == NULL || !cJSON_IsArray(pVnodes)) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
-  int32_t code = 0;
+  int32_t code = dmRestoreValidateVnodes(pManifest, pPrevious, chain);
+  if (code != 0) return code;
   int32_t parallelism = TMIN(pOpt->parallel, tjsonGetArraySize(pVnodes));
   parallelism = TMAX(parallelism, 1);
 
   SDmRestoreVerifyVnodeCtx ctx = {0};
+  ctx.pOpt = pOpt;
   ctx.backupDir = backupDir;
   ctx.pVnodes = pVnodes;
+  ctx.pManifest = pManifest;
+  ctx.pPrevious = pPrevious;
+  ctx.pDnodes = pDnodes;
+  ctx.chain = chain;
 
   TdThread *threads = taosMemoryCalloc(parallelism, sizeof(TdThread));
   int32_t   created = 0;
@@ -974,7 +1009,7 @@ static int32_t dmRestoreVerifyVnodes(const SDmRestoreOption *pOpt, const char *b
   return atomic_load_32(&ctx.failedCode);
 }
 
-static int32_t dmRestoreReadManifest(const SDmRestoreOption *pOpt, const char *backupDir, SJson **ppManifest) {
+int32_t dmBackupReadManifest(const char *backupDir, const char *password, SJson **ppManifest) {
   SDmBackupFile backupFile = {0};
   int32_t       code = 0;
   char          manifestPath[PATH_MAX] = {0};
@@ -986,7 +1021,7 @@ static int32_t dmRestoreReadManifest(const SDmRestoreOption *pOpt, const char *b
     return TSDB_CODE_INVALID_DATA_FMT;
   }
   // Encrypted manifests carry an extra IV header block plus the padding block.
-  if (size <= 0 || size > 16 * 1024 * 1024 + DM_BACKUP_SM4_BLOCK_SIZE * 2) {
+  if (size <= 0 || size > DM_BACKUP_MAX_MANIFEST_SIZE + DM_BACKUP_SM4_BLOCK_SIZE * 2) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
 
@@ -994,7 +1029,7 @@ static int32_t dmRestoreReadManifest(const SDmRestoreOption *pOpt, const char *b
   if (content == NULL) {
     return terrno;
   }
-  code = dmBackupFileOpen(&backupFile, manifestPath, pOpt->hasPassword ? pOpt->password : NULL);
+  code = dmBackupFileOpen(&backupFile, manifestPath, password);
   if (code != TSDB_CODE_SUCCESS) {
     goto _exit;
   }
@@ -1019,7 +1054,12 @@ _exit:
   return code;
 }
 
-static int32_t dmRestoreVerifyBackup(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest) {
+static int32_t dmRestoreReadManifest(const SDmRestoreOption *pOpt, const char *backupDir, SJson **ppManifest) {
+  return dmBackupReadManifest(backupDir, pOpt->hasPassword ? pOpt->password : NULL, ppManifest);
+}
+
+static int32_t dmRestoreVerifyBackup(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest,
+                                    const SJson *pPrevious, const SArray *pDnodes, bool chain) {
   int32_t code = 0;
 
   code = dmRestoreVerifyMnode(backupDir, pManifest);
@@ -1030,7 +1070,7 @@ static int32_t dmRestoreVerifyBackup(const SDmRestoreOption *pOpt, const char *b
   if (code != 0) {
     return code;
   }
-  code = dmRestoreVerifyVnodes(pOpt, backupDir, pManifest);
+  code = dmRestoreVerifyVnodes(pOpt, backupDir, pManifest, pPrevious, pDnodes, chain);
   return code;
 }
 
@@ -1564,7 +1604,9 @@ _exit:
   // stage, and dmRestoreVnodeData validates the padding when it reads the
   // file to the end. Just close the handle.
   if (backupFile.pFile != NULL) {
-    (void)taosCloseFile(&backupFile.pFile);
+    if (taosCloseFile(&backupFile.pFile) != 0 && code == 0) {
+      code = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+    }
   }
   return code;
 }
@@ -1624,7 +1666,8 @@ _exit:
 }
 
 static int32_t dmRestoreVnodeData(const SDmRestoreOption *pOpt, const char *backupDir, int32_t vgId,
-                                  int32_t numOfChunks, const char *vnodeDir, STfs *pTfs) {
+                                  int32_t numOfChunks, const char *vnodeDir, STfs *pTfs,
+                                  const char *baseFileSets, int64_t baseVersion, bool last) {
   int32_t                code = TSDB_CODE_SUCCESS;
   char                   baseName[TSDB_FILENAME_LEN] = {0};
   SDmBackupFile          backupFile = {0};
@@ -1647,15 +1690,24 @@ static int32_t dmRestoreVnodeData(const SDmRestoreOption *pOpt, const char *back
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }
+  if (baseFileSets != NULL && (baseVersion < 0 || baseVersion >= backupHeader.snapshotIndex)) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
 
   pVnode = vnodeOpen(vnodeDir, 0, pTfs, NULL, (SMsgCb){0}, true);
   if (pVnode == NULL) {
     code = terrno;
     goto _exit;
   }
-  param.start = 0;
+  if (baseFileSets != NULL && pVnode->state.committed != baseVersion) {
+    code = TSDB_CODE_INVALID_DATA_FMT;
+    goto _exit;
+  }
+  param.start = baseFileSets == NULL ? 0 : baseVersion + 1;
   param.end = backupHeader.snapshotIndex;
-  if ((code = vnodeSnapWriterOpen(pVnode, &param, &pWriter)) != 0) {
+  code = vnodeBackupSnapWriterOpen(pVnode, &param, baseFileSets, &pWriter);
+  if (code != 0) {
     goto _exit;
   }
 
@@ -1703,7 +1755,7 @@ _exit:
       code = closeCode;
     }
   }
-  if (code == 0 && pVnode != NULL) {
+  if (code == 0 && pVnode != NULL && last) {
     code = dmRestoreInitVnodeRaftStore(pVnode);
   }
   if (pVnode != NULL) {
@@ -1906,9 +1958,42 @@ _exit:
   return code;
 }
 
+static bool dmRestorePathContains(const char *parent, const char *path) {
+  size_t len = strlen(parent);
+  if (len == 0) return false;
+#ifdef WINDOWS
+  if (strncasecmp(parent, path, len) != 0) return false;
+#else
+  if (strncmp(parent, path, len) != 0) return false;
+#endif
+  return path[len] == '\0' || path[len] == '/' || path[len] == '\\' ||
+         parent[len - 1] == '/' || parent[len - 1] == '\\';
+}
+
+static int32_t dmRestoreValidateSourceLocation(const SDmRestoreOption *pOpt, const SDiskCfg *pDisks,
+                                               int32_t numOfDisks) {
+  char input[PATH_MAX] = {0};
+  char source[PATH_MAX] = {0};
+  if (strlen(pOpt->backupChainPath) >= sizeof(input)) return TSDB_CODE_INVALID_PARA;
+  tstrncpy(input, pOpt->backupChainPath, sizeof(input));
+  int32_t code = taosRealPath(input, source, sizeof(source));
+  if (code != 0) return code;
+  for (int32_t i = 0; i < numOfDisks; ++i) {
+    char dataDir[PATH_MAX] = {0};
+    tstrncpy(input, pDisks[i].dir, sizeof(input));
+    code = taosRealPath(input, dataDir, sizeof(dataDir));
+    if (code != 0) return code;
+    if (dmRestorePathContains(dataDir, source) || dmRestorePathContains(source, dataDir)) {
+      printf("backup chain and data directory overlap: '%s' and '%s'\n", source, dataDir);
+      return TSDB_CODE_INVALID_PARA;
+    }
+  }
+  return 0;
+}
+
 typedef struct {
   const SDmRestoreOption *pOpt;
-  const char             *backupDir;
+  const SArray           *pBackups;
   int32_t                 dnodeId;
   const SArray           *pDnodes;
   STfs                   *pTfs;
@@ -1918,15 +2003,50 @@ typedef struct {
   int32_t volatile        failedCode;      // first failure, 0 = none; atomic CAS on write
 } SDmRestoreVnodeCtx;
 
+static const SJson *dmRestoreFindVnode(const SJson *manifest, int32_t vgId) {
+  const cJSON *vnodes = tjsonGetObjectItem(manifest, "vnodes");
+  const cJSON *item = NULL;
+  cJSON_ArrayForEach(item, vnodes) {
+    int64_t id = 0;
+    if (dmRestoreGetRequiredInt64(item, "id", &id) == 0 && id == vgId) return item;
+  }
+  return NULL;
+}
+
+static int32_t dmRestoreClearVnodeMetaAndTq(STfs *pTfs, const char *vnodeDir) {
+  const char *primary = tfsGetPrimaryPath(pTfs);
+  const char *dirs[] = {VNODE_META_DIR, VNODE_TQ_DIR};
+  if (primary == NULL) return TSDB_CODE_INVALID_PARA;
+  for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); ++i) {
+    char path[PATH_MAX] = {0};
+    int n = snprintf(path, sizeof(path), "%s%s%s%s%s", primary, TD_DIRSEP, vnodeDir, TD_DIRSEP, dirs[i]);
+    if (n < 0 || n >= sizeof(path)) return TSDB_CODE_INVALID_PARA;
+    if (taosStatFile(path, NULL, NULL, NULL) < 0) {
+      printf("failed to access restore state directory '%s': %s\n", path, tstrerror(terrno));
+      return terrno;
+    }
+    taosRemoveDir(path);
+    // taosRemoveDir() discards the rmdir() status, so verify by stat that the directory is gone.
+    if (taosStatFile(path, NULL, NULL, NULL) == 0) {
+      printf("failed to remove restore state directory '%s'\n", path);
+      return TSDB_CODE_FAILED;
+    }
+    if (!errorIsFileNotExist(terrno)) return terrno;
+  }
+  return 0;
+}
+
 // Restore one local vnode: read config, adjust it, create the vnode, and write
 // the snapshot data. Registration in vnodes.json is deferred until every
 // worker has finished (see dmRestoreVnodes), so no shared state is touched
 // here and the workers need no mutex.
 static int32_t dmRestoreOneVnode(SDmRestoreVnodeCtx *pCtx, SDmRestoreLocalVnode *pVnode) {
   int32_t code = TSDB_CODE_SUCCESS;
-
+  SDmRestoreBackup *first = taosArrayGet(pCtx->pBackups, 0);
+  char backupDir[PATH_MAX] = {0};
+  snprintf(backupDir, sizeof(backupDir), "%s%s%" PRId64, pCtx->pOpt->backupChainPath, TD_DIRSEP, first->id);
   SVnodeCfg cfg = {0};
-  code = dmRestoreReadVnodeConfig(pCtx->pOpt, pCtx->backupDir, pVnode->vgId, pVnode->numOfChunks, &cfg);
+  code = dmRestoreReadVnodeConfig(pCtx->pOpt, backupDir, pVnode->vgId, pVnode->numOfChunks, &cfg);
   if (code != 0) {
     return code;
   }
@@ -1944,9 +2064,38 @@ static int32_t dmRestoreOneVnode(SDmRestoreVnodeCtx *pCtx, SDmRestoreLocalVnode 
   if ((code = vnodeCreate(vnodeDir, &cfg, 0, pCtx->pTfs)) != 0) {
     return code;
   }
-  if ((code = dmRestoreVnodeData(pCtx->pOpt, pCtx->backupDir, pVnode->vgId, pVnode->numOfChunks, vnodeDir,
-                                 pCtx->pTfs)) != 0) {
-    return code;
+  int32_t count = taosArrayGetSize(pCtx->pBackups);
+  for (int32_t i = 0; i < count; ++i) {
+    SDmRestoreBackup *backup = taosArrayGet(pCtx->pBackups, i);
+    const SJson *vnode = dmRestoreFindVnode(backup->pManifest, pVnode->vgId);
+    int64_t chunks = 0, base = 0;
+    char *fileSets = NULL;
+    if (vnode == NULL || dmRestoreGetRequiredInt64(vnode, "numOfChunks", &chunks) != 0 ||
+        chunks <= 0 || chunks > INT32_MAX) return TSDB_CODE_INVALID_DATA_FMT;
+    if (i > 0) {
+      SDmRestoreBackup *previous = taosArrayGet(pCtx->pBackups, i - 1);
+      const SJson *old = dmRestoreFindVnode(previous->pManifest, pVnode->vgId);
+      const SJson *sets = old == NULL ? NULL : tjsonGetObjectItem(old, "fileSets");
+      if (sets == NULL || dmRestoreGetRequiredInt64(vnode, "baseVersion", &base) != 0) {
+        return TSDB_CODE_INVALID_DATA_FMT;
+      }
+      fileSets = tjsonToString(sets);
+      if (fileSets == NULL) return terrno;
+      code = dmRestoreClearVnodeMetaAndTq(pCtx->pTfs, vnodeDir);
+      if (code != 0) {
+        taosMemoryFree(fileSets);
+        return code;
+      }
+    }
+    snprintf(backupDir, sizeof(backupDir), "%s%s%" PRId64, pCtx->pOpt->backupChainPath, TD_DIRSEP, backup->id);
+    code = dmRestoreVnodeData(pCtx->pOpt, backupDir, pVnode->vgId, (int32_t)chunks, vnodeDir, pCtx->pTfs,
+                              fileSets, base, i == count - 1);
+    taosMemoryFree(fileSets);
+    if (code != 0) {
+      printf("  failed to restore vnode %d from backup %" PRId64 ": %s\n", pVnode->vgId, backup->id,
+             tstrerror(code));
+      return code;
+    }
   }
   return code;
 }
@@ -1980,9 +2129,10 @@ static void *dmRestoreVnodeWorkerFp(void *pParam) {
   return NULL;
 }
 
-static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupDir, const SJson *pManifest,
+static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const SArray *pBackups,
                                int32_t dnodeId, const SArray *pDnodes, STfs *pTfs) {
-  SJson   *pVnodes = tjsonGetObjectItem(pManifest, "vnodes");
+  SDmRestoreBackup *first = taosArrayGet(pBackups, 0);
+  SJson   *pVnodes = tjsonGetObjectItem(first->pManifest, "vnodes");
   if (pVnodes == NULL || !cJSON_IsArray(pVnodes)) {
     return TSDB_CODE_INVALID_DATA_FMT;
   }
@@ -2006,7 +2156,7 @@ static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupD
 
   SDmRestoreVnodeCtx ctx = {0};
   ctx.pOpt = pOpt;
-  ctx.backupDir = backupDir;
+  ctx.pBackups = pBackups;
   ctx.dnodeId = dnodeId;
   ctx.pDnodes = pDnodes;
   ctx.pTfs = pTfs;
@@ -2054,8 +2204,235 @@ static int32_t dmRestoreVnodes(const SDmRestoreOption *pOpt, const char *backupD
   return code;
 }
 
+static int32_t dmRestoreValidateVnodeFiles(const SDmRestoreOption *pOpt, const char *backupDir,
+                                           const SJson *pVnode, int64_t vgId, int64_t endVersion) {
+  int64_t chunks = 0;
+  if (dmRestoreGetRequiredInt64(pVnode, "numOfChunks", &chunks) != 0 || chunks <= 0 || chunks > INT32_MAX) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  char baseName[TSDB_FILENAME_LEN] = {0};
+  (void)snprintf(baseName, sizeof(baseName), "vnode%" PRId64, vgId);
+  SDmBackupFile file = {0};
+  int32_t code = dmBackupFileOpenChunked(&file, backupDir, baseName, (int32_t)chunks,
+                                          pOpt->hasPassword ? pOpt->password : NULL);
+  if (code != 0) return code;
+  SBackupVnodeDataHeader header = {0};
+  if (dmBackupFileRead(&file, &header, sizeof(header)) != sizeof(header) ||
+      header.magic != BACKUP_VNODE_DATA_MAGIC || header.snapshotIndex != endVersion) {
+    code = TSDB_CODE_FILE_CORRUPTED;
+  }
+  if (taosCloseFile(&file.pFile) != 0 && code == TSDB_CODE_SUCCESS) {
+    code = terrno != 0 ? terrno : TSDB_CODE_FAILED;
+  }
+  return code;
+}
+
+static int32_t dmRestoreValidateFileSets(const SJson *pVnode, int64_t endVersion) {
+  SJson *fileSets = tjsonGetObjectItem(pVnode, "fileSets");
+  if (!cJSON_IsObject(fileSets)) return TSDB_CODE_INVALID_DATA_FMT;
+  char *json = tjsonToString(fileSets);
+  if (json == NULL) return terrno;
+  TFileSetRangeArray *ranges = NULL;
+  int32_t code = tsdbFSetJsonToRangeDiff(json, &ranges);
+  tsdbTFileSetRangeArrayDestroy(&ranges);
+  taosMemoryFree(json);
+  if (code != 0) return code;
+  const cJSON *sets = cJSON_GetObjectItemCaseSensitive(fileSets, "sets");
+  const cJSON *set;
+  cJSON_ArrayForEach(set, sets) {
+    const cJSON *entries = cJSON_GetObjectItemCaseSensitive(set, "ranges");
+    const cJSON *entry;
+    cJSON_ArrayForEach(entry, entries) {
+      int64_t minVer = 0, maxVer = 0;
+      if (dmRestoreGetRequiredInt64(entry, "minVer", &minVer) != 0 ||
+          dmRestoreGetRequiredInt64(entry, "maxVer", &maxVer) != 0 || maxVer > endVersion) {
+        return TSDB_CODE_INVALID_DATA_FMT;
+      }
+    }
+  }
+  return code;
+}
+
+static int32_t dmRestoreValidateReplicaIds(const SJson *pVnode, const SArray *pDnodes, SArray **ppReplicas) {
+  const cJSON *replicas = tjsonGetObjectItem(pVnode, "dnodes");
+  if (!cJSON_IsArray(replicas) || cJSON_GetArraySize(replicas) <= 0 ||
+      cJSON_GetArraySize(replicas) > TSDB_MAX_REPLICA) return TSDB_CODE_INVALID_DATA_FMT;
+  SArray *ids = taosArrayInit(cJSON_GetArraySize(replicas), sizeof(int32_t));
+  if (ids == NULL) return terrno;
+  int32_t code = 0;
+  const cJSON *entry;
+  cJSON_ArrayForEach(entry, replicas) {
+    int64_t parsed = 0;
+    if (dmRestoreParseInt64(entry, &parsed) != 0 || parsed <= 0 || parsed > INT32_MAX) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    int32_t id = (int32_t)parsed;
+    bool found = false;
+    for (int32_t i = 0; i < taosArrayGetSize(pDnodes); ++i) {
+      if (*(int32_t *)taosArrayGet(pDnodes, i) == id) found = true;
+    }
+    for (int32_t i = 0; i < taosArrayGetSize(ids); ++i) {
+      if (*(int32_t *)taosArrayGet(ids, i) == id) found = false;
+    }
+    if (!found) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    if (taosArrayPush(ids, &id) == NULL) {
+      code = terrno;
+      goto _exit;
+    }
+  }
+  taosArraySort(ids, dmRestoreDnodeIdCompare);
+  *ppReplicas = ids;
+  return 0;
+_exit:
+  taosArrayDestroy(ids);
+  return code;
+}
+
+static int32_t dmRestoreVnodeDatabase(const SJson *manifest, int64_t vgId, const char **name) {
+  const cJSON *databases = tjsonGetObjectItem(manifest, "databases");
+  if (!cJSON_IsArray(databases)) return TSDB_CODE_INVALID_DATA_FMT;
+  *name = NULL;
+  const cJSON *db;
+  cJSON_ArrayForEach(db, databases) {
+    const cJSON *dbName = cJSON_GetObjectItemCaseSensitive(db, "name");
+    const cJSON *vnodes = cJSON_GetObjectItemCaseSensitive(db, "vnodes");
+    if (!cJSON_IsObject(db) || !cJSON_IsString(dbName) || dbName->valuestring == NULL ||
+        dbName->valuestring[0] == '\0' || !cJSON_IsArray(vnodes)) return TSDB_CODE_INVALID_DATA_FMT;
+    const cJSON *entry;
+    cJSON_ArrayForEach(entry, vnodes) {
+      int64_t id = 0;
+      if (dmRestoreParseInt64(entry, &id) != 0 || id <= 0 || id > INT32_MAX) {
+        return TSDB_CODE_INVALID_DATA_FMT;
+      }
+      if (id == vgId) {
+        if (*name != NULL) return TSDB_CODE_INVALID_DATA_FMT;
+        *name = dbName->valuestring;
+      }
+    }
+  }
+  return *name == NULL ? TSDB_CODE_INVALID_DATA_FMT : 0;
+}
+
+static int32_t dmRestoreValidateDatabaseReferences(const SJson *manifest, int32_t vnodeCount) {
+  const cJSON *databases = tjsonGetObjectItem(manifest, "databases");
+  if (!cJSON_IsArray(databases)) return TSDB_CODE_INVALID_DATA_FMT;
+  int64_t total = 0;
+  const cJSON *db;
+  cJSON_ArrayForEach(db, databases) {
+    const cJSON *name = cJSON_GetObjectItemCaseSensitive(db, "name");
+    const cJSON *vnodes = cJSON_GetObjectItemCaseSensitive(db, "vnodes");
+    if (!cJSON_IsObject(db) || !cJSON_IsString(name) || name->valuestring == NULL ||
+        name->valuestring[0] == '\0' || !cJSON_IsArray(vnodes)) {
+      return TSDB_CODE_INVALID_DATA_FMT;
+    }
+    total += cJSON_GetArraySize(vnodes);
+  }
+  return total == vnodeCount ? 0 : TSDB_CODE_INVALID_DATA_FMT;
+}
+
+static int32_t dmRestoreValidateVnodes(const SJson *manifest, const SJson *previous, bool chain) {
+  const cJSON *vnodes = tjsonGetObjectItem(manifest, "vnodes");
+  const cJSON *oldVnodes = previous == NULL ? NULL : tjsonGetObjectItem(previous, "vnodes");
+  if (!cJSON_IsArray(vnodes) || (previous != NULL &&
+      (!cJSON_IsArray(oldVnodes) || cJSON_GetArraySize(vnodes) != cJSON_GetArraySize(oldVnodes)))) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  if (chain && dmRestoreValidateDatabaseReferences(manifest, cJSON_GetArraySize(vnodes)) != 0) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  SHashObj *seen = taosHashInit(TMAX(cJSON_GetArraySize(vnodes), 1),
+                                taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (seen == NULL) return terrno;
+  int32_t code = 0;
+  const cJSON *vnode;
+  cJSON_ArrayForEach(vnode, vnodes) {
+    int64_t vgId = 0;
+    if (!cJSON_IsObject(vnode) || dmRestoreGetRequiredInt64(vnode, "id", &vgId) != 0 ||
+        vgId <= 0 || vgId > INT32_MAX) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    int32_t id = (int32_t)vgId;
+    if (taosHashGet(seen, &id, sizeof(id)) != NULL) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
+    }
+    code = taosHashPut(seen, &id, sizeof(id), &id, sizeof(id));
+    if (code != 0) goto _exit;
+  }
+_exit:
+  taosHashCleanup(seen);
+  return code;
+}
+
+static int32_t dmRestoreValidateOneVnode(const SDmRestoreOption *pOpt, const char *backupDir,
+                                         const SJson *manifest, const SJson *previous,
+                                         const SArray *pDnodes, bool chain, const SJson *vnode) {
+  int64_t vgId = 0, end = 0;
+  if (dmRestoreGetRequiredInt64(vnode, "id", &vgId) != 0 ||
+      dmRestoreGetRequiredInt64(vnode, "endVersion", &end) != 0 || (chain && end < 0)) {
+    return TSDB_CODE_INVALID_DATA_FMT;
+  }
+  SArray *replicas = NULL;
+  int32_t code = dmRestoreValidateReplicaIds(vnode, pDnodes, &replicas);
+  if (code != 0) return code;
+
+  const cJSON *old = NULL;
+  if (previous != NULL) {
+    const cJSON *oldVnodes = tjsonGetObjectItem(previous, "vnodes");
+    const cJSON *candidate;
+    cJSON_ArrayForEach(candidate, oldVnodes) {
+      int64_t oldId = 0;
+      if (dmRestoreGetRequiredInt64(candidate, "id", &oldId) != 0) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        break;
+      }
+      if (oldId == vgId) old = candidate;
+    }
+    if (old == NULL) code = TSDB_CODE_INVALID_DATA_FMT;
+  }
+  if (code == 0 && chain) {
+    int64_t dbUid = 0, start = 0;
+    const char *dbName = NULL;
+    if (dmRestoreGetRequiredInt64(vnode, "dbUid", &dbUid) != 0 ||
+        dmRestoreGetRequiredInt64(vnode, "startVersion", &start) != 0 ||
+        dmRestoreVnodeDatabase(manifest, vgId, &dbName) != 0) {
+      code = TSDB_CODE_INVALID_DATA_FMT;
+    } else {
+      code = dmRestoreValidateFileSets(vnode, end);
+    }
+    if (code == 0 && previous == NULL) {
+      if (start != 0) code = TSDB_CODE_INVALID_DATA_FMT;
+    } else if (code == 0) {
+      int64_t oldUid = 0, oldEnd = 0, base = 0;
+      const char *oldName = NULL;
+      SArray *oldReplicas = NULL;
+      code = dmRestoreValidateReplicaIds(old, pDnodes, &oldReplicas);
+      if (code == 0 && (dmRestoreGetRequiredInt64(old, "dbUid", &oldUid) != 0 ||
+          dmRestoreGetRequiredInt64(old, "endVersion", &oldEnd) != 0 ||
+          dmRestoreGetRequiredInt64(vnode, "baseVersion", &base) != 0 ||
+          dmRestoreVnodeDatabase(previous, vgId, &oldName) != 0 ||
+          oldUid != dbUid || strcmp(oldName, dbName) != 0 || oldEnd == INT64_MAX ||
+          base != oldEnd || start != base + 1 || end < base ||
+          taosArrayGetSize(oldReplicas) != taosArrayGetSize(replicas) ||
+          memcmp(TARRAY_GET_ELEM(oldReplicas, 0), TARRAY_GET_ELEM(replicas, 0),
+                 taosArrayGetSize(replicas) * sizeof(int32_t)) != 0)) {
+        code = TSDB_CODE_INVALID_DATA_FMT;
+      }
+      taosArrayDestroy(oldReplicas);
+    }
+  }
+  taosArrayDestroy(replicas);
+  if (code == 0) code = dmRestoreValidateVnodeFiles(pOpt, backupDir, vnode, vgId, end);
+  return code;
+}
+
 static SArray* dmRestoreCollectBackups(const SDmRestoreOption *pOpt) {
-  SArray   *pBackups = taosArrayInit(4, sizeof(SDmRestoreBackup));
+  SArray *pBackups = taosArrayInit(4, sizeof(SDmRestoreBackup));
   if (pBackups == NULL) {
     return NULL;
   }
@@ -2067,6 +2444,7 @@ static SArray* dmRestoreCollectBackups(const SDmRestoreOption *pOpt) {
 
   TdDirEntryPtr pEntry = NULL;
   while (true) {
+    terrno = TSDB_CODE_SUCCESS;
     pEntry = taosReadDir(pDir);
     if (pEntry == NULL) {
       // NULL means either end-of-directory (terrno == 0) or a read error
@@ -2082,10 +2460,23 @@ static SArray* dmRestoreCollectBackups(const SDmRestoreOption *pOpt) {
       continue;
     }
 
+    bool digits = *name != '\0';
+    for (const char *p = name; *p != '\0'; ++p) {
+      if (*p < '0' || *p > '9') {
+        digits = false;
+        break;
+      }
+    }
+    if (!digits) continue;
     char  *end = NULL;
+    SET_ERRNO(0);
     int64_t id = taosStr2Int64(name, &end, 10);
-    if (end == NULL || *end != '\0') {
-      continue;
+    char canonical[32] = {0};
+    (void)snprintf(canonical, sizeof(canonical), "%" PRId64, id);
+    if (ERRNO == ERANGE || end == name || end == NULL || *end != '\0' || id <= 0 ||
+        strcmp(canonical, name) != 0) {
+      terrno = TSDB_CODE_INVALID_DATA_FMT;
+      goto _exit;
     }
 
     if (pOpt->lastBackupId != 0 && id > pOpt->lastBackupId) {
@@ -2107,6 +2498,11 @@ static SArray* dmRestoreCollectBackups(const SDmRestoreOption *pOpt) {
   }
 
   taosArraySort(pBackups, dmRestoreBackupCompare);
+  SDmRestoreBackup *pLast = taosArrayGet(pBackups, taosArrayGetSize(pBackups) - 1);
+  if (pOpt->lastBackupId != 0 && pLast->id != pOpt->lastBackupId) {
+    terrno = TSDB_CODE_NOT_FOUND;
+    goto _exit;
+  }
   return pBackups;
 
 _exit:
@@ -2120,8 +2516,11 @@ _exit:
 static int32_t dmVerifyRestoreBackupChain(const SDmRestoreOption *pOpt, SArray* pBackups) {
   int32_t code = 0;
   int64_t lastBackupId = 0;
+  int64_t firstClusterId = 0;
   SArray *pFirstDnodeIds = NULL;
   int32_t numOfBackups = taosArrayGetSize(pBackups);
+  SDmRestoreBackup *pFirst = taosArrayGet(pBackups, 0);
+  SJson *pPreviousManifest = NULL;
 
   for (int32_t i = 0; i < taosArrayGetSize(pBackups); ++i) {
     SDmRestoreBackup *pBackup = taosArrayGet(pBackups, i);
@@ -2143,6 +2542,36 @@ static int32_t dmVerifyRestoreBackupChain(const SDmRestoreOption *pOpt, SArray* 
       break;
     }
 
+    int64_t manifestId = 0, chainId = 0, format = 0;
+    const cJSON *parent = tjsonGetObjectItem(pManifest, "previous");
+    if (dmRestoreGetRequiredInt64(pManifest, "id", &manifestId) != 0 ||
+        dmRestoreGetRequiredInt64(pManifest, "chain", &chainId) != 0 ||
+        dmRestoreGetRequiredInt64(pManifest, "version", &format) != 0 ||
+        manifestId != pBackup->id || chainId != pFirst->id ||
+        (format != 1 && format != 2) || (numOfBackups > 1 && format != 2) ||
+        (i == 0 && (!cJSON_IsString(parent) || parent->valuestring == NULL || parent->valuestring[0] != '\0'))) {
+      printf("invalid backup identity, root or format in manifest '%s'\n", backupDir);
+      tjsonDelete(pManifest);
+      code = TSDB_CODE_INVALID_DATA_FMT;
+      break;
+    }
+    if (format == 2) {
+      int64_t clusterId = 0;
+      if (dmRestoreGetRequiredInt64(pManifest, "clusterId", &clusterId) != 0 || clusterId <= 0) {
+        printf("invalid or missing cluster ID in manifest '%s'\n", backupDir);
+        tjsonDelete(pManifest);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        break;
+      }
+      if (i == 0) {
+        firstClusterId = clusterId;
+      } else if (clusterId != firstClusterId) {
+        printf("cluster ID in manifest '%s' does not match the first backup in the chain\n", backupDir);
+        tjsonDelete(pManifest);
+        code = TSDB_CODE_INVALID_DATA_FMT;
+        break;
+      }
+    }
     if (i > 0) {
       int64_t previous = 0;
       code = dmRestoreGetRequiredInt64(pManifest, "previous", &previous);
@@ -2159,40 +2588,37 @@ static int32_t dmVerifyRestoreBackupChain(const SDmRestoreOption *pOpt, SArray* 
       }
     }
 
+    pBackup->pManifest = pManifest;
     if (pOpt->verify != 0) {
-      code = dmRestoreVerifyBackup(pOpt, backupDir, pManifest);
+      SArray *pDnodeIds = NULL;
+      code = dmRestoreParseManifestDnodeIds(pManifest, &pDnodeIds);
+      if (code != 0) {
+        printf("failed to parse dnode IDs from manifest '%s': %s\n", backupDir, tstrerror(code));
+        break;
+      }
+      if (pFirstDnodeIds == NULL) {
+        pFirstDnodeIds = pDnodeIds;
+        pDnodeIds = NULL;
+      } else {
+        size_t size1 = taosArrayGetSize(pFirstDnodeIds);
+        size_t size2 = taosArrayGetSize(pDnodeIds);
+        if (size1 != size2 || memcmp(TARRAY_GET_ELEM(pFirstDnodeIds, 0), TARRAY_GET_ELEM(pDnodeIds, 0),
+                                     size1 * sizeof(int32_t)) != 0) {
+          code = TSDB_CODE_INVALID_DATA_FMT;
+        }
+      }
+      if (code == 0) {
+        code = dmRestoreVerifyBackup(pOpt, backupDir, pManifest, pPreviousManifest, pFirstDnodeIds,
+                                     numOfBackups > 1);
+      }
+      taosArrayDestroy(pDnodeIds);
       if (code != 0) {
         printf("backup integrity check failed for '%s': %s\n", backupDir, tstrerror(code));
-        tjsonDelete(pManifest);
         break;
       }
     }
-    SArray *pDnodeIds = NULL;
-    code = dmRestoreParseManifestDnodeIds(pManifest, &pDnodeIds);
-    if (code != 0) {
-      printf("failed to parse dnode IDs from manifest '%s': %s\n", backupDir, tstrerror(code));
-      tjsonDelete(pManifest);
-      break;
-    }
-    if (pFirstDnodeIds == NULL) {
-      pFirstDnodeIds = pDnodeIds;
-      pDnodeIds = NULL;
-    } else {
-      size_t size1 = taosArrayGetSize(pFirstDnodeIds);
-      size_t size2 = taosArrayGetSize(pDnodeIds);
-      void* p1 = TARRAY_GET_ELEM(pFirstDnodeIds, 0);
-      void* p2 = TARRAY_GET_ELEM(pDnodeIds, 0);
-      if (size1 != size2 || memcmp(p1, p2, size1 * sizeof(int32_t)) != 0) {
-        printf("dnode IDs in manifest '%s' do not match the first backup in the chain\n", backupDir);
-        taosArrayDestroy(pDnodeIds);
-        tjsonDelete(pManifest);
-        code = TSDB_CODE_INVALID_DATA_FMT;
-        break;
-      }
-    }
-    taosArrayDestroy(pDnodeIds);
 
-    pBackup->pManifest = pManifest;
+    pPreviousManifest = pManifest;
     lastBackupId = pBackup->id;
     printf("[verify %d/%d] backup %" PRId64 ": verified\n", i + 1, numOfBackups, pBackup->id);
   }
@@ -2202,7 +2628,7 @@ static int32_t dmVerifyRestoreBackupChain(const SDmRestoreOption *pOpt, SArray* 
 }
 
 static int32_t dmRestoreFromBackup(const SDmRestoreOption *pOpt, SDmRestoreBackup *pBackup, int32_t localDnodeId,
-                                   const SArray *pDnodes, STfs *pTfs) {
+                                   const SArray *pDnodes) {
   char backupDir[PATH_MAX] = {0};
   snprintf(backupDir, sizeof(backupDir), "%s%s%" PRId64, pOpt->backupChainPath, TD_DIRSEP, pBackup->id);
 
@@ -2216,7 +2642,7 @@ static int32_t dmRestoreFromBackup(const SDmRestoreOption *pOpt, SDmRestoreBacku
   if (code != 0) {
     return code;
   }
-  return dmRestoreVnodes(pOpt, backupDir, pBackup->pManifest, localDnodeId, pDnodes, pTfs);
+  return 0;
 }
 
 int32_t dmRestoreFromBackupChain(const SDmRestoreOption *pOpt) {
@@ -2251,9 +2677,40 @@ int32_t dmRestoreFromBackupChain(const SDmRestoreOption *pOpt) {
   if (pOpt->verify == 2) {
     if (!compatible) {
       printf("backup version check failed: incompatible backup versions\n");
+      code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     }
     goto _exit;
   }
+  SDiskCfg fallbackDisk = {.level = 0, .primary = 1, .disable = 0};
+  SDiskCfg *pDisks = tsDiskCfg;
+  int32_t   numOfDisks = tsDiskCfgNum;
+  if (numOfDisks <= 0 || pDisks == NULL) {
+    tstrncpy(fallbackDisk.dir, tsDataDir, TSDB_FILENAME_LEN);
+    pDisks = &fallbackDisk;
+    numOfDisks = 1;
+  }
+  code = dmRestoreLoadDnodes(&pDnodes, &localDnodeId);
+  if (code != 0) {
+    printf("failed to read dnode configuration '%s%sdnode%sdnode.json': %s\n",
+           tsDataDir, TD_DIRSEP, TD_DIRSEP, tstrerror(code));
+    goto _exit;
+  }
+  code = dmRestoreBuildDnodeMap(pBackups, pDnodes);
+  if (code != 0) {
+    printf("failed to map source and target dnodes: %s\n", tstrerror(code));
+    goto _exit;
+  }
+  code = tfsOpen(pDisks, numOfDisks, &pTfs);
+  if (code != 0) {
+    printf("failed to validate target data disks: %s\n", tstrerror(code));
+    goto _exit;
+  }
+  code = dmRestoreValidateSourceLocation(pOpt, pDisks, numOfDisks);
+  if (code != 0) {
+    printf("failed to validate backup and data directory locations: %s\n", tstrerror(code));
+    goto _exit;
+  }
+  printf("restore target configuration validated\n");
   if (!compatible && !dmRestoreConfirmIncompatibleVersions()) {
     code = TSDB_CODE_VERSION_NOT_COMPATIBLE;
     goto _exit;
@@ -2263,32 +2720,10 @@ int32_t dmRestoreFromBackupChain(const SDmRestoreOption *pOpt) {
     goto _exit;
   }
 
-  SDiskCfg fallbackDisk = {.level = 0, .primary = 1, .disable = 0};
-  SDiskCfg *pDisks = tsDiskCfg;
-  int32_t   numOfDisks = tsDiskCfgNum;
-  if (numOfDisks <= 0 || pDisks == NULL) {
-    tstrncpy(fallbackDisk.dir, tsDataDir, TSDB_FILENAME_LEN);
-    pDisks = &fallbackDisk;
-    numOfDisks = 1;
-  }
   printf("clearing existing data directories\n");
   code = dmRestoreClearDataDirs(pDisks, numOfDisks);
   if (code != TSDB_CODE_SUCCESS) {
     printf("failed to clear existing data: %s\n", tstrerror(code));
-    goto _exit;
-  }
-  code = tfsOpen(pDisks, numOfDisks, &pTfs);
-  if (code != 0) {
-    goto _exit;
-  }
-  code = dmRestoreLoadDnodes(&pDnodes, &localDnodeId);
-  if (code != 0) {
-    printf("failed to read dnode configuration '%s%sdnode%sdnode.json'.\n", tsDataDir, TD_DIRSEP, TD_DIRSEP);
-    goto _exit;
-  }
-  code = dmRestoreBuildDnodeMap(pBackups, pDnodes);
-  if (code != 0) {
-    printf("failed to map source and target dnodes.\n");
     goto _exit;
   }
 
@@ -2300,15 +2735,15 @@ int32_t dmRestoreFromBackupChain(const SDmRestoreOption *pOpt) {
   }
   walInited = true;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pBackups); ++i) {
-    SDmRestoreBackup *pBackup = taosArrayGet(pBackups, i);
-    printf("restoring backup %" PRId64 " (%d/%d)\n", pBackup->id, i + 1, numOfBackups);
-    code = dmRestoreFromBackup(pOpt, pBackup, localDnodeId, pDnodes, pTfs);
-    if (code != 0) {
-      printf("failed to restore from backup '%" PRId64 "'.\n", pBackup->id);
-      goto _exit;
-    }
-    printf("backup %" PRId64 " restored\n", pBackup->id);
+  code = dmRestoreVnodes(pOpt, pBackups, localDnodeId, pDnodes, pTfs);
+  if (code != 0) {
+    printf("failed to restore vnode backup chain: %s\n", tstrerror(code));
+    goto _exit;
+  }
+  code = dmRestoreFromBackup(pOpt, pLastBackup, localDnodeId, pDnodes);
+  if (code != 0) {
+    printf("failed to restore cluster state from backup '%" PRId64 "': %s\n", pLastBackup->id, tstrerror(code));
+    goto _exit;
   }
 
 _exit:

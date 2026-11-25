@@ -10877,6 +10877,13 @@ int32_t tSerializeSBackupVnodeSnapReq(void *buf, int32_t bufLen, SBackupVnodeSna
   TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->backupId));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->isFull));
   TAOS_CHECK_EXIT(tEncodeI8(&encoder, pReq->op));
+  if (!pReq->isFull) {
+    TAOS_CHECK_EXIT(tEncodeI64(&encoder, pReq->baseVersion));
+    if (pReq->op == BACKUP_VNODE_SNAP_BEGIN) {
+      if (pReq->fileSets == NULL || pReq->fileSetsLen == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+      TAOS_CHECK_EXIT(tEncodeBinary(&encoder, pReq->fileSets, pReq->fileSetsLen));
+    }
+  }
   tEndEncode(&encoder);
 
 _exit:
@@ -10901,6 +10908,16 @@ int32_t tDeserializeSBackupVnodeSnapReq(void *buf, int32_t bufLen, SBackupVnodeS
   TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->backupId));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->isFull));
   TAOS_CHECK_EXIT(tDecodeI8(&decoder, &pReq->op));
+  pReq->baseVersion = 0;
+  pReq->fileSets = NULL;
+  pReq->fileSetsLen = 0;
+  if (!pReq->isFull) {
+    TAOS_CHECK_EXIT(tDecodeI64(&decoder, &pReq->baseVersion));
+    if (pReq->op == BACKUP_VNODE_SNAP_BEGIN) {
+      TAOS_CHECK_EXIT(tDecodeBinary(&decoder, &pReq->fileSets, &pReq->fileSetsLen));
+      if (pReq->fileSetsLen == 0) TAOS_CHECK_EXIT(TSDB_CODE_INVALID_MSG);
+    }
+  }
   tEndDecode(&decoder);
 
 _exit:
