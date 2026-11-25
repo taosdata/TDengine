@@ -20,7 +20,8 @@ It should be noted that these memory resources are not borne by a single server 
 System administrators can view the distribution of all databases' vnodes across various dnodes in the information_schema library's ins_vnodes table using the following SQL query.
 
 ```sql
-select * from information_schema.ins_vnodes;
+taos> SELECT *
+      FROM information_schema.ins_vnodes;
 dnode_id |vgroup_id | db_name | status | role_time | start_time | restored |
 ===============================================================================================
  1| 3 | log | leader | 2024-01-16 13:52:13.618 | 2024-01-16 13:52:01.628 | true |

@@ -14,12 +14,23 @@ TDengine 自 `v3.3.8.0` 起提供基于时序基础模型的缺失数据补值�
 
 ```sql
 -- 使用缺失数据自动补值函数对缺失的窗口聚集函数结果进行补值操作
-SELECT imputation(col_val)
-FROM (SELECT _wstart, min(val) col_val FROM foo INTERVAL(1s));
+SELECT IMPUTATION(col_val)
+FROM (
+  SELECT
+    _wstart,
+    MIN(val) col_val
+  FROM foo
+  INTERVAL(1s)
+);
 
 -- 先对齐时间戳，再对基础缺失数据进行补齐
-SELECT imputation(val)
-FROM (SELECT TIMETRUNCATE(ts, 1s) AS ts, val FROM foo);
+SELECT IMPUTATION(val)
+FROM (
+  SELECT
+    TIMETRUNCATE(ts, 1s) AS ts,
+    val
+  FROM foo
+);
 ```
 
 ### 语法
@@ -65,6 +76,8 @@ algo=expr1
 
 ```sql
 -- 使用 moment 时序模型提供自动补齐服务，针对 i32 列进行补齐操作，freq 参数为秒，同时输出时间戳和数值
-SELECT _improwts, imputation(i32, 'algo=moment, freq=s')
+SELECT
+  _improwts,
+  IMPUTATION(i32, 'algo=moment, freq=s')
 FROM foo;
 ```

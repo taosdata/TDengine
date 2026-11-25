@@ -442,8 +442,8 @@ Add SASL/SCRAM-SHA-256 on top of the TLS channel:
 
 ```sql
 ALTER DNODES RELOAD TLS;
-ALTER DNODE <dnode_id> RELOAD TLS;
 
+ALTER DNODE <dnode_id> RELOAD TLS;
 ```
 
 Deploy the new certificate, run `RELOAD`, and new connections automatically use the new certificate without stopping the service.
@@ -667,16 +667,22 @@ usessl   = true
 
 ```sql
 CREATE STABLE meters (
-    ts        TIMESTAMP ENCODE 'delta-i'  COMPRESS 'lz4'  LEVEL 'medium',
-    current   FLOAT     ENCODE 'delta-d'  COMPRESS 'zstd' LEVEL 'high',
-    voltage   INT       ENCODE 'simple8b' COMPRESS 'lz4'  LEVEL 'low',
-    note      VARCHAR(64)                 COMPRESS 'lz4'
-) TAGS (location VARCHAR(64), groupId INT);
+  ts      TIMESTAMP ENCODE 'delta-i' COMPRESS 'lz4' LEVEL 'medium',
+  current FLOAT ENCODE 'delta-d' COMPRESS 'zstd' LEVEL 'high',
+  voltage INT ENCODE 'simple8b' COMPRESS 'lz4' LEVEL 'low',
+  note    VARCHAR(64) COMPRESS 'lz4'
+) TAGS (
+  location VARCHAR(64),
+  groupId  INT
+);
 
 ALTER TABLE meters MODIFY COLUMN current COMPRESS 'zstd' LEVEL 'high';
 
-CREATE DATABASE sensor_db COMP 2;     -- 0 = off  1 = level 1  2 = two levels (default)
-COMPACT DATABASE sensor_db;            -- Triggers level-3 compression.
+CREATE DATABASE sensor_db
+  COMP 2;
+
+-- 0 = off  1 = level 1  2 = two levels (default)
+COMPACT DATABASE sensor_db;  -- Triggers level-3 compression.
 ```
 
 ### 6.5 Choosing By Data Characteristics
@@ -732,6 +738,7 @@ ALTER USER alice SESSIONS 5 CONNECTIONS 20 QUERIES 5;
 
 ```sql
 SHOW TABLE DISTRIBUTED <db_name>.<table_name>;
+
 SHOW DATABASES;
 ```
 

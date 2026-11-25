@@ -370,7 +370,7 @@ dataDir /mnt/data6 2 0 0
 你可以使用以下命令动态修改 dataDir 的 disable 来控制当前目录是否开启 disable_create_new_file。
 
 ```sql
-alter dnode 1 "/mnt/disk2/taos 1";
+ALTER dnode 1 "/mnt/disk2/taos 1";
 ```
 
 :::note

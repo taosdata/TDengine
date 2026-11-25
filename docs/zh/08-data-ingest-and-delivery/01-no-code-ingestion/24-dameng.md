@@ -25,6 +25,7 @@ sidebar_label: 达梦
 
 ```sql
 CREATE USER TDSYNC IDENTIFIED BY "Sync_Passw0rd";
+
 GRANT SELECT ON SCADA.METER_READINGS TO TDSYNC;
 ```
 
@@ -184,13 +185,13 @@ import ExceptionHandling from './resources/_03-exception-handling-strategy.mdx'
 
 ```sql
 CREATE TABLE SCADA.SECTION_DATA (
-    POINT_ID    VARCHAR(32),
-    POINT_NAME  VARCHAR(128),
-    STATION     VARCHAR(64),
-    SAMPLE_TIME DATETIME(3),
-    VAL         NUMBER(12, 4),
-    QUALITY     INT,
-    PRIMARY KEY (POINT_ID, SAMPLE_TIME)
+  POINT_ID   VARCHAR(32),
+  POINT_NAME VARCHAR(128),
+  STATION    VARCHAR(64),
+  SAMPLE_TIME DATETIME(3),
+  VAL NUMBER(12, 4),
+  QUALITY    INT,
+  PRIMARY KEY(POINT_ID, SAMPLE_TIME)
 );
 ```
 
@@ -199,15 +200,17 @@ CREATE TABLE SCADA.SECTION_DATA (
 1. 在 TDengine 中创建毫秒精度的数据库和超级表：
 
     ```sql
-    CREATE DATABASE scada PRECISION 'ms';
+    CREATE DATABASE scada
+      PRECISION 'ms';
+
     CREATE STABLE scada.section_data (
-        ts      TIMESTAMP,
-        val     DECIMAL(12, 4),
-        quality INT
+      ts      TIMESTAMP,
+      val     DECIMAL(12, 4),
+      quality INT
     ) TAGS (
-        point_id   VARCHAR(32),
-        point_name NCHAR(128),
-        station    NCHAR(64)
+      point_id   VARCHAR(32),
+      point_name NCHAR(128),
+      station    NCHAR(64)
     );
     ```
 
@@ -226,8 +229,14 @@ CREATE TABLE SCADA.SECTION_DATA (
 6. 提交任务。迁移完成后，在 TDengine 中查询断面数据：
 
     ```sql
-    SELECT ts, val, quality FROM scada.section_data
-    WHERE point_id = 'P0001' AND ts >= '2024-06-01' AND ts < '2024-06-02';
+    SELECT
+      ts,
+      val,
+      quality
+    FROM scada.section_data
+    WHERE point_id = 'P0001'
+      AND ts >= '2024-06-01'
+      AND ts < '2024-06-02';
     ```
 
 源表中 `(POINT_ID, SAMPLE_TIME)` 唯一，映射后每个测点一张子表，`ts` 在子表内唯一，满足 [幂等写入](./23-rdb-integration.md#幂等写入) 的要求。

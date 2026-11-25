@@ -20,7 +20,9 @@ TDengine includes the built-in `INFORMATION_SCHEMA` database for accessing datab
 - Some column names in system tables are keywords and must be escaped with backticks in queries. For example, to query the number of `vgroup`s in the `test` database:
 
 ```sql
-SELECT `vgroups` FROM information_schema.ins_databases WHERE name = 'test';
+SELECT `vgroups`
+FROM information_schema.ins_databases
+WHERE name = 'test';
 ```
 
 :::

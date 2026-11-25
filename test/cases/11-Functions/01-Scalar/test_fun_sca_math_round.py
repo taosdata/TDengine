@@ -1,0 +1,2136 @@
+# Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# This program is free software: you can use, redistribute, and/or modify
+# it under the terms of the GNU Affero General Public License, version 3
+# or later ("AGPL"), as published by the Free Software Foundation.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+
+from new_test_framework.utils import tdLog, tdSql, sc, clusterComCheck
+import random
+import time
+from new_test_framework.utils import tdLog, tdSql
+from math import ceil
+from math import floor
+import taos
+import sys
+import datetime
+import inspect
+
+
+DBNAME = "db"
+
+
+class TestFunScaMathRound:
+    def setup_method(self):
+        # These methods used to run in their own taosd process, so every one of
+        # them started from an empty server. They now share a single deployment,
+        # therefore drop every user database first to keep that isolation
+        # (several cases assert on information_schema.ins_databases).
+        tdSql.query(
+            "select name from information_schema.ins_databases "
+            "where name not in ('information_schema', 'performance_schema')"
+        )
+        for i in range(tdSql.queryRows):
+            tdSql.execute(f"drop database if exists `{tdSql.getData(i, 0)}`")
+
+    # updatecfgDict = {'debugFlag': 143, "cDebugFlag": 143, "uDebugFlag": 143, "rpcDebugFlag": 143, "tmrDebugFlag": 143,
+    #                  "jniDebugFlag": 143, "simDebugFlag": 143, "dDebugFlag": 143, "dDebugFlag": 143, "vDebugFlag": 143, "mDebugFlag": 143, "qDebugFlag": 143,
+    #                  "wDebugFlag": 143, "sDebugFlag": 143, "tsdbDebugFlag": 143, "tqDebugFlag": 143, "fsDebugFlag": 143, "udfDebugFlag": 143}
+
+    def setup_class(cls):
+        cls.replicaVar = 1  # 设置默认副本数
+        tdLog.debug(f"start to excute {__file__}")
+        #tdSql.init(conn.cursor(), logSql)
+        cls.tb_nums = 10
+        cls.row_nums = 20
+        cls.ts = 1434938400000
+        cls.time_step = 1000
+        cls.keep_duration = 36500  
+
+
+    def insert_datas_and_check_abs(self ,tbnums , rownums , time_step ):
+        tdLog.info(" prepare datas for auto check abs function ")
+        dbname = "test"
+        stbname = f"{dbname}.stb"
+        ctbname_pre = f"{dbname}.sub_tb_"
+
+        tdSql.execute(f" create database {dbname} keep {self.keep_duration} replica {self.replicaVar} ")
+        tdSql.execute(f" use {dbname} ")
+        tdSql.execute(f" create stable {stbname} (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint,\
+             c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp) tags (t1 int)")
+        for tbnum in range(tbnums):
+            tbname = f"{ctbname_pre}{tbnum}"
+            tdSql.execute(f" create table {tbname} using {stbname} tags({tbnum}) ")
+
+            ts = self.ts
+            for row in range(rownums):
+                ts = self.ts + time_step*row
+                c1 = random.randint(0,10000)
+                c2 = random.randint(0,100000)
+                c3 = random.randint(0,125)
+                c4 = random.randint(0,125)
+                c5 = random.random()/1.0
+                c6 = random.random()/1.0
+                c7 = "'true'"
+                c8 = "'binary_val'"
+                c9 = "'nchar_val'"
+                c10 = ts
+                tdSql.execute(f" insert into  {tbname} values ({ts},{c1},{c2},{c3},{c4},{c5},{c6},{c7},{c8},{c9},{c10})")
+
+        tdSql.execute(f"use {dbname}")
+        tbnames = [f"{stbname}", f"{ctbname_pre}1"]
+        support_types_abs = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
+        for tbname in tbnames:
+            tdSql.query("desc {}".format(tbname))
+            coltypes = tdSql.queryResult
+            for coltype in coltypes:
+                colname = coltype[0]
+                abs_sql = "select abs({}) from {} order by tbname ".format(colname, tbname)
+                origin_sql = "select {} from {} order by tbname".format(colname, tbname)
+                if coltype[1] in support_types_abs:
+                    self.check_result_auto_abs(origin_sql , abs_sql)
+
+
+    def prepare_datas_abs(self, dbname="db"):
+        tdSql.execute(
+            f'''create table {dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+
+        tdSql.execute(
+            f'''
+            create table {dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+
+    def prepare_tag_datas(self, dbname="testdb"):
+        # prepare datas
+        tdSql.execute(
+            f"create database if not exists {dbname} keep {self.keep_duration} duration 100 replica {self.replicaVar} ")
+        tdSql.execute(" use testdb ")
+        tdSql.execute(
+            f'''create table {dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t0 timestamp, t1 int, t2 bigint, t3 smallint, t4 tinyint, t5 float, t6 double, t7 bool, t8 binary(16),t9 nchar(32))
+            '''
+        )
+
+        tdSql.execute(
+            f'''
+            create table {dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(
+                f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( now(), {1*i}, {11111*i}, {111*i}, {1*i}, {1.11*i}, {11.11*i}, {i%2}, "binary{i}", "nchar{i}" )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(
+            f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(
+            f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+
+    def check_result_auto_abs(self, origin_query, abs_query):
+        abs_result = tdSql.getResult(abs_query)
+        origin_result = tdSql.getResult(origin_query)
+
+        auto_result = []
+
+        for row in origin_result:
+            row_check = []
+            for elem in row:
+                if elem == None:
+                    elem = None
+                elif elem >= 0:
+                    elem = elem
+                else:
+                    elem = -elem
+                row_check.append(elem)
+            auto_result.append(row_check)
+
+        tdSql.query(abs_query)
+        for row_index, row in enumerate(abs_result):
+            for col_index, elem in enumerate(row):
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+
+
+    def check_errors_abs(self):
+        dbname = "testdb"
+        tdSql.execute(f"use {dbname}")
+        error_sql_lists = [
+            f"select abs from {dbname}.t1",
+            f"select abs(-+--+c1) from {dbname}.t1",
+            # f"select +-abs(c1) from {dbname}.t1",
+            # f"select ++-abs(c1) from {dbname}.t1",
+            # f"select ++--abs(c1) from {dbname}.t1",
+            # f"select - -abs(c1)*0 from {dbname}.t1",
+            # f"select abs(tbname+1) from {dbname}.t1 ",
+            f"select abs(123--123)==1 from {dbname}.t1",
+            f"select abs(c1) as 'd1' from {dbname}.t1",
+            f"select abs(c1 ,c2 ) from {dbname}.t1",
+            f"select abs(c1 ,NULL) from {dbname}.t1",
+            f"select abs(,) from {dbname}.t1;",
+            f"select abs(abs(c1) ab from {dbname}.t1)",
+            f"select abs(c1) as int from {dbname}.t1",
+            f"select abs from {dbname}.stb1",
+            # f"select abs(-+--+c1) from {dbname}.stb1",
+            # f"select +-abs(c1) from {dbname}.stb1",
+            # f"select ++-abs(c1) from {dbname}.stb1",
+            # f"select ++--abs(c1) from {dbname}.stb1",
+            # f"select - -abs(c1)*0 from {dbname}.stb1",
+            # f"select abs(tbname+1) from {dbname}.stb1 ",
+            f"select abs(123--123)==1 from {dbname}.stb1",
+            f"select abs(c1) as 'd1' from {dbname}.stb1",
+            f"select abs(c1 ,c2 ) from {dbname}.stb1",
+            f"select abs(c1 ,NULL) from {dbname}.stb1",
+            f"select abs(,) from {dbname}.stb1;",
+            f"select abs(abs(c1) ab from {dbname}.stb1)",
+            f"select abs(c1) as int from {dbname}.stb1"
+        ]
+        for error_sql in error_sql_lists:
+            tdSql.error(error_sql)
+
+
+    def support_types_abs(self):
+        dbname = "testdb"
+        tdSql.execute(f"use {dbname}")
+        tbnames = [f"{dbname}.stb1", f"{dbname}.t1", f"{dbname}.ct1", f"{dbname}.ct2"]
+        support_types_abs = ["BIGINT", "SMALLINT", "TINYINT", "FLOAT", "DOUBLE", "INT"]
+        for tbname in tbnames:
+            tdSql.query("desc {}".format(tbname))
+            coltypes = tdSql.queryResult
+            for coltype in coltypes:
+                colname = coltype[0]
+                abs_sql = "select abs({}) from {}".format(colname, tbname)
+                if coltype[1] in support_types_abs:
+                    tdSql.query(abs_sql)
+                else:
+                    tdSql.error(abs_sql)
+
+
+    def basic_abs_function(self, dbname="db"):
+
+        # basic query
+        tdSql.query(f"select c1 from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select c1 from {dbname}.t1")
+        tdSql.checkRows(12)
+        tdSql.query(f"select c1 from {dbname}.stb1")
+        tdSql.checkRows(25)
+
+        # used for empty table  , ct3 is empty
+        tdSql.query(f"select abs(c1) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select abs(c2) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select abs(c3) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select abs(c4) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select abs(c5) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select abs(c6) from {dbname}.ct3")
+
+        # used for regular table
+        tdSql.query(f"select abs(c1) from {dbname}.t1")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1, 0, 1)
+        tdSql.checkData(3, 0, 3)
+        tdSql.checkData(5, 0, None)
+
+        tdSql.query(f"select c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 4, 1.11000)
+        tdSql.checkData(3, 3, 33)
+        tdSql.checkData(5, 4, None)
+        tdSql.query(f"select ts,c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 5, 1.11000)
+        tdSql.checkData(3, 4, 33)
+        tdSql.checkData(5, 5, None)
+
+        self.check_result_auto_abs(f"select c1, c2, c3 , c4, c5 from {dbname}.t1",
+                               f"select (c1), abs(c2) ,abs(c3), abs(c4), abs(c5) from {dbname}.t1")
+
+        # used for sub table
+        tdSql.query(f"select abs(c1) from {dbname}.ct1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(1, 0, 7)
+        tdSql.checkData(3, 0, 5)
+        tdSql.checkData(5, 0, 4)
+
+        tdSql.query(f"select abs(c1) from {dbname}.ct1")
+        self.check_result_auto_abs(f"select c1, c2, c3 , c4, c5 from {dbname}.ct1",
+                               f"select (c1), abs(c2) ,abs(c3), abs(c4), abs(c5) from {dbname}.ct1")
+        self.check_result_auto_abs(
+            f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))) nest_col_func from {dbname}.ct1;", f"select c1 from {dbname}.ct1")
+
+        # used for stable table
+
+        tdSql.query(f"select abs(c1) from {dbname}.stb1")
+        tdSql.checkRows(25)
+        self.check_result_auto_abs(f"select c1, c2, c3 , c4, c5 from {dbname}.ct4 ",
+                               f"select (c1), abs(c2) ,abs(c3), abs(c4), abs(c5) from {dbname}.ct4")
+        self.check_result_auto_abs(
+            f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))) nest_col_func from {dbname}.ct4;", f"select c1 from {dbname}.ct4")
+
+        # used for not exists table
+        tdSql.error(f"select abs(c1) from {dbname}.stbbb1")
+        tdSql.error(f"select abs(c1) from {dbname}.tbname")
+        tdSql.error(f"select abs(c1) from {dbname}.ct5")
+
+        # mix with common col
+        tdSql.query(f"select c1, abs(c1) from {dbname}.ct1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(0, 1, 8)
+        tdSql.checkData(4, 0, 0)
+        tdSql.checkData(4, 1, 0)
+        tdSql.query(f"select c1, abs(c1) from {dbname}.ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(4, 0, 5)
+        tdSql.checkData(4, 1, 5)
+        tdSql.checkData(5, 0, None)
+        tdSql.checkData(5, 1, None)
+        tdSql.query(f"select c1, abs(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(4, 0, 5)
+        tdSql.checkData(4, 1, 5)
+
+        # mix with common functions
+        tdSql.query(f"select c1, abs(c1),c5, floor(c5) from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(0, 3, None)
+
+        tdSql.checkData(3, 0, 6)
+        tdSql.checkData(3, 1, 6)
+        tdSql.checkData(3, 2, 6.66000)
+        tdSql.checkData(3, 3, 6.00000)
+
+        tdSql.query(f"select c1, abs(c1),c5, floor(c5) from {dbname}.stb1 ")
+
+        # mix with agg functions , not support
+        tdSql.error(f"select c1, abs(c1),c5, count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select c1, abs(c1),c5, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select abs(c1), count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select abs(c1), count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.stb1 ")
+
+        # agg functions mix with agg functions
+
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
+
+        # bug fix for count
+        tdSql.query(f"select count(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, 9)
+        tdSql.query(f"select count(*) from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, 12)
+        tdSql.query(f"select count(c1) from {dbname}.stb1 ")
+        tdSql.checkData(0, 0, 22)
+        tdSql.query(f"select count(*) from {dbname}.stb1 ")
+        tdSql.checkData(0, 0, 25)
+
+        # bug fix for compute
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1)-0 from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 8.000000000)
+
+        tdSql.query(f" select c1, abs(c1) -0 ,ceil(c1-0.1)-0.1 from {dbname}.ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 7.900000000)
+
+
+    def abs_func_filter_abs(self, dbname="db"):
+        tdSql.execute(f"use {dbname}")
+        tdSql.query(
+            f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>5 ")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(0, 1, 8.000000000)
+        tdSql.checkData(0, 2, 8.000000000)
+        tdSql.checkData(0, 3, 7.900000000)
+        tdSql.checkData(0, 4, 3.000000000)
+
+        tdSql.query(
+            f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 5.000000000)
+        tdSql.checkData(0, 2, 5.000000000)
+        tdSql.checkData(0, 3, 4.900000000)
+        tdSql.checkData(0, 4, 2.000000000)
+
+        tdSql.query(
+            f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5)
+        tdSql.checkData(0, 1, 5.000000000)
+        tdSql.checkData(0, 2, 5.000000000)
+        tdSql.checkData(0, 3, 4.900000000)
+        tdSql.checkData(0, 4, 2.000000000)
+
+        tdSql.query(
+            f"select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>log(c1,2) limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(0, 1, 88888)
+        tdSql.checkData(0, 2, 8.000000000)
+        tdSql.checkData(0, 3, 8.000000000)
+        tdSql.checkData(0, 4, 7.900000000)
+        tdSql.checkData(0, 5, 3.000000000)
+
+
+    def abs_Arithmetic(self):
+        pass
+
+
+    def check_boundary_values_abs(self):
+
+        dbname = "bound_test"
+
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname} keep  {self.keep_duration} replica {self.replicaVar}  ")
+        time.sleep(3)
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute(
+            f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
+        )
+        tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
+        tdSql.execute(
+            f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        )
+        tdSql.execute(
+            f"insert into {dbname}.sub1_bound values ( now()-5s, -2147483647, -9223372036854775807, -32767, -127, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        )
+        tdSql.execute(
+            f"insert into {dbname}.sub1_bound values ( now(), 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        )
+        tdSql.execute(
+            f"insert into {dbname}.sub1_bound values ( now()+5s, -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        )
+        tdSql.error(
+            f"insert into {dbname}.sub1_bound values ( now()+10s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+        )
+        self.check_result_auto_abs(f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ",
+                               f"select abs(c1), abs(c2) ,abs(c3), abs(c4), abs(c5) ,abs(c6) from {dbname}.sub1_bound")
+        self.check_result_auto_abs(f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ",
+                               f"select abs(c1), abs(c2) ,abs(c3), abs(c3), abs(c2) ,abs(c1) from {dbname}.sub1_bound")
+        self.check_result_auto_abs(
+            f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))) nest_col_func from {dbname}.sub1_bound;", f"select abs(c1) from {dbname}.sub1_bound")
+
+        # check basic elem for table per row
+        tdSql.query(
+            f"select abs(c1) ,abs(c2) , abs(c3) , abs(c4), abs(c5), abs(c6) from {dbname}.sub1_bound ")
+        tdSql.checkData(0, 0, 2147483647)
+        tdSql.checkData(0, 1, 9223372036854775807)
+        tdSql.checkData(0, 2, 32767)
+        tdSql.checkData(0, 3, 127)
+        # tdSql.checkData(0, 4, 339999995214436424907732413799364296704.00000)
+        tdSql.checkData(0, 4, 3.4E+38)
+        # tdSql.checkData(0, 5, 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632.000000000)
+        tdSql.checkData(0, 5, 1.7E+308)
+        tdSql.checkData(1, 0, 2147483647)
+        tdSql.checkData(1, 1, 9223372036854775807)
+        tdSql.checkData(1, 2, 32767)
+        tdSql.checkData(1, 3, 127)
+        # tdSql.checkData(1, 4, 339999995214436424907732413799364296704.00000)
+        tdSql.checkData(1, 4, 3.4E+38)
+        # tdSql.checkData(1, 5, 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632.000000000)
+        tdSql.checkData(1, 5, 1.7E+308)
+        tdSql.checkData(3, 0, 2147483646)
+        tdSql.checkData(3, 1, 9223372036854775806)
+        tdSql.checkData(3, 2, 32766)
+        tdSql.checkData(3, 3, 126)
+        # tdSql.checkData(3, 4, 339999995214436424907732413799364296704.00000)
+        tdSql.checkData(3, 4, 3.4E+38)
+        # tdSql.checkData(3, 5, 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632.000000000)
+        tdSql.checkData(3, 5, 1.7E+308)
+
+        # check  + - * / in functions
+        tdSql.query(
+            f"select abs(c1+1) ,abs(c2) , abs(c3*1) , abs(c4/2), abs(c5)/2, abs(c6) from {dbname}.sub1_bound ")
+        tdSql.checkData(0, 0, 2147483648.000000000)
+        tdSql.checkData(0, 1, 9223372036854775807)
+        tdSql.checkData(0, 2, 32767.000000000)
+        tdSql.checkData(0, 3, 63.500000000)
+        tdSql.checkData(0, 4, 169999997607218212453866206899682148352.000000000)
+        tdSql.checkData(0, 5, 169999999999999993883079578865998174333346074304075874502773119193537729178160565864330091787584707988572262467983188919169916105593357174268369962062473635296474636515660464935663040684957844303524367815028553272712298986386310828644513212353921123253311675499856875650512437415429217994623324794855339589632.000000000)
+
+        tdSql.checkData(1, 0, 2147483646.000000000)
+        tdSql.checkData(1, 1, 9223372036854775808.000000000)
+        tdSql.checkData(1, 2, 32767.000000000)
+        tdSql.checkData(1, 3, 63.500000000)
+        tdSql.checkData(1, 4, 169999997607218212453866206899682148352.000000000)
+
+        self.check_result_auto_abs(f"select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from {dbname}.sub1_bound",
+                               f"select abs(c1+1) ,abs(c2) , abs(c3*1) , abs(c4/2), abs(c5)/2, abs(c6) from {dbname}.sub1_bound ")
+
+
+    def check_tag_compute_for_scalar_function(self):
+        dbname = "testdb"
+
+        tdSql.execute(f"use {dbname}")
+
+        self.check_result_auto_abs(f"select c1, t2, t3 , t4, t5 from {dbname}.ct4 ",
+                               f"select (c1), abs(t2) ,abs(t3), abs(t4), abs(t5) from {dbname}.ct4")
+        self.check_result_auto_abs(f"select c1+2, t2+2, t3 , t4, t5 from {dbname}.ct4 ",
+                               f"select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from {dbname}.ct4")
+        self.check_result_auto_abs(f"select c1+2, t2+2, t3 , t4, t5 from {dbname}.stb1 order by t1 ",
+                               f"select (c1)+2, abs(t2)+2 ,abs(t3), abs(t4), abs(t5) from {dbname}.stb1 order by t1")
+
+        # bug need fix
+
+        # tdSql.query(" select sum(c1) from stb1 where t1+10 >1; ")  #　taosd crash
+        tdSql.query(f"select c1 ,t1 from {dbname}.stb1 where t1 =0 ")
+        tdSql.checkRows(13)
+        tdSql.query(f"select t1 from {dbname}.stb1 where t1 >0 ")
+        tdSql.checkRows(12)
+        tdSql.query(f"select t1 from {dbname}.stb1 where t1 =3 ")
+        tdSql.checkRows(12)
+        # tdSql.query(f"select sum(t1) from (select c1 ,t1 from {dbname}.stb1)")
+        # tdSql.checkData(0,0,61)
+        # tdSql.query(f"select distinct(c1) ,t1 from {dbname}.stb1")
+        # tdSql.checkRows(20)
+        tdSql.query(f"select max(t2) , t1 ,c1, t2 from {dbname}.stb1")
+        tdSql.checkData(0,3,33333)
+
+        # tag filter with abs function
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(t1)=1")
+        tdSql.checkRows(0)
+        tdSql.query(f"select t1 from {dbname}.stb1 where abs(c1+t1)=1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,0)
+
+        tdSql.query(f"select abs(c1) from (select ts , c1 ,t1 from {dbname}.stb1)")
+        tdSql.checkRows(25)
+
+        tdSql.query(
+            f"select abs(c1+t1)*t1 from {dbname}.stb1 where abs(c1)/floor(abs(ceil(t1))) ==1")
+
+
+    def support_super_table_test_abs(self):
+        dbname = "testdb"
+        tdSql.execute(f" use {dbname} ")
+        self.check_result_auto_abs( f" select c1 from {dbname}.stb1 order by ts " , f"select abs(c1) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_abs( f" select c1 from {dbname}.stb1 order by tbname " , f"select abs(c1) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_abs( f" select c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_abs( f" select c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_abs( f" select t1,c1 from {dbname}.stb1 order by ts " , f"select t1, abs(c1) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_abs( f" select t2,c1 from {dbname}.stb1 order by tbname " , f"select t2 ,abs(c1) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_abs( f" select t3,c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select t3 ,abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_abs( f" select t4,c1 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select t4 , abs(c1) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        pass
+
+
+    def test_fun_sca_abs(self):
+        """ Fun: abs()
+
+        1. Support types
+        2. Basic query
+        3. Boundary values
+        4. Filter query
+        5. Tag compute for scalar function
+        6. Check result of query
+        7. Check abs result of stable query
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_abs.py
+            - 2026-11-20 Alex Merged into test_fun_sca_math_round.py so the methods share one taosd deployment (CI deploys once per test class)
+        """
+        # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        tdSql.prepare(replica=self.replicaVar)
+
+        tdLog.printNoPrefix("==========step1:create table ==============")
+
+        self.prepare_datas_abs()
+        self.prepare_tag_datas()
+
+        tdLog.printNoPrefix("==========step2:test errors ==============")
+
+        self.check_errors_abs()
+
+        tdLog.printNoPrefix("==========step3:support types ============")
+
+        self.support_types_abs()
+
+        tdLog.printNoPrefix("==========step4: abs basic query ============")
+
+        self.basic_abs_function()
+
+        tdLog.printNoPrefix("==========step5: abs boundary query ============")
+
+        self.check_boundary_values_abs()
+
+        tdLog.printNoPrefix("==========step6: abs filter query ============")
+
+        self.abs_func_filter_abs()
+
+        tdLog.printNoPrefix("==========step6: tag coumpute query ============")
+
+        self.check_tag_compute_for_scalar_function()
+
+        tdLog.printNoPrefix("==========step7: check result of query ============")
+
+        self.insert_datas_and_check_abs(self.tb_nums,self.row_nums,self.time_step)
+
+        tdLog.printNoPrefix("==========step8: check abs result of  stable query ============")
+
+        self.support_super_table_test_abs()
+
+
+        #tdSql.close()
+
+
+    def test_fun_sca_now(self):
+        """ Fun: now()
+
+        1. Insert with now +/- and d/s/a
+        2. Query with where now +/- d/m/h
+
+        Since: v3.3.0.0
+
+        Labels: common,ci,integration,functional
+
+        History:
+            - 2025-10-16 Alex Duan add doc
+            - 2026-11-20 Alex Merged into test_fun_sca_math_round.py so the methods share one taosd deployment (CI deploys once per test class)
+
+        """
+        pass
+
+
+    def prepare_datas_ceil(self, dbname="db"):
+        tdSql.execute(
+            f'''create table {dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+
+        tdSql.execute(
+            f'''
+            create table {dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, -0.444, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+
+    def check_result_auto_ceil(self ,origin_query , ceil_query):
+        pass
+        ceil_result = tdSql.getResult(ceil_query)
+        origin_result = tdSql.getResult(origin_query)
+
+        auto_result =[]
+
+        for row in origin_result:
+            row_check = []
+            for elem in row:
+                if elem == None:
+                    elem = None
+                else:
+                    elem = ceil(elem)
+                row_check.append(elem)
+            auto_result.append(row_check)
+
+        tdSql.query(ceil_query)
+        for row_index , row in enumerate(ceil_result):
+            for col_index , elem in enumerate(row):
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+
+               
+
+    def check_errors_ceil(self, dbname="db"):
+        error_sql_lists = [
+            f"select ceil from {dbname}.t1",
+            f"select ceil(123--123)==1 from {dbname}.t1",
+            f"select ceil(c1) as 'd1' from {dbname}.t1",
+            f"select ceil(c1 ,c2 ) from {dbname}.t1",
+            f"select ceil(c1 ,NULL) from {dbname}.t1",
+            f"select ceil(,) from {dbname}.t1;",
+            f"select ceil(ceil(c1) ab from {dbname}.t1)",
+            f"select ceil(c1) as int from {dbname}.t1",
+            f"select ceil from {dbname}.stb1",
+            f"select ceil(123--123)==1 from {dbname}.stb1",
+            f"select ceil(c1) as 'd1' from {dbname}.stb1",
+            f"select ceil(c1 ,c2 ) from {dbname}.stb1",
+            f"select ceil(c1 ,NULL) from {dbname}.stb1",
+            f"select ceil(,) from {dbname}.stb1;",
+            f"select ceil(ceil(c1) ab from {dbname}.stb1)",
+            f"select ceil(c1) as int from {dbname}.stb1"
+        ]
+        for error_sql in error_sql_lists:
+            tdSql.error(error_sql)
+
+
+    def support_types_ceil(self, dbname="db"):
+        type_error_sql_lists = [
+            f"select ceil(ts) from {dbname}.t1" ,
+            f"select ceil(c7) from {dbname}.t1",
+            f"select ceil(c8) from {dbname}.t1",
+            f"select ceil(c9) from {dbname}.t1",
+            f"select ceil(ts) from {dbname}.ct1" ,
+            f"select ceil(c7) from {dbname}.ct1",
+            f"select ceil(c8) from {dbname}.ct1",
+            f"select ceil(c9) from {dbname}.ct1",
+            f"select ceil(ts) from {dbname}.ct3" ,
+            f"select ceil(c7) from {dbname}.ct3",
+            f"select ceil(c8) from {dbname}.ct3",
+            f"select ceil(c9) from {dbname}.ct3",
+            f"select ceil(ts) from {dbname}.ct4" ,
+            f"select ceil(c7) from {dbname}.ct4",
+            f"select ceil(c8) from {dbname}.ct4",
+            f"select ceil(c9) from {dbname}.ct4",
+            f"select ceil(ts) from {dbname}.stb1" ,
+            f"select ceil(c7) from {dbname}.stb1",
+            f"select ceil(c8) from {dbname}.stb1",
+            f"select ceil(c9) from {dbname}.stb1" ,
+
+            f"select ceil(ts) from {dbname}.stbbb1" ,
+            f"select ceil(c7) from {dbname}.stbbb1",
+
+            f"select ceil(ts) from {dbname}.tbname",
+            f"select ceil(c9) from {dbname}.tbname"
+
+        ]
+
+        for type_sql in type_error_sql_lists:
+            tdSql.error(type_sql)
+
+
+        type_sql_lists = [
+            f"select ceil(c1) from {dbname}.t1",
+            f"select ceil(c2) from {dbname}.t1",
+            f"select ceil(c3) from {dbname}.t1",
+            f"select ceil(c4) from {dbname}.t1",
+            f"select ceil(c5) from {dbname}.t1",
+            f"select ceil(c6) from {dbname}.t1",
+
+            f"select ceil(c1) from {dbname}.ct1",
+            f"select ceil(c2) from {dbname}.ct1",
+            f"select ceil(c3) from {dbname}.ct1",
+            f"select ceil(c4) from {dbname}.ct1",
+            f"select ceil(c5) from {dbname}.ct1",
+            f"select ceil(c6) from {dbname}.ct1",
+
+            f"select ceil(c1) from {dbname}.ct3",
+            f"select ceil(c2) from {dbname}.ct3",
+            f"select ceil(c3) from {dbname}.ct3",
+            f"select ceil(c4) from {dbname}.ct3",
+            f"select ceil(c5) from {dbname}.ct3",
+            f"select ceil(c6) from {dbname}.ct3",
+
+            f"select ceil(c1) from {dbname}.stb1",
+            f"select ceil(c2) from {dbname}.stb1",
+            f"select ceil(c3) from {dbname}.stb1",
+            f"select ceil(c4) from {dbname}.stb1",
+            f"select ceil(c5) from {dbname}.stb1",
+            f"select ceil(c6) from {dbname}.stb1",
+
+            f"select ceil(c6) as alisb from {dbname}.stb1",
+            f"select ceil(c6) alisb from {dbname}.stb1",
+        ]
+
+        for type_sql in type_sql_lists:
+            tdSql.query(type_sql)
+
+
+    def basic_ceil_function(self, dbname="db"):
+
+        # basic query
+        tdSql.query(f"select c1 from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select c1 from {dbname}.t1")
+        tdSql.checkRows(12)
+        tdSql.query(f"select c1 from {dbname}.stb1")
+        tdSql.checkRows(25)
+
+        # used for empty table  , {dbname}.ct3 is empty
+        tdSql.query(f"select ceil(c1) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select ceil(c2) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select ceil(c3) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select ceil(c4) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select ceil(c5) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select ceil(c6) from {dbname}.ct3")
+
+        # used for regular table
+        tdSql.query(f"select ceil(c1) from {dbname}.t1")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1 , 0, 1)
+        tdSql.checkData(3 , 0, 3)
+        tdSql.checkData(5 , 0, None)
+
+        tdSql.query(f"select c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 4, 1.11000)
+        tdSql.checkData(3, 3, 33)
+        tdSql.checkData(5, 4, None)
+        tdSql.query(f"select ts,c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 5, 1.11000)
+        tdSql.checkData(3, 4, 33)
+        tdSql.checkData(5, 5, None)
+
+        tdSql.query(f"select ceil(c5) from {dbname}.t1")
+        tdSql.checkData(4 , 0, 0)
+
+        self.check_result_auto_ceil( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from {dbname}.t1")
+
+        # used for sub table
+        tdSql.query(f"select ceil(c1) from {dbname}.ct1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(1 , 0, 7)
+        tdSql.checkData(3 , 0, 5)
+        tdSql.checkData(5 , 0, 4)
+
+        tdSql.query(f"select ceil(c1) from {dbname}.ct1")
+        self.check_result_auto_ceil( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from {dbname}.ct1")
+        self.check_result_auto_ceil(f"select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from {dbname}.ct1;", f"select c1 from {dbname}.ct1" )
+
+        # used for stable table
+
+        tdSql.query(f"select ceil(c1) from {dbname}.stb1")
+        tdSql.checkRows(25)
+        self.check_result_auto_ceil( f"select c1, c2, c3 , c4, c5 from {dbname}.ct4 ", f"select (c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) from {dbname}.ct4")
+        self.check_result_auto_ceil(f"select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from {dbname}.ct4;" , f"select c1 from {dbname}.ct4" )
+
+
+        # used for not exists table
+        tdSql.error(f"select ceil(c1) from {dbname}.stbbb1")
+        tdSql.error(f"select ceil(c1) from {dbname}.tbname")
+        tdSql.error(f"select ceil(c1) from {dbname}.ct5")
+
+        # mix with common col
+        tdSql.query(f"select c1, ceil(c1) from {dbname}.ct1")
+        tdSql.checkData(0 , 0 ,8)
+        tdSql.checkData(0 , 1 ,8)
+        tdSql.checkData(4 , 0 ,0)
+        tdSql.checkData(4 , 1 ,0)
+        tdSql.query(f"select c1, ceil(c1) from {dbname}.ct4")
+        tdSql.checkData(0 , 0 , None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+        tdSql.checkData(5 , 0 ,None)
+        tdSql.checkData(5 , 1 ,None)
+        tdSql.query(f"select c1, ceil(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+
+        # mix with common functions
+        tdSql.query(f"select c1, ceil(c1),c5, ceil(c5) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(0 , 2 ,None)
+        tdSql.checkData(0 , 3 ,None)
+
+        tdSql.checkData(3 , 0 , 6)
+        tdSql.checkData(3 , 1 , 6)
+        tdSql.checkData(3 , 2 ,6.66000)
+        tdSql.checkData(3 , 3 ,7.00000)
+
+        tdSql.query(f"select c1, ceil(c1),c5, floor(c5) from {dbname}.stb1 ")
+
+        # mix with agg functions , not support
+        tdSql.error(f"select c1, ceil(c1),c5, count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select c1, ceil(c1),c5, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select ceil(c1), count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select ceil(c1), count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.stb1 ")
+
+        # agg functions mix with agg functions
+
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
+
+
+        # bug fix for count
+        tdSql.query(f"select count(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,9)
+        tdSql.query(f"select count(*) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,12)
+        tdSql.query(f"select count(c1) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,22)
+        tdSql.query(f"select count(*) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,25)
+
+        # bug fix for compute
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1)-0 from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 8.000000000)
+
+        tdSql.query(f" select c1, abs(c1) -0 ,ceil(c1-0.1)-0.1 from {dbname}.ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 7.900000000)
+
+
+    def abs_func_filter_ceil(self,dbname="db"):
+        tdSql.execute(f"use {dbname}")
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>5 ")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,8.000000000)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,7.900000000)
+        tdSql.checkData(0,4,3.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>log(c1,2) limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,88888)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,8.000000000)
+        tdSql.checkData(0,4,7.900000000)
+        tdSql.checkData(0,5,3.000000000)
+
+
+    def ceil_Arithmetic(self):
+        pass
+
+
+    def check_boundary_values_ceil(self, dbname="bound_test"):
+
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname}")
+        time.sleep(3)
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute(
+            f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
+        )
+        tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+10s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.error(
+                f"insert into {dbname}.sub1_bound values ( now()+15s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        self.check_result_auto_ceil( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select ceil(c1), ceil(c2) ,ceil(c3), ceil(c4), ceil(c5) ,ceil(c6) from {dbname}.sub1_bound")
+        self.check_result_auto_ceil( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select ceil(c1), ceil(c2) ,ceil(c3), ceil(c3), ceil(c2) ,ceil(c1) from {dbname}.sub1_bound")
+        self.check_result_auto_ceil(f"select ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(ceil(c1)))))))))) nest_col_func from {dbname}.sub1_bound;" , f"select ceil(c1) from {dbname}.sub1_bound" )
+
+        # check basic elem for table per row
+        tdSql.query(f"select ceil(c1+0.2) ,ceil(c2) , ceil(c3+0.3) , ceil(c4-0.3), ceil(c5/2), ceil(c6/2) from {dbname}.sub1_bound ")
+        tdSql.checkData(0, 0, 2147483648.000000000)
+        tdSql.checkData(0, 2, 32768.000000000)
+        tdSql.checkData(0, 3, 127.000000000)
+        tdSql.checkData(0, 4, 169999997607218212453866206899682148352.000000000)
+
+        tdSql.checkData(4, 0, -2147483642.000000000)
+        tdSql.checkData(4, 2, -32762.000000000)
+        tdSql.checkData(4, 3, -123.000000000)
+        tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
+
+        self.check_result_auto_ceil(f"select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from {dbname}.sub1_bound" , f"select ceil(c1+1) ,ceil(c2) , ceil(c3*1) , ceil(c4/2), ceil(c5)/2, ceil(c6) from {dbname}.sub1_bound ")
+
+
+    def support_super_table_test_ceil(self, dbname="db"):
+        tdSql.execute(f" use {dbname} ")
+        self.check_result_auto_ceil( f" select c5 from {dbname}.stb1 order by ts " , f"select ceil(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_ceil( f" select c5 from {dbname}.stb1 order by tbname " , f"select ceil(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_ceil( f" select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select ceil(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_ceil( f" select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select ceil(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_ceil( f" select t1,c5 from {dbname}.stb1 order by ts " , f"select ceil(t1), ceil(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_ceil( f" select t1,c5 from {dbname}.stb1 order by tbname " , f"select ceil(t1) ,ceil(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_ceil( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select ceil(t1) ,ceil(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_ceil( f" select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select ceil(t1) , ceil(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        pass
+
+
+    def test_fun_sca_ceil(self):
+        """ Fun: ceil()
+
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Stable table query
+        7. Error query
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_ceil.py
+            - 2026-11-20 Alex Merged into test_fun_sca_math_round.py so the methods share one taosd deployment (CI deploys once per test class)
+        """
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table ==============")
+
+        self.prepare_datas_ceil()
+
+        tdLog.printNoPrefix("==========step2:test errors ==============")
+
+        self.check_errors_ceil()
+
+        tdLog.printNoPrefix("==========step3:support types ============")
+
+        self.support_types_ceil()
+
+        tdLog.printNoPrefix("==========step4: ceil basic query ============")
+
+        self.basic_ceil_function()
+
+        tdLog.printNoPrefix("==========step5: ceil boundary query ============")
+
+        self.check_boundary_values_ceil()
+
+        tdLog.printNoPrefix("==========step6: ceil filter query ============")
+
+        self.abs_func_filter_ceil()
+
+        tdLog.printNoPrefix("==========step7: check ceil result of  stable query ============")
+
+        self.support_super_table_test_ceil()
+
+
+    def prepare_datas_floor(self, dbname=DBNAME):
+        tdSql.execute(
+            f'''create table {dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+
+        tdSql.execute(
+            f'''
+            create table {dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, 4.44, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+
+    def check_result_auto_floor(self ,origin_query , floor_query):
+        pass
+        floor_result = tdSql.getResult(floor_query)
+        origin_result = tdSql.getResult(origin_query)
+
+        auto_result =[]
+
+        for row in origin_result:
+            row_check = []
+            for elem in row:
+                if elem == None:
+                    elem = None
+                else:
+                    elem = floor(elem)
+                row_check.append(elem)
+            auto_result.append(row_check)
+
+        tdSql.query(floor_query)
+        for row_index , row in enumerate(floor_result):
+            for col_index , elem in enumerate(row):
+                tdSql.checkData(row_index,col_index,auto_result[row_index][col_index])
+
+                
+
+    def check_errors_floor(self, dbname=DBNAME):
+        error_sql_lists = [
+            f"select floor from {dbname}.t1",
+            # f"select floor(-+--+c1) from {dbname}.t1",
+            # f"select +-floor(c1) from {dbname}.t1",
+            # f"select ++-floor(c1) from {dbname}.t1",
+            # f"select ++--floor(c1) from {dbname}.t1",
+            # f"select - -floor(c1)*0 from {dbname}.t1",
+            # f"select floor(tbname+1) from {dbname}.t1 ",
+            f"select floor(123--123)==1 from {dbname}.t1",
+            f"select floor(c1) as 'd1' from {dbname}.t1",
+            f"select floor(c1 ,c2 ) from {dbname}.t1",
+            f"select floor(c1 ,NULL) from {dbname}.t1",
+            f"select floor(,) from {dbname}.t1;",
+            f"select floor(floor(c1) ab from {dbname}.t1)",
+            f"select floor(c1) as int from {dbname}.t1",
+            f"select floor from {dbname}.stb1",
+            # f"select floor(-+--+c1) from {dbname}.stb1",
+            # f"select +-floor(c1) from {dbname}.stb1",
+            # f"select ++-floor(c1) from {dbname}.stb1",
+            # f"select ++--floor(c1) from {dbname}.stb1",
+            # f"select - -floor(c1)*0 from {dbname}.stb1",
+            # f"select floor(tbname+1) from {dbname}.stb1 ",
+            f"select floor(123--123)==1 from {dbname}.stb1",
+            f"select floor(c1) as 'd1' from {dbname}.stb1",
+            f"select floor(c1 ,c2 ) from {dbname}.stb1",
+            f"select floor(c1 ,NULL) from {dbname}.stb1",
+            f"select floor(,) from {dbname}.stb1;",
+            f"select floor(floor(c1) ab from {dbname}.stb1)",
+            f"select floor(c1) as int from {dbname}.stb1"
+        ]
+        for error_sql in error_sql_lists:
+            tdSql.error(error_sql)
+
+
+    def support_types_floor(self, dbname=DBNAME):
+        type_error_sql_lists = [
+            f"select floor(ts) from {dbname}.t1" ,
+            f"select floor(c7) from {dbname}.t1",
+            f"select floor(c8) from {dbname}.t1",
+            f"select floor(c9) from {dbname}.t1",
+            f"select floor(ts) from {dbname}.ct1" ,
+            f"select floor(c7) from {dbname}.ct1",
+            f"select floor(c8) from {dbname}.ct1",
+            f"select floor(c9) from {dbname}.ct1",
+            f"select floor(ts) from {dbname}.ct3" ,
+            f"select floor(c7) from {dbname}.ct3",
+            f"select floor(c8) from {dbname}.ct3",
+            f"select floor(c9) from {dbname}.ct3",
+            f"select floor(ts) from {dbname}.ct4" ,
+            f"select floor(c7) from {dbname}.ct4",
+            f"select floor(c8) from {dbname}.ct4",
+            f"select floor(c9) from {dbname}.ct4",
+            f"select floor(ts) from {dbname}.stb1" ,
+            f"select floor(c7) from {dbname}.stb1",
+            f"select floor(c8) from {dbname}.stb1",
+            f"select floor(c9) from {dbname}.stb1" ,
+
+            f"select floor(ts) from {dbname}.stbbb1" ,
+            f"select floor(c7) from {dbname}.stbbb1",
+
+            f"select floor(ts) from {dbname}.tbname",
+            f"select floor(c9) from {dbname}.tbname"
+
+        ]
+
+        for type_sql in type_error_sql_lists:
+            tdSql.error(type_sql)
+
+
+        type_sql_lists = [
+            f"select floor(c1) from {dbname}.t1",
+            f"select floor(c2) from {dbname}.t1",
+            f"select floor(c3) from {dbname}.t1",
+            f"select floor(c4) from {dbname}.t1",
+            f"select floor(c5) from {dbname}.t1",
+            f"select floor(c6) from {dbname}.t1",
+
+            f"select floor(c1) from {dbname}.ct1",
+            f"select floor(c2) from {dbname}.ct1",
+            f"select floor(c3) from {dbname}.ct1",
+            f"select floor(c4) from {dbname}.ct1",
+            f"select floor(c5) from {dbname}.ct1",
+            f"select floor(c6) from {dbname}.ct1",
+
+            f"select floor(c1) from {dbname}.ct3",
+            f"select floor(c2) from {dbname}.ct3",
+            f"select floor(c3) from {dbname}.ct3",
+            f"select floor(c4) from {dbname}.ct3",
+            f"select floor(c5) from {dbname}.ct3",
+            f"select floor(c6) from {dbname}.ct3",
+
+            f"select floor(c1) from {dbname}.stb1",
+            f"select floor(c2) from {dbname}.stb1",
+            f"select floor(c3) from {dbname}.stb1",
+            f"select floor(c4) from {dbname}.stb1",
+            f"select floor(c5) from {dbname}.stb1",
+            f"select floor(c6) from {dbname}.stb1",
+
+            f"select floor(c6) as alisb from {dbname}.stb1",
+            f"select floor(c6) alisb from {dbname}.stb1",
+        ]
+
+        for type_sql in type_sql_lists:
+            tdSql.query(type_sql)
+
+
+    def basic_floor_function(self, dbname=DBNAME):
+
+        # basic query
+        tdSql.query(f"select c1 from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select c1 from {dbname}.t1")
+        tdSql.checkRows(12)
+        tdSql.query(f"select c1 from {dbname}.stb1")
+        tdSql.checkRows(25)
+
+        # used for empty table  , ct3 is empty
+        tdSql.query(f"select floor(c1) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select floor(c2) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select floor(c3) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select floor(c4) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select floor(c5) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select floor(c6) from {dbname}.ct3")
+
+        # used for regular table
+        tdSql.query(f"select floor(c1) from {dbname}.t1")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1 , 0, 1)
+        tdSql.checkData(3 , 0, 3)
+        tdSql.checkData(5 , 0, None)
+
+        tdSql.query(f"select c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 4, 1.11000)
+        tdSql.checkData(3, 3, 33)
+        tdSql.checkData(5, 4, None)
+        tdSql.query(f"select ts,c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 5, 1.11000)
+        tdSql.checkData(3, 4, 33)
+        tdSql.checkData(5, 5, None)
+
+        self.check_result_auto_floor( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from {dbname}.t1")
+
+        # used for sub table
+        tdSql.query(f"select floor(c1) from {dbname}.ct1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(1 , 0, 7)
+        tdSql.checkData(3 , 0, 5)
+        tdSql.checkData(5 , 0, 4)
+
+        tdSql.query(f"select floor(c1) from {dbname}.ct1")
+        self.check_result_auto_floor( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from {dbname}.ct1")
+        self.check_result_auto_floor(f"select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from {dbname}.ct1;",f"select c1 from {dbname}.ct1" )
+
+        # used for stable table
+
+        tdSql.query(f"select floor(c1) from {dbname}.stb1")
+        tdSql.checkRows(25)
+        self.check_result_auto_floor( f"select c1, c2, c3 , c4, c5 from {dbname}.ct4 ", f"select (c1), floor(c2) ,floor(c3), floor(c4), floor(c5) from {dbname}.ct4")
+        self.check_result_auto_floor(f"select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from {dbname}.ct4;" , f"select c1 from {dbname}.ct4" )
+
+
+        # used for not exists table
+        tdSql.error(f"select floor(c1) from {dbname}.stbbb1")
+        tdSql.error(f"select floor(c1) from {dbname}.tbname")
+        tdSql.error(f"select floor(c1) from {dbname}.ct5")
+
+        # mix with common col
+        tdSql.query(f"select c1, floor(c1) from {dbname}.ct1")
+        tdSql.checkData(0 , 0 ,8)
+        tdSql.checkData(0 , 1 ,8)
+        tdSql.checkData(4 , 0 ,0)
+        tdSql.checkData(4 , 1 ,0)
+        tdSql.query(f"select c1, floor(c1) from {dbname}.ct4")
+        tdSql.checkData(0 , 0 , None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+        tdSql.checkData(5 , 0 ,None)
+        tdSql.checkData(5 , 1 ,None)
+        tdSql.query(f"select c1, floor(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+
+        # mix with common functions
+        tdSql.query(f"select c1, floor(c1),c5, floor(c5) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(0 , 2 ,None)
+        tdSql.checkData(0 , 3 ,None)
+
+        tdSql.checkData(3 , 0 , 6)
+        tdSql.checkData(3 , 1 , 6)
+        tdSql.checkData(3 , 2 ,6.66000)
+        tdSql.checkData(3 , 3 ,6.00000)
+
+        tdSql.query(f"select c1, floor(c1),c5, floor(c5) from {dbname}.stb1 ")
+
+        # mix with agg functions , not support
+        tdSql.error(f"select c1, floor(c1),c5, count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select c1, floor(c1),c5, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select floor(c1), count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select floor(c1), count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.stb1 ")
+
+        # agg functions mix with agg functions
+
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
+
+
+        # bug fix for count
+        tdSql.query(f"select count(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,9)
+        tdSql.query(f"select count(*) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,12)
+        tdSql.query(f"select count(c1) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,22)
+        tdSql.query(f"select count(*) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,25)
+
+        # bug fix for compute
+        tdSql.query(f"select c1, abs(c1) -0 ,floor(c1)-0 from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 8.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,floor(c1-0.1)-0.1 from {dbname}.ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 6.900000000)
+
+
+    def abs_func_filter_floor(self, dbname=DBNAME):
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>5 ")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,8.000000000)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,7.900000000)
+        tdSql.checkData(0,4,3.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>log(c1,2) limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,88888)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,8.000000000)
+        tdSql.checkData(0,4,7.900000000)
+        tdSql.checkData(0,5,3.000000000)
+
+
+    def floor_Arithmetic(self):
+        pass
+
+
+    def check_boundary_values_floor(self, dbname="bound_test"):
+
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname}")
+        time.sleep(3)
+        tdSql.execute(f"use {dbname}")
+        tdSql.execute(
+            f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
+        )
+        tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+10s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.error(
+                f"insert into {dbname}.sub1_bound values ( now()+15s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        self.check_result_auto_floor( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select floor(c1), floor(c2) ,floor(c3), floor(c4), floor(c5) ,floor(c6) from {dbname}.sub1_bound")
+        self.check_result_auto_floor( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select floor(c1), floor(c2) ,floor(c3), floor(c3), floor(c2) ,floor(c1) from {dbname}.sub1_bound")
+        self.check_result_auto_floor(f"select floor(floor(floor(floor(floor(floor(floor(floor(floor(floor(c1)))))))))) nest_col_func from {dbname}.sub1_bound;" , f"select floor(c1) from {dbname}.sub1_bound" )
+
+        # check basic elem for table per row
+        tdSql.query(f"select floor(c1+0.2) ,floor(c2) , floor(c3+0.3) , floor(c4-0.3), floor(c5/2), floor(c6/2) from {dbname}.sub1_bound ")
+        tdSql.checkData(0, 0, 2147483647.000000000)
+        tdSql.checkData(0, 2, 32767.000000000)
+        tdSql.checkData(0, 3, 126.000000000)
+        tdSql.checkData(0, 4, 169999997607218212453866206899682148352.000000000)
+
+        tdSql.checkData(4, 0, -2147483643.000000000)
+        tdSql.checkData(4, 2, -32763.000000000)
+        tdSql.checkData(4, 3, -124.000000000)
+        tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
+
+        self.check_result_auto_floor(f"select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from {dbname}.sub1_bound" ,f"select floor(c1+1) ,floor(c2) , floor(c3*1) , floor(c4/2), floor(c5)/2, floor(c6) from {dbname}.sub1_bound ")
+
+
+    def support_super_table_test_floor(self, dbname=DBNAME):
+        tdSql.execute(f" use {dbname} ")
+        self.check_result_auto_floor( f"select c5 from {dbname}.stb1 order by ts " , f"select floor(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_floor( f"select c5 from {dbname}.stb1 order by tbname " , f"select floor(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_floor( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select floor(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_floor( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select floor(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_floor( f"select t1,c5 from {dbname}.stb1 order by ts " , f"select floor(t1), floor(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_floor( f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select floor(t1) ,floor(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_floor( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select floor(t1) ,floor(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_floor( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select floor(t1) , floor(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        pass
+
+
+    def test_fun_sca_floor(self):
+        """ Fun: floor()
+
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Stable table query
+        7. Error query
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_floor.py
+            - 2026-11-20 Alex Merged into test_fun_sca_math_round.py so the methods share one taosd deployment (CI deploys once per test class)
+        """
+        tdSql.prepare(DBNAME)
+
+        tdLog.printNoPrefix("==========step1:create table ==============")
+
+        self.prepare_datas_floor()
+
+        tdLog.printNoPrefix("==========step2:test errors ==============")
+
+        self.check_errors_floor()
+
+        tdLog.printNoPrefix("==========step3:support types ============")
+
+        self.support_types_floor()
+
+        tdLog.printNoPrefix("==========step4: floor basic query ============")
+
+        self.basic_floor_function()
+
+        tdLog.printNoPrefix("==========step5: floor boundary query ============")
+
+        self.check_boundary_values_floor()
+
+        tdLog.printNoPrefix("==========step6: floor filter query ============")
+
+        self.abs_func_filter_floor()
+
+        tdLog.printNoPrefix("==========step7: check floor result of  stable query ============")
+
+        self.support_super_table_test_floor()
+
+        #tdSql.init(conn.cursor(), logSql)
+
+    def prepare_datas_round(self, dbname="db"):
+        tdSql.execute(
+            f'''create table {dbname}.stb1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            tags (t1 int)
+            '''
+        )
+
+        tdSql.execute(
+            f'''
+            create table {dbname}.t1
+            (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(16),c9 nchar(32), c10 timestamp)
+            '''
+        )
+        for i in range(4):
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
+
+        for i in range(9):
+            tdSql.execute(
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+            tdSql.execute(
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'binary{i}', 'nchar{i}', now()+{1*i}a )"
+            )
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+15s, 9, -99999, -999, -99, -9.99, NULL, 1, 'binary9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+20s, 9, -99999, -999, NULL, -9.99, -99.99, 1, 'binary9', 'nchar9', now()+9a )")
+
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+
+        tdSql.execute(
+            f'''insert into {dbname}.t1 values
+            ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "binary1", "nchar1", now()+1a )
+            ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "binary2", "nchar2", now()+2a )
+            ( '2021-01-01 01:01:06.000', 3, 33333, 333, 33, 3.33, 33.33, 0, "binary3", "nchar3", now()+3a )
+            ( '2021-05-07 01:01:10.000', 4, 44444, 444, 44, -0.444, 44.44, 1, "binary4", "nchar4", now()+4a )
+            ( '2021-07-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( '2021-09-30 01:01:16.000', 5, 55555, 555, 55, 5.55, 55.55, 0, "binary5", "nchar5", now()+5a )
+            ( '2022-02-01 01:01:20.000', 6, 66666, 666, 66, 6.66, 66.66, 1, "binary6", "nchar6", now()+6a )
+            ( '2022-10-28 01:01:26.000', 7, 00000, 000, 00, 0.00, 00.00, 1, "binary7", "nchar7", "1970-01-01 08:00:00.000" )
+            ( '2022-12-01 01:01:30.000', 8, -88888, -888, -88, -8.88, -88.88, 0, "binary8", "nchar8", "1969-01-01 01:00:00.000" )
+            ( '2022-12-31 01:01:36.000', 9, -99999999999999999, -999, -99, -9.99, -999999999999999999999.99, 1, "binary9", "nchar9", "1900-01-01 00:00:00.000" )
+            ( '2023-02-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            '''
+        )
+
+
+    def check_result_auto_round(self ,origin_query , round_query):
+        pass
+        round_result = tdSql.getResult(round_query)
+        origin_result = tdSql.getResult(origin_query)
+
+        auto_result =[]
+
+        for row in origin_result:
+            row_check = []
+            for elem in row:
+                if elem == None:
+                    elem = None
+                else:
+                    elem = round(elem)
+                row_check.append(elem)
+            auto_result.append(row_check)
+
+        tdSql.query(round_query)
+        for row_index , row in enumerate(round_result):
+            for col_index , elem in enumerate(row):
+                tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index])
+
+
+    def check_errors_round(self, dbname="db"):
+        error_sql_lists = [
+            f"select round from {dbname}.t1",
+            # f"select round(-+--+c1) from {dbname}.t1",
+            # f"select +-round(c1) from {dbname}.t1",
+            # f"select ++-round(c1) from {dbname}.t1",
+            # f"select ++--round(c1) from {dbname}.t1",
+            # f"select - -round(c1)*0 from {dbname}.t1",
+            # f"select round(tbname+1) from {dbname}.t1 ",
+            f"select round(123--123)==1 from {dbname}.t1",
+            f"select round(c1) as 'd1' from {dbname}.t1",
+            # f"select round(c1 ,c2 ) from {dbname}.t1",
+            # f"select round(c1 ,NULL) from {dbname}.t1",
+            f"select round(,) from {dbname}.t1;",
+            f"select round(round(c1) ab from {dbname}.t1)",
+            f"select round(c1) as int from {dbname}.t1",
+            f"select round from {dbname}.stb1",
+            # f"select round(-+--+c1) from {dbname}.stb1",
+            # f"select +-round(c1) from {dbname}.stb1",
+            # f"select ++-round(c1) from {dbname}.stb1",
+            # f"select ++--round(c1) from {dbname}.stb1",
+            # f"select - -round(c1)*0 from {dbname}.stb1",
+            # f"select round(tbname+1) from {dbname}.stb1 ",
+            f"select round(123--123)==1 from {dbname}.stb1",
+            f"select round(c1) as 'd1' from {dbname}.stb1",
+            # f"select round(c1 ,c2 ) from {dbname}.stb1",
+            # f"select round(c1 ,NULL) from {dbname}.stb1",
+            f"select round(,) from {dbname}.stb1;",
+            f"select round(round(c1) ab from {dbname}.stb1)",
+            f"select round(c1) as int from {dbname}.stb1"
+        ]
+        for error_sql in error_sql_lists:
+            tdSql.error(error_sql)
+
+
+    def support_types_round(self, dbname="db"):
+        type_error_sql_lists = [
+            f"select round(ts) from {dbname}.t1" ,
+            f"select round(c7) from {dbname}.t1",
+            f"select round(c8) from {dbname}.t1",
+            f"select round(c9) from {dbname}.t1",
+            f"select round(ts) from {dbname}.ct1" ,
+            f"select round(c7) from {dbname}.ct1",
+            f"select round(c8) from {dbname}.ct1",
+            f"select round(c9) from {dbname}.ct1",
+            f"select round(ts) from {dbname}.ct3" ,
+            f"select round(c7) from {dbname}.ct3",
+            f"select round(c8) from {dbname}.ct3",
+            f"select round(c9) from {dbname}.ct3",
+            f"select round(ts) from {dbname}.ct4" ,
+            f"select round(c7) from {dbname}.ct4",
+            f"select round(c8) from {dbname}.ct4",
+            f"select round(c9) from {dbname}.ct4",
+            f"select round(ts) from {dbname}.stb1" ,
+            f"select round(c7) from {dbname}.stb1",
+            f"select round(c8) from {dbname}.stb1",
+            f"select round(c9) from {dbname}.stb1" ,
+
+            f"select round(ts) from {dbname}.stbbb1" ,
+            f"select round(c7) from {dbname}.stbbb1",
+
+            f"select round(ts) from {dbname}.tbname",
+            f"select round(c9) from {dbname}.tbname"
+
+        ]
+
+        for type_sql in type_error_sql_lists:
+            tdSql.error(type_sql)
+
+        type_sql_lists = [
+            f"select round(c1) from {dbname}.t1",
+            f"select round(c2) from {dbname}.t1",
+            f"select round(c3) from {dbname}.t1",
+            f"select round(c4) from {dbname}.t1",
+            f"select round(c5) from {dbname}.t1",
+            f"select round(c6) from {dbname}.t1",
+
+            f"select round(c1) from {dbname}.ct1",
+            f"select round(c2) from {dbname}.ct1",
+            f"select round(c3) from {dbname}.ct1",
+            f"select round(c4) from {dbname}.ct1",
+            f"select round(c5) from {dbname}.ct1",
+            f"select round(c6) from {dbname}.ct1",
+
+            f"select round(c1) from {dbname}.ct3",
+            f"select round(c2) from {dbname}.ct3",
+            f"select round(c3) from {dbname}.ct3",
+            f"select round(c4) from {dbname}.ct3",
+            f"select round(c5) from {dbname}.ct3",
+            f"select round(c6) from {dbname}.ct3",
+
+            f"select round(c1) from {dbname}.stb1",
+            f"select round(c2) from {dbname}.stb1",
+            f"select round(c3) from {dbname}.stb1",
+            f"select round(c4) from {dbname}.stb1",
+            f"select round(c5) from {dbname}.stb1",
+            f"select round(c6) from {dbname}.stb1",
+
+            f"select round(c6) as alisb from {dbname}.stb1",
+            f"select round(c6) alisb from {dbname}.stb1",
+        ]
+
+        for type_sql in type_sql_lists:
+            tdSql.query(type_sql)
+
+
+    def basic_round_function(self, dbname="db"):
+
+        # basic query
+        tdSql.query(f"select c1 from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select c1 from {dbname}.t1")
+        tdSql.checkRows(12)
+        tdSql.query(f"select c1 from {dbname}.stb1")
+        tdSql.checkRows(25)
+
+        # used for empty table  , ct3 is empty
+        tdSql.query(f"select round(c1) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select round(c2) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select round(c3) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select round(c4) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select round(c5) from {dbname}.ct3")
+        tdSql.checkRows(0)
+        tdSql.query(f"select round(c6) from {dbname}.ct3")
+
+        # used for regular table
+        tdSql.query(f"select round(c1) from {dbname}.t1")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(1 , 0, 1)
+        tdSql.checkData(3 , 0, 3)
+        tdSql.checkData(5 , 0, None)
+
+        tdSql.query(f"select c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 4, 1.11000)
+        tdSql.checkData(3, 3, 33)
+        tdSql.checkData(5, 4, None)
+        tdSql.query(f"select ts,c1, c2, c3 , c4, c5 from {dbname}.t1")
+        tdSql.checkData(1, 5, 1.11000)
+        tdSql.checkData(3, 4, 33)
+        tdSql.checkData(5, 5, None)
+
+        tdSql.query(f"select round(c5) from {dbname}.t1")
+        tdSql.checkData(4 , 0, 0)
+
+        self.check_result_auto_round( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select (c1), round(c2) ,round(c3), round(c4), round(c5) from {dbname}.t1")
+
+        # used for sub table
+        tdSql.query(f"select round(c1) from {dbname}.ct1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.checkData(1 , 0, 7)
+        tdSql.checkData(3 , 0, 5)
+        tdSql.checkData(5 , 0, 4)
+
+        tdSql.query(f"select round(c1) from {dbname}.ct1")
+        self.check_result_auto_round( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select (c1), round(c2) ,round(c3), round(c4), round(c5) from {dbname}.ct1")
+        self.check_result_auto_round(f"select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from {dbname}.ct1;",f"select c1 from {dbname}.ct1" )
+
+        # used for stable table
+
+        tdSql.query(f"select round(c1) from {dbname}.stb1")
+        tdSql.checkRows(25)
+        self.check_result_auto_round( f"select c1, c2, c3 , c4, c5 from {dbname}.ct4 ", f"select (c1), round(c2) ,round(c3), round(c4), round(c5) from {dbname}.ct4")
+        self.check_result_auto_round(f"select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from {dbname}.ct4;" , f"select c1 from {dbname}.ct4" )
+
+        # used for not exists table
+        tdSql.error(f"select round(c1) from {dbname}.stbbb1")
+        tdSql.error(f"select round(c1) from {dbname}.tbname")
+        tdSql.error(f"select round(c1) from {dbname}.ct5")
+
+        # mix with common col
+        tdSql.query(f"select c1, round(c1) from {dbname}.ct1")
+        tdSql.checkData(0 , 0 ,8)
+        tdSql.checkData(0 , 1 ,8)
+        tdSql.checkData(4 , 0 ,0)
+        tdSql.checkData(4 , 1 ,0)
+        tdSql.query(f"select c1, round(c1) from {dbname}.ct4")
+        tdSql.checkData(0 , 0 , None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+        tdSql.checkData(5 , 0 ,None)
+        tdSql.checkData(5 , 1 ,None)
+        tdSql.query(f"select c1, round(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(4 , 0 ,5)
+        tdSql.checkData(4 , 1 ,5)
+
+        # mix with common functions
+        tdSql.query(f"select c1, round(c1),c5, round(c5) from {dbname}.ct4 ")
+        tdSql.checkData(0 , 0 ,None)
+        tdSql.checkData(0 , 1 ,None)
+        tdSql.checkData(0 , 2 ,None)
+        tdSql.checkData(0 , 3 ,None)
+
+        tdSql.checkData(3 , 0 , 6)
+        tdSql.checkData(3 , 1 , 6)
+        tdSql.checkData(3 , 2 ,6.66000)
+        tdSql.checkData(3 , 3 ,7.00000)
+
+        tdSql.checkData(6 , 0 , 4)
+        tdSql.checkData(6 , 1 , 4)
+        tdSql.checkData(6 , 2 ,4.44000)
+        tdSql.checkData(6 , 3 ,4.00000)
+
+        tdSql.query(f"select c1, round(c1),c5, round(c5) from {dbname}.stb1 ")
+
+        # mix with agg functions , not support
+        tdSql.error(f"select c1, round(c1),c5, count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select c1, round(c1),c5, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select round(c1), count(c5) from {dbname}.stb1 ")
+        tdSql.error(f"select round(c1), count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.ct1 ")
+        tdSql.error(f"select c1, count(c5) from {dbname}.stb1 ")
+
+        # agg functions mix with agg functions
+
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.stb1")
+        tdSql.query(f"select max(c5), count(c5) from {dbname}.ct1")
+
+        # bug fix for count
+        tdSql.query(f"select count(c1) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,9)
+        tdSql.query(f"select count(*) from {dbname}.ct4 ")
+        tdSql.checkData(0,0,12)
+        tdSql.query(f"select count(c1) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,22)
+        tdSql.query(f"select count(*) from {dbname}.stb1 ")
+        tdSql.checkData(0,0,25)
+
+        # bug fix for compute
+        tdSql.query(f"select c1, abs(c1) -0 ,round(c1)-0 from {dbname}.ct4 ")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 8.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,round(c1-0.1)-0.1 from {dbname}.ct4")
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(0, 2, None)
+        tdSql.checkData(1, 0, 8)
+        tdSql.checkData(1, 1, 8.000000000)
+        tdSql.checkData(1, 2, 7.900000000)
+
+
+    def abs_func_filter_round(self, dbname="db"):
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1>5 ")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,8.000000000)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,7.900000000)
+        tdSql.checkData(0,4,3.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) from {dbname}.ct4 where c1=5 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,5)
+        tdSql.checkData(0,1,5.000000000)
+        tdSql.checkData(0,2,5.000000000)
+        tdSql.checkData(0,3,4.900000000)
+        tdSql.checkData(0,4,2.000000000)
+
+        tdSql.query(f"select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(log(c1,2)-0.5) , round(abs(c1))-0.5  from {dbname}.ct4 where c1>log(c1,2) limit 1 ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,88888)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,8.000000000)
+        tdSql.checkData(0,4,7.900000000)
+        tdSql.checkData(0,5,3.000000000)
+        tdSql.checkData(0,6,7.500000000)
+
+
+    def round_Arithmetic(self):
+        pass
+
+
+    def check_boundary_values_round(self, dbname="bound_test"):
+
+        tdSql.execute(f"drop database if exists {dbname}")
+        tdSql.execute(f"create database if not exists {dbname}")
+        tdSql.execute(
+            f"create table {dbname}.stb_bound (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 binary(32),c9 nchar(32), c10 timestamp) tags (t1 int);"
+        )
+        tdSql.execute(f'create table {dbname}.sub1_bound using {dbname}.stb_bound tags ( 1 )')
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-10s, 2147483647, 9223372036854775807, 32767, 127, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()-5s, 2147483646, 9223372036854775806, 32766, 126, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now(), -2147483646, -9223372036854775806, -32766, -126, -3.40E+38, -1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+5s, 2147483643, 9223372036854775803, 32763, 123, 3.39E+38, 1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.execute(
+                f"insert into {dbname}.sub1_bound values ( now()+10s, -2147483643, -9223372036854775803, -32763, -123, -3.39E+38, -1.69e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+
+        tdSql.error(
+                f"insert into {dbname}.sub1_bound values ( now()+15s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
+            )
+        self.check_result_auto_round( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select round(c1), round(c2) ,round(c3), round(c4), round(c5) ,round(c6) from {dbname}.sub1_bound")
+        self.check_result_auto_round( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select round(c1), round(c2) ,round(c3), round(c3), round(c2) ,round(c1) from {dbname}.sub1_bound")
+        self.check_result_auto_round(f"select round(round(round(round(round(round(round(round(round(round(c1)))))))))) nest_col_func from {dbname}.sub1_bound;" , f"select round(c1) from {dbname}.sub1_bound" )
+
+        # check basic elem for table per row
+        tdSql.query(f"select round(c1+0.2) ,round(c2) , round(c3+0.3) , round(c4-0.3), round(c5/2), round(c6/2) from {dbname}.sub1_bound ")
+        tdSql.checkData(0, 0, 2147483647.000000000)
+        tdSql.checkData(0, 2, 32767.000000000)
+        tdSql.checkData(0, 3, 127.000000000)
+        tdSql.checkData(0, 4, 169999997607218212453866206899682148352.000000000)
+
+        tdSql.checkData(4, 0, -2147483643.000000000)
+        tdSql.checkData(4, 2, -32763.000000000)
+        tdSql.checkData(4, 3, -123.000000000)
+        tdSql.checkData(4, 4, -169499995645668991474575059260979281920.000000000)
+
+        self.check_result_auto_round(f"select c1+1 ,c2 , c3*1 , c4/2, c5/2, c6 from {dbname}.sub1_bound" ,f"select round(c1+1) ,round(c2) , round(c3*1) , round(c4/2), round(c5)/2, round(c6) from {dbname}.sub1_bound ")
+
+
+    def support_super_table_test_round(self, dbname="db"):
+        self.check_result_auto_round( f"select c5 from {dbname}.stb1 order by ts " , f"select round(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_round( f"select c5 from {dbname}.stb1 order by tbname " , f"select round(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_round( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select round(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_round( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select round(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+
+        self.check_result_auto_round( f"select t1,c5 from {dbname}.stb1 order by ts " , f"select round(t1), round(c5) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_round( f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select round(t1) ,round(c5) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_round( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select round(t1) ,round(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_round( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select round(t1) , round(c5) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        pass
+
+
+    def test_fun_sca_round(self):
+        """ Fun: round()
+
+        1. Support types
+        2. Basic query
+        3. Big number query
+        4. Boundary query
+        5. Filter query
+        6. Stable table query
+        7. Error query
+
+        Since: v3.0.0.0
+
+        Labels: common,ci,integration,functional
+
+        Jira: None
+
+        History:
+            - 2025-9-23 Alex Duan Migrated from uncatalog/system-test/2-query/test_round.py
+            - 2026-11-20 Alex Merged into test_fun_sca_math_round.py so the methods share one taosd deployment (CI deploys once per test class)
+        """
+        tdSql.prepare()
+
+        tdLog.printNoPrefix("==========step1:create table ==============")
+
+        self.prepare_datas_round()
+
+        tdLog.printNoPrefix("==========step2:test errors ==============")
+
+        self.check_errors_round()
+
+        tdLog.printNoPrefix("==========step3:support types ============")
+
+        self.support_types_round()
+
+        tdLog.printNoPrefix("==========step4: round basic query ============")
+
+        self.basic_round_function()
+
+        tdLog.printNoPrefix("==========step5: round boundary query ============")
+
+        self.check_boundary_values_round()
+
+        tdLog.printNoPrefix("==========step6: round filter query ============")
+
+        self.abs_func_filter_round()
+
+        tdLog.printNoPrefix("==========step7: check round result of  stable query ============")
+
+        self.support_super_table_test_round()

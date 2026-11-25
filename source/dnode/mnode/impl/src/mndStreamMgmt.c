@@ -255,6 +255,8 @@ void msmDestroyRuntimeInfo(SMnode *pMnode) {
   }
 #endif
   mStreamMgmt.deployingStreamId = 0;
+  taosHashCleanup(mStreamMgmt.watch.deferredStreams);
+  mStreamMgmt.watch.deferredStreams = NULL;
   msmDestroyActionQ();
   msmDestroyThreadCtxs();
 
@@ -354,6 +356,8 @@ _exit:
 static void msmSetInitRuntimeState(int8_t state) {
   switch (state) {
     case MND_STM_STATE_WATCH:
+      taosHashCleanup(mStreamMgmt.watch.deferredStreams);
+      mStreamMgmt.watch.deferredStreams = NULL;
       mStreamMgmt.watch.ending = 0;
       mStreamMgmt.watch.taskRemains = 0;
       mStreamMgmt.watch.processing = 0;
@@ -1088,8 +1092,26 @@ _return:
   return code;
 }
 
+typedef struct SStmReaderBinding {
+  int64_t taskId;
+  int32_t nodeId;
+  int32_t taskIdx;
+} SStmReaderBinding;
+
+typedef struct SStmMetadataRecovery {
+  int32_t groupId;
+  int32_t skippedPartitions;
+} SStmMetadataRecovery;
+
 typedef struct SStmDeployDraft {
   SHashObj* scanMap;
+  SHashObj* checkedMetadataGroups;
+  SHashObj* metadataCoverage;
+  SHashObj* metadataScanIds;
+  SHashObj* metadataCoverageCounts;
+  SHashObj* boundMetadataVgroups;
+  uint8_t   metadataSnapshotId;  // A draft is validated at most twice (one restore retry).
+  int32_t   metadataBindingsSeen;
   SArray*   tasks;  // SStmTaskToDeployExt, owned until publication.
   int64_t   epoch;
   int32_t   preferredExtSnode;  // Sampled once per draft; -1 means use the normal placement policy.
@@ -2127,15 +2149,239 @@ _exit:
   return code;
 }
 
-int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, int32_t vgId, int64_t taskId) {
+static bool msmIsVirtualMetadataScan(SSubplan* plan) {
+  if (!plan || nodeType(plan) != QUERY_NODE_PHYSICAL_SUBPLAN || !plan->pNode ||
+      nodeType(plan->pNode) != QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN) return false;
+  SScanPhysiNode* scan = &((SSystemTableScanPhysiNode*)plan->pNode)->scan;
+  return scan->virtualStableScan && strcmp(scan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB) == 0 &&
+         strcmp(scan->tableName.tname, TSDB_INS_TABLE_VC_COLS) == 0;
+}
+
+static bool msmScanHasVgroupReaders(const SStreamCalcScan* scan) {
+  if (scan->readFromCache) return false;
+  for (size_t i = 0; i < taosArrayGetSize(scan->vgList); ++i) {
+    if (*(int32_t*)taosArrayGet(scan->vgList, i) > MNODE_HANDLE) return true;
+  }
+  return false;
+}
+
+static int64_t msmScanIdentity(int32_t groupId, int32_t subplanId) {
+  return (int64_t)(((uint64_t)(uint32_t)groupId << 32) | (uint32_t)subplanId);
+}
+
+static int32_t msmBuildMetadataCoverage(SStmDeployDraft* draft, SStreamObj* stream) {
+  // Build once on the exceptional path; healthy deployments never decode this index.
+  if (draft->metadataCoverage) return 0;
+  int32_t code = 0;
+  SHashObj* covered = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!covered) return terrno;
+  SHashObj* scans = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (!scans) {
+    taosHashCleanup(covered);
+    return terrno;
+  }
+#ifdef BUILD_TEST_SEAM
+  if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("metadata-coverage-begin", stream->name);
+#endif
+  for (size_t index = 0; !code && index < taosArrayGetSize(stream->pCreate->calcScanPlanList); ++index) {
+    SStreamCalcScan* scan = taosArrayGet(stream->pCreate->calcScanPlanList, index);
+    if (!msmScanHasVgroupReaders(scan)) continue;
+    SSubplan* plan = NULL;
+    code = nodesStringToNode(scan->scanPlan, (SNode**)&plan);
+    if (!code && msmIsVirtualMetadataScan(plan)) {
+      int64_t id = msmScanIdentity(plan->id.groupId, plan->id.subplanId);
+      code = taosHashPut(scans, &id, sizeof(id), &id, sizeof(id));
+      for (size_t partition = 0; !code && partition < taosArrayGetSize(scan->vgList); ++partition) {
+        int32_t* vgId = taosArrayGet(scan->vgList, partition);
+        int32_t key[2] = {plan->id.groupId, *vgId};
+        code = taosHashPut(covered, key, sizeof(key), vgId, sizeof(*vgId));
+      }
+    }
+    nodesDestroyNode((SNode*)plan);
+  }
+#ifdef BUILD_TEST_SEAM
+  if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("metadata-coverage-end", stream->name);
+#endif
+  if (code) {
+    taosHashCleanup(covered);
+    taosHashCleanup(scans);
+  } else {
+    draft->metadataCoverage = covered;
+    draft->metadataScanIds = scans;
+  }
+  return code;
+}
+
+static int32_t msmPrepareMetadataSnapshot(SStmDeployDraft* draft) {
+  if (!draft->checkedMetadataGroups) return 0;
+  draft->metadataCoverageCounts = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  draft->boundMetadataVgroups = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (!draft->metadataCoverageCounts || !draft->boundMetadataVgroups) return terrno;
+  int32_t code = 0;
+  void* iter = NULL;
+  // Count each group's coverage before acquiring publication locks. A vgroup is
+  // in the intersection exactly when its count equals the number of recovered groups.
+  while ((iter = taosHashIterate(draft->metadataCoverage, iter))) {
+    int32_t* key = taosHashGetKey(iter, NULL);
+    if (!taosHashGet(draft->checkedMetadataGroups, key, sizeof(*key))) continue;
+    int32_t* count = taosHashGet(draft->metadataCoverageCounts, &key[1], sizeof(key[1]));
+    if (count) {
+      ++*count;
+    } else {
+      int32_t one = 1;
+      code = taosHashPut(draft->metadataCoverageCounts, &key[1], sizeof(key[1]), &one, sizeof(one));
+      if (code) break;
+    }
+  }
+  if (code) {
+    taosHashCancelIterate(draft->metadataCoverage, iter);
+    return code;
+  }
+  while ((iter = taosHashIterate(draft->scanMap, iter))) {
+    const char* key = taosHashGetKey(iter, NULL);
+    int64_t scanId = 0;
+    memcpy(&scanId, key + sizeof(int64_t), sizeof(scanId));
+    if (!taosHashGet(draft->metadataScanIds, &scanId, sizeof(scanId))) continue;
+    SArray* sources = *(SArray**)iter;
+    for (size_t i = 0; i < taosArrayGetSize(sources); ++i) {
+      SStmTaskSrcAddr* addr = taosArrayGet(sources, i);
+      // Another metadata group may lose its binding after construction even if
+      // that group did not itself skip a partition. Validate every metadata binding.
+      if (addr->isFromCache || addr->vgId <= MNODE_HANDLE) continue;
+      if (taosHashGet(draft->boundMetadataVgroups, &addr->vgId, sizeof(addr->vgId))) continue;
+      uint8_t seen = 0;
+      code = taosHashPut(draft->boundMetadataVgroups, &addr->vgId, sizeof(addr->vgId), &seen, sizeof(seen));
+      if (code) break;
+    }
+    if (code) break;
+  }
+  if (code) taosHashCancelIterate(draft->scanMap, iter);
+  return code;
+}
+
+static bool msmCheckMetadataVgroup(SMnode* mnode, void* obj, void* arg, void* streamArg, void* codeArg) {
+  SStmDeployDraft* draft = arg;
+  SStreamObj* stream = streamArg;
+  SVgObj* vg = obj;
+  int32_t* code = codeArg;
+  if (vg->isTsma) return true;
+  uint8_t* seen = taosHashGet(draft->boundMetadataVgroups, &vg->vgId, sizeof(vg->vgId));
+  if (seen) {
+    *seen = draft->metadataSnapshotId;
+    ++draft->metadataBindingsSeen;
+  }
+  int32_t* count = taosHashGet(draft->metadataCoverageCounts, &vg->vgId, sizeof(vg->vgId));
+  if (count && *count == taosHashGetSize(draft->checkedMetadataGroups)) return true;
+  // Only a failed intersection lookup needs a per-group diagnostic.
+  void* iter = NULL;
+  while ((iter = taosHashIterate(draft->checkedMetadataGroups, iter))) {
+    int32_t groupId = ((SStmMetadataRecovery*)iter)->groupId;
+    int32_t key[2] = {groupId, vg->vgId};
+    if (!taosHashGet(draft->metadataCoverage, key, sizeof(key))) {
+      mstError("stream:%" PRIx64 " cannot recover metadata group:%d, current vgroup:%d db:%s is absent from"
+               " persisted scan coverage; replan required", stream->pCreate->streamId, groupId, vg->vgId, vg->dbName);
+      *code = TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
+      taosHashCancelIterate(draft->checkedMetadataGroups, iter);
+      return false;
+    }
+  }
+  return true;
+}
+
+static int32_t msmValidateMetadataCoverage(SMnode* mnode, SStmDeployDraft* draft, SStreamObj* stream) {
+  if (!draft->checkedMetadataGroups) return 0;
+  int32_t code = 0;
+  void* iter = NULL;
+  // Full deployment permits one restore retry; Runner repair validates once.
+  ++draft->metadataSnapshotId;
+  draft->metadataBindingsSeen = 0;
+  // READY visibility precedes tableVer updates. Validate under the catalog's read
+  // lock, with no plan decoding or row acquisition inside the traversal callback.
+  terrno = 0;
+  sdbTraverse(mnode->pSdb, SDB_VGROUP, msmCheckMetadataVgroup, draft, stream, &code);
+  if (!code) code = terrno;
+  if (code) return code;
+  if (draft->metadataBindingsSeen == taosHashGetSize(draft->boundMetadataVgroups)) return 0;
+  // Successful snapshots do not walk the bindings. Only failure needs an ID.
+  while ((iter = taosHashIterate(draft->boundMetadataVgroups, iter))) {
+    if (*(uint8_t*)iter == draft->metadataSnapshotId) continue;
+    int32_t vgId = 0;
+    memcpy(&vgId, taosHashGetKey(iter, NULL), sizeof(vgId));
+    mstError("stream:%" PRIx64 " cannot publish metadata recovery, bound vgroup:%d disappeared from"
+             " catalog snapshot; rebuild required", stream->pCreate->streamId, vgId);
+    taosHashCancelIterate(draft->boundMetadataVgroups, iter);
+    return TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
+  }
+  return 0;
+}
+
+static int32_t msmPrepareMetadataCoverage(SStmDeployDraft* draft, SStreamObj* stream, int32_t groupId) {
+  if (!draft) return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
+  SStmMetadataRecovery* recovery = taosHashGet(draft->checkedMetadataGroups, &groupId, sizeof(groupId));
+  if (recovery) {
+    ++recovery->skippedPartitions;
+    return 0;
+  }
+  int32_t code = msmBuildMetadataCoverage(draft, stream);
+  if (!code && !draft->checkedMetadataGroups) {
+    draft->checkedMetadataGroups = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+    if (!draft->checkedMetadataGroups) code = terrno;
+  }
+  SStmMetadataRecovery first = {.groupId = groupId, .skippedPartitions = 1};
+  if (!code) code = taosHashPut(draft->checkedMetadataGroups, &groupId, sizeof(groupId), &first, sizeof(first));
+  return code;
+}
+
+static void msmLogMetadataRecovery(SStmDeployDraft* draft, int64_t streamId) {
+  SStmMetadataRecovery* recovery = NULL;
+  while ((recovery = taosHashIterate(draft->checkedMetadataGroups, recovery))) {
+    mstInfo("stream:%" PRIx64 " metadata group:%d prepared to skip %d removed partitions; publication still requires validation",
+            streamId, recovery->groupId, recovery->skippedPartitions);
+  }
+}
+
+static int32_t msmSkipRemovedMetadataScan(SStmGrpCtx* pCtx, SStreamObj* pStream, SSubplan* plan,
+                                         int32_t vgId, int32_t lookupCode, bool rebuildOnRemoval, bool* skipped) {
+  *skipped = false;
+  if (!msmIsVirtualMetadataScan(plan)) return 0;
+  SScanPhysiNode* scan = &((SSystemTableScanPhysiNode*)plan->pNode)->scan;
+
+  if (!lookupCode) return 0;  // An existing but unavailable vgroup must not be discarded.
+  if (lookupCode != TSDB_CODE_MND_VGROUP_NOT_EXIST) {
+    mstError("stream:%" PRIx64 " cannot check metadata vgroup:%d, subplan:%d, group:%d, error:0x%x(%s)",
+             pStream->pCreate->streamId, vgId, plan->id.subplanId, plan->id.groupId, lookupCode, tstrerror(lookupCode));
+    return lookupCode;
+  }
+
+  if (rebuildOnRemoval) {
+    // The caller will discard this repair draft and validate a full deployment.
+    *skipped = true;
+    return 0;
+  }
+  TAOS_CHECK_RETURN(msmPrepareMetadataCoverage(pCtx->draft, pStream, plan->id.groupId));
+  SHashObj* map = pCtx->draft->scanMap;
+  int64_t key[2] = {pStream->pCreate->streamId, msmScanIdentity(plan->id.groupId, plan->id.subplanId)};
+  if (taosHashGet(map, key, sizeof(key)) == NULL) {
+    SArray* empty = NULL;
+    TAOS_CHECK_RETURN(taosHashPut(map, key, sizeof(key), &empty, POINTER_BYTES));
+  }
+  *skipped = true;
+  mstDebug("stream:%" PRIx64 " skip removed metadata vgroup:%d, subplan:%d, group:%d, table:%s.%s",
+          key[0], vgId, plan->id.subplanId, plan->id.groupId, scan->tableName.dbname, scan->tableName.tname);
+  return 0;
+}
+
+static int32_t msmBindScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, SSubplan* pSubplan, int32_t vgId,
+                               int64_t* readerId, bool allocateReader, bool rebuildOnRemoval, bool* skipped) {
+  *skipped = false;
   SHashObj*       scanMap = pCtx && pCtx->draft ? pCtx->draft->scanMap : mStreamMgmt.toUpdateScanMap;
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
-  SSubplan* pSubplan = NULL;
+  int64_t taskId = *readerId;
+  bool missingVgroupEndpoint = false;
   int64_t streamId = pStream->pCreate->streamId;
   int64_t key[2] = {streamId, 0};
   SStmTaskSrcAddr addr = {0};  /* zero-init: leave no field (e.g. isExt) as stack garbage */
-  TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
 
   // Security hardening (see "item 194"): scanPlan is a client-supplied JSON
   // string; nodesStringToNode returns SUCCESS and leaves pSubplan NULL when the
@@ -2157,7 +2403,13 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
     mndGetMnodeEpSet(pCtx->pMnode, &addr.epset);
     TAOS_CHECK_EXIT(msmRememberEndpoint(pCtx, SDB_MNODE, vgId, &addr.epset));
   } else if (vgId > MNODE_HANDLE) {
-    addr.epset = mndGetVgroupEpsetById(pCtx->pMnode, vgId);
+    int32_t lookupCode = 0;
+    addr.epset = mndGetVgroupEpsetByIdWithStatus(pCtx->pMnode, vgId, &lookupCode);
+    if (addr.epset.numOfEps == 0) {
+      TAOS_CHECK_EXIT(msmSkipRemovedMetadataScan(pCtx, pStream, pSubplan, vgId, lookupCode, rebuildOnRemoval, skipped));
+      if (*skipped) goto _exit;
+      missingVgroupEndpoint = true;
+    }
     TAOS_CHECK_EXIT(msmRememberEndpoint(pCtx, SDB_VGROUP, vgId, &addr.epset));
   } else if (SNODE_HANDLE == vgId) {
     // External-source calc reader: deployed on snode, not on a vgroup.
@@ -2174,17 +2426,34 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
     TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
   }
   
+  if (allocateReader) *readerId = taskId = msmAssignTaskId();
+  if (taskId == 0) {
+    mstError("stream:%" PRIx64 " cannot bind calcReader, vgroup:%d, subplan:%d, group:%d; reader missing",
+             streamId, vgId, pSubplan->id.subplanId, pSubplan->id.groupId);
+    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+  }
+  if (missingVgroupEndpoint) {
+    mstError("stream:%" PRIx64 " calcReader:%" PRIx64
+               " has no vgroup endpoint, vgroup:%d, subplan:%d, group:%d; dependency retained",
+               streamId, taskId, vgId, pSubplan->id.subplanId, pSubplan->id.groupId);
+  }
   addr.taskId = taskId;
   addr.vgId = vgId;
   addr.groupId = pSubplan->id.groupId;
 
-  key[1] = pSubplan->id.subplanId;
+  key[1] = msmScanIdentity(pSubplan->id.groupId, pSubplan->id.subplanId);
 
   SArray** ppRes = taosHashGet(scanMap, key, sizeof(key));
-  if (NULL == ppRes) {
+  if (NULL == ppRes || NULL == *ppRes) {
     SArray* pRes = taosArrayInit(1, sizeof(addr));
     TSDB_CHECK_NULL(pRes, code, lino, _exit, terrno);
-    code = taosArrayPush(pRes, &addr) ? taosHashPut(scanMap, key, sizeof(key), &pRes, POINTER_BYTES) : terrno;
+    if (!taosArrayPush(pRes, &addr)) {
+      code = terrno;
+    } else if (ppRes) {
+      *ppRes = pRes;
+    } else {
+      code = taosHashPut(scanMap, key, sizeof(key), &pRes, POINTER_BYTES);
+    }
     if (code) {
       taosArrayDestroy(pRes);
       TAOS_CHECK_EXIT(code);
@@ -2199,12 +2468,19 @@ int32_t msmUPAddScanTask(SStmGrpCtx* pCtx, SStreamObj* pStream, char* scanPlan, 
 
 _exit:
 
-  nodesDestroyNode((SNode*)pSubplan);
-
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
   }
 
+  return code;
+}
+
+static int32_t msmUPAddScanTask(SStmGrpCtx* ctx, SStreamObj* stream, char* scanPlan, int32_t vgId,
+                                int64_t taskId, bool rebuildOnRemoval, bool* skipped) {
+  SSubplan* plan = NULL;
+  int32_t code = nodesStringToNode(scanPlan, (SNode**)&plan);
+  if (!code) code = msmBindScanTask(ctx, stream, plan, vgId, &taskId, false, rebuildOnRemoval, skipped);
+  nodesDestroyNode((SNode*)plan);
   return code;
 }
 
@@ -2240,12 +2516,18 @@ int32_t msmUPAddCacheTask(SStmGrpCtx* pCtx, SStreamCalcScan* pScan, SStreamObj* 
   addr.vgId = pCtx->triggerNodeId;
   addr.groupId = pSubplan->id.groupId;
 
-  key[1] = pSubplan->id.subplanId;
+  key[1] = msmScanIdentity(pSubplan->id.groupId, pSubplan->id.subplanId);
   SArray** ppRes = taosHashGet(scanMap, key, sizeof(key));
-  if (NULL == ppRes) {
+  if (NULL == ppRes || NULL == *ppRes) {
     SArray* pRes = taosArrayInit(1, sizeof(addr));
     TSDB_CHECK_NULL(pRes, code, lino, _exit, terrno);
-    code = taosArrayPush(pRes, &addr) ? taosHashPut(scanMap, key, sizeof(key), &pRes, POINTER_BYTES) : terrno;
+    if (!taosArrayPush(pRes, &addr)) {
+      code = terrno;
+    } else if (ppRes) {
+      *ppRes = pRes;
+    } else {
+      code = taosHashPut(scanMap, key, sizeof(key), &pRes, POINTER_BYTES);
+    }
     if (code) {
       taosArrayDestroy(pRes);
       TAOS_CHECK_EXIT(code);
@@ -2305,10 +2587,9 @@ static SStreamExtTriggerSpec* msmResolveCalcExtSpec(SStreamObj* pStream, const S
 }
 
 static int32_t msmInitCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32_t taskIdx, int32_t nodeId,
-                                 void* calcScanPlan, SStmStatus* pInfo, int64_t streamId,
+                                 int64_t uid, SStmStatus* pInfo, int64_t streamId,
                                  SStreamExtTriggerSpec* pExtSpec, SStreamObj* pStream) {
-  int32_t code = mstGetScanUidFromPlan(streamId, calcScanPlan, &pState->id.uid);
-  if (code) return code;
+  pState->id.uid = uid;
 
 #ifdef TD_ENTERPRISE
   // EXT-source calc readers: the planner uses SNODE_HANDLE as a sentinel.
@@ -2320,7 +2601,6 @@ static int32_t msmInitCalcReader(SStmGrpCtx* pCtx, SStmTaskStatus* pState, int32
   }
 #endif
 
-  pState->id.taskId = msmAssignTaskId();
   pState->id.deployId = 0;
   pState->id.seriousId = msmAssignTaskSeriousId();
   pState->id.nodeId = nodeId;
@@ -2376,6 +2656,7 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
   int32_t calcTasksNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
   int64_t streamId = pStream->pCreate->streamId;
   SStmTaskStatus* pState = NULL;
+  SSubplan* plan = NULL;
   pInfo->calcReaders = tdListNew(sizeof(SStmTaskStatus));
   TSDB_CHECK_NULL(pInfo->calcReaders, code, lino, _exit, terrno);
 
@@ -2397,26 +2678,38 @@ static int32_t msmTDAddCalcReaderTasks(SStmGrpCtx* pCtx, SStmStatus* pInfo, SStr
     }
 
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
+    if (vgNum == 0) continue;
+    int64_t uid = 0;
+    TAOS_CHECK_EXIT(nodesStringToNode(pScan->scanPlan, (SNode**)&plan));
+    TAOS_CHECK_EXIT(mstGetScanUidFromSubplan(streamId, plan, &uid));
     for (int32_t m = 0; m < vgNum; ++m) {
+      int32_t scanNodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
+      int64_t taskId = 0;
+      // Keep the original sentinel for external readers. Only publish a reader
+      // after its source has been bound or positively classified as removed.
+      bool skipped = false;
+      TAOS_CHECK_EXIT(msmBindScanTask(pCtx, pStream, plan, scanNodeId, &taskId, true, false, &skipped));
+      if (skipped) continue;
       pState = tdListReserve(pInfo->calcReaders);
       TSDB_CHECK_NULL(pState, code, lino, _exit, terrno);
-
-      int32_t scanNodeId = *(int32_t*)taosArrayGet(pScan->vgList, m);
-      TAOS_CHECK_EXIT(
-          msmInitCalcReader(pCtx, pState, i, scanNodeId, pScan->scanPlan, pInfo, streamId, pCalcExtSpec, pStream));
+      pState->id.taskId = taskId;
+      TAOS_CHECK_EXIT(msmInitCalcReader(pCtx, pState, i, scanNodeId, uid, pInfo, streamId, pCalcExtSpec, pStream));
 #ifdef TD_ENTERPRISE
       if (pCalcExtSpec != NULL) {
         TAOS_CHECK_EXIT(
             msmQueueCalcReader(pCtx, pState, pInfo, streamId, pScan->scanPlan, pScan, pCalcExtSpec, pStream));
       }
 #endif
-      // Pass the original sentinel (SNODE_HANDLE or real vgId) so msmUPAddScanTask
-      // can correctly resolve the epset for the runner's exchange node.
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, scanNodeId, pState->id.taskId));
     }
+    nodesDestroyNode((SNode*)plan);
+    plan = NULL;
   }
 
+  pInfo->calcReaderNum = MST_LIST_SIZE(pInfo->calcReaders);
+
 _exit:
+
+  nodesDestroyNode((SNode*)plan);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -2425,9 +2718,11 @@ _exit:
   return code;
 }
 
-static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SArray* readerIds, SStreamObj* pStream) {
+static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SArray* readerIds, SStreamObj* pStream,
+                                      bool* rebuildStream) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SHashObj* readers = NULL;
   int64_t streamId = pStream->pCreate->streamId;
   int32_t calcTasksNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
   if (calcTasksNum <= 0) {
@@ -2435,7 +2730,26 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SArray* readerIds, SStr
     return code;    
   }
 
-  size_t nextReader = 0;
+  if (taosArrayGetSize(readerIds) > 0) {
+    readers = taosHashInit(TMAX(taosArrayGetSize(readerIds), 4),
+                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    TSDB_CHECK_NULL(readers, code, lino, _exit, terrno);
+  }
+  for (size_t n = 0; n < taosArrayGetSize(readerIds); ++n) {
+    SStmReaderBinding* reader = taosArrayGet(readerIds, n);
+    if (reader->taskIdx < 0 || reader->taskIdx >= calcTasksNum) {
+      TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    }
+    SStreamCalcScan* scan = taosArrayGet(pStream->pCreate->calcScanPlanList, reader->taskIdx);
+    int32_t nodeId = reader->nodeId;
+    // External readers store the resolved snode ID; plans retain the sentinel.
+    if (taosArrayGetSize(scan->vgList) == 1) {
+      int32_t sentinel = *(int32_t*)taosArrayGet(scan->vgList, 0);
+      if (sentinel <= MNODE_HANDLE) nodeId = sentinel;
+    }
+    int32_t key[2] = {reader->taskIdx, nodeId};
+    TAOS_CHECK_EXIT(taosHashPut(readers, key, sizeof(key), &reader->taskId, sizeof(reader->taskId)));
+  }
 
   for (int32_t i = 0; i < calcTasksNum; ++i) {
     SStreamCalcScan* pScan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
@@ -2446,19 +2760,31 @@ static int32_t msmUPPrepareReaderTasks(SStmGrpCtx* pCtx, SArray* readerIds, SStr
     
     int32_t vgNum = taosArrayGetSize(pScan->vgList);
     for (int32_t m = 0; m < vgNum; ++m) {
-      int64_t* taskId = taosArrayGet(readerIds, nextReader++);
-      TSDB_CHECK_NULL(taskId, code, lino, _exit, TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
       // Use the original planner sentinel (e.g. SNODE_HANDLE) from vgList so
       // that msmUPAddScanTask can correctly resolve the snode epset.  After
       // msmInitCalcReader resolves SNODE_HANDLE -> real snodeId in
       // pReader->id.nodeId, using nodeId directly would hit the wrong branch
       // (vgId > MNODE_HANDLE) and produce a vgroup epset instead of snode.
       int32_t scanSentinel = *(int32_t*)taosArrayGet(pScan->vgList, m);
-      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, scanSentinel, *taskId));
+      int32_t key[2] = {i, scanSentinel};
+      void* readerId = readers ? taosHashGet(readers, key, sizeof(key)) : NULL;
+      int64_t taskId = 0;
+      if (readerId) memcpy(&taskId, readerId, sizeof(taskId));
+      bool skipped = false;
+      TAOS_CHECK_EXIT(msmUPAddScanTask(pCtx, pStream, pScan->scanPlan, scanSentinel,
+                                     taskId, readerId != NULL, &skipped));
+      if (skipped && readerId) {
+        *rebuildStream = true;
+        mstInfo("stream:%" PRIx64 " removed metadata vgroup:%d still owns calcReader:%" PRIx64
+                "; rebuild all stream tasks", streamId, scanSentinel, taskId);
+        goto _exit;
+      }
     }
   }
 
 _exit:
+
+  taosHashCleanup(readers);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -2536,6 +2862,7 @@ int32_t msmGetTaskIdFromSubplanId(SStreamObj* pStream, SArray* pRunners, int32_t
 int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, int64_t streamId, SHashObj* scanMap) {
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t lino = 0;
+  SHashObj* sourceGroups = NULL;
   int64_t key[2] = {streamId, -1};
   SNode* pNode = NULL;
   SStreamTask* pTask = &pDeploy->task;
@@ -2551,7 +2878,7 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
       continue;
     }
 
-    key[1] = MND_GET_RUNNER_SUBPLANID(pVal->datum.i);
+    key[1] = pVal->datum.i;
 
     SArray** ppRes = taosHashGet(scanMap, key, sizeof(key));
     if (NULL == ppRes) {
@@ -2560,6 +2887,36 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
     }
 
     int32_t childrenNum = taosArrayGetSize(*ppRes);
+    if (childrenNum == 0) {
+      // A removed metadata partition is empty, but its Exchange must still
+      // have a surviving partition in the same group. Do not publish an
+      // empty or unrelated Exchange when the entire metadata source is gone.
+      if (sourceGroups == NULL) {
+        sourceGroups = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+        TSDB_CHECK_NULL(sourceGroups, code, lino, _exit, terrno);
+        SNode* child = NULL;
+        FOREACH(child, pPlan->pChildren) {
+          if (nodeType(child) != QUERY_NODE_VALUE) continue;
+          SValueNode* ref = (SValueNode*)child;
+          if (ref->node.resType.type != TSDB_DATA_TYPE_BIGINT) continue;
+          int64_t otherKey[2] = {streamId, ref->datum.i};
+          SArray** sources = taosHashGet(scanMap, otherKey, sizeof(otherKey));
+          if (sources && taosArrayGetSize(*sources) > 0) {
+            int32_t groupId = (int32_t)((uint64_t)ref->datum.i >> 32);
+            if (taosHashGet(sourceGroups, &groupId, sizeof(groupId)) == NULL) {
+              TAOS_CHECK_EXIT(taosHashPut(sourceGroups, &groupId, sizeof(groupId), &groupId, sizeof(groupId)));
+            }
+          }
+        }
+      }
+      int32_t groupId = (int32_t)((uint64_t)pVal->datum.i >> 32);
+      if (taosHashGet(sourceGroups, &groupId, sizeof(groupId)) == NULL) {
+        mstError("stream:%" PRIx64 " cannot bind runner:%" PRIx64
+                 " subplan:%d, metadata group:%d has no surviving source after removing stale vgroups",
+                 streamId, pDeploy->task.taskId, pPlan->id.subplanId, groupId);
+        TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+      }
+    }
     for (int32_t i = 0; i < childrenNum; ++i) {
       SStmTaskSrcAddr* pAddr = taosArrayGet(*ppRes, i);
       TAOS_CHECK_EXIT(msmUpdatePlanSourceAddr(pTask, streamId, pPlan, pDeploy->task.taskId, pAddr,
@@ -2570,6 +2927,8 @@ int32_t msmUpdateLowestPlanSourceAddr(SSubplan* pPlan, SStmTaskDeploy* pDeploy, 
   }
 
 _exit:
+
+  taosHashCleanup(sourceGroups);
 
   if (code) {
     mstsError("%s failed at line %d, error:%s", __FUNCTION__, lino, tstrerror(code));
@@ -3278,7 +3637,14 @@ static int32_t msmInitStmStatus(SStmGrpCtx* pCtx, SStmStatus* pStatus, SStreamOb
 
     int32_t subPlanNum = taosArrayGetSize(pStream->pCreate->calcScanPlanList);
     if (subPlanNum > 0) {
-      pStatus->calcReaderNum = subPlanNum;
+      // Cache scans bind directly to the Trigger; every non-cache partition owns one Reader.
+      int64_t readers = 0;
+      for (int32_t i = 0; i < subPlanNum; ++i) {
+        SStreamCalcScan* scan = taosArrayGet(pStream->pCreate->calcScanPlanList, i);
+        if (!scan->readFromCache) readers += taosArrayGetSize(scan->vgList);
+      }
+      if (readers > INT32_MAX) TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+      pStatus->calcReaderNum = (int32_t)readers;
       pStatus->calcReaders = tdListNew(sizeof(SStmTaskStatus));
       TSDB_CHECK_NULL(pStatus->calcReaders, code, lino, _exit, terrno);
     }
@@ -3354,6 +3720,7 @@ static int32_t msmPublishBuiltTasks(SStmGrpCtx* ctx, SStreamObj* stream, SStmSta
   int64_t published = taosGetTimestampMs();
   live->trigReaders = built->trigReaders;
   live->calcReaders = built->calcReaders;
+  live->calcReaderNum = built->calcReaderNum;
   live->triggerTask = built->triggerTask;
   built->trigReaders = NULL;
   built->calcReaders = NULL;
@@ -3430,6 +3797,7 @@ static int32_t msmValidateDeploySnode(SMnode* mnode, int32_t nodeId, SStmPlaceme
 static int32_t msmValidateDraftPlacement(SMnode* mnode, SStmDeployDraft* draft, SStmPlacementVersion start,
                                          SStreamObj* stream) {
   SStmPlacementVersion now = msmPlacementVersion(mnode->pSdb);
+  TAOS_CHECK_RETURN(msmValidateMetadataCoverage(mnode, draft, stream));
   for (int32_t i = 0; i < taosArrayGetSize(draft->tasks); ++i) {
     SStmTaskDeploy* task = &((SStmTaskToDeployExt*)taosArrayGet(draft->tasks, i))->deploy;
     if (task->task.type == STREAM_READER_TASK && !task->msg.reader.pExtSpec) continue;
@@ -3568,6 +3936,8 @@ static int32_t msmDeployStreamTasks(SStmGrpCtx* ctx, SStreamObj* stream, SStmSta
     if (built.runnerNum > 0) code = msmSetStreamRunnerExecReplica(id, &built);
     if (!code) code = msmBuildStreamTasks(&buildCtx, &built, &snapshot);
   }
+  msmLogMetadataRecovery(&draft, id);
+  if (!code) code = msmPrepareMetadataSnapshot(&draft);
   taosHashCleanup(draft.scanMap);
 
   SStreamRecalcRestore restore = {0};
@@ -3657,6 +4027,11 @@ _release_draft:
   taosWUnLockLatch(&mStreamMgmt.runtimeLock);
   taosWUnLockLatch(&mStreamMgmt.heartbeatLock);
   taosArrayDestroy(restore.records);
+  taosHashCleanup(draft.checkedMetadataGroups);
+  taosHashCleanup(draft.metadataCoverage);
+  taosHashCleanup(draft.metadataScanIds);
+  taosHashCleanup(draft.metadataCoverageCounts);
+  taosHashCleanup(draft.boundMetadataVgroups);
   taosHashCleanup(draft.endpoints);
   taosArrayDestroyEx(draft.tasks, mstDestroySStmTaskToDeployExt);
   mstResetSStmStatus(&built);
@@ -4004,11 +4379,12 @@ static int32_t msmCopyRunnerRepairInputs(SStmStatus* live, SStmTaskAction* actio
                                          SArray** readerIds) {
   size_t count = MST_LIST_SIZE(live->calcReaders);
   if (count) {
-    *readerIds = taosArrayInit(count, sizeof(int64_t));
+    *readerIds = taosArrayInit(count, sizeof(SStmReaderBinding));
     if (!*readerIds) return terrno;
     for (SListNode* n = listHead(live->calcReaders); n; n = TD_DLIST_NODE_NEXT(n)) {
       SStmTaskStatus* reader = (SStmTaskStatus*)n->data;
-      if (!taosArrayPush(*readerIds, &reader->id.taskId)) return terrno;
+      SStmReaderBinding binding = {reader->id.taskId, reader->id.nodeId, reader->id.taskIdx};
+      if (!taosArrayPush(*readerIds, &binding)) return terrno;
     }
   }
   for (int32_t r = 0; r < action->deployNum; ++r) {
@@ -4047,7 +4423,7 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* ctx, SStreamObj* stream, SStm
                                 .triggerNodeId = live->triggerTask->id.nodeId};
   SStreamObj           snapshot = {0};
   msmSnapshotStreamRow(stream, &snapshot);
-  bool    nested = false;
+  bool    rebuildAll = false;
   SArray* readerIds = NULL;
   int32_t code = msmCopyRunnerRepairInputs(live, action, &copy, &readerIds);
   live = NULL;
@@ -4063,17 +4439,19 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* ctx, SStreamObj* stream, SStm
       code = nodesStringToNode(snapshot.pCreate->calcPlan, (SNode**)&plan);
       if (!code && (!plan || nodeType((SNode*)plan) != QUERY_NODE_PHYSICAL_PLAN))
         code = TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
-      if (!code) nested = LIST_LENGTH(plan->pChildren) > 0;
+      if (!code) rebuildAll = LIST_LENGTH(plan->pChildren) > 0;
       // Reader and surviving runner plans embed the addresses of nested subqueries.
       // Rebind them as a unit when any of those runners has to move.
-      if (!code && !nested) code = msmUPPrepareReaderTasks(&build, readerIds, &snapshot);
-      if (!code && !nested) {
+      if (!code && !rebuildAll) code = msmUPPrepareReaderTasks(&build, readerIds, &snapshot, &rebuildAll);
+      if (!code && !rebuildAll) {
         code = msmReBuildRunnerTasks(&build, plan, &copy, &snapshot, action);
       } else {
         nodesDestroyNode((SNode*)plan);
       }
     }
   }
+  msmLogMetadataRecovery(&draft, action->streamId);
+  if (!code && !rebuildAll) code = msmPrepareMetadataSnapshot(&draft);
   taosArrayDestroy(readerIds);
   taosHashCleanup(draft.scanMap);
   msmLockActionBuild();
@@ -4084,7 +4462,7 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* ctx, SStreamObj* stream, SStm
                !atomic_load_8(&live->stopped) && mndAcquireStream(ctx->pMnode, snapshot.name, &current) == 0 &&
                current == stream && !atomic_load_8(&stream->userStopped) && !atomic_load_8(&stream->userDropped);
   if (valid && msmStopIfGrantExpired(id, live)) valid = false;
-  if (valid && !code && !nested) {
+  if (valid && !code && !rebuildAll) {
     code = atomic_load_32(&stream->mainSnodeId) == snapshot.mainSnodeId
                ? msmValidateDraftPlacement(ctx->pMnode, &draft, placement, &snapshot)
                : TSDB_CODE_MND_STREAM_NOT_AVAILABLE;
@@ -4110,6 +4488,12 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* ctx, SStreamObj* stream, SStm
       status->lastUpTs = published;
       code = msmSTAddToSnodeMap(ctx, id, NULL, status, 1, task->deployId);
       if (!code) code = msmTDAddRunnerToSnodeMap(&entry->deploy, stream);
+      if (code) {
+        // Heartbeats must not collect a partial batch while private cleanup is unlocked.
+        msmStopStreamByError(id, live, code, ctx->currTs);
+        code = TSDB_CODE_SUCCESS;
+        break;
+      }
       if (!code) {
         entry->deployed = true;
         (void)atomic_add_fetch_32(&mStreamMgmt.toDeploySnodeTaskNum, 1);
@@ -4118,11 +4502,27 @@ static int32_t msmReLaunchRunnerDeploy(SStmGrpCtx* ctx, SStreamObj* stream, SStm
   } else {
     code = TSDB_CODE_SUCCESS;
   }
-  *rebuildStream = valid && nested && !code;
+  *rebuildStream = valid && rebuildAll && !code;
   if (current) mndReleaseStream(ctx->pMnode, current);
+  msmUnlockActionBuild();
+#ifdef BUILD_TEST_SEAM
+  if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("runner-cleanup", snapshot.name);
+#endif
+  taosHashCleanup(draft.checkedMetadataGroups);
+  taosHashCleanup(draft.metadataCoverage);
+  taosHashCleanup(draft.metadataScanIds);
+  taosHashCleanup(draft.metadataCoverageCounts);
+  taosHashCleanup(draft.boundMetadataVgroups);
   taosHashCleanup(draft.endpoints);
   taosArrayDestroyEx(draft.tasks, mstDestroySStmTaskToDeployExt);
   for (int32_t i = 0; i < MND_STREAM_RUNNER_DEPLOY_NUM; ++i) taosArrayDestroy(copy.runners[i]);
+  msmLockActionBuild();
+  live = msmSameBuildEpoch(draft.epoch) ? taosHashGet(mStreamMgmt.streamMap, &id, sizeof(id)) : NULL;
+  if (!live || live->deployInput != input || atomic_load_64(&live->buildVersion) != version ||
+      atomic_load_8(&live->stopped)) {
+    code = TSDB_CODE_SUCCESS;
+    *rebuildStream = false;
+  }
   mstReleaseDeployInput(input);
   return code;
 }
@@ -4184,7 +4584,10 @@ static int32_t msmLaunchTaskDeployAction(SStmGrpCtx* pCtx, SStmTaskAction* pActi
     case STREAM_RUNNER_TASK:
       if (pAction->multiRunner) {
         bool rebuildStream = false;
-        TAOS_CHECK_EXIT(msmReLaunchRunnerDeploy(pCtx, pStream, pAction, pStatus, &rebuildStream));
+        code = msmReLaunchRunnerDeploy(pCtx, pStream, pAction, pStatus, &rebuildStream);
+        // Private build and cleanup can replace the runtime status while unlocked.
+        pStatus = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+        TAOS_CHECK_EXIT(code);
         if (rebuildStream) {
           SStmStreamAction action = {.streamId = streamId};
           tstrncpy(action.streamName, pStream->name, sizeof(action.streamName));
@@ -5943,6 +6346,23 @@ _exit:
   return code;
 }
 
+static int32_t msmWatchHasVirtualMetadata(SStreamObj* stream, bool* found) {
+  *found = false;
+  // Old requests may omit vtableCalc when only a subquery reads a virtual table.
+  // Such plans also need full deployment: their persisted partition count can
+  // include removed metadata Readers. Decode outside the publication lock.
+  for (size_t i = 0; i < taosArrayGetSize(stream->pCreate->calcScanPlanList); ++i) {
+    SStreamCalcScan* scan = taosArrayGet(stream->pCreate->calcScanPlanList, i);
+    if (!msmScanHasVgroupReaders(scan)) continue;
+    SSubplan* plan = NULL;
+    int32_t code = nodesStringToNode(scan->scanPlan, (SNode**)&plan);
+    if (!code) *found = msmIsVirtualMetadataScan(plan);
+    nodesDestroyNode((SNode*)plan);
+    if (code || *found) return code;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
   int32_t              code = TSDB_CODE_SUCCESS;
   int64_t              streamId = pTask->streamId;
@@ -5966,6 +6386,7 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
       break;
     }
     SStmStatus* observed = taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId));
+    if (!observed && taosHashGet(mStreamMgmt.watch.deferredStreams, &streamId, sizeof(streamId))) break;
     if (observed && atomic_load_8(&observed->stopped)) break;
     if (observed && observed->triggerTask && pTask->type == STREAM_TRIGGER_TASK) {
       mstsWarn("conflicting WATCH triggers %" PRIx64 " and %" PRIx64, observed->triggerTask->id.taskId, pTask->taskId);
@@ -5982,11 +6403,40 @@ int32_t msmWatchRecordNewTask(SStmGrpCtx* pCtx, SStmTaskStatusMsg* pTask) {
           goto _exit;
         }
       }
-      if (stream->pCreate->streamId != streamId ||
-          STREAM_IS_VIRTUAL_TABLE(stream->pCreate->triggerTblType, stream->pCreate->flags) ||
-          stream->pCreate->vtableCalc)
-        goto _exit;
+      if (stream->pCreate->streamId != streamId) goto _exit;
       if (!observed && !initial.deployInput) {
+        bool defer = STREAM_IS_VIRTUAL_TABLE(stream->pCreate->triggerTblType, stream->pCreate->flags) ||
+                     stream->pCreate->vtableCalc;
+        if (!defer) code = msmWatchHasVirtualMetadata(stream, &defer);
+        if (code || defer) {
+          // A failed classification affects only this stream. Normal deployment retries it after WATCH;
+          // never discard successfully adopted streams because another stream's plan cannot be decoded.
+#ifdef BUILD_TEST_SEAM
+          if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("watch-defer", stream->name);
+#endif
+          (void)mstWaitLock(&mStreamMgmt.actionQLock, false);
+          if (taosHashGet(mStreamMgmt.streamMap, &streamId, sizeof(streamId))) {
+            code = TSDB_CODE_SUCCESS;
+            continue;  // Another heartbeat adopted it while this one prepared outside the lock.
+          }
+          if (taosHashGet(mStreamMgmt.watch.deferredStreams, &streamId, sizeof(streamId))) {
+            code = TSDB_CODE_SUCCESS;
+            break;
+          }
+          if (code) mstsWarn("defer WATCH adoption to normal deployment, scan classification failed, error:%s", tstrerror(code));
+          if (!mStreamMgmt.watch.deferredStreams) {
+            mStreamMgmt.watch.deferredStreams =
+                taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+          }
+          int8_t deferred = 1;
+          int32_t cacheCode = mStreamMgmt.watch.deferredStreams
+                                  ? taosHashPut(mStreamMgmt.watch.deferredStreams, &streamId, sizeof(streamId),
+                                                &deferred, sizeof(deferred))
+                                  : TSDB_CODE_OUT_OF_MEMORY;
+          if (cacheCode) mstsWarn("failed to cache WATCH deferral, will retry classification, error:%s", tstrerror(cacheCode));
+          code = TSDB_CODE_SUCCESS;
+          break;
+        }
 #ifdef BUILD_TEST_SEAM
         if (gTdSeam_msmDeployPhase) gTdSeam_msmDeployPhase("watch-copy", stream->name);
 #endif
@@ -6385,6 +6835,8 @@ int32_t msmWatchHandleEnding(SStmGrpCtx* pCtx, bool watchError) {
 
 _exit:
 
+  taosHashCleanup(mStreamMgmt.watch.deferredStreams);
+  mStreamMgmt.watch.deferredStreams = NULL;
   nextTaskId = atomic_add_fetch_64(&mStreamMgmt.lastTaskId, 100000);
 
   mstInfo("watch state end, new taskId begin from:%" PRIx64, nextTaskId);

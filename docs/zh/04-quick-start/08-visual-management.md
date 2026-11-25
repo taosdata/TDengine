@@ -57,7 +57,12 @@ http://localhost:6060
 taosExplorer 也提供 SQL 查询入口。你可以复制下面的 SQL，在页面中执行，查看电表数据。
 
 ```sql
-SELECT tbname, ts, current, voltage, phase
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase
 FROM test.meters
 WHERE tbname = 'd1'
 ORDER BY ts DESC

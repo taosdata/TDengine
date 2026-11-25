@@ -53,7 +53,10 @@ PV stations connect through distribution transformers and aggregate upward throu
 TDengine typically models PV power and transformer power in separate supertables, with one subtable per station or transformer. Static tags record classification data such as region, transformer, feeder, 10 kV line, and 110 kV transformer. Applications can then aggregate by any of these dimensions without application-side joins.
 
 ```sql
-SELECT sum(val) FROM dpv_power_1m WHERE ts > now-1m GROUP BY dtr;
+SELECT SUM(val)
+FROM dpv_power_1m
+WHERE ts > now - 1m
+GROUP BY dtr;
 ```
 
 Such conditional aggregation can return result sets ranging from hundreds to hundreds of thousands of records, commonly within seconds.

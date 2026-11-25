@@ -30,7 +30,14 @@ CREATE TOPIC [IF NOT EXISTS] topic_name AS subquery
 假设需要订阅所有智能电表中电压值大于 200 的数据，且仅仅返回时间戳、电流、电压 3 个采集量（不返回相位），那么可以通过下面的 SQL 创建 `power_topic` 这个主题。
 
 ```sql
-CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
+CREATE TOPIC power_topic
+  AS
+    SELECT
+      ts,
+      current,
+      voltage
+    FROM power.meters
+    WHERE voltage > 200;
 ```
 
 ### 超级表主题

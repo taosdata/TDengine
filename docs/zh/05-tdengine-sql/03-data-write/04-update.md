@@ -12,8 +12,8 @@ description: 使用 UPDATE 语句修改表、子表或超级表中的数据和�
 
 ```sql
 UPDATE [db_name.]tb_name
-    SET col_name = expr [, col_name = expr] ...
-    [WHERE condition];
+  SET col_name = expr [, col_name = expr] ...
+  [WHERE condition];
 ```
 
 ### 参数说明
@@ -173,7 +173,11 @@ UPDATE meters SET groupId = 3 WHERE location = 'California.SanFrancisco';
 更新后可以查询点位信息确认结果：
 
 ```sql
-SELECT DISTINCT tbname, location, groupId FROM meters;
+SELECT
+  DISTINCT tbname,
+  location,
+  groupId
+FROM meters;
 ```
 
 ## 通过参数绑定执行更新

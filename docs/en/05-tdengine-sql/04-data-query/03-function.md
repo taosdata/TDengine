@@ -68,7 +68,11 @@ Co-located scalar functions do not participate in Phase 1. Instead, after Phase 
 3. **Complete Example**
 
 ```sql
-SELECT abs(voltage), CSUM(current), LAG(voltage, 1) FROM meters;
+SELECT
+  ABS(voltage),
+  CSUM(current),
+  LAG(voltage, 1)
+FROM meters;
 ```
 
 Assume 4 input rows:
@@ -213,6 +217,99 @@ ATAN(expr)
 
 **Usage Notes**: Can only be used with normal columns, selection, and projection functions, not with aggregation functions.
 
+### BIT_COUNT
+
+```sql
+BIT_COUNT(expr)
+```
+
+**Function Classification**: Scalar function.
+
+**Function Description**: Returns the number of bits set to 1 in the binary representation of `expr` (population count). Numeric, temporal and textual arguments are counted as 64-bit integers; binary arguments are counted byte by byte.
+
+**Version**: v3.5.0.0
+
+**Return Type**: BIGINT. Numeric, temporal and textual arguments return 0 to 64; `VARBINARY`, `BLOB` and `MEDIUMBLOB` arguments return 0 to 8 × byte length, which may exceed 64.
+
+**Applicable Data Types**
+
+- `expr`: TINYINT, SMALLINT, INT, BIGINT and their unsigned variants, BOOL, FLOAT, DOUBLE, DECIMAL, VARCHAR, NCHAR, VARBINARY, BLOB, MEDIUMBLOB, TIMESTAMP.
+- JSON and GEOMETRY are not supported.
+
+**Nested Subquery Support**: Applicable to both inner and outer queries.
+
+**Applicable to**: Tables and supertables.
+
+**Usage Notes**
+
+- Returns NULL when `expr` is NULL.
+- Signed integers are counted in 64-bit two's complement, so `BIT_COUNT(-1)` returns 64 and `BIT_COUNT(-2)` returns 63.
+- Unsigned integers are zero-extended to 64 bits before counting.
+- BOOL TRUE is treated as 1 and FALSE as 0.
+- FLOAT, DOUBLE and DECIMAL are rounded to the nearest integer (half away from zero) first. NaN, positive or negative infinity, and values outside the BIGINT range after rounding return NULL. For example, `BIT_COUNT(2.9)` returns 2 (2.9 rounds to 3, which has two bits set) and `BIT_COUNT(-2.9)` returns 63 (rounded to -3).
+- VARCHAR and NCHAR are parsed as a decimal integer prefix: leading blanks are skipped, an optional sign is accepted, and parsing stops at the first non-digit character. Text that cannot be parsed returns 0; an integer prefix beyond the BIGINT range saturates at the BIGINT boundary without a warning.
+- VARBINARY, BLOB and MEDIUMBLOB are counted bit by bit over the raw bytes without numeric parsing or charset conversion. An empty value returns 0, and the result may exceed 64.
+- TIMESTAMP is formatted in the connection time zone as the decimal value `YYYYMMDDHHMMSS` (the MySQL `+0` numeric context), with the fractional second rounded to the nearest second and `.5` or above carrying into the next second. The resulting value is counted in 64-bit two's complement. The same timestamp text produces the same result in any session time zone; the same epoch value may produce different results in different session time zones.
+
+**Compatibility Differences from MySQL 8.0**
+
+- Return type: the MySQL documentation describes an unsigned 64-bit integer; TDengine returns `BIGINT`. The numeric semantics are the same.
+- Floating point and fixed point arguments: both round to the nearest integer (half away from zero) and produce the same result.
+- TIMESTAMP: both use the `+0` `YYYYMMDDHHMMSS` numeric context. MySQL `DATETIME` covers years 1000 to 9999, while the TDengine `TIMESTAMP` range is engine-defined; text outside that range fails at the `CAST` stage.
+- Floating point special and out-of-range values: NaN, +/-Infinity and values outside the 64-bit integer range after rounding return NULL in TDengine, whereas MySQL results vary by version and conversion rule.
+- Text arguments: TDengine emits no per-row warning and saturates an overflowing integer prefix to the signed 64-bit boundary; MySQL follows its unsigned 64-bit and warning rules.
+- Binary arguments: both count bits in the binary value and the result may exceed 64. TDengine does not support the `b'...'` bit literal; use `CAST(... AS VARBINARY)` instead.
+- Other types: TDengine rejects JSON and GEOMETRY arguments at translation time.
+
+**Example**
+
+```sql
+taos> select bit_count(29);
+ bit_count(29) |
+================
+             4 |
+
+taos> select bit_count(0), bit_count(-1), bit_count(-2);
+ bit_count(0) | bit_count(-1) | bit_count(-2) |
+==============================================
+            0 |            64 |            63 |
+
+taos> select bit_count(2.9), bit_count(2.5), bit_count(-2.9);
+ bit_count(2.9) | bit_count(2.5) | bit_count(-2.9) |
+===================================================
+              2 |              2 |               63 |
+
+taos> select bit_count(cast(2.9 as decimal(5,1)));
+ bit_count(cast(2.9 as decimal(5,1))) |
+=======================================
+                                     2 |
+
+taos> select bit_count(cast('ABCD' as varbinary));
+ bit_count(cast('ABCD' as varbinary)) |
+=======================================
+                                     9 |
+
+taos> select bit_count(cast('2026-11-23 15:45:22' as timestamp));
+ bit_count(cast('2026-11-23 15:45:22' as timestamp)) |
+======================================================
+                                                   20 |
+
+taos> select bit_count(cast(2.9 as double)), bit_count('12abc'), bit_count('abc');
+ bit_count(cast(2.9 as double)) | bit_count('12abc') | bit_count('abc') |
+=========================================================================
+                              2 |                  2 |                0 |
+
+taos> select bit_count(null);
+ bit_count(null) |
+==================
+ NULL            |
+
+taos> select bit_count(1e308);
+ bit_count(1e308) |
+===================
+ NULL             |
+```
+
 ### CEIL
 
 ```sql
@@ -263,7 +360,10 @@ CORR(expr1, expr2)
 **Example**:
 
 ```sql
-taos> select k, j from test_corr;
+taos> SELECT
+        k,
+        j
+      FROM test_corr;
       k      |      j      |
 ============================
            1 |           2 |
@@ -271,11 +371,14 @@ taos> select k, j from test_corr;
            3 |           5 |
            4 |           7 |
            5 |           8 |
+Query OK, 5 row(s) in set
 
-taos> select corr(k, j) from test_corr;
+taos> SELECT CORR(k, j)
+      FROM test_corr;
          corr(k,j)         |
 ============================
          0.992277876713668 |
+Query OK, 1 row(s) in set
 ```
 
 ### COS
@@ -426,15 +529,17 @@ ROUND(expr[, digits])
 **Example**:
 
 ```sql
-taos> select round(8888.88);
+taos> SELECT ROUND(8888.88);
       round(8888.88)       |
 ============================
       8889.000000000000000 |
+Query OK, 1 row(s) in set
 
-taos> select round(8888.88,-1);
+taos> SELECT ROUND(8888.88, -1);
      round(8888.88,-1)     |
 ============================
       8890.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### SIN
@@ -525,10 +630,11 @@ PI()
 **Example**:
 
 ```sql
-taos> select pi();
+taos> SELECT PI();
            pi()            |
 ============================
          3.141592653589793 |
+Query OK, 1 row(s) in set
 ```
 
 ### TRUNCATE
@@ -567,15 +673,17 @@ TRUNCATE(expr, digits)
 **Example**:
 
 ```sql
-taos> select truncate(8888.88, 0);
+taos> SELECT TRUNCATE(8888.88, 0);
  truncate(8888.88, 0)    |
 ============================
     8888.000000000000000 |
-     
-taos> select truncate(8888.88, -1);
+Query OK, 1 row(s) in set
+
+taos> SELECT TRUNCATE(8888.88, -1);
  truncate(8888.88, -1)   |
 ============================
     8880.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### EXP
@@ -606,10 +714,11 @@ EXP(expr)
 **Example**:
 
 ```sql
-taos> select exp(2);
+taos> SELECT EXP(2);
           exp(2)           |
 ============================
          7.389056098930650 |
+Query OK, 1 row(s) in set
 ```
 
 ### LN
@@ -641,10 +750,11 @@ LN(expr)
 **Example**:
 
 ```sql
-taos> select ln(10);
+taos> SELECT LN(10);
           ln(10)           |
 ============================
          2.302585092994046 |
+Query OK, 1 row(s) in set
 ```
 
 ### MOD
@@ -676,15 +786,17 @@ MOD(expr1, expr2)
 **Example**:
 
 ```sql
-taos> select mod(10,3);
+taos> SELECT MOD(10, 3);
          mod(10,3)         |
 ============================
          1.000000000000000 |
+Query OK, 1 row(s) in set
 
-taos> select mod(1,0);
+taos> SELECT MOD(1, 0);
          mod(1,0)          |
 ============================
  NULL                      |
+Query OK, 1 row(s) in set
 ```
 
 ### RAND
@@ -717,25 +829,29 @@ RAND([seed])
 **Example**:
 
 ```sql
-taos> select rand();
+taos> SELECT RAND();
           rand()           |
 ============================
          0.202092426923147 |
-         
-taos> select rand();
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND();
           rand()           |
 ============================
          0.131537788143166 |
-         
-taos> select rand(1);
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
           rand(1)          |
 ============================
          0.000007826369259 |
-         
-taos> select rand(1);
+Query OK, 1 row(s) in set
+
+taos> SELECT RAND(1);
           rand(1)          |
 ============================
          0.000007826369259 |
+Query OK, 1 row(s) in set
 ```
 
 ### SIGN
@@ -769,20 +885,23 @@ SIGN(expr)
 **Example**:
 
 ```sql
-taos> select sign(-1);
+taos> SELECT SIGN(-1);
        sign(-1)        |
 ========================
                     -1 |
+Query OK, 1 row(s) in set
 
-taos> select sign(1);
+taos> SELECT SIGN(1);
         sign(1)        |
 ========================
                      1 |
+Query OK, 1 row(s) in set
 
-taos> select sign(0);
+taos> SELECT SIGN(0);
         sign(0)        |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 ```
 
 ### DEGREES
@@ -814,10 +933,11 @@ DEGREES(expr)
 **Example**:
 
 ```sql
-taos> select degrees(PI());
+taos> SELECT DEGREES(PI());
        degrees(pi())       |
 ============================
        180.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 ### RADIANS
@@ -849,10 +969,11 @@ RADIANS(expr)
 **Example**:
 
 ```sql
-taos> select radians(180);
+taos> SELECT RADIANS(180);
        radians(180)        |
 ============================
          3.141592653589793 |
+Query OK, 1 row(s) in set
 ```
 
 ## String Functions
@@ -923,15 +1044,17 @@ CHAR_LENGTH(expr)
 **Example**:
 
 ```sql
-taos> select char_length('Hello world');
+taos> SELECT CHAR_LENGTH('Hello world');
  char_length('Hello world') |
 =============================
                          11 |
- 
-taos> select char_length('你好 世界');
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR_LENGTH('你好 世界');
       char_length('你好 世界') |
 ===============================
                             5 |
+Query OK, 1 row(s) in set
 ```
 
 ### CONCAT
@@ -1093,16 +1216,19 @@ taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1)
  regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 1) |
 =======================================================================
  2026                                                                  |
+Query OK, 1 row(s) in set
 
 taos> SELECT REGEXP_EXTRACT('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0);
  regexp_extract('2026-04-22', '([0-9]{4})-([0-9]{2})-([0-9]{2})', 0) |
 =======================================================================
  2026-04-22                                                            |
+Query OK, 1 row(s) in set
 
 taos> SELECT REGEXP_EXTRACT('no-digits-here', '[0-9]+', 1);
  regexp_extract('no-digits-here', '[0-9]+', 1) |
 ===============================================
  NULL                                          |
+Query OK, 1 row(s) in set
 ```
 
 ### REGEXP_IN_SET
@@ -1180,26 +1306,29 @@ TRIM([remstr FROM] expr)
 **Examples**:
 
 ```sql
-taos> select trim('        a         ');
+taos> SELECT TRIM('        a         ');
  trim('        a         ') |
 =============================
  a                          |
- 
-taos> select trim(leading from '        a         ');
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(leading FROM '        a         ');
  trim(leading from '        a         ') |
 ==========================================
  a                                       |
- 
+Query OK, 1 row(s) in set
 
-taos> select trim(leading 'b' from 'bbbbbbbba         ');
+taos> SELECT TRIM(leading 'b' FROM 'bbbbbbbba         ');
  trim(leading 'b' from 'bbbbbbbba         ') |
 ==============================================
  a                                           |
- 
-taos> select trim(both 'b' from 'bbbbbabbbbbb');
+Query OK, 1 row(s) in set
+
+taos> SELECT TRIM(both 'b' FROM 'bbbbbabbbbbb');
  trim(both 'b' from 'bbbbbabbbbbb') |
 =====================================
  a                                  |
+Query OK, 1 row(s) in set
 ```
 
 ### SUBSTRING/SUBSTR
@@ -1240,30 +1369,35 @@ SUBSTRING/SUBSTR(expr FROM pos [FOR len])
 **Examples**:
 
 ```sql
-taos> select substring('tdengine', 0);
+taos> SELECT SUBSTRING('tdengine', 0);
  substring('tdengine', 0) |
 ===========================
                           |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', 3);
+taos> SELECT SUBSTRING('tdengine', 3);
  substring('tdengine', 3) |
 ===========================
  engine                   |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', 3,3);
+taos> SELECT SUBSTRING('tdengine', 3, 3);
  substring('tdengine', 3,3) |
 =============================
  eng                        |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', -3,3);
+taos> SELECT SUBSTRING('tdengine', -3, 3);
  substring('tdengine', -3,3) |
 ==============================
  ine                         |
+Query OK, 1 row(s) in set
 
-taos> select substring('tdengine', -3,-3);
+taos> SELECT SUBSTRING('tdengine', -3, -3);
  substring('tdengine', -3,-3) |
 ===============================
                               |
+Query OK, 1 row(s) in set
 ```
 
 ### SUBSTRING_INDEX
@@ -1300,15 +1434,17 @@ SUBSTRING_INDEX(expr, delim, count)
 **Examples**:
 
 ```sql
-taos> select substring_index('www.tdengine.com','.',2);
+taos> SELECT SUBSTRING_INDEX('www.tdengine.com', '.', 2);
  substring_index('www.tdengine.com','.',2) |
 ============================================
  www.tdengine                              |
+Query OK, 1 row(s) in set
 
-taos> select substring_index('www.tdengine.com','.',-2);
+taos> SELECT SUBSTRING_INDEX('www.tdengine.com', '.', -2);
  substring_index('www.tdengine.com','.',-2) |
 =============================================
  tdengine.com                               |
+Query OK, 1 row(s) in set
 ```
 
 ### UPPER
@@ -1360,25 +1496,29 @@ CHAR(expr1 [, expr2] [, expr3] ...)
 **Examples**:
 
 ```sql
-taos> select char(77);
+taos> SELECT CHAR(77);
  char(77) |
 ===========
  M        |
- 
-taos> select char(77,77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, 77);
  char(77,77) |
 ==============
  MM          |
- 
-taos> select char(77 * 256 + 77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77 * 256 + 77);
  char(77 * 256 + 77) |
 ======================
  MM                  |
- 
-taos> select char(77,NULL,77);
+Query OK, 1 row(s) in set
+
+taos> SELECT CHAR(77, NULL, 77);
  char(77,null,77) |
 ===================
  MM               |
+Query OK, 1 row(s) in set
 ```
 
 ### ASCII
@@ -1409,10 +1549,11 @@ ASCII(expr)
 **Examples**:
 
 ```sql
-taos> select ascii('testascii');
+taos> SELECT ASCII('testascii');
  ascii('testascii') |
 =====================
                 116 |
+Query OK, 1 row(s) in set
 ```
 
 ### POSITION
@@ -1449,21 +1590,23 @@ POSITION(expr1 IN expr2)
 **Examples**:
 
 ```sql
-taos> select position('a' in 'cba');
+taos> SELECT POSITION('a' IN 'cba');
  position('a' in 'cba') |
 =========================
                       3 |
- 
- 
-taos> select position('' in 'cba');
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('' IN 'cba');
  position('' in 'cba') |
 ========================
                      1 |
- 
-taos> select position('d' in 'cba');
+Query OK, 1 row(s) in set
+
+taos> SELECT POSITION('d' IN 'cba');
  position('d' in 'cba') |
 =========================
                       0 |
+Query OK, 1 row(s) in set
 ```
 
 ### REPLACE
@@ -1499,10 +1642,11 @@ REPLACE(expr, from_str, to_str)
 **Example**:
 
 ```sql
-taos> select replace('aabbccAABBCC', 'AA', 'DD');
+taos> SELECT REPLACE('aabbccAABBCC', 'AA', 'DD');
  replace('aabbccAABBCC', 'AA', 'DD') |
 ======================================
  aabbccDDBBCC                        |
+Query OK, 1 row(s) in set
 ```
 
 ### REPEAT
@@ -1536,15 +1680,17 @@ REPEAT(expr, count)
 **Example**:
 
 ```sql
-taos> select repeat('abc',5);
+taos> SELECT REPEAT('abc', 5);
       repeat('abc',5)      |
 ============================
  abcabcabcabcabc           |
-            
-taos> select repeat('abc',-1);
+Query OK, 1 row(s) in set
+
+taos> SELECT REPEAT('abc', -1);
  repeat('abc',-1) |
 ===================
                   |
+Query OK, 1 row(s) in set
 ```
 
 ## Data Security and Codec Functions
@@ -1581,35 +1727,41 @@ TO_BASE64(expr)
 **Example**:
 
 ```sql
-taos> select to_base64(NULL);
+taos> SELECT TO_BASE64(NULL);
  to_base64(null) |
 ==================
  NULL            |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("");
+taos> SELECT TO_BASE64("");
  to_base64("") |
 ================
                |
+Query OK, 1 row(s) in set
 
-taos> select to_base64(14324);
+taos> SELECT TO_BASE64(14324);
  to_base64(14324) |
 ====================
  MTQzMjQ=         |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("14324");
+taos> SELECT TO_BASE64("14324");
  to_base64("14324") |
 ====================
  MTQzMjQ=         |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("Hello, world!");
+taos> SELECT TO_BASE64("Hello, world!");
  to_base64("Hello, world!") |
 =============================
  SGVsbG8sIHdvcmxkIQ==       |
+Query OK, 1 row(s) in set
 
-taos> select to_base64("你好 世界");
+taos> SELECT TO_BASE64("你好 世界");
  to_base64("你好 世界")      |
 ==============================
  5L2g5aW9IOS4lueVjA==        |
+Query OK, 1 row(s) in set
 ```
 
 #### FROM_BASE64
@@ -1639,11 +1791,11 @@ FROM_BASE64(expr)
 **Example**:
 
 ```sql
-taos> select from_base64("SGVsbG8sIHdvcmxkIQ==");
+taos> SELECT FROM_BASE64("SGVsbG8sIHdvcmxkIQ==");
  from_base64("SGVsbG8sIHdvcmxkIQ==") |
 ======================================
  Hello, world!                       |
-Query OK, 1 row(s) in set (0.000786s)
+Query OK, 1 row(s) in set
 ```
 
 ### Hashing Functions
@@ -1678,10 +1830,10 @@ MD5(expr)
 taos> select md5('mytext')\G;
 *************************** 1.row ***************************
 md5('mytext'): 947ef8c8db156a568d5974d71f7638f4
-Query OK, 1 row(s) in set (0.000522s)
+Query OK, 1 row(s) in set
 
 taos> insert into db.tb values(now, md5('mytext'));
-Insert OK, 1 row(s) affected (0.005111s)
+Insert OK, 1 row(s) affected
 ```
 
 #### SHA1 / SHA
@@ -1712,10 +1864,10 @@ SHA1(expr)
 **Example**:
 
 ```sql
-taos> select sha('mytext')\G;
+taos> SELECT SHA('mytext') \G;
 *************************** 1.row ***************************
 sha('mytext'): 65d922aad93c7e165ed888a2ab85befe9841fd39
-Query OK, 1 row(s) in set (0.000658s)
+Query OK, 1 row(s) in set
 ```
 
 #### SHA2
@@ -1746,10 +1898,10 @@ SHA2(expr, hash_length)
 **Example**:
 
 ```sql
-taos> select sha2('mytext', 224)\G;
+taos> SELECT SHA2('mytext', 224) \G;
 *************************** 1.row ***************************
 sha2('mytext', 224): 576e8f2cf59ebc59dd7659c48916f162ae0cf35937563999d5a7800e
-Query OK, 1 row(s) in set (0.000569s)
+Query OK, 1 row(s) in set
 ```
 
 #### SM3
@@ -1781,10 +1933,10 @@ SM3(expr)
 **Example**:
 
 ```sql
-taos> select sm3('abc')\G;
+taos> SELECT sm3('abc') \G;
 *************************** 1.row ***************************
 sm3('abc'): 66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0
-Query OK, 1 row(s) in set (0.000412s)
+Query OK, 1 row(s) in set
 ```
 
 #### CRC32
@@ -1815,42 +1967,51 @@ CRC32(expr)
 **Example**:
 
 ```sql
-taos> select crc32(NULL);
+taos> SELECT CRC32(NULL);
  crc32(null) |
 ==============
  NULL        |
+Query OK, 1 row(s) in set
 
-taos> select crc32("");
+taos> SELECT CRC32("");
   crc32("")  |
 ==============
            0 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(123);
+taos> SELECT CRC32(123);
  crc32(123)  |
 ==============
   2286445522 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(123.456);
+taos> SELECT CRC32(123.456);
  crc32(123.456) |
 =================
       844093190 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
+taos> SELECT CRC32(TO_TIMESTAMP("2000-01-01", "yyyy-mm-dd hh24:mi:ss"));
  crc32(to_timestamp("2000-01-01", "yyyy-mm-dd hh24:mi:ss")) |
 =============================================================
                                                  2274736693 |
+Query OK, 1 row(s) in set
 
-taos> select crc32("This is a string");
+taos> SELECT CRC32("This is a string");
  crc32("This is a string") |
 ============================
                  141976383 |
+Query OK, 1 row(s) in set
 
-taos> select crc32("这是一个字符串");
+taos> SELECT CRC32("这是一个字符串");
  crc32("这是一个字符串") |
 ========================
             1902862441 |
+Query OK, 1 row(s) in set
 
-taos> select crc32(col_name) from ins_columns limit 10;
+taos> SELECT CRC32(col_name)
+      FROM ins_columns
+      LIMIT 10;
  crc32(col_name) |
 ==================
       3208210256 |
@@ -1863,6 +2024,7 @@ taos> select crc32(col_name) from ins_columns limit 10;
       3485334036 |
       3208210256 |
       3292663675 |
+Query OK, 10 row(s) in set
 ```
 
 ### Data Masking Functions
@@ -1904,7 +2066,7 @@ taos> SELECT MASK_FULL('mytext', 'CONFIDENTIAL');
  mask_full('mytext', 'CONFIDENTIAL') |
 ======================================
  CONFIDENTIAL                        |
-Query OK, 1 row(s) in set (0.002790s)
+Query OK, 1 row(s) in set
 ```
 
 #### MASK_PARTIAL
@@ -1933,11 +2095,11 @@ MASK_PARTIAL(str, prefix_length, suffix_length, mask_char)
 **Example**:
 
 ```sql
-taos> SELECT MASK_partial('mytext', 1, 2, '*');
+taos> SELECT MASK_PARTIAL('mytext', 1, 2, '*');
  mask_partial('mytext', 1, 2, '*') |
 ====================================
  *yte**                            |
-Query OK, 1 row(s) in set (0.002787s)
+Query OK, 1 row(s) in set
 ```
 
 #### MASK_NONE
@@ -1967,7 +2129,7 @@ taos> SELECT MASK_NONE('mytext');
  mask_none('mytext') |
 ======================
  mytext              |
-Query OK, 1 row(s) in set (0.001474s)
+Query OK, 1 row(s) in set
 ```
 
 ### Encryption Functions
@@ -2001,11 +2163,11 @@ SM4_ENCRYPT(str, key_str)
 **Example**:
 
 ```sql
-taos> SELECT sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring');
+taos> SELECT SM4_DECRYPT(SM4_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
  sm4_decrypt(sm4_encrypt('mytext', 'mykeystring'), 'mykeystring') |
 ===================================================================
  mytext                                                           |
-Query OK, 1 row(s) in set (0.003432s)
+Query OK, 1 row(s) in set
 ```
 
 #### SM4_DECRYPT
@@ -2067,11 +2229,11 @@ AES_ENCRYPT(str, key_str[, init_vector])
 **Example**:
 
 ```sql
-taos> SELECT aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring');
+taos> SELECT AES_DECRYPT(AES_ENCRYPT('mytext', 'mykeystring'), 'mykeystring');
  aes_decrypt(aes_encrypt('mytext', 'mykeystring'), 'mykeystring') |
 ===================================================================
  mytext                                                           |
-Query OK, 1 row(s) in set (0.000514s)
+Query OK, 1 row(s) in set
 ```
 
 #### AES_DECRYPT
@@ -2106,9 +2268,7 @@ AES_DECRYPT(str, key_str[, init_vector[, iv_mode]])
 Before the scalar IV correction, `AES_ENCRYPT` in a SELECT expression used the two-byte string length header followed by the first 14 bytes of `init_vector`. This also affected `INSERT INTO ... SELECT ...`. To read ciphertext saved through that path, pass the original key and 16-byte IV to `AES_DECRYPT` with `'legacy'`:
 
 ```sql
-SELECT AES_DECRYPT(
-  FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'),
-  '0123456789abcdef', '0123456789abcdef', 'legacy');
+SELECT AES_DECRYPT(FROM_BASE64('0vM8V2C54mB2YM8inkTVhaTDob2wkxRfXkptoX7n6FwOM6NY0jQclzGL1FLq4FYm'), '0123456789abcdef', '0123456789abcdef', 'legacy');
 ```
 
 This example returns `0123456789abcdef0123456789abcdef`. Legacy mode reproduces the string header representation of the host that performs decryption; the example was generated on a little-endian host.
@@ -2119,9 +2279,9 @@ Before upgrading applications that read saved scalar CBC results, identify those
 
 ```sql
 INSERT INTO migrated_data
-SELECT ts, AES_ENCRYPT(
-  AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'),
-  '0123456789abcdef', '0123456789abcdef')
+SELECT
+  ts,
+  AES_ENCRYPT(AES_DECRYPT(cipher, '0123456789abcdef', '0123456789abcdef', 'legacy'), '0123456789abcdef', '0123456789abcdef')
 FROM legacy_data;
 ```
 
@@ -2160,6 +2320,7 @@ CAST(expr AS type_name)
         1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
         2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- Casting `VARCHAR` to `NCHAR(n)` keeps up to `n` decoded characters. Invalid bytes encountered before decoding `n` characters cause a conversion error. The remaining bytes are discarded once the result reaches `n` characters.
 - The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 ### TO_ISO8601
@@ -2373,7 +2534,7 @@ CURDATE()
 (note: the output depends on the execution time and the connection timezone)
 
 ```sql
-taos> select curdate();
+taos> SELECT curdate();
   curdate()   |
 ===============
  2026-11-16   |
@@ -2437,7 +2598,9 @@ CURRENT_TIMESTAMP
 (note: the output depends on the execution time and the connection timezone, and the precision is milliseconds)
 
 ```sql
-taos> select current_timestamp, current_timestamp(3);
+taos> SELECT
+        current_timestamp,
+        current_timestamp(3);
     current_timestamp    |  current_timestamp(3)   |
 ====================================================
  2026-11-16 18:30:15.000 | 2026-11-16 18:30:15.123 |
@@ -2478,7 +2641,9 @@ CURTIME([fsp])
 (note: the output depends on the execution time and the connection timezone)
 
 ```sql
-taos> select curtime(), curtime(3);
+taos> SELECT
+        curtime(),
+        curtime(3);
      curtime()     |    curtime(3)     |
 ========================================
  18:30:15          | 18:30:15.123      |
@@ -2517,15 +2682,17 @@ DATE(expr)
 (note: the following statements are executed in the UTC+0800 timezone, and the precision is milliseconds)
 
 ```sql
-taos> select date(946656000000);
+taos> SELECT DATE(946656000000);
        date(946656000000)       |
 =================================
  2000-01-01                     |
+Query OK, 1 row(s) in set
 
-taos> select date('2000-01-01 12:00:00.000');
+taos> SELECT DATE('2000-01-01 12:00:00.000');
  date('2000-01-01 12:00:00.000') |
 ==================================
  2000-01-01                      |
+Query OK, 1 row(s) in set
 ```
 
 ### DATE_FORMAT
@@ -2601,17 +2768,17 @@ DATE_FORMAT(date, format)
 **Example**:
 
 ```sql
-taos> select date_format('2009-10-04 22:23:00', '%W %M %Y');
+taos> SELECT date_format('2009-10-04 22:23:00', '%W %M %Y');
  date_format('2009-10-04 22:23:00', '%W %M %Y') |
 =================================================
  Sunday October 2009                            |
 
-taos> select date_format('2024-02-29 23:04:05', '%r');
+taos> SELECT date_format('2024-02-29 23:04:05', '%r');
  date_format('2024-02-29 23:04:05', '%r') |
 ===========================================
  11:04:05 PM                              |
 
-taos> select date_format('2024-02-29', '%D %j %%');
+taos> SELECT date_format('2024-02-29', '%D %j %%');
  date_format('2024-02-29', '%D %j %%') |
 ========================================
  29th 060 %                            |
@@ -2651,12 +2818,12 @@ DATEDIFF(expr1, expr2)
 **Example**:
 
 ```sql
-taos> select datediff('2007-12-31 23:59:59', '2007-12-30');
+taos> SELECT datediff('2007-12-31 23:59:59', '2007-12-30');
  datediff('2007-12-31 23:59:59', '2007-12-30') |
 ================================================
                                              1 |
 
-taos> select datediff('2010-11-30 23:59:59', '2010-12-31');
+taos> SELECT datediff('2010-11-30 23:59:59', '2010-12-31');
  datediff('2010-11-30 23:59:59', '2010-12-31') |
 ================================================
                                            -31 |
@@ -2692,7 +2859,7 @@ DAY(date)
 **Example**:
 
 ```sql
-taos> select day('2024-02-29');
+taos> SELECT day('2024-02-29');
    day('2024-02-29')   |
 ========================
                     29 |
@@ -2728,7 +2895,7 @@ DAYNAME(date)
 **Example**:
 
 ```sql
-taos> select dayname('2024-02-29');
+taos> SELECT dayname('2024-02-29');
  dayname('2024-02-29') |
 ========================
  Thursday              |
@@ -2774,10 +2941,11 @@ DAYOFWEEK(expr)
 **Example**:
 
 ```sql
-taos> select dayofweek('2000-01-01');
+taos> SELECT DAYOFWEEK('2000-01-01');
  dayofweek('2000-01-01') |
 ==========================
                        7 |
+Query OK, 1 row(s) in set
 ```
 
 ### DAYOFYEAR
@@ -2810,7 +2978,7 @@ DAYOFYEAR(date)
 **Example**:
 
 ```sql
-taos> select dayofyear('2024-02-29');
+taos> SELECT dayofyear('2024-02-29');
  dayofyear('2024-02-29') |
 ==========================
                       60 |
@@ -2876,12 +3044,12 @@ EXTRACT(unit FROM date)
 **Example**:
 
 ```sql
-taos> select extract(year_month from '2019-07-02 01:02:03');
+taos> SELECT extract(year_month FROM '2019-07-02 01:02:03');
  extract(year_month from '2019-07-02 01:02:03') |
 =================================================
                                          201907 |
 
-taos> select extract(day_minute from '2019-07-02 01:02:03');
+taos> SELECT extract(day_minute FROM '2019-07-02 01:02:03');
  extract(day_minute from '2019-07-02 01:02:03') |
 =================================================
                                           20102 |
@@ -2918,12 +3086,12 @@ FROM_DAYS(N)
 **Example**:
 
 ```sql
-taos> select from_days(730669);
+taos> SELECT from_days(730669);
  from_days(730669) |
 ====================
  2000-07-03        |
 
-taos> select from_days(365);
+taos> SELECT from_days(365);
  from_days(365) |
 =================
  0000-00-00     |
@@ -2966,17 +3134,17 @@ FROM_UNIXTIME(unix_timestamp [, format])
 (note: the statements in this example are executed in the UTC timezone)
 
 ```sql
-taos> select from_unixtime(0);
+taos> SELECT from_unixtime(0);
        from_unixtime(0)       |
 ===============================
  1970-01-01 00:00:00          |
 
-taos> select from_unixtime(1.123456);
+taos> SELECT from_unixtime(1.123456);
    from_unixtime(1.123456)    |
 ===============================
  1970-01-01 00:00:01.123456   |
 
-taos> select from_unixtime(1, '%Y-%m-%d %H:%i:%s');
+taos> SELECT from_unixtime(1, '%Y-%m-%d %H:%i:%s');
  from_unixtime(1, '%Y-%m-%d %H:%i:%s') |
 ========================================
  1970-01-01 00:00:01                   |
@@ -3016,17 +3184,17 @@ HOUR(time)
 **Example**:
 
 ```sql
-taos> select hour('10:05:03');
+taos> SELECT hour('10:05:03');
    hour('10:05:03')    |
 ========================
                     10 |
 
-taos> select hour('272:59:59');
+taos> SELECT hour('272:59:59');
    hour('272:59:59')   |
 ========================
                    272 |
 
-taos> select hour('839:00:00');
+taos> SELECT hour('839:00:00');
    hour('839:00:00')   |
 ========================
                    838 |
@@ -3066,12 +3234,12 @@ MICROSECOND(expr)
 **Example**:
 
 ```sql
-taos> select microsecond('12:00:00.123456');
+taos> SELECT microsecond('12:00:00.123456');
  microsecond('12:00:00.123456') |
 =================================
                          123456 |
 
-taos> select microsecond('2019-12-31 23:59:59.000010');
+taos> SELECT microsecond('2019-12-31 23:59:59.000010');
  microsecond('2019-12-31 23:59:59.000010') |
 ============================================
                                         10 |
@@ -3110,12 +3278,12 @@ MINUTE(time)
 **Example**:
 
 ```sql
-taos> select minute('10:05:03');
+taos> SELECT minute('10:05:03');
   minute('10:05:03')   |
 ========================
                      5 |
 
-taos> select minute('839:00:00');
+taos> SELECT minute('839:00:00');
   minute('839:00:00')  |
 ========================
                     59 |
@@ -3151,7 +3319,7 @@ MONTH(date)
 **Example**:
 
 ```sql
-taos> select month('2008-02-03');
+taos> SELECT month('2008-02-03');
   month('2008-02-03')  |
 ========================
                      2 |
@@ -3187,7 +3355,7 @@ MONTHNAME(date)
 **Example**:
 
 ```sql
-taos> select monthname('2008-02-03');
+taos> SELECT monthname('2008-02-03');
  monthname('2008-02-03') |
 ==========================
  February                |
@@ -3249,7 +3417,7 @@ QUARTER(date)
 **Example**:
 
 ```sql
-taos> select quarter('2008-04-01');
+taos> SELECT quarter('2008-04-01');
  quarter('2008-04-01') |
 ========================
                      2 |
@@ -3288,7 +3456,7 @@ SECOND(time)
 **Example**:
 
 ```sql
-taos> select second('10:05:03');
+taos> SELECT second('10:05:03');
   second('10:05:03')   |
 ========================
                      3 |
@@ -3331,22 +3499,22 @@ STR_TO_DATE(str, format)
 **Example**:
 
 ```sql
-taos> select str_to_date('May 1, 2013', '%M %d, %Y');
+taos> SELECT str_to_date('May 1, 2013', '%M %d, %Y');
  str_to_date('May 1, 2013', '%M %d, %Y') |
 ==========================================
  2013-05-01                              |
 
-taos> select str_to_date('2024 060', '%Y %j');
+taos> SELECT str_to_date('2024 060', '%Y %j');
  str_to_date('2024 060', '%Y %j') |
 ===================================
  2024-02-29                       |
 
-taos> select str_to_date('12:34:56.123456', '%T.%f');
+taos> SELECT str_to_date('12:34:56.123456', '%T.%f');
  str_to_date('12:34:56.123456', '%T.%f') |
 ==========================================
  12:34:56.123456                         |
 
-taos> select str_to_date('2021-11-31', '%Y-%m-%d');
+taos> SELECT str_to_date('2021-11-31', '%Y-%m-%d');
  str_to_date('2021-11-31', '%Y-%m-%d') |
 ========================================
  NULL                                  |
@@ -3386,15 +3554,17 @@ TIMEDIFF(expr1, expr2 [, time_unit])
 **Example**:
 
 ```sql
-taos> select timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s);
+taos> SELECT TIMEDIFF('2022-01-01 08:00:00', '2022-01-01 08:00:01', 1s);
  timediff('2022-01-01 08:00:00', '2022-01-01 08:00:01',1s) |
 ============================================================
                                                         -1 |
+Query OK, 1 row(s) in set
 
-taos> select timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s);
+taos> SELECT TIMEDIFF('2022-01-01 08:00:01', '2022-01-01 08:00:00', 1s);
  timediff('2022-01-01 08:00:01', '2022-01-01 08:00:00',1s) |
 ============================================================
                                                          1 |
+Query OK, 1 row(s) in set
 ```
 
 ### TIMETRUNCATE
@@ -3475,12 +3645,12 @@ TO_DAYS(date)
 **Example**:
 
 ```sql
-taos> select to_days('1970-01-01');
+taos> SELECT to_days('1970-01-01');
  to_days('1970-01-01') |
 ========================
                 719528 |
 
-taos> select to_days('0000-01-01');
+taos> SELECT to_days('0000-01-01');
  to_days('0000-01-01') |
 ========================
                      1 |
@@ -3517,12 +3687,12 @@ TO_SECONDS(expr)
 **Example**:
 
 ```sql
-taos> select to_seconds('1970-01-01 00:00:01');
+taos> SELECT to_seconds('1970-01-01 00:00:01');
  to_seconds('1970-01-01 00:00:01') |
 ====================================
                        62167219201 |
 
-taos> select to_seconds('0000-01-01');
+taos> SELECT to_seconds('0000-01-01');
  to_seconds('0000-01-01') |
 ===========================
                     86400 |
@@ -3586,17 +3756,17 @@ UNIX_TIMESTAMP([date])
 (note: the statements in this example are executed in the UTC timezone)
 
 ```sql
-taos> select unix_timestamp('1970-01-01 00:00:01');
+taos> SELECT unix_timestamp('1970-01-01 00:00:01');
   unix_timestamp('1970-01-01 00:00:01')   |
 ===========================================
                                  1.000000 |
 
-taos> select unix_timestamp('1970-01-01 00:00:01.123456');
+taos> SELECT unix_timestamp('1970-01-01 00:00:01.123456');
  unix_timestamp('1970-01-01 00:00:01.123456') |
 ===============================================
                                      1.123456 |
 
-taos> select unix_timestamp('2024-03-10T02:30:00-05:00');
+taos> SELECT unix_timestamp('2024-03-10T02:30:00-05:00');
  unix_timestamp('2024-03-10T02:30:00-05:00') |
 ==============================================
                            1710055800.000000 |
@@ -3653,25 +3823,29 @@ WEEK(expr [, mode])
 **Example**:
 
 ```sql
-taos> select week('2000-01-01',0);
+taos> SELECT WEEK('2000-01-01', 0);
  week('2000-01-01',0)  |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',1);
+taos> SELECT WEEK('2000-01-01', 1);
  week('2000-01-01',1)  |
 ========================
                      0 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',2);
+taos> SELECT WEEK('2000-01-01', 2);
  week('2000-01-01',2)  |
 ========================
                     52 |
+Query OK, 1 row(s) in set
 
-taos> select week('2000-01-01',3);
+taos> SELECT WEEK('2000-01-01', 3);
  week('2000-01-01',3)  |
 ========================
                     52 |
+Query OK, 1 row(s) in set
 ```
 
 ### WEEKDAY
@@ -3704,10 +3878,11 @@ WEEKDAY(expr)
 **Example**:
 
 ```sql
-taos> select weekday('2000-01-01');
+taos> SELECT WEEKDAY('2000-01-01');
  weekday('2000-01-01') |
 ========================
                      5 |
+Query OK, 1 row(s) in set
 ```
 
 ### WEEKOFYEAR
@@ -3740,10 +3915,11 @@ WEEKOFYEAR(expr)
 **Example**:
 
 ```sql
-taos> select weekofyear('2000-01-01');
+taos> SELECT WEEKOFYEAR('2000-01-01');
  weekofyear('2000-01-01') |
 ===========================
                        52 |
+Query OK, 1 row(s) in set
 ```
 
 ### YEAR
@@ -3776,7 +3952,7 @@ YEAR(date)
 **Example**:
 
 ```sql
-taos> select year('1987-01-01');
+taos> SELECT year('1987-01-01');
   year('1987-01-01')   |
 ========================
                   1987 |
@@ -3816,12 +3992,12 @@ YEARWEEK(date [, mode])
 **Example**:
 
 ```sql
-taos> select yearweek('2000-01-01');
+taos> SELECT yearweek('2000-01-01');
  yearweek('2000-01-01') |
 =========================
                  199952 |
 
-taos> select yearweek('2021-01-01', 1);
+taos> SELECT yearweek('2021-01-01', 1);
  yearweek('2021-01-01', 1) |
 ============================
                     202053 |
@@ -3856,7 +4032,10 @@ AGG_FUNC(DISTINCT expr)
 - A single query may mix DISTINCT and non-DISTINCT aggregates, for example:
 
   ```sql
-  SELECT COUNT(DISTINCT voltage), AVG(current) FROM meters;
+  SELECT
+    COUNT(DISTINCT voltage),
+    AVG(current)
+  FROM meters;
   ```
 
 - When the deduplicated data exceeds the memory threshold (`pqSortMemThreshold`, default 16 MB), the engine automatically switches to a sort-based deduplication mode using disk-backed buffers. No user intervention is required.
@@ -3869,13 +4048,22 @@ AGG_FUNC(DISTINCT expr)
 
 ```sql
 -- Count distinct voltage values
-SELECT COUNT(DISTINCT voltage) FROM meters;
+SELECT COUNT(DISTINCT voltage)
+FROM meters;
 
 -- Distinct count per 10-minute window
-SELECT _wstart, COUNT(DISTINCT voltage) FROM meters INTERVAL(10m);
+SELECT
+  _wstart,
+  COUNT(DISTINCT voltage)
+FROM meters
+INTERVAL(10m);
 
 -- Sum of distinct voltages grouped by location
-SELECT location, SUM(DISTINCT voltage) FROM meters GROUP BY location;
+SELECT
+  location,
+  SUM(DISTINCT voltage)
+FROM meters
+GROUP BY location;
 ```
 
 ### Basic Numeric Aggregation
@@ -3958,7 +4146,7 @@ LEASTSQUARES(expr, start_val, step_val)
 #### STDDEV/STDDEV_POP/STD
 
 ```sql
-STDDEV/STDDEV_POP/STD(expr)
+STDDEV / STDDEV_POP / STD(expr)
 ```
 
 **Function Classification**: Aggregate function.
@@ -3979,7 +4167,8 @@ STDDEV/STDDEV_POP/STD(expr)
 **Example**:
 
 ```sql
-taos> select id from test_stddev;
+taos> SELECT id
+      FROM test_stddev;
      id      |
 ==============
            1 |
@@ -3987,11 +4176,14 @@ taos> select id from test_stddev;
            3 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select stddev_pop(id) from test_stddev;
+taos> SELECT STDDEV_POP(id)
+      FROM test_stddev;
       stddev_pop(id)       |
 ============================
          1.414213562373095 |
+Query OK, 1 row(s) in set
 ```
 
 #### STDDEV_SAMP
@@ -4015,7 +4207,8 @@ STDDEV_SAMP
 **Example**:
 
 ```sql
-taos> select id from test_stddev;
+taos> SELECT id
+      FROM test_stddev;
      id      |
 ==============
            1 |
@@ -4023,17 +4216,20 @@ taos> select id from test_stddev;
            3 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select stddev_samp(id) from test_stddev;
+taos> SELECT STDDEV_SAMP(id)
+      FROM test_stddev;
       stddev_samp(id)       |
 ============================
          1.58113883008419   |
+Query OK, 1 row(s) in set
 ```
 
 #### VARIANCE/VAR_POP
 
 ```sql
-VARIANCE/VAR_POP(expr)
+VARIANCE / VAR_POP(expr)
 ```
 
 **Function Classification**: Aggregate function.
@@ -4055,7 +4251,8 @@ VARIANCE/VAR_POP(expr)
 **Example**:
 
 ```sql
-taos> select id from test_var;
+taos> SELECT id
+      FROM test_var;
      id      |
 ==============
            3 |
@@ -4063,11 +4260,14 @@ taos> select id from test_var;
            2 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select var_pop(id) from test_var;
+taos> SELECT VAR_POP(id)
+      FROM test_var;
         var_pop(id)        |
 ============================
          2.000000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 #### VAR_SAMP
@@ -4091,7 +4291,8 @@ VAR_SAMP(expr)
 **Example**:
 
 ```sql
-taos> select id from test_var;
+taos> SELECT id
+      FROM test_var;
      id      |
 ==============
            3 |
@@ -4099,11 +4300,14 @@ taos> select id from test_var;
            2 |
            4 |
            5 |
+Query OK, 5 row(s) in set
 
-taos> select var_samp(id) from test_var;
+taos> SELECT VAR_SAMP(id)
+      FROM test_var;
         var_samp(id)        |
 ============================
          2.500000000000000 |
+Query OK, 1 row(s) in set
 ```
 
 #### SPREAD
@@ -4216,17 +4420,23 @@ GROUP_CONCAT(expr)
 **Example**:
 
 ```sql
-taos> select str1, str2 from test_var;
+taos> SELECT
+        str1,
+        str2
+      FROM test_var;
      id      |      id      |
 =============================
           a1 |       b1     |
           a2 |       b2     |
           a3 |       b3     |
+Query OK, 3 row(s) in set
 
-taos> select group_concat(str1, str2, ':') from test_var;
+taos> SELECT GROUP_CONCAT(str1, str2, ':')
+      FROM test_var;
          group_concat(str1, str2, ':')   |
 ==========================================
          a1b1:a2b2:a3b3                  |
+Query OK, 1 row(s) in set
 ```
 
 ### Distribution Statistics
@@ -4286,10 +4496,11 @@ IF(expr1, expr2, expr3)
 **Example**:
 
 ```sql
-taos> SELECT IF(1>2,2,3);
+taos> SELECT IF(1 > 2, 2, 3);
       if(1>2,2,3)      |
 ========================
                      3 |
+Query OK, 1 row(s) in set
 ```
 
 ### IFNULL
@@ -4309,10 +4520,11 @@ IFNULL(expr1, expr2)
 **Example**:
 
 ```sql
-taos> SELECT IFNULL(1,0);
+taos> SELECT IFNULL(1, 0);
       ifnull(1,0)      |
 ========================
                     1 |
+Query OK, 1 row(s) in set
 ```
 
 ### NVL
@@ -4338,10 +4550,11 @@ NULLIF(expr1, expr2)
 **Example**:
 
 ```sql
-taos> SELECT NULLIF(1,1);
+taos> SELECT NULLIF(1, 1);
       nullif(1,1)      |
 ========================
  NULL                  |
+Query OK, 1 row(s) in set
 ```
 
 ### NVL2
@@ -4361,9 +4574,10 @@ NVL2(expr1, expr2, expr3)
 **Example**:
 
 ```sql
-taos> SELECT NVL2(NULL,1,2);
+taos> SELECT NVL2(NULL, 1, 2);
 ========================
                      2 |
+Query OK, 1 row(s) in set
 ```
 
 ## Selection Functions
@@ -4422,27 +4636,41 @@ FIRST(expr)
 The primary key of table `t` is `ts`. `pub_ts` is an ordinary timestamp column:
 
 ```sql
-taos> SELECT ts, pub_ts, val FROM t;
+taos> SELECT
+        ts,
+        pub_ts,
+        val
+      FROM t;
            ts            |         pub_ts          | val |
 ==========================================================
  2026-01-01 00:00:00.000 | 2026-01-03 00:00:00.000 | a   |
  2026-01-02 00:00:00.000 | 2026-01-01 00:00:00.000 | b   |
+Query OK, 2 row(s) in set
 
-taos> SELECT FIRST(ts) FROM t;
+taos> SELECT FIRST(ts)
+      FROM t;
         first(ts)        |
 ==========================
  2026-01-01 00:00:00.000 |
+Query OK, 1 row(s) in set
 
-taos> SELECT FIRST(pub_ts) FROM t;
+taos> SELECT FIRST(pub_ts)
+      FROM t;
       first(pub_ts)      |
 ==========================
  2026-01-03 00:00:00.000 |
+Query OK, 1 row(s) in set
 ```
 
 `FIRST(ts)` returns the earliest primary-key timestamp, `2026-01-01 00:00:00.000`. `FIRST(pub_ts)` returns `pub_ts` on that row, which is `2026-01-03 00:00:00.000`. To select the earliest row by `pub_ts` itself, use:
 
 ```sql
-SELECT pub_ts, val FROM t ORDER BY pub_ts ASC LIMIT 1;
+SELECT
+  pub_ts,
+  val
+FROM t
+ORDER BY pub_ts ASC
+LIMIT 1;
 ```
 
 This statement returns the row whose `pub_ts` is `2026-01-01 00:00:00.000` and whose `val` is `b`.
@@ -4675,7 +4903,10 @@ When used with `PARTITION BY`, `CSUM` starts an independent cumulative sum for e
 For example, the following query calculates an independent cumulative current for each subtable. The partition expression can also be a tag or ordinary column when valid in the query.
 
 ```sql
-SELECT tbname, ts, CSUM(current) AS cumulative_current
+SELECT
+  tbname,
+  ts,
+  CSUM(current) AS cumulative_current
 FROM meters
 PARTITION BY tbname
 ORDER BY tbname, ts;
@@ -4793,14 +5024,21 @@ FILL_FORWARD(expr)
 **Example**:
 
 ```sql
-taos> select _rowts,f1,f2,fill_forward(f1),fill_forward(f2),fill_forward(f1)*fill_forward(f2) from db.tb;
+taos> SELECT
+        _rowts,
+        f1,
+        f2,
+        FILL_FORWARD(f1),
+        FILL_FORWARD(f2),
+        FILL_FORWARD(f1) * FILL_FORWARD(f2)
+      FROM db.tb;
          _rowts          |     f1      |       f2       |   fill_forward(f1)   |   fill_forward(f2)     | fill_forward(f1)*fill_forward(f2) |
 ============================================================================================================================================
  2025-12-02 01:01:01.000 |           1 |       2.000000 |                    1 |               2.000000 |                          2.000000 |
  2025-12-02 01:01:02.000 |        NULL |       4.000000 |                    1 |               4.000000 |                          4.000000 |
  2025-12-02 01:01:03.000 |           5 |           NULL |                    5 |               4.000000 |                         20.000000 |
  2025-12-02 01:01:04.000 |           7 |       8.000000 |                    7 |               8.000000 |                         56.000000 |
-Query OK, 4 row(s) in set (56.155269s)
+Query OK, 4 row(s) in set
 ```
 
 ### MAVG
@@ -5161,12 +5399,14 @@ ignore_null: {
 **Examples**:
 
 ```sql
-taos> select value_changes(current) from meters;
+taos> SELECT VALUE_CHANGES(current)
+      FROM meters;
  value_changes(current) |
 =========================
                       2 |
 
-taos> select value_changes(current, 0) from meters;
+taos> SELECT VALUE_CHANGES(current, 0)
+      FROM meters;
  value_changes(current, 0) |
 ============================
                          4 |
@@ -5220,18 +5460,26 @@ Assume that `status_bits` contains `0, 1, 3, 2, 0` in timestamp order:
 
 ```sql
 -- Check the least significant bit and count 0 -> non-zero transitions
-taos> select bit_changes(status_bits) from device_status;
+SELECT BIT_CHANGES(status_bits)
+FROM device_status;
 
 -- Check the low four bits and count both directions
-taos> select bit_changes(status_bits, 15, 2) from device_status;
+SELECT BIT_CHANGES(status_bits, 15, 2)
+FROM device_status;
 
 -- Count alarm-bit clears independently for each subtable
-taos> select tbname, bit_changes(status_bits, 4, 1)
-      from meters partition by tbname;
+SELECT
+  tbname,
+  BIT_CHANGES(status_bits, 4, 1)
+FROM meters
+PARTITION BY tbname;
 
 -- Count both directions independently in each 10-minute window
-taos> select _wstart, bit_changes(status_bits, 1, 2)
-      from device_status interval(10m);
+SELECT
+  _wstart,
+  BIT_CHANGES(status_bits, 1, 2)
+FROM device_status
+INTERVAL(10m);
 ```
 
 ## Interpolation Functions
@@ -5290,19 +5538,19 @@ output_raw: {
 }
 
 column_list:
-    column_def [';' column_def ...]
+  column_def [';' column_def ...]
 
 column_def:
-    column_name [':' [method]] [':' suffix]
+  column_name [':' [method]] [':' suffix]
 
 method:
-    (PREV | NEXT) ['(' duration ')']
+  (PREV | NEXT) ['(' duration ')']
 
 duration:
-    non_negative_integer time_unit
+  non_negative_integer time_unit
 
 time_unit:
-    b | u | a | s | m | h | d | w | n | q | y
+  b | u | a | s | m | h | d | w | n | q | y
 ```
 
 **Function Classification**: Table function.
@@ -5346,7 +5594,7 @@ Column definitions are written in the string argument. Multiple definitions are 
 
 ```sql
 column_def:
-    column_name [':' [method]] [':' suffix]
+  column_name [':' [method]] [':' suffix]
 ```
 
 | Form | Method | Suffix | Equivalent Form |
@@ -5489,41 +5737,74 @@ Executing `TIME_ALIGN` requires `SELECT` privilege on the input table or view. T
 ```sql
 -- Input table: meters(ts TIMESTAMP, voltage INT, current FLOAT)
 -- Default arguments: output the timestamp and PREV-aligned columns for all data columns
-SELECT * FROM TABLE(TIME_ALIGN(meters)) ORDER BY ts;
+SELECT *
+FROM TABLE (TIME_ALIGN(meters))
+ORDER BY ts;
 
 -- Output original columns and use different methods and suffixes for different columns
-SELECT ts, voltage, current, voltage_p, current_n
-FROM TABLE(TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
+SELECT
+  ts,
+  voltage,
+  current,
+  voltage_p,
+  current_n
+FROM TABLE (TIME_ALIGN(meters, TRUE, 'voltage:PREV:_p;current:NEXT:_n')) t
 ORDER BY ts;
 
 -- Time range: use only candidates within 5 seconds
-SELECT ts, voltage_p, voltage_n
-FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
+SELECT
+  ts,
+  voltage_p,
+  voltage_n
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV(5s):_p;voltage:NEXT(5s):_n')) t
 ORDER BY ts;
 
 -- Supertable meters_st(ts TIMESTAMP, voltage INT, current FLOAT) TAGS(site INT):
 -- align each subtable independently and group by tag
-SELECT site, ts, voltage_p
-FROM TABLE(TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
+SELECT
+  site,
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters_st, 'voltage:PREV:_p')) t
 PARTITION BY site
 ORDER BY site, ts;
 
 -- View: the view filter runs first, and the outer WHERE does not affect the alignment input
-CREATE VIEW v_meters AS SELECT ts, voltage FROM meters WHERE voltage IS NOT NULL;
-SELECT ts, voltage_p
-FROM TABLE(TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
+CREATE VIEW v_meters
+  AS
+    SELECT
+      ts,
+      voltage
+    FROM meters
+    WHERE voltage IS NOT NULL;
+
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters, TRUE, 'voltage:PREV:_p')) t
 ORDER BY ts;
 
 -- Every view output column can be aligned, including tag columns; the time range is ignored
-CREATE VIEW v_meters_tag AS SELECT site, ts, voltage FROM meters_st;
-SELECT site_p, ts_tp, voltage_p
-FROM TABLE(TIME_ALIGN(v_meters_tag,
-                      'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
+CREATE VIEW v_meters_tag
+  AS
+    SELECT
+      site,
+      ts,
+      voltage
+    FROM meters_st;
+
+SELECT
+  site_p,
+  ts_tp,
+  voltage_p
+FROM TABLE (TIME_ALIGN(v_meters_tag, 'site:PREV:_p;ts:PREV:_tp;voltage:PREV(5s):_p')) t
 ORDER BY ts_tp;
 
 -- Descending output: alignment values match ascending order; only the output order differs
-SELECT ts, voltage_p
-FROM TABLE(TIME_ALIGN(meters, 'voltage:PREV:_p')) t
+SELECT
+  ts,
+  voltage_p
+FROM TABLE (TIME_ALIGN(meters, 'voltage:PREV:_p')) t
 ORDER BY ts DESC;
 ```
 
@@ -5612,7 +5893,10 @@ SELECT SLEEP(NULL);
 
 -- Used with a table query: SLEEP is evaluated once per row;
 -- total wait time equals the sum of each row's duration
-SELECT SLEEP(1), col1 FROM table1;
+SELECT
+  SLEEP(1),
+  col1
+FROM table1;
 ```
 
 ## Geometry Functions

@@ -33,13 +33,11 @@ CREATE BNODE ON DNODE {dnode_id}
 列出集群中所有的数据订阅节点，包括其 `id`、`endpoint`、`create_time` 等属性。更完整字段见元数据表 [`INS_BNODES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_bnodes)。
 
 ```sql
-SHOW BNODES;
-
 taos> SHOW BNODES;
      id    |   endpoint       | protocol |          create_time    |
 ====================================================================
      1     | 192.168.0.1:6057 | mqtt     | 2024-11-28 18:44:27.089 |
-Query OK, 1 row(s) in set (0.037205s)
+Query OK, 1 row(s) in set
 ```
 
 ### 删除 Bnode
@@ -55,10 +53,30 @@ DROP BNODE ON DNODE {dnode_id}
 ### 环境准备
 
 ```sql
-CREATE DATABASE db VGROUPS 1;
-CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
-CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
-INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
+CREATE DATABASE db
+  VGROUPS 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
+
 CREATE BNODE ON DNODE 1;
 ```
 

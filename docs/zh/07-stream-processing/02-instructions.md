@@ -34,7 +34,8 @@ SHOW SNODES;
 若要展示更详细的信息，可以查询 [`INS_SNODES`](../05-tdengine-sql/09-system-info/01-meta.md#ins_snodes)：
 
 ```sql
-SELECT * FROM information_schema.`ins_snodes`;
+SELECT *
+FROM information_schema.`ins_snodes`;
 ```
 
 ### 删除 snode

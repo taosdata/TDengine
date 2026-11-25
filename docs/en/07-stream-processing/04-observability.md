@@ -11,14 +11,15 @@ TDengine exposes stream-processing status through `information_schema.ins_stream
 The following query displays stream status, error information, and the primary runtime metrics:
 
 ```sql
-SELECT stream_name,
-       status,
-       message,
-       realtime_lag_ms,
-       input_rows_per_sec_1m,
-       output_rows_per_sec_1m,
-       runner_result_latency_avg_1m_ms,
-       history_progress_pct
+SELECT
+  stream_name,
+  status,
+  message,
+  realtime_lag_ms,
+  input_rows_per_sec_1m,
+  output_rows_per_sec_1m,
+  runner_result_latency_avg_1m_ms,
+  history_progress_pct
 FROM information_schema.ins_streams
 ORDER BY stream_name;
 ```
@@ -42,18 +43,19 @@ Result latency excludes queueing and network time before the request reaches a R
 When stream status is abnormal, a stream-level metric is `NULL`, or you need to locate a specific node, query the task view:
 
 ```sql
-SELECT stream_name,
-       task_id,
-       type,
-       deploy_id,
-       node_type,
-       node_id,
-       status,
-       last_update,
-       message,
-       input_rows_per_sec_1m,
-       output_rows_per_sec_1m,
-       runner_result_latency_avg_1m_ms
+SELECT
+  stream_name,
+  task_id,
+  type,
+  deploy_id,
+  node_type,
+  node_id,
+  status,
+  last_update,
+  message,
+  input_rows_per_sec_1m,
+  output_rows_per_sec_1m,
+  runner_result_latency_avg_1m_ms
 FROM information_schema.ins_stream_tasks
 WHERE stream_name = 'your_stream_name'
 ORDER BY type, deploy_id, task_id;
@@ -105,14 +107,15 @@ This percentage represents coverage of the original historical time range, not t
 The following query displays the range, progress, and status of each manual recalculation job:
 
 ```sql
-SELECT stream_name,
-       recalc_id,
-       start,
-       end,
-       progress,
-       status,
-       request_time,
-       message
+SELECT
+  stream_name,
+  recalc_id,
+  start,
+  END,
+  progress,
+  status,
+  request_time,
+  message
 FROM information_schema.ins_stream_recalculates
 WHERE stream_name = 'your_stream_name'
 ORDER BY start, recalc_id;

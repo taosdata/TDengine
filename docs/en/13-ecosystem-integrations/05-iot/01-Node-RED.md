@@ -73,12 +73,29 @@ Use taos-CLI to manually create the data model:
 - Child tables d0, d1, d2.  
 
 ```sql
-create database test;
-create stable test.meters (ts timestamp, current float, voltage int, phase float) 
-                     tags (groupid int, location varchar(24));
-create table test.d0 using test.meters tags(1, 'workshop1');
-create table test.d1 using test.meters tags(2, 'workshop1');
-create table test.d2 using test.meters tags(2, 'workshop2');
+CREATE DATABASE test;
+
+CREATE STABLE test.meters (
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
+) TAGS (
+  groupid  INT,
+  location VARCHAR(24)
+);
+
+CREATE TABLE test.d0
+  USING test.meters
+  TAGS (1, 'workshop1');
+
+CREATE TABLE test.d1
+  USING test.meters
+  TAGS (2, 'workshop1');
+
+CREATE TABLE test.d2
+  USING test.meters
+  TAGS (2, 'workshop2');
 ```
 
 ### Business Processing
@@ -168,10 +185,22 @@ Steps:
    - Set msg.topic to:  
 
    ```sql
-   select tbname, avg(current), avg(voltage), sum(p) 
-   from ( select tbname,current,voltage,current*voltage/60 as p from test.meters 
-          where  ts > now-60s partition by tbname)
-   group by tbname;
+   SELECT
+     tbname,
+     AVG(current),
+     AVG(voltage),
+     SUM(p)
+   FROM (
+     SELECT
+       tbname,
+       current,
+       voltage,
+       current * voltage / 60 AS p
+     FROM test.meters
+     WHERE ts > now - 60s
+     PARTITION BY tbname
+   )
+   GROUP BY tbname;
    ```
 
 2. Drag tdengine-operator node to canvas:
@@ -231,9 +260,14 @@ Steps:
 1. Manually create a subscription topic "topic_overload" using taos-CLI:
 
    ```sql
-   create topic topic_overload as 
-        select tbname,* from test.meters 
-        where current > 25 or voltage > 230;
+   CREATE TOPIC topic_overload
+     AS
+       SELECT
+         tbname,
+         *
+       FROM test.meters
+       WHERE current > 25
+         OR voltage > 230;
    ```
 
 2. Drag tdengine-consumer node to canvas:

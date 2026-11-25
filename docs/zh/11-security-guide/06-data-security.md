@@ -52,9 +52,16 @@ taosk -c /etc/taos \
 ```
 
 ```sql
-CREATE DATABASE secure_db ENCRYPT_ALGORITHM 'SM4-CBC';
-SELECT * FROM information_schema.ins_encrypt_status;
-SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
+CREATE DATABASE secure_db
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
+SELECT *
+FROM information_schema.ins_encrypt_status;
+
+SELECT
+  name,
+  `encrypt_algorithm`
+FROM information_schema.ins_databases;
 ```
 
 审计库在 `v3.4.0.0` 起要求 `ENCRYPT_ALGORITHM` 不得为 `none`，详见 [审计与合规 · 创建审计库](./07-audit-and-compliance.md)。
@@ -144,8 +151,10 @@ taosk -d /var/lib/taos --edit-file /path/to/encrypted_config.json
 
 ```sql
 SHOW ENCRYPT_STATUS;
+
 -- 等价
-SELECT * FROM information_schema.ins_encrypt_status;
+SELECT *
+FROM information_schema.ins_encrypt_status;
 ```
 
 示例输出：
@@ -182,6 +191,7 @@ systemctl start taosd
 
 ```sql
 ALTER SYSTEM SET SVR_KEY 'new_svr_key';
+
 ALTER SYSTEM SET DB_KEY 'new_db_key';
 ```
 
@@ -348,6 +358,7 @@ taosExplorer 提供 **加密算法** 管理页面，可在浏览器中查看全�
 
 ```sql
 SHOW ENCRYPT_ALGORITHMS;
+
 -- 更完整字段见 information_schema.ins_encrypt_algorithms
 ```
 
@@ -376,15 +387,18 @@ id | algorithm_id | name    | desc                     | type                   
 只查看某一类算法：
 
 ```sql
-SELECT algorithm_id, name, `desc` FROM information_schema.ins_encrypt_algorithms
+SELECT
+  algorithm_id,
+  name,
+  `desc`
+FROM information_schema.ins_encrypt_algorithms
 WHERE type = 'Digests';
 ```
 
 添加自定义算法：
 
 ```sql
-CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr'
-  ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
+CREATE ENCRYPT_ALGR 'vigenere' ALGR_NAME 'vigenere' DESC 'my custom algr' ALGR_TYPE 'Symmetric_Ciphers_CBC_mode' OSSL_ALGR_NAME 'vigenere';
 ```
 
 `ALGR_TYPE` 的取值为 `Symmetric_Ciphers_CBC_mode`、`Digests` 或 `Asymmetric_Ciphers`。目前只有对称类型的自定义算法可以用于 `ENCRYPT_ALGORITHM` 建库。
@@ -426,16 +440,25 @@ database_option: {
 - 创建加密库前须已通过 `taosk --encrypt-data` 生成 `DATA_KEY`。
 
 ```sql
-CREATE DATABASE db1 ENCRYPT_ALGORITHM 'SM4-CBC';
-CREATE DATABASE db2 ENCRYPT_ALGORITHM 'AES-128-CBC';
-CREATE DATABASE db3 ENCRYPT_ALGORITHM 'AES-256-CBC';
-CREATE DATABASE db4;   -- 不加密
+CREATE DATABASE db1
+  ENCRYPT_ALGORITHM 'SM4-CBC';
+
+CREATE DATABASE db2
+  ENCRYPT_ALGORITHM 'AES-128-CBC';
+
+CREATE DATABASE db3
+  ENCRYPT_ALGORITHM 'AES-256-CBC';
+
+CREATE DATABASE db4;  -- 不加密
 ```
 
 查看库级配置：
 
 ```sql
-SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
+SELECT
+  name,
+  `encrypt_algorithm`
+FROM information_schema.ins_databases;
 ```
 
 展示值可能因版本显示为 `SM4-CBC`、`sm4` 等形式，以实际查询为准。
@@ -472,13 +495,21 @@ SELECT name, `encrypt_algorithm` FROM information_schema.ins_databases;
 
 ```sql
 -- 库级
-CREATE DATABASE db SECURE_DELETE 1;
+CREATE DATABASE db
+  SECURE_DELETE 1;
+
 ALTER DATABASE db SECURE_DELETE 1;
 
 -- 超级表 / 表级（与库级、语句级按位或）
 CREATE STABLE meters (
-  ts TIMESTAMP, current FLOAT, voltage INT
-) TAGS (location VARCHAR(64)) SECURE_DELETE 1;
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT
+) TAGS (
+  location VARCHAR(64)
+)
+  SECURE_DELETE 1;
+
 ALTER STABLE meters SECURE_DELETE 1;
 
 -- 语句级

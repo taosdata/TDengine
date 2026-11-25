@@ -193,17 +193,18 @@ If the target database power does not exist, the TDengine Sink Connector will au
 Use TDengine CLI to verify if synchronization was successful.
 
 ```sql
-taos> use power;
+taos> USE power;
 Database changed.
 
-taos> select * from meters;
+taos> SELECT *
+      FROM meters;
               _ts               |          current          |          voltage          |           phase           | groupid |            location            |
 ===============================================================================================================================================================
  2022-03-28 09:56:51.249000000 |              11.800000000 |             221.000000000 |               0.280000000 | 2       | California.LosAngeles          |
  2022-03-28 09:56:51.250000000 |              13.400000000 |             223.000000000 |               0.290000000 | 2       | California.LosAngeles          |
  2022-03-28 09:56:51.249000000 |              10.800000000 |             223.000000000 |               0.290000000 | 3       | California.LosAngeles          |
  2022-03-28 09:56:51.250000000 |              11.300000000 |             221.000000000 |               0.350000000 | 3       | California.LosAngeles          |
-Query OK, 4 row(s) in set (0.004208s)
+Query OK, 4 row(s) in set
 ```
 
 If you see the data above, it means the synchronization is successful. If not, please check the Kafka Connect logs. For a detailed explanation of the configuration parameters, see [Configuration Reference](#configuration-reference).
@@ -257,18 +258,53 @@ Prepare the SQL file to generate test data.
 
 ```sql title="prepare-source-data.sql"
 DROP DATABASE IF EXISTS test;
-CREATE DATABASE test;
-USE test;
-CREATE STABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 
-INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:05.000',10.30000,219,0.31000) \
-            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:15.000',12.60000,218,0.33000) \
-            d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('2018-10-03 14:38:16.800',12.30000,221,0.31000) \
-            d1002 USING meters TAGS('California.SanFrancisco', 3) VALUES('2018-10-03 14:38:16.650',10.30000,218,0.25000) \
-            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:05.500',11.80000,221,0.28000) \
-            d1003 USING meters TAGS('California.LosAngeles', 2)   VALUES('2018-10-03 14:38:16.600',13.40000,223,0.29000) \
-            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:05.000',10.80000,223,0.29000) \
-            d1004 USING meters TAGS('California.LosAngeles', 3)   VALUES('2018-10-03 14:38:06.500',11.50000,221,0.35000);
+CREATE DATABASE test;
+
+USE test;
+
+CREATE STABLE meters ( \
+  ts      TIMESTAMP, \
+  current FLOAT, \
+  voltage INT, \
+  phase   FLOAT \
+) TAGS ( \
+  location BINARY(64), \
+  groupId  INT \
+);
+
+INSERT INTO d1001 \
+    USING meters \
+    TAGS ('California.SanFrancisco', 2) \
+    VALUES ('2018-10-03 14:38:05.000', 10.30000, 219, 0.31000) \
+  d1001 \
+    USING meters \
+    TAGS ('California.SanFrancisco', 2) \
+    VALUES ('2018-10-03 14:38:15.000', 12.60000, 218, 0.33000) \
+  d1001 \
+    USING meters \
+    TAGS ('California.SanFrancisco', 2) \
+    VALUES ('2018-10-03 14:38:16.800', 12.30000, 221, 0.31000) \
+  d1002 \
+    USING meters \
+    TAGS ('California.SanFrancisco', 3) \
+    VALUES ('2018-10-03 14:38:16.650', 10.30000, 218, 0.25000) \
+  d1003 \
+    USING meters \
+    TAGS ('California.LosAngeles', 2) \
+    VALUES ('2018-10-03 14:38:05.500', 11.80000, 221, 0.28000) \
+  d1003 \
+    USING meters \
+    TAGS ('California.LosAngeles', 2) \
+    VALUES ('2018-10-03 14:38:16.600', 13.40000, 223, 0.29000) \
+  d1004 \
+    USING meters \
+    TAGS ('California.LosAngeles', 3) \
+    VALUES ('2018-10-03 14:38:05.000', 10.80000, 223, 0.29000) \
+  d1004 \
+    USING meters \
+    TAGS ('California.LosAngeles', 3) \
+    VALUES ('2018-10-03 14:38:06.500', 11.50000, 221, 0.35000);
 ```
 
 Using TDengine CLI, execute the SQL file.
@@ -304,8 +340,12 @@ At this point, all historical data will be displayed. Switch to TDengine CLI, in
 
 ```sql
 USE test;
-INSERT INTO d1001 VALUES (now, 13.3, 229, 0.38);
-INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
+
+INSERT INTO d1001
+VALUES (now, 13.3, 229, 0.38);
+
+INSERT INTO d1002
+VALUES (now, 16.3, 233, 0.22);
 ```
 
 Switch back to kafka-console-consumer, and the command line window has already printed the 2 newly inserted data.

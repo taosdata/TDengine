@@ -1164,19 +1164,25 @@ timezone Asia/Shanghai
 连接级时区影响 SQL 中无偏移时间字符串的解析和当地日历边界，不改变 `NOW()` 的绝对时间戳。例如：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < '2019-04-11 12:01:08';
 ```
 
 在东八区，SQL 语句等效于：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554955268000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554955268000;
 ```
 
 在 UTC 时区，SQL 语句等效于：
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554984068000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554984068000;
 ```
 
 为了避免使用字符串时间格式带来的不确定性，也可以直接使用 Unix 时间戳。此外，还可以在 SQL 语句中使用带有时区的时间戳字符串，例如：RFC3339 格式的时间戳字符串，2013-04-12T15:52:01.123+08:00 或者 ISO-8601 格式时间戳字符串 2013-04-12T15:52:01.123+0800。上述两个字符串转化为 Unix 时间戳不受系统所在时区的影响。
@@ -2021,6 +2027,15 @@ ALTER ALL DNODES 'snapshotMediumOnLag' '0';
 -- 查看当前取值
 SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 ```
+
+#### snapshotMediumDiskStrategy
+
+- 说明：medium 快照接收端需要为文件选择新磁盘时使用的策略。0 表示轮询，1 表示选择已用容量占比最低的磁盘；占比相同时轮询。容量占比使用最近一次刷新的磁盘统计值，并非实时值。一次快照连续创建多个文件时，如果统计值尚未刷新，这些文件可能集中写入同一块磁盘，无法保证均匀分布。选择时跳过禁用或可用空间不足的磁盘，并从原存储层开始逐层向下尝试。
+- 类型：整数
+- 默认值：0
+- 取值范围：0～1
+- 参数类型：本地配置参数
+- 动态修改：支持通过 SQL 修改，对后续磁盘分配生效。
 
 #### snapshotMediumOnIncomplete
 

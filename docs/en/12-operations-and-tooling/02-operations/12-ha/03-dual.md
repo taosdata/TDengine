@@ -83,6 +83,7 @@ CREATE XNODE TASK 'aa_power_td1_td2'
   FROM 'tmq+ws://root:taosdata@td1:6041/power'
   TO 'taos+ws://root:taosdata@td2:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_td1_td2';
 
 -- Run on td2: td2 -> td1
@@ -90,6 +91,7 @@ CREATE XNODE TASK 'aa_power_td2_td1'
   FROM 'tmq+ws://root:taosdata@td2:6041/power'
   TO 'taos+ws://root:taosdata@td1:6041/power'
   WITH TYPE 'replica';
+
 START XNODE TASK 'aa_power_td2_td1';
 ```
 
@@ -103,13 +105,19 @@ First, query the cluster ID on the management cluster. Then use the system-gener
 
 ```sql
 -- Run on the management cluster (ins_cluster is a privileged table and requires SYSINFO)
-SELECT id FROM information_schema.ins_cluster;
+SELECT id
+FROM information_schema.ins_cluster;
 
 -- Run on the source cluster, replacing <management_cluster_id> and <task_id> with actual values
-SELECT topic_name, vgroup_id, consumer_id, `offset`, `rows`
-  FROM information_schema.ins_subscriptions
-  WHERE topic_name = '__replica__<management_cluster_id>_<task_id>'
-    AND consumer_group = '__replica__<management_cluster_id>_<task_id>';
+SELECT
+  topic_name,
+  vgroup_id,
+  consumer_id,
+  `offset`,
+  `rows`
+FROM information_schema.ins_subscriptions
+WHERE topic_name = '__replica__<management_cluster_id>_<task_id>'
+  AND consumer_group = '__replica__<management_cluster_id>_<task_id>';
 ```
 
 - During snapshot replication, `offset` starts with `tsdb:`; after entering WAL replication it is displayed as `wal:<consumed version>/<latest version>`. The difference between the two versions is the WAL version lag of the vgroup, which approximates the backlog and has the same meaning as `taosx replica diff` in v3.3. This position is reported by the consumer heartbeat and can be ahead of the committed offset.

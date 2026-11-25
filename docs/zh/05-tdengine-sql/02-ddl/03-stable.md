@@ -7,11 +7,10 @@ description: 对超级表的各种管理操作
 ## 创建超级表
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name
-    (create_definition [, create_definition] ...)
-    TAGS (create_definition [, create_definition] ...)
-    [BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...]
-    [table_options]
+CREATE STABLE [IF NOT EXISTS] [db_name.]stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  [BASE ON [db_name.]parent_stb_name [, [db_name.]parent_stb_name] ...]
+  [table_options]
 
 create_definition:
     col_name column_definition
@@ -87,7 +86,7 @@ taos> SHOW TABLE TAGS FROM st1;
  st1s1                          |           1 | beijing              |
  st1s2                          |           2 | shanghai             |
  st1s3                          |           3 | guangzhou            |
-Query OK, 3 rows in database (0.004455s)
+Query OK, 3 row(s) in set
 ```
 
 返回结果集的第一列为子表名，后续列为标签列。
@@ -95,13 +94,16 @@ Query OK, 3 rows in database (0.004455s)
 如果已经知道标签列名称，也可以使用 `SELECT DISTINCT` 获取指定标签列的值。
 
 ```sql
-taos> SELECT DISTINCT TBNAME, id FROM st1;
+taos> SELECT
+        DISTINCT TBNAME,
+        id
+      FROM st1;
              tbname             |     id      |
 ===============================================
  st1s1                          |           1 |
  st1s2                          |           2 |
  st1s3                          |           3 |
-Query OK, 3 rows in database (0.002891s)
+Query OK, 3 row(s) in set
 ```
 
 `SELECT` 语句中的 `DISTINCT` 和 `TBNAME` 都是必不可少的，TDengine 会根据它们对语句进行优化，使之在没有数据或数据非常多的情况下都可以正确并快速地返回标签值。
@@ -114,17 +116,21 @@ taos> SHOW TAGS FROM st1s1;
 ============================================================================================================
  st1s1           | test            | st1             | id              | INT             | 1               |
  st1s1           | test            | st1             | loc             | VARCHAR(20)     | beijing         |
-Query OK, 2 rows in database (0.003684s)
+Query OK, 2 row(s) in set
 ```
 
 同样，也可以用 `SELECT` 语句查询指定标签列的值。
 
 ```sql
-taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
+taos> SELECT
+        DISTINCT TBNAME,
+        id,
+        loc
+      FROM st1s1;
      tbname      |     id      |       loc       |
 ==================================================
  st1s1           |           1 | beijing         |
-Query OK, 1 rows in database (0.001884s)
+Query OK, 1 row(s) in set
 ```
 
 ## 删除超级表
@@ -163,7 +169,6 @@ alter_table_option: {
     COMMENT 'string_value'
   | KEEP value
 }
-
 ```
 
 **使用说明**

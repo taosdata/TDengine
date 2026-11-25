@@ -168,7 +168,7 @@ timemoe_fc = 'http://127.0.0.1:6062/ds_predict'
 ## SQL 调用基础模型预测能力
 
 ```sql
-SELECT FORECAST(val, 'algo=timemoe-fc') 
+SELECT FORECAST(val, 'algo=timemoe-fc')
 FROM foo;
 ```
 

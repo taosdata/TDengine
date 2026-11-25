@@ -133,8 +133,10 @@ Query the data volume for the same time range in both PI and TDengine to confirm
 
 ```sql
 -- TDengine: Query data volume for a table within the backfill time range
-SELECT COUNT(*) FROM <table_name>
-WHERE ts >= '2020-01-01' AND ts < '2025-01-01';
+SELECT COUNT(*)
+FROM <table_name>
+WHERE ts >= '2020-01-01'
+  AND ts < '2025-01-01';
 ```
 
 ### Data Accuracy Spot Check

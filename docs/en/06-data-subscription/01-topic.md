@@ -30,7 +30,14 @@ This SQL subscribes to data with a `SELECT` statement (for example `SELECT *`, o
 For example, to subscribe to all smart-meter rows where voltage is greater than 200 and return only the timestamp, current, and voltage (not phase), create topic `power_topic` as follows:
 
 ```sql
-CREATE TOPIC power_topic AS SELECT ts, current, voltage FROM power.meters WHERE voltage > 200;
+CREATE TOPIC power_topic
+  AS
+    SELECT
+      ts,
+      current,
+      voltage
+    FROM power.meters
+    WHERE voltage > 200;
 ```
 
 ### Supertable Topics

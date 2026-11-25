@@ -72,7 +72,16 @@ class TestPrimaryKeyBasic:
             - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_3.py
             - 2025-12-08 Alex Duan Migrated from uncatalog/system-test/2-query/test_primary_ts_base_4.py
         """
-        self.do_init()
-        self.do_primary_ts_base_1()
-        self.do_primary_ts_base_3()
-        self.do_primary_ts_base_4()
+        stages = (
+            self.do_init,
+            self.do_primary_ts_base_1,
+            self.do_primary_ts_base_3,
+            self.do_primary_ts_base_4,
+        )
+        for stage in stages:
+            started = time.monotonic()
+            tdLog.info(f"primary key stage started: {stage.__name__}")
+            try:
+                stage()
+            finally:
+                tdLog.info(f"primary key stage finished: {stage.__name__}, elapsed: {time.monotonic() - started:.3f}s")

@@ -350,7 +350,7 @@ Mounted disks can also be a non-local network disk, as long as the system can ac
 You can use the following command to dynamically modify dataDir to control whether disable_create_new_file is enabled for the current directory.
 
 ```sql
-alter dnode 1 "/mnt/disk2/taos 1";
+ALTER dnode 1 "/mnt/disk2/taos 1";
 ```
 
 Note: Tiered Storage is only supported in TSDB-Enterprise

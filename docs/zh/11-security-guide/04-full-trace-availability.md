@@ -341,7 +341,9 @@ MNode 管理集群元数据（库表定义、用户权限、VGroup 分布），�
 
 ```sql
 SHOW MNODES;
+
 CREATE MNODE ON DNODE 2;
+
 CREATE MNODE ON DNODE 3;
 ```
 
@@ -356,7 +358,10 @@ CREATE MNODE ON DNODE 3;
 VGroup 采用多副本承载时序数据：
 
 ```sql
-CREATE DATABASE db REPLICA 3 VGROUPS 10;
+CREATE DATABASE db
+  REPLICA 3
+  VGROUPS 10;
+
 SHOW db.VGROUPS;
 ```
 

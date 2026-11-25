@@ -14,9 +14,13 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 from new_test_framework.utils import tdLog, tdSql
+from new_test_framework.utils.sql import TDSql
+from contextlib import closing
 import datetime
 import inspect
 import sys
+import uuid
+import taos
 
 
 class TestFunCast:
@@ -1554,7 +1558,113 @@ class TestFunCast:
 
         tdSql.execute("drop database if exists tdsqlsmith_shared;")
 
+    def do_cast_varchar_to_nchar(self):
+        for charset in ("UTF-8", "GBK", "CP936"):
+            with closing(
+                taos.connect(host=self.host, port=self.port, charset=charset)
+            ) as conn, closing(conn.cursor()) as cursor:
+                sql = TDSql()
+                sql.init(cursor)
+                # CHAR supplies encoded bytes through the UTF-8 Python driver.
+                encoded = ",".join(str(b) for b in "中中中".encode(charset))
+                for width, expected in ((3, 3), (4, 3), (9, 3), (2, 2)):
+                    sql.query(
+                        "select char_length("
+                        f"cast(char({encoded}) as nchar({width})))",
+                        queryTimes=1,
+                    )
+                    sql.checkRows(1)
+                    sql.checkData(0, 0, expected)
+
+        print("CAST VARCHAR to NCHAR with connection charsets [passed]")
+
+    def do_cast_varchar_column_to_nchar(self):
+        with closing(
+            taos.connect(host=self.host, port=self.port, charset="UTF-8")
+        ) as conn, closing(conn.cursor()) as cursor:
+            sql = TDSql()
+            sql.init(cursor)
+            sql.query("select char_length(cast('中中中' as nchar(3)))",
+                      queryTimes=1)
+            sql.checkData(0, 0, 3)
+
+            sql.query("select cast(char(65, 255) as nchar(1))", queryTimes=1)
+            sql.checkData(0, 0, "A")
+            sql.error("select cast(char(65, 255) as nchar(2))",
+                      expectedErrno=0x3251)
+            sql.error(
+                "select char_length("
+                "cast(char(244, 144, 128, 128) as nchar(1)))",
+                expectedErrno=0x3251,
+            )
+            sql.query(
+                "select cast(char(65, 244, 144, 128, 128) as nchar(1))",
+                queryTimes=1,
+            )
+            sql.checkData(0, 0, "A")
+
+            db = f"cast_nchar_width_{uuid.uuid4().hex}"
+            sql.execute(f"create database {db} keep 36500")
+            try:
+                sql.execute(f"use {db}")
+                sql.execute("create table t (ts timestamp, v varchar(32))")
+                sql.execute(
+                    "insert into t values (1700000000000, 'A') "
+                    "(1700000000001, '中A文') (1700000000002, 'ABC') "
+                    "(1700000000003, '') (1700000000004, null)"
+                )
+                sql.query("select cast(v as nchar(2)) from t order by ts")
+                sql.checkRows(5)
+                for row, value in enumerate(("A", "中A", "AB", "", None)):
+                    sql.checkData(row, 0, value)
+
+                sql.execute(
+                    "create table mixed (ts timestamp, flag bool, "
+                    "v varchar(5), n nchar(1))"
+                )
+                sql.execute(
+                    "insert into mixed values "
+                    "(1700000000000, true, '文A', '中') "
+                    "(1700000000001, false, '文A', '中')"
+                )
+                sql.query(
+                    "select case when flag then n else v end "
+                    "from mixed order by ts",
+                    queryTimes=1,
+                )
+                sql.checkRows(2)
+                sql.checkData(0, 0, "中")
+                sql.checkData(1, 0, "文")
+            finally:
+                sql.execute(f"drop database {db}")
+
+        print("CAST VARCHAR column values to NCHAR [passed]")
+
     # main
+    def test_cast_varchar_to_nchar(self):
+        """CAST multibyte VARCHAR to NCHAR by character count
+
+        1. Decode UTF-8, GBK, and CP936 using the connection charset.
+        2. Check shorter, exact, and wider target lengths.
+        3. Check VARCHAR column values with mixed widths, empty input, and NULL.
+        4. Check invalid bytes before and after the target width is filled.
+        5. Check implicit conversion of mixed VARCHAR and NCHAR CASE branches.
+
+        Catalog:
+            - Scalar Functions
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-24 Tony Zhang Add multibyte CAST regression coverage
+        """
+        self.do_cast_varchar_to_nchar()
+        self.do_cast_varchar_column_to_nchar()
+
     def test_fun_sca_cast(self):
         """ Fun: cast()
 
@@ -1572,6 +1682,7 @@ class TestFunCast:
         Since: v3.0.0.0
 
         Labels: common,ci,integration,functional
+
         Jira: None
 
         History:

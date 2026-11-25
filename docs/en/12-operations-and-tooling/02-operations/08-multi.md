@@ -137,7 +137,9 @@ If the configured shared storage service is inaccessible, this command will outp
 After configuration, you can start the TDengine cluster and create a database using shared storage, for example:
 
 ```sql
-create database demo_db duration 1d ss_keeplocal 3d;
+CREATE DATABASE demo_db
+  duration 1d
+  ss_keeplocal 3d;
 ```
 
 After writing time-series data into the database `demo_db`, time-series data older than 3 days will automatically be segmented and migrated into shared storage.
@@ -145,7 +147,7 @@ After writing time-series data into the database `demo_db`, time-series data old
 If the value of `ssEnabled` is `2`, mnode issues shared storage data migration check commands every hour. If there is time-series data that needs to be uploaded, it will automatically be segmented and migrated into shared storage. This process can also be manually trigger using SQL commands, with the following syntax:
 
 ```sql
-ssmigrate database <db_name>;
+ssmigrate DATABASE <db_name>;
 ```
 
 Note that if the value of `ssEnabled` is `1`, mnode will never trigger the migration process automatically and user must trigger it manually if a migration is desired.

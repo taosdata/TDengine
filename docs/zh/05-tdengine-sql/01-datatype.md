@@ -78,7 +78,8 @@ TDengine SQL 中凡需要指定时间长度的场合（时间运算、INTERVAL�
 TDengine 默认时间戳精度为毫秒。创建数据库时，可以通过 `PRECISION` 参数设置为微秒或纳秒。
 
 ```sql
-CREATE DATABASE db_name PRECISION 'ns';
+CREATE DATABASE db_name
+  PRECISION 'ns';
 ```
 
 `PRECISION` 参数的完整说明参见 [创建数据库](./02-ddl/01-database.md#precision)。
@@ -155,17 +156,24 @@ CREATE DATABASE db_name PRECISION 'ns';
 2. 使用 JSON 取值操作符 `->`。
 
    ```sql
-   SELECT * FROM s1 WHERE info->'k1' = 'v1';
+   SELECT *
+   FROM s1
+   WHERE info->'k1' = 'v1';
 
-   SELECT info->'k1' FROM s1;
+   SELECT info->'k1'
+   FROM s1;
    ```
 
 3. 使用 `CONTAINS` 判断 JSON key 是否存在。
 
    ```sql
-   SELECT * FROM s1 WHERE info CONTAINS 'k2';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k2';
 
-   SELECT * FROM s1 WHERE info CONTAINS 'k1';
+   SELECT *
+   FROM s1
+   WHERE info CONTAINS 'k1';
    ```
 
 ### 支持的操作
@@ -173,13 +181,22 @@ CREATE DATABASE db_name PRECISION 'ns';
 - 在 `WHERE` 条件中，支持 `MATCH`、`NMATCH`、`BETWEEN ... AND`、`LIKE`、`AND`、`OR`、`IS NULL`、`IS NOT NULL`，不支持 `IN`。
 
   ```sql
-  SELECT * FROM s1 WHERE info->'k1' MATCH 'v*';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' MATCH 'v*';
 
-  SELECT * FROM s1 WHERE info->'k1' LIKE 'v%' AND info CONTAINS 'k2';
+  SELECT *
+  FROM s1
+  WHERE info->'k1' LIKE 'v%'
+    AND info CONTAINS 'k2';
 
-  SELECT * FROM s1 WHERE info IS NULL;
+  SELECT *
+  FROM s1
+  WHERE info IS NULL;
 
-  SELECT * FROM s1 WHERE info->'k1' IS NOT NULL;
+  SELECT *
+  FROM s1
+  WHERE info->'k1' IS NOT NULL;
   ```
 
 - 支持 JSON 标签放在 `GROUP BY`、`ORDER BY`、`JOIN` 子句、`UNION ALL` 以及子查询中，例如 `GROUP BY info->'key'`。
@@ -202,9 +219,18 @@ CREATE DATABASE db_name PRECISION 'ns';
 例如暂不支持以下写法：
 
 ```sql
-SELECT jtag->'key' FROM (SELECT jtag FROM stable);
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+);
 
-SELECT jtag->'key' FROM (SELECT jtag FROM stable) WHERE jtag->'key' > 0;
+SELECT jtag->'key'
+FROM (
+  SELECT jtag
+  FROM STABLE
+)
+WHERE jtag->'key' > 0;
 ```
 
 ## 常量

@@ -5873,8 +5873,11 @@ int32_t tCloneStreamCreateDeployPointers(SCMCreateStreamReq *pSrc, SCMCreateStre
       SStreamCalcScan* sscan = taosArrayGet(pSrc->calcScanPlanList, i);
       SStreamCalcScan  dscan = {.readFromCache = sscan->readFromCache};
 
-      dscan.vgList = taosArrayDup(sscan->vgList, NULL);
-      TSDB_CHECK_NULL(dscan.vgList, code, lino, _exit, terrno);
+      // Persisted zero-partition scans decode with a NULL list.
+      if (sscan->vgList) {
+        dscan.vgList = taosArrayDup(sscan->vgList, NULL);
+        TSDB_CHECK_NULL(dscan.vgList, code, lino, _exit, terrno);
+      }
 
       dscan.scanPlan = COPY_STR(sscan->scanPlan);
       TSDB_CHECK_NULL(dscan.scanPlan, code, lino, _exit, terrno);

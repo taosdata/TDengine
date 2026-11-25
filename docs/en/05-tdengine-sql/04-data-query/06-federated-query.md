@@ -131,8 +131,8 @@ PASSWORD = 'password'
 [DATABASE = database_name]
 [SCHEMA = schema_name]
 [OPTIONS (
-    'option_key' = 'option_value'
-    [, ...]
+  'option_key' = 'option_value'
+  [, ...]
 )];
 ```
 
@@ -252,118 +252,117 @@ The following examples create five external data sources:
 
 ```sql
 CREATE EXTERNAL SOURCE mysql_prod
-TYPE = 'mysql'
-HOST = 'mysql.example.com'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password'
-DATABASE = power
-OPTIONS (
+  TYPE = 'mysql'
+  HOST = 'mysql.example.com'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password'
+  DATABASE = power
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '30000'
-);
+  );
 
 CREATE EXTERNAL SOURCE pg_prod
-TYPE = 'postgresql'
-HOST = 'pg.example.com'
-PORT = 5432
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = iot
-SCHEMA = public
-OPTIONS ('sslmode' = 'require');
+  TYPE = 'postgresql'
+  HOST = 'pg.example.com'
+  PORT = 5432
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = iot
+  SCHEMA = public
+  OPTIONS('sslmode' = 'require');
 
 CREATE EXTERNAL SOURCE IF NOT EXISTS influx_prod
-TYPE = 'influxdb'
-HOST = 'influx.example.com'
-PORT = 8086
-USER = ''
-PASSWORD = ''
-DATABASE = telegraf
-OPTIONS (
+  TYPE = 'influxdb'
+  HOST = 'influx.example.com'
+  PORT = 8086
+  USER = ''
+  PASSWORD = ''
+  DATABASE = telegraf
+  OPTIONS(
     'api_token' = 'your_token',
     'protocol' = 'flight_sql',
     'tls_enabled' = 'true'
-);
+  );
 
 -- InfluxDB 1.8: HTTP Basic authentication with an explicit RP
 CREATE EXTERNAL SOURCE influx18_prod
-TYPE = 'influxdb'
-HOST = 'influx18.example.com'
-PORT = 8086
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = telegraf
-OPTIONS (
+  TYPE = 'influxdb'
+  HOST = 'influx18.example.com'
+  PORT = 8086
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = telegraf
+  OPTIONS(
     'version' = '1.8',
     'protocol' = 'http',
     'retention_policy' = 'autogen'
-);
+  );
 
 -- Direct query: the table path does not include the RP
-SELECT time, value FROM influx18_prod.telegraf.meters;
+SELECT
+  time,
+  value
+FROM influx18_prod.telegraf.meters;
 
 -- SQL Server 2022: default database and schema, TLS with server certificate verification
 CREATE EXTERNAL SOURCE sqlserver_prod
-TYPE = 'sqlserver'
-HOST = 'sqlserver.example.com'
-PORT = 1433
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-SCHEMA = dbo
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = 'sqlserver.example.com'
+  PORT = 1433
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  SCHEMA = dbo
+  OPTIONS(
     'tls_enabled' = 'true',
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 
 -- Test environment: encrypted but without certificate verification
 CREATE EXTERNAL SOURCE sqlserver_test
-TYPE = 'sqlserver'
-HOST = '192.0.2.10'
-PORT = 1433
-USER = 'readonly'
-PASSWORD = 'your_password'
-DATABASE = Telemetry
-OPTIONS (
+  TYPE = 'sqlserver'
+  HOST = '192.0.2.10'
+  PORT = 1433
+  USER = 'readonly'
+  PASSWORD = 'your_password'
+  DATABASE = Telemetry
+  OPTIONS(
     'tls_enabled' = 'true',
     'trust_server_certificate' = 'true'
-);
+  );
 
 -- Oracle: DATABASE is the service name and SCHEMA is the default schema
 CREATE EXTERNAL SOURCE oracle_prod
-TYPE = 'oracle'
-HOST = 'oracle.example.com'
-PORT = 1521
-USER = 'td_reader'
-PASSWORD = 'your_password'
-DATABASE = 'ORCLPDB1'
-SCHEMA = 'TELEMETRY'
-OPTIONS (
+  TYPE = 'oracle'
+  HOST = 'oracle.example.com'
+  PORT = 1521
+  USER = 'td_reader'
+  PASSWORD = 'your_password'
+  DATABASE = 'ORCLPDB1'
+  SCHEMA = 'TELEMETRY'
+  OPTIONS(
     'connect_timeout_ms' = '5000',
     'read_timeout_ms' = '60000'
-);
+  );
 ```
 
 The following examples illustrate timeout, unknown parameter, and parameter deletion behavior:
 
 ```sql
 -- Valid: explicitly set to wait indefinitely
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '0');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '0');
 
 -- Invalid: 1 to 99 are not in the allowed range
-ALTER EXTERNAL SOURCE pg_prod
-SET OPTIONS('read_timeout_ms' = '99');
+ALTER EXTERNAL SOURCE pg_prod SET OPTIONS('read_timeout_ms' = '99');
 
 -- Invalid: unknown parameters return TSDB_CODE_PAR_SYNTAX_ERROR
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('unknown_opt' = 'x');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('unknown_opt' = 'x');
 
 -- Valid: delete an existing parameter
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('ssl_mode' = '');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('ssl_mode' = '');
 ```
 
 ## Managing External Data Sources
@@ -418,7 +417,14 @@ External data source definitions can also be queried from `information_schema.in
 #### Example
 
 ```sql
-SELECT source_name, type, host, port, database, schema, create_time
+SELECT
+  source_name,
+  type,
+  host,
+  port,
+  DATABASE,
+  schema,
+  create_time
 FROM information_schema.ins_ext_sources
 WHERE type = 'mysql';
 ```
@@ -447,9 +453,7 @@ Use `ALTER EXTERNAL SOURCE` to modify connection information:
 #### Syntax
 
 ```sql
-ALTER EXTERNAL SOURCE source_name
-SET HOST = 'hostname',
-    PORT = port_number;
+ALTER EXTERNAL SOURCE source_name SET HOST = 'hostname', PORT = port_number;
 ```
 
 #### Modifiable Fields
@@ -471,22 +475,16 @@ SET HOST = 'hostname',
 
 ```sql
 -- Switch to a read-only replica
-ALTER EXTERNAL SOURCE mysql_prod
-SET HOST = 'mysql-ro.example.com',
-    PORT = 3307;
+ALTER EXTERNAL SOURCE mysql_prod SET HOST = 'mysql-ro.example.com', PORT = 3307;
 
 -- Modify PostgreSQL account and password
-ALTER EXTERNAL SOURCE pg_prod
-SET USER = 'new_reader',
-    PASSWORD = 'new_password';
+ALTER EXTERNAL SOURCE pg_prod SET USER = 'new_reader', PASSWORD = 'new_password';
 
 -- Modify the default database
-ALTER EXTERNAL SOURCE mysql_prod
-SET DATABASE = power_v2;
+ALTER EXTERNAL SOURCE mysql_prod SET DATABASE = power_v2;
 
 -- Incrementally add read timeout; existing parameters are retained
-ALTER EXTERNAL SOURCE mysql_prod
-SET OPTIONS('read_timeout_ms' = '3000');
+ALTER EXTERNAL SOURCE mysql_prod SET OPTIONS('read_timeout_ms' = '3000');
 ```
 
 ### Refreshing External Data Sources
@@ -566,16 +564,21 @@ Examples of **queries that do not depend on a timeline**:
 
 ```sql
 -- Count rows in an external table without a timestamp primary key
-SELECT COUNT(*) FROM pg_prod.public.device_info;
+SELECT COUNT(*)
+FROM pg_prod.public.device_info;
 
 -- Query an external view that contains no timestamp column
-SELECT * FROM mysql_prod.v_device_dim LIMIT 100;
+SELECT *
+FROM mysql_prod.v_device_dim
+LIMIT 100;
 
 -- SQL Server dimension table without a timestamp primary key
-SELECT * FROM sqlserver_prod.dbo.device_info;
+SELECT *
+FROM sqlserver_prod.dbo.device_info;
 
 -- Oracle dimension table without a timestamp primary key
-SELECT * FROM oracle_prod.`TELEMETRY`.device_info;
+SELECT *
+FROM oracle_prod.`TELEMETRY`.device_info;
 ```
 
 External tables without a timeline cannot be used directly with `INTERVAL`, state/session/event/count windows, `FILL`, `INTERP`, time-series difference/integral functions, ASOF JOIN, or Window JOIN. When an object has a suitable time column, `REFERENCE` can first establish a virtual-table timeline for queries. Direct external column paths retain their source primary-key time column and filter validation rules.
@@ -663,28 +666,50 @@ All three forms work in `CREATE VTABLE` column definitions, `ALTER VTABLE ... AD
 
 ```sql
 -- Query external tables
-SELECT * FROM mysql_prod.meters;
-SELECT * FROM mysql_prod.power.meters;
-SELECT * FROM pg_prod.devices;
-SELECT * FROM pg_prod.public.devices;
-SELECT * FROM sqlserver_prod.sensor_data;
-SELECT * FROM sqlserver_prod.telemetry.sensor_data;
-SELECT * FROM sqlserver_prod.Archive.telemetry.sensor_data;
-SELECT * FROM oracle_prod.sensor_data;
-SELECT * FROM oracle_prod.`TELEMETRY`.sensor_data;
+SELECT *
+FROM mysql_prod.meters;
+
+SELECT *
+FROM mysql_prod.power.meters;
+
+SELECT *
+FROM pg_prod.devices;
+
+SELECT *
+FROM pg_prod.public.devices;
+
+SELECT *
+FROM sqlserver_prod.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.telemetry.sensor_data;
+
+SELECT *
+FROM sqlserver_prod.Archive.telemetry.sensor_data;
+
+SELECT *
+FROM oracle_prod.sensor_data;
+
+SELECT *
+FROM oracle_prod.`TELEMETRY`.sensor_data;
 
 -- Reference external columns in virtual table DDL
 current FLOAT FROM mysql_prod.meters.current
 current FLOAT FROM mysql_prod.power.meters.current
 owner VARCHAR(64) FROM pg_prod.public.meter_asset.owner
+
 -- SQL Server three-part (source requires default database and schema)
 value FLOAT FROM sqlserver_prod.sensor_data.value
+
 -- SQL Server four-part (source requires a default database; schema from the path)
 value FLOAT FROM sqlserver_prod.telemetry.sensor_data.value
+
 -- SQL Server five-part (full namespace)
 value FLOAT FROM sqlserver_prod.Archive.telemetry.sensor_data.value
+
 -- Oracle three-part (source requires a default schema)
 value FLOAT FROM oracle_prod.sensor_data.value
+
 -- Oracle four-part (explicit schema)
 value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 ```
@@ -697,7 +722,9 @@ value FLOAT FROM oracle_prod.`TELEMETRY`.sensor_data.value
 
 ```sql
 USE source_name;
+
 USE source_name.database;
+
 USE source_name.schema;
 ```
 
@@ -716,39 +743,66 @@ Oracle `USE` semantics: `USE source_name` uses the default schema, and `USE sour
 ```sql
 -- Use the MySQL default database
 USE mysql_prod;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- Explicitly select a MySQL database
 USE mysql_prod.power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 
 -- Explicitly select a PostgreSQL schema
 USE pg_prod.public;
-SELECT * FROM devices LIMIT 10;
+
+SELECT *
+FROM devices
+LIMIT 10;
 
 -- Use the SQL Server default namespace
 USE sqlserver_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Explicitly switch the SQL Server database (default schema retained)
 USE sqlserver_prod.Archive;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Switch both the SQL Server database and schema
 USE sqlserver_prod.Archive.telemetry;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Use the Oracle default schema
 USE oracle_prod;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Explicitly select an Oracle schema
 USE oracle_prod.`TELEMETRY`;
-SELECT * FROM sensor_data LIMIT 10;
+
+SELECT *
+FROM sensor_data
+LIMIT 10;
 
 -- Switch back to a local database and clear external context
 USE power;
-SELECT * FROM meters LIMIT 10;
+
+SELECT *
+FROM meters
+LIMIT 10;
 ```
 
 ## Querying External Data
@@ -769,7 +823,8 @@ LIMIT 1000;
 SELECT m.ts, m.current, a.voltage
 FROM mysql_prod.meters m
 JOIN pg_prod.public.archive_meters a
-  ON m.ts = a.ts AND m.meter_id = a.meter_id
+  ON m.ts = a.ts
+ AND m.meter_id = a.meter_id
 WHERE m.ts ≥ '2026-04-01 00:00:00'
   AND m.ts < '2026-04-02 00:00:00';
 
@@ -876,8 +931,7 @@ When querying a virtual table with external references, the system reads externa
 When creating virtual regular tables, external column reference syntax is as follows:
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
 
 create_definition:
     ts_col_name TIMESTAMP
@@ -894,17 +948,16 @@ column_reference:
 When creating virtual subtables, the same external paths can be used in column references:
 
 ```sql
-CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name
-    (create_definition [, create_definition] ...)
-    USING [db_name.]stb_name
-    [(tag_name [, tag_name] ...)]
-    TAGS (tag_value [, tag_value] ...)
+CREATE VTABLE [IF NOT EXISTS] [db_name.]vtb_name (create_definition [, create_definition] ...)
+  USING [db_name.]stb_name
+  [(tag_name [, tag_name] ...)]
+  TAGS (tag_value [, tag_value] ...)
 
 create_definition:
-    [stb_col_name FROM] column_reference
+  [stb_col_name FROM] column_reference
 
 tag_value:
-    const_value | table_name.tag_name
+  const_value | table_name.tag_name
 ```
 
 ### InfluxDB SERIES Column References
@@ -913,7 +966,7 @@ For both InfluxDB 1.8 and 3.x, a `SERIES` declaration can be appended when creat
 
 ```sql
 SERIES series_alias AS source_name.database_name.measurement_name
-    (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
+  (tag_name = 'tag_value' [, tag_name = 'tag_value'] ...)
 ```
 
 This syntax has the following constraints:
@@ -927,33 +980,52 @@ The following example binds `s1` to the series where `device = 'd1'`. `s1.value`
 
 ```sql
 CREATE VTABLE v_a1 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE FROM s1.value
 )
-SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+  SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 ```
 
 The `influx18_prod` source above selects RP `autogen`, while its `SERIES` target remains `influx18_prod.telegraf.meters`. Assuming `meters` has only the `device` Tag and a floating-point Field named `value`, the following example creates a virtual regular table, a virtual supertable, and a virtual subtable:
 
 ```sql
-CREATE DATABASE IF NOT EXISTS influx18_demo PRECISION 'ns';
+CREATE DATABASE IF NOT EXISTS influx18_demo
+  PRECISION 'ns';
+
 USE influx18_demo;
 
 CREATE VTABLE v_influx18 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE FROM s1.value
 )
-SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
 
-CREATE STABLE vst_influx18 (ts TIMESTAMP, value DOUBLE)
-TAGS (device BINARY(32)) VIRTUAL 1;
+CREATE STABLE vst_influx18 (
+  ts    TIMESTAMP,
+  value DOUBLE
+) TAGS (
+  device BINARY(32)
+)
+  VIRTUAL 1;
 
-CREATE VTABLE vc_influx18 (value FROM s1.value)
-USING vst_influx18 TAGS ('d1')
-SERIES s1 AS influx18_prod.telegraf.meters (device = 'd1');
+CREATE VTABLE vc_influx18 (
+  value FROM s1.value
+)
+  USING vst_influx18
+  TAGS ('d1')
+  SERIES s1 AS influx18_prod.telegraf.meters(device = 'd1');
 
-SELECT ts, value FROM v_influx18 ORDER BY ts;
-SELECT ts, value FROM vst_influx18 ORDER BY ts;
+SELECT
+  ts,
+  value
+FROM v_influx18
+ORDER BY ts;
+
+SELECT
+  ts,
+  value
+FROM vst_influx18
+ORDER BY ts;
 ```
 
 The local database uses nanosecond precision to preserve InfluxDB timestamp precision. `device = 'd1'` identifies the referenced Series even when the query has no `WHERE` clause. The virtual subtable's local `TAGS ('d1')` does not replace the Tag conditions in the `SERIES` declaration.
@@ -962,16 +1034,16 @@ Use `ALTER VTABLE` to add a `SERIES` to an existing virtual table, bind a column
 
 ```sql
 CREATE VTABLE v_a2 (
-  ts TIMESTAMP,
+  ts    TIMESTAMP,
   value DOUBLE
 );
 
-ALTER VTABLE v_a2
-  ADD SERIES s1 AS influx_source.metrics.meters (device = 'd1');
+ALTER VTABLE v_a2 ADD SERIES s1 AS influx_source.metrics.meters(device = 'd1');
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET s1.value;
 
 ALTER VTABLE v_a2 ALTER COLUMN value SET NULL;
+
 ALTER VTABLE v_a2 REMOVE SERIES s1;
 ```
 
@@ -982,10 +1054,9 @@ ALTER VTABLE v_a2 REMOVE SERIES s1;
 Virtual supertable syntax is unchanged; it defines schema only and does not include external column references:
 
 ```sql
-CREATE STABLE [IF NOT EXISTS] stb_name
-    (create_definition [, create_definition] ...)
-    TAGS (create_definition [, create_definition] ...)
-    VIRTUAL 1;
+CREATE STABLE [IF NOT EXISTS] stb_name (create_definition [, create_definition] ...)
+  TAGS (create_definition [, create_definition] ...)
+  VIRTUAL 1;
 ```
 
 ### Examples
@@ -994,18 +1065,18 @@ The following example merges local time-series data and external MySQL time-seri
 
 ```sql
 CREATE EXTERNAL SOURCE meter_mysql
-TYPE = 'mysql'
-HOST = '10.0.0.1'
-PORT = 3306
-USER = 'reader'
-PASSWORD = 'your_password';
+  TYPE = 'mysql'
+  HOST = '10.0.0.1'
+  PORT = 3306
+  USER = 'reader'
+  PASSWORD = 'your_password';
 
 CREATE VTABLE v_d1001 (
-  ts TIMESTAMP,
-  current FLOAT FROM power.d1001.current,
-  voltage INT FROM power.d1001.voltage,
+  ts          TIMESTAMP,
+  current     FLOAT FROM power.d1001.current,
+  voltage     INT FROM power.d1001.voltage,
   temperature FLOAT FROM meter_mysql.asset_db.meter_samples.temperature,
-  humidity FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
+  humidity    FLOAT FROM meter_mysql.asset_db.meter_samples.humidity
 );
 ```
 
@@ -1188,7 +1259,8 @@ SELECT l.meter_id,
        AVG(l.current * a.voltage) AS avg_power
 FROM power.meters l
 JOIN pg_prod.public.archive_meters a
-  ON l.ts = a.ts AND l.meter_id = a.meter_id
+  ON l.ts = a.ts
+ AND l.meter_id = a.meter_id
 WHERE l.ts ≥ '2026-04-01' AND l.ts < '2026-04-02'
 GROUP BY l.meter_id
 ORDER BY avg_power DESC

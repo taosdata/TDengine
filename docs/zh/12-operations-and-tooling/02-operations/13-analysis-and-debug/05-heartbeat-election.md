@@ -127,7 +127,9 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
 
    ```sql
    SHOW CLUSTER VARIABLES LIKE '%elect%';
+
    SHOW CLUSTER VARIABLES LIKE '%heartbeat%';
+
    SHOW CLUSTER VARIABLES LIKE '%status%';
    ```
 
@@ -136,10 +138,12 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
    ```sql
    -- 单独调整 vnode 的心跳与选举参数
    ALTER ALL DNODES 'syncVnodeHeartbeatIntervalMs' '2000';
+
    ALTER ALL DNODES 'syncVnodeElectIntervalMs' '8000';
 
    -- 单独调整 mnode 的心跳与选举参数
    ALTER ALL DNODES 'syncMnodeHeartbeatIntervalMs' '1000';
+
    ALTER ALL DNODES 'syncMnodeElectIntervalMs' '6000';
 
    -- 调整 dnode 状态上报超时
@@ -156,6 +160,7 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
 
    ```sql
    SHOW DNODE 1 VARIABLES LIKE '%elect%';
+
    SHOW DNODE 2 VARIABLES LIKE '%elect%';
    ```
 
@@ -177,14 +182,20 @@ TDengine 集群中存在三类与"心跳和切主"直接相关的交互：
 ```sql
 -- 集群与各节点基本信息
 SHOW DNODES;
+
 SHOW MNODES;
+
 SHOW VGROUPS;
 
 -- 心跳与选举相关参数的当前实际值
 SHOW CLUSTER VARIABLES LIKE '%elect%';
+
 SHOW CLUSTER VARIABLES LIKE '%heartbeat%';
+
 SHOW CLUSTER VARIABLES LIKE '%status%';
+
 SHOW CLUSTER VARIABLES LIKE '%arb%';
+
 SHOW CLUSTER VARIABLES LIKE '%sync%';
 ```
 
@@ -192,14 +203,18 @@ SHOW CLUSTER VARIABLES LIKE '%sync%';
 
 ```sql
 -- vnode 的角色与最近选举时间，重点关注 role_time 是否频繁变化
-SELECT * FROM information_schema.ins_vnodes;
+SELECT *
+FROM information_schema.ins_vnodes;
 
 -- mnode 的角色与成为当前角色的时间
-SELECT * FROM information_schema.ins_mnodes;
+SELECT *
+FROM information_schema.ins_mnodes;
 
 -- 双副本部署时收集仲裁组状态
 SHOW ARBGROUPS;
-SELECT * FROM information_schema.ins_arbgroups;
+
+SELECT *
+FROM information_schema.ins_arbgroups;
 ```
 
 请记录发生切主的 `vgroup_id`、`dnode_id`、`role_time` 以及切换前后的 role。
@@ -214,6 +229,7 @@ ALTER ALL DNODES 'sDebugFlag' '143';
 
 -- 将心跳日志提升为 info 级别输出（局部参数，可只针对出问题的 dnode 开启）
 ALTER DNODE 1 'syncLogHeartbeat' 'true';
+
 ALTER DNODE 2 'syncLogHeartbeat' 'true';
 
 -- 缩小 sync 状态例行日志的输出间隔，便于定位切主时刻的完整状态
@@ -221,7 +237,9 @@ ALTER DNODE 1 'syncRoutineReportInterval' '30';
 
 -- 问题复现后恢复默认值
 ALTER ALL DNODES 'sDebugFlag' '131';
+
 ALTER DNODE 1 'syncLogHeartbeat' 'false';
+
 ALTER DNODE 1 'syncRoutineReportInterval' '300';
 ```
 

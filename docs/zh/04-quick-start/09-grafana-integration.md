@@ -28,9 +28,14 @@ TDengine 可以通过 Grafana 数据源插件接入 Grafana，把数据库中的
 ```sql
 USE test;
 
-SELECT tbname, ts, current, voltage
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage
 FROM meters
-WHERE voltage > 250 and tbname = 'd1'
+WHERE voltage > 250
+  AND tbname = 'd1'
 ORDER BY ts DESC
 LIMIT 5;
 ```
@@ -45,7 +50,6 @@ LIMIT 5;
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
  d1     | 2017-07-14 10:40:09.998 |  11.7984 |     253 |
-
 Query OK, 5 row(s) in set
 ```
 
@@ -100,9 +104,13 @@ http://localhost:3000
 4. 在 SQL 输入框中填写下面的查询语句。
 
 ```sql
-SELECT _wstart AS time, AVG(current) AS avg_current
+SELECT
+  _wstart AS time,
+  AVG(current) AS avg_current
 FROM test.meters
-WHERE groupId = 1 AND ts >= $from AND ts < $to
+WHERE groupId = 1
+  AND ts >= $from
+  AND ts < $to
 INTERVAL($interval)
 FILL(NULL);
 ```

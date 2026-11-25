@@ -32,14 +32,16 @@ Create two additional dnodes in your cluster for a total of three dnodes:
 
 ```sql
 CREATE dnode <dnode_ep> port <dnode_port>;
+
 CREATE dnode <dnode_ep> port <dnode_port>;
 ```
 
 Create mnodes on the two dnodes for a total of three mnodes:
 
 ```sql
-CREATE mnode on dnode <dnode_id>;
-CREATE mnode on dnode <dnode_id>;
+CREATE mnode ON dnode <dnode_id>;
+
+CREATE mnode ON dnode <dnode_id>;
 ```
 
 ### Create a Three-Replica Database

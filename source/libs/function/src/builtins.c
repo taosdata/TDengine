@@ -9621,6 +9621,36 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .sprocessFunc = strcmpFunction,
     .finalizeFunc = NULL
   },
+  {
+    .name = "bit_count",
+    .type = FUNCTION_TYPE_BIT_COUNT,
+    .classification = FUNC_MGT_SCALAR_FUNC,
+    .fqPushCap = FQ_CAP_NONE,
+    .parameters = {.minParamNum = 1,
+                   .maxParamNum = 1,
+                   .paramInfoPattern = 1,
+                   .inputParaInfo[0][0] = {.isLastParam = true,
+                                           .startParam = 1,
+                                           .endParam = 1,
+                                           .validDataType = FUNC_PARAM_SUPPORT_NUMERIC_TYPE |
+                                                            FUNC_PARAM_SUPPORT_BOOL_TYPE |
+                                                            FUNC_PARAM_SUPPORT_VARCHAR_TYPE |
+                                                            FUNC_PARAM_SUPPORT_NCHAR_TYPE |
+                                                            FUNC_PARAM_SUPPORT_TIMESTAMP_TYPE |
+                                                            FUNC_PARAM_SUPPORT_DECIMAL_TYPE |
+                                                            FUNC_PARAM_SUPPORT_VARB_TYPE |
+                                                            FUNC_PARAM_SUPPORT_BLOB_TYPE |
+                                                            FUNC_PARAM_SUPPORT_NULL_TYPE,
+                                           .validNodeType = FUNC_PARAM_SUPPORT_EXPR_NODE,
+                                           .paramAttribute = FUNC_PARAM_NO_SPECIFIC_ATTRIBUTE,
+                                           .valueRangeFlag = FUNC_PARAM_NO_SPECIFIC_VALUE,},
+                   .outputParaInfo = {.validDataType = FUNC_PARAM_SUPPORT_BIGINT_TYPE}},
+    .translateFunc = translateOutBigInt,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = bitCountFunction,
+    .finalizeFunc = NULL,
+  },
 };
 // clang-format on
 #undef MYSQL_TIME_BUILTIN

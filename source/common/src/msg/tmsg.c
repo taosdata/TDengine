@@ -22819,7 +22819,9 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refColName));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->refType));
       TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refSourceName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
+      // seriesAlias is read with strcasecmp() downstream in metaResolveColRefTagCond()
+      // (metaAlterTableColumnRef), so the terminating '\0' must live inside the blob.
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));
       break;
     case TSDB_ALTER_TABLE_REMOVE_COLUMN_REF:
       TAOS_CHECK_EXIT(tDecodeCStr(pDecoder, &pReq->colName));
@@ -22834,7 +22836,8 @@ static int32_t tDecodeSVAlterTbReqCommon(SDecoder *pDecoder, SVAlterTbReq *pReq)
       TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refColName));
       TAOS_CHECK_EXIT(tDecodeI8(pDecoder, &pReq->refType));
       TAOS_CHECK_EXIT(tDecodeAlterRefName(pDecoder, &pReq->refSourceName));
-      TAOS_CHECK_EXIT(tDecodeCStrAlloc(pDecoder, &pReq->seriesAlias));
+      // Same sink as above: metaAddTableColumn -> metaResolveColRefTagCond uses strcasecmp().
+      TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));
       break;
     case TSDB_ALTER_TABLE_ADD_SERIES:
       TAOS_CHECK_EXIT(tDecodeCStrAllocChecked(pDecoder, (void **)&pReq->seriesAlias, NULL));

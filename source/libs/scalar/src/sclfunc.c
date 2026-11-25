@@ -469,6 +469,275 @@ int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutpu
   return TSDB_CODE_SUCCESS;
 }
 
+// 2^63, the first magnitude that a signed 64-bit integer cannot represent.
+#define BIT_COUNT_INT64_EXCLUSIVE_ABS 9223372036854775808.0
+
+// Portable population count: compiler emits a single POPCNT instruction where available.
+static int32_t bitCountPopcount(uint64_t v) {
+  v = v - ((v >> 1) & UINT64_C(0x5555555555555555));
+  v = (v & UINT64_C(0x3333333333333333)) + ((v >> 2) & UINT64_C(0x3333333333333333));
+  v = (v + (v >> 4)) & UINT64_C(0x0F0F0F0F0F0F0F0F);
+  return (int32_t)((v * UINT64_C(0x0101010101010101)) >> 56);
+}
+
+// Round half away from zero, the conversion MySQL applies to floating point and
+// fixed point values used in an integer context.
+static bool bitCountFloatToInt64(double v, int64_t *pValue) {
+  if (isnan(v) || isinf(v)) {
+    return false;
+  }
+  double rounded = round(v);
+  if (rounded >= BIT_COUNT_INT64_EXCLUSIVE_ABS || rounded < -BIT_COUNT_INT64_EXCLUSIVE_ABS) {
+    return false;
+  }
+  *pValue = (int64_t)rounded;
+  return true;
+}
+
+// Round the textual representation of a DECIMAL value to the nearest integer
+// (half away from zero) without losing precision through a double round trip.
+static bool bitCountDecimalTextToInt64(const char *text, int64_t *pValue) {
+  const char *p = text;
+  bool        negative = false;
+  while (*p == ' ') {
+    ++p;
+  }
+  if (*p == '+' || *p == '-') {
+    negative = (*p == '-');
+    ++p;
+  }
+
+  uint64_t limit = negative ? (uint64_t)INT64_MAX + 1 : (uint64_t)INT64_MAX;
+  uint64_t magnitude = 0;
+  bool     overflow = false;
+  while (*p >= '0' && *p <= '9') {
+    uint64_t digit = (uint64_t)(*p - '0');
+    if (!overflow) {
+      if (magnitude > (limit - digit) / 10) {
+        overflow = true;
+      } else {
+        magnitude = magnitude * 10 + digit;
+      }
+    }
+    ++p;
+  }
+
+  if (*p == '.' && p[1] >= '5' && p[1] <= '9') {
+    if (overflow || magnitude == limit) {
+      overflow = true;
+    } else {
+      magnitude += 1;
+    }
+  }
+  if (overflow) {
+    return false;
+  }
+
+  if (negative) {
+    *pValue = (magnitude == (uint64_t)INT64_MAX + 1) ? INT64_MIN : -(int64_t)magnitude;
+  } else {
+    *pValue = (int64_t)magnitude;
+  }
+  return true;
+}
+
+static bool bitCountDecimalToInt64(const void *data, int8_t type, int8_t precision, int8_t scale,
+                                   int64_t *pValue) {
+  // Each digit, the sign and the decimal point fit well below this bound, which
+  // also matches the fixed buffer used by decimalToStr internally.
+  char text[64] = {0};
+  if (precision < 0 || precision > TSDB_DECIMAL_MAX_PRECISION) {
+    return false;
+  }
+  if (decimalToStr((const DecimalType *)data, type, precision, scale, text, (int32_t)sizeof(text)) != 0) {
+    return false;
+  }
+  return bitCountDecimalTextToInt64(text, pValue);
+}
+
+// MySQL treats a temporal value in a numeric context as YYYYMMDDHHMMSS in the
+// session time zone, with the fractional second rounded half away from zero.
+static bool bitCountTimestampToInt64(int64_t ticks, int32_t precision, timezone_t tz, int64_t *pValue) {
+  int64_t ticksPerSecond = TSDB_TICK_PER_SECOND(precision);
+  int64_t seconds = ticks / ticksPerSecond;
+  int64_t fraction = ticks % ticksPerSecond;
+  if (fraction < 0) {
+    --seconds;
+    fraction += ticksPerSecond;
+  }
+  if (fraction * 2 >= ticksPerSecond) {
+    ++seconds;
+  }
+
+  time_t    epochSeconds = (time_t)seconds;
+  struct tm local = {0};
+  if (taosLocalTime(&epochSeconds, &local, NULL, 0, tz) == NULL) {
+    return false;
+  }
+  int64_t year = (int64_t)local.tm_year + 1900;
+  if (year < 0 || year > 9999) {
+    return false;
+  }
+
+  int64_t value = year;
+  value = value * 100 + (local.tm_mon + 1);
+  value = value * 100 + local.tm_mday;
+  value = value * 100 + local.tm_hour;
+  value = value * 100 + local.tm_min;
+  value = value * 100 + local.tm_sec;
+  *pValue = value;
+  return true;
+}
+
+static int64_t bitCountBytes(const uint8_t *data, int64_t len) {
+  int64_t bits = 0;
+  for (int64_t i = 0; i < len; ++i) {
+    bits += bitCountPopcount(data[i]);
+  }
+  return bits;
+}
+
+static int32_t bitCountParseString(int8_t inputType, char *input, char **pBuf, int32_t *pBufLen,
+                                   void *charsetCxt, int64_t *pValue) {
+  int32_t len = (int32_t)varDataLen(input);
+  int32_t need = len + 1;
+  if (*pBufLen < need) {
+    char *tmp = taosMemoryRealloc(*pBuf, need);
+    if (tmp == NULL) {
+      return terrno;
+    }
+    *pBuf = tmp;
+    *pBufLen = need;
+  }
+
+  if (inputType == TSDB_DATA_TYPE_NCHAR) {
+    int32_t mbsLen = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), len, *pBuf, charsetCxt);
+    if (mbsLen < 0) {
+      return TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
+    }
+    (*pBuf)[mbsLen] = 0;
+  } else {
+    (void)memcpy(*pBuf, varDataVal(input), len);
+    (*pBuf)[len] = 0;
+  }
+
+  // strtoll skips leading blanks, accepts an optional sign, stops at the first
+  // non-digit and saturates on overflow: the conversion contract of this function.
+  *pValue = taosStr2Int64(*pBuf, NULL, 10);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t bitCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
+  SColumnInfoData *pInputData = pInput->columnData;
+  SColumnInfoData *pOutputData = pOutput->columnData;
+  int8_t           inputType = (int8_t)GET_PARAM_TYPE(&pInput[0]);
+  int64_t         *out = (int64_t *)pOutputData->pData;
+
+  int32_t    timePrecision = pInputData->info.precision;
+  int8_t     decimalPrecision = GET_PARAM_PRECISON(&pInput[0]);
+  int8_t     decimalScale = GET_PARAM_SCALE(&pInput[0]);
+  timezone_t tz = pInput->tz;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  char   *convBuf = NULL;
+  int32_t convBufLen = 0;
+
+  for (int32_t i = 0; i < pInput->numOfRows; ++i) {
+    if (colDataIsNull_s(pInputData, i)) {
+      colDataSetNULL(pOutputData, i);
+      continue;
+    }
+
+    char    *input = colDataGetData(pInputData, i);
+    uint64_t bits = 0;
+    int64_t  result = 0;
+
+    switch (inputType) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        GET_TYPED_DATA(bits, uint64_t, inputType, input, 0);
+        result = bitCountPopcount(bits);
+        break;
+
+      case TSDB_DATA_TYPE_TIMESTAMP: {
+        int64_t ticks = 0;
+        GET_TYPED_DATA(ticks, int64_t, inputType, input, 0);
+        int64_t value = 0;
+        if (!bitCountTimestampToInt64(ticks, timePrecision, tz, &value)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)value);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE: {
+        double  val = (inputType == TSDB_DATA_TYPE_FLOAT) ? (double)GET_FLOAT_VAL(input) : GET_DOUBLE_VAL(input);
+        int64_t ival = 0;
+        if (!bitCountFloatToInt64(val, &ival)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_DECIMAL64:
+      case TSDB_DATA_TYPE_DECIMAL: {
+        int64_t ival = 0;
+        if (!bitCountDecimalToInt64(input, inputType, decimalPrecision, decimalScale, &ival)) {
+          colDataSetNULL(pOutputData, i);
+          continue;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_NCHAR: {
+        int64_t ival = 0;
+        code = bitCountParseString(inputType, input, &convBuf, &convBufLen, pInput->charsetCxt, &ival);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _return;
+        }
+        result = bitCountPopcount((uint64_t)ival);
+        break;
+      }
+
+      case TSDB_DATA_TYPE_VARBINARY:
+        result = bitCountBytes((const uint8_t *)varDataVal(input), (int64_t)varDataLen(input));
+        break;
+
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB:
+        result = bitCountBytes((const uint8_t *)blobDataVal(input), (int64_t)blobDataLen(input));
+        break;
+
+      default:
+        // Translate-time validation is the primary gate, but do not degrade to
+        // per-row NULL if the whitelist and this switch ever diverge.
+        code = TSDB_CODE_FUNC_FUNTION_PARA_TYPE;
+        goto _return;
+    }
+
+    out[i] = result;
+  }
+
+  pOutput->numOfRows = pInput->numOfRows;
+
+_return:
+  taosMemoryFree(convBuf);
+  return code;
+}
+
 int32_t signFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   SColumnInfoData *pInputData = pInput->columnData;
   SColumnInfoData *pOutputData = pOutput->columnData;
@@ -4835,10 +5104,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
-          len = outputCharLen > varDataLen(input) ? varDataLen(input) : outputCharLen;
-          bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
-                                   outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
-          if (!ret) {
+          int32_t ucs4Capacity = outputCharLen * TSDB_NCHAR_SIZE;
+          if (!taosMbsToUcs4Prefix(varDataVal(input), varDataLen(input),
+                                   varDataVal(output), ucs4Capacity, &len,
+                                   pInput->charsetCxt)) {
             code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }

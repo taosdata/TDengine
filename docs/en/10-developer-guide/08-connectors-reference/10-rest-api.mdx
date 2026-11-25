@@ -292,10 +292,18 @@ For the `DECIMAL` data type, `precision` refers to the maximum number of signifi
 
 Prepare data
 
-```shell
-create database demo;
-create table demo.t(ts timestamp,c1 varbinary(20),c2 geometry(100),c3 blob);
-insert into demo.t values(now,'\x7f8290','point(100 100)','\x010203ddff');
+```sql
+CREATE DATABASE demo;
+
+CREATE TABLE demo.t (
+  ts TIMESTAMP,
+  c1 VARBINARY(20),
+  c2 GEOMETRY(100),
+  c3 BLOB
+);
+
+INSERT INTO demo.t
+VALUES (now, '\x7f8290', 'point(100 100)', '\x010203ddff');
 ```
 
 Execute query

@@ -229,25 +229,37 @@ A&E 采集把每次状态切换落为新行（**追加**），而不是更新同
 ```sql
 -- 超级表 = 事件类型
 CREATE STABLE st_alarm_exclusive_limit (
-  ts               TIMESTAMP,               -- 事件时间
-  event_id         VARCHAR(64) PRIMARY KEY, -- 复合主键第二列
-  receive_time     TIMESTAMP,
-  message          NCHAR(255),
-  severity         INT,
-  last_severity    INT,
-  quality          INT,
-  client_user_id   NCHAR(255),              -- 操作员实名 (审计链)
-  branch_id        NCHAR(255),
+  ts                   TIMESTAMP,  -- 事件时间
+  event_id             VARCHAR(64) PRIMARY KEY,  -- 复合主键第二列
+  receive_time         TIMESTAMP,
+  message              NCHAR(255),
+  severity             INT,
+  last_severity        INT,
+  quality              INT,
+  client_user_id       NCHAR(255),  -- 操作员实名 (审计链)
+  branch_id            NCHAR(255),
   -- 状态机字段：拆 _id(BOOL) + _text(NCHAR)
-  enabled_state_id  BOOL, enabled_state_text  NCHAR(32),
-  active_state_id   BOOL, active_state_text   NCHAR(32),
-  acked_state_id    BOOL, acked_state_text    NCHAR(32),
-  confirmed_state_id BOOL, confirmed_state_text NCHAR(32),
-  high_limit DOUBLE, highhigh_limit DOUBLE, low_limit DOUBLE, lowlow_limit DOUBLE
+  enabled_state_id     BOOL,
+  enabled_state_text   NCHAR(32),
+  active_state_id      BOOL,
+  active_state_text    NCHAR(32),
+  acked_state_id       BOOL,
+  acked_state_text     NCHAR(32),
+  confirmed_state_id   BOOL,
+  confirmed_state_text NCHAR(32),
+  high_limit           DOUBLE,
+  highhigh_limit       DOUBLE,
+  low_limit            DOUBLE,
+  lowlow_limit         DOUBLE
+
   -- …其余继承字段按全字段展开
 ) TAGS (
-  device_id NCHAR(255), source_node NCHAR(255), source_name NCHAR(255),
-  event_type NCHAR(255), condition_id NCHAR(255), condition_name NCHAR(255),
+  device_id       NCHAR(255),
+  source_node     NCHAR(255),
+  source_name     NCHAR(255),
+  event_type      NCHAR(255),
+  condition_id    NCHAR(255),
+  condition_name  NCHAR(255),
   server_endpoint NCHAR(255)
 );
 ```
@@ -256,15 +268,23 @@ CREATE STABLE st_alarm_exclusive_limit (
 
 ```sql
 -- 查某告警点全部历史
-SELECT * FROM st_alarm_exclusive_limit
-WHERE condition_name = 'Tank1_Level' ORDER BY ts;
+SELECT *
+FROM st_alarm_exclusive_limit
+WHERE condition_name = 'Tank1_Level'
+ORDER BY ts;
 
 -- 查某设备的全部 A&E (靠 TAG 关联，不依赖子表名)
-SELECT * FROM st_alarm_exclusive_limit WHERE device_id = 'tank1';
+SELECT *
+FROM st_alarm_exclusive_limit
+WHERE device_id = 'tank1';
 
 -- 统计某设备今日各严重度告警次数
-SELECT severity, COUNT(*) FROM st_alarm_exclusive_limit
-WHERE device_id = 'tank1' AND ts >= TODAY
+SELECT
+  severity,
+  COUNT(*)
+FROM st_alarm_exclusive_limit
+WHERE device_id = 'tank1'
+  AND ts >= TODAY
 GROUP BY severity;
 
 -- 关联同一设备的 A&E 与普通点位数据：两张超级表按同一 device_id 过滤后 JOIN

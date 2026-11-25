@@ -36,19 +36,19 @@ sudo systemctl restart icinga2
 
 After waiting about 10 seconds, use the TDengine CLI to query TDengine to verify if the corresponding database has been created and data has been written:
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  icinga2                        |
-Query OK, 3 row(s) in set (0.001867s)
+Query OK, 3 row(s) in set
 
-taos> use icinga2;
+taos> USE icinga2;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  icinga.service.users.state_... |
@@ -73,7 +73,7 @@ taos> show stables;
  icinga.check.current_attempt   |
  icinga.check.execution_time    |
  icinga.service.users.state     |
-Query OK, 22 row(s) in set (0.002317s)
+Query OK, 22 row(s) in set
 ```
 
 :::note

@@ -278,20 +278,31 @@ max_vol 实现了从多个输入的电压列中找到最大电压，返回由设
 
 创建表：
 
-```bash
-create table battery(ts timestamp, vol1 float, vol2 float, vol3 float, deviceId varchar(16));
+```sql
+CREATE TABLE battery (
+  ts       TIMESTAMP,
+  vol1     FLOAT,
+  vol2     FLOAT,
+  vol3     FLOAT,
+  deviceId VARCHAR(16)
+);
 ```
 
 创建自定义函数：
 
-```bash
-create aggregate function max_vol as '/root/udf/libmaxvol.so' outputtype binary(64) bufsize 10240 language 'C'; 
+```sql
+CREATE aggregate function max_vol
+  AS '/root/udf/libmaxvol.so'
+  outputtype BINARY(64)
+  bufsize 10240
+  language 'C';
 ```
 
 使用自定义函数：
 
-```bash
-select max_vol(vol1, vol2, vol3, deviceid) from battery;
+```sql
+SELECT max_vol(vol1, vol2, vol3, deviceid)
+FROM battery;
 ```
 
 <details>
@@ -313,20 +324,28 @@ select max_vol(vol1, vol2, vol3, deviceid) from battery;
 
 创建表：
 
-```bash
-create table scores(ts timestamp, varStr varchar(128));
+```sql
+CREATE TABLE scores (
+  ts     TIMESTAMP,
+  varStr VARCHAR(128)
+);
 ```
 
 创建自定义函数：
 
-```bash
-create aggregate function extract_avg as '/root/udf/libextract_avg.so' outputtype double bufsize 16 language 'C'; 
+```sql
+CREATE aggregate function extract_avg
+  AS '/root/udf/libextract_avg.so'
+  outputtype DOUBLE
+  bufsize 16
+  language 'C';
 ```
 
 使用自定义函数：
 
-```bash
-select extract_avg(valStr) from scores;
+```sql
+SELECT extract_avg(valStr)
+FROM scores;
 ```
 
 生成 `.so` 文件
@@ -371,12 +390,26 @@ gcc -g -O0 -fPIC -shared extract_avg.c -o libextract_avg.so
 
 ```sql
 -- 普通表，用于全表聚合和时间窗口查询
-CREATE TABLE vibration (ts TIMESTAMP, val DOUBLE);
+CREATE TABLE vibration (
+  ts  TIMESTAMP,
+  val DOUBLE
+);
 
 -- 超级表，用于按子表分组查询
-CREATE STABLE vibration_stb (ts TIMESTAMP, val DOUBLE) TAGS (device_id INT);
-CREATE TABLE vibration_d1 USING vibration_stb TAGS (1);
-CREATE TABLE vibration_d2 USING vibration_stb TAGS (2);
+CREATE STABLE vibration_stb (
+  ts  TIMESTAMP,
+  val DOUBLE
+) TAGS (
+  device_id INT
+);
+
+CREATE TABLE vibration_d1
+  USING vibration_stb
+  TAGS (1);
+
+CREATE TABLE vibration_d2
+  USING vibration_stb
+  TAGS (2);
 ```
 
 生成 `.so` 文件：
@@ -398,13 +431,18 @@ CREATE AGGREGATE FUNCTION perm_entropy
 
 ```sql
 -- 全表聚合，计算整张表的排列熵
-SELECT perm_entropy(val) FROM vibration;
+SELECT perm_entropy(val)
+FROM vibration;
 
 -- 时间窗口聚合，对每个窗口独立计算排列熵
-SELECT perm_entropy(val) FROM vibration INTERVAL(10s);
+SELECT perm_entropy(val)
+FROM vibration
+INTERVAL(10s);
 
 -- 按子表分组，分别计算每个设备的排列熵
-SELECT perm_entropy(val) FROM vibration_stb PARTITION BY tbname;
+SELECT perm_entropy(val)
+FROM vibration_stb
+PARTITION BY tbname;
 ```
 
 <details>
@@ -698,40 +736,56 @@ def process(block):
 接下来创建对应的 UDF 函数，在 `taos` shell 中执行下面语句。
 
 ```sql
-create function myfun as '/root/udf/myfun.py' outputtype double language 'Python'
+CREATE function myfun
+  AS '/root/udf/myfun.py'
+  outputtype DOUBLE
+  language 'Python'
 ```
 
 其输出如下。
 
 ```shell
 taos> create function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
-Create OK, 0 row(s) affected (0.005202s)
+Create OK, 0 row(s) affected
 ```
 
 看起来很顺利，接下来查看系统中所有的自定义函数，确认创建成功。
 
-```text
-taos> show functions;
+```sql
+taos> SHOW functions;
               name              |
 =================================
  myfun                          |
-Query OK, 1 row(s) in set (0.005767s)
+Query OK, 1 row(s) in set
 ```
 
 生成测试数据，可以在 `taos` shell 中执行下述命令。
 
 ```sql
-create database test;
-create table t(ts timestamp, v1 int, v2 int, v3 int);
-insert into t values('2023-05-01 12:13:14', 1, 2, 3);
-insert into t values('2023-05-03 08:09:10', 2, 3, 4);
-insert into t values('2023-05-10 07:06:05', 3, 4, 5);
+CREATE DATABASE test;
+
+CREATE TABLE t (
+  ts TIMESTAMP,
+  v1 INT,
+  v2 INT,
+  v3 INT
+);
+
+INSERT INTO t
+VALUES ('2023-05-01 12:13:14', 1, 2, 3);
+
+INSERT INTO t
+VALUES ('2023-05-03 08:09:10', 2, 3, 4);
+
+INSERT INTO t
+VALUES ('2023-05-10 07:06:05', 3, 4, 5);
 ```
 
 测试 myfun 函数。
 
 ```sql
-taos> select myfun(v1, v2) from t;
+taos> SELECT myfun(v1, v2)
+      FROM t;
 
 DB error: udf function execution failure (0.011088s)
 ```
@@ -754,7 +808,8 @@ tail -10 /var/log/taos/taosudfdlog.0
 修复环境错误后再次执行，如下。
 
 ```sql
-taos> select myfun(v1) from t;
+taos> SELECT myfun(v1)
+      FROM t;
          myfun(v1)         |
 ============================
                0.693147181 |
@@ -771,7 +826,8 @@ taos> select myfun(v1) from t;
 1. 这个标量函数只接受 1 列数据作为输入，如果用户传入了多列也不会抛异常。
 
 ```sql
-taos> select myfun(v1, v2) from t;
+taos> SELECT myfun(v1, v2)
+      FROM t;
        myfun(v1, v2)       |
 ============================
                0.693147181 |
@@ -792,13 +848,14 @@ def process(block):
 执行如下语句更新已有的 UDF。
 
 ```sql
-create or replace function myfun as '/root/udf/myfun.py' outputtype double language 'Python';
+CREATE OR replace function myfun AS '/root/udf/myfun.py' outputtype DOUBLE language 'Python';
 ```
 
 再传入 myfun 两个参数，就会执行失败了。
 
 ```sql
-taos> select myfun(v1, v2) from t;
+taos> SELECT myfun(v1, v2)
+      FROM t;
 
 DB error: udf function execution failure (0.014643s)
 ```
@@ -847,23 +904,33 @@ def process(block):
 创建 UDF。
 
 ```sql
-create function nsum as '/root/udf/nsum.py' outputtype double language 'Python';
+CREATE function nsum
+  AS '/root/udf/nsum.py'
+  outputtype DOUBLE
+  language 'Python';
 ```
 
 测试 UDF。
 
 ```sql
-taos> insert into t values('2023-05-25 09:09:15', 6, null, 8);
-Insert OK, 1 row(s) affected (0.003675s)
+taos> INSERT INTO t
+      VALUES ('2023-05-25 09:09:15', 6, NULL, 8);
+Insert OK, 1 row(s) affected
 
-taos> select ts, v1, v2, v3,  nsum(v1, v2, v3) from t;
+taos> SELECT
+        ts,
+        v1,
+        v2,
+        v3,
+        nsum(v1, v2, v3)
+      FROM t;
            ts            |     v1      |     v2      |     v3      |     nsum(v1, v2, v3)      |
 ================================================================================================
  2023-05-01 12:13:14.000 |           1 |           2 |           3 |              14.000000000 |
  2023-05-03 08:09:10.000 |           2 |           3 |           4 |              20.000000000 |
  2023-05-10 07:06:05.000 |           3 |           4 |           5 |              26.000000000 |
  2023-05-25 09:09:15.000 |           6 |        NULL |           8 |                      NULL |
-Query OK, 4 row(s) in set (0.010653s)
+Query OK, 4 row(s) in set
 ```
 
 #### 示例四
@@ -900,13 +967,19 @@ def process(block):
 UDF 框架会将 TDengine 的 timestamp 类型映射为 Python 的 int 类型，所以这个函数只接受一个表示毫秒数的整数。process 方法先做参数检查，然后用 moment 包替换时间的星期为星期日，最后格式化输出。输出的字符串长度是固定的 10 个字符长，因此可以这样创建 UDF 函数。
 
 ```sql
-create function nextsunday as '/root/udf/nextsunday.py' outputtype binary(10) language 'Python';
+CREATE function nextsunday
+  AS '/root/udf/nextsunday.py'
+  outputtype BINARY(10)
+  language 'Python';
 ```
 
 此时测试函数，如果你是用 systemctl 启动的 taosd，肯定会遇到错误。
 
 ```sql
-taos> select ts, nextsunday(ts) from t;
+taos> SELECT
+        ts,
+        nextsunday(ts)
+      FROM t;
 
 DB error: udf function execution failure (1.123615s)
 ```
@@ -946,14 +1019,17 @@ UdfdLdLibPath /usr/lib/python3.8:/usr/lib/python3.8/lib-dynload:/usr/local/lib/p
 保存后执行 systemctl restart taosd, 再测试就不报错了。
 
 ```sql
-taos> select ts, nextsunday(ts) from t;
+taos> SELECT
+        ts,
+        nextsunday(ts)
+      FROM t;
            ts            | nextsunday(ts) |
 ===========================================
  2023-05-01 12:13:14.000 | 2023-05-07     |
  2023-05-03 08:09:10.000 | 2023-05-07     |
  2023-05-10 07:06:05.000 | 2023-05-14     |
  2023-05-25 09:09:15.000 | 2023-05-28     |
-Query OK, 4 row(s) in set (1.011474s)
+Query OK, 4 row(s) in set
 ```
 
 #### 示例五
@@ -1014,7 +1090,7 @@ def finish(buf):
 执行下面 SQL 语句创建对应的 UDF。
 
 ```sql
-create or replace aggregate function myspread as '/root/udf/myspread.py' outputtype double bufsize 128 language 'Python';
+CREATE OR replace aggregate function myspread AS '/root/udf/myspread.py' outputtype DOUBLE bufsize 128 language 'Python';
 ```
 
 这个 SQL 语句与创建标量函数的 SQL 语句有两个重要区别。
@@ -1030,17 +1106,19 @@ create or replace aggregate function myspread as '/root/udf/myspread.py' outputt
 测试这个函数，可以看到 myspread 的输出结果和内置的 spread 函数的输出结果是一致的。
 
 ```sql
-taos> select myspread(v1) from t;
+taos> SELECT myspread(v1)
+      FROM t;
        myspread(v1)        |
 ============================
                5.000000000 |
-Query OK, 1 row(s) in set (0.013486s)
+Query OK, 1 row(s) in set
 
-taos> select spread(v1) from t;
+taos> SELECT SPREAD(v1)
+      FROM t;
         spread(v1)         |
 ============================
                5.000000000 |
-Query OK, 1 row(s) in set (0.005501s)
+Query OK, 1 row(s) in set
 ```
 
 最后，查看执行日志，可以看到 reduce 函数被执行了 3 次，执行过程中 max 值被更新了 4 次，min 值只被更新 1 次。
@@ -1139,7 +1217,10 @@ CREATE [OR REPLACE] AGGREGATE FUNCTION function_name library_path OUTPUTTYPE out
 如下 SQL 创建一个名为 l2norm 的 UDF。
 
 ```sql
-CREATE AGGREGATE FUNCTION l2norm AS "/home/taos/udf_example/libl2norm.so" OUTPUTTYPE DOUBLE bufsize 8;
+CREATE AGGREGATE FUNCTION l2norm
+  AS "/home/taos/udf_example/libl2norm.so"
+  OUTPUTTYPE DOUBLE
+  bufsize 8;
 ```
 
 ### 删除 UDF
@@ -1155,7 +1236,7 @@ DROP FUNCTION function_name;
 显示集群中当前可用的所有 UDF 的 SQL 如下。
 
 ```sql
-show functions;
+SHOW functions;
 ```
 
 ### 查看函数信息
@@ -1163,5 +1244,6 @@ show functions;
 同名的 UDF 每更新一次，版本号会增加 1。
 
 ```sql
-select * from ins_functions \G;     
+SELECT *
+FROM ins_functions \G;
 ```

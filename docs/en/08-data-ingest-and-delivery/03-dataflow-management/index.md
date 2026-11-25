@@ -40,13 +40,13 @@ The edge node pushes data from the specified database to the specified cloud nod
 1. On the edge node, open a terminal.
 1. Run the following command to push data to the cloud node:
 
-   ```sql
+   ```bash
    taosx run -f 'taos://<edge-user>:<edge-password>@<edge-ip>:<edge-port>/<edge-db>' -t 'taos://<cloud-user>:<cloud-password>@<cloud-ip>:<cloud-port>/<cloud-db>' -v
    ```
 
    For example, the following command synchronizes data from database `sync_test` on an edge node deployed at 192.168.1.100:6030 to database `edge_data` on a cloud node deployed at 192.168.1.101:6030, using the default username and password.
 
-   ```sql
+   ```bash
    taosx run -f 'taos://root:taosdata@192.168.1.100:6030/sync_test' -t 'taos://root:taosdata@192.168.1.101:6030/edge_data' -v
    ```
 

@@ -264,10 +264,10 @@ taosKeeper 作为 TDengine 监控指标的导出工具，可以将 TDengine 产�
 可以查看 `log` 库下的超级表，每个超级表都对应一组监控指标，具体指标不再赘述。
 
 ```sql
-taos> use log;
+taos> USE log;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
           stable_name           |
 =================================
  taosd_dnodes_status            |
@@ -284,18 +284,18 @@ taos> show stables;
  taosd_cluster_basic            |
  taosd_dnodes_data_dirs         |
  taosd_dnodes_log_dirs          |
-Query OK, 14 row(s) in set (0.006542s)
-
+Query OK, 14 row(s) in set
 ```
 
 可以查看一个超级表的最近一条上报记录，如：
 
 ```sql
-taos> select last_row(*) from taosd_dnodes_info;
+taos> SELECT LAST_ROW(*)
+      FROM taosd_dnodes_info;
       last_row(_ts)      |   last_row(disk_engine)   |  last_row(system_net_in)  |   last_row(vnodes_num)    | last_row(system_net_out)  |     last_row(uptime)      |    last_row(has_mnode)    |  last_row(io_read_disk)   | last_row(error_log_count) |     last_row(io_read)     |    last_row(cpu_cores)    |    last_row(has_qnode)    |    last_row(has_snode)    |   last_row(disk_total)    |   last_row(mem_engine)    | last_row(info_log_count)  |   last_row(cpu_engine)    |  last_row(io_write_disk)  | last_row(debug_log_count) |    last_row(disk_used)    |    last_row(mem_total)    |    last_row(io_write)     |     last_row(masters)     |   last_row(cpu_system)    | last_row(trace_log_count) |    last_row(mem_free)     |
 ======================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
  2024-08-07 14:54:09.174 |         0.000000000000000 |      3379.093240947399863 |        37.000000000000000 |      5265.998201139278535 |     64402.000000000000000 |         1.000000000000000 |      8323.261934108399146 |         6.000000000000000 |     40547.386655118425551 |        16.000000000000000 |         0.000000000000000 |         0.000000000000000 |     5.272955781120000e+11 |   2443032.000000000000000 |       423.000000000000000 |         0.556269622200215 |    677731.836503547732718 |    356380.000000000000000 |     4.997186764800000e+10 |  65557284.000000000000000 |    714177.054532129666768 |        37.000000000000000 |         2.642280705451021 |         0.000000000000000 |  11604276.000000000000000 |
-Query OK, 1 row(s) in set (0.003168s)
+Query OK, 1 row(s) in set
 ```
 
 ### 使用 TDinsight 配置监控

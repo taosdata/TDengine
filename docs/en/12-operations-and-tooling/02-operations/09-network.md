@@ -220,7 +220,8 @@ taosd [-c <cfgDir>] --rewrite-endpoints-apply <precheckDir>
 2. Flush every database and the mnode:
 
    ```sql
-   flush database <dbName>;
+   flush DATABASE <dbName>;
+
    flush mnode;
    ```
 

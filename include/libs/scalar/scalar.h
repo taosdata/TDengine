@@ -112,6 +112,7 @@ int32_t  scalarBuildRemoteListHash(char* idStr, SRemoteValueListNode* pRemote, S
 
 /* Math functions */
 int32_t absFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+int32_t bitCountFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t logFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t powFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 int32_t sqrtFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);

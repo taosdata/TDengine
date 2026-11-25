@@ -140,7 +140,14 @@ mosquitto_pub -h broker.emqx.io -p 1883 -t 'tdengine/quickstart/meter' -q 0 -m '
 消息发布后，可以在 taosExplorer 的 **数据浏览器** 或 shell 中查询写入结果。
 
 ```sql
-SELECT tbname, ts, current, voltage, phase, groupid, location
+SELECT
+  tbname,
+  ts,
+  current,
+  voltage,
+  phase,
+  groupid,
+  location
 FROM test_mqtt.meters
 ORDER BY ts DESC
 LIMIT 5;

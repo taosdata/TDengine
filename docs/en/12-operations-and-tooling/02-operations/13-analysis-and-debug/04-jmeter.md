@@ -232,13 +232,14 @@ TDengine caches `last_row` results, which **must be set at database creation** a
 
 ```sql
 -- Create DB with cache (recommended)
-CREATE DATABASE test CACHEMODEL 'last_row';
+CREATE DATABASE test
+  CACHEMODEL 'last_row';
 
 -- Alter existing DB
 ALTER DATABASE test CACHEMODEL 'last_row';
 
 -- Show current config
-show create database test;
+SHOW CREATE DATABASE test;
 ```
 
 **Notes**:

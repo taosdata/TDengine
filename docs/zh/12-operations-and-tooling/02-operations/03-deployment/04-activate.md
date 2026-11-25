@@ -68,7 +68,7 @@ import TabItem from "@theme/TabItem";
 此时 TDengine TSDB 企业版部署已完成授权。可执行以下 SQL 查看授权详情（含到期时间）：
 
 ```sql
-SHOW GRANTS\G;
+SHOW GRANTS \G;
 ```
 
 </TabItem>

@@ -149,8 +149,18 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 
 该行数据映射生成一个超级表：st，其包含了 3 个类型为 nchar 的标签，分别是：t1、t2、t3。五个数据列，分别是 ts（timestamp）、c1 (bigint）、c3(binary)、c2 (bool)、c4 (bigint）。映射成为如下 SQL 语句：
 
-```json
-create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
+```sql
+CREATE STABLE st (
+  _ts TIMESTAMP,
+  c1  BIGINT,
+  c2  BOOL,
+  c3  BINARY(6),
+  c4  BIGINT
+) TAGS (
+  t1 NCHAR(1),
+  t2 NCHAR(1),
+  t3 NCHAR(2)
+)
 ```
 
 ## 数据模式变更处理
@@ -315,18 +325,18 @@ writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO
 
 运行上节的样例代码，会在 power 数据库中自动建表，可通过 `taos` shell 或应用程序查询数据。下面给出用 `taos` shell 查询超级表和 `meters` 表的示例。
 
-```shell
-taos> show power.stables;
+```sql
+taos> SHOW power.stables;
           stable_name           |
 =================================
  meter_current                  |
  stb0_0                         |
  meters                         |
-Query OK, 3 row(s) in set (0.002527s)
+Query OK, 3 row(s) in set
 
-
-
-taos> select * from power.meters limit 1 \G;
+taos> SELECT *
+      FROM power.meters
+      LIMIT 1 \G;
 *************************** 1.row ***************************
      _ts: 2021-07-11 20:33:53.639
  current: 10.300000199999999
@@ -334,5 +344,5 @@ taos> select * from power.meters limit 1 \G;
    phase: 0.310000000000000
  groupid: 2
 location: California.SanFrancisco
-Query OK, 1 row(s) in set (0.004501s)
+Query OK, 1 row(s) in set
 ```

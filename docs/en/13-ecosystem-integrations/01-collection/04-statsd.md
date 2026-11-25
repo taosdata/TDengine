@@ -39,31 +39,30 @@ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 
 Use TDengine CLI to verify that data is written from StatsD to TDengine and can be correctly read:
 
-```text
-taos> show databases;
+```sql
+taos> SHOW databases;
               name              |
 =================================
  information_schema             |
  performance_schema             |
  statsd                         |
-Query OK, 3 row(s) in set (0.003142s)
+Query OK, 3 row(s) in set
 
-taos> use statsd;
+taos> USE statsd;
 Database changed.
 
-taos> show stables;
+taos> SHOW stables;
               name              |
 =================================
  foo                            |
-Query OK, 1 row(s) in set (0.002161s)
+Query OK, 1 row(s) in set
 
-taos> select * from foo;
+taos> SELECT *
+      FROM foo;
               ts               |         value         |         metric_type          |
 =======================================================================================
  2022-04-20 09:54:51.219614235 |                     1 | counter                      |
-Query OK, 1 row(s) in set (0.004179s)
-
-taos>
+Query OK, 1 row(s) in set
 ```
 
 :::note

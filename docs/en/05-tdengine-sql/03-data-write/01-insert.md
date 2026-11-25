@@ -19,9 +19,9 @@ Two forms are supported: normal syntax and supertable syntax. In normal syntax, 
 
 ```sql
 INSERT INTO
-    tb_name
-        [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
-        [(field1_name, ...)]
+  tb_name
+    [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
+    [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     [tb2_name
         [USING stb_name [(tag1_name, ...)] TAGS (tag1_value, ...) [TTL value] [COMMENT 'string']]
@@ -36,7 +36,7 @@ INSERT INTO tb_name [(field1_name, ...)] subquery
 
 ```sql
 INSERT INTO
-    stb1_name [(field1_name, ...)]
+  stb1_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     [stb2_name [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
@@ -67,7 +67,8 @@ A value in `VALUES` may be:
 Name an existing subtable or basic table and write one row with `VALUES`:
 
 ```sql
-INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
+INSERT INTO d1001
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 Values follow the column order of the table. Multiple `NOW` markers in one statement produce the same timestamp. See [Timestamps](#timestamps).
@@ -77,9 +78,13 @@ Values follow the column order of the table. Multiple `NOW` markers in one state
 Rows may omit the comma, or separate rows with a comma as in standard SQL:
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32) (1626164208000, 10.15, 217, 0.33);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32)
+       (1626164208000, 10.15, 217, 0.33);
 
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32), (1626164208000, 10.15, 217, 0.33);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32),
+       (1626164208000, 10.15, 217, 0.33);
 ```
 
 When inserting multiple rows, do not write `NOW` for every timestamp. Use distinct values such as `NOW` and `NOW + 1s`.
@@ -89,7 +94,8 @@ When inserting multiple rows, do not write `NOW` for every timestamp. Use distin
 Whether the statement writes one row or many, it can assign only some columns. Columns that do not appear are filled with `NULL`. The timestamp primary key must appear and cannot be `NULL`.
 
 ```sql
-INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
+INSERT INTO d1001 (ts, current, phase)
+VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
 ```
 
 ### Insert into Multiple Tables
@@ -97,8 +103,11 @@ INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27,
 One statement can write to several tables, and each table can specify its own columns. The comma between tables may be omitted:
 
 ```sql
-INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d1002 (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+INSERT INTO d1001
+VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+d1002(ts, current, phase)
+VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
 These subtables may reside on different vnodes. If one vnode fails, rows already written on the other vnodes are not rolled back. See [Partial Success](#partial-success).
@@ -112,33 +121,55 @@ import Link from "@docusaurus/Link";
 If the table might not exist yet, use `USING` to create it from a supertable. When the table already exists, the statement does not create a new table and does not change tag values. Automatic creation requires the supertable name and `TAGS`.
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2)
+VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
 Only some tag columns may be specified. The others are `NULL`:
 
 ```sql
-INSERT INTO d21005 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
+INSERT INTO d21005
+USING meters (groupId)
+TAGS (2)
+VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
 ```
 
 A new subtable can also be given a lifespan and a comment:
 
 ```sql
-INSERT INTO d21004 USING meters TAGS ('California.SanFrancisco', 2) TTL 30 COMMENT 'from gateway' VALUES (NOW, 10.2, 219, 0.32);
+INSERT INTO d21004
+USING meters
+TAGS ('California.SanFrancisco', 2) TTL 30 COMMENT 'from gateway'
+VALUES (NOW, 10.2, 219, 0.32);
 ```
 
 One statement can create several tables:
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            d21002 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
-            d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2)
+VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+d21002
+USING meters (groupId)
+TAGS (2)
+VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+d21003
+USING meters (groupId)
+TAGS (2) (ts, current, phase)
+VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
 
 The statement is fully parsed before it runs. The following statement does not leave a table behind after the write fails:
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('a');
+INSERT INTO d1001
+USING meters
+TAGS ('Beijing.Chaoyang', 2)
+VALUES ('a');
 ```
 
 ## Insert from a File
@@ -165,14 +196,20 @@ To create subtables only, see [Tables](../02-ddl/02-table.md#batch-creation-of-s
 ### Automatic Table Creation and Insert
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
 One statement can read a separate file for each table. When a table already exists, its tag values are not changed:
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
-            d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
+INSERT INTO d21001
+USING meters
+TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
+d21002
+USING meters (groupId)
+TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
 
 ## Insert from a Query
@@ -182,48 +219,85 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/c
 To copy a whole table, the result columns must be in the same order as the target table:
 
 ```sql
-INSERT INTO d1002 SELECT * FROM d1001;
+INSERT INTO d1002
+SELECT *
+FROM d1001;
 ```
 
 The whole query may be enclosed in parentheses. The parentheses mean a subquery, not a column list:
 
 ```sql
-INSERT INTO d1002 (SELECT * FROM d1001);
+INSERT INTO d1002 (
+  SELECT *
+  FROM d1001
+);
 ```
 
 When the target columns are listed, the names inside the parentheses are column names, and the result is written in that order. Columns that do not appear are filled with `NULL`. The timestamp cannot be omitted:
 
 ```sql
 INSERT INTO d1002 (ts, current)
-SELECT ts, current FROM d1001 WHERE current > 10;
+SELECT
+  ts,
+  current
+FROM d1001
+WHERE current > 10;
 
 INSERT INTO d1002 (ts, phase, current)
-SELECT ts, phase, current + 1 FROM d1001;
+SELECT
+  ts,
+  phase,
+  current + 1
+FROM d1001;
 ```
 
 The query can also be a window aggregation. The following statement downsamples `d1001` by minute and writes one row per minute, with the average current, the maximum voltage, and the row count. `_wstart` is the window start time and is written into the timestamp column:
 
 ```sql
-CREATE TABLE d1001_stat (ts TIMESTAMP, avg_current DOUBLE, max_voltage INT, cnt BIGINT);
+CREATE TABLE d1001_stat (
+  ts          TIMESTAMP,
+  avg_current DOUBLE,
+  max_voltage INT,
+  cnt         BIGINT
+);
 
 INSERT INTO d1001_stat
-SELECT _wstart, avg(current), max(voltage), count(*)
+SELECT
+  _wstart,
+  AVG(current),
+  MAX(voltage),
+  COUNT(*)
 FROM d1001
-WHERE ts >= '2021-07-13 14:00:00' AND ts < '2021-07-13 15:00:00'
+WHERE ts >= '2021-07-13 14:00:00'
+  AND ts < '2021-07-13 15:00:00'
 INTERVAL(1m);
 ```
 
 Columns are aligned by position, not by name. The statement fails when the result column count or types cannot be written into the target columns. For example, `tb1` has columns `ts`, `f1`, and `f2`, while `tba` has columns `ts`, `f1`, `f2`, and `f3`, and the matching names have different types:
 
 ```sql
-CREATE TABLE tb1 (ts TIMESTAMP, f1 INT, f2 BINARY(200));
-CREATE TABLE tba (ts TIMESTAMP, f1 BINARY(10), f2 BIGINT, f3 DOUBLE);
+CREATE TABLE tb1 (
+  ts TIMESTAMP,
+  f1 INT,
+  f2 BINARY(200)
+);
+
+CREATE TABLE tba (
+  ts TIMESTAMP,
+  f1 BINARY(10),
+  f2 BIGINT,
+  f3 DOUBLE
+);
 
 -- Column count and types do not match
-INSERT INTO tba SELECT * FROM tb1;
+INSERT INTO tba
+SELECT *
+FROM tb1;
 
 -- ts, f1, and f2 from the query are written into ts, f2, and f1; f3 is NULL
-INSERT INTO tba (ts, f2, f1) SELECT * FROM tb1;
+INSERT INTO tba(ts, f2, f1)
+SELECT *
+FROM tb1;
 ```
 
 To write a query result into a supertable, the first entry in the column list must be `tbname`. See [Insert into a Supertable](#insert-into-a-supertable).
@@ -236,16 +310,23 @@ If the subtable does not exist, it is created with the given tags. If it already
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-            VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
-            ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-            ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33);
+VALUES ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:34.630', 10.2, 219, 0.32)
+       ('d31001', 'California.SanFrancisco', 2, '2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+       ('d31002', NULL, 2, '2021-07-13 14:06:34.255', 10.15, 217, 0.33);
 ```
 
 Writing a query result also requires a column list, and `tbname` must be the first column of both the list and the query result. The following statement creates `d31004` if it does not exist:
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-SELECT 'd31004', 'California.SanFrancisco', 2, ts, current, voltage, phase
+SELECT
+  'd31004',
+  'California.SanFrancisco',
+  2,
+  ts,
+  current,
+  voltage,
+  phase
 FROM d1001;
 ```
 
@@ -253,7 +334,14 @@ When one result contains several subtable names, group by `tbname` before writin
 
 ```sql
 INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-SELECT concat('copy_', tbname), 'California.SanFrancisco', 2, ts, current, voltage, phase
+SELECT
+  CONCAT('copy_', tbname),
+  'California.SanFrancisco',
+  2,
+  ts,
+  current,
+  voltage,
+  phase
 FROM d1001
 PARTITION BY tbname;
 ```
@@ -261,13 +349,28 @@ PARTITION BY tbname;
 Grouping and windows can be used together. The following statement downsamples each subtable of `meters` by minute and writes the result into supertable `meters_1m`. The new subtable name is the original name plus `_1m`, and the tags are copied from the original subtable. `location` and `groupId` must appear in `PARTITION BY` so the result can output those tag columns:
 
 ```sql
-CREATE STABLE meters_1m (ts TIMESTAMP, avg_current DOUBLE, max_voltage INT, cnt BIGINT)
-    TAGS (location BINARY(64), groupId INT);
+CREATE STABLE meters_1m (
+  ts          TIMESTAMP,
+  avg_current DOUBLE,
+  max_voltage INT,
+  cnt         BIGINT
+) TAGS (
+  location BINARY(64),
+  groupId  INT
+);
 
 INSERT INTO meters_1m (tbname, location, groupId, ts, avg_current, max_voltage, cnt)
-SELECT concat(tbname, '_1m'), location, groupId, _wstart, avg(current), max(voltage), count(*)
+SELECT
+  CONCAT(tbname, '_1m'),
+  location,
+  groupId,
+  _wstart,
+  AVG(current),
+  MAX(voltage),
+  COUNT(*)
 FROM meters
-WHERE ts >= '2021-07-13 14:00:00' AND ts < '2021-07-13 15:00:00'
+WHERE ts >= '2021-07-13 14:00:00'
+  AND ts < '2021-07-13 15:00:00'
 PARTITION BY tbname, location, groupId
 INTERVAL(1m);
 ```
@@ -279,8 +382,7 @@ A CSV file can be used as well. The file must be UTF-8, and its columns must fol
 ```
 
 ```sql
-INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase)
-            FILE '/tmp/csvfile_stb.csv';
+INSERT INTO meters (tbname, location, groupId, ts, current, voltage, phase) FILE '/tmp/csvfile_stb.csv';
 ```
 
 ## Write Behavior

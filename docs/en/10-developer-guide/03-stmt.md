@@ -21,14 +21,20 @@ Parameter binding is recommended for inserts. Use one of the following two SQL f
 When the subtable already exists, omitting tags improves write performance. If the subtable does not exist, this behavior differs from `taos` shell: the shell automatically creates a table with `NULL` tags, while STMT returns an error to prevent accidental table creation caused by an incorrect table name.
 
 ```sql
-INSERT INTO meters (tbname, ts, current, voltage, phase) VALUES(?, ?, ?, ?, ?)
+INSERT INTO meters (tbname, ts, current, voltage, phase)
+VALUES (?, ?, ?, ?, ?);
 ```
 
 ##### Create a Missing Subtable with Tags
 
 ```sql
-INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id) VALUES(?, ?, ?, ?, ?, ?, ?)
-INSERT INTO ? USING meters TAGS (?, ?) VALUES (?, ?, ?, ?)
+INSERT INTO meters (tbname, ts, current, voltage, phase, location, group_id)
+VALUES (?, ?, ?, ?, ?, ?, ?);
+
+INSERT INTO ?
+USING meters
+TAGS (?, ?)
+VALUES (?, ?, ?, ?);
 ```
 
 ## Parameterized Update

@@ -17,7 +17,11 @@ PARTITION BY part_list
 `part_list` can be any scalar expression, including columns, constants, scalar functions, and their combinations. For example, grouping data by the `location` tag and calculating the average voltage for each group:
 
 ```sql
-select location, avg(voltage) from meters partition by location
+SELECT
+  location,
+  AVG(voltage)
+FROM meters
+PARTITION BY location
 ```
 
 TDengine processes the data partitioning clause as follows:
@@ -27,13 +31,25 @@ TDengine processes the data partitioning clause as follows:
 - The data partitioning clause can be used together with a window partitioning clause (or GROUP BY clause), where the subsequent clauses apply to each partitioned slice. For example, grouping data by the `location` tag and downsampling each group every 10 minutes to get the maximum value.
 
 ```sql
-select _wstart, location, max(current) from meters partition by location interval(10m)
+SELECT
+  _wstart,
+  location,
+  MAX(current)
+FROM meters
+PARTITION BY location
+INTERVAL(10m)
 ```
 
 The most common use of the data partitioning clause is in supertable queries, where subtable data is partitioned by tags and then calculated separately. Especially the `PARTITION BY TBNAME` usage, which isolates the data of each subtable, forming independent time-series, greatly facilitating statistical analysis in various time-series scenarios. For example, calculating the average voltage of each electric meter every 10 minutes:
 
 ```sql
-select _wstart, tbname, avg(voltage) from meters partition by tbname interval(10m)
+SELECT
+  _wstart,
+  tbname,
+  AVG(voltage)
+FROM meters
+PARTITION BY tbname
+INTERVAL(10m)
 ```
 
 ## Window Partitioning Queries
@@ -47,7 +63,7 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(state_expr [, state_expr ...]) [EXTEND(extend_val)] [ZEROTH_STATE(zeroth_val [, zeroth_val ...])] [TRUE_FOR(true_for_expr)]
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [fill_clause]
-  | EXTERNAL_WINDOW ((subquery) window_alias) [fill_clause]
+  | EXTERNAL_WINDOW((subquery) window_alias) [fill_clause]
   | EVENT_WINDOW START WITH start_trigger_condition END WITH end_trigger_condition [TRUE_FOR(true_for_expr)]
   | COUNT_WINDOW(count_val[, sliding_val][, col_name ...])
 }
@@ -90,7 +106,10 @@ If the query uses a PARTITION BY statement for grouping, the results will be str
 The forward sliding time of SLIDING cannot exceed the time range of one window. The following statement is illegal:
 
 ```sql
-SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
+SELECT COUNT(*)
+FROM temp_tb_1
+INTERVAL(1m)
+SLIDING(2m);
 ```
 
 #### Window Boundaries and the Query Range
@@ -100,22 +119,33 @@ The `WHERE` condition limits the source rows used in the calculation. By default
 The following examples use `Asia/Shanghai` (UTC+8) for both the client and server timezones and millisecond database precision. They omit `SLIDING`, so the windows are non-overlapping tumbling windows. They also omit `FILL`, so windows without data produce no aggregate results.
 
 ```sql
-CREATE DATABASE interval_demo PRECISION 'ms' KEEP 3650;
-USE interval_demo;
-CREATE TABLE samples (ts TIMESTAMP, v INT);
-INSERT INTO samples VALUES
-    ('2025-12-08 23:30:00', 100)
-    ('2025-12-09 00:00:00', 10)
-    ('2025-12-09 01:00:00', 20)
-    ('2025-12-09 02:00:00', 30)
-    ('2025-12-09 03:00:00', 40)
-    ('2025-12-09 08:00:00', 50)
-    ('2025-12-10 00:00:00', 60);
+CREATE DATABASE interval_demo
+  PRECISION 'ms'
+  KEEP 3650;
 
-SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+USE interval_demo;
+
+CREATE TABLE samples (
+  ts TIMESTAMP,
+  v  INT
+);
+
+INSERT INTO samples
+VALUES ('2025-12-08 23:30:00', 100)
+       ('2025-12-09 00:00:00', 10)
+       ('2025-12-09 01:00:00', 20)
+       ('2025-12-09 02:00:00', 30)
+       ('2025-12-09 03:00:00', 40)
+       ('2025-12-09 08:00:00', 50)
+       ('2025-12-10 00:00:00', 60);
+
+SELECT
+  _wstart,
+  COUNT(*) AS n,
+  SUM(v) AS total
 FROM samples
 WHERE ts >= '2025-12-09 00:00:00'
-  AND ts <  '2025-12-10 00:00:00'
+  AND ts < '2025-12-10 00:00:00'
 INTERVAL(3h);
 ```
 
@@ -139,7 +169,9 @@ The condition `ts < '2025-12-10 00:00:00'` excludes midnight on the next day. Us
 
 ```sql
 -- Invalid: 1765209600 seconds exceeds 24 hours
-SELECT COUNT(*) FROM samples INTERVAL(24h, 1765209600s);
+SELECT COUNT(*)
+FROM samples
+INTERVAL(24h, 1765209600s);
 ```
 
 This statement returns `Interval offset should be shorter than interval`. An offset equal to the window width, such as `INTERVAL(3h, 3h)`, is also invalid.
@@ -147,10 +179,13 @@ This statement returns `Interval offset should be shorter than interval`. An off
 To align windows with the query start, use `AUTO` (supported since `v3.3.5.0`). For the query above, which omits `SLIDING`, if `WHERE` provides a clear applicable lower time bound, `AUTO` calculates the offset needed to start partitioning windows at that bound:
 
 ```sql
-SELECT _wstart, COUNT(*) AS n, SUM(v) AS total
+SELECT
+  _wstart,
+  COUNT(*) AS n,
+  SUM(v) AS total
 FROM samples
 WHERE ts >= '2025-12-09 00:00:00'
-  AND ts <  '2025-12-10 00:00:00'
+  AND ts < '2025-12-10 00:00:00'
 INTERVAL(3h, AUTO);
 ```
 
@@ -167,7 +202,10 @@ Using `INTERVAL(3h, 1h)` in this query produces the same results. Here, the offs
 If no clear applicable lower time bound can be extracted from `WHERE`, `AUTO` has no effect and the offset remains `0`. For example, this query specifies only an upper time bound:
 
 ```sql
-SELECT _wstart, COUNT(*) FROM samples
+SELECT
+  _wstart,
+  COUNT(*)
+FROM samples
 WHERE ts < '2025-12-10 00:00:00'
 INTERVAL(3h, AUTO);
 ```
@@ -225,8 +263,11 @@ Where:
 Starting from v3.4.3.0, a state-window query on a supertable partitioned by tag columns or `tbname` can use the `PARTITION_FIRST` hint to retain an independent Partition operator:
 
 ```sql
-SELECT /*+ PARTITION_FIRST() */
-       gid, _wstart, COUNT(*), SUM(val)
+SELECT
+  /*+ PARTITION_FIRST() */ gid,
+  _wstart,
+  COUNT(*),
+  SUM(val)
 FROM meters
 PARTITION BY gid
 STATE_WINDOW(status);
@@ -262,19 +303,38 @@ If multiple consecutive rows belong to the same partial-`NULL` run, the same rul
 Single-key example:
 
 ```sql
-SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
+SELECT
+  COUNT(*),
+  FIRST(ts),
+  status
+FROM temp_tb_1
+STATE_WINDOW(status);
 ```
 
 If you are interested only in windows where `status = 2`, you can still filter in an outer query:
 
 ```sql
-SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
+SELECT *
+FROM (
+  SELECT
+    COUNT(*) AS cnt,
+    FIRST(ts) AS fst,
+    status
+  FROM temp_tb_1
+  STATE_WINDOW(status)
+) t
+WHERE status = 2;
 ```
 
 Multi-key example:
 
 ```sql
-SELECT _wstart, _wend, count(*), c_int, c_bool
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*),
+  c_int,
+  c_bool
 FROM ntb1
 STATE_WINDOW(c_int, c_bool);
 ```
@@ -284,23 +344,52 @@ The query above uses `c_int` and `c_bool` together as the state key. The current
 TDengine also supports using `CASE` or `IF` expressions as state keys. For example, the normal voltage range for a smart meter is 205V to 235V, so you can monitor the voltage to determine whether the circuit is normal. Multiple discrete status dimensions can also be combined in the same `STATE_WINDOW(...)` clause.
 
 ```sql
-SELECT tbname, _wstart, CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END status FROM meters PARTITION BY tbname STATE_WINDOW(CASE WHEN voltage >= 205 and voltage <= 235 THEN 1 ELSE 0 END);
+SELECT
+  tbname,
+  _wstart,
+  CASE
+    WHEN voltage >= 205 AND voltage <= 235 THEN 1
+    ELSE 0
+  END status
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(
+  CASE
+    WHEN voltage >= 205 AND voltage <= 235 THEN 1
+    ELSE 0
+  END);
 ```
 
 The same logic can be expressed more concisely with `IF`:
 
 ```sql
-SELECT tbname, _wstart, IF(voltage >= 205 AND voltage <= 235, 1, 0) AS status FROM meters PARTITION BY tbname STATE_WINDOW(IF(voltage >= 205 AND voltage <= 235, 1, 0));
+SELECT
+  tbname,
+  _wstart,
+  IF(voltage >= 205 AND voltage <= 235, 1, 0) AS status
+FROM meters
+PARTITION BY tbname
+STATE_WINDOW(IF(voltage >= 205 AND voltage <= 235, 1, 0));
 ```
 
 In supertable queries, or in subqueries where tag columns are available, the state expression can also reference tag columns visible in the current query context, as long as the final expression result type is still integer, boolean, or string. For example, you can adjust the threshold dynamically with the `groupId` tag:
 
 ```sql
-SELECT tbname, _wstart, _wend,
-       CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END AS status
+SELECT
+  tbname,
+  _wstart,
+  _wend,
+  CASE
+    WHEN voltage >= 220 + groupId THEN 'high'
+    ELSE 'normal'
+  END AS status
 FROM meters
 PARTITION BY tbname
-STATE_WINDOW(CASE WHEN voltage >= 220 + groupId THEN 'high' ELSE 'normal' END);
+STATE_WINDOW(
+  CASE
+    WHEN voltage >= 220 + groupId THEN 'high'
+    ELSE 'normal'
+  END);
 ```
 
 Since v3.4.2.0, you can also use tag columns or `tbname` directly as state keys, for example `STATE_WINDOW(groupId)` or `STATE_WINDOW(tbname)`.
@@ -308,7 +397,10 @@ Since v3.4.2.0, you can also use tag columns or `tbname` directly as state keys,
 Since v3.4.2.0, you can also use logical expressions directly as state keys. For example, you can split windows by a boolean condition directly:
 
 ```sql
-SELECT _wstart, _wend, count(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM meters
 PARTITION BY tbname
 STATE_WINDOW(voltage > 235);
@@ -317,7 +409,10 @@ STATE_WINDOW(voltage > 235);
 More complex logical combinations are also supported:
 
 ```sql
-SELECT _wstart, _wend, count(*)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM meters
 PARTITION BY tbname
 STATE_WINDOW(voltage BETWEEN 205 AND 235 AND current IS NOT NULL, phase IN ('A', 'B'));
@@ -327,8 +422,9 @@ STATE_WINDOW(voltage BETWEEN 205 AND 235 AND current IS NOT NULL, phase IN ('A',
 
 Take the following data as an example to show how `EXTEND` affects window splitting and the ownership of `NULL` rows:
 
-```text
-taos> select * from state_window_example;
+```sql
+taos> SELECT *
+      FROM state_window_example;
            ts            |   status    |
 ========================================
  2025-01-01 00:00:00.000 | NULL        |
@@ -340,6 +436,7 @@ taos> select * from state_window_example;
  2025-01-01 00:00:06.000 |           2 |
  2025-01-01 00:00:07.000 |           1 |
  2025-01-01 00:00:08.000 | NULL        |
+Query OK, 9 row(s) in set
 ```
 
 The `EXTEND` parameter controls the extension strategy for the start and end of a window, with possible values `0` (default), `1`, and `2`.
@@ -348,39 +445,60 @@ When `extend` is 0:
 
 The start and end timestamps of a window are the first and last non-`NULL` rows of the current state. Leading `NULL` rows, trailing `NULL` rows, and `NULL` rows between different states are discarded, while `NULL` rows enclosed by the same state value remain in the current window.
 
-```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0);
+```sql
+taos> SELECT
+        _wstart,
+        _wduration,
+        _wend,
+        COUNT(*)
+      FROM state_window_example
+      STATE_WINDOW(status) extend(0);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:01.000 |                  2000 | 2025-01-01 00:00:03.000 |                     3 |
  2025-01-01 00:00:05.000 |                  1000 | 2025-01-01 00:00:06.000 |                     2 |
  2025-01-01 00:00:07.000 |                     0 | 2025-01-01 00:00:07.000 |                     1 |
+Query OK, 3 row(s) in set
 ```
 
 When `extend` is 1:
 
 The window start remains unchanged, while the window end extends forward to just before the next window starts. `NULL` rows between different states and trailing `NULL` rows are merged into the previous window, while leading `NULL` rows are discarded.
 
-```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(1);
+```sql
+taos> SELECT
+        _wstart,
+        _wduration,
+        _wend,
+        COUNT(*)
+      FROM state_window_example
+      STATE_WINDOW(status) extend(1);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:01.000 |                  3999 | 2025-01-01 00:00:04.999 |                     4 |
  2025-01-01 00:00:05.000 |                  1999 | 2025-01-01 00:00:06.999 |                     2 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+Query OK, 3 row(s) in set
 ```
 
 When `extend` is 2:
 
 The window end remains unchanged, while the window start extends backward to just after the previous window ends. `NULL` rows between different states and leading `NULL` rows are merged into the next window, while trailing `NULL` rows are discarded.
 
-```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(2);
+```sql
+taos> SELECT
+        _wstart,
+        _wduration,
+        _wend,
+        COUNT(*)
+      FROM state_window_example
+      STATE_WINDOW(status) extend(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:03.001 |                  2999 | 2025-01-01 00:00:06.000 |                     3 |
  2025-01-01 00:00:06.001 |                   999 | 2025-01-01 00:00:07.000 |                     1 |
+Query OK, 3 row(s) in set
 ```
 
 #### ZEROTH_STATE Parameter
@@ -389,18 +507,30 @@ The `ZEROTH_STATE` parameter specifies the "zero state". A zero state is a basel
 
 For a single-key example, `ZEROTH_STATE` filters out windows whose state is `2`:
 
-```text
-taos> select _wstart, _wduration, _wend, count(*) from state_window_example state_window(status) extend(0) zeroth_state(2);
+```sql
+taos> SELECT
+        _wstart,
+        _wduration,
+        _wend,
+        COUNT(*)
+      FROM state_window_example
+      STATE_WINDOW(status) extend(0) zeroth_state(2);
          _wstart         |      _wduration       |          _wend          |       count(*)        |
 ====================================================================================================
  2025-01-01 00:00:00.000 |                  3000 | 2025-01-01 00:00:03.000 |                     4 |
  2025-01-01 00:00:07.000 |                  1000 | 2025-01-01 00:00:08.000 |                     2 |
+Query OK, 2 row(s) in set
 ```
 
 Multi-key `ZEROTH_STATE` example:
 
 ```sql
-SELECT _wstart, _wend, count(*), c1, c2
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*),
+  c1,
+  c2
 FROM ntb_null
 STATE_WINDOW(c1, c2) EXTEND(0) ZEROTH_STATE(1, 10);
 ```
@@ -419,19 +549,34 @@ The state window supports using the TRUE_FOR parameter to set the filtering cond
 For example, setting the minimum duration to 3 seconds:
 
 ```sql
-SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s);
+SELECT
+  COUNT(*),
+  FIRST(ts),
+  status
+FROM temp_tb_1
+STATE_WINDOW(status) TRUE_FOR(3s);
 ```
 
 Or setting the minimum row count to 100:
 
 ```sql
-SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (COUNT 100);
+SELECT
+  COUNT(*),
+  FIRST(ts),
+  status
+FROM temp_tb_1
+STATE_WINDOW(status) TRUE_FOR(COUNT 100);
 ```
 
 Or requiring both duration and row count conditions:
 
 ```sql
-SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status) TRUE_FOR (3s AND COUNT 50);
+SELECT
+  COUNT(*),
+  FIRST(ts),
+  status
+FROM temp_tb_1
+STATE_WINDOW(status) TRUE_FOR(3s AND COUNT 50);
 ```
 
 ### Session Window
@@ -443,7 +588,11 @@ The session window is determined based on the timestamp primary key values of th
 Results within the tol_value time interval are considered to belong to the same window; if the time between two consecutive records exceeds tol_val, the next window automatically starts.
 
 ```sql
-SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
+SELECT
+  COUNT(*),
+  FIRST(ts)
+FROM temp_tb_1
+SESSION(ts, tol_val);
 ```
 
 ### Event Window
@@ -453,7 +602,11 @@ The event window is defined by start and end conditions. The window starts when 
 In supertable queries, or in subqueries where tag columns are available, the start/end condition expressions can also reference tag columns. For example, you can use different voltage thresholds based on the `groupId` tag:
 
 ```sql
-SELECT tbname, _wstart, _wend, count(*)
+SELECT
+  tbname,
+  _wstart,
+  _wend,
+  COUNT(*)
 FROM meters
 PARTITION BY tbname
 EVENT_WINDOW START WITH voltage >= 220 + groupId END WITH voltage < 220 + groupId;
@@ -469,7 +622,12 @@ If you need to perform event window queries on the result set of a subquery, the
 Take the following SQL statement as an example, the event window segmentation is shown in the diagram:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10
 ```
 
 ![Event windows](../../assets/distinguished-04.webp)
@@ -494,37 +652,67 @@ The limits inside `START(...)` and `END(...)` support the same four forms, for e
 For example, setting the minimum duration to 3 seconds:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s);
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(3s);
 ```
 
 Or setting the minimum row count to 100:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (COUNT 100);
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(COUNT 100);
 ```
 
 Or requiring both duration and row count conditions:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (3s AND COUNT 50);
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(3s AND COUNT 50);
 ```
 
 Or requiring the open condition to be continuously satisfied for 2 rows before the window opens:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (start(COUNT 2));
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(START(COUNT 2));
 ```
 
 Or requiring the close condition to be continuously satisfied for 3 seconds before the window closes:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (end(3s));
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(END(3s));
 ```
 
 Or combining open/close streak thresholds with a window-level filter:
 
 ```sql
-select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c2 < 10 true_for (5s, start(COUNT 2), end(COUNT 3));
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+EVENT_WINDOW START WITH c1 > 0 END WITH c2 < 10 TRUE_FOR(5s, START(COUNT 2), END(COUNT 3));
 ```
 
 **Example with input data and a duration-based opening threshold**
@@ -532,10 +720,12 @@ select _wstart, _wend, count(*) from t event_window start with c1 > 0 end with c
 Using the `true_for_demo.sensor` table and seven input rows from the [stream TRUE_FOR configuration example](../../07-stream-processing/01-syntax.md#true_for-configuration-examples), run this query:
 
 ```sql
-SELECT _wstart AS window_start, _wend AS window_end, COUNT(*) AS cnt
+SELECT
+  _wstart AS window_start,
+  _wend AS window_end,
+  COUNT(*) AS cnt
 FROM true_for_demo.sensor
-EVENT_WINDOW START WITH temperature >= 80 END WITH temperature < 80
-TRUE_FOR(START(1m), END(COUNT 2));
+EVENT_WINDOW START WITH temperature >= 80 END WITH temperature < 80 TRUE_FOR(START(1m), END(COUNT 2));
 ```
 
 The expected result is one row: `window_start = 2026-01-01 10:01:00.000`, `window_end = 2026-01-01 10:02:10.000`, and `cnt = 4`. The streak starting at `10:00:00` is interrupted at `10:00:30`. The next streak starts at `10:01:00` and reaches the 1-minute opening threshold at `10:02:00`. The rows at `10:02:10` and `10:02:20` confirm closing, but the window ends at the first of these rows and excludes the second. Stream calculations use `_twstart` / `_twend` for the corresponding timestamps; ordinary window queries use `_wstart` / `_wend`.
@@ -547,7 +737,12 @@ Count windows divide data into windows based on a fixed number of data rows. By 
 Take the following SQL statement as an example, the count window segmentation is shown in the diagram:
 
 ```sql
-select _wstart, _wend, count(*) from t count_window(4);
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*)
+FROM t
+COUNT_WINDOW(4);
 ```
 
 ![Count windows](../../assets/distinguished-05.webp)
@@ -562,7 +757,7 @@ The syntax of external windows is:
 SELECT ...
 FROM table_name
 [PARTITION BY expr_list]
-EXTERNAL_WINDOW (
+EXTERNAL_WINDOW(
   (subquery_that_defines_windows) window_alias
 )
 [FILL(fill_mode_and_val)]
@@ -611,11 +806,19 @@ Columns after the first two columns in the subquery, such as `groupid` and `loca
 **Example 1** - Use an INTERVAL subquery to generate windows and aggregate values within each window:
 
 ```sql
-SELECT _wstart, _wend, COUNT(*), AVG(voltage)
+SELECT
+  _wstart,
+  _wend,
+  COUNT(*),
+  AVG(voltage)
 FROM meters
-EXTERNAL_WINDOW (
-  (SELECT _wstart, _wend FROM meters INTERVAL(10m)) w
-);
+  EXTERNAL_WINDOW((
+    SELECT
+      _wstart,
+      _wend
+    FROM meters
+    INTERVAL(10m)
+  ) w);
 ```
 
 The SQL above first uses the inner subquery to divide the timeline into 10-minute windows, and then the outer query independently counts rows and calculates the average voltage in `meters` for each window.
@@ -625,7 +828,15 @@ The SQL above first uses the inner subquery to divide the timeline into 10-minut
 The table creation statement for smart meters is as follows:
 
 ```sql
-CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
+CREATE TABLE meters (
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
+) TAGS (
+  location BINARY(64),
+  groupId  INT
+);
 ```
 
 Assume there is also an alert events table `alerts` (a supertable), containing columns `ts`, `alert_code`, and `alert_value`, with tags `groupid` and `location`.
@@ -636,19 +847,22 @@ Goal: use the voltage anomaly events of each meter group as time windows, that i
 SELECT
   w.groupid,
   w.location,
-  _wstart                AS event_start_time,
-  COUNT(*)               AS alert_count,
-  MAX(a.alert_value)     AS max_alert_value,
-  AVG(a.alert_value)     AS avg_alert_value
+  _wstart AS event_start_time,
+  COUNT(*) AS alert_count,
+  MAX(a.alert_value) AS max_alert_value,
+  AVG(a.alert_value) AS avg_alert_value
 FROM alerts a
 PARTITION BY a.groupid
-EXTERNAL_WINDOW (
-  (SELECT ts, ts + 60s, groupid, location
-   FROM meters
-   WHERE voltage >= 225
-   PARTITION BY groupid
-  ) w
-)
+  EXTERNAL_WINDOW((
+    SELECT
+      ts,
+      ts + 60s,
+      groupid,
+      location
+    FROM meters
+    WHERE voltage >= 225
+    PARTITION BY groupid
+  ) w)
 HAVING COUNT(*) > 0
 ORDER BY w.groupid, event_start_time;
 ```
@@ -686,19 +900,24 @@ For the general FILL syntax, see [FILL Clause](./01-query.md#fill-clause).
 Example:
 
 ```sql
-SELECT _wstart, AVG(voltage) AS avg_vol, COUNT(*) AS cnt
+SELECT
+  _wstart,
+  AVG(voltage) AS avg_vol,
+  COUNT(*) AS cnt
 FROM meters
-EXTERNAL_WINDOW (
-  (SELECT '2022-01-01 00:00:00'::TIMESTAMP,
-     '2022-01-01 00:01:00'::TIMESTAMP
-   UNION ALL
-   SELECT '2022-01-01 00:01:00'::TIMESTAMP,
-     '2022-01-01 00:02:00'::TIMESTAMP
-   UNION ALL
-   SELECT '2022-01-01 00:02:00'::TIMESTAMP,
-     '2022-01-01 00:03:00'::TIMESTAMP
-  ) w
-)
+  EXTERNAL_WINDOW((
+    SELECT
+      '2022-01-01 00:00:00'::TIMESTAMP,
+      '2022-01-01 00:01:00'::TIMESTAMP
+    UNION ALL
+    SELECT
+      '2022-01-01 00:01:00'::TIMESTAMP,
+      '2022-01-01 00:02:00'::TIMESTAMP
+    UNION ALL
+    SELECT
+      '2022-01-01 00:02:00'::TIMESTAMP,
+      '2022-01-01 00:03:00'::TIMESTAMP
+  ) w)
 FILL(VALUE, 0, 0)
 ORDER BY _wstart;
 ```
@@ -722,9 +941,18 @@ When an external window uses `FILL`:
 - With only raw columns and scalar expressions, and no aggregate or sequential analysis function, `FILL` is not allowed. The query fails with `Fill only supports aggregate query with external window`.
 
 ```sql
-SELECT _wstart, ts, DIFF(voltage)
+SELECT
+  _wstart,
+  ts,
+  DIFF(voltage)
 FROM d1001
-EXTERNAL_WINDOW ((SELECT ts, ts + 10s FROM d1001 WHERE voltage > 220) w);
+  EXTERNAL_WINDOW((
+    SELECT
+      ts,
+      ts + 10s
+    FROM d1001
+    WHERE voltage > 220
+  ) w);
 ```
 
 #### Constraints and Limitations
@@ -765,27 +993,74 @@ Examples:
 
 ```sql
 -- Ambiguous case: only pseudocolumns + tags + constants, defaults to aggregation mode (1 row per window)
-SELECT _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+SELECT
+  _wstart,
+  _wend,
+  tbname
+FROM d1001
+INTERVAL(3s);
 
 -- Use SCALAR to force projection mode (N rows per window)
-SELECT SCALAR _wstart, _wend, tbname FROM d1001 INTERVAL(3s);
+SELECT
+  SCALAR _wstart,
+  _wend,
+  tbname
+FROM d1001
+INTERVAL(3s);
 
 -- Non-ambiguous case: contains column expressions, automatically enters projection mode (all three are equivalent)
-SELECT _wstart, ts, current FROM d1001 INTERVAL(3s);
-SELECT SCALAR _wstart, ts, current FROM d1001 INTERVAL(3s);
-SELECT AGG _wstart, ts, current FROM d1001 INTERVAL(3s);
+SELECT
+  _wstart,
+  ts,
+  current
+FROM d1001
+INTERVAL(3s);
+
+SELECT
+  SCALAR _wstart,
+  ts,
+  current
+FROM d1001
+INTERVAL(3s);
+
+SELECT
+  AGG _wstart,
+  ts,
+  current
+FROM d1001
+INTERVAL(3s);
 ```
 
 EXTERNAL_WINDOW defaults to projection mode in the ambiguous case. Use `AGG` to switch to aggregation mode:
 
 ```sql
 -- Ambiguous case: only pseudocolumns + tags, EXTERNAL_WINDOW defaults to projection mode (N rows per window)
-SELECT _wstart, _wend, location FROM d1001
-  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+SELECT
+  _wstart,
+  _wend,
+  location
+FROM d1001
+  EXTERNAL_WINDOW((
+    SELECT
+      _wstart,
+      _wend
+    FROM d1001
+    INTERVAL(3s)
+  ) w);
 
 -- Use AGG to force aggregation mode (1 row per window)
-SELECT AGG _wstart, _wend, location FROM d1001
-  EXTERNAL_WINDOW((SELECT _wstart, _wend FROM d1001 INTERVAL(3s)) w);
+SELECT
+  AGG _wstart,
+  _wend,
+  location
+FROM d1001
+  EXTERNAL_WINDOW((
+    SELECT
+      _wstart,
+      _wend
+    FROM d1001
+    INTERVAL(3s)
+  ) w);
 ```
 
 #### FILL Support
@@ -793,11 +1068,16 @@ SELECT AGG _wstart, _wend, location FROM d1001
 Window projection mode supports the FILL clause, but only the following modes: `NONE`, `NULL`, `NULL_F`, `VALUE`, `VALUE_F`. The modes `PREV`, `NEXT`, `LINEAR`, and `NEAR` are not supported. `EXTERNAL_WINDOW` does not allow `FILL` when it outputs only raw columns without sequential analysis functions; see [Functions Inside a Window](#functions-inside-a-window).
 
 ```sql
-SELECT _wstart, ts, current FROM meters
-  WHERE ts >= '2024-01-01' AND ts < '2024-01-02'
-  PARTITION BY tbname
-  INTERVAL(10m)
-  FILL(NULL);
+SELECT
+  _wstart,
+  ts,
+  current
+FROM meters
+WHERE ts >= '2024-01-01'
+  AND ts < '2024-01-02'
+PARTITION BY tbname
+INTERVAL(10m)
+FILL(NULL);
 ```
 
 ### Timestamp Pseudo Columns
@@ -809,14 +1089,29 @@ In window aggregate query results, if the SQL statement does not specify the out
 The table creation statement for smart meters is as follows:
 
 ```sql
-CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
+CREATE TABLE meters (
+  ts      TIMESTAMP,
+  current FLOAT,
+  voltage INT,
+  phase   FLOAT
+) TAGS (
+  location BINARY(64),
+  groupId  INT
+);
 ```
 
 For data collected from smart meters, calculate the average, maximum, and median current over the past 24 hours in 10-minute intervals. If there is no calculated value, fill with the previous non-NULL value. The query statement used is as follows:
 
 ```sql
-SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
-  WHERE ts>=NOW-1d and ts<=now
-  INTERVAL(10m)
-  FILL(PREV);
+SELECT
+  _WSTART,
+  _WEND,
+  AVG(current),
+  MAX(current),
+  APERCENTILE(current, 50)
+FROM meters
+WHERE ts >= NOW - 1d
+  AND ts <= now
+INTERVAL(10m)
+FILL(PREV);
 ```

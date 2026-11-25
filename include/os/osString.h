@@ -114,6 +114,9 @@ int32_t taosUcs4ToMbsCharsetInsensitive(TdUcs4 *ucs4, int32_t ucs4_max_len,
                                         char *mbs);
 int32_t taosUcs4ToMbsEx(TdUcs4 *ucs4, int32_t ucs4_max_len, char *mbs, iconv_t conv);
 bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs4_max_len, int32_t *len, void* charsetCxt);
+bool    taosMbsToUcs4Prefix(const char *mbs, size_t mbsLength, char *ucs4,
+                            int32_t ucs4Capacity, int32_t *len,
+                            void *charsetCxt);
 int32_t taosMbsToMbs(const char *src, int32_t srcLen, void *srcCharsetCxt,
                      void *dstCharsetCxt, char **ppDst, int32_t *pDstLen);
 bool    taosMbsToUcs4CharsetInsensitive(const char *mbs, size_t mbs_len,

@@ -60,9 +60,5 @@ DELETE FROM meters WHERE voltage > 250;
 Combine a time range with a tag condition to clean up only the negative-current readings recorded by the devices in `groupId` 2 during a given period:
 
 ```sql
-DELETE FROM meters
-WHERE groupId = 2
-  AND ts >= '2021-10-01 10:00:00'
-  AND ts <  '2021-10-01 11:00:00'
-  AND current < 0;
+DELETE FROM meters WHERE groupId = 2 AND ts >= '2021-10-01 10:00:00' AND ts < '2021-10-01 11:00:00' AND current < 0;
 ```

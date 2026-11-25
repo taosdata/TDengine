@@ -16,7 +16,9 @@ In this section, the table `foo` is used as an example to describe how to perfor
 | `future_co_val` | Integer | Future covariate |
 
 ```sql
-taos> SELECT * FROM foo LIMIT 2;
+taos> SELECT *
+      FROM foo
+      LIMIT 2;
            ts            |   val | past_co_val | future_co_val |
 ================================================================
  2020-01-01 00:00:12.681 |    13 |           1 |             1 |
@@ -85,16 +87,29 @@ Start with automatic selection (`model=Z` for CES or `model=ZZZ` for ETS) when t
 
 ```sql
 --- ARIMA forecast, return 10 rows of results (default), perform white noise data check, with 95% confidence interval 
-SELECT _flow, _fhigh, _frowts, FORECAST(val, "algo=arima")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(val, "algo=arima")
 FROM foo;
 
 --- ARIMA forecast, periodic input data, 10 samples per period, disable white noise data check, with 95% confidence interval
-SELECT _flow, _fhigh, _frowts, FORECAST(val, "algo=arima,conf=0.95,period=10,wncheck=0")
+SELECT
+  _flow,
+  _fhigh,
+  _frowts,
+  FORECAST(val, "algo=arima,conf=0.95,period=10,wncheck=0")
 FROM foo;
 ```
 
 ```sql
-taos> select _flow, _fhigh, _frowts, forecast(i32) from foo;
+taos> SELECT
+        _flow,
+        _fhigh,
+        _frowts,
+        FORECAST(i32)
+      FROM foo;
         _flow         |        _fhigh        |       _frowts           | forecast(i32) |
 ========================================================================================
            10.5286684 |           41.8038254 | 2020-01-01 00:01:35.000 |            26 |
@@ -130,7 +145,10 @@ When the `forecast` function takes a single column as input, it operates in defa
 All input columns must be numeric. Each forecasting query supports up to 10 historical covariate columns. The following SQL example demonstrates covariate forecasting:
 
 ```sql
-SELECT _frowts, forecast(val, past_co_val, 'algo=moirai') FROM foo;
+SELECT
+  _frowts,
+  FORECAST(val, past_co_val, 'algo=moirai')
+FROM foo;
 ```
 
 In this example, the first column (`val`) is the primary variable; subsequent columns (`past_co_val`) are historical covariates.

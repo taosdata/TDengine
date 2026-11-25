@@ -429,19 +429,25 @@ Both are valid settings for the east-8 (Beijing) time zone. Note that under the 
 The connection timezone affects parsing of strings without an explicit offset and local calendar boundaries. It does not change the absolute timestamp returned by `NOW()`. For example:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < '2019-04-11 12:01:08';
 ```
 
 In GMT+8, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554955268000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554955268000;
 ```
 
 In the UTC time zone, the SQL statement is equivalent to:
 
 ```sql
-SELECT count(*) FROM table_name WHERE TS<1554984068000;
+SELECT COUNT(*)
+FROM table_name
+WHERE TS < 1554984068000;
 ```
 
 To avoid the uncertainties brought by using string time formats, you can also directly use Unix Timestamps. Additionally, you can use timestamp strings with time zones in SQL statements, such as RFC3339 formatted timestamp strings, 2013-04-12T15:52:01.123+08:00 or ISO-8601 formatted timestamp strings 2013-04-12T15:52:01.123+0800. The conversion of these two strings to Unix Timestamps is not affected by the system's local time zone.
@@ -575,6 +581,7 @@ When `CACHEMODEL` is not `none`, in addition to the in-memory LRU cache, each `v
 | snapshotRateLimit          | After 3.4.2.0     | Supported, effective immediately   | Controls the total snapshot sending bandwidth per dnode (MB/s). When multiple vgroups perform snapshot replication concurrently, this parameter limits the sending rate to avoid IO bottlenecks on follower nodes. 0 means no rate limit. Range: 0-10240, default: 0             |
 | snapshotMediumOnLag        | After 3.4.3.0     | Supported, effective immediately   | Controls the replication mode used by snapshot synchronization when a replica (follower) that has been stopped for a long time restarts while it already owns data but lags behind the other replicas of the same vgroup. 0 means the row-by-row (normal) mode, 1 means the file-level delta (medium) mode so that only the files that differ from the leader are transferred, which reduces the transferred volume and shortens the catch-up time. It only takes effect for replicas that own committed data (`lastApplyIndex >= 0`); a new empty replica still uses the full (raw) mode, and a replica whose FSM is incomplete is controlled by `snapshotMediumOnIncomplete`. Range: 0-1, default: 0. Example: `ALTER ALL DNODES 'snapshotMediumOnLag' '1';` / `SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';` |
 | snapshotMediumOnIncomplete |                   | Supported, effective immediately   | Controls snapshot replication when a replica's FSM is incomplete. 1 selects file-level delta (medium) mode and 0 selects row-by-row (normal) mode. If the file list required for medium mode is empty, the negotiated format is used. Range: 0-1, default: 1. Changes apply to subsequent snapshots. Example: `ALTER ALL DNODES 'snapshotMediumOnIncomplete' '0';` |
+| snapshotMediumDiskStrategy |                   | Supported, effective immediately   | Selects the disk allocation policy for medium snapshot files on the receiving node. 0 uses round-robin; 1 selects the lowest used capacity ratio from the most recently refreshed disk statistics, using round-robin for ties. If multiple files are created before the statistics are refreshed, they may be written to the same disk, so an even distribution is not guaranteed. Disabled disks and disks with insufficient free space are skipped. Allocation starts at the original tier and proceeds to lower tiers. Local setting, range: 0-1, default: 0. |
 | arbHeartBeatIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbCheckSyncIntervalSec    |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |
 | arbSetAssignedTimeoutSec   |                   | Supported, effective immediately   | Internal parameter, for debugging synchronization module                                                                                                                                                                                                                       |

@@ -71,15 +71,14 @@ SHOW BACKUPS;
 
 例如：
 
-```shell
-taos> show backups;
+```sql
+taos> SHOW backups;
        id       |  status   |     chain      | database | full | encrypted |    size    | vgroups |       start_time        |       update_time       |
 =======================================================================================================================================================
  20260824094003 | succeeded | 20260824094003 | *        |    1 |         1 |  136760311 |   4/4   | 2026-08-24 09:40:03.324 | 2026-08-24 09:42:50.061 |
  20260819153410 | succeeded | 20260819153410 | *        |    1 |         0 |      11592 |   0/0   | 2026-08-19 15:34:10.340 | 2026-08-19 15:34:20.007 |
  20260819153420 | cancelled | 20260819153420 | *        |    1 |         0 |          0 |   0/0   | 2026-08-19 15:34:20.498 | 2026-08-19 15:34:20.498 |
-Query OK, 3 row(s) in set (0.007715s)
-
+Query OK, 3 row(s) in set
 ```
 
 各列含义为：
@@ -447,6 +446,5 @@ Caused by:
 修改数据 WAL 配置：
 
 ```sql
-alter
-database test wal_retention_period 3600;
+ALTER DATABASE test wal_retention_period 3600;
 ```

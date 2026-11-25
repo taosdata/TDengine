@@ -57,8 +57,8 @@ serverPort 6030
 
 按照前述步骤启动第 1 个 dnode，例如 h1.taosdata.com。接着在终端中执行 `taos`，启动 `taos` shell，并在其中执行 `show dnodes` 命令，以查看当前集群中的所有 dnode 信息。
 
-```shell
-taos> show dnodes;
+```sql
+taos> SHOW dnodes;
  id | endpoint | vnodes|support_vnodes|status| create_time | note |
 ===================================================================================
  1| h1.taosdata.com:6030 | 0| 1024| ready| 2022-07-16 10:50:42.673 | |
@@ -70,14 +70,14 @@ taos> show dnodes;
 
 按照前述步骤，在每个物理节点启动 `taosd`。每个 dnode 都需要在 `taos.cfg` 文件中将 `firstEp` 参数配置为新建集群首个节点的 endpoint，在本例中是 h1.taosdata.com:6030。在第 1 个 dnode 所在机器，在终端中运行 `taos`，打开 `taos` shell，然后登录 TDengine 集群，执行如下 SQL。
 
-```shell
-create dnode "h2.taosdata.com:6030"
+```sql
+CREATE dnode "h2.taosdata.com:6030"
 ```
 
 将新 dnode 的 endpoint 添加进集群的 endpoint 列表。需要为 `fqdn:port` 加上双引号，否则运行时出错。请注意将示例的 h2.taosdata.com:6030 替换为这个新 dnode 的 endpoint。然后执行如下 SQL 查看新节点是否成功加入。若要加入的 dnode 当前处于离线状态，请参考本节后面的“常见问题”部分进行解决。
 
-```shell
-show dnodes;
+```sql
+SHOW dnodes;
 ```
 
 在日志中，请确认输出的 dnode 的 fqdn 和端口是否与你刚刚尝试添加的 endpoint 一致。如果不一致，请修正为正确的 endpoint。遵循上述步骤，你可以持续地将新的 dnode 逐个加入集群，从而扩展集群规模并提高整体性能。确保在添加新节点时遵循正确的流程，这有助于维持集群的稳定性和可靠性。
@@ -92,8 +92,8 @@ show dnodes;
 
 在创建 TDengine 集群时，首个 dnode 将自动成为集群的 mnode，负责集群的管理和协调工作。为了实现 mnode 的高可用性，后续添加的 dnode 需要手动创建 mnode。请注意，一个集群最多允许创建 3 个 mnode，且每个 dnode 上只能创建一个 mnode。当集群中的 dnode 数量达到或超过 3 个时，你可以为现有集群创建 mnode。在第 1 个 dnode 中，首先通过 `taos` shell 登录 TDengine，然后执行如下 SQL。
 
-```shell
-create mnode on dnode <dnodeId>
+```sql
+CREATE mnode ON dnode <dnodeId>
 ```
 
 请注意将上面示例中的 dnodeId 替换为刚创建 dnode 的序号（可以通过执行 `show dnodes` 命令获得）。最后执行如下 `show mnodes`，查看新创建的 mnode 是否成功加入集群。

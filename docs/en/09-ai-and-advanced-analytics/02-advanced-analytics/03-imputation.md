@@ -12,14 +12,25 @@ The timestamp intervals of the time-series data used for imputation must be stri
 
    ```sql
    SELECT IMPUTATION(col_val)
-   FROM (SELECT _wstart, MIN(val) col_val FROM foo INTERVAL(1s));
+   FROM (
+     SELECT
+       _wstart,
+       MIN(val) col_val
+     FROM foo
+     INTERVAL(1s)
+   );
    ```
 
 - Small difference in timestamp intervals: Use the `TIMETRUNCATE` function to align timestamps before performing imputation. If the input timestamps are already continuous and strictly equidistant, `IMPUTATION` returns directly.
 
    ```sql
    SELECT IMPUTATION(val)
-   FROM (SELECT TIMETRUNCATE(ts, 1s) AS ts, val FROM foo);
+   FROM (
+     SELECT
+       TIMETRUNCATE(ts, 1s) AS ts,
+       val
+     FROM foo
+   );
    ```
 
 ## Syntax
@@ -66,6 +77,8 @@ Since `v3.3.8.7`, imputation results can use the following pseudocolumns to obta
 Use the moment model for automatic imputation on column `i32`, with frequency in seconds, outputting timestamps and imputed values:
 
 ```sql
-SELECT _improwts, imputation(i32, 'algo=moment, freq=s')
+SELECT
+  _improwts,
+  IMPUTATION(i32, 'algo=moment, freq=s')
 FROM foo;
 ```

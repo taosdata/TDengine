@@ -21,7 +21,252 @@ using namespace std;
 
 namespace ParserTest {
 
-class ParserXnodeTest : public ParserDdlTest {};
+class ParserXnodeTest : public ParserDdlTest {
+ protected:
+  void checkShowName(const SQuery* pQuery, const string& expected) {
+    const auto* select = reinterpret_cast<const SSelectStmt*>(pQuery->pRoot);
+    ASSERT_NE(select->pWhere, nullptr);
+    ASSERT_EQ(nodeType(select->pWhere), QUERY_NODE_OPERATOR);
+    const auto* condition = reinterpret_cast<const SOperatorNode*>(select->pWhere);
+    ASSERT_EQ(nodeType(condition->pRight), QUERY_NODE_VALUE);
+    const auto* value = reinterpret_cast<const SValueNode*>(condition->pRight);
+    EXPECT_STREQ(value->literal, expected.c_str());
+  }
+
+  void checkTaskName(const string& token, const string& expected) {
+    SCOPED_TRACE(token);
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      if (nodeType(pQuery->pRoot) == QUERY_NODE_SELECT_STMT) {
+        checkShowName(pQuery, expected);
+        return;
+      }
+
+      ASSERT_NE(pQuery->pCmdMsg, nullptr);
+      switch (pQuery->pCmdMsg->msgType) {
+        case TDMT_MND_CREATE_XNODE_TASK: {
+          SMCreateXnodeTaskReq req = {0};
+          ASSERT_EQ(tDeserializeSMCreateXnodeTaskReq(pQuery->pCmdMsg->pMsg,
+                                                    pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+          EXPECT_EQ(string(req.name.ptr, req.name.len), expected);
+          tFreeSMCreateXnodeTaskReq(&req);
+          break;
+        }
+        case TDMT_MND_START_XNODE_TASK: {
+          SMStartXnodeTaskReq req = {0};
+          ASSERT_EQ(tDeserializeSMStartXnodeTaskReq(pQuery->pCmdMsg->pMsg,
+                                                   pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+          EXPECT_EQ(string(req.name.ptr, req.name.len), expected);
+          tFreeSMStartXnodeTaskReq(&req);
+          break;
+        }
+        case TDMT_MND_STOP_XNODE_TASK: {
+          SMStopXnodeTaskReq req = {0};
+          ASSERT_EQ(tDeserializeSMStopXnodeTaskReq(pQuery->pCmdMsg->pMsg,
+                                                  pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+          EXPECT_EQ(string(req.name.ptr, req.name.len), expected);
+          tFreeSMStopXnodeTaskReq(&req);
+          break;
+        }
+        case TDMT_MND_UPDATE_XNODE_TASK: {
+          SMUpdateXnodeTaskReq req = {0};
+          ASSERT_EQ(tDeserializeSMUpdateXnodeTaskReq(pQuery->pCmdMsg->pMsg,
+                                                    pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+          EXPECT_EQ(string(req.name.ptr, req.name.len), expected);
+          tFreeSMUpdateXnodeTaskReq(&req);
+          break;
+        }
+        case TDMT_MND_DROP_XNODE_TASK: {
+          SMDropXnodeTaskReq req = {0};
+          ASSERT_EQ(tDeserializeSMDropXnodeTaskReq(pQuery->pCmdMsg->pMsg,
+                                                  pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
+          EXPECT_EQ(string(req.name.ptr, req.name.len), expected);
+          tFreeSMDropXnodeTaskReq(&req);
+          break;
+        }
+        default:
+          FAIL() << "Unexpected message type: " << pQuery->pCmdMsg->msgType;
+      }
+    });
+
+    run("CREATE XNODE TASK " + token + " FROM 'source' TO 'sink'");
+    run("CREATE XNODE TASK " + token + " FROM 'source' TO 'sink' WITH type 'replica'");
+    run("START XNODE TASK " + token);
+    run("STOP XNODE TASK " + token);
+    run("ALTER XNODE TASK " + token + " WITH status 'stopped'");
+    run("DROP XNODE TASK " + token);
+    run("SHOW XNODE TASKS WHERE name = " + token);
+  }
+};
+
+TEST_F(ParserXnodeTest, taskNameSqlEscapesAreDecoded) {
+  login("root");
+  useDb("root", "test");
+
+  struct NameCase {
+    string token;
+    string expected;
+  };
+  const NameCase nameCases[] = {
+      {"'plain'", "plain"},
+      {"'test''copy'", "test'copy"},
+      {R"('test\'copy')", "test'copy"},
+      {R"("test""copy")", "test\"copy"},
+      {R"('test\\copy')", R"(test\copy)"},
+      {R"('test\ncopy')", "test\ncopy"},
+      {R"('test\%\_\xcopy')", R"(test\%\_\xcopy)"},
+      {"'test''''copy'", "test''copy"},
+      {"'123'", "123"},
+  };
+  for (const NameCase& nameCase : nameCases) {
+    checkTaskName(nameCase.token, nameCase.expected);
+  }
+}
+
+TEST_F(ParserXnodeTest, taskNameLimitsUseDecodedLength) {
+  login("root");
+  useDb("root", "test");
+
+  checkTaskName("'" + string(TSDB_XNODE_TASK_NAME_LEN, 'a') + "'",
+                string(TSDB_XNODE_TASK_NAME_LEN, 'a'));
+  checkTaskName("'" + string(TSDB_XNODE_TASK_NAME_LEN * 2, '\'') + "'",
+                string(TSDB_XNODE_TASK_NAME_LEN, '\''));
+  checkTaskName("'" + string(TSDB_XNODE_TASK_NAME_LEN * 2, '\\') + "'",
+                string(TSDB_XNODE_TASK_NAME_LEN, '\\'));
+}
+
+TEST_F(ParserXnodeTest, taskNamesRejectEmptyAndDecodedOverflow) {
+  login("root");
+  useDb("root", "test");
+
+  const string tokens[] = {
+      "''",
+      "'" + string(TSDB_XNODE_TASK_NAME_LEN + 1, 'a') + "'",
+      "'" + string((TSDB_XNODE_TASK_NAME_LEN + 1) * 2, '\'') + "'",
+  };
+  for (const string& token : tokens) {
+    const string statements[] = {
+        "CREATE XNODE TASK " + token + " FROM 'source' TO 'sink'",
+        "START XNODE TASK " + token,
+        "STOP XNODE TASK " + token,
+        "ALTER XNODE TASK " + token + " WITH status 'stopped'",
+        "DROP XNODE TASK " + token,
+    };
+    for (const string& statement : statements) {
+      run(statement, TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+    }
+  }
+}
+
+TEST_F(ParserXnodeTest, taskNumericIdsArePreserved) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (nodeType(pQuery->pRoot) == QUERY_NODE_UPDATE_XNODE_TASK_STMT) {
+      const auto* task = reinterpret_cast<const SUpdateXnodeTaskStmt*>(pQuery->pRoot);
+      EXPECT_EQ(task->tid, 123);
+      EXPECT_EQ(task->name.len, 0);
+    } else {
+      ASSERT_TRUE(nodeType(pQuery->pRoot) == QUERY_NODE_START_XNODE_TASK_STMT ||
+                  nodeType(pQuery->pRoot) == QUERY_NODE_STOP_XNODE_TASK_STMT);
+      const auto* task = reinterpret_cast<const SStartXnodeTaskStmt*>(pQuery->pRoot);
+      EXPECT_EQ(task->tid, 123);
+      EXPECT_EQ(task->name.len, 0);
+    }
+  });
+
+  run("START XNODE TASK 123");
+  run("STOP XNODE TASK 123");
+  run("ALTER XNODE TASK 123 WITH status 'stopped'");
+}
+
+TEST_F(ParserXnodeTest, agentNamesUseDecodedLengthAndSqlEscapes) {
+  login("root");
+  useDb("root", "test");
+
+  struct NameCase {
+    string token;
+    string expected;
+  };
+  const string maxName(TSDB_XNODE_AGENT_NAME_LEN, 'a');
+  const NameCase nameCases[] = {
+      {"'test''agent'", "test'agent"},
+      {R"('test\'agent')", "test'agent"},
+      {R"('test\\agent')", R"(test\agent)"},
+      {"'test''''agent'", "test''agent"},
+      {"'" + maxName + "'", maxName},
+      {"'" + string(TSDB_XNODE_AGENT_NAME_LEN * 2, '\'') + "'", string(TSDB_XNODE_AGENT_NAME_LEN, '\'')},
+  };
+  for (const NameCase& nameCase : nameCases) {
+    SCOPED_TRACE(nameCase.token);
+    setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+      switch (nodeType(pQuery->pRoot)) {
+        case QUERY_NODE_CREATE_XNODE_AGENT_STMT: {
+          const auto* agent = reinterpret_cast<const SCreateXnodeAgentStmt*>(pQuery->pRoot);
+          EXPECT_STREQ(agent->name, nameCase.expected.c_str());
+          break;
+        }
+        case QUERY_NODE_ALTER_XNODE_AGENT_STMT: {
+          const auto* agent = reinterpret_cast<const SAlterXnodeAgentStmt*>(pQuery->pRoot);
+          ASSERT_NE(agent->name.ptr, nullptr);
+          EXPECT_EQ(string(agent->name.ptr, agent->name.len), nameCase.expected);
+          break;
+        }
+        case QUERY_NODE_DROP_XNODE_AGENT_STMT: {
+          const auto* agent = reinterpret_cast<const SDropXnodeAgentStmt*>(pQuery->pRoot);
+          EXPECT_STREQ(agent->name, nameCase.expected.c_str());
+          break;
+        }
+        case QUERY_NODE_SELECT_STMT:
+          checkShowName(pQuery, nameCase.expected);
+          break;
+        default:
+          FAIL() << "Unexpected node type: " << nodeType(pQuery->pRoot);
+      }
+    });
+
+    run("CREATE XNODE AGENT " + nameCase.token + " WITH status 'running'");
+    run("ALTER XNODE AGENT " + nameCase.token + " WITH status 'stopped'");
+    run("DROP XNODE AGENT " + nameCase.token);
+    run("SHOW XNODE AGENTS WHERE name = " + nameCase.token);
+  }
+}
+
+TEST_F(ParserXnodeTest, agentNamesRejectEmptyAndDecodedOverflow) {
+  login("root");
+  useDb("root", "test");
+
+  const string tokens[] = {
+      "''",
+      "'" + string(TSDB_XNODE_AGENT_NAME_LEN + 1, 'a') + "'",
+      "'" + string(TSDB_XNODE_AGENT_NAME_LEN, 'a') + R"(\%')",
+  };
+  for (const string& token : tokens) {
+    run("CREATE XNODE AGENT " + token + " WITH status 'running'", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+    run("ALTER XNODE AGENT " + token + " WITH status 'stopped'", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+    run("DROP XNODE AGENT " + token, TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
+  }
+}
+
+TEST_F(ParserXnodeTest, agentNumericIdsArePreserved) {
+  login("root");
+  useDb("root", "test");
+
+  setCheckDdlFunc([](const SQuery* pQuery, ParserStage stage) {
+    if (nodeType(pQuery->pRoot) == QUERY_NODE_ALTER_XNODE_AGENT_STMT) {
+      const auto* agent = reinterpret_cast<const SAlterXnodeAgentStmt*>(pQuery->pRoot);
+      EXPECT_EQ(agent->id, 123);
+      EXPECT_EQ(agent->name.len, 0);
+    } else {
+      ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_XNODE_AGENT_STMT);
+      const auto* agent = reinterpret_cast<const SDropXnodeAgentStmt*>(pQuery->pRoot);
+      EXPECT_EQ(agent->id, 123);
+      EXPECT_EQ(agent->name, nullptr);
+    }
+  });
+  run("ALTER XNODE AGENT 123 WITH status 'stopped'");
+  run("DROP XNODE AGENT 123");
+}
 
 TEST_F(ParserXnodeTest, restartXnode) {
   login("root");

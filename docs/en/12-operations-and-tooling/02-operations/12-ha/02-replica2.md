@@ -44,14 +44,16 @@ Create two additional dnodes in your cluster for a total of three dnodes:
 
 ```sql
 CREATE dnode <dnode_ep> port <dnode_port>;
+
 CREATE dnode <dnode_ep> port <dnode_port>;
 ```
 
 Create mnodes on the two dnodes for a total of three mnodes:
 
 ```sql
-CREATE mnode on dnode <dnode_id>;
-CREATE mnode on dnode <dnode_id>;
+CREATE mnode ON dnode <dnode_id>;
+
+CREATE mnode ON dnode <dnode_id>;
 ```
 
 ### Create a Dual-Replica Database
@@ -67,7 +69,7 @@ create database <dbname> replica 2 vgroups xx buffer xx ...
 If you have already created a single-replica database, you can change it into a dual-replica database:
 
 ```sql
-alter database <dbname> replica 2;
+ALTER DATABASE <dbname> replica 2;
 ```
 
 ### Viewing the Status of Vgroups
@@ -75,16 +77,17 @@ alter database <dbname> replica 2;
 Use the following SQL commands to view the status of each Vgroup in a dual-replica database:
 
 ```sql
-show arbgroups;
+SHOW arbgroups;
+```
 
-select * from information_schema.ins_arbgroups;
-
+```sql
+taos> SELECT *
+      FROM information_schema.ins_arbgroups;
  db_name | vgroup_id | v1_dnode | v2_dnode | is_sync | assigned_dnode |     assigned_token      |
 =================================================================================================
  db      |         2 |        2 |        3 |       0 | NULL           | NULL                    |
  db      |         3 |        1 |        2 |       0 |              1 | d1#g3#1714119404630#663 |
  db      |         4 |        1 |        3 |       1 | NULL           | NULL                    |
-
 ```
 
 is_sync has the following two values:

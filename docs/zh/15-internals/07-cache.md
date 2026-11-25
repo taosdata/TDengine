@@ -31,7 +31,12 @@ TDengine 采用了一种创新的时间驱动缓存管理策略，亦称为写�
 例如，下面的 SQL 创建了包含 10 个 vgroup、每个 vnode 占用 256MB 内存的数据库。
 
 ```sql
-CREATE DATABASE POWER VGROUPS 10 BUFFER 256 CACHEMODEL 'NONE' PAGES 128 PAGESIZE 16;
+CREATE DATABASE POWER
+  VGROUPS 10
+  BUFFER 256
+  CACHEMODEL 'NONE'
+  PAGES 128
+  PAGESIZE 16;
 ```
 
 缓存越大越好，但超过一定阈值后再增加缓存对写入性能提升并无帮助。参数含义见 [VGROUPS](../05-tdengine-sql/02-ddl/01-database.md#vgroups)、[BUFFER](../05-tdengine-sql/02-ddl/01-database.md#buffer)。
@@ -78,7 +83,9 @@ TDengine 的读缓存机制专为高频实时查询场景设计，尤其适用�
 为了提升查询和写入操作的效率，每个 vnode 都配备了缓存机制，用于存储其曾经获取过的元数据。这一元数据缓存的大小由创建数据库时的两个参数 pages 和 pagesize 共同决定。其中，pagesize 参数的单位是 KB，用于指定每个缓存页的大小。如下 SQL 会为数据库 power 的每个 vnode 创建 128 个 page、每个 page 16KB 的元数据缓存
 
 ```sql
-CREATE DATABASE POWER PAGES 128 PAGESIZE 16;
+CREATE DATABASE POWER
+  PAGES 128
+  PAGESIZE 16;
 ```
 
 默认与取值范围见 [PAGES](../05-tdengine-sql/02-ddl/01-database.md#pages)、[PAGESIZE](../05-tdengine-sql/02-ddl/01-database.md#pagesize)。
@@ -95,7 +102,9 @@ TDengine 利用这些日志文件实现故障前的状态恢复。在写入 WAL 
 - wal_fsync_period：当 wal_level 设置为 2 时，这个参数控制执行 fsync 的频率。设置为 0 则表示每次写入后立即执行 fsync，这可以确保数据的安全性，但可能会牺牲一些性能。当设置为大于 0 的数值时，则表示 fsync 周期，默认为 3000，范围是[1， 180000]，单位毫秒。
 
 ```sql
-CREATE DATABASE POWER WAL_LEVEL 2 WAL_FSYNC_PERIOD 3000;
+CREATE DATABASE POWER
+  WAL_LEVEL 2
+  WAL_FSYNC_PERIOD 3000;
 ```
 
 在创建数据库时，用户可以根据需求选择不同的参数设置，以在性能和可靠性之间找到最佳平衡：

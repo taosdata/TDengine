@@ -85,17 +85,17 @@ REVOKE SUBSCRIBE ON topic_name FROM user_name
 
 ```sql
 GRANT privileges ON priv_level [WITH tag_condition] TO user_name
- 
+
 privileges : {
     ALL
   | priv_type [, priv_type] ...
 }
- 
+
 priv_type : {
     READ
   | WRITE
 }
- 
+
 priv_level : {
     dbname.tbname
   | dbname.*
@@ -108,12 +108,12 @@ privileges : {
     ALL
   | priv_type [, priv_type] ...
 }
- 
+
 priv_type : {
     READ
   | WRITE
 }
- 
+
 priv_level : {
     dbname.tbname
   | dbname.*
@@ -217,13 +217,20 @@ priv_level : {
 
 ```sql
 -- 创建专用管理员
-CREATE USER dba_user PASS 'DbaPass123!@#';
-CREATE USER sec_user PASS 'SecPass123!@#';
-CREATE USER audit_user PASS 'AuditPass123!@#';
+CREATE USER dba_user
+  PASS 'DbaPass123!@#';
+
+CREATE USER sec_user
+  PASS 'SecPass123!@#';
+
+CREATE USER audit_user
+  PASS 'AuditPass123!@#';
 
 -- 分离授权
 GRANT ROLE `SYSDBA` TO dba_user;
+
 GRANT ROLE `SYSSEC` TO sec_user;
+
 GRANT ROLE `SYSAUDIT` TO audit_user;
 ```
 
@@ -313,6 +320,7 @@ SELECT * FROM information_schema.ins_role_privileges;
 
 ```sql
 LOCK ROLE role_name;
+
 UNLOCK ROLE role_name;
 ```
 
@@ -320,6 +328,7 @@ UNLOCK ROLE role_name;
 
 ```sql
 GRANT ROLE role_name TO user_name;
+
 REVOKE ROLE role_name FROM user_name;
 ```
 
@@ -612,11 +621,10 @@ GRANT INSERT ON power.* TO collector;
 GRANT SELECT, INSERT, DELETE ON power.devices TO operator;
 
 -- 用户对 power 库的 devices 表有完整操作权限
-GRANT ALL ON power.devices to operator;
+GRANT ALL ON power.devices TO operator;
 
 -- 用户可以修改 power 库中所有表的结构
 GRANT ALTER ON power.* TO dba_user;
-
 ```
 
 **表权限策略及优先级**
@@ -650,7 +658,7 @@ REVOKE ALL ON table_name FROM user_name;
 
 ```sql
 -- 用户 u1 只能查看来自传感器 sensor_001 的数据
-GRANT SELECT ON power.meters WITH source='sensor_001' TO u1;
+GRANT SELECT ON power.meters WITH source = 'sensor_001' TO u1;
 
 -- 用户 u2 只能查看温度大于 30°C 的数据
 GRANT SELECT ON power.meters WITH temperature > 30 TO u2;
@@ -713,7 +721,7 @@ GRANT SELECT (device_id, status) ON power.meters TO limited_user;
 GRANT SELECT (ts, device_id, mask(name), mask(address)) ON power.meters TO analyst;
 
 -- 结合行权限和列脱敏
-GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO support;
+GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region = 'cn' TO support;
 ```
 
 **示例 - 结合行权限和列权限**
@@ -723,7 +731,7 @@ GRANT SELECT (ts, mask(phone), mask(email)) ON power.users WITH region='cn' TO s
 GRANT SELECT (ts, power, status) ON power.meters WITH ts >= '2024-01-01' TO analyst;
 
 -- 用户只能向特定来源的传感器操作温度数据
-GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source='sensor_001' TO collector;
+GRANT SELECT, INSERT (ts, temperature), DELETE ON power.meters WITH source = 'sensor_001' TO collector;
 ```
 
 **行/列权限优先级**
@@ -909,8 +917,10 @@ REVOKE ALL ON STREAM power.realtime_agg FROM operator;
 -- 查看用户权限（`v3.4.0.0` 及之后）
 SHOW USER PRIVILEGES
 SELECT * FROM information_schema.ins_user_privileges
+```
 
-taos> show user privileges;
+```sql
+taos> SHOW user privileges;
  user_name |    priv_type    |  priv_scope | db_name | table_name | condition |  notes | columns |        update_time         |
 ===============================================================================================================================
  u1        | CREATE DATABASE | CLUSTER     |         |            |           |        |         |                            |
@@ -922,14 +932,16 @@ taos> show user privileges;
  u1        | SELECT          | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.960258 |
  u1        | INSERT          | TABLE       | d0      | stb0       |           |        | ts,c0   | 2026-01-28 14:39:56.977788 |
  u2        | CREATE DATABASE | CLUSTER     |         |            |           |        |         |                            |
+```
 
+```sql
 -- 查看角色权限（`v3.4.0.0` 及之后）
 SHOW ROLE PRIVILEGES
 SELECT * FROM information_schema.ins_role_privileges
 ```
 
-```text
-taos> show role privileges;
+```sql
+taos> SHOW role privileges;
  role_name    |    priv_type        |  priv_scope | db_name | table_name | condition |  notes | columns | update_time |
  ======================================================================================================================
  SYSSEC       | SHOW CREATE         | TABLE       |  *      |  *         |           |        |         |             |
@@ -959,6 +971,7 @@ taos> show role privileges;
 ```sql
 -- 启用强制三权分立（执行者须拥有 ALTER SECURITY POLICY 权限或 SYSSEC 角色）
 ALTER CLUSTER 'sod' 'mandatory';
+
 -- 或使用全称
 ALTER CLUSTER 'separation_of_duties' 'mandatory';
 ```
@@ -987,7 +1000,12 @@ No enabled non-root user with SYSDBA role found to satisfy SoD policy
 **查看 SoD 状态**
 
 ```sql
-SELECT name, mode FROM information_schema.ins_security_policies WHERE name='SoD';
+SELECT
+  name,
+  mode
+FROM information_schema.ins_security_policies
+WHERE name = 'SoD';
+
 -- 或
 SHOW SECURITY_POLICIES;
 ```
@@ -1058,6 +1076,7 @@ ALTER TABLE db_name.stb_name SECURITY_LEVEL level;
 ```sql
 -- 启用强制访问控制（需 ALTER SECURITY POLICY 权限，SYSSEC 角色默认拥有该权限）
 ALTER CLUSTER 'MAC' 'mandatory';
+
 -- 或使用全称
 ALTER CLUSTER 'mandatory_access_control' 'mandatory';
 ```
@@ -1104,9 +1123,13 @@ MAC 激活后，所有数据访问均额外受到以下规则约束（在 DAC �
 **查看 MAC 状态**
 
 ```sql
-SELECT name, mode, operator, activate_time
+SELECT
+  name,
+  mode,
+  operator,
+  activate_time
 FROM information_schema.ins_security_policies
-WHERE name='MAC';
+WHERE name = 'MAC';
 ```
 
 #### MAC 相关错误码
@@ -1143,8 +1166,11 @@ WHERE name='MAC';
 
 ```sql
 CREATE ROLE analyst_role;
-GRANT SHOW,SELECT ON power.* TO analyst_role;
-GRANT SHOW,USE on database power TO analyst_role;
+
+GRANT SHOW, SELECT ON power.* TO analyst_role;
+
+GRANT SHOW, USE ON DATABASE power TO analyst_role;
+
 GRANT ROLE analyst_role TO analyst_user;
 ```
 
@@ -1152,8 +1178,11 @@ GRANT ROLE analyst_role TO analyst_user;
 
 ```sql
 CREATE ROLE writer_role;
+
 GRANT INSERT ON power.* TO writer_role;
-GRANT SHOW,USE,CREATE TABLE ON database power TO writer_role;
+
+GRANT SHOW, USE, CREATE TABLE ON DATABASE power TO writer_role;
+
 GRANT ROLE writer_role TO writer_user;
 ```
 
@@ -1161,14 +1190,21 @@ GRANT ROLE writer_role TO writer_user;
 
 ```sql
 -- 创建审计库
-CREATE DATABASE audit_db KEEP 36500d IS_AUDIT 1 ENCRYPT_ALGORITHM 'SM4-CBC' WAL_LEVEL 2;
+CREATE DATABASE audit_db
+  KEEP 36500d
+  IS_AUDIT 1
+  ENCRYPT_ALGORITHM 'SM4-CBC'
+  WAL_LEVEL 2;
 
 -- 创建审计员
-CREATE USER audit_user PASS 'AuditPass123!@#';
+CREATE USER audit_user
+  PASS 'AuditPass123!@#';
+
 GRANT ROLE `SYSAUDIT` TO audit_user;
 
 -- 创建审计日志角色（用于应用写入）
 CREATE ROLE audit_logger;
+
 GRANT ROLE `SYSAUDIT_LOG` TO audit_logger;
 ```
 

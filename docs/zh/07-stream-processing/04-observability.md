@@ -11,14 +11,15 @@ TDengine 通过 `information_schema.ins_streams`、`information_schema.ins_strea
 下面的查询同时显示流状态、错误信息和主要运行指标：
 
 ```sql
-SELECT stream_name,
-       status,
-       message,
-       realtime_lag_ms,
-       input_rows_per_sec_1m,
-       output_rows_per_sec_1m,
-       runner_result_latency_avg_1m_ms,
-       history_progress_pct
+SELECT
+  stream_name,
+  status,
+  message,
+  realtime_lag_ms,
+  input_rows_per_sec_1m,
+  output_rows_per_sec_1m,
+  runner_result_latency_avg_1m_ms,
+  history_progress_pct
 FROM information_schema.ins_streams
 ORDER BY stream_name;
 ```
@@ -42,18 +43,19 @@ ORDER BY stream_name;
 当流状态异常、流级指标为 `NULL` 或需要定位具体节点时，查询任务视图：
 
 ```sql
-SELECT stream_name,
-       task_id,
-       type,
-       deploy_id,
-       node_type,
-       node_id,
-       status,
-       last_update,
-       message,
-       input_rows_per_sec_1m,
-       output_rows_per_sec_1m,
-       runner_result_latency_avg_1m_ms
+SELECT
+  stream_name,
+  task_id,
+  type,
+  deploy_id,
+  node_type,
+  node_id,
+  status,
+  last_update,
+  message,
+  input_rows_per_sec_1m,
+  output_rows_per_sec_1m,
+  runner_result_latency_avg_1m_ms
 FROM information_schema.ins_stream_tasks
 WHERE stream_name = 'your_stream_name'
 ORDER BY type, deploy_id, task_id;
@@ -94,14 +96,15 @@ Runner 的输出数据块和 executor 内存由执行线程在归还执行器或
 下面的查询显示每个手动重算作业的范围、进度和状态：
 
 ```sql
-SELECT stream_name,
-       recalc_id,
-       start,
-       end,
-       progress,
-       status,
-       request_time,
-       message
+SELECT
+  stream_name,
+  recalc_id,
+  start,
+  END,
+  progress,
+  status,
+  request_time,
+  message
 FROM information_schema.ins_stream_recalculates
 WHERE stream_name = 'your_stream_name'
 ORDER BY start, recalc_id;

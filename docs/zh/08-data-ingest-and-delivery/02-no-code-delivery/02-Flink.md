@@ -44,10 +44,29 @@ URL 规范格式为：`jdbc:TAOS-WS://[host_name]:[port]/[database_name]?[user={
 通过命令行工具 `taos` 或管理界面 taosExplorer 执行 SQL 语句，创建数据库，超级表，主题，并写入数据，供下一步订阅使用。以下为简单示例：
 
 ```sql
-CREATE DATABASE db VGROUPS 1;
-CREATE TABLE db.meters (ts TIMESTAMP, f1 INT) TAGS (t1 INT);
-CREATE TOPIC topic_meters AS SELECT ts, tbname, f1, t1 FROM db.meters;
-INSERT INTO db.tb USING db.meters TAGS (1) VALUES (now, 1);
+CREATE DATABASE db
+  VGROUPS 1;
+
+CREATE TABLE db.meters (
+  ts TIMESTAMP,
+  f1 INT
+) TAGS (
+  t1 INT
+);
+
+CREATE TOPIC topic_meters
+  AS
+    SELECT
+      ts,
+      tbname,
+      f1,
+      t1
+    FROM db.meters;
+
+INSERT INTO db.tb
+USING db.meters
+TAGS (1)
+VALUES (now, 1);
 ```
 
 ### Source

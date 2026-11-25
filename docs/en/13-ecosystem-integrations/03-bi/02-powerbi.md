@@ -53,19 +53,36 @@ taosBenchmark -t 1000 -n 259200 -S 1000 -y
 **Step 2**, Import dimension data. In Power BI, import the tag columns of the table, named as tags, using the following SQL to get the tag data of all smart meters under the supertable.
 
 ```sql
-select distinct tbname device, groupId, location from test.meters
+SELECT
+  DISTINCT tbname device,
+  groupId,
+  location
+FROM test.meters
 ```
 
 **Step 3**, Import measure data. In Power BI, import the average current, voltage, and phase of each smart meter in 1-hour time windows, named as data, with the following SQL.
 
 ```sql
-select tbname, _wstart ws, avg(current), avg(voltage), avg(phase) from test.meters PARTITION by tbname interval(1h)
+SELECT
+  tbname,
+  _wstart ws,
+  AVG(current),
+  AVG(voltage),
+  AVG(phase)
+FROM test.meters
+PARTITION BY tbname
+INTERVAL(1h)
 ```
 
 **Step 4**, Import date data. Using a 1-day time window, obtain the time range and data count of the time-series data, with the following SQL. In the Power Query editor, convert the format of the date column from "text" to "date".
 
 ```sql
-select _wstart date, count(*) from test.meters interval(1d) having count(*)>0
+SELECT
+  _wstart date,
+  COUNT(*)
+FROM test.meters
+INTERVAL(1d)
+HAVING COUNT(*) > 0
 ```
 
 **Step 5**, Establish the relationship between dimensions and measures. Open the model view and establish the relationship between the tags and data tables, setting tbname as the relationship data column.  
