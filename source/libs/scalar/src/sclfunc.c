@@ -4751,10 +4751,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
-          len = outputCharLen > varDataLen(input) ? varDataLen(input) : outputCharLen;
-          bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output),
-                                   outputLen - VARSTR_HEADER_SIZE, &len, pInput->charsetCxt);
-          if (!ret) {
+          int32_t ucs4Capacity = outputCharLen * TSDB_NCHAR_SIZE;
+          if (!taosMbsToUcs4Prefix(varDataVal(input), varDataLen(input),
+                                   varDataVal(output), ucs4Capacity, &len,
+                                   pInput->charsetCxt)) {
             code = TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR;
             goto _end;
           }

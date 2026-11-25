@@ -2126,6 +2126,7 @@ CAST(expr AS type_name)
         1) Invalid character situations when converting string types to numeric types, e.g., "a" might convert to 0, but will not throw an error.
         2) When converting to numeric types, if the value exceeds the range that `type_name` can represent, it will overflow, but will not throw an error.
         3) When converting to string types, if the converted length exceeds the length specified in `type_name`, it will be truncated, but will not throw an error.
+- Casting `VARCHAR` to `NCHAR(n)` keeps up to `n` decoded characters. Invalid bytes encountered before decoding `n` characters cause a conversion error. The remaining bytes are discarded once the result reaches `n` characters.
 - The DECIMAL type does not support conversion to or from JSON, VARBINARY, or GEOMETRY types.
 
 ### TO_ISO8601

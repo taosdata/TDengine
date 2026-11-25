@@ -18,7 +18,9 @@
 #include <gtest/gtest.h>
 #include <cstdlib>
 #include <cstdio>
+#include <cstring>
 #include <iostream>
+#include <memory>
 #include <thread>
 #include <vector>
 #include "os.h"
@@ -1045,6 +1047,77 @@ TEST(charsetCase, charset_Test) {
   taos_close(pConnDefault);
 
 }
+
+#ifndef DISALLOW_NCHAR_WITHOUT_ICONV
+TEST(charsetCase, CastVarcharLiteralToNchar) {
+  // GBK and CP936 both encode '中' as D6 D0.
+  const char sql[] = "select cast('\xD6\xD0\xD6\xD0\xD6\xD0' as nchar(2))";
+  const char expected[] = "\xD6\xD0\xD6\xD0";
+  const int32_t expectedLen = sizeof(expected) - 1;
+  const char* charsets[] = {"GBK", "CP936"};
+  for (const char* charset : charsets) {
+    SCOPED_TRACE(charset);
+    std::unique_ptr<TAOS, decltype(&taos_close)> conn(
+        taos_connect("localhost", "root", "taosdata", nullptr, 0), taos_close);
+    ASSERT_NE(conn.get(), nullptr);
+    int32_t code =
+        taos_options_connection(conn.get(), TSDB_OPTION_CONNECTION_CHARSET,
+                                charset);
+    ASSERT_EQ(code, 0);
+
+    std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+        taos_query(conn.get(), sql), taos_free_result);
+    ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+    TAOS_ROW row = taos_fetch_row(result.get());
+    ASSERT_NE(row, nullptr);
+    ASSERT_NE(row[0], nullptr);
+    const int* lengths = taos_fetch_lengths(result.get());
+    ASSERT_NE(lengths, nullptr);
+    ASSERT_EQ(lengths[0], expectedLen);
+    EXPECT_EQ(memcmp(row[0], expected, expectedLen), 0);
+  }
+}
+
+#ifdef __GLIBC__
+TEST(charsetCase, CastVarcharCp1258ToNchar) {
+  std::unique_ptr<TAOS, decltype(&taos_close)> conn(
+      taos_connect("localhost", "root", "taosdata", nullptr, 0), taos_close);
+  ASSERT_NE(conn.get(), nullptr);
+  ASSERT_EQ(taos_options_connection(conn.get(), TSDB_OPTION_CONNECTION_CHARSET,
+                                    "CP1258"),
+            0);
+
+  const char sql[] = "select char_length(cast(char(65) as nchar(1)))";
+  std::unique_ptr<TAOS_RES, decltype(&taos_free_result)> result(
+      taos_query(conn.get(), sql), taos_free_result);
+  ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+  TAOS_ROW row = taos_fetch_row(result.get());
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  const int* lengths = taos_fetch_lengths(result.get());
+  ASSERT_NE(lengths, nullptr);
+  int64_t charCount = 0;
+  ASSERT_EQ(lengths[0], static_cast<int>(sizeof(charCount)));
+  std::memcpy(&charCount, row[0], sizeof(charCount));
+  EXPECT_EQ(charCount, 1);
+
+  result.reset(taos_query(conn.get(),
+                          "select cast(char(65, 129) as nchar(2))"));
+  EXPECT_EQ(taos_errno(result.get()), TSDB_CODE_SCALAR_CONVERT_NCHAR_ERROR);
+
+  result.reset(taos_query(conn.get(),
+                          "select cast(char(65, 129) as nchar(1))"));
+  ASSERT_EQ(taos_errno(result.get()), 0) << taos_errstr(result.get());
+  row = taos_fetch_row(result.get());
+  ASSERT_NE(row, nullptr);
+  ASSERT_NE(row[0], nullptr);
+  lengths = taos_fetch_lengths(result.get());
+  ASSERT_NE(lengths, nullptr);
+  ASSERT_EQ(lengths[0], 1);
+  EXPECT_EQ(*static_cast<const char*>(row[0]), 'A');
+}
+#endif
+#endif
 
 TEST(charsetCase, alter_charset_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
