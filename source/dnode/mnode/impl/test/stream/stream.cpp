@@ -27,6 +27,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -7957,6 +7958,7 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
     gRecoveryStreams[0] = nullptr;
     gRecoveryStreams[1] = nullptr;
 
+    taosHashCleanup(mStreamMgmt.watch.deferredStreams);
     CleanupStatuses();
     taosHashCleanup(actionStm_);
     taosHashCleanup(deployStm_);
@@ -7974,6 +7976,8 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
   }
 
   void SaveRuntime() {
+    savedWatch_ = mStreamMgmt.watch;
+    savedErrorEvent_ = mStreamMgmt.lastTs[STM_EVENT_STM_TERR];
     savedStreamMap_ = mStreamMgmt.streamMap;
     savedTaskMap_ = mStreamMgmt.taskMap;
     savedVgroupMap_ = mStreamMgmt.vgroupMap;
@@ -7991,6 +7995,7 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
   }
 
   void InitRuntime() {
+    mStreamMgmt.watch = {};
     mStreamMgmt.streamMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     mStreamMgmt.taskMap = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
     mStreamMgmt.vgroupMap = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -8040,6 +8045,8 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
   }
 
   void RestoreRuntime() {
+    mStreamMgmt.lastTs[STM_EVENT_STM_TERR] = savedErrorEvent_;
+    mStreamMgmt.watch = savedWatch_;
     mStreamMgmt.streamMap = savedStreamMap_;
     mStreamMgmt.taskMap = savedTaskMap_;
     mStreamMgmt.vgroupMap = savedVgroupMap_;
@@ -8165,6 +8172,8 @@ class MndStreamRecalcRecoveryTest : public ::testing::Test {
   SHashObj                *savedDnodeMap_ = nullptr;
   SHashObj                *savedToDeployVgMap_ = nullptr;
   SHashObj                *savedToDeploySnodeMap_ = nullptr;
+  SStmWatchCtx             savedWatch_ = {};
+  SStmLastTs               savedErrorEvent_ = {};
   SStmActionQ             *savedActionQ_ = nullptr;
   SRWLatch                 savedActionQLock_ = 0;
   int64_t                  savedLastTaskId_ = 0;
@@ -8198,6 +8207,11 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
   }
 
   void CheckQueuedCreate(bool fail, bool scanFirst);
+  void SetMetadataGroups(bool recovering);
+  void CheckWatchDeployedScans(bool cache, bool empty, bool missingReader);
+#ifdef BUILD_TEST_SEAM
+  void CheckRunnerCleanupReplacement(bool rebuild);
+#endif
 #ifdef TD_ENTERPRISE
   void CheckSchemaWorkerStop(bool stopMnode);
 #endif
@@ -8294,6 +8308,19 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
     stub_.set(mndGetDnodeEpsetById, endpoint);
     if (nested) {
       stub_.set(mndGetVgroupEpsetById, endpoint);
+      // Keep the fixture's endpoint and catalog fault controls independent.
+      // The real combined lookup is covered by VgroupEndpointLookupPreservesStatusAndOrder.
+      stub_.set(mndGetVgroupEpsetByIdWithStatus,
+                +[](SMnode *mnode, int32_t vg, int32_t *lookupCode) -> SEpSet {
+        SEpSet ep = mndGetVgroupEpsetById(mnode, vg);
+        *lookupCode = 0;
+        if (ep.numOfEps == 0) {
+          SVgObj *row = mndAcquireVgroup(mnode, vg);
+          *lookupCode = row ? 0 : terrno;
+          if (row) mndReleaseVgroup(mnode, row);
+        }
+        return ep;
+      });
       auto *create = Stream(streamId)->pCreate;
       create->calcScanPlanList = taosArrayInit(1, sizeof(SStreamCalcScan));
       ASSERT_NE(nullptr, create->calcScanPlanList);
@@ -8301,6 +8328,7 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
       ASSERT_NE(nullptr, scan);
       const int32_t vg = 20;
       scan->vgList = taosArrayInit(1, sizeof(vg));
+      ASSERT_NE(nullptr, scan->vgList);
       ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &vg));
       SNode *raw = nullptr;
       ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
@@ -8313,6 +8341,7 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
       reinterpret_cast<STableScanPhysiNode *>(reader->pNode)->scan.uid = 42;
       ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_REMOTE_VALUE, &reader->pNode->pConditions));
       ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&scan->scanPlan), nullptr));
+      ASSERT_NE(nullptr, scan->scanPlan);
     }
     SNode *root = nullptr;
     for (int i = 0; i <= (nested ? 1 : 0); ++i) {
@@ -8350,9 +8379,161 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
     }
     char *plan = nullptr;
     ASSERT_EQ(0, nodesNodeToString(root, false, &plan, nullptr));
+    if (plan == nullptr) nodesDestroyNode(root);
+    ASSERT_NE(nullptr, plan);
     nodesDestroyNode(root);
     Stream(streamId)->pCreate->calcPlan = plan;
     Stream(streamId)->pCreate->numOfCalcSubplan = 1;
+  }
+
+
+  void SetMetadataCatalog(std::vector<int32_t> ids, int32_t tsmaId = 0) {
+    static std::vector<SVgObj> rows;
+    rows.clear();
+    for (int32_t id : ids) {
+      SVgObj row = {};
+      row.vgId = id;
+      rows.push_back(row);
+    }
+    if (tsmaId != 0) {
+      SVgObj row = {};
+      row.vgId = tsmaId;
+      row.isTsma = true;
+      rows.push_back(row);
+    }
+    stub_.set(sdbFetch, +[](SSdb *, ESdbType type, void *iter, void **row) -> void * {
+      size_t index = reinterpret_cast<uintptr_t>(iter);
+      if (type != SDB_VGROUP || index >= rows.size()) return nullptr;
+      *row = &rows[index];
+      return reinterpret_cast<void *>(index + 1);
+    });
+    stub_.set(sdbRelease, +[](SSdb *, void *) {});
+    stub_.set(sdbCancelFetch, +[](SSdb *, void *) {});
+    stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+      if (type != SDB_VGROUP) return;
+      for (auto &row : rows) {
+        if (!callback(nullptr, &row, p1, p2, p3)) break;
+      }
+    });
+  }
+
+  void SetLegacyMetadataPlan(int partitions = 3, bool oneScan = false, bool liveFirst = false,
+                             bool metadataInSubquery = false) {
+    ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+    auto *create = Stream(kStreamA)->pCreate;
+    auto *first = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+    if (!metadataInSubquery) {
+      taosMemoryFree(first->scanPlan);
+      taosArrayDestroy(first->vgList);
+      taosArrayClear(create->calcScanPlanList);
+    }
+    SNode *raw = nullptr;
+    ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(create->calcPlan), &raw));
+    std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+    auto *dag = reinterpret_cast<SQueryPlan *>(raw);
+    if (!metadataInSubquery) {
+      nodesDestroyList(dag->pChildren);
+      dag->pChildren = nullptr;
+    }
+    auto *level = reinterpret_cast<SNodeListNode *>(nodesListGetNode(dag->pSubplans, 0));
+    auto *runner = reinterpret_cast<SSubplan *>(nodesListGetNode(level->pNodeList, 0));
+    if (!metadataInSubquery) {
+      nodesDestroyList(runner->pChildren);
+      runner->pChildren = nullptr;
+    } else {
+      auto *ordinary = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+      SNode *ordinaryNode = nullptr;
+      ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(ordinary->scanPlan), &ordinaryNode));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> ordinaryOwner(ordinaryNode, nodesDestroyNode);
+      auto *ordinaryPlan = reinterpret_cast<SSubplan *>(ordinaryNode);
+      ordinaryPlan->id.groupId = 4;
+      ordinaryPlan->id.subplanId = 14;
+      void *encodedOrdinary = nullptr;
+      ASSERT_EQ(0, nodesNodeToString(ordinaryNode, false, reinterpret_cast<char **>(&encodedOrdinary), nullptr));
+      ASSERT_NE(nullptr, encodedOrdinary);
+      taosMemoryFree(ordinary->scanPlan);
+      ordinary->scanPlan = encodedOrdinary;
+      auto *exchange = reinterpret_cast<SExchangePhysiNode *>(runner->pNode);
+      exchange->srcStartGroupId = exchange->srcEndGroupId = 4;
+      auto *ordinaryRef = reinterpret_cast<SValueNode *>(nodesListGetNode(runner->pChildren, 0));
+      ordinaryRef->datum.i = (INT64_C(4) << 32) | 14;
+      auto *child = reinterpret_cast<SQueryPlan *>(nodesListGetNode(dag->pChildren, 0));
+      auto *childLevel = reinterpret_cast<SNodeListNode *>(nodesListGetNode(child->pSubplans, 0));
+      auto *childRunner = reinterpret_cast<SSubplan *>(nodesListGetNode(childLevel->pNodeList, 0));
+      SNode *newExchange = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, &newExchange));
+      nodesDestroyNode(reinterpret_cast<SNode *>(childRunner->pNode));
+      childRunner->pNode = reinterpret_cast<SPhysiNode *>(newExchange);
+      auto *childExchange = reinterpret_cast<SExchangePhysiNode *>(childRunner->pNode);
+      childExchange->srcStartGroupId = childExchange->srcEndGroupId = 3;
+    }
+    for (int i = 0; i < partitions; ++i) {
+      auto *scan = static_cast<SStreamCalcScan *>(taosArrayReserve(create->calcScanPlanList, 1));
+      ASSERT_NE(nullptr, scan);
+      const int32_t vg = i == 1 ? 20 : 21 + i;
+      scan->vgList = taosArrayInit(1, sizeof(vg));
+      ASSERT_NE(nullptr, scan->vgList);
+      ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &vg));
+      SNode *sub = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &sub));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> subOwner(sub, nodesDestroyNode);
+      auto *plan = reinterpret_cast<SSubplan *>(sub);
+      plan->subplanType = SUBPLAN_TYPE_SCAN;
+      plan->id.groupId = 3;
+      plan->id.subplanId = 13 + i;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN,
+                                reinterpret_cast<SNode **>(&plan->pNode)));
+      auto *meta = reinterpret_cast<SSystemTableScanPhysiNode *>(plan->pNode);
+      meta->scan.virtualStableScan = true;
+      tstrncpy(meta->scan.tableName.dbname, TSDB_INFORMATION_SCHEMA_DB, sizeof(meta->scan.tableName.dbname));
+      tstrncpy(meta->scan.tableName.tname, TSDB_INS_TABLE_VC_COLS, sizeof(meta->scan.tableName.tname));
+      ASSERT_EQ(0, nodesNodeToString(sub, false, reinterpret_cast<char **>(&scan->scanPlan), nullptr));
+      ASSERT_NE(nullptr, scan->scanPlan);
+      SNode *ref = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_VALUE, &ref));
+      auto *value = reinterpret_cast<SValueNode *>(ref);
+      value->translate = true;
+      value->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+      value->datum.i = (INT64_C(3) << 32) | (13 + i);
+      auto *target = runner;
+      if (metadataInSubquery) {
+        auto *child = reinterpret_cast<SQueryPlan *>(nodesListGetNode(dag->pChildren, 0));
+        auto *childLevel = reinterpret_cast<SNodeListNode *>(nodesListGetNode(child->pSubplans, 0));
+        target = reinterpret_cast<SSubplan *>(nodesListGetNode(childLevel->pNodeList, 0));
+      }
+      ASSERT_EQ(0, nodesListMakeStrictAppend(&target->pChildren, ref));
+    }
+    char *encodedCalcPlan = nullptr;
+    ASSERT_EQ(0, nodesNodeToString(raw, false, &encodedCalcPlan, nullptr));
+    ASSERT_NE(nullptr, encodedCalcPlan);
+    taosMemoryFree(create->calcPlan);
+    create->calcPlan = encodedCalcPlan;
+    if (oneScan) {
+      auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+      int32_t live = 20;
+      ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &live));
+      if (liveFirst) {
+        std::swap(*static_cast<int32_t *>(taosArrayGet(scan->vgList, 0)),
+                  *static_cast<int32_t *>(taosArrayGet(scan->vgList, 1)));
+      }
+    }
+    stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t vg) -> SVgObj * {
+      static SVgObj existing = {};
+      if (vg == 20) return &existing;
+      terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+      return nullptr;
+    });
+    stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+      SEpSet ep = {};
+      if (vg == 20) {
+        ep.numOfEps = 1;
+        ep.eps[0].port = 6020;
+        tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+      }
+      return ep;
+    });
+    stub_.set(mndReleaseVgroup, +[](SMnode *, SVgObj *) {});
+    SetMetadataCatalog({20});
   }
 
 #if defined(BUILD_TEST_SEAM) && defined(TD_ENTERPRISE)
@@ -8394,6 +8575,26 @@ class MndStreamDeployOwnershipTest : public MndStreamRecalcRecoveryTest {
     stub_.set(sdbFetch, +[](SSdb *, ESdbType, void *, void **) -> void * { return nullptr; });
   }
 #endif
+
+  void PrependWatchNonVgroupScans() {
+    auto *create = Stream(kStreamA)->pCreate;
+    if (!create->calcScanPlanList) create->calcScanPlanList = taosArrayInit(4, sizeof(SStreamCalcScan));
+    ASSERT_NE(nullptr, create->calcScanPlanList);
+    for (int mode = 0; mode < 4; ++mode) {
+      SStreamCalcScan empty = {};
+      auto *scan = static_cast<SStreamCalcScan *>(taosArrayInsert(create->calcScanPlanList, mode, &empty));
+      ASSERT_NE(nullptr, scan);
+      scan->scanPlan = taosStrdup("must not decode non-vgroup scan");
+      ASSERT_NE(nullptr, scan->scanPlan);
+      scan->readFromCache = mode == 0;
+      if (mode != 1) {
+        scan->vgList = taosArrayInit(1, sizeof(int32_t));
+        ASSERT_NE(nullptr, scan->vgList);
+        int32_t id = mode == 0 ? 20 : (mode == 2 ? MNODE_HANDLE : SNODE_HANDLE);
+        ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &id));
+      }
+    }
+  }
 
   int32_t WatchTask() {
     SStmGrpCtx ctx = {};
@@ -12641,7 +12842,10 @@ TEST_F(MndStreamDeployOwnershipTest, ReaderTimeoutKeepsOneRepairUntilHeartbeatDi
   const int32_t vgId = 3;
   scan->vgList = taosArrayInit(1, sizeof(vgId));
   ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &vgId));
-  scan->scanPlan = taosStrdup("reader plan");
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(raw, nodesDestroyNode);
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&scan->scanPlan), nullptr));
   ASSERT_NE(nullptr, scan->scanPlan);
 
   SStmGrpCtx ctx = {};
@@ -12864,6 +13068,1252 @@ TEST_F(MndStreamDeployOwnershipTest, StatusQueryFinishesDuringFirstPlanCopy) {
   worker.join();
   EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
   blockDataDestroy(block);
+}
+
+class MndStreamMetadataOrderTest : public MndStreamDeployOwnershipTest,
+                                   public ::testing::WithParamInterface<int> {};
+
+TEST_P(MndStreamMetadataOrderTest, RemovedMetadataPartitionsRecoverAndRepairRunner) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan(GetParam() == 0 ? 3 : 1, GetParam() != 0, GetParam() == 2));
+  SetMetadataCatalog({20}, 1000);  // A TSMA-only vgroup is intentionally absent from the persisted scan.
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(1, listNEles(status->calcReaders));
+  EXPECT_EQ(1, status->calcReaderNum);
+  auto reader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data)->id;
+  EXPECT_EQ(20, reader.nodeId);
+  EXPECT_EQ(GetParam() == 0 ? 1 : 0, reader.taskIdx);
+  auto verifyRunner = [&](bool repaired) {
+    int runners = 0;
+    SStreamHbMsg hb = {};
+    hb.dnodeId = hb.snodeId = 1;
+    ReadHeartbeatDeploys(hb, 0, [&](const SStmStreamDeploy &stream) {
+      for (size_t i = 0; i < taosArrayGetSize(stream.runnerTasks); ++i) {
+        auto *task = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.runnerTasks, i));
+        EXPECT_EQ(repaired, !!STREAM_IS_REDEPLOY_RUNNER(task->task.flags));
+        SNode *raw = nullptr;
+        ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(task->msg.runner.pPlan), &raw));
+        std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+        ASSERT_NE(nullptr, raw);
+        ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(raw));
+        auto *plan = reinterpret_cast<SSubplan *>(raw);
+        ASSERT_NE(nullptr, plan->pNode);
+        ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, nodeType(plan->pNode));
+        auto *exchange = reinterpret_cast<SExchangePhysiNode *>(plan->pNode);
+        ASSERT_EQ(1, LIST_LENGTH(exchange->pSrcEndPoints));
+        auto *source = reinterpret_cast<SDownstreamSourceNode *>(nodesListGetNode(exchange->pSrcEndPoints, 0));
+        EXPECT_EQ(reader.taskId, source->taskId);
+        EXPECT_EQ(20, source->addr.nodeId);
+        ++runners;
+      }
+    });
+    EXPECT_GT(runners, 0);
+  };
+  ASSERT_NO_FATAL_FAILURE(verifyRunner(false));
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  HandleActions();
+  ASSERT_NO_FATAL_FAILURE(verifyRunner(true));
+  EXPECT_EQ(reader.taskId, reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data)->id.taskId);
+}
+
+INSTANTIATE_TEST_SUITE_P(PartitionOrder, MndStreamMetadataOrderTest, ::testing::Values(0, 1, 2));
+
+TEST_F(MndStreamDeployOwnershipTest, HealthyMetadataDoesNotProbeCatalogAgain) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  static std::map<int32_t, int> lookups;
+  lookups.clear();
+  stub_.set(mndGetVgroupEpsetByIdWithStatus, +[](SMnode *, int32_t vg, int32_t *lookupCode) -> SEpSet {
+    ++lookups[vg];
+    *lookupCode = 0;
+    SEpSet ep = {};
+    ep.numOfEps = 1;
+    ep.eps[0].port = 6000 + vg;
+    tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    return ep;
+  });
+  static int probes;
+  probes = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType, sdbTraverseFp, void *, void *, void *) { ++probes; });
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+    ++probes;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(3, listNEles(status->calcReaders));
+  EXPECT_EQ((std::map<int32_t, int>{{20, 1}, {21, 1}, {23, 1}}), lookups);
+  EXPECT_EQ(0, probes);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchRedeploysLegacySubqueryMetadataAfterRemovedPartitions) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan(3, false, false, true));
+  auto *create = Stream(kStreamA)->pCreate;
+  create->triggerTblType = TSDB_NORMAL_TABLE;
+  create->triggerTblVgId = 20;
+  create->triggerTblName = taosStrdup("meters");
+  ASSERT_NE(nullptr, create->triggerTblName);
+  EXPECT_FALSE(STREAM_IS_VIRTUAL_TABLE(create->triggerTblType, create->flags));
+  EXPECT_FALSE(create->vtableCalc);
+  auto *firstScan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+  SNode *firstPlan = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(firstScan->scanPlan), &firstPlan));
+  ASSERT_NE(nullptr, firstPlan);
+  EXPECT_EQ(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, nodeType(reinterpret_cast<SSubplan *>(firstPlan)->pNode));
+  nodesDestroyNode(firstPlan);
+  SNode *calcPlan = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(create->calcPlan), &calcPlan));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> calcPlanOwner(calcPlan, nodesDestroyNode);
+  ASSERT_NE(nullptr, calcPlan);
+  auto *root = reinterpret_cast<SQueryPlan *>(calcPlan);
+  ASSERT_NE(nullptr, root->pChildren);
+  auto *subquery = reinterpret_cast<SQueryPlan *>(nodesListGetNode(root->pChildren, 0));
+  auto *subqueryLevel = reinterpret_cast<SNodeListNode *>(nodesListGetNode(subquery->pSubplans, 0));
+  auto *subqueryRunner = reinterpret_cast<SSubplan *>(nodesListGetNode(subqueryLevel->pNodeList, 0));
+  EXPECT_EQ(3, LIST_LENGTH(subqueryRunner->pChildren));
+  calcPlanOwner.reset();
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(2, status->calcReaderNum);
+  ASSERT_EQ(4u, taosArrayGetSize(create->calcScanPlanList));
+  const auto previous = status->triggerTask->id;
+
+  // A new leader starts WATCH with no in-memory deployment state.
+  void *node = nullptr;
+  while ((node = taosHashIterate(mStreamMgmt.snodeMap, node))) {
+    auto *snode = static_cast<SStmSnodeStatus *>(node);
+    ASSERT_EQ(0, taosHashRemove(snode->streamTasks, &kStreamA, sizeof(kStreamA)));
+  }
+  while ((node = taosHashIterate(mStreamMgmt.vgroupMap, node))) {
+    auto *vgroup = static_cast<SStmVgroupStatus *>(node);
+    ASSERT_EQ(0, taosHashRemove(vgroup->streamTasks, &kStreamA, sizeof(kStreamA)));
+  }
+  taosHashClear(mStreamMgmt.taskMap);
+  mstDestroySStmStatus(status);
+  taosHashClear(mStreamMgmt.streamMap);
+  taosHashClear(mStreamMgmt.toDeploySnodeMap);
+  taosHashClear(mStreamMgmt.toDeployVgMap);
+  mStreamMgmt.toDeploySnodeTaskNum = mStreamMgmt.toDeployVgTaskNum = 0;
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  const auto savedHealth = mStreamMgmt.hCtx;
+  SStmLastTs savedTimes[STM_EVENT_MAX_VALUE];
+  memcpy(savedTimes, mStreamMgmt.lastTs, sizeof(savedTimes));
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  hb.pStreamStatus = taosArrayInit(3, sizeof(SStmTaskStatusMsg));
+  ASSERT_NE(nullptr, hb.pStreamStatus);
+  SStmTaskStatusMsg report = {};
+  report.streamId = kStreamA;
+  report.taskId = previous.taskId;
+  report.seriousId = previous.seriousId;
+  report.nodeId = 1;
+  report.status = STREAM_STATUS_RUNNING;
+  for (EStreamTaskType type : {STREAM_TRIGGER_TASK, STREAM_READER_TASK, STREAM_RUNNER_TASK}) {
+    report.type = type;
+    ASSERT_NE(nullptr, taosArrayPush(hb.pStreamStatus, &report));
+  }
+  static int acquisitions;
+  acquisitions = 0;
+  stub_.set(mndAcquireStreamById, +[](SMnode *mnode, int64_t id, SStreamObj **stream) -> int32_t {
+    ++acquisitions;
+    return returnRecoveryStreamById(mnode, id, stream);
+  });
+  const int64_t begin = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + 1);
+  EXPECT_EQ(MND_STM_STATE_WATCH, mStreamMgmt.state);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.streamMap));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(1, acquisitions);
+  // A later packet must reuse the deferral but still advance the task-ID watermark.
+  auto *last = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, 2));
+  last->taskId = previous.taskId + 1000;
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + 2);
+  EXPECT_EQ(MND_STM_STATE_WATCH, mStreamMgmt.state);
+  EXPECT_EQ(previous.taskId + 1001, mStreamMgmt.lastTaskId);
+  EXPECT_EQ(1, acquisitions);
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + MST_SHORT_ISOLATION_DURATION + 1);
+  taosArrayDestroy(hb.pStreamStatus);
+  EXPECT_EQ(1, acquisitions);
+  EXPECT_GT(mStreamMgmt.lastTaskId, previous.taskId + 1000);
+  EXPECT_EQ(MND_STM_STATE_NORMAL, mStreamMgmt.state);
+  EXPECT_EQ(nullptr, mStreamMgmt.watch.deferredStreams);
+
+  // The production health scan, rather than a manually queued deploy, must recover the missing stream.
+  stub_.set(sdbFetch, +[](SSdb *, ESdbType type, void *iter, void **row) -> void * {
+    static SVgObj live = {};
+    if (iter) return nullptr;
+    if (type == SDB_STREAM) return *row = gRecoveryStreams[0];
+    if (type == SDB_VGROUP) {
+      live.vgId = 20;
+      return *row = &live;
+    }
+    return nullptr;
+  });
+  stub_.set(sdbCheckExists, reportStreamExists);
+  mStreamMgmt.hCtx.currentTs = taosGetTimestampMs() + MST_ISOLATION_DURATION;
+  msmCheckStreamsStatus(&mnode_);
+  EXPECT_EQ(1u, actionQueue_.qRemainNum);
+  HandleActions();
+  memcpy(mStreamMgmt.lastTs, savedTimes, sizeof(savedTimes));
+  mStreamMgmt.hCtx = savedHealth;
+  status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_NE(previous.taskId, status->triggerTask->id.taskId);
+  EXPECT_EQ(0, status->fatalError);
+  EXPECT_EQ(0, status->stopped);
+  EXPECT_EQ(2, status->calcReaderNum);
+  ASSERT_NE(nullptr, status->calcReaders);
+  ASSERT_EQ(2, listNEles(status->calcReaders));
+  auto *ordinaryReader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data);
+  auto *metadataReader = reinterpret_cast<SStmTaskStatus *>(TD_DLIST_NODE_NEXT(listHead(status->calcReaders))->data);
+  EXPECT_EQ(0, ordinaryReader->id.taskIdx);
+  EXPECT_EQ(2, metadataReader->id.taskIdx);
+  EXPECT_EQ(20, metadataReader->id.nodeId);
+  EXPECT_EQ(4u, taosArrayGetSize(create->calcScanPlanList));
+  const int32_t snodeId = 1, vgId = 20;
+  auto *snode = static_cast<SStmSnodeStatus *>(taosHashGet(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId)));
+  ASSERT_NE(nullptr, snode);
+  auto *snodeStream = static_cast<SStmSnodeStreamStatus *>(taosHashGet(snode->streamTasks, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, snodeStream);
+  EXPECT_EQ(status->triggerTask, snodeStream->trigger);
+  std::set<SStmTaskStatus *> expectedRunners;
+  for (auto *tasks : status->runners) {
+    for (size_t i = 0; i < taosArrayGetSize(tasks); ++i) {
+      auto *task = static_cast<SStmTaskStatus *>(taosArrayGet(tasks, i));
+      if (task->id.nodeId == snodeId) expectedRunners.insert(task);
+    }
+  }
+  size_t runners = 0;
+  for (auto *tasks : snodeStream->runners) {
+    for (size_t i = 0; i < taosArrayGetSize(tasks); ++i) {
+      auto *task = static_cast<SStmTaskStatus *>(taosArrayGetP(tasks, i));
+      EXPECT_EQ(1u, expectedRunners.erase(task));
+      ++runners;
+    }
+  }
+  EXPECT_TRUE(expectedRunners.empty());
+  EXPECT_GT(runners, 0u);
+  auto *vgroup = static_cast<SStmVgroupStatus *>(taosHashGet(mStreamMgmt.vgroupMap, &vgId, sizeof(vgId)));
+  ASSERT_NE(nullptr, vgroup);
+  auto *vgroupStream = static_cast<SStmVgStreamStatus *>(taosHashGet(vgroup->streamTasks, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, vgroupStream);
+  ASSERT_EQ(2u, taosArrayGetSize(vgroupStream->calcReaders));
+  EXPECT_EQ(ordinaryReader, taosArrayGetP(vgroupStream->calcReaders, 0));
+  EXPECT_EQ(metadataReader, taosArrayGetP(vgroupStream->calcReaders, 1));
+  SStreamHbMsg deployHb = {};
+  deployHb.dnodeId = deployHb.snodeId = 1;
+  int checkedMainRunners = 0;
+  int checkedSubqueryRunners = 0;
+  ReadHeartbeatDeploys(deployHb, 0, [&](const SStmStreamDeploy &deployment) {
+    for (size_t i = 0; i < taosArrayGetSize(deployment.runnerTasks); ++i) {
+      auto *task = static_cast<SStmTaskDeploy *>(taosArrayGet(deployment.runnerTasks, i));
+      SNode *decoded = nullptr;
+      ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(task->msg.runner.pPlan), &decoded));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> planOwner(decoded, nodesDestroyNode);
+      ASSERT_NE(nullptr, decoded);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(decoded));
+      auto *plan = reinterpret_cast<SSubplan *>(decoded);
+      ASSERT_NE(nullptr, plan->pNode);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, nodeType(plan->pNode));
+      auto *exchange = reinterpret_cast<SExchangePhysiNode *>(plan->pNode);
+      ASSERT_EQ(1, LIST_LENGTH(exchange->pSrcEndPoints));
+      auto *source = reinterpret_cast<SDownstreamSourceNode *>(nodesListGetNode(exchange->pSrcEndPoints, 0));
+      if (plan->id.groupId == 1) {
+        EXPECT_EQ(ordinaryReader->id.taskId, source->taskId);
+        ++checkedMainRunners;
+      } else {
+        EXPECT_EQ(2, plan->id.groupId);
+        EXPECT_EQ(metadataReader->id.taskId, source->taskId);
+        ++checkedSubqueryRunners;
+      }
+      EXPECT_EQ(vgId, source->addr.nodeId);
+    }
+  });
+  EXPECT_GT(checkedMainRunners, 0);
+  EXPECT_GT(checkedSubqueryRunners, 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchDefersUndecodableStreamAndKeepsOtherStreamAcrossHeartbeats) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+  static int decodes;
+  static int acquisitions;
+  decodes = acquisitions = 0;
+  stub_.set(nodesStringToNode, +[](const char *, SNode **) -> int32_t {
+    ++decodes;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  });
+  stub_.set(mndAcquireStreamById, +[](SMnode *mnode, int64_t id, SStreamObj **stream) -> int32_t {
+    ++acquisitions;
+    return returnRecoveryStreamById(mnode, id, stream);
+  });
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  hb.pStreamStatus = taosArrayInit_s(sizeof(SStmTaskStatusMsg), 2);
+  ASSERT_NE(nullptr, hb.pStreamStatus);
+  for (int i = 0; i < 2; ++i) {
+    auto *task = static_cast<SStmTaskStatusMsg *>(taosArrayGet(hb.pStreamStatus, i));
+    task->type = STREAM_TRIGGER_TASK;
+    task->streamId = i == 0 ? kStreamA : kStreamB;
+    task->taskId = 201 + i;
+    task->seriousId = 1;
+    task->nodeId = 1;
+    task->status = STREAM_STATUS_RUNNING;
+  }
+  const auto normalBegin = mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN];
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  const int64_t begin = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  for (int i = 1; i <= 2; ++i) {
+    ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + i);
+    EXPECT_EQ(MND_STM_STATE_WATCH, mStreamMgmt.state);
+    EXPECT_EQ(nullptr, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+    auto *b = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+    EXPECT_TRUE(b && b->triggerTask && b->triggerTask->id.taskId == 202 && b->triggerTask->lastUpTs == begin + i);
+    EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+    EXPECT_EQ(1, decodes);
+    EXPECT_EQ(2, acquisitions);
+  }
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + MST_SHORT_ISOLATION_DURATION + 1);
+  mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN] = normalBegin;
+  taosArrayDestroy(hb.pStreamStatus);
+  EXPECT_EQ(MND_STM_STATE_NORMAL, mStreamMgmt.state);
+  EXPECT_EQ(nullptr, mStreamMgmt.watch.deferredStreams);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *healthy = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamB, sizeof(kStreamB)));
+  ASSERT_NE(nullptr, healthy);
+  EXPECT_EQ(0, healthy->stopped);
+  EXPECT_EQ(0, healthy->fatalError);
+  ASSERT_NE(nullptr, healthy->triggerTask);
+  EXPECT_EQ(202, healthy->triggerTask->id.taskId);
+  EXPECT_EQ(1, decodes);
+  EXPECT_EQ(2, acquisitions);
+}
+
+// Replay actual deployed task identities through the full leader-adoption lifecycle.
+void MndStreamDeployOwnershipTest::CheckWatchDeployedScans(bool cache, bool empty, bool missingReader) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  auto *create = Stream(kStreamA)->pCreate;
+  create->calcScanPlanList = taosArrayInit(2, sizeof(SStreamCalcScan));
+  ASSERT_NE(nullptr, create->calcScanPlanList);
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayReserve(create->calcScanPlanList, 1));
+  ASSERT_NE(nullptr, scan);
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &raw));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> plan(raw, nodesDestroyNode);
+  auto *subplan = reinterpret_cast<SSubplan *>(raw);
+  subplan->subplanType = SUBPLAN_TYPE_SCAN;
+  subplan->id.groupId = 3;
+  subplan->id.subplanId = 13;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode **>(&subplan->pNode)));
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&scan->scanPlan), nullptr));
+  ASSERT_NE(nullptr, scan->scanPlan);
+  scan->vgList = taosArrayInit(2, sizeof(int32_t));
+  ASSERT_NE(nullptr, scan->vgList);
+  int32_t first = 20;
+  ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &first));
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    ep.numOfEps = 1;
+    ep.eps[0].port = 6000 + vg;
+    tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    return ep;
+  });
+  stub_.set(mndGetVgroupEpsetByIdWithStatus, +[](SMnode *mnode, int32_t vg, int32_t *code) -> SEpSet {
+    *code = 0;
+    return mndGetVgroupEpsetById(mnode, vg);
+  });
+  scan->readFromCache = cache;
+  if (!cache) {
+    int32_t second = 21;
+    ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &second));
+  }
+  if (empty) {
+    SStreamCalcScan zero = {};
+    zero.scanPlan = taosStrdup(static_cast<const char *>(scan->scanPlan));
+    ASSERT_NE(nullptr, zero.scanPlan);
+    // Both persisted decoders represent a zero-partition scan with NULL.
+    ASSERT_NE(nullptr, taosArrayPush(create->calcScanPlanList, &zero));
+  }
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *deployed = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, deployed);
+  ASSERT_NE(nullptr, deployed->triggerTask);
+  ASSERT_EQ(cache ? 0 : 2, deployed->calcReaderNum);
+  ASSERT_GT(deployed->runnerNum, 0);
+
+  std::unique_ptr<SArray, decltype(&taosArrayDestroy)> reports(
+      taosArrayInit(8, sizeof(SStmTaskStatusMsg)), taosArrayDestroy);
+  ASSERT_NE(nullptr, reports);
+  bool omitted = false;
+  void *entry = nullptr;
+  while ((entry = taosHashIterate(mStreamMgmt.taskMap, entry))) {
+    auto *task = *static_cast<SStmTaskStatus **>(entry);
+    if (missingReader && !omitted && task->type == STREAM_READER_TASK && !STREAM_IS_TRIGGER_READER(task->flags)) {
+      omitted = true;
+      continue;
+    }
+    SStmTaskStatusMsg report = {};
+    memcpy(&report.streamId, taosHashGetKey(entry, nullptr), sizeof(report.streamId));
+    report.taskId = task->id.taskId;
+    report.seriousId = task->id.seriousId;
+    report.deployId = task->id.deployId;
+    report.nodeId = task->id.nodeId;
+    report.taskIdx = task->id.taskIdx;
+    report.type = task->type;
+    report.flags = task->flags;
+    report.status = STREAM_STATUS_RUNNING;
+    ASSERT_NE(nullptr, taosArrayPush(reports.get(), &report));
+  }
+  SStmTaskStatusMsg peer = {};
+  peer.streamId = kStreamB;
+  peer.taskId = 900;
+  peer.seriousId = 1;
+  peer.nodeId = 1;
+  peer.type = STREAM_TRIGGER_TASK;
+  peer.status = STREAM_STATUS_RUNNING;
+  ASSERT_NE(nullptr, taosArrayPush(reports.get(), &peer));
+  EXPECT_EQ(missingReader, omitted);
+  // Detach node indexes before freeing the previous leader's task ownership.
+  for (int64_t id : {kStreamA, kStreamB}) {
+    while ((entry = taosHashIterate(mStreamMgmt.snodeMap, entry))) {
+      auto *node = static_cast<SStmSnodeStatus *>(entry);
+      if (taosHashGet(node->streamTasks, &id, sizeof(id))) EXPECT_EQ(0, taosHashRemove(node->streamTasks, &id, sizeof(id)));
+    }
+    while ((entry = taosHashIterate(mStreamMgmt.vgroupMap, entry))) {
+      auto *node = static_cast<SStmVgroupStatus *>(entry);
+      if (taosHashGet(node->streamTasks, &id, sizeof(id))) EXPECT_EQ(0, taosHashRemove(node->streamTasks, &id, sizeof(id)));
+    }
+  }
+  taosHashClear(mStreamMgmt.taskMap);
+  while ((entry = taosHashIterate(mStreamMgmt.streamMap, entry))) mstDestroySStmStatus(static_cast<SStmStatus *>(entry));
+  taosHashClear(mStreamMgmt.streamMap);
+  taosHashClear(mStreamMgmt.toDeploySnodeMap);
+  taosHashClear(mStreamMgmt.toDeployVgMap);
+  mStreamMgmt.toDeploySnodeTaskNum = mStreamMgmt.toDeployVgTaskNum = 0;
+  mStreamMgmt.state = MND_STM_STATE_WATCH;
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  hb.pStreamStatus = reports.get();
+  const auto normalBegin = mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN];
+  const auto errorEvent = mStreamMgmt.lastTs[STM_EVENT_STM_TERR];
+  const int64_t begin = MND_STREAM_GET_LAST_TS(STM_EVENT_ACTIVE_BEGIN);
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + 1);
+  EXPECT_EQ(MND_STM_STATE_WATCH, mStreamMgmt.state);
+  EXPECT_EQ(2, taosHashGetSize(mStreamMgmt.streamMap));
+  ReadHeartbeatDeploys(hb, 0, [](const SStmStreamDeploy &) {}, begin + MST_SHORT_ISOLATION_DURATION + 1);
+  mStreamMgmt.lastTs[STM_EVENT_NORMAL_BEGIN] = normalBegin;
+  mStreamMgmt.lastTs[STM_EVENT_STM_TERR] = errorEvent;
+  EXPECT_EQ(MND_STM_STATE_NORMAL, mStreamMgmt.state);
+  for (int64_t id : {kStreamA, kStreamB}) {
+    auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &id, sizeof(id)));
+    ASSERT_NE(nullptr, status);
+    ASSERT_NE(nullptr, status->triggerTask);
+    EXPECT_EQ(id == kStreamA && missingReader ? TSDB_CODE_MND_STREAM_TASK_LOST : 0, status->fatalError);
+    EXPECT_EQ(id == kStreamA && missingReader, status->stopped != 0);
+    if (id == kStreamA) {
+      EXPECT_EQ(cache ? 0 : 2, status->calcReaderNum);
+      if (empty) EXPECT_EQ(nullptr, static_cast<SStreamCalcScan *>(taosArrayGet(status->pCreate->calcScanPlanList, 1))->vgList);
+    }
+  }
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchAdoptsCacheScansThroughEnding) {
+  CheckWatchDeployedScans(true, false, false);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchAdoptsNullPartitionsAndKeepsHealthyPeer) {
+  CheckWatchDeployedScans(false, true, false);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchStillDetectsMissingPartitionReader) {
+  CheckWatchDeployedScans(false, false, true);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchDoesNotDecodeCacheEmptyOrSentinelScans) {
+  ASSERT_NO_FATAL_FAILURE(PrependWatchNonVgroupScans());
+  static int decodes;
+  decodes = 0;
+  stub_.set(nodesStringToNode, +[](const char *, SNode **) -> int32_t {
+    ++decodes;
+    return TSDB_CODE_OUT_OF_MEMORY;
+  });
+  EXPECT_EQ(0, WatchTask());
+  EXPECT_EQ(0, decodes);
+  EXPECT_NE(nullptr, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_EQ(nullptr, mStreamMgmt.watch.deferredStreams);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchFindsVirtualMetadataAfterNonVgroupScans) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  ASSERT_NO_FATAL_FAILURE(PrependWatchNonVgroupScans());
+  // Count only the real scan; the skipped entries deliberately contain invalid plan text.
+  static int decodes;
+  decodes = 0;
+  stub_.set(nodesStringToNode, +[](const char *text, SNode **out) -> int32_t {
+    ++decodes;
+    EXPECT_STRNE("must not decode non-vgroup scan", text);
+    int32_t code = nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, out);
+    if (code) return code;
+    auto *plan = reinterpret_cast<SSubplan *>(*out);
+    code = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN, reinterpret_cast<SNode **>(&plan->pNode));
+    if (code) return code;
+    auto *scan = &reinterpret_cast<SSystemTableScanPhysiNode *>(plan->pNode)->scan;
+    scan->virtualStableScan = true;
+    tstrncpy(scan->tableName.dbname, TSDB_INFORMATION_SCHEMA_DB, sizeof(scan->tableName.dbname));
+    tstrncpy(scan->tableName.tname, TSDB_INS_TABLE_VC_COLS, sizeof(scan->tableName.tname));
+    return 0;
+  });
+  EXPECT_EQ(0, WatchTask());
+  EXPECT_EQ(1, decodes);
+  EXPECT_EQ(nullptr, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.watch.deferredStreams));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataRecoveryDoesNotRedecodeCacheOrEmptyScans) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  auto *create = Stream(kStreamA)->pCreate;
+  auto *source = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(source->scanPlan), &raw));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+  reinterpret_cast<SSubplan *>(raw)->id.groupId = 99;
+  reinterpret_cast<SSubplan *>(raw)->id.subplanId = 99;
+  const size_t cacheIndex = taosArrayGetSize(create->calcScanPlanList);
+  auto *cacheEntry = static_cast<SStreamCalcScan *>(taosArrayReserve(create->calcScanPlanList, 1));
+  ASSERT_NE(nullptr, cacheEntry);
+  cacheEntry->readFromCache = true;
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&cacheEntry->scanPlan), nullptr));
+  ASSERT_NE(nullptr, cacheEntry->scanPlan);
+  cacheEntry->vgList = taosArrayInit(1, sizeof(int32_t));
+  ASSERT_NE(nullptr, cacheEntry->vgList);
+  int32_t cacheVg = 20;
+  ASSERT_NE(nullptr, taosArrayPush(cacheEntry->vgList, &cacheVg));
+  reinterpret_cast<SSubplan *>(raw)->id.subplanId = 100;
+  auto *emptyEntry = static_cast<SStreamCalcScan *>(taosArrayReserve(create->calcScanPlanList, 1));
+  ASSERT_NE(nullptr, emptyEntry);
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&emptyEntry->scanPlan), nullptr));
+  ASSERT_NE(nullptr, emptyEntry->scanPlan);
+  static Stub *activeStub;
+  static std::string cacheText;
+#ifdef BUILD_TEST_SEAM
+  static std::string emptyText;
+#endif
+  static int cacheDecodes;
+#ifdef BUILD_TEST_SEAM
+  static int cacheCoverageDecodes;
+  static int emptyDecodes;
+  static bool inCoverage;
+#endif
+  static int (*decode)(const char *, SNode **);
+  activeStub = &stub_;
+  cacheText = static_cast<const char *>(
+      static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, cacheIndex))->scanPlan);
+#ifdef BUILD_TEST_SEAM
+  emptyText = static_cast<const char *>(emptyEntry->scanPlan);
+#endif
+  cacheDecodes = 0;
+#ifdef BUILD_TEST_SEAM
+  cacheCoverageDecodes = 0;
+  emptyDecodes = 0;
+  inCoverage = false;
+  const auto previousPhase = gTdSeam_msmDeployPhase;
+  gTdSeam_msmDeployPhase = [](const char *phase, const char *) {
+    if (strcmp(phase, "metadata-coverage-begin") == 0) inCoverage = true;
+    if (strcmp(phase, "metadata-coverage-end") == 0) inCoverage = false;
+  };
+#endif
+  decode = +[](const char *text, SNode **out) -> int32_t {
+    if (cacheText == text) ++cacheDecodes;
+#ifdef BUILD_TEST_SEAM
+    if (inCoverage && cacheText == text) ++cacheCoverageDecodes;
+    if (inCoverage && emptyText == text) ++emptyDecodes;
+#endif
+    activeStub->reset(nodesStringToNode);
+    int32_t code = nodesStringToNode(text, out);
+    activeStub->set(nodesStringToNode, decode);
+    return code;
+  };
+  stub_.set(nodesStringToNode, decode);
+  QueueDeploy(kStreamA);
+  HandleActions();
+#ifdef BUILD_TEST_SEAM
+  gTdSeam_msmDeployPhase = previousPhase;
+#endif
+  stub_.reset(nodesStringToNode);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(0, status->fatalError);
+  EXPECT_EQ(1, status->calcReaderNum);
+  // The cache plan is decoded once to bind the Trigger, never by the coverage index.
+  EXPECT_EQ(1, cacheDecodes);
+#ifdef BUILD_TEST_SEAM
+  EXPECT_EQ(0, cacheCoverageDecodes);
+  EXPECT_EQ(0, emptyDecodes);
+#endif
+}
+
+TEST_F(MndStreamDeployOwnershipTest, WatchDeferralCacheAllocationFailureDoesNotAbortAdoption) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(true));
+  stub_.set(nodesStringToNode, +[](const char *, SNode **) -> int32_t { return TSDB_CODE_OUT_OF_MEMORY; });
+  stub_.set(taosHashInit, +[](size_t, _hash_fn_t, bool, SHashLockTypeE) -> SHashObj * { return nullptr; });
+  EXPECT_EQ(0, WatchTask());
+  EXPECT_EQ(nullptr, mStreamMgmt.watch.deferredStreams);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.streamMap));
+  stub_.reset(taosHashInit);
+  EXPECT_EQ(0, WatchTask());
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.watch.deferredStreams));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ExistingUnavailableMetadataPartitionIsRetained) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+    static SVgObj existing = {};
+    return &existing;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_EQ(3, listNEles(status->calcReaders));
+  EXPECT_EQ(3, status->calcReaderNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, ManyRemovedMetadataPartitionsKeepSparseReaderIdentity) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan(256));
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(1, listNEles(status->calcReaders));
+  auto reader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data)->id;
+  EXPECT_EQ(1, reader.taskIdx);
+  std::vector<int64_t> initialRunners;
+  HeartbeatTriggerIds(0, &initialRunners);
+  ASSERT_FALSE(initialRunners.empty());
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  HandleActions();
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  int runners = 0;
+  ReadHeartbeatDeploys(hb, 0, [&](const SStmStreamDeploy &stream) {
+    for (size_t i = 0; i < taosArrayGetSize(stream.runnerTasks); ++i) {
+      auto *task = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.runnerTasks, i));
+      EXPECT_TRUE(STREAM_IS_REDEPLOY_RUNNER(task->task.flags));
+      SNode *raw = nullptr;
+      ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(task->msg.runner.pPlan), &raw));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+      ASSERT_NE(nullptr, raw);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(raw));
+      auto *plan = reinterpret_cast<SSubplan *>(raw);
+      ASSERT_NE(nullptr, plan->pNode);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, nodeType(plan->pNode));
+      auto *exchange = reinterpret_cast<SExchangePhysiNode *>(plan->pNode);
+      ASSERT_EQ(1, LIST_LENGTH(exchange->pSrcEndPoints));
+      auto *source = reinterpret_cast<SDownstreamSourceNode *>(nodesListGetNode(exchange->pSrcEndPoints, 0));
+      EXPECT_EQ(reader.taskId, source->taskId);
+      EXPECT_EQ(20, source->addr.nodeId);
+      ++runners;
+    }
+  });
+  EXPECT_GT(runners, 0);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MissingDataScanIsNotPrunedAsMetadata) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(Stream(kStreamA)->pCreate->calcScanPlanList, 0));
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(scan->scanPlan), &raw));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+  auto *plan = reinterpret_cast<SSubplan *>(raw);
+  SNode *newScan = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, &newScan));
+  nodesDestroyNode(reinterpret_cast<SNode *>(plan->pNode));
+  plan->pNode = reinterpret_cast<SPhysiNode *>(newScan);
+  void *encodedScan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&encodedScan), nullptr));
+  ASSERT_NE(nullptr, encodedScan);
+  taosMemoryFree(scan->scanPlan);
+  scan->scanPlan = encodedScan;
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(2, listNEles(status->calcReaders));
+  auto *reader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data);
+  EXPECT_EQ(21, reader->id.nodeId);
+  EXPECT_EQ(0, reader->id.taskIdx);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MissingEntireMetadataGroupDoesNotPublishEmptyExchange) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t) -> SEpSet { return {}; });
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+    terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
+    return nullptr;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MissingOrdinarySystemScanIsNotPrunedAsMetadata) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(Stream(kStreamA)->pCreate->calcScanPlanList, 0));
+  SNode *raw = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(scan->scanPlan), &raw));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(raw, nodesDestroyNode);
+  auto *plan = reinterpret_cast<SSubplan *>(raw);
+  auto *meta = reinterpret_cast<SSystemTableScanPhysiNode *>(plan->pNode);
+  meta->scan.virtualStableScan = false;
+  tstrncpy(meta->scan.tableName.tname, TSDB_INS_TABLE_TAGS, sizeof(meta->scan.tableName.tname));
+  void *encodedScan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(raw, false, reinterpret_cast<char **>(&encodedScan), nullptr));
+  ASSERT_NE(nullptr, encodedScan);
+  taosMemoryFree(scan->scanPlan);
+  scan->scanPlan = encodedScan;
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(2, listNEles(status->calcReaders));
+  auto *reader = reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data);
+  EXPECT_EQ(21, reader->id.nodeId);
+  EXPECT_EQ(0, reader->id.taskIdx);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataLookupErrorDoesNotPrunePartition) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return nullptr;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RemovedMetadataWithNewVgroupsRefusesIncompleteCoverage) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  SetMetadataCatalog({20, 30, 31});
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataRecoveryRejectsVisibleVgroupBeforeVersionIncrement) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  static int visited;
+  visited = 0;
+  // The build sees the old catalog; READY publication can precede tableVer's increment.
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    for (int32_t id : {20, 30}) {
+      SVgObj row = {};
+      row.vgId = id;
+      ++visited;
+      if (!callback(nullptr, &row, p1, p2, p3)) break;
+    }
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(2, visited);
+  EXPECT_EQ(0, sdbGetTableVer(mnode_.pSdb, SDB_VGROUP));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, mStreamMgmt.toDeployVgTaskNum);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, AnotherGroupWithSameSubplanIdCannotMaskEmptyMetadata) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan(2));
+  auto *create = Stream(kStreamA)->pCreate;
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 1));
+  SNode *scanNode = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(scan->scanPlan), &scanNode));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> scanOwner(scanNode, nodesDestroyNode);
+  auto *sub = reinterpret_cast<SSubplan *>(scanNode);
+  sub->id.groupId = 4;
+  sub->id.subplanId = 13;
+  void *encodedScan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(scanNode, false, reinterpret_cast<char **>(&encodedScan), nullptr));
+  ASSERT_NE(nullptr, encodedScan);
+  taosMemoryFree(scan->scanPlan);
+  scan->scanPlan = encodedScan;
+  SNode *calcNode = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(create->calcPlan), &calcNode));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(calcNode, nodesDestroyNode);
+  auto *dag = reinterpret_cast<SQueryPlan *>(calcNode);
+  auto *level = reinterpret_cast<SNodeListNode *>(nodesListGetNode(dag->pSubplans, 0));
+  auto *runner = reinterpret_cast<SSubplan *>(nodesListGetNode(level->pNodeList, 0));
+  auto *ref = reinterpret_cast<SValueNode *>(nodesListGetNode(runner->pChildren, 1));
+  ref->datum.i = (INT64_C(4) << 32) | 13;
+  char *encodedCalcPlan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(calcNode, false, &encodedCalcPlan, nullptr));
+  ASSERT_NE(nullptr, encodedCalcPlan);
+  taosMemoryFree(create->calcPlan);
+  create->calcPlan = encodedCalcPlan;
+  // A short-key regression must not fail early on duplicate insertion of the empty marker.
+  std::swap(*static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0)),
+            *static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 1)));
+  SetMetadataCatalog({});
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_INTERNAL_ERROR, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerRepairRebuildsReadersRemovedSinceDeployment) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    ep.numOfEps = 1;
+    ep.eps[0].port = 6000 + vg;
+    tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    return ep;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(3, listNEles(status->calcReaders));
+  int64_t oldTrigger = status->triggerTask->id.taskId;
+  std::vector<int64_t> initialRunners;
+  HeartbeatTriggerIds(0, &initialRunners);
+  ASSERT_FALSE(initialRunners.empty());
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    if (vg == 20) {
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6020;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    }
+    return ep;
+  });
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = oldTrigger;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  HandleActions();
+  HandleActions();
+  status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  EXPECT_NE(oldTrigger, status->triggerTask->id.taskId);
+  ASSERT_EQ(1, listNEles(status->calcReaders));
+  EXPECT_EQ(1, status->calcReaderNum);
+  EXPECT_EQ(20, reinterpret_cast<SStmTaskStatus *>(listHead(status->calcReaders)->data)->id.nodeId);
+}
+
+class MndStreamMetadataGroupsTest : public MndStreamDeployOwnershipTest,
+                                    public ::testing::WithParamInterface<bool> {};
+
+void MndStreamDeployOwnershipTest::SetMetadataGroups(bool recovering) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan(2));
+  auto *create = Stream(kStreamA)->pCreate;
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 1));
+  SNode *scanNode = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(scan->scanPlan), &scanNode));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> scanOwner(scanNode, nodesDestroyNode);
+  auto *readerPlan = reinterpret_cast<SSubplan *>(scanNode);
+  readerPlan->id.groupId = 4;
+  readerPlan->id.subplanId = 13;
+  void *encodedScan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(scanNode, false, reinterpret_cast<char **>(&encodedScan), nullptr));
+  ASSERT_NE(nullptr, encodedScan);
+  taosMemoryFree(scan->scanPlan);
+  scan->scanPlan = encodedScan;
+  SNode *calcNode = nullptr;
+  ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(create->calcPlan), &calcNode));
+  std::unique_ptr<SNode, decltype(&nodesDestroyNode)> owner(calcNode, nodesDestroyNode);
+  auto *dag = reinterpret_cast<SQueryPlan *>(calcNode);
+  auto *level = reinterpret_cast<SNodeListNode *>(nodesListGetNode(dag->pSubplans, 0));
+  auto *runner = reinterpret_cast<SSubplan *>(nodesListGetNode(level->pNodeList, 0));
+  auto *ref = reinterpret_cast<SValueNode *>(nodesListGetNode(runner->pChildren, 1));
+  ref->datum.i = (INT64_C(4) << 32) | 13;
+  SNode *project = nullptr, *exchange = nullptr;
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT, &project));
+  auto *oldRoot = runner->pNode;
+  runner->pNode = reinterpret_cast<SPhysiNode *>(project);
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&reinterpret_cast<SPhysiNode *>(project)->pChildren,
+                                       reinterpret_cast<SNode *>(oldRoot)));
+  ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, &exchange));
+  reinterpret_cast<SExchangePhysiNode *>(exchange)->srcStartGroupId = 4;
+  reinterpret_cast<SExchangePhysiNode *>(exchange)->srcEndGroupId = 4;
+  ASSERT_EQ(0, nodesListMakeStrictAppend(&runner->pNode->pChildren, exchange));
+  char *encodedCalcPlan = nullptr;
+  ASSERT_EQ(0, nodesNodeToString(calcNode, false, &encodedCalcPlan, nullptr));
+  ASSERT_NE(nullptr, encodedCalcPlan);
+  taosMemoryFree(create->calcPlan);
+  create->calcPlan = encodedCalcPlan;
+  if (recovering) {
+    // Both groups need recovery, share the live partition, and reuse subplan 13.
+    for (int i = 0; i < 2; ++i) {
+      auto *item = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, i));
+      *static_cast<int32_t *>(taosArrayGet(item->vgList, 0)) = 21;
+      int32_t live = 20;
+      ASSERT_NE(nullptr, taosArrayPush(item->vgList, &live));
+    }
+  } else {
+    stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+      SEpSet ep = {};
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6000 + vg;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+      return ep;
+    });
+  }
+}
+
+TEST_P(MndStreamMetadataGroupsTest, SameNumberReadersBindTheirOwnGroups) {
+  ASSERT_NO_FATAL_FAILURE(SetMetadataGroups(GetParam()));
+  static int traversals;
+  traversals = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    ++traversals;
+    SVgObj row = {};
+    row.vgId = 20;
+    callback(nullptr, &row, p1, p2, p3);
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(2, listNEles(status->calcReaders));
+  EXPECT_EQ(GetParam() ? 1 : 0, traversals);
+  SStreamHbMsg hb = {};
+  hb.dnodeId = hb.snodeId = 1;
+  int runners = 0;
+  ReadHeartbeatDeploys(hb, 0, [&](const SStmStreamDeploy &stream) {
+    for (size_t i = 0; i < taosArrayGetSize(stream.runnerTasks); ++i) {
+      auto *task = static_cast<SStmTaskDeploy *>(taosArrayGet(stream.runnerTasks, i));
+      SNode *node = nullptr;
+      ASSERT_EQ(0, nodesStringToNode(static_cast<const char *>(task->msg.runner.pPlan), &node));
+      std::unique_ptr<SNode, decltype(&nodesDestroyNode)> planOwner(node, nodesDestroyNode);
+      ASSERT_NE(nullptr, node);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_SUBPLAN, nodeType(node));
+      auto *plan = reinterpret_cast<SSubplan *>(node);
+      ASSERT_NE(nullptr, plan->pNode);
+      ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_PROJECT, nodeType(plan->pNode));
+      ASSERT_EQ(2, LIST_LENGTH(plan->pNode->pChildren));
+      SListNode *reader = listHead(status->calcReaders);
+      for (int child = 0; child < 2; ++child) {
+        auto *childNode = nodesListGetNode(plan->pNode->pChildren, child);
+        ASSERT_NE(nullptr, childNode);
+        ASSERT_EQ(QUERY_NODE_PHYSICAL_PLAN_EXCHANGE, nodeType(childNode));
+        auto *input = reinterpret_cast<SExchangePhysiNode *>(childNode);
+        ASSERT_EQ(1, LIST_LENGTH(input->pSrcEndPoints));
+        auto *sourceNode = nodesListGetNode(input->pSrcEndPoints, 0);
+        ASSERT_NE(nullptr, sourceNode);
+        ASSERT_EQ(QUERY_NODE_DOWNSTREAM_SOURCE, nodeType(sourceNode));
+        auto *source = reinterpret_cast<SDownstreamSourceNode *>(sourceNode);
+        EXPECT_EQ(child == 0 && !GetParam() ? 21 : 20, source->addr.nodeId);
+        EXPECT_EQ(reinterpret_cast<SStmTaskStatus *>(reader->data)->id.taskId, source->taskId);
+        reader = TD_DLIST_NODE_NEXT(reader);
+      }
+      ++runners;
+    }
+  });
+  EXPECT_GT(runners, 0);
+}
+
+INSTANTIATE_TEST_SUITE_P(Recovery, MndStreamMetadataGroupsTest, ::testing::Bool());
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataCoverageRequiresEveryRecoveredGroup) {
+  ASSERT_NO_FATAL_FAILURE(SetMetadataGroups(true));
+  auto *scan = static_cast<SStreamCalcScan *>(taosArrayGet(Stream(kStreamA)->pCreate->calcScanPlanList, 0));
+  const int32_t extra = 30;
+  ASSERT_NE(nullptr, taosArrayPush(scan->vgList, &extra));
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    if (vg == 20 || vg == 30) {
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6000 + vg;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    }
+    return ep;
+  });
+  static int visited;
+  visited = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    for (int32_t id : {20, 30}) {
+      SVgObj row = {};
+      row.vgId = id;
+      ++visited;
+      if (!callback(nullptr, &row, p1, p2, p3)) break;
+    }
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(2, visited);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, mStreamMgmt.toDeployVgTaskNum);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, VgroupEndpointLookupPreservesStatusAndOrder) {
+  static SVgObj group;
+  static SDnodeObj nodes[2];
+  static int32_t lookupError;
+  static int lookups;
+  group = {};
+  group.replica = 2;
+  group.vnodeGid[0].dnodeId = 1;
+  group.vnodeGid[1].dnodeId = 2;
+  group.vnodeGid[1].syncState = TAOS_SYNC_STATE_LEADER;
+  nodes[0] = {};
+  nodes[1] = {};
+  tstrncpy(nodes[0].fqdn, "z-node", sizeof(nodes[0].fqdn));
+  tstrncpy(nodes[1].fqdn, "a-node", sizeof(nodes[1].fqdn));
+  nodes[0].port = nodes[1].port = 6030;
+  stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+    ++lookups;
+    terrno = lookupError;
+    return lookupError ? nullptr : &group;
+  });
+  stub_.set(mndReleaseVgroup, +[](SMnode *, SVgObj *) {});
+  stub_.set(mndAcquireDnode, +[](SMnode *, int32_t id) -> SDnodeObj * { return &nodes[id - 1]; });
+  stub_.set(mndReleaseDnode, +[](SMnode *, SDnodeObj *) {});
+  for (int32_t error : {0, TSDB_CODE_MND_VGROUP_NOT_EXIST, TSDB_CODE_OUT_OF_MEMORY}) {
+    lookupError = error;
+    lookups = 0;
+    int32_t code = -1;
+    SEpSet ep = mndGetVgroupEpsetByIdWithStatus(&mnode_, 20, &code);
+    EXPECT_EQ(1, lookups);
+    EXPECT_EQ(error, code);
+    EXPECT_EQ(error ? 0 : 2, ep.numOfEps);
+    if (!error) {
+      EXPECT_STREQ("z-node", ep.eps[0].fqdn);
+      EXPECT_STREQ("a-node", ep.eps[1].fqdn);
+      EXPECT_EQ(1, ep.inUse);
+    }
+  }
+  lookupError = 0;
+  lookups = 0;
+  stub_.set(mndAcquireDnode, +[](SMnode *, int32_t) -> SDnodeObj * {
+    terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
+    return nullptr;
+  });
+  int32_t code = -1;
+  EXPECT_EQ(0, mndGetVgroupEpsetByIdWithStatus(&mnode_, 20, &code).numOfEps);
+  EXPECT_EQ(0, code);  // Existing without endpoints must not be classified as deleted.
+  EXPECT_EQ(1, lookups);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataRecoveryRevalidatesBindingsAfterRestoreRetry) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  static int traversals;
+  static int commits;
+  traversals = commits = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    if (++traversals == 1) {
+      SVgObj row = {};
+      row.vgId = 20;
+      callback(nullptr, &row, p1, p2, p3);
+    }
+  });
+  stub_.set(mndStreamRecalcCommitRestore, +[](SStreamObj *, SStmStatus *, SStreamRecalcRestore *) -> bool {
+    ++commits;
+    return false;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(2, traversals);
+  EXPECT_EQ(1, commits);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataRecoveryRejectsBoundVgroupRemovedBeforeSnapshot) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  static int traversals;
+  traversals = 0;
+  // Vgroup 20 supplied an endpoint during construction, but is absent when the read lock is acquired.
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp, void *, void *, void *) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    ++traversals;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(1, traversals);
+  EXPECT_EQ(0, sdbGetTableVer(mnode_.pSdb, SDB_VGROUP));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, mStreamMgmt.toDeployVgTaskNum);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataRecoveryAlsoChecksBindingsOfHealthyGroups) {
+  ASSERT_NO_FATAL_FAILURE(SetMetadataGroups(true));
+  auto *create = Stream(kStreamA)->pCreate;
+  auto *recovering = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 0));
+  auto *healthy = static_cast<SStreamCalcScan *>(taosArrayGet(create->calcScanPlanList, 1));
+  // A recovers {22,20}; B binds {21,20}. Only B's 21 disappears at final validation.
+  *static_cast<int32_t *>(taosArrayGet(recovering->vgList, 0)) = 22;
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    if (vg == 20 || vg == 21) {
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6000 + vg;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    }
+    return ep;
+  });
+  ASSERT_EQ(21, *static_cast<int32_t *>(taosArrayGet(healthy->vgList, 0)));
+  SetMetadataCatalog({20, 21});
+  static int visited;
+  visited = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    SVgObj row = {};
+    row.vgId = 20;
+    ++visited;
+    callback(nullptr, &row, p1, p2, p3);
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(1, visited);
+  EXPECT_EQ(0, sdbGetTableVer(mnode_.pSdb, SDB_VGROUP));
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  EXPECT_EQ(0, mStreamMgmt.toDeploySnodeTaskNum);
+  EXPECT_EQ(0, mStreamMgmt.toDeployVgTaskNum);
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, MetadataCatalogTraversalErrorIsPreserved) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType, sdbTraverseFp, void *, void *, void *) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  });
+  QueueDeploy(kStreamA);
+  HandleActions();
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, status->fatalError);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerRepairRejectsVisibleVgroupWithUnchangedVersion) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  std::vector<int64_t> initialRunners;
+  HeartbeatTriggerIds(0, &initialRunners);
+  ASSERT_FALSE(initialRunners.empty());
+  static int visited;
+  visited = 0;
+  // Keep the build catalog at {20}; expose 30 only in the final locked snapshot.
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp callback, void *p1, void *p2, void *p3) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    for (int32_t id : {20, 30}) {
+      SVgObj row = {};
+      row.vgId = id;
+      ++visited;
+      if (!callback(nullptr, &row, p1, p2, p3)) break;
+    }
+  });
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  HandleActions();
+  EXPECT_EQ(1, status->stopped);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+  std::vector<int64_t> repairedRunners;
+  HeartbeatTriggerIds(0, &repairedRunners);
+  EXPECT_TRUE(repairedRunners.empty());
+  EXPECT_EQ(2, visited);
+  EXPECT_EQ(0, sdbGetTableVer(mnode_.pSdb, SDB_VGROUP));
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerRepairRejectsBoundVgroupRemovedBeforeSnapshot) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  std::vector<int64_t> initialRunners;
+  HeartbeatTriggerIds(0, &initialRunners);
+  ASSERT_FALSE(initialRunners.empty());
+  static int traversals;
+  traversals = 0;
+  stub_.set(sdbTraverse, +[](SSdb *, ESdbType type, sdbTraverseFp, void *, void *, void *) {
+    EXPECT_EQ(SDB_VGROUP, type);
+    ++traversals;
+  });
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  HandleActions();
+  EXPECT_EQ(1, status->stopped);
+  EXPECT_EQ(TSDB_CODE_MND_STREAM_NOT_AVAILABLE, status->fatalError);
+  std::vector<int64_t> repairedRunners;
+  HeartbeatTriggerIds(0, &repairedRunners);
+  EXPECT_TRUE(repairedRunners.empty());
+  EXPECT_EQ(1, traversals);
+  EXPECT_EQ(0, sdbGetTableVer(mnode_.pSdb, SDB_VGROUP));
 }
 
 TEST_F(MndStreamDeployOwnershipTest, StatusQueryFinishesDuringRunnerOnlyPlanSerialization) {
@@ -13154,6 +14604,238 @@ class DeployPhasePause : public PrivateBuildPause {
 };
 const char      *DeployPhasePause::phase_;
 std::atomic<int> DeployPhasePause::calls_{0};
+
+TEST_F(MndStreamDeployOwnershipTest, ConcurrentWatchDeferralsReuseCachedDecision) {
+  Stream(kStreamA)->pCreate->vtableCalc = true;
+  DeployPhasePause pause("watch-defer");
+  std::atomic<int32_t> firstCode{TSDB_CODE_OUT_OF_MEMORY};
+  std::thread first([&] { firstCode = WatchTask(); });
+  if (!pause.Entered()) {
+    pause.Release();
+    first.join();
+    FAIL() << "WATCH deferral did not reach pause";
+  }
+  EXPECT_EQ(0, WatchTask());
+  EXPECT_NE(nullptr, mStreamMgmt.watch.deferredStreams);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.watch.deferredStreams));
+
+  static std::atomic<int> duplicatePuts{0};
+  duplicatePuts = 0;
+  stub_.set(taosHashPut, +[](SHashObj *, const void *, size_t, const void *, size_t) -> int32_t {
+    ++duplicatePuts;
+    return TSDB_CODE_DUP_KEY;
+  });
+  pause.Release();
+  first.join();
+  stub_.reset(taosHashPut);
+  EXPECT_EQ(0, firstCode.load());
+  EXPECT_EQ(0, duplicatePuts.load());
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.watch.deferredStreams));
+}
+
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerPartialPublicationFailsBeforeCleanupHeartbeat) {
+  ASSERT_NO_FATAL_FAILURE(SetRunnerPlan(false));
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_GE(status->runnerDeploys, 2);
+  std::vector<int64_t> initial;
+  HeartbeatTriggerIds(0, &initial);
+  ASSERT_FALSE(initial.empty());
+  // Keep an empty published queue so both appends use the same injection point.
+  const int32_t node = 1;
+  if (!taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node))) {
+    SStmSnodeTasksDeploy empty = {};
+    ASSERT_EQ(0, taosHashPut(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node), &empty, sizeof(empty)));
+  }
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 2;
+  repair.deployId[1] = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  static int attempts;
+  attempts = 0;
+  stub_.set(taosArrayAddBatch, +[](SArray *array, const void *data, int32_t count) -> void * {
+    const int32_t node = 1;
+    auto *queue = static_cast<SStmSnodeTasksDeploy *>(taosHashGet(mStreamMgmt.toDeploySnodeMap, &node, sizeof(node)));
+    if (queue && array == queue->runnerList && ++attempts == 2) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    }
+    void *slot = taosArrayReserve(array, count);
+    return slot ? memcpy(slot, data, count * array->elemSize) : nullptr;
+  });
+  DeployPhasePause pause("runner-cleanup");
+  std::thread worker([&] { HandleActions(); });
+  if (!pause.Entered()) {
+    pause.Release();
+    worker.join();
+    FAIL() << "Runner repair did not reach cleanup";
+  }
+  EXPECT_EQ(2, attempts);
+  EXPECT_EQ(1, status->stopped);
+  EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY, status->fatalError);
+  std::vector<int64_t> partial;
+  HeartbeatTriggerIds(0, &partial);
+  EXPECT_TRUE(partial.empty());
+  pause.Release();
+  worker.join();
+  EXPECT_EQ(1, status->stopped);
+}
+
+void MndStreamDeployOwnershipTest::CheckRunnerCleanupReplacement(bool rebuild) {
+  ASSERT_NO_FATAL_FAILURE(SetLegacyMetadataPlan());
+  if (rebuild) {
+    stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+      SEpSet ep = {};
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6000 + vg;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+      return ep;
+    });
+  }
+  QueueDeploy(kStreamA);
+  HandleActions();
+  auto *status = static_cast<SStmStatus *>(taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, status);
+  ASSERT_NE(nullptr, status->triggerTask);
+  ASSERT_EQ(rebuild ? 3 : 1, listNEles(status->calcReaders));
+  std::vector<int64_t> initial;
+  HeartbeatTriggerIds(0, &initial);
+  ASSERT_FALSE(initial.empty());
+  stub_.set(mndGetVgroupEpsetById, +[](SMnode *, int32_t vg) -> SEpSet {
+    SEpSet ep = {};
+    if (vg == 20) {
+      ep.numOfEps = 1;
+      ep.eps[0].port = 6020;
+      tstrncpy(ep.eps[0].fqdn, "node1", sizeof(ep.eps[0].fqdn));
+    }
+    return ep;
+  });
+  if (!rebuild) {
+    stub_.set(mndAcquireVgroup, +[](SMnode *, int32_t) -> SVgObj * {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return nullptr;
+    });
+  }
+  SStmTaskAction repair = {};
+  repair.streamId = kStreamA;
+  repair.generation = status->triggerTask->id.taskId;
+  repair.type = STREAM_RUNNER_TASK;
+  repair.multiRunner = true;
+  repair.deployNum = 1;
+  ASSERT_EQ(0, mstPostTaskAction(&actionQueue_, &repair, STREAM_ACT_DEPLOY));
+  auto *replacementTrigger = static_cast<SStmTaskStatus *>(taosMemoryCalloc(1, sizeof(SStmTaskStatus)));
+  ASSERT_NE(nullptr, replacementTrigger);
+  const int64_t replacementId = status->triggerTask->id.taskId + 10000;
+  replacementTrigger->id.taskId = replacementId;
+  replacementTrigger->id.nodeId = 1;
+  replacementTrigger->type = STREAM_TRIGGER_TASK;
+  replacementTrigger->status = STREAM_STATUS_RUNNING;
+  DeployPhasePause pause("runner-cleanup");
+  std::thread worker([&] { HandleActions(); });
+  if (!pause.Entered()) {
+    pause.Release();
+    worker.join();
+    taosMemoryFree(replacementTrigger);
+    FAIL() << "Runner repair did not reach cleanup";
+  }
+  EXPECT_EQ(0, status->stopped);
+  // Model watch/runtime replacement after the old result was validated, during private cleanup.
+  taosWLockLatch(&mStreamMgmt.runtimeLock);
+  void *node = nullptr;
+  while ((node = taosHashIterate(mStreamMgmt.snodeMap, node))) {
+    auto *snode = static_cast<SStmSnodeStatus *>(node);
+    if (snode->streamTasks && taosHashGet(snode->streamTasks, &kStreamA, sizeof(kStreamA))) {
+      EXPECT_EQ(0, taosHashRemove(snode->streamTasks, &kStreamA, sizeof(kStreamA)));
+    }
+  }
+  while ((node = taosHashIterate(mStreamMgmt.vgroupMap, node))) {
+    auto *vgroup = static_cast<SStmVgroupStatus *>(node);
+    if (vgroup->streamTasks && taosHashGet(vgroup->streamTasks, &kStreamA, sizeof(kStreamA))) {
+      EXPECT_EQ(0, taosHashRemove(vgroup->streamTasks, &kStreamA, sizeof(kStreamA)));
+    }
+  }
+  taosHashClear(mStreamMgmt.taskMap);
+  EXPECT_EQ(0, taosHashGetSize(mStreamMgmt.taskMap));
+  mstDestroySStmStatus(status);
+  EXPECT_EQ(0, taosHashRemove(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  auto *replacement = AddStatus(kStreamA);
+  EXPECT_NE(nullptr, replacement);
+  if (replacement) {
+    replacement->triggerTask = replacementTrigger;
+    replacementTrigger->pStream = replacement;
+    int64_t taskKey[2] = {kStreamA, replacementId};
+    EXPECT_EQ(0, taosHashPut(mStreamMgmt.taskMap, taskKey, sizeof(taskKey), &replacementTrigger, POINTER_BYTES));
+    replacement->registrations = taosHashInit(2, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    EXPECT_NE(nullptr, replacement->registrations);
+    const uint8_t present = 1;
+    int64_t taskRegistration[2] = {0, replacementId};
+    int64_t snodeRegistration[2] = {2, replacementTrigger->id.nodeId};
+    if (replacement->registrations) {
+      EXPECT_EQ(0, taosHashPut(replacement->registrations, taskRegistration, sizeof(taskRegistration), &present,
+                               sizeof(present)));
+      EXPECT_EQ(0, taosHashPut(replacement->registrations, snodeRegistration, sizeof(snodeRegistration), &present,
+                               sizeof(present)));
+    }
+    const int32_t snodeId = 1;
+    auto *snode = static_cast<SStmSnodeStatus *>(taosHashGet(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId)));
+    if (snode && snode->streamTasks) {
+      SStmSnodeStreamStatus nodeStream = {};
+      nodeStream.trigger = replacementTrigger;
+      EXPECT_EQ(0, taosHashPut(snode->streamTasks, &kStreamA, sizeof(kStreamA), &nodeStream, sizeof(nodeStream)));
+    }
+    if (replacement->registrations) {
+      EXPECT_EQ(2, taosHashGetSize(replacement->registrations));
+      EXPECT_NE(nullptr, taosHashGet(replacement->registrations, taskRegistration, sizeof(taskRegistration)));
+      EXPECT_NE(nullptr, taosHashGet(replacement->registrations, snodeRegistration, sizeof(snodeRegistration)));
+    }
+  } else {
+    taosMemoryFree(replacementTrigger);
+  }
+  taosWUnLockLatch(&mStreamMgmt.runtimeLock);
+  pause.Release();
+  worker.join();
+  ASSERT_NE(nullptr, replacement);
+  EXPECT_EQ(replacement, taosHashGet(mStreamMgmt.streamMap, &kStreamA, sizeof(kStreamA)));
+  EXPECT_EQ(0, replacement->stopped);
+  EXPECT_EQ(0, replacement->fatalError);
+  ASSERT_NE(nullptr, replacement->triggerTask);
+  EXPECT_EQ(replacementId, replacement->triggerTask->id.taskId);
+  EXPECT_EQ(STREAM_STATUS_RUNNING, replacement->triggerTask->status);
+  int64_t replacementKey[2] = {kStreamA, replacementId};
+  auto **registered = static_cast<SStmTaskStatus **>(taosHashGet(mStreamMgmt.taskMap, replacementKey, sizeof(replacementKey)));
+  ASSERT_NE(nullptr, registered);
+  EXPECT_EQ(replacementTrigger, *registered);
+  EXPECT_EQ(1, taosHashGetSize(mStreamMgmt.taskMap));
+  ASSERT_NE(nullptr, replacement->registrations);
+  int64_t taskRegistration[2] = {0, replacementId};
+  int64_t snodeRegistration[2] = {2, replacementTrigger->id.nodeId};
+  EXPECT_NE(nullptr, taosHashGet(replacement->registrations, taskRegistration, sizeof(taskRegistration)));
+  EXPECT_NE(nullptr, taosHashGet(replacement->registrations, snodeRegistration, sizeof(snodeRegistration)));
+  EXPECT_EQ(2, taosHashGetSize(replacement->registrations));
+  const int32_t snodeId = 1;
+  auto *snode = static_cast<SStmSnodeStatus *>(taosHashGet(mStreamMgmt.snodeMap, &snodeId, sizeof(snodeId)));
+  ASSERT_NE(nullptr, snode);
+  ASSERT_NE(nullptr, snode->streamTasks);
+  auto *nodeStream = static_cast<SStmSnodeStreamStatus *>(taosHashGet(snode->streamTasks, &kStreamA, sizeof(kStreamA)));
+  ASSERT_NE(nullptr, nodeStream);
+  EXPECT_EQ(replacementTrigger, nodeStream->trigger);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerCleanupDiscardsOldErrorAfterRuntimeReplacement) {
+  CheckRunnerCleanupReplacement(false);
+}
+
+TEST_F(MndStreamDeployOwnershipTest, RunnerCleanupDiscardsOldRedeployAfterRuntimeReplacement) {
+  CheckRunnerCleanupReplacement(true);
+}
 
 #ifdef TD_ENTERPRISE
 static std::atomic<int32_t> deployGrantCode{0};

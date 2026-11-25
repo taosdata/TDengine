@@ -2087,12 +2087,7 @@ _exit:
   return code;
 }
 
-int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
-  SSubplan* pSubplan = NULL;
-  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
-  
-  TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
-
+int32_t mstGetScanUidFromSubplan(int64_t streamId, const SSubplan* pSubplan, int64_t* uid) {
   // Security hardening (see "item 194"): nodesStringToNode returns SUCCESS and
   // leaves *pNode NULL when scanPlan is a missing/optional JSON key, and it
   // instantiates whatever NodeType the JSON names. A NULL or wrong-typed node
@@ -2101,7 +2096,7 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   if (NULL == pSubplan || QUERY_NODE_PHYSICAL_SUBPLAN != nodeType((SNode*)pSubplan)) {
     mstsError("stream:%" PRId64 " scanPlan decoded to invalid node (null:%d, type:%d)", streamId, (pSubplan == NULL),
               (pSubplan ? nodeType((SNode*)pSubplan) : -1));
-    TAOS_CHECK_EXIT(TSDB_CODE_MND_STREAM_INTERNAL_ERROR);
+    return TSDB_CODE_MND_STREAM_INTERNAL_ERROR;
   }
 
   // The calc-scan reader root is usually a TABLE_SCAN. For the virtual-stable-agg pushdown the
@@ -2117,6 +2112,17 @@ int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
   if (pNode && nodeType(pNode) == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     *uid = ((SScanPhysiNode*)pNode)->uid;
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid) {
+  SSubplan* pSubplan = NULL;
+  int32_t code = TSDB_CODE_SUCCESS, lino = 0;
+
+  TAOS_CHECK_EXIT(nodesStringToNode(scanPlan, (SNode**)&pSubplan));
+
+  TAOS_CHECK_EXIT(mstGetScanUidFromSubplan(streamId, pSubplan, uid));
 
 _exit:
 

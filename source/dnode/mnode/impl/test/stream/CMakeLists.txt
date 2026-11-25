@@ -41,6 +41,8 @@ else()
                 "MndStreamRecalcPersistenceTest.SameGroupReportsKeepHealthyTasksRunningDuringPrivateDeploy"
                 "MndStreamRecalcPersistenceTest.LeadershipChange*"
                 "MndStreamDeployOwnershipTest.*"
+                "PartitionOrder/MndStreamMetadataOrderTest.*"
+                "Recovery/MndStreamMetadataGroupsTest.*"
                 "MndStreamRemoteReaderTest.*"
                 "MndStreamOrigReaderReplyTest.*"
                 "MndStreamHbInputTest.DisabledMnodeRejectsHeartbeatFromPeerWithExistingTask"
