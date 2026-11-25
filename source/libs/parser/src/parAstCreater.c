@@ -10742,6 +10742,12 @@ SNode* createTimeAlignTableNode(SAstCreateContext* pCxt, SToken* pFuncName, STok
                                          "unsupported table function in TABLE(...)");
     return NULL;
   }
+  // An explicit database qualifier must go through checkDbName() like every
+  // other table reference: it strips the backtick escapes.  Copying the raw
+  // token makes a quoted qualifier such as `db`.`tbl` reach the catalog with
+  // its backticks still attached, and the metadata lookup then fails with
+  // "Database does not exist".
+  CHECK_NAME(checkDbName(pCxt, pDbName, true));
   CHECK_NAME(checkTableName(pCxt, pTableName));
   CHECK_NAME(checkTableName(pCxt, pTableAlias));
 

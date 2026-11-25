@@ -2231,6 +2231,39 @@ class TestTimeAlign:
             "select * from table(time_align(table vt_quote, 'a:b'))",
             PAR_NOT_ALLOWED_FUNC)
 
+    def test_qualified_database_name(self):
+        """A quoted database qualifier resolves like an unquoted one.
+
+        Regression for defect 7179993062: the database token of
+        ``TABLE(TIME_ALIGN(TABLE `db`.`tbl`, ...))`` was copied with its
+        backticks, so the metadata lookup for "`db`" failed with
+        "Database does not exist" (0x80000388).  The query must work from a
+        connection whose current database is a different one, exactly like
+        the unquoted cross-database form.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.5.0.0
+
+        Labels: virtual, time_align, qualified, ci
+        """
+        frame = build_frame(SHAPES["vt_gaps"], {"voltage"}, False)
+        expected = [[row["ts"], row["align"]["voltage"]] for row in frame]
+        tdSql.execute("use information_schema")
+        try:
+            _assert_query(
+                f"select ts, voltage_a from table(time_align(table `{DB}`.`vt_gaps`, "
+                f"'voltage:PREV:_a')) order by ts",
+                expected)
+            _assert_query(
+                f"select _c0, `voltage` from table(time_align(table `{DB}`.`vt_gaps`, "
+                f"'`voltage`:PREV:')) where _c0 >= {ts(0)} and _c0 <= {ts(5000)} "
+                f"order by _c0",
+                expected)
+        finally:
+            tdSql.execute(f"use {DB}")
+
     def test_select_permission(self):
         """SELECT privilege on the input vtable is enforced.
 
