@@ -78,7 +78,7 @@ class TestBasic:
         tdLog.info("=" * 80)
 
         cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', '--encrypt-database']
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, input="yes\n", check=True)
         tdLog.info(f"Output: {result.stdout}")
 
         assert os.path.exists(master_file), f"master.bin missing at {master_file}"
@@ -93,7 +93,7 @@ class TestBasic:
             os.remove(master_file)
 
         cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'mysvr123', '--encrypt-database', 'mydb4567']
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, input="yes\n", check=True)
 
         assert os.path.exists(master_file), "master.bin not generated"
         tdLog.info("Custom keys generated")
@@ -110,7 +110,7 @@ class TestBasic:
 
         cmd = [taosk_bin, '-c', cfg_path, '--encrypt-server', '--encrypt-database',
                '--encrypt-config', '--encrypt-metadata', '--encrypt-data']
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30, input="yes\n", check=True)
 
         assert os.path.exists(master_file), "master.bin not generated"
         assert os.path.exists(derived_file), "derived.bin not generated"
@@ -136,7 +136,7 @@ class TestBasic:
             os.remove(master_file)
 
         cmd_valid = [taosk_bin, '-c', cfg_path, '--encrypt-server', 'validkey12', '--encrypt-database', 'validdb34']
-        result_valid = subprocess.run(cmd_valid, capture_output=True, text=True, timeout=30, check=True)
+        result_valid = subprocess.run(cmd_valid, capture_output=True, text=True, timeout=30, input="yes\n", check=True)
 
         assert os.path.exists(master_file), "Valid key failed"
         tdLog.info("Valid key passed")
