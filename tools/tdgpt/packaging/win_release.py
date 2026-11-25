@@ -1050,6 +1050,10 @@ def main():
     # Clean and prepare release directory
     clean_release_dir()
 
+    # AI skills under skills/ are intentionally not packaged on Windows: the
+    # deployment script requires a POSIX shell and coreutils and supports only
+    # Linux, Docker or SSH targets. See skills/README.md.
+
     # Copy all necessary files
     copy_config_files()
     copy_python_files()

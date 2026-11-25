@@ -328,6 +328,12 @@ function install_bin_and_lib() {
   ${csudo}mkdir -p "${install_main_dir}/share/tsfm"
   ${csudo}cp "${script_dir}/share/tsfm/tsfm-release.json" "${install_main_dir}/share/tsfm/tsfm-release.json"
 
+  # AI skills are program-owned, read-only guidance; reinstall them on upgrade.
+  if [ -d "${script_dir}/skills" ]; then
+    ${csudo}mkdir -p "${install_main_dir}/skills"
+    ${csudo}cp -r "${script_dir}/skills/." "${install_main_dir}/skills/"
+  fi
+
   # Handle rmtaosanode separately
   sed -i.bak \
   -e "s|/usr/local/taos/taosanode|${install_main_dir}|g" \

@@ -31,6 +31,7 @@ def test_release_payload_preserves_lifecycle_and_full_models(tmp_path, lite, leg
     root = tmp_path / "tdgpt"
     shutil.copytree(source / "script", root / "script", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(source / "cfg", root / "cfg")
+    shutil.copytree(source / "skills", root / "skills", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     (root / "packaging").mkdir()
     shutil.copyfile(
         source / "packaging" / "tdengine-tdgpt-tsfm-release-1.0.1.json",
@@ -79,6 +80,11 @@ def test_release_payload_preserves_lifecycle_and_full_models(tmp_path, lite, leg
         ):
             assert f"bin/{script}" in members
         assert "share/tsfm/tsfm-release.json" in members
+        assert "skills/tdgpt-custom-algorithm/SKILL.md" in members
+        assert (
+            "skills/tdgpt-custom-algorithm/scripts/deploy_custom_algorithm.py"
+            in members
+        )
         manifest = package.extractfile(next(member for member in package.getmembers()
                                             if member.name.endswith("/share/tsfm/tsfm-release.json")))
         assert manifest is not None
