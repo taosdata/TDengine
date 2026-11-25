@@ -144,7 +144,7 @@ void dmMonitorCleanExpiredSamples() {
   (void)dmCleanExpriedSamples(pDnode);
 }
 
-// Todo: put this in seperate file in the future
+// Todo: put this in a separate file in the future
 void dmSendAuditRecords() { auditSendRecordsInBatch(); }
 
 void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
