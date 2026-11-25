@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-from new_test_framework.utils import tdLog, tdSql, tdDnodes
+from new_test_framework.utils import tdLog, tdSql, tdDnodes, etool
 from new_test_framework.utils.sqlset import TDSetSql
 from decimal import Decimal
 import os
@@ -23,7 +23,7 @@ import random
 import re
 import string
 import taos
-import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 import shutil
 from new_test_framework.utils.pathFinding import find_proj_root
@@ -790,30 +790,33 @@ class TestCase:
         def insert_rows(start_idx, end_idx):
             conn = taos.connect()
             cursor = conn.cursor()
-            cursor.execute(f"use {db_name}")
             # every row uses its own payload, do NOT reuse a small cache of values here: the data
             # file is compressed (zstd through TSZ) and 'ssmigrate' only migrates a data file
             # bigger than ss_chunkpages * tsdb_page_size. A redundant payload is
             # deduplicated by the compressor, and the file size then depends on the compressor
             # implementation instead of the number of rows, which can silently turn the migration
             # into a no-op and break the s10/s11 assertions.
-            for i in range(start_idx, end_idx):
-                ts = ts_start + i * 1000  # interval 1s (1000ms)
-                binary_data = ''.join(random.choices(string.ascii_letters + string.digits, k=binary_len))
-                cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
-            cursor.close()
-            conn.close()
-        
+            try:
+                cursor.execute(f"use {db_name}")
+                for i in range(start_idx, end_idx):
+                    ts = ts_start + i * 1000  # interval 1s (1000ms)
+                    binary_data = ''.join(random.choices(string.ascii_letters + string.digits, k=binary_len))
+                    cursor.execute(f"insert into {table_name} values({ts}, {i}, '{binary_data}')")
+            finally:
+                cursor.close()
+                conn.close()
+
         rows_per_thread = n_rows // num_threads
-        threads = []
-        for t_idx in range(num_threads):
-            start_idx = t_idx * rows_per_thread
-            end_idx = start_idx + rows_per_thread if t_idx < num_threads - 1 else n_rows
-            t = threading.Thread(target=insert_rows, args=(start_idx, end_idx))
-            threads.append(t)
-            t.start()
-        for t in threads:
-            t.join()
+        # Keep SQL payloads out of server debug logs and propagate writer failures.
+        with etool.data_write_log():
+            with ThreadPoolExecutor(max_workers=num_threads) as pool:
+                futures = []
+                for t_idx in range(num_threads):
+                    start_idx = t_idx * rows_per_thread
+                    end_idx = start_idx + rows_per_thread if t_idx < num_threads - 1 else n_rows
+                    futures.append(pool.submit(insert_rows, start_idx, end_idx))
+                for future in futures:
+                    future.result()
 
     def s10_check_localSS_content(self, path, min_size_mb=16):
         total_size = sum(os.path.getsize(os.path.join(dp, f)) for dp, dn, fn in os.walk(path) for f in fn)
@@ -827,7 +830,7 @@ class TestCase:
         ddl = tdSql.queryResult[0][1]
         chunk_pages = int(re.search(r"\bSS_CHUNKPAGES\s+(\d+)", ddl, re.IGNORECASE)[1])
         page_kb = int(re.search(r"\bTSDB_PAGESIZE\s+(\d+)", ddl, re.IGNORECASE)[1])
-        # Debug/non-core builds can use 512 MiB chunks instead of 16 MiB.
+        # Use the actual DDL threshold, including the fixture's 1 KiB pages.
         # Allow for compression and keep an even number of rows for 2s rollup.
         rows = max(1000, (2 * chunk_pages * page_kb * 1024 + 40959) // 40960)
         rows = ((rows + 19) // 20) * 20
@@ -838,7 +841,7 @@ class TestCase:
         tdLog.info("check ssmigrate without rsma")
         tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1 tsdb_pagesize 1")
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
@@ -870,7 +873,7 @@ class TestCase:
         tdSql.execute("alter all dnodes 'querySsMigrateIntervalSec 1'")
         tdSql.execute("alter all dnodes 'queryTrimIntervalSec 1'")
         tdSql.execute("drop database if exists d0")
-        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1")
+        tdSql.execute("create database if not exists d0 replica 1 keep 73000d stt_trigger 1 tsdb_pagesize 1")
         tdSql.execute("use d0")
         tdSql.execute("create stable if not exists stb0 (ts timestamp, c0 int, c2 binary(40960)) tags(t0 int)")
         tdSql.execute("create table if not exists ctb0 using stb0 tags(0)")
@@ -959,6 +962,8 @@ class TestCase:
             - 2025-09-25: Initial version from Kaili Xu(TS-6113).
             - 2025-11-04: Check negative ts from Kaili Xu(TD-38485).
             - 2026-03-04: Add ssmigrate test with/without rsma from Kaili Xu(6841578238).
+            - 2026-11-25: Bound migration fixtures with 1 KiB pages, reduce bulk-write logs,
+                          and propagate insert worker failures.
             - 2026-09-24: Use a unique payload per row in the ssmigrate test, so that the data
                           file is always larger than the 16MB migration threshold and does not
                           depend on the compression ratio anymore.
