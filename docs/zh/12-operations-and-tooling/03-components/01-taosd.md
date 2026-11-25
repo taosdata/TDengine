@@ -2022,6 +2022,15 @@ ALTER ALL DNODES 'snapshotMediumOnLag' '0';
 SHOW DNODE VARIABLES LIKE 'snapshotMediumOnLag';
 ```
 
+#### snapshotMediumDiskStrategy
+
+- 说明：medium 快照接收端需要为文件选择新磁盘时使用的策略。0 表示轮询，1 表示选择已用容量占比最低的磁盘；占比相同时轮询。容量占比使用最近一次刷新的磁盘统计值，并非实时值。一次快照连续创建多个文件时，如果统计值尚未刷新，这些文件可能集中写入同一块磁盘，无法保证均匀分布。选择时跳过禁用或可用空间不足的磁盘，并从原存储层开始逐层向下尝试。
+- 类型：整数
+- 默认值：0
+- 取值范围：0～1
+- 参数类型：本地配置参数
+- 动态修改：支持通过 SQL 修改，对后续磁盘分配生效。
+
 #### snapshotMediumOnIncomplete
 
 - 说明：控制副本的 FSM 不完整时使用的快照同步方式。1 表示使用文件级增量（medium）方式；0 表示使用逐行（normal）方式。medium 所需的文件列表为空时，回退到协商出的格式。
