@@ -910,6 +910,29 @@ TEST(osStringTests, mbsToMbsRejectsCharsetOverFourBytesPerCodePoint) {
   EXPECT_EQ(terrno, TSDB_CODE_CHARSET_CONVERT_ERROR);
 }
 
+TEST(osStringTests, truncatedPrefixResetsDecoderForStrictConversion) {
+  ConvCacheGuard guard;
+  void* charset = taosConvInit("ISO-2022-JP");
+  if (charset == nullptr) {
+    GTEST_SKIP() << "ISO-2022-JP is not supported by this iconv";
+  }
+
+  // Enter JIS X 0208 and supply two copies of U+3042 without shifting back.
+  const char input[] = "\x1b$B\x24\x22\x24\x22";
+  TdUcs4 output = 0;
+  int32_t len = 0;
+  char* bytes = reinterpret_cast<char*>(&output);
+  ASSERT_TRUE(taosMbsToUcs4Prefix(input, sizeof(input) - 1, bytes,
+                                  sizeof(output), &len, charset));
+  ASSERT_EQ(len, static_cast<int32_t>(sizeof(output)));
+  ASSERT_EQ(output, 0x3042u);
+
+  // The same thread reuses its pool slot. Strict conversion has no entry reset.
+  ASSERT_TRUE(taosMbsToUcs4("A", 1, &output, sizeof(output), &len, charset));
+  EXPECT_EQ(len, static_cast<int32_t>(sizeof(output)));
+  EXPECT_EQ(output, 0x41u);
+}
+
 TEST(osStringTests, convCharsetMirrorsAcquireConvFallbackChain) {
   SConvInfo explicitCxt = {0};
   tstrncpy(explicitCxt.charset, "GB18030", sizeof(explicitCxt.charset));
