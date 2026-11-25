@@ -2023,6 +2023,48 @@ class VtableQueryUtil:
     do not rename or change parameters.
     """
 
+    # Origin tables live in the external backends (PostgreSQL, MySQL, InfluxDB,
+    # SQL Server, Oracle) and their content depends only on the backend (and on
+    # InfluxDB's series mode), never on the vtable shape that is emitted
+    # afterwards.  A single test file builds them once per class, so the
+    # ``mode=1``/``mode=2`` variants of one backend rebuilt byte-identical
+    # external tables twice.  Remember what has already been built in this
+    # process and skip the rebuild.  ``TD_VTABLE_REUSE_EXTERNAL_ORIGIN=0``
+    # restores the old behaviour for debugging.
+    #
+    # Constraint: while a key is cached, nothing in this process may modify or
+    # drop those external databases.  Anything that does must go through
+    # ``_prepare_external_origin_once`` (which re-keys the rebuilt content)
+    # instead of calling ``adapter.prepare_origin_tables()`` directly.
+    _EXTERNAL_ORIGIN_READY = {}
+
+    def _external_origin_key(self, adapter, kind):
+        # ``series_mode`` is adapter state (set by ``enable_series_mode()``), so
+        # read it from the adapter instead of taking it from the caller: every
+        # call site then keys identically for the same physical content.
+        return (kind,
+                type(adapter).__name__,
+                getattr(adapter, "version", ""),
+                bool(getattr(adapter, "series_mode", False)),
+                tuple(getattr(adapter, "SOURCE_NAMES", ())),
+                tuple(getattr(adapter, "DB_NAMES", ())))
+
+    def _prepare_external_origin_once(self, adapter, kind):
+        """Build the external origin tables unless this process already did.
+
+        Safe because ``prepare_origin_tables`` drops and recreates the external
+        databases with the same CSV fixtures for every caller with the same
+        key; the TDengine side (vtable database, EXTERNAL SOURCE object and the
+        virtual tables themselves) is still rebuilt by every caller.
+        """
+        key = self._external_origin_key(adapter, kind)
+        reuse = os.environ.get("TD_VTABLE_REUSE_EXTERNAL_ORIGIN", "1") != "0"
+        if reuse and key in self._EXTERNAL_ORIGIN_READY:
+            tdLog.info(f"reuse external origin tables already built for {key}")
+            return
+        adapter.prepare_origin_tables()
+        self._EXTERNAL_ORIGIN_READY[key] = True
+
     @staticmethod
     def _db_duration_divisor():
         """Divisor turning the session database's timestamp-integer columns
@@ -2701,11 +2743,12 @@ class VtableQueryUtil:
         # InfluxDB basic path: route every column through the shared measurement
         # via a SERIES tagCond so the federated-scan tagCond-pushdown code path
         # is exercised by the existing in/ans suite. Other backends are no-ops.
-        if getattr(adapter, "BACKEND", "") == "influx":
+        series_mode = getattr(adapter, "BACKEND", "") == "influx"
+        if series_mode:
             adapter.enable_series_mode()
         _create_vtable_database(self.VTABLE_DB_NAME,
                                 precision=_ext_source_db_precision(adapter))
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "ext")
         adapter.create_external_source()
 
         ct = adapter.column_types
@@ -2726,7 +2769,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True,
             precision=_ext_source_db_precision(adapter)
         )
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "mixed")
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
 
@@ -2769,7 +2812,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True, precision="ns"
         )
         for a in adapters:
-            a.prepare_origin_tables()
+            self._prepare_external_origin_once(a, "all")
 
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         for a in adapters:
@@ -2793,7 +2836,7 @@ class VtableQueryUtil:
             self.VTABLE_DB_NAME, debug_select_database=True,
             precision="ns"
         )
-        adapter.prepare_origin_tables()
+        self._prepare_external_origin_once(adapter, "extref")
         tdSql.execute(f"use {self.VTABLE_DB_NAME};")
         adapter.create_external_source()
 
