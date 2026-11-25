@@ -217,6 +217,99 @@ ATAN(expr)
 
 **使用说明**：只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
 
+### BIT_COUNT
+
+```sql
+BIT_COUNT(expr)
+```
+
+**函数分类**：标量函数。
+
+**功能说明**：返回 `expr` 二进制表示中值为 1 的位数（population count）。数值、时间与文本参数按 64 位整数计数，二进制参数按字节序列计数。
+
+**版本**：`v3.5.0.0`
+
+**返回结果类型**：`BIGINT`。数值、时间与文本参数的取值范围为 0～64；`VARBINARY`、`BLOB`、`MEDIUMBLOB` 参数的上限为 8 × 字节长度，可以超过 64。
+
+**适用数据类型**
+
+- `expr`：TINYINT、SMALLINT、INT、BIGINT 及其无符号类型、BOOL、FLOAT、DOUBLE、DECIMAL、VARCHAR、NCHAR、VARBINARY、BLOB、MEDIUMBLOB、TIMESTAMP。
+- 不支持 JSON、GEOMETRY。
+
+**嵌套子查询支持**：适用于内层查询和外层查询。
+
+**适用于**：表和超级表。
+
+**使用说明**
+
+- 若 `expr` 为 NULL，返回 NULL。
+- 有符号整数按 64 位补码计数，例如 `BIT_COUNT(-1)` 返回 64，`BIT_COUNT(-2)` 返回 63。
+- 无符号整数按 64 位零扩展计数。
+- BOOL 的 TRUE 视为 1，FALSE 视为 0。
+- FLOAT、DOUBLE、DECIMAL 先四舍五入到最近的整数（恰好为半值时远离 0），再按 64 位补码计数；NaN、正负无穷以及四舍五入后超出 BIGINT 范围的值返回 NULL。例如 `BIT_COUNT(2.9)` 返回 2（2.9 舍入为 3，3 有 2 个置位），`BIT_COUNT(-2.9)` 返回 63（舍入为 -3）。
+- VARCHAR、NCHAR 按十进制整数前缀解析：跳过前导空白，识别可选正负号，遇到非数字字符即结束；无法解析时返回 0，整数部分溢出时饱和到 BIGINT 边界，不产生告警。
+- VARBINARY、BLOB、MEDIUMBLOB 按原始字节逐位计数，不做数值解析和字符集转换；空串返回 0，结果可能超过 64。
+- TIMESTAMP 按连接时区格式化为 `YYYYMMDDHHMMSS` 十进制数值（MySQL 的 `+0` 数值上下文），小数秒四舍五入到秒，`.5` 及以上进位；再对该数值按 64 位补码计数。同一时间戳文本在不同时区会话下结果相同；同一 epoch 数值在不同时区会话下结果可能不同。
+
+**与 MySQL 8.0 的兼容性差异**
+
+- 返回类型：MySQL 文档描述为无符号 64 位整数，TDengine 返回 `BIGINT`，数值语义一致。
+- 浮点与定点参数：两端都四舍五入到最近的整数（半值远离 0），结果一致。
+- TIMESTAMP：两端都使用 `+0` 的 `YYYYMMDDHHMMSS` 数值上下文；MySQL `DATETIME` 支持公元 1000～9999 年，TDengine 的 `TIMESTAMP` 范围由引擎定义，超出范围的文本在 `CAST` 阶段报错。
+- 浮点特殊值与越界值：NaN、正负无穷以及四舍五入后超出 64 位整数范围的值在 TDengine 返回 NULL，MySQL 的结果随版本和转换规则变化。
+- 文本参数：TDengine 不产生逐行告警，整数部分溢出时饱和到有符号 64 位边界；MySQL 按无符号 64 位及其告警规则处理。
+- 二进制参数：两端都对二进制值逐位计数，结果都可能超过 64；TDengine 不支持 `b'...'` 位字面量，需要先 `CAST(... AS VARBINARY)`。
+- 其他类型：TDengine 在翻译期拒绝 JSON、GEOMETRY 参数。
+
+**示例**
+
+```sql
+taos> select bit_count(29);
+ bit_count(29) |
+================
+             4 |
+
+taos> select bit_count(0), bit_count(-1), bit_count(-2);
+ bit_count(0) | bit_count(-1) | bit_count(-2) |
+==============================================
+            0 |            64 |            63 |
+
+taos> select bit_count(2.9), bit_count(2.5), bit_count(-2.9);
+ bit_count(2.9) | bit_count(2.5) | bit_count(-2.9) |
+===================================================
+              2 |              2 |               63 |
+
+taos> select bit_count(cast(2.9 as decimal(5,1)));
+ bit_count(cast(2.9 as decimal(5,1))) |
+=======================================
+                                     2 |
+
+taos> select bit_count(cast('ABCD' as varbinary));
+ bit_count(cast('ABCD' as varbinary)) |
+=======================================
+                                     9 |
+
+taos> select bit_count(cast('2026-11-23 15:45:22' as timestamp));
+ bit_count(cast('2026-11-23 15:45:22' as timestamp)) |
+======================================================
+                                                   20 |
+
+taos> select bit_count(cast(2.9 as double)), bit_count('12abc'), bit_count('abc');
+ bit_count(cast(2.9 as double)) | bit_count('12abc') | bit_count('abc') |
+=========================================================================
+                              2 |                  2 |                0 |
+
+taos> select bit_count(null);
+ bit_count(null) |
+==================
+ NULL            |
+
+taos> select bit_count(1e308);
+ bit_count(1e308) |
+===================
+ NULL             |
+```
+
 ### CEIL
 
 ```sql
