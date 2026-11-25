@@ -509,3 +509,79 @@ class TestVstNonleafQueries:
 
         tdSql.query(f"select avg(gp_col) from nl_gp")
         assert tdSql.queryResult[0][0] is not None
+
+    def do_cross_db_last_case(self):
+        virtual_db = "test_vst_nonleaf_last"
+        source_db = "test_vst_nonleaf_last_src"
+        tdSql.execute(f"drop database if exists {virtual_db}")
+        tdSql.execute(f"drop database if exists {source_db}")
+        tdSql.execute(f"create database {virtual_db} vgroups 1")
+        try:
+            tdSql.execute(f"create database {source_db} vgroups 1")
+            tdSql.execute(f"create table {source_db}.readings (ts timestamp, v1 int)")
+            tdSql.execute(f"insert into {source_db}.readings values (now, 100) (now+1d, 200)")
+            tdSql.execute(
+                f"create stable {virtual_db}.parent_vst (ts timestamp, ilgs_state int) "
+                "tags (device int) virtual 1"
+            )
+            projection = (
+                "last(_c0), cast(case when ilgs_state = 100 then 103 "
+                "when ilgs_state = 200 then 103 else ilgs_state end as int)"
+            )
+            sql = f"select {projection} from {virtual_db}.parent_vst"
+            expected_rows = []
+            sources = (f"{DB}.nl_src_t1", f"{source_db}.readings")
+            for i, source in enumerate(sources, start=1):
+                leaf = f"{virtual_db}.leaf_{i}"
+                tdSql.execute(
+                    f"create stable {leaf} (ts timestamp, extra int) tags (t int) "
+                    f"base on {virtual_db}.parent_vst virtual 1"
+                )
+                device = f"from {source}.loc" if i == 1 else str(i)
+                tdSql.execute(
+                    f"create vtable {virtual_db}.vc_{i} (ilgs_state from {source}.v1) "
+                    f"using {leaf} tags ({device}, 0)"
+                )
+                tdSql.query(f"select last(_c0), v1 from {source}")
+                tdSql.checkRows(1)
+                ts, state = tdSql.queryResult[0]
+                expected_rows.append((ts, 103 if state in (100, 200) else state))
+
+                if i == 1:
+                    tdSql.query(sql)
+                    tdSql.checkRows(1)
+                    tdSql.checkData(0, 0, ts)
+                    tdSql.checkData(0, 1, expected_rows[0][1])
+
+            last_ts, last_state = max(expected_rows)
+            tdSql.query(sql)
+            tdSql.checkRows(1)
+            tdSql.checkData(0, 0, last_ts)
+            tdSql.checkData(0, 1, last_state)
+            for i, (ts, state) in enumerate(expected_rows, start=1):
+                tdSql.query(f"{sql} where device = {i}")
+                tdSql.checkRows(1)
+                tdSql.checkData(0, 0, ts)
+                tdSql.checkData(0, 1, state)
+        finally:
+            tdSql.execute(f"drop database {virtual_db}")
+            tdSql.execute(f"drop database if exists {source_db}")
+
+    def test_cross_db_last_case(self):
+        """Select LAST timestamp and CASE value from a non-leaf virtual supertable
+
+        Verify LAST and CASE across one and two leaf descendants, each reading a distinct source database.
+
+        Catalog:
+            - VirtualTable
+
+        Since: v3.4.4.0
+
+        Labels: common,ci
+
+        Jira: None
+
+        History:
+            - 2026-11-24 Joey Sima Added cross-database leaf routing regression.
+        """
+        self.do_cross_db_last_case()

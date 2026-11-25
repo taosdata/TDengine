@@ -124,6 +124,37 @@ QueryGuard parseInitialSql(const char* pSql) {
 
 class ParserInitialCTest : public ParserDdlTest {};
 
+TEST(ParseMetaCacheTest, scopedVstRefsPreserveOuterResultsAndErrors) {
+  SParseMetaCache outer = {};
+  SParseMetaCache inner = {};
+  inner.pVStbRefParent = &outer;
+  SName name = {};
+  const char key[] = "0.db.leaf";
+  ASSERT_EQ(0, tNameFromString(&name, key, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE));
+  SArray* refs = nullptr;
+  EXPECT_EQ(TSDB_CODE_PAR_TABLE_NOT_EXIST, getVStbRefDbsFromCache(&inner, &name, &refs));
+
+  ASSERT_EQ(0, reserveVStbRefDbsInCache(0, "db", "leaf", &outer));
+  unique_ptr<SHashObj, decltype(&taosHashCleanup)> outerHash(outer.pVStbRefDbs, taosHashCleanup);
+  ASSERT_EQ(0, reserveVStbRefDbsInCache(0, "db", "leaf", &inner));
+  unique_ptr<SHashObj, decltype(&taosHashCleanup)> innerHash(inner.pVStbRefDbs, taosHashCleanup);
+  SArray outerRefs = {};
+  SMetaRes outerResult = {};
+  outerResult.pRes = &outerRefs;
+  SMetaRes* entry = &outerResult;
+  ASSERT_EQ(0, taosHashPut(outerHash.get(), key, sizeof(key) - 1, &entry, sizeof(entry)));
+  ASSERT_EQ(0, getVStbRefDbsFromCache(&inner, &name, &refs));
+  EXPECT_EQ(&outerRefs, refs);
+
+  SMetaRes innerResult = {};
+  innerResult.code = TSDB_CODE_PAR_INTERNAL_ERROR;
+  entry = &innerResult;
+  ASSERT_EQ(0, taosHashPut(innerHash.get(), key, sizeof(key) - 1, &entry, sizeof(entry)));
+  EXPECT_EQ(TSDB_CODE_PAR_INTERNAL_ERROR, getVStbRefDbsFromCache(&inner, &name, &refs));
+  EXPECT_EQ(0, getVStbRefDbsFromCache(&outer, &name, &refs));
+  EXPECT_EQ(&outerRefs, refs);
+}
+
 TEST_F(ParserInitialCTest, referenceMetadataDupOwnsExtension) {
   using MetaGuard = unique_ptr<STableMeta, decltype(&queryFreeTableMeta)>;
   MetaGuard source((STableMeta*)taosMemoryCalloc(1, sizeof(STableMeta) + 2 * sizeof(SSchema)), queryFreeTableMeta);
