@@ -34,12 +34,16 @@ class PrimaryKeyBase:
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))
 
     def dropandcreateDB_primary_key(self,database,once_insert_num,updata_num=1,dropdb='yes',insertdata='yes',deletedata='yes'): #fixed
-        tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        schedule_policy = random.randint(1,3)
+        tdLog.info(f"primary key schedulePolicy: {schedule_policy}")
+        tdSql.query("alter local 'schedulePolicy' '%d';" %schedule_policy)
         self.ts = 1630000000000
         
         if dropdb == 'yes':
             tdSql.execute('''drop database if exists %s;'''%database)
-            tdSql.execute('''create database %s VGROUPS %d;'''%(database,random.randint(1,10)))
+            vgroups = random.randint(1,10)
+            tdLog.info(f"primary key database: {database}, vgroups: {vgroups}")
+            tdSql.execute('''create database %s VGROUPS %d;'''%(database,vgroups))
             tdSql.execute('''use %s;'''%database)
         
             #stable
@@ -422,7 +426,9 @@ class PrimaryKeyBase:
         tdSql.query(sql)
                 
     def alter_cachemodel(self,database):
-        tdSql.query("alter local 'schedulePolicy' '%d';" %random.randint(1,3))
+        schedule_policy = random.randint(1,3)
+        tdLog.info(f"primary key schedulePolicy: {schedule_policy}")
+        tdSql.query("alter local 'schedulePolicy' '%d';" %schedule_policy)
         i = random.randint(0,5)
         cachesize = 8
         def _apply_cachemodel_with_fallback(cachemodel, init_size):
@@ -435,6 +441,7 @@ class PrimaryKeyBase:
                 sql = "alter database %s cachemodel '%s' cachesize %d;" % (database, cachemodel, size)
                 try:
                     tdSql.query(sql, queryTimes=1)
+                    tdLog.info(f"primary key cachemodel: {cachemodel}, cachesize: {size}")
                     return
                 except Exception as e:
                     if "No enough memory in dnode" in str(e):
@@ -1122,12 +1129,6 @@ class PrimaryKeyBase:
             sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
             tdSql.query(sql)
             tdSql.checkRows(10*60*num)
-            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
-            tdSql.query(sql)
-            tdSql.checkRows(10*60*num)
-            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
-            tdSql.query(sql)
-            tdSql.checkRows(10*60*num)
             sql = "select {} * from {}.{} where ts_pk is not null order by ts ".format(replace_fun,db, i)
             tdSql.query(sql)
             tdSql.checkRows(10*60*num)
@@ -1225,12 +1226,6 @@ class PrimaryKeyBase:
         
         table_list = ['regular_table_1','regular_table_2','regular_table_3','regular_table_4','regular_table_5','regular_table_6']
         for i in table_list:
-            sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
-            tdSql.query(sql)
-            tdSql.checkRows(60*num)
-            sql = "select {} * from {}.{} where ts is not null order by ts desc ".format(replace_fun, db,i)
-            tdSql.query(sql)
-            tdSql.checkRows(60*num)
             sql = "select {} * from {}.{} where ts is not null order by ts ".format(replace_fun,db, i)
             tdSql.query(sql)
             tdSql.checkRows(60*num)
@@ -1389,11 +1384,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname count_window(10) order by _wstart ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname count_window(10) order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -1478,11 +1469,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname event_window start with ts_pk >0 end with ts_pk <=10 ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname event_window start with ts_pk >0 end with ts_pk <=10 ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname count_window(10)".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by tbname count_window(10)".format(db, i)
             self.explain_sql_pass(sql)
            
@@ -1602,11 +1589,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart ".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -1691,11 +1674,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10)".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10)".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -1815,11 +1794,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -1904,11 +1879,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts  ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts  ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts ".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -2028,11 +1999,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10  order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts   ".format(db, i)
             self.explain_sql_pass(sql)
 
@@ -2117,11 +2084,7 @@ class PrimaryKeyBase:
             
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts  ".format(db, i)
             self.explain_sql_pass(sql)
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname event_window start with ts_pk >0 end with ts_pk <=10 order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts  ".format(db, i)
-            self.explain_sql_pass(sql)
             
-            sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts ".format(db, i)
-            self.explain_sql_pass(sql)
             sql = "select _wstart,count(ts),tbname,t_bool,t_int,t_nchar,t_float,t_ts,cast(t_bool as smallint),t_bigint+1,cast(t_binary as bigint),t_double-1,first(ts_pk),last(ts_pk),last_row(ts_pk),sum(cast(ts_pk as int)),avg(cast(ts_pk as int)),max(cast(ts_pk as int)),min(cast(ts_pk as int)) from {}.{} partition by loc,tbname count_window(10) order by _wstart,tbname,t_bool,t_int,t_nchar,t_float,t_ts ".format(db, i)
             self.explain_sql_pass(sql)
 
