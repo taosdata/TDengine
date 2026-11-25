@@ -142,6 +142,9 @@ def run_case(root, daemon, shell):
                 f"select status from information_schema.ins_streams where stream_name='{name}'"))
 
         wait('native SQL startup', lambda: ('1',) in rows(sql('select 1', ready=False)))
+        # SQL can respond before the first dnode status report enables vnode allocation.
+        wait('dnode ready for database creation', lambda: ('ready',) in rows(sql(
+            'select status from information_schema.ins_dnodes where id=1 and support_vnodes > 0', ready=False)))
         reported = rows(sql("show dnode 1 variables like 'logDir'"))
         assert len(reported) == 1 and (root / reported[0][2]).samefile(root / 'log'), reported
         if not rows(sql('show snodes')):

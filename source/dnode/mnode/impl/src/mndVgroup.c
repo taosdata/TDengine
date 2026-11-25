@@ -1224,9 +1224,15 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
 }
 
 SEpSet mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId) {
+  int32_t lookupCode = 0;
+  return mndGetVgroupEpsetByIdWithStatus(pMnode, vgId, &lookupCode);
+}
+
+SEpSet mndGetVgroupEpsetByIdWithStatus(SMnode *pMnode, int32_t vgId, int32_t *lookupCode) {
   SEpSet epset = {0};
 
   SVgObj *pVgroup = mndAcquireVgroup(pMnode, vgId);
+  *lookupCode = pVgroup ? 0 : terrno;
   if (!pVgroup) return epset;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {

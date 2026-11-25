@@ -116,8 +116,6 @@ static const char* gMndStreamState[] = {"X", "W", "N"};
 
 #define MND_SET_RUNNER_TASKIDX(_level, _idx) (((_level) << 16) & (_idx))
 
-#define MND_GET_RUNNER_SUBPLANID(_id) ((_id) &0xFFFFFFFF)
-
 #define MND_STREAM_CREATE_NAME       "stream-create"
 #define MND_STREAM_START_NAME        "stream-start"
 #define MND_STREAM_DROP_NAME         "stream-drop"
@@ -522,6 +520,7 @@ typedef struct SStmWatchCtx {
   int8_t   ending;
   int8_t   taskRemains;
   int32_t  processing;
+  SHashObj* deferredStreams;  // Stream IDs deferred to normal deployment; guarded by actionQLock.
 } SStmWatchCtx;
 
 typedef struct SStmCheckStatusCtx {
@@ -594,7 +593,8 @@ typedef struct SStmRuntime {
 
   // UP
   int32_t          toUpdateScanNum;
-  SHashObj*        toUpdateScanMap;   // streamId + subplanId => SStmTaskSrcAddr (only scan's target runner tasks)
+  // (streamId, packed(groupId, subplanId)) => SArray<SStmTaskSrcAddr>*, NULL means no surviving address.
+  SHashObj*        toUpdateScanMap;
 
   // HEALTH
   SStmHealthCheckCtx hCtx;
@@ -652,6 +652,7 @@ int32_t mstSetStreamRecalculatesResBlock(SStreamObj* pStream, SSDataBlock* pBloc
  * metric snapshots are copied under each task's detailStatusLock.
  */
 int32_t mstBuildStreamMetricView(const SStmStatus* pStatus, SStreamMetricView* pView);
+int32_t mstGetScanUidFromSubplan(int64_t streamId, const SSubplan* plan, int64_t* uid);
 int32_t mstGetScanUidFromPlan(int64_t streamId, void* scanPlan, int64_t* uid);
 void    mstConvertRecalcRangePrecision(STimeWindow* pRange, int32_t fromPrecision, int32_t toPrecision);
 int32_t mstPruneRecalcRecordsLocked(SArray* pRecords, int64_t nowMs);

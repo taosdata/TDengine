@@ -42,6 +42,9 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 SEpSet   mndGetVgroupEpsetById(SMnode *pMnode, int32_t vgId);
+// lookupCode must be non-NULL and receives only the vgroup lookup status;
+// an existing vgroup may have no endpoints. Preserves replica endpoint order.
+SEpSet   mndGetVgroupEpsetByIdWithStatus(SMnode *pMnode, int32_t vgId, int32_t *lookupCode);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 void     mndSortVnodeGid(SVgObj *pVgroup);
 int64_t  mndGetVnodesMemory(SMnode *pMnode, int32_t dnodeId);

@@ -1414,6 +1414,7 @@
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tag_aggregate.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_tagref_prefilter.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_ts_only_calc.py
+,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_vtable_drop_unrelated_db.py -N 3 --replica 1
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_udf_in_where.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/stream_vtable_chain_ref.py
 ,,y,.,./ci/pytest.sh pytest cases/18-StreamProcessing/02-Stream/test_stream_calc_range_extra_ts_cond.py
