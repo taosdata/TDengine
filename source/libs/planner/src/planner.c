@@ -1650,7 +1650,7 @@ static int32_t planBuildPhysiForUnit(SPlanQueryUnit* pUnit, SArray* pExecNodeLis
     code = postSplitOptimize(pUnit->pCtx, pUnit->pLogicSubplan);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = scaleOutLogicPlan(pUnit->pCtx, pUnit->pLogicSubplan, &pUnit->pLogicPlan);
+    code = scaleOutLogicPlan(pUnit->pCtx, pUnit->pLogicSubplan, pUnit->pCorrelationCall != NULL, &pUnit->pLogicPlan);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pUnit->pCtx, pUnit->pLogicPlan, &pUnit->pPhysiPlan, pExecNodeList);
@@ -2285,20 +2285,7 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
 
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
 
-int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
-  if (NULL == pSubplan) {
-    return TSDB_CODE_INVALID_PARA;
-  }
-
-  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
-    SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
-    *pLen = insert->size;
-    *pStr = insert->pData;
-    insert->pData = NULL;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+static int32_t wrapSubplanMsg(const SSubplan* pSubplan, int32_t code, char** pStr, int32_t* pLen) {
   if (TSDB_CODE_SUCCESS != code || !pSubplan->requiresAncestorContext) {
     return code;
   }
@@ -2326,6 +2313,33 @@ int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   *pStr = pWrapped;
   *pLen += envelopeLen;
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qSubPlanBuildInvariantBody(const SSubplan* pPlan, char** ppBody, int32_t* pLen) {
+  return nodesSubplanInvariantToMsg(pPlan, ppBody, pLen);
+}
+
+int32_t qSubPlanAssembleMsg(const SSubplan* pPlan, const char* body, int32_t bodyLen, const SSubplanTarget* target,
+                            char** ppMsg, int32_t* pLen) {
+  int32_t code = nodesSubplanAssembleMsg(pPlan, body, bodyLen, target, ppMsg, pLen);
+  return wrapSubplanMsg(pPlan, code, ppMsg, pLen);
+}
+
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
+  if (NULL == pSubplan) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
+    SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
+    *pLen = insert->size;
+    *pStr = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+  return wrapSubplanMsg(pSubplan, code, pStr, pLen);
 }
 
 int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {

@@ -337,6 +337,10 @@ static FORCE_INLINE int32_t tDecodeU32v(SDecoder* pCoder, uint32_t* val) {
   uint32_t tval = 0;
   for (int32_t i = 0;; i++) {
     TAOS_CHECK_RETURN(tDecodeU8(pCoder, &byte));
+    // The fifth byte contains at most the four high bits of a uint32_t.
+    if (i == 4 && byte > 0x0f) {
+      TAOS_RETURN(TSDB_CODE_OUT_OF_RANGE);
+    }
     if (byte < ENCODE_LIMIT) {
       tval |= (((uint32_t)byte) << (7 * i));
       break;

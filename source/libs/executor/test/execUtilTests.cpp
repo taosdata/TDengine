@@ -23266,6 +23266,44 @@ TEST_F(ReaderGroupScanTest, DimensionCreateSetsGenerationBeforeScalarEvaluation)
   setTaskScalarExtraInfo(&task_);
 }
 
+extern "C" int64_t nodesTestGetLiveAllocations(void);
+
+TEST(ExecTaskPlanTest, creationFailuresPreserveOnlySchedulerOwnedPlans) {
+  for (bool failTask : {true, false}) {
+    for (bool local : {true, false}) {
+      SCOPED_TRACE(::testing::Message() << "failTask=" << failTask << ", local=" << local);
+      const int64_t before = nodesTestGetLiveAllocations();
+      SNode* node = nullptr;
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN, &node));
+      auto* plan = reinterpret_cast<SSubplan*>(node);
+      ASSERT_EQ(0, nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN, reinterpret_cast<SNode**>(&plan->pNode)));
+      const int64_t withPlan = nodesTestGetLiveAllocations();
+      SReadHandle handle = {};
+      handle.localExec = local;
+      SExecTaskInfo* task = nullptr;
+      {
+        Stub probe;
+        if (failTask) {
+          probe.set(taosMemCalloc, +[](int64_t, int64_t) -> void* {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            return nullptr;
+          });
+        } else {
+          probe.set(createOperator, +[](SPhysiNode*, SExecTaskInfo*, SReadHandle*, SNode*, SNode*, const char*,
+                                        const char*, SOperatorInfo**, EOPTR_EXEC_MODEL) {
+            return TSDB_CODE_OUT_OF_MEMORY;
+          });
+        }
+        EXPECT_EQ(TSDB_CODE_OUT_OF_MEMORY,
+                  createExecTaskInfo(plan, &task, &handle, 1, 7, nullptr, OPTR_EXEC_MODEL_BATCH, nullptr, false));
+      }
+      EXPECT_EQ(nullptr, task);
+      ASSERT_EQ(local ? withPlan : before, nodesTestGetLiveAllocations());
+      if (local) nodesDestroyNode(node);
+    }
+  }
+}
+
 TEST_F(ReaderGroupScanTest, DimensionResetPreservesVersionAndCancellation) {
   auto &spy = lifecycleSpy_;
   scan_.base.readerAPI.tsdReaderOpen = scanReaderOpenSpy;

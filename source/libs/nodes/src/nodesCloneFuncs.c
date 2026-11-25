@@ -1228,6 +1228,14 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
 static int32_t logicVirtualScanCopy(const SVirtualScanLogicNode * pSrc, SVirtualScanLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(hasFilterCond);
+  CLONE_NODE_LIST_FIELD(pDeferredSourceScans);
+  CLONE_NODE_FIELD(pDeferredPrimaryCond);
+  CLONE_NODE_FIELD(deferredSourceLimit);
+  COPY_SCALAR_FIELD(deferredScanRange);
+  COPY_SCALAR_FIELD(deferredScanOrder);
+  COPY_SCALAR_FIELD(hasDeferredScanRange);
+  COPY_SCALAR_FIELD(deferredScanPathDone);
+  COPY_SCALAR_FIELD(canDeferSources);
   COPY_SCALAR_FIELD(hasReferenceBinding);
   COPY_SCALAR_FIELD(scanAllCols);
   CLONE_NODE_LIST_FIELD(pScanCols);
@@ -1617,6 +1625,8 @@ static int32_t logicDynQueryCtrlCopy(const SDynQueryCtrlLogicNode* pSrc, SDynQue
 }
 
 static int32_t logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
+  COPY_SCALAR_FIELD(isTemplate);
+  COPY_SCALAR_FIELD(baseSubplanId);
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
   CLONE_NODE_FIELD_EX(pNode, SLogicNode*);
   COPY_SCALAR_FIELD(subplanType);
@@ -2113,6 +2123,12 @@ static int32_t physiDeleterCopy(const SDataDeleterNode* pSrc, SDataDeleterNode* 
 }
 
 static int32_t physiSubplanCopy(const SSubplan* pSrc, SSubplan* pDst) {
+  pDst->execNodeStat = pSrc->execNodeStat;
+  if (pSrc->pExecTargets) {
+    pDst->pExecTargets = taosArrayDup(pSrc->pExecTargets, NULL);
+    if (!pDst->pExecTargets) return terrno;
+  }
+  CLONE_NODE_LIST_FIELD(pSubQ);
   COPY_SCALAR_FIELD(type);
   COPY_OBJECT_FIELD(id, sizeof(SSubplanId));
   COPY_SCALAR_FIELD(subplanType);

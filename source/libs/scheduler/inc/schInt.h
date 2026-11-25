@@ -236,6 +236,11 @@ typedef struct SSchTimerParam {
   int32_t  subJobId;
 } SSchTimerParam;
 
+typedef struct SSchPlanBodyCache {
+  char    *body;
+  int32_t  len;
+} SSchPlanBodyCache;
+
 typedef struct SSchTask {
   uint64_t        clientId;        // current client id
   uint64_t        taskId;          // task id
@@ -261,6 +266,9 @@ typedef struct SSchTask {
   int32_t         failedExecId;    // last failed task execute index
   SSchLevel      *level;           // level
   SRWLatch        planLock;        // task update plan lock
+  const SSubplanTarget *target;   // Borrowed from plan for the lifetime of the job.
+  SSchPlanBodyCache *cachedBody;  // Stable job-owned slot shared by sibling tasks.
+  SSubplan       *localPlan;
   SSubplan       *plan;            // subplan
   char           *msg;             // operator tree
   int32_t         msgLen;          // msg length
@@ -279,6 +287,19 @@ typedef struct SSchTask {
   bool            registerdHb;     // registered in hb
   SSchTimerParam  delayLaunchPar; 
 } SSchTask;
+
+static inline int32_t schTaskGetSubplanId(const SSchTask *task) {
+  return task->target ? task->target->subplanId : task->plan->id.subplanId;
+}
+
+static inline const SQueryNodeAddr *schTaskGetExecNode(const SSchTask *task) {
+  return task->target ? &task->target->execNode : &task->plan->execNode;
+}
+
+static inline int32_t schTaskGetTableNum(const SSchTask *task) {
+  return task->target ? task->target->execNodeStat.tableNum : task->plan->execNodeStat.tableNum;
+}
+
 
 typedef enum {
   JOB_TYPE_INSERT = 0x01,
@@ -308,6 +329,8 @@ typedef struct SSchMainResult {
 } SSchMainResult;
 
 typedef struct SSchJob {
+  SHashObj        *planBodyCache;
+  SRWLatch         planBodyCacheLock;
   int64_t          refId;
   uint64_t         queryId;
   uint64_t         seriesId;
@@ -716,6 +739,7 @@ void schSetJobType(SSchJob* pJob, ESubplanType type);
 void     schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask);
 void     schCleanClusterHb(void *pTrans);
 int32_t  schLaunchTask(SSchJob *job, SSchTask *task);
+int32_t  schPrepareLocalTaskPlan(SSchJob *pJob, SSchTask *pTask);
 int32_t  schDelayLaunchTask(SSchJob *pJob, SSchTask *pTask);
 int32_t  schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType, void *param);
 int32_t  schBuildSubJobEndpoints(SSchTask *task, SArray** ppRes, SSchJob* target);

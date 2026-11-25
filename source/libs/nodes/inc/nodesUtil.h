@@ -70,6 +70,17 @@ typedef struct SSubplanLink {
 
 // pSubplans owns each entity once; pChildren/pParents only borrow those entities.
 // On error pPlan may be partially linked and must be discarded.
+// A whole-plan export uses the legacy one-subplan-per-task layout. Only the
+// temporary level lists, child links and target overlays are owned by the view.
+typedef struct SPlanExportView {
+  SQueryPlan plan;
+  SSubplan*  instances;
+} SPlanExportView;
+
+int32_t nodesBuildPlanExportView(const SQueryPlan* plan, SPlanExportView* view);
+void nodesClearPlanExportView(SPlanExportView* view);
+int32_t nodesCountPlanAndSubqueries(const SQueryPlan* plan, int32_t localCount, int32_t* total);
+
 int32_t nodesRestoreSubplanDag(SQueryPlan* pPlan, const SArray* pLinks);
 
 int32_t nodesDecodeTimezoneName(const char* pTimezoneName, char* pTimezoneBuf, int32_t bufSize,

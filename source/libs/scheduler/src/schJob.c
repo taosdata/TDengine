@@ -271,6 +271,22 @@ _return:
   SCH_RET(code);
 }
 
+typedef struct SSchPlanTaskRange {
+  SSchLevel *level;
+  int32_t    startIdx;
+  int32_t    count;
+} SSchPlanTaskRange;
+
+static int32_t schAppendRelatedTasks(SHashObj *planToTask, SSubplan *plan, SArray *tasks) {
+  SSchPlanTaskRange *range = taosHashGet(planToTask, &plan, POINTER_BYTES);
+  if (!range) return TSDB_CODE_SCH_INTERNAL_ERROR;
+  for (int32_t i = 0; i < range->count; ++i) {
+    SSchTask *task = taosArrayGet(range->level->subTasks, range->startIdx + i);
+    if (!taosArrayPush(tasks, &task)) return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
   for (int32_t i = 0; i < pJob->levelNum; ++i) {
     SSchLevel* pLevel = taosArrayGet(pJob->levels, i);
@@ -317,18 +333,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
           SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
         }
 
-        SSchTask **childTask = taosHashGet(planToTask, &child, POINTER_BYTES);
-        if (NULL == childTask || NULL == *childTask) {
-          SCH_TASK_ELOG("subplan children relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
-          SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-        }
-
-        if (NULL == taosArrayPush(pTask->children, childTask)) {
-          SCH_TASK_ELOG("taosArrayPush childTask failed, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
-          SCH_ERR_RET(terrno);
-        }
-
-        SCH_TASK_DLOG("children info, the %d child TID 0x%" PRIx64, n, (*childTask)->taskId);
+        SCH_ERR_RET(schAppendRelatedTasks(planToTask, child, pTask->children));
         ++n;
       }
 
@@ -364,18 +369,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
           SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
         }
 
-        SSchTask **parentTask = taosHashGet(planToTask, &parent, POINTER_BYTES);
-        if (NULL == parentTask || NULL == *parentTask) {
-          SCH_TASK_ELOG("subplan parent relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
-          SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-        }
-
-        if (NULL == taosArrayPush(pTask->parents, parentTask)) {
-          SCH_TASK_ELOG("taosArrayPush parentTask failed, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
-          SCH_ERR_RET(terrno);
-        }
-
-        SCH_TASK_DLOG("parents info, the %d parent TID 0x%" PRIx64, n, (*parentTask)->taskId);
+        SCH_ERR_RET(schAppendRelatedTasks(planToTask, parent, pTask->parents));
         ++n;
       }
 
@@ -496,7 +490,14 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
-    taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
+    taskNum = 0;
+    SNode *node = NULL;
+    FOREACH(node, plans->pNodeList) {
+      if (!node || nodeType(node) != QUERY_NODE_PHYSICAL_SUBPLAN) SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      int32_t count = subplanGetTargetCount((SSubplan *)node);
+      if (count <= 0 || count > pDag->numOfSubplans - totalTaskNum - taskNum) SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      taskNum += count;
+    }
     if (taskNum <= 0) {
       SCH_JOB_ELOG("invalid level plan number:%d, level:%d", taskNum, i);
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -524,39 +525,48 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
       SCH_ERR_JRET(schValidateSubplan(pJob, plan, pLevel->level, n, taskNum));
       schSetJobType(pJob, plan->subplanType);
 
-      SSchTask  task = {0};
-      SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
-      if (NULL == pTask) {
-        SCH_TASK_ELOG("taosArrayPush task to level failed, level:%d, taskIdx:%d", pLevel->level, n);
-        SCH_ERR_JRET(terrno);
+      SSchPlanTaskRange range = {.level = pLevel, .startIdx = n, .count = subplanGetTargetCount(plan)};
+      SCH_ERR_JRET(taosHashPut(planToTask, &plan, POINTER_BYTES, &range, sizeof(range)));
+      SSchPlanBodyCache *cachedBody = NULL;
+      if (range.count > 1) {
+        if (!pJob->planBodyCache) {
+          pJob->planBodyCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+          if (!pJob->planBodyCache) SCH_ERR_JRET(terrno);
+        }
+        SSchPlanBodyCache empty = {0};
+        SCH_ERR_JRET(taosHashPut(pJob->planBodyCache, &plan, POINTER_BYTES, &empty, sizeof(empty)));
+        cachedBody = taosHashGet(pJob->planBodyCache, &plan, POINTER_BYTES);
+        if (!cachedBody) SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
       }
+      for (int32_t k = 0; k < range.count; ++k) {
+        SSchTask task = {.cachedBody = cachedBody, .target = cachedBody ? taosArrayGet(plan->pExecTargets, k) : NULL};
+        SSchTask *pTask = taosArrayPush(pLevel->subTasks, &task);
+        if (NULL == pTask) {
+          SCH_TASK_ELOG("taosArrayPush task to level failed, level:%d, taskIdx:%d", pLevel->level, n);
+          SCH_ERR_JRET(terrno);
+        }
 
-      SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel));
+        SCH_ERR_JRET(schInitTask(pJob, pTask, plan, pLevel));
 
-      SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
+        SCH_ERR_JRET(schAppendJobDataSrc(pJob, pTask));
 
-      code = taosHashPut(planToTask, &plan, POINTER_BYTES, &pTask, POINTER_BYTES);
-      if (0 != code) {
-        SCH_TASK_ELOG("taosHashPut to planToTaks failed, taskIdx:%d, error:%s", n, tstrerror(code));
-        SCH_ERR_JRET(code);
-      }
-
-      code = taosHashPut(pJob->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
-      if (0 != code) {
-        SCH_TASK_ELOG("taosHashPut to taskList failed, taskIdx:%d, error:%s", n, tstrerror(code));
-        SCH_ERR_JRET(code);
-      }
-
-      if (NULL != pJob->parent) {
-        code = taosHashPut(((SSchJob*)pJob->parent)->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
+        code = taosHashPut(pJob->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
         if (0 != code) {
-          SCH_TASK_ELOG("taosHashPut to parent taskList failed, taskIdx:%d, error:%s", n, tstrerror(code));
+          SCH_TASK_ELOG("taosHashPut to taskList failed, taskIdx:%d, error:%s", n, tstrerror(code));
           SCH_ERR_JRET(code);
         }
-      }
+
+        if (NULL != pJob->parent) {
+          code = taosHashPut(((SSchJob*)pJob->parent)->taskList, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
+          if (0 != code) {
+            SCH_TASK_ELOG("taosHashPut to parent taskList failed, taskIdx:%d, error:%s", n, tstrerror(code));
+            SCH_ERR_JRET(code);
+          }
+        }
       
-      ++pJob->taskNum;
-      ++n;
+        ++pJob->taskNum;
+        ++n;
+      }
     }
 
     SCH_JOB_DLOG("level %d initialized, taskNum:%d", i, taskNum);
@@ -1536,6 +1546,11 @@ void schFreeJobImpl(void *job) {
     taosArrayDestroy(pLevel->subTasks);
   }
 
+  void *entry = NULL;
+  while ((entry = taosHashIterate(pJob->planBodyCache, entry)) != NULL) {
+    taosMemoryFree(((SSchPlanBodyCache *)entry)->body);
+  }
+  taosHashCleanup(pJob->planBodyCache);
   schFreeFlowCtrl(pJob);
   taosArrayDestroy(pJob->dependentJobs);
   taosArrayDestroy(pJob->waitingMainTasks);
@@ -2034,9 +2049,11 @@ static int32_t schResetJobForRetry(SSchJob *pJob, SSchTask *pTask, int32_t rspCo
 
       schResetTaskForRetry(pJob, p);
 
-      SCH_LOCK(SCH_WRITE, &p->planLock);
-      qClearSubplanExecutionNode(p->plan);
-      SCH_UNLOCK(SCH_WRITE, &p->planLock);
+      if (!p->target) {
+        SCH_LOCK(SCH_WRITE, &p->planLock);
+        qClearSubplanExecutionNode(p->plan);
+        SCH_UNLOCK(SCH_WRITE, &p->planLock);
+      }
 
       SCH_UNLOCK_TASK(p);
     }

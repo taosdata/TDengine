@@ -8430,6 +8430,28 @@ static int32_t createPhysiSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogic
     return code;
   }
 
+  if (pLogicSubplan->isTemplate) {
+    const SVgroupsInfo* pGroups = pLogicSubplan->pVgroupList;
+    if (pGroups == NULL || pGroups->numOfVgroups <= 1) {
+      nodesDestroyNode((SNode*)pSubplan);
+      return TSDB_CODE_PLAN_INTERNAL_ERROR;
+    }
+    pSubplan->pExecTargets = taosArrayInit(pGroups->numOfVgroups, sizeof(SSubplanTarget));
+    if (!pSubplan->pExecTargets) {
+      nodesDestroyNode((SNode*)pSubplan);
+      return terrno;
+    }
+    for (int32_t i = 0; i < pGroups->numOfVgroups; ++i) {
+      SSubplanTarget target = {.subplanId = pLogicSubplan->baseSubplanId + i};
+      target.execNodeStat.tableNum = pGroups->vgroups[i].numOfTable;
+      vgroupInfoToNodeAddr(&pGroups->vgroups[i], &target.execNode);
+      if (!taosArrayPush(pSubplan->pExecTargets, &target)) {
+        nodesDestroyNode((SNode*)pSubplan);
+        return terrno;
+      }
+    }
+  }
+
   // Set execNode from logic subplan's vgroup list
   // After split phase, vgroup list is transferred from logic node to logic subplan via TSWAP
   // We need to set execNode here before creating physical nodes
@@ -8566,7 +8588,7 @@ static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubp
 
   if (TSDB_CODE_SUCCESS == code) {
     code = pushSubplan(pCxt, (SNode*)pSubplan, pLogicSubplan->level, pQueryPlan->pSubplans);
-    ++(pQueryPlan->numOfSubplans);
+    pQueryPlan->numOfSubplans += subplanGetTargetCount(pSubplan);
   }
 
   if (TSDB_CODE_SUCCESS != code) {
