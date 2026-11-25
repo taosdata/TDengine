@@ -42,7 +42,7 @@ jobs:
       matrix:
         os:
           - ubuntu-22.04
-          - macos-14
+          - macos-15
 
     steps:
       - name: Checkout the repository
